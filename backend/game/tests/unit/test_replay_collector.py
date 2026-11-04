@@ -1,4 +1,4 @@
-import json
+import pytest
 
 from game.logic.enums import CallType, GameEndCause, GameErrorCode, MeldViewType, WindName
 from game.logic.events import (
@@ -32,13 +32,14 @@ from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.tests.mocks import FakeReplayStorage
 from game.wire.compact import encode_discard, encode_draw
 from game.wire.events import EVENT_TYPE_INT
-from game.wire.replay_format import REPLAY_VERSION, decode_replay_settings
+from game.wire.keys import WireKey
+from game.wire.replay_format import REPLAY_VERSION, decode_replay_records, decode_replay_settings
 
 
-def _parse_saved_replay(content: str) -> list[dict]:
-    events = [json.loads(line) for line in content.strip().split("\n") if line]
+def _parse_saved_replay(content: bytes) -> list[dict]:
+    events = decode_replay_records(content)
     assert len(events) >= 1
-    assert events[0] == {"version": REPLAY_VERSION}
+    assert events[0] == {WireKey.REPLAY_VERSION: REPLAY_VERSION}
     return events[1:]
 
 
@@ -165,14 +166,14 @@ class TestReplayCollectorLifecycle:
         collector.collect_events(replay, [_make_discard_event()])
         collector.collect_events(replay, [_make_meld_event()])
 
-        await collector.save("game1", replay.lines)
+        await collector.save("game1", replay.records)
         assert "game1" in storage.saved
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 2
         record0 = lines[0]
-        assert record0["t"] == EVENT_TYPE_INT[EventType.DISCARD]
+        assert record0[WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.DISCARD]
         record1 = lines[1]
-        assert record1["t"] == EVENT_TYPE_INT[EventType.MELD]
+        assert record1[WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.MELD]
 
 
 class TestReplayCollectorFiltering:
@@ -186,14 +187,14 @@ class TestReplayCollectorFiltering:
             [
                 _make_discard_event(),  # broadcast - collected
                 _make_draw_event(),  # seat-target DrawEvent - collected
-                _make_round_started_event(),  # seat-target RoundStartedEvent - merged
+                *_make_all_round_started_events(),
             ],
         )
 
-        await collector.save("game1", replay.lines)
+        await collector.save("game1", replay.records)
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 3
-        types = [event["t"] for event in lines]
+        types = [event[WireKey.EVENT_TYPE] for event in lines]
         assert types == [
             EVENT_TYPE_INT[EventType.DISCARD],
             EVENT_TYPE_INT[EventType.DRAW],
@@ -215,10 +216,10 @@ class TestReplayCollectorFiltering:
             ],
         )
 
-        await collector.save("game1", replay.lines)
+        await collector.save("game1", replay.records)
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 1
-        assert lines[0]["t"] == EVENT_TYPE_INT[EventType.DISCARD]
+        assert lines[0][WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.DISCARD]
 
     async def test_replay_collector__when_draw_has_available_actions__should_strip_them(self):
         storage = FakeReplayStorage()
@@ -235,11 +236,11 @@ class TestReplayCollectorFiltering:
         replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, settings=GameSettings())
         collector.collect_events(replay, [draw_with_actions])
 
-        await collector.save("game1", replay.lines)
+        await collector.save("game1", replay.records)
         record = _parse_saved_replay(storage.saved["game1"])[0]
-        assert record["t"] == EVENT_TYPE_INT[EventType.DRAW]
-        assert record["d"] == encode_draw(0, 42)
-        assert "aa" not in record
+        assert record[WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.DRAW]
+        assert record[WireKey.PACKED_MOVE] == encode_draw(0, 42)
+        assert WireKey.AVAILABLE_ACTIONS not in record
 
     async def test_replay_collector__when_broadcast_gameplay_events__should_collect_all_in_order(self):
         storage = FakeReplayStorage()
@@ -259,10 +260,10 @@ class TestReplayCollectorFiltering:
             ],
         )
 
-        await collector.save("game1", replay.lines)
+        await collector.save("game1", replay.records)
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 7
-        types = [event["t"] for event in lines]
+        types = [event[WireKey.EVENT_TYPE] for event in lines]
         expected = [
             EVENT_TYPE_INT[EventType.GAME_STARTED],
             EVENT_TYPE_INT[EventType.DISCARD],
@@ -283,43 +284,32 @@ class TestReplayCollectorRoundStartedMerge:
         replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, settings=GameSettings())
         collector.collect_events(replay, _make_all_round_started_events())
 
-        await collector.save("game1", replay.lines)
+        await collector.save("game1", replay.records)
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 1
         record = lines[0]
-        assert record["t"] == EVENT_TYPE_INT[EventType.ROUND_STARTED]
-        players = record["p"]
+        assert record[WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.ROUND_STARTED]
+        players = record[WireKey.PLAYERS]
         assert len(players) == 4
         for player in players:
-            seat = player["s"]
-            assert player["tl"] == _SEAT_TILES[seat]
+            seat = player[WireKey.SEAT]
+            assert player[WireKey.TILES] == _SEAT_TILES[seat]
             # 25000 points / 100 = 250 in wire format
-            assert player["sc"] == 250
+            assert player[WireKey.SCORE] == 250
 
         # mt (my_tiles) and s (seat) are stripped from the merged output
-        assert "mt" not in record
-        assert "s" not in record
+        assert WireKey.MY_TILES not in record
+        assert WireKey.SEAT not in record
 
-    async def test_replay_collector__when_single_round_started_event__should_produce_one_record(
-        self,
-    ):
+    async def test_replay_collector__when_deal_is_missing_seat_views__should_refuse_to_save(self):
         storage = FakeReplayStorage()
         collector = ReplayCollector(storage)
-
         replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, settings=GameSettings())
         collector.collect_events(replay, [_make_round_started_event(seat=2)])
 
-        await collector.save("game1", replay.lines)
-        lines = _parse_saved_replay(storage.saved["game1"])
-        assert len(lines) == 1
-        record = lines[0]
-        assert record["t"] == EVENT_TYPE_INT[EventType.ROUND_STARTED]
-        # Only seat 2's tiles are populated from my_tiles (single event, no merge partner)
-        players = record["p"]
-        seat2_player = next(p for p in players if p["s"] == 2)
-        assert seat2_player["tl"] == _SEAT_TILES[2]
-        # mt (my_tiles) is stripped from the merged output
-        assert "mt" not in record
+        with pytest.raises(ValueError, match=r"misses fields.*TILES"):
+            await collector.save("game1", replay.records)
+        assert storage.saved == {}
 
     async def test_replay_collector__when_round_started_follows_game_started__should_merge_and_keep_order(
         self,
@@ -337,10 +327,10 @@ class TestReplayCollectorRoundStartedMerge:
             ],
         )
 
-        await collector.save("game1", replay.lines)
+        await collector.save("game1", replay.records)
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 3
-        types = [event["t"] for event in lines]
+        types = [event[WireKey.EVENT_TYPE] for event in lines]
         assert types == [
             EVENT_TYPE_INT[EventType.GAME_STARTED],
             EVENT_TYPE_INT[EventType.ROUND_STARTED],
@@ -359,10 +349,10 @@ class TestReplayCollectorRoundStartedMerge:
         # Second round: all 4 events in another batch
         collector.collect_events(replay, _make_all_round_started_events())
 
-        await collector.save("game1", replay.lines)
+        await collector.save("game1", replay.records)
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 3
-        types = [event["t"] for event in lines]
+        types = [event[WireKey.EVENT_TYPE] for event in lines]
         assert types == [
             EVENT_TYPE_INT[EventType.ROUND_STARTED],
             EVENT_TYPE_INT[EventType.DISCARD],
@@ -378,10 +368,10 @@ class TestReplayCollectorJsonLines:
         replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, settings=GameSettings())
         collector.collect_events(replay, [_make_discard_event(seat=2, tile_id=42)])
 
-        await collector.save("game1", replay.lines)
+        await collector.save("game1", replay.records)
         record = _parse_saved_replay(storage.saved["game1"])[0]
-        assert record["t"] == EVENT_TYPE_INT[EventType.DISCARD]
-        assert record["d"] == encode_discard(2, 42, is_tsumogiri=False, is_riichi=False)
+        assert record[WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.DISCARD]
+        assert record[WireKey.PACKED_MOVE] == encode_discard(2, 42, is_tsumogiri=False, is_riichi=False)
 
     async def test_replay_collector__when_riichi_discard_collected__should_encode_riichi_in_packed_value(self):
         storage = FakeReplayStorage()
@@ -392,9 +382,9 @@ class TestReplayCollectorJsonLines:
         replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, settings=GameSettings())
         collector.collect_events(replay, [riichi_discard])
 
-        await collector.save("game1", replay.lines)
+        await collector.save("game1", replay.records)
         record = _parse_saved_replay(storage.saved["game1"])[0]
-        assert record["d"] == encode_discard(0, 10, is_tsumogiri=False, is_riichi=True)
+        assert record[WireKey.PACKED_MOVE] == encode_discard(0, 10, is_tsumogiri=False, is_riichi=True)
 
 
 class TestReplayCollectorSeedInReplay:
@@ -406,15 +396,16 @@ class TestReplayCollectorSeedInReplay:
         replay = ReplayRecord(seed="d" * 192, rng_version=RNG_VERSION, settings=settings)
         collector.collect_events(replay, [_make_game_started_event()])
 
-        await collector.save("game1", replay.lines)
+        await collector.save("game1", replay.records)
         record = _parse_saved_replay(storage.saved["game1"])[0]
-        assert record["t"] == EVENT_TYPE_INT[EventType.GAME_STARTED]
-        assert record["sd"] == "d" * 192
-        assert record["rv"] == RNG_VERSION
-        assert record["gs"]["game_type"] == "tonpusen"
-        assert record["gs"]["uma"] == [30, 10, -10, -30]
-        assert decode_replay_settings(record["gs"]) == settings
-        assert "rsv" not in record
+        assert record[WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.GAME_STARTED]
+        assert record[WireKey.SEED] == "d" * 192
+        assert record[WireKey.RNG_VERSION] == RNG_VERSION
+        assert record[WireKey.GAME_SETTINGS]["overrides"]["game_type"] == "tonpusen"
+        assert record[WireKey.GAME_SETTINGS]["overrides"]["uma"] == [30, 10, -10, -30]
+        assert decode_replay_settings(record[WireKey.GAME_SETTINGS]) == settings
+        assert record[WireKey.RIICHI_STICK_VALUE] == 10
+        assert record[WireKey.HAS_AKADORA] is settings.has_akadora
 
     async def test_replay_collector__when_multiple_events_collected__should_include_seed_only_in_game_started(self):
         storage = FakeReplayStorage()
@@ -426,18 +417,18 @@ class TestReplayCollectorSeedInReplay:
             [_make_game_started_event(), _make_discard_event(), _make_game_ended_event()],
         )
 
-        await collector.save("game1", replay.lines)
+        await collector.save("game1", replay.records)
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 3
         game_started = lines[0]
-        assert game_started["sd"] == "b" * 192
-        assert game_started["rv"] == RNG_VERSION
+        assert game_started[WireKey.SEED] == "b" * 192
+        assert game_started[WireKey.RNG_VERSION] == RNG_VERSION
         discard = lines[1]
-        assert "sd" not in discard
+        assert WireKey.SEED not in discard
         game_ended = lines[2]
-        assert "sd" not in game_ended
+        assert WireKey.SEED not in game_ended
 
     def test_game_event_payload__when_game_started__should_exclude_seed(self):
         event = _make_game_started_event()
         payload = game_event_payload(event)
-        assert "sd" not in payload
+        assert WireKey.SEED not in payload

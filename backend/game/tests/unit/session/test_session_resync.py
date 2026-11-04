@@ -8,14 +8,15 @@ from game.session.models import PlayerSpec
 from game.tests.helpers.fake_websocket import FakeWebSocketClient
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection
+from game.wire.keys import WireKey
 
 from .helpers import create_started_game, game_of, participant_of, runtime_of, start_over_sockets
 
-RESYNC = {"t": WireClientMessageType.RESYNC}
+RESYNC = {WireKey.EVENT_TYPE: WireClientMessageType.RESYNC}
 
 
 def _is_snapshot(message: dict) -> bool:
-    return message.get("type") == SessionMessageType.GAME_RECONNECTED
+    return message.get(WireKey.SESSION_TYPE) == SessionMessageType.GAME_RECONNECTED
 
 
 class TestResync:
@@ -30,13 +31,16 @@ class TestResync:
         awaiting = game_of(manager).awaiting
         decision_id = alice.decision_id
         deadline, bank = alice.timer.task, alice.timer.bank_seconds
-        replay_lines = list(game_of(manager).replay.lines)
+        replay_lines = list(game_of(manager).replay.records)
         fake_clock.advance(7)
 
         manager.resync(alice_conn)
         resynced = alice_conn.sent_messages
-        assert [message.get("type") for message in resynced] == [SessionMessageType.GAME_RECONNECTED, None]
-        assert (resynced[1]["wi"], resynced[1]["el"]) == (decision_id, 7)
+        assert [message.get(WireKey.SESSION_TYPE) for message in resynced] == [
+            SessionMessageType.GAME_RECONNECTED,
+            None,
+        ]
+        assert (resynced[1][WireKey.WAIT_ID], resynced[1][WireKey.WAIT_ELAPSED]) == (decision_id, 7)
         assert alice.connection is alice_conn
         assert not alice_conn.is_closed
         assert alice.stand_in is None
@@ -45,7 +49,7 @@ class TestResync:
         assert alice.timer.task is deadline
         assert not deadline.done()
         assert alice.timer.bank_seconds == bank
-        assert game_of(manager).replay.lines == replay_lines
+        assert game_of(manager).replay.records == replay_lines
         assert bob_conn.sent_messages == []
 
         new_conn = MockConnection()
@@ -65,7 +69,9 @@ class TestResync:
         conn._outbox.clear()
 
         manager.resync(conn)
-        assert [message["code"] for message in conn.sent_messages] == [SessionErrorCode.GAME_NOT_STARTED]
+        assert [message[WireKey.SESSION_ERROR_CODE] for message in conn.sent_messages] == [
+            SessionErrorCode.GAME_NOT_STARTED
+        ]
 
         await manager.shutdown()
 
@@ -81,11 +87,11 @@ class TestResyncEndpoint:
         bob.send(RESYNC)
         await bob.wait_for_message(_is_snapshot)
         bob.send(RESYNC)
-        await bob.wait_for_message(lambda m: m.get("code") == SessionErrorCode.RATE_LIMITED)
+        await bob.wait_for_message(lambda m: m.get(WireKey.SESSION_ERROR_CODE) == SessionErrorCode.RATE_LIMITED)
         assert bob.messages[-1] == {
-            "type": "session_error",
-            "code": "rate_limited",
-            "message": "Too many resync requests",
+            WireKey.SESSION_TYPE: "session_error",
+            WireKey.SESSION_ERROR_CODE: "rate_limited",
+            WireKey.SESSION_ERROR_MESSAGE: "Too many resync requests",
         }
         assert sum(1 for message in bob.messages if _is_snapshot(message)) == 1
 
@@ -95,5 +101,5 @@ class TestResyncEndpoint:
         table.endpoints.append(asyncio.create_task(websocket_endpoint(stranger.websocket, table.router)))
 
         stranger.send(RESYNC)
-        await stranger.wait_for_message(lambda m: m.get("type") == SessionMessageType.ERROR)
-        assert [message["code"] for message in stranger.messages] == [SessionErrorCode.NOT_IN_GAME]
+        await stranger.wait_for_message(lambda m: m.get(WireKey.SESSION_TYPE) == SessionMessageType.ERROR)
+        assert [message[WireKey.SESSION_ERROR_CODE] for message in stranger.messages] == [SessionErrorCode.NOT_IN_GAME]

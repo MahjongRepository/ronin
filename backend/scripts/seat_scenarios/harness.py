@@ -15,7 +15,6 @@ from game.logic.game import init_round
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.settings import GameSettings
 from game.messaging.encoder import decode, encode
-from game.messaging.event_payload import WAIT_ID_KEY
 from game.messaging.protocol import ConnectionProtocol
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
@@ -26,6 +25,7 @@ from game.session.replay_collector import ReplayCollector
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.mocks import FakeGameRepository, FakeReplayStorage
 from game.wire.enums import WireEventType
+from game.wire.keys import WireKey
 from scripts.replay_fixtures.staged_game import STAGED_SEED, ScenarioError
 
 if TYPE_CHECKING:
@@ -315,18 +315,21 @@ class TranscriptEvent:
         return {"at": self.at, "kind": self.kind.value, **self.fields, **label}
 
 
-def _is_refusal(payload: Mapping[str, Any]) -> bool:
-    return payload.get("t") == WireEventType.ERROR or payload.get("type") == SessionMessageType.ERROR
+def _is_refusal(payload: Mapping[int, Any]) -> bool:
+    return (
+        payload.get(WireKey.EVENT_TYPE) == WireEventType.ERROR
+        or payload.get(WireKey.SESSION_TYPE) == SessionMessageType.ERROR
+    )
 
 
-def _matches(payload: Mapping[str, Any], kind: WireEventType | SessionMessageType) -> bool:
+def _matches(payload: Mapping[int, Any], kind: WireEventType | SessionMessageType) -> bool:
     if isinstance(kind, SessionMessageType):
-        return payload.get("type") == kind
+        return payload.get(WireKey.SESSION_TYPE) == kind
 
-    return payload.get("t") == kind and "type" not in payload
+    return payload.get(WireKey.EVENT_TYPE) == kind and WireKey.SESSION_TYPE not in payload
 
 
-def _as_wire(message: Mapping[str, Any]) -> dict[str, Any]:
+def _as_wire(message: Mapping[int, Any]) -> dict[int, Any]:
     """
     Return a client message as the router gets it from a socket: through MessagePack, plain integers and strings.
     """
@@ -353,7 +356,7 @@ class SeatClient:
         self._socket: _ClientSocket | None = None
         self._sockets_opened = 0
         self._wait_id: int | None = None
-        self._refusals: list[Mapping[str, Any]] = []
+        self._refusals: list[Mapping[int, Any]] = []
         self._expected_refusals: list[SessionErrorCode] = []
 
     @property
@@ -368,13 +371,13 @@ class SeatClient:
     def events(self) -> tuple[TranscriptEvent, ...]:
         return tuple(self._events)
 
-    def refusals(self) -> list[Mapping[str, Any]]:
+    def refusals(self) -> list[Mapping[int, Any]]:
         return list(self._refusals)
 
     def expected_refusals(self) -> list[SessionErrorCode]:
         return list(self._expected_refusals)
 
-    def receive(self, socket: _ClientSocket, payload: dict[str, Any]) -> None:
+    def receive(self, socket: _ClientSocket, payload: dict[int, Any]) -> None:
         if socket is not self._socket:
             return
 
@@ -382,11 +385,14 @@ class SeatClient:
         if _is_refusal(payload):
             self._take_refusal(payload)
 
-        if WAIT_ID_KEY in payload:
-            self._wait_id = payload[WAIT_ID_KEY]
+        if WireKey.WAIT_ID in payload:
+            self._wait_id = payload[WireKey.WAIT_ID]
 
-        if payload.get("t") == WireEventType.GAME_STARTED or payload.get("type") == SessionMessageType.GAME_RECONNECTED:
-            self.seat = payload["s"]
+        if (
+            payload.get(WireKey.EVENT_TYPE) == WireEventType.GAME_STARTED
+            or payload.get(WireKey.SESSION_TYPE) == SessionMessageType.GAME_RECONNECTED
+        ):
+            self.seat = payload[WireKey.SEAT]
 
     def lose(self, socket: _ClientSocket, *, code: int, reason: str) -> None:
         if socket is not self._socket:
@@ -437,10 +443,10 @@ class SeatClient:
         self._game.run_at(at, replace)
 
     def discard(self, tile_id: int, *, at: float, label: str | None = None) -> None:
-        self._act(WireGameAction.DISCARD, {"ti": tile_id}, at=at, label=label)
+        self._act(WireGameAction.DISCARD, {WireKey.TILE_ID: tile_id}, at=at, label=label)
 
     def riichi(self, tile_id: int, *, at: float, label: str | None = None) -> None:
-        self._act(WireGameAction.DECLARE_RIICHI, {"ti": tile_id}, at=at, label=label)
+        self._act(WireGameAction.DECLARE_RIICHI, {WireKey.TILE_ID: tile_id}, at=at, label=label)
 
     def tsumo(self, *, at: float, label: str | None = None) -> None:
         self._act(WireGameAction.DECLARE_TSUMO, {}, at=at, label=label)
@@ -449,13 +455,23 @@ class SeatClient:
         self._act(WireGameAction.CALL_RON, {}, at=at, label=label)
 
     def pon(self, tile_id: int, *, at: float, label: str | None = None) -> None:
-        self._act(WireGameAction.CALL_PON, {"ti": tile_id}, at=at, label=label)
+        self._act(WireGameAction.CALL_PON, {WireKey.TILE_ID: tile_id}, at=at, label=label)
 
     def chi(self, tile_id: int, sequence: tuple[int, int], *, at: float, label: str | None = None) -> None:
-        self._act(WireGameAction.CALL_CHI, {"ti": tile_id, "sequence_tiles": list(sequence)}, at=at, label=label)
+        self._act(
+            WireGameAction.CALL_CHI,
+            {WireKey.TILE_ID: tile_id, WireKey.SEQUENCE_TILES: list(sequence)},
+            at=at,
+            label=label,
+        )
 
     def kan(self, tile_id: int, kan_type: KanType, *, at: float, label: str | None = None) -> None:
-        self._act(WireGameAction.CALL_KAN, {"ti": tile_id, "kan_type": kan_type.value}, at=at, label=label)
+        self._act(
+            WireGameAction.CALL_KAN,
+            {WireKey.TILE_ID: tile_id, WireKey.ACTION_KAN_TYPE: kan_type.value},
+            at=at,
+            label=label,
+        )
 
     def kyuushu(self, *, at: float, label: str | None = None) -> None:
         self._act(WireGameAction.CALL_KYUUSHU, {}, at=at, label=label)
@@ -475,7 +491,7 @@ class SeatClient:
 
         def send() -> None:
             socket = self._require_socket()
-            message = _as_wire({"t": WireClientMessageType.RESYNC})
+            message = _as_wire({WireKey.EVENT_TYPE: WireClientMessageType.RESYNC})
             self._record(EventKind.SENT, {"message": message})
             self._label_last(label)
             if refused_with is not None:
@@ -502,18 +518,18 @@ class SeatClient:
 
         raise ScenarioError(f"{self.name}: received no {kind!r} to label {name}")
 
-    def _take_refusal(self, payload: Mapping[str, Any]) -> None:
+    def _take_refusal(self, payload: Mapping[int, Any]) -> None:
         """
         Take a refusal as the one the scenario expects next, or keep it as one that fails the scenario.
         """
-        if self._expected_refusals and payload.get("code") == self._expected_refusals[0]:
+        if self._expected_refusals and payload.get(WireKey.SESSION_ERROR_CODE) == self._expected_refusals[0]:
             self._expected_refusals.pop(0)
             return
 
         self._refusals.append(payload)
 
-    def _identity(self, message_type: WireClientMessageType) -> dict[str, Any]:
-        return {"t": message_type, "game_ticket": self.ticket}
+    def _identity(self, message_type: WireClientMessageType) -> dict[int, Any]:
+        return {WireKey.EVENT_TYPE: message_type, WireKey.GAME_TICKET: self.ticket}
 
     def _open(self, identity: WireClientMessageType, *, label: str | None) -> None:
         if self._socket is not None:
@@ -526,7 +542,7 @@ class SeatClient:
         self.router.handle_connect(self._socket)
 
         message = _as_wire(self._identity(identity))
-        self._record(EventKind.SENT, {"message": {**message, "game_ticket": GAME_TICKET_PLACEHOLDER}})
+        self._record(EventKind.SENT, {"message": {**message, WireKey.GAME_TICKET: GAME_TICKET_PLACEHOLDER}})
         self.router.handle_message(self._socket, message)
 
     def _drop(self, *, at: float, label: str | None, server_sees: bool) -> None:
@@ -539,13 +555,20 @@ class SeatClient:
 
         self._game.run_at(at, drop)
 
-    def _act(self, action: WireGameAction, fields: dict[str, object], *, at: float, label: str | None) -> None:
+    def _act(self, action: WireGameAction, fields: dict[int, object], *, at: float, label: str | None) -> None:
         def send() -> None:
             socket = self._require_socket()
             if self._wait_id is None:
                 raise ScenarioError(f"{self.name}: {action.name} before any wait was opened")
 
-            message = _as_wire({"t": WireClientMessageType.GAME_ACTION, "a": action, **fields, "wi": self._wait_id})
+            message = _as_wire(
+                {
+                    WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
+                    WireKey.ACTION: action,
+                    **fields,
+                    WireKey.WAIT_ID: self._wait_id,
+                }
+            )
             self._record(EventKind.SENT, {"message": message})
             self._label_last(label)
             self.router.handle_message(socket, message)

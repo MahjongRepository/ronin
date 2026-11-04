@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { WIRE_KEY } from "@/shared/protocol";
 import { EVENT_TYPE, GAME_TYPE } from "@/shared/protocol/constants";
 import {
     discardSchema,
@@ -18,45 +19,51 @@ import {
 const SEATS = [0, 1, 2, 3] as const;
 
 interface WirePlayer {
-    readonly ai: number;
-    readonly nm: string;
-    readonly s: number;
+    readonly [WIRE_KEY.AI_PLAYER]: number;
+    readonly [WIRE_KEY.NAME]: string;
+    readonly [WIRE_KEY.SEAT]: number;
 }
 
 interface WirePlayerView {
-    readonly s: number;
-    readonly sc: number;
-    readonly tl?: readonly number[];
+    readonly [WIRE_KEY.SEAT]: number;
+    readonly [WIRE_KEY.SCORE]: number;
+    readonly [WIRE_KEY.TILES]?: readonly number[];
 }
 
 /** A game start's four seats in seat order: `named` at its own seat, a plain player at each other. */
 function fourPlayers(named: WirePlayer): WirePlayer[] {
-    return SEATS.map((seat) => (seat === named.s ? named : { ai: 0, nm: `P${seat}`, s: seat }));
+    return SEATS.map((seat) =>
+        seat === named[WIRE_KEY.SEAT]
+            ? named
+            : { [WIRE_KEY.AI_PLAYER]: 0, [WIRE_KEY.NAME]: `P${seat}`, [WIRE_KEY.SEAT]: seat },
+    );
 }
 
 /** A deal's four seats in seat order: `shown` at its own seat, the starting score at each other. */
 function fourViews(shown: WirePlayerView): WirePlayerView[] {
-    return SEATS.map((seat) => (seat === shown.s ? shown : { s: seat, sc: 250 }));
+    return SEATS.map((seat) =>
+        seat === shown[WIRE_KEY.SEAT] ? shown : { [WIRE_KEY.SEAT]: seat, [WIRE_KEY.SCORE]: 250 },
+    );
 }
 
 describe("gameStartedSchema", () => {
     it("parses realistic wire payload with 4 players", () => {
         const wire = {
-            dd: [
+            [WIRE_KEY.DEALER_DICE]: [
                 [3, 5],
                 [2, 4],
             ],
-            dl: 0,
-            gid: "game-abc-123",
-            gt: GAME_TYPE.HANCHAN,
-            p: [
-                { ai: 0, nm: "Alice", s: 0 },
-                { ai: 0, nm: "Bob", s: 1 },
-                { ai: 1, nm: "Charlie", s: 2 },
-                { ai: 0, nm: "Diana", s: 3 },
+            [WIRE_KEY.DEALER]: 0,
+            [WIRE_KEY.GAME_ID]: "game-abc-123",
+            [WIRE_KEY.GAME_TYPE]: GAME_TYPE.HANCHAN,
+            [WIRE_KEY.PLAYERS]: [
+                { [WIRE_KEY.AI_PLAYER]: 0, [WIRE_KEY.NAME]: "Alice", [WIRE_KEY.SEAT]: 0 },
+                { [WIRE_KEY.AI_PLAYER]: 0, [WIRE_KEY.NAME]: "Bob", [WIRE_KEY.SEAT]: 1 },
+                { [WIRE_KEY.AI_PLAYER]: 1, [WIRE_KEY.NAME]: "Charlie", [WIRE_KEY.SEAT]: 2 },
+                { [WIRE_KEY.AI_PLAYER]: 0, [WIRE_KEY.NAME]: "Diana", [WIRE_KEY.SEAT]: 3 },
             ],
-            rsv: 10,
-            t: EVENT_TYPE.GAME_STARTED,
+            [WIRE_KEY.RIICHI_STICK_VALUE]: 10,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.GAME_STARTED,
         };
         const result = gameStartedSchema.parse(wire);
         expect(result.type).toBe("game_started");
@@ -79,16 +86,20 @@ describe("gameStartedSchema", () => {
 
     it("converts ai integer to boolean (0 = false, 1 = true)", () => {
         const wire = {
-            dd: [
+            [WIRE_KEY.DEALER_DICE]: [
                 [1, 1],
                 [1, 1],
             ],
-            dl: 0,
-            gid: "g1",
-            gt: GAME_TYPE.TONPUSEN,
-            p: fourPlayers({ ai: 1, nm: "Bot", s: 0 }),
-            rsv: 10,
-            t: EVENT_TYPE.GAME_STARTED,
+            [WIRE_KEY.DEALER]: 0,
+            [WIRE_KEY.GAME_ID]: "g1",
+            [WIRE_KEY.GAME_TYPE]: GAME_TYPE.TONPUSEN,
+            [WIRE_KEY.PLAYERS]: fourPlayers({
+                [WIRE_KEY.AI_PLAYER]: 1,
+                [WIRE_KEY.NAME]: "Bot",
+                [WIRE_KEY.SEAT]: 0,
+            }),
+            [WIRE_KEY.RIICHI_STICK_VALUE]: 10,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.GAME_STARTED,
         };
         const result = gameStartedSchema.parse(wire);
         expect(result.players[0].isAiPlayer).toBe(true);
@@ -96,19 +107,33 @@ describe("gameStartedSchema", () => {
 
     it("reads the live copy's viewer seat and timer settings, null in a replay", () => {
         const wire = {
-            dd: [
+            [WIRE_KEY.DEALER_DICE]: [
                 [1, 1],
                 [1, 1],
             ],
-            dl: 0,
-            gid: "g1",
-            gt: GAME_TYPE.TONPUSEN,
-            p: fourPlayers({ ai: 0, nm: "Alice", s: 2 }),
-            rsv: 10,
-            t: EVENT_TYPE.GAME_STARTED,
+            [WIRE_KEY.DEALER]: 0,
+            [WIRE_KEY.GAME_ID]: "g1",
+            [WIRE_KEY.GAME_TYPE]: GAME_TYPE.TONPUSEN,
+            [WIRE_KEY.PLAYERS]: fourPlayers({
+                [WIRE_KEY.AI_PLAYER]: 0,
+                [WIRE_KEY.NAME]: "Alice",
+                [WIRE_KEY.SEAT]: 2,
+            }),
+            [WIRE_KEY.RIICHI_STICK_VALUE]: 10,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.GAME_STARTED,
         };
-        const timer = { bk: 20, gp: 3, mb: 20, ra: 15, tb: 5 };
-        const live = gameStartedSchema.parse({ ...wire, s: 2, tm: timer });
+        const timer = {
+            [WIRE_KEY.BANK_SECONDS]: 20,
+            [WIRE_KEY.GAME_START_PAUSE]: 3,
+            [WIRE_KEY.MAX_BANK_SECONDS]: 20,
+            [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
+            [WIRE_KEY.BASE_TURN_SECONDS]: 5,
+        };
+        const live = gameStartedSchema.parse({
+            ...wire,
+            [WIRE_KEY.SEAT]: 2,
+            [WIRE_KEY.TIMER_SETTINGS]: timer,
+        });
         const replay = gameStartedSchema.parse(wire);
         expect(live.gameType).toBe(GAME_TYPE.TONPUSEN);
         expect(live.seat).toBe(2);
@@ -124,88 +149,99 @@ describe("gameStartedSchema", () => {
     });
 
     it("rejects missing required fields", () => {
-        const wire = { gid: "g1", t: EVENT_TYPE.GAME_STARTED };
+        const wire = { [WIRE_KEY.GAME_ID]: "g1", [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.GAME_STARTED };
         expect(() => gameStartedSchema.parse(wire)).toThrow();
     });
 
     it("refuses a riichi stick value that is not a whole number of wire units", () => {
         const wire = {
-            dd: [
+            [WIRE_KEY.DEALER_DICE]: [
                 [1, 1],
                 [1, 1],
             ],
-            dl: 0,
-            gid: "g1",
-            gt: GAME_TYPE.TONPUSEN,
-            p: fourPlayers({ ai: 0, nm: "Alice", s: 0 }),
-            rsv: 15.5,
-            t: EVENT_TYPE.GAME_STARTED,
+            [WIRE_KEY.DEALER]: 0,
+            [WIRE_KEY.GAME_ID]: "g1",
+            [WIRE_KEY.GAME_TYPE]: GAME_TYPE.TONPUSEN,
+            [WIRE_KEY.PLAYERS]: fourPlayers({
+                [WIRE_KEY.AI_PLAYER]: 0,
+                [WIRE_KEY.NAME]: "Alice",
+                [WIRE_KEY.SEAT]: 0,
+            }),
+            [WIRE_KEY.RIICHI_STICK_VALUE]: 15.5,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.GAME_STARTED,
         };
         expect(() => gameStartedSchema.parse(wire)).toThrow();
-        expect(gameStartedSchema.parse({ ...wire, rsv: 15 }).riichiStickValue).toBe(1500);
+        expect(
+            gameStartedSchema.parse({ ...wire, [WIRE_KEY.RIICHI_STICK_VALUE]: 15 })
+                .riichiStickValue,
+        ).toBe(1500);
     });
 
     it("refuses a game start or a deal that does not list each of the four seats once, in seat order", () => {
-        const players = fourPlayers({ ai: 0, nm: "Alice", s: 0 });
-        const views = fourViews({ s: 0, sc: 250 });
+        const players = fourPlayers({
+            [WIRE_KEY.AI_PLAYER]: 0,
+            [WIRE_KEY.NAME]: "Alice",
+            [WIRE_KEY.SEAT]: 0,
+        });
+        const views = fourViews({ [WIRE_KEY.SEAT]: 0, [WIRE_KEY.SCORE]: 250 });
         const start = {
-            dd: [
+            [WIRE_KEY.DEALER_DICE]: [
                 [1, 1],
                 [1, 1],
             ],
-            dl: 0,
-            gid: "g1",
-            gt: GAME_TYPE.HANCHAN,
-            p: players,
-            rsv: 10,
-            t: EVENT_TYPE.GAME_STARTED,
+            [WIRE_KEY.DEALER]: 0,
+            [WIRE_KEY.GAME_ID]: "g1",
+            [WIRE_KEY.GAME_TYPE]: GAME_TYPE.HANCHAN,
+            [WIRE_KEY.PLAYERS]: players,
+            [WIRE_KEY.RIICHI_STICK_VALUE]: 10,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.GAME_STARTED,
         };
         const deal = {
-            cp: 0,
-            di: [10],
-            dl: 0,
-            h: 0,
-            n: 0,
-            p: views,
-            r: 0,
-            rw: 1,
-            t: 9,
-            tr: 70,
-            w: 0,
+            [WIRE_KEY.CURRENT_PLAYER]: 0,
+            [WIRE_KEY.DORA_INDICATORS]: [10],
+            [WIRE_KEY.DEALER]: 0,
+            [WIRE_KEY.HONBA]: 0,
+            [WIRE_KEY.ROUND_NUMBER]: 0,
+            [WIRE_KEY.PLAYERS]: views,
+            [WIRE_KEY.RIICHI_STICKS]: 0,
+            [WIRE_KEY.ROUND_IN_WIND]: 1,
+            [WIRE_KEY.EVENT_TYPE]: 9,
+            [WIRE_KEY.TILES_REMAINING]: 70,
+            [WIRE_KEY.WIND]: 0,
         };
 
         for (const p of [players.slice(0, 3), [players[1], players[0], ...players.slice(2)]]) {
-            expect(() => gameStartedSchema.parse({ ...start, p })).toThrow(
+            expect(() => gameStartedSchema.parse({ ...start, [WIRE_KEY.PLAYERS]: p })).toThrow(
                 "the game start does not seat each of the four seats once, in seat order",
             );
         }
-        expect(() => roundStartedSchema.parse({ ...deal, p: views.slice(1) })).toThrow(
-            "the deal does not list each of the four seats once, in seat order",
-        );
+        expect(() =>
+            roundStartedSchema.parse({ ...deal, [WIRE_KEY.PLAYERS]: views.slice(1) }),
+        ).toThrow("the deal does not list each of the four seats once, in seat order");
     });
 });
 
 describe("roundStartedSchema (live)", () => {
     it("parses live format with seat and myTiles", () => {
         const wire = {
-            cp: 0,
-            di: [10],
-            dl: 0,
-            h: 0,
-            mt: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48],
-            n: 1,
-            p: [
-                { s: 0, sc: 250 },
-                { s: 1, sc: 250 },
-                { s: 2, sc: 250 },
-                { s: 3, sc: 250 },
+            [WIRE_KEY.CURRENT_PLAYER]: 0,
+            [WIRE_KEY.DORA_INDICATORS]: [10],
+            [WIRE_KEY.DEALER]: 0,
+            [WIRE_KEY.HONBA]: 0,
+            [WIRE_KEY.MY_TILES]: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48],
+            [WIRE_KEY.ROUND_NUMBER]: 1,
+            [WIRE_KEY.PLAYERS]: [
+                { [WIRE_KEY.SEAT]: 0, [WIRE_KEY.SCORE]: 250 },
+                { [WIRE_KEY.SEAT]: 1, [WIRE_KEY.SCORE]: 250 },
+                { [WIRE_KEY.SEAT]: 2, [WIRE_KEY.SCORE]: 250 },
+                { [WIRE_KEY.SEAT]: 3, [WIRE_KEY.SCORE]: 250 },
             ],
-            r: 0,
-            rw: 1,
-            s: 0,
-            t: EVENT_TYPE.ROUND_STARTED,
-            tr: 70,
-            w: 0,
+            [WIRE_KEY.RIICHI_STICKS]: 0,
+            [WIRE_KEY.ROUND_IN_WIND]: 1,
+            [WIRE_KEY.SEAT]: 0,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.ROUND_STARTED,
+            [WIRE_KEY.TILES_REMAINING]: 70,
+            [WIRE_KEY.WIND]: 0,
         };
         const result = roundStartedSchema.parse(wire);
         expect(result.type).toBe("round_started");
@@ -217,22 +253,22 @@ describe("roundStartedSchema (live)", () => {
 
     it("refuses a deal that names no round within its wind, or no live wall", () => {
         const deal = {
-            cp: 0,
-            di: [10],
-            dl: 0,
-            h: 0,
-            mt: [0],
-            n: 1,
-            p: fourViews({ s: 0, sc: 250 }),
-            r: 0,
-            rw: 1,
-            s: 0,
-            t: EVENT_TYPE.ROUND_STARTED,
-            tr: 70,
-            w: 0,
+            [WIRE_KEY.CURRENT_PLAYER]: 0,
+            [WIRE_KEY.DORA_INDICATORS]: [10],
+            [WIRE_KEY.DEALER]: 0,
+            [WIRE_KEY.HONBA]: 0,
+            [WIRE_KEY.MY_TILES]: [0],
+            [WIRE_KEY.ROUND_NUMBER]: 1,
+            [WIRE_KEY.PLAYERS]: fourViews({ [WIRE_KEY.SEAT]: 0, [WIRE_KEY.SCORE]: 250 }),
+            [WIRE_KEY.RIICHI_STICKS]: 0,
+            [WIRE_KEY.ROUND_IN_WIND]: 1,
+            [WIRE_KEY.SEAT]: 0,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.ROUND_STARTED,
+            [WIRE_KEY.TILES_REMAINING]: 70,
+            [WIRE_KEY.WIND]: 0,
         };
-        const { rw: _roundInWind, ...unnamedRound } = deal;
-        const { tr: _tilesRemaining, ...uncountedWall } = deal;
+        const { [WIRE_KEY.ROUND_IN_WIND]: _roundInWind, ...unnamedRound } = deal;
+        const { [WIRE_KEY.TILES_REMAINING]: _tilesRemaining, ...uncountedWall } = deal;
 
         expect(roundStartedSchema.parse(deal)).toMatchObject({
             roundInWind: 1,
@@ -244,19 +280,19 @@ describe("roundStartedSchema (live)", () => {
 
     it("decodes wire scores (250 -> 25000)", () => {
         const wire = {
-            cp: 0,
-            di: [10],
-            dl: 0,
-            h: 0,
-            mt: [0],
-            n: 1,
-            p: fourViews({ s: 0, sc: 250 }),
-            r: 0,
-            rw: 1,
-            s: 0,
-            t: EVENT_TYPE.ROUND_STARTED,
-            tr: 70,
-            w: 0,
+            [WIRE_KEY.CURRENT_PLAYER]: 0,
+            [WIRE_KEY.DORA_INDICATORS]: [10],
+            [WIRE_KEY.DEALER]: 0,
+            [WIRE_KEY.HONBA]: 0,
+            [WIRE_KEY.MY_TILES]: [0],
+            [WIRE_KEY.ROUND_NUMBER]: 1,
+            [WIRE_KEY.PLAYERS]: fourViews({ [WIRE_KEY.SEAT]: 0, [WIRE_KEY.SCORE]: 250 }),
+            [WIRE_KEY.RIICHI_STICKS]: 0,
+            [WIRE_KEY.ROUND_IN_WIND]: 1,
+            [WIRE_KEY.SEAT]: 0,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.ROUND_STARTED,
+            [WIRE_KEY.TILES_REMAINING]: 70,
+            [WIRE_KEY.WIND]: 0,
         };
         const result = roundStartedSchema.parse(wire);
         expect(result.players[0].score).toBe(25_000);
@@ -264,19 +300,19 @@ describe("roundStartedSchema (live)", () => {
 
     it("live format player tiles default to null", () => {
         const wire = {
-            cp: 0,
-            di: [10],
-            dl: 0,
-            h: 0,
-            mt: [0],
-            n: 1,
-            p: fourViews({ s: 0, sc: 250 }),
-            r: 0,
-            rw: 1,
-            s: 0,
-            t: EVENT_TYPE.ROUND_STARTED,
-            tr: 70,
-            w: 0,
+            [WIRE_KEY.CURRENT_PLAYER]: 0,
+            [WIRE_KEY.DORA_INDICATORS]: [10],
+            [WIRE_KEY.DEALER]: 0,
+            [WIRE_KEY.HONBA]: 0,
+            [WIRE_KEY.MY_TILES]: [0],
+            [WIRE_KEY.ROUND_NUMBER]: 1,
+            [WIRE_KEY.PLAYERS]: fourViews({ [WIRE_KEY.SEAT]: 0, [WIRE_KEY.SCORE]: 250 }),
+            [WIRE_KEY.RIICHI_STICKS]: 0,
+            [WIRE_KEY.ROUND_IN_WIND]: 1,
+            [WIRE_KEY.SEAT]: 0,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.ROUND_STARTED,
+            [WIRE_KEY.TILES_REMAINING]: 70,
+            [WIRE_KEY.WIND]: 0,
         };
         const result = roundStartedSchema.parse(wire);
         expect(result.players[0].tiles).toBeNull();
@@ -286,22 +322,38 @@ describe("roundStartedSchema (live)", () => {
 describe("roundStartedSchema (replay)", () => {
     it("parses replay format without s and mt, with player tiles", () => {
         const wire = {
-            cp: 0,
-            di: [10],
-            dl: 0,
-            h: 0,
-            n: 1,
-            p: [
-                { s: 0, sc: 250, tl: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48] },
-                { s: 1, sc: 250, tl: [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49] },
-                { s: 2, sc: 250, tl: [2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50] },
-                { s: 3, sc: 250, tl: [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51] },
+            [WIRE_KEY.CURRENT_PLAYER]: 0,
+            [WIRE_KEY.DORA_INDICATORS]: [10],
+            [WIRE_KEY.DEALER]: 0,
+            [WIRE_KEY.HONBA]: 0,
+            [WIRE_KEY.ROUND_NUMBER]: 1,
+            [WIRE_KEY.PLAYERS]: [
+                {
+                    [WIRE_KEY.SEAT]: 0,
+                    [WIRE_KEY.SCORE]: 250,
+                    [WIRE_KEY.TILES]: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48],
+                },
+                {
+                    [WIRE_KEY.SEAT]: 1,
+                    [WIRE_KEY.SCORE]: 250,
+                    [WIRE_KEY.TILES]: [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49],
+                },
+                {
+                    [WIRE_KEY.SEAT]: 2,
+                    [WIRE_KEY.SCORE]: 250,
+                    [WIRE_KEY.TILES]: [2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50],
+                },
+                {
+                    [WIRE_KEY.SEAT]: 3,
+                    [WIRE_KEY.SCORE]: 250,
+                    [WIRE_KEY.TILES]: [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51],
+                },
             ],
-            r: 0,
-            rw: 1,
-            t: EVENT_TYPE.ROUND_STARTED,
-            tr: 70,
-            w: 0,
+            [WIRE_KEY.RIICHI_STICKS]: 0,
+            [WIRE_KEY.ROUND_IN_WIND]: 1,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.ROUND_STARTED,
+            [WIRE_KEY.TILES_REMAINING]: 70,
+            [WIRE_KEY.WIND]: 0,
         };
         const result = roundStartedSchema.parse(wire);
         expect(result.seat).toBeNull();
@@ -312,17 +364,21 @@ describe("roundStartedSchema (replay)", () => {
 
     it("preserves round metadata in replay format", () => {
         const wire = {
-            cp: 2,
-            di: [10, 42],
-            dl: 1,
-            h: 3,
-            n: 5,
-            p: fourViews({ s: 0, sc: 300, tl: [0] }),
-            r: 2,
-            rw: 2,
-            t: EVENT_TYPE.ROUND_STARTED,
-            tr: 70,
-            w: 1,
+            [WIRE_KEY.CURRENT_PLAYER]: 2,
+            [WIRE_KEY.DORA_INDICATORS]: [10, 42],
+            [WIRE_KEY.DEALER]: 1,
+            [WIRE_KEY.HONBA]: 3,
+            [WIRE_KEY.ROUND_NUMBER]: 5,
+            [WIRE_KEY.PLAYERS]: fourViews({
+                [WIRE_KEY.SEAT]: 0,
+                [WIRE_KEY.SCORE]: 300,
+                [WIRE_KEY.TILES]: [0],
+            }),
+            [WIRE_KEY.RIICHI_STICKS]: 2,
+            [WIRE_KEY.ROUND_IN_WIND]: 2,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.ROUND_STARTED,
+            [WIRE_KEY.TILES_REMAINING]: 70,
+            [WIRE_KEY.WIND]: 1,
         };
         const result = roundStartedSchema.parse(wire);
         expect(result.wind).toBe(1);
@@ -339,8 +395,12 @@ describe("roundStartedSchema (replay)", () => {
 describe("drawSchema", () => {
     it("decodes packed integer to seat + tileId beside the live wall left, refusing a draw that names no wall", () => {
         // d = seat * 136 + tileId = 1 * 136 + 42 = 178
-        const wire = { d: 178, t: EVENT_TYPE.DRAW, tr: 69 };
-        const { tr: _tilesRemaining, ...uncountedWall } = wire;
+        const wire = {
+            [WIRE_KEY.PACKED_MOVE]: 178,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
+            [WIRE_KEY.TILES_REMAINING]: 69,
+        };
+        const { [WIRE_KEY.TILES_REMAINING]: _tilesRemaining, ...uncountedWall } = wire;
         const result = drawSchema.parse(wire);
         expect(() => drawSchema.parse(uncountedWall)).toThrow();
         expect(result.type).toBe("draw");
@@ -352,10 +412,14 @@ describe("drawSchema", () => {
 
     it("parses available actions array", () => {
         const wire = {
-            aa: [{ a: 1, tl: [5, 10, 15] }, { a: 2 }, { a: 4, tl: [9] }],
-            d: 5,
-            t: EVENT_TYPE.DRAW,
-            tr: 69,
+            [WIRE_KEY.AVAILABLE_ACTIONS]: [
+                { [WIRE_KEY.ACTION]: 1, [WIRE_KEY.TILES]: [5, 10, 15] },
+                { [WIRE_KEY.ACTION]: 2 },
+                { [WIRE_KEY.ACTION]: 4, [WIRE_KEY.TILES]: [9] },
+            ],
+            [WIRE_KEY.PACKED_MOVE]: 5,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
+            [WIRE_KEY.TILES_REMAINING]: 69,
         };
         const result = drawSchema.parse(wire);
         expect(result.availableActions).toEqual([
@@ -366,29 +430,53 @@ describe("drawSchema", () => {
     });
 
     it.each([
-        { aa: [{ a: 0 }], name: "a discard, which the server never offers" },
-        { aa: [{ a: 3, tl: [40] }], name: "a kan of a tile id, not a tile type" },
-        { aa: [{ a: 4, tl: [] }], name: "an added kan with no tile type" },
-    ])("refuses an offer of $name", ({ aa }) => {
-        expect(() => drawSchema.parse({ aa, d: 5, t: EVENT_TYPE.DRAW, tr: 69 })).toThrow();
+        {
+            [WIRE_KEY.AVAILABLE_ACTIONS]: [{ [WIRE_KEY.ACTION]: 0 }],
+            name: "a discard, which the server never offers",
+        },
+        {
+            [WIRE_KEY.AVAILABLE_ACTIONS]: [{ [WIRE_KEY.ACTION]: 3, [WIRE_KEY.TILES]: [40] }],
+            name: "a kan of a tile id, not a tile type",
+        },
+        {
+            [WIRE_KEY.AVAILABLE_ACTIONS]: [{ [WIRE_KEY.ACTION]: 4, [WIRE_KEY.TILES]: [] }],
+            name: "an added kan with no tile type",
+        },
+    ])("refuses an offer of $name", ({ [WIRE_KEY.AVAILABLE_ACTIONS]: aa }) => {
+        expect(() =>
+            drawSchema.parse({
+                [WIRE_KEY.AVAILABLE_ACTIONS]: aa,
+                [WIRE_KEY.PACKED_MOVE]: 5,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
+                [WIRE_KEY.TILES_REMAINING]: 69,
+            }),
+        ).toThrow();
     });
 
     it("defaults available actions to empty array when aa is absent", () => {
-        const wire = { d: 0, t: EVENT_TYPE.DRAW, tr: 69 };
+        const wire = {
+            [WIRE_KEY.PACKED_MOVE]: 0,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
+            [WIRE_KEY.TILES_REMAINING]: 69,
+        };
         const result = drawSchema.parse(wire);
         expect(result.availableActions).toEqual([]);
     });
 
     it("reads the turn's bank and a re-send's elapsed seconds, null without them", () => {
         const opening = drawSchema.parse({
-            bk: 12.5,
-            d: 0,
-            el: 3.2,
-            t: EVENT_TYPE.DRAW,
-            tr: 69,
-            wi: 4,
+            [WIRE_KEY.BANK_SECONDS]: 12.5,
+            [WIRE_KEY.PACKED_MOVE]: 0,
+            [WIRE_KEY.WAIT_ELAPSED]: 3.2,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
+            [WIRE_KEY.TILES_REMAINING]: 69,
+            [WIRE_KEY.WAIT_ID]: 4,
         });
-        const plain = drawSchema.parse({ d: 0, t: EVENT_TYPE.DRAW, tr: 69 });
+        const plain = drawSchema.parse({
+            [WIRE_KEY.PACKED_MOVE]: 0,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
+            [WIRE_KEY.TILES_REMAINING]: 69,
+        });
         expect(opening.bankSeconds).toBe(12.5);
         expect(opening.elapsedSeconds).toBe(3.2);
         expect(opening.waitId).toBe(4);
@@ -399,7 +487,12 @@ describe("drawSchema", () => {
 
 describe("turnSchema", () => {
     it("reads the kuikae tile types and the turn's wait", () => {
-        const result = turnSchema.parse({ bk: 20, kt: [4, 7], t: EVENT_TYPE.TURN, wi: 9 });
+        const result = turnSchema.parse({
+            [WIRE_KEY.BANK_SECONDS]: 20,
+            [WIRE_KEY.KUIKAE_TILES]: [4, 7],
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.TURN,
+            [WIRE_KEY.WAIT_ID]: 9,
+        });
         expect(result).toEqual({
             bankSeconds: 20,
             elapsedSeconds: null,
@@ -410,14 +503,19 @@ describe("turnSchema", () => {
     });
 
     it("rejects a kuikae tile outside the 34 types", () => {
-        expect(() => turnSchema.parse({ kt: [34], t: EVENT_TYPE.TURN })).toThrow();
+        expect(() =>
+            turnSchema.parse({
+                [WIRE_KEY.KUIKAE_TILES]: [34],
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.TURN,
+            }),
+        ).toThrow();
     });
 });
 
 describe("discardSchema", () => {
     it("decodes plain discard (no flags)", () => {
         // flag=0, seat=0, tile=10 => d = 0 * 544 + 0 * 136 + 10 = 10
-        const wire = { d: 10, t: EVENT_TYPE.DISCARD };
+        const wire = { [WIRE_KEY.PACKED_MOVE]: 10, [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DISCARD };
         const result = discardSchema.parse(wire);
         expect(result.type).toBe("discard");
         expect(result.seat).toBe(0);
@@ -428,7 +526,7 @@ describe("discardSchema", () => {
 
     it("decodes tsumogiri discard", () => {
         // flag=1 (tsumogiri), seat=2, tile=50 => d = 1 * 544 + 2 * 136 + 50 = 866
-        const wire = { d: 866, t: EVENT_TYPE.DISCARD };
+        const wire = { [WIRE_KEY.PACKED_MOVE]: 866, [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DISCARD };
         const result = discardSchema.parse(wire);
         expect(result.isTsumogiri).toBe(true);
         expect(result.isRiichi).toBe(false);
@@ -438,7 +536,7 @@ describe("discardSchema", () => {
 
     it("decodes riichi discard", () => {
         // flag=2 (riichi), seat=1, tile=0 => d = 2 * 544 + 1 * 136 + 0 = 1224
-        const wire = { d: 1224, t: EVENT_TYPE.DISCARD };
+        const wire = { [WIRE_KEY.PACKED_MOVE]: 1224, [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DISCARD };
         const result = discardSchema.parse(wire);
         expect(result.isRiichi).toBe(true);
         expect(result.isTsumogiri).toBe(false);
@@ -446,7 +544,7 @@ describe("discardSchema", () => {
 
     it("decodes riichi + tsumogiri discard", () => {
         // flag=3, seat=0, tile=0 => d = 3 * 544 + 0 = 1632
-        const wire = { d: 1632, t: EVENT_TYPE.DISCARD };
+        const wire = { [WIRE_KEY.PACKED_MOVE]: 1632, [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DISCARD };
         const result = discardSchema.parse(wire);
         expect(result.isRiichi).toBe(true);
         expect(result.isTsumogiri).toBe(true);
@@ -457,7 +555,7 @@ describe("meldSchema", () => {
     it("decodes IMME integer to full meld structure (ankan)", () => {
         // Ankan (closed kan) for tile_34=0 by seat 0:
         // meld_index = 6888 + 0 = 6888, value = 6888 * 4 + 0 = 27552
-        const wire = { m: 27_552, t: EVENT_TYPE.MELD };
+        const wire = { [WIRE_KEY.PACKED_MELD]: 27_552, [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.MELD };
         const result = meldSchema.parse(wire);
         expect(result.type).toBe("meld");
         expect(result.meldType).toBe("closed_kan");
@@ -470,7 +568,12 @@ describe("meldSchema", () => {
 
 describe("riichiDeclaredSchema", () => {
     it("reads the declarer's score after its deposit and the table's sticks, refusing a riichi that names neither", () => {
-        const wire = { r: 2, s: 2, sc: 240, t: EVENT_TYPE.RIICHI_DECLARED };
+        const wire = {
+            [WIRE_KEY.RIICHI_STICKS]: 2,
+            [WIRE_KEY.SEAT]: 2,
+            [WIRE_KEY.SCORE]: 240,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.RIICHI_DECLARED,
+        };
         const result = riichiDeclaredSchema.parse(wire);
         expect(result).toEqual({
             riichiSticks: 2,
@@ -478,31 +581,46 @@ describe("riichiDeclaredSchema", () => {
             seat: 2,
             type: "riichi_declared",
         });
-        expect(() => riichiDeclaredSchema.parse({ s: 2, t: EVENT_TYPE.RIICHI_DECLARED })).toThrow();
+        expect(() =>
+            riichiDeclaredSchema.parse({
+                [WIRE_KEY.SEAT]: 2,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.RIICHI_DECLARED,
+            }),
+        ).toThrow();
     });
 
     it("rejects invalid seat", () => {
-        const wire = { r: 1, s: 5, sc: 240, t: EVENT_TYPE.RIICHI_DECLARED };
+        const wire = {
+            [WIRE_KEY.RIICHI_STICKS]: 1,
+            [WIRE_KEY.SEAT]: 5,
+            [WIRE_KEY.SCORE]: 240,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.RIICHI_DECLARED,
+        };
         expect(() => riichiDeclaredSchema.parse(wire)).toThrow();
     });
 });
 
 describe("doraRevealedSchema", () => {
     it("parses valid wire payload", () => {
-        const wire = { t: EVENT_TYPE.DORA_REVEALED, ti: 42 };
+        const wire = { [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DORA_REVEALED, [WIRE_KEY.TILE_ID]: 42 };
         const result = doraRevealedSchema.parse(wire);
         expect(result).toEqual({ tileId: 42, type: "dora_revealed" });
     });
 
     it("rejects tile ID out of range", () => {
-        const wire = { t: EVENT_TYPE.DORA_REVEALED, ti: 136 };
+        const wire = { [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DORA_REVEALED, [WIRE_KEY.TILE_ID]: 136 };
         expect(() => doraRevealedSchema.parse(wire)).toThrow();
     });
 });
 
 describe("errorEventSchema", () => {
     it("parses valid wire payload, with the wait id the refused action echoed", () => {
-        const wire = { cd: "not_your_turn", msg: "It's not your turn", t: EVENT_TYPE.ERROR, wi: 4 };
+        const wire = {
+            [WIRE_KEY.GAME_ERROR_CODE]: "not_your_turn",
+            [WIRE_KEY.GAME_ERROR_MESSAGE]: "It's not your turn",
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.ERROR,
+            [WIRE_KEY.WAIT_ID]: 4,
+        };
         const result = errorEventSchema.parse(wire);
         expect(result).toEqual({
             code: "not_your_turn",
@@ -513,49 +631,52 @@ describe("errorEventSchema", () => {
     });
 
     it("rejects missing message field", () => {
-        const wire = { cd: "some_code", t: EVENT_TYPE.ERROR };
+        const wire = {
+            [WIRE_KEY.GAME_ERROR_CODE]: "some_code",
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.ERROR,
+        };
         expect(() => errorEventSchema.parse(wire)).toThrow();
     });
 });
 
 describe("furitenSchema", () => {
     it("parses furiten true", () => {
-        const wire = { f: true, t: EVENT_TYPE.FURITEN };
+        const wire = { [WIRE_KEY.FURITEN]: true, [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.FURITEN };
         const result = furitenSchema.parse(wire);
         expect(result).toEqual({ isFuriten: true, type: "furiten" });
     });
 
     it("parses furiten false", () => {
-        const wire = { f: false, t: EVENT_TYPE.FURITEN };
+        const wire = { [WIRE_KEY.FURITEN]: false, [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.FURITEN };
         const result = furitenSchema.parse(wire);
         expect(result).toEqual({ isFuriten: false, type: "furiten" });
     });
 
     it("rejects wrong type for f field", () => {
-        const wire = { f: 1, t: EVENT_TYPE.FURITEN };
+        const wire = { [WIRE_KEY.FURITEN]: 1, [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.FURITEN };
         expect(() => furitenSchema.parse(wire)).toThrow();
     });
 });
 
 function standing(seat: number): Record<string, number> {
-    return { fs: 0, s: seat, sc: 250 };
+    return { [WIRE_KEY.FINAL_SCORE]: 0, [WIRE_KEY.SEAT]: seat, [WIRE_KEY.SCORE]: 250 };
 }
 
 describe("gameEndSchema", () => {
     it("parses valid wire payload with standings", () => {
         const wire = {
-            ec: "target_reached",
-            lb: 20,
-            lr: 2,
-            nr: 8,
-            st: [
-                { fs: 42, s: 0, sc: 350 },
-                { fs: 12, s: 1, sc: 250 },
-                { fs: -18, s: 2, sc: 200 },
-                { fs: -36, s: 3, sc: 200 },
+            [WIRE_KEY.END_CAUSE]: "target_reached",
+            [WIRE_KEY.LEFTOVER_BONUS]: 20,
+            [WIRE_KEY.LEFTOVER_RIICHI]: 2,
+            [WIRE_KEY.ROUND_COUNT]: 8,
+            [WIRE_KEY.STANDINGS]: [
+                { [WIRE_KEY.FINAL_SCORE]: 42, [WIRE_KEY.SEAT]: 0, [WIRE_KEY.SCORE]: 350 },
+                { [WIRE_KEY.FINAL_SCORE]: 12, [WIRE_KEY.SEAT]: 1, [WIRE_KEY.SCORE]: 250 },
+                { [WIRE_KEY.FINAL_SCORE]: -18, [WIRE_KEY.SEAT]: 2, [WIRE_KEY.SCORE]: 200 },
+                { [WIRE_KEY.FINAL_SCORE]: -36, [WIRE_KEY.SEAT]: 3, [WIRE_KEY.SCORE]: 200 },
             ],
-            t: EVENT_TYPE.GAME_END,
-            ws: 0,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.GAME_END,
+            [WIRE_KEY.WINNER_SEAT]: 0,
         };
         const result = gameEndSchema.parse(wire);
         expect(result.type).toBe("game_end");
@@ -567,11 +688,21 @@ describe("gameEndSchema", () => {
     });
 
     it("refuses standings that rank a seat twice, in whatever order the server ranks them", () => {
-        const wire = { ec: "length", lb: 0, lr: 0, nr: 8, t: EVENT_TYPE.GAME_END, ws: 1 };
+        const wire = {
+            [WIRE_KEY.END_CAUSE]: "length",
+            [WIRE_KEY.LEFTOVER_BONUS]: 0,
+            [WIRE_KEY.LEFTOVER_RIICHI]: 0,
+            [WIRE_KEY.ROUND_COUNT]: 8,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.GAME_END,
+            [WIRE_KEY.WINNER_SEAT]: 1,
+        };
 
-        expect(gameEndSchema.parse({ ...wire, st: [1, 2, 3, 0].map(standing) }).winnerSeat).toBe(1);
-        expect(() => gameEndSchema.parse({ ...wire, st: [1, 2, 3, 1].map(standing) })).toThrow(
-            "rank each of the four seats once",
-        );
+        expect(
+            gameEndSchema.parse({ ...wire, [WIRE_KEY.STANDINGS]: [1, 2, 3, 0].map(standing) })
+                .winnerSeat,
+        ).toBe(1);
+        expect(() =>
+            gameEndSchema.parse({ ...wire, [WIRE_KEY.STANDINGS]: [1, 2, 3, 1].map(standing) }),
+        ).toThrow("rank each of the four seats once");
     });
 });

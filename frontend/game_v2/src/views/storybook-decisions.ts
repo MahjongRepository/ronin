@@ -38,6 +38,7 @@ import RIICHI_KAN_SEAT_1 from "@/fixtures/seat-scenarios/riichi_kan_seat_1.json"
 import SEAT_LEFT_SEAT_1 from "@/fixtures/seat-scenarios/seat_left_seat_1.json";
 import SEAT_LEFT_SEAT_3 from "@/fixtures/seat-scenarios/seat_left_seat_3.json";
 import { getLobbyHistoryUrl, replayPageUrl } from "@/shared/config";
+import { WIRE_KEY } from "@/shared/protocol";
 
 import { STORYBOOK_INDEX } from "./storybook-nav";
 
@@ -161,10 +162,10 @@ function refusedDiscard(state: LiveClient): readonly LiveEvent[] {
     const [intent] = playDisplay(state, NO_PLAY_UI).tileIntents.values();
     const at = state.now + 500;
     const refusal = {
-        cd: "invalid_discard",
-        msg: "invalid discard",
-        t: 7,
-        wi: decisionOf(state)?.waitId,
+        [WIRE_KEY.GAME_ERROR_CODE]: "invalid_discard",
+        [WIRE_KEY.GAME_ERROR_MESSAGE]: "invalid discard",
+        [WIRE_KEY.EVENT_TYPE]: 7,
+        [WIRE_KEY.WAIT_ID]: decisionOf(state)?.waitId,
     };
     return [
         { at, intent, kind: "intent" },
@@ -210,7 +211,11 @@ function endedOutOfStep(
 ): (state: LiveClient) => readonly LiveEvent[] {
     return (state) => {
         const at = state.now;
-        const unreadable: LiveEvent = { at, kind: "server_message", raw: { t: 999 } };
+        const unreadable: LiveEvent = {
+            at,
+            kind: "server_message",
+            raw: { [WIRE_KEY.EVENT_TYPE]: 999 },
+        };
         const ends = ["round end", "game end"].map((label): LiveEvent => ({
             at,
             kind: "server_message",
@@ -222,7 +227,9 @@ function endedOutOfStep(
 
 /** A message the client cannot read, `ms` after the checkpoint: the long notice of a client out of step. */
 function unreadableAfter(ms: number): (state: LiveClient) => readonly LiveEvent[] {
-    return (state) => [{ at: state.now + ms, kind: "server_message", raw: { t: 999 } }];
+    return (state) => [
+        { at: state.now + ms, kind: "server_message", raw: { [WIRE_KEY.EVENT_TYPE]: 999 } },
+    ];
 }
 
 function closedWith(code: number): (state: LiveClient) => readonly LiveEvent[] {

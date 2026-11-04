@@ -1,7 +1,8 @@
 import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
 import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
-import { engineReplayText } from "#tests/fixtures/replays";
+import { encodeReplayLines } from "#tests/fixtures/replay-records";
+import { engineReplayBytes } from "#tests/fixtures/replays";
 import { type GameSound, type SoundCue, type SoundSetting } from "@/entities/client";
 import {
     DEFAULT_REPLAY_PREFS,
@@ -11,7 +12,7 @@ import {
     type ReplayPrefsStore,
 } from "@/entities/replay";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
-import { REPLAY_VERSION } from "@/shared/protocol";
+import { REPLAY_VERSION, WIRE_KEY } from "@/shared/protocol";
 import {
     REPLAY_URL_WRITE_INTERVAL_MS,
     type ReplayLinks,
@@ -226,7 +227,7 @@ async function mountLoadedReplay(
     options: MountOptions = {},
 ): Promise<MountedReplay> {
     const mounted = mountReplay(search, options);
-    await mounted.answer({ ok: true, text: engineReplayText(name) });
+    await mounted.answer({ content: engineReplayBytes(name), ok: true });
     return mounted;
 }
 
@@ -925,7 +926,7 @@ describe("mountReplayView - loading", () => {
         expect(textOf(host, ".replay-state")).toBe("Waiting for the replay to be saved…");
 
         clock.advanceTo(500);
-        await answer({ ok: true, text: engineReplayText("riichi") });
+        await answer({ content: engineReplayBytes("riichi"), ok: true });
 
         expect(position(host)).toBe("East 1 Step 1 of 28");
     });
@@ -948,7 +949,15 @@ describe("mountReplayView - loading", () => {
 
     it("refuses a replay of another version without offering to try again", async () => {
         const { answer, host } = mountReplay();
-        await answer({ ok: true, text: '{"version": "0.1"}\n{"t": 8}' });
+        await answer({
+            content: encodeReplayLines(
+                [
+                    JSON.stringify({ [WIRE_KEY.REPLAY_VERSION]: "0.1" }),
+                    JSON.stringify({ [WIRE_KEY.EVENT_TYPE]: 8 }),
+                ].join("\n"),
+            ),
+            ok: true,
+        });
 
         expect(textOf(host, ".replay-state__title")).toBe("This replay cannot be shown");
         expect(textOf(host, ".replay-state__detail")).toBe(
@@ -959,11 +968,20 @@ describe("mountReplayView - loading", () => {
 
     it("says a replay holding no deal holds no round, and which line broke it off", async () => {
         const empty = mountReplay();
-        await empty.answer({ ok: true, text: JSON.stringify({ version: REPLAY_VERSION }) });
+        await empty.answer({
+            content: encodeReplayLines(
+                JSON.stringify({ [WIRE_KEY.REPLAY_VERSION]: REPLAY_VERSION }),
+            ),
+            ok: true,
+        });
         const damaged = mountReplay();
         await damaged.answer({
+            content: encodeReplayLines(
+                [JSON.stringify({ [WIRE_KEY.REPLAY_VERSION]: REPLAY_VERSION }), "not json"].join(
+                    "\n",
+                ),
+            ),
             ok: true,
-            text: [JSON.stringify({ version: REPLAY_VERSION }), "not json"].join("\n"),
         });
 
         expect(textOf(empty.host, ".replay-state__title")).toBe("This replay holds no round");
@@ -971,7 +989,7 @@ describe("mountReplayView - loading", () => {
             "The recording stops before the first deal.",
         );
         expect(textOf(damaged.host, ".replay-state__detail")).toBe(
-            "The recording stops before the first deal. Line 2 could not be read.",
+            "The recording stops before the first deal. Record 2 could not be read.",
         );
     });
 
@@ -990,7 +1008,7 @@ describe("mountReplayView - loading", () => {
         const { answer, failPrefsLoad, host } = mountReplay();
         failPrefsLoad(thrown);
 
-        await answer({ ok: true, text: engineReplayText("riichi") });
+        await answer({ content: engineReplayBytes("riichi"), ok: true });
 
         expect(textOf(host, ".replay-state__title")).toBe("This replay cannot be shown");
         expect(host.querySelector(".replay-state__links button")).toBeNull();
@@ -1059,7 +1077,7 @@ describe("mountReplayView - loading", () => {
 
         const loading = mountReplay();
         loading.dispose();
-        await loading.answer({ ok: true, text: engineReplayText("riichi") });
+        await loading.answer({ content: engineReplayBytes("riichi"), ok: true });
         expect(loading.host.childElementCount).toBe(0);
     });
 });

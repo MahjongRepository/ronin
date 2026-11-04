@@ -1,15 +1,19 @@
 import { CLIENT_MESSAGE_TYPE, GAME_ACTION, type KanType } from "@/shared/protocol/constants";
+import { WIRE_KEY } from "@/shared/protocol/wire-keys";
 
 // --- Session messages ---
 
 export function buildJoinGameMessage(gameTicket: string) {
-    return { game_ticket: gameTicket, t: CLIENT_MESSAGE_TYPE.JOIN_GAME } as const;
+    return {
+        [WIRE_KEY.GAME_TICKET]: gameTicket,
+        [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.JOIN_GAME,
+    } as const;
 }
 
 export function buildReconnectMessage(gameTicket: string) {
     return {
-        game_ticket: gameTicket,
-        t: CLIENT_MESSAGE_TYPE.RECONNECT,
+        [WIRE_KEY.GAME_TICKET]: gameTicket,
+        [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.RECONNECT,
     } as const;
 }
 
@@ -18,95 +22,95 @@ export function buildReconnectMessage(gameTicket: string) {
  * client lost step with the server's messages.
  */
 export function buildResyncMessage() {
-    return { t: CLIENT_MESSAGE_TYPE.RESYNC } as const;
+    return { [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.RESYNC } as const;
 }
 
 // --- Game action messages ---
 
 export function buildDiscardAction(tileId: number, waitId: number) {
     return {
-        a: GAME_ACTION.DISCARD,
-        t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
-        ti: tileId,
-        wi: waitId,
+        [WIRE_KEY.ACTION]: GAME_ACTION.DISCARD,
+        [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+        [WIRE_KEY.TILE_ID]: tileId,
+        [WIRE_KEY.WAIT_ID]: waitId,
     } as const;
 }
 
 export function buildRiichiAction(tileId: number, waitId: number) {
     return {
-        a: GAME_ACTION.DECLARE_RIICHI,
-        t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
-        ti: tileId,
-        wi: waitId,
+        [WIRE_KEY.ACTION]: GAME_ACTION.DECLARE_RIICHI,
+        [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+        [WIRE_KEY.TILE_ID]: tileId,
+        [WIRE_KEY.WAIT_ID]: waitId,
     } as const;
 }
 
 export function buildTsumoAction(waitId: number) {
     return {
-        a: GAME_ACTION.DECLARE_TSUMO,
-        t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
-        wi: waitId,
+        [WIRE_KEY.ACTION]: GAME_ACTION.DECLARE_TSUMO,
+        [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+        [WIRE_KEY.WAIT_ID]: waitId,
     } as const;
 }
 
 export function buildRonAction(waitId: number) {
     return {
-        a: GAME_ACTION.CALL_RON,
-        t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
-        wi: waitId,
+        [WIRE_KEY.ACTION]: GAME_ACTION.CALL_RON,
+        [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+        [WIRE_KEY.WAIT_ID]: waitId,
     } as const;
 }
 
 export function buildPonAction(tileId: number, waitId: number) {
     return {
-        a: GAME_ACTION.CALL_PON,
-        t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
-        ti: tileId,
-        wi: waitId,
+        [WIRE_KEY.ACTION]: GAME_ACTION.CALL_PON,
+        [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+        [WIRE_KEY.TILE_ID]: tileId,
+        [WIRE_KEY.WAIT_ID]: waitId,
     } as const;
 }
 
 export function buildChiAction(tileId: number, sequenceTiles: [number, number], waitId: number) {
     return {
-        a: GAME_ACTION.CALL_CHI,
-        sequence_tiles: sequenceTiles,
-        t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
-        ti: tileId,
-        wi: waitId,
+        [WIRE_KEY.ACTION]: GAME_ACTION.CALL_CHI,
+        [WIRE_KEY.SEQUENCE_TILES]: sequenceTiles,
+        [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+        [WIRE_KEY.TILE_ID]: tileId,
+        [WIRE_KEY.WAIT_ID]: waitId,
     } as const;
 }
 
 export function buildKanAction(tileId: number, kanType: KanType, waitId: number) {
     return {
-        a: GAME_ACTION.CALL_KAN,
-        kan_type: kanType,
-        t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
-        ti: tileId,
-        wi: waitId,
+        [WIRE_KEY.ACTION]: GAME_ACTION.CALL_KAN,
+        [WIRE_KEY.ACTION_KAN_TYPE]: kanType,
+        [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+        [WIRE_KEY.TILE_ID]: tileId,
+        [WIRE_KEY.WAIT_ID]: waitId,
     } as const;
 }
 
 export function buildKyuushuAction(waitId: number) {
     return {
-        a: GAME_ACTION.CALL_KYUUSHU,
-        t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
-        wi: waitId,
+        [WIRE_KEY.ACTION]: GAME_ACTION.CALL_KYUUSHU,
+        [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+        [WIRE_KEY.WAIT_ID]: waitId,
     } as const;
 }
 
 export function buildPassAction(waitId: number) {
     return {
-        a: GAME_ACTION.PASS,
-        t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
-        wi: waitId,
+        [WIRE_KEY.ACTION]: GAME_ACTION.PASS,
+        [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+        [WIRE_KEY.WAIT_ID]: waitId,
     } as const;
 }
 
 export function buildConfirmRoundAction(waitId: number) {
     return {
-        a: GAME_ACTION.CONFIRM_ROUND,
-        t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
-        wi: waitId,
+        [WIRE_KEY.ACTION]: GAME_ACTION.CONFIRM_ROUND,
+        [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+        [WIRE_KEY.WAIT_ID]: waitId,
     } as const;
 }
 

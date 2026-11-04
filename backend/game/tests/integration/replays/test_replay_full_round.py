@@ -13,7 +13,7 @@ STARTING_SCORE = 25000
 
 
 def test_replay_runner__when_full_game_replayed__should_end_with_conserved_ordered_standings():
-    replay = load_replay_from_file(FIXTURES_DIR / "full_game.txt")
+    replay = load_replay_from_file(FIXTURES_DIR / "full_game.msgpack")
     assert isinstance(replay.seed, str)
     assert len(replay.seed) == 192
     assert replay.rng_version == RNG_VERSION

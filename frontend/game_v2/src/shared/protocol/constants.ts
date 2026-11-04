@@ -26,7 +26,7 @@ export const EVENT_TYPE = {
 
 export type EventType = (typeof EVENT_TYPE)[keyof typeof EVENT_TYPE];
 
-export const REPLAY_VERSION = "0.3-dev";
+export const REPLAY_VERSION = "0.4-dev";
 
 export const REPLAY_LINE_TYPE = {
     SEAT_CONTROL: 101,

@@ -10,7 +10,7 @@ from scripts.replay_fixtures.scenarios import FIXTURES
 from shared.logging import setup_logging
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-FIXTURES_DIR = FixtureDir(REPO_ROOT / "frontend" / "game_v2" / "src" / "fixtures" / "replays", suffix=".txt")
+FIXTURES_DIR = FixtureDir(REPO_ROOT / "frontend" / "game_v2" / "src" / "fixtures" / "replays", suffix=".msgpack")
 DESCRIPTION = """
 Generate the replay files the v2 game client's tests read, by playing the scenarios of scripts.replay_fixtures through
 the real engine: games dealt from a staged wall and played seat by seat, a game dealt from its seed and played by a
@@ -26,7 +26,7 @@ def main() -> int:
     args = parser.parse_args()
 
     setup_logging(level=logging.WARNING)
-    generated = {name: build().text for name, build in FIXTURES.items()}
+    generated = {name: build().content for name, build in FIXTURES.items()}
     if not args.check:
         FIXTURES_DIR.write(generated)
         print(f"wrote {len(generated)} replay fixture(s) to {FIXTURES_DIR.path.relative_to(REPO_ROOT)}")

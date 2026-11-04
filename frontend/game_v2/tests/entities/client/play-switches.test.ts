@@ -36,6 +36,7 @@ import {
     EVENT_TYPE,
     NUM_TILES,
     PLAYER_ACTION,
+    WIRE_KEY,
     buildDiscardAction,
     buildPassAction,
     buildResyncMessage,
@@ -78,7 +79,7 @@ function rejoinedAfter(
         )
         .map(({ effects, event }) => ({ effects, event: { ...event, at: event.at + shift } }));
     const at = stepAt(scenario, "reconnected").at + shift;
-    const snapshot = { ...receivedPayload(transcript, "reconnected"), wi: waitId };
+    const snapshot = { ...receivedPayload(transcript, "reconnected"), [WIRE_KEY.WAIT_ID]: waitId };
     return [...rejoining, { event: { at, kind: "server_message", raw: snapshot } }];
 }
 
@@ -124,9 +125,9 @@ function received(at: number, raw: Record<string, unknown>, label: string): Scen
 function earlyWaitBranch(): { readonly early: SeatScenario; readonly waitId: number } {
     const { scenario, transcript } = loadSeatScenario("reconnect_seat_1");
     const prompt = receivedPayload(transcript, "prompt re-sent");
-    const waitId = Number(prompt.wi) + 1;
-    const unseen = { ...prompt, wi: waitId };
-    const snapshot = { ...receivedPayload(transcript, "reconnected"), wi: waitId };
+    const waitId = Number(prompt[WIRE_KEY.WAIT_ID]) + 1;
+    const unseen = { ...prompt, [WIRE_KEY.WAIT_ID]: waitId };
+    const snapshot = { ...receivedPayload(transcript, "reconnected"), [WIRE_KEY.WAIT_ID]: waitId };
     const noCalls = { playSwitch: "no_calls", type: "toggle_switch" } as const;
     const early = branchAfter(switchedOnBefore(scenario, "dropped", ["no_calls"]), "reopened", [
         received(5500, unseen, "early prompt"),
@@ -146,12 +147,17 @@ function earlyWaitBranch(): { readonly early: SeatScenario; readonly waitId: num
 
 /** The discard of the tile a draw's payload drew, on its wait: what Auto discard sends, written by hand. */
 function drawnDiscard(draw: Readonly<Record<string, unknown>>): ClientEffect {
-    return sent(buildDiscardAction(Number(draw.d) % NUM_TILES, Number(draw.wi)));
+    return sent(
+        buildDiscardAction(
+            Number(draw[WIRE_KEY.PACKED_MOVE]) % NUM_TILES,
+            Number(draw[WIRE_KEY.WAIT_ID]),
+        ),
+    );
 }
 
 /** The pass of the prompt a payload carries, on its wait: what No calls sends, written by hand. */
 function promptPass(prompt: Readonly<Record<string, unknown>>): ClientEffect {
-    return sent(buildPassAction(Number(prompt.wi)));
+    return sent(buildPassAction(Number(prompt[WIRE_KEY.WAIT_ID])));
 }
 
 function runPlainRiichiDraw(autoDiscard: boolean): {
@@ -160,8 +166,11 @@ function runPlainRiichiDraw(autoDiscard: boolean): {
     readonly tileId: number;
 } {
     const { scenario, transcript } = loadSeatScenario("own_turn_seat_1");
-    const { aa: _offers, ...plain } = receivedPayload(transcript, "tsumo draw");
-    const refusal = wireRuleRefusal(Number(plain.wi));
+    const { [WIRE_KEY.AVAILABLE_ACTIONS]: _offers, ...plain } = receivedPayload(
+        transcript,
+        "tsumo draw",
+    );
+    const refusal = wireRuleRefusal(Number(plain[WIRE_KEY.WAIT_ID]));
     const unswitched = branchAfter(scenario, "furiten", [
         received(13_000, plain, "plain"),
         received(13_500, plain, "repeated before discard"),
@@ -178,7 +187,11 @@ function runPlainRiichiDraw(autoDiscard: boolean): {
     const branch = autoDiscard
         ? switchedOnBefore(unswitched, "plain", ["auto_discard"])
         : unswitched;
-    return { branch, run: runClean(branch), tileId: Number(plain.d) % NUM_TILES };
+    return {
+        branch,
+        run: runClean(branch),
+        tileId: Number(plain[WIRE_KEY.PACKED_MOVE]) % NUM_TILES,
+    };
 }
 
 describe("automatic answers", () => {
@@ -283,7 +296,7 @@ describe("automatic discards", () => {
         expect(nextDeadline(waiting)).toBe(15_000);
         expect(
             waiting.table.players.find((player) => player.seat === waiting.viewerSeat)?.drawnTileId,
-        ).toBe(Number(draw.d) % NUM_TILES);
+        ).toBe(Number(draw[WIRE_KEY.PACKED_MOVE]) % NUM_TILES);
         expect(bySwitch(stateAt(switched, run, "sent"))).toBe("auto_discard");
     });
 
@@ -378,7 +391,10 @@ describe("automatic discards", () => {
 
     it("cancels a delayed riichi discard on disconnect", () => {
         const { scenario, transcript } = loadSeatScenario("own_turn_seat_1");
-        const { aa: _offers, ...plain } = receivedPayload(transcript, "tsumo draw");
+        const { [WIRE_KEY.AVAILABLE_ACTIONS]: _offers, ...plain } = receivedPayload(
+            transcript,
+            "tsumo draw",
+        );
         const disconnected = branchAfter(scenario, "furiten", [
             received(13_000, plain, "plain"),
             { event: { at: 13_500, code: 1006, kind: "transport_closed", reason: "" } },
@@ -432,7 +448,7 @@ describe("stepGameClient - play switches", () => {
             promptPass(receivedPayload(transcript, "prompt")),
         ]);
         const ronPrompt = receivedPayload(transcript, "ron prompt");
-        const rejoined = rejoinedAfter(generated, "discarded", ronPrompt.wi);
+        const rejoined = rejoinedAfter(generated, "discarded", ronPrompt[WIRE_KEY.WAIT_ID]);
         const missed = branchAfter(passed, "discarded", [
             ...rejoined,
             {
@@ -502,45 +518,62 @@ describe("stepGameClient - play switches", () => {
     });
 
     it.each([
-        { aa: [{ a: 999 }], name: "an action code it does not know" },
-        { aa: [{ a: PLAYER_ACTION.RIICHI }], name: "a riichi with no discard" },
-        { aa: [{ a: PLAYER_ACTION.KAN }], name: "a kan with no tile type" },
-        { aa: [{ a: PLAYER_ACTION.RIICHI, tl: [] }], name: "a riichi with an empty discard list" },
-    ])("Auto discard never answers a draw offering $name, a loss of step instead", ({ aa }) => {
-        const turn = checkpointState("own_turn_seat_1", "first draw");
-        const seat = turn.viewerSeat ?? 0;
-        const [drawnTile] = turn.table.players[seat].tiles;
-        const switchedOn = stepGameClient(turn, {
-            at: 3100,
-            intent: { playSwitch: "auto_discard", type: "toggle_switch" },
-            kind: "intent",
-        }).state;
-        function drawOffering(offers: unknown): ReturnType<typeof stepGameClient> {
-            return stepGameClient(switchedOn, {
-                at: 3200,
-                kind: "server_message",
-                raw: {
-                    aa: offers,
-                    bk: 30,
-                    d: seat * NUM_TILES + drawnTile,
-                    t: EVENT_TYPE.DRAW,
-                    tr: 69,
-                    wi: 999,
-                },
-            });
-        }
+        {
+            [WIRE_KEY.AVAILABLE_ACTIONS]: [{ [WIRE_KEY.ACTION]: 999 }],
+            name: "an action code it does not know",
+        },
+        {
+            [WIRE_KEY.AVAILABLE_ACTIONS]: [{ [WIRE_KEY.ACTION]: PLAYER_ACTION.RIICHI }],
+            name: "a riichi with no discard",
+        },
+        {
+            [WIRE_KEY.AVAILABLE_ACTIONS]: [{ [WIRE_KEY.ACTION]: PLAYER_ACTION.KAN }],
+            name: "a kan with no tile type",
+        },
+        {
+            [WIRE_KEY.AVAILABLE_ACTIONS]: [
+                { [WIRE_KEY.ACTION]: PLAYER_ACTION.RIICHI, [WIRE_KEY.TILES]: [] },
+            ],
+            name: "a riichi with an empty discard list",
+        },
+    ])(
+        "Auto discard never answers a draw offering $name, a loss of step instead",
+        ({ [WIRE_KEY.AVAILABLE_ACTIONS]: aa }) => {
+            const turn = checkpointState("own_turn_seat_1", "first draw");
+            const seat = turn.viewerSeat ?? 0;
+            const [drawnTile] = turn.table.players[seat].tiles;
+            const switchedOn = stepGameClient(turn, {
+                at: 3100,
+                intent: { playSwitch: "auto_discard", type: "toggle_switch" },
+                kind: "intent",
+            }).state;
+            function drawOffering(offers: unknown): ReturnType<typeof stepGameClient> {
+                return stepGameClient(switchedOn, {
+                    at: 3200,
+                    kind: "server_message",
+                    raw: {
+                        [WIRE_KEY.AVAILABLE_ACTIONS]: offers,
+                        [WIRE_KEY.BANK_SECONDS]: 30,
+                        [WIRE_KEY.PACKED_MOVE]: seat * NUM_TILES + drawnTile,
+                        [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
+                        [WIRE_KEY.TILES_REMAINING]: 69,
+                        [WIRE_KEY.WAIT_ID]: 999,
+                    },
+                });
+            }
 
-        const unreadable = drawOffering(aa);
-        expect(unreadable.effects.map((effect) => effect.type)).toEqual([
-            "report_protocol_failure",
-            "send",
-        ]);
-        expect(unreadable.effects[1]).toEqual(sent(buildResyncMessage()));
-        expect([decisionOf(unreadable.state), desyncOf(unreadable.state)?.cause]).toEqual([
-            null,
-            "unreadable_message",
-        ]);
-    });
+            const unreadable = drawOffering(aa);
+            expect(unreadable.effects.map((effect) => effect.type)).toEqual([
+                "report_protocol_failure",
+                "send",
+            ]);
+            expect(unreadable.effects[1]).toEqual(sent(buildResyncMessage()));
+            expect([decisionOf(unreadable.state), desyncOf(unreadable.state)?.cause]).toEqual([
+                null,
+                "unreadable_message",
+            ]);
+        },
+    );
 
     it("never answers again a decision the server's refusal reopened", () => {
         const { scenario, transcript } = loadSeatScenario("anchor_seat_1");
@@ -550,7 +583,7 @@ describe("stepGameClient - play switches", () => {
         const refusal = {
             at: 21_200,
             kind: "server_message",
-            raw: wireRuleRefusal(Number(ownTurn.wi)),
+            raw: wireRuleRefusal(Number(ownTurn[WIRE_KEY.WAIT_ID])),
         } as const;
         const switched = branchAfter(switchedOn, "own turn", [
             { effects: [discard], event: { at: 21_000, kind: "tick" }, label: "sent" },

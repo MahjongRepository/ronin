@@ -100,7 +100,7 @@ export interface ReplayDisplay {
 function incompleteness(source: ReplaySource): ReplayIncompleteness | null {
     if (source.damage !== null) {
         return {
-            detail: `Line ${source.damage.lineNumber} could not be read, so the replay stops before it.`,
+            detail: `Record ${source.damage.lineNumber} could not be read, so the replay stops before it.`,
             label: "Damaged",
         };
     }
@@ -116,7 +116,7 @@ function endNotice(source: ReplaySource, cursor: ReplayCursor): string | null {
     }
     return source.damage === null
         ? "The recording ends here, before the game's end"
-        : `The replay stops here: line ${source.damage.lineNumber} could not be read`;
+        : `The replay stops here: record ${source.damage.lineNumber} could not be read`;
 }
 
 /** Where each move control goes from the cursor. */

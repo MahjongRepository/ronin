@@ -1,5 +1,4 @@
 import asyncio
-import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -20,6 +19,7 @@ from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection, MockGameService
 from game.wire.compact import decode_discard
 from game.wire.events import EVENT_TYPE_INT
+from game.wire.keys import WireKey
 from shared.dal.models import GameEndReason
 
 from .helpers import game_of, runtime_of, wait_for_background_tasks
@@ -44,11 +44,11 @@ def _make_specs(count: int = 1) -> list[PlayerSpec]:
 
 
 def _error_messages(conn: MockConnection) -> list[dict]:
-    return [m for m in conn.sent_messages if m.get("type") == "session_error"]
+    return [m for m in conn.sent_messages if m.get(WireKey.SESSION_TYPE) == "session_error"]
 
 
 def _error_codes(conn: MockConnection) -> list[str]:
-    return [m["code"] for m in _error_messages(conn)]
+    return [m[WireKey.SESSION_ERROR_CODE] for m in _error_messages(conn)]
 
 
 def _join(manager, ticket: str, game_id: str = "game1") -> MockConnection:
@@ -137,8 +137,8 @@ class TestJoinGame:
         first = _join(manager, "ticket-0")
         assert game_of(manager).lifecycle is GameLifecycle.PENDING
         joined = {
-            "pt": game_of(manager).timer_config.pending_game_timeout_seconds,
-            "type": SessionMessageType.GAME_JOINED,
+            WireKey.PENDING_GAME_TIMEOUT: game_of(manager).timer_config.pending_game_timeout_seconds,
+            WireKey.SESSION_TYPE: SessionMessageType.GAME_JOINED,
         }
         assert first.sent_messages == [joined]
 
@@ -146,7 +146,7 @@ class TestJoinGame:
         assert game_of(manager).lifecycle is GameLifecycle.PLAYING
         assert manager.started_game_count == 1
         assert second.sent_messages[0] == joined
-        assert second.sent_messages[1]["t"] == GAME_STARTED_T
+        assert second.sent_messages[1][WireKey.EVENT_TYPE] == GAME_STARTED_T
 
     async def test_handle_game_action__when_game_still_pending__should_return_game_not_started_error(self, manager):
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
@@ -170,7 +170,9 @@ class TestPendingGameTimeout:
 
         await timeout_task
         assert manager.get_playing_game_id("user-0") == "game1"
-        game_started = [m for m in conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.GAME_STARTED]]
+        game_started = [
+            m for m in conn.sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.GAME_STARTED]
+        ]
         assert len(game_started) == 1
         absent, connected = game.participants
         assert absent.seat == runtime_of(manager).state.round_state.dealer_seat
@@ -180,16 +182,29 @@ class TestPendingGameTimeout:
         assert snapshot.players[absent.seat].is_ai_player is True
         assert game.awaiting is not None
         assert game.awaiting.seats == {connected.seat}
-        recorded = [json.loads(line) for line in game.replay.lines]
-        assert [line["t"] for line in recorded[:5]] == [GAME_STARTED_T, 101, ROUND_STARTED_T, DRAW_T, DISCARD_T]
-        assert recorded[1] == {"t": 101, "s": absent.seat, "ai": 1, "r": 1}
-        assert decode_discard(recorded[4]["d"])[0] == absent.seat
+        recorded = game.replay.records
+        assert [line[WireKey.EVENT_TYPE] for line in recorded[:5]] == [
+            GAME_STARTED_T,
+            101,
+            ROUND_STARTED_T,
+            DRAW_T,
+            DISCARD_T,
+        ]
+        assert recorded[1] == {
+            WireKey.EVENT_TYPE: 101,
+            WireKey.SEAT: absent.seat,
+            WireKey.AI_PLAYER: 1,
+            WireKey.SEAT_CONTROL_REASON: 1,
+        }
+        assert decode_discard(recorded[4][WireKey.PACKED_MOVE])[0] == absent.seat
 
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)
         manager.reconnect(reconnecting, session_token="ticket-0")
-        reconnected = [m for m in reconnecting.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
-        assert [m["s"] for m in reconnected] == [absent.seat]
+        reconnected = [
+            m for m in reconnecting.sent_messages if m.get(WireKey.SESSION_TYPE) == SessionMessageType.GAME_RECONNECTED
+        ]
+        assert [m[WireKey.SEAT] for m in reconnected] == [absent.seat]
 
         await manager.shutdown()
 
@@ -254,17 +269,25 @@ class TestGameStartPause:
         conns = [_join(manager, "ticket-0"), _join(manager, "ticket-1")]
         game = game_of(manager)
         seats = [participant.seat for participant in game.participants]
-        assert [[m.get("t") for m in conn.sent_messages] for conn in conns] == [[None, GAME_STARTED_T]] * 2
-        assert [conn.sent_messages[1]["s"] for conn in conns] == seats
-        assert [conn.sent_messages[1]["tm"] for conn in conns] == [
-            {"tb": 5, "bk": 20, "mb": 20, "ra": 10, "gp": 0.01}
+        assert [[m.get(WireKey.EVENT_TYPE) for m in conn.sent_messages] for conn in conns] == [
+            [None, GAME_STARTED_T]
+        ] * 2
+        assert [conn.sent_messages[1][WireKey.SEAT] for conn in conns] == seats
+        assert [conn.sent_messages[1][WireKey.TIMER_SETTINGS] for conn in conns] == [
+            {
+                WireKey.BASE_TURN_SECONDS: 5,
+                WireKey.BANK_SECONDS: 20,
+                WireKey.MAX_BANK_SECONDS: 20,
+                WireKey.ROUND_ADVANCE_TIMEOUT: 10,
+                WireKey.GAME_START_PAUSE: 0.01,
+            }
         ] * 2
         assert game.awaiting is None
         assert [participant.timer.task for participant in game.participants] == [None, None]
         assert game.start_pause is not None
 
         await game.start_pause
-        assert [[m.get("t") for m in conn.sent_messages][1:3] for conn in conns] == [
+        assert [[m.get(WireKey.EVENT_TYPE) for m in conn.sent_messages][1:3] for conn in conns] == [
             [GAME_STARTED_T, ROUND_STARTED_T]
         ] * 2
         assert game.awaiting is not None
@@ -290,18 +313,28 @@ class TestGameStartPause:
         manager.reconnect(early_reconnect, session_token="ticket-1")
         assert _error_codes(early_reconnect) == [SessionErrorCode.RECONNECT_RETRY_LATER]
         assert runtime_of(manager).ai.is_ai_player(bob_seat) is False
-        assert [m.get("t") for m in alice.sent_messages] == [None, GAME_STARTED_T]
+        assert [m.get(WireKey.EVENT_TYPE) for m in alice.sent_messages] == [None, GAME_STARTED_T]
 
         await game.start_pause
-        assert alice.sent_messages[2] == {"type": "seat_control", "s": bob_seat, "r": 1}
-        assert alice.sent_messages[3]["t"] == ROUND_STARTED_T
+        assert alice.sent_messages[2] == {
+            WireKey.SESSION_TYPE: "seat_control",
+            WireKey.SEAT: bob_seat,
+            WireKey.SEAT_CONTROL_REASON: 1,
+        }
+        assert alice.sent_messages[3][WireKey.EVENT_TYPE] == ROUND_STARTED_T
         assert runtime_of(manager).ai.is_ai_player(bob_seat) is True
-        recorded = [json.loads(line) for line in game.replay.lines]
-        assert [line for line in recorded if line["t"] == 101] == [{"t": 101, "s": bob_seat, "ai": 1, "r": 1}]
+        recorded = game.replay.records
+        assert [line for line in recorded if line[WireKey.EVENT_TYPE] == 101] == [
+            {WireKey.EVENT_TYPE: 101, WireKey.SEAT: bob_seat, WireKey.AI_PLAYER: 1, WireKey.SEAT_CONTROL_REASON: 1}
+        ]
 
         manager.reconnect(early_reconnect, session_token="ticket-1")
-        reconnected = [m for m in early_reconnect.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
-        assert [m["s"] for m in reconnected] == [bob_seat]
+        reconnected = [
+            m
+            for m in early_reconnect.sent_messages
+            if m.get(WireKey.SESSION_TYPE) == SessionMessageType.GAME_RECONNECTED
+        ]
+        assert [m[WireKey.SEAT] for m in reconnected] == [bob_seat]
 
         await manager.shutdown()
 
@@ -324,7 +357,7 @@ class TestGameStartPause:
 
         await wait_for_background_tasks(manager)
         assert [finish.end_reason for finish in manager._game_repository.finishes] == [GameEndReason.ABANDONED]
-        assert [m.get("t") for m in alice.sent_messages if "t" in m] == [GAME_STARTED_T]
+        assert [m.get(WireKey.EVENT_TYPE) for m in alice.sent_messages if WireKey.EVENT_TYPE in m] == [GAME_STARTED_T]
 
     async def test_game_start_pause__when_the_deal_raises__should_fail_the_game(self):
         game_service = MockGameService()
@@ -573,8 +606,8 @@ class TestJoinGameViaRouter:
         router.handle_message(
             conn,
             {
-                "t": WireClientMessageType.JOIN_GAME,
-                "game_ticket": ticket,
+                WireKey.EVENT_TYPE: WireClientMessageType.JOIN_GAME,
+                WireKey.GAME_TICKET: ticket,
             },
         )
         assert game_of(manager, game_id).lifecycle is GameLifecycle.PLAYING
@@ -590,8 +623,8 @@ class TestJoinGameViaRouter:
         router.handle_message(
             conn,
             {
-                "t": WireClientMessageType.JOIN_GAME,
-                "game_ticket": "forged-ticket",
+                WireKey.EVENT_TYPE: WireClientMessageType.JOIN_GAME,
+                WireKey.GAME_TICKET: "forged-ticket",
             },
         )
         # Should get INVALID_TICKET error (signature verification fails)
@@ -626,8 +659,8 @@ class TestJoinGameViaWebSocket:
             ws.send_bytes(
                 encode(
                     {
-                        "t": WireClientMessageType.JOIN_GAME,
-                        "game_ticket": ticket,
+                        WireKey.EVENT_TYPE: WireClientMessageType.JOIN_GAME,
+                        WireKey.GAME_TICKET: ticket,
                     },
                 ),
             )

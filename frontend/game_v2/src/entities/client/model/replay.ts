@@ -83,11 +83,11 @@ function stepLines(
 /**
  * Read a replay file into the dispatcher's timeline: each event line is a replay line event, parsed by the
  * dispatcher, of a client with no session and no viewer, so every hand the file records is known. A line the
- * dispatcher takes in parts makes an entry per part. Reading stops at the first line that is not a JSON object, does
+ * dispatcher takes in parts makes an entry per part. Reading stops at the first line that is not a MessagePack map, does
  * not parse, or is impossible on the table so far.
  */
-export function readReplayTimeline(text: string): ReplayTimelineRead {
-    const file = readReplayFile(text);
+export function readReplayTimeline(content: Uint8Array): ReplayTimelineRead {
+    const file = readReplayFile(content);
     if (!file.ok) {
         return file;
     }

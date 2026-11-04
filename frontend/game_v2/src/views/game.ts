@@ -35,7 +35,13 @@ import {
     assertNever,
     createDeadlineTimer,
 } from "@/shared/lib";
-import { CLOSE_CODE, EVENT_TYPE, LOG_TYPE_SYSTEM, LOG_TYPE_UNKNOWN } from "@/shared/protocol";
+import {
+    CLOSE_CODE,
+    EVENT_TYPE,
+    LOG_TYPE_SYSTEM,
+    LOG_TYPE_UNKNOWN,
+    WIRE_KEY,
+} from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 import { type ConnectSocket, type GameConnection, type SocketHandlers } from "@/shared/websocket";
 
@@ -106,10 +112,14 @@ function describeError(error: unknown): string {
 }
 
 function wireTypeName(raw: Readonly<Record<string, unknown>>): string {
-    if (typeof raw.type === "string") {
-        return raw.type;
+    const sessionType = raw[WIRE_KEY.SESSION_TYPE];
+    if (typeof sessionType === "string") {
+        return sessionType;
     }
-    return typeof raw.t === "number" ? (EVENT_NAMES.get(raw.t) ?? `t=${raw.t}`) : LOG_TYPE_UNKNOWN;
+    const eventType = raw[WIRE_KEY.EVENT_TYPE];
+    return typeof eventType === "number"
+        ? (EVENT_NAMES.get(eventType) ?? `t=${eventType}`)
+        : LOG_TYPE_UNKNOWN;
 }
 
 /** What the lobby's answer for the player's game says, without the ticket it carries. */

@@ -1,5 +1,6 @@
 from game.messaging.types import SessionErrorCode
 from game.tests.mocks import MockConnection
+from game.wire.keys import WireKey
 
 from .helpers import create_started_game, participant_of
 
@@ -22,4 +23,6 @@ class TestSessionCleanup:
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)
         manager.reconnect(reconnecting, session_token=alice_ticket)
-        assert [m["code"] for m in reconnecting.sent_messages] == [SessionErrorCode.RECONNECT_NO_SESSION]
+        assert [m[WireKey.SESSION_ERROR_CODE] for m in reconnecting.sent_messages] == [
+            SessionErrorCode.RECONNECT_NO_SESSION
+        ]

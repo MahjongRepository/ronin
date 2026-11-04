@@ -3,6 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
 import { type Clock } from "@/shared/clock";
+import {
+    CLIENT_MESSAGE_TYPE,
+    WIRE_KEY,
+    buildJoinGameMessage,
+    decodeWireMessage,
+    encodeWireMessage,
+} from "@/shared/protocol";
 import { GameSocket, type SocketHandlers } from "@/shared/websocket/websocket";
 
 class FakeWebSocket {
@@ -12,6 +19,7 @@ class FakeWebSocket {
     binaryType = "blob";
     readyState = 0;
     closed = false;
+    sent: Uint8Array[] = [];
     onopen: ((event: Event) => void) | null = null;
     onmessage: ((event: MessageEvent) => void) | null = null;
     onclose: ((event: CloseEvent) => void) | null = null;
@@ -32,6 +40,10 @@ class FakeWebSocket {
 
     fail(): void {
         this.onerror?.(new Event("error"));
+    }
+
+    send(data: Uint8Array): void {
+        this.sent.push(data);
     }
 
     close(): void {
@@ -178,14 +190,37 @@ describe("GameSocket frames", () => {
         ws.receiveFrame("text");
         ws.receiveFrame(new Uint8Array([193]).buffer);
         ws.receiveFrame(new Uint8Array(encode([1, 2])).buffer);
-        ws.receiveFrame(new Uint8Array(encode({ t: 1 })).buffer);
+        ws.receiveFrame(new Uint8Array(encode({ [WIRE_KEY.EVENT_TYPE]: 1 })).buffer);
+        ws.receiveFrame(encodeWireMessage({ [WIRE_KEY.EVENT_TYPE]: 1 }).buffer);
         ws.fail();
         expect(reports).toEqual([
             "undecodable: Received a non-binary frame",
             "undecodable: Failed to decode a MessagePack frame",
-            "undecodable: Received a frame that is not a message object",
-            'message: {"t":1}',
+            "undecodable: Failed to decode a MessagePack frame",
+            "undecodable: Failed to decode a MessagePack frame",
+            `message: ${JSON.stringify({ [WIRE_KEY.EVENT_TYPE]: 1 })}`,
             "error: WebSocket error",
         ]);
+    });
+
+    it("sends named client fields as integer map keys and reports readable incoming fields", () => {
+        const messages: Record<string, unknown>[] = [];
+        const ws = connectedSocket([], { onMessage: (message) => messages.push(message) });
+        socket?.send(buildJoinGameMessage("ticket"));
+        expect(ws.sent).toHaveLength(1);
+        expect(ws.sent[0]).toEqual(
+            new Uint8Array([
+                0x82,
+                WIRE_KEY.EVENT_TYPE,
+                CLIENT_MESSAGE_TYPE.JOIN_GAME,
+                WIRE_KEY.GAME_TICKET,
+                ...encode("ticket"),
+            ]),
+        );
+        expect(decodeWireMessage(ws.sent[0])).toEqual(buildJoinGameMessage("ticket"));
+        ws.receiveFrame(
+            encodeWireMessage({ [WIRE_KEY.PACKED_MOVE]: 37, [WIRE_KEY.EVENT_TYPE]: 2 }).buffer,
+        );
+        expect(messages).toEqual([{ [WIRE_KEY.PACKED_MOVE]: 37, [WIRE_KEY.EVENT_TYPE]: 2 }]);
     });
 });

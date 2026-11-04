@@ -92,9 +92,9 @@ The lobby serves `frontend/game_v2/` on every game page. The pages below need no
   and ArrowRight step, ArrowUp, ArrowDown, PageUp and PageDown change round, Home and End go to the
   ends. The address is kept on the position shown with `history.replaceState` at most once per
   500 ms, a waiting write flushed as the page hides, so read it a moment after the last move. A
-  replay recorded before a format change reads as Damaged: for a particular case, gzip a fixture
+  replay recorded before a format change is unsupported: for a particular case, gzip a binary fixture
   from `frontend/game_v2/src/fixtures/replays/` into
-  `backend/data/replays/<id[0:2]>/<id[2:4]>/<id>.txt.gz` under an id of your own and delete it afterwards. The speed and hidden hands are stored under
+  `backend/data/replays/<id[0:2]>/<id[2:4]>/<id>.msgpack.gz` under an id of your own and delete it afterwards. The speed and hidden hands are stored under
   `ronin.v2.replay-prefs` in `localStorage`: remove it after a session that changed them.
 
 ### Settled v2 screenshots

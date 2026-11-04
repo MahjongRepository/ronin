@@ -4,16 +4,16 @@
   "seat": 1,
   "events": [
     {"at": 0, "kind": "opened"},
-    {"at": 0, "kind": "sent", "message": {"game_ticket": "<game ticket>", "t": 7}},
-    {"at": 0, "kind": "received", "payload": {"pt": 30.0, "type": "game_joined"}},
-    {"at": 0, "kind": "received", "payload": {"dd": [[1, 1], [1, 1]], "dl": 0, "gid": "seat-kan-choice", "gt": 0, "p": [{"ai": 1, "nm": "Tsumogiri 1", "s": 0}, {"ai": 0, "nm": "Alice", "s": 1}, {"ai": 1, "nm": "Tsumogiri 2", "s": 2}, {"ai": 1, "nm": "Tsumogiri 3", "s": 3}], "rsv": 10, "s": 1, "t": 8, "tm": {"bk": 20.0, "gp": 3.0, "mb": 20.0, "ra": 10.0, "tb": 5.0}}},
-    {"at": 3000, "kind": "received", "label": "dealt", "payload": {"cp": 0, "dc": [1, 1], "di": [124], "dl": 0, "h": 0, "mt": [0, 1, 2, 3, 40, 48, 56, 68, 69, 70, 76, 88, 100], "n": 0, "p": [{"s": 0, "sc": 250}, {"s": 1, "sc": 250}, {"s": 2, "sc": 250}, {"s": 3, "sc": 250}], "r": 0, "rw": 1, "s": 1, "t": 9, "tr": 70, "w": 0}},
-    {"at": 3000, "kind": "received", "payload": {"s": 0, "t": 13, "tr": 69}},
-    {"at": 3000, "kind": "received", "payload": {"d": 652, "t": 2}},
-    {"at": 3000, "kind": "received", "label": "kan offer", "payload": {"aa": [{"a": 3, "tl": [0, 17]}], "bk": 20, "d": 207, "t": 1, "tr": 68, "wi": 1}},
-    {"at": 5000, "kind": "sent", "label": "kan chosen", "message": {"a": 6, "kan_type": "closed", "t": 3, "ti": 68, "wi": 1}},
-    {"at": 5000, "kind": "received", "payload": {"m": 27621, "t": 0}},
-    {"at": 5000, "kind": "received", "payload": {"t": 6, "ti": 125}},
-    {"at": 5000, "kind": "received", "label": "rinshan", "payload": {"aa": [{"a": 3, "tl": [0]}], "bk": 20, "d": 256, "t": 1, "tr": 67, "wi": 2}}
+    {"at": 0, "kind": "sent", "message": {"1": 7, "86": "<game ticket>"}},
+    {"at": 0, "kind": "received", "payload": {"37": 30.0, "108": "game_joined"}},
+    {"at": 0, "kind": "received", "payload": {"1": 8, "8": [[1, 1], [1, 1]], "10": 0, "15": "seat-kan-choice", "17": 0, "34": [{"2": 1, "31": "Tsumogiri 1", "50": 0}, {"2": 0, "31": "Alice", "50": 1}, {"2": 1, "31": "Tsumogiri 2", "50": 2}, {"2": 1, "31": "Tsumogiri 3", "50": 3}], "46": 10, "50": 1, "107": {"76": 20.0, "87": 3.0, "91": 20.0, "98": 10.0, "105": 5.0}}},
+    {"at": 3000, "kind": "received", "label": "dealt", "payload": {"1": 9, "4": 0, "7": [1, 1], "9": [124], "10": 0, "18": 0, "30": 0, "34": [{"50": 0, "51": 250}, {"50": 1, "51": 250}, {"50": 2, "51": 250}, {"50": 3, "51": 250}], "40": 0, "49": 1, "50": 1, "61": 70, "64": 0, "94": [0, 1, 2, 3, 40, 48, 56, 68, 69, 70, 76, 88, 100]}},
+    {"at": 3000, "kind": "received", "payload": {"1": 13, "50": 0, "61": 69}},
+    {"at": 3000, "kind": "received", "payload": {"1": 2, "6": 652}},
+    {"at": 3000, "kind": "received", "label": "kan offer", "payload": {"1": 1, "6": 207, "61": 68, "73": [{"60": [0, 17], "72": 3}], "76": 20, "109": 1}},
+    {"at": 5000, "kind": "sent", "label": "kan chosen", "message": {"1": 3, "59": 68, "72": 6, "88": "closed", "109": 1}},
+    {"at": 5000, "kind": "received", "payload": {"1": 0, "28": 27621}},
+    {"at": 5000, "kind": "received", "payload": {"1": 6, "59": 125}},
+    {"at": 5000, "kind": "received", "label": "rinshan", "payload": {"1": 1, "6": 256, "61": 67, "73": [{"60": [0], "72": 3}], "76": 20, "109": 2}}
   ]
 }

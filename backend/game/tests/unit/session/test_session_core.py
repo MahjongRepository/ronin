@@ -1,4 +1,3 @@
-import json
 from typing import TYPE_CHECKING, Any
 
 from game.logic.enums import CallType, GameAction, MeldCallType, WaitKind
@@ -18,6 +17,7 @@ from game.tests.unit.helpers import _update_player
 from game.wire.compact import encode_draw
 from game.wire.enums import WireEventType
 from game.wire.events import EVENT_TYPE_INT
+from game.wire.keys import WireKey
 
 from .helpers import (
     arrange_pon_now_and_on_the_next_draw,
@@ -44,7 +44,9 @@ class TestSessionManager:
         bob_seat = participant_of(manager, conns[1]).seat
 
         manager.disconnect(conns[1])
-        assert conns[0].sent_messages == [{"type": "seat_control", "s": bob_seat, "r": 0}]
+        assert conns[0].sent_messages == [
+            {WireKey.SESSION_TYPE: "seat_control", WireKey.SEAT: bob_seat, WireKey.SEAT_CONTROL_REASON: 0}
+        ]
 
     async def test_handle_game_action__when_service_returns_event__should_broadcast_it(self, manager):
         conns = create_started_game(manager)
@@ -55,8 +57,8 @@ class TestSessionManager:
         # mock service returns one event with target "all"
         assert len(conns[0].sent_messages) == 1
         msg = conns[0].sent_messages[0]
-        assert msg.get("t") == EVENT_TYPE_INT[EventType.DRAW]
-        assert msg["action"] == GameAction.DISCARD
+        assert msg.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DRAW]
+        assert msg[WireKey.PACKED_MOVE] == encode_draw(0, 0)
 
     async def test_broadcast_events__when_event_targets_seat__should_send_only_to_that_player(self, manager):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
@@ -84,7 +86,7 @@ class TestSessionManager:
         manager._broadcast_events(game, [call_event], MOCK_AWAITING)
         # only conn1 (seat 0) should receive the call_prompt
         assert len(conns[0].sent_messages) == 1
-        assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT]
+        assert conns[0].sent_messages[0].get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.CALL_PROMPT]
         assert len(conns[1].sent_messages) == 0
 
     async def test_broadcast_events__when_caller_has_pon_and_chi__should_send_call_prompt_once(self, manager):
@@ -106,21 +108,27 @@ class TestSessionManager:
         manager._broadcast_events(game, [call_event], MOCK_AWAITING)
         # seat 0 should receive the call_prompt exactly once
         assert len(conns[0].sent_messages) == 1
-        assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT]
+        assert conns[0].sent_messages[0].get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.CALL_PROMPT]
         # seat 1 (Bob) should not receive it
         assert len(conns[1].sent_messages) == 0
 
 
-def _seen_draws(conn: MockConnection) -> list[dict[str, Any]]:
+def _seen_draws(conn: MockConnection) -> list[dict[int, Any]]:
     return [
-        {"t": message["t"], "d": message["d"], "tr": message["tr"]} if message["t"] == WireEventType.DRAW else message
+        {
+            WireKey.EVENT_TYPE: message[WireKey.EVENT_TYPE],
+            WireKey.PACKED_MOVE: message[WireKey.PACKED_MOVE],
+            WireKey.TILES_REMAINING: message[WireKey.TILES_REMAINING],
+        }
+        if message[WireKey.EVENT_TYPE] == WireEventType.DRAW
+        else message
         for message in conn.sent_messages
-        if message.get("t") in DRAW_MESSAGE_TYPES
+        if message.get(WireKey.EVENT_TYPE) in DRAW_MESSAGE_TYPES
     ]
 
 
-def _replay_lines(manager: SessionManager) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in game_of(manager).replay.lines]
+def _replay_lines(manager: SessionManager) -> list[dict[int, Any]]:
+    return game_of(manager).replay.records
 
 
 def _discard_drawn_tile(manager: SessionManager, conns: list[MockConnection]) -> None:
@@ -146,19 +154,27 @@ class TestDrawDelivery:
             _discard_drawn_tile(manager, conns)
 
         lines = _replay_lines(manager)
-        replay_draws = [line for line in lines if line["t"] == WireEventType.DRAW]
-        drawers = [line["d"] // NUM_TILES for line in replay_draws]
+        replay_draws = [line for line in lines if line[WireKey.EVENT_TYPE] == WireEventType.DRAW]
+        drawers = [line[WireKey.PACKED_MOVE] // NUM_TILES for line in replay_draws]
         assert drawers[0] == alice.seat
         assert set(drawers) == {0, 1, 2, 3}
-        assert WireEventType.DRAW_NOTICE not in {line["t"] for line in lines}
-        assert [line["tr"] for line in replay_draws] == [
+        assert WireEventType.DRAW_NOTICE not in {line[WireKey.EVENT_TYPE] for line in lines}
+        assert [line[WireKey.TILES_REMAINING] for line in replay_draws] == [
             live_wall_after_deal - drawn for drawn in range(1, len(replay_draws) + 1)
         ]
         for participant, conn in zip((alice, bob), conns, strict=True):
             expected = [
-                {"t": WireEventType.DRAW, "d": line["d"], "tr": line["tr"]}
+                {
+                    WireKey.EVENT_TYPE: WireEventType.DRAW,
+                    WireKey.PACKED_MOVE: line[WireKey.PACKED_MOVE],
+                    WireKey.TILES_REMAINING: line[WireKey.TILES_REMAINING],
+                }
                 if drawer == participant.seat
-                else {"t": WireEventType.DRAW_NOTICE, "s": drawer, "tr": line["tr"]}
+                else {
+                    WireKey.EVENT_TYPE: WireEventType.DRAW_NOTICE,
+                    WireKey.SEAT: drawer,
+                    WireKey.TILES_REMAINING: line[WireKey.TILES_REMAINING],
+                }
                 for line, drawer in zip(replay_draws, drawers, strict=True)
             ]
             assert _seen_draws(conn) == expected
@@ -177,7 +193,7 @@ class TestDrawDelivery:
             seat=alice.seat,
             tiles=(*[tile for tile in hand if tile not in HAKU_COPIES][:10], *HAKU_COPIES),
         )
-        replay_size = len(game_of(manager).replay.lines)
+        replay_size = len(game_of(manager).replay.records)
 
         manager.handle_game_action(
             alice_conn,
@@ -188,10 +204,24 @@ class TestDrawDelivery:
         round_state = runtime_of(manager).state.round_state
         replacement = encode_draw(alice.seat, round_state.players[alice.seat].tiles[-1])
         wall_left = tiles_remaining(round_state.wall)
-        assert _seen_draws(alice_conn) == [{"t": WireEventType.DRAW, "d": replacement, "tr": wall_left}]
-        assert _seen_draws(bob_conn) == [{"t": WireEventType.DRAW_NOTICE, "s": alice.seat, "tr": wall_left}]
+        assert _seen_draws(alice_conn) == [
+            {
+                WireKey.EVENT_TYPE: WireEventType.DRAW,
+                WireKey.PACKED_MOVE: replacement,
+                WireKey.TILES_REMAINING: wall_left,
+            }
+        ]
+        assert _seen_draws(bob_conn) == [
+            {
+                WireKey.EVENT_TYPE: WireEventType.DRAW_NOTICE,
+                WireKey.SEAT: alice.seat,
+                WireKey.TILES_REMAINING: wall_left,
+            }
+        ]
         new_lines = _replay_lines(manager)[replay_size:]
-        assert [line["d"] for line in new_lines if line["t"] == WireEventType.DRAW] == [replacement]
+        assert [line[WireKey.PACKED_MOVE] for line in new_lines if line[WireKey.EVENT_TYPE] == WireEventType.DRAW] == [
+            replacement
+        ]
 
         await manager.shutdown()
 
@@ -218,7 +248,10 @@ class TestDrawDelivery:
             data={"tile_id": discarded_four_pin},
             wait_id=current_wait_id(manager, bob_conn),
         )
-        assert [message["t"] for message in alice_conn.sent_messages] == [WireEventType.MELD]
-        assert [message["t"] for message in bob_conn.sent_messages] == [WireEventType.MELD, WireEventType.TURN]
+        assert [message[WireKey.EVENT_TYPE] for message in alice_conn.sent_messages] == [WireEventType.MELD]
+        assert [message[WireKey.EVENT_TYPE] for message in bob_conn.sent_messages] == [
+            WireEventType.MELD,
+            WireEventType.TURN,
+        ]
 
         await manager.shutdown()

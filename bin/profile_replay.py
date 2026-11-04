@@ -27,7 +27,7 @@ DEFAULT_REPLAY = (
     / "replays"
     / "fixtures"
     / "full_round"
-    / "full_game.txt"
+    / "full_game.msgpack"
 )
 PROFILE_DIR = Path(__file__).resolve().parent.parent / "backend" / "profiles"
 ITERATIONS = 20
@@ -225,7 +225,7 @@ def load_profile() -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Profile the full_game.txt replay")
+    parser = argparse.ArgumentParser(description="Profile the full_game.msgpack replay")
     parser.add_argument("--load", action="store_true", help="show the latest cProfile run in detail instead")
     parser.add_argument("--timing-only", action="store_true", help="skip the sampled profile")
     args = parser.parse_args()

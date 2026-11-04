@@ -47,7 +47,7 @@ function scriptedLoad(answers: readonly ReplayFetch[]): ScriptedLoad {
 }
 
 const NOT_FOUND: ReplayFetch = { ok: false, status: 404 };
-const FOUND: ReplayFetch = { ok: true, text: "replay" };
+const FOUND: ReplayFetch = { content: new Uint8Array([1, 2, 3]), ok: true };
 
 async function settle(turns = 5): Promise<void> {
     if (turns > 0) {

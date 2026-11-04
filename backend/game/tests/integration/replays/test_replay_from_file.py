@@ -1,4 +1,3 @@
-import json
 import re
 from itertools import accumulate, pairwise
 from pathlib import Path
@@ -14,13 +13,15 @@ from game.replay import run_replay
 from game.replay.external.tenhou import TenhouConverter
 from game.replay.loader import load_replay_from_file
 from game.wire.enums import WireEventType
+from game.wire.keys import WireKey
+from game.wire.replay_format import decode_replay_records
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "simple_cases"
-ALL_FIXTURES = sorted((Path(__file__).parent / "fixtures").glob("*/*.txt"))
+ALL_FIXTURES = sorted((Path(__file__).parent / "fixtures").glob("*/*.msgpack"))
 
 
 def test_replay_runner__when_single_discard_replay_loaded__should_produce_consistent_trace():
-    replay = load_replay_from_file(FIXTURES_DIR / "single_discard.txt")
+    replay = load_replay_from_file(FIXTURES_DIR / "single_discard.msgpack")
     # Verify loaded replay metadata
     assert isinstance(replay.seed, str)
     assert len(replay.seed) == 192  # 96-byte hex seed
@@ -61,15 +62,17 @@ def test_replay_runner__when_single_discard_replay_loaded__should_produce_consis
 
 @pytest.mark.parametrize("fixture", ALL_FIXTURES, ids=lambda path: path.stem)
 def test_replay_fixture__when_loaded_replayed_and_exported__should_reproduce_its_round_ends_and_rounds(fixture):
-    recorded_lines = [json.loads(line) for line in fixture.read_text().splitlines()[1:]]
+    recorded_lines = decode_replay_records(fixture.read_bytes())[1:]
 
     trace = run_replay(load_replay_from_file(fixture))
-    replayed_round_ends = [
-        json.loads(json.dumps(game_event_payload(e))) for e in trace.events if isinstance(e, RoundEndEvent)
+    replayed_round_ends = [game_event_payload(e) for e in trace.events if isinstance(e, RoundEndEvent)]
+    assert replayed_round_ends == [
+        line for line in recorded_lines if line[WireKey.EVENT_TYPE] == WireEventType.ROUND_END
     ]
-    assert replayed_round_ends == [line for line in recorded_lines if line["t"] == WireEventType.ROUND_END]
 
-    dealers = [line["dl"] for line in recorded_lines if line["t"] == WireEventType.ROUND_STARTED]
+    dealers = [
+        line[WireKey.DEALER] for line in recorded_lines if line[WireKey.EVENT_TYPE] == WireEventType.ROUND_STARTED
+    ]
     dealer_rotations = accumulate((dealer != previous for previous, dealer in pairwise(dealers)), initial=0)
     tenhou_xml = TenhouConverter(recorded_lines).convert()
     assert re.findall(r'<INIT seed="(\d+),[^"]*" ten="[^"]*" oya="(\d)"', tenhou_xml) == [

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { WIRE_KEY } from "@/shared/protocol";
 import {
     ABORTIVE_DRAW_TYPE,
     ROUND_RESULT_TYPE,
@@ -11,82 +12,101 @@ import { gameReconnectedSchema } from "@/shared/protocol/schemas/reconnect";
 const ADDED_KAN_OF_1P = 22_457;
 
 const FINISHED_ROUND = {
-    dl: 0,
-    h: 0,
-    ps: [],
-    rs: [],
-    rt: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
-    sch: { "0": 0, "1": 0, "2": 0, "3": 0 },
-    w: 0,
-    ws: [],
+    [WIRE_KEY.DEALER]: 0,
+    [WIRE_KEY.HONBA]: 0,
+    [WIRE_KEY.PAO_SEAT]: [],
+    [WIRE_KEY.RIICHI_SEATS]: [],
+    [WIRE_KEY.RESULT_TYPE]: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
+    [WIRE_KEY.SCORE_CHANGES]: { "0": 0, "1": 0, "2": 0, "3": 0 },
+    [WIRE_KEY.WIND]: 0,
+    [WIRE_KEY.WINNER_SEAT]: [],
 };
 
 function makeReconnectPayload(overrides?: Record<string, unknown>): Record<string, unknown> {
     return {
-        cp: 2,
-        dc: [3, 5],
-        dd: [
+        [WIRE_KEY.CURRENT_PLAYER]: 2,
+        [WIRE_KEY.DICE]: [3, 5],
+        [WIRE_KEY.DEALER_DICE]: [
             [1, 4],
             [2, 6],
         ],
-        di: [45, 67],
-        dl: 0,
-        f: true,
-        fd: 3,
-        gid: "game-abc-123",
-        h: 1,
-        mt: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48],
-        n: 2,
-        p: [
-            { ai: 0, nm: "Alice", s: 0 },
-            { ai: 0, nm: "Bob", s: 1 },
-            { ai: 1, nm: "CPU-1", s: 2 },
-            { ai: 1, nm: "CPU-2", s: 3 },
+        [WIRE_KEY.DORA_INDICATORS]: [45, 67],
+        [WIRE_KEY.DEALER]: 0,
+        [WIRE_KEY.FURITEN]: true,
+        [WIRE_KEY.FIRST_DEALER]: 3,
+        [WIRE_KEY.GAME_ID]: "game-abc-123",
+        [WIRE_KEY.HONBA]: 1,
+        [WIRE_KEY.MY_TILES]: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48],
+        [WIRE_KEY.ROUND_NUMBER]: 2,
+        [WIRE_KEY.PLAYERS]: [
+            { [WIRE_KEY.AI_PLAYER]: 0, [WIRE_KEY.NAME]: "Alice", [WIRE_KEY.SEAT]: 0 },
+            { [WIRE_KEY.AI_PLAYER]: 0, [WIRE_KEY.NAME]: "Bob", [WIRE_KEY.SEAT]: 1 },
+            { [WIRE_KEY.AI_PLAYER]: 1, [WIRE_KEY.NAME]: "CPU-1", [WIRE_KEY.SEAT]: 2 },
+            { [WIRE_KEY.AI_PLAYER]: 1, [WIRE_KEY.NAME]: "CPU-2", [WIRE_KEY.SEAT]: 3 },
         ],
-        pst: [
+        [WIRE_KEY.PLAYER_STATES]: [
             {
-                dsc: [{ rd: false, tg: true, ti: 50 }, { ti: 55 }],
-                ml: [],
-                ri: false,
-                s: 0,
-                sc: 250,
-                tc: 13,
+                [WIRE_KEY.DISCARDS]: [
+                    {
+                        [WIRE_KEY.RIICHI_DISCARD]: false,
+                        [WIRE_KEY.TSUMOGIRI]: true,
+                        [WIRE_KEY.TILE_ID]: 50,
+                    },
+                    { [WIRE_KEY.TILE_ID]: 55 },
+                ],
+                [WIRE_KEY.MELDS]: [],
+                [WIRE_KEY.IS_RIICHI]: false,
+                [WIRE_KEY.SEAT]: 0,
+                [WIRE_KEY.SCORE]: 250,
+                [WIRE_KEY.TILE_COUNT]: 13,
             },
             {
-                dsc: [{ rd: true, tg: false, ti: 100 }],
-                ml: [ADDED_KAN_OF_1P],
-                ri: true,
-                s: 1,
-                sc: 240,
-                tc: 10,
+                [WIRE_KEY.DISCARDS]: [
+                    {
+                        [WIRE_KEY.RIICHI_DISCARD]: true,
+                        [WIRE_KEY.TSUMOGIRI]: false,
+                        [WIRE_KEY.TILE_ID]: 100,
+                    },
+                ],
+                [WIRE_KEY.MELDS]: [ADDED_KAN_OF_1P],
+                [WIRE_KEY.IS_RIICHI]: true,
+                [WIRE_KEY.SEAT]: 1,
+                [WIRE_KEY.SCORE]: 240,
+                [WIRE_KEY.TILE_COUNT]: 10,
             },
             {
-                dsc: [],
-                ml: [],
-                ri: false,
-                s: 2,
-                sc: 260,
-                tc: 13,
+                [WIRE_KEY.DISCARDS]: [],
+                [WIRE_KEY.MELDS]: [],
+                [WIRE_KEY.IS_RIICHI]: false,
+                [WIRE_KEY.SEAT]: 2,
+                [WIRE_KEY.SCORE]: 260,
+                [WIRE_KEY.TILE_COUNT]: 13,
             },
             {
-                dsc: [],
-                ml: [],
-                ri: false,
-                s: 3,
-                sc: 250,
-                tc: 13,
+                [WIRE_KEY.DISCARDS]: [],
+                [WIRE_KEY.MELDS]: [],
+                [WIRE_KEY.IS_RIICHI]: false,
+                [WIRE_KEY.SEAT]: 3,
+                [WIRE_KEY.SCORE]: 250,
+                [WIRE_KEY.TILE_COUNT]: 13,
             },
         ],
-        r: 1,
-        rh: [FINISHED_ROUND, FINISHED_ROUND],
-        rsv: 15,
-        rw: 2,
-        s: 0,
-        tm: { bk: 20, gp: 3, mb: 20, ra: 15, tb: 5 },
-        tr: 52,
-        type: SESSION_MESSAGE_TYPE.GAME_RECONNECTED,
-        w: 0,
-        wi: 9,
+        [WIRE_KEY.RIICHI_STICKS]: 1,
+        [WIRE_KEY.ROUND_HISTORY]: [FINISHED_ROUND, FINISHED_ROUND],
+        [WIRE_KEY.RIICHI_STICK_VALUE]: 15,
+        [WIRE_KEY.ROUND_IN_WIND]: 2,
+        [WIRE_KEY.SEAT]: 0,
+        [WIRE_KEY.TIMER_SETTINGS]: {
+            [WIRE_KEY.BANK_SECONDS]: 20,
+            [WIRE_KEY.GAME_START_PAUSE]: 3,
+            [WIRE_KEY.MAX_BANK_SECONDS]: 20,
+            [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
+            [WIRE_KEY.BASE_TURN_SECONDS]: 5,
+        },
+        [WIRE_KEY.TILES_REMAINING]: 52,
+        [WIRE_KEY.SESSION_TYPE]: SESSION_MESSAGE_TYPE.GAME_RECONNECTED,
+        [WIRE_KEY.WIND]: 0,
+        [WIRE_KEY.WAIT_ID]: 9,
         ...overrides,
     };
 }
@@ -126,41 +146,41 @@ describe("gameReconnectedSchema", () => {
 
     it("reads a round advance's result, owed confirmation, its timer and the finished rounds' ledger", () => {
         const result = parsePayload({
-            at: 20,
-            el: 4.5,
-            n: 1,
-            oc: true,
-            re: {
-                di: [40],
-                dl: 1,
-                r: 1,
-                rn: ABORTIVE_DRAW_TYPE.FOUR_WINDS,
-                rt: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
-                sch: { "0": 0, "1": 0, "2": 0, "3": 0 },
-                scs: { "0": 250, "1": 240, "2": 260, "3": 250 },
+            [WIRE_KEY.ROUND_ADVANCE_SECONDS]: 20,
+            [WIRE_KEY.WAIT_ELAPSED]: 4.5,
+            [WIRE_KEY.ROUND_NUMBER]: 1,
+            [WIRE_KEY.CONFIRMATION_OWED]: true,
+            [WIRE_KEY.ROUND_RESULT]: {
+                [WIRE_KEY.DORA_INDICATORS]: [40],
+                [WIRE_KEY.DEALER]: 1,
+                [WIRE_KEY.RIICHI_STICKS]: 1,
+                [WIRE_KEY.ABORTIVE_REASON]: ABORTIVE_DRAW_TYPE.FOUR_WINDS,
+                [WIRE_KEY.RESULT_TYPE]: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
+                [WIRE_KEY.SCORE_CHANGES]: { "0": 0, "1": 0, "2": 0, "3": 0 },
+                [WIRE_KEY.SCORES]: { "0": 250, "1": 240, "2": 260, "3": 250 },
             },
-            rh: [
+            [WIRE_KEY.ROUND_HISTORY]: [
                 {
-                    dl: 0,
-                    h: 0,
-                    ls: 2,
-                    ps: [3],
-                    rs: [1],
-                    rt: 1,
-                    sch: { "0": 39, "1": 0, "2": -39, "3": 0 },
-                    w: 0,
-                    ws: [0],
+                    [WIRE_KEY.DEALER]: 0,
+                    [WIRE_KEY.HONBA]: 0,
+                    [WIRE_KEY.LOSER_SEAT]: 2,
+                    [WIRE_KEY.PAO_SEAT]: [3],
+                    [WIRE_KEY.RIICHI_SEATS]: [1],
+                    [WIRE_KEY.RESULT_TYPE]: 1,
+                    [WIRE_KEY.SCORE_CHANGES]: { "0": 39, "1": 0, "2": -39, "3": 0 },
+                    [WIRE_KEY.WIND]: 0,
+                    [WIRE_KEY.WINNER_SEAT]: [0],
                 },
                 {
-                    dl: 1,
-                    h: 0,
-                    ps: [],
-                    rn: "four_winds",
-                    rs: [],
-                    rt: 4,
-                    sch: { "0": 0, "1": 0, "2": 0, "3": 0 },
-                    w: 0,
-                    ws: [],
+                    [WIRE_KEY.DEALER]: 1,
+                    [WIRE_KEY.HONBA]: 0,
+                    [WIRE_KEY.PAO_SEAT]: [],
+                    [WIRE_KEY.ABORTIVE_REASON]: "four_winds",
+                    [WIRE_KEY.RIICHI_SEATS]: [],
+                    [WIRE_KEY.RESULT_TYPE]: 4,
+                    [WIRE_KEY.SCORE_CHANGES]: { "0": 0, "1": 0, "2": 0, "3": 0 },
+                    [WIRE_KEY.WIND]: 0,
+                    [WIRE_KEY.WINNER_SEAT]: [],
                 },
             ],
         });
@@ -286,8 +306,8 @@ describe("gameReconnectedSchema", () => {
 
 describe("gameReconnectedSchema - latest discard", () => {
     it("reads the latest discard's seat, none when ld is absent, and refuses a null the server never sends", () => {
-        expect(parsePayload({ ld: 1 }).latestDiscardSeat).toBe(1);
+        expect(parsePayload({ [WIRE_KEY.LATEST_DISCARD_SEAT]: 1 }).latestDiscardSeat).toBe(1);
         expect(parsePayload().latestDiscardSeat).toBeNull();
-        expect(() => parsePayload({ ld: null })).toThrow();
+        expect(() => parsePayload({ [WIRE_KEY.LATEST_DISCARD_SEAT]: null })).toThrow();
     });
 });

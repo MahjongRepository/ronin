@@ -1,6 +1,7 @@
 import { z } from "zod/mini";
 
 import { SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";
+import { WIRE_KEY } from "@/shared/protocol/wire-keys";
 
 import { seatControlReasonSchema, seatSchema, secondsSchema, waitIdSchema } from "./common";
 
@@ -9,43 +10,50 @@ import { seatControlReasonSchema, seatSchema, secondsSchema, waitIdSchema } from
 /** A session error; a rate limit names the wait id the refused game action echoed, when it had a readable one. */
 const sessionErrorSchema = z.pipe(
     z.object({
-        code: z.string(),
-        message: z.string(),
-        type: z.literal(SESSION_MESSAGE_TYPE.ERROR),
-        wi: z.optional(waitIdSchema),
+        [WIRE_KEY.SESSION_ERROR_CODE]: z.string(),
+        [WIRE_KEY.SESSION_ERROR_MESSAGE]: z.string(),
+        [WIRE_KEY.SESSION_TYPE]: z.literal(SESSION_MESSAGE_TYPE.ERROR),
+        [WIRE_KEY.WAIT_ID]: z.optional(waitIdSchema),
     }),
     z.transform((raw) => ({
-        code: raw.code,
-        message: raw.message,
+        code: raw[WIRE_KEY.SESSION_ERROR_CODE],
+        message: raw[WIRE_KEY.SESSION_ERROR_MESSAGE],
         type: "session_error" as const,
-        waitId: raw.wi ?? null,
+        waitId: raw[WIRE_KEY.WAIT_ID] ?? null,
     })),
 );
 
 /**
  * The server's answer to an accepted JOIN_GAME: the connection holds the seat, ahead of anything the game sends it,
- * and the pending game waits for its players at most `pt` seconds before it starts.
+ * and the pending game waits for its players at most `WIRE_KEY.PENDING_GAME_TIMEOUT` seconds before it starts.
  */
 const gameJoinedSchema = z.pipe(
-    z.object({ pt: secondsSchema, type: z.literal(SESSION_MESSAGE_TYPE.GAME_JOINED) }),
-    z.transform((raw) => ({ pendingGameSeconds: raw.pt, type: "game_joined" as const })),
+    z.object({
+        [WIRE_KEY.PENDING_GAME_TIMEOUT]: secondsSchema,
+        [WIRE_KEY.SESSION_TYPE]: z.literal(SESSION_MESSAGE_TYPE.GAME_JOINED),
+    }),
+    z.transform((raw) => ({
+        pendingGameSeconds: raw[WIRE_KEY.PENDING_GAME_TIMEOUT],
+        type: "game_joined" as const,
+    })),
 );
 
 /**
  * A seat changing hands, live as a replay's seat control line records it, so it parses into the same shapes: an AI
- * player stands in for the seat's human (`r` says why), or without `r`, the human takes it back.
+ * player stands in for the seat's human (`WIRE_KEY.SEAT_CONTROL_REASON` says why), or without `WIRE_KEY.SEAT_CONTROL_REASON`, the human takes it back.
  */
 const seatControlSchema = z.pipe(
     z.object({
-        r: z.optional(seatControlReasonSchema),
-        s: seatSchema,
-        type: z.literal(SESSION_MESSAGE_TYPE.SEAT_CONTROL),
+        [WIRE_KEY.SEAT_CONTROL_REASON]: z.optional(seatControlReasonSchema),
+        [WIRE_KEY.SEAT]: seatSchema,
+        [WIRE_KEY.SESSION_TYPE]: z.literal(SESSION_MESSAGE_TYPE.SEAT_CONTROL),
     }),
-    z.transform((raw) =>
-        raw.r === undefined
-            ? { seat: raw.s, type: "human_return" as const }
-            : { reason: raw.r, seat: raw.s, type: "ai_replacement" as const },
-    ),
+    z.transform((raw) => {
+        const reason = raw[WIRE_KEY.SEAT_CONTROL_REASON];
+        return reason === undefined
+            ? { seat: raw[WIRE_KEY.SEAT], type: "human_return" as const }
+            : { reason, seat: raw[WIRE_KEY.SEAT], type: "ai_replacement" as const };
+    }),
 );
 
 // --- Dispatch ---
@@ -57,7 +65,7 @@ export type SeatControlMessage = z.output<typeof seatControlSchema>;
 export type SessionMessage = SessionErrorMessage | GameJoinedMessage | SeatControlMessage;
 
 export function parseSessionMessage(raw: Record<string, unknown>): SessionMessage {
-    const { type } = raw;
+    const { [WIRE_KEY.SESSION_TYPE]: type } = raw;
     switch (type) {
         case SESSION_MESSAGE_TYPE.ERROR: {
             return sessionErrorSchema.parse(raw);
@@ -69,7 +77,7 @@ export function parseSessionMessage(raw: Record<string, unknown>): SessionMessag
             return seatControlSchema.parse(raw);
         }
         default: {
-            throw new Error(`Unknown session message type: type=${String(type)}`);
+            throw new Error(`Unknown session message type: SESSION_TYPE=${String(type)}`);
         }
     }
 }

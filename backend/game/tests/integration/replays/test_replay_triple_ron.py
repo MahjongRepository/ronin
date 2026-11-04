@@ -1,4 +1,3 @@
-import json
 import re
 
 import pytest
@@ -10,7 +9,7 @@ from game.logic.rng import RNG_VERSION
 from game.logic.settings import GameSettings, GameType
 from game.replay import run_replay
 from game.replay.external.tenhou import TenhouConverter
-from game.replay.loader import load_replay_from_string
+from game.replay.loader import load_replay_from_bytes
 from game.replay.models import ReplayInput
 from game.replay.runner import ReplayOptions
 from game.session.replay_collector import ReplayCollector, ReplayRecord
@@ -21,7 +20,8 @@ from game.tests.helpers.hands import (
 )
 from game.tests.helpers.wall import make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
-from game.wire.replay_format import REPLAY_VERSION
+from game.wire.keys import WireKey
+from game.wire.replay_format import REPLAY_VERSION, decode_replay_records, encode_replay_records
 
 SEED = (
     "23824ff8ec95775ba5bb8de82f2903f25472e4a1f10a54ee31a955210ee871508f95c77bbc51b410531abd33a18d26df"
@@ -76,13 +76,15 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_liv
 
     record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION, settings=settings)
     ReplayCollector(FakeReplayStorage()).collect_events(record, recorded_events)
-    loaded = load_replay_from_string("\n".join([json.dumps({"version": REPLAY_VERSION}), *record.lines]))
+    loaded = load_replay_from_bytes(encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *record.records]))
     assert loaded.settings == settings
     assert [(e.player_name, e.action) for e in loaded.events] == [
         (DEALER, GameAction.DISCARD),
         *((player, GameAction.CALL_RON) for player in RON_CALLERS_BY_SEAT_ORDER),
     ]
-    tenhou_xml = TenhouConverter([json.loads(line) for line in record.lines]).convert()
+    tenhou_xml = TenhouConverter(
+        decode_replay_records(encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *record.records]))[1:]
+    ).convert()
     tenhou_tags = r'<GO type="(\d+)"|<AGARI [^>]*who="(\d)"|<RYUUKYOKU type="(\w+)"'
     assert re.findall(tenhou_tags, tenhou_xml) == tenhou_go_and_round_ends
 

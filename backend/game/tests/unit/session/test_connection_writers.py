@@ -4,6 +4,7 @@ from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.tests.mocks import MockConnection
 from game.wire.compact import decode_discard
 from game.wire.events import EVENT_TYPE_INT
+from game.wire.keys import WireKey
 from shared import websocket as shared_websocket
 from shared.dal.models import GameEndReason
 from shared.tests.helpers.fake_websocket import ClosedWith
@@ -21,9 +22,19 @@ class TestConnectionWriters:
         wait_id = table.manager.get_game("game1").at_seat(bob_seat).decision_id
         tile = runtime_of(table.manager).state.round_state.players[bob_seat].tiles[-1]
 
-        bob.send({"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": tile, "wi": wait_id})
+        bob.send(
+            {
+                WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
+                WireKey.ACTION: WireGameAction.DISCARD,
+                WireKey.TILE_ID: tile,
+                WireKey.WAIT_ID: wait_id,
+            }
+        )
         await bob.wait_for_message(
-            lambda m: m.get("t") == EVENT_TYPE_INT[EventType.DISCARD] and decode_discard(m["d"])[:2] == (bob_seat, tile)
+            lambda m: (
+                m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DISCARD]
+                and decode_discard(m[WireKey.PACKED_MOVE])[:2] == (bob_seat, tile)
+            )
         )
         assert table.manager.get_game("game1").awaiting != previous
 
@@ -38,7 +49,7 @@ class TestConnectionWriters:
 
         run_timeout(table.manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
         assert await bob.wait_for_close() == ClosedWith(code=1000, reason="game_ended")
-        assert bob.messages[-1]["t"] == EVENT_TYPE_INT[EventType.GAME_END]
+        assert bob.messages[-1][WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.GAME_END]
         assert table.manager._game_repository.games["game1"].end_reason is GameEndReason.COMPLETED
 
     async def test_send_queue_overflow__when_a_held_reader_overflows__should_seat_an_ai_player_through_the_disconnect(
@@ -57,5 +68,9 @@ class TestConnectionWriters:
             runtime_of(table.manager), table.seat_of("Bob")
         )
         assert snapshot.players[table.seat_of("Alice")].is_ai_player is True
-        assert {"type": "seat_control", "s": table.seat_of("Alice"), "r": 0} in bob.sent_messages
+        assert {
+            WireKey.SESSION_TYPE: "seat_control",
+            WireKey.SEAT: table.seat_of("Alice"),
+            WireKey.SEAT_CONTROL_REASON: 0,
+        } in bob.sent_messages
         await table.manager.shutdown()

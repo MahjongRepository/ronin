@@ -20,7 +20,7 @@ Bot games cannot prove a gain of a few percent: the games differ and each yields
 
 ## How the measurement works
 
-`make profile` (`bin/profile_replay.py`) replays the `full_game.txt` fixture (about 1,080 steps, about 0.1 s per run) three ways:
+`make profile` (`bin/profile_replay.py`) replays the `full_game.msgpack` fixture (about 1,080 steps, about 0.1 s per run) three ways:
 
 - **Timing:** 20 runs with no profiler attached, reported as median, stdev and every run. This is the only source of speed numbers. The `Engine:` line shows which checkout the engine was imported from.
 - **cProfile:** one traced run, saved to `backend/profiles/replay_<timestamp>.prof`. It gives exact `ncalls` and callers. Tracing every call slows the replay about 2.2× and inflates call-heavy Python functions relative to everything else. C calls get rows of their own (pydantic-core's `validate_python` is about 5% of the run), but the engine-only tables hide them. Use it for call counts and the call graph, not to rank hotspots.

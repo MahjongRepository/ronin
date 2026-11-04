@@ -19,11 +19,6 @@ from game.logic.events import (
 )
 from game.logic.exceptions import InvalidGameActionError
 from game.messaging.event_payload import (
-    CONFIRMATION_OWED_KEY,
-    DECISION_BANK_KEY,
-    ROUND_ADVANCE_SECONDS_KEY,
-    WAIT_ELAPSED_KEY,
-    WAIT_ID_KEY,
     draw_notice_payload,
     game_event_payload,
     reconnection_payload,
@@ -45,6 +40,7 @@ from game.session.played_game import build_finish_record
 from game.session.replay_collector import ReplayRecord
 from game.session.timer import TimerConfig, TurnTimer
 from game.wire.enums import SeatControlReason
+from game.wire.keys import WireKey
 from shared.auth.game_ticket import TICKET_TTL_SECONDS
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 from shared.tasks import cancel_and_wait
@@ -74,7 +70,7 @@ class _Ending:
 
     reason: GameEndReason
     connections: list[ConnectionProtocol]
-    replay_lines: list[str] | None
+    replay_records: list[dict[int, object]] | None
     game_ended_event: GameEndedEvent | None
     ended_at: datetime
 
@@ -151,10 +147,12 @@ class SessionManager:
         """
         Bind a connection to its participant, replacing the connection the participant still has.
 
-        The replaced connection is evicted before its close, so its late messages and its disconnect touch no one, and
-        closed with 4002 `replaced_by_new_connection`, which tells its client to stop reconnecting: two live clients of
-        one participant would otherwise take the seat back from each other forever. Its timer is the participant's, so a
-        replacement leaves it running.
+        The replaced connection is evicted before its close, so its late
+        messages and its disconnect touch no one, and closed with 4002
+        `replaced_by_new_connection`, which tells its client to stop
+        reconnecting: two live clients of one participant would
+        otherwise take the seat back from each other forever. Its timer
+        is the participant's, so a replacement leaves it running.
         """
         replaced = participant.connection
         if replaced is not None:
@@ -199,9 +197,12 @@ class SessionManager:
         """
         Return the user's participant in the game they are playing, or None.
 
-        A user plays a game from its creation (pending included) until its end is claimed: a participant of theirs in a
-        registered game counts, connected or not. A disconnected player keeps counting on purpose, so the lobby keeps
-        them out of rooms and matchmaking until that game ends, and can hand them back the participant's own ticket.
+        A user plays a game from its creation (pending included) until
+        its end is claimed: a participant of theirs in a registered game
+        counts, connected or not. A disconnected player keeps counting
+        on purpose, so the lobby keeps them out of rooms and matchmaking
+        until that game ends, and can hand them back the participant's
+        own ticket.
         """
         for game in self._games.values():
             for participant in game.participants:
@@ -245,9 +246,11 @@ class SessionManager:
         """
         Drop a game its creator gave up on, whether or not its creation has arrived; return False when it is kept.
 
-        A pending game nobody has joined is abandoned at once, and the id is refused from then on, so a creation that
-        arrives after the withdrawal never registers. Withdrawn ids are kept for as long as a game ticket lives: an
-        older creation fails its ticket check anyway. A game someone joined, or one already playing, is kept.
+        A pending game nobody has joined is abandoned at once, and the
+        id is refused from then on, so a creation that arrives after the
+        withdrawal never registers. Withdrawn ids are kept for as long
+        as a game ticket lives: an older creation fails its ticket check
+        anyway. A game someone joined, or one already playing, is kept.
         """
         now = self._clock()
         self._withdrawn_game_ids = {
@@ -537,16 +540,18 @@ class SessionManager:
                 self._replay_collector.record_ai_replacement(game.replay, seat=seat, reason=stand_in)
 
         message = SeatControlMessage(seat=seat, reason=stand_in)
-        self._broadcast_to_game(game, message.model_dump(by_alias=True, exclude_none=True))
+        self._broadcast_to_game(game, message.payload())
 
     def _kick_player(self, connection: ConnectionProtocol, error: InvalidGameActionError) -> None:
         """
         Disconnect a human who sent structurally impossible input for their own seat with 1008, and seat an AI player.
 
-        It runs the normal disconnect before the close, so the connection leaves the registry first and a RECONNECT
-        pipelined on the closing socket is dropped. An error while replacing the player propagates before the close: it
-        is a server fault, and the caller's boundary fails the game and closes this connection with 1011 itself, since
-        the game's finalizer no longer holds it.
+        It runs the normal disconnect before the close, so the
+        connection leaves the registry first and a RECONNECT pipelined
+        on the closing socket is dropped. An error while replacing the
+        player propagates before the close: it is a server fault, and
+        the caller's boundary fails the game and closes this connection
+        with 1011 itself, since the game's finalizer no longer holds it.
         """
         logger.warning("invalid game action", action=error.action, reason=error.reason)
         self.disconnect(connection)
@@ -701,14 +706,14 @@ class SessionManager:
         snapshot = self._game_service.build_reconnection_snapshot(self._runtime_of(game), seat)
         stand_ins = {self._seat_of(p): p.stand_in for p in game.participants if p.stand_in is not None}
         payload = reconnection_payload(snapshot, stand_ins=stand_ins)
-        payload["type"] = SessionMessageType.GAME_RECONNECTED
-        payload[WAIT_ID_KEY] = participant.decision_id
+        payload[WireKey.SESSION_TYPE] = SessionMessageType.GAME_RECONNECTED
+        payload[WireKey.WAIT_ID] = participant.decision_id
         if awaiting.kind == WaitKind.ROUND_ADVANCE:
-            payload[CONFIRMATION_OWED_KEY] = seat in awaiting.seats
+            payload[WireKey.CONFIRMATION_OWED] = seat in awaiting.seats
             elapsed = participant.timer.elapsed_seconds
             if seat in awaiting.seats and elapsed is not None:
-                payload[WAIT_ELAPSED_KEY] = elapsed
-                payload[ROUND_ADVANCE_SECONDS_KEY] = game.timer_config.round_advance_seconds(awaiting.results_shown)
+                payload[WireKey.WAIT_ELAPSED] = elapsed
+                payload[WireKey.ROUND_ADVANCE_SECONDS] = game.timer_config.round_advance_seconds(awaiting.results_shown)
 
         connection.send_message(stamp_timer_settings(payload, self._timer_settings(participant)))
         self._send_wait_on_reconnect(participant, connection, awaiting=awaiting)
@@ -767,13 +772,13 @@ class SessionManager:
         *,
         awaiting: Awaiting,
     ) -> None:
-        """
-        Re-send the event that opened the wait the game owes a reconnected participant: its call prompt, or its turn's
-        draw (the turn event after its own pon or chi).
+        """Re-send the event that opened the wait the game owes a reconnected
+        participant: its call prompt, or its turn's draw (the turn event after
+        its own pon or chi).
 
         Only a taken-over seat can be awaited: an AI player answers any wait of a seat it holds at once. The wait's
-        timer keeps running from its opening, so nothing is re-armed; the event carries how long it has run (`el`), so
-        the client counts down what is left and charges the bank as the server will. Sent directly instead of through
+        timer keeps running from its opening, so nothing is re-armed. WireKey.WAIT_ELAPSED lets the client count down
+        what is left and charge the bank as the server will. Sent directly instead of through
         `_send_events`, so the replay does not record the event twice.
         """
         seat = self._seat_of(participant)
@@ -784,19 +789,19 @@ class SessionManager:
                 message = shape_call_prompt_payload(message)
 
             if elapsed is not None:
-                message[WAIT_ELAPSED_KEY] = elapsed
+                message[WireKey.WAIT_ELAPSED] = elapsed
 
             message = stamp_wait_id(message, event=event, awaiting=awaiting, wait_id=participant.decision_id)
             connection.send_message(self._stamp_decision_bank(message, participant, awaiting))
 
     @staticmethod
-    def _stamp_decision_bank(message: dict[str, Any], participant: Participant, awaiting: Awaiting) -> dict[str, Any]:
+    def _stamp_decision_bank(message: dict[int, Any], participant: Participant, awaiting: Awaiting) -> dict[int, Any]:
         """
-        Stamp a turn or call opening with the bank its timer starts with (`bk`), so the client's countdown never carries
-        an earlier decision's delivery delays into the next.
+        Stamp a turn or call opening with the bank its timer starts with (WireKey.BANK_SECONDS), so the client's
+        countdown never carries an earlier decision's delivery delays into the next.
         """
-        if awaiting.kind in (WaitKind.TURN, WaitKind.CALL) and WAIT_ID_KEY in message:
-            message[DECISION_BANK_KEY] = participant.timer.bank_seconds
+        if awaiting.kind in (WaitKind.TURN, WaitKind.CALL) and WireKey.WAIT_ID in message:
+            message[WireKey.BANK_SECONDS] = participant.timer.bank_seconds
 
         return message
 
@@ -907,12 +912,13 @@ class SessionManager:
 
     def _send_events(self, game: GameSession, events: list[GameEvent], awaiting: Awaiting) -> None:
         """
-        Record the events for the replay, then send each to its target, the wait's opening messages stamped with `wi`.
+        Record the events for the replay, then send each to its target, the wait's opening messages stamped with
+        WireKey.WAIT_ID.
 
-        `game_started` is broadcast as one copy per seat, each stamped with its recipient's own seat (`s`). A draw goes
-        whole to the drawer and as its public notice to every other seat, so each seat gets one representation of it.
-        The round end that opens a round advance also names the advance's whole timeout (`at`), so the client counts it
-        down by the server's word rather than by its own count of the results.
+        Each game start copy carries its recipient's WireKey.SEAT. A draw goes whole to the drawer and as its public
+        notice to every other seat, so each seat gets one representation of it. The round end that opens a round advance
+        also names the advance's whole timeout (WireKey.ROUND_ADVANCE_SECONDS), so the client counts it down by the
+        server's word rather than by its own count of the results.
         """
         if game.replay is not None:
             self._replay_collector.collect_events(game.replay, events)
@@ -939,7 +945,7 @@ class SessionManager:
         self,
         participant: Participant,
         *,
-        message: dict[str, Any],
+        message: dict[int, Any],
         event: GameEvent,
         awaiting: Awaiting,
     ) -> None:
@@ -947,8 +953,8 @@ class SessionManager:
             return
 
         payload = stamp_wait_id(message, event=event, awaiting=awaiting, wait_id=participant.decision_id)
-        if awaiting.kind == WaitKind.ROUND_ADVANCE and WAIT_ID_KEY in payload:
-            payload[ROUND_ADVANCE_SECONDS_KEY] = participant.game.timer_config.round_advance_seconds(
+        if awaiting.kind == WaitKind.ROUND_ADVANCE and WireKey.WAIT_ID in payload:
+            payload[WireKey.ROUND_ADVANCE_SECONDS] = participant.game.timer_config.round_advance_seconds(
                 awaiting.results_shown
             )
 
@@ -966,7 +972,7 @@ class SessionManager:
             if participant.connection is not None and participant.seat != event.seat:
                 participant.connection.send_message(notice)
 
-    def _send_to_each_seat(self, game: GameSession, message: dict[str, Any]) -> None:
+    def _send_to_each_seat(self, game: GameSession, message: dict[int, Any]) -> None:
         """
         Send a broadcast message to every connected participant, each copy stamped with its recipient's seat and timer
         settings.
@@ -990,7 +996,7 @@ class SessionManager:
     @staticmethod
     def _broadcast_to_game(
         game: GameSession,
-        message: dict[str, Any],
+        message: dict[int, Any],
     ) -> None:
         """
         Send a message to every connected participant of the game.
@@ -1058,7 +1064,7 @@ class SessionManager:
 
         game.lifecycle = GameLifecycle.ENDING
         connections = [participant.connection for participant in game.participants if participant.connection]
-        replay_lines = game.replay.lines if game.replay is not None and reason != GameEndReason.ABANDONED else None
+        replay_records = game.replay.records if game.replay is not None and reason != GameEndReason.ABANDONED else None
         game.replay = None
         self._spawn(
             self._finish_game(
@@ -1066,7 +1072,7 @@ class SessionManager:
                 _Ending(
                     reason=reason,
                     connections=connections,
-                    replay_lines=replay_lines,
+                    replay_records=replay_records,
                     game_ended_event=game_ended_event,
                     ended_at=datetime.now(UTC),
                 ),
@@ -1104,9 +1110,9 @@ class SessionManager:
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(game_id=game_id)
         end_reason = ending.reason
-        if ending.replay_lines is not None:
+        if ending.replay_records is not None:
             try:
-                await self._replay_collector.save(game_id, ending.replay_lines)
+                await self._replay_collector.save(game_id, ending.replay_records)
             except Exception:
                 logger.exception("failed to save the replay of a finished game", game_id=game_id)
                 end_reason = GameEndReason.ERROR
@@ -1173,11 +1179,15 @@ class SessionManager:
         """
         Handle a server fault met while serving a connection's message or disconnect.
 
-        With a game (the one the connection was acting in, captured before the failing call), the game ends through
-        fail_game, whose finalizer closes its connected participants; the connection itself is evicted from the registry
-        and closed with 1011 here when it is not among them (a join or reconnect that failed before binding it, a
-        participant already gone). With no game there is nothing to fail: the fault is logged with its traceback, and
-        the connection evicted and closed with 1011. The eviction comes first, so a JOIN_GAME or RECONNECT pipelined
+        With a game (the one the connection was acting in, captured
+        before the failing call), the game ends through fail_game, whose
+        finalizer closes its connected participants; the connection
+        itself is evicted from the registry and closed with 1011 here
+        when it is not among them (a join or reconnect that failed
+        before binding it, a participant already gone). With no game
+        there is nothing to fail: the fault is logged with its
+        traceback, and the connection evicted and closed with 1011. The
+        eviction comes first, so a JOIN_GAME or RECONNECT pipelined
         behind the failed message is dropped.
         """
         seated = game is not None and any(participant.connection is connection for participant in game.participants)
@@ -1242,10 +1252,12 @@ class SessionManager:
         """
         Close an unauthenticated connection after a timeout.
 
-        The task detaches itself from `_auth_timeouts` after its sleep, so cancel paths leave the close alone. Binding
-        or evicting the connection cancels it, even once its sleep ended, so it only ever closes a registered connection
-        that never authenticated. An unexpected error is logged and the connection closed with 1011: there is no game to
-        fail yet.
+        The task detaches itself from `_auth_timeouts` after its sleep,
+        so cancel paths leave the close alone. Binding or evicting the
+        connection cancels it, even once its sleep ended, so it only
+        ever closes a registered connection that never authenticated. An
+        unexpected error is logged and the connection closed with 1011:
+        there is no game to fail yet.
         """
         await asyncio.sleep(_AUTH_TIMEOUT_SECONDS)
 

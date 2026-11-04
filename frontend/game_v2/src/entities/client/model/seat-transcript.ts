@@ -10,6 +10,7 @@ import {
     KAN_TYPE,
     NUM_PLAYERS,
     NUM_TILES,
+    WIRE_KEY,
 } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 
@@ -31,47 +32,67 @@ const TERMINAL_CLOSE_CODES: ReadonlySet<number> = new Set([
 
 const tileIdSchema = z.int().check(z.gte(0), z.lte(NUM_TILES - 1));
 const actionBase = {
-    t: z.literal(CLIENT_MESSAGE_TYPE.GAME_ACTION),
-    wi: z.int().check(z.gte(0)),
+    [WIRE_KEY.EVENT_TYPE]: z.literal(CLIENT_MESSAGE_TYPE.GAME_ACTION),
+    [WIRE_KEY.WAIT_ID]: z.int().check(z.gte(0)),
 };
 
 /**
  * A game action exactly as the seat sent it: strict, so a key the client's builders never write fails the parse,
  * and each shape is one of the builders' `ClientMessage` shapes.
  */
-const sentActionSchema = z.discriminatedUnion("a", [
-    z.strictObject({ ...actionBase, a: z.literal(GAME_ACTION.DISCARD), ti: tileIdSchema }),
-    z.strictObject({ ...actionBase, a: z.literal(GAME_ACTION.DECLARE_RIICHI), ti: tileIdSchema }),
-    z.strictObject({ ...actionBase, a: z.literal(GAME_ACTION.DECLARE_TSUMO) }),
-    z.strictObject({ ...actionBase, a: z.literal(GAME_ACTION.CALL_RON) }),
-    z.strictObject({ ...actionBase, a: z.literal(GAME_ACTION.CALL_PON), ti: tileIdSchema }),
+const sentActionSchema = z.discriminatedUnion(String(WIRE_KEY.ACTION), [
     z.strictObject({
         ...actionBase,
-        a: z.literal(GAME_ACTION.CALL_CHI),
-        sequence_tiles: z.tuple([tileIdSchema, tileIdSchema]),
-        ti: tileIdSchema,
+        [WIRE_KEY.ACTION]: z.literal(GAME_ACTION.DISCARD),
+        [WIRE_KEY.TILE_ID]: tileIdSchema,
     }),
     z.strictObject({
         ...actionBase,
-        a: z.literal(GAME_ACTION.CALL_KAN),
-        kan_type: z.enum([KAN_TYPE.ADDED, KAN_TYPE.CLOSED, KAN_TYPE.OPEN]),
-        ti: tileIdSchema,
+        [WIRE_KEY.ACTION]: z.literal(GAME_ACTION.DECLARE_RIICHI),
+        [WIRE_KEY.TILE_ID]: tileIdSchema,
     }),
-    z.strictObject({ ...actionBase, a: z.literal(GAME_ACTION.CALL_KYUUSHU) }),
-    z.strictObject({ ...actionBase, a: z.literal(GAME_ACTION.PASS) }),
-    z.strictObject({ ...actionBase, a: z.literal(GAME_ACTION.CONFIRM_ROUND) }),
+    z.strictObject({ ...actionBase, [WIRE_KEY.ACTION]: z.literal(GAME_ACTION.DECLARE_TSUMO) }),
+    z.strictObject({ ...actionBase, [WIRE_KEY.ACTION]: z.literal(GAME_ACTION.CALL_RON) }),
+    z.strictObject({
+        ...actionBase,
+        [WIRE_KEY.ACTION]: z.literal(GAME_ACTION.CALL_PON),
+        [WIRE_KEY.TILE_ID]: tileIdSchema,
+    }),
+    z.strictObject({
+        ...actionBase,
+        [WIRE_KEY.ACTION]: z.literal(GAME_ACTION.CALL_CHI),
+        [WIRE_KEY.SEQUENCE_TILES]: z.tuple([tileIdSchema, tileIdSchema]),
+        [WIRE_KEY.TILE_ID]: tileIdSchema,
+    }),
+    z.strictObject({
+        ...actionBase,
+        [WIRE_KEY.ACTION]: z.literal(GAME_ACTION.CALL_KAN),
+        [WIRE_KEY.ACTION_KAN_TYPE]: z.enum([KAN_TYPE.ADDED, KAN_TYPE.CLOSED, KAN_TYPE.OPEN]),
+        [WIRE_KEY.TILE_ID]: tileIdSchema,
+    }),
+    z.strictObject({ ...actionBase, [WIRE_KEY.ACTION]: z.literal(GAME_ACTION.CALL_KYUUSHU) }),
+    z.strictObject({ ...actionBase, [WIRE_KEY.ACTION]: z.literal(GAME_ACTION.PASS) }),
+    z.strictObject({ ...actionBase, [WIRE_KEY.ACTION]: z.literal(GAME_ACTION.CONFIRM_ROUND) }),
 ]);
 
 const ticketSchema = z.literal(GAME_TICKET_PLACEHOLDER);
 
 /** A JOIN_GAME or RECONNECT exactly as the seat sent it, its ticket replaced by the placeholder. */
-const sentIdentitySchema = z.discriminatedUnion("t", [
-    z.strictObject({ game_ticket: ticketSchema, t: z.literal(CLIENT_MESSAGE_TYPE.JOIN_GAME) }),
-    z.strictObject({ game_ticket: ticketSchema, t: z.literal(CLIENT_MESSAGE_TYPE.RECONNECT) }),
+const sentIdentitySchema = z.discriminatedUnion(String(WIRE_KEY.EVENT_TYPE), [
+    z.strictObject({
+        [WIRE_KEY.GAME_TICKET]: ticketSchema,
+        [WIRE_KEY.EVENT_TYPE]: z.literal(CLIENT_MESSAGE_TYPE.JOIN_GAME),
+    }),
+    z.strictObject({
+        [WIRE_KEY.GAME_TICKET]: ticketSchema,
+        [WIRE_KEY.EVENT_TYPE]: z.literal(CLIENT_MESSAGE_TYPE.RECONNECT),
+    }),
 ]);
 
 /** A RESYNC exactly as the seat sent it. */
-const sentResyncSchema = z.strictObject({ t: z.literal(CLIENT_MESSAGE_TYPE.RESYNC) });
+const sentResyncSchema = z.strictObject({
+    [WIRE_KEY.EVENT_TYPE]: z.literal(CLIENT_MESSAGE_TYPE.RESYNC),
+});
 
 type SentAction = z.output<typeof sentActionSchema>;
 type SentIdentity = z.output<typeof sentIdentitySchema>;
@@ -150,12 +171,13 @@ type SentMessage = SentIdentity | SentResync | SentAction;
 
 function isIdentity(message: SentMessage): message is SentIdentity {
     return (
-        message.t === CLIENT_MESSAGE_TYPE.JOIN_GAME || message.t === CLIENT_MESSAGE_TYPE.RECONNECT
+        message[WIRE_KEY.EVENT_TYPE] === CLIENT_MESSAGE_TYPE.JOIN_GAME ||
+        message[WIRE_KEY.EVENT_TYPE] === CLIENT_MESSAGE_TYPE.RECONNECT
     );
 }
 
 function isResync(message: SentMessage): message is SentResync {
-    return message.t === CLIENT_MESSAGE_TYPE.RESYNC;
+    return message[WIRE_KEY.EVENT_TYPE] === CLIENT_MESSAGE_TYPE.RESYNC;
 }
 
 /** What a transcript's frame that did not decode says, the frame no transcript can record. */
@@ -163,14 +185,20 @@ const UNDECODED_FRAME_DETAIL = "A frame the transcript cannot record did not dec
 
 type ChosenAction = Exclude<
     SentAction,
-    { a: typeof GAME_ACTION.DISCARD | typeof GAME_ACTION.PASS | typeof GAME_ACTION.CONFIRM_ROUND }
+    {
+        [WIRE_KEY.ACTION]:
+            | typeof GAME_ACTION.DISCARD
+            | typeof GAME_ACTION.PASS
+            | typeof GAME_ACTION.CONFIRM_ROUND;
+    }
 >;
 
 /** The offer whose choice sends `action`. */
 function chosenOffer(action: ChosenAction): Offer {
-    switch (action.a) {
+    const { [WIRE_KEY.ACTION]: actionType } = action;
+    switch (actionType) {
         case GAME_ACTION.DECLARE_RIICHI: {
-            return { kind: "riichi", tileId: action.ti };
+            return { kind: "riichi", tileId: action[WIRE_KEY.TILE_ID] };
         }
         case GAME_ACTION.DECLARE_TSUMO: {
             return { kind: "tsumo" };
@@ -179,13 +207,21 @@ function chosenOffer(action: ChosenAction): Offer {
             return { kind: "ron" };
         }
         case GAME_ACTION.CALL_PON: {
-            return { kind: "pon", tileId: action.ti };
+            return { kind: "pon", tileId: action[WIRE_KEY.TILE_ID] };
         }
         case GAME_ACTION.CALL_CHI: {
-            return { kind: "chi", sequence: action.sequence_tiles, tileId: action.ti };
+            return {
+                kind: "chi",
+                sequence: action[WIRE_KEY.SEQUENCE_TILES],
+                tileId: action[WIRE_KEY.TILE_ID],
+            };
         }
         case GAME_ACTION.CALL_KAN: {
-            return { kanType: action.kan_type, kind: "kan", tileId: action.ti };
+            return {
+                kanType: action[WIRE_KEY.ACTION_KAN_TYPE],
+                kind: "kan",
+                tileId: action[WIRE_KEY.TILE_ID],
+            };
         }
         case GAME_ACTION.CALL_KYUUSHU: {
             return { kind: "kyuushu" };
@@ -198,9 +234,10 @@ function chosenOffer(action: ChosenAction): Offer {
 
 /** The intent that sends `action`: the answer to a decision, or the player's confirm of a round result. */
 function answeringIntent(action: SentAction): LocalIntent {
-    switch (action.a) {
+    const { [WIRE_KEY.ACTION]: actionType } = action;
+    switch (actionType) {
         case GAME_ACTION.DISCARD: {
-            return { tileId: action.ti, type: "discard" };
+            return { tileId: action[WIRE_KEY.TILE_ID], type: "discard" };
         }
         case GAME_ACTION.PASS: {
             return { type: "pass" };
@@ -221,7 +258,7 @@ function answeringIntent(action: SentAction): LocalIntent {
  */
 function sentEffect(message: SentMessage, handoff: GameSessionData): ClientEffect {
     const sent: ClientMessage = isIdentity(message)
-        ? { ...message, game_ticket: handoff.gameTicket }
+        ? { ...message, [WIRE_KEY.GAME_TICKET]: handoff.gameTicket }
         : message;
     return { message: sent, type: "send" };
 }
@@ -275,7 +312,9 @@ function receivedStep(
     gameId: string,
 ): ScenarioStep {
     const effects: ClientEffect[] =
-        payload.t === EVENT_TYPE.GAME_END ? [{ gameId, type: "clear_handoff" }] : [];
+        payload[WIRE_KEY.EVENT_TYPE] === EVENT_TYPE.GAME_END
+            ? [{ gameId, type: "clear_handoff" }]
+            : [];
     return { effects, event: { at, kind: "server_message", raw: payload }, label };
 }
 

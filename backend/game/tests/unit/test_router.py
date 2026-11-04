@@ -15,6 +15,7 @@ from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection, MockGameService
 from game.tests.unit.session.helpers import create_started_game, wait_for_background_tasks
+from game.wire.keys import WireKey
 
 
 def _setup_player_in_game(session_manager, connection):
@@ -42,14 +43,14 @@ class TestMessageRouterBranches:
         router.handle_message(
             connection,
             {
-                "t": WireClientMessageType.RECONNECT,
-                "game_ticket": ticket,
+                WireKey.EVENT_TYPE: WireClientMessageType.RECONNECT,
+                WireKey.GAME_TICKET: ticket,
             },
         )
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
-        assert response["type"] == SessionMessageType.ERROR
-        assert response["code"] == SessionErrorCode.RECONNECT_NO_SESSION
+        assert response[WireKey.SESSION_TYPE] == SessionMessageType.ERROR
+        assert response[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.RECONNECT_NO_SESSION
 
     async def test_message_router__when_reconnect_ticket_invalid__should_return_invalid_ticket_error(self, setup):
         router, connection, _ = setup
@@ -57,14 +58,14 @@ class TestMessageRouterBranches:
         router.handle_message(
             connection,
             {
-                "t": WireClientMessageType.RECONNECT,
-                "game_ticket": "invalid-ticket-string",
+                WireKey.EVENT_TYPE: WireClientMessageType.RECONNECT,
+                WireKey.GAME_TICKET: "invalid-ticket-string",
             },
         )
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
-        assert response["type"] == SessionMessageType.ERROR
-        assert response["code"] == SessionErrorCode.INVALID_TICKET
+        assert response[WireKey.SESSION_TYPE] == SessionMessageType.ERROR
+        assert response[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.INVALID_TICKET
 
     async def test_message_router__when_join_ticket_game_id_mismatches__should_return_invalid_ticket_error(self, setup):
         router, connection, session_manager = setup
@@ -76,15 +77,15 @@ class TestMessageRouterBranches:
         router.handle_message(
             connection,
             {
-                "t": WireClientMessageType.JOIN_GAME,
-                "game_ticket": ticket,
+                WireKey.EVENT_TYPE: WireClientMessageType.JOIN_GAME,
+                WireKey.GAME_TICKET: ticket,
             },
         )
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
-        assert response["type"] == SessionMessageType.ERROR
-        assert response["code"] == SessionErrorCode.INVALID_TICKET
-        assert "mismatch" in response["message"]
+        assert response[WireKey.SESSION_TYPE] == SessionMessageType.ERROR
+        assert response[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.INVALID_TICKET
+        assert "mismatch" in response[WireKey.SESSION_ERROR_MESSAGE]
 
     async def test_message_router__when_disconnect_without_joining_game__should_send_nothing(self, setup):
         router, connection, _ = setup
@@ -99,11 +100,11 @@ class TestMessageRouterBranches:
         ticket_in_the_type_tag = make_test_game_ticket(username="Alice", room_id="test-game")
 
         with caplog.at_level(logging.WARNING):
-            router.handle_message(connection, {"t": ticket_in_the_type_tag})
+            router.handle_message(connection, {WireKey.EVENT_TYPE: ticket_in_the_type_tag})
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
-        assert response["type"] == SessionMessageType.ERROR
-        assert response["code"] == SessionErrorCode.INVALID_MESSAGE
+        assert response[WireKey.SESSION_TYPE] == SessionMessageType.ERROR
+        assert response[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.INVALID_MESSAGE
         assert ticket_in_the_type_tag not in str(response)
         assert [(r.msg["event"], r.msg["error_types"], r.msg["error_count"]) for r in caplog.records] == [
             ("invalid message", ["union_tag_invalid"], 1)
@@ -116,9 +117,14 @@ class TestMessageRouterBranches:
         session_manager.handle_game_action = MagicMock()
 
         router.handle_message(
-            connection, {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": 0}
+            connection,
+            {
+                WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
+                WireKey.ACTION: WireGameAction.DISCARD,
+                WireKey.TILE_ID: 0,
+            },
         )
-        assert [(m["type"], m["code"]) for m in connection.sent_messages] == [
+        assert [(m[WireKey.SESSION_TYPE], m[WireKey.SESSION_ERROR_CODE]) for m in connection.sent_messages] == [
             (SessionMessageType.ERROR, SessionErrorCode.INVALID_MESSAGE)
         ]
         session_manager.handle_game_action.assert_not_called()
@@ -131,11 +137,11 @@ class TestMessageRouterBranches:
         router.handle_message(
             connection,
             {
-                "t": WireClientMessageType.GAME_ACTION,
-                "wi": 3,
-                "a": WireGameAction.CALL_CHI,
-                "ti": 8,
-                "sequence_tiles": [4, 12],
+                WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
+                WireKey.WAIT_ID: 3,
+                WireKey.ACTION: WireGameAction.CALL_CHI,
+                WireKey.TILE_ID: 8,
+                WireKey.SEQUENCE_TILES: [4, 12],
             },
         )
         session_manager.handle_game_action.assert_called_once_with(
@@ -153,15 +159,15 @@ class TestMessageRouterBranches:
         router.handle_message(
             connection,
             {
-                "t": WireClientMessageType.GAME_ACTION,
-                "wi": 0,
-                "a": WireGameAction.DISCARD,
-                "ti": 0,
+                WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
+                WireKey.WAIT_ID: 0,
+                WireKey.ACTION: WireGameAction.DISCARD,
+                WireKey.TILE_ID: 0,
             },
         )
         await wait_for_background_tasks(session_manager)
         assert session_manager.get_game("game1") is None
-        assert [m["code"] for m in connection.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
+        assert [m[WireKey.SESSION_ERROR_CODE] for m in connection.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
         assert connection._close_code == 1011
 
     async def test_message_router__when_join_raises_outside_any_game__should_log_and_close_with_1011(
@@ -172,11 +178,13 @@ class TestMessageRouterBranches:
         ticket = make_test_game_ticket(username="Alice", room_id=connection.game_id)
 
         with caplog.at_level(logging.ERROR):
-            router.handle_message(connection, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})
+            router.handle_message(
+                connection, {WireKey.EVENT_TYPE: WireClientMessageType.JOIN_GAME, WireKey.GAME_TICKET: ticket}
+            )
         assert [r.msg["event"] for r in caplog.records if r.levelno == logging.ERROR] == [
             "connection failed outside a game"
         ]
-        assert [m["code"] for m in connection.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
+        assert [m[WireKey.SESSION_ERROR_CODE] for m in connection.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
         assert connection._close_code == 1011
 
 
@@ -192,10 +200,15 @@ class TestMessageRouterEntryPointFailures:
         connection = MockConnection()
         router.handle_connect(connection)
 
-        router.handle_message(connection, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})
+        router.handle_message(
+            connection, {WireKey.EVENT_TYPE: WireClientMessageType.JOIN_GAME, WireKey.GAME_TICKET: ticket}
+        )
         await wait_for_background_tasks(session_manager)
         assert session_manager.get_game("game1") is None
-        assert [m.get("code") for m in connection.sent_messages] == [None, SessionErrorCode.INTERNAL_ERROR]
+        assert [m.get(WireKey.SESSION_ERROR_CODE) for m in connection.sent_messages] == [
+            None,
+            SessionErrorCode.INTERNAL_ERROR,
+        ]
         assert connection._close_code == 1011
 
     async def test_message_router__when_the_ai_replacement_on_disconnect_raises__should_fail_the_game(self):

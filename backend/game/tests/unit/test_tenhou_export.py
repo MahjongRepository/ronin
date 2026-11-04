@@ -1,4 +1,3 @@
-import json
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -23,10 +22,9 @@ from game.logic.events import (
 )
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.rng import RNG_VERSION
-from game.logic.settings import GameSettings, GameType, RenhouValue
+from game.logic.settings import WIRE_SCORE_DIVISOR, GameSettings, GameType, RenhouValue
 from game.logic.tiles import NUM_TILES
 from game.logic.types import (
-    WIRE_SCORE_DIVISOR,
     AbortiveDrawResult,
     DoubleRonResult,
     DoubleRonWinner,
@@ -47,7 +45,8 @@ from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
 from game.wire.enums import WireEventType
-from game.wire.replay_format import encode_replay_settings
+from game.wire.keys import WireKey
+from game.wire.replay_format import REPLAY_VERSION, decode_replay_records, encode_replay_records, encode_replay_settings
 
 if TYPE_CHECKING:
     from game.logic.service import GameStart
@@ -87,7 +86,7 @@ SOUTH_DRAWS = tile_copies(1, honors="222")
 KAN_GAME_DRAWS = (*SOUTH_DRAWS, tile_copies(1, honors="4")[0], PIN_3_ADDED)
 
 
-def _game_started_replay_line(settings: GameSettings, *, first_dealer: int = 0) -> dict[str, Any]:
+def _game_started_replay_line(settings: GameSettings, *, first_dealer: int = 0) -> dict[int, Any]:
     event = GameStartedEvent(
         game_id="game1",
         game_type=settings.game_type,
@@ -96,8 +95,8 @@ def _game_started_replay_line(settings: GameSettings, *, first_dealer: int = 0) 
         dealer_dice=((1, 1), (1, 1)),
         riichi_stick_value=settings.riichi_stick_value,
     )
-    payload = {**game_event_payload(event), "sd": "a" * 192, "rv": RNG_VERSION}
-    return json.loads(json.dumps({**payload, "gs": encode_replay_settings(settings)}))
+    payload = {**game_event_payload(event), WireKey.SEED: "a" * 192, WireKey.RNG_VERSION: RNG_VERSION}
+    return {**payload, WireKey.GAME_SETTINGS: encode_replay_settings(settings)}
 
 
 @pytest.mark.parametrize(
@@ -115,21 +114,21 @@ def test_tenhou_converter__when_game_started__should_set_go_type_from_the_game_s
     assert xml.count(go_tag) == 1
 
 
-def _round_started_replay_line(honba: int) -> dict[str, Any]:
+def _round_started_replay_line(honba: int) -> dict[int, Any]:
     return {
-        "t": WireEventType.ROUND_STARTED,
-        "w": 0,
-        "dl": 0,
-        "h": honba,
-        "r": 0,
-        "di": [0],
-        "dc": [1, 1],
-        "p": [{"s": seat, "sc": 250, "tl": []} for seat in range(4)],
+        WireKey.EVENT_TYPE: WireEventType.ROUND_STARTED,
+        WireKey.WIND: 0,
+        WireKey.DEALER: 0,
+        WireKey.HONBA: honba,
+        WireKey.RIICHI_STICKS: 0,
+        WireKey.DORA_INDICATORS: [0],
+        WireKey.DICE: [1, 1],
+        WireKey.PLAYERS: [{WireKey.SEAT: seat, WireKey.SCORE: 250, WireKey.TILES: []} for seat in range(4)],
     }
 
 
-def _replay_line(event: GameEvent) -> dict[str, Any]:
-    return json.loads(json.dumps(game_event_payload(event)))
+def _replay_line(event: GameEvent) -> dict[int, Any]:
+    return game_event_payload(event)
 
 
 CUSTOM_STICK_SETTINGS = GameSettings(riichi_cost=2000, honba_ron_bonus=500, honba_tsumo_bonus_per_loser=200)
@@ -166,7 +165,7 @@ def _tsumo_result(hand: HandResultInfo, *, winner_seat: int, score_changes: dict
     )
 
 
-def _single_win_replay_lines(settings: GameSettings, result: RonResult | TsumoResult) -> list[dict[str, Any]]:
+def _single_win_replay_lines(settings: GameSettings, result: RonResult | TsumoResult) -> list[dict[int, Any]]:
     return [
         _game_started_replay_line(settings),
         _round_started_replay_line(honba=2),
@@ -239,7 +238,7 @@ def test_tenhou_converter__when_a_hand_wins__should_write_the_limit_it_was_paid_
     assert re.findall(r'<AGARI [^>]* ten="([^"]*)"', xml) == [agari_ten]
 
 
-def _game_end_replay_line(final_scores: dict[int, int]) -> dict[str, Any]:
+def _game_end_replay_line(final_scores: dict[int, int]) -> dict[int, Any]:
     standings = [PlayerStanding(seat=seat, score=score, final_score=0) for seat, score in final_scores.items()]
     event = GameEndedEvent(
         winner_seat=0,
@@ -249,7 +248,7 @@ def _game_end_replay_line(final_scores: dict[int, int]) -> dict[str, Any]:
         num_rounds=1,
         end_cause=GameEndCause.LENGTH,
     )
-    return json.loads(json.dumps(game_event_payload(event)))
+    return game_event_payload(event)
 
 
 def _double_ron_winner(seat: int, score_changes: dict[int, int]) -> DoubleRonWinner:
@@ -265,7 +264,7 @@ def _double_ron_winner(seat: int, score_changes: dict[int, int]) -> DoubleRonWin
 
 
 def test_tenhou_converter__when_game_ending_double_ron__should_give_each_agari_its_changes_and_the_last_the_owari():
-    round_started_line = {**_round_started_replay_line(honba=0), "r": 1}
+    round_started_line = {**_round_started_replay_line(honba=0), WireKey.RIICHI_STICKS: 1}
     result = DoubleRonResult(
         loser_seat=1,
         winning_tile=0,
@@ -318,15 +317,15 @@ DAISANGEN_HAND = HandResultInfo(
 )
 
 
-def _first_dealer_led_round_started_replay_line(*, dealer: int, honba: int, scores: dict[int, int]) -> dict[str, Any]:
+def _first_dealer_led_round_started_replay_line(*, dealer: int, honba: int, scores: dict[int, int]) -> dict[int, Any]:
     players = [
-        {"s": seat, "sc": score // WIRE_SCORE_DIVISOR, "tl": FIRST_DEALER_LED_HANDS[seat]}
+        {WireKey.SEAT: seat, WireKey.SCORE: score // WIRE_SCORE_DIVISOR, WireKey.TILES: FIRST_DEALER_LED_HANDS[seat]}
         for seat, score in scores.items()
     ]
-    return {**_round_started_replay_line(honba), "dl": dealer, "p": players}
+    return {**_round_started_replay_line(honba), WireKey.DEALER: dealer, WireKey.PLAYERS: players}
 
 
-def _draw_and_tsumogiri_replay_lines(seat: int, tile: int) -> list[dict[str, Any]]:
+def _draw_and_tsumogiri_replay_lines(seat: int, tile: int) -> list[dict[int, Any]]:
     return [
         _replay_line(DrawEvent(seat=seat, tile_id=tile, tiles_remaining=69, target=SeatTarget(seat=seat))),
         _replay_line(DiscardEvent(seat=seat, tile_id=tile, is_tsumogiri=True)),
@@ -517,17 +516,17 @@ def _start_game(wall: tuple[int, ...], settings: GameSettings | None) -> tuple[M
     return service, start
 
 
-def _replay_lines(recorded_events: list[GameEvent], settings: GameSettings) -> list[dict[str, Any]]:
+def _replay_lines(recorded_events: list[GameEvent], settings: GameSettings) -> list[dict[int, Any]]:
     record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION, settings=settings)
     ReplayCollector(FakeReplayStorage()).collect_events(record, recorded_events)
-    return [json.loads(line) for line in record.lines]
+    return decode_replay_records(encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *record.records]))[1:]
 
 
 def _play_and_record_replay_lines(
     wall: tuple[int, ...],
     actions: list[tuple[int, GameAction, dict[str, Any]]],
     settings: GameSettings | None = None,
-) -> list[dict[str, Any]]:
+) -> list[dict[int, Any]]:
     service, start = _start_game(wall, settings)
     recorded_events = list(start.events)
     for seat, action, data in actions:
@@ -538,7 +537,7 @@ def _play_and_record_replay_lines(
     return _replay_lines(recorded_events, start.runtime.state.settings)
 
 
-def _play_by_tsumogiri_and_record_replay_lines(wall: tuple[int, ...], settings: GameSettings) -> list[dict[str, Any]]:
+def _play_by_tsumogiri_and_record_replay_lines(wall: tuple[int, ...], settings: GameSettings) -> list[dict[int, Any]]:
     service, start = _start_game(wall, settings)
     recorded_events = list(start.events)
     awaiting = start.awaiting

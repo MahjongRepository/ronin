@@ -147,17 +147,20 @@ export function roundEndPageAt(
     return { count: pages.length, index, page: shown };
 }
 
-function handTile(tileId: number): HandTile {
-    return { face: tile136toString(tileId), show: "face", tileId };
+function handTile(tileId: number, hasAkadora: boolean): HandTile {
+    return { face: tile136toString(tileId, hasAkadora), show: "face", tileId };
 }
 
 function resultHand(
     closedTiles: readonly number[],
     melds: readonly MeldRecord[],
+    hasAkadora: boolean,
 ): ResultHandDisplay {
     return {
-        melds: melds.map(meldTiles),
-        tiles: closedTiles.toSorted((first, second) => first - second).map(handTile),
+        melds: melds.map((meld) => meldTiles(meld, hasAkadora)),
+        tiles: closedTiles
+            .toSorted((first, second) => first - second)
+            .map((tile) => handTile(tile, hasAkadora)),
     };
 }
 
@@ -252,20 +255,25 @@ function fromPhrase(result: RoundEndResult, names: SeatNames): string | null {
     return result.kanRobbed ? `robbing ${loser}'s kan` : `from ${loser}`;
 }
 
-function winPage(result: RoundEndResult, winner: WinnerResult, names: SeatNames): WinPageDisplay {
+function winPage(
+    result: RoundEndResult,
+    winner: WinnerResult,
+    viewing: { names: SeatNames; hasAkadora: boolean },
+): WinPageDisplay {
+    const { names, hasAkadora } = viewing;
     return {
-        doraIndicators: result.doraIndicators.map(tile136toString),
+        doraIndicators: result.doraIndicators.map((tile) => tile136toString(tile, hasAkadora)),
         from: fromPhrase(result, names),
         hanFu: hanFuLabel(winner),
-        hand: resultHand(winner.closedTiles, winner.melds),
+        hand: resultHand(winner.closedTiles, winner.melds, hasAkadora),
         kind: "win",
         limit: handLimitName(winner.handResult),
         notes: winNotes(result, winner, names),
         points: winner.handResult.points,
         title: winTitle(result),
-        uraIndicators: winner.uraDoraIndicators.map(tile136toString),
+        uraIndicators: winner.uraDoraIndicators.map((tile) => tile136toString(tile, hasAkadora)),
         winnerName: names.name(winner.seat),
-        winningTile: handTile(winner.winningTile),
+        winningTile: handTile(winner.winningTile, hasAkadora),
         winningTileLabel: result.resultType === ROUND_RESULT_TYPE.TSUMO ? "Tsumo" : "Ron",
         yaku: yakuLines(winner),
     };
@@ -295,8 +303,12 @@ function evenDrawSubtitle(draw: DrawResult): string | null {
 function tenpaiHand(
     hand: TenpaiHandResult,
     names: SeatNames,
+    hasAkadora: boolean,
 ): DrawPageDisplay["tenpaiHands"][number] {
-    return { hand: resultHand(hand.closedTiles, hand.melds), name: names.name(hand.seat) };
+    return {
+        hand: resultHand(hand.closedTiles, hand.melds, hasAkadora),
+        name: names.name(hand.seat),
+    };
 }
 
 function nagashiRiver(
@@ -306,12 +318,12 @@ function nagashiRiver(
     return { name: names.name(river.seat), tiles: buildDiscardTiles(river.discards, false) };
 }
 
-function drawPage(draw: DrawResult, names: SeatNames): DrawPageDisplay {
+function drawPage(draw: DrawResult, names: SeatNames, hasAkadora: boolean): DrawPageDisplay {
     return {
         kind: "draw",
         rivers: draw.nagashiRivers.map((river) => nagashiRiver(river, names)),
         subtitle: drawSubtitle(draw, names),
-        tenpaiHands: draw.tenpaiHands.map((hand) => tenpaiHand(hand, names)),
+        tenpaiHands: draw.tenpaiHands.map((hand) => tenpaiHand(hand, names, hasAkadora)),
         title: drawName(draw.kind),
     };
 }
@@ -367,14 +379,18 @@ function scoreRows(
  * its tenpai hands, and every seat's change and score through that page. A double ron has a page per winner
  * (`roundEndPages`); a page out of range shows the nearest.
  */
-export function roundEndDisplay(table: RoundEndTable, page: number): RoundEndDisplayState {
+export function roundEndDisplay(
+    table: RoundEndTable,
+    page: number,
+    hasAkadora = true,
+): RoundEndDisplayState {
     const { players, result } = table;
     const names = seatNames(players, result.dealerSeat);
     const shown = roundEndPageAt(result, page);
     const body =
         shown.page.kind === "draw"
-            ? drawPage(shown.page.draw, names)
-            : winPage(result, shown.page.winner, names);
+            ? drawPage(shown.page.draw, names, hasAkadora)
+            : winPage(result, shown.page.winner, { hasAkadora, names });
     return {
         body,
         page: shown.index,

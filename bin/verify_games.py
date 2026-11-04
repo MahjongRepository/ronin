@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import gzip
-import json
 import logging
 import sqlite3
 import sys
@@ -27,6 +26,8 @@ from game.messaging.event_payload import game_event_payload
 from game.replay import load_replay_from_file, run_replay
 from game.server.settings import GameServerSettings
 from game.wire.enums import WireEventType
+from game.wire.keys import WireKey
+from game.wire.replay_format import MAX_REPLAY_BYTES, decode_replay_records
 from shared.dal.models import GameEndReason
 from shared.logging import setup_logging
 from shared.storage import replay_file_path
@@ -41,23 +42,19 @@ def read_end_reason(database_path: Path, game_id: str) -> str | None:
     return row[0] if row else None
 
 
-def read_recorded_outcomes(replay_path: Path) -> list[dict[str, Any]]:
-    with gzip.open(replay_path, "rt", encoding="utf-8") as f:
-        lines = [json.loads(line) for line in f.read().splitlines()[1:]]
+def read_recorded_outcomes(replay_path: Path) -> list[dict[int, Any]]:
+    with gzip.open(replay_path, "rb") as f:
+        lines = decode_replay_records(f.read(MAX_REPLAY_BYTES + 1))[1:]
 
-    return [line for line in lines if line["t"] in OUTCOME_EVENT_TYPES]
+    return [line for line in lines if line[WireKey.EVENT_TYPE] in OUTCOME_EVENT_TYPES]
 
 
-def replay_outcomes(replay_path: Path) -> list[dict[str, Any]]:
+def replay_outcomes(replay_path: Path) -> list[dict[int, Any]]:
     trace = run_replay(load_replay_from_file(replay_path))
-    return [
-        json.loads(json.dumps(game_event_payload(event)))
-        for event in trace.events
-        if isinstance(event, RoundEndEvent | GameEndedEvent)
-    ]
+    return [game_event_payload(event) for event in trace.events if isinstance(event, RoundEndEvent | GameEndedEvent)]
 
 
-def find_outcome_mismatch(recorded: list[dict[str, Any]], replayed: list[dict[str, Any]]) -> str | None:
+def find_outcome_mismatch(recorded: list[dict[int, Any]], replayed: list[dict[int, Any]]) -> str | None:
     for index, (recorded_line, replayed_line) in enumerate(zip(recorded, replayed, strict=False)):
         if recorded_line != replayed_line:
             return f"outcome {index} differs:\n    recorded: {recorded_line}\n    replayed: {replayed_line}"
@@ -81,7 +78,7 @@ def verify_game(settings: GameServerSettings, game_id: str) -> str | None:
         return f"no replay at {replay_path}"
 
     recorded = read_recorded_outcomes(replay_path)
-    if not any(line["t"] == WireEventType.GAME_END for line in recorded):
+    if not any(line[WireKey.EVENT_TYPE] == WireEventType.GAME_END for line in recorded):
         return "replay records no game end"
 
     try:

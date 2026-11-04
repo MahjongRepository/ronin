@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import gzip
-import json
 import zlib
 from pathlib import Path
 from typing import Any
@@ -16,7 +15,14 @@ from game.replay.models import ReplayInput, ReplayInputEvent
 from game.wire.compact import decode_discard
 from game.wire.enums import WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT
-from game.wire.replay_format import REPLAY_VERSION, ReplayLineType, decode_replay_settings
+from game.wire.keys import WireKey
+from game.wire.replay_format import (
+    MAX_REPLAY_BYTES,
+    REPLAY_VERSION,
+    ReplayLineType,
+    decode_replay_records,
+    decode_replay_settings,
+)
 from shared.lib.melds import MeldData, decode_meld_compact
 
 # Minimum number of events: version tag + game_started.
@@ -45,15 +51,15 @@ class ReplayLoadError(Exception):
     """
 
 
-def _validate_version_tag(tag: dict[str, Any]) -> str:
+def _validate_version_tag(tag: dict[int, Any]) -> str:
     """
-    Validate the version tag (first line of the replay file).
+    Validate the version tag (first record of the replay file).
 
     Return the version string.
     """
-    version = tag.get("version")
+    version = tag.get(WireKey.REPLAY_VERSION)
     if version is None:
-        raise ReplayLoadError("First line must be a version tag with 'version' field")
+        raise ReplayLoadError("First record must be a version tag with 'version' field")
 
     if version != REPLAY_VERSION:
         raise ReplayLoadError(f"Replay version mismatch: expected {REPLAY_VERSION}, got {version}")
@@ -61,20 +67,20 @@ def _validate_version_tag(tag: dict[str, Any]) -> str:
     return version
 
 
-def _validate_game_started(first: dict[str, Any]) -> tuple[str, str, list[dict[str, Any]]]:
+def _validate_game_started(first: dict[int, Any]) -> tuple[str, str, list[dict[int, Any]]]:
     """
     Validate and extract fields from the game_started event.
 
     Returns (seed, rng_version, players).
     """
-    if first.get("t") != EVENT_TYPE_INT[EventType.GAME_STARTED]:
-        raise ReplayLoadError(f"First event must be game_started, got: {first.get('t')}")
+    if first.get(WireKey.EVENT_TYPE) != EVENT_TYPE_INT[EventType.GAME_STARTED]:
+        raise ReplayLoadError(f"First event must be game_started, got: {first.get(WireKey.EVENT_TYPE)}")
 
-    seed = first.get("sd")
+    seed = first.get(WireKey.SEED)
     if seed is None:
         raise ReplayLoadError("game_started event missing 'sd' field")
 
-    rng_version = first.get("rv")
+    rng_version = first.get(WireKey.RNG_VERSION)
     if rng_version is None:
         raise ReplayLoadError(
             "game_started event missing 'rv' field (old replay format not supported)",
@@ -88,25 +94,25 @@ def _validate_game_started(first: dict[str, Any]) -> tuple[str, str, list[dict[s
     except (ValueError, TypeError) as exc:
         raise ReplayLoadError(f"game_started event has invalid seed: {exc}") from exc
 
-    players = first.get("p")
+    players = first.get(WireKey.PLAYERS)
     if not players or not isinstance(players, list):
         raise ReplayLoadError("game_started event missing 'p' field")
 
     return seed, rng_version, players
 
 
-def _parse_game_settings(first: dict[str, Any]) -> GameSettings:
+def _parse_game_settings(first: dict[int, Any]) -> GameSettings:
     """
     Parse the game_started event's recorded settings (gs), which the engine must support and its game length (gt) must
     match.
     """
     try:
-        settings = decode_replay_settings(first.get("gs"))
+        settings = decode_replay_settings(first.get(WireKey.GAME_SETTINGS))
         validate_settings(settings)
     except (TypeError, ValueError, UnsupportedSettingsError) as exc:
         raise ReplayLoadError(f"game_started event has invalid settings (gs): {exc}") from exc
 
-    game_type = first.get("gt")
+    game_type = first.get(WireKey.GAME_TYPE)
     expected_game_type = WireGameType[settings.game_type.name]
     if not isinstance(game_type, int) or isinstance(game_type, bool) or game_type != expected_game_type:
         raise ReplayLoadError(
@@ -116,36 +122,22 @@ def _parse_game_settings(first: dict[str, Any]) -> GameSettings:
     return settings
 
 
-def _parse_event_lines(content: str) -> list[dict[str, Any]]:
+def load_replay_from_bytes(content: bytes) -> ReplayInput:
     """
-    Decode each non-blank line as a JSON object, naming the physical line of the first one that is not.
+    Decode a MessagePack replay into engine inputs.
     """
-    events: list[dict[str, Any]] = []
-    for line_number, line in enumerate(content.split("\n"), start=1):
-        if not line.strip():
-            continue
+    try:
+        events = decode_replay_records(content)
+    except (ValueError, TypeError) as exc:
+        raise ReplayLoadError(f"Cannot decode replay: {exc}") from exc
 
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError as exc:
-            raise ReplayLoadError(f"Malformed JSON: line {line_number}: {exc.msg}") from exc
-
-        if not isinstance(event, dict):
-            raise ReplayLoadError(f"Malformed JSON: line {line_number} is not an object, got {type(event).__name__}")
-
-        events.append(event)
-
-    return events
+    return load_replay_records(events)
 
 
-def load_replay_from_string(content: str) -> ReplayInput:
+def load_replay_records(events: list[dict[int, object]]) -> ReplayInput:
     """
-    Parse newline-delimited JSON objects into ReplayInput.
+    Extract engine inputs from decoded replay records.
     """
-    if not content.strip():
-        raise ReplayLoadError("Empty replay content")
-
-    events = _parse_event_lines(content)
     if len(events) > _MAX_REPLAY_EVENTS:
         raise ReplayLoadError(f"Replay exceeds maximum event count ({_MAX_REPLAY_EVENTS})")
 
@@ -178,22 +170,23 @@ def load_replay_from_file(path: str | Path) -> ReplayInput:
     """
     Load a replay from a file path.
 
-    Supports both plain text and gzip-compressed (.gz) replay files.
+    Support both raw MessagePack and gzip-compressed (.gz) replay files.
     """
     path = Path(path)
     try:
         if path.name.endswith(".gz"):
-            with gzip.open(path, "rt", encoding="utf-8") as f:
-                content = f.read()
+            with gzip.open(path, "rb") as f:
+                content = f.read(MAX_REPLAY_BYTES + 1)
         else:
-            content = path.read_text(encoding="utf-8")
+            with path.open("rb") as f:
+                content = f.read(MAX_REPLAY_BYTES + 1)
     except (OSError, EOFError, zlib.error) as exc:
         raise ReplayLoadError(f"Cannot read replay file {path}: {exc}") from exc
 
-    return load_replay_from_string(content)
+    return load_replay_from_bytes(content)
 
 
-def _extract_seat_to_name(players: list[dict[str, Any]]) -> dict[int, str]:
+def _extract_seat_to_name(players: list[dict[int, Any]]) -> dict[int, str]:
     """
     Extract seat-to-name mapping from game_started players, validating structure.
     """
@@ -203,8 +196,8 @@ def _extract_seat_to_name(players: list[dict[str, Any]]) -> dict[int, str]:
             raise ReplayLoadError(f"game_started player entry {i} is not a dict")
 
         try:
-            seat = player["s"]
-            name = player["nm"]
+            seat = player[WireKey.SEAT]
+            name = player[WireKey.NAME]
         except KeyError as exc:
             raise ReplayLoadError(f"game_started player entry {i} missing required field: {exc}") from exc
 
@@ -241,7 +234,7 @@ def _reconstruct_input_order(
 
 
 def _extract_action(
-    event: dict[str, Any],
+    event: dict[int, Any],
     seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent] | None:
     """
@@ -251,7 +244,7 @@ def _extract_action(
     player action. Raise ReplayLoadError for unknown event types, so a new action-producing event fails loudly instead
     of being silently dropped from the replay.
     """
-    event_type = event.get("t")
+    event_type = event.get(WireKey.EVENT_TYPE)
     if event_type is None:
         raise ReplayLoadError("Event missing required 't' field")
 
@@ -273,11 +266,11 @@ def _extract_action(
     raise ReplayLoadError(f"Unknown event type: {event_type!r}")
 
 
-def _parse_discard(event: dict[str, Any], seat_to_name: dict[int, str]) -> ReplayInputEvent:
+def _parse_discard(event: dict[int, Any], seat_to_name: dict[int, str]) -> ReplayInputEvent:
     """
     Parse a discard event from packed integer encoding.
     """
-    d = event.get("d")
+    d = event.get(WireKey.PACKED_MOVE)
     if d is None:
         raise ReplayLoadError("discard event missing 'd' field")
 
@@ -299,11 +292,11 @@ def _parse_discard(event: dict[str, Any], seat_to_name: dict[int, str]) -> Repla
     )
 
 
-def _parse_meld_compact(event: dict[str, Any], seat_to_name: dict[int, str]) -> ReplayInputEvent:
+def _parse_meld_compact(event: dict[int, Any], seat_to_name: dict[int, str]) -> ReplayInputEvent:
     """
     Parse a compact meld event {"t": 0, "m": <IMME_int>} into a call action.
     """
-    imme_value = event.get("m")
+    imme_value = event.get(WireKey.PACKED_MELD)
     if imme_value is None:
         raise ReplayLoadError("Compact meld event missing 'm' field")
 
@@ -378,20 +371,23 @@ def _parse_kan_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayIn
     )
 
 
-def _parse_round_end(event: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent] | None:
+def _parse_round_end(event: dict[int, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent] | None:
     """
     Parse a round_end event into player action(s), if any.
     """
-    result_type = event.get("rt")
+    result_type = event.get(WireKey.RESULT_TYPE)
     can_rob_kan = result_type in (WireRoundResultType.RON, WireRoundResultType.DOUBLE_RON) or (
-        result_type == WireRoundResultType.ABORTIVE_DRAW and event.get("rn") == AbortiveDrawType.TRIPLE_RON
+        result_type == WireRoundResultType.ABORTIVE_DRAW
+        and event.get(WireKey.ABORTIVE_REASON) == AbortiveDrawType.TRIPLE_RON
     )
-    if event.get("rk") is not None and not can_rob_kan:
-        raise ReplayLoadError(f"round_end that robs no kan carries a robbed kan (rk): {event['rk']!r}")
+    if event.get(WireKey.ROBBED_KAN) is not None and not can_rob_kan:
+        raise ReplayLoadError(f"round_end that robs no kan carries a robbed kan (rk): {event[WireKey.ROBBED_KAN]!r}")
 
     is_ron = result_type in (WireRoundResultType.RON, WireRoundResultType.DOUBLE_RON)
-    if event.get("hbs") is not None and not is_ron:
-        raise ReplayLoadError(f"round_end that is no ron carries head-bumped ron seats (hbs): {event['hbs']!r}")
+    if event.get(WireKey.HEAD_BUMPED_SEATS) is not None and not is_ron:
+        raise ReplayLoadError(
+            f"round_end that is no ron carries head-bumped ron seats (hbs): {event[WireKey.HEAD_BUMPED_SEATS]!r}"
+        )
 
     match result_type:
         case WireRoundResultType.TSUMO:
@@ -409,19 +405,23 @@ def _parse_round_end(event: dict[str, Any], seat_to_name: dict[int, str]) -> lis
             raise ReplayLoadError(f"Unknown round_end result type: {result_type!r}")
 
 
-def _parse_tsumo_round_end(result: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent]:
+def _parse_tsumo_round_end(result: dict[int, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent]:
     """
     Parse a tsumo round_end result.
     """
-    player_name = _parse_seat_player(result.get("ws"), seat_to_name, field="tsumo round_end winner seat (ws)")
+    player_name = _parse_seat_player(
+        result.get(WireKey.WINNER_SEAT), seat_to_name, field="tsumo round_end winner seat (ws)"
+    )
     return [ReplayInputEvent(player_name=player_name, action=GameAction.DECLARE_TSUMO)]
 
 
-def _parse_ron_round_end(result: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent]:
+def _parse_ron_round_end(result: dict[int, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent]:
     """
     Parse a ron round_end result.
     """
-    player_name = _parse_seat_player(result.get("ws"), seat_to_name, field="ron round_end winner seat (ws)")
+    player_name = _parse_seat_player(
+        result.get(WireKey.WINNER_SEAT), seat_to_name, field="ron round_end winner seat (ws)"
+    )
     return [
         *_parse_robbed_kan(result, seat_to_name),
         ReplayInputEvent(player_name=player_name, action=GameAction.CALL_RON),
@@ -430,13 +430,13 @@ def _parse_ron_round_end(result: dict[str, Any], seat_to_name: dict[int, str]) -
 
 
 def _parse_double_ron_round_end(
-    result: dict[str, Any],
+    result: dict[int, Any],
     seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent]:
     """
     Parse a double_ron round_end result.
     """
-    winners = result.get("wn")
+    winners = result.get(WireKey.WINNERS)
     if not isinstance(winners, list) or not winners:
         raise ReplayLoadError(f"double_ron round_end must have a non-empty winner list (wn): {winners!r}")
 
@@ -445,7 +445,9 @@ def _parse_double_ron_round_end(
         if not isinstance(winner, dict):
             raise ReplayLoadError(f"double_ron round_end winner must be an object, got {winner!r}")
 
-        player_name = _parse_seat_player(winner.get("ws"), seat_to_name, field="double_ron round_end winner seat (ws)")
+        player_name = _parse_seat_player(
+            winner.get(WireKey.WINNER_SEAT), seat_to_name, field="double_ron round_end winner seat (ws)"
+        )
         rons.append(ReplayInputEvent(player_name=player_name, action=GameAction.CALL_RON))
 
     winner_names = {ron.player_name for ron in rons}
@@ -457,13 +459,13 @@ def _parse_double_ron_round_end(
 
 
 def _parse_abortive_draw_round_end(
-    result: dict[str, Any],
+    result: dict[int, Any],
     seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent] | None:
     """
     Parse an abortive_draw round_end result: the kyuushu kyuuhai declaration or each triple ron declaration.
     """
-    reason = result.get("rn")
+    reason = result.get(WireKey.ABORTIVE_REASON)
     if reason == AbortiveDrawType.TRIPLE_RON:
         return _parse_triple_ron_declarations(result, seat_to_name)
 
@@ -471,12 +473,14 @@ def _parse_abortive_draw_round_end(
         # Other abortive draws (four_riichi, etc.) are not player actions
         return None
 
-    player_name = _parse_seat_player(result.get("s"), seat_to_name, field="nine_terminals abortive_draw seat (s)")
+    player_name = _parse_seat_player(
+        result.get(WireKey.SEAT), seat_to_name, field="nine_terminals abortive_draw seat (s)"
+    )
     return [ReplayInputEvent(player_name=player_name, action=GameAction.CALL_KYUUSHU)]
 
 
 def _parse_triple_ron_declarations(
-    result: dict[str, Any],
+    result: dict[int, Any],
     seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent]:
     """
@@ -484,7 +488,7 @@ def _parse_triple_ron_declarations(
 
     The seats must be TRIPLE_RON_COUNT distinct known seats; anything else is a malformed replay.
     """
-    seats = result.get("rcl")
+    seats = result.get(WireKey.RON_CALLERS)
     if not isinstance(seats, list) or len(seats) != TRIPLE_RON_COUNT:
         raise ReplayLoadError(f"triple_ron abortive_draw has invalid ron seats (rcl): {seats!r}")
 
@@ -498,23 +502,25 @@ def _parse_triple_ron_declarations(
     return [*_parse_robbed_kan(result, seat_to_name), *rons]
 
 
-def _parse_robbed_kan(result: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent]:
+def _parse_robbed_kan(result: dict[int, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent]:
     """
     Parse the kan a chankan robbed (rk) into the kan declaration that opened the chankan prompt, if the result has one.
 
     A robbed kan never completes, so no meld event records it: its ron or triple ron result carries it instead, and its
     declaration must precede the rons that answer it.
     """
-    robbed_kan = result.get("rk")
+    robbed_kan = result.get(WireKey.ROBBED_KAN)
     if robbed_kan is None:
         return []
 
     if not isinstance(robbed_kan, dict):
         raise ReplayLoadError(f"round_end has an invalid robbed kan (rk): {robbed_kan!r}")
 
-    player_name = _parse_seat_player(robbed_kan.get("s"), seat_to_name, field="round_end robbed kan (rk) seat (s)")
-    tile_id = robbed_kan.get("ti")
-    kan_type = robbed_kan.get("kty")
+    player_name = _parse_seat_player(
+        robbed_kan.get(WireKey.SEAT), seat_to_name, field="round_end robbed kan (rk) seat (s)"
+    )
+    tile_id = robbed_kan.get(WireKey.TILE_ID)
+    kan_type = robbed_kan.get(WireKey.KAN_TYPE)
     is_tile = isinstance(tile_id, int) and not isinstance(tile_id, bool) and 0 <= tile_id < NUM_TILES
     if not is_tile or kan_type not in (KanType.ADDED.value, KanType.CLOSED.value):
         raise ReplayLoadError(f"round_end has an invalid robbed kan (rk): {robbed_kan!r}")
@@ -529,7 +535,7 @@ def _parse_robbed_kan(result: dict[str, Any], seat_to_name: dict[int, str]) -> l
 
 
 def _parse_head_bumped_rons(
-    result: dict[str, Any],
+    result: dict[int, Any],
     seat_to_name: dict[int, str],
     *,
     winner_names: set[str],
@@ -541,7 +547,7 @@ def _parse_head_bumped_rons(
     place would leave them temporarily furiten. Absent when no declaration was bumped; when present it must hold
     distinct known seats other than the winners, the discarder (ls) and a robbed kan's declarer.
     """
-    seats = result.get("hbs")
+    seats = result.get(WireKey.HEAD_BUMPED_SEATS)
     if seats is None:
         return []
 
@@ -551,7 +557,7 @@ def _parse_head_bumped_rons(
     player_names = [
         _parse_seat_player(seat, seat_to_name, field="round_end head-bumped ron seat (hbs)") for seat in seats
     ]
-    loser_name = _parse_seat_player(result.get("ls"), seat_to_name, field="round_end loser seat (ls)")
+    loser_name = _parse_seat_player(result.get(WireKey.LOSER_SEAT), seat_to_name, field="round_end loser seat (ls)")
     kan_declarer_names = {kan.player_name for kan in _parse_robbed_kan(result, seat_to_name)}
     non_declarer_names = {*winner_names, loser_name, *kan_declarer_names}
     if len(set(player_names)) != len(player_names) or non_declarer_names & set(player_names):

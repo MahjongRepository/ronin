@@ -5,6 +5,7 @@ from game.logic.events import BroadcastTarget, CallPromptEvent, EventType, GameS
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.settings import GameSettings, GameType
 from game.messaging.event_payload import game_event_payload
+from game.wire.keys import WireKey
 
 
 class TestGameCreationAndJoin:
@@ -30,7 +31,7 @@ class TestGameCreationAndJoin:
         settings = GameSettings(game_type=GameType.TONPUSEN)
         events = service.start_game("game1", ["Player"], seed="a" * 192, settings=settings).events
         game_started = next(e for e in events if e.type == EventType.GAME_STARTED)
-        assert game_event_payload(game_started)["gt"] == 1
+        assert game_event_payload(game_started)[WireKey.GAME_TYPE] == 1
 
 
 class TestGameServiceIntegration:

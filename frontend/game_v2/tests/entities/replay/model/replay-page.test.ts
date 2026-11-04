@@ -1,6 +1,6 @@
 import { assert, describe, expect, it } from "vitest";
 
-import { engineReplayText } from "#tests/fixtures/replays";
+import { engineReplayBytes } from "#tests/fixtures/replays";
 import {
     DEFAULT_REPLAY_PREFS,
     HOLD_DELAY_MS,
@@ -31,7 +31,7 @@ function opened(
 ): LoadedReplayScreen {
     const { screen } = stepReplayPage(LOADING, {
         at: 0,
-        fetched: { ok: true, text: engineReplayText(name) },
+        fetched: { content: engineReplayBytes(name), ok: true },
         kind: "fetched",
         opening: { autoplay, prefs, roundListOpen: false, search, soundOn },
     });
@@ -127,7 +127,7 @@ describe("stepReplayPage - loading", () => {
     it("takes the load's wait, its unreachable server and its fetch only while loading, never once the replay shows", () => {
         const shown = opened("riichi");
         const staleFetch: ReplayPageInput = {
-            fetched: { ok: true, text: engineReplayText("riichi") },
+            fetched: { content: engineReplayBytes("riichi"), ok: true },
             kind: "fetched",
             opening: {
                 autoplay: true,
@@ -155,7 +155,7 @@ describe("stepReplayPage - loading", () => {
         const paused = opened("riichi", "?round=0&step=5");
         const { effects, screen } = stepReplayPage(LOADING, {
             at: 1000,
-            fetched: { ok: true, text: engineReplayText("riichi") },
+            fetched: { content: engineReplayBytes("riichi"), ok: true },
             kind: "fetched",
             opening: {
                 autoplay: true,

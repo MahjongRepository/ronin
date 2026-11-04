@@ -37,14 +37,17 @@ describe("tile136toString", () => {
     describe("red fives", () => {
         test("red five man (ID 16) is 0m", () => {
             expect(tile136toString(FIVE_RED_MAN)).toBe("0m");
+            expect(tile136toString(FIVE_RED_MAN, false)).toBe("5m");
         });
 
         test("red five pin (ID 52) is 0p", () => {
             expect(tile136toString(FIVE_RED_PIN)).toBe("0p");
+            expect(tile136toString(FIVE_RED_PIN, false)).toBe("5p");
         });
 
         test("red five sou (ID 88) is 0s", () => {
             expect(tile136toString(FIVE_RED_SOU)).toBe("0s");
+            expect(tile136toString(FIVE_RED_SOU, false)).toBe("5s");
         });
 
         test("IDs adjacent to red fives are normal tiles", () => {

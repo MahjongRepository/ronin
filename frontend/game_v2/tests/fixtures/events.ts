@@ -51,6 +51,7 @@ export function makeGameStartedEvent(overrides: Partial<GameStartedEvent> = {}):
         dealerSeat: 0,
         gameId: "test-game-1",
         gameType: GAME_TYPE.HANCHAN,
+        hasAkadora: true,
         players: [
             { aiStandIn: null, isAiPlayer: false, name: "Alice", seat: 0 },
             { aiStandIn: null, isAiPlayer: true, name: "Bot-1", seat: 1 },

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -12,13 +11,14 @@ from game.logic.settings import NUM_PLAYERS, GameSettings
 from game.logic.shanten import calculate_shanten
 from game.logic.tiles import hand_to_34_array
 from game.replay import run_replay
-from game.replay.loader import load_replay_from_string
+from game.replay.loader import load_replay_from_bytes
 from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
 from game.wire.enums import SeatControlReason, WireEventType
-from game.wire.replay_format import REPLAY_VERSION, ReplayLineType
+from game.wire.keys import WireKey
+from game.wire.replay_format import REPLAY_VERSION, ReplayLineType, decode_replay_records, encode_replay_records
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -39,30 +39,30 @@ class ScenarioError(Exception):
 @dataclass(frozen=True)
 class Recording:
     """
-    A fixture's replay lines, where each engine call's lines end, and the staged wall its first round was dealt from.
+    A fixture's replay records, where each engine call's records end, and the staged wall its first round was dealt
+    from.
 
-    call_ends are line counts: the replay as the server would have saved it after each call is that many lines. wall is
-    None for a game dealt from its seed.
+    call_ends counts the records after each engine call. wall is None for a game dealt from its seed.
     """
 
-    lines: tuple[str, ...]
+    records: tuple[dict[int, object], ...]
     call_ends: tuple[int, ...]
     wall: tuple[int, ...] | None = None
 
     @property
-    def text(self) -> str:
-        return "\n".join([json.dumps({"version": REPLAY_VERSION}), *self.lines]) + "\n"
+    def content(self) -> bytes:
+        return encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *self.records])
 
     def run(self) -> ReplayTrace:
         """
         Load the replay and run it through the replay runner on the same wall.
         """
-        return run_replay(load_replay_from_string(self.text).model_copy(update={"wall": self.wall}))
+        return run_replay(load_replay_from_bytes(self.content).model_copy(update={"wall": self.wall}))
 
 
 class ReplayRecorder:
     """
-    Record a game's events into replay lines one engine call at a time, as the session does.
+    Record a game's events into replay records one engine call at a time, as the session does.
     """
 
     def __init__(self, *, seed: str, settings: GameSettings) -> None:
@@ -72,7 +72,7 @@ class ReplayRecorder:
 
     def record(self, events: Sequence[GameEvent]) -> None:
         self._collector.collect_events(self._record, list(events))
-        self._call_ends.append(len(self._record.lines))
+        self._call_ends.append(len(self._record.records))
 
     def record_ai_replacement(self, *, seat: int, reason: SeatControlReason) -> None:
         """
@@ -87,10 +87,10 @@ class ReplayRecorder:
         saved.
         """
         self._collector.record_human_return(self._record, seat=seat)
-        self._call_ends.append(len(self._record.lines))
+        self._call_ends.append(len(self._record.records))
 
     def recording(self, wall: tuple[int, ...] | None = None) -> Recording:
-        return Recording(lines=tuple(self._record.lines), call_ends=tuple(self._call_ends), wall=wall)
+        return Recording(records=tuple(self._record.records), call_ends=tuple(self._call_ends), wall=wall)
 
 
 def require_reproduces(recording: Recording, final_state: MahjongGameState, *, name: str) -> None:
@@ -109,15 +109,15 @@ def require_reproduces(recording: Recording, final_state: MahjongGameState, *, n
 @dataclass(frozen=True)
 class Outcome:
     """
-    How a scenario's replay must end: the fields its last round end holds, and the line right after it.
+    How a scenario's replay must end: the fields its last round end holds, and the record right after it.
 
     Fields match as a subset, nested mappings too, and a list matches item by item at its own length. then is the event
-    or replay-only line type and fields of the line after the round end, or None when the round end is the replay's last
-    line.
+    or replay-only record type and fields of the record after the round end, or None when the round end is the replay's
+    last record.
     """
 
-    round_end: Mapping[str, object]
-    then: tuple[WireEventType | ReplayLineType, Mapping[str, object]] | None = None
+    round_end: Mapping[int, object]
+    then: tuple[WireEventType | ReplayLineType, Mapping[int, object]] | None = None
 
 
 def _holds(actual: object, expected: object) -> bool:
@@ -138,10 +138,10 @@ def _holds(actual: object, expected: object) -> bool:
 
 def require_outcome(recording: Recording, outcome: Outcome, *, name: str) -> None:
     """
-    Raise ScenarioError unless the replay's last round end, and the line after it, are the outcome's.
+    Raise ScenarioError unless the replay's last round end, and the record after it, are the outcome's.
     """
-    lines = [json.loads(line) for line in recording.lines]
-    round_ends = [index for index, line in enumerate(lines) if line["t"] == WireEventType.ROUND_END]
+    lines = decode_replay_records(recording.content)[1:]
+    round_ends = [index for index, line in enumerate(lines) if line[WireKey.EVENT_TYPE] == WireEventType.ROUND_END]
     if not round_ends:
         raise ScenarioError(f"{name}: the replay has no round end")
 
@@ -156,22 +156,22 @@ def require_outcome(recording: Recording, outcome: Outcome, *, name: str) -> Non
         return
 
     event_type, fields = outcome.then
-    if not after or after[0]["t"] != event_type or not _holds(after[0], dict(fields)):
-        raise ScenarioError(f"{name}: the line after the last round end is not a {event_type.name} with {fields}")
+    if not after or after[0][WireKey.EVENT_TYPE] != event_type or not _holds(after[0], dict(fields)):
+        raise ScenarioError(f"{name}: the record after the last round end is not a {event_type.name} with {fields}")
 
 
 def cut_after(recording: Recording, *, event_type: WireEventType, occurrence: int) -> Recording:
     """
-    Cut a replay after the engine call that holds its line of the event type at that occurrence.
+    Cut a replay after the engine call that holds its record of the event type at that occurrence.
 
-    occurrence counts the event type's lines from zero, or from the end when negative. The cut falls between calls,
-    since the server records a call's lines together and saves a replay only between calls; the cut replay must still
+    occurrence counts the event type's records from zero, or from the end when negative. The cut falls between calls,
+    since the server records a call's records together and saves a replay only between calls; the cut replay must still
     load and run.
     """
-    matches = [index for index, line in enumerate(recording.lines) if json.loads(line)["t"] == event_type]
+    matches = [index for index, line in enumerate(recording.records) if line[WireKey.EVENT_TYPE] == event_type]
     end = next(call_end for call_end in recording.call_ends if call_end > matches[occurrence])
     cut = Recording(
-        lines=recording.lines[:end],
+        records=recording.records[:end],
         call_ends=tuple(call_end for call_end in recording.call_ends if call_end <= end),
         wall=recording.wall,
     )
@@ -218,7 +218,7 @@ class Seating:
     Who plays a scripted game: its players in input order, and the seats of those with no connection at the first deal.
 
     The engine seats AI players in the seats the players leave empty, as in a room of fewer than four. An absent seat is
-    an AI player's from the deal, recorded as the session records it: its line ahead of the deal's events, its AI
+    an AI player's from the deal, recorded as the session records it: its record ahead of the deal's events, its AI
     player's moves after them.
     """
 
@@ -359,7 +359,7 @@ class StagedGame(_ScriptedGame):
 
     def leave(self, seat: int) -> None:
         """
-        Hand the seat of a player who left to an AI player, recorded as the session records it: its seat control line,
+        Hand the seat of a player who left to an AI player, recorded as the session records it: its seat control record,
         then the events of the moves the AI player makes at once.
 
         From then on the engine plays the seat's turns and calls by itself.

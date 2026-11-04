@@ -16,6 +16,7 @@ from game.tests.helpers.fake_websocket import FakeWebSocketClient
 from game.tests.mocks import MockConnection
 from game.tests.unit.helpers import _update_player, _update_round_state
 from game.wire.events import EVENT_TYPE_INT
+from game.wire.keys import WireKey
 
 if TYPE_CHECKING:
     from game.logic.runtime import GameRuntime
@@ -86,7 +87,9 @@ def disconnect_and_reconnect(
     new_conn = MockConnection(game_id=game_id)
     manager.register_connection(new_conn)
     manager.reconnect(new_conn, session_token=token)
-    reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
+    reconnect_msgs = [
+        m for m in new_conn.sent_messages if m.get(WireKey.SESSION_TYPE) == SessionMessageType.GAME_RECONNECTED
+    ]
     assert len(reconnect_msgs) == 1, f"Expected 1 game_reconnected message, got {len(reconnect_msgs)}"
 
     return new_conn, token
@@ -164,7 +167,7 @@ _TIMEOUT_OF_WAIT = {
 
 
 def _is_round_start(message: dict) -> bool:
-    return message.get("t") == EVENT_TYPE_INT[EventType.ROUND_STARTED]
+    return message.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.ROUND_STARTED]
 
 
 class SocketTable:
@@ -191,7 +194,7 @@ class SocketTable:
             client.hold_writes()
 
         endpoint = asyncio.create_task(websocket_endpoint(client.websocket, self.router))
-        client.send({"t": WireClientMessageType.JOIN_GAME, "game_ticket": self.tickets[name]})
+        client.send({WireKey.EVENT_TYPE: WireClientMessageType.JOIN_GAME, WireKey.GAME_TICKET: self.tickets[name]})
         self.clients.append(client)
         self.endpoints.append(endpoint)
         return client, endpoint

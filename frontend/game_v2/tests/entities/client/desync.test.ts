@@ -40,6 +40,7 @@ import {
     NUM_TILES,
     PLAYER_ACTION,
     SESSION_ERROR_CODE,
+    WIRE_KEY,
     buildDiscardAction,
     buildReconnectMessage,
     buildResyncMessage,
@@ -70,7 +71,10 @@ function impossibleDiscard(state: LiveClient): WirePayload {
     const tileId = [...Array.from({ length: NUM_TILES }).keys()].find(
         (candidate) => !viewerTiles(state).includes(candidate),
     );
-    return { d: seat * NUM_TILES + (tileId ?? 0), t: EVENT_TYPE.DISCARD };
+    return {
+        [WIRE_KEY.PACKED_MOVE]: seat * NUM_TILES + (tileId ?? 0),
+        [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DISCARD,
+    };
 }
 
 /** The viewer's own draw offering a closed kan of a tile type the hand holds none of, beside the drawn tile's. */
@@ -81,12 +85,14 @@ function unmatchedKanDraw(state: LiveClient): WirePayload {
         [...Array.from({ length: NUM_TILES / 4 }).keys()].find((type) => !held.has(type)) ?? 0;
     const drawnTile = viewerTiles(state).at(0) ?? 0;
     return {
-        aa: [{ a: PLAYER_ACTION.KAN, tl: [absentType] }],
-        bk: 30,
-        d: seat * NUM_TILES + drawnTile,
-        t: EVENT_TYPE.DRAW,
-        tr: 69,
-        wi: TURN_WAIT_ID + 1,
+        [WIRE_KEY.AVAILABLE_ACTIONS]: [
+            { [WIRE_KEY.ACTION]: PLAYER_ACTION.KAN, [WIRE_KEY.TILES]: [absentType] },
+        ],
+        [WIRE_KEY.BANK_SECONDS]: 30,
+        [WIRE_KEY.PACKED_MOVE]: seat * NUM_TILES + drawnTile,
+        [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
+        [WIRE_KEY.TILES_REMAINING]: 69,
+        [WIRE_KEY.WAIT_ID]: TURN_WAIT_ID + 1,
     };
 }
 
@@ -95,12 +101,17 @@ function ponlessAddedKanDraw(state: LiveClient): WirePayload {
     const seat = state.viewerSeat ?? 0;
     const drawnTile = viewerTiles(state).at(0) ?? 0;
     return {
-        aa: [{ a: PLAYER_ACTION.ADDED_KAN, tl: [Math.floor(drawnTile / 4)] }],
-        bk: 30,
-        d: seat * NUM_TILES + drawnTile,
-        t: EVENT_TYPE.DRAW,
-        tr: 69,
-        wi: TURN_WAIT_ID + 1,
+        [WIRE_KEY.AVAILABLE_ACTIONS]: [
+            {
+                [WIRE_KEY.ACTION]: PLAYER_ACTION.ADDED_KAN,
+                [WIRE_KEY.TILES]: [Math.floor(drawnTile / 4)],
+            },
+        ],
+        [WIRE_KEY.BANK_SECONDS]: 30,
+        [WIRE_KEY.PACKED_MOVE]: seat * NUM_TILES + drawnTile,
+        [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
+        [WIRE_KEY.TILES_REMAINING]: 69,
+        [WIRE_KEY.WAIT_ID]: TURN_WAIT_ID + 1,
     };
 }
 
@@ -115,7 +126,7 @@ const FAILURES: readonly FailureCase[] = [
     {
         cause: "unreadable_message",
         detail: "Unknown game event type",
-        event: () => message(AT, { t: 999 }),
+        event: () => message(AT, { [WIRE_KEY.EVENT_TYPE]: 999 }),
         name: "a message that does not parse",
     },
     {
@@ -144,53 +155,78 @@ const FAILURES: readonly FailureCase[] = [
     },
 ];
 
-const SNAPSHOT_SEATS = wirePayloadList(SNAPSHOT, "pst");
-const OWN_TILES = wireNumberList(SNAPSHOT, "mt");
+const SNAPSHOT_SEATS = wirePayloadList(SNAPSHOT, WIRE_KEY.PLAYER_STATES);
+const OWN_TILES = wireNumberList(SNAPSHOT, WIRE_KEY.MY_TILES);
 const PENDING_SNAPSHOT = receivedPayload(
     loadSeatScenario("chankan_robbed_seat_1").transcript,
     "reconnected",
 );
-const PENDING_RESULT = wirePayloadOf(PENDING_SNAPSHOT, "re");
+const PENDING_RESULT = wirePayloadOf(PENDING_SNAPSHOT, WIRE_KEY.ROUND_RESULT);
 
 /** The snapshot with one seat's state left out, the others as the server sent them. */
 function withoutSeatState(seat: number): WirePayload {
-    return { ...SNAPSHOT, pst: SNAPSHOT_SEATS.filter((state) => state.s !== seat) };
+    return {
+        ...SNAPSHOT,
+        [WIRE_KEY.PLAYER_STATES]: SNAPSHOT_SEATS.filter((state) => state[WIRE_KEY.SEAT] !== seat),
+    };
 }
 
 /** The snapshot with seat 2's melds replaced by `melds`. */
 function withSeat2Melds(melds: readonly number[]): WirePayload {
     return {
         ...SNAPSHOT,
-        pst: SNAPSHOT_SEATS.map((state) => (state.s === 2 ? { ...state, ml: melds } : state)),
+        [WIRE_KEY.PLAYER_STATES]: SNAPSHOT_SEATS.map((state) =>
+            state[WIRE_KEY.SEAT] === 2 ? { ...state, [WIRE_KEY.MELDS]: melds } : state,
+        ),
     };
 }
 
 const INCOMPLETE_SNAPSHOTS: readonly { name: string; payload: WirePayload }[] = [
-    { name: "that does not parse", payload: { ...SNAPSHOT, mt: "not tiles" } },
+    { name: "that does not parse", payload: { ...SNAPSHOT, [WIRE_KEY.MY_TILES]: "not tiles" } },
     { name: "missing a seat's state", payload: withoutSeatState(2) },
-    { name: "with no players", payload: { ...SNAPSHOT, p: [] } },
+    { name: "with no players", payload: { ...SNAPSHOT, [WIRE_KEY.PLAYERS]: [] } },
     {
         name: "listing a seat's state twice",
-        payload: { ...SNAPSHOT, pst: SNAPSHOT_SEATS.map((state) => ({ ...state, s: 0 })) },
+        payload: {
+            ...SNAPSHOT,
+            [WIRE_KEY.PLAYER_STATES]: SNAPSHOT_SEATS.map((state) => ({
+                ...state,
+                [WIRE_KEY.SEAT]: 0,
+            })),
+        },
     },
     { name: "with a meld that does not decode", payload: withSeat2Melds([-1]) },
     { name: "with another seat's meld", payload: withSeat2Melds([6080]) },
-    { name: "whose history misses a finished round", payload: { ...SNAPSHOT, n: 1 } },
-    { name: "whose own hand misses a tile", payload: { ...SNAPSHOT, mt: OWN_TILES.slice(1) } },
+    {
+        name: "whose history misses a finished round",
+        payload: { ...SNAPSHOT, [WIRE_KEY.ROUND_NUMBER]: 1 },
+    },
+    {
+        name: "whose own hand misses a tile",
+        payload: { ...SNAPSHOT, [WIRE_KEY.MY_TILES]: OWN_TILES.slice(1) },
+    },
     {
         name: "whose own hand holds a tile twice",
-        payload: { ...SNAPSHOT, mt: [OWN_TILES[1], ...OWN_TILES.slice(1)] },
+        payload: { ...SNAPSHOT, [WIRE_KEY.MY_TILES]: [OWN_TILES[1], ...OWN_TILES.slice(1)] },
     },
     {
         name: "whose seat holds a count no turn leaves",
         payload: {
             ...SNAPSHOT,
-            pst: SNAPSHOT_SEATS.map((state) => (state.s === 2 ? { ...state, tc: 12 } : state)),
+            [WIRE_KEY.PLAYER_STATES]: SNAPSHOT_SEATS.map((state) =>
+                state[WIRE_KEY.SEAT] === 2 ? { ...state, [WIRE_KEY.TILE_COUNT]: 12 } : state,
+            ),
         },
     },
     {
         name: "whose pending result misses a seat's score",
-        payload: { ...PENDING_SNAPSHOT, re: { ...PENDING_RESULT, scs: { "0": 250, "2": 250 } } },
+        payload: {
+            ...PENDING_SNAPSHOT,
+            [WIRE_KEY.ROUND_RESULT]: {
+                ...PENDING_RESULT,
+                [WIRE_KEY.SCORES]: { "0": 250, "2": 250 },
+            },
+        },
     },
 ];
 
@@ -219,7 +255,10 @@ function sends(effects: readonly ClientEffect[]): ClientEffect[] {
 
 /** Whether a send or close is anything but the JOIN_GAME a reopened socket identifies with. */
 function isNoJoin(effect: ClientEffect): boolean {
-    return effect.type !== "send" || effect.message.t !== CLIENT_MESSAGE_TYPE.JOIN_GAME;
+    return (
+        effect.type !== "send" ||
+        effect.message[WIRE_KEY.EVENT_TYPE] !== CLIENT_MESSAGE_TYPE.JOIN_GAME
+    );
 }
 
 function discardIntent(at: number, tileId: number): LiveEvent {
@@ -230,7 +269,7 @@ const DOUBLE_RON_END = receivedPayload(
     loadSeatScenario("double_ron_seat_1").transcript,
     "round end",
 );
-const [firstWinner, ...otherWinners] = wirePayloadList(DOUBLE_RON_END, "wn");
+const [firstWinner, ...otherWinners] = wirePayloadList(DOUBLE_RON_END, WIRE_KEY.WINNERS);
 
 const DROPPED_AT = 4000;
 const OPENED_AT = 5001;
@@ -242,7 +281,11 @@ function undecodable(at: number): LiveEvent {
 }
 
 function drawNotice(at: number): LiveEvent {
-    return message(at, { s: 2, t: EVENT_TYPE.DRAW_NOTICE, tr: 68 });
+    return message(at, {
+        [WIRE_KEY.SEAT]: 2,
+        [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW_NOTICE,
+        [WIRE_KEY.TILES_REMAINING]: 68,
+    });
 }
 
 /** The first draw's socket dropped and reopened, the RECONNECT sent and its snapshot frame undecodable. */
@@ -286,10 +329,14 @@ describe("stepGameClient - desync", () => {
     );
 
     it("drops a delta while out of step, leaving the table it lost step on", () => {
-        const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
+        const desynced = run(onTurn(), [message(AT, { [WIRE_KEY.EVENT_TYPE]: 999 })]).state;
 
         const dropped = run(desynced, [
-            message(AT + 50, { s: 2, t: EVENT_TYPE.DRAW_NOTICE, tr: 68 }),
+            message(AT + 50, {
+                [WIRE_KEY.SEAT]: 2,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW_NOTICE,
+                [WIRE_KEY.TILES_REMAINING]: 68,
+            }),
         ]);
         expect(dropped.effects).toEqual([]);
         expect(dropped.state.table).toBe(desynced.table);
@@ -297,7 +344,7 @@ describe("stepGameClient - desync", () => {
     });
 
     it("takes the snapshot and the re-sent wait, back in step, and answers again, its seen wait kept", () => {
-        const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
+        const desynced = run(onTurn(), [message(AT, { [WIRE_KEY.EVENT_TYPE]: 999 })]).state;
 
         const resynced = run(desynced, [
             message(AT + 100, SNAPSHOT),
@@ -320,7 +367,7 @@ describe("stepGameClient - desync", () => {
     it.each(INCOMPLETE_SNAPSHOTS)(
         "ends the page as failed, still out of step and closing its socket, on a snapshot $name",
         ({ payload }) => {
-            const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
+            const desynced = run(onTurn(), [message(AT, { [WIRE_KEY.EVENT_TYPE]: 999 })]).state;
 
             const failed = run(desynced, [message(AT + 100, payload)]);
             expect(sends(failed.effects)).toEqual([{ type: "close_socket" }]);
@@ -348,11 +395,14 @@ describe("stepGameClient - desync", () => {
     it.each([
         {
             name: "a winner's meld does not decode",
-            payload: { ...DOUBLE_RON_END, wn: [{ ...firstWinner, ml: [-1] }, ...otherWinners] },
+            payload: {
+                ...DOUBLE_RON_END,
+                [WIRE_KEY.WINNERS]: [{ ...firstWinner, [WIRE_KEY.MELDS]: [-1] }, ...otherWinners],
+            },
         },
         {
             name: "a seat's score is missing",
-            payload: { ...DOUBLE_RON_END, scs: { "0": 250, "1": 250, "3": 250 } },
+            payload: { ...DOUBLE_RON_END, [WIRE_KEY.SCORES]: { "0": 250, "1": 250, "3": 250 } },
         },
     ])(
         "puts the client out of step on a round end where $name, opening no confirm",
@@ -369,7 +419,7 @@ describe("stepGameClient - desync", () => {
     );
 
     it("asks again when its request goes unanswered past its due time", () => {
-        const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
+        const desynced = run(onTurn(), [message(AT, { [WIRE_KEY.EVENT_TYPE]: 999 })]).state;
         const due = AT + RESYNC_ANSWER_MS;
         expect(nextDeadline(desynced)).toBeLessThanOrEqual(due);
 
@@ -387,19 +437,22 @@ describe("stepGameClient - desync", () => {
         let state = onTurn();
         for (let attempt = 1; attempt <= MAX_RESYNC_REQUESTS; attempt += 1) {
             const at = AT + attempt * 1000;
-            const recovered = run(state, [message(at, { t: 999 }), message(at + 100, SNAPSHOT)]);
+            const recovered = run(state, [
+                message(at, { [WIRE_KEY.EVENT_TYPE]: 999 }),
+                message(at + 100, SNAPSHOT),
+            ]);
             expect(sends(recovered.effects)).toEqual([RESYNC]);
             expect(desyncOf(recovered.state)).toBeNull();
             ({ state } = recovered);
         }
 
-        const failed = run(state, [message(AT + 10_000, { t: 999 })]);
+        const failed = run(state, [message(AT + 10_000, { [WIRE_KEY.EVENT_TYPE]: 999 })]);
         expect(sends(failed.effects)).toEqual([{ type: "close_socket" }]);
         expect(failed.state.session).toMatchObject({ reason: { kind: "failed" }, status: "ended" });
     });
 
     it("forgets its request when the socket drops, the reconnect's snapshot rebuilding it with no request more", () => {
-        const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
+        const desynced = run(onTurn(), [message(AT, { [WIRE_KEY.EVENT_TYPE]: 999 })]).state;
 
         const dropped = run(desynced, [closed(AT + 100, 1006)]);
         expect(desyncOf(dropped.state)?.request).toEqual({ kind: "unsent" });
@@ -463,7 +516,7 @@ describe("stepGameClient - desync around the game's start and end", () => {
         const dealer = resultDealerName(inStep);
         expect([inStep.table.inStep, dealer === null]).toEqual([true, false]);
         const desynced = run(checkpointState(FINAL, "ron chosen"), [
-            message(5000, { t: 999 }),
+            message(5000, { [WIRE_KEY.EVENT_TYPE]: 999 }),
         ]).state;
 
         const ended = run(desynced, [message(5000, finalRoundEnd), message(5000, gameEnd)]);
@@ -486,8 +539,11 @@ describe("stepGameClient - desync around the game's start and end", () => {
         expect(earlier.table.roundEndResult).not.toBeNull();
 
         const ended = run(earlier, [
-            message(5100, { t: 999 }),
-            message(5200, { ...receivedPayload(reconnectGame, "last round end"), rt: 99 }),
+            message(5100, { [WIRE_KEY.EVENT_TYPE]: 999 }),
+            message(5200, {
+                ...receivedPayload(reconnectGame, "last round end"),
+                [WIRE_KEY.RESULT_TYPE]: 99,
+            }),
             message(5200, receivedPayload(reconnectGame, "game end")),
         ]);
         expect(ended.state.session).toMatchObject({ reason: { kind: "game_ended" } });
@@ -499,11 +555,13 @@ describe("stepGameClient - desync around the game's start and end", () => {
     });
 
     it("marks the ledger incomplete when the last round end itself could not be read, the leftover sticks the server's", () => {
-        const lost = run(checkpointState(FINAL, "ron chosen"), [message(5000, { t: 999 })]).state;
+        const lost = run(checkpointState(FINAL, "ron chosen"), [
+            message(5000, { [WIRE_KEY.EVENT_TYPE]: 999 }),
+        ]).state;
         const desynced = { ...lost, table: { ...lost.table, riichiSticks: 2 } };
 
         const ended = run(desynced, [
-            message(5000, { ...finalRoundEnd, rt: 99 }),
+            message(5000, { ...finalRoundEnd, [WIRE_KEY.RESULT_TYPE]: 99 }),
             message(5000, gameEnd),
         ]);
         expect(ended.state.session).toMatchObject({
@@ -515,7 +573,7 @@ describe("stepGameClient - desync around the game's start and end", () => {
             null,
         ]);
         expect(ended.state.table.inStep).toBe(false);
-        expect(gameEnd.lr).toBe(0);
+        expect(gameEnd[WIRE_KEY.LEFTOVER_RIICHI]).toBe(0);
         expect(gameEndDisplay(ended.state.table, ended.state.viewerSeat)?.leftover).toBeNull();
     });
 });
@@ -525,7 +583,7 @@ function refusedBeforeDeal(): { state: LiveClient; effects: ClientEffect[] } {
     return run(startGameClient(GAME_ID, HANDOFF, 0).state, [
         opened(0),
         message(0, WIRE_GAME_JOINED),
-        message(100, { t: 999 }),
+        message(100, { [WIRE_KEY.EVENT_TYPE]: 999 }),
         message(120, wireSessionError(SESSION_ERROR_CODE.GAME_NOT_STARTED)),
     ]);
 }
@@ -578,9 +636,19 @@ describe("stepGameClient - desync before the first deal", () => {
     });
 
     it("keeps a game start's timer settings while awaiting the deal, so the socket waits through a long start pause", () => {
-        const timer = { bk: 20, gp: 240, mb: 20, ra: 15, tb: 5 };
+        const timer = {
+            [WIRE_KEY.BANK_SECONDS]: 20,
+            [WIRE_KEY.GAME_START_PAUSE]: 240,
+            [WIRE_KEY.MAX_BANK_SECONDS]: 20,
+            [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
+            [WIRE_KEY.BASE_TURN_SECONDS]: 5,
+        };
         const started = run(refusedBeforeDeal().state, [
-            message(500, { ...WIRE_GAME_STARTED, s: 0, tm: timer }),
+            message(500, {
+                ...WIRE_GAME_STARTED,
+                [WIRE_KEY.SEAT]: 0,
+                [WIRE_KEY.TIMER_SETTINGS]: timer,
+            }),
         ]);
 
         expect([started.state.firstDealDue, nextDeadline(started.state)]).toEqual([
@@ -590,12 +658,22 @@ describe("stepGameClient - desync before the first deal", () => {
     });
 
     it("keeps a game start that came while its request was outstanding, so the refusal that follows asks at the deal and the socket waits out the pause", () => {
-        const timer = { bk: 20, gp: 75, mb: 20, ra: 15, tb: 5 };
+        const timer = {
+            [WIRE_KEY.BANK_SECONDS]: 20,
+            [WIRE_KEY.GAME_START_PAUSE]: 75,
+            [WIRE_KEY.MAX_BANK_SECONDS]: 20,
+            [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
+            [WIRE_KEY.BASE_TURN_SECONDS]: 5,
+        };
         const refused = run(startGameClient(GAME_ID, HANDOFF, 0).state, [
             opened(0),
             message(0, WIRE_GAME_JOINED),
             undecodable(1),
-            message(2, { ...WIRE_GAME_STARTED, s: 0, tm: timer }),
+            message(2, {
+                ...WIRE_GAME_STARTED,
+                [WIRE_KEY.SEAT]: 0,
+                [WIRE_KEY.TIMER_SETTINGS]: timer,
+            }),
             message(3, wireSessionError(SESSION_ERROR_CODE.GAME_NOT_STARTED)),
         ]);
         const dealt = run(refused.state, [tick(75_002)]);
@@ -609,7 +687,7 @@ describe("stepGameClient - desync before the first deal", () => {
         const started = checkpointState(SCENARIO, "game started");
         const firstDealDue = started.firstDealDue ?? 0;
         const refused = run(started, [
-            message(100, { t: 999 }),
+            message(100, { [WIRE_KEY.EVENT_TYPE]: 999 }),
             message(120, wireSessionError(SESSION_ERROR_CODE.GAME_NOT_STARTED)),
         ]);
 
@@ -661,7 +739,9 @@ describe("stepGameClient - desync before the first deal", () => {
             refusedBeforeDeal(),
         );
         const resent = sends(effects.slice(refusedBeforeDeal().effects.length)).filter(isNoJoin);
-        const started = run(state, [message(400_000, { ...WIRE_GAME_STARTED, s: 0 })]);
+        const started = run(state, [
+            message(400_000, { ...WIRE_GAME_STARTED, [WIRE_KEY.SEAT]: 0 }),
+        ]);
         const dealt = run(started.state, [tick(started.state.firstDealDue ?? 0)]);
 
         expect([resent, state.resyncRequests, desyncOf(state)?.request.kind]).toEqual([
@@ -677,7 +757,7 @@ describe("stepGameClient - a late second snapshot", () => {
     it("replaces an expired decision the player left unanswered when its wait is opened again, timed afresh from the server's elapsed time", () => {
         const resentAt = AT + 100;
         const resynced = run(onTurn(), [
-            message(AT, { t: 999 }),
+            message(AT, { [WIRE_KEY.EVENT_TYPE]: 999 }),
             message(resentAt, SNAPSHOT),
             message(resentAt, RESENT_DRAW),
         ]).state;
@@ -700,7 +780,7 @@ describe("stepGameClient - a late second snapshot", () => {
     });
 
     it("keeps the answer the player sent to the first snapshot's wait when a second repeats it", () => {
-        const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
+        const desynced = run(onTurn(), [message(AT, { [WIRE_KEY.EVENT_TYPE]: 999 })]).state;
         const askedTwice = run(desynced, [tick(AT + RESYNC_ANSWER_MS)]);
         expect(sends(askedTwice.effects)).toEqual([RESYNC]);
         const first = run(askedTwice.state, [

@@ -33,6 +33,8 @@ from game.logic.tiles import NUM_TILES, tile_to_34
 from game.logic.turn import process_draw_phase
 from game.logic.types import (
     ExhaustiveDrawResult,
+    RobbedKan,
+    RonResult,
     TenpaiHand,
 )
 from game.messaging.event_payload import game_event_payload, reconnection_payload
@@ -45,6 +47,7 @@ from game.tests.unit.helpers import (
     _update_player,
     _update_round_state,
 )
+from game.wire.keys import WireKey
 
 
 class TestMahjongGameServiceAllPlayers:
@@ -337,8 +340,14 @@ class TestMahjongGameServiceRiichiSettingsOnTheWire:
         started_payload = game_event_payload(game_started)
         snapshot_payload = reconnection_payload(snapshot, stand_ins={})
 
-        assert (started_payload.get("rc"), started_payload["rsv"]) == (None, 15)
-        assert (snapshot_payload.get("rc"), snapshot_payload["rsv"]) == (None, 15)
+        assert (started_payload.get(WireKey.RIICHI_COLLECTED), started_payload[WireKey.RIICHI_STICK_VALUE]) == (
+            None,
+            15,
+        )
+        assert (snapshot_payload.get(WireKey.RIICHI_COLLECTED), snapshot_payload[WireKey.RIICHI_STICK_VALUE]) == (
+            None,
+            15,
+        )
 
 
 class TestMahjongGameServiceInvalidStart:
@@ -367,7 +376,9 @@ class TestMahjongGameServiceRestoreHumanPlayer:
 
 
 def _latest_discard_on_wire(service: MahjongGameService, runtime: GameRuntime) -> int | None:
-    return reconnection_payload(service.build_reconnection_snapshot(runtime, 0), stand_ins={}).get("ld")
+    return reconnection_payload(service.build_reconnection_snapshot(runtime, 0), stand_ins={}).get(
+        WireKey.LATEST_DISCARD_SEAT
+    )
 
 
 def _discards(*tiles: int) -> tuple[Discard, ...]:
@@ -400,7 +411,7 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         assert [ps.tile_count for ps in snapshot.player_states] == [
             14 if seat == dealer_seat else 13 for seat in range(4)
         ]
-        assert "ld" not in reconnection_payload(snapshot, stand_ins={})
+        assert WireKey.LATEST_DISCARD_SEAT not in reconnection_payload(snapshot, stand_ins={})
 
     def test_build_reconnection_snapshot__when_human_restored__should_mark_player_as_not_ai(self, service):
         runtime = service.start_game("game1", ["Alice"], seed="a" * 192).runtime
@@ -432,18 +443,18 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         assert runtime.state.round_number == 1
 
         payload = reconnection_payload(service.build_reconnection_snapshot(runtime, alice.seat), stand_ins={})
-        assert payload["h"] == 1
-        assert payload["rh"] == [
+        assert payload[WireKey.HONBA] == 1
+        assert payload[WireKey.ROUND_HISTORY] == [
             {
-                "w": 0,
-                "dl": first_dealer,
-                "h": 0,
-                "rt": 3,
-                "rs": (riichi_seat,),
-                "ws": (),
-                "ps": (),
-                "ts": (riichi_seat,),
-                "sch": {seat: 30 if seat == riichi_seat else -10 for seat in range(4)},
+                WireKey.WIND: 0,
+                WireKey.DEALER: first_dealer,
+                WireKey.HONBA: 0,
+                WireKey.RESULT_TYPE: 3,
+                WireKey.RIICHI_SEATS: (riichi_seat,),
+                WireKey.WINNER_SEAT: (),
+                WireKey.PAO_SEAT: (),
+                WireKey.TENPAI_SEATS: (riichi_seat,),
+                WireKey.SCORE_CHANGES: {str(seat): 30 if seat == riichi_seat else -10 for seat in range(4)},
             },
         ]
 
@@ -469,12 +480,21 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
 
         snapshot = service.build_reconnection_snapshot(runtime, alice.seat)
         payload = reconnection_payload(snapshot, stand_ins={})
-        assert (payload["dl"], payload["w"], payload["n"], payload["rw"], payload["h"]) == (first_dealer, 0, 0, 1, 0)
-        assert (payload["r"], payload["re"]["r"]) == (0, 0)
-        assert (payload["re"]["dl"], payload["re"]["di"]) == (first_dealer, payload["di"])
+        assert (
+            payload[WireKey.DEALER],
+            payload[WireKey.WIND],
+            payload[WireKey.ROUND_NUMBER],
+            payload[WireKey.ROUND_IN_WIND],
+            payload[WireKey.HONBA],
+        ) == (first_dealer, 0, 0, 1, 0)
+        assert (payload[WireKey.RIICHI_STICKS], payload[WireKey.ROUND_RESULT][WireKey.RIICHI_STICKS]) == (0, 0)
+        assert (
+            payload[WireKey.ROUND_RESULT][WireKey.DEALER],
+            payload[WireKey.ROUND_RESULT][WireKey.DORA_INDICATORS],
+        ) == (first_dealer, payload[WireKey.DORA_INDICATORS])
         assert isinstance(snapshot.result, ExhaustiveDrawResult)
         assert snapshot.result.tempai_seats == [tenpai_seat]
-        assert {ps["s"]: ps["sc"] for ps in payload["pst"]} == {
+        assert {ps[WireKey.SEAT]: ps[WireKey.SCORE] for ps in payload[WireKey.PLAYER_STATES]} == {
             seat: 280 if seat == tenpai_seat else 240 for seat in range(4)
         }
 
@@ -500,8 +520,9 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         service.handle_action(runtime, seat=1, action=GameAction.CALL_RON, data={})
         assert service.get_awaiting(runtime).kind == WaitKind.ROUND_ADVANCE
 
-        payload = service.build_reconnection_snapshot(runtime, 2).model_dump(by_alias=True, exclude_none=True)
-        assert payload["re"]["rk"] == {"s": 0, "ti": man_1[3], "kty": "closed"}
+        snapshot = service.build_reconnection_snapshot(runtime, 2)
+        assert isinstance(snapshot.result, RonResult)
+        assert snapshot.result.robbed_kan == RobbedKan(seat=0, tile_id=man_1[3], kan_type=KanType.CLOSED)
 
     def test_build_reconnection_snapshot__when_the_latest_discard_is_claimed__should_name_no_latest_discard(
         self, service

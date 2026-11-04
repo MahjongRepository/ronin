@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import TYPE_CHECKING
 
@@ -29,6 +28,7 @@ from game.tests.mocks import (
 )
 from game.wire.compact import decode_discard
 from game.wire.enums import WireEventType
+from game.wire.keys import WireKey
 from scripts.replay_fixtures.staged_game import PLAYERS, STAGED_SEED, Seating, StagedGame, StagedWall
 from shared.dal.models import GameEndReason
 
@@ -98,9 +98,9 @@ def _make_discard_event() -> DiscardEvent:
 
 
 class TestReplayCollectorMerge:
-    def test_replay_collector_merge__when_no_payloads__should_return_empty_json(self):
+    def test_replay_collector_merge__when_no_payloads__should_return_empty_record(self):
         result = ReplayCollector._merge_round_started_payloads([])
-        assert result == "{}"
+        assert result == {}
 
 
 class TestSessionReplay:
@@ -119,11 +119,11 @@ class TestSessionReplay:
         manager = make_session_manager(storage=storage)
         create_started_game(manager)
         game = game_of(manager)
-        recorded_before = len(game.replay.lines)
+        recorded_before = len(game.replay.records)
 
         manager._broadcast_events(game, [_make_discard_event()], MOCK_AWAITING)
         await wait_for_background_tasks(manager)
-        assert len(game.replay.lines) == recorded_before + 1
+        assert len(game.replay.records) == recorded_before + 1
         assert storage.saved == {}
 
     async def test_replay_save__when_game_end_event__should_save_the_detached_lines(self):
@@ -160,7 +160,9 @@ class TestSessionReplay:
             ("failed to save the replay of a finished game", "game1", False)
         ]
         assert game_repo.games["game1"].end_reason == GameEndReason.ERROR
-        assert [m.get("code") for m in conns[0].sent_messages][-1] == SessionErrorCode.INTERNAL_ERROR
+        assert [m.get(WireKey.SESSION_ERROR_CODE) for m in conns[0].sent_messages][
+            -1
+        ] == SessionErrorCode.INTERNAL_ERROR
         assert (conns[0]._close_code, conns[0]._close_reason) == (1011, "internal_error")
 
     async def test_disconnect__when_game_playing__should_record_the_ai_replacement_before_its_moves(
@@ -171,13 +173,18 @@ class TestSessionReplay:
         alice_seat = participant_of(manager, conns[0]).seat
         assert runtime_of(manager).state.round_state.current_player_seat == alice_seat
         replay = game_of(manager).replay
-        recorded_before = len(replay.lines)
+        recorded_before = len(replay.records)
 
         manager.disconnect(conns[0])
-        ai_replacement, ai_discard, *_ = (json.loads(line) for line in replay.lines[recorded_before:])
-        assert ai_replacement == {"t": 101, "s": alice_seat, "ai": 1, "r": 0}
-        assert ai_discard["t"] == WireEventType.DISCARD
-        assert decode_discard(ai_discard["d"])[0] == alice_seat
+        ai_replacement, ai_discard, *_ = replay.records[recorded_before:]
+        assert ai_replacement == {
+            WireKey.EVENT_TYPE: 101,
+            WireKey.SEAT: alice_seat,
+            WireKey.AI_PLAYER: 1,
+            WireKey.SEAT_CONTROL_REASON: 0,
+        }
+        assert ai_discard[WireKey.EVENT_TYPE] == WireEventType.DISCARD
+        assert decode_discard(ai_discard[WireKey.PACKED_MOVE])[0] == alice_seat
 
         await manager.shutdown()
 
@@ -194,7 +201,7 @@ class TestSessionReplay:
         monkeypatch.setattr(seeded_engine, "process_ai_player_actions_after_replacement", refuse_the_ai_move)
         with pytest.raises(GeneratedActionError):
             manager.disconnect(conns[0])
-        assert [line for line in replay.lines if json.loads(line)["t"] == 101] == []
+        assert [line for line in replay.records if line[WireKey.EVENT_TYPE] == 101] == []
 
         await manager.shutdown()
 
@@ -205,12 +212,12 @@ class TestSessionReplay:
         replay = game_of(manager).replay
 
         disconnect_and_reconnect(manager, conns[0])
-        lines = [json.loads(line) for line in replay.lines]
-        assert [line for line in lines if line["t"] == 101] == [
-            {"t": 101, "s": alice_seat, "ai": 1, "r": 0},
-            {"t": 101, "s": alice_seat, "ai": 0},
+        lines = replay.records
+        assert [line for line in lines if line[WireKey.EVENT_TYPE] == 101] == [
+            {WireKey.EVENT_TYPE: 101, WireKey.SEAT: alice_seat, WireKey.AI_PLAYER: 1, WireKey.SEAT_CONTROL_REASON: 0},
+            {WireKey.EVENT_TYPE: 101, WireKey.SEAT: alice_seat, WireKey.AI_PLAYER: 0},
         ]
-        assert lines[-1] == {"t": 101, "s": alice_seat, "ai": 0}
+        assert lines[-1] == {WireKey.EVENT_TYPE: 101, WireKey.SEAT: alice_seat, WireKey.AI_PLAYER: 0}
 
         await manager.shutdown()
 
@@ -238,9 +245,9 @@ class TestSessionReplay:
         staged = StagedGame("game1", NO_CALLS_WALL, seating=Seating(absent=frozenset({diana_seat})))
         staged.leave(alice_seat)
         staged.restore_human(diana_seat)
-        seat_controls = [line for line in map(json.loads, game.replay.lines) if line["t"] == 101]
-        assert [line["s"] for line in seat_controls] == [diana_seat, alice_seat, diana_seat]
-        assert game.replay.lines == list(staged._recorder.recording().lines)
+        seat_controls = [line for line in game.replay.records if line[WireKey.EVENT_TYPE] == 101]
+        assert [line[WireKey.SEAT] for line in seat_controls] == [diana_seat, alice_seat, diana_seat]
+        assert game.replay.records == list(staged._recorder.recording().records)
 
         await manager.shutdown()
 

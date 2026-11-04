@@ -358,7 +358,7 @@ function onFetched(fetched: ReplayFetch, opening: ReplayOpening, at: number): Re
                 : { kind: "refused", status: fetched.status };
         return quiet({ failure, kind: "failed" });
     }
-    const read = readReplay(fetched.text);
+    const read = readReplay(fetched.content);
     return read.ok
         ? openedScreen(read.replay, opening, at)
         : quiet({ failure: read.unshowable, kind: "failed" });

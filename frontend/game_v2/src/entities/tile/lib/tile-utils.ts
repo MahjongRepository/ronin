@@ -72,9 +72,9 @@ function assertValidTileId(tileId: number): void {
  *
  * Red fives (aka-dora) are IDs 16, 52, 88 — mapped to "0m", "0p", "0s".
  */
-function tile136toString(tileId: number): TileFace {
+function tile136toString(tileId: number, hasAkadora = true): TileFace {
     assertValidTileId(tileId);
-    return RED_FIVE_FACES.get(tileId) ?? TYPE_FACES[tileType(tileId)];
+    return (hasAkadora ? RED_FIVE_FACES.get(tileId) : undefined) ?? TYPE_FACES[tileType(tileId)];
 }
 
 const HONOR_NAMES = [

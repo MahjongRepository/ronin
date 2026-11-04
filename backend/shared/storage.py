@@ -70,7 +70,7 @@ def replay_file_path(replay_dir: Path, game_id: str) -> Path:
 
     prefix_a = game_id[:2]
     prefix_b = game_id[2:4]
-    return replay_dir / prefix_a / prefix_b / f"{game_id}.txt.gz"
+    return replay_dir / prefix_a / prefix_b / f"{game_id}.msgpack.gz"
 
 
 class ReplayStorage(Protocol):
@@ -78,7 +78,7 @@ class ReplayStorage(Protocol):
     Protocol for persisting replay data.
     """
 
-    def save_replay(self, game_id: str, content: str) -> None: ...
+    def save_replay(self, game_id: str, content: bytes) -> None: ...
 
 
 class LocalReplayStorage:
@@ -92,7 +92,7 @@ class LocalReplayStorage:
     def __init__(self, replay_dir: str) -> None:
         self._replay_dir = Path(replay_dir).resolve()
 
-    def save_replay(self, game_id: str, content: str) -> None:
+    def save_replay(self, game_id: str, content: bytes) -> None:
         """
         Save gzip-compressed replay content under the configured directory.
 
@@ -111,7 +111,7 @@ class LocalReplayStorage:
         for directory in (self._replay_dir, shard_dir.parent, shard_dir):
             directory.chmod(_REPLAY_DIR_MODE)
 
-        compressed = gzip.compress(content.encode("utf-8"))
+        compressed = gzip.compress(content, compresslevel=9, mtime=0)
 
         fd, tmp_path = tempfile.mkstemp(dir=str(shard_dir), suffix=".tmp", prefix=".replay_")
         fd_owned = True

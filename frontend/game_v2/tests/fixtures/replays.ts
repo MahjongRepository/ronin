@@ -2,22 +2,22 @@ import { type ClientTimeline, readReplayTimeline, timelineStates } from "@/entit
 import { type StepEvent, timelineStepEvents } from "@/entities/replay";
 import { type TableState } from "@/entities/table";
 
-const REPLAY_FILES = import.meta.glob("/src/fixtures/replays/*.txt", {
+const REPLAY_FILES = import.meta.glob("/src/fixtures/replays/*.msgpack", {
     eager: true,
     import: "default",
-    query: "?raw",
+    query: "?inline",
 });
 
 const REPLAY_DIR = "/src/fixtures/replays/";
 
-export const ENGINE_REPLAYS: ReadonlyMap<string, string> = new Map(
+export const ENGINE_REPLAYS: ReadonlyMap<string, Uint8Array> = new Map(
     Object.entries(REPLAY_FILES).map(([path, text]) => [
-        path.slice(REPLAY_DIR.length, -".txt".length),
-        String(text),
+        path.slice(REPLAY_DIR.length, -".msgpack".length),
+        Uint8Array.from(atob(String(text).split(",")[1]), (character) => character.charCodeAt(0)),
     ]),
 );
 
-export function engineReplayText(name: string): string {
+export function engineReplayBytes(name: string): Uint8Array {
     const text = ENGINE_REPLAYS.get(name);
     if (text === undefined) {
         throw new Error(`No engine replay named ${name}`);
@@ -36,7 +36,7 @@ export interface EngineReplay {
 }
 
 export function loadEngineReplay(name: string): EngineReplay {
-    const read = readReplayTimeline(engineReplayText(name));
+    const read = readReplayTimeline(engineReplayBytes(name));
     if (!read.ok) {
         throw new Error(`${name}: ${JSON.stringify(read.refusal)}`);
     }

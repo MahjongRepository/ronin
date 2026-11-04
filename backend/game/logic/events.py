@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from game.logic.enums import CallType, GameEndCause, GameErrorCode, KanType, MeldViewType, PromptKind
+from game.logic.enums import CallType, GameEndCause, GameErrorCode, KanType, MeldViewType, PromptKind, WindName
+from game.logic.settings import GameType
 from game.logic.types import (
     AvailableActionItem,
     GamePlayerInfo,
@@ -14,10 +15,6 @@ from game.logic.types import (
     PlayerStanding,
     PlayerView,
     RoundResult,
-    WireCallTypeField,
-    WireGameTypeField,
-    WireScore,
-    WireWindField,
 )
 
 if TYPE_CHECKING:
@@ -110,7 +107,7 @@ class TurnEvent(GameEvent):
     """
 
     type: Literal[EventType.TURN] = EventType.TURN
-    kuikae_tiles: list[int] = Field(serialization_alias="kt")
+    kuikae_tiles: list[int]
 
 
 class DiscardEvent(GameEvent):
@@ -149,11 +146,11 @@ class CallPromptEvent(GameEvent):
     """
 
     type: Literal[EventType.CALL_PROMPT] = EventType.CALL_PROMPT
-    call_type: WireCallTypeField = Field(serialization_alias="clt")
-    tile_id: int = Field(serialization_alias="ti")
-    from_seat: int = Field(serialization_alias="frs")
-    callers: list[int | MeldCaller] = Field(serialization_alias="clr")
-    kan_type: KanType | None = Field(default=None, serialization_alias="kty")
+    call_type: CallType
+    tile_id: int
+    from_seat: int
+    callers: list[int | MeldCaller]
+    kan_type: KanType | None = None
 
 
 class RoundEndEvent(GameEvent):
@@ -178,9 +175,9 @@ class RiichiDeclaredEvent(GameEvent):
 
     type: Literal[EventType.RIICHI_DECLARED] = EventType.RIICHI_DECLARED
     target: EventTarget = _BROADCAST
-    seat: int = Field(serialization_alias="s")
-    score: WireScore = Field(serialization_alias="sc")
-    riichi_sticks: int = Field(serialization_alias="r")
+    seat: int
+    score: int
+    riichi_sticks: int
 
 
 class DoraRevealedEvent(GameEvent):
@@ -190,7 +187,7 @@ class DoraRevealedEvent(GameEvent):
 
     type: Literal[EventType.DORA_REVEALED] = EventType.DORA_REVEALED
     target: EventTarget = _BROADCAST
-    tile_id: int = Field(serialization_alias="ti")
+    tile_id: int
 
 
 class ErrorEvent(GameEvent):
@@ -202,9 +199,9 @@ class ErrorEvent(GameEvent):
     """
 
     type: Literal[EventType.ERROR] = EventType.ERROR
-    code: GameErrorCode = Field(serialization_alias="cd")
-    message: str = Field(serialization_alias="msg")
-    wait_id: int | None = Field(default=None, serialization_alias="wi")
+    code: GameErrorCode
+    message: str
+    wait_id: int | None = None
 
 
 class GameStartedEvent(GameEvent):
@@ -217,12 +214,12 @@ class GameStartedEvent(GameEvent):
 
     type: Literal[EventType.GAME_STARTED] = EventType.GAME_STARTED
     target: EventTarget = _BROADCAST
-    game_id: str = Field(serialization_alias="gid")
-    game_type: WireGameTypeField = Field(serialization_alias="gt")
-    players: list[GamePlayerInfo] = Field(serialization_alias="p")
-    dealer_seat: int = Field(serialization_alias="dl")
-    dealer_dice: tuple[tuple[int, int], tuple[int, int]] = Field(serialization_alias="dd")
-    riichi_stick_value: WireScore = Field(serialization_alias="rsv")
+    game_id: str
+    game_type: GameType
+    players: list[GamePlayerInfo]
+    dealer_seat: int
+    dealer_dice: tuple[tuple[int, int], tuple[int, int]]
+    riichi_stick_value: int
 
 
 class RoundStartedEvent(GameEvent):
@@ -234,19 +231,19 @@ class RoundStartedEvent(GameEvent):
     """
 
     type: Literal[EventType.ROUND_STARTED] = EventType.ROUND_STARTED
-    seat: int = Field(serialization_alias="s")
-    round_wind: WireWindField = Field(serialization_alias="w")
-    round_number: int = Field(serialization_alias="n")
-    round_in_wind: int = Field(serialization_alias="rw")
-    dealer_seat: int = Field(serialization_alias="dl")
-    current_player_seat: int = Field(serialization_alias="cp")
-    dora_indicators: list[int] = Field(serialization_alias="di")
-    honba_sticks: int = Field(serialization_alias="h")
-    riichi_sticks: int = Field(serialization_alias="r")
-    my_tiles: list[int] = Field(serialization_alias="mt")
-    players: list[PlayerView] = Field(serialization_alias="p")
-    dice: tuple[int, int] = Field(serialization_alias="dc")
-    tiles_remaining: int = Field(serialization_alias="tr")
+    seat: int
+    round_wind: WindName
+    round_number: int
+    round_in_wind: int
+    dealer_seat: int
+    current_player_seat: int
+    dora_indicators: list[int]
+    honba_sticks: int
+    riichi_sticks: int
+    my_tiles: list[int]
+    players: list[PlayerView]
+    dice: tuple[int, int]
+    tiles_remaining: int
 
 
 class GameEndedEvent(GameEvent):
@@ -256,12 +253,12 @@ class GameEndedEvent(GameEvent):
 
     type: Literal[EventType.GAME_END] = EventType.GAME_END
     target: EventTarget = _BROADCAST
-    winner_seat: int = Field(serialization_alias="ws")
-    standings: list[PlayerStanding] = Field(serialization_alias="st")
-    leftover_riichi_bonus: WireScore = Field(serialization_alias="lb")
-    leftover_riichi_sticks: int = Field(serialization_alias="lr")
-    num_rounds: int = Field(serialization_alias="nr")
-    end_cause: GameEndCause = Field(serialization_alias="ec")
+    winner_seat: int
+    standings: list[PlayerStanding]
+    leftover_riichi_bonus: int
+    leftover_riichi_sticks: int
+    num_rounds: int
+    end_cause: GameEndCause
 
 
 class FuritenEvent(GameEvent):
@@ -270,7 +267,7 @@ class FuritenEvent(GameEvent):
     """
 
     type: Literal[EventType.FURITEN] = EventType.FURITEN
-    is_furiten: bool = Field(serialization_alias="f")
+    is_furiten: bool
 
 
 Event = (

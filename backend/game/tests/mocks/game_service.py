@@ -4,7 +4,7 @@ from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import GameAction, TimeoutType, WaitKind, WindName
 from game.logic.events import (
     BroadcastTarget,
-    EventType,
+    DrawEvent,
     GameEvent,
     GameStartedEvent,
     RoundStartedEvent,
@@ -13,18 +13,11 @@ from game.logic.events import (
 from game.logic.rng import RNG_VERSION
 from game.logic.runtime import GameRuntime
 from game.logic.service import Awaiting, GameService, GameStart, GameUpdate
-from game.logic.settings import GameSettings
+from game.logic.settings import NUM_PLAYERS, GameSettings
 from game.logic.types import GamePlayerInfo, PlayerView, ReconnectionSnapshot
 
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState
-
-
-class MockResultEvent(GameEvent):
-    seat: int
-    action: GameAction | str
-    input: dict[str, Any]
-    success: bool
 
 
 class _MockPlayer:
@@ -47,7 +40,7 @@ class _MockGameState:
 
     def __init__(
         self,
-        seed: str = "",
+        seed: str = "0" * 192,
         rng_version: str = RNG_VERSION,
         round_state: _MockRoundState | None = None,
         settings: GameSettings | None = None,
@@ -77,13 +70,11 @@ class MockGameService(GameService):
         action: GameAction,
         data: dict[str, Any],
     ) -> GameUpdate:
-        event = MockResultEvent(
-            type=EventType.DRAW,
+        event = DrawEvent(
             target=BroadcastTarget(),
             seat=seat,
-            action=action,
-            input=data,
-            success=True,
+            tile_id=data.get("tile_id", 0),
+            tiles_remaining=69,
         )
         return GameUpdate(events=[event], awaiting=MOCK_AWAITING)
 
@@ -99,7 +90,7 @@ class MockGameService(GameService):
         all_names = player_names + ["AI"] * (4 - len(player_names))
         player_count = len(player_names)
         state = _MockGameState(
-            seed=seed if seed is not None else "",
+            seed=seed if seed is not None else "0" * 192,
             round_state=_MockRoundState(players=[_MockPlayer(seat=i, name=name) for i, name in enumerate(all_names)]),
             settings=settings,
         )
@@ -108,17 +99,17 @@ class MockGameService(GameService):
         players = [
             GamePlayerInfo(seat=i, name=name, is_ai_player=i >= player_count) for i, name in enumerate(all_names)
         ]
-        events = [
-            GameStartedEvent(
-                game_id=game_id,
-                game_type=state.settings.game_type,
-                players=players,
-                dealer_seat=0,
-                dealer_dice=((1, 1), (1, 1)),
-                riichi_stick_value=1000,
-            ),
+        game_started = GameStartedEvent(
+            game_id=game_id,
+            game_type=state.settings.game_type,
+            players=players,
+            dealer_seat=0,
+            dealer_dice=((1, 1), (1, 1)),
+            riichi_stick_value=state.settings.riichi_stick_value,
+        )
+        round_started = [
             RoundStartedEvent(
-                seat=0,
+                seat=seat,
                 round_wind=WindName.EAST,
                 round_number=0,
                 round_in_wind=1,
@@ -128,12 +119,14 @@ class MockGameService(GameService):
                 honba_sticks=0,
                 riichi_sticks=0,
                 my_tiles=[],
-                players=[PlayerView(seat=i, score=25000) for i in range(4)],
+                players=[PlayerView(seat=i, score=state.settings.starting_score) for i in range(NUM_PLAYERS)],
                 dice=(1, 1),
                 tiles_remaining=70,
-                target=SeatTarget(seat=0),
-            ),
+                target=SeatTarget(seat=seat),
+            )
+            for seat in range(NUM_PLAYERS)
         ]
+        events = [game_started, *round_started]
         return GameStart(runtime=runtime, events=events, awaiting=MOCK_AWAITING, seats=tuple(range(player_count)))
 
     def get_awaiting(self, runtime: GameRuntime) -> Awaiting:
@@ -188,12 +181,5 @@ class MockGameService(GameService):
         seat: int,
         timeout_type: TimeoutType,
     ) -> GameUpdate:
-        event = MockResultEvent(
-            type=EventType.DRAW,
-            target=BroadcastTarget(),
-            seat=seat,
-            action=f"timeout_{timeout_type.value}",
-            input={},
-            success=True,
-        )
+        event = DrawEvent(target=BroadcastTarget(), seat=seat, tile_id=0, tiles_remaining=69)
         return GameUpdate(events=[event], awaiting=MOCK_AWAITING)

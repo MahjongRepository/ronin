@@ -15,7 +15,7 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   that error alone.
 - **Scores come from the server.** A round end's wire `scores` are pre-payment and post-deposit; settle each player at
   that score plus `scoreChanges`, never from the prior state, so a deposit is never deducted twice. A collected
-  stick's value (`riichiStickValue`) is the one game setting the table keeps. A snapshot's scores
+  stick's value (`riichiStickValue`) is a game setting the table keeps. A snapshot's scores
   already hold every deposit and a game end's standings the leftover sticks paid; take both as they are. The game's
   end takes the server's placement and uma/oka, never recomputed; leftover sticks are the server's `lr`, never the
   table's count. A table out of step (`inStep`) names no last round in how the game ended.
@@ -63,3 +63,6 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   would clear what `sizeBoard` wrote.
 - `model/replay-file.ts` refuses a file whose version is not `REPLAY_VERSION` and reports a bad or live-only line,
   never skipping it into a recording that looks whole.
+
+- Replay storage is concatenated MessagePack records, decoded only through the lazy replay route. The numeric metadata registry mirrors Python; the shared golden pins both registries. Replay schemas access the numeric keys directly through `WIRE_KEY`. Seed bytes become hex, settings and score seat keys stay strings, and lists stay arrays. A damaged record stops playback at its preceding readable prefix and names its record position.
+- The table keeps the recorded aka-dora flag; all board and result tile mappers use it. Live events retain their existing red-five display behavior.

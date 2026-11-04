@@ -1,46 +1,60 @@
 import { describe, expect, it } from "vitest";
 
+import { WIRE_KEY } from "@/shared/protocol";
 import { EVENT_TYPE, SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";
 import { parseServerMessage } from "@/shared/protocol/schemas/message";
 
 const LIVE_GAME_STARTED = {
-    dd: [
+    [WIRE_KEY.DEALER_DICE]: [
         [1, 2],
         [3, 4],
     ],
-    dl: 0,
-    gid: "g-abc",
-    gt: 0,
-    p: [0, 1, 2, 3].map((seat) => ({ ai: 0, nm: `P${seat}`, s: seat })),
-    rsv: 10,
-    s: 0,
-    t: EVENT_TYPE.GAME_STARTED,
-    tm: { bk: 20, gp: 3, mb: 20, ra: 15, tb: 5 },
+    [WIRE_KEY.DEALER]: 0,
+    [WIRE_KEY.GAME_ID]: "g-abc",
+    [WIRE_KEY.GAME_TYPE]: 0,
+    [WIRE_KEY.PLAYERS]: [0, 1, 2, 3].map((seat) => ({
+        [WIRE_KEY.AI_PLAYER]: 0,
+        [WIRE_KEY.NAME]: `P${seat}`,
+        [WIRE_KEY.SEAT]: seat,
+    })),
+    [WIRE_KEY.RIICHI_STICK_VALUE]: 10,
+    [WIRE_KEY.SEAT]: 0,
+    [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.GAME_STARTED,
+    [WIRE_KEY.TIMER_SETTINGS]: {
+        [WIRE_KEY.BANK_SECONDS]: 20,
+        [WIRE_KEY.GAME_START_PAUSE]: 3,
+        [WIRE_KEY.MAX_BANK_SECONDS]: 20,
+        [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
+        [WIRE_KEY.BASE_TURN_SECONDS]: 5,
+    },
 };
 
 const LIVE_ROUND_STARTED = {
-    cp: 0,
-    di: [10],
-    dl: 0,
-    h: 0,
-    mt: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-    n: 0,
-    p: [0, 1, 2, 3].map((seat) => ({ s: seat, sc: 250 })),
-    r: 0,
-    rw: 1,
-    s: 0,
-    t: EVENT_TYPE.ROUND_STARTED,
-    tr: 70,
-    w: 0,
+    [WIRE_KEY.CURRENT_PLAYER]: 0,
+    [WIRE_KEY.DORA_INDICATORS]: [10],
+    [WIRE_KEY.DEALER]: 0,
+    [WIRE_KEY.HONBA]: 0,
+    [WIRE_KEY.MY_TILES]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    [WIRE_KEY.ROUND_NUMBER]: 0,
+    [WIRE_KEY.PLAYERS]: [0, 1, 2, 3].map((seat) => ({
+        [WIRE_KEY.SEAT]: seat,
+        [WIRE_KEY.SCORE]: 250,
+    })),
+    [WIRE_KEY.RIICHI_STICKS]: 0,
+    [WIRE_KEY.ROUND_IN_WIND]: 1,
+    [WIRE_KEY.SEAT]: 0,
+    [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.ROUND_STARTED,
+    [WIRE_KEY.TILES_REMAINING]: 70,
+    [WIRE_KEY.WIND]: 0,
 };
 
 describe("parseServerMessage", () => {
     describe("session messages (string type field)", () => {
         it("parses a session error message", () => {
             const raw = {
-                code: "invalid_ticket",
-                message: "Ticket expired",
-                type: SESSION_MESSAGE_TYPE.ERROR,
+                [WIRE_KEY.SESSION_ERROR_CODE]: "invalid_ticket",
+                [WIRE_KEY.SESSION_ERROR_MESSAGE]: "Ticket expired",
+                [WIRE_KEY.SESSION_TYPE]: SESSION_MESSAGE_TYPE.ERROR,
             };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
@@ -54,42 +68,78 @@ describe("parseServerMessage", () => {
 
         it("parses a game_reconnected message", () => {
             const raw = {
-                cp: 2,
-                dc: [3, 5],
-                dd: [
+                [WIRE_KEY.CURRENT_PLAYER]: 2,
+                [WIRE_KEY.DICE]: [3, 5],
+                [WIRE_KEY.DEALER_DICE]: [
                     [3, 5],
                     [2, 4],
                 ],
-                di: [10],
-                dl: 0,
-                f: false,
-                fd: 0,
-                gid: "game-123",
-                h: 0,
-                mt: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-                n: 0,
-                p: [
-                    { ai: 0, nm: "Alice", s: 0 },
-                    { ai: 1, nm: "Bot1", s: 1 },
-                    { ai: 1, nm: "Bot2", s: 2 },
-                    { ai: 1, nm: "Bot3", s: 3 },
+                [WIRE_KEY.DORA_INDICATORS]: [10],
+                [WIRE_KEY.DEALER]: 0,
+                [WIRE_KEY.FURITEN]: false,
+                [WIRE_KEY.FIRST_DEALER]: 0,
+                [WIRE_KEY.GAME_ID]: "game-123",
+                [WIRE_KEY.HONBA]: 0,
+                [WIRE_KEY.MY_TILES]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                [WIRE_KEY.ROUND_NUMBER]: 0,
+                [WIRE_KEY.PLAYERS]: [
+                    { [WIRE_KEY.AI_PLAYER]: 0, [WIRE_KEY.NAME]: "Alice", [WIRE_KEY.SEAT]: 0 },
+                    { [WIRE_KEY.AI_PLAYER]: 1, [WIRE_KEY.NAME]: "Bot1", [WIRE_KEY.SEAT]: 1 },
+                    { [WIRE_KEY.AI_PLAYER]: 1, [WIRE_KEY.NAME]: "Bot2", [WIRE_KEY.SEAT]: 2 },
+                    { [WIRE_KEY.AI_PLAYER]: 1, [WIRE_KEY.NAME]: "Bot3", [WIRE_KEY.SEAT]: 3 },
                 ],
-                pst: [
-                    { dsc: [], ml: [], ri: false, s: 0, sc: 250, tc: 13 },
-                    { dsc: [{ tg: true, ti: 50 }], ml: [101], ri: false, s: 1, sc: 250, tc: 10 },
-                    { dsc: [], ml: [], ri: false, s: 2, sc: 250, tc: 13 },
-                    { dsc: [], ml: [], ri: false, s: 3, sc: 250, tc: 13 },
+                [WIRE_KEY.PLAYER_STATES]: [
+                    {
+                        [WIRE_KEY.DISCARDS]: [],
+                        [WIRE_KEY.MELDS]: [],
+                        [WIRE_KEY.IS_RIICHI]: false,
+                        [WIRE_KEY.SEAT]: 0,
+                        [WIRE_KEY.SCORE]: 250,
+                        [WIRE_KEY.TILE_COUNT]: 13,
+                    },
+                    {
+                        [WIRE_KEY.DISCARDS]: [
+                            { [WIRE_KEY.TSUMOGIRI]: true, [WIRE_KEY.TILE_ID]: 50 },
+                        ],
+                        [WIRE_KEY.MELDS]: [101],
+                        [WIRE_KEY.IS_RIICHI]: false,
+                        [WIRE_KEY.SEAT]: 1,
+                        [WIRE_KEY.SCORE]: 250,
+                        [WIRE_KEY.TILE_COUNT]: 10,
+                    },
+                    {
+                        [WIRE_KEY.DISCARDS]: [],
+                        [WIRE_KEY.MELDS]: [],
+                        [WIRE_KEY.IS_RIICHI]: false,
+                        [WIRE_KEY.SEAT]: 2,
+                        [WIRE_KEY.SCORE]: 250,
+                        [WIRE_KEY.TILE_COUNT]: 13,
+                    },
+                    {
+                        [WIRE_KEY.DISCARDS]: [],
+                        [WIRE_KEY.MELDS]: [],
+                        [WIRE_KEY.IS_RIICHI]: false,
+                        [WIRE_KEY.SEAT]: 3,
+                        [WIRE_KEY.SCORE]: 250,
+                        [WIRE_KEY.TILE_COUNT]: 13,
+                    },
                 ],
-                r: 0,
-                rh: [],
-                rsv: 10,
-                rw: 1,
-                s: 0,
-                tm: { bk: 20, gp: 3, mb: 20, ra: 15, tb: 5 },
-                tr: 60,
-                type: SESSION_MESSAGE_TYPE.GAME_RECONNECTED,
-                w: 0,
-                wi: 12,
+                [WIRE_KEY.RIICHI_STICKS]: 0,
+                [WIRE_KEY.ROUND_HISTORY]: [],
+                [WIRE_KEY.RIICHI_STICK_VALUE]: 10,
+                [WIRE_KEY.ROUND_IN_WIND]: 1,
+                [WIRE_KEY.SEAT]: 0,
+                [WIRE_KEY.TIMER_SETTINGS]: {
+                    [WIRE_KEY.BANK_SECONDS]: 20,
+                    [WIRE_KEY.GAME_START_PAUSE]: 3,
+                    [WIRE_KEY.MAX_BANK_SECONDS]: 20,
+                    [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
+                    [WIRE_KEY.BASE_TURN_SECONDS]: 5,
+                },
+                [WIRE_KEY.TILES_REMAINING]: 60,
+                [WIRE_KEY.SESSION_TYPE]: SESSION_MESSAGE_TYPE.GAME_RECONNECTED,
+                [WIRE_KEY.WIND]: 0,
+                [WIRE_KEY.WAIT_ID]: 12,
             };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
@@ -100,7 +150,13 @@ describe("parseServerMessage", () => {
     describe("game events (integer t field)", () => {
         it("parses a draw event", () => {
             // seat=0, tileId=5 -> d = 0*136 + 5 = 5
-            const raw = { bk: 20, d: 5, t: EVENT_TYPE.DRAW, tr: 69, wi: 3 };
+            const raw = {
+                [WIRE_KEY.BANK_SECONDS]: 20,
+                [WIRE_KEY.PACKED_MOVE]: 5,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
+                [WIRE_KEY.TILES_REMAINING]: 69,
+                [WIRE_KEY.WAIT_ID]: 3,
+            };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
             expect(parsed).toEqual({
@@ -116,7 +172,12 @@ describe("parseServerMessage", () => {
         });
 
         it("parses a turn event", () => {
-            const raw = { bk: 20, kt: [3], t: EVENT_TYPE.TURN, wi: 5 };
+            const raw = {
+                [WIRE_KEY.BANK_SECONDS]: 20,
+                [WIRE_KEY.KUIKAE_TILES]: [3],
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.TURN,
+                [WIRE_KEY.WAIT_ID]: 5,
+            };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
             expect(parsed).toMatchObject({ kuikaeTileTypes: [3], type: "turn", waitId: 5 });
@@ -124,7 +185,7 @@ describe("parseServerMessage", () => {
 
         it("parses a discard event", () => {
             // plain discard: seat=1, tileId=10 -> d = 0*544 + 1*136 + 10 = 146
-            const raw = { d: 146, t: EVENT_TYPE.DISCARD };
+            const raw = { [WIRE_KEY.PACKED_MOVE]: 146, [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DISCARD };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
             expect(parsed).toEqual({
@@ -138,23 +199,29 @@ describe("parseServerMessage", () => {
 
         it("parses a game_started event", () => {
             const raw = {
-                dd: [
+                [WIRE_KEY.DEALER_DICE]: [
                     [1, 2],
                     [3, 4],
                 ],
-                dl: 0,
-                gid: "g-abc",
-                gt: 0,
-                p: [
-                    { ai: 0, nm: "Alice", s: 0 },
-                    { ai: 1, nm: "Bot", s: 1 },
-                    { ai: 1, nm: "Bot2", s: 2 },
-                    { ai: 1, nm: "Bot3", s: 3 },
+                [WIRE_KEY.DEALER]: 0,
+                [WIRE_KEY.GAME_ID]: "g-abc",
+                [WIRE_KEY.GAME_TYPE]: 0,
+                [WIRE_KEY.PLAYERS]: [
+                    { [WIRE_KEY.AI_PLAYER]: 0, [WIRE_KEY.NAME]: "Alice", [WIRE_KEY.SEAT]: 0 },
+                    { [WIRE_KEY.AI_PLAYER]: 1, [WIRE_KEY.NAME]: "Bot", [WIRE_KEY.SEAT]: 1 },
+                    { [WIRE_KEY.AI_PLAYER]: 1, [WIRE_KEY.NAME]: "Bot2", [WIRE_KEY.SEAT]: 2 },
+                    { [WIRE_KEY.AI_PLAYER]: 1, [WIRE_KEY.NAME]: "Bot3", [WIRE_KEY.SEAT]: 3 },
                 ],
-                rsv: 10,
-                s: 0,
-                t: EVENT_TYPE.GAME_STARTED,
-                tm: { bk: 20, gp: 3, mb: 20, ra: 15, tb: 5 },
+                [WIRE_KEY.RIICHI_STICK_VALUE]: 10,
+                [WIRE_KEY.SEAT]: 0,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.GAME_STARTED,
+                [WIRE_KEY.TIMER_SETTINGS]: {
+                    [WIRE_KEY.BANK_SECONDS]: 20,
+                    [WIRE_KEY.GAME_START_PAUSE]: 3,
+                    [WIRE_KEY.MAX_BANK_SECONDS]: 20,
+                    [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
+                    [WIRE_KEY.BASE_TURN_SECONDS]: 5,
+                },
             };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
@@ -163,13 +230,13 @@ describe("parseServerMessage", () => {
 
         it("parses a call_prompt event (ron)", () => {
             const raw = {
-                bk: 17,
-                clt: 0,
-                cs: 2,
-                frs: 1,
-                t: EVENT_TYPE.CALL_PROMPT,
-                ti: 50,
-                wi: 4,
+                [WIRE_KEY.BANK_SECONDS]: 17,
+                [WIRE_KEY.CALL_TYPE]: 0,
+                [WIRE_KEY.CALLER_SEAT]: 2,
+                [WIRE_KEY.FROM_SEAT]: 1,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.CALL_PROMPT,
+                [WIRE_KEY.TILE_ID]: 50,
+                [WIRE_KEY.WAIT_ID]: 4,
             };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
@@ -188,20 +255,32 @@ describe("parseServerMessage", () => {
 
         it("parses a round_end event (tsumo)", () => {
             const raw = {
-                ct: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-                di: [40],
-                dl: 0,
-                hb: 0,
-                hr: { fu: 30, han: 3, lm: "none", pt: 39, yk: [{ han: 1, yi: 0, ym: 0 }] },
-                ml: [],
-                r: 0,
-                rc: 1,
-                rt: 0,
-                sch: { "0": 50, "1": -20, "2": -20, "3": -10 },
-                scs: { "0": 300, "1": 250, "2": 250, "3": 200 },
-                t: EVENT_TYPE.ROUND_END,
-                ws: 0,
-                wt: 10,
+                [WIRE_KEY.CLOSED_TILES]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                [WIRE_KEY.DORA_INDICATORS]: [40],
+                [WIRE_KEY.DEALER]: 0,
+                [WIRE_KEY.HONBA_BONUS]: 0,
+                [WIRE_KEY.HAND_RESULT]: {
+                    [WIRE_KEY.FU]: 30,
+                    [WIRE_KEY.HAN]: 3,
+                    [WIRE_KEY.HAND_LIMIT]: "none",
+                    [WIRE_KEY.POINTS]: 39,
+                    [WIRE_KEY.YAKU]: [
+                        {
+                            [WIRE_KEY.HAN]: 1,
+                            [WIRE_KEY.YAKU_ID]: 0,
+                            [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                        },
+                    ],
+                },
+                [WIRE_KEY.MELDS]: [],
+                [WIRE_KEY.RIICHI_STICKS]: 0,
+                [WIRE_KEY.RIICHI_COLLECTED]: 1,
+                [WIRE_KEY.RESULT_TYPE]: 0,
+                [WIRE_KEY.SCORE_CHANGES]: { "0": 50, "1": -20, "2": -20, "3": -10 },
+                [WIRE_KEY.SCORES]: { "0": 300, "1": 250, "2": 250, "3": 200 },
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.ROUND_END,
+                [WIRE_KEY.WINNER_SEAT]: 0,
+                [WIRE_KEY.WINNING_TILE]: 10,
             };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
@@ -209,14 +288,19 @@ describe("parseServerMessage", () => {
         });
 
         it("parses a furiten event", () => {
-            const raw = { f: true, t: EVENT_TYPE.FURITEN };
+            const raw = { [WIRE_KEY.FURITEN]: true, [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.FURITEN };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
             expect(parsed).toEqual({ isFuriten: true, type: "furiten" });
         });
 
         it("parses a riichi_declared event", () => {
-            const raw = { r: 1, s: 2, sc: 240, t: EVENT_TYPE.RIICHI_DECLARED };
+            const raw = {
+                [WIRE_KEY.RIICHI_STICKS]: 1,
+                [WIRE_KEY.SEAT]: 2,
+                [WIRE_KEY.SCORE]: 240,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.RIICHI_DECLARED,
+            };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
             expect(parsed).toEqual({
@@ -228,14 +312,21 @@ describe("parseServerMessage", () => {
         });
 
         it("parses a dora_revealed event", () => {
-            const raw = { t: EVENT_TYPE.DORA_REVEALED, ti: 100 };
+            const raw = {
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DORA_REVEALED,
+                [WIRE_KEY.TILE_ID]: 100,
+            };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
             expect(parsed).toEqual({ tileId: 100, type: "dora_revealed" });
         });
 
         it("parses an error event", () => {
-            const raw = { cd: "not_your_turn", msg: "not your turn", t: EVENT_TYPE.ERROR };
+            const raw = {
+                [WIRE_KEY.GAME_ERROR_CODE]: "not_your_turn",
+                [WIRE_KEY.GAME_ERROR_MESSAGE]: "not your turn",
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.ERROR,
+            };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
             expect(parsed).toEqual({
@@ -257,48 +348,95 @@ describe("parseServerMessage", () => {
         });
 
         it("returns error with descriptive message for unknown string type", () => {
-            const raw = { type: "nonexistent_type" };
+            const raw = { [WIRE_KEY.SESSION_TYPE]: "nonexistent_type" };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeInstanceOf(Error);
-            expect(err!.message).toContain("type=nonexistent_type");
+            expect(err!.message).toContain("SESSION_TYPE=nonexistent_type");
             expect(parsed).toBeNull();
         });
 
         it("returns error with descriptive message for unknown integer t", () => {
-            const raw = { t: 99 };
+            const raw = { [WIRE_KEY.EVENT_TYPE]: 99 };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeInstanceOf(Error);
-            expect(err!.message).toContain("t=99");
+            expect(err!.message).toContain("EVENT_TYPE=99");
             expect(parsed).toBeNull();
         });
 
         it("returns error when valid t but malformed payload", () => {
             // draw event needs a `d` field
-            const raw = { t: EVENT_TYPE.DRAW, wrong_field: 5 };
+            const raw = { [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW, wrong_field: 5 };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeInstanceOf(Error);
-            expect(err!.message).toContain("t=1");
+            expect(err!.message).toContain("EVENT_TYPE=1");
             expect(err!.message).toContain("expected number, received undefined");
             expect(parsed).toBeNull();
         });
 
         it.each([
-            ["game start without its viewer seat", { ...LIVE_GAME_STARTED, s: undefined }, "s"],
+            [
+                "game start without its viewer seat",
+                { ...LIVE_GAME_STARTED, [WIRE_KEY.SEAT]: undefined },
+                WIRE_KEY.SEAT,
+            ],
             [
                 "game start without its timer settings",
-                { ...LIVE_GAME_STARTED, tm: undefined },
-                "tm",
+                { ...LIVE_GAME_STARTED, [WIRE_KEY.TIMER_SETTINGS]: undefined },
+                WIRE_KEY.TIMER_SETTINGS,
             ],
-            ["deal without the viewer's hand", { ...LIVE_ROUND_STARTED, mt: undefined }, "mt"],
-            ["deal without its viewer seat", { ...LIVE_ROUND_STARTED, s: undefined }, "s"],
-            ["draw without its wait id", { bk: 20, d: 5, t: EVENT_TYPE.DRAW, tr: 69 }, "wi"],
-            ["turn without its bank", { kt: [], t: EVENT_TYPE.TURN, wi: 5 }, "bk"],
+            [
+                "deal without the viewer's hand",
+                { ...LIVE_ROUND_STARTED, [WIRE_KEY.MY_TILES]: undefined },
+                WIRE_KEY.MY_TILES,
+            ],
+            [
+                "deal without its viewer seat",
+                { ...LIVE_ROUND_STARTED, [WIRE_KEY.SEAT]: undefined },
+                WIRE_KEY.SEAT,
+            ],
+            [
+                "draw without its wait id",
+                {
+                    [WIRE_KEY.BANK_SECONDS]: 20,
+                    [WIRE_KEY.PACKED_MOVE]: 5,
+                    [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
+                    [WIRE_KEY.TILES_REMAINING]: 69,
+                },
+                WIRE_KEY.WAIT_ID,
+            ],
+            [
+                "turn without its bank",
+                {
+                    [WIRE_KEY.KUIKAE_TILES]: [],
+                    [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.TURN,
+                    [WIRE_KEY.WAIT_ID]: 5,
+                },
+                WIRE_KEY.BANK_SECONDS,
+            ],
             [
                 "call prompt without its wait id",
-                { bk: 20, clt: 0, cs: 2, frs: 1, t: 3, ti: 50 },
-                "wi",
+                {
+                    [WIRE_KEY.BANK_SECONDS]: 20,
+                    [WIRE_KEY.CALL_TYPE]: 0,
+                    [WIRE_KEY.CALLER_SEAT]: 2,
+                    [WIRE_KEY.FROM_SEAT]: 1,
+                    [WIRE_KEY.EVENT_TYPE]: 3,
+                    [WIRE_KEY.TILE_ID]: 50,
+                },
+                WIRE_KEY.WAIT_ID,
             ],
-            ["call prompt without its bank", { clt: 0, cs: 2, frs: 1, t: 3, ti: 50, wi: 4 }, "bk"],
+            [
+                "call prompt without its bank",
+                {
+                    [WIRE_KEY.CALL_TYPE]: 0,
+                    [WIRE_KEY.CALLER_SEAT]: 2,
+                    [WIRE_KEY.FROM_SEAT]: 1,
+                    [WIRE_KEY.EVENT_TYPE]: 3,
+                    [WIRE_KEY.TILE_ID]: 50,
+                    [WIRE_KEY.WAIT_ID]: 4,
+                },
+                WIRE_KEY.BANK_SECONDS,
+            ],
         ])("refuses a %s, which the live socket always stamps", (_name, raw, key) => {
             const [err, parsed] = parseServerMessage(raw);
             expect([err?.message, parsed]).toEqual([expect.stringContaining(`no ${key},`), null]);
@@ -306,10 +444,10 @@ describe("parseServerMessage", () => {
 
         it("returns error when valid type but malformed payload", () => {
             // session_error needs code and message fields
-            const raw = { type: SESSION_MESSAGE_TYPE.ERROR };
+            const raw = { [WIRE_KEY.SESSION_TYPE]: SESSION_MESSAGE_TYPE.ERROR };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeInstanceOf(Error);
-            expect(err!.message).toContain("type=session_error");
+            expect(err!.message).toContain("SESSION_TYPE=session_error");
             expect(parsed).toBeNull();
         });
     });

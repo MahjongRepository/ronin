@@ -367,9 +367,23 @@ sequenceDiagram
 | `played_games` (SQLite) | Game server: start record at engine start, finish record from the end finalizer | Lobby history page |
 | Replay files | Game server finalizer, completed and failed games (abandoned ones are discarded) | Lobby `/api/replays/{game_id}` and `/play/history/{game_id}`; game server's internal Tenhou export, behind the lobby's `/api/replays/{game_id}/tenhou.xml` |
 
-A replay file holds the game's recorded events plus replay-only annotation lines the replay loader
+A replay file holds the game's recorded events plus replay-only annotation records the replay loader
 skips: each seat's replacement with an AI player (left, or absent at the first deal, recorded ahead
 of that deal) and its human's return. A seat the game started with an AI player in has none.
+
+Storage concatenates independent MessagePack records, then compresses the stream once with gzip
+level 9 and a zero timestamp. Files use `.msgpack.gz`, atomic replacement and owner-only permissions.
+The storage version fixes the integer metadata-key mapping and the seed's 96-byte binary form;
+decoders preserve numeric keys and restore the hexadecimal seed. Score-map seats remain data keys, settings
+override names remain strings, and lists remain arrays. Replay storage and live WebSocket encoding have separate contracts over shared fixed field IDs.
+
+The game-start record stores an immutable rules-profile ID and only effective settings that differ
+from that profile. Complete historical baselines live beside `GameSettings` in Python; changing a
+baseline requires a new ID. Python loading, outcome verification and Tenhou export share the same
+decoder and strict profile resolver. Storage version, RNG version and profile ID are independent.
+Browser playback needs no engine or profile table: it reads recorded events and the explicit game
+length, riichi-stick value and aka-dora flag. A damaged record reports its position while preserving
+the readable prefix; a valid stream without a game end remains distinguishable from damaged input.
 
 The finish record is built from the start record, never from end-of-game connection state, so a
 seat that never connected keeps its name and `user_id`. A crash leaves `ended_at` NULL, which is why
@@ -394,7 +408,11 @@ honours this contract can replace it.
   and stores it under the same key. The v2 client forgets it at the game end, since its ticket will never
   hold the seat again.
 * **Game server:** the client joins `wsUrl` with the ticket and speaks the MessagePack protocol
-  (`backend/game/messaging/AGENTS.md`); it reuses the same ticket to reconnect. A client that lost
+  (`backend/game/messaging/AGENTS.md`); it reuses the same ticket to reconnect. Both directions use
+  integer metadata keys from the named `WireKey` registry. Builders, serializers and schemas reference
+  those keys directly; codecs validate and preserve them. Parsed models, handlers and UI keep readable fields.
+  Score-map seats remain string data keys. Backend, browser and external bot codecs share golden frames
+  and must be updated together; replay field IDs retain their assignments. A client that lost
   step with the messages may send RESYNC on its open socket for the reconnect's snapshot and re-sent
   wait, keeping the seat; closing to reconnect would hand the seat to an AI for the gap.
 * **Closes:** the client reconnects after any close but two terminal ones, after which it stops
@@ -403,12 +421,13 @@ honours this contract can replace it.
   `game_ended` close keeps reconnecting, so a client that missed the game end is refused on the
   reconnect. After a terminal close or a refusal, the client forgets the handoff and stays on the page, saying why, with a way back to the lobby and,
   where it may help, a reload (which recovers the handoff afresh).
-* **Replays:** `GET /api/replays/{game_id}` returns a replay's content, no login required;
+* **Replays:** `GET /api/replays/{game_id}` returns `application/msgpack` with `Content-Encoding: gzip`,
+  no login required. The browser fetches binary content and decodes it inside the lazy replay route;
   `GET /api/replays/{game_id}/tenhou.xml` downloads the same game as a tenhou.net XML log. The lobby
   cannot import the engine's converter, so it asks the game server, which converts the stored
   replay and answers only the internal API secret: 404 when no replay is stored, 422 for a failed
   game's replay (no game end, so no Tenhou log), 502 when the conversion or the call failed. The
-  client's replay page renders it on the board and refuses a file whose version line is not the
+  client's replay page renders it on the board and refuses a file whose version record is not the
   `REPLAY_VERSION` it was built for. The page's query names what it shows,
   `/play/history/{game_id}?seat=&round=&step=`, all zero-based whole numbers: `seat` the seat at the
   bottom of the table (default: the recorded first dealer's), `round` the recorded deal (repeats

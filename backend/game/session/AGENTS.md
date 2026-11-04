@@ -3,7 +3,7 @@
 `SessionManager` (`manager.py`) is the registry of live games and connections and runs each game's
 lifecycle transitions: pending games, joins, disconnects, reconnects, timeouts, the start and the
 one end. `models.py` holds `GameSession` and its `Participant`s, `timer.py` the pacing
-(`TimerConfig`, `TurnTimer`), `replay_collector.py` the shaping and saving of replay lines,
+(`TimerConfig`, `TurnTimer`), `replay_collector.py` the shaping and saving of replay records,
 `played_game.py` the finish record.
 
 ## Design
@@ -32,7 +32,7 @@ interleave.
   disconnect. A disconnected seat is played by an AI player until the participant reconnects; when
   no connected participant remains the game is abandoned, so there are never all-AI games. Every
   handover, either way, goes through one step (`_hand_over_seat`): the replay records its seat
-  control line and the connected participants get `seat_control`, both ahead of the moves that
+  control record and the connected participants get `seat_control`, both ahead of the moves that
   follow, and the participant keeps why it stands in, which the reconnect snapshot carries.
 * **One connection per participant; the newest wins.** A JOIN_GAME or RECONNECT for a participant
   still bound to a connection (a half-open socket the server has not seen drop, or another tab)
@@ -97,13 +97,13 @@ interleave.
   connection state at the end, so a never-connected or departed seat keeps its name and `user_id`
   and AI seats never get one. A game that never started records no finish; the finish is an upsert
   that lands even when the start write failed, and the first finish wins.
-* **Replays.** A game's replay lines are collected from the start and detached by the end claim; an
+* **Replays.** A game's replay records are collected from the start and detached by the end claim; an
   abandoned game's are discarded, and a failure to save a completed game's replay turns its end
   into a failure. A reconnect re-sends the opening event of the wait the game owes the seat (its
   draw, its `turn` event or its call prompt) directly, outside the replay path, so it is not
   recorded twice, and re-arms no timer: only a replaced connection's seat can be awaited, and its
   timer kept running, so the event carries how long it has run for the client's countdown.
-  Beside the events the session writes replay-only annotation lines, the seat control lines, which
+  Beside the events the session writes replay-only annotation records, the seat control records, which
   follow who plays each seat:
   * an AI replacement goes in ahead of the AI player's moves, with its reason: `left` for a
     disconnect (a kick included), which may fall between rounds, during a round advance;
@@ -111,11 +111,14 @@ interleave.
     is recorded `absent` ahead of the deal's events, the moves of the AI players seated from the
     start included, since its AI player holds it from the deal (the start pause hands no seat over);
     its AI player then plays the turn or call the deal leaves it;
-  * an AI player seated from the game's start has no seat control line: it never had a human;
+  * an AI player seated from the game's start has no seat control record: it never had a human;
   * a reconnect that takes the seat back from its AI player writes a human return;
   * a connection replacement writes nothing: its seat never left its human.
 
-  The replay loader skips them; they only tell a viewer what happened.
+  The replay loader skips them; they only tell a viewer what happened. The collector keeps event objects in
+  memory and encodes the detached records through `game.wire` at save time; storage applies gzip once.
+  The start record keeps the effective rules profile and overrides plus explicit viewing settings.
+
 * **Each task logs as its own subject.** A task copies the structlog context of whatever spawned
   it, often another seat's action, so a fired timer binds its game and its own seat, and the
   finalizer its game with no seat; a new background task rebinds its context the same way.

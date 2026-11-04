@@ -18,9 +18,9 @@ class FixtureDir:
     path: Path
     suffix: str
 
-    def find_drift(self, generated: Mapping[str, str]) -> list[str]:
+    def find_drift(self, generated: Mapping[str, str | bytes]) -> list[str]:
         """
-        Name each committed fixture that differs from its generated text, is missing, or has no scenario.
+        Name each committed fixture that differs from its generated contents, is missing, or has no scenario.
         """
         committed = {path.name for path in self.path.glob(f"*{self.suffix}")}
         problems = [f"orphaned: {name} (no scenario produces it)" for name in sorted(committed - generated.keys())]
@@ -29,12 +29,13 @@ class FixtureDir:
                 problems.append(f"missing: {name}")
                 continue
 
-            if (self.path / name).read_text(encoding="utf-8") != text:
+            expected = text.encode("utf-8") if isinstance(text, str) else text
+            if (self.path / name).read_bytes() != expected:
                 problems.append(f"stale: {name}")
 
         return problems
 
-    def write(self, generated: Mapping[str, str]) -> None:
+    def write(self, generated: Mapping[str, str | bytes]) -> None:
         """
         Write every generated fixture and delete the committed ones no scenario produces.
         """
@@ -45,4 +46,5 @@ class FixtureDir:
                 print(f"removed {path.name}")
 
         for name, text in generated.items():
-            (self.path / name).write_text(text, encoding="utf-8")
+            content = text.encode("utf-8") if isinstance(text, str) else text
+            (self.path / name).write_bytes(content)

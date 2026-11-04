@@ -6,6 +6,7 @@ import {
     SESSION_MESSAGE_TYPE,
     WIRE_SCORE_DIVISOR,
 } from "@/shared/protocol/constants";
+import { WIRE_KEY } from "@/shared/protocol/wire-keys";
 
 import {
     calledBy,
@@ -23,9 +24,7 @@ import {
     wireScoreMapSchema,
     wireSettingAmountSchema,
 } from "./common";
-import { parseRoundResult } from "./round-results";
-
-// --- Player reconnect state (inside `pst` array) ---
+import { type RoundEndEvent, parseRoundResult } from "./round-results";
 
 const DEALT_HAND_SIZE = 13;
 
@@ -41,174 +40,196 @@ function isHandCount(tileCount: number, meldCount: number): boolean {
 const playerReconnectStateSchema = z.pipe(
     z
         .object({
-            dsc: z.array(discardInfoSchema),
-            ml: z.array(compactMeldSchema),
-            ri: z.boolean(),
-            s: seatSchema,
-            sc: z.number(),
-            tc: z.int().check(z.gte(0)),
+            [WIRE_KEY.DISCARDS]: z.array(discardInfoSchema),
+            [WIRE_KEY.MELDS]: z.array(compactMeldSchema),
+            [WIRE_KEY.IS_RIICHI]: z.boolean(),
+            [WIRE_KEY.SEAT]: seatSchema,
+            [WIRE_KEY.SCORE]: z.number(),
+            [WIRE_KEY.TILE_COUNT]: z.int().check(z.gte(0)),
         })
         .check(
-            z.refine((raw) => calledBy(raw.ml, raw.s), {
+            z.refine((raw) => calledBy(raw[WIRE_KEY.MELDS], raw[WIRE_KEY.SEAT]), {
                 message: "a seat's state lists a meld another seat called",
             }),
-            z.refine((raw) => isHandCount(raw.tc, raw.ml.length), {
+            z.refine((raw) => isHandCount(raw[WIRE_KEY.TILE_COUNT], raw[WIRE_KEY.MELDS].length), {
                 message: "a seat's state holds a closed hand no turn leaves beside its melds",
             }),
         ),
     z.transform((raw) => ({
-        discards: raw.dsc,
-        isRiichi: raw.ri,
-        melds: raw.ml,
-        score: raw.sc * WIRE_SCORE_DIVISOR,
-        seat: raw.s,
-        tileCount: raw.tc,
+        discards: raw[WIRE_KEY.DISCARDS],
+        isRiichi: raw[WIRE_KEY.IS_RIICHI],
+        melds: raw[WIRE_KEY.MELDS],
+        score: raw[WIRE_KEY.SCORE] * WIRE_SCORE_DIVISOR,
+        seat: raw[WIRE_KEY.SEAT],
+        tileCount: raw[WIRE_KEY.TILE_COUNT],
     })),
 );
 
 const roundHistoryEntrySchema = z.pipe(
     z.object({
-        dl: seatSchema,
-        h: z.int(),
-        ls: z.optional(seatSchema),
-        ps: z.array(seatSchema),
-        rn: z.optional(z.enum(ABORTIVE_DRAW_TYPE)),
-        rs: z.array(seatSchema),
-        rt: z.enum(ROUND_RESULT_TYPE),
-        sch: wireScoreMapSchema,
-        ts: z.optional(z.array(seatSchema)),
-        w: z.int(),
-        ws: z.array(seatSchema),
+        [WIRE_KEY.DEALER]: seatSchema,
+        [WIRE_KEY.HONBA]: z.int(),
+        [WIRE_KEY.LOSER_SEAT]: z.optional(seatSchema),
+        [WIRE_KEY.PAO_SEAT]: z.array(seatSchema),
+        [WIRE_KEY.ABORTIVE_REASON]: z.optional(z.enum(ABORTIVE_DRAW_TYPE)),
+        [WIRE_KEY.RIICHI_SEATS]: z.array(seatSchema),
+        [WIRE_KEY.RESULT_TYPE]: z.enum(ROUND_RESULT_TYPE),
+        [WIRE_KEY.SCORE_CHANGES]: wireScoreMapSchema,
+        [WIRE_KEY.TENPAI_SEATS]: z.optional(z.array(seatSchema)),
+        [WIRE_KEY.WIND]: z.int(),
+        [WIRE_KEY.WINNER_SEAT]: z.array(seatSchema),
     }),
     z.transform((raw) => ({
-        abortiveReason: raw.rn ?? null,
-        dealerSeat: raw.dl,
-        honbaSticks: raw.h,
-        loserSeat: raw.ls ?? null,
-        paoSeats: raw.ps,
-        resultType: raw.rt,
-        riichiSeats: raw.rs,
-        scoreChanges: raw.sch,
-        tenpaiSeats: raw.ts ?? null,
-        wind: raw.w,
-        winnerSeats: raw.ws,
+        abortiveReason: raw[WIRE_KEY.ABORTIVE_REASON] ?? null,
+        dealerSeat: raw[WIRE_KEY.DEALER],
+        honbaSticks: raw[WIRE_KEY.HONBA],
+        loserSeat: raw[WIRE_KEY.LOSER_SEAT] ?? null,
+        paoSeats: raw[WIRE_KEY.PAO_SEAT],
+        resultType: raw[WIRE_KEY.RESULT_TYPE],
+        riichiSeats: raw[WIRE_KEY.RIICHI_SEATS],
+        scoreChanges: raw[WIRE_KEY.SCORE_CHANGES],
+        tenpaiSeats: raw[WIRE_KEY.TENPAI_SEATS] ?? null,
+        wind: raw[WIRE_KEY.WIND],
+        winnerSeats: raw[WIRE_KEY.WINNER_SEAT],
     })),
 );
 
 // --- Game reconnected ---
 
 interface SnapshotWhole {
-    readonly mt: readonly number[];
-    readonly n: number;
-    readonly p: readonly { readonly seat: number }[];
-    readonly pst: readonly { readonly seat: number; readonly tileCount: number }[];
-    readonly re?: unknown;
-    readonly rh: readonly unknown[];
-    readonly s: number;
+    readonly [WIRE_KEY.MY_TILES]: readonly number[];
+    readonly [WIRE_KEY.ROUND_NUMBER]: number;
+    readonly [WIRE_KEY.PLAYERS]: readonly { readonly seat: number }[];
+    readonly [WIRE_KEY.PLAYER_STATES]: readonly {
+        readonly seat: number;
+        readonly tileCount: number;
+    }[];
+    readonly [WIRE_KEY.ROUND_RESULT]?: unknown;
+    readonly [WIRE_KEY.ROUND_HISTORY]: readonly unknown[];
+    readonly [WIRE_KEY.SEAT]: number;
 }
 
 /** Whether the viewer's own tiles are its whole closed hand: as many as its seat's count, each tile once. */
 function holdsOwnHand(raw: SnapshotWhole): boolean {
-    return raw.mt.length === raw.pst[raw.s].tileCount && new Set(raw.mt).size === raw.mt.length;
-}
-
-/**
- * A snapshot whole enough to rebuild the table from it alone: every seat's player and state, the viewer's whole hand,
- * and the round history's every finished round, one per deal before the one it shows (`n` counts the deals) and that
- * one too once it ended. A snapshot lacking any of them is refused rather than made whole with a guess.
- */
-function isComplete(raw: SnapshotWhole): boolean {
-    const finished = raw.n + (raw.re === undefined ? 0 : 1);
     return (
-        coversEverySeat(raw.p) &&
-        coversEverySeat(raw.pst) &&
-        holdsOwnHand(raw) &&
-        raw.rh.length === finished
+        raw[WIRE_KEY.MY_TILES].length ===
+            raw[WIRE_KEY.PLAYER_STATES][raw[WIRE_KEY.SEAT]].tileCount &&
+        new Set(raw[WIRE_KEY.MY_TILES]).size === raw[WIRE_KEY.MY_TILES].length
     );
 }
 
 /**
- * The round advance timer of a snapshot that owes the confirm while the seat's timer runs: how long it has run (`el`)
- * and its whole timeout (`at`), which the server names together, or neither.
+ * A snapshot whole enough to rebuild the table from it alone: every seat's player and state, the viewer's whole hand,
+ * and the round history's every finished round, one per deal before the one it shows (`WIRE_KEY.ROUND_NUMBER` counts the deals) and that
+ * one too once it ended. A snapshot lacking any of them is refused rather than made whole with a guess.
+ */
+function isComplete(raw: SnapshotWhole): boolean {
+    const finished =
+        raw[WIRE_KEY.ROUND_NUMBER] + (raw[WIRE_KEY.ROUND_RESULT] === undefined ? 0 : 1);
+    return (
+        coversEverySeat(raw[WIRE_KEY.PLAYERS]) &&
+        coversEverySeat(raw[WIRE_KEY.PLAYER_STATES]) &&
+        holdsOwnHand(raw) &&
+        raw[WIRE_KEY.ROUND_HISTORY].length === finished
+    );
+}
+
+/**
+ * The round advance timer of a snapshot that owes the confirm while the seat's timer runs: how long it has run (`WIRE_KEY.WAIT_ELAPSED`)
+ * and its whole timeout (`WIRE_KEY.ROUND_ADVANCE_SECONDS`), which the server names together, or neither.
  */
 function advanceTimerOf(raw: {
-    readonly at?: number;
-    readonly el?: number;
+    readonly [WIRE_KEY.ROUND_ADVANCE_SECONDS]?: number;
+    readonly [WIRE_KEY.WAIT_ELAPSED]?: number;
 }): { readonly elapsedSeconds: number; readonly seconds: number } | null {
-    return raw.at === undefined || raw.el === undefined
+    const seconds = raw[WIRE_KEY.ROUND_ADVANCE_SECONDS];
+    const elapsedSeconds = raw[WIRE_KEY.WAIT_ELAPSED];
+    return seconds === undefined || elapsedSeconds === undefined
         ? null
-        : { elapsedSeconds: raw.el, seconds: raw.at };
+        : { elapsedSeconds, seconds };
 }
 
 export const gameReconnectedSchema = z.pipe(
     z
         .object({
-            at: z.optional(secondsSchema),
-            cp: seatSchema,
-            dd: z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]),
-            di: z.array(tileIdSchema),
-            dl: seatSchema,
-            el: z.optional(secondsSchema),
-            f: z.boolean(),
-            fd: seatSchema,
-            gid: z.string(),
-            h: z.int(),
-            ld: z.optional(seatSchema),
-            mt: z.array(tileIdSchema),
-            n: z.int(),
-            oc: z.optional(z.boolean()),
-            p: z.array(gamePlayerInfoSchema),
-            pst: z.array(playerReconnectStateSchema),
-            r: z.int(),
-            re: z.optional(z.record(z.string(), z.unknown())),
-            rh: z.array(roundHistoryEntrySchema),
-            rsv: wireSettingAmountSchema,
-            rw: roundInWindSchema,
-            s: seatSchema,
-            tm: timerSettingsSchema,
-            tr: tilesRemainingSchema,
-            type: z.literal(SESSION_MESSAGE_TYPE.GAME_RECONNECTED),
-            w: z.int(),
-            wi: waitIdSchema,
+            [WIRE_KEY.ROUND_ADVANCE_SECONDS]: z.optional(secondsSchema),
+            [WIRE_KEY.CURRENT_PLAYER]: seatSchema,
+            [WIRE_KEY.DEALER_DICE]: z.tuple([
+                z.tuple([z.number(), z.number()]),
+                z.tuple([z.number(), z.number()]),
+            ]),
+            [WIRE_KEY.DORA_INDICATORS]: z.array(tileIdSchema),
+            [WIRE_KEY.DEALER]: seatSchema,
+            [WIRE_KEY.WAIT_ELAPSED]: z.optional(secondsSchema),
+            [WIRE_KEY.FURITEN]: z.boolean(),
+            [WIRE_KEY.FIRST_DEALER]: seatSchema,
+            [WIRE_KEY.GAME_ID]: z.string(),
+            [WIRE_KEY.HONBA]: z.int(),
+            [WIRE_KEY.LATEST_DISCARD_SEAT]: z.optional(seatSchema),
+            [WIRE_KEY.MY_TILES]: z.array(tileIdSchema),
+            [WIRE_KEY.ROUND_NUMBER]: z.int(),
+            [WIRE_KEY.CONFIRMATION_OWED]: z.optional(z.boolean()),
+            [WIRE_KEY.PLAYERS]: z.array(gamePlayerInfoSchema),
+            [WIRE_KEY.PLAYER_STATES]: z.array(playerReconnectStateSchema),
+            [WIRE_KEY.RIICHI_STICKS]: z.int(),
+            [WIRE_KEY.ROUND_RESULT]: z.optional(z.record(z.string(), z.unknown())),
+            [WIRE_KEY.ROUND_HISTORY]: z.array(roundHistoryEntrySchema),
+            [WIRE_KEY.RIICHI_STICK_VALUE]: wireSettingAmountSchema,
+            [WIRE_KEY.ROUND_IN_WIND]: roundInWindSchema,
+            [WIRE_KEY.SEAT]: seatSchema,
+            [WIRE_KEY.TIMER_SETTINGS]: timerSettingsSchema,
+            [WIRE_KEY.TILES_REMAINING]: tilesRemainingSchema,
+            [WIRE_KEY.SESSION_TYPE]: z.literal(SESSION_MESSAGE_TYPE.GAME_RECONNECTED),
+            [WIRE_KEY.WIND]: z.int(),
+            [WIRE_KEY.WAIT_ID]: waitIdSchema,
         })
         .check(
             z.refine(isComplete, {
                 message:
                     "the snapshot lacks a seat's player or state, or a finished round of its history",
             }),
-            z.refine((raw) => (raw.at === undefined) === (raw.el === undefined), {
-                message:
-                    "the snapshot names its round advance's elapsed time without its timeout, or its timeout without it",
-            }),
+            z.refine(
+                (raw) =>
+                    (raw[WIRE_KEY.ROUND_ADVANCE_SECONDS] === undefined) ===
+                    (raw[WIRE_KEY.WAIT_ELAPSED] === undefined),
+                {
+                    message:
+                        "the snapshot names its round advance's elapsed time without its timeout, or its timeout without it",
+                },
+            ),
         ),
     z.transform((raw) => ({
         advanceTimer: advanceTimerOf(raw),
-        confirmationOwed: raw.oc ?? false,
-        currentPlayerSeat: raw.cp,
-        dealerDice: raw.dd,
-        dealerSeat: raw.dl,
-        doraIndicators: raw.di,
-        firstDealerSeat: raw.fd,
-        gameId: raw.gid,
-        honbaSticks: raw.h,
-        isFuriten: raw.f,
-        latestDiscardSeat: raw.ld ?? null,
-        myTiles: raw.mt,
-        playerStates: raw.pst,
-        players: raw.p,
-        riichiStickValue: raw.rsv,
-        riichiSticks: raw.r,
-        roundHistory: raw.rh,
-        roundInWind: raw.rw,
-        roundNumber: raw.n,
-        roundResult: raw.re ? parseRoundResult(raw.re) : null,
-        seat: raw.s,
-        tilesRemaining: raw.tr,
-        timer: raw.tm,
+        confirmationOwed: raw[WIRE_KEY.CONFIRMATION_OWED] ?? false,
+        currentPlayerSeat: raw[WIRE_KEY.CURRENT_PLAYER],
+        dealerDice: raw[WIRE_KEY.DEALER_DICE],
+        dealerSeat: raw[WIRE_KEY.DEALER],
+        doraIndicators: raw[WIRE_KEY.DORA_INDICATORS],
+        firstDealerSeat: raw[WIRE_KEY.FIRST_DEALER],
+        gameId: raw[WIRE_KEY.GAME_ID],
+        honbaSticks: raw[WIRE_KEY.HONBA],
+        isFuriten: raw[WIRE_KEY.FURITEN],
+        latestDiscardSeat: raw[WIRE_KEY.LATEST_DISCARD_SEAT] ?? null,
+        myTiles: raw[WIRE_KEY.MY_TILES],
+        playerStates: raw[WIRE_KEY.PLAYER_STATES],
+        players: raw[WIRE_KEY.PLAYERS],
+        riichiStickValue: raw[WIRE_KEY.RIICHI_STICK_VALUE],
+        riichiSticks: raw[WIRE_KEY.RIICHI_STICKS],
+        roundHistory: raw[WIRE_KEY.ROUND_HISTORY],
+        roundInWind: raw[WIRE_KEY.ROUND_IN_WIND],
+        roundNumber: raw[WIRE_KEY.ROUND_NUMBER],
+        roundResult: parseSnapshotRoundResult(raw[WIRE_KEY.ROUND_RESULT]),
+        seat: raw[WIRE_KEY.SEAT],
+        tilesRemaining: raw[WIRE_KEY.TILES_REMAINING],
+        timer: raw[WIRE_KEY.TIMER_SETTINGS],
         type: "game_reconnected" as const,
-        waitId: raw.wi,
-        wind: raw.w,
+        waitId: raw[WIRE_KEY.WAIT_ID],
+        wind: raw[WIRE_KEY.WIND],
     })),
 );
 
 export type GameReconnectedEvent = z.output<typeof gameReconnectedSchema>;
+
+function parseSnapshotRoundResult(raw: Record<string, unknown> | undefined): RoundEndEvent | null {
+    return raw === undefined ? null : parseRoundResult(raw);
+}

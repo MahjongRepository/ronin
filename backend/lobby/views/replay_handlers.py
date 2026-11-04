@@ -34,7 +34,7 @@ async def replay_content(request: Request) -> Response:
 
     return Response(
         content=gzip_bytes,
-        media_type="application/x-ndjson",
+        media_type="application/msgpack",
         headers={
             "Content-Encoding": "gzip",
             "Cache-Control": "public, max-age=31536000, immutable",

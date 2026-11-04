@@ -7,6 +7,7 @@ import {
     PAO_SHARE,
     ROUND_RESULT_TYPE,
 } from "@/shared/protocol/constants";
+import { WIRE_KEY } from "@/shared/protocol/wire-keys";
 
 import {
     calledBy,
@@ -26,30 +27,35 @@ import { handResultSchema } from "./events";
 const MIN_DOUBLE_RON_WINNERS = 2;
 
 /**
- * The round advance a live round end opens: its wait id (`wi`) and the advance's whole timeout (`at`, seconds), which
+ * The round advance a live round end opens: its wait id (`WIRE_KEY.WAIT_ID`) and the advance's whole timeout (`WIRE_KEY.ROUND_ADVANCE_SECONDS`, seconds), which
  * the server names together; the game's last round end and a replay's name neither.
  */
 const roundAdvanceShape = {
-    at: z.optional(secondsSchema),
-    wi: z.optional(waitIdSchema),
+    [WIRE_KEY.ROUND_ADVANCE_SECONDS]: z.optional(secondsSchema),
+    [WIRE_KEY.WAIT_ID]: z.optional(waitIdSchema),
 };
 
 /**
- * Every round end names the riichi sticks its result leaves on the table (`r`) and its round's dealer (`dl`) and
- * revealed dora indicators (`di`), beside its round advance, so the result never reads them from the client's table.
+ * Every round end names the riichi sticks its result leaves on the table (`WIRE_KEY.RIICHI_STICKS`) and its round's dealer (`WIRE_KEY.DEALER`) and
+ * revealed dora indicators (`WIRE_KEY.DORA_INDICATORS`), beside its round advance, so the result never reads them from the client's table.
  */
 const roundEndShape = {
     ...roundAdvanceShape,
-    di: z.array(tileIdSchema),
-    dl: seatSchema,
-    r: z.int().check(z.gte(0)),
+    [WIRE_KEY.DORA_INDICATORS]: z.array(tileIdSchema),
+    [WIRE_KEY.DEALER]: seatSchema,
+    [WIRE_KEY.RIICHI_STICKS]: z.int().check(z.gte(0)),
 };
 
 const roundAdvanceWaitSchema = z.object(roundAdvanceShape).check(
-    z.refine((raw) => (raw.at === undefined) === (raw.wi === undefined), {
-        message:
-            "a round end names its round advance's wait without its timeout, or its timeout without its wait",
-    }),
+    z.refine(
+        (raw) =>
+            (raw[WIRE_KEY.ROUND_ADVANCE_SECONDS] === undefined) ===
+            (raw[WIRE_KEY.WAIT_ID] === undefined),
+        {
+            message:
+                "a round end names its round advance's wait without its timeout, or its timeout without its wait",
+        },
+    ),
 );
 
 interface RoundAdvance {
@@ -58,64 +64,68 @@ interface RoundAdvance {
     readonly waitId: number;
 }
 
-function roundAdvanceOf(raw: { at?: number; wi?: number }): RoundAdvance | null {
-    return raw.at === undefined || raw.wi === undefined
-        ? null
-        : { seconds: raw.at, waitId: raw.wi };
+function roundAdvanceOf(raw: {
+    [WIRE_KEY.ROUND_ADVANCE_SECONDS]?: number;
+    [WIRE_KEY.WAIT_ID]?: number;
+}): RoundAdvance | null {
+    const seconds = raw[WIRE_KEY.ROUND_ADVANCE_SECONDS];
+    const waitId = raw[WIRE_KEY.WAIT_ID];
+    return seconds === undefined || waitId === undefined ? null : { seconds, waitId };
 }
-
-// --- Tenpai hand (inside exhaustive_draw and nagashi_mangan `th` array) ---
 
 const tenpaiHandSchema = z.pipe(
     z
         .object({
-            ct: z.array(tileIdSchema),
-            ml: z.array(compactMeldSchema),
-            s: seatSchema,
+            [WIRE_KEY.CLOSED_TILES]: z.array(tileIdSchema),
+            [WIRE_KEY.MELDS]: z.array(compactMeldSchema),
+            [WIRE_KEY.SEAT]: seatSchema,
         })
         .check(
-            z.refine((raw) => calledBy(raw.ml, raw.s), {
+            z.refine((raw) => calledBy(raw[WIRE_KEY.MELDS], raw[WIRE_KEY.SEAT]), {
                 message: "a tenpai hand lists a meld another seat called",
             }),
         ),
     z.transform((raw) => ({
-        closedTiles: raw.ct,
-        melds: raw.ml,
-        seat: raw.s,
+        closedTiles: raw[WIRE_KEY.CLOSED_TILES],
+        melds: raw[WIRE_KEY.MELDS],
+        seat: raw[WIRE_KEY.SEAT],
     })),
 );
 
 const robbedKanSchema = z.pipe(
     z.object({
-        kty: z.union([z.literal(KAN_TYPE.ADDED), z.literal(KAN_TYPE.CLOSED)]),
-        s: seatSchema,
-        ti: tileIdSchema,
+        [WIRE_KEY.KAN_TYPE]: z.union([z.literal(KAN_TYPE.ADDED), z.literal(KAN_TYPE.CLOSED)]),
+        [WIRE_KEY.SEAT]: seatSchema,
+        [WIRE_KEY.TILE_ID]: tileIdSchema,
     }),
     z.transform((raw) => ({
-        kanType: raw.kty,
-        seat: raw.s,
-        tileId: raw.ti,
+        kanType: raw[WIRE_KEY.KAN_TYPE],
+        seat: raw[WIRE_KEY.SEAT],
+        tileId: raw[WIRE_KEY.TILE_ID],
     })),
 );
 
 const paoLiabilitySchema = z.object({
-    hb: z.boolean(),
-    sh: z.enum(PAO_SHARE),
-    yk: z.array(z.int()).check(z.minLength(1)),
+    [WIRE_KEY.PAYS_HONBA]: z.boolean(),
+    [WIRE_KEY.PAO_SHARE]: z.enum(PAO_SHARE),
+    [WIRE_KEY.YAKU]: z.array(z.int()).check(z.minLength(1)),
 });
 
 /**
- * A winner's honba bonus (`hb`) and, with a liable seat (`ps`), what that seat pays (`pl`): the pao yakuman it covers,
+ * A winner's honba bonus (`WIRE_KEY.HONBA_BONUS`) and, with a liable seat (`WIRE_KEY.PAO_SEAT`), what that seat pays (`WIRE_KEY.PAO_LIABILITY`): the pao yakuman it covers,
  * all or half of them, and whether it pays the honba too. The server names the seat and its liability together.
  */
 const winnerPaymentShape = {
-    hb: wireScoreSchema,
-    pl: z.optional(paoLiabilitySchema),
-    ps: z.optional(seatSchema),
+    [WIRE_KEY.HONBA_BONUS]: wireScoreSchema,
+    [WIRE_KEY.PAO_LIABILITY]: z.optional(paoLiabilitySchema),
+    [WIRE_KEY.PAO_SEAT]: z.optional(seatSchema),
 };
 
-function namesPaoWhole(raw: { readonly pl?: unknown; readonly ps?: unknown }): boolean {
-    return (raw.pl === undefined) === (raw.ps === undefined);
+function namesPaoWhole(raw: {
+    readonly [WIRE_KEY.PAO_LIABILITY]?: unknown;
+    readonly [WIRE_KEY.PAO_SEAT]?: unknown;
+}): boolean {
+    return (raw[WIRE_KEY.PAO_LIABILITY] === undefined) === (raw[WIRE_KEY.PAO_SEAT] === undefined);
 }
 
 const PAO_NAMED_PARTLY = {
@@ -132,274 +142,270 @@ export interface PaoLiability {
 }
 
 function paoOf(raw: {
-    readonly pl?: z.output<typeof paoLiabilitySchema>;
-    readonly ps?: number;
+    readonly [WIRE_KEY.PAO_LIABILITY]?: z.output<typeof paoLiabilitySchema>;
+    readonly [WIRE_KEY.PAO_SEAT]?: number;
 }): PaoLiability | null {
-    return raw.ps === undefined || raw.pl === undefined
+    const seat = raw[WIRE_KEY.PAO_SEAT];
+    const liability = raw[WIRE_KEY.PAO_LIABILITY];
+    return seat === undefined || liability === undefined
         ? null
-        : { paysHonba: raw.pl.hb, seat: raw.ps, share: raw.pl.sh, yakuIds: raw.pl.yk };
+        : {
+              paysHonba: liability[WIRE_KEY.PAYS_HONBA],
+              seat,
+              share: liability[WIRE_KEY.PAO_SHARE],
+              yakuIds: liability[WIRE_KEY.YAKU],
+          };
 }
-
-// --- Double ron winner (inside double_ron `wn` array) ---
 
 const doubleRonWinnerSchema = z.pipe(
     z
         .object({
-            ct: z.array(tileIdSchema),
-            hr: handResultSchema,
-            ml: z.array(compactMeldSchema),
-            rc: z.int(),
-            sch: wireScoreMapSchema,
-            ud: z.optional(z.array(tileIdSchema)),
+            [WIRE_KEY.CLOSED_TILES]: z.array(tileIdSchema),
+            [WIRE_KEY.HAND_RESULT]: handResultSchema,
+            [WIRE_KEY.MELDS]: z.array(compactMeldSchema),
+            [WIRE_KEY.RIICHI_COLLECTED]: z.int(),
+            [WIRE_KEY.SCORE_CHANGES]: wireScoreMapSchema,
+            [WIRE_KEY.URA_DORA]: z.optional(z.array(tileIdSchema)),
             ...winnerPaymentShape,
-            ws: seatSchema,
+            [WIRE_KEY.WINNER_SEAT]: seatSchema,
         })
         .check(
-            z.refine((raw) => calledBy(raw.ml, raw.ws), {
+            z.refine((raw) => calledBy(raw[WIRE_KEY.MELDS], raw[WIRE_KEY.WINNER_SEAT]), {
                 message: "a winner's hand lists a meld another seat called",
             }),
             z.refine(namesPaoWhole, PAO_NAMED_PARTLY),
         ),
     z.transform((raw) => ({
-        closedTiles: raw.ct,
-        handResult: raw.hr,
-        honbaBonus: raw.hb,
-        melds: raw.ml,
+        closedTiles: raw[WIRE_KEY.CLOSED_TILES],
+        handResult: raw[WIRE_KEY.HAND_RESULT],
+        honbaBonus: raw[WIRE_KEY.HONBA_BONUS],
+        melds: raw[WIRE_KEY.MELDS],
         pao: paoOf(raw),
-        riichiSticksCollected: raw.rc,
-        scoreChanges: raw.sch,
-        uraDoraIndicators: raw.ud ?? null,
-        winnerSeat: raw.ws,
+        riichiSticksCollected: raw[WIRE_KEY.RIICHI_COLLECTED],
+        scoreChanges: raw[WIRE_KEY.SCORE_CHANGES],
+        uraDoraIndicators: raw[WIRE_KEY.URA_DORA] ?? null,
+        winnerSeat: raw[WIRE_KEY.WINNER_SEAT],
     })),
 );
-
-// --- Tsumo (rt=0) ---
 
 const tsumoSchema = z.pipe(
     z
         .object({
-            ct: z.array(tileIdSchema),
-            hr: handResultSchema,
-            ml: z.array(compactMeldSchema),
-            rc: z.int(),
-            rt: z.literal(ROUND_RESULT_TYPE.TSUMO),
-            sch: wireScoreMapSchema,
-            scs: wireScoreMapSchema,
-            t: z.literal(EVENT_TYPE.ROUND_END),
-            ud: z.optional(z.array(tileIdSchema)),
+            [WIRE_KEY.CLOSED_TILES]: z.array(tileIdSchema),
+            [WIRE_KEY.HAND_RESULT]: handResultSchema,
+            [WIRE_KEY.MELDS]: z.array(compactMeldSchema),
+            [WIRE_KEY.RIICHI_COLLECTED]: z.int(),
+            [WIRE_KEY.RESULT_TYPE]: z.literal(ROUND_RESULT_TYPE.TSUMO),
+            [WIRE_KEY.SCORE_CHANGES]: wireScoreMapSchema,
+            [WIRE_KEY.SCORES]: wireScoreMapSchema,
+            [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.ROUND_END),
+            [WIRE_KEY.URA_DORA]: z.optional(z.array(tileIdSchema)),
             ...roundEndShape,
             ...winnerPaymentShape,
-            ws: seatSchema,
-            wt: tileIdSchema,
+            [WIRE_KEY.WINNER_SEAT]: seatSchema,
+            [WIRE_KEY.WINNING_TILE]: tileIdSchema,
         })
         .check(
-            z.refine((raw) => calledBy(raw.ml, raw.ws), {
+            z.refine((raw) => calledBy(raw[WIRE_KEY.MELDS], raw[WIRE_KEY.WINNER_SEAT]), {
                 message: "a winner's hand lists a meld another seat called",
             }),
             z.refine(namesPaoWhole, PAO_NAMED_PARTLY),
         ),
     z.transform((raw) => ({
-        closedTiles: raw.ct,
-        dealerSeat: raw.dl,
-        doraIndicators: raw.di,
-        handResult: raw.hr,
-        honbaBonus: raw.hb,
-        melds: raw.ml,
+        closedTiles: raw[WIRE_KEY.CLOSED_TILES],
+        dealerSeat: raw[WIRE_KEY.DEALER],
+        doraIndicators: raw[WIRE_KEY.DORA_INDICATORS],
+        handResult: raw[WIRE_KEY.HAND_RESULT],
+        honbaBonus: raw[WIRE_KEY.HONBA_BONUS],
+        melds: raw[WIRE_KEY.MELDS],
         pao: paoOf(raw),
         resultType: ROUND_RESULT_TYPE.TSUMO as typeof ROUND_RESULT_TYPE.TSUMO,
-        riichiSticks: raw.r,
-        riichiSticksCollected: raw.rc,
+        riichiSticks: raw[WIRE_KEY.RIICHI_STICKS],
+        riichiSticksCollected: raw[WIRE_KEY.RIICHI_COLLECTED],
         roundAdvance: roundAdvanceOf(raw),
-        scoreChanges: raw.sch,
-        scores: raw.scs,
+        scoreChanges: raw[WIRE_KEY.SCORE_CHANGES],
+        scores: raw[WIRE_KEY.SCORES],
         type: "round_end" as const,
-        uraDoraIndicators: raw.ud ?? null,
-        winnerSeat: raw.ws,
-        winningTile: raw.wt,
+        uraDoraIndicators: raw[WIRE_KEY.URA_DORA] ?? null,
+        winnerSeat: raw[WIRE_KEY.WINNER_SEAT],
+        winningTile: raw[WIRE_KEY.WINNING_TILE],
     })),
 );
-
-// --- Ron (rt=1) ---
 
 const ronSchema = z.pipe(
     z
         .object({
-            ct: z.array(tileIdSchema),
-            hbs: z.optional(z.array(seatSchema)),
-            hr: handResultSchema,
-            ls: seatSchema,
-            ml: z.array(compactMeldSchema),
-            rc: z.int(),
-            rk: z.optional(robbedKanSchema),
-            rt: z.literal(ROUND_RESULT_TYPE.RON),
-            sch: wireScoreMapSchema,
-            scs: wireScoreMapSchema,
-            t: z.literal(EVENT_TYPE.ROUND_END),
-            ud: z.optional(z.array(tileIdSchema)),
+            [WIRE_KEY.CLOSED_TILES]: z.array(tileIdSchema),
+            [WIRE_KEY.HEAD_BUMPED_SEATS]: z.optional(z.array(seatSchema)),
+            [WIRE_KEY.HAND_RESULT]: handResultSchema,
+            [WIRE_KEY.LOSER_SEAT]: seatSchema,
+            [WIRE_KEY.MELDS]: z.array(compactMeldSchema),
+            [WIRE_KEY.RIICHI_COLLECTED]: z.int(),
+            [WIRE_KEY.ROBBED_KAN]: z.optional(robbedKanSchema),
+            [WIRE_KEY.RESULT_TYPE]: z.literal(ROUND_RESULT_TYPE.RON),
+            [WIRE_KEY.SCORE_CHANGES]: wireScoreMapSchema,
+            [WIRE_KEY.SCORES]: wireScoreMapSchema,
+            [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.ROUND_END),
+            [WIRE_KEY.URA_DORA]: z.optional(z.array(tileIdSchema)),
             ...roundEndShape,
             ...winnerPaymentShape,
-            ws: seatSchema,
-            wt: tileIdSchema,
+            [WIRE_KEY.WINNER_SEAT]: seatSchema,
+            [WIRE_KEY.WINNING_TILE]: tileIdSchema,
         })
         .check(
-            z.refine((raw) => calledBy(raw.ml, raw.ws), {
+            z.refine((raw) => calledBy(raw[WIRE_KEY.MELDS], raw[WIRE_KEY.WINNER_SEAT]), {
                 message: "a winner's hand lists a meld another seat called",
             }),
             z.refine(namesPaoWhole, PAO_NAMED_PARTLY),
         ),
     z.transform((raw) => ({
-        closedTiles: raw.ct,
-        dealerSeat: raw.dl,
-        doraIndicators: raw.di,
-        handResult: raw.hr,
-        headBumpedSeats: raw.hbs ?? [],
-        honbaBonus: raw.hb,
-        loserSeat: raw.ls,
-        melds: raw.ml,
+        closedTiles: raw[WIRE_KEY.CLOSED_TILES],
+        dealerSeat: raw[WIRE_KEY.DEALER],
+        doraIndicators: raw[WIRE_KEY.DORA_INDICATORS],
+        handResult: raw[WIRE_KEY.HAND_RESULT],
+        headBumpedSeats: raw[WIRE_KEY.HEAD_BUMPED_SEATS] ?? [],
+        honbaBonus: raw[WIRE_KEY.HONBA_BONUS],
+        loserSeat: raw[WIRE_KEY.LOSER_SEAT],
+        melds: raw[WIRE_KEY.MELDS],
         pao: paoOf(raw),
         resultType: ROUND_RESULT_TYPE.RON as typeof ROUND_RESULT_TYPE.RON,
-        riichiSticks: raw.r,
-        riichiSticksCollected: raw.rc,
-        robbedKan: raw.rk ?? null,
+        riichiSticks: raw[WIRE_KEY.RIICHI_STICKS],
+        riichiSticksCollected: raw[WIRE_KEY.RIICHI_COLLECTED],
+        robbedKan: raw[WIRE_KEY.ROBBED_KAN] ?? null,
         roundAdvance: roundAdvanceOf(raw),
-        scoreChanges: raw.sch,
-        scores: raw.scs,
+        scoreChanges: raw[WIRE_KEY.SCORE_CHANGES],
+        scores: raw[WIRE_KEY.SCORES],
         type: "round_end" as const,
-        uraDoraIndicators: raw.ud ?? null,
-        winnerSeat: raw.ws,
-        winningTile: raw.wt,
+        uraDoraIndicators: raw[WIRE_KEY.URA_DORA] ?? null,
+        winnerSeat: raw[WIRE_KEY.WINNER_SEAT],
+        winningTile: raw[WIRE_KEY.WINNING_TILE],
     })),
 );
-
-// --- Double Ron (rt=2) ---
 
 const doubleRonSchema = z.pipe(
     z
         .object({
-            hbs: z.optional(z.array(seatSchema)),
-            ls: seatSchema,
-            rk: z.optional(robbedKanSchema),
-            rt: z.literal(ROUND_RESULT_TYPE.DOUBLE_RON),
-            sch: wireScoreMapSchema,
-            scs: wireScoreMapSchema,
-            t: z.literal(EVENT_TYPE.ROUND_END),
+            [WIRE_KEY.HEAD_BUMPED_SEATS]: z.optional(z.array(seatSchema)),
+            [WIRE_KEY.LOSER_SEAT]: seatSchema,
+            [WIRE_KEY.ROBBED_KAN]: z.optional(robbedKanSchema),
+            [WIRE_KEY.RESULT_TYPE]: z.literal(ROUND_RESULT_TYPE.DOUBLE_RON),
+            [WIRE_KEY.SCORE_CHANGES]: wireScoreMapSchema,
+            [WIRE_KEY.SCORES]: wireScoreMapSchema,
+            [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.ROUND_END),
             ...roundEndShape,
-            wn: z.array(doubleRonWinnerSchema),
-            wt: tileIdSchema,
+            [WIRE_KEY.WINNERS]: z.array(doubleRonWinnerSchema),
+            [WIRE_KEY.WINNING_TILE]: tileIdSchema,
         })
         .check(
             z.refine(
                 (raw) =>
-                    raw.wn.length >= MIN_DOUBLE_RON_WINNERS &&
-                    namesDistinctSeats(raw.wn.map((winner) => winner.winnerSeat)),
+                    raw[WIRE_KEY.WINNERS].length >= MIN_DOUBLE_RON_WINNERS &&
+                    namesDistinctSeats(raw[WIRE_KEY.WINNERS].map((winner) => winner.winnerSeat)),
                 { message: "the double ron does not name at least two distinct winners" },
             ),
         ),
     z.transform((raw) => ({
-        dealerSeat: raw.dl,
-        doraIndicators: raw.di,
-        headBumpedSeats: raw.hbs ?? [],
-        loserSeat: raw.ls,
+        dealerSeat: raw[WIRE_KEY.DEALER],
+        doraIndicators: raw[WIRE_KEY.DORA_INDICATORS],
+        headBumpedSeats: raw[WIRE_KEY.HEAD_BUMPED_SEATS] ?? [],
+        loserSeat: raw[WIRE_KEY.LOSER_SEAT],
         resultType: ROUND_RESULT_TYPE.DOUBLE_RON as typeof ROUND_RESULT_TYPE.DOUBLE_RON,
-        riichiSticks: raw.r,
-        robbedKan: raw.rk ?? null,
+        riichiSticks: raw[WIRE_KEY.RIICHI_STICKS],
+        robbedKan: raw[WIRE_KEY.ROBBED_KAN] ?? null,
         roundAdvance: roundAdvanceOf(raw),
-        scoreChanges: raw.sch,
-        scores: raw.scs,
+        scoreChanges: raw[WIRE_KEY.SCORE_CHANGES],
+        scores: raw[WIRE_KEY.SCORES],
         type: "round_end" as const,
-        winners: raw.wn,
-        winningTile: raw.wt,
+        winners: raw[WIRE_KEY.WINNERS],
+        winningTile: raw[WIRE_KEY.WINNING_TILE],
     })),
 );
-
-// --- Exhaustive Draw (rt=3) ---
 
 const exhaustiveDrawSchema = z.pipe(
     z.object({
-        ns: z.array(seatSchema),
-        rt: z.literal(ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW),
-        sch: wireScoreMapSchema,
-        scs: wireScoreMapSchema,
-        t: z.literal(EVENT_TYPE.ROUND_END),
-        th: z.array(tenpaiHandSchema),
-        ts: z.array(seatSchema),
+        [WIRE_KEY.NOTEN_SEATS]: z.array(seatSchema),
+        [WIRE_KEY.RESULT_TYPE]: z.literal(ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW),
+        [WIRE_KEY.SCORE_CHANGES]: wireScoreMapSchema,
+        [WIRE_KEY.SCORES]: wireScoreMapSchema,
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.ROUND_END),
+        [WIRE_KEY.TENPAI_HANDS]: z.array(tenpaiHandSchema),
+        [WIRE_KEY.TENPAI_SEATS]: z.array(seatSchema),
         ...roundEndShape,
     }),
     z.transform((raw) => ({
-        dealerSeat: raw.dl,
-        doraIndicators: raw.di,
-        notenSeats: raw.ns,
+        dealerSeat: raw[WIRE_KEY.DEALER],
+        doraIndicators: raw[WIRE_KEY.DORA_INDICATORS],
+        notenSeats: raw[WIRE_KEY.NOTEN_SEATS],
         resultType: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW as typeof ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
-        riichiSticks: raw.r,
+        riichiSticks: raw[WIRE_KEY.RIICHI_STICKS],
         roundAdvance: roundAdvanceOf(raw),
-        scoreChanges: raw.sch,
-        scores: raw.scs,
-        tenpaiHands: raw.th,
-        tenpaiSeats: raw.ts,
+        scoreChanges: raw[WIRE_KEY.SCORE_CHANGES],
+        scores: raw[WIRE_KEY.SCORES],
+        tenpaiHands: raw[WIRE_KEY.TENPAI_HANDS],
+        tenpaiSeats: raw[WIRE_KEY.TENPAI_SEATS],
         type: "round_end" as const,
     })),
 );
-
-// --- Abortive Draw (rt=4) ---
 
 const abortiveDrawSchema = z.pipe(
     z.object({
-        rcl: z.optional(z.array(seatSchema)),
-        rk: z.optional(robbedKanSchema),
-        rn: z.enum(ABORTIVE_DRAW_TYPE),
-        rt: z.literal(ROUND_RESULT_TYPE.ABORTIVE_DRAW),
-        s: z.optional(seatSchema),
-        sch: wireScoreMapSchema,
-        scs: wireScoreMapSchema,
-        t: z.literal(EVENT_TYPE.ROUND_END),
+        [WIRE_KEY.RON_CALLERS]: z.optional(z.array(seatSchema)),
+        [WIRE_KEY.ROBBED_KAN]: z.optional(robbedKanSchema),
+        [WIRE_KEY.ABORTIVE_REASON]: z.enum(ABORTIVE_DRAW_TYPE),
+        [WIRE_KEY.RESULT_TYPE]: z.literal(ROUND_RESULT_TYPE.ABORTIVE_DRAW),
+        [WIRE_KEY.SEAT]: z.optional(seatSchema),
+        [WIRE_KEY.SCORE_CHANGES]: wireScoreMapSchema,
+        [WIRE_KEY.SCORES]: wireScoreMapSchema,
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.ROUND_END),
         ...roundEndShape,
     }),
     z.transform((raw) => ({
-        dealerSeat: raw.dl,
-        doraIndicators: raw.di,
-        reason: raw.rn,
+        dealerSeat: raw[WIRE_KEY.DEALER],
+        doraIndicators: raw[WIRE_KEY.DORA_INDICATORS],
+        reason: raw[WIRE_KEY.ABORTIVE_REASON],
         resultType: ROUND_RESULT_TYPE.ABORTIVE_DRAW as typeof ROUND_RESULT_TYPE.ABORTIVE_DRAW,
-        riichiSticks: raw.r,
-        robbedKan: raw.rk ?? null,
-        ronSeats: raw.rcl ?? [],
+        riichiSticks: raw[WIRE_KEY.RIICHI_STICKS],
+        robbedKan: raw[WIRE_KEY.ROBBED_KAN] ?? null,
+        ronSeats: raw[WIRE_KEY.RON_CALLERS] ?? [],
         roundAdvance: roundAdvanceOf(raw),
-        scoreChanges: raw.sch,
-        scores: raw.scs,
-        seat: raw.s ?? null,
+        scoreChanges: raw[WIRE_KEY.SCORE_CHANGES],
+        scores: raw[WIRE_KEY.SCORES],
+        seat: raw[WIRE_KEY.SEAT] ?? null,
         type: "round_end" as const,
     })),
 );
 
-// --- Nagashi Mangan (rt=5) ---
-
 const nagashiRiverSchema = z.pipe(
     z.object({
-        dsc: z.array(discardInfoSchema).check(z.minLength(1)),
-        s: seatSchema,
+        [WIRE_KEY.DISCARDS]: z.array(discardInfoSchema).check(z.minLength(1)),
+        [WIRE_KEY.SEAT]: seatSchema,
     }),
-    z.transform((raw) => ({ discards: raw.dsc, seat: raw.s })),
+    z.transform((raw) => ({ discards: raw[WIRE_KEY.DISCARDS], seat: raw[WIRE_KEY.SEAT] })),
 );
 
-/** A nagashi mangan names each qualifying seat's river (`qr`), its proof, in the order of the seats (`qs`). */
+/** A nagashi mangan names each qualifying seat's river (`WIRE_KEY.QUALIFYING_RIVERS`), its proof, in the order of the seats (`WIRE_KEY.QUALIFYING_SEATS`). */
 const nagashiManganSchema = z.pipe(
     z
         .object({
-            ns: z.array(seatSchema),
-            qr: z.array(nagashiRiverSchema),
-            qs: z.array(seatSchema).check(z.minLength(1)),
-            rt: z.literal(ROUND_RESULT_TYPE.NAGASHI_MANGAN),
-            sch: wireScoreMapSchema,
-            scs: wireScoreMapSchema,
-            t: z.literal(EVENT_TYPE.ROUND_END),
-            th: z.array(tenpaiHandSchema),
-            ts: z.array(seatSchema),
+            [WIRE_KEY.NOTEN_SEATS]: z.array(seatSchema),
+            [WIRE_KEY.QUALIFYING_RIVERS]: z.array(nagashiRiverSchema),
+            [WIRE_KEY.QUALIFYING_SEATS]: z.array(seatSchema).check(z.minLength(1)),
+            [WIRE_KEY.RESULT_TYPE]: z.literal(ROUND_RESULT_TYPE.NAGASHI_MANGAN),
+            [WIRE_KEY.SCORE_CHANGES]: wireScoreMapSchema,
+            [WIRE_KEY.SCORES]: wireScoreMapSchema,
+            [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.ROUND_END),
+            [WIRE_KEY.TENPAI_HANDS]: z.array(tenpaiHandSchema),
+            [WIRE_KEY.TENPAI_SEATS]: z.array(seatSchema),
             ...roundEndShape,
         })
         .check(
             z.refine(
                 (raw) =>
-                    raw.qr.length === raw.qs.length &&
-                    raw.qr.every((river, index) => river.seat === raw.qs[index]),
+                    raw[WIRE_KEY.QUALIFYING_RIVERS].length ===
+                        raw[WIRE_KEY.QUALIFYING_SEATS].length &&
+                    raw[WIRE_KEY.QUALIFYING_RIVERS].every(
+                        (river, index) => river.seat === raw[WIRE_KEY.QUALIFYING_SEATS][index],
+                    ),
                 {
                     message:
                         "a nagashi mangan does not name the river of each qualifying seat, in order",
@@ -407,18 +413,18 @@ const nagashiManganSchema = z.pipe(
             ),
         ),
     z.transform((raw) => ({
-        dealerSeat: raw.dl,
-        doraIndicators: raw.di,
-        notenSeats: raw.ns,
-        qualifyingRivers: raw.qr,
-        qualifyingSeats: raw.qs,
+        dealerSeat: raw[WIRE_KEY.DEALER],
+        doraIndicators: raw[WIRE_KEY.DORA_INDICATORS],
+        notenSeats: raw[WIRE_KEY.NOTEN_SEATS],
+        qualifyingRivers: raw[WIRE_KEY.QUALIFYING_RIVERS],
+        qualifyingSeats: raw[WIRE_KEY.QUALIFYING_SEATS],
         resultType: ROUND_RESULT_TYPE.NAGASHI_MANGAN as typeof ROUND_RESULT_TYPE.NAGASHI_MANGAN,
-        riichiSticks: raw.r,
+        riichiSticks: raw[WIRE_KEY.RIICHI_STICKS],
         roundAdvance: roundAdvanceOf(raw),
-        scoreChanges: raw.sch,
-        scores: raw.scs,
-        tenpaiHands: raw.th,
-        tenpaiSeats: raw.ts,
+        scoreChanges: raw[WIRE_KEY.SCORE_CHANGES],
+        scores: raw[WIRE_KEY.SCORES],
+        tenpaiHands: raw[WIRE_KEY.TENPAI_HANDS],
+        tenpaiSeats: raw[WIRE_KEY.TENPAI_SEATS],
         type: "round_end" as const,
     })),
 );
@@ -440,10 +446,10 @@ export type RoundEndEvent =
     | AbortiveDrawRoundEnd
     | NagashiManganRoundEnd;
 
-/** Dispatch on `rt` by hand: Zod's discriminatedUnion does not work with `.transform()`. */
+/** Dispatch on `WIRE_KEY.RESULT_TYPE` by hand: Zod's discriminatedUnion does not work with `.transform()`. */
 export function parseRoundEnd(raw: Record<string, unknown>): RoundEndEvent {
     roundAdvanceWaitSchema.parse(raw);
-    const { rt } = raw;
+    const { [WIRE_KEY.RESULT_TYPE]: rt } = raw;
     switch (rt) {
         case ROUND_RESULT_TYPE.TSUMO: {
             return tsumoSchema.parse(raw);
@@ -464,12 +470,12 @@ export function parseRoundEnd(raw: Record<string, unknown>): RoundEndEvent {
             return nagashiManganSchema.parse(raw);
         }
         default: {
-            throw new Error(`Unknown round result type: rt=${String(rt)}`);
+            throw new Error(`Unknown round result type: RESULT_TYPE=${String(rt)}`);
         }
     }
 }
 
-/** Parse a round result carried without its event type, as the reconnect snapshot's `re`. */
+/** Parse a round result carried without its event type, as the reconnect snapshot's `WIRE_KEY.ROUND_RESULT`. */
 export function parseRoundResult(raw: Record<string, unknown>): RoundEndEvent {
-    return parseRoundEnd({ ...raw, t: EVENT_TYPE.ROUND_END });
+    return parseRoundEnd({ ...raw, [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.ROUND_END });
 }

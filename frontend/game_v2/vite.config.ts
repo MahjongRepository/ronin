@@ -11,6 +11,7 @@ const port = parseInt(process.env.GAME_V2_VITE_PORT || "5175", 10);
 
 export default defineConfig({
     appType: "mpa",
+    assetsInclude: ["**/*.msgpack"],
     base: "/game-assets/v2/",
     build: {
         emptyOutDir: true,

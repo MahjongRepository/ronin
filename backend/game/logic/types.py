@@ -1,11 +1,8 @@
-from typing import Annotated
-
-from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_serializer
+from pydantic import BaseModel, ConfigDict, Field
 
 from game.logic.enums import (
     AbortiveDrawType,
     AIPlayerType,
-    CallType,
     HandLimit,
     KanType,
     MeldCallType,
@@ -13,50 +10,7 @@ from game.logic.enums import (
     PlayerAction,
     RoundResultType,
     WindName,
-    WireCallType,
-    WireGameType,
-    WireMeldCallType,
-    WirePlayerAction,
-    WireWind,
 )
-from game.logic.settings import WIRE_SCORE_DIVISOR, GameType
-
-
-def _score_to_wire(v: int) -> int:
-    return v // WIRE_SCORE_DIVISOR
-
-
-def _score_map_to_wire(v: dict[int, int]) -> dict[int, int]:
-    return {k: val // WIRE_SCORE_DIVISOR for k, val in v.items()}
-
-
-def _wind_to_wire(v: WindName) -> int:
-    return WireWind[v.name]
-
-
-def _call_type_to_wire(v: CallType) -> int:
-    return WireCallType[v.name]
-
-
-def _meld_call_type_to_wire(v: MeldCallType) -> int:
-    return WireMeldCallType[v.name]
-
-
-def _player_action_to_wire(v: PlayerAction) -> int:
-    return WirePlayerAction[v.name]
-
-
-def _game_type_to_wire(v: GameType) -> int:
-    return WireGameType[v.name]
-
-
-WireScore = Annotated[int, PlainSerializer(_score_to_wire)]
-WireScoreMap = Annotated[dict[int, int], PlainSerializer(_score_map_to_wire)]
-WireWindField = Annotated[WindName, PlainSerializer(_wind_to_wire)]
-WireCallTypeField = Annotated[CallType, PlainSerializer(_call_type_to_wire)]
-WireMeldCallTypeField = Annotated[MeldCallType, PlainSerializer(_meld_call_type_to_wire)]
-WirePlayerActionField = Annotated[PlayerAction, PlainSerializer(_player_action_to_wire)]
-WireGameTypeField = Annotated[GameType, PlainSerializer(_game_type_to_wire)]
 
 
 class SeatConfig(BaseModel):
@@ -73,14 +27,9 @@ class GamePlayerInfo(BaseModel):
     Player identity information sent at game start.
     """
 
-    seat: int = Field(serialization_alias="s")
-    name: str = Field(serialization_alias="nm")
-    is_ai_player: bool = Field(serialization_alias="ai")
-
-    @field_serializer("is_ai_player")
-    @classmethod
-    def _serialize_ai_as_int(cls, v: object) -> int:
-        return int(bool(v))
+    seat: int
+    name: str
+    is_ai_player: bool
 
 
 class DiscardActionData(BaseModel):
@@ -134,9 +83,9 @@ class YakuInfo(BaseModel):
     library's yakuman ids or its han per yakuman.
     """
 
-    yaku_id: int = Field(serialization_alias="yi")
+    yaku_id: int
     han: int
-    yakuman_count: int = Field(default=0, serialization_alias="ym")
+    yakuman_count: int = 0
 
 
 class HandResultInfo(BaseModel):
@@ -150,10 +99,10 @@ class HandResultInfo(BaseModel):
 
     han: int
     fu: int
-    yaku: list[YakuInfo] = Field(serialization_alias="yk")
-    points: WireScore = Field(serialization_alias="pt")
-    limit: HandLimit = Field(serialization_alias="lm")
-    yakuman_count: int | None = Field(default=None, serialization_alias="yc")
+    yaku: list[YakuInfo]
+    points: int
+    limit: HandLimit
+    yakuman_count: int | None = None
 
 
 class PaoLiability(BaseModel):
@@ -164,9 +113,9 @@ class PaoLiability(BaseModel):
     It names at least one pao yakuman, since a client rejects an empty list.
     """
 
-    yaku_ids: list[int] = Field(min_length=1, serialization_alias="yk")
-    share: PaoShare = Field(serialization_alias="sh")
-    pays_honba: bool = Field(serialization_alias="hb")
+    yaku_ids: list[int] = Field(min_length=1)
+    share: PaoShare
+    pays_honba: bool
 
 
 class TsumoResult(BaseModel):
@@ -178,18 +127,18 @@ class TsumoResult(BaseModel):
     """
 
     type: RoundResultType = RoundResultType.TSUMO
-    winner_seat: int = Field(serialization_alias="ws")
-    hand_result: HandResultInfo = Field(serialization_alias="hr")
-    scores: WireScoreMap = Field(serialization_alias="scs")
-    score_changes: WireScoreMap = Field(serialization_alias="sch")
-    riichi_sticks_collected: int = Field(serialization_alias="rc")
-    closed_tiles: list[int] = Field(serialization_alias="ct")
-    melds: list[int] = Field(serialization_alias="ml")
-    win_tile: int = Field(serialization_alias="wt")
-    honba_bonus: WireScore = Field(serialization_alias="hb")
-    pao_seat: int | None = Field(default=None, serialization_alias="ps")
-    pao: PaoLiability | None = Field(default=None, serialization_alias="pl")
-    ura_dora_indicators: list[int] | None = Field(default=None, serialization_alias="ud")
+    winner_seat: int
+    hand_result: HandResultInfo
+    scores: dict[int, int]
+    score_changes: dict[int, int]
+    riichi_sticks_collected: int
+    closed_tiles: list[int]
+    melds: list[int]
+    win_tile: int
+    honba_bonus: int
+    pao_seat: int | None = None
+    pao: PaoLiability | None = None
+    ura_dora_indicators: list[int] | None = None
 
 
 class RobbedKan(BaseModel):
@@ -199,9 +148,9 @@ class RobbedKan(BaseModel):
     A robbed kan never completes, so no meld event records it; the result of the ron that robbed it carries it instead.
     """
 
-    seat: int = Field(serialization_alias="s")
-    tile_id: int = Field(serialization_alias="ti")
-    kan_type: KanType = Field(serialization_alias="kty")
+    seat: int
+    tile_id: int
+    kan_type: KanType
 
 
 class RonResult(BaseModel):
@@ -215,21 +164,21 @@ class RonResult(BaseModel):
     """
 
     type: RoundResultType = RoundResultType.RON
-    winner_seat: int = Field(serialization_alias="ws")
-    loser_seat: int = Field(serialization_alias="ls")
-    winning_tile: int = Field(serialization_alias="wt")
-    hand_result: HandResultInfo = Field(serialization_alias="hr")
-    scores: WireScoreMap = Field(serialization_alias="scs")
-    score_changes: WireScoreMap = Field(serialization_alias="sch")
-    riichi_sticks_collected: int = Field(serialization_alias="rc")
-    closed_tiles: list[int] = Field(serialization_alias="ct")
-    melds: list[int] = Field(serialization_alias="ml")
-    honba_bonus: WireScore = Field(serialization_alias="hb")
-    pao_seat: int | None = Field(default=None, serialization_alias="ps")
-    pao: PaoLiability | None = Field(default=None, serialization_alias="pl")
-    ura_dora_indicators: list[int] | None = Field(default=None, serialization_alias="ud")
-    robbed_kan: RobbedKan | None = Field(default=None, serialization_alias="rk")
-    head_bumped_seats: list[int] | None = Field(default=None, serialization_alias="hbs")
+    winner_seat: int
+    loser_seat: int
+    winning_tile: int
+    hand_result: HandResultInfo
+    scores: dict[int, int]
+    score_changes: dict[int, int]
+    riichi_sticks_collected: int
+    closed_tiles: list[int]
+    melds: list[int]
+    honba_bonus: int
+    pao_seat: int | None = None
+    pao: PaoLiability | None = None
+    ura_dora_indicators: list[int] | None = None
+    robbed_kan: RobbedKan | None = None
+    head_bumped_seats: list[int] | None = None
 
 
 class DoubleRonWinner(BaseModel):
@@ -241,16 +190,16 @@ class DoubleRonWinner(BaseModel):
     on a single ron.
     """
 
-    winner_seat: int = Field(serialization_alias="ws")
-    hand_result: HandResultInfo = Field(serialization_alias="hr")
-    score_changes: WireScoreMap = Field(serialization_alias="sch")
-    riichi_sticks_collected: int = Field(serialization_alias="rc")
-    closed_tiles: list[int] = Field(serialization_alias="ct")
-    melds: list[int] = Field(serialization_alias="ml")
-    honba_bonus: WireScore = Field(serialization_alias="hb")
-    pao_seat: int | None = Field(default=None, serialization_alias="ps")
-    pao: PaoLiability | None = Field(default=None, serialization_alias="pl")
-    ura_dora_indicators: list[int] | None = Field(default=None, serialization_alias="ud")
+    winner_seat: int
+    hand_result: HandResultInfo
+    score_changes: dict[int, int]
+    riichi_sticks_collected: int
+    closed_tiles: list[int]
+    melds: list[int]
+    honba_bonus: int
+    pao_seat: int | None = None
+    pao: PaoLiability | None = None
+    ura_dora_indicators: list[int] | None = None
 
 
 class DoubleRonResult(BaseModel):
@@ -262,13 +211,13 @@ class DoubleRonResult(BaseModel):
     """
 
     type: RoundResultType = RoundResultType.DOUBLE_RON
-    loser_seat: int = Field(serialization_alias="ls")
-    winning_tile: int = Field(serialization_alias="wt")
-    winners: list[DoubleRonWinner] = Field(serialization_alias="wn")
-    scores: WireScoreMap = Field(serialization_alias="scs")
-    score_changes: WireScoreMap = Field(serialization_alias="sch")
-    robbed_kan: RobbedKan | None = Field(default=None, serialization_alias="rk")
-    head_bumped_seats: list[int] | None = Field(default=None, serialization_alias="hbs")
+    loser_seat: int
+    winning_tile: int
+    winners: list[DoubleRonWinner]
+    scores: dict[int, int]
+    score_changes: dict[int, int]
+    robbed_kan: RobbedKan | None = None
+    head_bumped_seats: list[int] | None = None
 
 
 class TenpaiHand(BaseModel):
@@ -276,9 +225,9 @@ class TenpaiHand(BaseModel):
     Hand data for a tenpai player revealed at exhaustive draw.
     """
 
-    seat: int = Field(serialization_alias="s")
-    closed_tiles: list[int] = Field(serialization_alias="ct")
-    melds: list[int] = Field(serialization_alias="ml")
+    seat: int
+    closed_tiles: list[int]
+    melds: list[int]
 
 
 class ExhaustiveDrawResult(BaseModel):
@@ -287,11 +236,11 @@ class ExhaustiveDrawResult(BaseModel):
     """
 
     type: RoundResultType = RoundResultType.EXHAUSTIVE_DRAW
-    tempai_seats: list[int] = Field(serialization_alias="ts")
-    noten_seats: list[int] = Field(serialization_alias="ns")
-    tenpai_hands: list[TenpaiHand] = Field(serialization_alias="th")
-    scores: WireScoreMap = Field(serialization_alias="scs")
-    score_changes: WireScoreMap = Field(serialization_alias="sch")
+    tempai_seats: list[int]
+    noten_seats: list[int]
+    tenpai_hands: list[TenpaiHand]
+    scores: dict[int, int]
+    score_changes: dict[int, int]
 
 
 class AbortiveDrawResult(BaseModel):
@@ -304,12 +253,12 @@ class AbortiveDrawResult(BaseModel):
     """
 
     type: RoundResultType = RoundResultType.ABORTIVE_DRAW
-    reason: AbortiveDrawType = Field(serialization_alias="rn")
-    scores: WireScoreMap = Field(serialization_alias="scs")
-    score_changes: WireScoreMap = Field(serialization_alias="sch")
-    seat: int | None = Field(default=None, serialization_alias="s")
-    ron_seats: list[int] | None = Field(default=None, serialization_alias="rcl")
-    robbed_kan: RobbedKan | None = Field(default=None, serialization_alias="rk")
+    reason: AbortiveDrawType
+    scores: dict[int, int]
+    score_changes: dict[int, int]
+    seat: int | None = None
+    ron_seats: list[int] | None = None
+    robbed_kan: RobbedKan | None = None
 
 
 class DiscardInfo(BaseModel):
@@ -317,9 +266,9 @@ class DiscardInfo(BaseModel):
     A discard as it lies in its river: in the reconnect snapshot, and in a nagashi mangan's proof.
     """
 
-    tile_id: int = Field(serialization_alias="ti")
-    is_tsumogiri: bool = Field(default=False, serialization_alias="tg")
-    is_riichi_discard: bool = Field(default=False, serialization_alias="rd")
+    tile_id: int
+    is_tsumogiri: bool = False
+    is_riichi_discard: bool = False
 
 
 class NagashiRiver(BaseModel):
@@ -328,8 +277,8 @@ class NagashiRiver(BaseModel):
     shows it from its own table.
     """
 
-    seat: int = Field(serialization_alias="s")
-    discards: list[DiscardInfo] = Field(serialization_alias="dsc")
+    seat: int
+    discards: list[DiscardInfo]
 
 
 class NagashiManganResult(BaseModel):
@@ -340,13 +289,13 @@ class NagashiManganResult(BaseModel):
     """
 
     type: RoundResultType = RoundResultType.NAGASHI_MANGAN
-    qualifying_seats: list[int] = Field(serialization_alias="qs")
-    rivers: list[NagashiRiver] = Field(serialization_alias="qr")
-    tempai_seats: list[int] = Field(serialization_alias="ts")
-    noten_seats: list[int] = Field(serialization_alias="ns")
-    tenpai_hands: list[TenpaiHand] = Field(serialization_alias="th")
-    scores: WireScoreMap = Field(serialization_alias="scs")
-    score_changes: WireScoreMap = Field(serialization_alias="sch")
+    qualifying_seats: list[int]
+    rivers: list[NagashiRiver]
+    tempai_seats: list[int]
+    noten_seats: list[int]
+    tenpai_hands: list[TenpaiHand]
+    scores: dict[int, int]
+    score_changes: dict[int, int]
 
 
 class PlayerStanding(BaseModel):
@@ -354,9 +303,9 @@ class PlayerStanding(BaseModel):
     Player standing in final game results.
     """
 
-    seat: int = Field(serialization_alias="s")
-    score: WireScore = Field(serialization_alias="sc")
-    final_score: int = Field(serialization_alias="fs")
+    seat: int
+    score: int
+    final_score: int
 
 
 class GameEndResult(BaseModel):
@@ -380,9 +329,9 @@ class MeldCaller(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    seat: int = Field(serialization_alias="s")
-    call_type: WireMeldCallTypeField = Field(serialization_alias="clt")
-    options: tuple[tuple[int, int], ...] | None = Field(default=None, serialization_alias="opt")
+    seat: int
+    call_type: MeldCallType
+    options: tuple[tuple[int, int], ...] | None = None
 
 
 class RonCallInput(BaseModel):
@@ -429,8 +378,8 @@ class AvailableActionItem(BaseModel):
     An available action for a player during their turn.
     """
 
-    action: WirePlayerActionField = Field(serialization_alias="a")
-    tiles: list[int] | None = Field(default=None, serialization_alias="tl")
+    action: PlayerAction
+    tiles: list[int] | None = None
 
 
 class PlayerView(BaseModel):
@@ -438,8 +387,8 @@ class PlayerView(BaseModel):
     Player-visible information about another player.
     """
 
-    seat: int = Field(serialization_alias="s")
-    score: WireScore = Field(serialization_alias="sc")
+    seat: int
+    score: int
 
 
 class PlayerReconnectState(BaseModel):
@@ -450,12 +399,12 @@ class PlayerReconnectState(BaseModel):
     seats see face down but whose draws the snapshot does not replay.
     """
 
-    seat: int = Field(serialization_alias="s")
-    score: WireScore = Field(serialization_alias="sc")
-    discards: list[DiscardInfo] = Field(serialization_alias="dsc")
-    melds: list[int] = Field(serialization_alias="ml")
-    is_riichi: bool = Field(serialization_alias="ri")
-    tile_count: int = Field(serialization_alias="tc")
+    seat: int
+    score: int
+    discards: list[DiscardInfo]
+    melds: list[int]
+    is_riichi: bool
+    tile_count: int
 
 
 class RoundHistoryEntry(BaseModel):
@@ -473,18 +422,18 @@ class RoundHistoryEntry(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    round_wind: WireWindField = Field(serialization_alias="w")
-    round_in_wind: int = Field(exclude=True)
-    dealer_seat: int = Field(serialization_alias="dl")
-    honba_sticks: int = Field(serialization_alias="h")
-    result_type: RoundResultType = Field(serialization_alias="rt")
-    abortive_reason: AbortiveDrawType | None = Field(default=None, serialization_alias="rn")
-    riichi_seats: tuple[int, ...] = Field(serialization_alias="rs")
-    winner_seats: tuple[int, ...] = Field(serialization_alias="ws")
-    loser_seat: int | None = Field(default=None, serialization_alias="ls")
-    pao_seats: tuple[int, ...] = Field(serialization_alias="ps")
-    tenpai_seats: tuple[int, ...] | None = Field(default=None, serialization_alias="ts")
-    score_changes: WireScoreMap = Field(serialization_alias="sch")
+    round_wind: WindName
+    round_in_wind: int
+    dealer_seat: int
+    honba_sticks: int
+    result_type: RoundResultType
+    abortive_reason: AbortiveDrawType | None = None
+    riichi_seats: tuple[int, ...]
+    winner_seats: tuple[int, ...]
+    loser_seat: int | None = None
+    pao_seats: tuple[int, ...]
+    tenpai_seats: tuple[int, ...] | None = None
+    score_changes: dict[int, int]
 
 
 # discriminated union for all round results
@@ -509,25 +458,25 @@ class ReconnectionSnapshot(BaseModel):
     game's first dealer, as game_started carries them.
     """
 
-    game_id: str = Field(serialization_alias="gid")
-    players: list[GamePlayerInfo] = Field(serialization_alias="p")
-    dealer_seat: int = Field(serialization_alias="dl")
-    first_dealer_seat: int = Field(serialization_alias="fd")
-    dealer_dice: tuple[tuple[int, int], tuple[int, int]] = Field(serialization_alias="dd")
-    riichi_stick_value: WireScore = Field(serialization_alias="rsv")
-    seat: int = Field(serialization_alias="s")
-    round_wind: WireWindField = Field(serialization_alias="w")
-    round_number: int = Field(serialization_alias="n")
-    round_in_wind: int = Field(serialization_alias="rw")
-    current_player_seat: int = Field(serialization_alias="cp")
-    latest_discard_seat: int | None = Field(default=None, serialization_alias="ld")
-    dora_indicators: list[int] = Field(serialization_alias="di")
-    honba_sticks: int = Field(serialization_alias="h")
-    riichi_sticks: int = Field(serialization_alias="r")
-    my_tiles: list[int] = Field(serialization_alias="mt")
-    dice: tuple[int, int] = Field(serialization_alias="dc")
-    tiles_remaining: int = Field(serialization_alias="tr")
-    player_states: list[PlayerReconnectState] = Field(serialization_alias="pst")
-    is_furiten: bool = Field(serialization_alias="f")
-    round_history: list[RoundHistoryEntry] = Field(serialization_alias="rh")
-    result: RoundResult | None = Field(default=None, serialization_alias="re")
+    game_id: str
+    players: list[GamePlayerInfo]
+    dealer_seat: int
+    first_dealer_seat: int
+    dealer_dice: tuple[tuple[int, int], tuple[int, int]]
+    riichi_stick_value: int
+    seat: int
+    round_wind: WindName
+    round_number: int
+    round_in_wind: int
+    current_player_seat: int
+    latest_discard_seat: int | None = None
+    dora_indicators: list[int]
+    honba_sticks: int
+    riichi_sticks: int
+    my_tiles: list[int]
+    dice: tuple[int, int]
+    tiles_remaining: int
+    player_states: list[PlayerReconnectState]
+    is_furiten: bool
+    round_history: list[RoundHistoryEntry]
+    result: RoundResult | None = None

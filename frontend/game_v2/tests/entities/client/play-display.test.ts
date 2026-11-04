@@ -30,7 +30,7 @@ import {
 } from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
 import { type HandTile, type MeldTile } from "@/entities/tile";
-import { buildChiAction } from "@/shared/protocol";
+import { WIRE_KEY, buildChiAction } from "@/shared/protocol";
 
 const KUIKAE_BLOCKED = [9, 10, 11];
 const CHOOSE_CHI = { kind: "toggle_tile_choice", offer: "chi" } as const;
@@ -583,8 +583,8 @@ describe("playDisplay notices", () => {
     it("keeps a server message it cannot read on the board until a reconnect's snapshot rebuilds the table", () => {
         const scenario = playingScenario();
 
-        scenario.step(clientEvent.message(100, { t: 999 }));
-        scenario.step(clientEvent.message(200, { t: 999 }));
+        scenario.step(clientEvent.message(100, { [WIRE_KEY.EVENT_TYPE]: 999 }));
+        scenario.step(clientEvent.message(200, { [WIRE_KEY.EVENT_TYPE]: 999 }));
         expect(noticeTexts(scenario.state)).toEqual([
             "The game server sent 2 messages this page could not read, so the table may be wrong until the server sends it again; play goes on.",
         ]);
@@ -880,7 +880,10 @@ describe("playDisplay callouts", () => {
     it("calls each of two kans one seat declares in quick succession", () => {
         const dealt = checkpointState("call_prompt_seat_1", "dealt");
         function closedKan(tileType: number): Record<string, unknown> {
-            return { m: (CLOSED_KAN_OFFSET + tileType) * 4 + 2, t: 0 };
+            return {
+                [WIRE_KEY.PACKED_MELD]: (CLOSED_KAN_OFFSET + tileType) * 4 + 2,
+                [WIRE_KEY.EVENT_TYPE]: 0,
+            };
         }
         const first = stepGameClient(dealt, {
             at: 3100,

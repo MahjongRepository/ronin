@@ -1,6 +1,5 @@
 import asyncio
 import gzip
-import json
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,7 +12,6 @@ from game.logic.exceptions import InvalidGameActionError, ScoringError
 from game.logic.scoring import HandResult
 from game.logic.types import PlayerStanding
 from game.messaging.encoder import decode
-from game.messaging.event_payload import WAIT_ID_KEY
 from game.messaging.types import SessionErrorCode
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter
@@ -33,6 +31,8 @@ from game.tests.mocks import (
 )
 from game.tests.unit.helpers import _update_player, _update_round_state
 from game.wire.events import EVENT_TYPE_INT
+from game.wire.keys import WireKey
+from game.wire.replay_format import decode_replay_records
 from shared.dal.models import GameEndReason
 from shared.storage import LocalReplayStorage, replay_file_path
 
@@ -82,7 +82,7 @@ class TestFailGame:
         await wait_for_background_tasks(manager)
         assert game.lifecycle is GameLifecycle.CLOSED
         for conn in conns:
-            assert [m["code"] for m in conn.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
+            assert [m[WireKey.SESSION_ERROR_CODE] for m in conn.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
             assert conn._close_code == 1011
             assert conn._close_reason == "internal_error"
 
@@ -165,7 +165,10 @@ class TestFailGame:
         await timeout_task
         await wait_for_background_tasks(manager)
         assert manager.get_game("game1") is None
-        assert [m.get("code") for m in conn.sent_messages] == [None, SessionErrorCode.INTERNAL_ERROR]
+        assert [m.get(WireKey.SESSION_ERROR_CODE) for m in conn.sent_messages] == [
+            None,
+            SessionErrorCode.INTERNAL_ERROR,
+        ]
         assert conn._close_code == 1011
 
     async def test_game_action__when_the_scoring_library_fails_on_tsumo__should_fail_the_game_with_that_error(
@@ -186,9 +189,9 @@ class TestFailGame:
             router.handle_message(
                 conns[0],
                 {
-                    "t": WireClientMessageType.GAME_ACTION,
-                    "wi": current_wait_id(manager, conns[0]),
-                    "a": WireGameAction.DECLARE_TSUMO,
+                    WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
+                    WireKey.WAIT_ID: current_wait_id(manager, conns[0]),
+                    WireKey.ACTION: WireGameAction.DECLARE_TSUMO,
                 },
             )
             await wait_for_background_tasks(manager)
@@ -217,10 +220,10 @@ class TestFailGame:
         router.handle_message(
             conns[0],
             {
-                "t": WireClientMessageType.GAME_ACTION,
-                "wi": current_wait_id(manager, conns[0]),
-                "a": WireGameAction.DISCARD,
-                "ti": round_state.players[alice_seat].tiles[-1],
+                WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
+                WireKey.WAIT_ID: current_wait_id(manager, conns[0]),
+                WireKey.ACTION: WireGameAction.DISCARD,
+                WireKey.TILE_ID: round_state.players[alice_seat].tiles[-1],
             },
         )
         await wait_for_background_tasks(manager)
@@ -275,7 +278,7 @@ class TestGameEndOwnership:
         resume_saving.set()
         await wait_for_background_tasks(manager)
         assert (alice._close_code, alice._close_reason) == (1000, "game_ended")
-        assert SessionErrorCode.INTERNAL_ERROR not in [m.get("code") for m in alice.sent_messages]
+        assert SessionErrorCode.INTERNAL_ERROR not in [m.get(WireKey.SESSION_ERROR_CODE) for m in alice.sent_messages]
         assert len(game_repo.finishes) == 1
         assert game_repo.games["game1"].end_reason == GameEndReason.COMPLETED
 
@@ -292,7 +295,7 @@ class TestGameEndOwnership:
         send_bytes = alice.send_bytes
 
         def fail_on_game_end(data: bytes) -> None:
-            if decode(data).get("t") == EVENT_TYPE_INT[EventType.GAME_END]:
+            if decode(data).get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.GAME_END]:
                 raise ValueError("game end payload rejected")
 
             send_bytes(data)
@@ -304,7 +307,7 @@ class TestGameEndOwnership:
         assert game_repo.games["game1"].end_reason == GameEndReason.ERROR
         assert game_repo.games["game1"].ended_at is not None
         assert replay_file_path(tmp_path, "game1").exists()
-        assert [m.get("code") for m in alice.sent_messages][-1] == SessionErrorCode.INTERNAL_ERROR
+        assert [m.get(WireKey.SESSION_ERROR_CODE) for m in alice.sent_messages][-1] == SessionErrorCode.INTERNAL_ERROR
         assert (alice._close_code, alice._close_reason) == (1011, "internal_error")
         assert manager.get_game("game1") is None
         assert game.runtime is None
@@ -370,10 +373,10 @@ class TestGameEndFromTimeout:
         assert manager.get_playing_game_id("user-0") is None
         assert game_repo.games["game1"].end_reason == GameEndReason.COMPLETED
         assert game_repo.games["game1"].ended_at is not None
-        replay_text = gzip.decompress(replay_file_path(tmp_path, "game1").read_bytes()).decode()
-        replay_lines = [json.loads(line) for line in replay_text.splitlines()]
-        assert EVENT_TYPE_INT[EventType.DRAW] in [line.get("t") for line in replay_lines]
-        assert [line for line in replay_lines if WAIT_ID_KEY in line] == []
+        replay_content = gzip.decompress(replay_file_path(tmp_path, "game1").read_bytes())
+        replay_lines = decode_replay_records(replay_content)
+        assert EVENT_TYPE_INT[EventType.DRAW] in [line.get(WireKey.EVENT_TYPE) for line in replay_lines]
+        assert [line for line in replay_lines if WireKey.WAIT_ID in line] == []
         assert [(c._close_code, c._close_reason) for c in conns] == [(1000, "game_ended"), (1000, "game_ended")]
 
     async def test_game_message__when_sent_after_the_end_claim_before_the_close__should_get_no_answer(
@@ -388,7 +391,7 @@ class TestGameEndFromTimeout:
 
         manager.handle_game_action(conns[1], action=GameAction.PASS, data={}, wait_id=0)
         await wait_for_background_tasks(manager)
-        assert conns[1].sent_messages[-1]["t"] == EVENT_TYPE_INT[EventType.GAME_END]
+        assert conns[1].sent_messages[-1][WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.GAME_END]
         assert (conns[1]._close_code, conns[1]._close_reason) == (1000, "game_ended")
 
 

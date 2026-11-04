@@ -3,6 +3,7 @@ import contextlib
 import gzip
 import hmac
 import json
+from io import BytesIO
 from typing import TYPE_CHECKING
 
 import structlog
@@ -21,6 +22,7 @@ from game.server.types import CreateGameRequest
 from game.server.websocket import websocket_endpoint
 from game.session.manager import SessionManager
 from game.session.replay_collector import ReplayCollector
+from game.wire.replay_format import MAX_REPLAY_BYTES
 from shared.auth.game_ticket import verify_game_ticket
 from shared.build_info import APP_VERSION, GIT_COMMIT
 from shared.db import Database, SqliteGameRepository
@@ -110,7 +112,10 @@ def _export_tenhou_replay(replay_dir: str, game_id: str) -> str | None:
     if gzip_bytes is None:
         return None
 
-    return convert_replay_content(gzip.decompress(gzip_bytes).decode())
+    with gzip.GzipFile(fileobj=BytesIO(gzip_bytes)) as replay:
+        content = replay.read(MAX_REPLAY_BYTES + 1)
+
+    return convert_replay_content(content)
 
 
 async def tenhou_replay(request: Request) -> Response:

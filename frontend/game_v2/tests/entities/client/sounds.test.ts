@@ -20,7 +20,7 @@ import {
     timelineStates,
 } from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
-import { ROUND_RESULT_TYPE } from "@/shared/protocol";
+import { ROUND_RESULT_TYPE, WIRE_KEY } from "@/shared/protocol";
 
 /** The cues of the named scenario's steps after the one labelled `from` through the one labelled `to`, in order. */
 function cuesAfter(name: string, from: string, to: string): readonly SoundCue[] {
@@ -200,12 +200,14 @@ describe("soundCues", () => {
         }).state;
         const { transcript } = loadSeatScenario("double_ron_seat_1");
         const result = receivedPayload(transcript, "round end");
-        const winner = wirePayloadList(result, "wn").find((candidate) => candidate.ws === 3);
+        const winner = wirePayloadList(result, WIRE_KEY.WINNERS).find(
+            (candidate) => candidate[WIRE_KEY.WINNER_SEAT] === 3,
+        );
         assert(winner !== undefined);
         const resolved = stepGameClient(declared, {
             at: declared.now + 500,
             kind: "server_message",
-            raw: { ...result, ...winner, rt: ROUND_RESULT_TYPE.RON },
+            raw: { ...result, ...winner, [WIRE_KEY.RESULT_TYPE]: ROUND_RESULT_TYPE.RON },
         }).state;
         expect({
             calls: resolved.calls?.calls,
@@ -262,7 +264,7 @@ describe("soundCues after bank entry", () => {
         const opened = stepGameClient(before, {
             at: before.now,
             kind: "server_message",
-            raw: { ...receivedPayload(transcript, "first draw"), bk: 5 },
+            raw: { ...receivedPayload(transcript, "first draw"), [WIRE_KEY.BANK_SECONDS]: 5 },
         }).state;
         expect(decisionOf(opened)?.status.kind).toBe("open");
         expect(cuesBeforeDeadline(opened, [5001, 5000, 5000, 4000])).toEqual([

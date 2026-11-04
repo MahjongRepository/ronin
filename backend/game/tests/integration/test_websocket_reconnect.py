@@ -21,7 +21,9 @@ from game.tests.helpers.websocket import (
     recv_ws,
     send_ws,
 )
+from game.wire.compact import decode_draw
 from game.wire.events import EVENT_TYPE_INT
+from game.wire.keys import WireKey
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -64,7 +66,7 @@ def _make_snapshot(game_id: str = "test_game", seat: int = 0) -> ReconnectionSna
 def _game_with_player1_dropped(client: TestClient) -> Generator[str]:
     tickets = create_pending_game(client, game_id="test_game", num_ai_players=2)
     with client.websocket_connect("/ws/test_game") as player2:
-        send_ws(player2, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": tickets[1]})
+        send_ws(player2, {WireKey.EVENT_TYPE: WireClientMessageType.JOIN_GAME, WireKey.GAME_TICKET: tickets[1]})
         with client.websocket_connect("/ws/test_game") as player1:
             join_game_and_start(player1, tickets[0])
 
@@ -88,27 +90,27 @@ class TestWebSocketReconnect:
             send_ws(
                 ws,
                 {
-                    "t": WireClientMessageType.RECONNECT,
-                    "game_ticket": ticket,
+                    WireKey.EVENT_TYPE: WireClientMessageType.RECONNECT,
+                    WireKey.GAME_TICKET: ticket,
                 },
             )
             msg = recv_ws(ws)
-            assert msg["type"] == SessionMessageType.GAME_RECONNECTED
-            assert msg["gid"] == "test_game"
-            assert msg["s"] == 0
+            assert msg[WireKey.SESSION_TYPE] == SessionMessageType.GAME_RECONNECTED
+            assert msg[WireKey.GAME_ID] == "test_game"
+            assert msg[WireKey.SEAT] == 0
 
     def test_reconnect__when_ticket_invalid__should_return_invalid_ticket_error(self, client):
         with _game_with_player1_dropped(client), client.websocket_connect("/ws/test_game") as ws:
             send_ws(
                 ws,
                 {
-                    "t": WireClientMessageType.RECONNECT,
-                    "game_ticket": "invalid-ticket-string",
+                    WireKey.EVENT_TYPE: WireClientMessageType.RECONNECT,
+                    WireKey.GAME_TICKET: "invalid-ticket-string",
                 },
             )
             msg = recv_ws(ws)
-            assert msg["type"] == SessionMessageType.ERROR
-            assert msg["code"] == SessionErrorCode.INVALID_TICKET
+            assert msg[WireKey.SESSION_TYPE] == SessionMessageType.ERROR
+            assert msg[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.INVALID_TICKET
 
     def test_reconnect__when_game_already_ended__should_return_no_session_error(self, client):
         tickets = create_pending_game(client, game_id="test_game")
@@ -118,10 +120,10 @@ class TestWebSocketReconnect:
         assert client.app.state.session_manager.get_game("test_game") is None
 
         with client.websocket_connect("/ws/test_game") as ws:
-            send_ws(ws, {"t": WireClientMessageType.RECONNECT, "game_ticket": tickets[0]})
+            send_ws(ws, {WireKey.EVENT_TYPE: WireClientMessageType.RECONNECT, WireKey.GAME_TICKET: tickets[0]})
             msg = recv_ws(ws)
-            assert msg["type"] == SessionMessageType.ERROR
-            assert msg["code"] == SessionErrorCode.RECONNECT_NO_SESSION
+            assert msg[WireKey.SESSION_TYPE] == SessionMessageType.ERROR
+            assert msg[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.RECONNECT_NO_SESSION
 
     def test_reconnect__when_action_sent_after_reconnect__should_process_it(self, client):
         sm = client.app.state.session_manager
@@ -131,26 +133,25 @@ class TestWebSocketReconnect:
             send_ws(
                 ws,
                 {
-                    "t": WireClientMessageType.RECONNECT,
-                    "game_ticket": ticket,
+                    WireKey.EVENT_TYPE: WireClientMessageType.RECONNECT,
+                    WireKey.GAME_TICKET: ticket,
                 },
             )
             reconnect_msg = recv_ws(ws)
-            assert reconnect_msg["type"] == SessionMessageType.GAME_RECONNECTED
+            assert reconnect_msg[WireKey.SESSION_TYPE] == SessionMessageType.GAME_RECONNECTED
 
             send_ws(
                 ws,
                 {
-                    "t": WireClientMessageType.GAME_ACTION,
-                    "wi": reconnect_msg["wi"],
-                    "a": WireGameAction.DISCARD,
-                    "ti": 0,
+                    WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
+                    WireKey.WAIT_ID: reconnect_msg[WireKey.WAIT_ID],
+                    WireKey.ACTION: WireGameAction.DISCARD,
+                    WireKey.TILE_ID: 0,
                 },
             )
             action_msg = recv_ws(ws)
-            assert action_msg["t"] == EVENT_TYPE_INT[EventType.DRAW]
-            assert action_msg["seat"] == 0
-            assert action_msg["success"] is True
+            assert action_msg[WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.DRAW]
+            assert decode_draw(action_msg[WireKey.PACKED_MOVE]) == (0, 0)
 
 
 def _look_up_game_session(client: TestClient, user_id: str):
@@ -171,7 +172,7 @@ class TestGameSessionLookup:
     ):
         tickets = create_pending_game(client, game_id="test_game", num_ai_players=2)
         with client.websocket_connect("/ws/test_game") as player2:
-            send_ws(player2, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": tickets[1]})
+            send_ws(player2, {WireKey.EVENT_TYPE: WireClientMessageType.JOIN_GAME, WireKey.GAME_TICKET: tickets[1]})
 
             pending_lookup = _look_up_game_session(client, "user-0")
             assert pending_lookup.status_code == 200
@@ -180,16 +181,20 @@ class TestGameSessionLookup:
 
             with client.websocket_connect("/ws/test_game") as player1:
                 started = join_game_and_start(player1, pending_lookup.json()["game_ticket"])
-                assert started[1]["t"] == EVENT_TYPE_INT[EventType.GAME_STARTED]
+                assert started[1][WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.GAME_STARTED]
 
             playing_lookup = _look_up_game_session(client, "user-0")
             assert playing_lookup.json() == {"game_id": "test_game", "game_ticket": tickets[0]}
 
             with client.websocket_connect("/ws/test_game") as player1:
                 send_ws(
-                    player1, {"t": WireClientMessageType.RECONNECT, "game_ticket": playing_lookup.json()["game_ticket"]}
+                    player1,
+                    {
+                        WireKey.EVENT_TYPE: WireClientMessageType.RECONNECT,
+                        WireKey.GAME_TICKET: playing_lookup.json()["game_ticket"],
+                    },
                 )
-                assert recv_ws(player1)["type"] == SessionMessageType.GAME_RECONNECTED
+                assert recv_ws(player1)[WireKey.SESSION_TYPE] == SessionMessageType.GAME_RECONNECTED
 
     @pytest.mark.parametrize(
         "authorization",

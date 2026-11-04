@@ -172,7 +172,7 @@ export function intentsOf(plays: ReadonlyMap<number, TilePlay>): ReadonlyMap<num
 function offerTiles(offer: Offer): TileFace[] {
     switch (offer.kind) {
         case "chi": {
-            return offer.sequence.map(tile136toString);
+            return offer.sequence.map((tile) => tile136toString(tile));
         }
         case "pon":
         case "kan": {

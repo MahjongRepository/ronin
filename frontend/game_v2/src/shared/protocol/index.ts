@@ -41,6 +41,9 @@ export type {
 
 export { seatDistance, tileType, tileTypeCopies } from "./tiles";
 
+export { WIRE_KEY, LIVE_WIRE_KEYS, REPLAY_WIRE_KEYS } from "./wire-keys";
+export { decodeWireMessage, encodeWireMessage } from "./wire-codec";
+
 export { parseServerMessage } from "./schemas/message";
 export type { ParsedServerMessage } from "./schemas/message";
 

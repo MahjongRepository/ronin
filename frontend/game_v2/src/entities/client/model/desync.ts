@@ -11,6 +11,7 @@ import {
     type ParsedServerMessage,
     SESSION_ERROR_CODE,
     SESSION_MESSAGE_TYPE,
+    WIRE_KEY,
     buildResyncMessage,
 } from "@/shared/protocol";
 
@@ -56,7 +57,7 @@ function failStep(state: LiveClient, detail: string): ClientStep<LiveClient> {
 
 /** Whether a server payload is the snapshot, whether or not it parses. */
 export function isSnapshotPayload(raw: Readonly<Record<string, unknown>>): boolean {
-    return raw.type === SESSION_MESSAGE_TYPE.GAME_RECONNECTED;
+    return raw[WIRE_KEY.SESSION_TYPE] === SESSION_MESSAGE_TYPE.GAME_RECONNECTED;
 }
 
 /**

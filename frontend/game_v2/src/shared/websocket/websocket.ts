@@ -1,7 +1,10 @@
-import { decode, encode } from "@msgpack/msgpack";
-
 import { type CancelTimer, type Clock, browserClock } from "@/shared/clock";
-import { CLOSE_CODE, type ClientMessage } from "@/shared/protocol";
+import {
+    CLOSE_CODE,
+    type ClientMessage,
+    decodeWireMessage,
+    encodeWireMessage,
+} from "@/shared/protocol";
 
 /** What one socket reports; after `onClose` it reports nothing more. */
 export interface SocketHandlers {
@@ -34,10 +37,6 @@ const SERVER_SILENT_CLOSE = { code: CLOSE_CODE.ABNORMAL, reason: "server_silent"
 export const DEFAULT_SERVER_SILENCE_LIMIT_MS = 90_000;
 const SILENCE_CHECK_INTERVAL_MS = 5000;
 
-function isWireRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 type DecodedFrame =
     | { readonly ok: true; readonly message: Record<string, unknown> }
     | { readonly ok: false; readonly detail: string };
@@ -46,15 +45,11 @@ function decodeFrame(data: unknown): DecodedFrame {
     if (!(data instanceof ArrayBuffer)) {
         return { detail: "Received a non-binary frame", ok: false };
     }
-    let message: unknown = null;
     try {
-        message = decode(new Uint8Array(data));
+        return { message: decodeWireMessage(new Uint8Array(data)), ok: true };
     } catch {
         return { detail: "Failed to decode a MessagePack frame", ok: false };
     }
-    return isWireRecord(message)
-        ? { message, ok: true }
-        : { detail: "Received a frame that is not a message object", ok: false };
 }
 
 /**
@@ -82,7 +77,7 @@ export class GameSocket implements GameConnection {
 
     send(message: ClientMessage): void {
         if (this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(encode(message));
+            this.ws.send(encodeWireMessage(message));
         }
     }
 

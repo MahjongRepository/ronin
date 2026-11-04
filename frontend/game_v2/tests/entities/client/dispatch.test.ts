@@ -25,7 +25,7 @@ import {
     takesIntent,
 } from "@/entities/client";
 import { WIN_CALLOUT_CONTEXT_MS } from "@/entities/client/model/calls";
-import { buildConfirmRoundAction, buildResyncMessage } from "@/shared/protocol";
+import { WIRE_KEY, buildConfirmRoundAction, buildResyncMessage } from "@/shared/protocol";
 
 const { closed, confirm, message, opened, tick } = clientEvent;
 
@@ -53,7 +53,7 @@ function connectTimeoutEffects(event: (at: number) => LiveEvent): readonly Clien
 
 /** What a socket error asks for once the resync request of a client that lost step at 5000 comes due. */
 function resyncDueEffects(state: LiveClient): readonly ClientEffect[] {
-    const desynced = stepGameClient(state, message(5000, { t: 999 })).state;
+    const desynced = stepGameClient(state, message(5000, { [WIRE_KEY.EVENT_TYPE]: 999 })).state;
     return stepGameClient(desynced, socketError(5000 + RESYNC_ANSWER_MS)).effects;
 }
 
@@ -155,7 +155,7 @@ describe("stepGameClient", () => {
         const roundEnd = message(250, wireRoundEnd(5));
 
         expect([
-            furitenAfter(message(100, { f: true, t: 11 })),
+            furitenAfter(message(100, { [WIRE_KEY.FURITEN]: true, [WIRE_KEY.EVENT_TYPE]: 11 })),
             furitenAfter(message(200, WIRE_DRAW)),
             furitenAfter(roundEnd),
             furitenAfter(message(300, WIRE_ROUND_STARTED)),
@@ -166,7 +166,7 @@ describe("stepGameClient", () => {
         const scenario = playingScenario();
         const { session } = scenario.state;
 
-        const [report] = scenario.step(message(100, { t: 99 }));
+        const [report] = scenario.step(message(100, { [WIRE_KEY.EVENT_TYPE]: 99 }));
         expect(report?.type).toBe("report_protocol_failure");
         expect(scenario.state.session).toBe(session);
     });
@@ -179,7 +179,7 @@ describe("stepGameClient", () => {
         expect(takesIntent(ended, { type: "show_last_result" })).toBe(false);
 
         expect(scenario.step(message(200, WIRE_ROUND_STARTED))).toEqual([]);
-        expect(scenario.step(message(300, { t: 99 }))).toEqual([]);
+        expect(scenario.step(message(300, { [WIRE_KEY.EVENT_TYPE]: 99 }))).toEqual([]);
         expect(scenario.state.table).toBe(ended.table);
         expect([scenario.state.table.phase, desyncOf(scenario.state)?.unreadMessages ?? 0]).toEqual(
             ["game_ended", desyncOf(ended)?.unreadMessages ?? 0],

@@ -36,6 +36,7 @@ function applyGameStarted(state: TableState, event: GameStartedEvent): TableStat
         firstDealerSeat: event.dealerSeat,
         gameId: event.gameId,
         gameType: event.gameType,
+        hasAkadora: event.hasAkadora,
         phase: "pre_game",
         players,
         riichiStickValue: event.riichiStickValue,

@@ -29,9 +29,10 @@ from game.tests.unit.session.helpers import (
     runtime_of,
     wait_for_background_tasks,
 )
-from game.wire.compact import encode_draw
+from game.wire.compact import decode_draw, encode_draw
 from game.wire.enums import WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT
+from game.wire.keys import WireKey
 
 
 def _make_snapshot(game_id: str = "game1", seat: int = 0) -> ReconnectionSnapshot:
@@ -85,14 +86,16 @@ class TestSessionManagerReconnect:
         new_conn = MockConnection()
         manager.register_connection(new_conn)
         manager.reconnect(new_conn, session_token=alice_token)
-        reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
-        assert len(reconnect_msgs) == 1
-        assert reconnect_msgs[0]["gid"] == "game1"
-        assert reconnect_msgs[0]["s"] == 0
-        assert reconnect_msgs[0]["f"] is True
-        assert [m for m in bob_conn.sent_messages if m.get("type") == SessionMessageType.SEAT_CONTROL] == [
-            {"type": "seat_control", "s": 0}
+        reconnect_msgs = [
+            m for m in new_conn.sent_messages if m.get(WireKey.SESSION_TYPE) == SessionMessageType.GAME_RECONNECTED
         ]
+        assert len(reconnect_msgs) == 1
+        assert reconnect_msgs[0][WireKey.GAME_ID] == "game1"
+        assert reconnect_msgs[0][WireKey.SEAT] == 0
+        assert reconnect_msgs[0][WireKey.FURITEN] is True
+        assert [
+            m for m in bob_conn.sent_messages if m.get(WireKey.SESSION_TYPE) == SessionMessageType.SEAT_CONTROL
+        ] == [{WireKey.SESSION_TYPE: "seat_control", WireKey.SEAT: 0}]
 
     @pytest.mark.asyncio
     async def test_reconnect__when_another_seat_is_held_for_its_participant__should_mark_it_as_a_stand_in(
@@ -108,10 +111,17 @@ class TestSessionManagerReconnect:
         new_conn = MockConnection()
         manager.register_connection(new_conn)
         manager.reconnect(new_conn, session_token=alice_token)
-        snapshot = next(m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED)
-        players = {player["s"]: player for player in snapshot["p"]}
-        assert players[bob_seat] == {"s": bob_seat, "nm": "AI", "ai": 0, "sr": 0}
-        assert players[0] == {"s": 0, "nm": "Alice", "ai": 0}
+        snapshot = next(
+            m for m in new_conn.sent_messages if m.get(WireKey.SESSION_TYPE) == SessionMessageType.GAME_RECONNECTED
+        )
+        players = {player[WireKey.SEAT]: player for player in snapshot[WireKey.PLAYERS]}
+        assert players[bob_seat] == {
+            WireKey.SEAT: bob_seat,
+            WireKey.NAME: "AI",
+            WireKey.AI_PLAYER: 0,
+            WireKey.STAND_IN_REASON: 0,
+        }
+        assert players[0] == {WireKey.SEAT: 0, WireKey.NAME: "Alice", WireKey.AI_PLAYER: 0}
 
     @pytest.mark.asyncio
     async def test_reconnect__when_token_unknown__should_return_no_session_error(self, manager):
@@ -120,9 +130,9 @@ class TestSessionManagerReconnect:
         new_conn = MockConnection()
         manager.register_connection(new_conn)
         manager.reconnect(new_conn, session_token="nonexistent-token")
-        error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
+        error_msgs = [m for m in new_conn.sent_messages if m.get(WireKey.SESSION_TYPE) == SessionMessageType.ERROR]
         assert len(error_msgs) == 1
-        assert error_msgs[0]["code"] == SessionErrorCode.RECONNECT_NO_SESSION
+        assert error_msgs[0][WireKey.SESSION_ERROR_CODE] == SessionErrorCode.RECONNECT_NO_SESSION
 
     @pytest.mark.asyncio
     async def test_reconnect__when_game_id_differs_from_session__should_return_game_mismatch_error(self, manager):
@@ -134,9 +144,9 @@ class TestSessionManagerReconnect:
         new_conn = MockConnection(game_id="wrong_game_id")
         manager.register_connection(new_conn)
         manager.reconnect(new_conn, session_token=alice_token)
-        error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
+        error_msgs = [m for m in new_conn.sent_messages if m.get(WireKey.SESSION_TYPE) == SessionMessageType.ERROR]
         assert len(error_msgs) == 1
-        assert error_msgs[0]["code"] == SessionErrorCode.RECONNECT_GAME_MISMATCH
+        assert error_msgs[0][WireKey.SESSION_ERROR_CODE] == SessionErrorCode.RECONNECT_GAME_MISMATCH
 
 
 class TestBankTimePreservation:
@@ -161,8 +171,10 @@ class TestBankTimePreservation:
         manager.reconnect(new_conn, session_token=alice.ticket)
         assert alice.connection is new_conn
         assert alice.timer._bank_seconds == bank_after_leave
-        reconnected = next(m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED)
-        assert reconnected["tm"]["bk"] == bank_after_leave
+        reconnected = next(
+            m for m in new_conn.sent_messages if m.get(WireKey.SESSION_TYPE) == SessionMessageType.GAME_RECONNECTED
+        )
+        assert reconnected[WireKey.TIMER_SETTINGS][WireKey.BANK_SECONDS] == bank_after_leave
 
     async def test_bank_time__when_player_leaves_during_meld_prompt__should_charge_overtime(
         self, seeded_engine, fake_clock
@@ -202,7 +214,7 @@ class TestReconnectTakeover:
         awaiting = game_of(manager).awaiting
         decision_id = alice.decision_id
         deadline, bank = alice.timer.task, alice.timer.bank_seconds
-        replay_lines = list(game_of(manager).replay.lines)
+        replay_lines = list(game_of(manager).replay.records)
         fake_clock.advance(7)
 
         new_conn = MockConnection()
@@ -210,9 +222,17 @@ class TestReconnectTakeover:
         manager.reconnect(new_conn, session_token=alice.ticket)
         reconnected, draw = new_conn.sent_messages
         drawn_tile = runtime.state.round_state.players[alice.seat].tiles[-1]
-        assert (reconnected["type"], reconnected["wi"]) == (SessionMessageType.GAME_RECONNECTED, decision_id)
-        assert "oc" not in reconnected
-        assert (draw["t"], draw["d"], draw["wi"], draw["el"]) == (
+        assert (reconnected[WireKey.SESSION_TYPE], reconnected[WireKey.WAIT_ID]) == (
+            SessionMessageType.GAME_RECONNECTED,
+            decision_id,
+        )
+        assert WireKey.CONFIRMATION_OWED not in reconnected
+        assert (
+            draw[WireKey.EVENT_TYPE],
+            draw[WireKey.PACKED_MOVE],
+            draw[WireKey.WAIT_ID],
+            draw[WireKey.WAIT_ELAPSED],
+        ) == (
             EVENT_TYPE_INT[EventType.DRAW],
             encode_draw(alice.seat, drawn_tile),
             decision_id,
@@ -236,7 +256,7 @@ class TestReconnectTakeover:
         assert alice.timer.task is deadline
         assert old_conn.sent_messages == []
         assert bob_conn.sent_messages == []
-        assert game_of(manager).replay.lines == replay_lines
+        assert game_of(manager).replay.records == replay_lines
 
         await manager.shutdown()
 
@@ -257,7 +277,9 @@ class TestReconnectTakeover:
         )
         prompt = game_of(manager).awaiting
         assert (prompt.kind, prompt.seats) == (WaitKind.CALL, frozenset({bob.seat, carol.seat}))
-        original_prompt = next(m for m in conns[2].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT])
+        original_prompt = next(
+            m for m in conns[2].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.CALL_PROMPT]
+        )
         carol_deadline = carol.timer.task
         fake_clock.advance(7)
 
@@ -265,21 +287,27 @@ class TestReconnectTakeover:
         manager.register_connection(new_conn)
         manager.reconnect(new_conn, session_token=carol.ticket)
         reconnected, call_prompt = new_conn.sent_messages
-        assert reconnected["wi"] == original_prompt["wi"]
-        assert (call_prompt["t"], call_prompt["ti"], call_prompt["cs"], call_prompt["wi"], call_prompt["el"]) == (
+        assert reconnected[WireKey.WAIT_ID] == original_prompt[WireKey.WAIT_ID]
+        assert (
+            call_prompt[WireKey.EVENT_TYPE],
+            call_prompt[WireKey.TILE_ID],
+            call_prompt[WireKey.CALLER_SEAT],
+            call_prompt[WireKey.WAIT_ID],
+            call_prompt[WireKey.WAIT_ELAPSED],
+        ) == (
             EVENT_TYPE_INT[EventType.CALL_PROMPT],
             discarded_four_pin,
             carol.seat,
-            original_prompt["wi"],
+            original_prompt[WireKey.WAIT_ID],
             7,
         )
-        assert call_prompt["bk"] == 20
-        assert [call["clt"] for call in call_prompt["ac"]] == [WireMeldCallType.PON]
+        assert call_prompt[WireKey.BANK_SECONDS] == 20
+        assert [call[WireKey.CALL_TYPE] for call in call_prompt[WireKey.AVAILABLE_CALLS]] == [WireMeldCallType.PON]
         assert game_of(manager).awaiting == prompt
         assert carol.timer.task is carol_deadline
         assert not carol_deadline.done()
 
-        manager.handle_game_action(new_conn, action=GameAction.PASS, data={}, wait_id=original_prompt["wi"])
+        manager.handle_game_action(new_conn, action=GameAction.PASS, data={}, wait_id=original_prompt[WireKey.WAIT_ID])
         assert game_of(manager).awaiting.seats == frozenset({bob.seat})
         assert carol.timer.bank_seconds == 18
 
@@ -300,9 +328,13 @@ class TestReconnectTakeover:
             wait_id=current_wait_id(manager, alice_conn),
         )
         round_end = current_wait_id(manager, alice_conn)
-        alice_result = next(m for m in alice_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.ROUND_END])
-        bob_result = next(m for m in bob_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.ROUND_END])
-        assert (alice_result["wi"], bob_result["wi"]) == (2, 1)
+        alice_result = next(
+            m for m in alice_conn.sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.ROUND_END]
+        )
+        bob_result = next(
+            m for m in bob_conn.sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.ROUND_END]
+        )
+        assert (alice_result[WireKey.WAIT_ID], bob_result[WireKey.WAIT_ID]) == (2, 1)
         manager.handle_game_action(alice_conn, action=GameAction.CONFIRM_ROUND, data={}, wait_id=round_end)
         advance = game_of(manager).awaiting
         assert (advance.kind, advance.seats) == (WaitKind.ROUND_ADVANCE, frozenset({bob.seat}))
@@ -310,19 +342,25 @@ class TestReconnectTakeover:
         fake_clock.advance(4)
 
         owed = {}
-        for participant, decision_id in ((alice, alice_result["wi"]), (bob, bob_result["wi"])):
+        for participant, decision_id in ((alice, alice_result[WireKey.WAIT_ID]), (bob, bob_result[WireKey.WAIT_ID])):
             new_conn = MockConnection()
             manager.register_connection(new_conn)
             manager.reconnect(new_conn, session_token=participant.ticket)
             [reconnected] = new_conn.sent_messages
-            assert reconnected["re"]["rt"] == WireRoundResultType.EXHAUSTIVE_DRAW
-            assert reconnected["wi"] == decision_id
-            owed[participant.name] = (reconnected["oc"], reconnected.get("el"), reconnected.get("at"))
+            assert reconnected[WireKey.ROUND_RESULT][WireKey.RESULT_TYPE] == WireRoundResultType.EXHAUSTIVE_DRAW
+            assert reconnected[WireKey.WAIT_ID] == decision_id
+            owed[participant.name] = (
+                reconnected[WireKey.CONFIRMATION_OWED],
+                reconnected.get(WireKey.WAIT_ELAPSED),
+                reconnected.get(WireKey.ROUND_ADVANCE_SECONDS),
+            )
 
         assert owed == {"Alice": (False, None, None), "Bob": (True, 4, 10)}
         assert bob.timer.task is bob_deadline
 
-        manager.handle_game_action(bob.connection, action=GameAction.CONFIRM_ROUND, data={}, wait_id=bob_result["wi"])
+        manager.handle_game_action(
+            bob.connection, action=GameAction.CONFIRM_ROUND, data={}, wait_id=bob_result[WireKey.WAIT_ID]
+        )
         assert game_of(manager).awaiting.round_number == advance.round_number + 1
 
         await manager.shutdown()
@@ -335,7 +373,9 @@ class TestReconnectTakeover:
         alice = participant_of(manager, alice_conn)
 
         manager.reconnect(bob_conn, session_token=alice.ticket)
-        assert [m["code"] for m in bob_conn.sent_messages] == [SessionErrorCode.RECONNECT_ALREADY_ACTIVE]
+        assert [m[WireKey.SESSION_ERROR_CODE] for m in bob_conn.sent_messages] == [
+            SessionErrorCode.RECONNECT_ALREADY_ACTIVE
+        ]
         assert alice.connection is alice_conn
         assert not alice_conn.is_closed
 
@@ -352,8 +392,10 @@ class TestReconnectEdgeCases:
 
         bob_conn = conns[1]
         manager.reconnect(bob_conn, session_token=alice_token)
-        error_msgs = [m for m in bob_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
-        reconnect_errors = [m for m in error_msgs if m["code"] == SessionErrorCode.RECONNECT_ALREADY_ACTIVE]
+        error_msgs = [m for m in bob_conn.sent_messages if m.get(WireKey.SESSION_TYPE) == SessionMessageType.ERROR]
+        reconnect_errors = [
+            m for m in error_msgs if m[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.RECONNECT_ALREADY_ACTIVE
+        ]
         assert len(reconnect_errors) == 1
 
     @pytest.mark.asyncio
@@ -370,7 +412,9 @@ class TestReconnectEdgeCases:
         new_conn = MockConnection()
         router.handle_connect(new_conn)
 
-        router.handle_message(new_conn, {"t": WireClientMessageType.RECONNECT, "game_ticket": alice_token})
+        router.handle_message(
+            new_conn, {WireKey.EVENT_TYPE: WireClientMessageType.RECONNECT, WireKey.GAME_TICKET: alice_token}
+        )
         assert new_conn.connection_id not in manager._connections
         router.handle_disconnect(new_conn)
         await wait_for_background_tasks(manager)
@@ -393,7 +437,9 @@ class TestReconnectToEndedGame:
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)
         manager.reconnect(reconnecting, session_token=bob_token)
-        assert [m["code"] for m in reconnecting.sent_messages] == [SessionErrorCode.RECONNECT_NO_SESSION]
+        assert [m[WireKey.SESSION_ERROR_CODE] for m in reconnecting.sent_messages] == [
+            SessionErrorCode.RECONNECT_NO_SESSION
+        ]
 
 
 class TestReconnectDuringRoundAdvance:
@@ -413,11 +459,11 @@ class TestReconnectDuringRoundAdvance:
         manager.register_connection(reconnecting)
         manager.reconnect(reconnecting, session_token=bob_token)
         reconnected = next(
-            m for m in reconnecting.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED
+            m for m in reconnecting.sent_messages if m.get(WireKey.SESSION_TYPE) == SessionMessageType.GAME_RECONNECTED
         )
-        assert reconnected["re"]["rt"] == WireRoundResultType.EXHAUSTIVE_DRAW
-        assert reconnected["wi"] == bob_wait_id
-        assert reconnected["oc"] is False
+        assert reconnected[WireKey.ROUND_RESULT][WireKey.RESULT_TYPE] == WireRoundResultType.EXHAUSTIVE_DRAW
+        assert reconnected[WireKey.WAIT_ID] == bob_wait_id
+        assert reconnected[WireKey.CONFIRMATION_OWED] is False
 
         await manager.shutdown()
 
@@ -441,7 +487,9 @@ class TestReconnectToPendingGame:
         before_start = MockConnection()
         manager.register_connection(before_start)
         manager.reconnect(before_start, session_token="ticket-A")
-        assert [m["code"] for m in before_start.sent_messages] == [SessionErrorCode.RECONNECT_RETRY_LATER]
+        assert [m[WireKey.SESSION_ERROR_CODE] for m in before_start.sent_messages] == [
+            SessionErrorCode.RECONNECT_RETRY_LATER
+        ]
         assert manager.get_playing_game_id("user-A") == "game1"
 
         await manager.shutdown()
@@ -462,7 +510,6 @@ class TestReconnectThenPlay:
         manager.handle_game_action(
             new_conn, action=GameAction.DISCARD, data={"tile_id": 1}, wait_id=current_wait_id(manager, new_conn)
         )
-        action_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
+        action_msgs = [m for m in new_conn.sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(action_msgs) == 1
-        assert action_msgs[0]["seat"] == 0
-        assert action_msgs[0]["action"] == GameAction.DISCARD
+        assert decode_draw(action_msgs[0][WireKey.PACKED_MOVE]) == (0, 1)

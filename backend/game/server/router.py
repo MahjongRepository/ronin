@@ -41,7 +41,7 @@ class MessageRouter:
     def handle_message(
         self,
         connection: ConnectionProtocol,
-        raw_message: dict[str, Any],
+        raw_message: dict[int, Any],
     ) -> None:
         try:
             message = parse_client_message(raw_message)
@@ -160,8 +160,8 @@ class MessageRouter:
         try:
             self._session_manager.handle_game_action(
                 connection=connection,
-                action=GameAction[message.a.name],
-                data=message.model_dump(exclude={"t", "a", "wait_id"}),
+                action=GameAction[message.action.name],
+                data=message.model_dump(exclude={"message_type", "action", "wait_id"}),
                 wait_id=message.wait_id,
             )
         except Exception as exc:  # noqa: BLE001

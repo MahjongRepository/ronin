@@ -54,7 +54,7 @@ class ConnectionProtocol(ABC):
         """
         ...
 
-    def send_message(self, data: dict[str, Any]) -> None:
+    def send_message(self, data: dict[int, Any]) -> None:
         """
         Encode a message with MessagePack and queue it; an encoding error raises here, at the caller.
         """

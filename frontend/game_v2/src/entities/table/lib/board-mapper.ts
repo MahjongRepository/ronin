@@ -26,8 +26,8 @@ function formatScore(score: number): string {
     return String(score);
 }
 
-function toHandTile(tileId: number, show: "face" | "back"): HandTile {
-    return { face: tile136toString(tileId), show, tileId };
+function toHandTile(tileId: number, show: "face" | "back", hasAkadora: boolean): HandTile {
+    return { face: tile136toString(tileId, hasAkadora), show, tileId };
 }
 
 /**
@@ -37,18 +37,20 @@ function toHandTile(tileId: number, show: "face" | "back"): HandTile {
 function buildHandTiles(
     player: PlayerState,
     show: "face" | "back",
+    hasAkadora: boolean,
 ): { baseTiles: HandTile[]; drawnTile: HandTile | undefined } {
     const drawnIndex = player.drawnTileId === null ? -1 : player.tiles.indexOf(player.drawnTileId);
     const known = player.tiles
         .filter((_tileId, index) => index !== drawnIndex)
         .toSorted((first, second) => first - second)
-        .map((tileId) => toHandTile(tileId, show));
+        .map((tileId) => toHandTile(tileId, show, hasAkadora));
     const concealedDrawn = drawnIndex === -1 && player.drawnConcealed && player.concealedCount > 0;
     const concealed = Array.from(
         { length: player.concealedCount - (concealedDrawn ? 1 : 0) },
         () => CONCEALED_TILE,
     );
-    const knownDrawn = drawnIndex === -1 ? undefined : toHandTile(player.tiles[drawnIndex], show);
+    const knownDrawn =
+        drawnIndex === -1 ? undefined : toHandTile(player.tiles[drawnIndex], show, hasAkadora);
     return {
         baseTiles: [...known, ...concealed],
         drawnTile: concealedDrawn ? CONCEALED_TILE : knownDrawn,
@@ -74,6 +76,7 @@ function sidewaysDiscardIndex(discards: PlayerState["discards"]): number {
 export function buildDiscardTiles(
     discards: PlayerState["discards"],
     marksLatest: boolean,
+    hasAkadora = true,
 ): DiscardTile[] {
     const sideways = sidewaysDiscardIndex(discards);
     const last = marksLatest ? discards.length - 1 : -1;
@@ -82,7 +85,7 @@ export function buildDiscardTiles(
             ? []
             : [
                   {
-                      face: tile136toString(d.tileId),
+                      face: tile136toString(d.tileId, hasAkadora),
                       last: index === last,
                       riichi: index === sideways,
                       tileId: d.tileId,
@@ -107,13 +110,17 @@ function mapPlayerDisplay(
     const shown =
         perspective.reveal === "all" || atBottom || state.revealedSeats.includes(player.seat);
     const show = shown ? "face" : "back";
-    const { baseTiles, drawnTile } = buildHandTiles(player, show);
+    const { baseTiles, drawnTile } = buildHandTiles(player, show, state.hasAkadora);
 
     return {
-        discards: buildDiscardTiles(player.discards, player.seat === state.lastDiscardSeat),
+        discards: buildDiscardTiles(
+            player.discards,
+            player.seat === state.lastDiscardSeat,
+            state.hasAkadora,
+        ),
         drawnTile,
         hand: baseTiles,
-        melds: player.melds.map(meldTiles),
+        melds: player.melds.map((meld) => meldTiles(meld, state.hasAkadora)),
     };
 }
 
@@ -209,7 +216,7 @@ function tableStateToDisplayState(
 
     return {
         center: {
-            doraIndicators: state.doraIndicators.map((id) => tile136toString(id)),
+            doraIndicators: state.doraIndicators.map((id) => tile136toString(id, state.hasAkadora)),
             honbaSticks: state.honbaSticks,
             riichiSticks: state.riichiSticks,
             roundDisplay: roundName(state.roundWind, state.roundInWind),

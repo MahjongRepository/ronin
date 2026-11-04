@@ -6,7 +6,6 @@ from starlette.responses import JSONResponse
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from game.logic.enums import GameAction
 from game.logic.events import EventType
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
@@ -21,9 +20,15 @@ from game.tests.helpers.websocket import (
     send_ws,
 )
 from game.tests.mocks import MOCK_AWAITING, MockGameService
+from game.wire.compact import decode_draw
 from game.wire.events import EVENT_TYPE_INT
+from game.wire.keys import WireKey
 
-ACTION_OUTSIDE_A_GAME = {"t": WireClientMessageType.GAME_ACTION, "wi": 0, "a": WireGameAction.PASS}
+ACTION_OUTSIDE_A_GAME = {
+    WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
+    WireKey.WAIT_ID: 0,
+    WireKey.ACTION: WireGameAction.PASS,
+}
 
 
 class TestWebSocketIntegration:
@@ -41,8 +46,8 @@ class TestWebSocketIntegration:
         tickets = create_pending_game(client, game_id="test_game")
         with client.websocket_connect("/ws/test_game") as ws:
             joined, *events = join_game_and_start(ws, tickets[0])
-            assert joined == {"pt": 30, "type": "game_joined"}
-            assert [message["t"] for message in events] == [
+            assert joined == {WireKey.PENDING_GAME_TIMEOUT: 30, WireKey.SESSION_TYPE: "game_joined"}
+            assert [message[WireKey.EVENT_TYPE] for message in events] == [
                 EVENT_TYPE_INT[EventType.GAME_STARTED],
                 EVENT_TYPE_INT[EventType.ROUND_STARTED],
             ]
@@ -56,17 +61,15 @@ class TestWebSocketIntegration:
             send_ws(
                 ws,
                 {
-                    "t": WireClientMessageType.GAME_ACTION,
-                    "wi": MOCK_AWAITING.wait_id,
-                    "a": WireGameAction.DISCARD,
-                    "ti": 0,
+                    WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
+                    WireKey.WAIT_ID: MOCK_AWAITING.wait_id,
+                    WireKey.ACTION: WireGameAction.DISCARD,
+                    WireKey.TILE_ID: 0,
                 },
             )
             response = recv_ws(ws)
-            assert response["t"] == EVENT_TYPE_INT[EventType.DRAW]
-            assert response["seat"] == 0
-            assert response["action"] == GameAction.DISCARD
-            assert response["success"] is True
+            assert response[WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.DRAW]
+            assert decode_draw(response[WireKey.PACKED_MOVE]) == (0, 0)
 
     def test_websocket__when_msgpack_invalid__should_return_error_and_keep_connection(self, client):
         tickets = create_pending_game(client, game_id="test_game")
@@ -75,16 +78,16 @@ class TestWebSocketIntegration:
             # Send garbage bytes that aren't valid MessagePack
             ws.send_bytes(b"\xff\xff\xff")
             response = recv_ws(ws)
-            assert response["type"] == SessionMessageType.ERROR
-            assert response["code"] == SessionErrorCode.INVALID_MESSAGE
+            assert response[WireKey.SESSION_TYPE] == SessionMessageType.ERROR
+            assert response[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.INVALID_MESSAGE
 
             # Connection should still be alive - verify by sending a valid join
             send_ws(
                 ws,
-                {"t": WireClientMessageType.JOIN_GAME, "game_ticket": tickets[0]},
+                {WireKey.EVENT_TYPE: WireClientMessageType.JOIN_GAME, WireKey.GAME_TICKET: tickets[0]},
             )
             msg = recv_ws(ws)
-            assert msg["type"] == SessionMessageType.GAME_JOINED
+            assert msg[WireKey.SESSION_TYPE] == SessionMessageType.GAME_JOINED
 
     def test_websocket__when_join_ticket_invalid__should_return_invalid_ticket_error(self, client):
         create_pending_game(client, game_id="test_game")
@@ -92,21 +95,21 @@ class TestWebSocketIntegration:
         with client.websocket_connect("/ws/test_game") as ws:
             send_ws(
                 ws,
-                {"t": WireClientMessageType.JOIN_GAME, "game_ticket": "not-a-valid-ticket"},
+                {WireKey.EVENT_TYPE: WireClientMessageType.JOIN_GAME, WireKey.GAME_TICKET: "not-a-valid-ticket"},
             )
             response = recv_ws(ws)
-            assert response["type"] == SessionMessageType.ERROR
-            assert response["code"] == SessionErrorCode.INVALID_TICKET
+            assert response[WireKey.SESSION_TYPE] == SessionMessageType.ERROR
+            assert response[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.INVALID_TICKET
 
     def test_websocket__when_client_sends_a_text_frame__should_count_a_decode_strike_and_keep_connection(self, client):
         with client.websocket_connect("/ws/test_game") as ws:
             ws.send_text("not a binary frame")
             response = recv_ws(ws)
-            assert response["type"] == SessionMessageType.ERROR
-            assert response["code"] == SessionErrorCode.INVALID_MESSAGE
+            assert response[WireKey.SESSION_TYPE] == SessionMessageType.ERROR
+            assert response[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.INVALID_MESSAGE
 
             send_ws(ws, ACTION_OUTSIDE_A_GAME)
-            assert recv_ws(ws)["code"] == SessionErrorCode.NOT_IN_GAME
+            assert recv_ws(ws)[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.NOT_IN_GAME
 
     def test_websocket__when_game_id_invalid__should_reject_before_accept(self, client):
         with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws/invalid game!"):
@@ -129,17 +132,17 @@ class TestWebSocketIntegration:
             for _ in range(2):
                 ws.send_bytes(b"\xff\xff\xff")
                 resp = recv_ws(ws)
-                assert resp["code"] == SessionErrorCode.INVALID_MESSAGE
+                assert resp[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.INVALID_MESSAGE
 
             send_ws(ws, ACTION_OUTSIDE_A_GAME)
             resp = recv_ws(ws)
-            assert resp["code"] == SessionErrorCode.NOT_IN_GAME
+            assert resp[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.NOT_IN_GAME
 
             # Send 2 more bad messages - should still be under threshold
             for _ in range(2):
                 ws.send_bytes(b"\xff\xff\xff")
                 resp = recv_ws(ws)
-                assert resp["code"] == SessionErrorCode.INVALID_MESSAGE
+                assert resp[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.INVALID_MESSAGE
 
     def test_websocket__when_burst_exceeded_by_a_frame_without_a_readable_wait_id__should_return_rate_limited_unnamed(
         self, client
@@ -150,12 +153,16 @@ class TestWebSocketIntegration:
             client.websocket_connect("/ws/test_game") as ws,
         ):
             ws.send_bytes(b"\xff\xff\xff")
-            assert recv_ws(ws)["code"] == SessionErrorCode.INVALID_MESSAGE
+            assert recv_ws(ws)[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.INVALID_MESSAGE
             send_ws(ws, ACTION_OUTSIDE_A_GAME)
-            assert recv_ws(ws)["code"] == SessionErrorCode.NOT_IN_GAME
+            assert recv_ws(ws)[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.NOT_IN_GAME
 
-            send_ws(ws, {**ACTION_OUTSIDE_A_GAME, "wi": "0"})
-            assert recv_ws(ws) == {"type": "session_error", "code": "rate_limited", "message": "Too many messages"}
+            send_ws(ws, {**ACTION_OUTSIDE_A_GAME, WireKey.WAIT_ID: "0"})
+            assert recv_ws(ws) == {
+                WireKey.SESSION_TYPE: "session_error",
+                WireKey.SESSION_ERROR_CODE: "rate_limited",
+                WireKey.SESSION_ERROR_MESSAGE: "Too many messages",
+            }
 
     def test_websocket__when_malformed_after_burst_exhausted__should_drop_replies_and_disconnect_on_decode_strikes(
         self, client

@@ -108,8 +108,8 @@ function loadedReplay(
 }
 
 /** Read a replay file for its page: its timeline, its stops by round from the first deal, and where it broke off. */
-export function readReplay(text: string): ReplayRead {
-    const read = readReplayTimeline(text);
+export function readReplay(content: Uint8Array): ReplayRead {
+    const read = readReplayTimeline(content);
     if (!read.ok) {
         return { ok: false, unshowable: read.refusal };
     }

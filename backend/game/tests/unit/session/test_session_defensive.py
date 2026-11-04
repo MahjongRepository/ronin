@@ -3,6 +3,7 @@ from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.session.models import PlayerSpec
 from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.mocks import MOCK_AWAITING, MockConnection
+from game.wire.keys import WireKey
 
 from .helpers import game_of
 
@@ -15,8 +16,8 @@ class TestSessionManagerDefensiveChecks:
         manager.handle_game_action(conn, action=GameAction.DISCARD, data={}, wait_id=MOCK_AWAITING.wait_id)
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
-        assert msg["type"] == SessionMessageType.ERROR
-        assert msg["code"] == SessionErrorCode.NOT_IN_GAME
+        assert msg[WireKey.SESSION_TYPE] == SessionMessageType.ERROR
+        assert msg[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.NOT_IN_GAME
 
     async def test_shutdown__when_game_pending__should_cancel_timeout_task(self, manager):
         ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")

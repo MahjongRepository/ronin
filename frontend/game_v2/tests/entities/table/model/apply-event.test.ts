@@ -26,7 +26,7 @@ import { DesyncError } from "@/entities/table/model/desync-error";
 import { createInitialTableState } from "@/entities/table/model/initial-state";
 import { type ReplayEvent, type TableEvent, type TableState } from "@/entities/table/model/types";
 import { meldTiles } from "@/entities/tile";
-import { GAME_END_CAUSE, ROUND_RESULT_TYPE, parseServerMessage } from "@/shared/protocol";
+import { GAME_END_CAUSE, ROUND_RESULT_TYPE, WIRE_KEY, parseServerMessage } from "@/shared/protocol";
 import { type DecodedMeld } from "@/shared/protocol/decoders/meld";
 
 describe("applyEvent - game_started", () => {
@@ -371,8 +371,15 @@ describe("applyEvent - dora_revealed", () => {
 
 describe("applyEvent - seat presence", () => {
     test("marks a seat the live session hands to an AI player as held for its human until the human returns", () => {
-        const [awayError, away] = parseServerMessage({ r: 0, s: 3, type: "seat_control" });
-        const [backError, back] = parseServerMessage({ s: 3, type: "seat_control" });
+        const [awayError, away] = parseServerMessage({
+            [WIRE_KEY.SEAT_CONTROL_REASON]: 0,
+            [WIRE_KEY.SEAT]: 3,
+            [WIRE_KEY.SESSION_TYPE]: "seat_control",
+        });
+        const [backError, back] = parseServerMessage({
+            [WIRE_KEY.SEAT]: 3,
+            [WIRE_KEY.SESSION_TYPE]: "seat_control",
+        });
         assert(awayError === null && away.type === "ai_replacement");
         assert(backError === null && back.type === "human_return");
 
@@ -393,21 +400,45 @@ describe("applyEvent - game_reconnected", () => {
         const ownHand = [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40];
         const [error, snapshot] = parseServerMessage({
             ...WIRE_GAME_RECONNECTED,
-            mt: ownHand,
-            pst: [
+            [WIRE_KEY.MY_TILES]: ownHand,
+            [WIRE_KEY.PLAYER_STATES]: [
                 {
-                    dsc: [{ ti: 100 }, { rd: true, ti: 33 }],
-                    ml: [],
-                    ri: true,
-                    s: 0,
-                    sc: 240,
-                    tc: 13,
+                    [WIRE_KEY.DISCARDS]: [
+                        { [WIRE_KEY.TILE_ID]: 100 },
+                        { [WIRE_KEY.RIICHI_DISCARD]: true, [WIRE_KEY.TILE_ID]: 33 },
+                    ],
+                    [WIRE_KEY.MELDS]: [],
+                    [WIRE_KEY.IS_RIICHI]: true,
+                    [WIRE_KEY.SEAT]: 0,
+                    [WIRE_KEY.SCORE]: 240,
+                    [WIRE_KEY.TILE_COUNT]: 13,
                 },
-                { dsc: [], ml: [17_409], ri: false, s: 1, sc: 250, tc: 11 },
-                { dsc: [], ml: [], ri: false, s: 2, sc: 250, tc: 13 },
-                { dsc: [], ml: [], ri: false, s: 3, sc: 260, tc: 14 },
+                {
+                    [WIRE_KEY.DISCARDS]: [],
+                    [WIRE_KEY.MELDS]: [17_409],
+                    [WIRE_KEY.IS_RIICHI]: false,
+                    [WIRE_KEY.SEAT]: 1,
+                    [WIRE_KEY.SCORE]: 250,
+                    [WIRE_KEY.TILE_COUNT]: 11,
+                },
+                {
+                    [WIRE_KEY.DISCARDS]: [],
+                    [WIRE_KEY.MELDS]: [],
+                    [WIRE_KEY.IS_RIICHI]: false,
+                    [WIRE_KEY.SEAT]: 2,
+                    [WIRE_KEY.SCORE]: 250,
+                    [WIRE_KEY.TILE_COUNT]: 13,
+                },
+                {
+                    [WIRE_KEY.DISCARDS]: [],
+                    [WIRE_KEY.MELDS]: [],
+                    [WIRE_KEY.IS_RIICHI]: false,
+                    [WIRE_KEY.SEAT]: 3,
+                    [WIRE_KEY.SCORE]: 260,
+                    [WIRE_KEY.TILE_COUNT]: 14,
+                },
             ],
-            s: 1,
+            [WIRE_KEY.SEAT]: 1,
         });
         assert(error === null && snapshot.type === "game_reconnected");
         const next = applyEvent(createInitialTableState(), snapshot);
@@ -429,13 +460,13 @@ describe("applyEvent - game_reconnected", () => {
         const addedKanOf1p = 22_457;
         const [error, snapshot] = parseServerMessage({
             ...WIRE_GAME_RECONNECTED,
-            pst: [0, 1, 2, 3].map((seat) => ({
-                dsc: [],
-                ml: seat === 1 ? [addedKanOf1p] : [],
-                ri: false,
-                s: seat,
-                sc: 250,
-                tc: seat === 1 ? 10 : 13,
+            [WIRE_KEY.PLAYER_STATES]: [0, 1, 2, 3].map((seat) => ({
+                [WIRE_KEY.DISCARDS]: [],
+                [WIRE_KEY.MELDS]: seat === 1 ? [addedKanOf1p] : [],
+                [WIRE_KEY.IS_RIICHI]: false,
+                [WIRE_KEY.SEAT]: seat,
+                [WIRE_KEY.SCORE]: 250,
+                [WIRE_KEY.TILE_COUNT]: seat === 1 ? 10 : 13,
             })),
         });
         assert(error === null && snapshot.type === "game_reconnected");
@@ -446,15 +477,15 @@ describe("applyEvent - game_reconnected", () => {
     });
 
     test("names the round and the first dealer as the snapshot does, never from its history's dealers", () => {
-        const history = { ...WIRE_ROUND_RECORD, dl: 2 };
+        const history = { ...WIRE_ROUND_RECORD, [WIRE_KEY.DEALER]: 2 };
         const [error, later] = parseServerMessage({
             ...WIRE_GAME_RECONNECTED,
-            dl: 1,
-            fd: 3,
-            n: 2,
-            rh: [history, history],
-            rw: 3,
-            w: 1,
+            [WIRE_KEY.DEALER]: 1,
+            [WIRE_KEY.FIRST_DEALER]: 3,
+            [WIRE_KEY.ROUND_NUMBER]: 2,
+            [WIRE_KEY.ROUND_HISTORY]: [history, history],
+            [WIRE_KEY.ROUND_IN_WIND]: 3,
+            [WIRE_KEY.WIND]: 1,
         });
         assert(error === null && later.type === "game_reconnected");
 

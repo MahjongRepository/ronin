@@ -1,4 +1,3 @@
-import json
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -13,14 +12,15 @@ from game.logic.settings import NUM_PLAYERS, GameSettings
 from game.logic.tiles import NUM_TILES
 from game.replay import run_replay
 from game.replay.external.tenhou import TenhouConverter
-from game.replay.loader import load_replay_from_string
+from game.replay.loader import load_replay_from_bytes
 from game.replay.models import ReplayInput, ReplayTrace
 from game.replay.runner import ReplayOptions
 from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
-from game.wire.replay_format import REPLAY_VERSION
+from game.wire.keys import WireKey
+from game.wire.replay_format import REPLAY_VERSION, decode_replay_records, encode_replay_records
 
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState
@@ -110,7 +110,7 @@ def _play_record_and_replay(
 
     record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION, settings=settings)
     ReplayCollector(FakeReplayStorage()).collect_events(record, recorded_events)
-    loaded = load_replay_from_string("\n".join([json.dumps({"version": REPLAY_VERSION}), *record.lines]))
+    loaded = load_replay_from_bytes(encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *record.records]))
     trace = run_replay(
         ReplayInput(
             seed=loaded.seed,
@@ -122,7 +122,9 @@ def _play_record_and_replay(
         ReplayOptions(auto_confirm_rounds=False),
     )
     round_ends = [e.result for e in recorded_events if isinstance(e, RoundEndEvent)]
-    tenhou_xml = TenhouConverter([json.loads(line) for line in record.lines]).convert()
+    tenhou_xml = TenhouConverter(
+        decode_replay_records(encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *record.records]))[1:]
+    ).convert()
     return runtime.state, round_ends, loaded, trace, tenhou_xml
 
 

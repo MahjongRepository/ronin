@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -18,6 +17,7 @@ from game.tests.helpers.hands import (
 )
 from game.tests.helpers.wall import DEAD_WALL_START, FIRST_DRAW_POSITION
 from game.wire.enums import WireEventType, WireRoundResultType
+from game.wire.keys import WireKey
 from game.wire.replay_format import ReplayLineType
 from scripts.replay_fixtures.staged_game import (
     EagerGame,
@@ -40,14 +40,14 @@ if TYPE_CHECKING:
 
 BACKEND_FULL_GAME = (
     Path(__file__).resolve().parents[2] / "game" / "tests" / "integration" / "replays" / "fixtures" / "full_round"
-) / "full_game.txt"
+) / "full_game.msgpack"
 BACKEND_FULL_GAME_ID = "fixture-fg"
 EAGER_GAME_SEED = "09" * 96
 EAGER_DOUBLE_RON_SEED = "033c" * 48
 GAME_ENDS = (WireEventType.GAME_END, {})
 
 
-def riichi() -> Recording:
+def riichi(settings: GameSettings | None = None, *, ends_game: bool = False) -> Recording:
     """
     Play a riichi on the drawn tile whose tile is ponned, a second riichi, and a riichi tsumo with ura dora.
 
@@ -81,7 +81,7 @@ def riichi() -> Recording:
         ura=(tile(1, pin="8"),),
     )
 
-    game = StagedGame("riichi", staged)
+    game = StagedGame("riichi", staged, settings=settings)
     game.discard(0, tile(3, honors="1"))
     game.tsumogiri(1)
     game.tsumogiri(2)
@@ -96,10 +96,29 @@ def riichi() -> Recording:
     game.tsumogiri_until(1)
     game.tsumo(1)
 
-    return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 1, "ud": [tile(1, pin="8")]}))
+    return game.replay(
+        Outcome(
+            {
+                WireKey.RESULT_TYPE: WireRoundResultType.TSUMO,
+                WireKey.WINNER_SEAT: 1,
+                WireKey.URA_DORA: [tile(1, pin="8")],
+            },
+            then=GAME_ENDS if ends_game else None,
+        ),
+    )
 
 
 @cache
+def custom_settings() -> Recording:
+    """
+    Record a no-red-fives game with a nonstandard riichi stick value.
+    """
+    return riichi(
+        GameSettings(has_akadora=False, has_kuitan=False, riichi_stick_value=2000, tobi_threshold=24000),
+        ends_game=True,
+    )
+
+
 def kans() -> Recording:
     """
     Play an open kan, a pon raised to an added kan and a closed kan, each with its dora, then a rinshan kaihou tsumo.
@@ -146,7 +165,7 @@ def kans() -> Recording:
     game.kan(3, closed_kan_tile, KanType.CLOSED)
     game.tsumo(3)
 
-    return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 3}))
+    return game.replay(Outcome({WireKey.RESULT_TYPE: WireRoundResultType.TSUMO, WireKey.WINNER_SEAT: 3}))
 
 
 @cache
@@ -162,7 +181,9 @@ def full_game() -> Recording:
         recorder.record(step.emitted_events)
 
     recording = recorder.recording()
-    require_outcome(recording, Outcome({"rt": WireRoundResultType.EXHAUSTIVE_DRAW}, then=GAME_ENDS), name="full_game")
+    require_outcome(
+        recording, Outcome({WireKey.RESULT_TYPE: WireRoundResultType.EXHAUSTIVE_DRAW}, then=GAME_ENDS), name="full_game"
+    )
     require_reproduces(recording, trace.final_state, name="full_game")
     return recording
 
@@ -188,7 +209,16 @@ def ron_riichi_discard() -> Recording:
     game.riichi(2)
     game.ron(1)
 
-    return game.replay(Outcome({"rt": WireRoundResultType.RON, "ws": 1, "ls": 2, "rc": 1}))
+    return game.replay(
+        Outcome(
+            {
+                WireKey.RESULT_TYPE: WireRoundResultType.RON,
+                WireKey.WINNER_SEAT: 1,
+                WireKey.LOSER_SEAT: 2,
+                WireKey.RIICHI_COLLECTED: 1,
+            }
+        )
+    )
 
 
 def double_ron() -> Recording:
@@ -221,7 +251,16 @@ def double_ron() -> Recording:
     game.ron(1, 2)
 
     return game.replay(
-        Outcome({"rt": WireRoundResultType.DOUBLE_RON, "ls": 0, "wn": [{"ws": 1, "rc": 2}, {"ws": 2, "rc": 0}]})
+        Outcome(
+            {
+                WireKey.RESULT_TYPE: WireRoundResultType.DOUBLE_RON,
+                WireKey.LOSER_SEAT: 0,
+                WireKey.WINNERS: [
+                    {WireKey.WINNER_SEAT: 1, WireKey.RIICHI_COLLECTED: 2},
+                    {WireKey.WINNER_SEAT: 2, WireKey.RIICHI_COLLECTED: 0},
+                ],
+            }
+        )
     )
 
 
@@ -253,7 +292,13 @@ def triple_ron() -> Recording:
         "triple-ron",
         GameSettings(),
         callers=(1, 2, 3),
-        outcome=Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.TRIPLE_RON, "rcl": [1, 2, 3]}),
+        outcome=Outcome(
+            {
+                WireKey.RESULT_TYPE: WireRoundResultType.ABORTIVE_DRAW,
+                WireKey.ABORTIVE_REASON: AbortiveDrawType.TRIPLE_RON,
+                WireKey.RON_CALLERS: [1, 2, 3],
+            }
+        ),
     )
 
 
@@ -268,7 +313,12 @@ def double_ron_head_bump() -> Recording:
         GameSettings(has_triple_ron_abort=False),
         callers=(1, 2, 3),
         outcome=Outcome(
-            {"rt": WireRoundResultType.DOUBLE_RON, "wn": [{"ws": 1}, {"ws": 2}], "hbs": [3]}, then=GAME_ENDS
+            {
+                WireKey.RESULT_TYPE: WireRoundResultType.DOUBLE_RON,
+                WireKey.WINNERS: [{WireKey.WINNER_SEAT: 1}, {WireKey.WINNER_SEAT: 2}],
+                WireKey.HEAD_BUMPED_SEATS: [3],
+            },
+            then=GAME_ENDS,
         ),
     )
 
@@ -281,7 +331,9 @@ def head_bump() -> Recording:
         "head-bump",
         GameSettings(has_double_ron=False),
         callers=(1, 2),
-        outcome=Outcome({"rt": WireRoundResultType.RON, "ws": 1, "hbs": [2]}),
+        outcome=Outcome(
+            {WireKey.RESULT_TYPE: WireRoundResultType.RON, WireKey.WINNER_SEAT: 1, WireKey.HEAD_BUMPED_SEATS: [2]}
+        ),
     )
 
 
@@ -317,7 +369,15 @@ def chankan_added() -> Recording:
     game.kan(1, added_kan_tile, KanType.ADDED)
     game.ron(2)
 
-    return game.replay(Outcome({"rt": WireRoundResultType.RON, "ws": 2, "rk": {"s": 1, "kty": KanType.ADDED}}))
+    return game.replay(
+        Outcome(
+            {
+                WireKey.RESULT_TYPE: WireRoundResultType.RON,
+                WireKey.WINNER_SEAT: 2,
+                WireKey.ROBBED_KAN: {WireKey.SEAT: 1, WireKey.KAN_TYPE: KanType.ADDED},
+            }
+        )
+    )
 
 
 def chankan_ai_replacement() -> Recording:
@@ -357,7 +417,15 @@ def chankan_ai_replacement() -> Recording:
     game.leave(3)
     game.ron(2)
 
-    return game.replay(Outcome({"rt": WireRoundResultType.RON, "ws": 2, "rk": {"s": 1, "kty": KanType.ADDED}}))
+    return game.replay(
+        Outcome(
+            {
+                WireKey.RESULT_TYPE: WireRoundResultType.RON,
+                WireKey.WINNER_SEAT: 2,
+                WireKey.ROBBED_KAN: {WireKey.SEAT: 1, WireKey.KAN_TYPE: KanType.ADDED},
+            }
+        )
+    )
 
 
 def chankan_closed_kokushi() -> Recording:
@@ -392,7 +460,14 @@ def chankan_closed_kokushi() -> Recording:
     game.ron(2)
 
     return game.replay(
-        Outcome({"rt": WireRoundResultType.RON, "ws": 2, "rk": {"s": 1, "kty": KanType.CLOSED}}, then=GAME_ENDS)
+        Outcome(
+            {
+                WireKey.RESULT_TYPE: WireRoundResultType.RON,
+                WireKey.WINNER_SEAT: 2,
+                WireKey.ROBBED_KAN: {WireKey.SEAT: 1, WireKey.KAN_TYPE: KanType.CLOSED},
+            },
+            then=GAME_ENDS,
+        )
     )
 
 
@@ -439,7 +514,12 @@ def pao() -> Recording:
     game.tsumogiri_until(1)
     game.tsumo(1)
 
-    return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 1, "ps": 0}, then=GAME_ENDS))
+    return game.replay(
+        Outcome(
+            {WireKey.RESULT_TYPE: WireRoundResultType.TSUMO, WireKey.WINNER_SEAT: 1, WireKey.PAO_SEAT: 0},
+            then=GAME_ENDS,
+        )
+    )
 
 
 def kazoe() -> Recording:
@@ -473,7 +553,7 @@ def kazoe() -> Recording:
     game.tsumogiri(3)
     game.tsumo(0)
 
-    return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 0}))
+    return game.replay(Outcome({WireKey.RESULT_TYPE: WireRoundResultType.TSUMO, WireKey.WINNER_SEAT: 0}))
 
 
 def _riichi_to_exhaustive_draw(game_id: str, settings: GameSettings) -> StagedGame:
@@ -509,8 +589,12 @@ def exhaustive_tenpai() -> Recording:
 
     return game.replay(
         Outcome(
-            {"rt": WireRoundResultType.EXHAUSTIVE_DRAW, "ts": [1, 2], "ns": [0, 3]},
-            then=(WireEventType.ROUND_STARTED, {"dl": 1, "h": 1, "r": 1}),
+            {
+                WireKey.RESULT_TYPE: WireRoundResultType.EXHAUSTIVE_DRAW,
+                WireKey.TENPAI_SEATS: [1, 2],
+                WireKey.NOTEN_SEATS: [0, 3],
+            },
+            then=(WireEventType.ROUND_STARTED, {WireKey.DEALER: 1, WireKey.HONBA: 1, WireKey.RIICHI_STICKS: 1}),
         )
     )
 
@@ -527,8 +611,15 @@ def leftover_riichi() -> Recording:
 
     return game.replay(
         Outcome(
-            {"rt": WireRoundResultType.EXHAUSTIVE_DRAW, "ts": [1, 2], "ns": [0, 3]},
-            then=(WireEventType.GAME_END, {"ws": 2, "lb": 15, "lr": 1}),
+            {
+                WireKey.RESULT_TYPE: WireRoundResultType.EXHAUSTIVE_DRAW,
+                WireKey.TENPAI_SEATS: [1, 2],
+                WireKey.NOTEN_SEATS: [0, 3],
+            },
+            then=(
+                WireEventType.GAME_END,
+                {WireKey.WINNER_SEAT: 2, WireKey.LEFTOVER_BONUS: 15, WireKey.LEFTOVER_RIICHI: 1},
+            ),
         )
     )
 
@@ -563,7 +654,9 @@ def nagashi() -> Recording:
     game = StagedGame("nagashi", StagedWall(hands=hands, draws=draws))
     game.tsumogiri_until()
 
-    return game.replay(Outcome({"rt": WireRoundResultType.NAGASHI_MANGAN, "qs": [nagashi_seat]}))
+    return game.replay(
+        Outcome({WireKey.RESULT_TYPE: WireRoundResultType.NAGASHI_MANGAN, WireKey.QUALIFYING_SEATS: [nagashi_seat]})
+    )
 
 
 def kyuushu() -> Recording:
@@ -585,7 +678,13 @@ def kyuushu() -> Recording:
     game.kyuushu(1)
 
     return game.replay(
-        Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.NINE_TERMINALS, "s": 1})
+        Outcome(
+            {
+                WireKey.RESULT_TYPE: WireRoundResultType.ABORTIVE_DRAW,
+                WireKey.ABORTIVE_REASON: AbortiveDrawType.NINE_TERMINALS,
+                WireKey.SEAT: 1,
+            }
+        )
     )
 
 
@@ -616,7 +715,14 @@ def four_winds_riichi() -> Recording:
 
     game.riichi(3, winds[3])
 
-    return game.replay(Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.FOUR_WINDS}))
+    return game.replay(
+        Outcome(
+            {
+                WireKey.RESULT_TYPE: WireRoundResultType.ABORTIVE_DRAW,
+                WireKey.ABORTIVE_REASON: AbortiveDrawType.FOUR_WINDS,
+            }
+        )
+    )
 
 
 def four_riichi() -> Recording:
@@ -637,7 +743,14 @@ def four_riichi() -> Recording:
     for seat in range(NUM_PLAYERS):
         game.riichi(seat)
 
-    return game.replay(Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.FOUR_RIICHI}))
+    return game.replay(
+        Outcome(
+            {
+                WireKey.RESULT_TYPE: WireRoundResultType.ABORTIVE_DRAW,
+                WireKey.ABORTIVE_REASON: AbortiveDrawType.FOUR_RIICHI,
+            }
+        )
+    )
 
 
 def four_kans() -> Recording:
@@ -669,7 +782,14 @@ def four_kans() -> Recording:
     game.kan(1, open_kan_tile, KanType.OPEN)
     game.tsumogiri(1)
 
-    return game.replay(Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.FOUR_KANS}))
+    return game.replay(
+        Outcome(
+            {
+                WireKey.RESULT_TYPE: WireRoundResultType.ABORTIVE_DRAW,
+                WireKey.ABORTIVE_REASON: AbortiveDrawType.FOUR_KANS,
+            }
+        )
+    )
 
 
 def ai_replacements() -> Recording:
@@ -707,8 +827,8 @@ def ai_replacements() -> Recording:
 
     return game.replay(
         Outcome(
-            {"rt": WireRoundResultType.RON, "ws": 1, "ls": 2},
-            then=(ReplayLineType.SEAT_CONTROL, {"s": 3, "ai": 0}),
+            {WireKey.RESULT_TYPE: WireRoundResultType.RON, WireKey.WINNER_SEAT: 1, WireKey.LOSER_SEAT: 2},
+            then=(ReplayLineType.SEAT_CONTROL, {WireKey.SEAT: 3, WireKey.AI_PLAYER: 0}),
         )
     )
 
@@ -745,7 +865,7 @@ def riichi_ai_replacement() -> Recording:
     game.tsumogiri(0)
     game.tsumo(1)
 
-    return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 1}))
+    return game.replay(Outcome({WireKey.RESULT_TYPE: WireRoundResultType.TSUMO, WireKey.WINNER_SEAT: 1}))
 
 
 def ai_dealer_absent() -> Recording:
@@ -783,7 +903,10 @@ def ai_dealer_absent() -> Recording:
     game.confirm_round()
 
     return game.replay(
-        Outcome({"rt": WireRoundResultType.TSUMO, "ws": 2}, then=(WireEventType.ROUND_STARTED, {"dl": 1}))
+        Outcome(
+            {WireKey.RESULT_TYPE: WireRoundResultType.TSUMO, WireKey.WINNER_SEAT: 2},
+            then=(WireEventType.ROUND_STARTED, {WireKey.DEALER: 1}),
+        )
     )
 
 
@@ -795,11 +918,19 @@ def require_wins_off_seat_zero(recording: Recording, *, name: str) -> None:
     """
     dealer: int | None = None
     results: set[int] = set()
-    for line in map(json.loads, recording.lines):
-        if line["t"] == WireEventType.ROUND_STARTED:
-            dealer = line["dl"]
-        elif line["t"] == WireEventType.ROUND_END and dealer != 0:
-            results.add(line["rt"])
+    for line in recording.records:
+        if line[WireKey.EVENT_TYPE] == WireEventType.ROUND_STARTED:
+            value = line[WireKey.DEALER]
+            if not isinstance(value, int):
+                raise ScenarioError(f"{name}: invalid dealer")
+
+            dealer = value
+        elif line[WireKey.EVENT_TYPE] == WireEventType.ROUND_END and dealer != 0:
+            value = line[WireKey.RESULT_TYPE]
+            if not isinstance(value, int):
+                raise ScenarioError(f"{name}: invalid round result")
+
+            results.add(value)
 
     if not {WireRoundResultType.TSUMO, WireRoundResultType.RON} <= results:
         raise ScenarioError(f"{name}: no tsumo and ron both in rounds dealt by a seat other than 0")
@@ -811,7 +942,7 @@ def eager_game() -> Recording:
     other than seat 0.
     """
     recording = EagerGame("eager-game", EAGER_GAME_SEED).replay(
-        Outcome({"rt": WireRoundResultType.TSUMO, "ws": 3}, then=GAME_ENDS)
+        Outcome({WireKey.RESULT_TYPE: WireRoundResultType.TSUMO, WireKey.WINNER_SEAT: 3}, then=GAME_ENDS)
     )
     require_wins_off_seat_zero(recording, name="eager-game")
     return recording
@@ -824,21 +955,28 @@ def double_ron_on_honba() -> Recording:
     Each winner takes the two honba's 600 on top of a 1600 hand, so the discarder pays 4400.
     """
     played = EagerGame("double-ron-on-honba", EAGER_DOUBLE_RON_SEED).replay(
-        Outcome({"rt": WireRoundResultType.EXHAUSTIVE_DRAW}, then=GAME_ENDS)
+        Outcome({WireKey.RESULT_TYPE: WireRoundResultType.EXHAUSTIVE_DRAW}, then=GAME_ENDS)
     )
-    double_ron = {
-        "rt": WireRoundResultType.DOUBLE_RON,
-        "ls": 0,
-        "wn": [{"ws": 1, "sch": {"0": -22, "1": 22}}, {"ws": 3, "sch": {"0": -22, "3": 22}}],
+    double_ron: dict[int, object] = {
+        WireKey.RESULT_TYPE: WireRoundResultType.DOUBLE_RON,
+        WireKey.LOSER_SEAT: 0,
+        WireKey.WINNERS: [
+            {WireKey.WINNER_SEAT: 1, WireKey.SCORE_CHANGES: {"0": -22, "1": 22}},
+            {WireKey.WINNER_SEAT: 3, WireKey.SCORE_CHANGES: {"0": -22, "3": 22}},
+        ],
     }
     require_outcome(
         cut_after(played, event_type=WireEventType.ROUND_STARTED, occurrence=3),
-        Outcome(double_ron, then=(WireEventType.ROUND_STARTED, {"n": 3, "h": 0})),
+        Outcome(double_ron, then=(WireEventType.ROUND_STARTED, {WireKey.ROUND_NUMBER: 3, WireKey.HONBA: 0})),
         name="double-ron-on-honba",
     )
 
     recording = cut_after(played, event_type=WireEventType.ROUND_END, occurrence=3)
-    require_outcome(recording, Outcome({"rt": WireRoundResultType.TSUMO, "ws": 2}), name="double-ron-on-honba")
+    require_outcome(
+        recording,
+        Outcome({WireKey.RESULT_TYPE: WireRoundResultType.TSUMO, WireKey.WINNER_SEAT: 2}),
+        name="double-ron-on-honba",
+    )
     return recording
 
 
@@ -854,31 +992,32 @@ def truncated_after_round() -> Recording:
 
 
 FIXTURES: dict[str, Callable[[], Recording]] = {
-    "riichi.txt": riichi,
-    "kans.txt": kans,
-    "full_game.txt": full_game,
-    "truncated_mid_round.txt": truncated_mid_round,
-    "truncated_after_round.txt": truncated_after_round,
-    "ron_riichi_discard.txt": ron_riichi_discard,
-    "double_ron.txt": double_ron,
-    "double_ron_head_bump.txt": double_ron_head_bump,
-    "head_bump.txt": head_bump,
-    "chankan_added.txt": chankan_added,
-    "chankan_ai_replacement.txt": chankan_ai_replacement,
-    "chankan_closed_kokushi.txt": chankan_closed_kokushi,
-    "triple_ron.txt": triple_ron,
-    "pao.txt": pao,
-    "kazoe.txt": kazoe,
-    "exhaustive_tenpai.txt": exhaustive_tenpai,
-    "leftover_riichi.txt": leftover_riichi,
-    "nagashi.txt": nagashi,
-    "kyuushu.txt": kyuushu,
-    "four_winds_riichi.txt": four_winds_riichi,
-    "four_riichi.txt": four_riichi,
-    "four_kans.txt": four_kans,
-    "ai_replacements.txt": ai_replacements,
-    "riichi_ai_replacement.txt": riichi_ai_replacement,
-    "ai_dealer_absent.txt": ai_dealer_absent,
-    "eager_game.txt": eager_game,
-    "double_ron_on_honba.txt": double_ron_on_honba,
+    "riichi.msgpack": riichi,
+    "custom_settings.msgpack": custom_settings,
+    "kans.msgpack": kans,
+    "full_game.msgpack": full_game,
+    "truncated_mid_round.msgpack": truncated_mid_round,
+    "truncated_after_round.msgpack": truncated_after_round,
+    "ron_riichi_discard.msgpack": ron_riichi_discard,
+    "double_ron.msgpack": double_ron,
+    "double_ron_head_bump.msgpack": double_ron_head_bump,
+    "head_bump.msgpack": head_bump,
+    "chankan_added.msgpack": chankan_added,
+    "chankan_ai_replacement.msgpack": chankan_ai_replacement,
+    "chankan_closed_kokushi.msgpack": chankan_closed_kokushi,
+    "triple_ron.msgpack": triple_ron,
+    "pao.msgpack": pao,
+    "kazoe.msgpack": kazoe,
+    "exhaustive_tenpai.msgpack": exhaustive_tenpai,
+    "leftover_riichi.msgpack": leftover_riichi,
+    "nagashi.msgpack": nagashi,
+    "kyuushu.msgpack": kyuushu,
+    "four_winds_riichi.msgpack": four_winds_riichi,
+    "four_riichi.msgpack": four_riichi,
+    "four_kans.msgpack": four_kans,
+    "ai_replacements.msgpack": ai_replacements,
+    "riichi_ai_replacement.msgpack": riichi_ai_replacement,
+    "ai_dealer_absent.msgpack": ai_dealer_absent,
+    "eager_game.msgpack": eager_game,
+    "double_ron_on_honba.msgpack": double_ron_on_honba,
 }

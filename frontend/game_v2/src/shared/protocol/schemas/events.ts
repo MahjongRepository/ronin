@@ -12,6 +12,7 @@ import {
 } from "@/shared/protocol/constants";
 import { decodeDiscard } from "@/shared/protocol/decoders/discard";
 import { decodeDraw } from "@/shared/protocol/decoders/draw";
+import { WIRE_KEY } from "@/shared/protocol/wire-keys";
 
 import {
     compactMeldSchema,
@@ -30,8 +31,6 @@ import {
     wireSettingAmountSchema,
 } from "./common";
 
-// --- Available action item (inside draw event `aa` array) ---
-
 /**
  * One offered action, by the codes the server offers on a turn: a riichi with the tile ids it may discard, a kan or an
  * added kan with the tile types it may declare, each list nonempty. Any other code or shape fails the message, so an
@@ -40,54 +39,58 @@ import {
 const availableActionSchema = z.union([
     z.pipe(
         z.object({
-            a: z.literal(PLAYER_ACTION.RIICHI),
-            tl: z.array(tileIdSchema).check(z.minLength(1)),
+            [WIRE_KEY.ACTION]: z.literal(PLAYER_ACTION.RIICHI),
+            [WIRE_KEY.TILES]: z.array(tileIdSchema).check(z.minLength(1)),
         }),
-        z.transform((raw) => ({ action: raw.a, tileIds: raw.tl })),
+        z.transform((raw) => ({ action: raw[WIRE_KEY.ACTION], tileIds: raw[WIRE_KEY.TILES] })),
     ),
     z.pipe(
         z.object({
-            a: z.union([z.literal(PLAYER_ACTION.KAN), z.literal(PLAYER_ACTION.ADDED_KAN)]),
-            tl: z.array(tileTypeSchema).check(z.minLength(1)),
+            [WIRE_KEY.ACTION]: z.union([
+                z.literal(PLAYER_ACTION.KAN),
+                z.literal(PLAYER_ACTION.ADDED_KAN),
+            ]),
+            [WIRE_KEY.TILES]: z.array(tileTypeSchema).check(z.minLength(1)),
         }),
-        z.transform((raw) => ({ action: raw.a, tileTypes: raw.tl })),
+        z.transform((raw) => ({ action: raw[WIRE_KEY.ACTION], tileTypes: raw[WIRE_KEY.TILES] })),
     ),
     z.pipe(
         z.object({
-            a: z.union([z.literal(PLAYER_ACTION.TSUMO), z.literal(PLAYER_ACTION.KYUUSHU)]),
+            [WIRE_KEY.ACTION]: z.union([
+                z.literal(PLAYER_ACTION.TSUMO),
+                z.literal(PLAYER_ACTION.KYUUSHU),
+            ]),
         }),
-        z.transform((raw) => ({ action: raw.a })),
+        z.transform((raw) => ({ action: raw[WIRE_KEY.ACTION] })),
     ),
 ]);
 
-// --- Player view (inside round_started `p` array) ---
-
 const playerViewSchema = z.pipe(
     z.object({
-        s: seatSchema,
-        sc: z.number(),
-        tl: z.optional(z.array(tileIdSchema)),
+        [WIRE_KEY.SEAT]: seatSchema,
+        [WIRE_KEY.SCORE]: z.number(),
+        [WIRE_KEY.TILES]: z.optional(z.array(tileIdSchema)),
     }),
     z.transform((raw) => ({
-        score: raw.sc * WIRE_SCORE_DIVISOR,
-        seat: raw.s,
-        tiles: raw.tl ?? null,
+        score: raw[WIRE_KEY.SCORE] * WIRE_SCORE_DIVISOR,
+        seat: raw[WIRE_KEY.SEAT],
+        tiles: raw[WIRE_KEY.TILES] ?? null,
     })),
 );
 
 // --- Yaku info (inside hand result) ---
 
-/** A yaku's yakuman count (`ym`): 0 for an ordinary yaku, else how many yakuman the server scored it as. */
+/** A yaku's yakuman count (`WIRE_KEY.YAKU_YAKUMAN_COUNT`): 0 for an ordinary yaku, else how many yakuman the server scored it as. */
 const yakuInfoSchema = z.pipe(
     z.object({
-        han: z.int(),
-        yi: z.int(),
-        ym: z.int().check(z.gte(0)),
+        [WIRE_KEY.HAN]: z.int(),
+        [WIRE_KEY.YAKU_ID]: z.int(),
+        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: z.int().check(z.gte(0)),
     }),
     z.transform((raw) => ({
-        han: raw.han,
-        yakuId: raw.yi,
-        yakumanCount: raw.ym,
+        han: raw[WIRE_KEY.HAN],
+        yakuId: raw[WIRE_KEY.YAKU_ID],
+        yakumanCount: raw[WIRE_KEY.YAKU_YAKUMAN_COUNT],
     })),
 );
 
@@ -99,144 +102,148 @@ const YAKUMAN_LIMITS: ReadonlySet<HandLimit> = new Set([
 ]);
 
 /**
- * A win's hand value: its limit (`lm`) as the server paid it, and how many yakuman (`yc`) a yakuman or kazoe yakuman
+ * A win's hand value: its limit (`WIRE_KEY.HAND_LIMIT`) as the server paid it, and how many yakuman (`WIRE_KEY.YAKUMAN_COUNT`) a yakuman or kazoe yakuman
  * limit counts, named for those limits alone.
  */
 export const handResultSchema = z.pipe(
     z
         .object({
-            fu: z.int(),
-            han: z.int(),
-            lm: z.enum(HAND_LIMIT),
-            pt: wireScoreSchema,
-            yc: z.optional(z.int().check(z.gte(1))),
-            yk: z.array(yakuInfoSchema),
+            [WIRE_KEY.FU]: z.int(),
+            [WIRE_KEY.HAN]: z.int(),
+            [WIRE_KEY.HAND_LIMIT]: z.enum(HAND_LIMIT),
+            [WIRE_KEY.POINTS]: wireScoreSchema,
+            [WIRE_KEY.YAKUMAN_COUNT]: z.optional(z.int().check(z.gte(1))),
+            [WIRE_KEY.YAKU]: z.array(yakuInfoSchema),
         })
         .check(
-            z.refine((raw) => YAKUMAN_LIMITS.has(raw.lm) === (raw.yc !== undefined), {
-                message:
-                    "a hand result names its yakuman count without a yakuman limit, or a yakuman limit without it",
-            }),
+            z.refine(
+                (raw) =>
+                    YAKUMAN_LIMITS.has(raw[WIRE_KEY.HAND_LIMIT]) ===
+                    (raw[WIRE_KEY.YAKUMAN_COUNT] !== undefined),
+                {
+                    message:
+                        "a hand result names its yakuman count without a yakuman limit, or a yakuman limit without it",
+                },
+            ),
         ),
     z.transform((raw) => ({
-        fu: raw.fu,
-        han: raw.han,
-        limit: raw.lm,
-        points: raw.pt,
-        yaku: raw.yk,
-        yakumanCount: raw.yc ?? null,
+        fu: raw[WIRE_KEY.FU],
+        han: raw[WIRE_KEY.HAN],
+        limit: raw[WIRE_KEY.HAND_LIMIT],
+        points: raw[WIRE_KEY.POINTS],
+        yaku: raw[WIRE_KEY.YAKU],
+        yakumanCount: raw[WIRE_KEY.YAKUMAN_COUNT] ?? null,
     })),
 );
-
-// --- Standing (inside game_end `st` array) ---
 
 const playerStandingSchema = z.pipe(
     z.object({
-        fs: z.number(),
-        s: seatSchema,
-        sc: z.number(),
+        [WIRE_KEY.FINAL_SCORE]: z.number(),
+        [WIRE_KEY.SEAT]: seatSchema,
+        [WIRE_KEY.SCORE]: z.number(),
     }),
     z.transform((raw) => ({
-        finalScore: raw.fs,
-        score: raw.sc * WIRE_SCORE_DIVISOR,
-        seat: raw.s,
+        finalScore: raw[WIRE_KEY.FINAL_SCORE],
+        score: raw[WIRE_KEY.SCORE] * WIRE_SCORE_DIVISOR,
+        seat: raw[WIRE_KEY.SEAT],
     })),
 );
-
-// --- Game Started (t=8) ---
 
 export const gameStartedSchema = z.pipe(
     z
         .object({
-            dd: z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]),
-            dl: seatSchema,
-            gid: z.string(),
-            gt: z.union([z.literal(GAME_TYPE.HANCHAN), z.literal(GAME_TYPE.TONPUSEN)]),
-            p: z.array(gamePlayerInfoSchema),
-            rsv: wireSettingAmountSchema,
-            s: z.optional(seatSchema),
-            t: z.literal(EVENT_TYPE.GAME_STARTED),
-            tm: z.optional(timerSettingsSchema),
+            [WIRE_KEY.DEALER_DICE]: z.tuple([
+                z.tuple([z.number(), z.number()]),
+                z.tuple([z.number(), z.number()]),
+            ]),
+            [WIRE_KEY.DEALER]: seatSchema,
+            [WIRE_KEY.GAME_ID]: z.string(),
+            [WIRE_KEY.GAME_TYPE]: z.union([
+                z.literal(GAME_TYPE.HANCHAN),
+                z.literal(GAME_TYPE.TONPUSEN),
+            ]),
+            [WIRE_KEY.PLAYERS]: z.array(gamePlayerInfoSchema),
+            [WIRE_KEY.RIICHI_STICK_VALUE]: wireSettingAmountSchema,
+            [WIRE_KEY.SEAT]: z.optional(seatSchema),
+            [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.GAME_STARTED),
+            [WIRE_KEY.TIMER_SETTINGS]: z.optional(timerSettingsSchema),
         })
         .check(
-            z.refine((raw) => coversEverySeat(raw.p), {
+            z.refine((raw) => coversEverySeat(raw[WIRE_KEY.PLAYERS]), {
                 message: "the game start does not seat each of the four seats once, in seat order",
             }),
         ),
     z.transform((raw) => ({
-        dealerDice: raw.dd,
-        dealerSeat: raw.dl,
-        gameId: raw.gid,
-        gameType: raw.gt,
-        players: raw.p,
-        riichiStickValue: raw.rsv,
-        seat: raw.s ?? null,
-        timer: raw.tm ?? null,
+        dealerDice: raw[WIRE_KEY.DEALER_DICE],
+        dealerSeat: raw[WIRE_KEY.DEALER],
+        gameId: raw[WIRE_KEY.GAME_ID],
+        gameType: raw[WIRE_KEY.GAME_TYPE],
+        hasAkadora: true,
+        players: raw[WIRE_KEY.PLAYERS],
+        riichiStickValue: raw[WIRE_KEY.RIICHI_STICK_VALUE],
+        seat: raw[WIRE_KEY.SEAT] ?? null,
+        timer: raw[WIRE_KEY.TIMER_SETTINGS] ?? null,
         type: "game_started" as const,
     })),
 );
 
-// --- Round Started (t=9) ---
-
 export const roundStartedSchema = z.pipe(
     z
         .object({
-            cp: seatSchema,
-            di: z.array(tileIdSchema),
-            dl: seatSchema,
-            h: z.int(),
-            mt: z.optional(z.array(tileIdSchema)),
-            n: z.int(),
-            p: z.array(playerViewSchema),
-            r: z.int(),
-            rw: roundInWindSchema,
-            s: z.optional(seatSchema),
-            t: z.literal(EVENT_TYPE.ROUND_STARTED),
-            tr: tilesRemainingSchema,
-            w: z.int(),
+            [WIRE_KEY.CURRENT_PLAYER]: seatSchema,
+            [WIRE_KEY.DORA_INDICATORS]: z.array(tileIdSchema),
+            [WIRE_KEY.DEALER]: seatSchema,
+            [WIRE_KEY.HONBA]: z.int(),
+            [WIRE_KEY.MY_TILES]: z.optional(z.array(tileIdSchema)),
+            [WIRE_KEY.ROUND_NUMBER]: z.int(),
+            [WIRE_KEY.PLAYERS]: z.array(playerViewSchema),
+            [WIRE_KEY.RIICHI_STICKS]: z.int(),
+            [WIRE_KEY.ROUND_IN_WIND]: roundInWindSchema,
+            [WIRE_KEY.SEAT]: z.optional(seatSchema),
+            [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.ROUND_STARTED),
+            [WIRE_KEY.TILES_REMAINING]: tilesRemainingSchema,
+            [WIRE_KEY.WIND]: z.int(),
         })
         .check(
-            z.refine((raw) => coversEverySeat(raw.p), {
+            z.refine((raw) => coversEverySeat(raw[WIRE_KEY.PLAYERS]), {
                 message: "the deal does not list each of the four seats once, in seat order",
             }),
         ),
     z.transform((raw) => ({
-        currentPlayerSeat: raw.cp,
-        dealerSeat: raw.dl,
-        doraIndicators: raw.di,
-        honbaSticks: raw.h,
-        myTiles: raw.mt ?? null,
-        players: raw.p,
-        riichiSticks: raw.r,
-        roundInWind: raw.rw,
-        roundNumber: raw.n,
-        seat: raw.s ?? null,
-        tilesRemaining: raw.tr,
+        currentPlayerSeat: raw[WIRE_KEY.CURRENT_PLAYER],
+        dealerSeat: raw[WIRE_KEY.DEALER],
+        doraIndicators: raw[WIRE_KEY.DORA_INDICATORS],
+        honbaSticks: raw[WIRE_KEY.HONBA],
+        myTiles: raw[WIRE_KEY.MY_TILES] ?? null,
+        players: raw[WIRE_KEY.PLAYERS],
+        riichiSticks: raw[WIRE_KEY.RIICHI_STICKS],
+        roundInWind: raw[WIRE_KEY.ROUND_IN_WIND],
+        roundNumber: raw[WIRE_KEY.ROUND_NUMBER],
+        seat: raw[WIRE_KEY.SEAT] ?? null,
+        tilesRemaining: raw[WIRE_KEY.TILES_REMAINING],
         type: "round_started" as const,
-        wind: raw.w,
+        wind: raw[WIRE_KEY.WIND],
     })),
 );
 
-// --- Draw (t=1) ---
-
 export const drawSchema = z.pipe(
     z.object({
-        aa: z.optional(z.array(availableActionSchema)),
-        bk: z.optional(secondsSchema),
-        d: z.int(),
-        el: z.optional(secondsSchema),
-        t: z.literal(EVENT_TYPE.DRAW),
-        tr: tilesRemainingSchema,
-        wi: z.optional(waitIdSchema),
+        [WIRE_KEY.AVAILABLE_ACTIONS]: z.optional(z.array(availableActionSchema)),
+        [WIRE_KEY.BANK_SECONDS]: z.optional(secondsSchema),
+        [WIRE_KEY.PACKED_MOVE]: z.int(),
+        [WIRE_KEY.WAIT_ELAPSED]: z.optional(secondsSchema),
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.DRAW),
+        [WIRE_KEY.TILES_REMAINING]: tilesRemainingSchema,
+        [WIRE_KEY.WAIT_ID]: z.optional(waitIdSchema),
     }),
     z.transform((raw) => ({
-        ...decodeDraw(raw.d),
-        availableActions: raw.aa ?? [],
-        bankSeconds: raw.bk ?? null,
-        elapsedSeconds: raw.el ?? null,
-        tilesRemaining: raw.tr,
+        ...decodeDraw(raw[WIRE_KEY.PACKED_MOVE]),
+        availableActions: raw[WIRE_KEY.AVAILABLE_ACTIONS] ?? [],
+        bankSeconds: raw[WIRE_KEY.BANK_SECONDS] ?? null,
+        elapsedSeconds: raw[WIRE_KEY.WAIT_ELAPSED] ?? null,
+        tilesRemaining: raw[WIRE_KEY.TILES_REMAINING],
         type: "draw" as const,
-        waitId: raw.wi ?? null,
+        waitId: raw[WIRE_KEY.WAIT_ID] ?? null,
     })),
 );
 
@@ -246,150 +253,136 @@ export const drawSchema = z.pipe(
  */
 export const drawNoticeSchema = z.pipe(
     z.object({
-        s: seatSchema,
-        t: z.literal(EVENT_TYPE.DRAW_NOTICE),
-        tr: tilesRemainingSchema,
+        [WIRE_KEY.SEAT]: seatSchema,
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.DRAW_NOTICE),
+        [WIRE_KEY.TILES_REMAINING]: tilesRemainingSchema,
     }),
     z.transform((raw) => ({
-        seat: raw.s,
-        tilesRemaining: raw.tr,
+        seat: raw[WIRE_KEY.SEAT],
+        tilesRemaining: raw[WIRE_KEY.TILES_REMAINING],
         type: "draw_notice" as const,
     })),
 );
 
 export const turnSchema = z.pipe(
     z.object({
-        bk: z.optional(secondsSchema),
-        el: z.optional(secondsSchema),
-        kt: z.array(tileTypeSchema),
-        t: z.literal(EVENT_TYPE.TURN),
-        wi: z.optional(waitIdSchema),
+        [WIRE_KEY.BANK_SECONDS]: z.optional(secondsSchema),
+        [WIRE_KEY.WAIT_ELAPSED]: z.optional(secondsSchema),
+        [WIRE_KEY.KUIKAE_TILES]: z.array(tileTypeSchema),
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.TURN),
+        [WIRE_KEY.WAIT_ID]: z.optional(waitIdSchema),
     }),
     z.transform((raw) => ({
-        bankSeconds: raw.bk ?? null,
-        elapsedSeconds: raw.el ?? null,
-        kuikaeTileTypes: raw.kt,
+        bankSeconds: raw[WIRE_KEY.BANK_SECONDS] ?? null,
+        elapsedSeconds: raw[WIRE_KEY.WAIT_ELAPSED] ?? null,
+        kuikaeTileTypes: raw[WIRE_KEY.KUIKAE_TILES],
         type: "turn" as const,
-        waitId: raw.wi ?? null,
+        waitId: raw[WIRE_KEY.WAIT_ID] ?? null,
     })),
 );
 
-// --- Discard (t=2) ---
-
 export const discardSchema = z.pipe(
     z.object({
-        d: z.int(),
-        t: z.literal(EVENT_TYPE.DISCARD),
+        [WIRE_KEY.PACKED_MOVE]: z.int(),
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.DISCARD),
     }),
     z.transform((raw) => ({
-        ...decodeDiscard(raw.d),
+        ...decodeDiscard(raw[WIRE_KEY.PACKED_MOVE]),
         type: "discard" as const,
     })),
 );
 
-// --- Meld (t=0) ---
-
 export const meldSchema = z.pipe(
     z.object({
-        m: compactMeldSchema,
-        t: z.literal(EVENT_TYPE.MELD),
+        [WIRE_KEY.PACKED_MELD]: compactMeldSchema,
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.MELD),
     }),
     z.transform((raw) => ({
-        ...raw.m,
+        ...raw[WIRE_KEY.PACKED_MELD],
         type: "meld" as const,
     })),
 );
 
-// --- Riichi Declared (t=5) ---
-
 /** An accepted riichi: the declarer's score after its deposit and the riichi sticks on the table with it. */
 export const riichiDeclaredSchema = z.pipe(
     z.object({
-        r: z.int().check(z.gte(1)),
-        s: seatSchema,
-        sc: z.number(),
-        t: z.literal(EVENT_TYPE.RIICHI_DECLARED),
+        [WIRE_KEY.RIICHI_STICKS]: z.int().check(z.gte(1)),
+        [WIRE_KEY.SEAT]: seatSchema,
+        [WIRE_KEY.SCORE]: z.number(),
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.RIICHI_DECLARED),
     }),
     z.transform((raw) => ({
-        riichiSticks: raw.r,
-        score: raw.sc * WIRE_SCORE_DIVISOR,
-        seat: raw.s,
+        riichiSticks: raw[WIRE_KEY.RIICHI_STICKS],
+        score: raw[WIRE_KEY.SCORE] * WIRE_SCORE_DIVISOR,
+        seat: raw[WIRE_KEY.SEAT],
         type: "riichi_declared" as const,
     })),
 );
 
-// --- Dora Revealed (t=6) ---
-
 export const doraRevealedSchema = z.pipe(
     z.object({
-        t: z.literal(EVENT_TYPE.DORA_REVEALED),
-        ti: tileIdSchema,
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.DORA_REVEALED),
+        [WIRE_KEY.TILE_ID]: tileIdSchema,
     }),
     z.transform((raw) => ({
-        tileId: raw.ti,
+        tileId: raw[WIRE_KEY.TILE_ID],
         type: "dora_revealed" as const,
     })),
 );
 
-// --- Error (t=7) ---
-
 /** A game error refusing the seat's action, named by the wait id that action echoed. */
 export const errorEventSchema = z.pipe(
     z.object({
-        cd: z.string(),
-        msg: z.string(),
-        t: z.literal(EVENT_TYPE.ERROR),
-        wi: z.optional(waitIdSchema),
+        [WIRE_KEY.GAME_ERROR_CODE]: z.string(),
+        [WIRE_KEY.GAME_ERROR_MESSAGE]: z.string(),
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.ERROR),
+        [WIRE_KEY.WAIT_ID]: z.optional(waitIdSchema),
     }),
     z.transform((raw) => ({
-        code: raw.cd,
-        message: raw.msg,
+        code: raw[WIRE_KEY.GAME_ERROR_CODE],
+        message: raw[WIRE_KEY.GAME_ERROR_MESSAGE],
         type: "error" as const,
-        waitId: raw.wi ?? null,
+        waitId: raw[WIRE_KEY.WAIT_ID] ?? null,
     })),
 );
 
-// --- Furiten (t=11) ---
-
 export const furitenSchema = z.pipe(
     z.object({
-        f: z.boolean(),
-        t: z.literal(EVENT_TYPE.FURITEN),
+        [WIRE_KEY.FURITEN]: z.boolean(),
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.FURITEN),
     }),
     z.transform((raw) => ({
-        isFuriten: raw.f,
+        isFuriten: raw[WIRE_KEY.FURITEN],
         type: "furiten" as const,
     })),
 );
 
-// --- Game End (t=10) ---
-
 export const gameEndSchema = z.pipe(
     z
         .object({
-            ec: z.enum(GAME_END_CAUSE),
-            lb: wireScoreSchema,
-            lr: z.int().check(z.gte(0)),
-            nr: z.int(),
-            st: z.array(playerStandingSchema),
-            t: z.literal(EVENT_TYPE.GAME_END),
-            ws: seatSchema,
+            [WIRE_KEY.END_CAUSE]: z.enum(GAME_END_CAUSE),
+            [WIRE_KEY.LEFTOVER_BONUS]: wireScoreSchema,
+            [WIRE_KEY.LEFTOVER_RIICHI]: z.int().check(z.gte(0)),
+            [WIRE_KEY.ROUND_COUNT]: z.int(),
+            [WIRE_KEY.STANDINGS]: z.array(playerStandingSchema),
+            [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.GAME_END),
+            [WIRE_KEY.WINNER_SEAT]: seatSchema,
         })
         .check(
             z.refine(
                 (raw) =>
-                    raw.st.length === NUM_PLAYERS &&
-                    namesDistinctSeats(raw.st.map((standing) => standing.seat)),
+                    raw[WIRE_KEY.STANDINGS].length === NUM_PLAYERS &&
+                    namesDistinctSeats(raw[WIRE_KEY.STANDINGS].map((standing) => standing.seat)),
                 { message: "the standings do not rank each of the four seats once" },
             ),
         ),
     z.transform((raw) => ({
-        endCause: raw.ec,
-        leftoverRiichiBonus: raw.lb,
-        leftoverRiichiSticks: raw.lr,
-        numRounds: raw.nr,
-        standings: raw.st,
+        endCause: raw[WIRE_KEY.END_CAUSE],
+        leftoverRiichiBonus: raw[WIRE_KEY.LEFTOVER_BONUS],
+        leftoverRiichiSticks: raw[WIRE_KEY.LEFTOVER_RIICHI],
+        numRounds: raw[WIRE_KEY.ROUND_COUNT],
+        standings: raw[WIRE_KEY.STANDINGS],
         type: "game_end" as const,
-        winnerSeat: raw.ws,
+        winnerSeat: raw[WIRE_KEY.WINNER_SEAT],
     })),
 );

@@ -2,21 +2,22 @@ import { readFile } from "node:fs/promises";
 import { type IncomingMessage, type Server, type ServerResponse, createServer } from "node:http";
 import { extname, join, resolve, sep } from "node:path";
 
-import { encode } from "@msgpack/msgpack";
 import { type Browser, type BrowserContext } from "playwright";
 
+import { encodeWireMessage } from "../../src/shared/protocol/wire-codec.ts";
 import { GAME_ID, LIVE_CHECKPOINTS, type Viewport } from "./model.ts";
 
 export const APP_ROOT = resolve(import.meta.dirname, "../..");
 const DIST = join(APP_ROOT, "dist-dev");
 const ASSET_PREFIX = "/game-assets/v2/";
-const REPLAY_FIXTURE = join(APP_ROOT, "src/fixtures/replays/four_kans.txt");
+const REPLAY_FIXTURE = join(APP_ROOT, "src/fixtures/replays/four_kans.msgpack");
 const TRANSCRIPT_FIXTURE = join(APP_ROOT, "src/fixtures/seat-scenarios/call_prompt_seat_1.json");
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
     ".css": "text/css",
     ".html": "text/html",
     ".js": "text/javascript",
+    ".msgpack": "application/msgpack",
     ".png": "image/png",
     ".svg": "image/svg+xml",
     ".woff2": "font/woff2",
@@ -58,7 +59,10 @@ export async function transcriptFrames(): Promise<ReadonlyMap<string, readonly U
             if (last === -1) {
                 throw new Error(`${TRANSCRIPT_FIXTURE} has no message labelled ${label}`);
             }
-            return [label, received.slice(0, last + 1).map((event) => encode(event.payload))];
+            return [
+                label,
+                received.slice(0, last + 1).map((event) => encodeWireMessage(event.payload)),
+            ];
         }),
     );
 }

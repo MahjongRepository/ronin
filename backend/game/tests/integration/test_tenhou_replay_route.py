@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 import pytest
@@ -9,22 +8,26 @@ from game.server.app import create_app
 from game.server.settings import GameServerSettings
 from game.tests.helpers.session import make_session_manager
 from game.wire.enums import WireEventType
+from game.wire.keys import WireKey
+from game.wire.replay_format import decode_replay_records, encode_replay_records
 from shared.storage import LocalReplayStorage
 
-FULL_GAME_REPLAY = Path(__file__).parent / "replays" / "fixtures" / "full_round" / "full_game.txt"
+FULL_GAME_REPLAY = Path(__file__).parent / "replays" / "fixtures" / "full_round" / "full_game.msgpack"
 STORED_GAME_ID = "stored-game"
 FAILED_GAME_ID = "failed-game"
 
 
-def _without_game_end(replay: str) -> str:
-    return "\n".join(line for line in replay.splitlines() if json.loads(line).get("t") != WireEventType.GAME_END)
+def _without_game_end(replay: bytes) -> bytes:
+    return encode_replay_records(
+        [record for record in decode_replay_records(replay) if record.get(WireKey.EVENT_TYPE) != WireEventType.GAME_END]
+    )
 
 
 @pytest.fixture
 def client(tmp_path):
     storage = LocalReplayStorage(str(tmp_path))
-    storage.save_replay(STORED_GAME_ID, FULL_GAME_REPLAY.read_text())
-    storage.save_replay(FAILED_GAME_ID, _without_game_end(FULL_GAME_REPLAY.read_text()))
+    storage.save_replay(STORED_GAME_ID, FULL_GAME_REPLAY.read_bytes())
+    storage.save_replay(FAILED_GAME_ID, _without_game_end(FULL_GAME_REPLAY.read_bytes()))
     session_manager = make_session_manager()
     app = create_app(
         settings=GameServerSettings(replay_dir=str(tmp_path)),

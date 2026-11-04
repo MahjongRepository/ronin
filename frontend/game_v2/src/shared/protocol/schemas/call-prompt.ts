@@ -1,107 +1,108 @@
 import { z } from "zod/mini";
 
 import { CALL_TYPE, EVENT_TYPE, KAN_TYPE, MELD_CALL_TYPE } from "@/shared/protocol/constants";
+import { WIRE_KEY } from "@/shared/protocol/wire-keys";
 
 import { seatSchema, secondsSchema, tileIdSchema, waitIdSchema } from "./common";
-
-// --- Available call option (inside meld prompt `ac` array) ---
 
 /** One offered call: a chi with the pairs it may be called with, a nonempty list; a pon or an open kan with none. */
 const availableCallSchema = z.union([
     z.pipe(
         z.object({
-            clt: z.literal(MELD_CALL_TYPE.CHI),
-            opt: z.array(z.tuple([tileIdSchema, tileIdSchema])).check(z.minLength(1)),
+            [WIRE_KEY.CALL_TYPE]: z.literal(MELD_CALL_TYPE.CHI),
+            [WIRE_KEY.CALL_OPTIONS]: z
+                .array(z.tuple([tileIdSchema, tileIdSchema]))
+                .check(z.minLength(1)),
         }),
-        z.transform((raw) => ({ callType: raw.clt, options: raw.opt })),
+        z.transform((raw) => ({
+            callType: raw[WIRE_KEY.CALL_TYPE],
+            options: raw[WIRE_KEY.CALL_OPTIONS],
+        })),
     ),
     z.pipe(
         z.object({
-            clt: z.union([z.literal(MELD_CALL_TYPE.PON), z.literal(MELD_CALL_TYPE.OPEN_KAN)]),
+            [WIRE_KEY.CALL_TYPE]: z.union([
+                z.literal(MELD_CALL_TYPE.PON),
+                z.literal(MELD_CALL_TYPE.OPEN_KAN),
+            ]),
         }),
-        z.transform((raw) => ({ callType: raw.clt })),
+        z.transform((raw) => ({ callType: raw[WIRE_KEY.CALL_TYPE] })),
     ),
 ]);
 
-// --- Ron prompt (clt=0) ---
-
 const ronPromptSchema = z.pipe(
     z.object({
-        ac: z.optional(z.array(availableCallSchema)),
-        bk: z.optional(secondsSchema),
-        clt: z.literal(CALL_TYPE.RON),
-        cs: seatSchema,
-        el: z.optional(secondsSchema),
-        frs: seatSchema,
-        t: z.literal(EVENT_TYPE.CALL_PROMPT),
-        ti: tileIdSchema,
-        wi: z.optional(waitIdSchema),
+        [WIRE_KEY.AVAILABLE_CALLS]: z.optional(z.array(availableCallSchema)),
+        [WIRE_KEY.BANK_SECONDS]: z.optional(secondsSchema),
+        [WIRE_KEY.CALL_TYPE]: z.literal(CALL_TYPE.RON),
+        [WIRE_KEY.CALLER_SEAT]: seatSchema,
+        [WIRE_KEY.WAIT_ELAPSED]: z.optional(secondsSchema),
+        [WIRE_KEY.FROM_SEAT]: seatSchema,
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.CALL_PROMPT),
+        [WIRE_KEY.TILE_ID]: tileIdSchema,
+        [WIRE_KEY.WAIT_ID]: z.optional(waitIdSchema),
     }),
     z.transform((raw) => ({
-        availableCalls: raw.ac ?? [],
-        bankSeconds: raw.bk ?? null,
+        availableCalls: raw[WIRE_KEY.AVAILABLE_CALLS] ?? [],
+        bankSeconds: raw[WIRE_KEY.BANK_SECONDS] ?? null,
         callType: CALL_TYPE.RON as typeof CALL_TYPE.RON,
-        callerSeat: raw.cs,
-        elapsedSeconds: raw.el ?? null,
-        fromSeat: raw.frs,
-        tileId: raw.ti,
+        callerSeat: raw[WIRE_KEY.CALLER_SEAT],
+        elapsedSeconds: raw[WIRE_KEY.WAIT_ELAPSED] ?? null,
+        fromSeat: raw[WIRE_KEY.FROM_SEAT],
+        tileId: raw[WIRE_KEY.TILE_ID],
         type: "call_prompt" as const,
-        waitId: raw.wi ?? null,
+        waitId: raw[WIRE_KEY.WAIT_ID] ?? null,
     })),
 );
-
-// --- Chankan prompt (clt=2) ---
 
 /** A chankan prompt names the kan it offers to rob: an added kan, or the closed kan kokushi musou may rob. */
 const chankanPromptSchema = z.pipe(
     z.object({
-        bk: z.optional(secondsSchema),
-        clt: z.literal(CALL_TYPE.CHANKAN),
-        cs: seatSchema,
-        el: z.optional(secondsSchema),
-        frs: seatSchema,
-        kty: z.union([z.literal(KAN_TYPE.ADDED), z.literal(KAN_TYPE.CLOSED)]),
-        t: z.literal(EVENT_TYPE.CALL_PROMPT),
-        ti: tileIdSchema,
-        wi: z.optional(waitIdSchema),
+        [WIRE_KEY.BANK_SECONDS]: z.optional(secondsSchema),
+        [WIRE_KEY.CALL_TYPE]: z.literal(CALL_TYPE.CHANKAN),
+        [WIRE_KEY.CALLER_SEAT]: seatSchema,
+        [WIRE_KEY.WAIT_ELAPSED]: z.optional(secondsSchema),
+        [WIRE_KEY.FROM_SEAT]: seatSchema,
+        [WIRE_KEY.KAN_TYPE]: z.union([z.literal(KAN_TYPE.ADDED), z.literal(KAN_TYPE.CLOSED)]),
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.CALL_PROMPT),
+        [WIRE_KEY.TILE_ID]: tileIdSchema,
+        [WIRE_KEY.WAIT_ID]: z.optional(waitIdSchema),
     }),
     z.transform((raw) => ({
-        bankSeconds: raw.bk ?? null,
+        bankSeconds: raw[WIRE_KEY.BANK_SECONDS] ?? null,
         callType: CALL_TYPE.CHANKAN as typeof CALL_TYPE.CHANKAN,
-        callerSeat: raw.cs,
-        elapsedSeconds: raw.el ?? null,
-        fromSeat: raw.frs,
-        kanType: raw.kty,
-        tileId: raw.ti,
+        callerSeat: raw[WIRE_KEY.CALLER_SEAT],
+        elapsedSeconds: raw[WIRE_KEY.WAIT_ELAPSED] ?? null,
+        fromSeat: raw[WIRE_KEY.FROM_SEAT],
+        kanType: raw[WIRE_KEY.KAN_TYPE],
+        tileId: raw[WIRE_KEY.TILE_ID],
         type: "call_prompt" as const,
-        waitId: raw.wi ?? null,
+        waitId: raw[WIRE_KEY.WAIT_ID] ?? null,
     })),
 );
 
-// --- Meld prompt (clt=1) ---
-
 const meldPromptSchema = z.pipe(
     z.object({
-        ac: z.array(availableCallSchema).check(z.minLength(1)),
-        bk: z.optional(secondsSchema),
-        clt: z.literal(CALL_TYPE.MELD),
-        cs: seatSchema,
-        el: z.optional(secondsSchema),
-        frs: seatSchema,
-        t: z.literal(EVENT_TYPE.CALL_PROMPT),
-        ti: tileIdSchema,
-        wi: z.optional(waitIdSchema),
+        [WIRE_KEY.AVAILABLE_CALLS]: z.array(availableCallSchema).check(z.minLength(1)),
+        [WIRE_KEY.BANK_SECONDS]: z.optional(secondsSchema),
+        [WIRE_KEY.CALL_TYPE]: z.literal(CALL_TYPE.MELD),
+        [WIRE_KEY.CALLER_SEAT]: seatSchema,
+        [WIRE_KEY.WAIT_ELAPSED]: z.optional(secondsSchema),
+        [WIRE_KEY.FROM_SEAT]: seatSchema,
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.CALL_PROMPT),
+        [WIRE_KEY.TILE_ID]: tileIdSchema,
+        [WIRE_KEY.WAIT_ID]: z.optional(waitIdSchema),
     }),
     z.transform((raw) => ({
-        availableCalls: raw.ac,
-        bankSeconds: raw.bk ?? null,
+        availableCalls: raw[WIRE_KEY.AVAILABLE_CALLS],
+        bankSeconds: raw[WIRE_KEY.BANK_SECONDS] ?? null,
         callType: CALL_TYPE.MELD as typeof CALL_TYPE.MELD,
-        callerSeat: raw.cs,
-        elapsedSeconds: raw.el ?? null,
-        fromSeat: raw.frs,
-        tileId: raw.ti,
+        callerSeat: raw[WIRE_KEY.CALLER_SEAT],
+        elapsedSeconds: raw[WIRE_KEY.WAIT_ELAPSED] ?? null,
+        fromSeat: raw[WIRE_KEY.FROM_SEAT],
+        tileId: raw[WIRE_KEY.TILE_ID],
         type: "call_prompt" as const,
-        waitId: raw.wi ?? null,
+        waitId: raw[WIRE_KEY.WAIT_ID] ?? null,
     })),
 );
 
@@ -112,9 +113,9 @@ export type ChankanPromptEvent = z.output<typeof chankanPromptSchema>;
 export type MeldPromptEvent = z.output<typeof meldPromptSchema>;
 export type CallPromptEvent = RonPromptEvent | ChankanPromptEvent | MeldPromptEvent;
 
-/** Dispatch on `clt` by hand: Zod's discriminatedUnion does not work with `.transform()`. */
+/** Dispatch on `WIRE_KEY.CALL_TYPE` by hand: Zod's discriminatedUnion does not work with `.transform()`. */
 export function parseCallPrompt(raw: Record<string, unknown>): CallPromptEvent {
-    const { clt } = raw;
+    const { [WIRE_KEY.CALL_TYPE]: clt } = raw;
     switch (clt) {
         case CALL_TYPE.RON: {
             return ronPromptSchema.parse(raw);
@@ -126,7 +127,7 @@ export function parseCallPrompt(raw: Record<string, unknown>): CallPromptEvent {
             return chankanPromptSchema.parse(raw);
         }
         default: {
-            throw new Error(`Unknown call prompt type: clt=${String(clt)}`);
+            throw new Error(`Unknown call prompt type: CALL_TYPE=${String(clt)}`);
         }
     }
 }

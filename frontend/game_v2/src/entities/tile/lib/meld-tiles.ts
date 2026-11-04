@@ -49,7 +49,7 @@ function sidewaysPosition(callerSeat: number, fromSeat: number, slotCount: numbe
 }
 
 /** A chi is always fed by kamicha: its called tile sideways at the left, the other two in order after it. */
-function chiTiles(input: MeldInput): MeldTile[] {
+function chiTiles(input: MeldInput, hasAkadora: boolean): MeldTile[] {
     const calledId = input.calledTileId;
     if (calledId === null || !input.tileIds.includes(calledId)) {
         throw new Error("calledTileId is required for chi and must be one of its tiles");
@@ -58,16 +58,16 @@ function chiTiles(input: MeldInput): MeldTile[] {
         .filter((tileId) => tileId !== calledId)
         .toSorted((tileA, tileB) => tileType(tileA) - tileType(tileB));
     return [
-        { face: tile136toString(calledId), kind: "sideways", tileId: calledId },
+        { face: tile136toString(calledId, hasAkadora), kind: "sideways", tileId: calledId },
         ...others.map((tileId): MeldTile => ({
-            face: tile136toString(tileId),
+            face: tile136toString(tileId, hasAkadora),
             kind: "upright",
             tileId,
         })),
     ];
 }
 
-function openMeldTiles(input: MeldInput, tileCount: number): MeldTile[] {
+function openMeldTiles(input: MeldInput, tileCount: number, hasAkadora: boolean): MeldTile[] {
     if (input.fromSeat === null || input.calledTileId === null) {
         throw new Error(`fromSeat and calledTileId are required for ${input.meldType}`);
     }
@@ -77,20 +77,23 @@ function openMeldTiles(input: MeldInput, tileCount: number): MeldTile[] {
     let otherIdx = 0;
     return Array.from({ length: tileCount }, (_unused, idx): MeldTile =>
         idx === pos
-            ? { face: tile136toString(calledId), kind: "sideways", tileId: calledId }
-            : toUprightTile(otherTiles[otherIdx++]),
+            ? { face: tile136toString(calledId, hasAkadora), kind: "sideways", tileId: calledId }
+            : toUprightTile(otherTiles[otherIdx++], hasAkadora),
     );
 }
 
-function closedKanTiles(input: MeldInput): MeldTile[] {
+function closedKanTiles(input: MeldInput, hasAkadora: boolean): MeldTile[] {
     return input.tileIds.map((tileId, idx) => ({
-        face: tile136toString(tileId),
+        face: tile136toString(tileId, hasAkadora),
         kind: idx === 0 || idx === 3 ? "facedown" : "upright",
         tileId,
     }));
 }
 
-function addedKanTiles(input: MeldInput & { readonly meldType: "added_kan" }): MeldTile[] {
+function addedKanTiles(
+    input: MeldInput & { readonly meldType: "added_kan" },
+    hasAkadora: boolean,
+): MeldTile[] {
     if (input.fromSeat === null || input.calledTileId === null) {
         throw new Error("fromSeat and calledTileId are required for added_kan");
     }
@@ -102,37 +105,37 @@ function addedKanTiles(input: MeldInput & { readonly meldType: "added_kan" }): M
     return Array.from({ length: 3 }, (_unused, idx): MeldTile =>
         idx === pos
             ? {
-                  bottom: tile136toString(calledId),
+                  bottom: tile136toString(calledId, hasAkadora),
                   bottomId: calledId,
                   kind: "stacked",
-                  top: tile136toString(addedId),
+                  top: tile136toString(addedId, hasAkadora),
                   topId: addedId,
               }
-            : toUprightTile(otherTiles[otherIdx++]),
+            : toUprightTile(otherTiles[otherIdx++], hasAkadora),
     );
 }
 
-function toUprightTile(tileId: number): MeldTile {
-    return { face: tile136toString(tileId), kind: "upright", tileId };
+function toUprightTile(tileId: number, hasAkadora: boolean): MeldTile {
+    return { face: tile136toString(tileId, hasAkadora), kind: "upright", tileId };
 }
 
 /** The tiles a meld is laid as, left to right. */
-export function meldTiles(input: MeldInput): MeldTile[] {
+export function meldTiles(input: MeldInput, hasAkadora = true): MeldTile[] {
     switch (input.meldType) {
         case "chi": {
-            return chiTiles(input);
+            return chiTiles(input, hasAkadora);
         }
         case "pon": {
-            return openMeldTiles(input, 3);
+            return openMeldTiles(input, 3, hasAkadora);
         }
         case "open_kan": {
-            return openMeldTiles(input, 4);
+            return openMeldTiles(input, 4, hasAkadora);
         }
         case "closed_kan": {
-            return closedKanTiles(input);
+            return closedKanTiles(input, hasAkadora);
         }
         case "added_kan": {
-            return addedKanTiles(input);
+            return addedKanTiles(input, hasAkadora);
         }
     }
 }

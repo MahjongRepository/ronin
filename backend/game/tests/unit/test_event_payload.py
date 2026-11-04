@@ -42,6 +42,7 @@ from game.messaging.event_payload import (
 )
 from game.wire.compact import decode_discard, decode_draw
 from game.wire.enums import WireRoundResultType
+from game.wire.keys import WireKey
 from shared.lib.melds import EVENT_TYPE_MELD, decode_meld_compact
 
 
@@ -59,10 +60,10 @@ class TestGameEventPayload:
     def test_game_event_payload__when_discard__should_pack_into_integer(self):
         event = DiscardEvent(seat=0, tile_id=10, is_riichi=True)
         payload = game_event_payload(event)
-        assert payload["t"] == EVENT_TYPE_INT[EventType.DISCARD]
-        assert set(payload.keys()) == {"t", "d"}
+        assert payload[WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.DISCARD]
+        assert set(payload.keys()) == {WireKey.EVENT_TYPE, WireKey.PACKED_MOVE}
 
-        seat, tile_id, is_tsumogiri, is_riichi = decode_discard(payload["d"])
+        seat, tile_id, is_tsumogiri, is_riichi = decode_discard(payload[WireKey.PACKED_MOVE])
         assert seat == 0
         assert tile_id == 10
         assert is_tsumogiri is False
@@ -83,17 +84,22 @@ class TestGameEventPayload:
 
         payload = game_event_payload(event)
 
-        assert payload["t"] == EVENT_TYPE_INT[EventType.GAME_END]
-        assert (payload["lb"], payload["lr"], payload["nr"], payload["ec"]) == (0, 2, 8, "extension_limit")
+        assert payload[WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.GAME_END]
+        assert (
+            payload[WireKey.LEFTOVER_BONUS],
+            payload[WireKey.LEFTOVER_RIICHI],
+            payload[WireKey.ROUND_COUNT],
+            payload[WireKey.END_CAUSE],
+        ) == (0, 2, 8, "extension_limit")
 
     def test_game_event_payload__when_draw__should_pack_into_integer_beside_the_live_wall_left(self):
         event = DrawEvent(seat=1, tile_id=42, tiles_remaining=69, target=SeatTarget(seat=1))
         payload = game_event_payload(event)
-        assert payload["t"] == EVENT_TYPE_INT[EventType.DRAW]
-        assert set(payload.keys()) == {"t", "d", "tr"}
-        assert payload["tr"] == 69
+        assert payload[WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.DRAW]
+        assert set(payload.keys()) == {WireKey.EVENT_TYPE, WireKey.PACKED_MOVE, WireKey.TILES_REMAINING}
+        assert payload[WireKey.TILES_REMAINING] == 69
 
-        seat, tile_id = decode_draw(payload["d"])
+        seat, tile_id = decode_draw(payload[WireKey.PACKED_MOVE])
         assert seat == 1
         assert tile_id == 42
 
@@ -106,9 +112,9 @@ class TestGameEventPayload:
             available_actions=[AvailableActionItem(action="discard", tiles=[10])],
         )
         payload = game_event_payload(event)
-        assert "aa" in payload
-        assert len(payload["aa"]) == 1
-        assert payload["aa"][0] == {"a": WirePlayerAction.DISCARD, "tl": [10]}
+        assert WireKey.AVAILABLE_ACTIONS in payload
+        assert len(payload[WireKey.AVAILABLE_ACTIONS]) == 1
+        assert payload[WireKey.AVAILABLE_ACTIONS][0] == {WireKey.ACTION: WirePlayerAction.DISCARD, WireKey.TILES: [10]}
 
     def test_game_event_payload__when_available_action_has_no_tiles__should_omit_tile_list(self):
         event = DrawEvent(
@@ -119,8 +125,8 @@ class TestGameEventPayload:
             available_actions=[AvailableActionItem(action="tsumo")],
         )
         payload = game_event_payload(event)
-        assert payload["aa"][0] == {"a": WirePlayerAction.TSUMO}
-        assert "tl" not in payload["aa"][0]
+        assert payload[WireKey.AVAILABLE_ACTIONS][0] == {WireKey.ACTION: WirePlayerAction.TSUMO}
+        assert WireKey.TILES not in payload[WireKey.AVAILABLE_ACTIONS][0]
 
     def test_game_event_payload__when_chankan_prompt__should_name_the_kan_it_offers_to_rob(self):
         chankan = CallPromptEvent(
@@ -132,65 +138,65 @@ class TestGameEventPayload:
             target=SeatTarget(seat=1),
         )
 
-        assert game_event_payload(chankan)["kty"] == "closed"
-        assert "kty" not in game_event_payload(_prompt_to(1))
+        assert game_event_payload(chankan)[WireKey.KAN_TYPE] == "closed"
+        assert WireKey.KAN_TYPE not in game_event_payload(_prompt_to(1))
 
     def test_game_event_payload__when_turn_event__should_carry_only_type_and_kuikae_types(self):
         event = TurnEvent(kuikae_tiles=[4, 7], target=SeatTarget(seat=0))
 
         payload = game_event_payload(event)
-        assert payload == {"t": 12, "kt": [4, 7]}
+        assert payload == {WireKey.EVENT_TYPE: 12, WireKey.KUIKAE_TILES: [4, 7]}
 
 
 class TestShapeCallPromptPayload:
     def test_shape_call_prompt_payload__when_ron_prompt__should_drop_callers_and_keep_caller_seat(self):
         payload = {
-            "clt": WireCallType.RON,
-            "ti": 42,
-            "frs": 1,
-            "clr": [0],
+            WireKey.CALL_TYPE: WireCallType.RON,
+            WireKey.TILE_ID: 42,
+            WireKey.FROM_SEAT: 1,
+            WireKey.CALLERS: [0],
         }
         result = shape_call_prompt_payload(payload)
-        assert "clr" not in result
+        assert WireKey.CALLERS not in result
         assert result == {
-            "clt": WireCallType.RON,
-            "ti": 42,
-            "frs": 1,
-            "cs": 0,
+            WireKey.CALL_TYPE: WireCallType.RON,
+            WireKey.TILE_ID: 42,
+            WireKey.FROM_SEAT: 1,
+            WireKey.CALLER_SEAT: 0,
         }
 
     def test_shape_call_prompt_payload__when_ron_prompt_seat_can_also_pon__should_list_the_pon(self):
         payload = {
-            "clt": WireCallType.RON,
-            "ti": 42,
-            "frs": 1,
-            "clr": [{"s": 2, "clt": WireMeldCallType.PON, "opt": None}],
+            WireKey.CALL_TYPE: WireCallType.RON,
+            WireKey.TILE_ID: 42,
+            WireKey.FROM_SEAT: 1,
+            WireKey.CALLERS: [{WireKey.SEAT: 2, WireKey.CALL_TYPE: WireMeldCallType.PON, WireKey.CALL_OPTIONS: None}],
         }
         result = shape_call_prompt_payload(payload)
         assert result == {
-            "clt": WireCallType.RON,
-            "ti": 42,
-            "frs": 1,
-            "cs": 2,
-            "ac": [{"clt": WireMeldCallType.PON}],
+            WireKey.CALL_TYPE: WireCallType.RON,
+            WireKey.TILE_ID: 42,
+            WireKey.FROM_SEAT: 1,
+            WireKey.CALLER_SEAT: 2,
+            WireKey.AVAILABLE_CALLS: [{WireKey.CALL_TYPE: WireMeldCallType.PON}],
         }
 
     def test_shape_call_prompt_payload__when_meld_prompt_has_multiple_call_types__should_list_all_call_types(self):
         payload = {
-            "clt": WireCallType.MELD,
-            "ti": 55,
-            "frs": 3,
-            "clr": [
-                {"s": 0, "clt": WireMeldCallType.PON, "opt": None},
-                {"s": 0, "clt": WireMeldCallType.CHI, "opt": [[57, 63]]},
+            WireKey.CALL_TYPE: WireCallType.MELD,
+            WireKey.TILE_ID: 55,
+            WireKey.FROM_SEAT: 3,
+            WireKey.CALLERS: [
+                {WireKey.SEAT: 0, WireKey.CALL_TYPE: WireMeldCallType.PON, WireKey.CALL_OPTIONS: None},
+                {WireKey.SEAT: 0, WireKey.CALL_TYPE: WireMeldCallType.CHI, WireKey.CALL_OPTIONS: [[57, 63]]},
             ],
         }
         result = shape_call_prompt_payload(payload)
-        assert "clr" not in result
-        assert result["cs"] == 0
-        assert result["ac"] == [
-            {"clt": WireMeldCallType.PON},
-            {"clt": WireMeldCallType.CHI, "opt": [[57, 63]]},
+        assert WireKey.CALLERS not in result
+        assert result[WireKey.CALLER_SEAT] == 0
+        assert result[WireKey.AVAILABLE_CALLS] == [
+            {WireKey.CALL_TYPE: WireMeldCallType.PON},
+            {WireKey.CALL_TYPE: WireMeldCallType.CHI, WireKey.CALL_OPTIONS: [[57, 63]]},
         ]
 
 
@@ -205,11 +211,11 @@ class TestMeldEventPayload:
             added_tile_id=6,
         )
         payload = game_event_payload(event)
-        assert payload["t"] == EVENT_TYPE_MELD
-        assert "m" in payload
-        assert set(payload.keys()) == {"t", "m"}
+        assert payload[WireKey.EVENT_TYPE] == EVENT_TYPE_MELD
+        assert WireKey.PACKED_MELD in payload
+        assert set(payload.keys()) == {WireKey.EVENT_TYPE, WireKey.PACKED_MELD}
 
-        decoded = decode_meld_compact(payload["m"])
+        decoded = decode_meld_compact(payload[WireKey.PACKED_MELD])
         assert decoded["meld_type"] == "added_kan"
         assert decoded["caller_seat"] == 0
         assert decoded["tile_ids"] == [4, 5, 6, 7]
@@ -281,7 +287,7 @@ class TestStampWaitId:
         awaiting = Awaiting(kind=kind, seats=frozenset({1}), wait_id=7, round_number=0)
 
         payload = stamp_wait_id(game_event_payload(event), event=event, awaiting=awaiting, wait_id=3)
-        assert payload.get("wi") == (3 if stamped else None)
+        assert payload.get(WireKey.WAIT_ID) == (3 if stamped else None)
 
 
 class TestRoundEndPayload:
@@ -304,11 +310,11 @@ class TestRoundEndPayload:
         )
         payload = game_event_payload(event)
         assert "result" not in payload
-        assert (payload["rt"], payload["r"]) == (WireRoundResultType.TSUMO, 0)
-        assert "ps" not in payload
-        assert "ud" not in payload
-        assert payload["ws"] == 0
-        assert payload["wt"] == 1
+        assert (payload[WireKey.RESULT_TYPE], payload[WireKey.RIICHI_STICKS]) == (WireRoundResultType.TSUMO, 0)
+        assert WireKey.PAO_SEAT not in payload
+        assert WireKey.URA_DORA not in payload
+        assert payload[WireKey.WINNER_SEAT] == 0
+        assert payload[WireKey.WINNING_TILE] == 1
 
     def test_round_end_payload__when_tsumo_fields_present__should_keep_them(self):
         yakuman_hand = HandResultInfo(
@@ -339,16 +345,19 @@ class TestRoundEndPayload:
             ),
         )
         payload = game_event_payload(event)
-        assert (payload["dl"], payload["di"]) == (3, [5, 9])
-        assert (payload["ps"], payload["pl"]) == (2, {"yk": [103], "sh": "all", "hb": True})
-        assert (payload["hb"], payload["ud"]) == (6, [10])
-        assert payload["hr"] == {
-            "han": 13,
-            "fu": 30,
-            "yk": [{"yi": 103, "han": 13, "ym": 1}],
-            "pt": 320,
-            "lm": "yakuman",
-            "yc": 1,
+        assert (payload[WireKey.DEALER], payload[WireKey.DORA_INDICATORS]) == (3, [5, 9])
+        assert (payload[WireKey.PAO_SEAT], payload[WireKey.PAO_LIABILITY]) == (
+            2,
+            {WireKey.YAKU: [103], WireKey.PAO_SHARE: "all", WireKey.PAYS_HONBA: True},
+        )
+        assert (payload[WireKey.HONBA_BONUS], payload[WireKey.URA_DORA]) == (6, [10])
+        assert payload[WireKey.HAND_RESULT] == {
+            WireKey.HAN: 13,
+            WireKey.FU: 30,
+            WireKey.YAKU: [{WireKey.YAKU_ID: 103, WireKey.HAN: 13, WireKey.YAKU_YAKUMAN_COUNT: 1}],
+            WireKey.POINTS: 320,
+            WireKey.HAND_LIMIT: "yakuman",
+            WireKey.YAKUMAN_COUNT: 1,
         }
 
     def test_round_end_payload__when_double_ron_winner_fields_none__should_omit_them(self):
@@ -384,7 +393,7 @@ class TestRoundEndPayload:
             ),
         )
         payload = game_event_payload(event)
-        assert payload["rt"] == WireRoundResultType.DOUBLE_RON
-        for winner in payload["wn"]:
-            assert "ps" not in winner
-            assert "ud" not in winner
+        assert payload[WireKey.RESULT_TYPE] == WireRoundResultType.DOUBLE_RON
+        for winner in payload[WireKey.WINNERS]:
+            assert WireKey.PAO_SEAT not in winner
+            assert WireKey.URA_DORA not in winner

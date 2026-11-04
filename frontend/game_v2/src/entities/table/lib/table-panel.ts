@@ -50,6 +50,7 @@ function resultPanel(table: TableState, view: TablePanelView): TablePanel | null
         display: roundEndDisplay(
             { players: table.players, result: table.roundEndResult },
             view.page,
+            table.hasAkadora,
         ),
         kind: "result",
     };

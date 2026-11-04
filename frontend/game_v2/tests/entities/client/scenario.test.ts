@@ -44,6 +44,7 @@ import {
     GAME_ERROR_CODE,
     KAN_TYPE,
     SESSION_ERROR_CODE,
+    WIRE_KEY,
     buildConfirmRoundAction,
     buildDiscardAction,
     buildJoinGameMessage,
@@ -142,7 +143,12 @@ describe("seatScenarioFromTranscript", () => {
                 {
                     at: 0,
                     kind: "sent",
-                    message: { a: GAME_ACTION.PASS, t: 3, ti: 8, wi: 1 },
+                    message: {
+                        [WIRE_KEY.ACTION]: GAME_ACTION.PASS,
+                        [WIRE_KEY.EVENT_TYPE]: 3,
+                        [WIRE_KEY.TILE_ID]: 8,
+                        [WIRE_KEY.WAIT_ID]: 1,
+                    },
                 },
             ],
             game_id: "g",
@@ -159,7 +165,11 @@ describe("seatScenarioFromTranscript", () => {
             if (event.kind !== "received" || event.label !== "round end") {
                 return event;
             }
-            const { at: _advanceSeconds, wi: _waitId, ...payload } = event.payload;
+            const {
+                [WIRE_KEY.ROUND_ADVANCE_SECONDS]: _advanceSeconds,
+                [WIRE_KEY.WAIT_ID]: _waitId,
+                ...payload
+            } = event.payload;
             return { ...event, payload };
         });
         const { scenario } = scenarioFromTranscript({ ...transcript, events: unawaited });
@@ -171,7 +181,10 @@ describe("seatScenarioFromTranscript", () => {
     });
 
     it("expects the JOIN_GAME the transcript recorded on a reopen before the seat was admitted", () => {
-        const join = { game_ticket: TICKET, t: CLIENT_MESSAGE_TYPE.JOIN_GAME };
+        const join = {
+            [WIRE_KEY.GAME_TICKET]: TICKET,
+            [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.JOIN_GAME,
+        };
         const [, transcript] = parseSeatTranscript({
             events: [
                 { at: 0, kind: "opened" },
@@ -250,9 +263,11 @@ describe("stepGameClient - generated call prompt", () => {
             openedAt: 3000,
             status: { kind: "open" },
             tileId: CALLED_THREE_MAN,
-            waitId: receivedPayload(transcript, "prompt").wi,
+            waitId: receivedPayload(transcript, "prompt")[WIRE_KEY.WAIT_ID],
         });
-        expect(prompt.table.players[1].tiles).toEqual(receivedPayload(transcript, "dealt").mt);
+        expect(prompt.table.players[1].tiles).toEqual(
+            receivedPayload(transcript, "dealt")[WIRE_KEY.MY_TILES],
+        );
         expect(seatsAt(prompt)).toEqual([
             [0, 13, [CALLED_THREE_MAN]],
             [13, 0, []],
@@ -293,8 +308,8 @@ describe("stepGameClient - generated call prompt", () => {
             deadline: 5000 + (5 + 20) * 1000,
             kind: "turn",
             offers: [],
-            opening: { kind: "after_call", kuikaeTileTypes: turnPayload.kt },
-            waitId: turnPayload.wi,
+            opening: { kind: "after_call", kuikaeTileTypes: turnPayload[WIRE_KEY.KUIKAE_TILES] },
+            waitId: turnPayload[WIRE_KEY.WAIT_ID],
         });
         expect(turn.table.players[1].melds.map((meld) => meld.tileIds)).toEqual([[0, 4, 8]]);
         expect(turn.table.players[1].tiles).toHaveLength(11);
@@ -311,9 +326,9 @@ describe("stepGameClient - generated call prompt", () => {
             kind: "turn",
             offers: [],
             openedAt: 7000,
-            opening: { kind: "after_call", kuikaeTileTypes: resentPayload.kt },
+            opening: { kind: "after_call", kuikaeTileTypes: resentPayload[WIRE_KEY.KUIKAE_TILES] },
             status: { kind: "open" },
-            waitId: receivedPayload(transcript, "turn").wi,
+            waitId: receivedPayload(transcript, "turn")[WIRE_KEY.WAIT_ID],
         });
         expect(resent.table.players[1].melds.map((meld) => meld.tileIds)).toEqual([[0, 4, 8]]);
         expect([resent.table.players[1].tiles.length, resent.table.players[1].drawnTileId]).toEqual(
@@ -355,7 +370,11 @@ describe("stepGameClient - generated call prompt", () => {
     });
 
     it("closes a prompt left open when the next seat's draw notice shows the server passed for it", () => {
-        const notice = { s: 3, t: EVENT_TYPE.DRAW_NOTICE, tr: 67 };
+        const notice = {
+            [WIRE_KEY.SEAT]: 3,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW_NOTICE,
+            [WIRE_KEY.TILES_REMAINING]: 67,
+        };
         const passedOver = branchAfter(scenario, "pon prompt", [
             { event: { at: 13_000, kind: "server_message", raw: notice }, label: "seat 3 drew" },
         ]);
@@ -379,7 +398,7 @@ describe("stepGameClient - generated call prompt", () => {
             deadline: 14_000 + (5 + 18) * 1000,
             kind: "turn",
             opening: { drawnTileId: 72, kind: "draw" },
-            waitId: drawPayload.wi,
+            waitId: drawPayload[WIRE_KEY.WAIT_ID],
         });
         expect(next.table.players[1].drawnTileId).toBe(72);
         expect(next.table.tilesRemaining).toBe(65);
@@ -434,7 +453,7 @@ describe("stepGameClient - generated own turn", () => {
             openedAt: 3000,
             opening: { drawnTileId: 3, kind: "draw" },
             status: { kind: "open" },
-            waitId: receivedPayload(transcript, "first draw").wi,
+            waitId: receivedPayload(transcript, "first draw")[WIRE_KEY.WAIT_ID],
         });
     });
 
@@ -450,7 +469,7 @@ describe("stepGameClient - generated own turn", () => {
             deadline: 3000 + (5 + 20) * 1000,
             openedAt: 4500,
             status: { kind: "open" },
-            waitId: receivedPayload(transcript, "draw re-sent").wi,
+            waitId: receivedPayload(transcript, "draw re-sent")[WIRE_KEY.WAIT_ID],
         });
         expect(decisionOf(resent)?.offers).toEqual(
             decisionOf(stateAt(scenario, run, "first draw"))?.offers,
@@ -467,7 +486,7 @@ describe("stepGameClient - generated own turn", () => {
 
         expect(decisionOf(rinshan)).toMatchObject({
             offers: [{ kind: "riichi", tileId: 120 }],
-            waitId: receivedPayload(transcript, "rinshan").wi,
+            waitId: receivedPayload(transcript, "rinshan")[WIRE_KEY.WAIT_ID],
         });
         expect(alice.melds.map((meld) => [meld.meldType, meld.tileIds])).toEqual([
             ["closed_kan", [0, 1, 2, 3]],
@@ -518,7 +537,7 @@ describe("stepGameClient - generated own turn", () => {
         expect(roundEnd.table.players.map((player) => player.score)).toEqual([
             21_000, 33_000, 23_000, 23_000,
         ]);
-        const waitId = receivedPayload(transcript, "round end").wi;
+        const waitId = receivedPayload(transcript, "round end")[WIRE_KEY.WAIT_ID];
         expect(roundConfirmOf(roundEnd)).toEqual({
             deadline: 15_000 + 10_000,
             kind: "owed",
@@ -541,7 +560,7 @@ describe("stepGameClient - generated own turn", () => {
             "East 2",
         );
         expect(nextRound.table.players[1].tiles).toEqual(
-            receivedPayload(transcript, "next round").mt,
+            receivedPayload(transcript, "next round")[WIRE_KEY.MY_TILES],
         );
         expect(decisionOf(stateAt(scenario, run, "dealer draw"))?.deadline).toBe(
             16_000 + (5 + 20) * 1000,
@@ -564,8 +583,9 @@ function editedAt(
     return { ...scenario, steps };
 }
 
-function withoutKey(key: string): (raw: WirePayload) => WirePayload {
-    return (raw) => Object.fromEntries(Object.entries(raw).filter(([name]) => name !== key));
+function withoutKey(key: number): (raw: WirePayload) => WirePayload {
+    return (raw) =>
+        Object.fromEntries(Object.entries(raw).filter(([name]) => name !== String(key)));
 }
 
 /** What the run's step labelled `label` described, by effect type, and every message the run sent from it on. */
@@ -581,7 +601,7 @@ describe("stepGameClient - incomplete or out-of-row live messages", () => {
     const RESYNC_MESSAGE = buildResyncMessage();
 
     it("goes out of step on a live deal naming no hand, so Auto discard answers nothing and only snapshots are asked for", () => {
-        const noHand = editedAt(ANCHOR.scenario, "east 2 dealt", withoutKey("mt"));
+        const noHand = editedAt(ANCHOR.scenario, "east 2 dealt", withoutKey(WIRE_KEY.MY_TILES));
         const variant = switchedOnBefore(noHand, "own turn", ["auto_discard"]);
         const run = runSeatScenario(variant);
         const [dealt, sent] = effectsFrom(variant, run, "east 2 dealt");
@@ -594,7 +614,7 @@ describe("stepGameClient - incomplete or out-of-row live messages", () => {
     it("goes out of step on a prompt after the round end rather than let it replace the confirm, Auto win on", () => {
         const { scenario, transcript } = DOUBLE_RON;
         const { at } = scenario.steps[scenarioStateIndex(scenario, "round end") - 1].event;
-        const prompt = { ...receivedPayload(transcript, "ron prompt"), wi: 999 };
+        const prompt = { ...receivedPayload(transcript, "ron prompt"), [WIRE_KEY.WAIT_ID]: 999 };
         const variant = branchAfter(
             switchedOnBefore(scenario, "round end", ["auto_win"]),
             "round end",
@@ -740,7 +760,7 @@ describe("stepGameClient - generated round advance", () => {
         const owed = {
             deadline: 5500 + 2 * 10_000,
             kind: "owed",
-            waitId: receivedPayload(transcript, "round end").wi,
+            waitId: receivedPayload(transcript, "round end")[WIRE_KEY.WAIT_ID],
         };
 
         expect(roundConfirmOf(stateAt(scenario, run, "round end"))).toEqual(owed);
@@ -774,7 +794,7 @@ describe("stepGameClient - generated round advance", () => {
         const run = runClean(branch);
         const owed = { deadline: 25_000, kind: "owed", waitId };
 
-        expect(receivedPayload(transcript, "round end").wi).toBe(waitId);
+        expect(receivedPayload(transcript, "round end")[WIRE_KEY.WAIT_ID]).toBe(waitId);
         expect(roundConfirmOf(stateAt(branch, run, "late stale"))).toEqual(owed);
         expect(roundConfirmOf(stateAt(branch, run, "late refusal"))).toEqual(owed);
         expect(roundConfirmOf(stateAt(branch, run, "refusal after confirm"))).toEqual({
@@ -862,7 +882,7 @@ describe("stepGameClient - generated round advance", () => {
 
 describe("stepGameClient - generated reconnect", () => {
     const { scenario, transcript } = RECONNECT;
-    const resentWaitId = Number(receivedPayload(transcript, "prompt re-sent").wi);
+    const resentWaitId = Number(receivedPayload(transcript, "prompt re-sent")[WIRE_KEY.WAIT_ID]);
     const ponHaku = { offer: { kind: "pon", tileId: HAKU }, type: "choose" } as const;
     const ponHakuSent = { message: buildPonAction(HAKU, resentWaitId), type: "send" } as const;
 
@@ -885,7 +905,7 @@ describe("stepGameClient - generated reconnect", () => {
             deadline: 28_000,
             offers: [{ kind: "pon", tileId: HAKU }],
             status: { kind: "open" },
-            waitId: receivedPayload(transcript, "prompt re-sent").wi,
+            waitId: receivedPayload(transcript, "prompt re-sent")[WIRE_KEY.WAIT_ID],
         });
     });
 
@@ -1010,14 +1030,14 @@ describe("stepGameClient - generated resync", () => {
             offers: [{ kind: "kyuushu" }],
             openedAt: 4000,
             status: { kind: "open" },
-            waitId: receivedPayload(transcript, "first draw").wi,
+            waitId: receivedPayload(transcript, "first draw")[WIRE_KEY.WAIT_ID],
         });
         expect([resent.session?.status, resent.resyncRequests]).toEqual(["playing", 1]);
     });
 
     it("owes the round confirm again after a resync during the round advance, on the deadline the server's elapsed time and timeout name", () => {
         const run = runClean(scenario);
-        const waitId = receivedPayload(transcript, "round end").wi;
+        const waitId = receivedPayload(transcript, "round end")[WIRE_KEY.WAIT_ID];
         const owed = { deadline: 5000 + 10_000, kind: "owed", waitId };
 
         expect(roundConfirmOf(stateAt(scenario, run, "round end"))).toEqual(owed);
@@ -1044,9 +1064,9 @@ describe("stepGameClient - generated resync", () => {
             { effects: [resync], event: { at: 3000, kind: "tick" }, label: "deal due" },
         ]);
 
-        expect(receivedPayload(RESYNC_BEFORE_DEAL.transcript, "refused").code).toBe(
-            SESSION_ERROR_CODE.GAME_NOT_STARTED,
-        );
+        expect(
+            receivedPayload(RESYNC_BEFORE_DEAL.transcript, "refused")[WIRE_KEY.SESSION_ERROR_CODE],
+        ).toBe(SESSION_ERROR_CODE.GAME_NOT_STARTED);
         expect([desyncOf(refused)?.request, nextDeadline(refused), refused.firstDealDue]).toEqual([
             { due: 3000, kind: "at_deal" },
             3000,
@@ -1105,7 +1125,7 @@ describe("stepGameClient - generated resync", () => {
         ]);
         expect(decisionOf(resent)).toMatchObject({
             offers: [{ kind: "kyuushu" }],
-            waitId: receivedPayload(transcript, "first draw").wi,
+            waitId: receivedPayload(transcript, "first draw")[WIRE_KEY.WAIT_ID],
         });
     });
 });
@@ -1137,7 +1157,7 @@ describe("stepGameClient - generated anchor", () => {
         const turn = stateAt(scenario, run, "own turn");
 
         expect(dealt.table.players[1].tiles).toEqual(
-            receivedPayload(transcript, "east 2 dealt").mt,
+            receivedPayload(transcript, "east 2 dealt")[WIRE_KEY.MY_TILES],
         );
         expect([dealt.table.dealerSeat, dealt.table.players.map((player) => player.score)]).toEqual(
             [1, [23_000, 25_000, 25_000, 27_000]],
@@ -1149,7 +1169,7 @@ describe("stepGameClient - generated anchor", () => {
             deadline: 20_000 + (5 + 20) * 1000,
             kind: "turn",
             offers: [],
-            waitId: receivedPayload(transcript, "own turn").wi,
+            waitId: receivedPayload(transcript, "own turn")[WIRE_KEY.WAIT_ID],
         });
     });
 
@@ -1169,7 +1189,7 @@ describe("stepGameClient - generated anchor", () => {
             openedAt: 21_000,
             status: { kind: "open" },
             tileId: CHARLIES_FIVE_SOU,
-            waitId: receivedPayload(transcript, "call offer").wi,
+            waitId: receivedPayload(transcript, "call offer")[WIRE_KEY.WAIT_ID],
         });
         expect(decisionOf(stateAt(scenario, run, "passed"))?.status.kind).toBe("submitted");
     });

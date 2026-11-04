@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -15,9 +14,11 @@ from game.logic.events import (
     SeatTarget,
 )
 from game.messaging.event_payload import game_event_payload
+from game.wire.keys import WireKey
 from game.wire.replay_format import (
     REPLAY_VERSION,
     ReplayLineType,
+    encode_replay_records,
     encode_replay_settings,
 )
 
@@ -40,19 +41,19 @@ _EXCLUDED_EVENT_TYPES = (CallPromptEvent, ErrorEvent, FuritenEvent)
 @dataclass
 class ReplayRecord:
     """
-    One game's replay as recorded so far: the seed, RNG version and settings its game_started line carries, and the
-    lines.
+    One game's replay as recorded so far: the seed, RNG version and settings its game_started record carries, and the
+    records.
     """
 
     seed: str
     rng_version: str
     settings: GameSettings
-    lines: list[str] = field(default_factory=list)
+    records: list[dict[int, object]] = field(default_factory=list)
 
 
 class ReplayCollector:
     """
-    Shape gameplay events into replay lines and persist a game's lines for post-game replay.
+    Shape gameplay events into replay records and persist a game's records for post-game replay.
 
     Accepts BroadcastTarget gameplay events (discards, melds, round end, etc.)
     and selected SeatTarget events (DrawEvent for tile draws). The
@@ -61,11 +62,11 @@ class ReplayCollector:
     tiles revealed. Other SeatTarget events (prompts, errors, furiten) are
     excluded as internal signals.
 
-    It also writes the replay-only seat control lines the session reports: an AI replacement ahead of the AI player's
+    It also writes the replay-only seat control records the session reports: an AI replacement ahead of the AI player's
     moves, and a human return.
 
     The collector keeps no per-game state: each game holds its own ReplayRecord (on its GameSession) from the start
-    until its end detaches the lines, which `save` then persists.
+    until its end detaches the records, which `save` then persists.
     """
 
     def __init__(self, storage: ReplayStorage) -> None:
@@ -73,13 +74,13 @@ class ReplayCollector:
 
     def collect_events(self, record: ReplayRecord, events: list[GameEvent]) -> None:
         """
-        Append the qualifying events to the record's lines.
+        Append the qualifying events to the record's records.
 
         Per-seat RoundStartedEvent views are merged into a single record with all players' tiles. DrawEvent is included
         for draw reconstruction (available_actions stripped). Excluded internal types (prompts, errors, furiten) are
         skipped.
         """
-        buffer = record.lines
+        buffer = record.records
         pending_round_started: list[RoundStartedEvent] = []
         for event in events:
             if isinstance(event, RoundStartedEvent) and isinstance(event.target, SeatTarget):
@@ -96,15 +97,15 @@ class ReplayCollector:
 
             payload = game_event_payload(event)
             if isinstance(event, DrawEvent):
-                payload.pop("aa", None)
+                payload.pop(WireKey.AVAILABLE_ACTIONS, None)
 
             if isinstance(event, GameStartedEvent):
-                payload.pop("rsv")
-                payload["sd"] = record.seed
-                payload["rv"] = record.rng_version
-                payload["gs"] = encode_replay_settings(record.settings)
+                payload[WireKey.HAS_AKADORA] = record.settings.has_akadora
+                payload[WireKey.SEED] = record.seed
+                payload[WireKey.RNG_VERSION] = record.rng_version
+                payload[WireKey.GAME_SETTINGS] = encode_replay_settings(record.settings)
 
-            buffer.append(json.dumps(payload, default=str))
+            buffer.append(payload)
 
         # Flush any remaining round_started events at end of batch
         if pending_round_started:
@@ -113,16 +114,25 @@ class ReplayCollector:
     @staticmethod
     def record_ai_replacement(record: ReplayRecord, *, seat: int, reason: SeatControlReason) -> None:
         """
-        Append the seat control line of a seat's replacement with an AI player, to precede the events of its moves.
+        Append the seat control record of a seat's replacement with an AI player, to precede the events of its moves.
         """
-        record.lines.append(json.dumps({"t": ReplayLineType.SEAT_CONTROL, "s": seat, "ai": 1, "r": reason}))
+        record.records.append(
+            {
+                WireKey.EVENT_TYPE: ReplayLineType.SEAT_CONTROL,
+                WireKey.SEAT: seat,
+                WireKey.AI_PLAYER: 1,
+                WireKey.SEAT_CONTROL_REASON: reason,
+            }
+        )
 
     @staticmethod
     def record_human_return(record: ReplayRecord, *, seat: int) -> None:
         """
-        Append the seat control line of a seat's human return: its participant takes it back from the AI player.
+        Append the seat control record of a seat's human return: its participant takes it back from the AI player.
         """
-        record.lines.append(json.dumps({"t": ReplayLineType.SEAT_CONTROL, "s": seat, "ai": 0}))
+        record.records.append(
+            {WireKey.EVENT_TYPE: ReplayLineType.SEAT_CONTROL, WireKey.SEAT: seat, WireKey.AI_PLAYER: 0}
+        )
 
     @staticmethod
     def _should_include(event: GameEvent) -> bool:
@@ -135,9 +145,9 @@ class ReplayCollector:
         return not isinstance(event, _EXCLUDED_EVENT_TYPES)
 
     @staticmethod
-    def _merge_round_started_payloads(events: list[RoundStartedEvent]) -> str:
+    def _merge_round_started_payloads(events: list[RoundStartedEvent]) -> dict[int, object]:
         """
-        Merge per-seat RoundStartedEvent payloads into a single JSON record.
+        Merge per-seat RoundStartedEvent payloads into a single record.
 
         Take the first seat's payload as the base. Extract my_tiles from each seat's event and store per-player tiles in
         the merged record for full game reconstruction. The my_tiles and seat fields are stripped from the merged output
@@ -148,30 +158,29 @@ class ReplayCollector:
         for a round must arrive in a contiguous block within a single collect_events() call.
         """
         if not events:
-            return "{}"
+            return {}
 
         tiles_by_seat: dict[int, list[int]] = {}
         for event in events:
             tiles_by_seat[event.seat] = event.my_tiles
 
         base_payload = game_event_payload(events[0])
-        for player_dict in base_payload["p"]:
-            seat = player_dict["s"]
+        for player_dict in base_payload[WireKey.PLAYERS]:
+            seat = player_dict[WireKey.SEAT]
             if seat in tiles_by_seat:
-                player_dict["tl"] = tiles_by_seat[seat]
+                player_dict[WireKey.TILES] = tiles_by_seat[seat]
 
-        base_payload.pop("mt", None)
-        base_payload.pop("s", None)
+        base_payload.pop(WireKey.MY_TILES, None)
+        base_payload.pop(WireKey.SEAT, None)
 
-        return json.dumps(base_payload, default=str)
+        return base_payload
 
-    async def save(self, game_id: str, lines: list[str]) -> None:
+    async def save(self, game_id: str, records: list[dict[int, object]]) -> None:
         """
-        Persist a game's detached replay lines.
+        Persist a game's detached replay records.
 
         File I/O is offloaded to a worker thread to avoid blocking the async event loop. A storage error propagates to
         the caller, whose game-end finalizer turns the end into a failure.
         """
-        version_tag = json.dumps({"version": REPLAY_VERSION})
-        content = "\n".join([version_tag, *lines])
+        content = encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *records])
         await asyncio.to_thread(self._storage.save_replay, game_id, content)

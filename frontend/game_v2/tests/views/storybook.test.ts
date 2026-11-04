@@ -2,7 +2,7 @@ import { type TemplateResult, render } from "lit-html";
 import { describe, expect, test } from "vitest";
 
 import { loadSeatScenario, receivedPayload } from "#tests/fixtures/seat-transcripts";
-import { CLIENT_MESSAGE_TYPE, GAME_ACTION, buildRiichiAction } from "@/shared/protocol";
+import { CLIENT_MESSAGE_TYPE, GAME_ACTION, WIRE_KEY, buildRiichiAction } from "@/shared/protocol";
 import { storybookView } from "@/views/storybook";
 import { mountStorybookDecisions } from "@/views/storybook-decisions";
 import { storybookDiscardsView } from "@/views/storybook-discards";
@@ -159,7 +159,7 @@ describe("mountStorybookDecisions", () => {
 
     test("reopens the kuikae turn on the move_refused story's scripted refusal: its notice, and a discard sends again", () => {
         const host = mountStory("move_refused");
-        const turnWaitId = Number(receivedPayload(CALL_PROMPT, "turn").wi);
+        const turnWaitId = Number(receivedPayload(CALL_PROMPT, "turn")[WIRE_KEY.WAIT_ID]);
         const [playable] = host.querySelectorAll<HTMLElement>(
             ".board-local .hand-tile--selectable",
         );
@@ -170,8 +170,11 @@ describe("mountStorybookDecisions", () => {
 
         expect(host.querySelector(".board-notice--warning")).not.toBeNull();
         expect(sent).toMatchObject({
-            message: { t: CLIENT_MESSAGE_TYPE.GAME_ACTION, wi: turnWaitId },
+            message: {
+                [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.GAME_ACTION,
+                [WIRE_KEY.WAIT_ID]: turnWaitId,
+            },
         });
-        expect(sent.message.a).toBe(GAME_ACTION.DISCARD);
+        expect(sent.message[WIRE_KEY.ACTION]).toBe(GAME_ACTION.DISCARD);
     });
 });

@@ -1,18 +1,19 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
+import { WIRE_KEY } from "@/shared/protocol";
 import { CALL_TYPE, EVENT_TYPE, KAN_TYPE, MELD_CALL_TYPE } from "@/shared/protocol/constants";
 import { parseCallPrompt } from "@/shared/protocol/schemas/call-prompt";
 
 describe("parseCallPrompt", () => {
-    describe("ron prompt (clt=0)", () => {
+    describe("ron prompt (CALL_TYPE=0)", () => {
         it("parses ron prompt with tileId, fromSeat, callerSeat", () => {
             const wire = {
-                clt: CALL_TYPE.RON,
-                cs: 2,
-                frs: 0,
-                t: EVENT_TYPE.CALL_PROMPT,
-                ti: 42,
-                wi: 4,
+                [WIRE_KEY.CALL_TYPE]: CALL_TYPE.RON,
+                [WIRE_KEY.CALLER_SEAT]: 2,
+                [WIRE_KEY.FROM_SEAT]: 0,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.CALL_PROMPT,
+                [WIRE_KEY.TILE_ID]: 42,
+                [WIRE_KEY.WAIT_ID]: 4,
             };
             const result = parseCallPrompt(wire);
             expect(result).toEqual({
@@ -30,15 +31,15 @@ describe("parseCallPrompt", () => {
 
         it("reads the meld choices offered beside the ron and a re-send's elapsed seconds", () => {
             const wire = {
-                ac: [{ clt: MELD_CALL_TYPE.PON }],
-                bk: 17,
-                clt: CALL_TYPE.RON,
-                cs: 2,
-                el: 6.5,
-                frs: 0,
-                t: EVENT_TYPE.CALL_PROMPT,
-                ti: 42,
-                wi: 4,
+                [WIRE_KEY.AVAILABLE_CALLS]: [{ [WIRE_KEY.CALL_TYPE]: MELD_CALL_TYPE.PON }],
+                [WIRE_KEY.BANK_SECONDS]: 17,
+                [WIRE_KEY.CALL_TYPE]: CALL_TYPE.RON,
+                [WIRE_KEY.CALLER_SEAT]: 2,
+                [WIRE_KEY.WAIT_ELAPSED]: 6.5,
+                [WIRE_KEY.FROM_SEAT]: 0,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.CALL_PROMPT,
+                [WIRE_KEY.TILE_ID]: 42,
+                [WIRE_KEY.WAIT_ID]: 4,
             };
             const result = parseCallPrompt(wire);
             if (result.callType !== CALL_TYPE.RON) {
@@ -51,15 +52,15 @@ describe("parseCallPrompt", () => {
         });
     });
 
-    describe("chankan prompt (clt=2)", () => {
+    describe("chankan prompt (CALL_TYPE=2)", () => {
         it("parses chankan prompt with tileId, fromSeat, callerSeat and the kan it offers to rob", () => {
             const wire = {
-                clt: CALL_TYPE.CHANKAN,
-                cs: 3,
-                frs: 1,
-                kty: KAN_TYPE.CLOSED,
-                t: EVENT_TYPE.CALL_PROMPT,
-                ti: 100,
+                [WIRE_KEY.CALL_TYPE]: CALL_TYPE.CHANKAN,
+                [WIRE_KEY.CALLER_SEAT]: 3,
+                [WIRE_KEY.FROM_SEAT]: 1,
+                [WIRE_KEY.KAN_TYPE]: KAN_TYPE.CLOSED,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.CALL_PROMPT,
+                [WIRE_KEY.TILE_ID]: 100,
             };
             const result = parseCallPrompt(wire);
             expect(result).toEqual({
@@ -77,34 +78,36 @@ describe("parseCallPrompt", () => {
 
         it("refuses a chankan prompt that names no kan, or an open one, which chankan never robs", () => {
             const wire = {
-                clt: CALL_TYPE.CHANKAN,
-                cs: 3,
-                frs: 1,
-                t: EVENT_TYPE.CALL_PROMPT,
-                ti: 100,
+                [WIRE_KEY.CALL_TYPE]: CALL_TYPE.CHANKAN,
+                [WIRE_KEY.CALLER_SEAT]: 3,
+                [WIRE_KEY.FROM_SEAT]: 1,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.CALL_PROMPT,
+                [WIRE_KEY.TILE_ID]: 100,
             };
             expect(() => parseCallPrompt(wire)).toThrow();
-            expect(() => parseCallPrompt({ ...wire, kty: KAN_TYPE.OPEN })).toThrow();
+            expect(() =>
+                parseCallPrompt({ ...wire, [WIRE_KEY.KAN_TYPE]: KAN_TYPE.OPEN }),
+            ).toThrow();
         });
     });
 
-    describe("meld prompt (clt=1)", () => {
+    describe("meld prompt (CALL_TYPE=1)", () => {
         it("parses meld prompt with chi options (tuple pairs)", () => {
             const wire = {
-                ac: [
+                [WIRE_KEY.AVAILABLE_CALLS]: [
                     {
-                        clt: MELD_CALL_TYPE.CHI,
-                        opt: [
+                        [WIRE_KEY.CALL_TYPE]: MELD_CALL_TYPE.CHI,
+                        [WIRE_KEY.CALL_OPTIONS]: [
                             [4, 8],
                             [8, 12],
                         ],
                     },
                 ],
-                clt: CALL_TYPE.MELD,
-                cs: 1,
-                frs: 0,
-                t: EVENT_TYPE.CALL_PROMPT,
-                ti: 6,
+                [WIRE_KEY.CALL_TYPE]: CALL_TYPE.MELD,
+                [WIRE_KEY.CALLER_SEAT]: 1,
+                [WIRE_KEY.FROM_SEAT]: 0,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.CALL_PROMPT,
+                [WIRE_KEY.TILE_ID]: 6,
             };
             const result = parseCallPrompt(wire);
             expect(result.type).toBe("call_prompt");
@@ -124,29 +127,40 @@ describe("parseCallPrompt", () => {
         });
 
         it.each([
-            { ac: [{ clt: MELD_CALL_TYPE.CHI }], name: "a chi with no pair" },
-            { ac: [{ clt: MELD_CALL_TYPE.CHI, opt: [] }], name: "a chi with an empty pair list" },
-            { ac: [], name: "no call at all" },
-        ])("refuses a meld prompt offering $name", ({ ac }) => {
+            {
+                [WIRE_KEY.AVAILABLE_CALLS]: [{ [WIRE_KEY.CALL_TYPE]: MELD_CALL_TYPE.CHI }],
+                name: "a chi with no pair",
+            },
+            {
+                [WIRE_KEY.AVAILABLE_CALLS]: [
+                    { [WIRE_KEY.CALL_TYPE]: MELD_CALL_TYPE.CHI, [WIRE_KEY.CALL_OPTIONS]: [] },
+                ],
+                name: "a chi with an empty pair list",
+            },
+            { [WIRE_KEY.AVAILABLE_CALLS]: [], name: "no call at all" },
+        ])("refuses a meld prompt offering $name", ({ [WIRE_KEY.AVAILABLE_CALLS]: ac }) => {
             const wire = {
-                ac,
-                clt: CALL_TYPE.MELD,
-                cs: 2,
-                frs: 1,
-                t: EVENT_TYPE.CALL_PROMPT,
-                ti: 20,
+                [WIRE_KEY.AVAILABLE_CALLS]: ac,
+                [WIRE_KEY.CALL_TYPE]: CALL_TYPE.MELD,
+                [WIRE_KEY.CALLER_SEAT]: 2,
+                [WIRE_KEY.FROM_SEAT]: 1,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.CALL_PROMPT,
+                [WIRE_KEY.TILE_ID]: 20,
             };
             expect(() => parseCallPrompt(wire)).toThrow();
         });
 
         it("parses meld prompt with multiple available calls", () => {
             const wire = {
-                ac: [{ clt: MELD_CALL_TYPE.PON }, { clt: MELD_CALL_TYPE.CHI, opt: [[0, 8]] }],
-                clt: CALL_TYPE.MELD,
-                cs: 1,
-                frs: 0,
-                t: EVENT_TYPE.CALL_PROMPT,
-                ti: 4,
+                [WIRE_KEY.AVAILABLE_CALLS]: [
+                    { [WIRE_KEY.CALL_TYPE]: MELD_CALL_TYPE.PON },
+                    { [WIRE_KEY.CALL_TYPE]: MELD_CALL_TYPE.CHI, [WIRE_KEY.CALL_OPTIONS]: [[0, 8]] },
+                ],
+                [WIRE_KEY.CALL_TYPE]: CALL_TYPE.MELD,
+                [WIRE_KEY.CALLER_SEAT]: 1,
+                [WIRE_KEY.FROM_SEAT]: 0,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.CALL_PROMPT,
+                [WIRE_KEY.TILE_ID]: 4,
             };
             const result = parseCallPrompt(wire);
             expect("availableCalls" in result && result.availableCalls).toHaveLength(2);
@@ -156,13 +170,13 @@ describe("parseCallPrompt", () => {
     describe("unknown call type", () => {
         it("throws on unknown clt value", () => {
             const wire = {
-                clt: 99,
-                cs: 0,
-                frs: 1,
-                t: EVENT_TYPE.CALL_PROMPT,
-                ti: 10,
+                [WIRE_KEY.CALL_TYPE]: 99,
+                [WIRE_KEY.CALLER_SEAT]: 0,
+                [WIRE_KEY.FROM_SEAT]: 1,
+                [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.CALL_PROMPT,
+                [WIRE_KEY.TILE_ID]: 10,
             };
-            expect(() => parseCallPrompt(wire)).toThrow("Unknown call prompt type: clt=99");
+            expect(() => parseCallPrompt(wire)).toThrow("Unknown call prompt type: CALL_TYPE=99");
         });
     });
 });

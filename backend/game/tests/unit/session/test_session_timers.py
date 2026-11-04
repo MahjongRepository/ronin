@@ -20,6 +20,7 @@ from game.session.timer import TimerConfig, TurnTimer
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import FakeGameRepository, MockConnection
 from game.wire.events import EVENT_TYPE_INT
+from game.wire.keys import WireKey
 from shared.dal.models import GameEndReason
 from shared.storage import LocalReplayStorage, replay_file_path
 
@@ -106,7 +107,9 @@ class TestSessionManagerTimers:
         conns[0]._outbox.clear()
 
         run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
-        timeout_msgs = [m for m in conns[0].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
+        timeout_msgs = [
+            m for m in conns[0].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DRAW]
+        ]
         assert len(timeout_msgs) == 1
 
 
@@ -122,7 +125,7 @@ class TestWaitTimers:
         manager.handle_game_action(
             conns[0], action=GameAction.PASS, data={}, wait_id=current_wait_id(manager, conns[0])
         )
-        assert [m["cd"] for m in conns[0].sent_messages] == [GameErrorCode.INVALID_PASS]
+        assert [m[WireKey.GAME_ERROR_CODE] for m in conns[0].sent_messages] == [GameErrorCode.INVALID_PASS]
         assert timer.task is deadline
         assert not deadline.done()
         assert timer._bank_seconds == bank
@@ -147,8 +150,10 @@ class TestWaitTimers:
         assert (prompt.kind, prompt.seats) == (WaitKind.CALL, frozenset({bob, carol}))
         carol_timer = participant_of(manager, conns[2]).timer
         carol_deadline = carol_timer.task
-        prompt_message = next(m for m in conns[2].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT])
-        assert prompt_message["bk"] == 20
+        prompt_message = next(
+            m for m in conns[2].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.CALL_PROMPT]
+        )
+        assert prompt_message[WireKey.BANK_SECONDS] == 20
         fake_clock.advance(7)
 
         manager.handle_game_action(
@@ -165,11 +170,11 @@ class TestWaitTimers:
             conns[2],
             action=GameAction.CALL_PON,
             data={"tile_id": discarded_four_pin},
-            wait_id=prompt_message["wi"],
+            wait_id=prompt_message[WireKey.WAIT_ID],
         )
         assert carol_timer.bank_seconds == 16
-        turn = next(m for m in conns[2].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.TURN])
-        assert turn["bk"] == 16
+        turn = next(m for m in conns[2].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.TURN])
+        assert turn[WireKey.BANK_SECONDS] == 16
 
         await manager.shutdown()
 
@@ -229,8 +234,10 @@ class TestWaitTimers:
         second_round = manager.get_game("game1").awaiting
         assert (second_round.round_number, second_round.seats) == (1, frozenset({alice_seat}))
         assert timer._bank_seconds == first_round_bank
-        opening_draw = next(m for m in conns[0].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW])
-        assert opening_draw["bk"] == first_round_bank
+        opening_draw = next(
+            m for m in conns[0].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DRAW]
+        )
+        assert opening_draw[WireKey.BANK_SECONDS] == first_round_bank
 
         fake_clock.advance(8)
         if second_round.kind == WaitKind.CALL:
@@ -294,7 +301,7 @@ class _GatedReplayStorage(LocalReplayStorage):
         self.save_started = threading.Event()
         self.may_finish = threading.Event()
 
-    def save_replay(self, game_id: str, content: str) -> None:
+    def save_replay(self, game_id: str, content: bytes) -> None:
         self.save_started.set()
         self.may_finish.wait(timeout=5)
         super().save_replay(game_id, content)
@@ -356,7 +363,9 @@ class TestTimerCallbackLifecycle:
         successor = manager.get_game("game1").awaiting
         assert (successor.kind, successor.seats) == (timed_out.kind, timed_out.seats)
         assert successor.wait_id != timed_out.wait_id
-        draws_after_timeout = [m for m in conns[0].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
+        draws_after_timeout = [
+            m for m in conns[0].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DRAW]
+        ]
         assert len(draws_after_timeout) == 1
         assert timer.task is not None
         assert timer.task is not fired
@@ -398,7 +407,7 @@ class TestTimerCallbackLifecycle:
         assert game_repo.games["game1"].end_reason == GameEndReason.ERROR
         assert replay_file_path(tmp_path, "game1").exists()
         for conn in conns:
-            assert [m["code"] for m in conn.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
+            assert [m[WireKey.SESSION_ERROR_CODE] for m in conn.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
             assert conn._close_code == 1011
 
     async def test_shutdown__when_a_game_end_is_suspended_in_its_replay_save__should_wait_for_it_and_leave_no_task(

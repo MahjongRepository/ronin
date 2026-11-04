@@ -6,6 +6,7 @@ import {
     MAX_MELD_COMPACT,
     decodeMeldCompact,
 } from "@/shared/protocol/decoders/meld";
+import { WIRE_KEY } from "@/shared/protocol/wire-keys";
 
 // Tile ID: integer 0-135 (136-format tile encoding)
 export const tileIdSchema = z.int().check(z.gte(0), z.lte(135));
@@ -49,17 +50,17 @@ export const seatControlReasonSchema = z.union([
     z.literal(SEAT_CONTROL_REASON.ABSENT),
 ]);
 
-/** A discard as it lies in its river (`dsc` of a snapshot's seat, of a nagashi mangan's river). */
+/** A discard as it lies in its river (`WIRE_KEY.DISCARDS` of a snapshot's seat, of a nagashi mangan's river). */
 export const discardInfoSchema = z.pipe(
     z.object({
-        rd: z.optional(z.boolean()),
-        tg: z.optional(z.boolean()),
-        ti: tileIdSchema,
+        [WIRE_KEY.RIICHI_DISCARD]: z.optional(z.boolean()),
+        [WIRE_KEY.TSUMOGIRI]: z.optional(z.boolean()),
+        [WIRE_KEY.TILE_ID]: tileIdSchema,
     }),
     z.transform((raw) => ({
-        isRiichiDiscard: raw.rd ?? false,
-        isTsumogiri: raw.tg ?? false,
-        tileId: raw.ti,
+        isRiichiDiscard: raw[WIRE_KEY.RIICHI_DISCARD] ?? false,
+        isTsumogiri: raw[WIRE_KEY.TSUMOGIRI] ?? false,
+        tileId: raw[WIRE_KEY.TILE_ID],
     })),
 );
 
@@ -101,35 +102,34 @@ export const wireScoreMapSchema = z.pipe(
 );
 
 // Player info: shared between game_started and game_reconnected events.
-// Transforms wire-format `ai` integer to boolean and renames aliases to camelCase.
 export const gamePlayerInfoSchema = z.pipe(
     z.object({
-        ai: z.int(),
-        nm: z.string(),
-        s: seatSchema,
-        sr: z.optional(seatControlReasonSchema),
+        [WIRE_KEY.AI_PLAYER]: z.int(),
+        [WIRE_KEY.NAME]: z.string(),
+        [WIRE_KEY.SEAT]: seatSchema,
+        [WIRE_KEY.STAND_IN_REASON]: z.optional(seatControlReasonSchema),
     }),
     z.transform((raw) => ({
-        aiStandIn: raw.sr ?? null,
-        isAiPlayer: raw.ai !== 0,
-        name: raw.nm,
-        seat: raw.s,
+        aiStandIn: raw[WIRE_KEY.STAND_IN_REASON] ?? null,
+        isAiPlayer: raw[WIRE_KEY.AI_PLAYER] !== 0,
+        name: raw[WIRE_KEY.NAME],
+        seat: raw[WIRE_KEY.SEAT],
     })),
 );
 
 export const timerSettingsSchema = z.pipe(
     z.object({
-        bk: secondsSchema,
-        gp: secondsSchema,
-        mb: secondsSchema,
-        ra: secondsSchema,
-        tb: secondsSchema,
+        [WIRE_KEY.BANK_SECONDS]: secondsSchema,
+        [WIRE_KEY.GAME_START_PAUSE]: secondsSchema,
+        [WIRE_KEY.MAX_BANK_SECONDS]: secondsSchema,
+        [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: secondsSchema,
+        [WIRE_KEY.BASE_TURN_SECONDS]: secondsSchema,
     }),
     z.transform((raw) => ({
-        bankSeconds: raw.bk,
-        baseTurnSeconds: raw.tb,
-        gameStartPauseSeconds: raw.gp,
-        maxBankSeconds: raw.mb,
-        roundAdvanceTimeoutSeconds: raw.ra,
+        bankSeconds: raw[WIRE_KEY.BANK_SECONDS],
+        baseTurnSeconds: raw[WIRE_KEY.BASE_TURN_SECONDS],
+        gameStartPauseSeconds: raw[WIRE_KEY.GAME_START_PAUSE],
+        maxBankSeconds: raw[WIRE_KEY.MAX_BANK_SECONDS],
+        roundAdvanceTimeoutSeconds: raw[WIRE_KEY.ROUND_ADVANCE_TIMEOUT],
     })),
 );

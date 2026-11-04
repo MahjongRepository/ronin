@@ -2,15 +2,16 @@ import logging
 from unittest.mock import MagicMock
 
 from game.logic.enums import GameAction, GameErrorCode, TimeoutType, WaitKind
-from game.logic.events import BroadcastTarget, EventType
+from game.logic.events import BroadcastTarget, DrawEvent, EventType
 from game.logic.exceptions import InvalidGameActionError
 from game.messaging.types import SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter
 from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.helpers.session import make_session_manager
-from game.tests.mocks import MockResultEvent, mock_update
+from game.tests.mocks import mock_update
 from game.wire.events import EVENT_TYPE_INT
+from game.wire.keys import WireKey
 
 from .helpers import (
     arrange_pon_now_and_on_the_next_draw,
@@ -86,14 +87,7 @@ class TestSessionManagerInvalidAction:
     async def test_invalid_action__when_player_replaced__should_broadcast_ai_pending_actions(self, manager):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
 
-        ai_player_event = MockResultEvent(
-            type=EventType.DRAW,
-            target=BroadcastTarget(),
-            seat=0,
-            action=GameAction.DISCARD,
-            input={},
-            success=True,
-        )
+        ai_player_event = DrawEvent(target=BroadcastTarget(), seat=0, tile_id=0, tiles_remaining=69)
         manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
             return_value=mock_update([ai_player_event]),
         )
@@ -103,7 +97,9 @@ class TestSessionManagerInvalidAction:
             conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager, conns[0])
         )
         # Bob should receive the AI player action event
-        ai_player_msgs = [m for m in conns[1].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
+        ai_player_msgs = [
+            m for m in conns[1].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DRAW]
+        ]
         assert len(ai_player_msgs) == 1
 
     async def test_invalid_action__when_ai_replacement_raises__should_fail_the_game(self, manager):
@@ -117,10 +113,10 @@ class TestSessionManagerInvalidAction:
         router.handle_message(
             conns[0],
             {
-                "t": WireClientMessageType.GAME_ACTION,
-                "wi": current_wait_id(manager, conns[0]),
-                "a": WireGameAction.DISCARD,
-                "ti": 0,
+                WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
+                WireKey.WAIT_ID: current_wait_id(manager, conns[0]),
+                WireKey.ACTION: WireGameAction.DISCARD,
+                WireKey.TILE_ID: 0,
             },
         )
         await wait_for_background_tasks(manager)
@@ -176,8 +172,8 @@ class TestKickedConnection:
             .players[awaited_seat]
             .is_ai_player
         )
-        assert [m for m in other.sent_messages if m.get("type") == SessionMessageType.SEAT_CONTROL] == [
-            {"type": "seat_control", "s": awaited_seat, "r": 0}
+        assert [m for m in other.sent_messages if m.get(WireKey.SESSION_TYPE) == SessionMessageType.SEAT_CONTROL] == [
+            {WireKey.SESSION_TYPE: "seat_control", WireKey.SEAT: awaited_seat, WireKey.SEAT_CONTROL_REASON: 0}
         ]
 
         await manager.shutdown()
@@ -192,9 +188,9 @@ class TestRuleRefusal:
         refused_wait = current_wait_id(manager, conns[0])
 
         manager.handle_game_action(conns[0], action=GameAction.PASS, data={}, wait_id=refused_wait)
-        assert [(m["t"], m["cd"], m["wi"]) for m in conns[0].sent_messages] == [
-            (EVENT_TYPE_INT[EventType.ERROR], GameErrorCode.INVALID_PASS, refused_wait)
-        ]
+        assert [
+            (m[WireKey.EVENT_TYPE], m[WireKey.GAME_ERROR_CODE], m[WireKey.WAIT_ID]) for m in conns[0].sent_messages
+        ] == [(EVENT_TYPE_INT[EventType.ERROR], GameErrorCode.INVALID_PASS, refused_wait)]
         assert current_wait_id(manager, conns[0]) == refused_wait
 
         await manager.shutdown()
@@ -220,15 +216,15 @@ class TestStaleAction:
         router.handle_message(
             alice,
             {
-                "t": WireClientMessageType.GAME_ACTION,
-                "wi": timed_out_wait,
-                "a": WireGameAction.DISCARD,
-                "ti": timed_out_draw,
+                WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
+                WireKey.WAIT_ID: timed_out_wait,
+                WireKey.ACTION: WireGameAction.DISCARD,
+                WireKey.TILE_ID: timed_out_draw,
             },
         )
-        assert [(m["t"], m["cd"], m["wi"]) for m in alice.sent_messages] == [
-            (EVENT_TYPE_INT[EventType.ERROR], GameErrorCode.STALE_ACTION, timed_out_wait)
-        ]
+        assert [
+            (m[WireKey.EVENT_TYPE], m[WireKey.GAME_ERROR_CODE], m[WireKey.WAIT_ID]) for m in alice.sent_messages
+        ] == [(EVENT_TYPE_INT[EventType.ERROR], GameErrorCode.STALE_ACTION, timed_out_wait)]
         assert not alice.is_closed
         assert runtime_of(manager).state is state_before
         assert manager.get_game("game1").awaiting is awaiting_before
@@ -261,7 +257,7 @@ class TestStaleAction:
         conns[1]._outbox.clear()
 
         manager.handle_game_action(conns[1], action=GameAction.PASS, data={}, wait_id=first_prompt_id)
-        assert [m["cd"] for m in conns[1].sent_messages] == [GameErrorCode.STALE_ACTION]
+        assert [m[WireKey.GAME_ERROR_CODE] for m in conns[1].sent_messages] == [GameErrorCode.STALE_ACTION]
         assert runtime_of(manager).state is state_before
         assert bob in state_before.round_state.pending_call_prompt.pending_seats
 

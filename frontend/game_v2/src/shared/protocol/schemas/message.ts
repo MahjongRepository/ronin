@@ -1,6 +1,7 @@
 import { type z } from "zod/mini";
 
 import { EVENT_TYPE, SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";
+import { WIRE_KEY } from "@/shared/protocol/wire-keys";
 
 import { type CallPromptEvent, parseCallPrompt } from "./call-prompt";
 import {
@@ -92,7 +93,7 @@ function parseGameEvent(raw: Record<string, unknown>, t: number): GameEvent {
             return drawNoticeSchema.parse(raw);
         }
         default: {
-            throw new Error(`Unknown game event type: t=${String(t)}`);
+            throw new Error(`Unknown game event type: EVENT_TYPE=${String(t)}`);
         }
     }
 }
@@ -100,27 +101,36 @@ function parseGameEvent(raw: Record<string, unknown>, t: number): GameEvent {
 // --- Try-parse wrapper ---
 
 function tryParse(raw: Record<string, unknown>): ParsedServerMessage {
-    if (typeof raw.type === "string") {
-        if (raw.type === SESSION_MESSAGE_TYPE.GAME_RECONNECTED) {
+    const eventType = raw[WIRE_KEY.EVENT_TYPE];
+    if (typeof raw[WIRE_KEY.SESSION_TYPE] === "string") {
+        if (raw[WIRE_KEY.SESSION_TYPE] === SESSION_MESSAGE_TYPE.GAME_RECONNECTED) {
             return gameReconnectedSchema.parse(raw);
         }
         return parseSessionMessage(raw);
     }
-    if (typeof raw.t === "number") {
-        return parseGameEvent(raw, raw.t);
+    if (typeof eventType === "number") {
+        return parseGameEvent(raw, eventType);
     }
-    throw new Error("Message has neither 'type' (string) nor 't' (number) field");
+    throw new Error("Message has neither 'SESSION_TYPE' (string) nor 'EVENT_TYPE' (number) field");
 }
 
 function wrapParseError(raw: Record<string, unknown>, err: unknown): Error {
     const message = err instanceof Error ? err.message : String(err);
-    if (typeof raw.t === "number") {
-        return new Error(`Failed to parse game event t=${raw.t}: ${message}`, { cause: err });
+    if (typeof raw[WIRE_KEY.EVENT_TYPE] === "number") {
+        return new Error(
+            `Failed to parse game event EVENT_TYPE=${raw[WIRE_KEY.EVENT_TYPE]}: ${message}`,
+            {
+                cause: err,
+            },
+        );
     }
-    if (typeof raw.type === "string") {
-        return new Error(`Failed to parse session message type=${raw.type}: ${message}`, {
-            cause: err,
-        });
+    if (typeof raw[WIRE_KEY.SESSION_TYPE] === "string") {
+        return new Error(
+            `Failed to parse session message SESSION_TYPE=${raw[WIRE_KEY.SESSION_TYPE]}: ${message}`,
+            {
+                cause: err,
+            },
+        );
     }
     return err instanceof Error ? err : new Error(message);
 }
@@ -130,26 +140,26 @@ function wrapParseError(raw: Record<string, unknown>, err: unknown): Error {
  * viewer seat and timer settings, a deal's viewer seat and private hand, and the wait id of a turn or call prompt
  * opening, each with its bank. A replay records none of them.
  */
-function liveStamps(message: ParsedServerMessage): readonly (readonly [string, unknown])[] {
+function liveStamps(message: ParsedServerMessage): readonly (readonly [number, unknown])[] {
     switch (message.type) {
         case "game_started": {
             return [
-                ["s", message.seat],
-                ["tm", message.timer],
+                [WIRE_KEY.SEAT, message.seat],
+                [WIRE_KEY.TIMER_SETTINGS, message.timer],
             ];
         }
         case "round_started": {
             return [
-                ["s", message.seat],
-                ["mt", message.myTiles],
+                [WIRE_KEY.SEAT, message.seat],
+                [WIRE_KEY.MY_TILES, message.myTiles],
             ];
         }
         case "draw":
         case "call_prompt":
         case "turn": {
             return [
-                ["wi", message.waitId],
-                ["bk", message.bankSeconds],
+                [WIRE_KEY.WAIT_ID, message.waitId],
+                [WIRE_KEY.BANK_SECONDS, message.bankSeconds],
             ];
         }
         default: {

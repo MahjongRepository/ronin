@@ -7,6 +7,7 @@ from game.logic.enums import KanType
 from game.logic.tiles import NUM_TILES
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.wire.enums import SeatControlReason
+from game.wire.keys import WireKey
 
 
 class SessionMessageType(StrEnum):
@@ -33,37 +34,37 @@ class SessionErrorCode(StrEnum):
     RATE_LIMITED = "rate_limited"
 
 
-_TILE_ID_FIELD = Field(ge=0, lt=NUM_TILES, validation_alias="ti")
+_TILE_ID_FIELD = Field(ge=0, lt=NUM_TILES)
 
 
 class GameActionMessage(BaseModel, frozen=True):
     """
-    A game action: every one names its action (`a`) and echoes the id of the wait it answers (`wi`), as the server last
-    sent it.
+    A game action: every one names its action (`WireKey.ACTION`) and echoes the id of the wait it answers
+    (`WireKey.WAIT_ID`), as the server last sent it.
     """
 
-    t: Literal[WireClientMessageType.GAME_ACTION] = WireClientMessageType.GAME_ACTION
-    a: WireGameAction
-    wait_id: int = Field(ge=0, strict=True, validation_alias="wi")
+    message_type: Literal[WireClientMessageType.GAME_ACTION] = WireClientMessageType.GAME_ACTION
+    action: WireGameAction
+    wait_id: int = Field(ge=0, strict=True)
 
 
 class DiscardMessage(GameActionMessage):
-    a: Literal[WireGameAction.DISCARD] = WireGameAction.DISCARD
+    action: Literal[WireGameAction.DISCARD] = WireGameAction.DISCARD
     tile_id: int = _TILE_ID_FIELD
 
 
 class RiichiMessage(GameActionMessage):
-    a: Literal[WireGameAction.DECLARE_RIICHI] = WireGameAction.DECLARE_RIICHI
+    action: Literal[WireGameAction.DECLARE_RIICHI] = WireGameAction.DECLARE_RIICHI
     tile_id: int = _TILE_ID_FIELD
 
 
 class PonMessage(GameActionMessage):
-    a: Literal[WireGameAction.CALL_PON] = WireGameAction.CALL_PON
+    action: Literal[WireGameAction.CALL_PON] = WireGameAction.CALL_PON
     tile_id: int = _TILE_ID_FIELD
 
 
 class ChiMessage(GameActionMessage):
-    a: Literal[WireGameAction.CALL_CHI] = WireGameAction.CALL_CHI
+    action: Literal[WireGameAction.CALL_CHI] = WireGameAction.CALL_CHI
     tile_id: int = _TILE_ID_FIELD
     sequence_tiles: tuple[
         Annotated[int, Field(ge=0, lt=NUM_TILES)],
@@ -72,13 +73,13 @@ class ChiMessage(GameActionMessage):
 
 
 class KanMessage(GameActionMessage):
-    a: Literal[WireGameAction.CALL_KAN] = WireGameAction.CALL_KAN
+    action: Literal[WireGameAction.CALL_KAN] = WireGameAction.CALL_KAN
     tile_id: int = _TILE_ID_FIELD
     kan_type: KanType
 
 
 class NoDataActionMessage(GameActionMessage):
-    a: Literal[
+    action: Literal[
         WireGameAction.DECLARE_TSUMO,
         WireGameAction.CALL_RON,
         WireGameAction.CALL_KYUUSHU,
@@ -89,27 +90,26 @@ class NoDataActionMessage(GameActionMessage):
 
 _AnyGameActionMessage = Annotated[
     DiscardMessage | RiichiMessage | PonMessage | ChiMessage | KanMessage | NoDataActionMessage,
-    Field(discriminator="a"),
+    Field(discriminator="action"),
 ]
 
 
 class ReconnectMessage(BaseModel):
-    t: Literal[WireClientMessageType.RECONNECT] = WireClientMessageType.RECONNECT
+    message_type: Literal[WireClientMessageType.RECONNECT] = WireClientMessageType.RECONNECT
     game_ticket: str = Field(min_length=1, max_length=2000)
 
 
 class JoinGameMessage(BaseModel):
-    t: Literal[WireClientMessageType.JOIN_GAME] = WireClientMessageType.JOIN_GAME
+    message_type: Literal[WireClientMessageType.JOIN_GAME] = WireClientMessageType.JOIN_GAME
     game_ticket: str = Field(min_length=1, max_length=2000)
 
 
 class ResyncMessage(BaseModel):
-    """
-    A seat's request, on the connection that holds it, for its snapshot and its pending wait again: its client lost step
-    with the server's messages and drops everything until the snapshot arrives.
-    """
+    """A seat's request, on the connection that holds it, for its snapshot and
+    its pending wait again: its client lost step with the server's messages and
+    drops everything until the snapshot arrives."""
 
-    t: Literal[WireClientMessageType.RESYNC] = WireClientMessageType.RESYNC
+    message_type: Literal[WireClientMessageType.RESYNC] = WireClientMessageType.RESYNC
 
 
 ClientMessage = GameActionMessage | ReconnectMessage | JoinGameMessage | ResyncMessage
@@ -119,28 +119,36 @@ class ErrorMessage(BaseModel):
     """
     A session error.
 
-    A rate limit names the wait id (`wi`) the refused game action echoed, when it had a readable one, so the client
-    matches the refusal to its own request and never to a newer wait.
+    A rate limit names the wait id (`WireKey.WAIT_ID`) the refused game action echoed, when it had a readable one, so
+    the client matches the refusal to its own request and never to a newer wait.
     """
 
     type: Literal[SessionMessageType.ERROR] = SessionMessageType.ERROR
     code: SessionErrorCode
     message: str
-    wait_id: int | None = Field(default=None, serialization_alias="wi")
+    wait_id: int | None = None
 
-    def payload(self) -> dict[str, Any]:
+    def payload(self) -> dict[int, Any]:
         """
         Return the wire-format dict, without a wait id it does not name.
         """
-        return self.model_dump(by_alias=True, exclude_none=True)
+        payload: dict[int, Any] = {
+            WireKey.SESSION_TYPE: self.type,
+            WireKey.SESSION_ERROR_CODE: self.code,
+            WireKey.SESSION_ERROR_MESSAGE: self.message,
+        }
+        if self.wait_id is not None:
+            payload[WireKey.WAIT_ID] = self.wait_id
+
+        return payload
 
 
-def refused_wait_id(data: dict[str, Any]) -> int | None:
+def refused_wait_id(data: dict[int, Any]) -> int | None:
     """
     Return the wait id a decoded game action frame echoes, or None for any other frame or an id that is not a wait id.
     """
-    wait_id = data.get("wi")
-    is_game_action = data.get("t") == WireClientMessageType.GAME_ACTION
+    wait_id = data.get(WireKey.WAIT_ID)
+    is_game_action = data.get(WireKey.EVENT_TYPE) == WireClientMessageType.GAME_ACTION
     return wait_id if is_game_action and type(wait_id) is int and wait_id >= 0 else None
 
 
@@ -150,11 +158,20 @@ class TimerSettings(BaseModel):
     timeout per result shown and game start pause.
     """
 
-    base_turn_seconds: float = Field(serialization_alias="tb")
-    bank_seconds: float = Field(serialization_alias="bk")
-    max_bank_seconds: float = Field(serialization_alias="mb")
-    round_advance_timeout_seconds: float = Field(serialization_alias="ra")
-    game_start_pause_seconds: float = Field(serialization_alias="gp")
+    base_turn_seconds: float
+    bank_seconds: float
+    max_bank_seconds: float
+    round_advance_timeout_seconds: float
+    game_start_pause_seconds: float
+
+    def payload(self) -> dict[int, Any]:
+        return {
+            WireKey.BASE_TURN_SECONDS: self.base_turn_seconds,
+            WireKey.BANK_SECONDS: self.bank_seconds,
+            WireKey.MAX_BANK_SECONDS: self.max_bank_seconds,
+            WireKey.ROUND_ADVANCE_TIMEOUT: self.round_advance_timeout_seconds,
+            WireKey.GAME_START_PAUSE: self.game_start_pause_seconds,
+        }
 
 
 class GameJoinedMessage(BaseModel):
@@ -162,18 +179,22 @@ class GameJoinedMessage(BaseModel):
     The answer to an accepted JOIN_GAME, sent to the joining connection alone once it holds the participant's seat,
     ahead of anything the game sends it, so the client is admitted by the server's word rather than by inference.
 
-    It names how long the pending game waits for its players before it starts without them (`pt`, seconds), the longest
-    the server can then stay silent before its game start, so the client never takes that wait for a lost connection.
+    It names how long the pending game waits for its players before it starts without them
+    (`WireKey.PENDING_GAME_TIMEOUT`, seconds), the longest the server can then stay silent before its game start, so the
+    client never takes that wait for a lost connection.
     """
 
     type: Literal[SessionMessageType.GAME_JOINED] = SessionMessageType.GAME_JOINED
-    pending_game_timeout_seconds: float = Field(serialization_alias="pt")
+    pending_game_timeout_seconds: float
 
-    def payload(self) -> dict[str, Any]:
+    def payload(self) -> dict[int, Any]:
         """
         Return the wire-format dict.
         """
-        return self.model_dump(by_alias=True)
+        return {
+            WireKey.SESSION_TYPE: self.type,
+            WireKey.PENDING_GAME_TIMEOUT: self.pending_game_timeout_seconds,
+        }
 
 
 class SeatControlMessage(BaseModel):
@@ -184,26 +205,48 @@ class SeatControlMessage(BaseModel):
     """
 
     type: Literal[SessionMessageType.SEAT_CONTROL] = SessionMessageType.SEAT_CONTROL
-    seat: int = Field(serialization_alias="s")
-    reason: SeatControlReason | None = Field(default=None, serialization_alias="r")
+    seat: int
+    reason: SeatControlReason | None = None
+
+    def payload(self) -> dict[int, Any]:
+        payload: dict[int, Any] = {WireKey.SESSION_TYPE: self.type, WireKey.SEAT: self.seat}
+        if self.reason is not None:
+            payload[WireKey.SEAT_CONTROL_REASON] = self.reason
+
+        return payload
 
 
 _NonGameMessage = Annotated[
     ReconnectMessage | JoinGameMessage | ResyncMessage,
-    Field(discriminator="t"),
+    Field(discriminator="message_type"),
 ]
 
 _non_game_adapter = TypeAdapter(_NonGameMessage)
 _game_action_adapter = TypeAdapter(_AnyGameActionMessage)
 
 
-def parse_client_message(data: dict[str, Any]) -> ClientMessage:
+def parse_client_message(data: dict[int, Any]) -> ClientMessage:
     """
     Parse a raw dict into a typed ClientMessage.
 
-    Game action messages use a two-level discriminator (t then a), so they are routed to a separate adapter.
+    Game action messages use message type and action discriminators, so they are routed to a separate adapter.
     """
-    if data.get("t") == WireClientMessageType.GAME_ACTION:
-        return _game_action_adapter.validate_python(data)
+    message_type = data.get(WireKey.EVENT_TYPE)
+    if message_type == WireClientMessageType.GAME_ACTION:
+        return _game_action_adapter.validate_python(
+            {
+                "message_type": message_type,
+                "action": data.get(WireKey.ACTION),
+                "wait_id": data.get(WireKey.WAIT_ID),
+                "tile_id": data.get(WireKey.TILE_ID),
+                "sequence_tiles": data.get(WireKey.SEQUENCE_TILES),
+                "kan_type": data.get(WireKey.ACTION_KAN_TYPE),
+            }
+        )
 
-    return _non_game_adapter.validate_python(data)
+    return _non_game_adapter.validate_python(
+        {
+            "message_type": message_type,
+            "game_ticket": data.get(WireKey.GAME_TICKET),
+        }
+    )

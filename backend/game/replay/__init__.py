@@ -1,7 +1,7 @@
 from game.replay.loader import (
     ReplayLoadError,
+    load_replay_from_bytes,
     load_replay_from_file,
-    load_replay_from_string,
 )
 from game.replay.models import (
     ReplayError,
@@ -23,7 +23,7 @@ __all__ = [
     "ReplayStep",
     "ReplayStepLimitError",
     "ReplayTrace",
+    "load_replay_from_bytes",
     "load_replay_from_file",
-    "load_replay_from_string",
     "run_replay",
 ]

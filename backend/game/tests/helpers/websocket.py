@@ -3,6 +3,7 @@ from game.messaging.encoder import decode, encode
 from game.messaging.wire_enums import WireClientMessageType
 from game.tests.helpers.auth import make_test_game_ticket
 from game.wire.events import EVENT_TYPE_INT
+from game.wire.keys import WireKey
 
 
 def send_ws(ws, data: dict) -> None:
@@ -31,13 +32,13 @@ def create_pending_game(client, *, game_id: str, num_ai_players: int = 3) -> lis
 
 
 def join_game_and_start(ws, ticket: str) -> list[dict]:
-    send_ws(ws, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})
+    send_ws(ws, {WireKey.EVENT_TYPE: WireClientMessageType.JOIN_GAME, WireKey.GAME_TICKET: ticket})
 
     messages = []
     while True:
         msg = recv_ws(ws)
         messages.append(msg)
-        if msg.get("t") in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]):
+        if msg.get(WireKey.EVENT_TYPE) in (EVENT_TYPE_INT[EventType.ROUND_STARTED], EVENT_TYPE_INT[EventType.DRAW]):
             break
 
     return messages

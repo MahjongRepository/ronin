@@ -581,7 +581,7 @@ const worstPlates = mockNameplates(
 );
 
 function laid(melds: readonly MeldInput[]): MeldTile[][] {
-    return melds.map(meldTiles);
+    return melds.map((meld) => meldTiles(meld));
 }
 
 const bottomPlayer: BoardPlayerDisplay = {

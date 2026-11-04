@@ -1,98 +1,152 @@
+import json
+from pathlib import Path
+
 import msgpack
 import pytest
 
-from game.logic.enums import CallType, MeldCallType, MeldViewType
-from game.logic.events import EventType
-from game.messaging.encoder import MAX_BUFFER_LEN, DecodeError, decode, encode
+from game.messaging.encoder import MAX_BUFFER_LEN, MAX_NESTING, DecodeError, decode, encode
+from game.wire.keys import LIVE_KEYS, WireKey
+
+_GOLDEN = Path(__file__).parents[1] / "fixtures/live-protocol-golden.json"
 
 
-class TestRoundTrip:
-    def test_encode_decode__when_simple_event__should_round_trip(self):
-        data = {"type": EventType.DRAW, "seat": 0, "tile_id": 42, "target": "seat_0"}
+def _read_json_payload(value: object, field: int | None = None) -> object:
+    if field in (WireKey.SCORES, WireKey.SCORE_CHANGES):
+        return value
 
-        assert decode(encode(data)) == data
+    if isinstance(value, dict):
+        return {int(key): _read_json_payload(item, int(key)) for key, item in value.items()}
 
-    def test_encode_decode__when_call_prompt_event__should_round_trip(self):
-        data = {
-            "type": EventType.CALL_PROMPT,
-            "call_type": CallType.MELD,
-            "tile_id": 20,
-            "from_seat": 0,
-            "callers": [
-                {"seat": 1, "call_type": MeldCallType.PON},
-                {"seat": 2, "call_type": MeldCallType.CHI, "options": [[4, 8]]},
-            ],
-            "target": "all",
+    if isinstance(value, list):
+        return [_read_json_payload(item) for item in value]
+
+    return value
+
+
+def test_encode_decode__when_shared_golden_frames__should_pin_integer_keys_and_preserve_numeric_fields():
+    golden = json.loads(_GOLDEN.read_text())
+    assert golden["named_keys"] == {name: int(key) for name, key in WireKey.__members__.items() if key in LIVE_KEYS}
+    for frame in golden["frames"]:
+        content = bytes.fromhex(frame["hex"])
+        payload = _read_json_payload(frame["payload"])
+        assert encode(payload) == content
+        assert decode(content) == payload
+
+
+def test_encode__when_nested_score_maps__should_preserve_seat_data_keys():
+    payload = {
+        WireKey.ROUND_RESULT: {
+            WireKey.SCORES: {"0": 250, "1": 250, "2": 250, "3": 250},
+            WireKey.SCORE_CHANGES: {"0": 10, "1": -10, "2": 0, "3": 0},
         }
-        assert decode(encode(data)) == data
-
-    def test_encode_decode__when_none_values__should_round_trip(self):
-        data = {
-            "type": EventType.MELD,
-            "meld_type": MeldViewType.CLOSED_KAN,
-            "caller_seat": 0,
-            "from_seat": None,
-            "tile_ids": [36, 37, 38, 39],
-            "target": "all",
-        }
-        assert decode(encode(data)) == data
-
-
-class TestIntegerKeyConversion:
-    def test_encode__when_integer_keys__should_convert_to_strings(self):
-        data = {
-            "type": "round_result",
-            "score_changes": {0: -1000, 1: 0, 2: 0, 3: 1000},
-        }
-        result = decode(encode(data))
-        assert result == {
-            "type": "round_result",
-            "score_changes": {"0": -1000, "1": 0, "2": 0, "3": 1000},
-        }
-
-    def test_encode__when_nested_integer_keys__should_convert_to_strings(self):
-        data = {
-            "result": {
-                "score_changes": {0: 8000, 1: -8000, 2: 0, 3: 0},
-            },
-        }
-        result = decode(encode(data))
-        assert result == {
-            "result": {
-                "score_changes": {"0": 8000, "1": -8000, "2": 0, "3": 0},
-            },
-        }
-
-    def test_encode__when_integer_keys_inside_list__should_convert_to_strings(self):
-        data = {
-            "results": [{0: 100, 1: -100}],
-        }
-        result = decode(encode(data))
-        assert result == {
-            "results": [{"0": 100, "1": -100}],
-        }
+    }
+    encoded = encode(payload)
+    raw = msgpack.unpackb(encoded, strict_map_key=False)
+    assert raw == {
+        WireKey.ROUND_RESULT: {
+            WireKey.SCORES: {"0": 250, "1": 250, "2": 250, "3": 250},
+            WireKey.SCORE_CHANGES: {"0": 10, "1": -10, "2": 0, "3": 0},
+        },
+    }
+    assert decode(encoded) == {
+        WireKey.ROUND_RESULT: {
+            WireKey.SCORES: {"0": 250, "1": 250, "2": 250, "3": 250},
+            WireKey.SCORE_CHANGES: {"0": 10, "1": -10, "2": 0, "3": 0},
+        },
+    }
 
 
-class TestDecodeErrors:
-    def test_decode__when_invalid_msgpack__should_raise_decode_error(self):
-        with pytest.raises(DecodeError, match="failed to decode"):
-            decode(b"\xff\xff\xff")
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"unknown": 1},
+        {"t": 1},
+        {WireKey.GAME_SETTINGS: {}},
+        {WireKey.SCORES: []},
+        {WireKey.SCORES: {4: 0}},
+        {WireKey.SCORES: {0: 0, "0": 1}},
+        {WireKey.SCORES: {0: True}},
+        {WireKey.SCORES: {False: 0}},
+        {WireKey.MY_TILES: {1, 2}},
+    ],
+)
+def test_encode__when_metadata_or_data_keys_invalid__should_refuse(payload):
+    with pytest.raises((ValueError, TypeError), match=r"unknown|score|unsupported"):
+        encode(payload)
 
-    def test_decode__when_result_not_dict__should_raise_decode_error(self):
-        data = msgpack.packb([1, 2, 3])
 
-        with pytest.raises(DecodeError, match="expected dict, got list"):
-            decode(data)
+@pytest.mark.parametrize(
+    "raw",
+    [
+        {"t": 1},
+        {255: 1},
+        {WireKey.EVENT_TYPE: {True: 1}},
+        {WireKey.GAME_SETTINGS: {}},
+        {WireKey.SCORES: {0: 250}},
+        {WireKey.SCORE_CHANGES: {"4": 0}},
+        {WireKey.SCORES: {"0": False}},
+        {WireKey.SCORES: []},
+        {WireKey.PLAYERS: [msgpack.ExtType(1, b"data")]},
+    ],
+)
+def test_decode__when_metadata_or_data_keys_invalid__should_refuse(raw):
+    with pytest.raises(DecodeError, match="failed to decode"):
+        decode(msgpack.packb(raw))
 
-    def test_decode__when_payload_oversized__should_raise_decode_error(self):
-        oversized = b"\x00" * (MAX_BUFFER_LEN + 1)
 
-        with pytest.raises(DecodeError, match="payload too large"):
-            decode(oversized)
+@pytest.mark.parametrize(
+    "content",
+    [
+        b"\x82" + msgpack.packb(WireKey.EVENT_TYPE) + b"\x01" + msgpack.packb(WireKey.EVENT_TYPE) + b"\x02",
+        b"\x81" + msgpack.packb(WireKey.SCORES) + b"\x82\xa10\x01\xa10\x02",
+    ],
+)
+def test_decode__when_duplicate_keys__should_refuse_before_values_are_overwritten(content):
+    with pytest.raises(DecodeError, match="unique"):
+        decode(content)
 
-    def test_decode__when_payload_at_limit__should_accept(self):
-        data = msgpack.packb({"key": "x" * 100})
-        assert len(data) <= MAX_BUFFER_LEN
 
-        result = decode(data)
-        assert result["key"] == "x" * 100
+def test_encode_decode__when_tuple_and_scalar_fields__should_preserve_values():
+    payload = {
+        WireKey.CALL_OPTIONS: ((1, 2),),
+        WireKey.BANK_SECONDS: 2.5,
+        WireKey.FURITEN: False,
+        WireKey.ROUND_RESULT: None,
+        WireKey.SESSION_ERROR_MESSAGE: b"bytes",
+    }
+    assert decode(encode(payload)) == {
+        WireKey.CALL_OPTIONS: [[1, 2]],
+        WireKey.BANK_SECONDS: 2.5,
+        WireKey.FURITEN: False,
+        WireKey.ROUND_RESULT: None,
+        WireKey.SESSION_ERROR_MESSAGE: b"bytes",
+    }
+
+
+def test_encode_decode__when_nesting_limit_exceeded__should_refuse():
+    named = {WireKey.EVENT_TYPE: 1}
+    numbered = {WireKey.EVENT_TYPE: 1}
+    for _ in range(MAX_NESTING + 1):
+        named = {WireKey.ROUND_RESULT: named}
+        numbered = {WireKey.ROUND_RESULT: numbered}
+
+    with pytest.raises(ValueError, match="nesting"):
+        encode(named)
+
+    with pytest.raises(DecodeError, match="nesting"):
+        decode(msgpack.packb(numbered))
+
+
+def test_decode__when_invalid_msgpack__should_raise_decode_error():
+    with pytest.raises(DecodeError, match="failed to decode"):
+        decode(b"\xff\xff\xff")
+
+
+def test_decode__when_result_not_dict__should_raise_decode_error():
+    with pytest.raises(DecodeError, match="expected dict, got list"):
+        decode(msgpack.packb([1, 2, 3]))
+
+
+def test_decode__when_payload_oversized__should_raise_decode_error():
+    with pytest.raises(DecodeError, match="payload too large"):
+        decode(b"\x00" * (MAX_BUFFER_LEN + 1))

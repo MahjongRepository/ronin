@@ -1,5 +1,7 @@
 import { type ReplayEvent, type TableEvent } from "@/entities/table/model/types";
-import { REPLAY_VERSION, type ReplayLine, type SeatControlLine } from "@/shared/protocol";
+import { REPLAY_VERSION, type ReplayLine, type SeatControlLine, WIRE_KEY } from "@/shared/protocol";
+
+import { MAX_REPLAY_BYTES, decodeReplayRecords } from "./replay-codec";
 
 const REPLAY_EVENT_TYPES: Record<ReplayEvent["type"], true> = {
     discard: true,
@@ -18,27 +20,22 @@ const SEAT_CONTROL_LINE_TYPES: Record<SeatControlLine["type"], true> = {
     human_return: true,
 };
 
-/** An event line of a replay file as a JSON object, still to be parsed, with its 1-based line number in the file. */
+/** An event line of a replay file as an object, still to be parsed, with its 1-based record number in the file. */
 export interface ReplayFileLine {
     readonly lineNumber: number;
     readonly raw: Readonly<Record<string, unknown>>;
 }
 
-/** A line of a replay file that could not be read, by its 1-based line number. */
+/** A line of a replay file that could not be read, by its 1-based record number. */
 export interface ReplayLineError {
     readonly lineNumber: number;
     readonly detail: string;
 }
 
-/** A replay file's event lines as JSON objects, beside the lines that were not JSON objects. */
+/** A replay file's event records, beside its first damaged record. */
 export interface ReplayFileLines {
     readonly lines: readonly ReplayFileLine[];
     readonly errors: readonly ReplayLineError[];
-}
-
-interface NumberedText {
-    readonly lineNumber: number;
-    readonly text: string;
 }
 
 /**
@@ -53,10 +50,6 @@ export type ReplayRefusal =
 export type ReplayFileRead =
     | ({ readonly ok: true } & ReplayFileLines)
     | { readonly ok: false; readonly refusal: ReplayRefusal };
-
-type LineRead =
-    | { readonly kind: "line"; readonly line: Record<string, unknown> }
-    | { readonly kind: "error"; readonly error: string };
 
 export function isReplayEvent(line: ReplayLine): line is ReplayEvent {
     return line.type in REPLAY_EVENT_TYPES;
@@ -74,74 +67,49 @@ export function replayLineTableEvent(line: ReplayLine): TableEvent | null {
     return isReplayEvent(line) || isSeatControlLine(line) ? line : null;
 }
 
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function readReplayVersion(line: string): unknown {
-    try {
-        const raw: unknown = JSON.parse(line);
-        return isJsonObject(raw) ? raw.version : undefined;
-    } catch {
-        return undefined;
-    }
-}
-
-function findVersionRefusal(versionLine: string | undefined): ReplayRefusal | null {
-    if (versionLine === undefined) {
-        return { detail: "The replay is empty", kind: "unreadable" };
-    }
-    const version = readReplayVersion(versionLine);
-    if (version === undefined) {
-        return { detail: "The replay does not start with a version line", kind: "unreadable" };
-    }
-    if (version !== REPLAY_VERSION) {
-        return { kind: "unsupported_version", version: JSON.stringify(version) };
-    }
-    return null;
-}
-
-function readLine(line: string): LineRead {
-    let raw: unknown = null;
-    try {
-        raw = JSON.parse(line);
-    } catch (parseError) {
-        const detail = parseError instanceof Error ? parseError.message : String(parseError);
-        return { error: `JSON parse error: ${detail}`, kind: "error" };
-    }
-    if (!isJsonObject(raw)) {
-        return { error: "Parse error: line is not a JSON object", kind: "error" };
-    }
-    return { kind: "line", line: raw };
-}
-
-function readEventLines(texts: readonly NumberedText[]): ReplayFileLines {
-    const errors: ReplayLineError[] = [];
+function readRecords(content: Uint8Array): ReplayFileLines {
     const lines: ReplayFileLine[] = [];
-    for (const { lineNumber, text } of texts) {
-        const read = readLine(text);
-        if (read.kind === "line") {
-            lines.push({ lineNumber, raw: read.line });
-        } else {
-            errors.push({ detail: read.error, lineNumber });
+    let lineNumber = 1;
+    try {
+        for (const value of decodeReplayRecords(content)) {
+            lines.push({ lineNumber, raw: value });
+            lineNumber += 1;
         }
+    } catch (error) {
+        const detail =
+            error instanceof RangeError
+                ? `Incomplete MessagePack record ${lineNumber}`
+                : `Invalid MessagePack record ${lineNumber}: ${error instanceof Error ? error.message : String(error)}`;
+        return { errors: [{ detail, lineNumber }], lines };
     }
-    return { errors, lines };
+    return { errors: [], lines };
 }
 
-/**
- * Read a replay file: its version line must name the `REPLAY_VERSION` this client was built for, since another
- * version's lines may mean something else. Each later line becomes a JSON object for the client to parse as a
- * replay line, or is reported as an error without stopping the rest.
- */
-export function readReplayFile(text: string): ReplayFileRead {
-    const [versionLine, ...eventLines] = text
-        .split("\n")
-        .map((line, index) => ({ lineNumber: index + 1, text: line.trim() }))
-        .filter((line) => line.text !== "");
-    const refusal = findVersionRefusal(versionLine?.text);
-    if (refusal !== null) {
-        return { ok: false, refusal };
+function versionRefusal(file: ReplayFileLines): ReplayRefusal | null {
+    const [first] = file.lines;
+    if (first === undefined) {
+        return { detail: file.errors[0]?.detail ?? "The replay is empty", kind: "unreadable" };
     }
-    return { ...readEventLines(eventLines), ok: true };
+    const { raw } = first;
+    if (!(WIRE_KEY.REPLAY_VERSION in raw) || Object.keys(raw).length !== 1) {
+        return { detail: "The replay does not start with a version record", kind: "unreadable" };
+    }
+    return raw[WIRE_KEY.REPLAY_VERSION] === REPLAY_VERSION
+        ? null
+        : { kind: "unsupported_version", version: JSON.stringify(raw[WIRE_KEY.REPLAY_VERSION]) };
+}
+
+/** Read independent MessagePack records, retaining only the prefix before a damaged record. */
+export function readReplayFile(content: Uint8Array): ReplayFileRead {
+    if (content.length > MAX_REPLAY_BYTES) {
+        return {
+            ok: false,
+            refusal: { detail: "The replay exceeds the size limit", kind: "unreadable" },
+        };
+    }
+    const file = readRecords(content);
+    const refusal = versionRefusal(file);
+    return refusal === null
+        ? { errors: file.errors, lines: file.lines.slice(1), ok: true }
+        : { ok: false, refusal };
 }

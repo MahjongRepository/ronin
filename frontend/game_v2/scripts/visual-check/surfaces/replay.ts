@@ -222,6 +222,7 @@ async function stepReplayToLocalMelds(page: Page): Promise<void> {
  * incomplete recording, under the damaged one's longer words).
  */
 const PAGES: readonly PageCase[] = [
+    { ...replayCase("custom_settings", []), at: [FLOOR, MID_DESKTOP] },
     {
         ...replayCase("start", []),
         at: [...WORST_CASES, SHORT_DESKTOP, NARROW_DESKTOP, SHORT_TABLET, UPRIGHT_PHONE],

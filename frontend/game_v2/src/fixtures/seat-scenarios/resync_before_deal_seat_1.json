@@ -4,10 +4,10 @@
   "seat": 1,
   "events": [
     {"at": 0, "kind": "opened"},
-    {"at": 0, "kind": "sent", "message": {"game_ticket": "<game ticket>", "t": 7}},
-    {"at": 0, "kind": "received", "payload": {"pt": 30.0, "type": "game_joined"}},
-    {"at": 0, "kind": "received", "label": "game started", "payload": {"dd": [[1, 1], [1, 1]], "dl": 0, "gid": "seat-resync-before-deal", "gt": 0, "p": [{"ai": 1, "nm": "Tsumogiri 1", "s": 0}, {"ai": 0, "nm": "Alice", "s": 1}, {"ai": 1, "nm": "Tsumogiri 2", "s": 2}, {"ai": 1, "nm": "Tsumogiri 3", "s": 3}], "rsv": 10, "s": 1, "t": 8, "tm": {"bk": 20.0, "gp": 3.0, "mb": 20.0, "ra": 10.0, "tb": 5.0}}},
-    {"at": 1000, "kind": "sent", "label": "resync asked", "message": {"t": 8}},
-    {"at": 1000, "kind": "received", "label": "refused", "payload": {"code": "game_not_started", "message": "Game has not started yet", "type": "session_error"}}
+    {"at": 0, "kind": "sent", "message": {"1": 7, "86": "<game ticket>"}},
+    {"at": 0, "kind": "received", "payload": {"37": 30.0, "108": "game_joined"}},
+    {"at": 0, "kind": "received", "label": "game started", "payload": {"1": 8, "8": [[1, 1], [1, 1]], "10": 0, "15": "seat-resync-before-deal", "17": 0, "34": [{"2": 1, "31": "Tsumogiri 1", "50": 0}, {"2": 0, "31": "Alice", "50": 1}, {"2": 1, "31": "Tsumogiri 2", "50": 2}, {"2": 1, "31": "Tsumogiri 3", "50": 3}], "46": 10, "50": 1, "107": {"76": 20.0, "87": 3.0, "91": 20.0, "98": 10.0, "105": 5.0}}},
+    {"at": 1000, "kind": "sent", "label": "resync asked", "message": {"1": 8}},
+    {"at": 1000, "kind": "received", "label": "refused", "payload": {"80": "game_not_started", "92": "Game has not started yet", "108": "session_error"}}
   ]
 }

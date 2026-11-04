@@ -194,6 +194,7 @@ export interface TableState {
      * snapshot; null before either. It is not the riichi cost: the game's settings may set them apart.
      */
     readonly riichiStickValue: number | null;
+    readonly hasAkadora: boolean;
     readonly doraIndicators: readonly number[];
     readonly currentPlayerSeat: number;
     readonly tilesRemaining: number;

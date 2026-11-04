@@ -1,9 +1,11 @@
+import { encode } from "@msgpack/msgpack";
+
 import { type GameSound } from "@/entities/client";
 import { DEFAULT_REPLAY_PREFS, type ReplayPrefs } from "@/entities/replay";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { type Clock, browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, getLobbyUrl } from "@/shared/config";
-import { REPLAY_VERSION } from "@/shared/protocol";
+import { REPLAY_VERSION, WIRE_KEY } from "@/shared/protocol";
 
 /** A storybook replay plays no sound, with the sound off. */
 const SILENT: GameSound = {
@@ -14,6 +16,7 @@ const SILENT: GameSound = {
 /** The replay page's stories: positions of generated replays, and every way a replay may fail to show. */
 export const REPLAY_STORIES = [
     "start",
+    "custom_settings",
     "seating",
     "mid",
     "autoplay",
@@ -56,25 +59,34 @@ const NEVER = new Promise<ReplayFetch>(() => {});
 const NOT_FOUND: ReplayFetch = { ok: false, status: 404 };
 
 function paoReplay(): Promise<{ readonly default: string }> {
-    return import("@/fixtures/replays/pao.txt?raw");
+    return import("@/fixtures/replays/pao.msgpack?inline");
 }
 
 /** A load answered with a generated replay, which its story's own chunk carries, rewritten by `edit`. */
-function servesFixture(fixture: FixtureImport, edit = (text: string) => text): LoadReplay {
+function servesFixture(
+    fixture: FixtureImport,
+    edit = (content: Uint8Array) => content,
+): LoadReplay {
     return async () => {
         const loaded = await fixture();
-        return { ok: true, text: edit(loaded.default) };
+        const content = Uint8Array.from(atob(loaded.default.split(",")[1]), (character) =>
+            character.charCodeAt(0),
+        );
+        return { content: edit(content), ok: true };
     };
 }
 
-function serves(text: string): LoadReplay {
-    return () => Promise.resolve({ ok: true, text });
+function serves(content: Uint8Array): LoadReplay {
+    return () => Promise.resolve({ content, ok: true });
 }
 
 /** A replay with a line broken past its first moves: a damaged replay that still opens. */
-function withBrokenLine(text: string): string {
-    const lines = text.trimEnd().split("\n");
-    return [...lines.slice(0, 12), "{broken", ...lines.slice(12)].join("\n");
+function withBrokenLine(content: Uint8Array): Uint8Array {
+    return content.slice(0, Math.floor(content.length / 2));
+}
+
+function versionRecord(version: string): Uint8Array {
+    return new Uint8Array([0x81, WIRE_KEY.REPLAY_VERSION, ...encode(version)]);
 }
 
 function notFoundThen(next: Promise<ReplayFetch>): LoadReplay {
@@ -105,38 +117,44 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
         prefs: { hideHands: false },
         search: "?round=0&step=14",
     },
+    custom_settings: {
+        load: servesFixture(() => import("@/fixtures/replays/custom_settings.msgpack?inline")),
+        search: "?round=0&step=0",
+    },
     damaged: { load: servesFixture(paoReplay, withBrokenLine), search: "?round=0&step=8" },
     double_ron: {
-        load: servesFixture(() => import("@/fixtures/replays/double_ron_head_bump.txt?raw")),
+        load: servesFixture(() => import("@/fixtures/replays/double_ron_head_bump.msgpack?inline")),
         search: "?round=0&step=2",
     },
     ends_on_result: {
-        load: servesFixture(() => import("@/fixtures/replays/truncated_after_round.txt?raw")),
+        load: servesFixture(
+            () => import("@/fixtures/replays/truncated_after_round.msgpack?inline"),
+        ),
         search: "?round=1&step=140",
     },
     game_end: { load: servesFixture(paoReplay), search: "?round=0&step=24" },
     incomplete: {
-        load: servesFixture(() => import("@/fixtures/replays/truncated_mid_round.txt?raw")),
+        load: servesFixture(() => import("@/fixtures/replays/truncated_mid_round.msgpack?inline")),
         search: "?round=0&step=23",
     },
     loading: { load: () => NEVER, search: "" },
     mid: { load: servesFixture(paoReplay), search: "?round=0&step=14" },
-    no_round: { load: serves(JSON.stringify({ version: REPLAY_VERSION })), search: "" },
+    no_round: { load: serves(versionRecord(REPLAY_VERSION)), search: "" },
     not_found: { clock: HURRIED_CLOCK, load: () => Promise.resolve(NOT_FOUND), search: "" },
     result_hidden: {
-        load: servesFixture(() => import("@/fixtures/replays/double_ron_head_bump.txt?raw")),
+        load: servesFixture(() => import("@/fixtures/replays/double_ron_head_bump.msgpack?inline")),
         prefs: { hideHands: true },
         search: "?round=0&step=2",
     },
     round_list: {
-        load: servesFixture(() => import("@/fixtures/replays/ai_replacements.txt?raw")),
+        load: servesFixture(() => import("@/fixtures/replays/ai_replacements.msgpack?inline")),
         roundListOpen: true,
         search: "?round=1&step=3",
     },
     seating: { load: servesFixture(paoReplay), search: "" },
     start: { load: servesFixture(paoReplay), search: "?round=0&step=0" },
     unreachable: { load: () => Promise.reject(new TypeError("Failed to fetch")), search: "" },
-    unsupported: { load: serves('{"version": "0.1"}\n{"t": 8}'), search: "" },
+    unsupported: { load: serves(versionRecord("0.1")), search: "" },
     viewpoint_hidden: {
         load: servesFixture(paoReplay),
         prefs: { hideHands: true },

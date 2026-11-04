@@ -12,7 +12,8 @@ The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mecha
   the result stays on the round through the round-advance wait. It also appends the round's compact ledger entry to the
   game state's `round_history`, the one record of past rounds (the reconnect snapshot sends it).
 * Domain events (`events.py`) carry integer tile ids only (136-format) and their own routing target, a broadcast or
-  one seat.
+  one seat. Domain models keep readable field names and full point values; `messaging/` owns explicit protocol
+  serialization, including numeric keys, integer enum codes and scaled scores.
 * The game state's `wait_id` identifies the current wait and changes exactly when a call ends it
   (`mahjong_service.py` holds the rule); the session drives its timers from it. This global counter
   stays server-only. Client actions use separate participant decision ids owned by the session,
@@ -26,6 +27,10 @@ The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mecha
 * The seat is a player's only identity: `start_game` returns each input player's seat and every later call takes a
   seat. Names are display only and nothing looks a player up by name; AI names skip the names in use without
   touching the RNG, so names stay unique for the replay format and the name-carrying session messages.
+* Replay rules profiles live beside settings in `rule_profiles.py`. Each frozen profile explicitly supplies every
+  setting, independent of application defaults; an existing profile ID and its baseline never change. New settings
+  require deliberate legacy values in every profile. Profile lookup and strict override resolution stay in this
+  layer; `wire/` owns the compact replay envelope and serialization.
 * Pacing (turn, bank, meld, round-advance and pending-game timeouts) is a session concern (`session/timer.py`),
   never a `GameSettings` field.
 * Everything the engine keeps for one game is its `GameRuntime` (`runtime.py`), owned by the caller: dropping it

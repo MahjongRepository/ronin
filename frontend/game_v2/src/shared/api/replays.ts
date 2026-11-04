@@ -1,8 +1,8 @@
 import { type CancelTimer } from "@/shared/clock";
 
-/** A replay's text, or the HTTP status the server refused it with. */
+/** A replay's binary records, or the HTTP status the server refused it with. */
 export type ReplayFetch =
-    | { readonly ok: true; readonly text: string }
+    | { readonly ok: true; readonly content: Uint8Array }
     | { readonly ok: false; readonly status: number };
 
 /** Fetch a replay; rejects on a network failure, and with an `AbortError` once `signal` aborts. */
@@ -21,7 +21,7 @@ export async function fetchReplay(gameId: string, signal: AbortSignal): Promise<
     if (!response.ok) {
         return { ok: false, status: response.status };
     }
-    return { ok: true, text: await response.text() };
+    return { content: new Uint8Array(await response.arrayBuffer()), ok: true };
 }
 
 function abortError(): DOMException {

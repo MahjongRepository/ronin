@@ -1,8 +1,9 @@
 import { describe, expect, test, vi } from "vitest";
 
+import { encodeReplayLines } from "#tests/fixtures/replay-records";
 import { REPLAY_GAME_STARTED, REPLAY_ROUND_STARTED } from "#tests/fixtures/wire";
 import { readReplayTimeline } from "@/entities/client";
-import { REPLAY_VERSION } from "@/shared/protocol";
+import { REPLAY_VERSION, WIRE_KEY } from "@/shared/protocol";
 
 vi.mock(import("@/entities/table"), async (importOriginal) => {
     const table = await importOriginal();
@@ -20,13 +21,19 @@ vi.mock(import("@/entities/table"), async (importOriginal) => {
 describe("readReplayTimeline - a bug in the client", () => {
     test("throws a table error that is no DesyncError rather than calling the recording damaged", () => {
         const text = [
-            JSON.stringify({ version: REPLAY_VERSION }),
+            JSON.stringify({ [WIRE_KEY.REPLAY_VERSION]: REPLAY_VERSION }),
             JSON.stringify(REPLAY_GAME_STARTED),
             JSON.stringify(REPLAY_ROUND_STARTED),
-            '{"d": 0, "t": 1, "tr": 69}',
-            '{"d": 0, "t": 2}',
+            JSON.stringify({
+                [WIRE_KEY.PACKED_MOVE]: 0,
+                [WIRE_KEY.EVENT_TYPE]: 1,
+                [WIRE_KEY.TILES_REMAINING]: 69,
+            }),
+            JSON.stringify({ [WIRE_KEY.PACKED_MOVE]: 0, [WIRE_KEY.EVENT_TYPE]: 2 }),
         ].join("\n");
 
-        expect(() => readReplayTimeline(text)).toThrow("a bug in the discard handler");
+        expect(() => readReplayTimeline(encodeReplayLines(text))).toThrow(
+            "a bug in the discard handler",
+        );
     });
 });

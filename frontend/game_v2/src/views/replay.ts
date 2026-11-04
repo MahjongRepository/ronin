@@ -147,7 +147,7 @@ function failureText(failure: ReplayFailure): FailureText {
             const damage =
                 failure.damage === null
                     ? ""
-                    : ` Line ${failure.damage.lineNumber} could not be read.`;
+                    : ` Record ${failure.damage.lineNumber} could not be read.`;
             return {
                 detail: `The recording stops before the first deal.${damage}`,
                 retry: false,

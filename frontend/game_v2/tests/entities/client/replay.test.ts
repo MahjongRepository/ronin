@@ -1,5 +1,6 @@
 import { assert, describe, expect, test } from "vitest";
 
+import { encodeReplayLines, encodeReplayRecords, joinBytes } from "#tests/fixtures/replay-records";
 import { ENGINE_REPLAYS, type EngineReplay, loadEngineReplay } from "#tests/fixtures/replays";
 import { GAME_ID, HANDOFF, clientEvent } from "#tests/fixtures/scenario";
 import {
@@ -33,20 +34,27 @@ import {
     type ReplayLine,
     type RoundEndEvent,
     SEAT_CONTROL_REASON,
+    WIRE_KEY,
 } from "@/shared/protocol";
 import { WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
 
-const VERSION_LINE = JSON.stringify({ version: REPLAY_VERSION });
+const VERSION_LINE = JSON.stringify({ [WIRE_KEY.REPLAY_VERSION]: REPLAY_VERSION });
 const SEAT_0_TABLE = [JSON.stringify(REPLAY_GAME_STARTED), JSON.stringify(REPLAY_ROUND_STARTED)];
 const REPLAY_VIEW: BoardPerspective = { bottomSeat: 0, reveal: "all" };
-const drawLine = '{"d": 0, "t": 1, "tr": 69}';
-const discardLine = '{"d": 0, "t": 2}';
+const drawLine = JSON.stringify({
+    [WIRE_KEY.PACKED_MOVE]: 0,
+    [WIRE_KEY.EVENT_TYPE]: 1,
+    [WIRE_KEY.TILES_REMAINING]: 69,
+});
+const discardLine = JSON.stringify({ [WIRE_KEY.PACKED_MOVE]: 0, [WIRE_KEY.EVENT_TYPE]: 2 });
 
 function readLines(...lines: string[]): {
     damage: { lineNumber: number; detail: string } | null;
     types: (string | null)[];
 } {
-    const read = readReplayTimeline([VERSION_LINE, ...SEAT_0_TABLE, ...lines].join("\n"));
+    const read = readReplayTimeline(
+        encodeReplayLines([VERSION_LINE, ...SEAT_0_TABLE, ...lines].join("\n")),
+    );
     assert(read.ok);
     const types = read.timeline.entries
         .slice(SEAT_0_TABLE.length)
@@ -56,13 +64,15 @@ function readLines(...lines: string[]): {
 
 describe("readReplayTimeline - lines", () => {
     test("names the file's line of an error after a round end the dispatcher took in two parts", () => {
-        const text = `${ENGINE_REPLAYS.get("chankan_added")?.trimEnd()}\n{"t": 99}`;
+        const fixture = ENGINE_REPLAYS.get("chankan_added");
+        assert(fixture);
+        const text = joinBytes([fixture, encodeReplayRecords([{ [WIRE_KEY.EVENT_TYPE]: 99 }])]);
         const read = readReplayTimeline(text);
         assert(read.ok);
 
         expect(read.damage).toEqual({
-            detail: "Parse error: Failed to parse game event t=99: Unknown game event type: t=99",
-            lineNumber: text.split("\n").length,
+            detail: "Parse error: Failed to parse game event EVENT_TYPE=99: Unknown game event type: EVENT_TYPE=99",
+            lineNumber: read.timeline.entries.length + 1,
         });
         expect(read.timeline.entries.at(-1)?.parsed?.type).toBe("round_end");
     });
@@ -74,24 +84,38 @@ describe("readReplayTimeline - lines", () => {
     });
 
     test.each([
-        ["not json", /^JSON parse error: /],
+        ["not json", /^Invalid MessagePack record/],
         [
             VERSION_LINE,
-            /^Parse error: Message has neither 'type' \(string\) nor 't' \(number\) field$/,
+            /^Parse error: Message has neither 'SESSION_TYPE' \(string\) nor 'EVENT_TYPE' \(number\) field$/,
         ],
         [
-            '{"t": 99}',
-            /^Parse error: Failed to parse game event t=99: Unknown game event type: t=99$/,
+            JSON.stringify({ [WIRE_KEY.EVENT_TYPE]: 99 }),
+            /^Parse error: Failed to parse game event EVENT_TYPE=99: Unknown game event type: EVENT_TYPE=99$/,
         ],
-        ['{"cd": "test_code", "msg": "test message", "t": 7}', /^Non-replay event type: error$/],
         [
-            '{"ai": 2, "s": 0, "t": 101}',
-            /^Parse error: Failed to parse replay line t=101: Unknown seat control: ai=2$/,
+            JSON.stringify({
+                [WIRE_KEY.GAME_ERROR_CODE]: "test_code",
+                [WIRE_KEY.GAME_ERROR_MESSAGE]: "test message",
+                [WIRE_KEY.EVENT_TYPE]: 7,
+            }),
+            /^Invalid MessagePack record/,
+        ],
+        [
+            JSON.stringify({
+                [WIRE_KEY.AI_PLAYER]: 2,
+                [WIRE_KEY.SEAT]: 0,
+                [WIRE_KEY.EVENT_TYPE]: 101,
+            }),
+            /^Parse error: Failed to parse replay line EVENT_TYPE=101: Unknown seat control: AI_PLAYER=2$/,
         ],
         [JSON.stringify(REPLAY_GAME_STARTED), /^Cannot be played: /],
         [
-            JSON.stringify(WIRE_ROUND_STARTED),
-            /^Parse error: Failed to parse deal t=9: it does not record every seat.s hand$/,
+            JSON.stringify({
+                ...REPLAY_ROUND_STARTED,
+                [WIRE_KEY.PLAYERS]: WIRE_ROUND_STARTED[WIRE_KEY.PLAYERS],
+            }),
+            /^Parse error: Failed to parse deal EVENT_TYPE=9: it does not record every seat.s hand$/,
         ],
     ])("stops at a line it cannot show (%s), keeping only the lines before it", (bad, detail) => {
         const { damage, types } = readLines(drawLine, bad, discardLine);
@@ -550,30 +574,49 @@ describe("readReplayTimeline - engine fixtures", () => {
 
 type WireLine = Readonly<Record<string, unknown>>;
 
-const PROJECTED_TIMER = { bk: 20, gp: 3, mb: 20, ra: 15, tb: 5 };
+const PROJECTED_TIMER = {
+    [WIRE_KEY.BANK_SECONDS]: 20,
+    [WIRE_KEY.GAME_START_PAUSE]: 3,
+    [WIRE_KEY.MAX_BANK_SECONDS]: 20,
+    [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
+    [WIRE_KEY.BASE_TURN_SECONDS]: 5,
+};
 
 function projectLine(raw: WireLine, line: ReplayLine, seat: number): WireLine | null {
     switch (line.type) {
         case "game_started": {
             return {
                 ...raw,
-                rsv: line.riichiStickValue / WIRE_SCORE_DIVISOR,
-                s: seat,
-                tm: PROJECTED_TIMER,
+                [WIRE_KEY.RIICHI_STICK_VALUE]: line.riichiStickValue / WIRE_SCORE_DIVISOR,
+                [WIRE_KEY.SEAT]: seat,
+                [WIRE_KEY.TIMER_SETTINGS]: PROJECTED_TIMER,
             };
         }
         case "round_started": {
             const players = line.players.map((view) => ({
-                s: view.seat,
-                sc: view.score / WIRE_SCORE_DIVISOR,
+                [WIRE_KEY.SEAT]: view.seat,
+                [WIRE_KEY.SCORE]: view.score / WIRE_SCORE_DIVISOR,
             }));
             const own = line.players.find((view) => view.seat === seat)?.tiles;
-            return { ...raw, mt: own, p: players, s: seat };
+            return {
+                ...raw,
+                [WIRE_KEY.MY_TILES]: own,
+                [WIRE_KEY.PLAYERS]: players,
+                [WIRE_KEY.SEAT]: seat,
+            };
         }
         case "draw": {
             return line.seat === seat
-                ? { ...raw, bk: PROJECTED_TIMER.bk, wi: 1 }
-                : { s: line.seat, t: EVENT_TYPE.DRAW_NOTICE, tr: line.tilesRemaining };
+                ? {
+                      ...raw,
+                      [WIRE_KEY.BANK_SECONDS]: PROJECTED_TIMER[WIRE_KEY.BANK_SECONDS],
+                      [WIRE_KEY.WAIT_ID]: 1,
+                  }
+                : {
+                      [WIRE_KEY.SEAT]: line.seat,
+                      [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW_NOTICE,
+                      [WIRE_KEY.TILES_REMAINING]: line.tilesRemaining,
+                  };
         }
         case "ai_replacement":
         case "human_return": {

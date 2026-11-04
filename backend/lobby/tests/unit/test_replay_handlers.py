@@ -44,6 +44,7 @@ class TestReplayContent:
         response = client.get("/api/replays/game-123")
         assert response.status_code == 200
         assert response.text == ndjson
+        assert response.headers["content-type"] == "application/msgpack"
 
     def test_replay_route__should_set_gzip_content_encoding(self, setup):
         client, replay_dir = setup
@@ -135,7 +136,7 @@ class TestReplayContent:
         _client, replay_dir = setup
         game_id = "escape_link"
         # Create a file outside the replay dir
-        outside = tmp_path / "secret.txt.gz"
+        outside = tmp_path / "secret.msgpack.gz"
         outside.write_bytes(gzip.compress(b"secret"))
 
         # Create a symlink at the sharded path pointing outside

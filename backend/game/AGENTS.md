@@ -13,14 +13,19 @@ signed game ticket; players then connect by WebSocket and play. `logic/`, `sessi
   reconnects, timers, replay collection, the one end of every game.
 * `messaging/` — outbound: MessagePack encoding, client message models, wire shaping of events.
 * `wire/` — the wire format both the server and the replay tool read: integer codes, the packed
-  draw/discard codec, the replay format version and the replay-only line types, whose `t` codes share
+  draw/discard codec, the replay storage codec and format version, and the replay-only record types, whose `t` codes share
   the events' space without taking one of their values, so a live wire code never changes for them.
 * `logic/` — the rules engine behind the `GameService` protocol: synchronous, seat-keyed, stateless
   across games, ignorant of connections, time and accounts.
 * `replay/` — runs recorded games through the same protocol for tests and profiling, plus the
   Tenhou export; input stays name-keyed and is mapped to seats once, at its boundary. A replay
-  records every `GameSettings` field on its `game_started` line, and both the runner and the export
-  read them from there, never from the defaults. A change to the replay lines is followed by
+  records an immutable rules-profile ID and sparse effective settings overrides on its `game_started`
+  record. Both the runner and the export resolve it through `logic/`'s profile registry, never current
+  defaults. The browser uses explicit viewing settings and recorded events, without a profile registry
+  or engine execution. Replay storage uses independent MessagePack records, integer metadata keys and
+  a binary seed under one gzip stream; `wire/` keeps metadata keys numeric throughout and restores only the hexadecimal seed at the read boundary.
+  Builders and consumers reference `WireKey` directly; string keys inside settings and score maps are data.
+  A change to the replay records is followed by
   `make generate-replay-fixtures`, which re-records the v2 game client's replay fixtures.
 
 Import direction is `server` → `session` → `messaging` → `wire` → `logic` (the import-linter

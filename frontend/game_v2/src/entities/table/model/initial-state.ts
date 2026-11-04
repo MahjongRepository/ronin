@@ -9,6 +9,7 @@ export function createInitialTableState(): TableState {
         gameEndResult: null,
         gameId: "",
         gameType: null,
+        hasAkadora: true,
         honbaSticks: 0,
         inStep: true,
         lastDiscardSeat: null,

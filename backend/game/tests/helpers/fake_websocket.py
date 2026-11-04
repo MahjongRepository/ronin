@@ -16,13 +16,13 @@ class FakeWebSocketClient(FakeAsgiClient):
         )
 
     @property
-    def messages(self) -> list[dict[str, Any]]:
+    def messages(self) -> list[dict[int, Any]]:
         return [item for item in self.written if isinstance(item, dict)]
 
-    def send(self, data: dict[str, Any]) -> None:
+    def send(self, data: dict[int, Any]) -> None:
         self.send_frame({"type": "websocket.receive", "bytes": encode(data)})
 
-    async def wait_for_message(self, predicate: Callable[[dict[str, Any]], bool]) -> None:
+    async def wait_for_message(self, predicate: Callable[[dict[int, Any]], bool]) -> None:
         async with self.written_changed:
             await self.written_changed.wait_for(lambda: any(predicate(message) for message in self.messages))
 

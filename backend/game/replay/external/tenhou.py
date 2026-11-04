@@ -1,5 +1,4 @@
 import gzip
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, assert_never
@@ -14,7 +13,8 @@ from game.logic.enums import AbortiveDrawType, HandLimit, KanType
 from game.logic.settings import NUM_PLAYERS, WIRE_SCORE_DIVISOR, GameSettings, GameType
 from game.wire.compact import decode_discard, decode_draw, encode_discard, encode_draw
 from game.wire.enums import WireEventType, WireRoundResultType
-from game.wire.replay_format import decode_replay_settings
+from game.wire.keys import WireKey
+from game.wire.replay_format import MAX_REPLAY_BYTES, decode_replay_records, decode_replay_settings
 from shared.lib.melds.compact import MeldData, decode_meld_compact, encode_meld_compact
 
 logger = structlog.get_logger()
@@ -59,9 +59,9 @@ TENHOU_GO_LENGTH_BITS = {
     GameType.TONPUSEN: 0,
 }
 
-_RESULT_SEAT_KEYS = frozenset({"ws", "ls", "ps", "s"})
-_RESULT_SCORE_MAP_KEYS = frozenset({"scs", "sch"})
-_RESULT_NESTED_LIST_KEYS = frozenset({"wn", "th"})
+_RESULT_SEAT_KEYS = frozenset({WireKey.WINNER_SEAT, WireKey.LOSER_SEAT, WireKey.PAO_SEAT, WireKey.SEAT})
+_RESULT_SCORE_MAP_KEYS = frozenset({WireKey.SCORES, WireKey.SCORE_CHANGES})
+_RESULT_NESTED_LIST_KEYS = frozenset({WireKey.WINNERS, WireKey.TENPAI_HANDS})
 
 
 def _to_binary_string(number: int, size: int | None = None) -> str:
@@ -198,7 +198,7 @@ def encode_meld(meld_event: dict[str, Any]) -> str:
             raise ValueError(f"unknown meld type: {meld_type}")
 
 
-def _format_yaku_attr(yaku_list: list[dict[str, Any]]) -> str:
+def _format_yaku_attr(yaku_list: list[dict[int, Any]]) -> str:
     """
     Format the yaku attribute as tenhou id and han pairs, or for a yakuman hand the yakuman attribute of its ids alone.
 
@@ -208,14 +208,14 @@ def _format_yaku_attr(yaku_list: list[dict[str, Any]]) -> str:
     daichisei as it always comes with tsuuiisou, and a yakuman hand left with no tenhou id raises rather than write an
     empty yakuman attribute.
     """
-    tenhou_ids = [(TENHOU_ID_BY_YAKU_ID.get(yaku["yi"]), yaku) for yaku in yaku_list]
-    if not any(yaku["yi"] in YAKUMAN_YAKU_IDS for yaku in yaku_list):
-        pairs = [f"{tenhou_id},{yaku['han']}" for tenhou_id, yaku in tenhou_ids if tenhou_id is not None]
+    tenhou_ids = [(TENHOU_ID_BY_YAKU_ID.get(yaku[WireKey.YAKU_ID]), yaku) for yaku in yaku_list]
+    if not any(yaku[WireKey.YAKU_ID] in YAKUMAN_YAKU_IDS for yaku in yaku_list):
+        pairs = [f"{tenhou_id},{yaku[WireKey.HAN]}" for tenhou_id, yaku in tenhou_ids if tenhou_id is not None]
         return f' yaku="{",".join(pairs)}"'
 
     yakuman_ids = [str(tenhou_id) for tenhou_id, _yaku in tenhou_ids if tenhou_id is not None]
     if not yakuman_ids:
-        raise ValueError(f"yakuman hand has no tenhou yaku id: {[yaku['yi'] for yaku in yaku_list]}")
+        raise ValueError(f"yakuman hand has no tenhou yaku id: {[yaku[WireKey.YAKU_ID] for yaku in yaku_list]}")
 
     return f' yakuman="{",".join(yakuman_ids)}"'
 
@@ -243,28 +243,28 @@ def _format_sc(scores: dict[str, int], score_changes: dict[str, int]) -> str:
     return ",".join(parts)
 
 
-def _double_ron_score_steps(result: dict[str, Any]) -> list[tuple[dict[str, int], dict[str, int]]]:
+def _double_ron_score_steps(result: dict[int, Any]) -> list[tuple[dict[str, int], dict[str, int]]]:
     """
     Each double ron winner's sc pair: the scores before that win and the changes it alone made, so each AGARI starts
     from the scores the one before it left.
     """
     steps = []
-    scores = result["scs"]
-    for w in result["wn"]:
-        steps.append((scores, w["sch"]))
-        scores = {seat: scores[seat] + w["sch"][seat] for seat in map(str, range(4))}
+    scores = result[WireKey.SCORES]
+    for w in result[WireKey.WINNERS]:
+        steps.append((scores, w[WireKey.SCORE_CHANGES]))
+        scores = {seat: scores[seat] + w[WireKey.SCORE_CHANGES][seat] for seat in map(str, range(4))}
 
     return steps
 
 
-def _format_ten(hand: dict[str, Any]) -> str:
+def _format_ten(hand: dict[int, Any]) -> str:
     """
     Format the AGARI ten attribute: fu, the hand's value in full points and the limit the engine paid it at.
 
     Tenhou writes the bare hand value: honba and riichi sticks appear only in ba and sc.
     """
-    points = hand["pt"] * WIRE_SCORE_DIVISOR
-    return f"{hand['fu']},{points},{TENHOU_LIMIT[HandLimit(hand['lm'])]}"
+    points = hand[WireKey.POINTS] * WIRE_SCORE_DIVISOR
+    return f"{hand[WireKey.FU]},{points},{TENHOU_LIMIT[HandLimit(hand[WireKey.HAND_LIMIT])]}"
 
 
 def _tenhou_go_type(settings: GameSettings) -> int:
@@ -284,11 +284,11 @@ def _tenhou_go_type(settings: GameSettings) -> int:
     return go_type
 
 
-def _game_started_event(events: list[dict[str, Any]]) -> dict[str, Any]:
+def _game_started_event(events: list[dict[int, Any]]) -> dict[int, Any]:
     """
     Return the replay's game_started event, raising when the replay has none.
     """
-    game_started = next((e for e in events if e.get("t") == WireEventType.GAME_STARTED), None)
+    game_started = next((e for e in events if e.get(WireKey.EVENT_TYPE) == WireEventType.GAME_STARTED), None)
     if game_started is None:
         raise ValueError("replay has no game_started event")
 
@@ -309,38 +309,44 @@ class _TenhouSeating:
     def _tenhou_seat(self, seat: int) -> int:
         return (seat - self.first_dealer) % NUM_PLAYERS
 
-    def move_seats(self, event: dict[str, Any]) -> dict[str, Any]:  # noqa: PLR0911
+    def move_seats(self, event: dict[int, Any]) -> dict[int, Any]:  # noqa: PLR0911
         """
         Return a copy of an event with every seat the export reads from it moved to its tenhou seat.
 
-        A packed draw, discard or meld is re-packed with the moved seat; a line the export does not read is returned as
-        it is. A field the export starts reading joins its event's case here.
+        A packed draw, discard or meld is re-packed with the moved seat; a record the export does not read is returned
+        as it is. A field the export starts reading joins its event's case here.
         """
-        match event.get("t"):
+        match event.get(WireKey.EVENT_TYPE):
             case WireEventType.GAME_STARTED | WireEventType.ROUND_STARTED:
-                return {**event, "dl": self._tenhou_seat(event["dl"]), "p": self._move_entry_seats(event["p"])}
-            case WireEventType.DRAW:
-                seat, tile = decode_draw(event["d"])
-                return {**event, "d": encode_draw(self._tenhou_seat(seat), tile)}
-            case WireEventType.DISCARD:
-                seat, tile, is_tsumogiri, is_riichi = decode_discard(event["d"])
                 return {
                     **event,
-                    "d": encode_discard(self._tenhou_seat(seat), tile, is_tsumogiri=is_tsumogiri, is_riichi=is_riichi),
+                    WireKey.DEALER: self._tenhou_seat(event[WireKey.DEALER]),
+                    WireKey.PLAYERS: self._move_entry_seats(event[WireKey.PLAYERS]),
+                }
+            case WireEventType.DRAW:
+                seat, tile = decode_draw(event[WireKey.PACKED_MOVE])
+                return {**event, WireKey.PACKED_MOVE: encode_draw(self._tenhou_seat(seat), tile)}
+            case WireEventType.DISCARD:
+                seat, tile, is_tsumogiri, is_riichi = decode_discard(event[WireKey.PACKED_MOVE])
+                return {
+                    **event,
+                    WireKey.PACKED_MOVE: encode_discard(
+                        self._tenhou_seat(seat), tile, is_tsumogiri=is_tsumogiri, is_riichi=is_riichi
+                    ),
                 }
             case WireEventType.RIICHI_DECLARED:
-                return {**event, "s": self._tenhou_seat(event["s"])}
+                return {**event, WireKey.SEAT: self._tenhou_seat(event[WireKey.SEAT])}
             case WireEventType.MELD:
-                return {**event, "m": self._move_meld_seats(event["m"])}
+                return {**event, WireKey.PACKED_MELD: self._move_meld_seats(event[WireKey.PACKED_MELD])}
             case WireEventType.ROUND_END:
                 return self._move_result_seats(event)
             case WireEventType.GAME_END:
-                return {**event, "st": self._move_entry_seats(event["st"])}
+                return {**event, WireKey.STANDINGS: self._move_entry_seats(event[WireKey.STANDINGS])}
             case _:
                 return event
 
-    def _move_entry_seats(self, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [{**entry, "s": self._tenhou_seat(entry["s"])} for entry in entries]
+    def _move_entry_seats(self, entries: list[dict[int, Any]]) -> list[dict[int, Any]]:
+        return [{**entry, WireKey.SEAT: self._tenhou_seat(entry[WireKey.SEAT])} for entry in entries]
 
     def _move_meld_seats(self, compact: int) -> int:
         meld = decode_meld_compact(compact)
@@ -353,7 +359,7 @@ class _TenhouSeating:
             },
         )
 
-    def _move_result_seats(self, fields: dict[str, Any]) -> dict[str, Any]:
+    def _move_result_seats(self, fields: dict[int, Any]) -> dict[int, Any]:
         """
         Return round result fields with the seats the export reads moved: the result's own and those of its robbed kan,
         double ron winners and tenpai hands, which name theirs under the same keys.
@@ -362,14 +368,14 @@ class _TenhouSeating:
         for key in _RESULT_SEAT_KEYS & fields.keys():
             moved[key] = self._tenhou_seat(fields[key])
 
-        if "rcl" in fields:
-            moved["rcl"] = [self._tenhou_seat(seat) for seat in fields["rcl"]]
+        if WireKey.RON_CALLERS in fields:
+            moved[WireKey.RON_CALLERS] = [self._tenhou_seat(seat) for seat in fields[WireKey.RON_CALLERS]]
 
         for key in _RESULT_SCORE_MAP_KEYS & fields.keys():
             moved[key] = {str(self._tenhou_seat(int(seat))): score for seat, score in fields[key].items()}
 
-        if "rk" in fields:
-            moved["rk"] = self._move_result_seats(fields["rk"])
+        if WireKey.ROBBED_KAN in fields:
+            moved[WireKey.ROBBED_KAN] = self._move_result_seats(fields[WireKey.ROBBED_KAN])
 
         for key in _RESULT_NESTED_LIST_KEYS & fields.keys():
             moved[key] = [self._move_result_seats(entry) for entry in fields[key]]
@@ -423,10 +429,10 @@ class TenhouConverter:
     tenhou seat: the first dealer is seat 0, so the round wind and dealer seat give the INIT round counter.
     """
 
-    def __init__(self, events: list[dict[str, Any]]) -> None:
+    def __init__(self, events: list[dict[int, Any]]) -> None:
         game_started = _game_started_event(events)
-        self.settings = decode_replay_settings(game_started.get("gs"))
-        seating = _TenhouSeating(first_dealer=game_started["dl"])
+        self.settings = decode_replay_settings(game_started.get(WireKey.GAME_SETTINGS))
+        seating = _TenhouSeating(first_dealer=game_started[WireKey.DEALER])
         self.events = [seating.move_seats(event) for event in events]
         self.tags: list[str] = []
 
@@ -458,8 +464,8 @@ class TenhouConverter:
 
         return "".join(self.tags)
 
-    def _process_event(self, event: dict[str, Any]) -> None:
-        event_type = event.get("t")
+    def _process_event(self, event: dict[int, Any]) -> None:
+        event_type = event.get(WireKey.EVENT_TYPE)
         if event_type is None:
             return
 
@@ -479,18 +485,18 @@ class TenhouConverter:
 
     # -- Header ---------------------------------------------------------------
 
-    def _handle_game_started(self, event: dict[str, Any]) -> None:
-        seed = event["sd"]
-        players = sorted(event["p"], key=lambda p: p["s"])
-        first_dealer = event["dl"]
+    def _handle_game_started(self, event: dict[int, Any]) -> None:
+        seed = event[WireKey.SEED]
+        players = sorted(event[WireKey.PLAYERS], key=lambda p: p[WireKey.SEAT])
+        first_dealer = event[WireKey.DEALER]
 
         self.tags.append('<mjloggm ver="2.3">')
-        rng_version = event["rv"]
+        rng_version = event[WireKey.RNG_VERSION]
         self.tags.append(f'<SHUFFLE seed="{seed}" ref="{rng_version}"/>')
         go_type = _tenhou_go_type(self.settings)
         self.tags.append(f'<GO type="{go_type}" lobby="0"/>')
 
-        names = [p["nm"] for p in players]
+        names = [p[WireKey.NAME] for p in players]
         self.tags.append(
             f'<UN n0="{names[0]}" n1="{names[1]}" '
             f'n2="{names[2]}" n3="{names[3]}" '
@@ -500,19 +506,19 @@ class TenhouConverter:
 
     # -- Round started (merged, 1 per round) ----------------------------------
 
-    def _handle_round_started(self, event: dict[str, Any]) -> None:
-        wind_index = event["w"]
-        self.round_wind_number = wind_index * 4 + event["dl"]
-        self.honba = event["h"]
-        self.table_riichi_sticks = event["r"]
-        self.dealer = event["dl"]
-        self.dora_indicators = list(event["di"])
-        self.dice = event["dc"]
+    def _handle_round_started(self, event: dict[int, Any]) -> None:
+        wind_index = event[WireKey.WIND]
+        self.round_wind_number = wind_index * 4 + event[WireKey.DEALER]
+        self.honba = event[WireKey.HONBA]
+        self.table_riichi_sticks = event[WireKey.RIICHI_STICKS]
+        self.dealer = event[WireKey.DEALER]
+        self.dora_indicators = list(event[WireKey.DORA_INDICATORS])
+        self.dice = event[WireKey.DICE]
 
         self.hands = {}
-        for player in event["p"]:
-            self.scores[player["s"]] = player["sc"]
-            self.hands[player["s"]] = list(player["tl"])
+        for player in event[WireKey.PLAYERS]:
+            self.scores[player[WireKey.SEAT]] = player[WireKey.SCORE]
+            self.hands[player[WireKey.SEAT]] = list(player[WireKey.TILES])
 
         self._emit_init()
 
@@ -541,22 +547,22 @@ class TenhouConverter:
 
     # -- Draw (packed seat+tile_id) -------------------------------------------
 
-    def _handle_draw(self, event: dict[str, Any]) -> None:
-        seat, tile = decode_draw(event["d"])
+    def _handle_draw(self, event: dict[int, Any]) -> None:
+        seat, tile = decode_draw(event[WireKey.PACKED_MOVE])
         self.hands[seat].append(tile)
         self.tags.append(f"<{DRAW_LETTERS[seat]}{tile}/>")
 
     # -- Dora revealed --------------------------------------------------------
 
-    def _handle_dora_revealed(self, event: dict[str, Any]) -> None:
-        tile_id = event["ti"]
+    def _handle_dora_revealed(self, event: dict[int, Any]) -> None:
+        tile_id = event[WireKey.TILE_ID]
         self.dora_indicators.append(tile_id)
         self.tags.append(f'<DORA hai="{tile_id}"/>')
 
     # -- Discard (packed seat+tile_id+flags) ----------------------------------
 
-    def _handle_discard(self, event: dict[str, Any]) -> None:
-        seat, tile, _is_tsumogiri, is_riichi = decode_discard(event["d"])
+    def _handle_discard(self, event: dict[int, Any]) -> None:
+        seat, tile, _is_tsumogiri, is_riichi = decode_discard(event[WireKey.PACKED_MOVE])
         self.hands[seat].remove(tile)
 
         if is_riichi:
@@ -572,22 +578,22 @@ class TenhouConverter:
 
     # -- Riichi ---------------------------------------------------------------
 
-    def _handle_riichi_declared(self, event: dict[str, Any]) -> None:
-        seat = event["s"]
+    def _handle_riichi_declared(self, event: dict[int, Any]) -> None:
+        seat = event[WireKey.SEAT]
         self._round_riichi_count += 1
-        self.scores[seat] = event["sc"]
+        self.scores[seat] = event[WireKey.SCORE]
         scores_string = ",".join(str(score) for score in self.scores)
         self.tags.append(f'<REACH who="{seat}" ten="{scores_string}" step="2"/>')
 
     # -- Meld (compact IMME encoding) -----------------------------------------
 
-    def _handle_meld(self, event: dict[str, Any]) -> None:
+    def _handle_meld(self, event: dict[int, Any]) -> None:
         """
         Emit a meld's N tag, take its tiles from the caller's hand and track it for the caller's AGARI.
 
         An added kan takes its pon's place among the caller's melds, as tenhou lists only the kan.
         """
-        meld_data = decode_meld_compact(event["m"])
+        meld_data = decode_meld_compact(event[WireKey.PACKED_MELD])
         who = meld_data["caller_seat"]
         tile_34 = min(meld_data["tile_ids"]) // 4
         seat_melds = self._seat_melds.setdefault(who, [])
@@ -625,9 +631,9 @@ class TenhouConverter:
 
     # -- Round end ------------------------------------------------------------
 
-    def _handle_round_end(self, event: dict[str, Any]) -> None:
-        result_type = event["rt"]
-        robbed_kan = event.get("rk")
+    def _handle_round_end(self, event: dict[int, Any]) -> None:
+        result_type = event[WireKey.RESULT_TYPE]
+        robbed_kan = event.get(WireKey.ROBBED_KAN)
         if robbed_kan is not None:
             self._emit_robbed_kan(robbed_kan)
 
@@ -644,17 +650,17 @@ class TenhouConverter:
 
         self._update_scores_from_round_end(event)
 
-    def _emit_robbed_kan(self, robbed_kan: dict[str, Any]) -> None:
+    def _emit_robbed_kan(self, robbed_kan: dict[int, Any]) -> None:
         """
         Emit the N tag of a kan robbed by chankan, which tenhou logs before the win like any declared kan.
 
         The robbed kan never completed, so no meld event recorded it: an added kan is rebuilt from its declarer's pon, a
         closed kan from the four copies of its tile.
         """
-        who = robbed_kan["s"]
-        tile = robbed_kan["ti"]
+        who = robbed_kan[WireKey.SEAT]
+        tile = robbed_kan[WireKey.TILE_ID]
         tile_34 = tile // 4
-        if robbed_kan["kty"] == KanType.ADDED:
+        if robbed_kan[WireKey.KAN_TYPE] == KanType.ADDED:
             pon = self._recorded_pon(who, tile_34)
             kan: dict[str, Any] = {
                 **pon,
@@ -672,30 +678,30 @@ class TenhouConverter:
 
         self.tags.append(f'<N who="{who}" m="{encode_meld(kan)}" />')
 
-    def _update_scores_from_round_end(self, event: dict[str, Any]) -> None:
+    def _update_scores_from_round_end(self, event: dict[int, Any]) -> None:
         """
         Update tracked scores from round_end scores and score_changes.
         """
-        scores = event["scs"]
-        changes = event["sch"]
+        scores = event[WireKey.SCORES]
+        changes = event[WireKey.SCORE_CHANGES]
         for i in range(4):
             self.scores[i] = scores[str(i)] + changes[str(i)]
 
-    def _emit_agari(self, result: dict[str, Any]) -> None:
-        winner = result["ws"]
-        from_who = result["ls"] if result["rt"] == WireRoundResultType.RON else winner
-        hand = result["hr"]
+    def _emit_agari(self, result: dict[int, Any]) -> None:
+        winner = result[WireKey.WINNER_SEAT]
+        from_who = result[WireKey.LOSER_SEAT] if result[WireKey.RESULT_TYPE] == WireRoundResultType.RON else winner
+        hand = result[WireKey.HAND_RESULT]
         ten_string = _format_ten(hand)
 
-        yaku_attr = _format_yaku_attr(hand["yk"])
-        sc_string = _format_sc(result["scs"], result["sch"])
+        yaku_attr = _format_yaku_attr(hand[WireKey.YAKU])
+        sc_string = _format_sc(result[WireKey.SCORES], result[WireKey.SCORE_CHANGES])
 
-        win_tile = result["wt"]
-        hai_string = _format_winning_hand(result["ct"], win_tile)
+        win_tile = result[WireKey.WINNING_TILE]
+        hai_string = _format_winning_hand(result[WireKey.CLOSED_TILES], win_tile)
 
         dora_string = ",".join(str(d) for d in self.dora_indicators)
-        ura_dora_attr = _format_ura_dora_attr(result.get("ud"))
-        pao_attr = _format_pao_attr(result.get("ps"))
+        ura_dora_attr = _format_ura_dora_attr(result.get(WireKey.URA_DORA))
+        pao_attr = _format_pao_attr(result.get(WireKey.PAO_SEAT))
 
         meld_attr = self._format_meld_attr(winner)
 
@@ -715,29 +721,29 @@ class TenhouConverter:
 
         return f' m="{",".join(reversed(self._seat_melds[winner]))}"'
 
-    def _emit_double_ron(self, result: dict[str, Any]) -> None:
+    def _emit_double_ron(self, result: dict[int, Any]) -> None:
         """
         Emit one AGARI tag per winner in a double-ron.
 
         The first winner, the closest counter-clockwise to the loser, takes the riichi sticks, so the later AGARIs find
         none on the table.
         """
-        loser = result["ls"]
-        winning_tile = result["wt"]
+        loser = result[WireKey.LOSER_SEAT]
+        winning_tile = result[WireKey.WINNING_TILE]
         dora_string = ",".join(str(d) for d in self.dora_indicators)
 
         steps = _double_ron_score_steps(result)
-        for i, (w, (scores, changes)) in enumerate(zip(result["wn"], steps, strict=True)):
-            winner = w["ws"]
+        for i, (w, (scores, changes)) in enumerate(zip(result[WireKey.WINNERS], steps, strict=True)):
+            winner = w[WireKey.WINNER_SEAT]
             riichi_sticks = self._total_riichi_sticks if i == 0 else 0
             sc_string = _format_sc(scores, changes)
-            hand = w["hr"]
+            hand = w[WireKey.HAND_RESULT]
             ten_string = _format_ten(hand)
-            yaku_attr = _format_yaku_attr(hand["yk"])
+            yaku_attr = _format_yaku_attr(hand[WireKey.YAKU])
 
-            hai_string = _format_winning_hand(w["ct"], winning_tile)
-            ura_dora_attr = _format_ura_dora_attr(w.get("ud"))
-            pao_attr = _format_pao_attr(w.get("ps"))
+            hai_string = _format_winning_hand(w[WireKey.CLOSED_TILES], winning_tile)
+            ura_dora_attr = _format_ura_dora_attr(w.get(WireKey.URA_DORA))
+            pao_attr = _format_pao_attr(w.get(WireKey.PAO_SEAT))
 
             meld_attr = self._format_meld_attr(winner)
 
@@ -749,39 +755,39 @@ class TenhouConverter:
                 f'who="{winner}" fromWho="{loser}"{pao_attr} sc="{sc_string}" />',
             )
 
-    def _emit_exhaustive_draw(self, result: dict[str, Any], *, type_attr: str) -> None:
+    def _emit_exhaustive_draw(self, result: dict[int, Any], *, type_attr: str) -> None:
         """
         Emit the RYUUKYOKU of a wall run out, a nagashi mangan carrying type_attr, revealing the tenpai hands.
         """
-        sc_string = _format_sc(result["scs"], result["sch"])
-        tenpai_hands = {hand["s"]: hand["ct"] for hand in result["th"]}
+        sc_string = _format_sc(result[WireKey.SCORES], result[WireKey.SCORE_CHANGES])
+        tenpai_hands = {hand[WireKey.SEAT]: hand[WireKey.CLOSED_TILES] for hand in result[WireKey.TENPAI_HANDS]}
         hai_attrs = _format_revealed_hands(tenpai_hands)
 
         self.tags.append(
             f'<RYUUKYOKU{type_attr} ba="{self.honba},{self._total_riichi_sticks}" sc="{sc_string}"{hai_attrs} />',
         )
 
-    def _emit_abortive_draw(self, result: dict[str, Any]) -> None:
+    def _emit_abortive_draw(self, result: dict[int, Any]) -> None:
         """
         Emit the RYUUKYOKU of an abortive draw, revealing the hands tenhou shows for it.
 
         Kyuushu kyuuhai shows its declarer's hand, four riichi every hand and a triple ron its three declarers' hands;
         four winds and four kans show none.
         """
-        reason = AbortiveDrawType(result["rn"])
+        reason = AbortiveDrawType(result[WireKey.ABORTIVE_REASON])
         match reason:
             case AbortiveDrawType.NINE_TERMINALS:
-                revealed_seats = [result["s"]]
+                revealed_seats = [result[WireKey.SEAT]]
             case AbortiveDrawType.FOUR_RIICHI:
                 revealed_seats = list(self.hands)
             case AbortiveDrawType.TRIPLE_RON:
-                revealed_seats = result["rcl"]
+                revealed_seats = result[WireKey.RON_CALLERS]
             case AbortiveDrawType.FOUR_WINDS | AbortiveDrawType.FOUR_KANS:
                 revealed_seats = []
             case _:  # pragma: no cover (exhaustive)
                 assert_never(reason)
 
-        sc_string = _format_sc(result["scs"], result["sch"])
+        sc_string = _format_sc(result[WireKey.SCORES], result[WireKey.SCORE_CHANGES])
         hai_attrs = _format_revealed_hands({seat: self.hands[seat] for seat in revealed_seats})
 
         self.tags.append(
@@ -791,13 +797,13 @@ class TenhouConverter:
 
     # -- Game end -------------------------------------------------------------
 
-    def _handle_game_end(self, event: dict[str, Any]) -> None:
-        standings = event["st"]
+    def _handle_game_end(self, event: dict[int, Any]) -> None:
+        standings = event[WireKey.STANDINGS]
         owari_parts = []
         for seat in range(4):
-            standing = next(s for s in standings if s["s"] == seat)
-            final_score = float(standing["fs"])
-            owari_parts.append(f"{standing['sc']},{final_score:.1f}")
+            standing = next(s for s in standings if s[WireKey.SEAT] == seat)
+            final_score = float(standing[WireKey.FINAL_SCORE])
+            owari_parts.append(f"{standing[WireKey.SCORE]},{final_score:.1f}")
 
         owari_string = ",".join(owari_parts)
 
@@ -805,14 +811,14 @@ class TenhouConverter:
         self.tags.append("</mjloggm>")
 
 
-def convert_replay_content(content: str) -> str:
+def convert_replay_content(content: bytes) -> str:
     """
-    Convert the text of a replay file (one JSON event per line) to tenhou.net XML.
+    Convert independent MessagePack replay records to tenhou.net XML.
 
     Raise IncompleteReplayError for the replay of a failed game, which has no game end to close the log with.
     """
-    events = [json.loads(line) for line in content.strip().split("\n") if line]
-    if not any(event.get("t") == WireEventType.GAME_END for event in events):
+    events = decode_replay_records(content)
+    if not any(event.get(WireKey.EVENT_TYPE) == WireEventType.GAME_END for event in events):
         raise IncompleteReplayError("replay has no game end")
 
     return TenhouConverter(events).convert()
@@ -820,11 +826,11 @@ def convert_replay_content(content: str) -> str:
 
 def convert_replay(filepath: Path) -> str:
     if filepath.name.endswith(".gz"):
-        with gzip.open(filepath, "rt", encoding="utf-8") as f:
-            content = f.read()
+        with gzip.open(filepath, "rb") as f:
+            content = f.read(MAX_REPLAY_BYTES + 1)
     else:
-        with filepath.open() as f:
-            content = f.read()
+        with filepath.open("rb") as f:
+            content = f.read(MAX_REPLAY_BYTES + 1)
 
     return convert_replay_content(content)
 
@@ -837,7 +843,7 @@ def main() -> None:
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    replay_files = sorted(REPLAYS_DIR.glob("??/??/*.txt.gz"))
+    replay_files = sorted(REPLAYS_DIR.glob("??/??/*.msgpack.gz"))
     if not replay_files:
         logger.info("No replay files found in %s", REPLAYS_DIR)
         return
@@ -851,7 +857,7 @@ def main() -> None:
             logger.warning("  skipped: a failed game's replay has no game end")
             continue
 
-        output_path = OUTPUT_DIR / filepath.name.removesuffix(".gz")
+        output_path = OUTPUT_DIR / (filepath.name.removesuffix(".msgpack.gz") + ".xml")
         output_path.write_text(tenhou_xml)
         logger.info("  -> %s", output_path)
         converted += 1

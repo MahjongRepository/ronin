@@ -8,6 +8,7 @@ from game.messaging.encoder import DecodeError, decode
 from game.messaging.protocol import ConnectionProtocol
 from game.messaging.types import ErrorMessage, SessionErrorCode, refused_wait_id
 from game.messaging.wire_enums import WireClientMessageType
+from game.wire.keys import WireKey
 from shared.rate_limit import TokenBucket
 from shared.websocket import QueuedWebSocket, accept_websocket, reject_websocket
 
@@ -142,7 +143,7 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
                 )
                 continue
 
-            if data.get("t") == WireClientMessageType.RESYNC and not resync_bucket.consume():
+            if data.get(WireKey.EVENT_TYPE) == WireClientMessageType.RESYNC and not resync_bucket.consume():
                 connection.send_message(
                     ErrorMessage(code=SessionErrorCode.RATE_LIMITED, message="Too many resync requests").payload(),
                 )

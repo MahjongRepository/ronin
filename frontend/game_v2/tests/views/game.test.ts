@@ -28,6 +28,7 @@ import { localStore } from "@/shared/lib";
 import {
     type ClientMessage,
     NUM_TILES,
+    WIRE_KEY,
     buildChiAction,
     buildConfirmRoundAction,
     buildDiscardAction,
@@ -393,7 +394,7 @@ describe("mountGameView", () => {
         socket.handlers.onOpen();
         seeGameStart(socket);
 
-        socket.handlers.onMessage({ t: 999 });
+        socket.handlers.onMessage({ [WIRE_KEY.EVENT_TYPE]: 999 });
         socket.handlers.onUndecodableFrame("Received a non-binary frame");
 
         expect(consoleError).toHaveBeenCalledTimes(2);
@@ -553,10 +554,20 @@ describe("mountGameView connection", () => {
         const [socket] = connections;
         socket.handlers.onOpen();
         const identifying = socket.silenceLimitMs;
-        socket.handlers.onMessage({ ...WIRE_GAME_JOINED, pt: 300 });
+        socket.handlers.onMessage({ ...WIRE_GAME_JOINED, [WIRE_KEY.POINTS]: 300 });
         const joined = socket.silenceLimitMs;
-        const timer = { bk: 120, gp: 3, mb: 180, ra: 15, tb: 10 };
-        socket.handlers.onMessage({ ...WIRE_GAME_STARTED, s: 0, tm: timer });
+        const timer = {
+            [WIRE_KEY.BANK_SECONDS]: 120,
+            [WIRE_KEY.GAME_START_PAUSE]: 3,
+            [WIRE_KEY.MAX_BANK_SECONDS]: 180,
+            [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
+            [WIRE_KEY.BASE_TURN_SECONDS]: 10,
+        };
+        socket.handlers.onMessage({
+            ...WIRE_GAME_STARTED,
+            [WIRE_KEY.SEAT]: 0,
+            [WIRE_KEY.TIMER_SETTINGS]: timer,
+        });
 
         expect([identifying, joined, socket.silenceLimitMs]).toEqual([90_000, 325_000, 215_000]);
     });
@@ -979,9 +990,15 @@ function openPlainRiichiDraw(connection: FakeConnection): ClientMessage {
         connection.handlers.onMessage(payload);
     }
 
-    const { aa: _offers, ...plain } = receivedPayload(transcript, "tsumo draw");
+    const { [WIRE_KEY.AVAILABLE_ACTIONS]: _offers, ...plain } = receivedPayload(
+        transcript,
+        "tsumo draw",
+    );
     connection.handlers.onMessage(plain);
-    return buildDiscardAction(Number(plain.d) % NUM_TILES, Number(plain.wi));
+    return buildDiscardAction(
+        Number(plain[WIRE_KEY.PACKED_MOVE]) % NUM_TILES,
+        Number(plain[WIRE_KEY.WAIT_ID]),
+    );
 }
 
 function openAutoDiscardDraw(connection: FakeConnection, host: HTMLElement): ClientMessage {
@@ -994,7 +1011,10 @@ function openAutoDiscardDraw(connection: FakeConnection, host: HTMLElement): Cli
     press(host, '.play-switch[title="Auto discard"]');
     const draw = receivedPayload(transcript, "own turn");
     connection.handlers.onMessage(draw);
-    return buildDiscardAction(Number(draw.d) % NUM_TILES, Number(draw.wi));
+    return buildDiscardAction(
+        Number(draw[WIRE_KEY.PACKED_MOVE]) % NUM_TILES,
+        Number(draw[WIRE_KEY.WAIT_ID]),
+    );
 }
 
 describe("mountGameView board", () => {

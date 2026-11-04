@@ -1,11 +1,11 @@
 from unittest.mock import MagicMock
 
-from game.logic.enums import GameAction
-from game.logic.events import BroadcastTarget, EventType
+from game.logic.events import BroadcastTarget, DrawEvent, EventType
 from game.session.models import GameLifecycle
 from game.tests.helpers.session import make_session_manager
-from game.tests.mocks import MockResultEvent, mock_update
+from game.tests.mocks import mock_update
 from game.wire.events import EVENT_TYPE_INT
+from game.wire.keys import WireKey
 
 from .helpers import create_started_game, game_of, participant_of, runtime_of
 
@@ -48,19 +48,14 @@ class TestSessionManagerDisconnect:
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
 
         # make process_ai_player_actions_after_replacement return an event
-        ai_player_event = MockResultEvent(
-            type=EventType.DRAW,
-            target=BroadcastTarget(),
-            seat=0,
-            action=GameAction.DISCARD,
-            input={},
-            success=True,
-        )
+        ai_player_event = DrawEvent(target=BroadcastTarget(), seat=0, tile_id=0, tiles_remaining=69)
         manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
             return_value=mock_update([ai_player_event]),
         )
 
         manager.disconnect(conns[0])
         # Bob should receive the AI player action event
-        ai_player_msgs = [m for m in conns[1].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
+        ai_player_msgs = [
+            m for m in conns[1].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DRAW]
+        ]
         assert len(ai_player_msgs) == 1
