@@ -15,12 +15,14 @@ import {
     type roundStartedSchema,
     type turnSchema,
 } from "./schemas/events";
+import { type RecordedDrawEvent } from "./schemas/replay";
 
 // --- Game event types ---
 
 export type GameStartedEvent = z.output<typeof gameStartedSchema>;
 export type RoundStartedEvent = z.output<typeof roundStartedSchema>;
-export type DrawEvent = z.output<typeof drawSchema>;
+export type LiveDrawEvent = z.output<typeof drawSchema>;
+export type DrawEvent = LiveDrawEvent | RecordedDrawEvent;
 export type DrawNoticeEvent = z.output<typeof drawNoticeSchema>;
 export type DiscardEvent = z.output<typeof discardSchema>;
 export type MeldEvent = z.output<typeof meldSchema>;

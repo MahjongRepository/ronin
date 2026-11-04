@@ -23,9 +23,11 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   the table, so a result shown out of step is still right. The limit's name (`handLimitName`), a yaku's yakuman
   count, each winner's honba bonus and what a liable (pao) seat pays are the server's; the client words them and
   never works them back from points, han or yaku ids. A score map missing a seat is a desync.
-- The live wall's count, a riichi's deposit (the declarer's score and the table's sticks), the sticks a round end
-  leaves, a round's number within its wind (`roundInWind`) and a chankan prompt's kan type are the server's, never
-  counted or inferred by the client.
+- The live wall starts at the round-start or reconnect snapshot's authoritative count. Each genuine private draw or
+  public draw notice subtracts one, including kan replacements and AI draws; a re-sent private tile already in the
+  hand subtracts nothing. An empty wall on a new draw is a desync. Replays retain each draw's recorded count.
+- A riichi's deposit (the declarer's score and the table's sticks), the sticks a round end leaves, a round's number
+  within its wind (`roundInWind`) and a chankan prompt's kan type are the server's, never counted or inferred.
 - The latest discard is the server's on reconnect (`ld`); the client never infers it. Any draw ends it.
 - An AI stand-in for an absent human (`aiStandIn`, "Away") is never shown as an AI participant ("AI").
 - The board marks no tile playable and no offer source: that is the client mapper's.

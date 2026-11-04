@@ -227,6 +227,8 @@ class TestReconnectTakeover:
             decision_id,
         )
         assert WireKey.CONFIRMATION_OWED not in reconnected
+        assert reconnected[WireKey.TILES_REMAINING] == len(runtime.state.round_state.wall.live_tiles)
+        assert WireKey.TILES_REMAINING not in draw
         assert (
             draw[WireKey.EVENT_TYPE],
             draw[WireKey.PACKED_MOVE],

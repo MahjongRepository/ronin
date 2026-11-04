@@ -118,7 +118,6 @@ def _seen_draws(conn: MockConnection) -> list[dict[int, Any]]:
         {
             WireKey.EVENT_TYPE: message[WireKey.EVENT_TYPE],
             WireKey.PACKED_MOVE: message[WireKey.PACKED_MOVE],
-            WireKey.TILES_REMAINING: message[WireKey.TILES_REMAINING],
         }
         if message[WireKey.EVENT_TYPE] == WireEventType.DRAW
         else message
@@ -167,17 +166,26 @@ class TestDrawDelivery:
                 {
                     WireKey.EVENT_TYPE: WireEventType.DRAW,
                     WireKey.PACKED_MOVE: line[WireKey.PACKED_MOVE],
-                    WireKey.TILES_REMAINING: line[WireKey.TILES_REMAINING],
                 }
                 if drawer == participant.seat
                 else {
                     WireKey.EVENT_TYPE: WireEventType.DRAW_NOTICE,
                     WireKey.SEAT: drawer,
-                    WireKey.TILES_REMAINING: line[WireKey.TILES_REMAINING],
                 }
                 for line, drawer in zip(replay_draws, drawers, strict=True)
             ]
             assert _seen_draws(conn) == expected
+            assert all(
+                WireKey.TILES_REMAINING not in message
+                for message in conn.sent_messages
+                if message.get(WireKey.EVENT_TYPE) in DRAW_MESSAGE_TYPES
+            )
+            [deal] = [
+                message
+                for message in conn.sent_messages
+                if message.get(WireKey.EVENT_TYPE) == WireEventType.ROUND_STARTED
+            ]
+            assert deal[WireKey.TILES_REMAINING] == live_wall_after_deal
 
         await manager.shutdown()
 
@@ -208,20 +216,20 @@ class TestDrawDelivery:
             {
                 WireKey.EVENT_TYPE: WireEventType.DRAW,
                 WireKey.PACKED_MOVE: replacement,
-                WireKey.TILES_REMAINING: wall_left,
             }
         ]
         assert _seen_draws(bob_conn) == [
             {
                 WireKey.EVENT_TYPE: WireEventType.DRAW_NOTICE,
                 WireKey.SEAT: alice.seat,
-                WireKey.TILES_REMAINING: wall_left,
             }
         ]
         new_lines = _replay_lines(manager)[replay_size:]
-        assert [line[WireKey.PACKED_MOVE] for line in new_lines if line[WireKey.EVENT_TYPE] == WireEventType.DRAW] == [
-            replacement
-        ]
+        assert [
+            (line[WireKey.PACKED_MOVE], line[WireKey.TILES_REMAINING])
+            for line in new_lines
+            if line[WireKey.EVENT_TYPE] == WireEventType.DRAW
+        ] == [(replacement, wall_left)]
 
         await manager.shutdown()
 

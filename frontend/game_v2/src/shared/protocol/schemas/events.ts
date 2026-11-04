@@ -233,7 +233,6 @@ export const drawSchema = z.pipe(
         [WIRE_KEY.PACKED_MOVE]: z.int(),
         [WIRE_KEY.WAIT_ELAPSED]: z.optional(secondsSchema),
         [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.DRAW),
-        [WIRE_KEY.TILES_REMAINING]: tilesRemainingSchema,
         [WIRE_KEY.WAIT_ID]: z.optional(waitIdSchema),
     }),
     z.transform((raw) => ({
@@ -241,25 +240,22 @@ export const drawSchema = z.pipe(
         availableActions: raw[WIRE_KEY.AVAILABLE_ACTIONS] ?? [],
         bankSeconds: raw[WIRE_KEY.BANK_SECONDS] ?? null,
         elapsedSeconds: raw[WIRE_KEY.WAIT_ELAPSED] ?? null,
-        tilesRemaining: raw[WIRE_KEY.TILES_REMAINING],
+        source: "live" as const,
         type: "draw" as const,
         waitId: raw[WIRE_KEY.WAIT_ID] ?? null,
     })),
 );
 
 /**
- * Another seat's draw, told to every seat but the drawer's: its seat and the live wall left after it, the tile private
- * to the drawer.
+ * Another seat's draw, naming only its seat; its tile stays private to the drawer.
  */
 export const drawNoticeSchema = z.pipe(
     z.object({
         [WIRE_KEY.SEAT]: seatSchema,
         [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.DRAW_NOTICE),
-        [WIRE_KEY.TILES_REMAINING]: tilesRemainingSchema,
     }),
     z.transform((raw) => ({
         seat: raw[WIRE_KEY.SEAT],
-        tilesRemaining: raw[WIRE_KEY.TILES_REMAINING],
         type: "draw_notice" as const,
     })),
 );

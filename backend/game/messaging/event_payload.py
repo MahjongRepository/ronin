@@ -123,9 +123,20 @@ def _serialize_event_fields(event: GameEvent) -> dict[int, Any]:
     return fields
 
 
+def live_game_event_payload(event: GameEvent) -> dict[int, Any]:
+    """
+    Build a live event, leaving per-draw wall counts in the replay only.
+    """
+    payload = game_event_payload(event)
+    if isinstance(event, DrawEvent):
+        del payload[WireKey.TILES_REMAINING]
+
+    return payload
+
+
 def draw_notice_payload(event: DrawEvent) -> dict[int, Any]:
     """Return the public notice of a draw that every seat but the drawer's gets
-    in its place: the drawer's seat and the live wall left after the draw.
+    in its place: the drawer's seat.
 
     The draw stays private: no tile, offers, bank or wait id, and no `draw` type, so a notice never opens a decision.
     Only the socket sends it; the replay records the draw itself.
@@ -133,7 +144,6 @@ def draw_notice_payload(event: DrawEvent) -> dict[int, Any]:
     return {
         WireKey.EVENT_TYPE: WireEventType.DRAW_NOTICE,
         WireKey.SEAT: event.seat,
-        WireKey.TILES_REMAINING: event.tiles_remaining,
     }
 
 

@@ -49,7 +49,7 @@ export type { ParsedServerMessage } from "./schemas/message";
 
 export { parseRoundEnd } from "./schemas/round-results";
 export { parseReplayLine } from "./schemas/replay";
-export type { ReplayLine, SeatControlLine } from "./schemas/replay";
+export type { ReplayLine, RecordedDrawEvent, SeatControlLine } from "./schemas/replay";
 
 export {
     buildJoinGameMessage,
@@ -72,6 +72,7 @@ export type {
     GameStartedEvent,
     RoundStartedEvent,
     DrawEvent,
+    LiveDrawEvent,
     DrawNoticeEvent,
     DiscardEvent,
     MeldEvent,

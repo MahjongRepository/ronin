@@ -154,7 +154,6 @@ describe("parseServerMessage", () => {
                 [WIRE_KEY.BANK_SECONDS]: 20,
                 [WIRE_KEY.PACKED_MOVE]: 5,
                 [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
-                [WIRE_KEY.TILES_REMAINING]: 69,
                 [WIRE_KEY.WAIT_ID]: 3,
             };
             const [err, parsed] = parseServerMessage(raw);
@@ -164,8 +163,8 @@ describe("parseServerMessage", () => {
                 bankSeconds: 20,
                 elapsedSeconds: null,
                 seat: 0,
+                source: "live",
                 tileId: 5,
-                tilesRemaining: 69,
                 type: "draw",
                 waitId: 3,
             });
@@ -400,7 +399,6 @@ describe("parseServerMessage", () => {
                     [WIRE_KEY.BANK_SECONDS]: 20,
                     [WIRE_KEY.PACKED_MOVE]: 5,
                     [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
-                    [WIRE_KEY.TILES_REMAINING]: 69,
                 },
                 WIRE_KEY.WAIT_ID,
             ],

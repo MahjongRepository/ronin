@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
-import { WIRE_KEY } from "@/shared/protocol";
+import { WIRE_KEY, parseReplayLine } from "@/shared/protocol";
 import { EVENT_TYPE, GAME_TYPE } from "@/shared/protocol/constants";
 import {
     discardSchema,
@@ -393,21 +393,32 @@ describe("roundStartedSchema (replay)", () => {
 });
 
 describe("drawSchema", () => {
-    it("decodes packed integer to seat + tileId beside the live wall left, refusing a draw that names no wall", () => {
+    it("decodes a live draw without a wall count", () => {
         // d = seat * 136 + tileId = 1 * 136 + 42 = 178
         const wire = {
             [WIRE_KEY.PACKED_MOVE]: 178,
             [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
-            [WIRE_KEY.TILES_REMAINING]: 69,
         };
-        const { [WIRE_KEY.TILES_REMAINING]: _tilesRemaining, ...uncountedWall } = wire;
         const result = drawSchema.parse(wire);
-        expect(() => drawSchema.parse(uncountedWall)).toThrow();
-        expect(result.type).toBe("draw");
-        expect(result.seat).toBe(1);
-        expect(result.tileId).toBe(42);
-        expect(result.tilesRemaining).toBe(69);
-        expect(result.availableActions).toEqual([]);
+        expect(result).toMatchObject({
+            availableActions: [],
+            seat: 1,
+            source: "live",
+            tileId: 42,
+            type: "draw",
+        });
+        expectTypeOf(result.source).toEqualTypeOf<"live">();
+        expect(result).not.toHaveProperty("tilesRemaining");
+
+        const [missingCount] = parseReplayLine(wire);
+        expect(missingCount).toBeInstanceOf(Error);
+
+        const [replayError, recorded] = parseReplayLine({
+            ...wire,
+            [WIRE_KEY.TILES_REMAINING]: 66,
+        });
+        expect(replayError).toBeNull();
+        expect(recorded).toMatchObject({ source: "replay", tileId: 42, tilesRemaining: 66 });
     });
 
     it("parses available actions array", () => {
@@ -419,7 +430,6 @@ describe("drawSchema", () => {
             ],
             [WIRE_KEY.PACKED_MOVE]: 5,
             [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
-            [WIRE_KEY.TILES_REMAINING]: 69,
         };
         const result = drawSchema.parse(wire);
         expect(result.availableActions).toEqual([
@@ -448,7 +458,6 @@ describe("drawSchema", () => {
                 [WIRE_KEY.AVAILABLE_ACTIONS]: aa,
                 [WIRE_KEY.PACKED_MOVE]: 5,
                 [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
-                [WIRE_KEY.TILES_REMAINING]: 69,
             }),
         ).toThrow();
     });
@@ -457,7 +466,6 @@ describe("drawSchema", () => {
         const wire = {
             [WIRE_KEY.PACKED_MOVE]: 0,
             [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
-            [WIRE_KEY.TILES_REMAINING]: 69,
         };
         const result = drawSchema.parse(wire);
         expect(result.availableActions).toEqual([]);
@@ -469,13 +477,12 @@ describe("drawSchema", () => {
             [WIRE_KEY.PACKED_MOVE]: 0,
             [WIRE_KEY.WAIT_ELAPSED]: 3.2,
             [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
-            [WIRE_KEY.TILES_REMAINING]: 69,
+
             [WIRE_KEY.WAIT_ID]: 4,
         });
         const plain = drawSchema.parse({
             [WIRE_KEY.PACKED_MOVE]: 0,
             [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW,
-            [WIRE_KEY.TILES_REMAINING]: 69,
         });
         expect(opening.bankSeconds).toBe(12.5);
         expect(opening.elapsedSeconds).toBe(3.2);

@@ -21,6 +21,7 @@ from game.logic.exceptions import InvalidGameActionError
 from game.messaging.event_payload import (
     draw_notice_payload,
     game_event_payload,
+    live_game_event_payload,
     reconnection_payload,
     shape_call_prompt_payload,
     stamp_timer_settings,
@@ -784,7 +785,7 @@ class SessionManager:
         seat = self._seat_of(participant)
         elapsed = participant.timer.elapsed_seconds
         for event in self._game_service.build_wait_events_for_seat(self._runtime_of(participant.game), seat):
-            message = game_event_payload(event)
+            message = live_game_event_payload(event)
             if isinstance(event, CallPromptEvent):
                 message = shape_call_prompt_payload(message)
 
@@ -924,7 +925,7 @@ class SessionManager:
             self._replay_collector.collect_events(game.replay, events)
 
         for event in events:
-            message = game_event_payload(event)
+            message = live_game_event_payload(event)
             if isinstance(event, CallPromptEvent):
                 message = shape_call_prompt_payload(message)
 

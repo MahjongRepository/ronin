@@ -4,7 +4,6 @@ import {
     type ClaimedMeldEvent,
     type DiscardEvent,
     type DoraRevealedEvent,
-    type DrawEvent,
     type DrawNoticeEvent,
     type ExhaustiveDrawRoundEnd,
     GAME_END_CAUSE,
@@ -12,10 +11,12 @@ import {
     type GameEndEvent,
     type GameStartedEvent,
     HAND_LIMIT,
+    type LiveDrawEvent,
     MELD_TYPE,
     type MeldEvent,
     type NagashiManganRoundEnd,
     ROUND_RESULT_TYPE,
+    type RecordedDrawEvent,
     type RiichiDeclaredEvent,
     type RoundStartedEvent,
     SEAT_CONTROL_REASON,
@@ -92,12 +93,13 @@ export function makeRoundStartedEvent(
     };
 }
 
-export function makeDrawEvent(overrides: Partial<DrawEvent> = {}): DrawEvent {
+export function makeDrawEvent(overrides: Partial<RecordedDrawEvent> = {}): RecordedDrawEvent {
     return {
         availableActions: [],
         bankSeconds: null,
         elapsedSeconds: null,
         seat: 0,
+        source: "replay",
         tileId: 52,
         tilesRemaining: 69,
         type: "draw",
@@ -106,8 +108,13 @@ export function makeDrawEvent(overrides: Partial<DrawEvent> = {}): DrawEvent {
     };
 }
 
-export function makeDrawNoticeEvent(seat: number, tilesRemaining = 69): DrawNoticeEvent {
-    return { seat, tilesRemaining, type: "draw_notice" };
+export function makeLiveDrawEvent(overrides: Partial<LiveDrawEvent> = {}): LiveDrawEvent {
+    const { tilesRemaining: _tilesRemaining, ...draw } = makeDrawEvent();
+    return { ...draw, source: "live", ...overrides };
+}
+
+export function makeDrawNoticeEvent(seat: number): DrawNoticeEvent {
+    return { seat, type: "draw_notice" };
 }
 
 export function makeDiscardEvent(overrides: Partial<DiscardEvent> = {}): DiscardEvent {

@@ -12,6 +12,7 @@ import {
     makeGameEndEvent,
     makeGameStartedEvent,
     makeHandResult,
+    makeLiveDrawEvent,
     makeMeldEvent,
     makeNagashiManganRoundEnd,
     makeRiichiDeclaredEvent,
@@ -19,7 +20,7 @@ import {
     makeRoundStartedEvent,
     makeTsumoRoundEnd,
 } from "#tests/fixtures/events";
-import { WIRE_GAME_RECONNECTED, WIRE_ROUND_RECORD } from "#tests/fixtures/wire";
+import { WIRE_GAME_RECONNECTED, WIRE_ROUND_RECORD, wirePayloadList } from "#tests/fixtures/wire";
 import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
 import { applyEvent } from "@/entities/table/model/apply-event";
 import { DesyncError } from "@/entities/table/model/desync-error";
@@ -215,9 +216,9 @@ describe("applyEvent - seat lookup", () => {
 });
 
 describe("applyEvent - draw", () => {
-    test("appends the drawn tile to the drawer's hand, marks it drawn, gives the drawer the turn and the server's wall", () => {
+    test("moves a genuine live draw from the wall to the drawer's hand and turn", () => {
         const state = stateAfterRoundStarted();
-        const next = applyEvent(state, makeDrawEvent({ seat: 2, tileId: 60, tilesRemaining: 69 }));
+        const next = applyEvent(state, makeLiveDrawEvent({ seat: 2, tileId: 60 }));
 
         expect(next.players[2].tiles).toEqual([...state.players[2].tiles, 60]);
         expect([next.players[2].drawnTileId, next.currentPlayerSeat, next.tilesRemaining]).toEqual([
@@ -225,13 +226,10 @@ describe("applyEvent - draw", () => {
         ]);
     });
 
-    test("takes the wall the server counts, never one less than the table held", () => {
+    test("keeps a replay draw's recorded count", () => {
         const afterKanReplacement = makeDrawEvent({ seat: 2, tileId: 60, tilesRemaining: 66 });
 
         expect(applyEvent(stateAfterRoundStarted(), afterKanReplacement).tilesRemaining).toBe(66);
-        expect(
-            applyEvent(stateAfterRoundStarted(), makeDrawNoticeEvent(1, 65)).tilesRemaining,
-        ).toBe(65);
     });
 });
 
@@ -246,15 +244,20 @@ describe("applyEvent - hidden hands", () => {
     }
 
     test("a draw re-sent after a reconnect, of a tile the hand holds, only marks it drawn", () => {
-        const next = applyEvent(
-            liveDeal(),
-            makeDrawEvent({ seat: 0, tileId: 12, tilesRemaining: 70 }),
-        );
+        const next = applyEvent(liveDeal(), makeLiveDrawEvent({ seat: 0, tileId: 12 }));
 
         expect(next.players[0].tiles).toHaveLength(13);
         expect(next.players[0].drawnTileId).toBe(12);
         expect(next.tilesRemaining).toBe(70);
     });
+
+    test.each([makeLiveDrawEvent(), makeDrawNoticeEvent(1)])(
+        "refuses a $type from an empty live wall as a desync",
+        (event) => {
+            const emptyWall = { ...liveDeal(), tilesRemaining: 0 };
+            expect(() => applyEvent(emptyWall, event)).toThrow(DesyncError);
+        },
+    );
 
     test("another seat's draw notice moves the turn to it and a face-down tile from the wall into its hand", () => {
         const drawn = applyEvent(liveDeal(), makeDrawNoticeEvent(1));
@@ -279,11 +282,8 @@ describe("applyEvent - hidden hands", () => {
             applyEvent(liveDeal(), makeDrawNoticeEvent(1)),
             makeDiscardEvent({ seat: 1, tileId: 100 }),
         );
-        const ownDraw = applyEvent(
-            discarded,
-            makeDrawEvent({ seat: 0, tileId: 60, tilesRemaining: 68 }),
-        );
-        const otherDraw = applyEvent(discarded, makeDrawNoticeEvent(2, 68));
+        const ownDraw = applyEvent(discarded, makeLiveDrawEvent({ seat: 0, tileId: 60 }));
+        const otherDraw = applyEvent(discarded, makeDrawNoticeEvent(2));
 
         expect([
             discarded.lastDiscardSeat,
@@ -309,13 +309,20 @@ describe("applyEvent - hidden hands", () => {
         expect(next.tilesRemaining).toBe(69);
     });
 
-    test("a hidden hand's closed kan after its draw notice takes four tiles from a hand of 14", () => {
+    test("a kan and dora leave the wall unchanged until the replacement draw notice", () => {
         const kan = makeClosedKanEvent({ callerSeat: 3, tileIds: [104, 105, 106, 107] });
         const next = applyEvent(applyEvent(liveDeal(), makeDrawNoticeEvent(3)), kan);
 
         expect(next.players[3].concealedCount).toBe(10);
         expect(next.players[3].drawnConcealed).toBe(false);
         expect(next.tilesRemaining).toBe(69);
+
+        const revealed = applyEvent(next, makeDoraRevealedEvent());
+        expect(revealed.tilesRemaining).toBe(69);
+
+        const replacement = applyEvent(revealed, makeDrawNoticeEvent(3));
+        expect(replacement.tilesRemaining).toBe(68);
+        expect(replacement.players[3].concealedCount).toBe(11);
     });
 });
 
@@ -454,6 +461,30 @@ describe("applyEvent - game_reconnected", () => {
             { claimed: true, isRiichi: true, isTsumogiri: false, tileId: 33 },
         ]);
         expect(next.tilesRemaining).toBe(70);
+    });
+
+    test("restores a desynced wall from a snapshot without counting its pending draw twice", () => {
+        const [error, snapshot] = parseServerMessage({
+            ...WIRE_GAME_RECONNECTED,
+            [WIRE_KEY.MY_TILES]: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52],
+            [WIRE_KEY.TILES_REMAINING]: 0,
+            [WIRE_KEY.PLAYER_STATES]: wirePayloadList(
+                WIRE_GAME_RECONNECTED,
+                WIRE_KEY.PLAYER_STATES,
+            ).map((player) => ({
+                ...player,
+                [WIRE_KEY.TILE_COUNT]: player[WIRE_KEY.SEAT] === 0 ? 14 : 13,
+            })),
+        });
+        assert(error === null && snapshot.type === "game_reconnected");
+        const lost = applyEvent(stateAfterRoundStarted(), { type: "lost_step" });
+        const restored = applyEvent(lost, snapshot);
+        expect(restored.inStep).toBe(true);
+        expect(restored.tilesRemaining).toBe(0);
+
+        const resent = applyEvent(restored, makeLiveDrawEvent({ seat: snapshot.seat, tileId: 52 }));
+        expect(resent.tilesRemaining).toBe(0);
+        expect(resent.players[snapshot.seat].tiles).toEqual(snapshot.myTiles);
     });
 
     test("keeps an added kan's added tile, laid stacked on its called tile", () => {

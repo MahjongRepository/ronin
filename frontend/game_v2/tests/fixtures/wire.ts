@@ -6,7 +6,6 @@ export const WIRE_DRAW: WirePayload = {
     [WIRE_KEY.BANK_SECONDS]: 20,
     [WIRE_KEY.PACKED_MOVE]: 0,
     [WIRE_KEY.EVENT_TYPE]: 1,
-    [WIRE_KEY.TILES_REMAINING]: 69,
     [WIRE_KEY.WAIT_ID]: 1,
 };
 

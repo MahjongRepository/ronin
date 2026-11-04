@@ -20,6 +20,8 @@ here and in the backend in the same change.
   message (a loss of step), never a turn offering less than the server's.
 - Live and recorded parsing stay distinct: a field the live socket always stamps (seat, timers, wait id, bank) is
   required live even though a replay reads it as null. A replay's stick value and aka-dora flag come from explicit recorded viewing fields. Its compact rules reference stays opaque to the browser; no Python rules profiles are duplicated here.
+- Live draws and draw notices carry no wall count; round starts and reconnect snapshots retain it. Recorded draws
+  require their explicit count and parse with a distinct source discriminant, so the table does not invent replay data.
 - A live wait id belongs to the recipient alone: it increases for that participant's new decisions, round confirms
   included, and repeats on a resend. A snapshot carries the latest id even when nothing is owed; other seats' waits
   never advance it. Never compare ids across seats or interpret them as the engine's global progress.

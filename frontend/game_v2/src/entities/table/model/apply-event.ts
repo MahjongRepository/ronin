@@ -100,11 +100,20 @@ function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableSt
     };
 }
 
-/**
- * A draw puts its tile in the hand, and the wall stands at the server's count after it; the discard before it is no
- * longer the latest action. The draw a reconnect re-sends names a tile the snapshot's hand already holds: it only marks
- * the drawn tile again.
- */
+function decrementWall(tilesRemaining: number): number {
+    if (tilesRemaining <= 0) {
+        throw new DesyncError("A draw reached an empty live wall");
+    }
+    return tilesRemaining - 1;
+}
+
+function getDrawWallCount(remaining: number, event: DrawEvent, resent: boolean): number {
+    if (event.source === "replay") {
+        return event.tilesRemaining;
+    }
+    return resent ? remaining : decrementWall(remaining);
+}
+
 function applyDraw(state: TableState, event: DrawEvent): TableState {
     const player = requirePlayer(state, event.seat);
     const resent = player.tiles.includes(event.tileId);
@@ -116,13 +125,12 @@ function applyDraw(state: TableState, event: DrawEvent): TableState {
             drawnTileId: event.tileId,
             tiles: resent ? player.tiles : [...player.tiles, event.tileId],
         }),
-        tilesRemaining: event.tilesRemaining,
+        tilesRemaining: getDrawWallCount(state.tilesRemaining, event, resent),
     };
 }
 
 /**
- * Another seat's draw, its tile private to that seat: a face-down tile joins its hand in its turn, the wall stands at
- * the server's count after it, and the discard before it is no longer the latest action.
+ * Move one live-wall tile into another seat's concealed hand.
  */
 function applyDrawNotice(state: TableState, event: DrawNoticeEvent): TableState {
     const player = requirePlayer(state, event.seat);
@@ -134,7 +142,7 @@ function applyDrawNotice(state: TableState, event: DrawNoticeEvent): TableState 
             concealedCount: player.concealedCount + 1,
             drawnConcealed: true,
         }),
-        tilesRemaining: event.tilesRemaining,
+        tilesRemaining: decrementWall(state.tilesRemaining),
     };
 }
 

@@ -15,7 +15,9 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   through the endpoint's rate-limit and strike handling. The browser and external bot mirror the same
   registry and shared golden frames; protocol changes update all three together. Replay IDs keep their
   existing assignments, and replay-only metadata is not accepted on the live wire.
-* `event_payload.py` builds every outgoing event, for both the socket and the replay. A draw, a
+* `event_payload.py` builds every outgoing event, for both the socket and the replay. Its
+  `live_game_event_payload` removes the per-draw wall count for normal delivery and reconnect resends;
+  the replay keeps the engine's explicit count. A draw, a
   discard and a meld each pack into one integer (`../wire/compact.py`, `shared/lib/melds/README.md`).
 * Of `GameSettings` only the riichi stick value (`WireKey.RIICHI_STICK_VALUE`), a wire score, goes out live, on `game_started`
   and the reconnect snapshot: the one setting a client consumes, since every deposit and payment comes
@@ -32,8 +34,8 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   first deal follows it only after the session's game start pause; a draw (the deal's first, a
   replacement after a kan and an AI player's included) goes whole only to the drawing seat, with its
   available actions when it has any, and every other connected seat gets its draw notice in its
-  place, shaped from the same engine draw (`draw_notice_payload`): the drawer's seat and the live wall
-  left (`WireKey.TILES_REMAINING`), never the tile, the offers, the bank or a wait id, and a code of its own, so it never
+  place, shaped from the same engine draw (`draw_notice_payload`): only the drawer's seat,
+  never the tile, the offers, the bank or a wait id, and a code of its own, so it never
   opens a decision. The
   replay records the draw once and no notice; a draw re-sent on a reconnect goes to its seat alone.
   No draw or notice follows the seat's own pon or chi: a
@@ -60,8 +62,12 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   tiles. A participant's seat changing hands goes to the others as `seat_control`, by seat and
   shaped like the replay's seat control line, ahead of the moves that follow; the snapshot marks a
   seat an AI player holds for its participant by why (`WireKey.STAND_IN_REASON`), never as an AI player's (`WireKey.AI_PLAYER`).
-* What a client shows of the table's counts comes from the server, never the client's own arithmetic:
-  the deal, each draw and its notice name the live wall left (`WireKey.TILES_REMAINING`); the deal and the snapshot name the
+* The deal and reconnect/resync snapshot provide the authoritative live-wall count (`WireKey.TILES_REMAINING`).
+  Clients subtract one for each genuine private draw or public notice, including a kan replacement;
+  a pending private draw re-sent after a snapshot is already counted and subtracts nothing. Neither
+  pon/chi nor a robbed kan produces a draw. An impossible decrement is a desync, recovered by a snapshot.
+  Replay draws retain their explicit counts. Other displayed counts still come from the server:
+  the deal and the snapshot name the
   round's number within its wind (`WireKey.ROUND_IN_WIND`, from 1) and the snapshot the game's first dealer (`WireKey.FIRST_DEALER`); an
   accepted riichi names its declarer's score after the deposit (`WireKey.SCORE`) and the table's riichi sticks
   (`WireKey.RIICHI_STICKS`); a round end, and the snapshot's `WireKey.ROUND_RESULT`, name the sticks its result leaves (`WireKey.RIICHI_STICKS`); a chankan

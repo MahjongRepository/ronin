@@ -41,6 +41,8 @@ class TestResync:
             None,
         ]
         assert (resynced[1][WireKey.WAIT_ID], resynced[1][WireKey.WAIT_ELAPSED]) == (decision_id, 7)
+        assert resynced[0][WireKey.TILES_REMAINING] == len(runtime.state.round_state.wall.live_tiles)
+        assert WireKey.TILES_REMAINING not in resynced[1]
         assert alice.connection is alice_conn
         assert not alice_conn.is_closed
         assert alice.stand_in is None

@@ -3,8 +3,20 @@ import { z } from "zod/mini";
 import { EVENT_TYPE, REPLAY_LINE_TYPE } from "@/shared/protocol/constants";
 import { WIRE_KEY } from "@/shared/protocol/wire-keys";
 
-import { seatControlReasonSchema, seatSchema } from "./common";
+import { seatControlReasonSchema, seatSchema, tilesRemainingSchema } from "./common";
+import { drawSchema } from "./events";
 import { type ParsedServerMessage, parseRecordedMessage } from "./message";
+
+const recordedDrawSchema = z.pipe(
+    z.intersection(drawSchema, z.object({ [WIRE_KEY.TILES_REMAINING]: tilesRemainingSchema })),
+    z.transform(({ [WIRE_KEY.TILES_REMAINING]: tilesRemaining, ...draw }) => ({
+        ...draw,
+        source: "replay" as const,
+        tilesRemaining,
+    })),
+);
+
+export type RecordedDrawEvent = z.output<typeof recordedDrawSchema>;
 
 const aiReplacementSchema = z.pipe(
     z.object({
@@ -46,7 +58,7 @@ export type AiReplacementLine = z.output<typeof aiReplacementSchema>;
 export type HumanReturnLine = z.output<typeof humanReturnSchema>;
 export type SeatControlLine = AiReplacementLine | HumanReturnLine;
 
-export type ReplayLine = ParsedServerMessage | SeatControlLine;
+export type ReplayLine = ParsedServerMessage | RecordedDrawEvent | SeatControlLine;
 
 export type ReplayLineParseResult = [Error, null] | [null, ReplayLine];
 
@@ -83,6 +95,9 @@ function recordedMessage(raw: Record<string, unknown>): ReplayLineParseResult {
 export function parseReplayLine(raw: Record<string, unknown>): ReplayLineParseResult {
     try {
         switch (raw[WIRE_KEY.EVENT_TYPE]) {
+            case EVENT_TYPE.DRAW: {
+                return [null, recordedDrawSchema.parse(raw)];
+            }
             case REPLAY_LINE_TYPE.SEAT_CONTROL: {
                 return [null, parseSeatControl(raw)];
             }

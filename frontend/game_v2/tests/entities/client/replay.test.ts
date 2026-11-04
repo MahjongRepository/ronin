@@ -606,16 +606,16 @@ function projectLine(raw: WireLine, line: ReplayLine, seat: number): WireLine | 
             };
         }
         case "draw": {
+            const { [WIRE_KEY.TILES_REMAINING]: _tilesRemaining, ...liveDraw } = raw;
             return line.seat === seat
                 ? {
-                      ...raw,
+                      ...liveDraw,
                       [WIRE_KEY.BANK_SECONDS]: PROJECTED_TIMER[WIRE_KEY.BANK_SECONDS],
                       [WIRE_KEY.WAIT_ID]: 1,
                   }
                 : {
                       [WIRE_KEY.SEAT]: line.seat,
                       [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.DRAW_NOTICE,
-                      [WIRE_KEY.TILES_REMAINING]: line.tilesRemaining,
                   };
         }
         case "ai_replacement":
