@@ -28,6 +28,7 @@ class TestResync:
         runtime = runtime_of(manager)
         assert runtime.state.round_state.current_player_seat == alice.seat
         awaiting = game_of(manager).awaiting
+        decision_id = alice.decision_id
         deadline, bank = alice.timer.task, alice.timer.bank_seconds
         replay_lines = list(game_of(manager).replay.lines)
         fake_clock.advance(7)
@@ -35,7 +36,7 @@ class TestResync:
         manager.resync(alice_conn)
         resynced = alice_conn.sent_messages
         assert [message.get("type") for message in resynced] == [SessionMessageType.GAME_RECONNECTED, None]
-        assert (resynced[1]["wi"], resynced[1]["el"]) == (awaiting.wait_id, 7)
+        assert (resynced[1]["wi"], resynced[1]["el"]) == (decision_id, 7)
         assert alice.connection is alice_conn
         assert not alice_conn.is_closed
         assert alice.stand_in is None

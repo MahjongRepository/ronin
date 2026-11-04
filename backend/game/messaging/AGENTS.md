@@ -64,14 +64,15 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   ordinary yaku); each winner its honba bonus (`hb`) and, beside its liable seat (`ps`), what that
   seat pays (`pl`: the pao yakuman, all or half, and whether the honba); a nagashi mangan each
   qualifying seat's river (`qr`). A round history entry carries no round number within its wind.
-* Wait identity: the message that opens a wait carries the current wait id, stamped at send time, and
-  the reconnect snapshot always carries it. Wait ids are one counter per game that only grows (the
-  service bumps it by one per call that ends a wait, `MahjongGameService._end_call`), so across the
-  frames that open a wait and the snapshots a seat receives the id never decreases: a new wait has
-  a larger id, a re-send of the same wait (a reconnect, a resync) repeats it, and the waits of
-  other seats leave gaps. Refusals are outside this order, since they echo the refused action's
-  id. Every game action must echo it, and one for another wait
-  is refused as stale. A refusal of a game action names the wait id that action echoed, never the
+* Wait identity: the wire `wi` is a participant's decision counter, starting at zero and increasing
+  once for each new decision opened for that connected participant, round confirmations included.
+  Other seats' waits and decisions made by an AI stand-in never advance it. Reconnect and resync
+  snapshots carry the participant's latest id, even when nothing is owed; re-sending an owed
+  decision repeats that id. Round-end broadcasts are stamped separately for each recipient.
+  The engine's global wait counter stays server-only: neither outgoing metadata nor action
+  refusals may reveal it. Refusals echo the refused action's id and sit outside the increasing
+  order. Every game action must echo its own decision id; a seat that owes no action or an action
+  with any other id is refused as stale, without consulting the engine. A refusal names the id that action echoed, never the
   current wait's: a game error (stale or a rule judgment) always, and the endpoint's rate limit when
   the frame it drops is a game action with a readable id, since that limit answers before any
   routing and can refuse an old frame after the game moved on. The client matches it to its own

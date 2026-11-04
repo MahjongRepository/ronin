@@ -17,14 +17,15 @@ class TestEndpointRateLimit:
         _, bob = await start_over_sockets(table)
         bob_seat = table.seat_of("Bob")
         table.advance_to_turn_of(bob_seat)
-        old_wait = table.manager.get_game("game1").awaiting.wait_id
+        previous = table.manager.get_game("game1").awaiting
+        old_wait = table.manager.get_game("game1").at_seat(bob_seat).decision_id
         tile = runtime_of(table.manager).state.round_state.players[bob_seat].tiles[-1]
         old_discard = {"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": tile, "wi": old_wait}
         bob.send(old_discard)
         await bob.wait_for_message(
             lambda m: m.get("t") == EVENT_TYPE_INT[EventType.DISCARD] and decode_discard(m["d"])[:2] == (bob_seat, tile)
         )
-        assert table.manager.get_game("game1").awaiting.wait_id != old_wait
+        assert table.manager.get_game("game1").awaiting != previous
 
         bob.send(old_discard)
         await bob.wait_for_message(lambda m: m.get("code") == SessionErrorCode.RATE_LIMITED)

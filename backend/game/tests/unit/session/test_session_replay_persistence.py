@@ -150,7 +150,10 @@ class TestSessionReplay:
 
         with caplog.at_level(logging.ERROR):
             manager.handle_game_action(
-                conns[0], action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=current_wait_id(manager)
+                conns[0],
+                action=GameAction.DISCARD,
+                data={"tile_id": drawn_tile},
+                wait_id=current_wait_id(manager, conns[0]),
             )
             await wait_for_background_tasks(manager)
         assert [(r.msg["event"], r.msg["game_id"], "seat" in r.msg) for r in caplog.records] == [

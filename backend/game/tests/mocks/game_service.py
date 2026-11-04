@@ -60,7 +60,7 @@ class _MockGameState:
         self.round_number = round_number
 
 
-MOCK_AWAITING = Awaiting(kind=WaitKind.TURN, seats=frozenset(), wait_id=1, round_number=0)
+MOCK_AWAITING = Awaiting(kind=WaitKind.TURN, seats=frozenset({0}), wait_id=1, round_number=0)
 MOCK_GAME_OVER = Awaiting(kind=WaitKind.NONE, seats=frozenset(), wait_id=2, round_number=0)
 
 

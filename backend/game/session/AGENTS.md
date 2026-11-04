@@ -61,8 +61,12 @@ interleave.
   step, and a message that then arrives on it gets no answer: its close is queued or follows from
   the finalizer, and an error ahead of it would read as a permanent error to the client.
 * **Stale actions.** Every game action echoes the wait id the server stamped on the message that
-  opened the wait; an action for any other wait gets a stale-action `ErrorEvent` and touches
-  neither the engine nor a timer. Every `ErrorEvent` answering an action, stale or the engine's,
+  opened that participant's decision. `Participant.decision_id` increases only when a new engine
+  wait opens a decision for that connected participant; it survives replacements and reconnects,
+  and never advances for other seats or for an absent participant's AI stand-in. The engine's
+  global wait id is internal to pacing. A seat not awaited, or an id different from that
+  participant's latest, gets the same stale-action `ErrorEvent` and touches neither the engine nor
+  a timer, so guessed ids reveal no hidden waits. Every `ErrorEvent` answering an action, stale or the engine's,
   names the wait id the action echoed (`messaging/AGENTS.md`, Wait identity).
 * **Timers need no generation or lifecycle check.** Every path that supersedes a wait (ending it,
   releasing a seat, leaving PENDING, authenticating or evicting a connection, ending the game)

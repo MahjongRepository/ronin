@@ -50,7 +50,7 @@ class TestSessionManager:
         conns = create_started_game(manager)
 
         manager.handle_game_action(
-            conns[0], action=GameAction.DISCARD, data={"key": "value"}, wait_id=current_wait_id(manager)
+            conns[0], action=GameAction.DISCARD, data={"key": "value"}, wait_id=current_wait_id(manager, conns[0])
         )
         # mock service returns one event with target "all"
         assert len(conns[0].sent_messages) == 1
@@ -129,7 +129,9 @@ def _discard_drawn_tile(manager: SessionManager, conns: list[MockConnection]) ->
     [seat] = awaiting.seats
     conn = next(conn for conn in conns if participant_of(manager, conn).seat == seat)
     drawn_tile = runtime_of(manager).state.round_state.players[seat].tiles[-1]
-    manager.handle_game_action(conn, action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=awaiting.wait_id)
+    manager.handle_game_action(
+        conn, action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=current_wait_id(manager, conn)
+    )
 
 
 class TestDrawDelivery:
@@ -181,7 +183,7 @@ class TestDrawDelivery:
             alice_conn,
             action=GameAction.CALL_KAN,
             data={"tile_id": HAKU_COPIES[0], "kan_type": "closed"},
-            wait_id=current_wait_id(manager),
+            wait_id=current_wait_id(manager, alice_conn),
         )
         round_state = runtime_of(manager).state.round_state
         replacement = encode_draw(alice.seat, round_state.players[alice.seat].tiles[-1])
@@ -204,14 +206,17 @@ class TestDrawDelivery:
             alice_conn,
             action=GameAction.DISCARD,
             data={"tile_id": discarded_four_pin},
-            wait_id=current_wait_id(manager),
+            wait_id=current_wait_id(manager, alice_conn),
         )
         assert game_of(manager).awaiting.seats == frozenset({bob.seat})
         alice_conn._outbox.clear()
         bob_conn._outbox.clear()
 
         manager.handle_game_action(
-            bob_conn, action=GameAction.CALL_PON, data={"tile_id": discarded_four_pin}, wait_id=current_wait_id(manager)
+            bob_conn,
+            action=GameAction.CALL_PON,
+            data={"tile_id": discarded_four_pin},
+            wait_id=current_wait_id(manager, bob_conn),
         )
         assert [message["t"] for message in alice_conn.sent_messages] == [WireEventType.MELD]
         assert [message["t"] for message in bob_conn.sent_messages] == [WireEventType.MELD, WireEventType.TURN]

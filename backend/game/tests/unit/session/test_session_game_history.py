@@ -86,7 +86,10 @@ class TestGameStartRecording:
         human = runtime_of(manager).state.round_state.players[human_seat]
         assert runtime_of(manager).state.round_state.current_player_seat == human_seat
         manager.handle_game_action(
-            conns[0], action=GameAction.DISCARD, data={"tile_id": human.tiles[-1]}, wait_id=current_wait_id(manager)
+            conns[0],
+            action=GameAction.DISCARD,
+            data={"tile_id": human.tiles[-1]},
+            wait_id=current_wait_id(manager, conns[0]),
         )
         human_after = runtime_of(manager).state.round_state.players[human_seat]
         assert [d.tile_id for d in human_after.discards] == [human.tiles[-1]]
@@ -117,7 +120,7 @@ class TestGameCompletionRecording:
         manager_with_repo._game_service.handle_action = MagicMock(return_value=mock_update(events, MOCK_GAME_OVER))
 
         manager_with_repo.handle_game_action(
-            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager_with_repo)
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager_with_repo, conns[0])
         )
         await wait_for_background_tasks(manager_with_repo)
         recorded = game_repo.games["game1"]
@@ -208,7 +211,7 @@ class TestGameAbandonmentRecording:
         )
 
         manager_with_repo.handle_game_action(
-            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager_with_repo)
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager_with_repo, conns[0])
         )
         for conn in conns:
             manager_with_repo.disconnect(conn)

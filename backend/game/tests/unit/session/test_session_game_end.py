@@ -187,7 +187,7 @@ class TestFailGame:
                 conns[0],
                 {
                     "t": WireClientMessageType.GAME_ACTION,
-                    "wi": current_wait_id(manager),
+                    "wi": current_wait_id(manager, conns[0]),
                     "a": WireGameAction.DECLARE_TSUMO,
                 },
             )
@@ -218,7 +218,7 @@ class TestFailGame:
             conns[0],
             {
                 "t": WireClientMessageType.GAME_ACTION,
-                "wi": current_wait_id(manager),
+                "wi": current_wait_id(manager, conns[0]),
                 "a": WireGameAction.DISCARD,
                 "ti": round_state.players[alice_seat].tiles[-1],
             },
@@ -322,7 +322,9 @@ class TestGameEndFromAction:
             side_effect=InvalidGameActionError(action="discard", seat=0, reason="tile not in hand"),
         )
 
-        manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
+        manager.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager, conns[0])
+        )
         await wait_for_background_tasks(manager)
         assert (conns[0]._close_code, conns[0]._close_reason) == (1008, "invalid_game_action")
         assert (conns[1]._close_code, conns[1]._close_reason) == (1000, "game_ended")
@@ -335,7 +337,9 @@ class TestGameEndFromAction:
             return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER)
         )
 
-        manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
+        manager.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager, conns[0])
+        )
         assert (manager.game_count, manager.get_playing_game_id("user-0")) == (0, None)
 
         await wait_for_background_tasks(manager)

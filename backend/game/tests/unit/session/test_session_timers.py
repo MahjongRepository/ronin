@@ -119,7 +119,9 @@ class TestWaitTimers:
         timer = participant_of(manager, conns[0]).timer
         deadline, bank = timer.task, timer._bank_seconds
 
-        manager.handle_game_action(conns[0], action=GameAction.PASS, data={}, wait_id=current_wait_id(manager))
+        manager.handle_game_action(
+            conns[0], action=GameAction.PASS, data={}, wait_id=current_wait_id(manager, conns[0])
+        )
         assert [m["cd"] for m in conns[0].sent_messages] == [GameErrorCode.INVALID_PASS]
         assert timer.task is deadline
         assert not deadline.done()
@@ -136,7 +138,10 @@ class TestWaitTimers:
         discarded_four_pin = arrange_ron_and_pon_on_a_discard(runtime_of(manager), discarder=alice, ron=bob, pon=carol)
 
         manager.handle_game_action(
-            conns[0], action=GameAction.DISCARD, data={"tile_id": discarded_four_pin}, wait_id=current_wait_id(manager)
+            conns[0],
+            action=GameAction.DISCARD,
+            data={"tile_id": discarded_four_pin},
+            wait_id=current_wait_id(manager, conns[0]),
         )
         prompt = manager.get_game("game1").awaiting
         assert (prompt.kind, prompt.seats) == (WaitKind.CALL, frozenset({bob, carol}))
@@ -146,7 +151,9 @@ class TestWaitTimers:
         assert prompt_message["bk"] == 20
         fake_clock.advance(7)
 
-        manager.handle_game_action(conns[1], action=GameAction.PASS, data={}, wait_id=prompt.wait_id)
+        manager.handle_game_action(
+            conns[1], action=GameAction.PASS, data={}, wait_id=current_wait_id(manager, conns[1])
+        )
         assert manager.get_game("game1").awaiting == replace(prompt, seats=frozenset({carol}))
         assert participant_of(manager, conns[1]).timer.task is None
         assert carol_timer.task is carol_deadline
@@ -155,7 +162,10 @@ class TestWaitTimers:
 
         fake_clock.advance(2)
         manager.handle_game_action(
-            conns[2], action=GameAction.CALL_PON, data={"tile_id": discarded_four_pin}, wait_id=prompt.wait_id
+            conns[2],
+            action=GameAction.CALL_PON,
+            data={"tile_id": discarded_four_pin},
+            wait_id=prompt_message["wi"],
         )
         assert carol_timer.bank_seconds == 16
         turn = next(m for m in conns[2].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.TURN])
@@ -173,7 +183,10 @@ class TestWaitTimers:
             runtime_of(manager), discarder=alice.seat, ron=bob.seat, pon=carol.seat
         )
         manager.handle_game_action(
-            conns[0], action=GameAction.DISCARD, data={"tile_id": discarded_four_pin}, wait_id=current_wait_id(manager)
+            conns[0],
+            action=GameAction.DISCARD,
+            data={"tile_id": discarded_four_pin},
+            wait_id=current_wait_id(manager, conns[0]),
         )
         assert game_of(manager).awaiting.seats == frozenset({bob.seat, carol.seat})
         await asyncio.sleep(0)
@@ -201,13 +214,18 @@ class TestWaitTimers:
         arrange_exhaustive_draw(runtime_of(manager))
         drawn_tile = runtime_of(manager).state.round_state.players[alice_seat].tiles[-1]
         manager.handle_game_action(
-            conns[0], action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=current_wait_id(manager)
+            conns[0],
+            action=GameAction.DISCARD,
+            data={"tile_id": drawn_tile},
+            wait_id=current_wait_id(manager, conns[0]),
         )
         assert manager.get_game("game1").awaiting.kind == WaitKind.ROUND_ADVANCE
         assert timer.bank_seconds == first_round_bank - 2
 
         conns[0]._outbox.clear()
-        manager.handle_game_action(conns[0], action=GameAction.CONFIRM_ROUND, data={}, wait_id=current_wait_id(manager))
+        manager.handle_game_action(
+            conns[0], action=GameAction.CONFIRM_ROUND, data={}, wait_id=current_wait_id(manager, conns[0])
+        )
         second_round = manager.get_game("game1").awaiting
         assert (second_round.round_number, second_round.seats) == (1, frozenset({alice_seat}))
         assert timer._bank_seconds == first_round_bank
@@ -216,11 +234,16 @@ class TestWaitTimers:
 
         fake_clock.advance(8)
         if second_round.kind == WaitKind.CALL:
-            manager.handle_game_action(conns[0], action=GameAction.PASS, data={}, wait_id=second_round.wait_id)
+            manager.handle_game_action(
+                conns[0], action=GameAction.PASS, data={}, wait_id=current_wait_id(manager, conns[0])
+            )
         else:
             drawn_tile = runtime_of(manager).state.round_state.players[alice_seat].tiles[-1]
             manager.handle_game_action(
-                conns[0], action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=second_round.wait_id
+                conns[0],
+                action=GameAction.DISCARD,
+                data={"tile_id": drawn_tile},
+                wait_id=current_wait_id(manager, conns[0]),
             )
         next_wait = manager.get_game("game1").awaiting
         assert next_wait.round_number == 1
@@ -245,9 +268,14 @@ class TestWaitTimers:
         arrange_exhaustive_draw(runtime_of(manager))
         drawn_tile = runtime_of(manager).state.round_state.players[alice.seat].tiles[-1]
         manager.handle_game_action(
-            conns[0], action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=current_wait_id(manager)
+            conns[0],
+            action=GameAction.DISCARD,
+            data={"tile_id": drawn_tile},
+            wait_id=current_wait_id(manager, conns[0]),
         )
-        manager.handle_game_action(conns[0], action=GameAction.CONFIRM_ROUND, data={}, wait_id=current_wait_id(manager))
+        manager.handle_game_action(
+            conns[0], action=GameAction.CONFIRM_ROUND, data={}, wait_id=current_wait_id(manager, conns[0])
+        )
         assert game.awaiting.round_number == 1
         assert alice.timer._bank_seconds == first_round_bank
 
@@ -278,7 +306,7 @@ def _discard_the_drawn_tile(manager: SessionManager, participant: Participant) -
         participant.connection,
         action=GameAction.DISCARD,
         data={"tile_id": drawn_tile},
-        wait_id=current_wait_id(manager),
+        wait_id=current_wait_id(manager, participant.connection),
     )
 
 

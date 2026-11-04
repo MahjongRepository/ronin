@@ -92,10 +92,8 @@ def disconnect_and_reconnect(
     return new_conn, token
 
 
-def current_wait_id(manager: SessionManager, game_id: str = "game1") -> int:
-    game = game_of(manager, game_id)
-    assert game.awaiting is not None
-    return game.awaiting.wait_id
+def current_wait_id(manager: SessionManager, connection: MockConnection) -> int:
+    return participant_of(manager, connection).decision_id
 
 
 async def wait_for_background_tasks(manager: SessionManager) -> None:

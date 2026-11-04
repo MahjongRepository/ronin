@@ -31,7 +31,9 @@ class TestSessionManagerInvalidAction:
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
 
-        manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
+        manager.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager, conns[0])
+        )
         assert conns[0].is_closed
         assert conns[0]._close_code == 1008
         assert conns[0]._close_reason == "invalid_game_action"
@@ -49,7 +51,9 @@ class TestSessionManagerInvalidAction:
         manager._game_service.replace_with_ai_player = tracking_replace
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
 
-        manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
+        manager.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager, conns[0])
+        )
         assert replace_calls == [(runtime_of(manager), 0)]
 
     async def test_invalid_action__when_last_human_sends_it__should_clean_up_game(self, manager):
@@ -57,7 +61,9 @@ class TestSessionManagerInvalidAction:
         assert manager.get_game("game1") is not None
 
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
-        manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
+        manager.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager, conns[0])
+        )
         # game should be cleaned up
         assert manager.get_game("game1") is None
 
@@ -66,7 +72,9 @@ class TestSessionManagerInvalidAction:
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
 
         with caplog.at_level(logging.WARNING):
-            manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
+            manager.handle_game_action(
+                conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager, conns[0])
+            )
 
         warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert len(warning_records) == 1
@@ -91,7 +99,9 @@ class TestSessionManagerInvalidAction:
         )
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
 
-        manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
+        manager.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager, conns[0])
+        )
         # Bob should receive the AI player action event
         ai_player_msgs = [m for m in conns[1].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(ai_player_msgs) == 1
@@ -108,7 +118,7 @@ class TestSessionManagerInvalidAction:
             conns[0],
             {
                 "t": WireClientMessageType.GAME_ACTION,
-                "wi": current_wait_id(manager),
+                "wi": current_wait_id(manager, conns[0]),
                 "a": WireGameAction.DISCARD,
                 "ti": 0,
             },
@@ -120,7 +130,9 @@ class TestSessionManagerInvalidAction:
     async def test_invalid_action__when_offender_leaves_afterwards__should_not_replace_again(self, manager):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
-        manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
+        manager.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager, conns[0])
+        )
 
         replace_calls = []
         original_replace = manager._game_service.replace_with_ai_player
@@ -151,7 +163,7 @@ class TestKickedConnection:
         foreign_tile = next(tile for tile in range(136) if tile not in held_tiles)
 
         manager.handle_game_action(
-            kicked, action=GameAction.DISCARD, data={"tile_id": foreign_tile}, wait_id=current_wait_id(manager)
+            kicked, action=GameAction.DISCARD, data={"tile_id": foreign_tile}, wait_id=current_wait_id(manager, kicked)
         )
         assert kicked._close_code == 1008
 
@@ -177,13 +189,13 @@ class TestRuleRefusal:
     ):
         manager = make_session_manager(seeded_engine)
         conns = create_started_game(manager, player_names=["Alice"])
-        refused_wait = current_wait_id(manager)
+        refused_wait = current_wait_id(manager, conns[0])
 
         manager.handle_game_action(conns[0], action=GameAction.PASS, data={}, wait_id=refused_wait)
         assert [(m["t"], m["cd"], m["wi"]) for m in conns[0].sent_messages] == [
             (EVENT_TYPE_INT[EventType.ERROR], GameErrorCode.INVALID_PASS, refused_wait)
         ]
-        assert current_wait_id(manager) == refused_wait
+        assert current_wait_id(manager, conns[0]) == refused_wait
 
         await manager.shutdown()
 
@@ -197,7 +209,7 @@ class TestStaleAction:
         conns = create_started_game(manager, player_names=["Alice"])
         alice = conns[0]
         alice_seat = participant_of(manager, alice).seat
-        timed_out_wait = current_wait_id(manager)
+        timed_out_wait = current_wait_id(manager, conns[0])
         timed_out_draw = runtime_of(manager).state.round_state.players[alice_seat].tiles[-1]
         await fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
         state_before = runtime_of(manager).state
@@ -232,9 +244,13 @@ class TestStaleAction:
         alice, bob = (participant_of(manager, conn).seat for conn in conns)
         discarded_four_pin = arrange_pon_now_and_on_the_next_draw(runtime_of(manager), discarder=alice, caller=bob)
         manager.handle_game_action(
-            conns[0], action=GameAction.DISCARD, data={"tile_id": discarded_four_pin}, wait_id=current_wait_id(manager)
+            conns[0],
+            action=GameAction.DISCARD,
+            data={"tile_id": discarded_four_pin},
+            wait_id=current_wait_id(manager, conns[0]),
         )
         first_prompt = manager.get_game("game1").awaiting
+        first_prompt_id = current_wait_id(manager, conns[1])
         assert (first_prompt.kind, first_prompt.seats) == (WaitKind.CALL, frozenset({bob}))
 
         run_timeout(manager, game_id="game1", timeout_type=TimeoutType.MELD, seat=bob)
@@ -244,7 +260,7 @@ class TestStaleAction:
         state_before = runtime_of(manager).state
         conns[1]._outbox.clear()
 
-        manager.handle_game_action(conns[1], action=GameAction.PASS, data={}, wait_id=first_prompt.wait_id)
+        manager.handle_game_action(conns[1], action=GameAction.PASS, data={}, wait_id=first_prompt_id)
         assert [m["cd"] for m in conns[1].sent_messages] == [GameErrorCode.STALE_ACTION]
         assert runtime_of(manager).state is state_before
         assert bob in state_before.round_state.pending_call_prompt.pending_seats

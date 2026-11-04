@@ -17,14 +17,15 @@ class TestConnectionWriters:
         bob_seat = table.seat_of("Bob")
         table.advance_to_turn_of(bob_seat)
         alice.hold_writes()
-        wait_id = table.manager.get_game("game1").awaiting.wait_id
+        previous = table.manager.get_game("game1").awaiting
+        wait_id = table.manager.get_game("game1").at_seat(bob_seat).decision_id
         tile = runtime_of(table.manager).state.round_state.players[bob_seat].tiles[-1]
 
         bob.send({"t": WireClientMessageType.GAME_ACTION, "a": WireGameAction.DISCARD, "ti": tile, "wi": wait_id})
         await bob.wait_for_message(
             lambda m: m.get("t") == EVENT_TYPE_INT[EventType.DISCARD] and decode_discard(m["d"])[:2] == (bob_seat, tile)
         )
-        assert table.manager.get_game("game1").awaiting.wait_id != wait_id
+        assert table.manager.get_game("game1").awaiting != previous
 
     async def test_game_end__when_one_reader_is_held__should_close_the_others_after_game_end_without_waiting(
         self, table

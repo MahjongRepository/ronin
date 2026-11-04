@@ -174,7 +174,10 @@ class TestBankTimePreservation:
             runtime_of(manager), discarder=alice.seat, ron=bob.seat, pon=carol.seat
         )
         manager.handle_game_action(
-            conns[0], action=GameAction.DISCARD, data={"tile_id": discarded_four_pin}, wait_id=current_wait_id(manager)
+            conns[0],
+            action=GameAction.DISCARD,
+            data={"tile_id": discarded_four_pin},
+            wait_id=current_wait_id(manager, conns[0]),
         )
         assert game_of(manager).awaiting.kind == WaitKind.CALL
         assert carol.seat in game_of(manager).awaiting.seats
@@ -197,6 +200,7 @@ class TestReconnectTakeover:
         runtime = runtime_of(manager)
         assert runtime.state.round_state.current_player_seat == alice.seat
         awaiting = game_of(manager).awaiting
+        decision_id = alice.decision_id
         deadline, bank = alice.timer.task, alice.timer.bank_seconds
         replay_lines = list(game_of(manager).replay.lines)
         fake_clock.advance(7)
@@ -206,12 +210,12 @@ class TestReconnectTakeover:
         manager.reconnect(new_conn, session_token=alice.ticket)
         reconnected, draw = new_conn.sent_messages
         drawn_tile = runtime.state.round_state.players[alice.seat].tiles[-1]
-        assert (reconnected["type"], reconnected["wi"]) == (SessionMessageType.GAME_RECONNECTED, awaiting.wait_id)
+        assert (reconnected["type"], reconnected["wi"]) == (SessionMessageType.GAME_RECONNECTED, decision_id)
         assert "oc" not in reconnected
         assert (draw["t"], draw["d"], draw["wi"], draw["el"]) == (
             EVENT_TYPE_INT[EventType.DRAW],
             encode_draw(alice.seat, drawn_tile),
-            awaiting.wait_id,
+            decision_id,
             7,
         )
         assert (old_conn._close_code, old_conn._close_reason) == (4002, "replaced_by_new_connection")
@@ -224,7 +228,7 @@ class TestReconnectTakeover:
 
         state_before = runtime.state
         manager.handle_game_action(
-            old_conn, action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=awaiting.wait_id
+            old_conn, action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=decision_id
         )
         manager.disconnect(old_conn)
         assert runtime.state is state_before
@@ -246,10 +250,14 @@ class TestReconnectTakeover:
             runtime_of(manager), discarder=alice.seat, ron=bob.seat, pon=carol.seat
         )
         manager.handle_game_action(
-            conns[0], action=GameAction.DISCARD, data={"tile_id": discarded_four_pin}, wait_id=current_wait_id(manager)
+            conns[0],
+            action=GameAction.DISCARD,
+            data={"tile_id": discarded_four_pin},
+            wait_id=current_wait_id(manager, conns[0]),
         )
         prompt = game_of(manager).awaiting
         assert (prompt.kind, prompt.seats) == (WaitKind.CALL, frozenset({bob.seat, carol.seat}))
+        original_prompt = next(m for m in conns[2].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT])
         carol_deadline = carol.timer.task
         fake_clock.advance(7)
 
@@ -257,12 +265,12 @@ class TestReconnectTakeover:
         manager.register_connection(new_conn)
         manager.reconnect(new_conn, session_token=carol.ticket)
         reconnected, call_prompt = new_conn.sent_messages
-        assert reconnected["wi"] == prompt.wait_id
+        assert reconnected["wi"] == original_prompt["wi"]
         assert (call_prompt["t"], call_prompt["ti"], call_prompt["cs"], call_prompt["wi"], call_prompt["el"]) == (
             EVENT_TYPE_INT[EventType.CALL_PROMPT],
             discarded_four_pin,
             carol.seat,
-            prompt.wait_id,
+            original_prompt["wi"],
             7,
         )
         assert call_prompt["bk"] == 20
@@ -271,7 +279,7 @@ class TestReconnectTakeover:
         assert carol.timer.task is carol_deadline
         assert not carol_deadline.done()
 
-        manager.handle_game_action(new_conn, action=GameAction.PASS, data={}, wait_id=prompt.wait_id)
+        manager.handle_game_action(new_conn, action=GameAction.PASS, data={}, wait_id=original_prompt["wi"])
         assert game_of(manager).awaiting.seats == frozenset({bob.seat})
         assert carol.timer.bank_seconds == 18
 
@@ -286,9 +294,15 @@ class TestReconnectTakeover:
         arrange_exhaustive_draw(runtime_of(manager))
         drawn_tile = runtime_of(manager).state.round_state.players[alice.seat].tiles[-1]
         manager.handle_game_action(
-            alice_conn, action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=current_wait_id(manager)
+            alice_conn,
+            action=GameAction.DISCARD,
+            data={"tile_id": drawn_tile},
+            wait_id=current_wait_id(manager, alice_conn),
         )
-        round_end = current_wait_id(manager)
+        round_end = current_wait_id(manager, alice_conn)
+        alice_result = next(m for m in alice_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.ROUND_END])
+        bob_result = next(m for m in bob_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.ROUND_END])
+        assert (alice_result["wi"], bob_result["wi"]) == (2, 1)
         manager.handle_game_action(alice_conn, action=GameAction.CONFIRM_ROUND, data={}, wait_id=round_end)
         advance = game_of(manager).awaiting
         assert (advance.kind, advance.seats) == (WaitKind.ROUND_ADVANCE, frozenset({bob.seat}))
@@ -296,18 +310,19 @@ class TestReconnectTakeover:
         fake_clock.advance(4)
 
         owed = {}
-        for participant in (alice, bob):
+        for participant, decision_id in ((alice, alice_result["wi"]), (bob, bob_result["wi"])):
             new_conn = MockConnection()
             manager.register_connection(new_conn)
             manager.reconnect(new_conn, session_token=participant.ticket)
             [reconnected] = new_conn.sent_messages
             assert reconnected["re"]["rt"] == WireRoundResultType.EXHAUSTIVE_DRAW
+            assert reconnected["wi"] == decision_id
             owed[participant.name] = (reconnected["oc"], reconnected.get("el"), reconnected.get("at"))
 
         assert owed == {"Alice": (False, None, None), "Bob": (True, 4, 10)}
         assert bob.timer.task is bob_deadline
 
-        manager.handle_game_action(bob.connection, action=GameAction.CONFIRM_ROUND, data={}, wait_id=advance.wait_id)
+        manager.handle_game_action(bob.connection, action=GameAction.CONFIRM_ROUND, data={}, wait_id=bob_result["wi"])
         assert game_of(manager).awaiting.round_number == advance.round_number + 1
 
         await manager.shutdown()
@@ -387,6 +402,7 @@ class TestReconnectDuringRoundAdvance:
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = participant_of(manager, conns[0]).seat
         bob_token = participant_of(manager, conns[1]).ticket
+        bob_wait_id = current_wait_id(manager, conns[1])
         assert runtime_of(manager).state.round_state.current_player_seat == alice_seat
         manager.disconnect(conns[1])
         arrange_exhaustive_draw(runtime_of(manager))
@@ -400,7 +416,7 @@ class TestReconnectDuringRoundAdvance:
             m for m in reconnecting.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED
         )
         assert reconnected["re"]["rt"] == WireRoundResultType.EXHAUSTIVE_DRAW
-        assert reconnected["wi"] == current_wait_id(manager)
+        assert reconnected["wi"] == bob_wait_id
         assert reconnected["oc"] is False
 
         await manager.shutdown()
@@ -444,7 +460,7 @@ class TestReconnectThenPlay:
         new_conn._outbox.clear()
 
         manager.handle_game_action(
-            new_conn, action=GameAction.DISCARD, data={"tile_id": 1}, wait_id=current_wait_id(manager)
+            new_conn, action=GameAction.DISCARD, data={"tile_id": 1}, wait_id=current_wait_id(manager, new_conn)
         )
         action_msgs = [m for m in new_conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(action_msgs) == 1

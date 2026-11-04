@@ -211,16 +211,16 @@ def stamp_timer_settings(payload: dict[str, Any], timer: TimerSettings) -> dict[
     return {**payload, TIMER_SETTINGS_KEY: timer.model_dump(by_alias=True)}
 
 
-def stamp_wait_id(payload: dict[str, Any], event: GameEvent, awaiting: Awaiting) -> dict[str, Any]:
+def stamp_wait_id(payload: dict[str, Any], *, event: GameEvent, awaiting: Awaiting, wait_id: int) -> dict[str, Any]:
     """
-    Add the wait id (`wi`) to the payload of an event that opens the awaited wait; leave any other payload as it is.
+    Copy an opening event's payload with the recipient's decision id (`wi`); leave any other payload as it is.
 
     The opening events: for a turn, the draw or the turn event to the awaited seat; for a call prompt, each prompt to an
     awaited seat; for a round advance, the round end. A game over opens no wait. Only the socket payloads carry it: the
     replay collector shapes its own payloads, so `wi` never reaches a replay file.
     """
     if _opens_wait(event, awaiting):
-        payload[WAIT_ID_KEY] = awaiting.wait_id
+        return {**payload, WAIT_ID_KEY: wait_id}
 
     return payload
 

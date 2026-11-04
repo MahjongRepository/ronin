@@ -563,12 +563,12 @@ class SessionManager:
         """
         Run a player's game action.
 
-        An action whose wait id is not the current wait's answers to a wait that already ended (it raced its own timeout
-        or a newer prompt): the seat gets a `stale_action` ErrorEvent, and neither the engine nor a timer is touched. A
-        rule judgment or race comes back from the engine as an ErrorEvent for the seat. Either ErrorEvent names the wait
-        id the action echoed, so the client matches the refusal to its own request. Structurally impossible input
-        (InvalidGameActionError, always the acting seat's) disconnects the player with 1008 and seats an AI player.
-        Anything else the engine raises is a server fault and propagates to the caller's boundary, which fails the game.
+        A seat that owes no action, or an action whose id is not its participant's current decision id, gets a
+        `stale_action` ErrorEvent, and neither the engine nor a timer is touched. A rule judgment or race comes back
+        from the engine as an ErrorEvent for the seat. Either ErrorEvent names the wait id the action echoed, so the
+        client matches the refusal to its own request. Structurally impossible input (InvalidGameActionError, always the
+        acting seat's) disconnects the player with 1008 and seats an AI player. Anything else the engine raises is a
+        server fault and propagates to the caller's boundary, which fails the game.
         """
         participant = self._bound_participant(connection)
         if participant is None:
@@ -581,7 +581,7 @@ class SessionManager:
 
         seat = self._seat_of(participant)
         structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=seat)
-        if game.awaiting is None or wait_id != game.awaiting.wait_id:
+        if game.awaiting is None or seat not in game.awaiting.seats or wait_id != participant.decision_id:
             self._send_stale_action(connection, seat=seat, action=action, wait_id=wait_id)
             return
 
@@ -691,9 +691,10 @@ class SessionManager:
         Send a participant's connection the `game_reconnected` snapshot of the wait `awaiting`, then the event that
         opened the wait the game owes the seat, if any, changing nothing.
 
-        The snapshot carries the current wait id, every seat an AI player holds for its participant marked as such, the
-        seat's timer settings (its bank as of its last turn) and, during a round advance, whether the seat still owes
-        its confirmation, with how long that wait's timer has run and its whole timeout when it does.
+        The snapshot carries the participant's latest decision id, every seat an AI player holds for its participant
+        marked as such, the seat's timer settings (its bank as of its last turn) and, during a round advance, whether
+        the seat still owes its confirmation, with how long that wait's timer has run and its whole timeout when it
+        does.
         """
         game = participant.game
         seat = self._seat_of(participant)
@@ -701,7 +702,7 @@ class SessionManager:
         stand_ins = {self._seat_of(p): p.stand_in for p in game.participants if p.stand_in is not None}
         payload = reconnection_payload(snapshot, stand_ins=stand_ins)
         payload["type"] = SessionMessageType.GAME_RECONNECTED
-        payload[WAIT_ID_KEY] = awaiting.wait_id
+        payload[WAIT_ID_KEY] = participant.decision_id
         if awaiting.kind == WaitKind.ROUND_ADVANCE:
             payload[CONFIRMATION_OWED_KEY] = seat in awaiting.seats
             elapsed = participant.timer.elapsed_seconds
@@ -785,7 +786,7 @@ class SessionManager:
             if elapsed is not None:
                 message[WAIT_ELAPSED_KEY] = elapsed
 
-            message = stamp_wait_id(message, event, awaiting)
+            message = stamp_wait_id(message, event=event, awaiting=awaiting, wait_id=participant.decision_id)
             connection.send_message(self._stamp_decision_bank(message, participant, awaiting))
 
     @staticmethod
@@ -811,10 +812,10 @@ class SessionManager:
         Deliver an engine call's events and drive the timers from the wait it reports.
 
         The call's actor is the seat that acted, timed out or was replaced; a game start has none. When the wait id
-        changed, every timer stops (charging elapsed decision time) and a new round's banks reset before the events go
-        out, and the new wait's timers start after them. When it did not, only an actor that left the wait (a partial
-        prompt response or confirmation) has its timer stopped; an actor still awaited (an error) keeps it running with
-        nothing deducted.
+        changed, every timer stops (charging elapsed decision time), a new round's banks reset, and each connected
+        participant now awaited advances its own decision id before the events go out. The new wait's timers start after
+        them. When it did not, only an actor that left the wait (a partial prompt response or confirmation) has its
+        timer stopped; an actor still awaited (an error) keeps it running with nothing deducted.
         """
         previous = game.awaiting
         game.awaiting = awaiting
@@ -822,6 +823,9 @@ class SessionManager:
         if new_wait:
             self._end_wait_timers(game)
             self._reset_round_banks(game, previous=previous, awaiting=awaiting)
+            for participant in game.connected():
+                if participant.seat in awaiting.seats:
+                    participant.decision_id += 1
         elif actor is not None and actor in previous.seats and actor not in awaiting.seats:
             self._stop_timer_at(game, actor)
 
@@ -918,21 +922,39 @@ class SessionManager:
             if isinstance(event, CallPromptEvent):
                 message = shape_call_prompt_payload(message)
 
-            message = stamp_wait_id(message, event, awaiting)
-            if awaiting.kind == WaitKind.ROUND_ADVANCE and WAIT_ID_KEY in message:
-                message[ROUND_ADVANCE_SECONDS_KEY] = game.timer_config.round_advance_seconds(awaiting.results_shown)
-
             if isinstance(event, GameStartedEvent):
                 self._send_to_each_seat(game, message)
             elif isinstance(event.target, BroadcastTarget):
-                self._broadcast_to_game(game, message)
+                for participant in game.connected():
+                    self._send_event_to_participant(participant, message=message, event=event, awaiting=awaiting)
             elif isinstance(event.target, SeatTarget):
                 participant = game.at_seat(event.target.seat)
-                if participant is not None and participant.connection is not None:
-                    participant.connection.send_message(self._stamp_decision_bank(message, participant, awaiting))
+                if participant is not None:
+                    self._send_event_to_participant(participant, message=message, event=event, awaiting=awaiting)
 
                 if isinstance(event, DrawEvent):
                     self._send_draw_notice(game, event)
+
+    def _send_event_to_participant(
+        self,
+        participant: Participant,
+        *,
+        message: dict[str, Any],
+        event: GameEvent,
+        awaiting: Awaiting,
+    ) -> None:
+        if participant.connection is None:
+            return
+
+        payload = stamp_wait_id(message, event=event, awaiting=awaiting, wait_id=participant.decision_id)
+        if awaiting.kind == WaitKind.ROUND_ADVANCE and WAIT_ID_KEY in payload:
+            payload[ROUND_ADVANCE_SECONDS_KEY] = participant.game.timer_config.round_advance_seconds(
+                awaiting.results_shown
+            )
+
+        participant.connection.send_message(
+            self._stamp_decision_bank(payload, participant=participant, awaiting=awaiting)
+        )
 
     @staticmethod
     def _send_draw_notice(game: GameSession, event: DrawEvent) -> None:

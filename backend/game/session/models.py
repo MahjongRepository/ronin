@@ -54,6 +54,7 @@ class Participant:
     The seat is bound once, at the start, from the engine's assignment for this participant's spec. The participant is
     connected while it has a connection. Its timer lives as long as the participant, so its bank survives a disconnect.
     stand_in says why an AI player holds its seat, from the handover until the participant takes the seat back.
+    decision_id counts only decisions opened while connected; other seats and AI play never advance it.
     """
 
     spec: PlayerSpec
@@ -62,6 +63,7 @@ class Participant:
     seat: int | None = None
     connection: ConnectionProtocol | None = None
     stand_in: SeatControlReason | None = None
+    decision_id: int = 0
 
     @property
     def name(self) -> str:
@@ -86,11 +88,11 @@ class GameSession:
     A game in the session layer: its participants, pacing, lifecycle, engine runtime and what its end needs.
 
     runtime is the engine's game, held from the start until the end claim drops it. awaiting is what the engine last
-    reported the game waits for (set from the start on); the session drives the timers from it and checks an action's
-    wait id against it. start_record is the game's record as posted at the start (seat order, every seat's name and
-    user_id); every finish record is built from it. replay holds the lines recorded since the start until the end claim
-    detaches them. start_pause is the sleeping task that holds back the first deal while the game start shows; while it
-    is set, awaiting is still None.
+    reported the game waits for (set from the start on); its internal wait id drives the timers. Each participant's
+    decision_id identifies only their own visible decisions. start_record is the game's record as posted at the start
+    (seat order, every seat's name and user_id); every finish record is built from it. replay holds the lines recorded
+    since the start until the end claim detaches them. start_pause is the sleeping task that holds back the first deal
+    while the game start shows; while it is set, awaiting is still None.
     """
 
     game_id: str
