@@ -33,6 +33,8 @@ The board's look is `docs/game-client-look.md`; where it and any `AGENTS.md` or 
   The replay is a lazy route. Storybook routes, fixtures and styles are development-only and the
   production build check rejects them. `npm run build:dev` builds them into `dist-dev/` for visual checks;
   `npm run build` keeps `dist/` production-only.
+  Pico form rules and the board debug overlay belong to the storybook stylesheet; shared Pico form theme tokens
+  remain in the base theme so the storybook controls inherit the same palette.
 * `package.json` `sideEffects` lists every module with an import-time effect; a new one goes there or the build drops it.
 * UI text is English literals; there are no catalogs. Game logic uses protocol codes and ids, never displayed text.
 

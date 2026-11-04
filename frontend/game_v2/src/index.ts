@@ -7,9 +7,9 @@ import riichiUrl from "@/assets/audio/calls/riichi.mp3?no-inline";
 import ronUrl from "@/assets/audio/calls/ron.mp3?no-inline";
 import tsumoUrl from "@/assets/audio/calls/tsumo.mp3?no-inline";
 import yakumanUrl from "@/assets/audio/calls/yakuman.mp3?no-inline";
-import countdownUrl from "@/assets/audio/countdown-soft-reply.wav?no-inline";
-import decisionUrl from "@/assets/audio/decision-radar-reply.wav?no-inline";
-import discardUrl from "@/assets/audio/discard-resin.wav?no-inline";
+import countdownUrl from "@/assets/audio/countdown-soft-reply.flac?no-inline";
+import decisionUrl from "@/assets/audio/decision-radar-reply.flac?no-inline";
+import discardUrl from "@/assets/audio/discard-resin.flac?no-inline";
 import tileSpriteUrl from "@/assets/tiles/sprites/fluffy-stuff.svg?url";
 import {
     DEFAULT_INPUT_SETTING,

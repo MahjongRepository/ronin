@@ -1,0 +1,13 @@
+The countdown, decision and discard effects are FLAC encodings of the WAV files at
+commit 9670029a2dae985cfff6de7f28db17276ab8c0c9, in this directory.
+
+Encoding command, once per source:
+  ffmpeg -i source.wav -map_metadata -1 -codec:a flac -compression_level 12 \
+    -metadata_header_padding 0 output.flac
+
+The countdown's floating-point samples become 24-bit PCM; the other effects retain
+their 16-bit PCM samples. Sample rates and channel counts are unchanged.
+
+Use FLAC for these short effects: a 64 kbps MP3 trial added about 25 ms of leading
+decoder padding in WebKit. Chromium and WebKit decode the FLAC files with the
+original sample counts and onset timing. Audio is still loaded eagerly.
