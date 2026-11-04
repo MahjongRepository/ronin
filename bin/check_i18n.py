@@ -65,6 +65,7 @@ APPS = (
         source_roots=("backend/lobby",),
         source_suffixes=frozenset({".py", ".html"}),
         dynamic_prefixes=("auth.error.",),
+        identical_keys=frozenset({"nav.beta", "page.title.default", "page.title.with_page"}),
         literals_in_namespaces_are_keys=True,
     ),
     App(
@@ -73,6 +74,7 @@ APPS = (
         source_roots=("frontend/lobby/src",),
         source_suffixes=frozenset({".ts"}),
         dynamic_prefixes=("occupancy.", "room.error."),
+        identical_keys=frozenset({"nav.beta", "page.title.with_page"}),
         markup_roots=("backend/lobby/views/templates",),
     ),
 )

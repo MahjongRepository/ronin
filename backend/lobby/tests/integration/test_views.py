@@ -218,7 +218,7 @@ class TestLobbyViews:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert f'data-room-name="{room.name}"' in response.text
-        assert f"<title>{room.name} · Ronin Mahjong</title>" in response.text
+        assert f"<title>{room.name} · Ronin Beta</title>" in response.text
         assert 'data-chat-max-length="1000"' in response.text
         assert 'action="/lang"' in response.text.split("<footer", 1)[1]
 

@@ -82,10 +82,11 @@
     },
     "lobby.tables.title": "カスタム卓",
     "nav.aria_label": "メイン",
+    "nav.beta": "Beta",
     "nav.history": "履歴",
     "nav.log_in": "ログイン",
     "nav.log_out": "ログアウト",
     "nav.register": "登録",
-    "page.title.default": "Ronin 麻雀",
-    "page.title.with_page": "{page} · Ronin 麻雀"
+    "page.title.default": "Ronin Beta",
+    "page.title.with_page": "{page} · Ronin Beta"
 }

@@ -1,6 +1,6 @@
-// Lobby navigation bar
-
 .lobby-nav {
+    --pico-nav-element-spacing-vertical: 0.6rem;
+
     padding-block: 0;
     margin-bottom: 0.5rem;
     background: linear-gradient(var(--ronin-border), var(--ronin-border)) bottom / 100% 1px
@@ -17,6 +17,10 @@
 
         gap: 0.25rem;
     }
+}
+
+.lobby-account {
+    --pico-nav-element-spacing-horizontal: 0.25rem;
 }
 
 .lobby-brand {
@@ -36,10 +40,35 @@
     }
 }
 
+.lobby-wordmark {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+
+    @media (width <= 576px) {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.1rem;
+        line-height: 1.1;
+    }
+}
+
+.lobby-beta {
+    padding: 0.15rem 0.3rem;
+    border: 1px solid color-mix(in srgb, var(--ronin-gold) 45%, transparent);
+    border-radius: var(--ronin-radius-sm);
+    background: color-mix(in srgb, var(--ronin-gold) 8%, transparent);
+    font-size: 0.5rem;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    color: var(--ronin-gold);
+}
+
 .lobby-logo {
     display: inline-block;
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 2.2rem;
+    height: 2.2rem;
     flex-shrink: 0;
     background-color: var(--pico-primary);
     mask-image: url("@/assets/logo.svg");
@@ -54,8 +83,25 @@
     }
 
     @media (width <= 576px) {
-        width: 2rem;
-        height: 2rem;
+        width: 1.75rem;
+        height: 1.75rem;
+    }
+}
+
+.lobby-logout {
+    margin: 0;
+    padding: 0.35rem 0.5rem;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: var(--ronin-text-secondary);
+    white-space: nowrap;
+
+    &:hover {
+        background: var(--ronin-surface-elevated);
+        color: var(--pico-color);
     }
 }
 
@@ -90,7 +136,7 @@
     }
 
     &[aria-current="page"] {
-        color: var(--pico-color);
+        color: var(--pico-primary);
         text-decoration: underline;
         text-decoration-color: var(--pico-primary);
         text-decoration-thickness: 2px;
@@ -99,7 +145,8 @@
 }
 
 @media (width <= 576px), (pointer: coarse) {
-    .lobby-nav .lobby-nav-link {
+    .lobby-nav .lobby-nav-link,
+    .lobby-logout {
         display: inline-flex;
         align-items: center;
         min-height: var(--ronin-touch-target);

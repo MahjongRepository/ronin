@@ -87,10 +87,11 @@
     },
     "lobby.tables.title": "Custom tables",
     "nav.aria_label": "Main",
+    "nav.beta": "Beta",
     "nav.history": "History",
     "nav.log_in": "Log in",
     "nav.log_out": "Log out",
     "nav.register": "Register",
-    "page.title.default": "Ronin Mahjong",
-    "page.title.with_page": "{page} · Ronin Mahjong"
+    "page.title.default": "Ronin Beta",
+    "page.title.with_page": "{page} · Ronin Beta"
 }

@@ -276,7 +276,7 @@ describe("initRoomPage language switch", () => {
             lang: "ru",
             languageLabel: "Язык",
             navLabel: "Основное меню",
-            title: "Jade Crane · Маджонг Ronin",
+            title: "Jade Crane · Ronin Beta",
         });
         expect(readRoom(container)).toEqual({
             chat: ["You joined the table"],
