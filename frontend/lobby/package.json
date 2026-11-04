@@ -6,7 +6,7 @@
         "dev": "vite",
         "build": "vite build",
         "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
-        "lint": "oxlint --deny-warnings . && stylelint 'src/**/*.scss' && sass --fatal-deprecation=\"$(sass --version | cut -d ' ' -f 1)\" --quiet-deps --no-source-map --style=compressed --load-path=node_modules src/styles/lobby-app.scss:/dev/null",
+        "lint": "oxlint --deny-warnings . && stylelint 'src/**/*.scss' && node scripts/check-build.ts",
         "lint:fix": "oxlint --fix . && stylelint --fix 'src/**/*.scss'",
         "fmt": "oxfmt",
         "fmt:check": "oxfmt --check",
@@ -14,7 +14,6 @@
         "test:watch": "vitest"
     },
     "dependencies": {
-        "@picocss/pico": "2.1.1",
         "lit-html": "3.3.3"
     },
     "devDependencies": {

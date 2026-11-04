@@ -1,5 +1,5 @@
-@use "../type";
-@use "queries" as *;
+@use "@/styles/type";
+@use "@/styles/game-board/queries" as *;
 
 .board-center {
     --score-size: max(11px, calc(var(--c) * 0.12));

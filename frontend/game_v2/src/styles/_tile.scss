@@ -1,4 +1,4 @@
-@use "game-board/queries" as *;
+@use "@/styles/game-board/queries" as *;
 
 /* The tile box, 3:4 from its width (60px standalone; a board sets `--tile-w`): the face artwork inset by the same
    room on every side, 8% of the width (6% of the height), and the corners a share of the box. */

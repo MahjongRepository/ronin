@@ -47,8 +47,9 @@ the lowest layer allowed to hold it. `src/fixtures/` is generated data; only sto
 ## Conventions
 
 * lit-html components are functions returning a `TemplateResult`; named exports only; no `console.log`.
-* Styles: Pico CSS v2, dark scheme only (`styles/_pico.scss` assembles its modules; enable a module there before using
-  its element). Every colour is a `--ronin-*` token from `styles/_theme.scss`, never a literal. Tile material is
+* Styles: the locally maintained Pico subset in `src/assets/vendor/pico/`, dark scheme only
+  (`styles/_pico.scss` assembles its modules; add styles there before using a new element).
+  Every colour is a `--ronin-*` token from `styles/_theme.scss`, never a literal. Tile material is
   `styles/_tile.scss`'s alone. One face, `--ronin-font`; aligning figures take `type.figures` on their own numeric
   element.
 * Zod is `zod/mini` only (lint bans classic: it does not tree-shake and its JIT breaks the CSP). `zod-setup.ts` stays

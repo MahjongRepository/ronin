@@ -18,12 +18,10 @@ export default defineConfig({
         preprocessorOptions: {
             scss: {
                 fatalDeprecations: activeSassDeprecations,
-                loadPaths: ["node_modules"],
-                quietDeps: true,
             },
         },
     },
-    publicDir: false,
+    publicDir: "legal",
     resolve: {
         alias: {
             "@": resolve(import.meta.dirname, "src"),

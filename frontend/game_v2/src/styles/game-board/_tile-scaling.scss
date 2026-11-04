@@ -1,4 +1,4 @@
-@use "grid" as *;
+@use "@/styles/game-board/grid" as *;
 
 /* Every tile on the board takes its size from the region it lies in (`--board-tile-w`, `--board-tile-h`): the own
    hand's tile, a river tile, a back, a meld's scale, an indicator. */

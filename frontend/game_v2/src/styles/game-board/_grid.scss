@@ -1,5 +1,5 @@
-@forward "queries";
-@use "queries" as *;
+@forward "@/styles/game-board/queries";
+@use "@/styles/game-board/queries" as *;
 
 .game-board {
     container: game-board / size;

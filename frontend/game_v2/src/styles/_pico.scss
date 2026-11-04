@@ -1,6 +1,6 @@
 /* Assembled by hand rather than through Pico's index: index.html always sets data-theme="dark", so only the dark
    scheme is emitted (no light or prefers-color-scheme copy), with only the modules the game pages use. */
-@use "@picocss/pico/scss/settings" with (
+@use "@/assets/vendor/pico/scss/settings" with (
     $theme-color: "jade",
     $enable-semantic-container: true,
     $enable-classes: true,
@@ -40,22 +40,22 @@
         "utilities/reduce-motion": true,
     )
 );
-@use "@picocss/pico/scss/themes/default/styles";
-@use "@picocss/pico/scss/themes/default/dark";
-@use "@picocss/pico/scss/layout/document";
-@use "@picocss/pico/scss/layout/landmarks";
-@use "@picocss/pico/scss/layout/section";
-@use "@picocss/pico/scss/content/typography";
-@use "@picocss/pico/scss/content/link";
-@use "@picocss/pico/scss/content/button";
-@use "@picocss/pico/scss/content/embedded";
-@use "@picocss/pico/scss/content/code";
-@use "@picocss/pico/scss/content/misc";
-@use "@picocss/pico/scss/forms/basics";
-@use "@picocss/pico/scss/components/nav";
-@use "@picocss/pico/scss/components/accordion";
-@use "@picocss/pico/scss/utilities/accessibility";
-@use "@picocss/pico/scss/utilities/reduce-motion";
+@use "@/assets/vendor/pico/scss/themes/default/styles";
+@use "@/assets/vendor/pico/scss/themes/default/dark";
+@use "@/assets/vendor/pico/scss/layout/document";
+@use "@/assets/vendor/pico/scss/layout/landmarks";
+@use "@/assets/vendor/pico/scss/layout/section";
+@use "@/assets/vendor/pico/scss/content/typography";
+@use "@/assets/vendor/pico/scss/content/link";
+@use "@/assets/vendor/pico/scss/content/button";
+@use "@/assets/vendor/pico/scss/content/embedded";
+@use "@/assets/vendor/pico/scss/content/code";
+@use "@/assets/vendor/pico/scss/content/misc";
+@use "@/assets/vendor/pico/scss/forms/basics";
+@use "@/assets/vendor/pico/scss/components/nav";
+@use "@/assets/vendor/pico/scss/components/accordion";
+@use "@/assets/vendor/pico/scss/utilities/accessibility";
+@use "@/assets/vendor/pico/scss/utilities/reduce-motion";
 
 [data-theme="dark"] {
     @include dark.theme;

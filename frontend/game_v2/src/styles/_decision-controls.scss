@@ -1,5 +1,5 @@
-@use "game-board/grid" as *;
-@use "type";
+@use "@/styles/game-board/grid" as *;
+@use "@/styles/type";
 
 $row: 40px;
 $choice-tile-share: 0.45;

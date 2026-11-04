@@ -1,4 +1,4 @@
-@use "grid" as *;
+@use "@/styles/game-board/grid" as *;
 
 /* The panel stands centred on the board as far as its free box (`boardGeometry`'s) allows, and sizes its tiles from
    that box; a wide panel lays the round end out in two columns under the hand so it fits without scrolling. */

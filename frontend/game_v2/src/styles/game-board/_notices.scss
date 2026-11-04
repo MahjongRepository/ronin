@@ -1,5 +1,5 @@
-@use "grid" as *;
-@use "../type";
+@use "@/styles/game-board/grid" as *;
+@use "@/styles/type";
 
 @property --whole-extra {
     syntax: "<length>";

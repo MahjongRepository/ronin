@@ -1,4 +1,4 @@
-@use "game-board/queries" as *;
+@use "@/styles/game-board/queries" as *;
 
 @each $name in rb, rgap, status-left, status-right {
     @property --#{$name} {

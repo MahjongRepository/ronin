@@ -1,4 +1,4 @@
-@use "grid" as *;
+@use "@/styles/game-board/grid" as *;
 
 /* The dora indicator slots under the top strip's line, `--counters-h` tall, its indicators centred down it, over the
    left badge from its edge, clear of the left strip; the honba and riichi-stick counts are the centre's. */

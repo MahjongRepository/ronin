@@ -48,7 +48,8 @@ it exists; a seated player refused the same way mid-start just waits for `game_s
   that reads or writes the socket, taking the state first), `ui.ts` (templates only, never the
   socket), `index.ts` (wiring). The server is authoritative: derive ready state, owner and start
   permission from its messages, don't keep a local copy.
-* Styles: Pico CSS v2 (`styles/_pico.scss`) styles semantic HTML; add classes only for
+* Styles: the locally maintained Pico subset (`src/assets/vendor/pico/`, assembled by `styles/_pico.scss`)
+  styles semantic HTML; add classes only for
   project-specific components. Use the `--ronin-*` tokens from `styles/_theme.scss` rather than
   literal colors and fonts. `styles/lobby-app.scss` is the one entry stylesheet. Block text
   inherits `color`, so set it on the wrapper; focus comes from the one shared outline in

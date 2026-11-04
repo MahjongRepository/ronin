@@ -1,4 +1,4 @@
-@use "@picocss/pico/scss" with (
+@use "@/assets/vendor/pico/scss/settings" with (
     $theme-color: "jade",
     $enable-semantic-container: true,
     $enable-classes: true,
@@ -38,3 +38,22 @@
         "utilities/reduce-motion": true,
     )
 );
+@use "@/assets/vendor/pico/scss/themes/default";
+@use "@/assets/vendor/pico/scss/layout/document";
+@use "@/assets/vendor/pico/scss/layout/landmarks";
+@use "@/assets/vendor/pico/scss/layout/section";
+@use "@/assets/vendor/pico/scss/layout/container";
+@use "@/assets/vendor/pico/scss/layout/grid";
+@use "@/assets/vendor/pico/scss/layout/overflow-auto";
+@use "@/assets/vendor/pico/scss/content/typography";
+@use "@/assets/vendor/pico/scss/content/link";
+@use "@/assets/vendor/pico/scss/content/button";
+@use "@/assets/vendor/pico/scss/content/embedded";
+@use "@/assets/vendor/pico/scss/content/code";
+@use "@/assets/vendor/pico/scss/content/misc";
+@use "@/assets/vendor/pico/scss/forms/basics";
+@use "@/assets/vendor/pico/scss/components/card";
+@use "@/assets/vendor/pico/scss/components/group";
+@use "@/assets/vendor/pico/scss/components/nav";
+@use "@/assets/vendor/pico/scss/utilities/accessibility";
+@use "@/assets/vendor/pico/scss/utilities/reduce-motion";

@@ -1,5 +1,5 @@
-@use "game-board/queries" as *;
-@use "type";
+@use "@/styles/game-board/queries" as *;
+@use "@/styles/type";
 
 /* The live game on an upright screen narrower than this shows the rotate panel instead of its table. */
 $rotate-below-width: 600px;
