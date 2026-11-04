@@ -24,8 +24,9 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
   (`refusalOf`).
 - A round confirm closes only on the next deal. Its deadline is the timeout the round end names, never a count of
   result pages. A double ron confirms only from its last page.
-- **After riichi**, a fresh draw with no offers stays in the hand for one second before discarding automatically,
-  regardless of the play switches. Its wait-bound deadline uses the dispatcher clock and is cancelled when the
+- **Automatic discards**, after riichi or with Auto discard on, hold a fresh draw with no offers in the hand for
+  one second. Riichi discards happen regardless of the play switches; otherwise turning Auto discard off cancels
+  the pending discard. The wait-bound deadline uses the dispatcher clock and is cancelled when the
   decision is answered or lost, including on disconnect or desync. A kan or
   win offer stays answerable by the player (Auto win can still claim a win). `automaticStep` uses the same unseen-wait
   guard as the switches, so a duplicate, reconnect or refusal never causes a repeated automatic answer. The locked

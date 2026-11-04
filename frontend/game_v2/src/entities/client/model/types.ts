@@ -301,7 +301,7 @@ export interface LiveClient extends ClientBase {
     readonly firstDealDue: number | null;
     /** The play switches the player turned on for this hand; a deal turns them off. */
     readonly switches: PlaySwitches;
-    readonly riichiDiscard: {
+    readonly automaticDiscard: {
         readonly waitId: number;
         readonly due: number;
         readonly tileId: number;

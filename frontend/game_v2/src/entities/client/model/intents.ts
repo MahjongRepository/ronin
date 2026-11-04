@@ -15,7 +15,7 @@ import {
     type PlaySwitch,
 } from "./types";
 
-const RIICHI_DRAW_HOLD_MS = 1000;
+const AUTOMATIC_DRAW_HOLD_MS = 1000;
 
 /**
  * Whether the client may answer what its seat owes: its session holds the seat. Out of step the seat owes nothing,
@@ -104,15 +104,15 @@ export function automaticStep(
         decision.kind === "turn" &&
         decision.opening.kind === "draw" &&
         decision.offers.length === 0 &&
-        viewerOf(state)?.isRiichi
+        (viewerOf(state)?.isRiichi || answer?.bySwitch === "auto_discard")
     ) {
         return {
             effects: [],
             state: {
                 ...state,
-                riichiDiscard: {
+                automaticDiscard: {
                     bySwitch: answer?.bySwitch ?? null,
-                    due: state.now + RIICHI_DRAW_HOLD_MS,
+                    due: state.now + AUTOMATIC_DRAW_HOLD_MS,
                     tileId: decision.opening.drawnTileId,
                     waitId: decision.waitId,
                 },
@@ -124,8 +124,8 @@ export function automaticStep(
         : decisionIntentStep(state, answer.intent, answer.bySwitch);
 }
 
-export function settleRiichiDiscard(state: LiveClient): LiveClient {
-    const scheduled = state.riichiDiscard;
+export function settleAutomaticDiscard(state: LiveClient): LiveClient {
+    const scheduled = state.automaticDiscard;
     const decision = decisionOf(state);
     if (scheduled === null) {
         return state;
@@ -133,21 +133,22 @@ export function settleRiichiDiscard(state: LiveClient): LiveClient {
     if (
         !canAnswer(state) ||
         decision?.waitId !== scheduled.waitId ||
-        decision.status.kind === "submitted"
+        decision.status.kind === "submitted" ||
+        (!state.switches.auto_discard && !viewerOf(state)?.isRiichi)
     ) {
-        return { ...state, riichiDiscard: null };
+        return { ...state, automaticDiscard: null };
     }
     return state;
 }
 
-export function discardRiichiDrawStep(state: LiveClient): ClientStep<LiveClient> {
-    const settled = settleRiichiDiscard(state);
-    const scheduled = settled.riichiDiscard;
+export function discardAutomaticDrawStep(state: LiveClient): ClientStep<LiveClient> {
+    const settled = settleAutomaticDiscard(state);
+    const scheduled = settled.automaticDiscard;
     if (scheduled === null || state.now < scheduled.due) {
         return { effects: [], state: settled };
     }
     return decisionIntentStep(
-        { ...settled, riichiDiscard: null },
+        { ...settled, automaticDiscard: null },
         { tileId: scheduled.tileId, type: "discard" },
         scheduled.bySwitch,
     );

@@ -51,8 +51,8 @@ import {
     automaticStep,
     canAnswer,
     decisionIntentStep,
-    discardRiichiDrawStep,
-    settleRiichiDiscard,
+    discardAutomaticDrawStep,
+    settleAutomaticDiscard,
     toggleSwitchStep,
 } from "./intents";
 import { keptNotice, submittedWaitId, withNotice } from "./notices";
@@ -425,7 +425,7 @@ function onReplayLine(state: ReplayClient, raw: Record<string, unknown>): Replay
 
 function onTick(state: LiveClient): ClientStep<LiveClient> {
     const session = withSession(state, { at: state.now, kind: "tick" });
-    const discarded = discardRiichiDrawStep(session.state);
+    const discarded = discardAutomaticDrawStep(session.state);
     return { effects: [...session.effects, ...discarded.effects], state: discarded.state };
 }
 
@@ -521,6 +521,7 @@ export function startGameClient(
 ): ClientStep<LiveClient> {
     const step = startSession(gameId, handoff, at);
     const state: LiveClient = {
+        automaticDiscard: null,
         boardMotion: { mode: "reset", sequence: 0 },
         calls: null,
         firstDealDue: null,
@@ -531,7 +532,6 @@ export function startGameClient(
         now: at,
         pendingGameSeconds: null,
         resyncRequests: 0,
-        riichiDiscard: null,
         session: step.state,
         showsLastResult: false,
         switches: SWITCHES_OFF,
@@ -561,7 +561,7 @@ export function nextDeadline(state: LiveClient): number | null {
         sessionDeadline(session),
         desyncDeadline(state),
         decisionDue,
-        state.riichiDiscard?.due ?? null,
+        state.automaticDiscard?.due ?? null,
         notice?.until ?? null,
         calls?.until ?? null,
     ].filter((deadline) => deadline !== null);
@@ -593,7 +593,7 @@ export function traceLiveClient(state: LiveClient, stamped: LiveEvent): TracedSt
     const step = stepLiveEvent({ ...state, now: event.at }, event);
     const settled = settleDesync({ ...step, state: settledPending(step.state) });
     const expired = expireAt(settled.state, event.at);
-    const next = settleRiichiDiscard(expired);
+    const next = settleAutomaticDiscard(expired);
     const changed = next.table !== state.table;
     const reset =
         step.parsed?.type === "game_reconnected" ||

@@ -984,7 +984,35 @@ function openPlainRiichiDraw(connection: FakeConnection): ClientMessage {
     return buildDiscardAction(Number(plain.d) % NUM_TILES, Number(plain.wi));
 }
 
+function openAutoDiscardDraw(connection: FakeConnection, host: HTMLElement): ClientMessage {
+    const { transcript } = loadSeatScenario("anchor_seat_1");
+    connection.handlers.onOpen();
+    for (const payload of receivedThrough(transcript, "own turn").slice(0, -1)) {
+        connection.handlers.onMessage(payload);
+    }
+
+    press(host, '.play-switch[title="Auto discard"]');
+    const draw = receivedPayload(transcript, "own turn");
+    connection.handlers.onMessage(draw);
+    return buildDiscardAction(Number(draw.d) % NUM_TILES, Number(draw.wi));
+}
+
 describe("mountGameView board", () => {
+    it("holds an Auto discard draw for one second before the driver sends it", () => {
+        const { connections, clock, host } = mountWithFakes();
+        const [connection] = connections;
+        const discard = openAutoDiscardDraw(connection, host);
+        expect(connection.sent).toEqual([JOIN]);
+        expect(host.querySelectorAll(".board-local .hand-tile--selectable")).toHaveLength(14);
+
+        clock.advanceTo(999);
+        expect(connection.sent).toEqual([JOIN]);
+
+        clock.advanceTo(1000);
+        expect(connection.sent).toEqual([JOIN, discard]);
+        expect(host.querySelectorAll(".board-local .hand-tile--selected")).toHaveLength(1);
+    });
+
     it("shows a post-riichi draw for one second before the driver sends its discard", () => {
         const { connections, clock, host } = mountWithFakes();
         const [connection] = connections;

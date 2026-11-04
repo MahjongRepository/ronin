@@ -6,7 +6,6 @@ import {
     branchAfter,
     checkpointState,
     expecting,
-    insertedAfter,
     loadSeatScenario,
     receivedPayload,
     switchedOnBefore,
@@ -256,16 +255,53 @@ describe("automatic answers", () => {
 
         expect(bySwitch(stateAt(switched, run, "kyuushu chosen"))).toBeNull();
     });
+});
 
-    it("Auto discard discards a plain draw's tile, never on the turn after the viewer's chi", () => {
+describe("automatic discards", () => {
+    it("Auto discard holds a plain draw for one second, never discarding on the turn after the viewer's chi", () => {
         const { scenario, transcript } = loadSeatScenario("call_prompt_seat_1");
-        const discard = drawnDiscard(receivedPayload(transcript, "next turn"));
-        const switchedOn = switchedOnBefore(scenario, "prompt", ["auto_discard"]);
-        const switched = expecting(switchedOn, "next turn", [discard]);
+        const draw = receivedPayload(transcript, "next turn");
+        const switched = branchAfter(
+            switchedOnBefore(scenario, "prompt", ["auto_discard"]),
+            "next turn",
+            [
+                received(14_500, draw, "repeated before discard"),
+                { event: { at: 14_999, kind: "tick" }, label: "waiting" },
+                {
+                    effects: [drawnDiscard(draw)],
+                    event: { at: 15_000, kind: "tick" },
+                    label: "sent",
+                },
+                { event: { at: 16_000, kind: "tick" } },
+            ],
+        );
         const run = runClean(switched);
 
         expect(bySwitch(stateAt(switched, run, "discarded"))).toBeNull();
-        expect(bySwitch(stateAt(switched, run, "next turn"))).toBe("auto_discard");
+        const waiting = stateAt(switched, run, "waiting");
+        expect(bySwitch(waiting)).toBe("open");
+        expect(nextDeadline(waiting)).toBe(15_000);
+        expect(
+            waiting.table.players.find((player) => player.seat === waiting.viewerSeat)?.drawnTileId,
+        ).toBe(Number(draw.d) % NUM_TILES);
+        expect(bySwitch(stateAt(switched, run, "sent"))).toBe("auto_discard");
+    });
+
+    it("cancels a pending Auto discard when switched off, leaving the current draw to the player if switched back on", () => {
+        const { scenario } = loadSeatScenario("call_prompt_seat_1");
+        const toggle = { playSwitch: "auto_discard", type: "toggle_switch" } as const;
+        const switched = branchAfter(
+            switchedOnBefore(scenario, "prompt", ["auto_discard"]),
+            "next turn",
+            [
+                { event: { at: 14_500, intent: toggle, kind: "intent" } },
+                { event: { at: 14_600, intent: toggle, kind: "intent" } },
+                { event: { at: 15_000, kind: "tick" } },
+            ],
+        );
+        const state = lastState(runClean(switched));
+        expect(bySwitch(state)).toBe("open");
+        expect(state.switches.auto_discard).toBe(true);
     });
 
     it.each([false, true])(
@@ -298,6 +334,23 @@ describe("automatic answers", () => {
             expect(bySwitch(stateAt(branch, unswitchedRun, "refused"))).toBe("open");
         },
     );
+
+    it("keeps the riichi discard scheduled when Auto discard is switched off during the hold", () => {
+        const { branch } = runPlainRiichiDraw(true);
+        const switchedOff = branchAfter(branch, "plain", [
+            {
+                event: {
+                    at: 13_500,
+                    intent: { playSwitch: "auto_discard", type: "toggle_switch" },
+                    kind: "intent",
+                },
+            },
+            { effects: stepEffects(branch, "sent"), event: { at: 14_000, kind: "tick" } },
+        ]);
+        const state = lastState(runClean(switchedOff));
+        expect(decisionOf(state)?.status.kind).toBe("submitted");
+        expect(state.switches.auto_discard).toBe(false);
+    });
 
     it("leaves a post-riichi kan and its replacement draw's tsumo to the player", () => {
         const { scenario } = loadSeatScenario("riichi_kan_seat_1");
@@ -333,7 +386,7 @@ describe("automatic answers", () => {
         ]);
         const state = lastState(runClean(disconnected));
         expect(decisionOf(state)).toBeNull();
-        expect(state.riichiDiscard).toBeNull();
+        expect(state.automaticDiscard).toBeNull();
         expect(nextDeadline(state)).toBe(14_500);
     });
 });
@@ -478,7 +531,6 @@ describe("stepGameClient - play switches", () => {
         }
 
         const unreadable = drawOffering(aa);
-        expect(drawOffering([]).effects).toEqual([sent(buildDiscardAction(drawnTile, 999))]);
         expect(unreadable.effects.map((effect) => effect.type)).toEqual([
             "report_protocol_failure",
             "send",
@@ -496,16 +548,23 @@ describe("stepGameClient - play switches", () => {
         const discard = drawnDiscard(ownTurn);
         const switchedOn = switchedOnBefore(scenario, "own turn", ["auto_discard"]);
         const refusal = {
-            at: 20_200,
+            at: 21_200,
             kind: "server_message",
             raw: wireRuleRefusal(Number(ownTurn.wi)),
         } as const;
-        const switched = insertedAfter(expecting(switchedOn, "own turn", [discard]), "own turn", [
+        const switched = branchAfter(switchedOn, "own turn", [
+            { effects: [discard], event: { at: 21_000, kind: "tick" }, label: "sent" },
             { event: refusal, label: "refused" },
+            { event: { at: 21_300, kind: "tick" } },
+            {
+                effects: stepEffects(scenario, "discarded"),
+                event: { ...stepAt(scenario, "discarded"), at: 21_500 },
+                label: "discarded",
+            },
         ]);
         const run = runClean(switched);
 
-        expect(bySwitch(stateAt(switched, run, "own turn"))).toBe("auto_discard");
+        expect(bySwitch(stateAt(switched, run, "sent"))).toBe("auto_discard");
         expect(bySwitch(stateAt(switched, run, "refused"))).toBe("open");
         expect(bySwitch(stateAt(switched, run, "discarded"))).toBeNull();
     });
