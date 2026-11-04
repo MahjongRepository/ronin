@@ -28,6 +28,8 @@ The stylesheet emits only the forced dark scheme. Storybook and developer-footer
 through a development-only import; the production build check rejects them and unused theme schemes.
 Pico's form styles are trimmed to the lobby's inputs and chat composer. Extend this local subset
 when adding a control; do not reintroduce entire upstream form or layout modules for one element.
+Typography uses system sans-serif and monospace fonts, with Japanese fallback stacks selected by
+the nearest `lang` attribute. The lobby makes no external font requests.
 
 ## Handoff
 

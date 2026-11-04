@@ -32,7 +32,7 @@ def _build_csp_headers(
     Build path-specific CSP header sets.
 
     Two tiers:
-    - Lobby (all non-game pages, including rooms): scripts + same-origin connect, Google Fonts
+    - Lobby (all non-game pages, including rooms): scripts + same-origin connect, system fonts
     - Game: scripts + external WebSocket connect, self-hosted fonts only
 
     When vite_dev_url is set, both tiers also allow scripts and WebSocket from that origin.
@@ -55,8 +55,8 @@ def _build_csp_headers(
     lobby_csp = (
         "default-src 'self'; "
         f"script-src 'self'{vite_script}; "
-        f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com{vite_style}; "
-        "font-src 'self' https://fonts.gstatic.com; "
+        f"style-src 'self' 'unsafe-inline'{vite_style}; "
+        "font-src 'self'; "
         + vite_img
         + f"connect-src 'self'{vite_connect}; "
         + "frame-ancestors 'none'; form-action 'self'; base-uri 'self'"

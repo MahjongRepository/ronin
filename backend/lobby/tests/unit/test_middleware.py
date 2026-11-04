@@ -28,8 +28,8 @@ _LOBBY_SECURITY_HEADERS = {
     "x-frame-options": "DENY",
     "content-security-policy": (
         "default-src 'self'; script-src 'self'; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "font-src 'self' https://fonts.gstatic.com; connect-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "font-src 'self'; connect-src 'self'; "
         "frame-ancestors 'none'; form-action 'self'; base-uri 'self'"
     ),
 }
@@ -275,7 +275,7 @@ class TestSecurityHeadersMiddlewareViteDev:
     ):
         response = vite_client.get("/items")
         csp = response.headers["content-security-policy"]
-        assert "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com http://localhost:5173" in csp
+        assert "style-src 'self' 'unsafe-inline' http://localhost:5173;" in csp
 
     def test_security_headers_middleware__when_vite_dev_on_lobby__should_allow_vite_images(
         self, vite_client: TestClient

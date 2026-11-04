@@ -67,13 +67,15 @@
     --ronin-radius-pill: 999px;
     --pico-border-radius: var(--ronin-radius-md);
     --ronin-touch-target: 2.75rem;
+    --ronin-font-mono:
+        ui-monospace, "SFMono-Regular", menlo, monaco, consolas, "Liberation Mono", monospace;
 }
 
 :root,
-[lang="en"] {
-    --ronin-font-display: "Space Grotesk", sans-serif;
-    --ronin-font-body: "DM Sans", sans-serif;
-    --ronin-font-mono: "JetBrains Mono", "SF Mono", monospace;
+[lang="en"],
+[lang="ru"] {
+    --ronin-font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --ronin-font-display: var(--ronin-font-body);
 }
 
 [lang="ja"] {
@@ -81,17 +83,6 @@
         system-ui, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic",
         meiryo, "Noto Sans CJK JP", "Noto Sans JP", sans-serif;
     --ronin-font-body: var(--ronin-font-display);
-    --ronin-font-mono:
-        "JetBrains Mono", "SF Mono", "Hiragino Sans", "Yu Gothic UI", meiryo, "Noto Sans CJK JP",
-        monospace;
-}
-
-[lang="ru"] {
-    --ronin-font-display:
-        system-ui, -apple-system, "Segoe UI", roboto, "Noto Sans", "Helvetica Neue", arial,
-        sans-serif;
-    --ronin-font-body: var(--ronin-font-display);
-    --ronin-font-mono: "JetBrains Mono", "SF Mono", monospace;
 }
 
 body {

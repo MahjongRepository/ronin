@@ -428,12 +428,13 @@ honours this contract can replace it.
   language, then English; an explicit language choice writes the same cookie so the lobby follows it.
   The game server sends codes, never text to show: errors carry a code beside an English diagnostic
   message the client does not display.
-* **CSP:** game pages allow scripts, styles and fonts from `'self'` (inline styles too; no Google
-  Fonts, which only the lobby pages load) and WebSocket connections to any host; no `eval`, so a
+* **CSP:** game pages allow scripts, styles and fonts from `'self'` (inline styles too) and WebSocket
+  connections to any host; no `eval`, so a
   library that compiles code at runtime must run without it. A client needing more changes
   `SecurityHeadersMiddleware` in the lobby. The CSP goes by path, so a lobby error page answered
   on a game path (a 404 under `/play/` or `/game-assets/`, the 502/503 when the game client is
-  unavailable, any 500) gets the game tier and falls back to the system fonts, an accepted cost.
+  unavailable, any 500) gets the game tier. Lobby pages use system fonts on every path; the game
+  client self-hosts its font. Neither loads fonts from a third-party service.
 
 ## Local run
 
