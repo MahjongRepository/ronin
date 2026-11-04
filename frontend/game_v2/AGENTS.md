@@ -22,7 +22,7 @@ The board's look is `docs/game-client-look.md`; where it and any `AGENTS.md` or 
   absorbing a wall clock set back and counting a forward jump as time that passed (a sleep pauses
   `performance.now` on several platforms, so a forward step cannot be told from one; the server's deadlines really
   passed). Views take it as `deps.clock`; a test gives them `steadyClockOn` a `ManualClock`.
-* **Views are controller instances, one per mount.** `index.ts` alone wires the browser's sources (socket factory,
+* **Views are controller instances, one per mount.** `index.ts` and the lazy `replay-entry.ts` wire the browser's sources (socket factory,
   loader, clock, storage). A view keeps no module state, looks up no element by id, takes input only through its own
   root, and its dispose cancels every timer, socket, fetch and listener it owns; a callback after dispose is dropped.
 * **Components take faces, mappers take ids.** `Hand`, `Discards`, `Meld` take `TileFace`s; `GameBoard` renders a
@@ -31,10 +31,10 @@ The board's look is `docs/game-client-look.md`; where it and any `AGENTS.md` or 
   Every playable tile is a native button whatever its state.
 * A new route also needs its path in the lobby's game page list (`backend/lobby/server/app.py`), which 404s others.
   The replay is a lazy route. Storybook routes, fixtures and styles are development-only and the
-  production build check rejects them. `npm run build:dev` builds them into `dist-dev/` for visual checks;
+  production build rejects their modules, markup and styles, and any replay-only module reachable through an
+  entry's static imports. `npm run build:dev` builds storybooks into `dist-dev/` for visual checks;
   `npm run build` keeps `dist/` production-only.
-  Pico form rules and the board debug overlay belong to the storybook stylesheet; shared Pico form theme tokens
-  remain in the base theme so the storybook controls inherit the same palette.
+  Pico form rules and theme tokens, non-button links and the board debug overlay belong to the storybook stylesheet.
 * `package.json` `sideEffects` lists every module with an import-time effect; a new one goes there or the build drops it.
 * UI text is English literals; there are no catalogs. Game logic uses protocol codes and ids, never displayed text.
 
@@ -55,7 +55,7 @@ the lowest layer allowed to hold it. `src/fixtures/` is generated data; only sto
   (`styles/_pico.scss` assembles its modules; add styles there before using a new element).
   Every colour is a `--ronin-*` token from `styles/_theme.scss`, never a literal. Tile material is
   `styles/_tile.scss`'s alone. One face, `--ronin-font`; aligning figures take `type.figures` on their own numeric
-  element.
+  element. The font stack matches the lobby's system sans-serif stack; no font files are downloaded.
 * Zod is `zod/mini` only (lint bans classic: it does not tree-shake and its JIT breaks the CSP). `zod-setup.ts` stays
   the first import of `index.ts`.
 * Lint and format follow the lobby's config; keep them in sync. `new-cap` exceptions list this app's components.

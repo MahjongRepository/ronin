@@ -56,6 +56,10 @@ $plate-seats: bottom, right, top, left;
     background: var(--ronin-badge);
     border-radius: 6px;
 
+    @include small-chrome {
+        padding-inline: 0.4em;
+    }
+
     /* Whose turn it is: a bar along the pill's bottom edge, the same on every seat. */
     &::after {
         position: absolute;

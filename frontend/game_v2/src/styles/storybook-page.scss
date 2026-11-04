@@ -1,3 +1,11 @@
+@use "@/assets/vendor/pico/scss/content/link";
 @use "@/assets/vendor/pico/scss/forms/basics";
+@use "@/assets/vendor/pico/scss/themes/default/forms";
 @use "@/styles/game-board/debug";
 @use "@/styles/storybook";
+
+[data-theme="dark"] {
+    --pico-form-element-background-color: #0b1517;
+    --pico-form-element-border-color: #2e464b;
+    --pico-form-element-focus-color: #f2b544;
+}

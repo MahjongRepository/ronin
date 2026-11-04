@@ -2,6 +2,19 @@
 @use "@/assets/vendor/pico/scss/settings" as *;
 
 @if map.get($modules, "forms/basics") {
+  input:not(
+      [type="submit"],
+      [type="button"],
+      [type="reset"],
+      [type="checkbox"],
+      [type="radio"],
+      [type="file"]
+    ),
+  :where(select, textarea) {
+    #{$css-var-prefix}outline-width: 0.0625rem;
+  }
+
+
   // Helper
   $helper-previous-tags: "input, select, textarea, fieldset";
   /**

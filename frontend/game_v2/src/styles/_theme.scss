@@ -1,20 +1,8 @@
 /* The board's palette: treatment A of the approved look (docs/game-client-look.md, Material and type), a dark teal
    table, ivory faces, one accent for the player's own action. Components use these tokens, never literal colours. */
 
-/* The one face, self-hosted (assets/fonts/SOURCE.txt). Swap: text never hides while it loads (a countdown reads at
-   once); index.html preloads it, so it usually lands before the board does. */
-@font-face {
-    font-family: Inter;
-    src: url("@/assets/fonts/inter-latin.woff2") format("woff2");
-    font-weight: 400 800;
-    font-style: normal;
-    font-display: swap;
-}
-
 [data-theme="dark"] {
     --pico-background-color: #183735;
-    --pico-card-background-color: #0f1c1f;
-    --pico-card-sectioning-background-color: #142427;
     --pico-color: #e8efeb;
     --pico-muted-color: #a8bab4;
     --pico-muted-border-color: #2e464b;
@@ -37,9 +25,6 @@
     --pico-secondary-hover-border: #6d8a94;
     --pico-secondary-focus: rgb(214 236 230 / 25%);
     --pico-secondary-inverse: #e2eae6;
-    --pico-form-element-background-color: #0b1517;
-    --pico-form-element-border-color: #2e464b;
-    --pico-form-element-focus-color: #f2b544;
     --pico-del-color: #ff9c8f;
 }
 
@@ -128,10 +113,7 @@
     --ronin-switch-on: #86dfc0;
     --ronin-switch-on-face: rgb(99 199 166 / 14%);
     --ronin-switch-on-knob: #0f1c1f;
-
-    /* Inter, then the system's sans-serif for glyphs outside its Latin subset (a name in another script). Only the
-       debug views (the game's ?debug log, the storybook's sent messages) keep a system monospace. */
-    --ronin-font: "Inter", system-ui, -apple-system, "Segoe UI", "Roboto", "Noto Sans", sans-serif;
+    --ronin-font: system-ui, -apple-system, "Segoe UI", sans-serif;
     --ronin-font-debug: ui-monospace, "SF Mono", "Menlo", "Consolas", "Liberation Mono", monospace;
     --pico-font-family-sans-serif: var(--ronin-font);
     --pico-font-family-monospace: var(--ronin-font-debug);

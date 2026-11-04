@@ -24,10 +24,6 @@ export async function fetchReplay(gameId: string, signal: AbortSignal): Promise<
     return { ok: true, text: await response.text() };
 }
 
-export function isAbortError(error: unknown): boolean {
-    return error instanceof DOMException && error.name === "AbortError";
-}
-
 function abortError(): DOMException {
     return new DOMException("The replay load was cancelled", "AbortError");
 }

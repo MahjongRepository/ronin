@@ -3,6 +3,9 @@
 The dispatcher, its state, what the seat owes, desync recovery, play switches, timelines, seat scenarios and the live
 board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
 
+Live and replay dispatch live in separate modules so the live entry never imports replay parsing. Both use the same
+table transition and call model; replay dispatch loads with the replay route.
+
 ## What the seat owes
 
 - The seat owes at most one thing: a decision or a round confirm, never both. It owes only while its session holds

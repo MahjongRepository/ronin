@@ -1,4 +1,4 @@
-/* Figures that align (scores, counts, timers, results): Inter's tabular digits. Geometric precision keeps headless
+/* Figures that align (scores, counts, timers, results): tabular digits. Geometric precision keeps headless
    Chromium from snapping each glyph advance to a whole pixel, which drifts tabular digits apart; numbers only. */
 @mixin figures {
     font-variant-numeric: tabular-nums;

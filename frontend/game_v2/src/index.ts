@@ -21,10 +21,9 @@ import {
     readInputSetting,
     readSoundSetting,
 } from "@/entities/client";
-import { DEFAULT_REPLAY_PREFS, readReplayPrefs } from "@/entities/replay";
 import { type TileSprite, injectTileSprite, loadTileSprite } from "@/entities/tile";
 import { type Route, lazyRoute, startRouter } from "@/router";
-import { fetchGameHandoff, fetchReplay } from "@/shared/api";
+import { fetchGameHandoff } from "@/shared/api";
 import { browserClock } from "@/shared/clock";
 import {
     gamePageUrl,
@@ -43,9 +42,6 @@ import {
 import { GameSocket } from "@/shared/websocket";
 import { type GameViewDeps, mountGameView } from "@/views/game";
 import type * as StorybookRoutes from "@/views/storybook-routes";
-
-/** Where this browser keeps the replay reader's settings. */
-const REPLAY_PREFS_KEY = "ronin.v2.replay-prefs";
 
 const VOICE_VOLUME = 0.2;
 const DISCARD_VOLUME = 0.1;
@@ -135,37 +131,6 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
     };
 }
 
-function replaceSearch(search: string): void {
-    const { hash, pathname } = window.location;
-    window.history.replaceState(window.history.state, "", `${pathname}${search}${hash}`);
-}
-
-/** Call `listener` as the page is hidden or left, when a waiting address write must land. */
-function onPageHide(listener: () => void): () => void {
-    function onHidden(): void {
-        if (document.visibilityState === "hidden") {
-            listener();
-        }
-    }
-    window.addEventListener("pagehide", listener);
-    document.addEventListener("visibilitychange", onHidden);
-    return () => {
-        window.removeEventListener("pagehide", listener);
-        document.removeEventListener("visibilitychange", onHidden);
-    };
-}
-
-function replayDeps() {
-    return {
-        clock: browserClock,
-        links: { history: getLobbyHistoryUrl(), lobby: getLobbyUrl() },
-        loadReplay: fetchReplay,
-        location: { onPageHide, replaceSearch, search: window.location.search },
-        prefs: localStore(REPLAY_PREFS_KEY, readReplayPrefs, DEFAULT_REPLAY_PREFS),
-        sound: gameSound(),
-    };
-}
-
 /** A storybook page, loaded with the rest of the storybook the first time one is opened. */
 function storybookRoute(
     pattern: RegExp,
@@ -206,8 +171,8 @@ if (app) {
         [
             ...(import.meta.env.DEV ? createStorybookRoutes() : []),
             lazyRoute(/^\/play\/history\/(?<gameId>[^/]+)$/, async () => {
-                const { mountReplayView } = await import("@/views/replay");
-                return (host, params) => mountReplayView(host, params.gameId, replayDeps());
+                const { mountReplay } = await import("@/replay-entry");
+                return (host, params) => mountReplay(host, params.gameId, gameSound());
             }),
             {
                 mount: (host, params) =>

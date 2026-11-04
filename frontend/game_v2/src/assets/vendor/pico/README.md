@@ -7,9 +7,11 @@ This is Ronin's independently maintained copy. Edit these sources directly; we d
 with upstream. No npm package or regeneration step owns them. Only the modules selected by
 `src/styles/_pico.scss` and their transitive Sass dependencies were copied. Their source, import order, dark-only theme behavior and CSS variable
 names were preserved, including the supporting palette and settings definitions. Disabled
-component implementations and the light theme are absent. The initial extraction deliberately
-retains all previously enabled modules so it changes no styling; unused rules can be removed
-separately.
+component implementations and the light theme are absent. The selected modules retain only the
+elements and variants this client uses: navigation has no list or breadcrumb variants, embedded
+content is SVG, code formatting is for the message log's `pre`, and buttons have no contrast or
+file-input variants. Non-button links and form rules and colors load only with storybook styles.
+The document renders inside `#app`, so Pico's direct-body-child containers are absent.
 
 Preserve the original `LICENSE.md` here and its full notice in the app's
 `legal/THIRD_PARTY_NOTICES.txt`. Vite copies `legal/` into `dist/`, so the notice accompanies the

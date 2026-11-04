@@ -3,6 +3,8 @@ import { resolve } from "path";
 import { deprecations } from "sass";
 import { defineConfig } from "vite";
 
+import { createProductionAssetCheck } from "./scripts/production-assets.ts";
+
 const activeSassDeprecations = Object.values(deprecations).filter((d) => d.status === "active");
 
 const port = parseInt(process.env.GAME_V2_VITE_PORT || "5175", 10);
@@ -21,6 +23,7 @@ export default defineConfig({
             },
         },
     },
+    plugins: [createProductionAssetCheck()],
     publicDir: "legal",
     resolve: {
         alias: {

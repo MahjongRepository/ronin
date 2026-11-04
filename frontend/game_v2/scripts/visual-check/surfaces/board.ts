@@ -15,7 +15,7 @@ import {
     near,
     sameBox,
 } from "../boxes.ts";
-import { ACTION, boardCase, decisionCase, documentCase } from "../cases.ts";
+import { ACTION, boardCase, documentCase } from "../cases.ts";
 import {
     type BoardRun,
     type PageCase,
@@ -179,12 +179,6 @@ const PAGES: readonly PageCase[] = [
         ],
         longNames: true,
         rightSecondLine: true,
-    },
-    {
-        ...decisionCase("anchor_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
-        at: [FLOOR, MID_DESKTOP],
-        fontBlocked: true,
-        name: "font-blocked-anchor-turn",
     },
 ];
 

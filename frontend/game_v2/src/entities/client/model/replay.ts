@@ -6,7 +6,7 @@ import {
     readReplayFile,
 } from "@/entities/table";
 
-import { startReplayClient, traceReplayClient } from "./dispatch";
+import { startReplayClient, traceReplayClient } from "./replay-dispatch";
 import { type ClientTimeline, type TimelineEntry } from "./timeline";
 import { type ReplayClient } from "./types";
 

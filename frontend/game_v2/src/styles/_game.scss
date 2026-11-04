@@ -178,6 +178,7 @@ section {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    width: max-content;
     min-width: 13rem;
     max-width: min(22rem, 90cqw);
     max-height: 75cqh;

@@ -2,6 +2,10 @@
 @use "@/assets/vendor/pico/scss/settings" as *;
 
 @if map.get($modules, "content/link") {
+  a {
+    #{$css-var-prefix}text-decoration: underline;
+  }
+
   /**
    * Link
    */
@@ -61,9 +65,4 @@
     }
   }
 
-  #{$parent-selector} a {
-    &[role="button"] {
-      display: inline-block;
-    }
-  }
 }

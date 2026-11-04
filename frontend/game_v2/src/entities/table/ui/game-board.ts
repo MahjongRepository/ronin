@@ -422,7 +422,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
         "game-board",
         props.localHand ? "game-board--play" : "",
         props.replay ? "game-board--replay" : "",
-        props.debug ? "game-board--debug" : "",
+        import.meta.env.DEV && props.debug ? "game-board--debug" : "",
         pinned === null ? "" : `game-board--diff-${pinned}`,
     ]
         .filter(Boolean)

@@ -2,7 +2,6 @@
    scheme is emitted (no light or prefers-color-scheme copy), with only the modules the game pages use. */
 @use "@/assets/vendor/pico/scss/settings" with (
     $theme-color: "jade",
-    $enable-semantic-container: true,
     $enable-classes: true,
     $modules: (
         "themes/default": true,
@@ -12,7 +11,7 @@
         "layout/section": true,
         "layout/grid": false,
         "layout/overflow-auto": false,
-        "content/link": true,
+        "content/link": false,
         "content/typography": true,
         "content/embedded": true,
         "content/button": true,
@@ -20,7 +19,7 @@
         "content/code": true,
         "content/figure": false,
         "content/misc": true,
-        "forms/basics": true,
+        "forms/basics": false,
         "forms/checkbox-radio-switch": false,
         "forms/input-color": false,
         "forms/input-date": false,
@@ -46,7 +45,6 @@
 @use "@/assets/vendor/pico/scss/layout/landmarks";
 @use "@/assets/vendor/pico/scss/layout/section";
 @use "@/assets/vendor/pico/scss/content/typography";
-@use "@/assets/vendor/pico/scss/content/link";
 @use "@/assets/vendor/pico/scss/content/button";
 @use "@/assets/vendor/pico/scss/content/embedded";
 @use "@/assets/vendor/pico/scss/content/code";

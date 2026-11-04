@@ -30,7 +30,6 @@ import { decisionsSurface } from "./surfaces/decisions.ts";
 import { noticesSurface } from "./surfaces/notices.ts";
 import { panelsSurface } from "./surfaces/panels.ts";
 import { replaySurface } from "./surfaces/replay.ts";
-import { checkFont, isBlockedFont } from "./text.ts";
 import { FLOOR, VIEWPORTS, checkCaptureModel, emulateInsets } from "./viewports.ts";
 
 /**
@@ -122,22 +121,19 @@ async function runPage(
     const report = new PageReport();
     const page = await context.newPage();
     page.on("console", (message) => {
-        if (message.type() === "error" && !isBlockedFont(pageCase, message.location().url)) {
+        if (message.type() === "error") {
             report.failures.push(`console error: ${message.text()}`);
         }
     });
     page.on("pageerror", (error) => report.failures.push(`page error: ${error.message}`));
     page.on("requestfailed", (request) => {
-        if (!isBlockedFont(pageCase, request.url())) {
-            report.failures.push(`request failed: ${request.url()}`);
-        }
+        report.failures.push(`request failed: ${request.url()}`);
     });
     try {
         await loadPage(page, pageCase, origin);
         await emulateInsets(page, viewport.insets);
         await checkCaptureModel(page, viewport, report);
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
-        await checkFont(page, pageCase, report);
         await page.waitForTimeout(SETTLE_MS);
         await checkTileFaces(page, report);
         report.summary = await checkPage({ page, report, viewport }, pageCase);
@@ -177,7 +173,6 @@ async function runTask(
             ? fixtures.frames.get(pageCase.checkpoint)
             : [];
     const context = await openContext(browser, viewport, {
-        fontBlocked: pageCase.fontBlocked,
         frames: frames ?? [],
         origin: fixtures.origin,
     });

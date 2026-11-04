@@ -25,7 +25,8 @@ export type {
     Sync,
     TurnDecision,
 } from "./model/types";
-export { nextDeadline, startGameClient, startReplayClient, stepGameClient } from "./model/dispatch";
+export { nextDeadline, startGameClient, stepGameClient } from "./model/dispatch";
+export { startReplayClient } from "./model/replay-dispatch";
 export { takesIntent } from "./model/intents";
 export { serverSilenceLimitMs } from "./model/silence";
 export { decisionOf, roundConfirmOf } from "./model/pending";

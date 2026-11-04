@@ -67,8 +67,6 @@ export type PageCase = PageKind & {
     readonly name: string;
     readonly path: string;
     readonly required: Required;
-    /** The face's request is refused, so the page must stay readable in the fallback stack. */
-    readonly fontBlocked?: boolean;
     /**
      * The viewports it is checked at, by name: where it is a worst case, or the one page guarding a path of the layout.
      * The floor alone (`FLOOR`) when absent.

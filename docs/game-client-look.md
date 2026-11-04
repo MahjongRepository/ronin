@@ -560,8 +560,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the accent so a strip of backs never reads as a control, its darker shade the back's layer under
   every tile's ivory body. Decision: the face artwork (the committed SVG set) stays; the room
   around the glyph comes from the tile box, not from new drawings, and a glyph that is still
-  unreadable at river scale with that room is reported, not redrawn in a ticket. Decision: one face,
-  Inter, self-hosted as a Latin subset, with its tabular digits wherever numbers align; no
+  unreadable at river scale with that room is reported, not redrawn in a ticket. Decision: the lobby's
+  system sans-serif stack, with tabular digits wherever numbers align; no downloaded fonts or
   monospace. Decision: one accent colour, used only for the player's own action (the primary
   control, the riichi toggle, a selected tile); the latest discard and the action source
   are neutral, the turn cue Tenhou's green, and every text, mark and glyph on every face state keeps 4.5:1. Text

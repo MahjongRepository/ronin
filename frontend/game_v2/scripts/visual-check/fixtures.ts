@@ -6,7 +6,6 @@ import { encode } from "@msgpack/msgpack";
 import { type Browser, type BrowserContext } from "playwright";
 
 import { GAME_ID, LIVE_CHECKPOINTS, type Viewport } from "./model.ts";
-import { FONT_EXTENSION } from "./text.ts";
 
 export const APP_ROOT = resolve(import.meta.dirname, "../..");
 const DIST = join(APP_ROOT, "dist-dev");
@@ -106,18 +105,15 @@ export async function startServer(): Promise<{ server: Server; origin: string }>
 
 /**
  * A context that keeps the run offline and deterministic: reduced motion, so a shot shows each animation's resting
- * state, nothing off the origin (the app's own face is served with it), the handoff set, the socket mocked. With
- * `fontBlocked`, the face's request is answered 404.
+ * state, nothing off the origin, the handoff set, the socket mocked.
  */
 export async function openContext(
     browser: Browser,
     viewport: Viewport,
     {
-        fontBlocked = false,
         frames,
         origin,
     }: {
-        readonly fontBlocked?: boolean;
         readonly frames: readonly Uint8Array[];
         readonly origin: string;
     },
@@ -127,12 +123,6 @@ export async function openContext(
         (url) => url.origin !== origin,
         (route) => route.fulfill({ body: "", contentType: "text/css", status: 200 }),
     );
-    if (fontBlocked) {
-        await context.route(
-            (url) => url.pathname.endsWith(FONT_EXTENSION),
-            (route) => route.fulfill({ body: "", status: 404 }),
-        );
-    }
     const wsUrl = `${origin.replace("http", "ws")}/ws/${GAME_ID}`;
     const handoff = JSON.stringify({ gameTicket: "visual-check", wsUrl });
     await context.addInitScript(([key, value]) => sessionStorage.setItem(key, value), [
