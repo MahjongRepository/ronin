@@ -10,7 +10,6 @@ if TYPE_CHECKING:
 
 MAX_SAMPLE_SPACING_SECONDS = 90
 _RESET_IDENTITIES = {"game_status": "boot || ' ' || started_at"}
-_SERIES_EXPORTED_AFTER_FIRST_EVENT_TABLES = frozenset({"traefik"})
 
 TRAEFIK_RETENTION_DAYS = 30
 
@@ -85,6 +84,7 @@ _PLAIN_HTTP_ROUTERS = "router NOT LIKE 'lobby-ws@%' AND router NOT LIKE 'game-ws
 _GAME_SOCKET_ROUTER = "router LIKE 'game-ws@%' AND protocol = 'websocket' AND code = '0'"
 _TRAEFIK_COUNT = "traefik_router_request_duration_seconds_count"
 _TRAEFIK_DURATION = "traefik_router_request_duration_seconds_sum"
+_SERIES_EXPORTED_AFTER_FIRST_EVENT_TOTALS_RESET_TOGETHER = {"traefik": (_TRAEFIK_COUNT, _TRAEFIK_DURATION)}
 
 
 def _traefik(name: str, *, unit: ChartUnit, value: str, series: str, basis: str = "timestamp") -> Counter:
@@ -221,12 +221,21 @@ class _FamilyColumns:
     conditions: tuple[tuple[str, tuple[str, ...]], ...]
 
     @classmethod
-    def of(cls, family: tuple[Counter, ...]) -> _FamilyColumns:
+    def of(cls, family: tuple[Counter, ...], *, reset_together: tuple[str, ...] = ()) -> _FamilyColumns:
+        """
+        Collect the family's expressions, plus ``reset_together``: totals read even when no counter of the family
+        returns them, since a decrease of any of them is a reset of all.
+        """
         values = dict.fromkeys(
-            expression
-            for counter in family
-            for expression in (counter.value, counter.basis)
-            if expression not in {None, "timestamp"}
+            [
+                *reset_together,
+                *(
+                    expression
+                    for counter in family
+                    for expression in (counter.value, counter.basis)
+                    if expression not in {None, "timestamp"}
+                ),
+            ]
         )
         conditions = dict.fromkeys((counter.series, counter.series_params) for counter in family)
         return cls(values=tuple(values), conditions=tuple(conditions))
@@ -319,12 +328,11 @@ def _bucket_rates(
 
 def _scrape_tick_rate(counter: Counter, columns: _FamilyColumns) -> str:
     value = f"events_{columns.value(counter.value)}_{columns.condition(counter)}"
-    if counter.basis is None:
-        rate = f"coalesce({value}, 0)"
-    elif counter.basis == "timestamp":
+    if counter.basis == "timestamp":
         rate = f"CAST(coalesce({value}, 0) AS REAL) / seconds"
     else:
-        rate = f"CAST({value} AS REAL) / nullif(events_{columns.value(counter.basis)}_{columns.condition(counter)}, 0)"
+        basis = f"events_{columns.values.index(counter.basis)}_{columns.condition(counter)}"
+        rate = f"CAST({value} AS REAL) / nullif({basis}, 0)"
     return f"CASE WHEN valid THEN {rate} END"
 
 
@@ -349,7 +357,7 @@ def _scrape_tick_rates(
         (window.start,),
     ).fetchone()
     loaded_from = window.start if previous_tick is None else previous_tick
-    columns = _FamilyColumns.of(family)
+    columns = _FamilyColumns.of(family, reset_together=_SERIES_EXPORTED_AFTER_FIRST_EVENT_TOTALS_RESET_TOGETHER[table])
     values = list(enumerate(columns.values))
     conditions = list(enumerate(columns.conditions))
     sample_columns = ", ".join(
@@ -412,7 +420,7 @@ def _scrape_tick_rates(
 def _family_rates(
     connection: sqlite3.Connection, *, family: tuple[Counter, ...], window: BucketWindow
 ) -> list[dict[int, float | None]]:
-    if family[0].table in _SERIES_EXPORTED_AFTER_FIRST_EVENT_TABLES:
+    if family[0].table in _SERIES_EXPORTED_AFTER_FIRST_EVENT_TOTALS_RESET_TOGETHER:
         return _scrape_tick_rates(connection, family=family, window=window)
 
     return _bucket_rates(connection, family=family, window=window)
@@ -423,7 +431,7 @@ def _newest_sample(connection: sqlite3.Connection, counter: Counter) -> int | No
     Return the timestamp of the counter's newest sample; for a table whose series appear only after their first event,
     the table's newest scrape tick, since a quiet series is current whenever the table is.
     """
-    if counter.table in _SERIES_EXPORTED_AFTER_FIRST_EVENT_TABLES:
+    if counter.table in _SERIES_EXPORTED_AFTER_FIRST_EVENT_TOTALS_RESET_TOGETHER:
         (newest,) = connection.execute(f"SELECT max(timestamp) FROM {counter.table}").fetchone()  # noqa: S608
         return newest
 

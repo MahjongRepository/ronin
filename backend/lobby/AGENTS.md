@@ -50,7 +50,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   (which would force WAL and create a schema). Reductions run in SQL, so a long range never loads raw
   samples. A chart's state comes from its own series: a missing file, table, column or series is never
   collected, a newest value older than three minutes is stale, any other read failure is unavailable
-  (logged), and the page still answers 200 with the games section.
+  (logged), and the page still answers 200 with the games section. Traefik exports a series only after
+  its first request and drops them all on a restart, so its charts take their state from the newest
+  scrape of any router, and a quiet series reads a current 0.
 * `players.py` — `LobbyPlayer`, one connected user and the only holder of its socket. Every send or
   close is an enqueue, so no handler, broadcast or reaper tick ever waits on a slow or dead peer.
 * `occupancy.py` — the one owner of the occupancy rule.

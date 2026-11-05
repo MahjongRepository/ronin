@@ -28,7 +28,8 @@ exactly what the admin page `/admin/monitoring` shows for that range, computed b
 
 - **`state`**: `current` (newest sample at most 3 minutes old), `stale` (older: the collector or its
   source stopped), `never_collected` (no file, table, column or series yet), `unavailable` (the read
-  failed). Only `current` describes now; say which state a number came from.
+  failed). Only `current` describes now; say which state a number came from. Traefik charts take it
+  from the newest scrape of any router, so a quiet series (no 5xx yet) is a current 0.
 - **`unit`**: the display unit the values are already in: `percent`, `gib`, `mib`,
   `kib_per_second`, `cores` (CPU seconds per second), `count`, `per_second`, `per_minute`,
   `milliseconds`, `seconds`.
@@ -62,7 +63,9 @@ with `'` and the `exists` column of `filestat` as `[exists]`.
   minute per series; rows of different tables are not taken at the same second, so never join on it.
 - Totals (CPU time, bytes, messages, `game_status` counters, Traefik counts) only grow until their
   owner restarts: compute rates from neighbouring samples, and treat a change of `boot` (every row) or
-  of `game_status.started_at` as a reset, not a drop.
+  of `game_status.started_at` as a reset, not a drop. A Traefik restart resets its counts with the
+  same `boot`: a series exists only after its first request, so one absent at the previous scrape
+  counts from zero. A Traefik mean (`_sum` over `_count`) is null for an interval with no requests.
 - Rows go back 90 days; `traefik` 30 days.
 
 ## Step 4: Report

@@ -193,26 +193,31 @@ async def test_read_metrics__when_traefik_series_differ__should_weigh_http_route
         ("game-ws@file", "403", "websocket", 1, 0.001),
         ("lobby-ws@file", "0", "websocket", 1, 300.0),
     ]
-    insert_metric_rows(
-        metrics_db,
-        "traefik",
-        [
-            _traefik_row(timestamp, router, code, count=per_tick * tick, seconds_per_request=seconds, protocol=protocol)
-            for tick, timestamp in enumerate(range(NOW - hour - 120, NOW + 1, 60), start=1)
-            for router, code, protocol, per_tick, seconds in series
-        ],
-    )
+    rows = [
+        _traefik_row(timestamp, router, code, count=per_tick * tick, seconds_per_request=seconds, protocol=protocol)
+        for tick, timestamp in enumerate(range(NOW - hour - 120, NOW + 1, 60), start=1)
+        for router, code, protocol, per_tick, seconds in series
+    ]
+    lobby_at_now = next(row for row in rows if row["timestamp"] == NOW and row["router"] == "lobby@file")
+    lobby_at_now["traefik_router_request_duration_seconds_sum"] = 1.0
+    insert_metric_rows(metrics_db, "traefik", rows)
 
-    response_time, server_errors, sockets_closed, socket_lifetime = await _charts_named(
+    response_time, requests, server_errors, sockets_closed, socket_lifetime = await _charts_named(
         metrics_db,
         MonitoringRange.HOUR,
         "response_time",
+        "requests",
         "server_errors",
         "game_sockets_closed",
         "game_socket_lifetime",
     )
 
-    assert response_time.buckets == pytest.approx([32.5] * len(response_time.buckets))
+    assert response_time.buckets[:-1] == pytest.approx([32.5] * (len(response_time.buckets) - 1))
+    duration_reset_requests = lobby_at_now["traefik_router_request_duration_seconds_count"] + 2
+    assert response_time.buckets[-1] == pytest.approx((1.0 + 2 * 0.1) * 1000 / duration_reset_requests)
+    assert requests.buckets[-1] == pytest.approx(duration_reset_requests)
+    assert requests.latest is not None
+    assert requests.latest.value == pytest.approx(duration_reset_requests)
     assert server_errors.state == ChartState.CURRENT
     assert server_errors.buckets == pytest.approx([0.0] * len(server_errors.buckets))
     assert sockets_closed.buckets == pytest.approx([1.0] * len(sockets_closed.buckets))
@@ -229,14 +234,18 @@ async def test_read_metrics__when_traefik_series_come_and_go__should_count_them_
     def tick_in_bucket(bucket, tick):
         return window_start + 300 * bucket + 35 + 60 * tick
 
-    traefik_restart, replays_return, first_502, reboot = (
+    traefik_restart, replays_return, first_502, reboot, missed_scrape = (
         tick_in_bucket(50, 2),
         tick_in_bucket(100, 1),
         tick_in_bucket(150, 3),
         tick_in_bucket(200, 2),
+        tick_in_bucket(250, 2),
     )
     rows, lobby_count, replays_count = [], 0, 0
     for timestamp in range(NOW - 86400 - 120, NOW + 1, 60):
+        if timestamp == missed_scrape:
+            continue
+
         boot = "b1" if timestamp < reboot else "b2"
         lobby_count = 6 if timestamp in {traefik_restart, reboot} else lobby_count + 6
         rows.append(
@@ -263,7 +272,7 @@ async def test_read_metrics__when_traefik_series_come_and_go__should_count_them_
         metrics_db, MonitoringRange.DAY, "requests", "client_errors", "server_errors"
     )
 
-    assert [index for index, value in enumerate(requests.buckets) if value is None] == [200]
+    assert [index for index, value in enumerate(requests.buckets) if value is None] == [200, 250]
     assert requests.buckets[50] == pytest.approx((8 + 8 + 6 + 6 + 6) / 5)
     assert client_errors.buckets[100] == pytest.approx(3 / 5)
     assert server_errors.buckets[149:152] == pytest.approx([0.0, 4.0, 0.0])

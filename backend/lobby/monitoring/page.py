@@ -32,6 +32,8 @@ STALE_AFTER_SECONDS = 180
 class ChartState(StrEnum):
     """
     How current a chart is, judged from its own series: a fresh row of another series never makes it current.
+
+    A Traefik chart is judged from the newest scrape of any router instead, since a quiet series is not exported.
     """
 
     CURRENT = "current"
@@ -103,7 +105,7 @@ def _retention_days(spec: Gauge | Counter, duration: timedelta) -> int | None:
 
 def _chart(spec: Gauge | Counter, rows: SeriesRows | ReadFailure, *, now: int, duration: timedelta) -> Chart:
     """
-    Turn a series' rows into its chart, scaled to the display unit, with the state its own newest sample gives.
+    Turn a series' rows into its chart, scaled to the display unit, with the state its newest sample gives.
     """
     if isinstance(rows, ReadFailure):
         return _empty_chart(spec, _FAILURE_STATES[rows])
