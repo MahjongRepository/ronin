@@ -196,6 +196,8 @@ class TestWebSocketIntegration:
             with pytest.raises(WebSocketDisconnect) as closed:
                 ws.receive_bytes()
             assert (closed.value.code, closed.value.reason) == (4004, "too_many_decode_errors")
+            status = client.get("/status").json()
+            assert (status["malformed_messages"], status["rate_limited_messages"]) == (4, 4)
 
 
 class TestHealthEndpoint:

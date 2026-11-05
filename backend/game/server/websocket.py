@@ -143,6 +143,8 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
                     connection.send_message(
                         ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).payload(),
                     )
+                else:
+                    socket_stats.rate_limited_messages += 1
 
                 if decode_errors >= _MAX_DECODE_ERRORS:
                     logger.info(
