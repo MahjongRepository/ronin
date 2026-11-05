@@ -7,5 +7,47 @@
     <div class="lobby-section-header">
         <h2>{{ t("monitoring.title") }}</h2>
     </div>
+
+    <nav class="monitoring-ranges" aria-label="{{ t('monitoring.range.label') }}">
+        {% for choice in range_choices %}
+        <a href="{{ choice.url }}" class="monitoring-range"{% if choice.is_current %} aria-current="page"{% endif %}>{{ choice.label }}</a>
+        {% endfor %}
+    </nav>
+
+    <div class="monitoring-panels">
+        <article class="monitoring-panel">
+            <h3>{{ t("monitoring.live.title") }}</h3>
+            {% if live_status %}
+            <dl class="monitoring-stats">
+                <div class="monitoring-stat"><dt>{{ t("monitoring.live.active") }}</dt><dd data-stat="active">{{ format_number(live_status.active_games) }}</dd></div>
+                <div class="monitoring-stat"><dt>{{ t("monitoring.live.pending") }}</dt><dd data-stat="pending">{{ format_number(live_status.pending_games) }}</dd></div>
+            </dl>
+            {% else %}
+            <p class="monitoring-unavailable">{{ t("monitoring.live.unavailable") }}</p>
+            {% endif %}
+        </article>
+
+        <article class="monitoring-panel">
+            <h3>{{ t("monitoring.games.title") }}</h3>
+            <dl class="monitoring-stats">
+                <div class="monitoring-stat"><dt>{{ t("monitoring.games.started") }}</dt><dd data-stat="started">{{ format_number(summary.started) }}</dd></div>
+                <div class="monitoring-stat"><dt>{{ t("monitoring.games.completed") }}</dt><dd data-stat="completed">{{ format_number(summary.completed) }}</dd></div>
+                <div class="monitoring-stat"><dt>{{ t("monitoring.games.abandoned") }}</dt><dd data-stat="abandoned">{{ format_number(summary.abandoned) }}</dd></div>
+                <div class="monitoring-stat"><dt>{{ t("monitoring.games.error") }}</dt><dd data-stat="error">{{ format_number(summary.error) }}</dd></div>
+                <div class="monitoring-stat"><dt>{{ t("monitoring.games.unfinished") }}</dt><dd data-stat="unfinished">{{ format_number(summary.unfinished) }}</dd></div>
+            </dl>
+
+            <h4>{{ t("monitoring.games.durations") }}</h4>
+            {% if completed_durations %}
+            <dl class="monitoring-stats">
+                <div class="monitoring-stat"><dt>{{ t("monitoring.games.duration_mean") }}</dt><dd data-stat="mean">{{ completed_durations.mean }}</dd></div>
+                <div class="monitoring-stat"><dt>{{ t("monitoring.games.duration_median") }}</dt><dd data-stat="median">{{ completed_durations.median }}</dd></div>
+                <div class="monitoring-stat"><dt>{{ t("monitoring.games.duration_p90") }}</dt><dd data-stat="p90">{{ completed_durations.p90 }}</dd></div>
+            </dl>
+            {% else %}
+            <p class="monitoring-unavailable">{{ t("monitoring.games.no_completed") }}</p>
+            {% endif %}
+        </article>
+    </div>
 </section>
 {% endblock %}

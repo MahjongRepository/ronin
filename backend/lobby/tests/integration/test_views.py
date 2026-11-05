@@ -1,5 +1,7 @@
 import json
 import re
+import sqlite3
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -486,6 +488,84 @@ class TestHistoryPage:
             response = c.get("/history", follow_redirects=False)
             assert response.status_code == 303
             assert "/login" in response.headers["location"]
+
+
+def _grant_admin(client, *, username: str) -> None:
+    with closing(sqlite3.connect(client.app.state.auth_settings.database_path)) as conn, conn:
+        conn.execute(
+            "UPDATE players SET data = json_set(data, '$.is_admin', json('true')) WHERE username = ?", (username,)
+        )
+
+
+def _shown_stats(page: str) -> dict[str, str]:
+    return dict(re.findall(r'data-stat="(\w+)">([^<]*)<', page))
+
+
+class TestMonitoringPage:
+    @pytest.fixture
+    def client(self, client):
+        register_with_csrf(client, "opsuser")
+        _grant_admin(client, username="opsuser")
+        return client
+
+    def test_monitoring_page__when_range_unknown__should_show_live_counts_and_the_default_ranges_games(
+        self, client, game_server
+    ):
+        game_server.respond = lambda _request: httpx.Response(
+            200, json={"status": "ok", "active_games": 1234, "pending_games": 2, "capacity_used": 1236}
+        )
+        now = datetime.now(UTC)
+        game_repo = client.app.state.game_repo
+        game_repo.finish_game(
+            PlayedGame(
+                game_id="two-days-ago",
+                started_at=now - timedelta(days=2),
+                ended_at=now - timedelta(days=2) + timedelta(minutes=10),
+                end_reason=GameEndReason.COMPLETED,
+            )
+        )
+        game_repo.finish_game(
+            PlayedGame(
+                game_id="today",
+                started_at=now - timedelta(hours=2),
+                ended_at=now - timedelta(hours=2) + timedelta(minutes=25, seconds=30),
+                end_reason=GameEndReason.COMPLETED,
+            )
+        )
+        game_repo.create_game(PlayedGame(game_id="playing", started_at=now - timedelta(minutes=5)))
+
+        response = client.get("/admin/monitoring?range=forever")
+        assert response.status_code == 200
+        assert _shown_stats(response.text) == {
+            "active": "1,234",
+            "pending": "2",
+            "started": "2",
+            "completed": "1",
+            "abandoned": "0",
+            "error": "0",
+            "unfinished": "1",
+            "mean": "25m 30s",
+            "median": "25m 30s",
+            "p90": "25m 30s",
+        }
+        assert re.findall(r'<a href="\?range=(\w+)" class="monitoring-range" aria-current="page">', response.text) == [
+            "24h"
+        ]
+
+    def test_monitoring_page__when_game_server_fails__should_show_live_counts_unavailable(self, client, game_server):
+        game_server.respond = lambda _request: httpx.Response(500)
+
+        response = client.get("/admin/monitoring?range=7d")
+        assert response.status_code == 200
+        assert "Unavailable: the game server did not answer" in response.text
+        assert "No completed games in this range" in response.text
+        assert _shown_stats(response.text) == {
+            "started": "0",
+            "completed": "0",
+            "abandoned": "0",
+            "error": "0",
+            "unfinished": "0",
+        }
 
 
 class TestGameSessionRoute:

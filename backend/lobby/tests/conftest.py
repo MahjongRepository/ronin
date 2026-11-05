@@ -82,13 +82,27 @@ class HeldLookup:
         return False
 
 
-def _refuse_connection(request: httpx.Request) -> httpx.Response:
+_IDLE_GAME_SERVER_STATUS = {
+    "status": "ok",
+    "pending_games": 0,
+    "active_games": 0,
+    "capacity_used": 0,
+    "max_capacity": 100,
+}
+
+
+def _answer_status_and_refuse_the_rest(request: httpx.Request) -> httpx.Response:
+    if request.url.path == "/status":
+        return httpx.Response(200, json=_IDLE_GAME_SERVER_STATUS)
+
     raise httpx.ConnectError("no game server in this test", request=request)
 
 
 class FakeGameServer:
     def __init__(self) -> None:
-        self.respond: Callable[[httpx.Request], httpx.Response | Awaitable[httpx.Response]] = _refuse_connection
+        self.respond: Callable[[httpx.Request], httpx.Response | Awaitable[httpx.Response]] = (
+            _answer_status_and_refuse_the_rest
+        )
 
     async def handle(self, request: httpx.Request) -> httpx.Response:
         response = self.respond(request)

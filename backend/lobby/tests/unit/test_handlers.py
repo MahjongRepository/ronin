@@ -6,7 +6,7 @@ import pytest
 
 from lobby.i18n import Locale, Translator, load_catalogs
 from lobby.views.assets import load_vite_manifest, resolve_vite_asset_urls
-from lobby.views.history_handlers import _format_duration, _prepare_history_for_display
+from lobby.views.history_handlers import _prepare_history_for_display, format_duration_seconds
 from shared.dal.models import PlayedGame, PlayedGameStanding
 
 _VIEWER_USER_ID = "viewer-user-id"
@@ -72,28 +72,23 @@ class TestResolveViteAssetUrls:
         assert "lobby_js" not in urls
 
 
-class TestFormatDuration:
-    def test_format_duration__when_under_a_minute__should_show_seconds(self):
-        now = datetime.now(UTC)
-        assert _format_duration(now - timedelta(seconds=45), now, translate=translate_en) == "45s"
+class TestFormatDurationSeconds:
+    def test_format_duration_seconds__when_under_a_minute__should_show_seconds(self):
+        assert format_duration_seconds(45.7, translate=translate_en) == "45s"
 
-    def test_format_duration__when_zero__should_show_0s(self):
-        now = datetime.now(UTC)
-        assert _format_duration(now, now, translate=translate_en) == "0s"
+    def test_format_duration_seconds__when_zero__should_show_0s(self):
+        assert format_duration_seconds(0, translate=translate_en) == "0s"
 
-    def test_format_duration__when_minutes_and_seconds__should_show_both(self):
-        now = datetime.now(UTC)
-        assert _format_duration(now - timedelta(minutes=5, seconds=30), now, translate=translate_en) == "5m 30s"
+    def test_format_duration_seconds__when_minutes_and_seconds__should_show_both(self):
+        assert format_duration_seconds(5 * 60 + 30, translate=translate_en) == "5m 30s"
 
-    def test_format_duration__when_exact_minutes__should_show_zero_seconds(self):
-        now = datetime.now(UTC)
-        assert _format_duration(now - timedelta(minutes=10), now, translate=translate_en) == "10m 0s"
+    def test_format_duration_seconds__when_exact_minutes__should_show_zero_seconds(self):
+        assert format_duration_seconds(10 * 60, translate=translate_en) == "10m 0s"
 
-    def test_format_duration__when_over_an_hour__should_show_hours_and_minutes(self):
-        now = datetime.now(UTC)
-        started_at = now - timedelta(hours=1, minutes=12)
-        assert _format_duration(started_at, now, translate=translate_en) == "1h 12m"
-        assert _format_duration(started_at, now, translate=functools.partial(_TRANSLATOR.translate, Locale.RU)) == (
+    def test_format_duration_seconds__when_over_an_hour__should_show_hours_and_minutes(self):
+        seconds = 3600 + 12 * 60
+        assert format_duration_seconds(seconds, translate=translate_en) == "1h 12m"
+        assert format_duration_seconds(seconds, translate=functools.partial(_TRANSLATOR.translate, Locale.RU)) == (
             "1 ч 12 мин"
         )
 

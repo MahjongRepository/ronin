@@ -8,7 +8,6 @@ from lobby.views.assets import render_page, translate_for_request
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from datetime import datetime
 
     from starlette.requests import Request
     from starlette.responses import Response
@@ -35,11 +34,11 @@ _GAME_TYPE_NAME_KEYS = {
 }
 
 
-def _format_duration(started_at: datetime, ended_at: datetime, *, translate: Translate) -> str:
+def format_duration_seconds(duration_seconds: float, *, translate: Translate) -> str:
     """
-    Format game duration in the page's language, e.g. '5m 30s', '1h 12m' or '45s' in English.
+    Format a duration in whole seconds in the page's language, e.g. '5m 30s', '1h 12m' or '45s' in English.
     """
-    seconds = max(int((ended_at - started_at).total_seconds()), 0)
+    seconds = max(int(duration_seconds), 0)
     if seconds >= SECONDS_PER_HOUR:
         hours = seconds // SECONDS_PER_HOUR
         minutes = (seconds % SECONDS_PER_HOUR) // SECONDS_PER_MINUTE
@@ -103,7 +102,9 @@ def _prepare_history_for_display(games: list[PlayedGame], user_id: str, *, trans
 
         duration_label = None
         if game.ended_at:
-            duration_label = _format_duration(game.started_at, game.ended_at, translate=translate)
+            duration_label = format_duration_seconds(
+                (game.ended_at - game.started_at).total_seconds(), translate=translate
+            )
 
         result.append(
             {

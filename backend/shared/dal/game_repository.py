@@ -4,7 +4,9 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from shared.dal.models import PlayedGame
+    from datetime import datetime
+
+    from shared.dal.models import GamesSummary, PlayedGame
 
 
 class GameRepository(ABC):
@@ -31,4 +33,10 @@ class GameRepository(ABC):
     async def get_recent_completed_games(self, limit: int = 20) -> list[PlayedGame]:
         """
         Return the most recently started completed games, newest first.
+        """
+
+    @abstractmethod
+    async def get_games_summary(self, *, since: datetime) -> GamesSummary:
+        """
+        Summarize the games started at or after ``since``, a UTC-aware datetime.
         """

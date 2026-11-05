@@ -1,8 +1,12 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Self
+from statistics import fmean
+from typing import TYPE_CHECKING, Self
 
 from pydantic import BaseModel, Field, model_validator
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
 
 
 class PlayedGameStanding(BaseModel, frozen=True):
@@ -44,6 +48,77 @@ class PlayedGame(BaseModel, frozen=True):
     num_rounds_played: int | None = None  # total rounds played (only set at game end)
     # at start: seat order with names/seats/user_ids; at end: placement order with scores
     standings: list[PlayedGameStanding] = Field(default_factory=list)
+
+
+type GameTiming = tuple[GameEndReason | None, datetime, datetime | None]
+
+
+def nearest_rank_percentile(sorted_values: Sequence[float], percent: int) -> float:
+    """
+    Return the nearest-rank percentile of ascending values: the ``ceil(percent / 100 * n)``-th smallest, at least the
+    first.
+    """
+    rank = max(-(-percent * len(sorted_values) // 100), 1)
+    return sorted_values[rank - 1]
+
+
+class DurationStats(BaseModel, frozen=True):
+    mean_seconds: float
+    median_seconds: float
+    p90_seconds: float
+
+
+class GamesSummary(BaseModel, frozen=True):
+    """
+    Counts of a cohort of games by how each ended, a game with no end being unfinished, and the completed games'
+    durations, None when the cohort has no completed game.
+    """
+
+    started: int
+    completed: int
+    abandoned: int
+    error: int
+    unfinished: int
+    completed_durations: DurationStats | None
+
+    @classmethod
+    def from_timings(cls, timings: Iterable[GameTiming]) -> Self:
+        """
+        Summarize games given as (end reason, start, end); a game without an end never counts as completed.
+        """
+        started = 0
+        unfinished = 0
+        ended_by_reason: dict[GameEndReason, int] = dict.fromkeys(GameEndReason, 0)
+        durations: list[float] = []
+        for end_reason, started_at, ended_at in timings:
+            started += 1
+            if ended_at is None:
+                unfinished += 1
+                continue
+
+            if end_reason is not None:
+                ended_by_reason[end_reason] += 1
+
+            if end_reason == GameEndReason.COMPLETED:
+                durations.append((ended_at - started_at).total_seconds())
+
+        durations.sort()
+        completed_durations = None
+        if durations:
+            completed_durations = DurationStats(
+                mean_seconds=fmean(durations),
+                median_seconds=nearest_rank_percentile(durations, 50),
+                p90_seconds=nearest_rank_percentile(durations, 90),
+            )
+
+        return cls(
+            started=started,
+            completed=ended_by_reason[GameEndReason.COMPLETED],
+            abandoned=ended_by_reason[GameEndReason.ABANDONED],
+            error=ended_by_reason[GameEndReason.ERROR],
+            unfinished=unfinished,
+            completed_durations=completed_durations,
+        )
 
 
 class AccountType(StrEnum):

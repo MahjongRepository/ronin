@@ -73,7 +73,17 @@ class _LiveSeat(BaseModel):
     game_ticket: str = Field(min_length=1)
 
 
+class GameServerStatus(BaseModel, frozen=True):
+    """
+    The game server's live game counts: games playing and games created but not yet started.
+    """
+
+    active_games: int = Field(ge=0)
+    pending_games: int = Field(ge=0)
+
+
 _PLAYING_LOOKUP_TIMEOUT_SECONDS = 2.0
+_STATUS_LOOKUP_TIMEOUT_SECONDS = 2.0
 _WITHDRAW_TIMEOUT_SECONDS = 2.0
 _HANDOFF_LOOKUP_TIMEOUT_SECONDS = 2.0
 _REPLAY_EXPORT_TIMEOUT_SECONDS = 10.0
@@ -245,6 +255,31 @@ async def is_user_playing(user_id: str, *, game_server: httpx.AsyncClient) -> bo
         )
 
     return False
+
+
+async def fetch_game_server_status(*, game_server: httpx.AsyncClient) -> GameServerStatus | None:
+    """
+    Ask the game server for its live game counts, within ``_STATUS_LOOKUP_TIMEOUT_SECONDS``.
+
+    A timeout, a transport failure, a status other than 200 or a malformed body is logged and returns None, so a caller
+    shows the counts as unavailable rather than as zero.
+    """
+    try:
+        async with asyncio.timeout(_STATUS_LOOKUP_TIMEOUT_SECONDS):
+            response = await game_server.get("/status")
+    except (httpx.HTTPError, TimeoutError) as e:
+        logger.warning("game server status lookup failed", error=repr(e))
+        return None
+
+    if response.status_code != HTTPStatus.OK:
+        logger.warning("game server status lookup got an unexpected status", status=response.status_code)
+        return None
+
+    try:
+        return GameServerStatus.model_validate_json(response.content)
+    except ValidationError:
+        logger.warning("game server status lookup got a malformed answer")
+        return None
 
 
 async def find_game_handoff(

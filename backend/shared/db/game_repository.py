@@ -1,11 +1,12 @@
 import json
+from datetime import datetime
 from functools import partial
 from typing import TYPE_CHECKING
 
 import structlog
 
 from shared.dal.game_repository import GameRepository
-from shared.dal.models import GameEndReason, PlayedGame
+from shared.dal.models import GameEndReason, GamesSummary, PlayedGame
 
 if TYPE_CHECKING:
     import sqlite3
@@ -36,6 +37,9 @@ class SqliteGameRepository(GameRepository):
         Retrieve the most recent completed games, ordered by started_at descending.
         """
         return await self._db.submit_read(partial(_select_recent_completed_games, limit=limit))
+
+    async def get_games_summary(self, *, since: datetime) -> GamesSummary:
+        return await self._db.submit_read(partial(_summarize_games_since, since=since))
 
 
 def _game_row(game: PlayedGame) -> tuple[str, str, str | None, str | None, str]:
@@ -76,3 +80,18 @@ def _select_recent_completed_games(conn: sqlite3.Connection, *, limit: int) -> l
         (GameEndReason.COMPLETED, limit),
     ).fetchall()
     return [PlayedGame.model_validate(json.loads(row[0])) for row in rows]
+
+
+def _summarize_games_since(conn: sqlite3.Connection, *, since: datetime) -> GamesSummary:
+    rows = conn.execute(
+        "SELECT end_reason, started_at, ended_at FROM played_games WHERE started_at >= ?",
+        (since.isoformat(),),
+    ).fetchall()
+    return GamesSummary.from_timings(
+        (
+            GameEndReason(end_reason) if end_reason else None,
+            datetime.fromisoformat(started_at),
+            datetime.fromisoformat(ended_at) if ended_at else None,
+        )
+        for end_reason, started_at, ended_at in rows
+    )

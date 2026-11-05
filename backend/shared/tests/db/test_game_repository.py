@@ -3,12 +3,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import pytest
 
-from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
+from shared.dal.models import DurationStats, GameEndReason, GamesSummary, PlayedGame, PlayedGameStanding
 from shared.db.connection import Database
 from shared.db.game_repository import SqliteGameRepository
 
@@ -173,3 +173,42 @@ class TestGetRecentCompletedGames:
 
         result = await repo.get_recent_completed_games(limit=3)
         assert [g.game_id for g in result] == ["done3", "done2", "done1"]
+
+
+class TestGamesSummary:
+    async def test_games_summary__when_games_before_and_in_range__should_count_only_those_started_since(
+        self, repo: SqliteGameRepository
+    ):
+        since = _STARTED_AT - timedelta(hours=1)
+        repo.finish_game(_finish("before-range", started_at=since - timedelta(seconds=1)))
+        repo.finish_game(_finish("completed"))
+        repo.finish_game(_finish("abandoned", end_reason=GameEndReason.ABANDONED))
+        repo.finish_game(_finish("error", end_reason=GameEndReason.ERROR))
+        repo.create_game(_start("still-playing"))
+
+        summary = await repo.get_games_summary(since=since)
+        assert summary.model_dump(exclude={"completed_durations"}) == {
+            "started": 4,
+            "completed": 1,
+            "abandoned": 1,
+            "error": 1,
+            "unfinished": 1,
+        }
+        assert summary.completed_durations == DurationStats(mean_seconds=3600, median_seconds=3600, p90_seconds=3600)
+
+    async def test_games_summary__when_completed_durations_known__should_take_nearest_rank_median_and_p90(
+        self, repo: SqliteGameRepository
+    ):
+        for minutes in (4, 1, 3, 2):
+            repo.finish_game(_finish(f"game-{minutes}", ended_at=_STARTED_AT + timedelta(minutes=minutes)))
+
+        summary = await repo.get_games_summary(since=_STARTED_AT)
+        assert summary.completed_durations == DurationStats(mean_seconds=150, median_seconds=120, p90_seconds=240)
+
+    async def test_games_summary__when_no_game_in_range__should_have_no_durations(self, repo: SqliteGameRepository):
+        repo.finish_game(_finish())
+
+        summary = await repo.get_games_summary(since=_ENDED_AT)
+        assert summary == GamesSummary(
+            started=0, completed=0, abandoned=0, error=0, unfinished=0, completed_durations=None
+        )
