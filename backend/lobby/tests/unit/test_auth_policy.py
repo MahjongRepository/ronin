@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -21,7 +20,10 @@ from lobby.auth.policy import (
     public_route,
     validate_route_auth_policy,
 )
-from shared.dal.models import AccountType
+from shared.dal.models import AccountType, Player
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator, Callable
 
 
 async def _login_page(request: Request) -> JSONResponse:
@@ -147,9 +149,17 @@ class TestBotOnly:
         assert result == "ok"
 
 
-def _app_with_admin_answer(*, is_admin: bool) -> SimpleNamespace:
-    auth_service = SimpleNamespace(is_admin=AsyncMock(return_value=is_admin))
-    return SimpleNamespace(state=SimpleNamespace(auth_service=auth_service))
+@pytest.fixture
+async def lobby_app(make_app: Callable[..., Starlette]) -> AsyncIterator[Starlette]:
+    app = make_app()
+    async with app.router.lifespan_context(app):
+        yield app
+
+
+async def _create_account(app: Starlette, *, is_admin: bool) -> None:
+    player_repo = app.state.auth_service._player_repo
+    await player_repo.create_player(Player(user_id="test-id", username="test", password_hash="$2b$04$fakehash"))
+    await player_repo.set_admin("test-id", is_admin=is_admin)
 
 
 class TestAdminHtml:
@@ -161,22 +171,22 @@ class TestAdminHtml:
         assert isinstance(result, RedirectResponse)
         assert result.headers["location"] == "/login?next=%2Fadmin%2Fmonitoring"
 
-    async def test_admin_html__when_account_not_admin__should_raise_404(self):
+    async def test_admin_html__when_account_not_admin__should_raise_404(self, lobby_app):
+        await _create_account(lobby_app, is_admin=False)
         wrapped = admin_html(_dummy_handler)
-        request = _make_request(authenticated=True, app=_app_with_admin_answer(is_admin=False))
+        request = _make_request(authenticated=True, app=lobby_app)
 
         with pytest.raises(HTTPException) as exc_info:
             await wrapped(request)
         assert exc_info.value.status_code == 404
 
-    async def test_admin_html__when_account_admin__should_call_handler(self):
+    async def test_admin_html__when_account_admin__should_call_handler(self, lobby_app):
+        await _create_account(lobby_app, is_admin=True)
         wrapped = admin_html(_dummy_handler)
-        app = _app_with_admin_answer(is_admin=True)
-        request = _make_request(authenticated=True, app=app)
+        request = _make_request(authenticated=True, app=lobby_app)
 
         result = await wrapped(request)
         assert result == "ok"
-        app.state.auth_service.is_admin.assert_awaited_once_with(user_id="test-id", username="test")
 
 
 def _make_handler() -> object:

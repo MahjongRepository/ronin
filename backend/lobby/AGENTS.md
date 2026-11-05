@@ -140,7 +140,7 @@ Mandatory for all lobby code; review must catch violations.
   never a login redirect.
 * `admin_html` reads the account's admin flag on every request, never from the session, so a grant or
   revoke applies at the next request. Any session without the flag, a guest's included, gets a 404, and
-  no page links to an admin route, so players never learn it exists.
+  no page links to an admin route, so signed-in non-admins never learn it exists.
 * Unknown `Host` headers are rejected; a new deployment host goes in the allowed-hosts setting.
 * Session and CSRF cookies are HttpOnly, SameSite=Lax and Secure by default; only the test
   environment turns Secure off. The `lang` cookie is the one exception to HttpOnly: it carries no
