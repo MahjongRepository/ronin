@@ -2,6 +2,7 @@ services:
   traefik:
     image: traefik:v3.7
     restart: unless-stopped
+    cgroup_parent: ronin-traefik.slice
     depends_on:
       lobby:
         condition: service_started
@@ -10,6 +11,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "127.0.0.1:8082:8082"
     volumes:
       - ./config/traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro
       - ./data/traefik:/letsencrypt
@@ -31,6 +33,12 @@ services:
       - "--accesslog=true"
       - "--accesslog.format=json"
       - "--accesslog.fields.headers.defaultmode=drop"
+      - "--entrypoints.metrics.address=:8082"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.entrypoint=metrics"
+      - "--metrics.prometheus.addrouterslabels=true"
+      - "--metrics.prometheus.addentrypointslabels=false"
+      - "--metrics.prometheus.addserviceslabels=false"
     logging:
       driver: journald
       options:
@@ -38,6 +46,7 @@ services:
 
   lobby:
     image: ghcr.io/mahjongrepository/ronin:latest
+    cgroup_parent: ronin-lobby.slice
     command: >
       uvicorn --factory lobby.server.app:get_app
       --host 0.0.0.0 --port 8710
@@ -84,6 +93,7 @@ services:
 
   game:
     image: ghcr.io/mahjongrepository/ronin:latest
+    cgroup_parent: ronin-game.slice
     command: >
       uvicorn --factory game.server.app:get_app
       --host 0.0.0.0 --port 8711

@@ -63,6 +63,12 @@ which holds the domain). `README.md` is the runbook for a new server and lists t
   compose and pulls in one task, never `spot-update` or the box's `make update`, which pull the new
   image under the old compose. Rolling such a release back needs the old compose too.
 * Lobby and game share one SQLite DB under `/opt/ronin/data/db/`.
+* **One cgroup slice per service.** Each compose service sets its own `cgroup_parent`
+  (`ronin-<service>.slice`), so the host collector finds every container's CPU, memory and OOM
+  numbers at a fixed cgroup path. A new service gets its own slice.
+* **Traefik's metrics port is loopback-only.** The Prometheus endpoint has its own `metrics`
+  entrypoint, published on `127.0.0.1:8082` for the host collector; it must never get a router or a
+  public binding.
 
 ## Logs and backups
 
