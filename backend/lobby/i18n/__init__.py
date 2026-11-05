@@ -7,4 +7,5 @@ from lobby.i18n.locale import resolve_request_locale as resolve_request_locale
 from lobby.i18n.locale import set_lang_cookie as set_lang_cookie
 from lobby.i18n.translator import I18nError as I18nError
 from lobby.i18n.translator import Translator as Translator
+from lobby.i18n.translator import format_decimal as format_decimal
 from lobby.i18n.translator import format_number as format_number

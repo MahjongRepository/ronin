@@ -60,6 +60,23 @@ def format_number(locale: Locale, number: int) -> str:
     return grouped.replace(",", _NARROW_NO_BREAK_SPACE) if locale == Locale.RU else grouped
 
 
+def format_decimal(locale: Locale, number: float) -> str:
+    """
+    Format a number rounded to one decimal, dropped when it is zero, with the locale's grouping and decimal mark.
+
+    The mark is a point in en and ja and a comma in ru.
+    """
+    rounded = round(number, 1)
+    if rounded.is_integer():
+        return format_number(locale, int(rounded))
+
+    grouped = f"{rounded:,.1f}"
+    if locale != Locale.RU:
+        return grouped
+
+    return grouped.replace(",", _NARROW_NO_BREAK_SPACE).replace(".", ",")
+
+
 def _is_number(value: object) -> TypeIs[int]:
     return isinstance(value, int) and not isinstance(value, bool)
 

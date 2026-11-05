@@ -160,7 +160,7 @@ type = "layers"
 layers = [
     "lobby.server",
     "lobby.views",
-    "lobby.rooms | lobby.matchmaking",
+    "lobby.rooms | lobby.matchmaking | lobby.monitoring",
     "lobby.game_transition | lobby.websocket_utils",
     "lobby.occupancy | lobby.players",
     "lobby.auth | lobby.i18n",

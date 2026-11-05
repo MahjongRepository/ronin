@@ -49,5 +49,42 @@
             {% endif %}
         </article>
     </div>
+
+    {% for group in chart_groups %}
+    <article class="monitoring-panel monitoring-chart-group">
+        <h3>{{ t(group.label_key) }}</h3>
+        <div class="monitoring-charts">
+            {% for chart in group.charts %}
+            <figure class="monitoring-chart" data-chart="{{ chart.key }}" data-state="{{ chart.state }}">
+                <figcaption class="monitoring-chart-caption">
+                    <span class="monitoring-chart-label">{{ t(chart.label_key) }}</span>
+                    {% if chart.latest %}
+                    <span class="monitoring-chart-latest">{{ t("monitoring.chart.latest", value=t(chart.unit_key, value=format_decimal(chart.latest.value)), age=chart.age) }}</span>
+                    {% endif %}
+                </figcaption>
+                {% if chart.state == "never_collected" %}
+                <p class="monitoring-chart-note">{{ t("monitoring.chart.never_collected") }}</p>
+                {% elif chart.state == "unavailable" %}
+                <p class="monitoring-unavailable">{{ t("monitoring.chart.unavailable") }}</p>
+                {% else %}
+                {% if chart.plot %}
+                <span class="monitoring-chart-axis">{{ t(chart.unit_key, value=format_decimal(chart.plot.axis_maximum)) }}</span>
+                <svg class="monitoring-chart-plot" viewBox="0 0 {{ plot_width }} {{ plot_height }}" preserveAspectRatio="none" aria-hidden="true">
+                    {% for line in chart.plot.lines %}
+                    <polyline points="{{ line }}"/>
+                    {% endfor %}
+                </svg>
+                {% else %}
+                <p class="monitoring-chart-note">{{ t("monitoring.chart.no_samples") }}</p>
+                {% endif %}
+                {% if chart.state == "stale" %}
+                <p class="monitoring-unavailable">{{ t("monitoring.chart.stale", age=chart.age) }}</p>
+                {% endif %}
+                {% endif %}
+            </figure>
+            {% endfor %}
+        </div>
+    </article>
+    {% endfor %}
 </section>
 {% endblock %}

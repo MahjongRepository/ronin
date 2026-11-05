@@ -24,6 +24,7 @@ flowchart LR
         Occ["Occupancy<br/>one place per user"]
         Start["start_game<br/>(game_transition.py)"]
         History["History & replay pages"]
+        Monitoring["Admin monitoring page"]
     end
 
     subgraph Game["Game server :8711"]
@@ -36,6 +37,8 @@ flowchart LR
 
     DB[("SQLite<br/>players, played_games")]
     Files[("Replay files")]
+    Collector["Host collector<br/>Telegraf --once, every minute"]
+    Metrics[("metrics.db")]
 
     LobbyPages -- "HTTP + JSON WebSocket" --> Auth
     Auth --> Rooms & MM
@@ -54,6 +57,10 @@ flowchart LR
     History --> DB
     History --> Files
     SM -- "start / finish records" --> DB
+    Collector -- "GET /status" --> REST
+    Collector --> Metrics
+    Monitoring -- "read-only" --> Metrics
+    Monitoring --> DB
 ```
 
 Key facts the diagram cannot show:
@@ -69,6 +76,10 @@ Key facts the diagram cannot show:
   checkpoints.
 * **SQLite is behind one worker thread per process**, and the game server's record writes are
   fire-and-forget (logged on failure).
+* **Monitoring is a host-side collector, not a service.** A systemd timer runs Telegraf once a
+  minute into its own SQLite file, `metrics.db` (host, cgroup slices, the game server's `/status`,
+  Traefik's loopback metrics, file sizes); the lobby's admin page opens it read-only on request and
+  reduces it in SQL. Nothing else reads or writes it (`deploy/AGENTS.md`, Metrics collector).
 
 ## Authentication
 
@@ -365,6 +376,7 @@ sequenceDiagram
 |---|---|---|
 | `players` (SQLite) | Lobby: register, bot registration script | Lobby auth |
 | `played_games` (SQLite) | Game server: start record at engine start, finish record from the end finalizer | Lobby history page |
+| `metrics.db` (SQLite, its own file) | Host collector (`ronin-metrics.timer`), one sample per minute; 90 days, Traefik 30 | Lobby admin monitoring page, read-only |
 | Replay files | Game server finalizer, completed and failed games (abandoned ones are discarded) | Lobby `/api/replays/{game_id}` and `/play/history/{game_id}`; game server's internal Tenhou export, behind the lobby's `/api/replays/{game_id}/tenhou.xml` |
 
 A replay file holds the game's recorded events plus replay-only annotation records the replay loader

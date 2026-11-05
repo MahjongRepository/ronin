@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+from contextlib import closing
 from typing import TYPE_CHECKING
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
@@ -35,3 +37,10 @@ def logout_with_csrf(client: TestClient) -> None:
     response = client.get("/")
     csrf = response.cookies.get(CSRF_COOKIE_NAME) or client.cookies.get(CSRF_COOKIE_NAME)
     client.post("/logout", data={"csrf_token": csrf})
+
+
+def grant_admin(client: TestClient, username: str) -> None:
+    with closing(sqlite3.connect(client.app.state.auth_settings.database_path)) as conn, conn:
+        conn.execute(
+            "UPDATE players SET data = json_set(data, '$.is_admin', json('true')) WHERE username = ?", (username,)
+        )

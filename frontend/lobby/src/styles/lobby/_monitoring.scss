@@ -77,3 +77,57 @@
     margin: 0;
     color: var(--ronin-warning);
 }
+
+.monitoring-chart-group {
+    margin-top: 1rem;
+}
+
+.monitoring-charts {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+    gap: 1rem;
+}
+
+.monitoring-chart {
+    display: grid;
+    align-content: start;
+    gap: 0.25rem;
+    margin: 0;
+}
+
+.monitoring-chart-caption {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.25rem 1rem;
+}
+
+.monitoring-chart-latest,
+.monitoring-chart-axis {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--ronin-text-secondary);
+}
+
+.monitoring-chart-plot {
+    display: block;
+    width: 100%;
+    height: 6rem;
+    border-bottom: 1px solid var(--ronin-control-border);
+    border-left: 1px solid var(--ronin-control-border);
+
+    polyline {
+        fill: none;
+        stroke: var(--ronin-gold);
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        vector-effect: non-scaling-stroke;
+    }
+}
+
+.monitoring-chart-note {
+    margin: 0;
+    color: var(--ronin-text-muted);
+}

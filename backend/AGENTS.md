@@ -51,6 +51,9 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 * Deployment-specific values are required fields: `deploy/docker-compose.yml` supplies them in
   production, `bin/local-settings.sh` locally, and `.env.tests` in tests, where the paths point at
   `/nonexistent/` so a test that touches them must pass its own `tmp_path`.
+* The lobby's metrics database path is required as well, though the file may be missing: it is the host
+  collector's `metrics.db`, read-only to the lobby (mounted `:ro` in production), and a missing file shows
+  as "never collected" on the monitoring page rather than failing startup.
 * Both servers share the game ticket secret (the lobby signs tickets, the game server verifies them),
   the internal API secret (the lobby's bearer token on the game server's credential-returning
   lookup) and the SQLite database.

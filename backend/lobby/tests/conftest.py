@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sqlite3
+from contextlib import closing
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
@@ -17,11 +20,28 @@ from shared.auth.settings import AuthSettings
 from shared.websocket import QueuedWebSocket
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Iterator
-    from pathlib import Path
+    from collections.abc import Awaitable, Callable, Iterable, Iterator
 
     from starlette.applications import Starlette
     from starlette.types import Message
+
+
+_METRICS_SCHEMA = Path(__file__).resolve().parents[3] / "deploy" / "config" / "metrics-schema.sql"
+
+
+def create_metrics_db(path: Path) -> None:
+    with closing(sqlite3.connect(path)) as conn, conn:
+        conn.executescript(_METRICS_SCHEMA.read_text())
+
+
+def insert_metric_rows(path: Path, table: str, rows: Iterable[dict[str, object]]) -> None:
+    rows = list(rows)
+    columns = list(rows[0])
+    with closing(sqlite3.connect(path)) as conn, conn:
+        conn.executemany(
+            f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({', '.join('?' * len(columns))})",  # noqa: S608
+            [tuple(row[column] for column in columns) for row in rows],
+        )
 
 
 class AsgiPeer:
@@ -128,6 +148,7 @@ def make_app(tmp_path: Path, game_server: FakeGameServer) -> Callable[..., Starl
         static_dir = tmp_path / "public"
         (static_dir / "styles").mkdir(parents=True, exist_ok=True)
         (static_dir / "styles" / "lobby.css").write_text("body { color: red; }")
+        settings_overrides.setdefault("metrics_db_path", str(tmp_path / "metrics.db"))
         return create_app(
             settings=LobbyServerSettings(static_dir=str(static_dir), **settings_overrides),
             auth_settings=AuthSettings(database_path=str(tmp_path / "test.db")),

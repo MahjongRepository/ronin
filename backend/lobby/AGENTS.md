@@ -42,6 +42,14 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   closed in the lifespan. Its idle connections expire well before the game server's keep-alive
   timeout (uvicorn's 5s default), since a start sent on a connection the server is closing fails
   ambiguously. Each call keeps its own deadline rather than the client's default.
+* `monitoring/` — the admin monitoring page's data: the `metrics.db` reader, the reductions, the chart
+  geometry and the one page-data assembly that takes the range and returns every chart, the games summary
+  and the live game-server counts; the handler only renders it. The lobby only reads `metrics.db`, which
+  the host collector owns: read-only, one short connection per page request, never through `shared.db`
+  (which would force WAL and create a schema). Reductions run in SQL, so a long range never loads raw
+  samples. A chart's state comes from its own series: a missing file, table, column or series is never
+  collected, a newest value older than three minutes is stale, any other read failure is unavailable
+  (logged), and the page still answers 200 with the games section.
 * `players.py` — `LobbyPlayer`, one connected user and the only holder of its socket. Every send or
   close is an enqueue, so no handler, broadcast or reaper tick ever waits on a slow or dead peer.
 * `occupancy.py` — the one owner of the occupancy rule.

@@ -11,6 +11,7 @@ class TestLobbyServerSettings:
             "LOBBY_GAME_SERVER_URL",
             "LOBBY_GAME_SERVER_WS_URL",
             "LOBBY_REPLAY_DIR",
+            "LOBBY_METRICS_DB_PATH",
             "LOBBY_WS_ALLOWED_ORIGIN",
             "AUTH_INTERNAL_API_SECRET",
         ):
@@ -25,6 +26,7 @@ class TestLobbyServerSettings:
             "game_server_url",
             "game_server_ws_url",
             "replay_dir",
+            "metrics_db_path",
             "ws_allowed_origin",
             "AUTH_INTERNAL_API_SECRET",
         }

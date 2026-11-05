@@ -64,8 +64,23 @@ APPS = (
         catalog_dir="backend/lobby/i18n/locales",
         source_roots=("backend/lobby",),
         source_suffixes=frozenset({".py", ".html"}),
-        dynamic_prefixes=("auth.error.", "monitoring.range."),
-        identical_keys=frozenset({"nav.beta", "page.title.default", "page.title.with_page"}),
+        dynamic_prefixes=(
+            "auth.error.",
+            "monitoring.group.",
+            "monitoring.range.",
+            "monitoring.series.",
+            "monitoring.unit.",
+        ),
+        identical_keys=frozenset(
+            {
+                "monitoring.unit.gib",
+                "monitoring.unit.mib",
+                "monitoring.unit.percent",
+                "nav.beta",
+                "page.title.default",
+                "page.title.with_page",
+            }
+        ),
         literals_in_namespaces_are_keys=True,
     ),
     App(

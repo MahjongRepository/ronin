@@ -53,6 +53,7 @@ class LobbyServerSettings(BaseSettings):
     game_client_v2_dir: str = "frontend/game_v2/dist"
     game_client_v2_dev_url: str = ""
     replay_dir: str = Field(min_length=1)
+    metrics_db_path: str = Field(min_length=1)
     ws_allowed_origin: str = Field(min_length=1)
 
     @field_validator("cors_origins", mode="before")

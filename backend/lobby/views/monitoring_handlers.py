@@ -2,18 +2,22 @@ from __future__ import annotations
 
 import functools
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from lobby.game_transition import fetch_game_server_status
+from lobby.monitoring.geometry import PLOT_HEIGHT, PLOT_WIDTH, plot_buckets
+from lobby.monitoring.page import assemble_monitoring_page
+from lobby.monitoring.ranges import DEFAULT_MONITORING_RANGE, MonitoringRange
+from lobby.monitoring.reader import MetricsReader
 from lobby.views.assets import render_page, translate_for_request
 from lobby.views.history_handlers import format_duration_seconds
-from lobby.views.monitoring_ranges import DEFAULT_MONITORING_RANGE, MonitoringRange
 
 if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.responses import Response
 
+    from lobby.monitoring.geometry import ChartPlot
+    from lobby.monitoring.page import Chart, ChartState, LatestReading
     from lobby.views.history_handlers import Translate
     from shared.dal.models import GamesSummary
 
@@ -30,6 +34,23 @@ class _CompletedDurations:
     mean: str
     median: str
     p90: str
+
+
+@dataclass(frozen=True)
+class _ChartView:
+    key: str
+    label_key: str
+    unit_key: str
+    state: ChartState
+    latest: LatestReading | None
+    age: str | None
+    plot: ChartPlot | None
+
+
+@dataclass(frozen=True)
+class _ChartGroupView:
+    label_key: str
+    charts: tuple[_ChartView, ...]
 
 
 def _selected_range(request: Request) -> MonitoringRange:
@@ -64,22 +85,54 @@ def _completed_durations(summary: GamesSummary, *, translate: Translate) -> _Com
     )
 
 
+def _chart_view(chart: Chart, *, translate: Translate) -> _ChartView:
+    return _ChartView(
+        key=f"{chart.group}.{chart.name}",
+        label_key=f"monitoring.series.{chart.group}.{chart.name}",
+        unit_key=f"monitoring.unit.{chart.unit}",
+        state=chart.state,
+        latest=chart.latest,
+        age=None if chart.latest is None else format_duration_seconds(chart.latest.age_seconds, translate=translate),
+        plot=plot_buckets(chart.buckets),
+    )
+
+
+def _chart_groups(charts: tuple[Chart, ...], *, translate: Translate) -> list[_ChartGroupView]:
+    """
+    Group the charts for display, groups and charts in the order the page data lists them.
+    """
+    grouped: dict[str, list[_ChartView]] = {}
+    for chart in charts:
+        grouped.setdefault(chart.group, []).append(_chart_view(chart, translate=translate))
+
+    return [
+        _ChartGroupView(label_key=f"monitoring.group.{group}", charts=tuple(views)) for group, views in grouped.items()
+    ]
+
+
 async def monitoring_page(request: Request) -> Response:
     """
-    GET /admin/monitoring - render the admin monitoring page: live games now and the games started in ``?range=``.
+    GET /admin/monitoring - render the monitoring page for ``?range=``: live and started games, and the charts.
     """
     translate = functools.partial(translate_for_request, request)
     selected = _selected_range(request)
-    summary = await request.app.state.game_repo.get_games_summary(since=datetime.now(UTC) - selected.duration)
-    live_status = await fetch_game_server_status(game_server=request.app.state.game_server)
+    page = await assemble_monitoring_page(
+        selected,
+        metrics=MetricsReader(Path(request.app.state.settings.metrics_db_path)),
+        game_repo=request.app.state.game_repo,
+        game_server=request.app.state.game_server,
+    )
     return render_page(
         request,
         template_name="monitoring.html",
         context={
             "username": request.user.username,
             "range_choices": _range_choices(selected, translate=translate),
-            "summary": summary,
-            "completed_durations": _completed_durations(summary, translate=translate),
-            "live_status": live_status,
+            "summary": page.games,
+            "completed_durations": _completed_durations(page.games, translate=translate),
+            "live_status": page.live_status,
+            "chart_groups": _chart_groups(page.charts, translate=translate),
+            "plot_width": PLOT_WIDTH,
+            "plot_height": PLOT_HEIGHT,
         },
     )

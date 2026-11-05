@@ -6,7 +6,7 @@ from markupsafe import Markup
 
 from lobby.i18n import CatalogError, I18nError, Locale, Translator, load_catalogs
 from lobby.i18n.locale import resolve_locale
-from lobby.i18n.translator import plural_category
+from lobby.i18n.translator import format_decimal, plural_category
 from lobby.views.handlers import _LOBBY_NOTICES
 from shared.auth.service import AuthErrorCode
 
@@ -129,6 +129,18 @@ class TestTranslator:
 )
 def test_plural_category__when_ru__should_follow_the_cldr_integer_rule(count, category):
     assert plural_category(Locale.RU, count) == category
+
+
+@pytest.mark.parametrize(
+    ("locale", "number", "shown"),
+    [
+        (Locale.EN, 12345.67, "12,345.7"),
+        (Locale.RU, 12345.67, "12\N{NARROW NO-BREAK SPACE}345,7"),
+        (Locale.JA, 2.96, "3"),
+    ],
+)
+def test_format_decimal__should_round_to_one_decimal_in_the_locale_marks(locale, number, shown):
+    assert format_decimal(locale, number) == shown
 
 
 def test_load_catalogs__when_a_locale_lacks_an_en_key__should_refuse_to_load(tmp_path):
