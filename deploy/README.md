@@ -127,6 +127,8 @@ make spot-monitoring TARGET=<target>
 
 Check it on the server with `systemctl list-timers ronin-metrics.timer` and `journalctl -u ronin-metrics.service`.
 
+Read the numbers without a browser: `make spot-metrics TARGET=<target> RANGE=24h` prints what `/admin/monitoring` shows for the range as JSON (run inside the lobby container), and `make spot-metrics-sql TARGET=<target> SQL="SELECT ..."` runs a read-only query on `metrics.db` from the host, so it works when the lobby is down. The SQL cannot contain `"` or `$`; quote strings with `'`.
+
 The collector only sees the box from inside. Point an external uptime service at the lobby's public `https://<domain>/health`: it proves the box, Traefik and the lobby are up, not the game server.
 
 ## Commands
@@ -143,6 +145,8 @@ make spot-stop TARGET=<target>             # stop all services (containers prese
 make spot-restart TARGET=<target>          # restart all services
 make spot-down TARGET=<target>             # stop and remove all containers
 make spot-status TARGET=<target>           # show service status
+make spot-metrics TARGET=<target> RANGE=24h      # monitoring page data as JSON (1h, 24h, 7d, 30d, 90d)
+make spot-metrics-sql TARGET=<target> SQL="..."  # read-only query on metrics.db, rows as JSON
 make spot-backup TARGET=<target>           # run a manual backup
 make spot-backup-list TARGET=<target>      # list backup snapshots
 make spot-restore TARGET=<target>          # restore from latest snapshot

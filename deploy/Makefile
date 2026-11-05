@@ -12,7 +12,7 @@ endif
 TARGET ?= dev
 SPOT = $(SPOT_SSH_ENV) spot -v -p spot.yml -E spot-env.$(TARGET).yml $(SPOT_SSH)
 
-.PHONY: spot-run spot-bootstrap spot-provision spot-monitoring spot-deploy spot-update spot-stop spot-restart spot-down spot-status spot-check-logs-errors spot-backup spot-restore spot-backup-list spot-download-backup
+.PHONY: spot-run spot-bootstrap spot-provision spot-monitoring spot-deploy spot-update spot-stop spot-restart spot-down spot-status spot-check-logs-errors spot-metrics spot-metrics-sql spot-backup spot-restore spot-backup-list spot-download-backup
 
 # Run arbitrary spot task: make spot-run TASK=<task> TARGET=dev
 spot-run:
@@ -76,6 +76,18 @@ endif
 	@echo ""
 	cat $(LOGS_FILE)
 	@echo "Saved to $(LOGS_FILE)"
+
+RANGE ?= 24h
+SPOT_OUTPUT_LINES = sed -n 's/^\[[^]]*\] *> //p' | grep -v '^/bin/sh'
+
+spot-metrics:
+	@$(SPOT) -t $(TARGET) -n metrics-report -e RANGE:"$(RANGE)" | $(SPOT_OUTPUT_LINES)
+
+spot-metrics-sql:
+ifndef SQL
+	$(error SQL is required. Usage: make spot-metrics-sql SQL="SELECT ...")
+endif
+	@$(SPOT) -t $(TARGET) -n metrics-sql -e SQL:"$(SQL)" | $(SPOT_OUTPUT_LINES)
 
 # Backup: run a manual backup
 spot-backup:

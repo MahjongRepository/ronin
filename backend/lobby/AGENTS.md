@@ -44,7 +44,8 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   ambiguously. Each call keeps its own deadline rather than the client's default.
 * `monitoring/` — the admin monitoring page's data: the `metrics.db` reader, the reductions, the chart
   geometry and the one page-data assembly that takes the range and returns every chart, the games summary
-  and the live game-server counts; the handler only renders it. The lobby only reads `metrics.db`, which
+  and the live game-server counts; the handler only renders it, and `scripts/monitoring_report.py`
+  prints it as JSON for agents (`report.py`). The lobby only reads `metrics.db`, which
   the host collector owns: read-only, one short connection per page request, never through `shared.db`
   (which would force WAL and create a schema). Reductions run in SQL, so a long range never loads raw
   samples. A chart's state comes from its own series: a missing file, table, column or series is never

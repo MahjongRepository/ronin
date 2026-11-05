@@ -232,6 +232,18 @@ tasks:
             echo "No application errors found."
           fi
 
+  - name: metrics-report
+    commands:
+      - name: print the monitoring page data as JSON
+        script: |
+          cd /opt/ronin && docker compose exec -T lobby python backend/scripts/monitoring_report.py --range "${RANGE:-24h}"
+
+  - name: metrics-sql
+    commands:
+      - name: run a read-only query on metrics.db
+        script: |
+          sqlite3 -readonly -json -cmd ".timeout 5000" /opt/ronin/data/metrics/metrics.db "$SQL"
+
   - name: setup-restic
     commands:
       - name: install restic

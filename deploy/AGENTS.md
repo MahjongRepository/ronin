@@ -15,7 +15,8 @@ which holds the domain). `README.md` is the runbook for a new server and lists t
   `release.yml` for the image. A push made with `GITHUB_TOKEN` starts no workflow, so the call is
   the only thing that builds a release cut this way.
 * `Makefile` wraps spot: one-time bootstrap and provisioning tasks, the deploy, service control,
-  an error-log grep, and backup, restore and download-backup tasks.
+  an error-log grep, the read-only metrics report and SQL, and backup, restore and download-backup
+  tasks.
 * `Makefile.server` is uploaded to `/opt/ronin/Makefile` on every deploy for manual control on the
   box; the spot service-control tasks call its targets.
 
@@ -77,6 +78,12 @@ which holds the domain). `README.md` is the runbook for a new server and lists t
   minute, which runs Telegraf `--once` with `config/telegraf.conf`. Provisioning installs it
   (`setup-monitoring`: the checksum-pinned release binary, never the `.deb`, which enables a daemon);
   `spot-monitoring` re-applies binary, config, script and units. `spot-deploy` never touches it.
+* **Agents read metrics through two read-only tasks.** `metrics-report` runs
+  `backend/scripts/monitoring_report.py` in the lobby container, the page's own assembly, so its JSON
+  matches `/admin/monitoring`; `metrics-sql` runs `sqlite3 -readonly` on the host, so it works when
+  the lobby is down. Both are block scripts, so spot echoes `/bin/sh -c <file>`, which the make
+  targets drop with spot's `[host] > ` prefix to print bare JSON. A value passed with `-e` lands in
+  a double-quoted `export`, so it cannot hold `"` or `$`.
 * `metrics.db` lives in `/opt/ronin/data/metrics/`, is written only by the collector, and is not
   backed up. Every path and URL in the config and script is an environment variable with the
   production default, so the same files run locally against `make run-local-server`.
