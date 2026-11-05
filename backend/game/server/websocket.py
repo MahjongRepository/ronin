@@ -1,4 +1,5 @@
 import re
+import time
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
     from starlette.websockets import WebSocket
 
     from game.server.router import MessageRouter
+    from game.server.socket_stats import SocketStats
 
 _GAME_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 _MAX_GAME_ID_LENGTH = 50
@@ -43,8 +45,16 @@ class WebSocketConnection(ConnectionProtocol):
     carries no bytes (a text frame) is client input the protocol cannot decode: DecodeError.
     """
 
-    def __init__(self, websocket: WebSocket, game_id: str, connection_id: str | None = None) -> None:
+    def __init__(
+        self,
+        websocket: WebSocket,
+        game_id: str,
+        *,
+        socket_stats: SocketStats,
+        connection_id: str | None = None,
+    ) -> None:
         self._game_id = game_id
+        self._socket_stats = socket_stats
         self._connection_id = connection_id or str(uuid4())
         self._socket = QueuedWebSocket(websocket, connection_id=self._connection_id)
 
@@ -57,9 +67,12 @@ class WebSocketConnection(ConnectionProtocol):
         return self._game_id
 
     def send_bytes(self, data: bytes) -> None:
+        self._socket_stats.messages_out += 1
+        self._socket_stats.bytes_out += len(data)
         self._socket.send_bytes(data)
 
     def close(self, code: int = 1000, reason: str = "") -> None:
+        self._socket_stats.count_close(code)
         self._socket.close(code=code, reason=reason)
 
     async def receive_bytes(self) -> bytes:
@@ -89,11 +102,15 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
     if not await accept_websocket(websocket):
         return
 
-    connection = WebSocketConnection(websocket, game_id=game_id)
+    socket_stats = router.socket_stats
+    socket_stats.connections_accepted += 1
+    socket_stats.connections += 1
+    connection = WebSocketConnection(websocket, game_id=game_id, socket_stats=socket_stats)
     connection.start_writer()
     try:
         await _serve_connection(connection, router)
     finally:
+        socket_stats.connections -= 1
         await connection.stop_writer()
         structlog.contextvars.clear_contextvars()
 
@@ -102,6 +119,7 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
     logger.info("websocket connected", connection_id=connection.connection_id)
     router.handle_connect(connection)
 
+    socket_stats = router.socket_stats
     bucket = TokenBucket(rate=_RATE_LIMIT_RATE, burst=_RATE_LIMIT_BURST)
     resync_bucket = TokenBucket(rate=_RESYNC_RATE_LIMIT_RATE, burst=_RESYNC_RATE_LIMIT_BURST)
     decode_errors = 0
@@ -112,8 +130,13 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
             # Decode is cheap (sub-microsecond for malformed input via the
             # msgpack C extension); the expensive work is in handle_message.
             try:
-                data = decode(await connection.receive_bytes())
+                frame = await connection.receive_bytes()
+                received_at = time.perf_counter()
+                socket_stats.messages_in += 1
+                socket_stats.bytes_in += len(frame)
+                data = decode(frame)
             except DecodeError as e:
+                socket_stats.malformed_messages += 1
                 decode_errors += 1
                 if bucket.consume():
                     logger.warning("decode error", error=str(e), strikes=decode_errors)
@@ -134,6 +157,7 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
             decode_errors = 0
 
             if not bucket.consume():
+                socket_stats.rate_limited_messages += 1
                 connection.send_message(
                     ErrorMessage(
                         code=SessionErrorCode.RATE_LIMITED,
@@ -144,12 +168,15 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
                 continue
 
             if data.get(WireKey.EVENT_TYPE) == WireClientMessageType.RESYNC and not resync_bucket.consume():
+                socket_stats.rate_limited_messages += 1
                 connection.send_message(
                     ErrorMessage(code=SessionErrorCode.RATE_LIMITED, message="Too many resync requests").payload(),
                 )
                 continue
 
             router.handle_message(connection, data)
+            socket_stats.handling_seconds += time.perf_counter() - received_at
+            socket_stats.handled_messages += 1
     except ConnectionError:
         pass
     except Exception:

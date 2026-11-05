@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from starlette.websockets import WebSocket
 
     from game.logic.service import GameService
+    from game.server.socket_stats import SocketStats
 
 
 async def health(_request: Request) -> JSONResponse:
@@ -48,6 +49,7 @@ async def health(_request: Request) -> JSONResponse:
 async def status(request: Request) -> JSONResponse:
     session_manager: SessionManager = request.app.state.session_manager
     settings: GameServerSettings = request.app.state.settings
+    socket_stats: SocketStats = request.app.state.socket_stats
     return JSONResponse(
         {
             "status": "ok",
@@ -59,6 +61,7 @@ async def status(request: Request) -> JSONResponse:
             "max_capacity": settings.max_capacity,
             "started_at": request.app.state.started_at,
             **session_manager.stats,
+            **socket_stats.snapshot,
         },
     )
 
@@ -331,6 +334,7 @@ def create_app(
     app.state.settings = settings
     app.state.session_manager = session_manager
     app.state.started_at = int(time.time())
+    app.state.socket_stats = message_router.socket_stats
 
     logger.info("game server ready")
     return app

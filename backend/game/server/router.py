@@ -13,6 +13,7 @@ from game.messaging.types import (
     SessionErrorCode,
     parse_client_message,
 )
+from game.server.socket_stats import SocketStats
 from shared.auth.game_ticket import GameTicket, verify_game_ticket
 
 if TYPE_CHECKING:
@@ -37,6 +38,14 @@ class MessageRouter:
     def __init__(self, session_manager: SessionManager, *, game_ticket_secret: str) -> None:
         self._session_manager = session_manager
         self._game_ticket_secret = game_ticket_secret
+        self._socket_stats = SocketStats()
+
+    @property
+    def socket_stats(self) -> SocketStats:
+        """
+        Return the traffic counters of the sockets this router serves.
+        """
+        return self._socket_stats
 
     def handle_message(
         self,
@@ -46,6 +55,7 @@ class MessageRouter:
         try:
             message = parse_client_message(raw_message)
         except ValidationError as e:
+            self._socket_stats.malformed_messages += 1
             errors = e.errors(include_url=False, include_context=False, include_input=False)
             logger.warning(
                 "invalid message",

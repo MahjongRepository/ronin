@@ -110,6 +110,7 @@ class TestMessageRouterBranches:
             ("invalid message", ["union_tag_invalid"], 1)
         ]
         assert ticket_in_the_type_tag not in caplog.text
+        assert router.socket_stats.malformed_messages == 1
 
     async def test_message_router__when_game_action_lacks_the_wait_id__should_refuse_it_as_invalid_message(self, setup):
         router, connection, session_manager = setup

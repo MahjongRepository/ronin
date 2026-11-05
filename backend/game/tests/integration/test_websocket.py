@@ -7,6 +7,7 @@ from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from game.logic.events import EventType
+from game.messaging.encoder import decode, encode
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server import websocket as ws_module
@@ -44,13 +45,22 @@ class TestWebSocketIntegration:
 
     def test_websocket__when_single_player_joins__should_answer_the_join_and_start_game(self, client):
         tickets = create_pending_game(client, game_id="test_game")
+        join_frame = encode({WireKey.EVENT_TYPE: WireClientMessageType.JOIN_GAME, WireKey.GAME_TICKET: tickets[0]})
         with client.websocket_connect("/ws/test_game") as ws:
-            joined, *events = join_game_and_start(ws, tickets[0])
+            ws.send_bytes(join_frame)
+            received_frames = [ws.receive_bytes() for _ in range(3)]
+            joined, *events = [decode(frame) for frame in received_frames]
             assert joined == {WireKey.PENDING_GAME_TIMEOUT: 30, WireKey.SESSION_TYPE: "game_joined"}
             assert [message[WireKey.EVENT_TYPE] for message in events] == [
                 EVENT_TYPE_INT[EventType.GAME_STARTED],
                 EVENT_TYPE_INT[EventType.ROUND_STARTED],
             ]
+
+        status = client.get("/status").json()
+        assert (status["messages_in"], status["bytes_in"], status["handled_messages"]) == (1, len(join_frame), 1)
+        assert (status["messages_out"], status["bytes_out"]) == (3, sum(len(frame) for frame in received_frames))
+        assert (status["connections_accepted"], status["connections"]) == (1, 0)
+        assert status["handling_seconds"] > 0
 
     def test_websocket__when_discard_sent__should_return_successful_draw_event(self, client):
         tickets = create_pending_game(client, game_id="test_game")
@@ -88,6 +98,7 @@ class TestWebSocketIntegration:
             )
             msg = recv_ws(ws)
             assert msg[WireKey.SESSION_TYPE] == SessionMessageType.GAME_JOINED
+            assert client.get("/status").json()["malformed_messages"] == 1
 
     def test_websocket__when_join_ticket_invalid__should_return_invalid_ticket_error(self, client):
         create_pending_game(client, game_id="test_game")
@@ -125,6 +136,7 @@ class TestWebSocketIntegration:
             with pytest.raises(WebSocketDisconnect) as closed:
                 ws.receive_bytes()
             assert (closed.value.code, closed.value.reason) == (4004, "too_many_decode_errors")
+            assert client.get("/status").json()["closes_4004"] == 1
 
     def test_websocket__when_valid_message_follows_decode_errors__should_reset_error_counter(self, client):
         with patch.object(ws_module, "_MAX_DECODE_ERRORS", 3), client.websocket_connect("/ws/test_game") as ws:
@@ -163,6 +175,7 @@ class TestWebSocketIntegration:
                 WireKey.SESSION_ERROR_CODE: "rate_limited",
                 WireKey.SESSION_ERROR_MESSAGE: "Too many messages",
             }
+            assert client.get("/status").json()["rate_limited_messages"] == 1
 
     def test_websocket__when_malformed_after_burst_exhausted__should_drop_replies_and_disconnect_on_decode_strikes(
         self, client
@@ -239,6 +252,25 @@ class TestStatusEndpoint:
             "ai_replacements",
         }
         assert {key: data[key] for key in session_totals} == dict.fromkeys(session_totals, 0)
+        socket_totals = {
+            "connections",
+            "connections_accepted",
+            "messages_in",
+            "bytes_in",
+            "messages_out",
+            "bytes_out",
+            "handling_seconds",
+            "handled_messages",
+            "malformed_messages",
+            "rate_limited_messages",
+            "closes_1000",
+            "closes_1008",
+            "closes_1011",
+            "closes_4001",
+            "closes_4002",
+            "closes_4004",
+        }
+        assert {key: data[key] for key in socket_totals} == dict.fromkeys(socket_totals, 0)
 
     def test_status_endpoint__when_game_pending__should_count_it_as_pending(self, client):
         create_pending_game(client, game_id="room1")
