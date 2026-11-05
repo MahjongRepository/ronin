@@ -547,6 +547,7 @@ class TestMonitoringPage:
             "mean": "25m 30s",
             "median": "25m 30s",
             "p90": "25m 30s",
+            "last_backup": "Unknown",
         }
         assert re.findall(r'<a href="\?range=(\w+)" class="monitoring-range" aria-current="page">', response.text) == [
             "24h"
@@ -565,6 +566,7 @@ class TestMonitoringPage:
             "abandoned": "0",
             "error": "0",
             "unfinished": "0",
+            "last_backup": "Unknown",
         }
 
 
