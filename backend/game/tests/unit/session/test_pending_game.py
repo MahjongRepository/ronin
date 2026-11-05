@@ -125,6 +125,7 @@ class TestJoinGame:
         assert [participant.connection for participant in game.connected()] == [conn2]
         assert conn1.connection_id not in manager._connections
         assert (conn1._close_code, conn1._close_reason) == (4002, "replaced_by_new_connection")
+        assert manager.stats["takeovers"] == 1
 
         manager.join_game(conn1, session_token="ticket-0")
         manager.disconnect(conn1)

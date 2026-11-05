@@ -170,6 +170,7 @@ class SessionManager:
             )
             self._evict_connection(replaced)
             replaced.close(code=4002, reason="replaced_by_new_connection")
+            self._takeovers += 1
 
         participant.connection = connection
         self._bound[connection.connection_id] = participant
@@ -687,9 +688,7 @@ class SessionManager:
         awaiting = self._game_service.get_awaiting(runtime)
         game.awaiting = awaiting
         self._send_seat_state(participant, connection, awaiting=awaiting)
-        if taking_over:
-            self._takeovers += 1
-        else:
+        if not taking_over:
             self._reconnects += 1
 
         logger.info("connection taken over" if taking_over else "player reconnected")
