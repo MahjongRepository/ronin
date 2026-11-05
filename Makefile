@@ -77,7 +77,7 @@ profile:
 	$(BE_RUN) python bin/profile_replay.py
 
 run-games:
-	@TABLES=$(TABLES) MODE=$(MODE) bash ./bin/run-bots-games.sh $(GAMES)
+	@TABLES=$(TABLES) MODE=$(MODE) NET=$(NET) bash ./bin/run-bots-games.sh $(GAMES)
 
 profile-games:
 	@PROFILE=1 TABLES=12 MODE= bash ./bin/run-bots-games.sh 48

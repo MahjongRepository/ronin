@@ -43,12 +43,17 @@ The `Makefile` lists the targets; the non-obvious ones:
   `agent-browser` skill plus this project's `app-browser` skill (`.claude/skills/app-browser/`).
 * `make test` — backend pytest with its coverage gate (`backend/AGENTS.md`, Tooling).
 * `make profile` — profile the game engine replay runner (the `optimize-engine` skill uses it).
-* `make run-games [GAMES=n] [TABLES=t] [MODE=m]` — play bot games (the `mahjong-bot` repo at `BOT_ROOT`,
+* `make run-games [GAMES=n] [TABLES=t] [MODE=m] [NET=bad]` — play bot games (the `mahjong-bot` repo at `BOT_ROOT`,
   default `~/work/mahjong-bot`) on fresh servers, `t` tables at a time, the bots in play mode `m`
   (their `--mode`, only when set; `human` thinks 0-3 s per action and gets a 2-hour batch timeout; `chaos` misbehaves on purpose —
-  resyncs, socket takeovers, disconnects, kicks, deadline stalls, refused and malformed actions, the
+  resyncs, socket takeovers, disconnects, sockets dropped without a close or frozen silent, kicks, deadline stalls, refused and malformed actions, the
   bot's `ronin/chaos.py` — gets a 30-minute batch timeout, and its log gate passes only the game
-  server's info and warning lines those cause), stopping at the first batch
+  server's info and warning lines those cause; `NET=bad`, in any mode but meant for `MODE=chaos`, puts
+  production's Traefik routing and a toxiproxy in Docker (`:8720`-`:8740`) between the bots and the servers, with latency,
+  sliced writes and random windows of stalls, resets and black holes (`bin/bad-network.sh`), tells the bots
+  to expect lost links, passes the game server lines those cause, takes at least the chaos batch timeout,
+  and fails on proxy errors or unexpected statuses, the proxies' logs and the fault timeline kept in
+  `backend/logs/net`), stopping at the first batch
   with a game that is not completed, whose replay does not reproduce it (`bin/verify_games.py`), or
   after which any log (server stderr and bot console included) holds a warning or an abnormal event
   such as a timeout auto-action or a bot replaced by AI. It forces debug console logging, so these

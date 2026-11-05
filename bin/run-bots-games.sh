@@ -8,18 +8,20 @@ BOT_ROOT="${BOT_ROOT:-$HOME/work/mahjong-bot}"
 
 BOT_LOG_DIR="$BOT_ROOT/project/logs"
 
+. "$SCRIPT_DIR/bad-network.sh"
+
 PYTHON_WARNING_PATTERN=':[0-9]+: [A-Za-z]*Warning: '
 SERVER_ISSUE_PATTERN="\\[(warning|error|critical) *\\]|^(WARNING|ERROR|CRITICAL):|Traceback|$PYTHON_WARNING_PATTERN|timeout, auto-|auth timeout,|replaced player with AI|player reconnected|connection taken over|stale game action"
 BOT_CONSOLE_NOISE_PATTERN='^(.\[[0-9]+m)?[0-9-]{10} [0-9:,]{8,12} [^ ]+ (DEBUG|INFO): '
 BOT_ISSUE_PATTERN="ERROR|WARNING|CRITICAL|Traceback|$PYTHON_WARNING_PATTERN"
 CHAOS_EXPECTED_EVENTS="connection taken over|player reconnected|replaced player with AI|stale game action|meld timeout, auto-passing|turn timeout, auto-discarding|decode error|invalid message|invalid game action|invalid pass: no pending call prompt|invalid call: tile_id mismatch|discard tile not in hand|discard forbidden by kuikae or riichi|action rejected: round not in progress|cannot call added kan: tile not in hand"
 CHAOS_EXPECTED_SESSION_ERRORS="reconnect_no_session"
-CHAOS_EXPECTED_PATTERN="\\[(info|warning) *\\] (($CHAOS_EXPECTED_EVENTS) +\\[|session error sent to client +\\[[^]]*\\] error_code=($CHAOS_EXPECTED_SESSION_ERRORS) )"
 
 MAX_GAMES="${1:-10}"
 TABLES="${TABLES:-1}"
 PROFILE="${PROFILE:-0}"
 MODE="${MODE:-}"
+NET="${NET:-}"
 
 if ! [[ $MAX_GAMES =~ ^[1-9][0-9]*$ && $TABLES =~ ^[1-9][0-9]*$ ]]; then
     echo "games and tables must be positive integers, got GAMES=$MAX_GAMES TABLES=$TABLES"
@@ -35,6 +37,18 @@ case "$MODE" in
     chaos) BOT_ARGS=(--mode chaos) && BATCH_TIMEOUT=1800 ;;
     *)
         echo "unknown bot mode MODE=$MODE, expected fast, human or chaos"
+        exit 1
+        ;;
+esac
+
+case "$NET" in
+    "") ;;
+    bad)
+        BOT_ARGS+=(--lobby-url "$BAD_NET_PUBLIC_ORIGIN" --unreliable-network)
+        BATCH_TIMEOUT=$(( BATCH_TIMEOUT > 1800 ? BATCH_TIMEOUT : 1800 ))
+        ;;
+    *)
+        echo "unknown network NET=$NET, expected bad or nothing"
         exit 1
         ;;
 esac
@@ -197,17 +211,59 @@ scan_logs() {
     return 1
 }
 
+join_alternatives() {
+    local joined=""
+    local item
+    for item in "$@"; do
+        if [[ -n $item ]]; then
+            joined="${joined:+$joined|}$item"
+        fi
+    done
+    echo "$joined"
+}
+
+game_expected_pattern() {
+    local events=()
+    local session_errors=()
+    if [[ $MODE == chaos ]]; then
+        events+=("$CHAOS_EXPECTED_EVENTS")
+        session_errors+=("$CHAOS_EXPECTED_SESSION_ERRORS")
+    fi
+    if [[ $NET == bad ]]; then
+        events+=("$BAD_NET_EXPECTED_EVENTS")
+        session_errors+=("$BAD_NET_EXPECTED_SESSION_ERRORS")
+    fi
+
+    local event_alternatives
+    local error_alternatives
+    event_alternatives=$(join_alternatives "${events[@]}")
+    error_alternatives=$(join_alternatives "${session_errors[@]}")
+    local parts=()
+    if [[ -n $event_alternatives ]]; then
+        parts+=("($event_alternatives) +\\[")
+    fi
+    if [[ -n $error_alternatives ]]; then
+        parts+=("session error sent to client +\\[[^]]*\\] error_code=($error_alternatives) ")
+    fi
+    if [[ ${#parts[@]} -gt 0 ]]; then
+        echo "\\[(info|warning) *\\] ($(join_alternatives "${parts[@]}"))"
+    fi
+}
+
 analyze_logs() {
     local has_issues=0
 
-    local game_expected=""
-    if [[ $MODE == chaos ]]; then
-        game_expected="$CHAOS_EXPECTED_PATTERN"
-    fi
-
-    scan_logs GAME "$GAME_LOG_DIR" "$SERVER_ISSUE_PATTERN" "$game_expected" || has_issues=1
+    scan_logs GAME "$GAME_LOG_DIR" "$SERVER_ISSUE_PATTERN" "$(game_expected_pattern)" || has_issues=1
     scan_logs LOBBY "$LOBBY_LOG_DIR" "$SERVER_ISSUE_PATTERN" || has_issues=1
     scan_logs BOT "$BOT_LOG_DIR" "$BOT_ISSUE_PATTERN" || has_issues=1
+    if [[ $NET == bad ]]; then
+        collect_bad_network_logs
+        scan_logs TRAEFIK "$NET_LOG_DIR/traefik.log" "$BAD_NET_TRAEFIK_ISSUE_PATTERN" "$BAD_NET_TRAEFIK_EXPECTED_PATTERN" ||
+            has_issues=1
+        scan_logs TOXIPROXY "$NET_LOG_DIR/toxiproxy.log" "$BAD_NET_TOXIPROXY_ISSUE_PATTERN" \
+            "$BAD_NET_TOXIPROXY_EXPECTED_PATTERN" || has_issues=1
+        scan_logs TOXICS "$NET_LOG_DIR/toxics.log" "$BAD_NET_TOXICS_ISSUE_PATTERN" || has_issues=1
+    fi
 
     return $has_issues
 }
@@ -376,6 +432,9 @@ wait_for_bots() {
         if ! probe_health "$GAME_PORT" || ! probe_health "$LOBBY_PORT"; then
             return 1
         fi
+        if [[ $NET == bad ]] && ! bad_network_running; then
+            return 1
+        fi
         sleep 1
     done
 
@@ -412,12 +471,15 @@ archive_failed_run() {
     local status="$1"
     mkdir -p "$FAILED_RUN_DIR"
     cp -r "$GAME_LOG_DIR" "$LOBBY_LOG_DIR" "$FAILED_RUN_DIR/" 2>/dev/null || true
+    if [[ $NET == bad ]]; then
+        cp -r "$NET_LOG_DIR" "$FAILED_RUN_DIR/" 2>/dev/null || true
+    fi
     cp -r "$BOT_LOG_DIR" "$FAILED_RUN_DIR/bot-logs" 2>/dev/null || true
     cp "$HARNESS_LOG" "$FAILED_RUN_DIR/" 2>/dev/null || true
     cp "$PROFILE_FILE" "$FAILED_RUN_DIR/" 2>/dev/null || true
     {
         echo "exit status: $status"
-        echo "games: $PLAYED of $MAX_GAMES played, tables: $TABLES, profile: $PROFILE, mode: ${MODE:-default}"
+        echo "games: $PLAYED of $MAX_GAMES played, tables: $TABLES, profile: $PROFILE, mode: ${MODE:-default}, net: ${NET:-direct}"
         echo "batch seconds: ${BATCH_TIMES[*]}"
         echo "batch game server CPU ticks: ${BATCH_SERVER_TICKS[*]}"
     } > "$FAILED_RUN_DIR/run.txt"
@@ -431,6 +493,9 @@ on_exit() {
     fi
 
     stop_bots || true
+    if [[ $NET == bad ]]; then
+        stop_bad_network || true
+    fi
     stop_servers || true
     if [[ $status -ne 0 ]]; then
         archive_failed_run "$status"
@@ -446,6 +511,10 @@ trap 'exit 143' TERM
 if [ -f "$PROJECT_ROOT/.env.local" ]; then
     set -a && . "$PROJECT_ROOT/.env.local" && set +a
 fi
+if [[ $NET == bad ]]; then
+    export LOBBY_WS_ALLOWED_ORIGIN="$BAD_NET_PUBLIC_ORIGIN"
+    export LOBBY_GAME_SERVER_WS_URL="${BAD_NET_PUBLIC_ORIGIN/http/ws}"
+fi
 . "$SCRIPT_DIR/local-settings.sh"
 if [[ $PROFILE == 1 ]]; then
     export LOG_LEVEL=info
@@ -455,8 +524,9 @@ fi
 export LOG_FORMAT=console
 export GAME_LOG_DIR="$PROJECT_ROOT/backend/logs/game"
 export LOBBY_LOG_DIR="$PROJECT_ROOT/backend/logs/lobby"
+NET_LOG_DIR="$PROJECT_ROOT/backend/logs/net"
 
-for dir in "$GAME_LOG_DIR" "$LOBBY_LOG_DIR" "$BOT_LOG_DIR"; do
+for dir in "$GAME_LOG_DIR" "$LOBBY_LOG_DIR" "$BOT_LOG_DIR" "$NET_LOG_DIR"; do
     find "$dir" -mindepth 1 -delete 2>/dev/null || true
     mkdir -p "$dir"
 done
@@ -474,9 +544,14 @@ free_port "$GAME_PORT"
 free_port "$LOBBY_PORT"
 start_server "game" "game.server.app:get_app" "$GAME_PORT" 262144 "$GAME_LOG_DIR" "${GAME_LAUNCHER[@]}"
 start_server "lobby" "lobby.server.app:get_app" "$LOBBY_PORT" 8192 "$LOBBY_LOG_DIR" uv run --project backend uvicorn
+if [[ $NET == bad ]]; then
+    echo ""
+    bad_net_usage
+    start_bad_network
+fi
 
 echo ""
-echo "running $MAX_GAMES game(s), up to $TABLES at a time, bot mode ${MODE:-default}..."
+echo "running $MAX_GAMES game(s), up to $TABLES at a time, bot mode ${MODE:-default}, network ${NET:-direct}..."
 echo ""
 
 GAME_SERVER_PID=$(lsof -ti tcp:"$GAME_PORT" -sTCP:LISTEN | head -1)
