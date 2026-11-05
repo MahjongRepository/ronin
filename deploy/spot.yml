@@ -3,7 +3,7 @@ user: root
 targets:
   dev:
     hosts:
-      - {host: "46.224.129.132", name: "dev-server"}
+      - {host: "2.31.177.221", name: "dev-server"}
 
 tasks:
   - name: setup-ssh
@@ -42,9 +42,9 @@ tasks:
           apt-get install -y ufw
           ufw default deny incoming
           ufw default allow outgoing
-          ufw allow ssh
-          ufw allow http
-          ufw allow https
+          ufw allow 22/tcp
+          ufw allow 80/tcp
+          ufw allow 443/tcp
           ufw --force enable
 
       - name: upload docker firewall script
@@ -60,21 +60,35 @@ tasks:
       - name: restrict docker external access
         script: /opt/ronin/scripts/docker-firewall.sh
 
-      - name: persist docker firewall rules
-        script: |
-          DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
-          netfilter-persistent save
-
       - name: install docker firewall systemd service
         copy: {src: "scripts/systemd/ronin-docker-firewall.service", dst: "/etc/systemd/system/ronin-docker-firewall.service"}
 
       - name: enable docker firewall service
         script: systemctl daemon-reload && systemctl enable ronin-docker-firewall.service
 
+      - name: verify ufw is active (installing iptables-persistent removes it)
+        script: "ufw status | grep -q '^Status: active'"
+
   - name: bootstrap
     commands:
+      - name: apply os updates
+        script: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get -y -o Dpkg::Options::=--force-confold full-upgrade
+          apt-get -y autoremove
+          if [ -f /run/reboot-required ]; then echo "REBOOT REQUIRED: reboot before provisioning"; fi
+
       - name: install base packages
-        script: apt-get update && apt-get install -y kitty-terminfo micro make sqlite3
+        script: DEBIAN_FRONTEND=noninteractive apt-get install -y kitty-terminfo micro make sqlite3 unattended-upgrades
+
+      - name: enable automatic security updates
+        script: |
+          cat > /etc/apt/apt.conf.d/20auto-upgrades << 'CONF'
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+          CONF
+          systemctl enable --now unattended-upgrades
 
       - name: set login directory
         script: |

@@ -2,7 +2,7 @@
 
 Server provisioning and deployment using [spot](https://github.com/umputun/spot).
 
-Tested on Ubuntu 24.04 LTS only.
+Tested on Ubuntu 24.04 LTS and Debian 13.
 
 ## Prerequisites
 
@@ -39,7 +39,7 @@ cd deploy
 make spot-bootstrap TARGET=<target>
 ```
 
-Installs base packages (`micro`, `kitty-terminfo`), creates the `/opt/ronin/` directory structure, and copies `.env.example` as `.env` and `.env.system.example` as `.env.system`.
+Applies pending OS updates, turns on automatic security updates, installs base packages (`micro`, `kitty-terminfo`), creates the `/opt/ronin/` directory structure, and copies `.env.example` as `.env` and `.env.system.example` as `.env.system`. If it prints `REBOOT REQUIRED` (a new kernel), reboot the server before provisioning.
 
 ### 4. Configure secrets
 
@@ -120,7 +120,7 @@ Restore stops the lobby and game containers, copies data from the snapshot, remo
 All commands run from `deploy/` and require `TARGET=<target>`.
 
 ```
-make spot-bootstrap TARGET=<target>        # base packages, dirs, env templates
+make spot-bootstrap TARGET=<target>        # OS updates, base packages, dirs, env templates
 make spot-provision TARGET=<target>        # SSH hardening, Docker, firewall, backups, journald
 make spot-deploy TARGET=<target>           # pull image, restart services
 make spot-update TARGET=<target>           # pull latest images, restart changed services

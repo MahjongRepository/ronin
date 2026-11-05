@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # Re-apply DOCKER-USER iptables rules after Docker (re)starts.
-# Docker recreates its chains on daemon restart, which may clear
-# custom DOCKER-USER rules even if iptables-persistent saved them.
 set -euo pipefail
 
 # Detect the default network interface from the routing table.
