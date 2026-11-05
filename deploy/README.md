@@ -64,7 +64,7 @@ cd deploy
 make spot-provision TARGET=<target>
 ```
 
-Disables SSH password authentication, installs Docker, configures the firewall (UFW + iptables DOCKER-USER chain), sets up restic backups with a daily timer, and configures journald for persistent log storage.
+Disables SSH password authentication, installs Docker, configures the firewall (UFW + iptables DOCKER-USER chain), sets up restic backups with a daily timer, installs the metrics collector, and configures journald for persistent log storage.
 
 ## Deploying changes
 
@@ -115,13 +115,28 @@ make spot-restore TARGET=<target> SNAPSHOT=<snapshot-id>
 
 Restore stops the lobby and game containers, copies data from the snapshot, removes WAL/SHM files, fixes file ownership, and restarts services. Let's Encrypt certs are not backed up — Traefik re-obtains them automatically.
 
+## Monitoring
+
+Provisioning installs a host metrics collector: Telegraf 1.40.3 (the release binary, checksum-pinned in `spot.yml`) run once a minute by `ronin-metrics.timer` through `/opt/ronin/scripts/collect-metrics.sh`. It samples host CPU, memory, disk, network and pressure, each service's cgroup slice, the game server's `/status`, Traefik's loopback metrics endpoint (`127.0.0.1:8082`), the database and replay sizes, and the last backup time, into `/opt/ronin/data/metrics/metrics.db` (90 days; Traefik 30 days). The database is not backed up.
+
+`spot-deploy` does not touch the collector. After changing `config/telegraf.conf`, `scripts/collect-metrics.sh` or the `ronin-metrics` units, re-apply them:
+
+```
+make spot-monitoring TARGET=<target>
+```
+
+Check it on the server with `systemctl list-timers ronin-metrics.timer` and `journalctl -u ronin-metrics.service`.
+
+The collector only sees the box from inside. Point an external uptime service at the lobby's public `https://<domain>/health`: it proves the box, Traefik and the lobby are up, not the game server.
+
 ## Commands
 
 All commands run from `deploy/` and require `TARGET=<target>`.
 
 ```
 make spot-bootstrap TARGET=<target>        # OS updates, base packages, dirs, env templates
-make spot-provision TARGET=<target>        # SSH hardening, Docker, firewall, backups, journald
+make spot-provision TARGET=<target>        # SSH hardening, Docker, firewall, backups, metrics collector, journald
+make spot-monitoring TARGET=<target>       # install or update the metrics collector (binary, config, script, timer)
 make spot-deploy TARGET=<target>           # pull image, restart services
 make spot-update TARGET=<target>           # pull latest images, restart changed services
 make spot-stop TARGET=<target>             # stop all services (containers preserved)

@@ -12,7 +12,7 @@ endif
 TARGET ?= dev
 SPOT = $(SPOT_SSH_ENV) spot -v -p spot.yml -E spot-env.$(TARGET).yml $(SPOT_SSH)
 
-.PHONY: spot-run spot-bootstrap spot-provision spot-deploy spot-update spot-stop spot-restart spot-down spot-status spot-check-logs-errors spot-backup spot-restore spot-backup-list spot-download-backup
+.PHONY: spot-run spot-bootstrap spot-provision spot-monitoring spot-deploy spot-update spot-stop spot-restart spot-down spot-status spot-check-logs-errors spot-backup spot-restore spot-backup-list spot-download-backup
 
 # Run arbitrary spot task: make spot-run TASK=<task> TARGET=dev
 spot-run:
@@ -31,7 +31,11 @@ spot-provision:
 	$(SPOT) -t $(TARGET) -n setup-docker
 	$(SPOT) -t $(TARGET) -n setup-firewall
 	$(SPOT) -t $(TARGET) -n setup-restic
+	$(SPOT) -t $(TARGET) -n setup-monitoring
 	$(SPOT) -t $(TARGET) -n setup-journald
+
+spot-monitoring:
+	$(SPOT) -t $(TARGET) -n setup-monitoring
 
 # Deploy: pull image, restart services
 spot-deploy:

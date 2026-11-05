@@ -1,0 +1,7 @@
+[Unit]
+Description=Ronin metrics collection (host, containers, game server, Traefik)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/ronin/scripts/collect-metrics.sh
+TimeoutStartSec=45

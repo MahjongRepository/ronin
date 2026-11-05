@@ -289,6 +289,56 @@ tasks:
       - name: enable backup timer
         script: systemctl daemon-reload && systemctl enable --now ronin-backup.timer
 
+  - name: setup-monitoring
+    commands:
+      - name: install telegraf
+        script: |
+          TELEGRAF_VERSION=1.40.3
+          TELEGRAF_SHA256=cbb95c43303db6e75e129a4eb8888ab1468009e61f6615e64a1cb82f50b0f4ce
+          if /usr/local/bin/telegraf --version 2>/dev/null | grep -q "^Telegraf ${TELEGRAF_VERSION} "; then
+            echo "telegraf ${TELEGRAF_VERSION} already installed"
+          else
+            TARBALL="telegraf-${TELEGRAF_VERSION}_linux_amd64.tar.gz"
+            WORK_DIR="$(mktemp -d)"
+            curl -fsSL "https://dl.influxdata.com/telegraf/releases/${TARBALL}" -o "${WORK_DIR}/${TARBALL}"
+            echo "${TELEGRAF_SHA256}  ${WORK_DIR}/${TARBALL}" | sha256sum -c -
+            tar -xzf "${WORK_DIR}/${TARBALL}" -C "${WORK_DIR}" "telegraf-${TELEGRAF_VERSION}/usr/bin/telegraf"
+            install -m 0755 "${WORK_DIR}/telegraf-${TELEGRAF_VERSION}/usr/bin/telegraf" /usr/local/bin/telegraf
+            rm -rf "${WORK_DIR}"
+          fi
+
+      - name: create metrics directory
+        script: install -d -m 0755 /opt/ronin/data/metrics
+
+      - name: upload telegraf config
+        copy: {src: "config/telegraf.conf", dst: "/tmp/ronin-telegraf.conf"}
+
+      - name: install telegraf config
+        script: |
+          mkdir -p /opt/ronin/config
+          cp /tmp/ronin-telegraf.conf /opt/ronin/config/telegraf.conf
+          chmod 644 /opt/ronin/config/telegraf.conf
+          rm -f /tmp/ronin-telegraf.conf
+
+      - name: upload collect script
+        copy: {src: "scripts/collect-metrics.sh", dst: "/tmp/ronin-collect-metrics.sh"}
+
+      - name: install collect script
+        script: |
+          mkdir -p /opt/ronin/scripts
+          cp /tmp/ronin-collect-metrics.sh /opt/ronin/scripts/collect-metrics.sh
+          chmod +x /opt/ronin/scripts/collect-metrics.sh
+          rm -f /tmp/ronin-collect-metrics.sh
+
+      - name: upload systemd service
+        copy: {src: "scripts/systemd/ronin-metrics.service", dst: "/etc/systemd/system/ronin-metrics.service"}
+
+      - name: upload systemd timer
+        copy: {src: "scripts/systemd/ronin-metrics.timer", dst: "/etc/systemd/system/ronin-metrics.timer"}
+
+      - name: enable metrics timer
+        script: systemctl daemon-reload && systemctl enable --now ronin-metrics.timer
+
   - name: setup-journald
     commands:
       - name: configure journald retention

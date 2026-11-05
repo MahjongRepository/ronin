@@ -65,10 +65,59 @@ which holds the domain). `README.md` is the runbook for a new server and lists t
 * Lobby and game share one SQLite DB under `/opt/ronin/data/db/`.
 * **One cgroup slice per service.** Each compose service sets its own `cgroup_parent`
   (`ronin-<service>.slice`), so the host collector finds every container's CPU, memory and OOM
-  numbers at a fixed cgroup path. A new service gets its own slice.
+  numbers at `/sys/fs/cgroup/ronin.slice/ronin-<service>.slice/` (systemd reads `-` in a slice name
+  as nesting). A new service gets its own slice.
 * **Traefik's metrics port is loopback-only.** The Prometheus endpoint has its own `metrics`
   entrypoint, published on `127.0.0.1:8082` for the host collector; it must never get a router or a
   public binding.
+
+## Metrics collector
+
+* **A host timer, not a container.** `ronin-metrics.timer` runs `scripts/collect-metrics.sh` every
+  minute, which runs Telegraf `--once` with `config/telegraf.conf`. Provisioning installs it
+  (`setup-monitoring`: the checksum-pinned release binary, never the `.deb`, which enables a daemon);
+  `spot-monitoring` re-applies binary, config, script and units. `spot-deploy` never touches it.
+* `metrics.db` lives in `/opt/ronin/data/metrics/`, is written only by the collector, and is not
+  backed up. Every path and URL in the config and script is an environment variable with the
+  production default, so the same files run locally against `make run-local-server`.
+* **The schema is a contract.** `config/metrics-schema.sql` is the captured `.schema` of a run that
+  exercised every source, and the lobby reader relies on it. A change to the config, the inputs'
+  field lists or the Telegraf version means repeating the local proof (the collector run against
+  `make run-local-server`, a local Traefik with the compose metrics flags and containers started
+  with `--cgroup-parent=ronin-<service>.slice`) and refreshing that file. Telegraf's `.schema` text order is not deterministic, so compare it semantically: run
+  this on the server's DB and on a DB built with `sqlite3 fixture.db < config/metrics-schema.sql`,
+  then diff the two outputs.
+
+  ```sql
+  SELECT 'col', m.name, c.name, c.type FROM sqlite_master m, pragma_table_info(m.name) c
+    WHERE m.type = 'table' UNION ALL
+  SELECT 'idx', m.name, l.name, group_concat(i.name, ',' ORDER BY i.seqno) FROM sqlite_master m,
+    pragma_index_list(m.name) l, pragma_index_info(l.name) i WHERE m.type = 'table'
+    GROUP BY m.name, l.name ORDER BY 1, 2, 3;
+  ```
+* Why each workaround exists, since neither file carries comments:
+  * `table_update_template`: Telegraf creates a table from the first row it writes, so a later row
+    with a new column (`loop_lag_max_ms` is `null` until the first lag sample, a missing file has no
+    size) would fail the write.
+  * `time_*` only for `cpu`: the `usage_*` row is a half-row over a 500 ms window; the reader
+    computes usage from the cumulative times.
+  * Every input lists exactly the fields the reader uses (`fieldinclude`, never `fieldpass`), so the
+    schema does not follow the kernel or a plugin's additions; a filter that removes every field
+    drops the metric, which is how `kernel` keeps only its `pressure` rows.
+  * Integer timestamps (`_time_integer_format=unix`): SQLite's date functions return NULL for
+    Telegraf's text timestamp form.
+  * The `boot` tag on every row (the wrapper exports `BOOT`, the first 8 characters of the kernel
+    boot id): a reset identity, because tables carry slightly different timestamps and cannot be
+    joined by time. `omit_hostname` keeps a constant tag out; `boot` is in the Traefik `taginclude`
+    because that filter would otherwise drop the global tag too.
+  * `--strict-env-handling`: an unset `${VAR}` without a default stays literal, so every variable
+    the config needs either has a `${VAR:-default}` or is exported by the wrapper (`BOOT`,
+    `METRICS_DB`).
+  * The journal-mode open before Telegraf (`PRAGMA journal_mode=DELETE`): rollback mode is what the
+    lobby's read-only mount can read (WAL needs a writable `-shm`), and opening the database first
+    recovers a half-written transaction.
+  * The script, not Telegraf, owns indexes and retention (90 days, `traefik` 30), and runs them
+    even when collection fails.
 
 ## Logs and backups
 
