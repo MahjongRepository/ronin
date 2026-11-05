@@ -33,6 +33,9 @@ restic backup \
   "${STAGING}/db" \
   "${RONIN_DIR}/data/replays"
 
+mkdir -p "${RONIN_DIR}/data/metrics"
+touch "${RONIN_DIR}/data/metrics/last-backup"
+
 echo "Backup complete"
 
 # Apply retention policy: 7 daily, 4 weekly, 3 monthly
