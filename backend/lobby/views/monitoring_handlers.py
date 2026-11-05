@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from lobby.monitoring.gauges import ChartGroup
 from lobby.monitoring.geometry import PLOT_HEIGHT, PLOT_WIDTH, plot_buckets
 from lobby.monitoring.page import assemble_monitoring_page
 from lobby.monitoring.ranges import DEFAULT_MONITORING_RANGE, MonitoringRange
@@ -45,12 +46,14 @@ class _ChartView:
     latest: LatestReading | None
     age: str | None
     plot: ChartPlot | None
+    retention_days: int | None
 
 
 @dataclass(frozen=True)
 class _ChartGroupView:
     label_key: str
     charts: tuple[_ChartView, ...]
+    shows_last_backup: bool
 
 
 def _selected_range(request: Request) -> MonitoringRange:
@@ -94,19 +97,24 @@ def _chart_view(chart: Chart, *, translate: Translate) -> _ChartView:
         latest=chart.latest,
         age=None if chart.latest is None else format_duration_seconds(chart.latest.age_seconds, translate=translate),
         plot=plot_buckets(chart.buckets),
+        retention_days=chart.retention_days,
     )
 
 
 def _chart_groups(charts: tuple[Chart, ...], *, translate: Translate) -> list[_ChartGroupView]:
     """
-    Group the charts for display, groups and charts in the order the page data lists them.
+    Group the charts for display, groups and charts in the order the page data lists them; the storage group also shows
+    the last backup's age.
     """
-    grouped: dict[str, list[_ChartView]] = {}
+    grouped: dict[ChartGroup, list[_ChartView]] = {}
     for chart in charts:
         grouped.setdefault(chart.group, []).append(_chart_view(chart, translate=translate))
 
     return [
-        _ChartGroupView(label_key=f"monitoring.group.{group}", charts=tuple(views)) for group, views in grouped.items()
+        _ChartGroupView(
+            label_key=f"monitoring.group.{group}", charts=tuple(views), shows_last_backup=group == ChartGroup.STORAGE
+        )
+        for group, views in grouped.items()
     ]
 
 
@@ -132,6 +140,9 @@ async def monitoring_page(request: Request) -> Response:
             "completed_durations": _completed_durations(page.games, translate=translate),
             "live_status": page.live_status,
             "chart_groups": _chart_groups(page.charts, translate=translate),
+            "last_backup_age": None
+            if page.last_backup_age_seconds is None
+            else format_duration_seconds(page.last_backup_age_seconds, translate=translate),
             "plot_width": PLOT_WIDTH,
             "plot_height": PLOT_HEIGHT,
         },

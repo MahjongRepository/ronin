@@ -53,6 +53,11 @@
     {% for group in chart_groups %}
     <article class="monitoring-panel monitoring-chart-group">
         <h3>{{ t(group.label_key) }}</h3>
+        {% if group.shows_last_backup %}
+        <dl class="monitoring-stats monitoring-group-stats">
+            <div class="monitoring-stat"><dt>{{ t("monitoring.storage.last_backup") }}</dt><dd data-stat="last_backup">{% if last_backup_age %}{{ t("monitoring.storage.last_backup_age", age=last_backup_age) }}{% else %}{{ t("monitoring.storage.last_backup_unknown") }}{% endif %}</dd></div>
+        </dl>
+        {% endif %}
         <div class="monitoring-charts">
             {% for chart in group.charts %}
             <figure class="monitoring-chart" data-chart="{{ chart.key }}" data-state="{{ chart.state }}">
@@ -79,6 +84,9 @@
                 {% endif %}
                 {% if chart.state == "stale" %}
                 <p class="monitoring-unavailable">{{ t("monitoring.chart.stale", age=chart.age) }}</p>
+                {% endif %}
+                {% if chart.retention_days %}
+                <p class="monitoring-chart-note">{{ t("monitoring.chart.retention", count=chart.retention_days) }}</p>
                 {% endif %}
                 {% endif %}
             </figure>

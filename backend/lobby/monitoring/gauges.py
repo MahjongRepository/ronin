@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from datetime import timedelta
 
 MAX_BUCKETS = 300
+BACKUP_STAMP_NAME = "last-backup"
 SAMPLE_INTERVAL_SECONDS = 60
 _BUCKET_EDGE_SECOND = 30
 
@@ -17,6 +18,10 @@ _BUCKET_EDGE_SECOND = 30
 class ChartGroup(StrEnum):
     HOST = "host"
     SERVICES = "services"
+    GAME = "game"
+    SOCKETS = "sockets"
+    TRAEFIK = "traefik"
+    STORAGE = "storage"
 
 
 class ChartUnit(StrEnum):
@@ -30,6 +35,10 @@ class ChartUnit(StrEnum):
     KIB_PER_SECOND = "kib_per_second"
     CORES = "cores"
     COUNT = "count"
+    PER_SECOND = "per_second"
+    PER_MINUTE = "per_minute"
+    MILLISECONDS = "milliseconds"
+    SECONDS = "seconds"
 
     @property
     def divisor(self) -> float:
@@ -43,6 +52,10 @@ _UNIT_DIVISORS = {
     ChartUnit.KIB_PER_SECOND: float(2**10),
     ChartUnit.CORES: 1.0,
     ChartUnit.COUNT: 1.0,
+    ChartUnit.PER_SECOND: 1.0,
+    ChartUnit.PER_MINUTE: 1 / 60,
+    ChartUnit.MILLISECONDS: 1e-3,
+    ChartUnit.SECONDS: 1.0,
 }
 
 
@@ -78,7 +91,8 @@ class Gauge:
     A chart of a sampled value: the stable ``group`` and ``name``, and the SQL that reads one series of it.
 
     ``value`` is a column expression of ``table`` and ``series`` the condition selecting the series' rows, with
-    ``series_params`` bound to it; all three are constants of this module, never request input.
+    ``series_params`` bound to it; all three are constants of this module, never request input. A bucket takes the mean
+    of its samples, or their maximum when ``bucket_peak`` is set, so one spike is never averaged away.
     """
 
     group: ChartGroup
@@ -88,6 +102,7 @@ class Gauge:
     value: str
     series: str = "1"
     series_params: tuple[str, ...] = ()
+    bucket_peak: bool = False
 
 
 def _service_memory(service: str) -> Gauge:
@@ -117,6 +132,36 @@ GAUGES = (
     _service_memory("traefik"),
     _service_memory("lobby"),
     _service_memory("game"),
+    Gauge(group=ChartGroup.GAME, name="active_games", unit=ChartUnit.COUNT, table="game_status", value="active_games"),
+    Gauge(
+        group=ChartGroup.GAME, name="pending_games", unit=ChartUnit.COUNT, table="game_status", value="pending_games"
+    ),
+    Gauge(
+        group=ChartGroup.GAME,
+        name="loop_lag_max",
+        unit=ChartUnit.MILLISECONDS,
+        table="game_status",
+        value="loop_lag_max_ms / 1e3",
+        bucket_peak=True,
+    ),
+    Gauge(group=ChartGroup.SOCKETS, name="open", unit=ChartUnit.COUNT, table="game_status", value="connections"),
+    Gauge(
+        group=ChartGroup.STORAGE,
+        name="database",
+        unit=ChartUnit.MIB,
+        table="filestat",
+        value="size_bytes",
+        series=f"file NOT LIKE '%-wal' AND file NOT LIKE '%{BACKUP_STAMP_NAME}'",
+    ),
+    Gauge(
+        group=ChartGroup.STORAGE,
+        name="database_wal",
+        unit=ChartUnit.MIB,
+        table="filestat",
+        value="size_bytes",
+        series="file LIKE '%-wal'",
+    ),
+    Gauge(group=ChartGroup.STORAGE, name="replays", unit=ChartUnit.MIB, table="filecount", value="size_bytes"),
 )
 
 
@@ -136,10 +181,11 @@ class SeriesRows:
 
 def read_gauge(connection: sqlite3.Connection, *, gauge: Gauge, window: BucketWindow) -> SeriesRows:
     """
-    Reduce the gauge's samples inside the window to one mean per bucket in SQL, and read its latest sample.
+    Reduce the gauge's samples inside the window to one mean (or peak) per bucket in SQL, and read its latest sample.
     """
+    aggregate = "max" if gauge.bucket_peak else "avg"
     bucket_rows = connection.execute(
-        f"SELECT (timestamp - ?) / ? AS bucket, avg(value) FROM ("  # noqa: S608 - module constants only
+        f"SELECT (timestamp - ?) / ? AS bucket, {aggregate}(value) FROM ("  # noqa: S608 - module constants only
         f"SELECT timestamp, {gauge.value} AS value FROM {gauge.table} "
         f"WHERE timestamp >= ? AND timestamp < ? AND {gauge.series}"
         ") WHERE value IS NOT NULL GROUP BY bucket",

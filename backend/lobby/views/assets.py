@@ -27,8 +27,9 @@ LOBBY_ENTRY = "src/index.ts"
 def _i18n_context(request: Request) -> dict[str, object]:
     """
     Give every template the request's ``locale``, ``t(key, **params)``, which returns the message as escaped HTML,
-    ``format_number(n)`` in the locale's digit grouping, ``format_decimal(x)`` rounded to one decimal, and what the
-    language switch needs: the languages by their native names and the page to return to (path and query).
+    ``format_number(n)`` in the locale's digit grouping, ``format_decimal(x)`` rounded to one decimal (two significant
+    digits below that), and what the language switch needs: the languages by their native names and the page to return
+    to (path and query).
     """
     translator: Translator = request.app.state.translator
     locale = resolve_request_locale(request).locale

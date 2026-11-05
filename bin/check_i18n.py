@@ -73,11 +73,13 @@ APPS = (
         ),
         identical_keys=frozenset(
             {
+                "monitoring.group.traefik",
                 "monitoring.unit.cores",
                 "monitoring.unit.count",
                 "monitoring.unit.gib",
                 "monitoring.unit.kib_per_second",
                 "monitoring.unit.mib",
+                "monitoring.unit.milliseconds",
                 "monitoring.unit.percent",
                 "nav.beta",
                 "page.title.default",

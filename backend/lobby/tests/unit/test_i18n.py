@@ -137,9 +137,14 @@ def test_plural_category__when_ru__should_follow_the_cldr_integer_rule(count, ca
         (Locale.EN, 12345.67, "12,345.7"),
         (Locale.RU, 12345.67, "12\N{NARROW NO-BREAK SPACE}345,7"),
         (Locale.JA, 2.96, "3"),
+        (Locale.EN, 0.04, "0.04"),
+        (Locale.RU, 0.00314, "0,0031"),
+        (Locale.EN, 0, "0"),
     ],
 )
-def test_format_decimal__should_round_to_one_decimal_in_the_locale_marks(locale, number, shown):
+def test_format_decimal__should_round_to_one_decimal_or_two_significant_digits_in_the_locale_marks(
+    locale, number, shown
+):
     assert format_decimal(locale, number) == shown
 
 

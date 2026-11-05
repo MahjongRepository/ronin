@@ -39,7 +39,8 @@ def insert_metric_rows(path: Path, table: str, rows: Iterable[dict[str, object]]
     columns = list(rows[0])
     with closing(sqlite3.connect(path)) as conn, conn:
         conn.executemany(
-            f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({', '.join('?' * len(columns))})",  # noqa: S608
+            f"INSERT INTO {table} ({', '.join(f'"{column}"' for column in columns)}) "  # noqa: S608
+            f"VALUES ({', '.join('?' * len(columns))})",
             [tuple(row[column] for column in columns) for row in rows],
         )
 
