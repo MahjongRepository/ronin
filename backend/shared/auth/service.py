@@ -180,6 +180,15 @@ class AuthService:
         key_hash = hashlib.sha256(api_key.encode()).hexdigest()
         return await self._player_repo.get_by_api_key_hash(key_hash)
 
+    async def is_admin(self, *, user_id: str, username: str) -> bool:
+        """
+        Return whether the account named username, with this user id, holds the admin flag.
+
+        A guest has no account and is never an admin.
+        """
+        player = await self._player_repo.get_by_username(username)
+        return player is not None and player.user_id == user_id and player.is_admin
+
     # -- private helpers --
 
     async def _ensure_username_available(self, username: str) -> None:

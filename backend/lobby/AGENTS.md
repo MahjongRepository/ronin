@@ -117,6 +117,8 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   run for an existing bot, the script rotates its key, which invalidates the old one. Bots send the
   key as `X-API-Key` on the bot API and the WebSocket handshakes, with the configured
   `Origin`; from the handshake on, a bot runs the human code path.
+* An account becomes an admin through `scripts/grant_admin.py` (`--revoke` takes the flag back); the
+  flag lives on the player record and is the only admin concept.
 * The backend tries the session cookie first and falls back to a BOT account's `X-API-Key`, so a
   valid cookie wins over a key. `bot_only` routes answer JSON errors, never a login redirect.
 * Game tickets are signed when a game starts and verified by the game server with the shared secret.
@@ -133,8 +135,12 @@ Mandatory for all lobby code; review must catch violations.
   swap it in. A handler reads its body before any side effect, so a rejected body changes nothing.
   Never raise the cap for one route: it also keeps bot JSON far below the parser's recursion depth.
 * Every HTTP route gets exactly one policy decorator (`protected_html`, `protected_json`, `bot_only`,
-  `public_route`); startup fails for a `Route` without one. WebSocket routes authenticate inside the
-  handler. `protected_json` is for JSON a page script fetches: a JSON 401, never a login redirect.
+  `admin_html`, `public_route`); startup fails for a `Route` without one. WebSocket routes
+  authenticate inside the handler. `protected_json` is for JSON a page script fetches: a JSON 401,
+  never a login redirect.
+* `admin_html` reads the account's admin flag on every request, never from the session, so a grant or
+  revoke applies at the next request. Any session without the flag, a guest's included, gets a 404, and
+  no page links to an admin route, so players never learn it exists.
 * Unknown `Host` headers are rejected; a new deployment host goes in the allowed-hosts setting.
 * Session and CSRF cookies are HttpOnly, SameSite=Lax and Secure by default; only the test
   environment turns Secure off. The `lang` cookie is the one exception to HttpOnly: it carries no

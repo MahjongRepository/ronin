@@ -37,6 +37,14 @@ class SqlitePlayerRepository(PlayerRepository):
         """
         await self._db.submit_write(partial(_update_api_key_hash, user_id=user_id, api_key_hash=api_key_hash))
 
+    async def set_admin(self, user_id: str, *, is_admin: bool) -> None:
+        """
+        Grant or revoke the admin flag of the player with this id.
+
+        Raises ValueError when no player has that id.
+        """
+        await self._db.submit_write(partial(_update_admin_flag, user_id=user_id, is_admin=is_admin))
+
     async def get_by_username(self, username: str) -> Player | None:
         """
         Look up a player by username (case-insensitive).
@@ -66,6 +74,15 @@ def _update_api_key_hash(conn: sqlite3.Connection, *, user_id: str, api_key_hash
     cursor = conn.execute(
         "UPDATE players SET api_key_hash = ?, data = json_set(data, '$.api_key_hash', ?) WHERE id = ?",
         (api_key_hash, api_key_hash, user_id),
+    )
+    if cursor.rowcount == 0:
+        raise ValueError(f"Player with id '{user_id}' does not exist")
+
+
+def _update_admin_flag(conn: sqlite3.Connection, *, user_id: str, is_admin: bool) -> None:
+    cursor = conn.execute(
+        "UPDATE players SET data = json_set(data, '$.is_admin', json(?)) WHERE id = ?",
+        (json.dumps(is_admin), user_id),
     )
     if cursor.rowcount == 0:
         raise ValueError(f"Player with id '{user_id}' does not exist")

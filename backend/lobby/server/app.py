@@ -18,6 +18,7 @@ from starlette.staticfiles import StaticFiles
 
 from lobby.auth.backend import SessionOrApiKeyBackend
 from lobby.auth.policy import (
+    admin_html,
     bot_only,
     protected_html,
     protected_json,
@@ -50,6 +51,7 @@ from lobby.views import (
     load_vite_manifest,
     lobby_page,
     matchmaking_page,
+    monitoring_page,
     play_page,
     replay_content,
     resolve_vite_asset_urls,
@@ -190,6 +192,7 @@ def create_app(  # noqa: PLR0913
             name="join_room_and_redirect",
         ),
         Route("/matchmaking", protected_html(matchmaking_page), methods=["GET"], name="matchmaking_page"),
+        Route("/admin/monitoring", admin_html(monitoring_page), methods=["GET"], name="monitoring_page"),
         # WebSocket routes (auth handled inside the handlers)
         WebSocketRoute("/ws/rooms/{room_id}", room_websocket, name="room_websocket"),
         WebSocketRoute("/ws/matchmaking", matchmaking_websocket, name="matchmaking_websocket"),

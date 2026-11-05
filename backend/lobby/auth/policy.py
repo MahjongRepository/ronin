@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
 from starlette.authentication import has_required_scope
+from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
@@ -77,6 +78,31 @@ def protected_json(endpoint: Endpoint) -> Endpoint:
         return await endpoint(request)
 
     setattr(wrapper, AUTH_POLICY_ATTR, "protected_json")
+    return wrapper
+
+
+def admin_html(endpoint: Endpoint) -> Endpoint:
+    """
+    Require an admin account; redirect unauthenticated users to login and answer anyone else with a 404.
+
+    The flag is read from the account on every request, so a grant or a revoke applies to live sessions at once. The 404
+    keeps the page's existence hidden from players.
+    """
+
+    @functools.wraps(endpoint)
+    async def wrapper(request: Request) -> Response:
+        if not has_required_scope(request, ["authenticated"]):
+            return _login_redirect(request)
+
+        is_admin = await request.app.state.auth_service.is_admin(
+            user_id=request.user.user_id, username=request.user.username
+        )
+        if not is_admin:
+            raise HTTPException(HTTPStatus.NOT_FOUND)
+
+        return await endpoint(request)
+
+    setattr(wrapper, AUTH_POLICY_ATTR, "admin_html")
     return wrapper
 
 

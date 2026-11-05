@@ -93,6 +93,14 @@ def _insert_bot(client, *, user_id: str, username: str) -> tuple[str, str]:
     return player.user_id, raw_api_key
 
 
+def _set_admin_flag(client, *, username: str, is_admin: bool) -> None:
+    with closing(sqlite3.connect(client.app.state.auth_settings.database_path)) as conn, conn:
+        conn.execute(
+            "UPDATE players SET data = json_set(data, '$.is_admin', json(?)) WHERE username = ?",
+            (json.dumps(is_admin), username),
+        )
+
+
 class TestAuthEndpoints:
     def test_register_route__when_get__should_render_form_with_confirm_password(self, client):
         response = client.get("/register")
@@ -601,6 +609,28 @@ class TestAuthPolicyWiring:
         assert response.status_code == case.status
         assert response.content == case.body
         assert {name: response.headers.get(name) for name in case.headers} == case.headers
+
+
+class TestAdminMonitoringPage:
+    def test_monitoring_page__when_admin_flag_granted_then_revoked__should_answer_only_while_granted(self, client):
+        _register_user(client, username="opsuser")
+
+        before_grant = client.get("/admin/monitoring")
+        _set_admin_flag(client, username="opsuser", is_admin=True)
+        granted = client.get("/admin/monitoring")
+        _set_admin_flag(client, username="opsuser", is_admin=False)
+        revoked = client.get("/admin/monitoring")
+
+        assert before_grant.status_code == 404
+        assert granted.status_code == 200
+        assert "Monitoring" in granted.text
+        assert revoked.status_code == 404
+
+    def test_monitoring_page__when_guest__should_answer_404(self, client):
+        csrf = _get_csrf_token(client, "/login")
+        client.post("/guest", data={"csrf_token": csrf})
+
+        assert client.get("/admin/monitoring").status_code == 404
 
 
 class TestCsrfProtection:

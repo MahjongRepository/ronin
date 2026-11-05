@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from typing import TYPE_CHECKING
 
 import pytest
@@ -97,6 +98,40 @@ class TestSetApiKeyHash:
     ):
         with pytest.raises(ValueError, match="does not exist"):
             await repo.set_api_key_hash("nobody", "keyhash2")
+
+
+class TestSetAdmin:
+    async def test_player_repository_set_admin__when_row_predates_the_flag__should_grant_and_revoke_it(
+        self, tmp_path: Path
+    ):
+        db_path = tmp_path / "test.db"
+        db = Database(db_path)
+        await db.open()
+        repo = SqlitePlayerRepository(db)
+        with closing(sqlite3.connect(db_path, autocommit=True)) as other_server:
+            other_server.execute(
+                "INSERT INTO players (id, username, data) VALUES (?, ?, ?)",
+                ("u1", "alice", _human().model_dump_json(exclude={"is_admin"})),
+            )
+
+        await repo.set_admin("u1", is_admin=True)
+        granted = await repo.get_by_username("alice")
+        with closing(sqlite3.connect(db_path)) as other_server:
+            stored_flag_type = other_server.execute("SELECT json_type(data, '$.is_admin') FROM players").fetchone()[0]
+        await repo.set_admin("u1", is_admin=False)
+        revoked = await repo.get_by_username("alice")
+        await db.close()
+
+        assert granted.is_admin is True
+        assert stored_flag_type == "true"
+        assert granted.password_hash == FAKE_BCRYPT_HASH
+        assert revoked.is_admin is False
+
+    async def test_player_repository_set_admin__when_player_id_unknown__should_raise(
+        self, repo: SqlitePlayerRepository
+    ):
+        with pytest.raises(ValueError, match="does not exist"):
+            await repo.set_admin("nobody", is_admin=True)
 
 
 class TestCaseInsensitiveUsername:

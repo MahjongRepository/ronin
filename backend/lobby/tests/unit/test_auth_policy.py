@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, urlparse
 
 import pytest
 from starlette.applications import Starlette
 from starlette.authentication import AuthCredentials
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse
 from starlette.routing import Mount, Route
 
 from lobby.auth.models import AuthenticatedPlayer
 from lobby.auth.policy import (
+    admin_html,
     bot_only,
     protected_html,
     protected_json,
@@ -35,6 +39,7 @@ def _make_request(
     path: str = "/some-page",
     query_string: bytes = b"",
     account_type: AccountType = AccountType.HUMAN,
+    app: object = _app,
 ) -> Request:
     scopes = ["authenticated"] if authenticated else []
     scope = {
@@ -46,7 +51,7 @@ def _make_request(
         "root_path": "",
         "server": ("testserver", 80),
         "scheme": "http",
-        "app": _app,
+        "app": app,
         "auth": AuthCredentials(scopes),
     }
     if authenticated:
@@ -140,6 +145,38 @@ class TestBotOnly:
 
         result = await wrapped(request)
         assert result == "ok"
+
+
+def _app_with_admin_answer(*, is_admin: bool) -> SimpleNamespace:
+    auth_service = SimpleNamespace(is_admin=AsyncMock(return_value=is_admin))
+    return SimpleNamespace(state=SimpleNamespace(auth_service=auth_service))
+
+
+class TestAdminHtml:
+    async def test_admin_html__when_unauthenticated__should_redirect_to_login(self):
+        wrapped = admin_html(_dummy_handler)
+        request = _make_request(authenticated=False, path="/admin/monitoring")
+
+        result = await wrapped(request)
+        assert isinstance(result, RedirectResponse)
+        assert result.headers["location"] == "/login?next=%2Fadmin%2Fmonitoring"
+
+    async def test_admin_html__when_account_not_admin__should_raise_404(self):
+        wrapped = admin_html(_dummy_handler)
+        request = _make_request(authenticated=True, app=_app_with_admin_answer(is_admin=False))
+
+        with pytest.raises(HTTPException) as exc_info:
+            await wrapped(request)
+        assert exc_info.value.status_code == 404
+
+    async def test_admin_html__when_account_admin__should_call_handler(self):
+        wrapped = admin_html(_dummy_handler)
+        app = _app_with_admin_answer(is_admin=True)
+        request = _make_request(authenticated=True, app=app)
+
+        result = await wrapped(request)
+        assert result == "ok"
+        app.state.auth_service.is_admin.assert_awaited_once_with(user_id="test-id", username="test")
 
 
 def _make_handler() -> object:

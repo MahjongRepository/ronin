@@ -96,6 +96,7 @@
         "other": "открыто: {count}"
     },
     "lobby.tables.title": "Столы игроков",
+    "monitoring.title": "Мониторинг",
     "nav.aria_label": "Основное меню",
     "nav.beta": "Beta",
     "nav.history": "История",

@@ -63,6 +63,7 @@ class Player(BaseModel, frozen=True):
     password_hash: str
     account_type: AccountType = AccountType.HUMAN
     api_key_hash: str | None = None
+    is_admin: bool = False
 
     @model_validator(mode="after")
     def _validate_account_fields(self) -> Self:
