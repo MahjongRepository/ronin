@@ -85,6 +85,9 @@ spot-metrics spot-metrics-sql: SHELL := /bin/bash
 spot-metrics spot-metrics-sql: .SHELLFLAGS := -o pipefail -c
 
 spot-metrics:
+ifneq ($(value RANGE),$(filter 1h 24h 7d 30d 90d,$(value RANGE)))
+	$(error RANGE must be one of 1h, 24h, 7d, 30d, 90d)
+endif
 	@$(SPOT) -t $(TARGET) -n metrics-report -e RANGE:"$(RANGE)" | $(SPOT_OUTPUT_LINES)
 
 spot-metrics-sql:
