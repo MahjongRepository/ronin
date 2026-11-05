@@ -1,7 +1,8 @@
-ARG PYTHON_VERSION=3.14.3
+ARG PYTHON_VERSION=3.14.10
 ARG PYTHON_MINOR=3.14
-ARG ALPINE_VERSION=3.23
+ARG ALPINE_VERSION=3.24
 ARG NODE_VERSION=26.13.0
+ARG UV_VERSION=0.13.7
 
 # =============================================================================
 # Stage 1: Build frontend assets
@@ -39,13 +40,16 @@ RUN npm run build
 # =============================================================================
 # Stage 2: Install Python dependencies
 # =============================================================================
-# uv images only tag by Python minor version (no patch).
-FROM ghcr.io/astral-sh/uv:python${PYTHON_MINOR}-alpine${ALPINE_VERSION} AS builder
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
+
+FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION} AS builder
+
+COPY --from=uv /uv /bin/uv
 
 WORKDIR /app
 
 # Enable bytecode compilation and copy mode for reproducible builds
-ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 
 # Install dependencies first (layer cache — only re-runs when deps change)
 COPY backend/pyproject.toml backend/uv.lock ./

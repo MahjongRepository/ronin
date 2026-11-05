@@ -222,7 +222,7 @@ tasks:
     commands:
       - name: install restic
         script: |
-          RESTIC_VERSION=0.18.1
+          RESTIC_VERSION=0.19.1
           if restic version 2>/dev/null | grep -q "$RESTIC_VERSION"; then
             echo "restic $RESTIC_VERSION already installed"
           else

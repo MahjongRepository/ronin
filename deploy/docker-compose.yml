@@ -1,6 +1,6 @@
 services:
   traefik:
-    image: traefik:v3.6
+    image: traefik:v3.7
     restart: unless-stopped
     depends_on:
       lobby:
@@ -20,6 +20,8 @@ services:
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.aliasheadersstrategy=delete"
+      - "--entrypoints.websecure.http.aliasheadersstrategy=delete"
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
       - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:?Set ACME_EMAIL in .env}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"

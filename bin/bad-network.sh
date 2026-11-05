@@ -1,5 +1,5 @@
-BAD_NET_TRAEFIK_IMAGE="traefik:v3.6"
-BAD_NET_TOXIPROXY_IMAGE="ghcr.io/shopify/toxiproxy:2.12.0"
+BAD_NET_TRAEFIK_IMAGE="traefik:v3.7"
+BAD_NET_TOXIPROXY_IMAGE="ghcr.io/shopify/toxiproxy:2.13.0"
 BAD_NET_LABEL="ronin.run-games=bad-network"
 BAD_NET_TRAEFIK="ronin-bad-net-traefik"
 BAD_NET_TOXIPROXY="ronin-bad-net-toxiproxy"
@@ -218,6 +218,7 @@ start_bad_network() {
         --providers.file.filename=/etc/traefik/dynamic.yml \
         --providers.file.watch=true \
         "--entrypoints.web.address=127.0.0.1:$BAD_NET_TRAEFIK_PORT" \
+        --entrypoints.web.http.aliasheadersstrategy=delete \
         --api.dashboard=false \
         --log.level=INFO \
         --log.format=json \
