@@ -271,6 +271,8 @@ class TestStatusEndpoint:
             "closes_4004",
         }
         assert {key: data[key] for key in socket_totals} == dict.fromkeys(socket_totals, 0)
+        loop_lag_max_ms = data["loop_lag_max_ms"]
+        assert loop_lag_max_ms is None or loop_lag_max_ms >= 0
 
     def test_status_endpoint__when_game_pending__should_count_it_as_pending(self, client):
         create_pending_game(client, game_id="room1")

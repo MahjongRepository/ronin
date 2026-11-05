@@ -28,6 +28,7 @@ class TestOwnedDbShutdown:
             )
 
         _assert_database_closed(app)
+        assert app.state.loop_lag_task.cancelled()
         with closing(sqlite3.connect(db_path)) as conn:
             assert conn.execute("SELECT id FROM played_games").fetchall() == [("game1",)]
 

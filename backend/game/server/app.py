@@ -17,6 +17,7 @@ from starlette.routing import Route, WebSocketRoute
 
 from game.logic.mahjong_service import MahjongGameService
 from game.replay.external.tenhou import IncompleteReplayError, convert_replay_content
+from game.server.loop_lag import LoopLagProbe
 from game.server.router import MessageRouter
 from game.server.settings import GameServerSettings
 from game.server.types import CreateGameRequest
@@ -50,6 +51,7 @@ async def status(request: Request) -> JSONResponse:
     session_manager: SessionManager = request.app.state.session_manager
     settings: GameServerSettings = request.app.state.settings
     socket_stats: SocketStats = request.app.state.socket_stats
+    loop_lag: LoopLagProbe = request.app.state.loop_lag
     return JSONResponse(
         {
             "status": "ok",
@@ -62,6 +64,7 @@ async def status(request: Request) -> JSONResponse:
             "started_at": request.app.state.started_at,
             **session_manager.stats,
             **socket_stats.snapshot,
+            "loop_lag_max_ms": loop_lag.max_ms,
         },
     )
 
@@ -310,14 +313,22 @@ def create_app(
         WebSocketRoute("/ws/{game_id}", ws_endpoint),
     ]
 
+    loop_lag = LoopLagProbe()
+
     @contextlib.asynccontextmanager
-    async def lifespan(_app: Starlette) -> AsyncGenerator[None]:
+    async def lifespan(starlette_app: Starlette) -> AsyncGenerator[None]:
+        loop_lag_task = asyncio.create_task(loop_lag.run())
+        starlette_app.state.loop_lag_task = loop_lag_task
         try:
             if owned_db is not None:
                 await owned_db.open()
 
             yield
         finally:
+            loop_lag_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await loop_lag_task
+
             try:
                 await session_manager.shutdown()
             finally:
@@ -335,6 +346,7 @@ def create_app(
     app.state.session_manager = session_manager
     app.state.started_at = int(time.time())
     app.state.socket_stats = message_router.socket_stats
+    app.state.loop_lag = loop_lag
 
     logger.info("game server ready")
     return app
