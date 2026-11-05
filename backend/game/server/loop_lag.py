@@ -25,7 +25,7 @@ class LoopLagProbe:
 
     clock: Callable[[], float] = time.monotonic
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
-    _observations: deque[tuple[float, float]] = field(default_factory=deque)
+    _observations: deque[tuple[float, float]] = field(default_factory=deque, init=False, repr=False)
 
     async def run(self) -> None:
         """
