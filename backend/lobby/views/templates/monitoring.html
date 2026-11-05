@@ -58,7 +58,7 @@
             <figure class="monitoring-chart" data-chart="{{ chart.key }}" data-state="{{ chart.state }}">
                 <figcaption class="monitoring-chart-caption">
                     <span class="monitoring-chart-label">{{ t(chart.label_key) }}</span>
-                    {% if chart.latest %}
+                    {% if chart.latest and chart.latest.value is not none %}
                     <span class="monitoring-chart-latest">{{ t("monitoring.chart.latest", value=t(chart.unit_key, value=format_decimal(chart.latest.value)), age=chart.age) }}</span>
                     {% endif %}
                 </figcaption>

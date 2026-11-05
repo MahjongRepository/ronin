@@ -27,13 +27,23 @@ class ChartUnit(StrEnum):
     PERCENT = "percent"
     GIB = "gib"
     MIB = "mib"
+    KIB_PER_SECOND = "kib_per_second"
+    CORES = "cores"
+    COUNT = "count"
 
     @property
     def divisor(self) -> float:
         return _UNIT_DIVISORS[self]
 
 
-_UNIT_DIVISORS = {ChartUnit.PERCENT: 1.0, ChartUnit.GIB: float(2**30), ChartUnit.MIB: float(2**20)}
+_UNIT_DIVISORS = {
+    ChartUnit.PERCENT: 1.0,
+    ChartUnit.GIB: float(2**30),
+    ChartUnit.MIB: float(2**20),
+    ChartUnit.KIB_PER_SECOND: float(2**10),
+    ChartUnit.CORES: 1.0,
+    ChartUnit.COUNT: 1.0,
+}
 
 
 @dataclass(frozen=True)
@@ -52,11 +62,12 @@ class BucketWindow:
 
 def bucket_window(duration: timedelta, *, now: int) -> BucketWindow:
     """
-    Split the ``duration`` up to ``now`` into at most ``MAX_BUCKETS`` buckets, the last one holding ``now``.
+    Split the ``duration`` up to ``now`` into at most ``MAX_BUCKETS`` buckets, the last one holding the sample of the
+    latest whole minute at or before ``now``.
     """
     seconds = int(duration.total_seconds())
     width = SAMPLE_INTERVAL_SECONDS * math.ceil(seconds / (MAX_BUCKETS * SAMPLE_INTERVAL_SECONDS))
-    end = now - (now - _BUCKET_EDGE_SECOND) % SAMPLE_INTERVAL_SECONDS + SAMPLE_INTERVAL_SECONDS
+    end = now - now % SAMPLE_INTERVAL_SECONDS + _BUCKET_EDGE_SECOND
     count = math.ceil(seconds / width)
     return BucketWindow(start=end - count * width, width=width, count=count)
 
@@ -110,10 +121,12 @@ GAUGES = (
 
 
 @dataclass(frozen=True)
-class GaugeRows:
+class SeriesRows:
     """
-    A gauge series as read: each bucket's mean in stored units (None for a bucket without a sample), and the newest
-    sample holding a value, at any time, with its Unix timestamp (None when the series has none).
+    A chart's series as read, in stored units: each bucket's value (None for a bucket with nothing to draw), and the
+    latest value with the Unix timestamp of the newest sample holding one, at any time (None when the series has none).
+
+    A gauge's latest value is that sample's; a counter's is the rate ending at it, None when that interval is invalid.
     """
 
     buckets: tuple[float | None, ...]
@@ -121,7 +134,7 @@ class GaugeRows:
     latest_at: int | None
 
 
-def read_gauge(connection: sqlite3.Connection, *, gauge: Gauge, window: BucketWindow) -> GaugeRows:
+def read_gauge(connection: sqlite3.Connection, *, gauge: Gauge, window: BucketWindow) -> SeriesRows:
     """
     Reduce the gauge's samples inside the window to one mean per bucket in SQL, and read its latest sample.
     """
@@ -139,7 +152,7 @@ def read_gauge(connection: sqlite3.Connection, *, gauge: Gauge, window: BucketWi
     ).fetchone()
 
     means = dict(bucket_rows)
-    return GaugeRows(
+    return SeriesRows(
         buckets=tuple(means.get(index) for index in range(window.count)),
         latest_value=None if latest is None else latest[1],
         latest_at=None if latest is None else latest[0],

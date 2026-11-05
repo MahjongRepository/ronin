@@ -73,7 +73,10 @@ APPS = (
         ),
         identical_keys=frozenset(
             {
+                "monitoring.unit.cores",
+                "monitoring.unit.count",
                 "monitoring.unit.gib",
+                "monitoring.unit.kib_per_second",
                 "monitoring.unit.mib",
                 "monitoring.unit.percent",
                 "nav.beta",
