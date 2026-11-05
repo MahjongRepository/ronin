@@ -45,7 +45,10 @@ The `Makefile` lists the targets; the non-obvious ones:
 * `make profile` — profile the game engine replay runner (the `optimize-engine` skill uses it).
 * `make run-games [GAMES=n] [TABLES=t] [MODE=m]` — play bot games (the `mahjong-bot` repo at `BOT_ROOT`,
   default `~/work/mahjong-bot`) on fresh servers, `t` tables at a time, the bots in play mode `m`
-  (their `--mode`, only when set; `human` thinks 0-3 s per action and gets a 2-hour batch timeout), stopping at the first batch
+  (their `--mode`, only when set; `human` thinks 0-3 s per action and gets a 2-hour batch timeout; `chaos` misbehaves on purpose —
+  resyncs, socket takeovers, disconnects, kicks, deadline stalls, refused and malformed actions, the
+  bot's `ronin/chaos.py` — gets a 30-minute batch timeout, and its log gate passes only the game
+  server's info and warning lines those cause), stopping at the first batch
   with a game that is not completed, whose replay does not reproduce it (`bin/verify_games.py`), or
   after which any log (server stderr and bot console included) holds a warning or an abnormal event
   such as a timeout auto-action or a bot replaced by AI. It forces debug console logging, so these

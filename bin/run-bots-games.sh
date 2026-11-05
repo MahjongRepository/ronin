@@ -12,6 +12,9 @@ PYTHON_WARNING_PATTERN=':[0-9]+: [A-Za-z]*Warning: '
 SERVER_ISSUE_PATTERN="\\[(warning|error|critical) *\\]|^(WARNING|ERROR|CRITICAL):|Traceback|$PYTHON_WARNING_PATTERN|timeout, auto-|auth timeout,|replaced player with AI|player reconnected|connection taken over|stale game action"
 BOT_CONSOLE_NOISE_PATTERN='^(.\[[0-9]+m)?[0-9-]{10} [0-9:,]{8,12} [^ ]+ (DEBUG|INFO): '
 BOT_ISSUE_PATTERN="ERROR|WARNING|CRITICAL|Traceback|$PYTHON_WARNING_PATTERN"
+CHAOS_EXPECTED_EVENTS="connection taken over|player reconnected|replaced player with AI|stale game action|meld timeout, auto-passing|turn timeout, auto-discarding|decode error|invalid message|invalid game action|invalid pass: no pending call prompt|invalid call: tile_id mismatch|discard tile not in hand|discard forbidden by kuikae or riichi|action rejected: round not in progress|cannot call added kan: tile not in hand"
+CHAOS_EXPECTED_SESSION_ERRORS="reconnect_no_session"
+CHAOS_EXPECTED_PATTERN="\\[(info|warning) *\\] (($CHAOS_EXPECTED_EVENTS) +\\[|session error sent to client +\\[[^]]*\\] error_code=($CHAOS_EXPECTED_SESSION_ERRORS) )"
 
 MAX_GAMES="${1:-10}"
 TABLES="${TABLES:-1}"
@@ -29,8 +32,9 @@ case "$MODE" in
     "") ;;
     fast) BOT_ARGS=(--mode fast) ;;
     human) BOT_ARGS=(--mode human) && BATCH_TIMEOUT=7200 ;;
+    chaos) BOT_ARGS=(--mode chaos) && BATCH_TIMEOUT=1800 ;;
     *)
-        echo "unknown bot mode MODE=$MODE, expected fast or human"
+        echo "unknown bot mode MODE=$MODE, expected fast, human or chaos"
         exit 1
         ;;
 esac
@@ -160,6 +164,7 @@ scan_logs() {
     local label="$1"
     local dir="$2"
     local pattern="$3"
+    local expected_pattern="${4:-}"
 
     local matches
     local status=0
@@ -173,6 +178,19 @@ scan_logs() {
         return 1
     fi
 
+    if [[ -n $expected_pattern ]]; then
+        status=0
+        matches=$(grep -vaE "$expected_pattern" <<< "$matches") || status=$?
+        if [[ $status -eq 1 ]]; then
+            return 0
+        fi
+
+        if [[ $status -ne 0 ]]; then
+            echo "=== $label LOGS ($dir): filtering expected chaos lines failed with status $status ==="
+            return 1
+        fi
+    fi
+
     echo "=== $label LOGS ($dir) ==="
     echo "$matches"
     echo ""
@@ -182,7 +200,12 @@ scan_logs() {
 analyze_logs() {
     local has_issues=0
 
-    scan_logs GAME "$GAME_LOG_DIR" "$SERVER_ISSUE_PATTERN" || has_issues=1
+    local game_expected=""
+    if [[ $MODE == chaos ]]; then
+        game_expected="$CHAOS_EXPECTED_PATTERN"
+    fi
+
+    scan_logs GAME "$GAME_LOG_DIR" "$SERVER_ISSUE_PATTERN" "$game_expected" || has_issues=1
     scan_logs LOBBY "$LOBBY_LOG_DIR" "$SERVER_ISSUE_PATTERN" || has_issues=1
     scan_logs BOT "$BOT_LOG_DIR" "$BOT_ISSUE_PATTERN" || has_issues=1
 
