@@ -88,8 +88,7 @@
     }
 }
 
-/* A wide centre's sides' rows stand centred, as Tenhou's; a square centre's off its corner on the seat's left, a
-   pinwheel, so a long row never meets the next side's. */
+/* Scores start off each seat's left corner in a pinwheel, so a long row never meets the next side's. */
 .board-center__score-line {
     position: absolute;
     left: var(--row-depth);
@@ -103,11 +102,6 @@
     line-height: var(--row-h);
     color: var(--ronin-text);
     white-space: nowrap;
-
-    @include board-where($wide-centre-board) {
-        left: max(var(--row-depth), 50%);
-        transform: translateX(-50%);
-    }
 }
 
 /* A replay's other seats' scores view from their seats at a pointer's press; their plates are the keyboard's. */

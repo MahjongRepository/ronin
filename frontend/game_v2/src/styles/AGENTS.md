@@ -6,8 +6,8 @@ they disagree.
 - **The board sizes itself from its own box.** `.game-board` is a size container named `game-board`; every length
   derives from its box (container query units), never the viewport. A page that gives it a box decides its size.
 - **Sizes come from `boardGeometry` (TS).** The sizes, the geometry family, the chrome tier and every reserved
-  footprint come from it, through its directive on `.game-board`; the styles place from them. Family, chrome and
-  centre branches read the emitted `data-board-family` / `data-board-chrome` / `data-board-centre`, never a CSS query
+  footprint come from it, through its directive on `.game-board`; the styles place from them. Family and chrome
+  branches read the emitted `data-board-family` / `data-board-chrome`, never a CSS query
   of the board's box (nor
   `@container style()`, which Safari 16.4 lacks); container queries remain only for content-responsive rules. The
   family and chrome mixins are `game-board/_queries.scss`'s, which emits no CSS, so a lazy chunk's stylesheet (the
@@ -56,9 +56,9 @@ they disagree.
   tile on its own scale from the box (at most 1.7 river tiles, never under 36px); its band's controls float in the
   gap above the hand, its chrome follows the river tile with the control floor, and its right hand's place (the
   band row stepping in) is computed there too, never with a length switch.
-- The centre is wider than tall: its width is `--w` (half `--hx`), its height the sizing rule's side `--c` (half
-  `--h`). A placement across the board offsets from `--cx` by `--hx`, one up or down from `--cy` by `--h`; a centre
-  text size follows `--c`.
+- The centre is square: `--w` and `--c` are its side, `--hx` and `--h` its half-side. Its text follows `--c`.
+  Every family's centre is at least six river tiles tall; the geometry fits that centre and the rivers together.
+  Desktops tighten the top separation before reducing tiles. Phones and upright boards also keep their text floors.
 - Lengths CSS computes are registered with `@property` (`<length>`), so each computes once to pixels; an
   unregistered chain grows with every reference until a browser drops the declaration. A bridged length is px already.
 - **Layout measurements**: the board's geometry directive and the notices' clamp. Motion snapshots only measure
@@ -78,12 +78,14 @@ they disagree.
   (`river-shape.ts`), its overflow an explicit per-seat policy (`RIVER_OVERFLOW`: a side river wraps a fourth row, a
   top or bottom one runs its third row on); it stays in the core's pinwheel, absolutely placed, its area a normal
   river's turned footprint with its frame turned to the seat inside (a rotation, never `writing-mode`) from the area's
-  corner where the first row starts. How far a river reaches past that footprint is the geometry's: it sizes the slots
-  and badges clear of it, and the styles read only the bottom river's run-on reach (`--reach-bottom-right`).
+  corner where the first row starts. The geometry reserves nineteen discards for top and bottom rivers when placing
+  slots and badges; a rarer longer third row may overflow that reserve. The styles read only the bottom river's
+  reserved run-on reach (`--reach-bottom-right`).
 - **Places are fixed per viewport.** Badges, an opponent's full hand reach, the decisions' place, the notices' place
   and the replay's controls never move with tile counts or what a stop shows; nothing else enters a full hand's reach.
   A place beside a side strip keeps clear of the strip's deepest reach, never its depth as drawn.
-- The notices never cover a tile, a plate, the centre, a decision control or a panel. A panel never covers the
+- The notices never cover a tile within its reserved reach, a plate, the centre, a decision control or a panel.
+  Rarer top and bottom third rows past nineteen discards may extend under them. A panel never covers the
   page's corner or the replay's controls.
 - The own hand's tiles are the board's largest: a phone's for touch; off a phone 4/3 of the river tile,
   as large as a side seat's tile turned across the screen, every other hand and river at the river tile. No meld face
@@ -93,7 +95,8 @@ they disagree.
   yaku, value, indicators and score rows in place, keeping its head and the viewer's controls whole, every other part
   that shares a row with a scroller scrolling too.
 - Pages never clip the board: `.board-page` gives it the safe area, and a 10px gutter on every board but a phone's.
-  No tile's edge leaves the board: the own row stands at least its edge's depth off the bottom.
+  The own row stands at least its edge's depth off the bottom. Top and bottom rivers reserve nineteen discards;
+  longer third rows still render but may clip at the board edge or extend under peripheral elements.
 - **The gutter follows the family, decided once.** The board's box without the gutter, less on each edge what a
   10px gutter adds beyond the safe inset, is classified once: a phone takes no gutter and the unguttered box, any
   other family the 10px gutter on that box. Classifying the guttered board instead would flip the family at the

@@ -97,18 +97,22 @@ export const SMALL_WINDOWS: readonly string[] = SMALL_WINDOW_VIEWPORTS.map(({ na
 export const [SMALLEST_WINDOW] = SMALL_WINDOWS;
 
 /**
- * Wider phones at the floor's height, where the 36px own tile leaves room beside the full hand and the right hand's
- * placement must still keep the band whole.
+ * Wider phones at the floor's height and a larger landscape phone, where the centre must keep a full six-tile row
+ * while the hand and decisions fit beside the rivers.
  */
-const WIDER_PHONE_VIEWPORTS: readonly Viewport[] = [680, 700].map((width) => ({
+const WIDER_PHONE_VIEWPORTS: readonly Viewport[] = [
+    { height: 375, width: 680 },
+    { height: 375, width: 700 },
+    { height: 430, width: 932 },
+].map((dimensions) => ({
     context: {
         ...deviceOptions("iPhone SE (3rd gen) landscape"),
-        screen: { height: 375, width },
-        viewport: { height: 375, width },
+        screen: dimensions,
+        viewport: dimensions,
     },
     desktop: false,
     engine: webkit,
-    name: `phone-${width}`,
+    name: `phone-${dimensions.width}`,
     ownTileFloor: MIN_TAP,
     portrait: false,
     rotates: false,

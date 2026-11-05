@@ -43,7 +43,6 @@ $desktop-board: ':is([data-board-family="desktop"], [data-board-family="short-de
 $short-desktop-board: '[data-board-family="short-desktop"]';
 $shared-corners-board: ':is([data-board-family="phone"], [data-board-family="short-desktop"])';
 $upright-board: '[data-board-family="upright"]';
-$wide-centre-board: '[data-board-centre="wide"]';
 $narrow-desktop-board: '[data-board-family="desktop"][data-board-chrome="small"]';
 $small-chrome: '[data-board-chrome="small"]';
 $large-chrome: '[data-board-chrome="large"]';

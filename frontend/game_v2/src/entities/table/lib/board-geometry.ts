@@ -2,7 +2,6 @@ import { RIVER_ROWS, RIVER_ROW_SIZE } from "@/entities/tile";
 
 import {
     BAND_ROW_EXTRA,
-    CENTRE_ASPECT,
     CORE_TILES,
     type ChromeTier,
     DESKTOP_CENTRE_SHARE,
@@ -57,9 +56,6 @@ import {
 
 type BoardFamily = "phone" | "desktop" | "short-desktop" | "upright";
 
-/** A centre's shape: a wide one stands its sides' rows centred, as Tenhou's; a square one's in a pinwheel. */
-type BoardCentre = "wide" | "square";
-
 interface BoardBox {
     readonly width: number;
     readonly height: number;
@@ -91,7 +87,6 @@ type BoardLengths = Readonly<Record<string, number>>;
 interface BoardGeometry {
     readonly family: BoardFamily;
     readonly chrome: ChromeTier;
-    readonly centre: BoardCentre;
     readonly gutter: number;
     readonly box: BoardBox;
     readonly lengths: BoardLengths;
@@ -160,7 +155,7 @@ const NOTICE_GAPS = 14;
 const DECISIONS_COLUMN = 84;
 const DECISIONS_GAPS = 12;
 
-/** A side badge keeps at least this far off the top river's longest third row (px). */
+/** A side badge keeps at least this far off the top river's reserved third row (px). */
 const SIDE_CLEAR = 16;
 
 /** No phone's river tile passes this share of its height, nor goes under `PHONE_SMALLEST_RIVER` (px). */
@@ -366,25 +361,24 @@ function leftRiverDrop(rw: number): number {
 }
 
 /**
- * The rivers' reach at their capacity, a row's sideways riichi tile and the latest discard's gap counted: a side
- * river's fourth row, a top or bottom river's third row run on to twelve tiles, and the top river's third row's
+ * The rivers' reserved reach, a row's sideways riichi tile and the latest discard's gap counted: a side
+ * river's fourth row, a top or bottom river's third row run on to seven tiles, and the top river's third row's
  * centre-facing edge, which no gap moves toward the centre; and the latest discard's gaps.
  */
 function riverLengths({
     centre,
-    centreWidth,
     cx,
     cy,
     rw,
-}: Readonly<Record<"centre" | "centreWidth" | "cx" | "cy" | "rw", number>>): [string, number][] {
-    const hx = centreWidth / 2;
+}: Readonly<Record<"centre" | "cx" | "cy" | "rw", number>>): [string, number][] {
+    const hx = centre / 2;
     const gap = riverGap(rw);
     const sideReach = (SIDE_REACH_TILES / 2) * rw + LATEST_DISCARD_GAP;
     const runOnReach = RUN_ON_REACH_TILES * rw + LATEST_DISCARD_GAP;
     return [
         ["latest-discard-gap", LATEST_DISCARD_GAP],
         ["reach-bottom-right", cx - hx + runOnReach],
-        ["reach-left", leftReach(cx, centreWidth, rw)],
+        ["reach-left", leftReach(cx, centre, rw)],
         ["reach-right", cx + hx + gap + sideReach],
         ["reach-top-left", cx + hx - runOnReach],
         ["reach-top-row3", cy - centre / 2 - gap - ROWS_BEFORE_RUN_ON * rw],
@@ -395,8 +389,8 @@ function riverLengths({
 }
 
 /** Where the left river's reach ends, toward the board's left edge. */
-function leftReach(cx: number, centreWidth: number, rw: number): number {
-    return cx - centreWidth / 2 - riverGap(rw) - (SIDE_REACH_TILES / 2) * rw - LATEST_DISCARD_GAP;
+function leftReach(cx: number, centre: number, rw: number): number {
+    return cx - centre / 2 - riverGap(rw) - (SIDE_REACH_TILES / 2) * rw - LATEST_DISCARD_GAP;
 }
 
 /** The page's cog's side, from the river tile within its floor and cap. */
@@ -484,11 +478,12 @@ interface BoardFrame {
 }
 
 /** The desktop and short desktop's root sizes and the lengths the stylesheet reads with them, in px. */
-function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLengths {
+function desktopLengths(frame: BoardFrame): BoardLengths {
+    const { box, chrome, family } = frame;
     const { width, height } = box;
     const short = family === "short-desktop";
-    const tier = DESKTOP_CHROME[chrome];
-    const { bandGap, controlH, coreGap, m, ownBadgeH, ownInline, sep, switchGap } = tier;
+    const tier = { ...DESKTOP_CHROME[chrome], sep: DESKTOP_CHROME[chrome].badgeGap };
+    const { bandGap, m, ownBadgeH, ownInline, switchGap } = tier;
     const ownCap = Math.min(DESKTOP_OWN_CAP_WIDTH * width, DESKTOP_OWN_CAP_HEIGHT * height);
     const ownFit = Math.min(ownCap, (width - 2 * m - ownInline) / FULL_HAND);
     const coreCap = DESKTOP_CORE_CAP * height;
@@ -496,7 +491,26 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
     const rowRiseFixed = chrome === "small" ? ownBadgeH + OWN_BADGE_LANE + switchGap - bandGap : 0;
     const rooms = { coreCap, coreRoomW, height, ownFit, rowRiseFixed, tier };
     const familyRiverTile = short ? switchesRiverTile(rooms) : bandRiverTile(rooms);
-    const rw = Math.floor(Math.min(sharedRiverTile(rooms), familyRiverTile));
+    const largestRiver = Math.min(sharedRiverTile(rooms), familyRiverTile);
+    let rw = Math.max(1, Math.floor(largestRiver));
+    let layout = desktopLayout(frame, tier, rw);
+    while (rw > 1 && !layout.fits) {
+        rw -= 1;
+        layout = desktopLayout(frame, tier, rw);
+    }
+    return layout.lengths;
+}
+
+function desktopLayout(
+    { box, chrome, family, slots }: BoardFrame,
+    tier: DesktopChrome,
+    rw: number,
+): { readonly fits: boolean; readonly lengths: BoardLengths } {
+    const { width, height } = box;
+    const short = family === "short-desktop";
+    const { bandGap, controlH, coreGap, m, ownBadgeH, ownInline, sep, switchGap } = tier;
+    const coreCap = DESKTOP_CORE_CAP * height;
+    const coreRoomW = width - 2 * m - CORE_ROOM_SIDES;
     const rh = rw * TILE_ASPECT;
     const ow = Math.floor(rw * TILE_ASPECT);
     const oh = ow * TILE_ASPECT;
@@ -515,13 +529,16 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
     const bandReserve = bandGap + controlH + BAND_ROW_EXTRA + rowRise + bandLift;
     const coreRoomBand = handTop - bandReserve - m - sep;
 
-    const core = Math.min(
+    const coreRoom = Math.min(
         coreRoomH - rh,
         short ? Infinity : coreRoomBand - rh,
         coreCap,
         coreRoomW - SIDE_REACH_TILES * rw,
     );
-    const centre = core - 2 * (LATEST_DISCARD_GAP + riverRows(rw));
+    const centreTarget = RIVER_ROW_SIZE * rw;
+    const riverHeight = 2 * (LATEST_DISCARD_GAP + riverRows(rw));
+    const centre = Math.min(centreTarget, coreRoom - riverHeight);
+    const core = centre + riverHeight;
     const coreTopSlot = m + rh + sep;
     const coreTopFree = (coreRoomH - rh - core) / 2;
     const switchesTop = switchesBottom - switchesPlace(tier);
@@ -533,19 +550,11 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
     const bandTop = handTop - bandGap - controlH - rowRise - bandLift;
     const switchesX = switchesLeft(tier, { bandTop, centre, cy, rw, switchesTop, width }, short);
     const centreBySwitches = short ? centreBesideSwitches(tier, width, switchesX) : Infinity;
-    const centreWidth = Math.max(
-        centre,
-        Math.min(
-            centre * CENTRE_ASPECT,
-            coreRoomW - (SIDE_REACH_TILES + CORE_TILES) * rw,
-            centreBySwitches,
-        ),
-    );
     const panel = desktopPanel({
         chrome,
         foregroundTop: bandTop - bandGap,
         height,
-        reachLeft: leftReach(width / 2, centreWidth, rw),
+        reachLeft: leftReach(width / 2, centre, rw),
         rw,
         short,
         slots,
@@ -554,7 +563,7 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
         tier,
     });
 
-    return Object.fromEntries([
+    const lengths = Object.fromEntries([
         ...chromeLengths(tier),
         ...cornerLengths(rw),
         ...panelLengths(panel),
@@ -570,7 +579,7 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
         ["g", riverGap(rw)],
         ["h", centre / 2],
         ["hand-top", handTop],
-        ["hx", centreWidth / 2],
+        ["hx", centre / 2],
         ["m", m],
         ["oh", oh],
         ["ow", ow],
@@ -579,13 +588,14 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ["own-rise", ownRise],
-        ...riverLengths({ centre, centreWidth, cx: width / 2, cy, rw }),
+        ...riverLengths({ centre, cx: width / 2, cy, rw }),
         ["rh", rh],
         ["row-rise", rowRise],
         ["rw", rw],
         ["switches-bottom", switchesBottom],
-        ["w", centreWidth],
+        ["w", centre],
     ]);
+    return { fits: centre >= centreTarget && centre <= centreBySwitches, lengths };
 }
 
 /** What an upright board's replay group's row is placed from, in px. */
@@ -665,10 +675,11 @@ function uprightPanel(
  * An upright board's root sizes and the lengths the stylesheet reads with them, in px: its core under the counters and
  * above the decisions' two rows and the notices' place, its centre never under `UPRIGHT_CENTRE_MIN`.
  */
-function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
+function uprightLengths(frame: BoardFrame): BoardLengths {
+    const { box, chrome } = frame;
     const { width, height } = box;
     const tier = { ...DESKTOP_CHROME[chrome], ...UPRIGHT_CHROME };
-    const { bandGap, controlH, coreGap, m, ownBadgeH, ownInline, sep } = tier;
+    const { controlH, m, ownBadgeH, ownInline } = tier;
     const ownFit = Math.min(
         DESKTOP_OWN_CAP_HEIGHT * height,
         (width - 2 * m - ownInline) / FULL_HAND,
@@ -685,7 +696,7 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
         UPRIGHT_NOTICE_ROOM +
         underStrip;
     const edgeTiles = UPRIGHT_TILES + DESKTOP_SPARE * OWN_EDGE;
-    const rw = Math.floor(
+    let rw = Math.floor(
         Math.min(
             sharedRiverTile({
                 coreCap,
@@ -700,6 +711,21 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
             (coreRoomW - UPRIGHT_CENTRE_MIN) / (CORE_TILES + SIDE_REACH_TILES),
         ),
     );
+    let lengths = uprightLayout(frame, rw);
+    while (rw > 1 && (lengths["c"] ?? 0) < Math.max(UPRIGHT_CENTRE_MIN, RIVER_ROW_SIZE * rw)) {
+        rw -= 1;
+        lengths = uprightLayout(frame, rw);
+    }
+    return lengths;
+}
+
+function uprightLayout({ box, chrome, slots }: BoardFrame, rw: number): BoardLengths {
+    const { width, height } = box;
+    const tier = { ...DESKTOP_CHROME[chrome], ...UPRIGHT_CHROME };
+    const { bandGap, controlH, coreGap, m, ownBadgeH, ownInline, sep } = tier;
+    const coreCap = DESKTOP_CORE_CAP * height;
+    const coreRoomW = width - 2 * m - CORE_ROOM_SIDES;
+    const underStrip = m + COUNTERS_GAP + UPRIGHT_COUNTERS_H;
     const rh = rw * TILE_ASPECT;
     const ow = Math.floor(rw * TILE_ASPECT);
     const oh = ow * TILE_ASPECT;
@@ -722,10 +748,6 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
         coreRoomW - SIDE_REACH_TILES * rw,
     );
     const centre = core - 2 * (LATEST_DISCARD_GAP + riverRows(rw));
-    const centreWidth = Math.max(
-        centre,
-        Math.min(centre * CENTRE_ASPECT, coreRoomW - (SIDE_REACH_TILES + CORE_TILES) * rw),
-    );
     const coreFloor = underStrip + stripDepth;
     const coreTopSlot = m + rh + sep;
     const coreTopFree = (coreRoomH - rh - core) / 2;
@@ -757,7 +779,7 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
         ["g", riverGap(rw)],
         ["h", centre / 2],
         ["hand-top", handTop],
-        ["hx", centreWidth / 2],
+        ["hx", centre / 2],
         ["m", m],
         ["notices-bottom", noticesBottom],
         ["oh", oh],
@@ -771,10 +793,10 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ["own-rise", ownRise],
-        ...riverLengths({ centre, centreWidth, cx: width / 2, cy, rw }),
+        ...riverLengths({ centre, cx: width / 2, cy, rw }),
         ["rh", rh],
         ["rw", rw],
-        ["w", centreWidth],
+        ["w", centre],
     ]);
 }
 
@@ -929,10 +951,7 @@ function phoneLayout(
     const leftBadgeX = sideBadgeX(chrome, rw);
     const laneHalf =
         chrome.sideLaneMin + Math.max(SIDE_CLEAR, rw) + leftBadgeX + runOnReach - width / 2;
-    const centreMin = Math.max(
-        PHONE_CENTRE_MIN,
-        (DESKTOP_CENTRE_SHARE / DESKTOP_SPARE) * CORE_TILES * rw,
-    );
+    const centreMin = Math.max(PHONE_CENTRE_MIN, RIVER_ROW_SIZE * rw, 2 * laneHalf);
     const switchesRight =
         m +
         STACKED_DEPTH * rw +
@@ -946,11 +965,6 @@ function phoneLayout(
         besideSwitches ? clearHalf : Infinity,
     );
     const centre = Math.min(heightRoom, 2 * halfRoom);
-    const centreWidth = Math.max(
-        centre,
-        2 * laneHalf,
-        Math.min(centre * CENTRE_ASPECT, 2 * halfRoom),
-    );
     const leftRiverEnd = coreTop + leftRiverDrop(rw);
     const cy = centreTop + centre / 2;
     const rightRoom = phoneRightRoom({
@@ -992,7 +1006,7 @@ function phoneLayout(
         ["g", riverGap(rw)],
         ["h", centre / 2],
         ["hand-top", handTop],
-        ["hx", centreWidth / 2],
+        ["hx", centre / 2],
         ["m", m],
         ["oh", oh],
         ["ow", ow],
@@ -1001,12 +1015,12 @@ function phoneLayout(
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ["own-rise", ownRise],
-        ...riverLengths({ centre, centreWidth, cx: width / 2, cy, rw }),
+        ...riverLengths({ centre, cx: width / 2, cy, rw }),
         ["rh", rh],
         ["row-rise", 0],
         ["rw", rw],
         ["switches-bottom", switchesBottom],
-        ["w", centreWidth],
+        ["w", centre],
     ]);
     return { fits, lengths };
 }
@@ -1129,9 +1143,6 @@ const UPRIGHT_STRIP_GAP = 8;
 const UPRIGHT_PILL_GAP = 6;
 const UPRIGHT_BADGE_GAP = 4;
 
-/** A centre is wide past this width to its height. */
-const WIDE_CENTRE = 1.2;
-
 /** A length past which a CSS comparison counted half a pixel (px). */
 const HALF_PIXEL = 0.5;
 
@@ -1166,7 +1177,7 @@ type LandscapeBadges = Readonly<
 /**
  * The opponents' badges off an upright board: the top one under its hand past a river tile's edge; the side ones at
  * the strips' start a step under the top one's pill (a short desktop's only where the decisions' tallest column leaves
- * room under the right one, a phone's right one alone), else past the top river's longest third row where the lane at
+ * room under the right one, a phone's right one alone), else past the top river's reserved third row where the lane at
  * the start is short of an ordinary name; and the left one's lane.
  */
 function landscapeBadges(room: ShellRoom, rowBottom: number): LandscapeBadges {
@@ -1951,10 +1962,8 @@ function boardGeometry(input: BoardInput): BoardGeometry {
     const frame = { box: settled, chrome, family, slots: input.slots };
     const sizes = sized ? familyLengths(frame) : {};
     const shell = sized ? boardShell(frame, sizes) : null;
-    const wide = (sizes["w"] ?? 0) - (sizes["c"] ?? 0) * WIDE_CENTRE > 0;
     return Object.freeze({
         box: Object.freeze(settled),
-        centre: wide ? "wide" : "square",
         chrome,
         family,
         gutter: phone ? 0 : PAGE_GUTTER,
@@ -1972,7 +1981,6 @@ function boardGeometry(input: BoardInput): BoardGeometry {
 export { boardGeometry, shellTracks };
 export type {
     BoardBox,
-    BoardCentre,
     BoardEdges,
     BoardFamily,
     BoardGeometry,

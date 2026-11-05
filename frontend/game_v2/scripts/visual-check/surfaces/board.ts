@@ -1,5 +1,6 @@
 import { type Page } from "playwright";
 
+import { RIVER_ROW_SIZE } from "../../../src/entities/tile/lib/river-shape.ts";
 import { type BoardMeasure } from "../board-measure.ts";
 import {
     type Box,
@@ -105,6 +106,10 @@ const PAGES: readonly PageCase[] = [
             ACTION,
         ]),
         at: [FLOOR, SHORT_DESKTOP],
+    },
+    {
+        ...boardCase("board-nineteen-discards", "?state=full_rivers&offers=five", [ACTION]),
+        at: [FLOOR, MID_DESKTOP],
     },
     {
         ...boardCase("board-worst", "?state=worst&pin=right", [
@@ -393,7 +398,7 @@ interface DerivedProportions {
 const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
     [FLOOR, { riverGap: 0.29, riverToOwn: 0.47 }],
     [NOTCH_PHONE, { riverGap: 0.31, riverToOwn: 0.44 }],
-    [MID_DESKTOP, { riverGap: 0.3, riverToOwn: 0.75 }],
+    [MID_DESKTOP, { riverGap: 0.31, riverToOwn: 0.75 }],
 ]);
 const DERIVED_TOLERANCE = 0.02;
 
@@ -943,6 +948,25 @@ function checkBadgePlaces(results: readonly TaskResult[]): string[] {
     });
 }
 
+function checkCenterScale(board: BoardMeasure, report: PageReport): void {
+    const { center, tileScale } = board;
+    report.expect(
+        center !== null && tileScale.river !== null,
+        "centre and river tile are measurable",
+    );
+    if (center === null || tileScale.river === null) {
+        return;
+    }
+    report.expect(
+        Math.abs(center.width - center.height) <= EPSILON,
+        `centre is not square: ${describeSize(center)}`,
+    );
+    report.expect(
+        Math.min(center.width, center.height) + EPSILON >= RIVER_ROW_SIZE * tileScale.river,
+        `centre ${describeSize(center)} is smaller than a six-tile row (${RIVER_ROW_SIZE * tileScale.river}px)`,
+    );
+}
+
 /**
  * The board as a whole: its content inside its box and readable, the table's surface clear of the aside, the board on
  * the page, the pinned badge's label, every badge's tap area on a supported screen, and in landscape on a supported screen the own hand, the rivers' and strips'
@@ -968,6 +992,7 @@ async function checkBoard({
         `the table's surface ${board.zones === null ? "" : describeBox(board.zones)} reaches under the aside`,
     );
     if (viewport.supported) {
+        checkCenterScale(board, report);
         const crowded = findOverlaps(board.centerTexts);
         report.expect(crowded.length === 0, `centre pieces overlap: ${crowded.join(", ")}`);
     }

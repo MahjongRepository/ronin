@@ -18,6 +18,7 @@ import {
     boardGeometry,
     shellTracks,
 } from "@/entities/table/lib/board-geometry";
+import { RIVER_ROW_SIZE } from "@/entities/tile";
 
 /** The sizes pinned, in the order each case lists them. */
 const SIZES = ["rw", "ow", "c", "w", "core-top"] as const;
@@ -77,6 +78,20 @@ function slotAreas({ columns, rows }: BoardTracks): Record<string, number[]> {
     );
 }
 
+describe("boardGeometry centre", () => {
+    it.each([
+        { height: 800, width: 800 },
+        { height: 801, width: 800 },
+        { height: 1601, width: 1600 },
+        { height: 390, width: 844 },
+        { height: 430, width: 932 },
+    ])("fits a full six-tile row along every centre edge at $width x $height", (box) => {
+        const { lengths } = windowGeometry(box);
+        expect(lengths["c"]).toBeGreaterThanOrEqual(RIVER_ROW_SIZE * (lengths["rw"] ?? Number.NaN));
+        expect(lengths["w"]).toBe(lengths["c"]);
+    });
+});
+
 describe("boardGeometry", () => {
     it.each([
         { chrome: "regular", family: "desktop", height: 900, width: 1440 },
@@ -105,7 +120,7 @@ describe("boardGeometry", () => {
                     family,
                     gutter: 10,
                 });
-                expect(length("c")).toBeGreaterThan(0);
+                expect(length("w")).toBe(length("c"));
                 expect(FULL_HAND * length("ow")).toBeLessThanOrEqual(
                     box.width - 2 * length("m") - length("own-inline"),
                 );
@@ -160,14 +175,18 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [1440, 900, [42, 56, 173.2, 242.48, 114]],
-        [1440, 800, [36, 48, 147.6, 206.64, 106]],
-        [2560, 1440, [73, 97, 295.2, 413.28, 191.6]],
-        [800, 600, [22, 29, 91.867, 128.613, 87.333]],
+        [1440, 900, [39, 52, 234, 234, 86.4]],
+        [1440, 800, [33, 44, 198, 198, 88.8]],
+        [2560, 1440, [68, 90, 408, 408, 134.8]],
+        [800, 600, [21, 28, 126, 126, 65.6]],
     ])(
-        "sizes a %ix%i window's desktop board, its core holding the latest discards' gaps",
+        "fits six-tile rows along both centre edges in a %ix%i desktop, keeping the latest discards inside the core",
         (width, height, expected) => {
             const { lengths } = windowGeometry({ height, width });
+            expect(lengths["c"]).toBeGreaterThanOrEqual(
+                RIVER_ROW_SIZE * (lengths["rw"] ?? Number.NaN),
+            );
+            expect(lengths["w"]).toBe(lengths["c"]);
 
             for (const [index, name] of SIZES.entries()) {
                 expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
@@ -176,10 +195,10 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [1366, 657, [29, 218.988, 102.29]],
-        [1280, 720, [34, 218.4, 109.067]],
-        [1440, 770, [37, 228.2, 119.5]],
-        [1170, 620, [27, 178, 96]],
+        [1366, 657, [29, 174, 81.5]],
+        [1280, 720, [33, 198, 82.667]],
+        [1440, 770, [36, 216, 85]],
+        [1170, 620, [27, 162, 78]],
     ])(
         "sizes a %ix%i window's short desktop board, a replay's full left river ending over its moves",
         (width, height, expected) => {
@@ -207,8 +226,8 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [375, 548, [11, 97.667, 103.933]],
-        [800, 801, [30, 121.8, 122]],
+        [375, 548, [10, 116.333, 93.667]],
+        [800, 801, [26, 174.18, 114]],
     ])(
         "sizes a %ix%i window's upright board, its core holding the latest discards' gaps",
         (width, height, expected) => {
@@ -225,12 +244,12 @@ describe("boardGeometry", () => {
         { above: true, height: 369, pinned: { ow: 36, rw: 16 }, width: 750 },
         { above: true, height: 480, pinned: { ow: 40, rw: 24 }, width: 850 },
         {
-            above: false,
+            above: true,
             height: 430,
-            pinned: { "band-shift": 36.667, ow: 39, rw: 23 },
+            pinned: { "band-shift": 0, ow: 36, rw: 21 },
             width: 932,
         },
-        { above: false, height: 500, pinned: { "control-h": 43.333, ow: 44, rw: 26 }, width: 1024 },
+        { above: true, height: 500, pinned: { "control-h": 41.667, ow: 42, rw: 25 }, width: 1024 },
     ])(
         "sizes a $width x $height window's phone board's tiles jointly, a full left river over the switches ending above them ($above), else past the moves' place over the own badge",
         ({ above, height, pinned, width }) => {
@@ -244,6 +263,7 @@ describe("boardGeometry", () => {
             for (const [name, value] of Object.entries(pinned)) {
                 expect(length(name), name).toBeCloseTo(value, 2);
             }
+            expect(length("w")).toBe(length("c"));
             expect(
                 length("reach-top-row3") - length("rh") - LATEST_DISCARD_GAP,
             ).toBeGreaterThanOrEqual(length("core-top") - 0.001);
@@ -262,14 +282,14 @@ describe("boardGeometry", () => {
         [1366, 657],
         [390, 844],
     ])(
-        "counts the latest discard's gap in a %ix%i window's river reaches, the core holding the top river's",
+        "reserves nineteen discards and the latest gap in a %ix%i window without reserving a twelve-tile third row",
         (width, height) => {
             const { lengths } = windowGeometry({ height, width });
             function length(name: string): number {
                 return lengths[name] ?? Number.NaN;
             }
             const across = length("g") + 4 * length("rh") + LATEST_DISCARD_GAP;
-            const runOn = 11 * length("rw") + length("rh") + LATEST_DISCARD_GAP;
+            const runOn = 6 * length("rw") + length("rh") + LATEST_DISCARD_GAP;
             const left = length("cx") - length("hx");
             const right = length("cx") + length("hx");
             const expected = {
@@ -296,10 +316,13 @@ describe("boardGeometry", () => {
         },
     );
 
-    it("keeps a narrow upright board's centre at least 100px across", () => {
-        expect(windowGeometry({ height: 620, width: 260 }).lengths["w"]).toBeGreaterThanOrEqual(
-            100,
-        );
+    it.each([
+        { height: 620, width: 260 },
+        { height: 601, width: 600 },
+    ])("keeps an upright $width x $height centre square and at least 100px across", (box) => {
+        const { lengths } = windowGeometry(box);
+        expect(lengths["w"]).toBeGreaterThanOrEqual(100);
+        expect(lengths["c"]).toBe(lengths["w"]);
     });
 
     it("keeps the notices' field free of the panel", () => {
@@ -447,7 +470,7 @@ describe("boardGeometry's shell tracks", () => {
     });
 
     it("places the settings below the top strip and badge in a near-square landscape window", () => {
-        const { lengths, tracks } = windowGeometry({ height: 799, width: 800 });
+        const { lengths, tracks } = windowGeometry({ height: 699, width: 700 });
         const areas = slotAreas(tracks);
         const cornerTop = areas["corner"]?.[1] ?? Number.NaN;
 
@@ -482,8 +505,8 @@ describe("boardGeometry's shell tracks", () => {
 
 describe("boardGeometry on a replay", () => {
     it.each([
-        { height: 844, lane: 116.8, oneRow: false, width: 390 },
-        { height: 1024, lane: 218, oneRow: true, width: 768 },
+        { height: 844, lane: 102.2, oneRow: false, width: 390 },
+        { height: 1024, lane: 200.8, oneRow: true, width: 768 },
     ])(
         "stands a $width x $height upright replay's group in the own badge's row only where it leaves the badge an ordinary lane ($oneRow)",
         ({ height, lane, oneRow, width }) => {

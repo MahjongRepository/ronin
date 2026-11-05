@@ -54,7 +54,7 @@ The game table model and board UI. `entities/client` steps it; views read the ta
 - The seating panel is the game's start and its end: the seats in wind order before the first deal, then in
   placement order with their scores and uma/oka results once the game ends.
 - The board's geometry is the slice's: `lib/board-geometry.ts`'s `boardGeometry`, a pure function from the board's
-  box and the slots its page fills to a frozen result (family, chrome, centre, sizes, the panel's free box in px, the
+  box and the slots its page fills to a frozen result (family, chrome, sizes, the panel's free box in px, the
   board shell's grid tracks and the opponents' strips' rooms), its facts
   once in `lib/board-constants.ts` (the river's rows in the tile slice's `river-shape.ts`), and
   `ui/board-geometry-directive.ts`'s `sizeBoard` on GameBoard's root, the one place that measures the board and writes

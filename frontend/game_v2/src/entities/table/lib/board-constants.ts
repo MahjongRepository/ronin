@@ -19,9 +19,6 @@ const OWN_MELD_SCALE = 1.2;
 /** The gap between the centre and a river, in river tiles. */
 const RIVER_GAP_SHARE = 0.3;
 
-/** The centre's width to its height where the board's width allows. */
-const CENTRE_ASPECT = 1.4;
-
 /** How far a tile's edge reaches below its box, in shares of its width. */
 const TILE_EDGE_SHARE = 0.13;
 
@@ -42,9 +39,9 @@ const LEFT_REACH_TILES = CORE_TILES / 2 + RIVER_ROW_SIZE - 1;
 /** What the side rivers' rows take of the board's width beside the centre, in river tiles. */
 const SIDE_REACH_TILES = 2 * RIVER_ROWS.wrap * TILE_ASPECT;
 
-/** A top or bottom river's rows before its third, in river tiles; the third runs on to twelve tiles, one sideways. */
+/** A top or bottom river reserves nineteen discards: two rows of six and a third of seven, one sideways. */
 const ROWS_BEFORE_RUN_ON = (RIVER_ROWS["run-on"] - 1) * TILE_ASPECT;
-const RUN_ON_REACH_TILES = 2 * RIVER_ROW_SIZE - 1 + TILE_ASPECT;
+const RUN_ON_REACH_TILES = RIVER_ROW_SIZE + TILE_ASPECT;
 
 /** The latest discard's gap from the tile before it and the row above (px); the right river's runs up the screen. */
 const LATEST_DISCARD_GAP = 7;
@@ -189,7 +186,7 @@ const NOTICES_BESIDE_PANEL = 84;
 const DESKTOP_CENTRE_SHARE = 0.33;
 const DESKTOP_OWN_CAP_WIDTH = 0.05;
 const DESKTOP_OWN_CAP_HEIGHT = 0.1;
-const DESKTOP_CORE_CAP = 0.66;
+const DESKTOP_CORE_CAP = 0.74;
 
 /**
  * A phone's own tile: at least this wide (px) and at most this many river tiles where the floor allows; its centre
@@ -235,7 +232,6 @@ const UPRIGHT_CHROME = {
 
 export {
     BAND_ROW_EXTRA,
-    CENTRE_ASPECT,
     CORE_TILES,
     DESKTOP_CENTRE_SHARE,
     DESKTOP_CHROME,

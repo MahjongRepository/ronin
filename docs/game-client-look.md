@@ -39,7 +39,8 @@ The derived proportions are the three reference viewports' values under the sizi
   The own hand's tiles stand facing their player (Tenhou's): a band across each one's top.
 - **Composed for ordinary play.** The design anchor is a mid-round state with real decisions on
   screen. Dense states (long rivers, four melds a seat, five dora indicators, long names) must
-  stay legible and unambiguous but never reshape the ordinary composition.
+  stay legible and unambiguous but never reshape the ordinary composition. Exception: top and
+  bottom third rows beyond nineteen discards may clip or extend under peripheral elements.
 - **One composition on every screen.** Far seat at the top, side seats at the sides, identities in
   the same places, decisions by the hand, at the 667x375 floor, on a notch phone in landscape and
   on a desktop. Width changes how far apart things stand, never where they are.
@@ -107,17 +108,16 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   thumbnail: no weave, motif or wear) and the zone device; nothing else is drawn on it. Ivory faces
   separate from it by value, the ochre backs by hue. The grain is one small repeating image under
   the gradient: no runtime noise, filter or blend mode, so a low-end phone paints it once.
-- **Centre.** Decision, following Tenhou's panel: one panel wider than tall, each seat's wind and
+- **Centre.** Decision: one square panel, each seat's wind and
   score on the side facing it, turned to that seat and close to its edge, and in the middle the
   round name large (East 1, South 4, a West round when the game runs on) over one line of the wall
   count, the honba and the riichi sticks on the table. Each side reads wind then score, all four at
   the same emphasis, tabular digits: the wind a quiet letter, the dealer's (East) on a muted red chip,
   as Mahjong Soul and Riichi City mark it in red; the score in hundreds with its last two digits
-  smaller and quieter (`250` `00`), as Tenhou draws it. The panel is 1.4 times as wide as tall where
-  the width beside the core allows (Tenhou's is about 1.5), and as wide as it can be, never narrower
-  than tall, where it does not; its height is the centre's side of the sizing rule, and the rivers
-  keep its corners. A wide enough panel centres each side's row on its side; a narrower one offsets
-  the rows toward their seat's right like the rivers' pinwheel, so a long row never meets the next
+  smaller and quieter (`250` `00`), as Tenhou draws it. Every layout keeps each side at least as long
+  as a normal six-tile discard row, fitting the centre and tiles together.
+  The rivers keep its corners. Score rows offset toward their seat's right like the rivers'
+  pinwheel, so a long row never meets the next
   side's. The counts keep one line, a narrow centre's at a smaller size; where even the floor's
   size cannot hold them, the wall count takes a line of its own and the honba and riichi sticks stay
   together on the next. While a badge is pinned, the wall count stays and a label in the round's
@@ -146,7 +146,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   rivers only: at the 24-tile capacity a side river wraps its overflow into a fourth row of six
   toward its seat's edge, since a third row running on along a phone's short side would cross the
   hand; a top or bottom river keeps the convention, its third row running on along its line to
-  twelve tiles. Every row reads left to right from its seat, so the river reads in order and as its
+  twelve tiles. Layout reserves nineteen discards: two rows of six and a third of seven, including
+  a sideways riichi tile and the latest-discard gap. Rarer, longer top and bottom third rows still
+  render in full but may extend under peripheral elements or clip at the board edge; they do not
+  shrink tiles or move controls to reserve their full length. Every row reads left to right from its seat, so the river reads in order and as its
   owner's in every orientation. Decision: a drawn-and-discarded tile is not told apart from one
   played from the hand (Tenhou shades it, Mahjong Soul does not); the rivers keep as few tile states
   as possible so the latest discard and the riichi tile are found at a glance.
@@ -225,7 +228,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   in every state at a given viewport and viewpoint; a badge's place never depends on how many tiles
   the seat holds. Decision: in landscape the side badges are their strips' headers, mirrored at one
   height (a phone's right one lower) beside each strip's reserved depth, a card's width at most and clear of the top river's
-  longest third row by a river tile, so neither reads as that river's label: under the counters,
+  reserved seven-tile third row by a river tile, so neither reads as that river's label: under the counters,
   and on a desktop whose band stands below the core a step lower, 8px under the top badge's
   pill, so the opponents' names never read as one row; where that place leaves less than an
   ordinary name's lane beside that third row, below it by a river tile instead. A short
@@ -309,14 +312,14 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   After a reconnect the open decision resumes with its remaining time, never a fresh one, and no
   stale selection survives. Decision: on a desktop the controls and the timer after them stand in
   one row ending at the hand's right end, its drawn tile included; on a short desktop, whose core
-  shares the band's corners, the row starts past the bottom river's capacity reach, ending past the
+  shares the band's corners, the row starts past the bottom river's reserved reach, ending past the
   hand's end where that leaves less than a wide control (short of the right strip's reserved
   depth), and the higher-ranked controls stand
   above the band's control and the timer (the band's control too where the row cannot hold it
   beside the timer), clear of the right strip's deepest reach. On a phone the lowest-ranked
   controls, pass last, and the timer float in the gap between the bottom river and the hand instead
-  of owning a foreground row, and never reach past the own river's capacity edge (a sideways riichi
-  tile counted): at the band's right end, past the bottom and right rivers' capacity reach, the
+  of owning a foreground row, and never reach past the own river's reserved edge (a sideways riichi
+  tile counted): at the band's right end, past the bottom and right rivers' reserved reach, the
   row stepping in past the right hand where it runs across the band; the rest rise in rank order,
   right-aligned, between the right river's capacity edge and the right strip's deepest reach,
   pairing up before they would reach the side badge; at the first step a pair may shed its tile
@@ -453,8 +456,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   shared by the live game and the replay.
 - **Notices.** Reconnecting, a lost seat, a refused move, a message the client could not read, tile
   faces that did not load: decision, their one place is the left zone's open field under the left
-  badge, beside the left strip and outside every river's capacity, which a panel leaves free, so an
-  automatic notice covers no tile, badge, control or panel; worded for a player, and a recoverable
+  badge, beside the left strip and outside every river's reserved reach, which a panel leaves free, so an
+  automatic notice covers no tile within its reserved reach, badge, control or panel (the accepted
+  overflow of top and bottom third rows beyond nineteen discards may extend under it); worded for a player, and a recoverable
   interruption looks different from an end. Several stack there, ongoing conditions first; in a
   replay an incomplete recording's note takes the place, under any notice; it stands above a panel's
   dimming. A notice never loses its ending silently: one taller than its place shows whole lines and a
@@ -528,7 +532,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   floor viewport. Decision: no narration and no visible position line; the board itself shows each
   move and its centre the round, and the position (round, step) is read out to assistive technology
   only. Its calls are read out as the live board's are, silent while the reader scrubs (see
-  Notices). Decision: the controls take the foreground band outside the own river's capacity reach
+  Notices). Decision: the controls take the foreground band outside the own river's reserved reach
   as one group in the decisions' place, standing as live's decisions do (right-aligned in it, ending
   at the hand's end unless the place reaches past it to hold the group), the moves before the
   options; the own badge heads its hand alone at the band's left with live's lane, nothing over it
@@ -598,27 +602,28 @@ never under 36x48, the floor winning where both cannot hold (a river tile under 
 band's controls float in the gap above the hand, and the phone's chrome scales from the river tile
 (the small chrome's px up to a 24px river tile, growing with it past that, never under 40x40),
 except the decision controls, which keep their 40px rows. It gives river and own tiles of 17 and
-36px at 667x375, 16 and 36px at the notch phone's 750x369, 18 and 36px at 844x390, and 23 and 39px
-at 932x430 (0.59 of the own tile; the 26 to 28px river there was a target, not reached), and on a
-desktop window short enough to be a phone 30 and 51px at 1195x539 and 27 and 45px at 1100x489,
-whatever the state shows. Among the layouts tried, larger tiles on
+36px at 667x375, 16 and 36px at the notch phone's 750x369, 18 and 36px at 844x390, and 21 and 36px
+at 932x430 (0.58 of the own tile), whatever the state shows. A desktop window short enough to use
+the phone layout follows the same solve. Among the layouts tried, larger tiles on
 the smaller phones would need the own badge to leave the hand's first tile, a look decision not
 taken. Off a phone the own hand tile is 4/3 of the river tile, at most min(0.05 of
-the width, 0.1 of the height) and what a full hand's row holds. The river tile is the largest that
-keeps the centre's side, with the top and bottom rivers' latest-discard gaps, at least 0.33 of the
-core on a desktop, solved for the own row it sizes; a
-phone's centre keeps that share of the core without its latest-discard gaps, and at least 94px, its text's room, and fills the height left above
+the width, 0.1 of the height) and what a full hand's row holds. On a desktop the river tile is the
+largest whole-pixel size that fits with a centre six river tiles tall, the own row it sizes and
+the top and bottom rivers' latest-discard gaps. The gap below the top strip uses the badge gap
+instead of the former 40px separation, reclaiming height before reducing tiles. Short desktops
+also keep the centre and bottom river clear of the switches and replay moves. Upright boards
+fit a centre at least six river tiles and 100px across. A phone's centre is at least six river tiles
+and 94px across, its text's room, and fills the height left above
 the own hand as far as the side fields allow: the notices' place 7.5 of its ems wide beside the left
 strip's deepest reach, the decisions' column two controls wide beside the right one's, and the left
-badge an ordinary name's lane beside the top river's longest third row. The core's side is
+badge an ordinary name's lane beside the top river's reserved seven-tile third row. The core's side is
 the centre plus eight river tiles, two gaps of 0.3 of a river tile and the top and bottom rivers'
-latest-discard gaps, so no river's latest discard stands past it. The centre's width is 1.4 of
-its side where the width beside the core holds it with the river tile unchanged (on a short desktop
-also where the bottom river, from the centre's left corner, stays 8px clear of the play switches),
-else as much as it holds, never under its side. On a desktop the core stands above the
-foreground band, its side at most 0.66 of the height. On a phone and a short desktop the core fills
+latest-discard gaps, so no river's latest discard stands past it. The centre is square in every
+family. On a short desktop its bottom river, from the centre's left corner, stays 8px clear of the
+play switches. On a desktop the core stands above the
+foreground band, its side at most 0.74 of the height. On a phone and a short desktop the core uses
 the height between the top strip's slot and the own hand, and the foreground band shares its lower
-corners, which the pinwheel leaves empty, its controls kept outside every river's capacity reach. A
+corners, which the pinwheel leaves empty, its controls kept outside every river's reserved reach. A
 short desktop's core ends its left river's capacity above the play switches, which stand over the
 own badge's lane, centred in its room only as far as that allows. On a short desktop that place is
 as tall as the play switches or the replay's moves (which stand there where the band shares the
@@ -632,16 +637,16 @@ apart.
 
 | Relationship | Starting point | Derived (667x375 / 750x369 notch safe area / 1440x900) |
 |---|---|---|
-| Core height / play area height | 0.6 | 0.73 / 0.75 / 0.63 |
-| Centre side / core height | 0.3 | 0.42 / 0.45 / 0.32 |
-| Centre width / centre side | 1.4 (Tenhou about 1.5) | 1.0 / 1.4 / 1.4 |
+| Core height / play area height | 0.6 | 0.73 / 0.75 / 0.66 |
+| Centre side / core height | 0.3 | 0.42 / 0.45 / 0.40 |
+| Centre width / centre side | 1.0 | 1.0 / 1.0 / 1.0 |
 | River tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), 0.75 off it | 0.47 / 0.44 / 0.75 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
 | Opponent hand tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), 0.75 off it | 0.47 / 0.44 / 0.75 |
-| Own hand tile width / play area width | 0.05 | 0.054 / 0.048 / 0.030 |
-| Own hand tile height / play area height | 0.15 | 0.128 / 0.130 / 0.065 |
-| Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.31 / 0.30 (0.3, rounded) |
-| Gap between neighbouring rivers, in river tiles | 0.3 | 0.29 / 0.31 / 0.30 (0.3, rounded) |
+| Own hand tile width / play area width | 0.05 | 0.054 / 0.048 / 0.037 |
+| Own hand tile height / play area height | 0.15 | 0.128 / 0.130 / 0.079 |
+| Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.31 / 0.31 (0.3, rounded) |
+| Gap between neighbouring rivers, in river tiles | 0.3 | 0.29 / 0.31 / 0.31 (0.3, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,
 only where it protects the approved layout from a regression a player would notice.
@@ -737,7 +742,7 @@ is gone.
 The automated visual checks protect the measurable floor: no required information or control hidden,
 clipped or overflowing (concealed faces, content that legitimately scrolls or sits behind a modal,
 and a notice shown in whole lines with a "Show all" that opens the complete message are not
-failures; any other clipping is), tap targets (40x40 for a button, a badge and a play switch, which
+failures; neither is the accepted overflow of top and bottom third rows beyond nineteen discards), tap targets (40x40 for a button, a badge and a play switch, which
 are controls; an own tile keeps the 32x42 floor on a phone, a safety limit; a desktop's own tile
 follows the derived values and has no separate floor), readable faces and text sizes, text and marks
 at a contrast of at least 4.5:1 against what they sit on (a held-back face included: it is greyed,
