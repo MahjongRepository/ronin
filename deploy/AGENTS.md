@@ -82,8 +82,11 @@ which holds the domain). `README.md` is the runbook for a new server and lists t
   `backend/scripts/monitoring_report.py` in the lobby container, the page's own assembly, so its JSON
   matches `/admin/monitoring`; `metrics-sql` runs `sqlite3 -readonly` on the host, so it works when
   the lobby is down. Both are block scripts, so spot echoes `/bin/sh -c <file>`, which the make
-  targets drop with spot's `[host] > ` prefix to print bare JSON. A value passed with `-e` lands in
-  a double-quoted `export`, so it cannot hold `"` or `$`.
+  targets drop with spot's `[host] > ` prefix to print bare JSON; their recipes run under bash
+  `pipefail`, so a spot failure fails the target. A value passed with `-e` is expanded by the local
+  shell and lands in a double-quoted remote `export`, so `spot-metrics-sql` refuses SQL holding a
+  backtick, `$` or `"`, or starting with `.`, since `metrics-sql` runs as root and sqlite3 (in
+  `-safe` mode as well) would run it as a dot-command.
 * `metrics.db` lives in `/opt/ronin/data/metrics/`, is written only by the collector, and is not
   backed up. Every path and URL in the config and script is an environment variable with the
   production default, so the same files run locally against `make run-local-server`.

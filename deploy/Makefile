@@ -78,7 +78,11 @@ endif
 	@echo "Saved to $(LOGS_FILE)"
 
 RANGE ?= 24h
-SPOT_OUTPUT_LINES = sed -n 's/^\[[^]]*\] *> //p' | grep -v '^/bin/sh'
+SPOT_OUTPUT_LINES = sed -n '/^\[[^]]*\] *> \/bin\/sh/d; s/^\[[^]]*\] *> //p'
+UNSAFE_SQL = $(if $(filter .%,$(firstword $(value SQL)))$(findstring $$,$(value SQL))$(findstring `,$(value SQL))$(findstring ",$(value SQL)),unsafe)
+
+spot-metrics spot-metrics-sql: SHELL := /bin/bash
+spot-metrics spot-metrics-sql: .SHELLFLAGS := -o pipefail -c
 
 spot-metrics:
 	@$(SPOT) -t $(TARGET) -n metrics-report -e RANGE:"$(RANGE)" | $(SPOT_OUTPUT_LINES)
@@ -86,6 +90,9 @@ spot-metrics:
 spot-metrics-sql:
 ifndef SQL
 	$(error SQL is required. Usage: make spot-metrics-sql SQL="SELECT ...")
+endif
+ifneq (,$(UNSAFE_SQL))
+	$(error SQL must not start with a dot-command or contain a backtick, $$ or ")
 endif
 	@$(SPOT) -t $(TARGET) -n metrics-sql -e SQL:"$(SQL)" | $(SPOT_OUTPUT_LINES)
 

@@ -1,7 +1,7 @@
 ---
 name: read-metrics
 description: Read production metrics (host and service load, Traefik latency and errors, game-server sockets and events, storage, backup age, game counts) as JSON from the server. Use for a question about production load, latency, sockets, storage or game counts.
-allowed-tools: Read, Bash(make -C deploy spot-metrics *), Bash(make -C deploy spot-metrics-sql *)
+allowed-tools: Read
 ---
 
 Both commands are read-only against production (`TARGET` defaults to `dev`, the production box). They
@@ -10,7 +10,7 @@ change nothing on the server; never run any other spot target from this skill.
 ## Step 1: Read the page's numbers
 
 ```
-make -C deploy spot-metrics RANGE=24h
+make --no-print-directory -C deploy spot-metrics RANGE=24h
 ```
 
 `RANGE` is one of `1h`, `24h`, `7d`, `30d`, `90d` (default `24h`). It prints, as one JSON document,
@@ -48,12 +48,13 @@ exactly what the admin page `/admin/monitoring` shows for that range, computed b
 ## Step 3: Ad-hoc SQL when the report is not enough
 
 ```
-make -C deploy spot-metrics-sql SQL="SELECT timestamp, active_games, connections FROM game_status ORDER BY timestamp DESC LIMIT 10"
+make --no-print-directory -C deploy spot-metrics-sql SQL="SELECT timestamp, active_games, connections FROM game_status ORDER BY timestamp DESC LIMIT 10"
 ```
 
 It runs `sqlite3 -readonly -json` on the host's `metrics.db` and prints the rows as JSON (nothing for
-no rows). It works when the lobby is down. The SQL cannot contain `"` or `$`: quote strings with `'`
-and quote the `exists` column of `filestat` as `[exists]`.
+no rows) on stdout. It works when the lobby is down. sqlite3 runs in `-safe` mode, and the target
+refuses SQL that starts with `.` (a dot-command) or contains a backtick, `$` or `"`: quote strings
+with `'` and the `exists` column of `filestat` as `[exists]`.
 
 - Tables: `cpu`, `mem`, `disk`, `net`, `pressure`, `cgroup`, `game_status`, `traefik`, `filestat`,
   `filecount`. `deploy/config/metrics-schema.sql` is the reference for their columns.

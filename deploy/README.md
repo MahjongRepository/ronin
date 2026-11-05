@@ -127,7 +127,7 @@ make spot-monitoring TARGET=<target>
 
 Check it on the server with `systemctl list-timers ronin-metrics.timer` and `journalctl -u ronin-metrics.service`.
 
-Read the numbers without a browser: `make spot-metrics TARGET=<target> RANGE=24h` prints what `/admin/monitoring` shows for the range as JSON (run inside the lobby container), and `make spot-metrics-sql TARGET=<target> SQL="SELECT ..."` runs a read-only query on `metrics.db` from the host, so it works when the lobby is down. The SQL cannot contain `"` or `$`; quote strings with `'`.
+Read the numbers without a browser: `make spot-metrics TARGET=<target> RANGE=24h` prints what `/admin/monitoring` shows for the range as JSON (run inside the lobby container), and `make spot-metrics-sql TARGET=<target> SQL="SELECT ..."` runs a read-only query on `metrics.db` from the host, so it works when the lobby is down. sqlite3 runs in `-safe` mode, and the target refuses SQL that starts with `.` (a dot-command) or contains a backtick, `$` or `"`; quote strings with `'`. With `make -C deploy`, add `--no-print-directory` so stdout is the bare JSON.
 
 The collector only sees the box from inside. Point an external uptime service at the lobby's public `https://<domain>/health`: it proves the box, Traefik and the lobby are up, not the game server.
 
