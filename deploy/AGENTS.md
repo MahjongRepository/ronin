@@ -106,6 +106,9 @@ which holds the domain). `README.md` is the runbook for a new server and lists t
   * `table_update_template`: Telegraf creates a table from the first row it writes, so a later row
     with a new column (`loop_lag_max_ms` is `null` until the first lag sample, a missing file has no
     size) would fail the write.
+  * `batch_transactions`: without it the output commits row by row, so a reader could see part of a
+    Traefik scrape, and a failed write could leave one for good; the lobby reads a series missing
+    from a scrape as an exporter restart and would count its whole total again on the next one.
   * `time_*` only for `cpu`: the `usage_*` row is a half-row over a 500 ms window; the reader
     computes usage from the cumulative times.
   * Every input lists exactly the fields the reader uses (`fieldinclude`, never `fieldpass`), so the
