@@ -64,7 +64,7 @@ APPS = (
         catalog_dir="backend/lobby/i18n/locales",
         source_roots=("backend/lobby",),
         source_suffixes=frozenset({".py", ".html"}),
-        dynamic_prefixes=("auth.error.",),
+        dynamic_prefixes=("auth.error.", "monitoring.range."),
         identical_keys=frozenset({"nav.beta", "page.title.default", "page.title.with_page"}),
         literals_in_namespaces_are_keys=True,
     ),
