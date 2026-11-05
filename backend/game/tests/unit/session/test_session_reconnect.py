@@ -96,6 +96,7 @@ class TestSessionManagerReconnect:
         assert [
             m for m in bob_conn.sent_messages if m.get(WireKey.SESSION_TYPE) == SessionMessageType.SEAT_CONTROL
         ] == [{WireKey.SESSION_TYPE: "seat_control", WireKey.SEAT: 0}]
+        assert (manager.stats["reconnects"], manager.stats["takeovers"]) == (1, 0)
 
     @pytest.mark.asyncio
     async def test_reconnect__when_another_seat_is_held_for_its_participant__should_mark_it_as_a_stand_in(
@@ -259,6 +260,7 @@ class TestReconnectTakeover:
         assert old_conn.sent_messages == []
         assert bob_conn.sent_messages == []
         assert game_of(manager).replay.records == replay_lines
+        assert (manager.stats["reconnects"], manager.stats["takeovers"], manager.stats["ai_replacements"]) == (0, 1, 0)
 
         await manager.shutdown()
 

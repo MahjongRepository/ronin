@@ -111,6 +111,7 @@ class TestSessionManagerTimers:
             m for m in conns[0].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DRAW]
         ]
         assert len(timeout_msgs) == 1
+        assert (manager.stats["timeouts_turn"], manager.stats["timeouts_meld"]) == (1, 0)
 
 
 class TestWaitTimers:

@@ -117,6 +117,12 @@ class SessionManager:
         self._auth_timeouts: dict[str, asyncio.Task[None]] = {}
         self._background_tasks: set[asyncio.Task[None]] = set()
 
+        self._reconnects = 0
+        self._takeovers = 0
+        self._resyncs = 0
+        self._timeouts = dict.fromkeys(TimeoutType, 0)
+        self._ai_replacements = 0
+
     def _spawn(self, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
         """
         Start a background task the manager owns until it finishes; shutdown waits for it.
@@ -193,6 +199,19 @@ class SessionManager:
         Count of games playing (pending games excluded).
         """
         return sum(1 for game in self._games.values() if game.lifecycle is GameLifecycle.PLAYING)
+
+    @property
+    def stats(self) -> dict[str, int]:
+        """
+        Return the session event totals since the manager was created, process-wide and never per user.
+        """
+        return {
+            "reconnects": self._reconnects,
+            "takeovers": self._takeovers,
+            "resyncs": self._resyncs,
+            **{f"timeouts_{timeout_type}": count for timeout_type, count in self._timeouts.items()},
+            "ai_replacements": self._ai_replacements,
+        }
 
     def get_playing_participant(self, user_id: str) -> Participant | None:
         """
@@ -534,6 +553,9 @@ class SessionManager:
         game = participant.game
         seat = self._seat_of(participant)
         participant.stand_in = stand_in
+        if stand_in is not None:
+            self._ai_replacements += 1
+
         if game.replay is not None:
             if stand_in is None:
                 self._replay_collector.record_human_return(game.replay, seat=seat)
@@ -665,6 +687,11 @@ class SessionManager:
         awaiting = self._game_service.get_awaiting(runtime)
         game.awaiting = awaiting
         self._send_seat_state(participant, connection, awaiting=awaiting)
+        if taking_over:
+            self._takeovers += 1
+        else:
+            self._reconnects += 1
+
         logger.info("connection taken over" if taking_over else "player reconnected")
 
     def resync(self, connection: ConnectionProtocol) -> None:
@@ -690,6 +717,7 @@ class SessionManager:
         structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=self._seat_of(participant))
         awaiting = self._game_service.get_awaiting(self._runtime_of(game))
         self._send_seat_state(participant, connection, awaiting=awaiting)
+        self._resyncs += 1
         logger.info("seat resynced")
 
     def _send_seat_state(self, participant: Participant, connection: ConnectionProtocol, *, awaiting: Awaiting) -> None:
@@ -1039,6 +1067,7 @@ class SessionManager:
         try:
             seat = self._seat_of(participant)
             update = self._game_service.handle_timeout(self._runtime_of(game), seat=seat, timeout_type=timeout_type)
+            self._timeouts[timeout_type] += 1
             self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
         except Exception as exc:  # noqa: BLE001
             self.fail_game(game, reason=f"{timeout_type} timeout failed", exc=exc)

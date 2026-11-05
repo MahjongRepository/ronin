@@ -53,6 +53,7 @@ class TestResync:
         assert alice.timer.bank_seconds == bank
         assert game_of(manager).replay.records == replay_lines
         assert bob_conn.sent_messages == []
+        assert manager.stats["resyncs"] == 1
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)

@@ -3,6 +3,7 @@ import contextlib
 import gzip
 import hmac
 import json
+import time
 from io import BytesIO
 from typing import TYPE_CHECKING
 
@@ -56,6 +57,8 @@ async def status(request: Request) -> JSONResponse:
             "active_games": session_manager.started_game_count,
             "capacity_used": session_manager.game_count,
             "max_capacity": settings.max_capacity,
+            "started_at": request.app.state.started_at,
+            **session_manager.stats,
         },
     )
 
@@ -327,6 +330,7 @@ def create_app(
     )
     app.state.settings = settings
     app.state.session_manager = session_manager
+    app.state.started_at = int(time.time())
 
     logger.info("game server ready")
     return app

@@ -21,6 +21,7 @@ class TestSessionManagerDisconnect:
         snapshot = seeded_engine.build_reconnection_snapshot(runtime_of(manager), bob_seat)
         assert snapshot.players[alice_seat].is_ai_player is True
         assert snapshot.players[bob_seat].is_ai_player is False
+        assert manager.stats["ai_replacements"] == 1
 
     async def test_disconnect__when_last_human_leaves__should_not_replace_with_ai_and_clean_up_game(self, manager):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])

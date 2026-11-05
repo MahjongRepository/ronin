@@ -227,6 +227,18 @@ class TestStatusEndpoint:
         assert data["max_capacity"] == 100
         assert "version" in data
         assert "commit" in data
+        assert isinstance(data["started_at"], int)
+        assert data["started_at"] > 0
+        session_totals = {
+            "reconnects",
+            "takeovers",
+            "resyncs",
+            "timeouts_turn",
+            "timeouts_meld",
+            "timeouts_round_advance",
+            "ai_replacements",
+        }
+        assert {key: data[key] for key in session_totals} == dict.fromkeys(session_totals, 0)
 
     def test_status_endpoint__when_game_pending__should_count_it_as_pending(self, client):
         create_pending_game(client, game_id="room1")

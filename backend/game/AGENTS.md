@@ -50,6 +50,8 @@ Mandatory for all game server code; review must catch violations.
   read its GETs, so its bind address is no isolation. A route that spends real CPU on a public
   request (the Tenhou export) answers only that secret too, so it runs only behind the lobby's
   rate-limited route, and so does a route that ends a game on the lobby's word (the withdrawal).
+* `/status` answers without auth, so it carries only process-wide totals since start and gauges, never
+  per-user data.
 * Read REST bodies with `request.stream()` and a hard size cutoff, never `await request.body()` on
   untrusted input; handle `ClientDisconnect`.
 * Validate the `game_id` path parameter before the handshake; the reject and the accept go through
