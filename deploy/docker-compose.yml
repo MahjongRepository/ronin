@@ -34,6 +34,7 @@ services:
       - "--accesslog.format=json"
       - "--accesslog.fields.headers.defaultmode=drop"
       - "--entrypoints.metrics.address=:8082"
+      - "--entrypoints.metrics.http.aliasheadersstrategy=delete"
       - "--metrics.prometheus=true"
       - "--metrics.prometheus.entrypoint=metrics"
       - "--metrics.prometheus.addrouterslabels=true"
