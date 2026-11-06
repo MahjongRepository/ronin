@@ -96,7 +96,9 @@ class Wall(BaseModel):
     Immutable wall state for a mahjong round: the live wall in draw order, the dead wall and the break dice.
 
     The live and dead walls never share a tile; the model validates that on every construction, and the wall functions
-    construct it rather than model_copy it so the validator always runs.
+    construct it so the validator runs whenever the partition changes. A plain draw is the one exception: it
+    model_copies the wall without its first live tile, which cannot break a validator, since removing a prefix from a
+    validated live wall leaves it distinct and disjoint, and the dead wall is the same object.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -276,7 +278,7 @@ def draw_tile(wall: Wall) -> tuple[Wall, int | None]:
     if not wall.live_tiles:
         return wall, None
 
-    return _rebuild_wall(wall, live_tiles=wall.live_tiles[1:]), wall.live_tiles[0]
+    return wall.model_copy(update={"live_tiles": wall.live_tiles[1:]}), wall.live_tiles[0]
 
 
 def draw_from_dead_wall(wall: Wall) -> tuple[Wall, int]:

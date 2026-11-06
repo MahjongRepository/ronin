@@ -105,7 +105,10 @@ input order, so a change to it is a change to the replay format. A change to wal
   dora and bottom the ura, and a reserve for the live tiles pulled in after each kan. Dora and ura are derived from the
   same stack prefix, so they cannot drift apart. `DeadWall` validates its partition and `Wall` that the live wall is
   disjoint from it on every construction; the wall functions construct both rather than `model_copy` them so the
-  validators always run.
+  validators run whenever the partition changes. The one exception is a plain draw, which `model_copy`s the wall
+  without its first live tile: removing a prefix from a validated live wall cannot break a validator, and the dead
+  wall is the same object. The ownership check does not cover a skipped validator: it does not check the dead wall's
+  role counts.
 * Every state the engine adopts goes through `GameRuntime.commit()`, which checks that hands, melds, unclaimed discards,
   the live wall and the dead wall own each of the 136 tiles exactly once (`invariants.py`). A failure is a server fault:
   nothing is repaired or retried. `runtime.state` is read-only, so `commit()` is the only way to replace it. Tests
