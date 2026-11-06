@@ -208,8 +208,5 @@ When these are unset (or empty), app-level file logging is disabled and logs go 
 
 ## SSH authentication
 
-The Makefile auto-detects SSH agent in this order:
-
-1. `SSH_KEY=~/.ssh/id_rsa` -- explicit key file (if set)
-2. `~/.1password/agent.sock` -- 1Password SSH agent (if socket exists)
-3. System `ssh-agent` -- fallback
+Spot authenticates with a key file, `~/.ssh/id_ed25519` by default; pass `SSH_KEY=<path>` to use
+another one. No SSH agent is used.
