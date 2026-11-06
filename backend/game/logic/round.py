@@ -194,7 +194,7 @@ def is_tempai(
     """
     Check if the given tiles are in tenpai (one tile away from winning).
 
-    Uses local tile copies. Accepts keishiki tenpai (formal/structural
+    Accepts keishiki tenpai (formal/structural
     tenpai) where winning tiles may be unavailable in the wall or other players'
     hands. Exception: pure karaten (all copies of all winning tiles are in the
     player's own hand + melds) is NOT considered tenpai.

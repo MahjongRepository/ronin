@@ -116,6 +116,7 @@ def tenpai_discards_mask(drawn_34: list[int], melds: tuple[FrozenMeld, ...] | li
         counts[tile_34] -= 1
         if waits_mask(counts, melds):
             kept |= bit
+
         counts[tile_34] += 1
         remaining ^= bit
 
