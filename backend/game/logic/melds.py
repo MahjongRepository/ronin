@@ -306,8 +306,6 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
     original_waits = get_waiting_tiles(tenpai_player)
 
     # simulate kan: remove all 4 tiles from hand and add as a kan meld.
-    # calculate_shanten operates on closed hand tiles only, so tiles must
-    # be moved from hand to the meld (not duplicated in both).
     kan_tiles = tuple(t for t in player.tiles if tile_to_34(t) == tile_34)
     remaining_tiles = tuple(t for t in player.tiles if tile_to_34(t) != tile_34)
     kan_meld = FrozenMeld(

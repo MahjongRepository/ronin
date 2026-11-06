@@ -10,6 +10,7 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import is_tempai, process_exhaustive_draw
 from game.logic.settings import GameSettings, validate_settings
 from game.logic.types import YakuInfo
+from game.logic.win import get_waiting_tiles
 from game.tests.conftest import create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_wall
@@ -116,6 +117,7 @@ class TestKeishikiTenpai:
         )
         result = is_tempai(closed_tiles, melds=(pon,))
         assert result is False
+        assert get_waiting_tiles(create_player(seat=0, tiles=tuple(closed_tiles), melds=(pon,))) == set()
 
     def test_is_tempai__when_wait_tile_copies_remain_elsewhere__should_be_true(self):
         # 111m 234m 567m 555p = 12 tiles... need 13.

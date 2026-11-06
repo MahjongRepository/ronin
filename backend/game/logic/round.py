@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 import structlog
-from mahjong.agari import Agari
-from xiangting import PlayerCount, calculate_replacement_number
 
 from game.logic import wall as wall_ops
 from game.logic.exceptions import ImpossibleActionError, InvalidDiscardError
 from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.scoring import apply_nagashi_mangan_score
 from game.logic.settings import NUM_PLAYERS
-from game.logic.shanten import calculate_shanten
+from game.logic.shanten import tenpai_discards_mask, waits_mask
 from game.logic.state import (
     Discard,
     MahjongGameState,
@@ -23,38 +21,14 @@ from game.logic.state_utils import (
 )
 from game.logic.tiles import (
     DRAWN_HAND_REMAINDER,
-    NUM_TILE_TYPES,
+    WAITING_HAND_REMAINDER,
     hand_to_34_array,
     is_terminal_or_honor,
     tile_to_34,
 )
 from game.logic.types import ExhaustiveDrawResult, NagashiManganResult, TenpaiHand
-from game.logic.win import MAX_TILE_COPIES
 
 logger = structlog.get_logger()
-
-
-def _get_hand_waiting_tiles(tiles: list[int]) -> set[int]:
-    """
-    Find waiting tiles based on hand tiles only (ignoring melds for agari check).
-
-    Uses agari.is_agari without open_sets since the mahjong library's agari checker expects meld tiles to be included in
-    the tiles_34 array when open_sets is provided. For tenpai/karaten checks, we only have hand tiles (excluding melds),
-    so passing None is correct.
-    """
-    tiles_34 = hand_to_34_array(tiles)
-    waiting = set()
-    for tile_34 in range(NUM_TILE_TYPES):
-        if tiles_34[tile_34] >= MAX_TILE_COPIES:
-            continue
-
-        tiles_34[tile_34] += 1
-        if Agari.is_agari(tiles_34, None):
-            waiting.add(tile_34)
-
-        tiles_34[tile_34] -= 1
-
-    return waiting
 
 
 def draw_tile(
@@ -230,60 +204,17 @@ def is_tempai(
         melds: The player's melds (for karaten check).
 
     Returns:
-        True if the hand is in tenpai, False otherwise.
+        True if the hand is in tenpai, False otherwise; a tile count that is neither 3n+1 nor 3n+2 (an empty hand
+        included) is never tenpai.
     """
-    tiles_list = list(tiles)
+    remainder = len(tiles) % 3
+    if remainder == DRAWN_HAND_REMAINDER:
+        return tenpai_discards_mask(hand_to_34_array(tiles), melds) != 0
 
-    if len(tiles_list) % 3 == DRAWN_HAND_REMAINDER:
-        # Compute the 34-array once, then modify in-place for each discard check.
-        # Deduplicate by tile type: discarding two tiles of the same type yields
-        # the same 34-array, so only one shanten check is needed per type.
-        tiles_34 = hand_to_34_array(tiles_list)
-        checked: set[int] = set()
-        four = PlayerCount.FOUR
-        for i in range(len(tiles_list)):
-            t34 = tiles_list[i] // 4
-            if t34 in checked:
-                continue
+    if remainder == WAITING_HAND_REMAINDER:
+        return waits_mask(hand_to_34_array(tiles), melds) != 0
 
-            checked.add(t34)
-            tiles_34[t34] -= 1
-            is_tenpai = calculate_replacement_number(tiles_34, four) == 1
-            tiles_34[t34] += 1
-            if is_tenpai:
-                remaining = tiles_list[:i] + tiles_list[i + 1 :]
-                if not _is_pure_karaten(remaining, melds):
-                    return True
-
-        return False
-
-    tiles_34 = hand_to_34_array(tiles_list)
-    if calculate_shanten(tiles_34) != 0:
-        return False
-
-    return not _is_pure_karaten(tiles_list, melds)
-
-
-def _is_pure_karaten(
-    tiles: list[int],
-    melds: tuple | list,
-) -> bool:
-    """
-    Check if all winning tiles are entirely in the player's own hand + melds.
-
-    Uses local tile and meld lists rather than player object. Pure karaten means the player holds all 4 copies of every
-    tile they are waiting on. This is not considered valid tenpai.
-    """
-    waiting = _get_hand_waiting_tiles(tiles)
-
-    # count tiles in player's hand + melds
-    tile_counts = hand_to_34_array(tiles)
-    for meld in melds:
-        for t in meld.tiles:
-            tile_counts[tile_to_34(t)] += 1
-
-    # pure karaten: ALL waiting tiles have all 4 copies in player's possession
-    return all(tile_counts[t34] >= MAX_TILE_COPIES for t34 in waiting)
+    return False
 
 
 def process_exhaustive_draw(

@@ -8,7 +8,7 @@ from mahjong.hand_calculating.hand_config import HandConfig
 
 from game.logic.meld_wrapper import FrozenMeld, frozen_melds_to_melds
 from game.logic.settings import NUM_PLAYERS, GameSettings, RenhouValue, build_optional_rules
-from game.logic.shanten import calculate_shanten
+from game.logic.shanten import mask_to_tile_types, waits_mask
 from game.logic.state import seat_to_wind
 from game.logic.state_utils import update_player
 from game.logic.tiles import NUM_TILE_TYPES, WAITING_HAND_REMAINDER, WINDS_34, hand_to_34_array, tile_to_34
@@ -21,9 +21,6 @@ if TYPE_CHECKING:
         MahjongPlayer,
         MahjongRoundState,
     )
-
-# maximum copies of a single tile
-MAX_TILE_COPIES = 4
 
 # the 13 terminal/honor tile types required for kokushi musou
 KOKUSHI_TILES_34 = frozenset({0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33})
@@ -109,8 +106,8 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
     """
     Find all tiles that would complete the player's hand.
 
-    Uses shanten calculator to identify which tiles would bring shanten to -1 (agari). Returns a set of tile_34 values
-    (0-33) that complete the hand.
+    Returns a set of tile_34 values (0-33): the waits of the closed tiles, without a type whose 4 copies are all in the
+    player's own hand and melds (karaten).
 
     Waits belong to a waiting hand (3n+1 closed tiles). Any other hand has none of its own (a drawn hand after the draw
     or the player's own pon or chi, or a hand no deal can produce), so asking for them is an engine invariant breach and
@@ -119,36 +116,7 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
     if len(player.tiles) % 3 != WAITING_HAND_REMAINDER:
         raise AssertionError(f"seat {player.seat} holds {len(player.tiles)} tiles, not a waiting hand of 3n+1")
 
-    closed_tiles_34 = hand_to_34_array(player.tiles)
-    current_shanten = calculate_shanten(closed_tiles_34)
-    if current_shanten != 0:
-        return set()
-
-    # Build full tiles_34 (closed + melds) by adding meld tile counts to
-    # the existing closed_tiles_34, avoiding a second hand_to_34_array call.
-    tiles_34 = list(closed_tiles_34)
-    for meld in player.melds:
-        for t in meld.tiles:
-            tiles_34[t // 4] += 1
-
-    # compute open sets once — the result is the same for every tile check
-    open_sets = _melds_to_34_sets(player.melds)
-
-    waiting = set()
-    # check each of the 34 tile types
-    for tile_34 in range(NUM_TILE_TYPES):
-        # skip if already 4 of this tile (can't draw a 5th)
-        if tiles_34[tile_34] >= MAX_TILE_COPIES:
-            continue
-
-        # add tile and check if hand becomes agari
-        tiles_34[tile_34] += 1
-        if Agari.is_agari(tiles_34, open_sets):
-            waiting.add(tile_34)
-
-        tiles_34[tile_34] -= 1
-
-    return waiting
+    return mask_to_tile_types(waits_mask(hand_to_34_array(player.tiles), player.melds))
 
 
 def is_furiten(player: MahjongPlayer) -> bool:

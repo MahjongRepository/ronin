@@ -110,6 +110,29 @@ class TestCanDeclareRiichi:
         assert can_declare_riichi(player, round_state, settings=GameSettings()) is True
         assert riichi_discards(player) == [man_nine, _DRAWN_EAST]
 
+    def test_can_declare_riichi__when_closed_kan_holds_every_copy_of_the_only_wait__should_reject(self):
+        five_man_kan = FrozenMeld(
+            meld_type=FrozenMeld.KAN,
+            tiles=tuple(tile_copies(0, man="5555")),
+            opened=False,
+            who=0,
+            from_who=0,
+        )
+        kanchan_on_five_man = (*tile_copies(0, man="46", sou="77"), *tile_copies(3, pin="234567"), _DRAWN_EAST)
+        player, round_state = _dealer_after_draw(
+            create_player(seat=0, tiles=kanchan_on_five_man, melds=(five_man_kan,))
+        )
+
+        assert can_declare_riichi(player, round_state, settings=GameSettings()) is False
+        assert riichi_discards(player) == []
+
+    def test_can_declare_riichi__when_drawn_hand_is_complete__should_offer_every_discard(self):
+        man_nine = tile_copies(3, man="9")[0]
+        player, round_state = _dealer_after_draw(create_player(seat=0, tiles=(*_TENPAI_ON_ONE_AND_NINE_MAN, man_nine)))
+
+        assert can_declare_riichi(player, round_state, settings=GameSettings()) is True
+        assert riichi_discards(player) == list(player.tiles)
+
     def test_can_declare_riichi__when_not_tempai__should_reject(self):
         far_from_tenpai = (*tile_copies(3, man="13579", pin="2468", sou="1357"), _DRAWN_EAST)
         player, round_state = _dealer_after_draw(create_player(seat=0, tiles=far_from_tenpai))
