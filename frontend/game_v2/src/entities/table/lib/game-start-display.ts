@@ -1,5 +1,5 @@
 import { formatPoints } from "@/entities/table/lib/round-end-display";
-import { roundName } from "@/entities/table/lib/round-name";
+import { formatRoundName, roundName } from "@/entities/table/lib/round-name";
 import { windLetter, windName } from "@/entities/table/lib/wind-name";
 import { type TableState } from "@/entities/table/model/types";
 import { GAME_TYPE, type GameType, WIND, seatDistance } from "@/shared/protocol";
@@ -9,14 +9,7 @@ export const GAME_TYPE_NAMES: Readonly<Record<GameType, string>> = {
     [GAME_TYPE.TONPUSEN]: "Tonpuu",
 };
 
-/** How the view shows the seating: the seat it is read from (none in a replay) and the seconds to the first deal. */
-export interface GameStartView {
-    readonly viewerSeat: number | null;
-    /** The whole seconds left of the server's game start pause; null when unknown or run out. */
-    readonly secondsLeft: number | null;
-}
-
-/** A seat at the table before the first deal: its seat wind, its player, and whether it deals, is the viewer's or AI. */
+/** A seat at the table: its seat wind, its player, and whether it deals, is the viewer's or AI. */
 export interface GameStartSeat {
     readonly wind: string;
     readonly windName: string;
@@ -24,30 +17,29 @@ export interface GameStartSeat {
     readonly isDealer: boolean;
     readonly isViewer: boolean;
     readonly isAiPlayer: boolean;
-    /** The seat's starting score where the view knows it (a replay, from its first deal); else null. */
+    /** The seat's score where the view knows it (a dealt round's, a replay's first deal's); else null. */
     readonly score: string | null;
 }
 
-/** The seating before the first deal: the game's length, its first round, the seats in wind order and when it deals. */
+/** The seating: the game's length where known, the round, and the seats in wind order. */
 export interface GameStartDisplayState {
     readonly gameType: string | null;
     readonly round: string;
     readonly seats: readonly GameStartSeat[];
-    /** The countdown to the first deal; null in a replay, which waits for its reader instead. */
-    readonly status: string | null;
 }
 
-function startStatus(secondsLeft: number | null): string {
-    return secondsLeft === null ? "Starting…" : `Starting in ${secondsLeft}`;
+/** Whose seating a view reads: the round's dealer (East), the viewer's seat, and whether the scores show. */
+interface SeatingView {
+    readonly dealer: number;
+    readonly viewerSeat: number | null;
+    readonly scored: boolean;
 }
 
-/** The seats in wind order from the first dealer's seat round (the dealer is East), each scored where `scored`. */
+/** The seats in wind order from the dealer's seat round, each scored where the view shows scores. */
 function seatsInWindOrder(
     table: TableState,
-    viewerSeat: number | null,
-    scored: boolean,
+    { dealer, scored, viewerSeat }: SeatingView,
 ): GameStartSeat[] {
-    const dealer = table.firstDealerSeat;
     function windOf(seat: number): number {
         return seatDistance(dealer, seat);
     }
@@ -69,28 +61,40 @@ function gameTypeName(table: TableState): string | null {
 }
 
 /**
- * The seating a started game shows until its first deal, its seats in wind order. Its status counts the server's game
- * start pause down, or only says the game is starting where no pause is known. No score shows: the game's start
- * names none.
+ * The seating of the round on a live table from the viewer's seat: once dealt, the round with its honba, the seats in
+ * wind order from its dealer and their scores now; before the first deal, the first round from the first dealer, with
+ * no score, since the game's start names none.
  */
-export function gameStartDisplay(table: TableState, view: GameStartView): GameStartDisplayState {
+export function tableSeatingDisplay(
+    table: TableState,
+    viewerSeat: number | null,
+): GameStartDisplayState {
+    const dealt = table.phase !== "pre_game";
     return {
         gameType: gameTypeName(table),
-        round: roundName(WIND.EAST, 1),
-        seats: seatsInWindOrder(table, view.viewerSeat, false),
-        status: startStatus(view.secondsLeft),
+        round: dealt
+            ? formatRoundName(table.roundWind, table.roundInWind, table.honbaSticks)
+            : roundName(WIND.EAST, 1),
+        seats: seatsInWindOrder(table, {
+            dealer: dealt ? table.dealerSeat : table.firstDealerSeat,
+            scored: dealt,
+            viewerSeat,
+        }),
     };
 }
 
 /**
  * The seating a replay opens on, from its table as the game started at its first deal's scores: each seat's starting
- * score shown, no seat the reader's, and no countdown.
+ * score shown, no seat the reader's.
  */
 export function replaySeatingDisplay(table: TableState): GameStartDisplayState {
     return {
         gameType: gameTypeName(table),
         round: roundName(WIND.EAST, 1),
-        seats: seatsInWindOrder(table, null, true),
-        status: null,
+        seats: seatsInWindOrder(table, {
+            dealer: table.firstDealerSeat,
+            scored: true,
+            viewerSeat: null,
+        }),
     };
 }

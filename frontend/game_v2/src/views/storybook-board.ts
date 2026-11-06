@@ -1000,7 +1000,6 @@ function buildOverlay(
     }
     const panel = tablePanel(story.leftoverLost ? END_TABLE_STICK_LOST : END_TABLE, {
         callouts: null,
-        firstDealSeconds: null,
         overGameEnd: false,
         page: 0,
         viewerSeat: 0,

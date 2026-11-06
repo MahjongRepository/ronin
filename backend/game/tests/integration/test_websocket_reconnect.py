@@ -6,6 +6,7 @@ from starlette.testclient import TestClient
 
 from game.logic.enums import WindName
 from game.logic.events import EventType
+from game.logic.settings import GameType
 from game.logic.types import (
     GamePlayerInfo,
     PlayerReconnectState,
@@ -42,6 +43,7 @@ def _make_snapshot(game_id: str = "test_game", seat: int = 0) -> ReconnectionSna
         first_dealer_seat=0,
         dealer_dice=((1, 2), (3, 4)),
         riichi_stick_value=1000,
+        game_type=GameType.HANCHAN,
         seat=seat,
         round_wind=WindName.EAST,
         round_number=1,

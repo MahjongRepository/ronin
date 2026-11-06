@@ -48,6 +48,7 @@ import {
     toggleSwitchStep,
 } from "./intents";
 import { keptNotice, submittedWaitId, withNotice } from "./notices";
+import { confirmOpeningStep, openingAt, openingDeadline, withOpening } from "./opening";
 import {
     decisionOf,
     pendingOf,
@@ -257,8 +258,8 @@ function applyMessageTable(state: LiveClient, message: ParsedServerMessage): Liv
 
 /**
  * The client after a server message the session took (`stepped`, from `before`): the table event it carries and its
- * calls, the viewer's facts, the play switches, what the seat owes, the game's last result and the notices, then the
- * automatic answer to a decision it opened on an unseen wait.
+ * calls, the viewer's facts, the play switches, what the seat owes, the game's last result, the notices and the
+ * opening screen, then the automatic answer to a decision it opened on an unseen wait.
  */
 function takeMessage(
     before: LiveClient,
@@ -271,7 +272,7 @@ function takeMessage(
     const shown = { ...owed, showsLastResult: showsLastResultAfter(owed, message) };
     const noticeBefore = { session: before.session, submitted: submittedWaitId(viewed) };
     const noticed = withNotice(noticeBefore, shown, message);
-    return automaticStep(noticed, viewed.highestOpenedWaitId);
+    return automaticStep(withOpening(noticed, message), viewed.highestOpenedWaitId);
 }
 
 /**
@@ -381,6 +382,9 @@ function onIntent(state: LiveClient, intent: LocalIntent): ClientStep<LiveClient
         case "show_last_result": {
             return reopenResultStep(state) ?? { effects: [], state };
         }
+        case "confirm_opening": {
+            return confirmOpeningStep(state, canAnswer(state)) ?? { effects: [], state };
+        }
         default: {
             return assertNever(intent);
         }
@@ -457,12 +461,12 @@ export function startGameClient(
         automaticDiscard: null,
         boardMotion: { mode: "reset", sequence: 0 },
         calls: null,
-        firstDealDue: null,
         furiten: false,
         highestOpenedWaitId: null,
         kind: "live",
         notice: null,
         now: at,
+        opening: { kind: "unseen" },
         pendingGameSeconds: null,
         resyncRequests: 0,
         session: step.state,
@@ -477,9 +481,9 @@ export function startGameClient(
 }
 
 /**
- * When the client next needs a tick: the earliest of its session's deadline, its open decision's, its notice's and its
- * calls' expiry, and when its resync request counts as unanswered, or null. A round confirm's deadline needs none: the
- * client never confirms on its own, and its countdown reads `now`.
+ * When the client next needs a tick: the earliest of its session's deadline, its open decision's, its notice's, its
+ * calls' and its resume screen's expiry, and when its resync request counts as unanswered, or null. A round confirm's
+ * deadline needs none: the client never confirms on its own, and its countdown reads `now`.
  */
 export function nextDeadline(state: LiveClient): number | null {
     const { calls, notice, session } = state;
@@ -492,21 +496,26 @@ export function nextDeadline(state: LiveClient): number | null {
         state.automaticDiscard?.due ?? null,
         notice?.until ?? null,
         calls?.until ?? null,
+        openingDeadline(state),
     ].filter((deadline) => deadline !== null);
     return deadlines.length === 0 ? null : Math.min(...deadlines);
 }
 
-/** The state at logical time `at`: an open decision past its deadline expired, a notice or calls past their time gone. */
+/**
+ * The state at logical time `at`: an open decision past its deadline expired, a notice, calls or the resume screen
+ * past their time gone.
+ */
 function expireAt(state: LiveClient, at: number): LiveClient {
-    const { calls, notice } = state;
+    const { calls, notice, opening } = state;
     const decision = decisionOf(state);
     const current = decision === null ? null : expireDecision(decision, at);
     const shown = notice !== null && at >= notice.until ? null : notice;
     const called = callsAt(calls, at);
-    if (current === decision && shown === notice && called === calls) {
+    const opened = openingAt(opening, at);
+    if (current === decision && shown === notice && called === calls && opened === opening) {
         return state;
     }
-    const expired = { ...state, calls: called, notice: shown };
+    const expired = { ...state, calls: called, notice: shown, opening: opened };
     return current === decision ? expired : replaceDecision(expired, current);
 }
 

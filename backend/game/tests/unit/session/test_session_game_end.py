@@ -122,7 +122,7 @@ class TestFailGame:
             MockGameService(),
             replay_collector=collector,
             game_repository=game_repo,
-            timer_config=TimerConfig(game_start_pause_seconds=0),
+            timer_config=TimerConfig(game_start_confirm_seconds=0, ai_turn_delay_seconds=0),
         )
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         conns[0].send_message = MagicMock(side_effect=ValueError("encoder broke"))
@@ -146,7 +146,10 @@ class TestFailGame:
         game_service = MockGameService()
         game_service.start_game = MagicMock(side_effect=RuntimeError("start failed"))
         manager = make_session_manager(
-            game_service, timer_config=TimerConfig(pending_game_timeout_seconds=0.01, game_start_pause_seconds=0)
+            game_service,
+            timer_config=TimerConfig(
+                pending_game_timeout_seconds=0.01, game_start_confirm_seconds=0, ai_turn_delay_seconds=0
+            ),
         )
         manager.create_pending_game(
             game_id="game1",

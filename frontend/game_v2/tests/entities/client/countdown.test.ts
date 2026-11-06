@@ -6,6 +6,7 @@ import {
     decisionCountdown,
     decisionOf,
     nextCountdownChange,
+    roundConfirmOf,
     runSeatScenario,
     scenarioStateIndex,
     stepGameClient,
@@ -107,11 +108,14 @@ describe("decisionCountdown - a turn's base and bank", () => {
     });
 });
 
-describe("nextCountdownChange - the game start pause", () => {
-    const STARTED = checkpointState("own_turn_seat_1", "game started");
+describe("nextCountdownChange - the start confirm", () => {
+    const DEALT = stateAt("dealt");
 
-    it("wakes as the pause's shown second changes, and no more once it ran out ahead of the deal", () => {
-        expect(nextCountdownChange(STARTED)).toBe(1000);
-        expect(nextCountdownChange({ ...STARTED, now: 3000 })).toBeNull();
+    it("wakes as the start confirm's shown second changes, and no more once its time ran out ahead of the first draw", () => {
+        const owed = roundConfirmOf(DEALT);
+        assert(owed?.kind === "owed" && owed.deadline !== null);
+
+        expect(nextCountdownChange(DEALT)).toBe(owed.deadline - 9000);
+        expect(nextCountdownChange({ ...DEALT, now: owed.deadline })).toBeNull();
     });
 });

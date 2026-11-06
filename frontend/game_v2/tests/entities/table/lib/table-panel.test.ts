@@ -11,7 +11,6 @@ import {
 
 const VIEW: TablePanelView = {
     callouts: null,
-    firstDealSeconds: null,
     overGameEnd: false,
     page: 0,
     viewerSeat: null,
@@ -36,17 +35,11 @@ function tableIn(phase: GamePhase, replay = "double_ron"): TableState {
 }
 
 describe("tablePanel", () => {
-    it("shows the seating before the first deal from the viewer's seat, counting down, and nothing while a round plays", () => {
-        const panel = tablePanel(tableIn("pre_game"), {
-            ...VIEW,
-            firstDealSeconds: 4,
-            viewerSeat: 2,
-        });
-
-        assert(panel?.kind === "seating");
-        expect(panel.display.status).toBe("Starting in 4");
-        expect(panel.display.seats.filter((seat) => seat.isViewer)).toHaveLength(1);
-        expect(tablePanel(tableIn("in_round"), VIEW)).toBeNull();
+    it("shows nothing of its own before the first deal or while a round plays", () => {
+        expect([
+            tablePanel(tableIn("pre_game"), VIEW),
+            tablePanel(tableIn("in_round"), VIEW),
+        ]).toEqual([null, null]);
     });
 
     it("shows a round's result at the page asked, the nearest past its last, held back only for a win's call", () => {

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { WIRE_KEY } from "@/shared/protocol";
 import {
     ABORTIVE_DRAW_TYPE,
+    GAME_TYPE,
     ROUND_RESULT_TYPE,
     SESSION_MESSAGE_TYPE,
 } from "@/shared/protocol/constants";
@@ -35,6 +36,7 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
         [WIRE_KEY.FURITEN]: true,
         [WIRE_KEY.FIRST_DEALER]: 3,
         [WIRE_KEY.GAME_ID]: "game-abc-123",
+        [WIRE_KEY.GAME_TYPE]: GAME_TYPE.TONPUSEN,
         [WIRE_KEY.HONBA]: 1,
         [WIRE_KEY.MY_TILES]: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48],
         [WIRE_KEY.ROUND_NUMBER]: 2,
@@ -98,7 +100,7 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
         [WIRE_KEY.SEAT]: 0,
         [WIRE_KEY.TIMER_SETTINGS]: {
             [WIRE_KEY.BANK_SECONDS]: 20,
-            [WIRE_KEY.GAME_START_PAUSE]: 3,
+            [WIRE_KEY.GAME_START_CONFIRM]: 3,
             [WIRE_KEY.MAX_BANK_SECONDS]: 20,
             [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
             [WIRE_KEY.BASE_TURN_SECONDS]: 5,
@@ -120,7 +122,7 @@ describe("gameReconnectedSchema", () => {
         const result = parsePayload();
 
         expect(result.type).toBe("game_reconnected");
-        expect(result.gameId).toBe("game-abc-123");
+        expect([result.gameId, result.gameType]).toEqual(["game-abc-123", GAME_TYPE.TONPUSEN]);
         expect(result.currentPlayerSeat).toBe(2);
         expect(result.dealerSeat).toBe(0);
         expect(result.roundNumber).toBe(2);

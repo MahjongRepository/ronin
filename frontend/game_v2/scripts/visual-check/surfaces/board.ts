@@ -510,7 +510,7 @@ function checkBadgeTaps(board: BoardMeasure, report: PageReport): void {
 interface TurnCues {
     readonly bars: readonly string[];
     readonly badges: readonly string[];
-    /** A panel says no round plays: the seating, a round's result or the game's end. */
+    /** A panel says no round plays: a replay's seating, a round's result or the game's end, never the opening screen. */
     readonly roundOver: boolean;
 }
 
@@ -568,7 +568,9 @@ function measureTurnCues(page: Page): Promise<TurnCues> {
             badges: underlined.map((plate) => seatOf(plate, "nameplate")),
             bars: bars.map((seat) => seatOf(seat, "board-center__seat")),
             roundOver:
-                board?.querySelector(".board-overlay :is(.round-end-result, .seating)") !== null,
+                board?.querySelector(
+                    ".board-overlay :is(.round-end-result, .seating:not(:has(.seating__confirm)))",
+                ) !== null,
         };
     });
 }
@@ -576,7 +578,8 @@ function measureTurnCues(page: Page): Promise<TurnCues> {
 /**
  * One cue for the seat in turn: at most one seat's bar drawn on the centre, the same seat's badge underlined and no
  * other's, exactly one while a decision is open on the board with no panel over it (a round plays), and none under
- * the seating, a round's result or the game's end (no round plays).
+ * a replay's seating, a round's result or the game's end (no round plays); the live opening screen stands over a
+ * round in play, its dealer cued.
  */
 function checkTurnCue(cues: TurnCues, board: BoardMeasure, report: PageReport): void {
     report.expect(

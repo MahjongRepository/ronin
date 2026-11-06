@@ -19,9 +19,9 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   `live_game_event_payload` removes the per-draw wall count for normal delivery and reconnect resends;
   the replay keeps the engine's explicit count. A draw, a
   discard and a meld each pack into one integer (`../wire/compact.py`, `shared/lib/melds/README.md`).
-* Of `GameSettings` only the riichi stick value (`WireKey.RIICHI_STICK_VALUE`), a wire score, goes out live, on `game_started`
-  and the reconnect snapshot: the one setting a client consumes, since every deposit and payment comes
-  settled. Replay game-start records retain this viewing value and an explicit aka-dora flag; their
+* Of `GameSettings` only the game type (`WireKey.GAME_TYPE`) and the riichi stick value (`WireKey.RIICHI_STICK_VALUE`), a wire
+  score, go out live, on `game_started` and the reconnect snapshot: the settings a client consumes, the type for its
+  headings and the stick value since every deposit and payment comes settled. Replay game-start records retain this viewing value and an explicit aka-dora flag; their
   compact `WireKey.GAME_SETTINGS` profile reference resolves the full effective settings for Python consumers.
 * An accepted JOIN_GAME is answered by `game_joined` to the joining connection alone, ahead of anything
   the game sends it, as an accepted RECONNECT is by the snapshot; every refused one by a session error.
@@ -30,8 +30,11 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   starts, so a client's silence watchdog follows the server's pacing rather than a copy of its defaults.
 * Delivery rules clients rely on: `game_started` is broadcast with each copy naming its recipient's
   seat (`WireKey.SEAT`) and timer settings (`WireKey.TIMER_SETTINGS`, which the reconnect snapshot carries too, with the seat's
-  current bank; the client counts its turns, calls and the game start pause down from them), and the
-  first deal follows it only after the session's game start pause; a draw (the deal's first, a
+  current bank; the client counts its turns and calls down from them), and the
+  first deal follows it at once: with the game start's confirmation (a round advance, `WireKey.GAME_START_CONFIRM` its
+  timeout in the timer settings) each awaited seat's deal is stamped with its wait id and the confirmation's whole
+  timeout (`WireKey.ROUND_ADVANCE_SECONDS`), the seat answers CONFIRM_ROUND, and the dealer's first draw follows once
+  every awaited seat confirmed or the timeout confirmed for it; a later deal never carries either; a draw (the deal's first, a
   replacement after a kan and an AI player's included) goes whole only to the drawing seat, with its
   available actions when it has any, and every other connected seat gets its draw notice in its
   place, shaped from the same engine draw (`draw_notice_payload`): only the drawer's seat,
@@ -50,7 +53,7 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   no meld event: the round end that robs it names it, and so does the snapshot's round result. A
   snapshot taken during a round advance shows the round that ended: its dealer, wind, round number,
   number within the wind and honba with its tiles, the scores and riichi sticks its result left, that result (`WireKey.ROUND_RESULT`) in the
-  round end's shape, and whether the seat still owes its confirmation (`WireKey.CONFIRMATION_OWED`), with how long that
+  round end's shape (none for the game start's confirmation, whose snapshot shows the dealt round before the dealer's draw), and whether the seat still owes its confirmation (`WireKey.CONFIRMATION_OWED`), with how long that
   wait's timer has run (`WireKey.WAIT_ELAPSED`) and its whole timeout (`WireKey.ROUND_ADVANCE_SECONDS`) only when the seat owes it and its timer
   is running. The round end that opens a
   round advance names that whole timeout too (`WireKey.ROUND_ADVANCE_SECONDS`, seconds), so the client times the confirm by

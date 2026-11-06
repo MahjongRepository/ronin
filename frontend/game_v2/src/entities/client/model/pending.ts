@@ -20,6 +20,14 @@ export function roundConfirmOf(state: LiveClient): RoundConfirm | null {
 }
 
 /**
+ * Where the viewer stands with the game's start before the first draw: the round confirm while the table shows no
+ * round result, which only the game's first deal (or a snapshot of it) opens; null otherwise.
+ */
+export function startConfirmOf(state: LiveClient): RoundConfirm | null {
+    return state.table.roundEndResult === null ? roundConfirmOf(state) : null;
+}
+
+/**
  * The client with what the seat owes replaced. Out of step it owes nothing, so only clearing it is taken there: a
  * client that tries to owe something out of step is a bug, thrown.
  */

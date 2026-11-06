@@ -9,25 +9,57 @@ import {
     WIRE_GAME_RECONNECTED,
     WIRE_GAME_STARTED,
     WIRE_ROUND_STARTED,
+    type WirePayload,
+    wirePayloadList,
     wireRoundAdvanceSnapshot,
     wireRoundEnd,
+    wireSessionError,
+    wireStartConfirmDeal,
+    wireStartConfirmSnapshot,
 } from "#tests/fixtures/wire";
 import {
     type ClientEffect,
     type LiveClient,
     type LiveEvent,
+    NO_PLAY_UI,
     RESYNC_ANSWER_MS,
     decisionOf,
     desyncOf,
     nextDeadline,
+    playDisplay,
     roundConfirmOf,
     stepGameClient,
     takesIntent,
 } from "@/entities/client";
 import { WIN_CALLOUT_CONTEXT_MS } from "@/entities/client/model/calls";
-import { WIRE_KEY, buildConfirmRoundAction, buildResyncMessage } from "@/shared/protocol";
+import {
+    SESSION_ERROR_CODE,
+    WIRE_KEY,
+    buildConfirmRoundAction,
+    buildResyncMessage,
+} from "@/shared/protocol";
 
-const { closed, confirm, message, opened, tick } = clientEvent;
+const { closed, confirm, confirmOpening, message, opened, tick } = clientEvent;
+
+/** The seating the live board shows over its table: its heading's round, and each seat's name, wind and score. */
+function shownSeating(state: LiveClient): readonly unknown[] | null {
+    const panel = playDisplay(state, NO_PLAY_UI).overlay?.panel;
+    if (panel?.kind !== "seating") {
+        return null;
+    }
+    const seats = panel.display.seats.map(({ name, score, wind }) => [wind, name, score]);
+    return [panel.display.gameType, panel.display.round, seats];
+}
+
+/** A snapshot of East 2 with one honba, dealt by seat 1 though seat 0 dealt first, the scores moved from the start. */
+const WIRE_SECOND_DEALER_SNAPSHOT: WirePayload = {
+    ...WIRE_GAME_RECONNECTED,
+    [WIRE_KEY.DEALER]: 1,
+    [WIRE_KEY.HONBA]: 1,
+    [WIRE_KEY.PLAYER_STATES]: wirePayloadList(WIRE_GAME_RECONNECTED, WIRE_KEY.PLAYER_STATES).map(
+        (seat, index) => ({ ...seat, [WIRE_KEY.SCORE]: 280 - index * 10 }),
+    ),
+};
 
 function collectEffects(events: readonly LiveEvent[]): {
     effects: ClientEffect[];
@@ -142,6 +174,149 @@ describe("stepGameClient - round confirm", () => {
         scenario.step(message(100, confirmed));
         expect(roundConfirmOf(scenario.state)).toEqual({ kind: "confirmed" });
         expect(scenario.step(confirm(200))).toEqual([]);
+    });
+});
+
+/** The seat's own first draw, the dealer's, opening its turn after the start confirm on wait id 1. */
+const WIRE_FIRST_DRAW: WirePayload = { ...WIRE_DRAW, [WIRE_KEY.WAIT_ID]: 2 };
+
+/** A seat the server awaits at the game's start: the game start, then the first deal owing the start confirm on wait 1. */
+function startConfirmScenario(): ReturnType<typeof clientScenario> {
+    const scenario = clientScenario();
+    scenario.step(opened(0));
+    scenario.step(message(0, WIRE_GAME_JOINED));
+    scenario.step(message(0, WIRE_GAME_STARTED));
+    scenario.step(message(0, wireStartConfirmDeal(1)));
+    return scenario;
+}
+
+function openingControlsOf(state: LiveClient): unknown {
+    const { opening } = playDisplay(state, NO_PLAY_UI);
+    return opening === null ? null : { ...opening, action: opening.action?.label ?? null };
+}
+
+describe("stepGameClient - opening screen", () => {
+    it("shows the start screen from the game start over the first deal, owing the start confirm it names, and closes both on the first draw, never at the confirm's deadline", () => {
+        const scenario = startConfirmScenario();
+        const seating = shownSeating(scenario.state);
+
+        expect([
+            scenario.state.opening,
+            roundConfirmOf(scenario.state),
+            nextDeadline(scenario.state),
+        ]).toEqual([
+            { cause: "start", kind: "showing" },
+            { deadline: 10_000, kind: "owed", waitId: 1 },
+            null,
+        ]);
+        expect(seating).toEqual([
+            "Hanchan",
+            "East 1",
+            [
+                ["E", "P0", "25,000"],
+                ["S", "P1", "25,000"],
+                ["W", "P2", "25,000"],
+                ["N", "P3", "25,000"],
+            ],
+        ]);
+        expect([scenario.step(tick(12_000)), shownSeating(scenario.state)]).toEqual([[], seating]);
+        expect(openingControlsOf(scenario.state)).toEqual({
+            action: "OK",
+            secondsLeft: 0,
+            waiting: false,
+        });
+        scenario.step(message(12_100, WIRE_FIRST_DRAW));
+        expect([
+            scenario.state.opening,
+            shownSeating(scenario.state),
+            decisionOf(scenario.state)?.waitId,
+        ]).toEqual([{ kind: "closed" }, null, 2]);
+    });
+
+    it("sends the start confirm on the OK once by its wait id, then waits for the others with its time still counting, and a refusal naming it reopens the OK", () => {
+        const scenario = startConfirmScenario();
+
+        expect(scenario.step(confirmOpening(1000))).toEqual([
+            { message: buildConfirmRoundAction(1), type: "send" },
+        ]);
+        expect([openingControlsOf(scenario.state), scenario.step(confirmOpening(1100))]).toEqual([
+            { action: null, secondsLeft: 9, waiting: true },
+            [],
+        ]);
+        expect(scenario.step(confirm(1200))).toEqual([]);
+        scenario.step(message(1300, wireSessionError(SESSION_ERROR_CODE.RATE_LIMITED, 1)));
+        expect([roundConfirmOf(scenario.state), openingControlsOf(scenario.state)]).toEqual([
+            { deadline: 10_000, kind: "owed", waitId: 1 },
+            { action: "OK", secondsLeft: 9, waiting: false },
+        ]);
+    });
+
+    it("closes the start screen on the OK of a seat the first deal awaits no confirm of, sending nothing, and opens none on a reconnect after it", () => {
+        const scenario = playingScenario();
+
+        expect(scenario.step(confirmOpening(1000))).toEqual([]);
+        expect([
+            scenario.state.opening,
+            takesIntent(scenario.state, { type: "confirm_opening" }),
+        ]).toEqual([{ kind: "closed" }, false]);
+        scenario.step(closed(4000, 1006));
+        scenario.step(tick(5000));
+        scenario.step(opened(5000));
+        scenario.step(message(5100, WIRE_GAME_RECONNECTED));
+        expect([scenario.state.notice?.kind, shownSeating(scenario.state)]).toEqual([
+            "reconnected",
+            null,
+        ]);
+    });
+
+    it("shows the start screen on a fresh page's snapshot of the start confirm, the OK owed on the time the server's elapsed time leaves, or waiting once the seat confirmed", () => {
+        const owed = clientScenario();
+        owed.step(opened(0));
+        owed.step(message(100, wireStartConfirmSnapshot(true, 4, 3)));
+        const confirmed = clientScenario();
+        confirmed.step(opened(0));
+        confirmed.step(message(100, wireStartConfirmSnapshot(false, 4, 0)));
+
+        expect([owed.state.opening, roundConfirmOf(owed.state)]).toEqual([
+            { cause: "start", kind: "showing" },
+            { deadline: 7100, kind: "owed", waitId: 4 },
+        ]);
+        expect(owed.step(confirmOpening(200))).toEqual([
+            { message: buildConfirmRoundAction(4), type: "send" },
+        ]);
+        expect([confirmed.state.opening, openingControlsOf(confirmed.state)]).toEqual([
+            { cause: "start", kind: "showing" },
+            { action: null, secondsLeft: null, waiting: true },
+        ]);
+    });
+
+    it("opens the resume screen on a fresh page's first snapshot with the game type, round, dealer and scores now, for its own time, and not on a second reconnect", () => {
+        const scenario = clientScenario();
+        scenario.step(opened(0));
+        scenario.step(message(100, WIRE_SECOND_DEALER_SNAPSHOT));
+
+        expect([shownSeating(scenario.state), nextDeadline(scenario.state)]).toEqual([
+            [
+                "Hanchan",
+                "East 2, 1 honba",
+                [
+                    ["E", "P2", "27,000"],
+                    ["S", "B1", "26,000"],
+                    ["W", "B2", "25,000"],
+                    ["N", "P1", "28,000"],
+                ],
+            ],
+            5100,
+        ]);
+        scenario.step(tick(5100));
+        scenario.step(closed(6000, 1006));
+        scenario.step(tick(7000));
+        scenario.step(opened(7000));
+        scenario.step(message(7100, WIRE_SECOND_DEALER_SNAPSHOT));
+        expect([scenario.state.notice?.kind, shownSeating(scenario.state)]).toEqual([
+            "reconnected",
+            null,
+        ]);
     });
 });
 

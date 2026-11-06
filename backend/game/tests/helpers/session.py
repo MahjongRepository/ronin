@@ -26,6 +26,8 @@ def make_session_manager(
         engine if engine is not None else MockGameService(),
         game_repository=repository if repository is not None else FakeGameRepository(),
         replay_collector=ReplayCollector(storage if storage is not None else FakeReplayStorage()),
-        timer_config=timer_config if timer_config is not None else TimerConfig(game_start_pause_seconds=0),
+        timer_config=timer_config
+        if timer_config is not None
+        else TimerConfig(game_start_confirm_seconds=0, ai_turn_delay_seconds=0),
         clock=clock,
     )

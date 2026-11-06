@@ -75,9 +75,22 @@ class TestWaitTimerArming:
             (SessionManager._start_turn_timer, TimeoutType.TURN, 25.0),
             (SessionManager._start_meld_timer, TimeoutType.MELD, 25.0),
             (
-                partial(SessionManager._start_round_advance_timer, results_shown=1),
+                partial(
+                    SessionManager._start_round_advance_timer,
+                    awaiting=Awaiting(kind=WaitKind.ROUND_ADVANCE, seats=frozenset({0}), wait_id=1, round_number=0),
+                ),
                 TimeoutType.ROUND_ADVANCE,
                 ARMING_CONFIG.round_advance_timeout_seconds,
+            ),
+            (
+                partial(
+                    SessionManager._start_round_advance_timer,
+                    awaiting=Awaiting(
+                        kind=WaitKind.ROUND_ADVANCE, seats=frozenset({0}), wait_id=1, round_number=0, starts_game=True
+                    ),
+                ),
+                TimeoutType.ROUND_ADVANCE,
+                ARMING_CONFIG.game_start_confirm_seconds,
             ),
             (
                 _arm_double_ron_round_advance,

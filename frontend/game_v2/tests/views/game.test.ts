@@ -248,10 +248,10 @@ function secondsLeft(host: HTMLElement): string | null | undefined {
 const JOIN = buildJoinGameMessage(HANDOFF.gameTicket);
 /** The first tile of the turn's hand that kuikae lets go, 4m, and the turn's wait id. */
 const FIRST_FREE_TILE = 12;
-const TURN_WAIT_ID = 2;
-const PROMPT_WAIT_ID = 1;
+const TURN_WAIT_ID = 3;
+const PROMPT_WAIT_ID = 2;
 const FIRST_STEP_CALL = '.decision-controls__action[aria-pressed="false"]';
-const ROUND_END_WAIT_ID = 2;
+const ROUND_END_WAIT_ID = 3;
 const RECONNECT = buildReconnectMessage(HANDOFF.gameTicket);
 
 describe("mountGameView", () => {
@@ -558,7 +558,7 @@ describe("mountGameView connection", () => {
         const joined = socket.silenceLimitMs;
         const timer = {
             [WIRE_KEY.BANK_SECONDS]: 120,
-            [WIRE_KEY.GAME_START_PAUSE]: 3,
+            [WIRE_KEY.GAME_START_CONFIRM]: 3,
             [WIRE_KEY.MAX_BANK_SECONDS]: 180,
             [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
             [WIRE_KEY.BASE_TURN_SECONDS]: 10,

@@ -86,6 +86,7 @@ class MockGameService(GameService):
         seed: str | None = None,
         settings: GameSettings | None = None,
         wall: list[int] | None = None,
+        confirm_start: bool = False,
     ) -> GameStart:
         all_names = player_names + ["AI"] * (4 - len(player_names))
         player_count = len(player_names)
@@ -135,8 +136,11 @@ class MockGameService(GameService):
     def replace_with_ai_player(self, runtime: GameRuntime, seat: int) -> None:
         pass
 
-    def restore_human_player(self, runtime: GameRuntime, seat: int) -> None:
-        pass
+    def restore_human_player(self, runtime: GameRuntime, seat: int) -> Awaiting:
+        return MOCK_AWAITING
+
+    def advance_ai_turn(self, runtime: GameRuntime) -> GameUpdate:
+        return GameUpdate(events=[], awaiting=MOCK_AWAITING)
 
     def build_reconnection_snapshot(self, runtime: GameRuntime, seat: int) -> ReconnectionSnapshot:
         return ReconnectionSnapshot(
@@ -148,6 +152,7 @@ class MockGameService(GameService):
             first_dealer_seat=0,
             dealer_dice=((1, 1), (1, 1)),
             riichi_stick_value=1000,
+            game_type=runtime.state.settings.game_type,
             seat=seat,
             round_wind=WindName.EAST,
             round_number=0,

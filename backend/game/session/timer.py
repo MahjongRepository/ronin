@@ -9,24 +9,33 @@ from pydantic import BaseModel, Field
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from game.logic.service import Awaiting
+
 
 class TimerConfig(BaseModel):
     """
-    Pace turns and calls with a shared per-hand bank, plus fixed round-advance and pending-game timeouts and a game
-    start pause before the first deal (seconds).
+    Pace turns and calls with a shared per-hand bank, plus fixed round-advance and pending-game timeouts, the game start
+    confirmation's timeout between the first deal and the dealer's first draw (zero skips the confirmation: the dealer
+    draws at once), and the delay ahead of each AI player's turn action, so a human can follow AI turns one by one
+    (seconds; a zero delay plays them at once).
     """
 
     base_turn_seconds: float = Field(default=5, ge=0)
     initial_bank_seconds: float = Field(default=20, gt=0)
     round_advance_timeout_seconds: float = Field(default=10, gt=0)
     pending_game_timeout_seconds: float = Field(default=30, gt=0)
-    game_start_pause_seconds: float = Field(default=3, ge=0)
+    game_start_confirm_seconds: float = Field(default=10, ge=0)
+    ai_turn_delay_seconds: float = Field(default=1, ge=0)
 
-    def round_advance_seconds(self, results_shown: int) -> float:
+    def round_advance_seconds(self, awaiting: Awaiting) -> float:
         """
-        How long a round advance waits: its timeout once for each result the round end shows in turn.
+        How long a round advance waits: its timeout once for each result the round end shows in turn, or the game start
+        confirmation's timeout for the one that starts the game.
         """
-        return self.round_advance_timeout_seconds * results_shown
+        if awaiting.starts_game:
+            return self.game_start_confirm_seconds
+
+        return self.round_advance_timeout_seconds * awaiting.results_shown
 
 
 class TurnTimer:

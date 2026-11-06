@@ -10,6 +10,7 @@ import {
     KAN_TYPE,
     NUM_PLAYERS,
     NUM_TILES,
+    SESSION_MESSAGE_TYPE,
     WIRE_KEY,
 } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
@@ -232,8 +233,36 @@ function chosenOffer(action: ChosenAction): Offer {
     }
 }
 
-/** The intent that sends `action`: the answer to a decision, or the player's confirm of a round result. */
-function answeringIntent(action: SentAction): LocalIntent {
+/**
+ * What a round confirm sent at `index` confirms, by the last deal, round end or snapshot the seat received before it:
+ * the game's start (a deal, or a snapshot with no round result) or a round result.
+ */
+function confirmsStart(events: readonly TranscriptEvent[], index: number): boolean {
+    const shown = events
+        .slice(0, index)
+        .findLast(
+            (event) =>
+                event.kind === "received" &&
+                (event.payload[WIRE_KEY.EVENT_TYPE] === EVENT_TYPE.ROUND_STARTED ||
+                    event.payload[WIRE_KEY.EVENT_TYPE] === EVENT_TYPE.ROUND_END ||
+                    event.payload[WIRE_KEY.SESSION_TYPE] === SESSION_MESSAGE_TYPE.GAME_RECONNECTED),
+        );
+    if (shown?.kind !== "received") {
+        return false;
+    }
+    const { payload } = shown;
+    return (
+        payload[WIRE_KEY.EVENT_TYPE] === EVENT_TYPE.ROUND_STARTED ||
+        (payload[WIRE_KEY.SESSION_TYPE] === SESSION_MESSAGE_TYPE.GAME_RECONNECTED &&
+            payload[WIRE_KEY.ROUND_RESULT] === undefined)
+    );
+}
+
+/**
+ * The intent that sends `action`: the answer to a decision, or the player's confirm of a round result or, by the
+ * opening screen's OK, of the game's start (`startConfirm`).
+ */
+function answeringIntent(action: SentAction, startConfirm: boolean): LocalIntent {
     const { [WIRE_KEY.ACTION]: actionType } = action;
     switch (actionType) {
         case GAME_ACTION.DISCARD: {
@@ -243,7 +272,7 @@ function answeringIntent(action: SentAction): LocalIntent {
             return { type: "pass" };
         }
         case GAME_ACTION.CONFIRM_ROUND: {
-            return { type: "confirm_result" };
+            return startConfirm ? { type: "confirm_opening" } : { type: "confirm_result" };
         }
         default: {
             return { offer: chosenOffer(action), type: "choose" };
@@ -264,7 +293,7 @@ function sentEffect(message: SentMessage, handoff: GameSessionData): ClientEffec
 }
 
 /**
- * A sent message as the step that makes the client send it: the intent choosing it (an answer, a round confirm), or,
+ * A sent message as the step that makes the client send it: the intent choosing it (an answer, a round or start confirm), or,
  * for a message the client sends on its own (a JOIN_GAME or RECONNECT resent on its open socket), the tick at its
  * recorded time. A RESYNC is the ask of a client that lost step with the server's messages; the one loss no transcript
  * can record is a frame that did not decode, so it is that frame at its recorded time, reported for the console, and
@@ -273,6 +302,7 @@ function sentEffect(message: SentMessage, handoff: GameSessionData): ClientEffec
 function sentStep(
     { at, label, message }: Extract<TranscriptEvent, { kind: "sent" }>,
     handoff: GameSessionData,
+    startConfirm: boolean,
 ): ScenarioStep {
     if (isResync(message)) {
         const detail = UNDECODED_FRAME_DETAIL;
@@ -286,7 +316,8 @@ function sentStep(
     if (isIdentity(message)) {
         return { effects, event: { at, kind: "tick" }, label };
     }
-    return { effects, event: { at, intent: answeringIntent(message), kind: "intent" }, label };
+    const intent = answeringIntent(message, startConfirm);
+    return { effects, event: { at, intent, kind: "intent" }, label };
 }
 
 /**
@@ -394,7 +425,11 @@ function eventSteps(cursor: Cursor, context: DriveContext): Taken {
             return { covered: 1, steps: [receivedStep(event, context.gameId)] };
         }
         case "sent": {
-            return { covered: 1, steps: [sentStep(event, context.handoff)] };
+            const startConfirm = confirmsStart(cursor.events, cursor.index);
+            return {
+                covered: 1,
+                steps: [sentStep(event, context.handoff, startConfirm)],
+            };
         }
         case "closed": {
             return { covered: 1, steps: [closedStep(event, context.gameId)] };

@@ -10,6 +10,7 @@ import {
 } from "@/entities/client/model/countdown-text";
 import { type DecisionAction } from "@/entities/client/model/decision-controls";
 import {
+    type OpeningControls,
     type PlayDisplay,
     type PlayPanel,
     type SwitchControl,
@@ -31,6 +32,7 @@ import {
 } from "@/entities/table";
 import { Meld, Tile } from "@/entities/tile";
 import { assertNever, focusKeys } from "@/shared/lib";
+import { focusOnFirstRender } from "@/shared/ui";
 
 import { GameMenu } from "./game-menu";
 import { playInput } from "./play-input";
@@ -320,6 +322,40 @@ function ResultControlsView(
     </span>`;
 }
 
+/**
+ * The opening screen's OK at the seating's foot, focused as it first shows so Enter or Space presses it, with the
+ * seconds the screen still shows under its label, as a round result's confirm counts its time. Once the seat sent its
+ * start confirm the same button stays in place, disabled, saying it waits for the others, its time still counting.
+ */
+function OpeningControlsView(
+    opening: OpeningControls | null,
+    onCommand: PlayBoardProps["onCommand"],
+): TemplateResult | undefined {
+    if (opening === null || (opening.action === null && !opening.waiting)) {
+        return undefined;
+    }
+    const { action, secondsLeft } = opening;
+    const label = action?.label ?? "Waiting for others";
+    return html`<div class="seating__actions">
+    <button
+      type="button"
+      class="seating__action seating__confirm"
+      data-focus-key=${PANEL_CONTROL_FOCUS_KEY}
+      aria-label=${label}
+      ?disabled=${action === null}
+      ${focusOnFirstRender()}
+      @click=${() => {
+          if (action !== null) {
+              onCommand(action.command);
+          }
+      }}
+    >
+      <span class="seating__confirm-label">${label}</span>
+      ${secondsLeft === null ? nothing : html`<span class="seating__countdown">${secondsLeft}s left</span>`}
+    </button>
+  </div>`;
+}
+
 function commandAction(action: PlayAction, onCommand: PlayBoardProps["onCommand"]): PanelAction {
     return { kind: "button", label: action.label, onClick: () => onCommand(action.command) };
 }
@@ -401,6 +437,7 @@ function OverlayPanel(panel: PlayPanel, props: PlayBoardProps): TemplateResult {
                 endActions: gameEndActions(display, links, onCommand),
                 onPage: (page) => onCommand({ kind: "show_result_page", page }),
                 resultControls: ResultControlsView(display.result, onCommand),
+                seatingControls: OpeningControlsView(display.opening, onCommand),
             });
         }
         default: {

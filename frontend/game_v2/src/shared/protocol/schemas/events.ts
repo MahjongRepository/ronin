@@ -3,7 +3,6 @@ import { z } from "zod/mini";
 import {
     EVENT_TYPE,
     GAME_END_CAUSE,
-    GAME_TYPE,
     HAND_LIMIT,
     type HandLimit,
     NUM_PLAYERS,
@@ -18,6 +17,7 @@ import {
     compactMeldSchema,
     coversEverySeat,
     gamePlayerInfoSchema,
+    gameTypeSchema,
     namesDistinctSeats,
     roundInWindSchema,
     seatSchema,
@@ -158,10 +158,7 @@ export const gameStartedSchema = z.pipe(
             ]),
             [WIRE_KEY.DEALER]: seatSchema,
             [WIRE_KEY.GAME_ID]: z.string(),
-            [WIRE_KEY.GAME_TYPE]: z.union([
-                z.literal(GAME_TYPE.HANCHAN),
-                z.literal(GAME_TYPE.TONPUSEN),
-            ]),
+            [WIRE_KEY.GAME_TYPE]: gameTypeSchema,
             [WIRE_KEY.PLAYERS]: z.array(gamePlayerInfoSchema),
             [WIRE_KEY.RIICHI_STICK_VALUE]: wireSettingAmountSchema,
             [WIRE_KEY.SEAT]: z.optional(seatSchema),
@@ -187,9 +184,30 @@ export const gameStartedSchema = z.pipe(
     })),
 );
 
+/**
+ * The start confirm the game's first deal opens for a seat the server awaits before play starts (Tenhou's NEXTREADY):
+ * its wait id (`WIRE_KEY.WAIT_ID`) and the confirm's whole timeout (`WIRE_KEY.ROUND_ADVANCE_SECONDS`, seconds), which the
+ * server names together, to that seat alone. Every other deal, a seat the server does not await and a replay name
+ * neither.
+ */
+interface StartConfirm {
+    readonly seconds: number;
+    readonly waitId: number;
+}
+
+function startConfirmOf(raw: {
+    readonly [WIRE_KEY.ROUND_ADVANCE_SECONDS]?: number;
+    readonly [WIRE_KEY.WAIT_ID]?: number;
+}): StartConfirm | null {
+    const seconds = raw[WIRE_KEY.ROUND_ADVANCE_SECONDS];
+    const waitId = raw[WIRE_KEY.WAIT_ID];
+    return seconds === undefined || waitId === undefined ? null : { seconds, waitId };
+}
+
 export const roundStartedSchema = z.pipe(
     z
         .object({
+            [WIRE_KEY.ROUND_ADVANCE_SECONDS]: z.optional(secondsSchema),
             [WIRE_KEY.CURRENT_PLAYER]: seatSchema,
             [WIRE_KEY.DORA_INDICATORS]: z.array(tileIdSchema),
             [WIRE_KEY.DEALER]: seatSchema,
@@ -203,11 +221,21 @@ export const roundStartedSchema = z.pipe(
             [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.ROUND_STARTED),
             [WIRE_KEY.TILES_REMAINING]: tilesRemainingSchema,
             [WIRE_KEY.WIND]: z.int(),
+            [WIRE_KEY.WAIT_ID]: z.optional(waitIdSchema),
         })
         .check(
             z.refine((raw) => coversEverySeat(raw[WIRE_KEY.PLAYERS]), {
                 message: "the deal does not list each of the four seats once, in seat order",
             }),
+            z.refine(
+                (raw) =>
+                    (raw[WIRE_KEY.ROUND_ADVANCE_SECONDS] === undefined) ===
+                    (raw[WIRE_KEY.WAIT_ID] === undefined),
+                {
+                    message:
+                        "a deal names its start confirm's wait without its timeout, or its timeout without its wait",
+                },
+            ),
         ),
     z.transform((raw) => ({
         currentPlayerSeat: raw[WIRE_KEY.CURRENT_PLAYER],
@@ -220,6 +248,7 @@ export const roundStartedSchema = z.pipe(
         roundInWind: raw[WIRE_KEY.ROUND_IN_WIND],
         roundNumber: raw[WIRE_KEY.ROUND_NUMBER],
         seat: raw[WIRE_KEY.SEAT] ?? null,
+        startConfirm: startConfirmOf(raw),
         tilesRemaining: raw[WIRE_KEY.TILES_REMAINING],
         type: "round_started" as const,
         wind: raw[WIRE_KEY.WIND],

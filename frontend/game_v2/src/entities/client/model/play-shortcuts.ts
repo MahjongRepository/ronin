@@ -9,7 +9,7 @@ import {
     intentCommand,
 } from "./play-ui";
 import { SETTINGS_FOCUS_KEY } from "./settings-menu";
-import { type LiveClient, type LocalIntent } from "./types";
+import { type LiveClient, type LocalIntent, type PlayIntent } from "./types";
 
 export interface PlayShortcut {
     readonly command: PlayCommand;
@@ -19,6 +19,8 @@ export interface PlayShortcut {
 export interface PlayShortcuts {
     readonly scope: string;
     readonly escape: PlayShortcut | null;
+    /** What Enter or Space does outside a focused control: the opening screen's OK while it shows. */
+    readonly confirm: PlayShortcut | null;
     readonly rightClick: PlayShortcut | null;
     readonly rightClickEnabled: boolean;
 }
@@ -43,6 +45,20 @@ function closeShortcut(ui: PlayUi, overlay: PlayOverlay | null): PlayShortcut | 
     return ui.pinnedNameplate === null ? null : shortcut({ kind: "pin_nameplate", seat: null });
 }
 
+const CONFIRM_OPENING: PlayIntent = { type: "confirm_opening" };
+
+/** The opening screen's OK, while it shows unblocked and the settings menu is closed. */
+function openingShortcut(
+    state: LiveClient,
+    ui: PlayUi,
+    overlay: PlayOverlay | null,
+): PlayShortcut | null {
+    if (overlay?.panel.kind !== "seating" || overlay.blocksBoard || ui.settingsOpen) {
+        return null;
+    }
+    return takesIntent(state, CONFIRM_OPENING) ? shortcut(intentCommand(CONFIRM_OPENING)) : null;
+}
+
 function passShortcut(state: LiveClient): PlayShortcut | null {
     const intent: LocalIntent = { type: "pass" };
     return takesIntent(state, intent) ? shortcut(intentCommand(intent)) : null;
@@ -58,6 +74,14 @@ function discardShortcut(state: LiveClient): PlayShortcut | null {
     return takesIntent(state, intent) ? shortcut(intentCommand(intent)) : null;
 }
 
+/**
+ * Whether the board's own keys (pass, discard, back, tile arrows) reach it under the overlay: with none, or under the
+ * opening screen's seating, which leaves the turn or call beneath it playable.
+ */
+export function leavesBoardKeys(overlay: PlayOverlay | null): boolean {
+    return overlay === null || overlay.panel.kind === "seating";
+}
+
 export function playShortcuts(
     state: LiveClient,
     ui: PlayUi,
@@ -65,21 +89,25 @@ export function playShortcuts(
 ): PlayShortcuts {
     const close = closeShortcut(ui, overlay);
     const back = step === null ? null : shortcut(step.command, escapeFocusKey(step));
-    const escape = close ?? (overlay === null ? (back ?? passShortcut(state)) : null);
-    const rightClick = escape ?? (overlay === null ? discardShortcut(state) : null);
+    const boardKeys = leavesBoardKeys(overlay);
+    const escape = close ?? (boardKeys ? (back ?? passShortcut(state)) : null);
+    const rightClick = escape ?? (boardKeys ? discardShortcut(state) : null);
+    const confirm = openingShortcut(state, ui, overlay);
     const decision = decisionOf(state);
-    const confirm = roundConfirmOf(state);
+    const roundConfirm = roundConfirmOf(state);
     return {
+        confirm,
         escape,
         rightClick,
         rightClickEnabled: ui.rightClick,
         scope: JSON.stringify([
             decision?.waitId,
             decision?.status.kind === "submitted",
-            confirm?.kind === "owed" ? confirm.waitId : confirm?.kind,
+            roundConfirm?.kind === "owed" ? roundConfirm.waitId : roundConfirm?.kind,
             overlay?.panel.kind,
             overlay?.panel.kind === "result" ? overlay.panel.display.page : null,
             escape,
+            confirm,
             rightClick,
             ui.rightClick,
         ]),

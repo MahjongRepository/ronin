@@ -46,7 +46,7 @@ export type { GameBoardProps, LocalHandInput } from "./ui/game-board";
 export type { PlatePress } from "./ui/nameplate";
 export { TablePanelDisplay } from "./ui/table-panel";
 export type { TablePanelControls } from "./ui/table-panel";
-export { replaySeatingPanel, tablePanel } from "./lib/table-panel";
+export { replaySeatingPanel, tablePanel, tableSeatingPanel } from "./lib/table-panel";
 export type { TablePanel, TablePanelView } from "./lib/table-panel";
 export { SEAT_POSITIONS } from "./model/board-types";
 export type {
@@ -80,5 +80,5 @@ export { handLimitName } from "./lib/hand-limit";
 export { drawName } from "./lib/draw-name";
 export type { PanelAction } from "./ui/panel-actions";
 export { GameStartDisplay } from "./ui/game-start-display";
-export type { GameStartDisplayState, GameStartSeat, GameStartView } from "./lib/game-start-display";
+export type { GameStartDisplayState, GameStartSeat } from "./lib/game-start-display";
 export { formatRoundName, honbaName, roundName } from "./lib/round-name";

@@ -22,7 +22,7 @@ const LIVE_GAME_STARTED = {
     [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.GAME_STARTED,
     [WIRE_KEY.TIMER_SETTINGS]: {
         [WIRE_KEY.BANK_SECONDS]: 20,
-        [WIRE_KEY.GAME_START_PAUSE]: 3,
+        [WIRE_KEY.GAME_START_CONFIRM]: 3,
         [WIRE_KEY.MAX_BANK_SECONDS]: 20,
         [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
         [WIRE_KEY.BASE_TURN_SECONDS]: 5,
@@ -79,6 +79,7 @@ describe("parseServerMessage", () => {
                 [WIRE_KEY.FURITEN]: false,
                 [WIRE_KEY.FIRST_DEALER]: 0,
                 [WIRE_KEY.GAME_ID]: "game-123",
+                [WIRE_KEY.GAME_TYPE]: 0,
                 [WIRE_KEY.HONBA]: 0,
                 [WIRE_KEY.MY_TILES]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
                 [WIRE_KEY.ROUND_NUMBER]: 0,
@@ -131,7 +132,7 @@ describe("parseServerMessage", () => {
                 [WIRE_KEY.SEAT]: 0,
                 [WIRE_KEY.TIMER_SETTINGS]: {
                     [WIRE_KEY.BANK_SECONDS]: 20,
-                    [WIRE_KEY.GAME_START_PAUSE]: 3,
+                    [WIRE_KEY.GAME_START_CONFIRM]: 3,
                     [WIRE_KEY.MAX_BANK_SECONDS]: 20,
                     [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
                     [WIRE_KEY.BASE_TURN_SECONDS]: 5,
@@ -216,7 +217,7 @@ describe("parseServerMessage", () => {
                 [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.GAME_STARTED,
                 [WIRE_KEY.TIMER_SETTINGS]: {
                     [WIRE_KEY.BANK_SECONDS]: 20,
-                    [WIRE_KEY.GAME_START_PAUSE]: 3,
+                    [WIRE_KEY.GAME_START_CONFIRM]: 3,
                     [WIRE_KEY.MAX_BANK_SECONDS]: 20,
                     [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
                     [WIRE_KEY.BASE_TURN_SECONDS]: 5,

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from game.logic.enums import GameAction, KanType, PlayerAction, WaitKind
-from game.logic.events import DrawEvent, ErrorEvent
+from game.logic.events import DrawEvent, ErrorEvent, GameStartedEvent, RoundStartedEvent
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.rng import RNG_VERSION
 from game.logic.settings import NUM_PLAYERS, GameSettings
@@ -218,8 +218,8 @@ class Seating:
     Who plays a scripted game: its players in input order, and the seats of those with no connection at the first deal.
 
     The engine seats AI players in the seats the players leave empty, as in a room of fewer than four. An absent seat is
-    an AI player's from the deal, recorded as the session records it: its record ahead of the deal's events, its AI
-    player's moves after them.
+    an AI player's from the deal, recorded as the session records it: its record after the deal and ahead of the
+    dealer's first draw, its AI player's moves after them.
     """
 
     players: Sequence[str] = PLAYERS
@@ -257,14 +257,14 @@ class _ScriptedGame:
                 f"{game_id}: absent seats {sorted(seating.absent)} are not some of the players' {start.seats}"
             )
 
-        game_started, *deal = start.events
-        self._record([game_started])
+        dealt = [event for event in start.events if isinstance(event, GameStartedEvent | RoundStartedEvent)]
+        self._record(dealt)
         absent_in_player_order = [seat for seat in start.seats if seat in seating.absent]
         for seat in absent_in_player_order:
             self._service.replace_with_ai_player(self._runtime, seat)
             self._recorder.record_ai_replacement(seat=seat, reason=SeatControlReason.ABSENT)
 
-        self._record(deal)
+        self._record([event for event in start.events if not isinstance(event, GameStartedEvent | RoundStartedEvent)])
         for seat in absent_in_player_order:
             self._record(self._service.process_ai_player_actions_after_replacement(self._runtime, seat).events)
 

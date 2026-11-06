@@ -11,7 +11,7 @@ describe("serverSilenceLimitMs", () => {
     it("waits out a round advance over three winners' pages, the most rons one discard can make", () => {
         const timer = {
             [WIRE_KEY.BANK_SECONDS]: 20,
-            [WIRE_KEY.GAME_START_PAUSE]: 3,
+            [WIRE_KEY.GAME_START_CONFIRM]: 3,
             [WIRE_KEY.MAX_BANK_SECONDS]: 20,
             [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 40,
             [WIRE_KEY.BASE_TURN_SECONDS]: 5,

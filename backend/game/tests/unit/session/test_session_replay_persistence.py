@@ -64,8 +64,10 @@ class StagedWallEngine(MahjongGameService):
         super().__init__()
         self._wall = list(staged.tiles())
 
-    def start_game(self, game_id: str, player_names: list[str], **_options: object) -> GameStart:
-        return super().start_game(game_id, player_names, seed=STAGED_SEED, wall=self._wall)
+    def start_game(
+        self, game_id: str, player_names: list[str], *, confirm_start: bool = False, **_options: object
+    ) -> GameStart:
+        return super().start_game(game_id, player_names, seed=STAGED_SEED, wall=self._wall, confirm_start=confirm_start)
 
 
 def _join(manager: SessionManager, ticket: str) -> MockConnection:
@@ -226,11 +228,13 @@ class TestSessionReplay:
     ):
         manager = make_session_manager(
             StagedWallEngine(NO_CALLS_WALL),
-            timer_config=TimerConfig(pending_game_timeout_seconds=0.01, game_start_pause_seconds=0),
+            timer_config=TimerConfig(
+                pending_game_timeout_seconds=0.01, game_start_confirm_seconds=10, ai_turn_delay_seconds=0
+            ),
         )
         specs = [PlayerSpec(name=name, user_id=f"user-{name}", game_ticket=f"ticket-{name}") for name in PLAYERS]
         manager.create_pending_game(game_id="game1", player_specs=specs)
-        alice, *_ = [_join(manager, f"ticket-{name}") for name in PLAYERS[:3]]
+        alice, bob, charlie = [_join(manager, f"ticket-{name}") for name in PLAYERS[:3]]
         game = game_of(manager)
         assert game.pending_timeout is not None
 
@@ -238,6 +242,13 @@ class TestSessionReplay:
         alice_seat, diana_seat = participant_of(manager, alice).seat, game.participants[3].seat
         assert diana_seat == runtime_of(manager).state.round_state.dealer_seat
         assert game.awaiting is not None
+        assert game.awaiting.starts_game
+        assert game.awaiting.seats == {participant.seat for participant in game.participants[:3]}
+
+        for connection in (alice, bob, charlie):
+            manager.handle_game_action(
+                connection, action=GameAction.CONFIRM_ROUND, data={}, wait_id=current_wait_id(manager, connection)
+            )
         assert game.awaiting.seats == {alice_seat}
 
         manager.disconnect(alice)

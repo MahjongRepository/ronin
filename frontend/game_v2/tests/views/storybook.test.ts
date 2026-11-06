@@ -129,7 +129,7 @@ describe("mountStorybookDecisions", () => {
         const sent = host.querySelector(".decisions-storybook__sent")?.textContent ?? "";
 
         expect([pressed?.textContent?.trim(), tiles.length]).toEqual(["Riichi", 1]);
-        expect(JSON.parse(sent)).toEqual({ message: buildRiichiAction(120, 2), type: "send" });
+        expect(JSON.parse(sent)).toEqual({ message: buildRiichiAction(120, 3), type: "send" });
     });
 
     test("its Back link returns to the storybook index", () => {

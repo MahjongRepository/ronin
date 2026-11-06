@@ -201,7 +201,6 @@ function stopBoard(
     const callouts = shownCallouts(source, shownCall, perspective);
     const overlay = tablePanel(table, {
         callouts,
-        firstDealSeconds: null,
         overGameEnd: false,
         page: cursor.page,
         viewerSeat: null,

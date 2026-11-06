@@ -40,8 +40,8 @@ class SeatControlReason(IntEnum):
     Describe why an AI player stands in for a participant, in the replay seat control record, the live seat control
     message and the reconnect snapshot.
 
-    LEFT is a disconnect (a kick included) during play; ABSENT a participant without a connection at the first deal,
-    never joined or gone during the game start pause.
+    LEFT is a disconnect (a kick included) during play, the game start's confirmation included; ABSENT a participant
+    without a connection at the game's start, which never joined.
     """
 
     LEFT = 0

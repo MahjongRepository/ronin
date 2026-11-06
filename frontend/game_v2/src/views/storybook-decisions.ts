@@ -18,6 +18,7 @@ import {
     playDisplay,
     scenarioCheckpoint,
     seatScenarioFromTranscript,
+    startGameClient,
     stepGameClient,
     stepPlayUi,
 } from "@/entities/client";
@@ -80,11 +81,14 @@ interface DecisionStory {
     readonly tileSprite?: TileSpriteStatus;
     /** The notice opened whole in its sheet. */
     readonly noticeSheet?: NoticeKind;
+    /** The page opens fresh on the snapshot `label` names, as after a reload, never having seen the game start. */
+    readonly freshPage?: boolean;
 }
 
 /**
  * The stories in the order the page lists them: the look spec's anchor (`docs/game-client-look.md`, States) at its
- * three checkpoints and its call passed, declared and expired, the seating before the first deal, the call prompts and a
+ * three checkpoints and its call passed, declared and expired, the opening screen over the first deal (its start
+ * confirm owed, then sent) and over a page that joined the game in play, the call prompts and a
  * chi's choice of tiles, the turns (a kan's choice of tiles, in their base time and in the bank), the play switches on
  * beside furiten, what follows an answer, the first turns of a hand (kyuushu, tenhou, chiihou), the round results the
  * player confirms, the game's end and the last result reopened from it, a game ended out of step, then another
@@ -101,6 +105,8 @@ const STORY_KEYS = [
     "anchor_pon_declared",
     "anchor_call_expired",
     "game_start",
+    "game_start_waiting",
+    "game_resume",
     "call_prompt",
     "chi_choice",
     "ron_prompt",
@@ -306,7 +312,15 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         ...checkpoint("final_round_seat_1", "game end", "Game end"),
         followUp: intentsAfterCall({ type: "confirm_result" }),
     },
-    game_start: checkpoint("own_turn_seat_1", "game started", "Game start"),
+    game_resume: {
+        ...checkpoint("game_end_reconnect_seat_1", "reconnected", "Game resumed"),
+        freshPage: true,
+    },
+    game_start: checkpoint("call_prompt_seat_1", "dealt", "Game start"),
+    game_start_waiting: {
+        ...checkpoint("call_prompt_seat_1", "dealt", "Game start: waiting for others"),
+        followUp: answering({ type: "confirm_opening" }),
+    },
     kan_choice: {
         ...checkpoint("kan_choice_seat_1", "kan offer", "Kan: choose the tiles"),
         chooseTiles: "kan",
@@ -422,11 +436,34 @@ function checkpointState(transcriptName: TranscriptName, label: string): LiveCli
     return scenarioCheckpoint(seatScenarioFromTranscript(transcript, handoff), label);
 }
 
+/** The client state of a fresh page whose first socket the snapshot labelled `label` answers, at its time. */
+function freshPageState(transcriptName: TranscriptName, label: string): LiveClient {
+    const transcript = parsedTranscript(transcriptName);
+    const snapshot = transcript.events.find((candidate) => candidate.label === label);
+    if (snapshot?.kind !== "received") {
+        throw new Error(`${transcriptName} received no message labelled ${label}`);
+    }
+    const { at, payload } = snapshot;
+    const handoff = {
+        gameTicket: "storybook",
+        wsUrl: `ws://storybook/ws/${transcript.gameId}`,
+    };
+    const events: readonly LiveEvent[] = [
+        { at, kind: "transport_opened" },
+        { at, kind: "server_message", raw: payload },
+    ];
+    return events.reduce(
+        (current, event) => stepGameClient(current, event).state,
+        startGameClient(transcript.gameId, handoff, at).state,
+    );
+}
+
 function storyScreen(key: DecisionStoryKey): StoryScreen {
     const {
         chooseTiles,
         confirmingLeave,
         followUp,
+        freshPage,
         label,
         noticeSheet,
         pickRiichi,
@@ -434,7 +471,9 @@ function storyScreen(key: DecisionStoryKey): StoryScreen {
         tileSprite,
         transcript,
     } = DECISION_STORIES[key];
-    const reached = checkpointState(transcript, label);
+    const reached = freshPage
+        ? freshPageState(transcript, label)
+        : checkpointState(transcript, label);
     const state = (followUp?.(reached) ?? []).reduce(
         (current, event) => stepGameClient(current, event).state,
         reached,

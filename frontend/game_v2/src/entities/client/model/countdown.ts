@@ -1,13 +1,16 @@
 import { CALL_TYPE } from "@/shared/protocol";
 
-import { decisionOf, roundConfirmOf } from "./pending";
+import { decisionOf, roundConfirmOf, startConfirmOf } from "./pending";
 import { type Decision, type LiveClient } from "./types";
 
 /** The countdown's display step: it shows whole seconds left. */
 const COUNTDOWN_STEP_MS = 1000;
 
-/** The move that awaits the viewer: its own turn, a call on a discard, a ron that robs a kan, or a result's confirm. */
-type DecisionMove = "turn" | "call" | "chankan" | "result";
+/**
+ * The move that awaits the viewer: its own turn, a call on a discard, a ron that robs a kan, a result's confirm, or the
+ * game start's.
+ */
+type DecisionMove = "turn" | "call" | "chankan" | "result" | "start";
 
 /**
  * A decision's time as the server runs it, in whole seconds (rounded up): its base time first, then its bank, which drains
@@ -81,7 +84,7 @@ export function decisionCountdown(state: LiveClient): DecisionCountdown | null {
     };
 }
 
-/** The round advance deadline of a round result the viewer owes or sent a confirm; null otherwise or unknown. */
+/** The deadline of the round confirm (a result's or the start's) the viewer owes or sent; null otherwise or unknown. */
 function roundConfirmDeadline(state: LiveClient): number | null {
     const roundConfirm = roundConfirmOf(state);
     return roundConfirm?.kind === "owed" || roundConfirm?.kind === "sent"
@@ -90,15 +93,16 @@ function roundConfirmDeadline(state: LiveClient): number | null {
 }
 
 /**
- * The countdown to the server's round advance of the round result the viewer owes a confirm or waits on after
- * sending it, read from the state's `now`; null otherwise. Past its deadline it shows as expired, for display only.
+ * The countdown to the server's round advance of the round result, or to its start confirm's timeout, the viewer owes
+ * a confirm or waits on after sending it, read from the state's `now`; null otherwise. Past its deadline it shows as
+ * expired, for display only.
  */
 export function roundConfirmCountdown(state: LiveClient): DecisionCountdown | null {
     const roundConfirm = roundConfirmOf(state);
     if (roundConfirm?.kind !== "owed" && roundConfirm?.kind !== "sent") {
         return null;
     }
-    const move = "result";
+    const move = startConfirmOf(state) === null ? "result" : "start";
     const deadline = roundConfirmDeadline(state);
     if (deadline === null) {
         return { kind: "untimed", move };
@@ -119,15 +123,23 @@ export function pendingCountdown(state: LiveClient): DecisionCountdown | null {
 }
 
 /**
- * The whole seconds left of the server's game start pause while the table waits for its first deal, rounded up; null
- * before the game starts, once it deals, with no pause known, or once the pause ran out ahead of the deal.
+ * The whole seconds left on the opening screen showing, rounded up: the resume screen's own time, the start screen's
+ * start confirm's (0 once past its deadline, as the server times it out); null while none shows, the resume screen's
+ * time ran out, or the start screen counts no confirm.
  */
-export function firstDealCountdown(state: LiveClient): number | null {
-    const { firstDealDue, now, table } = state;
-    if (table.phase !== "pre_game" || firstDealDue === null || now >= firstDealDue) {
+export function openingCountdown(state: LiveClient): number | null {
+    const { now, opening } = state;
+    if (opening.kind !== "showing") {
         return null;
     }
-    return secondsLeft(firstDealDue, now);
+    if (opening.cause === "resume") {
+        return now < opening.until ? secondsLeft(opening.until, now) : null;
+    }
+    const countdown = roundConfirmCountdown(state);
+    if (countdown?.kind === "running") {
+        return countdown.secondsLeft;
+    }
+    return countdown?.kind === "expired" ? 0 : null;
 }
 
 /** The logical time `seconds` (as shown, counting down to `deadline`) next changes. */
@@ -146,7 +158,7 @@ function countdownChanges(countdown: DecisionCountdown | null, state: LiveClient
         return [];
     }
     const deadline =
-        countdown.move === "result"
+        countdown.move === "result" || countdown.move === "start"
             ? roundConfirmDeadline(state)
             : (decisionOf(state)?.deadline ?? null);
     if (deadline === null) {
@@ -161,17 +173,18 @@ function countdownChanges(countdown: DecisionCountdown | null, state: LiveClient
 }
 
 /**
- * The logical time a running countdown (the decision's, else the round advance's, and the game start pause's) next
- * shows a different number, for the live driver to tick at, so the countdown moves with `now` rather than the wall
- * clock; null when none runs.
+ * The logical time a running countdown (the decision's, else the round confirm's, and the resume screen's) next shows
+ * a different number, for the live driver to tick at, so the countdown moves with `now` rather than the wall clock;
+ * null when none runs.
  */
 export function nextCountdownChange(state: LiveClient): number | null {
     const decision = decisionCountdown(state);
     const shown = decision ?? roundConfirmCountdown(state);
     const changes = countdownChanges(shown, state);
-    const firstDeal = firstDealCountdown(state);
-    if (firstDeal !== null && state.firstDealDue !== null) {
-        changes.push(nextShownChange(state.firstDealDue, firstDeal));
+    const { opening } = state;
+    const seconds = openingCountdown(state);
+    if (opening.kind === "showing" && opening.cause === "resume" && seconds !== null) {
+        changes.push(nextShownChange(opening.until, seconds));
     }
     return changes.length === 0 ? null : Math.min(...changes);
 }

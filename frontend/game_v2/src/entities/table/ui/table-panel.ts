@@ -9,11 +9,12 @@ import { type PanelAction } from "./panel-actions";
 import { RoundEndDisplay } from "./round-end-display";
 
 /**
- * What the view adds to the table's panel: the seating's ways on (a replay's start), a round result's controls at its
- * foot (the live confirm) and its paging, and the game end's ways on.
+ * What the view adds to the table's panel: the seating's ways on (a replay's start) or its controls (the live opening
+ * screen's OK), a round result's controls at its foot (the live confirm) and its paging, and the game end's ways on.
  */
 export interface TablePanelControls {
     readonly seatingActions?: readonly PanelAction[];
+    readonly seatingControls?: TemplateResult;
     readonly resultControls?: TemplateResult;
     readonly onPage?: (page: number) => void;
     readonly endActions?: readonly PanelAction[];
@@ -26,7 +27,11 @@ export function TablePanelDisplay(
 ): TemplateResult {
     switch (panel.kind) {
         case "seating": {
-            return GameStartDisplay(panel.display, controls.seatingActions);
+            return GameStartDisplay(
+                panel.display,
+                controls.seatingActions,
+                controls.seatingControls,
+            );
         }
         case "result": {
             return RoundEndDisplay({

@@ -349,7 +349,7 @@ describe("playDisplay decisions", () => {
                 kind: "intent",
             },
         ]);
-        expect(sent.effects).toEqual([{ message: buildChiAction(8, [4, 12], 1), type: "send" }]);
+        expect(sent.effects).toEqual([{ message: buildChiAction(8, [4, 12], 2), type: "send" }]);
         expect(playDisplay(sent.state, choosing).actions).toEqual([]);
     });
 

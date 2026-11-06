@@ -206,6 +206,7 @@ def serialize_reconnection_snapshot(
 ) -> dict[int, object]:
     payload: dict[int, object] = {
         WireKey.GAME_ID: value.game_id,
+        WireKey.GAME_TYPE: WireGameType[value.game_type.name],
         WireKey.PLAYERS: [
             serialize_game_player_info(item, stand_in_reason=stand_ins.get(item.seat)) for item in value.players
         ],

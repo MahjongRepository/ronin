@@ -481,7 +481,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   acknowledgement (the seat back, a refused move) leaves on its own after a moment. Nothing
   dismisses a failure that goes on. A connection replaced by another tab is an end, with its reason,
   its corner status in the ended tone rather than an error's.
-- **Panels.** Round results, the seating before the first deal and at the game's end, and the leave question use
+- **Panels.** Round results, the seating at the game's start and at its end, and the leave question use
   a legible overlay area over the board and dim it beneath; each has the size its content needs, not
   the core's, covering whatever of the board's middle it needs (the rivers, the centre, a call's
   announcement). At the primary sizes every panel, a round result included, fits whole; a board too
@@ -489,10 +489,22 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   yaku, value, indicators and score rows in place, then the panel itself, its primary button and
   countdown kept in view. A panel may cover the page
   corner, which reserves no room; the leave question is modal: it says that an AI takes the seat over
-  and makes staying the clear default. The seating shows the game's length and first round, every seat's
-  wind and player, the dealer, AI players, the viewer, and the start countdown or that it waits; a replay opens on it
-  with a Start in the countdown's place, and off a phone's short board the replay's seating (start and end) covers
-  the table's centre block, its text scaled to the block.
+  and makes staying the clear default. The seating shows the game's length and the round, every seat's
+  wind and player, the dealer, AI players, the viewer and each seat's score. Live, it is the game's opening screen
+  (Tenhou's): it stands over the dealt table (the closed hands, scores and round under it, the board left playable)
+  from the game's start until play starts, with one primary OK and the seconds left under its label, as a round
+  result's confirm counts its time; Enter or Space presses it. The OK is the seat's start confirm (Tenhou's
+  NEXTREADY): pressed, it stays in place, disabled, reading "Waiting for others" while its time counts on to 0. Play
+  starts, with the first draw, once every player confirmed or the server's start timeout ran out, and closes the
+  screen, as does a round's or the game's end; a seat the server awaits no confirm of closes it with the OK, which
+  then sends nothing. A reload during the start confirm opens on the same screen, its OK owed or waiting. A page that
+  joins a game in play (a reload, a late join) opens on the same screen once, for five seconds, with the round,
+  winds, dealer and scores as they stand now; its OK sends nothing;
+  a reconnect on a page that already showed it brings none, and a page joining at a round's result opens on the
+  result. It is a normal game screen and never speaks of sound, though its OK, as any first tap, is the gesture the
+  browser needs before the game's sounds play. A replay opens on the seating with a Start in the OK's place, and off
+  a phone's short board the replay's seating (start and end) covers the table's centre block, its text scaled to the
+  block.
   Decision (placements drawn in step 4.1): the notices' field is reserved whether or not a notice shows, so a
   panel's box and its tile size never change as a notice comes or goes. On a desktop a panel stands centred,
   starting past the left river's reach; on a narrow desktop (narrower than `$small-chrome-width`) it stands
@@ -684,9 +696,9 @@ centre of 0.42 of the core (114px square, its scores 14px) and 17 and 36px tiles
 - **The sparse and the interrupted**: the first turn of a hand with its kyuushu offer; a
   first-turn win; a declared kan in its chankan window; a long notice; reconnecting; a lost seat;
   an AI standing in and the human returning; faces that did not load; an ended session.
-- **The rest**: the seating before the first deal and at the game's end, the round results, the leave
-  question, a long notice opened in its sheet, the rotate panel during an open decision,
-  the replay controls and its loading, incomplete and damaged states.
+- **The rest**: the seating over the first deal (its start confirm owed and sent) and at the game's end, the round
+  results, the leave question, a long notice opened in its sheet, the rotate panel during an open decision, the
+  replay controls and its loading, incomplete and damaged states.
 
 ## Viewports
 

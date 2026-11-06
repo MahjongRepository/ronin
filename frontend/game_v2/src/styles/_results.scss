@@ -111,14 +111,6 @@
     }
 }
 
-.seating__status {
-    margin: 0;
-    font-size: s(0.95);
-    font-weight: 700;
-    color: var(--ronin-text);
-    text-align: center;
-}
-
 .seating__ending {
     margin: 0;
     font-size: s(0.85);
@@ -185,6 +177,22 @@
         font-size: s(0.85);
         touch-action: manipulation;
     }
+
+    .seating__confirm {
+        min-width: s(5.5);
+        flex-direction: column;
+        gap: s(0.15);
+        font-weight: 700;
+        line-height: 1;
+        white-space: nowrap;
+    }
+}
+
+.seating__countdown {
+    @include type.figures;
+
+    font-size: s(0.7);
+    font-weight: 600;
 }
 
 /* A phone's board has a short panel area: the rows tighten so the seats, the results and the ways on fit it whole. */

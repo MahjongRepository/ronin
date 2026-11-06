@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING
 
 from game.logic.enums import KanType
 from game.logic.settings import EnchousenType, GameSettings, GameType
-from game.messaging.types import SessionErrorCode, SessionMessageType
+from game.messaging.types import SessionMessageType
 from game.tests.helpers.hands import tile_copies
 from game.wire.enums import WireEventType
 from scripts.replay_fixtures.staged_game import StagedWall, tile
-from scripts.seat_scenarios.harness import seated_game
+from scripts.seat_scenarios.harness import SCENARIO_START_CONFIRM_SECONDS, seated_game
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 PLAYER = "Alice"
 ROBBER = "Bob"
 OWN_TURN_RINSHAN = tile(0, honors="4")
+START_CONFIRMED_AT = 3
 
 
 def call_prompt() -> tuple[SeatTranscript, ...]:
@@ -59,6 +60,7 @@ def call_prompt() -> tuple[SeatTranscript, ...]:
     with seated_game("seat-call-prompt", staged, players=(PLAYER,)) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(4)
         alice.label("dealt", WireEventType.ROUND_STARTED)
         alice.label("prompt", WireEventType.CALL_PROMPT)
@@ -104,6 +106,7 @@ def kan_choice() -> tuple[SeatTranscript, ...]:
     with seated_game("seat-kan-choice", staged, players=(PLAYER,)) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(4)
         alice.label("dealt", WireEventType.ROUND_STARTED)
         alice.label("kan offer", WireEventType.DRAW)
@@ -146,7 +149,7 @@ def _own_turn_wall() -> StagedWall:
 
 def own_turn() -> tuple[SeatTranscript, ...]:
     """
-    Seat Alice (seat 1) with the game start pause still to run, then deal her three 1m and draw her the fourth, which
+    Seat Alice (seat 1), who confirms the game's start over the deal, then draw her the fourth of her three 1m, which
     offers a closed kan and riichi.
 
     Her socket dies unseen during the turn, and her reconnect takes it over: the snapshot, then the draw re-sent with
@@ -158,6 +161,7 @@ def own_turn() -> tuple[SeatTranscript, ...]:
     with seated_game("seat-own-turn", _own_turn_wall(), players=(PLAYER,)) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         alice.label("game started", WireEventType.GAME_STARTED)
         alice.drop_unseen(at=3.5, label="dropped")
         alice.label("first draw", WireEventType.DRAW)
@@ -201,6 +205,7 @@ def riichi_kan() -> tuple[SeatTranscript, ...]:
     with seated_game("seat-riichi-kan", staged, players=(PLAYER,)) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(4)
         alice.label("riichi offer", WireEventType.DRAW)
         alice.riichi(declaration, at=5, label="riichi chosen")
@@ -221,6 +226,7 @@ def bank_reconnect() -> tuple[SeatTranscript, ...]:
     with seated_game("seat-bank-reconnect", _own_turn_wall(), players=(PLAYER,)) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(4)
         alice.label("first draw", WireEventType.DRAW)
         alice.drop_unseen(at=8.5, label="dropped")
@@ -262,6 +268,7 @@ def reconnect() -> tuple[SeatTranscript, ...]:
     with seated_game("seat-reconnect", staged, players=(PLAYER,)) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(4)
         alice.label("prompt", WireEventType.CALL_PROMPT)
         alice.drop_unseen(at=4.5, label="dropped")
@@ -295,6 +302,7 @@ def riichi_reconnect() -> tuple[SeatTranscript, ...]:
     with seated_game("seat-riichi-reconnect", _own_turn_wall(), players=(PLAYER,), settings=settings) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(4)
         alice.label("first draw", WireEventType.DRAW)
         alice.riichi(tile(0, man="1"), at=5, label="riichi chosen")
@@ -347,6 +355,8 @@ def chankan_robbed() -> tuple[SeatTranscript, ...]:
         bob = game.clients[ROBBER]
         alice.join(at=0)
         bob.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
+        bob.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(4)
         alice.discard(tile(1, honors="4"), at=5, label="discarded")
         bob.discard(tile(1, honors="6"), at=6, label="discarded")
@@ -397,6 +407,8 @@ def chankan_passed() -> tuple[SeatTranscript, ...]:
         bob = game.clients[ROBBER]
         alice.join(at=0)
         bob.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
+        bob.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(4)
         alice.pon(ponned_tile, at=5, label="pon chosen")
         alice.discard(tile(1, honors="1"), at=6, label="discarded")
@@ -439,6 +451,8 @@ def double_ron() -> tuple[SeatTranscript, ...]:
         bob = game.clients[ROBBER]
         alice.join(at=0)
         bob.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
+        bob.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(4)
         alice.label("ron prompt", WireEventType.CALL_PROMPT)
         alice.ron(at=5, label="ron chosen")
@@ -474,6 +488,7 @@ def final_round() -> tuple[SeatTranscript, ...]:
     with seated_game("seat-final-round", staged, players=(PLAYER,)) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(4)
         alice.label("ron prompt", WireEventType.CALL_PROMPT)
         alice.ron(at=5, label="ron chosen")
@@ -501,16 +516,21 @@ def _kyuushu_wall() -> StagedWall:
 
 def resync_before_deal() -> tuple[SeatTranscript, ...]:
     """
-    Alice (seat 1) loses step with the server's messages in the game start pause and asks for her seat's state again:
+    Alice (seat 1) loses step with the server's messages while the game start shows over the deal, before the dealer's
+    first draw, and asks for her seat's state again: the snapshot of the dealt round says she still owes the start's
+    confirmation, with the time its timer has run and its whole timeout.
 
-    the server refuses, as it has not dealt yet. The scenario ends there, before the deal.
+    She never confirms it, so the server's game start confirmation timeout confirms for her, and the AI dealer draws.
     """
     with seated_game("seat-resync-before-deal", _kyuushu_wall(), players=(PLAYER,)) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
         alice.label("game started", WireEventType.GAME_STARTED)
-        alice.resync(at=1, label="resync asked", refused_with=SessionErrorCode.GAME_NOT_STARTED)
-        alice.label("refused", SessionMessageType.ERROR)
+        alice.label("dealt", WireEventType.ROUND_STARTED)
+        alice.resync(at=1, label="resync asked")
+        alice.label("start snapshot", SessionMessageType.GAME_RECONNECTED)
+        game.wait_until(SCENARIO_START_CONFIRM_SECONDS + 1)
+        alice.label("first draw", WireEventType.DRAW)
 
         return game.transcripts("resync_before_deal", PLAYER)
 
@@ -527,6 +547,7 @@ def resync() -> tuple[SeatTranscript, ...]:
     with seated_game("seat-resync", _kyuushu_wall(), players=(PLAYER,)) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         alice.label("joined", SessionMessageType.GAME_JOINED)
         alice.label("game started", WireEventType.GAME_STARTED)
         game.wait_until(4)
@@ -558,6 +579,7 @@ def game_end_reconnect() -> tuple[SeatTranscript, ...]:
     with seated_game("seat-game-end-reconnect", _kyuushu_wall(), players=(PLAYER,), settings=settings) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(4)
         alice.label("first draw", WireEventType.DRAW)
         alice.kyuushu(at=5, label="kyuushu chosen")
@@ -600,6 +622,8 @@ def seat_left() -> tuple[SeatTranscript, ...]:
         bob = game.clients[ROBBER]
         alice.join(at=0)
         bob.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
+        bob.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(4)
         alice.label("first draw", WireEventType.DRAW)
         bob.drop_seen(at=4.5, label="dropped")
@@ -656,6 +680,8 @@ def first_turn_win() -> tuple[SeatTranscript, ...]:
         bob = game.clients[ROBBER]
         alice.join(at=0)
         bob.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
+        bob.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(3.5)
         alice.label("first draw", WireEventType.DRAW)
         alice.discard(tile(0, honors="3"), at=4, label="discarded")
@@ -756,6 +782,9 @@ def anchor() -> tuple[SeatTranscript, ...]:
         charlie = game.clients[ANCHOR_CHARLIE]
         for client in (alice, bob, charlie):
             client.join(at=0)
+
+        for client in (alice, bob, charlie):
+            client.confirm_round(at=START_CONFIRMED_AT)
 
         alice.discard(tile(0, honors="3"), at=3.5)
         charlie.discard(tile(0, honors="2"), at=4)

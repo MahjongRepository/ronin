@@ -22,6 +22,7 @@ from game.server.router import MessageRouter
 from game.session.manager import SessionManager
 from game.session.models import PlayerSpec
 from game.session.replay_collector import ReplayCollector
+from game.session.timer import TimerConfig
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.mocks import FakeGameRepository, FakeReplayStorage
 from game.wire.enums import WireEventType
@@ -43,6 +44,8 @@ if TYPE_CHECKING:
 TIME_GRAIN_SECONDS = 0.25
 UNSEEN_DROP_CODE = 1006
 GAME_TICKET_PLACEHOLDER = "<game ticket>"
+SCENARIO_START_CONFIRM_SECONDS = 10
+SCENARIO_TIMER_CONFIG = TimerConfig(game_start_confirm_seconds=SCENARIO_START_CONFIRM_SECONDS, ai_turn_delay_seconds=0)
 
 
 class VirtualTimeLoop(asyncio.SelectorEventLoop):
@@ -133,7 +136,8 @@ class _AdvancingSelector(selectors.SelectSelector):
 
 class _StagedEngine(MahjongGameService):
     """
-    The real engine, dealing every game it starts from the staged seed and wall, as the session starts one with neither.
+    The real engine, pacing AI turns as the live server's does, dealing every game it starts from the staged seed and
+    wall, as the session starts one with neither.
 
     The rounds after the first are dealt from the staged later rounds' walls in order, each checked against the dealer
     the game advanced to, and from the seed once those run out. Each staged draw of a round is checked against the seat
@@ -142,7 +146,7 @@ class _StagedEngine(MahjongGameService):
     """
 
     def __init__(self, staged: StagedWall, settings: GameSettings, later_rounds: Sequence[StagedWall]) -> None:
-        super().__init__()
+        super().__init__(pace_ai_turns=True)
         if staged.dealer != 0:
             raise ScenarioError(f"a staged game's first round is dealt from seat 0, not {staged.dealer}")
 
@@ -170,12 +174,18 @@ class _StagedEngine(MahjongGameService):
         seed: str | None = None,
         settings: GameSettings | None = None,
         wall: list[int] | None = None,
+        confirm_start: bool = False,
     ) -> GameStart:
         if seed is not None or settings is not None or wall is not None:
             raise ScenarioError(f"{game_id}: the session started a game with its own seed, settings or wall")
 
         start = super().start_game(
-            game_id, player_names, seed=STAGED_SEED, settings=self._settings, wall=list(self._wall)
+            game_id,
+            player_names,
+            seed=STAGED_SEED,
+            settings=self._settings,
+            wall=list(self._wall),
+            confirm_start=confirm_start,
         )
         self._check_draws(start.events)
         return start
@@ -195,6 +205,12 @@ class _StagedEngine(MahjongGameService):
     @override
     def process_ai_player_actions_after_replacement(self, runtime: GameRuntime, seat: int) -> GameUpdate:
         update = super().process_ai_player_actions_after_replacement(runtime, seat)
+        self._check_draws(update.events)
+        return update
+
+    @override
+    def advance_ai_turn(self, runtime: GameRuntime) -> GameUpdate:
+        update = super().advance_ai_turn(runtime)
         self._check_draws(update.events)
         return update
 
@@ -624,9 +640,12 @@ class SeatedGame:
     when any are staged, and seats AI players in the seats no player takes.
 
     Client messages go through the real message router, and the session's own pacing runs as in production: the default
-    timer settings, the game start pause before the deal, the turn, call and round advance timers with their banks, all
-    timed by the loop's virtual clock. A refusal any client receives (a game error or a session error) that its step did
-    not expect fails the scenario at once. Open one with `seated_game`, which stops it and closes its loop.
+    timer settings but the game start confirmation's timeout pinned at 10 s and AI turns played with no delay
+    (SCENARIO_TIMER_CONFIG), so the scripted step times and the transcripts the game client's tests read do not move
+    with the production pacing, then the turn, call and round advance timers with their banks, all timed by the loop's
+    virtual clock. Each scripted seat confirms the game's start as it confirms a round end. A refusal any client
+    receives (a game error or a session error) that its step did not expect fails the scenario at once. Open one with
+    `seated_game`, which stops it and closes its loop.
     """
 
     def __init__(self, loop: VirtualTimeLoop, game_id: str, engine: _StagedEngine, *, players: Sequence[str]) -> None:
@@ -637,6 +656,7 @@ class SeatedGame:
             self._engine,
             game_repository=FakeGameRepository(),
             replay_collector=ReplayCollector(FakeReplayStorage()),
+            timer_config=SCENARIO_TIMER_CONFIG,
             clock=loop.time,
         )
         self.router = MessageRouter(self._manager, game_ticket_secret=TEST_TICKET_SECRET)

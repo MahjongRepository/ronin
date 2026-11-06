@@ -20,6 +20,9 @@ export function moveName(move: DecisionCountdown["move"]): string {
         case "result": {
             return "The round's result awaits your OK";
         }
+        case "start": {
+            return "The game's start awaits your OK";
+        }
         default: {
             return assertNever(move);
         }
@@ -28,7 +31,17 @@ export function moveName(move: DecisionCountdown["move"]): string {
 
 /** What the server does once the move's time is up. */
 export function expiryNote(move: DecisionCountdown["move"]): string {
-    return move === "result" ? "the server deals the next round" : "the server makes the move";
+    switch (move) {
+        case "result": {
+            return "the server deals the next round";
+        }
+        case "start": {
+            return "the server starts play";
+        }
+        default: {
+            return "the server makes the move";
+        }
+    }
 }
 
 /**

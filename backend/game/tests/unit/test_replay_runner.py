@@ -302,6 +302,36 @@ def test_round_confirmation__when_round_advance_pending__should_inject_synthetic
     assert len(confirm_steps) == 4 * len(handled_steps)
 
 
+def test_round_confirmation__when_the_game_start_awaits_confirmation__should_confirm_it_and_replay_the_same_game():
+
+    class StartConfirmService(MahjongGameService):
+        def start_game(
+            self,
+            game_id: str,
+            player_names: list[str],
+            *,
+            seed: str | None = None,
+            settings: GameSettings | None = None,
+            wall: list[int] | None = None,
+            confirm_start: bool = False,
+        ) -> GameStart:
+            return super().start_game(game_id, player_names, seed=seed, settings=settings, confirm_start=True)
+
+    name, tile = _probe_current_player_discard()
+    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
+
+    confirmed = run_replay(replay, service_factory=StartConfirmService)
+    unconfirmed = run_replay(replay)
+    assert [(step.synthetic, step.input_event.action) for step in confirmed.steps] == [
+        *[(True, GameAction.CONFIRM_ROUND)] * 4,
+        (False, GameAction.DISCARD),
+    ]
+    assert [e for step in confirmed.steps for e in step.emitted_events] == list(unconfirmed.events)[
+        len(confirmed.startup_events) :
+    ]
+    assert confirmed.final_state.round_state == unconfirmed.final_state.round_state
+
+
 def test_round_confirmation__when_strict_and_confirm_returns_error__should_raise_replay_error():
 
     class ConfirmErrorService(_StubService):

@@ -86,6 +86,7 @@ export function makeRoundStartedEvent(
         roundInWind: 1,
         roundNumber: 1,
         seat: null,
+        startConfirm: null,
         tilesRemaining: 70,
         type: "round_started",
         wind: 0,

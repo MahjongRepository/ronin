@@ -18,14 +18,14 @@ const SILENCE_MARGIN_MS = 25_000;
 
 /**
  * The longest the server can go silent at these timer settings while the connection is healthy: a turn's base and
- * a full bank, a call window, a round result's advance over its pages, or the game start pause, whichever is
+ * a full bank, a call window, a round result's advance over its pages, or the game start confirm, whichever is
  * longest.
  */
 function longestWaitSeconds(timer: TimerSettings): number {
     return Math.max(
         timer.baseTurnSeconds + timer.maxBankSeconds,
         timer.roundAdvanceTimeoutSeconds * MAX_RESULTS_SHOWN,
-        timer.gameStartPauseSeconds,
+        timer.gameStartConfirmSeconds,
     );
 }
 

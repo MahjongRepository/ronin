@@ -4,6 +4,7 @@ import { type ClientMessage } from "@/shared/protocol";
 
 import { declareIntent } from "./calls";
 import { answerDecision } from "./decision";
+import { confirmOpeningStep } from "./opening";
 import { decisionOf, replaceDecision } from "./pending";
 import { switchAnswer, unseenWait } from "./play-switches";
 import { confirmStep, reopenResultStep } from "./round-confirm";
@@ -47,7 +48,8 @@ function takesSwitch(state: LiveClient): boolean {
 
 /**
  * Whether stepping `intent` now would answer the open decision, confirm the round result, reopen the game's last
- * one or turn a play switch: the one test of what the client may play, so the board offers exactly the intents the dispatcher takes.
+ * one, press the opening screen's OK or turn a play switch: the one test of what the client may play, so the board
+ * offers exactly the intents the dispatcher takes.
  */
 export function takesIntent(state: LiveClient, intent: PlayIntent): boolean {
     if (intent.type === "confirm_result") {
@@ -58,6 +60,9 @@ export function takesIntent(state: LiveClient, intent: PlayIntent): boolean {
     }
     if (intent.type === "toggle_switch") {
         return takesSwitch(state);
+    }
+    if (intent.type === "confirm_opening") {
+        return confirmOpeningStep(state, canAnswer(state)) !== null;
     }
     return decisionAnswer(state, intent) !== null;
 }

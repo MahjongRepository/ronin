@@ -155,14 +155,14 @@ def refused_wait_id(data: dict[int, Any]) -> int | None:
 class TimerSettings(BaseModel):
     """
     Describe a seat's pacing (seconds): the shared turn/call base time, current and full per-hand bank, round advance
-    timeout per result shown and game start pause.
+    timeout per result shown and game start confirmation timeout.
     """
 
     base_turn_seconds: float
     bank_seconds: float
     max_bank_seconds: float
     round_advance_timeout_seconds: float
-    game_start_pause_seconds: float
+    game_start_confirm_seconds: float
 
     def payload(self) -> dict[int, Any]:
         return {
@@ -170,7 +170,7 @@ class TimerSettings(BaseModel):
             WireKey.BANK_SECONDS: self.bank_seconds,
             WireKey.MAX_BANK_SECONDS: self.max_bank_seconds,
             WireKey.ROUND_ADVANCE_TIMEOUT: self.round_advance_timeout_seconds,
-            WireKey.GAME_START_PAUSE: self.game_start_pause_seconds,
+            WireKey.GAME_START_CONFIRM: self.game_start_confirm_seconds,
         }
 
 

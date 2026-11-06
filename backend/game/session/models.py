@@ -91,8 +91,8 @@ class GameSession:
     reported the game waits for (set from the start on); its internal wait id drives the timers. Each participant's
     decision_id identifies only their own visible decisions. start_record is the game's record as posted at the start
     (seat order, every seat's name and user_id); every finish record is built from it. replay holds the records
-    collected since the start until the end claim detaches them. start_pause is the sleeping task that holds back the
-    first deal while the game start shows; while it is set, awaiting is still None.
+    collected since the start until the end claim detaches them. ai_turn is the sleeping task that plays the AI player's
+    turn the game waits on (WaitKind.AI_TURN) once the AI turn delay has passed.
     """
 
     game_id: str
@@ -104,7 +104,7 @@ class GameSession:
     start_record: PlayedGame | None = None
     replay: ReplayRecord | None = None
     pending_timeout: asyncio.Task[None] | None = None
-    start_pause: asyncio.Task[None] | None = None
+    ai_turn: asyncio.Task[None] | None = None
 
     @property
     def is_active(self) -> bool:

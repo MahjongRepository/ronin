@@ -17,11 +17,13 @@ class Awaiting:
     The input the game waits for after an engine call.
 
     seats are the awaited seats an AI player does not hold: the turn's seat, the callers still to respond to the call
-    prompt, or the seats still to confirm the round end; none once the game is over. wait_id identifies the wait: it
-    changes exactly when a call ends the current wait (an error result, a partial prompt response or confirmation, and a
-    replacement that resolves nothing keep it), so a later wait of the same kind for the same seat gets a new one.
+    prompt, or the seats still to confirm the round end; none for an AI player's turn or once the game is over. wait_id
+    identifies the wait: it changes exactly when a call ends the current wait (an error result, a partial prompt
+    response or confirmation, and a replacement or restore that resolves nothing keep it), so a later wait of the same
+    kind for the same seat gets a new one.
     round_number is the round the wait belongs to; a round advance belongs to the round that ended. results_shown is how
-    many results a round advance shows in turn (one per winner of a double ron), one for any other wait.
+    many results a round advance shows in turn (one per winner of a double ron), one for any other wait. starts_game
+    marks the round advance that confirms the game's start, over the first round's deal, before its dealer draws.
     """
 
     kind: WaitKind
@@ -29,6 +31,7 @@ class Awaiting:
     wait_id: int
     round_number: int
     results_shown: int = 1
+    starts_game: bool = False
 
 
 @dataclass(frozen=True)
@@ -63,7 +66,8 @@ class GameService(Protocol):
     Players are identified by seat; names are display only. Every event carries its routing target: a BroadcastTarget
     (every player in the game) or a SeatTarget (only the player at that seat). Every call that can change the game
     returns what it waits for next (Awaiting). The service holds no game: start_game returns the game's GameRuntime, and
-    every later call takes it.
+    every later call takes it. A service that paces AI turns stops before each AI player's turn action and reports it as
+    a WaitKind.AI_TURN wait, which advance_ai_turn plays; AI responses to call prompts never wait.
     """
 
     def handle_action(
@@ -81,7 +85,7 @@ class GameService(Protocol):
         """
         ...
 
-    def start_game(
+    def start_game(  # noqa: PLR0913
         self,
         game_id: str,
         player_names: list[str],
@@ -89,6 +93,7 @@ class GameService(Protocol):
         seed: str | None = None,
         settings: GameSettings | None = None,
         wall: list[int] | None = None,
+        confirm_start: bool = False,
     ) -> GameStart:
         """
         Start a game with the given players, seating AI players in the empty seats.
@@ -96,7 +101,9 @@ class GameService(Protocol):
         Returns the game's runtime, the initial state events (one per player with their view), the first wait and each
         input player's seat, in input order. When seed is provided, the game is deterministically reproducible. When
         seed is None, a random seed is generated. When settings is provided, the game uses the given settings. When wall
-        is provided, use it instead of generating from seed.
+        is provided, use it instead of generating from seed. With confirm_start, the game stops after the first deal on
+        a round advance (Awaiting.starts_game) its human seats confirm with CONFIRM_ROUND, and the dealer draws only
+        then; without it, or with no human seat, the dealer draws at once.
         """
         ...
 
@@ -142,9 +149,20 @@ class GameService(Protocol):
         """
         ...
 
-    def restore_human_player(self, runtime: GameRuntime, seat: int) -> None:
+    def restore_human_player(self, runtime: GameRuntime, seat: int) -> Awaiting:
         """
-        Remove the AI player at a seat and restore it for human control.
+        Remove the AI player at a seat and restore it for human control; return what the game waits for now.
+
+        An AI player's turn the seat was owed becomes the human's turn, a new wait; any other wait is kept.
+        """
+        ...
+
+    def advance_ai_turn(self, runtime: GameRuntime) -> GameUpdate:
+        """
+        Play the AI player's turn the game waits for (WaitKind.AI_TURN): exactly one turn action, with the AI call
+        responses and the round end it leads to.
+
+        Returns the events to deliver and the next wait. Calling it on any other wait is a server fault.
         """
         ...
 

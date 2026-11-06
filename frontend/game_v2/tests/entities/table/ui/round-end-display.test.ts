@@ -15,7 +15,6 @@ function lastRoundEndTable(name: string): TableState {
 function renderResult(table: TableState, page = 0, onPage?: (page: number) => void): HTMLElement {
     const panel = tablePanel(table, {
         callouts: null,
-        firstDealSeconds: null,
         overGameEnd: false,
         page,
         viewerSeat: null,

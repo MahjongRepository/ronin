@@ -248,7 +248,35 @@ const PAGES: readonly PageCase[] = [
         kind: "board",
         name: "decisions-game-start",
         path: "/play/storybook/decisions?state=game_start",
-        required: { visible: [".seating__seat--viewer", ".seating__status", ".nameplate"] },
+        required: {
+            visible: [
+                ".seating__seat--viewer",
+                ".seating__score",
+                ".seating__countdown",
+                ".nameplate",
+            ],
+        },
+    },
+    {
+        kind: "board",
+        name: "decisions-game-start-waiting",
+        path: "/play/storybook/decisions?state=game_start_waiting",
+        required: {
+            visible: [".seating__seat--viewer", ".seating__confirm:disabled", ".nameplate"],
+        },
+    },
+    {
+        kind: "board",
+        name: "decisions-game-resume",
+        path: "/play/storybook/decisions?state=game_resume",
+        required: {
+            visible: [
+                ".seating__seat--viewer",
+                ".seating__score",
+                ".seating__countdown",
+                ".nameplate",
+            ],
+        },
     },
     {
         ...decisionCase("round_end", [".round-end-result__confirm"]),
@@ -601,7 +629,7 @@ function measureSeating(page: Page): Promise<SeatingMeasure | null> {
         });
         const texts = [
             ...panel.querySelectorAll(
-                ".seating__seat > *, .seating__action, .seating__ending, .seating__note, .seating__status",
+                ".seating__seat > *, .seating__action, .seating__ending, .seating__note, .seating__countdown",
             ),
         ];
         return {

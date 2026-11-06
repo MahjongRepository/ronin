@@ -14,6 +14,7 @@ export type {
     LiveEvent,
     LocalIntent,
     Offer,
+    OpeningScreen,
     Pending,
     PlayIntent,
     PlaySwitch,
@@ -35,8 +36,8 @@ export { PLAY_SWITCHES } from "./model/play-switches";
 export type { DecisionCountdown, DecisionClock } from "./model/countdown";
 export {
     decisionCountdown,
-    firstDealCountdown,
     nextCountdownChange,
+    openingCountdown,
     pendingCountdown,
     roundConfirmCountdown,
 } from "./model/countdown";

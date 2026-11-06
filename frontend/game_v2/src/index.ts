@@ -32,7 +32,13 @@ import {
     isDebugRequested,
     replayPageUrl,
 } from "@/shared/config";
-import { type SoundSource, createSoundPlayer, localStore, webAudioOutput } from "@/shared/lib";
+import {
+    type SoundSource,
+    createSoundPlayer,
+    localStore,
+    unlockOnGesture,
+    webAudioOutput,
+} from "@/shared/lib";
 import {
     type GameSessionData,
     clearGameSession,
@@ -58,8 +64,13 @@ const GAME_SOUNDS: Readonly<Record<SoundCue, SoundSource>> = {
     yakuman: { kind: "file", url: yakumanUrl, volume: VOICE_VOLUME },
 };
 
+/**
+ * The game's sounds for a page, their audio unlocked inside the page's first gesture (the opening screen's OK, a tap
+ * anywhere), as iOS Safari requires, and played only after it.
+ */
 function gameSound(): GameSound {
     const output = webAudioOutput(() => navigator.userActivation.hasBeenActive);
+    unlockOnGesture(window, output.unlock);
     const player = createSoundPlayer(GAME_SOUNDS, output);
     return {
         play: player.play,

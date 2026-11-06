@@ -124,7 +124,7 @@ describe("gameStartedSchema", () => {
         };
         const timer = {
             [WIRE_KEY.BANK_SECONDS]: 20,
-            [WIRE_KEY.GAME_START_PAUSE]: 3,
+            [WIRE_KEY.GAME_START_CONFIRM]: 3,
             [WIRE_KEY.MAX_BANK_SECONDS]: 20,
             [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
             [WIRE_KEY.BASE_TURN_SECONDS]: 5,
@@ -140,7 +140,7 @@ describe("gameStartedSchema", () => {
         expect(live.timer).toEqual({
             bankSeconds: 20,
             baseTurnSeconds: 5,
-            gameStartPauseSeconds: 3,
+            gameStartConfirmSeconds: 3,
             maxBankSeconds: 20,
             roundAdvanceTimeoutSeconds: 15,
         });
@@ -276,6 +276,39 @@ describe("roundStartedSchema (live)", () => {
         });
         expect(() => roundStartedSchema.parse(unnamedRound)).toThrow();
         expect(() => roundStartedSchema.parse(uncountedWall)).toThrow();
+    });
+
+    it("parses the start confirm a first deal names to an awaited seat, its wait and timeout together or neither", () => {
+        const deal = {
+            [WIRE_KEY.CURRENT_PLAYER]: 0,
+            [WIRE_KEY.DORA_INDICATORS]: [10],
+            [WIRE_KEY.DEALER]: 0,
+            [WIRE_KEY.HONBA]: 0,
+            [WIRE_KEY.MY_TILES]: [0],
+            [WIRE_KEY.ROUND_NUMBER]: 0,
+            [WIRE_KEY.PLAYERS]: fourViews({
+                [WIRE_KEY.SEAT]: 0,
+                [WIRE_KEY.SCORE]: 250,
+            }),
+            [WIRE_KEY.RIICHI_STICKS]: 0,
+            [WIRE_KEY.ROUND_IN_WIND]: 1,
+            [WIRE_KEY.SEAT]: 0,
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.ROUND_STARTED,
+            [WIRE_KEY.TILES_REMAINING]: 70,
+            [WIRE_KEY.WIND]: 0,
+        };
+
+        expect(
+            roundStartedSchema.parse({
+                ...deal,
+                [WIRE_KEY.ROUND_ADVANCE_SECONDS]: 10,
+                [WIRE_KEY.WAIT_ID]: 1,
+            }).startConfirm,
+        ).toEqual({ seconds: 10, waitId: 1 });
+        expect(roundStartedSchema.parse(deal).startConfirm).toBeNull();
+        expect(() => roundStartedSchema.parse({ ...deal, [WIRE_KEY.WAIT_ID]: 1 })).toThrow(
+            "a deal names its start confirm's wait without its timeout, or its timeout without its wait",
+        );
     });
 
     it("decodes wire scores (250 -> 25000)", () => {

@@ -1,7 +1,11 @@
 import { nothing, render } from "lit-html";
 import { assert, describe, expect, it, onTestFinished } from "vitest";
 
-import { checkpointState } from "#tests/fixtures/seat-transcripts";
+import {
+    checkpointState,
+    loadSeatScenario,
+    receivedPayload,
+} from "#tests/fixtures/seat-transcripts";
 import {
     type ClientEffect,
     type LiveClient,
@@ -11,6 +15,7 @@ import {
     type PlayUi,
     decisionOf,
     playDisplay,
+    startGameClient,
     stepGameClient,
     stepPlayUi,
 } from "@/entities/client";
@@ -133,7 +138,54 @@ function waitId(state: LiveClient): number {
     return decision.waitId;
 }
 
+/**
+ * A fresh page's client on the named transcript's game after its snapshot and the wait the server re-sent behind it:
+ * the resume screen showing over that open decision.
+ */
+function resumedOver(name: string, resent: string): LiveClient {
+    const { transcript } = loadSeatScenario(name);
+    const handoff = { gameTicket: "ticket", wsUrl: `ws://game/ws/${transcript.gameId}` };
+    const steps = [
+        { at: 0, kind: "transport_opened" },
+        { at: 100, kind: "server_message", raw: receivedPayload(transcript, "reconnected") },
+        { at: 100, kind: "server_message", raw: receivedPayload(transcript, resent) },
+    ] as const;
+    return steps.reduce(
+        (state, event) => stepGameClient(state, event).state,
+        startGameClient(transcript.gameId, handoff, 0).state,
+    );
+}
+
 describe("live board input", () => {
+    it("passes the call under a fresh page's resume screen on Escape, leaving the screen up", () => {
+        const state = resumedOver("reconnect_seat_1", "prompt re-sent");
+        assert(state.opening.kind === "showing" && state.opening.cause === "resume");
+        const { board, effects, host } = mountInput(state);
+        key(board, { key: "Escape" });
+
+        expect(messages(effects)).toEqual([buildPassAction(waitId(state))]);
+        expect(host.querySelector(".seating")).not.toBeNull();
+    });
+
+    it("discards the re-sent draw under a fresh page's resume screen on right-click", () => {
+        const state = resumedOver("bank_reconnect_seat_1", "draw re-sent");
+        const drawn = playDisplay(state, NO_PLAY_UI).board?.players[0].drawnTile?.tileId;
+        assert(state.opening.kind === "showing" && drawn !== undefined);
+        const { board, effects } = mountInput(state);
+        rightClick(board);
+
+        expect(messages(effects)).toEqual([buildDiscardAction(drawn, waitId(state))]);
+    });
+
+    it("presses the opening screen's OK on Enter from the board, once for a held key, sending nothing", () => {
+        const state = checkpointState("own_turn_seat_1", "game started");
+        const { board, commands, effects, host } = mountInput(state);
+        keys(board, [{ key: "Enter" }, { key: "Enter", repeat: true }]);
+
+        expect(commands).toEqual([{ intent: { type: "confirm_opening" }, kind: "intent" }]);
+        expect([effects, host.querySelector(".seating")]).toEqual([[], null]);
+    });
+
     it("backs out of chi before passing, ignores held Escape, and sends one pass", () => {
         const state = checkpointState("call_prompt_seat_1", "prompt");
         const { board, commands, effects, host } = mountInput(state);

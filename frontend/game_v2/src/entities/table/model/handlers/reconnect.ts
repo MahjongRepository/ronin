@@ -76,6 +76,7 @@ export function applyGameReconnected(
         firstDealerSeat: snapshot.firstDealerSeat,
         gameEndResult: null,
         gameId: snapshot.gameId,
+        gameType: snapshot.gameType,
         honbaSticks: snapshot.honbaSticks,
         inStep: true,
         lastDiscardSeat: snapshot.latestDiscardSeat,

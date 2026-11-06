@@ -89,6 +89,7 @@
                     "SeatRow",
                     "ActionButton",
                     "ResultTime",
+                    "OpeningControlsView",
                     "ResultControlsView",
                     "ScoreFoot",
                     "BoardNotices",

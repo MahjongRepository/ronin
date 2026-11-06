@@ -252,10 +252,15 @@ class TimeoutType(StrEnum):
 
 class WaitKind(StrEnum):
     """
-    What the game waits for: a seat's turn, call prompt responses, round-end confirmations, or nothing (game over).
+    What the game waits for: a seat's turn, an AI player's turn, call prompt responses, round-end confirmations, or
+    nothing (game over).
+
+    AI_TURN awaits no human seat: the caller plays it with advance_ai_turn. Only a service that paces AI turns stops on
+    one; any other plays every AI turn inside the call that reaches it.
     """
 
     TURN = "turn"
+    AI_TURN = "ai_turn"
     CALL = "call"
     ROUND_ADVANCE = "round_advance"
     NONE = "none"

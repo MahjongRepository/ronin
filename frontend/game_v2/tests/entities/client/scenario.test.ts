@@ -3,7 +3,6 @@ import { assert, describe, expect, it } from "vitest";
 import { clientEvent, forbiddingIo } from "#tests/fixtures/scenario";
 import {
     branchAfter,
-    expecting,
     loadSeatScenario,
     receivedPayload,
     scenarioFromTranscript,
@@ -74,7 +73,7 @@ const ALICE_VIEW = { bottomSeat: 1, reveal: "bottom" } as const;
 const CALLED_THREE_MAN = 8;
 const HAKU = 126;
 const PON_THREE_MAN = { offer: { kind: "pon", tileId: CALLED_THREE_MAN }, type: "choose" } as const;
-const PON_THREE_MAN_SENT = { message: buildPonAction(CALLED_THREE_MAN, 1), type: "send" } as const;
+const PON_THREE_MAN_SENT = { message: buildPonAction(CALLED_THREE_MAN, 2), type: "send" } as const;
 const TICKET = "<game ticket>";
 
 function runClean(scenario: SeatScenario): ScenarioRun {
@@ -173,7 +172,7 @@ describe("seatScenarioFromTranscript", () => {
             return { ...event, payload };
         });
         const { scenario } = scenarioFromTranscript({ ...transcript, events: unawaited });
-        const confirm = { message: buildConfirmRoundAction(5), type: "send" } as const;
+        const confirm = { message: buildConfirmRoundAction(6), type: "send" } as const;
 
         expect(runSeatScenario(scenario).mismatches).toMatchObject([
             { actual: [], expected: [confirm], kind: "effects", label: "confirmed" },
@@ -223,7 +222,7 @@ describe("runSeatScenario", () => {
 
         expect(run.mismatches).toEqual([
             {
-                actual: [{ message: buildPonAction(HAKU, 1), type: "send" }],
+                actual: [{ message: buildPonAction(HAKU, 2), type: "send" }],
                 expected: [],
                 kind: "effects",
                 label: "pon chosen",
@@ -514,7 +513,7 @@ describe("stepGameClient - generated own turn", () => {
         const riichiTurn = branchAfter(scenario, "tsumo draw", [
             { event: discardAt(14_000, 40), label: "not the drawn tile" },
             {
-                effects: [{ message: buildDiscardAction(104, 4), type: "send" }],
+                effects: [{ message: buildDiscardAction(104, 5), type: "send" }],
                 event: discardAt(14_250, 104),
             },
         ]);
@@ -770,7 +769,7 @@ describe("stepGameClient - generated round advance", () => {
 
     it("keeps an owed confirm through late errors for an earlier move, then sends it once and waits", () => {
         const { scenario, transcript } = OWN_TURN;
-        const waitId = 5;
+        const waitId = 6;
         const confirm = { at: 15_300, intent: { type: "confirm_result" }, kind: "intent" } as const;
         const branch = branchAfter(scenario, "round end", [
             lateError(
@@ -806,26 +805,26 @@ describe("stepGameClient - generated round advance", () => {
     it("reopens a sent confirm only for a rate limit naming its wait, never one naming none or an earlier wait", () => {
         const rateLimited = SESSION_ERROR_CODE.RATE_LIMITED;
         const confirm = { at: 15_100, intent: { type: "confirm_result" }, kind: "intent" } as const;
-        const sent = { message: buildConfirmRoundAction(5), type: "send" } as const;
+        const sent = { message: buildConfirmRoundAction(6), type: "send" } as const;
         const branch = branchAfter(OWN_TURN.scenario, "round end", [
             { effects: [sent], event: confirm },
             lateError(15_200, wireSessionError(rateLimited), "unnamed"),
-            lateError(15_300, wireSessionError(rateLimited, 4), "earlier"),
+            lateError(15_300, wireSessionError(rateLimited, 5), "earlier"),
             { event: { ...confirm, at: 15_400 } },
-            lateError(15_500, wireSessionError(rateLimited, 5), "matching"),
+            lateError(15_500, wireSessionError(rateLimited, 6), "matching"),
             { effects: [sent], event: { ...confirm, at: 15_600 } },
         ]);
         const run = runClean(branch);
         const confirmSent = {
             notice: null,
-            sync: { pending: { confirm: { kind: "sent", waitId: 5 } } },
+            sync: { pending: { confirm: { kind: "sent", waitId: 6 } } },
         };
 
         expect(stateAt(branch, run, "unnamed")).toMatchObject(confirmSent);
         expect(stateAt(branch, run, "earlier")).toMatchObject(confirmSent);
         expect(stateAt(branch, run, "matching")).toMatchObject({
             notice: { code: rateLimited, kind: "refused" },
-            sync: { pending: { confirm: { kind: "owed", waitId: 5 } } },
+            sync: { pending: { confirm: { kind: "owed", waitId: 6 } } },
         });
     });
 
@@ -1056,27 +1055,21 @@ describe("stepGameClient - generated resync", () => {
         ]);
     });
 
-    it("asks again at the first deal when the server refuses its resync before dealing", () => {
+    it("owes the start confirm again after a resync during it, on the deadline the server's elapsed time and timeout name, until the first draw", () => {
         const before = RESYNC_BEFORE_DEAL.scenario;
-        const refused = stateAt(before, runClean(before), "refused");
-        const atDeal = branchAfter(before, "refused", [
-            { event: { at: 2999, kind: "tick" } },
-            { effects: [resync], event: { at: 3000, kind: "tick" }, label: "deal due" },
-        ]);
+        const run = runClean(before);
+        const waitId = receivedPayload(RESYNC_BEFORE_DEAL.transcript, "dealt")[WIRE_KEY.WAIT_ID];
+        const owed = { deadline: 10_000, kind: "owed", waitId };
+        const snapshot = stateAt(before, run, "start snapshot");
+        const drawn = stateAt(before, run, "first draw");
 
-        expect(
-            receivedPayload(RESYNC_BEFORE_DEAL.transcript, "refused")[WIRE_KEY.SESSION_ERROR_CODE],
-        ).toBe(SESSION_ERROR_CODE.GAME_NOT_STARTED);
-        expect([desyncOf(refused)?.request, nextDeadline(refused), refused.firstDealDue]).toEqual([
-            { due: 3000, kind: "at_deal" },
-            3000,
-            3000,
+        expect([roundConfirmOf(stateAt(before, run, "dealt")), snapshot.opening]).toEqual([
+            owed,
+            { cause: "start", kind: "showing" },
         ]);
-        const atDealRun = runClean(atDeal);
-        expect(desyncOf(stateAt(atDeal, atDealRun, "deal due"))?.request).toEqual({
-            due: 3000 + 10_000,
-            kind: "sent",
-        });
+        expect(roundConfirmOf(stateAt(before, run, "resync asked"))).toBeNull();
+        expect([roundConfirmOf(snapshot), snapshot.resyncRequests]).toEqual([owed, 1]);
+        expect([roundConfirmOf(drawn), drawn.opening]).toEqual([null, { kind: "closed" }]);
     });
 
     function receivedAt4000(label: string): ScenarioStep {
@@ -1084,25 +1077,38 @@ describe("stepGameClient - generated resync", () => {
         return { event: { at: 4000, kind: "server_message", raw }, label };
     }
 
-    /** The scenario with its JOIN_GAME's answer a frame that did not decode, answered by the next snapshot. */
+    /**
+     * The scenario with its JOIN_GAME's answer a frame that did not decode, its resync asked as the game starts, the
+     * start confirm owed to no client out of step, answered by the next snapshot.
+     */
     function undecodedJoinAnswer(): SeatScenario {
-        const undecoded = scenario.steps.map((step): ScenarioStep =>
-            step.label === "joined"
-                ? {
-                      effects: [{ detail: "non-binary", type: "report_protocol_failure" }],
-                      event: { at: 0, detail: "non-binary", kind: "frame_undecodable" },
-                      label: "joined",
-                  }
-                : step,
-        );
-        return branchAfter(
-            expecting({ ...scenario, steps: undecoded }, "dealt", [resync]),
-            "first draw",
-            [receivedAt4000("turn snapshot"), receivedAt4000("draw re-sent")],
-        );
+        const undecoded = scenario.steps.map((step): ScenarioStep => {
+            switch (step.label) {
+                case "joined": {
+                    return {
+                        effects: [{ detail: "non-binary", type: "report_protocol_failure" }],
+                        event: { at: 0, detail: "non-binary", kind: "frame_undecodable" },
+                        label: "joined",
+                    };
+                }
+                case "game started": {
+                    return { ...step, effects: [resync] };
+                }
+                case "start confirmed": {
+                    return { ...step, effects: [] };
+                }
+                default: {
+                    return step;
+                }
+            }
+        });
+        return branchAfter({ ...scenario, steps: undecoded }, "first draw", [
+            receivedAt4000("turn snapshot"),
+            receivedAt4000("draw re-sent"),
+        ]);
     }
 
-    it("recovers from a JOIN_GAME answer it cannot decode by asking at the first deal, the snapshot admitting it", () => {
+    it("recovers from a JOIN_GAME answer it cannot decode by asking as the game starts, the snapshot admitting it", () => {
         const branch = undecodedJoinAnswer();
         const run = runClean(branch);
         const joined = stateAt(branch, run, "joined");
@@ -1115,7 +1121,7 @@ describe("stepGameClient - generated resync", () => {
         ]);
         expect([started.session?.status, desyncOf(started)?.request]).toEqual([
             "identifying",
-            { due: 3000, kind: "at_deal" },
+            { due: 10_000, kind: "sent" },
         ]);
         expect(decisionOf(stateAt(branch, run, "first draw"))).toBeNull();
         expect([resent.session?.status, desyncOf(resent), resent.resyncRequests]).toEqual([

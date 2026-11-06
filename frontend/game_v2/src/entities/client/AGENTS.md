@@ -27,6 +27,10 @@ table transition and call model; replay dispatch loads with the replay route.
   (`refusalOf`).
 - A round confirm closes only on the next deal. Its deadline is the timeout the round end names, never a count of
   result pages. A double ron confirms only from its last page.
+- The start confirm (Tenhou's NEXTREADY) is the same `RoundConfirm`, told apart by the table showing no round result
+  (`startConfirmOf`): the first deal opens it for a seat the server awaits (its wait id and whole timeout), a snapshot
+  of the first deal before its first draw restores it, owed, sent or in already, and the first draw closes it. Only
+  the opening screen's OK sends it; the result's confirm never does.
 - **Automatic discards**, after riichi or with Auto discard on, hold a fresh draw with no offers in the hand for
   one second. Riichi discards happen regardless of the play switches; otherwise turning Auto discard off cancels
   the pending discard. The wait-bound deadline uses the dispatcher clock and is cancelled when the
@@ -48,19 +52,38 @@ table transition and call model; replay dispatch loads with the replay route.
 - Out of step the client owes and answers nothing, never resends, and lets only the snapshot, the game's end and the
   game's last round end reach the table. Only a snapshot puts it back in step.
 - The resync request's state is one field (`ResyncRequest`), one variant per state. Requests are counted per page,
-  never reset; past `MAX_RESYNC_REQUESTS`, or on a snapshot it cannot take, the page ends as failed. A request
-  refused because the game has not dealt waits for the first deal, so a long start pause spends no requests.
+  never reset; past `MAX_RESYNC_REQUESTS`, or on a snapshot it cannot take, the page ends as failed. The server
+  refuses a resync only while the pending game waits for its players, so a request refused as the game not started,
+  or a JOIN_GAME socket's, waits for the next game message and then asks at once, identifying or not; a long wait for
+  the players spends no requests.
 - A snapshot or re-sent opening naming the wait of a submitted decision leaves it submitted: a wait is never answered
   twice.
 - **Silence watchdog:** `GameSocket` reports a server silent past `serverSilenceLimitMs` as a close, measured on the
   page's steady clock. The limit derives from the game's own timer settings; it copies none of the backend's pacing.
+
+## The opening screen
+
+- The opening screen (`LiveClient.opening`) is the dispatcher's: unseen, showing, or closed, and a page shows it at
+  most once, unless a start confirm comes owed after it closed. The game start opens it (`start`), and so does a
+  page's first snapshot of the first deal before its first draw; the first draw closes it, never a client deadline,
+  since the server times the start confirm out. A page's first snapshot of any other round in play, when it never saw
+  the game start, opens it (`resume`) for `OPENING_SCREEN_MS` (none over a result pending). A round's or the game's
+  end closes either. A deal or snapshot under it changes only what its seating shows (`tableSeatingPanel`).
+- The OK is the `confirm_opening` intent: the start confirm while the seat owes it, after which the OK stays in place,
+  disabled, waiting for the others with the confirm's countdown running to 0; else (the resume screen, a seat the
+  server does not await, a socket that dropped the confirm) a close that sends nothing, kept so the OK is still the
+  gesture that unlocks the page's audio.
+- It never speaks of sound. The page's audio unlocks inside its first user gesture (`index.ts`, `unlockOnGesture`
+  around the Web Audio output's `unlock`), the OK's or any other, and no sound plays before the page's first
+  activation.
 
 ## Calls and the live board
 
 - A primary click or tap on the board's background never answers a decision or confirms or dismisses a round result.
 - Live shortcuts come from `playShortcuts` through the same intent gate as visible controls. One gesture closes only
   the topmost UI, backs out of a selection, or answers one decision; a result always needs its explicit control.
-  `playInput` owns the board's DOM listeners and cancels a press across an input scope change or disposal. Repeated
+  Enter or Space outside a focused control presses the opening screen's OK (`confirm`), its only key; the board's own
+  keys (Escape's back or pass, right-click's discard, tile arrows) still reach a decision under it (`leavesBoardKeys`). `playInput` owns the board's DOM listeners and cancels a press across an input scope change or disposal. Repeated
   activation keys never answer again; arrow navigation only moves focus among playable tiles. The right-click
   preference is independent of replay controls and lives in browser storage through the live driver's dependencies.
 - A local declaration shows its callout and plays its voice as soon as its intent is accepted, without changing the
@@ -79,7 +102,8 @@ table transition and call model; replay dispatch loads with the replay route.
   and any group's (`focusKeys`), found under the board's own root (`focusByKey`, the sheet's focus back), never by
   reading classes or ARIA back from the DOM.
 - The panel over the board is `PlayDisplay.overlay`, chosen by the mapper in one precedence (an end, the leave
-  question, the notices' sheet, then the table's own panel from `tablePanel`) with whether it blocks the board; the
+  question, the notices' sheet, the opening screen, then the table's own panel from `tablePanel`) with whether it
+  blocks the board; the
   replay's `replayDisplay` maps its own. Components only render the panel they are given; where it stands is
   GameBoard's (the free box `boardGeometry` reserves), never a page's.
 - The settings menu's own transitions (the cog's toggle, a close, the sound switch) are `stepSettingsMenu`, which live's

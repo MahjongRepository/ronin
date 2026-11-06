@@ -28,13 +28,15 @@ const LOST_STEP: TableEvent = { type: "lost_step" };
 
 const UNSENT: ResyncRequest = { kind: "unsent" };
 
+const ON_GAME_MESSAGE: ResyncRequest = { kind: "on_game_message" };
+
+const GAME_MOVED: ResyncRequest = { kind: "game_moved" };
+
 /** How long a resync request waits for its snapshot before the client asks again. */
 export const RESYNC_ANSWER_MS = 10_000;
 
 /** The resync requests a page may send in all: the next loss of step past them ends the page. */
 export const MAX_RESYNC_REQUESTS = 5;
-
-const MS_PER_SECOND = 1000;
 
 /** Where the client stands since it lost step with the server, or null while in step. */
 export function desyncOf(state: LiveClient): Desync | null {
@@ -118,13 +120,11 @@ export function recoveryFailedStep(
 }
 
 /**
- * The out-of-step client's request after a message it drops. One saying the game has not dealt yet (a resync refused
- * while the game waits for its players or in its start pause) answers the request: the client asks again when the
- * first deal is due, rather than a whole answer's wait later, which would eat into a first dealer's turn; where no
- * deal time lies ahead, it waits for the server's next game message instead of asking on a timer, which would spend
- * the page's requests however long the game waits to start. Waiting so, a game start names the deal's time, and any
- * other game message says the game moved, so the client asks at once; a session message (the join's answer, an
- * error) says nothing of the game.
+ * The out-of-step client's request after a message it drops. One saying the game has not started (a resync refused
+ * while the pending game waits for its players) answers the request: the client waits for the server's next game
+ * message instead of asking on a timer, which would spend the page's requests however long the game waits to start.
+ * Waiting so, a game message says the game started, so the client asks at once; a session message (the join's
+ * answer, an error) says nothing of the game.
  */
 export function requestAfterDropped(
     state: LiveClient,
@@ -132,14 +132,14 @@ export function requestAfterDropped(
     message: ParsedServerMessage,
 ): LiveClient {
     if (message.type === "session_error" && message.code === SESSION_ERROR_CODE.GAME_NOT_STARTED) {
-        return withRequest(state, sync, awaitingDeal(state));
+        return withRequest(state, sync, ON_GAME_MESSAGE);
     }
     const gameMoved =
         message.type !== "session_error" &&
         message.type !== "error" &&
         message.type !== "game_joined";
     return sync.request.kind === "on_game_message" && gameMoved
-        ? movedOn(state, sync, message)
+        ? withRequest(state, sync, GAME_MOVED)
         : state;
 }
 
@@ -147,38 +147,15 @@ function withRequest(state: LiveClient, sync: Desync, request: ResyncRequest): L
     return { ...state, sync: { ...sync, request } };
 }
 
-/** The request of a client told the game has not dealt: at the first deal's time ahead, else on the next game message. */
-function awaitingDeal(state: LiveClient): ResyncRequest {
-    const { firstDealDue, now } = state;
-    return firstDealDue !== null && firstDealDue > now
-        ? { due: firstDealDue, kind: "at_deal" }
-        : { kind: "on_game_message" };
-}
-
 /**
- * The client awaiting the deal after a game message: a game start, which says the deal is still to come, waits for it
- * as a refusal of the game not dealt does (at the time it names, `withPacing` keeping it); any other asks at once.
- */
-function movedOn(state: LiveClient, sync: Desync, message: ParsedServerMessage): LiveClient {
-    const request = message.type === "game_started" ? awaitingDeal(state) : UNSENT;
-    return withRequest(state, sync, request);
-}
-
-/**
- * The client with the pacing a message names kept, in step or out of it, whatever its resync request awaits: a game
- * start's timer settings and the first deal's due time, and the pending game's wait `game_joined` names. The socket's
- * silence limit and the request at the deal both read them, so a dropped game start never cuts its pause short.
+ * The client with the pacing a message names kept, in step or out of it: a game start's timer settings and the
+ * pending game's wait `game_joined` names, which the socket's silence limit reads, so a dropped game start never cuts
+ * the start confirm's wait short.
  */
 export function withPacing(state: LiveClient, message: ParsedServerMessage): LiveClient {
     switch (message.type) {
         case "game_started": {
-            const { timer } = message;
-            return {
-                ...state,
-                firstDealDue:
-                    timer === null ? null : state.now + timer.gameStartPauseSeconds * MS_PER_SECOND,
-                timer: timer ?? state.timer,
-            };
+            return { ...state, timer: message.timer ?? state.timer };
         }
         case "game_joined": {
             return { ...state, pendingGameSeconds: message.pendingGameSeconds };
@@ -217,13 +194,13 @@ export function resynced(state: LiveClient): LiveClient {
 /**
  * Ask an out-of-step client's server for a fresh snapshot once it holds the seat and has no request outstanding, or
  * its request went unanswered past its due time. A session that cannot ask voids the request (`voidedRequest`), so a
- * dropped socket forgets it, and any wait for the deal, since its reconnect brings a snapshot of its own. While the
+ * dropped socket forgets it, and any wait for the game, since its reconnect brings a snapshot of its own. While the
  * reopened socket identifies with RECONNECT, that snapshot is the request's answer: the client asks only once it goes
  * unanswered for `RESYNC_ANSWER_MS` (a snapshot frame that did not decode), on the same socket, which a RECONNECT the
- * server took binds. A JOIN_GAME is answered by `game_joined`, never a snapshot, and only a game that has not dealt
- * takes one, so the client then waits for the deal as a refusal of the game not dealt would have it. The requests are
- * counted for the page, whatever the session's own retries reset: one past `MAX_RESYNC_REQUESTS` ends the page as
- * failed. A client awaiting the deal asks nothing until a game message comes (`requestAfterDropped`).
+ * server took binds. A JOIN_GAME is answered by `game_joined`, never a snapshot, and only a game that has not started
+ * takes one, so the client then waits for the game as a refusal of the game not started would have it. The requests
+ * are counted for the page, whatever the session's own retries reset: one past `MAX_RESYNC_REQUESTS` ends the page as
+ * failed. A client waiting for the game asks nothing until a game message comes (`requestAfterDropped`).
  */
 export function settleDesync(step: ClientStep<LiveClient>): ClientStep<LiveClient> {
     const { state } = step;
@@ -251,21 +228,23 @@ function snapshotWait(state: LiveClient): ResyncRequest {
 
 /** The request of an unsent client whose identifying socket cannot ask yet: the answer it awaits instead. */
 function identifyingRequest(state: LiveClient): ResyncRequest {
-    return awaitsSnapshot(state.session) ? snapshotWait(state) : awaitingDeal(state);
+    return awaitsSnapshot(state.session) ? snapshotWait(state) : ON_GAME_MESSAGE;
 }
 
 /**
- * Whether a request waits on the game, at the deal or for its next message, as a JOIN_GAME's socket waits: once the
- * session turns its identity into RECONNECT (`join_game_already_started`), the snapshot that answers it is due instead.
+ * Whether a request waits on the game, for its next message or asking as it moved, as a JOIN_GAME's socket waits:
+ * once the session turns its identity into RECONNECT (`join_game_already_started`), the snapshot that answers it is
+ * due instead.
  */
 function waitsOnTheGame(request: ResyncRequest): boolean {
-    return request.kind === "at_deal" || request.kind === "on_game_message";
+    return request.kind === "on_game_message" || request.kind === "game_moved";
 }
 
 /**
  * An out-of-step client that can ask, by where its request stands: unsent, it asks at once while it holds the seat, and
  * while it identifies awaits the answer its identity message brings first; a wait on the game turns into the wait for
- * the snapshot once the identity is a RECONNECT; any other with a due time asks once that comes.
+ * the snapshot once the identity is a RECONNECT; once the game moved it asks at once, identifying or not, since only an
+ * admitted socket hears the game; any other with a due time asks once that comes.
  */
 function settledRequest(step: ClientStep<LiveClient>, sync: Desync): ClientStep<LiveClient> {
     const { state } = step;
@@ -279,9 +258,11 @@ function settledRequest(step: ClientStep<LiveClient>, sync: Desync): ClientStep<
                 ? requestResync(step, sync)
                 : { ...step, state: withRequest(state, sync, identifyingRequest(state)) };
         }
+        case "game_moved": {
+            return requestResync(step, sync);
+        }
         case "sent":
-        case "awaiting_snapshot":
-        case "at_deal": {
+        case "awaiting_snapshot": {
             return state.now >= request.due ? requestResync(step, sync) : step;
         }
         case "on_game_message": {
@@ -315,5 +296,5 @@ export function desyncDeadline(state: LiveClient): number | null {
         return null;
     }
     const { request } = sync;
-    return request.kind === "unsent" || request.kind === "on_game_message" ? null : request.due;
+    return request.kind === "sent" || request.kind === "awaiting_snapshot" ? request.due : null;
 }

@@ -93,10 +93,12 @@ export type Decision = TurnDecision | CallDecision;
 
 /**
  * A local user intent: leave for the lobby, answer the open decision, confirm the round result read, reopen the
- * game's last result from the game's end, or turn a play switch on or off, which sends nothing itself.
+ * game's last result from the game's end, press the opening screen's OK (the start confirm the seat owes, else a close
+ * that sends nothing), or turn a play switch on or off, which sends nothing.
  */
 export type LocalIntent =
     | { readonly type: "leave" }
+    | { readonly type: "confirm_opening" }
     | { readonly type: "discard"; readonly tileId: number }
     | { readonly type: "choose"; readonly offer: Offer }
     | { readonly type: "pass" }
@@ -107,7 +109,14 @@ export type LocalIntent =
 /** An intent that answers the open decision. */
 export type DecisionIntent = Exclude<
     LocalIntent,
-    { readonly type: "leave" | "confirm_result" | "show_last_result" | "toggle_switch" }
+    {
+        readonly type:
+            | "leave"
+            | "confirm_opening"
+            | "confirm_result"
+            | "show_last_result"
+            | "toggle_switch";
+    }
 >;
 
 /** An intent the board offers: an answer to the open decision, the round result's confirm, or a play switch. */
@@ -164,12 +173,33 @@ export type TimedNotice =
     | { readonly kind: "refused"; readonly code: string; readonly until: number };
 
 /**
- * Where the viewer stands with the round result it reads before the next deal. Owed: the server waits on the seat's
- * confirm by this wait id until the round's one advance deadline, the timeout times the result's pages, when the
- * client can estimate it (logical time, backdated by a snapshot's elapsed time; null when unknown). It is for display
- * only: the server's timeout advances the game, and the client never confirms on its own. Sent: the player confirmed
- * it once and waits for the others, unless the rate limit reopens it as owed. Confirmed: a reconnect's snapshot owes
- * no confirm, so the seat waits too.
+ * The screen that opens play on this page over the table: the seating of the round on it, each seat's wind and score,
+ * with an OK. Unseen: this page has opened none yet. Showing for the game's start (`start`, from its game start, the
+ * first deal under it, until play starts with the first draw), its OK the start confirm while the seat owes one; or,
+ * until `until` in logical time, for a page that joined a game in play (`resume`, its first snapshot of a round in
+ * play when it never saw the game start), its OK a close that sends nothing. Closed: shown once, by the OK, play's
+ * start, its time or the round's end, and never again on this page, so a reconnect mid-play brings no second one;
+ * only a start confirm owed shows the start again.
+ */
+export type OpeningScreen =
+    | { readonly kind: "unseen" }
+    | { readonly kind: "showing"; readonly cause: "start" }
+    | {
+          readonly kind: "showing";
+          readonly cause: "resume";
+          readonly until: number;
+      }
+    | { readonly kind: "closed" };
+
+/**
+ * Where the viewer stands with what the server awaits every human seat's confirm of before play goes on: the round
+ * result it reads before the next deal, or, while the table shows no result, the game's start before the first draw
+ * (the start confirm, Tenhou's NEXTREADY, which the game's first deal opens). Owed: the server waits on the seat's
+ * confirm by this wait id until its one deadline, the timeout the round end or the first deal names, when the client
+ * can estimate it (logical time, backdated by a snapshot's elapsed time; null when unknown). It is for display only:
+ * the server's timeout moves the game on, and the client never confirms on its own. Sent: the player confirmed it once
+ * and waits for the others, unless a refusal reopens it as owed. Confirmed: a reconnect's snapshot owes no confirm, so
+ * the seat waits too.
  */
 export type RoundConfirm =
     | { readonly kind: "owed"; readonly waitId: number; readonly deadline: number | null }
@@ -177,8 +207,9 @@ export type RoundConfirm =
     | { readonly kind: "confirmed" };
 
 /**
- * What the seat owes the server, one at a time: its open decision, or the round result it reads before the next deal.
- * The server never waits on both, since a round end closes every decision and only the next deal opens one.
+ * What the seat owes the server, one at a time: its open decision, or the round confirm (a round result's, or the
+ * game's start). The server never waits on both, since a round end closes every decision, only the next deal opens
+ * one, and the first deal's start confirm ends before the first draw.
  */
 export type Pending =
     | { readonly kind: "decision"; readonly decision: Decision }
@@ -201,21 +232,21 @@ export interface InStep {
 
 /**
  * Where an out-of-step client's resync request stands. Unsent: none is outstanding, so the client asks as soon as its
- * session can (at once while it holds the seat), whether it just lost step, its socket dropped (the reconnect bringing
- * a snapshot of its own) or the game moved while it awaited the deal. Sent: its request is outstanding on the open
- * socket until `due`, when it counts as unanswered and is sent again; a rate limit meanwhile answers it, never the
- * session's identity message. Awaiting the snapshot: the socket identifies with RECONNECT, whose own snapshot is the
- * answer, asked for only once it goes unanswered at `due`. At the deal: the server said the game has not dealt yet, or
- * the socket identifies with JOIN_GAME (answered by `game_joined`, never a snapshot, and only before the deal), so the
- * client asks again at the first deal's time `due`. On a game message: the same with no deal time ahead, so the
- * client asks again only once the server's next game message says the game moved.
+ * session can (at once while it holds the seat), whether it just lost step or its socket dropped (the reconnect
+ * bringing a snapshot of its own). Sent: its request is outstanding on the open socket until `due`, when it counts as
+ * unanswered and is sent again; a rate limit meanwhile answers it, never the session's identity message. Awaiting the
+ * snapshot: the socket identifies with RECONNECT, whose own snapshot is the answer, asked for only once it goes
+ * unanswered at `due`. On a game message: the server said the game has not started yet (it refuses a resync only while
+ * the pending game waits for its players), or the socket identifies with JOIN_GAME (answered by `game_joined`, never a
+ * snapshot, and only before the game starts), so the client asks again only once the server's next game message says
+ * the game started. Game moved: that message came, so the client asks at once, while it identifies too.
  */
 export type ResyncRequest =
     | { readonly kind: "unsent" }
     | { readonly kind: "sent"; readonly due: number }
     | { readonly kind: "awaiting_snapshot"; readonly due: number }
-    | { readonly kind: "at_deal"; readonly due: number }
-    | { readonly kind: "on_game_message" };
+    | { readonly kind: "on_game_message" }
+    | { readonly kind: "game_moved" };
 
 /**
  * A client out of step with the server since logical time `since`: it owes and answers nothing and drops every server
@@ -289,16 +320,13 @@ export interface LiveClient extends ClientBase {
     readonly showsLastResult: boolean;
     /** The latest short-lived notice, until it expires or a newer one replaces it. */
     readonly notice: TimedNotice | null;
+    /** The screen that opens play on this page, and whether it shows or showed. */
+    readonly opening: OpeningScreen;
     /**
      * How many resync requests this page has sent, never reset, so a client that loses step again and again ends
      * however often its snapshots arrive.
      */
     readonly resyncRequests: number;
-    /**
-     * When the server's game start pause likely ends with the first deal, in logical time, from the game start's timer
-     * settings; null without them.
-     */
-    readonly firstDealDue: number | null;
     /** The play switches the player turned on for this hand; a deal turns them off. */
     readonly switches: PlaySwitches;
     readonly automaticDiscard: {

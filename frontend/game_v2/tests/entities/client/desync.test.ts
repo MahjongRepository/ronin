@@ -10,7 +10,6 @@ import {
 import {
     WIRE_GAME_JOINED,
     WIRE_GAME_STARTED,
-    WIRE_ROUND_STARTED,
     type WirePayload,
     wireNumberList,
     wirePayloadList,
@@ -52,7 +51,7 @@ const SCENARIO = "own_turn_seat_1";
 const { transcript } = loadSeatScenario(SCENARIO);
 const SNAPSHOT = receivedPayload(transcript, "reconnected");
 const RESENT_DRAW = receivedPayload(transcript, "draw re-sent");
-const TURN_WAIT_ID = 1;
+const TURN_WAIT_ID = Number(RESENT_DRAW[WIRE_KEY.WAIT_ID]);
 const RESYNC: ClientEffect = { message: buildResyncMessage(), type: "send" };
 const AT = 3100;
 
@@ -500,7 +499,6 @@ describe("stepGameClient - desync around the game's start and end", () => {
         const host = document.createElement("div");
         const panel = tablePanel(state.table, {
             callouts: null,
-            firstDealSeconds: null,
             overGameEnd: true,
             page: 0,
             viewerSeat: state.viewerSeat,
@@ -578,8 +576,8 @@ describe("stepGameClient - desync around the game's start and end", () => {
     });
 });
 
-/** A joined seat out of step before the game started, its resync request refused as the game has not dealt. */
-function refusedBeforeDeal(): { state: LiveClient; effects: ClientEffect[] } {
+/** A joined seat out of step before the game started, its resync request refused as the game has not started. */
+function refusedBeforeStart(): { state: LiveClient; effects: ClientEffect[] } {
     return run(startGameClient(GAME_ID, HANDOFF, 0).state, [
         opened(0),
         message(0, WIRE_GAME_JOINED),
@@ -610,40 +608,28 @@ function rejoinedAfterDrop(
     };
 }
 
-describe("stepGameClient - desync before the first deal", () => {
-    it("asks again only once the game moves when the server says it has not dealt and no deal time is known, so a long wait spends no requests", () => {
-        const refused = refusedBeforeDeal();
+describe("stepGameClient - desync before the game starts", () => {
+    it("asks again only once the game starts when the server says it has not, so a long wait for the players spends no requests", () => {
+        const refused = refusedBeforeStart();
         const waited = run(refused.state, [socketError(60_000), tick(120_000)]);
         const started = run(waited.state, [
             message(120_000, receivedPayload(transcript, "game started")),
         ]);
-        const firstDealDue = started.state.firstDealDue ?? 0;
-        const dealt = run(started.state, [tick(firstDealDue)]);
-        const moved = run(waited.state, [message(120_000, WIRE_ROUND_STARTED)]);
 
         expect(sends(refused.effects).slice(1)).toEqual([RESYNC]);
-        expect([waited.effects, nextDeadline(waited.state), sends(started.effects)]).toEqual([
-            [],
-            null,
-            [],
-        ]);
-        expect([sends(dealt.effects), sends(moved.effects), firstDealDue > 120_000]).toEqual([
-            [RESYNC],
-            [RESYNC],
-            true,
-        ]);
-        expect(dealt.state.resyncRequests).toBe(2);
+        expect([waited.effects, nextDeadline(waited.state)]).toEqual([[], null]);
+        expect([sends(started.effects), started.state.resyncRequests]).toEqual([[RESYNC], 2]);
     });
 
-    it("keeps a game start's timer settings while awaiting the deal, so the socket waits through a long start pause", () => {
+    it("keeps a game start's timer settings while out of step, so the socket waits through a long start confirm", () => {
         const timer = {
             [WIRE_KEY.BANK_SECONDS]: 20,
-            [WIRE_KEY.GAME_START_PAUSE]: 240,
+            [WIRE_KEY.GAME_START_CONFIRM]: 240,
             [WIRE_KEY.MAX_BANK_SECONDS]: 20,
             [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
             [WIRE_KEY.BASE_TURN_SECONDS]: 5,
         };
-        const started = run(refusedBeforeDeal().state, [
+        const started = run(refusedBeforeStart().state, [
             message(500, {
                 ...WIRE_GAME_STARTED,
                 [WIRE_KEY.SEAT]: 0,
@@ -651,54 +637,11 @@ describe("stepGameClient - desync before the first deal", () => {
             }),
         ]);
 
-        expect([started.state.firstDealDue, nextDeadline(started.state)]).toEqual([
-            240_500, 240_500,
-        ]);
         expect(serverSilenceLimitMs(started.state)).toBe(265_000);
     });
 
-    it("keeps a game start that came while its request was outstanding, so the refusal that follows asks at the deal and the socket waits out the pause", () => {
-        const timer = {
-            [WIRE_KEY.BANK_SECONDS]: 20,
-            [WIRE_KEY.GAME_START_PAUSE]: 75,
-            [WIRE_KEY.MAX_BANK_SECONDS]: 20,
-            [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: 15,
-            [WIRE_KEY.BASE_TURN_SECONDS]: 5,
-        };
-        const refused = run(startGameClient(GAME_ID, HANDOFF, 0).state, [
-            opened(0),
-            message(0, WIRE_GAME_JOINED),
-            undecodable(1),
-            message(2, {
-                ...WIRE_GAME_STARTED,
-                [WIRE_KEY.SEAT]: 0,
-                [WIRE_KEY.TIMER_SETTINGS]: timer,
-            }),
-            message(3, wireSessionError(SESSION_ERROR_CODE.GAME_NOT_STARTED)),
-        ]);
-        const dealt = run(refused.state, [tick(75_002)]);
-
-        expect(desyncOf(refused.state)?.request).toEqual({ due: 75_002, kind: "at_deal" });
-        expect(serverSilenceLimitMs(refused.state)).toBe(100_000);
-        expect(sends(dealt.effects)).toEqual([RESYNC]);
-    });
-
-    it("forgets the wait for the deal with its socket, the reconnect's snapshot rebuilding it", () => {
-        const started = checkpointState(SCENARIO, "game started");
-        const firstDealDue = started.firstDealDue ?? 0;
-        const refused = run(started, [
-            message(100, { [WIRE_KEY.EVENT_TYPE]: 999 }),
-            message(120, wireSessionError(SESSION_ERROR_CODE.GAME_NOT_STARTED)),
-        ]);
-
-        const dropped = run(refused.state, [closed(130, 1006)]);
-        expect(desyncOf(refused.state)?.request.kind).toBe("at_deal");
-        expect(desyncOf(dropped.state)?.request).toEqual({ kind: "unsent" });
-        expect(nextDeadline(dropped.state)).not.toBe(firstDealDue);
-    });
-
     it("forgets the answered request with the socket, so a rate limit of the reopened socket's JOIN retries the identity", () => {
-        const reopened = run(refusedBeforeDeal().state, [
+        const reopened = run(refusedBeforeStart().state, [
             closed(500, 1006),
             tick(1500),
             opened(1501),
@@ -732,24 +675,23 @@ describe("stepGameClient - desync before the first deal", () => {
         expect(sends(unanswered.effects)).toEqual([RESYNC]);
     });
 
-    it("spends no request on a JOIN_GAME's answer however often the socket drops before the game starts, asking at the deal", () => {
+    it("spends no request on a JOIN_GAME's answer however often the socket drops before the game starts, asking as it starts", () => {
         const drops = Array.from({ length: MAX_RESYNC_REQUESTS }, (_unused, index) => index + 1);
         const { effects, state } = drops.reduce(
             (before, drop) => rejoinedAfterDrop(before, drop * 60_000),
-            refusedBeforeDeal(),
+            refusedBeforeStart(),
         );
-        const resent = sends(effects.slice(refusedBeforeDeal().effects.length)).filter(isNoJoin);
+        const resent = sends(effects.slice(refusedBeforeStart().effects.length)).filter(isNoJoin);
         const started = run(state, [
             message(400_000, { ...WIRE_GAME_STARTED, [WIRE_KEY.SEAT]: 0 }),
         ]);
-        const dealt = run(started.state, [tick(started.state.firstDealDue ?? 0)]);
 
         expect([resent, state.resyncRequests, desyncOf(state)?.request.kind]).toEqual([
             [],
             1,
             "on_game_message",
         ]);
-        expect([sends(dealt.effects), dealt.state.resyncRequests]).toEqual([[RESYNC], 2]);
+        expect([sends(started.effects), started.state.resyncRequests]).toEqual([[RESYNC], 2]);
     });
 });
 

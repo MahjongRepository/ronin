@@ -1,6 +1,11 @@
 import { z } from "zod/mini";
 
-import { NUM_PLAYERS, SEAT_CONTROL_REASON, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
+import {
+    GAME_TYPE,
+    NUM_PLAYERS,
+    SEAT_CONTROL_REASON,
+    WIRE_SCORE_DIVISOR,
+} from "@/shared/protocol/constants";
 import {
     type DecodedMeld,
     MAX_MELD_COMPACT,
@@ -17,6 +22,11 @@ export const tileTypeSchema = z.int().check(z.gte(0), z.lte(33));
 export const seatSchema = z.int().check(z.gte(0), z.lte(3));
 
 export const waitIdSchema = z.int().check(z.gte(0));
+
+export const gameTypeSchema = z.union([
+    z.literal(GAME_TYPE.HANCHAN),
+    z.literal(GAME_TYPE.TONPUSEN),
+]);
 
 /** The live wall's tiles left, as the server counts them. */
 export const tilesRemainingSchema = z.int().check(z.gte(0));
@@ -120,7 +130,7 @@ export const gamePlayerInfoSchema = z.pipe(
 export const timerSettingsSchema = z.pipe(
     z.object({
         [WIRE_KEY.BANK_SECONDS]: secondsSchema,
-        [WIRE_KEY.GAME_START_PAUSE]: secondsSchema,
+        [WIRE_KEY.GAME_START_CONFIRM]: secondsSchema,
         [WIRE_KEY.MAX_BANK_SECONDS]: secondsSchema,
         [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: secondsSchema,
         [WIRE_KEY.BASE_TURN_SECONDS]: secondsSchema,
@@ -128,7 +138,7 @@ export const timerSettingsSchema = z.pipe(
     z.transform((raw) => ({
         bankSeconds: raw[WIRE_KEY.BANK_SECONDS],
         baseTurnSeconds: raw[WIRE_KEY.BASE_TURN_SECONDS],
-        gameStartPauseSeconds: raw[WIRE_KEY.GAME_START_PAUSE],
+        gameStartConfirmSeconds: raw[WIRE_KEY.GAME_START_CONFIRM],
         maxBankSeconds: raw[WIRE_KEY.MAX_BANK_SECONDS],
         roundAdvanceTimeoutSeconds: raw[WIRE_KEY.ROUND_ADVANCE_TIMEOUT],
     })),

@@ -873,9 +873,9 @@ def ai_dealer_absent() -> Recording:
     Deal from an AI player's seat to three players, two of them absent at the deal, with the dealer's AI player between
     them in turn order; the one at the table wins by tsumo on the second go-around and confirms the next deal.
 
-    The staged seed seats Alice at seat 1, Bob at seat 3 and Charlie at seat 2. The AI dealer's draw and discard are
-    among the deal's events, which the absent seats' lines precede; Charlie's discard then sets Bob's AI player, the
-    dealer's and Alice's moving in one call. Alice's AI player deals the next round and plays its first turn at once.
+    The staged seed seats Alice at seat 1, Bob at seat 3 and Charlie at seat 2. The AI dealer's draw and discard follow
+    the deal and the absent seats' lines; Charlie's discard then sets Bob's AI player, the dealer's and Alice's moving
+    in one call. Alice's AI player deals the next round and plays its first turn at once.
     """
     winning_tile = tile(1, sou="5")
     staged = StagedWall(

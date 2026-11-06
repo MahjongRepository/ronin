@@ -1,10 +1,22 @@
 import { render } from "lit-html";
 import { describe, expect, it } from "vitest";
 
-import { checkpointState } from "#tests/fixtures/seat-transcripts";
-import { type LiveClient, NO_PLAY_UI, PlayBoard, playDisplay } from "@/entities/client";
+import { checkpointState, loadSeatScenario } from "#tests/fixtures/seat-transcripts";
+import {
+    type LiveClient,
+    NO_PLAY_UI,
+    PlayBoard,
+    playDisplay,
+    scenarioStateIndex,
+    stepGameClient,
+} from "@/entities/client";
 
 const STARTED = checkpointState("own_turn_seat_1", "game started");
+const { scenario } = loadSeatScenario("own_turn_seat_1");
+const DEALT = stepGameClient(
+    STARTED,
+    scenario.steps[scenarioStateIndex(scenario, "game started")].event,
+).state;
 
 function renderBoard(state: LiveClient): HTMLElement {
     const host = document.createElement("div");
@@ -57,15 +69,28 @@ describe("GameStartDisplay", () => {
         expect(seatRows(host)[0][2]).toMatch(/^Dealer/u);
     });
 
-    it("counts the server's start pause down to the first deal, then only says the game is starting", () => {
-        function status(now: number): string | undefined {
-            return renderBoard({ ...STARTED, now }).querySelector(".seating__status")?.textContent;
+    it("stays over the dealt board with each seat's score, its OK counting the start confirm down, then disabled while waiting for the others, gone by the first draw", () => {
+        function countdown(now: number): string | undefined {
+            return renderBoard({ ...DEALT, now }).querySelector(".seating__countdown")?.textContent;
         }
+        const dealt = renderBoard(DEALT);
+        const confirmed = stepGameClient(DEALT, {
+            at: 1000,
+            intent: { type: "confirm_opening" },
+            kind: "intent",
+        }).state;
+        const waiting =
+            renderBoard(confirmed).querySelector<HTMLButtonElement>(".seating__confirm");
 
-        expect([status(0), status(2500), status(3000)]).toEqual([
-            "Starting in 3",
-            "Starting in 1",
-            "Starting…",
+        expect([DEALT.table.phase, dealt.querySelectorAll(".seating__score").length]).toEqual([
+            "in_round",
+            4,
+        ]);
+        expect(dealt.querySelector(".seating__confirm-label")?.textContent).toBe("OK");
+        expect([countdown(0), countdown(2500)]).toEqual(["10s left", "8s left"]);
+        expect([waiting?.textContent?.replace(/\s+/gu, " ").trim(), waiting?.disabled]).toEqual([
+            "Waiting for others 9s left",
+            true,
         ]);
         expect(
             renderBoard(checkpointState("own_turn_seat_1", "first draw")).querySelector(".seating"),

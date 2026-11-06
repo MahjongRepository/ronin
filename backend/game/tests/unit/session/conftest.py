@@ -5,6 +5,7 @@ import pytest
 
 from game.logic import mahjong_service as mahjong_service_module
 from game.logic.mahjong_service import MahjongGameService
+from game.session import manager as manager_module
 from game.session import timer as timer_module
 from game.tests.helpers.session import make_session_manager
 
@@ -19,7 +20,7 @@ def manager():
 @pytest.fixture
 def seeded_engine(monkeypatch):
     monkeypatch.setattr(mahjong_service_module, "generate_seed", lambda: ENGINE_SEED)
-    return MahjongGameService()
+    return MahjongGameService(pace_ai_turns=True)
 
 
 @pytest.fixture
@@ -70,4 +71,11 @@ def fake_clock():
 def held_sleep(monkeypatch):
     held = HeldSleep()
     monkeypatch.setattr(timer_module, "asyncio", SimpleNamespace(create_task=asyncio.create_task, sleep=held.sleep))
+    return held
+
+
+@pytest.fixture
+def held_manager_sleep(monkeypatch):
+    held = HeldSleep()
+    monkeypatch.setattr(manager_module, "asyncio", SimpleNamespace(create_task=asyncio.create_task, sleep=held.sleep))
     return held

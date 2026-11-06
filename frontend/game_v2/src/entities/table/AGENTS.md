@@ -51,8 +51,9 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   viewpoint changes, resizing, reduced motion and disposal clear copies and restore destinations. Initial mounts
   show their checkpoint immediately. Starting hands and indicators appear immediately at every deal; tile ids
   reused in a new round never animate from their positions in the previous round.
-- The seating panel is the game's start and its end: the seats in wind order before the first deal, then in
-  placement order with their scores and uma/oka results once the game ends.
+- The seating panel is the game's start and its end: the seats in wind order with the round on the table (live, the
+  client's opening screen over the dealt table, `tableSeatingPanel`; a replay's start), then in placement order with
+  their scores and uma/oka results once the game ends. `tablePanel` itself shows nothing before the first deal.
 - The board's geometry is the slice's: `lib/board-geometry.ts`'s `boardGeometry`, a pure function from the board's
   box and the slots its page fills to a frozen result (family, chrome, sizes, the panel's free box in px, the
   board shell's grid tracks and the opponents' strips' rooms), its facts

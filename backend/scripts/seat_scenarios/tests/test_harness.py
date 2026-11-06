@@ -27,6 +27,7 @@ def _play_kyuushu_into_next_round(staged: StagedWall, later_rounds: Sequence[Sta
     with seated_game("harness-check", staged, players=(PLAYER,), later_rounds=later_rounds) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
+        alice.confirm_round(at=3)
         alice.kyuushu(at=5)
         alice.confirm_round(at=6)
         game.wait_until(7)
@@ -52,6 +53,7 @@ def _resync_after_the_deal_expecting_game_not_started() -> None:
     with seated_game("harness-check", staged, players=(PLAYER,)) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
+        alice.confirm_round(at=3)
         alice.resync(at=4, refused_with=SessionErrorCode.GAME_NOT_STARTED)
 
 

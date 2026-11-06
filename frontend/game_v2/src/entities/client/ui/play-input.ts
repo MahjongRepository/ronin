@@ -3,7 +3,7 @@ import { AsyncDirective } from "lit-html/async-directive.js";
 import { type ElementPart, type PartInfo, PartType, directive } from "lit-html/directive.js";
 
 import { type PlayDisplay } from "@/entities/client/model/play-display";
-import { type PlayShortcut } from "@/entities/client/model/play-shortcuts";
+import { type PlayShortcut, leavesBoardKeys } from "@/entities/client/model/play-shortcuts";
 import { type PlayCommand } from "@/entities/client/model/play-ui";
 import { DECISION_ACTION_FOCUS_KEY } from "@/entities/table";
 import { HAND_TILE_FOCUS_KEY, PLAYABLE_TILE_FOCUS_KEY } from "@/entities/tile";
@@ -187,7 +187,7 @@ class PlayInput extends AsyncDirective {
             return;
         }
         if (event.key === "Enter" || event.key === " ") {
-            this.armKey(event);
+            this.activate(event);
             return;
         }
         this.navigate(event);
@@ -198,7 +198,7 @@ class PlayInput extends AsyncDirective {
         if (
             board === null ||
             display === null ||
-            display.overlay !== null ||
+            !leavesBoardKeys(display.overlay) ||
             display.settingsOpen
         ) {
             return;
@@ -215,6 +215,21 @@ class PlayInput extends AsyncDirective {
         const shortcut = this.display?.shortcuts.escape;
         consume(event);
         if (!event.repeat && shortcut !== null && shortcut !== undefined) {
+            this.run(shortcut);
+        }
+    }
+
+    /** Enter or Space: a focused control's own press, else the display's confirm shortcut, once per press. */
+    private activate(event: KeyboardEvent): void {
+        const shortcut = this.display?.shortcuts.confirm;
+        const onControl =
+            event.target instanceof Element && event.target.closest("button, a, summary") !== null;
+        if (onControl || shortcut === null || shortcut === undefined) {
+            this.armKey(event);
+            return;
+        }
+        consume(event);
+        if (!event.repeat) {
             this.run(shortcut);
         }
     }

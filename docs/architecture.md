@@ -343,9 +343,9 @@ sequenceDiagram
     P->>R: JOIN_GAME {game_ticket}  or  RECONNECT {game_ticket}
     R->>R: verify ticket, ticket.room_id == path game_id
     R->>SM: join_game / reconnect (participant looked up by ticket)
-    SM-->>P: game_joined, then once every player joined game_started (with the seat) and the first deal after the start pause / game_reconnected snapshot (with the participant's latest decision id)
+    SM-->>P: game_joined, then once every player joined game_started (with the seat) and the first deal, which opens the start confirm / game_reconnected snapshot (with the participant's latest decision id)
     loop each wait
-        SM-->>P: wait-opening event (draw, call prompt, turn, round end) stamped with the participant's decision id
+        SM-->>P: wait-opening event (first deal, draw, call prompt, turn, round end) stamped with the participant's decision id
         P->>R: action echoing that decision id
         R->>SM: handle_game_action
         SM->>E: validate + apply (AI seats and timeouts use the same pipeline)
@@ -367,6 +367,17 @@ sequenceDiagram
   a 1000 `game_ended` close is not, so a client that missed the game end reconnects and is refused
   into the lobby.
 * An action for any wait but the current one is refused as stale and touches nothing.
+* The game start waits for its players (Tenhou's NEXTREADY): the engine stops after the first deal on a
+  round advance that starts the game, each connected human's copy of the deal opens that confirm, and
+  the dealer draws once every awaited seat sent CONFIRM_ROUND or `TimerConfig.game_start_confirm_seconds`
+  ran out and confirmed for the rest. A seat without a connection at the start, or one that leaves
+  during it, is an AI player's, which confirms at once. A zero timeout skips the confirm.
+* AI players' turns are paced in real time so a human can follow them: the engine stops before each AI
+  player's turn action and reports an AI turn wait, awaiting no human, and the session plays that one
+  turn after `TimerConfig.ai_turn_delay_seconds` (one engine call per turn). AI answers to call
+  prompts never wait. A human who reconnects during that delay gets the turn back as their own wait.
+  The replay runner and engine tests use the unpaced engine, which plays AI turns inside the call;
+  the events and their order are the same either way.
 * Liveness is uvicorn's WebSocket ping; the apps run no heartbeat of their own. Rate limits, decode
   strikes and the auth timeout are in `backend/game/AGENTS.md`.
 
@@ -380,8 +391,8 @@ sequenceDiagram
 | Replay files | Game server finalizer, completed and failed games (abandoned ones are discarded) | Lobby `/api/replays/{game_id}` and `/play/history/{game_id}`; game server's internal Tenhou export, behind the lobby's `/api/replays/{game_id}/tenhou.xml` |
 
 A replay file holds the game's recorded events plus replay-only annotation records the replay loader
-skips: each seat's replacement with an AI player (left, or absent at the first deal, recorded ahead
-of that deal) and its human's return. A seat the game started with an AI player in has none.
+skips: each seat's replacement with an AI player (left, or absent at the game's start, recorded after
+the first deal and ahead of the dealer's first draw) and its human's return. A seat the game started with an AI player in has none.
 
 Storage concatenates independent MessagePack records, then compresses the stream once with gzip
 level 9 and a zero timestamp. Files use `.msgpack.gz`, atomic replacement and owner-only permissions.

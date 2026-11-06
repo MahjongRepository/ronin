@@ -16,9 +16,11 @@ export const WIRE_GAME_JOINED: WirePayload = {
 
 const WIRE_ROUND_ADVANCE_SECONDS = 15;
 
+const WIRE_START_CONFIRM_SECONDS = 10;
+
 const WIRE_TIMER: WirePayload = {
     [WIRE_KEY.BANK_SECONDS]: 20,
-    [WIRE_KEY.GAME_START_PAUSE]: 3,
+    [WIRE_KEY.GAME_START_CONFIRM]: 3,
     [WIRE_KEY.MAX_BANK_SECONDS]: 20,
     [WIRE_KEY.ROUND_ADVANCE_TIMEOUT]: WIRE_ROUND_ADVANCE_SECONDS,
     [WIRE_KEY.BASE_TURN_SECONDS]: 5,
@@ -106,6 +108,7 @@ export const WIRE_GAME_RECONNECTED: WirePayload = {
     [WIRE_KEY.FURITEN]: false,
     [WIRE_KEY.FIRST_DEALER]: 0,
     [WIRE_KEY.GAME_ID]: "g1",
+    [WIRE_KEY.GAME_TYPE]: 0,
     [WIRE_KEY.HONBA]: 0,
     [WIRE_KEY.MY_TILES]: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48],
     [WIRE_KEY.ROUND_NUMBER]: 1,
@@ -154,6 +157,42 @@ export const WIRE_ROUND_STARTED: WirePayload = {
     [WIRE_KEY.TILES_REMAINING]: 70,
     [WIRE_KEY.WIND]: 0,
 };
+
+/** The game's first deal to seat 0 as a seat the server awaits the start confirm of: its wait id and whole timeout. */
+export function wireStartConfirmDeal(waitId: number): WirePayload {
+    return {
+        ...WIRE_ROUND_STARTED,
+        [WIRE_KEY.ROUND_ADVANCE_SECONDS]: WIRE_START_CONFIRM_SECONDS,
+        [WIRE_KEY.ROUND_NUMBER]: 0,
+        [WIRE_KEY.WAIT_ID]: waitId,
+    };
+}
+
+/**
+ * The snapshot of the game's first deal before its first draw, during the start confirm on `waitId`: owed, with the
+ * time its timer has run and its whole timeout, or not.
+ */
+export function wireStartConfirmSnapshot(
+    owed: boolean,
+    waitId: number,
+    elapsedSeconds: number,
+): WirePayload {
+    const snapshot: WirePayload = {
+        ...WIRE_GAME_RECONNECTED,
+        [WIRE_KEY.CONFIRMATION_OWED]: owed,
+        [WIRE_KEY.ROUND_HISTORY]: [],
+        [WIRE_KEY.ROUND_IN_WIND]: 1,
+        [WIRE_KEY.ROUND_NUMBER]: 0,
+        [WIRE_KEY.WAIT_ID]: waitId,
+    };
+    return owed
+        ? {
+              ...snapshot,
+              [WIRE_KEY.ROUND_ADVANCE_SECONDS]: WIRE_START_CONFIRM_SECONDS,
+              [WIRE_KEY.WAIT_ELAPSED]: elapsedSeconds,
+          }
+        : snapshot;
+}
 
 /** A replay file's deal: every seat's hand, and no viewer. */
 export const REPLAY_ROUND_STARTED: WirePayload = {

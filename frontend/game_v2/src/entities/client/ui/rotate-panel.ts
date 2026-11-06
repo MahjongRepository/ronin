@@ -14,9 +14,9 @@ import { FailurePanel, LeaveConfirm } from "./session-panels";
 /** What the rotate panel shows, all of it the live board's display: the status, what is owed, the way back, an end. */
 export type RotatePanelView = Pick<PlayDisplay, "failure" | "leave" | "owedCountdown" | "status">;
 
-/** What runs on while the rotate panel shows: play and its timer, or the round advance's timer. */
+/** What runs on while the rotate panel shows: play and its timer, or a round confirm's timer. */
 function runningNote(move: DecisionCountdown["move"]): string {
-    return move === "result"
+    return move === "result" || move === "start"
         ? "Its timer keeps running while this message is shown."
         : "Play continues, and your timer keeps running while this message is shown.";
 }
