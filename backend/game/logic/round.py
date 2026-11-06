@@ -185,7 +185,8 @@ def reveal_pending_dora(
     Reveal any pending dora indicators queued by open/added kan.
 
     Called after a discard to implement the rule that open and added kan dora indicators are revealed after the
-    replacement tile is discarded, not immediately when the kan is declared.
+    replacement tile is discarded, not immediately when the kan is declared, and when a further kan stands before that
+    discard.
 
     Returns (new_state, list_of_newly_revealed_dora_indicator_tile_ids).
     """

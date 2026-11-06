@@ -11,6 +11,7 @@ from game.logic.round import (
     add_dora_indicator,
     draw_from_dead_wall,
     legal_discards,
+    reveal_pending_dora,
 )
 from game.logic.settings import NUM_PLAYERS
 from game.logic.state_utils import clear_all_players_ippatsu, update_player
@@ -506,8 +507,14 @@ def _handle_kan_dora_and_draw(
     is_closed_kan: bool,
 ) -> MahjongRoundState:
     """
-    Handle dora reveal/deferral and dead wall draw for kan declarations.
+    Handle dora reveal/deferral and dead wall draw for a kan that stands.
+
+    Indicators an earlier kan deferred are revealed first: this kan stands before that kan's replacement discard
+    settles. Then this kan's own indicator is revealed or deferred by its type.
     """
+    if state.wall.pending_dora_count:
+        state, _revealed = reveal_pending_dora(state)
+
     if settings.has_kandora:
         if is_closed_kan:
             if settings.kandora_immediate_for_closed_kan:

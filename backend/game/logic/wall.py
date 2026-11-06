@@ -129,7 +129,7 @@ class Wall(BaseModel):
     @property
     def pending_dora_count(self) -> int:
         """
-        Kan dora reveals deferred until the kan caller's discard settles.
+        Kan dora reveals deferred until the kan caller's discard settles or a further kan stands.
         """
         return self.dead_wall.pending_reveals
 
@@ -325,7 +325,7 @@ def add_dora_indicator(wall: Wall) -> tuple[Wall, int]:
 
 def increment_pending_dora(wall: Wall) -> Wall:
     """
-    Defer one kan dora reveal until the kan caller's discard settles.
+    Defer one kan dora reveal until the kan caller's discard settles or a further kan stands.
     """
     dead = wall.dead_wall
     if dead.revealed_count + dead.pending_reveals + 1 > MAX_DORA_INDICATORS:

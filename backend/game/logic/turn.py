@@ -97,8 +97,8 @@ def emit_deferred_dora_events(
     """
     Reveal deferred dora indicators (from open/added kan) and emit events.
 
-    Called after a discard passes the ron check. Under our rules, open/added kan dora is revealed only after the
-    replacement discard is accepted (not ron'd).
+    Called after a discard passes the ron check. Under our rules, open/added kan dora is revealed after the replacement
+    discard is accepted (not ron'd), or earlier when the caller's next kan stands.
 
     Returns (new_round_state, events).
     """
@@ -637,7 +637,9 @@ def _complete_kan(
     meld_event: MeldEvent,
 ) -> tuple[MahjongGameState, list[GameEvent]]:
     """
-    Adopt the round state a kan produced: emit its meld event, the dora it revealed at once, and the rinshan draw.
+    Adopt the round state a kan produced: emit its meld event, the dora it revealed, and the rinshan draw.
+
+    The dora it revealed are an earlier kan's deferred ones, then this kan's own when revealed at once.
 
     The draw event is the kan's one rinshan draw, on every kan path.
     """

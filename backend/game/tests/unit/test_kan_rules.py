@@ -3,10 +3,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from mahjong.hand_calculating.yaku_config import YakuConfig
 from mahjong.tile import TilesConverter
 
 from game.logic.abortive import check_four_kans
-from game.logic.action_handlers import handle_chi, handle_discard, handle_kan, handle_pass, handle_pon, handle_ron
+from game.logic.action_handlers import (
+    handle_chi,
+    handle_discard,
+    handle_kan,
+    handle_pass,
+    handle_pon,
+    handle_ron,
+    handle_tsumo,
+)
 from game.logic.action_result import ActionResult, Refusal
 from game.logic.actions import get_available_actions
 from game.logic.ai_player_controller import AIPlayerController
@@ -42,10 +51,11 @@ from game.logic.melds import (
 from game.logic.runtime import GameRuntime
 from game.logic.settings import GameSettings
 from game.logic.state import Caller, Discard, MahjongGameState, MahjongPlayer
+from game.logic.state_utils import update_game_with_round
 from game.logic.tiles import NUM_TILES, tile_to_34
 from game.logic.turn import process_discard_phase
 from game.logic.types import ChiActionData, DiscardActionData, KanActionData, PonActionData
-from game.logic.wall import DEAD_WALL_SIZE, DeadWall, TileStack, Wall
+from game.logic.wall import DEAD_WALL_SIZE, DeadWall, TileStack, Wall, increment_pending_dora
 from game.logic.win import (
     get_waiting_tiles,
     is_kokushi_chankan_possible,
@@ -53,6 +63,7 @@ from game.logic.win import (
 )
 from game.tests.conftest import create_dealt_game_state, create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
+from game.tests.helpers.wall import FIRST_DORA_POSITION
 from game.tests.unit.helpers import _update_round_state
 
 if TYPE_CHECKING:
@@ -119,6 +130,17 @@ def _assert_kan_dora(before_kan: MahjongGameState, kan: ActionResult, *, reveale
     assert (len(wall.dora_indicators) - dora_before, wall.pending_dora_count) == (revealed, pending)
     assert [e.tile_id for e in kan.events if isinstance(e, DoraRevealedEvent)] == list(
         wall.dora_indicators[dora_before:]
+    )
+
+
+def _dora_reveals_and_draw(kan: ActionResult) -> list[tuple[type, int]]:
+    return [(type(e), e.tile_id) for e in kan.events if isinstance(e, (DoraRevealedEvent, DrawEvent))]
+
+
+def _with_one_kan_dora_pending(game_state: MahjongGameState) -> MahjongGameState:
+    round_state = game_state.round_state
+    return update_game_with_round(
+        game_state, round_state.model_copy(update={"wall": increment_pending_dora(round_state.wall)})
     )
 
 
@@ -555,6 +577,82 @@ class TestKanDoraTiming:
         assert pon.state.round_state.wall.pending_dora_count == 0
         assert pon.state.round_state.players[3].melds[-1].type == FrozenMeld.PON
 
+    def test_kan_dora__when_closed_kan_follows_an_open_kan__should_reveal_both_indicators_before_its_draw(self):
+        two_man = tile_copies(0, man="2222")
+        seat_0 = create_player(seat=0, tiles=(*_ONE_MAN[:3], *two_man, *tile_copies(1, pin="123456")))
+        seat_3 = create_player(seat=3, tiles=(_ONE_MAN[3], *_FILLER[3]))
+        game_state = _kan_game(seat_0, seat_3=seat_3, current_player_seat=3)
+        indicators = game_state.round_state.wall.dead_wall.indicators
+        prompted, _events = process_discard_phase(game_state, _ONE_MAN[3])
+        open_kan = _call_kan(prompted, seat=0, tile_id=_ONE_MAN[3], kan_type=KanType.OPEN)
+        assert open_kan.state.round_state.wall.pending_dora_count == 1
+
+        closed_kan = _call_kan(open_kan.state, seat=0, tile_id=two_man[0], kan_type=KanType.CLOSED)
+        assert _dora_reveals_and_draw(closed_kan) == [
+            (DoraRevealedEvent, indicators[1].top),
+            (DoraRevealedEvent, indicators[2].top),
+            (DrawEvent, closed_kan.state.round_state.players[0].tiles[-1]),
+        ]
+        assert closed_kan.state.round_state.wall.pending_dora_count == 0
+
+    def test_kan_dora__when_added_kan_follows_an_open_kan__should_reveal_the_open_kans_indicator_at_its_draw(self):
+        two_man = tile_copies(0, man="2222")
+        two_man_pon = FrozenMeld(
+            meld_type=FrozenMeld.PON, tiles=two_man[:3], opened=True, called_tile=two_man[2], who=0, from_who=3
+        )
+        seat_0 = create_player(
+            seat=0, tiles=(*_ONE_MAN[:3], two_man[3], *tile_copies(1, pin="123456")), melds=(two_man_pon,)
+        )
+        seat_3 = create_player(seat=3, tiles=(_ONE_MAN[3], *_FILLER[3]), discards=(Discard(tile_id=two_man[2]),))
+        game_state = _kan_game(seat_0, seat_3=seat_3, current_player_seat=3)
+        indicators = game_state.round_state.wall.dead_wall.indicators
+        prompted, _events = process_discard_phase(game_state, _ONE_MAN[3])
+        open_kan = _call_kan(prompted, seat=0, tile_id=_ONE_MAN[3], kan_type=KanType.OPEN)
+
+        added_kan = _call_kan(open_kan.state, seat=0, tile_id=two_man[3], kan_type=KanType.ADDED)
+        assert _dora_reveals_and_draw(added_kan) == [
+            (DoraRevealedEvent, indicators[1].top),
+            (DrawEvent, added_kan.state.round_state.players[0].tiles[-1]),
+        ]
+        assert added_kan.state.round_state.wall.pending_dora_count == 1
+
+    def test_rinshan_tsumo__when_added_kan_follows_an_open_kan__should_count_only_the_open_kans_dora(self):
+        two_man = tile_copies(0, man="2222")
+        nine_pin_tanki, rinshan_nine_pin = tile_copies(0, pin="99")
+        one_pin_indicator, two_pin_indicator = tile_copies(1, pin="12")
+        seat_0 = create_player(
+            seat=0,
+            tiles=(two_man[3], *tile_copies(0, pin="234678"), nine_pin_tanki),
+            melds=(
+                FrozenMeld(
+                    meld_type=FrozenMeld.KAN, tiles=_ONE_MAN, opened=True, called_tile=_ONE_MAN[3], who=0, from_who=3
+                ),
+                FrozenMeld(
+                    meld_type=FrozenMeld.PON, tiles=two_man[:3], opened=True, called_tile=two_man[2], who=0, from_who=3
+                ),
+            ),
+        )
+        dead_wall: list[int | None] = [None] * DEAD_WALL_SIZE
+        dead_wall[0] = rinshan_nine_pin
+        dead_wall[FIRST_DORA_POSITION + 1] = one_pin_indicator
+        dead_wall[FIRST_DORA_POSITION + 2] = two_pin_indicator
+        round_state = create_round_state(
+            players=(seat_0, *(create_player(seat=seat, tiles=_FILLER[seat]) for seat in (1, 2, 3))),
+            wall=tile_copies(0, honors="1234"),
+            dead_wall=dead_wall,
+            dora_indicators=tile_copies(0, sou="9"),
+            pending_dora_count=1,
+            phase=RoundPhase.PLAYING,
+        )
+        added_kan = _call_kan(create_game_state(round_state), seat=0, tile_id=two_man[3], kan_type=KanType.ADDED)
+        assert added_kan.state.round_state.players[0].tiles[-1] == rinshan_nine_pin
+
+        tsumo = handle_tsumo(added_kan.state, seat=0)
+        assert isinstance(tsumo, ActionResult)
+        [round_end] = [e.result for e in tsumo.events if isinstance(e, RoundEndEvent)]
+        dora_yaku_id = YakuConfig().dora.yaku_id
+        assert [y.han for y in round_end.hand_result.yaku if y.yaku_id == dora_yaku_id] == [1]
+
 
 # ---------------------------------------------------------------------------
 # Kokushi tenpai detection
@@ -638,7 +736,9 @@ _AFTER_PON = tuple(tile_copies(1, honors="1234"))
 
 
 class TestChankanPreservation:
-    def test_chankan_prompt__when_added_kan_declared__should_preserve_ippatsu_and_not_reveal_dora(self):
+    def test_chankan__when_added_kan_is_robbed_with_a_kan_dora_pending__should_preserve_ippatsu_and_reveal_nothing(
+        self,
+    ):
         three_pin = tile_copies(0, pin="3333")
         pon_from_seat_3 = FrozenMeld(
             meld_type=FrozenMeld.PON, tiles=three_pin[:3], opened=True, called_tile=three_pin[2], who=0, from_who=3
@@ -666,9 +766,11 @@ class TestChankanPreservation:
             tiles=_FILLER[3],
             discards=(Discard(tile_id=three_pin[2]), Discard(tile_id=_AFTER_PON[3])),
         )
-        game_state = create_dealt_game_state(
-            (seat_0, riichi_ippatsu_on_three_pin, seat_2, seat_3),
-            all_discards=(*_FIRST_GO_AROUND, three_pin[2], *_AFTER_PON),
+        game_state = _with_one_kan_dora_pending(
+            create_dealt_game_state(
+                (seat_0, riichi_ippatsu_on_three_pin, seat_2, seat_3),
+                all_discards=(*_FIRST_GO_AROUND, three_pin[2], *_AFTER_PON),
+            )
         )
         dora_before = len(game_state.round_state.wall.dora_indicators)
 
@@ -677,7 +779,14 @@ class TestChankanPreservation:
         assert round_state.pending_call_prompt is not None
         assert round_state.pending_call_prompt.kind == PromptKind.CHANKAN
         assert round_state.players[1].is_ippatsu is True
-        assert (len(round_state.wall.dora_indicators), round_state.wall.pending_dora_count) == (dora_before, 0)
+        assert (len(round_state.wall.dora_indicators), round_state.wall.pending_dora_count) == (dora_before, 1)
+
+        ron = handle_ron(kan.state, seat=1)
+        assert isinstance(ron, ActionResult)
+        assert ron.state.round_state.phase == RoundPhase.FINISHED
+        assert not [e for e in ron.events if isinstance(e, DoraRevealedEvent)]
+        ron_wall = ron.state.round_state.wall
+        assert (len(ron_wall.dora_indicators), ron_wall.pending_dora_count) == (dora_before, 1)
 
 
 def _riichi_seat_after_draw(waiting_hand: Sequence[int], drawn_tile: int) -> GameRuntime:
