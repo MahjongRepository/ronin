@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -11,6 +12,11 @@ from shared.websocket import QueuedWebSocket, accept_websocket, reject_websocket
 async def _open_queued_websocket(client: FakeAsgiClient) -> QueuedWebSocket:
     await client.websocket.accept()
     return QueuedWebSocket(client.websocket, connection_id="conn1")
+
+
+async def _wait_until_written(client: FakeAsgiClient, expected: list[object]) -> None:
+    async with client.written_changed:
+        await client.written_changed.wait_for(lambda: client.written == expected)
 
 
 class TestQueuedWebSocket:
@@ -61,6 +67,7 @@ class TestQueuedWebSocket:
 
         socket.send_bytes(b"1")
         socket.send_bytes(b"2")
+        socket._terminate()
         with pytest.raises(ConnectionError, match="WebSocket terminated"):
             await socket.receive()
         await socket.stop_writer()
@@ -82,6 +89,47 @@ class TestQueuedWebSocket:
         client.release_writes()
         await socket.stop_writer()
         assert client.written == []
+
+    async def test_queued_websocket__when_a_slow_send_follows_a_fast_one__should_give_it_its_own_full_deadline(
+        self, monkeypatch
+    ):
+        deadline = 0.05
+        monkeypatch.setattr(shared_websocket, "_SEND_DEADLINE_SECONDS", deadline)
+        loop = asyncio.get_running_loop()
+        client = FakeAsgiClient()
+        socket = await _open_queued_websocket(client)
+        socket.start_writer()
+
+        socket.send_bytes(b"1")
+        await _wait_until_written(client, [b"1"])
+        await asyncio.sleep(deadline / 2)
+        client.hold_writes()
+        slow_send_queued_at = loop.time()
+        socket.send_bytes(b"2")
+        with pytest.raises(ConnectionError, match="WebSocket terminated"):
+            await socket.receive()
+        assert loop.time() >= slow_send_queued_at + deadline
+        client.release_writes()
+        await socket.stop_writer()
+        assert client.written == [b"1"]
+
+    async def test_queued_websocket__when_idle_past_the_deadline_after_a_send__should_stay_open_and_send_again(
+        self, monkeypatch
+    ):
+        deadline = 0.01
+        monkeypatch.setattr(shared_websocket, "_SEND_DEADLINE_SECONDS", deadline)
+        client = FakeAsgiClient()
+        socket = await _open_queued_websocket(client)
+        socket.start_writer()
+
+        socket.send_bytes(b"1")
+        await _wait_until_written(client, [b"1"])
+        await asyncio.sleep(deadline * 3)
+        socket.send_bytes(b"2")
+        await _wait_until_written(client, [b"1", b"2"])
+        client.send_frame({"type": "websocket.receive", "bytes": b"still open"})
+        assert await socket.receive() == {"type": "websocket.receive", "bytes": b"still open"}
+        await socket.stop_writer()
 
     @pytest.mark.parametrize(
         "receive",

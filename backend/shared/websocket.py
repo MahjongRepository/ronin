@@ -45,6 +45,8 @@ class QueuedWebSocket:
         self._closed = False
         self._terminated: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         self._writer: asyncio.Task[None] | None = None
+        self._send_started_at: float | None = None
+        self._deadline_handle: asyncio.TimerHandle | None = None
         self.disconnect_code: int | None = None
 
     def send_bytes(self, data: bytes) -> None:
@@ -120,28 +122,22 @@ class QueuedWebSocket:
                 await asyncio.wait({self._writer}, timeout=_SEND_DEADLINE_SECONDS)
         finally:
             self._closed = True
+            self._cancel_send_deadline()
             await cancel_and_wait([self._writer])
 
     async def _write_queue(self) -> None:
         while True:
             item = await self._queue.get()
+            self._start_send()
             try:
-                async with asyncio.timeout(_SEND_DEADLINE_SECONDS):
-                    if isinstance(item, _CloseFrame):
-                        await self._websocket.close(code=item.code, reason=item.reason)
-                        return
+                if isinstance(item, _CloseFrame):
+                    await self._websocket.close(code=item.code, reason=item.reason)
+                    return
 
-                    if isinstance(item, str):
-                        await self._websocket.send_text(item)
-                    else:
-                        await self._websocket.send_bytes(item)
-            except TimeoutError:
-                logger.warning(
-                    "websocket send blocked past its deadline, dropping the connection",
-                    connection_id=self._connection_id,
-                )
-                self._terminate()
-                return
+                if isinstance(item, str):
+                    await self._websocket.send_text(item)
+                else:
+                    await self._websocket.send_bytes(item)
             except WebSocketDisconnect, RuntimeError:
                 logger.info("websocket peer gone, dropping the connection", connection_id=self._connection_id)
                 self._terminate()
@@ -150,12 +146,54 @@ class QueuedWebSocket:
                 logger.exception("websocket write failed, dropping the connection", connection_id=self._connection_id)
                 self._terminate()
                 return
+            finally:
+                self._send_started_at = None
+
+    def _start_send(self) -> None:
+        """
+        Stamp the start of a send and arm the connection's deadline handle unless one is armed already.
+        """
+        loop = asyncio.get_running_loop()
+        self._send_started_at = loop.time()
+        if self._deadline_handle is None:
+            self._deadline_handle = loop.call_at(
+                self._send_started_at + _SEND_DEADLINE_SECONDS, self._check_send_deadline
+            )
+
+    def _check_send_deadline(self) -> None:
+        """
+        Terminate the connection when its send in flight has outlasted the deadline; re-arm for a newer send.
+        """
+        self._deadline_handle = None
+        if self._send_started_at is None:
+            return
+
+        loop = asyncio.get_running_loop()
+        deadline = self._send_started_at + _SEND_DEADLINE_SECONDS
+        if loop.time() < deadline:
+            self._deadline_handle = loop.call_at(deadline, self._check_send_deadline)
+            return
+
+        logger.warning(
+            "websocket send blocked past its deadline, dropping the connection",
+            connection_id=self._connection_id,
+        )
+        self._terminate()
+
+    def _cancel_send_deadline(self) -> None:
+        if self._deadline_handle is not None:
+            self._deadline_handle.cancel()
+            self._deadline_handle = None
 
     def _terminate(self) -> None:
         """
         Drop a connection the writer cannot serve, synchronously: later sends are no-ops and the receive side ends.
         """
+        if self._terminated.done():
+            return
+
         self._terminated.set_result(None)
+        self._cancel_send_deadline()
         while not self._queue.empty():
             self._queue.get_nowait()
 
