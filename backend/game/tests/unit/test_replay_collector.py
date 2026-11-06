@@ -1,3 +1,5 @@
+import threading
+
 import pytest
 
 from game.logic.enums import CallType, GameEndCause, GameErrorCode, MeldViewType, WindName
@@ -28,12 +30,18 @@ from game.logic.types import (
     TenpaiHand,
 )
 from game.messaging.event_payload import game_event_payload
+from game.session import replay_collector as replay_collector_module
 from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.tests.mocks import FakeReplayStorage
 from game.wire.compact import encode_discard, encode_draw
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
-from game.wire.replay_format import REPLAY_VERSION, decode_replay_records, decode_replay_settings
+from game.wire.replay_format import (
+    REPLAY_VERSION,
+    decode_replay_records,
+    decode_replay_settings,
+    encode_replay_records,
+)
 
 
 def _parse_saved_replay(content: bytes) -> list[dict]:
@@ -158,8 +166,22 @@ def _make_all_round_started_events() -> list[RoundStartedEvent]:
 
 
 class TestReplayCollectorLifecycle:
-    async def test_replay_collector__when_events_collected_and_saved__should_store_one_record_per_event(self):
-        storage = FakeReplayStorage()
+    async def test_replay_collector__when_events_collected_and_saved__should_store_one_record_per_event_off_loop(
+        self, monkeypatch
+    ):
+        worker_threads: list[threading.Thread] = []
+
+        def encode_on_recorded_thread(records):
+            worker_threads.append(threading.current_thread())
+            return encode_replay_records(records)
+
+        class ThreadRecordingStorage(FakeReplayStorage):
+            def save_replay(self, game_id, content):
+                worker_threads.append(threading.current_thread())
+                super().save_replay(game_id, content)
+
+        monkeypatch.setattr(replay_collector_module, "encode_replay_records", encode_on_recorded_thread)
+        storage = ThreadRecordingStorage()
         collector = ReplayCollector(storage)
 
         replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, settings=GameSettings())
@@ -167,6 +189,8 @@ class TestReplayCollectorLifecycle:
         collector.collect_events(replay, [_make_meld_event()])
 
         await collector.save("game1", replay.records)
+        assert len(worker_threads) == 2
+        assert threading.main_thread() not in worker_threads
         assert "game1" in storage.saved
         lines = _parse_saved_replay(storage.saved["game1"])
         assert len(lines) == 2

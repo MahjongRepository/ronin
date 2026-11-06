@@ -21,7 +21,7 @@ from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter
 from game.session.manager import SessionManager
 from game.session.models import PlayerSpec
-from game.session.replay_collector import ReplayCollector
+from game.session.replay_collector import ReplayCollector, encode_and_store_replay
 from game.session.timer import TimerConfig
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.mocks import FakeGameRepository, FakeReplayStorage
@@ -104,13 +104,12 @@ class VirtualTimeLoop(asyncio.SelectorEventLoop):
 
 def _is_replay_save(func: Callable[..., Any]) -> bool:
     """
-    Whether an executor call is `asyncio.to_thread`'s wrapper (a partial of a context's `run`) around the in-memory
-    replay storage's save.
+    Whether an executor call is `asyncio.to_thread`'s wrapper (a partial of a context's `run`) around encoding a replay
+    and saving it into the in-memory replay storage.
     """
-    if not isinstance(func, functools.partial) or not func.args:
+    if not isinstance(func, functools.partial) or len(func.args) < 2:
         return False
-    target = func.args[0]
-    return isinstance(getattr(target, "__self__", None), FakeReplayStorage) and target.__name__ == "save_replay"
+    return func.args[0] is encode_and_store_replay and isinstance(func.args[1], FakeReplayStorage)
 
 
 class _AdvancingSelector(selectors.SelectSelector):

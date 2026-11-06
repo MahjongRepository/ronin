@@ -179,8 +179,15 @@ class ReplayCollector:
         """
         Persist a game's detached replay records.
 
-        File I/O is offloaded to a worker thread to avoid blocking the async event loop. A storage error propagates to
-        the caller, whose game-end finalizer turns the end into a failure.
+        Encoding and file I/O run together in a worker thread to avoid blocking the async event loop. An encoding or
+        storage error propagates to the caller, whose game-end finalizer turns the end into a failure.
         """
-        content = encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *records])
-        await asyncio.to_thread(self._storage.save_replay, game_id, content)
+        await asyncio.to_thread(encode_and_store_replay, self._storage, game_id, records)
+
+
+def encode_and_store_replay(storage: ReplayStorage, game_id: str, records: list[dict[int, object]]) -> None:
+    """
+    Encode a game's replay records behind the version header and save them to storage.
+    """
+    content = encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *records])
+    storage.save_replay(game_id, content)
