@@ -72,7 +72,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 
 Deferred Dora reveal applies even if the discard is subsequently claimed for a meld (Pon/Chii); the reveal triggers once the Ron check passes.
 
-When the caller declares another quad on the replacement tile instead of discarding it, the deferred indicator is revealed as that quad stands, at its replacement draw (after its Chankan chance passes, so a robbed quad reveals nothing); the new quad's own indicator then follows its type. A Rinshan Kaihou on that later quad counts the earlier quad's Dora, and not the later one's when it is claimed or extended. This is our ruling: Japanese Wikipedia names the case as an open question of deferred reveal without settling it.
+When the caller declares another quad on the replacement tile instead of discarding it, the deferred indicator is revealed as that quad stands, at its replacement draw (after its Chankan chance passes, so a robbed quad reveals nothing); the new quad's own indicator then follows its type. A Rinshan Kaihou on that later quad counts the earlier quad's Dora, and not the later one's when that quad is extended, since its own Dora stays deferred. This is our ruling: Japanese Wikipedia names the case as an open question of deferred reveal without settling it.
 
 #### Chankan (Robbing a Quad)
 
