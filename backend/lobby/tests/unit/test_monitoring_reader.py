@@ -97,7 +97,21 @@ async def test_read_metrics__when_range_is_90_days_of_minute_samples__should_red
 
     assert chart.state == ChartState.CURRENT
     assert len(chart.buckets) <= MAX_BUCKETS
-    assert set(chart.buckets) == {2.0}
+    assert set(chart.buckets) == {25.0}
+
+
+async def test_read_metrics__when_history_is_shorter_than_the_range__should_chart_from_the_oldest_sample(tmp_path):
+    metrics_db = tmp_path / "metrics.db"
+    create_metrics_db(metrics_db)
+    insert_metric_rows(metrics_db, "mem", _memory_rows(range(NOW - 7200, NOW + 1, 60), used_gib=2))
+
+    readings = await read_metrics(MonitoringRange.QUARTER, metrics=MetricsReader(metrics_db), now=NOW)
+    memory_used = next(chart for chart in readings.charts if chart.name == "memory_used")
+
+    assert readings.starts_at_oldest_sample is True
+    assert readings.charted_from <= NOW - 7200 < readings.charted_from + 60
+    assert len(memory_used.buckets) == 121
+    assert set(memory_used.buckets) == {25.0}
 
 
 async def test_read_metrics__when_samples_stop_for_a_stretch__should_split_the_line_without_a_zero(tmp_path):
@@ -105,15 +119,15 @@ async def test_read_metrics__when_samples_stop_for_a_stretch__should_split_the_l
     create_metrics_db(metrics_db)
     hour = int(MonitoringRange.HOUR.duration.total_seconds())
     sampled = [timestamp for timestamp in range(NOW - hour, NOW + 1, 60) if not NOW - 1800 <= timestamp < NOW - 1200]
-    insert_metric_rows(metrics_db, "mem", _memory_rows(sampled, used_gib=4))
+    insert_metric_rows(metrics_db, "mem", _memory_rows(sampled, used_gib=2))
 
     chart = await _memory_used_chart(metrics_db, MonitoringRange.HOUR)
     plot = plot_buckets(chart.buckets)
 
     assert plot is not None
     assert len(plot.lines) == 2
-    assert plot.axis_maximum == 5.0
-    assert {point.split(",")[1] for line in plot.lines for point in line.split()} == {"20.00"}
+    assert plot.axis_maximum == 50.0
+    assert {point.split(",")[1] for line in plot.lines for point in line.split()} == {"50.00"}
 
 
 async def test_read_metrics__when_counter_grows_steadily__should_give_its_rate_in_every_bucket(tmp_path):
@@ -136,7 +150,7 @@ async def test_read_metrics__when_counter_grows_steadily__should_give_its_rate_i
 
 
 @pytest.mark.parametrize("disruption", ["counter_decrease", "identity_change_with_higher_counter", "missing_sample"])
-async def test_read_metrics__when_counter_is_disrupted_inside_a_long_bucket__should_empty_only_that_bucket(
+async def test_read_metrics__when_counter_is_disrupted_inside_a_long_bucket__should_skip_only_that_interval(
     tmp_path, disruption
 ):
     metrics_db = tmp_path / "metrics.db"
@@ -157,10 +171,9 @@ async def test_read_metrics__when_counter_is_disrupted_inside_a_long_bucket__sho
     chart = await _chart_named(metrics_db, MonitoringRange.DAY, "lobby_cpu")
     plot = plot_buckets(chart.buckets)
 
-    assert chart.buckets.count(None) == 1
-    assert [value for value in chart.buckets if value is not None] == pytest.approx([0.25] * (len(chart.buckets) - 1))
+    assert chart.buckets == pytest.approx([0.25] * len(chart.buckets))
     assert plot is not None
-    assert len(plot.lines) == 2
+    assert len(plot.lines) == 1
 
 
 async def test_read_metrics__when_intervals_differ_in_length__should_weight_each_bucket_by_duration(tmp_path):
@@ -202,14 +215,8 @@ async def test_read_metrics__when_traefik_series_differ__should_weigh_http_route
     lobby_at_now["traefik_router_request_duration_seconds_sum"] = 1.0
     insert_metric_rows(metrics_db, "traefik", rows)
 
-    response_time, requests, server_errors, sockets_closed, socket_lifetime = await _charts_named(
-        metrics_db,
-        MonitoringRange.HOUR,
-        "response_time",
-        "requests",
-        "server_errors",
-        "game_sockets_closed",
-        "game_socket_lifetime",
+    response_time, requests, server_errors = await _charts_named(
+        metrics_db, MonitoringRange.HOUR, "response_time", "requests", "server_errors"
     )
 
     assert response_time.buckets[:-1] == pytest.approx([32.5] * (len(response_time.buckets) - 1))
@@ -220,11 +227,9 @@ async def test_read_metrics__when_traefik_series_differ__should_weigh_http_route
     assert requests.latest.value == pytest.approx(duration_reset_requests)
     assert server_errors.state == ChartState.CURRENT
     assert server_errors.buckets == pytest.approx([0.0] * len(server_errors.buckets))
-    assert sockets_closed.buckets == pytest.approx([1.0] * len(sockets_closed.buckets))
-    assert socket_lifetime.buckets == pytest.approx([600.0] * len(socket_lifetime.buckets))
 
 
-async def test_read_metrics__when_traefik_series_come_and_go__should_count_them_from_zero_and_break_only_at_a_reboot(
+async def test_read_metrics__when_traefik_series_come_and_go__should_count_them_from_zero_and_skip_a_reboot_interval(
     tmp_path,
 ):
     metrics_db = tmp_path / "metrics.db"
@@ -268,15 +273,15 @@ async def test_read_metrics__when_traefik_series_come_and_go__should_count_them_
     )
     insert_metric_rows(metrics_db, "traefik", rows)
 
-    requests, client_errors, server_errors = await _charts_named(
-        metrics_db, MonitoringRange.DAY, "requests", "client_errors", "server_errors"
-    )
+    requests, server_errors = await _charts_named(metrics_db, MonitoringRange.DAY, "requests", "server_errors")
 
-    assert [index for index, value in enumerate(requests.buckets) if value is None] == [200, 250]
+    assert None not in requests.buckets
     assert requests.buckets[50] == pytest.approx((8 + 8 + 6 + 6 + 6) / 5)
-    assert client_errors.buckets[100] == pytest.approx(3 / 5)
+    assert requests.buckets[100] == pytest.approx((5 * 6 + 3) / 5)
+    assert requests.buckets[200] == pytest.approx(6.0)
+    assert requests.buckets[250] == pytest.approx(6.0)
     assert server_errors.buckets[149:152] == pytest.approx([0.0, 4.0, 0.0])
-    assert server_errors.buckets[200] is None
+    assert server_errors.buckets[200] == pytest.approx(0.0)
 
 
 async def test_read_metrics__when_loop_lag_spikes_once_in_a_long_bucket__should_keep_the_spike(tmp_path):

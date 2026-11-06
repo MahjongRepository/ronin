@@ -13,6 +13,7 @@
         <a href="{{ choice.url }}" class="monitoring-range"{% if choice.is_current %} aria-current="page"{% endif %}>{{ choice.label }}</a>
         {% endfor %}
     </nav>
+    <p class="monitoring-chart-note monitoring-range-note">{{ t("monitoring.range.times_utc") }}{% if collected_since %} · {{ t("monitoring.range.collected_since", time=collected_since) }}{% endif %}</p>
 
     <div class="monitoring-panels">
         <article class="monitoring-panel">
@@ -75,10 +76,12 @@
                 {% if chart.plot %}
                 <span class="monitoring-chart-axis">{{ t(chart.unit_key, value=format_decimal(chart.plot.axis_maximum)) }}</span>
                 <svg class="monitoring-chart-plot" viewBox="0 0 {{ plot_width }} {{ plot_height }}" preserveAspectRatio="none" aria-hidden="true">
+                    <line class="monitoring-chart-grid" x1="0" y1="{{ plot_height / 2 }}" x2="{{ plot_width }}" y2="{{ plot_height / 2 }}"/>
                     {% for line in chart.plot.lines %}
                     <polyline points="{{ line }}"/>
                     {% endfor %}
                 </svg>
+                <div class="monitoring-chart-times" aria-hidden="true">{% for label in time_axis %}<span>{{ label }}</span>{% endfor %}</div>
                 {% else %}
                 <p class="monitoring-chart-note">{{ t("monitoring.chart.no_samples") }}</p>
                 {% endif %}

@@ -3,7 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from lobby.monitoring.gauges import SAMPLE_INTERVAL_SECONDS, BucketWindow, ChartGroup, ChartUnit, SeriesRows
+from lobby.monitoring.gauges import (
+    SAMPLE_INTERVAL_SECONDS,
+    SERVICES,
+    BucketWindow,
+    ChartGroup,
+    ChartUnit,
+    SeriesRows,
+)
 
 if TYPE_CHECKING:
     import sqlite3
@@ -44,19 +51,6 @@ class Counter:
     retention_days: int | None = None
 
 
-def _pressure(resource: str) -> Counter:
-    return Counter(
-        group=ChartGroup.HOST,
-        name=f"pressure_{resource}",
-        unit=ChartUnit.PERCENT,
-        table="pressure",
-        value="100.0 * total / 1e6",
-        series_key="resource || ' ' || type",
-        series="resource = ? AND type = 'some'",
-        series_params=(resource,),
-    )
-
-
 def _service_counter(service: str, *, name: str, unit: ChartUnit, value: str, basis: str | None) -> Counter:
     return Counter(
         group=ChartGroup.SERVICES,
@@ -75,13 +69,12 @@ def _game_status(group: ChartGroup, name: str, *, unit: ChartUnit, value: str, b
     return Counter(group=group, name=name, unit=unit, table="game_status", value=value, series_key="1", basis=basis)
 
 
-def _game_per_minute(group: ChartGroup, column: str) -> Counter:
-    return _game_status(group, column, unit=ChartUnit.PER_MINUTE, value=column)
+def _game_per_minute(group: ChartGroup, name: str, *columns: str) -> Counter:
+    return _game_status(group, name, unit=ChartUnit.PER_MINUTE, value=" + ".join(columns))
 
 
 _TRAEFIK_SERIES_KEY = "router || ' ' || code || ' ' || method || ' ' || protocol"
 _PLAIN_HTTP_ROUTERS = "router NOT LIKE 'lobby-ws@%' AND router NOT LIKE 'game-ws@%'"
-_GAME_SOCKET_ROUTER = "router LIKE 'game-ws@%' AND protocol = 'websocket' AND code = '0'"
 _TRAEFIK_COUNT = "traefik_router_request_duration_seconds_count"
 _TRAEFIK_DURATION = "traefik_router_request_duration_seconds_sum"
 _SERIES_EXPORTED_AFTER_FIRST_EVENT_TOTALS_RESET_TOGETHER = {"traefik": (_TRAEFIK_COUNT, _TRAEFIK_DURATION)}
@@ -111,52 +104,27 @@ COUNTERS = (
         series_key="cpu",
         basis=f"{_HOST_CPU_BUSY} + {_HOST_CPU_IDLE}",
     ),
-    Counter(
-        group=ChartGroup.HOST,
-        name="network_in",
-        unit=ChartUnit.KIB_PER_SECOND,
-        table="net",
-        value="bytes_recv",
-        series_key="interface",
-    ),
-    Counter(
-        group=ChartGroup.HOST,
-        name="network_out",
-        unit=ChartUnit.KIB_PER_SECOND,
-        table="net",
-        value="bytes_sent",
-        series_key="interface",
-    ),
-    _pressure("cpu"),
-    _pressure("memory"),
-    _pressure("io"),
     *(
         _service_counter(
             service, name="cpu", unit=ChartUnit.CORES, value="cpu_stat_usage_usec / 1e6", basis="timestamp"
         )
-        for service in ("traefik", "lobby", "game")
+        for service in SERVICES
     ),
-    *(
-        _service_counter(service, name="oom_kills", unit=ChartUnit.COUNT, value="memory_events_oom_kill", basis=None)
-        for service in ("traefik", "lobby", "game")
+    Counter(
+        group=ChartGroup.SERVICES,
+        name="oom_kills",
+        unit=ChartUnit.COUNT,
+        table="cgroup",
+        value="memory_events_oom_kill",
+        series_key="path",
+        series="path LIKE ?",
+        series_params=("%/ronin-%.slice",),
+        basis=None,
     ),
-    *(
-        _game_per_minute(ChartGroup.GAME, column)
-        for column in (
-            "timeouts_turn",
-            "timeouts_meld",
-            "timeouts_round_advance",
-            "ai_replacements",
-            "reconnects",
-            "takeovers",
-            "resyncs",
-        )
-    ),
-    _game_per_minute(ChartGroup.SOCKETS, "connections_accepted"),
+    _game_per_minute(ChartGroup.GAME, "timeouts", "timeouts_turn", "timeouts_meld", "timeouts_round_advance"),
+    _game_per_minute(ChartGroup.GAME, "ai_replacements", "ai_replacements"),
+    _game_per_minute(ChartGroup.GAME, "reconnects", "reconnects"),
     _game_status(ChartGroup.SOCKETS, "messages_in", unit=ChartUnit.PER_SECOND, value="messages_in"),
-    _game_status(ChartGroup.SOCKETS, "messages_out", unit=ChartUnit.PER_SECOND, value="messages_out"),
-    _game_status(ChartGroup.SOCKETS, "bytes_in", unit=ChartUnit.KIB_PER_SECOND, value="bytes_in"),
-    _game_status(ChartGroup.SOCKETS, "bytes_out", unit=ChartUnit.KIB_PER_SECOND, value="bytes_out"),
     _game_status(
         ChartGroup.SOCKETS,
         "handling_time",
@@ -164,12 +132,11 @@ COUNTERS = (
         value="handling_seconds",
         basis="handled_messages",
     ),
-    _game_per_minute(ChartGroup.SOCKETS, "malformed_messages"),
-    _game_per_minute(ChartGroup.SOCKETS, "rate_limited_messages"),
-    *(
-        _game_per_minute(ChartGroup.SOCKETS, f"closes_{code}")
-        for code in ("1000", "1008", "1011", "4001", "4002", "4004")
+    _game_per_minute(ChartGroup.SOCKETS, "rejected_messages", "malformed_messages", "rate_limited_messages"),
+    _game_per_minute(
+        ChartGroup.SOCKETS, "abnormal_closes", *(f"closes_{code}" for code in ("1008", "1011", "4001", "4004"))
     ),
+    _traefik("requests", unit=ChartUnit.PER_MINUTE, value=_TRAEFIK_COUNT, series=_PLAIN_HTTP_ROUTERS),
     _traefik(
         "response_time",
         unit=ChartUnit.MILLISECONDS,
@@ -177,26 +144,11 @@ COUNTERS = (
         series=_PLAIN_HTTP_ROUTERS,
         basis=_TRAEFIK_COUNT,
     ),
-    _traefik("requests", unit=ChartUnit.PER_MINUTE, value=_TRAEFIK_COUNT, series=_PLAIN_HTTP_ROUTERS),
-    _traefik(
-        "client_errors",
-        unit=ChartUnit.PER_MINUTE,
-        value=_TRAEFIK_COUNT,
-        series=f"{_PLAIN_HTTP_ROUTERS} AND code LIKE '4%'",
-    ),
     _traefik(
         "server_errors",
         unit=ChartUnit.PER_MINUTE,
         value=_TRAEFIK_COUNT,
         series=f"{_PLAIN_HTTP_ROUTERS} AND code LIKE '5%'",
-    ),
-    _traefik("game_sockets_closed", unit=ChartUnit.PER_MINUTE, value=_TRAEFIK_COUNT, series=_GAME_SOCKET_ROUTER),
-    _traefik(
-        "game_socket_lifetime",
-        unit=ChartUnit.SECONDS,
-        value=_TRAEFIK_DURATION,
-        series=_GAME_SOCKET_ROUTER,
-        basis=_TRAEFIK_COUNT,
     ),
 )
 
@@ -247,37 +199,53 @@ class _FamilyColumns:
         return self.conditions.index((counter.series, counter.series_params))
 
 
-def _counter_rate(counter: Counter, columns: _FamilyColumns) -> str:
+def _counter_parts(counter: Counter, columns: _FamilyColumns, index: int) -> str:
     """
-    Return the SQL of the counter's bucket value over the per-series bucket sums, None for a bucket holding an invalid
-    interval of any of its series.
+    Return the SQL of the counter's per-series bucket sums over its valid intervals: the delta of its value as
+    ``numerator_{index}``, and of its basis (the covered seconds for a ``timestamp`` basis) as ``denominator_{index}``.
     """
-    selected = f"FILTER (WHERE in_{columns.condition(counter)})"
     value = columns.value(counter.value)
-    rising = [f"rising_{value}"]
+    valid = [f"in_{columns.condition(counter)}", f"rising_{value}"]
+    if counter.basis not in {None, "timestamp"}:
+        valid.append(f"rising_{columns.value(counter.basis)}")
+    selected = f"FILTER (WHERE {' AND '.join(valid)})"
     if counter.basis is None:
-        rate = f"sum(delta_{value}) {selected}"
+        denominator = "NULL"
     elif counter.basis == "timestamp":
-        rate = f"sum(CAST(delta_{value} AS REAL) / seconds) {selected}"
+        denominator = f"sum(seconds) {selected}"
     else:
         basis = columns.value(counter.basis)
-        rising.append(f"rising_{basis}")
-        rate = f"CAST(sum(delta_{value}) {selected} AS REAL) / sum(delta_{basis}) {selected}"
-    return f"CASE WHEN min(min(steady, {', '.join(rising)})) {selected} THEN {rate} END"
+        denominator = f"sum(value_{basis} - previous_value_{basis}) {selected}"
+    return (
+        f"sum(value_{value} - previous_value_{value}) {selected} AS numerator_{index}, "
+        f"{denominator} AS denominator_{index}"
+    )
+
+
+def _counter_rate(counter: Counter, index: int) -> str:
+    """
+    Return the SQL of the counter's bucket value from the per-series sums, None for a bucket without a valid interval.
+    """
+    if counter.basis is None:
+        return f"sum(numerator_{index})"
+
+    if counter.basis == "timestamp":
+        return f"sum(CAST(numerator_{index} AS REAL) / denominator_{index})"
+
+    return f"CAST(sum(numerator_{index}) AS REAL) / nullif(sum(denominator_{index}), 0)"
 
 
 def _bucket_rates(
     connection: sqlite3.Connection, *, family: tuple[Counter, ...], window: BucketWindow
 ) -> list[dict[int, float | None]]:
     """
-    Reduce the intervals ending inside the window to one rate per bucket that holds any, for each counter of a family
-    (one table and series key) in one pass over its rows.
+    Reduce the intervals ending inside the window to one rate per bucket that holds a valid one, for each counter of a
+    family (one table and series key) in one pass over its rows.
 
-    Each sample is paired with its predecessor in the same series, the last one before the window included. A series'
-    first sample ever has none and adds nothing, so a series first seen mid-range never empties a bucket, while a sample
-    whose predecessor lies before the loaded rows ends a gap. An interval is invalid when the counter or its basis went
-    down, the reset identity changed, or the samples are more than ``MAX_SAMPLE_SPACING_SECONDS`` apart; a bucket
-    holding any invalid interval is None, so a reset or a short outage inside a long bucket still breaks the line.
+    Each sample is paired with its predecessor in the same series, the last one before the window included. An interval
+    is skipped when the samples are more than ``MAX_SAMPLE_SPACING_SECONDS`` apart, the reset identity changed, or the
+    counter or its basis went down, so a restart or a missed sample costs only its own interval and a bucket is None
+    only when none of its intervals is valid. A rate divides by the seconds the valid intervals cover.
     """
     table, series_key = family[0].table, family[0].series_key
     identity = _RESET_IDENTITIES.get(table, "boot")
@@ -287,17 +255,11 @@ def _bucket_rates(
     conditions = [f"({condition}) AS in_{m}" for m, (condition, _params) in enumerate(columns.conditions)]
     sample_columns = ", ".join([*conditions, *(f"{expression} AS value_{j}" for j, expression in values)])
     lag_columns = ", ".join(f"lag(value_{j}) OVER previous AS previous_value_{j}" for j, _expression in values)
-    bucket_columns = ", ".join(
-        [
-            *(f"in_{m}" for m in range(len(conditions))),
-            *(
-                f"sum(value_{j} - previous_value_{j}) AS delta_{j}, "
-                f"min(coalesce(value_{j} >= previous_value_{j}, 0)) AS rising_{j}"
-                for j, _expression in values
-            ),
-        ]
+    rising_columns = ", ".join(
+        f"coalesce(value_{j} >= previous_value_{j}, 0) AS rising_{j}" for j, _expression in values
     )
-    rate_columns = ", ".join(_counter_rate(counter, columns) for counter in family)
+    part_columns = ", ".join(_counter_parts(counter, columns, index) for index, counter in enumerate(family))
+    rate_columns = ", ".join(_counter_rate(counter, index) for index, counter in enumerate(family))
     rows = connection.execute(
         "WITH samples AS (SELECT * FROM ("  # noqa: S608 - module constants only
         f"SELECT timestamp, {series_key} AS series, {identity} AS identity, {sample_columns} FROM {table} "
@@ -306,21 +268,20 @@ def _bucket_rates(
         "SELECT *, lag(timestamp) OVER previous AS previous_timestamp, "
         f"lag(identity) OVER previous AS previous_identity, {lag_columns} "
         "FROM samples WINDOW previous AS (PARTITION BY series ORDER BY timestamp)"
+        "), intervals AS ("
+        f"SELECT *, timestamp - previous_timestamp AS seconds, {rising_columns} FROM lagged "
+        f"WHERE timestamp >= ? AND timestamp - previous_timestamp <= {MAX_SAMPLE_SPACING_SECONDS} "
+        "AND identity = previous_identity"
         "), series_buckets AS ("
-        "SELECT (timestamp - ?) / ? AS bucket, sum(timestamp - previous_timestamp) AS seconds, "
-        f"min(coalesce(timestamp - previous_timestamp <= {MAX_SAMPLE_SPACING_SECONDS} "
-        f"AND identity = previous_identity, 0)) AS steady, {bucket_columns} "
-        "FROM lagged WHERE timestamp >= ? AND (previous_timestamp IS NOT NULL OR EXISTS ("
-        f"SELECT 1 FROM {table} WHERE timestamp < ? AND {series_key} = lagged.series)) GROUP BY bucket, series"
+        f"SELECT (timestamp - ?) / ? AS bucket, {part_columns} FROM intervals GROUP BY bucket, series"
         f") SELECT bucket, {rate_columns} FROM series_buckets GROUP BY bucket",
         (
             *(param for _condition, params in columns.conditions for param in params),
             loaded_from,
             window.start + window.count * window.width,
             window.start,
-            window.width,
             window.start,
-            loaded_from,
+            window.width,
         ),
     ).fetchall()
     return [{row[0]: row[i + 1] for row in rows} for i in range(len(family))]
@@ -329,11 +290,10 @@ def _bucket_rates(
 def _scrape_tick_rate(counter: Counter, columns: _FamilyColumns) -> str:
     value = f"events_{columns.value(counter.value)}_{columns.condition(counter)}"
     if counter.basis == "timestamp":
-        rate = f"CAST(coalesce({value}, 0) AS REAL) / seconds"
-    else:
-        basis = f"events_{columns.values.index(counter.basis)}_{columns.condition(counter)}"
-        rate = f"CAST({value} AS REAL) / nullif({basis}, 0)"
-    return f"CASE WHEN valid THEN {rate} END"
+        return f"CAST(coalesce({value}, 0) AS REAL) / seconds"
+
+    basis = f"events_{columns.values.index(counter.basis)}_{columns.condition(counter)}"
+    return f"CAST({value} AS REAL) / nullif({basis}, 0)"
 
 
 def _scrape_tick_rates(
@@ -344,11 +304,12 @@ def _scrape_tick_rates(
     restarts (Traefik), to one value per bucket that holds a scrape interval.
 
     The table's distinct sample timestamps are the scrape ticks, the last one before the window included. A tick
-    interval is valid when both ticks share a ``boot`` and lie at most ``MAX_SAMPLE_SPACING_SECONDS`` apart; a bucket
-    holding any other interval is None, and the first tick ever only sets a baseline. Within a valid interval a series
-    present at the previous tick with no counter gone down adds its deltas; any other series (new, back after an
-    exporter restart, or reset) adds its whole totals. Rates divide by the bucket's covered seconds, common to every
-    series, so a bucket with valid ticks and no matching series is a true zero; a mean over no events is None.
+    interval is valid when both ticks share a ``boot`` and lie at most ``MAX_SAMPLE_SPACING_SECONDS`` apart; any other
+    interval is skipped, a bucket without a valid one is None, and the first tick ever only sets a baseline. Within a
+    valid interval a series present at the previous tick with no counter gone down adds its deltas; any other series
+    (new, back after an exporter restart, or reset) adds its whole totals. Rates divide by the seconds the bucket's
+    valid intervals cover, common to every series, so a bucket with valid ticks and no matching series is a true zero; a
+    mean over no events is None.
     """
     table, series_key = family[0].table, family[0].series_key
     end = window.start + window.count * window.width
@@ -386,8 +347,8 @@ def _scrape_tick_rates(
         f"AND timestamp - lag(timestamp) OVER in_order BETWEEN 1 AND {MAX_SAMPLE_SPACING_SECONDS}, 0) AS valid "
         "FROM ticks WINDOW in_order AS (ORDER BY timestamp)"
         "), coverage AS ("
-        "SELECT (timestamp - ?) / ? AS bucket, min(valid) AS valid, sum(timestamp - previous_tick) AS seconds "
-        "FROM tick_intervals WHERE timestamp >= ? AND previous_tick IS NOT NULL GROUP BY bucket"
+        "SELECT (timestamp - ?) / ? AS bucket, sum(timestamp - previous_tick) AS seconds "
+        "FROM tick_intervals WHERE timestamp >= ? AND valid GROUP BY bucket"
         "), samples AS ("
         f"SELECT timestamp, {series_key} AS series, {sample_columns} FROM {table} "
         "WHERE timestamp >= ? AND timestamp < ?"
@@ -396,7 +357,7 @@ def _scrape_tick_rates(
         "FROM samples WINDOW previous AS (PARTITION BY series ORDER BY timestamp)"
         "), marked AS ("
         f"SELECT lagged.*, coalesce({continued}, 0) AS continued "
-        "FROM lagged JOIN tick_intervals USING (timestamp) WHERE timestamp >= ? AND previous_tick IS NOT NULL"
+        "FROM lagged JOIN tick_intervals USING (timestamp) WHERE timestamp >= ? AND valid"
         "), events AS ("
         f"SELECT (timestamp - ?) / ? AS bucket, {event_columns} FROM marked GROUP BY bucket"
         f") SELECT bucket, {rate_columns} FROM coverage LEFT JOIN events USING (bucket)",
@@ -450,7 +411,7 @@ def read_counter_family(
     Reduce each counter of a family to one rate per bucket of the window in SQL, and read its newest sample.
 
     A counter's latest value is the rate of the intervals ending in the sample interval up to its newest sample, None
-    when one of them is invalid.
+    when none of them is valid.
     """
     rates = _family_rates(connection, family=family, window=window)
     return [

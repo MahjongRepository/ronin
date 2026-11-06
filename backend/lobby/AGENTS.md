@@ -52,7 +52,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   collected, a newest value older than three minutes is stale, any other read failure is unavailable
   (logged), and the page still answers 200 with the games section. Traefik exports a series only after
   its first request and drops them all on a restart, so its charts take their state from the newest
-  scrape of any router, and a quiet series reads a current 0.
+  scrape of any router, and a quiet series reads a current 0. A range longer than the collected history
+  is charted from the oldest sample, and a counter interval across a gap or reset is skipped, never
+  blanking its whole bucket: a long range's buckets span hours and every deploy restarts the counters.
 * `players.py` — `LobbyPlayer`, one connected user and the only holder of its socket. Every send or
   close is an enqueue, so no handler, broadcast or reaper tick ever waits on a slow or dead peer.
 * `occupancy.py` — the one owner of the occupancy rule.

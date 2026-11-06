@@ -18,6 +18,8 @@ exactly what the admin page `/admin/monitoring` shows for that range, computed b
 
 - `chart_groups`: `host`, `services`, `game`, `sockets`, `traefik`, `storage`, each a list of charts
   with `name`, `unit`, `state`, `latest`, `bucketed` and `retention_days`.
+- `charted_from`, `charted_to`: the Unix seconds the buckets span. A range longer than the collected
+  history starts at the oldest sample (`starts_at_oldest_sample: true`).
 - `games`: games **started** in the range by how they ended, and the completed games' mean, median
   and p90 duration in seconds (`completed_durations` is null without a completed game).
 - `live_status`: the game server's `active_games` and `pending_games` now, or `"unavailable"` when it
@@ -30,21 +32,23 @@ exactly what the admin page `/admin/monitoring` shows for that range, computed b
   source stopped), `never_collected` (no file, table, column or series yet), `unavailable` (the read
   failed). Only `current` describes now; say which state a number came from. Traefik charts take it
   from the newest scrape of any router, so a quiet series (no 5xx yet) is a current 0.
-- **`unit`**: the display unit the values are already in: `percent`, `gib`, `mib`,
-  `kib_per_second`, `cores` (CPU seconds per second), `count`, `per_second`, `per_minute`,
-  `milliseconds`, `seconds`.
+- **`unit`**: the display unit the values are already in: `percent`, `mib`, `cores` (CPU seconds
+  per second), `count`, `per_second`, `per_minute`, `milliseconds`.
 - **Null is never zero.** A missing value, an empty bucket and an unknown age are `null`. `latest.value`
   is null when the newest sample gives no reading (a counter's first sample after a restart).
 - **`bucketed` is over buckets, not raw samples.** The range is cut into at most 300 buckets; each
   bucket is the mean of its samples (a rate over its interval for counters, the peak for loop lag).
   `mean` and `max` are over the non-empty buckets, so a one-minute spike in a long range is smoothed
-  inside its bucket. `empty_buckets` counts buckets with nothing to show: a missed minute, a counter
-  reset, or time before collection started. `bucketed` is null for a chart with no data.
+  inside its bucket. A counter's interval across a missed sample or a restart is skipped, so a bucket
+  is empty only when none of its intervals is valid (or, for a mean such as handling or response
+  time, nothing happened). `bucketed` is null for a chart with no data.
 - **Traefik keeps 30 days.** For a longer range its charts carry `retention_days: 30`: the older part
   was never collected, not quiet.
-- **The `game-ws` numbers are closed connections.** Traefik records a WebSocket request when it ends,
-  so `traefik.game_sockets_closed` counts disconnects and `traefik.game_socket_lifetime` is how long
-  those sockets lived. Sockets opened per minute are `sockets.connections_accepted`.
+- **Combined charts.** `game.timeouts` sums turn, meld-call and round-advance timeouts;
+  `sockets.rejected_messages` malformed and rate-limited frames; `sockets.abnormal_closes` the server's
+  1008, 1011, 4001 and 4004 close requests; `services.oom_kills` every service. Their parts, and the
+  counters the page does not chart (messages out, bytes, sockets opened, takeovers, resyncs, 1000 and
+  4002 closes), are columns of `game_status` for Step 3.
 
 ## Step 3: Ad-hoc SQL when the report is not enough
 

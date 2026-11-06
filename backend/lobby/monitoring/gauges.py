@@ -13,6 +13,7 @@ MAX_BUCKETS = 300
 BACKUP_STAMP_NAME = "last-backup"
 SAMPLE_INTERVAL_SECONDS = 60
 _BUCKET_EDGE_SECOND = 30
+SERVICES = ("traefik", "lobby", "game")
 
 
 class ChartGroup(StrEnum):
@@ -30,15 +31,12 @@ class ChartUnit(StrEnum):
     """
 
     PERCENT = "percent"
-    GIB = "gib"
     MIB = "mib"
-    KIB_PER_SECOND = "kib_per_second"
     CORES = "cores"
     COUNT = "count"
     PER_SECOND = "per_second"
     PER_MINUTE = "per_minute"
     MILLISECONDS = "milliseconds"
-    SECONDS = "seconds"
 
     @property
     def divisor(self) -> float:
@@ -47,15 +45,12 @@ class ChartUnit(StrEnum):
 
 _UNIT_DIVISORS = {
     ChartUnit.PERCENT: 1.0,
-    ChartUnit.GIB: float(2**30),
     ChartUnit.MIB: float(2**20),
-    ChartUnit.KIB_PER_SECOND: float(2**10),
     ChartUnit.CORES: 1.0,
     ChartUnit.COUNT: 1.0,
     ChartUnit.PER_SECOND: 1.0,
     ChartUnit.PER_MINUTE: 1 / 60,
     ChartUnit.MILLISECONDS: 1e-3,
-    ChartUnit.SECONDS: 1.0,
 }
 
 
@@ -73,16 +68,30 @@ class BucketWindow:
     count: int
 
 
-def bucket_window(duration: timedelta, *, now: int) -> BucketWindow:
+def bucket_window(duration: timedelta, *, now: int, collected_from: int | None) -> BucketWindow:
     """
     Split the ``duration`` up to ``now`` into at most ``MAX_BUCKETS`` buckets, the last one holding the sample of the
     latest whole minute at or before ``now``.
+
+    A range reaching back past ``collected_from``, the collector's oldest sample, starts at it instead, so a history
+    shorter than the range fills the chart rather than a sliver at its right edge.
     """
-    seconds = int(duration.total_seconds())
-    width = SAMPLE_INTERVAL_SECONDS * math.ceil(seconds / (MAX_BUCKETS * SAMPLE_INTERVAL_SECONDS))
     end = now - now % SAMPLE_INTERVAL_SECONDS + _BUCKET_EDGE_SECOND
+    seconds = int(duration.total_seconds())
+    if collected_from is not None:
+        seconds = max(min(seconds, end - collected_from), SAMPLE_INTERVAL_SECONDS)
+
+    width = SAMPLE_INTERVAL_SECONDS * math.ceil(seconds / (MAX_BUCKETS * SAMPLE_INTERVAL_SECONDS))
     count = math.ceil(seconds / width)
     return BucketWindow(start=end - count * width, width=width, count=count)
+
+
+def read_collected_from(connection: sqlite3.Connection) -> int | None:
+    """
+    Return the Unix timestamp of the collector's oldest host memory sample, sampled every run, or None before the first.
+    """
+    (oldest,) = connection.execute("SELECT min(timestamp) FROM mem").fetchone()
+    return oldest
 
 
 @dataclass(frozen=True)
@@ -118,8 +127,7 @@ def _service_memory(service: str) -> Gauge:
 
 
 GAUGES = (
-    Gauge(group=ChartGroup.HOST, name="memory_used", unit=ChartUnit.GIB, table="mem", value="used"),
-    Gauge(group=ChartGroup.HOST, name="memory_available", unit=ChartUnit.GIB, table="mem", value="available"),
+    Gauge(group=ChartGroup.HOST, name="memory_used", unit=ChartUnit.PERCENT, table="mem", value="100.0 * used / total"),
     Gauge(
         group=ChartGroup.HOST,
         name="disk_used",
@@ -129,13 +137,8 @@ GAUGES = (
         series="path = ?",
         series_params=("/",),
     ),
-    _service_memory("traefik"),
-    _service_memory("lobby"),
-    _service_memory("game"),
+    *(_service_memory(service) for service in SERVICES),
     Gauge(group=ChartGroup.GAME, name="active_games", unit=ChartUnit.COUNT, table="game_status", value="active_games"),
-    Gauge(
-        group=ChartGroup.GAME, name="pending_games", unit=ChartUnit.COUNT, table="game_status", value="pending_games"
-    ),
     Gauge(
         group=ChartGroup.GAME,
         name="loop_lag_max",
@@ -152,14 +155,6 @@ GAUGES = (
         table="filestat",
         value="size_bytes",
         series=f"file NOT LIKE '%-wal' AND file NOT LIKE '%{BACKUP_STAMP_NAME}'",
-    ),
-    Gauge(
-        group=ChartGroup.STORAGE,
-        name="database_wal",
-        unit=ChartUnit.MIB,
-        table="filestat",
-        value="size_bytes",
-        series="file LIKE '%-wal'",
     ),
     Gauge(group=ChartGroup.STORAGE, name="replays", unit=ChartUnit.MIB, table="filecount", value="size_bytes"),
 )

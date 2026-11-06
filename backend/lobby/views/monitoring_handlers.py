@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -35,6 +36,13 @@ class _CompletedDurations:
     mean: str
     median: str
     p90: str
+
+
+_SECONDS_PER_DAY = 86400
+_CLOCK_FORMAT = "%H:%M"
+_DAY_FORMAT = "%m-%d"
+_DAY_AND_CLOCK_FORMAT = "%m-%d %H:%M"
+_DAY_ONLY_AFTER_DAYS = 3
 
 
 @dataclass(frozen=True)
@@ -86,6 +94,26 @@ def _completed_durations(summary: GamesSummary, *, translate: Translate) -> _Com
         median=format_duration_seconds(durations.median_seconds, translate=translate),
         p90=format_duration_seconds(durations.p90_seconds, translate=translate),
     )
+
+
+def _time_axis(charted_from: int, charted_to: int) -> tuple[str, str, str]:
+    """
+    Label the charts' start, middle and end in UTC: clock times within a day, days with times up to
+    ``_DAY_ONLY_AFTER_DAYS``, days alone beyond.
+    """
+    span = charted_to - charted_from
+    if span <= _SECONDS_PER_DAY:
+        time_format = _CLOCK_FORMAT
+    elif span <= _DAY_ONLY_AFTER_DAYS * _SECONDS_PER_DAY:
+        time_format = _DAY_AND_CLOCK_FORMAT
+    else:
+        time_format = _DAY_FORMAT
+
+    start, middle, end = (
+        datetime.fromtimestamp(timestamp, UTC).strftime(time_format)
+        for timestamp in (charted_from, charted_from + span // 2, charted_to)
+    )
+    return start, middle, end
 
 
 def _chart_view(chart: Chart, *, translate: Translate) -> _ChartView:
@@ -143,6 +171,10 @@ async def monitoring_page(request: Request) -> Response:
             "last_backup_age": None
             if page.last_backup_age_seconds is None
             else format_duration_seconds(page.last_backup_age_seconds, translate=translate),
+            "time_axis": _time_axis(page.charted_from, page.charted_to),
+            "collected_since": datetime.fromtimestamp(page.charted_from, UTC).strftime(_DAY_AND_CLOCK_FORMAT)
+            if page.starts_at_oldest_sample
+            else None,
             "plot_width": PLOT_WIDTH,
             "plot_height": PLOT_HEIGHT,
         },

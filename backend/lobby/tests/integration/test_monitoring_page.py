@@ -55,7 +55,7 @@ class TestMonitoringPageCharts:
         assert response.status_code == 200
         states = _chart_states(response.text)
         assert set(states.values()) == {"never_collected"}
-        assert len(states) == 52
+        assert len(states) == 25
         assert {key.split(".")[0] for key in states} == {"host", "services", "game", "sockets", "traefik", "storage"}
         assert 'data-stat="last_backup">Unknown<' in response.text
         assert 'data-stat="started">0<' in response.text
@@ -114,16 +114,15 @@ class TestMonitoringPageCharts:
         states = {key: state for key, (state, _body) in charts.items()}
         assert {key for key, state in states.items() if state == "current"} == {
             "host.memory_used",
-            "host.memory_available",
             "host.disk_used",
             "storage.database",
-            "storage.database_wal",
         }
         assert {state for state in states.values() if state != "current"} == {"never_collected"}
         assert charts["host.memory_used"][1].count("<polyline") == 1
-        assert "Latest 3 GiB" in charts["host.memory_used"][1]
+        assert "Latest 75%" in charts["host.memory_used"][1]
         assert "Latest 25%" in charts["host.disk_used"][1]
-        assert "Latest 3 MiB" in charts["storage.database_wal"][1]
+        assert "Latest 3 MiB" in charts["storage.database"][1]
+        assert "Metrics collected since" in response.text
         assert 'data-stat="last_backup">Unknown<' in response.text
 
     def test_monitoring_page__when_metrics_file_is_not_a_database__should_show_charts_unavailable(

@@ -3,7 +3,7 @@
     flex-wrap: wrap;
     justify-content: flex-start;
     gap: 0.5rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.75rem;
 }
 
 .monitoring-range {
@@ -118,6 +118,13 @@
     border-bottom: 1px solid var(--ronin-control-border);
     border-left: 1px solid var(--ronin-control-border);
 
+    .monitoring-chart-grid {
+        stroke: var(--ronin-border-subtle);
+        stroke-width: 1;
+        stroke-dasharray: 4 4;
+        vector-effect: non-scaling-stroke;
+    }
+
     polyline {
         fill: none;
         stroke: var(--ronin-gold);
@@ -128,11 +135,24 @@
     }
 }
 
+.monitoring-chart-times {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--ronin-font-mono);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--ronin-text-muted);
+}
+
 .monitoring-chart-note {
     margin: 0;
     color: var(--ronin-text-muted);
 }
 
 .monitoring-group-stats {
+    margin-bottom: 1rem;
+}
+
+.monitoring-range-note {
     margin-bottom: 1rem;
 }

@@ -52,6 +52,9 @@ def monitoring_report(page: MonitoringPage, *, selected: MonitoringRange) -> dic
 
     return {
         "range": selected.value,
+        "charted_from": page.charted_from,
+        "charted_to": page.charted_to,
+        "starts_at_oldest_sample": page.starts_at_oldest_sample,
         "chart_groups": groups,
         "last_backup_age_seconds": page.last_backup_age_seconds,
         "games": page.games.model_dump(mode="json"),

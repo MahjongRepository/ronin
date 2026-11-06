@@ -37,6 +37,9 @@ async def test_monitoring_report__when_one_table_has_a_gap__should_report_values
     readings = await read_metrics(MonitoringRange.HOUR, metrics=MetricsReader(metrics_db), now=NOW)
     page = MonitoringPage(
         charts=readings.charts,
+        charted_from=readings.charted_from,
+        charted_to=readings.charted_to,
+        starts_at_oldest_sample=readings.starts_at_oldest_sample,
         games=GamesSummary.from_timings([]),
         live_status=None,
         last_backup_age_seconds=readings.last_backup_age_seconds,
@@ -46,13 +49,14 @@ async def test_monitoring_report__when_one_table_has_a_gap__should_report_values
 
     memory_used = next(chart for chart in report["chart_groups"]["host"] if chart["name"] == "memory_used")
     assert memory_used["state"] == "current"
-    assert memory_used["latest"] == {"value": 4.0, "age_seconds": 0}
+    assert memory_used["latest"] == {"value": 50.0, "age_seconds": 0}
     assert memory_used["bucketed"] == {
         "buckets": 60,
         "empty_buckets": 10,
-        "mean": pytest.approx((29 * 2 + 21 * 4) / 50),
-        "max": 4.0,
+        "mean": pytest.approx((29 * 25 + 21 * 50) / 50),
+        "max": 50.0,
     }
+    assert report["starts_at_oldest_sample"] is False
     assert {chart["state"] for chart in report["chart_groups"]["storage"]} == {"never_collected"}
     assert {(chart["latest"], chart["bucketed"]) for chart in report["chart_groups"]["storage"]} == {(None, None)}
     assert report["last_backup_age_seconds"] is None

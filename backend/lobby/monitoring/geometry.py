@@ -9,14 +9,15 @@ if TYPE_CHECKING:
 
 PLOT_WIDTH = 300
 PLOT_HEIGHT = 100
+PLOT_INSET = 3
 _NICE_STEPS = (1, 2, 5, 10)
 
 
 @dataclass(frozen=True)
 class ChartPlot:
     """
-    A chart drawn in a ``PLOT_WIDTH`` by ``PLOT_HEIGHT`` box with zero at the bottom: one SVG ``points`` list per
-    unbroken run of buckets, and the value at the top of the axis.
+    A chart drawn in a ``PLOT_WIDTH`` by ``PLOT_HEIGHT`` box with zero ``PLOT_INSET`` above the bottom, so a flat zero
+    line stays visible over the axis: one SVG ``points`` list per unbroken run of buckets, and the value at the top.
     """
 
     lines: tuple[str, ...]
@@ -52,7 +53,7 @@ def plot_buckets(buckets: Sequence[float | None]) -> ChartPlot | None:
             continue
 
         x = (index + 0.5) * PLOT_WIDTH / len(buckets)
-        y = PLOT_HEIGHT - value / top * PLOT_HEIGHT
+        y = PLOT_HEIGHT - PLOT_INSET - value / top * (PLOT_HEIGHT - 2 * PLOT_INSET)
         runs[-1].append(f"{x:.2f},{y:.2f}")
 
     lines = tuple(" ".join(run if len(run) > 1 else run * 2) for run in runs if run)
