@@ -119,7 +119,7 @@
     "game.notice.unreachable": "Cannot reach the game. Retrying…",
     "game.notice.unread": {
         "one": "The game server sent a message this page could not read, so the table may be wrong until the server sends it again; play goes on.",
-        "other": "The game server sent {count} messages this page could not read, so the table may be wrong until the server sends it again; play goes on."
+        "other": "The game server sent {count} messages this page could not read, so the table may be wrong until the server sends them again; play goes on."
     },
     "game.page.broken": "The game page ran into an error.",
     "game.page.title": "Ronin - Game",
@@ -196,13 +196,14 @@
     "game.settings.title": "Settings",
     "game.settings.title_with_status": "Settings, {status}",
     "game.sheet.note": "Play goes on beneath this sheet.",
-    "game.sheet.owed_bank_seconds": {
-        "one": "{move}: {count} s left in your time bank.",
-        "other": "{move}: {count} s left in your time bank."
+    "game.sheet.note_expired": "Play goes on beneath this sheet. {expired}",
+    "game.sheet.note_owed_bank_seconds": {
+        "one": "Play goes on beneath this sheet. {move}: {count} s left in your time bank.",
+        "other": "Play goes on beneath this sheet. {move}: {count} s left in your time bank."
     },
-    "game.sheet.owed_seconds": {
-        "one": "{move}: {count} s left.",
-        "other": "{move}: {count} s left."
+    "game.sheet.note_owed_seconds": {
+        "one": "Play goes on beneath this sheet. {move}: {count} s left.",
+        "other": "Play goes on beneath this sheet. {move}: {count} s left."
     },
     "game.state.nagashi": "Nagashi",
     "game.state.noten": "Noten",
@@ -256,6 +257,7 @@
     "game.timer.time_up": "Time up",
     "game.type.hanchan": "Hanchan",
     "game.type.tonpuu": "Tonpuu",
+    "list.separator": ", ",
     "replay.links.view_from": "View from {player}",
     "round.east_1": "East 1",
     "round.east_2": "East 2",

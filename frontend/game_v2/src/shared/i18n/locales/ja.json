@@ -85,7 +85,7 @@
     "game.hand.riichi_discard_tile": "{tile}を切ってリーチ",
     "game.help.decline": "{pass}で{ron}を見送ります。牌を切ると{tsumo}などの選択肢を見送ります。",
     "game.help.escape": "Esc: 閉じる、戻る、またはスキップ。右クリック: 同じ操作、またはツモった牌を切ります。",
-    "game.help.results": "結果: {next}、次に{ok}。{letters} は自動操作スイッチの印で、ショートカットキーではありません。",
+    "game.help.results": "結果: {next} → {ok}。{letters} は自動操作スイッチの印で、ショートカットキーではありません。",
     "game.help.tiles": "牌をクリックまたはタップすると切ります。← → で切れる牌を選び、Enter または Space で決定します。",
     "game.help.title": "操作方法",
     "game.leave.detail": "あなたの席はAIが代わりに打ちます。",
@@ -133,7 +133,7 @@
     "game.result.head_bump": "頭ハネ: {winners}の和了、{bumped}のロン無効",
     "game.result.honba_bonus": "本場 {points}",
     "game.result.indicators": "表示牌",
-    "game.result.last_hand": "最後の局",
+    "game.result.last_hand": "前局",
     "game.result.nagashi_by": "{names}が達成",
     "game.result.next": "次へ",
     "game.result.next_winner": "次の和了者",
@@ -172,7 +172,7 @@
     "game.score.yakuman_4": "四倍役満",
     "game.score.yakuman_5": "五倍役満",
     "game.score.yakuman_6": "六倍役満",
-    "game.seat.ai": "AI代打ち中",
+    "game.seat.ai": "この席はAIが打っています",
     "game.seat.ai_absent": "不在: AIが代打ちしています",
     "game.seat.ai_left": "切断中: AIが代打ちしています",
     "game.seat.ai_tag": "AI",
@@ -189,11 +189,12 @@
     "game.settings.title": "設定",
     "game.settings.title_with_status": "設定、{status}",
     "game.sheet.note": "この画面の下で対局は続いています。",
-    "game.sheet.owed_bank_seconds": {
-        "other": "{move}: 持ち時間の残り{count}秒。"
+    "game.sheet.note_expired": "この画面の下で対局は続いています。{expired}",
+    "game.sheet.note_owed_bank_seconds": {
+        "other": "この画面の下で対局は続いています。{move}: 持ち時間の残り{count}秒。"
     },
-    "game.sheet.owed_seconds": {
-        "other": "{move}: 残り{count}秒。"
+    "game.sheet.note_owed_seconds": {
+        "other": "この画面の下で対局は続いています。{move}: 残り{count}秒。"
     },
     "game.state.nagashi": "流し",
     "game.state.noten": "ノーテン",
@@ -245,6 +246,7 @@
     "game.timer.time_up": "時間切れ",
     "game.type.hanchan": "半荘戦",
     "game.type.tonpuu": "東風戦",
+    "list.separator": "、",
     "replay.links.view_from": "{player}の視点で見る",
     "round.east_1": "東一局",
     "round.east_2": "東二局",

@@ -109,6 +109,7 @@ APPS = (
                 "game.board.call",
                 "game.seat.ai_tag",
                 "game.seating.heading",
+                "list.separator",
                 "round.unknown",
                 "wind.short.unknown",
             }

@@ -583,7 +583,7 @@ describe("playDisplay notices", () => {
         scenario.step(clientEvent.message(100, { [WIRE_KEY.EVENT_TYPE]: 999 }));
         scenario.step(clientEvent.message(200, { [WIRE_KEY.EVENT_TYPE]: 999 }));
         expect(noticeTexts(scenario.state)).toEqual([
-            "The game server sent 2 messages this page could not read, so the table may be wrong until the server sends it again; play goes on.",
+            "The game server sent 2 messages this page could not read, so the table may be wrong until the server sends them again; play goes on.",
         ]);
         scenario.step(clientEvent.closed(300, 1006));
         scenario.step(clientEvent.tick(1300));

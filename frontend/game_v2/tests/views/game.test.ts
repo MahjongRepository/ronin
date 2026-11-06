@@ -402,7 +402,7 @@ describe("mountGameView", () => {
             host.querySelector(".game__play .board-notice--error .board-notice__body")?.textContent,
             host.querySelector(".log-entry"),
         ]).toEqual([
-            "The game server sent 2 messages this page could not read, so the table may be wrong until the server sends it again; play goes on.",
+            "The game server sent 2 messages this page could not read, so the table may be wrong until the server sends them again; play goes on.",
             null,
         ]);
         expect([socket.sent, socket.disconnected]).toEqual([[JOIN, buildResyncMessage()], false]);

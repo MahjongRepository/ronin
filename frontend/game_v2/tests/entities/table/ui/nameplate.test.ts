@@ -63,13 +63,13 @@ describe("Nameplates", () => {
     it("reads whose turn it is, why an AI player is marked, and each other plate's difference from the pinned one", () => {
         const host = renderPlates("right");
         expect(plate(host, "bottom").getAttribute("aria-label")).toBe(
-            "Alice, East, dealer, to play, and +6000 from Bot",
+            "Alice, East, dealer, to play, +6000 from Bot",
         );
         expect(plate(host, "right").getAttribute("aria-label")).toBe(
-            "Bot, South, 25,000 points, and An AI player plays this seat",
+            "Bot, South, 25,000 points, An AI player plays this seat",
         );
         expect(plate(host, "left").getAttribute("aria-label")).toBe(
-            "Dan, North, +1000 from Bot, and Disconnected: an AI player plays this seat",
+            "Dan, North, +1000 from Bot, Disconnected: an AI player plays this seat",
         );
         expect(plate(host, "right").querySelector(".nameplate__ai--ai")).not.toBeNull();
         expect(plate(host, "left").querySelector(".nameplate__ai--away")).not.toBeNull();

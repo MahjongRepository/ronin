@@ -410,23 +410,23 @@ const CLOSE_SETTINGS: PlayCommand = { kind: "close_settings" };
 const TOGGLE_SOUND: PlayCommand = { kind: "toggle_sound" };
 
 /** What goes on beneath a notice's sheet: play, and the decision or round confirm the player owes with its seconds. */
-function owedMove(countdown: NoticeSheetDisplay["countdown"]): TemplateResult | typeof nothing {
+function sheetNoteText(countdown: NoticeSheetDisplay["countdown"]): TemplateResult | string {
     if (countdown?.kind === "running") {
         const key =
             countdown.clock?.inBank === true
-                ? "game.sheet.owed_bank_seconds"
-                : "game.sheet.owed_seconds";
+                ? "game.sheet.note_owed_bank_seconds"
+                : "game.sheet.note_owed_seconds";
         const text = t(key, { count: countdown.secondsLeft, move: moveName(countdown.move) });
-        return html` ${withSecondsFigure(text, countdown.secondsLeft, "notice-sheet__seconds")}`;
+        return withSecondsFigure(text, countdown.secondsLeft, "notice-sheet__seconds");
     }
     if (countdown?.kind === "expired") {
-        return html` ${expiredSentence(countdown.move)}`;
+        return t("game.sheet.note_expired", { expired: expiredSentence(countdown.move) });
     }
-    return nothing;
+    return t("game.sheet.note");
 }
 
 function SheetNote(countdown: NoticeSheetDisplay["countdown"]): TemplateResult {
-    return html`<p class="notice-sheet__note">${t("game.sheet.note")}${owedMove(countdown)}</p>
+    return html`<p class="notice-sheet__note">${sheetNoteText(countdown)}</p>
         <span class="notice-sheet__announce" aria-live="polite">${countdownAnnouncement(countdown)}</span>`;
 }
 

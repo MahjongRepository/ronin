@@ -5,7 +5,7 @@ import {
     SEAT_POSITIONS,
     type SeatPosition,
 } from "@/entities/table/model/board-types";
-import { formatList, t } from "@/shared/i18n";
+import { t } from "@/shared/i18n";
 
 import { PlayerName } from "./player-name";
 import { RiichiStickIcon } from "./riichi-stick-icon";
@@ -66,7 +66,7 @@ function nameplateLabel({ pinnedOther, plate, position, pressed }: NameplateProp
         plate.aiMark?.words ?? null,
         viewWords(position, pressed),
     ].filter((mark) => mark !== null);
-    return formatList([plate.name, seat, ...marks]);
+    return [plate.name, seat, ...marks].join(t("list.separator"));
 }
 
 /** Where pressing a plate views from its seat: the bottom plate's is the seat viewed from, any other's is a choice. */
