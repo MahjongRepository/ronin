@@ -34,6 +34,7 @@ import {
     isDebugRequested,
     replayPageUrl,
 } from "@/shared/config";
+import { resolveLocale, t } from "@/shared/i18n";
 import {
     type SoundSource,
     createSoundPlayer,
@@ -177,6 +178,9 @@ function createStorybookRoutes(): Route[] {
         storybookRoute(/^\/play\/storybook$/, (routes) => routes.mountStorybookIndex),
     ];
 }
+
+document.documentElement.lang = resolveLocale(document.cookie, navigator.languages);
+document.title = t("game.page.title");
 
 const app = document.getElementById("app");
 if (app && !supportsBoardCss()) {

@@ -1,0 +1,9 @@
+{
+    "common.lobby": "Lobby",
+    "common.page_failed": "This page failed to load.",
+    "common.reload": "Reload",
+    "common.unsupported_browser": "Update to Chrome or Edge 108, Firefox 128, Safari 16.4 or newer, then open the game again.",
+    "common.unsupported_browser_title": "This browser is too old for the game",
+    "game.page.broken": "The game page ran into an error.",
+    "game.page.title": "Ronin - Game"
+}

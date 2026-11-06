@@ -1,5 +1,7 @@
 import { type TemplateResult, html, render } from "lit-html";
 
+import { t } from "@/shared/i18n";
+
 /** Undo a route's mount: cancel its timers, IO and listeners. */
 export type Unmount = () => void;
 
@@ -40,7 +42,7 @@ export function lazyRoute(pattern: RegExp, load: () => Promise<Mount>): Route {
                 }
                 const detail = error instanceof Error ? error.message : String(error);
                 console.error(`Route failed to load: ${detail}`);
-                render(html`<p class="route-error">This page failed to load: ${detail}</p>`, host);
+                render(html`<p class="route-error">${t("common.page_failed")}</p>`, host);
             });
             return () => {
                 disposed = true;

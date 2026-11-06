@@ -36,7 +36,11 @@ The board's look is `docs/game-client-look.md`; where it and any `AGENTS.md` or 
   `npm run build` keeps `dist/` production-only.
   Pico form rules and theme tokens, non-button links and the board debug overlay belong to the storybook stylesheet.
 * `package.json` `sideEffects` lists every module with an import-time effect; a new one goes there or the build drops it.
-* UI text is English literals; there are no catalogs. Game logic uses protocol codes and ids, never displayed text.
+* Every user-visible string goes through `t()` from `@/shared/i18n` (`docs/i18n.md`), with catalogs in
+  `src/shared/i18n/locales`. Maps hold `MessageKey`s, and a closed set is a literal key table; no `t()` runs at module
+  scope, and state keeps codes, translated only when shown. Debug output and storybook prose stay English. A
+  server-owned id family (yaku) builds its key and gets one test walking every id in all three locales. Game logic
+  uses protocol codes and ids, never displayed text.
 
 ## Structure
 

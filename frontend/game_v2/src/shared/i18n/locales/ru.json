@@ -1,0 +1,9 @@
+{
+    "common.lobby": "Лобби",
+    "common.page_failed": "Не удалось загрузить страницу.",
+    "common.reload": "Перезагрузить",
+    "common.unsupported_browser": "Обновите браузер до Chrome или Edge 108, Firefox 128, Safari 16.4 или новее, затем снова откройте игру.",
+    "common.unsupported_browser_title": "Браузер слишком старый для игры",
+    "game.page.broken": "На странице игры произошла ошибка.",
+    "game.page.title": "Игра · Ronin"
+}

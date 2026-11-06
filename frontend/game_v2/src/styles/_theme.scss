@@ -123,6 +123,12 @@
     --ronin-safe-left: env(safe-area-inset-left, 0px);
 }
 
+[lang="ja"] {
+    --ronin-font:
+        system-ui, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic",
+        meiryo, "Noto Sans CJK JP", "Noto Sans JP", sans-serif;
+}
+
 body {
     display: flex;
     flex-direction: column;

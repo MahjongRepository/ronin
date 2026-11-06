@@ -30,8 +30,8 @@ describe("lazyRoute", () => {
         await vi.waitFor(() => expect(error).toHaveBeenCalledTimes(2));
 
         expect(hosts.map((host) => host.querySelector(".route-error")?.textContent)).toEqual([
-            "This page failed to load: chunk 404",
-            "This page failed to load: mount broke",
+            "This page failed to load.",
+            "This page failed to load.",
         ]);
         error.mockRestore();
     });

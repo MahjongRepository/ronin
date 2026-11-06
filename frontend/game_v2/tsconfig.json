@@ -12,6 +12,7 @@
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true,
         "isolatedModules": true,
+        "resolveJsonModule": true,
         "types": ["vite/client"],
         "lib": ["ES2023", "DOM", "DOM.Iterable"]
     },

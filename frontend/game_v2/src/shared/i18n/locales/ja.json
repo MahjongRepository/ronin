@@ -1,0 +1,9 @@
+{
+    "common.lobby": "ロビー",
+    "common.page_failed": "このページを読み込めませんでした。",
+    "common.reload": "再読み込み",
+    "common.unsupported_browser": "Chrome / Edge 108、Firefox 128、Safari 16.4 以降に更新してから、もう一度ゲームを開いてください。",
+    "common.unsupported_browser_title": "お使いのブラウザはゲームには古すぎます",
+    "game.page.broken": "対局ページでエラーが発生しました。",
+    "game.page.title": "Ronin - 対局"
+}

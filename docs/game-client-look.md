@@ -586,11 +586,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 
 ## Out of scope
 
-Decided earlier and not reopened by this document: languages other than English (the ja
-and ru catalogs); player avatars, titles and other identity decoration beyond the badge; a
-tenpai mark (the hand's waits and their remaining counts, live or in a replay); and hints that
+Decided earlier and not reopened by this document: player avatars, titles and other identity
+decoration beyond the badge; a tenpai mark (the hand's waits and their remaining counts, live or in a replay); and hints that
 judge the hand for the player: what each discard would wait on, which discard reaches tenpai,
-shanten counts, safe tiles. The board gives no help beyond the state the server supplied.
+shanten counts, safe tiles. The board gives no help beyond the state the server supplied. The
+client is localized (ja, en, ru) under `docs/i18n.md`; this document names its English text.
 
 ## Proportions
 

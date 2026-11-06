@@ -29,6 +29,7 @@ import {
 import { type TileSprite } from "@/entities/tile";
 import { type HandoffRecovery, type RecoverHandoff, isAbortError } from "@/shared/api";
 import { type Clock } from "@/shared/clock";
+import { t } from "@/shared/i18n";
 import {
     type DeadlineTimer,
     type LocalStore,
@@ -252,8 +253,8 @@ function gameTemplate(props: GameViewProps): TemplateResult {
 function brokenTemplate(onReload: () => void): TemplateResult {
     return html`
         <div class="game game--broken" role="alert">
-            <p>The game page ran into an error.</p>
-            <button type="button" @click=${onReload}>Reload</button>
+            <p>${t("game.page.broken")}</p>
+            <button type="button" @click=${onReload}>${t("common.reload")}</button>
         </div>
     `;
 }

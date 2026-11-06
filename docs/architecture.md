@@ -464,10 +464,9 @@ honours this contract can replace it.
   the game end reaches the players before the server has saved the replay, so the replay may answer
   404 for a moment after it.
 * **Leaving:** the client returns players to the lobby at `/`.
-* **Language:** v2 is currently English-only, with literal UI text and no catalogs or language switch.
-  The lobby supports Japanese, English and Russian under `docs/i18n.md`. Future game-client
-  localization must follow that contract: resolve the `lang` cookie first, then the browser's supported
-  language, then English; an explicit language choice writes the same cookie so the lobby follows it.
+* **Language:** v2 speaks Japanese, English and Russian under the lobby's contract (`docs/i18n.md`),
+  with catalogs of its own. It resolves the language at page load: the `lang` cookie first, then the
+  first supported entry of `navigator.languages`, then English; it reads the cookie and never writes it.
   The game server sends codes, never text to show: errors carry a code beside an English diagnostic
   message the client does not display.
 * **CSP:** game pages allow scripts, styles and fonts from `'self'` (inline styles too) and WebSocket

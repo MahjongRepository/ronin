@@ -97,6 +97,12 @@ APPS = (
         identical_keys=frozenset({"nav.beta", "page.title.with_page"}),
         markup_roots=("backend/lobby/views/templates",),
     ),
+    App(
+        name="game client",
+        catalog_dir="frontend/game_v2/src/shared/i18n/locales",
+        source_roots=("frontend/game_v2/src",),
+        source_suffixes=frozenset({".ts"}),
+    ),
 )
 
 
