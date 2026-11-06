@@ -292,11 +292,23 @@ VERIFIED_GAMES=""
 BATCH_TIMES=()
 BATCH_TABLES=()
 BATCH_SERVER_TICKS=()
+BATCH_HANDLED_MESSAGES=()
+BATCH_MESSAGES_OUT=()
 TOTAL_START=0
 GAME_SERVER_PID=""
 
 server_cpu_ticks() {
     awk '{print $14 + $15}' "/proc/$GAME_SERVER_PID/stat"
+}
+
+server_status_counter() {
+    local key="$1"
+    local value
+    if ! value=$(curl -sf --max-time 5 "http://localhost:$GAME_PORT/status" | grep -oE "\"$key\": *[0-9]+" | grep -oE '[0-9]+$'); then
+        echo "cannot read $key from the game server's /status" >&2
+        return 1
+    fi
+    echo "$value"
 }
 
 print_stats() {
@@ -307,6 +319,8 @@ print_stats() {
     local games=0
     local play_seconds=0
     local server_ticks=0
+    local handled_messages=0
+    local messages_out=0
     echo ""
     echo "--- stats ---"
     for idx in "${!BATCH_TIMES[@]}"; do
@@ -314,15 +328,22 @@ print_stats() {
         games=$((games + BATCH_TABLES[idx]))
         play_seconds=$((play_seconds + BATCH_TIMES[idx]))
         server_ticks=$((server_ticks + BATCH_SERVER_TICKS[idx]))
+        handled_messages=$((handled_messages + BATCH_HANDLED_MESSAGES[idx]))
+        messages_out=$((messages_out + BATCH_MESSAGES_OUT[idx]))
     done
 
     echo ""
     echo "  total: $games game(s), ${play_seconds}s of play, $(( $(date +%s) - TOTAL_START ))s with verification"
-    awk -v games="$games" -v seconds="$play_seconds" -v ticks="$server_ticks" -v hz="$(getconf CLK_TCK)" 'BEGIN {
+    awk -v games="$games" -v seconds="$play_seconds" -v ticks="$server_ticks" -v hz="$(getconf CLK_TCK)" \
+        -v handled="$handled_messages" -v out="$messages_out" 'BEGIN {
         cpu = ticks / hz
         printf "  games per minute of play: %.1f\n", games * 60 / (seconds > 0 ? seconds : 1)
         printf "  game server CPU during play: %.2fs, %.3fs per game, %.0f%% of one core\n",
             cpu, cpu / games, 100 * cpu / (seconds > 0 ? seconds : 1)
+        printf "  game server CPU per handled message: %.1fµs over %d message(s)\n",
+            1e6 * cpu / (handled > 0 ? handled : 1), handled
+        printf "  game server CPU per outbound message: %.1fµs over %d message(s)\n",
+            1e6 * cpu / (out > 0 ? out : 1), out
     }'
 }
 
@@ -482,6 +503,8 @@ archive_failed_run() {
         echo "games: $PLAYED of $MAX_GAMES played, tables: $TABLES, profile: $PROFILE, mode: ${MODE:-default}, net: ${NET:-direct}"
         echo "batch seconds: ${BATCH_TIMES[*]}"
         echo "batch game server CPU ticks: ${BATCH_SERVER_TICKS[*]}"
+        echo "batch handled messages: ${BATCH_HANDLED_MESSAGES[*]}"
+        echo "batch messages out: ${BATCH_MESSAGES_OUT[*]}"
     } > "$FAILED_RUN_DIR/run.txt"
     echo "failed run kept in $FAILED_RUN_DIR"
 }
@@ -565,6 +588,8 @@ while [[ $PLAYED -lt $MAX_GAMES ]]; do
     echo "=== Games $((PLAYED + 1))-$((PLAYED + BATCH_SIZE)) of $MAX_GAMES ==="
 
     BATCH_START=$(date +%s)
+    HANDLED_START=$(server_status_counter handled_messages)
+    MESSAGES_OUT_START=$(server_status_counter messages_out)
     TICKS_START=$(server_cpu_ticks)
     start_bots "$BATCH" "$BATCH_SIZE"
     if ! wait_for_bots; then
@@ -573,6 +598,10 @@ while [[ $PLAYED -lt $MAX_GAMES ]]; do
     fi
 
     BATCH_SERVER_TICKS+=($(( $(server_cpu_ticks) - TICKS_START )))
+    HANDLED_END=$(server_status_counter handled_messages)
+    MESSAGES_OUT_END=$(server_status_counter messages_out)
+    BATCH_HANDLED_MESSAGES+=($(( HANDLED_END - HANDLED_START )))
+    BATCH_MESSAGES_OUT+=($(( MESSAGES_OUT_END - MESSAGES_OUT_START )))
     BATCH_ELAPSED=$(( $(date +%s) - BATCH_START ))
     BATCH_TIMES+=("$BATCH_ELAPSED")
     BATCH_TABLES+=("$BATCH_SIZE")
