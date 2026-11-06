@@ -4,6 +4,7 @@ import {
     type RoundEndResult,
     type WinnerResult,
 } from "@/entities/table/model/types";
+import { type MessageKey, formatList, t } from "@/shared/i18n";
 import { ROUND_RESULT_TYPE } from "@/shared/protocol";
 
 import { drawName } from "./draw-name";
@@ -11,18 +12,41 @@ import { formatPoints } from "./round-end-display";
 
 type NameOf = (seat: number) => string;
 
+type LoserRole = "none" | "dealt_in" | "kan_robbed";
+
+const RON_KEYS: Readonly<Record<LoserRole, MessageKey>> = {
+    dealt_in: "replay.outcome.ron_from",
+    kan_robbed: "replay.outcome.ron_robbed",
+    none: "replay.outcome.ron",
+};
+
+const DOUBLE_RON_KEYS: Readonly<Record<LoserRole, MessageKey>> = {
+    dealt_in: "replay.outcome.double_ron",
+    kan_robbed: "replay.outcome.double_ron_robbed",
+    none: "replay.outcome.double_ron_no_loser",
+};
+
 function nameOf(players: readonly PlayerState[]): NameOf {
-    return (seat) => players.find((player) => player.seat === seat)?.name ?? `Seat ${seat}`;
+    return (seat) =>
+        players.find((player) => player.seat === seat)?.name ??
+        t("game.seat.fallback_name", { seat });
 }
 
 function winnerPoints(winner: WinnerResult, name: NameOf): string {
-    const honba = winner.honbaBonus > 0 ? ` (+${formatPoints(winner.honbaBonus)} honba)` : "";
-    const pao = winner.pao === null ? "" : `, pao ${name(winner.pao.seat)}`;
-    return `${formatPoints(winner.handResult.points)}${honba}${pao}`;
+    const points = formatPoints(winner.handResult.points);
+    const honba = formatPoints(winner.honbaBonus);
+    const hasHonba = winner.honbaBonus > 0;
+    if (winner.pao === null) {
+        return hasHonba ? t("replay.outcome.points_honba", { honba, points }) : points;
+    }
+    const pao = name(winner.pao.seat);
+    return hasHonba
+        ? t("replay.outcome.points_honba_pao", { honba, pao, points })
+        : t("replay.outcome.points_pao", { pao, points });
 }
 
 function seatList(seats: readonly number[], name: NameOf): string {
-    return seats.map(name).join(", ");
+    return formatList(seats.map(name));
 }
 
 function drawSummary(draw: DrawResult, name: NameOf): string {
@@ -30,18 +54,29 @@ function drawSummary(draw: DrawResult, name: NameOf): string {
     switch (draw.kind) {
         case "exhaustive": {
             if (draw.tenpaiSeats.length === 0) {
-                return `${title}: all noten`;
+                return t("replay.outcome.all_noten", { draw: title });
             }
-            return `${title}: tenpai ${seatList(draw.tenpaiSeats, name)}`;
+            return t("replay.outcome.tenpai", {
+                draw: title,
+                players: seatList(draw.tenpaiSeats, name),
+            });
         }
         case "nagashi_mangan": {
-            return `${title}: ${seatList(draw.nagashiSeats, name)}`;
+            return t("replay.outcome.draw_seats", {
+                draw: title,
+                players: seatList(draw.nagashiSeats, name),
+            });
         }
         case "nine_terminals": {
-            return draw.declarerSeat === null ? title : `${title}: ${name(draw.declarerSeat)}`;
+            return draw.declarerSeat === null
+                ? title
+                : t("replay.outcome.draw_seats", { draw: title, players: name(draw.declarerSeat) });
         }
         case "triple_ron": {
-            return `${title}: ${seatList(draw.ronSeats, name)}`;
+            return t("replay.outcome.draw_seats", {
+                draw: title,
+                players: seatList(draw.ronSeats, name),
+            });
         }
         default: {
             return title;
@@ -49,38 +84,45 @@ function drawSummary(draw: DrawResult, name: NameOf): string {
     }
 }
 
-function loserPhrase(result: RoundEndResult, name: NameOf): string {
+function loserRole(result: RoundEndResult): LoserRole {
     if (result.loserSeat === null) {
-        return "";
+        return "none";
     }
-    return result.kanRobbed
-        ? ` robbing ${name(result.loserSeat)}'s kan`
-        : ` from ${name(result.loserSeat)}`;
+    return result.kanRobbed ? "kan_robbed" : "dealt_in";
+}
+
+function loserParams(result: RoundEndResult, name: NameOf): Readonly<Record<string, string>> {
+    return result.loserSeat === null ? {} : { loser: name(result.loserSeat) };
+}
+
+function doubleRonSummary(result: RoundEndResult, name: NameOf): string {
+    const wins = result.winners.map((winner) =>
+        t("replay.outcome.win", { name: name(winner.seat), points: winnerPoints(winner, name) }),
+    );
+    return t(DOUBLE_RON_KEYS[loserRole(result)], {
+        ...loserParams(result, name),
+        wins: formatList(wins),
+    });
 }
 
 function winSummary(result: RoundEndResult, name: NameOf): string {
-    const [first] = result.winners;
-    const from = loserPhrase(result, name);
     if (result.winners.length > 1) {
-        const wins = result.winners.map(
-            (winner) => `${name(winner.seat)} ${winnerPoints(winner, name)}`,
-        );
-        return `Double ron${from}: ${wins.join("; ")}`;
+        return doubleRonSummary(result, name);
     }
-    const kind = result.resultType === ROUND_RESULT_TYPE.TSUMO ? "Tsumo" : "Ron";
-    return `${kind} by ${name(first.seat)}${from}: ${winnerPoints(first, name)}`;
+    const [first] = result.winners;
+    const params = { points: winnerPoints(first, name), winner: name(first.seat) };
+    if (result.resultType === ROUND_RESULT_TYPE.TSUMO) {
+        return t("replay.outcome.tsumo", params);
+    }
+    return t(RON_KEYS[loserRole(result)], { ...params, ...loserParams(result, name) });
 }
 
-/**
- * A round's result in a line, with the points of each win (the hand's value, then its honba bonus): "Ron by Charlie
- * from Alice: 3,900 (+300 honba)", "Exhaustive draw: tenpai Alice, Bob". A round the recording stops before says so.
- */
 export function roundResultSummary(
     result: RoundEndResult | null,
     players: readonly PlayerState[],
 ): string {
     if (result === null) {
-        return "No result recorded";
+        return t("replay.outcome.no_result");
     }
     const name = nameOf(players);
     return result.draw === null ? winSummary(result, name) : drawSummary(result.draw, name);

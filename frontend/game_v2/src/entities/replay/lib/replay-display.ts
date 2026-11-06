@@ -23,13 +23,12 @@ import {
     type TableState,
     boardCallouts,
     formatRoundName,
-    honbaName,
     replaySeatingPanel,
-    roundName,
     roundResultSummary,
     tablePanel,
     tableStateToDisplayState,
 } from "@/entities/table";
+import { t } from "@/shared/i18n";
 
 /** A replay that is not the whole game: a short label, and why. */
 export interface ReplayIncompleteness {
@@ -81,12 +80,7 @@ export interface ReplayDisplay {
     readonly overlay: TablePanel | null;
     /** The calls the stop's own move made, by their seats from the perspective's; null for a move that made none. */
     readonly callouts: BoardCallouts | null;
-    /** The round's whole name, its honba included: "East 2, 1 honba". */
     readonly roundName: string;
-    /** The round's name alone and its honba apart, which a narrow column leaves to the board: "East 2", "1 honba". */
-    readonly roundTitle: string;
-    readonly honbaLabel: string | null;
-    /** The stop within its round, from 1 at the deal: "Step 3 of 42". */
     readonly step: { readonly index: number; readonly count: number };
     readonly moves: ReplayMoves;
     readonly rounds: readonly ReplayRoundRow[];
@@ -100,14 +94,14 @@ export interface ReplayDisplay {
 function incompleteness(source: ReplaySource): ReplayIncompleteness | null {
     if (source.damage !== null) {
         return {
-            detail: `Record ${source.damage.lineNumber} could not be read, so the replay stops before it.`,
-            label: "Damaged",
+            detail: t("replay.incomplete.damaged_detail", { record: source.damage.lineNumber }),
+            label: t("replay.incomplete.damaged"),
         };
     }
     if (source.navigation.complete) {
         return null;
     }
-    return { detail: "The recording stops before the game's end.", label: "Incomplete" };
+    return { detail: t("replay.incomplete.detail"), label: t("replay.incomplete.label") };
 }
 
 function endNotice(source: ReplaySource, cursor: ReplayCursor): string | null {
@@ -115,8 +109,8 @@ function endNotice(source: ReplaySource, cursor: ReplayCursor): string | null {
         return null;
     }
     return source.damage === null
-        ? "The recording ends here, before the game's end"
-        : `The replay stops here: record ${source.damage.lineNumber} could not be read`;
+        ? t("replay.incomplete.ends_here")
+        : t("replay.incomplete.damaged_stops_here", { record: source.damage.lineNumber });
 }
 
 /** Where each move control goes from the cursor. */
@@ -223,12 +217,10 @@ export function replayDisplay(source: ReplaySource, place: ReplayPlace): ReplayD
     return {
         ...stopBoard(source, place),
         endNotice: endNotice(source, cursor),
-        honbaLabel: honbaName(round.honba),
         incomplete: incompleteness(source),
         motion: { mode: "replay", sequence: place.seating ? -1 : cursor.stop },
         moves: replayMoves(nav, cursor),
         roundName: formatRoundName(round.wind, round.roundInWind, round.honba),
-        roundTitle: roundName(round.wind, round.roundInWind),
         rounds: roundRows(nav, stop.round),
         step: { count: round.stopCount, index: position.step + 1 },
     };

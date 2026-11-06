@@ -36,20 +36,28 @@ describe("readReplayFile - version", () => {
 
     test("refuses a replay that does not start with a version record", () => {
         const read = readReplayFile(encodeReplayLines(`${drawLine}\n${drawLine}`));
-        expect(read).toEqual({
-            ok: false,
-            refusal: {
-                detail: "The replay does not start with a version record",
-                kind: "unreadable",
-            },
-        });
+        expect(read).toEqual({ ok: false, refusal: { kind: "no_version_record" } });
     });
 
     test("refuses an empty replay", () => {
         expect(readReplayFile(new Uint8Array())).toEqual({
             ok: false,
-            refusal: { detail: "The replay is empty", kind: "unreadable" },
+            refusal: { kind: "empty" },
         });
+    });
+
+    test("refuses a replay whose version record does not decode, by its record number and cause", () => {
+        const truncated = encodeReplayRecords([
+            { [WIRE_KEY.REPLAY_VERSION]: REPLAY_VERSION },
+        ]).slice(0, -1);
+        expect(readReplayFile(truncated)).toEqual({
+            ok: false,
+            refusal: { kind: "incomplete_record", record: 1 },
+        });
+        const read = readReplayFile(new Uint8Array([129, 161, 49, 1]));
+        assert(!read.ok && read.refusal.kind === "invalid_record");
+        expect(read.refusal.record).toBe(1);
+        expect(read.refusal.cause).toEqual(new Error("Unknown replay metadata key: 1"));
     });
 });
 

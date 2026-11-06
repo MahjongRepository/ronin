@@ -17,10 +17,6 @@ export function roundName(wind: number, roundInWind: number): string {
     return t(key);
 }
 
-export function honbaName(honba: number): string | null {
-    return honba === 0 ? null : t("round.honba", { count: honba });
-}
-
 export function formatRoundName(wind: number, roundInWind: number, honba: number): string {
     const base = roundName(wind, roundInWind);
     return honba === 0 ? base : t("round.with_honba", { count: honba, round: base });

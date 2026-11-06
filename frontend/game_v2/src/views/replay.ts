@@ -34,6 +34,7 @@ import {
     loadReplayUntilFound,
 } from "@/shared/api";
 import { type Clock } from "@/shared/clock";
+import { type MessageKey, t } from "@/shared/i18n";
 import {
     type DeadlineTimer,
     type ThrottledWriter,
@@ -99,64 +100,85 @@ interface FailureText {
     readonly retry: boolean;
 }
 
-function failureText(failure: ReplayFailure): FailureText {
+type UnshowableFailure = Exclude<ReplayFailure, { kind: "not_found" | "refused" | "unreachable" }>;
+
+const PLAIN_FAILURE_DETAILS: Readonly<
+    Record<"empty" | "no_version_record" | "show_failed" | "too_large", MessageKey>
+> = {
+    empty: "replay.failure.empty",
+    no_version_record: "replay.failure.no_version_record",
+    show_failed: "replay.failure.show_failed",
+    too_large: "replay.failure.too_large",
+};
+
+function unshowableDetail(failure: UnshowableFailure): string {
     switch (failure.kind) {
-        case "not_found": {
-            return {
-                detail: "No replay is stored for this game. A game that has just ended may still be saving it.",
-                retry: true,
-                title: "Replay not found",
-            };
-        }
-        case "refused": {
-            return {
-                detail: `The server answered ${failure.status}.`,
-                retry: true,
-                title: "The replay could not be loaded",
-            };
-        }
-        case "unreachable": {
-            return {
-                detail: "The server could not be reached.",
-                retry: true,
-                title: "The replay could not be loaded",
-            };
-        }
         case "unsupported_version": {
-            return {
-                detail: `It was recorded in format ${failure.version}, which this page cannot read.`,
-                retry: false,
-                title: "This replay cannot be shown",
-            };
+            return t("replay.failure.unsupported_version", { version: failure.version });
         }
-        case "unreadable": {
-            return {
-                detail: `${failure.detail}.`,
-                retry: false,
-                title: "This replay cannot be shown",
-            };
+        case "incomplete_record": {
+            return t("replay.failure.incomplete_record", { record: failure.record });
         }
-        case "show_failed": {
-            return {
-                detail: "Something went wrong while reading it. The error is on the browser's console.",
-                retry: false,
-                title: "This replay cannot be shown",
-            };
+        case "invalid_record": {
+            return t("replay.failure.unreadable_record", { record: failure.record });
         }
         case "no_deal": {
-            const damage =
-                failure.damage === null
-                    ? ""
-                    : ` Record ${failure.damage.lineNumber} could not be read.`;
-            return {
-                detail: `The recording stops before the first deal.${damage}`,
-                retry: false,
-                title: "This replay holds no round",
-            };
+            return failure.damage === null
+                ? t("replay.failure.no_deal")
+                : t("replay.failure.no_deal_damaged", { record: failure.damage.lineNumber });
+        }
+        case "empty":
+        case "no_version_record":
+        case "too_large":
+        case "show_failed": {
+            return t(PLAIN_FAILURE_DETAILS[failure.kind]);
         }
         default: {
             return assertNever(failure);
         }
+    }
+}
+
+function failureText(failure: ReplayFailure): FailureText {
+    switch (failure.kind) {
+        case "not_found": {
+            return {
+                detail: t("replay.failure.not_found"),
+                retry: true,
+                title: t("replay.error.not_found"),
+            };
+        }
+        case "refused": {
+            return {
+                detail: t("replay.failure.server_status", { status: String(failure.status) }),
+                retry: true,
+                title: t("replay.error.failed"),
+            };
+        }
+        case "unreachable": {
+            return {
+                detail: t("replay.failure.unreachable"),
+                retry: true,
+                title: t("replay.error.failed"),
+            };
+        }
+        default: {
+            return {
+                detail: unshowableDetail(failure),
+                retry: false,
+                title: t(
+                    failure.kind === "no_deal"
+                        ? "replay.failure.no_round"
+                        : "replay.error.cannot_show",
+                ),
+            };
+        }
+    }
+}
+
+function logReadFailure(screen: ReplayScreen): void {
+    if (screen.kind === "failed" && screen.failure.kind === "invalid_record") {
+        console.error("The replay could not be read:", screen.failure.cause);
     }
 }
 
@@ -230,9 +252,9 @@ function failedTemplate(
         <h1 class="replay-state__title">${text.title}</h1>
         <p class="replay-state__detail">${text.detail}</p>
         <div class="replay-state__links">
-            ${text.retry ? html`<button type="button" @click=${handlers.retry}>Try again</button>` : nothing}
-            <a href=${links.history} role="button" class=${text.retry ? "secondary" : ""}>Game history</a>
-            <a href=${links.lobby} role="button" class="secondary">Lobby</a>
+            ${text.retry ? html`<button type="button" @click=${handlers.retry}>${t("common.try_again")}</button>` : nothing}
+            <a href=${links.history} role="button" class=${text.retry ? "secondary" : ""}>${t("common.game_history")}</a>
+            <a href=${links.lobby} role="button" class="secondary">${t("common.lobby")}</a>
         </div>
     </div>`;
 }
@@ -240,10 +262,10 @@ function failedTemplate(
 /** The page once even its failed screen could not be drawn: why, and the ways back, with nothing of the replay. */
 function brokenTemplate(links: ReplayLinks): TemplateResult {
     return html`<div class="replay-state replay-state--failed replay-state--broken" role="alert">
-        <p class="replay-state__detail">The replay page ran into an error.</p>
+        <p class="replay-state__detail">${t("replay.failure.page_broken")}</p>
         <div class="replay-state__links">
-            <a href=${links.history} role="button">Game history</a>
-            <a href=${links.lobby} role="button" class="secondary">Lobby</a>
+            <a href=${links.history} role="button">${t("common.game_history")}</a>
+            <a href=${links.lobby} role="button" class="secondary">${t("common.lobby")}</a>
         </div>
     </div>`;
 }
@@ -251,7 +273,7 @@ function brokenTemplate(links: ReplayLinks): TemplateResult {
 function loadingTemplate(waiting: boolean): TemplateResult {
     return html`<div class="replay-state" role="status" aria-busy="true">
         <p class="replay-state__detail">
-            ${waiting ? "Waiting for the replay to be saved…" : "Loading the replay…"}
+            ${waiting ? t("replay.loading.waiting") : t("replay.loading.loading")}
         </p>
     </div>`;
 }
@@ -634,12 +656,14 @@ class ReplayViewController {
             search: this.deps.location.search,
             soundOn: this.deps.sound.setting.load().sound_on,
         };
-        return stepReplayPage(this.screen, {
+        const step = stepReplayPage(this.screen, {
             at: this.deps.clock.now(),
             fetched,
             kind: "fetched",
             opening,
         });
+        logReadFailure(step.screen);
+        return step;
     }
 
     /**

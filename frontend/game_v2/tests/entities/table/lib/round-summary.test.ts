@@ -16,7 +16,7 @@ describe("roundResultSummary", () => {
         expect(summaries("double_ron_on_honba")).toEqual([
             "Exhaustive draw: tenpai Diana",
             "Ron by Charlie from Diana: 2,400 (+300 honba)",
-            "Double ron from Bob: Alice 1,600 (+600 honba); Diana 1,600 (+600 honba)",
+            "Double ron from Bob: Alice 1,600 (+600 honba) and Diana 1,600 (+600 honba)",
             "Tsumo by Charlie: 2,700",
         ]);
         expect(summaries("pao")).toEqual(["Tsumo by Alice: 32,000, pao Diana"]);

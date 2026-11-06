@@ -5,6 +5,7 @@ import {
     type ReplayRoundRow,
 } from "@/entities/replay/lib/replay-display";
 import { type ReplayCursor } from "@/entities/replay/model/replay-cursor";
+import { t } from "@/shared/i18n";
 
 import { REPLAY_ROUND_LIST_ID } from "./replay-controls";
 
@@ -101,7 +102,7 @@ function EndRow(
             aria-current=${end.current ? "step" : nothing}
             @click=${() => onSelect(end.cursor)}
         >
-            <span class="round-list__name">Last step</span>
+            <span class="round-list__name">${t("replay.jump.last")}</span>
             <span class="round-list__summary">${end.summary}</span>
         </button>
     </div>`;
@@ -117,12 +118,12 @@ export function RoundList(props: RoundListProps): TemplateResult {
         class="round-list"
         data-round-list
         id=${REPLAY_ROUND_LIST_ID}
-        aria-label="Rounds"
+        aria-label=${t("replay.rounds.title")}
         @keydown=${(event: KeyboardEvent) => onListKeydown(event, props.onClose)}
     >
         <header class="round-list__head">
-            <h2 class="round-list__title">Rounds</h2>
-            <button type="button" class="round-list__close" aria-label="Close the round list" @click=${props.onClose}>
+            <h2 class="round-list__title">${t("replay.rounds.title")}</h2>
+            <button type="button" class="round-list__close" aria-label=${t("replay.rounds.close")} @click=${props.onClose}>
                 ×
             </button>
         </header>
@@ -130,7 +131,7 @@ export function RoundList(props: RoundListProps): TemplateResult {
             props.incomplete === null
                 ? nothing
                 : html`<p class="round-list__incomplete">
-                      <strong>${props.incomplete.label}.</strong> ${props.incomplete.detail}
+                      <strong>${t("replay.rounds.incomplete_label", { label: props.incomplete.label })}</strong> ${props.incomplete.detail}
                   </p>`
         }
         <ol class="round-list__rows">

@@ -12,6 +12,7 @@ import {
     type TablePanelControls,
     TablePanelDisplay,
 } from "@/entities/table";
+import { t } from "@/shared/i18n";
 
 import { ReplayControls, ReplayStatus } from "./replay-controls";
 import { RoundList } from "./round-list";
@@ -65,8 +66,8 @@ function controlsTemplate(
                   cursor: last,
                   summary:
                       display.incomplete === null
-                          ? "The game's end and the final scores"
-                          : "Where the recording ends",
+                          ? t("replay.rounds.end_game")
+                          : t("replay.rounds.end_recording"),
               };
     const roundList = roundListOpen
         ? RoundList({
@@ -93,8 +94,8 @@ function controlsTemplate(
 /** The ways back from the game's end: the lobby and the game history. */
 function endActions(links: ReplayLinks): readonly PanelAction[] {
     return [
-        { href: links.lobby, kind: "link", label: "Lobby" },
-        { href: links.history, kind: "link", label: "Game history", primary: true },
+        { href: links.lobby, kind: "link", label: t("common.lobby") },
+        { href: links.history, kind: "link", label: t("common.game_history"), primary: true },
     ];
 }
 
@@ -117,7 +118,7 @@ export function ReplayBoard({
             {
                 focusKey: SEATING_START_FOCUS_KEY,
                 kind: "button",
-                label: "Start",
+                label: t("replay.start"),
                 onClick: handlers.start,
                 primary: true,
             },

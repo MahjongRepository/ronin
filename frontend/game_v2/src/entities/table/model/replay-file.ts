@@ -38,12 +38,19 @@ export interface ReplayFileLines {
     readonly errors: readonly ReplayLineError[];
 }
 
+export type ReplayRecordFailure =
+    | { readonly kind: "incomplete_record"; readonly record: number }
+    | { readonly kind: "invalid_record"; readonly record: number; readonly cause: unknown };
+
 /**
  * Why a replay file is refused before any event line: it holds no version line this client can read, or one naming
  * another version, whose lines may mean something else.
  */
 export type ReplayRefusal =
-    | { readonly kind: "unreadable"; readonly detail: string }
+    | { readonly kind: "empty" }
+    | { readonly kind: "no_version_record" }
+    | { readonly kind: "too_large" }
+    | ReplayRecordFailure
     | { readonly kind: "unsupported_version"; readonly version: string };
 
 /** A replay file read whole, or refused before any event line because of its version line. */
@@ -67,7 +74,12 @@ export function replayLineTableEvent(line: ReplayLine): TableEvent | null {
     return isReplayEvent(line) || isSeatControlLine(line) ? line : null;
 }
 
-function readRecords(content: Uint8Array): ReplayFileLines {
+interface DecodedRecords {
+    readonly lines: readonly ReplayFileLine[];
+    readonly failure: ReplayRecordFailure | null;
+}
+
+function readRecords(content: Uint8Array): DecodedRecords {
     const lines: ReplayFileLine[] = [];
     let lineNumber = 1;
     try {
@@ -76,23 +88,31 @@ function readRecords(content: Uint8Array): ReplayFileLines {
             lineNumber += 1;
         }
     } catch (error) {
-        const detail =
+        const failure: ReplayRecordFailure =
             error instanceof RangeError
-                ? `Incomplete MessagePack record ${lineNumber}`
-                : `Invalid MessagePack record ${lineNumber}: ${error instanceof Error ? error.message : String(error)}`;
-        return { errors: [{ detail, lineNumber }], lines };
+                ? { kind: "incomplete_record", record: lineNumber }
+                : { cause: error, kind: "invalid_record", record: lineNumber };
+        return { failure, lines };
     }
-    return { errors: [], lines };
+    return { failure: null, lines };
 }
 
-function versionRefusal(file: ReplayFileLines): ReplayRefusal | null {
-    const [first] = file.lines;
+function recordFailureDetail(failure: ReplayRecordFailure): string {
+    if (failure.kind === "incomplete_record") {
+        return `Incomplete MessagePack record ${failure.record}`;
+    }
+    const { cause } = failure;
+    return `Invalid MessagePack record ${failure.record}: ${cause instanceof Error ? cause.message : String(cause)}`;
+}
+
+function versionRefusal(records: DecodedRecords): ReplayRefusal | null {
+    const [first] = records.lines;
     if (first === undefined) {
-        return { detail: file.errors[0]?.detail ?? "The replay is empty", kind: "unreadable" };
+        return records.failure ?? { kind: "empty" };
     }
     const { raw } = first;
     if (!(WIRE_KEY.REPLAY_VERSION in raw) || Object.keys(raw).length !== 1) {
-        return { detail: "The replay does not start with a version record", kind: "unreadable" };
+        return { kind: "no_version_record" };
     }
     return raw[WIRE_KEY.REPLAY_VERSION] === REPLAY_VERSION
         ? null
@@ -102,14 +122,17 @@ function versionRefusal(file: ReplayFileLines): ReplayRefusal | null {
 /** Read independent MessagePack records, retaining only the prefix before a damaged record. */
 export function readReplayFile(content: Uint8Array): ReplayFileRead {
     if (content.length > MAX_REPLAY_BYTES) {
-        return {
-            ok: false,
-            refusal: { detail: "The replay exceeds the size limit", kind: "unreadable" },
-        };
+        return { ok: false, refusal: { kind: "too_large" } };
     }
-    const file = readRecords(content);
-    const refusal = versionRefusal(file);
-    return refusal === null
-        ? { errors: file.errors, lines: file.lines.slice(1), ok: true }
-        : { ok: false, refusal };
+    const records = readRecords(content);
+    const refusal = versionRefusal(records);
+    if (refusal !== null) {
+        return { ok: false, refusal };
+    }
+    const { failure } = records;
+    const errors =
+        failure === null
+            ? []
+            : [{ detail: recordFailureDetail(failure), lineNumber: failure.record }];
+    return { errors, lines: records.lines.slice(1), ok: true };
 }

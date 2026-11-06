@@ -947,7 +947,8 @@ describe("mountReplayView - loading", () => {
         expect(textOf(host, ".replay-state")).toBe("Loading the replay…");
     });
 
-    it("refuses a replay of another version without offering to try again", async () => {
+    it("refuses a replay of another version or an undecodable one without offering to try again, its cause on the console alone", async () => {
+        const logged = vi.spyOn(console, "error").mockImplementation(() => {});
         const { answer, host } = mountReplay();
         await answer({
             content: encodeReplayLines(
@@ -958,12 +959,21 @@ describe("mountReplayView - loading", () => {
             ),
             ok: true,
         });
+        const undecodable = mountReplay();
+        await undecodable.answer({ content: new Uint8Array([129, 161, 49, 1]), ok: true });
 
         expect(textOf(host, ".replay-state__title")).toBe("This replay cannot be shown");
         expect(textOf(host, ".replay-state__detail")).toBe(
             'It was recorded in format "0.1", which this page cannot read.',
         );
         expect(host.querySelector(".replay-state__links button")).toBeNull();
+        expect(textOf(undecodable.host, ".replay-state")).toBe(
+            "This replay cannot be shown Record 1 could not be read. Game history Lobby",
+        );
+        expect(logged).toHaveBeenCalledWith(
+            "The replay could not be read:",
+            new Error("Unknown replay metadata key: 1"),
+        );
     });
 
     it("says a replay holding no deal holds no round, and which line broke it off", async () => {

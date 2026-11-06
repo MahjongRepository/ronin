@@ -7,6 +7,7 @@ import {
 } from "@/entities/replay/lib/replay-display";
 import { type ReplayCursor } from "@/entities/replay/model/replay-cursor";
 import { type StepDirection } from "@/entities/replay/model/replay-page";
+import { type MessageKey, t } from "@/shared/i18n";
 
 /** The round list's element id, which its toggle controls. */
 export const REPLAY_ROUND_LIST_ID = "replay-round-list";
@@ -41,10 +42,7 @@ export interface ReplayControlsProps {
 }
 
 export interface ReplayStatusProps {
-    readonly display: Pick<
-        ReplayDisplay,
-        "endNotice" | "honbaLabel" | "incomplete" | "roundTitle" | "step"
-    >;
+    readonly display: Pick<ReplayDisplay, "endNotice" | "incomplete" | "roundName" | "step">;
 }
 
 type MoveName = keyof ReplayMoves;
@@ -58,13 +56,13 @@ const MOVE_ICONS: Readonly<Record<MoveName, string>> = {
     prevRound: "M12 5l-7 7 7 7M19 5l-7 7 7 7",
 };
 
-const MOVE_LABELS: Readonly<Record<MoveName, string>> = {
-    first: "First deal",
-    last: "Last step",
-    next: "Next step",
-    nextRound: "Next round",
-    prev: "Previous step",
-    prevRound: "Previous round",
+const MOVE_LABELS: Readonly<Record<MoveName, MessageKey>> = {
+    first: "replay.jump.first",
+    last: "replay.jump.last",
+    next: "replay.jump.next",
+    nextRound: "replay.jump.next_round",
+    prev: "replay.jump.prev",
+    prevRound: "replay.jump.prev_round",
 };
 
 const OPTION_ICONS = {
@@ -89,8 +87,8 @@ function StepButton(
         type="button"
         class="replay-controls__move replay-controls__move--${direction}"
         data-step=${direction}
-        aria-label=${MOVE_LABELS[direction]}
-        title=${MOVE_LABELS[direction]}
+        aria-label=${t(MOVE_LABELS[direction])}
+        title=${t(MOVE_LABELS[direction])}
         ?disabled=${target === null}
         @pointerdown=${(event: PointerEvent) => props.onStepPress(direction, event)}
         @click=${() => props.onStepClick(direction)}
@@ -103,8 +101,8 @@ function JumpButton(name: MoveName, props: ReplayControlsProps): TemplateResult 
     return html`<button
         type="button"
         class="replay-controls__move replay-controls__move--${name}"
-        aria-label=${MOVE_LABELS[name]}
-        title=${MOVE_LABELS[name]}
+        aria-label=${t(MOVE_LABELS[name])}
+        title=${t(MOVE_LABELS[name])}
         ?disabled=${target === null}
         @click=${() => {
             if (target !== null) {
@@ -120,8 +118,8 @@ function PlayButton(props: ReplayControlsProps): TemplateResult {
     return html`<button
         type="button"
         class="replay-controls__play"
-        aria-label="Autoplay"
-        title="Autoplay"
+        aria-label=${t("replay.autoplay")}
+        title=${t("replay.autoplay")}
         aria-pressed=${String(playing)}
         ?disabled=${!playing && props.moves.next === null}
         @click=${props.onTogglePlay}
@@ -153,8 +151,8 @@ function RoundsButton(props: ReplayControlsProps): TemplateResult {
     return html`<button
         type="button"
         class="replay-controls__option replay-controls__option--rounds"
-        aria-label="Rounds"
-        title="Rounds"
+        aria-label=${t("replay.rounds.title")}
+        title=${t("replay.rounds.title")}
         aria-expanded=${props.roundListOpen ? "true" : "false"}
         aria-controls=${REPLAY_ROUND_LIST_ID}
         data-focus-key=${ROUND_LIST_TOGGLE_FOCUS_KEY}
@@ -174,14 +172,14 @@ function RoundsButton(props: ReplayControlsProps): TemplateResult {
 export function ReplayControls(props: ReplayControlsProps): TemplateResult {
     const { playback } = props;
     return html`
-        <div class="replay-controls__moves" role="group" aria-label="Move through the replay">
+        <div class="replay-controls__moves" role="group" aria-label=${t("replay.controls.moves")}>
             ${JumpButton("first", props)}${JumpButton("prevRound", props)}${StepButton("prev", props.moves.prev, props)}${PlayButton(props)}${StepButton("next", props.moves.next, props)}${JumpButton("nextRound", props)}${JumpButton("last", props)}
         </div>
-        <div class="replay-controls__options" role="group" aria-label="View">
+        <div class="replay-controls__options" role="group" aria-label=${t("replay.controls.view")}>
             ${OptionButton({
                 content: Icon(playback.hideHands ? OPTION_ICONS.handsHidden : OPTION_ICONS.hands),
                 kind: "hands",
-                label: "Hide the other hands",
+                label: t("replay.options.hide_hands"),
                 onClick: props.onToggleHands,
                 pressed: playback.hideHands,
             })}
@@ -209,7 +207,7 @@ function IncompleteNote(
     >
         <strong class="replay-status__incomplete-label">${incomplete.label}</strong>
         <span class="replay-status__incomplete-detail">${endNotice ?? incomplete.detail}</span>
-        ${atEnd ? html`<span class="replay-status__incomplete-end" aria-hidden="true">Ends here</span>` : nothing}
+        ${atEnd ? html`<span class="replay-status__incomplete-end" aria-hidden="true">${t("replay.status.ends_here")}</span>` : nothing}
     </p>`;
 }
 
@@ -221,12 +219,8 @@ export function ReplayStatus({ display }: ReplayStatusProps): TemplateResult {
     const { step } = display;
     return html`<div class="replay-status">
         <p class="replay-status__position">
-            <span class="replay-status__round">${display.roundTitle}${
-                display.honbaLabel === null
-                    ? nothing
-                    : html`<span class="replay-status__honba">, ${display.honbaLabel}</span>`
-            }</span>
-            <span class="replay-status__step">Step ${step.index} of ${step.count}</span>
+            <span class="replay-status__round">${display.roundName}</span>
+            <span class="replay-status__step">${t("replay.step", { step: step.index, steps: step.count })}</span>
         </p>
         ${IncompleteNote(display.incomplete, display.endNotice)}
     </div>`;
