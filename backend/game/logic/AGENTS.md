@@ -54,8 +54,9 @@ The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mecha
   keep tenpai. A discard is never offered: any tile in hand is legal, in riichi only the drawn one, except right after
   the player's own pon or chi, when nothing was drawn and a turn event names the tile types kuikae forbids.
 * `legal_discards` and `choose_default_discard` (`round.py`) are the one legal-discard rule, used by the discard
-  validator, the turn timeout and the AI; the chi check drops a shape that would leave no legal discard, so the
-  default chooser never comes up empty (if it does, that is an engine fault).
+  validator, the turn timeout and the AI; the chi check mirrors its non-riichi kuikae rule itself (a riichi seat
+  cannot chi) and drops a shape that would leave no legal discard, so the default chooser never comes up empty (if
+  it does, that is an engine fault).
 * "No call yet" is one predicate on the round state (closed kans count), shared by every rule that needs it.
 
 ## Calls
