@@ -127,14 +127,13 @@ def check_four_winds(round_state: MahjongRoundState, settings: GameSettings) -> 
     Requirements:
     - Exactly 4 discards have been made (check len(all_discards) == 4)
     - All 4 discards are the same wind tile (E, S, W, or N)
-    - No open melds have been called (closed kans do not count)
+    - No player has called a meld (closed kans count)
     """
     # check exactly N discards (one per player)
     if len(round_state.all_discards) != settings.four_winds_discard_count:
         return False
 
-    # check no open melds
-    if any(p.has_open_melds() for p in round_state.players):
+    if round_state.has_any_call():
         return False
 
     # convert discards to 34-format

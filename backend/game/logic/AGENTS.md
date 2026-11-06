@@ -56,8 +56,7 @@ The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mecha
 * `legal_discards` and `choose_default_discard` (`round.py`) are the one legal-discard rule, used by the discard
   validator, the turn timeout and the AI; the chi check drops a shape that would leave no legal discard, so the
   default chooser never comes up empty (if it does, that is an engine fault).
-* "No call yet" is one predicate on the round state (closed kans count), shared by every rule that needs it. Four
-  Winds alone looks only at open melds, so a closed kan does not prevent it.
+* "No call yet" is one predicate on the round state (closed kans count), shared by every rule that needs it.
 
 ## Calls
 

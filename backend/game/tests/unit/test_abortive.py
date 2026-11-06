@@ -305,19 +305,17 @@ class TestCheckFourWinds:
         assert result is False
 
     @pytest.mark.parametrize(
-        ("meld", "expected_abort"),
+        "meld",
         [
-            (FrozenMeld(meld_type=FrozenMeld.PON, tiles=_PIN_5S[:3], opened=True, who=1, from_who=0), False),
-            (FrozenMeld(meld_type=FrozenMeld.KAN, tiles=_PIN_5S, opened=False, who=1, from_who=1), True),
+            FrozenMeld(meld_type=FrozenMeld.PON, tiles=_PIN_5S[:3], opened=True, who=1, from_who=0),
+            FrozenMeld(meld_type=FrozenMeld.KAN, tiles=_PIN_5S, opened=False, who=1, from_who=1),
         ],
-        ids=["open_pon_blocks", "closed_kan_does_not_block"],
+        ids=["open_pon_blocks", "closed_kan_blocks"],
     )
-    def test_check_four_winds__when_a_player_has_a_meld__should_abort_only_without_open_melds(
-        self, meld, expected_abort
-    ):
+    def test_check_four_winds__when_a_player_has_any_meld__should_not_abort(self, meld):
         round_state = self._create_round_state(
             all_discards=tuple(TilesConverter.string_to_136_array(honors="1111")),
             player1_melds=(meld,),
         )
 
-        assert check_four_winds(round_state, GameSettings()) is expected_abort
+        assert check_four_winds(round_state, GameSettings()) is False
