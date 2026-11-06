@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import structlog
+from pydantic import BaseModel, ValidationError
 
 from game.logic.action_handlers import (
     handle_chi,
@@ -102,6 +103,14 @@ class _RoundHeader:
     round_number: int
     round_in_wind: int
     honba_sticks: int
+
+
+def _parse_action_data[T: BaseModel](model: type[T], *, action: GameAction, seat: int, data: dict[str, Any]) -> T:
+    try:
+        return model(**data)
+    except ValidationError as e:
+        error_types = [err["type"] for err in e.errors(include_input=False)]
+        raise InvalidGameActionError(action=action.value, seat=seat, reason=f"malformed data: {error_types}") from e
 
 
 def _current_round_number(game_state: MahjongGameState) -> int:
@@ -380,15 +389,29 @@ class MahjongGameService(GameService):
                 return handle_pass(game_state, seat=seat)
             # Data actions
             case GameAction.DISCARD:
-                return handle_discard(game_state, seat=seat, data=DiscardActionData(**data))
+                return handle_discard(
+                    game_state,
+                    seat=seat,
+                    data=_parse_action_data(DiscardActionData, action=action, seat=seat, data=data),
+                )
             case GameAction.DECLARE_RIICHI:
-                return handle_riichi(game_state, seat=seat, data=RiichiActionData(**data))
+                return handle_riichi(
+                    game_state,
+                    seat=seat,
+                    data=_parse_action_data(RiichiActionData, action=action, seat=seat, data=data),
+                )
             case GameAction.CALL_PON:
-                return handle_pon(game_state, seat=seat, data=PonActionData(**data))
+                return handle_pon(
+                    game_state, seat=seat, data=_parse_action_data(PonActionData, action=action, seat=seat, data=data)
+                )
             case GameAction.CALL_CHI:
-                return handle_chi(game_state, seat=seat, data=ChiActionData(**data))
+                return handle_chi(
+                    game_state, seat=seat, data=_parse_action_data(ChiActionData, action=action, seat=seat, data=data)
+                )
             case GameAction.CALL_KAN:
-                return handle_kan(game_state, seat=seat, data=KanActionData(**data))
+                return handle_kan(
+                    game_state, seat=seat, data=_parse_action_data(KanActionData, action=action, seat=seat, data=data)
+                )
             case _:  # pragma: no cover (exhaustive)
                 raise AssertionError(f"action {action} has no handler")
 

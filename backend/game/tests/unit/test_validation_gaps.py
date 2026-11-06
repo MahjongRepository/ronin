@@ -481,6 +481,15 @@ class TestDiscardRaisesInvalidGameActionError:
             handle_discard(game_state, seat=0, data=DiscardActionData(tile_id=999))
         assert exc_info.value.seat == 0
 
+    def test_discard__when_action_data_is_malformed__should_raise_invalid_game_action(self):
+        game_state = _create_frozen_game_state()
+        runtime = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({}))
+
+        with pytest.raises(InvalidGameActionError, match=r"malformed data: \['missing'\]$") as exc_info:
+            MahjongGameService().handle_action(runtime, seat=0, action=GameAction.DISCARD, data={})
+        assert exc_info.value.seat == 0
+        assert runtime.state is game_state
+
 
 class TestTsumoRaisesInvalidGameActionError:
     def test_tsumo__when_hand_not_winning__should_raise_invalid_game_action(self):
