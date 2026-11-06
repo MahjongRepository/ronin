@@ -58,6 +58,9 @@ def legal_discards(player: MahjongPlayer) -> list[int]:
     if player.is_riichi:
         return list(player.tiles[-1:])
 
+    if not player.kuikae_tiles:
+        return list(player.tiles)
+
     return [t for t in player.tiles if tile_to_34(t) not in player.kuikae_tiles]
 
 
@@ -93,7 +96,7 @@ def discard_tile(
         logger.warning("discard tile not in hand", seat=seat, tile_id=tile_id)
         raise ImpossibleActionError(f"tile {tile_id} not in player's hand")
 
-    if tile_id not in legal_discards(player):
+    if (player.is_riichi or player.kuikae_tiles) and tile_id not in legal_discards(player):
         logger.warning("discard forbidden by kuikae or riichi", seat=seat, tile_id=tile_id)
         raise InvalidDiscardError(f"tile {tile_id} is not a legal discard (kuikae or riichi tsumogiri)")
 

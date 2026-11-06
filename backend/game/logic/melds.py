@@ -10,7 +10,6 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import (
     add_dora_indicator,
     draw_from_dead_wall,
-    legal_discards,
     reveal_pending_dora,
 )
 from game.logic.settings import NUM_PLAYERS
@@ -184,13 +183,8 @@ def _chi_leaves_legal_discard(
     for t in sequence_tiles:
         remaining.remove(t)
 
-    after_chi = player.model_copy(
-        update={
-            "tiles": tuple(remaining),
-            "kuikae_tiles": tuple(_chi_kuikae_tiles(discarded_tile, sequence_tiles=sequence_tiles, settings=settings)),
-        },
-    )
-    return bool(legal_discards(after_chi))
+    kuikae = _chi_kuikae_tiles(discarded_tile, sequence_tiles=sequence_tiles, settings=settings)
+    return any(t // 4 not in kuikae for t in remaining)
 
 
 def _build_same_suit_tile_map(tiles: list[int] | tuple[int, ...], discarded_34: int) -> dict[int, list[int]]:

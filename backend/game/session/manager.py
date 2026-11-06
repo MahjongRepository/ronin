@@ -945,7 +945,7 @@ class SessionManager:
         """
         Start the timers of a new wait for its awaited seats that have a connected participant.
         """
-        connected = sorted(game.connected(), key=self._seat_of)
+        connected = game.connected()
         if awaiting.kind == WaitKind.ROUND_ADVANCE:
             for participant in connected:
                 self._start_round_advance_timer(participant, awaiting=awaiting)
