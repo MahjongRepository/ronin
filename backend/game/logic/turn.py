@@ -75,6 +75,7 @@ from game.logic.state_utils import (
     update_player,
 )
 from game.logic.wall import clear_pending_dora
+from game.logic.wall import draw_tile as draw_from_live_wall
 from game.logic.win import (
     all_tiles_from_hand_and_melds,
     can_declare_tsumo,
@@ -302,10 +303,13 @@ def pass_ron_window(game_state: MahjongGameState, discarder_seat: int) -> tuple[
     Runs before a meld on the discard executes, so the discard is still the discarder's last one. The returned round is
     finished when an abort ended it.
     """
-    new_round_state, events = emit_deferred_dora_events(game_state.round_state)
-    new_game_state = update_game_with_round(game_state, new_round_state)
+    new_game_state = game_state
+    events: list[GameEvent] = []
+    if game_state.round_state.wall.pending_dora_count:
+        new_round_state, events = emit_deferred_dora_events(game_state.round_state)
+        new_game_state = update_game_with_round(game_state, new_round_state)
 
-    discarder = new_round_state.players[discarder_seat]
+    discarder = new_game_state.round_state.players[discarder_seat]
     if discarder.discards[-1].is_riichi_discard and not discarder.is_riichi:
         new_game_state = declare_riichi(new_game_state, seat=discarder_seat)
         events.append(
@@ -325,9 +329,24 @@ def pass_ron_window(game_state: MahjongGameState, discarder_seat: int) -> tuple[
 
 def draw_for_next_player(game_state: MahjongGameState) -> tuple[MahjongGameState, list[GameEvent]]:
     """
-    Pass the turn to the next seat and draw for it (process_draw_phase).
+    Pass the turn to the next seat and draw for it, with one copy each of the drawing player, the round and the game.
+
+    An empty live wall goes through process_draw_phase after the turn passes, so the exhaustive draw sees the next seat.
     """
-    return process_draw_phase(update_game_with_round(game_state, advance_turn(game_state.round_state)))
+    round_state = game_state.round_state
+    new_wall, drawn_tile = draw_from_live_wall(round_state.wall)
+    if drawn_tile is None:
+        return process_draw_phase(update_game_with_round(game_state, advance_turn(round_state)))
+
+    seat = (round_state.current_player_seat + 1) % NUM_PLAYERS
+    players = list(round_state.players)
+    players[seat] = players[seat].model_copy(update={"tiles": (*players[seat].tiles, drawn_tile)})
+    new_round_state = round_state.model_copy(
+        update={"current_player_seat": seat, "wall": new_wall, "players": tuple(players)},
+    )
+    logger.debug("tile drawn", tile_id=drawn_tile)
+    new_game_state = update_game_with_round(game_state, new_round_state)
+    return new_game_state, [create_draw_event(new_game_state, seat=seat, tile_id=drawn_tile)]
 
 
 def process_discard_phase(
