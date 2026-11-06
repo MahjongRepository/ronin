@@ -34,7 +34,7 @@ class SessionErrorCode(StrEnum):
     RATE_LIMITED = "rate_limited"
 
 
-_TILE_ID_FIELD = Field(ge=0, lt=NUM_TILES)
+_TILE_ID_FIELD = Field(ge=0, lt=NUM_TILES, strict=True)
 
 
 class GameActionMessage(BaseModel, frozen=True):
@@ -67,8 +67,8 @@ class ChiMessage(GameActionMessage):
     action: Literal[WireGameAction.CALL_CHI] = WireGameAction.CALL_CHI
     tile_id: int = _TILE_ID_FIELD
     sequence_tiles: tuple[
-        Annotated[int, Field(ge=0, lt=NUM_TILES)],
-        Annotated[int, Field(ge=0, lt=NUM_TILES)],
+        Annotated[int, Field(ge=0, lt=NUM_TILES, strict=True)],
+        Annotated[int, Field(ge=0, lt=NUM_TILES, strict=True)],
     ]
 
 

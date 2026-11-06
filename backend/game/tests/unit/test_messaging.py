@@ -81,6 +81,24 @@ class TestInputValidation:
         with pytest.raises(ValidationError):
             parse_client_message(data)
 
+    @pytest.mark.parametrize(
+        "action_fields",
+        [
+            {WireKey.ACTION: WireGameAction.DISCARD, WireKey.TILE_ID: True},
+            {WireKey.ACTION: WireGameAction.DISCARD, WireKey.TILE_ID: "5"},
+            {WireKey.ACTION: WireGameAction.DISCARD, WireKey.TILE_ID: 5.0},
+            {WireKey.ACTION: WireGameAction.CALL_CHI, WireKey.TILE_ID: 40, WireKey.SEQUENCE_TILES: [True, 42]},
+        ],
+    )
+    def test_parse_client_message__when_tile_id_is_not_an_int__should_raise(self, action_fields):
+        data = {
+            WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
+            WireKey.WAIT_ID: 0,
+            **action_fields,
+        }
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
+
     def test_parse_client_message__when_tile_id_negative__should_raise(self):
         data = {
             WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
