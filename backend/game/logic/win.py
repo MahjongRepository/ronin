@@ -439,7 +439,7 @@ def can_call_ron(
     - For open hands, must have at least one yaku
     """
     # create local tile list with the discarded tile
-    tiles_with_win = [*list(player.tiles), discarded_tile]
+    tiles_with_win = [*player.tiles, discarded_tile]
 
     # check if hand wins with local tiles
     is_winning = check_tsumo_with_tiles(player, tiles_with_win)

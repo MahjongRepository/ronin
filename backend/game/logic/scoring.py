@@ -203,7 +203,7 @@ def _collect_dora_indicators(
     Collect omote (face-up) dora indicators for scoring.
     """
     if settings.has_omote_dora:
-        return list(round_state.wall.dora_indicators) if round_state.wall.dora_indicators else []
+        return list(round_state.wall.dora_indicators)
 
     return []
 

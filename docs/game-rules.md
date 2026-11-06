@@ -38,7 +38,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 - Riichi at exactly 1,000 points: Allowed (player goes to 0 points; game continues unless another player wins and triggers tobi)
 - Minimum wall tiles for declaration: 4
 - After riichi is established, every discard must be the tile just drawn. The player may instead declare a legal win or a permitted concealed kan. The declaration discard itself may be any tile that keeps the hand tenpai.
-- Concealed quad during riichi (ankan), the Tenhou / Mahjong Soul rule: allowed only when the tile just drawn is the kan tile (no okurikan: a quad held before the draw cannot be declared) and the kan leaves the set of waiting tiles unchanged. A kan that narrows the waits, breaks tenpai, or quads a tile that is itself a wait is refused. A kan that changes only how the hand splits into sets, or its yaku, is allowed: 111222333m456p5s waiting on 5s may quad a drawn 1m although the hand loses its ippeikou reading. Applies to concealed kan only — shouminkan is blocked during riichi.
+- Concealed quad during riichi (ankan), the Tenhou / Mahjong Soul rule: allowed only when the tile just drawn is the kan tile (no okurikan: a quad held before the draw cannot be declared) and the kan leaves the set of waiting tiles unchanged. A kan that narrows the waits, breaks tenpai, or quads a tile that is itself a wait is refused. A kan that changes only how the hand splits into sets, or its yaku, is allowed: 111222333m456p5s waiting on 5s may quad a drawn 1m although the hand loses its ippeikou reading. Applies to concealed kan only — shouminkan is blocked during riichi. The waits before and after the kan are compared under our karaten rule (Keishiki tenpai, below): a tile whose 4 copies are all in the player's own hand and melds is not a wait.
 - Riichi sticks on exhaustive/abortive draw: Remain on the table for the next hand. Awarded to 1st place at game end if uncollected.
 
 ### Furiten
@@ -96,7 +96,7 @@ When the caller declares another quad on the replacement tile instead of discard
 - Honba (tsumo): +100 points per counter per losing player (300 total, same as ron)
 - Payment rounding: All individual payments rounded UP to the nearest 100 points
 - Noten penalty (exhaustive draw only): 3,000 points total redistributed (split evenly among noten payers, distributed evenly to tenpai players). No noten payments on abortive draws.
-- Keishiki tenpai (形式聴牌): Counts as tenpai for noten payments, except pure karaten (all 4 copies in own hand/melds). Waiting for a tile where all 4 copies are visible in others' discards/melds still counts as tenpai.
+- Keishiki tenpai (形式聴牌): Counts as tenpai for noten payments, except pure karaten (all 4 copies in own hand/melds). Tiles in the player's own melds count toward the 4 copies, as in the M-League and Nihon Pro Mahjong Association rules; Tenhou counts only the closed hand, which is not our rule. Waiting for a tile where all 4 copies are visible in others' discards/melds still counts as tenpai.
 - Goshashonyu rounding (五捨六入): ≤500 rounds toward zero, ≥600 rounds away
 - Tie-breaking: When players have equal final scores, the player closer counter-clockwise to the starting dealer ranks higher. The starting dealer is chosen by dice from the game seed, so it is not always seat 0.
 - Double ron riichi sticks: the winner closest counter-clockwise to the discarder receives them. For chankan the kan caller takes the discarder's role.
