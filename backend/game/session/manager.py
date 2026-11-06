@@ -19,10 +19,12 @@ from game.logic.events import (
     SeatTarget,
 )
 from game.logic.exceptions import InvalidGameActionError
+from game.messaging.encoder import encode
 from game.messaging.event_payload import (
     draw_notice_payload,
     game_event_payload,
     live_game_event_payload,
+    opens_wait,
     reconnection_payload,
     shape_call_prompt_payload,
     stamp_timer_settings,
@@ -1010,8 +1012,7 @@ class SessionManager:
             if isinstance(event, GameStartedEvent):
                 self._send_to_each_seat(game, message)
             elif isinstance(event.target, BroadcastTarget):
-                for participant in game.connected():
-                    self._send_event_to_participant(participant, message=message, event=event, awaiting=awaiting)
+                self._send_broadcast_event(game, message=message, event=event, awaiting=awaiting)
             elif isinstance(event.target, SeatTarget):
                 participant = game.at_seat(event.target.seat)
                 if participant is not None:
@@ -1019,6 +1020,25 @@ class SessionManager:
 
                 if isinstance(event, DrawEvent):
                     self._send_draw_notice(game, event)
+
+    def _send_broadcast_event(
+        self,
+        game: GameSession,
+        *,
+        message: dict[int, Any],
+        event: GameEvent,
+        awaiting: Awaiting,
+    ) -> None:
+        """
+        Send a broadcast event to every connected participant: stamped per recipient when it opens the wait, otherwise
+        encoded once for all of them.
+        """
+        if not opens_wait(event, awaiting):
+            self._broadcast_to_game(game, message)
+            return
+
+        for participant in game.connected():
+            self._send_event_to_participant(participant, message=message, event=event, awaiting=awaiting)
 
     def _send_event_to_participant(
         self,
@@ -1044,10 +1064,10 @@ class SessionManager:
         """
         Send a draw's public notice to every connected participant but the drawer's, whose seat gets the draw itself.
         """
-        notice = draw_notice_payload(event)
+        notice = encode(draw_notice_payload(event))
         for participant in game.participants:
             if participant.connection is not None and participant.seat != event.seat:
-                participant.connection.send_message(notice)
+                participant.connection.send_bytes(notice)
 
     def _send_to_each_seat(self, game: GameSession, message: dict[int, Any]) -> None:
         """
@@ -1076,11 +1096,12 @@ class SessionManager:
         message: dict[int, Any],
     ) -> None:
         """
-        Send a message to every connected participant of the game.
+        Send a message to every connected participant of the game, encoded once for all of them.
         """
+        data = encode(message)
         for participant in game.participants:
             if participant.connection is not None:
-                participant.connection.send_message(message)
+                participant.connection.send_bytes(data)
 
     @staticmethod
     def _seat_of(participant: Participant) -> int:

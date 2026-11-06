@@ -274,13 +274,16 @@ def stamp_wait_id(payload: dict[int, Any], *, event: GameEvent, awaiting: Awaiti
     deal to an awaited seat. A game over opens no wait. Only the socket payloads carry it: the
     replay collector shapes its own payloads, so `WireKey.WAIT_ID` never reaches a replay file.
     """
-    if _opens_wait(event, awaiting):
+    if opens_wait(event, awaiting):
         return {**payload, WireKey.WAIT_ID: wait_id}
 
     return payload
 
 
-def _opens_wait(event: GameEvent, awaiting: Awaiting) -> bool:
+def opens_wait(event: GameEvent, awaiting: Awaiting) -> bool:
+    """
+    Tell whether an event opens the wait for its recipients, so each copy carries its recipient's decision id.
+    """
     target = event.target
     to_awaited_seat = isinstance(target, SeatTarget) and target.seat in awaiting.seats
     if awaiting.kind == WaitKind.TURN:
