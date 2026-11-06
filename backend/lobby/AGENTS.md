@@ -136,8 +136,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   `players` row, gone at logout or expiry. Several places still treat the name as identity (the game
   server rejects a table with duplicate names), so the name is unique among live guest sessions,
   chosen and inserted in one write transaction so two concurrent guest logins cannot share it; the
-  hyphen keeps it out of the account namespace. Accepted limit: a guest who logs out or expires
-  while still seated frees the name, and a new guest drawing it at that table breaks the game start.
+  hyphen keeps it out of the account namespace. Accepted limit: a guest who logs out, logs in to an
+  account, or expires while still seated frees the name, and a new guest drawing it at that table
+  breaks the game start.
 * Bots register through `scripts/register_bot.py` and get an API key, printed once and never stored;
   run for an existing bot, the script rotates its key, which invalidates the old one. Bots send the
   key as `X-API-Key` on the bot API and the WebSocket handshakes, with the configured
