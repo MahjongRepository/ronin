@@ -9,6 +9,8 @@ from game.logic.tiles import NUM_TILES
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState, MahjongPlayer
 
+_ALL_TILE_IDS = frozenset(range(NUM_TILES))
+
 
 def _unclaimed_discards(players: tuple[MahjongPlayer, ...]) -> list[int]:
     """
@@ -43,18 +45,21 @@ def verify_tile_ownership(state: MahjongGameState) -> None:
     satisfies the same partition as a running one.
     """
     round_state = state.round_state
-    owned = Counter[int]()
+    owned: list[int] = []
     for player in round_state.players:
-        owned.update(player.tiles)
+        owned.extend(player.tiles)
         for meld in player.melds:
-            owned.update(meld.tiles)
+            owned.extend(meld.tiles)
 
-    owned.update(_unclaimed_discards(round_state.players))
-    owned.update(round_state.wall.live_tiles)
-    owned.update(round_state.wall.dead_wall.tiles)
+    owned.extend(_unclaimed_discards(round_state.players))
+    owned.extend(round_state.wall.live_tiles)
+    owned.extend(round_state.wall.dead_wall.tiles)
 
-    duplicated = sorted(t for t, n in owned.items() if n > 1)
-    missing = sorted(set(range(NUM_TILES)) - owned.keys())
-    unknown = sorted(t for t in owned if not (0 <= t < NUM_TILES))
-    if duplicated or missing or unknown:
-        raise TileOwnershipError(f"tile ownership broken: duplicated={duplicated} missing={missing} unknown={unknown}")
+    if len(owned) == NUM_TILES and set(owned) == _ALL_TILE_IDS:
+        return
+
+    counts = Counter(owned)
+    duplicated = sorted(t for t, n in counts.items() if n > 1)
+    missing = sorted(_ALL_TILE_IDS - counts.keys())
+    unknown = sorted(t for t in counts if t not in _ALL_TILE_IDS)
+    raise TileOwnershipError(f"tile ownership broken: duplicated={duplicated} missing={missing} unknown={unknown}")

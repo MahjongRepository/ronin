@@ -9,6 +9,7 @@ from game.logic.rng import SEED_BYTES
 from game.logic.runtime import GameRuntime
 from game.logic.state import Discard
 from game.logic.state_utils import update_player
+from game.logic.tiles import NUM_TILES
 
 FIXED_SEED = "ab" * SEED_BYTES
 
@@ -55,6 +56,15 @@ class TestVerifyTileOwnership:
         round_state = update_player(round_state, 0, tiles=(*player.tiles[:-1], stolen))
 
         with pytest.raises(TileOwnershipError, match=rf"duplicated=\[{stolen}\] missing=\[{player.tiles[-1]}\]"):
+            verify_tile_ownership(game_state.model_copy(update={"round_state": round_state}))
+
+    def test_verify_tile_ownership__when_a_tile_id_is_out_of_range__should_name_it_as_unknown(self):
+        game_state = _started_game()
+        round_state = game_state.round_state
+        player = round_state.players[0]
+        round_state = update_player(round_state, 0, tiles=(*player.tiles[:-1], NUM_TILES))
+
+        with pytest.raises(TileOwnershipError, match=rf"missing=\[{player.tiles[-1]}\] unknown=\[{NUM_TILES}\]"):
             verify_tile_ownership(game_state.model_copy(update={"round_state": round_state}))
 
     def test_verify_tile_ownership__when_a_meld_claims_a_tile_it_does_not_contain__should_raise(self):
