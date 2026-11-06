@@ -59,8 +59,10 @@ the lowest layer allowed to hold it. `src/fixtures/` is generated data; only sto
 * Zod is `zod/mini` only (lint bans classic: it does not tree-shake and its JIT breaks the CSP). `zod-setup.ts` stays
   the first import of `index.ts`.
 * Lint and format follow the lobby's config; keep them in sync. `new-cap` exceptions list this app's components.
-* Supported floor: iOS Safari 16.4 and a 667x375 landscape phone. The rotate panel is a media query's choice alone;
-  the session runs on under it.
+* Supported floor: Safari 16.4, Chrome/Edge 108, Firefox 128 and a 667x375 landscape phone. The rotate panel is a
+  media query's choice alone; the session runs on under it. The board cannot lay out without `:has()`, container
+  queries, `dvh` and `@property`: `supportsBoardCss` checks them, and a browser lacking one gets a notice instead of
+  any page (the lobby's copy shows a banner). A new CSS feature the layout depends on joins that check.
 * `npm run sprite` rebuilds the committed tile sprite after a tile SVG changes; never hand-edit it. The active tile
   set is `entities/tile/lib/tile-config.ts`'s alone.
 

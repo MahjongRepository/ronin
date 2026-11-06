@@ -1,4 +1,5 @@
 export { assertNever } from "./assert-never";
+export { supportsBoardCss } from "./browser-support";
 export { createDeadlineTimer } from "./deadline-timer";
 export type { DeadlineTimer } from "./deadline-timer";
 export { focusByKey, focusKeys, keyedControls } from "./focus-key";

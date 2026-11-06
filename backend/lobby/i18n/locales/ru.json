@@ -33,6 +33,7 @@
     "auth.register.title": "Регистрация",
     "auth.register.username_help": "От {min} до {max} символов: латинские буквы, цифры и знак подчёркивания (_).",
     "common.back_to_lobby": "В лобби",
+    "common.unsupported_browser": "Ваш браузер устарел, и игра в нём отображается неправильно. Обновите его до Chrome или Edge 108, Firefox 128, Safari 16.4 или новее.",
     "error.not_found.message": "По этому адресу ничего нет. Возможно, страница переехала.",
     "error.not_found.title": "Страница не найдена",
     "error.refused.message": "Сервер не может принять этот запрос.",

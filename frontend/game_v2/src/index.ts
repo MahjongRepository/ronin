@@ -1,5 +1,7 @@
 import "@/zod-setup";
 import "@/styles/game-app.scss";
+import { render } from "lit-html";
+
 import chiUrl from "@/assets/audio/calls/chi.mp3?no-inline";
 import kanUrl from "@/assets/audio/calls/kan.mp3?no-inline";
 import ponUrl from "@/assets/audio/calls/pon.mp3?no-inline";
@@ -36,6 +38,7 @@ import {
     type SoundSource,
     createSoundPlayer,
     localStore,
+    supportsBoardCss,
     unlockOnGesture,
     webAudioOutput,
 } from "@/shared/lib";
@@ -48,6 +51,7 @@ import {
 import { GameSocket } from "@/shared/websocket";
 import { type GameViewDeps, mountGameView } from "@/views/game";
 import type * as StorybookRoutes from "@/views/storybook-routes";
+import { unsupportedBrowserTemplate } from "@/views/unsupported-browser";
 
 const VOICE_VOLUME = 0.2;
 const DISCARD_VOLUME = 0.1;
@@ -175,7 +179,9 @@ function createStorybookRoutes(): Route[] {
 }
 
 const app = document.getElementById("app");
-if (app) {
+if (app && !supportsBoardCss()) {
+    render(unsupportedBrowserTemplate(getLobbyUrl()), app);
+} else if (app) {
     const tileSprite = startTileSprite();
     startRouter(
         app,

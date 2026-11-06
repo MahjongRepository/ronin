@@ -31,6 +31,7 @@
     "auth.register.title": "Register",
     "auth.register.username_help": "{min}–{max} letters, numbers or underscores.",
     "common.back_to_lobby": "Back to lobby",
+    "common.unsupported_browser": "Your browser is too old to show the game correctly. Update to Chrome or Edge 108, Firefox 128, Safari 16.4 or newer.",
     "error.not_found.message": "Nothing lives at this address. It may have moved.",
     "error.not_found.title": "Page not found",
     "error.refused.message": "The server could not accept this request.",

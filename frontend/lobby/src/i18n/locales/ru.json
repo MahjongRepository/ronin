@@ -3,6 +3,7 @@
     "common.go_to_matchmaking": "К подбору игроков",
     "common.go_to_table": "К своему столу",
     "common.reload": "Обновить",
+    "common.unsupported_browser": "Ваш браузер устарел, и игра в нём отображается неправильно. Обновите его до Chrome или Edge 108, Firefox 128, Safari 16.4 или новее.",
     "footer.dev_links_label": "Для разработчиков",
     "footer.game_storybook": "Сторибук игры",
     "footer.language_label": "Язык",

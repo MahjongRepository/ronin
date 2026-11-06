@@ -3,6 +3,7 @@
     "common.go_to_matchmaking": "Go to matchmaking",
     "common.go_to_table": "Go to your table",
     "common.reload": "Reload",
+    "common.unsupported_browser": "Your browser is too old to show the game correctly. Update to Chrome or Edge 108, Firefox 128, Safari 16.4 or newer.",
     "footer.dev_links_label": "Developer",
     "footer.game_storybook": "Game storybook",
     "footer.language_label": "Language",

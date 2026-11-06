@@ -3,6 +3,7 @@
     "common.go_to_matchmaking": "マッチングへ",
     "common.go_to_table": "自分の卓へ",
     "common.reload": "再読み込み",
+    "common.unsupported_browser": "お使いのブラウザは古いため、ゲームを正しく表示できません。Chrome / Edge 108、Firefox 128、Safari 16.4 以降に更新してください。",
     "footer.dev_links_label": "開発者向け",
     "footer.game_storybook": "ゲームのストーリーブック",
     "footer.language_label": "言語",

@@ -1,4 +1,5 @@
 import "@/styles/lobby-app.scss";
+import { showUnsupportedBrowserNotice } from "@/browser-support";
 import { initGamesCopyLinkButtons, showGameTimesInLocalTime } from "@/games-history";
 import { initMatchmakingPage } from "@/matchmaking";
 import { initRoomPage } from "@/room";
@@ -17,6 +18,7 @@ if (matchmakingContainer) {
     initMatchmakingPage(matchmakingContainer);
 }
 
+showUnsupportedBrowserNotice();
 initGamesCopyLinkButtons();
 showGameTimesInLocalTime();
 

@@ -1,0 +1,23 @@
+.browser-notice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    max-width: 32rem;
+    margin: auto;
+    padding: 1.5rem 2rem;
+    text-align: center;
+    background: var(--ronin-surface);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.75rem;
+}
+
+.browser-notice__title {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.browser-notice__detail {
+    margin: 0;
+    color: var(--ronin-text-secondary);
+}

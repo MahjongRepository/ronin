@@ -30,6 +30,7 @@
     "auth.register.title": "登録",
     "auth.register.username_help": "英数字とアンダースコア（_）で{min}～{max}文字です。",
     "common.back_to_lobby": "ロビーへ戻る",
+    "common.unsupported_browser": "お使いのブラウザは古いため、ゲームを正しく表示できません。Chrome / Edge 108、Firefox 128、Safari 16.4 以降に更新してください。",
     "error.not_found.message": "このアドレスには何もありません。移動した可能性があります。",
     "error.not_found.title": "ページが見つかりません",
     "error.refused.message": "サーバーはこのリクエストを受け付けられませんでした。",
