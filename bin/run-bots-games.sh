@@ -511,6 +511,7 @@ archive_failed_run() {
     cp -r "$BOT_LOG_DIR" "$FAILED_RUN_DIR/bot-logs" 2>/dev/null || true
     cp "$HARNESS_LOG" "$FAILED_RUN_DIR/" 2>/dev/null || true
     cp "$PROFILE_FILE" "$FAILED_RUN_DIR/" 2>/dev/null || true
+    cp "$PROFILE_FILE.gc.json" "$FAILED_RUN_DIR/" 2>/dev/null || true
     {
         echo "exit status: $status"
         echo "games: $PLAYED of $MAX_GAMES played, tables: $TABLES, profile: $PROFILE, mode: ${MODE:-default}, net: ${NET:-direct}"
