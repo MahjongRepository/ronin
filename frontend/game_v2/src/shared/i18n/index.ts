@@ -33,8 +33,12 @@ function pageLocale(): Locale {
     return isLocale(lang) ? lang : DEFAULT_LOCALE;
 }
 
+function hasKey(record: object, key: string): boolean {
+    return Object.getOwnPropertyDescriptor(record, key) !== undefined;
+}
+
 function isMessageKey(key: string): key is MessageKey {
-    return Object.hasOwn(en, key);
+    return hasKey(en, key);
 }
 
 function reportI18nError(key: string, reason: string): void {
@@ -66,7 +70,7 @@ function checkParams(key: string, source: Message, params: Params): void {
     if (typeof source === "string" && PLURAL_PARAM in params) {
         throw new I18nError(key, "not a plural key");
     }
-    const missing = [...expected].filter((name) => !Object.hasOwn(params, name));
+    const missing = [...expected].filter((name) => !hasKey(params, name));
     if (missing.length > 0) {
         throw new I18nError(key, `missing params ${missing.join(", ")}`);
     }
@@ -98,7 +102,7 @@ function fillMessage(text: string, params: Params): string {
             if (index % 2 === 0) {
                 return piece;
             }
-            if (!Object.hasOwn(params, piece)) {
+            if (!hasKey(params, piece)) {
                 return `{${piece}}`;
             }
             const value = params[piece];
@@ -130,7 +134,7 @@ function renderMessage(key: string, params: Params): string {
     checkParams(key, en[key], params);
     const locale = pageLocale();
     const catalog = CATALOGS[locale];
-    if (!Object.hasOwn(catalog, key)) {
+    if (!hasKey(catalog, key)) {
         throw new I18nError(key, `missing ${locale} translation`);
     }
     return fillMessage(pickText(key, catalog[key], params), params);

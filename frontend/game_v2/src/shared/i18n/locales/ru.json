@@ -24,7 +24,7 @@
     "game.hand.play_tile": "Сыграть {tile}",
     "game.hand.riichi_discard_tile": "Объявить риичи, сбросив {tile}",
     "game.page.broken": "На странице игры произошла ошибка.",
-    "game.page.title": "Игра · Ronin",
+    "game.page.title": "Ronin - Игра",
     "game.score.baiman": "Байман",
     "game.score.haneman": "Ханеман",
     "game.score.mangan": "Манган",
