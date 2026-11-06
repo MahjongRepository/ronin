@@ -3,12 +3,14 @@ import { type TemplateResult, html, nothing } from "lit-html";
 import { type DecisionCountdown } from "@/entities/client/model/countdown";
 import {
     countdownAnnouncement,
-    expiryNote,
+    expiredSentence,
     moveName,
 } from "@/entities/client/model/countdown-text";
 import { type PlayDisplay } from "@/entities/client/model/play-display";
 import { type PlayCommand } from "@/entities/client/model/play-ui";
+import { t } from "@/shared/i18n";
 
+import { withSecondsFigure } from "./seconds-figure";
 import { FailurePanel, LeaveConfirm } from "./session-panels";
 
 /** What the rotate panel shows, all of it the live board's display: the status, what is owed, the way back, an end. */
@@ -16,27 +18,34 @@ export type RotatePanelView = Pick<PlayDisplay, "failure" | "leave" | "owedCount
 
 /** What runs on while the rotate panel shows: play and its timer, or a round confirm's timer. */
 function runningNote(move: DecisionCountdown["move"]): string {
-    return move === "result" || move === "start"
-        ? "Its timer keeps running while this message is shown."
-        : "Play continues, and your timer keeps running while this message is shown.";
+    const key =
+        move === "result" || move === "start"
+            ? "game.rotate.timer_runs"
+            : "game.rotate.play_continues";
+    return t(key, { move: moveName(move) });
+}
+
+function secondsLeft(countdown: Extract<DecisionCountdown, { kind: "running" }>): TemplateResult {
+    const key =
+        countdown.clock?.inBank === true
+            ? "game.rotate.bank_seconds_left"
+            : "game.rotate.seconds_left";
+    const text = t(key, { count: countdown.secondsLeft });
+    return withSecondsFigure(text, countdown.secondsLeft, "rotate-panel__seconds");
 }
 
 function countdownTemplate(countdown: DecisionCountdown): TemplateResult {
     if (countdown.kind === "expired") {
         return html`<div class="rotate-panel__decision rotate-panel__decision--expired">
-            <p>${moveName(countdown.move)}, and its time is up: ${expiryNote(countdown.move)}.</p>
+            <p>${expiredSentence(countdown.move)}</p>
         </div>`;
     }
     const left =
         countdown.kind === "running"
-            ? html`<p class="rotate-panel__countdown" aria-live="off">
-                  <span class="rotate-panel__seconds">${countdown.secondsLeft}</span> s left${
-                      countdown.clock?.inBank === true ? " in your time bank" : ""
-                  }
-              </p>`
+            ? html`<p class="rotate-panel__countdown" aria-live="off">${secondsLeft(countdown)}</p>`
             : "";
     return html`<div class="rotate-panel__decision">
-        <p>${moveName(countdown.move)}. ${runningNote(countdown.move)}</p>
+        <p>${runningNote(countdown.move)}</p>
         ${left}
     </div>`;
 }
@@ -68,8 +77,8 @@ export function RotatePanel(
     }
     return html`<div class="rotate-panel">
         ${rotateIcon()}
-        <h2 class="rotate-panel__title">Landscape mode required</h2>
-        <p class="rotate-panel__hint">Rotate your device or widen the window. The game keeps running meanwhile.</p>
+        <h2 class="rotate-panel__title">${t("game.rotate.title")}</h2>
+        <p class="rotate-panel__hint">${t("game.rotate.hint")}</p>
         <span class="connection-status status-${status.tone}" role="status">${status.label}</span>
         ${countdown === null ? "" : countdownTemplate(countdown)}
         <span class="rotate-panel__announce" aria-live="polite">${countdownAnnouncement(countdown)}</span>
@@ -80,7 +89,7 @@ export function RotatePanel(
             aria-haspopup=${leave.command.kind === "ask_leave" ? "dialog" : nothing}
             @click=${() => onCommand(leave.command)}
         >
-            Back to lobby
+            ${t("common.back_to_lobby")}
         </button>
     </div>`;
 }

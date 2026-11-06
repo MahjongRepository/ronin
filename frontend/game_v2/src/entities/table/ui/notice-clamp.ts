@@ -2,6 +2,8 @@ import { nothing } from "lit-html";
 import { AsyncDirective } from "lit-html/async-directive.js";
 import { type ElementPart, type PartInfo, PartType, directive } from "lit-html/directive.js";
 
+import { t } from "@/shared/i18n";
+
 /** A clamped notice's least height: the whole notice is its "Show all" control's tap target. */
 export const NOTICE_TAP_MIN = 40;
 
@@ -195,7 +197,9 @@ function labelShowAll(showAll: Element, more: number): void {
     setAttribute(
         showAll,
         "aria-label",
-        more > 0 ? `Show all, ${more} more: ${words}` : `Show all: ${words}`,
+        more > 0
+            ? t("game.notice.show_all_more", { count: more, words })
+            : t("game.notice.show_all_label", { words }),
     );
 }
 

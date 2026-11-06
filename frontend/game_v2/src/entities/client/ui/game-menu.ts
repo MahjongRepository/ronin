@@ -1,7 +1,9 @@
 import { type TemplateResult, html, nothing, svg } from "lit-html";
 
+import { switchLetters } from "@/entities/client/model/play-display";
 import { SETTINGS_FOCUS_KEY } from "@/entities/client/model/settings-menu";
 import { type SessionStatusDisplay } from "@/entities/session";
+import { t } from "@/shared/i18n";
 import { focusByKey } from "@/shared/lib";
 
 interface GameMenuProps {
@@ -57,7 +59,7 @@ function SoundIcon(on: boolean): TemplateResult {
 /** The session's status as the menu's row: a dot and its whole label. */
 function StatusRow(status: SessionStatusDisplay): TemplateResult {
     return html`<div class="game-menu__item game-menu__status-row">
-        <span class="game-menu__item-name">Status</span>
+        <span class="game-menu__item-name">${t("game.settings.status")}</span>
         <span class="connection-status game-menu__status status-${status.tone}">${status.label}</span>
     </div>`;
 }
@@ -69,7 +71,7 @@ function StatusRow(status: SessionStatusDisplay): TemplateResult {
 function SettingsPanel(props: GameMenuProps): TemplateResult {
     const { onClose, onToggleSound, soundOn, status } = props;
     return html`<div class="game-menu__backdrop" aria-hidden="true" @click=${onClose}></div>
-        <div class="game-menu__panel" role="group" aria-label="Settings">
+        <div class="game-menu__panel" role="group" aria-label=${t("game.settings.title")}>
             <button
                 type="button"
                 class="secondary game-menu__item game-menu__sound"
@@ -77,12 +79,16 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
                 aria-checked=${soundOn ? "true" : "false"}
                 @click=${onToggleSound}
             >
-                ${SoundIcon(soundOn)}<span class="game-menu__item-name">Sound</span
-                ><span class="game-menu__item-value">${soundOn ? "On" : "Off"}</span>
+                ${SoundIcon(soundOn)}<span class="game-menu__item-name">${t("game.settings.sound")}</span
+                ><span class="game-menu__item-value">${onOff(soundOn)}</span>
             </button>
             ${props.input === undefined ? nothing : InputSettings(props.input)}
             ${status === null ? nothing : StatusRow(status)}
         </div>`;
+}
+
+function onOff(on: boolean): string {
+    return t(on ? "game.settings.on" : "game.settings.off");
 }
 
 function InputSettings(input: NonNullable<GameMenuProps["input"]>): TemplateResult {
@@ -92,14 +98,22 @@ function InputSettings(input: NonNullable<GameMenuProps["input"]>): TemplateResu
         role="switch"
         aria-checked=${String(input.rightClick)}
         @click=${input.onToggle}
-    ><span class="game-menu__item-name">Right-click shortcuts</span
-        ><span class="game-menu__item-value">${input.rightClick ? "On" : "Off"}</span></button>
+    ><span class="game-menu__item-name">${t("game.settings.right_click")}</span
+        ><span class="game-menu__item-value">${onOff(input.rightClick)}</span></button>
         <details class="game-menu__controls">
-            <summary>Controls</summary>
-            <p>Click or tap a tile to discard. ← → focuses playable tiles; Enter or Space activates.</p>
-            <p>Esc: close, go back, or pass. Right-click: the same, or discard the drawn tile.</p>
-            <p>Pass declines Ron. Discarding declines Tsumo and other offers.</p>
-            <p>Results: Next, then OK. A/C/D label play switches; they are not hotkeys.</p>
+            <summary>${t("game.help.title")}</summary>
+            <p>${t("game.help.tiles")}</p>
+            <p>${t("game.help.escape")}</p>
+            <p>${t("game.help.decline", {
+                pass: t("game.button.pass"),
+                ron: t("game.call.ron"),
+                tsumo: t("game.call.tsumo"),
+            })}</p>
+            <p>${t("game.help.results", {
+                letters: switchLetters().join("/"),
+                next: t("game.result.next"),
+                ok: t("common.ok"),
+            })}</p>
         </details>`;
 }
 
@@ -120,7 +134,7 @@ function GameMenu(props: GameMenuProps): TemplateResult {
         onClose();
         focusByKey(nav, SETTINGS_FOCUS_KEY);
     }
-    return html`<nav class="game-menu" aria-label="Game" @keydown=${onKeydown}>
+    return html`<nav class="game-menu" aria-label=${t("game.menu.label")} @keydown=${onKeydown}>
         ${extra ?? nothing}
         ${
             status === null
@@ -130,8 +144,8 @@ function GameMenu(props: GameMenuProps): TemplateResult {
         <button
             type="button"
             class="secondary game-menu__toggle"
-            title="Settings"
-            aria-label=${word === "" ? "Settings" : `Settings, ${word}`}
+            title=${t("game.settings.title")}
+            aria-label=${word === "" ? t("game.settings.title") : t("game.settings.title_with_status", { status: word })}
             aria-expanded=${open ? "true" : "false"}
             data-focus-key=${SETTINGS_FOCUS_KEY}
             @click=${onToggleOpen}

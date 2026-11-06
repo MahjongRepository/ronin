@@ -5,6 +5,7 @@ import {
     SEAT_POSITIONS,
     type SeatPosition,
 } from "@/entities/table/model/board-types";
+import { formatList, t } from "@/shared/i18n";
 
 import { PlayerName } from "./player-name";
 import { RiichiStickIcon } from "./riichi-stick-icon";
@@ -48,19 +49,24 @@ interface NameplateProps {
  * difference from the pinned plate in place of the score, why an AI player is marked, and where pressing it views from its seat, that.
  */
 function nameplateLabel({ pinnedOther, plate, position, pressed }: NameplateProps): string {
-    const seat = plate.isDealer ? `${plate.windName}, dealer` : plate.windName;
+    const seat = plate.isDealer
+        ? t("game.nameplate.dealer", { wind: plate.windName })
+        : plate.windName;
     const points =
         pinnedOther === null
-            ? `${plate.score} points`
-            : `${plate.scoreDiffs[pinnedOther.position]} from ${pinnedOther.name}`;
+            ? t("game.result.points", { count: Number(plate.score) })
+            : t("game.nameplate.diff", {
+                  diff: plate.scoreDiffs[pinnedOther.position],
+                  name: pinnedOther.name,
+              });
     const marks = [
-        plate.isCurrent ? "to play" : null,
+        plate.isCurrent ? t("game.nameplate.to_play") : null,
         points,
-        plate.isRiichi ? "riichi" : null,
+        plate.isRiichi ? t("game.nameplate.riichi") : null,
         plate.aiMark?.words ?? null,
         viewWords(position, pressed),
     ].filter((mark) => mark !== null);
-    return [plate.name, seat, ...marks].join(", ");
+    return formatList([plate.name, seat, ...marks]);
 }
 
 /** Where pressing a plate views from its seat: the bottom plate's is the seat viewed from, any other's is a choice. */
@@ -68,7 +74,7 @@ function viewWords(position: SeatPosition, pressed: boolean | null): string | nu
     if (pressed !== null) {
         return null;
     }
-    return position === "bottom" ? "viewing from this seat" : "view from this seat";
+    return t(position === "bottom" ? "game.nameplate.viewing" : "game.nameplate.view");
 }
 
 /**
@@ -111,7 +117,7 @@ function NameplateMarks({ aiMark, isRiichi }: BoardNameplate): TemplateResult | 
         >${
             aiMark === null
                 ? nothing
-                : html`<span class="nameplate__ai nameplate__ai--${aiMark.tag.toLowerCase()}">${aiMark.tag}</span>`
+                : html`<span class="nameplate__ai nameplate__ai--${aiMark.kind}">${aiMark.tag}</span>`
         }${isRiichi ? html`<span class="nameplate__riichi">${RiichiStickIcon("across")}</span>` : nothing}</span
     >`;
 }

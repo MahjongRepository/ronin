@@ -1,4 +1,5 @@
 import { type TableState, roundEndPageAt } from "@/entities/table";
+import { type MessageKey, t } from "@/shared/i18n";
 
 import { type DecisionCountdown, roundConfirmCountdown } from "./countdown";
 import { takesIntent } from "./intents";
@@ -25,9 +26,9 @@ export interface ResultControls {
 const CONFIRM_RESULT: PlayIntent = { type: "confirm_result" };
 const SHOW_LAST_RESULT: PlayIntent = { type: "show_last_result" };
 
-const CONFIRM_LABELS: Readonly<Record<"owed" | "final", string>> = {
-    final: "Final scores",
-    owed: "OK",
+const CONFIRM_LABELS: Readonly<Record<"owed" | "final", MessageKey>> = {
+    final: "game.result.final_scores",
+    owed: "common.ok",
 };
 
 /**
@@ -51,7 +52,12 @@ export function shownResultPage(table: TableState, ui: PlayUi): number {
 }
 
 function pageAction(page: number): PlayAction {
-    return { command: { kind: "show_result_page", page }, label: "Next", pressed: null, tiles: [] };
+    return {
+        command: { kind: "show_result_page", page },
+        label: t("game.result.next"),
+        pressed: null,
+        tiles: [],
+    };
 }
 
 /** The confirm's button, when the dispatcher takes the confirm now. */
@@ -64,7 +70,7 @@ function confirmAction(state: LiveClient, confirm: ResultRead): PlayAction | nul
     }
     return {
         command: intentCommand(CONFIRM_RESULT),
-        label: CONFIRM_LABELS[confirm.kind],
+        label: t(CONFIRM_LABELS[confirm.kind]),
         pressed: null,
         tiles: [],
     };
@@ -97,7 +103,7 @@ export function lastResultAction(state: LiveClient): PlayAction | null {
     }
     return {
         command: intentCommand(SHOW_LAST_RESULT),
-        label: "Last hand",
+        label: t("game.result.last_hand"),
         pressed: null,
         tiles: [],
     };

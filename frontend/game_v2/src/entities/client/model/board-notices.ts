@@ -1,6 +1,7 @@
 import { type ConnectionTrouble, connectionTrouble } from "@/entities/session";
 import { type Notice } from "@/entities/table";
 import { type TileSpriteStatus } from "@/entities/tile";
+import { type MessageKey, t } from "@/shared/i18n";
 import { assertNever } from "@/shared/lib";
 import { GAME_ERROR_CODE, SESSION_ERROR_CODE } from "@/shared/protocol";
 
@@ -38,15 +39,19 @@ function connectionNotice(trouble: ConnectionTrouble | null): PlayNotice | null 
             return null;
         }
         case "finding_game": {
-            return { kind: "connection", text: "Finding your game…", tone: "info" };
+            return { kind: "connection", text: t("game.notice.finding_game"), tone: "info" };
         }
         case "seat_lost": {
-            return { kind: "connection", text: "Connection lost. Reconnecting…", tone: "warning" };
+            return {
+                kind: "connection",
+                text: t("game.connection.lost"),
+                tone: "warning",
+            };
         }
         case "unreachable": {
             return {
                 kind: "connection",
-                text: "Cannot reach the game. Retrying…",
+                text: t("game.notice.unreachable"),
                 tone: "warning",
             };
         }
@@ -56,19 +61,18 @@ function connectionNotice(trouble: ConnectionTrouble | null): PlayNotice | null 
     }
 }
 
+const REFUSAL_TEXTS: ReadonlyMap<string, MessageKey> = new Map<string, MessageKey>([
+    [SESSION_ERROR_CODE.RATE_LIMITED, "game.refusal.rate_limited"],
+    [GAME_ERROR_CODE.NOT_YOUR_TURN, "game.refusal.not_your_turn"],
+]);
+
 function refusalText(code: string): string {
-    if (code === SESSION_ERROR_CODE.RATE_LIMITED) {
-        return "Too fast. Try that again";
-    }
-    if (code === GAME_ERROR_CODE.NOT_YOUR_TURN) {
-        return "Not your turn";
-    }
-    return "That move was refused";
+    return t(REFUSAL_TEXTS.get(code) ?? "game.refusal.refused");
 }
 
 function timedNotice(notice: TimedNotice | null): PlayNotice | null {
     if (notice?.kind === "reconnected") {
-        return { kind: "reconnected", text: "Reconnected", tone: "success" };
+        return { kind: "reconnected", text: t("game.connection.restored"), tone: "success" };
     }
     if (notice?.kind === "refused") {
         return { kind: "refused", text: refusalText(notice.code), tone: "warning" };
@@ -81,10 +85,9 @@ function unreadNotice(count: number): PlayNotice | null {
     if (count === 0) {
         return null;
     }
-    const messages = count === 1 ? "a message" : `${count} messages`;
     return {
         kind: "unread",
-        text: `The game server sent ${messages} this page could not read, so the table may be wrong until the server sends it again; play goes on.`,
+        text: t("game.notice.unread", { count }),
         tone: "error",
     };
 }
@@ -98,9 +101,9 @@ function tileSpriteNotice(status: TileSpriteStatus): PlayNotice | null {
         return null;
     }
     return {
-        action: { command: { kind: "reload" }, label: "Reload" },
+        action: { command: { kind: "reload" }, label: t("common.reload") },
         kind: "tile_sprite",
-        text: "Tile images did not load; tiles show their names",
+        text: t("game.notice.tile_sprite"),
         tone: "warning",
     };
 }

@@ -27,6 +27,7 @@ import {
     type TileAction,
     TileBack,
 } from "@/entities/tile";
+import { formatList, t } from "@/shared/i18n";
 
 import { sizeBoard } from "./board-geometry-directive";
 import { animateBoard } from "./board-motion-directive";
@@ -212,7 +213,7 @@ function DoraDisplay(center: BoardCenterInfo): TemplateResult {
     const backs = Math.max(0, DORA_SLOTS - indicators.length);
     return html`
         <div class="board-dora">
-            <div class="board-dora__tiles" role="group" aria-label="Dora indicators">
+            <div class="board-dora__tiles" role="group" aria-label=${t("game.board.dora_indicators")}>
                 ${indicators.map((face) => html`<span class="board-dora__tile">${Tile(face, "face")}</span>`)}
                 ${Array.from({ length: backs }, () => html`<span class="board-dora__tile">${TileBack()}</span>`)}
             </div>
@@ -258,7 +259,7 @@ function CenterSeat(
         <span class="board-center__riichi ${plate.isRiichi ? "" : "board-center__riichi--none"}"></span>
         <span
             class="board-center__score-line ${viewable ? "board-center__score-line--view" : ""}"
-            title=${viewable ? `View from ${plate.name}` : nothing}
+            title=${viewable ? t("replay.links.view_from", { player: plate.name }) : nothing}
             @click=${viewable ? () => onView(position) : nothing}
             ><span class="board-center__wind">${plate.wind}</span
             ><span class="board-center__score">${ScoreFigures(plate.score)}</span>${diffs}</span
@@ -275,7 +276,7 @@ function DiffLabels(plates: BoardDisplayState["nameplates"]): TemplateResult {
     return html`${SEAT_POSITIONS.map(
         (position, index) =>
             html`<div class="board-center__diff-label board-center__diff-label--${position}">
-                <span class="board-center__diff-vs">vs</span>
+                <span class="board-center__diff-vs">${t("game.board.vs")}</span>
                 <span class="board-center__diff-slot"
                     ><span class="board-center__diff-names"
                         ><span class="board-center__diff-name">${plates[index].name}</span
@@ -302,18 +303,18 @@ function CenterInfo(
             <div class="board-center__info">
                 <div class="board-center__round">${center.roundDisplay}</div>
                 <div class="board-center__counts">
-                    <span class="board-center__count board-center__count--wall" title="Tiles left in the wall"
-                        ><span class="board-center__label">Wall </span
-                        ><span class="board-center__figure">${center.tilesRemaining}</span></span
+                    <span class="board-center__count board-center__count--wall" title=${t("game.board.wall_title")}
+                        ><span class="board-center__label">${t("game.board.wall")}</span>
+                        <span class="board-center__figure">${center.tilesRemaining}</span></span
                     >
                     <span class="board-center__sticks">
-                        <span class="board-center__count" title="Honba"
-                            >${HonbaStickIcon()}<span class="board-center__label">Honba </span
-                            ><span class="board-center__figure">${center.honbaSticks}</span></span
+                        <span class="board-center__count" title=${t("game.board.honba")}
+                            >${HonbaStickIcon()}<span class="board-center__label">${t("game.board.honba")}</span>
+                            <span class="board-center__figure">${center.honbaSticks}</span></span
                         >
-                        <span class="board-center__count" title="Riichi sticks on the table"
-                            >${RiichiStickIcon()}<span class="board-center__label">Riichi sticks </span
-                            ><span class="board-center__figure">${center.riichiSticks}</span></span
+                        <span class="board-center__count" title=${t("game.board.riichi_sticks_title")}
+                            >${RiichiStickIcon()}<span class="board-center__label">${t("game.board.riichi_sticks")}</span>
+                            <span class="board-center__figure">${center.riichiSticks}</span></span
                         >
                     </span>
                 </div>
@@ -358,14 +359,13 @@ function Callouts(callouts: BoardCallouts): TemplateResult {
     )}`;
 }
 
-/** What a showing of calls reads out: each caller's name and call, `Bob: Pon`. */
 function calloutWords(callouts: BoardCallouts, state: BoardDisplayState | null): string {
-    return callouts.items
-        .map(({ label, position }) => {
+    return formatList(
+        callouts.items.map(({ label, position }) => {
             const name = state?.nameplates[SEAT_POSITIONS.indexOf(position)].name;
-            return name === undefined ? label : `${name}: ${label}`;
-        })
-        .join(", ");
+            return name === undefined ? label : t("game.board.call", { call: label, name });
+        }),
+    );
 }
 
 /**
@@ -395,9 +395,9 @@ function OwnHead(plate: TemplateResult, furiten: boolean): TemplateResult {
 
 /** The furiten mark, a small label beside the own badge: a dot and the word. */
 function FuritenMark(): TemplateResult {
-    return html`<span class="board-furiten" title="Furiten: you cannot win on a discard"
+    return html`<span class="board-furiten" title=${t("game.board.furiten_title")}
         ><span class="board-furiten__dot" aria-hidden="true"></span
-        ><span class="board-furiten__word">Furiten</span></span
+        ><span class="board-furiten__word">${t("game.board.furiten")}</span></span
     >`;
 }
 

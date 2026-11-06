@@ -5,7 +5,7 @@ import { type NoticeSheetDisplay, type PlayNotice } from "@/entities/client/mode
 import { type DecisionCountdown } from "@/entities/client/model/countdown";
 import {
     countdownAnnouncement,
-    expiryNote,
+    expiredSentence,
     moveName,
 } from "@/entities/client/model/countdown-text";
 import { type DecisionAction } from "@/entities/client/model/decision-controls";
@@ -31,12 +31,13 @@ import {
     TablePanelDisplay,
 } from "@/entities/table";
 import { Meld, Tile, spokenTileName } from "@/entities/tile";
-import { formatList } from "@/shared/i18n";
+import { type MessageKey, formatList, t } from "@/shared/i18n";
 import { assertNever, focusKeys } from "@/shared/lib";
 import { focusOnFirstRender } from "@/shared/ui";
 
 import { GameMenu } from "./game-menu";
 import { playInput } from "./play-input";
+import { withSecondsFigure } from "./seconds-figure";
 import { FailurePanel, LeaveConfirm } from "./session-panels";
 
 /** Where the game's end leads the player: this game's replay and the game history. */
@@ -54,11 +55,18 @@ export interface PlayBoardProps {
     readonly links?: GameEndLinks;
 }
 
-function timerCaption(countdown: DecisionCountdown | null): string {
+type TimerCaption = "time_up" | "bank";
+
+const TIMER_CAPTIONS: Readonly<Record<TimerCaption, MessageKey>> = {
+    bank: "game.timer.bank",
+    time_up: "game.timer.time_up",
+};
+
+function timerCaption(countdown: DecisionCountdown | null): TimerCaption | null {
     if (countdown?.kind === "expired") {
-        return "Time up";
+        return "time_up";
     }
-    return countdown?.kind === "running" && countdown.clock?.inBank === true ? "Bank" : "";
+    return countdown?.kind === "running" && countdown.clock?.inBank === true ? "bank" : null;
 }
 
 /**
@@ -74,14 +82,12 @@ function TimerDigits(countdown: DecisionCountdown | null): TemplateResult | type
     }
     const { clock } = countdown;
     if (clock === null) {
-        return html`<span class="decision-controls__countdown" title="Seconds left">${countdown.secondsLeft}</span>`;
+        return html`<span class="decision-controls__countdown" title=${t("game.timer.seconds_left")}>${countdown.secondsLeft}</span>`;
     }
     const bankClass = clock.inBank
         ? "decision-controls__bank decision-controls__bank--draining"
         : "decision-controls__bank";
-    const title = clock.inBank
-        ? "Seconds left in your time bank"
-        : "Seconds left, then your time bank";
+    const title = t(clock.inBank ? "game.timer.bank_seconds_left" : "game.timer.seconds_then_bank");
     return html`<span class="decision-controls__countdown ${clock.inBank ? "decision-controls__countdown--spent" : ""}" title=${title}
             >${clock.baseSeconds}</span
         ><span class=${bankClass} title=${title}>+${clock.bankSeconds}</span>`;
@@ -94,8 +100,8 @@ function DecisionTimer(display: DecisionView): TemplateResult {
     const { countdown } = display;
     const caption = timerCaption(countdown);
     const digits = TimerDigits(countdown);
-    return html`<div class="decision-timer ${caption === "" ? "" : `decision-timer--${caption.toLowerCase().replace(" ", "-")}`}">
-        <span class="decision-timer__caption">${caption}</span>
+    return html`<div class="decision-timer ${caption === null ? "" : `decision-timer--${caption.replace("_", "-")}`}">
+        <span class="decision-timer__caption">${caption === null ? "" : t(TIMER_CAPTIONS[caption])}</span>
         <span class="decision-timer__digits">${digits}</span>
     </div>`;
 }
@@ -261,7 +267,7 @@ export function PlaySwitches(
     if (switches.length === 0) {
         return undefined;
     }
-    return html`<div class="play-switches" role="group" aria-label="Play switches">
+    return html`<div class="play-switches" role="group" aria-label=${t("game.switches.label")}>
         ${repeat(
             switches,
             (control) => control.playSwitch,
@@ -270,8 +276,8 @@ export function PlaySwitches(
             type="button"
             class="play-switches__names-toggle"
             aria-pressed=${String(namesShown)}
-            aria-label="Switch names"
-            title=${namesShown ? "Hide switch names" : "Show switch names"}
+            aria-label=${t("game.switches.names")}
+            title=${t(namesShown ? "game.switches.hide_names" : "game.switches.show_names")}
             @click=${() => onCommand({ kind: "toggle_switch_names" })}
         >
             <svg class="play-switches__arrow" viewBox="0 0 10 10" aria-hidden="true">
@@ -285,11 +291,13 @@ export function PlaySwitches(
 /** The time left to the round advance, as words on the panel itself, since a touch screen shows no tooltip. */
 function ResultTime(countdown: DecisionCountdown | null): TemplateResult | typeof nothing {
     if (countdown?.kind === "running") {
-        return html`<span class="round-end-result__countdown">${countdown.secondsLeft}s left</span>`;
+        return html`<span class="round-end-result__countdown"
+            >${t("game.countdown.seconds_left", { count: countdown.secondsLeft })}</span
+        >`;
     }
     if (countdown?.kind === "expired") {
         return html`<span class="round-end-result__countdown round-end-result__countdown--expired"
-            >Time up</span
+            >${t("game.timer.time_up")}</span
         >`;
     }
     return nothing;
@@ -311,7 +319,7 @@ function ResultControlsView(
     const control =
         action === null
             ? html`<span class="round-end-result__wait">
-                  ${waiting ? html`<span class="round-end-result__waiting">Waiting for others</span>` : nothing}
+                  ${waiting ? html`<span class="round-end-result__waiting">${t("game.result.waiting")}</span>` : nothing}
                   ${ResultTime(countdown)}
               </span>`
             : html`<button
@@ -343,7 +351,7 @@ function OpeningControlsView(
         return undefined;
     }
     const { action, secondsLeft } = opening;
-    const label = action?.label ?? "Waiting for others";
+    const label = action?.label ?? t("game.result.waiting");
     return html`<div class="seating__actions">
     <button
       type="button"
@@ -359,7 +367,7 @@ function OpeningControlsView(
       }}
     >
       <span class="seating__confirm-label">${label}</span>
-      ${secondsLeft === null ? nothing : html`<span class="seating__countdown">${secondsLeft}s left</span>`}
+      ${secondsLeft === null ? nothing : html`<span class="seating__countdown">${t("game.countdown.seconds_left", { count: secondsLeft })}</span>`}
     </button>
   </div>`;
 }
@@ -383,13 +391,13 @@ function gameEndActions(
     }
     if (links !== undefined) {
         actions.push(
-            { href: links.replay, kind: "link", label: "Replay" },
-            { href: links.history, kind: "link", label: "Game history" },
+            { href: links.replay, kind: "link", label: t("game.end.replay") },
+            { href: links.history, kind: "link", label: t("common.game_history") },
         );
     }
     actions.push({
         kind: "button",
-        label: "Lobby",
+        label: t("common.lobby"),
         onClick: () => onCommand(display.leave.command),
         primary: true,
     });
@@ -404,18 +412,21 @@ const TOGGLE_SOUND: PlayCommand = { kind: "toggle_sound" };
 /** What goes on beneath a notice's sheet: play, and the decision or round confirm the player owes with its seconds. */
 function owedMove(countdown: NoticeSheetDisplay["countdown"]): TemplateResult | typeof nothing {
     if (countdown?.kind === "running") {
-        return html` ${moveName(countdown.move)}:
-            <span class="notice-sheet__seconds">${countdown.secondsLeft}</span> s
-            left${countdown.clock?.inBank === true ? " in your time bank" : ""}.`;
+        const key =
+            countdown.clock?.inBank === true
+                ? "game.sheet.owed_bank_seconds"
+                : "game.sheet.owed_seconds";
+        const text = t(key, { count: countdown.secondsLeft, move: moveName(countdown.move) });
+        return html` ${withSecondsFigure(text, countdown.secondsLeft, "notice-sheet__seconds")}`;
     }
     if (countdown?.kind === "expired") {
-        return html` ${moveName(countdown.move)}, and its time is up: ${expiryNote(countdown.move)}.`;
+        return html` ${expiredSentence(countdown.move)}`;
     }
     return nothing;
 }
 
 function SheetNote(countdown: NoticeSheetDisplay["countdown"]): TemplateResult {
-    return html`<p class="notice-sheet__note">Play goes on beneath this sheet.${owedMove(countdown)}</p>
+    return html`<p class="notice-sheet__note">${t("game.sheet.note")}${owedMove(countdown)}</p>
         <span class="notice-sheet__announce" aria-live="polite">${countdownAnnouncement(countdown)}</span>`;
 }
 

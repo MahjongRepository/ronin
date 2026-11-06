@@ -385,14 +385,15 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   press would be, with the decision's wait id, so the server, which keeps no preference, sees an
   ordinary answer; the latest-discard mark and the table are unchanged by an automatic pass, and an
   automatic discard travels like a pressed one. Decision: Mahjong Soul's compact strip, a square
-  chip per switch showing its letter (A, C, D) and a button after them that shows each letter's name
-  over the strip until pressed again, so a player understands them without a manual; the name is
-  each chip's tooltip and its accessible name too. Each switch shows on and off apart, not by colour
-  alone (the established clients use grey against green): filled with a bar under the letter, or
-  empty with a ring. Each chip meets the control floor; a switch is reached from the hand's focus
-  like a decision control. Not on a replay board; the decisions stories show them, on and off.
-  On an upright board, the chips keep a horizontal row above the own badge and hand, with 40px
-  targets. Pass and the timer stand to their right; extra offers wrap above, clear of the right strip.
+  chip per switch showing its letter (A, C, D in English; each language picks its own) and a button
+  after them that shows each letter's name over the strip until pressed again, so a player
+  understands them without a manual; the name is each chip's tooltip and its accessible name too.
+  Each switch shows on and off apart, not by colour alone (the established clients use grey against
+  green): filled with a bar under the letter, or empty with a ring. Each chip meets the control
+  floor; a switch is reached from the hand's focus like a decision control. Not on a replay board;
+  the decisions stories show them, on and off. On an upright board, the chips keep a horizontal row
+  above the own badge and hand, with 40px targets. Pass and the timer stand to their right; extra
+  offers wrap above, clear of the right strip.
   The own hand and core keep their sizes and places; the left melds end above the switches.
   The names open above the row. A visible live board never hides the switches
   because of its aspect ratio.

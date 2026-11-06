@@ -3,6 +3,7 @@ import { repeat } from "lit-html/directives/repeat.js";
 
 import { type Notice } from "@/entities/table/model/notice";
 import { HAND_TILE_FOCUS_KEY } from "@/entities/tile";
+import { t } from "@/shared/i18n";
 import { focusKeys } from "@/shared/lib";
 import { focusOnFirstRender, keepTabInside } from "@/shared/ui";
 
@@ -51,7 +52,7 @@ function ShowAll(notice: BoardNotice): TemplateResult | typeof nothing {
         data-focus-key=${focusKeys(showAllKey(notice.id), SHOW_ALL_FOCUS_KEY) ?? nothing}
         @click=${onShowAll}
     >
-        Show all
+        ${t("game.notice.show_all")}
     </button>`;
 }
 
@@ -160,7 +161,7 @@ export function NoticeSheet({
             onClose();
         }
     }
-    const title = notices.length === 1 ? "Notice" : "Notices";
+    const title = t(notices.length === 1 ? "game.notice.title_one" : "game.notice.title_many");
     return html`<section
         class="notice-sheet"
         role="dialog"
@@ -180,7 +181,7 @@ export function NoticeSheet({
                 ${focusOnFirstRender()}
                 @click=${onClose}
             >
-                Close
+                ${t("common.close")}
             </button>
         </div>
     </section>`;

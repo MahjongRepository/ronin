@@ -6,6 +6,7 @@ import {
     type SessionState,
     type TerminalCloseCode,
 } from "@/entities/session/model/types";
+import { type MessageKey, t } from "@/shared/i18n";
 import { assertNever } from "@/shared/lib";
 import { CLOSE_CODE, CONNECTION_STATUS, type ConnectionStatus } from "@/shared/protocol";
 
@@ -20,40 +21,40 @@ export interface SessionStatusDisplay {
 }
 
 /** A running session's word, by its socket: none while it is open. */
-const ACTIVE_WORDS: Readonly<Record<ConnectionStatus, string>> = {
-    [CONNECTION_STATUS.CONNECTED]: "",
-    [CONNECTION_STATUS.CONNECTING]: "Connecting",
-    [CONNECTION_STATUS.DISCONNECTED]: "Offline",
-    [CONNECTION_STATUS.ERROR]: "Error",
+const ACTIVE_WORDS: Readonly<Record<ConnectionStatus, MessageKey | null>> = {
+    [CONNECTION_STATUS.CONNECTED]: null,
+    [CONNECTION_STATUS.CONNECTING]: "game.status.connecting",
+    [CONNECTION_STATUS.DISCONNECTED]: "game.status.word.offline",
+    [CONNECTION_STATUS.ERROR]: "game.status.word.error",
 };
 
 /** A terminal close's word: the seat taken by another socket, or removed by the server. */
-const CLOSED_WORDS: Readonly<Record<TerminalCloseCode, string>> = {
-    [CLOSE_CODE.INVALID_GAME_ACTION]: "Removed",
-    [CLOSE_CODE.REPLACED_BY_NEW_CONNECTION]: "Replaced",
+const CLOSED_WORDS: Readonly<Record<TerminalCloseCode, MessageKey>> = {
+    [CLOSE_CODE.INVALID_GAME_ACTION]: "game.status.word.removed",
+    [CLOSE_CODE.REPLACED_BY_NEW_CONNECTION]: "game.status.word.replaced",
 };
 
 /** What an ended session's word says happened; none for an end that leaves the page. */
-function endWord(reason: EndReason): string {
+function endWord(reason: EndReason): MessageKey | null {
     switch (reason.kind) {
         case "game_ended": {
-            return "Ended";
+            return "game.status.word.ended";
         }
         case "closed": {
             return CLOSED_WORDS[reason.code];
         }
         case "retries_exhausted": {
-            return "Offline";
+            return "game.status.word.offline";
         }
         case "refused":
         case "failed":
         case "recovery_failed": {
-            return "Error";
+            return "game.status.word.error";
         }
         case "left":
         case "moved":
         case "no_handoff": {
-            return "";
+            return null;
         }
         default: {
             return assertNever(reason);
@@ -71,6 +72,10 @@ function endTone(reason: EndReason): ConnectionStatus {
         reason.kind === "left" ||
         (reason.kind === "closed" && reason.code === CLOSE_CODE.REPLACED_BY_NEW_CONNECTION);
     return quiet ? CONNECTION_STATUS.DISCONNECTED : CONNECTION_STATUS.ERROR;
+}
+
+function wordText(key: MessageKey | null): string {
+    return key === null ? "" : t(key);
 }
 
 /** Each active state's tone, from its socket: opening, open, or down until a transport retry. */
@@ -130,15 +135,15 @@ export function describeSessionStatus(state: SessionState): SessionStatusDisplay
         return {
             label: describeEnd(state.reason),
             tone: endTone(state.reason),
-            word: endWord(state.reason),
+            word: wordText(endWord(state.reason)),
         };
     }
     if (state.status === "recovering") {
         const tone = CONNECTION_STATUS.CONNECTING;
-        return { label: "recovering the handoff", tone, word: ACTIVE_WORDS[tone] };
+        return { label: "recovering the handoff", tone, word: wordText(ACTIVE_WORDS[tone]) };
     }
     const tone = ACTIVE_TONES[state.status];
-    return { label: describeActive(state), tone, word: ACTIVE_WORDS[tone] };
+    return { label: describeActive(state), tone, word: wordText(ACTIVE_WORDS[tone]) };
 }
 
 function describeIdentity(identity: Identity): string {
@@ -170,37 +175,37 @@ function describeActive(state: ActiveSession): string {
 }
 
 /** A terminal close in the player's words. */
-const CLOSED_LABELS: Readonly<Record<TerminalCloseCode, string>> = {
-    [CLOSE_CODE.INVALID_GAME_ACTION]: "Removed from the game",
-    [CLOSE_CODE.REPLACED_BY_NEW_CONNECTION]: "Opened in another tab",
+const CLOSED_LABELS: Readonly<Record<TerminalCloseCode, MessageKey>> = {
+    [CLOSE_CODE.INVALID_GAME_ACTION]: "game.status.removed",
+    [CLOSE_CODE.REPLACED_BY_NEW_CONNECTION]: "game.status.opened_in_another_tab",
 };
 
-function describeEndForPlayer(reason: EndReason): string {
+function describeEndForPlayer(reason: EndReason): MessageKey {
     switch (reason.kind) {
         case "game_ended": {
-            return "Game over";
+            return "game.status.game_over";
         }
         case "left": {
-            return "You left the game";
+            return "game.status.left";
         }
         case "failed": {
-            return "Something went wrong";
+            return "game.status.failed";
         }
         case "moved": {
-            return "Opening your game";
+            return "game.status.opening_game";
         }
         case "no_handoff": {
-            return "No game, returning to the lobby";
+            return "game.status.no_game";
         }
         case "recovery_failed": {
-            return "Can't reach the lobby";
+            return "game.status.lobby_unreachable";
         }
         case "closed": {
             return CLOSED_LABELS[reason.code];
         }
         case "refused":
         case "retries_exhausted": {
-            return "Disconnected";
+            return "game.status.disconnected";
         }
         default: {
             return assertNever(reason);
@@ -208,17 +213,17 @@ function describeEndForPlayer(reason: EndReason): string {
     }
 }
 
-function describeActiveForPlayer(state: Exclude<SessionState, { status: "ended" }>): string {
+function describeActiveForPlayer(state: Exclude<SessionState, { status: "ended" }>): MessageKey {
     if (state.status === "recovering") {
-        return "Finding your game";
+        return "game.status.finding_game";
     }
     if (state.status === "playing") {
-        return state.gameStarted ? "Connected" : "Waiting for the game to start";
+        return state.gameStarted ? "game.status.connected" : "game.status.waiting_start";
     }
     if (state.status === "identifying" && state.identity.kind === "join") {
-        return "Joining the game";
+        return "game.status.joining";
     }
-    return hasLostSeat(state) ? "Reconnecting" : "Connecting";
+    return hasLostSeat(state) ? "game.status.reconnecting" : "game.status.connecting";
 }
 
 /** The status a player reads for a session: what it means for them, never the machine's internal states. */
@@ -228,5 +233,5 @@ export function describePlayerSessionStatus(state: SessionState): SessionStatusD
         state.status === "ended"
             ? describeEndForPlayer(state.reason)
             : describeActiveForPlayer(state);
-    return { label, tone, word };
+    return { label: t(label), tone, word };
 }

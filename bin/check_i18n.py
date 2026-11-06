@@ -103,7 +103,9 @@ APPS = (
         source_roots=("frontend/game_v2/src",),
         source_suffixes=frozenset({".ts"}),
         dynamic_prefixes=("tile.spoken.", "yaku."),
-        identical_keys=frozenset({"round.unknown", "wind.short.unknown"}),
+        identical_keys=frozenset(
+            {"common.ok", "game.board.call", "game.seat.ai_tag", "round.unknown", "wind.short.unknown"}
+        ),
     ),
 )
 

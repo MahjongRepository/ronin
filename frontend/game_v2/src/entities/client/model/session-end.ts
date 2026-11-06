@@ -5,6 +5,7 @@ import {
     endReasonOf,
     leavingHandsSeatToAi,
 } from "@/entities/session";
+import { type MessageKey } from "@/shared/i18n";
 import { assertNever } from "@/shared/lib";
 import { CLOSE_CODE, SESSION_ERROR_CODE } from "@/shared/protocol";
 
@@ -22,8 +23,8 @@ export interface LeaveControls {
 
 /** An end that stopped the session on the page: why, in a player's terms, and whether reloading may help. */
 export interface FailureDisplay {
-    readonly title: string;
-    readonly detail: string;
+    readonly title: MessageKey;
+    readonly detail: MessageKey;
     readonly reload: boolean;
 }
 
@@ -41,14 +42,14 @@ export function leaveControls(state: LiveClient, ui: PlayUi): LeaveControls {
 /** A close that ended the session: only the terminal codes do (`TerminalCloseCode`), every other close is retried. */
 const CLOSED_FAILURES: Readonly<Record<TerminalCloseCode, FailureDisplay>> = {
     [CLOSE_CODE.INVALID_GAME_ACTION]: {
-        detail: "The server ended your session after a move it could not accept.",
+        detail: "game.failure.removed_detail",
         reload: false,
-        title: "Removed from the game",
+        title: "game.status.removed",
     },
     [CLOSE_CODE.REPLACED_BY_NEW_CONNECTION]: {
-        detail: "Your seat is now played from another tab or device.",
+        detail: "game.failure.opened_elsewhere_detail",
         reload: false,
-        title: "Opened elsewhere",
+        title: "game.failure.opened_elsewhere",
     },
 };
 
@@ -69,37 +70,37 @@ const SEAT_REFUSED_ON_CONNECTION: ReadonlySet<string> = new Set([
 function refusedFailure(code: string): FailureDisplay {
     if (SEAT_REFUSED_ON_CONNECTION.has(code)) {
         return {
-            detail: "The game server would not resume your seat on this connection.",
+            detail: "game.failure.session_error_detail",
             reload: true,
-            title: "Session error",
+            title: "game.failure.session_error",
         };
     }
     if (code === SESSION_ERROR_CODE.INTERNAL_ERROR) {
         return {
-            detail: "The game server could not go on with your session.",
+            detail: "game.failure.server_error_detail",
             reload: true,
-            title: "Server error",
+            title: "game.failure.server_error",
         };
     }
     return {
-        detail: "This game has ended, or this page no longer holds your seat in it.",
+        detail: "game.failure.unavailable_detail",
         reload: true,
-        title: "Game unavailable",
+        title: "game.failure.unavailable",
     };
 }
 
 function exhaustedFailure(gameStarted: boolean): FailureDisplay {
     if (!gameStarted) {
         return {
-            detail: "Could not connect to the game server.",
+            detail: "game.failure.unreachable_detail",
             reload: true,
-            title: "Cannot reach the game",
+            title: "game.failure.unreachable",
         };
     }
     return {
-        detail: "Could not reconnect to the game. An AI plays your seat meanwhile.",
+        detail: "game.failure.connection_lost_detail",
         reload: true,
-        title: "Connection lost",
+        title: "game.failure.connection_lost",
     };
 }
 
@@ -117,16 +118,16 @@ function endFailure(reason: EndReason): FailureDisplay | null {
         }
         case "recovery_failed": {
             return {
-                detail: "The lobby did not say which game you play. Try again in a moment.",
+                detail: "game.failure.lobby_unreachable_detail",
                 reload: true,
-                title: "Can't reach the lobby",
+                title: "game.status.lobby_unreachable",
             };
         }
         case "failed": {
             return {
-                detail: "The game page ran into an error.",
+                detail: "game.page.broken",
                 reload: true,
-                title: "Something went wrong",
+                title: "game.status.failed",
             };
         }
         case "game_ended":

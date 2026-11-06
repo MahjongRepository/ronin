@@ -12,6 +12,7 @@ import {
     tableStateToDisplayState,
 } from "@/entities/table";
 import { type HandTile, type TileAction } from "@/entities/tile";
+import { type MessageKey, t } from "@/shared/i18n";
 import { CALL_TYPE, seatDistance } from "@/shared/protocol";
 
 import {
@@ -146,12 +147,16 @@ export interface PlayDisplay {
 }
 
 const SWITCH_LABELS: Readonly<
-    Record<PlaySwitch, { readonly letter: string; readonly label: string }>
+    Record<PlaySwitch, { readonly letter: MessageKey; readonly label: MessageKey }>
 > = {
-    auto_discard: { label: "Auto discard", letter: "D" },
-    auto_win: { label: "Auto win", letter: "A" },
-    no_calls: { label: "No calls", letter: "C" },
+    auto_discard: { label: "game.auto.discard", letter: "game.auto.discard_letter" },
+    auto_win: { label: "game.auto.win", letter: "game.auto.win_letter" },
+    no_calls: { label: "game.auto.no_call", letter: "game.auto.no_call_letter" },
 };
+
+export function switchLetters(): string[] {
+    return PLAY_SWITCHES.map((playSwitch) => t(SWITCH_LABELS[playSwitch].letter));
+}
 
 function playTile(tile: HandTile, plays: ReadonlyMap<number, TilePlay>): HandTile {
     const play = tile.tileId === undefined ? undefined : plays.get(tile.tileId);
@@ -238,10 +243,12 @@ function switchControls(state: LiveClient): SwitchControl[] {
         if (!takesIntent(state, intent)) {
             return [];
         }
+        const { label, letter } = SWITCH_LABELS[playSwitch];
         return [
             {
                 command: intentCommand(intent),
-                ...SWITCH_LABELS[playSwitch],
+                label: t(label),
+                letter: t(letter),
                 on: state.switches[playSwitch],
                 playSwitch,
             },
@@ -263,7 +270,7 @@ function openingControls(state: LiveClient): OpeningControls | null {
     const action: PlayAction | null = takesIntent(state, CONFIRM_OPENING)
         ? {
               command: intentCommand(CONFIRM_OPENING),
-              label: "OK",
+              label: t("common.ok"),
               pressed: null,
               tiles: [],
           }

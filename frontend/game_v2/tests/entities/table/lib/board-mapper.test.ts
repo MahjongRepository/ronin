@@ -306,9 +306,9 @@ describe("tableStateToDisplayState nameplates", () => {
         const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
         expect(result.nameplates.map((plate) => plate.aiMark)).toEqual([
             null,
-            { tag: "AI", words: "An AI player plays this seat" },
-            { tag: "Away", words: "Disconnected: an AI player plays this seat" },
-            { tag: "Away", words: "Absent: an AI player plays this seat" },
+            { kind: "ai", tag: "AI", words: "An AI player plays this seat" },
+            { kind: "away", tag: "Away", words: "Disconnected: an AI player plays this seat" },
+            { kind: "away", tag: "Away", words: "Absent: an AI player plays this seat" },
         ]);
     });
 });

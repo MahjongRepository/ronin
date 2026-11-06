@@ -17,7 +17,8 @@ interface BoardCenterInfo {
  * `Away` for one holding it while its human is out (left, or never came), and the words for why.
  */
 interface NameplateAiMark {
-    readonly tag: "AI" | "Away";
+    readonly kind: "ai" | "away";
+    readonly tag: string;
     readonly words: string;
 }
 

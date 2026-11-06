@@ -1,47 +1,32 @@
-import { assertNever } from "@/shared/lib";
+import { type MessageKey, t } from "@/shared/i18n";
 
 import { type DecisionCountdown } from "./countdown";
 
 /** The seconds left at which the countdown is announced to a screen reader, the largest first. */
 const ANNOUNCED_SECONDS = [10, 5] as const;
 
-/** What the player owes, as a sentence's start: "It is your turn". */
+const MOVE_NAMES: Readonly<Record<DecisionCountdown["move"], MessageKey>> = {
+    call: "game.move.call",
+    chankan: "game.move.chankan",
+    result: "game.move.result",
+    start: "game.move.start",
+    turn: "game.move.turn",
+};
+
+const EXPIRY_NOTES: Readonly<Record<DecisionCountdown["move"], MessageKey>> = {
+    call: "game.expiry.move",
+    chankan: "game.expiry.move",
+    result: "game.expiry.result",
+    start: "game.expiry.start",
+    turn: "game.expiry.move",
+};
+
 export function moveName(move: DecisionCountdown["move"]): string {
-    switch (move) {
-        case "turn": {
-            return "It is your turn";
-        }
-        case "call": {
-            return "You can call the last discard";
-        }
-        case "chankan": {
-            return "You can rob the kan";
-        }
-        case "result": {
-            return "The round's result awaits your OK";
-        }
-        case "start": {
-            return "The game's start awaits your OK";
-        }
-        default: {
-            return assertNever(move);
-        }
-    }
+    return t(MOVE_NAMES[move]);
 }
 
-/** What the server does once the move's time is up. */
-export function expiryNote(move: DecisionCountdown["move"]): string {
-    switch (move) {
-        case "result": {
-            return "the server deals the next round";
-        }
-        case "start": {
-            return "the server starts play";
-        }
-        default: {
-            return "the server makes the move";
-        }
-    }
+export function expiredSentence(move: DecisionCountdown["move"]): string {
+    return t("game.countdown.expired", { expiry: t(EXPIRY_NOTES[move]), move: moveName(move) });
 }
 
 /**
@@ -50,14 +35,14 @@ export function expiryNote(move: DecisionCountdown["move"]): string {
  */
 export function countdownAnnouncement(countdown: DecisionCountdown | null): string {
     if (countdown?.kind === "expired") {
-        return "Time is up";
+        return t("game.countdown.time_is_up");
     }
     if (countdown?.kind !== "running") {
         return "";
     }
     const crossed = ANNOUNCED_SECONDS.findLast((seconds) => countdown.secondsLeft <= seconds);
     if (crossed !== undefined) {
-        return `${crossed} seconds or less left`;
+        return t("game.countdown.seconds_or_less", { count: crossed });
     }
-    return countdown.clock?.inBank === true ? "Your time bank is running" : "";
+    return countdown.clock?.inBank === true ? t("game.countdown.bank_running") : "";
 }

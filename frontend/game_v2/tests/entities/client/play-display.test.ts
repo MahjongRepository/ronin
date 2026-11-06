@@ -648,9 +648,9 @@ describe("playDisplay notices", () => {
         const display = playDisplay(scenario.state, { ...NO_PLAY_UI, confirmingLeave: true });
 
         expect(display.failure).toEqual({
-            detail: "The server ended your session after a move it could not accept.",
+            detail: "game.failure.removed_detail",
             reload: false,
-            title: "Removed from the game",
+            title: "game.status.removed",
         });
         expect(display.overlay).toEqual({
             blocksBoard: true,
@@ -786,9 +786,9 @@ describe("playDisplay failure", () => {
         });
 
         expect(failures).toEqual([
-            ["Opened elsewhere", false],
-            ["Session error", true],
-            ["Game unavailable", true],
+            ["game.failure.opened_elsewhere", false],
+            ["game.failure.session_error", true],
+            ["game.failure.unavailable", true],
         ]);
     });
 });

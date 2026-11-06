@@ -9,6 +9,7 @@ import {
 } from "@/entities/table/model/board-types";
 import { type PlayerState, type TableState } from "@/entities/table/model/types";
 import { type DiscardTile, type HandTile, meldTiles, tile136toString } from "@/entities/tile";
+import { t } from "@/shared/i18n";
 import { SEAT_CONTROL_REASON, seatDistance } from "@/shared/protocol";
 
 const REQUIRED_PLAYERS = 4;
@@ -137,12 +138,14 @@ function formatScoreDiff(score: number, from: number): string {
  */
 function aiMark(player: PlayerState): NameplateAiMark | null {
     if (player.aiStandIn === SEAT_CONTROL_REASON.LEFT) {
-        return { tag: "Away", words: "Disconnected: an AI player plays this seat" };
+        return { kind: "away", tag: t("game.seat.away_tag"), words: t("game.seat.ai_left") };
     }
     if (player.aiStandIn === SEAT_CONTROL_REASON.ABSENT) {
-        return { tag: "Away", words: "Absent: an AI player plays this seat" };
+        return { kind: "away", tag: t("game.seat.away_tag"), words: t("game.seat.ai_absent") };
     }
-    return player.isAiPlayer ? { tag: "AI", words: "An AI player plays this seat" } : null;
+    return player.isAiPlayer
+        ? { kind: "ai", tag: t("game.seat.ai_tag"), words: t("game.seat.ai") }
+        : null;
 }
 
 const EMPTY_NAMEPLATE: BoardNameplate = {
