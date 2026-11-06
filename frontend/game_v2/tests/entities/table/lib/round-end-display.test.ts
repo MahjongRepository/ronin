@@ -64,7 +64,7 @@ describe("roundEndDisplay - a win", () => {
             ["Ippatsu", 1, false],
             ["Double Riichi", 2, false],
             ["Pinfu", 1, false],
-            ["Ittsu", 2, false],
+            ["Ittsuu", 2, false],
             ["Red Five", 1, true],
         ]);
         expect(page.notes).toEqual(["Riichi +1,000"]);
@@ -140,11 +140,11 @@ describe("roundEndDisplay - a win", () => {
         const daisuushiiHalf = { paysHonba: true, seat: 0, share: PAO_SHARE.HALF, yakuIds: [111] };
 
         expect(notesWhen(null, daisuushiiHalf)).toContain(
-            "Pao: Diana is liable for Dai Suushii and pays half of it and the honba",
+            "Pao: Diana is liable for Daisuushii and pays half of it and the honba",
         );
         expect(
             notesWhen(2, { ...daisuushiiHalf, paysHonba: false, share: PAO_SHARE.ALL }),
-        ).toContain("Pao: Diana is liable for Dai Suushii and pays all of it");
+        ).toContain("Pao: Diana is liable for Daisuushii and pays all of it");
         expect(notesWhen(0, daisuushiiHalf)).toContain(
             "Pao: Diana is liable and dealt in, so pays it all",
         );
@@ -162,7 +162,7 @@ describe("roundEndDisplay - a win", () => {
         const page = winPage({ ...table, roundEndResult: { ...result, winners: [doubled] } });
 
         expect(page.yaku.map((line) => [line.name, line.han, line.yakuman])).toEqual([
-            ["Dai Suushii", null, "Double Yakuman"],
+            ["Daisuushii", null, "Double Yakuman"],
         ]);
     });
 
@@ -171,7 +171,7 @@ describe("roundEndDisplay - a win", () => {
 
         expect(page).toMatchObject({
             hanFu: "15 han 20 fu",
-            limit: "Kazoe Yakuman",
+            limit: "Yakuman",
             points: 48_000,
         });
     });
@@ -318,7 +318,7 @@ describe("roundEndDisplay - a draw", () => {
 
     test.each([
         ["nagashi", "Nagashi Mangan", "by Alice"],
-        ["kyuushu", "Nine terminals", "declared by Alice"],
+        ["kyuushu", "Kyuushu Kyuuhai", "declared by Alice"],
         ["triple_ron", "Triple ron", "ron called by Alice, Charlie, Bob"],
         ["four_kans", "Four kans", "Abortive draw"],
     ])("a %s draw is named with the seats it names", (name, title, subtitle) => {

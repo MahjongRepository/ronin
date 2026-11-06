@@ -6,6 +6,7 @@ import {
 import { showsDeclaredKan } from "@/entities/table/model/handlers/kan-declared";
 import { shownKanOfMeld } from "@/entities/table/model/handlers/meld";
 import { type TableEvent, type TableState } from "@/entities/table/model/types";
+import { type MessageKey, t } from "@/shared/i18n";
 import {
     ABORTIVE_DRAW_TYPE,
     MELD_TYPE,
@@ -26,13 +27,13 @@ export interface Call {
 /** How long a call shows by its seat, live or in a replay: the board's callout plays its whole animation, a fade last, in this time. */
 export const CALLOUT_MS = 1250;
 
-const CALLOUT_LABELS: Readonly<Record<CalloutKind, string>> = {
-    chi: "Chi",
-    kan: "Kan",
-    pon: "Pon",
-    riichi: "Riichi",
-    ron: "Ron",
-    tsumo: "Tsumo",
+const CALLOUT_LABELS: Readonly<Record<CalloutKind, MessageKey>> = {
+    chi: "game.call.chi",
+    kan: "game.call.kan",
+    pon: "game.call.pon",
+    riichi: "game.call.riichi",
+    ron: "game.call.ron",
+    tsumo: "game.call.tsumo",
 };
 
 const MELD_CALLS: Readonly<Record<MeldType, CalloutKind>> = {
@@ -127,7 +128,7 @@ export function callsShownKan(shown: readonly Call[], call: Call): boolean {
 export function boardCallouts(calls: readonly Call[], bottomSeat: number): BoardCallout[] {
     return calls.map(({ kind, seat }) => ({
         kind,
-        label: CALLOUT_LABELS[kind],
+        label: t(CALLOUT_LABELS[kind]),
         position: SEAT_POSITIONS[seatDistance(bottomSeat, seat)],
     }));
 }

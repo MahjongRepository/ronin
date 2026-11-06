@@ -278,7 +278,7 @@ function choosing(offer: Offer): PlayCommand {
 }
 
 /** A played board's hand input, so a board with offers keeps a played board's row (its furiten slot included). */
-const PLAYED_HAND = { onTile: () => {}, tileAction: "Discard" } as const;
+const PLAYED_HAND = { onTile: () => {}, tileAction: "discard" } as const;
 
 /** A discarded 3m's offers: a win, a kan and a pon of it, a chi with a choice of tiles, and a pass. */
 function fiveOffers(): DecisionView {

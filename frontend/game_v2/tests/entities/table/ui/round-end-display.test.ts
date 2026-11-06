@@ -111,6 +111,6 @@ describe("RoundEndDisplay", () => {
             "Alice's river",
         ]);
         expect(el.querySelectorAll(".round-end-result__river-tiles .tile")).toHaveLength(18);
-        expect(sideways).toEqual(["9p"]);
+        expect(sideways).toEqual(["9-pin"]);
     });
 });

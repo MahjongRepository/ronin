@@ -563,7 +563,7 @@ async function checkSheetKeys(
         `the notices' live region holds ${JSON.stringify(live.notices)}, not each notice once ${JSON.stringify(live.shown)}`,
     );
     report.expect(
-        live.calls.length === 1 && live.calls[0]?.endsWith(": Chi") === true,
+        live.calls.length === 1 && live.calls[0]?.endsWith(": Chii") === true,
         `the calls' live region holds ${JSON.stringify(live.calls)}, not the chi's call once`,
     );
     await checkLiveRegionSemantics({ page, report, viewport });

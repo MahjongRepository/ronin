@@ -21,7 +21,7 @@ describe("roundResultSummary", () => {
         ]);
         expect(summaries("pao")).toEqual(["Tsumo by Alice: 32,000, pao Diana"]);
         expect(summaries("full_game")[0]).toBe("Exhaustive draw: all noten");
-        expect(summaries("kyuushu")).toEqual(["Nine terminals: Alice"]);
+        expect(summaries("kyuushu")).toEqual(["Kyuushu Kyuuhai: Alice"]);
     });
 
     test("says a round the recording stops in has no result", () => {

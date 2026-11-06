@@ -1,17 +1,18 @@
 import { type DrawKind } from "@/entities/table/model/types";
+import { type MessageKey, t } from "@/shared/i18n";
 
-const DRAW_NAMES: Readonly<Record<DrawKind, string>> = {
-    exhaustive: "Exhaustive draw",
-    four_kans: "Four kans",
-    four_riichi: "Four riichi",
-    four_winds: "Four winds",
-    nagashi_mangan: "Nagashi Mangan",
-    nine_terminals: "Nine terminals",
-    triple_ron: "Triple ron",
+const DRAW_NAMES: Readonly<Record<DrawKind, MessageKey>> = {
+    exhaustive: "draw.exhaustive",
+    four_kans: "draw.four_kans",
+    four_riichi: "draw.four_riichi",
+    four_winds: "draw.four_winds",
+    nagashi_mangan: "draw.nagashi",
+    nine_terminals: "draw.nine_terminals",
+    triple_ron: "draw.triple_ron",
 };
 
 export function drawName(kind: DrawKind): string {
-    return DRAW_NAMES[kind];
+    return t(DRAW_NAMES[kind]);
 }
 
 /** Whether the draw aborted the round before the wall ran out. */

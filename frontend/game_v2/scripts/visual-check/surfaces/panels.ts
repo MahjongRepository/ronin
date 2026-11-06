@@ -205,7 +205,7 @@ const PAGES: readonly PageCase[] = [
         ".round-end-result__limit": "Mangan",
         ".round-end-result__points": "12,000",
     }),
-    resultStory("kazoe", { ".round-end-result__limit": "Kazoe Yakuman" }),
+    resultStory("kazoe", { ".round-end-result__limit": "Yakuman" }),
     resultStory("chankan", {
         ".round-end-result__from": "robbing Alice's kan",
         ".round-end-result__kind": "Ron",
@@ -221,7 +221,7 @@ const PAGES: readonly PageCase[] = [
     ),
     resultStory("kyuushu", {
         ".round-end-result__from": "declared by Alice",
-        ".round-end-result__title": "Nine terminals",
+        ".round-end-result__title": "Kyuushu Kyuuhai",
     }),
     resultStory("four_winds", {
         ".round-end-result__from": "Abortive draw",

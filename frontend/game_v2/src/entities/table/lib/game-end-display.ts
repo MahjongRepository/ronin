@@ -5,7 +5,7 @@ import {
 } from "@/entities/table/model/types";
 import { GAME_END_CAUSE, type GameEndCause } from "@/shared/protocol";
 
-import { GAME_TYPE_NAMES } from "./game-start-display";
+import { gameTypeName } from "./game-start-display";
 import { formatDelta, formatPoints } from "./round-end-display";
 import { roundName } from "./round-name";
 
@@ -132,7 +132,7 @@ export function gameEndDisplay(
     }
     return {
         ending: gameEnding(table, end),
-        gameType: table.gameType === null ? null : GAME_TYPE_NAMES[table.gameType],
+        gameType: gameTypeName(table),
         leftover: leftoverText(end, table.players),
         seats: end.standings.map((standing, index) => ({
             isAiPlayer: playerAt(table.players, standing.seat)?.isAiPlayer ?? false,

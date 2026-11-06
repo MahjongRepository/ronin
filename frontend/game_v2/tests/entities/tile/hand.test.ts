@@ -34,13 +34,13 @@ describe("Hand", () => {
         const el = renderTo(
             Hand({
                 onTile,
-                tileAction: "Discard",
+                tileAction: "discard",
                 tiles: [{ face: "5p", show: "face", state: "selectable", tileId: 53 }],
             }),
         );
         const button = el.querySelector("button.hand-tile");
 
-        expect(button?.getAttribute("aria-label")).toBe("Discard 5p");
+        expect(button?.getAttribute("aria-label")).toBe("Discard 5-pin");
         expect(button?.getAttribute("type")).toBe("button");
         button?.dispatchEvent(new MouseEvent("click"));
         expect(onTile).toHaveBeenCalledExactlyOnceWith(53);

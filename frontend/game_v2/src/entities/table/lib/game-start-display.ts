@@ -2,11 +2,12 @@ import { formatPoints } from "@/entities/table/lib/round-end-display";
 import { formatRoundName, roundName } from "@/entities/table/lib/round-name";
 import { windLetter, windName } from "@/entities/table/lib/wind-name";
 import { type TableState } from "@/entities/table/model/types";
+import { type MessageKey, t } from "@/shared/i18n";
 import { GAME_TYPE, type GameType, WIND, seatDistance } from "@/shared/protocol";
 
-export const GAME_TYPE_NAMES: Readonly<Record<GameType, string>> = {
-    [GAME_TYPE.HANCHAN]: "Hanchan",
-    [GAME_TYPE.TONPUSEN]: "Tonpuu",
+const GAME_TYPE_NAMES: Readonly<Record<GameType, MessageKey>> = {
+    [GAME_TYPE.HANCHAN]: "game.type.hanchan",
+    [GAME_TYPE.TONPUSEN]: "game.type.tonpuu",
 };
 
 /** A seat at the table: its seat wind, its player, and whether it deals, is the viewer's or AI. */
@@ -56,8 +57,8 @@ function seatsInWindOrder(
         }));
 }
 
-function gameTypeName(table: TableState): string | null {
-    return table.gameType === null ? null : GAME_TYPE_NAMES[table.gameType];
+export function gameTypeName(table: TableState): string | null {
+    return table.gameType === null ? null : t(GAME_TYPE_NAMES[table.gameType]);
 }
 
 /**

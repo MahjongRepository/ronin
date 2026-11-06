@@ -1,7 +1,8 @@
 import { type TemplateResult, render } from "lit-html";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { Tile, injectTileSprite } from "@/entities/tile";
+import { TILE_FACES, Tile, injectTileSprite, spokenTileName } from "@/entities/tile";
+import { t } from "@/shared/i18n";
 
 function renderTo(template: TemplateResult): HTMLElement {
     const el = document.createElement("div");
@@ -51,7 +52,7 @@ describe("Tile", () => {
     test("face tile has aria-label matching its name", () => {
         const el = renderTo(Tile("5p", "face"));
         const svgEl = el.querySelector("svg");
-        expect(svgEl?.getAttribute("aria-label")).toBe("5p");
+        expect(svgEl?.getAttribute("aria-label")).toBe("5-pin");
     });
 
     test("face tile shows its short name under the sprite, a red five's in red", () => {
@@ -63,8 +64,8 @@ describe("Tile", () => {
         expect(names).toEqual([
             ["5p", true],
             ["9s", false],
-            ["E", false],
-            ["Rd", false],
+            ["東", false],
+            ["中", false],
         ]);
     });
 
@@ -73,4 +74,25 @@ describe("Tile", () => {
         expect(el.querySelector(".tile-back")).not.toBeNull();
         expect(el.querySelector("use")).toBeNull();
     });
+});
+
+describe("spokenTileName", () => {
+    afterEach(() => {
+        document.documentElement.lang = "";
+        vi.restoreAllMocks();
+    });
+
+    test.each(["en", "ja", "ru"])(
+        "speaks every tile face in %s without the generic fallback",
+        (locale) => {
+            document.documentElement.lang = locale;
+            const report = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+            const names = TILE_FACES.map(spokenTileName);
+
+            expect(names).not.toContain(t("tile.unknown"));
+            expect(new Set(names).size).toBe(TILE_FACES.length);
+            expect(report).not.toHaveBeenCalled();
+        },
+    );
 });

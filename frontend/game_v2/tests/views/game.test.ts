@@ -954,7 +954,7 @@ describe("mountGameView choice of tiles", () => {
         expect([
             document.activeElement?.getAttribute("aria-label"),
             document.activeElement?.getAttribute("aria-pressed"),
-        ]).toEqual(["Chi", "false"]);
+        ]).toEqual(["Chii", "false"]);
     });
 
     it("leaves a choice of tiles open when Escape closes the leave question over it", async () => {
@@ -968,7 +968,12 @@ describe("mountGameView choice of tiles", () => {
         );
 
         expect(host.querySelector(".game__play .leave-confirm")).toBeNull();
-        expect(labelsAfter(host, () => {})).toEqual(["Chi 2m 4m", "Chi 1m 2m", "Chi", "Back"]);
+        expect(labelsAfter(host, () => {})).toEqual([
+            "Chii 2-man and 4-man",
+            "Chii 1-man and 2-man",
+            "Chii",
+            "Back",
+        ]);
     });
 
     it("dismisses the controls silently once Pass is pressed", () => {
@@ -1113,11 +1118,11 @@ describe("mountGameView board", () => {
         expect([
             host.querySelector(".board-callout--bottom .board-callout__word")?.textContent,
             sound.played.filter((cue) => cue === "chi"),
-        ]).toEqual(["Chi", ["chi"]]);
+        ]).toEqual(["Chii", ["chi"]]);
 
         expect([choosing, back]).toEqual([
-            ["Chi 2m 4m", "Chi 1m 2m", "Chi", "Back"],
-            ["Kan 3m", "Pon 3m", "Chi", "Pass"],
+            ["Chii 2-man and 4-man", "Chii 1-man and 2-man", "Chii", "Back"],
+            ["Kan 3-man", "Pon 3-man", "Chii", "Pass"],
         ]);
         expect(connections[0].sent).toEqual([JOIN, buildChiAction(8, [4, 12], PROMPT_WAIT_ID)]);
     });

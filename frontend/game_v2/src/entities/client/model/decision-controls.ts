@@ -7,6 +7,7 @@ import {
     meldTiles,
     tile136toString,
 } from "@/entities/tile";
+import { type MessageKey, t } from "@/shared/i18n";
 import { assertNever } from "@/shared/lib";
 import { KAN_TYPE, tileType, tileTypeCopies } from "@/shared/protocol";
 
@@ -55,18 +56,18 @@ export interface TilePlay {
     readonly intent: DecisionIntent | null;
 }
 
-const OFFER_LABELS: Readonly<Record<Offer["kind"], string>> = {
-    chi: "Chi",
-    kan: "Kan",
-    kyuushu: "Kyuushu",
-    pon: "Pon",
-    riichi: "Riichi",
-    ron: "Ron",
-    tsumo: "Tsumo",
+const OFFER_LABELS: Readonly<Record<Offer["kind"], MessageKey>> = {
+    chi: "game.call.chi",
+    kan: "game.call.kan",
+    kyuushu: "game.call.abort",
+    pon: "game.call.pon",
+    riichi: "game.call.riichi",
+    ron: "game.call.ron",
+    tsumo: "game.call.tsumo",
 };
 
 const PASS: DecisionIntent = { type: "pass" };
-const BACK = "Back";
+const BACK: MessageKey = "game.button.back";
 
 function choose(offer: Offer): DecisionIntent {
     return { offer, type: "choose" };
@@ -202,7 +203,7 @@ function control(fields: ControlFields): DecisionAction {
 function offerAction(offer: Offer): DecisionAction {
     return control({
         command: intentCommand(choose(offer)),
-        label: OFFER_LABELS[offer.kind],
+        label: t(OFFER_LABELS[offer.kind]),
         rank: WIN_KINDS.has(offer.kind) ? "win" : "call",
         tiles: offerTiles(offer),
     });
@@ -276,7 +277,7 @@ function tileChoiceActions(
     kind: TileChoiceKind,
     offers: readonly Offer[],
 ): DecisionAction[] {
-    const label = OFFER_LABELS[kind];
+    const label = t(OFFER_LABELS[kind]);
     const choices = offers.flatMap((offer): DecisionAction[] => {
         if (offer.kind !== kind || (offer.kind !== "chi" && offer.kind !== "kan")) {
             return [];
@@ -289,7 +290,7 @@ function tileChoiceActions(
     return [
         ...choices,
         control({ command: toggle, label, pressed: true, rank: "call" }),
-        control({ command: STEP_BACK, label: BACK, rank: "pass" }),
+        control({ command: STEP_BACK, label: t(BACK), rank: "pass" }),
     ];
 }
 
@@ -306,7 +307,7 @@ function firstStepActions(
     const wins = offers.filter((offer) => WIN_KINDS.has(offer.kind)).map(offerAction);
     const riichiToggle = control({
         command: { kind: "toggle_riichi_pick" },
-        label: OFFER_LABELS.riichi,
+        label: t(OFFER_LABELS.riichi),
         pressed: picking,
         rank: "call",
     });
@@ -319,9 +320,13 @@ function firstStepActions(
             return ofKind.map(offerAction);
         }
         const command: PlayCommand = { kind: "toggle_tile_choice", offer: kind };
-        return [control({ command, label: OFFER_LABELS[kind], pressed: false, rank: "call" })];
+        return [control({ command, label: t(OFFER_LABELS[kind]), pressed: false, rank: "call" })];
     });
-    const passControl = control({ command: intentCommand(PASS), label: "Pass", rank: "pass" });
+    const passControl = control({
+        command: intentCommand(PASS),
+        label: t("game.button.pass"),
+        rank: "pass",
+    });
     const pass = takes(PASS) ? [passControl] : [];
     return [...wins, ...riichi, ...perKind, ...pass];
 }

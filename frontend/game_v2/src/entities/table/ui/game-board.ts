@@ -24,6 +24,7 @@ import {
     type MeldTile,
     type RiverOverflow,
     Tile,
+    type TileAction,
     TileBack,
 } from "@/entities/tile";
 
@@ -38,7 +39,7 @@ import { RiichiStickIcon } from "./riichi-stick-icon";
 /** How the bottom seat's hand is played: what a selectable tile does and where its tap goes. */
 interface LocalHandInput {
     readonly onTile: (tileId: number) => void;
-    readonly tileAction: string;
+    readonly tileAction: TileAction;
 }
 
 interface GameBoardProps {

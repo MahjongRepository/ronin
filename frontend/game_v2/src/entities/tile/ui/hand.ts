@@ -1,6 +1,7 @@
 import { type TemplateResult, html, nothing } from "lit-html";
 
-import { type TileFace } from "@/entities/tile/lib/tile-utils";
+import { type TileFace, spokenTileName } from "@/entities/tile/lib/tile-utils";
+import { type MessageKey, t } from "@/shared/i18n";
 
 import { Tile, TileBack } from "./tile";
 
@@ -9,6 +10,13 @@ import { Tile, TileBack } from "./tile";
  * the one its submitted answer played, one the open decision holds back, or one waiting for a decision that would.
  */
 type PlayableState = "selectable" | "declaring" | "selected" | "disabled" | "waiting";
+
+type TileAction = "discard" | "riichi_discard";
+
+const TILE_ACTION_LABELS: Readonly<Record<TileAction, MessageKey>> = {
+    discard: "game.hand.discard_tile",
+    riichi_discard: "game.hand.riichi_discard_tile",
+};
 
 /**
  * A tile in a hand: one the view knows, with its tile id when it came from a table, shown face up or as a back by
@@ -40,8 +48,12 @@ interface HandProps {
     readonly drawnTile?: HandTile;
     /** Called with a selectable or declaring tile's id when the player taps it or presses Enter or Space on it. */
     readonly onTile?: (tileId: number) => void;
-    /** What playing a selectable tile does, read out before its face (`Discard 5p`). */
-    readonly tileAction?: string;
+    readonly tileAction?: TileAction;
+}
+
+function tileLabel(face: TileFace, action: TileAction | undefined): string {
+    const key = action === undefined ? "game.hand.play_tile" : TILE_ACTION_LABELS[action];
+    return t(key, { tile: spokenTileName(face) });
 }
 
 function TileFaceView(tile: HandTile): TemplateResult {
@@ -73,7 +85,7 @@ function HandSlot(tile: HandTile, extraClass: string, props: HandProps): Templat
         type="button"
         class="${slotClass} hand-tile--${state}"
         data-tile-id=${tileId}
-        aria-label=${`${props.tileAction ?? "Play"} ${tile.face}`}
+        aria-label=${tileLabel(tile.face, props.tileAction)}
         aria-disabled=${acts ? nothing : "true"}
         aria-pressed=${state === "selected" ? "true" : nothing}
         data-focus-key=${acts ? `${HAND_TILE_FOCUS_KEY} ${PLAYABLE_TILE_FOCUS_KEY}` : HAND_TILE_FOCUS_KEY}
@@ -92,4 +104,4 @@ function Hand(props: HandProps): TemplateResult {
 }
 
 export { Hand };
-export type { HandProps, HandTile, PlayableState };
+export type { HandProps, HandTile, PlayableState, TileAction };

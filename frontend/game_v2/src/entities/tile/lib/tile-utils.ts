@@ -1,3 +1,4 @@
+import { isMessageKey, reportI18nError, t } from "@/shared/i18n";
 import { tileType } from "@/shared/protocol";
 
 /** Tile face names matching sprite symbol IDs. */
@@ -77,30 +78,19 @@ function tile136toString(tileId: number, hasAkadora = true): TileFace {
     return (hasAkadora ? RED_FIVE_FACES.get(tileId) : undefined) ?? TYPE_FACES[tileType(tileId)];
 }
 
-const HONOR_NAMES = [
-    "East",
-    "South",
-    "West",
-    "North",
-    "White dragon",
-    "Green dragon",
-    "Red dragon",
-] as const;
-
-/** A tile as a sentence names it: "5m", "red 5p", "East", "White dragon". */
-function tileName(tileId: number): string {
-    const face = tile136toString(tileId);
-    const rank = face.charAt(0);
-    const suit = face.charAt(1);
-    if (suit === "z") {
-        return HONOR_NAMES[Number(rank) - 1];
+function spokenTileName(face: TileFace): string {
+    const [rank, suit] = face;
+    const key = `tile.spoken.${suit}${rank}`;
+    if (isMessageKey(key)) {
+        return t(key);
     }
-    return rank === "0" ? `red 5${suit}` : face;
+    reportI18nError(key, "unknown tile face");
+    return t("tile.unknown");
 }
 
 export {
     tile136toString,
-    tileName,
+    spokenTileName,
     TILE_FACES,
     FIVE_RED_MAN,
     FIVE_RED_PIN,

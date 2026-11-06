@@ -28,7 +28,7 @@ describe("handLimitName", () => {
         ["kans", "11 han", "Sanbaiman"],
         ["pao", "daisangen", "Yakuman"],
         ["chankan_closed_kokushi", "kokushi", "Yakuman"],
-        ["kazoe", "15 han of ordinary yaku, dealer", "Kazoe Yakuman"],
+        ["kazoe", "15 han of ordinary yaku, dealer", "Yakuman"],
     ])("%s (%s) is paid as %s", (name, _hand, limit) => {
         const winner = lastWinner(name);
 
@@ -61,15 +61,5 @@ describe("handLimitName", () => {
                 yakumanCount: 2,
             }),
         ]).toEqual(["Mangan", null, "Sanbaiman", "Double Yakuman"]);
-    });
-
-    test("tells a yakuman from a kazoe yakuman by the server's limit, whatever the yaku", () => {
-        const hand = { fu: 0, han: 13, points: 32_000, yakumanCount: 1 };
-        const yaku = [{ han: 13, yakuId: 103, yakumanCount: 1 }];
-
-        expect([
-            handLimitName({ ...hand, limit: HAND_LIMIT.YAKUMAN, yaku }),
-            handLimitName({ ...hand, limit: HAND_LIMIT.KAZOE_YAKUMAN, yaku }),
-        ]).toEqual(["Yakuman", "Kazoe Yakuman"]);
     });
 });

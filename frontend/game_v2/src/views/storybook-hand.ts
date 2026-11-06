@@ -64,7 +64,7 @@ function storybookHandView(): TemplateResult {
             <section>
                 <h2>Hand in Play (selectable, disabled, selected)</h2>
                 <div class="storybook-meld-row">
-                    ${Hand({ drawnTile: { face: "5p", show: "face", state: "selectable", tileId: 53 }, tileAction: "Discard", tiles: PLAYED_TILES })}
+                    ${Hand({ drawnTile: { face: "5p", show: "face", state: "selectable", tileId: 53 }, tileAction: "discard", tiles: PLAYED_TILES })}
                 </div>
             </section>
 

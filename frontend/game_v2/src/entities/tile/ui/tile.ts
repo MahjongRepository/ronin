@@ -1,8 +1,9 @@
 import { html, svg } from "lit-html";
 
-import { type TileFace } from "@/entities/tile/lib/tile-utils";
+import { type TileFace, spokenTileName } from "@/entities/tile/lib/tile-utils";
+import { t } from "@/shared/i18n";
 
-const HONOR_NAMES = ["E", "S", "W", "N", "Wh", "Gr", "Rd"] as const;
+const HONOR_FACES = ["東", "南", "西", "北", "白", "發", "中"] as const;
 
 /**
  * Put the tile sprite's symbols in the document, in one hidden container, and mark the root so tiles stop showing
@@ -21,18 +22,17 @@ function injectTileSprite(sprite: string): void {
     document.documentElement.dataset.tileSprite = "ready";
 }
 
-/** A face's short name, which a tile shows until the sprite draws it: `5m`, a red five's `5m` too, `E`, `Rd`. */
-function tileName(face: TileFace): string {
+function placeholderFace(face: TileFace): string {
     const [rank, suit] = face;
     if (suit === "z") {
-        return HONOR_NAMES[Number(rank) - 1];
+        return HONOR_FACES[Number(rank) - 1];
     }
     return `${rank === "0" ? "5" : rank}${suit}`;
 }
 
 /** Render the back of a tile, a hidden tile or one whose face the view does not know: the stylesheet draws it whole. */
 function TileBack() {
-    return html`<span class="tile tile-back" aria-label="back"></span>`;
+    return html`<span class="tile tile-back" aria-label=${t("tile.hidden")}></span>`;
 }
 
 /**
@@ -47,7 +47,7 @@ function Tile(face: TileFace, show: "face" | "back") {
         return TileBack();
     }
     const red = face.startsWith("0") ? " tile__name--red" : "";
-    return html`<span class="tile">${svg`<svg width="100%" height="100%" viewBox="0 0 300 400" aria-label="${face}"><text class="tile__name${red}" x="150" y="200" aria-hidden="true">${tileName(face)}</text><use href="#tile-${face}"/></svg>`}</span>`;
+    return html`<span class="tile">${svg`<svg width="100%" height="100%" viewBox="0 0 300 400" aria-label="${spokenTileName(face)}"><text class="tile__name${red}" x="150" y="200" aria-hidden="true">${placeholderFace(face)}</text><use href="#tile-${face}"/></svg>`}</span>`;
 }
 
 export { Tile, TileBack, injectTileSprite };

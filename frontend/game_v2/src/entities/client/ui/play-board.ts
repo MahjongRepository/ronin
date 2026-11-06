@@ -30,7 +30,8 @@ import {
     type PanelAction,
     TablePanelDisplay,
 } from "@/entities/table";
-import { Meld, Tile } from "@/entities/tile";
+import { Meld, Tile, spokenTileName } from "@/entities/tile";
+import { formatList } from "@/shared/i18n";
 import { assertNever, focusKeys } from "@/shared/lib";
 import { focusOnFirstRender } from "@/shared/ui";
 
@@ -123,6 +124,13 @@ function Lamp(pressed: boolean | null): TemplateResult {
     return html`<span class="decision-controls__lamp ${pressed ? "decision-controls__lamp--on" : ""}" aria-hidden="true"></span>`;
 }
 
+function offerLabel(action: DecisionAction): string {
+    if (action.tiles.length === 0) {
+        return action.label;
+    }
+    return `${action.label} ${formatList(action.tiles.map(spokenTileName))}`;
+}
+
 /**
  * A decision control: its label (a second step's choice shows its tiles in its place), riichi's lamp, Back's arrow.
  */
@@ -140,7 +148,7 @@ function ActionButton(
     return html`<button
         type="button"
         class="decision-controls__action ${rankClass(action)}"
-        aria-label=${[action.label, ...action.tiles].join(" ")}
+        aria-label=${offerLabel(action)}
         aria-keyshortcuts=${isPass || isBack ? "Escape" : nothing}
         aria-pressed=${action.pressed === null ? nothing : String(action.pressed)}
         data-focus-key=${focusKeys(commandFocusKey(action.command), DECISION_ACTION_FOCUS_KEY) ?? nothing}

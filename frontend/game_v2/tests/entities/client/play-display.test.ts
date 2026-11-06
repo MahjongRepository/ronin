@@ -100,7 +100,7 @@ describe("playDisplay", () => {
         ).toEqual([
             ["Kan", ["3m"], "call", null],
             ["Pon", ["3m"], "call", null],
-            ["Chi", [], "call", false],
+            ["Chii", [], "call", false],
             ["Pass", [], "pass", null],
         ]);
         expect(display.actions[1].command).toEqual({
@@ -176,10 +176,7 @@ describe("playDisplay", () => {
         expect(handMarks(display).filter(([, mark]) => mark !== "disabled")).toEqual([
             [120, "declaring"],
         ]);
-        expect([display.tileAction, display.actions[0].pressed]).toEqual([
-            "Declare riichi discarding",
-            true,
-        ]);
+        expect([display.tileAction, display.actions[0].pressed]).toEqual(["riichi_discard", true]);
         expect([
             stepPlayUi(state, picking, toggle),
             display.shortcuts.escape,
@@ -190,7 +187,7 @@ describe("playDisplay", () => {
             NO_PLAY_UI,
         ]);
         expect([stale.tileAction, stale.tileIntents.get(120), stale.tileIntents.size]).toEqual([
-            "Discard",
+            "discard",
             { tileId: 120, type: "discard" },
             viewerTiles(state).length,
         ]);
@@ -334,9 +331,9 @@ describe("playDisplay decisions", () => {
                 laid(action.group),
             ]),
         ).toEqual([
-            ["Chi", null, "call", ["sideways 3m", "upright 2m", "upright 4m"]],
-            ["Chi", null, "call", ["sideways 3m", "upright 1m", "upright 2m"]],
-            ["Chi", true, "call", null],
+            ["Chii", null, "call", ["sideways 3m", "upright 2m", "upright 4m"]],
+            ["Chii", null, "call", ["sideways 3m", "upright 1m", "upright 2m"]],
+            ["Chii", true, "call", null],
             ["Back", null, "pass", null],
         ]);
         expect(display.actions.slice(0, 2).map((action) => action.command)).toEqual([
@@ -372,7 +369,7 @@ describe("playDisplay decisions", () => {
         expect(playDisplay(state, older).actions.map((action) => action.label)).toEqual([
             "Kan",
             "Pon",
-            "Chi",
+            "Chii",
             "Pass",
         ]);
         expect(playDisplay(state, NO_PLAY_UI).shortcuts.escape?.command).toEqual({
@@ -807,7 +804,7 @@ describe("playDisplay callouts", () => {
 
         expect(playDisplay(turn, NO_PLAY_UI).callouts).toEqual({
             announced: true,
-            items: [{ kind: "chi", label: "Chi", position: "bottom" }],
+            items: [{ kind: "chi", label: "Chii", position: "bottom" }],
             key: "call-5000",
         });
         expect(nextDeadline(turn)).toBe(turn.now + CALLOUT_MS);

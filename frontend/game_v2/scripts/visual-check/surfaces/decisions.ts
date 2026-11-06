@@ -219,7 +219,7 @@ const PAGES: readonly PageCase[] = [
     },
     decisionCase("discard_pending", [".hand-tile--selected"]),
     decisionCase("kyuushu_offer", [
-        `${ACTION}[aria-label="Kyuushu"]`,
+        `${ACTION}[aria-label="Abortive draw"]`,
         ".decision-controls__countdown",
     ]),
     decisionCase("tenhou_offer", [

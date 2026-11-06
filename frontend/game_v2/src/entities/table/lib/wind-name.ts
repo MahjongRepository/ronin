@@ -1,10 +1,17 @@
-const WIND_NAMES = ["East", "South", "West", "North"] as const;
-const WIND_LETTERS = ["E", "S", "W", "N"] as const;
+import { type MessageKey, t } from "@/shared/i18n";
+
+const WIND_NAMES: readonly MessageKey[] = ["wind.east", "wind.south", "wind.west", "wind.north"];
+const WIND_LETTERS: readonly MessageKey[] = [
+    "wind.short.east",
+    "wind.short.south",
+    "wind.short.west",
+    "wind.short.north",
+];
 
 export function windName(wind: number): string {
-    return WIND_NAMES[wind] ?? "Unknown";
+    return t(WIND_NAMES[wind] ?? "wind.unknown");
 }
 
 export function windLetter(wind: number): string {
-    return WIND_LETTERS[wind] ?? "?";
+    return t(WIND_LETTERS[wind] ?? "wind.short.unknown");
 }

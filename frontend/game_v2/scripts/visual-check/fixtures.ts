@@ -122,7 +122,11 @@ export async function openContext(
         readonly origin: string;
     },
 ): Promise<BrowserContext> {
-    const context = await browser.newContext({ ...viewport.context, reducedMotion: "reduce" });
+    const context = await browser.newContext({
+        ...viewport.context,
+        locale: "en-US",
+        reducedMotion: "reduce",
+    });
     await context.route(
         (url) => url.origin !== origin,
         (route) => route.fulfill({ body: "", contentType: "text/css", status: 200 }),

@@ -11,7 +11,7 @@ import {
     tableSeatingPanel,
     tableStateToDisplayState,
 } from "@/entities/table";
-import { type HandTile } from "@/entities/tile";
+import { type HandTile, type TileAction } from "@/entities/tile";
 import { CALL_TYPE, seatDistance } from "@/shared/protocol";
 
 import {
@@ -106,7 +106,7 @@ export interface PlayDisplay {
     readonly board: BoardDisplayState | null;
     /** The calls the board shows by their seats, from the viewer's seat; null with none. */
     readonly callouts: BoardCallouts | null;
-    readonly tileAction: string;
+    readonly tileAction: TileAction;
     readonly tileIntents: ReadonlyMap<number, LocalIntent>;
     /** The answerable decision's controls, ranked; none once answered. */
     readonly actions: readonly DecisionAction[];
@@ -144,9 +144,6 @@ export interface PlayDisplay {
     /** The game plays its sounds, as the settings menu's switch shows. */
     readonly soundOn: boolean;
 }
-
-const DISCARD_ACTION = "Discard";
-const RIICHI_ACTION = "Declare riichi discarding";
 
 const SWITCH_LABELS: Readonly<
     Record<PlaySwitch, { readonly letter: string; readonly label: string }>
@@ -382,7 +379,7 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
         status: describePlayerClientStatus(state),
         switchNames: ui.switchNames,
         switches: switchControls(state),
-        tileAction: picking ? RIICHI_ACTION : DISCARD_ACTION,
+        tileAction: picking ? "riichi_discard" : "discard",
         tileIntents: intentsOf(plays),
     };
 }

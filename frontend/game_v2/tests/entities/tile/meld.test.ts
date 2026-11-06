@@ -39,7 +39,7 @@ describe("Meld - chi", () => {
         };
         const el = renderTo(Meld(meldTiles(input)));
         expect(slotsWith(el, "meld-tile-sideways")).toEqual([0]);
-        expect(faces(el)).toEqual(["2m", "1m", "3m"]);
+        expect(faces(el)).toEqual(["2-man", "1-man", "3-man"]);
     });
 });
 
