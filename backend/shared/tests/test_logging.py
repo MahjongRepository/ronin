@@ -23,7 +23,8 @@ def _cleanup_root_logger():
 
 
 class TestSetupLogging:
-    def test_setup_logging__when_log_dir_given__should_write_app_log(self, tmp_path):
+    def test_setup_logging__when_log_dir_given__should_write_app_log(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("LOG_LEVEL", raising=False)
         log_path = setup_logging(log_dir=tmp_path / "game")
 
         test_logger = structlog.get_logger("test.writes_to_file")
