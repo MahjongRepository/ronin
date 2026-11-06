@@ -89,6 +89,7 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    min-height: 100dvh;
     background:
         radial-gradient(ellipse 80% 50% at 50% 0%, rgb(123 184 138 / 3%) 0%, transparent 50%),
         var(--pico-background-color);
