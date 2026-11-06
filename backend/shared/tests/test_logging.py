@@ -12,7 +12,9 @@ from shared.logging import _serialize_enums, setup_logging
 
 @pytest.fixture(autouse=True)
 def _cleanup_root_logger():
+    saved_config = structlog.get_config()
     yield
+    structlog.configure(**saved_config)
     root = logging.getLogger()
     for handler in root.handlers[:]:
         handler.close()
@@ -26,10 +28,12 @@ class TestSetupLogging:
 
         test_logger = structlog.get_logger("test.writes_to_file")
         test_logger.info("hello from test")
+        test_logger.debug("below the level")
         assert log_path is not None
         assert log_path.name == "app.log"
         content = log_path.read_text()
         assert "hello from test" in content
+        assert "below the level" not in content
 
     def test_setup_logging__when_stdlib_logger_or_warnings_warn__should_write_level_and_logger(self, tmp_path):
         log_path = setup_logging(log_dir=tmp_path / "game")
