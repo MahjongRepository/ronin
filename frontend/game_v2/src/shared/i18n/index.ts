@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE, type Locale, isLocale } from "./locale";
+import { DEFAULT_LOCALE, type Locale, isLocale, langCookie } from "./locale";
 import en from "./locales/en.json";
 import ja from "./locales/ja.json";
 import ru from "./locales/ru.json";
@@ -152,7 +152,22 @@ function t(key: MessageKey, params: Params = {}): string {
     }
 }
 
-export { LOCALES, isLocale, resolveLocale } from "./locale";
+function applyPageLocale(locale: Locale): void {
+    document.cookie = langCookie(locale, window.location.protocol);
+    document.documentElement.lang = locale;
+    document.title = t("game.page.title");
+}
+
+export { LOCALES, isLocale, langCookie, resolveLocale } from "./locale";
 export type { Locale } from "./locale";
-export { I18nError, formatList, formatNumber, isMessageKey, reportI18nError, t };
+export {
+    I18nError,
+    applyPageLocale,
+    formatList,
+    formatNumber,
+    isMessageKey,
+    pageLocale,
+    reportI18nError,
+    t,
+};
 export type { MessageKey };

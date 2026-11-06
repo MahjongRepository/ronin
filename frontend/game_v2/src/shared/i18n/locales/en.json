@@ -189,6 +189,7 @@
     "game.seat.you": "You",
     "game.seating.heading": "{type} · {round}",
     "game.seating.label": "Seating",
+    "game.settings.language": "Language",
     "game.settings.off": "Off",
     "game.settings.on": "On",
     "game.settings.right_click": "Right-click shortcuts",

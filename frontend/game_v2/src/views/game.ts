@@ -29,7 +29,7 @@ import {
 import { type TileSprite } from "@/entities/tile";
 import { type HandoffRecovery, type RecoverHandoff, isAbortError } from "@/shared/api";
 import { type Clock } from "@/shared/clock";
-import { t } from "@/shared/i18n";
+import { type Locale, t } from "@/shared/i18n";
 import {
     type DeadlineTimer,
     type LocalStore,
@@ -70,6 +70,7 @@ export interface GameViewDeps {
     readonly links: GameLinks;
     readonly sound: GameSound;
     readonly inputSetting: LocalStore<InputSetting>;
+    readonly setLanguage: (locale: Locale) => void;
 }
 
 /** Where the game's end leads: the game history, and this game's replay from a seat. */
@@ -106,6 +107,7 @@ interface GameViewProps {
     readonly ui: PlayUi;
     readonly panel: Ref<HTMLElement>;
     readonly onCommand: (command: PlayCommand) => void;
+    readonly onLanguage: (locale: Locale) => void;
 }
 
 function describeError(error: unknown): string {
@@ -231,13 +233,14 @@ function logTemplate(
  * and countdown stay current while it is hidden.
  */
 function gameTemplate(props: GameViewProps): TemplateResult {
-    const { links, log, onCommand, panel, state, ui } = props;
+    const { links, log, onCommand, onLanguage, panel, state, ui } = props;
     const display: PlayDisplay = playDisplay(state, ui);
     const board = PlayBoard({
         display,
         links: { history: links.history, replay: links.replay(state.viewerSeat) },
         menuExtra: log === null ? undefined : logTemplate(log, panel, state),
         onCommand,
+        onLanguage,
     });
     return html`
         <div class="game">
@@ -360,6 +363,11 @@ class GameViewController {
             return;
         }
         this.guard(() => this.changeUi(command));
+    };
+
+    private readonly changeLanguage = (locale: Locale): void => {
+        this.deps.setLanguage(locale);
+        this.guard(() => this.draw());
     };
 
     /** Run a redraw outside a step: a throw in it ends the client as failed, as a step's does. */
@@ -510,11 +518,12 @@ class GameViewController {
         if (this.disposed || this.broken) {
             return;
         }
-        const { command, log, panel, state, ui } = this;
+        const { changeLanguage, command, log, panel, state, ui } = this;
         const props = {
             links: this.deps.links,
             log,
             onCommand: command,
+            onLanguage: changeLanguage,
             panel,
             state,
             ui,

@@ -41,6 +41,9 @@ The board's look is `docs/game-client-look.md`; where it and any `AGENTS.md` or 
   scope, and state keeps codes, translated only when shown. Debug output and storybook prose stay English. A
   server-owned id family (yaku) builds its key and gets one test walking every id in all three locales. Game logic
   uses protocol codes and ids, never displayed text.
+* The language lives only in the `lang` cookie, with no storage key. A switch from the settings menu applies through
+  the view's `deps.setLanguage` (cookie, `<html lang>`, title) and redraws; it never goes through a command, a
+  reducer or state.
 
 ## Structure
 

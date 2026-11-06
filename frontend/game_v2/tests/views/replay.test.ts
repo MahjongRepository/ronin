@@ -1,6 +1,7 @@
 import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
 import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
+import { fakeLanguageSwitch, resetPageLanguage } from "#tests/fixtures/language";
 import { encodeReplayLines } from "#tests/fixtures/replay-records";
 import { engineReplayBytes } from "#tests/fixtures/replays";
 import { type GameSound, type SoundCue, type SoundSetting } from "@/entities/client";
@@ -12,6 +13,7 @@ import {
     type ReplayPrefsStore,
 } from "@/entities/replay";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
+import { type Locale } from "@/shared/i18n";
 import { REPLAY_VERSION, WIRE_KEY } from "@/shared/protocol";
 import {
     REPLAY_URL_WRITE_INTERVAL_MS,
@@ -183,12 +185,18 @@ interface MountOptions {
     readonly links?: ReplayLinks;
     readonly prefs?: ReplayPrefs;
     readonly soundOn?: boolean;
+    readonly setLanguage?: (locale: Locale) => void;
 }
 
 /** Mount a replay view at `search` whose every load waits until the test answers it. */
 function mountReplay(
     search = "",
-    { links = LINKS, prefs = DEFAULT_REPLAY_PREFS, soundOn = false }: MountOptions = {},
+    {
+        links = LINKS,
+        prefs = DEFAULT_REPLAY_PREFS,
+        setLanguage = () => {},
+        soundOn = false,
+    }: MountOptions = {},
 ): MountedReplay {
     const host = document.body.appendChild(document.createElement("div"));
     const clock = new ManualClock();
@@ -202,6 +210,7 @@ function mountReplay(
         loadReplay,
         location,
         prefs: store,
+        setLanguage,
         sound: deps,
     });
     const mounted: MountedReplay = {
@@ -377,6 +386,7 @@ async function answerNotFound(
 
 afterEach(() => {
     vi.restoreAllMocks();
+    resetPageLanguage();
     for (const mounted of mounts.splice(0)) {
         mounted.dispose();
     }
@@ -754,6 +764,31 @@ describe("mountReplayView - view", () => {
             ["discard", "riichi"],
             { sound_on: false },
             0,
+        ]);
+    });
+
+    it("switches the page to Russian in place from the cog, its menu open, the position and address kept", async () => {
+        const languages = fakeLanguageSwitch();
+        const { host, written } = await mountLoadedReplay("riichi", "?round=0&step=10", {
+            setLanguage: languages.setLanguage,
+        });
+        const shown = position(host);
+
+        button(host, ".game-menu__toggle").click();
+        button(host, '.game-menu__language-option[lang="ru"]').click();
+
+        expect([
+            shown,
+            languages.chosen,
+            position(host),
+            host.querySelector(".game-menu__panel") !== null,
+            written,
+        ]).toEqual([
+            "East 1 Step 11 of 28",
+            ["ru"],
+            "Восток 1 Шаг 11 из 28",
+            true,
+            ["?round=0&step=10&seat=0"],
         ]);
     });
 

@@ -237,6 +237,24 @@ section {
     color: var(--ronin-text-secondary);
 }
 
+.game-menu__languages {
+    display: flex;
+    flex: none;
+    gap: 0.25rem;
+}
+
+.game-menu__language-option {
+    min-height: 32px;
+    margin: 0;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.8rem;
+
+    &[aria-current="true"] {
+        color: var(--ronin-accent);
+        border-color: var(--ronin-accent);
+    }
+}
+
 .game-menu__status {
     padding: 0.25rem 0.5rem;
     font-size: 0.65rem;

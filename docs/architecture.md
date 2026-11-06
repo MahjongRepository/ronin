@@ -466,7 +466,9 @@ honours this contract can replace it.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **Language:** v2 speaks Japanese, English and Russian under the lobby's contract (`docs/i18n.md`),
   with catalogs of its own. It resolves the language at page load: the `lang` cookie first, then the
-  first supported entry of `navigator.languages`, then English; it reads the cookie and never writes it.
+  first supported entry of `navigator.languages`, then English. Its settings menu switches the
+  language in place on the play and replay pages and writes the `lang` cookie on that explicit choice
+  only, so the lobby follows it.
   The game server sends codes, never text to show: errors carry a code beside an English diagnostic
   message the client does not display.
 * **CSP:** game pages allow scripts, styles and fonts from `'self'` (inline styles too) and WebSocket

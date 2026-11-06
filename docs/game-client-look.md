@@ -436,10 +436,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   where the top hand leaves too little room, it sits below the top strip and badge instead.
   Upright it stays at the top right. The icon is smaller than its control-floor tap target.
   It reserves no room in the strips, hands or badges, which keep their places; a
-  panel may cover it. Decision: its menu holds the sound switch, then the
+  panel may cover it. Decision: its menu holds the sound switch, a language row (one compact strip of the
+  three languages by their native names, the current one marked), then the
   connection status (a dot and its whole label); a tap outside the menu only closes it, and Escape closes it back to
   the cog. While the status has a word to say (a drop, an end), the cog carries a dot in the status's tone, so a drop
-  shows without opening the menu. A replay has the same corner and cog, its menu the sound switch alone. The live
+  shows without opening the menu. A replay has the same corner and cog, its menu the sound switch and the language row alone. The live
   board has no way back of its own; the rotate panel in a narrow portrait viewport keeps
   one, which asks the leave question, and an end's panel offers the lobby.
 - **Sound.** The live game plays an original synthesized resin tile clack and a soft two-note countdown tone,

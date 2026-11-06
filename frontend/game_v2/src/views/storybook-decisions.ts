@@ -39,6 +39,7 @@ import RIICHI_KAN_SEAT_1 from "@/fixtures/seat-scenarios/riichi_kan_seat_1.json"
 import SEAT_LEFT_SEAT_1 from "@/fixtures/seat-scenarios/seat_left_seat_1.json";
 import SEAT_LEFT_SEAT_3 from "@/fixtures/seat-scenarios/seat_left_seat_3.json";
 import { getLobbyHistoryUrl, replayPageUrl } from "@/shared/config";
+import { type Locale, applyPageLocale } from "@/shared/i18n";
 import { WIRE_KEY } from "@/shared/protocol";
 
 import { STORYBOOK_INDEX } from "./storybook-nav";
@@ -529,11 +530,12 @@ function pickStory(event: Event, show: (story: DecisionStoryKey) => void): void 
 interface StoryHandlers {
     readonly show: (story: DecisionStoryKey) => void;
     readonly onCommand: (command: PlayCommand) => void;
+    readonly onLanguage: (locale: Locale) => void;
 }
 
 function storybookTemplate(
     screen: StoryScreen,
-    { onCommand, show }: StoryHandlers,
+    { onCommand, onLanguage, show }: StoryHandlers,
 ): TemplateResult {
     const { sent, state, story, ui } = screen;
     return html`
@@ -546,6 +548,7 @@ function storybookTemplate(
                         replay: replayPageUrl(state.table.gameId, state.viewerSeat),
                     },
                     onCommand,
+                    onLanguage,
                 })}
             </div>
             <div class="board-page__aside">
@@ -573,7 +576,7 @@ export function mountStorybookDecisions(host: HTMLElement): () => void {
     let screen = storyScreen(parseStory(window.location.search));
 
     function draw(): void {
-        render(storybookTemplate(screen, { onCommand, show }), host);
+        render(storybookTemplate(screen, { onCommand, onLanguage, show }), host);
     }
 
     function show(key: DecisionStoryKey): void {
@@ -599,6 +602,11 @@ export function mountStorybookDecisions(host: HTMLElement): () => void {
         } else {
             screen = { ...screen, ui: stepPlayUi(state, ui, command) };
         }
+        draw();
+    }
+
+    function onLanguage(locale: Locale): void {
+        applyPageLocale(locale);
         draw();
     }
 

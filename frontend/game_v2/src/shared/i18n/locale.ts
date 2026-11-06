@@ -4,6 +4,7 @@ export const DEFAULT_LOCALE = "en";
 export type Locale = (typeof LOCALES)[number];
 
 const LANG_COOKIE = "lang";
+const LANG_COOKIE_MAX_AGE_SECONDS = 31_536_000;
 
 export function isLocale(value: string): value is Locale {
     return LOCALES.some((locale) => locale === value);
@@ -35,4 +36,9 @@ export function resolveLocale(cookies: string, browserLanguages: readonly string
         return chosen;
     }
     return browserLocale(browserLanguages) ?? DEFAULT_LOCALE;
+}
+
+export function langCookie(locale: Locale, protocol: string): string {
+    const cookie = `${LANG_COOKIE}=${locale}; Path=/; Max-Age=${String(LANG_COOKIE_MAX_AGE_SECONDS)}; SameSite=Lax`;
+    return protocol === "https:" ? `${cookie}; Secure` : cookie;
 }

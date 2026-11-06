@@ -5,6 +5,7 @@ import { DEFAULT_REPLAY_PREFS, type ReplayPrefs } from "@/entities/replay";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { type Clock, browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, getLobbyUrl } from "@/shared/config";
+import { applyPageLocale } from "@/shared/i18n";
 import { REPLAY_VERSION, WIRE_KEY } from "@/shared/protocol";
 
 /** A storybook replay plays no sound, with the sound off. */
@@ -190,6 +191,7 @@ export function mountStorybookReplay(host: HTMLElement): () => void {
             location: { onPageHide: () => () => {}, replaceSearch: () => {}, search: story.search },
             prefs: { load: () => story.prefs ?? DEFAULT_REPLAY_PREFS, save: () => {} },
             roundListOpen: story.roundListOpen ?? false,
+            setLanguage: applyPageLocale,
             sound: SILENT,
         });
     }

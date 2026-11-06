@@ -59,7 +59,11 @@ class InputBoard {
 
     private draw(): void {
         render(
-            PlayBoard({ display: playDisplay(this.state, this.ui), onCommand: this.onCommand }),
+            PlayBoard({
+                display: playDisplay(this.state, this.ui),
+                onCommand: this.onCommand,
+                onLanguage: () => {},
+            }),
             this.host,
         );
     }

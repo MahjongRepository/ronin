@@ -34,7 +34,7 @@ import {
     loadReplayUntilFound,
 } from "@/shared/api";
 import { type Clock } from "@/shared/clock";
-import { type MessageKey, t } from "@/shared/i18n";
+import { type Locale, type MessageKey, t } from "@/shared/i18n";
 import {
     type DeadlineTimer,
     type ThrottledWriter,
@@ -74,6 +74,7 @@ export interface ReplayViewDeps {
     readonly prefs: ReplayPrefsStore;
     /** The game's sounds, which a step on plays while the setting the live game shares keeps them on. */
     readonly sound: GameSound;
+    readonly setLanguage: (locale: Locale) => void;
     /** Open on the round list, as a storybook state shows it; closed when omitted. */
     readonly roundListOpen?: boolean;
     /** Open with autoplay running, as a storybook state shows it; paused when omitted. */
@@ -353,6 +354,7 @@ class ReplayViewController {
         retry: () => this.startLoad(),
         root: createRef<HTMLElement>(),
         selectRound: (cursor) => this.dispatch({ cursor, kind: "select_round" }),
+        setLanguage: (locale) => this.changeLanguage(locale),
         showResultPage: (page) => this.dispatch({ kind: "result_page", page }),
         start: () => this.dispatch({ kind: "start" }),
         stepClick: (direction) => this.dispatch({ direction, kind: "step_click" }),
@@ -399,6 +401,11 @@ class ReplayViewController {
         this.addressWriter.cancel();
         this.abort.abort();
         render(nothing, this.host);
+    }
+
+    private changeLanguage(locale: Locale): void {
+        this.deps.setLanguage(locale);
+        this.guard(() => this.show(this.screen));
     }
 
     private readonly onClickOutside = (event: MouseEvent): void => {

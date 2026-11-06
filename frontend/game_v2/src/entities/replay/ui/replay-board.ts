@@ -12,7 +12,7 @@ import {
     type TablePanelControls,
     TablePanelDisplay,
 } from "@/entities/table";
-import { t } from "@/shared/i18n";
+import { type Locale, t } from "@/shared/i18n";
 
 import { ReplayControls, ReplayStatus } from "./replay-controls";
 import { RoundList } from "./round-list";
@@ -42,6 +42,7 @@ export interface ReplayBoardHandlers {
     readonly toggleSettings: () => void;
     readonly closeSettings: () => void;
     readonly toggleSound: () => void;
+    readonly setLanguage: (locale: Locale) => void;
 }
 
 export interface ReplayBoardProps {
@@ -130,6 +131,7 @@ export function ReplayBoard({
         matchResult: display.matchResult,
         menu: GameMenu({
             onClose: handlers.closeSettings,
+            onLanguage: handlers.setLanguage,
             onToggleOpen: handlers.toggleSettings,
             onToggleSound: handlers.toggleSound,
             open: screen.settingsOpen,

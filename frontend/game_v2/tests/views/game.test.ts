@@ -1,6 +1,7 @@
 import { type MockInstance, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
+import { fakeLanguageSwitch, resetPageLanguage } from "#tests/fixtures/language";
 import { GAME_ID, HANDOFF } from "#tests/fixtures/scenario";
 import {
     loadSeatScenario,
@@ -91,6 +92,7 @@ interface FakeOverrides {
     readonly recoverHandoff?: GameViewDeps["recoverHandoff"];
     readonly soundSetting?: SoundSetting;
     readonly inputSetting?: GameViewDeps["inputSetting"];
+    readonly setLanguage?: GameViewDeps["setLanguage"];
 }
 
 /** The game's sounds as a test hears them: each cue played, and the setting as this browser would keep it. */
@@ -155,6 +157,7 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
         recoverHandoff:
             overrides.recoverHandoff ??
             (() => Promise.reject(new Error("the tab holds a handoff"))),
+        setLanguage: overrides.setLanguage ?? (() => {}),
         sink,
         sound: {
             play: (cue) => sound.played.push(cue),
@@ -940,6 +943,28 @@ describe("mountGameView settings", () => {
 
         expect(heard).toEqual(["discard", "decision"]);
         expect(sound.played).toHaveLength(played);
+    });
+
+    it("switches the page to Russian in place while a call waits, its menu open, sending nothing and reloading nothing", () => {
+        onTestFinished(resetPageLanguage);
+        const languages = fakeLanguageSwitch();
+        const { connections, host, sink } = mountWithFakes({ setLanguage: languages.setLanguage });
+        openCallPrompt(connections[0]);
+
+        press(host, ".game-menu__toggle");
+        press(host, '.game-menu__language-option[lang="ru"]');
+
+        expect([
+            languages.chosen,
+            document.documentElement.lang,
+            document.title,
+            host.querySelector(".game__play .decision-controls__action--pass")?.textContent?.trim(),
+            host.querySelector('.game__play .game-menu__language-option[aria-current="true"]')
+                ?.textContent,
+            host.querySelector(".game__play .game-menu__panel") !== null,
+            connections[0].sent,
+        ]).toEqual([["ru"], "ru", "Ronin - Игра", "Пропустить", "Русский", true, [JOIN]]);
+        expect(sink.reload).not.toHaveBeenCalled();
     });
 });
 

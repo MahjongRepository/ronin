@@ -3,7 +3,7 @@ import { type TemplateResult, html, nothing, svg } from "lit-html";
 import { switchLetters } from "@/entities/client/model/play-display";
 import { SETTINGS_FOCUS_KEY } from "@/entities/client/model/settings-menu";
 import { type SessionStatusDisplay } from "@/entities/session";
-import { t } from "@/shared/i18n";
+import { LOCALES, type Locale, pageLocale, t } from "@/shared/i18n";
 import { focusByKey } from "@/shared/lib";
 
 interface GameMenuProps {
@@ -14,10 +14,17 @@ interface GameMenuProps {
     readonly onToggleOpen: () => void;
     readonly onClose: () => void;
     readonly onToggleSound: () => void;
+    readonly onLanguage: (locale: Locale) => void;
     readonly input?: { readonly rightClick: boolean; readonly onToggle: () => void };
     /** What the page adds before the settings (the debug log). */
     readonly extra?: TemplateResult;
 }
+
+const LANGUAGE_NAMES: Readonly<Record<Locale, string>> = {
+    en: "English",
+    ja: "日本語",
+    ru: "Русский",
+};
 
 /** A cog: the settings. */
 function CogIcon(): TemplateResult {
@@ -64,12 +71,28 @@ function StatusRow(status: SessionStatusDisplay): TemplateResult {
     </div>`;
 }
 
+function LanguageRow(onLanguage: (locale: Locale) => void): TemplateResult {
+    const current = pageLocale();
+    return html`<div class="game-menu__item game-menu__language" role="group" aria-label=${t("game.settings.language")}>
+        <span class="game-menu__item-name" aria-hidden="true">${t("game.settings.language")}</span>
+        <span class="game-menu__languages">${LOCALES.map(
+            (locale) => html`<button
+                type="button"
+                class="secondary game-menu__language-option"
+                lang=${locale}
+                aria-current=${locale === current ? "true" : nothing}
+                @click=${() => onLanguage(locale)}
+            >${LANGUAGE_NAMES[locale]}</button>`,
+        )}</span>
+    </div>`;
+}
+
 /**
  * The menu's items: the sound switch, then the session's status where the page has one. A backdrop under them closes
  * the menu on a tap anywhere else, which takes no other action.
  */
 function SettingsPanel(props: GameMenuProps): TemplateResult {
-    const { onClose, onToggleSound, soundOn, status } = props;
+    const { onClose, onLanguage, onToggleSound, soundOn, status } = props;
     return html`<div class="game-menu__backdrop" aria-hidden="true" @click=${onClose}></div>
         <div class="game-menu__panel" role="group" aria-label=${t("game.settings.title")}>
             <button
@@ -82,6 +105,7 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
                 ${SoundIcon(soundOn)}<span class="game-menu__item-name">${t("game.settings.sound")}</span
                 ><span class="game-menu__item-value">${onOff(soundOn)}</span>
             </button>
+            ${LanguageRow(onLanguage)}
             ${props.input === undefined ? nothing : InputSettings(props.input)}
             ${status === null ? nothing : StatusRow(status)}
         </div>`;

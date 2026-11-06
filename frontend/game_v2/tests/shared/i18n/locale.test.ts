@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveLocale } from "@/shared/i18n";
+import { langCookie, resolveLocale } from "@/shared/i18n";
 
 describe("resolveLocale", () => {
     it("takes a lang cookie naming a supported locale over the browser's languages", () => {
@@ -18,5 +18,14 @@ describe("resolveLocale", () => {
 
     it("gives English when neither the cookie nor the browser names a supported locale", () => {
         expect(resolveLocale("lang=fr", ["de", "*"])).toBe("en");
+    });
+});
+
+describe("langCookie", () => {
+    it("carries the lobby's lang cookie attributes, marked Secure only on https", () => {
+        expect(langCookie("ru", "http:")).toBe("lang=ru; Path=/; Max-Age=31536000; SameSite=Lax");
+        expect(langCookie("ja", "https:")).toBe(
+            "lang=ja; Path=/; Max-Age=31536000; SameSite=Lax; Secure",
+        );
     });
 });

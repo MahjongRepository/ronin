@@ -34,7 +34,7 @@ import {
     isDebugRequested,
     replayPageUrl,
 } from "@/shared/config";
-import { resolveLocale, t } from "@/shared/i18n";
+import { applyPageLocale, resolveLocale, t } from "@/shared/i18n";
 import {
     type SoundSource,
     createSoundPlayer,
@@ -135,6 +135,7 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
             replay: (seat) => replayPageUrl(gameId, seat),
         },
         recoverHandoff: fetchGameHandoff,
+        setLanguage: applyPageLocale,
         sink: {
             clearHandoff: clearGameSession,
             leaveToLobby,
