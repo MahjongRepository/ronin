@@ -82,17 +82,19 @@ describe("spokenTileName", () => {
         vi.restoreAllMocks();
     });
 
-    test.each(["en", "ja", "ru"])(
-        "speaks every tile face in %s without the generic fallback",
-        (locale) => {
-            document.documentElement.lang = locale;
-            const report = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    test.each([
+        ["en", "5-pin"],
+        ["ja", "ウーピン"],
+        ["ru", "пятёрка пин"],
+    ])("speaks every tile face in %s without the generic fallback", (locale, fivePin) => {
+        document.documentElement.lang = locale;
+        const report = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
-            const names = TILE_FACES.map(spokenTileName);
+        const names = TILE_FACES.map(spokenTileName);
 
-            expect(names).not.toContain(t("tile.unknown"));
-            expect(new Set(names).size).toBe(TILE_FACES.length);
-            expect(report).not.toHaveBeenCalled();
-        },
-    );
+        expect(names).not.toContain(t("tile.unknown"));
+        expect(new Set(names).size).toBe(TILE_FACES.length);
+        expect(spokenTileName("5p")).toBe(fivePin);
+        expect(report).not.toHaveBeenCalled();
+    });
 });

@@ -300,7 +300,7 @@ function fiveOffers(): DecisionView {
             }),
             storyControl({
                 command: { kind: "toggle_tile_choice", offer: "chi" },
-                label: "Chi",
+                label: "Chii",
                 pressed: false,
                 rank: "call",
             }),

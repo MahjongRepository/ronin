@@ -50,20 +50,22 @@ describe("yakuName", () => {
         expect(yakuName(122)).toBe("Ura Dora");
     });
 
-    test.each(["en", "ja", "ru"])(
-        "names every server yaku id in %s without the generic fallback",
-        (locale) => {
-            document.documentElement.lang = locale;
-            const report = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    test.each([
+        ["en", "Iipeikou"],
+        ["ja", "一盃口"],
+        ["ru", "Иипейко"],
+    ])("names every server yaku id in %s without the generic fallback", (locale, iipeikou) => {
+        document.documentElement.lang = locale;
+        const report = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
-            const unnamed = SERVER_YAKU_IDS.filter(
-                (id) => yakuName(id) === t("yaku.unknown", { id: String(id) }),
-            );
+        const unnamed = SERVER_YAKU_IDS.filter(
+            (id) => yakuName(id) === t("yaku.unknown", { id: String(id) }),
+        );
 
-            expect(unnamed).toEqual([]);
-            expect(report).not.toHaveBeenCalled();
-        },
-    );
+        expect(unnamed).toEqual([]);
+        expect(yakuName(14)).toBe(iipeikou);
+        expect(report).not.toHaveBeenCalled();
+    });
 
     test("names an unknown id by its number and reports it", () => {
         const report = vi.spyOn(console, "error").mockImplementation(() => undefined);
