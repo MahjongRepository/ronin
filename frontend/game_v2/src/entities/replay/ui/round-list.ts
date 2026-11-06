@@ -131,7 +131,7 @@ export function RoundList(props: RoundListProps): TemplateResult {
             props.incomplete === null
                 ? nothing
                 : html`<p class="round-list__incomplete">
-                      <strong>${t("replay.rounds.incomplete_label", { label: props.incomplete.label })}</strong> ${props.incomplete.detail}
+                      <strong>${t("replay.rounds.incomplete_label", { label: props.incomplete.label })}</strong>${props.incomplete.detail}
                   </p>`
         }
         <ol class="round-list__rows">

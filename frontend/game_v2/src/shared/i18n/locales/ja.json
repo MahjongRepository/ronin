@@ -300,6 +300,7 @@
     "replay.outcome.tenpai": "{draw}: テンパイ {players}",
     "replay.outcome.tsumo": "ツモ: {winner} {points}",
     "replay.outcome.win": "{name}: {points}",
+    "replay.outcome.win_separator": "、",
     "replay.rounds.close": "局一覧を閉じる",
     "replay.rounds.end_game": "対局の終了と最終得点",
     "replay.rounds.end_recording": "記録の終わり",

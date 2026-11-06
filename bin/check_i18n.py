@@ -110,6 +110,7 @@ APPS = (
                 "game.seat.ai_tag",
                 "game.seating.heading",
                 "list.separator",
+                "replay.outcome.win_separator",
                 "round.unknown",
                 "wind.short.unknown",
             }

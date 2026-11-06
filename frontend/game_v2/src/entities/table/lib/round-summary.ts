@@ -101,7 +101,7 @@ function doubleRonSummary(result: RoundEndResult, name: NameOf): string {
     );
     return t(DOUBLE_RON_KEYS[loserRole(result)], {
         ...loserParams(result, name),
-        wins: formatList(wins),
+        wins: wins.join(t("replay.outcome.win_separator")),
     });
 }
 
