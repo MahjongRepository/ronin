@@ -506,14 +506,13 @@ class TestGameTransition:
 
 
 class TestRoomWebSocketRaces:
-    async def test_room_websocket__when_room_joined_ack_fails__should_free_seat_and_drop_empty_room(self, app):
+    async def test_room_websocket__when_room_joined_ack_fails__should_hold_the_seat_for_a_reconnect(self, app):
         app.state.room_manager.create_room("ack-fail-room")
         peer = AsgiPeer()
         peer.broken = True
 
         await room_websocket(_room_socket(app, peer, room_id="ack-fail-room", username="ghost"))
-        assert app.state.room_manager.get_room("ack-fail-room") is None
-        assert app.state.room_manager.find_user_room("ghost-id") is None
+        assert app.state.room_manager.find_user_room("ghost-id") == "ack-fail-room"
 
     async def test_room_websocket__when_handler_raises_unexpectedly__should_log_and_free_the_seat(
         self, app, monkeypatch, caplog
@@ -582,32 +581,21 @@ class TestRoomWebSocketRaces:
         held_peer.disconnect()
         await held_handler
 
-    async def test_room_reaper__when_a_member_of_an_expired_room_is_held__should_still_close_the_later_rooms(
-        self, app, caplog
+    async def test_room_reaper__when_a_held_seats_grace_runs_out__should_pass_ownership_and_announce_the_departure(
+        self, app, monkeypatch
     ):
-        held_room = app.state.room_manager.create_room("held-room")
-        later_room = app.state.room_manager.create_room("later-room")
-        held_room.created_at -= 1000
-        later_room.created_at -= 1000
-        held_peer = AsgiPeer()
-        held_peer.send_gate = asyncio.Event()
-        held_handler = asyncio.create_task(
-            room_websocket(_room_socket(app, held_peer, room_id=held_room.room_id, username="alice"))
-        )
-        await held_peer.send_waiting.wait()
-        later_peer, later_handler = await _seat(app, room_id=later_room.room_id, username="bob")
+        room = app.state.room_manager.create_room("grace-room")
+        host_peer, host_handler = await _seat(app, room_id=room.room_id, username="alice")
+        guest_peer, guest_handler = await _seat(app, room_id=room.room_id, username="bob")
+        host_peer.disconnect(code=1005)
+        await host_handler
+        monkeypatch.setattr(app.state.room_manager, "_seat_grace_seconds", 0)
 
-        app.state.room_manager._reap_expired_rooms()
-        await later_handler
-        assert later_peer.close_codes() == [4002]
-        assert app.state.room_manager.get_room("held-room") is None
-        assert app.state.room_manager.get_room("later-room") is None
-
-        held_peer.send_gate.set()
-        await held_handler
-        assert [message["type"] for message in held_peer.received_json()] == ["room_joined"]
-        assert held_peer.close_codes() == [4002]
-        assert "unexpected error in room websocket" not in caplog.text
+        app.state.room_manager._reap()
+        assert app.state.room_manager.find_user_room("alice-id") is None
+        guest_peer.disconnect()
+        await guest_handler
+        assert [message["type"] for message in guest_peer.received_json()[1:]] == ["owner_changed", "player_left"]
 
 
 async def _hold_open(handler_coroutine, peer):
@@ -663,6 +651,44 @@ class TestRoomOccupancy:
 
         seated_peer.disconnect()
         await seated_handler
+
+    async def test_room_websocket__when_user_holds_a_lost_seat_in_another_room__should_release_it_and_seat_the_user(
+        self, app
+    ):
+        first_room = app.state.room_manager.create_room("first-room")
+        second_room = app.state.room_manager.create_room("second-room")
+        host_peer, host_handler = await _seat(app, room_id=first_room.room_id, username="bob")
+        lost_peer, lost_handler = await _seat(app, room_id=first_room.room_id, username="alice")
+        lost_peer.disconnect(code=1005)
+        await lost_handler
+
+        second_peer = await _join_room_and_leave(app, room_id=second_room.room_id, username="alice")
+        assert second_peer.received_json()[0]["type"] == "room_joined"
+        assert first_room.player_count == 1
+
+        host_peer.disconnect()
+        await host_handler
+        assert [message["type"] for message in host_peer.received_json()] == [
+            "room_joined",
+            "player_joined",
+            "player_left",
+        ]
+
+    async def test_room_websocket__when_a_join_elsewhere_is_refused__should_keep_the_users_lost_seat(self, app):
+        room = app.state.room_manager.create_room("first-room")
+        lost_peer, lost_handler = await _seat(app, room_id=room.room_id, username="alice")
+        guest_peer, guest_handler = await _seat(app, room_id=room.room_id, username="bob")
+        lost_peer.disconnect(code=1005)
+        await lost_handler
+
+        refused_peer = await _join_room_and_leave(app, room_id="missing-room", username="alice")
+        assert refused_peer.received_json() == [{"type": "error", "message": "room_not_found"}]
+        assert room.host is not None
+        assert room.host.player.username == "alice"
+
+        guest_peer.disconnect()
+        await guest_handler
+        assert [message["type"] for message in guest_peer.received_json()] == ["room_joined"]
 
     async def test_room_websocket__when_the_users_room_starts_during_the_lookup__should_reject_with_already_in_game(
         self, make_app, game_server
@@ -820,6 +846,31 @@ class TestRoomSeatTakeover:
 
         host_peer.disconnect()
         await host_handler
+
+    async def test_room_websocket__when_connection_lost__should_hold_the_seat_quietly_until_the_user_reconnects(
+        self, app
+    ):
+        room = app.state.room_manager.create_room("lost-room")
+        host_peer, host_handler = await _seat(app, room_id=room.room_id, username="alice")
+        old_peer, old_handler = await _seat(app, room_id=room.room_id, username="bob")
+        room.members[1].ready = True
+
+        old_peer.disconnect(code=1005)
+        await old_handler
+        assert [message["type"] for message in host_peer.received_json()] == ["room_joined", "player_joined"]
+
+        new_peer, new_handler = await _seat(app, room_id=room.room_id, username="bob")
+        new_peer.disconnect()
+        host_peer.disconnect()
+        await asyncio.gather(new_handler, host_handler)
+        assert new_peer.received_json()[0]["players"][1] == {
+            "name": "bob",
+            "ready": True,
+            "is_bot": False,
+            "is_owner": False,
+        }
+        assert host_peer.received_json()[2]["type"] == "player_ready_changed"
+        assert app.state.room_manager.get_room(room.room_id) is None
 
 
 class TestWebSocketOriginCheck:

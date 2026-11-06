@@ -1,4 +1,7 @@
 export type SocketStatus = "connected" | "disconnected" | "error";
+
+const LEAVING_CLOSE_CODE = 1000;
+const REPLACING_CLOSE_CODE = 4100;
 export type MessageHandler = (message: Record<string, unknown>) => void;
 export type StatusHandler = (status: SocketStatus) => void;
 
@@ -18,7 +21,7 @@ export class LobbySocket {
     }
 
     connect(url: string): void {
-        this.disconnect();
+        this.dropSocket(REPLACING_CLOSE_CODE);
         const ws = new WebSocket(url);
         this.ws = ws;
         let failed = false;
@@ -72,8 +75,12 @@ export class LobbySocket {
     }
 
     disconnect(): void {
+        this.dropSocket(LEAVING_CLOSE_CODE);
+    }
+
+    private dropSocket(code: number): void {
         if (this.ws) {
-            this.ws.close();
+            this.ws.close(code);
             this.ws = null;
         }
     }

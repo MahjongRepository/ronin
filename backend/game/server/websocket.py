@@ -66,6 +66,10 @@ class WebSocketConnection(ConnectionProtocol):
     def game_id(self) -> str:
         return self._game_id
 
+    @property
+    def disconnect_code(self) -> int | None:
+        return self._socket.disconnect_code
+
     def send_bytes(self, data: bytes) -> None:
         self._socket_stats.messages_out += 1
         self._socket_stats.bytes_out += len(data)
@@ -185,5 +189,7 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
         logger.exception("websocket message loop failed", connection_id=connection.connection_id)
         connection.close(code=1011, reason="internal_error")
     finally:
-        logger.info("websocket disconnected", connection_id=connection.connection_id)
+        logger.info(
+            "websocket disconnected", connection_id=connection.connection_id, close_code=connection.disconnect_code
+        )
         router.handle_disconnect(connection)

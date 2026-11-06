@@ -43,11 +43,15 @@ class Occupancy:
     players are released; both conflict checks then reject every admission of those users that was open at that moment.
 
     A user who rejoins the place they already hold (their seat in the same room, or their queue entry before it is
-    matched) is admitted: the new connection takes that place over, never a new one. Nothing else moves a user, so a
-    seat is never traded for a queue place or another room's seat.
+    matched) is admitted: the new connection takes that place over, never a new one. The one trade is a seat held for a
+    lost connection, which the page could not leave: it is no conflict, and the handler that seated or queued the user
+    elsewhere calls ``release_held_seat`` right after, in the same synchronous step, so a refused join keeps it. No
+    other seat is ever traded for a queue place or another room's seat.
     """
 
     find_room: Callable[[str], str | None]
+    is_seat_held: Callable[[str], bool]
+    release_held_seat: Callable[[str], None]
     is_queued: Callable[[str], bool]
     is_matched: Callable[[str], bool]
     is_playing: Callable[[str], Awaitable[bool]]
@@ -82,15 +86,15 @@ class Occupancy:
         """
         Return why the user cannot be seated in the room, or None: a new seat, or their own seat in it taken over.
 
-        The caller refuses joins to a transitioning room after asking, so a seat whose game is being created is never
-        taken over. A matched user gets ``match_starting``, as from the queue: they cannot leave a match, only wait for
-        its game.
+        A seat the user holds in another room for a lost connection is no conflict (``release_held_seat``). The caller
+        refuses joins to a transitioning room after asking, so a seat whose game is being created is never taken over. A
+        matched user gets ``match_starting``, as from the queue: they cannot leave a match, only wait for its game.
         """
         if self._was_handed_to_game(user_id):
             return ALREADY_IN_GAME
 
         seated_room = self.find_room(user_id)
-        if seated_room is not None and seated_room != room_id:
+        if seated_room is not None and seated_room != room_id and not self.is_seat_held(user_id):
             return ALREADY_IN_ROOM
 
         if self.is_matched(user_id):
@@ -105,13 +109,14 @@ class Occupancy:
         """
         Return why the user cannot queue, or None: a new queue entry, or their own unmatched entry taken over.
 
-        A matched user waits for their game to be created and is refused as ``match_starting``, a retryable answer: once
-        the game exists a new join is handed it as ``already_in_game``, and after a failed start it queues again.
+        A seat the user holds for a lost connection is no conflict (``release_held_seat``). A matched user waits for
+        their game to be created and is refused as ``match_starting``, a retryable answer: once the game exists a new
+        join is handed it as ``already_in_game``, and after a failed start it queues again.
         """
         if self._was_handed_to_game(user_id):
             return ALREADY_IN_GAME
 
-        if self.find_room(user_id) is not None:
+        if self.find_room(user_id) is not None and not self.is_seat_held(user_id):
             return ALREADY_IN_ROOM
 
         if self.is_matched(user_id):

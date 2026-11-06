@@ -85,10 +85,12 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * A join to the place the user already holds (their seat in the same room, full or not, or their
   unmatched queue entry) takes it over instead: the new connection keeps the seat, readiness and
   arrival (so host succession) or the queue position, and the old one is told
-  `replaced_by_new_connection` and closed. Lobby sockets never reconnect, so this is how a reload
-  or a second tab gets past a dead socket the server has not noticed yet. When two connections of
+  `replaced_by_new_connection` and closed. This is how a reload, a second tab or the room page's
+  reconnect gets past a dead socket the server has not noticed yet, or takes back a seat held for
+  a lost connection (`rooms/AGENTS.md`). When two connections of
   one user join at once, the last one admitted wins, which is the one whose playing lookup finished
-  last, not necessarily the newest. A place is never traded for another, and never taken over once
+  last, not necessarily the newest. A place is never traded for another, except a room seat held for a
+  lost connection, which a successful join elsewhere releases (`rooms/AGENTS.md`), and never taken over once
   its game is being created: a transitioning room refuses every join, and a matched user is
   refused as `match_starting` (by a room join too), retryable answers that the handoff recovery
   turns into the game once it exists.

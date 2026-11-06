@@ -37,6 +37,7 @@ _RATE_LIMIT_RATE = 5.0
 _RATE_LIMIT_BURST = 10
 _RATE_LIMITED = "rate_limited"
 _BINARY_FRAME = "Binary frames are not supported"
+_LEAVING_CLOSE_CODES = frozenset({1000, 1001})
 
 
 class _RoomContext:
@@ -72,17 +73,22 @@ async def room_websocket(websocket: WebSocket) -> None:
 
 async def _serve_player(player: LobbyPlayer, ctx: _RoomContext) -> None:
     """
-    Seat the player and serve their messages until the socket ends; their seat is released whatever happens.
+    Seat the player and serve their messages until the socket ends; then hold or release the seat, whatever happened.
+
+    A socket the client closed with 1000 or 1001 (the page's own close, or the browser leaving the page) is a leave,
+    like the leave message. Any other end (a lost transport, a ping timeout, a socket the writer dropped, the page
+    replacing its socket to reconnect) holds the seat for the player's reconnect.
     """
+    connection_lost = False
     try:
         if await _join(player, ctx):
             await _message_loop(player, ctx)
     except ConnectionError:
-        pass
+        connection_lost = player.connection.disconnect_code not in _LEAVING_CLOSE_CODES
     except Exception:
         logger.exception("unexpected error in room websocket", room_id=ctx.room_id, username=player.username)
     finally:
-        _cleanup_connection(player, ctx)
+        _cleanup_connection(player, ctx, connection_lost=connection_lost)
 
 
 async def _join(player: LobbyPlayer, ctx: _RoomContext) -> bool:
@@ -107,6 +113,7 @@ async def _join(player: LobbyPlayer, ctx: _RoomContext) -> bool:
             await _reject_join(player, ctx, reason=join_or_error)
             return False
 
+        ctx.occupancy.release_held_seat(player.user_id)
         room = join_or_error.room
         player.send(
             {
@@ -308,13 +315,20 @@ def _handle_chat(player: LobbyPlayer, ctx: _RoomContext, *, message: LobbyChatMe
         _broadcast(room, {"type": "chat", "player_name": player.username, "text": message.text})
 
 
-def _cleanup_connection(player: LobbyPlayer, ctx: _RoomContext) -> None:
+def _cleanup_connection(player: LobbyPlayer, ctx: _RoomContext, *, connection_lost: bool) -> None:
     """
-    Release the player's seat once the socket ends and tell the rest of the room.
+    Hold the seat of a lost connection, or release the seat once the socket ends and tell the rest of the room.
 
-    One synchronous step, so the new owner gets ``owner_changed`` before ``player_left`` and nothing interleaves. A
-    player leaving a transitioning room keeps the seat (``leave_room``), so nothing is announced.
+    A held seat changes nothing the room sees, so nothing is announced. A lost connection in a transitioning room takes
+    the leave path, whose rule keeps the seat for the game. One synchronous step, so nothing interleaves.
     """
+    close_code = player.connection.disconnect_code
+    if connection_lost and ctx.room_manager.hold_seat(ctx.room_id, player.connection_id):
+        logger.info(
+            "room seat held for reconnect", room_id=ctx.room_id, username=player.username, close_code=close_code
+        )
+        return
+
     room = ctx.room_manager.get_room(ctx.room_id)
     if room is None:
         return
@@ -323,9 +337,18 @@ def _cleanup_connection(player: LobbyPlayer, ctx: _RoomContext) -> None:
     if not ctx.room_manager.leave_room(ctx.room_id, player.connection_id):
         return
 
-    logger.info("player left room", room_id=ctx.room_id, username=player.username)
-    room = ctx.room_manager.get_room(ctx.room_id)
-    if room is None or room.transitioning:
+    logger.info("player left room", room_id=ctx.room_id, username=player.username, close_code=close_code)
+    announce_departure(room, player=player, was_host=was_host)
+
+
+def announce_departure(room: LobbyRoom, *, player: LobbyPlayer, was_host: bool) -> None:
+    """
+    Tell the rest of the room that the player's seat went back to a bot.
+
+    The new owner gets ``owner_changed`` before ``player_left``. Nothing is announced in a transitioning room, whose
+    leaver keeps the seat, or in a room the leave emptied, which nobody is left to hear.
+    """
+    if room.transitioning:
         return
 
     new_host = room.host

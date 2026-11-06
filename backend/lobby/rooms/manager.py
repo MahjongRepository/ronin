@@ -15,12 +15,17 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from lobby.players import LobbyPlayer
+    from lobby.rooms.models import RoomMember
 
 logger = structlog.get_logger()
 
 
 def _no_conflict(_user_id: str, _room_id: str) -> str | None:
     return None
+
+
+def _announce_nothing(_room: LobbyRoom, *, player: LobbyPlayer, was_host: bool) -> None:
+    pass
 
 
 @dataclass(frozen=True)
@@ -37,22 +42,27 @@ class LobbyRoomManager:
     """
     Manages pre-game rooms on the lobby server.
 
-    State management: the WebSocket handler calls the manager and sends the responses. The only socket work here is the
-    reaper's, which enqueues each expired room's 4002 closes. ``find_conflict`` is the occupancy rule ``create_app()``
-    injects (``lobby.occupancy``), the only link to the matchmaking feature: given a user and a room, it returns why the
-    user cannot be seated there (seated in another room, or queued), or None, which also admits a user already seated
-    in that room to take their seat over.
+    State management: the WebSocket handler calls the manager and sends the responses. ``create_app()`` injects the
+    two links to the rest of the lobby. ``find_conflict`` is the occupancy rule (``lobby.occupancy``), the only link to
+    the matchmaking feature: given a user and a room, it returns why the user cannot be seated there (seated in another
+    room, or queued), or None, which also admits a user already seated in that room to take their seat over.
+    ``announce_departure`` is the rooms handler's announcement of a released seat, which the reaper makes when a held
+    seat's grace runs out.
     """
 
     def __init__(
         self,
-        room_ttl_seconds: int = 300,
+        unclaimed_room_ttl_seconds: float = 300,
+        seat_grace_seconds: float = 300,
         reaper_interval_seconds: float = 30,
         find_conflict: Callable[[str, str], str | None] = _no_conflict,
+        announce_departure: Callable[..., None] = _announce_nothing,
     ) -> None:
         self._find_conflict = find_conflict
+        self._announce_departure = announce_departure
         self._rooms: dict[str, LobbyRoom] = {}
-        self._room_ttl_seconds = room_ttl_seconds
+        self._unclaimed_room_ttl_seconds = unclaimed_room_ttl_seconds
+        self._seat_grace_seconds = seat_grace_seconds
         self._reaper_interval_seconds = reaper_interval_seconds
         self._reaper_task: asyncio.Task[None] | None = None
 
@@ -74,9 +84,9 @@ class LobbyRoomManager:
         The occupancy rule runs first, so a join that a start handed to its game while the join's playing lookup was in
         flight is refused as ``already_in_game`` (and handed that game) even though the start has since removed or
         reopened the room. A takeover swaps only the member's connection, so the seat, the ready flag and the arrival
-        (and with it the ownership order) stay, and it needs no open seat. A transitioning room refuses every other
-        join, takeovers included: the start has already listed its players, and their tickets go to the connections it
-        listed.
+        (and with it the ownership order) stay, and it needs no open seat; it ends a hold on the seat. A transitioning
+        room refuses every other join, takeovers included: the start has already listed its players, and their tickets
+        go to the connections it listed.
         """
         conflict = self._find_conflict(player.user_id, room_id)
         if conflict is not None:
@@ -92,6 +102,7 @@ class LobbyRoomManager:
         member = room.member_of_user(player.user_id)
         if member is not None:
             displaced, member.player = member.player, player
+            member.disconnected_at = None
             return RoomJoin(room=room, displaced=displaced)
 
         seat = room.first_open_seat()
@@ -126,6 +137,42 @@ class LobbyRoomManager:
             self._rooms.pop(room_id, None)
 
         return True
+
+    def hold_seat(self, room_id: str, connection_id: str) -> bool:
+        """
+        Keep the seat of a player whose connection was lost for ``seat_grace_seconds``; return False when there is none.
+
+        The held member stays seated as it was (ready flag, ownership), so the room waits for its reconnect, which takes
+        the seat over, and the reaper releases it once the grace runs out. A transitioning room holds nothing: its leave
+        rule already keeps the seat for the game.
+        """
+        room = self._rooms.get(room_id)
+        if room is None or room.transitioning:
+            return False
+
+        member = room.member(connection_id)
+        if member is None:
+            return False
+
+        member.disconnected_at = time.monotonic()
+        return True
+
+    def is_seat_held(self, user_id: str) -> bool:
+        """
+        Check if the user's seat is held for a lost connection, which a join elsewhere may release.
+        """
+        return self._find_held_seat(user_id) is not None
+
+    def release_held_seat(self, user_id: str) -> None:
+        """
+        Release the user's seat when it is held for a lost connection, announcing it like a leave.
+
+        A handler calls it right after seating or queueing the user elsewhere: a page that lost its socket could not
+        tell the server it left.
+        """
+        held = self._find_held_seat(user_id)
+        if held is not None:
+            self._release_seat(*held)
 
     def set_ready(self, room_id: str, connection_id: str, *, ready: bool) -> LobbyRoom | str:
         """
@@ -244,29 +291,47 @@ class LobbyRoomManager:
 
     async def _reaper_loop(self) -> None:
         """
-        Periodically remove expired rooms; a failed tick is logged and the next one still runs.
+        Periodically reap rooms and held seats; a failed tick is logged and the next one still runs.
         """
         while True:
             await asyncio.sleep(self._reaper_interval_seconds)
             try:
-                self._reap_expired_rooms()
+                self._reap()
             except Exception:
                 logger.exception("room reaper tick failed")
 
-    def _is_expired(self, room: LobbyRoom, now: float) -> bool:
-        return not room.transitioning and now - room.created_at > self._room_ttl_seconds
-
-    def _reap_expired_rooms(self) -> None:
+    def _reap(self) -> None:
         """
-        Remove rooms that have exceeded their TTL and close their players' sockets with 4002.
+        Remove the rooms nobody joined within their TTL, and release the held seats whose grace ran out.
 
-        One synchronous pass: a close is an enqueue on the player's connection, so no room waits on another room's slow
-        socket, and no join or start can interleave with the tick.
+        A room with a seated member never expires: the last leave already removes a room. One synchronous pass: an
+        announcement is an enqueue on each connection, so no room waits on another room's slow socket, and no join or
+        start can interleave with the tick.
         """
         now = time.monotonic()
-        expired = [room for room in self._rooms.values() if self._is_expired(room, now)]
-        for room in expired:
-            self.remove_room(room.room_id)
-            logger.info("room expired", room_id=room.room_id)
-            for member in room.members:
-                member.player.connection.close(code=4002, reason="room_expired")
+        for room in list(self._rooms.values()):
+            if room.is_empty:
+                if now - room.created_at > self._unclaimed_room_ttl_seconds:
+                    self.remove_room(room.room_id)
+                    logger.info("unclaimed room expired", room_id=room.room_id)
+            elif not room.transitioning:
+                for member in room.members:
+                    if self._is_hold_expired(member, now):
+                        self._release_seat(room, member)
+
+    def _find_held_seat(self, user_id: str) -> tuple[LobbyRoom, RoomMember] | None:
+        for room in self._rooms.values():
+            member = room.member_of_user(user_id)
+            if member is not None and member.disconnected_at is not None and not room.transitioning:
+                return room, member
+
+        return None
+
+    def _is_hold_expired(self, member: RoomMember, now: float) -> bool:
+        return member.disconnected_at is not None and now - member.disconnected_at > self._seat_grace_seconds
+
+    def _release_seat(self, room: LobbyRoom, member: RoomMember) -> None:
+        was_host = room.host is member
+        self.leave_room(room.room_id, member.player.connection_id)
+        logger.info("held room seat released", room_id=room.room_id, username=member.player.username)
+        self._announce_departure(room, player=member.player, was_host=was_host)

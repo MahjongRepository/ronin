@@ -31,13 +31,15 @@ class RoomMember:
 
     ``arrival`` orders the members by when they took their seat, which decides who owns the room: a seat index is not
     join order once a vacated low seat is refilled. ``departed`` marks a player who left while the room was
-    transitioning: the seat is held for the game being created until the transition settles.
+    transitioning: the seat is held for the game being created until the transition settles. ``disconnected_at`` is
+    when the player's connection was lost while the seat is held for a reconnect (monotonic seconds), else None.
     """
 
     player: LobbyPlayer
     arrival: int
     ready: bool = False
     departed: bool = False
+    disconnected_at: float | None = None
 
 
 TOTAL_SEATS = 4

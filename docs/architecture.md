@@ -214,8 +214,9 @@ sequenceDiagram
     end
 ```
 
-Nothing starts automatically, and a room that nobody starts expires and closes its sockets. Ready,
-ownership and rate-limit rules are in `backend/lobby/rooms/AGENTS.md`.
+Nothing starts automatically, and a room stays open while anyone is seated in it. A lost socket
+holds its seat for a while, and the room page reconnects to take it back. Ready, ownership,
+seat-hold and rate-limit rules are in `backend/lobby/rooms/AGENTS.md`.
 
 ## Matchmaking
 

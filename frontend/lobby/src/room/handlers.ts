@@ -9,6 +9,7 @@ import {
     canAct,
     getMyReadyState,
     isMe,
+    isSeated,
     resetSeat,
 } from "@/room/state";
 import { enterGame, readGameStart } from "@/session";
@@ -26,6 +27,10 @@ type MessageHandlerMap = Record<string, (msg: Record<string, unknown>) => void>;
 
 const JOIN_RETRY_DELAY_MS = 2000;
 const MAX_JOIN_RETRIES = 30;
+const RECONNECT_FIRST_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 15_000;
+const MAX_RECONNECT_ATTEMPTS = 24;
+const RESUME_RECONNECT_AFTER_HIDDEN_MS = 20_000;
 const ROOM_TRANSITIONING = "room_transitioning";
 const RETRYABLE_JOIN_ERRORS: ReadonlySet<unknown> = new Set([
     OCCUPANCY.MATCH_STARTING,
@@ -114,9 +119,49 @@ function joinRoom(state: RoomState, render: RenderRoom, wsUrl: string): void {
     state.socket?.connect(wsUrl);
 }
 
-function handleStatusChange(state: RoomState, status: SocketStatus, render: RenderRoom): void {
-    state.connectionStatus = status;
+function scheduleReconnect(state: RoomState, render: RenderRoom, rejoin: () => void): void {
+    if (state.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        state.connectionStatus = "disconnected";
+        render();
+        return;
+    }
+    const delay = Math.min(
+        RECONNECT_FIRST_DELAY_MS * 2 ** state.reconnectAttempts,
+        RECONNECT_MAX_DELAY_MS,
+    );
+    state.reconnectAttempts += 1;
+    state.reconnecting = true;
+    state.connectionStatus = "connecting";
+    state.joinRetryTimer = setTimeout(() => {
+        state.joinRetryTimer = null;
+        rejoin();
+    }, delay);
     render();
+}
+
+function buildStatusHandler(
+    state: RoomState,
+    render: RenderRoom,
+    rejoin: () => void,
+): (status: SocketStatus) => void {
+    return (status) => {
+        if (status !== "connected" && isSeated(state) && state.joinRetryTimer === null) {
+            scheduleReconnect(state, render, rejoin);
+            return;
+        }
+        state.connectionStatus = status;
+        render();
+    };
+}
+
+function reconnectOnResume(state: RoomState, rejoin: () => void): void {
+    if (!isSeated(state)) {
+        return;
+    }
+    cancelJoinRetry(state);
+    state.reconnectAttempts = 0;
+    state.reconnecting = true;
+    rejoin();
 }
 
 function buildMessageHandlers(
@@ -140,10 +185,15 @@ function buildMessageHandlers(
     }
 
     function onRoomJoined(message: Record<string, unknown>): void {
+        const reconnected = state.reconnecting;
+        state.reconnecting = false;
+        state.reconnectAttempts = 0;
         state.currentPlayerName = (message.player_name as string) ?? "";
         state.isOwner = (message.is_owner as boolean) ?? false;
         updateFromServerState(state, message, render);
-        appendChat(LOG_TYPE_SYSTEM, t("room.chat.you_joined"));
+        if (!reconnected) {
+            appendChat(LOG_TYPE_SYSTEM, t("room.chat.you_joined"));
+        }
     }
 
     function onPlayerJoined(message: Record<string, unknown>): void {
@@ -190,7 +240,7 @@ function buildMessageHandlers(
 
     function onError(message: Record<string, unknown>): void {
         const code = message.message;
-        const joined = state.currentPlayerName !== "";
+        const joined = state.currentPlayerName !== "" && !state.reconnecting;
         if (!joined && RETRYABLE_JOIN_ERRORS.has(code)) {
             scheduleRejoin(code);
             return;
@@ -279,14 +329,17 @@ function buildActionCallbacks(state: RoomState): ActionCallbacks {
 export {
     JOIN_RETRY_DELAY_MS,
     MAX_JOIN_RETRIES,
+    MAX_RECONNECT_ATTEMPTS,
+    RESUME_RECONNECT_AFTER_HIDDEN_MS,
     ROOM_ERROR_CODES,
     buildActionCallbacks,
     buildMessageHandlers,
+    buildStatusHandler,
     describeRoomError,
     handleMessage,
-    handleStatusChange,
     joinRoom,
     leaveOnPageHide,
+    reconnectOnResume,
     rejoinOnPageShow,
 };
 export type { ActionCallbacks, MessageHandlerMap, RenderRoom };

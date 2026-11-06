@@ -30,6 +30,16 @@ A room is a pre-game table of 4 fixed seats: `models.py` holds the room and its 
   included; a frame over it is answered rate-limited and dropped, and the connection stays. It
   keeps one client's chat from overflowing a slow honest peer's send queue. A binary frame gets an
   error and the connection stays. Chat echoes to its sender: the browser shows only the echo.
-* Every room expires `room_ttl_seconds` after creation unless it is transitioning. A reaper tick
-  removes every expired room and closes its members' sockets in one pass; a failed tick is logged
-  and the next one still runs.
+* A room lives as long as anyone is seated: the last leave removes it. Only a room nobody joined
+  expires, `unclaimed_room_ttl_seconds` after creation.
+* A socket the client closes with 1000 or 1001 (the page's own close, the browser leaving the page)
+  is a leave, like the leave message. Any other end (a lost transport, a ping timeout, a socket the
+  writer dropped, the page replacing its socket to reconnect) holds the seat as it was, ownership
+  and ready flag included, for `seat_grace_seconds`, and the room is told nothing: the user's
+  reconnect takes it over like any rejoin. A transitioning room holds nothing; its leave rule
+  already keeps the seat. A held seat gives way to its user's join anywhere else, room or queue:
+  the occupancy rule does not count it, and the handler releases it like a leave once that join
+  has seated or queued the user, in the same step, so a refused join keeps it. A page that lost its
+  socket could not say it left.
+* A reaper tick removes the expired unclaimed rooms and releases the held seats whose grace ran out,
+  announcing those like any leave, in one pass; a failed tick is logged and the next one still runs.

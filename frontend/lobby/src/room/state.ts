@@ -39,6 +39,8 @@ interface RoomState {
     joinRetries: number;
     joinRetryTimer: ReturnType<typeof setTimeout> | null;
     pageError: PageError | null;
+    reconnectAttempts: number;
+    reconnecting: boolean;
     socket: LobbySocket | null;
 }
 
@@ -53,6 +55,8 @@ function createRoomState(): RoomState {
         joinRetryTimer: null,
         pageError: null,
         players: [],
+        reconnectAttempts: 0,
+        reconnecting: false,
         socket: null,
     };
 }
@@ -71,7 +75,7 @@ function isMe(state: RoomState, player: PlayerInfo): boolean {
 }
 
 function canAct(state: RoomState): boolean {
-    return isSeated(state) && state.connectionStatus === "connected";
+    return isSeated(state) && state.connectionStatus === "connected" && !state.reconnecting;
 }
 
 function isConnectionLost(state: RoomState): boolean {

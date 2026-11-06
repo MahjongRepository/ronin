@@ -35,6 +35,7 @@ vi.mock("@/page-lifetime", () => ({
     bindToPageLifetime: (lifetime: PageLifetime) => {
         capturedLifetime = lifetime;
     },
+    bindToResume: vi.fn(),
 }));
 
 const { initRoomPage } = await import("@/room");

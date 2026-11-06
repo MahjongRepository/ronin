@@ -50,4 +50,15 @@ describe("LobbySocket", () => {
         expect(socket.send({ type: "chat" })).toBe(false);
         expect(ws.send).toHaveBeenCalledTimes(1);
     });
+
+    test("closes a socket it replaces with 4100, so the server holds the seat, and a left one with 1000", () => {
+        const socket = new LobbySocket(vi.fn(), vi.fn());
+        socket.connect("ws://test");
+        socket.connect("ws://test");
+        socket.disconnect();
+
+        const [replaced, left] = FakeWebSocket.instances;
+        expect(replaced.close).toHaveBeenCalledWith(4100);
+        expect(left.close).toHaveBeenCalledWith(1000);
+    });
 });

@@ -118,9 +118,12 @@ async def _admit(player: LobbyPlayer, ctx: _MatchmakingContext) -> QueuePlace | 
             return game_conflict
 
         try:
-            return ctx.matchmaking_manager.add_player(player)
+            joined = ctx.matchmaking_manager.add_player(player)
         except ValueError as e:
             return str(e)
+
+        ctx.occupancy.release_held_seat(player.user_id)
+        return joined
 
 
 async def _message_loop(player: LobbyPlayer) -> None:

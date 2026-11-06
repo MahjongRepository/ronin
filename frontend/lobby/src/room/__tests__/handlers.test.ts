@@ -5,19 +5,26 @@ import { OCCUPANCY } from "@/occupancy-errors";
 import {
     JOIN_RETRY_DELAY_MS,
     MAX_JOIN_RETRIES,
+    MAX_RECONNECT_ATTEMPTS,
     ROOM_ERROR_CODES,
     buildActionCallbacks,
     buildMessageHandlers,
+    buildStatusHandler,
     describeRoomError,
     handleMessage,
+    reconnectOnResume,
 } from "@/room/handlers";
-import { createRoomState } from "@/room/state";
+import { canAct, createRoomState, isConnectionLost } from "@/room/state";
 
 function buildRoom() {
     const state = createRoomState();
     const rejoin = vi.fn();
     const handlers = buildMessageHandlers(state, vi.fn(), rejoin);
-    return { handlers, rejoin, state };
+    const onStatus = buildStatusHandler(state, vi.fn(), rejoin);
+    function loseConnection(): void {
+        onStatus("disconnected");
+    }
+    return { handlers, loseConnection, rejoin, state };
 }
 
 function takeSeat(handlers: ReturnType<typeof buildRoom>["handlers"]): void {
@@ -113,6 +120,83 @@ describe("buildMessageHandlers", () => {
 
         expect(rejoin).not.toHaveBeenCalled();
         expect(state.pageError?.code).toBe("room_not_found");
+    });
+});
+
+describe("buildStatusHandler", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    test("reconnects a lost seat after a delay that doubles", () => {
+        const { handlers, loseConnection, rejoin, state } = buildRoom();
+        takeSeat(handlers);
+
+        loseConnection();
+        expect(state.connectionStatus).toBe("connecting");
+        vi.advanceTimersByTime(1000);
+
+        loseConnection();
+        vi.advanceTimersByTime(1999);
+        expect(rejoin).toHaveBeenCalledTimes(1);
+        vi.advanceTimersByTime(1);
+        expect(rejoin).toHaveBeenCalledTimes(2);
+    });
+
+    test("takes the seat back without a join line and starts the delays over", () => {
+        const { handlers, loseConnection, state } = buildRoom();
+        takeSeat(handlers);
+
+        loseConnection();
+        vi.runOnlyPendingTimers();
+        state.connectionStatus = "connected";
+        expect(canAct(state)).toBe(false);
+        takeSeat(handlers);
+
+        expect(canAct(state)).toBe(true);
+        expect(state.reconnectAttempts).toBe(0);
+        expect(state.chatMessages.map((entry) => entry.text)).toEqual(["You joined the table"]);
+    });
+
+    test("ends the page when the reconnect finds the seat gone", () => {
+        const { handlers, loseConnection, state } = buildRoom();
+        takeSeat(handlers);
+
+        loseConnection();
+        vi.runOnlyPendingTimers();
+        handleMessage(handlers, { message: "room_not_found", type: "error" });
+
+        expect(state.pageError?.code).toBe("room_not_found");
+    });
+
+    test("shows the lost connection once the reconnects run out", () => {
+        const { handlers, loseConnection, rejoin, state } = buildRoom();
+        takeSeat(handlers);
+
+        for (let attempt = 0; attempt <= MAX_RECONNECT_ATTEMPTS; attempt += 1) {
+            loseConnection();
+            vi.runOnlyPendingTimers();
+        }
+
+        expect(rejoin).toHaveBeenCalledTimes(MAX_RECONNECT_ATTEMPTS);
+        expect(isConnectionLost(state)).toBe(true);
+    });
+
+    test("reconnects a seated page at once on resume, dropping the pending delay", () => {
+        const { handlers, loseConnection, rejoin, state } = buildRoom();
+        reconnectOnResume(state, rejoin);
+        expect(rejoin).not.toHaveBeenCalled();
+        takeSeat(handlers);
+
+        loseConnection();
+        reconnectOnResume(state, rejoin);
+        vi.runOnlyPendingTimers();
+
+        expect(rejoin).toHaveBeenCalledTimes(1);
     });
 });
 

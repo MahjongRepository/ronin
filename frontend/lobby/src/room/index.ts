@@ -1,14 +1,16 @@
 import { t } from "@/i18n";
 import { bindLanguageSwitchInPlace } from "@/language-switch";
 import { LobbySocket } from "@/lobby-socket";
-import { bindToPageLifetime } from "@/page-lifetime";
+import { bindToPageLifetime, bindToResume } from "@/page-lifetime";
 import {
+    RESUME_RECONNECT_AFTER_HIDDEN_MS,
     buildActionCallbacks,
     buildMessageHandlers,
+    buildStatusHandler,
     handleMessage,
-    handleStatusChange,
     joinRoom,
     leaveOnPageHide,
+    reconnectOnResume,
     rejoinOnPageShow,
 } from "@/room/handlers";
 import { PAGE_ERROR, createRoomState } from "@/room/state";
@@ -71,13 +73,14 @@ function openRoomPage(container: HTMLElement, config: RoomConfig): void {
 
     state.socket = new LobbySocket(
         (message) => handleMessage(handlers, message),
-        (status) => handleStatusChange(state, status, render),
+        buildStatusHandler(state, render, rejoin),
     );
 
     bindToPageLifetime({
         release: () => leaveOnPageHide(state),
         restore: () => rejoinOnPageShow(state, rejoin),
     });
+    bindToResume(() => reconnectOnResume(state, rejoin), RESUME_RECONNECT_AFTER_HIDDEN_MS);
     bindLanguageSwitch(config.roomName, render);
 
     rejoin();

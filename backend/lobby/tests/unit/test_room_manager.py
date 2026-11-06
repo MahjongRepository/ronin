@@ -474,27 +474,40 @@ class TestRemoveRoom:
 
 
 class TestRoomReaper:
-    def test_room_manager_reaper__when_room_expired__should_remove_room_and_close_its_players(self):
-        mgr = LobbyRoomManager(room_ttl_seconds=0)
-        mgr.create_room("room-1")
+    def test_room_manager_reaper__when_rooms_outlive_the_ttl__should_remove_only_the_unjoined_ones(self):
+        mgr = LobbyRoomManager(unclaimed_room_ttl_seconds=0)
+        mgr.create_room("unjoined")
+        mgr.create_room("waiting")
         player = make_player(connection_id="conn-1", user_id="user-1", username="Alice")
-        mgr.join_room(room_id="room-1", player=player)
+        mgr.join_room(room_id="waiting", player=player)
 
-        mgr._reap_expired_rooms()
-        assert mgr.get_room("room-1") is None
-        player.connection.close.assert_called_once_with(code=4002, reason="room_expired")
+        mgr._reap()
+        assert mgr.get_room("unjoined") is None
+        assert mgr.get_room("waiting") is not None
+        player.connection.close.assert_not_called()
 
-    def test_room_manager_reaper__when_room_transitioning__should_keep_room(self):
-        mgr = LobbyRoomManager(room_ttl_seconds=0)
+    def test_room_manager_hold_seat__when_user_reconnects__should_keep_the_seat_past_the_grace(self):
+        mgr = LobbyRoomManager(seat_grace_seconds=0)
+        mgr.create_room("room-1")
+        _join(mgr, room_id="room-1", connection_id="conn-1", user_id="user-1", username="Alice")
+        assert mgr.hold_seat("room-1", "conn-1")
+
+        room = _join(mgr, room_id="room-1", connection_id="conn-2", user_id="user-1", username="Alice")
+        mgr._reap()
+        assert _seated_connections(room) == ["conn-2", None, None, None]
+
+    def test_room_manager_hold_seat__when_room_transitioning__should_hold_nothing(self):
+        mgr = LobbyRoomManager()
         room = mgr.create_room("room-1")
+        _join(mgr, room_id="room-1", connection_id="conn-1", user_id="user-1", username="Alice")
         room.transitioning = True
 
-        mgr._reap_expired_rooms()
-        assert mgr.get_room("room-1") is not None
+        assert not mgr.hold_seat("room-1", "conn-1")
+        assert room.members[0].disconnected_at is None
 
     @pytest.mark.asyncio
     async def test_room_manager_reaper__when_started_and_stopped__should_manage_task(self):
-        mgr = LobbyRoomManager(room_ttl_seconds=300)
+        mgr = LobbyRoomManager()
         mgr.start_reaper()
         assert mgr._reaper_task is not None
 
@@ -503,7 +516,7 @@ class TestRoomReaper:
 
     @pytest.mark.asyncio
     async def test_room_manager_reaper__when_started_twice__should_keep_first_task(self):
-        mgr = LobbyRoomManager(room_ttl_seconds=300)
+        mgr = LobbyRoomManager()
         mgr.start_reaper()
         first_task = mgr._reaper_task
 
@@ -513,7 +526,7 @@ class TestRoomReaper:
         await mgr.stop_reaper()
 
     async def test_room_manager_reaper__when_a_tick_raises__should_log_and_keep_reaping(self, monkeypatch, caplog):
-        mgr = LobbyRoomManager(room_ttl_seconds=0, reaper_interval_seconds=0)
+        mgr = LobbyRoomManager(reaper_interval_seconds=0)
         second_tick = asyncio.Event()
         tick_count = 0
 
@@ -525,7 +538,7 @@ class TestRoomReaper:
 
             second_tick.set()
 
-        monkeypatch.setattr(mgr, "_reap_expired_rooms", failing_first_tick)
+        monkeypatch.setattr(mgr, "_reap", failing_first_tick)
         mgr.start_reaper()
         await asyncio.wait_for(second_tick.wait(), timeout=1)
         await mgr.stop_reaper()

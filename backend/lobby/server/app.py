@@ -31,7 +31,7 @@ from lobby.matchmaking.manager import MatchmakingManager
 from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.occupancy import Occupancy
 from lobby.rooms.manager import LobbyRoomManager
-from lobby.rooms.websocket import room_websocket
+from lobby.rooms.websocket import announce_departure, room_websocket
 from lobby.server.middleware import (
     RequestBodyLimitMiddleware,
     SecurityHeadersMiddleware,
@@ -112,10 +112,12 @@ def _create_seating(
         """
         return occupancy.find_queue_conflict(user_id)
 
-    room_manager = LobbyRoomManager(room_ttl_seconds=300, find_conflict=find_room_conflict)
+    room_manager = LobbyRoomManager(find_conflict=find_room_conflict, announce_departure=announce_departure)
     matchmaking_manager = MatchmakingManager(find_conflict=find_queue_conflict)
     occupancy = Occupancy(
         find_room=room_manager.find_user_room,
+        is_seat_held=room_manager.is_seat_held,
+        release_held_seat=room_manager.release_held_seat,
         is_queued=matchmaking_manager.is_queued,
         is_matched=matchmaking_manager.is_matched,
         is_playing=is_playing,

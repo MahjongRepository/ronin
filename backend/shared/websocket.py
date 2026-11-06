@@ -32,6 +32,10 @@ class QueuedWebSocket:
     is dropped, no close frame is attempted (it could not pass a stalled transport), and `receive` raises
     ConnectionError, so the endpoint's normal disconnect path runs. Every transport failure of a receive surfaces as
     ConnectionError too.
+
+    ``disconnect_code`` is the close code of the disconnect a receive saw: the client's close frame, the code of a close
+    this side sent, or uvicorn's 1005 for a transport lost after the handshake (a ping timeout included). It stays None
+    while the socket is open and when the connection was terminated or the receive failed.
     """
 
     def __init__(self, websocket: WebSocket, *, connection_id: str) -> None:
@@ -41,6 +45,7 @@ class QueuedWebSocket:
         self._closed = False
         self._terminated: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         self._writer: asyncio.Task[None] | None = None
+        self.disconnect_code: int | None = None
 
     def send_bytes(self, data: bytes) -> None:
         self._enqueue(data)
@@ -81,6 +86,7 @@ class QueuedWebSocket:
 
         message = receive.result()
         if message["type"] == "websocket.disconnect":
+            self.disconnect_code = message.get("code")
             raise ConnectionError("WebSocket already disconnected")
 
         return message
