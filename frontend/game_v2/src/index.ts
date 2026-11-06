@@ -69,9 +69,9 @@ const GAME_SOUNDS: Readonly<Record<SoundCue, SoundSource>> = {
  * anywhere), as iOS Safari requires, and played only after it.
  */
 function gameSound(): GameSound {
-    const output = webAudioOutput(() => navigator.userActivation.hasBeenActive);
+    const output = webAudioOutput(navigator.userActivation);
     unlockOnGesture(window, output.unlock);
-    const player = createSoundPlayer(GAME_SOUNDS, output);
+    const player = createSoundPlayer(GAME_SOUNDS, output, browserClock.now);
     return {
         play: player.play,
         setting: localStore(SOUND_SETTING_KEY, readSoundSetting, DEFAULT_SOUND_SETTING),

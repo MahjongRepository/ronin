@@ -7,18 +7,21 @@ const DECODE_SAMPLE_RATE = 44_100;
 export interface WebAudioOutput extends SoundOutput<AudioBuffer> {
     /**
      * Make the playing context and resume it, called synchronously inside a user gesture's handler; resolves whether it
-     * now runs. Before the page's first user gesture (`hasBeenActive`) it makes nothing and resolves false.
+     * now runs. Before the page's first user gesture (`activation`) it makes nothing and resolves false.
      */
     readonly unlock: () => Promise<boolean>;
 }
 
 /**
  * The browser's Web Audio as a player's output: each file fetched and decoded once, each play a source of its own.
- * Files decode offline, and the playing context is made only after the page's first user gesture (`hasBeenActive`),
- * by `unlock` inside a gesture or else at the first play, so no context waits suspended for one and no plays pile up
- * to burst out at it.
+ * Files decode offline, and the playing context is made only after the page's first user gesture (`activation`, a
+ * browser without `navigator.userActivation` counting as past it), by `unlock` inside a gesture or else at the first
+ * play.
  */
-export function webAudioOutput(hasBeenActive: () => boolean): WebAudioOutput {
+export function webAudioOutput(activation: UserActivation | undefined): WebAudioOutput {
+    function hasBeenActive(): boolean {
+        return activation?.hasBeenActive ?? true;
+    }
     const decoder = new OfflineAudioContext(1, 1, DECODE_SAMPLE_RATE);
     let context: AudioContext | null = null;
     async function running(): Promise<AudioContext> {
@@ -45,8 +48,14 @@ export function webAudioOutput(hasBeenActive: () => boolean): WebAudioOutput {
             }
             return decoder.decodeAudioData(await response.arrayBuffer());
         },
-        start: async (clip, volume) => {
-            const playing = await running();
+        ready: async () => {
+            await running();
+        },
+        start: (clip, volume) => {
+            if (context === null) {
+                throw new Error("A sound started before its output was ready");
+            }
+            const playing = context;
             const gain = new GainNode(playing, { gain: volume });
             const source = new AudioBufferSourceNode(playing, { buffer: clip });
             source.connect(gain).connect(playing.destination);
