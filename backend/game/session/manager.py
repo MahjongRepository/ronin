@@ -1064,10 +1064,17 @@ class SessionManager:
         """
         Send a draw's public notice to every connected participant but the drawer's, whose seat gets the draw itself.
         """
+        connections = [
+            participant.connection
+            for participant in game.participants
+            if participant.connection is not None and participant.seat != event.seat
+        ]
+        if not connections:
+            return
+
         notice = encode(draw_notice_payload(event))
-        for participant in game.participants:
-            if participant.connection is not None and participant.seat != event.seat:
-                participant.connection.send_bytes(notice)
+        for connection in connections:
+            connection.send_bytes(notice)
 
     def _send_to_each_seat(self, game: GameSession, message: dict[int, Any]) -> None:
         """
@@ -1098,10 +1105,15 @@ class SessionManager:
         """
         Send a message to every connected participant of the game, encoded once for all of them.
         """
+        connections = [
+            participant.connection for participant in game.participants if participant.connection is not None
+        ]
+        if not connections:
+            return
+
         data = encode(message)
-        for participant in game.participants:
-            if participant.connection is not None:
-                participant.connection.send_bytes(data)
+        for connection in connections:
+            connection.send_bytes(data)
 
     @staticmethod
     def _seat_of(participant: Participant) -> int:
