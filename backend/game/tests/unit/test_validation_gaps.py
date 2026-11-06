@@ -405,10 +405,12 @@ class TestPendingCallPromptStateGate:
         own_tile = game_state.round_state.players[0].tiles[-1]
 
         action_data = {key: own_tile if value == "own" else value for key, value in data.items()}
+        wait_id_before = runtime.wait_id
         update = MahjongGameService().handle_action(runtime, seat=0, action=action, data=action_data)
         assert [(e.code, e.target) for e in update.events] == [(GameErrorCode.NOT_YOUR_TURN, SeatTarget(seat=0))]
         assert runtime.state is game_state
-        assert update.awaiting.wait_id == game_state.wait_id
+        assert runtime.wait_id == wait_id_before
+        assert update.awaiting.wait_id == wait_id_before
 
 
 def _kuikae_seat_after_chi() -> tuple[MahjongGameState, int, int]:

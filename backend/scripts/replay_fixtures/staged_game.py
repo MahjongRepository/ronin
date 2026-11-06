@@ -95,14 +95,9 @@ class ReplayRecorder:
 
 def require_reproduces(recording: Recording, final_state: MahjongGameState, *, name: str) -> None:
     """
-    Raise ScenarioError unless the replay runner, given the recording, ends in the game's final state, its wait id
-    aside.
-
-    The wait id is a pacing counter the runner cannot reproduce: it plays each AI player's move within another seat's
-    call as an action of its own, a wait of its own.
+    Raise ScenarioError unless the replay runner, given the recording, ends in the game's final state.
     """
-    replayed = recording.run().final_state.model_copy(update={"wait_id": final_state.wait_id})
-    if replayed != final_state:
+    if recording.run().final_state != final_state:
         raise ScenarioError(f"{name}: the replay does not reproduce the game")
 
 

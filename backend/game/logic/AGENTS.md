@@ -14,9 +14,9 @@ The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mecha
 * Domain events (`events.py`) carry integer tile ids only (136-format) and their own routing target, a broadcast or
   one seat. Domain models keep readable field names and full point values; `messaging/` owns explicit protocol
   serialization, including numeric keys, integer enum codes and scaled scores.
-* The game state's `wait_id` identifies the current wait and changes exactly when a call ends it
-  (`mahjong_service.py` holds the rule); the session drives its timers from it. This global counter
-  stays server-only. Client actions use separate participant decision ids owned by the session,
+* The runtime's `wait_id` (`GameRuntime`, beside the frozen state) identifies the current wait and
+  changes exactly when a call ends it (`mahjong_service.py` holds the rule); the session drives its
+  timers from it. This global counter stays server-only. Client actions use separate participant decision ids owned by the session,
   so the engine API carries no wire id.
 * One dispatch pipeline for humans, AI and timeouts. A human's refused action is answered before the commit: nothing
   is stored and no AI turn runs. `AIPlayerController` only decides; every state change goes through

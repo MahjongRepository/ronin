@@ -167,7 +167,6 @@ class MahjongGameState(BaseModel):
     """
     Immutable game state.
 
-    wait_id identifies the current wait (see `Awaiting`): the service bumps it once per call that ends the wait.
     round_history holds one entry per finished round, in play order, appended by `finish_round()`.
     """
 
@@ -185,7 +184,6 @@ class MahjongGameState(BaseModel):
     settings: GameSettings = Field(default_factory=GameSettings)
     dealer_dice: tuple[tuple[int, int], tuple[int, int]] = ((1, 1), (1, 1))
     starting_dealer_seat: int = 0
-    wait_id: int = 0
 
 
 def round_in_wind(game_state: MahjongGameState) -> int:

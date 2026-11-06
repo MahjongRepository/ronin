@@ -14,7 +14,8 @@ class GameRuntime:
     Everything the engine holds for one game: its frozen state and the side state beside it.
 
     ai knows which seats AI players hold (replacement and restoration change it); furiten remembers each seat's last
-    reported furiten; pending_confirm is the round end still waiting for human confirmations, None otherwise.
+    reported furiten; pending_confirm is the round end still waiting for human confirmations, None otherwise; wait_id
+    identifies the current wait (see `Awaiting`): the service bumps it once per call that ends the wait.
 
     state is read-only: commit() is the only way to replace it, and it checks the tile ownership invariant first, so a
     corrupted state never becomes the game's state: the raise lands in the server-fault path and the game ends. The
@@ -27,6 +28,7 @@ class GameRuntime:
         self.ai = ai
         self.furiten = FuritenTracker()
         self.pending_confirm: PendingRoundAdvance | None = None
+        self.wait_id: int = 0
 
     @property
     def state(self) -> MahjongGameState:

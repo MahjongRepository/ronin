@@ -159,11 +159,13 @@ class TestNoDataActionDispatchRouting:
         ai_seat_on_turn = (player.seat + 1) % 4
         _update_round_state(runtime, current_player_seat=ai_seat_on_turn)
         game_state = runtime.state
+        wait_id_before = runtime.wait_id
 
         update = service.handle_action(runtime, seat=player.seat, action=action, data={})
         assert [(e.type, e.code) for e in update.events] == [(EventType.ERROR, GameErrorCode.NOT_YOUR_TURN)]
         assert runtime.state is game_state
-        assert update.awaiting.wait_id == game_state.wait_id
+        assert runtime.wait_id == wait_id_before
+        assert update.awaiting.wait_id == wait_id_before
 
     @pytest.mark.parametrize(
         ("action", "data", "code"),

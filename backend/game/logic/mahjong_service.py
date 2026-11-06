@@ -465,7 +465,7 @@ class MahjongGameService(GameService):
         kind, seats = self._current_wait(runtime)
         kept = kind == call.kind and (seats < call.seats or (seats == call.seats and runtime.state is call.state))
         if not kept:
-            runtime.commit(runtime.state.model_copy(update={"wait_id": call.state.wait_id + 1}))
+            runtime.wait_id += 1
 
         return self._build_awaiting(runtime, kind=kind, seats=seats)
 
@@ -498,7 +498,7 @@ class MahjongGameService(GameService):
         return Awaiting(
             kind=kind,
             seats=frozenset(s for s in seats if not runtime.ai.is_ai_player(s)),
-            wait_id=game_state.wait_id,
+            wait_id=runtime.wait_id,
             round_number=_current_round_number(game_state),
             results_shown=advance.results_shown if advance is not None else 1,
             starts_game=advance is not None and advance.starts_game,
