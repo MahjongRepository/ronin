@@ -43,7 +43,7 @@ async def test_session_repository_create__when_expired_rows_exist__should_delete
     assert stored == [("live",), ("new",)]
 
 
-async def test_session_repository_extend__when_token_hash_deleted__should_return_false_and_leave_no_row(
+async def test_session_repository_extend__when_row_deleted_or_expired__should_return_false_and_change_nothing(
     tmp_path: Path,
 ):
     db_path = tmp_path / "test.db"
@@ -52,12 +52,15 @@ async def test_session_repository_extend__when_token_hash_deleted__should_return
     repo = SqliteSessionRepository(db)
     try:
         await repo.create(_session("gone", expires_at=300.0), now=0.0, replacing_token_hash=None)
+        await repo.create(_session("expired", expires_at=100.0), now=0.0, replacing_token_hash=None)
         await repo.delete("gone")
 
-        extended = await repo.extend("gone", expires_at=400.0, now=100.0)
+        extended_gone = await repo.extend("gone", expires_at=400.0, now=100.0)
+        extended_expired = await repo.extend("expired", expires_at=400.0, now=100.0)
     finally:
         await db.close()
 
-    assert extended is False
+    assert extended_gone is False
+    assert extended_expired is False
     with closing(sqlite3.connect(db_path)) as conn:
-        assert conn.execute("SELECT token_hash FROM sessions").fetchall() == []
+        assert conn.execute("SELECT token_hash, expires_at FROM sessions").fetchall() == [("expired", 100.0)]

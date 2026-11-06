@@ -5,6 +5,7 @@ import secrets
 import sqlite3
 from contextlib import closing
 from dataclasses import dataclass
+from http.cookies import SimpleCookie
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlencode, urlparse
 
@@ -213,7 +214,10 @@ class TestAuthEndpoints:
         assert response.status_code == 303
         assert response.headers["location"] == "/"
         assert "session_id" in response.cookies
-        assert "Max-Age=7776000" in response.headers["set-cookie"]
+        session_cookie = SimpleCookie()
+        for header in response.headers.get_list("set-cookie"):
+            session_cookie.load(header)
+        assert session_cookie["session_id"]["max-age"] == "7776000"
 
     def test_login_route__when_password_wrong__should_show_error(self, client):
         _register_user(client, username="loginuser")

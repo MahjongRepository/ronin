@@ -263,6 +263,9 @@ class TestValidateSession:
             mock_time.time.return_value = LOGIN_TIME + 45 * DAY
             assert await auth_service.validate_session(token) is not None
 
+            mock_time.time.return_value = LOGIN_TIME + 75 * DAY
+            assert await auth_service.validate_session(token) is None
+
     async def test_auth_service_validate_session__when_used_daily_toward_the_cap__should_reject_at_day_90(
         self, auth_service
     ):
@@ -291,7 +294,10 @@ class TestValidateSession:
             mock_time.time.return_value = LOGIN_TIME + 6 * DAY
             assert await auth_service.validate_session(token) is not None
 
-            mock_time.time.return_value = LOGIN_TIME + 13 * DAY
+            mock_time.time.return_value = LOGIN_TIME + 12 * DAY
+            assert await auth_service.validate_session(token) is not None
+
+            mock_time.time.return_value = LOGIN_TIME + 19 * DAY
             assert await auth_service.validate_session(token) is None
 
     async def test_auth_service_validate_session__when_database_reopened__should_return_session_created_before(
