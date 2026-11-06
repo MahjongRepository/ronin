@@ -27,7 +27,7 @@ class SessionOrApiKeyBackend(AuthenticationBackend):
         self,
         conn: HTTPConnection,
     ) -> tuple[AuthCredentials, AuthenticatedPlayer] | None:
-        session = self._auth_service.validate_session(conn.cookies.get("session_id"))
+        session = await self._auth_service.validate_session(conn.cookies.get("session_id"))
         if session is not None:
             return AuthCredentials(["authenticated"]), AuthenticatedPlayer(
                 user_id=session.user_id,

@@ -41,6 +41,18 @@ CREATE TABLE IF NOT EXISTS played_games (
 
 CREATE INDEX IF NOT EXISTS idx_played_games_started_at
     ON played_games (started_at DESC);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    username TEXT NOT NULL,
+    is_guest INTEGER NOT NULL,
+    created_at REAL NOT NULL,
+    expires_at REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at
+    ON sessions (expires_at);
 """
 
 _DROPPED_UNRUN = "dropped unrun: the database worker did not drain before shutdown"

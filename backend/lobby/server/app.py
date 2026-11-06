@@ -70,11 +70,11 @@ from lobby.views.auth_handlers import (
 from lobby.views.bot_api_handlers import bot_create_room
 from lobby.views.error_pages import http_error_page, server_error_page
 from lobby.views.locale_handlers import set_language
-from shared.auth import AuthService, AuthSessionStore
+from shared.auth import AuthService
 from shared.auth.password import BcryptHasher
 from shared.auth.settings import AuthSettings
 from shared.build_info import APP_VERSION, GIT_COMMIT, RELEASES_URL
-from shared.db import Database, SqliteGameRepository, SqlitePlayerRepository
+from shared.db import Database, SqliteGameRepository, SqlitePlayerRepository, SqliteSessionRepository
 from shared.logging import setup_logging
 
 logger = structlog.get_logger()
@@ -236,20 +236,18 @@ def create_app(  # noqa: PLR0913
     player_repo = SqlitePlayerRepository(db)
     game_repo = SqliteGameRepository(db)
 
-    session_store = AuthSessionStore()
+    session_repo = SqliteSessionRepository(db)
     hasher = BcryptHasher(rounds=auth_settings.bcrypt_rounds)
-    auth_service = AuthService(player_repo, session_store, password_hasher=hasher)
+    auth_service = AuthService(player_repo, session_repo, password_hasher=hasher)
 
     @contextlib.asynccontextmanager
     async def lifespan(_app: Starlette) -> AsyncGenerator[None]:
         try:
             await db.open()
-            session_store.start_cleanup()
             room_manager.start_reaper()
             yield
         finally:
             await room_manager.stop_reaper()
-            await session_store.stop_cleanup()
             await game_server.aclose()
             await db.close()
 

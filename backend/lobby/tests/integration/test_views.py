@@ -13,7 +13,7 @@ from starlette.routing import Route
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
 from lobby.tests.conftest import make_player, open_client
-from lobby.tests.integration.conftest import register_with_csrf
+from lobby.tests.integration.conftest import register_with_csrf, session_user_id
 from lobby.views.history_handlers import HISTORY_GAMES_LIMIT
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 
@@ -445,7 +445,7 @@ class TestHistoryPage:
         assert shown == game_ids[:0:-1]
 
     def test_history_page__when_another_user_held_the_viewers_name__should_mark_only_the_viewers_standing(self, client):
-        viewer = client.app.state.auth_service.validate_session(client.cookies["session_id"])
+        viewer_id = session_user_id(client)
         now = datetime.now(UTC)
         game = PlayedGame(
             game_id="name-reuse-game",
@@ -455,8 +455,8 @@ class TestHistoryPage:
             game_type="hanchan",
             num_rounds_played=6,
             standings=[
-                PlayedGameStanding(name=viewer.username, seat=0, user_id="earlier-holder", score=41000, final_score=51),
-                PlayedGameStanding(name=viewer.username, seat=1, user_id=viewer.user_id, score=27000, final_score=7),
+                PlayedGameStanding(name="gamesuser", seat=0, user_id="earlier-holder", score=41000, final_score=51),
+                PlayedGameStanding(name="gamesuser", seat=1, user_id=viewer_id, score=27000, final_score=7),
                 PlayedGameStanding(name="Tsumogiri 1", seat=2, score=19000, final_score=-21),
                 PlayedGameStanding(name="Tsumogiri 2", seat=3, score=13000, final_score=-37),
             ],
@@ -473,7 +473,7 @@ class TestHistoryPage:
         assert response.text.count('class="games-you"') == 1
 
     def test_history_page__when_viewer_played_the_game__should_link_the_replay_from_their_seat(self, client):
-        viewer = client.app.state.auth_service.validate_session(client.cookies["session_id"])
+        viewer_id = session_user_id(client)
         now = datetime.now(UTC)
         played_game = PlayedGame(
             game_id="viewer-played-game",
@@ -483,7 +483,7 @@ class TestHistoryPage:
             game_type="hanchan",
             standings=[
                 PlayedGameStanding(name="Tsumogiri 1", seat=2, score=41000, final_score=51),
-                PlayedGameStanding(name=viewer.username, seat=0, user_id=viewer.user_id, score=27000, final_score=7),
+                PlayedGameStanding(name="gamesuser", seat=0, user_id=viewer_id, score=27000, final_score=7),
                 PlayedGameStanding(name="Tsumogiri 2", seat=1, score=19000, final_score=-21),
                 PlayedGameStanding(name="Tsumogiri 3", seat=3, score=13000, final_score=-37),
             ],
@@ -590,7 +590,7 @@ class TestGameSessionRoute:
 
     @pytest.fixture
     def user_id(self, client):
-        return client.app.state.auth_service.validate_session(client.cookies["session_id"]).user_id
+        return session_user_id(client)
 
     def test_game_session_route__when_user_is_playing__should_return_their_own_handoff_uncached(
         self, client, game_server, user_id

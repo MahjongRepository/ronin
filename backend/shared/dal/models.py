@@ -149,3 +149,18 @@ class Player(BaseModel, frozen=True):
             raise ValueError("Bot accounts must have an api_key_hash")
 
         return self
+
+
+class AuthSession(BaseModel, frozen=True):
+    """
+    A lobby session stored in the session repository, keyed by the SHA-256 hash of its cookie token.
+
+    The raw token lives only in the browser cookie. Times are epoch seconds.
+    """
+
+    token_hash: str
+    user_id: str
+    username: str
+    is_guest: bool
+    created_at: float
+    expires_at: float

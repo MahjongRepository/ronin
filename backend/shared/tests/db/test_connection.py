@@ -34,7 +34,7 @@ class TestOpen:
         tables = await db.submit_read(
             lambda conn: [row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")],
         )
-        assert sorted(tables) == ["played_games", "players"]
+        assert sorted(tables) == ["played_games", "players", "sessions"]
         await db.close()
 
     async def test_database_open__when_opening_fails__should_raise_and_refuse_later_work(self, tmp_path: Path):

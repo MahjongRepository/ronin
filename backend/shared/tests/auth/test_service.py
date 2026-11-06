@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+import sqlite3
+import time
+from contextlib import closing
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from shared.auth.password import BcryptHasher
-from shared.auth.service import GUEST_NAMES, AuthError, AuthService
-from shared.auth.session_store import AuthSessionStore
-from shared.dal.models import AccountType, Player
-from shared.db import Database, SqlitePlayerRepository
+from shared.auth.service import SESSION_TTL_SECONDS, AuthError, AuthService
+from shared.dal.models import AccountType, AuthSession, Player
+from shared.db import Database, SqlitePlayerRepository, SqliteSessionRepository
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -19,21 +21,35 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def session_store():
-    return AuthSessionStore()
+def db_path(tmp_path: Path) -> Path:
+    return tmp_path / "test.db"
 
 
 @pytest.fixture
-async def player_repo(tmp_path: Path) -> AsyncIterator[SqlitePlayerRepository]:
-    db = Database(tmp_path / "test.db")
-    await db.open()
-    yield SqlitePlayerRepository(db)
-    await db.close()
+async def db(db_path: Path) -> AsyncIterator[Database]:
+    database = Database(db_path)
+    await database.open()
+    yield database
+    await database.close()
 
 
 @pytest.fixture
-def auth_service(player_repo, session_store):
-    return AuthService(player_repo, session_store, password_hasher=BcryptHasher(rounds=4))
+def player_repo(db: Database) -> SqlitePlayerRepository:
+    return SqlitePlayerRepository(db)
+
+
+@pytest.fixture
+def session_repo(db: Database) -> SqliteSessionRepository:
+    return SqliteSessionRepository(db)
+
+
+def _auth_service(db: Database) -> AuthService:
+    return AuthService(SqlitePlayerRepository(db), SqliteSessionRepository(db), password_hasher=BcryptHasher(rounds=4))
+
+
+@pytest.fixture
+def auth_service(db: Database) -> AuthService:
+    return _auth_service(db)
 
 
 class TestRegister:
@@ -145,9 +161,27 @@ class TestLogin:
     async def test_auth_service_login__when_credentials_valid__should_return_session(self, auth_service):
         await auth_service.register("alice", "password123")
 
-        session = await auth_service.login("alice", "password123")
+        session, token = await auth_service.login("alice", "password123")
         assert session.username == "alice"
-        assert session.session_id
+        assert (await auth_service.validate_session(token)).user_id == session.user_id
+
+    async def test_auth_service_login__when_session_created__should_store_the_token_hash_not_the_token(
+        self, auth_service, db_path
+    ):
+        await auth_service.register("alice", "password123")
+
+        _, token = await auth_service.login("alice", "password123")
+        with closing(sqlite3.connect(db_path)) as conn:
+            stored = conn.execute("SELECT token_hash FROM sessions").fetchall()
+        assert stored == [(hashlib.sha256(token.encode()).hexdigest(),)]
+
+    async def test_auth_service_login__when_replacing_an_earlier_token__should_invalidate_it(self, auth_service):
+        await auth_service.register("alice", "password123")
+        _, earlier_token = await auth_service.login("alice", "password123")
+
+        _, token = await auth_service.login("alice", "password123", replacing=earlier_token)
+        assert await auth_service.validate_session(earlier_token) is None
+        assert await auth_service.validate_session(token) is not None
 
     async def test_auth_service_login__when_password_wrong__should_raise(self, auth_service):
         await auth_service.register("alice", "password123")
@@ -174,43 +208,82 @@ class TestLogin:
 
 
 class TestLoginAsGuest:
-    def test_auth_service_login_as_guest__when_only_free_name_held_by_expired_session__should_take_it(
-        self, auth_service, session_store
+    async def test_auth_service_login_as_guest__when_only_free_name_held_by_expired_session__should_take_it(
+        self, auth_service, session_repo, monkeypatch
     ):
-        free_name, *held_names = GUEST_NAMES
-        for i, name in enumerate(held_names):
-            session_store.create_session(user_id=f"holder-{i}", username=name)
+        expired_name, *live_names = guest_names = ("Nanashi-1001", "Nanashi-1002", "Nanashi-1003")
+        monkeypatch.setattr("shared.auth.service.GUEST_NAMES", guest_names)
+        live_until = time.time() + SESSION_TTL_SECONDS
+        for name, expires_at in [(expired_name, 1.0), *((name, live_until) for name in live_names)]:
+            holder = AuthSession(
+                token_hash=f"hash-{name}",
+                user_id=f"holder-{name}",
+                username=name,
+                is_guest=True,
+                created_at=0.0,
+                expires_at=expires_at,
+            )
+            await session_repo.create(holder, now=0.0, replacing_token_hash=None)
 
-        session_store.create_session(user_id="holder-expired", username=free_name, ttl_seconds=-1)
-
-        session = auth_service.login_as_guest()
-        assert session.username == free_name
+        session, _ = await auth_service.login_as_guest()
+        assert session.username == expired_name
         assert not session.user_id.startswith("holder-")
 
 
 class TestValidateSession:
     async def test_auth_service_validate_session__when_active__should_return_session(self, auth_service):
         await auth_service.register("alice", "password123")
-        session = await auth_service.login("alice", "password123")
+        _, token = await auth_service.login("alice", "password123")
 
-        result = auth_service.validate_session(session.session_id)
+        result = await auth_service.validate_session(token)
         assert result is not None
         assert result.username == "alice"
 
-    def test_auth_service_validate_session__when_id_unknown__should_return_none(self, auth_service):
-        assert auth_service.validate_session("nonexistent") is None
+    async def test_auth_service_validate_session__when_token_unknown__should_return_none(self, auth_service):
+        assert await auth_service.validate_session("nonexistent") is None
 
-    def test_auth_service_validate_session__when_id_is_none__should_return_none(self, auth_service):
-        assert auth_service.validate_session(None) is None
+    async def test_auth_service_validate_session__when_token_is_none__should_return_none(self, auth_service):
+        assert await auth_service.validate_session(None) is None
+
+    async def test_auth_service_validate_session__when_24h_passed__should_return_none(self, auth_service):
+        await auth_service.register("alice", "password123")
+        with patch("shared.auth.service.time") as mock_time:
+            mock_time.time.return_value = 1_000_000.0
+            _, token = await auth_service.login("alice", "password123")
+
+            mock_time.time.return_value = 1_000_000.0 + SESSION_TTL_SECONDS - 1
+            assert await auth_service.validate_session(token) is not None
+
+            mock_time.time.return_value = 1_000_000.0 + SESSION_TTL_SECONDS
+            assert await auth_service.validate_session(token) is None
+
+    async def test_auth_service_validate_session__when_database_reopened__should_return_session_created_before(
+        self, db_path
+    ):
+        first_db = Database(db_path)
+        await first_db.open()
+        first_service = _auth_service(first_db)
+        await first_service.register("alice", "password123")
+        _, token = await first_service.login("alice", "password123")
+        await first_db.close()
+
+        reopened_db = Database(db_path)
+        await reopened_db.open()
+        try:
+            result = await _auth_service(reopened_db).validate_session(token)
+        finally:
+            await reopened_db.close()
+        assert result is not None
+        assert result.username == "alice"
 
 
 class TestLogout:
     async def test_auth_service_logout__when_session_exists__should_invalidate_it(self, auth_service):
         await auth_service.register("alice", "password123")
-        session = await auth_service.login("alice", "password123")
+        _, token = await auth_service.login("alice", "password123")
 
-        auth_service.logout(session.session_id)
-        assert auth_service.validate_session(session.session_id) is None
+        await auth_service.logout(token)
+        assert await auth_service.validate_session(token) is None
 
 
 class TestRegisterConcurrentRace:

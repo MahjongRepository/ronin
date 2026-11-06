@@ -3,19 +3,19 @@ from __future__ import annotations
 import hashlib
 import re
 import secrets
+import time
 from enum import StrEnum
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from shared.dal.models import AccountType, Player
+from shared.dal.models import AccountType, AuthSession, Player
 
 if TYPE_CHECKING:
     from collections.abc import Collection
 
-    from shared.auth.models import AuthSession
     from shared.auth.password import PasswordHasher
-    from shared.auth.session_store import AuthSessionStore
     from shared.dal.player_repository import PlayerRepository
+    from shared.dal.session_repository import SessionRepository
 
 USERNAME_MIN_LENGTH = 3
 USERNAME_MAX_LENGTH = 30
@@ -26,6 +26,8 @@ PASSWORD_MAX_LENGTH = 72  # bcrypt truncates at 72 bytes
 
 GUEST_NAME_PREFIX = "Nanashi-"
 GUEST_NAMES = tuple(f"{GUEST_NAME_PREFIX}{n}" for n in range(1000, 10000))
+
+SESSION_TTL_SECONDS = 86400
 
 
 class AuthErrorCode(StrEnum):
@@ -61,12 +63,12 @@ class AuthService:
     def __init__(
         self,
         player_repo: PlayerRepository,
-        session_store: AuthSessionStore,
+        session_repo: SessionRepository,
         *,
         password_hasher: PasswordHasher,
     ) -> None:
         self._player_repo = player_repo
-        self._session_store = session_store
+        self._session_repo = session_repo
         self._hasher = password_hasher
 
     async def register(self, username: str, password: str) -> Player:
@@ -96,7 +98,7 @@ class AuthService:
         _validate_username(bot_name)
         await self._ensure_username_available(bot_name)
 
-        raw_api_key, api_key_hash = _generate_api_key()
+        raw_api_key, api_key_hash = _generate_token()
         player = Player(
             user_id=str(uuid4()),
             username=bot_name,
@@ -122,7 +124,7 @@ class AuthService:
                 AuthErrorCode.HUMAN_ACCOUNT, f"Username '{bot_name}' belongs to a human account", username=bot_name
             )
 
-        raw_api_key, api_key_hash = _generate_api_key()
+        raw_api_key, api_key_hash = _generate_token()
         try:
             await self._player_repo.set_api_key_hash(player.user_id, api_key_hash)
         except ValueError as e:
@@ -130,11 +132,11 @@ class AuthService:
 
         return player.model_copy(update={"api_key_hash": api_key_hash}), raw_api_key
 
-    async def login(self, username: str, password: str) -> AuthSession:
+    async def login(self, username: str, password: str, *, replacing: str | None = None) -> tuple[AuthSession, str]:
         """
-        Validate credentials and create a session.
+        Validate credentials and create a session, returned as (session, raw_token).
 
-        Reject bot accounts.
+        Reject bot accounts. The session of the token `replacing` (the incoming cookie), if any, is deleted.
         """
         player = await self._player_repo.get_by_username(username)
         if player is None:
@@ -146,39 +148,60 @@ class AuthService:
         if not await self._hasher.verify(password, player.password_hash):
             raise AuthError(AuthErrorCode.WRONG_CREDENTIALS, "Wrong username or password.")
 
-        return self._session_store.create_session(user_id=player.user_id, username=player.username)
+        token, token_hash = _generate_token()
+        now = time.time()
+        session = AuthSession(
+            token_hash=token_hash,
+            user_id=player.user_id,
+            username=player.username,
+            is_guest=False,
+            created_at=now,
+            expires_at=now + SESSION_TTL_SECONDS,
+        )
+        await self._session_repo.create(session, now=now, replacing_token_hash=_hash_optional_token(replacing))
+        return session, token
 
-    def login_as_guest(self) -> AuthSession:
+    async def login_as_guest(self, *, replacing: str | None = None) -> tuple[AuthSession, str]:
         """
-        Create a session for a one-time guest: a fresh user id, a generated name and no account.
+        Create a session for a one-time guest, returned as (session, raw_token): a fresh user id, a generated name and
+        no account.
 
-        Picking the name and creating the session stay in one synchronous step, so two concurrent guest logins cannot
-        take the same name.
+        Picking the name and inserting the session run in one write transaction, so two concurrent guest logins cannot
+        take the same name. The session of the token `replacing`, if any, is deleted.
         """
-        name = _pick_guest_name(self._session_store.get_active_usernames())
-        return self._session_store.create_session(user_id=str(uuid4()), username=name)
+        token, token_hash = _generate_token()
+        now = time.time()
+        session = await self._session_repo.create_guest(
+            token_hash=token_hash,
+            user_id=str(uuid4()),
+            created_at=now,
+            expires_at=now + SESSION_TTL_SECONDS,
+            now=now,
+            pick_name=_pick_guest_name,
+            replacing_token_hash=_hash_optional_token(replacing),
+        )
+        return session, token
 
-    def validate_session(self, session_id: str | None) -> AuthSession | None:
+    async def validate_session(self, token: str | None) -> AuthSession | None:
         """
-        Return the session if valid and not expired, otherwise None.
+        Return the session of this token if valid and not expired, otherwise None.
         """
-        if session_id is None:
+        if token is None:
             return None
 
-        return self._session_store.get_session(session_id)
+        return await self._session_repo.get(_hash_token(token), now=time.time())
 
-    def logout(self, session_id: str) -> None:
+    async def logout(self, token: str) -> None:
         """
-        Destroy a session.
+        Delete the session of this token.
         """
-        self._session_store.delete_session(session_id)
+        await self._session_repo.delete(_hash_token(token))
 
     async def validate_api_key(self, api_key: str) -> Player | None:
         """
         Validate a bot API key by hashing and looking up the hash.
         """
-        key_hash = hashlib.sha256(api_key.encode()).hexdigest()
-        return await self._player_repo.get_by_api_key_hash(key_hash)
+        return await self._player_repo.get_by_api_key_hash(_hash_token(api_key))
 
     async def is_admin(self, *, user_id: str, username: str) -> bool:
         """
@@ -210,9 +233,20 @@ class AuthService:
         return player
 
 
-def _generate_api_key() -> tuple[str, str]:
-    raw_api_key = secrets.token_urlsafe(32)
-    return raw_api_key, hashlib.sha256(raw_api_key.encode()).hexdigest()
+def _generate_token() -> tuple[str, str]:
+    """
+    Generate a random 256-bit token and return (raw_token, sha256_hex), for API keys and session cookies alike.
+    """
+    token = secrets.token_urlsafe(32)
+    return token, _hash_token(token)
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _hash_optional_token(token: str | None) -> str | None:
+    return None if token is None else _hash_token(token)
 
 
 def _validate_username(username: str) -> None:
@@ -233,7 +267,7 @@ def _validate_username(username: str) -> None:
 
 def _pick_guest_name(taken: Collection[str]) -> str:
     """
-    Pick a random guest name that no live session holds.
+    Pick a random guest name that no live guest session holds.
 
     Unlike a room name, a repeat is harmful: `POST /games` rejects a table with duplicate player names, so with every
     name held this raises instead of reusing one.

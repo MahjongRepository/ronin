@@ -97,7 +97,8 @@ flowchart TD
     Policy -- otherwise --> Ok["served"]
 ```
 
-* Sessions are **in-memory** on the lobby with a 24h TTL: a restart logs everyone out.
+* Sessions are **SQLite rows** holding the SHA-256 hash of the cookie token, with a 24h TTL: they
+  survive a lobby restart, and a database leak yields no usable cookie.
 * The login redirect's `next` (only for a GET: another method's target cannot be reopened) rides
   through the login, register and guest forms, and each of them returns there after creating the
   session.

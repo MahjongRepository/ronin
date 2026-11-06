@@ -5,18 +5,14 @@ from shared.auth.game_ticket import (
     sign_game_ticket,
     verify_game_ticket,
 )
-from shared.auth.models import AuthSession
 from shared.auth.password import BcryptHasher, PasswordHasher
 from shared.auth.service import AuthError, AuthService
-from shared.auth.session_store import AuthSessionStore
 from shared.auth.settings import AuthSettings
 
 __all__ = [
     "TICKET_TTL_SECONDS",
     "AuthError",
     "AuthService",
-    "AuthSession",
-    "AuthSessionStore",
     "AuthSettings",
     "BcryptHasher",
     "GameTicket",

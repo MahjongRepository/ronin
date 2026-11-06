@@ -12,18 +12,17 @@ from lobby.views.error_pages import validate_csrf
 from shared.auth.service import (
     PASSWORD_MAX_LENGTH,
     PASSWORD_MIN_LENGTH,
+    SESSION_TTL_SECONDS,
     USERNAME_MAX_LENGTH,
     USERNAME_MIN_LENGTH,
     USERNAME_PATTERN,
     AuthError,
 )
-from shared.auth.session_store import DEFAULT_SESSION_TTL_SECONDS
 
 if TYPE_CHECKING:
     from starlette.datastructures import FormData
     from starlette.requests import Request
 
-    from shared.auth.models import AuthSession
     from shared.auth.settings import AuthSettings
 
 _ACCOUNT_RULES = {
@@ -58,20 +57,18 @@ def describe_auth_error(request: Request, error: AuthError) -> str:
     return translate_for_request(request, f"auth.error.{error.code}", **error.params)
 
 
-def _redirect_with_session_cookie(
-    *, session: AuthSession, auth_settings: AuthSettings, next_path: str | None
-) -> Response:
+def _redirect_with_session_cookie(*, token: str, auth_settings: AuthSettings, next_path: str | None) -> Response:
     """
     Redirect to ``next_path`` (the lobby when there is none) and set the session cookie.
     """
     response = RedirectResponse(next_path or "/", status_code=303)
     response.set_cookie(
         key="session_id",
-        value=session.session_id,
+        value=token,
         httponly=True,
         samesite="lax",
         secure=auth_settings.cookie_secure,
-        max_age=DEFAULT_SESSION_TTL_SECONDS,
+        max_age=SESSION_TTL_SECONDS,
         path="/",
     )
     return response
@@ -134,12 +131,12 @@ async def login(request: Request) -> Response:
     password = form.get("password", "")
 
     try:
-        session = await auth_service.login(str(username), str(password))
+        _, token = await auth_service.login(str(username), str(password), replacing=request.cookies.get("session_id"))
     except AuthError as e:
         return _render_auth_form(request, template_name="login.html", form=form, error=describe_auth_error(request, e))
 
     return _redirect_with_session_cookie(
-        session=session, auth_settings=auth_settings, next_path=parse_next_path(form.get("next"))
+        token=token, auth_settings=auth_settings, next_path=parse_next_path(form.get("next"))
     )
 
 
@@ -156,9 +153,8 @@ async def guest_login(request: Request) -> Response:
     if request.user.is_authenticated:
         return RedirectResponse(next_path or "/", status_code=303)
 
-    return _redirect_with_session_cookie(
-        session=auth_service.login_as_guest(), auth_settings=auth_settings, next_path=next_path
-    )
+    _, token = await auth_service.login_as_guest(replacing=request.cookies.get("session_id"))
+    return _redirect_with_session_cookie(token=token, auth_settings=auth_settings, next_path=next_path)
 
 
 async def register_page(request: Request) -> Response:
@@ -189,14 +185,14 @@ async def register(request: Request) -> Response:
 
     try:
         await auth_service.register(str(username), str(password))
-        session = await auth_service.login(str(username), str(password))
+        _, token = await auth_service.login(str(username), str(password), replacing=request.cookies.get("session_id"))
     except AuthError as e:
         return _render_auth_form(
             request, template_name="register.html", form=form, error=describe_auth_error(request, e)
         )
 
     return _redirect_with_session_cookie(
-        session=session, auth_settings=auth_settings, next_path=parse_next_path(form.get("next"))
+        token=token, auth_settings=auth_settings, next_path=parse_next_path(form.get("next"))
     )
 
 
@@ -210,7 +206,7 @@ async def logout(request: Request) -> Response:
     auth_service = request.app.state.auth_service
     session_id = request.cookies.get("session_id")
     if session_id:
-        auth_service.logout(session_id)
+        await auth_service.logout(session_id)
 
     response = RedirectResponse("/login", status_code=303)
     response.delete_cookie(key="session_id", path="/")

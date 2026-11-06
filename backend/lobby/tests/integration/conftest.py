@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 from contextlib import closing
 from typing import TYPE_CHECKING
@@ -44,3 +45,10 @@ def grant_admin(client: TestClient, username: str) -> None:
         conn.execute(
             "UPDATE players SET data = json_set(data, '$.is_admin', json('true')) WHERE username = ?", (username,)
         )
+
+
+def session_user_id(client: TestClient) -> str:
+    token_hash = hashlib.sha256(client.cookies["session_id"].encode()).hexdigest()
+    with closing(sqlite3.connect(client.app.state.auth_settings.database_path)) as conn:
+        (user_id,) = conn.execute("SELECT user_id FROM sessions WHERE token_hash = ?", (token_hash,)).fetchone()
+    return user_id

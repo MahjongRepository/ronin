@@ -12,7 +12,7 @@ def _assert_database_closed(app) -> None:
 
 
 class TestLobbyLifespan:
-    def test_lobby_lifespan__when_startup_step_fails__should_close_database_and_stop_cleanup(self, app, monkeypatch):
+    def test_lobby_lifespan__when_startup_step_fails__should_close_database(self, app, monkeypatch):
         def fail_to_start_reaper(_self):
             raise RuntimeError("reaper failed to start")
 
@@ -22,7 +22,6 @@ class TestLobbyLifespan:
             pass
 
         _assert_database_closed(app)
-        assert app.state.auth_service._session_store._cleanup_task is None
 
     def test_lobby_lifespan__when_reaper_died__should_still_close_database(self, app, monkeypatch):
         async def crashing_reaper_loop(_self):

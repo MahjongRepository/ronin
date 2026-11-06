@@ -3,9 +3,8 @@ import sys
 
 from shared.auth.password import BcryptHasher
 from shared.auth.service import AuthError, AuthService
-from shared.auth.session_store import AuthSessionStore
 from shared.auth.settings import AuthSettings
-from shared.db import Database, SqlitePlayerRepository
+from shared.db import Database, SqlitePlayerRepository, SqliteSessionRepository
 
 
 async def main() -> None:
@@ -22,7 +21,7 @@ async def main() -> None:
         player_repo = SqlitePlayerRepository(db)
         auth_service = AuthService(
             player_repo,
-            AuthSessionStore(),
+            SqliteSessionRepository(db),
             password_hasher=BcryptHasher(rounds=auth_settings.bcrypt_rounds),
         )
         for bot_name in sys.argv[1:]:

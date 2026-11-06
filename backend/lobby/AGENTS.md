@@ -123,9 +123,14 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 
 * Humans register and log in with username and password and get a session cookie. Every session is
   a human's; bots have none.
+* Sessions persist in the shared SQLite database as SHA-256 hashes of the cookie token; the raw token
+  lives only in the cookie. Session writes are awaited, never posted, so a logout cannot be lost.
+  Login (register and guest login included) replaces the incoming cookie's session, and the
+  session-creating writes purge expired rows, so no cleanup task runs.
 * A guest is a session without an account: a fresh user id, a generated `Nanashi-NNNN` name and no
   `players` row, gone at logout or expiry. Several places still treat the name as identity (the game
-  server rejects a table with duplicate names), so the name is unique among live sessions; the
+  server rejects a table with duplicate names), so the name is unique among live guest sessions,
+  chosen and inserted in one write transaction so two concurrent guest logins cannot share it; the
   hyphen keeps it out of the account namespace. Accepted limit: a guest who logs out or expires
   while still seated frees the name, and a new guest drawing it at that table breaks the game start.
 * Bots register through `scripts/register_bot.py` and get an API key, printed once and never stored;
