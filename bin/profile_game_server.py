@@ -21,9 +21,10 @@ if TYPE_CHECKING:
 class GcTimer:
     """Sum the process CPU time the garbage collector spends, timed around each collection by gc.callbacks.
 
-    A sample taken during a collection runs its handler at the "stop" callback, so it shows up under
-    `GcTimer.record` and that row of the profile cross-checks this timer. Process time, not wall time,
-    keeps preemption by other processes out of it.
+    The timer counts every thread's collections. A sample taken during a main-thread collection runs its
+    handler at the "stop" callback, so it shows up under `GcTimer.record` and that row of the profile
+    cross-checks this timer's main-thread part. Process time, not wall time, keeps preemption by other
+    processes out of it.
     """
 
     seconds: float = 0.0
