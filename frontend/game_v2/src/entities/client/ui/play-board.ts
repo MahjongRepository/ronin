@@ -134,7 +134,7 @@ function ActionButton(
     const isPass = action.command.kind === "intent" && action.command.intent.type === "pass";
     const label =
         action.group === null
-            ? html`<span class="decision-controls__label">${isBack ? html`<span aria-hidden="true">← </span>` : nothing}${action.label}${isPass ? html`<small class="decision-controls__shortcut" aria-hidden="true"> · Esc</small>` : nothing}</span>`
+            ? html`<span class="decision-controls__label">${isBack ? html`<span aria-hidden="true">← </span>` : nothing}${action.label}</span>`
             : nothing;
     const lamp = action.command.kind === "toggle_riichi_pick" ? Lamp(action.pressed) : nothing;
     return html`<button

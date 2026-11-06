@@ -5,12 +5,6 @@ $row: 40px;
 $choice-tile-share: 0.45;
 $preview-tile-share: 0.42;
 
-.decision-controls__shortcut {
-    @include phone-board {
-        display: none;
-    }
-}
-
 @property --upper-clear {
     syntax: "<length>";
     inherits: true;
