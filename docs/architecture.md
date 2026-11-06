@@ -97,8 +97,9 @@ flowchart TD
     Policy -- otherwise --> Ok["served"]
 ```
 
-* Sessions are **SQLite rows** holding the SHA-256 hash of the cookie token, with a 24h TTL: they
-  survive a lobby restart, and a database leak yields no usable cookie.
+* Sessions are **SQLite rows** holding the SHA-256 hash of the cookie token: they survive a lobby
+  restart, and a database leak yields no usable cookie. A session expires after 30 idle days for an
+  account or 7 for a guest, and 90 days after login at the latest.
 * The login redirect's `next` (only for a GET: another method's target cannot be reopened) rides
   through the login, register and guest forms, and each of them returns there after creating the
   session.

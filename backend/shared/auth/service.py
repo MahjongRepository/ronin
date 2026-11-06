@@ -27,7 +27,10 @@ PASSWORD_MAX_LENGTH = 72  # bcrypt truncates at 72 bytes
 GUEST_NAME_PREFIX = "Nanashi-"
 GUEST_NAMES = tuple(f"{GUEST_NAME_PREFIX}{n}" for n in range(1000, 10000))
 
-SESSION_TTL_SECONDS = 86400
+ACCOUNT_SESSION_IDLE_SECONDS = 30 * 86400
+GUEST_SESSION_IDLE_SECONDS = 7 * 86400
+SESSION_MAX_AGE_SECONDS = 90 * 86400
+SESSION_RENEWAL_INTERVAL_SECONDS = 86400
 
 
 class AuthErrorCode(StrEnum):
@@ -156,7 +159,7 @@ class AuthService:
             username=player.username,
             is_guest=False,
             created_at=now,
-            expires_at=now + SESSION_TTL_SECONDS,
+            expires_at=_session_expiry(created_at=now, now=now, is_guest=False),
         )
         await self._session_repo.create(session, now=now, replacing_token_hash=_hash_optional_token(replacing))
         return session, token
@@ -175,7 +178,7 @@ class AuthService:
             token_hash=token_hash,
             user_id=str(uuid4()),
             created_at=now,
-            expires_at=now + SESSION_TTL_SECONDS,
+            expires_at=_session_expiry(created_at=now, now=now, is_guest=True),
             now=now,
             pick_name=_pick_guest_name,
             replacing_token_hash=_hash_optional_token(replacing),
@@ -185,11 +188,29 @@ class AuthService:
     async def validate_session(self, token: str | None) -> AuthSession | None:
         """
         Return the session of this token if valid and not expired, otherwise None.
+
+        A valid session slides its expiry to the idle timeout from now, never past the absolute cap. The renewal
+        write is batched: it happens only once the expiry has fallen a renewal interval behind.
         """
         if token is None:
             return None
 
-        return await self._session_repo.get(_hash_token(token), now=time.time())
+        token_hash = _hash_token(token)
+        now = time.time()
+        session = await self._session_repo.get(token_hash, now=now)
+        if session is None:
+            return None
+
+        target = _session_expiry(created_at=session.created_at, now=now, is_guest=session.is_guest)
+        renewal_due = (
+            session.expires_at < now + _idle_seconds(is_guest=session.is_guest) - SESSION_RENEWAL_INTERVAL_SECONDS
+        )
+        if target > session.expires_at and renewal_due:
+            if not await self._session_repo.extend(token_hash, expires_at=target, now=now):
+                return None
+            return session.model_copy(update={"expires_at": target})
+
+        return session
 
     async def logout(self, token: str) -> None:
         """
@@ -247,6 +268,17 @@ def _hash_token(token: str) -> str:
 
 def _hash_optional_token(token: str | None) -> str | None:
     return None if token is None else _hash_token(token)
+
+
+def _idle_seconds(*, is_guest: bool) -> int:
+    return GUEST_SESSION_IDLE_SECONDS if is_guest else ACCOUNT_SESSION_IDLE_SECONDS
+
+
+def _session_expiry(*, created_at: float, now: float, is_guest: bool) -> float:
+    """
+    Return the expiry a session used at `now` slides to: the idle timeout from now, capped at the absolute maximum age.
+    """
+    return min(now + _idle_seconds(is_guest=is_guest), created_at + SESSION_MAX_AGE_SECONDS)
 
 
 def _validate_username(username: str) -> None:

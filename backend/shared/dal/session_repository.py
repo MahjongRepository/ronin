@@ -37,3 +37,6 @@ class SessionRepository(ABC):
 
     @abstractmethod
     async def delete(self, token_hash: str) -> None: ...
+
+    @abstractmethod
+    async def extend(self, token_hash: str, *, expires_at: float, now: float) -> bool: ...

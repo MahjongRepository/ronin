@@ -65,6 +65,16 @@ class SqliteSessionRepository(SessionRepository):
         """
         return await self._db.submit_read(partial(_select_session, token_hash=token_hash, now=now))
 
+    async def extend(self, token_hash: str, *, expires_at: float, now: float) -> bool:
+        """
+        Move the expiry of the live session with this token hash to `expires_at`, and return whether it was live.
+
+        A missing or expired row stays missing or expired: the update never inserts.
+        """
+        return await self._db.submit_write(
+            partial(_extend_session, token_hash=token_hash, expires_at=expires_at, now=now)
+        )
+
     async def delete(self, token_hash: str) -> None:
         """
         Delete the session with this token hash, if any.
@@ -147,3 +157,10 @@ def _select_session(conn: sqlite3.Connection, *, token_hash: str, now: float) ->
 
 def _delete_session(conn: sqlite3.Connection, *, token_hash: str) -> None:
     conn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
+
+
+def _extend_session(conn: sqlite3.Connection, *, token_hash: str, expires_at: float, now: float) -> bool:
+    cursor = conn.execute(
+        "UPDATE sessions SET expires_at = ? WHERE token_hash = ? AND expires_at > ?", (expires_at, token_hash, now)
+    )
+    return cursor.rowcount > 0

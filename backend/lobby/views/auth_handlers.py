@@ -12,7 +12,7 @@ from lobby.views.error_pages import validate_csrf
 from shared.auth.service import (
     PASSWORD_MAX_LENGTH,
     PASSWORD_MIN_LENGTH,
-    SESSION_TTL_SECONDS,
+    SESSION_MAX_AGE_SECONDS,
     USERNAME_MAX_LENGTH,
     USERNAME_MIN_LENGTH,
     USERNAME_PATTERN,
@@ -68,7 +68,7 @@ def _redirect_with_session_cookie(*, token: str, auth_settings: AuthSettings, ne
         httponly=True,
         samesite="lax",
         secure=auth_settings.cookie_secure,
-        max_age=SESSION_TTL_SECONDS,
+        max_age=SESSION_MAX_AGE_SECONDS,
         path="/",
     )
     return response

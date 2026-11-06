@@ -213,6 +213,7 @@ class TestAuthEndpoints:
         assert response.status_code == 303
         assert response.headers["location"] == "/"
         assert "session_id" in response.cookies
+        assert "Max-Age=7776000" in response.headers["set-cookie"]
 
     def test_login_route__when_password_wrong__should_show_error(self, client):
         _register_user(client, username="loginuser")

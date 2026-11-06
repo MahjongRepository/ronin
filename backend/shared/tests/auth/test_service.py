@@ -11,13 +11,17 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from shared.auth.password import BcryptHasher
-from shared.auth.service import SESSION_TTL_SECONDS, AuthError, AuthService
+from shared.auth.service import GUEST_SESSION_IDLE_SECONDS, AuthError, AuthService
 from shared.dal.models import AccountType, AuthSession, Player
 from shared.db import Database, SqlitePlayerRepository, SqliteSessionRepository
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
     from pathlib import Path
+
+
+LOGIN_TIME = 1_000_000.0
+DAY = 86400
 
 
 @pytest.fixture
@@ -213,7 +217,7 @@ class TestLoginAsGuest:
     ):
         expired_name, *live_names = guest_names = ("Nanashi-1001", "Nanashi-1002", "Nanashi-1003")
         monkeypatch.setattr("shared.auth.service.GUEST_NAMES", guest_names)
-        live_until = time.time() + SESSION_TTL_SECONDS
+        live_until = time.time() + GUEST_SESSION_IDLE_SECONDS
         for name, expires_at in [(expired_name, 1.0), *((name, live_until) for name in live_names)]:
             holder = AuthSession(
                 token_hash=f"hash-{name}",
@@ -245,16 +249,49 @@ class TestValidateSession:
     async def test_auth_service_validate_session__when_token_is_none__should_return_none(self, auth_service):
         assert await auth_service.validate_session(None) is None
 
-    async def test_auth_service_validate_session__when_24h_passed__should_return_none(self, auth_service):
+    async def test_auth_service_validate_session__when_account_used_on_day_20__should_still_validate_on_day_45(
+        self, auth_service
+    ):
         await auth_service.register("alice", "password123")
         with patch("shared.auth.service.time") as mock_time:
-            mock_time.time.return_value = 1_000_000.0
+            mock_time.time.return_value = LOGIN_TIME
             _, token = await auth_service.login("alice", "password123")
 
-            mock_time.time.return_value = 1_000_000.0 + SESSION_TTL_SECONDS - 1
+            mock_time.time.return_value = LOGIN_TIME + 20 * DAY
             assert await auth_service.validate_session(token) is not None
 
-            mock_time.time.return_value = 1_000_000.0 + SESSION_TTL_SECONDS
+            mock_time.time.return_value = LOGIN_TIME + 45 * DAY
+            assert await auth_service.validate_session(token) is not None
+
+    async def test_auth_service_validate_session__when_used_daily_toward_the_cap__should_reject_at_day_90(
+        self, auth_service
+    ):
+        await auth_service.register("alice", "password123")
+        with patch("shared.auth.service.time") as mock_time:
+            mock_time.time.return_value = LOGIN_TIME
+            _, token = await auth_service.login("alice", "password123")
+
+            for day in [20, 40, *range(59, 90)]:
+                mock_time.time.return_value = LOGIN_TIME + day * DAY
+                assert await auth_service.validate_session(token) is not None
+
+            mock_time.time.return_value = LOGIN_TIME + 90 * DAY - 1
+            assert await auth_service.validate_session(token) is not None
+
+            mock_time.time.return_value = LOGIN_TIME + 90 * DAY
+            assert await auth_service.validate_session(token) is None
+
+    async def test_auth_service_validate_session__when_guest_idle_7_days_after_use__should_return_none(
+        self, auth_service
+    ):
+        with patch("shared.auth.service.time") as mock_time:
+            mock_time.time.return_value = LOGIN_TIME
+            _, token = await auth_service.login_as_guest()
+
+            mock_time.time.return_value = LOGIN_TIME + 6 * DAY
+            assert await auth_service.validate_session(token) is not None
+
+            mock_time.time.return_value = LOGIN_TIME + 13 * DAY
             assert await auth_service.validate_session(token) is None
 
     async def test_auth_service_validate_session__when_database_reopened__should_return_session_created_before(

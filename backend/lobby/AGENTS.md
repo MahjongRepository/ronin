@@ -127,6 +127,11 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   lives only in the cookie. Session writes are awaited, never posted, so a logout cannot be lost.
   Login (register and guest login included) replaces the incoming cookie's session, and the
   session-creating writes purge expired rows, so no cleanup task runs.
+* Expiry slides: a session idle for 30 days (an account) or 7 days (a guest) expires, to within a
+  day, because renewal is batched to about once a day. Every session also dies 90 days after its
+  creation. Renewal happens on the session check of an HTTP request or a WebSocket handshake, as a
+  conditional update that never resurrects a deleted or expired row. The cookie is set once, at
+  login, with the 90-day cap as its Max-Age; only the database expiry slides.
 * A guest is a session without an account: a fresh user id, a generated `Nanashi-NNNN` name and no
   `players` row, gone at logout or expiry. Several places still treat the name as identity (the game
   server rejects a table with duplicate names), so the name is unique among live guest sessions,
