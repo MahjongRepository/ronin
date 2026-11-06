@@ -10,6 +10,7 @@
     "auth.field.confirm_password": "Повторите пароль",
     "auth.field.password": "Пароль",
     "auth.field.username": "Имя пользователя",
+    "auth.form.guest_rate_limited": "Слишком много гостевых входов из вашей сети. Попробуйте ещё раз через несколько минут.",
     "auth.form.passwords_mismatch": "Пароли не совпадают.",
     "auth.form.session_expired": "Сессия истекла. Попробуйте ещё раз.",
     "auth.login.guest": "Играть как гость",

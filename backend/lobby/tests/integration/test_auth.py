@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import pytest
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
+from lobby.views.auth_handlers import GUEST_LOGIN_BURST
 from shared.dal.models import AccountType, Player
 
 if TYPE_CHECKING:
@@ -254,6 +255,19 @@ class TestAuthEndpoints:
         assert lobby.status_code == 200
         assert re.search(r"Nanashi-\d{4}", lobby.text)
         assert "Log out" in lobby.text
+
+    def test_guest_login_route__when_one_client_exceeds_the_burst__should_refuse_with_429(self, client):
+        csrf = _get_csrf_token(client, "/login")
+        statuses = []
+        for _ in range(GUEST_LOGIN_BURST):
+            statuses.append(client.post("/guest", data={"csrf_token": csrf}, follow_redirects=False).status_code)
+            client.cookies.delete("session_id")
+
+        response = client.post("/guest", data={"csrf_token": csrf}, follow_redirects=False)
+        assert statuses == [303] * GUEST_LOGIN_BURST
+        assert response.status_code == 429
+        assert "Too many guest logins from your network." in response.text
+        assert "session_id" not in response.cookies
 
     def test_guest_login_route__when_already_logged_in__should_keep_the_current_session(self, client):
         _register_user(client, username="seateduser")

@@ -25,6 +25,9 @@ if TYPE_CHECKING:
 
     from shared.auth.settings import AuthSettings
 
+GUEST_LOGIN_BURST = 10
+GUEST_LOGIN_REFILL_PER_SECOND = 1 / 360
+
 _ACCOUNT_RULES = {
     "username_min_length": USERNAME_MIN_LENGTH,
     "username_max_length": USERNAME_MAX_LENGTH,
@@ -152,6 +155,13 @@ async def guest_login(request: Request) -> Response:
     next_path = parse_next_path(form.get("next"))
     if request.user.is_authenticated:
         return RedirectResponse(next_path or "/", status_code=303)
+
+    client_ip = request.client.host if request.client else ""
+    if not request.app.state.guest_login_limiter.consume(client_ip):
+        error = translate_for_request(request, "auth.form.guest_rate_limited")
+        response = _render_auth_form(request, template_name="login.html", form=form, error=error)
+        response.status_code = HTTPStatus.TOO_MANY_REQUESTS
+        return response
 
     _, token = await auth_service.login_as_guest(replacing=request.cookies.get("session_id"))
     return _redirect_with_session_cookie(token=token, auth_settings=auth_settings, next_path=next_path)

@@ -10,6 +10,7 @@
     "auth.field.confirm_password": "パスワード（確認）",
     "auth.field.password": "パスワード",
     "auth.field.username": "ユーザー名",
+    "auth.form.guest_rate_limited": "このネットワークからのゲストログインが多すぎます。数分後にもう一度お試しください。",
     "auth.form.passwords_mismatch": "パスワードが一致しません。",
     "auth.form.session_expired": "セッションの有効期限が切れました。もう一度お試しください。",
     "auth.login.guest": "ゲストで遊ぶ",

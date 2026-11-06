@@ -139,6 +139,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   hyphen keeps it out of the account namespace. Accepted limit: a guest who logs out, logs in to an
   account, or expires while still seated frees the name, and a new guest drawing it at that table
   breaks the game start.
+* Guest login is rate-limited per client IP (a token bucket in process memory, reset by a restart),
+  because each guest holds one of the 9000 names for up to 7 idle days; an exhausted pool fails
+  every guest login. The IP is uvicorn's proxy-header client address, which Traefik sets.
 * Bots register through `scripts/register_bot.py` and get an API key, printed once and never stored;
   run for an existing bot, the script rotates its key, which invalidates the old one. Bots send the
   key as `X-API-Key` on the bot API and the WebSocket handshakes, with the configured

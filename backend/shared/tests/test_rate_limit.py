@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from shared.rate_limit import TokenBucket
+from shared.rate_limit import PRUNE_INTERVAL_SECONDS, KeyedRateLimiter, TokenBucket
 
 
 class TestTokenBucket:
@@ -50,3 +50,22 @@ class TestTokenBucket:
             mock_time.monotonic.return_value = bucket._last_refill + 0.5
             assert bucket.consume() is True
             assert bucket.consume() is False
+
+
+class TestKeyedRateLimiter:
+    def test_keyed_rate_limiter__when_one_key_is_exhausted__should_still_allow_another_key(self):
+        limiter = KeyedRateLimiter(rate=1.0, burst=2)
+        first_key = [limiter.consume("10.0.0.1") for _ in range(3)]
+
+        assert first_key == [True, True, False]
+        assert limiter.consume("10.0.0.2") is True
+
+    def test_keyed_rate_limiter__when_a_prune_runs_before_an_exhausted_key_refills__should_keep_refusing_it(self):
+        with patch("shared.rate_limit.time") as mock_time:
+            mock_time.monotonic.return_value = 1000.0
+            limiter = KeyedRateLimiter(rate=0.01, burst=1)
+            assert limiter.consume("10.0.0.1") is True
+
+            mock_time.monotonic.return_value = 1000.0 + PRUNE_INTERVAL_SECONDS
+            assert limiter.consume("10.0.0.2") is True
+            assert limiter.consume("10.0.0.1") is False

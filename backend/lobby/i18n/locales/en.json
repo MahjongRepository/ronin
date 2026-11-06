@@ -10,6 +10,7 @@
     "auth.field.confirm_password": "Confirm password",
     "auth.field.password": "Password",
     "auth.field.username": "Username",
+    "auth.form.guest_rate_limited": "Too many guest logins from your network. Try again in a few minutes.",
     "auth.form.passwords_mismatch": "Passwords do not match.",
     "auth.form.session_expired": "Your session expired. Please try again.",
     "auth.login.guest": "Play as guest",

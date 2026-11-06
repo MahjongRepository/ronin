@@ -60,6 +60,8 @@ from lobby.views import (
     tenhou_replay,
 )
 from lobby.views.auth_handlers import (
+    GUEST_LOGIN_BURST,
+    GUEST_LOGIN_REFILL_PER_SECOND,
     guest_login,
     login,
     login_page,
@@ -76,6 +78,7 @@ from shared.auth.settings import AuthSettings
 from shared.build_info import APP_VERSION, GIT_COMMIT, RELEASES_URL
 from shared.db import Database, SqliteGameRepository, SqlitePlayerRepository, SqliteSessionRepository
 from shared.logging import setup_logging
+from shared.rate_limit import KeyedRateLimiter
 
 logger = structlog.get_logger()
 
@@ -263,6 +266,7 @@ def create_app(  # noqa: PLR0913
 
     app.state.game_client = game_client
     app.state.translator = translator
+    app.state.guest_login_limiter = KeyedRateLimiter(rate=GUEST_LOGIN_REFILL_PER_SECOND, burst=GUEST_LOGIN_BURST)
     _attach_state(
         app,
         settings=settings,
