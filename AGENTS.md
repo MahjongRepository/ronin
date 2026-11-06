@@ -66,7 +66,8 @@ The `Makefile` lists the targets; the non-obvious ones:
 * `make profile-games` — the same run, fixed at 48 games on 12 tables, with logging at production's
   INFO level and the game server sampling its own Python stacks per 10 ms of CPU time
   (`bin/profile_game_server.py`), then those samples by layer and function, plus its CPU-seconds per
-  game and CPU µs per handled and per outbound message (from `/status` totals). The sampler runs
+  game, CPU µs per handled and per outbound message (from `/status` totals) and the share of its CPU
+  spent in garbage collection (timed by `gc.callbacks`). The sampler runs
   in-process because py-spy, pausing the server per sample, stalled it past the health check in most
   runs. It points at where real games spend the server's CPU;
   `make profile` measures engine changes.

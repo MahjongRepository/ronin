@@ -301,6 +301,19 @@ server_cpu_ticks() {
     awk '{print $14 + $15}' "/proc/$GAME_SERVER_PID/stat"
 }
 
+print_gc_share() {
+    awk '{
+        gsub(/[",{} ]/, "")
+        if (split($0, field, ":") == 2) value[field[1]] = field[2]
+    } END {
+        if (!("gc_seconds" in value) || !("process_cpu_seconds" in value) || !("collections" in value)) exit 1
+        gc = value["gc_seconds"]
+        cpu = value["process_cpu_seconds"]
+        printf "  game server GC: %.2fs of %.2fs CPU, %.1f%%, over %d collection(s)\n",
+            gc, cpu, 100 * gc / (cpu > 0 ? cpu : 1), value["collections"]
+    }' "$PROFILE_FILE.gc.json"
+}
+
 server_status_counter() {
     local key="$1"
     local value
@@ -642,6 +655,10 @@ if [[ $PROFILE == 1 ]]; then
     echo ""
     if ! (cd "$PROJECT_ROOT" && uv run --project backend python bin/sampled_profile.py "$PROFILE_FILE"); then
         echo "the game server profile is invalid"
+        exit 1
+    fi
+    if ! print_gc_share; then
+        echo "the game server GC readout is invalid"
         exit 1
     fi
 fi
