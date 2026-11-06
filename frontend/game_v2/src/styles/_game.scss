@@ -244,7 +244,8 @@ section {
 }
 
 .game-menu__language-option {
-    min-height: 32px;
+    min-width: 40px;
+    min-height: 40px;
     margin: 0;
     padding: 0.2rem 0.45rem;
     font-size: 0.8rem;
@@ -252,6 +253,8 @@ section {
     &[aria-current="true"] {
         color: var(--ronin-accent);
         border-color: var(--ronin-accent);
+        text-decoration: underline 2px;
+        text-underline-offset: 0.25em;
     }
 }
 

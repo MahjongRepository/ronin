@@ -87,10 +87,6 @@ function LanguageRow(onLanguage: (locale: Locale) => void): TemplateResult {
     </div>`;
 }
 
-/**
- * The menu's items: the sound switch, then the session's status where the page has one. A backdrop under them closes
- * the menu on a tap anywhere else, which takes no other action.
- */
 function SettingsPanel(props: GameMenuProps): TemplateResult {
     const { onClose, onLanguage, onToggleSound, soundOn, status } = props;
     return html`<div class="game-menu__backdrop" aria-hidden="true" @click=${onClose}></div>
