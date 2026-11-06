@@ -33,6 +33,17 @@
         align-items: center;
         min-height: var(--ronin-touch-target);
     }
+
+    a {
+        color: inherit;
+        text-decoration: underline;
+        text-decoration-color: var(--pico-muted-border-color);
+        text-underline-offset: 0.25em;
+
+        &:hover {
+            color: var(--pico-primary);
+        }
+    }
 }
 
 .footer-lang {

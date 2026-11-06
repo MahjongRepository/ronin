@@ -277,6 +277,18 @@ def test_login_page__when_production__should_omit_storybook_links(
         assert "footer-dev-links" not in response.text
 
 
+def test_footer__when_production__should_link_version_to_its_github_release(
+    make_app: Callable[..., Starlette],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr("lobby.server.app.APP_VERSION", "1.0.0")
+    with open_client(make_app()) as client:
+        response = client.get("/login")
+        footer = response.text.split("<footer", 1)[1]
+        assert '<a href="https://github.com/MahjongRepository/ronin/releases/tag/1.0.0"' in footer
+        assert ">v1.0.0</a>" in footer
+
+
 @pytest.mark.parametrize("path", ["/storybook", "/play/storybook", "/play/storybook/board"])
 def test_storybook_page__when_production__should_return_not_found(
     make_app: Callable[..., Starlette],

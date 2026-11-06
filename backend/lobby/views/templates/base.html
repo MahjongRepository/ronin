@@ -48,7 +48,7 @@
     </main>
     <footer class="container">
         <div class="footer-content">
-            <small class="footer-meta">&copy; {{ current_year }} Ronin &middot; v{{ app_version | default('dev') }}</small>
+            <small class="footer-meta">&copy; {{ current_year }} Ronin &middot; {% if release_url %}<a href="{{ release_url }}" target="_blank" rel="noopener">v{{ app_version }}</a>{% else %}v{{ app_version | default('dev') }}{% endif %}</small>
             <form method="POST" action="/lang" class="footer-lang" aria-label="{{ t('footer.language_label') }}" data-i18n-aria-label="footer.language_label">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="next" value="{{ current_page }}">

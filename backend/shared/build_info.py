@@ -27,4 +27,5 @@ def _git_short_sha() -> str:
 _build_info = BuildInfo()
 
 APP_VERSION: str = _build_info.app_version
+RELEASES_URL = "https://github.com/MahjongRepository/ronin/releases/tag"
 GIT_COMMIT: str = _build_info.git_commit or _git_short_sha()

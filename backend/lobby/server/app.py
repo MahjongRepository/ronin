@@ -73,7 +73,7 @@ from lobby.views.locale_handlers import set_language
 from shared.auth import AuthService, AuthSessionStore
 from shared.auth.password import BcryptHasher
 from shared.auth.settings import AuthSettings
-from shared.build_info import APP_VERSION, GIT_COMMIT
+from shared.build_info import APP_VERSION, GIT_COMMIT, RELEASES_URL
 from shared.db import Database, SqliteGameRepository, SqlitePlayerRepository
 from shared.logging import setup_logging
 
@@ -342,6 +342,7 @@ def _attach_state(  # noqa: PLR0913
         env_globals["lobby_js_url"] = urls.get("lobby_js", "")
 
     env_globals["app_version"] = APP_VERSION
+    env_globals["release_url"] = "" if dev_mode else f"{RELEASES_URL}/{APP_VERSION}"
     env_globals["git_commit"] = GIT_COMMIT
     env_globals["current_year"] = datetime.now(tz=UTC).year
     env_globals["dev_mode"] = dev_mode
