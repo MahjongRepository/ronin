@@ -46,6 +46,15 @@ def closed_waits_mask(closed_34: list[int]) -> int:
     return necessary if replacement_number == 1 else 0
 
 
+def is_complete_closed(closed_34: list[int]) -> bool:
+    """
+    Return whether a drawn closed part (3n+2 tiles) is complete: n sets and a pair, chiitoitsu or kokushi.
+
+    Judges the closed part alone, which decides a hand's shape since melds are complete sets.
+    """
+    return calculate_replacement_number(closed_34, PlayerCount.FOUR) == 0
+
+
 def held_out_mask(closed_34: list[int], melds: tuple[FrozenMeld, ...] | list[FrozenMeld]) -> int:
     """
     Return the tile types whose 4 copies are all in the closed part plus the player's own melds, as a bitmask.

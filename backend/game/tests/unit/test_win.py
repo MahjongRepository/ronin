@@ -12,8 +12,8 @@ from game.logic.tiles import tile_to_34
 from game.logic.turn import process_discard_phase
 from game.logic.win import (
     apply_temporary_furiten,
-    can_call_ron,
     can_declare_tsumo,
+    can_ron_on_completing_tile,
     check_tsumo,
     check_tsumo_with_tiles,
     get_waiting_tiles,
@@ -61,9 +61,8 @@ class TestCheckTsumoWithTiles:
         )
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         ron_tile = TilesConverter.string_to_136_array(sou="4")[0]
-        tiles_with_ron = [*closed_tiles, ron_tile]
 
-        assert check_tsumo_with_tiles(player, tiles_with_ron) is True
+        assert check_tsumo_with_tiles([*player.tiles, ron_tile]) is True
 
 
 class TestGetWaitingTiles:
@@ -554,9 +553,11 @@ class TestShibariDoraOnly:
         player, round_state = _dealer_with_one_man_pon(
             _YAKULESS_OPEN_HAND_WAITING_ON_FIVE_MAN, seat_3_discard_after_pon=_FIVE_MAN_WIN_TILE
         )
-        assert check_tsumo_with_tiles(player, [*player.tiles, _FIVE_MAN_WIN_TILE]) is True
+        assert check_tsumo_with_tiles([*player.tiles, _FIVE_MAN_WIN_TILE]) is True
 
         assert (
-            can_call_ron(player, discarded_tile=_FIVE_MAN_WIN_TILE, round_state=round_state, settings=GameSettings())
+            can_ron_on_completing_tile(
+                player, discarded_tile=_FIVE_MAN_WIN_TILE, round_state=round_state, settings=GameSettings()
+            )
             is False
         )

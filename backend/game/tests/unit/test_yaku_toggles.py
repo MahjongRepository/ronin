@@ -6,7 +6,7 @@ from game.logic.scoring import ScoringContext, calculate_hand_value
 from game.logic.settings import GameSettings, RenhouValue
 from game.logic.state import Discard, MahjongPlayer
 from game.logic.state_utils import update_player
-from game.logic.win import can_call_ron, can_declare_tsumo, check_tsumo_with_tiles, is_renhou
+from game.logic.win import can_declare_tsumo, can_ron_on_completing_tile, check_tsumo_with_tiles, is_renhou
 from game.tests.conftest import create_dealt_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
 
@@ -88,11 +88,13 @@ class TestKuitanToggle:
         )
         round_state = create_dealt_game_state(players, current_player_seat=3).round_state
         tanyao_caller = round_state.players[1]
-        assert check_tsumo_with_tiles(tanyao_caller, [*tanyao_caller.tiles, five_sou_ron]) is True
+        assert check_tsumo_with_tiles([*tanyao_caller.tiles, five_sou_ron]) is True
 
         settings = GameSettings(has_kuitan=has_kuitan)
         assert (
-            can_call_ron(tanyao_caller, discarded_tile=five_sou_ron, round_state=round_state, settings=settings)
+            can_ron_on_completing_tile(
+                tanyao_caller, discarded_tile=five_sou_ron, round_state=round_state, settings=settings
+            )
             is can_ron
         )
 

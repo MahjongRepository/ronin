@@ -77,8 +77,8 @@ from game.logic.state_utils import (
 from game.logic.wall import clear_pending_dora
 from game.logic.win import (
     all_tiles_from_hand_and_melds,
-    can_call_ron,
     can_declare_tsumo,
+    can_ron_on_completing_tile,
     check_tsumo_with_tiles,
     is_chankan_possible,
     is_kokushi_chankan_possible,
@@ -135,31 +135,42 @@ def process_draw_phase(game_state: MahjongGameState) -> tuple[MahjongGameState, 
     return new_game_state, [create_draw_event(new_game_state, seat=current_seat, tile_id=drawn_tile)]
 
 
+def _find_completing_seats(round_state: MahjongRoundState, tile_id: int, discarder_seat: int) -> list[int]:
+    """
+    Find the seats, other than the discarder, whose hand the discarded tile completes, in seat order.
+    """
+    completing_seats = []
+    for seat in range(NUM_PLAYERS):
+        if seat == discarder_seat:
+            continue
+
+        player = round_state.players[seat]
+        if check_tsumo_with_tiles([*player.tiles, tile_id]):
+            completing_seats.append(seat)
+
+    return completing_seats
+
+
 def _apply_passed_tile_furiten(
     round_state: MahjongRoundState,
-    tile_id: int,
-    discarder_seat: int,
+    completing_seats: list[int],
     ron_callers: list[int],
 ) -> MahjongRoundState:
     """
     Make furiten every seat whose winning tile just passed without a ron offer.
 
-    A seat whose hand the discarded tile completes, but which cannot call ron on it (no yaku, or already furiten), is
-    temporarily furiten until its next discard; a riichi seat is riichi furiten for the rest of the hand. A ron caller
-    gets its furiten from its answer to the prompt instead (a pass or a meld declines the ron).
+    A completing seat that cannot call ron on the tile (no yaku, or already furiten) is temporarily furiten until its
+    next discard; a riichi seat is riichi furiten for the rest of the hand. A ron caller gets its furiten from its
+    answer to the prompt instead (a pass or a meld declines the ron).
 
     Returns new round state with updated furiten flags.
     """
     new_state = round_state
-    for seat in range(NUM_PLAYERS):
-        if seat == discarder_seat or seat in ron_callers:
+    for seat in completing_seats:
+        if seat in ron_callers:
             continue
 
-        player = new_state.players[seat]
-        if not check_tsumo_with_tiles(player, [*player.tiles, tile_id]):
-            continue
-
-        if player.is_riichi:
+        if new_state.players[seat].is_riichi:
             new_state = update_player(new_state, seat, is_riichi_furiten=True)
         else:
             new_state = update_player(new_state, seat, is_temporary_furiten=True)
@@ -364,9 +375,16 @@ def process_discard_phase(
         new_game_state = update_game_with_round(game_state, new_round_state)
         return _abort_round(new_game_state, draw_type=AbortiveDrawType.FOUR_WINDS, events=events)
 
-    ron_callers = _find_ron_callers(new_round_state, tile_id=tile_id, discarder_seat=current_seat, settings=settings)
+    completing_seats = _find_completing_seats(new_round_state, tile_id=tile_id, discarder_seat=current_seat)
+    ron_callers = _find_ron_callers(
+        new_round_state,
+        tile_id=tile_id,
+        discarder_seat=current_seat,
+        completing_seats=completing_seats,
+        settings=settings,
+    )
     new_round_state = _apply_passed_tile_furiten(
-        new_round_state, tile_id=tile_id, discarder_seat=current_seat, ron_callers=ron_callers
+        new_round_state, completing_seats=completing_seats, ron_callers=ron_callers
     )
     new_game_state = update_game_with_round(game_state, new_round_state)
 
@@ -393,20 +411,18 @@ def _find_ron_callers(
     round_state: MahjongRoundState,
     tile_id: int,
     discarder_seat: int,
+    completing_seats: list[int],
     settings: GameSettings,
 ) -> list[int]:
     """
-    Find all players who can call ron on the discarded tile.
+    Find the completing seats (_find_completing_seats) that can call ron on the discarded tile.
 
     Returns list of seat numbers sorted by priority (counter-clockwise from discarder).
     """
     ron_callers = []
-    for seat in range(NUM_PLAYERS):
-        if seat == discarder_seat:
-            continue
-
+    for seat in completing_seats:
         player = round_state.players[seat]
-        if can_call_ron(player, discarded_tile=tile_id, round_state=round_state, settings=settings):
+        if can_ron_on_completing_tile(player, discarded_tile=tile_id, round_state=round_state, settings=settings):
             ron_callers.append(seat)
 
     # sort by priority: counter-clockwise from discarder (closer = higher priority)

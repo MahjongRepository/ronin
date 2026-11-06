@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from mahjong.agari import Agari
 from mahjong.hand_calculating.hand import HandCalculator
 from mahjong.hand_calculating.hand_config import HandConfig
 
-from game.logic.meld_wrapper import FrozenMeld, frozen_melds_to_melds
+from game.logic.meld_wrapper import frozen_melds_to_melds
 from game.logic.settings import NUM_PLAYERS, GameSettings, RenhouValue, build_optional_rules
-from game.logic.shanten import mask_to_tile_types, waits_mask
+from game.logic.shanten import is_complete_closed, mask_to_tile_types, waits_mask
 from game.logic.state import seat_to_wind
 from game.logic.state_utils import update_player
 from game.logic.tiles import NUM_TILE_TYPES, WAITING_HAND_REMAINDER, WINDS_34, hand_to_34_array, tile_to_34
@@ -31,8 +30,7 @@ def all_player_tiles(player: MahjongPlayer) -> list[int]:
     """
     Build a complete 136-format tile list from closed hand tiles and meld tiles.
 
-    The mahjong library expects ALL tiles (closed + open melds) to be passed to HandCalculator.estimate_hand_value and
-    Agari.is_agari.
+    The mahjong library expects ALL tiles (closed + open melds) to be passed to HandCalculator.estimate_hand_value.
     """
     return all_tiles_from_hand_and_melds(player.tiles, player.melds)
 
@@ -53,21 +51,10 @@ def check_tsumo(player: MahjongPlayer) -> bool:
     """
     Check if the player's hand is a winning hand (agari).
 
-    Uses the mahjong library's Agari class to determine if the hand can form 4 melds + 1 pair (or special hands like
-    kokushi/chiitoitsu).
+    The closed tiles must form the rest of a complete hand beside the melds: 4 sets + 1 pair, or a special hand like
+    kokushi/chiitoitsu.
     """
-    # Build tiles_34 directly from closed hand + meld tiles, avoiding
-    # intermediate list creation and redundant hand_to_34_array validation.
-    tiles_34 = [0] * NUM_TILE_TYPES
-    for t in player.tiles:
-        tiles_34[t // 4] += 1
-
-    for meld in player.melds:
-        for t in meld.tiles:
-            tiles_34[t // 4] += 1
-
-    open_sets_34 = _melds_to_34_sets(player.melds)
-    return Agari.is_agari(tiles_34, open_sets_34)
+    return check_tsumo_with_tiles(player.tiles)
 
 
 def can_declare_tsumo(
@@ -126,17 +113,14 @@ def is_furiten(player: MahjongPlayer) -> bool:
     A player is furiten if any of their waiting tiles appears in their own discards. Furiten players can still win by
     tsumo but cannot win by ron.
     """
-    waiting_tiles = get_waiting_tiles(player)
-    if not waiting_tiles:
-        return False
+    return is_furiten_on_waits(player, get_waiting_tiles(player))
 
-    # check if any waiting tile is in player's discards
-    for discard in player.discards:
-        discard_34 = tile_to_34(discard.tile_id)
-        if discard_34 in waiting_tiles:
-            return True
 
-    return False
+def is_furiten_on_waits(player: MahjongPlayer, waiting_tiles: set[int]) -> bool:
+    """
+    Check discard furiten against waits already computed for the player (the tile_34 set get_waiting_tiles returns).
+    """
+    return any(tile_to_34(discard.tile_id) in waiting_tiles for discard in player.discards)
 
 
 def is_effective_furiten(player: MahjongPlayer) -> bool:
@@ -189,24 +173,6 @@ def _has_yaku_for_open_hand(
         config=config,
     )
     return result.error is None
-
-
-def _melds_to_34_sets(melds: tuple[FrozenMeld, ...]) -> list[list[int]] | None:
-    """
-    Convert melds to 34-format sets for agari check.
-
-    Returns a list of lists, where each inner list contains the tile_34 indices of the meld tiles. Returns None if no
-    melds.
-    """
-    if not melds:
-        return None
-
-    open_sets = []
-    for meld in melds:
-        meld_34 = [tile_to_34(t) for t in meld.tiles]
-        open_sets.append(meld_34)
-
-    return open_sets or None
 
 
 def is_haitei(round_state: MahjongRoundState) -> bool:
@@ -319,8 +285,7 @@ def _find_chankan_seats(
         if player.is_temporary_furiten:
             continue
 
-        # check permanent furiten (discarded a winning tile)
-        if is_furiten(player):
+        if is_furiten_on_waits(player, waiting):
             continue
 
         chankan_seats.append(seat)
@@ -371,27 +336,17 @@ def is_kokushi_chankan_possible(
     return _find_chankan_seats(round_state, caller_seat, kan_tile, extra_filter=is_kokushi_tenpai)
 
 
-def check_tsumo_with_tiles(player: MahjongPlayer, tiles: list[int]) -> bool:
+def check_tsumo_with_tiles(tiles: list[int] | tuple[int, ...]) -> bool:
     """
-    Check if the given tiles form a winning hand (agari).
+    Check if the given closed tiles complete a hand beside the player's melds (agari).
 
-    Uses a local tile list instead of mutating player.tiles. Used for ron/tsumo checks.
+    Takes a local tile list (closed hand plus the win tile) instead of mutating player.tiles. Melds are complete sets,
+    so the closed tiles alone decide the shape.
     """
-    # Build tiles_34 directly from tiles (closed hand + win tile) + meld tiles,
-    # avoiding intermediate list creation and redundant hand_to_34_array validation.
-    tiles_34 = [0] * NUM_TILE_TYPES
-    for t in tiles:
-        tiles_34[t // 4] += 1
-
-    for meld in player.melds:
-        for t in meld.tiles:
-            tiles_34[t // 4] += 1
-
-    open_sets_34 = _melds_to_34_sets(player.melds)
-    return Agari.is_agari(tiles_34, open_sets_34)
+    return is_complete_closed(hand_to_34_array(tiles))
 
 
-def can_call_ron(
+def can_ron_on_completing_tile(
     player: MahjongPlayer,
     *,
     discarded_tile: int,
@@ -399,44 +354,29 @@ def can_call_ron(
     settings: GameSettings,
 ) -> bool:
     """
-    Check if player can call ron on a discarded tile.
+    Check if player may call ron on a discarded tile already known to complete their hand (check_tsumo_with_tiles).
 
-    Uses local tile copies. Requirements:
-    - Hand must win with the discarded tile
+    Requirements:
     - Player must not be in furiten
-    - For open hands, must have at least one yaku
+    - For open hands, and closed hands without riichi, must have at least one yaku
     """
-    # create local tile list with the discarded tile
-    tiles_with_win = [*player.tiles, discarded_tile]
-
-    # check if hand wins with local tiles
-    is_winning = check_tsumo_with_tiles(player, tiles_with_win)
-    if not is_winning:
-        return False
-
-    # check riichi furiten (permanent for the hand)
     if player.is_riichi_furiten:
         return False
 
-    # check temporary furiten (passed on ron this go-around)
     if player.is_temporary_furiten:
         return False
 
-    # check permanent furiten (discarded a winning tile)
     if is_furiten(player):
         return False
 
-    # for closed hands with riichi, ron is always valid (riichi is a yaku)
     if not player.has_open_melds() and player.is_riichi:
         return True
 
-    # for all other cases (open hands or closed non-riichi), verify yaku exists
-    # use local tile list for yaku check
     return _has_yaku_for_ron_with_tiles(
         player,
         round_state,
         win_tile=discarded_tile,
-        tiles=tiles_with_win,
+        tiles=[*player.tiles, discarded_tile],
         settings=settings,
     )
 
