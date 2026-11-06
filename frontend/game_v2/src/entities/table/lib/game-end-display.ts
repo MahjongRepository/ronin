@@ -3,6 +3,7 @@ import {
     type PlayerState,
     type TableState,
 } from "@/entities/table/model/types";
+import { type MessageKey, t } from "@/shared/i18n";
 import { GAME_END_CAUSE, type GameEndCause } from "@/shared/protocol";
 
 import { gameTypeName } from "./game-start-display";
@@ -13,7 +14,6 @@ export type ResultTone = "positive" | "negative" | "even";
 
 /** A seat at the game's end, the seats in placement order. */
 export interface GameEndSeat {
-    /** "1st" through "4th". */
     readonly placement: string;
     readonly name: string;
     /** The final score, the leftover riichi sticks included. */
@@ -28,7 +28,6 @@ export interface GameEndSeat {
 /** How the game came to its end, always as a completed game: the rule the server's engine ended it by, and where. */
 export interface GameEnding {
     readonly kind: GameEndCause;
-    /** "Completed by tobi in East 3", "Completed after South 4". */
     readonly text: string;
 }
 
@@ -40,11 +39,20 @@ export interface GameEndDisplayState {
     readonly gameType: string | null;
     readonly ending: GameEnding;
     readonly seats: readonly GameEndSeat[];
-    /** The riichi sticks left at the end: "1 leftover riichi stick: +1,500 to Bob"; null when none were left. */
     readonly leftover: string | null;
 }
 
-const PLACEMENTS = ["1st", "2nd", "3rd", "4th"] as const;
+const PLACEMENTS: readonly MessageKey[] = [
+    "game.summary.rank_1",
+    "game.summary.rank_2",
+    "game.summary.rank_3",
+    "game.summary.rank_4",
+];
+
+function placementName(index: number): string {
+    const key = PLACEMENTS[index];
+    return key === undefined ? t("game.summary.rank_other", { rank: index + 1 }) : t(key);
+}
 
 function tone(value: number): ResultTone {
     if (value > 0) {
@@ -66,7 +74,7 @@ function playerAt(players: readonly PlayerState[], seat: number): PlayerState | 
 }
 
 function nameAt(players: readonly PlayerState[], seat: number): string {
-    return playerAt(players, seat)?.name ?? `Seat ${seat}`;
+    return playerAt(players, seat)?.name ?? t("game.seat.fallback_name", { seat });
 }
 
 /** The sticks left at the game's end: what they paid the winner, or that the rules award them to nobody. */
@@ -75,32 +83,35 @@ function leftoverText(end: GameEndResult, players: readonly PlayerState[]): stri
     if (leftoverSticks === 0 && leftoverRiichiBonus === 0) {
         return null;
     }
-    const sticks = `${leftoverSticks} leftover riichi stick${leftoverSticks === 1 ? "" : "s"}`;
     if (leftoverRiichiBonus === 0) {
-        return `${sticks}, awarded to nobody`;
+        return t("game.summary.leftover_unpaid", { count: leftoverSticks });
     }
-    return `${sticks}: ${formatDelta(leftoverRiichiBonus)} to ${nameAt(players, winnerSeat)}`;
+    return t("game.summary.leftover_paid", {
+        count: leftoverSticks,
+        name: nameAt(players, winnerSeat),
+        points: formatDelta(leftoverRiichiBonus),
+    });
 }
 
 /** Each cause's line, with the last round where it is known and without it where it is not. */
 const ENDING_TEXTS: Readonly<
-    Record<GameEndCause, { readonly at: (round: string) => string; readonly bare: string }>
+    Record<GameEndCause, { readonly withRound: MessageKey; readonly without: MessageKey }>
 > = {
     [GAME_END_CAUSE.EXTENSION_LIMIT]: {
-        at: (round) => `Completed after ${round}, the extension's last round`,
-        bare: "Completed at the extension's last round",
+        withRound: "game.ending.extension_limit_in_round",
+        without: "game.ending.extension_limit",
     },
     [GAME_END_CAUSE.LENGTH]: {
-        at: (round) => `Completed after ${round}`,
-        bare: "Completed",
+        withRound: "game.ending.length_in_round",
+        without: "game.ending.length",
     },
     [GAME_END_CAUSE.TARGET_REACHED]: {
-        at: (round) => `Completed in ${round}, the extension's target score reached`,
-        bare: "Completed: the extension's target score reached",
+        withRound: "game.ending.target_reached_in_round",
+        without: "game.ending.target_reached",
     },
     [GAME_END_CAUSE.TOBI]: {
-        at: (round) => `Completed by tobi in ${round}`,
-        bare: "Completed by tobi",
+        withRound: "game.ending.tobi_in_round",
+        without: "game.ending.tobi",
     },
 };
 
@@ -111,10 +122,10 @@ const ENDING_TEXTS: Readonly<
 function gameEnding(table: TableState, end: GameEndResult): GameEnding {
     const texts = ENDING_TEXTS[end.endCause];
     if (!table.inStep) {
-        return { kind: end.endCause, text: texts.bare };
+        return { kind: end.endCause, text: t(texts.without) };
     }
     const round = roundName(table.roundWind, table.roundInWind);
-    return { kind: end.endCause, text: texts.at(round) };
+    return { kind: end.endCause, text: t(texts.withRound, { round }) };
 }
 
 /**
@@ -138,7 +149,7 @@ export function gameEndDisplay(
             isAiPlayer: playerAt(table.players, standing.seat)?.isAiPlayer ?? false,
             isViewer: standing.seat === viewerSeat,
             name: nameAt(table.players, standing.seat),
-            placement: PLACEMENTS[index] ?? `${index + 1}th`,
+            placement: placementName(index),
             result: formatResult(standing.finalScore),
             resultTone: tone(standing.finalScore),
             score: formatPoints(standing.score),

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 
 import { loadEngineReplay } from "#tests/fixtures/replays";
 import { type GameEndResult, type TableState } from "@/entities/table";
@@ -30,6 +30,10 @@ function shownEnd(table: TableState, viewerSeat: number | null = null): GameEndD
 }
 
 describe("gameEndDisplay", () => {
+    afterEach(() => {
+        document.documentElement.lang = "";
+    });
+
     test("ranks the seats as the server placed them, with the score, the uma/oka result and the viewer", () => {
         const display = shownEnd(endTable("leftover_riichi"), 1);
 
@@ -51,6 +55,20 @@ describe("gameEndDisplay", () => {
         const unpaid = { ...table, gameEndResult: { ...endOf(table), leftoverRiichiBonus: 0 } };
 
         expect(shownEnd(unpaid).leftover).toBe("1 leftover riichi stick, awarded to nobody");
+        document.documentElement.lang = "ru";
+        expect(
+            [1, 2, 5].map(
+                (leftoverSticks) =>
+                    shownEnd({
+                        ...unpaid,
+                        gameEndResult: { ...unpaid.gameEndResult, leftoverSticks },
+                    }).leftover,
+            ),
+        ).toEqual([
+            "1 оставшаяся ставка риичи никому не достаётся",
+            "2 оставшиеся ставки риичи никому не достаются",
+            "5 оставшихся ставок риичи никому не достаются",
+        ]);
     });
 
     test("says the game completed by the cause the server's engine names, in its last round", () => {

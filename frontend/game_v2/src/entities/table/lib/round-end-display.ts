@@ -22,7 +22,14 @@ import {
     meldTiles,
     tile136toString,
 } from "@/entities/tile";
-import { DORA_YAKU_ID, ROUND_RESULT_TYPE, seatDistance } from "@/shared/protocol";
+import { type MessageKey, formatList, formatNumber, t } from "@/shared/i18n";
+import {
+    DORA_YAKU_ID,
+    PAO_SHARE,
+    type PaoShare,
+    ROUND_RESULT_TYPE,
+    seatDistance,
+} from "@/shared/protocol";
 
 const DORA_YAKU_IDS = new Set<number>(Object.values(DORA_YAKU_ID));
 
@@ -36,10 +43,6 @@ export interface ResultYakuLine {
     readonly name: string;
     /** Its han; null for a yakuman yaku, which han do not price. */
     readonly han: number | null;
-    /**
-     * A yakuman yaku's worth when it counts more than once ("Double Yakuman"); null for a single one, which the
-     * limit already names, and for a yaku priced in han.
-     */
     readonly yakuman: string | null;
     /** A dora, red five or ura dora line, listed after the yaku. */
     readonly isDora: boolean;
@@ -62,10 +65,6 @@ export interface WinPageDisplay {
     /** Tsumo, Ron or Double ron. */
     readonly title: string;
     readonly winnerName: string;
-    /**
-     * Whom a ron took its tile from, null for a tsumo: "from Bob", or "robbing Bob's kan" for a chankan, so a robbed kan
-     * reads as a robbed attempt.
-     */
     readonly from: string | null;
     readonly hand: ResultHandDisplay;
     readonly winningTile: HandTile;
@@ -75,7 +74,6 @@ export interface WinPageDisplay {
     /** The hand's value alone, without honba or riichi sticks. */
     readonly points: number;
     readonly limit: string | null;
-    /** "5 han 30 fu"; null for a yakuman, which han and fu do not price. */
     readonly hanFu: string | null;
     readonly doraIndicators: readonly TileFace[];
     readonly uraIndicators: readonly TileFace[];
@@ -119,13 +117,14 @@ interface SeatNames {
 
 function seatNames(players: readonly PlayerState[], dealerSeat: number): SeatNames {
     return {
-        name: (seat) => players.find((p) => p.seat === seat)?.name ?? `Seat ${seat}`,
+        name: (seat) =>
+            players.find((p) => p.seat === seat)?.name ?? t("game.seat.fallback_name", { seat }),
         wind: (seat) => windName(seatDistance(dealerSeat, seat)),
     };
 }
 
 export function formatPoints(points: number): string {
-    const digits = Math.abs(points).toLocaleString("en-US");
+    const digits = formatNumber(Math.abs(points));
     return points < 0 ? `−${digits}` : digits;
 }
 
@@ -180,9 +179,9 @@ function yakuLines(winner: WinnerResult): ResultYakuLine[] {
             };
         });
     const dora = [
-        { han: winner.doraHan.dora, isDora: true, name: "Dora", yakuman: null },
-        { han: winner.doraHan.aka, isDora: true, name: "Red Five", yakuman: null },
-        { han: winner.doraHan.ura, isDora: true, name: "Ura Dora", yakuman: null },
+        { han: winner.doraHan.dora, isDora: true, name: t("yaku.120"), yakuman: null },
+        { han: winner.doraHan.aka, isDora: true, name: t("yaku.121"), yakuman: null },
+        { han: winner.doraHan.ura, isDora: true, name: t("yaku.122"), yakuman: null },
     ].filter((entry) => entry.han > 0);
     return [...yaku, ...dora];
 }
@@ -192,19 +191,19 @@ function hanFuLabel(winner: WinnerResult): string | null {
     if (isYakumanHand(winner.handResult)) {
         return null;
     }
-    return fu > 0 ? `${han} han ${fu} fu` : `${han} han`;
+    return fu > 0 ? t("game.result.fu_han", { fu, han }) : t("game.result.han", { han });
 }
 
 function winTitle(result: RoundEndResult): string {
     switch (result.resultType) {
         case ROUND_RESULT_TYPE.TSUMO: {
-            return "Tsumo";
+            return t("game.call.tsumo");
         }
         case ROUND_RESULT_TYPE.DOUBLE_RON: {
-            return "Double ron";
+            return t("game.result.double_ron");
         }
         default: {
-            return "Ron";
+            return t("game.call.ron");
         }
     }
 }
@@ -214,10 +213,24 @@ function headBumpNote(result: RoundEndResult, names: SeatNames): string | null {
     if (headBumpedSeats.length === 0) {
         return null;
     }
-    const won = winners.map((winner) => names.name(winner.seat)).join(" and ");
-    const bumped = headBumpedSeats.map((seat) => `${names.name(seat)}'s`).join(" and ");
-    return `${won} won over ${bumped} ron (head bump)`;
+    return t("game.result.head_bump", {
+        bumped: formatList(headBumpedSeats.map(names.name)),
+        winners: formatList(winners.map((winner) => names.name(winner.seat))),
+    });
 }
+
+const PAO_NOTES: Readonly<
+    Record<PaoShare, { readonly withHonba: MessageKey; readonly withoutHonba: MessageKey }>
+> = {
+    [PAO_SHARE.ALL]: {
+        withHonba: "game.result.pao_all_honba",
+        withoutHonba: "game.result.pao_all",
+    },
+    [PAO_SHARE.HALF]: {
+        withHonba: "game.result.pao_half_honba",
+        withoutHonba: "game.result.pao_half",
+    },
+};
 
 /**
  * What the seat liable (pao) for a winner's yakuman pays, worded from the server's liability: the yakuman it covers, all
@@ -228,19 +241,22 @@ function paoNote(result: RoundEndResult, winner: WinnerResult, names: SeatNames)
     if (pao === null) {
         return null;
     }
-    const liable = names.name(pao.seat);
+    const name = names.name(pao.seat);
     if (result.loserSeat === pao.seat) {
-        return `Pao: ${liable} is liable and dealt in, so pays it all`;
+        return t("game.result.pao_dealt_in", { name });
     }
-    const covered = pao.yakuIds.map(yakuName).join(" and ");
-    const honba = pao.paysHonba ? " and the honba" : "";
-    return `Pao: ${liable} is liable for ${covered} and pays ${pao.share} of it${honba}`;
+    const key = PAO_NOTES[pao.share][pao.paysHonba ? "withHonba" : "withoutHonba"];
+    return t(key, { name, yaku: formatList(pao.yakuIds.map(yakuName)) });
 }
 
 function winNotes(result: RoundEndResult, winner: WinnerResult, names: SeatNames): string[] {
     const notes = [
-        winner.honbaBonus > 0 ? `Honba ${formatDelta(winner.honbaBonus)}` : null,
-        winner.riichiSticksCollected > 0 ? `Riichi ${formatDelta(winner.riichiBonus)}` : null,
+        winner.honbaBonus > 0
+            ? t("game.result.honba_bonus", { points: formatDelta(winner.honbaBonus) })
+            : null,
+        winner.riichiSticksCollected > 0
+            ? t("game.result.riichi_bonus", { points: formatDelta(winner.riichiBonus) })
+            : null,
         paoNote(result, winner, names),
         headBumpNote(result, names),
     ];
@@ -251,8 +267,10 @@ function fromPhrase(result: RoundEndResult, names: SeatNames): string | null {
     if (result.loserSeat === null) {
         return null;
     }
-    const loser = names.name(result.loserSeat);
-    return result.kanRobbed ? `robbing ${loser}'s kan` : `from ${loser}`;
+    const name = names.name(result.loserSeat);
+    return result.kanRobbed
+        ? t("game.result.robbed_kan", { name })
+        : t("game.result.from", { name });
 }
 
 function winPage(
@@ -274,30 +292,35 @@ function winPage(
         uraIndicators: winner.uraDoraIndicators.map((tile) => tile136toString(tile, hasAkadora)),
         winnerName: names.name(winner.seat),
         winningTile: handTile(winner.winningTile, hasAkadora),
-        winningTileLabel: result.resultType === ROUND_RESULT_TYPE.TSUMO ? "Tsumo" : "Ron",
+        winningTileLabel:
+            result.resultType === ROUND_RESULT_TYPE.TSUMO
+                ? t("game.call.tsumo")
+                : t("game.call.ron"),
         yaku: yakuLines(winner),
     };
 }
 
 function drawSubtitle(draw: DrawResult, names: SeatNames): string | null {
     if (draw.nagashiSeats.length > 0) {
-        return `by ${draw.nagashiSeats.map(names.name).join(", ")}`;
+        return t("game.result.nagashi_by", {
+            names: formatList(draw.nagashiSeats.map(names.name)),
+        });
     }
     if (draw.declarerSeat !== null) {
-        return `declared by ${names.name(draw.declarerSeat)}`;
+        return t("game.result.declared_by", { name: names.name(draw.declarerSeat) });
     }
     if (draw.ronSeats.length > 0) {
-        return `ron called by ${draw.ronSeats.map(names.name).join(", ")}`;
+        return t("game.result.ron_called_by", { names: formatList(draw.ronSeats.map(names.name)) });
     }
-    return isAbortiveDraw(draw.kind) ? "Abortive draw" : evenDrawSubtitle(draw);
+    return isAbortiveDraw(draw.kind) ? t("draw.abortive") : evenDrawSubtitle(draw);
 }
 
 /** An exhaustive draw where every seat or none was tenpai, which moves no points, says so rather than nothing. */
 function evenDrawSubtitle(draw: DrawResult): string | null {
     if (draw.tenpaiSeats.length === 0) {
-        return "All noten: no payments";
+        return t("game.result.all_noten");
     }
-    return draw.notenSeats.length === 0 ? "All tenpai: no payments" : null;
+    return draw.notenSeats.length === 0 ? t("game.result.all_tenpai") : null;
 }
 
 function tenpaiHand(
@@ -329,7 +352,7 @@ function drawPage(draw: DrawResult, names: SeatNames, hasAkadora: boolean): Draw
 }
 
 function winTag(winner: WinnerResult | undefined, seat: number): string | null {
-    return winner !== undefined && winner.pao?.seat === seat ? "Pao" : null;
+    return winner !== undefined && winner.pao?.seat === seat ? t("game.state.pao") : null;
 }
 
 function drawTag(draw: DrawResult, seat: number): string | null {
@@ -337,9 +360,9 @@ function drawTag(draw: DrawResult, seat: number): string | null {
         return null;
     }
     if (draw.nagashiSeats.includes(seat)) {
-        return "Nagashi";
+        return t("game.state.nagashi");
     }
-    return draw.tenpaiSeats.includes(seat) ? "Tenpai" : "Noten";
+    return draw.tenpaiSeats.includes(seat) ? t("game.state.tenpai") : t("game.state.noten");
 }
 
 /**

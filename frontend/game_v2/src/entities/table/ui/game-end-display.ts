@@ -1,6 +1,7 @@
 import { type TemplateResult, html, nothing } from "lit-html";
 
 import { type GameEndDisplayState, type GameEndSeat } from "@/entities/table/lib/game-end-display";
+import { t } from "@/shared/i18n";
 
 import { type PanelAction, PanelActions } from "./panel-actions";
 import { PlayerName } from "./player-name";
@@ -11,8 +12,8 @@ function SeatRow(seat: GameEndSeat): TemplateResult {
         <span class="seating__placement">${seat.placement}</span>
         ${PlayerName(seat.name, "seating__name")}
         <span class="seating__marks">
-            ${seat.isAiPlayer ? html`<span class="seating__mark">AI</span>` : nothing}
-            ${seat.isViewer ? html`<span class="seating__mark seating__mark--viewer">You</span>` : nothing}
+            ${seat.isAiPlayer ? html`<span class="seating__mark">${t("game.seat.ai_tag")}</span>` : nothing}
+            ${seat.isViewer ? html`<span class="seating__mark seating__mark--viewer">${t("game.seat.you")}</span>` : nothing}
         </span>
         <span class="seating__score">${seat.score}</span>
         <span class="seating__result seating__result--${seat.resultTone}">${seat.result}</span>
@@ -27,14 +28,18 @@ export function GameEndDisplay(
     display: GameEndDisplayState,
     actions: readonly PanelAction[],
 ): TemplateResult {
-    return html`<section class="seating seating--end" aria-label="Game over">
-        <h2 class="seating__title">${[display.gameType, "Game over"].filter(Boolean).join(" · ")}</h2>
+    const title =
+        display.gameType === null
+            ? t("game.summary.title")
+            : t("game.summary.title_with_type", { type: display.gameType });
+    return html`<section class="seating seating--end" aria-label=${t("game.summary.title")}>
+        <h2 class="seating__title">${title}</h2>
         <p class="seating__ending seating__ending--${display.ending.kind}">${display.ending.text}</p>
         <ol class="seating__seats">
             <li class="seating__seat seating__seat--head" aria-hidden="true">
                 <span></span><span></span><span></span>
-                <span class="seating__score">Score</span>
-                <span class="seating__result">Uma/oka</span>
+                <span class="seating__score">${t("game.summary.score")}</span>
+                <span class="seating__result">${t("game.summary.uma_oka")}</span>
             </li>
             ${display.seats.map(SeatRow)}
         </ol>

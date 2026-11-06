@@ -25,6 +25,7 @@ export {
     GAME_END_CAUSE,
     GAME_TYPE,
     DORA_YAKU_ID,
+    PAO_SHARE,
 } from "./constants";
 
 export type {
@@ -37,6 +38,7 @@ export type {
     SeatControlReason,
     GameEndCause,
     GameType,
+    PaoShare,
 } from "./constants";
 
 export { seatDistance, tileType, tileTypeCopies } from "./tiles";

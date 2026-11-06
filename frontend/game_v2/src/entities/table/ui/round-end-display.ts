@@ -10,6 +10,7 @@ import {
     formatPoints,
 } from "@/entities/table/lib/round-end-display";
 import { Hand, Meld, Tile, type TileFace } from "@/entities/tile";
+import { t } from "@/shared/i18n";
 
 import { PANEL_CONTROL_FOCUS_KEY } from "./focus";
 import { PlayerName } from "./player-name";
@@ -96,7 +97,7 @@ function PagerControls({
         <button
             class=${buttonClass}
             data-focus-key=${PANEL_CONTROL_FOCUS_KEY}
-            aria-label="Previous winner"
+            aria-label=${t("game.result.previous_winner")}
             ?disabled=${page === 0}
             @click=${() => onPage(page - 1)}
         >&lsaquo;</button>
@@ -104,7 +105,7 @@ function PagerControls({
         <button
             class=${buttonClass}
             data-focus-key=${PANEL_CONTROL_FOCUS_KEY}
-            aria-label="Next winner"
+            aria-label=${t("game.result.next_winner")}
             ?disabled=${page >= pageCount - 1}
             @click=${() => onPage(page + 1)}
         >&rsaquo;</button>
@@ -132,8 +133,8 @@ function Indicators(page: WinPageDisplay): TemplateResult | typeof nothing {
         return nothing;
     }
     return html`<div class="round-end-result__indicators">
-        <span class="round-end-result__label round-end-result__indicators-caption">Indicators</span>
-        ${IndicatorGroup("Dora", page.doraIndicators)} ${IndicatorGroup("Ura", page.uraIndicators)}
+        <span class="round-end-result__label round-end-result__indicators-caption">${t("game.result.indicators")}</span>
+        ${IndicatorGroup(t("yaku.120"), page.doraIndicators)} ${IndicatorGroup(t("game.result.ura"), page.uraIndicators)}
     </div>`;
 }
 
@@ -193,7 +194,7 @@ function NagashiRivers(page: DrawPageDisplay): TemplateResult | typeof nothing {
     return html`<ul class="round-end-result__rivers">
         ${page.rivers.map(
             (river) => html`<li class="round-end-result__river">
-                <span class="round-end-result__label">${river.name}'s river</span>
+                <span class="round-end-result__label">${t("game.result.river", { name: river.name })}</span>
                 <span class="round-end-result__river-tiles">${river.tiles.map(
                     (tile) =>
                         html`<span class=${tile.riichi === true ? "discard-tile-riichi" : "discard-tile"}
@@ -231,7 +232,7 @@ function DrawPage(props: RoundEndDisplayProps, page: DrawPageDisplay): TemplateR
     const { controls, display } = props;
     return html`<div class="round-end-result round-end-result--draw">
         <div class="round-end-result__head">
-            <span class="round-end-result__kind">Draw</span>
+            <span class="round-end-result__kind">${t("draw.generic")}</span>
             <span class="round-end-result__title">${page.title}</span>
             ${page.subtitle === null ? nothing : html`<span class="round-end-result__from">${page.subtitle}</span>`}
         </div>

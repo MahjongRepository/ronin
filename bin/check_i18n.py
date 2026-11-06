@@ -104,7 +104,14 @@ APPS = (
         source_suffixes=frozenset({".ts"}),
         dynamic_prefixes=("tile.spoken.", "yaku."),
         identical_keys=frozenset(
-            {"common.ok", "game.board.call", "game.seat.ai_tag", "round.unknown", "wind.short.unknown"}
+            {
+                "common.ok",
+                "game.board.call",
+                "game.seat.ai_tag",
+                "game.seating.heading",
+                "round.unknown",
+                "wind.short.unknown",
+            }
         ),
     ),
 )

@@ -1,11 +1,10 @@
-import { assert, describe, expect, test } from "vitest";
+import { afterEach, assert, describe, expect, test } from "vitest";
 
 import { loadEngineReplay } from "#tests/fixtures/replays";
 import {
     type DrawPageDisplay,
     type ResultHandDisplay,
     type RoundEndDisplayState,
-    type RoundEndResult,
     type TableState,
     type WinPageDisplay,
     roundEndDisplay,
@@ -44,9 +43,21 @@ function drawPage(table: TableState): DrawPageDisplay {
     return body;
 }
 
+function paoNotesWhen(loserSeat: number | null, pao: PaoLiability): readonly string[] {
+    const table = lastRoundEndTable("pao");
+    const result = table.roundEndResult;
+    assert(result !== null && result.winners[0] !== undefined);
+    const winners = [{ ...result.winners[0], pao }];
+    return winPage({ ...table, roundEndResult: { ...result, loserSeat, winners } }).notes;
+}
+
 function handFaces(hand: ResultHandDisplay): string[] {
     return hand.tiles.map((tile) => tile.face ?? "?");
 }
+
+afterEach(() => {
+    document.documentElement.lang = "";
+});
 
 describe("roundEndDisplay - a win", () => {
     test("a ron: who won from whom, the hand's value with its limit, the yaku with the dora last", () => {
@@ -65,7 +76,7 @@ describe("roundEndDisplay - a win", () => {
             ["Double Riichi", 2, false],
             ["Pinfu", 1, false],
             ["Ittsuu", 2, false],
-            ["Red Five", 1, true],
+            ["Aka Dora", 1, true],
         ]);
         expect(page.notes).toEqual(["Riichi +1,000"]);
     });
@@ -128,25 +139,20 @@ describe("roundEndDisplay - a win", () => {
     });
 
     test("pao words the server's liability: the yakuman it covers, its share and the honba, whatever the hand and loser", () => {
-        const table = lastRoundEndTable("pao");
-        const result = table.roundEndResult;
-        assert(result !== null && result.winners[0] !== undefined);
-        const ended: RoundEndResult = result;
-        const [winner] = result.winners;
-        function notesWhen(loserSeat: number | null, pao: PaoLiability): readonly string[] {
-            const winners = [{ ...winner, pao }];
-            return winPage({ ...table, roundEndResult: { ...ended, loserSeat, winners } }).notes;
-        }
         const daisuushiiHalf = { paysHonba: true, seat: 0, share: PAO_SHARE.HALF, yakuIds: [111] };
 
-        expect(notesWhen(null, daisuushiiHalf)).toContain(
+        expect(paoNotesWhen(null, daisuushiiHalf)).toContain(
             "Pao: Diana is liable for Daisuushii and pays half of it and the honba",
         );
         expect(
-            notesWhen(2, { ...daisuushiiHalf, paysHonba: false, share: PAO_SHARE.ALL }),
+            paoNotesWhen(2, { ...daisuushiiHalf, paysHonba: false, share: PAO_SHARE.ALL }),
         ).toContain("Pao: Diana is liable for Daisuushii and pays all of it");
-        expect(notesWhen(0, daisuushiiHalf)).toContain(
+        expect(paoNotesWhen(0, daisuushiiHalf)).toContain(
             "Pao: Diana is liable and dealt in, so pays it all",
+        );
+        document.documentElement.lang = "ru";
+        expect(paoNotesWhen(null, daisuushiiHalf)).toContain(
+            "Пао: Diana несёт ответственность за Дайсуши и платит половину и хонбу",
         );
     });
 
@@ -177,9 +183,20 @@ describe("roundEndDisplay - a win", () => {
     });
 
     test("head bump: tells the player whose call lost and who won it", () => {
-        const page = winPage(lastRoundEndTable("head_bump"));
+        const table = lastRoundEndTable("head_bump");
+        const result = table.roundEndResult;
+        assert(result !== null);
+        const bumpedTwice: TableState = {
+            ...table,
+            roundEndResult: { ...result, headBumpedSeats: [...result.headBumpedSeats, 3] },
+        };
+        const thirdName = table.players.find((player) => player.seat === 3)?.name;
 
-        expect(page.notes).toEqual(["Alice won over Charlie's ron (head bump)"]);
+        expect(winPage(table).notes).toEqual(["Atamahane: Alice won; no ron for Charlie"]);
+        document.documentElement.lang = "ru";
+        expect(winPage(bumpedTwice).notes).toEqual([
+            `Атамаханэ: рон засчитан (Alice), не засчитан (Charlie и ${thirdName})`,
+        ]);
     });
 
     test("a double ron on honba: each winner's page notes its own honba bonus", () => {
@@ -319,7 +336,7 @@ describe("roundEndDisplay - a draw", () => {
     test.each([
         ["nagashi", "Nagashi Mangan", "by Alice"],
         ["kyuushu", "Kyuushu Kyuuhai", "declared by Alice"],
-        ["triple_ron", "Triple ron", "ron called by Alice, Charlie, Bob"],
+        ["triple_ron", "Triple ron", "ron called by Alice, Charlie, and Bob"],
         ["four_kans", "Four kans", "Abortive draw"],
     ])("a %s draw is named with the seats it names", (name, title, subtitle) => {
         const table = lastRoundEndTable(name);
