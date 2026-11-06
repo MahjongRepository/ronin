@@ -147,7 +147,7 @@
     "game.result.honba_bonus": "Хонба {points}",
     "game.result.indicators": "Индикаторы",
     "game.result.last_hand": "Прошлая раздача",
-    "game.result.nagashi_by": "собран у {names}",
+    "game.result.nagashi_by": "Собран: {names}",
     "game.result.next": "Далее",
     "game.result.next_winner": "Следующий победитель",
     "game.result.pao_all": "Пао: {name} несёт ответственность за {yaku} и платит всё",

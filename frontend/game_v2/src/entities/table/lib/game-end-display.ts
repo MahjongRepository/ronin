@@ -3,7 +3,7 @@ import {
     type PlayerState,
     type TableState,
 } from "@/entities/table/model/types";
-import { type MessageKey, t } from "@/shared/i18n";
+import { type MessageKey, formatNumber, t } from "@/shared/i18n";
 import { GAME_END_CAUSE, type GameEndCause } from "@/shared/protocol";
 
 import { gameTypeName } from "./game-start-display";
@@ -62,7 +62,10 @@ function tone(value: number): ResultTone {
 }
 
 function formatResult(finalScore: number): string {
-    const digits = Math.abs(finalScore).toFixed(1);
+    const digits = formatNumber(Math.abs(finalScore), {
+        maximumFractionDigits: 1,
+        minimumFractionDigits: 1,
+    });
     if (finalScore > 0) {
         return `+${digits}`;
     }

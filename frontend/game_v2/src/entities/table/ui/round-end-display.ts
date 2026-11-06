@@ -230,9 +230,10 @@ function WinPage(props: RoundEndDisplayProps, page: WinPageDisplay): TemplateRes
 
 function DrawPage(props: RoundEndDisplayProps, page: DrawPageDisplay): TemplateResult {
     const { controls, display } = props;
+    const kind = t("draw.generic");
     return html`<div class="round-end-result round-end-result--draw">
         <div class="round-end-result__head">
-            <span class="round-end-result__kind">${t("draw.generic")}</span>
+            ${kind === page.title ? nothing : html`<span class="round-end-result__kind">${kind}</span>`}
             <span class="round-end-result__title">${page.title}</span>
             ${page.subtitle === null ? nothing : html`<span class="round-end-result__from">${page.subtitle}</span>`}
         </div>

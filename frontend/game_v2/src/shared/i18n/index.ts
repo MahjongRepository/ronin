@@ -56,8 +56,8 @@ function placeholders(message: Message): Set<string> {
     );
 }
 
-function formatNumber(value: number): string {
-    return new Intl.NumberFormat(pageLocale()).format(value);
+function formatNumber(value: number, options?: Intl.NumberFormatOptions): string {
+    return new Intl.NumberFormat(pageLocale(), options).format(value);
 }
 
 function formatList(items: readonly string[]): string {

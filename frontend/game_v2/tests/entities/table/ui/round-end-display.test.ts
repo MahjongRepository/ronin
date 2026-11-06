@@ -1,5 +1,5 @@
 import { render } from "lit-html";
-import { assert, describe, expect, test, vi } from "vitest";
+import { afterEach, assert, describe, expect, test, vi } from "vitest";
 
 import { loadEngineReplay } from "#tests/fixtures/replays";
 import { TablePanelDisplay, type TableState, tablePanel } from "@/entities/table";
@@ -30,6 +30,10 @@ function texts(el: HTMLElement, selector: string): string[] {
         (node) => node.textContent?.replaceAll(/\s+/g, " ").trim() ?? "",
     );
 }
+
+afterEach(() => {
+    document.documentElement.lang = "";
+});
 
 describe("RoundEndDisplay", () => {
     test("a win: the closed hand, then the winning tile with its label for a screen reader, then the melds", () => {
@@ -86,6 +90,17 @@ describe("RoundEndDisplay", () => {
             "West Charlie Tenpai +1,500 26,500",
             "North Bob Noten −1,500 23,500",
         ]);
+        expect(texts(el, ".round-end-result__head > span:not(.round-end-result__from)")).toEqual([
+            "Draw",
+            "Exhaustive draw",
+        ]);
+        document.documentElement.lang = "ru";
+        expect(
+            texts(
+                renderResult(table),
+                ".round-end-result__head > span:not(.round-end-result__from)",
+            ),
+        ).toEqual(["Ничья"]);
     });
 
     test("a nagashi mangan: its maker's river under their name, the riichi discard sideways as in the river", () => {

@@ -243,7 +243,7 @@
     "game.summary.rank_3": "3rd",
     "game.summary.rank_4": "4th",
     "game.summary.rank_other": "{rank}th",
-    "game.summary.score": "Score",
+    "game.summary.score": "Points",
     "game.summary.title": "Game over",
     "game.summary.title_with_type": "{type} · Game over",
     "game.summary.uma_oka": "Uma/oka",

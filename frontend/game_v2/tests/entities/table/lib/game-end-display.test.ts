@@ -45,6 +45,13 @@ describe("gameEndDisplay", () => {
             ["3rd", "23,500", "−16.0", false],
             ["4th", "23,500", "−26.0", false],
         ]);
+        document.documentElement.lang = "ru";
+        expect(shownEnd(endTable("leftover_riichi"), 1).seats.map((seat) => seat.result)).toEqual([
+            "+37,0",
+            "+5,0",
+            "−16,0",
+            "−26,0",
+        ]);
         expect(display.leftover).toBe(
             `1 leftover riichi stick: +1,500 to ${display.seats[0].name}`,
         );
