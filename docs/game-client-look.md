@@ -284,8 +284,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   tile shows reduced emphasis, never darkness: greyed out (its glyphs grey, the face a step dimmer)
   at its normal size and position, with its edge and shadow kept and every glyph keeping its
   contrast against its face; selectable tiles keep their normal position too. A riichi-declaring
-  tile is lifted, and the tile an answer played is lifted and outlined in
-  the accent.
+  tile is lifted, and so is the tile an answer played; neither is outlined, the accent ring on a
+  tile being the keyboard focus alone.
 - **Action source.** What an offer refers to is marked where it lies: the latest discard in its
   river, or for a chankan offer the whole kan in its meld (an added kan, or a closed kan robbed for
   kokushi musou). A discard's mark is the latest-discard mark, which the next draw ends; a kan's
@@ -581,7 +581,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   unreadable at river scale with that room is reported, not redrawn in a ticket. Decision: the lobby's
   system sans-serif stack, with tabular digits wherever numbers align; no downloaded fonts or
   monospace. Decision: one accent colour, used only for the player's own action (the primary
-  control, the riichi toggle, a selected tile); the latest discard and the action source
+  control, the riichi toggle, a focused tile); the latest discard and the action source
   are neutral, the turn cue Tenhou's green, and every text, mark and glyph on every face state keeps 4.5:1. Text
   keeps a readable size at every supported viewport; the gate's 10px floor is a safety limit, never
   the size to design to.

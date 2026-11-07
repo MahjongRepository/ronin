@@ -57,7 +57,7 @@ button.hand-tile {
 }
 
 /* A tile that declares riichi, or the one an answer played, is lifted, never into the 4px kept clear under the
-   controls in the band above the hand; the answer's is also outlined in the accent. */
+   controls in the band above the hand. */
 .hand-tile--declaring,
 .hand-tile--selected {
     transform: translateY(max(-16%, 5px - var(--band-gap, 100px)));
@@ -65,9 +65,4 @@ button.hand-tile {
     @include phone-board {
         transform: translateY(-8%);
     }
-}
-
-.hand-tile--selected .tile {
-    outline: 3px solid var(--ronin-accent);
-    outline-offset: 0;
 }

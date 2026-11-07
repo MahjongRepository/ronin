@@ -123,12 +123,6 @@ const CONTRAST_MARKS: readonly ContrastMark[] = [
         reach: 0,
         selector: ".decision-controls__action--chosen",
     },
-    {
-        hide: [["", NO_OUTLINE]],
-        name: "selected tile's outline",
-        reach: 4,
-        selector: ".hand-tile--selected .tile",
-    },
 ];
 
 /** The paints the tile artwork authors as highlights (white sheen on a pinzu, a souzu), never inks a glyph is read by. */
