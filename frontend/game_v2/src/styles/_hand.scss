@@ -47,7 +47,7 @@ button.hand-tile {
 .hand-tile--selectable {
     @media (hover: hover) {
         &:hover {
-            transform: translateY(-4px);
+            transform: translateY(-5px);
         }
     }
 }
