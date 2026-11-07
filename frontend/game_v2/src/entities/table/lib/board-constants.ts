@@ -201,11 +201,10 @@ const DESKTOP_CORE_CAP = 0.74;
 const OWN_BY_RIVER_OFF_PHONE = 1.6;
 
 /**
- * A phone's own tile: at least this wide (px) and at most this many river tiles where the floor allows; its centre
- * never under this height (px).
+ * A phone's own tile: at least this wide (px), at most as wide as a full hand allows clear of both side strips' stacked
+ * depth; its centre never under this height (px).
  */
 const PHONE_OWN_FLOOR = 36;
-const OWN_BY_RIVER_MAX = 1.7;
 const PHONE_CENTRE_MIN = 94;
 
 /**
@@ -220,7 +219,7 @@ const PHONE_CHROME: DesktopChrome = {
     coreGap: 6,
     m: 4,
     ownInline: 0,
-    sep: 10,
+    sep: 6,
     switchH: 40,
     timerW: 60,
 };
@@ -262,7 +261,6 @@ export {
     MENU_RIVER_SHARE,
     NOTICES_BESIDE_PANEL,
     OPPONENT_DRAWN_GAP,
-    OWN_BY_RIVER_MAX,
     OWN_BY_RIVER_OFF_PHONE,
     OWN_DRAWN_GAP,
     OWN_MELD_SCALE,

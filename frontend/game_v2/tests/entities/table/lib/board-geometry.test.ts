@@ -244,20 +244,20 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        { above: true, height: 375, pinned: { "band-shift": 28.667, ow: 36, rw: 17 }, width: 667 },
-        { above: true, height: 369, pinned: { ow: 36, rw: 16 }, width: 750 },
-        { above: true, height: 480, pinned: { ow: 40, rw: 24 }, width: 850 },
+        { above: true, height: 375, pinned: { "band-shift": 28.667, ow: 39, rw: 17 }, width: 667 },
+        { above: true, height: 369, pinned: { ow: 37, rw: 16 }, width: 750 },
+        { above: true, height: 480, pinned: { ow: 46, rw: 24 }, width: 850 },
         {
             above: true,
             height: 430,
-            pinned: { "band-shift": 0, ow: 36, rw: 21 },
+            pinned: { "band-shift": 34, ow: 45, rw: 21 },
             width: 932,
         },
-        { above: true, height: 500, pinned: { "control-h": 41.667, ow: 42, rw: 25 }, width: 1024 },
+        { above: true, height: 500, pinned: { "control-h": 43.333, ow: 37, rw: 26 }, width: 1024 },
     ])(
         "sizes a $width x $height window's phone board's tiles jointly, a full left river over the switches ending above them ($above), else past the moves' place over the own badge",
         ({ above, height, pinned, width }) => {
-            const { lengths } = windowGeometry({ height, width });
+            const { lengths, tracks } = windowGeometry({ height, width });
             function length(name: string): number {
                 return lengths[name] ?? Number.NaN;
             }
@@ -272,15 +272,25 @@ describe("boardGeometry", () => {
                 expect(length(name), name).toBeCloseTo(value, 2);
             }
             expect(length("w")).toBe(length("c"));
+            expect({
+                handClearOfStrips:
+                    (width - FULL_HAND * length("ow")) / 2 >=
+                    length("m") + length("strip-depth") + 6,
+                offersInCorner:
+                    (slotAreas(tracks)["actions"]?.[3] ?? 0) -
+                        (slotAreas(tracks)["actions"]?.[1] ?? 0) >=
+                    44 + 2 * 40 + length("control-h") + 3 * 6,
+            }).toEqual({ handClearOfStrips: true, offersInCorner: true });
             expect(
                 length("reach-top-row3") - length("rh") - length("latest-drop-gap"),
             ).toBeGreaterThanOrEqual(length("core-top") - 0.001);
-            const pastMoves =
-                length("reach-left") >=
-                    length("switches-left") + 5 * length("control-h") + 4 * 4 - 0.001 &&
-                leftRiverEnd <= length("hand-top") - length("own-rise") + 0.001;
             expect(leftRiverEnd <= length("switches-bottom") - length("control-h")).toBe(above);
-            expect(above || pastMoves).toBe(true);
+            expect(
+                above ||
+                    (length("reach-left") >=
+                        length("switches-left") + 5 * length("control-h") + 4 * 4 - 0.001 &&
+                        leftRiverEnd <= length("hand-top") - length("own-rise") + 0.001),
+            ).toBe(true);
         },
     );
 
@@ -469,15 +479,15 @@ describe("boardGeometry's shell tracks", () => {
 
     it("lays a landscape phone's slots where its board measured them", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
-            actions: [499, 126, 663, 314.3],
+            actions: [499, 126, 663, 309.9],
             corner: [0, 4, 583, 375],
-            field: [82, 126, 166, 228.3],
-            "field-beside": [554.3, 270.3, 634.3, 318.3],
-            hand: [70.7, 322.3, 663, 370.3],
-            "strip-left": [4, 44, 76, 266.3],
+            field: [82, 126, 166, 223.9],
+            "field-beside": [554.3, 265.9, 634.3, 313.9],
+            hand: [48.8, 317.9, 663, 369.9],
+            "strip-left": [4, 44, 76, 261.9],
             "strip-right": [591, 4, 663, 297.3],
             "strip-top": [4, 4, 490.3, 38],
-            switches: [44, 0, 667, 276.3],
+            switches: [44, 0, 667, 271.9],
         });
     });
 

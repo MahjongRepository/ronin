@@ -622,17 +622,20 @@ padded box. An upright board stays upright. Deliberately, a board 520 to 539 px 
 gutter can be a phone (always so when the safe area has no top or bottom inset, since the gutter
 adds only what exceeds the safe inset), and a phone always has the small chrome.
 On a phone both tiles are solved together from the box: the river tile the largest that fits, then
-the own hand tile the largest that fits with it, at most 1.7 of the river tile (Tenhou) and at
-least the off-phone 4/3 of it, a larger river tile waiting for an own tile that keeps that share, but
-never under 36x48, the floor winning where both cannot hold (a river tile under about 21px); the
-band's controls float in the gap above the hand, and the phone's chrome scales from the river tile
-(the small chrome's px up to a 24px river tile, growing with it past that, never under 40x40),
-except the decision controls, which keep their 40px rows. It gives river and own tiles of 17 and
-36px at 667x375, 16 and 36px at the notch phone's 750x369, 18 and 36px at 844x390, and 21 and 36px
-at 932x430 (0.58 of the own tile), whatever the state shows. A desktop window short enough to use
-the phone layout follows the same solve. Among the layouts tried, larger tiles on
-the smaller phones would need the own badge to leave the hand's first tile, a look decision not
-taken. Off a phone the own hand tile is 1.6 of the river tile, never under 4/3 of it, and otherwise at most its
+the own hand tile the largest that fits with it, at most as wide as lets a full hand's row stand clear
+of both side strips' stacked depth and at least 4/3 of the river tile, a larger river tile waiting for
+an own tile that keeps that share, but never under 36x48, the floor winning where both cannot hold. A
+pair fits only where the decisions' place, from under the right badge down to the band's bottom, holds
+the worst offers: a win over two rows of paired calls and the band's row, 182px at the small chrome.
+The band's controls float in the gap above the hand, the gap below the top strip is 6px, and the
+phone's chrome scales from the river tile (the small chrome's px up to a 24px river tile, growing with
+it past that, never under 40x40), except the decision controls, which keep their 40px rows. It gives
+river and own tiles of 17 and 39px at 667x375, 16 and 37px at the notch phone's 750x369 (where the
+decisions' place binds), 18 and 41px at 844x390, and 21 and 45px at 932x430, whatever the state
+shows, with centres of 114, 126, 122 and 126px: the larger own tile costs 844x390 3px and 932x430 9px
+of centre in every state. A desktop window short enough to use the phone layout follows the same
+solve; the river-first order has its price at 1024x500, where a 26px river tile takes a 37px own
+tile. Off a phone the own hand tile is 1.6 of the river tile, never under 4/3 of it, and otherwise at most its
 family's caps: on a desktop min(0.05 of the width, 0.1 of the height) and what a full hand's row holds, on an upright
 board 0.1 of the height and the row, with no share of the width. On a desktop the river tile is the
 largest whole-pixel size that fits with a centre six river tiles tall, the own row it sizes and
@@ -668,11 +671,11 @@ apart on the top strip, and 0.28 on a side strip, where the 0.13 tile edge it sh
 | Core height / play area height | 0.6 | 0.73 / 0.75 / 0.68 |
 | Centre side / core height | 0.3 | 0.42 / 0.45 / 0.39 |
 | Centre width / centre side | 1.0 | 1.0 / 1.0 / 1.0 |
-| River tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), about 0.63 off it | 0.47 / 0.44 / 0.63 |
+| River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand clear of the strips and the offers' stack in its place), about 0.63 off it | 0.44 / 0.43 / 0.63 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
-| Opponent hand tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), about 0.63 off it | 0.47 / 0.44 / 0.63 |
-| Own hand tile width / play area width | 0.05 | 0.054 / 0.048 / 0.044 |
-| Own hand tile height / play area height | 0.15 | 0.128 / 0.130 / 0.094 |
+| Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand clear of the strips and the offers' stack in its place), about 0.63 off it | 0.44 / 0.43 / 0.63 |
+| Own hand tile width / play area width | 0.05 | 0.058 / 0.049 / 0.044 |
+| Own hand tile height / play area height | 0.15 | 0.139 / 0.134 / 0.094 |
 | Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.31 / 0.31 (0.3, rounded) |
 | Gap between neighbouring rivers, in river tiles | 0.3 | 0.29 / 0.31 / 0.31 (0.3, rounded) |
 
@@ -685,8 +688,9 @@ is taken out). Decision off a phone: every other hand and river reads at one siz
 at 1.6 of it, as both references draw it by width (Mahjong Soul's desktop 1.58 to 1.62, Tenhou's tablet 1.59 to
 1.67); the own melds, at 1.2 river tiles, stand at 0.76 of the own tile, Mahjong Soul's 0.74. Only width ratios are
 compared: Mahjong Soul's hand faces its camera over foreshortened rivers and Tenhou's view squashes heights. A phone keeps a larger own tile, which touch needs, solved
-together with its river tile from the box, the own tile up to 1.7 of the river tile (Tenhou) above
-its 36x48 floor: 2.1 at the floor and 2.25 at the notch phone, where the floor wins, 1.7 at 932x430. A decision control's tiles stay inside
+together with its river tile from the box, the own tile as large as a full hand clear of the side
+strips and the decisions' place allow above its 36x48 floor: 2.29 river tiles at the floor, 2.31 at
+the notch phone and 2.14 at 932x430. A decision control's tiles stay inside
 the room the band keeps for its row, so a large board's controls never reach the bottom river.
 
 The starting points do not fit together at the 667x375 floor. The rule resolves it by the joint
@@ -695,7 +699,7 @@ where the pinwheel leaves them empty, with the band's controls floating in the g
 the two tiles are the largest pair the box holds above the own tile's 36x48 floor; and the centre's
 share grows, its text following the centre down, so the round, the wall count and four winds with
 their scores stay readable at the floor. At the floor this gives a core of 0.73 of the height, a
-centre of 0.42 of the core (114px square, its scores 14px) and 17 and 36px tiles.
+centre of 0.42 of the core (114px square, its scores 14px) and 17 and 39px tiles.
 
 ## States
 

@@ -21,7 +21,6 @@ import {
     MENU_MIN,
     MENU_RIVER_SHARE,
     NOTICES_BESIDE_PANEL,
-    OWN_BY_RIVER_MAX,
     OWN_BY_RIVER_OFF_PHONE,
     OWN_MELD_SCALE,
     PAGE_GUTTER,
@@ -951,10 +950,11 @@ function phonePanel(
 
 /** A phone's lengths at a river and own tile, in px, and whether its places fit them. */
 function phoneLayout(
-    { box, slots }: BoardFrame,
+    frame: BoardFrame,
     rw: number,
     ow: number,
 ): { readonly fits: boolean; readonly lengths: BoardLengths } {
+    const { box, slots } = frame;
     const { height, width } = box;
     const chrome = phoneChrome(rw);
     const { bandGap, controlH, coreGap, m, ownBadgeH, sep, switchGap } = chrome;
@@ -1003,7 +1003,7 @@ function phoneLayout(
         rw,
     });
     const right = phoneRightHand(rightRoom);
-    const fits =
+    const placesFit =
         centre >= centreMin &&
         laneHalf <= halfRoom &&
         leftRiverEnd + SWITCHES_CLEARANCE <= (besideSwitches ? handTop - ownRise : switchesTop) &&
@@ -1049,26 +1049,31 @@ function phoneLayout(
         ["switches-bottom", switchesBottom],
         ["w", centre],
     ]);
-    return { fits, lengths };
+    const { rightBadgeTop } = landscapeBadges(
+        { at: (name) => lengths[name] ?? 0, frame, tier: chrome },
+        bandBottom,
+    );
+    const offersRoom = bandBottom - rightBadgeTop - chrome.badgeH - ACTIONS_GAP;
+    return { fits: placesFit && offersRoom >= phoneOffersHeight(controlH), lengths };
 }
 
 /**
  * A phone's root sizes and the lengths the stylesheet reads with them, in px: the largest river tile that fits, then
- * the largest own tile that fits with it, at most `OWN_BY_RIVER_MAX` river tiles and at least the off-phone 4/3 of one,
- * never under `PHONE_OWN_FLOOR`, which wins where both cannot hold; the smallest pair where none fits.
+ * the largest own tile that fits with it, at most as wide as a full hand clear of both side strips' stacked depth and at
+ * least 4/3 of the river tile, never under `PHONE_OWN_FLOOR`, which wins where both cannot hold; the smallest pair where
+ * none fits. A pair fits only where the decisions' place under the right badge holds the worst offers' stack.
  */
 function phoneLengths(frame: BoardFrame): BoardLengths {
     const { box } = frame;
-    const ownFit = Math.floor((box.width - 2 * PHONE_CHROME.m) / FULL_HAND);
     for (
         let rw = Math.floor(box.height / PHONE_MAX_RIVER_SHARE);
         rw >= PHONE_SMALLEST_RIVER;
         rw -= 1
     ) {
-        const largest = Math.max(
-            PHONE_OWN_FLOOR,
-            Math.min(Math.floor(OWN_BY_RIVER_MAX * rw), ownFit),
+        const clearFit = Math.floor(
+            (box.width - 2 * (PHONE_CHROME.m + STACKED_DEPTH * rw + STEP_IN_GAP)) / FULL_HAND,
         );
+        const largest = Math.max(PHONE_OWN_FLOOR, clearFit);
         const least = Math.max(PHONE_OWN_FLOOR, Math.ceil(TILE_ASPECT * rw));
         for (let ow = largest; ow >= least; ow -= 1) {
             const { fits, lengths } = phoneLayout(frame, rw, ow);
@@ -1137,6 +1142,13 @@ const ACTIONS_ROW_MIN = 180;
 /** The band end stands this far past the rivers' reach and a phone's under the right badge (px). */
 const ACTIONS_GAP = 6;
 
+/** A phone's decision row and the gap between its decisions (px); the stylesheet's `$row` and `$small-decision-gap`. */
+const PHONE_DECISION_ROW = 40;
+const PHONE_DECISION_GAP = 6;
+
+/** A phone's worst offers stand as a win over this many rows of paired calls, over the band's row. */
+const PHONE_CALL_ROWS = 2;
+
 /** The top badge stands this far past a river tile's edge, the side badges a step this far under its pill (px). */
 const TOP_BADGE_GAP = 6;
 const SIDE_STEP_GAP = 8;
@@ -1194,6 +1206,17 @@ function ownLane(
         laneFree ? Infinity : plateReach - ownLead,
     );
     return { end: laneFree ? ownLead + lane + at("band-gap") : -Infinity, lane };
+}
+
+/** The height of a phone's worst offers' stack at its band's control height (px). */
+function phoneOffersHeight(controlH: number): number {
+    return (
+        PHONE_DECISION_ROW +
+        WIN_RISE +
+        PHONE_CALL_ROWS * PHONE_DECISION_ROW +
+        controlH +
+        (PHONE_CALL_ROWS + 1) * PHONE_DECISION_GAP
+    );
 }
 
 /** Where the opponents' badges stand off an upright board, and the left one's lane (px). */

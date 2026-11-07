@@ -396,8 +396,8 @@ interface DerivedProportions {
  * review; the opponent's hand at the river tile holds everywhere (`checkHandScale`).
  */
 const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
-    [FLOOR, { riverGap: 0.29, riverToOwn: 0.47 }],
-    [NOTCH_PHONE, { riverGap: 0.31, riverToOwn: 0.44 }],
+    [FLOOR, { riverGap: 0.29, riverToOwn: 0.44 }],
+    [NOTCH_PHONE, { riverGap: 0.31, riverToOwn: 0.43 }],
     [MID_DESKTOP, { riverGap: 0.31, riverToOwn: 0.63 }],
 ]);
 const DERIVED_TOLERANCE = 0.02;
