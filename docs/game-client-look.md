@@ -643,7 +643,7 @@ board 0.1 of the height and the row, with no share of the width. On a desktop th
 largest whole-pixel size that fits with a centre six river tiles tall, the own row it sizes and
 the top and bottom rivers' latest-discard gaps. The gap below the top strip uses the badge gap
 instead of the former 40px separation, reclaiming height before reducing tiles. A desktop's band keeps a 48px
-control row 12px above the own row's reserved meld rise, and a short desktop keeps at least 24px between the core and
+control row at least 12px above the own row's reserved meld rise, and a short desktop keeps at least 24px between the core and
 the own row. Short desktops
 also keep the centre and bottom river clear of the switches and replay moves. Upright boards
 fit a centre at least six river tiles and 100px across. A phone's centre is at least six river tiles
