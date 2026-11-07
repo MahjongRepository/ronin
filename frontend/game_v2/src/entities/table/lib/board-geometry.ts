@@ -952,12 +952,15 @@ function phonePanel(
     };
 }
 
-/** A phone's lengths at a river and own tile, in px, and whether its places fit them. */
+/**
+ * A phone's lengths at a river and own tile, in px, whether its places fit them and whether the decisions' place under
+ * the right badge holds the offers' stack.
+ */
 function phoneLayout(
     frame: BoardFrame,
     rw: number,
     ow: number,
-): { readonly fits: boolean; readonly lengths: BoardLengths } {
+): { readonly fits: boolean; readonly holdsOffers: boolean; readonly lengths: BoardLengths } {
     const { box, slots } = frame;
     const { height, width } = box;
     const chrome = phoneChrome(rw);
@@ -1007,7 +1010,7 @@ function phoneLayout(
         rw,
     });
     const right = phoneRightHand(rightRoom);
-    const placesFit =
+    const fits =
         centre >= centreMin &&
         laneHalf <= halfRoom &&
         leftRiverEnd + SWITCHES_CLEARANCE <= (besideSwitches ? handTop - ownRise : switchesTop) &&
@@ -1058,14 +1061,15 @@ function phoneLayout(
         bandBottom,
     );
     const offersRoom = bandBottom - rightBadgeTop - chrome.badgeH - ACTIONS_GAP;
-    return { fits: placesFit && offersRoom >= phoneOffersHeight(controlH), lengths };
+    return { fits, holdsOffers: offersRoom >= phoneOffersHeight(controlH), lengths };
 }
 
 /**
  * A phone's root sizes and the lengths the stylesheet reads with them, in px: the largest river tile that fits, then
  * the largest own tile that fits with it, at most as wide as a full hand clear of both side strips' stacked depth and at
  * least 4/3 of the river tile, never under `PHONE_OWN_FLOOR`, which wins where both cannot hold; the smallest pair where
- * none fits. A pair fits only where the decisions' place under the right badge holds the worst offers' stack.
+ * none fits. The own tile is the largest whose decisions' place under the right badge holds the offers' stack, else
+ * the least at that river tile: that bound never lowers the river tile.
  */
 function phoneLengths(frame: BoardFrame): BoardLengths {
     const { box } = frame;
@@ -1080,8 +1084,8 @@ function phoneLengths(frame: BoardFrame): BoardLengths {
         const largest = Math.max(PHONE_OWN_FLOOR, clearFit);
         const least = Math.max(PHONE_OWN_FLOOR, Math.ceil(TILE_ASPECT * rw));
         for (let ow = largest; ow >= least; ow -= 1) {
-            const { fits, lengths } = phoneLayout(frame, rw, ow);
-            if (fits) {
+            const { fits, holdsOffers, lengths } = phoneLayout(frame, rw, ow);
+            if (fits && (holdsOffers || ow === least)) {
                 return lengths;
             }
         }
@@ -1150,7 +1154,7 @@ const ACTIONS_GAP = 6;
 const PHONE_DECISION_ROW = 40;
 const PHONE_DECISION_GAP = 6;
 
-/** A phone's worst offers stand as a win over this many rows of paired calls, over the band's row. */
+/** A phone's offers' stack: a win over this many rows of paired calls, over the band's row. */
 const PHONE_CALL_ROWS = 2;
 
 /** The top badge stands this far past a river tile's edge, the side badges a step this far under its pill (px). */
@@ -1212,7 +1216,7 @@ function ownLane(
     return { end: laneFree ? ownLead + lane + at("band-gap") : -Infinity, lane };
 }
 
-/** The height of a phone's worst offers' stack at its band's control height (px). */
+/** The height of a phone's offers' stack at its band's control height (px). */
 function phoneOffersHeight(controlH: number): number {
     return (
         PHONE_DECISION_ROW +

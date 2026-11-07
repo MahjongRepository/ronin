@@ -244,19 +244,35 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        { above: true, height: 375, pinned: { "band-shift": 28.667, ow: 39, rw: 17 }, width: 667 },
-        { above: true, height: 369, pinned: { ow: 37, rw: 16 }, width: 750 },
-        { above: true, height: 480, pinned: { ow: 46, rw: 24 }, width: 850 },
+        {
+            above: true,
+            height: 375,
+            holdsOffers: true,
+            pinned: { "band-shift": 28.667, ow: 39, rw: 17 },
+            width: 667,
+        },
+        { above: true, height: 390, holdsOffers: true, pinned: { ow: 39, rw: 17 }, width: 667 },
+        { above: true, height: 354, holdsOffers: false, pinned: { ow: 36, rw: 15 }, width: 724 },
+        { above: true, height: 360, holdsOffers: false, pinned: { ow: 36, rw: 16 }, width: 800 },
+        { above: true, height: 369, holdsOffers: true, pinned: { ow: 37, rw: 16 }, width: 750 },
+        { above: true, height: 480, holdsOffers: true, pinned: { ow: 46, rw: 24 }, width: 850 },
         {
             above: true,
             height: 430,
+            holdsOffers: true,
             pinned: { "band-shift": 34, ow: 45, rw: 21 },
             width: 932,
         },
-        { above: true, height: 500, pinned: { "control-h": 43.333, ow: 37, rw: 26 }, width: 1024 },
+        {
+            above: true,
+            height: 500,
+            holdsOffers: true,
+            pinned: { "control-h": 43.333, ow: 37, rw: 26 },
+            width: 1024,
+        },
     ])(
-        "sizes a $width x $height window's phone board's tiles jointly, a full left river over the switches ending above them ($above), else past the moves' place over the own badge",
-        ({ above, height, pinned, width }) => {
+        "sizes a $width x $height window's phone board's tiles jointly: a full hand clear of the side strips, the offers' stack in its corner ($holdsOffers), a full left river over the switches ending above them ($above), else past the moves' place over the own badge",
+        ({ above, height, holdsOffers, pinned, width }) => {
             const { lengths, tracks } = windowGeometry({ height, width });
             function length(name: string): number {
                 return lengths[name] ?? Number.NaN;
@@ -280,7 +296,7 @@ describe("boardGeometry", () => {
                     (slotAreas(tracks)["actions"]?.[3] ?? 0) -
                         (slotAreas(tracks)["actions"]?.[1] ?? 0) >=
                     44 + 2 * 40 + length("control-h") + 3 * 6,
-            }).toEqual({ handClearOfStrips: true, offersInCorner: true });
+            }).toEqual({ handClearOfStrips: true, offersInCorner: holdsOffers });
             expect(
                 length("reach-top-row3") - length("rh") - length("latest-drop-gap"),
             ).toBeGreaterThanOrEqual(length("core-top") - 0.001);

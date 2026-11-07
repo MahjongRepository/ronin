@@ -621,21 +621,24 @@ the chrome tiers (small under 1100 px wide or 520 px high, large from 2000x1200)
 padded box. An upright board stays upright. Deliberately, a board 520 to 539 px tall without its
 gutter can be a phone (always so when the safe area has no top or bottom inset, since the gutter
 adds only what exceeds the safe inset), and a phone always has the small chrome.
-On a phone both tiles are solved together from the box: the river tile the largest that fits, then
-the own hand tile the largest that fits with it, at most as wide as lets a full hand's row stand clear
-of both side strips' stacked depth and at least 4/3 of the river tile, a larger river tile waiting for
-an own tile that keeps that share, but never under 36x48, the floor winning where both cannot hold. A
-pair fits only where the decisions' place, from under the right badge down to the band's bottom, holds
-the worst offers: a win over two rows of paired calls and the band's row, 182px at the small chrome.
-The band's controls float in the gap above the hand, the gap below the top strip is 6px, and the
-phone's chrome scales from the river tile (the small chrome's px up to a 24px river tile, growing with
-it past that, never under 40x40), except the decision controls, which keep their 40px rows. It gives
-river and own tiles of 17 and 39px at 667x375, 16 and 37px at the notch phone's 750x369 (where the
-decisions' place binds), 18 and 41px at 844x390, and 21 and 45px at 932x430, whatever the state
-shows, with centres of 114, 126, 122 and 126px: the larger own tile costs 844x390 3px and 932x430 9px
-of centre in every state. A desktop window short enough to use the phone layout follows the same
-solve; the river-first order has its price at 1024x500, where a 26px river tile takes a 37px own
-tile. Off a phone the own hand tile is 1.6 of the river tile, never under 4/3 of it, and otherwise at most its
+On a phone both tiles are solved together from the box: the river tile the largest that fits, then the
+own hand tile the largest that fits with it, at most as wide as lets a full hand's row stand clear of
+both side strips' stacked depth and at least 4/3 of the river tile, a larger river tile waiting for an
+own tile that keeps that share, but never under 36x48, the floor winning where both cannot hold. The
+own tile is also the largest whose decisions' place, from under the right badge down to the band's
+bottom, holds a win over two rows of paired calls and the band's row (182px at the small chrome), else
+the least at that river tile: this bound caps the own tile only, never the river tile. It is not the
+tallest stack (a chi's second step with three choices takes 224px), and phones shorter than the notch
+still lack room for it: at 360px tall it falls 6.7px short (4.7px before the 6px top gap let a 16px
+river tile fit), and at 812x375 with its insets 10.7px short, as before. The band's controls float in
+the gap above the hand, the gap below the top strip is 6px, and the phone's chrome scales from the
+river tile (the small chrome's px up to a 24px river tile, growing with it past that, never under
+40x40), except the decision controls, which keep their 40px rows. It gives river and own tiles of 17
+and 39px at 667x375, 16 and 37px at the notch phone's 750x369 (where the decisions' place binds), 18
+and 41px at 844x390, and 21 and 45px at 932x430, whatever the state shows, with centres of 114, 126,
+122 and 126px: the larger own tile costs 844x390 3px and 932x430 9px of centre in every state. A
+desktop window short enough to use the phone layout follows the same solve; the river-first order has
+its price at 1024x500, where a 26px river tile takes a 37px own tile. Off a phone the own hand tile is 1.6 of the river tile, never under 4/3 of it, and otherwise at most its
 family's caps: on a desktop min(0.05 of the width, 0.1 of the height) and what a full hand's row holds, on an upright
 board 0.1 of the height and the row, with no share of the width. On a desktop the river tile is the
 largest whole-pixel size that fits with a centre six river tiles tall, the own row it sizes and
@@ -672,9 +675,9 @@ apart on the top strip, and 0.28 on a side strip, where the 0.13 tile edge it sh
 | Core height / play area height | 0.6 | 0.73 / 0.75 / 0.68 |
 | Centre side / core height | 0.3 | 0.42 / 0.45 / 0.39 |
 | Centre width / centre side | 1.0 | 1.0 / 1.0 / 1.0 |
-| River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand clear of the strips and the offers' stack in its place), about 0.63 off it | 0.44 / 0.43 / 0.63 |
+| River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand clear of the strips and a win's stack in the decisions' place), about 0.63 off it | 0.44 / 0.43 / 0.63 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
-| Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand clear of the strips and the offers' stack in its place), about 0.63 off it | 0.44 / 0.43 / 0.63 |
+| Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand clear of the strips and a win's stack in the decisions' place), about 0.63 off it | 0.44 / 0.43 / 0.63 |
 | Own hand tile width / play area width | 0.05 | 0.058 / 0.049 / 0.044 |
 | Own hand tile height / play area height | 0.15 | 0.139 / 0.134 / 0.094 |
 | Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.31 / 0.31 (0.3, rounded) |

@@ -54,9 +54,10 @@ they disagree.
   end's row and the own badge's lane are the geometry's (`--geo-actions-bottom`, `--own-lane`).
 - **A phone's composition is its own.** `boardGeometry` solves its river tile as the largest that fits and its own
   tile on its own scale from the box (at least 4/3 of the river tile, at most a full hand clear of both side strips'
-  stacked depth, never under 36px), a pair fitting only where the decisions' place under the right badge holds the
-  worst offers' stack; its band's controls float in the gap above the hand, its chrome follows the river tile with the control floor, and its right hand's place (the
-  band row stepping in) is computed there too, never with a length switch.
+  stacked depth and the largest whose decisions' place under the right badge holds a win's stack, never under 36px;
+  that bound never lowers the river tile); its band's controls float in the gap above the hand, its chrome follows the
+  river tile with the control floor, and its right hand's place (the band row stepping in) is computed there too,
+  never with a length switch.
 - The centre is square: `--w` and `--c` are its side, `--hx` and `--h` its half-side. Its text follows `--c`.
   Every family's centre is at least six river tiles tall; the geometry fits that centre and the rivers together.
   Desktops tighten the top separation before reducing tiles. Phones and upright boards also keep their text floors.
