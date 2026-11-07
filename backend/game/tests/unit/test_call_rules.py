@@ -202,6 +202,31 @@ class TestChiOfferLeavesLegalDiscard:
         assert options == [(man_2, man_3)]
 
 
+_RED_5M, _PLAIN_5M, _SECOND_PLAIN_5M = TilesConverter.string_to_136_array(man="055", has_aka_dora=True)
+_MAN_6 = TilesConverter.string_to_136_array(man="6")[0]
+
+
+class TestChiOfferWithRedFive:
+    @pytest.mark.parametrize(
+        ("settings", "expected"),
+        [
+            pytest.param(
+                GameSettings(), [(_RED_5M, _MAN_6), (_PLAIN_5M, _MAN_6)], id="akadora_with_and_without_red_five"
+            ),
+            pytest.param(GameSettings(has_akadora=False), [(_RED_5M, _MAN_6)], id="no_akadora_one_option"),
+        ],
+    )
+    def test_can_call_chi__when_hand_holds_red_and_plain_fives__should_offer_one_option_per_look(
+        self, settings: GameSettings, expected: list[tuple[int, int]]
+    ):
+        hand = (_RED_5M, _PLAIN_5M, _SECOND_PLAIN_5M, _MAN_6, *TilesConverter.string_to_136_array(honors="123"))
+        caller = create_player(seat=1, tiles=hand)
+        called_4m = TilesConverter.string_to_136_array(man="4444")[3]
+
+        options = can_call_chi(caller, discarded_tile=called_4m, discarder_seat=0, caller_seat=1, settings=settings)
+        assert options == expected
+
+
 class TestRiichiSeatMeldOffers:
     def test_meld_offers__when_riichi_seat_holds_a_triplet_of_the_discard__should_offer_neither_pon_nor_open_kan(self):
         five_pin = tile_copies(0, pin="5555")

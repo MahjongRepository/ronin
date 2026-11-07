@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from itertools import product
 from typing import TYPE_CHECKING
 
 import structlog
+from mahjong.constants import AKA_DORAS
 
 from game.logic.enums import MeldCallType
 from game.logic.exceptions import InvalidMeldError
@@ -160,7 +162,9 @@ def can_call_chi(
         return []
 
     tile_value = discarded_34 % TILES_PER_SUIT
-    hand_tiles_by_34 = _build_same_suit_tile_map(player.tiles, discarded_34)
+    hand_tiles_by_34 = _build_same_suit_tile_choices(
+        player.tiles, discarded_34=discarded_34, has_akadora=settings.has_akadora
+    )
     combinations = _find_chi_combinations(discarded_34=discarded_34, tile_value=tile_value, hand_tiles=hand_tiles_by_34)
     return [
         c
@@ -187,18 +191,24 @@ def _chi_leaves_legal_discard(
     return any(t // 4 not in kuikae for t in remaining)
 
 
-def _build_same_suit_tile_map(tiles: list[int] | tuple[int, ...], discarded_34: int) -> dict[int, list[int]]:
+def _build_same_suit_tile_choices(
+    tiles: list[int] | tuple[int, ...], *, discarded_34: int, has_akadora: bool
+) -> dict[int, list[int]]:
     """
-    Build a map of tiles in hand that are in the same suit as discarded tile.
+    Map each tile type in hand of the discarded tile's suit to one tile id per look it is held in: a red five apart from
+    the plain copies when akadora is played, so a chi is offered both with and without it.
     """
     discarded_suit = discarded_34 // TILES_PER_SUIT
-    result: dict[int, list[int]] = {}
+    tile_by_look: dict[int, dict[bool, int]] = {}
     for t in tiles:
         t34 = tile_to_34(t)
-        if t34 // TILES_PER_SUIT == discarded_suit:
-            result.setdefault(t34, []).append(t)
+        if t34 // TILES_PER_SUIT != discarded_suit:
+            continue
 
-    return result
+        is_red = has_akadora and t in AKA_DORAS
+        tile_by_look.setdefault(t34, {}).setdefault(is_red, t)
+
+    return {t34: list(by_look.values()) for t34, by_look in tile_by_look.items()}
 
 
 def _find_chi_combinations(
@@ -239,10 +249,9 @@ def _add_combination_if_valid(
     tile34_b: int,
 ) -> None:
     """
-    Add a chi combination if both required tiles exist in hand.
+    Add a chi combination for every pair of held tile ids of the two required types.
     """
-    if tile34_a in hand_tiles and tile34_b in hand_tiles:
-        combinations.append((hand_tiles[tile34_a][0], hand_tiles[tile34_b][0]))
+    combinations.extend(product(hand_tiles.get(tile34_a, []), hand_tiles.get(tile34_b, [])))
 
 
 def can_call_open_kan(
