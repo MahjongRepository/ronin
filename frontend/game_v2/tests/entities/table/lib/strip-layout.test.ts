@@ -11,6 +11,7 @@ import {
     type StripContent,
     type StripRooms,
     handLength,
+    ownMeldLayout,
     stripLayout,
 } from "@/entities/table/lib/strip-layout";
 
@@ -162,5 +163,41 @@ describe("stripLayout", () => {
             );
         });
         expect(unsteady).toEqual([]);
+    });
+});
+
+describe("ownMeldLayout", () => {
+    const ROW = { cap: 52, gap: 10, lead: 0, ow: 68, width: 1200 };
+
+    it("shrinks the own melds from their cap to end within the row beside the hand at its fullest, drawn tile and gap counted", () => {
+        const roomy = ownMeldLayout(ROW, [CHI, CHI]);
+        const { shift, tile } = ownMeldLayout({ ...ROW, width: 900 }, [CHI, CHI]);
+        const handWithDrawn = 8 * ROW.ow + (7 * ROW.ow) / 60 + 0.35 * ROW.ow;
+        const melds = 0.35 * ROW.ow + 2 * CHI.units * tile + ROW.gap + 2;
+
+        expect({
+            fits: handWithDrawn + melds <= 900,
+            roomy: roomy.tile,
+            shift,
+            shrunk: tile < ROW.cap,
+        }).toEqual({
+            fits: true,
+            roomy: ROW.cap,
+            shift: 0,
+            shrunk: true,
+        });
+    });
+
+    it("steps the hand back into its lead only for melds at the face floor", () => {
+        const melds = [OPEN_KAN, OPEN_KAN, OPEN_KAN, OPEN_KAN];
+        const { shift, tile } = ownMeldLayout(
+            { ...ROW, cap: 24, lead: 40, ow: 40, width: 340 },
+            melds,
+        );
+
+        expect({ floor: tile === FACE_FLOOR, stepped: shift > 0 && shift <= 40 }).toEqual({
+            floor: true,
+            stepped: true,
+        });
     });
 });

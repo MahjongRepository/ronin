@@ -1,11 +1,10 @@
 import { type TemplateResult, html, nothing } from "lit-html";
 import { type DirectiveResult } from "lit-html/directive.js";
 import { keyed } from "lit-html/directives/keyed.js";
-import { styleMap } from "lit-html/directives/style-map.js";
 
 import { SIDEWAYS_UNITS, STACKED_DEPTH, UPRIGHT_DEPTH } from "@/entities/table/lib/board-constants";
 import { CALLOUT_MS } from "@/entities/table/lib/callouts";
-import { type StripContent } from "@/entities/table/lib/strip-layout";
+import { type MeldShape, type StripContent } from "@/entities/table/lib/strip-layout";
 import {
     type BoardCallout,
     type BoardCallouts,
@@ -135,15 +134,20 @@ function meldDepth(tiles: readonly MeldTile[]): number {
     return tiles.some((tile) => tile.kind === "stacked") ? STACKED_DEPTH : UPRIGHT_DEPTH;
 }
 
+/** A seat's melds' shapes, newest first. */
+function meldShapes(player: BoardPlayerDisplay | null): readonly MeldShape[] {
+    return (player?.melds ?? [])
+        .toReversed()
+        .map((tiles) => ({ depth: meldDepth(tiles), units: meldUnits(tiles) }));
+}
+
 /** What an opponent's strip is laid out from: its hand's tiles, whether one is drawn apart, its melds newest first. */
 function stripContent(player: BoardPlayerDisplay | null): StripContent {
     const drawn = player?.drawnTile !== undefined;
     return {
         drawn,
         hand: (player?.hand.length ?? 0) + (drawn ? 1 : 0),
-        melds: (player?.melds ?? [])
-            .toReversed()
-            .map((tiles) => ({ depth: meldDepth(tiles), units: meldUnits(tiles) })),
+        melds: meldShapes(player),
     };
 }
 
@@ -152,15 +156,6 @@ function seatPlayer(
     seat: SeatPosition,
 ): BoardPlayerDisplay | null {
     return state?.players[SEAT_POSITIONS.indexOf(seat)] ?? null;
-}
-
-/** What the own row's melds scale from to end before the board's edge: how many there are and how long, in tiles. */
-function ownMeldStyle(player: BoardPlayerDisplay | null): Readonly<Record<string, string>> {
-    const melds = player?.melds ?? [];
-    return {
-        "--meld-n": String(melds.length),
-        "--meld-units": String(melds.reduce((sum, tiles) => sum + meldUnits(tiles), 0)),
-    };
 }
 
 /** The own row's badge and the hand's input, which only the bottom seat's strip holds. */
@@ -180,7 +175,7 @@ function Strip(
     own?: OwnRow,
 ): TemplateResult {
     if (seat === "bottom") {
-        return html`<div class="board-local" style=${styleMap(ownMeldStyle(player))}>
+        return html`<div class="board-local">
             ${own?.head ?? ""}${HandArea(seat, player, own?.input)}${MeldsArea(seat, player)}
         </div>`;
     }
@@ -456,6 +451,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                 { band: props.replay ? "replay" : "play" },
                 {
                     left: stripContent(seatPlayer(state, "left")),
+                    own: meldShapes(seatPlayer(state, "bottom")),
                     right: stripContent(seatPlayer(state, "right")),
                     top: stripContent(seatPlayer(state, "top")),
                 },

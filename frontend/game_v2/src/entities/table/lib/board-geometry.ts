@@ -16,6 +16,7 @@ import {
     LARGE_CHROME_WIDTH,
     LATEST_DISCARD_GAP,
     LEFT_REACH_TILES,
+    MELD_GAP_EXTRA,
     MENU_MAX,
     MENU_MIN,
     MENU_RIVER_SHARE,
@@ -1320,9 +1321,6 @@ function besideField(
     };
 }
 
-/** The gap between a strip's melds past the river gap (px). */
-const MELD_GAP_EXTRA = 2;
-
 /** Clearance at a strip's outer-line limit and around a badge's reserved footprint (px). */
 const STRIP_ROOM_GAP = 8;
 const STRIP_BADGE_CLEAR = 2;
@@ -1656,6 +1654,8 @@ function landscapeShell(room: ShellRoom): BoardShell {
             ["foreground-top", foregroundTop],
             ["own-badge-x", ownLead],
             ["own-lane", own.lane],
+            ["own-row-lead", 0],
+            ["own-row-w", width - m - ownLead],
             ["own-start", ownStart],
             ["right-badge-top", badges.rightBadgeTop],
             ["side-badge-top", badges.sideBadgeTop],
@@ -1809,6 +1809,8 @@ function uprightShell(room: ShellRoom): BoardShell {
             ["field-height", Math.max(0, field.bottom - field.top)],
             ["foreground-top", foregroundTop],
             ["own-badge-x", ownStart],
+            ["own-row-lead", ownStart - m],
+            ["own-row-w", width - m - ownStart],
             ["own-start", ownStart],
             ["right-badge-top", rightBadgeTop],
             ["side-badge-top", sideBadgeTop],

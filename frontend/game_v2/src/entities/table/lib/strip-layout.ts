@@ -1,6 +1,8 @@
 import {
     FACE_FLOOR,
+    MELD_GAP_EXTRA,
     OPPONENT_DRAWN_GAP,
+    OWN_DRAWN_GAP,
     SIDE_DRAWN_GAP,
     TILE_UNITS,
     UPRIGHT_DEPTH,
@@ -285,7 +287,47 @@ function stripLengths(
     );
 }
 
-export { drawnGap, hairline, handLength, stripLayout, stripLengths };
+/** What the own melds keep before the row's end for rounding (px). */
+const OWN_MELDS_SLACK = 2;
+
+/**
+ * The own row from the hand's start (px): its width to the board's edge, how far the hand may step back toward the
+ * margin, its hand's tile and river gap, and its melds' largest tile.
+ */
+interface OwnRow {
+    readonly width: number;
+    readonly lead: number;
+    readonly ow: number;
+    readonly gap: number;
+    readonly cap: number;
+}
+
+/** The own melds' tile and how far the hand steps back from its start to hold them (px). */
+interface OwnMeldLayout {
+    readonly tile: number;
+    readonly shift: number;
+}
+
+/**
+ * The own melds laid out from their structure alone: one tile, their cap where they fit beside the hand at its fullest
+ * with its drawn tile and gap, never under the face floor, the hand stepping back into its lead only for melds at that
+ * floor; so a draw, a discard or anything but a call never resizes or moves them or the hand.
+ */
+function ownMeldLayout(row: OwnRow, melds: readonly MeldShape[]): OwnMeldLayout {
+    const { cap, gap, lead, ow, width } = row;
+    const units = sum(melds.map((meld) => meld.units));
+    if (units === 0) {
+        return { shift: 0, tile: cap };
+    }
+    const tiles = FULL_HAND_TILES - TILES_PER_MELD * melds.length;
+    const hand = tiles * ow + (tiles - 1) * (ow / TILE_UNITS) + 2 * OWN_DRAWN_GAP * ow;
+    const gaps = (melds.length - 1) * (gap + MELD_GAP_EXTRA) + OWN_MELDS_SLACK;
+    const room = width - hand - gaps;
+    const tile = Math.max(FACE_FLOOR, Math.min(cap, room / units));
+    return { shift: Math.min(lead, Math.max(0, units * tile - room)), tile };
+}
+
+export { drawnGap, hairline, handLength, ownMeldLayout, stripLayout, stripLengths };
 export type {
     MeldShape,
     MeldPlace,

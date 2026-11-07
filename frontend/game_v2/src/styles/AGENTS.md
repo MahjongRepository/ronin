@@ -73,7 +73,7 @@ they disagree.
   together to fit, using their actual footprints to clear the geometry's reserved badge, switches
   and own row. `stripLayout` (`entities/table/lib`) stays separate from
   `boardGeometry`; the directive writes its placements as `--<seat>-meld-<n>-*` lengths and each
-  side strip's drawn depth as `--left-depth` / `--right-depth`. Contents never enter the viewport's solve. The own row's melds scale in their container (`ownMeldStyle`'s counts).
+  side strip's drawn depth as `--left-depth` / `--right-depth`. Contents never enter the viewport's solve. The own row's melds take `--own-meld-w` and the upright hand's lead steps back by `--own-shift`, both from `ownMeldLayout` over the melds' structure, never from the hand's current width. No tile size, hand start or laid meld's place may follow transient content (a draw, a discard, an offer): a stylesheet never fits tiles to the room content leaves.
 - **One river primitive, four seats.** GameBoard's `River` draws every seat's river on the tile slice's shape
   (`river-shape.ts`), its overflow an explicit per-seat policy (`RIVER_OVERFLOW`: a side river wraps a fourth row, a
   top or bottom one runs its third row on); it stays in the core's pinwheel, absolutely placed, its area a normal

@@ -9,10 +9,18 @@ import {
     type BoardSlots,
     boardGeometry,
 } from "@/entities/table/lib/board-geometry";
-import { type StripContent, type StripSeat, stripLengths } from "@/entities/table/lib/strip-layout";
+import {
+    type MeldShape,
+    type StripContent,
+    type StripSeat,
+    ownMeldLayout,
+    stripLengths,
+} from "@/entities/table/lib/strip-layout";
 
-/** What the opponents' strips hold, by seat. */
-type StripContents = Readonly<Record<StripSeat, StripContent>>;
+/** What the opponents' strips hold, by seat, and the own row's melds. */
+interface StripContents extends Readonly<Record<StripSeat, StripContent>> {
+    readonly own: readonly MeldShape[];
+}
 
 const NO_PAGE = { gutter: 0, safeInsets: { bottom: 0, left: 0, right: 0, top: 0 } };
 
@@ -42,8 +50,8 @@ function pageEdges(board: HTMLElement): Pick<BoardInput, "gutter" | "safeInsets"
  * Size the board from its own box and the slots its page fills (`boardGeometry`): its family and chrome as
  * `data-board-family` / `data-board-chrome` and its sizes as `--geo-<name>` on the board,
  * measured once its first render is in the document and again as its box or its slots change, until it leaves; and
- * lay out the opponents' strips in the rooms it leaves them (`stripLayout`) as `--<seat>-meld-<n>-*` lengths, again as
- * what they hold changes. An empty box (a hidden board) changes nothing and the board stays watched.
+ * lay out the opponents' strips in the rooms it leaves them (`stripLayout`) as `--<seat>-meld-<n>-*` lengths and the
+ * own melds in their row (`ownMeldLayout`) as `--own-meld-w` / `--own-shift`, again as what they hold changes. An empty box (a hidden board) changes nothing and the board stays watched.
  */
 class SizeBoard extends AsyncDirective {
     private board: HTMLElement | null = null;
@@ -161,6 +169,16 @@ class SizeBoard extends AsyncDirective {
         this.geometry = geometry;
         const laid =
             strips === null || this.strips === null ? {} : stripLengths(strips, this.strips);
+        const own = ownMeldLayout(
+            {
+                cap: lengths["own-meld-tile"] ?? 0,
+                gap: lengths["g"] ?? 0,
+                lead: lengths["own-row-lead"] ?? 0,
+                ow: lengths["ow"] ?? 0,
+                width: lengths["own-row-w"] ?? 0,
+            },
+            this.strips?.own ?? [],
+        );
         if (board.dataset.boardFamily !== family) {
             board.dataset.boardFamily = family;
         }
@@ -175,6 +193,8 @@ class SizeBoard extends AsyncDirective {
                 ),
                 ["--geo-shell-columns", tracks.columns],
                 ["--geo-shell-rows", tracks.rows],
+                ["--own-meld-w", `${own.tile}px`],
+                ["--own-shift", `${own.shift}px`],
                 ...Object.entries(laid).map(
                     ([name, length]) => [`--${name}`, `${length}px`] as const,
                 ),

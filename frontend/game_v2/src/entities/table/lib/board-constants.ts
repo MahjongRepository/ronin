@@ -30,6 +30,12 @@ const TILE_UNITS = 60;
 const OPPONENT_DRAWN_GAP = 0.15;
 const SIDE_LANE_GAP = 4;
 
+/** An own hand's drawn tile's gap, and its melds' lead past it, in own tiles; the stylesheet's `$drawn-gap` mirrors it. */
+const OWN_DRAWN_GAP = 0.35;
+
+/** The gap between a strip's melds past the river gap (px). */
+const MELD_GAP_EXTRA = 2;
+
 /** A side strip's drawn gap runs along the light, so it adds the edge it shows and keeps the top strip's clear table. */
 const SIDE_DRAWN_GAP = OPPONENT_DRAWN_GAP + TILE_EDGE_SHARE;
 
@@ -247,12 +253,14 @@ export {
     LARGE_CHROME_WIDTH,
     LATEST_DISCARD_GAP,
     LEFT_REACH_TILES,
+    MELD_GAP_EXTRA,
     MENU_MAX,
     MENU_MIN,
     MENU_RIVER_SHARE,
     NOTICES_BESIDE_PANEL,
     OPPONENT_DRAWN_GAP,
     OWN_BY_RIVER_MAX,
+    OWN_DRAWN_GAP,
     OWN_MELD_SCALE,
     PAGE_GUTTER,
     PHONE_CENTRE_MIN,

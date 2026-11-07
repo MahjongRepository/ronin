@@ -278,8 +278,13 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   The honba and riichi-stick counts are the centre's, under the round, as Tenhou shows them; the
   corner does not repeat them.
 - **Own hand.** Sorted, from its full reach's fixed start, the drawn tile set apart by a gap at the
-  right; the melds stand at the row's right end by the board's edge, as on a table, so a call moves
-  neither the hand nor the melds already laid, never larger than its tiles. Decision: its tiles are
+  right; the melds stand at the row's right end by the board's edge, as on a table, never larger than
+  its tiles. Decision: the melds take 1.2 river tiles, never past the hand's, where the row holds them
+  beside the hand at its fullest (its drawn tile and gap counted), else shrink together to fit, never
+  under the face floor. Invariant: for one viewport and one set of melds, no draw, discard, offer,
+  riichi or callout changes a table tile's size, the hand's start or a laid meld's place; tiles still
+  enter, leave, sort, rotate and take their drawn, latest-discard and selection offsets. Only a call
+  or a kan refits the melds, inside their fixed room. Decision: its tiles are
   the play area's largest: on a phone for touch; off a phone (a desktop, an upright board) 4/3 of the
   tile every other hand and river shares, as large across as a side seat's tile turned sideways; after a pon or chi there is no drawn tile and nothing is set
   apart. Every face stays readable in every state: after riichi the locked hand keeps its normal

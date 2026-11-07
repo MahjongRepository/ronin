@@ -162,7 +162,7 @@ $max-melds: 4;
 }
 
 /* The own row, in the hand's slot: the hand from a full hand's fixed start, its melds at the row's right end by the
-   board's edge (a call moves nothing), at 1.2 river tiles but never past the hand's, scaled to fit. */
+   board's edge, both placed by `ownMeldLayout`. */
 .board-local {
     --board-tile-w: var(--ow);
     --board-tile-h: var(--oh);
@@ -172,11 +172,11 @@ $max-melds: 4;
     display: flex;
     align-items: flex-end;
 
-    /* Upright, the hand's lead before it gives way to melds at the face floor, so the row never leaves the board. */
     @include upright-board {
         &::before {
             content: "";
-            flex: 0 1 calc(var(--own-start) - var(--m));
+            flex: none;
+            width: calc(var(--own-start) - var(--m) - var(--own-shift));
             order: 0;
         }
     }
@@ -191,7 +191,6 @@ $max-melds: 4;
 }
 
 .board-local .board-melds {
-    container: own-melds / inline-size;
     flex: 1 1 0;
     justify-content: flex-end;
     min-width: 0;
@@ -201,20 +200,8 @@ $max-melds: 4;
         margin-left: calc(#{$drawn-gap} * var(--ow));
     }
 
-    @include upright-board {
-        --own-meld-gaps: calc(max(0, var(--meld-n) - 1) * (var(--g) + 2px));
-
-        min-width: calc(var(--meld-units) * var(--face-floor) + var(--own-meld-gaps) + 2px);
-    }
-
     > :is(.meld, .meld--source) {
-        --board-tile-w: max(
-            var(--face-floor),
-            min(
-                var(--own-meld-tile),
-                (100cqi - (var(--meld-n) - 1) * (var(--g) + 2px) - 2px) / max(var(--meld-units), 1)
-            )
-        );
+        --board-tile-w: var(--own-meld-w);
         --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
     }
 }
