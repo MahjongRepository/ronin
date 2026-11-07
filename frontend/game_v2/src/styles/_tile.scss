@@ -175,22 +175,32 @@ $corner-share: 0.09;
             box-shadow: var(--tile-depth);
         }
     }
+}
 
-    .hand-tile + .hand-tile:not(.hand-drawn-gap) > .tile {
-        --seam: var(--bgap);
-        --seam-corner: calc(var(--tile-w) * #{$corner-share});
+@mixin seam-mask($left) {
+    --seam: var(--bgap);
+    --seam-corner: calc(var(--tile-w) * #{$corner-share});
 
-        &::before {
-            content: "";
-            position: absolute;
-            z-index: layer(below);
-            top: 0;
-            bottom: 0;
-            left: calc(-1 * (var(--seam) + var(--seam-corner)));
-            width: calc(var(--seam) + 2 * var(--seam-corner));
-            background: var(--ronin-table-edge);
-        }
+    &::before {
+        content: "";
+        position: absolute;
+        z-index: layer(below);
+        top: 0;
+        bottom: 0;
+        left: $left;
+        width: calc(var(--seam) + 2 * var(--seam-corner));
+        background: var(--ronin-table-edge);
     }
+}
+
+/* The mask stands on the tile whose edge does not fall into the seam, so a tile a reflow carries away keeps its edge
+   attached rather than cut: on the left the edge belongs to the tile before the seam, on the right to the one after. */
+.board-strip--left .hand-tile + .hand-tile:not(.hand-drawn-gap) > .tile {
+    @include seam-mask(calc(-1 * (var(--seam) + var(--seam-corner))));
+}
+
+.board-strip--right .hand-tile:has(+ .hand-tile:not(.hand-drawn-gap)) > .tile {
+    @include seam-mask(calc(100% - var(--seam-corner)));
 }
 
 /* A face's name stands in for it until the sprite is in the document, in the tile's own viewBox units. */

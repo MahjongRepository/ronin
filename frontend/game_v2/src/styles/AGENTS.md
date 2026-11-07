@@ -107,7 +107,9 @@ they disagree.
   material with animated dimensions and orientation; their grouped depth stays on an unturned wrapper, so the
   light does not rotate with the face. Native reflow stays inside its original group. Side hands isolate separate
   tile-depth and seam-mask layers below their faces: masks must never enter a shadow filter, or a separated tile
-  casts a detached rectangular edge. Other groups keep their shared shadow. Hands and
+  casts a detached rectangular edge. A seam's mask stands on the tile whose edge does not fall into that seam (the
+  later tile on the left, the earlier on the right), so a tile a reflow carries off keeps its whole edge attached
+  instead of a mask riding with it cutting a detached sliver. Other groups keep their shared shadow. Hands and
   rivers use positional offsets: a transform creates per-tile stacking contexts that lift the side strips' seam
   masks over neighbouring faces and depth. Laid melds have no seam masks and transform their tile wrappers to
   interpolate position and size. Reveal backs stay inside the native hand slots, absolutely placed over the hidden
