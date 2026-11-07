@@ -59,7 +59,7 @@ describe("describePlayerSessionStatus", () => {
             ["Waiting for the game to start", "connected", ""],
             ["Connecting", "connected", ""],
             ["Reconnecting", "disconnected", "Offline"],
-            ["Game over", "disconnected", "Ended"],
+            ["Game finished", "disconnected", "Ended"],
             ["Opened in another tab", "disconnected", "Replaced"],
             ["You left the game", "disconnected", ""],
             ["Removed from the game", "error", "Removed"],
