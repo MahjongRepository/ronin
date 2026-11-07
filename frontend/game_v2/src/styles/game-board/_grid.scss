@@ -51,7 +51,7 @@
     --own-badge-h: var(--geo-own-badge-h);
     --reach-bottom-right: var(--geo-reach-bottom-right);
     --latest-discard-gap: var(--geo-latest-discard-gap);
-    --right-latest-discard-gap: var(--geo-right-latest-discard-gap);
+    --latest-drop-gap: var(--geo-latest-drop-gap);
     --river-along: var(--geo-river-along);
     --river-across: var(--geo-river-across);
     --menu-size: var(--geo-menu-size);
@@ -93,6 +93,7 @@
     --right-badge-w: var(--geo-right-badge-w);
     --bgap: var(--geo-bgap);
     --dg: var(--geo-dg);
+    --side-dg: var(--geo-side-dg);
     --face-floor: var(--geo-face-floor);
 }
 

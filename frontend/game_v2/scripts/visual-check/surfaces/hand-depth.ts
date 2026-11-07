@@ -11,6 +11,47 @@ interface GapSample {
     readonly height: number;
 }
 
+/** A side hand's drawn gap to sample, and the top strip's drawn gap (px) its clear table must match. */
+interface DrawnGap {
+    readonly clip: GapSample;
+    readonly topGap: number;
+}
+
+/** What a gap's pixels show against the bare table: channels brighter than it, and the rows holding one. */
+interface GapPaint {
+    readonly brightChannels: number;
+    readonly brightRows: number;
+    readonly rows: number;
+}
+
+type Side = "left" | "right";
+
+async function drawnGapOf(page: Page, side: Side): Promise<DrawnGap | null> {
+    return page.evaluate((strip) => {
+        const drawn = document.querySelector(`.board-strip--${strip} .hand-drawn-gap > .tile`);
+        if (drawn === null) {
+            return null;
+        }
+        const last = drawn.parentElement?.previousElementSibling?.querySelector(".tile");
+        if (!(drawn instanceof HTMLElement) || !(last instanceof HTMLElement)) {
+            throw new Error(`Missing ${strip} drawn tile and the tile before it`);
+        }
+        const a = drawn.getBoundingClientRect();
+        const b = last.getBoundingClientRect();
+        const top = Math.min(a.bottom, b.bottom);
+        const bottom = Math.max(a.top, b.top);
+        return {
+            clip: {
+                height: Math.max(1, Math.floor(bottom - top)),
+                width: Math.floor(a.width * 0.6),
+                x: Math.floor(a.x + a.width * 0.2),
+                y: Math.ceil(top),
+            },
+            topGap: Number.parseFloat(getComputedStyle(drawn).getPropertyValue("--geo-dg")),
+        };
+    }, side);
+}
+
 async function separateRightTile(page: Page): Promise<GapSample> {
     return page.evaluate(() => {
         const slot = document.querySelector(".board-strip--right .hand-tile:last-child");
@@ -55,8 +96,12 @@ async function readPixels(page: Page, png: Buffer): Promise<readonly number[]> {
     );
 }
 
-async function readBackgroundPixels(page: Page, clip: GapSample): Promise<readonly number[]> {
-    const hand = page.locator(".board-strip--right .hand");
+async function readBackgroundPixels(
+    page: Page,
+    side: Side,
+    clip: GapSample,
+): Promise<readonly number[]> {
+    const hand = page.locator(`.board-strip--${side} .hand`);
     await hand.evaluate((element) => {
         element.style.visibility = "hidden";
     });
@@ -69,14 +114,49 @@ async function readBackgroundPixels(page: Page, clip: GapSample): Promise<readon
     }
 }
 
-export async function checkSeparatedHandDepth({ page, report }: PageRun): Promise<string> {
-    const clip = await separateRightTile(page);
+async function paintOf(page: Page, side: Side, clip: GapSample): Promise<GapPaint> {
     const visible = await readPixels(page, await page.screenshot({ clip }));
-    const background = await readBackgroundPixels(page, clip);
-    report.expect(visible.length > 0 && visible.length === background.length, "missing gap pixels");
-    const painted = visible.filter(
-        (value, index) => index % 4 !== 3 && value - background[index] > 20,
-    ).length;
-    report.expect(painted === 0, `detached tile depth in the hand gap: ${painted} bright channels`);
-    return `sampled ${visible.length / 4} gap pixels, ${painted} bright channels`;
+    const background = await readBackgroundPixels(page, side, clip);
+    if (visible.length === 0 || visible.length !== background.length) {
+        throw new Error(`Missing ${side} gap pixels`);
+    }
+    const rowLength = visible.length / clip.height;
+    const bright = visible.map((value, index) => index % 4 !== 3 && value - background[index] > 20);
+    const rows = Array.from({ length: clip.height }, (_row, row) =>
+        bright.slice(row * rowLength, (row + 1) * rowLength).includes(true),
+    );
+    return {
+        brightChannels: bright.filter(Boolean).length,
+        brightRows: rows.filter(Boolean).length,
+        rows: rows.length,
+    };
+}
+
+/**
+ * A side hand's drawn gap shows the edge of the tile the light lays it on (the hand's last tile on the left, the
+ * drawn tile on the right), where the hairlines' seam masks must not reach, and keeps the top strip's gap of table
+ * clear past that edge; a tile moved out of its hand carries no detached edge into the gap it leaves.
+ */
+export async function checkSeparatedHandDepth({ page, report }: PageRun): Promise<string> {
+    const shown: string[] = [];
+    for (const side of ["left", "right"] as const) {
+        const gap = await drawnGapOf(page, side);
+        if (gap !== null) {
+            const paint = await paintOf(page, side, gap.clip);
+            const clear = paint.rows - paint.brightRows;
+            report.expect(paint.brightRows > 0, `no tile edge in the ${side} hand's drawn gap`);
+            report.expect(
+                clear >= gap.topGap - 1,
+                `the ${side} hand's drawn gap keeps ${clear}px clear past the edge, under the top strip's ${gap.topGap}px gap`,
+            );
+            shown.push(`${side} drawn gap ${paint.brightRows}px edge, ${clear}px clear`);
+        }
+    }
+    const clip = await separateRightTile(page);
+    const { brightChannels } = await paintOf(page, "right", clip);
+    report.expect(
+        brightChannels === 0,
+        `detached tile depth in the hand gap: ${brightChannels} bright channels`,
+    );
+    return [...shown, `separated tile gap ${brightChannels} bright channels`].join(", ");
 }

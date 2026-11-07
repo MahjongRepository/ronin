@@ -176,7 +176,7 @@ $corner-share: 0.09;
         }
     }
 
-    .hand-tile + .hand-tile > .tile {
+    .hand-tile + .hand-tile:not(.hand-drawn-gap) > .tile {
         --seam: var(--bgap);
         --seam-corner: calc(var(--tile-w) * #{$corner-share});
 
@@ -190,10 +190,6 @@ $corner-share: 0.09;
             width: calc(var(--seam) + 2 * var(--seam-corner));
             background: var(--ronin-table-edge);
         }
-    }
-
-    .hand-tile + .hand-drawn-gap > .tile {
-        --seam: var(--dg);
     }
 }
 

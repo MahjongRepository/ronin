@@ -28,7 +28,6 @@ import {
     PHONE_CHROME_RIVER,
     PHONE_HEIGHT,
     PHONE_OWN_FLOOR,
-    RIGHT_LATEST_DISCARD_GAP,
     RIVER_GAP_SHARE,
     ROWS_BEFORE_RUN_ON,
     RUN_ON_REACH_TILES,
@@ -135,10 +134,23 @@ const ROWS_AT_EDGE = HEIGHT_TILES + DESKTOP_SPARE * (OWN_ROW + OWN_EDGE);
 const SLOT_LEFT_REACH = 2 * TILE_ASPECT + LEFT_REACH_TILES;
 
 /**
- * What the left river's reach takes past its river tiles (px): the top river's latest discard and its own inside the
- * core, and the river gap's rounding at most.
+ * What the left river's reach takes past its river tiles (px) besides the tile edges in its two latest-discard gaps:
+ * the gaps across the light and the river gap's rounding at most.
  */
 const LEFT_REACH_GAPS = 2 * LATEST_DISCARD_GAP + 0.5;
+
+/** The tile edges the left river's reach holds, in river tiles: one in each of its two latest-discard gaps. */
+const LEFT_REACH_EDGES = 2 * TILE_EDGE_SHARE;
+
+/**
+ * The latest discard's gap along the light off a phone (px): the gap across it and the tile edge that falls into it,
+ * the previous tile's on the left river and above a bottom river's row, the latest tile's own on the right river and
+ * under a top river's row. A phone keeps the gap across: its edge is two pixels, and the reserve would cost it a pixel
+ * of river tile at its floor.
+ */
+function latestDropGap(rw: number): number {
+    return LATEST_DISCARD_GAP + Math.round(TILE_EDGE_SHARE * rw);
+}
 
 /** The right hand's origin from the band stands this far under the band's top margin (px). */
 const RIGHT_FROM_BAND_GAP = 2;
@@ -264,7 +276,7 @@ function switchesRiverTile({ height, tier }: DesktopRooms): number {
         switchesPlace(tier) +
         sep +
         LEFT_REACH_GAPS;
-    const tiles = SLOT_LEFT_REACH + OWN_ROW + BAND_TILE_SHARE;
+    const tiles = SLOT_LEFT_REACH + LEFT_REACH_EDGES + OWN_ROW + BAND_TILE_SHARE;
     return Math.min((height - 2 * m - fixed) / tiles, (height - m - fixed) / (tiles + OWN_EDGE));
 }
 
@@ -286,18 +298,18 @@ function switchesPlaceWidth({ chipGap, movesH, replayGap, switchH }: DesktopChro
 }
 
 /** An opponent's full hand along its line. */
-function fullReach(rw: number): number {
-    return handLength(HAND_TILES, true, rw);
+function fullReach(rw: number, seat: StripSeat): number {
+    return handLength({ drawn: true, rw, seat, tiles: HAND_TILES });
 }
 
 /** A side strip reserves one line even for four open kans at the meld face floor. */
 function sideStripReach(rw: number): number {
     const gap = riverGap(rw) + MELD_GAP_EXTRA;
     return Math.max(
-        fullReach(rw),
+        fullReach(rw, "left"),
         ...[1, 2, 3, 4].map(
             (count) =>
-                handLength(HAND_TILES - 3 * count, true, rw) +
+                handLength({ drawn: true, rw, seat: "left", tiles: HAND_TILES - 3 * count }) +
                 count * (gap + (3 + SIDEWAYS_UNITS) * FACE_FLOOR),
         ),
     );
@@ -351,13 +363,8 @@ function riverRows(rw: number): number {
 }
 
 /** How far down from the core's top the left river's capacity reaches, its sideways tile and latest discard counted. */
-function leftRiverDrop(rw: number): number {
-    return (
-        2 * LATEST_DISCARD_GAP +
-        riverRows(rw) +
-        (LEFT_REACH_TILES - CORE_TILES / 2) * rw +
-        rw * TILE_ASPECT
-    );
+function leftRiverDrop(rw: number, drop: number): number {
+    return 2 * drop + riverRows(rw) + (LEFT_REACH_TILES - CORE_TILES / 2) * rw + rw * TILE_ASPECT;
 }
 
 /**
@@ -365,24 +372,22 @@ function leftRiverDrop(rw: number): number {
  * river's fourth row, a top or bottom river's third row run on to seven tiles, and the top river's third row's
  * centre-facing edge, which no gap moves toward the centre; and the latest discard's gaps.
  */
-function riverLengths({
-    centre,
-    cx,
-    cy,
-    rw,
-}: Readonly<Record<"centre" | "cx" | "cy" | "rw", number>>): [string, number][] {
+function riverLengths(
+    { centre, cx, cy, rw }: Readonly<Record<"centre" | "cx" | "cy" | "rw", number>>,
+    drop: number,
+): [string, number][] {
     const hx = centre / 2;
     const gap = riverGap(rw);
     const sideReach = (SIDE_REACH_TILES / 2) * rw + LATEST_DISCARD_GAP;
     const runOnReach = RUN_ON_REACH_TILES * rw + LATEST_DISCARD_GAP;
     return [
         ["latest-discard-gap", LATEST_DISCARD_GAP],
+        ["latest-drop-gap", drop],
         ["reach-bottom-right", cx - hx + runOnReach],
         ["reach-left", leftReach(cx, centre, rw)],
         ["reach-right", cx + hx + gap + sideReach],
         ["reach-top-left", cx + hx - runOnReach],
         ["reach-top-row3", cy - centre / 2 - gap - ROWS_BEFORE_RUN_ON * rw],
-        ["right-latest-discard-gap", RIGHT_LATEST_DISCARD_GAP],
         ["river-across", RIVER_ROWS["run-on"] * rw * TILE_ASPECT],
         ["river-along", RIVER_ROW_SIZE * rw],
     ];
@@ -536,13 +541,14 @@ function desktopLayout(
         coreRoomW - SIDE_REACH_TILES * rw,
     );
     const centreTarget = RIVER_ROW_SIZE * rw;
-    const riverHeight = 2 * (LATEST_DISCARD_GAP + riverRows(rw));
+    const drop = latestDropGap(rw);
+    const riverHeight = 2 * (drop + riverRows(rw));
     const centre = Math.min(centreTarget, coreRoom - riverHeight);
     const core = centre + riverHeight;
     const coreTopSlot = m + rh + sep;
     const coreTopFree = (coreRoomH - rh - core) / 2;
     const switchesTop = switchesBottom - switchesPlace(tier);
-    const coreTopRoom = switchesTop - SWITCHES_CLEARANCE - coreTopSlot - leftRiverDrop(rw);
+    const coreTopRoom = switchesTop - SWITCHES_CLEARANCE - coreTopSlot - leftRiverDrop(rw, drop);
     const coreTop = short
         ? coreTopSlot + Math.max(0, Math.min(coreTopFree, coreTopRoom))
         : Math.min(coreTopSlot + coreTopFree, handTop - bandReserve - core);
@@ -588,14 +594,17 @@ function desktopLayout(
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ["own-rise", ownRise],
-        ...riverLengths({ centre, cx: width / 2, cy, rw }),
+        ...riverLengths({ centre, cx: width / 2, cy, rw }, drop),
         ["rh", rh],
         ["row-rise", rowRise],
         ["rw", rw],
         ["switches-bottom", switchesBottom],
         ["w", centre],
     ]);
-    return { fits: centre >= centreTarget && centre <= centreBySwitches, lengths };
+    return {
+        fits: centre >= centreTarget && centre <= centreBySwitches && (!short || coreTopRoom >= 0),
+        lengths,
+    };
 }
 
 /** What an upright board's replay group's row is placed from, in px. */
@@ -747,7 +756,8 @@ function uprightLayout({ box, chrome, slots }: BoardFrame, rw: number): BoardLen
         coreCap,
         coreRoomW - SIDE_REACH_TILES * rw,
     );
-    const centre = core - 2 * (LATEST_DISCARD_GAP + riverRows(rw));
+    const drop = latestDropGap(rw);
+    const centre = core - 2 * (drop + riverRows(rw));
     const coreFloor = underStrip + stripDepth;
     const coreTopSlot = m + rh + sep;
     const coreTopFree = (coreRoomH - rh - core) / 2;
@@ -793,7 +803,7 @@ function uprightLayout({ box, chrome, slots }: BoardFrame, rw: number): BoardLen
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ["own-rise", ownRise],
-        ...riverLengths({ centre, cx: width / 2, cy, rw }),
+        ...riverLengths({ centre, cx: width / 2, cy, rw }, drop),
         ["rh", rh],
         ["rw", rw],
         ["w", centre],
@@ -965,7 +975,7 @@ function phoneLayout(
         besideSwitches ? clearHalf : Infinity,
     );
     const centre = Math.min(heightRoom, 2 * halfRoom);
-    const leftRiverEnd = coreTop + leftRiverDrop(rw);
+    const leftRiverEnd = coreTop + leftRiverDrop(rw, LATEST_DISCARD_GAP);
     const cy = centreTop + centre / 2;
     const rightRoom = phoneRightRoom({
         bandGap,
@@ -1015,7 +1025,7 @@ function phoneLayout(
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ["own-rise", ownRise],
-        ...riverLengths({ centre, cx: width / 2, cy, rw }),
+        ...riverLengths({ centre, cx: width / 2, cy, rw }, LATEST_DISCARD_GAP),
         ["rh", rh],
         ["row-rise", 0],
         ["rw", rw],
@@ -1158,7 +1168,7 @@ function ownLane(
     const rw = at("rw");
     const laneFree = tier.sideLaneMin - plateReach + ownLead > 0;
     const bottomRiverEnd =
-        at("cy") + at("h") + at("g") + RIVER_ROWS_RUN_ON * at("rh") + LATEST_DISCARD_GAP;
+        at("cy") + at("h") + at("g") + RIVER_ROWS_RUN_ON * at("rh") + at("latest-drop-gap");
     const besideRiver = bottomRiverEnd - at("hand-top") + at("own-rise") > 0;
     const riverLane = at("cx") - at("hx") - Math.max(RIVER_CLEAR_MIN, rw / 2) - ownLead;
     const lane = Math.min(
@@ -1437,7 +1447,7 @@ function landscapeBadgeWidths(
     const centreTop = at("cy") - at("h");
     const left = laneShortOf(at("reach-left"), badgeX, centreTop - sideBadgeTop - tier.badgeH > 0);
     const rightRiverTop =
-        at("cy") + at("h") - ROW_BEFORE_SIDEWAYS * rw - at("rh") - RIGHT_LATEST_DISCARD_GAP;
+        at("cy") + at("h") - ROW_BEFORE_SIDEWAYS * rw - at("rh") - at("latest-drop-gap");
     const besideRiver = rightBadgeTop + tier.badgeH - rightRiverTop > 0;
     const coreRight = at("cx") + at("hx");
     const rightX = frame.box.width - badgeX;
@@ -1467,7 +1477,7 @@ function riverClear(rw: number): number {
 function landscapeTop(room: ShellRoom): Pick<StripPlaces, "topAnchor" | "topLane" | "topStart"> {
     const { at, frame, tier } = room;
     const m = at("m");
-    const reach = fullReach(at("rw"));
+    const reach = fullReach(at("rw"), "top");
     const clear = riverClear(at("rw"));
     const start = m;
     const badgeRight = frame.box.width - m - tier.badgeGap;
@@ -1694,7 +1704,7 @@ function uprightShell(room: ShellRoom): BoardShell {
             ? Math.max(m, Math.min(strip, width - actionsLeft - ACTIONS_ROW_MIN))
             : strip;
     const bottomRiverEnd =
-        at("cy") + at("h") + at("g") + RIVER_ROWS_RUN_ON * at("rh") + LATEST_DISCARD_GAP;
+        at("cy") + at("h") + at("g") + RIVER_ROWS_RUN_ON * at("rh") + at("latest-drop-gap");
     const field = {
         bottom: at("notices-bottom"),
         left: m + sideLaneReserve(rw) + FIELD_GAP.phone,
@@ -1820,9 +1830,10 @@ function uprightShell(room: ShellRoom): BoardShell {
 function stripFacts(rw: number): [string, number][] {
     return [
         ["bgap", hairline(rw)],
-        ["dg", drawnGap(rw)],
+        ["dg", drawnGap(rw, "top")],
+        ["side-dg", drawnGap(rw, "left")],
         ["face-floor", FACE_FLOOR],
-        ["full-reach", fullReach(rw)],
+        ["full-reach", fullReach(rw, "left")],
         ["strip-depth", STACKED_DEPTH * rw],
         ["strip-reserve", sideLaneReserve(rw)],
     ];

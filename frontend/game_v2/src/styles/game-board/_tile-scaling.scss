@@ -27,6 +27,10 @@
         margin-left: var(--dg);
     }
 
+    :is(.board-strip--left, .board-strip--right) .hand-drawn-gap {
+        margin-left: var(--side-dg);
+    }
+
     .meld {
         gap: 0;
         margin-left: 0;
@@ -62,15 +66,19 @@
         bottom: var(--board-tile-w);
     }
 
-    /* The latest discard lies a little apart from the tile before it and the row above, as a tile just thrown does. */
+    /* The latest discard lies a little apart from the tile before it and the row above, as a tile just thrown does;
+       the gap that runs along the light holds a tile's bared edge, so it is deeper by it to read as the same gap. */
     .discard-tile--last {
         margin-top: var(--latest-discard-gap);
         margin-left: var(--latest-discard-gap);
     }
 
-    /* The right river's gap runs up the screen, over the tile's bared edge, so it is wider to read as the same gap. */
-    .board-river--right .discard-tile--last {
-        margin-left: var(--right-latest-discard-gap);
+    :is(.board-river--top, .board-river--bottom) .discard-tile--last {
+        margin-top: var(--latest-drop-gap);
+    }
+
+    :is(.board-river--left, .board-river--right) .discard-tile--last {
+        margin-left: var(--latest-drop-gap);
     }
 
     /* A chankan offer's source: the whole kan, ringed in its meld like the latest discard, until the offer resolves. */

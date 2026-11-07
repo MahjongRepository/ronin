@@ -147,7 +147,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   toward its seat's edge, since a third row running on along a phone's short side would cross the
   hand; a top or bottom river keeps the convention, its third row running on along its line to
   twelve tiles. Layout reserves nineteen discards: two rows of six and a third of seven, including
-  a sideways riichi tile and the latest-discard gap. Rarer, longer top and bottom third rows still
+  a sideways riichi tile and the latest-discard gap: 7px across the light, and along it (a side
+  river's from the tile before, a top or bottom river's from the row before) deeper by the 0.13
+  tile edge that falls into it, so every seat's reads as one gap; a phone keeps 7px along it too,
+  its edge two pixels and the reserve a pixel of its river tile at the floor.
+  Rarer, longer top and bottom third rows still
   render in full but may extend under peripheral elements or clip at the board edge; they do not
   shrink tiles or move controls to reserve their full length. Every row reads left to right from its seat, so the river reads in order and as its
   owner's in every orientation. Decision: a drawn-and-discarded tile is not told apart from one
@@ -189,7 +193,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   hand never reads as face-down tiles (a closed kan's ends, the unrevealed indicators); the slot is
   kept whole, so a reveal shows the faces in the same place. Decision: a hand's tiles stand a
   one-pixel hairline apart, as the own hand's; a side strip's tiles run along the light, so the
-  tile edge would fill that hairline, and the table's colour is drawn into it instead. Every seat
+  tile edge would fill that hairline, and the table's colour is drawn into it instead; a side
+  strip's drawn gap shows that edge under the tile the light lays it on and is deeper by it, so
+  the clear table past the edge reads as the top strip's gap. Every seat
   keeps its melds in one continuous line to the hand's right from that player's view: downward for the left seat, upward for the right. The oldest meld stays at the far end;
   newer melds join toward the hand. Melds never wrap beside the hand or into parallel columns.
   All melds in a strip scale together to fit, never below the 13x17 face floor. The side lanes keep
@@ -647,20 +653,20 @@ strip's stacked depth over the own badge; its left river's capacity ends above t
 above that place too where the centre is too wide for the river to pass beside it, so a replay's
 board is the live game's there too.
 An opponent's concealed hand tile is the river tile; its drawn tile stands 0.15 of a river tile
-apart.
+apart on the top strip, and 0.28 on a side strip, where the 0.13 tile edge it shows lies in that gap.
 
 | Relationship | Starting point | Derived (667x375 / 750x369 notch safe area / 1440x900) |
 |---|---|---|
 | Core height / play area height | 0.6 | 0.73 / 0.75 / 0.66 |
-| Centre side / core height | 0.3 | 0.42 / 0.45 / 0.40 |
+| Centre side / core height | 0.3 | 0.42 / 0.45 / 0.39 |
 | Centre width / centre side | 1.0 | 1.0 / 1.0 / 1.0 |
 | River tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), 0.75 off it | 0.47 / 0.44 / 0.75 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
 | Opponent hand tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), 0.75 off it | 0.47 / 0.44 / 0.75 |
-| Own hand tile width / play area width | 0.05 | 0.054 / 0.048 / 0.037 |
-| Own hand tile height / play area height | 0.15 | 0.128 / 0.130 / 0.079 |
-| Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.31 / 0.31 (0.3, rounded) |
-| Gap between neighbouring rivers, in river tiles | 0.3 | 0.29 / 0.31 / 0.31 (0.3, rounded) |
+| Own hand tile width / play area width | 0.05 | 0.054 / 0.048 / 0.035 |
+| Own hand tile height / play area height | 0.15 | 0.128 / 0.130 / 0.076 |
+| Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.31 / 0.29 (0.3, rounded) |
+| Gap between neighbouring rivers, in river tiles | 0.3 | 0.29 / 0.31 / 0.29 (0.3, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,
 only where it protects the approved layout from a regression a player would notice.

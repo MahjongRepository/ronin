@@ -5,7 +5,7 @@ import {
     DESKTOP_CHROME,
     FULL_HAND,
     LATEST_DISCARD_GAP,
-    RIGHT_LATEST_DISCARD_GAP,
+    TILE_EDGE_SHARE,
     UPRIGHT_NOTICE_GAP,
     UPRIGHT_NOTICE_ROOM,
 } from "@/entities/table/lib/board-constants";
@@ -129,7 +129,7 @@ describe("boardGeometry", () => {
                     length("h") +
                     length("g") +
                     3 * length("rh") +
-                    LATEST_DISCARD_GAP;
+                    length("latest-drop-gap");
                 const [aboveBand, bandTop] = {
                     desktop: [
                         coreBottom,
@@ -175,10 +175,10 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [1440, 900, [39, 52, 234, 234, 86.4]],
-        [1440, 800, [33, 44, 198, 198, 88.8]],
-        [2560, 1440, [68, 90, 408, 408, 134.8]],
-        [800, 600, [21, 28, 126, 126, 65.6]],
+        [1440, 900, [38, 50, 228, 228, 94.8]],
+        [1440, 800, [33, 44, 198, 198, 80.8]],
+        [2560, 1440, [67, 89, 402, 402, 133.2]],
+        [800, 600, [21, 28, 126, 126, 59.6]],
     ])(
         "fits six-tile rows along both centre edges in a %ix%i desktop, keeping the latest discards inside the core",
         (width, height, expected) => {
@@ -195,10 +195,10 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [1366, 657, [29, 174, 81.5]],
-        [1280, 720, [33, 198, 82.667]],
-        [1440, 770, [36, 216, 85]],
-        [1170, 620, [27, 162, 78]],
+        [1366, 657, [29, 174, 77.5]],
+        [1280, 720, [33, 198, 78.667]],
+        [1440, 770, [35, 210, 87.667]],
+        [1170, 620, [27, 162, 74]],
     ])(
         "sizes a %ix%i window's short desktop board, a replay's full left river ending over its moves",
         (width, height, expected) => {
@@ -213,7 +213,11 @@ describe("boardGeometry", () => {
                 return replay[name] ?? Number.NaN;
             }
             const leftRiverEnd =
-                length("cy") - length("h") + 5 * length("rw") + length("rh") + LATEST_DISCARD_GAP;
+                length("cy") -
+                length("h") +
+                5 * length("rw") +
+                length("rh") +
+                length("latest-drop-gap");
 
             for (const [index, name] of SHORT_DESKTOP_SIZES.entries()) {
                 expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
@@ -226,8 +230,8 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [375, 548, [10, 116.333, 93.667]],
-        [800, 801, [26, 174.18, 114]],
+        [375, 548, [10, 114.333, 93.667]],
+        [800, 801, [26, 168.18, 114]],
     ])(
         "sizes a %ix%i window's upright board, its core holding the latest discards' gaps",
         (width, height, expected) => {
@@ -258,14 +262,18 @@ describe("boardGeometry", () => {
                 return lengths[name] ?? Number.NaN;
             }
             const leftRiverEnd =
-                length("cy") - length("h") + 5 * length("rw") + length("rh") + LATEST_DISCARD_GAP;
+                length("cy") -
+                length("h") +
+                5 * length("rw") +
+                length("rh") +
+                length("latest-drop-gap");
 
             for (const [name, value] of Object.entries(pinned)) {
                 expect(length(name), name).toBeCloseTo(value, 2);
             }
             expect(length("w")).toBe(length("c"));
             expect(
-                length("reach-top-row3") - length("rh") - LATEST_DISCARD_GAP,
+                length("reach-top-row3") - length("rh") - length("latest-drop-gap"),
             ).toBeGreaterThanOrEqual(length("core-top") - 0.001);
             const pastMoves =
                 length("reach-left") >=
@@ -282,9 +290,9 @@ describe("boardGeometry", () => {
         [1366, 657],
         [390, 844],
     ])(
-        "reserves nineteen discards and the latest gap in a %ix%i window without reserving a twelve-tile third row",
+        "reserves nineteen discards and the latest gap, deeper by the tile edge along the light off a phone, in a %ix%i window without reserving a twelve-tile third row",
         (width, height) => {
-            const { lengths } = windowGeometry({ height, width });
+            const { family, lengths } = windowGeometry({ height, width });
             function length(name: string): number {
                 return lengths[name] ?? Number.NaN;
             }
@@ -293,6 +301,10 @@ describe("boardGeometry", () => {
             const left = length("cx") - length("hx");
             const right = length("cx") + length("hx");
             const expected = {
+                "latest-discard-gap": LATEST_DISCARD_GAP,
+                "latest-drop-gap":
+                    LATEST_DISCARD_GAP +
+                    (family === "phone" ? 0 : Math.round(TILE_EDGE_SHARE * length("rw"))),
                 "reach-bottom-right": left + runOn,
                 "reach-left": left - across,
                 "reach-right": right + across,
@@ -309,8 +321,8 @@ describe("boardGeometry", () => {
                         length("h") -
                         5 * length("rw") -
                         length("rh") -
-                        RIGHT_LATEST_DISCARD_GAP,
-                    length("reach-top-row3") - length("rh") - LATEST_DISCARD_GAP,
+                        length("latest-drop-gap"),
+                    length("reach-top-row3") - length("rh") - length("latest-drop-gap"),
                 ),
             ).toBeGreaterThanOrEqual(length("core-top") - 0.001);
         },
@@ -463,7 +475,7 @@ describe("boardGeometry's shell tracks", () => {
             "field-beside": [554.3, 270.3, 634.3, 318.3],
             hand: [70.7, 322.3, 663, 370.3],
             "strip-left": [4, 44, 76, 266.3],
-            "strip-right": [591, 4, 663, 295.3],
+            "strip-right": [591, 4, 663, 297.3],
             "strip-top": [4, 4, 490.3, 38],
             switches: [44, 0, 667, 276.3],
         });

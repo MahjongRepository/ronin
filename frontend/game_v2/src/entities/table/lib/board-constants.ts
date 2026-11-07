@@ -30,6 +30,9 @@ const TILE_UNITS = 60;
 const OPPONENT_DRAWN_GAP = 0.15;
 const SIDE_LANE_GAP = 4;
 
+/** A side strip's drawn gap runs along the light, so it adds the edge it shows and keeps the top strip's clear table. */
+const SIDE_DRAWN_GAP = OPPONENT_DRAWN_GAP + TILE_EDGE_SHARE;
+
 /** The core's height past the centre, in river tiles: a gap and a top or bottom river's rows on each side. */
 const CORE_TILES = 2 * (RIVER_GAP_SHARE + RIVER_ROWS["run-on"] * TILE_ASPECT);
 
@@ -43,9 +46,9 @@ const SIDE_REACH_TILES = 2 * RIVER_ROWS.wrap * TILE_ASPECT;
 const ROWS_BEFORE_RUN_ON = (RIVER_ROWS["run-on"] - 1) * TILE_ASPECT;
 const RUN_ON_REACH_TILES = RIVER_ROW_SIZE + TILE_ASPECT;
 
-/** The latest discard's gap from the tile before it and the row above (px); the right river's runs up the screen. */
+/** The latest discard's gap from the tile before it and the row above (px), across the light; along it, the geometry
+ * adds the tile edge that falls into it. */
 const LATEST_DISCARD_GAP = 7;
-const RIGHT_LATEST_DISCARD_GAP = 10;
 
 /** A landscape board under this height is a phone's (px). */
 const PHONE_HEIGHT = 520;
@@ -257,11 +260,11 @@ export {
     PHONE_CHROME_RIVER,
     PHONE_HEIGHT,
     PHONE_OWN_FLOOR,
-    RIGHT_LATEST_DISCARD_GAP,
     RIVER_GAP_SHARE,
     ROWS_BEFORE_RUN_ON,
     RUN_ON_REACH_TILES,
     SHORT_DESKTOP_HEIGHT,
+    SIDE_DRAWN_GAP,
     SIDE_REACH_TILES,
     SIDEWAYS_UNITS,
     SMALL_CHROME_WIDTH,

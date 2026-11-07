@@ -1,4 +1,10 @@
-import { FACE_FLOOR, OPPONENT_DRAWN_GAP, TILE_UNITS, UPRIGHT_DEPTH } from "./board-constants";
+import {
+    FACE_FLOOR,
+    OPPONENT_DRAWN_GAP,
+    SIDE_DRAWN_GAP,
+    TILE_UNITS,
+    UPRIGHT_DEPTH,
+} from "./board-constants";
 
 /** An opponent's strip seat: the own row is the hand's slot, its melds scaled by their container. */
 type StripSeat = "left" | "top" | "right";
@@ -85,14 +91,22 @@ function hairline(rw: number): number {
     return Math.ceil(rw / TILE_UNITS);
 }
 
-/** An opponent's drawn tile's gap, a whole pixel. */
-function drawnGap(rw: number): number {
-    return Math.round(OPPONENT_DRAWN_GAP * rw);
+/** An opponent's drawn tile's gap, a whole pixel; a side strip's is deeper by the tile edge it shows. */
+function drawnGap(rw: number, seat: StripSeat): number {
+    return Math.round((seat === "top" ? OPPONENT_DRAWN_GAP : SIDE_DRAWN_GAP) * rw);
+}
+
+/** A hand on its seat's line: its tiles, a drawn one counted, at the river tile's width (px). */
+interface HandLine {
+    readonly tiles: number;
+    readonly drawn: boolean;
+    readonly rw: number;
+    readonly seat: StripSeat;
 }
 
 /** A hand's length along its line (px): its tiles, whole-pixel hairlines between them and a drawn tile's gap. */
-function handLength(tiles: number, drawn: boolean, rw: number): number {
-    return tiles * rw + Math.max(0, tiles - 1) * hairline(rw) + (drawn ? drawnGap(rw) : 0);
+function handLength({ drawn, rw, seat, tiles }: HandLine): number {
+    return tiles * rw + Math.max(0, tiles - 1) * hairline(rw) + (drawn ? drawnGap(rw, seat) : 0);
 }
 
 interface MeldLine {
@@ -176,7 +190,7 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
     if (content.melds.length === 0) {
         return { depth: UPRIGHT_DEPTH * rw, melds: [], pull: 0 };
     }
-    const handEnd = handLength(content.hand, content.drawn, rw);
+    const handEnd = handLength({ drawn: content.drawn, rw, seat, tiles: content.hand });
     for (const tile of getTileCandidates(rw)) {
         const layout = fitSideMelds(content.melds, rooms[seat], {
             gap: rooms.gap,
@@ -202,8 +216,13 @@ function topLayout(content: StripContent, { gap, rw, top }: StripRooms): StripLa
     const units = content.melds.map((meld) => meld.units);
     const count = units.length;
     const total = sum(units);
-    const handLen = handLength(content.hand, content.drawn, rw);
-    const heldLen = handLength(content.hand - (content.drawn ? 1 : 0), false, rw);
+    const handLen = handLength({ drawn: content.drawn, rw, seat: "top", tiles: content.hand });
+    const heldLen = handLength({
+        drawn: false,
+        rw,
+        seat: "top",
+        tiles: content.hand - (content.drawn ? 1 : 0),
+    });
     const need = start + handLen + count * gap + total * FACE_FLOOR;
     const anchorAt = cap === null ? anchor : Math.min(cap, Math.max(anchor, need));
     const room = anchorAt - start;

@@ -53,7 +53,7 @@ describe("stripLayout", () => {
             expect(melds.map((meld) => meld.rise)).toEqual([0, 0, 0, 0]);
             expect(melds.map((meld) => meld.tile)).toEqual([14, 14, 14, 14]);
             expect(melds[0]?.along).toBeGreaterThanOrEqual(
-                handLength(content.hand, true, ROOMS.rw) + ROOMS.gap,
+                handLength({ drawn: true, rw: ROOMS.rw, seat, tiles: content.hand }) + ROOMS.gap,
             );
             for (const [index, shape] of content.melds.entries()) {
                 const meld = melds[index];
@@ -84,7 +84,9 @@ describe("stripLayout", () => {
             const { melds } = stripLayout(seat, content, strips);
             expect(melds.map((meld) => meld.rise)).toEqual([0, 0, 0, 0]);
             expect(melds[0]?.along).toBeGreaterThanOrEqual(
-                handLength(content.hand, true, strips.rw) + strips.gap - 0.001,
+                handLength({ drawn: true, rw: strips.rw, seat, tiles: content.hand }) +
+                    strips.gap -
+                    0.001,
             );
             expect(melds.every((meld) => meld.tile >= FACE_FLOOR)).toBe(true);
             const [, , , oldest] = melds;
@@ -106,7 +108,9 @@ describe("stripLayout", () => {
         const [kan] = melds;
         expect(kan?.rise).toBe(0);
         expect(kan?.tile).toBe(14);
-        expect(kan?.along).toBeGreaterThan(handLength(content.hand, true, ROOMS.rw));
+        expect(kan?.along).toBeGreaterThan(
+            handLength({ drawn: true, rw: ROOMS.rw, seat: "left", tiles: content.hand }),
+        );
         expect((kan?.along ?? Number.NaN) + ADDED_KAN.units * (kan?.tile ?? 0)).toBeCloseTo(
             left.line,
             6,
