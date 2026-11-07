@@ -975,11 +975,13 @@ const END_TABLE_STICK_LOST: TableState = {
 
 function gameEndActions(): readonly PanelAction[] {
     return [
+        { href: "/play/storybook/board?overlay=round_end", kind: "link", label: "Last hand" },
         {
             href: "/play/storybook/replay?state=game_end",
             kind: "link",
             label: "Replay",
         },
+        { href: STORYBOOK_INDEX, kind: "link", label: "Game history" },
         { href: STORYBOOK_INDEX, kind: "link", label: "Storybook", primary: true },
     ];
 }
