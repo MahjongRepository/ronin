@@ -338,10 +338,19 @@
    the time left to the round advance under its label (or under the note that the seat waits for the others). */
 .round-end-result__controls {
     grid-area: controls;
-    display: flex;
-    align-items: center;
+    display: grid;
+    place-items: center end;
     padding-top: 0.4rem;
     border-top: 1px solid var(--ronin-border);
+}
+
+.round-end-result__controls > .round-end-result__confirm,
+.round-end-result__controls > .round-end-result__wait {
+    grid-area: 1 / 1;
+}
+
+.round-end-result__ghost {
+    visibility: hidden;
 }
 
 .round-end-result__confirm {

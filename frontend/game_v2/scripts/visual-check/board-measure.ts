@@ -171,7 +171,9 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         });
         const zones = board.querySelector(".board-zones");
         const resultActions = [
-            ...board.querySelectorAll(".board-overlay .round-end-result__confirm"),
+            ...board.querySelectorAll(
+                ".board-overlay .round-end-result__confirm:not(.round-end-result__ghost)",
+            ),
         ].map(box);
         const actions = [...decisionActions, ...resultActions];
         const corner = board.querySelector(".board-actions");

@@ -1115,11 +1115,19 @@ describe("mountGameView board", () => {
 
         expect(labels).toEqual(["Next", "OK"]);
         expect(connections[0].sent).toEqual([JOIN, buildConfirmRoundAction(ROUND_END_WAIT_ID)]);
-        expect(host.querySelector(".game__play .round-end-result__confirm")).toBeNull();
-        expect([
-            host.querySelector(".game__play .round-end-result__waiting")?.textContent,
-            host.querySelector(".game__play .round-end-result__countdown")?.textContent,
-        ]).toEqual(["Waiting for others", expect.stringMatching(/^\d+s left$/)]);
+        expect(
+            host.querySelector(
+                ".game__play .round-end-result__confirm:not(.round-end-result__ghost)",
+            ),
+        ).toBeNull();
+        expect(
+            [".round-end-result__waiting", ".round-end-result__countdown"].map(
+                (part) =>
+                    host.querySelector(
+                        `.game__play .round-end-result__wait:not(.round-end-result__ghost) ${part}`,
+                    )?.textContent,
+            ),
+        ).toEqual(["Waiting for others", expect.stringMatching(/^\d+s left$/)]);
     });
 
     it("sends a pass with the prompt's wait id when the call prompt's Pass is pressed", () => {

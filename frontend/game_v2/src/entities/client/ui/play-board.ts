@@ -307,7 +307,8 @@ function ResultTime(countdown: DecisionCountdown | null): TemplateResult | typeo
 /**
  * The round result's controls at the panel's foot, beside the scores: its primary button with the time left to the
  * round advance under its label, or, once the seat confirmed, that it waits for the others with the time still
- * counting down. Only the countdown's thresholds are announced.
+ * counting down. Both stack in one cell, the one not shown kept hidden in place, so confirming never resizes the panel.
+ * Only the countdown's thresholds are announced.
  */
 function ResultControlsView(
     result: ResultControls | null,
@@ -317,12 +318,18 @@ function ResultControlsView(
         return undefined;
     }
     const { action, countdown, waiting } = result;
-    const control =
+    const confirm =
         action === null
-            ? html`<span class="round-end-result__wait">
-                  ${waiting ? html`<span class="round-end-result__waiting">${t("game.result.waiting")}</span>` : nothing}
+            ? html`<button
+                  type="button"
+                  class="round-end-result__confirm round-end-result__ghost"
+                  aria-hidden="true"
+                  tabindex="-1"
+                  disabled
+              >
+                  <span class="round-end-result__confirm-label">${t("common.ok")}</span>
                   ${ResultTime(countdown)}
-              </span>`
+              </button>`
             : html`<button
                   type="button"
                   class="round-end-result__confirm"
@@ -334,7 +341,14 @@ function ResultControlsView(
                   ${ResultTime(countdown)}
               </button>`;
     return html`<span class="round-end-result__controls">
-        ${control}
+        ${confirm}
+        <span
+            class=${action === null ? "round-end-result__wait" : "round-end-result__wait round-end-result__ghost"}
+            aria-hidden=${action === null ? nothing : "true"}
+        >
+            ${waiting || action !== null ? html`<span class="round-end-result__waiting">${t("game.result.waiting")}</span>` : nothing}
+            ${ResultTime(countdown)}
+        </span>
         <span class="round-end-result__announce" aria-live="polite">${countdownAnnouncement(countdown)}</span>
     </span>`;
 }
