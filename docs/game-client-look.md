@@ -198,7 +198,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the clear table past the edge reads as the top strip's gap. Every seat
   keeps its melds in one continuous line to the hand's right from that player's view: downward for the left seat, upward for the right. The oldest meld stays at the far end;
   newer melds join toward the hand. Melds never wrap beside the hand or into parallel columns.
-  All melds in a strip scale together to fit, never below the 13x17 face floor. The side lanes keep
+  All melds in a strip scale together to fit, never below the 13x17 face floor, beside the hand at its
+  fullest with a drawn tile set apart, so a draw never resizes them. The side lanes keep
   their existing buffer before interior controls as the melds scale inside the edge line. The side layout
   clears the reserved badge, play switches and own row using each meld's actual footprint.
   Each top meld stays above what it keeps clear of there, its tiles one size, scaling only where

@@ -118,11 +118,49 @@ describe("stripLayout", () => {
     });
 
     it("keeps the top strip at the river tile where its stacked kan stands past the badge's lane", () => {
-        const top = { ...ROOMS.top, badgeDepth: 30, lane: 200 };
-        const content: StripContent = { drawn: true, hand: 2, melds: [CHI, ADDED_KAN] };
+        const top = { ...ROOMS.top, anchor: 400, badgeDepth: 30, lane: 300 };
+        const content: StripContent = { drawn: true, hand: 8, melds: [CHI, ADDED_KAN] };
         const { melds } = stripLayout("top", content, { ...ROOMS, top });
         expect(melds.map((meld) => meld.tile)).toEqual([ROOMS.rw, ROOMS.rw]);
         expect(melds[0]?.along).toBeLessThan(top.lane);
         expect(melds[1]?.along).toBeGreaterThan(top.lane);
+    });
+
+    it("lays every opponent's strip out alike whether its hand has just discarded, drawn or called", () => {
+        const boxes = [
+            { height: 375, width: 667 },
+            { height: 390, width: 844 },
+            { height: 748, width: 1004 },
+            { height: 700, width: 1260 },
+            { height: 748, width: 1346 },
+            { height: 1380, width: 1484 },
+            { height: 1060, width: 1900 },
+            { height: 1004, width: 748 },
+            { height: 844, width: 390 },
+        ];
+        const sets = [
+            [CHI],
+            [CHI, CHI],
+            [OPEN_KAN, CHI, ADDED_KAN],
+            [CHI, CHI, CHI, CHI],
+            [CLOSED_KAN, CLOSED_KAN, CLOSED_KAN, CLOSED_KAN],
+        ];
+        const unsteady = boxes.flatMap((box) => {
+            const rooms = windowStrips(box);
+            return (["left", "top", "right"] as const).flatMap((seat) =>
+                sets.flatMap((melds) => {
+                    const full = 14 - 3 * melds.length;
+                    const states = [
+                        { drawn: false, hand: full - 1 },
+                        { drawn: true, hand: full },
+                        { drawn: false, hand: full },
+                    ].map((state) => JSON.stringify(stripLayout(seat, { ...state, melds }, rooms)));
+                    return new Set(states).size === 1
+                        ? []
+                        : [`${box.width}x${box.height} ${seat} ${melds.length}`];
+                }),
+            );
+        });
+        expect(unsteady).toEqual([]);
     });
 });

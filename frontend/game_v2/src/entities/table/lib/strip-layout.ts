@@ -109,6 +109,16 @@ function handLength({ drawn, rw, seat, tiles }: HandLine): number {
     return tiles * rw + Math.max(0, tiles - 1) * hairline(rw) + (drawn ? drawnGap(rw, seat) : 0);
 }
 
+/** A full hand's tiles, a drawn one counted, and the tiles each meld takes from it. */
+const FULL_HAND_TILES = 14;
+const TILES_PER_MELD = 3;
+
+/** The hand a strip's melds fit beside: its fullest, with a drawn tile and its gap, so a draw never resizes them (px). */
+function reservedHandLength(content: StripContent, rw: number, seat: StripSeat): number {
+    const tiles = Math.max(content.hand, FULL_HAND_TILES - TILES_PER_MELD * content.melds.length);
+    return handLength({ drawn: true, rw, seat, tiles });
+}
+
 interface MeldLine {
     readonly tile: number;
     readonly gap: number;
@@ -190,7 +200,7 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
     if (content.melds.length === 0) {
         return { depth: UPRIGHT_DEPTH * rw, melds: [], pull: 0 };
     }
-    const handEnd = handLength({ drawn: content.drawn, rw, seat, tiles: content.hand });
+    const handEnd = reservedHandLength(content, rw, seat);
     for (const tile of getTileCandidates(rw)) {
         const layout = fitSideMelds(content.melds, rooms[seat], {
             gap: rooms.gap,
@@ -216,7 +226,7 @@ function topLayout(content: StripContent, { gap, rw, top }: StripRooms): StripLa
     const units = content.melds.map((meld) => meld.units);
     const count = units.length;
     const total = sum(units);
-    const handLen = handLength({ drawn: content.drawn, rw, seat: "top", tiles: content.hand });
+    const handLen = reservedHandLength(content, rw, "top");
     const heldLen = handLength({
         drawn: false,
         rw,
