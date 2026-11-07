@@ -10,6 +10,7 @@ import {
     type ReplayPageInput,
     type ReplayPrefs,
     type ReplayScreen,
+    WHEEL_RESULT_HOLD_MS,
     replayPageDeadline,
     roundPosition,
     stepReplayPage,
@@ -506,17 +507,18 @@ describe("stepReplayPage - hold and wheel", () => {
         expect(step(start, input)).toEqual({ effects: [], screen: start });
     });
 
-    it("pauses a turning wheel at a round's result until it rests", () => {
+    it("holds each page of a double ron's result for a beat under a turning wheel", () => {
+        const hold = WHEEL_RESULT_HOLD_MS;
         const { screens } = script(
-            opened("double_ron_on_honba", "?round=0&step=139"),
-            [0, 160, 320, 600].map((at) => [{ deltaPx: 100, kind: "wheel" }, at] as const),
+            opened("double_ron", "?round=0&step=9"),
+            [0, 100, hold, hold + 100].map((at) => [{ deltaPx: 100, kind: "wheel" }, at] as const),
         );
 
         expect(screens.map(where)).toEqual([
-            [0, 140, 0],
-            [0, 140, 0],
-            [0, 140, 0],
-            [1, 0, 0],
+            [0, 10, 0],
+            [0, 10, 0],
+            [0, 10, 1],
+            [0, 10, 1],
         ]);
     });
 });

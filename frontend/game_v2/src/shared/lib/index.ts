@@ -12,7 +12,7 @@ export { createSoundPlayer } from "./sound-player";
 export type { SoundOutput, SoundPlayer, SoundSamples, SoundSource } from "./sound-player";
 export { createThrottledWriter } from "./throttled-writer";
 export type { ThrottledWriter } from "./throttled-writer";
-export { wheelPixels, wheelStep } from "./wheel-steps";
+export { holdWheel, wheelPixels, wheelStep } from "./wheel-steps";
 export type { WheelGesture } from "./wheel-steps";
 export { webAudioOutput } from "./web-audio";
 export type { WebAudioOutput } from "./web-audio";

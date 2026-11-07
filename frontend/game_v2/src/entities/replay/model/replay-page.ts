@@ -30,7 +30,7 @@ import { type ReplayCursor } from "@/entities/replay/model/replay-cursor";
 import { type ReplayPrefs } from "@/entities/replay/model/replay-prefs";
 import { SEAT_POSITIONS, type SeatPosition } from "@/entities/table";
 import { type ReplayFetch } from "@/shared/api";
-import { type WheelGesture, assertNever, wheelStep } from "@/shared/lib";
+import { type WheelGesture, assertNever, holdWheel, wheelStep } from "@/shared/lib";
 
 /** The way a step button steps, which a pointer may hold to repeat. */
 export type StepDirection = "next" | "prev";
@@ -229,7 +229,7 @@ export function canStep(screen: ReplayScreen, direction: StepDirection): boolean
     return screen.kind === "loaded" && !screen.seating && stepTarget(screen, direction) !== null;
 }
 
-/** Whether the cursor shown is where a continuous move pauses: a result's page or the last stop. */
+/** Whether the cursor shown is where a held step pauses: a result's page or the last stop. */
 function atPauseStop(screen: LoadedReplayScreen): boolean {
     return isPauseStop(screen.replay.navigation, screen.view.cursor);
 }
@@ -471,10 +471,13 @@ function onHoldEnd(screen: LoadedReplayScreen, cancelled: boolean): LoadedStep {
     return quiet({ ...screen, hold: null, pressedStep: cancelled ? null : screen.pressedStep });
 }
 
+/** How long a turning wheel holds a result's page before it steps on. */
+export const WHEEL_RESULT_HOLD_MS = 500;
+
 /**
  * A wheel turned toward a step that goes somewhere: a gesture steps once it has run far enough, then on a beat, and
- * once it reaches a result or the end it steps no more until it rests or turns back. It never leaves the seating: a
- * wheel is no click the browser lets a sound play after.
+ * holds each result page for `WHEEL_RESULT_HOLD_MS`, counting no distance, before it steps on as the wheel turns. It
+ * never leaves the seating: a wheel is no click the browser lets a sound play after.
  */
 function onWheel(screen: LoadedReplayScreen, deltaPx: number, at: number): LoadedStep {
     const target = screen.seating ? null : stepTarget(screen, deltaPx > 0 ? "next" : "prev");
@@ -486,10 +489,10 @@ function onWheel(screen: LoadedReplayScreen, deltaPx: number, at: number): Loade
         return quiet({ ...screen, wheel: gesture });
     }
     const moved = moveTo(screen, { announce: false, at, to: target });
-    return {
-        effects: moved.effects,
-        screen: { ...moved.screen, wheel: { ...gesture, halted: atPauseStop(moved.screen) } },
-    };
+    const wheel = atPauseStop(moved.screen)
+        ? holdWheel(gesture, at + WHEEL_RESULT_HOLD_MS)
+        : gesture;
+    return { effects: moved.effects, screen: { ...moved.screen, wheel } };
 }
 
 function autoplayTick(screen: LoadedReplayScreen, at: number): LoadedStep {

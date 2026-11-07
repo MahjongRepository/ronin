@@ -49,6 +49,7 @@ export type {
 } from "./model/replay-page";
 export {
     HOLD_DELAY_MS,
+    WHEEL_RESULT_HOLD_MS,
     HOLD_REPEAT_MS,
     canStep,
     replayPageDeadline,

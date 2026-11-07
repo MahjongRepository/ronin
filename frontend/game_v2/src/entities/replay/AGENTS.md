@@ -14,7 +14,8 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
 - A result stop has a page per winner; stepping back into it lands on its last page.
 - The address (`docs/architecture.md`, Replays) never names a result page; reader settings (hidden hands) never go
   in the address.
-- Continuous moves (autoplay, held button, wheel) pause on every result page and at the last stop (`isPauseStop`).
+- Autoplay and a held button or key pause on every result page and at the last stop (`isPauseStop`); the wheel holds
+  each result page `WHEEL_RESULT_HOLD_MS` and steps on while it keeps turning.
 - Replay tile motion settles the previous stop before measuring the next, so rapid navigation never queues behind
   movement or carries old tile effects into the new stop. The replay cue omits the live discard pause; backward
   steps, jumps and round changes show their destination immediately.

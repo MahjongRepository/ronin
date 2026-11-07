@@ -17,7 +17,7 @@ const STOP_SHARE: Partial<Readonly<Record<StepEvent["type"], number>>> = {
 };
 
 /**
- * Whether a continuous move (autoplay, a held button or key, a turning wheel) pauses at the cursor: on any page of a
+ * Whether autoplay or a held button or key pauses at the cursor: on any page of a
  * round's result, and at the replay's last stop, so a result is read before the next deal.
  */
 export function isPauseStop(nav: NavigationIndex, cursor: ReplayCursor): boolean {

@@ -1,13 +1,13 @@
 /**
- * A wheel gesture turned into steps: the distance it has run in one direction, the steps taken, and whether a step
- * landed where it must pause, after which the gesture takes no more until it rests.
+ * A wheel gesture turned into steps: the distance it has run in one direction, the steps taken, and until when it is
+ * held: a held gesture keeps going while the wheel turns but neither steps nor counts the distance it runs.
  */
 export interface WheelGesture {
     readonly total: number;
     readonly steps: number;
     readonly lastEventAt: number;
     readonly lastStepAt: number;
-    readonly halted: boolean;
+    readonly heldUntil: number;
 }
 
 /** The distance before the first step: one mouse notch at once, a trackpad's first ticks not yet. */
@@ -28,7 +28,7 @@ export function wheelPixels(event: WheelEvent): number {
 
 function freshGesture(): WheelGesture {
     return {
-        halted: false,
+        heldUntil: Number.NEGATIVE_INFINITY,
         lastEventAt: Number.NEGATIVE_INFINITY,
         lastStepAt: Number.NEGATIVE_INFINITY,
         steps: 0,
@@ -38,7 +38,7 @@ function freshGesture(): WheelGesture {
 
 /**
  * The gesture after a wheel event of `deltaPx` at `now`, and the step it takes: 1 forward, -1 back or 0. A rest or a
- * change of direction starts a new gesture, a halted one included.
+ * change of direction starts a new gesture.
  */
 export function wheelStep(
     gesture: WheelGesture | null,
@@ -51,14 +51,15 @@ export function wheelStep(
         now - gesture.lastEventAt <= REST_MS &&
         Math.sign(gesture.total) !== -direction;
     const base = continues ? gesture : freshGesture();
-    const total = base.total + deltaPx;
+    const held = now < base.heldUntil;
+    const total = held ? base.total : base.total + deltaPx;
     const due =
-        !base.halted &&
+        !held &&
         Math.abs(total) >= FIRST_STEP_PX + base.steps * NEXT_STEP_PX &&
         now - base.lastStepAt >= STEP_INTERVAL_MS;
     return {
         gesture: {
-            halted: base.halted,
+            heldUntil: base.heldUntil,
             lastEventAt: now,
             lastStepAt: due ? now : base.lastStepAt,
             steps: due ? base.steps + 1 : base.steps,
@@ -66,4 +67,14 @@ export function wheelStep(
         },
         step: due ? direction : 0,
     };
+}
+
+/**
+ * `gesture` held until `until`, so a stop it landed on stays on screen however fast the wheel turns, its distance cut
+ * back to its last step's so the step after the hold takes a full stretch of fresh turning.
+ */
+export function holdWheel(gesture: WheelGesture, until: number): WheelGesture {
+    const lastStepPx = FIRST_STEP_PX + Math.max(gesture.steps - 1, 0) * NEXT_STEP_PX;
+    const total = Math.sign(gesture.total) * Math.min(Math.abs(gesture.total), lastStepPx);
+    return { ...gesture, heldUntil: until, total };
 }
