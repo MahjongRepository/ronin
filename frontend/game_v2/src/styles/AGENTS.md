@@ -87,8 +87,8 @@ they disagree.
 - The notices never cover a tile within its reserved reach, a plate, the centre, a decision control or a panel.
   Rarer top and bottom third rows past nineteen discards may extend under them. A panel never covers the
   page's corner or the replay's controls.
-- The own hand's tiles are the board's largest: a phone's for touch; off a phone 4/3 of the river tile,
-  as large as a side seat's tile turned across the screen, every other hand and river at the river tile. No meld face
+- The own hand's tiles are the board's largest: a phone's for touch; off a phone 1.6 of the river tile within its
+  family's caps, never under 4/3 of it, every other hand and river at the river tile. No meld face
   goes under 13px wide; scaled text keeps a 10px
   floor (a safety limit, not a design size).
 - A round result fits its panel whole at every supported size; only on a board too small for it does it scroll its

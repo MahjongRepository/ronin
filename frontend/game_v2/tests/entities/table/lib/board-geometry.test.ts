@@ -175,10 +175,10 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [1440, 900, [38, 50, 228, 228, 94.8]],
-        [1440, 800, [33, 44, 198, 198, 80.8]],
-        [2560, 1440, [67, 89, 402, 402, 133.2]],
-        [800, 600, [21, 28, 126, 126, 59.6]],
+        [1440, 900, [39, 62, 234, 234, 94.4]],
+        [1440, 800, [34, 54, 204, 204, 82.4]],
+        [2560, 1440, [68, 108, 408, 408, 134.8]],
+        [800, 600, [21, 33, 126, 126, 71.6]],
     ])(
         "fits six-tile rows along both centre edges in a %ix%i desktop, keeping the latest discards inside the core",
         (width, height, expected) => {
@@ -195,10 +195,10 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [1366, 657, [29, 174, 77.5]],
-        [1280, 720, [33, 198, 78.667]],
-        [1440, 770, [35, 210, 87.667]],
-        [1170, 620, [27, 162, 74]],
+        [1366, 657, [29, 174, 80.167]],
+        [1280, 720, [33, 198, 81.333]],
+        [1440, 770, [36, 216, 82]],
+        [1170, 620, [27, 162, 77.333]],
     ])(
         "sizes a %ix%i window's short desktop board, a replay's full left river ending over its moves",
         (width, height, expected) => {
@@ -231,7 +231,7 @@ describe("boardGeometry", () => {
 
     it.each([
         [375, 548, [10, 114.333, 93.667]],
-        [800, 801, [26, 168.18, 114]],
+        [800, 801, [26, 167.27, 114]],
     ])(
         "sizes a %ix%i window's upright board, its core holding the latest discards' gaps",
         (width, height, expected) => {
@@ -517,8 +517,8 @@ describe("boardGeometry's shell tracks", () => {
 
 describe("boardGeometry on a replay", () => {
     it.each([
-        { height: 844, lane: 102.2, oneRow: false, width: 390 },
-        { height: 1024, lane: 200.8, oneRow: true, width: 768 },
+        { height: 844, lane: 124.1, oneRow: false, width: 390 },
+        { height: 1024, lane: 251.9, oneRow: true, width: 768 },
     ])(
         "stands a $width x $height upright replay's group in the own badge's row only where it leaves the badge an ordinary lane ($oneRow)",
         ({ height, lane, oneRow, width }) => {

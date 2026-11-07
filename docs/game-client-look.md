@@ -285,9 +285,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   riichi or callout changes a table tile's size, the hand's start or a laid meld's place; tiles still
   enter, leave, sort, rotate and take their drawn, latest-discard and selection offsets. Only a call
   or a kan refits the melds, inside their fixed room. Decision: its tiles are
-  the play area's largest: on a phone for touch; off a phone (a desktop, an upright board) 4/3 of the
-  tile every other hand and river shares, as large across as a side seat's tile turned sideways; after a pon or chi there is no drawn tile and nothing is set
-  apart. Every face stays readable in every state: after riichi the locked hand keeps its normal
+  the play area's largest: on a phone for touch; off a phone (a desktop, an upright board) 1.6 of the
+  tile every other hand and river shares, never under 4/3 of it, as far as its family's caps allow; after a pon or chi
+  there is no drawn tile and nothing is set apart. Every face stays readable in every state: after riichi the locked hand keeps its normal
   colours, and a draw with no offers is discarded automatically. An offered tsumo or closed kan
   stays available, with only the drawn tile discardable if the player declines it. Tile states are told apart at a
   glance: selectable, selected, held
@@ -632,11 +632,13 @@ except the decision controls, which keep their 40px rows. It gives river and own
 at 932x430 (0.58 of the own tile), whatever the state shows. A desktop window short enough to use
 the phone layout follows the same solve. Among the layouts tried, larger tiles on
 the smaller phones would need the own badge to leave the hand's first tile, a look decision not
-taken. Off a phone the own hand tile is 4/3 of the river tile, at most min(0.05 of
-the width, 0.1 of the height) and what a full hand's row holds. On a desktop the river tile is the
+taken. Off a phone the own hand tile is 1.6 of the river tile, never under 4/3 of it, and otherwise at most its
+family's caps: on a desktop min(0.05 of the width, 0.1 of the height) and what a full hand's row holds, on an upright
+board 0.1 of the height and the row, with no share of the width. On a desktop the river tile is the
 largest whole-pixel size that fits with a centre six river tiles tall, the own row it sizes and
 the top and bottom rivers' latest-discard gaps. The gap below the top strip uses the badge gap
-instead of the former 40px separation, reclaiming height before reducing tiles. Short desktops
+instead of the former 40px separation, reclaiming height before reducing tiles. A desktop's band keeps a 48px control row
+12px above the own row, and a short desktop's core stands 24px above the own row. Short desktops
 also keep the centre and bottom river clear of the switches and replay moves. Upright boards
 fit a centre at least six river tiles and 100px across. A phone's centre is at least six river tiles
 and 94px across, its text's room, and fills the height left above
@@ -663,16 +665,16 @@ apart on the top strip, and 0.28 on a side strip, where the 0.13 tile edge it sh
 
 | Relationship | Starting point | Derived (667x375 / 750x369 notch safe area / 1440x900) |
 |---|---|---|
-| Core height / play area height | 0.6 | 0.73 / 0.75 / 0.66 |
+| Core height / play area height | 0.6 | 0.73 / 0.75 / 0.68 |
 | Centre side / core height | 0.3 | 0.42 / 0.45 / 0.39 |
 | Centre width / centre side | 1.0 | 1.0 / 1.0 / 1.0 |
-| River tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), 0.75 off it | 0.47 / 0.44 / 0.75 |
+| River tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), about 0.63 off it | 0.47 / 0.44 / 0.63 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
-| Opponent hand tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), 0.75 off it | 0.47 / 0.44 / 0.75 |
-| Own hand tile width / play area width | 0.05 | 0.054 / 0.048 / 0.035 |
-| Own hand tile height / play area height | 0.15 | 0.128 / 0.130 / 0.076 |
-| Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.31 / 0.29 (0.3, rounded) |
-| Gap between neighbouring rivers, in river tiles | 0.3 | 0.29 / 0.31 / 0.29 (0.3, rounded) |
+| Opponent hand tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), about 0.63 off it | 0.47 / 0.44 / 0.63 |
+| Own hand tile width / play area width | 0.05 | 0.054 / 0.048 / 0.044 |
+| Own hand tile height / play area height | 0.15 | 0.128 / 0.130 / 0.094 |
+| Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.31 / 0.31 (0.3, rounded) |
+| Gap between neighbouring rivers, in river tiles | 0.3 | 0.29 / 0.31 / 0.31 (0.3, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,
 only where it protects the approved layout from a regression a player would notice.
@@ -680,8 +682,9 @@ only where it protects the approved layout from a regression a player would noti
 The opponent's hand at the river tile follows Tenhou (every opponent hand and meld at exactly the
 river tile, its own hand 1.44 of it on a desktop) and Mahjong Soul (the same, once its camera's depth
 is taken out). Decision off a phone: every other hand and river reads at one size, and the own hand
-at 4/3 of it, since a side seat's tile, turned, shows its long side across the screen and an own hand
-at the same size reads smaller beside it. A phone keeps a larger own tile, which touch needs, solved
+at 1.6 of it, as both references draw it by width (Mahjong Soul's desktop 1.58 to 1.62, Tenhou's tablet 1.59 to
+1.67); the own melds, at 1.2 river tiles, stand at 0.76 of the own tile, Mahjong Soul's 0.74. Only width ratios are
+compared: Mahjong Soul's hand faces its camera over foreshortened rivers and Tenhou's view squashes heights. A phone keeps a larger own tile, which touch needs, solved
 together with its river tile from the box, the own tile up to 1.7 of the river tile (Tenhou) above
 its 36x48 floor: 2.1 at the floor and 2.25 at the notch phone, where the floor wins, 1.7 at 932x430. A decision control's tiles stay inside
 the room the band keeps for its row, so a large board's controls never reach the bottom river.

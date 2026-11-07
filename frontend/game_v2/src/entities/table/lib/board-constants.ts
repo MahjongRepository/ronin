@@ -110,10 +110,10 @@ const REGULAR_CHROME: DesktopChrome = {
     actionMinW: 96,
     badgeGap: 16,
     badgeH: 54,
-    bandGap: 18,
+    bandGap: 12,
     chipGap: 6,
-    controlH: 60,
-    coreGap: 40,
+    controlH: 48,
+    coreGap: 24,
     countersFrame: 18,
     countersW: 172,
     doraW: 28,
@@ -197,6 +197,9 @@ const DESKTOP_OWN_CAP_WIDTH = 0.05;
 const DESKTOP_OWN_CAP_HEIGHT = 0.1;
 const DESKTOP_CORE_CAP = 0.74;
 
+/** Off a phone the own tile is this many river tiles where its caps allow, never under 4/3. */
+const OWN_BY_RIVER_OFF_PHONE = 1.6;
+
 /**
  * A phone's own tile: at least this wide (px) and at most this many river tiles where the floor allows; its centre
  * never under this height (px).
@@ -260,6 +263,7 @@ export {
     NOTICES_BESIDE_PANEL,
     OPPONENT_DRAWN_GAP,
     OWN_BY_RIVER_MAX,
+    OWN_BY_RIVER_OFF_PHONE,
     OWN_DRAWN_GAP,
     OWN_MELD_SCALE,
     PAGE_GUTTER,

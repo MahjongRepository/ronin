@@ -22,6 +22,7 @@ import {
     MENU_RIVER_SHARE,
     NOTICES_BESIDE_PANEL,
     OWN_BY_RIVER_MAX,
+    OWN_BY_RIVER_OFF_PHONE,
     OWN_MELD_SCALE,
     PAGE_GUTTER,
     PHONE_CENTRE_MIN,
@@ -226,6 +227,25 @@ function classifyChrome({ width, height }: BoardBox): ChromeTier {
         return "large";
     }
     return "regular";
+}
+
+/** Off a phone, the own tile: `OWN_BY_RIVER_OFF_PHONE` river tiles within its family's fit, never under 4/3 of one. */
+function offPhoneOwn(rw: number, ownFit: number): number {
+    return Math.max(
+        Math.floor(TILE_ASPECT * rw),
+        Math.min(Math.floor(OWN_BY_RIVER_OFF_PHONE * rw), Math.floor(ownFit)),
+    );
+}
+
+/** A desktop's own tile's fit: its shares of the board and a full hand across its row. */
+function desktopOwnFit({ width, height }: BoardBox, { m, ownInline }: DesktopChrome): number {
+    const ownCap = Math.min(DESKTOP_OWN_CAP_WIDTH * width, DESKTOP_OWN_CAP_HEIGHT * height);
+    return Math.min(ownCap, (width - 2 * m - ownInline) / FULL_HAND);
+}
+
+/** An upright board's own tile's fit: its share of the height and a full hand across its row. */
+function uprightOwnFit({ width, height }: BoardBox, { m, ownInline }: DesktopChrome): number {
+    return Math.min(DESKTOP_OWN_CAP_HEIGHT * height, (width - 2 * m - ownInline) / FULL_HAND);
 }
 
 /** What a desktop's or an upright board's river tile is solved from: its height, its chrome and the rooms known. */
@@ -489,9 +509,8 @@ function desktopLengths(frame: BoardFrame): BoardLengths {
     const { width, height } = box;
     const short = family === "short-desktop";
     const tier = { ...DESKTOP_CHROME[chrome], sep: DESKTOP_CHROME[chrome].badgeGap };
-    const { bandGap, m, ownBadgeH, ownInline, switchGap } = tier;
-    const ownCap = Math.min(DESKTOP_OWN_CAP_WIDTH * width, DESKTOP_OWN_CAP_HEIGHT * height);
-    const ownFit = Math.min(ownCap, (width - 2 * m - ownInline) / FULL_HAND);
+    const { bandGap, m, ownBadgeH, switchGap } = tier;
+    const ownFit = desktopOwnFit(box, tier);
     const coreCap = DESKTOP_CORE_CAP * height;
     const coreRoomW = width - 2 * m - CORE_ROOM_SIDES;
     const rowRiseFixed = chrome === "small" ? ownBadgeH + OWN_BADGE_LANE + switchGap - bandGap : 0;
@@ -518,7 +537,7 @@ function desktopLayout(
     const coreCap = DESKTOP_CORE_CAP * height;
     const coreRoomW = width - 2 * m - CORE_ROOM_SIDES;
     const rh = rw * TILE_ASPECT;
-    const ow = Math.floor(rw * TILE_ASPECT);
+    const ow = offPhoneOwn(rw, desktopOwnFit(box, tier));
     const oh = ow * TILE_ASPECT;
 
     const handBottom = Math.max(m, ow * TILE_EDGE_SHARE);
@@ -689,11 +708,8 @@ function uprightLengths(frame: BoardFrame): BoardLengths {
     const { box, chrome } = frame;
     const { width, height } = box;
     const tier = { ...DESKTOP_CHROME[chrome], ...UPRIGHT_CHROME };
-    const { controlH, m, ownBadgeH, ownInline } = tier;
-    const ownFit = Math.min(
-        DESKTOP_OWN_CAP_HEIGHT * height,
-        (width - 2 * m - ownInline) / FULL_HAND,
-    );
+    const { controlH, m, ownBadgeH } = tier;
+    const ownFit = uprightOwnFit(box, tier);
     const coreCap = DESKTOP_CORE_CAP * height;
     const coreRoomW = width - 2 * m - CORE_ROOM_SIDES;
     const underStrip = m + COUNTERS_GAP + UPRIGHT_COUNTERS_H;
@@ -737,7 +753,7 @@ function uprightLayout({ box, chrome, slots }: BoardFrame, rw: number): BoardLen
     const coreRoomW = width - 2 * m - CORE_ROOM_SIDES;
     const underStrip = m + COUNTERS_GAP + UPRIGHT_COUNTERS_H;
     const rh = rw * TILE_ASPECT;
-    const ow = Math.floor(rw * TILE_ASPECT);
+    const ow = offPhoneOwn(rw, uprightOwnFit(box, tier));
     const oh = ow * TILE_ASPECT;
 
     const handBottom = Math.max(m, ow * TILE_EDGE_SHARE);
