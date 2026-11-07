@@ -24,17 +24,8 @@ $sideways-height: $tile-width; // 60px
 }
 
 .discard-tile-riichi {
+    position: relative;
     display: inline-block;
     width: $sideways-width;
     height: $sideways-height;
-
-    > .tile {
-        --tile-turn: calc(var(--frame-turn, 0deg) + 90deg);
-
-        position: absolute;
-        left: calc(($sideways-width - $tile-width) / 2);
-        top: calc(($sideways-height - $tile-height) / 2);
-        transform: rotate(90deg);
-        transform-origin: center;
-    }
 }

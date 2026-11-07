@@ -42,10 +42,12 @@ export function refreshTileFeedback(source: HTMLElement, image: HTMLElement): vo
     }
 }
 
+function isSideways(tile: HTMLElement): boolean {
+    return tile.parentElement?.matches(".meld-tile-sideways, .discard-tile-riichi") === true;
+}
+
 function capturePose(tile: HTMLElement, rect: MotionRect, seat: SeatPosition): TilePose {
-    const sideways =
-        tile.parentElement?.matches(".meld-tile-sideways, .discard-tile-riichi") === true;
-    const angle = SEAT_TURNS[seat] + (sideways ? 90 : 0);
+    const angle = SEAT_TURNS[seat] + (isSideways(tile) ? 90 : 0);
     return {
         angle,
         height: angle % 180 === 0 ? rect.height : rect.width,
@@ -57,13 +59,17 @@ function capturePose(tile: HTMLElement, rect: MotionRect, seat: SeatPosition): T
     };
 }
 
+function copiedTileStyle(tile: HTMLElement): readonly string[] {
+    return isSideways(tile) ? TILE_STYLE.filter((name) => name !== "border-radius") : TILE_STYLE;
+}
+
 function copyTile(tile: HTMLElement, pose: TilePose): HTMLElement {
     const face = tile.cloneNode(true);
     if (!(face instanceof HTMLElement)) {
         throw new Error("A board tile must be an HTML element");
     }
     const style = getComputedStyle(tile);
-    for (const name of TILE_STYLE) {
+    for (const name of copiedTileStyle(tile)) {
         face.style.setProperty(name, style.getPropertyValue(name));
     }
     face.style.visibility = "visible";
@@ -86,9 +92,10 @@ function createImage(tile: HTMLElement, pose: TilePose): HTMLElement {
     return image;
 }
 
-function measureScale(tile: HTMLElement, pose: TilePose): number {
+function measureScale(tile: HTMLElement, rect: MotionRect, seat: SeatPosition): number {
     const width = Number.parseFloat(getComputedStyle(tile).width);
-    return width > 0 && pose.width > 0 ? pose.width / width : 1;
+    const drawnWidth = SEAT_TURNS[seat] % 180 === 0 ? rect.width : rect.height;
+    return width > 0 && drawnWidth > 0 ? drawnWidth / width : 1;
 }
 
 function captureTile(
@@ -115,7 +122,7 @@ function captureTile(
             key: `${location.seat}-${location.region}-${id === "" ? slot : id}`,
             pose,
             rect,
-            scale: measureScale(tile, pose),
+            scale: measureScale(tile, rect, location.seat),
             tsumogiri: element.dataset.tsumogiri === "true",
         },
     ];

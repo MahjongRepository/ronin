@@ -90,6 +90,15 @@ function getAnimationFrames(animation: Animation): ComputedKeyframe[] {
     return animation.effect.getKeyframes();
 }
 
+function translateOf(animation: Animation): number[] {
+    const transform = String(getAnimationFrames(animation)[0].transform);
+    const match = /translate\((?<x>[^p]+)px, (?<y>[^p]+)px\)/u.exec(transform);
+    if (match?.groups === undefined) {
+        throw new Error(`Expected a translate in ${transform}`);
+    }
+    return [Number(match.groups.x), Number(match.groups.y)];
+}
+
 function hiddenTiles(): number {
     return host.querySelectorAll(".tile[style*='hidden']").length;
 }
@@ -260,6 +269,10 @@ function measureMeldTile(this: HTMLElement): DOMRect {
 
 function startResizingMeld(): BoardMotionPlayer {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureMeldTile);
+    host.insertAdjacentHTML(
+        "beforeend",
+        "<style>.tile { width: 30px; } .meld-tile-sideways > .tile { width: 40px; }</style>",
+    );
     renderResizingMeld(false);
     const before = snapshotTiles(host);
     renderResizingMeld(true);
@@ -396,6 +409,11 @@ describe("shared tile depth", () => {
             expect.stringContaining("scale(1.25)"),
             expect.stringContaining("scale(1.25)"),
             expect.stringContaining("scale(1.25)"),
+        ]);
+        expect(animations.map((animation) => translateOf(animation))).toEqual([
+            [expect.closeTo(-3.75), expect.closeTo(-5)],
+            [expect.closeTo(5), expect.closeTo(-6.25)],
+            [expect.closeTo(16.25), expect.closeTo(-5)],
         ]);
         expect(animations.map((animation) => getAnimationFrames(animation)[1].transform)).toEqual([
             "translate(0px, 0px) scale(1)",

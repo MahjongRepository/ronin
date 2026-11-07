@@ -60,6 +60,25 @@ $cast-blur: 0.07;
     }
 }
 
+/* A sideways tile is a box as long as the tile is tall with only its face turned: a turned box of a fractional size
+   paints off its layout box, below the row's baseline. */
+:is(.meld-tile-sideways, .discard-tile-riichi) > .tile {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    height: auto;
+    border-radius: 7% / 9%;
+
+    svg {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: calc(var(--tile-w) * #{1 - 2 * $glyph-room});
+        height: calc(var(--tile-w) * 4 / 3 - var(--tile-w) * #{2 * $glyph-room});
+        transform: translate(-50%, -50%) rotate(90deg);
+    }
+}
+
 /* One edge and shadow under everything the element paints, for tiles of width `$unit` in a frame turned by `$turn`. */
 @mixin group-edge($unit, $turn) {
     --unit: #{$unit};

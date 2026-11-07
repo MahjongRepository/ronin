@@ -49,11 +49,6 @@
     .discard-tile-riichi {
         width: var(--board-tile-h);
         height: var(--board-tile-w);
-
-        > .tile {
-            left: calc((var(--board-tile-h) - var(--board-tile-w)) / 2);
-            top: calc((var(--board-tile-w) - var(--board-tile-h)) / 2);
-        }
     }
 
     /* An added kan's added tile lies on its called tile on the centre-facing side, the two one column. */

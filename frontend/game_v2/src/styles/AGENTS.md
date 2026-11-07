@@ -103,7 +103,9 @@ they disagree.
   threshold (desktop gutter, phone box, no gutter, desktop box). `.board-page` holds the gutter (10px, 0 around a
   phone's board) and the safe insets as registered lengths, which the directive reads in px; a gutter change it finds
   while the observer delivers (into or out of a phone) waits a frame, since it resizes the observed board.
-- Every tile's box and material is `_tile.scss`'s; each region sets `--board-tile-w`. Flying tiles use that same
+- Every tile's box and material is `_tile.scss`'s; each region sets `--board-tile-w`. A sideways tile (a called meld
+  tile, a riichi discard) is an unturned box as long as a tile is tall with only its face turned: a turned box of a
+  fractional size paints off its layout box, below its row's baseline. Flying tiles use that same
   material with animated dimensions and orientation; their grouped depth stays on an unturned wrapper, so the
   light does not rotate with the face. Native reflow stays inside its original group. Side hands isolate separate
   tile-depth and seam-mask layers below their faces: masks must never enter a shadow filter, or a separated tile
