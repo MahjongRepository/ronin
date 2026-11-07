@@ -121,7 +121,11 @@ const REPLAY_MOVES = 7;
 /** An opponent's full hand's tiles. */
 const HAND_TILES = 14;
 
-/** The core's share past the centre, and what each room's height and width hold per river tile. */
+/**
+ * The core's share past the centre, and each room's height and width per river tile: the own row's coefficients
+ * (`OWN_ROW`, `OWN_EDGE` and the rows built on them) are at the 4/3 baseline own tile, and the layout's fitting checks
+ * the actual own tile.
+ */
 const DESKTOP_SPARE = 1 - DESKTOP_CENTRE_SHARE;
 const OWN_ROW = TILE_ASPECT * TILE_ASPECT;
 const OWN_EDGE = TILE_EDGE_SHARE * TILE_ASPECT;

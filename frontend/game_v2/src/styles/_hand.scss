@@ -62,6 +62,10 @@ button.hand-tile {
 .hand-tile--selected {
     transform: translateY(max(-16%, 5px - var(--band-gap, 100px)));
 
+    @include desktop-board {
+        transform: translateY(max(-16%, calc(-1 * var(--own-meld-rise))));
+    }
+
     @include phone-board {
         transform: translateY(-8%);
     }
