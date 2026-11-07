@@ -315,7 +315,7 @@ def _is_call_response(input_event: ReplayInputEvent) -> bool:
     Tell whether the input answers a call prompt: a closed or added kan is a turn action that needs a new own turn.
     """
     if input_event.action == GameAction.CALL_KAN:
-        return input_event.data.get("kan_type", KanType.OPEN) == KanType.OPEN
+        return input_event.data["kan_type"] == KanType.OPEN
 
     return input_event.action in _CALL_RESPONSE_ACTIONS
 

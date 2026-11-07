@@ -126,7 +126,7 @@ def test_run_replay__when_discard_input__should_trace_discard_step():
 
 def test_run_replay__when_strict_and_action_invalid__should_raise_replay_error():
     name = _probe_waiting_player()
-    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": 999}),))
+    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": 0}),))
 
     with pytest.raises(ReplayError) as exc_info:
         run_replay(replay)
@@ -135,7 +135,7 @@ def test_run_replay__when_strict_and_action_invalid__should_raise_replay_error()
 
 
 def test_run_replay__when_non_strict_and_action_invalid__should_record_error_step():
-    replay = _build_replay(actions=((_probe_waiting_player(), GameAction.DISCARD, {"tile_id": 999}),))
+    replay = _build_replay(actions=((_probe_waiting_player(), GameAction.DISCARD, {"tile_id": 0}),))
 
     trace = run_replay(replay, ReplayOptions(strict=False))
     assert len(trace.steps) == 1

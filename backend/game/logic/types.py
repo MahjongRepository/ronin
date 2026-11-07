@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from game.logic.enums import (
@@ -12,6 +14,9 @@ from game.logic.enums import (
     WindName,
 )
 from game.logic.settings import GameType
+from game.logic.tiles import NUM_TILES
+
+_TileId = Annotated[int, Field(ge=0, lt=NUM_TILES, strict=True)]
 
 
 class SeatConfig(BaseModel):
@@ -38,7 +43,7 @@ class DiscardActionData(BaseModel):
     Data for discard action.
     """
 
-    tile_id: int
+    tile_id: _TileId
 
 
 class RiichiActionData(BaseModel):
@@ -46,7 +51,7 @@ class RiichiActionData(BaseModel):
     Data for riichi declaration action.
     """
 
-    tile_id: int
+    tile_id: _TileId
 
 
 class PonActionData(BaseModel):
@@ -54,7 +59,7 @@ class PonActionData(BaseModel):
     Data for pon call action.
     """
 
-    tile_id: int
+    tile_id: _TileId
 
 
 class ChiActionData(BaseModel):
@@ -62,8 +67,8 @@ class ChiActionData(BaseModel):
     Data for chi call action.
     """
 
-    tile_id: int
-    sequence_tiles: tuple[int, int]
+    tile_id: _TileId
+    sequence_tiles: tuple[_TileId, _TileId]
 
 
 class KanActionData(BaseModel):
@@ -71,8 +76,8 @@ class KanActionData(BaseModel):
     Data for kan call action.
     """
 
-    tile_id: int
-    kan_type: KanType = KanType.OPEN
+    tile_id: _TileId
+    kan_type: KanType
 
 
 class YakuInfo(BaseModel):

@@ -479,16 +479,28 @@ class TestDiscardRaisesInvalidGameActionError:
     def test_discard__when_tile_not_in_hand__should_raise_invalid_game_action(self):
         game_state = _create_frozen_game_state()
 
+        other_tile = game_state.round_state.players[1].tiles[0]
+
         with pytest.raises(InvalidGameActionError, match="discard") as exc_info:
-            handle_discard(game_state, seat=0, data=DiscardActionData(tile_id=999))
+            handle_discard(game_state, seat=0, data=DiscardActionData(tile_id=other_tile))
         assert exc_info.value.seat == 0
 
-    def test_discard__when_action_data_is_malformed__should_raise_invalid_game_action(self):
+    @pytest.mark.parametrize(
+        ("action", "data", "error_types"),
+        [
+            (GameAction.DISCARD, {}, "'missing'"),
+            (GameAction.DISCARD, {"tile_id": 136}, "'less_than'"),
+            (GameAction.CALL_KAN, {"tile_id": 0}, "'missing'"),
+        ],
+    )
+    def test_handle_action__when_action_data_is_malformed__should_raise_invalid_game_action(
+        self, action, data, error_types
+    ):
         game_state = _create_frozen_game_state()
         runtime = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({}))
 
-        with pytest.raises(InvalidGameActionError, match=r"malformed data: \['missing'\]$") as exc_info:
-            MahjongGameService().handle_action(runtime, seat=0, action=GameAction.DISCARD, data={})
+        with pytest.raises(InvalidGameActionError, match=rf"malformed data: \[{error_types}\]$") as exc_info:
+            MahjongGameService().handle_action(runtime, seat=0, action=action, data=data)
         assert exc_info.value.seat == 0
         assert runtime.state is game_state
 
