@@ -15,24 +15,21 @@ One-time provisioning that installs Docker, configures the firewall, and prepare
 
 ### 1. Add the server target
 
-Add a new target in `spot.yml`:
+Copy `spot-env.example.yml` to `spot-env.<target>.yml` (gitignored), where `<target>` is the `TARGET`
+you will pass to make, and set the server and domain. The group name must match `<target>`:
 
 ```yaml
-targets:
+groups:
   prod:
-    hosts:
-      - {host: "1.2.3.4", name: "prod-server"}
+    - {host: "1.2.3.4", name: "prod-server", user: "root"}
+vars:
+  DOMAIN: ronin.example.com
 ```
 
-### 2. Create the environment file
+The file is both spot's inventory (`groups`) and its env file (`vars`). The tasks run without sudo,
+so the user must be root.
 
-Create `spot-env.<target>.yml` with the domain for this environment:
-
-```yaml
-DOMAIN: ronin.example.com
-```
-
-### 3. Bootstrap the server
+### 2. Bootstrap the server
 
 ```
 cd deploy
@@ -41,7 +38,7 @@ make spot-bootstrap TARGET=<target>
 
 Applies pending OS updates, turns on automatic security updates, installs base packages (`micro`, `kitty-terminfo`), creates the `/opt/ronin/` directory structure, and copies `.env.example` as `.env` and `.env.system.example` as `.env.system`. If it prints `REBOOT REQUIRED` (a new kernel), reboot the server before provisioning.
 
-### 4. Configure secrets
+### 3. Configure secrets
 
 SSH into the server and edit `/opt/ronin/.env`:
 
@@ -57,7 +54,7 @@ Edit `/opt/ronin/.env.system`:
 RESTIC_PASSWORD=<generate a random password for restic backups>
 ```
 
-### 5. Provision the server
+### 4. Provision the server
 
 ```
 cd deploy

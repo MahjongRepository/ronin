@@ -2,8 +2,10 @@
 
 The production deploy layer: a [spot](https://github.com/umputun/spot) playbook (`spot.yml`) and a
 production `docker-compose.yml` (Traefik + lobby + game) under `/opt/ronin/` on the server, run from
-a workstation through `make -C deploy <target> TARGET=<env>` (`TARGET` picks `spot-env.<env>.yml`,
-which holds the domain). `README.md` is the runbook for a new server and lists the targets.
+a workstation through `make -C deploy <target> TARGET=<env>`. `TARGET` picks the gitignored
+`spot-env.<env>.yml` (copied from `spot-env.example.yml`), passed as both spot's inventory (its `<env>`
+group: host and SSH user) and env file (`DOMAIN`), so the repository holds no host, user or domain. `README.md` is the
+runbook for a new server and lists the targets.
 
 ## Architecture
 

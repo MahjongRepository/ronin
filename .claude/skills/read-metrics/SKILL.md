@@ -4,7 +4,7 @@ description: Read production metrics (host and service load, Traefik latency and
 allowed-tools: Read
 ---
 
-Both commands are read-only against production (`TARGET` defaults to `dev`, the production box). They
+Both commands are read-only against production (`TARGET` defaults to `prod`, the production box). They
 change nothing on the server; never run any other spot target from this skill.
 
 ## Step 1: Read the page's numbers

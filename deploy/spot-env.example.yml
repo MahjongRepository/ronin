@@ -1,0 +1,5 @@
+groups:
+  prod:
+    - {host: "1.2.3.4", name: "prod-server", user: "root"}
+vars:
+  DOMAIN: ronin.example.com

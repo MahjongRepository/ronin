@@ -89,7 +89,7 @@ The `Makefile` lists the targets; the non-obvious ones:
 * When wrapping up, run `make run-all-checks`, read its output for the success line, and report
   which checks ran.
 * The local stack is disposable: restart `make run-local-server` and free its ports without asking.
-  Every `make -C deploy` target acts on the production server (`TARGET` defaults to `dev`, which is
+  Every `make -C deploy` target acts on the production server (`TARGET` defaults to `prod`, which is
   that server): run one only when the user asks, except the read-only `spot-status`,
   `spot-check-logs-errors`, `spot-metrics`, `spot-metrics-sql` and `spot-backup-list`.
 * After a structural change, update the nearest `AGENTS.md` it invalidates; after a rule change,

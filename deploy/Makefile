@@ -1,10 +1,14 @@
 SSH_KEY ?= $(HOME)/.ssh/id_ed25519
-TARGET ?= dev
-SPOT = spot -v -p spot.yml -E spot-env.$(TARGET).yml --key=$(SSH_KEY)
+TARGET ?= prod
+ENV_FILE = spot-env.$(TARGET).yml
+SPOT = spot -v -p spot.yml -i $(ENV_FILE) -E $(ENV_FILE) --key=$(SSH_KEY)
+
+ifeq (,$(wildcard $(ENV_FILE)))
+$(error $(ENV_FILE) not found: copy spot-env.example.yml and set the host, user and domain (README.md))
+endif
 
 .PHONY: spot-run spot-bootstrap spot-provision spot-monitoring spot-deploy spot-update spot-stop spot-restart spot-down spot-status spot-check-logs-errors spot-metrics spot-metrics-sql spot-backup spot-restore spot-backup-list spot-download-backup
 
-# Run arbitrary spot task: make spot-run TASK=<task> TARGET=dev
 spot-run:
 ifndef TASK
 	$(error TASK is required. Usage: make spot-run TASK=<task>)
