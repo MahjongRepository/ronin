@@ -234,8 +234,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   name, its lane being wide and short. Each has a fixed place in its zone outside the rivers, the same
   in every state at a given viewport and viewpoint; a badge's place never depends on how many tiles
   the seat holds. Decision: in landscape the side badges are their strips' headers, mirrored at one
-  height (a phone's right one lower) beside each strip's reserved depth, a card's width at most and clear of the top river's
-  reserved seven-tile third row by a river tile, so neither reads as that river's label: under the counters,
+  height (a phone's right one lower) beside each strip's reserved depth, on a desktop as wide as their lane to the
+  river or core and the top hand's anchor, on a phone a card's width at most as the top badge everywhere, and clear of
+  the top river's reserved seven-tile third row by a river tile, so neither reads as that river's label: under the counters,
   and on a desktop whose band stands below the core a step lower, 8px under the top badge's
   pill, so the opponents' names never read as one row; where that place leaves less than an
   ordinary name's lane beside that third row, below it by a river tile instead. A short

@@ -1241,7 +1241,7 @@ type LandscapeBadges = Readonly<
  * The opponents' badges off an upright board: the top one under its hand past a river tile's edge; the side ones at
  * the strips' start a step under the top one's pill (a short desktop's only where the decisions' tallest column leaves
  * room under the right one, a phone's right one alone), else past the top river's reserved third row where the lane at
- * the start is short of an ordinary name; and the left one's lane.
+ * the start is short of an ordinary name; and the left one's lane, a card wide at most only on a phone.
  */
 function landscapeBadges(room: ShellRoom, rowBottom: number): LandscapeBadges {
     const { at, frame, tier } = room;
@@ -1281,7 +1281,7 @@ function landscapeBadges(room: ShellRoom, rowBottom: number): LandscapeBadges {
     return {
         rightBadgeTop,
         sideBadgeTop,
-        sideLane: Math.min(tier.sideCardW, sideLane),
+        sideLane: family === "phone" ? Math.min(tier.sideCardW, sideLane) : sideLane,
         topBadgeTop,
     };
 }
@@ -1484,8 +1484,8 @@ function laneShortOf(reach: number, from: number, above: boolean): number {
 
 /**
  * The side badges' widths off an upright board: the left one's lane short of the left river where it stands beside
- * it; the right one a card wide, short of the right river past its clearance (its whole reach where the badge stands
- * beside the river's latest rows) and of the top hand's anchor.
+ * it; the right one short of the right river past its clearance (its whole reach where the badge stands beside the
+ * river's latest rows) and of the top hand's anchor, and a card wide at most only on a phone.
  */
 function landscapeBadgeWidths(
     { at, frame, tier }: ShellRoom,
@@ -1502,7 +1502,7 @@ function landscapeBadgeWidths(
     const coreRight = at("cx") + at("hx");
     const rightX = frame.box.width - badgeX;
     const right = Math.min(
-        tier.sideCardW,
+        frame.family === "phone" ? tier.sideCardW : Infinity,
         rightX -
             coreRight -
             Math.max(SIDE_CLEAR, rw) -

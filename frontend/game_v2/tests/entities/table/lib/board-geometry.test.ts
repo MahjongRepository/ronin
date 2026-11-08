@@ -462,6 +462,25 @@ describe("boardGeometry's strips", () => {
 
 describe("boardGeometry's shell tracks", () => {
     it.each([
+        { family: "short-desktop", height: 770, wide: true, width: 1440 },
+        { family: "phone", height: 430, wide: false, width: 932 },
+    ])(
+        "sizes a $width x $height $family board's side badges to their lanes off a phone, past a 200px card, but a phone's to its 130px card at most (wide: $wide)",
+        ({ family, height, wide, width }) => {
+            const geometry = windowGeometry({ height, width });
+            const widths = ["left-badge-w", "right-badge-w"].map(
+                (name) => geometry.lengths[name] ?? Number.NaN,
+            );
+
+            expect(geometry.family).toBe(family);
+            expect(widths.map((badge) => (wide ? badge > 300 : badge <= 130))).toEqual([
+                true,
+                true,
+            ]);
+        },
+    );
+
+    it.each([
         { height: 548, width: 375 },
         { height: 801, width: 800 },
     ])(
