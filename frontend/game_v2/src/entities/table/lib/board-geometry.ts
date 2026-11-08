@@ -261,12 +261,17 @@ interface DesktopRooms {
     readonly rowRiseFixed: number;
 }
 
+/** The largest whole river tile whose floored 4/3 own tile stays within `ownFit`. */
+function riverTileWithinOwnFit(ownFit: number): number {
+    return Math.floor((3 * Math.floor(ownFit) + 2) / 4);
+}
+
 /** The largest river tile each room the desktops and the upright board share holds, the smallest binding. */
 function sharedRiverTile({ coreCap, coreRoomW, height, ownFit, tier }: DesktopRooms): number {
     const { coreGap, m, sep } = tier;
     const heightRoom = DESKTOP_SPARE * (height - m - coreGap - sep);
     return Math.min(
-        ownFit / TILE_ASPECT,
+        riverTileWithinOwnFit(ownFit),
         (heightRoom - DESKTOP_SPARE * m) / ROWS_AT_MARGIN,
         heightRoom / ROWS_AT_EDGE,
         (DESKTOP_SPARE * coreCap) / CORE_TILES,

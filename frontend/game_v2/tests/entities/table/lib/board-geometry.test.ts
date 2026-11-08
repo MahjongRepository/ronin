@@ -179,6 +179,10 @@ describe("boardGeometry", () => {
         [1440, 800, [34, 54, 204, 204, 82.4]],
         [2560, 1440, [68, 108, 408, 408, 134.8]],
         [800, 600, [21, 33, 126, 126, 71.6]],
+        [1727, 1000, [44, 70, 264, 264, 108.4]],
+        [1920, 1080, [49, 78, 294, 294, 102.4]],
+        [2150, 1700, [80, 106, 480, 480, 188]],
+        [2170, 1700, [80, 107, 480, 480, 188]],
     ])(
         "fits six-tile rows along both centre edges in a %ix%i desktop, keeping the latest discards inside the core",
         (width, height, expected) => {
