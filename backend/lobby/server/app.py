@@ -71,6 +71,7 @@ from lobby.views.auth_handlers import (
 )
 from lobby.views.bot_api_handlers import bot_create_room
 from lobby.views.error_pages import http_error_page, server_error_page
+from lobby.views.legal_handlers import privacy_page, terms_page
 from lobby.views.locale_handlers import set_language
 from shared.auth import AuthService
 from shared.auth.password import BcryptHasher
@@ -210,6 +211,8 @@ def create_app(  # noqa: PLR0913
         Route("/register", public_route(register), methods=["POST"], name="register"),
         Route("/logout", public_route(logout), methods=["POST"], name="logout"),
         Route("/lang", public_route(set_language), methods=["POST"], name="set_language"),
+        Route("/terms", public_route(terms_page), methods=["GET"], name="terms_page"),
+        Route("/privacy", public_route(privacy_page), methods=["GET"], name="privacy_page"),
         Route("/api/rooms", bot_only(bot_create_room), methods=["POST"], name="bot_create_room"),
         Route("/api/replays/{game_id}", public_route(replay_content), methods=["GET"], name="replay_content"),
         Route("/api/replays/{game_id}/tenhou.xml", public_route(tenhou_replay), methods=["GET"], name="tenhou_replay"),

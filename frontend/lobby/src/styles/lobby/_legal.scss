@@ -1,0 +1,23 @@
+.lobby-legal {
+    max-width: 44rem;
+    margin: 2rem auto;
+
+    h1 {
+        font-size: 1.75rem;
+        margin-bottom: 0.25rem;
+    }
+
+    h2 {
+        font-size: 1.1rem;
+        margin: 1.75rem 0 0.5rem;
+    }
+
+    @media (width <= 576px) {
+        margin-top: 1rem;
+
+        h1 {
+            font-size: 1.3rem;
+            hyphens: auto;
+        }
+    }
+}

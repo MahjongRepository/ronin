@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t("page.title.with_page", page="Privacy Policy") }}{% endblock %}
+
+{% block content %}
+<article class="lobby-legal">
+    <h1>Privacy Policy</h1>
+    <p class="lobby-muted">Effective date: 8 November 2026</p>
+
+    <p>Ronin does not ask for your real name, email address, phone number or payment details. We keep only the account, game and technical data listed below, use it only to run the game and never sell it. There is no advertising and no third-party analytics or tracking.</p>
+
+    <h2>What we handle</h2>
+    <ul>
+        <li><strong>Account.</strong> Your username and a hash of your password (never the password itself), plus session records that keep you signed in. Guests have no account; their session stops working when they log out or it expires.</li>
+        <li><strong>Games.</strong> Game records include moves, scores and players&rsquo; usernames. Recent games appear in the game history that signed-in players can see, and anyone with a replay link can open that replay.</li>
+        <li><strong>Chat.</strong> Chat messages go only to the players at your table and are not saved. Do not post personal information in chat.</li>
+        <li><strong>Cookies.</strong> Only the necessary ones: a session cookie that keeps you signed in, a security token against forged requests, and your chosen language. No tracking cookies.</li>
+        <li><strong>Server logs.</strong> For security and troubleshooting, the servers keep technical logs, such as IP addresses and requested pages, for up to 30 days.</li>
+    </ul>
+
+    <h2>Changes</h2>
+    <p>If this policy changes, the effective date above will show the current version.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about privacy: <a href="https://github.com/MahjongRepository/ronin/issues" target="_blank" rel="noopener">open an issue on GitHub</a>. Issues are public, so do not include account details or other personal information.</p>
+</article>
+{% endblock %}

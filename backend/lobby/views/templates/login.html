@@ -29,9 +29,10 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
         <button type="submit" class="outline" aria-describedby="guest-note">{{ t("auth.login.guest") }}</button>
-        <p class="auth-note" id="guest-note"><small>{{ t("auth.login.guest_note") }}</small></p>
+        <p class="auth-note" id="guest-note">{{ t("auth.login.guest_note") }}</p>
     </form>
     {% set register %}<a href="/register{{ next_query }}">{{ t("auth.login.register_link") }}</a>{% endset %}
     <p class="auth-link"><small>{{ t("auth.login.no_account", register=register) }}</small></p>
+    {% include "_auth_legal.html" %}
 </article>
 {% endblock %}

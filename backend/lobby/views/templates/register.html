@@ -36,5 +36,6 @@
     </form>
     {% set log_in %}<a href="/login{{ next_query }}">{{ t("auth.register.log_in_link") }}</a>{% endset %}
     <p class="auth-link"><small>{{ t("auth.register.have_account", log_in=log_in) }}</small></p>
+    {% include "_auth_legal.html" %}
 </article>
 {% endblock %}

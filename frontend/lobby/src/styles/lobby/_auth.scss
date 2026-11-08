@@ -63,10 +63,32 @@
 }
 
 .auth-note {
+    margin: 0.5rem 0 0;
+    text-align: center;
+    font-size: 0.8125rem;
+    color: var(--ronin-text-muted);
+}
+
+.auth-legal {
+    margin: 1.5rem 0 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--ronin-border);
     text-align: center;
     text-wrap: balance;
-    line-height: 1.4;
-    color: var(--ronin-text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--ronin-text-muted);
+
+    a {
+        color: inherit;
+        text-decoration: underline;
+        text-decoration-color: var(--pico-muted-border-color);
+        text-underline-offset: 0.2em;
+
+        &:hover {
+            color: var(--pico-primary);
+        }
+    }
 }
 
 .auth-link {

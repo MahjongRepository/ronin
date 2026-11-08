@@ -95,6 +95,7 @@ def test_login_page__when_lang_cookie_is_ja__should_render_in_japanese(client):
     response = client.get("/login")
     assert '<html lang="ja"' in response.text
     assert "<h1>ログイン</h1>" in response.text
+    assert response.text.count('<a href="/terms">利用規約</a>と<a href="/privacy">') == 1
 
 
 def test_register_route__when_username_taken_and_lang_is_ru__should_show_the_russian_error_with_the_name(client):
@@ -143,3 +144,24 @@ def test_language_switch__when_page_answers_a_post__should_return_to_the_posting
     assert response.status_code == 403
     assert f'<input type="hidden" name="next" value="{return_page}">' in response.text
     assert 'name="next" value="/lang"' not in response.text
+
+
+@pytest.mark.parametrize(
+    ("path", "lang", "heading"),
+    [
+        ("/terms", "ja", "<h1>利用規約</h1>"),
+        ("/privacy", "ru", "<h1>Политика конфиденциальности</h1>"),
+        ("/terms", None, "<h1>Terms of Service</h1>"),
+    ],
+    ids=["terms_ja", "privacy_ru", "terms_default_en"],
+)
+def test_legal_page__when_visitor_is_anonymous__should_render_the_document_written_in_the_page_language(
+    client, path, lang, heading
+):
+    if lang is not None:
+        client.cookies.set("lang", lang)
+
+    response = client.get(path, follow_redirects=False)
+    assert response.status_code == 200
+    assert f'<html lang="{lang or "en"}"' in response.text
+    assert response.text.count(heading) == 1
