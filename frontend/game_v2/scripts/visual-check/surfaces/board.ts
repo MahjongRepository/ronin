@@ -44,8 +44,12 @@ import {
 } from "../viewports.ts";
 import { checkSeparatedHandDepth } from "./hand-depth.ts";
 
-/** The smallest face-up tile of another seat's hand or melds in landscape, in CSS pixels: readable at a glance. */
-const MIN_OPPONENT_FACE: Size = { height: 17, width: 13 };
+/**
+ * The smallest face-up tile on the table in landscape, in CSS pixels, readable at a glance: a river's, another seat's
+ * hand's or melds'. The geometry's own floor is lower (a 2px river tile), which is how a phone's browser box shipped
+ * unreadable, so the check pins the face.
+ */
+const MIN_FACE: Size = { height: 17, width: 13 };
 
 /**
  * The least visible gap between two seats' rivers, and between a river and the centre, in CSS pixels: rivers never touch
@@ -464,16 +468,30 @@ function checkDerivedProportions(board: BoardMeasure, viewport: string, report: 
     );
 }
 
-/** Another seat's face-up tiles stay readable in landscape. */
-function checkOpponentFaces(board: BoardMeasure, report: PageReport): void {
-    const small = board.opponentFaces.filter(
-        (tile) =>
-            Math.min(tile.width, tile.height) < MIN_OPPONENT_FACE.width - EPSILON ||
-            longSide(tile) < MIN_OPPONENT_FACE.height - EPSILON,
+/**
+ * Every river's tiles and another seat's face-up tiles stay readable in landscape: at the face floor, or on a browser
+ * box with its bars shown at the river tile its geometry test pins for it, so a regression under that still fails.
+ */
+function checkFaces(board: BoardMeasure, viewport: Viewport, report: PageReport): void {
+    const floor: Size = viewport.barsShown?.riverFloor ?? MIN_FACE;
+    function underFloor(tile: Box): boolean {
+        return (
+            Math.min(tile.width, tile.height) < floor.width - EPSILON ||
+            longSide(tile) < floor.height - EPSILON
+        );
+    }
+    const smallRiver = board.riverTiles.filter(({ box }) => underFloor(box));
+    report.expect(
+        smallRiver.length === 0,
+        `river tiles under ${describeSize(floor)} (${board.tileScale.river}px river tile): ${smallRiver
+            .slice(0, 3)
+            .map(({ box, group }) => `${group} ${describeBox(box)}`)
+            .join(", ")}`,
     );
+    const small = board.opponentFaces.filter((tile) => underFloor(tile));
     report.expect(
         small.length === 0,
-        `face-up tiles of other seats under ${describeSize(MIN_OPPONENT_FACE)}: ${small.slice(0, 3).map(describeBox).join(", ")}`,
+        `face-up tiles of other seats under ${describeSize(floor)}: ${small.slice(0, 3).map(describeBox).join(", ")}`,
     );
 }
 
@@ -1016,7 +1034,7 @@ async function checkBoard({
     checkStripsApart(board, report);
     BADGE_ANCHORS.keep(report, badgeAnchors(board));
     checkSettingsCog(board, screen, report);
-    checkOpponentFaces(board, report);
+    checkFaces(board, viewport, report);
     checkHandReach(board, report);
     checkHandScale(board, report);
     checkDerivedProportions(board, viewport.name, report);

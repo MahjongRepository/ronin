@@ -24,7 +24,13 @@ import {
     type TaskResult,
     type Viewport,
 } from "./model.ts";
-import { checkTileFaces, checkVisible, measurePage, viewportBox } from "./page-checks.ts";
+import {
+    checkTileFaces,
+    checkVisible,
+    measurePage,
+    viewportBox,
+    waitForBoardSettled,
+} from "./page-checks.ts";
 import { boardSurface } from "./surfaces/board.ts";
 import { decisionsSurface } from "./surfaces/decisions.ts";
 import { noticesSurface } from "./surfaces/notices.ts";
@@ -134,6 +140,7 @@ async function runPage(
         await emulateInsets(page, viewport.insets);
         await checkCaptureModel(page, viewport, report);
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
+        await waitForBoardSettled(page, report);
         await page.waitForTimeout(SETTLE_MS);
         await checkTileFaces(page, report);
         report.summary = await checkPage({ page, report, viewport }, pageCase);

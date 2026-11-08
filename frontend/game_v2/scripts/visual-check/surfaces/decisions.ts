@@ -26,6 +26,7 @@ import {
 } from "../model.ts";
 import { checkVisible } from "../page-checks.ts";
 import {
+    BROWSER_PHONES,
     FLOOR,
     LARGE_DESKTOP,
     MID_DESKTOP,
@@ -153,12 +154,19 @@ const PAGES: readonly PageCase[] = [
     },
     {
         ...decisionCase("anchor_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
-        at: [FLOOR, NOTCH_PHONE, MID_DESKTOP, SHORT_DESKTOP],
+        at: [FLOOR, NOTCH_PHONE, MID_DESKTOP, SHORT_DESKTOP, ...BROWSER_PHONES],
         contrast: true,
     },
     {
         ...decisionCase("anchor_call", [ACTION, ".decision-controls__countdown"]),
-        at: [...WORST_CASES, NOTCH_PHONE, SHORT_DESKTOP, NARROW_DESKTOP, ULTRAWIDE],
+        at: [
+            ...WORST_CASES,
+            NOTCH_PHONE,
+            SHORT_DESKTOP,
+            NARROW_DESKTOP,
+            ULTRAWIDE,
+            ...BROWSER_PHONES,
+        ],
         contrast: true,
     },
     {

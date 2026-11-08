@@ -593,15 +593,22 @@ describe("playDisplay notices", () => {
         expect(noticeTexts(scenario.state)).toEqual(["Reconnected"]);
     });
 
-    it("stacks the ongoing conditions before the acknowledgements, whichever came first", () => {
+    it("stacks the ongoing conditions before the acknowledgements, whichever came first, the browser's bars last among them", () => {
         const scenario = confirmSentScenario(50);
         scenario.step(clientEvent.message(100, wireGameError("invalid_action", 5)));
-        const ui = { ...NO_PLAY_UI, tileSprite: "failed" } as const;
+        const ui = { ...NO_PLAY_UI, browserBars: true, tileSprite: "failed" } as const;
 
-        expect(playDisplay(scenario.state, ui).notices.map((notice) => notice.kind)).toEqual([
+        const { notices } = playDisplay(scenario.state, ui);
+        expect(notices.map((notice) => notice.kind)).toEqual([
             "tile_sprite",
+            "browser_bars",
             "refused",
         ]);
+        expect(notices[1]).toMatchObject({
+            text: "Swipe up to hide the browser bars and enlarge the table",
+            tone: "info",
+        });
+        expect(playDisplay(scenario.state, { ...ui, browserBars: false }).notices).toHaveLength(2);
     });
 
     it("opens every notice whole from one's Show all, with the round confirm's seconds, under the leave question, while any notice shows", () => {

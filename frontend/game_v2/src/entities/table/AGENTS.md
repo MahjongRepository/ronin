@@ -46,7 +46,8 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   `ui/board-geometry-directive.ts`'s `sizeBoard` on GameBoard's root, the one place that measures the board and writes
   the result. `lib/strip-layout.ts`'s `stripLayout` lays out a strip's melds in those rooms from what it holds, which
   `sizeBoard` takes beside the slots and never hands `boardGeometry`. Every seat's melds stay in one line toward their owner's
-  right, oldest at the far end. The geometry reserves enough length for four kans and supplies reserved footprints;
+  right, oldest at the far end. The geometry reserves enough length for four kans (a phone's for as many as its box
+  holds; `stripLayout` lays a denser seat's melds on past the line at the face floor) and supplies reserved footprints;
   the content layout scales ordered melds together without moving the hand or controls. GameBoard never binds `style` on its root, which
   would clear what `sizeBoard` wrote.
 - `model/replay-file.ts` refuses a file whose version is not `REPLAY_VERSION` and reports a bad or live-only line,

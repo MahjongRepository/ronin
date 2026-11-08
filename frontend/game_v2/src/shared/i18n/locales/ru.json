@@ -111,6 +111,7 @@
     "game.nameplate.to_play": "ходит",
     "game.nameplate.view": "показать вид с этого места",
     "game.nameplate.viewing": "вид с этого места",
+    "game.notice.browser_bars": "Смахните вверх, чтобы скрыть панели браузера и увеличить стол",
     "game.notice.finding_game": "Поиск вашей игры…",
     "game.notice.show_all": "Показать всё",
     "game.notice.show_all_label": "Показать всё: {words}",

@@ -30,6 +30,12 @@ export interface Viewport {
     /** A desktop window, not a phone (the decisions surface tells the phones apart by it). */
     readonly desktop: boolean;
     readonly insets?: Insets;
+    /**
+     * A phone browser's box with its bars shown, before the swipe the board asks for: the board lays out whole and
+     * tappable in it at the river tile its height holds, the floor its geometry test pins for that box, which the
+     * river's and the other seats' faces are held to there in place of the face floor (melds keep the face floor).
+     */
+    readonly barsShown?: { readonly riverFloor: Size };
     /** The viewport and safe-area box a capture model must produce, asserted on every page before its checks. */
     readonly captureModel?: { readonly viewport: Size; readonly safeArea: Box };
 }

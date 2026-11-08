@@ -249,6 +249,12 @@ const PHONE_OWN_FLOOR = 36;
 const PHONE_CENTRE_MIN = 94;
 
 /**
+ * A phone box too short for the face floor at the own tile's floor (a browser's bars shown) takes the own tile down to
+ * the tap floor's width (px, the look spec's 32x42 safety limit) where that lifts the river tile.
+ */
+const PHONE_OWN_TAP_FLOOR = 32;
+
+/**
  * A phone's chrome over the small tier's, which it keeps as a floor: its margins, gaps and band's control, its switches
  * as tall as it, and its timer.
  */
@@ -311,6 +317,7 @@ export {
     PHONE_CHROME_RIVER,
     PHONE_HEIGHT,
     PHONE_OWN_FLOOR,
+    PHONE_OWN_TAP_FLOOR,
     RIVER_GAP_SHARE,
     ROWS_BEFORE_RUN_ON,
     RUN_ON_REACH_TILES,

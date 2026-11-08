@@ -12,7 +12,13 @@ export type TileChoiceKind = "chi" | "kan";
  * read, tile faces) that stay until they recover, then the acknowledgements (the seat back, a refused
  * move) that leave on their own.
  */
-export type NoticeKind = "connection" | "unread" | "tile_sprite" | "reconnected" | "refused";
+export type NoticeKind =
+    | "connection"
+    | "unread"
+    | "tile_sprite"
+    | "browser_bars"
+    | "reconnected"
+    | "refused";
 
 /**
  * What a control of the page does: send the client an intent, turn picking riichi's discard on or off, open or close
@@ -40,13 +46,14 @@ export type PlayCommand =
     | { readonly kind: "reload" };
 
 /**
- * What moves the view's `ui` in one step: a page control, the client stepping on its own, or the tile sprite's load
- * moving on.
+ * What moves the view's `ui` in one step: a page control, the client stepping on its own, the tile sprite's load
+ * moving on, or the browser's bars shown or collapsed over the page.
  */
 export type PlayUiInput =
     | PlayCommand
     | { readonly kind: "client_stepped" }
-    | { readonly kind: "tile_sprite"; readonly status: TileSpriteStatus };
+    | { readonly kind: "tile_sprite"; readonly status: TileSpriteStatus }
+    | { readonly kind: "browser_bars"; readonly shown: boolean };
 
 export const CLIENT_STEPPED: PlayUiInput = { kind: "client_stepped" };
 
@@ -66,8 +73,9 @@ export interface PlayAction {
  * the nameplate pinned for the others' score differences, which stays pinned until the player unpins it, since the
  * viewer's seat stays at the bottom; that the player opened the play switches' names beside their letters, which stay
  * open until the player closes them; that the player asked to leave mid-game and has yet to confirm it; that the
- * settings menu is open; whether the game plays its sounds, a setting the page keeps in this browser; and where the
- * tile sprite's load stands, which the page's IO owns.
+ * settings menu is open; whether the game plays its sounds, a setting the page keeps in this browser; where the
+ * tile sprite's load stands, which the page's IO owns; and whether the browser's bars take part of the screen a swipe
+ * would give the table (a phone browser's box shorter than its display), which the page measures.
  */
 export interface PlayUi {
     readonly riichiPickWaitId: number | null;
@@ -82,9 +90,11 @@ export interface PlayUi {
     readonly soundOn: boolean;
     readonly rightClick: boolean;
     readonly tileSprite: TileSpriteStatus;
+    readonly browserBars: boolean;
 }
 
 export const NO_PLAY_UI: PlayUi = {
+    browserBars: false,
     confirmingLeave: false,
     noticeSheet: null,
     pinnedNameplate: null,

@@ -196,6 +196,51 @@ function getTileCandidates(rw: number): readonly number[] {
     );
 }
 
+/**
+ * Where even the face floor does not fit the line (a phone box too short to reserve four kans), the melds lie at the
+ * floor from the hand on, moved along past every obstacle a deeper one would meet (the badge, the switches, the own
+ * row), past the line if need be: the accepted overflow of a rare dense seat on a short phone, never a smaller river
+ * tile for it and never a meld over a control.
+ */
+function overflowSideMelds(
+    shapes: readonly MeldShape[],
+    room: SideStripRoom,
+    fit: SideFit,
+): StripLayout {
+    const { handEnd, gap, rw } = fit;
+    const offsets = placeSideMelds(shapes, fit, 0);
+    let end = Math.max(...offsets.map((meld) => handEnd + gap - meld.along));
+    for (let step = 0; step <= room.obstacles.length; step += 1) {
+        const melds = placeSideMelds(shapes, fit, end);
+        let shift = 0;
+        for (const meld of melds) {
+            for (const obstacle of room.obstacles) {
+                if (
+                    meld.depth > obstacle.depth + LAYOUT_EPSILON &&
+                    meld.along < obstacle.to - LAYOUT_EPSILON &&
+                    meld.end > obstacle.from + LAYOUT_EPSILON
+                ) {
+                    shift = Math.max(shift, obstacle.to - meld.along);
+                }
+            }
+        }
+        if (shift === 0) {
+            return {
+                depth: Math.max(UPRIGHT_DEPTH * rw, ...melds.map((meld) => meld.depth)),
+                melds,
+                pull: 0,
+            };
+        }
+        end += shift;
+    }
+    const melds = placeSideMelds(shapes, fit, end);
+    return {
+        depth: Math.max(UPRIGHT_DEPTH * rw, ...melds.map((meld) => meld.depth)),
+        melds,
+        pull: 0,
+    };
+}
+
 /** Side melds form one line toward their owner's right, oldest at the end, at one fitting size. */
 function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripRooms): StripLayout {
     const { rw } = rooms;
@@ -214,7 +259,12 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
             return layout;
         }
     }
-    throw new RangeError(`The ${seat} melds do not fit their strip at the face floor`);
+    return overflowSideMelds(content.melds, rooms[seat], {
+        gap: rooms.gap,
+        handEnd,
+        rw,
+        tile: FACE_FLOOR,
+    });
 }
 
 /**

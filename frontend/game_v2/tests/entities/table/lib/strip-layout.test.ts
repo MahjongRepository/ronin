@@ -42,6 +42,31 @@ function windowStrips(box: BoardBox): StripRooms {
 }
 
 describe("stripLayout", () => {
+    it("lays a short phone's two added kans at the face floor past the switches and the badge where their line cannot hold them", () => {
+        const rooms = windowStrips({ height: 236, width: 667 });
+        const content: StripContent = { drawn: true, hand: 8, melds: [ADDED_KAN, ADDED_KAN] };
+
+        const { melds } = stripLayout("left", content, rooms);
+
+        expect(rooms.rw).toBeLessThan(FACE_FLOOR);
+        expect(melds.map((meld) => meld.tile)).toEqual([FACE_FLOOR, FACE_FLOOR]);
+        expect(melds[0]?.along).toBeGreaterThanOrEqual(
+            handLength({ drawn: true, rw: rooms.rw, seat: "left", tiles: 8 }) + rooms.gap,
+        );
+        for (const [index, meld] of melds.entries()) {
+            const [depth, end] = [
+                ADDED_KAN.depth * meld.tile,
+                meld.along + ADDED_KAN.units * meld.tile,
+            ];
+            for (const obstacle of rooms.left.obstacles) {
+                expect(
+                    depth > obstacle.depth && meld.along < obstacle.to && end > obstacle.from,
+                    `meld ${String(index)} (${String(depth)}px deep at ${String(meld.along)}..${String(end)}) over the obstacle ${String(obstacle.from)}..${String(obstacle.to)} at depth ${String(obstacle.depth)}`,
+                ).toBe(false);
+            }
+        }
+    });
+
     it.each(["left", "right"] as const)(
         "keeps every %s meld in one ordered line beside the hand, scaling all shapes together",
         (seat) => {

@@ -50,7 +50,7 @@ import {
     storeGameSession,
 } from "@/shared/session";
 import { GameSocket } from "@/shared/websocket";
-import { type GameViewDeps, mountGameView } from "@/views/game";
+import { type BrowserBars, type GameViewDeps, mountGameView } from "@/views/game";
 import type * as StorybookRoutes from "@/views/storybook-routes";
 import { unsupportedBrowserTemplate } from "@/views/unsupported-browser";
 
@@ -123,8 +123,37 @@ function startTileSprite(): TileSprite {
     });
 }
 
+/**
+ * Whether the browser's bars take part of the screen: the viewport stands shorter than the large viewport (`100lvh`,
+ * the height a swipe gives once a phone browser collapses them), measured off a probe of that height.
+ */
+function browserBarsShown(): boolean {
+    const probe = document.createElement("div");
+    probe.style.cssText =
+        "position: fixed; top: 0; left: 0; width: 0; height: 100lvh; visibility: hidden; pointer-events: none;";
+    document.body.append(probe);
+    const large = probe.offsetHeight;
+    probe.remove();
+    return large > window.innerHeight + 1;
+}
+
+/** The browser's bars over the page, read again as the viewport resizes, which a collapse does. */
+function browserBars(): BrowserBars {
+    return {
+        shown: browserBarsShown,
+        subscribe(listener) {
+            function onResize(): void {
+                listener(browserBarsShown());
+            }
+            window.addEventListener("resize", onResize);
+            return () => window.removeEventListener("resize", onResize);
+        },
+    };
+}
+
 function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
     return {
+        browserBars: browserBars(),
         clock: browserClock,
         connect: (url, handlers) => new GameSocket(url, handlers),
         debug: isDebugRequested(window.location.search),

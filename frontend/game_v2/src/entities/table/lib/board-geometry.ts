@@ -29,6 +29,7 @@ import {
     PHONE_CHROME_RIVER,
     PHONE_HEIGHT,
     PHONE_OWN_FLOOR,
+    PHONE_OWN_TAP_FLOOR,
     RIVER_GAP_SHARE,
     ROWS_BEFORE_RUN_ON,
     RUN_ON_REACH_TILES,
@@ -388,16 +389,32 @@ function fullReach(rw: number, seat: StripSeat): number {
     return handLength({ drawn: true, rw, seat, tiles: HAND_TILES });
 }
 
+/** The most open kans a side strip reserves a line for, at the meld face floor. */
+const RESERVED_KANS = [1, 2, 3, 4] as const;
+
+/** A side hand with this many open kans at the meld face floor beside its remaining tiles, along its line (px). */
+function kansReach(rw: number, count: number): number {
+    const gap = riverGap(rw) + MELD_GAP_EXTRA;
+    return (
+        handLength({ drawn: true, rw, seat: "left", tiles: HAND_TILES - 3 * count }) +
+        count * (gap + (3 + SIDEWAYS_UNITS) * FACE_FLOOR)
+    );
+}
+
 /** A side strip reserves one line even for four open kans at the meld face floor. */
 function sideStripReach(rw: number): number {
-    const gap = riverGap(rw) + MELD_GAP_EXTRA;
+    return Math.max(fullReach(rw, "left"), ...RESERVED_KANS.map((count) => kansReach(rw, count)));
+}
+
+/**
+ * A phone's side strip reserves its full concealed hand and as many open kans at the face floor as `room` holds (a
+ * browser's bars leave a box too short for four): the melds of a rarer denser seat lie on past the line
+ * (`stripLayout`'s overflow), never shrinking the river tile for them.
+ */
+function phoneSideReach(rw: number, room: number): number {
     return Math.max(
         fullReach(rw, "left"),
-        ...[1, 2, 3, 4].map(
-            (count) =>
-                handLength({ drawn: true, rw, seat: "left", tiles: HAND_TILES - 3 * count }) +
-                count * (gap + (3 + SIDEWAYS_UNITS) * FACE_FLOOR),
-        ),
+        ...RESERVED_KANS.map((count) => kansReach(rw, count)).filter((reach) => reach <= room),
     );
 }
 
@@ -904,9 +921,14 @@ function sideBadgeX({ badgeGap, m }: DesktopChrome, rw: number): number {
     return m + STACKED_DEPTH * rw + badgeGap;
 }
 
+/** A side strip's stacked depth as its melds may lie: at the river tile, never under the face floor's (px). */
+function stackedDepth(rw: number): number {
+    return STACKED_DEPTH * Math.max(rw, FACE_FLOOR);
+}
+
 /** Side tiles and an equally deep buffer before interior controls, retained as melds scale within their line. */
 function sideLaneReserve(rw: number): number {
-    return STACKED_DEPTH * rw + SIDE_LANE_GAP + STACKED_DEPTH * Math.max(rw, FACE_FLOOR);
+    return STACKED_DEPTH * rw + SIDE_LANE_GAP + stackedDepth(rw);
 }
 
 /** A phone's chrome at its river tile: the small tier's px, growing with the river tile past `PHONE_CHROME_RIVER`. */
@@ -982,7 +1004,7 @@ type PhoneRightRoom = Readonly<
 
 function phoneRightRoom(
     sizes: Readonly<
-        Record<"bandGap" | "controlH" | "cy" | "handTop" | "ownMeldRise" | "rw", number>
+        Record<"bandGap" | "controlH" | "cy" | "handTop" | "ownMeldRise" | "reach", number>
     >,
 ): PhoneRightRoom {
     const { bandGap, controlH, handTop } = sizes;
@@ -991,8 +1013,19 @@ function phoneRightRoom(
         cy: sizes.cy,
         fromBand: handTop - 2 * bandGap - controlH + RIGHT_FROM_BAND_GAP,
         ownRowTop: handTop - sizes.ownMeldRise - SWITCHES_CLEARANCE,
-        reach: sideStripReach(sizes.rw),
+        reach: sizes.reach,
     };
+}
+
+/** A phone's side hands run from under the top strip to the bottom margin, the right one ending above the own row. */
+function phoneSideRoom(
+    sizes: Readonly<Record<"handTop" | "height" | "m" | "ownMeldRise" | "rw", number>>,
+): number {
+    const { handTop, height, m, ownMeldRise, rw } = sizes;
+    return Math.min(
+        handTop - ownMeldRise - SWITCHES_CLEARANCE - m,
+        height - m - belowTopStrip(m, rw),
+    );
 }
 
 /**
@@ -1065,7 +1098,7 @@ function phoneLayout(
     const centreMin = Math.max(PHONE_CENTRE_MIN, RIVER_ROW_SIZE * rw, 2 * laneHalf);
     const switchesRight =
         m +
-        STACKED_DEPTH * rw +
+        stackedDepth(rw) +
         STEP_IN_GAP +
         replayMovesWidth("small", chrome.movesH, chrome.replayGap);
     const clearHalf = width / 2 - sideReach - SWITCHES_CLEARANCE - switchesRight;
@@ -1078,13 +1111,14 @@ function phoneLayout(
     const centre = Math.min(heightRoom, 2 * halfRoom);
     const leftRiverEnd = coreTop + leftRiverDrop(rw, LATEST_DISCARD_GAP);
     const cy = centreTop + centre / 2;
+    const reach = phoneSideReach(rw, phoneSideRoom({ handTop, height, m, ownMeldRise, rw }));
     const rightRoom = phoneRightRoom({
         bandGap,
         controlH,
         cy,
         handTop,
         ownMeldRise,
-        rw,
+        reach,
     });
     const right = phoneRightHand(rightRoom);
     const fits =
@@ -1130,6 +1164,7 @@ function phoneLayout(
         ["rh", rh],
         ["row-rise", 0],
         ["rw", rw],
+        ["side-reach", reach],
         ["switches-bottom", switchesBottom],
         ["w", centre],
     ]);
@@ -1142,13 +1177,13 @@ function phoneLayout(
 }
 
 /**
- * A phone's root sizes and the lengths the stylesheet reads with them, in px: the largest river tile that fits, then
- * the largest own tile that fits with it, at most as wide as a full hand clear of both side strips' stacked depth and at
- * least 4/3 of the river tile, never under `PHONE_OWN_FLOOR`, which wins where both cannot hold; the smallest pair where
- * none fits. The own tile is the largest whose decisions' place under the right badge holds the offers' stack, else
- * the least at that river tile: that bound never lowers the river tile.
+ * A phone's lengths at the largest river tile that fits above `ownFloor`, then the largest own tile that fits with it,
+ * at most as wide as a full hand clear of both side strips' stacked depth and at least 4/3 of the river tile, never
+ * under the floor, which wins where both cannot hold; null where no pair fits. The own tile is the largest whose
+ * decisions' place under the right badge holds the offers' stack, else the least at that river tile: that bound never
+ * lowers the river tile.
  */
-function phoneLengths(frame: BoardFrame): BoardLengths {
+function phoneSolve(frame: BoardFrame, ownFloor: number): BoardLengths | null {
     const { box } = frame;
     for (
         let rw = Math.floor(box.height / PHONE_MAX_RIVER_SHARE);
@@ -1156,10 +1191,10 @@ function phoneLengths(frame: BoardFrame): BoardLengths {
         rw -= 1
     ) {
         const clearFit = Math.floor(
-            (box.width - 2 * (PHONE_CHROME.m + STACKED_DEPTH * rw + STEP_IN_GAP)) / FULL_HAND,
+            (box.width - 2 * (PHONE_CHROME.m + stackedDepth(rw) + STEP_IN_GAP)) / FULL_HAND,
         );
-        const largest = Math.max(PHONE_OWN_FLOOR, clearFit);
-        const least = Math.max(PHONE_OWN_FLOOR, Math.ceil(TILE_ASPECT * rw));
+        const largest = Math.max(ownFloor, clearFit);
+        const least = Math.max(ownFloor, Math.ceil(TILE_ASPECT * rw));
         for (let ow = largest; ow >= least; ow -= 1) {
             const { fits, holdsOffers, lengths } = phoneLayout(frame, rw, ow);
             if (fits && (holdsOffers || ow === least)) {
@@ -1167,7 +1202,24 @@ function phoneLengths(frame: BoardFrame): BoardLengths {
             }
         }
     }
-    return phoneLayout(frame, PHONE_SMALLEST_RIVER, PHONE_OWN_FLOOR).lengths;
+    return null;
+}
+
+/**
+ * A phone's root sizes and the lengths the stylesheet reads with them, in px: the joint solve above the own tile's
+ * floor (`phoneSolve`); where that leaves the river tile under the face floor (a box as short as a browser's bars leave
+ * it), the solve above the tap floor instead, when it lifts the river tile; the smallest pair where none fits.
+ */
+function phoneLengths(frame: BoardFrame): BoardLengths {
+    const solved = phoneSolve(frame, PHONE_OWN_FLOOR);
+    if (solved !== null && (solved["rw"] ?? 0) >= FACE_FLOOR) {
+        return solved;
+    }
+    const tapFloored = phoneSolve(frame, PHONE_OWN_TAP_FLOOR);
+    if (tapFloored !== null && (tapFloored["rw"] ?? 0) > (solved?.["rw"] ?? 0)) {
+        return tapFloored;
+    }
+    return solved ?? phoneLayout(frame, PHONE_SMALLEST_RIVER, PHONE_OWN_TAP_FLOOR).lengths;
 }
 
 /** A slot's box on the board, px from its top-left corner. */
@@ -1365,8 +1417,8 @@ function landscapeLeft(
 ): Readonly<Record<"leftRoomEnd" | "leftStart" | "switchesLeft", number>> {
     const m = at("m");
     const rw = at("rw");
-    const reach = sideStripReach(rw);
     if (frame.family !== "phone") {
+        const reach = sideStripReach(rw);
         const roomEnd = Math.min(bandTop, switchesTop);
         return {
             leftRoomEnd: Math.max(bandTop, switchesTop),
@@ -1382,11 +1434,11 @@ function landscapeLeft(
         };
     }
     const leftStart = belowTopStrip(m, rw);
-    const meets = leftStart + reach + STRIP_ROOM_GAP > switchesTop;
+    const meets = leftStart + at("side-reach") + STRIP_ROOM_GAP > switchesTop;
     return {
         leftRoomEnd: meets ? bandTop : Math.min(bandTop, switchesTop),
         leftStart,
-        switchesLeft: meets ? m + STACKED_DEPTH * rw + STEP_IN_GAP : m,
+        switchesLeft: meets ? m + stackedDepth(rw) + STEP_IN_GAP : m,
     };
 }
 
@@ -1630,7 +1682,7 @@ function phoneRightOrigin({ at, tier }: ShellRoom): number {
         cy: at("cy"),
         handTop: at("hand-top"),
         ownMeldRise: at("own-meld-rise"),
-        rw: at("rw"),
+        reach: at("side-reach"),
     });
     return phoneRightHand(room).origin;
 }

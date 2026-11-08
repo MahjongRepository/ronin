@@ -39,7 +39,7 @@ import {
     buildResyncMessage,
 } from "@/shared/protocol";
 import { type GameConnection, type SocketHandlers } from "@/shared/websocket";
-import { type GameViewDeps, mountGameView } from "@/views/game";
+import { type BrowserBars, type GameViewDeps, mountGameView } from "@/views/game";
 
 class FakeConnection implements GameConnection {
     readonly sent: ClientMessage[] = [];
@@ -84,6 +84,25 @@ class FakeTileSprite implements TileSprite {
     }
 }
 
+class FakeBrowserBars implements BrowserBars {
+    private current = false;
+    private readonly listeners = new Set<(shown: boolean) => void>();
+
+    shown = (): boolean => this.current;
+
+    subscribe = (listener: (shown: boolean) => void): (() => void) => {
+        this.listeners.add(listener);
+        return () => this.listeners.delete(listener);
+    };
+
+    moveTo(shown: boolean): void {
+        this.current = shown;
+        for (const listener of this.listeners) {
+            listener(shown);
+        }
+    }
+}
+
 interface FakeOverrides {
     readonly connect?: GameViewDeps["connect"];
     readonly debug?: boolean;
@@ -113,6 +132,7 @@ function fakeConnector(): { connections: FakeConnection[]; connect: GameViewDeps
 }
 
 function mountWithFakes(overrides: FakeOverrides = {}): {
+    browserBars: FakeBrowserBars;
     clock: ManualClock;
     connections: FakeConnection[];
     host: HTMLElement;
@@ -123,7 +143,7 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
     dispose: () => void;
 } {
     const clock = new ManualClock();
-    const tileSprite = new FakeTileSprite();
+    const [tileSprite, browserBars] = [new FakeTileSprite(), new FakeBrowserBars()];
     const draws = { throwing: 0 };
     const { connect, connections } = fakeConnector();
     const sink = {
@@ -136,6 +156,7 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
     const sound: FakeSound = { played: [], setting: overrides.soundSetting ?? { sound_on: true } };
     const host = document.createElement("div");
     const dispose = mountGameView(host, GAME_ID, {
+        browserBars,
         clock: steadyClockOn(clock),
         connect: overrides.connect ?? connect,
         debug: overrides.debug ?? false,
@@ -174,7 +195,17 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
     function throwOnDraws(count: number): void {
         draws.throwing = count;
     }
-    return { clock, connections, dispose, host, sink, sound, throwOnDraws, tileSprite };
+    return {
+        browserBars,
+        clock,
+        connections,
+        dispose,
+        host,
+        sink,
+        sound,
+        throwOnDraws,
+        tileSprite,
+    };
 }
 
 /** The server's answer to the join, then the game's start. */
@@ -440,6 +471,21 @@ describe("mountGameView tile faces", () => {
         expect(shown).toEqual([expect.stringMatching(notice), expect.stringMatching(notice)]);
         expect(sink.reload).toHaveBeenCalledOnce();
         expect(spriteNotice(host)).toBeUndefined();
+    });
+
+    it("shows the way to a larger table while the browser's bars are shown, and drops it as they collapse", () => {
+        const { browserBars, host } = mountWithFakes();
+        function barsNotice(): string | undefined {
+            return host.querySelector(".game__play .board-notice--info .board-notice__body")
+                ?.textContent;
+        }
+
+        browserBars.moveTo(true);
+        const shown = barsNotice();
+        browserBars.moveTo(false);
+
+        expect(shown).toMatch(/^Swipe up to hide the browser bars and enlarge the table\s*$/);
+        expect(barsNotice()).toBeUndefined();
     });
 });
 

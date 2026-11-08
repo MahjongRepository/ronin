@@ -67,10 +67,21 @@ export interface GameViewDeps {
     readonly debug: boolean;
     /** The tile sprite's load, which the board's notice reports while the faces are missing. */
     readonly tileSprite: TileSprite;
+    /** Whether the browser's bars take screen a swipe would give the table, which the board's notice says. */
+    readonly browserBars: BrowserBars;
     readonly links: GameLinks;
     readonly sound: GameSound;
     readonly inputSetting: LocalStore<InputSetting>;
     readonly setLanguage: (locale: Locale) => void;
+}
+
+/**
+ * The browser's bars over the page: shown while the viewport stands shorter than the large viewport a swipe gives
+ * (a phone browser's address bar and toolbar), with each change as the viewport resizes; returns the unsubscribe.
+ */
+export interface BrowserBars {
+    readonly shown: () => boolean;
+    readonly subscribe: (listener: (shown: boolean) => void) => () => void;
 }
 
 /** Where the game's end leads: the game history, and this game's replay from a seat. */
@@ -295,6 +306,7 @@ class GameViewController {
     private state: LiveClient;
     private ui: PlayUi;
     private readonly stopTileSprite: () => void;
+    private readonly stopBrowserBars: () => void;
     /** The control that opened the leave question, which takes the focus back when the player stays. */
     private leaveOpener: HTMLElement | null = null;
     private readonly recovery = new AbortController();
@@ -315,11 +327,13 @@ class GameViewController {
         this.timer = createDeadlineTimer(deps.clock, (at) => this.dispatch({ at, kind: "tick" }));
         this.ui = {
             ...NO_PLAY_UI,
+            browserBars: deps.browserBars.shown(),
             rightClick: deps.inputSetting.load().rightClick,
             soundOn: deps.sound.setting.load().sound_on,
             tileSprite: deps.tileSprite.status(),
         };
         this.stopTileSprite = this.followTileSprite();
+        this.stopBrowserBars = this.followBrowserBars();
         const { effects, state } = startGameClient(gameId, deps.handoff, deps.clock.now());
         this.state = state;
         this.settle(effects);
@@ -338,9 +352,20 @@ class GameViewController {
         });
     }
 
+    /** Draw the page again as the browser's bars show or collapse; returns its unsubscribe. */
+    private followBrowserBars(): () => void {
+        return this.deps.browserBars.subscribe((shown) => {
+            this.guard(() => {
+                this.ui = stepPlayUi(this.state, this.ui, { kind: "browser_bars", shown });
+                this.draw();
+            });
+        });
+    }
+
     dispose(): void {
         this.disposed = true;
         this.stopTileSprite();
+        this.stopBrowserBars();
         this.recovery.abort();
         this.queue.length = 0;
         this.timer.disarm();

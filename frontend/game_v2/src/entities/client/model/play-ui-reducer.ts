@@ -174,6 +174,9 @@ export function stepPlayUi(state: LiveClient, ui: PlayUi, input: PlayUiInput): P
         case "tile_sprite": {
             return settledPlayUi(state, { ...ui, tileSprite: input.status });
         }
+        case "browser_bars": {
+            return settledPlayUi(state, { ...ui, browserBars: input.shown });
+        }
         default: {
             return settledPlayUi(state, commandedPlayUi(state, ui, input));
         }

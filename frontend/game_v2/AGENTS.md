@@ -66,7 +66,11 @@ the lowest layer allowed to hold it. `src/fixtures/` is generated data; only sto
 * Zod is `zod/mini` only (lint bans classic: it does not tree-shake and its JIT breaks the CSP). `zod-setup.ts` stays
   the first import of `index.ts`.
 * Lint and format follow the lobby's config; keep them in sync. `new-cap` exceptions list this app's components.
-* Supported floor: Safari 16.4, Chrome/Edge 108, Firefox 128 and a 667x375 landscape phone. The rotate panel is a
+* Supported floor: Safari 16.4, Chrome/Edge 108, Firefox 128 and a 667x375 landscape phone. That is a display: its
+  browser boxes the board shorter (iOS 26 Safari keeps 139px of bars in landscape, 667x236 on that phone, 896x275 on
+  an iPhone 11; Android Chrome about 80px). The live page stands a large viewport tall so a swipe collapses the
+  bars, which a notice asks for, and the geometry must still lay out whole and tappable in the shown-bars box
+  (`tests/entities/table/lib/board-geometry.test.ts`, the visual check's `BROWSER_PHONES`). The rotate panel is a
   media query's choice alone; the session runs on under it. The board cannot lay out without `:has()`, container
   queries, `dvh` and `@property`: `supportsBoardCss` checks them, and a browser lacking one gets a notice instead of
   any page (the lobby's copy shows a banner). A new CSS feature the layout depends on joins that check.
@@ -92,7 +96,9 @@ the lowest layer allowed to hold it. `src/fixtures/` is generated data; only sto
 A targeted check, not a gate: no `make` target, not in `make run-all-checks`. It shoots and checks only the pages and
 viewports a run names (WebKit for phones, Chromium otherwise), with no backend:
 `npm run visual-check -- --page <name> --viewport <name> --shots <dir>` (repeatable, substring match). Name the
-changed area and its one worst case, never a sweep.
+changed area and its one worst case, never a sweep. A phone change's worst case is a browser-boxed phone
+(`phone-11-safari`, `phone-a25-chrome`), not a full display: the displays passed while the game shipped unplayable in
+Safari and Chrome.
 
 * A new page or check goes in its surface's module under `scripts/visual-check/surfaces/`, never the runner.
 * The check holds a few of the spec's proportions (`DERIVED` in `surfaces/board.ts`); change the spec's table and

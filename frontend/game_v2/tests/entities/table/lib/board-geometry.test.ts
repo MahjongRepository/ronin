@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
     BAND_ROW_EXTRA,
     DESKTOP_CHROME,
+    FACE_FLOOR,
     FULL_HAND,
     LATEST_DISCARD_GAP,
     TILE_EDGE_SHARE,
@@ -106,6 +107,79 @@ describe("boardGeometry chrome", () => {
             expect(lengths["badge-h"]).toBeCloseTo(badgeH, 6);
             expect(lengths["text"]).toBeCloseTo(text, 6);
             expect(lengths["top-lane"]).toBeGreaterThanOrEqual(8 * text - 0.001);
+        },
+    );
+});
+
+describe("boardGeometry in a phone's browser", () => {
+    it.each([
+        {
+            browser: "iOS 26 Safari, its bars collapsed",
+            height: 393,
+            insets: { bottom: 21, left: 44, right: 44, top: 0 },
+            width: 896,
+        },
+        {
+            browser: "iOS 26 Safari, its bars collapsed",
+            height: 375,
+            insets: NO_INSETS,
+            width: 667,
+        },
+        { browser: "Android Chrome, its bars shown", height: 331, insets: NO_INSETS, width: 891 },
+        {
+            browser: "Android Chrome, its bars collapsed",
+            height: 387,
+            insets: NO_INSETS,
+            width: 891,
+        },
+    ])(
+        "keeps a $width x $height phone box ($browser) a phone board whose river tile is at least the face floor over an own tile at its floor",
+        ({ height, insets, width }) => {
+            const { family, lengths } = windowGeometry({ height, width }, 0, insets);
+
+            expect(family).toBe("phone");
+            expect(lengths["rw"]).toBeGreaterThanOrEqual(FACE_FLOOR);
+            expect(lengths["ow"]).toBeGreaterThanOrEqual(36);
+            expect(lengths["oh"]).toBeGreaterThanOrEqual(48);
+        },
+    );
+
+    it.each([
+        {
+            browser: "an iPhone 11 in iOS 26 Safari",
+            height: 275,
+            insets: { bottom: 0, left: 44, right: 44, top: 0 },
+            ow: 32,
+            rw: 10,
+            width: 896,
+        },
+        {
+            browser: "an iPhone SE in iOS 26 Safari",
+            height: 236,
+            insets: NO_INSETS,
+            ow: 32,
+            rw: 6,
+            width: 667,
+        },
+        {
+            browser: "an iPhone 13 in iOS 26 Safari",
+            height: 251,
+            insets: { bottom: 0, left: 47, right: 47, top: 0 },
+            ow: 32,
+            rw: 8,
+            width: 844,
+        },
+    ])(
+        "lays a $width x $height box ($browser, its bars shown) out as a phone board at the largest river tile its height holds, the own tile down to the tap floor where that lifts it, and reserves the side strips only the kans the box holds",
+        ({ height, insets, ow, rw, width }) => {
+            const { family, lengths } = windowGeometry({ height, width }, 0, insets);
+
+            expect(family).toBe("phone");
+            expect(lengths).toMatchObject({ ow, rw });
+            expect(lengths["side-reach"]).toBeLessThanOrEqual(
+                (lengths["hand-top"] ?? 0) - 4 - (lengths["m"] ?? 0),
+            );
+            expect(lengths["c"]).toBeGreaterThanOrEqual(94);
         },
     );
 });

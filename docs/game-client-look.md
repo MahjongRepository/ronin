@@ -60,7 +60,9 @@ The derived proportions are the three reference viewports' values under the sizi
   the gutter never changes it. A portrait viewport narrower than 600px sees the rotate panel instead
   of play, regardless of touch or mouse input. It asks the player to rotate the device or widen the
   window and says that play and its timers go on. A replay or a storybook page may be read upright and scrolls
-  instead.
+  instead. A phone browser's address bar and toolbar take a third of the display in landscape: the
+  live page stands as tall as the viewport they leave when collapsed, so a swipe collapses them and
+  the board grows into the room, and a notice asks for that swipe while they show (Notices).
 
 ## Composition (decisions)
 
@@ -470,7 +472,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   that click, and goes on to the linked position. The switch is on by default and kept in the browser,
   shared by the live game and the replay.
 - **Notices.** Reconnecting, a lost seat, a refused move, a message the client could not read, tile
-  faces that did not load: decision, their one place is the left zone's open field under the left
+  faces that did not load, a phone browser's bars taking room a swipe would give the table (the
+  quietest, last among the ongoing ones): decision, their one place is the left zone's open field under the left
   badge, beside the left strip and outside every river's reserved reach, which a panel leaves free, so an
   automatic notice covers no tile within its reserved reach, badge, control or panel (the accepted
   overflow of top and bottom third rows beyond nineteen discards may extend under it); worded for a player, and a recoverable
@@ -629,7 +632,11 @@ chrome to the regular one stays, and a phone scales its chrome from the small re
 On a phone both tiles are solved together from the box: the river tile the largest that fits, then the
 own hand tile the largest that fits with it, at most as wide as lets a full hand's row stand clear of
 both side strips' stacked depth and at least 4/3 of the river tile, a larger river tile waiting for an
-own tile that keeps that share, but never under 36x48, the floor winning where both cannot hold. The
+own tile that keeps that share, but never under 36x48, the floor winning where both cannot hold; a box
+too short for the face floor over that own tile (a phone browser's bars shown) solves again over the
+32x42 tap floor and takes that solve where it lifts the river tile. A phone's side strips reserve the
+full concealed hand and as many kans at the face floor as the box holds, four at most, a denser seat's
+melds lying on past the line. The
 own tile is also the largest whose decisions' place, from under the right badge down to the band's
 bottom, holds a win over two rows of paired calls and the band's row (182px at the small chrome), else
 the least at that river tile: this bound caps the own tile only, never the river tile. It is not the
@@ -752,8 +759,15 @@ phone, an iPhone 13 upright (the rotate panel, and the storybooks and the replay
 on a desktop's geometry), 1280x720 and 1440x770 (laptop windows either side of the short
 desktop's 760px, the latter the shortest regular desktop), 700x540 and 900x600 (small windows, a
 panel against the board's width), 1024x510 (a short tablet, wide but under a phone's height) and
-680x375 and 700x375 (wider phones at the floor's height). The composition is identical on all the
-landscape ones. Upright, beside the iPhone 13 it adds 800x801, a near-square window with no touch
+680x375 and 700x375 (wider phones at the floor's height), and the phones as their browsers box the
+board with their bars shown, since every phone size above is a display and a browser's bars take a
+third of its height in landscape until the swipe the board asks for collapses them: an iPhone 11 in
+iOS 26 Safari (896x275 with 44px side insets, measured) and a Galaxy A25 in Android Chrome (891x331,
+estimated from its toolbar and status bar). There the board lays out whole and tappable at the
+largest river tile the height holds (the face floor only where it fits: the A25's box holds it, the
+iPhone's 10px does not), and the box the collapsed bars leave is a display size above. The floor
+display's Safari box (667x236) is pinned by the geometry's tests alone. The first release that reached
+these boxes drew a 2px river tile. The composition is identical on all the landscape ones. Upright, beside the iPhone 13 it adds 800x801, a near-square window with no touch
 screen, whose densest right strip takes a second meld line beside the decisions and the notices.
 
 ## Review checklist

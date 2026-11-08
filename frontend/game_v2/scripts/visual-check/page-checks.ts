@@ -12,6 +12,45 @@ export function measurePage(page: Page): Promise<PageMeasure> {
     }));
 }
 
+/** The board's written geometry matches its box: its shell's tracks span the board's client size (none without a board). */
+function boardSettled(page: Page): Promise<boolean> {
+    return page.evaluate(() => {
+        const board = document.querySelector<HTMLElement>(".game-board");
+        if (board === null) {
+            return true;
+        }
+        const style = getComputedStyle(board);
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function span(template: string): number {
+            let total = 0;
+            for (const { groups } of template.matchAll(/(?<px>[\d.]+)px/gu)) {
+                total += Number(groups?.px);
+            }
+            return total;
+        }
+        return (
+            Math.abs(span(style.getPropertyValue("--geo-shell-columns")) - board.clientWidth) <=
+                1 &&
+            Math.abs(span(style.getPropertyValue("--geo-shell-rows")) - board.clientHeight) <= 1
+        );
+    });
+}
+
+/**
+ * Wait until the board's geometry is the one for its current box: an inset or viewport change after load resizes the
+ * board, and its directive solves again a frame or two later, so a measure taken before that reads the old layout.
+ */
+export async function waitForBoardSettled(page: Page, report: PageReport): Promise<void> {
+    const deadline = Date.now() + SELECTOR_TIMEOUT_MS;
+    while (!(await boardSettled(page))) {
+        if (Date.now() > deadline) {
+            report.failures.push("the board's geometry never matched its box");
+            return;
+        }
+        await page.waitForTimeout(50);
+    }
+}
+
 /** Every element `selector` matches must be shown (not hidden, transparent or zero-sized), and one must match. */
 function countHidden(page: Page, selector: string): Promise<{ matched: number; hidden: number }> {
     return page.evaluate((query) => {

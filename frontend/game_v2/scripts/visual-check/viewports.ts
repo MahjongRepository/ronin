@@ -120,14 +120,71 @@ const WIDER_PHONE_VIEWPORTS: readonly Viewport[] = [
 }));
 export const WIDER_PHONES: readonly string[] = WIDER_PHONE_VIEWPORTS.map(({ name }) => name);
 
+/** An iPhone 11 in landscape Safari (iOS 26): its 896x414 display less the address capsule and the toolbar. */
+const SAFARI_11_VIEWPORT: Size = { height: 275, width: 896 };
+const SAFARI_11_INSETS: Insets = { bottom: 0, left: 44, right: 44 };
+const SAFARI_11_SAFE_AREA: Box = { height: 275, left: 44, top: 0, width: 808 };
+/** A Galaxy A25 (1080x2340 at 2.625, 891x411 CSS) in landscape Chrome: its status bar and 56px toolbar taken. */
+const CHROME_A25_VIEWPORT: Size = { height: 331, width: 891 };
+const CHROME_A25_SCREEN: Size = { height: 411, width: 891 };
+
+/** The iPhone 11 in landscape Safari, whose 275px box the solver fell through to its 2px river tile (2026-11-08). */
+export const SAFARI_PHONE = "phone-11-safari";
+/** A Galaxy A25 in landscape Chrome, the Android box the same release broke on. */
+export const CHROME_PHONE = "phone-a25-chrome";
+
+/**
+ * Phones as their browsers box the board with their bars shown, not as their displays: a page's viewport is the
+ * display less the browser's own bars until the swipe the board asks for collapses them (the live page stands a large
+ * viewport tall for that). Each is a measured or estimated box of a device the game shipped unplayable on; a page
+ * naming them runs on their real, far shorter height, where every px floor of the chrome binds first, and must still
+ * lay out whole and tappable. The floor display's Safari box (667x236) is shorter still and pinned by the geometry's
+ * tests alone: its decisions' column cannot hold a call over the band's row, which the swipe resolves.
+ */
+const BROWSER_PHONE_VIEWPORTS: readonly Viewport[] = [
+    {
+        barsShown: { riverFloor: { height: 13, width: 10 } },
+        captureModel: { safeArea: SAFARI_11_SAFE_AREA, viewport: SAFARI_11_VIEWPORT },
+        context: {
+            ...deviceOptions("iPhone 11 landscape"),
+            screen: { height: 414, width: 896 },
+            viewport: SAFARI_11_VIEWPORT,
+        },
+        desktop: false,
+        engine: webkit,
+        insets: SAFARI_11_INSETS,
+        name: SAFARI_PHONE,
+        ownTileFloor: MIN_TAP,
+        portrait: false,
+        rotates: false,
+        supported: true,
+    },
+    {
+        context: {
+            ...deviceOptions("Pixel 7 landscape"),
+            screen: CHROME_A25_SCREEN,
+            viewport: CHROME_A25_VIEWPORT,
+        },
+        desktop: false,
+        engine: chromium,
+        name: CHROME_PHONE,
+        ownTileFloor: MIN_TAP,
+        portrait: false,
+        rotates: false,
+        supported: true,
+    },
+];
+export const BROWSER_PHONES: readonly string[] = BROWSER_PHONE_VIEWPORTS.map(({ name }) => name);
+
 /**
  * The acceptance viewports, each checked only on the pages that name it (`PageCase.at`): the floor, the mid and the
  * largest desktop, across which the representative worst cases are chosen (`WORST_CASES`), the desktops, laptops,
  * windows, tablet and phones that each guard one path of the layout, the upright phone that gets the rotate panel,
- * and the notched landscape phone (its insets cover the plain one). The notched phone is the agreed capture model,
- * not measured Safari chrome: Playwright's "iPhone 13 landscape" options with the viewport and screen set to the full
- * 844x390 display after them (the device's own 750x342 is Safari's viewport with its chrome), then the insets, so its
- * safe area is 750x369.
+ * the notched landscape phone (its insets cover the plain one), and the phones boxed by their browsers
+ * (`BROWSER_PHONES`). The notched phone is the full-display capture model: Playwright's "iPhone 13 landscape" options
+ * with the viewport and screen set to the full 844x390 display after them (the device's own 750x342 is an older
+ * Safari's viewport with its chrome), then the insets, so its safe area is 750x369. It is not what a browser gives
+ * the board; the browser phones are, and a layout that holds only on the full displays has failed on a phone.
  */
 export const VIEWPORTS: readonly Viewport[] = [
     {
@@ -241,6 +298,7 @@ export const VIEWPORTS: readonly Viewport[] = [
         supported: true,
     },
     ...WIDER_PHONE_VIEWPORTS,
+    ...BROWSER_PHONE_VIEWPORTS,
 ];
 
 /** The page sees the capture model's viewport, and the emulated insets leave exactly its safe area. */

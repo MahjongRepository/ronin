@@ -51,3 +51,12 @@
     min-width: 0;
     min-height: 0;
 }
+
+#app:has(> .game__play) {
+    min-height: 100lvh;
+}
+
+.game__play.board-page {
+    position: sticky;
+    top: 0;
+}
