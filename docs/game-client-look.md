@@ -701,7 +701,7 @@ left river's reach, and a replay's moves take it, so a replay's board is the liv
 An opponent's concealed hand tile is the river tile; its drawn tile stands 0.15 of a river tile
 apart on the top strip, and 0.28 on a side strip, where the 0.13 tile edge it shows lies in that gap.
 
-| Relationship | Starting point | Derived (667x375 / 750x390 notch safe area / 1440x900) |
+| Relationship | Starting point | Derived (667x375 / 750x390 notch board / 1440x900) |
 |---|---|---|
 | Core height / play area height | 0.6 | 0.74 / 0.73 / 0.68 |
 | Centre height / core height | 0.3 | 0.43 / 0.34 / 0.39 |
