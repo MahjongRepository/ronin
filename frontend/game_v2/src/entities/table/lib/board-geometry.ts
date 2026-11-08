@@ -284,6 +284,7 @@ function tierChrome(chrome: ChromeTier, share: number): DesktopChrome {
         switchText: at("switchText"),
         text: at("text"),
         timerW: at("timerW"),
+        topLaneMin: at("topLaneMin"),
         winMinW: at("winMinW"),
     };
 }
@@ -1603,7 +1604,7 @@ function landscapeTop(room: ShellRoom): Pick<StripPlaces, "topAnchor" | "topLane
     const start = m;
     const badgeRight = frame.box.width - m - tier.badgeGap;
     const pastRiver = at("cx") + at("hx") + clear;
-    const centred = Math.max(at("cx") + reach / 2, pastRiver + tier.sideLaneMin);
+    const centred = Math.max(at("cx") + reach / 2, pastRiver + tier.topLaneMin);
     const anchor = Math.max(start + reach, Math.min(centred, badgeRight));
     return {
         topAnchor: anchor,

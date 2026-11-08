@@ -96,6 +96,8 @@ interface DesktopChrome {
     readonly countersFrame: number;
     readonly replayGap: number;
     readonly sideLaneMin: number;
+    /** The top badge's least lane: an ordinary name's badge (`Tsumogiri 3`) at the tier's text, 8 of it off small. */
+    readonly topLaneMin: number;
     readonly badgeH: number;
     readonly pillH: number;
     readonly ownPillH: number;
@@ -152,6 +154,7 @@ const REGULAR_CHROME: DesktopChrome = {
     switchText: 22,
     text: 17,
     timerW: 120,
+    topLaneMin: 136,
     winMinW: 150,
 };
 
@@ -180,6 +183,7 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         switchText: 24,
         text: 24,
         timerW: 150,
+        topLaneMin: 192,
     },
     regular: REGULAR_CHROME,
     small: {
@@ -205,6 +209,7 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         switchText: 17,
         text: 12,
         timerW: 76,
+        topLaneMin: 90,
         winMinW: 96,
     },
 };
