@@ -283,7 +283,7 @@ function handleMessage(handlers: MessageHandlerMap, message: Record<string, unkn
     }
 }
 
-function leaveOnPageHide(state: RoomState): void {
+function leaveOnPageExit(state: RoomState): void {
     cancelJoinRetry(state);
     state.socket?.disconnect();
 }
@@ -338,7 +338,7 @@ export {
     describeRoomError,
     handleMessage,
     joinRoom,
-    leaveOnPageHide,
+    leaveOnPageExit,
     reconnectOnResume,
     rejoinOnPageShow,
 };

@@ -110,7 +110,7 @@ function joinQueue(state: MatchmakingState, render: RenderMatchmaking, wsUrl: st
     state.socket?.connect(wsUrl);
 }
 
-function leaveOnPageHide(state: MatchmakingState): void {
+function leaveOnPageExit(state: MatchmakingState): void {
     state.socket?.disconnect();
 }
 
@@ -121,5 +121,5 @@ function rejoinOnPageShow(state: MatchmakingState, rejoin: () => void): void {
     rejoin();
 }
 
-export { handleMessage, handleStatusChange, joinQueue, leaveOnPageHide, rejoinOnPageShow };
+export { handleMessage, handleStatusChange, joinQueue, leaveOnPageExit, rejoinOnPageShow };
 export type { RenderMatchmaking };

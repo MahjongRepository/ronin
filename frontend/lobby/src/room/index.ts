@@ -9,7 +9,7 @@ import {
     buildStatusHandler,
     handleMessage,
     joinRoom,
-    leaveOnPageHide,
+    leaveOnPageExit,
     reconnectOnResume,
     rejoinOnPageShow,
 } from "@/room/handlers";
@@ -77,7 +77,7 @@ function openRoomPage(container: HTMLElement, config: RoomConfig): void {
     );
 
     bindToPageLifetime({
-        release: () => leaveOnPageHide(state),
+        release: () => leaveOnPageExit(state),
         restore: () => rejoinOnPageShow(state, rejoin),
     });
     bindToResume(() => reconnectOnResume(state, rejoin), RESUME_RECONNECT_AFTER_HIDDEN_MS);

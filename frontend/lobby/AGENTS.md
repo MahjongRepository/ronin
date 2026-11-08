@@ -14,10 +14,12 @@ hidden for a while, or the browser coming back online, reconnects at once, since
 without a close event while the page is in the background. Matchmaking does not reconnect.
 
 A page that holds a lobby socket binds it to `page-lifetime.ts`: it closes the socket and cancels
-any pending rejoin on `pagehide`, and rejoins from scratch on a `pageshow` that restores it from
+any pending rejoin on `beforeunload` and again on `pagehide`, and rejoins from scratch on a `pageshow` that restores it from
 the back-forward cache, unless the page has already ended (refused, taken over). Chromium keeps a
 cached page's socket open and answers the server's pings for it, so without this a user who
-navigates away keeps their queue entry or seat. A page leaves for the game, and the room's Leave
+navigates away keeps their queue entry or seat. Firefox aborts a page's sockets as soon as a
+navigation starts, before `pagehide`, so without `beforeunload` the page would flash its lost
+connection state while it unloads. A page leaves for the game, and the room's Leave
 table for the lobby, with `location.replace`, so Back never restores a page whose rejoin would only
 hand the user the same game or seat again.
 

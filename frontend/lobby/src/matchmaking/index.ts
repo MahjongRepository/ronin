@@ -5,7 +5,7 @@ import {
     handleMessage,
     handleStatusChange,
     joinQueue,
-    leaveOnPageHide,
+    leaveOnPageExit,
     rejoinOnPageShow,
 } from "@/matchmaking/handlers";
 import { createMatchmakingState } from "@/matchmaking/state";
@@ -27,7 +27,7 @@ function openMatchmakingPage(container: HTMLElement, wsUrl: string): void {
     );
 
     bindToPageLifetime({
-        release: () => leaveOnPageHide(state),
+        release: () => leaveOnPageExit(state),
         restore: () => rejoinOnPageShow(state, rejoin),
     });
     bindLanguageSwitchInPlace(() => {
