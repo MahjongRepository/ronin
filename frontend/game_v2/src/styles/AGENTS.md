@@ -40,7 +40,7 @@ they disagree.
   upright one's at 11px. A phone's unit reads the board's height and stops at 0.8px (48px tiles); off a phone it is the
   larger of that unit and one from the panel's own height with the ceiling the larger of 0.8px and the own tile's,
   and the result's text rows keep one 800px budget (`$overlay-prose-budget`), centred, that only its head and tile
-  rows span past; its text queries read that budget's container, `result-text`, its layout ones the panel's; the
+  rows span past, the tile rows centred too on a panel wider than it; its text queries read that budget's container, `result-text`, its layout ones the panel's; the
   indicators stand in that budget, their unit capped at 0.8px.
 - **One source per fact.** The directive writes the sizes as `--geo-<name>` on `.game-board`; one rule (`_grid.scss`)
   maps those the styles read onto the lengths' own names on `.board-layout` and `.board-overlay`, inside `:where()` so

@@ -95,6 +95,7 @@ $overlay-panel-unit: clamp(
     container: result-foot / inline-size;
     display: flex;
     flex-direction: column;
+    overflow-x: clip;
     width: min(var(--panel-room), #{$overlay-hand-units} * var(--board-unit) + #{$overlay-chrome});
 
     @include board-where($off-phone-board) {
@@ -179,6 +180,16 @@ $overlay-panel-unit: clamp(
 
 /* A panel wide enough for columns (a landscape phone's included) puts the yaku, the value and the indicators side by
    side, the indicators' column as narrow as their tiles. */
+@container result-foot (width > #{$overlay-prose-budget}) {
+    .board-overlay :is(.round-end-result__hand, .round-end-result__tenpai) {
+        justify-content: center;
+    }
+
+    .board-overlay .round-end-result__rivers {
+        align-items: center;
+    }
+}
+
 @container result-foot (width >= #{$two-column-result}) {
     .board-overlay .round-end-result--win {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
