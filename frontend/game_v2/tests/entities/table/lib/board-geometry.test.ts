@@ -124,6 +124,24 @@ describe("boardGeometry chrome", () => {
 });
 
 describe("boardGeometry in a phone's browser", () => {
+    it.each([LIVE_SLOTS, REPLAY_SLOTS])(
+        "lets only a replay's moves meet the bottom river where they leave a phone box no solve, never where the box has one ($band)",
+        (slots) => {
+            function tiles(width: number, height: number): Record<"ow" | "rw", number | undefined> {
+                const { lengths } = boardGeometry({
+                    box: { height, width },
+                    gutter: 0,
+                    safeInsets: NO_INSETS,
+                    slots,
+                });
+                return { ow: lengths["ow"], rw: lengths["rw"] };
+            }
+
+            expect(tiles(592, 360)).toEqual({ ow: 36, rw: 13 });
+            expect(tiles(620, 360)).toEqual({ ow: 36, rw: 13 });
+        },
+    );
+
     it.each([
         {
             browser: "iOS 26 Safari, its bars collapsed",

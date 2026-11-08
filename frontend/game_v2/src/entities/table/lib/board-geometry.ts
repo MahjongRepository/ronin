@@ -1082,14 +1082,22 @@ function phonePanel(
     };
 }
 
+type PhoneRowHolds = "replay-moves" | "live-switches";
+
+function phoneRowWidth(rowHolds: PhoneRowHolds, chrome: DesktopChrome): number {
+    return rowHolds === "replay-moves"
+        ? replayMovesWidth("small", chrome.movesH, chrome.replayGap)
+        : rowWidth(SWITCH_CHIPS, chrome.switchH, chrome.chipGap);
+}
+
 /**
  * A phone's lengths at a river and own tile, in px, whether its places fit them and whether the decisions' place under
  * the right badge holds the offers' stack.
  */
 function phoneLayout(
     frame: BoardFrame,
-    rw: number,
-    ow: number,
+    { ow, rw }: Readonly<Record<"ow" | "rw", number>>,
+    rowHolds: PhoneRowHolds,
 ): { readonly fits: boolean; readonly holdsOffers: boolean; readonly lengths: BoardLengths } {
     const { box, slots } = frame;
     const { height, width } = box;
@@ -1120,7 +1128,7 @@ function phoneLayout(
         fieldHalf - NOTICE_FIELD - NOTICE_GAPS,
         fieldHalf - DECISIONS_COLUMN - DECISIONS_GAPS,
     );
-    const movesRight = rowLeft + replayMovesWidth("small", chrome.movesH, chrome.replayGap);
+    const rowRight = rowLeft + phoneRowWidth(rowHolds, chrome);
     const leftRiverEnd = coreTop + leftRiverDrop(rw, LATEST_DISCARD_GAP);
     const cy = centreTop + heightRoom / 2;
     const reach = phoneSideReach(rw, phoneSideRoom({ handTop, height, m, ownMeldRise, rw }));
@@ -1140,7 +1148,7 @@ function phoneLayout(
         centreWidth <= 2 * halfRoom &&
         topBadgeBottom + BADGE_RIVER_CLEARANCE <= rightRiverTop &&
         leftRiverEnd + SWITCHES_CLEARANCE <= switchesTop &&
-        movesRight + SWITCHES_RIVER_GAP <= width / 2 - centreWidth / 2 &&
+        rowRight + SWITCHES_RIVER_GAP <= width / 2 - centreWidth / 2 &&
         rowLeft + FURITEN_RESERVE <= leftReach(width / 2, centreWidth, rw) &&
         belowTopStrip(m, rw) + rightRoom.reach <= height - m &&
         right.origin <= rightRoom.ownRowTop;
@@ -1201,20 +1209,22 @@ function phoneLayout(
  * decisions' place under the right badge holds the offers' stack, else the least at that river tile: that bound never
  * lowers the river tile.
  */
-function phoneSolve(frame: BoardFrame, ownFloor: number): BoardLengths | null {
+function phoneSolve(
+    frame: BoardFrame,
+    ownFloor: number,
+    rowHolds: PhoneRowHolds,
+): BoardLengths | null {
     const { box } = frame;
     for (
         let rw = Math.floor(box.height / PHONE_MAX_RIVER_SHARE);
         rw >= PHONE_SMALLEST_RIVER;
         rw -= 1
     ) {
-        const clearFit = Math.floor(
-            (box.width - 2 * (PHONE_CHROME.m + stackedDepth(rw) + STEP_IN_GAP)) / FULL_HAND,
-        );
+        const clearFit = Math.floor((box.width - 2 * phoneSwitchesLeft(rw)) / FULL_HAND);
         const largest = Math.max(ownFloor, clearFit);
         const least = Math.max(ownFloor, Math.ceil(TILE_ASPECT * rw));
         for (let ow = largest; ow >= least; ow -= 1) {
-            const { fits, holdsOffers, lengths } = phoneLayout(frame, rw, ow);
+            const { fits, holdsOffers, lengths } = phoneLayout(frame, { ow, rw }, rowHolds);
             if (fits && (holdsOffers || ow === least)) {
                 return lengths;
             }
@@ -1229,15 +1239,24 @@ function phoneSolve(frame: BoardFrame, ownFloor: number): BoardLengths | null {
  * it), the solve above the tap floor instead, when it lifts the river tile; the smallest pair where none fits.
  */
 function phoneLengths(frame: BoardFrame): BoardLengths {
-    const solved = phoneSolve(frame, PHONE_OWN_FLOOR);
+    return (
+        phoneSolveOverFloors(frame, "replay-moves") ??
+        phoneSolveOverFloors(frame, "live-switches") ??
+        phoneLayout(frame, { ow: PHONE_OWN_TAP_FLOOR, rw: PHONE_SMALLEST_RIVER }, "replay-moves")
+            .lengths
+    );
+}
+
+function phoneSolveOverFloors(frame: BoardFrame, rowHolds: PhoneRowHolds): BoardLengths | null {
+    const solved = phoneSolve(frame, PHONE_OWN_FLOOR, rowHolds);
     if (solved !== null && (solved["rw"] ?? 0) >= FACE_FLOOR) {
         return solved;
     }
-    const tapFloored = phoneSolve(frame, PHONE_OWN_TAP_FLOOR);
+    const tapFloored = phoneSolve(frame, PHONE_OWN_TAP_FLOOR, rowHolds);
     if (tapFloored !== null && (tapFloored["rw"] ?? 0) > (solved?.["rw"] ?? 0)) {
         return tapFloored;
     }
-    return solved ?? phoneLayout(frame, PHONE_SMALLEST_RIVER, PHONE_OWN_TAP_FLOOR).lengths;
+    return solved;
 }
 
 /** A slot's box on the board, px from its top-left corner. */
