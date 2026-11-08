@@ -143,7 +143,7 @@ export const CHROME_PHONE = "phone-a25-chrome";
  */
 const BROWSER_PHONE_VIEWPORTS: readonly Viewport[] = [
     {
-        barsShown: { riverFloor: { height: 13, width: 10 } },
+        barsShown: { riverFloor: { height: 14, width: 11 } },
         captureModel: { safeArea: SAFARI_11_SAFE_AREA, viewport: SAFARI_11_VIEWPORT },
         context: {
             ...deviceOptions("iPhone 11 landscape"),
@@ -160,6 +160,7 @@ const BROWSER_PHONE_VIEWPORTS: readonly Viewport[] = [
         supported: true,
     },
     {
+        barsShown: { riverFloor: { height: 17, width: 13 } },
         context: {
             ...deviceOptions("Pixel 7 landscape"),
             screen: CHROME_A25_SCREEN,

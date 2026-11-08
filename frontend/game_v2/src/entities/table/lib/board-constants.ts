@@ -243,10 +243,11 @@ const OWN_BY_RIVER_OFF_PHONE = 1.6;
 
 /**
  * A phone's own tile: at least this wide (px), at most as wide as a full hand allows clear of both side strips' stacked
- * depth; its centre never under this height (px).
+ * depth; its centre never under this height, nor under this width (px).
  */
 const PHONE_OWN_FLOOR = 36;
-const PHONE_CENTRE_MIN = 94;
+const PHONE_CENTRE_MIN_HEIGHT = 88;
+const PHONE_CENTRE_MIN_WIDTH = 100;
 
 /**
  * A phone box too short for the face floor at the own tile's floor (a browser's bars shown) takes the own tile down to
@@ -312,7 +313,8 @@ export {
     OWN_DRAWN_GAP,
     OWN_MELD_SCALE,
     PAGE_GUTTER,
-    PHONE_CENTRE_MIN,
+    PHONE_CENTRE_MIN_HEIGHT,
+    PHONE_CENTRE_MIN_WIDTH,
     PHONE_CHROME,
     PHONE_CHROME_RIVER,
     PHONE_HEIGHT,

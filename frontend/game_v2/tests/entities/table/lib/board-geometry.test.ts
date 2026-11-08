@@ -84,13 +84,25 @@ describe("boardGeometry centre", () => {
         { height: 800, width: 800 },
         { height: 801, width: 800 },
         { height: 1601, width: 1600 },
-        { height: 390, width: 844 },
-        { height: 430, width: 932 },
     ])("fits a full six-tile row along every centre edge at $width x $height", (box) => {
         const { lengths } = windowGeometry(box);
         expect(lengths["c"]).toBeGreaterThanOrEqual(RIVER_ROW_SIZE * (lengths["rw"] ?? Number.NaN));
         expect(lengths["w"]).toBe(lengths["c"]);
     });
+
+    it.each([
+        { height: 390, width: 844 },
+        { height: 430, width: 932 },
+    ])(
+        "keeps a $width x $height phone's centre six river tiles and 100px wide, and 88px tall, at least",
+        (box) => {
+            const { lengths } = windowGeometry(box);
+            expect(lengths["w"]).toBeGreaterThanOrEqual(
+                Math.max(RIVER_ROW_SIZE * (lengths["rw"] ?? Number.NaN), 100),
+            );
+            expect(lengths["c"]).toBeGreaterThanOrEqual(88);
+        },
+    );
 });
 
 describe("boardGeometry chrome", () => {
@@ -150,7 +162,7 @@ describe("boardGeometry in a phone's browser", () => {
             height: 275,
             insets: { bottom: 0, left: 44, right: 44, top: 0 },
             ow: 32,
-            rw: 10,
+            rw: 11,
             width: 896,
         },
         {
@@ -158,14 +170,14 @@ describe("boardGeometry in a phone's browser", () => {
             height: 236,
             insets: NO_INSETS,
             ow: 32,
-            rw: 6,
+            rw: 7,
             width: 667,
         },
         {
             browser: "an iPhone 13 in iOS 26 Safari",
             height: 251,
             insets: { bottom: 0, left: 47, right: 47, top: 0 },
-            ow: 32,
+            ow: 36,
             rw: 8,
             width: 844,
         },
@@ -179,7 +191,7 @@ describe("boardGeometry in a phone's browser", () => {
             expect(lengths["side-reach"]).toBeLessThanOrEqual(
                 (lengths["hand-top"] ?? 0) - 4 - (lengths["m"] ?? 0),
             );
-            expect(lengths["c"]).toBeGreaterThanOrEqual(94);
+            expect(lengths["c"]).toBeGreaterThanOrEqual(88);
         },
     );
 });
@@ -347,25 +359,26 @@ describe("boardGeometry", () => {
             width: 667,
         },
         { height: 390, holdsOffers: true, pinned: { ow: 39, rw: 17 }, width: 667 },
-        { height: 354, holdsOffers: false, pinned: { ow: 36, rw: 17 }, width: 724 },
-        { height: 360, holdsOffers: false, pinned: { ow: 36, rw: 17 }, width: 800 },
-        { height: 369, holdsOffers: false, pinned: { ow: 36, rw: 18 }, width: 750 },
-        { height: 393, holdsOffers: true, pinned: { ow: 40, rw: 19 }, width: 808 },
-        { height: 480, holdsOffers: true, pinned: { ow: 46, rw: 24 }, width: 850 },
+        { height: 354, holdsOffers: false, pinned: { ow: 36, rw: 18 }, width: 724 },
+        { height: 360, holdsOffers: false, pinned: { ow: 36, rw: 18 }, width: 800 },
+        { height: 369, holdsOffers: false, pinned: { ow: 36, rw: 19 }, width: 750 },
+        { height: 379, holdsOffers: true, pinned: { ow: 38, rw: 20 }, width: 761 },
+        { height: 393, holdsOffers: true, pinned: { ow: 44, rw: 21 }, width: 808 },
+        { height: 480, holdsOffers: true, pinned: { ow: 50, rw: 24 }, width: 850 },
         {
             height: 430,
             holdsOffers: true,
-            pinned: { "band-shift": 34, ow: 45, rw: 21 },
+            pinned: { "band-shift": 38, ow: 45, rw: 24 },
             width: 932,
         },
         {
             height: 500,
             holdsOffers: true,
-            pinned: { "control-h": 43.333, ow: 37, rw: 26 },
+            pinned: { "control-h": 46.667, ow: 53, rw: 28 },
             width: 1024,
         },
     ])(
-        "sizes a $width x $height window's phone board's tiles jointly: a full hand clear of the side strips, the offers' stack in its corner ($holdsOffers), a full left river above the switches' row, the moves' row short of the bottom river and the furiten mark short of the left river",
+        "sizes a $width x $height window's phone board's tiles jointly: a full hand clear of the side strips, the offers' stack in its corner ($holdsOffers), a full left river above the switches' row, the moves' row short of the bottom river, the furiten mark short of the left river and the top badge above the right river (at 761x379 its guard costs a river tile: 21 would leave the badge on the river)",
         ({ height, holdsOffers, pinned, width }) => {
             const { lengths, tracks } = windowGeometry({ height, width });
             function length(name: string): number {
@@ -381,7 +394,10 @@ describe("boardGeometry", () => {
             for (const [name, value] of Object.entries(pinned)) {
                 expect(length(name), name).toBeCloseTo(value, 2);
             }
-            expect(length("w")).toBe(length("c"));
+            expect(length("w")).toBeGreaterThanOrEqual(
+                Math.max(RIVER_ROW_SIZE * length("rw"), 100),
+            );
+            expect(length("c")).toBeGreaterThanOrEqual(88);
             expect({
                 furitenShortOfLeftRiver: length("furiten-x") + 88 <= length("reach-left") + 0.001,
                 handClearOfStrips:
@@ -396,12 +412,21 @@ describe("boardGeometry", () => {
                     (slotAreas(tracks)["actions"]?.[3] ?? 0) -
                         (slotAreas(tracks)["actions"]?.[1] ?? 0) >=
                     44 + 2 * 40 + length("control-h") + 3 * 6,
+                topBadgeAboveRightRiver:
+                    length("top-badge-top") + length("badge-h") + 4 <=
+                    length("cy") +
+                        length("h") -
+                        5 * length("rw") -
+                        length("rh") -
+                        length("latest-drop-gap") +
+                        0.001,
             }).toEqual({
                 furitenShortOfLeftRiver: true,
                 handClearOfStrips: true,
                 leftRiverAboveSwitches: true,
                 movesShortOfBottomRiver: true,
                 offersInCorner: holdsOffers,
+                topBadgeAboveRightRiver: true,
             });
             expect(
                 length("reach-top-row3") - length("rh") - length("latest-drop-gap"),
@@ -610,14 +635,14 @@ describe("boardGeometry's shell tracks", () => {
 
     it("lays a landscape phone's slots where its board measured them", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
-            actions: [499, 126, 663, 309.9],
+            actions: [493.2, 126, 663, 309.9],
             corner: [0, 4, 583, 375],
-            field: [82, 126, 166, 239.9],
+            field: [82, 126, 171.8, 239.9],
             "field-beside": [554.3, 265.9, 634.3, 313.9],
             hand: [48.8, 317.9, 663, 369.9],
             "strip-left": [4, 44, 76, 261.9],
             "strip-right": [591, 4, 663, 297.3],
-            "strip-top": [4, 4, 490.3, 38],
+            "strip-top": [4, 4, 484.5, 38],
             switches: [44, 0, 667, 313.9],
         });
     });

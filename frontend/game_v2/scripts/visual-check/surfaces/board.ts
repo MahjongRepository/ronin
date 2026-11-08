@@ -401,7 +401,7 @@ interface DerivedProportions {
  */
 const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
     [FLOOR, { riverGap: 0.29, riverToOwn: 0.44 }],
-    [NOTCH_PHONE, { riverGap: 0.28, riverToOwn: 0.5 }],
+    [NOTCH_PHONE, { riverGap: 0.32, riverToOwn: 0.53 }],
     [MID_DESKTOP, { riverGap: 0.31, riverToOwn: 0.63 }],
 ]);
 const DERIVED_TOLERANCE = 0.02;
@@ -974,7 +974,14 @@ function checkBadgePlaces(results: readonly TaskResult[]): string[] {
     });
 }
 
-function checkCenterScale(board: BoardMeasure, report: PageReport): void {
+/** A landscape phone's centre at its least, whatever its river tile asks (`board-constants.ts`'s, not importable here). */
+const PHONE_CENTRE_LEAST: Size = { height: 88, width: 100 };
+
+function isLandscapePhone(viewport: Viewport): boolean {
+    return !viewport.desktop && !viewport.portrait;
+}
+
+function checkCenterScale(board: BoardMeasure, viewport: Viewport, report: PageReport): void {
     const { center, tileScale } = board;
     report.expect(
         center !== null && tileScale.river !== null,
@@ -983,13 +990,57 @@ function checkCenterScale(board: BoardMeasure, report: PageReport): void {
     if (center === null || tileScale.river === null) {
         return;
     }
+    const riverRow = RIVER_ROW_SIZE * tileScale.river;
+    if (isLandscapePhone(viewport)) {
+        const leastWidth = Math.max(riverRow, PHONE_CENTRE_LEAST.width);
+        report.expect(
+            center.width + EPSILON >= leastWidth,
+            `centre ${describeSize(center)} is narrower than ${leastWidth}px`,
+        );
+        report.expect(
+            center.height + EPSILON >= PHONE_CENTRE_LEAST.height,
+            `centre ${describeSize(center)} is shorter than ${PHONE_CENTRE_LEAST.height}px`,
+        );
+        return;
+    }
     report.expect(
         Math.abs(center.width - center.height) <= EPSILON,
         `centre is not square: ${describeSize(center)}`,
     );
     report.expect(
-        Math.min(center.width, center.height) + EPSILON >= RIVER_ROW_SIZE * tileScale.river,
-        `centre ${describeSize(center)} is smaller than a six-tile row (${RIVER_ROW_SIZE * tileScale.river}px)`,
+        Math.min(center.width, center.height) + EPSILON >= riverRow,
+        `centre ${describeSize(center)} is smaller than a six-tile row (${riverRow}px)`,
+    );
+}
+
+/** How tall a single line of the counts stands at most, in its own font size. */
+const ONE_LINE_EMS = 1.6;
+
+/**
+ * A landscape phone's centre holds its round and counts inside its box, and the counts stay on one line where the board
+ * is not a browser's bars-shown box (a 100px-wide centre there may wrap them).
+ */
+function checkCenterContent(board: BoardMeasure, viewport: Viewport, report: PageReport): void {
+    const { center, centerTexts, fonts } = board;
+    if (center === null || !isLandscapePhone(viewport)) {
+        return;
+    }
+    const shown = centerTexts.filter(({ box }) => box.width > 0);
+    const round = shown.find(({ group }) => group.startsWith("board-center__round"));
+    const counts = shown.find(({ group }) => group.startsWith("board-center__counts"));
+    for (const piece of [round, counts]) {
+        report.expect(
+            piece === undefined || contains(center, piece.box),
+            `${piece?.group ?? "a centre text"} ${piece === undefined ? "" : describeBox(piece.box)} is outside the centre ${describeBox(center)}`,
+        );
+    }
+    const countsPx = fonts.find(({ name }) => name === "board-center__counts")?.px;
+    if (viewport.barsShown !== undefined || counts === undefined || countsPx === undefined) {
+        return;
+    }
+    report.expect(
+        counts.box.height < ONE_LINE_EMS * countsPx,
+        `the centre's counts wrap: ${counts.box.height.toFixed(1)}px tall at ${countsPx}px text`,
     );
 }
 
@@ -1018,7 +1069,8 @@ async function checkBoard({
         `the table's surface ${board.zones === null ? "" : describeBox(board.zones)} reaches under the aside`,
     );
     if (viewport.supported) {
-        checkCenterScale(board, report);
+        checkCenterScale(board, viewport, report);
+        checkCenterContent(board, viewport, report);
         const crowded = findOverlaps(board.centerTexts);
         report.expect(crowded.length === 0, `centre pieces overlap: ${crowded.join(", ")}`);
     }

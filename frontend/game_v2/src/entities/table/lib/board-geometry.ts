@@ -24,7 +24,8 @@ import {
     OWN_BY_RIVER_OFF_PHONE,
     OWN_MELD_SCALE,
     PAGE_GUTTER,
-    PHONE_CENTRE_MIN,
+    PHONE_CENTRE_MIN_HEIGHT,
+    PHONE_CENTRE_MIN_WIDTH,
     PHONE_CHROME,
     PHONE_CHROME_RIVER,
     PHONE_HEIGHT,
@@ -103,6 +104,9 @@ const OWN_BADGE_LANE = 2;
 
 /** What the left river's reach and the left hand keep above the switches' place (px). */
 const SWITCHES_CLEARANCE = 4;
+
+/** What a phone's top badge's reserved box keeps above the right river's reach (px). */
+const BADGE_RIVER_CLEARANCE = 4;
 
 /** The left hand's full reach ends this far above its room's end (px). */
 const LEFT_HAND_GAP = 8;
@@ -480,10 +484,16 @@ function leftRiverDrop(rw: number, drop: number): number {
  * centre-facing edge, which no gap moves toward the centre; and the latest discard's gaps.
  */
 function riverLengths(
-    { centre, cx, cy, rw }: Readonly<Record<"centre" | "cx" | "cy" | "rw", number>>,
+    {
+        cx,
+        cy,
+        height,
+        rw,
+        width,
+    }: Readonly<Record<"cx" | "cy" | "height" | "rw" | "width", number>>,
     drop: number,
 ): [string, number][] {
-    const hx = centre / 2;
+    const hx = width / 2;
     const gap = riverGap(rw);
     const sideReach = (SIDE_REACH_TILES / 2) * rw + LATEST_DISCARD_GAP;
     const runOnReach = RUN_ON_REACH_TILES * rw + LATEST_DISCARD_GAP;
@@ -491,18 +501,20 @@ function riverLengths(
         ["latest-discard-gap", LATEST_DISCARD_GAP],
         ["latest-drop-gap", drop],
         ["reach-bottom-right", cx - hx + runOnReach],
-        ["reach-left", leftReach(cx, centre, rw)],
+        ["reach-left", leftReach(cx, width, rw)],
         ["reach-right", cx + hx + gap + sideReach],
         ["reach-top-left", cx + hx - runOnReach],
-        ["reach-top-row3", cy - centre / 2 - gap - ROWS_BEFORE_RUN_ON * rw],
+        ["reach-top-row3", cy - height / 2 - gap - ROWS_BEFORE_RUN_ON * rw],
         ["river-across", RIVER_ROWS["run-on"] * rw * TILE_ASPECT],
         ["river-along", RIVER_ROW_SIZE * rw],
     ];
 }
 
 /** Where the left river's reach ends, toward the board's left edge. */
-function leftReach(cx: number, centre: number, rw: number): number {
-    return cx - centre / 2 - riverGap(rw) - (SIDE_REACH_TILES / 2) * rw - LATEST_DISCARD_GAP;
+function leftReach(cx: number, centreWidthidth: number, rw: number): number {
+    return (
+        cx - centreWidthidth / 2 - riverGap(rw) - (SIDE_REACH_TILES / 2) * rw - LATEST_DISCARD_GAP
+    );
 }
 
 /** The page's cog's side, from the river tile within its floor and cap. */
@@ -704,7 +716,7 @@ function desktopLayout(
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ["own-rise", ownRise],
-        ...riverLengths({ centre, cx: width / 2, cy, rw }, drop),
+        ...riverLengths({ cx: width / 2, cy, height: centre, rw, width: centre }, drop),
         ["rh", rh],
         ["row-rise", rowRise],
         ["rw", rw],
@@ -913,7 +925,7 @@ function uprightLayout(
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ["own-rise", ownRise],
-        ...riverLengths({ centre, cx: width / 2, cy, rw }, drop),
+        ...riverLengths({ cx: width / 2, cy, height: centre, rw, width: centre }, drop),
         ["rh", rh],
         ["rw", rw],
         ["w", centre],
@@ -1102,16 +1114,15 @@ function phoneLayout(
     const leftBadgeX = sideBadgeX(chrome, rw);
     const laneHalf =
         chrome.sideLaneMin + Math.max(SIDE_CLEAR, rw) + leftBadgeX + runOnReach - width / 2;
-    const centreMin = Math.max(PHONE_CENTRE_MIN, RIVER_ROW_SIZE * rw, 2 * laneHalf);
+    const centreWidth = Math.max(RIVER_ROW_SIZE * rw, 2 * laneHalf, PHONE_CENTRE_MIN_WIDTH);
     const rowLeft = phoneSwitchesLeft(rw);
     const halfRoom = Math.min(
         fieldHalf - NOTICE_FIELD - NOTICE_GAPS,
         fieldHalf - DECISIONS_COLUMN - DECISIONS_GAPS,
     );
-    const centre = Math.min(heightRoom, 2 * halfRoom);
     const movesRight = rowLeft + replayMovesWidth("small", chrome.movesH, chrome.replayGap);
     const leftRiverEnd = coreTop + leftRiverDrop(rw, LATEST_DISCARD_GAP);
-    const cy = centreTop + centre / 2;
+    const cy = centreTop + heightRoom / 2;
     const reach = phoneSideReach(rw, phoneSideRoom({ handTop, height, m, ownMeldRise, rw }));
     const rightRoom = phoneRightRoom({
         bandGap,
@@ -1122,12 +1133,15 @@ function phoneLayout(
         reach,
     });
     const right = phoneRightHand(rightRoom);
+    const topBadgeBottom = m + rh + TILE_EDGE_SHARE * rw + TOP_BADGE_GAP + chrome.badgeH;
+    const rightRiverTop = cy + heightRoom / 2 - 5 * rw - rh - LATEST_DISCARD_GAP;
     const fits =
-        centre >= centreMin &&
-        laneHalf <= halfRoom &&
+        heightRoom >= PHONE_CENTRE_MIN_HEIGHT &&
+        centreWidth <= 2 * halfRoom &&
+        topBadgeBottom + BADGE_RIVER_CLEARANCE <= rightRiverTop &&
         leftRiverEnd + SWITCHES_CLEARANCE <= switchesTop &&
-        movesRight + SWITCHES_RIVER_GAP <= width / 2 - centre / 2 &&
-        rowLeft + FURITEN_RESERVE <= leftReach(width / 2, centre, rw) &&
+        movesRight + SWITCHES_RIVER_GAP <= width / 2 - centreWidth / 2 &&
+        rowLeft + FURITEN_RESERVE <= leftReach(width / 2, centreWidth, rw) &&
         belowTopStrip(m, rw) + rightRoom.reach <= height - m &&
         right.origin <= rightRoom.ownRowTop;
     const bandShift = right.bandCrossed ? rh + STEP_IN_GAP : 0;
@@ -1146,28 +1160,31 @@ function phoneLayout(
         ["band-gap", bandGap],
         ["band-lift", 0],
         ["band-shift", bandShift],
-        ["c", centre],
+        ["c", heightRoom],
         ["control-h", controlH],
         ["core-top", coreTop],
         ["cx", width / 2],
         ["cy", cy],
         ["g", riverGap(rw)],
-        ["h", centre / 2],
+        ["h", heightRoom / 2],
         ["hand-top", handTop],
-        ["hx", centre / 2],
+        ["hx", centreWidth / 2],
         ["m", m],
         ["oh", oh],
         ["ow", ow],
         ["own-inline", 0],
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
-        ...riverLengths({ centre, cx: width / 2, cy, rw }, LATEST_DISCARD_GAP),
+        ...riverLengths(
+            { cx: width / 2, cy, height: heightRoom, rw, width: centreWidth },
+            LATEST_DISCARD_GAP,
+        ),
         ["rh", rh],
         ["row-rise", 0],
         ["rw", rw],
         ["side-reach", reach],
         ["switches-bottom", switchesBottom],
-        ["w", centre],
+        ["w", centreWidth],
     ]);
     const { rightBadgeTop } = landscapeBadges(
         { at: (name) => lengths[name] ?? 0, frame, tier: chrome },
