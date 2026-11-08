@@ -526,8 +526,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   between the side strips, past the left river's reach; on a phone it stands at the top, its notices beside it; on
   an upright board, at the top and above the notices' place. A desktop's panel fits its content whole.
   Off a phone a round result's tiles grow with its panel's box up to the larger of 48px and the own hand's tile,
-  never smaller than that box draws them at 48px at most, while its text rows (the yaku, value and indicators, the
-  scores and the controls) keep one 800px budget, start-aligned, so only the tile rows (the hand, the tenpai hands, a
+  never smaller than the tiles the 48px cap gives them in that box, while its text rows (the yaku, value and indicators, the
+  scores and the controls) keep one 800px budget, centred under the hand, so only the tile rows (the hand, the tenpai hands, a
   nagashi river) take the wider panel and grow, the indicators keeping the size of the 48px cap; a phone's result
   keeps its 48px cap.
 - **Round result.** Decision (the established clients order it differently; Tenhou's viewer puts
