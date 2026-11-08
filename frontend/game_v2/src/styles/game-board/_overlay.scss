@@ -12,33 +12,9 @@ $overlay-unit-max: 0.8px;
 $overlay-hand-units: 1000;
 $overlay-height-units: 640;
 $overlay-chrome: 3rem;
-$overlay-prose-budget: 800px;
-$off-phone-board: "[data-board-family]:not(#{$phone-board})";
-$overlay-fit-unit: clamp(
-    #{$overlay-unit-min},
-    min(
-        (var(--panel-room) - #{$overlay-chrome}) / #{$overlay-hand-units},
-        100cqh / #{$overlay-height-units}
-    ),
-    #{$overlay-unit-max}
-);
-$overlay-panel-unit: clamp(
-    #{$overlay-unit-min},
-    min(
-        (var(--panel-room) - #{$overlay-chrome}) / #{$overlay-hand-units},
-        (100cqh - var(--panel-top) - var(--panel-bottom)) / #{$overlay-height-units}
-    ),
-    max(#{$overlay-unit-max}, var(--ow) / #{$tile-w})
-);
 
 /* A length where it is set, so a tile in a container inside the overlay takes the board's unit, not its own. */
 @property --board-unit {
-    syntax: "<length>";
-    inherits: true;
-    initial-value: 0;
-}
-
-@property --result-spare {
     syntax: "<length>";
     inherits: true;
     initial-value: 0;
@@ -50,7 +26,14 @@ $overlay-panel-unit: clamp(
     --panel-bottom: var(--geo-overlay-bottom);
     --panel-left: var(--geo-overlay-left);
     --panel-room: calc(100cqw - var(--panel-left) - var(--panel-right));
-    --board-unit: #{$overlay-fit-unit};
+    --board-unit: clamp(
+        #{$overlay-unit-min},
+        min(
+            (var(--panel-room) - #{$overlay-chrome}) / #{$overlay-hand-units},
+            100cqh / #{$overlay-height-units}
+        ),
+        #{$overlay-unit-max}
+    );
     --board-tile-w: calc(#{$tile-w} * var(--board-unit));
     --board-tile-h: calc(#{$tile-h} * var(--board-unit));
 
@@ -64,10 +47,6 @@ $overlay-panel-unit: clamp(
     /* The dim reaches past the board over the page's edge (`--page-bleed`), so no undimmed frame rings the board. */
     box-shadow: 0 0 0 var(--page-bleed, 0) var(--ronin-dim);
     z-index: layer(overlay);
-
-    @include board-where($off-phone-board) {
-        --board-unit: max(#{$overlay-fit-unit}, #{$overlay-panel-unit});
-    }
 }
 
 .game-board:where(#{$phone-board}) > .board-overlay {
@@ -98,30 +77,11 @@ $overlay-panel-unit: clamp(
     container: result-foot / inline-size;
     display: flex;
     flex-direction: column;
-    overflow-x: clip;
     width: min(var(--panel-room), #{$overlay-hand-units} * var(--board-unit) + #{$overlay-chrome});
-
-    @include board-where($off-phone-board) {
-        max-width: var(--panel-room);
-    }
 }
 
 .board-overlay__panel > .round-end-result {
-    --result-spare: max(0px, (100cqw - #{$overlay-prose-budget}) / 2);
-
-    container: result-text / inline-size;
-    align-self: center;
-    width: min(100%, #{$overlay-prose-budget});
     min-height: 0;
-
-    > :is(
-        .round-end-result__head,
-        .round-end-result__hand,
-        .round-end-result__tenpai,
-        .round-end-result__rivers
-    ) {
-        margin-inline: calc(-1 * var(--result-spare));
-    }
 
     /* Each scroller keeps a readable row at least: a yaku, the indicators' caption, the points, a score's name and
        change. */
@@ -171,32 +131,14 @@ $overlay-panel-unit: clamp(
     --board-tile-h: calc(#{$tile-h} * #{$tenpai-scale} * var(--board-unit));
 }
 
+.board-overlay .round-end-result__indicator-tiles,
 .board-overlay .round-end-result__river-tiles {
     --board-tile-w: calc(#{$tile-w} * #{$indicator-scale} * var(--board-unit));
     --board-tile-h: calc(#{$tile-h} * #{$indicator-scale} * var(--board-unit));
 }
 
-.board-overlay .round-end-result__indicator-tiles {
-    --board-tile-w: calc(
-        #{$tile-w} * #{$indicator-scale} * min(var(--board-unit), #{$overlay-unit-max})
-    );
-    --board-tile-h: calc(
-        #{$tile-h} * #{$indicator-scale} * min(var(--board-unit), #{$overlay-unit-max})
-    );
-}
-
 /* A panel wide enough for columns (a landscape phone's included) puts the yaku, the value and the indicators side by
    side, the indicators' column as narrow as their tiles. */
-@container result-foot (width > #{$overlay-prose-budget}) {
-    .board-overlay :is(.round-end-result__hand, .round-end-result__tenpai) {
-        justify-content: center;
-    }
-
-    .board-overlay .round-end-result__rivers {
-        align-items: center;
-    }
-}
-
 @container result-foot (width >= #{$two-column-result}) {
     .board-overlay .round-end-result--win {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
@@ -263,7 +205,7 @@ $overlay-panel-unit: clamp(
     }
 }
 
-@container result-text (width < 45rem) {
+@container result-foot (width < 45rem) {
     .round-end-result__confirm {
         min-width: 4.5rem;
         padding-inline: 0.6rem;
@@ -303,11 +245,11 @@ $overlay-panel-unit: clamp(
     }
 }
 
-@container result-text (width < 37rem) {
+@container result-foot (width < 37rem) {
     @include score-name-line;
 }
 
-@container result-text (width < 45rem) {
+@container result-foot (width < 45rem) {
     .round-end-result:has(> .round-end-result__controls) {
         @include score-name-line;
     }
@@ -316,7 +258,7 @@ $overlay-panel-unit: clamp(
 @container (height >= 560px) {
     .board-overlay .round-end-result {
         font-size: 0.95rem;
-        row-gap: 0.75rem;
+        gap: 0.75rem 1rem;
     }
 
     .board-overlay .round-end-result__title {
