@@ -95,15 +95,17 @@ describe("boardGeometry centre", () => {
 describe("boardGeometry chrome", () => {
     it.each([
         { badgeH: 54, height: 770, text: 17, width: 1440 },
+        { badgeH: 54 + 18 * (3 / 11), height: 900, text: 17 + 7 * (3 / 11), width: 1440 },
         { badgeH: 63, height: 1000, text: 20.5, width: 1727 },
         { badgeH: 72, height: 1440, text: 24, width: 2560 },
     ])(
-        "scales a $width x $height window's chrome from the regular record to the large one with its padded box",
+        "scales a $width x $height window's chrome from the regular record to the large one with its padded box, the top badge's lane an ordinary name wide",
         ({ badgeH, height, text, width }) => {
-            const { lengths } = windowGeometry({ height, width });
+            const { lengths } = windowGeometry({ height, width }, 10);
 
             expect(lengths["badge-h"]).toBeCloseTo(badgeH, 6);
             expect(lengths["text"]).toBeCloseTo(text, 6);
+            expect(lengths["top-lane"]).toBeGreaterThanOrEqual(8 * text - 0.001);
         },
     );
 });
