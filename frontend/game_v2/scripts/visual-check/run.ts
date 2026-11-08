@@ -138,9 +138,9 @@ async function runPage(
     try {
         await loadPage(page, pageCase, origin);
         await emulateInsets(page, viewport.insets);
-        await checkCaptureModel(page, viewport, report);
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
         await waitForBoardSettled(page, report);
+        await checkCaptureModel(page, viewport, report);
         await page.waitForTimeout(SETTLE_MS);
         await checkTileFaces(page, report);
         report.summary = await checkPage({ page, report, viewport }, pageCase);

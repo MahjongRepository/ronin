@@ -28,6 +28,7 @@
 
     &:has(> .board-page__board > .game-board#{$phone-board}) {
         --page-gutter: 0px;
+        --page-edge-bottom: 0px;
     }
 
     position: relative;

@@ -27,6 +27,7 @@ import {
 } from "../model.ts";
 import {
     FLOOR,
+    FULLSCREEN_PHONE,
     MID_DESKTOP,
     NARROW_DESKTOP,
     SHORT_DESKTOP,
@@ -292,7 +293,7 @@ const PAGES: readonly PageCase[] = [
         false,
     ),
     {
-        at: [FLOOR, SHORT_DESKTOP],
+        at: [FLOOR, FULLSCREEN_PHONE, SHORT_DESKTOP],
         kind: "board",
         name: "replay",
         path: `/play/history/${GAME_ID}`,

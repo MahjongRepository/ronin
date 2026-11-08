@@ -30,8 +30,8 @@ const ROOMS: StripRooms = {
 
 function windowStrips(box: BoardBox): StripRooms {
     const { strips } = boardGeometry({
+        appliedEdges: { bottom: 0, left: 0, right: 0, top: 0 },
         box,
-        gutter: 0,
         safeInsets: { bottom: 0, left: 0, right: 0, top: 0 },
         slots: { band: "play" },
     });

@@ -9,6 +9,7 @@ const MIN_TAP: Size = { height: 42, width: 32 };
 const NOTCH_VIEWPORT: Size = { height: 390, width: 844 };
 const NOTCH_INSETS: Insets = { bottom: 21, left: 47, right: 47 };
 const NOTCH_SAFE_AREA: Box = { height: 369, left: 47, top: 0, width: 750 };
+const NOTCH_BOARD: Size = { height: 390, width: 750 };
 
 function deviceOptions(name: string): BrowserContextOptions {
     const { defaultBrowserType: _engine, ...options } = devices[name];
@@ -132,6 +133,13 @@ const CHROME_A25_SCREEN: Size = { height: 411, width: 891 };
 export const SAFARI_PHONE = "phone-11-safari";
 /** A Galaxy A25 in landscape Chrome, the Android box the same release broke on. */
 export const CHROME_PHONE = "phone-a25-chrome";
+/** An iPhone 11 in landscape with its browser's bars gone: the board down to the screen's edge, past the bottom inset. */
+export const FULLSCREEN_PHONE = "phone-11-fullscreen";
+
+const FULLSCREEN_11_VIEWPORT: Size = { height: 414, width: 896 };
+const FULLSCREEN_11_INSETS: Insets = { bottom: 21, left: 44, right: 44 };
+const FULLSCREEN_11_SAFE_AREA: Box = { height: 393, left: 44, top: 0, width: 808 };
+const FULLSCREEN_11_BOARD: Size = { height: 414, width: 808 };
 
 /**
  * Phones as their browsers box the board with their bars shown, not as their displays: a page's viewport is the
@@ -144,7 +152,11 @@ export const CHROME_PHONE = "phone-a25-chrome";
 const BROWSER_PHONE_VIEWPORTS: readonly Viewport[] = [
     {
         barsShown: { riverFloor: { height: 14, width: 11 } },
-        captureModel: { safeArea: SAFARI_11_SAFE_AREA, viewport: SAFARI_11_VIEWPORT },
+        captureModel: {
+            board: { height: SAFARI_11_SAFE_AREA.height, width: SAFARI_11_SAFE_AREA.width },
+            safeArea: SAFARI_11_SAFE_AREA,
+            viewport: SAFARI_11_VIEWPORT,
+        },
         context: {
             ...deviceOptions("iPhone 11 landscape"),
             screen: { height: 414, width: 896 },
@@ -273,7 +285,11 @@ export const VIEWPORTS: readonly Viewport[] = [
         supported: true,
     },
     {
-        captureModel: { safeArea: NOTCH_SAFE_AREA, viewport: NOTCH_VIEWPORT },
+        captureModel: {
+            board: NOTCH_BOARD,
+            safeArea: NOTCH_SAFE_AREA,
+            viewport: NOTCH_VIEWPORT,
+        },
         context: {
             ...deviceOptions("iPhone 13 landscape"),
             screen: NOTCH_VIEWPORT,
@@ -283,6 +299,26 @@ export const VIEWPORTS: readonly Viewport[] = [
         engine: webkit,
         insets: NOTCH_INSETS,
         name: NOTCH_PHONE,
+        ownTileFloor: MIN_TAP,
+        portrait: false,
+        rotates: false,
+        supported: true,
+    },
+    {
+        captureModel: {
+            board: FULLSCREEN_11_BOARD,
+            safeArea: FULLSCREEN_11_SAFE_AREA,
+            viewport: FULLSCREEN_11_VIEWPORT,
+        },
+        context: {
+            ...deviceOptions("iPhone 11 landscape"),
+            screen: FULLSCREEN_11_VIEWPORT,
+            viewport: FULLSCREEN_11_VIEWPORT,
+        },
+        desktop: false,
+        engine: webkit,
+        insets: FULLSCREEN_11_INSETS,
+        name: FULLSCREEN_PHONE,
         ownTileFloor: MIN_TAP,
         portrait: false,
         rotates: false,
@@ -319,7 +355,9 @@ export async function checkCaptureModel(
         document.body.append(probe);
         const { height, left, top, width } = probe.getBoundingClientRect();
         probe.remove();
+        const board = document.querySelector(".game-board")?.getBoundingClientRect() ?? null;
         return {
+            board: board === null ? null : { height: board.height, width: board.width },
             safeArea: { height, left, top, width },
             viewport: { height: window.innerHeight, width: window.innerWidth },
         };
@@ -334,6 +372,13 @@ export async function checkCaptureModel(
         contains(safeArea, seen.safeArea) && contains(seen.safeArea, safeArea),
         `the safe area is ${describeBox(seen.safeArea)}, not the capture model's ${describeBox(safeArea)}`,
     );
+    if (seen.board !== null) {
+        report.expect(
+            seen.board.width === captureModel.board.width &&
+                seen.board.height === captureModel.board.height,
+            `the board is ${describeSize(seen.board)}, not the capture model's ${describeSize(captureModel.board)}`,
+        );
+    }
 }
 
 export async function emulateInsets(page: Page, insets: Insets | undefined): Promise<void> {

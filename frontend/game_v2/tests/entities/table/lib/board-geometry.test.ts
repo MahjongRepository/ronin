@@ -30,7 +30,10 @@ const NO_INSETS: BoardEdges = { bottom: 0, left: 0, right: 0, top: 0 };
 const LIVE_SLOTS: BoardSlots = { band: "play" };
 const REPLAY_SLOTS: BoardSlots = { band: "replay" };
 
-/** A window's board under the gutter its page applies: each edge pads the larger of its safe inset and the gutter. */
+/**
+ * A window's board under the padding its page holds: with a gutter applied each edge pads the larger of its safe inset
+ * and the gutter, without one (a phone's board) the side and top insets alone and the bottom nothing.
+ */
 function windowGeometry(
     { height, width }: BoardBox,
     applied = 0,
@@ -39,11 +42,17 @@ function windowGeometry(
     function pad(inset: number): number {
         return Math.max(inset, applied);
     }
-    const box = {
-        height: height - pad(insets.top) - pad(insets.bottom),
-        width: width - pad(insets.left) - pad(insets.right),
+    const appliedEdges: BoardEdges = {
+        bottom: applied === 0 ? 0 : pad(insets.bottom),
+        left: pad(insets.left),
+        right: pad(insets.right),
+        top: pad(insets.top),
     };
-    return boardGeometry({ box, gutter: applied, safeInsets: insets, slots: LIVE_SLOTS });
+    const box = {
+        height: height - appliedEdges.top - appliedEdges.bottom,
+        width: width - appliedEdges.left - appliedEdges.right,
+    };
+    return boardGeometry({ appliedEdges, box, safeInsets: insets, slots: LIVE_SLOTS });
 }
 
 /** Each named line of a grid template at its offset from the grid's start (px). */
@@ -129,8 +138,8 @@ describe("boardGeometry in a phone's browser", () => {
         (slots) => {
             function tiles(width: number, height: number): Record<"ow" | "rw", number | undefined> {
                 const { lengths } = boardGeometry({
+                    appliedEdges: NO_INSETS,
                     box: { height, width },
-                    gutter: 0,
                     safeInsets: NO_INSETS,
                     slots,
                 });
@@ -143,12 +152,6 @@ describe("boardGeometry in a phone's browser", () => {
     );
 
     it.each([
-        {
-            browser: "iOS 26 Safari, its bars collapsed",
-            height: 393,
-            insets: { bottom: 21, left: 44, right: 44, top: 0 },
-            width: 896,
-        },
         {
             browser: "iOS 26 Safari, its bars collapsed",
             height: 375,
@@ -171,6 +174,33 @@ describe("boardGeometry in a phone's browser", () => {
             expect(lengths["rw"]).toBeGreaterThanOrEqual(FACE_FLOOR);
             expect(lengths["ow"]).toBeGreaterThanOrEqual(36);
             expect(lengths["oh"]).toBeGreaterThanOrEqual(48);
+        },
+    );
+
+    it.each([
+        {
+            board: { height: 414, width: 808 },
+            height: 414,
+            insets: { bottom: 21, left: 44, right: 44, top: 0 },
+            ow: 42,
+            rw: 23,
+            width: 896,
+        },
+        {
+            board: { height: 390, width: 750 },
+            height: 390,
+            insets: { bottom: 21, left: 47, right: 47, top: 0 },
+            ow: 44,
+            rw: 20,
+            width: 844,
+        },
+    ])(
+        "runs a full-screen $width x $height phone's board down to the screen's bottom edge, past its bottom inset, at its river and own tiles",
+        ({ board, height, insets, ow, rw, width }) => {
+            const { box, family, lengths } = windowGeometry({ height, width }, 0, insets);
+
+            expect({ box, family }).toEqual({ box: board, family: "phone" });
+            expect(lengths).toMatchObject({ ow, rw });
         },
     );
 
@@ -279,13 +309,14 @@ describe("boardGeometry", () => {
         { height: 539, insets: NO_INSETS, width: 1024 },
         { height: 539, insets: NO_INSETS, width: 1280 },
         { height: 390, insets: { bottom: 21, left: 47, right: 47, top: 0 }, width: 844 },
+        { height: 530, insets: { bottom: 21, left: 44, right: 44, top: 0 }, width: 896 },
     ])(
-        "gives a $width x $height window a phone board with small chrome and no gutter, whichever is applied",
+        "gives a $width x $height window a phone board with small chrome, no gutter and a bare bottom edge, whichever padding the page holds",
         ({ height, insets, width }) => {
             for (const applied of [0, 10]) {
                 expect(windowGeometry({ height, width }, applied, insets)).toMatchObject({
                     box: {
-                        height: height - insets.top - insets.bottom,
+                        height: height - insets.top,
                         width: width - insets.left - insets.right,
                     },
                     chrome: "small",
@@ -330,8 +361,8 @@ describe("boardGeometry", () => {
         (width, height, expected) => {
             const { lengths } = windowGeometry({ height, width });
             const replay = boardGeometry({
+                appliedEdges: NO_INSETS,
                 box: { height, width },
-                gutter: 0,
                 safeInsets: NO_INSETS,
                 slots: REPLAY_SLOTS,
             }).lengths;
@@ -379,9 +410,9 @@ describe("boardGeometry", () => {
         { height: 390, holdsOffers: true, pinned: { ow: 39, rw: 17 }, width: 667 },
         { height: 354, holdsOffers: false, pinned: { ow: 36, rw: 18 }, width: 724 },
         { height: 360, holdsOffers: false, pinned: { ow: 36, rw: 18 }, width: 800 },
-        { height: 369, holdsOffers: false, pinned: { ow: 36, rw: 19 }, width: 750 },
+        { height: 390, holdsOffers: true, pinned: { ow: 44, rw: 20 }, width: 750 },
         { height: 379, holdsOffers: true, pinned: { ow: 38, rw: 20 }, width: 761 },
-        { height: 393, holdsOffers: true, pinned: { ow: 44, rw: 21 }, width: 808 },
+        { height: 414, holdsOffers: true, pinned: { ow: 42, rw: 23 }, width: 808 },
         { height: 480, holdsOffers: true, pinned: { ow: 50, rw: 24 }, width: 850 },
         {
             height: 430,
@@ -525,8 +556,8 @@ describe("boardGeometry's counters", () => {
         "stands a $width x $height upright board's dora box 6px over the left badge, clear of the top badge",
         ({ height, slots, width }) => {
             const { lengths } = boardGeometry({
+                appliedEdges: NO_INSETS,
                 box: { height, width },
-                gutter: 0,
                 safeInsets: NO_INSETS,
                 slots,
             });
@@ -582,8 +613,8 @@ describe("boardGeometry's strips", () => {
         "steps a $width x $height short desktop's switches past a stacked meld ($stacked), moves clear of the river",
         ({ height, stacked, width }) => {
             const { lengths } = boardGeometry({
+                appliedEdges: { bottom: 10, left: 10, right: 10, top: 10 },
                 box: { height: height - 20, width: width - 20 },
-                gutter: 10,
                 safeInsets: NO_INSETS,
                 slots: REPLAY_SLOTS,
             });
@@ -707,8 +738,8 @@ describe("boardGeometry on a replay", () => {
         "stands a $width x $height upright replay's group in the own badge's row only where it leaves the badge an ordinary lane ($oneRow)",
         ({ height, lane, oneRow, width }) => {
             const { lengths } = boardGeometry({
+                appliedEdges: NO_INSETS,
                 box: { height, width },
-                gutter: 0,
                 safeInsets: NO_INSETS,
                 slots: REPLAY_SLOTS,
             });

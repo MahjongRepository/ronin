@@ -36,8 +36,15 @@ export interface Viewport {
      * river's and the other seats' faces are held to there in place of the face floor (melds keep the face floor).
      */
     readonly barsShown?: { readonly riverFloor: Size };
-    /** The viewport and safe-area box a capture model must produce, asserted on every page before its checks. */
-    readonly captureModel?: { readonly viewport: Size; readonly safeArea: Box };
+    /**
+     * The viewport, raw safe-area box and board allocation a capture model must produce, asserted on every page before
+     * its checks: a phone's board ignores the bottom inset, so its allocation is taller than the safe area.
+     */
+    readonly captureModel?: {
+        readonly viewport: Size;
+        readonly safeArea: Box;
+        readonly board: Size;
+    };
 }
 
 interface Required {

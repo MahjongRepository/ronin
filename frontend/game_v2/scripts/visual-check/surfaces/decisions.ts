@@ -28,6 +28,7 @@ import { checkVisible } from "../page-checks.ts";
 import {
     BROWSER_PHONES,
     FLOOR,
+    FULLSCREEN_PHONE,
     LARGE_DESKTOP,
     MID_DESKTOP,
     NARROW_DESKTOP,
@@ -156,7 +157,7 @@ const PAGES: readonly PageCase[] = [
     },
     {
         ...decisionCase("anchor_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
-        at: [FLOOR, NOTCH_PHONE, MID_DESKTOP, SHORT_DESKTOP, ...BROWSER_PHONES],
+        at: [FLOOR, NOTCH_PHONE, FULLSCREEN_PHONE, MID_DESKTOP, SHORT_DESKTOP, ...BROWSER_PHONES],
         contrast: true,
     },
     {

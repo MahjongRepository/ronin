@@ -82,7 +82,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
 - A panel sized by its content reserves its scrollbar's gutter (`scrollbar-gutter: stable`): the overlay's auto
   track takes the panel's height before a classic scrollbar narrows it, so without the gutter the scrollbar wraps a row
   (the game end's actions) the track never grew for. The round result, its width set, keeps no gutter.
-- Pages never clip the board: `.board-page` gives it the safe area, and a 10px gutter on every board but a phone's.
+- Pages never clip the board: `.board-page` gives it the safe area, and a 10px gutter on every board but a phone's,
+  whose bottom edge stays bare (a phone's board honours the side and top insets only).
   The own row stands at least its edge's depth off the bottom.
 - **The live page lets a phone browser's bars collapse.** Its `#app` stands `100lvh` tall and the page sticks to the
   top, so with the bars shown the document scrolls by their height and a swipe collapses them, while the board keeps
@@ -92,7 +93,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   10px gutter adds beyond the safe inset, is classified once: a phone takes no gutter and the unguttered box, any
   other family the 10px gutter on that box. Classifying the guttered board instead would flip the family at the
   threshold (desktop gutter, phone box, no gutter, desktop box). `.board-page` holds the gutter (10px, 0 around a
-  phone's board) and the safe insets as registered lengths, which the directive reads in px; a gutter change it finds
+  phone's board) and the safe insets as registered lengths, which the directive reads in px with the padding the page
+  applies, so the classification never depends on a phone's own bottom edge; a gutter change it finds
   while the observer delivers (into or out of a phone) waits a frame, since it resizes the observed board.
 - Every tile's box and material is `_tile.scss`'s; each region sets `--board-tile-w`. A sideways tile (a called meld
   tile, a riichi discard) is an unturned box as long as a tile is tall with only its face turned: a turned box of a

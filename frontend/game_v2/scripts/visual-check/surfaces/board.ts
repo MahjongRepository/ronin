@@ -30,6 +30,7 @@ import {
 import { MIN_TEXT_PX } from "../text.ts";
 import {
     FLOOR,
+    FULLSCREEN_PHONE,
     LAPTOPS,
     MID_DESKTOP,
     NARROW_DESKTOP,
@@ -122,7 +123,7 @@ const PAGES: readonly PageCase[] = [
             ".board-center__seat--left .board-center__diff--right",
             ".nameplate__ai",
         ]),
-        at: [FLOOR, NOTCH_PHONE, MID_DESKTOP, NARROW_DESKTOP, UPRIGHT_PHONE],
+        at: [FLOOR, NOTCH_PHONE, FULLSCREEN_PHONE, MID_DESKTOP, NARROW_DESKTOP, UPRIGHT_PHONE],
         contrast: true,
         longNames: true,
     },
@@ -401,7 +402,7 @@ interface DerivedProportions {
  */
 const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
     [FLOOR, { riverGap: 0.29, riverToOwn: 0.44 }],
-    [NOTCH_PHONE, { riverGap: 0.32, riverToOwn: 0.53 }],
+    [NOTCH_PHONE, { riverGap: 0.3, riverToOwn: 0.45 }],
     [MID_DESKTOP, { riverGap: 0.31, riverToOwn: 0.63 }],
 ]);
 const DERIVED_TOLERANCE = 0.02;

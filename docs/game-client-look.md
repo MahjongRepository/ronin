@@ -63,6 +63,9 @@ The derived proportions are the three reference viewports' values under the sizi
   instead. A phone browser's address bar and toolbar take a third of the display in landscape: the
   live page stands as tall as the viewport they leave when collapsed, so a swipe collapses them and
   the board grows into the room, and a notice asks for that swipe while they show (Notices).
+- **A phone's board ignores the bottom safe inset in landscape** (the user's decision). It honours the
+  side and top insets only, so the hand sits on the screen's edge like Tenhou's and the home indicator
+  overlays the hand's bared bottom edge.
 
 ## Composition (decisions)
 
@@ -761,8 +764,8 @@ strip's stacked depth, so a stacked left meld ends above the switches and the le
 up when the first one arrives.
 
 The reference is drawn, and every review opens, the same three: the 667x375 floor (iPhone SE), an
-iPhone 13 in landscape with a notch's safe area (844x390 with insets of 47, 47 and 21), and
-1440x900. The gate's automated matrix is its own, apart from these reference viewports. It selects
+iPhone 13 in landscape with a notch's safe area (844x390 with side insets of 47 and 47; its 21px
+bottom inset is ignored on a phone board), and 1440x900. The gate's automated matrix is its own, apart from these reference viewports. It selects
 representative worst cases across the floor, 1440x900 and 2560x1440 (a large desktop, the chrome
 a step up). Each further page/viewport combination exercises a distinct layout path or a denser
 form not already covered. Other states run once where they bind, or are omitted when a kept case
@@ -772,8 +775,9 @@ phone, an iPhone 13 upright (the rotate panel, and the storybooks and the replay
 on a desktop's geometry), 1280x720 and 1440x770 (laptop windows either side of the short
 desktop's 760px, the latter the shortest regular desktop), 700x540 and 900x600 (small windows, a
 panel against the board's width), 1024x510 (a short tablet, wide but under a phone's height) and
-680x375 and 700x375 (wider phones at the floor's height), and the phones as their browsers box the
-board with their bars shown, since every phone size above is a display and a browser's bars take a
+680x375 and 700x375 (wider phones at the floor's height), an iPhone 11 full screen with its bars
+collapsed (896x414 with side insets of 44, its 21px bottom inset ignored, so the board is 808x414),
+and the phones as their browsers box the board with their bars shown, since every phone size above is a display and a browser's bars take a
 third of its height in landscape until the swipe the board asks for collapses them: an iPhone 11 in
 iOS 26 Safari (896x275 with 44px side insets, measured) and a Galaxy A25 in Android Chrome (891x331,
 estimated from its toolbar and status bar). There the board lays out whole and tappable at the

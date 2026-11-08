@@ -70,7 +70,8 @@ the lowest layer allowed to hold it. `src/fixtures/` is generated data; only sto
   browser boxes the board shorter (iOS 26 Safari keeps 139px of bars in landscape, 667x236 on that phone, 896x275 on
   an iPhone 11; Android Chrome about 80px). The live page stands a large viewport tall so a swipe collapses the
   bars, which a notice asks for, and the geometry must still lay out whole and tappable in the shown-bars box
-  (`tests/entities/table/lib/board-geometry.test.ts`, the visual check's `BROWSER_PHONES`). The rotate panel is a
+  (`tests/entities/table/lib/board-geometry.test.ts`, the visual check's `BROWSER_PHONES`). A phone board honours
+  the side and top safe insets only and is classified from the page's raw box, whatever its current padding. The rotate panel is a
   media query's choice alone; the session runs on under it. The board cannot lay out without `:has()`, container
   queries, `dvh` and `@property`: `supportsBoardCss` checks them, and a browser lacking one gets a notice instead of
   any page (the lobby's copy shows a banner). A new CSS feature the layout depends on joins that check.

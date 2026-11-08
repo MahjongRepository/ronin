@@ -22,10 +22,15 @@ interface StripContents extends Readonly<Record<StripSeat, StripContent>> {
     readonly own: readonly MeldShape[];
 }
 
-const NO_PAGE = { gutter: 0, safeInsets: { bottom: 0, left: 0, right: 0, top: 0 } };
+const NO_EDGES = { bottom: 0, left: 0, right: 0, top: 0 };
 
-/** The page's raw safe-area insets and applied gutter around the board, or null without a page. */
-function pageEdges(board: HTMLElement): Pick<BoardInput, "gutter" | "safeInsets"> | null {
+/** What the page holds around the board: its raw safe-area insets, the padding it applies and its gutter. */
+interface PageEdges extends Pick<BoardInput, "appliedEdges" | "safeInsets"> {
+    readonly gutter: number;
+}
+
+/** The page's edges around the board, or null without a page. */
+function pageEdges(board: HTMLElement): PageEdges | null {
     const page = board.closest(".board-page");
     if (page === null) {
         return null;
@@ -36,6 +41,12 @@ function pageEdges(board: HTMLElement): Pick<BoardInput, "gutter" | "safeInsets"
         return Number.isFinite(length) ? length : 0;
     }
     return {
+        appliedEdges: {
+            bottom: px("padding-bottom"),
+            left: px("padding-left"),
+            right: px("padding-right"),
+            top: px("padding-top"),
+        },
         gutter: px("--page-gutter"),
         safeInsets: {
             bottom: px("--ronin-safe-bottom"),
@@ -146,7 +157,12 @@ class SizeBoard extends AsyncDirective {
         }
         this.cancelFrame();
         const edges = pageEdges(board);
-        const geometry = boardGeometry({ box: { height, width }, slots, ...(edges ?? NO_PAGE) });
+        const geometry = boardGeometry({
+            appliedEdges: edges?.appliedEdges ?? NO_EDGES,
+            box: { height, width },
+            safeInsets: edges?.safeInsets ?? NO_EDGES,
+            slots,
+        });
         if (delivering && edges !== null && geometry.gutter !== edges.gutter) {
             this.frame = requestAnimationFrame(() => {
                 this.frame = null;

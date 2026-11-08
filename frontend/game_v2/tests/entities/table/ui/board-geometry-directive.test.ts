@@ -115,6 +115,30 @@ function nextFrame(): void {
     }
 }
 
+function setPage({
+    gutter,
+    padding,
+    safe = { bottom: 0, left: 0, right: 0 },
+}: {
+    gutter: number;
+    padding: { bottom: number; left: number; right: number; top: number };
+    safe?: { bottom: number; left: number; right: number };
+}): void {
+    const lengths = {
+        "--page-gutter": gutter,
+        "--ronin-safe-bottom": safe.bottom,
+        "--ronin-safe-left": safe.left,
+        "--ronin-safe-right": safe.right,
+        "padding-bottom": padding.bottom,
+        "padding-left": padding.left,
+        "padding-right": padding.right,
+        "padding-top": padding.top,
+    };
+    for (const [name, length] of Object.entries(lengths)) {
+        host.style.setProperty(name, `${length}px`);
+    }
+}
+
 function latestObserver(): FakeObserver {
     const observer = FakeObserver.all.at(-1);
     if (observer === undefined) {
@@ -135,7 +159,7 @@ beforeEach(() => {
     vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
     host = document.createElement("div");
     host.className = "board-page";
-    host.style.setProperty("--page-gutter", "10px");
+    setPage({ gutter: 10, padding: { bottom: 10, left: 10, right: 10, top: 10 } });
     document.body.append(host);
 });
 
@@ -198,6 +222,22 @@ describe("sizeBoard", () => {
             rw: "33px",
         });
         expect(element.style.getPropertyValue("--geo-band-shift")).toBe("");
+    });
+
+    it("keeps a notched phone's family and sizes through the page baring the board's bottom edge", async () => {
+        const safe = { bottom: 21, left: 47, right: 47 };
+        setPage({ gutter: 10, padding: { bottom: 21, left: 47, right: 47, top: 10 }, safe });
+        box = { height: 359, width: 750 };
+        const { element } = await renderBoard();
+        const settled = { chrome: "small", family: "phone", rw: "20px" };
+
+        expect(written(element)).toEqual(settled);
+
+        setPage({ gutter: 0, padding: { bottom: 0, left: 47, right: 47, top: 0 }, safe });
+        latestObserver().resize(750, 390);
+
+        expect(written(element)).toEqual(settled);
+        expect(frames.size).toBe(0);
     });
 
     it("keeps the written sizes through a re-render that adds the overlay", async () => {

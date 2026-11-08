@@ -75,11 +75,11 @@ interface BoardSlots {
     readonly band: "play" | "replay";
 }
 
-/** The board's box as measured, the page's raw safe-area insets and the gutter the page applies (px), and its slots. */
+/** The board's box as measured, the page's raw safe-area insets, the edges the page applies around the box now (px), and its slots. */
 interface BoardInput {
     readonly box: BoardBox;
     readonly safeInsets: BoardEdges;
-    readonly gutter: number;
+    readonly appliedEdges: BoardEdges;
     readonly slots: BoardSlots;
 }
 
@@ -2165,34 +2165,40 @@ function familyLengths(frame: BoardFrame): BoardLengths {
     return desktopLengths(frame);
 }
 
-/** What a gutter adds to an edge beyond its safe inset. */
-function gutterExcess(inset: number, gutter: number): number {
-    return Math.max(inset, gutter) - inset;
+/** The edges a page holds around any family's board before it is known: each the larger of its safe inset and the gutter. */
+function gutteredEdges({ bottom, left, right, top }: BoardEdges): BoardEdges {
+    return {
+        bottom: Math.max(bottom, PAGE_GUTTER),
+        left: Math.max(left, PAGE_GUTTER),
+        right: Math.max(right, PAGE_GUTTER),
+        top: Math.max(top, PAGE_GUTTER),
+    };
 }
 
-/** The board's box with each edge's excess under the applied gutter taken back and its excess under `to` taken off. */
-function reguttered({ box, gutter, safeInsets }: BoardInput, to: number): BoardBox {
-    function change(inset: number): number {
-        return gutterExcess(inset, gutter) - gutterExcess(inset, to);
-    }
-    const { bottom, left, right, top } = safeInsets;
+/** The edges a page holds around a phone's board: the side and top safe insets, the bottom bare to the screen's edge. */
+function phoneEdges(safeInsets: BoardEdges): BoardEdges {
+    return { ...safeInsets, bottom: 0 };
+}
+
+/** The measured box once the page holds `edges` in place of the ones it applies now. */
+function boxUnderEdges({ appliedEdges: now, box }: BoardInput, edges: BoardEdges): BoardBox {
     return {
-        height: box.height + change(top) + change(bottom),
-        width: box.width + change(left) + change(right),
+        height: box.height + (now.top - edges.top) + (now.bottom - edges.bottom),
+        width: box.width + (now.left - edges.left) + (now.right - edges.right),
     };
 }
 
 /**
- * The board's geometry: the candidate box (its allocation without a gutter, less a gutter's excess) classified once,
- * a phone taking no gutter and the allocation, any other family the gutter and the candidate box, and its sizes in px
- * for that box; an empty or non-finite box has no sizes.
+ * The board's geometry: the page's raw box under the guttered edges classified once, whatever padding the page holds
+ * now, a phone taking its own edges (no gutter, the bottom bare), any other family the guttered box, and its sizes in
+ * px for that box; an empty or non-finite box has no sizes.
  */
 function boardGeometry(input: BoardInput): BoardGeometry {
-    const candidate = reguttered(input, PAGE_GUTTER);
+    const candidate = boxUnderEdges(input, gutteredEdges(input.safeInsets));
     const family = classifyFamily(candidate);
     const chrome = classifyChrome(candidate);
     const phone = family === "phone";
-    const settled = phone ? reguttered(input, 0) : candidate;
+    const settled = phone ? boxUnderEdges(input, phoneEdges(input.safeInsets)) : candidate;
     const sized =
         Number.isFinite(settled.width) &&
         Number.isFinite(settled.height) &&
