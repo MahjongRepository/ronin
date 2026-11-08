@@ -35,8 +35,11 @@ they disagree.
   Where the top hand leaves too little room beside it, the corner starts below the top strip and badge.
   Upright it stays at the board's top right. The notices' field is reserved whether a
   notice shows or not, so no notice changes the panel's box or tiles. The panel's tile unit stays `--board-unit`, from
-  that box's width and the board's height: one from `--rw` would draw a phone's result at 17px tiles where its box holds
-  32px, an upright one's at 11px.
+  that box's width and height: one from `--rw` would draw a phone's result at 17px tiles where its box holds 32px, an
+  upright one's at 11px. A phone's unit reads the board's height and stops at 0.8px (48px tiles); off a phone it is the
+  larger of that unit and one from the panel's own height with the ceiling the larger of 0.8px and the own tile's,
+  and the result's text rows keep one 800px budget (`$overlay-prose-budget`) that only its tile rows span past;
+  the indicators stand in that budget, their unit held at 0.8px.
 - **One source per fact.** The directive writes the sizes as `--geo-<name>` on `.game-board`; one rule (`_grid.scss`)
   maps those the styles read onto the lengths' own names on `.board-layout` and `.board-overlay`, inside `:where()` so
   it keeps (0,2,0); a name a family does not emit stays unset on its board, where nothing reads it. No CSS solve
@@ -95,7 +98,8 @@ they disagree.
   family's caps, never under 4/3 of it, every other hand and river at the river tile. No meld face
   goes under 13px wide; scaled text keeps a 10px
   floor (a safety limit, not a design size).
-- A round result fits its panel whole at every supported size; only on a board too small for it does it scroll its
+- A round result fits its panel whole at every supported size, its tiles off a phone grown only as far as its box
+  holds them (to the own tile at most); only on a board too small for it does it scroll its
   yaku, value, indicators and score rows in place, keeping its head and the viewer's controls whole, every other part
   that shares a row with a scroller scrolling too.
 - Pages never clip the board: `.board-page` gives it the safe area, and a 10px gutter on every board but a phone's.
