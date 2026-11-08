@@ -16,7 +16,10 @@ $overlay-prose-budget: 800px;
 $off-phone-board: "[data-board-family]:not(#{$phone-board})";
 $overlay-fit-unit: clamp(
     #{$overlay-unit-min},
-    min((var(--panel-room) - #{$overlay-chrome}) / #{$overlay-hand-units}, 100cqh / #{$overlay-height-units}),
+    min(
+        (var(--panel-room) - #{$overlay-chrome}) / #{$overlay-hand-units},
+        100cqh / #{$overlay-height-units}
+    ),
     #{$overlay-unit-max}
 );
 $overlay-panel-unit: clamp(
@@ -174,8 +177,12 @@ $overlay-panel-unit: clamp(
 }
 
 .board-overlay .round-end-result__indicator-tiles {
-    --board-tile-w: calc(#{$tile-w} * #{$indicator-scale} * min(var(--board-unit), #{$overlay-unit-max}));
-    --board-tile-h: calc(#{$tile-h} * #{$indicator-scale} * min(var(--board-unit), #{$overlay-unit-max}));
+    --board-tile-w: calc(
+        #{$tile-w} * #{$indicator-scale} * min(var(--board-unit), #{$overlay-unit-max})
+    );
+    --board-tile-h: calc(
+        #{$tile-h} * #{$indicator-scale} * min(var(--board-unit), #{$overlay-unit-max})
+    );
 }
 
 /* A panel wide enough for columns (a landscape phone's included) puts the yaku, the value and the indicators side by

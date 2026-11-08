@@ -1980,10 +1980,7 @@ function boardShell(frame: BoardFrame, lengths: BoardLengths): BoardShell {
             : landscapeShell({
                   at,
                   frame,
-                  tier:
-                      frame.family === "phone"
-                          ? phoneChrome(at("rw"))
-                          : frame.tier,
+                  tier: frame.family === "phone" ? phoneChrome(at("rw")) : frame.tier,
               });
     return { ...shell, lengths: [...shell.lengths, ...stripFacts(at("rw"))] };
 }
