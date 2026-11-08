@@ -81,11 +81,45 @@ class TestRegister:
 
     async def test_auth_service_register__when_username_too_long__should_raise(self, auth_service):
         with pytest.raises(AuthError, match="between"):
-            await auth_service.register("a" * 31, "password123")
+            await auth_service.register("a" * 17, "password123")
 
     async def test_auth_service_register__when_username_has_special_chars__should_raise(self, auth_service):
         with pytest.raises(AuthError, match="letters, numbers, and underscores"):
             await auth_service.register("alice!", "password123")
+
+    async def test_auth_service_register__when_username_ends_with_newline__should_raise(self, auth_service):
+        with pytest.raises(AuthError, match="letters, numbers, and underscores"):
+            await auth_service.register("alice\n", "password123")
+
+    @pytest.mark.parametrize(
+        "username",
+        [
+            "ai-bob",
+            "AI-bob",
+            "ai_bob",
+            "Ai_bob",
+            "ai\N{EM DASH}bob",
+            "ai\N{EN DASH}bob",
+            "ai\N{MINUS SIGN}bob",
+            "ai\N{KATAKANA-HIRAGANA PROLONGED SOUND MARK}bob",
+            "nanashi",
+            "NANASHI99",
+            "Nanashi_1234",
+            "Nanashi-1234",
+        ],
+    )
+    async def test_auth_service_register__when_username_has_reserved_prefix__should_raise_reserved(
+        self, auth_service, username
+    ):
+        with pytest.raises(AuthError, match="are reserved"):
+            await auth_service.register(username, "password123")
+
+    @pytest.mark.parametrize("username", ["aiko", "Nanami"])
+    async def test_auth_service_register__when_username_only_resembles_reserved__should_create_player(
+        self, auth_service, username
+    ):
+        player = await auth_service.register(username, "password123")
+        assert player.username == username
 
     async def test_auth_service_register__when_password_too_short__should_raise(self, auth_service):
         with pytest.raises(AuthError, match="between"):
@@ -103,8 +137,8 @@ class TestRegister:
 
 class TestRegisterBot:
     async def test_auth_service_register_bot__when_valid__should_return_player_and_hashed_api_key(self, auth_service):
-        player, raw_api_key = await auth_service.register_bot("MyBot")
-        assert player.username == "MyBot"
+        player, raw_api_key = await auth_service.register_bot("ai-mybot")
+        assert player.username == "ai-mybot"
         assert player.account_type == AccountType.BOT
         assert player.password_hash == "!"
         assert player.api_key_hash is not None
@@ -114,30 +148,37 @@ class TestRegisterBot:
         assert player.api_key_hash == expected_hash
 
     async def test_auth_service_register_bot__when_name_taken__should_raise(self, auth_service):
-        await auth_service.register_bot("UniqueBot")
+        await auth_service.register_bot("ai-uniquebot")
 
         with pytest.raises(AuthError, match="already taken"):
-            await auth_service.register_bot("UniqueBot")
+            await auth_service.register_bot("ai-uniquebot")
 
     async def test_auth_service_register_bot__when_name_invalid__should_raise(self, auth_service):
         with pytest.raises(AuthError, match="between"):
             await auth_service.register_bot("ab")
+
+    @pytest.mark.parametrize("bot_name", ["MyBot", "AI-bot", "ai_bot", "ai-Bot", "ai-"])
+    async def test_auth_service_register_bot__when_name_breaks_the_bot_pattern__should_raise(
+        self, auth_service, bot_name
+    ):
+        with pytest.raises(AuthError, match="must start with 'ai-'"):
+            await auth_service.register_bot(bot_name)
 
 
 class TestIssueBotApiKey:
     async def test_auth_service_issue_bot_api_key__when_bot_exists__should_replace_its_key_on_the_same_account(
         self, auth_service
     ):
-        registered, old_key = await auth_service.register_bot("KeptBot")
+        registered, old_key = await auth_service.register_bot("ai-keptbot")
 
-        reissued, new_key = await auth_service.issue_bot_api_key("KeptBot")
+        reissued, new_key = await auth_service.issue_bot_api_key("ai-keptbot")
         assert reissued.user_id == registered.user_id
         assert new_key != old_key
         assert (await auth_service.validate_api_key(new_key)).user_id == registered.user_id
         assert await auth_service.validate_api_key(old_key) is None
 
     async def test_auth_service_issue_bot_api_key__when_bot_missing__should_register_it(self, auth_service):
-        player, raw_api_key = await auth_service.issue_bot_api_key("FreshBot")
+        player, raw_api_key = await auth_service.issue_bot_api_key("ai-freshbot")
 
         assert player.account_type == AccountType.BOT
         assert (await auth_service.validate_api_key(raw_api_key)).user_id == player.user_id
@@ -151,14 +192,14 @@ class TestIssueBotApiKey:
     async def test_auth_service_issue_bot_api_key__when_repo_reports_missing_player__should_raise_auth_error(
         self, auth_service
     ):
-        await auth_service.register_bot("RacedBot")
+        await auth_service.register_bot("ai-racedbot")
         error = ValueError("Player with id 'x' does not exist")
 
         with (
             patch.object(auth_service._player_repo, "set_api_key_hash", new_callable=AsyncMock, side_effect=error),
             pytest.raises(AuthError, match="does not exist"),
         ):
-            await auth_service.issue_bot_api_key("RacedBot")
+            await auth_service.issue_bot_api_key("ai-racedbot")
 
 
 class TestLogin:

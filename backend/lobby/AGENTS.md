@@ -134,7 +134,7 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * Guest login is rate-limited per client IP (a token bucket in process memory, reset by a restart),
   because each guest holds one of the 9000 names for up to 7 idle days; an exhausted pool fails
   every guest login. The IP is uvicorn's proxy-header client address, which Traefik sets.
-* Bots register through `scripts/register_bot.py` and get an API key, printed once and never stored;
+* Bots register through `scripts/register_bot.py` under an `ai-` name, a prefix no human can register, and get an API key, printed once and never stored;
   run for an existing bot, the script rotates its key, which invalidates the old one. Bots send the
   key as `X-API-Key` on the bot API and the WebSocket handshakes, with the configured
   `Origin`; from the handshake on, a bot runs the human code path.

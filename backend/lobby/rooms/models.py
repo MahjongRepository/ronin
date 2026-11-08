@@ -43,7 +43,7 @@ class RoomMember:
 
 
 TOTAL_SEATS = 4
-BOT_NAME_PREFIX = "Tsumogiri Bot"
+BOT_NAME_PREFIX = "ai-tsumogiri"
 
 
 @dataclass
@@ -165,7 +165,7 @@ class LobbyRoom:
         info: list[LobbyPlayerInfo] = []
         for i, member in enumerate(self.seats):
             if member is None:
-                info.append(LobbyPlayerInfo(name=f"{BOT_NAME_PREFIX} {i + 1}", ready=True, is_bot=True, is_owner=False))
+                info.append(LobbyPlayerInfo(name=f"{BOT_NAME_PREFIX}-{i + 1}", ready=True, is_bot=True, is_owner=False))
             else:
                 is_owner = member is host
                 info.append(

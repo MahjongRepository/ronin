@@ -19,7 +19,7 @@
         {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
         <label for="username">{{ t("auth.field.username") }}
             <input type="text" id="username" name="username" value="{{ form_username or '' }}" required
-                minlength="{{ username_min_length }}" maxlength="{{ username_max_length }}" pattern="{{ username_pattern }}"
+                minlength="{{ username_min_length }}" maxlength="{{ username_max_length }}"
                 autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="username-help{% if error and not confirm_invalid %} form-error{% endif %}"{% if not confirm_invalid %} autofocus{% endif %}>
             <small id="username-help">{{ t("auth.register.username_help", min=username_min_length, max=username_max_length) }}</small>
         </label>

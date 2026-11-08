@@ -53,7 +53,7 @@ case "$NET" in
         ;;
 esac
 
-BOT_NAMES=(Akagi Tetsuya Ichihime Miki)
+BOT_NAMES=(ai-akagi ai-tetsuya ai-ichihime ai-miki)
 PROFILE_DIR="$PROJECT_ROOT/backend/profiles"
 PROFILE_FILE="$PROFILE_DIR/games_$(date +%Y-%m-%d_%H-%M-%S).samples.txt"
 FAILED_RUN_DIR="$PROJECT_ROOT/backend/data/failed-runs/$(date +%Y-%m-%d_%H-%M-%S)"
@@ -378,7 +378,7 @@ register_bots() {
     local names=()
     for table in $(seq 1 "$TABLES"); do
         for bot in "${BOT_NAMES[@]}"; do
-            names+=("${bot}_$table")
+            names+=("${bot}-$table")
         done
     done
 

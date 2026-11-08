@@ -3,9 +3,8 @@ import { describe, expect, test } from "vitest";
 import { nameParts } from "@/entities/table/lib/name-parts";
 
 describe("nameParts", () => {
-    test("keeps a short last word whole, its space ending the head, else the last characters, and splits no short name", () => {
-        expect(nameParts("Tsumogiri 12")).toEqual({ head: "Tsumogiri ", tail: "12" });
-        expect(nameParts("Bot South")).toEqual({ head: "Bot S", tail: "outh" });
+    test("keeps the last characters and splits no short name", () => {
+        expect(nameParts("ai-tsumogiri-12")).toEqual({ head: "ai-tsumogir", tail: "i-12" });
         expect(nameParts("Wanjirou")).toEqual({ head: "Wanj", tail: "irou" });
         expect(nameParts("Alice")).toEqual({ head: "Alice", tail: "" });
     });

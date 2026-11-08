@@ -109,6 +109,7 @@ class TestAuthEndpoints:
         assert response.status_code == 200
         assert "Register" in response.text
         assert "confirm_password" in response.text
+        assert ' pattern="' not in response.text
 
     def test_register_route__when_valid_post__should_redirect_to_lobby_with_session(self, client):
         csrf = _get_csrf_token(client, "/register")

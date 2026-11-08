@@ -700,9 +700,9 @@ describe("playDisplay nameplates", () => {
         const dealt = playDisplay(checkpointState("seat_left_seat_1", "first draw"), NO_PLAY_UI);
         expect(plates(dealt)).toEqual([
             "Alice S turn 25000",
-            `Tsumogiri 2 W 25000 ${AI_PLAYER}`,
+            `ai-tsumogiri-2 W 25000 ${AI_PLAYER}`,
             "Bob N 25000",
-            `Tsumogiri 1 E dealer 25000 ${AI_PLAYER}`,
+            `ai-tsumogiri-1 E dealer 25000 ${AI_PLAYER}`,
         ]);
         const left = playDisplay(checkpointState("seat_left_seat_1", "player left"), NO_PLAY_UI);
         expect(plates(left)[2]).toBe("Bob N 25000 [Away]");
@@ -716,9 +716,9 @@ describe("playDisplay nameplates", () => {
         expect(plates(snapshot)[2]).toBe("Bob N 25000 [Away]");
         const back = playDisplay(checkpointState("seat_left_seat_1", "player back"), NO_PLAY_UI);
         expect(plates(back).slice(1)).toEqual([
-            `Tsumogiri 2 W 25000 ${AI_PLAYER}`,
+            `ai-tsumogiri-2 W 25000 ${AI_PLAYER}`,
             "Bob N 25000",
-            `Tsumogiri 1 E dealer 25000 ${AI_PLAYER}`,
+            `ai-tsumogiri-1 E dealer 25000 ${AI_PLAYER}`,
         ]);
     });
 
@@ -729,9 +729,9 @@ describe("playDisplay nameplates", () => {
         );
         expect(plates(riichi)).toEqual([
             "Alice S riichi 23000",
-            `Tsumogiri 2 W turn 25000 ${AI_PLAYER}`,
-            `Tsumogiri 3 N 25000 ${AI_PLAYER}`,
-            `Tsumogiri 1 E dealer 25000 ${AI_PLAYER}`,
+            `ai-tsumogiri-2 W turn 25000 ${AI_PLAYER}`,
+            `ai-tsumogiri-3 N 25000 ${AI_PLAYER}`,
+            `ai-tsumogiri-1 E dealer 25000 ${AI_PLAYER}`,
         ]);
         const returned = playDisplay(
             checkpointState("seat_left_seat_3", "reconnected"),
@@ -739,9 +739,9 @@ describe("playDisplay nameplates", () => {
         );
         expect(plates(returned)).toEqual([
             "Bob N 25000",
-            `Tsumogiri 1 E dealer 25000 ${AI_PLAYER}`,
+            `ai-tsumogiri-1 E dealer 25000 ${AI_PLAYER}`,
             "Alice S turn 25000",
-            `Tsumogiri 2 W 25000 ${AI_PLAYER}`,
+            `ai-tsumogiri-2 W 25000 ${AI_PLAYER}`,
         ]);
     });
 });

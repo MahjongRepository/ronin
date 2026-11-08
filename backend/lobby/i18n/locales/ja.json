@@ -1,10 +1,12 @@
 {
     "auth.error.account_not_saved": "アカウントを作成できませんでした。もう一度お試しください。",
+    "auth.error.bot_name_pattern": "ボットの名前は「ai-」で始め、英小文字、数字、ハイフン、アンダースコアのみを使ってください。",
     "auth.error.human_account": "ユーザー名「{username}」は人間のプレイヤーのアカウントです。",
     "auth.error.password_bytes": "パスワードが長すぎます（上限{max}バイト）。",
     "auth.error.password_length": "パスワードは{min}～{max}文字にしてください。",
     "auth.error.username_length": "ユーザー名は{min}～{max}文字にしてください。",
     "auth.error.username_pattern": "ユーザー名には英数字とアンダースコアのみ使えます。",
+    "auth.error.username_reserved_prefix": "「{prefix}」で始まるユーザー名は予約されています。",
     "auth.error.username_taken": "ユーザー名「{username}」はすでに使われています。",
     "auth.error.wrong_credentials": "ユーザー名またはパスワードが違います。",
     "auth.field.confirm_password": "パスワード（確認）",

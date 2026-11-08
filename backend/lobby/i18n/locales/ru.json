@@ -1,10 +1,12 @@
 {
     "auth.error.account_not_saved": "Не удалось создать аккаунт. Попробуйте ещё раз.",
+    "auth.error.bot_name_pattern": "Имя бота должно начинаться с «ai-» и содержать только строчные латинские буквы, цифры, дефисы и знаки подчёркивания.",
     "auth.error.human_account": "Имя «{username}» принадлежит аккаунту человека.",
     "auth.error.password_bytes": "Пароль слишком длинный: не более {max} байт в кодировке UTF-8.",
     "auth.error.password_length": "Пароль должен быть длиной от {min} до {max} символов.",
     "auth.error.username_length": "Имя пользователя должно быть длиной от {min} до {max} символов.",
     "auth.error.username_pattern": "Имя пользователя может содержать только латинские буквы, цифры и знак подчёркивания (_).",
+    "auth.error.username_reserved_prefix": "Имена, начинающиеся с «{prefix}», зарезервированы.",
     "auth.error.username_taken": "Имя «{username}» уже занято.",
     "auth.error.wrong_credentials": "Неверное имя пользователя или пароль.",
     "auth.field.confirm_password": "Повторите пароль",

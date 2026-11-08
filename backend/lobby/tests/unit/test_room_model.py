@@ -107,7 +107,7 @@ class TestGetPlayerInfo:
             assert p.is_bot is True
             assert p.ready is True
             assert p.is_owner is False
-            assert p.name == f"{BOT_NAME_PREFIX} {i + 1}"
+            assert p.name == f"{BOT_NAME_PREFIX}-{i + 1}"
 
     def test_lobby_room_get_player_info__when_humans_and_bots__should_preserve_seat_order(self):
         room = LobbyRoom(room_id="r1", name="Jade Crane")
@@ -120,13 +120,13 @@ class TestGetPlayerInfo:
         assert info[0].is_bot is False
         assert info[0].is_owner is True
         assert info[0].ready is True
-        assert info[1].name == f"{BOT_NAME_PREFIX} 2"
+        assert info[1].name == f"{BOT_NAME_PREFIX}-2"
         assert info[1].is_bot is True
         assert info[2].name == "Bob"
         assert info[2].is_bot is False
         assert info[2].is_owner is False
         assert info[2].ready is True
-        assert info[3].name == f"{BOT_NAME_PREFIX} 4"
+        assert info[3].name == f"{BOT_NAME_PREFIX}-4"
         assert info[3].is_bot is True
 
     def test_lobby_room_get_player_info__when_owner_not_ready__should_show_owner_ready(self):

@@ -17,14 +17,14 @@ class TestFillSeats:
     def test_fill_seats__when_one_player__should_name_ai_players_tsumogiri_n(self):
         configs, _seats = fill_seats(["Alice"], seed="a" * 192)
         ai_player_configs = [c for c in configs if c.ai_player_type is not None]
-        assert [c.name for c in ai_player_configs] == ["Tsumogiri 1", "Tsumogiri 2", "Tsumogiri 3"]
+        assert [c.name for c in ai_player_configs] == ["ai-tsumogiri-1", "ai-tsumogiri-2", "ai-tsumogiri-3"]
         assert all(c.ai_player_type == AIPlayerType.TSUMOGIRI for c in ai_player_configs)
 
     def test_fill_seats__when_player_is_named_like_an_ai__should_skip_their_name_for_ai_players(self):
-        configs, seats = fill_seats(["Tsumogiri 1"], seed="a" * 192)
+        configs, seats = fill_seats(["ai-tsumogiri-1"], seed="a" * 192)
         ai_player_names = [c.name for c in configs if c.ai_player_type is not None]
-        assert ai_player_names == ["Tsumogiri 2", "Tsumogiri 3", "Tsumogiri 4"]
-        assert configs[seats[0]].name == "Tsumogiri 1"
+        assert ai_player_names == ["ai-tsumogiri-2", "ai-tsumogiri-3", "ai-tsumogiri-4"]
+        assert configs[seats[0]].name == "ai-tsumogiri-1"
         assert configs[seats[0]].ai_player_type is None
 
     def test_fill_seats__when_seeds_differ__should_vary_player_seat(self):

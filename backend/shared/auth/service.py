@@ -4,6 +4,7 @@ import hashlib
 import re
 import secrets
 import time
+import unicodedata
 from enum import StrEnum
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -18,14 +19,20 @@ if TYPE_CHECKING:
     from shared.dal.session_repository import SessionRepository
 
 USERNAME_MIN_LENGTH = 3
-USERNAME_MAX_LENGTH = 30
+USERNAME_MAX_LENGTH = 16
 USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")
+AI_NAME_PREFIX = "ai-"
+BOT_NAME_PATTERN = re.compile(rf"^{AI_NAME_PREFIX}[a-z0-9_-]+$")
 
 PASSWORD_MIN_LENGTH = 8
 PASSWORD_MAX_LENGTH = 72  # bcrypt truncates at 72 bytes
 
 GUEST_NAME_PREFIX = "Nanashi-"
 GUEST_NAMES = tuple(f"{GUEST_NAME_PREFIX}{n}" for n in range(1000, 10000))
+
+_AI_NAME_STEM = AI_NAME_PREFIX.removesuffix("-")
+_GUEST_NAME_STEM = GUEST_NAME_PREFIX.removesuffix("-").lower()
+_AI_SEPARATORS_OUTSIDE_DASH_CATEGORY = "_\N{MINUS SIGN}\N{KATAKANA-HIRAGANA PROLONGED SOUND MARK}"
 
 ACCOUNT_SESSION_IDLE_SECONDS = 30 * 86400
 GUEST_SESSION_IDLE_SECONDS = 7 * 86400
@@ -38,6 +45,8 @@ class AuthErrorCode(StrEnum):
     USERNAME_TAKEN = "username_taken"
     USERNAME_LENGTH = "username_length"
     USERNAME_PATTERN = "username_pattern"
+    USERNAME_RESERVED_PREFIX = "username_reserved_prefix"
+    BOT_NAME_PATTERN = "bot_name_pattern"
     PASSWORD_LENGTH = "password_length"  # noqa: S105 - an error code, not a password
     PASSWORD_BYTES = "password_bytes"  # noqa: S105 - an error code, not a password
     HUMAN_ACCOUNT = "human_account"
@@ -98,7 +107,7 @@ class AuthService:
         Validates username rules, generates a random API key, hashes it with SHA-256, and persists the bot player. The
         raw API key is returned once and never stored.
         """
-        _validate_username(bot_name)
+        _validate_bot_name(bot_name)
         await self._ensure_username_available(bot_name)
 
         raw_api_key, api_key_hash = _generate_token()
@@ -281,11 +290,33 @@ def _session_expiry(*, created_at: float, now: float, is_guest: bool) -> float:
     return min(now + _idle_seconds(is_guest=is_guest), created_at + SESSION_MAX_AGE_SECONDS)
 
 
-def _validate_username(username: str) -> None:
+def _reserved_prefix_of(username: str) -> str | None:
     """
-    Validate username: 3-30 chars, alphanumeric + underscores.
+    Return the start of a username kept for guests or bots, in any letter case, or None.
+
+    Guests hold the whole "Nanashi" stem. Bots hold "ai" only with a separator after it, any Unicode dash or an
+    underscore, so names like "Aiko" stay free.
     """
-    if len(username) < USERNAME_MIN_LENGTH or len(username) > USERNAME_MAX_LENGTH:
+    guest_stem = username[: len(_GUEST_NAME_STEM)]
+    if guest_stem.lower() == _GUEST_NAME_STEM:
+        return guest_stem
+
+    ai_prefix = username[: len(_AI_NAME_STEM) + 1]
+    if ai_prefix[:-1].lower() == _AI_NAME_STEM and _is_ai_separator(ai_prefix[-1]):
+        return ai_prefix
+
+    return None
+
+
+def _is_ai_separator(char: str) -> bool:
+    return char in _AI_SEPARATORS_OUTSIDE_DASH_CATEGORY or unicodedata.category(char) == "Pd"
+
+
+def _validate_name_length(name: str) -> None:
+    """
+    Validate that an account name is 3-16 chars.
+    """
+    if len(name) < USERNAME_MIN_LENGTH or len(name) > USERNAME_MAX_LENGTH:
         raise AuthError(
             AuthErrorCode.USERNAME_LENGTH,
             f"Username must be between {USERNAME_MIN_LENGTH} and {USERNAME_MAX_LENGTH} characters",
@@ -293,8 +324,36 @@ def _validate_username(username: str) -> None:
             max=USERNAME_MAX_LENGTH,
         )
 
-    if not USERNAME_PATTERN.match(username):
+
+def _validate_username(username: str) -> None:
+    """
+    Validate a human's username: no reserved prefix, then its length and alphanumeric + underscores.
+    """
+    reserved_prefix = _reserved_prefix_of(username)
+    if reserved_prefix is not None:
+        raise AuthError(
+            AuthErrorCode.USERNAME_RESERVED_PREFIX,
+            f"Usernames starting with '{reserved_prefix}' are reserved",
+            prefix=reserved_prefix,
+        )
+
+    _validate_name_length(username)
+
+    if not USERNAME_PATTERN.fullmatch(username):
         raise AuthError(AuthErrorCode.USERNAME_PATTERN, "Username must contain only letters, numbers, and underscores")
+
+
+def _validate_bot_name(bot_name: str) -> None:
+    """
+    Validate a new bot's name: "ai-", then lowercase alphanumerics, hyphens and underscores.
+    """
+    _validate_name_length(bot_name)
+
+    if not BOT_NAME_PATTERN.fullmatch(bot_name):
+        raise AuthError(
+            AuthErrorCode.BOT_NAME_PATTERN,
+            "Bot names must start with 'ai-' and contain only lowercase letters, numbers, hyphens and underscores",
+        )
 
 
 def _pick_guest_name(taken: Collection[str]) -> str:

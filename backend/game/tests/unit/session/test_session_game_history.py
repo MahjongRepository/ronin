@@ -73,14 +73,14 @@ class TestGameStartRecording:
         self, seeded_engine, game_repo
     ):
         manager = make_session_manager(seeded_engine, repository=game_repo)
-        conns = create_started_game(manager, player_names=["Tsumogiri 1"])
+        conns = create_started_game(manager, player_names=["ai-tsumogiri-1"])
         human_seat = participant_of(manager, conns[0]).seat
         assert human_seat is not None
         ai_seats = sorted(set(range(4)) - {human_seat})
         standings = {s.seat: (s.name, s.user_id) for s in game_repo.games["game1"].standings}
         assert standings == {
-            human_seat: ("Tsumogiri 1", "user-0"),
-            **{seat: (f"Tsumogiri {number}", "") for number, seat in enumerate(ai_seats, start=2)},
+            human_seat: ("ai-tsumogiri-1", "user-0"),
+            **{seat: (f"ai-tsumogiri-{number}", "") for number, seat in enumerate(ai_seats, start=2)},
         }
 
         human = runtime_of(manager).state.round_state.players[human_seat]

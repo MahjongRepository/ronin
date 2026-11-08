@@ -1,10 +1,12 @@
 {
     "auth.error.account_not_saved": "The account could not be created. Try again.",
+    "auth.error.bot_name_pattern": "Bot names must start with 'ai-' and use only lowercase letters, numbers, hyphens and underscores.",
     "auth.error.human_account": "Username '{username}' belongs to a human account.",
     "auth.error.password_bytes": "Password is too long (the limit is {max} bytes).",
     "auth.error.password_length": "Password must be between {min} and {max} characters.",
     "auth.error.username_length": "Username must be between {min} and {max} characters.",
     "auth.error.username_pattern": "Username can only contain letters, numbers and underscores.",
+    "auth.error.username_reserved_prefix": "Usernames starting with '{prefix}' are reserved.",
     "auth.error.username_taken": "Username '{username}' is already taken.",
     "auth.error.wrong_credentials": "Wrong username or password.",
     "auth.field.confirm_password": "Confirm password",

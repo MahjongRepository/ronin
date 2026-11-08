@@ -17,9 +17,9 @@ from game.tests.unit.helpers import _string_to_34_tile, _string_to_34_tiles
 def _default_seat_configs() -> list[SeatConfig]:
     return [
         SeatConfig(name="Player"),
-        SeatConfig(name="Tsumogiri 1", ai_player_type=AIPlayerType.TSUMOGIRI),
-        SeatConfig(name="Tsumogiri 2", ai_player_type=AIPlayerType.TSUMOGIRI),
-        SeatConfig(name="Tsumogiri 3", ai_player_type=AIPlayerType.TSUMOGIRI),
+        SeatConfig(name="ai-tsumogiri-1", ai_player_type=AIPlayerType.TSUMOGIRI),
+        SeatConfig(name="ai-tsumogiri-2", ai_player_type=AIPlayerType.TSUMOGIRI),
+        SeatConfig(name="ai-tsumogiri-3", ai_player_type=AIPlayerType.TSUMOGIRI),
     ]
 
 

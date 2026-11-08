@@ -14,7 +14,7 @@ function seatedState(): RoomState {
     state.isOwner = true;
     state.players = [
         { is_bot: false, is_owner: true, name: "dev", ready: true },
-        { is_bot: true, is_owner: false, name: "Tsumogiri Bot 2", ready: true },
+        { is_bot: true, is_owner: false, name: "ai-tsumogiri-2", ready: true },
     ];
     return state;
 }

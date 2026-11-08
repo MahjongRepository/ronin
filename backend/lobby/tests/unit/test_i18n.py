@@ -162,6 +162,8 @@ _AUTH_ERROR_PARAMS = {
     AuthErrorCode.USERNAME_TAKEN: {"username": "dev"},
     AuthErrorCode.USERNAME_LENGTH: {"min": 3, "max": 30},
     AuthErrorCode.USERNAME_PATTERN: {},
+    AuthErrorCode.USERNAME_RESERVED_PREFIX: {"prefix": "ai-"},
+    AuthErrorCode.BOT_NAME_PATTERN: {},
     AuthErrorCode.PASSWORD_LENGTH: {"min": 8, "max": 72},
     AuthErrorCode.PASSWORD_BYTES: {"max": 72},
     AuthErrorCode.HUMAN_ACCOUNT: {"username": "dev"},

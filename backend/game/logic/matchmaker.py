@@ -6,12 +6,12 @@ from game.logic.types import SeatConfig
 
 def _generate_ai_player_names(count: int, taken_names: list[str]) -> list[str]:
     """
-    Return `count` AI player names "Tsumogiri N", numbered up from 1 and skipping the names already taken.
+    Return `count` AI player names "ai-tsumogiri-N", numbered up from 1 and skipping the names already taken.
     """
     names: list[str] = []
     number = 1
     while len(names) < count:
-        name = f"Tsumogiri {number}"
+        name = f"ai-tsumogiri-{number}"
         if name not in taken_names:
             names.append(name)
 

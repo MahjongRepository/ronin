@@ -15,7 +15,6 @@ from shared.auth.service import (
     SESSION_MAX_AGE_SECONDS,
     USERNAME_MAX_LENGTH,
     USERNAME_MIN_LENGTH,
-    USERNAME_PATTERN,
     AuthError,
 )
 
@@ -31,7 +30,6 @@ GUEST_LOGIN_REFILL_PER_SECOND = 1 / 360
 _ACCOUNT_RULES = {
     "username_min_length": USERNAME_MIN_LENGTH,
     "username_max_length": USERNAME_MAX_LENGTH,
-    "username_pattern": USERNAME_PATTERN.pattern,
     "password_min_length": PASSWORD_MIN_LENGTH,
     "password_max_length": PASSWORD_MAX_LENGTH,
 }

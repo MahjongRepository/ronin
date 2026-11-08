@@ -571,7 +571,7 @@ const worstPlates = mockNameplates(
             ...mockRiichiPlayer(1, "Wolfeschlegelsteinhausenberger", -2600),
             aiStandIn: SEAT_CONTROL_REASON.LEFT,
         },
-        { ...mockRiichiPlayer(2, "Tsumogiri 2", 7000), isAiPlayer: true },
+        { ...mockRiichiPlayer(2, "ai-tsumogiri-2", 7000), isAiPlayer: true },
         {
             ...mockRiichiPlayer(3, "Maximiliana Ostrogradskaya", 54_300),
             aiStandIn: SEAT_CONTROL_REASON.ABSENT,
