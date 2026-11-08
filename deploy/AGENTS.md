@@ -10,13 +10,9 @@ which holds the domain). `README.md` is the runbook for a new server and lists t
 * `.github/workflows/release.yml` is the **only** path that builds the image (`Dockerfile`) and
   pushes it to GHCR as a public package. The deploy Makefiles have no build or push target, and the
   deploy has no `docker login`.
-* `.github/workflows/create-release.yml` cuts a release from a version and a summary: it pushes
-  `release`, tags and publishes the GitHub release, bumps `main` to the next minor, then calls
-  `release.yml` for the image. A push made with `GITHUB_TOKEN` starts no workflow, so the call is
-  the only thing that builds a release cut this way.
-* `Makefile` wraps spot: one-time bootstrap and provisioning tasks, the deploy, service control,
-  an error-log grep, the read-only metrics report and SQL, and backup, restore and download-backup
-  tasks.
+* `.github/workflows/create-release.yml` cuts a release and then calls `release.yml` for the image:
+  its pushes use `GITHUB_TOKEN`, which starts no workflow, so that call is the only thing that builds
+  a release cut this way.
 * `Makefile.server` is uploaded to `/opt/ronin/Makefile` on every deploy for manual control on the
   box; the spot service-control tasks call its targets.
 
@@ -37,10 +33,10 @@ which holds the domain). `README.md` is the runbook for a new server and lists t
 * **Bounded shutdown.** Both uvicorn commands pass a graceful-shutdown timeout (uvicorn otherwise
   waits forever for a client whose transport is stalled), and `stop_grace_period` leaves room after
   it for the lifespan shutdown and the database drain before docker's SIGKILL.
-* **Liveness is the WebSocket protocol ping.** Both uvicorn commands (and `bin/run-local-server.sh`)
+* **Liveness is the WebSocket protocol ping.** Both uvicorn commands (and both local launchers in `bin/`)
   pin the `--ws` ping flags; the apps run no ping of their own, so removing the flags leaves dead
   sockets open.
-* **Frame size is capped before buffering.** Both uvicorn commands (and `bin/run-local-server.sh`)
+* **Frame size is capped before buffering.** Both uvicorn commands (and both local launchers in `bin/`)
   pin `--ws-max-size`: uvicorn otherwise buffers a 16 MiB frame before the app's own size checks
   run, and game sockets accept frames before they authenticate. The game cap is the decoder's
   `MAX_BUFFER_LEN`, the lobby's twice its room message limit; keep each in step with that limit.
@@ -63,7 +59,6 @@ which holds the domain). `README.md` is the runbook for a new server and lists t
   setting needs the new image and the new compose together: ship it with `spot-deploy`, which uploads
   compose and pulls in one task, never `spot-update` or the box's `make update`, which pull the new
   image under the old compose. Rolling such a release back needs the old compose too.
-* Lobby and game share one SQLite DB under `/opt/ronin/data/db/`.
 * **One cgroup slice per service.** Each compose service sets its own `cgroup_parent`
   (`ronin-<service>.slice`), so the host collector finds every container's CPU, memory and OOM
   numbers at `/sys/fs/cgroup/ronin.slice/ronin-<service>.slice/` (systemd reads `-` in a slice name

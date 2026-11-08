@@ -8,16 +8,9 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
 * Integer codes are only ever added, never renumbered or reused: a removed one leaves its gap.
 * Live metadata map keys are integers in both directions. `wire/keys.py` owns the named `WireKey`
   IDs; numeric IDs appear only in that declaration, and callers use the named keys directly.
-  Outgoing serializers explicitly build numeric-key maps from domain model attributes. Incoming parsing extracts
-  numeric keys into typed models with readable fields. `encoder.py` validates and packs those maps without translating
-  keys, and decoding preserves the numeric keys. Score maps keep string seat keys as data. Unknown, duplicate or malformed keys
-  are rejected, with the existing message-size limits and a nesting bound; decode failures still pass
-  through the endpoint's rate-limit and strike handling. The browser and external bot mirror the same
-  registry and shared golden frames; protocol changes update all three together. Replay IDs keep their
-  existing assignments, and replay-only metadata is not accepted on the live wire.
-* `event_payload.py` builds every outgoing event, for both the socket and the replay. Its
-  `live_game_event_payload` removes the per-draw wall count for normal delivery and reconnect resends;
-  the replay keeps the engine's explicit count. A draw, a
+  Score maps keep string seat keys as data. The browser and external bot mirror the same registry and shared
+  golden frames; protocol changes update all three together. Replay-only metadata is not accepted on the live wire.
+* `event_payload.py` builds every outgoing event, for both the socket and the replay. A draw, a
   discard and a meld each pack into one integer (`../wire/compact.py`, `shared/lib/melds/README.md`).
 * Of `GameSettings` only the game type (`WireKey.GAME_TYPE`) and the riichi stick value (`WireKey.RIICHI_STICK_VALUE`), a wire
   score, go out live, on `game_started` and the reconnect snapshot: the settings a client consumes, the type for its

@@ -92,8 +92,7 @@ the lowest layer allowed to hold it. `src/fixtures/` is generated data; only sto
 A targeted check, not a gate: no `make` target, not in `make run-all-checks`. It shoots and checks only the pages and
 viewports a run names (WebKit for phones, Chromium otherwise), with no backend:
 `npm run visual-check -- --page <name> --viewport <name> --shots <dir>` (repeatable, substring match). Name the
-changed area and its one worst case, never a sweep. A run over 60 pages is refused unless it passes `--many`; it checks
-three pages at a time, one engine after the other, to keep a laptop cool.
+changed area and its one worst case, never a sweep.
 
 * A new page or check goes in its surface's module under `scripts/visual-check/surfaces/`, never the runner.
 * The check holds a few of the spec's proportions (`DERIVED` in `surfaces/board.ts`); change the spec's table and

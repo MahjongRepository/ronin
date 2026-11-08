@@ -22,8 +22,7 @@ signed game ticket; players then connect by WebSocket and play. `logic/`, `sessi
   records an immutable rules-profile ID and sparse effective settings overrides on its `game_started`
   record. Both the runner and the export resolve it through `logic/`'s profile registry, never current
   defaults. The browser uses explicit viewing settings and recorded events, without a profile registry
-  or engine execution. Replay storage uses independent MessagePack records, integer metadata keys and
-  a binary seed under one gzip stream; `wire/` keeps metadata keys numeric throughout and restores only the hexadecimal seed at the read boundary.
+  or engine execution.
   Builders and consumers reference `WireKey` directly; string keys inside settings and score maps are data.
   A change to the replay records is followed by
   `make generate-replay-fixtures`, which re-records the v2 game client's replay fixtures.
@@ -71,9 +70,8 @@ Mandatory for all game server code; review must catch violations.
 
 ## Tests
 
-State builders live in `tests/conftest.py` and `tests/unit/helpers.py`; `create_dealt_game_state` stages
-a running round from explicit players and gives the walls every tile not held in their hands, melds or
-discards. `tests/mocks/` fakes the connection, engine, repository and storage, though lifecycle flows
+State builders live in `tests/conftest.py` (`create_dealt_game_state` stages a running round) and
+`tests/unit/helpers.py`. `tests/mocks/` fakes the connection, engine, repository and storage, though lifecycle flows
 prefer the real seeded engine.
 `tests/helpers/` builds a manager over in-memory fakes, signs tickets, drives the endpoint over
 real and fake WebSockets and holds hand staging shared by unit and integration tests; `tests/unit/session/` adds its own helpers and clock fixtures that run
@@ -81,8 +79,4 @@ timers without waiting.
 Whole-game flows use the replay runner on `tests/integration/replays/fixtures/` or a built
 `ReplayInput`, asserting on each step's before/after state.
 A change to what the session sends a seat (a payload, a stamp, a delivery rule) is followed by
-`make generate-seat-scenarios`: `scripts/seat_scenarios/` plays scripted clients through the real
-`SessionManager` and `MessageRouter` over in-memory sockets, on an event loop whose clock jumps to each
-timer instead of waiting, and records what each seat received and sent for the v2 client's tests and
-storybook. A socket the server closes runs the router's disconnect as the endpoint does, and a scripted
-step that falls on the moment a server timer fires is refused, since their order would be the loop's.
+`make generate-seat-scenarios`.

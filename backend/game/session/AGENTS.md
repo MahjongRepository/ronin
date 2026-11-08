@@ -129,9 +129,7 @@ interleave.
   * a reconnect that takes the seat back from its AI player writes a human return;
   * a connection replacement writes nothing: its seat never left its human.
 
-  The replay loader skips them; they only tell a viewer what happened. The collector keeps event objects in
-  memory and encodes the detached records through `game.wire` at save time; storage applies gzip once.
-  The start record keeps the effective rules profile and overrides plus explicit viewing settings.
+  The replay loader skips them; they only tell a viewer what happened.
 
 * **Each task logs as its own subject.** A task copies the structlog context of whatever spawned
   it, often another seat's action, so a fired timer binds its game and its own seat, and the

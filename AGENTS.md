@@ -44,33 +44,24 @@ The `Makefile` lists the targets; the non-obvious ones:
 * `make test` — backend pytest with its coverage gate (`backend/AGENTS.md`, Tooling).
 * `make profile` — profile the game engine replay runner (the `optimize-engine` skill uses it).
 * `make run-games [GAMES=n] [TABLES=t] [MODE=m] [NET=bad]` — play bot games (the `mahjong-bot` repo at `BOT_ROOT`,
-  default `~/work/mahjong-bot`) on fresh servers, `t` tables at a time, the bots in play mode `m`
-  (their `--mode`, only when set; `human` thinks 0-3 s per action and gets a 2-hour batch timeout; `chaos` misbehaves on purpose —
-  resyncs, socket takeovers, disconnects, sockets dropped without a close or frozen silent, kicks, deadline stalls, refused and malformed actions, the
-  bot's `ronin/chaos.py` — gets a 30-minute batch timeout, and its log gate passes only the game
-  server's info and warning lines those cause; `NET=bad`, in any mode but meant for `MODE=chaos`, puts
-  production's Traefik routing and a toxiproxy in Docker (`:8720`-`:8740`) between the bots and the servers, with latency,
-  sliced writes and random windows of stalls, resets and black holes (`bin/bad-network.sh`), tells the bots
-  to expect lost links, passes the game server lines those cause, takes at least the chaos batch timeout,
-  and fails on proxy errors or unexpected statuses, the proxies' logs and the fault timeline kept in
-  `backend/logs/net`), stopping at the first batch
-  with a game that is not completed, whose replay does not reproduce it (`bin/verify_games.py`), or
-  after which any log (server stderr and bot console included) holds a warning or an abnormal event
-  such as a timeout auto-action or a bot replaced by AI. It forces debug console logging, so these
-  gates cannot be configured away. It plays against the dev database (`AUTH_DATABASE_PATH`), so its
-  games show on the dev lobby's history: it uses four bot accounts per table, because an account
-  plays one game at a time, reusing each by name and issuing it a fresh API key (registering only a
-  missing one), and verifies only the game ids its bots logged, so earlier games and replays are
-  kept and never checked. It **wipes** `backend/logs` and the bot's `project/logs` first and kills
-  whatever holds `:8710`/`:8711`.
-* `make profile-games` — the same run, fixed at 48 games on 12 tables, with logging at production's
-  INFO level and the game server sampling its own Python stacks per 10 ms of CPU time
-  (`bin/profile_game_server.py`), then those samples by layer and function, plus its CPU-seconds per
-  game, CPU µs per handled and per outbound message (from `/status` totals) and the share of its CPU
-  spent in garbage collection (timed by `gc.callbacks`). The sampler runs
-  in-process because py-spy, pausing the server per sample, stalled it past the health check in most
-  runs. It points at where real games spend the server's CPU;
-  `make profile` measures engine changes.
+  default `~/work/mahjong-bot`) on fresh servers, `t` tables at a time, the bots in play mode `m` (their `--mode`,
+  only when set; `human` thinks 0-3 s per action and gets a 2-hour batch timeout; `chaos` misbehaves on purpose,
+  the bot's `ronin/chaos.py`, gets a 30-minute batch timeout, and its log gate passes only the game server lines
+  that causes). `NET=bad`, meant for `MODE=chaos`, puts production's Traefik routing and a faulty toxiproxy in
+  Docker between the bots and the servers (`bin/bad-network.sh`), passes the game server lines that causes, fails
+  on proxy errors or unexpected statuses, and keeps the proxies' logs and the fault timeline in `backend/logs/net`.
+  It stops at the first batch with a game that is not completed, whose replay does not reproduce it
+  (`bin/verify_games.py`), or after which any log (server stderr and bot console included) holds a warning or an
+  abnormal event such as a timeout auto-action or a bot replaced by AI. It forces debug console logging, so these
+  gates cannot be configured away. It plays against the dev database (`AUTH_DATABASE_PATH`), so its games show on
+  the dev lobby's history; it reuses four bot accounts per table by name, issuing each a fresh API key, and
+  verifies only the game ids its bots logged. It **wipes** `backend/logs` and the bot's `project/logs` first and
+  kills whatever holds `:8710`/`:8711`. Run it only when asked: tests and `make run-all-checks` are the
+  verification.
+* `make profile-games` — the same run, fixed at 48 games on 12 tables at production's INFO logging,
+  with the game server sampling its own stacks (`bin/profile_game_server.py`) and reporting where real
+  games spend its CPU; `make profile` measures engine changes. The sampler stays in-process: py-spy
+  pauses the server per sample and stalls it past the health check.
 * `make measure-wall [MEASURE_ARGS=...]` — sample games from the engine's seed, dealer and wall functions and
   report their statistics against exact references and a stdlib-shuffle control (`backend/scripts/measure_wall/`).
   A structural failure exits 1; a statistical warning is printed, never a gate. `--json` saves a run and
@@ -97,6 +88,10 @@ The `Makefile` lists the targets; the non-obvious ones:
   Visual check).
 * When wrapping up, run `make run-all-checks`, read its output for the success line, and report
   which checks ran.
+* The local stack is disposable: restart `make run-local-server` and free its ports without asking.
+  Every `make -C deploy` target acts on the production server (`TARGET` defaults to `dev`, which is
+  that server): run one only when the user asks, except the read-only `spot-status`,
+  `spot-check-logs-errors`, `spot-metrics`, `spot-metrics-sql` and `spot-backup-list`.
 * After a structural change, update the nearest `AGENTS.md` it invalidates; after a rule change,
   update `docs/game-rules.md`. Keep `AGENTS.md` to architecture, invariants and rules the code
   cannot show: no route or message tables, enum value lists, env var lists or exhaustive file

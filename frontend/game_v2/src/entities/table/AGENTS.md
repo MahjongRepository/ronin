@@ -31,32 +31,17 @@ The game table model and board UI. `entities/client` steps it; views read the ta
 - The latest discard is the server's on reconnect (`ld`); the client never infers it. Any draw ends it.
 - An AI stand-in for an absent human (`aiStandIn`, "Away") is never shown as an AI participant ("AI").
 - The board marks no tile playable and no offer source: that is the client mapper's.
-- Board motion is presentation only. The mapper preserves physical tile ids across hands, rivers and both tiles
-  of an added-kan stack; concealed hands keep anonymous slots, never invented ids. The board's motion directive
-  captures positions before a render and measures destinations after its geometry directive. Its player owns
-  temporary copies for cross-region travel and native wrapper animations for hand, river and laid-meld reflow.
-  Meld tiles scale and move inside the meld's shared shadow; sampled native sizes carry into interrupted moves.
-  A staged reveal keeps a temporary back inside its native hand slot, detached before lit renders and rebound
-  with its original deadline; completion or cancellation removes the back and restores the face. River reflow
-  stays in the shared depth layer unless an interrupted flight is still changing pose. Wrapper offsets follow the
-  seat's frame, not a sideways tile's extra rotation. Native effects detach
-  before lit changes the DOM, so geometry measures final positions, then rebind by physical tile key with their
-  timing preserved. Flight copies keep complete material and interpolate size and orientation. A flying local
-  tile forwards taps to its current native button, with its stationary hitbox disabled until arrival. Copies
-  refresh disabled and selected feedback on input-only redraws without restarting travel. Motion never delays
-  the table, decisions or server input. Sequential moves
-  preserve unaffected flights in live play. Replay steps settle all prior tile movements before measuring the next
-  move and omit the live discard pause; updates within one render task animate only the newest replay step.
-  Reconnects, replay jumps,
-  viewpoint changes, resizing, reduced motion and disposal clear copies and restore destinations. Initial mounts
-  show their checkpoint immediately. Starting hands and indicators appear immediately at every deal; tile ids
-  reused in a new round never animate from their positions in the previous round.
+- Board motion is presentation only; its look is `docs/game-client-look.md` (Tile motion), and it never delays the
+  table, decisions or server input. The mapper preserves physical tile ids across hands, rivers and both tiles of an
+  added-kan stack; concealed hands keep anonymous slots, never invented ids, and an id reused in a new round never
+  animates from its place in the previous round. `animateBoard` follows `sizeBoard` on GameBoard's root, so it
+  measures destinations after the geometry is written. Native effects detach before lit changes the DOM and rebind
+  by physical tile key with their timing preserved.
 - The seating panel is the game's start and its end: the seats in wind order with the round on the table (live, the
   client's opening screen over the dealt table, `tableSeatingPanel`; a replay's start), then in placement order with
   their scores and uma/oka results once the game ends. `tablePanel` itself shows nothing before the first deal.
 - The board's geometry is the slice's: `lib/board-geometry.ts`'s `boardGeometry`, a pure function from the board's
-  box and the slots its page fills to a frozen result (family, chrome, sizes, the panel's free box in px, the
-  board shell's grid tracks and the opponents' strips' rooms), its facts
+  box and the slots its page fills to a frozen result, its facts
   once in `lib/board-constants.ts` (the river's rows in the tile slice's `river-shape.ts`), and
   `ui/board-geometry-directive.ts`'s `sizeBoard` on GameBoard's root, the one place that measures the board and writes
   the result. `lib/strip-layout.ts`'s `stripLayout` lays out a strip's melds in those rooms from what it holds, which
@@ -66,6 +51,5 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   would clear what `sizeBoard` wrote.
 - `model/replay-file.ts` refuses a file whose version is not `REPLAY_VERSION` and reports a bad or live-only line,
   never skipping it into a recording that looks whole.
-
-- Replay storage is concatenated MessagePack records, decoded only through the lazy replay route. The numeric metadata registry mirrors Python; the shared golden pins both registries. Replay schemas access the numeric keys directly through `WIRE_KEY`. Seed bytes become hex, settings and score seat keys stay strings, and lists stay arrays. A damaged record stops playback at its preceding readable prefix and names its record position.
-- The table keeps the recorded aka-dora flag; all board and result tile mappers use it. Live events retain their existing red-five display behavior.
+- Replay storage is concatenated MessagePack records, decoded only through the lazy replay route. The numeric metadata registry mirrors Python; the shared golden pins both registries.  A damaged record stops playback at its preceding readable prefix and names its record position.
+- The table keeps the recorded aka-dora flag; all board and result tile mappers use it. A live game always shows red fives (its game start sets `hasAkadora`).

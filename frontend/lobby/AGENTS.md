@@ -7,8 +7,8 @@ and starts whatever the page holds (the room, the matchmaking queue, the history
 closes with 1000, a leave, and a socket `connect()` replaces closes with 4100, so the server holds
 the room seat for the new one (`backend/lobby/rooms/AGENTS.md`).
 
-The room page reconnects a seated player: a lost socket rejoins after a delay that doubles up to a
-cap, a bounded number of times, and then shows the lost connection. A reconnect takes the held seat
+The room page reconnects a seated player (backoff in `room/handlers.ts`) and shows the lost
+connection once it gives up. A reconnect takes the held seat
 back silently; a refused one ends the page like any refused join. Returning to the page after it was
 hidden for a while, or the browser coming back online, reconnects at once, since a socket can die
 without a close event while the page is in the background. Matchmaking does not reconnect.
@@ -74,9 +74,7 @@ it exists; a seated player refused the same way mid-start just waits for `game_s
   `locales/en.json`), a sentence with a link through `tParts()` and a link slot, numbers, dates and
   lists through its formatters. The locale is the page's `<html lang>`, which the server resolved;
   the scripts never resolve it, and only the in-place language switch changes it. A server code maps to a key through a closed list, and an unknown
-  code shows the family's generic key and is reported (`docs/i18n.md`). A missing key or param throws
-  under the Vite dev server and Vitest and falls back to English with one `console.error` in
-  production.
+  code shows the family's generic key and is reported (`docs/i18n.md`).
 * Named exports only in `src/` (tool configs such as `vite.config.ts` keep their default export).
 * No `console.log` in application code.
 

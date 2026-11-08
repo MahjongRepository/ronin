@@ -91,26 +91,21 @@ table transition and call model; replay dispatch loads with the replay route.
   repeats the voice or a lone callout. Other seats' calls still announce normally; a multi-ron result shows all
   winners. A kan's declaration and completion announce it only once. Calls end on a deal or a snapshot that left
   the hand, never on a move that calls nothing or the game's end. The yakuman gong waits for the server's result.
-  A win's context keeps the existing three-second window for a delayed result, independently of the shorter
+  A win's context (`WIN_CALLOUT_CONTEXT_MS`) holds for a delayed result independently of the shorter
   visible callout. Once a result panel starts its opening delay, expiry of that context never truncates it.
-- `playDisplay` maps the whole client state for the live board and never restates what may be played: every tile
-  intent and button is one the intent gate takes. `PlayBoard` only renders it; its view state is `PlayUi`, whose
+- `playDisplay` maps the whole client state for the live board. `PlayBoard` only renders it; its view state is `PlayUi`, whose
   per-decision parts are keyed by wait id so a newer decision never inherits them. `PlayUi` moves only through
   `stepPlayUi`, which every driver calls after each step (a command, an intent once stepped, the client stepping on
   its own, the tile sprite) and never from a draw, so a render is a function of (state, ui) alone.
 - Focus moves by the `data-focus-key` a component renders from its command or state, a control holding its own key
   and any group's (`focusKeys`), found under the board's own root (`focusByKey`, the sheet's focus back), never by
   reading classes or ARIA back from the DOM.
-- The panel over the board is `PlayDisplay.overlay`, chosen by the mapper in one precedence (an end, the leave
-  question, the notices' sheet, the opening screen, then the table's own panel from `tablePanel`) with whether it
-  blocks the board; the
+- The panel over the board is `PlayDisplay.overlay`, chosen by the mapper in one precedence (`PlayPanel`) with whether it blocks the board; the
   replay's `replayDisplay` maps its own. Components only render the panel they are given; where it stands is
   GameBoard's (the free box `boardGeometry` reserves), never a page's.
 - The settings menu's own transitions (the cog's toggle, a close, the sound switch) are `stepSettingsMenu`, which live's
   `stepPlayUi` and the replay's `stepReplayPage` share; each closes the menu on its own other input.
-- Sounds are never `ClientEffect`s: `soundCues(before, after)` reads them off two consecutive states (a new showing
-  of calls, one more discard, entry into a decision's time bank, a new second of a long decision's last five, an unseen
-  call or win decision still open for the player), so scenarios and timelines stay silent
+- Sounds are never `ClientEffect`s: `soundCues(before, after)` reads them off two consecutive states, so scenarios and timelines stay silent
   and a snapshot plays nothing. The bank-entry cue only plays across the same open wait's base-to-bank transition,
   never on a reconnect already in the bank, and coinciding countdown cues play once. Only the live driver plays them,
   while `PlayUi.soundOn`. A move's part (`moveSoundCues`) is the replay's too.

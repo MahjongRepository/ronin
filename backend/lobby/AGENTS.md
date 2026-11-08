@@ -11,22 +11,17 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * `auth/` — the session-or-API-key authentication backend, the route policy decorators and CSRF.
 * `views/` — page and API handlers by domain (`bot_api_handlers.py` is the bot JSON API), the Jinja2
   templates, and the lobby app's Vite manifest / dev-server resolution into template globals.
-  `game_client.py` hosts the game client, a separate app the lobby knows only by its built directory:
-  it answers game pages with the app's `index.html`. The client (`frontend/game_v2/`) serves files
-  under `/game-assets/v2/` (`game_client_v2_dir`), or proxies pages and files to its Vite dev server
-  when `game_client_v2_dev_url` is set. The proxy exists only for local runs, so the game page keeps
+  `game_client.py` hosts the game client (`frontend/game_v2/`), a separate app the lobby knows only by
+  its built directory or, in local runs, by its Vite dev server, which it proxies so the game page keeps
   the lobby's origin and the `sessionStorage` handoff (`docs/architecture.md`, Game client contract) works.
-* `views/error_pages.py` — every error answer, the failed CSRF check included: a browser (`Accept: text/html`) gets
-  `error.html` through `render_page`, any other client plain text; the 500 handler runs outside the middleware, so
-  `create_app()` wraps it to add the security headers.
+* `views/error_pages.py` — every error answer, the failed CSRF check included; the 500 handler runs outside the
+  middleware, so `create_app()` wraps it to add the security headers.
 * Storybook pages and footer links are development-only. Released servers return 404 for both
   lobby and game storybooks, including direct requests to game storybook paths.
 * `i18n/` — the en/ja/ru catalogs, loaded and cross-checked in `create_app()` (the lobby refuses to start on a
-  bad catalog), the locale resolver and the `Translator` (`docs/i18n.md` is the contract). A page's locale is the
-  `lang` cookie, else `Accept-Language`, else en, resolved once per request onto `request.state`; templates get
-  `t()` and `locale` from the `create_templates()` context processor. Every user-visible page string is a catalog
-  key: views pass keys (error pages, notices) or codes (`AuthErrorCode`), never English prose; bot JSON, plain-text
-  and protocol answers stay English. Template text the lobby scripts rewrite in place on a language switch
+  bad catalog), the locale resolver and the `Translator` (`docs/i18n.md` is the contract). Every
+  user-visible page string is a catalog key: views pass keys (error pages, notices) or codes (`AuthErrorCode`),
+  never English prose; bot JSON, plain-text and protocol answers stay English. Template text the lobby scripts rewrite in place on a language switch
   names its key in a `data-i18n` attribute, so that key is in both lobby catalogs. Only an explicit choice writes the
   cookie (the lobby's `POST /lang`; auto-detection never does), and every writer uses the same name, path and
   attributes (`docs/i18n.md`).
@@ -45,13 +40,10 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * `monitoring/` — the admin monitoring page's data: the `metrics.db` reader, the reductions, the chart
   geometry and the one page-data assembly that takes the range and returns every chart, the games summary
   and the live game-server counts; the handler only renders it, and `scripts/monitoring_report.py`
-  prints it as JSON for agents (`report.py`). The lobby only reads `metrics.db`, which
-  the host collector owns: read-only, one short connection per page request, never through `shared.db`
+  prints it as JSON for agents (`report.py`). The lobby never opens `metrics.db` through `shared.db`
   (which would force WAL and create a schema). Reductions run in SQL, so a long range never loads raw
-  samples. A chart's state comes from its own series: a missing file, table, column or series is never
-  collected, a newest value older than three minutes is stale, any other read failure is unavailable
-  (logged), and the page still answers 200 with the games section. Traefik exports a series only after
-  its first request and drops them all on a restart, so its charts take their state from the newest
+  samples. A failed metrics read blanks only its own chart; the page still answers 200 with the games
+  section. Traefik exports a series only after its first request and drops them all on a restart, so its charts take their state from the newest
   scrape of any router, and a quiet series reads a current 0. A range longer than the collected history
   is charted from the oldest sample, and a counter interval across a gap or reset is skipped, never
   blanking its whole bucket: a long range's buckets span hours and every deploy restarts the counters.
@@ -150,7 +142,6 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   flag lives on the player record and is the only admin concept.
 * The backend tries the session cookie first and falls back to a BOT account's `X-API-Key`, so a
   valid cookie wins over a key. `bot_only` routes answer JSON errors, never a login redirect.
-* Game tickets are signed when a game starts and verified by the game server with the shared secret.
 
 ## Security requirements
 
@@ -173,7 +164,7 @@ Mandatory for all lobby code; review must catch violations.
 * Unknown `Host` headers are rejected; a new deployment host goes in the allowed-hosts setting.
 * Session and CSRF cookies are HttpOnly, SameSite=Lax and Secure by default; only the test
   environment turns Secure off. The `lang` cookie is the one exception to HttpOnly: it carries no
-  credential and remains readable by scripts for future game-client localization; every reader validates it against
+  credential and the game client reads it at page load; every reader validates it against
   the supported locales.
 * A redirect to a client-supplied target (the login `next`) follows only a same-site path: no
   scheme, no host, no `//` or backslash, nothing unprintable; anything else goes to the lobby.

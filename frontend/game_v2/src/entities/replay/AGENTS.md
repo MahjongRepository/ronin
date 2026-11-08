@@ -34,7 +34,6 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
   held step's repeats (pointer or key) and the wheel show them silently. A showing carried over later moves keeps its
   flag. This is not `moveEffects`' step-on test, which a held Next and the wheel pass.
 - `ReplayBoard` assembles the replay's `GameBoard` (panel, controls, status, menu) from `replayDisplay` and the
-  loaded screen, as `PlayBoard` does the live one; it decides nothing. Its controls fill the live board's slots: the
-  group (moves, options, the round list over them) the band end, the status the field; none places itself.
+  loaded screen, as `PlayBoard` does the live one; it decides nothing. Its controls fill the live board's slots; none places itself.
 - What a page finds of the slice's UI by selector (`ROUND_LIST_SELECTOR`, `ROUND_LIST_TOGGLE_SELECTOR`,
   `STEP_BUTTON_ATTRIBUTE`) is exported beside the component that renders it; change both together.

@@ -29,15 +29,13 @@ lockfile. A package's install script runs only once `allowScripts` in `package.j
 (`npm install-scripts ls`); every app denies `@parcel/watcher`'s, a node-gyp fallback build its
 prebuilt binaries make unnecessary.
 
-The lobby's `.oxfmtrc.json` turns `embeddedLanguageFormatting` off, so oxfmt leaves the HTML inside
-lit-html `html` templates as written instead of reflowing it, splitting tags as `</a\n>` to keep
-their whitespace exact.
+Each app's `.oxfmtrc.json` keeps `embeddedLanguageFormatting` off: with it on, oxfmt reflows the
+HTML inside lit-html `html` templates, splitting tags as `</a\n>` to keep their whitespace exact.
 
-Every app makes every deprecation their own installed Sass marks active an error in our stylesheets
-through Vite's `fatalDeprecations` setting. The `lint` script runs an in-memory production build
-(`scripts/check-build.ts`), using the same aliases and Sass settings as dev and build. The local Pico
-subset in each app's `src/assets/vendor/pico/` is included: a Sass upgrade can fail lint, the build
-and the dev server on a newly deprecated construct; migrate it rather than silencing the deprecation.
+Every deprecation the installed Sass marks active is fatal in each app's stylesheets, vendored Pico
+included (`fatalDeprecations` in `vite.config.ts`; `lint` runs the same build in memory through
+`scripts/check-build.ts`). A Sass upgrade can therefore fail lint, the build and the dev server on a
+newly deprecated construct; migrate the construct rather than silencing the deprecation.
 
 Each app owns its selected Pico 2.1.1 Sass modules and their dependencies in `src/assets/vendor/pico/`;
 there is no Pico npm dependency. Edit these copies directly; they are maintained locally without
@@ -46,17 +44,14 @@ through `@/assets/vendor/pico/`, using the app's existing `@/` alias for `src/`.
 All local Sass `@use` and `@forward` paths and asset URLs use `@/`, including inside Pico;
 Sass built-ins keep their `sass:` URLs.
 
-The vendored sources keep their existing formatting and are outside application stylelint and formatter
-checks, but their compiled styles go through the same Sass deprecation gate. Preserve their original
-MIT license and keep its full notice in `legal/THIRD_PARTY_NOTICES.txt`. Vite uses `legal/` as its
-public directory, copying the notices into `dist/` alongside the built assets; Docker ships that
-directory whole. Keep the source license and distributed notice in sync. See each copy's README
-for provenance and maintenance.
+Leave the vendored sources' formatting as it is (stylelint and the formatter ignore them). Keep each
+copy's MIT `LICENSE.md` and its full notice in `legal/THIRD_PARTY_NOTICES.txt` in sync: `legal/` is
+Vite's public directory, so that file is the notice the built app ships. See each copy's README for
+provenance and maintenance.
 
-`make run-local-server` runs one Vite dev server per app: the lobby's on `VITE_PORT` (5173), whose
-scripts the lobby templates load directly, and the game client's on `GAME_V2_VITE_PORT` (5175),
-proxied under `/game-assets/v2/` so the game page stays on the lobby's origin. The game client's HMR
-socket dials its Vite server directly (`server.hmr.clientPort`).
+Under `make run-local-server` the lobby templates load the lobby's scripts from its Vite server
+directly, while the game client's is proxied under `/game-assets/v2/` so the game page stays on the
+lobby's origin.
 
 ## UI changes
 

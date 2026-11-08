@@ -5,7 +5,7 @@ The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mecha
 
 ## Model
 
-* State is frozen Pydantic (`state.py`), updated by copy with the helpers in `state_utils.py`; settings live only on
+* State (`state.py`) is updated by copy with the helpers in `state_utils.py`; settings live only on
   the game state. One game state flows through the round-flow functions; only a helper scoped to a round or a player
   takes the round.
 * A round ends only through `finish_round()` (`state_utils.py`), so a finished round always carries its result, and
@@ -24,12 +24,9 @@ The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mecha
 * Player type is a service-layer fact: the player model has no AI flag, only `AIPlayerController` knows. Names and
   AI flags go out once in `game_started`; later events use seats. `handle_action` and `handle_timeout` act only for
   a human seat; one for an AI seat is a server fault, since the session only ever acts for a connected human.
-* A call plays every AI turn it reaches, unless the service is built with `pace_ai_turns` (the live server): then a
-  call stops before each AI player's turn action and reports a `WaitKind.AI_TURN` wait that awaits no seat, and
-  `advance_ai_turn` plays exactly that turn, with the AI call responses and the round end it leads to, so the session
-  can space AI turns out in real time. AI answers to call prompts never wait. Both modes play the same game with the
-  same events in the same order; the replay runner and engine tests use the unpaced one. `restore_human_player` turns
-  an AI turn not yet played into the human's turn, a new wait.
+* A call plays every AI turn it reaches, unless the service is built with `pace_ai_turns` (the live server), which
+  stops before each AI player's turn action (`MahjongGameService`). AI answers to call prompts never wait. Both modes
+  play the same game with the same events in the same order; the replay runner and engine tests use the unpaced one.
 * `start_game(confirm_start=True)` (the live server, unless its timeout is zero) stops after the first deal on a
   round advance that starts the game (`PendingRoundAdvance.starts_game`, `Awaiting.starts_game`), awaiting the human
   seats; its last CONFIRM_ROUND, a timeout or an AI player confirming for a replaced seat lets the dealer draw, where
@@ -92,10 +89,7 @@ leaves a partial state.
 
 ## Determinism
 
-The same seed and inputs produce an identical replay trace. Randomness comes only from `rng.py`: a SHAKE256 word
-stream over the seed, with a separate domain per use (the wall of each round, the first dealer, the seat
-permutation), read through rejection sampling so no draw is biased (`docs/rng.md` explains the whole algorithm and
-`make measure-wall` measures it); AI strategies must be deterministic for a given
+The same seed and inputs produce an identical replay trace. Randomness comes only from `rng.py` (`docs/rng.md`); AI strategies must be deterministic for a given
 state. Seat assignment is part of the contract: the replay loader inverts the seeded seat permutation to rebuild the
 input order, so a change to it is a change to the replay format. A change to wall or RNG behaviour bumps
 `RNG_VERSION`; a change to the replay format bumps `REPLAY_VERSION` (`wire/replay_format.py`).

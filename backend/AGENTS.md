@@ -10,10 +10,8 @@ both servers use:
 * `shared/rate_limit.py` — the token-bucket rate limiter; `shared/logging.py` — structlog setup.
 * `shared/lib/melds/` — the IMME meld encoding (see its `README.md`).
 
-Each process opens the database once, as a `shared.db.Database`: one worker thread owns the SQLite
-connection and runs operations in call order, so the event loop never waits on SQLite. A write nobody
-awaits (the game records) is posted and never raises — its failure is logged with the game id — and
-the lifespans close the database last, within a bounded drain.
+Each process opens the database once, as a `shared.db.Database` (its docstrings hold the threading and
+drain model): the event loop never touches SQLite directly, and a lifespan closes the database last.
 
 ## Boundaries
 
@@ -41,9 +39,8 @@ package joins a layer in the contract, or gets its own contract, in the same cha
   restructure it away.
 * The Makefile's `DOCFORMATTER_PATHS` lists the backend's top-level packages (add a new one there),
   and docformatter rewraps a triple-quoted call argument as a docstring: assign it to a variable first.
-* `make lint` and `make format` run ruff over `bin/` too. `bin/ruff.toml` extends this project's
-  ruff config and only allows what a CLI script needs: `print`, no `__init__.py`, and the positional
-  boolean of `signal.siginterrupt`, which takes no keywords.
+* `make lint` and `make format` run ruff over `bin/` too, under `bin/ruff.toml`; relax it only for what
+  a CLI script needs.
 
 ## Configuration
 
