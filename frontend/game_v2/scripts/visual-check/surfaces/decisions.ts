@@ -44,6 +44,8 @@ import {
 
 /** The least room between a decision control and any tile outside the controls, so a tap meant for one never lands on the other. */
 const MIN_CONTROL_TILE_GAP = 4;
+const PHONE_FURITEN_RESERVE = 88;
+const PHONE_FURITEN_HEIGHT = 18;
 /**
  * A decision story and its expired state, whose controls and timer stay where the open one's stand.
  */
@@ -508,6 +510,27 @@ function checkTogglePlaces(results: readonly TaskResult[]): string[] {
     );
 }
 
+function checkFuritenMark(board: BoardMeasure, report: PageReport): void {
+    const { family, furiten, noticesField, switches } = board;
+    if (furiten === null || family !== "phone") {
+        return;
+    }
+    report.expect(contains(board.board, furiten), "the furiten mark stands off the board");
+    report.expect(
+        furiten.width <= PHONE_FURITEN_RESERVE && furiten.height <= PHONE_FURITEN_HEIGHT,
+        `the furiten mark overflows its ${PHONE_FURITEN_RESERVE}x${PHONE_FURITEN_HEIGHT} box: ${describeBox(furiten)}`,
+    );
+    const switchesTop = Math.min(...switches.map(({ box }) => box.top));
+    report.expect(
+        furiten.top + furiten.height <= switchesTop + EPSILON,
+        `the furiten mark is not above the switches: ${describeBox(furiten)}, switches at ${switchesTop}`,
+    );
+    report.expect(
+        noticesField === null || !intersects(furiten, noticesField),
+        `the furiten mark meets the notices' field: ${describeBox(furiten)}`,
+    );
+}
+
 /**
  * A decision's controls on a landscape board: its buttons and timer on the board and the screen and clear of the tiles,
  * the play switches, the toggles' lamps, and where the controls and the toggle stand, for the checks across pages.
@@ -520,6 +543,7 @@ async function checkBoard({ board, page, report, screen, viewport }: BoardRun): 
     if (viewport.portrait) {
         return;
     }
+    checkFuritenMark(board, report);
     TOGGLE_PLACES.keep(report, board.toggle);
     if (board.timer !== null) {
         CONTROL_PLACES.keep(report, [...(board.decisionCorner?.buttons ?? []), board.timer]);

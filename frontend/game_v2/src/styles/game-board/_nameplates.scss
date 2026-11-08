@@ -123,6 +123,11 @@ $plate-seats: bottom, right, top, left;
     @include upright-board {
         left: calc(var(--own-start) - var(--m) - var(--own-badge-shift));
     }
+
+    @include phone-board {
+        left: calc(var(--furiten-x) - var(--own-start));
+        bottom: calc(100% + var(--furiten-rise));
+    }
 }
 
 .nameplate--bottom {
@@ -130,6 +135,10 @@ $plate-seats: bottom, right, top, left;
     align-items: flex-end;
     min-height: var(--own-badge-h);
     max-width: calc(var(--own-lane) + var(--own-badge-shift));
+
+    @include phone-board {
+        display: none;
+    }
 
     .nameplate__pill {
         --pill-h: var(--own-pill-h);

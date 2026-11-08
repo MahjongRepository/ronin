@@ -401,7 +401,7 @@ interface DerivedProportions {
  */
 const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
     [FLOOR, { riverGap: 0.29, riverToOwn: 0.44 }],
-    [NOTCH_PHONE, { riverGap: 0.31, riverToOwn: 0.43 }],
+    [NOTCH_PHONE, { riverGap: 0.28, riverToOwn: 0.5 }],
     [MID_DESKTOP, { riverGap: 0.31, riverToOwn: 0.63 }],
 ]);
 const DERIVED_TOLERANCE = 0.02;
@@ -511,13 +511,14 @@ function checkSettingsCog(board: BoardMeasure, screen: Box, report: PageReport):
 
 /** Every badge is a control: its tap area, the plate's button, meets the control floor whatever its pill's size. */
 function checkBadgeTaps(board: BoardMeasure, report: PageReport): void {
+    const expected = board.family === "phone" ? 3 : 4;
     const small = board.nameplates.filter(
         (plate) =>
             plate.width < MIN_ACTION_SIZE - EPSILON || plate.height < MIN_ACTION_SIZE - EPSILON,
     );
     report.expect(
-        board.nameplates.length === 4 && small.length === 0,
-        `badge tap areas under ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE} (of ${board.nameplates.length}): ${small.map(describeBox).join(", ")}`,
+        board.nameplates.length === expected && small.length === 0,
+        `badge tap areas under ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE} (${board.nameplates.length} of ${expected} shown): ${small.map(describeBox).join(", ")}`,
     );
 }
 
@@ -528,6 +529,7 @@ function checkBadgeTaps(board: BoardMeasure, report: PageReport): void {
 interface TurnCues {
     readonly bars: readonly string[];
     readonly badges: readonly string[];
+    readonly ownBadgeShown: boolean;
     /** A panel says no round plays: a replay's seating, a round's result or the game's end, never the opening screen. */
     readonly roundOver: boolean;
 }
@@ -582,9 +584,11 @@ function measureTurnCues(page: Page): Promise<TurnCues> {
                 opaque(cue.backgroundColor)
             );
         });
+        const ownPlate = board?.querySelector(".nameplate--bottom");
         return {
             badges: underlined.map((plate) => seatOf(plate, "nameplate")),
             bars: bars.map((seat) => seatOf(seat, "board-center__seat")),
+            ownBadgeShown: ownPlate?.checkVisibility() === true,
             roundOver:
                 board?.querySelector(
                     ".board-overlay :is(.round-end-result, .seating:not(:has(.seating__confirm)))",
@@ -600,8 +604,9 @@ function measureTurnCues(page: Page): Promise<TurnCues> {
  * round in play, its dealer cued.
  */
 function checkTurnCue(cues: TurnCues, board: BoardMeasure, report: PageReport): void {
+    const cuedByBadge = cues.bars.filter((seat) => seat !== "bottom" || cues.ownBadgeShown);
     report.expect(
-        cues.bars.length <= 1 && cues.bars.join(", ") === cues.badges.join(", "),
+        cues.bars.length <= 1 && cuedByBadge.join(", ") === cues.badges.join(", "),
         `turn cues on more than one seat or apart: bars ${cues.bars.join(", ") || "none"}, badges ${cues.badges.join(", ") || "none"}`,
     );
     if (cues.roundOver) {

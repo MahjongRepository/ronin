@@ -60,6 +60,9 @@ export interface BoardMeasure {
     readonly zones: Box | null;
     readonly fonts: readonly { readonly name: string; readonly px: number }[];
     readonly centerTexts: readonly GroupedBox[];
+    readonly family: string;
+    readonly furiten: Box | null;
+    readonly noticesField: Box | null;
     readonly nameplates: readonly Box[];
     /** Each badge by its seat's position, whose fixed place the decisions stories compare across checkpoints. */
     readonly badges: readonly GroupedBox[];
@@ -132,11 +135,18 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         for (const dora of board.querySelectorAll(".board-dora")) {
             grouped.push({ box: box(dora), group: "dora" });
         }
-        const nameplates = [...board.querySelectorAll(".nameplate")].map((plate) => ({
-            box: box(plate),
-            group: plate.className.split(" ")[1] ?? "nameplate",
-        }));
+        const nameplates = [...board.querySelectorAll(".nameplate")]
+            .filter((plate) => plate.checkVisibility())
+            .map((plate) => ({
+                box: box(plate),
+                group: plate.className.split(" ")[1] ?? "nameplate",
+            }));
         grouped.push(...nameplates);
+        const furitenMark = board.querySelector(".board-furiten");
+        if (furitenMark !== null) {
+            grouped.push({ box: box(furitenMark), group: "furiten" });
+        }
+        const noticesField = board.querySelector(".board-notices");
         // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
         function bySeat(within: Element, selector: string, frame: string): GroupedBox[] {
             return [...within.querySelectorAll(selector)].map((element) => ({
@@ -225,7 +235,9 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             const top = seat === "left" ? origin.top : origin.top - reach;
             return [{ box: { height: reach, left, top, width: depth }, group: seat }];
         });
-        const riverTile = board.querySelector<HTMLElement>(".board-river .tile");
+        const riverTile = board.querySelector<HTMLElement>(
+            ".board-river .tile:not(.discard-tile-riichi .tile)",
+        );
         const ownWidths = [
             ...board.querySelectorAll<HTMLElement>(".board-local .board-area--bottom-hand .tile"),
         ].map((tile) => Number.parseFloat(getComputedStyle(tile).width));
@@ -278,7 +290,9 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             clippedWords,
             cutNames,
             decisionCorner: corner === null ? null : { box: box(corner), buttons: decisionActions },
+            family: board.getAttribute("data-board-family") ?? "",
             fonts,
+            furiten: furitenMark === null ? null : box(furitenMark),
             grouped,
             handReach,
             hiddenTiles: tableTiles.filter(
@@ -292,6 +306,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             localTiles: localTileElements.map(box),
             menu,
             nameplates: nameplates.map((plate) => plate.box),
+            noticesField: noticesField === null ? null : box(noticesField),
             opponentFaces: [...board.querySelectorAll(".board-strip .tile:not(.tile-back)")].map(
                 box,
             ),

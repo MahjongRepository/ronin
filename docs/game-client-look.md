@@ -80,6 +80,10 @@ The derived proportions are the three reference viewports' values under the sizi
 +-------------------------------------------------------------------+
 ```
 
+A phone in landscape stands the switches one row in the own band instead, 4px above the hand and
+stepped in past the left strip's stacked depth, and draws no own badge: the furiten mark stands
+above the switches at the row's left, the notices' field ending above it.
+
 The diagram is illustrative: it shows the three rings and the zones, not exact placements.
 
 Four seat zones, top, left, right and bottom, are made perceptible on the surface. Decision: four
@@ -249,7 +253,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   hand's first tile toward the table, a river tile's edge and 6px below the hand's line so a meld
   over it keeps a gap, ending where the hand ends, its lane from half a river tile past the top
   river's end at least an ordinary name wide where the board allows; the right badge stays
-  right of the top hand's end. The own badge heads its hand, above the hand's first tile and any added kan's rise, under the play
+  right of the top hand's end. A phone in landscape draws no own badge: the centre carries the own seat's wind, turn and riichi, a replay's seating its viewpoint, and pinning one's own seat to read the others' scores as differences is a desktop's and an upright board's. Elsewhere the own badge heads its hand, above the hand's first tile and any added kan's rise, under the play
   switches, which stand that much higher (a narrow desktop's band row with them); where the switches' end leaves it
   less than an ordinary name's lane (an ultrawide desktop's hand starts near or past it), its lane is its own, short of
   the bottom river, and the decisions' row starts past it. An upright board
@@ -369,7 +373,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   go. Selectable tiles, the latest discard and the decision controls keep their own states, which
   are information, not decoration.
 - **Furiten.** A small neutral status label (a dot and the word) beside the own badge, above the
-  hand's left end, taking no room in the row so the hand never moves, not a button-shaped object and no prohibition sign, shown while the supplied
+  hand's left end (on a phone in landscape, with no own badge, above the switches at their row's left, the notices' field ending above it),
+  taking no room in the row so the hand never moves, not a button-shaped object and no prohibition sign, shown while the supplied
   state says the seat is furiten of any kind and cleared when it says so no longer; it gives no
   reason the state did not supply and never implies tsumo is unavailable.
 - **Play switches.** Three toggles with one fixed place in the foreground, on the hand's side away
@@ -520,7 +525,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   winds, dealer and scores as they stand now; its OK sends nothing;
   a reconnect on a page that already showed it brings none, and a page joining at a round's result opens on the
   result. It is a normal game screen and never speaks of sound, though its OK, as any first tap, is the gesture the
-  browser needs before the game's sounds play. A replay opens on the seating with a Start in the OK's place, and off
+  browser needs before the game's sounds play. A replay opens on the seating with a Start in the OK's place (on a phone in landscape, with no own badge, the seating also names the viewpoint), and off
   a phone's short board the replay's seating (start and end) covers the table's centre block, its text scaled to the
   block.
   Decision (placements drawn in step 4.1): the notices' field is reserved whether or not a notice shows, so a
@@ -645,10 +650,9 @@ still lack room for it: it falls 6.7px short at 360px tall and 10.7px short at 8
 The band's controls float in the gap above the hand, the gap below the top strip is 6px, and the
 phone's chrome scales from the river tile (the small chrome's px up to a 24px river tile, growing with
 it past that, never under 40x40), except the decision controls, which keep their 40px rows. It gives
-river and own tiles of 17 and 39px at 667x375, 16 and 37px at the notch phone's 750x369 (where the
-decisions' place binds), 18 and 41px at 844x390, and 21 and 45px at 932x430, whatever the state shows,
-with centres of 114, 126, 122 and 126px: the larger own tile costs 844x390 3px and 932x430 9px of
-centre in every state. A desktop window short enough to use the phone layout follows the same solve;
+river and own tiles of 17 and 39px at 667x375, 18 and 36px at the notch phone's 750x369 (where the
+own tile is at its floor), 19 and 38px at 844x390, and 21 and 45px at 932x430, whatever the state shows,
+with centres of 114, 108, 115 and 126px. A desktop window short enough to use the phone layout follows the same solve;
 the river-first order has its price at 1024x500, where a 26px river tile takes a 37px own tile. Off a phone the own hand tile is 1.6 of the river tile, never under 4/3 of it, and otherwise at most its
 family's caps: on a desktop min(0.05 of the width, 0.1 of the height) and what a full hand's row holds, on an upright
 board 0.1 of the height and the row, with no share of the width. On a desktop the river tile is the
@@ -674,10 +678,10 @@ short desktop's core ends its left river's capacity above the play switches, whi
 own badge's lane, centred in its room only as far as that allows. On a short desktop that place is
 as tall as the play switches or the replay's moves (which stand there where the band shares the
 core's corners), whichever is taller, so a replay's board is the live game's. A phone's place is
-one row as tall as a control and as wide as the replay's five moves, stepped in past the left
-strip's stacked depth over the own badge; its left river's capacity ends above the own badge, and
-above that place too where the centre is too wide for the river to pass beside it, so a replay's
-board is the live game's there too.
+one row in the own band, as tall as a control and as wide as the replay's five moves, 4px above the
+hand, stepped in past the left strip's stacked depth; its left river's capacity ends above it, the
+bottom river starts past its end, and a replay's moves take it, so a replay's board is the live
+game's there too.
 An opponent's concealed hand tile is the river tile; its drawn tile stands 0.15 of a river tile
 apart on the top strip, and 0.28 on a side strip, where the 0.13 tile edge it shows lies in that gap.
 
@@ -686,13 +690,13 @@ apart on the top strip, and 0.28 on a side strip, where the 0.13 tile edge it sh
 | Core height / play area height | 0.6 | 0.73 / 0.75 / 0.68 |
 | Centre side / core height | 0.3 | 0.42 / 0.45 / 0.39 |
 | Centre width / centre side | 1.0 | 1.0 / 1.0 / 1.0 |
-| River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand clear of the strips and, where any own tile allows it, a win's stack in the decisions' place), about 0.63 off it | 0.44 / 0.43 / 0.63 |
+| River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand clear of the strips and, where any own tile allows it, a win's stack in the decisions' place), about 0.63 off it | 0.44 / 0.50 / 0.63 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
-| Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand clear of the strips and, where any own tile allows it, a win's stack in the decisions' place), about 0.63 off it | 0.44 / 0.43 / 0.63 |
+| Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand clear of the strips and, where any own tile allows it, a win's stack in the decisions' place), about 0.63 off it | 0.44 / 0.50 / 0.63 |
 | Own hand tile width / play area width | 0.05 | 0.058 / 0.049 / 0.044 |
 | Own hand tile height / play area height | 0.15 | 0.139 / 0.134 / 0.094 |
-| Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.31 / 0.31 (0.3, rounded) |
-| Gap between neighbouring rivers, in river tiles | 0.3 | 0.29 / 0.31 / 0.31 (0.3, rounded) |
+| Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.28 / 0.31 (0.3, rounded) |
+| Gap between neighbouring rivers, in river tiles | 0.3 | 0.29 / 0.28 / 0.31 (0.3, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,
 only where it protects the approved layout from a regression a player would notice.

@@ -173,6 +173,10 @@ const NOTICE_GAPS = 14;
 const DECISIONS_COLUMN = 84;
 const DECISIONS_GAPS = 12;
 
+const FURITEN_RESERVE = 88;
+const FURITEN_GAP = 8;
+const FURITEN_H = 18;
+
 /** A side badge keeps at least this far off the top river's reserved third row (px). */
 const SIDE_CLEAR = 16;
 
@@ -931,6 +935,10 @@ function sideLaneReserve(rw: number): number {
     return STACKED_DEPTH * rw + SIDE_LANE_GAP + stackedDepth(rw);
 }
 
+function phoneSwitchesLeft(rw: number): number {
+    return PHONE_CHROME.m + stackedDepth(rw) + STEP_IN_GAP;
+}
+
 /** A phone's chrome at its river tile: the small tier's px, growing with the river tile past `PHONE_CHROME_RIVER`. */
 function phoneChrome(rw: number): DesktopChrome {
     const scale = Math.max(1, rw / PHONE_CHROME_RIVER);
@@ -1074,16 +1082,15 @@ function phoneLayout(
     const { box, slots } = frame;
     const { height, width } = box;
     const chrome = phoneChrome(rw);
-    const { bandGap, controlH, coreGap, m, ownBadgeH, sep, switchGap } = chrome;
+    const { bandGap, controlH, coreGap, m, sep } = chrome;
     const rh = rw * TILE_ASPECT;
     const oh = ow * TILE_ASPECT;
     const handBottom = Math.max(m, ow * TILE_EDGE_SHARE);
     const handTop = height - handBottom - oh;
     const ownMeldTile = Math.max(FACE_FLOOR, Math.min(OWN_MELD_SCALE * rw, ow));
     const ownMeldRise = Math.max(0, 2 * ownMeldTile - oh);
-    const ownRise = ownMeldRise + ownBadgeH + OWN_BADGE_LANE;
     const bandBottom = handTop - bandGap;
-    const switchesBottom = Math.min(bandBottom, handTop - ownRise - switchGap);
+    const switchesBottom = handTop - ownMeldRise - SWITCHES_CLEARANCE;
     const switchesTop = switchesBottom - controlH;
     const coreTop = m + rh + sep;
     const rows = riverRows(rw);
@@ -1096,19 +1103,13 @@ function phoneLayout(
     const laneHalf =
         chrome.sideLaneMin + Math.max(SIDE_CLEAR, rw) + leftBadgeX + runOnReach - width / 2;
     const centreMin = Math.max(PHONE_CENTRE_MIN, RIVER_ROW_SIZE * rw, 2 * laneHalf);
-    const switchesRight =
-        m +
-        stackedDepth(rw) +
-        STEP_IN_GAP +
-        replayMovesWidth("small", chrome.movesH, chrome.replayGap);
-    const clearHalf = width / 2 - sideReach - SWITCHES_CLEARANCE - switchesRight;
-    const besideSwitches = clearHalf >= Math.max(centreMin / 2, laneHalf);
+    const rowLeft = phoneSwitchesLeft(rw);
     const halfRoom = Math.min(
         fieldHalf - NOTICE_FIELD - NOTICE_GAPS,
         fieldHalf - DECISIONS_COLUMN - DECISIONS_GAPS,
-        besideSwitches ? clearHalf : Infinity,
     );
     const centre = Math.min(heightRoom, 2 * halfRoom);
+    const movesRight = rowLeft + replayMovesWidth("small", chrome.movesH, chrome.replayGap);
     const leftRiverEnd = coreTop + leftRiverDrop(rw, LATEST_DISCARD_GAP);
     const cy = centreTop + centre / 2;
     const reach = phoneSideReach(rw, phoneSideRoom({ handTop, height, m, ownMeldRise, rw }));
@@ -1124,7 +1125,9 @@ function phoneLayout(
     const fits =
         centre >= centreMin &&
         laneHalf <= halfRoom &&
-        leftRiverEnd + SWITCHES_CLEARANCE <= (besideSwitches ? handTop - ownRise : switchesTop) &&
+        leftRiverEnd + SWITCHES_CLEARANCE <= switchesTop &&
+        movesRight + SWITCHES_RIVER_GAP <= width / 2 - centre / 2 &&
+        rowLeft + FURITEN_RESERVE <= leftReach(width / 2, centre, rw) &&
         belowTopStrip(m, rw) + rightRoom.reach <= height - m &&
         right.origin <= rightRoom.ownRowTop;
     const bandShift = right.bandCrossed ? rh + STEP_IN_GAP : 0;
@@ -1155,11 +1158,9 @@ function phoneLayout(
         ["m", m],
         ["oh", oh],
         ["ow", ow],
-        ["own-badge-h", ownBadgeH],
         ["own-inline", 0],
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
-        ["own-rise", ownRise],
         ...riverLengths({ centre, cx: width / 2, cy, rw }, LATEST_DISCARD_GAP),
         ["rh", rh],
         ["row-rise", 0],
@@ -1307,7 +1308,6 @@ const FIELD_GAP: Readonly<Record<ChromeTier | "phone", number>> = {
 /** The field keeps this far off the left river and off the band (a phone's less) (px). */
 const FIELD_RIVER_GAP = 8;
 const FIELD_BAND_GAP = 24;
-const PHONE_FIELD_BAND_GAP = 8;
 
 /** Over a panel, a phone's or an upright board's notices keep this far off the band and the own row (px). */
 const BESIDE_GAP = 4;
@@ -1438,7 +1438,7 @@ function landscapeLeft(
     return {
         leftRoomEnd: meets ? bandTop : Math.min(bandTop, switchesTop),
         leftStart,
-        switchesLeft: meets ? m + stackedDepth(rw) + STEP_IN_GAP : m,
+        switchesLeft: phoneSwitchesLeft(rw),
     };
 }
 
@@ -1687,6 +1687,19 @@ function phoneRightOrigin({ at, tier }: ShellRoom): number {
     return phoneRightHand(room).origin;
 }
 
+function phoneFuritenLengths(
+    phone: boolean,
+    furitenX: number,
+    furitenRise: number,
+): [string, number][] {
+    return phone
+        ? [
+              ["furiten-rise", furitenRise],
+              ["furiten-x", furitenX],
+          ]
+        : [];
+}
+
 /**
  * A phone's or a desktop's slots: the corner at the top right, inside the right strip; the switches at
  * the band's start, stepped in past the left hand where its reach meets them; the decisions' place after them (a
@@ -1772,8 +1785,11 @@ function landscapeShell(room: ShellRoom): BoardShell {
         topCap: null,
     });
     const fieldGap = FIELD_GAP[phone ? "phone" : chrome];
+    const furitenBottom = switchesTop - FURITEN_GAP;
     const field = {
-        bottom: Math.min(bandTop, switchesTop) - (phone ? PHONE_FIELD_BAND_GAP : FIELD_BAND_GAP),
+        bottom: phone
+            ? furitenBottom - FURITEN_H - FURITEN_GAP
+            : Math.min(bandTop, switchesTop) - FIELD_BAND_GAP,
         left:
             m +
             (family === "desktop" && chrome === "small" ? 0 : sideLaneReserve(at("rw"))) +
@@ -1828,6 +1844,7 @@ function landscapeShell(room: ShellRoom): BoardShell {
             ["field-beside-height", Math.max(0, beside.bottom - beside.top)],
             ["field-height", Math.max(0, field.bottom - field.top)],
             ["foreground-top", foregroundTop],
+            ...phoneFuritenLengths(phone, left.switchesLeft, handTop - furitenBottom),
             ["own-badge-x", ownLead],
             ["own-lane", own.lane],
             ["own-row-lead", 0],

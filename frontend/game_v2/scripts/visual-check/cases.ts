@@ -74,7 +74,7 @@ export async function expectAnnounced(
 export const BOARD_VISIBLE = [
     ".game-board .board-table .tile:not(.decision-controls__tiles .tile)",
     ".board-local .board-area--bottom-hand .tile",
-    ".board-table .nameplate",
+    ".board-table .nameplate:not(.nameplate--bottom)",
 ];
 
 export function boardCase(name: string, query: string, extra: readonly string[] = []): BoardCase {

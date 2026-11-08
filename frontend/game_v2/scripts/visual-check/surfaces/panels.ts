@@ -253,7 +253,7 @@ const PAGES: readonly PageCase[] = [
                 ".seating__seat--viewer",
                 ".seating__score",
                 ".seating__countdown",
-                ".nameplate",
+                ".nameplate:not(.nameplate--bottom)",
             ],
         },
     },
@@ -262,7 +262,11 @@ const PAGES: readonly PageCase[] = [
         name: "decisions-game-start-waiting",
         path: "/play/storybook/decisions?state=game_start_waiting",
         required: {
-            visible: [".seating__seat--viewer", ".seating__confirm:disabled", ".nameplate"],
+            visible: [
+                ".seating__seat--viewer",
+                ".seating__confirm:disabled",
+                ".nameplate:not(.nameplate--bottom)",
+            ],
         },
     },
     {
@@ -274,7 +278,7 @@ const PAGES: readonly PageCase[] = [
                 ".seating__seat--viewer",
                 ".seating__score",
                 ".seating__countdown",
-                ".nameplate",
+                ".nameplate:not(.nameplate--bottom)",
             ],
         },
     },

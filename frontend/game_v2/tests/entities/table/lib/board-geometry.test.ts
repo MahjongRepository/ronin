@@ -341,34 +341,32 @@ describe("boardGeometry", () => {
 
     it.each([
         {
-            above: true,
             height: 375,
             holdsOffers: true,
             pinned: { "band-shift": 28.667, ow: 39, rw: 17 },
             width: 667,
         },
-        { above: true, height: 390, holdsOffers: true, pinned: { ow: 39, rw: 17 }, width: 667 },
-        { above: true, height: 354, holdsOffers: false, pinned: { ow: 36, rw: 15 }, width: 724 },
-        { above: true, height: 360, holdsOffers: false, pinned: { ow: 36, rw: 16 }, width: 800 },
-        { above: true, height: 369, holdsOffers: true, pinned: { ow: 37, rw: 16 }, width: 750 },
-        { above: true, height: 480, holdsOffers: true, pinned: { ow: 46, rw: 24 }, width: 850 },
+        { height: 390, holdsOffers: true, pinned: { ow: 39, rw: 17 }, width: 667 },
+        { height: 354, holdsOffers: false, pinned: { ow: 36, rw: 17 }, width: 724 },
+        { height: 360, holdsOffers: false, pinned: { ow: 36, rw: 17 }, width: 800 },
+        { height: 369, holdsOffers: false, pinned: { ow: 36, rw: 18 }, width: 750 },
+        { height: 393, holdsOffers: true, pinned: { ow: 40, rw: 19 }, width: 808 },
+        { height: 480, holdsOffers: true, pinned: { ow: 46, rw: 24 }, width: 850 },
         {
-            above: true,
             height: 430,
             holdsOffers: true,
             pinned: { "band-shift": 34, ow: 45, rw: 21 },
             width: 932,
         },
         {
-            above: true,
             height: 500,
             holdsOffers: true,
             pinned: { "control-h": 43.333, ow: 37, rw: 26 },
             width: 1024,
         },
     ])(
-        "sizes a $width x $height window's phone board's tiles jointly: a full hand clear of the side strips, the offers' stack in its corner ($holdsOffers), a full left river over the switches ending above them ($above), else past the moves' place over the own badge",
-        ({ above, height, holdsOffers, pinned, width }) => {
+        "sizes a $width x $height window's phone board's tiles jointly: a full hand clear of the side strips, the offers' stack in its corner ($holdsOffers), a full left river above the switches' row, the moves' row short of the bottom river and the furiten mark short of the left river",
+        ({ height, holdsOffers, pinned, width }) => {
             const { lengths, tracks } = windowGeometry({ height, width });
             function length(name: string): number {
                 return lengths[name] ?? Number.NaN;
@@ -385,24 +383,29 @@ describe("boardGeometry", () => {
             }
             expect(length("w")).toBe(length("c"));
             expect({
+                furitenShortOfLeftRiver: length("furiten-x") + 88 <= length("reach-left") + 0.001,
                 handClearOfStrips:
                     (width - FULL_HAND * length("ow")) / 2 >=
                     length("m") + length("strip-depth") + 6,
+                leftRiverAboveSwitches:
+                    leftRiverEnd + 4 <= length("switches-bottom") - length("control-h") + 0.001,
+                movesShortOfBottomRiver:
+                    length("switches-left") + 5 * length("control-h") + 4 * 4 + 8 <=
+                    length("cx") - length("hx") + 0.001,
                 offersInCorner:
                     (slotAreas(tracks)["actions"]?.[3] ?? 0) -
                         (slotAreas(tracks)["actions"]?.[1] ?? 0) >=
                     44 + 2 * 40 + length("control-h") + 3 * 6,
-            }).toEqual({ handClearOfStrips: true, offersInCorner: holdsOffers });
+            }).toEqual({
+                furitenShortOfLeftRiver: true,
+                handClearOfStrips: true,
+                leftRiverAboveSwitches: true,
+                movesShortOfBottomRiver: true,
+                offersInCorner: holdsOffers,
+            });
             expect(
                 length("reach-top-row3") - length("rh") - length("latest-drop-gap"),
             ).toBeGreaterThanOrEqual(length("core-top") - 0.001);
-            expect(leftRiverEnd <= length("switches-bottom") - length("control-h")).toBe(above);
-            expect(
-                above ||
-                    (length("reach-left") >=
-                        length("switches-left") + 5 * length("control-h") + 4 * 4 - 0.001 &&
-                        leftRiverEnd <= length("hand-top") - length("own-rise") + 0.001),
-            ).toBe(true);
         },
     );
 
@@ -609,13 +612,13 @@ describe("boardGeometry's shell tracks", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
             actions: [499, 126, 663, 309.9],
             corner: [0, 4, 583, 375],
-            field: [82, 126, 166, 223.9],
+            field: [82, 126, 166, 239.9],
             "field-beside": [554.3, 265.9, 634.3, 313.9],
             hand: [48.8, 317.9, 663, 369.9],
             "strip-left": [4, 44, 76, 261.9],
             "strip-right": [591, 4, 663, 297.3],
             "strip-top": [4, 4, 490.3, 38],
-            switches: [44, 0, 667, 271.9],
+            switches: [44, 0, 667, 313.9],
         });
     });
 
