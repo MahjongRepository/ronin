@@ -477,24 +477,21 @@ describe("boardGeometry's strips", () => {
 });
 
 describe("boardGeometry's shell tracks", () => {
-    it.each([
-        { family: "short-desktop", height: 770, wide: true, width: 1440 },
-        { family: "phone", height: 430, wide: false, width: 932 },
-    ])(
-        "sizes a $width x $height $family board's side badges to their lanes off a phone, past a 200px card, but a phone's to its 130px card at most (wide: $wide)",
-        ({ family, height, wide, width }) => {
-            const geometry = windowGeometry({ height, width });
-            const widths = ["left-badge-w", "right-badge-w"].map(
-                (name) => geometry.lengths[name] ?? Number.NaN,
-            );
+    it("sizes a 1440x770 short desktop board's side badges to their lanes, past a 200px card", () => {
+        const { family, lengths } = windowGeometry({ height: 770, width: 1440 });
 
-            expect(geometry.family).toBe(family);
-            expect(widths.map((badge) => (wide ? badge > 300 : badge <= 130))).toEqual([
-                true,
-                true,
-            ]);
-        },
-    );
+        expect(family).toBe("short-desktop");
+        expect(lengths["left-badge-w"]).toBeGreaterThan(300);
+        expect(lengths["right-badge-w"]).toBeGreaterThan(300);
+    });
+
+    it("keeps a 932x430 phone board's side badges to their 130px card at most", () => {
+        const { family, lengths } = windowGeometry({ height: 430, width: 932 });
+
+        expect(family).toBe("phone");
+        expect(lengths["left-badge-w"]).toBeLessThanOrEqual(130);
+        expect(lengths["right-badge-w"]).toBeLessThanOrEqual(130);
+    });
 
     it.each([
         { height: 548, width: 375 },

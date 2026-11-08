@@ -85,8 +85,6 @@ $plate-seats: bottom, right, top, left;
     max-width: var(--top-lane);
 }
 
-/* The side badges, a card wide where the lane allows, clear of the top river and its neighbours; the left one stands
-   under the counters, which follow it 6px above. */
 .nameplate--left,
 .nameplate--right {
     top: var(--side-badge-top);
