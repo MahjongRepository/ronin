@@ -99,6 +99,9 @@ they disagree.
 - A round result fits its panel whole at every supported size; only on a board too small for it does it scroll its
   yaku, value, indicators and score rows in place, keeping its head and the viewer's controls whole, every other part
   that shares a row with a scroller scrolling too.
+- A panel sized by its content reserves its scrollbar's gutter (`scrollbar-gutter: stable`): the overlay's auto
+  track takes the panel's height before a classic scrollbar narrows it, so without the gutter the scrollbar wraps a row
+  (the game end's actions) the track never grew for. The round result, its width set, keeps no gutter.
 - Pages never clip the board: `.board-page` gives it the safe area, and a 10px gutter on every board but a phone's.
   The own row stands at least its edge's depth off the bottom. Top and bottom rivers reserve nineteen discards;
   longer third rows still render but may clip at the board edge or extend under peripheral elements.

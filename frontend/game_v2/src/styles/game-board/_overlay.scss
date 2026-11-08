@@ -65,6 +65,7 @@ $overlay-chrome: 3rem;
     max-width: min(var(--panel-room), 900px);
     max-height: calc(100cqh - var(--panel-top) - var(--panel-bottom));
     overflow-y: auto;
+    scrollbar-gutter: stable;
 
     @container (width >= 640px) and (height >= 480px) {
         padding: 1.25rem 1.5rem;
@@ -78,6 +79,7 @@ $overlay-chrome: 3rem;
     display: flex;
     flex-direction: column;
     width: min(var(--panel-room), #{$overlay-hand-units} * var(--board-unit) + #{$overlay-chrome});
+    scrollbar-gutter: auto;
 }
 
 .board-overlay__panel > .round-end-result {
