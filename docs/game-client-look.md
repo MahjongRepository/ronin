@@ -121,9 +121,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   100px wide and the height left, at least 88px. Each seat's wind and
   score on the side facing it, turned to that seat and close to its edge, and in the middle the
   round name large (East 1, South 4, a West round when the game runs on) over one line of the wall
-  count, the honba and the riichi sticks on the table (two lines on a phone's centre under 104px wide:
-  100px with a browser's bars shown, 102px at the 667x375 floor, whose counts need 48px of the 41px
-  between the side rows). Each side reads wind then score, all four at
+  count, the honba and the riichi sticks on the table (two lines on a phone's centre under 114px wide:
+  100px with a browser's bars shown, 102px at the 667x375 floor, 108px on the phones just wider, whose
+  counts need 48px of the 41 to 45px between the side rows). Each side reads wind then score, all four at
   the same emphasis, tabular digits: the wind a quiet letter, the dealer's (East) on a muted red chip,
   as Mahjong Soul and Riichi City mark it in red; the score in hundreds with its last two digits
   smaller and quieter (`250` `00`), as Tenhou draws it. Every layout keeps the panel's width at least

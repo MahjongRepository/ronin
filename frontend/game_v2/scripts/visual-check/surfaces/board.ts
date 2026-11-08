@@ -1017,8 +1017,8 @@ function checkCenterScale(board: BoardMeasure, viewport: Viewport, report: PageR
 /** How tall a single line of the counts stands at most, in its own font size. */
 const ONE_LINE_EMS = 1.6;
 
-/** A centre narrower than this (px) may wrap its counts: a browser's bars shown (100), the 667x375 floor (102). */
-const ONE_LINE_LEAST_CENTRE_WIDTH = 104;
+/** A centre narrower than this (px, the next six river tiles past 108) may wrap its counts: they need about 48px. */
+const ONE_LINE_LEAST_CENTRE_WIDTH = 114;
 
 /**
  * A landscape phone's centre holds its round and counts inside its box, and the counts stay on one line unless the

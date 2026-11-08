@@ -1,6 +1,12 @@
 @use "@/styles/type";
 @use "@/styles/game-board/queries" as *;
 
+@property --shorter-side {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 0;
+}
+
 .board-center {
     --shorter-side: min(var(--c), var(--w));
     --score-size: max(11px, calc(var(--shorter-side) * 0.12));
