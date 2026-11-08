@@ -5,8 +5,6 @@ $plate-seats: bottom, right, top, left;
 /* A seat's badge: one shape for every opponent (name, its marks on a line under it; the own one's beside it), a fixed
    place that never depends on the tiles the seat holds, and a tap area at the control floor whatever the pill's size. */
 .nameplate {
-    --cue-w: 3px;
-
     position: absolute;
     z-index: layer(badges);
     display: flex;
@@ -16,7 +14,7 @@ $plate-seats: bottom, right, top, left;
     min-height: var(--badge-h);
     margin: 0;
     padding: 0;
-    font-size: 17px;
+    font-size: var(--text);
     font-weight: 600;
     line-height: 1.2;
     text-align: left;
@@ -24,16 +22,6 @@ $plate-seats: bottom, right, top, left;
     background: none;
     border: 0;
     cursor: pointer;
-
-    @include small-chrome {
-        font-size: 12px;
-    }
-
-    @include large-chrome {
-        --cue-w: 4px;
-
-        font-size: 24px;
-    }
 
     &:focus-visible {
         outline: 3px solid var(--ronin-accent);

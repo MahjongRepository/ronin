@@ -15,22 +15,11 @@
     gap: 0.6em;
     width: var(--counters-w);
     height: var(--counters-h);
-    padding: 0 14px 0 8px;
-    font-size: 19px;
+    padding: 0 var(--dora-pad-end) 0 var(--dora-pad-start);
+    font-size: var(--dora-text);
     background: var(--ronin-chip);
     border: 1px solid var(--ronin-badge-rim);
-    border-radius: 10px;
-
-    @include small-chrome {
-        padding: 0 6px 0 4px;
-        border-radius: 8px;
-    }
-
-    @include large-chrome {
-        padding: 0 18px 0 10px;
-        font-size: 26px;
-        border-radius: 14px;
-    }
+    border-radius: var(--dora-radius);
 }
 
 .board-dora__tiles {

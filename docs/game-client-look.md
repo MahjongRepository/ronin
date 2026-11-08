@@ -621,7 +621,11 @@ high and at least 1100 px wide (a laptop's browser window) is a short desktop; t
 the chrome tiers (small under 1100 px wide or 520 px high, large from 2000x1200) are read from the
 padded box. An upright board stays upright. Deliberately, a board 520 to 539 px tall without its
 gutter can be a phone (always so when the safe area has no top or bottom inset, since the gutter
-adds only what exceeds the safe inset), and a phone always has the small chrome.
+adds only what exceeds the safe inset), and a phone always has the small chrome. Off the small tier the
+chrome's px scale continuously from the regular record to the large one with t = clamp(min((W − 1100)/900,
+(H − 760)/440), 0, 1) of the padded box: a short desktop stays at the regular record (t = 0), and t
+saturates at 1 from 2000x1200, so a larger board keeps the large record. The step from the small
+chrome to the regular one stays, and a phone scales its chrome from the small record on its own.
 On a phone both tiles are solved together from the box: the river tile the largest that fits, then the
 own hand tile the largest that fits with it, at most as wide as lets a full hand's row stand clear of
 both side strips' stacked depth and at least 4/3 of the river tile, a larger river tile waiting for an

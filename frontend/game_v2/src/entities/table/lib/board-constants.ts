@@ -104,6 +104,20 @@ interface DesktopChrome {
     readonly winMinW: number;
     readonly actionMinW: number;
     readonly timerW: number;
+    /** The board's and its badges' text size. */
+    readonly text: number;
+    /** The turn cue's bar under a badge's pill. */
+    readonly cueW: number;
+    /** The counters' padding at their end and start. */
+    readonly doraPadEnd: number;
+    readonly doraPadStart: number;
+    /** The counters' text size and corner radius. */
+    readonly doraText: number;
+    readonly doraRadius: number;
+    /** The play switches' letter size. */
+    readonly switchText: number;
+    /** A call's word's cap on the river tile height that sets its size. */
+    readonly calloutCap: number;
 }
 
 const REGULAR_CHROME: DesktopChrome = {
@@ -111,11 +125,17 @@ const REGULAR_CHROME: DesktopChrome = {
     badgeGap: 16,
     badgeH: 54,
     bandGap: 12,
+    calloutCap: 40,
     chipGap: 6,
     controlH: 48,
     coreGap: 24,
     countersFrame: 18,
     countersW: 172,
+    cueW: 3,
+    doraPadEnd: 14,
+    doraPadStart: 8,
+    doraRadius: 10,
+    doraText: 19,
     doraW: 28,
     m: 18,
     movesH: 52,
@@ -129,6 +149,8 @@ const REGULAR_CHROME: DesktopChrome = {
     sideLaneMin: 125,
     switchGap: 18,
     switchH: 44,
+    switchText: 22,
+    text: 17,
     timerW: 120,
     winMinW: 150,
 };
@@ -138,8 +160,14 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         ...REGULAR_CHROME,
         badgeGap: 20,
         badgeH: 72,
+        calloutCap: 56,
         countersFrame: 22,
         countersW: 223,
+        cueW: 4,
+        doraPadEnd: 18,
+        doraPadStart: 10,
+        doraRadius: 14,
+        doraText: 26,
         doraW: 37,
         movesH: 60,
         ownBadgeH: 52,
@@ -149,6 +177,8 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         sideCardW: 270,
         sideLaneMin: 170,
         switchH: 52,
+        switchText: 24,
+        text: 24,
         timerW: 150,
     },
     regular: REGULAR_CHROME,
@@ -157,8 +187,12 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         actionMinW: 64,
         badgeGap: 8,
         badgeH: 40,
+        calloutCap: 20,
         countersFrame: 10,
         countersW: 95,
+        doraPadEnd: 6,
+        doraPadStart: 4,
+        doraRadius: 8,
         doraW: 15,
         movesH: 40,
         ownInline: 96,
@@ -168,6 +202,8 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         sideCardW: 130,
         sideLaneMin: 90,
         switchGap: 4,
+        switchText: 17,
+        text: 12,
         timerW: 76,
         winMinW: 96,
     },

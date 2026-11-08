@@ -11,22 +11,12 @@
 }
 
 .game-board > :is(.board-layout, .board-overlay) {
-    --text: 17px;
-
     /* An opponent's hand is at the river tile's size. */
     --bw: var(--rw);
     --bh: var(--rh);
 
     /* What the stylesheets of the board's other parts count in: a river tile's sixtieth. */
     --board-table-unit: calc(var(--rw) / #{$tile-w});
-
-    @include small-chrome {
-        --text: 12px;
-    }
-
-    @include large-chrome {
-        --text: 24px;
-    }
 }
 
 /* Every size and place is `boardGeometry`'s, written as `--geo-<name>` on the board. */
@@ -84,6 +74,14 @@
     --side-lane-min: var(--geo-side-lane-min);
     --action-min-w: var(--geo-action-min-w);
     --win-min-w: var(--geo-win-min-w);
+    --text: var(--geo-text);
+    --cue-w: var(--geo-cue-w);
+    --dora-pad-end: var(--geo-dora-pad-end);
+    --dora-pad-start: var(--geo-dora-pad-start);
+    --dora-text: var(--geo-dora-text);
+    --dora-radius: var(--geo-dora-radius);
+    --switch-text: var(--geo-switch-text);
+    --callout-cap: var(--geo-callout-cap);
     --band-shift: var(--geo-band-shift);
     --foreground-top: var(--geo-foreground-top);
     --strip-reserve: var(--geo-strip-reserve);

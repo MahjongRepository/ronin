@@ -9,8 +9,6 @@ $overlay-hold-ms: 1000ms;
 /* A call's word on a borderless chip over its caller's river, upright, three river rows' worth of type at its spot
    (`--spot-along` river tiles along its rows, `--spot-across` rows from the centre, in the river's frame). */
 .board-callout {
-    --callout-cap: 40px;
-
     position: absolute;
     z-index: layer(callouts);
     padding: 0 0.15em;
@@ -25,14 +23,6 @@ $overlay-hold-ms: 1000ms;
     pointer-events: none;
     translate: -50% -50%;
     animation: callout-show var(--callout-ms) linear both;
-
-    @include small-chrome {
-        --callout-cap: 20px;
-    }
-
-    @include large-chrome {
-        --callout-cap: 56px;
-    }
 
     &--bottom {
         left: calc(var(--cx) - var(--hx) + var(--spot-along) * var(--rw));

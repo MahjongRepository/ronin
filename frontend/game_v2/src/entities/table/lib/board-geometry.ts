@@ -232,6 +232,62 @@ function classifyChrome({ width, height }: BoardBox): ChromeTier {
     return "regular";
 }
 
+/**
+ * How far a box's chrome stands from the regular record to the large one, within 0..1: the lesser of its width's share
+ * of the way from `SMALL_CHROME_WIDTH` to `LARGE_CHROME_WIDTH` and its height's from `SHORT_DESKTOP_HEIGHT` to
+ * `LARGE_CHROME_HEIGHT`.
+ */
+function chromeShare({ width, height }: BoardBox): number {
+    const across = (width - SMALL_CHROME_WIDTH) / (LARGE_CHROME_WIDTH - SMALL_CHROME_WIDTH);
+    const down = (height - SHORT_DESKTOP_HEIGHT) / (LARGE_CHROME_HEIGHT - SHORT_DESKTOP_HEIGHT);
+    return Math.min(1, Math.max(0, Math.min(across, down)));
+}
+
+/** A tier's chrome px: the small record, or past it each field from the regular record to the large one by `share`. */
+function tierChrome(chrome: ChromeTier, share: number): DesktopChrome {
+    if (chrome === "small") {
+        return DESKTOP_CHROME.small;
+    }
+    const { large, regular } = DESKTOP_CHROME;
+    function at(field: keyof DesktopChrome): number {
+        return regular[field] + (large[field] - regular[field]) * share;
+    }
+    return {
+        actionMinW: at("actionMinW"),
+        badgeGap: at("badgeGap"),
+        badgeH: at("badgeH"),
+        bandGap: at("bandGap"),
+        calloutCap: at("calloutCap"),
+        chipGap: at("chipGap"),
+        controlH: at("controlH"),
+        coreGap: at("coreGap"),
+        countersFrame: at("countersFrame"),
+        countersW: at("countersW"),
+        cueW: at("cueW"),
+        doraPadEnd: at("doraPadEnd"),
+        doraPadStart: at("doraPadStart"),
+        doraRadius: at("doraRadius"),
+        doraText: at("doraText"),
+        doraW: at("doraW"),
+        m: at("m"),
+        movesH: at("movesH"),
+        ownBadgeH: at("ownBadgeH"),
+        ownInline: at("ownInline"),
+        ownPillH: at("ownPillH"),
+        pillH: at("pillH"),
+        replayGap: at("replayGap"),
+        sep: at("sep"),
+        sideCardW: at("sideCardW"),
+        sideLaneMin: at("sideLaneMin"),
+        switchGap: at("switchGap"),
+        switchH: at("switchH"),
+        switchText: at("switchText"),
+        text: at("text"),
+        timerW: at("timerW"),
+        winMinW: at("winMinW"),
+    };
+}
+
 /** Off a phone, the own tile: `OWN_BY_RIVER_OFF_PHONE` river tiles within its family's fit, never under 4/3 of one. */
 function offPhoneOwn(rw: number, ownFit: number): number {
     return Math.max(
@@ -503,10 +559,14 @@ function desktopPanel(room: DesktopPanelRoom): BoardEdges {
     };
 }
 
-/** What a family's sizes are solved for: the board's settled box, its family and chrome, and its page's slots. */
+/**
+ * What a family's sizes are solved for: the board's settled box, its family, its chrome's tier and px (`tierChrome`'s,
+ * which a phone grows on its own path) and its page's slots.
+ */
 interface BoardFrame {
     readonly box: BoardBox;
     readonly chrome: ChromeTier;
+    readonly tier: DesktopChrome;
     readonly family: BoardFamily;
     readonly slots: BoardSlots;
 }
@@ -516,7 +576,7 @@ function desktopLengths(frame: BoardFrame): BoardLengths {
     const { box, chrome, family } = frame;
     const { width, height } = box;
     const short = family === "short-desktop";
-    const tier = { ...DESKTOP_CHROME[chrome], sep: DESKTOP_CHROME[chrome].badgeGap };
+    const tier = { ...frame.tier, sep: frame.tier.badgeGap };
     const { bandGap, m, ownBadgeH, switchGap } = tier;
     const ownFit = desktopOwnFit(box, tier);
     const coreCap = DESKTOP_CORE_CAP * height;
@@ -713,9 +773,9 @@ function uprightPanel(
  * above the decisions' two rows and the notices' place, its centre never under `UPRIGHT_CENTRE_MIN`.
  */
 function uprightLengths(frame: BoardFrame): BoardLengths {
-    const { box, chrome } = frame;
+    const { box } = frame;
     const { width, height } = box;
-    const tier = { ...DESKTOP_CHROME[chrome], ...UPRIGHT_CHROME };
+    const tier = { ...frame.tier, ...UPRIGHT_CHROME };
     const { controlH, m, ownBadgeH } = tier;
     const ownFit = uprightOwnFit(box, tier);
     const coreCap = DESKTOP_CORE_CAP * height;
@@ -753,9 +813,12 @@ function uprightLengths(frame: BoardFrame): BoardLengths {
     return lengths;
 }
 
-function uprightLayout({ box, chrome, slots }: BoardFrame, rw: number): BoardLengths {
+function uprightLayout(
+    { box, chrome, slots, tier: desktopTier }: BoardFrame,
+    rw: number,
+): BoardLengths {
     const { width, height } = box;
-    const tier = { ...DESKTOP_CHROME[chrome], ...UPRIGHT_CHROME };
+    const tier = { ...desktopTier, ...UPRIGHT_CHROME };
     const { bandGap, controlH, coreGap, m, ownBadgeH, ownInline, sep } = tier;
     const coreCap = DESKTOP_CORE_CAP * height;
     const coreRoomW = width - 2 * m - CORE_ROOM_SIDES;
@@ -889,15 +952,23 @@ function chromeLengths(tier: DesktopChrome): [string, number][] {
     return [
         ["action-min-w", tier.actionMinW],
         ["badge-h", tier.badgeH],
+        ["callout-cap", tier.calloutCap],
         ["chip-gap", tier.chipGap],
         ["counters-h", countersHeight(tier)],
         ["counters-w", tier.countersW],
+        ["cue-w", tier.cueW],
+        ["dora-pad-end", tier.doraPadEnd],
+        ["dora-pad-start", tier.doraPadStart],
+        ["dora-radius", tier.doraRadius],
+        ["dora-text", tier.doraText],
         ["dora-w", tier.doraW],
         ["moves-h", tier.movesH],
         ["own-pill-h", tier.ownPillH],
         ["pill-h", tier.pillH],
         ["side-lane-min", tier.sideLaneMin],
         ["switch-h", tier.switchH],
+        ["switch-text", tier.switchText],
+        ["text", tier.text],
         ["timer-w", tier.timerW],
         ["win-min-w", tier.winMinW],
     ];
@@ -1903,7 +1974,7 @@ function boardShell(frame: BoardFrame, lengths: BoardLengths): BoardShell {
             ? uprightShell({
                   at,
                   frame,
-                  tier: { ...DESKTOP_CHROME[frame.chrome], ...UPRIGHT_CHROME },
+                  tier: { ...frame.tier, ...UPRIGHT_CHROME },
               })
             : landscapeShell({
                   at,
@@ -1911,7 +1982,7 @@ function boardShell(frame: BoardFrame, lengths: BoardLengths): BoardShell {
                   tier:
                       frame.family === "phone"
                           ? phoneChrome(at("rw"))
-                          : DESKTOP_CHROME[frame.chrome],
+                          : frame.tier,
               });
     return { ...shell, lengths: [...shell.lengths, ...stripFacts(at("rw"))] };
 }
@@ -2024,7 +2095,13 @@ function boardGeometry(input: BoardInput): BoardGeometry {
         Number.isFinite(settled.height) &&
         settled.width > 0 &&
         settled.height > 0;
-    const frame = { box: settled, chrome, family, slots: input.slots };
+    const frame = {
+        box: settled,
+        chrome,
+        family,
+        slots: input.slots,
+        tier: tierChrome(chrome, chromeShare(candidate)),
+    };
     const sizes = sized ? familyLengths(frame) : {};
     const shell = sized ? boardShell(frame, sizes) : null;
     return Object.freeze({

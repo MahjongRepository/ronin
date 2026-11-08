@@ -12,15 +12,7 @@ $gap: 6px;
     display: flex;
     align-items: flex-end;
     gap: var(--chip-gap);
-    font-size: 22px;
-
-    @include small-chrome {
-        font-size: 17px;
-    }
-
-    @include large-chrome {
-        font-size: 24px;
-    }
+    font-size: var(--switch-text);
 
     @include phone-board {
         font-size: 16px;

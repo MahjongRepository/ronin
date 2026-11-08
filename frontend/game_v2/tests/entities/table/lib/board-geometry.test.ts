@@ -153,6 +153,20 @@ describe("boardGeometry", () => {
     );
 
     it.each([
+        [1440, 770, 54, 17],
+        [1727, 1000, 63, 20.5],
+        [2560, 1440, 72, 24],
+    ])(
+        "scales a %ix%i window's chrome from the regular record to the large one with its padded box",
+        (width, height, badgeH, text) => {
+            const { lengths } = windowGeometry({ height, width });
+
+            expect(lengths["badge-h"]).toBeCloseTo(badgeH, 6);
+            expect(lengths["text"]).toBeCloseTo(text, 6);
+        },
+    );
+
+    it.each([
         { height: 375, insets: NO_INSETS, width: 667 },
         { height: 539, insets: NO_INSETS, width: 1024 },
         { height: 539, insets: NO_INSETS, width: 1280 },
