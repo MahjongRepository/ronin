@@ -35,8 +35,6 @@ Ronin is a Riichi Mahjong game server and browser client.
 
 The `Makefile` lists the targets; the non-obvious ones:
 
-* `make install-frontend` — `npm ci` in each frontend app, then the Playwright browsers the v2
-  client's targeted visual check drives.
 * `make run-local-server` — game server (`:8711`), lobby (`:8710`) and a Vite dev server per
   frontend app (`:5173` lobby, `:5175` game client) together,
   with `.env.local` sourced when present. To see the app in a browser, drive it with the
@@ -45,12 +43,9 @@ The `Makefile` lists the targets; the non-obvious ones:
 * `make profile` — profile the game engine replay runner (the `optimize-engine` skill uses it).
 * `make run-games [GAMES=n] [TABLES=t] [MODE=m] [NET=bad]` — play bot games (the `mahjong-bot` repo at `BOT_ROOT`,
   default `~/work/mahjong-bot`) on fresh servers, `t` tables at a time, the bots in play mode `m` (their `--mode`,
-  only when set; `human` thinks 0-3 s per action and gets a 2-hour batch timeout; `chaos` misbehaves on purpose,
-  the bot's `ronin/chaos.py`, gets a 30-minute batch timeout, and its log gate passes only the game server lines
-  that causes). `NET=bad`, meant for `MODE=chaos`, puts production's Traefik routing and a faulty toxiproxy in
-  Docker between the bots and the servers (`bin/bad-network.sh`), passes the game server lines that causes, fails
-  on proxy errors or unexpected statuses, and keeps the proxies' logs and the fault timeline in `backend/logs/net`.
-  It stops at the first batch with a game that is not completed, whose replay does not reproduce it
+  only when set; `chaos` misbehaves on purpose, the bot's `ronin/chaos.py`, and its log gate passes only the game
+  server lines that causes). `NET=bad`, meant for `MODE=chaos`, puts a faulty proxy chain between the bots and the
+  servers (`bin/bad-network.sh`). It stops at the first batch with a game that is not completed, whose replay does not reproduce it
   (`bin/verify_games.py`), or after which any log (server stderr and bot console included) holds a warning or an
   abnormal event such as a timeout auto-action or a bot replaced by AI. It forces debug console logging, so these
   gates cannot be configured away. It plays against the dev database (`AUTH_DATABASE_PATH`), so its games show on
@@ -58,14 +53,13 @@ The `Makefile` lists the targets; the non-obvious ones:
   verifies only the game ids its bots logged. It **wipes** `backend/logs` and the bot's `project/logs` first and
   kills whatever holds `:8710`/`:8711`. Run it only when asked: tests and `make run-all-checks` are the
   verification.
-* `make profile-games` — the same run, fixed at 48 games on 12 tables at production's INFO logging,
+* `make profile-games` — the same run at production's INFO logging,
   with the game server sampling its own stacks (`bin/profile_game_server.py`) and reporting where real
   games spend its CPU; `make profile` measures engine changes. The sampler stays in-process: py-spy
   pauses the server per sample and stalls it past the health check.
 * `make measure-wall [MEASURE_ARGS=...]` — sample games from the engine's seed, dealer and wall functions and
   report their statistics against exact references and a stdlib-shuffle control (`backend/scripts/measure_wall/`).
-  A structural failure exits 1; a statistical warning is printed, never a gate. `--json` saves a run and
-  `--baseline` compares with one, the loop for changing a constant in `game/logic/rng.py` and remeasuring.
+  A structural failure exits 1; a statistical warning is printed, never a gate.
 * `make generate-replay-fixtures` — regenerate the v2 game client's replay test fixtures by playing
   the scenarios of `backend/scripts/replay_fixtures/` through the engine; `make replay-fixtures-check`
   (a `run-all-checks` gate) fails when a committed fixture no longer matches what the engine records.
