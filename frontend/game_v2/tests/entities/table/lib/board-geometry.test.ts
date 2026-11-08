@@ -92,6 +92,22 @@ describe("boardGeometry centre", () => {
     });
 });
 
+describe("boardGeometry chrome", () => {
+    it.each([
+        { badgeH: 54, height: 770, text: 17, width: 1440 },
+        { badgeH: 63, height: 1000, text: 20.5, width: 1727 },
+        { badgeH: 72, height: 1440, text: 24, width: 2560 },
+    ])(
+        "scales a $width x $height window's chrome from the regular record to the large one with its padded box",
+        ({ badgeH, height, text, width }) => {
+            const { lengths } = windowGeometry({ height, width });
+
+            expect(lengths["badge-h"]).toBeCloseTo(badgeH, 6);
+            expect(lengths["text"]).toBeCloseTo(text, 6);
+        },
+    );
+});
+
 describe("boardGeometry", () => {
     it.each([
         { chrome: "regular", family: "desktop", height: 900, width: 1440 },
@@ -149,20 +165,6 @@ describe("boardGeometry", () => {
                 }[family] ?? [Number.NaN, Number.NaN];
                 expect(aboveBand).toBeLessThanOrEqual(bandTop + 0.001);
             }
-        },
-    );
-
-    it.each([
-        [1440, 770, 54, 17],
-        [1727, 1000, 63, 20.5],
-        [2560, 1440, 72, 24],
-    ])(
-        "scales a %ix%i window's chrome from the regular record to the large one with its padded box",
-        (width, height, badgeH, text) => {
-            const { lengths } = windowGeometry({ height, width });
-
-            expect(lengths["badge-h"]).toBeCloseTo(badgeH, 6);
-            expect(lengths["text"]).toBeCloseTo(text, 6);
         },
     );
 

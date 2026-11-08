@@ -8,7 +8,8 @@ they disagree.
 - **Sizes come from `boardGeometry` (TS).** The sizes, the geometry family, the chrome tier and every reserved
   footprint come from it, through its directive on `.game-board`; the styles place from them. Its chrome lengths (text,
   badges, counters, switches, callout cap) reach CSS as px on every tier, bridged in `game-board/_grid.scss`; the only
-  per-tier literals left are the phone's switch font, the small pill's inline padding and the debug log's corner.
+  per-tier literals left are the phone's switch font, the small pill's inline padding, the debug log's corner, and the
+  small-chrome desktop's decision text (16px) and decision gap in `_decision-controls.scss`.
   Family and chrome branches read the emitted `data-board-family` / `data-board-chrome`, never a CSS query
   of the board's box (nor
   `@container style()`, which Safari 16.4 lacks); container queries remain only for content-responsive rules. The
