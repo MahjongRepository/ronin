@@ -121,8 +121,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   100px wide and the height left, at least 88px. Each seat's wind and
   score on the side facing it, turned to that seat and close to its edge, and in the middle the
   round name large (East 1, South 4, a West round when the game runs on) over one line of the wall
-  count, the honba and the riichi sticks on the table (two lines where a browser's bars leave a
-  phone's centre at its 100px width). Each side reads wind then score, all four at
+  count, the honba and the riichi sticks on the table (two lines on a phone's narrowest centres:
+  100px with a browser's bars shown, 102px at the 667x375 floor, whose counts need 48px of the 41px
+  between the side rows). Each side reads wind then score, all four at
   the same emphasis, tabular digits: the wind a quiet letter, the dealer's (East) on a muted red chip,
   as Mahjong Soul and Riichi City mark it in red; the score in hundreds with its last two digits
   smaller and quieter (`250` `00`), as Tenhou draws it. Every layout keeps the panel's width at least
@@ -646,8 +647,8 @@ both side strips' stacked depth and at least 4/3 of the river tile, a larger riv
 own tile that keeps that share, but never under 36x48, the floor winning where both cannot hold; a box
 too short for the face floor over that own tile (a phone browser's bars shown) solves again over the
 32x42 tap floor and takes that solve where it lifts the river tile. A phone's side strips reserve the
-full concealed hand and as many kans at the face floor as the box holds, four at most, a denser seat's
-melds lying on past the line. The
+full concealed hand and as much of a line of four kans at the face floor as the box holds, a denser
+seat's melds lying on past the line. The
 own tile is also the largest whose decisions' place, from under the right badge down to the band's
 bottom, holds a win over two rows of paired calls and the band's row (182px at the small chrome), else
 the least at that river tile: this bound caps the own tile only, never the river tile. It is not the
@@ -677,7 +678,7 @@ least 88px, its text's room; its width six river tiles and at least 100px, as fa
 allow: the notices' place 7.5 of its ems wide beside the left
 strip's deepest reach, the decisions' column two controls wide beside the right one's, and the left
 badge an ordinary name's lane beside the top river's reserved seven-tile third row. The top badge's
-reserved box ends 4px above the right river's capacity, which rises as the height shrinks; where that
+reserved box ends 4px above the right river's six-tile row, which rises as the height shrinks; where that
 would not hold the tiles shrink, the badge's place never moves. The core's side is
 the centre plus eight river tiles, two gaps of 0.3 of a river tile and the top and bottom rivers'
 latest-discard gaps, so no river's latest discard stands past it, on a phone across each axis's

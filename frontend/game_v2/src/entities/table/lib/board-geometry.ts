@@ -415,15 +415,12 @@ function sideStripReach(rw: number): number {
 }
 
 /**
- * A phone's side strip reserves its full concealed hand and as many open kans at the face floor as `room` holds (a
- * browser's bars leave a box too short for four): the melds of a rarer denser seat lie on past the line
+ * A phone's side strip reserves its full concealed hand and as much of a four-kan line at the face floor as `room` holds
+ * (a browser's bars leave a box too short for all of it): the melds of a rarer denser seat lie on past the line
  * (`stripLayout`'s overflow), never shrinking the river tile for them.
  */
 function phoneSideReach(rw: number, room: number): number {
-    return Math.max(
-        fullReach(rw, "left"),
-        ...RESERVED_KANS.map((count) => kansReach(rw, count)).filter((reach) => reach <= room),
-    );
+    return Math.max(fullReach(rw, "left"), Math.min(sideStripReach(rw), room));
 }
 
 /** A short desktop's centre width that keeps its bottom river clear of the switches' place starting at `left`. */
@@ -511,10 +508,8 @@ function riverLengths(
 }
 
 /** Where the left river's reach ends, toward the board's left edge. */
-function leftReach(cx: number, centreWidthidth: number, rw: number): number {
-    return (
-        cx - centreWidthidth / 2 - riverGap(rw) - (SIDE_REACH_TILES / 2) * rw - LATEST_DISCARD_GAP
-    );
+function leftReach(cx: number, centreWidth: number, rw: number): number {
+    return cx - centreWidth / 2 - riverGap(rw) - (SIDE_REACH_TILES / 2) * rw - LATEST_DISCARD_GAP;
 }
 
 /** The page's cog's side, from the river tile within its floor and cap. */
@@ -1142,7 +1137,7 @@ function phoneLayout(
     });
     const right = phoneRightHand(rightRoom);
     const topBadgeBottom = m + rh + TILE_EDGE_SHARE * rw + TOP_BADGE_GAP + chrome.badgeH;
-    const rightRiverTop = cy + heightRoom / 2 - 5 * rw - rh - LATEST_DISCARD_GAP;
+    const rightRiverTop = cy + heightRoom / 2 - ROW_BEFORE_SIDEWAYS * rw - rh - LATEST_DISCARD_GAP;
     const fits =
         heightRoom >= PHONE_CENTRE_MIN_HEIGHT &&
         centreWidth <= 2 * halfRoom &&

@@ -6,7 +6,9 @@ import {
     FACE_FLOOR,
     FULL_HAND,
     LATEST_DISCARD_GAP,
+    SIDEWAYS_UNITS,
     TILE_EDGE_SHARE,
+    UPRIGHT_DEPTH,
     UPRIGHT_NOTICE_GAP,
     UPRIGHT_NOTICE_ROOM,
 } from "@/entities/table/lib/board-constants";
@@ -19,6 +21,7 @@ import {
     boardGeometry,
     shellTracks,
 } from "@/entities/table/lib/board-geometry";
+import { stripLayout } from "@/entities/table/lib/strip-layout";
 import { RIVER_ROW_SIZE } from "@/entities/tile";
 
 /** The sizes pinned, in the order each case lists them. */
@@ -591,6 +594,30 @@ describe("boardGeometry's strips", () => {
 
             expect(strips?.right.line).toBeCloseTo(origin - end, 1);
             expect(strips?.right.deepLine).toBe(strips?.right.line);
+        },
+    );
+
+    it.each([
+        { height: 275, width: 808 },
+        { height: 251, width: 750 },
+        { height: 236, width: 667 },
+    ])(
+        "keeps a right seat's three pons on a $width x $height phone board with its browser's bars shown",
+        (box) => {
+            const { strips, tracks } = windowGeometry(box);
+            const origin = slotAreas(tracks)["strip-right"]?.[3] ?? Number.NaN;
+            const pon = { depth: UPRIGHT_DEPTH, units: 2 + SIDEWAYS_UNITS };
+            const content = { drawn: true, hand: 5, melds: [pon, pon, pon] };
+            if (strips === null) {
+                throw new Error("The board has no strip rooms");
+            }
+
+            const oldest = stripLayout("right", content, strips).melds.at(-1);
+
+            expect(oldest).toBeDefined();
+            expect(
+                origin - (oldest?.along ?? Number.NaN) - pon.units * (oldest?.tile ?? Number.NaN),
+            ).toBeGreaterThanOrEqual(0);
         },
     );
 

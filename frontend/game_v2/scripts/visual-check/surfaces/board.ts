@@ -1017,9 +1017,12 @@ function checkCenterScale(board: BoardMeasure, viewport: Viewport, report: PageR
 /** How tall a single line of the counts stands at most, in its own font size. */
 const ONE_LINE_EMS = 1.6;
 
+/** A centre narrower than this (px) may wrap its counts: a browser's bars shown (100), the 667x375 floor (102). */
+const ONE_LINE_LEAST_CENTRE_WIDTH = 104;
+
 /**
- * A landscape phone's centre holds its round and counts inside its box, and the counts stay on one line where the board
- * is not a browser's bars-shown box (a 100px-wide centre there may wrap them).
+ * A landscape phone's centre holds its round and counts inside its box, and the counts stay on one line unless the
+ * centre is among the narrowest, which may wrap them.
  */
 function checkCenterContent(board: BoardMeasure, viewport: Viewport, report: PageReport): void {
     const { center, centerTexts, fonts } = board;
@@ -1036,7 +1039,11 @@ function checkCenterContent(board: BoardMeasure, viewport: Viewport, report: Pag
         );
     }
     const countsPx = fonts.find(({ name }) => name === "board-center__counts")?.px;
-    if (viewport.barsShown !== undefined || counts === undefined || countsPx === undefined) {
+    if (
+        center.width < ONE_LINE_LEAST_CENTRE_WIDTH ||
+        counts === undefined ||
+        countsPx === undefined
+    ) {
         return;
     }
     report.expect(

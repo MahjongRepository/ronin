@@ -50,8 +50,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
 - **A phone's composition is its own.** `boardGeometry` solves a phone's river and own tiles together from the box
   (the spec's sizing rule), and its band's controls, chrome and right hand's place there too, never with a length
   switch.
-- The centre is square off a phone; on a phone `--c`/`--h` are its height and `--w`/`--hx` its width. Its text follows
-  `--c`. The geometry fits the centre and the rivers together, at the spec's minimums (Proportions).
+- The centre is square off a phone; on a phone `--c`/`--h` are its height and `--w`/`--hx` its width. Its score rows and
+  their inset follow the shorter of the two; the round and counts follow `--c` within the room `--w` leaves. The geometry fits the centre and the rivers together, at the spec's minimums (Proportions).
 - Lengths CSS computes are registered with `@property` (`<length>`), so each computes once to pixels; an
   unregistered chain grows with every reference until a browser drops the declaration. A bridged length is px already.
 - **Layout measurements**: the board's geometry directive and the notices' clamp. Motion snapshots only measure
