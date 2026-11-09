@@ -160,7 +160,7 @@ Rules that could theoretically be adjusted through game settings. Current Ronin 
 - Open Tanyao (Kuitan): Allowed
 - Ippatsu: Enabled
 - Atozuke (gaining yaku upon winning tile claim): Allowed
-- Renhou (Blessing of Man): 5-han (mangan level); non-dealer Ron before first draw, no calls by any player
+- Renhou (Blessing of Man): Disabled, as in Tenhou. A ron before the first draw scores only the yaku the hand holds.
 
 ### Call Rules
 

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from game.logic.enums import AbortiveDrawType, KanType
-from game.logic.settings import NUM_PLAYERS, GameSettings
+from game.logic.settings import NUM_PLAYERS, GameSettings, RenhouValue
 from game.logic.tiles import NUM_TILES, is_terminal_or_honor, tile_to_34
 from game.replay import load_replay_from_file, run_replay
 from game.replay.runner import ReplayOptions
@@ -310,7 +310,7 @@ def double_ron_head_bump() -> Recording:
     """
     return _pin_3_multi_ron(
         "double-ron-head-bump",
-        GameSettings(has_triple_ron_abort=False),
+        GameSettings(has_triple_ron_abort=False, renhou_value=RenhouValue.MANGAN),
         callers=(1, 2, 3),
         outcome=Outcome(
             {
@@ -329,7 +329,7 @@ def head_bump() -> Recording:
     """
     return _pin_3_multi_ron(
         "head-bump",
-        GameSettings(has_double_ron=False),
+        GameSettings(has_double_ron=False, renhou_value=RenhouValue.MANGAN),
         callers=(1, 2),
         outcome=Outcome(
             {WireKey.RESULT_TYPE: WireRoundResultType.RON, WireKey.WINNER_SEAT: 1, WireKey.HEAD_BUMPED_SEATS: [2]}

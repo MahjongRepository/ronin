@@ -25,7 +25,7 @@ class RenhouValue(StrEnum):
     """
 
     NONE = "none"
-    MANGAN = "mangan"  # 5-han (current default, supported by mahjong library)
+    MANGAN = "mangan"
     BAIMAN = "baiman"  # 8-han (requires custom implementation, NOT YET SUPPORTED)
     YAKUMAN = "yakuman"  # yakuman (supported via library's renhou_as_yakuman flag)
 
@@ -83,7 +83,7 @@ class GameSettings(BaseModel):
     has_kazoe_yakuman: bool = True
     has_kiriage_mangan: bool = False
     has_nagashi_mangan: bool = True
-    renhou_value: RenhouValue = RenhouValue.MANGAN
+    renhou_value: RenhouValue = RenhouValue.NONE
     fu_for_open_pinfu: bool = True
     fu_for_pinfu_tsumo: bool = False
     has_daisharin: bool = False

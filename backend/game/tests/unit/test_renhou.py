@@ -2,7 +2,7 @@ from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import ScoringContext, calculate_hand_value
-from game.logic.settings import GameSettings
+from game.logic.settings import GameSettings, RenhouValue
 from game.logic.state import Discard
 from game.logic.state_utils import update_player
 from game.logic.win import is_renhou
@@ -102,7 +102,7 @@ class TestRenhouScoring:
         player = round_state.players[1]
         win_tile = tiles[-1]
 
-        settings = GameSettings()
+        settings = GameSettings(renhou_value=RenhouValue.MANGAN)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None
@@ -117,7 +117,7 @@ class TestRenhouScoring:
         player = round_state.players[1]
         win_tile = tiles[-1]
 
-        settings = GameSettings()
+        settings = GameSettings(renhou_value=RenhouValue.MANGAN)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
         result = calculate_hand_value(ctx, win_tile)
         assert result.error is None

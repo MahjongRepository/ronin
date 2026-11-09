@@ -57,8 +57,6 @@ KOKUSHI_WAITING_ON_MAN_1_HANDS = (
 TURNS_TO_ADDED_KAN = [
     (DEALER, GameAction.DISCARD, {"tile_id": PIN_3_DISCARD}),
     (PON_CALLER, GameAction.CALL_PON, {"tile_id": PIN_3_DISCARD}),
-    (PENCHAN_SEAT, GameAction.PASS, {}),
-    (KANCHAN_SEAT, GameAction.PASS, {}),
     (PON_CALLER, GameAction.DISCARD, {"tile_id": PON_CALLER_DISCARD}),
     *(
         (seat, GameAction.DISCARD, {"tile_id": tile})

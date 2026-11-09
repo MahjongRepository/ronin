@@ -162,14 +162,14 @@ class TestRenhouToggle:
             dora_indicators=TilesConverter.string_to_136_array(man="9"),
         )
 
-    def test_renhou_value__when_none__should_not_award_yaku(self):
+    def test_renhou_value__when_standard_rules__should_not_award_yaku(self):
         tiles = TilesConverter.string_to_136_array(man="234", pin="234", sou="234678", honors="11")
         round_state = self._make_renhou_round_state()
         round_state = update_player(round_state, 1, tiles=tuple(tiles))
 
         player = round_state.players[1]
         win_tile = tiles[-1]
-        settings = GameSettings(renhou_value=RenhouValue.NONE)
+        settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
 
         result = calculate_hand_value(ctx, win_tile)
