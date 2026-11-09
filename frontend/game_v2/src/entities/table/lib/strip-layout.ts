@@ -1,6 +1,7 @@
 import {
     FACE_FLOOR,
     MELD_GAP_EXTRA,
+    MELD_GAP_TIGHT,
     OPPONENT_DRAWN_GAP,
     OWN_DRAWN_GAP,
     SIDE_DRAWN_GAP,
@@ -192,11 +193,18 @@ function getTileCandidates(rw: number): readonly number[] {
     );
 }
 
+/** The narrower gaps to try, widest first, once the face floor does not fit the line at the room's gap (px). */
+function getTighterGaps(gap: number): readonly number[] {
+    return Array.from({ length: Math.max(0, Math.ceil(gap - MELD_GAP_TIGHT)) }, (_value, step) =>
+        Math.max(MELD_GAP_TIGHT, gap - step - 1),
+    );
+}
+
 /**
- * Where even the face floor does not fit the line (a phone box too short to reserve four kans), the melds lie at the
- * floor from the hand on, moved along past every obstacle a deeper one would meet (the badge, the switches, the own
- * row), past the line if need be: the accepted overflow of a rare dense seat on a short phone, never a smaller river
- * tile for it and never a meld over a control.
+ * Where even the face floor at the tightest gap does not fit the line (a phone box too short to reserve four kans), the
+ * melds lie at the floor from the hand on at that gap, moved along past every obstacle a deeper one would meet (the
+ * badge, the switches, the own row), past the line if need be: the accepted overflow of a rare dense seat on a short
+ * phone, never a smaller river tile for it and never a meld over a control.
  */
 function overflowSideMelds(
     shapes: readonly MeldShape[],
@@ -253,11 +261,16 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
             return layout;
         }
     }
+    const floor = { handEnd, rw, tile: FACE_FLOOR };
+    for (const gap of getTighterGaps(rooms.gap)) {
+        const layout = fitSideMelds(content.melds, rooms[seat], { ...floor, gap });
+        if (layout) {
+            return layout;
+        }
+    }
     return overflowSideMelds(content.melds, rooms[seat], {
-        gap: rooms.gap,
-        handEnd,
-        rw,
-        tile: FACE_FLOOR,
+        ...floor,
+        gap: Math.min(rooms.gap, MELD_GAP_TIGHT),
     });
 }
 

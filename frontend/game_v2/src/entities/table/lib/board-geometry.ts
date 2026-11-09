@@ -1506,6 +1506,18 @@ function riverClear(rw: number): number {
     return Math.max(RIVER_CLEAR_MIN, rw / 2);
 }
 
+/** Where the top badge's lane wants to end: a phone's stays clear of the cog, keeping at least a side card's width. */
+function topLaneEnd({ at, frame, tier }: ShellRoom, pastRiver: number): number {
+    const wanted = pastRiver + tier.topLaneMin;
+    if (frame.family !== "phone") {
+        return wanted;
+    }
+    const rw = at("rw");
+    const cogClear =
+        frame.box.width - at("m") - sideLaneReserve(rw) - menuSize(rw) - 2 * STRIP_ROOM_GAP;
+    return Math.min(wanted, Math.max(pastRiver + tier.sideCardW, cogClear));
+}
+
 /**
  * The top hand's full reach stands centred, moved right as far as its badge's lane under its
  * start needs, short of the board's edge; the lane runs from past the top river to there, the line from the margin.
@@ -1518,11 +1530,11 @@ function landscapeTop(room: ShellRoom): Pick<StripPlaces, "topAnchor" | "topLane
     const start = m;
     const badgeRight = frame.box.width - m - tier.badgeGap;
     const pastRiver = at("cx") + at("hx") + clear;
-    const centred = Math.max(at("cx") + reach / 2, pastRiver + tier.topLaneMin);
+    const centred = Math.max(at("cx") + reach / 2, topLaneEnd(room, pastRiver));
     const anchor = Math.max(start + reach, Math.min(centred, badgeRight));
     return {
         topAnchor: anchor,
-        topLane: Math.min(tier.sideCardW, anchor - pastRiver),
+        topLane: Math.min(Math.max(tier.sideCardW, tier.topLaneMin), anchor - pastRiver),
         topStart: start,
     };
 }

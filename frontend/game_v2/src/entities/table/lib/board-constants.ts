@@ -25,6 +25,9 @@ const TILE_EDGE_SHARE = 0.13;
 /** No meld face goes under this width (px). */
 const FACE_FLOOR = 13;
 
+/** The least gap between a seat's melds, where their line does not hold them at the face floor otherwise (px). */
+const MELD_GAP_TIGHT = 2;
+
 /** A tile's width in hairlines, an opponent's drawn tile's gap in river tiles, and a side lane's clearance (px). */
 const TILE_UNITS = 60;
 const OPPONENT_DRAWN_GAP = 0.15;
@@ -96,7 +99,7 @@ interface DesktopChrome {
     readonly countersFrame: number;
     readonly replayGap: number;
     readonly sideLaneMin: number;
-    /** The top badge's least lane: a bot's whole name (`ai-tsumogiri-3`) at the tier's text, off small. */
+    /** The top badge's least lane: a bot's whole name (`ai-tsumogiri-3`) at the tier's text, off small; a phone's one-line pill also holds its AI mark and riichi stick. */
     readonly topLaneMin: number;
     readonly badgeH: number;
     readonly pillH: number;
@@ -272,7 +275,7 @@ const PHONE_CHROME: DesktopChrome = {
     sep: 6,
     switchH: 40,
     timerW: 60,
-    topLaneMin: DESKTOP_CHROME.small.sideCardW,
+    topLaneMin: 155,
 };
 
 /** A phone's chrome grows with its river tile past this one (px). */
@@ -293,6 +296,7 @@ export {
     LATEST_DISCARD_GAP,
     LEFT_REACH_TILES,
     MELD_GAP_EXTRA,
+    MELD_GAP_TIGHT,
     MENU_MAX,
     MENU_MIN,
     MENU_RIVER_SHARE,

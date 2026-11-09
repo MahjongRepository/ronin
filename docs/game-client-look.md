@@ -636,7 +636,7 @@ the replay's row (under about 620 px wide, below the supported floor) solves ove
 alone, so it keeps its river tile and a replay's moves may overlap the bottom river's start there. A
 phone's side strips reserve the
 full concealed hand and as much of a line of four kans at the face floor as the box holds, a denser
-seat's melds lying on past the line; the right strip's line always holds three pons at the face floor beside the
+seat's melds closing their gaps down to 2px to stay on it, then lying on past the line; the right strip's line always holds three pons at the face floor beside the
 hand they leave, whatever that costs the river tile. The
 own tile is also the largest whose decisions' place, from under the right badge down to the band's
 bottom, holds a win over two rows of paired calls and the band's row (182px at the small chrome), else
@@ -666,7 +666,7 @@ allow: the notices' place 7.5 of its ems wide beside the left
 strip's deepest reach, the decisions' column two controls wide beside the right one's, and the left
 badge an ordinary name's lane beside the top river's reserved seven-tile third row. The top badge's
 one-line pill ends 4px above the right river's six-tile row, which rises as the height shrinks; where that
-would not hold the tiles shrink, the badge's place never moves. The core's side is
+would not hold the tiles shrink, the badge's place never moves; its lane holds a bot's whole name beside the AI mark and riichi stick. The core's side is
 the centre plus eight river tiles, two gaps of 0.3 of a river tile and the top and bottom rivers'
 latest-discard gaps, so no river's latest discard stands past it, on a phone across each axis's
 own side of the panel. Off a phone the centre is square. On a short desktop its bottom river, from the centre's left corner, stays 8px clear of the

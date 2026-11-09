@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
     FACE_FLOOR,
+    MELD_GAP_TIGHT,
     SIDEWAYS_UNITS,
     STACKED_DEPTH,
     UPRIGHT_DEPTH,
@@ -51,7 +52,7 @@ describe("stripLayout", () => {
         expect(rooms.rw).toBeLessThan(FACE_FLOOR);
         expect(melds.map((meld) => meld.tile)).toEqual([FACE_FLOOR, FACE_FLOOR]);
         expect(melds[0]?.along).toBeGreaterThanOrEqual(
-            handLength({ drawn: true, rw: rooms.rw, seat: "left", tiles: 8 }) + rooms.gap,
+            handLength({ drawn: true, rw: rooms.rw, seat: "left", tiles: 8 }) + MELD_GAP_TIGHT,
         );
         for (const [index, meld] of melds.entries()) {
             const [depth, end] = [
@@ -65,6 +66,20 @@ describe("stripLayout", () => {
                 ).toBe(false);
             }
         }
+    });
+
+    it("closes the gaps of a right seat's four melds so a phone browser's short box keeps them on its line", () => {
+        const strips = windowStrips({ height: 275, width: 808 });
+        const content: StripContent = { drawn: true, hand: 2, melds: [CHI, CHI, CHI, CHI] };
+
+        const [first, second, , oldest] = stripLayout("right", content, strips).melds;
+
+        const unit = CHI.units * FACE_FLOOR;
+        const gap = (second?.along ?? Number.NaN) - (first?.along ?? Number.NaN) - unit;
+        expect(first?.tile).toBe(FACE_FLOOR);
+        expect(gap).toBeLessThan(strips.gap);
+        expect(gap).toBeGreaterThanOrEqual(MELD_GAP_TIGHT);
+        expect((oldest?.along ?? Number.NaN) + unit).toBeLessThanOrEqual(strips.right.line + 0.001);
     });
 
     it.each(["left", "right"] as const)(

@@ -250,6 +250,18 @@ describe("boardGeometry in a phone's browser", () => {
             expect(lengths["c"]).toBeGreaterThanOrEqual(68);
         },
     );
+
+    it.each([
+        { height: 275, insets: { bottom: 0, left: 44, right: 44, top: 0 }, width: 896 },
+        { height: 331, insets: NO_INSETS, width: 891 },
+    ])(
+        "keeps a bot's whole name, its AI mark and riichi stick on a $width x $height box's top badge",
+        ({ height, insets, width }) => {
+            const { lengths } = windowGeometry({ height, width }, 0, insets);
+
+            expect(lengths["top-lane"]).toBeGreaterThanOrEqual(154);
+        },
+    );
 });
 
 describe("boardGeometry", () => {
@@ -692,7 +704,7 @@ describe("boardGeometry's shell tracks", () => {
             hand: [48.8, 317.9, 663, 369.9],
             "strip-left": [4, 44, 76, 261.9],
             "strip-right": [591, 4, 663, 297.3],
-            "strip-top": [4, 4, 524.5, 38],
+            "strip-top": [4, 4, 535, 38],
             switches: [44, 0, 667, 313.9],
         });
     });

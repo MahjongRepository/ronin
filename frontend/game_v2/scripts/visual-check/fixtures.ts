@@ -10,6 +10,7 @@ import { GAME_ID, LIVE_CHECKPOINTS, type Viewport } from "./model.ts";
 export const APP_ROOT = resolve(import.meta.dirname, "../..");
 const DIST = join(APP_ROOT, "dist-dev");
 const ASSET_PREFIX = "/game-assets/v2/";
+const MANIFEST_PATH = "/static/manifest.webmanifest";
 const REPLAY_FIXTURE = join(APP_ROOT, "src/fixtures/replays/four_kans.msgpack");
 const TRANSCRIPT_FIXTURE = join(APP_ROOT, "src/fixtures/seat-scenarios/call_prompt_seat_1.json");
 
@@ -74,6 +75,10 @@ function assetPath(pathname: string): string | null {
 
 async function respond(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const { pathname } = new URL(request.url ?? "/", "http://visual-check");
+    if (pathname === MANIFEST_PATH) {
+        response.writeHead(200, { "Content-Type": "application/manifest+json" }).end("{}");
+        return;
+    }
     let file: string | null = null;
     if (pathname.startsWith(ASSET_PREFIX)) {
         file = assetPath(pathname);
