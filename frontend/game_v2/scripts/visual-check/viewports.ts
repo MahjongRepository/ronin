@@ -151,7 +151,7 @@ const FULLSCREEN_11_BOARD: Size = { height: 414, width: 808 };
  */
 const BROWSER_PHONE_VIEWPORTS: readonly Viewport[] = [
     {
-        barsShown: { riverFloor: { height: 14, width: 11 } },
+        barsShown: { riverFloor: { height: 17, width: 13 } },
         captureModel: {
             board: { height: SAFARI_11_SAFE_AREA.height, width: SAFARI_11_SAFE_AREA.width },
             safeArea: SAFARI_11_SAFE_AREA,

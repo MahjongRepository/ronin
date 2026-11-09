@@ -252,8 +252,11 @@ const OWN_BY_RIVER_OFF_PHONE = 1.6;
  * depth; its centre never under this height, nor under this width (px).
  */
 const PHONE_OWN_FLOOR = 36;
-const PHONE_CENTRE_MIN_HEIGHT = 88;
+const PHONE_CENTRE_MIN_HEIGHT = 68;
 const PHONE_CENTRE_MIN_WIDTH = 100;
+
+/** A phone's top badge's one-line pill: its name and marks on one line, so a short centre's right river can rise (px). */
+const PHONE_TOP_PILL_H = 24;
 
 /**
  * A phone box too short for the face floor at the own tile's floor (a browser's bars shown) takes the own tile down to
@@ -276,6 +279,7 @@ const PHONE_CHROME: DesktopChrome = {
     sep: 6,
     switchH: 40,
     timerW: 60,
+    topLaneMin: DESKTOP_CHROME.small.sideCardW,
 };
 
 /** A phone's chrome grows with its river tile past this one (px). */
@@ -326,6 +330,7 @@ export {
     PHONE_HEIGHT,
     PHONE_OWN_FLOOR,
     PHONE_OWN_TAP_FLOOR,
+    PHONE_TOP_PILL_H,
     RIVER_GAP_SHARE,
     ROWS_BEFORE_RUN_ON,
     RUN_ON_REACH_TILES,

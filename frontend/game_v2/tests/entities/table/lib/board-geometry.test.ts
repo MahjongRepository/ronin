@@ -106,13 +106,13 @@ describe("boardGeometry centre", () => {
         { height: 390, width: 844 },
         { height: 430, width: 932 },
     ])(
-        "keeps a $width x $height phone's centre six river tiles and 100px wide, and 88px tall, at least",
+        "keeps a $width x $height phone's centre six river tiles and 100px wide, and 68px tall, at least",
         (box) => {
             const { lengths } = windowGeometry(box);
             expect(lengths["w"]).toBeGreaterThanOrEqual(
                 Math.max(RIVER_ROW_SIZE * (lengths["rw"] ?? Number.NaN), 100),
             );
-            expect(lengths["c"]).toBeGreaterThanOrEqual(88);
+            expect(lengths["c"]).toBeGreaterThanOrEqual(68);
         },
     );
 });
@@ -185,7 +185,7 @@ describe("boardGeometry in a phone's browser", () => {
             board: { height: 414, width: 808 },
             height: 414,
             insets: { bottom: 21, left: 44, right: 44, top: 0 },
-            ow: 42,
+            ow: 44,
             rw: 23,
             width: 896,
         },
@@ -213,8 +213,16 @@ describe("boardGeometry in a phone's browser", () => {
             height: 275,
             insets: { bottom: 0, left: 44, right: 44, top: 0 },
             ow: 32,
-            rw: 11,
+            rw: 13,
             width: 896,
+        },
+        {
+            browser: "a Galaxy A25 in Android Chrome",
+            height: 331,
+            insets: NO_INSETS,
+            ow: 36,
+            rw: 18,
+            width: 891,
         },
         {
             browser: "an iPhone SE in iOS 26 Safari",
@@ -228,8 +236,8 @@ describe("boardGeometry in a phone's browser", () => {
             browser: "an iPhone 13 in iOS 26 Safari",
             height: 251,
             insets: { bottom: 0, left: 47, right: 47, top: 0 },
-            ow: 36,
-            rw: 8,
+            ow: 32,
+            rw: 9,
             width: 844,
         },
     ])(
@@ -242,7 +250,7 @@ describe("boardGeometry in a phone's browser", () => {
             expect(lengths["side-reach"]).toBeLessThanOrEqual(
                 (lengths["hand-top"] ?? 0) - 4 - (lengths["m"] ?? 0),
             );
-            expect(lengths["c"]).toBeGreaterThanOrEqual(88);
+            expect(lengths["c"]).toBeGreaterThanOrEqual(68);
         },
     );
 });
@@ -411,11 +419,11 @@ describe("boardGeometry", () => {
             width: 667,
         },
         { height: 390, holdsOffers: true, pinned: { ow: 39, rw: 17 }, width: 667 },
-        { height: 354, holdsOffers: false, pinned: { ow: 36, rw: 18 }, width: 724 },
-        { height: 360, holdsOffers: false, pinned: { ow: 36, rw: 18 }, width: 800 },
+        { height: 354, holdsOffers: false, pinned: { ow: 36, rw: 19 }, width: 724 },
+        { height: 360, holdsOffers: false, pinned: { ow: 36, rw: 19 }, width: 800 },
         { height: 390, holdsOffers: true, pinned: { ow: 44, rw: 20 }, width: 750 },
-        { height: 379, holdsOffers: true, pinned: { ow: 38, rw: 20 }, width: 761 },
-        { height: 414, holdsOffers: true, pinned: { ow: 42, rw: 23 }, width: 808 },
+        { height: 379, holdsOffers: true, pinned: { ow: 37, rw: 21 }, width: 761 },
+        { height: 414, holdsOffers: true, pinned: { ow: 44, rw: 23 }, width: 808 },
         { height: 480, holdsOffers: true, pinned: { ow: 50, rw: 24 }, width: 850 },
         {
             height: 430,
@@ -430,7 +438,7 @@ describe("boardGeometry", () => {
             width: 1024,
         },
     ])(
-        "sizes a $width x $height window's phone board's tiles jointly: a full hand clear of the side strips, the offers' stack in its corner ($holdsOffers), a full left river above the switches' row, the moves' row short of the bottom river, the furiten mark short of the left river and the top badge above the right river (at 761x379 its guard costs a river tile: 21 would leave the badge on the river)",
+        "sizes a $width x $height window's phone board's tiles jointly: a full hand clear of the side strips, the offers' stack in its corner ($holdsOffers), a full left river above the switches' row or past its end, the moves' row short of the bottom river, the furiten mark short of the left river and the top badge's one-line pill above the right river",
         ({ height, holdsOffers, pinned, width }) => {
             const { lengths, tracks } = windowGeometry({ height, width });
             function length(name: string): number {
@@ -449,14 +457,16 @@ describe("boardGeometry", () => {
             expect(length("w")).toBeGreaterThanOrEqual(
                 Math.max(RIVER_ROW_SIZE * length("rw"), 100),
             );
-            expect(length("c")).toBeGreaterThanOrEqual(88);
+            expect(length("c")).toBeGreaterThanOrEqual(68);
             expect({
                 furitenShortOfLeftRiver: length("furiten-x") + 88 <= length("reach-left") + 0.001,
                 handClearOfStrips:
                     (width - FULL_HAND * length("ow")) / 2 >=
                     length("m") + length("strip-depth") + 6,
-                leftRiverAboveSwitches:
-                    leftRiverEnd + 4 <= length("switches-bottom") - length("control-h") + 0.001,
+                leftRiverClearOfSwitches:
+                    leftRiverEnd + 4 <= length("switches-bottom") - length("control-h") + 0.001 ||
+                    length("switches-left") + 5 * length("control-h") + 4 * 4 + 8 <=
+                        length("reach-left") + 0.001,
                 movesShortOfBottomRiver:
                     length("switches-left") + 5 * length("control-h") + 4 * 4 + 8 <=
                     length("cx") - length("hx") + 0.001,
@@ -465,7 +475,7 @@ describe("boardGeometry", () => {
                         (slotAreas(tracks)["actions"]?.[1] ?? 0) >=
                     44 + 2 * 40 + length("control-h") + 3 * 6,
                 topBadgeAboveRightRiver:
-                    length("top-badge-top") + length("badge-h") + 4 <=
+                    length("top-badge-top") + length("top-pill-h") + 4 <=
                     length("cy") +
                         length("h") -
                         5 * length("rw") -
@@ -475,7 +485,7 @@ describe("boardGeometry", () => {
             }).toEqual({
                 furitenShortOfLeftRiver: true,
                 handClearOfStrips: true,
-                leftRiverAboveSwitches: true,
+                leftRiverClearOfSwitches: true,
                 movesShortOfBottomRiver: true,
                 offersInCorner: holdsOffers,
                 topBadgeAboveRightRiver: true,
@@ -769,7 +779,7 @@ describe("boardGeometry's shell tracks", () => {
             hand: [48.8, 317.9, 663, 369.9],
             "strip-left": [4, 44, 76, 261.9],
             "strip-right": [591, 4, 663, 297.3],
-            "strip-top": [4, 4, 484.5, 38],
+            "strip-top": [4, 4, 524.5, 38],
             switches: [44, 0, 667, 313.9],
         });
     });

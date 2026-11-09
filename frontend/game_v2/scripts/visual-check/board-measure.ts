@@ -141,7 +141,17 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                 box: box(plate),
                 group: plate.className.split(" ")[1] ?? "nameplate",
             }));
-        grouped.push(...nameplates);
+        const onePillTopBadge =
+            board.getAttribute("data-board-family") === "phone"
+                ? board.querySelector(".nameplate--top .nameplate__pill")
+                : null;
+        grouped.push(
+            ...nameplates.map((plate) =>
+                plate.group === "nameplate--top" && onePillTopBadge !== null
+                    ? { ...plate, box: box(onePillTopBadge) }
+                    : plate,
+            ),
+        );
         const furitenMark = board.querySelector(".board-furiten");
         if (furitenMark !== null) {
             grouped.push({ box: box(furitenMark), group: "furiten" });

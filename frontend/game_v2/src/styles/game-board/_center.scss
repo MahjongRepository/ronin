@@ -7,14 +7,26 @@
     initial-value: 0;
 }
 
+@property --squeeze {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 0;
+}
+
 .board-center {
     --shorter-side: min(var(--c), var(--w));
+    --squeeze: clamp(0px, 88px - var(--c), 20px);
     --score-size: max(11px, calc(var(--shorter-side) * 0.12));
-    --row-h: calc(var(--score-size) * 1.25);
-    --edge-gap: max(4px, calc(var(--shorter-side) * 0.035));
-    --stick-h: max(4px, calc(var(--shorter-side) * 0.035));
-    --stick-gap: max(2px, calc(var(--shorter-side) * 0.012));
+    --row-h: calc(var(--score-size) * 1.25 - var(--squeeze) * 0.0825);
+    --edge-gap: calc(max(4px, var(--shorter-side) * 0.035) - var(--squeeze) * 0.05);
+    --stick-h: calc(max(4px, var(--shorter-side) * 0.035) - var(--squeeze) * 0.05);
+    --stick-gap: calc(max(2px, var(--shorter-side) * 0.012) - var(--squeeze) * 0.05);
     --row-depth: calc(var(--edge-gap) + var(--row-h) + 2 * var(--stick-gap) + var(--stick-h));
+    --stick-dot: calc(max(3px, var(--c) * 0.018) - var(--squeeze) * 0.05);
+    --info-block: calc(var(--shorter-side) * 0.03 - var(--squeeze) * 0.05);
+    --info-inline: calc(var(--shorter-side) * 0.02);
+    --info-gap: calc(var(--c) * 0.04 - var(--squeeze) * 0.035);
+    --round-floor: calc(14px - var(--squeeze) * 0.05);
     --corner: calc(var(--c) * 0.07);
 
     position: absolute;
@@ -83,7 +95,7 @@
         position: absolute;
         left: 50%;
         top: 50%;
-        width: max(3px, calc(var(--c) * 0.018));
+        width: var(--stick-dot);
         aspect-ratio: 1;
         border-radius: 50%;
         background: var(--ronin-stick-dot);
@@ -109,6 +121,13 @@
     line-height: var(--row-h);
     color: var(--ronin-text);
     white-space: nowrap;
+}
+
+.board-center__seat--left .board-center__score-line,
+.board-center__seat--right .board-center__score-line {
+    @include phone-board {
+        left: clamp(var(--edge-gap), calc(var(--c) - 5em - var(--edge-gap)), var(--row-depth));
+    }
 }
 
 /* A replay's other seats' scores view from their seats at a pointer's press; their plates are the keyboard's. */
@@ -150,13 +169,12 @@
 
 .board-center__info {
     position: absolute;
-    inset: calc(var(--row-depth) + var(--shorter-side) * 0.03)
-        calc(var(--row-depth) + var(--shorter-side) * 0.02);
+    inset: calc(var(--row-depth) + var(--info-block)) calc(var(--row-depth) + var(--info-inline));
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: calc(var(--c) * 0.04);
+    gap: var(--info-gap);
     min-width: 0;
     line-height: 1.1;
     white-space: nowrap;
@@ -165,7 +183,7 @@
 /* The round as large as the room between the side rows holds its longest name (South 4). */
 .board-center__round {
     font-size: max(
-        14px,
+        var(--round-floor),
         min(calc(var(--c) * 0.2), calc((var(--w) - 2 * var(--row-depth) - var(--c) * 0.08) / 3.9))
     );
     font-weight: 700;

@@ -31,6 +31,7 @@ import {
     PHONE_HEIGHT,
     PHONE_OWN_FLOOR,
     PHONE_OWN_TAP_FLOOR,
+    PHONE_TOP_PILL_H,
     RIVER_GAP_SHARE,
     ROWS_BEFORE_RUN_ON,
     RUN_ON_REACH_TILES,
@@ -414,13 +415,24 @@ function fullReach(rw: number, seat: StripSeat): number {
 /** The most open kans a side strip reserves a line for, at the meld face floor. */
 const RESERVED_KANS = [1, 2, 3, 4] as const;
 
-/** A side hand with this many open kans at the meld face floor beside its remaining tiles, along its line (px). */
-function kansReach(rw: number, count: number): number {
+/** The open melds a phone's right strip always holds on its line: a seat's ordinary three pons. */
+const ORDINARY_PONS = 3;
+
+/** A side hand with this many open melds at the face floor beside its remaining tiles, along its line (px). */
+function meldsReach(rw: number, count: number, upright: number): number {
     const gap = riverGap(rw) + MELD_GAP_EXTRA;
     return (
         handLength({ drawn: true, rw, seat: "left", tiles: HAND_TILES - 3 * count }) +
-        count * (gap + (3 + SIDEWAYS_UNITS) * FACE_FLOOR)
+        count * (gap + (upright + SIDEWAYS_UNITS) * FACE_FLOOR)
     );
+}
+
+function kansReach(rw: number, count: number): number {
+    return meldsReach(rw, count, 3);
+}
+
+function ponsReach(rw: number): number {
+    return meldsReach(rw, ORDINARY_PONS, 2);
 }
 
 /** A side strip reserves one line even for four open kans at the meld face floor. */
@@ -1151,17 +1163,20 @@ function phoneLayout(
         reach,
     });
     const right = phoneRightHand(rightRoom);
-    const topBadgeBottom = m + rh + TILE_EDGE_SHARE * rw + TOP_BADGE_GAP + chrome.badgeH;
+    const topBadgeBottom = m + rh + TILE_EDGE_SHARE * rw + TOP_BADGE_GAP + PHONE_TOP_PILL_H;
     const rightRiverTop = cy + heightRoom / 2 - ROW_BEFORE_SIDEWAYS * rw - rh - LATEST_DISCARD_GAP;
+    const rowShortOfLeftRiver =
+        rowRight + SWITCHES_RIVER_GAP <= leftReach(width / 2, centreWidth, rw);
     const fits =
         heightRoom >= PHONE_CENTRE_MIN_HEIGHT &&
         centreWidth <= 2 * halfRoom &&
         topBadgeBottom + BADGE_RIVER_CLEARANCE <= rightRiverTop &&
-        leftRiverEnd + SWITCHES_CLEARANCE <= switchesTop &&
+        (leftRiverEnd + SWITCHES_CLEARANCE <= switchesTop || rowShortOfLeftRiver) &&
         rowRight + SWITCHES_RIVER_GAP <= width / 2 - centreWidth / 2 &&
         rowLeft + FURITEN_RESERVE <= leftReach(width / 2, centreWidth, rw) &&
         belowTopStrip(m, rw) + rightRoom.reach <= height - m &&
-        right.origin <= rightRoom.ownRowTop;
+        right.origin <= rightRoom.ownRowTop &&
+        ponsReach(rw) <= right.origin;
     const bandShift = right.bandCrossed ? rh + STEP_IN_GAP : 0;
     const panel = phonePanel(slots, height, {
         bandShift,
@@ -1202,6 +1217,7 @@ function phoneLayout(
         ["rw", rw],
         ["side-reach", reach],
         ["switches-bottom", switchesBottom],
+        ["top-pill-h", PHONE_TOP_PILL_H],
         ["w", centreWidth],
     ]);
     const { rightBadgeTop } = landscapeBadges(
@@ -1445,7 +1461,7 @@ function landscapeBadges(room: ShellRoom, rowBottom: number): LandscapeBadges {
     );
     const rightBadgeTop =
         family === "phone"
-            ? Math.max(sideBadgeTop, topBadgeTop + pillH + TOP_BADGE_GAP)
+            ? Math.max(sideBadgeTop, topBadgeTop + PHONE_TOP_PILL_H + TOP_BADGE_GAP)
             : sideBadgeTop;
     const sideLane = Math.max(laneAtStart, Math.min(laneBelow, narrow ? Infinity : 0));
     return {
@@ -1701,7 +1717,7 @@ function landscapeBadgeWidths(
             coreRight -
             Math.max(SIDE_CLEAR, rw) -
             (besideRiver ? at("reach-right") - coreRight : 0),
-        rightX - topAnchor - tier.badgeGap,
+        frame.family === "phone" ? Infinity : rightX - topAnchor - tier.badgeGap,
     );
     return [
         ["left-badge-w", Math.max(0, Math.min(sideLane, left))],

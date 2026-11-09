@@ -996,7 +996,7 @@ function checkBadgePlaces(results: readonly TaskResult[]): string[] {
 }
 
 /** A landscape phone's centre at its least, whatever its river tile asks (`board-constants.ts`'s, not importable here). */
-const PHONE_CENTRE_LEAST: Size = { height: 88, width: 100 };
+const PHONE_CENTRE_LEAST: Size = { height: 68, width: 100 };
 
 function isLandscapePhone(viewport: Viewport): boolean {
     return !viewport.desktop && !viewport.portrait;

@@ -73,7 +73,7 @@ $plate-seats: bottom, right, top, left;
    mark appearing never moves the name or anything around the badge. */
 .nameplate:not(.nameplate--bottom) .nameplate__pill:not(:has(.nameplate__marks)) {
     grid-template-rows: 1.2em;
-    height: calc(var(--pill-h) - 1.15em);
+    height: var(--unmarked-pill-h, calc(var(--pill-h) - 1.15em));
 }
 
 /* The top badge mirrors the own one through the centre: under its hand's start, toward the table, right of the top
@@ -83,6 +83,17 @@ $plate-seats: bottom, right, top, left;
     top: var(--top-badge-top);
     justify-content: flex-end;
     max-width: var(--top-lane);
+
+    .nameplate__pill {
+        @include phone-board {
+            --pill-h: var(--top-pill-h);
+            --unmarked-pill-h: var(--top-pill-h);
+
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+    }
 }
 
 .nameplate--left,
@@ -223,6 +234,12 @@ $plate-seats: bottom, right, top, left;
 
     .board-center__diff-label--#{$seat} {
         display: block;
+    }
+
+    .board-center__counts {
+        @include phone-board {
+            display: none;
+        }
     }
 }
 

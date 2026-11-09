@@ -10,6 +10,12 @@
     background: var(--ronin-table-fill);
 }
 
+.game-board > .board-layout {
+    @include phone-board {
+        overflow-y: clip;
+    }
+}
+
 .game-board > :is(.board-layout, .board-overlay) {
     /* An opponent's hand is at the river tile's size. */
     --bw: var(--rw);
@@ -63,6 +69,7 @@
     --badge-h: var(--geo-badge-h);
     --pill-h: var(--geo-pill-h);
     --own-pill-h: var(--geo-own-pill-h);
+    --top-pill-h: var(--geo-top-pill-h);
     --counters-w: var(--geo-counters-w);
     --counters-h: var(--geo-counters-h);
     --counters-top: var(--geo-counters-top);
