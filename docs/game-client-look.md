@@ -746,7 +746,7 @@ Support tiers. Decision: the primary sizes are desktops at least 1100px wide, ph
 landscape; look trade-offs are decided for them. A narrower desktop window
 (below about 1100px wide: 800x600, a laptop's split-screen half, a small browser window) is
 best-effort: the geometry keeps it free of overlaps and every control reachable, but it gets no
-tuning of its own; there, past the deepest left strip, the notices' place may fall under its 7.5
+tuning of its own; a bot's name may shorten in its badge there; there, past the deepest left strip, the notices' place may fall under its 7.5
 ems, and on a near-4:3 one (800 to 830x705, 1060 to 1090x880) the own row starts inside the left
 strip's stacked depth, so a stacked left meld ends above the switches and the left melds still move
 up when the first one arrives.

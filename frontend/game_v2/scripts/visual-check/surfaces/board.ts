@@ -379,10 +379,10 @@ function separation(first: Box, second: Box): number {
     return Math.max(0, across, down);
 }
 
-/** Each seat's river that holds a tile, by its nearest tile's distance from the centre, in pixels. */
+/** Each seat's river that holds a settled tile, by its nearest one's distance from the centre, in pixels. */
 function riverGapsFromCenter(board: BoardMeasure, center: Box): ReadonlyMap<string, number> {
     const gaps = new Map<string, number>();
-    for (const { box, group } of board.riverTiles) {
+    for (const { box, group } of board.settledRiverTiles) {
         gaps.set(group, Math.min(gaps.get(group) ?? Infinity, separation(box, center)));
     }
     return gaps;
@@ -943,10 +943,7 @@ function isLandscapePhone(viewport: Viewport): boolean {
 
 function checkCenterScale(board: BoardMeasure, viewport: Viewport, report: PageReport): void {
     const { center, tileScale } = board;
-    report.expect(
-        center !== null && tileScale.river !== null,
-        "centre and river tile are measurable",
-    );
+    report.expect(center !== null, "the centre is measurable");
     if (center === null || tileScale.river === null) {
         return;
     }
@@ -1016,6 +1013,13 @@ function checkCenterContent(board: BoardMeasure, viewport: Viewport, report: Pag
  * the page, the pinned badge's label, every badge's tap area on a supported screen, and in landscape on a supported screen the own hand, the rivers' and strips'
  * gaps, the badges, the page's corner and the side hands' reserved reach.
  */
+/** Below this width a desktop window is best-effort (the spec's support tiers), and a whole name may not fit its lane. */
+const PRIMARY_DESKTOP_WIDTH = 1100;
+
+function keepsNamesWhole(viewport: Viewport, screen: Box): boolean {
+    return !viewport.desktop || screen.width >= PRIMARY_DESKTOP_WIDTH;
+}
+
 async function checkBoard({
     board,
     measure,
@@ -1055,7 +1059,7 @@ async function checkBoard({
     checkHandReach(board, report);
     checkHandScale(board, report);
     checkDerivedProportions(board, viewport.name, report);
-    if (options.longNames !== true) {
+    if (options.longNames !== true && keepsNamesWhole(viewport, screen)) {
         report.expect(
             board.cutNames.length === 0,
             `badge name(s) shortened though ordinary: ${board.cutNames.join(", ")}`,

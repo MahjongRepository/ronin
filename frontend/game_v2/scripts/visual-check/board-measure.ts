@@ -68,6 +68,8 @@ export interface BoardMeasure {
     readonly badges: readonly GroupedBox[];
     /** The rivers' tiles by seat, and every opponent strip's tiles (hand and melds) by seat. */
     readonly riverTiles: readonly GroupedBox[];
+    /** The rivers' tiles by seat, less the latest discard, which lies apart from its slot toward its seat. */
+    readonly settledRiverTiles: readonly GroupedBox[];
     readonly stripTiles: readonly GroupedBox[];
     /** The whole names of the badges that shorten theirs, their head cut by its ellipsis. */
     readonly cutNames: readonly string[];
@@ -332,6 +334,11 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                           scroll: { height: overlay.scrollHeight, width: overlay.scrollWidth },
                       },
             riverTiles: bySeat(board, ".board-river .tile", ".board-river"),
+            settledRiverTiles: bySeat(
+                board,
+                ".board-river :not(.discard-tile--last) > .tile",
+                ".board-river",
+            ),
             stripTiles: bySeat(board, ".board-strip .tile", ".board-strip"),
             switches,
             tileScale,

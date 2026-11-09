@@ -121,13 +121,13 @@ describe("boardGeometry chrome", () => {
         { badgeH: 63, height: 1000, text: 20.5, width: 1727 },
         { badgeH: 72, height: 1440, text: 24, width: 2560 },
     ])(
-        "scales a $width x $height window's chrome from the regular record to the large one with its padded box, the top badge's lane an ordinary name wide",
+        "scales a $width x $height window's chrome from the regular record to the large one with its padded box, the top badge's lane a bot's name wide",
         ({ badgeH, height, text, width }) => {
             const { lengths } = windowGeometry({ height, width }, 10);
 
             expect(lengths["badge-h"]).toBeCloseTo(badgeH, 6);
             expect(lengths["text"]).toBeCloseTo(text, 6);
-            expect(lengths["top-lane"]).toBeGreaterThanOrEqual(8 * text - 0.001);
+            expect(lengths["top-lane"]).toBeGreaterThanOrEqual(9.4 * text - 0.001);
         },
     );
 });
