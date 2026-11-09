@@ -38,6 +38,7 @@ import RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/reconnect_seat_1.json";
 import RIICHI_KAN_SEAT_1 from "@/fixtures/seat-scenarios/riichi_kan_seat_1.json";
 import SEAT_LEFT_SEAT_1 from "@/fixtures/seat-scenarios/seat_left_seat_1.json";
 import SEAT_LEFT_SEAT_3 from "@/fixtures/seat-scenarios/seat_left_seat_3.json";
+import { browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, replayPageUrl } from "@/shared/config";
 import { type Locale, applyPageLocale } from "@/shared/i18n";
 import { WIRE_KEY } from "@/shared/protocol";
@@ -542,6 +543,7 @@ function storybookTemplate(
         <div class="board-page decisions-storybook">
             <div class="board-page__board">
                 ${PlayBoard({
+                    clock: browserClock,
                     display: playDisplay(state, ui),
                     links: {
                         history: getLobbyHistoryUrl(),

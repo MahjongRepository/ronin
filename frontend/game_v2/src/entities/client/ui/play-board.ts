@@ -31,6 +31,7 @@ import {
     TablePanelDisplay,
 } from "@/entities/table";
 import { Meld, Tile, spokenTileName } from "@/entities/tile";
+import { type Clock } from "@/shared/clock";
 import { type Locale, type MessageKey, formatList, t } from "@/shared/i18n";
 import { assertNever, focusKeys } from "@/shared/lib";
 import { focusOnFirstRender } from "@/shared/ui";
@@ -48,6 +49,7 @@ export interface GameEndLinks {
 
 export interface PlayBoardProps {
     readonly display: PlayDisplay;
+    readonly clock: Clock;
     readonly onCommand: (command: PlayCommand) => void;
     readonly onLanguage: (locale: Locale) => void;
     /** What the page adds to the corner before the settings (the debug log). */
@@ -504,7 +506,7 @@ function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"])
  * the board, the board under it is inert. Each new showing of calls is read out once.
  */
 export function PlayBoard(props: PlayBoardProps): TemplateResult {
-    const { display, menuExtra, onCommand, onLanguage } = props;
+    const { clock, display, menuExtra, onCommand, onLanguage } = props;
     const { overlay } = display;
     const inert = overlay?.blocksBoard ?? false;
     function onTile(tileId: number): void {
@@ -520,7 +522,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
         debug: false,
         furiten: display.furiten,
         inert,
-        input: playInput(display, onCommand),
+        input: playInput(display, onCommand, clock),
         localHand: { onTile, tileAction: display.tileAction },
         matchResult: display.matchResult,
         menu: GameMenu({

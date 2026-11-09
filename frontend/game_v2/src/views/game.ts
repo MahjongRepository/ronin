@@ -118,6 +118,7 @@ interface LogEntry {
 }
 
 interface GameViewProps {
+    readonly clock: Clock;
     readonly links: GameLinks;
     readonly log: readonly LogEntry[] | null;
     readonly state: LiveClient;
@@ -253,6 +254,7 @@ function gameTemplate(props: GameViewProps): TemplateResult {
     const { links, log, onCommand, onLanguage, panel, state, ui } = props;
     const display: PlayDisplay = playDisplay(state, ui);
     const board = PlayBoard({
+        clock: props.clock,
         display,
         links: { history: links.history, replay: links.replay(state.viewerSeat) },
         menuExtra: log === null ? undefined : logTemplate(log, panel, state),
@@ -562,6 +564,7 @@ class GameViewController {
         }
         const { changeLanguage, command, log, panel, state, ui } = this;
         const props = {
+            clock: this.deps.clock,
             links: this.deps.links,
             log,
             onCommand: command,

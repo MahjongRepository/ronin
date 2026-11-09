@@ -1,6 +1,7 @@
 import { nothing, render } from "lit-html";
 import { assert, describe, expect, it, onTestFinished } from "vitest";
 
+import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
 import {
     checkpointState,
     loadSeatScenario,
@@ -19,9 +20,17 @@ import {
     stepGameClient,
     stepPlayUi,
 } from "@/entities/client";
+import { RIGHT_CLICK_SETTLE_MS } from "@/entities/client/ui/play-input";
 import { HAND_TILE_FOCUS_KEY, PLAYABLE_TILE_FOCUS_KEY } from "@/entities/tile";
 import { keyedControls } from "@/shared/lib";
 import { type ClientMessage, buildDiscardAction, buildPassAction } from "@/shared/protocol";
+
+const manualClock = new ManualClock();
+const inputClock = steadyClockOn(manualClock);
+
+function passTime(ms: number): void {
+    manualClock.advanceTo(manualClock.elapsedNow() + ms);
+}
 
 class InputBoard {
     readonly host = document.createElement("div");
@@ -60,6 +69,7 @@ class InputBoard {
     private draw(): void {
         render(
             PlayBoard({
+                clock: inputClock,
                 display: playDisplay(this.state, this.ui),
                 onCommand: this.onCommand,
                 onLanguage: () => {},
@@ -127,9 +137,19 @@ function pointer(target: HTMLElement, type: string, init: PointerEventInit = {})
     );
 }
 
-function rightClick(target: HTMLElement): void {
+function rightPress(target: HTMLElement): void {
     pointer(target, "pointerdown");
     pointer(target, "pointerup");
+}
+
+function rightClick(target: HTMLElement): void {
+    passTime(RIGHT_CLICK_SETTLE_MS);
+    rightPress(target);
+}
+
+function rightPressBeforeSettled(target: HTMLElement): void {
+    passTime(RIGHT_CLICK_SETTLE_MS - 1);
+    rightPress(target);
 }
 
 function fingerTap(target: HTMLElement): void {
@@ -433,5 +453,24 @@ describe("live board gesture guards", () => {
         key(board, { key: "Escape" });
         rightClick(board);
         expect(messages(effects)).toEqual([]);
+    });
+});
+
+describe("live board right-click settling", () => {
+    it("keeps a double right-click from passing a call and discarding the draw that follows", () => {
+        const call = checkpointState("call_prompt_seat_1", "prompt");
+        const turn = checkpointState("own_turn_seat_1", "rinshan");
+        const { board, effects, show } = mountInput(call);
+        rightPress(board);
+        show(turn);
+        rightPressBeforeSettled(board);
+        rightPressBeforeSettled(board);
+        expect(messages(effects)).toEqual([buildPassAction(waitId(call))]);
+
+        rightClick(board);
+        expect(messages(effects)).toEqual([
+            buildPassAction(waitId(call)),
+            buildDiscardAction(120, waitId(turn)),
+        ]);
     });
 });

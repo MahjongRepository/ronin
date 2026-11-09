@@ -1,6 +1,7 @@
 import { render } from "lit-html";
 import { describe, expect, it } from "vitest";
 
+import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
 import { checkpointState } from "#tests/fixtures/seat-transcripts";
 import {
     type LiveClient,
@@ -14,9 +15,12 @@ import {
 } from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
 
+const PAGE_CLOCK = steadyClockOn(new ManualClock());
+
 function drawPlay(host: HTMLElement, state: LiveClient, ui: PlayUi = NO_PLAY_UI): void {
     render(
         PlayBoard({
+            clock: PAGE_CLOCK,
             display: playDisplay(state, ui),
             onCommand: () => {},
             onLanguage: () => {},
@@ -85,6 +89,7 @@ function mountLive(
     function draw(): void {
         render(
             PlayBoard({
+                clock: PAGE_CLOCK,
                 display: playDisplay(state, ui),
                 onCommand: (command) => {
                     commands.push(command);
@@ -135,6 +140,7 @@ function renderSwitchSlot(
     const host = document.createElement("div");
     render(
         PlayBoard({
+            clock: PAGE_CLOCK,
             display: playDisplay(state, ui),
             onCommand,
             onLanguage: () => {},
@@ -174,6 +180,7 @@ function renderLiveGameEnd(
     const host = document.createElement("div");
     render(
         PlayBoard({
+            clock: PAGE_CLOCK,
             display: playDisplay(ended, NO_PLAY_UI),
             links: LINKS,
             onCommand: (command) => commands.push(command),
@@ -222,6 +229,7 @@ describe("PlayBoard", () => {
             const host = document.createElement("div");
             render(
                 PlayBoard({
+                    clock: PAGE_CLOCK,
                     display: playDisplay(roundEnd, { ...NO_PLAY_UI, confirmingLeave }),
                     onCommand: () => {},
                     onLanguage: () => {},

@@ -1,6 +1,7 @@
 import { render } from "lit-html";
 import { describe, expect, it } from "vitest";
 
+import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
 import { checkpointState, loadSeatScenario } from "#tests/fixtures/seat-transcripts";
 import {
     type LiveClient,
@@ -10,6 +11,8 @@ import {
     scenarioStateIndex,
     stepGameClient,
 } from "@/entities/client";
+
+const PAGE_CLOCK = steadyClockOn(new ManualClock());
 
 const STARTED = checkpointState("own_turn_seat_1", "game started");
 const { scenario } = loadSeatScenario("own_turn_seat_1");
@@ -22,6 +25,7 @@ function renderBoard(state: LiveClient): HTMLElement {
     const host = document.createElement("div");
     render(
         PlayBoard({
+            clock: PAGE_CLOCK,
             display: playDisplay(state, NO_PLAY_UI),
             onCommand: () => {},
             onLanguage: () => {},

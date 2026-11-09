@@ -83,7 +83,7 @@ table transition and call model; replay dispatch loads with the replay route.
 - Live shortcuts come from `playShortcuts` through the same intent gate as visible controls. One gesture closes only
   the topmost UI, backs out of a selection, or answers one decision; a result always needs its explicit control.
   Enter or Space outside a focused control presses the opening screen's OK (`confirm`), its only key; the board's own
-  keys (Escape's back or pass, right-click's discard, tile arrows) still reach a decision under it (`leavesBoardKeys`). `playInput` owns the board's DOM listeners and cancels a press across an input scope change or disposal. Repeated
+  keys (Escape's back or pass, right-click's discard, tile arrows) still reach a decision under it (`leavesBoardKeys`). `playInput` owns the board's DOM listeners and cancels a press across an input scope change or disposal. A right-click within `RIGHT_CLICK_SETTLE_MS` of the last one that had a shortcut is dropped, so a double-click never answers a decision and then the one its answer opened. Repeated
   activation keys never answer again; arrow navigation only moves focus among playable tiles. The right-click
   preference is independent of replay controls and lives in browser storage through the live driver's dependencies.
 - A local declaration shows its callout and plays its voice as soon as its intent is accepted, without changing the

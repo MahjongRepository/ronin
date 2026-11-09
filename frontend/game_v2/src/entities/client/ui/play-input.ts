@@ -7,9 +7,16 @@ import { type PlayShortcut, leavesBoardKeys } from "@/entities/client/model/play
 import { type PlayCommand } from "@/entities/client/model/play-ui";
 import { DECISION_ACTION_FOCUS_KEY } from "@/entities/table";
 import { HAND_TILE_FOCUS_KEY, PLAYABLE_TILE_FOCUS_KEY } from "@/entities/tile";
+import { type Clock } from "@/shared/clock";
 import { focusByKey, keyedControls } from "@/shared/lib";
 
 type CommandHandler = (command: PlayCommand) => void;
+
+/**
+ * How long after a right-click with a shortcut to run the next one is dropped, so a double-click cannot answer a
+ * decision and then the one its answer opened. Windows' default double-click time.
+ */
+export const RIGHT_CLICK_SETTLE_MS = 500;
 
 interface PointerPress {
     readonly revision: number;
@@ -77,12 +84,14 @@ class PlayInput extends AsyncDirective {
     private board: HTMLElement | null = null;
     private display: PlayDisplay | null = null;
     private onCommand: CommandHandler | null = null;
+    private clock: Clock | null = null;
     private listeners: AbortController | null = null;
     private revision = 0;
     private pointer: PointerPress | null = null;
     private activation: KeyPress | null = null;
     private blockClick = false;
     private fingerTap = false;
+    private lastRightClickAt = Number.NEGATIVE_INFINITY;
 
     constructor(partInfo: PartInfo) {
         super(partInfo);
@@ -91,19 +100,20 @@ class PlayInput extends AsyncDirective {
         }
     }
 
-    render(_display: PlayDisplay, _onCommand: CommandHandler): typeof nothing {
+    render(_display: PlayDisplay, _onCommand: CommandHandler, _clock: Clock): typeof nothing {
         return nothing;
     }
 
     override update(
         part: ElementPart,
-        [display, onCommand]: [PlayDisplay, CommandHandler],
+        [display, onCommand, clock]: [PlayDisplay, CommandHandler, Clock],
     ): typeof nothing {
         if (display.shortcuts.scope !== this.display?.shortcuts.scope) {
             this.revision += 1;
         }
         this.display = display;
         this.onCommand = onCommand;
+        this.clock = clock;
         if (part.element instanceof HTMLElement && this.board !== part.element) {
             this.board = part.element;
             this.listen();
@@ -355,8 +365,14 @@ class PlayInput extends AsyncDirective {
 
     private rightClick(event: PointerEvent): void {
         const shortcut = this.display?.shortcuts.rightClick;
-        if (shortcut !== null && shortcut !== undefined) {
-            consume(event);
+        if (shortcut === null || shortcut === undefined || this.clock === null) {
+            return;
+        }
+        consume(event);
+        const now = this.clock.now();
+        const settled = now - this.lastRightClickAt >= RIGHT_CLICK_SETTLE_MS;
+        this.lastRightClickAt = now;
+        if (settled) {
             this.run(shortcut);
         }
     }
