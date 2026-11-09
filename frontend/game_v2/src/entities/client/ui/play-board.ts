@@ -498,8 +498,8 @@ function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"])
  * The live board: the table from the viewer's seat with its decision's controls in their corner, its notices over the
  * table, and a panel over it: an end that blocks the board, the leave question, or the table's own, a round's result
  * at the page the display picked with its controls, or the game's last result over the game's end until the player
- * dismisses it. A tap on one of the viewer's tiles sends the intent the display gives it, and a tile with none sends
- * nothing; turning the result's page is a command too. While an end, the leave question or a notice's sheet blocks
+ * dismisses it. A press on one of the viewer's tiles sends the intent the display gives it (`playInput` holds a
+ * finger's first tap on a discard back to lift the tile), and a tile with none sends nothing; turning the result's page is a command too. While an end, the leave question or a notice's sheet blocks
  * the board, the board under it is inert. Each new showing of calls is read out once.
  */
 export function PlayBoard(props: PlayBoardProps): TemplateResult {

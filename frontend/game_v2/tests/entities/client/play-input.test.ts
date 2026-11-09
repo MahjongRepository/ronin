@@ -132,6 +132,30 @@ function rightClick(target: HTMLElement): void {
     pointer(target, "pointerup");
 }
 
+function fingerTap(target: HTMLElement): void {
+    const finger = { button: 0, pointerType: "touch" };
+    pointer(target, "pointerdown", finger);
+    pointer(target, "pointerup", finger);
+    target.click();
+}
+
+function discardableTiles(state: LiveClient): readonly [number, number] {
+    const [first, second] = playDisplay(state, NO_PLAY_UI).tileIntents.keys();
+    assert(first !== undefined && second !== undefined);
+    return [first, second];
+}
+
+function tileButton(host: HTMLElement, tileId: number): HTMLElement {
+    return element(host, `[data-tile-id="${tileId}"]`);
+}
+
+function armedAfterTap(host: HTMLElement, target: HTMLElement): number[] {
+    fingerTap(target);
+    return [...host.querySelectorAll<HTMLElement>(".hand-tile--armed")].map((button) =>
+        Number(button.dataset.tileId),
+    );
+}
+
 function messages(effects: readonly ClientEffect[]): ClientMessage[] {
     return effects.flatMap((effect) => (effect.type === "send" ? [effect.message] : []));
 }
@@ -228,6 +252,42 @@ describe("live board input", () => {
         rightClick(board);
         rightClick(board);
         expect(messages(effects)).toEqual([buildDiscardAction(drawn, waitId(state))]);
+    });
+
+    it("lifts a tile on a finger's first tap, moves the lift, drops it elsewhere, and discards on the second tap", () => {
+        const state = checkpointState("own_turn_seat_1", "rinshan");
+        const [first, second] = discardableTiles(state);
+        const { board, effects, host } = mountInput(state);
+        expect([
+            armedAfterTap(host, tileButton(host, first)),
+            armedAfterTap(host, tileButton(host, second)),
+            armedAfterTap(host, board),
+        ]).toEqual([[first], [second], []]);
+        expect(messages(effects)).toEqual([]);
+
+        fingerTap(tileButton(host, first));
+        fingerTap(tileButton(host, first));
+        expect(messages(effects)).toEqual([buildDiscardAction(first, waitId(state))]);
+    });
+
+    it("discards on one mouse press", () => {
+        const state = checkpointState("own_turn_seat_1", "rinshan");
+        const [tileId] = discardableTiles(state);
+        const { effects, host } = mountInput(state);
+        const tile = tileButton(host, tileId);
+        pointer(tile, "pointerdown", { button: 0 });
+        pointer(tile, "pointerup", { button: 0 });
+        tile.click();
+        expect(messages(effects)).toEqual([buildDiscardAction(tileId, waitId(state))]);
+    });
+
+    it("picks riichi's discard on one finger tap", () => {
+        const state = checkpointState("own_turn_seat_1", "rinshan");
+        const { commands, host } = mountInput(state);
+        element(host, '[data-focus-key~="riichi-pick"]').click();
+        fingerTap(element(host, ".hand-tile--declaring"));
+        expect(host.querySelector(".hand-tile--armed")).toBeNull();
+        expect(commands.at(-1)?.kind).toBe("intent");
     });
 
     it("closes settings, then unpins scores, before right-click can pass a call", () => {

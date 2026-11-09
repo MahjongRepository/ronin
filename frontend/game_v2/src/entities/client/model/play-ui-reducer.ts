@@ -41,15 +41,18 @@ function toggledTileChoice(state: LiveClient, ui: PlayUi, kind: TileChoiceKind):
     return { ...ui, riichiPickWaitId: null, tileChoice };
 }
 
-/** The view's `ui` after one of the open decision's steps: the riichi toggle, a call's choice of tiles, a step back. */
+/** The view's `ui` after one of the open decision's steps: an armed tile, the riichi toggle, a call's choice of tiles, a step back. */
 function steppedDecision(
     state: LiveClient,
     ui: PlayUi,
     command: Extract<
         PlayCommand,
-        { kind: "toggle_riichi_pick" | "toggle_tile_choice" | "step_back" }
+        { kind: "arm_tile" | "toggle_riichi_pick" | "toggle_tile_choice" | "step_back" }
     >,
 ): PlayUi {
+    if (command.kind === "arm_tile") {
+        return armedTileUi(state, ui, command.tileId);
+    }
     if (command.kind === "toggle_riichi_pick") {
         return toggledRiichiPick(state, ui);
     }
@@ -108,9 +111,19 @@ function steppedBack(state: LiveClient, ui: PlayUi): PlayUi {
     return { ...ui, riichiPickWaitId: null };
 }
 
-/** The game's last result reopens on its first page; any other intent leaves the view's `ui` as it was. */
+/** An intent ends an armed tile, so a refused answer asks for both taps again; the game's last result reopens on its first page. */
 function uiAfterIntent(ui: PlayUi, intent: LocalIntent): PlayUi {
-    return intent.type === "show_last_result" ? { ...ui, resultPage: null } : ui;
+    const unarmed = { ...ui, armedTile: null };
+    return intent.type === "show_last_result" ? { ...unarmed, resultPage: null } : unarmed;
+}
+
+/** A tile armed for the open decision's second finger tap, or none. */
+function armedTileUi(state: LiveClient, ui: PlayUi, tileId: number | null): PlayUi {
+    const waitId = decisionOf(state)?.waitId;
+    return {
+        ...ui,
+        armedTile: tileId === null || waitId === undefined ? null : { tileId, waitId },
+    };
 }
 
 /**
@@ -140,6 +153,7 @@ function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): P
         case "toggle_sound": {
             return pageControlsUi(ui, command);
         }
+        case "arm_tile":
         case "toggle_riichi_pick":
         case "toggle_tile_choice":
         case "step_back": {

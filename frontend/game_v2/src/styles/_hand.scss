@@ -32,7 +32,6 @@ button.hand-tile {
     line-height: 0;
     cursor: pointer;
     touch-action: manipulation;
-    transition: transform 0.12s ease;
 
     &:focus-visible {
         outline: 3px solid var(--ronin-accent);
@@ -44,12 +43,26 @@ button.hand-tile {
     }
 }
 
+/* Only a state that lifts animates: when a tile leaves the hand its lifted button goes to the next tile, which must
+   not slide down from that lift, or the hand's reflow measures it lifted and leaves it below the row. */
+.hand-tile--selectable,
+.hand-tile--armed,
+.hand-tile--declaring,
+.hand-tile--selected {
+    transition: transform 0.12s ease;
+}
+
 .hand-tile--selectable {
     @media (hover: hover) {
         &:hover {
             transform: translateY(-5px);
         }
     }
+}
+
+/* A finger has no hover: its first tap lifts the tile far enough to tell at a glance which one the next tap plays. */
+.hand-tile--armed {
+    transform: translateY(-15px);
 }
 
 .hand-tile--disabled .tile {

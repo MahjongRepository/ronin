@@ -135,16 +135,29 @@ function tileIntent(tileId: number, picking: boolean): DecisionIntent {
     return picking ? choose({ kind: "riichi", tileId }) : { tileId, type: "discard" };
 }
 
+/** The tile a first finger tap armed for the open decision; null when it was armed for an earlier one. */
+export function armedTileId(state: LiveClient, ui: PlayUi): number | null {
+    const waitId = decisionOf(state)?.waitId;
+    return ui.armedTile !== null && ui.armedTile.waitId === waitId ? ui.armedTile.tileId : null;
+}
+
+function takenTileState(tileId: number, picking: boolean, armed: number | null): PlayableState {
+    if (picking) {
+        return "declaring";
+    }
+    return tileId === armed ? "armed" : "selectable";
+}
+
 /**
  * How each of the viewer's tiles plays, by asking the dispatcher whether it takes the tile's intent: selectable
- * when it does (declaring, while riichi's discard is picked); before riichi, disabled when an open turn holds it back
+ * when it does (armed, once a finger tapped it; declaring, while riichi's discard is picked); before riichi, disabled when an open turn holds it back
  * (kuikae or not riichi's while picking it); the tile an answer played, selected; otherwise waiting. Every
  * tile stays a button, so focus stays in the hand.
  */
 export function tilePlays(
     state: LiveClient,
     viewer: PlayerState,
-    picking: boolean,
+    { armed, picking }: { readonly armed: number | null; readonly picking: boolean },
 ): Map<number, TilePlay> {
     const decision = decisionOf(state);
     const played = submittedTileId(decision);
@@ -153,7 +166,7 @@ export function tilePlays(
         viewer.tiles.map((tileId): [number, TilePlay] => {
             const intent = tileIntent(tileId, picking);
             if (takesIntent(state, intent)) {
-                return [tileId, { intent, state: picking ? "declaring" : "selectable" }];
+                return [tileId, { intent, state: takenTileState(tileId, picking, armed) }];
             }
             const waiting: PlayableState = openTurn && !viewer.isRiichi ? "disabled" : "waiting";
             return [tileId, { intent: null, state: tileId === played ? "selected" : waiting }];

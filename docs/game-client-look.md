@@ -337,8 +337,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the row, as the choices take its place. Every control keeps visible space around its label and its choice tiles, the
   longest label at the floor viewport included; a target that meets the size floor with its text
   touching its border has failed.
-- **Input.** The contract the current board has, kept: a tile of the own hand is a button; one tap,
-  click, Enter or Space on a selectable tile sends it, with no separate confirm step, and a tile
+- **Input.** The contract the current board has, kept: a tile of the own hand is a button; one
+  click, Enter or Space on a selectable tile sends it, a finger takes two taps (below), and a tile
   that is not selectable takes the press and does nothing. A decision control sends on one press,
   except the riichi toggle and the first step of a two-step call, which only change what the next
   press means and are undone by pressing them again, by the way back or by Escape. A play switch is
@@ -347,9 +347,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   reached from it without the focus being moved for the player. An expired decision still takes one
   answer, since the server alone decides by the wait whether it counts; an answer the server refuses
   while the wait goes on reopens the decision as answerable, with the refusal as a notice. Decision:
-  one press is the only input; there is no touch confirm step (select, then confirm), as a default
-  or as a preference, since its second gesture costs time on every turn and the own tile already
-  exceeds the phone's tap floor.
+  a finger discards in two taps, since a phone's tiles sit close enough for a wrong one to be
+  tapped and a discard cannot be taken back. The first tap lifts the tile 15px;
+  a second on it sends it, one on another selectable tile moves the lift there, and one anywhere
+  else drops it. A riichi declaration's pick stays one tap, the riichi toggle being its first step.
 - **Timer.** The countdown beside the decision controls as large digits, the base time and the bank
   apart (`5 +20`), the bank marked while it alone is draining, so a player always knows which time
   is being spent. Decision: a slot of fixed size and place, a caption line over the digits (time up,

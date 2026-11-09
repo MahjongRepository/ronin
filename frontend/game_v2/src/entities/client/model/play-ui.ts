@@ -22,7 +22,7 @@ export type NoticeKind =
 
 /**
  * What a control of the page does: send the client an intent, turn picking riichi's discard on or off, open or close
- * a call's choice of tiles, step back from either (Back, Escape), turn the round result's panel to a page, pin a
+ * a call's choice of tiles, step back from either (Back, Escape), arm a tile for a second finger tap (or none), turn the round result's panel to a page, pin a
  * nameplate (or none) for the others' score differences, show or hide the play switches' names, ask to leave mid-game
  * or take that back, open a notice whole in its sheet or close it, open or close the settings menu, turn the sound on
  * or off, or reload the page after a failure.
@@ -33,6 +33,7 @@ export type PlayCommand =
     | { readonly kind: "toggle_tile_choice"; readonly offer: TileChoiceKind }
     | { readonly kind: "step_back" }
     | { readonly kind: "show_result_page"; readonly page: number }
+    | { readonly kind: "arm_tile"; readonly tileId: number | null }
     | { readonly kind: "pin_nameplate"; readonly seat: SeatPosition | null }
     | { readonly kind: "toggle_switch_names" }
     | { readonly kind: "ask_leave" }
@@ -69,7 +70,7 @@ export interface PlayAction {
 
 /**
  * What the view holds beside the client state: that the player is picking riichi's discard, or choosing a call's
- * tiles, for the decision of this wait id, so a newer decision never inherits either; the page of a round's result the player turned to, for
+ * tiles, or that a first finger tap armed a tile, for the decision of this wait id, so a newer decision never inherits any; the page of a round's result the player turned to, for
  * the round it names, so a newer result opens on its first page while a reconnect's copy of the same one keeps it;
  * the nameplate pinned for the others' score differences, which stays pinned until the player unpins it, since the
  * viewer's seat stays at the bottom; that the player opened the play switches' names beside their letters, which stay
@@ -82,6 +83,7 @@ export interface PlayAction {
 export interface PlayUi {
     readonly riichiPickWaitId: number | null;
     readonly tileChoice: { readonly waitId: number; readonly kind: TileChoiceKind } | null;
+    readonly armedTile: { readonly waitId: number; readonly tileId: number } | null;
     readonly resultPage: { readonly round: string; readonly page: number } | null;
     readonly pinnedNameplate: SeatPosition | null;
     readonly switchNames: boolean;
@@ -97,6 +99,7 @@ export interface PlayUi {
 }
 
 export const NO_PLAY_UI: PlayUi = {
+    armedTile: null,
     browserBars: false,
     canEnterFullscreen: false,
     confirmingLeave: false,

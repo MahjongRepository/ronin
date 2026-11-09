@@ -32,6 +32,7 @@ import {
     type DecisionAction,
     type DecisionStanding,
     type TilePlay,
+    armedTileId,
     decisionActions,
     decisionStanding,
     escapeStep,
@@ -107,6 +108,7 @@ export interface PlayDisplay {
     readonly board: BoardDisplayState | null;
     /** The calls the board shows by their seats, from the viewer's seat; null with none. */
     readonly callouts: BoardCallouts | null;
+    readonly armedTile: number | null;
     readonly tileAction: TileAction;
     readonly tileIntents: ReadonlyMap<number, LocalIntent>;
     /** The answerable decision's controls, ranked; none once answered. */
@@ -350,8 +352,11 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
     const { furiten, table, viewerSeat } = state;
     const viewer = table.players.find((player) => player.seat === viewerSeat);
     const picking = pickingRiichi(state, ui);
+    const armedTile = armedTileId(state, ui);
     const plays =
-        viewer === undefined ? new Map<number, TilePlay>() : tilePlays(state, viewer, picking);
+        viewer === undefined
+            ? new Map<number, TilePlay>()
+            : tilePlays(state, viewer, { armed: armedTile, picking });
     const source: OverlaySource = {
         callouts: liveCallouts(state),
         failure: failureDisplay(state.session),
@@ -364,6 +369,7 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
     const escape = escapeStep(state, ui);
     return {
         actions: decisionActions(state, ui),
+        armedTile,
         board: viewerBoard(state, plays),
         callouts,
         countdown: decisionCountdown(state),

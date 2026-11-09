@@ -50,6 +50,14 @@ function isPlayControl(target: EventTarget | null): boolean {
     );
 }
 
+function playableTileId(target: EventTarget | null): number | null {
+    const tile =
+        target instanceof Element
+            ? target.closest<HTMLElement>(`[data-focus-key~="${PLAYABLE_TILE_FOCUS_KEY}"]`)
+            : null;
+    return tile === null ? null : Number(tile.dataset.tileId);
+}
+
 function moveTileFocus(board: HTMLElement, target: EventTarget | null, key: string): boolean {
     const tiles = keyedControls(board, HAND_TILE_FOCUS_KEY);
     if (!(target instanceof HTMLElement) || (target !== board && !tiles.includes(target))) {
@@ -74,6 +82,7 @@ class PlayInput extends AsyncDirective {
     private pointer: PointerPress | null = null;
     private activation: KeyPress | null = null;
     private blockClick = false;
+    private fingerTap = false;
 
     constructor(partInfo: PartInfo) {
         super(partInfo);
@@ -247,6 +256,7 @@ class PlayInput extends AsyncDirective {
         }
         this.activation = { key: event.key, revision: this.revision };
         this.blockClick = false;
+        this.fingerTap = false;
     }
 
     private readonly onKeyup = (event: KeyboardEvent): void => {
@@ -288,6 +298,7 @@ class PlayInput extends AsyncDirective {
 
     private readonly onPointerdown = (event: PointerEvent): void => {
         this.blockClick = false;
+        this.fingerTap = false;
         this.pointer = null;
         if (
             !event.isPrimary ||
@@ -329,6 +340,7 @@ class PlayInput extends AsyncDirective {
             return;
         }
         this.blockClick = press.revision !== this.revision;
+        this.fingerTap = event.pointerType === "touch";
         if (
             event.button !== 2 ||
             this.blockClick ||
@@ -356,14 +368,39 @@ class PlayInput extends AsyncDirective {
     };
 
     private readonly onClick = (event: MouseEvent): void => {
+        const { fingerTap } = this;
+        this.fingerTap = false;
         if (
             this.blockClick ||
             (this.activation !== null && this.activation.revision !== this.revision)
         ) {
             consume(event);
             this.blockClick = false;
+            return;
+        }
+        if (fingerTap) {
+            this.armByFinger(event);
         }
     };
+
+    /**
+     * A finger has no hover, so its first tap on a discardable tile only lifts it; the tap that follows on that tile
+     * is left to discard it, a tap on another moves the lift there, and one anywhere else drops it.
+     */
+    private armByFinger(event: MouseEvent): void {
+        const armed = this.display?.armedTile ?? null;
+        const tileId = playableTileId(event.target);
+        if (tileId === null) {
+            if (armed !== null) {
+                this.onCommand?.({ kind: "arm_tile", tileId: null });
+            }
+            return;
+        }
+        if (tileId !== armed && this.display?.tileIntents.get(tileId)?.type === "discard") {
+            consume(event);
+            this.onCommand?.({ kind: "arm_tile", tileId });
+        }
+    }
 }
 
 export const playInput = directive(PlayInput);

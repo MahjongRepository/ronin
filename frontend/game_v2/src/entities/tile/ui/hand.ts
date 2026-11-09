@@ -6,10 +6,11 @@ import { type MessageKey, t } from "@/shared/i18n";
 import { Tile, TileBack } from "./tile";
 
 /**
- * Where a tile of the player's own hand stands: one it may play now (declaring riichi, while the riichi toggle is on),
- * the one its submitted answer played, one the open decision holds back, or one waiting for a decision that would.
+ * Where a tile of the player's own hand stands: one it may play now (declaring riichi, while the riichi toggle is on;
+ * armed, once a first finger tap lifted it for the second that discards it), the one its submitted answer played, one
+ * the open decision holds back, or one waiting for a decision that would.
  */
-type PlayableState = "selectable" | "declaring" | "selected" | "disabled" | "waiting";
+type PlayableState = "selectable" | "armed" | "declaring" | "selected" | "disabled" | "waiting";
 
 type TileAction = "discard" | "riichi_discard";
 
@@ -66,8 +67,8 @@ export const PLAYABLE_TILE_FOCUS_KEY = "playable-tile";
 
 /**
  * One slot of the hand. A tile of the player's own is always a native button, so it takes focus, Enter and Space,
- * and a turn never moves focus out of the hand: only a selectable or declaring one acts, the others say so with `aria-disabled`
- * (and the selected one, the tile its answer played, with `aria-pressed`) and ignore a press.
+ * and a turn never moves focus out of the hand: only a selectable, armed or declaring one acts, the others say so with `aria-disabled`
+ * (and the selected one, the tile its answer played, with `aria-pressed`, as the armed one has) and ignore a press.
  */
 function HandSlot(tile: HandTile, extraClass: string, props: HandProps): TemplateResult {
     const slotClass = `hand-tile${extraClass}`;
@@ -75,7 +76,7 @@ function HandSlot(tile: HandTile, extraClass: string, props: HandProps): Templat
         return html`<span class="${slotClass}" data-tile-id=${tile.tileId ?? ""}>${TileFaceView(tile)}</span>`;
     }
     const { state, tileId } = tile;
-    const acts = state === "selectable" || state === "declaring";
+    const acts = state === "selectable" || state === "armed" || state === "declaring";
     function press(): void {
         if (acts) {
             props.onTile?.(tileId);
@@ -87,7 +88,7 @@ function HandSlot(tile: HandTile, extraClass: string, props: HandProps): Templat
         data-tile-id=${tileId}
         aria-label=${tileLabel(tile.face, props.tileAction)}
         aria-disabled=${acts ? nothing : "true"}
-        aria-pressed=${state === "selected" ? "true" : nothing}
+        aria-pressed=${state === "selected" || state === "armed" ? "true" : nothing}
         data-focus-key=${acts ? `${HAND_TILE_FOCUS_KEY} ${PLAYABLE_TILE_FOCUS_KEY}` : HAND_TILE_FOCUS_KEY}
         @click=${press}
     >${TileFaceView(tile)}</button>`;
