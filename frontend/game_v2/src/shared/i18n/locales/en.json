@@ -145,11 +145,11 @@
     "game.result.nagashi_by": "by {names}",
     "game.result.next": "Next",
     "game.result.next_winner": "Next winner",
-    "game.result.pao_all": "Pao: {name} is liable for {yaku} and pays all of it",
-    "game.result.pao_all_honba": "Pao: {name} is liable for {yaku} and pays all of it and the honba",
+    "game.result.pao_all": "Pao: {name} is liable for {yaku} and pays the whole hand",
+    "game.result.pao_all_honba": "Pao: {name} is liable for {yaku} and pays the whole hand and the honba",
     "game.result.pao_dealt_in": "Pao: {name} is liable and dealt in, so pays it all",
-    "game.result.pao_half": "Pao: {name} is liable for {yaku} and pays half of it",
-    "game.result.pao_half_honba": "Pao: {name} is liable for {yaku} and pays half of it and the honba",
+    "game.result.pao_half": "Pao: {name} is liable for {yaku} and pays half the hand",
+    "game.result.pao_half_honba": "Pao: {name} is liable for {yaku} and pays half the hand and the honba",
     "game.result.points": {
         "one": "{count} point",
         "other": "{count} points"

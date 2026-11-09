@@ -233,8 +233,8 @@ const PAO_NOTES: Readonly<
 };
 
 /**
- * What the seat liable (pao) for a winner's yakuman pays, worded from the server's liability: the yakuman it covers, all
- * or half of them, and whether the honba too; a liable seat that dealt in pays it all as the discarder.
+ * What the seat liable (pao) for a winner's yakuman pays, worded from the server's liability: the yakuman that made it
+ * liable, all or half of the whole hand, and whether the honba too; a liable seat that dealt in pays it all as the discarder.
  */
 function paoNote(result: RoundEndResult, winner: WinnerResult, names: SeatNames): string | null {
     const { pao } = winner;

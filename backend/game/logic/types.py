@@ -113,8 +113,8 @@ class HandResultInfo(BaseModel):
 
 class PaoLiability(BaseModel):
     """
-    What the seat liable (pao) for a winner's yakuman pays: the pao yakuman of the hand it covers (yaku_ids), all or
-    half of their value (share), and whether it also pays the winner's honba bonus.
+    What the seat liable (pao) for a winner's yakuman pays: the pao yakuman that made it liable (yaku_ids), all or half
+    of the whole hand's value (share), and whether it also pays the winner's honba bonus.
 
     It names at least one pao yakuman, since a client rejects an empty list.
     """

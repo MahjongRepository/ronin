@@ -141,11 +141,11 @@
     "game.result.nagashi_by": "{names}が達成",
     "game.result.next": "次へ",
     "game.result.next_winner": "次の和了者",
-    "game.result.pao_all": "パオ: {name}が{yaku}の責任払いで全額を支払います",
-    "game.result.pao_all_honba": "パオ: {name}が{yaku}の責任払いで全額と本場を支払います",
+    "game.result.pao_all": "パオ: {name}が{yaku}の責任払いで和了点の全額を支払います",
+    "game.result.pao_all_honba": "パオ: {name}が{yaku}の責任払いで和了点の全額と本場を支払います",
     "game.result.pao_dealt_in": "パオ: {name}は責任者で放銃したため全額を支払います",
-    "game.result.pao_half": "パオ: {name}が{yaku}の責任払いで半額を支払います",
-    "game.result.pao_half_honba": "パオ: {name}が{yaku}の責任払いで半額と本場を支払います",
+    "game.result.pao_half": "パオ: {name}が{yaku}の責任払いで和了点の半額を支払います",
+    "game.result.pao_half_honba": "パオ: {name}が{yaku}の責任払いで和了点の半額と本場を支払います",
     "game.result.points": {
         "other": "{count}点"
     },

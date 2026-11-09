@@ -112,8 +112,8 @@ const paoLiabilitySchema = z.object({
 });
 
 /**
- * A winner's honba bonus (`WIRE_KEY.HONBA_BONUS`) and, with a liable seat (`WIRE_KEY.PAO_SEAT`), what that seat pays (`WIRE_KEY.PAO_LIABILITY`): the pao yakuman it covers,
- * all or half of them, and whether it pays the honba too. The server names the seat and its liability together.
+ * A winner's honba bonus (`WIRE_KEY.HONBA_BONUS`) and, with a liable seat (`WIRE_KEY.PAO_SEAT`), what that seat pays (`WIRE_KEY.PAO_LIABILITY`): the pao yakuman that made it liable,
+ * all or half of the whole hand, and whether it pays the honba too. The server names the seat and its liability together.
  */
 const winnerPaymentShape = {
     [WIRE_KEY.HONBA_BONUS]: wireScoreSchema,

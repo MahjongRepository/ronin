@@ -340,22 +340,6 @@ def _tsumo_payment_for_seat(
     return hand_result.cost_additional
 
 
-def _pao_yakuman_han(hand_result: HandResult) -> int:
-    """
-    Sum the han of the hand's yakuman that pao can cover (daisangen, daisuushii).
-    """
-    return sum(y.han for y in hand_result.yaku if y.yaku_id in _PAO_YAKU_IDS)
-
-
-def _pao_share(payment: int, hand_result: HandResult) -> int:
-    """
-    Return the part of a yakuman payment owed for its pao yakuman.
-
-    Yakuman payments scale with the yakuman count, so the share of the pao yakuman's han is exact.
-    """
-    return payment * _pao_yakuman_han(hand_result) // hand_result.han
-
-
 def _pao_liability(
     liable_seat: int | None,
     hand_result: HandResult,
@@ -366,8 +350,8 @@ def _pao_liability(
     """
     Describe what a winner's liable (pao) seat pays, or None without one.
 
-    It pays all of the pao yakuman on a tsumo (loser_seat None) and on a ron it dealt in itself, half of it on another
-    seat's ron, and the whole honba bonus with either.
+    It pays the whole hand, any stacked yakuman included, on a tsumo (loser_seat None) and on a ron it dealt in itself,
+    half of the hand on another seat's ron, and the whole honba bonus with either.
     """
     if liable_seat is None:
         return None
@@ -384,14 +368,13 @@ def _tsumo_payer_changes(
     *,
     payments: dict[int, int],
     liable_seat: int | None,
-    hand_result: HandResult,
     honba_bonus_per_loser: int,
 ) -> dict[int, int]:
     """
     Charge each loser's tsumo payment and honba bonus to the seats that pay them.
 
-    With a liable (pao) player, the liable player pays the pao yakuman's part of every loser's payment and the whole
-    honba bonus; each loser, the liable player included, pays the rest of their own payment as usual.
+    With a liable (pao) player, the liable player pays every loser's payment and the whole honba bonus, and the others
+    pay nothing.
     """
     changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
     if liable_seat is None:
@@ -400,12 +383,7 @@ def _tsumo_payer_changes(
 
         return changes
 
-    changes[liable_seat] = -honba_bonus_per_loser * len(payments)
-    for seat, payment in payments.items():
-        pao_part = _pao_share(payment, hand_result)
-        changes[seat] -= payment - pao_part
-        changes[liable_seat] -= pao_part
-
+    changes[liable_seat] = -(sum(payments.values()) + honba_bonus_per_loser * len(payments))
     return changes
 
 
@@ -426,8 +404,8 @@ def apply_tsumo_score(
     - Each loser pays: +honba/3 bonus (300 total = 100 per loser)
 
     Payment structure (pao / liability):
-    - The liable player pays the pao yakuman's whole value and the whole honba bonus
-    - Any other yakuman in the hand is paid as a normal tsumo, the liable player included
+    - The liable player pays the whole hand, any stacked yakuman included, and the whole honba bonus
+    - The other players pay nothing
     """
     round_state = game_state.round_state
     settings = game_state.settings
@@ -454,7 +432,6 @@ def apply_tsumo_score(
     score_changes = _tsumo_payer_changes(
         payments=payments,
         liable_seat=liable_seat,
-        hand_result=hand_result,
         honba_bonus_per_loser=honba_bonus_per_loser,
     )
     honba_bonus = honba_bonus_per_loser * len(payments)
@@ -490,15 +467,15 @@ def _ron_payer_changes(
     """
     Charge one ron winner's hand value and honba bonus to the seats that pay it.
 
-    A liable (pao) player other than the discarder pays half the pao yakuman's value and the whole honba bonus; the
-    discarder pays the rest of the hand value. Otherwise the discarder pays everything.
+    A liable (pao) player other than the discarder pays half the hand value and the whole honba bonus; the discarder
+    pays the other half. Otherwise the discarder pays everything.
     """
     changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
     if liable_seat is None or liable_seat == loser_seat:
         changes[loser_seat] = -(hand_result.cost_main + honba_bonus)
         return changes
 
-    liable_half = _pao_share(hand_result.cost_main, hand_result) // 2
+    liable_half = hand_result.cost_main // 2
     changes[loser_seat] = -(hand_result.cost_main - liable_half)
     changes[liable_seat] = -(liable_half + honba_bonus)
     return changes
@@ -521,8 +498,8 @@ def apply_ron_score(
     - Winner gets: main_cost + riichi_sticks * 1000 + honba * 300
 
     Payment structure (pao / liability, liable player != loser):
-    - The liable player pays half the pao yakuman's value and the whole honba bonus
-    - The loser pays the other half and any other yakuman in the hand
+    - The liable player pays half the hand value, any stacked yakuman included, and the whole honba bonus
+    - The loser pays the other half
     - Winner receives the full amount
 
     If the liable player is the loser, normal ron applies (they pay in full as they would anyway).
@@ -578,12 +555,9 @@ def apply_double_ron_score(
 
     Payment structure:
     - Loser pays each winner's main_cost separately
-        is_closest_winner = winner_seat == closest_winner_seat
-        winner_honba_bonus = honba_bonus if is_closest_winner else 0
-        winner_riichi_bonus = riichi_bonus if is_closest_winner else 0
     - Honba (honba * 300) and riichi sticks go only to the winner closest to loser's right (counter-clockwise)
     - Each winner's pao is evaluated independently (same logic as single ron): a liable player other than the loser
-      pays half that winner's pao yakuman and that winner's whole honba bonus, and the loser pays the rest
+      pays half that winner's hand and any honba bonus that winner receives, and the loser pays the rest
     """
     round_state = game_state.round_state
     settings = game_state.settings
@@ -604,6 +578,9 @@ def apply_double_ron_score(
     for winner_seat, hand_result in winners:
         winner = round_state.players[winner_seat]
         liable_seat = winner.pao_seat
+        is_closest_winner = winner_seat == closest_winner_seat
+        winner_honba_bonus = honba_bonus if is_closest_winner else 0
+        winner_riichi_bonus = riichi_bonus if is_closest_winner else 0
         winner_changes = _ron_payer_changes(
             liable_seat=liable_seat,
             loser_seat=loser_seat,

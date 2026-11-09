@@ -127,7 +127,7 @@ describe("roundEndDisplay - a win", () => {
         expect(page.yaku.map((line) => [line.name, line.han, line.yakuman])).toEqual([
             ["Daisangen", null, null],
         ]);
-        expect(page.notes).toContain("Pao: Diana is liable for Daisangen and pays all of it");
+        expect(page.notes).toContain("Pao: Diana is liable for Daisangen and pays the whole hand");
         expect(displayAt(table).scores.map((row) => [row.name, row.tag])).toEqual([
             ["Diana", "Pao"],
             ["Alice", null],
@@ -142,17 +142,17 @@ describe("roundEndDisplay - a win", () => {
         const daisuushiiHalf = { paysHonba: true, seat: 0, share: PAO_SHARE.HALF, yakuIds: [111] };
 
         expect(paoNotesWhen(null, daisuushiiHalf)).toContain(
-            "Pao: Diana is liable for Daisuushii and pays half of it and the honba",
+            "Pao: Diana is liable for Daisuushii and pays half the hand and the honba",
         );
         expect(
             paoNotesWhen(2, { ...daisuushiiHalf, paysHonba: false, share: PAO_SHARE.ALL }),
-        ).toContain("Pao: Diana is liable for Daisuushii and pays all of it");
+        ).toContain("Pao: Diana is liable for Daisuushii and pays the whole hand");
         expect(paoNotesWhen(0, daisuushiiHalf)).toContain(
             "Pao: Diana is liable and dealt in, so pays it all",
         );
         document.documentElement.lang = "ru";
         expect(paoNotesWhen(null, daisuushiiHalf)).toContain(
-            "Пао: Diana несёт ответственность за Дайсуши и платит половину и хонбу",
+            "Пао: Diana несёт ответственность за Дайсуши и платит половину стоимости руки и хонбу",
         );
     });
 

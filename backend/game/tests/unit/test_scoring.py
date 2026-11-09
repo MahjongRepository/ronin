@@ -1,6 +1,6 @@
 import pytest
 from mahjong.hand_calculating.yaku_list import AkaDora, Chankan, Dora, Haku, Ittsu, Riichi, Tsumo
-from mahjong.hand_calculating.yaku_list.yakuman import Daisangen, DaiSuushii, Tsuuiisou
+from mahjong.hand_calculating.yaku_list.yakuman import Daisangen, Tsuuiisou
 from mahjong.tile import TilesConverter
 
 from game.logic.enums import HandLimit, PaoShare, RoundPhase, RoundResultType
@@ -542,9 +542,7 @@ class TestPaoTsumoScoring:
         assert result.score_changes == {0: 0, 1: 33300, 2: -32300, 3: 0}
         assert result.riichi_sticks_collected == 1
 
-    def test_pao__when_dealer_tsumo_stacks_another_yakuman__should_charge_pao_player_only_the_pao_yakuman_and_honba(
-        self,
-    ):
+    def test_pao__when_dealer_tsumo_stacks_another_yakuman__should_charge_pao_player_the_whole_hand_and_honba(self):
         winner = _with_drawn_tile(_daisangen_tsuuiisou_tanki_player(0, pao_seat=3), _DAISANGEN_TSUUIISOU_WIN_TILE)
         game_state = _stage_pao_win(dealer_seat=0, winners=[winner], current_seat=0, honba_sticks=1)
 
@@ -553,7 +551,7 @@ class TestPaoTsumoScoring:
         assert isinstance(result, TsumoResult)
         assert [y.yaku_id for y in result.hand_result.yaku] == [Daisangen.yaku_id, Tsuuiisou.yaku_id]
         assert result.hand_result.points == 96000
-        assert result.score_changes == {0: 96300, 1: -16000, 2: -16000, 3: -64300}
+        assert result.score_changes == {0: 96300, 1: 0, 2: 0, 3: -96300}
 
 
 class TestPaoRonScoring:
@@ -619,9 +617,7 @@ class TestPaoRonScoring:
         assert result.hand_result.points == 32000
         assert result.score_changes == {0: 0, 1: 32300, 2: -16000, 3: -16300}
 
-    def test_pao__when_dealer_ron_stacks_another_yakuman__should_charge_pao_player_half_the_pao_yakuman_and_honba(
-        self,
-    ):
+    def test_pao__when_dealer_ron_stacks_another_yakuman__should_charge_pao_player_half_the_whole_hand_and_honba(self):
         winner = _daisangen_tsuuiisou_tanki_player(0, pao_seat=3)
         game_state = _stage_pao_win(
             dealer_seat=0,
@@ -640,33 +636,7 @@ class TestPaoRonScoring:
         assert [y.yaku_id for y in result.hand_result.yaku] == [Daisangen.yaku_id, Tsuuiisou.yaku_id]
         assert result.pao == PaoLiability(yaku_ids=[Daisangen.yaku_id], share=PaoShare.HALF, pays_honba=True)
         assert (result.hand_result.points, result.hand_result.yakuman_count) == (96000, 2)
-        assert result.score_changes == {0: 96300, 1: -72000, 2: 0, 3: -24300}
-
-    def test_pao__when_double_yakuman_daisuushii_ron_stacks_tsuuiisou__should_weigh_the_pao_share_by_han(self):
-        melds = (*_honor_pons(1, from_seat=0, honors="123"), *_honor_pons(1, from_seat=3, honors="4"))
-        winner = create_player(seat=1, tiles=tile_copies(0, honors="5"), melds=melds, pao_seat=3)
-        haku_win_tile = tile_copies(1, honors="5")[0]
-        game_state = _stage_pao_win(
-            dealer_seat=0,
-            winners=[winner],
-            current_seat=2,
-            discarded_tile=haku_win_tile,
-            honba_sticks=1,
-        )
-
-        _new_state, events = process_ron_call(
-            game_state,
-            ron_input=RonCallInput(ron_callers=[1], tile_id=haku_win_tile, discarder_seat=2),
-        )
-        result = _round_result(events)
-        assert isinstance(result, RonResult)
-        assert [(y.yaku_id, y.han) for y in result.hand_result.yaku] == [
-            (Tsuuiisou.yaku_id, 13),
-            (DaiSuushii.yaku_id, 26),
-        ]
-        assert result.pao_seat == 3
-        assert result.hand_result.points == 96000
-        assert result.score_changes == {0: 0, 1: 96300, 2: -64000, 3: -32300}
+        assert result.score_changes == {0: 96300, 1: -48000, 2: 0, 3: -48300}
 
     def test_pao__when_double_ron_with_honba__should_charge_the_pao_winners_honba_to_the_pao_player(self):
         pao_winner = _daisangen_tanki_player(0, pao_seat=2)
@@ -718,7 +688,8 @@ class TestPaoRonScoring:
             None,
             PaoLiability(yaku_ids=[Daisangen.yaku_id], share=PaoShare.HALF, pays_honba=False),
         ]
-        assert result.score_changes == {0: 48300, 1: 5500, 2: -24300, 3: -29500}
+        assert [w.honba_bonus for w in result.winners] == [300, 0]
+        assert result.score_changes == {0: -21500, 1: 5500, 2: 32000, 3: -16000}
 
     def test_pao__when_double_ron_liable_player_is_the_other_winner__should_charge_them_half_the_yakuman(self):
         other_winner = create_player(seat=1, tiles=_ITTSUU_SHANPON_HAND)
