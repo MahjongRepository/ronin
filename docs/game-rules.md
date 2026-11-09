@@ -38,7 +38,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 - Riichi at exactly 1,000 points: Allowed (player goes to 0 points; game continues unless another player wins and triggers tobi)
 - Minimum wall tiles for declaration: 4
 - After riichi is established, every discard must be the tile just drawn. The player may instead declare a legal win or a permitted concealed kan. The declaration discard itself may be any tile that keeps the hand tenpai.
-- Concealed quad during riichi (ankan), the Tenhou / Mahjong Soul rule: allowed only when the tile just drawn is the kan tile (no okurikan: a quad held before the draw cannot be declared) and the kan leaves the set of waiting tiles unchanged. A kan that narrows the waits, breaks tenpai, or quads a tile that is itself a wait is refused. A kan that changes only how the hand splits into sets, or its yaku, is allowed: 111222333m456p5s waiting on 5s may quad a drawn 1m although the hand loses its ippeikou reading. Applies to concealed kan only — shouminkan is blocked during riichi. The waits before and after the kan are compared under our karaten rule (Keishiki tenpai, below): a tile whose 4 copies are all in the player's own hand and melds is not a wait.
+- Concealed quad during riichi (ankan): allowed only when the tile just drawn is the kan tile (no okurikan: a quad held before the draw cannot be declared) and the kan leaves the set of waiting tiles unchanged. A kan that narrows the waits, breaks tenpai, or quads a tile that is itself a wait is refused. A kan that changes only how the hand splits into sets, or its yaku, is allowed: 111222333m456p5s waiting on 5s may quad a drawn 1m although the hand loses its ippeikou reading. Applies to concealed kan only — shouminkan is blocked during riichi. The waits before and after the kan are compared under our karaten rule (Keishiki tenpai, below): a tile whose 4 copies are all in the player's own hand and melds is not a wait.
 - Riichi sticks on exhaustive/abortive draw: Remain on the table for the next hand. Awarded to 1st place at game end if uncollected.
 
 ### Furiten
@@ -96,8 +96,8 @@ When the caller declares another quad on the replacement tile instead of discard
 - Honba (tsumo): +100 points per counter per losing player (300 total, same as ron)
 - Payment rounding: All individual payments rounded UP to the nearest 100 points
 - Noten penalty (exhaustive draw only): 3,000 points total redistributed (split evenly among noten payers, distributed evenly to tenpai players). No noten payments on abortive draws.
-- Keishiki tenpai (形式聴牌): Counts as tenpai for noten payments, except pure karaten (all 4 copies in own hand/melds). Tiles in the player's own melds count toward the 4 copies, as in the M-League and Nihon Pro Mahjong Association rules; Tenhou counts only the closed hand, which is not our rule. Waiting for a tile where all 4 copies are visible in others' discards/melds still counts as tenpai.
-- Goshashonyu rounding (五捨六入): ≤500 rounds toward zero, ≥600 rounds away
+- Keishiki tenpai (形式聴牌): Counts as tenpai for noten payments, except pure karaten (all 4 copies in own hand/melds). Tiles in the player's own melds count toward the 4 copies, whether concealed or called. Waiting for a tile where all 4 copies are visible in others' discards/melds still counts as tenpai.
+- Goshashonyu rounding (五捨六入): Each player's final difference from the target score rounds to a whole 1,000: ≤500 toward zero, ≥600 away. First place absorbs any remainder, so final points sum to zero.
 - Tie-breaking: When players have equal final scores, the player closer counter-clockwise to the starting dealer ranks higher. The starting dealer is chosen by dice from the game seed, so it is not always seat 0.
 - Double ron riichi sticks and honba bonus: only the winner closest counter-clockwise to the discarder receives them. For chankan the kan caller takes the discarder's role.
 
@@ -152,7 +152,7 @@ Rules that could theoretically be adjusted through game settings. Current Ronin 
 - Uma: 10-20
 - Oka: Enabled (25,000/30,000) — each player contributes (target_score - starting_score) = 5,000 points; total oka of 20,000 goes to 1st place
 - Tobi (negative score): Game ends immediately. Tobi threshold: Below 0 points (0 points does not end the game)
-- Agariyame (dealer stops in all-last while leading): Enabled and automatic, as in Tenhou. From South-4 (East-4 in tonpusen) on, a dealer who wins and places first with at least the winning score threshold ends the game. Ties for first follow the final standings. Without an extension any score ends it.
+- Agariyame (dealer stops in all-last while leading): Enabled and automatic. From South-4 (East-4 in tonpusen) on, a dealer who wins and places first with at least the winning score threshold ends the game. Ties for first follow the final standings. Without an extension any score ends it.
 - Tenpaiyame (dealer stops in all-last if leading and tenpai at exhaustive draw): Enabled under the same conditions, nagashi mangan with a tenpai dealer included. An abortive draw never stops the game.
 
 ### Yaku Toggles
@@ -160,7 +160,7 @@ Rules that could theoretically be adjusted through game settings. Current Ronin 
 - Open Tanyao (Kuitan): Allowed
 - Ippatsu: Enabled
 - Atozuke (gaining yaku upon winning tile claim): Allowed
-- Renhou (Blessing of Man): Disabled, as in Tenhou. A ron before the first draw scores only the yaku the hand holds.
+- Renhou (Blessing of Man): Disabled. A ron before the first draw scores only the yaku the hand holds.
 
 ### Call Rules
 
@@ -205,4 +205,4 @@ Rules that could theoretically be adjusted through game settings. Current Ronin 
 - Chiitoitsu: Fixed 25 fu, 2 han
 - Pinfu tsumo: 0 fu (no additional fu for pinfu tsumo)
 - Open pinfu: 2 fu (fu added for open pinfu hands)
-- Kiriage Mangan (rounded mangan): Disabled, as in Tenhou ranked games. 4-han/30-fu and 3-han/60-fu hands score their exact values (7,700/11,600), not mangan (8,000/12,000).
+- Kiriage Mangan (rounded mangan): Disabled. 4-han/30-fu and 3-han/60-fu hands score their exact values (7,700/11,600), not mangan (8,000/12,000).
