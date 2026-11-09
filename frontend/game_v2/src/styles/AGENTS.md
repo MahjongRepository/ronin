@@ -84,10 +84,12 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
 - Pages never clip the board: `.board-page` gives it the safe area, and a 10px gutter on every board but a phone's,
   whose bottom edge stays bare (a phone's board honours the side and top insets only).
   The own row stands at least its edge's depth off the bottom.
-- **The live page lets a phone browser's bars collapse.** Its `#app` stands `100lvh` tall and the page sticks to the
+- **The live page lets a phone browser's bars collapse.** Its `.game` stands `100lvh` tall and the page sticks to the
   top, so with the bars shown the document scrolls by their height and a swipe collapses them, while the board keeps
-  `100dvh` and grows into the room; where the two heights agree nothing scrolls. The view's `browserBars` source
-  measures that difference (`100lvh` against `innerHeight`) for the board's notice; no stylesheet decides it.
+  `100dvh` and grows into the room. In a touch browser's tab `.game` is a fixed scroll room taller and the page rests
+  past that room, so it still scrolls with the bars collapsed and is not at its top, where a browser brings them back;
+  an installed app and full screen keep no room and nothing scrolls. The view's `browserBars` source measures the
+  difference (`100lvh` against `innerHeight`) for the board's notice, no stylesheet deciding it, and rests the page.
 - **The gutter follows the family, decided once.** The board's box without the gutter, less on each edge what a
   10px gutter adds beyond the safe inset, is classified once: a phone takes no gutter and the unguttered box, any
   other family the 10px gutter on that box. Classifying the guttered board instead would flip the family at the

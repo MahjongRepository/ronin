@@ -87,6 +87,11 @@ class FakeTileSprite implements TileSprite {
 class FakeBrowserBars implements BrowserBars {
     private current = false;
     private readonly listeners = new Set<(shown: boolean) => void>();
+    readonly enterFullscreen = vi.fn();
+
+    constructor(private readonly fullscreenAvailable: boolean) {}
+
+    canEnterFullscreen = (): boolean => this.fullscreenAvailable;
 
     shown = (): boolean => this.current;
 
@@ -104,6 +109,7 @@ class FakeBrowserBars implements BrowserBars {
 }
 
 interface FakeOverrides {
+    readonly canEnterFullscreen?: boolean;
     readonly connect?: GameViewDeps["connect"];
     readonly debug?: boolean;
     readonly clearHandoff?: () => void;
@@ -143,7 +149,10 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
     dispose: () => void;
 } {
     const clock = new ManualClock();
-    const [tileSprite, browserBars] = [new FakeTileSprite(), new FakeBrowserBars()];
+    const [tileSprite, browserBars] = [
+        new FakeTileSprite(),
+        new FakeBrowserBars(overrides.canEnterFullscreen ?? false),
+    ];
     const draws = { throwing: 0 };
     const { connect, connections } = fakeConnector();
     const sink = {
@@ -486,6 +495,15 @@ describe("mountGameView tile faces", () => {
 
         expect(shown).toMatch(/^Swipe up to hide the browser bars and enlarge the table\s*$/);
         expect(barsNotice()).toBeUndefined();
+    });
+
+    it("enters full screen from the bars' notice inside the tap, where the browser can", () => {
+        const { browserBars, host } = mountWithFakes({ canEnterFullscreen: true });
+
+        browserBars.moveTo(true);
+        host.querySelector<HTMLButtonElement>(".game__play .board-notice__action")?.click();
+
+        expect(browserBars.enterFullscreen).toHaveBeenCalledOnce();
     });
 });
 

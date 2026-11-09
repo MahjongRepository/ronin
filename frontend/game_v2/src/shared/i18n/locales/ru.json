@@ -112,6 +112,8 @@
     "game.nameplate.view": "показать вид с этого места",
     "game.nameplate.viewing": "вид с этого места",
     "game.notice.browser_bars": "Смахните вверх, чтобы скрыть панели браузера и увеличить стол",
+    "game.notice.browser_bars_fullscreen": "Откройте игру на весь экран, чтобы увеличить стол",
+    "game.notice.enter_fullscreen": "На весь экран",
     "game.notice.finding_game": "Поиск вашей игры…",
     "game.notice.show_all": "Показать всё",
     "game.notice.show_all_label": "Показать всё: {words}",

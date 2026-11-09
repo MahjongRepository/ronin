@@ -53,7 +53,17 @@
     min-height: 0;
 }
 
-#app:has(> .game__play) {
+$bars-scroll-room: 100px;
+
+.game:has(> .game__play) {
+    min-height: 100lvh;
+
+    @media (hover: none) and (pointer: coarse) and (display-mode: browser) {
+        min-height: calc(100lvh + #{$bars-scroll-room});
+    }
+}
+
+:root:fullscreen .game:has(> .game__play) {
     min-height: 100lvh;
 }
 

@@ -80,6 +80,10 @@ export interface GameViewDeps {
  * (a phone browser's address bar and toolbar), with each change as the viewport resizes; returns the unsubscribe.
  */
 export interface BrowserBars {
+    /** Whether this browser can put the page in full screen, which an iPhone's cannot. */
+    readonly canEnterFullscreen: () => boolean;
+    /** Put the page in full screen; only from inside the player's own tap, which a browser requires. */
+    readonly enterFullscreen: () => void;
     readonly shown: () => boolean;
     readonly subscribe: (listener: (shown: boolean) => void) => () => void;
 }
@@ -328,6 +332,7 @@ class GameViewController {
         this.ui = {
             ...NO_PLAY_UI,
             browserBars: deps.browserBars.shown(),
+            canEnterFullscreen: deps.browserBars.canEnterFullscreen(),
             rightClick: deps.inputSetting.load().rightClick,
             soundOn: deps.sound.setting.load().sound_on,
             tileSprite: deps.tileSprite.status(),
@@ -387,6 +392,10 @@ class GameViewController {
             this.deps.sink.reload();
             return;
         }
+        if (command.kind === "enter_fullscreen") {
+            this.deps.browserBars.enterFullscreen();
+            return;
+        }
         this.guard(() => this.changeUi(command));
     };
 
@@ -407,7 +416,9 @@ class GameViewController {
         }
     }
 
-    private changeUi(command: Exclude<PlayCommand, { kind: "intent" | "reload" }>): void {
+    private changeUi(
+        command: Exclude<PlayCommand, { kind: "intent" | "reload" | "enter_fullscreen" }>,
+    ): void {
         if (command.kind === "ask_leave") {
             this.leaveOpener = this.focusedControl();
         }

@@ -109,14 +109,23 @@ function tileSpriteNotice(status: TileSpriteStatus): PlayNotice | null {
 }
 
 /**
- * The way to a larger table while a phone browser's bars take part of the screen: the page stands taller than the
- * viewport so a swipe collapses them, and the board grows into the room they leave.
+ * The way to a larger table while a phone browser's bars take part of the screen: full screen where the browser has
+ * it, which also hides the system's bars; elsewhere a swipe, since the page stands taller than the viewport so that
+ * one collapses them and the board grows into the room they leave.
  */
-function browserBarsNotice(shown: boolean): PlayNotice | null {
-    if (!shown) {
+function browserBarsNotice(ui: PlayUi): PlayNotice | null {
+    if (!ui.browserBars) {
         return null;
     }
-    return { kind: "browser_bars", text: t("game.notice.browser_bars"), tone: "info" };
+    if (!ui.canEnterFullscreen) {
+        return { kind: "browser_bars", text: t("game.notice.browser_bars"), tone: "info" };
+    }
+    return {
+        action: { command: { kind: "enter_fullscreen" }, label: t("game.notice.enter_fullscreen") },
+        kind: "browser_bars",
+        text: t("game.notice.browser_bars_fullscreen"),
+        tone: "info",
+    };
 }
 
 /** The notices over the table, ongoing conditions before acknowledgements (`NoticeKind`); none while a failure blocks it. */
@@ -128,7 +137,7 @@ export function boardNotices(state: LiveClient, ui: PlayUi): PlayNotice[] {
         connectionNotice(connectionTrouble(state.session)),
         unreadNotice(desyncOf(state)?.unreadMessages ?? 0),
         tileSpriteNotice(ui.tileSprite),
-        browserBarsNotice(ui.browserBars),
+        browserBarsNotice(ui),
         timedNotice(state.notice),
     ].filter((notice) => notice !== null);
 }

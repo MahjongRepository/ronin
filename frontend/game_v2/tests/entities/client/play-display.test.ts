@@ -609,6 +609,12 @@ describe("playDisplay notices", () => {
             tone: "info",
         });
         expect(playDisplay(scenario.state, { ...ui, browserBars: false }).notices).toHaveLength(2);
+        expect(
+            playDisplay(scenario.state, { ...ui, canEnterFullscreen: true }).notices[1],
+        ).toMatchObject({
+            action: { command: { kind: "enter_fullscreen" }, label: "Full screen" },
+            text: "Go full screen to enlarge the table",
+        });
     });
 
     it("opens every notice whole from one's Show all, with the round confirm's seconds, under the leave question, while any notice shows", () => {

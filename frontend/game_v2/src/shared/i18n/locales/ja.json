@@ -106,6 +106,8 @@
     "game.nameplate.view": "この席の視点で見る",
     "game.nameplate.viewing": "この席の視点で表示中",
     "game.notice.browser_bars": "上にスワイプするとブラウザのバーが隠れ、卓が大きくなります",
+    "game.notice.browser_bars_fullscreen": "全画面にすると卓が大きくなります",
+    "game.notice.enter_fullscreen": "全画面",
     "game.notice.finding_game": "対局を探しています…",
     "game.notice.show_all": "すべて表示",
     "game.notice.show_all_label": "すべて表示: {words}",

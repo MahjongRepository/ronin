@@ -43,7 +43,8 @@ export type PlayCommand =
     | { readonly kind: "close_settings" }
     | { readonly kind: "toggle_sound" }
     | { readonly kind: "toggle_right_click" }
-    | { readonly kind: "reload" };
+    | { readonly kind: "reload" }
+    | { readonly kind: "enter_fullscreen" };
 
 /**
  * What moves the view's `ui` in one step: a page control, the client stepping on its own, the tile sprite's load
@@ -75,7 +76,8 @@ export interface PlayAction {
  * open until the player closes them; that the player asked to leave mid-game and has yet to confirm it; that the
  * settings menu is open; whether the game plays its sounds, a setting the page keeps in this browser; where the
  * tile sprite's load stands, which the page's IO owns; and whether the browser's bars take part of the screen a swipe
- * would give the table (a phone browser's box shorter than its display), which the page measures.
+ * would give the table (a phone browser's box shorter than its display), which the page measures, and whether this
+ * browser can put the page in full screen instead.
  */
 export interface PlayUi {
     readonly riichiPickWaitId: number | null;
@@ -91,10 +93,12 @@ export interface PlayUi {
     readonly rightClick: boolean;
     readonly tileSprite: TileSpriteStatus;
     readonly browserBars: boolean;
+    readonly canEnterFullscreen: boolean;
 }
 
 export const NO_PLAY_UI: PlayUi = {
     browserBars: false,
+    canEnterFullscreen: false,
     confirmingLeave: false,
     noticeSheet: null,
     pinnedNameplate: null,

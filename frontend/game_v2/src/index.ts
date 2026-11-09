@@ -123,30 +123,59 @@ function startTileSprite(): TileSprite {
     });
 }
 
-/**
- * Whether the browser's bars take part of the screen: the viewport stands shorter than the large viewport (`100lvh`,
- * the height a swipe gives once a phone browser collapses them), measured off a probe of that height.
- */
-function browserBarsShown(): boolean {
+/** The large viewport's height (`100lvh`, what a phone browser leaves once its bars collapse), off a probe of it. */
+function largeViewportHeight(): number {
     const probe = document.createElement("div");
     probe.style.cssText =
         "position: fixed; top: 0; left: 0; width: 0; height: 100lvh; visibility: hidden; pointer-events: none;";
     document.body.append(probe);
     const large = probe.offsetHeight;
     probe.remove();
-    return large > window.innerHeight + 1;
+    return large;
 }
 
-/** The browser's bars over the page, read again as the viewport resizes, which a collapse does. */
+/** Whether the browser's bars take part of the screen: the viewport stands shorter than the large viewport. */
+function browserBarsShown(): boolean {
+    return largeViewportHeight() > window.innerHeight + 1;
+}
+
+/**
+ * Rest the page past the scroll room it keeps beyond the large viewport, so it still scrolls with the bars collapsed
+ * and is not at its top, where a phone browser brings them back. The board is sticky and does not move.
+ */
+function restPagePastItsTop(): void {
+    const room = document.body.offsetHeight - largeViewportHeight();
+    if (room > 0 && window.scrollY < room) {
+        window.scrollTo(0, room);
+    }
+}
+
+function enterFullscreen(): void {
+    document.documentElement.requestFullscreen({ navigationUI: "hide" }).catch((error: unknown) => {
+        console.warn("The page could not enter full screen:", error);
+    });
+}
+
+/**
+ * The browser's bars over the page, read again as the viewport resizes, which a collapse does. The page rests past its
+ * top whenever its body changes height (the first draw, a rotation, leaving full screen), which a collapse does not do.
+ */
 function browserBars(): BrowserBars {
     return {
+        canEnterFullscreen: () => document.fullscreenEnabled === true,
+        enterFullscreen,
         shown: browserBarsShown,
         subscribe(listener) {
             function onResize(): void {
                 listener(browserBarsShown());
             }
+            const pageRest = new ResizeObserver(restPagePastItsTop);
+            pageRest.observe(document.body);
             window.addEventListener("resize", onResize);
-            return () => window.removeEventListener("resize", onResize);
+            return () => {
+                window.removeEventListener("resize", onResize);
+                pageRest.disconnect();
+            };
         },
     };
 }

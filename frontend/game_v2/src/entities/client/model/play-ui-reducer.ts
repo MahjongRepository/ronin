@@ -127,6 +127,7 @@ function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): P
             return { ...ui, rightClick: !ui.rightClick };
         }
         case "intent":
+        case "enter_fullscreen":
         case "reload": {
             return command.kind === "intent" ? uiAfterIntent(ui, command.intent) : ui;
         }

@@ -108,6 +108,8 @@
     "game.nameplate.view": "view from this seat",
     "game.nameplate.viewing": "viewing from this seat",
     "game.notice.browser_bars": "Swipe up to hide the browser bars and enlarge the table",
+    "game.notice.browser_bars_fullscreen": "Go full screen to enlarge the table",
+    "game.notice.enter_fullscreen": "Full screen",
     "game.notice.finding_game": "Finding your game…",
     "game.notice.show_all": "Show all",
     "game.notice.show_all_label": "Show all: {words}",
