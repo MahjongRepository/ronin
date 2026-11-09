@@ -41,8 +41,8 @@ class TestValidateSettings:
             validate_settings(GameSettings(tie_break_by_seat_order=False))
 
     def test_validate_settings__when_several_unsupported_values__should_report_all(self):
-        with pytest.raises(UnsupportedSettingsError, match=r"has_agariyame.*renhou_value=BAIMAN"):
-            validate_settings(GameSettings(has_agariyame=True, renhou_value=RenhouValue.BAIMAN))
+        with pytest.raises(UnsupportedSettingsError, match=r"renhou_value=BAIMAN.*tie_break_by_seat_order=False"):
+            validate_settings(GameSettings(renhou_value=RenhouValue.BAIMAN, tie_break_by_seat_order=False))
 
     @pytest.mark.parametrize(
         ("settings", "message"),
@@ -60,8 +60,8 @@ class TestValidateSettings:
 
     def test_init_game__when_settings_unsupported__should_raise(self):
         configs = [SeatConfig(name=f"Player{i}") for i in range(4)]
-        with pytest.raises(UnsupportedSettingsError, match="has_agariyame"):
-            init_game(configs, seed="a" * 192, settings=GameSettings(has_agariyame=True))
+        with pytest.raises(UnsupportedSettingsError, match="renhou_value=BAIMAN"):
+            init_game(configs, seed="a" * 192, settings=GameSettings(renhou_value=RenhouValue.BAIMAN))
 
 
 # ============================================================================
@@ -156,11 +156,11 @@ class TestGameTypeEnchousenExtensions:
 
     def test_game_end_cause__when_tonpusen_east_complete_without_winner__should_continue(self):
         gs = self._game_state(unique_dealers=5, player_scores=[25000, 25000, 25000, 25000])
-        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) is None
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind, ended_dealer_seat=3) is None
 
     def test_game_end_cause__when_tonpusen_south_complete__should_end(self):
         gs = self._game_state(unique_dealers=9)
-        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) is not None
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind, ended_dealer_seat=3) is not None
 
     def test_game_end_cause__when_hanchan_south_complete_without_winner__should_continue(self):
         gs = self._game_state(
@@ -168,11 +168,11 @@ class TestGameTypeEnchousenExtensions:
             player_scores=[25000, 25000, 25000, 25000],
             game_type=GameType.HANCHAN,
         )
-        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) is None
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind, ended_dealer_seat=3) is None
 
     def test_game_end_cause__when_hanchan_west_complete__should_end(self):
         gs = self._game_state(unique_dealers=13, game_type=GameType.HANCHAN)
-        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) is not None
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind, ended_dealer_seat=3) is not None
 
 
 # ============================================================================
@@ -199,7 +199,9 @@ class TestEnchousenNone:
 
     def test_game_end_cause__when_enchousen_none_and_hanchan_south_complete__should_end(self):
         gs = self._game_state(unique_dealers=9, enchousen=EnchousenType.NONE)
-        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.LENGTH
+        assert (
+            game_end_cause(gs, ended_round_wind=gs.round_state.round_wind, ended_dealer_seat=3) == GameEndCause.LENGTH
+        )
 
     def test_game_end_cause__when_enchousen_none_and_tonpusen_east_complete__should_end(self):
         gs = self._game_state(
@@ -207,4 +209,6 @@ class TestEnchousenNone:
             enchousen=EnchousenType.NONE,
             game_type=GameType.TONPUSEN,
         )
-        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.LENGTH
+        assert (
+            game_end_cause(gs, ended_round_wind=gs.round_state.round_wind, ended_dealer_seat=3) == GameEndCause.LENGTH
+        )

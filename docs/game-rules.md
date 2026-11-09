@@ -121,8 +121,8 @@ When the caller declares another quad on the replacement tile instead of discard
 
 Applies when the game type and winning score threshold settings allow the game to extend past the primary wind rounds (e.g., Hanchan with 30,000 threshold — if no player reaches 30,000 after South round ends, the game enters West wind).
 
-- End condition: The game ends at the first moment any player's score reaches the winning score threshold (checked after every hand result — win, draw, or noten payments).
-- Dealer renchan in West round: If the dealer wins or is tenpai at exhaustive draw, renchan applies — but if any player (including the dealer) has reached the threshold, the game ends immediately regardless of renchan.
+- End condition: Once the dealer has rotated, the game ends if any player's score has reached the winning score threshold (checked after every hand result — win, draw, or noten payments).
+- Dealer renchan in West round: A repeat takes priority over the threshold. The game ends only if the dealer wins or is tenpai at exhaustive draw and places first with the threshold reached; otherwise renchan applies, even when another player has reached the threshold. An abortive draw always repeats.
 - Rotation continues normally through West-1, West-2, West-3, West-4. If no player reaches the threshold by the end of West-4, the game ends and the player closest to the threshold wins (standard tie-breaking applies).
 
 ### Yaku Special Cases
@@ -152,8 +152,8 @@ Rules that could theoretically be adjusted through game settings. Current Ronin 
 - Uma: 10-20
 - Oka: Enabled (25,000/30,000) — each player contributes (target_score - starting_score) = 5,000 points; total oka of 20,000 goes to 1st place
 - Tobi (negative score): Game ends immediately. Tobi threshold: Below 0 points (0 points does not end the game)
-- Agariyame (dealer stops in all-last while leading): Disabled
-- Tenpaiyame (dealer stops in all-last if leading and tenpai at exhaustive draw): Disabled
+- Agariyame (dealer stops in all-last while leading): Enabled and automatic, as in Tenhou. From South-4 (East-4 in tonpusen) on, a dealer who wins and places first with at least the winning score threshold ends the game. Ties for first follow the final standings. Without an extension any score ends it.
+- Tenpaiyame (dealer stops in all-last if leading and tenpai at exhaustive draw): Enabled under the same conditions, nagashi mangan with a tenpai dealer included. An abortive draw never stops the game.
 
 ### Yaku Toggles
 

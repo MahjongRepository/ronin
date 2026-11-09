@@ -669,10 +669,14 @@ class MahjongGameService(GameService):
         frozen_game = runtime.state
         logger.info("round ended", result_type=type(round_result).__name__)
 
-        ended_round_wind = frozen_game.round_state.round_wind
+        ended_round = frozen_game.round_state
         frozen_game = process_round_end(frozen_game, round_result)
 
-        end_cause = game_end_cause(frozen_game, ended_round_wind=ended_round_wind)
+        end_cause = game_end_cause(
+            frozen_game,
+            ended_round_wind=ended_round.round_wind,
+            ended_dealer_seat=ended_round.dealer_seat,
+        )
         if end_cause is not None:
             frozen_game, game_result = finalize_game(frozen_game)
             logger.info(

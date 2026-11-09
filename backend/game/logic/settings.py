@@ -117,7 +117,7 @@ class GameSettings(BaseModel):
     # --- Win Rules ---
     has_double_ron: bool = True
     double_ron_count: int = 2
-    has_agariyame: bool = False
+    has_agariyame: bool = True
     tie_break_by_seat_order: bool = True
     leftover_riichi_bets: LeftoverRiichiBets = LeftoverRiichiBets.WINNER
     enchousen: EnchousenType = EnchousenType.SUDDEN_DEATH
@@ -155,9 +155,6 @@ def validate_settings(settings: GameSettings) -> None:
     points each), so each is a whole number of them.
     """
     errors: list[str] = []
-
-    if settings.has_agariyame:
-        errors.append("has_agariyame=True is not supported (agariyame not yet implemented)")
 
     if settings.renhou_value == RenhouValue.BAIMAN:
         errors.append("renhou_value=BAIMAN is not supported (requires custom 8-han scoring)")

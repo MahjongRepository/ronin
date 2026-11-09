@@ -173,8 +173,8 @@ def test_replay_settings__when_reference_is_invalid__should_refuse(reference):
 
 
 def test_replay_settings__when_unsupported_rule__should_refuse():
-    with pytest.raises(UnsupportedSettingsError, match="agariyame"):
-        decode_replay_settings({"id": 1, "overrides": {"has_agariyame": True}})
+    with pytest.raises(UnsupportedSettingsError, match="renhou_value=BAIMAN"):
+        decode_replay_settings({"id": 1, "overrides": {"renhou_value": "baiman"}})
 
 
 def test_replay_settings__when_unknown_selected_profile__should_refuse():
@@ -193,7 +193,7 @@ def test_rule_profile__should_pin_persisted_baseline_independently_of_defaults()
     )
     assert (
         hashlib.sha256(normalized.encode()).hexdigest()
-        == "e2ff7cc7f01867d0a51e0ddc57c82a7827638353d66b45cf8a5debfb6e55a51c"
+        == "79ee402b05de8e5d2c3f25c0d5a5a7ee0a25bb8775121d9509bf19c2b3883616"
     )
 
 

@@ -16,6 +16,7 @@ from game.logic.state import (
 )
 from game.logic.state_utils import get_winner_seats, update_player
 from game.logic.types import (
+    AbortiveDrawResult,
     ExhaustiveDrawResult,
     GameEndResult,
     NagashiManganResult,
@@ -312,15 +313,40 @@ def process_round_end(
     )
 
 
-def game_end_cause(game_state: MahjongGameState, ended_round_wind: int) -> GameEndCause | None:
+def _placement_key(player: MahjongPlayer, starting_dealer: int) -> tuple[int, int]:
+    """
+    Sort players by placement: highest score first, ties broken by proximity to the starting dealer.
+    """
+    return (-player.score, (player.seat - starting_dealer) % NUM_PLAYERS)
+
+
+def _is_dealer_first_at_target(game_state: MahjongGameState) -> bool:
+    """
+    Check that the dealer places first with a score that may end the game; without an extension any score may.
+    """
+    round_state = game_state.round_state
+    settings = game_state.settings
+    first = min(round_state.players, key=lambda player: _placement_key(player, game_state.starting_dealer_seat))
+    reaches_target = settings.enchousen == EnchousenType.NONE or first.score >= settings.winning_score_threshold
+    return first.seat == round_state.dealer_seat and reaches_target
+
+
+def game_end_cause(
+    game_state: MahjongGameState,
+    ended_round_wind: int,
+    ended_dealer_seat: int,
+) -> GameEndCause | None:
     """
     Return the rule that ends the game after a round, or None when play goes on.
 
     `game_state` is the state after the round's dealer advance; `ended_round_wind` is the wind of the round that just
-    ended, which tells a win of the target score in the extension from the primary wind's own end.
+    ended, which tells a win of the target score in the extension from the primary wind's own end; `ended_dealer_seat`
+    is the dealer who played it, since the next dealer can be that round's winner without having kept the deal.
 
     The game ends when any of these conditions are met:
     - Tobi: any player's score drops below tobi_threshold (when tobi_enabled)
+    - With has_agariyame, from the primary wind's last round on: a dealer who stays decides alone. A win or tenpai ends
+      the game when the dealer places first at winning_score_threshold+ points, anything else goes on to a repeat
     - Primary wind complete (East for tonpusen, South for hanchan) with enchousen NONE, or with someone at
       winning_score_threshold+ points: the game's length
     - In the extension, someone reaches winning_score_threshold+ points: the target reached
@@ -338,21 +364,29 @@ def game_end_cause(game_state: MahjongGameState, ended_round_wind: int) -> GameE
 
     if settings.game_type == GameType.TONPUSEN:
         # tonpusen: primary wind is East, sudden death extends into South
-        primary_complete = game_state.unique_dealers > east_max
+        primary_dealers = east_max
         sudden_death_limit = south_max
         last_primary_wind = WireWind.EAST
     else:
         # hanchan: primary wind is East + South, sudden death extends into West
-        primary_complete = game_state.unique_dealers > south_max
+        primary_dealers = south_max
         sudden_death_limit = west_max
         last_primary_wind = WireWind.SOUTH
+
+    primary_complete = game_state.unique_dealers > primary_dealers
+    dealer_stayed = round_state.dealer_seat == ended_dealer_seat
+    target_cause = GameEndCause.TARGET_REACHED if ended_round_wind > last_primary_wind else GameEndCause.LENGTH
+
+    if settings.has_agariyame and dealer_stayed and game_state.unique_dealers >= primary_dealers:
+        is_abortive = isinstance(round_state.result, AbortiveDrawResult)
+        return target_cause if not is_abortive and _is_dealer_first_at_target(game_state) else None
 
     if primary_complete:
         if settings.enchousen == EnchousenType.NONE:
             return GameEndCause.LENGTH
 
         if has_winner:
-            return GameEndCause.TARGET_REACHED if ended_round_wind > last_primary_wind else GameEndCause.LENGTH
+            return target_cause
 
     # sudden death limit reached
     if game_state.unique_dealers > sudden_death_limit:
@@ -379,7 +413,7 @@ def finalize_game(
     starting_dealer = game_state.starting_dealer_seat
 
     def _tie_break_key(p: MahjongPlayer) -> tuple[int, int]:
-        return (-p.score, (p.seat - starting_dealer) % NUM_PLAYERS)
+        return _placement_key(p, starting_dealer)
 
     # find winner: highest score, ties broken by proximity to starting dealer
     winner_seat = min(round_state.players, key=_tie_break_key).seat

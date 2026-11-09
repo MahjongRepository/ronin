@@ -769,7 +769,7 @@ _DEFAULT_SETTINGS = encode_replay_settings(GameSettings())
             id="int_bool",
         ),
         pytest.param(
-            {**GAME_STARTED, WireKey.GAME_SETTINGS: {**_DEFAULT_SETTINGS, "overrides": {"has_agariyame": True}}},
+            {**GAME_STARTED, WireKey.GAME_SETTINGS: {**_DEFAULT_SETTINGS, "overrides": {"renhou_value": "baiman"}}},
             "invalid settings",
             id="unsupported",
         ),

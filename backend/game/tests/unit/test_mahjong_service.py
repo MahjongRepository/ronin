@@ -30,7 +30,7 @@ from game.logic.exceptions import DiscardHistoryError, UnsupportedSettingsError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.runtime import GameRuntime
-from game.logic.settings import GameSettings, GameType
+from game.logic.settings import GameSettings, GameType, RenhouValue
 from game.logic.state import Caller, Discard, MeldOption, PendingCallPrompt
 from game.logic.tiles import NUM_TILES, tile_to_34
 from game.logic.turn import process_draw_phase
@@ -408,6 +408,44 @@ class TestRoundEndAwaiting:
         awaiting = service.get_awaiting(runtime)
         assert (awaiting.kind, awaiting.seats) == (WaitKind.ROUND_ADVANCE, frozenset({0, 1, 2, 3}))
 
+    @pytest.mark.parametrize(
+        ("unique_dealers", "tenpai_seat_after_dealer", "expected_wait"),
+        [
+            pytest.param(8, 0, WaitKind.NONE, id="south_4_dealer_stays_first_at_target"),
+            pytest.param(7, 1, WaitKind.ROUND_ADVANCE, id="south_3_next_dealer_first_at_target"),
+        ],
+    )
+    def test_handle_round_end__when_tenpai_seat_is_first_at_target__should_stop_only_for_a_staying_dealer(
+        self, service, unique_dealers, tenpai_seat_after_dealer, expected_wait
+    ):
+        runtime = service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"]).runtime
+        state = runtime.state
+        dealer_seat = state.round_state.dealer_seat
+        tenpai_seat = (dealer_seat + tenpai_seat_after_dealer) % 4
+        players = tuple(
+            player.model_copy(update={"score": 31000 if player.seat == tenpai_seat else 23000})
+            for player in state.round_state.players
+        )
+        runtime.commit(
+            state.model_copy(
+                update={
+                    "unique_dealers": unique_dealers,
+                    "round_state": state.round_state.model_copy(update={"players": players}),
+                }
+            )
+        )
+
+        result = ExhaustiveDrawResult(
+            tempai_seats=[tenpai_seat],
+            noten_seats=[seat for seat in range(4) if seat != tenpai_seat],
+            tenpai_hands=[TenpaiHand(seat=tenpai_seat, closed_tiles=[], melds=[])],
+            scores=dict.fromkeys(range(4), 25000),
+            score_changes=dict.fromkeys(range(4), 0),
+        )
+        service._handle_round_end(runtime, result)
+
+        assert service.get_awaiting(runtime).kind == expected_wait
+
 
 class TestMahjongGameServiceRiichiSettingsOnTheWire:
     def test_start_game__when_riichi_cost_and_stick_value_not_default__should_send_only_the_stick_value(self):
@@ -433,8 +471,8 @@ class TestMahjongGameServiceInvalidStart:
     def test_start_game__when_settings_unsupported__should_raise(self):
         service = MahjongGameService()
 
-        with pytest.raises(UnsupportedSettingsError, match="has_agariyame"):
-            service.start_game("game1", ["Alice"], settings=GameSettings(has_agariyame=True))
+        with pytest.raises(UnsupportedSettingsError, match="renhou_value=BAIMAN"):
+            service.start_game("game1", ["Alice"], settings=GameSettings(renhou_value=RenhouValue.BAIMAN))
 
 
 class TestMahjongGameServiceRestoreHumanPlayer:
