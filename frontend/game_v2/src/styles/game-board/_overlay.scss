@@ -161,6 +161,21 @@ $overlay-chrome: 3rem;
     }
 }
 
+@container result-foot (width < #{$two-column-result}) {
+    .board-overlay .round-end-result__indicators {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.3rem 0.75rem;
+    }
+
+    .board-overlay .round-end-result__indicator-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+}
+
 /* The controls stand beside the scores while both fit, else under them, so no figure wraps. */
 @container result-foot (width < 24rem) {
     .board-overlay .round-end-result:has(> .round-end-result__controls) {

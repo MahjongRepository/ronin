@@ -530,8 +530,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   ron); the winning hand with the winning tile set apart and its melds in their shape; the yaku,
   with han where han are meaningful and yakuman names and multipliers where they are; the dora,
   red and ura counts apart, the ura indicators only for a riichi winner and per winner in a double
-  ron, both kinds in a column of their own beside the value, under one small "Indicators" caption,
-  so they never read as the dora; the total (han and fu where meaningful, the limit name, the
+  ron, both kinds in a column of their own beside the value, under one small "Indicators" caption
+  (a panel too narrow for columns, on one line after that caption), so they never read as the dora;
+  the total (han and fu where meaningful, the limit name, the
   points) large; a note where a seat's payment is not the hand's value (pao, honba, collected
   sticks); every seat's change and
   new total together, cumulative through a double ron's pages or final, never mixed; then one
