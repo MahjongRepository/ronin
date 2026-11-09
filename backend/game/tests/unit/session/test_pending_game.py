@@ -277,10 +277,10 @@ class TestGameStartConfirm:
         ] * 2
         assert [conn.sent_messages[1][WireKey.TIMER_SETTINGS] for conn in (alice, bob)] == [
             {
-                WireKey.BASE_TURN_SECONDS: 5,
+                WireKey.BASE_TURN_SECONDS: 10,
                 WireKey.BANK_SECONDS: 20,
                 WireKey.MAX_BANK_SECONDS: 20,
-                WireKey.ROUND_ADVANCE_TIMEOUT: 10,
+                WireKey.ROUND_ADVANCE_TIMEOUT: 15,
                 WireKey.GAME_START_CONFIRM: START_CONFIRM_SECONDS,
             }
         ] * 2

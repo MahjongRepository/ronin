@@ -45,7 +45,12 @@ TIME_GRAIN_SECONDS = 0.25
 UNSEEN_DROP_CODE = 1006
 GAME_TICKET_PLACEHOLDER = "<game ticket>"
 SCENARIO_START_CONFIRM_SECONDS = 10
-SCENARIO_TIMER_CONFIG = TimerConfig(game_start_confirm_seconds=SCENARIO_START_CONFIRM_SECONDS, ai_turn_delay_seconds=0)
+SCENARIO_TIMER_CONFIG = TimerConfig(
+    base_turn_seconds=5,
+    round_advance_timeout_seconds=10,
+    game_start_confirm_seconds=SCENARIO_START_CONFIRM_SECONDS,
+    ai_turn_delay_seconds=0,
+)
 
 
 class VirtualTimeLoop(asyncio.SelectorEventLoop):
@@ -639,12 +644,12 @@ class SeatedGame:
     when any are staged, and seats AI players in the seats no player takes.
 
     Client messages go through the real message router, and the session's own pacing runs as in production: the default
-    timer settings but the game start confirmation's timeout pinned at 10 s and AI turns played with no delay
-    (SCENARIO_TIMER_CONFIG), so the scripted step times and the transcripts the game client's tests read do not move
-    with the production pacing, then the turn, call and round advance timers with their banks, all timed by the loop's
-    virtual clock. Each scripted seat confirms the game's start as it confirms a round end. A refusal any client
-    receives (a game error or a session error) that its step did not expect fails the scenario at once. Open one with
-    `seated_game`, which stops it and closes its loop.
+    timer settings but the base turn time pinned at 5 s, the round advance's and the game start confirmation's timeouts
+    at 10 s and AI turns played with no delay (SCENARIO_TIMER_CONFIG), so the scripted step times and the transcripts
+    the game client's tests read do not move with the production pacing, then the turn, call and round advance timers
+    with their banks, all timed by the loop's virtual clock. Each scripted seat confirms the game's start as it confirms
+    a round end. A refusal any client receives (a game error or a session error) that its step did not expect fails the
+    scenario at once. Open one with `seated_game`, which stops it and closes its loop.
     """
 
     def __init__(self, loop: VirtualTimeLoop, game_id: str, engine: _StagedEngine, *, players: Sequence[str]) -> None:

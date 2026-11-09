@@ -20,9 +20,9 @@ class TimerConfig(BaseModel):
     (seconds; a zero delay plays them at once).
     """
 
-    base_turn_seconds: float = Field(default=5, ge=0)
+    base_turn_seconds: float = Field(default=10, ge=0)
     initial_bank_seconds: float = Field(default=20, gt=0)
-    round_advance_timeout_seconds: float = Field(default=10, gt=0)
+    round_advance_timeout_seconds: float = Field(default=15, gt=0)
     pending_game_timeout_seconds: float = Field(default=30, gt=0)
     game_start_confirm_seconds: float = Field(default=10, ge=0)
     ai_turn_delay_seconds: float = Field(default=1, ge=0)

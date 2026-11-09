@@ -28,6 +28,11 @@ def make_session_manager(
         replay_collector=ReplayCollector(storage if storage is not None else FakeReplayStorage()),
         timer_config=timer_config
         if timer_config is not None
-        else TimerConfig(game_start_confirm_seconds=0, ai_turn_delay_seconds=0),
+        else TimerConfig(
+            base_turn_seconds=5,
+            round_advance_timeout_seconds=10,
+            game_start_confirm_seconds=0,
+            ai_turn_delay_seconds=0,
+        ),
         clock=clock,
     )
