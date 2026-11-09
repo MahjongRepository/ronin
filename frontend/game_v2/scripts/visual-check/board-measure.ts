@@ -362,6 +362,17 @@ function describeLocalTile(tiles: readonly Size[]): string {
 }
 
 /** The board's line in the page's summary: its box and content, the own tile, the decision's buttons, the least text. */
+/** The own river's discards in its first two rows, which the decision controls keep clear of. */
+const OWN_RIVER_KEPT_CLEAR = 12;
+
+/** The own river's tiles past its second row, which a decision control may cover: a round rarely reaches them. */
+export function ownRiverThirdRow(board: BoardMeasure): readonly Box[] {
+    return board.riverTiles
+        .filter((tile) => tile.group === "bottom")
+        .slice(OWN_RIVER_KEPT_CLEAR)
+        .map((tile) => tile.box);
+}
+
 export function describeBoard(board: BoardMeasure): string {
     const fonts = Math.min(...board.fonts.map((font) => font.px));
     const scroll = `scroll ${describeSize(board.boardScroll)}`;

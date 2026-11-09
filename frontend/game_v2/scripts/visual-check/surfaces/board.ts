@@ -1,7 +1,7 @@
 import { type Page } from "playwright";
 
 import { RIVER_ROW_SIZE } from "../../../src/entities/tile/lib/river-shape.ts";
-import { type BoardMeasure } from "../board-measure.ts";
+import { type BoardMeasure, ownRiverThirdRow } from "../board-measure.ts";
 import {
     type Box,
     EPSILON,
@@ -195,8 +195,17 @@ const PAGES: readonly PageCase[] = [
 /** The top river's discards an ordinary hand reaches; past them only a dense story's river runs on. */
 const ORDINARY_TOP_DISCARDS = 21;
 const TOP_DISCARDS_PAST_ORDINARY = "top-discards-past-ordinary";
-/** The spec's accepted rare overlap: an upright left badge, an ordinary name wide at least, over a long third row. */
-const ACCEPTED_OVERLAP = ["nameplate--left", TOP_DISCARDS_PAST_ORDINARY].toSorted().join(" x ");
+const OWN_DISCARDS_THIRD_ROW = "bottom-discards-third-row";
+/**
+ * The spec's accepted rare overlaps: an upright left badge, an ordinary name wide at least, over a long third row of
+ * the top river, and a decision control over the own river's third row.
+ */
+const ACCEPTED_OVERLAPS: ReadonlySet<string> = new Set(
+    [
+        ["nameplate--left", TOP_DISCARDS_PAST_ORDINARY],
+        ["actions", OWN_DISCARDS_THIRD_ROW],
+    ].map((pair) => pair.toSorted().join(" x ")),
+);
 
 /** The top river's tiles past an ordinary hand's discards, in discard order, as the board measure boxes them. */
 function measureTopDiscardsPastOrdinary(page: Page): Promise<Box[]> {
@@ -217,14 +226,25 @@ function measureTopDiscardsPastOrdinary(page: Page): Promise<Box[]> {
     );
 }
 
-/** The areas that overlap, but for an upright left badge over the top river's discards past an ordinary hand's. */
+/** The areas that overlap, but for the spec's accepted rare overlaps over a river's far discards. */
 function findAreaOverlaps(board: BoardMeasure, pastOrdinary: readonly Box[]): string[] {
-    const grouped = board.grouped.map((entry) =>
-        entry.group === "top-discards" && pastOrdinary.some((tile) => sameBox(tile, entry.box))
-            ? { ...entry, group: TOP_DISCARDS_PAST_ORDINARY }
-            : entry,
-    );
-    return findOverlaps(grouped).filter((pair) => pair !== ACCEPTED_OVERLAP);
+    const ownThirdRow = ownRiverThirdRow(board);
+    const grouped = board.grouped.map((entry) => {
+        if (
+            entry.group === "top-discards" &&
+            pastOrdinary.some((tile) => sameBox(tile, entry.box))
+        ) {
+            return { ...entry, group: TOP_DISCARDS_PAST_ORDINARY };
+        }
+        if (
+            entry.group === "bottom-discards" &&
+            ownThirdRow.some((tile) => sameBox(tile, entry.box))
+        ) {
+            return { ...entry, group: OWN_DISCARDS_THIRD_ROW };
+        }
+        return entry;
+    });
+    return findOverlaps(grouped).filter((pair) => !ACCEPTED_OVERLAPS.has(pair));
 }
 
 function checkBoardContent(

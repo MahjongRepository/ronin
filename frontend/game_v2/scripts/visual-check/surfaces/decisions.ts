@@ -1,6 +1,6 @@
 import { type Page } from "playwright";
 
-import { type BoardMeasure } from "../board-measure.ts";
+import { type BoardMeasure, ownRiverThirdRow } from "../board-measure.ts";
 import {
     type Box,
     EPSILON,
@@ -311,7 +311,10 @@ function checkActions(board: BoardMeasure, screen: Box, report: PageReport): voi
         overTimer.length === 0,
         `decision button(s) over the timer: ${overTimer.map(describeBox).join(", ")}`,
     );
-    const tiles = [...board.otherTiles, ...board.localTiles];
+    const ownThirdRow = ownRiverThirdRow(board);
+    const tiles = [...board.otherTiles, ...board.localTiles].filter(
+        (tile) => !ownThirdRow.some((covered) => sameBox(covered, tile)),
+    );
     const crowded = (decisionCorner?.buttons ?? []).filter((button) =>
         tiles.some((tile) => intersects(grown(button, MIN_CONTROL_TILE_GAP), tile)),
     );
