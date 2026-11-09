@@ -1,11 +1,11 @@
 [data-theme="dark"] {
-    --pico-background-color: #0e0f13;
-    --pico-card-background-color: #161821;
-    --pico-card-sectioning-background-color: #1c1e2a;
+    --pico-background-color: #0d1415;
+    --pico-card-background-color: #131d1f;
+    --pico-card-sectioning-background-color: #192628;
     --pico-color: #e8e4df;
     --pico-muted-color: #959088;
-    --pico-muted-border-color: #2a2621;
-    --ronin-text-secondary: #b0aaa2;
+    --pico-muted-border-color: #2b3a3b;
+    --ronin-text-secondary: #aab3b0;
     --ronin-text-muted: var(--pico-muted-color);
     --pico-h1-color: #f3efe9;
     --pico-h2-color: #ece8e2;
@@ -33,8 +33,8 @@
     --pico-secondary-hover-background: #36332e;
     --pico-secondary-hover-border: #4a463f;
     --pico-secondary-inverse: #e8e4df;
-    --pico-form-element-background-color: #131419;
-    --pico-form-element-active-background-color: #17181e;
+    --pico-form-element-background-color: #10191b;
+    --pico-form-element-active-background-color: #121c1e;
     --pico-form-element-border-color: var(--ronin-control-border);
     --pico-form-element-active-border-color: var(--ronin-control-border);
     --pico-form-element-focus-color: transparent;
@@ -53,11 +53,11 @@
     --ronin-danger: #d45454;
     --ronin-danger-text: #e87b7b;
     --ronin-warning: #d4a04c;
-    --ronin-surface: #161821;
-    --ronin-surface-elevated: #1c1e2a;
-    --ronin-surface-overlay: #222433;
-    --ronin-border: #28261f;
-    --ronin-border-subtle: #1e1c17;
+    --ronin-surface: #131d1f;
+    --ronin-surface-elevated: #192628;
+    --ronin-surface-overlay: #203032;
+    --ronin-border: #2b3a3b;
+    --ronin-border-subtle: #1e2a2c;
     --ronin-control-border: #6b665e;
     --ronin-score-positive: #7bb88a;
     --ronin-score-negative: #d4726a;
@@ -90,9 +90,7 @@ body {
     flex-direction: column;
     min-height: 100vh;
     min-height: 100dvh;
-    background:
-        radial-gradient(ellipse 80% 50% at 50% 0%, rgb(123 184 138 / 3%) 0%, transparent 50%),
-        var(--pico-background-color);
+    background: var(--pico-background-color);
 }
 
 main {

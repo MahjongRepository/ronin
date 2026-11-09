@@ -173,24 +173,17 @@
     animation: card-in 0.4s ease both;
     animation-delay: calc(var(--card-index, 0) * 0.06s);
 
-    // Accent line at top
-    &::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: linear-gradient(90deg, transparent, var(--pico-primary), transparent);
-        opacity: 0;
-        transition: opacity 0.3s ease;
-    }
-
     &--mine {
         border-color: color-mix(in srgb, var(--pico-primary) 45%, var(--ronin-border));
 
         &::before {
-            opacity: 1;
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--pico-primary), transparent);
         }
     }
 
@@ -200,10 +193,6 @@
             box-shadow:
                 0 4px 24px rgb(0 0 0 / 30%),
                 0 0 0 1px color-mix(in srgb, var(--pico-primary) 8%, transparent);
-
-            &::before {
-                opacity: 1;
-            }
         }
     }
 
@@ -297,7 +286,6 @@
     &.filled {
         background: var(--pico-primary);
         border-color: var(--pico-primary);
-        box-shadow: 0 0 8px color-mix(in srgb, var(--pico-primary) 40%, transparent);
     }
 
     &.open {

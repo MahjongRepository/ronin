@@ -30,9 +30,14 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     text-decoration: none;
+    color: var(--pico-h1-color);
     display: flex;
     align-items: center;
     gap: 0.6em;
+
+    &:hover {
+        color: var(--pico-primary);
+    }
 
     @media (width <= 576px) {
         font-size: 1.1rem;
@@ -58,7 +63,7 @@
     border: 1px solid color-mix(in srgb, var(--ronin-gold) 45%, transparent);
     border-radius: var(--ronin-radius-sm);
     background: color-mix(in srgb, var(--ronin-gold) 8%, transparent);
-    font-size: 0.5rem;
+    font-size: 0.625rem;
     font-weight: 600;
     line-height: 1;
     letter-spacing: 0.08em;
@@ -75,12 +80,6 @@
     mask-size: contain;
     mask-repeat: no-repeat;
     mask-position: center;
-    transition: filter 0.3s ease;
-    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--pico-primary) 30%, transparent));
-
-    .lobby-brand:hover & {
-        filter: drop-shadow(0 0 14px color-mix(in srgb, var(--pico-primary) 60%, transparent));
-    }
 
     @media (width <= 576px) {
         width: 1.75rem;
