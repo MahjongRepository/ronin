@@ -64,8 +64,8 @@ once every eligible seat has answered. The rules the two share: a seat eligible 
 both, in one ron prompt that lists its melds, and a meld it makes instead declines the ron (the furiten of a pass,
 applied where the response is recorded), while a seat the discard completes but which cannot ron is made furiten at the
 discard itself, prompt or not; the prompt's caller order is both the order clients get their prompts and the
-ron ranking; resolution picks ron > pon/kan > chi > pass; after a discard, dora reveal, riichi finalization and then the
-four riichi and four kans aborts wait until no ron is taken. One step (`pass_ron_window`) runs them, before a meld on
+ron ranking; resolution picks ron > pon/kan > chi > pass; a deferred kan dora is revealed at the discard, before ron is
+judged; riichi finalization and then the four riichi and four kans aborts wait until no ron is taken. One step (`pass_ron_window`) runs them, before a meld on
 the discard executes, for the no-caller path and at resolution alike; the four kans check alone withholds meld offers on
 the fourth kan's replacement discard. A kan never ends the round itself: the four kans abort is its replacement
 discard's. A closed or added kan runs the same executor declared directly or completed after its robbers declined, and

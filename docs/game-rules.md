@@ -67,10 +67,10 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 | Quad Type             | Dora Reveal Timing                                                          | On Rinshan Kaihou | On Ron of Discard    |
 |-----------------------|-----------------------------------------------------------------------------|-------------------|----------------------|
 | Concealed (Ankan)     | Immediately after declaration                                               | Dora applies      | N/A (before discard) |
-| Claimed (Daiminkan)   | After replacement discard passes (not ron'd), or when a further quad stands | Dora not revealed | Dora not revealed    |
-| Extended (Shouminkan) | After replacement discard passes (not ron'd), or when a further quad stands | Dora not revealed | Dora not revealed    |
+| Claimed (Daiminkan)   | At the replacement discard, before Ron, or when a further quad stands       | Dora not revealed | Dora applies         |
+| Extended (Shouminkan) | At the replacement discard, before Ron, or when a further quad stands       | Dora not revealed | Dora applies         |
 
-Deferred Dora reveal applies even if the discard is subsequently claimed for a meld (Pon/Chii); the reveal triggers once the Ron check passes.
+Deferred Dora is revealed by the replacement discard itself, so a Ron on that discard counts it, with its Ura Dora for a Riichi winner.
 
 When the caller declares another quad on the replacement tile instead of discarding it, the deferred indicator is revealed as that quad stands, at its replacement draw (after its Chankan chance passes, so a robbed quad reveals nothing); the new quad's own indicator then follows its type. A Rinshan Kaihou on that later quad counts the earlier quad's Dora, and not the later one's when that quad is extended, since its own Dora stays deferred. This is our ruling: Japanese Wikipedia names the case as an open question of deferred reveal without settling it.
 

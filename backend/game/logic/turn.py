@@ -98,8 +98,8 @@ def emit_deferred_dora_events(
     """
     Reveal deferred dora indicators (from open/added kan) and emit events.
 
-    Called after a discard passes the ron check. Under our rules, open/added kan dora is revealed after the replacement
-    discard is accepted (not ron'd), or earlier when the caller's next kan stands.
+    Called on the kan caller's replacement discard, before any ron on it is judged, so that ron counts the new dora. An
+    open or added kan's dora is revealed there, or earlier when the caller's next kan stands.
 
     Returns (new_round_state, events).
     """
@@ -297,18 +297,13 @@ def _build_discard_prompt(
 
 def pass_ron_window(game_state: MahjongGameState, discarder_seat: int) -> tuple[MahjongGameState, list[GameEvent]]:
     """
-    Settle a discard that passed every ron: reveal deferred dora, finalize the discarder's riichi, then end a four
-    riichi or four kans hand.
+    Settle a discard that passed every ron: finalize the discarder's riichi, then end a four riichi or four kans hand.
 
     Runs before a meld on the discard executes, so the discard is still the discarder's last one. The returned round is
     finished when an abort ended it.
     """
     new_game_state = game_state
     events: list[GameEvent] = []
-    if game_state.round_state.wall.pending_dora_count:
-        new_round_state, events = emit_deferred_dora_events(game_state.round_state)
-        new_game_state = update_game_with_round(game_state, new_round_state)
-
     discarder = new_game_state.round_state.players[discarder_seat]
     if discarder.discards[-1].is_riichi_discard and not discarder.is_riichi:
         new_game_state = declare_riichi(new_game_state, seat=discarder_seat)
@@ -361,11 +356,12 @@ def process_discard_phase(
     Steps:
     1. If is_riichi: validate riichi conditions
     2. Validate and execute discard
-    3. Check for four winds abortive draw
-    4. Check for ron callers (triple ron is judged from their declarations when the prompt resolves)
-    5. Check for meld callers (a seat that can ron is offered its melds too; none on a four kans replacement discard)
-    6. If any callers: create unified DISCARD prompt
-    7. No callers: pass the ron window (pass_ron_window), then draw for the next player
+    3. Reveal any dora an open or added kan deferred to this discard
+    4. Check for four winds abortive draw
+    5. Check for ron callers (triple ron is judged from their declarations when the prompt resolves)
+    6. Check for meld callers (a seat that can ron is offered its melds too; none on a four kans replacement discard)
+    7. If any callers: create unified DISCARD prompt
+    8. No callers: pass the ron window (pass_ron_window), then draw for the next player
     """
     events: list[GameEvent] = []
     round_state = game_state.round_state
@@ -388,6 +384,10 @@ def process_discard_phase(
     )
 
     logger.debug("tile discarded", tile_id=tile_id, is_tsumogiri=discard.is_tsumogiri, is_riichi=is_riichi)
+
+    if new_round_state.wall.pending_dora_count:
+        new_round_state, dora_events = emit_deferred_dora_events(new_round_state)
+        events.extend(dora_events)
 
     # check for four winds abortive draw
     if settings.has_suufon_renda and check_four_winds(new_round_state, settings):

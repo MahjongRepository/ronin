@@ -544,7 +544,7 @@ class TestKanDoraTiming:
         assert kan.state.round_state.players[0].melds[0].type == FrozenMeld.SHOUMINKAN
         _assert_kan_dora(game_state, kan, revealed=revealed, pending=pending)
 
-    def test_kan_dora__when_open_kan_replacement_discard_is_ponned__should_reveal_dora_before_the_pon(self):
+    def test_kan_dora__when_open_kan_replacement_discard_is_ponned__should_reveal_dora_at_the_discard(self):
         nine_pin = tile_copies(0, pin="9999")
         east = tile_copies(0, honors="111")
         players = (
@@ -564,18 +564,45 @@ class TestKanDoraTiming:
         assert kan.state.round_state.wall.pending_dora_count == 1
 
         replacement_discard = _discard(kan.state, seat=1, tile_id=east[0])
-        assert replacement_discard.state.round_state.wall.pending_dora_count == 1
-        assert not [e for e in replacement_discard.events if isinstance(e, DoraRevealedEvent)]
+        assert replacement_discard.state.round_state.wall.pending_dora_count == 0
+        assert [e.tile_id for e in replacement_discard.events if isinstance(e, DoraRevealedEvent)] == [
+            kan_dora_indicator
+        ]
 
         pon = handle_pon(replacement_discard.state, seat=3, data=PonActionData(tile_id=east[0]))
         assert isinstance(pon, ActionResult)
-        assert [type(e) for e in pon.events if isinstance(e, (DoraRevealedEvent, MeldEvent))] == [
-            DoraRevealedEvent,
-            MeldEvent,
-        ]
-        assert [e.tile_id for e in pon.events if isinstance(e, DoraRevealedEvent)] == [kan_dora_indicator]
-        assert pon.state.round_state.wall.pending_dora_count == 0
+        assert not [e for e in pon.events if isinstance(e, DoraRevealedEvent)]
         assert pon.state.round_state.players[3].melds[-1].type == FrozenMeld.PON
+
+    def test_kan_dora__when_open_kan_replacement_discard_is_ronned__should_count_the_new_dora(self):
+        nine_pin = tile_copies(0, pin="9999")
+        east = tile_copies(0, honors="111")
+        five_pin_pair = tile_copies(0, pin="55")
+        winner_tiles = (*tile_copies(1, man="123456789"), *east[1:], *five_pin_pair)
+        players = (
+            create_player(
+                seat=0, tiles=(nine_pin[3], *tile_copies(0, man="123456789"), *tile_copies(0, honors="2345"))
+            ),
+            create_player(seat=1, tiles=(*nine_pin[:3], east[0], *tile_copies(1, sou="123456789"))),
+            create_player(seat=2, tiles=winner_tiles),
+            create_player(seat=3, tiles=(*tile_copies(3, sou="123456789"), *tile_copies(1, honors="2345"))),
+        )
+        game_state = create_dealt_game_state(
+            players,
+            dora_indicator=tile_copies(0, sou="1")[0],
+            kan_dora_indicator=tile_copies(0, pin="4")[0],
+        )
+
+        kan_offer = _discard(game_state, seat=0, tile_id=nine_pin[3])
+        kan = handle_kan(kan_offer.state, seat=1, data=KanActionData(tile_id=nine_pin[3], kan_type=KanType.OPEN))
+        assert isinstance(kan, ActionResult)
+
+        replacement_discard = _discard(kan.state, seat=1, tile_id=east[0])
+        ron = handle_ron(replacement_discard.state, seat=2)
+        assert isinstance(ron, ActionResult)
+        [round_end] = [e.result for e in ron.events if isinstance(e, RoundEndEvent)]
+        dora_yaku_id = YakuConfig().dora.yaku_id
+        assert [y.han for y in round_end.hand_result.yaku if y.yaku_id == dora_yaku_id] == [2]
 
     def test_kan_dora__when_closed_kan_follows_an_open_kan__should_reveal_both_indicators_before_its_draw(self):
         two_man = tile_copies(0, man="2222")

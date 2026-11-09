@@ -122,6 +122,7 @@ def create_dealt_game_state(
     draws: Sequence[int] = (),
     rinshan_draws: Sequence[int] = (),
     dora_indicator: int | None = None,
+    kan_dora_indicator: int | None = None,
     current_player_seat: int = 0,
     all_discards: Sequence[int] | None = None,
     settings: GameSettings | None = None,
@@ -132,9 +133,9 @@ def create_dealt_game_state(
     Build a running round from staged players, dealing every tile they do not own to the walls.
 
     The draws lead the live wall in order and the rinshan_draws lead the dead wall's replacement draws; dora_indicator,
-    when given, is the revealed indicator. The dead wall takes the last free tiles and the live wall the rest.
-    all_discards defaults to the players' discards in seat order. Raises when the staged tiles overlap, so the state
-    owns each of the 136 tiles exactly once.
+    when given, is the revealed indicator and kan_dora_indicator the one the first kan reveals. The dead wall takes the
+    last free tiles and the live wall the rest. all_discards defaults to the players' discards in seat order. Raises
+    when the staged tiles overlap, so the state owns each of the 136 tiles exactly once.
     """
     if len(rinshan_draws) > len(_RINSHAN_SLOTS):
         raise ValueError(f"the dead wall holds {len(_RINSHAN_SLOTS)} rinshan draws, got {len(rinshan_draws)}")
@@ -147,6 +148,9 @@ def create_dealt_game_state(
     fixed_by_slot = dict(zip(_RINSHAN_SLOTS[: len(rinshan_draws)], rinshan_draws, strict=True))
     if dora_indicator is not None:
         fixed_by_slot[FIRST_DORA_POSITION] = dora_indicator
+
+    if kan_dora_indicator is not None:
+        fixed_by_slot[FIRST_DORA_POSITION + 1] = kan_dora_indicator
 
     free = [
         tile
