@@ -1,9 +1,25 @@
 @use "@/styles/game-board/grid" as *;
 
 $gap: 6px;
+$radius: 6px;
+
+@mixin named-chips($size) {
+    .play-switch__letter {
+        display: none;
+    }
+
+    .play-switch__label {
+        position: static;
+        width: auto;
+        height: auto;
+        overflow: visible;
+        clip-path: none;
+        font-size: $size;
+    }
+}
 
 /* The play switches' slot: the band's row on its side away from the decisions, which never reach into it. A strip of
-   square chips, a letter each, and the button showing their names over them, Mahjong Soul's. */
+   square chips, a letter each, and the button showing their names over them. */
 .play-switches {
     position: relative;
     grid-area: switches;
@@ -30,7 +46,7 @@ $gap: 6px;
     margin: 0;
     padding: 0;
     border: 1px solid var(--ronin-switch-rim);
-    border-radius: 10px;
+    border-radius: $radius;
     background: var(--ronin-switch-face);
     color: var(--ronin-text-secondary);
     font-size: inherit;
@@ -42,6 +58,11 @@ $gap: 6px;
         border-color: var(--ronin-switch-rim);
         background: var(--ronin-switch-face);
         color: var(--ronin-text-secondary);
+        box-shadow: none;
+    }
+
+    &:active {
+        box-shadow: inset 0 0 0 2px var(--ronin-switch-track);
     }
 
     &:focus-visible {
@@ -50,31 +71,23 @@ $gap: 6px;
     }
 }
 
-/* On, a filled chip with its letter bright and a bar under it; off, an empty one with a ring, so its state never reads by
-   colour alone. */
-.play-switches .play-switch--on {
-    &,
-    &:is(:hover, :active, :focus) {
-        border-color: var(--ronin-switch-on);
-        background: var(--ronin-switch-on-face);
-        color: var(--ronin-text);
-    }
+.play-switches .play-switch {
+    position: relative;
+    overflow: hidden;
 }
 
 .play-switch__lamp {
-    width: 0.32em;
-    height: 0.32em;
-    margin-top: 0.22em;
-    border: 0.08em solid var(--ronin-switch-track);
-    border-radius: 50%;
+    display: none;
 }
 
+/* On, the badges' and the centre's turn cue along the bottom edge, out of the flow so the text stays centred. */
 .play-switch--on .play-switch__lamp {
-    width: 0.9em;
-    height: 0.18em;
-    border: 0;
-    border-radius: 0.09em;
-    background: var(--ronin-switch-on);
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    display: block;
+    height: var(--cue-w);
+    background: var(--ronin-table-turn);
 }
 
 /* The label names the switch for assistive technology; the strip shows only its letter. */
@@ -135,4 +148,45 @@ $gap: 6px;
     color: var(--ronin-switch-on);
     font-weight: 700;
     text-align: center;
+}
+
+/* The forms a board's family and chrome choose, over the strip above at its own specificity. */
+.play-switches {
+    @include labelled-switches-board {
+        .play-switches__names-toggle,
+        .play-switches__names {
+            display: none;
+        }
+
+        @include named-chips(calc(var(--switch-text) * 0.64));
+
+        .play-switch {
+            width: var(--switch-label-w);
+        }
+    }
+
+    @include phone-board {
+        flex-direction: column;
+        gap: 0;
+
+        :is(.play-switch, .play-switches__names-toggle) {
+            border-bottom-width: 0;
+            border-radius: 0;
+        }
+
+        .play-switch:first-child {
+            border-radius: $radius $radius 0 0;
+        }
+
+        .play-switches__names-toggle {
+            border-top-width: 2px;
+            border-bottom-width: 1px;
+            border-radius: 0 0 $radius $radius;
+        }
+
+        .play-switches__names {
+            bottom: 0;
+            left: calc(100% + #{$gap});
+        }
+    }
 }

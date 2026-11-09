@@ -47,6 +47,7 @@ $narrow-desktop-board: '[data-board-family="desktop"][data-board-chrome="small"]
 $small-chrome: '[data-board-chrome="small"]';
 $large-chrome: '[data-board-chrome="large"]';
 $desktop-chrome: ':is([data-board-chrome="regular"], [data-board-chrome="large"])';
+$labelled-switches-board: "#{$desktop-board}#{$desktop-chrome}";
 
 @function board-scoped($parent, $condition) {
     $scoped: ();
@@ -108,6 +109,13 @@ $desktop-chrome: ':is([data-board-chrome="regular"], [data-board-chrome="large"]
 /* A phone and a short desktop, whose foreground band shares the core's lower corners. */
 @mixin shared-corners-board {
     @include board-where($shared-corners-board) {
+        @content;
+    }
+}
+
+/* A landscape desktop with room for the play switches' whole names, the tiers `switchLabelW` sizes. */
+@mixin labelled-switches-board {
+    @include board-where($labelled-switches-board) {
         @content;
     }
 }

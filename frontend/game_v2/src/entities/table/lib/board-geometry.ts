@@ -120,6 +120,15 @@ const SWITCHES_RIVER_GAP = 8;
 /** The play switches' strip: three square chips and the names' button. */
 const SWITCH_CHIPS = 4;
 
+/** The play switches where they show their whole names, with no names' button. */
+const LABELLED_SWITCHES = 3;
+
+/** What a phone's switches' column keeps from the left badge beside or above it (px). */
+const COLUMN_BADGE_GAP = 6;
+
+/** What the furiten mark keeps from a phone's switches' column (px). */
+const COLUMN_FURITEN_GAP = 4;
+
 /** The replay's moves in the switches' place. */
 const REPLAY_MOVES = 7;
 
@@ -290,6 +299,7 @@ function tierChrome(chrome: ChromeTier, share: number): DesktopChrome {
         sideLaneMin: at("sideLaneMin"),
         switchGap: at("switchGap"),
         switchH: at("switchH"),
+        switchLabelW: at("switchLabelW"),
         switchText: at("switchText"),
         text: at("text"),
         timerW: at("timerW"),
@@ -385,11 +395,15 @@ function rowWidth(count: number, size: number, gap: number): number {
     return count * size + (count - 1) * gap;
 }
 
-function switchesPlaceWidth({ chipGap, movesH, replayGap, switchH }: DesktopChrome): number {
-    return Math.max(
-        rowWidth(SWITCH_CHIPS, switchH, chipGap),
-        rowWidth(REPLAY_MOVES, movesH, replayGap),
-    );
+/** The play switches' row on a landscape board: their whole names where the tier shows them, else the letters' chips. */
+function switchesRowWidth({ chipGap, switchH, switchLabelW }: DesktopChrome): number {
+    return switchLabelW > 0
+        ? rowWidth(LABELLED_SWITCHES, switchLabelW, chipGap)
+        : rowWidth(SWITCH_CHIPS, switchH, chipGap);
+}
+
+function switchesPlaceWidth(tier: DesktopChrome): number {
+    return Math.max(switchesRowWidth(tier), rowWidth(REPLAY_MOVES, tier.movesH, tier.replayGap));
 }
 
 /** An opponent's full hand along its line. */
@@ -992,6 +1006,7 @@ function chromeLengths(tier: DesktopChrome): [string, number][] {
         ["badge-h", tier.badgeH],
         ["callout-cap", tier.calloutCap],
         ["chip-gap", tier.chipGap],
+        ["switch-label-w", tier.switchLabelW],
         ["counters-h", countersHeight(tier)],
         ["counters-w", tier.countersW],
         ["cue-w", tier.cueW],
@@ -1665,12 +1680,16 @@ function laneShortOf(reach: number, from: number, above: boolean): number {
 function landscapeBadgeWidths(
     { at, frame, tier }: ShellRoom,
     { rightBadgeTop, sideBadgeTop, sideLane }: LandscapeBadges,
-    topAnchor: number,
+    { leftBadgeX, topAnchor }: Readonly<Record<"leftBadgeX" | "topAnchor", number>>,
 ): [string, number][] {
     const rw = at("rw");
     const badgeX = sideBadgeX(tier, rw);
     const centreTop = at("cy") - at("h");
-    const left = laneShortOf(at("reach-left"), badgeX, centreTop - sideBadgeTop - tier.badgeH > 0);
+    const left = laneShortOf(
+        at("reach-left"),
+        leftBadgeX,
+        centreTop - sideBadgeTop - tier.badgeH > 0,
+    );
     const rightRiverTop =
         at("cy") + at("h") - ROW_BEFORE_SIDEWAYS * rw - at("rh") - at("latest-drop-gap");
     const besideRiver = rightBadgeTop + tier.badgeH - rightRiverTop > 0;
@@ -1738,6 +1757,23 @@ function phoneRightOrigin({ at, tier }: ShellRoom): number {
     return phoneRightHand(room).origin;
 }
 
+/**
+ * The left badge and counters' place beside a phone's switches' column: theirs where the column ends under the badge,
+ * else past the column, which keeps the left edge on a box too short for both.
+ */
+function leftBadgeBesideColumn(
+    { at, tier }: ShellRoom,
+    {
+        columnRight,
+        columnTop,
+        sideBadgeTop,
+    }: Readonly<Record<"columnRight" | "columnTop" | "sideBadgeTop", number>>,
+): number {
+    return columnTop >= sideBadgeTop + tier.badgeH + COLUMN_BADGE_GAP
+        ? sideBadgeX(tier, at("rw"))
+        : columnRight + COLUMN_BADGE_GAP;
+}
+
 function phoneFuritenLengths(
     phone: boolean,
     furitenX: number,
@@ -1770,8 +1806,17 @@ function landscapeShell(room: ShellRoom): BoardShell {
     const rowBottom = at("band-bottom") - rowRise;
     const switchesTop = at("switches-bottom") - switchesPlace(tier);
     const left = landscapeLeft(room, { bandTop, switchesTop });
-    const switchesRight = left.switchesLeft + rowWidth(SWITCH_CHIPS, tier.switchH, tier.chipGap);
+    const column = phone && frame.slots.band === "play";
+    const columnTop = at("switches-bottom") - SWITCH_CHIPS * tier.switchH;
+    const switchesRight = left.switchesLeft + (column ? tier.switchH : switchesRowWidth(tier));
     const badges = landscapeBadges(room, rowBottom);
+    const leftBadgeX = column
+        ? leftBadgeBesideColumn(room, {
+              columnRight: switchesRight,
+              columnTop,
+              sideBadgeTop: badges.sideBadgeTop,
+          })
+        : sideBadgeX(tier, at("rw"));
     const { badgeH } = tier;
     const ownStart = Math.max(m, (width - at("own-inline") - FULL_HAND * at("ow")) / 2);
     const ownLead = ownStart + at("own-inline");
@@ -1800,7 +1845,10 @@ function landscapeShell(room: ShellRoom): BoardShell {
         ? phoneRightOrigin(room)
         : desktopRightOrigin(room, foregroundTop + RIGHT_FROM_BAND_GAP);
     const top = landscapeTop(room);
-    const badgeWidths = landscapeBadgeWidths(room, badges, top.topAnchor);
+    const badgeWidths = landscapeBadgeWidths(room, badges, {
+        leftBadgeX,
+        topAnchor: top.topAnchor,
+    });
     const strips = opponentStrips(room, {
         ...top,
         leftObstacles: [
@@ -1811,7 +1859,7 @@ function landscapeShell(room: ShellRoom): BoardShell {
             },
             {
                 depth: left.switchesLeft - m - STRIP_CONTROL_CLEAR,
-                from: switchesTop - left.leftStart - STRIP_CONTROL_CLEAR,
+                from: (column ? columnTop : switchesTop) - left.leftStart - STRIP_CONTROL_CLEAR,
                 to: at("switches-bottom") - left.leftStart + STRIP_CONTROL_CLEAR,
             },
             {
@@ -1839,15 +1887,17 @@ function landscapeShell(room: ShellRoom): BoardShell {
         topCap: null,
     });
     const fieldGap = FIELD_GAP[phone ? "phone" : chrome];
-    const furitenBottom = switchesTop - FURITEN_GAP;
+    const furitenBottom = column ? at("switches-bottom") : switchesTop - FURITEN_GAP;
     const field = {
         bottom: phone
             ? furitenBottom - FURITEN_H - FURITEN_GAP
             : Math.min(bandTop, switchesTop) - FIELD_BAND_GAP,
-        left:
+        left: Math.max(
             m +
-            (family === "desktop" && chrome === "small" ? 0 : sideLaneReserve(at("rw"))) +
-            fieldGap,
+                (family === "desktop" && chrome === "small" ? 0 : sideLaneReserve(at("rw"))) +
+                fieldGap,
+            column ? switchesRight + fieldGap : 0,
+        ),
         right: at("reach-left") - FIELD_RIVER_GAP,
         top: Math.max(badges.sideBadgeTop + badgeH + fieldGap, at("reach-top-row3") + fieldGap),
     };
@@ -1898,7 +1948,12 @@ function landscapeShell(room: ShellRoom): BoardShell {
             ["field-beside-height", Math.max(0, beside.bottom - beside.top)],
             ["field-height", Math.max(0, field.bottom - field.top)],
             ["foreground-top", foregroundTop],
-            ...phoneFuritenLengths(phone, left.switchesLeft, handTop - furitenBottom),
+            ...phoneFuritenLengths(
+                phone,
+                column ? switchesRight + COLUMN_FURITEN_GAP : left.switchesLeft,
+                handTop - furitenBottom,
+            ),
+            ["left-badge-x", leftBadgeX],
             ["own-badge-x", ownLead],
             ["own-lane", own.lane],
             ["own-row-lead", 0],
@@ -2063,6 +2118,7 @@ function uprightShell(room: ShellRoom): BoardShell {
             ["side-badge-top", sideBadgeTop],
             ["left-badge-w", Math.max(0, leftBadgeW)],
             ["right-badge-w", sideLane],
+            ["left-badge-x", badgeX],
             ["side-badge-x", badgeX],
             ["top-badge-top", topBadgeTop],
             ["top-lane", topLane],

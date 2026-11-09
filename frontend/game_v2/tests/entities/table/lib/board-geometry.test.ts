@@ -634,6 +634,57 @@ describe("boardGeometry's strips", () => {
     });
 
     it.each([
+        { height: 236, under: false, width: 667 },
+        { height: 275, under: false, width: 896 },
+        { height: 331, under: false, width: 896 },
+        { height: 375, under: true, width: 667 },
+        { height: 414, under: true, width: 896 },
+    ])(
+        "keeps a $width x $height phone's switches' column on the left edge, the left badge clear of it (under: $under)",
+        ({ height, under, width }) => {
+            const { lengths } = windowGeometry({ height, width });
+            function length(name: string): number {
+                return lengths[name] ?? Number.NaN;
+            }
+            const columnTop = length("switches-bottom") - 4 * length("switch-h");
+
+            expect(length("switches-right") - length("switches-left")).toBeCloseTo(
+                length("switch-h"),
+                3,
+            );
+            expect(columnTop).toBeGreaterThanOrEqual(0);
+            expect(columnTop >= length("side-badge-top") + length("badge-h")).toBe(under);
+            expect(length("left-badge-x") >= length("switches-right")).toBe(!under);
+            expect(length("left-badge-x") + length("left-badge-w")).toBeLessThanOrEqual(
+                length("reach-left"),
+            );
+        },
+    );
+
+    it.each([
+        { height: 900, labelled: true, width: 1440 },
+        { height: 720, labelled: true, width: 1280 },
+        { height: 768, labelled: false, width: 1024 },
+    ])(
+        "reserves a $width x $height board's switches their whole names' row ($labelled), short of the decisions",
+        ({ height, labelled, width }) => {
+            const { lengths } = windowGeometry({ height, width });
+            function length(name: string): number {
+                return lengths[name] ?? Number.NaN;
+            }
+            const gap = length("chip-gap");
+            const row = labelled
+                ? 3 * length("switch-label-w") + 2 * gap
+                : 4 * length("switch-h") + 3 * gap;
+
+            expect(length("switches-right") - length("switches-left")).toBeCloseTo(row, 3);
+            expect(length("switches-right") + length("band-gap")).toBeLessThanOrEqual(
+                length("actions-left"),
+            );
+        },
+    );
+
+    it.each([
         { height: 770, stacked: true, width: 1440 },
         { height: 640, stacked: false, width: 1127 },
     ])(
@@ -713,7 +764,7 @@ describe("boardGeometry's shell tracks", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
             actions: [403.2, 126, 663, 309.9],
             corner: [0, 4, 583, 375],
-            field: [82, 126, 171.8, 239.9],
+            field: [90, 126, 171.8, 287.9],
             "field-beside": [554.3, 265.9, 634.3, 313.9],
             hand: [48.8, 317.9, 663, 369.9],
             "strip-left": [4, 44, 76, 261.9],

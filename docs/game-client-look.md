@@ -83,9 +83,10 @@ The derived proportions are the three reference viewports' values under the sizi
 +-------------------------------------------------------------------+
 ```
 
-A phone in landscape stands the switches one row in the own band instead, 4px above the hand and
-stepped in past the left strip's stacked depth, and draws no own badge: the furiten mark stands
-above the switches at the row's left, the notices' field ending above it.
+A phone in landscape stands the switches as a column on the left instead, ending 4px above the hand
+and stepped in past the left strip's stacked depth, and draws no own badge: the furiten mark stands
+beside the column's foot, the notices' field past the column and above the mark. On a box too short
+for the column under the left badge, the badge and counters stand past the column.
 
 The diagram is illustrative: it shows the three rings and the zones, not exact placements.
 
@@ -376,7 +377,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   go. Selectable tiles, the latest discard and the decision controls keep their own states, which
   are information, not decoration.
 - **Furiten.** A small neutral status label (a dot and the word) beside the own badge, above the
-  hand's left end (on a phone in landscape, with no own badge, above the switches at their row's left, the notices' field ending above it),
+  hand's left end (on a phone in landscape, with no own badge, beside the switches' column's foot, the notices' field ending above it),
   taking no room in the row so the hand never moves, not a button-shaped object and no prohibition sign, shown while the supplied
   state says the seat is furiten of any kind and cleared when it says so no longer; it gives no
   reason the state did not supply and never implies tsumo is unavailable.
@@ -385,7 +386,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   *Auto win* takes a tsumo offer at once and a ron offer at once (decision: no pause, since the callout and the result show the claim and its
   feeder); *No calls* passes a call prompt that offers chi, pon or open kan and no ron, before its
   controls show, and never touches the viewer's own turn (closed kan, added kan, riichi, tsumo and
-  kyuushu stay offered); *Auto discard* discards the drawn tile at once on a turn that offers
+  kyuushu stay offered); *Auto discard* discards the drawn tile after the fresh draw's one-second hold on a turn that offers
   nothing else, and leaves a turn with any other offer (tsumo, kan, riichi, kyuushu), and the turn
   after the viewer's own chi or pon, to the player. After riichi a fresh draw with no offers is
   discarded automatically even with *Auto discard* off; a kan or win offer waits for the player
@@ -407,12 +408,15 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   starts with them off. They are the client's standing answers, taken exactly where the player's
   press would be, with the decision's wait id, so the server, which keeps no preference, sees an
   ordinary answer; the latest-discard mark and the table are unchanged by an automatic pass, and an
-  automatic discard travels like a pressed one. Decision: Mahjong Soul's compact strip, a square
-  chip per switch showing its letter (A, C, D in English; each language picks its own) and a button
-  after them that shows each letter's name over the strip until pressed again, so a player
-  understands them without a manual; the name is each chip's tooltip and its accessible name too.
-  Each switch shows on and off apart, not by colour alone (the established clients use grey against
-  green): filled with a bar under the letter, or empty with a ring. Each chip meets the control
+  automatic discard travels like a pressed one. Decision: every switch is one press away, never
+  behind a panel. A phone in landscape stands Mahjong Soul's column on the left, one joined bar with
+  a square cell per switch showing its letter (A, C, D in English; each language picks its own) and
+  a cell under them that shows each letter's name beside the column until pressed again. A desktop with small
+  chrome and an upright board keep those chips in a row. A desktop with regular or large chrome
+  shows the whole names in a fixed row instead, with no such button. The name is each chip's tooltip and its accessible name in every form.
+  Each switch shows on and off apart, not by colour alone (Mahjong Soul colours its letter, Tenhou
+  checks a box on a phone and dims the tab on a desktop): on, the turn cue's bar along its bottom
+  edge, as on a badge and the centre; off, no bar. The text stays centred either way. Each chip meets the control
   floor; a switch is reached from the hand's focus like a decision control. Not on a replay board;
   the decisions stories show them, on and off. On an upright board, the chips keep a horizontal row
   above the own badge and hand, with 40px targets. Pass and the timer stand to their right; extra

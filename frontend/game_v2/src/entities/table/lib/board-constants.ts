@@ -118,6 +118,8 @@ interface DesktopChrome {
     readonly doraRadius: number;
     /** The play switches' letter size. */
     readonly switchText: number;
+    /** A play switch's width where it shows its whole name; 0 on a tier that shows letters. */
+    readonly switchLabelW: number;
     /** A call's word's cap on the river tile height that sets its size. */
     readonly calloutCap: number;
 }
@@ -150,7 +152,8 @@ const REGULAR_CHROME: DesktopChrome = {
     sideCardW: 200,
     sideLaneMin: 125,
     switchGap: 18,
-    switchH: 44,
+    switchH: 40,
+    switchLabelW: 112,
     switchText: 22,
     text: 17,
     timerW: 120,
@@ -179,7 +182,8 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         replayGap: 8,
         sideCardW: 270,
         sideLaneMin: 170,
-        switchH: 52,
+        switchH: 44,
+        switchLabelW: 124,
         switchText: 24,
         text: 24,
         timerW: 150,
@@ -206,6 +210,8 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         sideCardW: 130,
         sideLaneMin: 90,
         switchGap: 4,
+        switchH: 44,
+        switchLabelW: 0,
         switchText: 17,
         text: 12,
         timerW: 76,

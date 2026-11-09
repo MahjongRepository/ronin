@@ -335,10 +335,11 @@ function checkSwitches(board: BoardMeasure, screen: Box, report: PageReport): vo
         return;
     }
     const boxes = switches.map((control) => control.box);
-    const rowTop = boxes[0]?.top ?? Number.NaN;
+    const column = board.family === "phone";
+    const lineStart = boxes[0]?.[column ? "left" : "top"] ?? Number.NaN;
     report.expect(
-        boxes.every((box) => Math.abs(box.top - rowTop) <= EPSILON),
-        "play switches are not in one horizontal row",
+        boxes.every((box) => Math.abs(box[column ? "left" : "top"] - lineStart) <= EPSILON),
+        `play switches are not in one ${column ? "vertical column" : "horizontal row"}`,
     );
     const outside = boxes.filter((box) => !contains(board.board, box) || !contains(screen, box));
     report.expect(
@@ -522,10 +523,10 @@ function checkFuritenMark(board: BoardMeasure, report: PageReport): void {
         furiten.width <= PHONE_FURITEN_RESERVE && furiten.height <= PHONE_FURITEN_HEIGHT,
         `the furiten mark overflows its ${PHONE_FURITEN_RESERVE}x${PHONE_FURITEN_HEIGHT} box: ${describeBox(furiten)}`,
     );
-    const switchesTop = Math.min(...switches.map(({ box }) => box.top));
+    const switchesRight = Math.max(...switches.map(({ box }) => box.left + box.width));
     report.expect(
-        furiten.top + furiten.height <= switchesTop + EPSILON,
-        `the furiten mark is not above the switches: ${describeBox(furiten)}, switches at ${switchesTop}`,
+        furiten.left + EPSILON >= switchesRight,
+        `the furiten mark is not beside the switches: ${describeBox(furiten)}, switches to ${switchesRight}`,
     );
     report.expect(
         noticesField === null || !intersects(furiten, noticesField),

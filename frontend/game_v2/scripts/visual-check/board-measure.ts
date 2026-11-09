@@ -4,7 +4,7 @@ import { type Box, type GroupedBox, type Size, describeSize } from "./boxes.ts";
 
 /**
  * A play switch: its box, the state it announces, and how it shows it apart from colour (its lamp a bar, wider than
- * tall, not a ring) and by its fill (the lamp's background not transparent).
+ * tall, only while on) and by its fill (the lamp's background not transparent).
  */
 export interface SwitchMeasure {
     readonly box: Box;
