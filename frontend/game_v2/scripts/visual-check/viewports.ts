@@ -34,6 +34,8 @@ export const FLOOR = "phone-se-landscape";
 export const NOTCH_PHONE = "phone-notch-landscape";
 /** The upright phone, where the live game and a replay show the rotate panel. */
 export const UPRIGHT_PHONE = "phone-portrait";
+/** The narrowest portrait viewport that keeps the board (768x954): a small tablet under its browser's bars, or a tall window. */
+export const TALL_WINDOW = "window-tall";
 /**
  * A narrow desktop window (375x548): the live game shows the rotate panel even without touch input.
  */
@@ -246,6 +248,14 @@ export const VIEWPORTS: readonly Viewport[] = [
         name: UPRIGHT_PHONE,
         ownTileFloor: MIN_TAP,
         portrait: true,
+        supported: true,
+    },
+    {
+        context: { viewport: { height: 954, width: 768 } },
+        desktop: true,
+        engine: chromium,
+        name: TALL_WINDOW,
+        portrait: false,
         supported: true,
     },
     {

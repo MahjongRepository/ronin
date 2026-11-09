@@ -89,7 +89,7 @@
     display: none;
 }
 
-@media (orientation: portrait) {
+@media (orientation: portrait) and (width < 768px) {
     .game__rotate,
     .replay-rotate {
         display: block;

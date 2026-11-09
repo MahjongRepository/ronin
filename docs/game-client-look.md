@@ -57,8 +57,9 @@ The derived proportions are the three reference viewports' values under the sizi
   kept at least 10px off each screen edge on every board that is not a phone's so no tile meets a
   border, at whatever aspect ratio it has; nothing is letterboxed. Whether the board is a phone's is
   decided once, from the box the page would give it with that 10px gutter (the safe area kept), so
-  the gutter never changes it. A portrait viewport of any width sees the rotate panel instead
-  of the board, regardless of touch or mouse input: there is no portrait layout. It asks the player to rotate the
+  the gutter never changes it. A portrait viewport under 768px wide sees the rotate panel instead
+  of the board, regardless of touch or mouse input: there is no upright layout. A wider portrait viewport, a tablet's
+  or a tall desktop window's, keeps the landscape board. The panel asks the player to rotate the
   device or widen the window and says that play and its timers go on. A replay's board is landscape only too: its
   panel asks the same and offers the game history, while its loading and failed screens, which hold no board, still
   show. A phone browser's address bar and toolbar take a third of the display in landscape: the
@@ -455,7 +456,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   connection status (a dot and its whole label); a tap outside the menu only closes it, and Escape closes it back to
   the cog. While the status has a word to say (a drop, an end), the cog carries a dot in the status's tone, so a drop
   shows without opening the menu. A replay has the same corner and cog, its menu the sound switch and the language row alone. The live
-  board has no way back of its own; the rotate panel in a portrait viewport keeps
+  board has no way back of its own; the rotate panel in a narrow portrait viewport keeps
   one, which asks the leave question, and an end's panel offers the lobby.
 - **Sound.** The live game plays an original synthesized resin tile clack and a soft two-note countdown tone,
   plus a soft 180 ms chime once for each newly seen decision offering chi, pon, kan, ron or tsumo that still needs
@@ -806,7 +807,7 @@ follows the derived values and has no separate floor), readable faces and text s
 at a contrast of at least 4.5:1 against what they sit on (a held-back face included: it is greyed,
 never darkened), no state told by colour alone (a switch's on state included; tile identity aside: a
 red five is red and carries its own extra dot, which must stay visible at river scale), safe areas
-respected, the rotate panel in a portrait viewport, and, at the reference viewports, two
+respected, the rotate panel in a narrow portrait viewport, and, at the reference viewports, two
 derived proportions held within a tolerance, the river tile over the own tile and each river's gap
 from the centre, with neighbouring rivers no closer than that gap (a sparse river stands farther
 from its neighbour); the opponent's hand at the river tile holds everywhere, and the other derived

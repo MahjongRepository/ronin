@@ -36,6 +36,7 @@ import {
     SHORT_DESKTOP,
     SHORT_TABLET,
     SHORT_UPRIGHT,
+    TALL_WINDOW,
     ULTRAWIDE,
     UPRIGHT_PHONE,
     VIEWPORTS,
@@ -134,6 +135,7 @@ const LIVE_AT = [
     NARROW_DESKTOP,
     SHORT_TABLET,
     UPRIGHT_PHONE,
+    TALL_WINDOW,
     SHORT_UPRIGHT,
 ] as const;
 
