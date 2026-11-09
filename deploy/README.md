@@ -72,6 +72,8 @@ cd deploy
 make spot-deploy TARGET=<target>
 ```
 
+The deploy stops before changing anything while the game server has a started or pending game, or when its status cannot be read. Wait for the games to end and run it again.
+
 This uploads config files, renders templates (substitutes `%%DOMAIN%%`), pulls the latest image, and starts services with `docker compose up -d --remove-orphans`. Only containers whose image or config changed are recreated -- there is no pre-emptive `docker compose down`.
 
 Health checks verify lobby (:8710), game (:8711), and traefik are running.

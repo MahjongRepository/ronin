@@ -32,6 +32,10 @@ runbook for a new server and lists the targets.
 * **Deploy never goes through `down`.** `docker compose up -d --remove-orphans` recreates only the
   changed services; a change to service names or port bindings needs a manual `down` first. The
   deploy gates on both services' `/health` and a running Traefik.
+* **Deploy refuses live games.** Recreating the game container drops every game on it, so the deploy's first
+  command stops it, before anything on the server changes, when the game server's `/status` counts a started or
+  pending game. A refused connection means no server and no games, so a fresh box still deploys; any other status
+  failure refuses. A game created after the check still falls to the recreate.
 * **Bounded shutdown.** Both uvicorn commands pass a graceful-shutdown timeout (uvicorn otherwise
   waits forever for a client whose transport is stalled), and `stop_grace_period` leaves room after
   it for the lifespan shutdown and the database drain before docker's SIGKILL.
