@@ -88,7 +88,10 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   `100dvh` and grows into the room. In a touch browser's tab `.game` is a fixed scroll room taller and the page rests
   past that room, so it still scrolls with the bars collapsed and is not at its top, where a browser brings them back;
   an installed app and full screen keep no room and nothing scrolls. The view's `browserBars` source measures the
-  difference (`100lvh` against `innerHeight`) for the board's notice, no stylesheet deciding it, and rests the page.
+  difference (`100lvh` against `innerHeight`) for the board's notice, no stylesheet deciding it, and rests the page,
+  again after every scroll settles. A swipe down must not reload a game: the root takes `overscroll-behavior-y: none`
+  for Android Chrome, and iOS, which reloads regardless, has every downward drag refused from its first move, so there
+  a swipe down cannot bring the bars back.
 - **The gutter follows the family, decided once.** The board's box without the gutter, less on each edge what a
   10px gutter adds beyond the safe inset, is classified once: a phone takes no gutter and the unguttered box, any
   other family the 10px gutter on that box. Classifying the guttered board instead would flip the family at the

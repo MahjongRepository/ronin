@@ -51,6 +51,10 @@
 
 $bars-scroll-room: 100px;
 
+:root:has(.game > .game__play) {
+    overscroll-behavior-y: none;
+}
+
 .game:has(> .game__play) {
     min-height: 100lvh;
 

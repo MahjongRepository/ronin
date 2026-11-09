@@ -37,8 +37,10 @@ import {
 import { applyPageLocale, resolveLocale, t } from "@/shared/i18n";
 import {
     type SoundSource,
+    blockDownwardDrags,
     createSoundPlayer,
     localStore,
+    onScrollSettled,
     supportsBoardCss,
     unlockOnGesture,
     webAudioOutput,
@@ -139,15 +141,23 @@ function browserBarsShown(): boolean {
     return largeViewportHeight() > window.innerHeight + 1;
 }
 
+const PAGE_SCROLL_QUIET_MS = 150;
+
 /**
  * Rest the page past the scroll room it keeps beyond the large viewport, so it still scrolls with the bars collapsed
- * and is not at its top, where a phone browser brings them back. The board is sticky and does not move.
+ * and is not at its top, where a phone browser brings them back and the next swipe down reloads the page. The board is
+ * sticky and does not move.
  */
 function restPagePastItsTop(): void {
     const room = document.body.offsetHeight - largeViewportHeight();
     if (room > 0 && window.scrollY < room) {
         window.scrollTo(0, room);
     }
+}
+
+/** Whether a swipe down can reload the page whatever `overscroll-behavior` says: every browser on iOS is WebKit. */
+function isIosWebKit(): boolean {
+    return CSS.supports("-webkit-touch-callout", "none");
 }
 
 function enterFullscreen(): void {
@@ -158,7 +168,8 @@ function enterFullscreen(): void {
 
 /**
  * The browser's bars over the page, read again as the viewport resizes, which a collapse does. The page rests past its
- * top whenever its body changes height (the first draw, a rotation, leaving full screen), which a collapse does not do.
+ * top whenever its body changes height (the first draw, a rotation, leaving full screen), which a collapse does not do,
+ * and whenever a scroll settles, which a swipe down leaves at the top.
  */
 function browserBars(): BrowserBars {
     return {
@@ -171,10 +182,18 @@ function browserBars(): BrowserBars {
             }
             const pageRest = new ResizeObserver(restPagePastItsTop);
             pageRest.observe(document.body);
+            const stopRestingAfterScroll = onScrollSettled(window, {
+                clock: browserClock,
+                listener: restPagePastItsTop,
+                quietMs: PAGE_SCROLL_QUIET_MS,
+            });
+            const stopBlockingDrags = isIosWebKit() ? blockDownwardDrags(document) : null;
             window.addEventListener("resize", onResize);
             return () => {
                 window.removeEventListener("resize", onResize);
                 pageRest.disconnect();
+                stopRestingAfterScroll();
+                stopBlockingDrags?.();
             };
         },
     };
