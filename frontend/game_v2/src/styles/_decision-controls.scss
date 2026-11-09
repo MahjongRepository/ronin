@@ -357,9 +357,11 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     color: var(--ronin-warning);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .decision-controls__bank--draining {
-        animation: bank-warning 0.6s ease-out 2;
+.decision-controls__bank--draining {
+    animation: bank-warning 0.6s ease-out 2;
+
+    @include reduced-motion {
+        animation: none;
     }
 }
 

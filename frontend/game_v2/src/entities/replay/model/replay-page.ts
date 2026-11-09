@@ -70,6 +70,8 @@ export interface LoadedReplayScreen {
     readonly hideHands: boolean;
     /** Whether a step on plays its move's sounds, a setting the live game shares. */
     readonly soundOn: boolean;
+    /** Whether the board animates, a setting the live game shares. */
+    readonly animationsOn: boolean;
     /** Whether the settings menu in the board's corner is open. */
     readonly settingsOpen: boolean;
     readonly hold: ReplayHold | null;
@@ -104,6 +106,7 @@ export interface ReplayOpening {
     readonly search: string;
     readonly prefs: ReplayPrefs;
     readonly soundOn: boolean;
+    readonly animationsOn: boolean;
     readonly roundListOpen: boolean;
     readonly autoplay: boolean;
 }
@@ -161,7 +164,8 @@ type OptionInput =
     | { readonly kind: "page_hide" }
     | { readonly kind: "toggle_settings" }
     | { readonly kind: "close_settings" }
-    | { readonly kind: "toggle_sound" };
+    | { readonly kind: "toggle_sound" }
+    | { readonly kind: "toggle_animations" };
 
 type LoadedInput = StepInput | MoveInput | RoundListInput | OptionInput;
 
@@ -184,6 +188,7 @@ export type ReplayPageEffect =
     | { readonly kind: "write_address" }
     | { readonly kind: "play_sounds"; readonly cues: readonly SoundCue[] }
     | { readonly kind: "save_sound"; readonly soundOn: boolean }
+    | { readonly kind: "save_animations"; readonly animationsOn: boolean }
     | { readonly kind: "save_prefs"; readonly prefs: ReplayPrefs }
     | { readonly kind: "focus"; readonly target: ReplayFocusTarget };
 
@@ -321,6 +326,7 @@ function openedScreen(replay: LoadedReplay, opening: ReplayOpening, at: number):
         seatCount: replay.seatCount,
     });
     const screen: LoadedReplayScreen = {
+        animationsOn: opening.animationsOn,
         autoplay: { dueAt: null, playing: false },
         hideHands: opening.prefs.hideHands,
         hold: null,
@@ -624,16 +630,22 @@ function stepRoundList(screen: LoadedReplayScreen, event: Timed<RoundListInput>)
     }
 }
 
-/** The settings menu opened or closed, or its sound switch turned, which the view keeps in this browser. */
+/** The settings menu opened or closed, or one of its switches turned, which the view keeps in this browser. */
 function stepSettings(screen: LoadedReplayScreen, command: SettingsMenuCommand): LoadedStep {
-    const { menu, saveSound } = stepSettingsMenu(
-        { open: screen.settingsOpen, soundOn: screen.soundOn },
+    const { menu, saved } = stepSettingsMenu(
+        { animationsOn: screen.animationsOn, open: screen.settingsOpen, soundOn: screen.soundOn },
         command,
     );
-    if (saveSound) {
+    if (saved === "sound") {
         return {
             effects: [{ kind: "save_sound", soundOn: menu.soundOn }],
             screen: { ...screen, soundOn: menu.soundOn },
+        };
+    }
+    if (saved === "animations") {
+        return {
+            effects: [{ animationsOn: menu.animationsOn, kind: "save_animations" }],
+            screen: { ...screen, animationsOn: menu.animationsOn },
         };
     }
     return quiet(
@@ -646,6 +658,7 @@ const KEEPS_SETTINGS: ReadonlySet<LoadedInput["kind"]> = new Set([
     "toggle_settings",
     "close_settings",
     "toggle_sound",
+    "toggle_animations",
     "tick",
     "page_hide",
     "dismiss_round_list",

@@ -146,6 +146,7 @@ export interface PlayDisplay {
     readonly settingsOpen: boolean;
     /** The game plays its sounds, as the settings menu's switch shows. */
     readonly soundOn: boolean;
+    readonly animationsOn: boolean;
 }
 
 const SWITCH_LABELS: Readonly<
@@ -369,6 +370,7 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
     const escape = escapeStep(state, ui);
     return {
         actions: decisionActions(state, ui),
+        animationsOn: ui.animationsOn,
         armedTile,
         board: viewerBoard(state, plays),
         callouts,

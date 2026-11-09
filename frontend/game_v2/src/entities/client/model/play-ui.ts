@@ -2,6 +2,7 @@ import { type SeatPosition } from "@/entities/table";
 import { type TileFace, type TileSpriteStatus } from "@/entities/tile";
 
 import { DEFAULT_INPUT_SETTING } from "./input-setting";
+import { DEFAULT_MOTION_SETTING } from "./motion-setting";
 import { type LocalIntent } from "./types";
 
 /** A call whose offers of one kind differ by their tiles (which chi, which kan), taken in two steps. */
@@ -43,6 +44,7 @@ export type PlayCommand =
     | { readonly kind: "toggle_settings" }
     | { readonly kind: "close_settings" }
     | { readonly kind: "toggle_sound" }
+    | { readonly kind: "toggle_animations" }
     | { readonly kind: "toggle_right_click" }
     | { readonly kind: "reload" }
     | { readonly kind: "enter_fullscreen" };
@@ -92,6 +94,7 @@ export interface PlayUi {
     readonly noticeSheet: NoticeKind | null;
     readonly settingsOpen: boolean;
     readonly soundOn: boolean;
+    readonly animationsOn: boolean;
     readonly rightClick: boolean;
     readonly tileSprite: TileSpriteStatus;
     readonly browserBars: boolean;
@@ -99,6 +102,7 @@ export interface PlayUi {
 }
 
 export const NO_PLAY_UI: PlayUi = {
+    animationsOn: DEFAULT_MOTION_SETTING.animations,
     armedTile: null,
     browserBars: false,
     canEnterFullscreen: false,

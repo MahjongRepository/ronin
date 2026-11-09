@@ -8,6 +8,7 @@ import {
     type InputSetting,
     type LiveClient,
     type LiveEvent,
+    type MotionSetting,
     NO_PLAY_UI,
     PlayBoard,
     type PlayCommand,
@@ -72,6 +73,7 @@ export interface GameViewDeps {
     readonly links: GameLinks;
     readonly sound: GameSound;
     readonly inputSetting: LocalStore<InputSetting>;
+    readonly motionSetting: LocalStore<MotionSetting>;
     readonly setLanguage: (locale: Locale) => void;
 }
 
@@ -331,6 +333,7 @@ class GameViewController {
         this.timer = createDeadlineTimer(deps.clock, (at) => this.dispatch({ at, kind: "tick" }));
         this.ui = {
             ...NO_PLAY_UI,
+            animationsOn: deps.motionSetting.load().animations,
             browserBars: deps.browserBars.shown(),
             canEnterFullscreen: deps.browserBars.canEnterFullscreen(),
             rightClick: deps.inputSetting.load().rightClick,
@@ -434,6 +437,9 @@ class GameViewController {
     private saveSetting(command: PlayCommand): void {
         if (command.kind === "toggle_sound") {
             this.deps.sound.setting.save({ sound_on: this.ui.soundOn });
+        }
+        if (command.kind === "toggle_animations") {
+            this.deps.motionSetting.save({ animations: this.ui.animationsOn });
         }
         if (command.kind === "toggle_right_click") {
             this.deps.inputSetting.save({ rightClick: this.ui.rightClick });

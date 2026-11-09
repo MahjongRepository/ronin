@@ -46,9 +46,11 @@
     pointer-events: none;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .seating--end {
-        animation: match-results 1500ms ease-out both;
+.seating--end {
+    animation: match-results 1500ms ease-out both;
+
+    @include reduced-motion {
+        animation: none;
     }
 }
 

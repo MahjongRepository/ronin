@@ -71,13 +71,14 @@ type PageControlCommand = Extract<
             | "close_notice"
             | "toggle_settings"
             | "close_settings"
-            | "toggle_sound";
+            | "toggle_sound"
+            | "toggle_animations";
     }
 >;
 
 /**
  * The page's own controls: the leave question asked or taken back, a notice opened whole in its sheet or the sheet
- * closed, either of which closes the settings menu; the settings menu opened or closed; the sound turned on or off.
+ * closed, either of which closes the settings menu; the settings menu opened or closed; the sound or animations turned on or off.
  */
 function pageControlsUi(ui: PlayUi, command: PageControlCommand): PlayUi {
     switch (command.kind) {
@@ -92,10 +93,15 @@ function pageControlsUi(ui: PlayUi, command: PageControlCommand): PlayUi {
         }
         default: {
             const { menu } = stepSettingsMenu(
-                { open: ui.settingsOpen, soundOn: ui.soundOn },
+                { animationsOn: ui.animationsOn, open: ui.settingsOpen, soundOn: ui.soundOn },
                 command.kind,
             );
-            return { ...ui, settingsOpen: menu.open, soundOn: menu.soundOn };
+            return {
+                ...ui,
+                animationsOn: menu.animationsOn,
+                settingsOpen: menu.open,
+                soundOn: menu.soundOn,
+            };
         }
     }
 }
@@ -150,7 +156,8 @@ function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): P
         case "close_notice":
         case "toggle_settings":
         case "close_settings":
-        case "toggle_sound": {
+        case "toggle_sound":
+        case "toggle_animations": {
             return pageControlsUi(ui, command);
         }
         case "arm_tile":

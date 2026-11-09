@@ -31,7 +31,9 @@ The game table model and board UI. `entities/client` steps it; views read the ta
 - The latest discard is the server's on reconnect (`ld`); the client never infers it. Any draw ends it.
 - An AI stand-in for an absent human (`aiStandIn`, "Away") is never shown as an AI participant ("AI").
 - The board marks no tile playable and no offer source: that is the client mapper's.
-- Board motion is presentation only; its look is `docs/game-client-look.md` (Tile motion), and it never delays the
+- Board motion is presentation only; its look is `docs/game-client-look.md` (Tile motion), the player's Animations
+  switch turning it off as the system's reduced motion does (`data-motion` on the board, the `reduced-motion` mixin),
+  and it never delays the
   table, decisions or server input. The mapper preserves physical tile ids across hands, rivers and both tiles of an
   added-kan stack; concealed hands keep anonymous slots, never invented ids, and an id reused in a new round never
   animates from its place in the previous round. `animateBoard` follows `sizeBoard` on GameBoard's root, so it

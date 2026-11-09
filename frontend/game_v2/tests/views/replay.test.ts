@@ -1,10 +1,17 @@
-import { afterEach, assert, describe, expect, it, vi } from "vitest";
+import { afterEach, assert, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
 import { fakeLanguageSwitch, resetPageLanguage } from "#tests/fixtures/language";
 import { encodeReplayLines } from "#tests/fixtures/replay-records";
 import { engineReplayBytes } from "#tests/fixtures/replays";
-import { type GameSound, type SoundCue, type SoundSetting } from "@/entities/client";
+import {
+    DEFAULT_MOTION_SETTING,
+    type GameSound,
+    MOTION_SETTING_KEY,
+    type SoundCue,
+    type SoundSetting,
+    readMotionSetting,
+} from "@/entities/client";
 import {
     DEFAULT_REPLAY_PREFS,
     HOLD_DELAY_MS,
@@ -14,6 +21,7 @@ import {
 } from "@/entities/replay";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { type Locale } from "@/shared/i18n";
+import { localStore } from "@/shared/lib";
 import { REPLAY_VERSION, WIRE_KEY } from "@/shared/protocol";
 import {
     REPLAY_URL_WRITE_INTERVAL_MS,
@@ -209,6 +217,7 @@ function mountReplay(
         links,
         loadReplay,
         location,
+        motionSetting: localStore(MOTION_SETTING_KEY, readMotionSetting, DEFAULT_MOTION_SETTING),
         prefs: store,
         setLanguage,
         sound: deps,
@@ -766,6 +775,19 @@ describe("mountReplayView - view", () => {
             { sound_on: false },
             0,
         ]);
+    });
+
+    it("turns the board's animations off from the cog and keeps the setting the live game shares", async () => {
+        onTestFinished(() => localStorage.removeItem(MOTION_SETTING_KEY));
+        const { host } = await mountLoadedReplay("riichi", "?round=0&step=10");
+
+        button(host, ".game-menu__toggle").click();
+        button(host, ".game-menu__animations").click();
+
+        expect([
+            JSON.parse(localStorage.getItem(MOTION_SETTING_KEY) ?? "null"),
+            host.querySelector(".game-board")?.getAttribute("data-motion"),
+        ]).toEqual([{ animations: false }, "off"]);
     });
 
     it("switches the page to Russian in place from the cog, its menu open, the position and address kept", async () => {

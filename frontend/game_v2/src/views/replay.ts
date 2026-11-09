@@ -3,7 +3,7 @@ import { type TemplateResult, html, nothing, render } from "lit-html";
 import "@/styles/replay-page.scss";
 import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
-import { type GameSound, ReplayRotatePanel } from "@/entities/client";
+import { type GameSound, type MotionSetting, ReplayRotatePanel } from "@/entities/client";
 import {
     CURRENT_ROUND_FOCUS_KEY,
     type LoadedReplayScreen,
@@ -37,6 +37,7 @@ import { type Clock } from "@/shared/clock";
 import { type Locale, type MessageKey, t } from "@/shared/i18n";
 import {
     type DeadlineTimer,
+    type LocalStore,
     type ThrottledWriter,
     assertNever,
     createDeadlineTimer,
@@ -74,6 +75,8 @@ export interface ReplayViewDeps {
     readonly prefs: ReplayPrefsStore;
     /** The game's sounds, which a step on plays while the setting the live game shares keeps them on. */
     readonly sound: GameSound;
+    /** Whether the board animates, a setting the live game shares. */
+    readonly motionSetting: LocalStore<MotionSetting>;
     readonly setLanguage: (locale: Locale) => void;
     /** Open on the round list, as a storybook state shows it; closed when omitted. */
     readonly roundListOpen?: boolean;
@@ -360,6 +363,7 @@ class ReplayViewController {
         start: () => this.dispatch({ kind: "start" }),
         stepClick: (direction) => this.dispatch({ direction, kind: "step_click" }),
         stepPress: (direction, event) => this.onStepPress(direction, event),
+        toggleAnimations: () => this.dispatch({ kind: "toggle_animations" }),
         toggleHands: () => this.dispatch({ kind: "toggle_hands" }),
         togglePlay: () => this.dispatch({ kind: "toggle_play" }),
         toggleRoundList: () => this.dispatch({ kind: "toggle_round_list" }),
@@ -500,7 +504,8 @@ class ReplayViewController {
                 return;
             }
             case "save_prefs":
-            case "save_sound": {
+            case "save_sound":
+            case "save_animations": {
                 this.saveSetting(effect);
                 return;
             }
@@ -514,15 +519,22 @@ class ReplayViewController {
         }
     }
 
-    /** Keep the reader's settings, or the sound's, which the live game shares. */
+    /** Keep the reader's settings, or the sound's or the animations', which the live game shares. */
     private saveSetting(
-        effect: Extract<ReplayPageEffect, { kind: "save_prefs" | "save_sound" }>,
+        effect: Extract<
+            ReplayPageEffect,
+            { kind: "save_prefs" | "save_sound" | "save_animations" }
+        >,
     ): void {
         if (effect.kind === "save_prefs") {
             this.deps.prefs.save(effect.prefs);
-        } else {
-            this.deps.sound.setting.save({ sound_on: effect.soundOn });
+            return;
         }
+        if (effect.kind === "save_sound") {
+            this.deps.sound.setting.save({ sound_on: effect.soundOn });
+            return;
+        }
+        this.deps.motionSetting.save({ animations: effect.animationsOn });
     }
 
     /** Keep one timer armed to the screen's deadline, unless it is the one already armed. */
@@ -658,6 +670,7 @@ class ReplayViewController {
     /** The page after a fetch's answer. */
     private readFetched(fetched: ReplayFetch): ReplayPageStep {
         const opening: ReplayOpening = {
+            animationsOn: this.deps.motionSetting.load().animations,
             autoplay: this.deps.autoplay ?? false,
             prefs: this.deps.prefs.load(),
             roundListOpen: this.deps.roundListOpen ?? false,

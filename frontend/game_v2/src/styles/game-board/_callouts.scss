@@ -53,8 +53,8 @@ $overlay-hold-ms: 1000ms;
     }
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .board-callout {
+.board-callout {
+    @include reduced-motion {
         animation-name: callout-fade;
         animation-duration: var(--callout-ms) !important;
         animation-delay: 0s !important;
@@ -96,8 +96,8 @@ $overlay-hold-ms: 1000ms;
     animation: overlay-after-call 200ms ease-out $overlay-hold-ms backwards;
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .board-overlay--after-call {
+.board-overlay--after-call {
+    @include reduced-motion {
         animation-delay: $overlay-hold-ms !important;
     }
 }

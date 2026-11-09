@@ -36,14 +36,14 @@ class FadeMatchResult extends AsyncDirective {
         }
     }
 
-    render(_shown: boolean): typeof nothing {
+    render(_shown: boolean, _animationsOn: boolean): typeof nothing {
         return nothing;
     }
 
-    override update(part: ElementPart, [shown]: [boolean]): typeof nothing {
+    override update(part: ElementPart, [shown, animationsOn]: [boolean, boolean]): typeof nothing {
         if (shown !== this.shown) {
             this.cancel();
-            if (this.shown && part.element instanceof HTMLElement) {
+            if (this.shown && animationsOn && part.element instanceof HTMLElement) {
                 this.leave(part.element);
             }
             this.shown = shown;

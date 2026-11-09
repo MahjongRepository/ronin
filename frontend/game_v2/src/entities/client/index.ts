@@ -91,3 +91,9 @@ export type { SeatTranscript } from "./model/seat-transcript";
 export { parseSeatTranscript, seatScenarioFromTranscript } from "./model/seat-transcript";
 export { DEFAULT_INPUT_SETTING, INPUT_SETTING_KEY, readInputSetting } from "./model/input-setting";
 export type { InputSetting } from "./model/input-setting";
+export {
+    DEFAULT_MOTION_SETTING,
+    MOTION_SETTING_KEY,
+    readMotionSetting,
+} from "./model/motion-setting";
+export type { MotionSetting } from "./model/motion-setting";

@@ -42,6 +42,7 @@ export interface ReplayBoardHandlers {
     readonly toggleSettings: () => void;
     readonly closeSettings: () => void;
     readonly toggleSound: () => void;
+    readonly toggleAnimations: () => void;
     readonly setLanguage: (locale: Locale) => void;
 }
 
@@ -126,12 +127,15 @@ export function ReplayBoard({
         ],
     };
     return GameBoard({
+        animationsOn: screen.animationsOn,
         callouts: display.callouts,
         debug: false,
         matchResult: display.matchResult,
         menu: GameMenu({
+            animationsOn: screen.animationsOn,
             onClose: handlers.closeSettings,
             onLanguage: handlers.setLanguage,
+            onToggleAnimations: handlers.toggleAnimations,
             onToggleOpen: handlers.toggleSettings,
             onToggleSound: handlers.toggleSound,
             open: screen.settingsOpen,

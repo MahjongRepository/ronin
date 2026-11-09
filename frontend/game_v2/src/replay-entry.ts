@@ -1,4 +1,9 @@
-import { type GameSound } from "@/entities/client";
+import {
+    DEFAULT_MOTION_SETTING,
+    type GameSound,
+    MOTION_SETTING_KEY,
+    readMotionSetting,
+} from "@/entities/client";
 import { DEFAULT_REPLAY_PREFS, readReplayPrefs } from "@/entities/replay";
 import { fetchReplay } from "@/shared/api";
 import { browserClock } from "@/shared/clock";
@@ -35,6 +40,7 @@ export function mountReplay(host: HTMLElement, gameId: string, sound: GameSound)
         links: { history: getLobbyHistoryUrl(), lobby: getLobbyUrl() },
         loadReplay: fetchReplay,
         location: { onPageHide, replaceSearch, search: window.location.search },
+        motionSetting: localStore(MOTION_SETTING_KEY, readMotionSetting, DEFAULT_MOTION_SETTING),
         prefs: localStore(REPLAY_PREFS_KEY, readReplayPrefs, DEFAULT_REPLAY_PREFS),
         setLanguage: applyPageLocale,
         sound,

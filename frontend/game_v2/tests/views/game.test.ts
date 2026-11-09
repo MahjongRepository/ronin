@@ -18,10 +18,13 @@ import {
 } from "#tests/fixtures/wire";
 import {
     DEFAULT_INPUT_SETTING,
+    DEFAULT_MOTION_SETTING,
     INPUT_SETTING_KEY,
+    MOTION_SETTING_KEY,
     type SoundCue,
     type SoundSetting,
     readInputSetting,
+    readMotionSetting,
 } from "@/entities/client";
 import { type TileSprite, type TileSpriteStatus } from "@/entities/tile";
 import { type HandoffRecovery } from "@/shared/api";
@@ -117,6 +120,7 @@ interface FakeOverrides {
     readonly recoverHandoff?: GameViewDeps["recoverHandoff"];
     readonly soundSetting?: SoundSetting;
     readonly inputSetting?: GameViewDeps["inputSetting"];
+    readonly motionSetting?: GameViewDeps["motionSetting"];
     readonly setLanguage?: GameViewDeps["setLanguage"];
 }
 
@@ -183,6 +187,10 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
                 }
                 return `/play/history/${GAME_ID}?seat=${String(seat)}`;
             },
+        },
+        motionSetting: overrides.motionSetting ?? {
+            load: () => DEFAULT_MOTION_SETTING,
+            save: () => {},
         },
         recoverHandoff:
             overrides.recoverHandoff ??
@@ -946,6 +954,10 @@ function inputSettingInBrowser(): GameViewDeps["inputSetting"] {
     return localStore(INPUT_SETTING_KEY, readInputSetting, DEFAULT_INPUT_SETTING);
 }
 
+function motionOf(host: HTMLElement): string | null | undefined {
+    return host.querySelector(".game-board")?.getAttribute("data-motion");
+}
+
 function mountInputMenu(
     inputSetting: GameViewDeps["inputSetting"],
 ): ReturnType<typeof mountInDocumentAtCallPrompt> {
@@ -973,6 +985,28 @@ describe("mountGameView settings", () => {
         pressKey(next.host, ".game-menu__right-click", "Escape");
         pressKey(next.host, ".board-local .hand-tile", "Escape");
         expect(next.connections[0].sent).toEqual([JOIN, buildPassAction(PROMPT_WAIT_ID)]);
+    });
+
+    it("defaults the animations on over a bad stored value and keeps them off across mounts", () => {
+        localStorage.setItem(MOTION_SETTING_KEY, JSON.stringify({ animations: "invalid" }));
+        onTestFinished(() => localStorage.removeItem(MOTION_SETTING_KEY));
+        const motionSetting = localStore(
+            MOTION_SETTING_KEY,
+            readMotionSetting,
+            DEFAULT_MOTION_SETTING,
+        );
+        const first = mountInDocumentAtCallPrompt({ motionSetting });
+        press(first.host, ".game-menu__toggle");
+        const before = motionOf(first.host);
+        press(first.host, ".game-menu__animations");
+        const next = mountInDocumentAtCallPrompt({ motionSetting });
+
+        expect([
+            before,
+            JSON.parse(localStorage.getItem(MOTION_SETTING_KEY) ?? "null"),
+            motionOf(first.host),
+            motionOf(next.host),
+        ]).toEqual([null, { animations: false }, "off", "off"]);
     });
 
     it("opens the sound switch and the status from the cog, keeps the switch in this browser, and closes on Escape, focusing the cog", () => {

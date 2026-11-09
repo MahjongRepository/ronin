@@ -38,6 +38,16 @@ $layers: (
     @return map.get($layers, $name);
 }
 
+@mixin reduced-motion {
+    @media (prefers-reduced-motion: reduce) {
+        @content;
+    }
+
+    :where([data-motion="off"]) & {
+        @content;
+    }
+}
+
 $phone-board: '[data-board-family="phone"]';
 $desktop-board: ':is([data-board-family="desktop"], [data-board-family="short-desktop"])';
 $short-desktop-board: '[data-board-family="short-desktop"]';

@@ -1,6 +1,6 @@
 import { encode } from "@msgpack/msgpack";
 
-import { type GameSound } from "@/entities/client";
+import { DEFAULT_MOTION_SETTING, type GameSound } from "@/entities/client";
 import { DEFAULT_REPLAY_PREFS, type ReplayPrefs } from "@/entities/replay";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { type Clock, browserClock } from "@/shared/clock";
@@ -189,6 +189,7 @@ export function mountStorybookReplay(host: HTMLElement): () => void {
             links: { history: getLobbyHistoryUrl(), lobby: getLobbyUrl() },
             loadReplay: story.load,
             location: { onPageHide: () => () => {}, replaceSearch: () => {}, search: story.search },
+            motionSetting: { load: () => DEFAULT_MOTION_SETTING, save: () => {} },
             prefs: { load: () => story.prefs ?? DEFAULT_REPLAY_PREFS, save: () => {} },
             roundListOpen: story.roundListOpen ?? false,
             setLanguage: applyPageLocale,

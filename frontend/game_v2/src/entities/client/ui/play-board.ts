@@ -422,6 +422,7 @@ const CLOSE_NOTICE: PlayCommand = { kind: "close_notice" };
 const TOGGLE_SETTINGS: PlayCommand = { kind: "toggle_settings" };
 const CLOSE_SETTINGS: PlayCommand = { kind: "close_settings" };
 const TOGGLE_SOUND: PlayCommand = { kind: "toggle_sound" };
+const TOGGLE_ANIMATIONS: PlayCommand = { kind: "toggle_animations" };
 
 /** What goes on beneath a notice's sheet: play, and the decision or round confirm the player owes with its seconds. */
 function sheetNoteText(countdown: NoticeSheetDisplay["countdown"]): TemplateResult | string {
@@ -514,6 +515,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
     }
     return GameBoard({
         actions: DecisionControls(display, onCommand),
+        animationsOn: display.animationsOn,
         callouts: display.callouts,
         debug: false,
         furiten: display.furiten,
@@ -522,6 +524,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
         localHand: { onTile, tileAction: display.tileAction },
         matchResult: display.matchResult,
         menu: GameMenu({
+            animationsOn: display.animationsOn,
             extra: menuExtra,
             input: {
                 onToggle: () => onCommand({ kind: "toggle_right_click" }),
@@ -529,6 +532,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             },
             onClose: () => onCommand(CLOSE_SETTINGS),
             onLanguage,
+            onToggleAnimations: () => onCommand(TOGGLE_ANIMATIONS),
             onToggleOpen: () => onCommand(TOGGLE_SETTINGS),
             onToggleSound: () => onCommand(TOGGLE_SOUND),
             open: display.settingsOpen,

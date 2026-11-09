@@ -441,7 +441,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   in their native hand slots, retaining the hand's shared shadow and the side hands' gaps. The hand stays
   automatically sorted and keeps its existing hover and selection feedback. Motion never blocks input, delays
   game state or invents a hidden tile identity; later events preserve unaffected movements. A fresh page,
-  reconnect, replay jump or viewpoint change shows the requested position immediately. Reduced motion disables
+  reconnect, replay jump or viewpoint change shows the requested position immediately. Reduced motion, asked by the
+  system or by the settings menu's Animations switch, disables
   tile travel and staged reveals. Match standings fade in over 1.5 seconds and fade away over 250ms when dismissed;
   round-result panels, their opening delay and their yaku presentation are unchanged.
 - **Page corner.** A settings cog, small, in one corner. In landscape it sits in the free space

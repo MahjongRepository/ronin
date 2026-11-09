@@ -103,7 +103,7 @@ table transition and call model; replay dispatch loads with the replay route.
 - The panel over the board is `PlayDisplay.overlay`, chosen by the mapper in one precedence (`PlayPanel`) with whether it blocks the board; the
   replay's `replayDisplay` maps its own. Components only render the panel they are given; where it stands is
   GameBoard's (the free box `boardGeometry` reserves), never a page's.
-- The settings menu's own transitions (the cog's toggle, a close, the sound switch) are `stepSettingsMenu`, which live's
+- The settings menu's own transitions (the cog's toggle, a close, the sound and animations switches) are `stepSettingsMenu`, which live's
   `stepPlayUi` and the replay's `stepReplayPage` share; each closes the menu on its own other input.
 - Sounds are never `ClientEffect`s: `soundCues(before, after)` reads them off two consecutive states, so scenarios and timelines stay silent
   and a snapshot plays nothing. The bank-entry cue only plays across the same open wait's base-to-bank transition,

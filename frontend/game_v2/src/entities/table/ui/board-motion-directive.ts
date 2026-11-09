@@ -23,6 +23,7 @@ class AnimateBoard extends AsyncDirective {
     private observer: ResizeObserver | null = null;
     private size = "";
     private renderVersion = 0;
+    private animationsOn = true;
 
     constructor(info: PartInfo) {
         super(info);
@@ -31,23 +32,35 @@ class AnimateBoard extends AsyncDirective {
         }
     }
 
-    render(_state: BoardDisplayState | null, _cue?: BoardMotionCue): typeof nothing {
+    render(
+        _state: BoardDisplayState | null,
+        _cue: BoardMotionCue | undefined,
+        _animationsOn: boolean,
+    ): typeof nothing {
         return nothing;
     }
 
     override update(
         part: ElementPart,
-        [state, cue]: [BoardDisplayState | null, BoardMotionCue | undefined],
+        [state, cue, animationsOn]: [BoardDisplayState | null, BoardMotionCue | undefined, boolean],
     ): typeof nothing {
         if (!(part.element instanceof HTMLElement)) {
             return nothing;
         }
         this.board = part.element;
         this.player ??= new BoardMotionPlayer(part.element);
+        this.followSwitch(animationsOn);
         this.player.prepareRender();
         this.updateState(state, cue);
         this.finishRender();
         return nothing;
+    }
+
+    private followSwitch(animationsOn: boolean): void {
+        if (this.animationsOn && !animationsOn) {
+            this.cancel();
+        }
+        this.animationsOn = animationsOn;
     }
 
     private finishRender(): void {
@@ -116,6 +129,7 @@ class AnimateBoard extends AsyncDirective {
         this.observe();
         if (
             !enabled ||
+            !this.animationsOn ||
             this.state === null ||
             this.media?.matches === true ||
             typeof this.board.animate !== "function"

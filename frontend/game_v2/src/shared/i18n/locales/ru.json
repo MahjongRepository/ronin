@@ -207,6 +207,7 @@
     "game.seat.you": "Вы",
     "game.seating.heading": "{type} · {round}",
     "game.seating.label": "Рассадка",
+    "game.settings.animations": "Анимация",
     "game.settings.language": "Язык",
     "game.settings.off": "Выкл",
     "game.settings.on": "Вкл",

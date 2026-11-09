@@ -11,9 +11,11 @@ interface GameMenuProps {
     readonly status: SessionStatusDisplay | null;
     readonly open: boolean;
     readonly soundOn: boolean;
+    readonly animationsOn: boolean;
     readonly onToggleOpen: () => void;
     readonly onClose: () => void;
     readonly onToggleSound: () => void;
+    readonly onToggleAnimations: () => void;
     readonly onLanguage: (locale: Locale) => void;
     readonly input?: { readonly rightClick: boolean; readonly onToggle: () => void };
     /** What the page adds before the settings (the debug log). */
@@ -88,7 +90,15 @@ function LanguageRow(onLanguage: (locale: Locale) => void): TemplateResult {
 }
 
 function SettingsPanel(props: GameMenuProps): TemplateResult {
-    const { onClose, onLanguage, onToggleSound, soundOn, status } = props;
+    const {
+        animationsOn,
+        onClose,
+        onLanguage,
+        onToggleAnimations,
+        onToggleSound,
+        soundOn,
+        status,
+    } = props;
     return html`<div class="game-menu__backdrop" aria-hidden="true" @click=${onClose}></div>
         <div class="game-menu__panel" role="group" aria-label=${t("game.settings.title")}>
             <button
@@ -100,6 +110,16 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
             >
                 ${SoundIcon(soundOn)}<span class="game-menu__item-name">${t("game.settings.sound")}</span
                 ><span class="game-menu__item-value">${onOff(soundOn)}</span>
+            </button>
+            <button
+                type="button"
+                class="secondary game-menu__item game-menu__animations"
+                role="switch"
+                aria-checked=${animationsOn ? "true" : "false"}
+                @click=${onToggleAnimations}
+            >
+                <span class="game-menu__item-name">${t("game.settings.animations")}</span
+                ><span class="game-menu__item-value">${onOff(animationsOn)}</span>
             </button>
             ${LanguageRow(onLanguage)}
             ${props.input === undefined ? nothing : InputSettings(props.input)}

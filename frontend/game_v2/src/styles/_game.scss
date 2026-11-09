@@ -83,6 +83,10 @@ section {
         &::before {
             background: var(--ronin-warning);
             animation: pulse-status 2s ease-in-out infinite;
+
+            @include reduced-motion {
+                animation: none;
+            }
         }
     }
 

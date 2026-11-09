@@ -45,6 +45,8 @@ interface LocalHandInput {
 interface GameBoardProps {
     readonly matchResult?: boolean;
     readonly motion?: BoardMotionCue;
+    /** Whether the player leaves the board's animations on; on when omitted. */
+    readonly animationsOn?: boolean;
     readonly debug: boolean;
     readonly overlay?: TemplateResult;
     readonly state: BoardDisplayState | null;
@@ -443,9 +445,11 @@ function GameBoard(props: GameBoardProps): TemplateResult {
         }
     }
 
+    const animationsOn = props.animationsOn !== false;
     return html`
         <div
             class="${boardClass}"
+            data-motion=${animationsOn ? nothing : "off"}
             ${props.input ?? nothing}
             ${sizeBoard(
                 { band: props.replay ? "replay" : "play" },
@@ -456,8 +460,8 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     top: stripContent(seatPlayer(state, "top")),
                 },
             )}
-            ${animateBoard(state, props.motion)}
-            ${fadeMatchResult(props.matchResult === true)}
+            ${animateBoard(state, props.motion, animationsOn)}
+            ${fadeMatchResult(props.matchResult === true, animationsOn)}
             @click=${unpinOnClickElsewhere}
             @keydown=${onKey}
         >

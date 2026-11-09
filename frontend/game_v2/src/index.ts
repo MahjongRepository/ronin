@@ -15,12 +15,15 @@ import discardUrl from "@/assets/audio/discard-resin.flac?no-inline";
 import tileSpriteUrl from "@/assets/tiles/sprites/fluffy-stuff.svg?url";
 import {
     DEFAULT_INPUT_SETTING,
+    DEFAULT_MOTION_SETTING,
     DEFAULT_SOUND_SETTING,
     type GameSound,
     INPUT_SETTING_KEY,
+    MOTION_SETTING_KEY,
     SOUND_SETTING_KEY,
     type SoundCue,
     readInputSetting,
+    readMotionSetting,
     readSoundSetting,
 } from "@/entities/client";
 import { type TileSprite, injectTileSprite, loadTileSprite } from "@/entities/tile";
@@ -211,6 +214,7 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
             history: getLobbyHistoryUrl(),
             replay: (seat) => replayPageUrl(gameId, seat),
         },
+        motionSetting: localStore(MOTION_SETTING_KEY, readMotionSetting, DEFAULT_MOTION_SETTING),
         recoverHandoff: fetchGameHandoff,
         setLanguage: applyPageLocale,
         sink: {

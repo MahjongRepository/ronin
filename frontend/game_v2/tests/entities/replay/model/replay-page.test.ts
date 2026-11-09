@@ -23,18 +23,24 @@ interface OpenOptions {
     readonly autoplay?: boolean;
     readonly prefs?: ReplayPrefs;
     readonly soundOn?: boolean;
+    readonly animationsOn?: boolean;
 }
 
 function opened(
     name: string,
     search = "",
-    { autoplay = false, prefs = DEFAULT_REPLAY_PREFS, soundOn = false }: OpenOptions = {},
+    {
+        animationsOn = true,
+        autoplay = false,
+        prefs = DEFAULT_REPLAY_PREFS,
+        soundOn = false,
+    }: OpenOptions = {},
 ): LoadedReplayScreen {
     const { screen } = stepReplayPage(LOADING, {
         at: 0,
         fetched: { content: engineReplayBytes(name), ok: true },
         kind: "fetched",
-        opening: { autoplay, prefs, roundListOpen: false, search, soundOn },
+        opening: { animationsOn, autoplay, prefs, roundListOpen: false, search, soundOn },
     });
     assert(screen.kind === "loaded");
     return screen;
@@ -111,6 +117,7 @@ describe("stepReplayPage - loading", () => {
                         fetched: { ok: false, status },
                         kind: "fetched",
                         opening: {
+                            animationsOn: true,
                             autoplay: false,
                             prefs: DEFAULT_REPLAY_PREFS,
                             roundListOpen: false,
@@ -131,6 +138,7 @@ describe("stepReplayPage - loading", () => {
             fetched: { content: engineReplayBytes("riichi"), ok: true },
             kind: "fetched",
             opening: {
+                animationsOn: true,
                 autoplay: true,
                 prefs: DEFAULT_REPLAY_PREFS,
                 roundListOpen: false,
@@ -159,6 +167,7 @@ describe("stepReplayPage - loading", () => {
             fetched: { content: engineReplayBytes("riichi"), ok: true },
             kind: "fetched",
             opening: {
+                animationsOn: true,
                 autoplay: true,
                 prefs: { hideHands: true },
                 roundListOpen: false,
@@ -426,6 +435,18 @@ describe("stepReplayPage - sound", () => {
             false,
             [{ kind: "save_sound", soundOn: false }],
             [{ kind: "save_sound", soundOn: true }],
+        ]);
+    });
+
+    it("turns the animations off, asking the view to keep the turn and leaving the sound alone", () => {
+        const { effects, screen } = step(opened("riichi", "", { soundOn: true }), {
+            kind: "toggle_animations",
+        });
+
+        expect([loaded(screen).animationsOn, loaded(screen).soundOn, effects]).toEqual([
+            false,
+            true,
+            [{ animationsOn: false, kind: "save_animations" }],
         ]);
     });
 });

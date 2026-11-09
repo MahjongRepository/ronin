@@ -50,9 +50,19 @@ function drawn(state: TableState): TableState {
     };
 }
 
-function draw(state: TableState, cue: BoardMotionCue, view = perspective): void {
+interface ShowOptions {
+    readonly view?: BoardPerspective;
+    readonly animationsOn?: boolean;
+}
+
+function draw(
+    state: TableState,
+    cue: BoardMotionCue,
+    { animationsOn = true, view = perspective }: ShowOptions = {},
+): void {
     render(
         GameBoard({
+            animationsOn,
             debug: false,
             motion: cue,
             platePress: { kind: "pin", onPin: () => {}, pinned: null },
@@ -72,8 +82,12 @@ function getBox(element: HTMLElement): DOMRect {
     return new DOMRect(100 + index * 32, area.endsWith("hand") ? 600 : 300, 30, 40);
 }
 
-async function show(state: TableState, cue: BoardMotionCue, view = perspective): Promise<void> {
-    draw(state, cue, view);
+async function show(
+    state: TableState,
+    cue: BoardMotionCue,
+    options: ShowOptions = {},
+): Promise<void> {
+    draw(state, cue, options);
     await Promise.resolve();
 }
 
@@ -148,7 +162,7 @@ async function showMovingHand(
 ): Promise<void> {
     const state = tableStateToDisplayState(table(true), perspective);
     render(
-        html`<div class="game-board" ${animateBoard(state, { mode, sequence })}>
+        html`<div class="game-board" ${animateBoard(state, { mode, sequence }, true)}>
         <div data-area="bottom-hand">${Hand({ tiles })}</div>
     </div>`,
         host,
@@ -285,9 +299,9 @@ function startResizingMeld(): BoardMotionPlayer {
 async function startRevealingHand(): Promise<{ state: TableState; view: BoardPerspective }> {
     const view = { bottomSeat: 0, reveal: "bottom" } as const;
     const dealt = table(true);
-    await show(dealt, { mode: "reset", sequence: 0 }, view);
+    await show(dealt, { mode: "reset", sequence: 0 }, { view });
     const state = { ...dealt, revealedSeats: [1] };
-    await show(state, { mode: "step", sequence: 1 }, view);
+    await show(state, { mode: "step", sequence: 1 }, { view });
     return { state, view };
 }
 
@@ -433,7 +447,7 @@ describe("shared tile depth", () => {
         ]).toEqual([13, 13, null]);
         animations[0].finish();
         animations[5].currentTime = 90;
-        await show(state, { mode: "step", sequence: 1 }, view);
+        await show(state, { mode: "step", sequence: 1 }, { view });
         expect([
             animations.length,
             animations[5].currentTime,
@@ -542,7 +556,11 @@ describe("board motion", () => {
         await show(drawn(dealt), { mode: "step", sequence: 1 });
         expect(animations.length).toBe(4);
         draw(dealt, { mode: "step", sequence: 8 });
-        await show(drawn(dealt), { mode: "step", sequence: 9 }, { bottomSeat: 1, reveal: "all" });
+        await show(
+            drawn(dealt),
+            { mode: "step", sequence: 9 },
+            { view: { bottomSeat: 1, reveal: "all" } },
+        );
         expect([animations.length, hiddenTiles()]).toEqual([4, 0]);
     });
 
@@ -562,6 +580,24 @@ describe("board motion", () => {
         await show(table(false), { mode: "reset", sequence: 0 });
         await show(table(true), { mode: "step", sequence: 1 });
         expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
+    });
+});
+
+describe("animations switch", () => {
+    it("cancels a running flight when the animations turn off and starts none while they stay off", async () => {
+        await show(table(true), { mode: "reset", sequence: 0 });
+        await show(drawn(table(true)), { mode: "step", sequence: 1 });
+
+        const off = { animationsOn: false };
+        await show(drawn(table(true)), { mode: "step", sequence: 1 }, off);
+        await show(table(true), { mode: "step", sequence: 2 }, off);
+
+        expect([
+            animations.length,
+            animations.every((animation) => animation.playState === "idle"),
+            hiddenTiles(),
+            host.querySelector(".game-board")?.getAttribute("data-motion"),
+        ]).toEqual([4, true, 0, "off"]);
     });
 });
 
