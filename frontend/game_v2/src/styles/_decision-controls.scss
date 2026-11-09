@@ -135,6 +135,10 @@ $preview-tile-share: 0.42;
         &:empty {
             display: flex;
         }
+
+        > .decision-controls__action {
+            margin-right: max(0px, var(--strip-reserve) - var(--band-shift) - var(--timer-w));
+        }
     }
 }
 
@@ -154,7 +158,9 @@ $preview-tile-share: 0.42;
     @include phone-board {
         flex-flow: column nowrap;
         align-items: flex-end;
-        padding-right: calc(var(--strip-reserve) + #{$small-decision-gap});
+        padding-right: calc(
+            max(var(--strip-reserve), var(--band-shift) + var(--timer-w)) + #{$small-decision-gap}
+        );
 
         > .decision-controls__action--win,
         > .decision-controls__action--choice {
