@@ -227,6 +227,13 @@ section {
     white-space: nowrap;
 }
 
+.game-menu__right-click,
+.game-menu__controls {
+    @media (hover: none) and (pointer: coarse) {
+        display: none;
+    }
+}
+
 .game-menu__icon {
     flex: none;
     width: 1.1rem;
