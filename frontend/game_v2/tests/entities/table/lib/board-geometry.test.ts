@@ -697,6 +697,16 @@ describe("boardGeometry's shell tracks", () => {
         });
     });
 
+    it("centres a live phone's panel, stopping short of the notices' column only while a notice shows", () => {
+        const width = 740;
+        const { lengths, tracks } = windowGeometry({ height: 393, width });
+
+        expect(lengths["overlay-left"]).toBe(lengths["overlay-right"]);
+        expect(width - (lengths["overlay-right-beside-notices"] ?? Number.NaN)).toBeLessThanOrEqual(
+            slotAreas(tracks)["field-beside"]?.[0] ?? Number.NaN,
+        );
+    });
+
     it("places the settings below the top strip and badge in a near-square landscape window", () => {
         const { lengths, tracks } = windowGeometry({ height: 699, width: 700 });
         const areas = slotAreas(tracks);

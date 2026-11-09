@@ -201,7 +201,7 @@ const COUNTERS_GAP = 6;
 /** A panel keeps this far off the board's edges where nothing else is reserved there (px). */
 const PANEL_GAP = 8;
 
-/** A phone's live panel keeps this far off the notices' column beside it (px). */
+/** While a notice shows, a phone's live panel keeps this far off the notices' column beside it (px). */
 const NOTICES_PANEL_GAP = 4;
 
 function classifyFamily({ width, height }: BoardBox): BoardFamily {
@@ -872,13 +872,12 @@ function phoneRightHand({ bandTop, cy, fromBand, reach }: PhoneRightRoom): {
 }
 
 /**
- * A phone's panel's free box: at the top, over the cog; a live panel short of the notices' column beside it, a
- * replay's above its moves' row.
+ * A phone's panel's free box, with equal gaps so it stands centred on the board; a replay's above its moves' row.
  */
 function phonePanel(
     slots: BoardSlots,
     height: number,
-    lengths: Readonly<Record<"bandShift" | "movesH" | "switchesBottom", number>>,
+    lengths: Readonly<Record<"movesH" | "switchesBottom", number>>,
 ): BoardEdges {
     const { replayGap } = PHONE_CHROME;
     const replay = slots.band === "replay";
@@ -886,10 +885,17 @@ function phonePanel(
         bottom: replay
             ? height - movesRowTop(lengths.switchesBottom, lengths.movesH, replayGap)
             : PANEL_GAP,
-        left: 0,
-        right: replay ? PANEL_GAP : NOTICES_BESIDE_PANEL + NOTICES_PANEL_GAP + lengths.bandShift,
+        left: PANEL_GAP,
+        right: PANEL_GAP,
         top: PANEL_GAP,
     };
+}
+
+/** A phone's panel's right inset while a notice shows: a live panel stops short of the notices' column. */
+function phonePanelRightBesideNotices(slots: BoardSlots, bandShift: number): number {
+    return slots.band === "replay"
+        ? PANEL_GAP
+        : NOTICES_BESIDE_PANEL + NOTICES_PANEL_GAP + bandShift;
 }
 
 type PhoneRowHolds = "replay-moves" | "live-switches";
@@ -967,7 +973,6 @@ function phoneLayout(
         ponsReach(rw) <= right.origin;
     const bandShift = right.bandCrossed ? rh + STEP_IN_GAP : 0;
     const panel = phonePanel(slots, height, {
-        bandShift,
         movesH: chrome.movesH,
         switchesBottom,
     });
@@ -981,6 +986,7 @@ function phoneLayout(
         ["band-gap", bandGap],
         ["band-lift", 0],
         ["band-shift", bandShift],
+        ["overlay-right-beside-notices", phonePanelRightBesideNotices(slots, bandShift)],
         ["c", heightRoom],
         ["control-h", controlH],
         ["core-top", coreTop],

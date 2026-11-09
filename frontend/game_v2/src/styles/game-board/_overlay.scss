@@ -49,8 +49,8 @@ $overlay-chrome: 3rem;
     z-index: layer(overlay);
 }
 
-.game-board:where(#{$phone-board}) > .board-overlay {
-    grid-template-rows: var(--panel-top) auto minmax(var(--panel-bottom), 1fr);
+.game-board:where(#{$phone-board}):has(.board-notices__list > *) > .board-overlay {
+    --panel-right: var(--geo-overlay-right-beside-notices);
 }
 
 /* An auto track leaves a percentage nothing to resolve against, so the panel's room is its free box's. */
@@ -152,12 +152,12 @@ $overlay-chrome: 3rem;
     }
 
     .board-overlay .round-end-result--win:has(> .round-end-result__controls) {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
         grid-template-areas:
-            "head head head head"
-            "hand hand hand hand"
-            "yaku value dora dora"
-            "scores scores scores controls";
+            "head head head"
+            "hand hand hand"
+            "yaku value dora"
+            "scores scores controls";
     }
 }
 
@@ -197,6 +197,8 @@ $overlay-chrome: 3rem;
 
     .board-overlay .round-end-result__controls {
         justify-self: end;
+        margin-left: 0;
+        padding-left: 0;
         border-top: 0;
     }
 }
@@ -208,13 +210,13 @@ $overlay-chrome: 3rem;
 }
 
 @container result-foot (width < 45rem) {
-    .round-end-result__confirm {
+    .board-overlay .round-end-result__confirm {
         min-width: 4.5rem;
         padding-inline: 0.6rem;
         font-size: 0.9em;
     }
 
-    .round-end-result__wait {
+    .board-overlay .round-end-result__wait {
         max-width: 5rem;
     }
 }
@@ -260,7 +262,7 @@ $overlay-chrome: 3rem;
 @container (height >= 560px) {
     .board-overlay .round-end-result {
         font-size: 0.95rem;
-        gap: 0.75rem 1rem;
+        row-gap: 0.75rem;
     }
 
     .board-overlay .round-end-result__title {

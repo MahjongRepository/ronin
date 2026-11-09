@@ -521,10 +521,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   browser needs before the game's sounds play. A replay opens on the seating with a Start in the OK's place (on a phone in landscape, with no own badge, the seating also names the viewpoint), and off
   a phone's short board the replay's seating (start and end) covers the table's centre block, its text scaled to the
   block.
-  Decision (placements drawn in step 4.1): the notices' field is reserved whether or not a notice shows, so a
-  panel's box and its tile size never change as a notice comes or goes. On a desktop a panel stands centred,
+  Decision (placements drawn in step 4.1): off a phone the notices' field is reserved whether or not a notice shows,
+  so a panel's box and its tile size never change as a notice comes or goes. On a desktop a panel stands centred,
   starting past the left river's reach; on a narrow desktop (narrower than `$small-chrome-width`) it stands
-  between the side strips, past the left river's reach; on a phone it stands at the top, its notices beside it. A desktop's panel fits its content whole.
+  between the side strips, past the left river's reach; on a phone it stands centred on the board both ways, and only while a notice shows does it narrow to leave the notices' column beside it. A desktop's panel fits its content whole.
 - **Round result.** Decision (the established clients order it differently; Tenhou's viewer puts
   the total first): the winner and how (ron, and from whom; tsumo; a head bump names who lost the
   ron); the winning hand with the winning tile set apart and its melds in their shape; the yaku,

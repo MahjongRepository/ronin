@@ -28,8 +28,10 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   insets, live and replay alike, over the cog where they reach it. The cog reserves no room in the strips: in landscape
   its corner slot ends inside the right strip's deepest reach with a gap, keeping its target clear of the melds.
   Where the top hand leaves too little room beside it, the corner starts below the top strip and badge.
-  The notices' field is reserved whether a
-  notice shows or not, so no notice changes the panel's box or tiles. The panel's tile unit stays `--board-unit`, from
+  Off a phone the notices' field is reserved whether a
+  notice shows or not, so no notice changes the panel's box or tiles. A phone's panel takes equal side gaps and stands
+  centred; only while a notice shows does it narrow, by `--geo-overlay-right-beside-notices`, to clear the notices'
+  column. The panel's tile unit stays `--board-unit`, from
   that box's width and the board's height: one from `--rw` would draw a phone's result at 17px tiles where its box holds
   32px.
 - **One source per fact.** The directive writes the sizes as `--geo-<name>` on `.game-board`; one rule (`_grid.scss`)
