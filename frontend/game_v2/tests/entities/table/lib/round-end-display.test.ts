@@ -252,7 +252,7 @@ describe("roundEndDisplay - a double ron", () => {
         expect(second.scores.map((row) => row.after)).toEqual(
             table.players.map((player) => player.score),
         );
-        expect(second.scores.map((row) => row.delta)).toEqual([-8000, 0, 8000, 0]);
+        expect(second.scores.map((row) => row.delta)).toEqual([-7700, 0, 7700, 0]);
     });
 
     test("a page out of range shows the nearest one, and says so", () => {

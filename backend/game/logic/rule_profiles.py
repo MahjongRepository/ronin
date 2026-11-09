@@ -35,7 +35,7 @@ class RuleProfile(BaseModel):
         return self
 
 
-STANDARD_RULE_PROFILE = RuleProfile(
+KIRIAGE_RULE_PROFILE = RuleProfile(
     id=1,
     settings=GameSettings(
         game_type=GameType.HANCHAN,
@@ -100,7 +100,12 @@ STANDARD_RULE_PROFILE = RuleProfile(
     ),
 )
 
-RULE_PROFILES = MappingProxyType({profile.id: profile for profile in (STANDARD_RULE_PROFILE,)})
+STANDARD_RULE_PROFILE = RuleProfile(
+    id=2,
+    settings=KIRIAGE_RULE_PROFILE.settings.model_copy(update={"has_kiriage_mangan": False}),
+)
+
+RULE_PROFILES = MappingProxyType({profile.id: profile for profile in (KIRIAGE_RULE_PROFILE, STANDARD_RULE_PROFILE)})
 
 
 def get_rule_profile(profile_id: int) -> RuleProfile:

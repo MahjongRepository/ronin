@@ -100,7 +100,7 @@ describe("extractRoundEndResult", () => {
         expect(before.players.map((player) => player.score)).toEqual([
             25_000, 24_000, 24_000, 25_000,
         ]);
-        expect(after.players.map((player) => player.score)).toEqual([5000, 38_000, 32_000, 25_000]);
+        expect(after.players.map((player) => player.score)).toEqual([5300, 38_000, 31_700, 25_000]);
     });
 
     test("double ron on honba: each winner collects its own honba bonus beyond its hand value", () => {

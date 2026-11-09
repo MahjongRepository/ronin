@@ -534,7 +534,7 @@ describe("stepGameClient - generated own turn", () => {
         expect(decisionOf(roundEnd)).toBeNull();
         expect(roundEnd.table.roundEndResult?.winners.map((winner) => winner.seat)).toEqual([1]);
         expect(roundEnd.table.players.map((player) => player.score)).toEqual([
-            21_000, 33_000, 23_000, 23_000,
+            21_100, 32_900, 23_000, 23_000,
         ]);
         const waitId = receivedPayload(transcript, "round end")[WIRE_KEY.WAIT_ID];
         expect(roundConfirmOf(roundEnd)).toEqual({

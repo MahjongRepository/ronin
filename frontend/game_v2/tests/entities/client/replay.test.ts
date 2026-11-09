@@ -343,7 +343,7 @@ describe("readReplayTimeline - engine replays", () => {
         assert(event.resultType === ROUND_RESULT_TYPE.DOUBLE_RON);
         const end = stateAfter(timeline, index);
 
-        expect(scoresOf(end)).toEqual([5000, 38_000, 32_000, 25_000]);
+        expect(scoresOf(end)).toEqual([5300, 38_000, 31_700, 25_000]);
         expect([timeline.tables[index].riichiSticks, end.riichiSticks]).toEqual([2, 0]);
         expect(end.roundEndResult).toMatchObject({
             loserSeat: event.loserSeat,

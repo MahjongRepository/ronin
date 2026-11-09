@@ -272,7 +272,7 @@ class TestKiriageMangan:
         assert (result.han, result.fu, result.cost_main) == (4, 40, 8000)
         assert result.limit == HandLimit.MANGAN
 
-    def test_calculate_hand_value__when_kiriage_disabled_and_4_han_30_fu__should_score_7700(self):
+    def test_calculate_hand_value__when_standard_rules_and_4_han_30_fu__should_score_7700(self):
         tiles = TilesConverter.string_to_136_array(man="223344", pin="567", sou="234")
         pair_tile = TilesConverter.string_to_136_array(man="55")
         all_tiles = (*tuple(tiles), pair_tile[0])
@@ -284,7 +284,7 @@ class TestKiriageMangan:
         round_state = update_player(round_state, 1, tiles=final_tiles, is_riichi=True)
         player = round_state.players[1]
 
-        settings = GameSettings(has_kiriage_mangan=False, has_akadora=False, has_uradora=False)
+        settings = GameSettings(has_akadora=False, has_uradora=False)
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=False)
 
         result = calculate_hand_value(ctx, win_tile)

@@ -205,4 +205,4 @@ Rules that could theoretically be adjusted through game settings. Current Ronin 
 - Chiitoitsu: Fixed 25 fu, 2 han
 - Pinfu tsumo: 0 fu (no additional fu for pinfu tsumo)
 - Open pinfu: 2 fu (fu added for open pinfu hands)
-- Kiriage Mangan (rounded mangan): Enabled. 4-han/30-fu and 3-han/60-fu hands score as mangan (8,000/12,000) instead of exact values (7,700/11,600).
+- Kiriage Mangan (rounded mangan): Disabled, as in Tenhou ranked games. 4-han/30-fu and 3-han/60-fu hands score their exact values (7,700/11,600), not mangan (8,000/12,000).

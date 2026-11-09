@@ -340,14 +340,14 @@ describe("tableStateToDisplayState nameplates on a replay", () => {
         ]);
         expect(platesAfter("ai_replacements", "round_end")).toEqual([
             "Diana E dealer 25000",
-            "Alice S 33000",
-            "Charlie W 17000 [Away]",
+            "Alice S 32700",
+            "Charlie W 17300 [Away]",
             "Bob N 25000 [Away]",
         ]);
         expect(platesAfter("ai_replacements", "discard", 3)).toEqual([
             "Diana N 25000 [Away]",
-            "Alice E dealer turn 33000",
-            "Charlie S 17000",
+            "Alice E dealer turn 32700",
+            "Charlie S 17300",
             "Bob W 25000",
         ]);
     });

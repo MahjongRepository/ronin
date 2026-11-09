@@ -81,7 +81,7 @@ class GameSettings(BaseModel):
     has_uradora: bool = True
     has_double_yakuman: bool = True
     has_kazoe_yakuman: bool = True
-    has_kiriage_mangan: bool = True
+    has_kiriage_mangan: bool = False
     has_nagashi_mangan: bool = True
     renhou_value: RenhouValue = RenhouValue.MANGAN
     fu_for_open_pinfu: bool = True

@@ -193,7 +193,7 @@ class TestCalculateHandValue:
         result = calculate_hand_value_with_tiles(ctx, tiles=tiles_with_ron, win_tile=ron_tile)
         assert result.error is None
         assert _yaku_han(result) == [(Haku.yaku_id, 1), (Dora.yaku_id, 1), (AkaDora.yaku_id, 2)]
-        assert (result.han, result.fu, result.cost_main) == (4, 30, 12000)
+        assert (result.han, result.fu, result.cost_main) == (4, 30, 11600)
 
 
 def _assert_settled(before: MahjongGameState, after: MahjongGameState, score_changes: dict[int, int]) -> None:

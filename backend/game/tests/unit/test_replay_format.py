@@ -6,7 +6,7 @@ import msgpack
 import pytest
 
 from game.logic.exceptions import UnsupportedSettingsError
-from game.logic.rule_profiles import STANDARD_RULE_PROFILE, RuleProfile
+from game.logic.rule_profiles import KIRIAGE_RULE_PROFILE, STANDARD_RULE_PROFILE, RuleProfile
 from game.logic.settings import GameSettings
 from game.wire.keys import REPLAY_KEYS, WireKey
 from game.wire.replay_format import (
@@ -145,15 +145,20 @@ def test_replay_records__when_no_records__should_refuse():
 
 def test_replay_settings__when_standard_and_custom__should_resolve_effective_values():
     standard = encode_replay_settings(GameSettings())
-    assert standard == {"id": 1, "overrides": {}}
+    assert standard == {"id": 2, "overrides": {}}
     assert decode_replay_settings(standard) == STANDARD_RULE_PROFILE.settings
     custom = GameSettings(has_akadora=False, riichi_cost=0, uma=(30, 10, -10, -30))
     reference = encode_replay_settings(custom)
     assert reference == {
-        "id": 1,
+        "id": 2,
         "overrides": {"has_akadora": False, "riichi_cost": 0, "uma": [30, 10, -10, -30]},
     }
     assert decode_replay_settings(reference) == custom
+
+
+def test_replay_settings__when_recorded_before_kiriage_was_disabled__should_keep_kiriage():
+    assert decode_replay_settings({"id": 1, "overrides": {}}).has_kiriage_mangan is True
+    assert decode_replay_settings({"id": 2, "overrides": {}}).has_kiriage_mangan is False
 
 
 @pytest.mark.parametrize(
@@ -187,14 +192,16 @@ def test_rule_profile__when_defaults_would_fill_fields__should_require_explicit_
         RuleProfile(id=2, settings=GameSettings())
 
 
-def test_rule_profile__should_pin_persisted_baseline_independently_of_defaults():
-    normalized = json.dumps(
-        STANDARD_RULE_PROFILE.settings.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
-    )
-    assert (
-        hashlib.sha256(normalized.encode()).hexdigest()
-        == "8a30265ef5607da2e58c92bd5ecf78982cf97e81262cb6f9075b152dc4f4009a"
-    )
+@pytest.mark.parametrize(
+    ("profile", "expected_sha256"),
+    [
+        (KIRIAGE_RULE_PROFILE, "8a30265ef5607da2e58c92bd5ecf78982cf97e81262cb6f9075b152dc4f4009a"),
+        (STANDARD_RULE_PROFILE, "bba180e0bac30095320b3a0ec01695bc99503ea2f7163ba1966f3bfe6ce6c2ac"),
+    ],
+)
+def test_rule_profile__should_pin_persisted_baseline_independently_of_defaults(profile, expected_sha256):
+    normalized = json.dumps(profile.settings.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+    assert hashlib.sha256(normalized.encode()).hexdigest() == expected_sha256
 
 
 @pytest.mark.parametrize(
