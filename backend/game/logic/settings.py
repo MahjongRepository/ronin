@@ -49,7 +49,7 @@ class LeftoverRiichiBets(StrEnum):
 
 
 MAX_KANS = 4
-MIN_WALL_FOR_KAN = 2
+MIN_WALL_FOR_KAN = 1
 TRIPLE_RON_COUNT = 3
 
 

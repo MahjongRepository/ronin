@@ -294,7 +294,7 @@ class TestKanExecutionGuards:
     def test_closed_kan__when_wall_too_short__should_raise(self):
         runtime = GameRuntime(game_id="test", state=_create_frozen_game_state(), ai=AIPlayerController({}))
         wall = runtime.state.round_state.wall
-        _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:1]}))
+        _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
         one_man_quad = runtime.state.round_state.players[0].tiles[:4]
         assert len({tile_to_34(t) for t in one_man_quad}) == 1
 

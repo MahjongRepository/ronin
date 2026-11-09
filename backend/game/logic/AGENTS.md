@@ -36,8 +36,9 @@ The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mecha
   seat. Names are display only and nothing looks a player up by name; AI names skip the names in use without
   touching the RNG, so names stay unique for the replay format and the name-carrying session messages.
 * Replay rules profiles live beside settings in `rule_profiles.py`. Each frozen profile explicitly supplies every
-  setting, independent of application defaults; an existing profile ID and its baseline never change. New settings
-  require deliberate legacy values in every profile. Profile lookup and strict override resolution stay in this
+  setting, independent of application defaults. While stored replays are only test games, a rule change edits the
+  current profile's baseline in place, since playback reads recorded events and not the profile. New settings require
+  deliberate values in every profile. Profile lookup and strict override resolution stay in this
   layer; `wire/` owns the compact replay envelope and serialization.
 * Pacing (turn, bank, meld, round-advance and pending-game timeouts) is a session concern (`session/timer.py`),
   never a `GameSettings` field.

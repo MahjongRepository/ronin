@@ -56,7 +56,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 
 ### Kan (Quads)
 
-- Minimum wall tiles for kan: 2
+- Minimum wall tiles for kan: 1. No kan on the last live tile drawn or on the final discard; a kan with one live tile left (M-League rules, chapter 2, articles 3-4) moves that tile to the dead wall, and the replacement discard is the hand's last discard.
 - Kan after pon/chii on same turn: Not allowed (kan requires a drawn tile)
 - Consecutive concealed quads: Allowed without discarding between them (each reveals a new Dora indicator immediately)
 - Four quads by same player: Play continues (does NOT trigger abortive draw)
@@ -129,7 +129,7 @@ Applies when the game type and winning score threshold settings allow the game t
 
 - Tenhou (Blessing of Heaven): Dealer yakuman on initial 14-tile draw
 - Chiihou (Blessing of Earth): Non-dealer yakuman on first self-draw. Any call (meld) by any player interrupts.
-- Haitei (Haitei Raoyue, Under the Sea): 1-han, win on last wall tile (tsumo)
+- Haitei (Haitei Raoyue, Under the Sea): 1-han, win on last wall tile (tsumo). A kan replacement tile drawn as the live wall empties is Rinshan Kaihou, never Haitei.
 - Houtei (Houtei Raoyui, Under the River): 1-han, win on last discard (ron)
 - Rinshan Kaihou: Win on replacement tile after any quad type
 - Ryuuiisou (All Green): Yakuman; green tiles only (2, 3, 4, 6, 8 sou and/or hatsu). Hatsu not required.

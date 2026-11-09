@@ -159,7 +159,7 @@ def _has_yaku_for_open_hand(
         is_ippatsu=player.is_ippatsu and settings.has_ippatsu,
         is_daburu_riichi=player.is_daburi,
         is_rinshan=player.is_rinshan,
-        is_haitei=is_haitei(round_state),
+        is_haitei=is_haitei(player, round_state),
         player_wind=seat_to_wind(player.seat, round_state.dealer_seat),
         round_wind=WINDS_34[round_state.round_wind],
         options=build_optional_rules(settings),
@@ -175,13 +175,14 @@ def _has_yaku_for_open_hand(
     return result.error is None
 
 
-def is_haitei(round_state: MahjongRoundState) -> bool:
+def is_haitei(player: MahjongPlayer, round_state: MahjongRoundState) -> bool:
     """
-    Check if current situation is haitei (last tile draw from wall).
+    Check if the player's current tile is haitei (the last tile drawn from the live wall).
 
-    Haitei raoyue is a yaku for winning by tsumo on the last tile of the wall.
+    Haitei raoyue is a yaku for winning by tsumo on that tile. A kan replacement tile drawn as the live wall empties
+    comes from the dead wall, so it is rinshan and never haitei.
     """
-    return is_wall_exhausted(round_state.wall)
+    return not player.is_rinshan and is_wall_exhausted(round_state.wall)
 
 
 def is_houtei(round_state: MahjongRoundState) -> bool:

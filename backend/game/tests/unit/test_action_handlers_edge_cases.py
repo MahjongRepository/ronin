@@ -74,6 +74,7 @@ class TestResolveMeldResponse:
         assert isinstance(kan, ActionResult)
         assert [type(e) for e in kan.events] == [MeldEvent, DrawEvent]
         assert [m.type for m in kan.state.round_state.players[1].melds] == [FrozenMeld.KAN]
+        assert kan.state.round_state.wall.live_tiles == ()
 
 
 class TestChankanRiechiFuritenOnPass:

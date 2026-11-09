@@ -177,22 +177,22 @@ class TestMinWallForKan:
     def test_closed_kan__when_min_wall_for_kan_setting_changes__should_require_that_many_wall_tiles(self):
         runtime = GameRuntime(game_id="game", state=_kan_game(_one_man_quad_after_draw()), ai=AIPlayerController({}))
         wall = runtime.state.round_state.wall
-        round_state = _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:2]}))
+        round_state = _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:1]}))
         player = round_state.players[0]
 
         assert get_possible_closed_kans(player, round_state, settings=GameSettings()) == [tile_to_34(_ONE_MAN[0])]
-        assert get_possible_closed_kans(player, round_state, settings=GameSettings(min_wall_for_kan=3)) == []
+        assert get_possible_closed_kans(player, round_state, settings=GameSettings(min_wall_for_kan=2)) == []
 
     def test_added_kan__when_min_wall_for_kan_setting_changes__should_require_that_many_wall_tiles(self):
         seat_0 = create_player(seat=0, tiles=(_ONE_MAN[3], *_KAN_SEAT_REST), melds=(_one_man_pon_from_seat_3(),))
         game_state = _kan_game(seat_0, seat_3=_seat_3_after_discarding(_ONE_MAN[2]))
         runtime = GameRuntime(game_id="game", state=game_state, ai=AIPlayerController({}))
         wall = runtime.state.round_state.wall
-        round_state = _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:2]}))
+        round_state = _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:1]}))
         player = round_state.players[0]
 
         assert get_possible_added_kans(player, round_state, settings=GameSettings()) == [tile_to_34(_ONE_MAN[0])]
-        assert get_possible_added_kans(player, round_state, settings=GameSettings(min_wall_for_kan=3)) == []
+        assert get_possible_added_kans(player, round_state, settings=GameSettings(min_wall_for_kan=2)) == []
 
 
 # ---------------------------------------------------------------------------

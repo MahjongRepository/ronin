@@ -47,7 +47,7 @@ class TestValidateSettings:
     @pytest.mark.parametrize(
         ("settings", "message"),
         [
-            (GameSettings(min_wall_for_kan=1), "min_wall_for_kan must be at least 2"),
+            (GameSettings(min_wall_for_kan=0), "min_wall_for_kan must be at least 1"),
             (GameSettings(max_kans_per_round=5), "max_kans_per_round must be at most 4"),
         ],
     )

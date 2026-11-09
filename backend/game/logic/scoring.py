@@ -149,7 +149,7 @@ def _build_hand_config(
     """
     Build HandConfig with all relevant flags for scoring.
     """
-    haitei_flag = is_tsumo and is_haitei(round_state)
+    haitei_flag = is_tsumo and is_haitei(player, round_state)
     houtei_flag = not is_tsumo and is_houtei(round_state)
     tenhou_flag = is_tsumo and is_tenhou(player, round_state)
     chiihou_flag = is_tsumo and is_chiihou(player, round_state)

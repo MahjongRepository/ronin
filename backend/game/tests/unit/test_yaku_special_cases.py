@@ -18,7 +18,7 @@ from game.logic.scoring import (
 from game.logic.settings import GameSettings
 from game.logic.state import Caller, Discard, MahjongGameState, MahjongPlayer
 from game.logic.tiles import tile_to_34
-from game.logic.turn import process_draw_phase
+from game.logic.turn import process_discard_phase, process_draw_phase
 from game.logic.types import DiscardActionData, KanActionData, RonResult, TsumoResult
 from game.tests.conftest import create_dealt_game_state, create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
@@ -120,8 +120,59 @@ class TestHaiteiAndHoutei:
 # --- Rinshan Kaihou ---
 
 
+def _after_open_kan_on_last_live_tile(rinshan_tile: int) -> MahjongGameState:
+    nine_sou = tile_copies(0, sou="9")[0]
+    players = (
+        create_player(
+            seat=0,
+            tiles=(nine_sou, *tile_copies(1, sou="12345678", honors="2356"), *tile_copies(2, honors="1")),
+        ),
+        create_player(
+            seat=1,
+            tiles=(*tile_copies(1, sou="999"), *tile_copies(3, pin="123456789"), *tile_copies(0, honors="4")),
+        ),
+        create_player(seat=2, tiles=_ITTSU_EAST_TANKI),
+        create_player(seat=3, tiles=(*tile_copies(2, sou="12345678", honors="2356"), *tile_copies(3, honors="1"))),
+    )
+    runtime = GameRuntime(
+        game_id="game",
+        state=create_dealt_game_state(
+            players, rinshan_draws=(rinshan_tile,), dora_indicator=tile_copies(3, honors="7")[0]
+        ),
+        ai=AIPlayerController({}),
+    )
+    wall = runtime.state.round_state.wall
+    _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:1]}))
+
+    prompted, _events = process_discard_phase(runtime.state, nine_sou)
+    kan = handle_kan(prompted, seat=1, data=KanActionData(tile_id=nine_sou, kan_type=KanType.OPEN))
+    assert isinstance(kan, ActionResult)
+    assert kan.state.round_state.players[1].tiles[-1] == rinshan_tile
+    assert kan.state.round_state.wall.live_tiles == ()
+    return kan.state
+
+
 class TestRinshanKaihou:
-    def test_rinshan__when_closed_kan_replacement_tile_completes_hand__should_award_yaku(self):
+    def test_rinshan__when_open_kan_takes_the_last_live_tile__should_win_without_haitei(self):
+        game_state = _after_open_kan_on_last_live_tile(tile_copies(1, honors="4")[0])
+
+        assert _yaku_ids(handle_tsumo(game_state, seat=1)) == sorted((Rinshan.yaku_id, Ittsu.yaku_id))
+
+    def test_houtei__when_discarding_after_kan_on_the_last_live_tile__should_allow_only_ron_and_award_houtei(self):
+        game_state = _after_open_kan_on_last_live_tile(_LAST_EAST)
+
+        last_discard = handle_discard(game_state, seat=1, data=DiscardActionData(tile_id=_LAST_EAST))
+        assert isinstance(last_discard, ActionResult)
+        prompt = last_discard.state.round_state.pending_call_prompt
+        assert prompt is not None
+        assert prompt.callers == (Caller(seat=2, can_ron=True),)
+
+        assert _yaku_ids(handle_ron(last_discard.state, seat=2)) == sorted(
+            (Houtei.yaku_id, Ittsu.yaku_id, AkaDora.yaku_id)
+        )
+
+    @pytest.mark.parametrize("live_tiles_before_kan", [2, 1])
+    def test_rinshan__when_closed_kan_replacement_tile_completes_hand__should_award_yaku(self, live_tiles_before_kan):
         one_man_quad = tuple(tile_copies(0, man="1111"))
         north_tanki_with_ittsu = (*one_man_quad, *tile_copies(0, pin="123456789", honors="4"))
         players = (
@@ -137,7 +188,11 @@ class TestRinshanKaihou:
                 for seat in range(1, 4)
             ),
         )
-        game_state = create_dealt_game_state(players)
+        runtime = GameRuntime(game_id="game", state=create_dealt_game_state(players), ai=AIPlayerController({}))
+        wall = runtime.state.round_state.wall
+        live_tiles = wall.live_tiles[:live_tiles_before_kan]
+        _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": live_tiles}))
+        game_state = runtime.state
         rinshan_tile = game_state.round_state.wall.dead_wall.rinshan[0]
         assert tile_to_34(rinshan_tile) == tile_to_34(north_tanki_with_ittsu[-1])
 

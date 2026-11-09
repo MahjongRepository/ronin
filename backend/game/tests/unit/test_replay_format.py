@@ -193,7 +193,7 @@ def test_rule_profile__should_pin_persisted_baseline_independently_of_defaults()
     )
     assert (
         hashlib.sha256(normalized.encode()).hexdigest()
-        == "79ee402b05de8e5d2c3f25c0d5a5a7ee0a25bb8775121d9509bf19c2b3883616"
+        == "c35fef2b4be543aa2eb74373a1993b35639eeb764ae0bb0c77a60f6be6a5c1eb"
     )
 
 
