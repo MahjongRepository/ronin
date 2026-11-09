@@ -33,17 +33,13 @@
 
     position: relative;
     display: grid;
-    grid-template: "board" minmax(20rem, 1fr) / minmax(0, 1fr);
+    grid-template: "board" minmax(0, 1fr) / minmax(0, 1fr);
     gap: 0.25rem;
+    height: 100dvh;
     min-height: 100dvh;
     padding: var(--page-edge-top) var(--page-edge-right) var(--page-edge-bottom)
         var(--page-edge-left);
     background: var(--ronin-table-edge);
-
-    @media (orientation: landscape) {
-        grid-template: "board" minmax(0, 1fr) / minmax(0, 1fr);
-        height: 100dvh;
-    }
 }
 
 .board-page__board {

@@ -131,10 +131,6 @@ $plate-seats: bottom, right, top, left;
     align-items: flex-end;
     gap: 8px;
 
-    @include upright-board {
-        left: calc(var(--own-start) - var(--m) - var(--own-badge-shift));
-    }
-
     @include phone-board {
         left: calc(var(--furiten-x) - var(--own-start));
         bottom: calc(100% + var(--furiten-rise));
@@ -171,10 +167,6 @@ $plate-seats: bottom, right, top, left;
 
     @include large-chrome {
         --corner-max-w: 13rem;
-    }
-
-    @include upright-board {
-        --corner-max-w: 76px;
     }
 }
 

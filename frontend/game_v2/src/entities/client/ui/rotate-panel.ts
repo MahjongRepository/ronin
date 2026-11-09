@@ -54,12 +54,12 @@ function rotateIcon(): TemplateResult {
     return html`<svg class="rotate-panel__icon" viewBox="0 0 64 64" aria-hidden="true">
         <rect x="22" y="8" width="20" height="36" rx="3" />
         <path d="M14 50 a20 20 0 0 0 36 0" />
-        <path d="M44 46 l6 4 l-1 -7" />
+        <path d="M42.8 53.5 L50 50 L51.7 57.8" />
     </svg>`;
 }
 
 /**
- * The full-screen notice the live game shows instead of the table in a narrow portrait viewport,
+ * The full-screen notice the live game shows instead of the table in a portrait viewport,
  * shows the session's status for a player, its way back (asking first mid-game, the button kept but hidden while
  * asking, so focus can return to it), and while a decision or a round result's confirm awaits the viewer, that the
  * game and its countdown go on. An end that stopped the session on the page shows why and the way on instead. Only
@@ -91,5 +91,19 @@ export function RotatePanel(
         >
             ${t("common.back_to_lobby")}
         </button>
+    </div>`;
+}
+
+/** The notice a replay shows instead of its board in a portrait viewport: rotate, or leave for the game history. */
+export function ReplayRotatePanel(historyHref: string): TemplateResult {
+    return html`<div class="replay-rotate">
+        <div class="rotate-panel">
+            ${rotateIcon()}
+            <h2 class="rotate-panel__title">${t("game.rotate.title")}</h2>
+            <p class="rotate-panel__hint">${t("game.rotate.replay_hint")}</p>
+            <a class="rotate-panel__leave" href=${historyHref} role="button">
+                ${t("common.game_history")}
+            </a>
+        </div>
     </div>`;
 }

@@ -167,6 +167,7 @@
     },
     "game.rotate.hint": "Rotate your device or widen the window. The game keeps running meanwhile.",
     "game.rotate.play_continues": "{move}. Play continues, and your timer keeps running while this message is shown.",
+    "game.rotate.replay_hint": "Rotate your device or widen the window.",
     "game.rotate.seconds_left": {
         "one": "{count} s left",
         "other": "{count} s left"

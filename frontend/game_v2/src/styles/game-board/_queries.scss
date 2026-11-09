@@ -42,7 +42,6 @@ $phone-board: '[data-board-family="phone"]';
 $desktop-board: ':is([data-board-family="desktop"], [data-board-family="short-desktop"])';
 $short-desktop-board: '[data-board-family="short-desktop"]';
 $shared-corners-board: ':is([data-board-family="phone"], [data-board-family="short-desktop"])';
-$upright-board: '[data-board-family="upright"]';
 $narrow-desktop-board: '[data-board-family="desktop"][data-board-chrome="small"]';
 $small-chrome: '[data-board-chrome="small"]';
 $large-chrome: '[data-board-chrome="large"]';
@@ -120,13 +119,7 @@ $labelled-switches-board: "#{$desktop-board}#{$desktop-chrome}";
     }
 }
 
-@mixin upright-board {
-    @include board-where($upright-board) {
-        @content;
-    }
-}
-
-/* The perimeter's chrome (badges, counters, the page's corner, callouts) at a phone's size: on a phone, upright, and on
+/* The perimeter's chrome (badges, counters, the page's corner, callouts) at a phone's size: on a phone and on
    a desktop board too narrow for the desktop's (a tablet's or a small window's), whose geometry stays the desktop's. */
 @mixin small-chrome {
     @include board-where($small-chrome) {

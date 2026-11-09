@@ -43,10 +43,7 @@ import {
     STACKED_DEPTH,
     TILE_ASPECT,
     TILE_EDGE_SHARE,
-    UPRIGHT_CHROME,
     UPRIGHT_DEPTH,
-    UPRIGHT_NOTICE_GAP,
-    UPRIGHT_NOTICE_ROOM,
 } from "./board-constants";
 import {
     type StripObstacle,
@@ -57,7 +54,7 @@ import {
     handLength,
 } from "./strip-layout";
 
-type BoardFamily = "phone" | "desktop" | "short-desktop" | "upright";
+type BoardFamily = "phone" | "desktop" | "short-desktop";
 
 interface BoardBox {
     readonly width: number;
@@ -198,12 +195,8 @@ const SIDE_CLEAR = 16;
 const PHONE_MAX_RIVER_SHARE = 10;
 const PHONE_SMALLEST_RIVER = 2;
 
-/** The counters' place under the top strip: its gap above and below, and its height upright (px). */
+/** The counters' place under the top strip: its gap above and below (px). */
 const COUNTERS_GAP = 6;
-const UPRIGHT_COUNTERS_H = 52;
-
-/** Upright, the decisions' two rows keep these px between them and the own badge. */
-const UPRIGHT_DECISIONS_GAPS = 16;
 
 /** A panel keeps this far off the board's edges where nothing else is reserved there (px). */
 const PANEL_GAP = 8;
@@ -211,27 +204,7 @@ const PANEL_GAP = 8;
 /** A phone's live panel keeps this far off the notices' column beside it (px). */
 const NOTICES_PANEL_GAP = 4;
 
-/**
- * Upright, the replay's group stands this far off the right strip's deepest reach, and its row this far over the own
- * melds where it shares the own badge's row, else over the badge (px).
- */
-const GROUP_STRIP_GAP = 8;
-const GROUP_MELD_GAP = 2;
-const GROUP_BADGE_GAP = 4;
-
-/** A narrow upright board's centre keeps the room its text needs across (px). */
-const UPRIGHT_CENTRE_MIN = 100;
-
-/**
- * An upright core's height past the centre and what stands under it per river tile: a top strip's depth and the own
- * row.
- */
-const UPRIGHT_TILES = CORE_TILES + DESKTOP_SPARE * (STACKED_DEPTH + OWN_ROW + BAND_TILE_SHARE);
-
 function classifyFamily({ width, height }: BoardBox): BoardFamily {
-    if (width < height) {
-        return "upright";
-    }
     if (height < PHONE_HEIGHT) {
         return "phone";
     }
@@ -323,12 +296,7 @@ function desktopOwnFit({ width, height }: BoardBox, { m, ownInline }: DesktopChr
     return Math.min(ownCap, (width - 2 * m - ownInline) / FULL_HAND);
 }
 
-/** An upright board's own tile's fit: its share of the height and a full hand across its row. */
-function uprightOwnFit({ width, height }: BoardBox, { m, ownInline }: DesktopChrome): number {
-    return Math.min(DESKTOP_OWN_CAP_HEIGHT * height, (width - 2 * m - ownInline) / FULL_HAND);
-}
-
-/** What a desktop's or an upright board's river tile is solved from: its height, its chrome and the rooms known. */
+/** What a desktop's river tile is solved from: its height, its chrome and the rooms known. */
 interface DesktopRooms {
     readonly height: number;
     readonly tier: DesktopChrome;
@@ -343,7 +311,7 @@ function riverTileWithinOwnFit(ownFit: number): number {
     return Math.floor((3 * Math.floor(ownFit) + 2) / 4);
 }
 
-/** The largest river tile each room the desktops and the upright board share holds, the smallest binding. */
+/** The largest river tile each room the desktops share holds, the smallest binding. */
 function sharedRiverTile({ coreCap, coreRoomW, height, ownFit, tier }: DesktopRooms): number {
     const { coreGap, m, sep } = tier;
     const heightRoom = DESKTOP_SPARE * (height - m - coreGap - sep);
@@ -750,18 +718,6 @@ function desktopLayout(
     };
 }
 
-/** What an upright board's replay group's row is placed from, in px. */
-interface UprightGroupRoom {
-    readonly chrome: ChromeTier;
-    readonly handTop: number;
-    readonly ow: number;
-    readonly ownMeldRise: number;
-    readonly ownRise: number;
-    readonly rw: number;
-    readonly tier: DesktopChrome;
-    readonly width: number;
-}
-
 /** A replay's moves' row: a smaller board's five moves, else seven. */
 function replayMovesWidth(chrome: ChromeTier, movesH: number, replayGap: number): number {
     return rowWidth(chrome === "small" ? REPLAY_MOVES_ON_PHONE : REPLAY_MOVES, movesH, replayGap);
@@ -783,174 +739,6 @@ function replayLengths(
               ["replay-gap", replayGap],
           ]
         : [];
-}
-
-function uprightGroupLane(room: UprightGroupRoom): number {
-    const { bandGap, m, movesH, replayGap } = room.tier;
-    const groupW = replayGroupWidth(room.chrome, movesH, replayGap);
-    const groupLeft = room.width - m - sideLaneReserve(room.rw) - GROUP_STRIP_GAP - groupW;
-    return groupLeft - bandGap - (room.width - FULL_HAND * room.ow) / 2;
-}
-
-/**
- * Where an upright replay's group's row ends: in the own badge's row over the melds where the group leaves the badge an
- * ordinary name beside the centred hand, else over the badge.
- */
-function uprightGroupBottom(room: UprightGroupRoom): number {
-    return uprightGroupLane(room) >= room.tier.sideLaneMin
-        ? room.handTop - room.ownMeldRise - GROUP_MELD_GAP
-        : room.handTop - room.ownRise - GROUP_BADGE_GAP;
-}
-
-/**
- * An upright board's panel's free box: from the top, over the cog, and above the foreground band, which a live board's
- * notices take over a panel, or above a replay's group and status rows.
- */
-function uprightPanel(
-    room: UprightGroupRoom & { readonly slots: BoardSlots },
-    height: number,
-): BoardEdges {
-    const { controlH, bandGap, movesH, replayGap } = room.tier;
-    const above =
-        room.slots.band === "replay"
-            ? uprightGroupBottom(room) - 2 * (movesH + replayGap)
-            : room.handTop - 2 * bandGap - controlH;
-    return {
-        bottom: height - above,
-        left: PANEL_GAP,
-        right: PANEL_GAP,
-        top: PANEL_GAP,
-    };
-}
-
-/**
- * An upright board's root sizes and the lengths the stylesheet reads with them, in px: its core under the counters and
- * above the decisions' two rows and the notices' place, its centre never under `UPRIGHT_CENTRE_MIN`.
- */
-function uprightLengths(frame: BoardFrame): BoardLengths {
-    const { box } = frame;
-    const { width, height } = box;
-    const tier = { ...frame.tier, ...UPRIGHT_CHROME };
-    const { controlH, m, ownBadgeH } = tier;
-    const ownFit = uprightOwnFit(box, tier);
-    const coreCap = DESKTOP_CORE_CAP * height;
-    const coreRoomW = width - 2 * m - CORE_ROOM_SIDES;
-    const underStrip = m + COUNTERS_GAP + UPRIGHT_COUNTERS_H;
-    const fixed =
-        ownBadgeH +
-        2 * controlH +
-        UPRIGHT_DECISIONS_GAPS +
-        OWN_BADGE_LANE +
-        UPRIGHT_NOTICE_GAP +
-        UPRIGHT_NOTICE_ROOM +
-        underStrip;
-    const edgeTiles = UPRIGHT_TILES + DESKTOP_SPARE * OWN_EDGE;
-    let rw = Math.floor(
-        Math.min(
-            sharedRiverTile({
-                coreCap,
-                coreRoomW,
-                height,
-                ownFit,
-                rowRiseFixed: 0,
-                tier,
-            }),
-            (DESKTOP_SPARE * (height - m - fixed)) / UPRIGHT_TILES,
-            (DESKTOP_SPARE * (height - fixed)) / edgeTiles,
-            (coreRoomW - UPRIGHT_CENTRE_MIN) / (CORE_TILES + SIDE_REACH_TILES),
-        ),
-    );
-    let lengths = uprightLayout(frame, rw);
-    while (rw > 1 && (lengths["c"] ?? 0) < Math.max(UPRIGHT_CENTRE_MIN, RIVER_ROW_SIZE * rw)) {
-        rw -= 1;
-        lengths = uprightLayout(frame, rw);
-    }
-    return lengths;
-}
-
-function uprightLayout(
-    { box, chrome, slots, tier: desktopTier }: BoardFrame,
-    rw: number,
-): BoardLengths {
-    const { width, height } = box;
-    const tier = { ...desktopTier, ...UPRIGHT_CHROME };
-    const { bandGap, controlH, coreGap, m, ownBadgeH, ownInline, sep } = tier;
-    const coreCap = DESKTOP_CORE_CAP * height;
-    const coreRoomW = width - 2 * m - CORE_ROOM_SIDES;
-    const underStrip = m + COUNTERS_GAP + UPRIGHT_COUNTERS_H;
-    const rh = rw * TILE_ASPECT;
-    const ow = offPhoneOwn(rw, uprightOwnFit(box, tier));
-    const oh = ow * TILE_ASPECT;
-
-    const handBottom = Math.max(m, ow * TILE_EDGE_SHARE);
-    const handTop = height - handBottom - oh;
-    const coreRoomH = height - m - handBottom - oh - coreGap - sep;
-    const ownMeldTile = Math.max(FACE_FLOOR, Math.min(OWN_MELD_SCALE * rw, ow));
-    const ownMeldRise = Math.max(0, 2 * ownMeldTile - oh);
-    const ownRise = ownMeldRise + ownBadgeH + OWN_BADGE_LANE;
-    const noticesBottom = handTop - ownRise - 2 * controlH - UPRIGHT_DECISIONS_GAPS;
-    const bandReserve = handTop - noticesBottom + UPRIGHT_NOTICE_ROOM + UPRIGHT_NOTICE_GAP;
-    const coreRoomBand = handTop - bandReserve - underStrip;
-    const stripDepth = STACKED_DEPTH * rw;
-
-    const core = Math.min(
-        coreRoomH - rh,
-        coreRoomBand - stripDepth,
-        coreCap,
-        coreRoomW - SIDE_REACH_TILES * rw,
-    );
-    const drop = latestDropGap(rw);
-    const centre = core - 2 * (drop + riverRows(rw));
-    const coreFloor = underStrip + stripDepth;
-    const coreTopSlot = m + rh + sep;
-    const coreTopFree = (coreRoomH - rh - core) / 2;
-    const coreTop = Math.max(
-        coreFloor,
-        Math.min(coreTopSlot + coreTopFree, handTop - bandReserve - core),
-    );
-    const cy = coreTop + core / 2;
-    const groupRoom = { chrome, handTop, ow, ownMeldRise, ownRise, rw, tier, width };
-    const replay = slots.band === "replay";
-    const groupLane = uprightGroupLane(groupRoom);
-    const halfHand = (FULL_HAND * ow) / 2;
-
-    return Object.fromEntries([
-        ...chromeLengths(tier),
-        ...cornerLengths(rw),
-        ...panelLengths(uprightPanel({ ...groupRoom, slots }, height)),
-        ...replayLengths(slots, chrome, tier),
-        [
-            "actions-bottom",
-            replay ? uprightGroupBottom(groupRoom) : handTop - ownRise - GROUP_BADGE_GAP,
-        ],
-        ["band-gap", bandGap],
-        ["c", centre],
-        ["control-h", controlH],
-        ["core-top", coreTop],
-        ["cx", width / 2],
-        ["cy", cy],
-        ["g", riverGap(rw)],
-        ["h", centre / 2],
-        ["hand-top", handTop],
-        ["hx", centre / 2],
-        ["m", m],
-        ["notices-bottom", noticesBottom],
-        ["oh", oh],
-        ["ow", ow],
-        ["own-badge-h", ownBadgeH],
-        ["own-inline", ownInline],
-        [
-            "own-lane",
-            replay && groupLane >= tier.sideLaneMin ? Math.min(halfHand, groupLane) : halfHand,
-        ],
-        ["own-meld-rise", ownMeldRise],
-        ["own-meld-tile", ownMeldTile],
-        ["own-rise", ownRise],
-        ...riverLengths({ cx: width / 2, cy, height: centre, rw, width: centre }, drop),
-        ["rh", rh],
-        ["rw", rw],
-        ["w", centre],
-    ]);
 }
 
 /** How far in from the board's side edge a side badge stands: past its strip's line by a badge gap. */
@@ -1371,18 +1159,8 @@ const FIELD_GAP: Readonly<Record<ChromeTier | "phone", number>> = {
 const FIELD_RIVER_GAP = 8;
 const FIELD_BAND_GAP = 24;
 
-/** Over a panel, a phone's or an upright board's notices keep this far off the band and the own row (px). */
+/** Over a panel, a phone's notices keep this far off the band and the own row (px). */
 const BESIDE_GAP = 4;
-
-/** Upright, the band end and the field keep this far off the right strip's deepest reach (px). */
-const UPRIGHT_STRIP_GAP = 8;
-
-/** Upright, the right hand's lowest start keeps these px under the top badge's pill and over its own badge. */
-const UPRIGHT_PILL_GAP = 6;
-const UPRIGHT_BADGE_GAP = 4;
-
-/** A length past which a CSS comparison counted half a pixel (px). */
-const HALF_PIXEL = 0.5;
 
 /** Where the river's rows meet the board, from the tile slice's shape. */
 const RIVER_ROWS_RUN_ON = RIVER_ROWS["run-on"];
@@ -1418,13 +1196,13 @@ function phoneOffersHeight(controlH: number): number {
     );
 }
 
-/** Where the opponents' badges stand off an upright board, and the left one's lane (px). */
+/** Where the opponents' badges stand, and the left one's lane (px). */
 type LandscapeBadges = Readonly<
     Record<"rightBadgeTop" | "sideBadgeTop" | "sideLane" | "topBadgeTop", number>
 >;
 
 /**
- * The opponents' badges off an upright board: the top one under its hand past a river tile's edge; the side ones at
+ * The opponents' badges: the top one under its hand past a river tile's edge; the side ones at
  * the strips' start a step under the top one's pill (a short desktop's only where the decisions' tallest column leaves
  * room under the right one, a phone's right one alone), else past the top river's reserved third row where the lane at
  * the start is short of an ordinary name; and the left one's lane, a card wide at most only on a phone.
@@ -1444,7 +1222,6 @@ function landscapeBadges(room: ShellRoom, rowBottom: number): LandscapeBadges {
         desktop: stepped,
         phone: 0,
         "short-desktop": shortStep,
-        upright: 0,
     }[family];
     const sideClear = Math.max(SIDE_CLEAR, rw);
     const leftBadgeX = sideBadgeX(tier, rw);
@@ -1560,7 +1337,7 @@ function desktopActions(
 }
 
 /**
- * Over a panel, a phone's or an upright board's notices: a column under the right strip's end, from the band's top or
+ * Over a panel, a phone's notices: a column under the right strip's end, from the band's top or
  * the right hand's origin to the own row, beside the band row where it steps in.
  */
 function besideField(
@@ -1590,12 +1367,9 @@ const STRIP_CONTROL_CLEAR = 4;
 const TOP_CORE_CLEAR = 8;
 const TOP_BADGE_CLEAR = 6;
 
-/** Upright, the left badge keeps this far over the core (px). */
-const SIDE_BADGE_CORE_GAP = 6;
-
 /**
  * Where an opponent's strips stand and what their rooms end at, by their family's places (px): past the switches, the
- * left strip's line runs on to `end` for a meld shallower than `depth` (none upright); the right strip's line
+ * left strip's line runs on to `end` for a meld shallower than `depth`; the right strip's line
  * ends at `rightEnd`.
  */
 interface StripPlaces {
@@ -1605,9 +1379,8 @@ interface StripPlaces {
     readonly rightObstacles: readonly StripObstacle[];
     readonly leftStart: number;
     readonly leftRoomEnd: number;
-    readonly leftPast: { readonly depth: number; readonly end: number } | null;
+    readonly leftPast: { readonly depth: number; readonly end: number };
     readonly topAnchor: number;
-    readonly topCap: number | null;
     readonly topStart: number;
     readonly topLane: number;
     readonly topBadgeTop: number;
@@ -1628,9 +1401,7 @@ function opponentStrips(
     const { leftPast } = places;
     function leftLine(depth: number): number {
         const end =
-            leftPast !== null && depth * rw < leftPast.depth
-                ? leftPast.end
-                : places.leftRoomEnd - STRIP_ROOM_GAP;
+            depth * rw < leftPast.depth ? leftPast.end : places.leftRoomEnd - STRIP_ROOM_GAP;
         return end - places.leftStart;
     }
     const rightLine = places.origin - places.rightEnd;
@@ -1651,7 +1422,7 @@ function opponentStrips(
             "strip-top": {
                 bottom: m + STACKED_DEPTH * rw,
                 left: places.topStart,
-                right: places.topCap ?? places.topAnchor,
+                right: places.topAnchor,
                 top: m,
             },
         },
@@ -1671,7 +1442,6 @@ function opponentStrips(
             top: {
                 anchor: places.topAnchor,
                 badgeDepth: places.topBadgeTop - TOP_BADGE_CLEAR - TILE_EDGE_SHARE * rw - m,
-                cap: places.topCap,
                 depth: at("core-top") - TOP_CORE_CLEAR - m,
                 lane: places.topLane,
                 start: places.topStart,
@@ -1689,7 +1459,7 @@ function laneShortOf(reach: number, from: number, above: boolean): number {
 }
 
 /**
- * The side badges' widths off an upright board: the left one's lane short of the left river where it stands beside
+ * The side badges' widths: the left one's lane short of the left river where it stands beside
  * it; the right one short of the right river past its clearance (its whole reach where the badge stands beside the
  * river's latest rows) and of the top hand's anchor, and a card wide at most only on a phone.
  */
@@ -1731,7 +1501,7 @@ function riverClear(rw: number): number {
 }
 
 /**
- * Off an upright board, the top hand's full reach stands centred, moved right as far as its badge's lane under its
+ * The top hand's full reach stands centred, moved right as far as its badge's lane under its
  * start needs, short of the board's edge; the lane runs from past the top river to there, the line from the margin.
  */
 function landscapeTop(room: ShellRoom): Pick<StripPlaces, "topAnchor" | "topLane" | "topStart"> {
@@ -1900,7 +1670,6 @@ function landscapeShell(room: ShellRoom): BoardShell {
             },
         ],
         topBadgeTop: badges.topBadgeTop,
-        topCap: null,
     });
     const fieldGap = FIELD_GAP[phone ? "phone" : chrome];
     const furitenBottom = column ? at("switches-bottom") : switchesTop - FURITEN_GAP;
@@ -1972,7 +1741,6 @@ function landscapeShell(room: ShellRoom): BoardShell {
             ["left-badge-x", leftBadgeX],
             ["own-badge-x", ownLead],
             ["own-lane", own.lane],
-            ["own-row-lead", 0],
             ["own-row-w", width - m - ownLead],
             ["own-start", ownStart],
             ["right-badge-top", badges.rightBadgeTop],
@@ -1983,162 +1751,6 @@ function landscapeShell(room: ShellRoom): BoardShell {
             ["top-badge-top", badges.topBadgeTop],
             ["top-lane", top.topLane],
             ["top-strip-x", top.topAnchor],
-        ],
-        strips: strips.strips,
-    };
-}
-
-/**
- * An upright board's slots: the corner; the decisions' rows across the board
- * short of the right strip's deepest reach; the notices' field under the bottom river over those rows (over a panel
- * under the right strip's end); the own row across the board; the switches at the decision row's left end.
- */
-function uprightShell(room: ShellRoom): BoardShell {
-    const { at, frame, tier } = room;
-    const { height, width } = frame.box;
-    const m = at("m");
-    const rw = at("rw");
-    const handTop = at("hand-top");
-    const reach = sideStripReach(rw);
-    const foregroundTop = handTop - 2 * at("band-gap") - at("control-h");
-    const bandTop = foregroundTop + at("band-gap");
-    const topBadgeTop = belowTopStrip(m, rw);
-    const lowestTop = topBadgeTop + tier.pillH + UPRIGHT_PILL_GAP + tier.badgeH + UPRIGHT_BADGE_GAP;
-    const origin = Math.min(
-        foregroundTop + RIGHT_FROM_BAND_GAP,
-        Math.max(at("cy") + reach / 2, lowestTop + reach),
-    );
-    const bandShift = origin - bandTop - HALF_PIXEL > 0 ? at("rh") + STEP_IN_GAP : 0;
-    const strip = m + sideLaneReserve(rw) + UPRIGHT_STRIP_GAP;
-    const switchesRight = m + rowWidth(SWITCH_CHIPS, tier.switchH, tier.chipGap);
-    const switchesTop = at("actions-bottom") - tier.switchH;
-    const leftRoomEnd =
-        frame.slots.band === "play"
-            ? Math.min(bandTop, switchesTop - STRIP_CONTROL_CLEAR)
-            : bandTop;
-    const actionsLeft = frame.slots.band === "play" ? switchesRight + tier.bandGap : m;
-    const actionsRight =
-        frame.slots.band === "play"
-            ? Math.max(m, Math.min(strip, width - actionsLeft - ACTIONS_ROW_MIN))
-            : strip;
-    const bottomRiverEnd =
-        at("cy") + at("h") + at("g") + RIVER_ROWS_RUN_ON * at("rh") + at("latest-drop-gap");
-    const field = {
-        bottom: at("notices-bottom"),
-        left: m + sideLaneReserve(rw) + FIELD_GAP.phone,
-        right: width - strip,
-        top: bottomRiverEnd + FIELD_GAP.phone,
-    };
-    const beside = besideField(room, { bandShift, foregroundTop, origin });
-    const sideStart = sidesStart(tier, rw);
-    const leftStart = Math.max(
-        topBadgeTop,
-        Math.min(at("cy") - reach / 2, leftRoomEnd - LEFT_HAND_GAP - reach),
-    );
-    const sideBadgeTop = Math.max(
-        sideStart,
-        Math.min(leftStart, at("core-top") - tier.badgeH - SIDE_BADGE_CORE_GAP),
-    );
-    const rightBadgeTop = origin - reach - UPRIGHT_BADGE_GAP - tier.badgeH;
-    const badgeX = sideBadgeX(tier, rw);
-    const sideLane = Math.min(tier.sideCardW, at("cx") - at("hx") - riverClear(rw) - badgeX);
-    const sideBottom = sideBadgeTop + tier.badgeH;
-    const laneOverCore = laneShortOf(at("reach-top-left"), badgeX, at("core-top") - sideBottom > 0);
-    const laneByRiver = laneShortOf(at("reach-left"), badgeX, at("cy") - at("h") - sideBottom > 0);
-    const leftBadgeW = Math.min(
-        tier.sideCardW,
-        Math.max(tier.sideLaneMin, laneOverCore),
-        laneByRiver,
-    );
-    const topAnchor = Math.max(m + reach, at("cx") + reach / 2);
-    const ownStart = (width - FULL_HAND * at("ow")) / 2;
-    const counters = countersTop(tier, rw, sideBadgeTop);
-    const levelCounters = counters < topBadgeTop + tier.badgeH;
-    const laneStart = badgeX + (levelCounters ? tier.countersW + tier.badgeGap : 0);
-    const topLane = Math.min(tier.sideCardW, topAnchor - laneStart);
-    const strips = opponentStrips(room, {
-        leftObstacles: [
-            {
-                depth: badgeX - m - STRIP_BADGE_CLEAR,
-                from: sideBadgeTop - leftStart - STRIP_BADGE_CLEAR,
-                to: sideBadgeTop + tier.badgeH - leftStart + STRIP_BADGE_CLEAR,
-            },
-            {
-                depth: ownStart - m - STEP_IN_GAP,
-                from: handTop - at("own-rise") - leftStart - STRIP_CONTROL_CLEAR,
-                to: height - leftStart,
-            },
-        ],
-        leftPast: null,
-        leftRoomEnd,
-        leftStart,
-        origin,
-        rightEnd: m + STACKED_DEPTH * rw + STRIP_ROOM_GAP,
-        rightObstacles: [
-            {
-                depth: badgeX - m - STRIP_BADGE_CLEAR,
-                from: origin - rightBadgeTop - tier.badgeH - STRIP_BADGE_CLEAR,
-                to: origin - rightBadgeTop + STRIP_BADGE_CLEAR,
-            },
-        ],
-        topAnchor,
-        topBadgeTop,
-        topCap: width - m,
-        topLane,
-        topStart: m,
-    });
-    return {
-        areas: {
-            actions: {
-                bottom: at("actions-bottom"),
-                left: actionsLeft,
-                right: width - actionsRight,
-                top: 0,
-            },
-            corner: {
-                bottom: height,
-                left: 0,
-                right: width - m,
-                top: m,
-            },
-            field,
-            "field-beside": beside,
-            hand: {
-                bottom: handTop + at("oh"),
-                left: m,
-                right: width - m,
-                top: handTop,
-            },
-            ...strips.areas,
-            switches: {
-                bottom: at("actions-bottom"),
-                left: m,
-                right: switchesRight,
-                top: switchesTop,
-            },
-        },
-        lengths: [
-            ["actions-left", actionsLeft],
-            ["actions-right", actionsRight],
-            ["upright-upper-clear", strip - actionsRight],
-            ["upright-upper-width", width - strip - m],
-            ["counters-top", counters],
-            ["field-beside-height", Math.max(0, beside.bottom - beside.top)],
-            ["field-height", Math.max(0, field.bottom - field.top)],
-            ["foreground-top", foregroundTop],
-            ["own-badge-x", ownStart],
-            ["own-row-lead", ownStart - m],
-            ["own-row-w", width - m - ownStart],
-            ["own-start", ownStart],
-            ["right-badge-top", rightBadgeTop],
-            ["side-badge-top", sideBadgeTop],
-            ["left-badge-w", Math.max(0, leftBadgeW)],
-            ["right-badge-w", sideLane],
-            ["left-badge-x", badgeX],
-            ["side-badge-x", badgeX],
-            ["top-badge-top", topBadgeTop],
-            ["top-lane", topLane],
-            ["top-strip-x", topAnchor],
         ],
         strips: strips.strips,
     };
@@ -2165,18 +1777,11 @@ function boardShell(frame: BoardFrame, lengths: BoardLengths): BoardShell {
     function at(name: string): number {
         return lengths[name] ?? 0;
     }
-    const shell =
-        frame.family === "upright"
-            ? uprightShell({
-                  at,
-                  frame,
-                  tier: { ...frame.tier, ...UPRIGHT_CHROME },
-              })
-            : landscapeShell({
-                  at,
-                  frame,
-                  tier: frame.family === "phone" ? phoneChrome(at("rw")) : frame.tier,
-              });
+    const shell = landscapeShell({
+        at,
+        frame,
+        tier: frame.family === "phone" ? phoneChrome(at("rw")) : frame.tier,
+    });
     return { ...shell, lengths: [...shell.lengths, ...stripFacts(at("rw"))] };
 }
 
@@ -2248,9 +1853,6 @@ function shellTracks(
 function familyLengths(frame: BoardFrame): BoardLengths {
     if (frame.family === "phone") {
         return phoneLengths(frame);
-    }
-    if (frame.family === "upright") {
-        return uprightLengths(frame);
     }
     return desktopLengths(frame);
 }

@@ -36,7 +36,6 @@ import {
     SHORT_DESKTOP,
     SHORT_TABLET,
     SHORT_UPRIGHT,
-    SQUARE_UPRIGHT,
     ULTRAWIDE,
     UPRIGHT_PHONE,
     VIEWPORTS,
@@ -148,11 +147,6 @@ const LIVE_AT = [
  * kuikae turn, a turn in the bank, a chiihou offer, a seat back).
  */
 const PAGES: readonly PageCase[] = [
-    {
-        ...decisionCase("anchor_call", [ACTION, ".play-switch", ".play-switches__names-toggle"]),
-        at: [SHORT_UPRIGHT, SQUARE_UPRIGHT],
-        name: "decisions-upright-switches",
-    },
     {
         ...decisionCase("anchor_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
         at: [FLOOR, NOTCH_PHONE, FULLSCREEN_PHONE, MID_DESKTOP, SHORT_DESKTOP, ...BROWSER_PHONES],
@@ -392,18 +386,16 @@ async function checkGame(run: PageRun, checkLiveBoard: () => Promise<string>): P
         await page.locator(".game__rotate .rotate-panel__seconds").textContent(),
     );
     report.expect(seconds > 0, `the open decision's countdown reads ${seconds}`);
-    const { rotates } = viewport;
+    const { portrait } = viewport;
     report.expect(
-        (await isShown(page, ".game__rotate")) === rotates,
-        rotates
-            ? "the rotate panel is hidden in a narrow portrait viewport"
-            : "the rotate panel shows",
+        (await isShown(page, ".game__rotate")) === portrait,
+        portrait ? "the rotate panel is hidden in a portrait viewport" : "the rotate panel shows",
     );
     report.expect(
-        (await isShown(page, ".game__play")) === !rotates,
-        rotates ? "the table shows in a narrow portrait viewport" : "the table is hidden",
+        (await isShown(page, ".game__play")) === !portrait,
+        portrait ? "the table shows in a portrait viewport" : "the table is hidden",
     );
-    if (!rotates) {
+    if (!portrait) {
         await checkVisible(
             page,
             [...BOARD_VISIBLE, ".game__play .decision-controls__countdown"],
@@ -481,7 +473,7 @@ function checkControlPlaces(results: readonly TaskResult[]): string[] {
     });
 }
 
-/** The landscape phones, whose column and band the toggle pin is about; an upright board lays its controls in rows. */
+/** The landscape phones, whose column and band the toggle pin is about. */
 const LANDSCAPE_PHONES: ReadonlySet<string> = new Set(
     VIEWPORTS.filter((viewport) => !viewport.desktop && !viewport.portrait).map(({ name }) => name),
 );
@@ -543,9 +535,6 @@ async function checkBoard({ board, page, report, screen, viewport }: BoardRun): 
         return;
     }
     checkSwitches(board, screen, report);
-    if (viewport.portrait) {
-        return;
-    }
     checkFuritenMark(board, report);
     TOGGLE_PLACES.keep(report, board.toggle);
     if (board.timer !== null) {

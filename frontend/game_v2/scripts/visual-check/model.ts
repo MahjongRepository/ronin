@@ -21,8 +21,6 @@ export interface Viewport {
     readonly engine: BrowserType;
     readonly context: BrowserContextOptions;
     readonly portrait: boolean;
-    /** The live game shows its rotate panel here (a narrow portrait viewport). */
-    readonly rotates: boolean;
     /** A supported device size, where the tap minimum holds. */
     readonly supported: boolean;
     /** The smallest local hand tile it may draw in landscape, on a phone: a tap target. A desktop has none. */
@@ -58,8 +56,6 @@ interface Required {
 export interface BoardOptions {
     /** Its names are longer than any badge holds, so a badge may shorten them in the middle. */
     readonly longNames?: boolean;
-    /** At the near-square upright window it is there for the right strip's second meld line, which it must draw. */
-    readonly rightSecondLine?: boolean;
 }
 
 type PageKind =

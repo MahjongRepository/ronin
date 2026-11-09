@@ -218,19 +218,33 @@ async function stepReplayToLocalMelds(page: Page): Promise<void> {
 
 /**
  * The replay's worst cases: its first stop wherever the live board's geometry is compared with it (the notch phone's
- * insets aside), a desktop's status where its lines bind (a damaged recording's), the open round list's desktop rows, a panel over the upright and the short tablet's board, and every other
- * story once, at the floor or, with no board, upright. A story a kept one shows in a harsher form is left out (an
+ * insets aside), a desktop's status where its lines bind (a damaged recording's), the open round list's desktop rows, a panel over the short tablet's board, and every other
+ * story once, at the floor or, with no board, upright; upright a story with a board shows the rotate notice. A story a kept one shows in a harsher form is left out (an
  * incomplete recording, under the damaged one's longer words).
  */
 const PAGES: readonly PageCase[] = [
+    {
+        at: [UPRIGHT_PHONE],
+        async check({ page, report }) {
+            report.expect(
+                await page.locator(".replay-board-mode").isHidden(),
+                "the replay's board shows in a portrait viewport",
+            );
+            return "rotate notice";
+        },
+        kind: "own",
+        name: "replay-rotate",
+        path: "/play/storybook/replay?state=start",
+        required: { visible: [".replay-rotate .rotate-panel__leave"] },
+    },
     { ...replayCase("custom_settings", []), at: [FLOOR, MID_DESKTOP] },
     {
         ...replayCase("start", []),
-        at: [...WORST_CASES, SHORT_DESKTOP, NARROW_DESKTOP, SHORT_TABLET, UPRIGHT_PHONE],
+        at: [...WORST_CASES, SHORT_DESKTOP, NARROW_DESKTOP, SHORT_TABLET],
     },
     {
         ...replayCase("seating", []),
-        at: [FLOOR, UPRIGHT_PHONE],
+        at: [FLOOR],
         required: {
             visible: [".seating__name", ".seating__action", ".replay-controls__moves"],
         },
@@ -248,7 +262,6 @@ const PAGES: readonly PageCase[] = [
             ".round-end-result__kind",
             ".replay-status__incomplete--end",
         ]),
-        at: [FLOOR, UPRIGHT_PHONE],
     },
     { ...replayCase("damaged", [".replay-status__incomplete--end"]), at: [FLOOR, MID_DESKTOP] },
     { ...replayCase("double_ron", [".round-end-result__pager"]), at: [FLOOR, SHORT_TABLET] },
@@ -735,22 +748,14 @@ async function checkSeatingField(page: Page, report: PageReport): Promise<void> 
     );
 }
 
-/** The replay's controls and status on a supported screen: in landscape all of the checks, upright on the page. */
+/** The replay's controls and status on a supported screen. */
 async function checkBoard({ board, page, report, screen, viewport }: BoardRun): Promise<void> {
-    if (!viewport.portrait) {
-        SHARED_GEOMETRY.keep(report, await sharedGeometry(page, board));
-    }
+    SHARED_GEOMETRY.keep(report, await sharedGeometry(page, board));
     const replay = await measureReplay(page);
     if (replay.band.length === 0 || !viewport.supported) {
         return;
     }
     const state = replayState(board);
-    if (viewport.portrait) {
-        const shown = replay.band.filter((control) => control.shown).map((control) => control.box);
-        const outside = shown.filter((control) => !contains(board.board, control));
-        report.expect(outside.length === 0, `${outside.length} replay control(s) off the board`);
-        return;
-    }
     checkReplayControls(replay, { board, screen, state }, report);
     checkReplayStatus(replay, { board, desktop: viewport.desktop, screen, state }, report);
     if (state.desktopChrome) {

@@ -85,13 +85,6 @@
     @include phone-board {
         margin-right: var(--band-shift);
     }
-
-    /* Upright, it wraps exactly where the geometry finds the own badge's row too short for it. */
-    @include upright-board {
-        padding-left: calc(
-            var(--own-start) + var(--band-gap) + var(--side-lane-min) - var(--actions-left)
-        );
-    }
 }
 
 /* The moves before the options in their row, else under them; where the band shares the core's corners, in the
@@ -249,7 +242,7 @@
 
 /* Off a phone's short board, the replay's seating (its start, its end) covers the table's centre block whole: it
    stands as near the block's centre as its free box allows, past its edges and its text scaled to it. */
-.game-board--replay:where(#{$desktop-board}, #{$upright-board}) {
+.game-board--replay:where(#{$desktop-board}) {
     > .board-overlay:has(.seating) {
         --panel-bottom: max(var(--geo-overlay-bottom), 100cqh - 2 * var(--cy));
 
@@ -306,15 +299,6 @@
             --status-right: calc(
                 var(--actions-right) + var(--band-shift) + var(--rb) + 2 * var(--rgap)
             );
-        }
-
-        /* Upright, the status stands in the row over the group's, before the round list's toggle where that row is the
-           options'. */
-        @include upright-board {
-            --status-left: var(--m);
-            --status-right: calc(var(--actions-right) + var(--rb) + var(--rgap));
-
-            bottom: calc(100cqh - var(--actions-bottom) + var(--rb) + var(--rgap));
         }
     }
 

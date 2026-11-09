@@ -36,8 +36,6 @@ import {
     NARROW_DESKTOP,
     NOTCH_PHONE,
     SHORT_DESKTOP,
-    SHORT_UPRIGHT,
-    SQUARE_UPRIGHT,
     ULTRAWIDE,
     UPRIGHT_PHONE,
     WIDER_PHONES,
@@ -123,7 +121,7 @@ const PAGES: readonly PageCase[] = [
             ".board-center__seat--left .board-center__diff--right",
             ".nameplate__ai",
         ]),
-        at: [FLOOR, NOTCH_PHONE, FULLSCREEN_PHONE, MID_DESKTOP, NARROW_DESKTOP, UPRIGHT_PHONE],
+        at: [FLOOR, NOTCH_PHONE, FULLSCREEN_PHONE, MID_DESKTOP, NARROW_DESKTOP],
         contrast: true,
         longNames: true,
     },
@@ -132,7 +130,7 @@ const PAGES: readonly PageCase[] = [
             ACTION,
             ".board-strip .meld",
         ]),
-        at: [...WORST_CASES, ULTRAWIDE, SHORT_UPRIGHT, SQUARE_UPRIGHT],
+        at: [...WORST_CASES, ULTRAWIDE],
         longNames: true,
     },
     {
@@ -177,65 +175,23 @@ const PAGES: readonly PageCase[] = [
             ACTION,
             ".board-strip .meld",
         ]),
-        at: [
-            FLOOR,
-            SHORT_DESKTOP,
-            NARROW_DESKTOP,
-            ...LAPTOPS,
-            ...WIDER_PHONES,
-            UPRIGHT_PHONE,
-            SHORT_UPRIGHT,
-            SQUARE_UPRIGHT,
-        ],
+        at: [FLOOR, SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
         longNames: true,
-        rightSecondLine: true,
     },
 ];
 
-/** The top river's discards an ordinary hand reaches; past them only a dense story's river runs on. */
-const ORDINARY_TOP_DISCARDS = 21;
-const TOP_DISCARDS_PAST_ORDINARY = "top-discards-past-ordinary";
 const OWN_DISCARDS_THIRD_ROW = "bottom-discards-third-row";
 /**
- * The spec's accepted rare overlaps: an upright left badge, an ordinary name wide at least, over a long third row of
- * the top river, and a decision control over the own river's third row.
+ * The spec's accepted rare overlap: a decision control over the own river's third row.
  */
 const ACCEPTED_OVERLAPS: ReadonlySet<string> = new Set(
-    [
-        ["nameplate--left", TOP_DISCARDS_PAST_ORDINARY],
-        ["actions", OWN_DISCARDS_THIRD_ROW],
-    ].map((pair) => pair.toSorted().join(" x ")),
+    [["actions", OWN_DISCARDS_THIRD_ROW]].map((pair) => pair.toSorted().join(" x ")),
 );
 
-/** The top river's tiles past an ordinary hand's discards, in discard order, as the board measure boxes them. */
-function measureTopDiscardsPastOrdinary(page: Page): Promise<Box[]> {
-    return page.evaluate(
-        (ordinary) =>
-            [...document.querySelectorAll(".game-board .board-river--top .tile")]
-                .slice(ordinary)
-                .map((tile) => {
-                    const rect = tile.getBoundingClientRect();
-                    return {
-                        height: rect.height,
-                        left: rect.left + window.scrollX,
-                        top: rect.top + window.scrollY,
-                        width: rect.width,
-                    };
-                }),
-        ORDINARY_TOP_DISCARDS,
-    );
-}
-
-/** The areas that overlap, but for the spec's accepted rare overlaps over a river's far discards. */
-function findAreaOverlaps(board: BoardMeasure, pastOrdinary: readonly Box[]): string[] {
+/** The areas that overlap, but for the spec's accepted rare overlap over a river's far discards. */
+function findAreaOverlaps(board: BoardMeasure): string[] {
     const ownThirdRow = ownRiverThirdRow(board);
     const grouped = board.grouped.map((entry) => {
-        if (
-            entry.group === "top-discards" &&
-            pastOrdinary.some((tile) => sameBox(tile, entry.box))
-        ) {
-            return { ...entry, group: TOP_DISCARDS_PAST_ORDINARY };
-        }
         if (
             entry.group === "bottom-discards" &&
             ownThirdRow.some((tile) => sameBox(tile, entry.box))
@@ -247,11 +203,7 @@ function findAreaOverlaps(board: BoardMeasure, pastOrdinary: readonly Box[]): st
     return findOverlaps(grouped).filter((pair) => !ACCEPTED_OVERLAPS.has(pair));
 }
 
-function checkBoardContent(
-    board: BoardMeasure,
-    pastOrdinary: readonly Box[],
-    report: PageReport,
-): void {
+function checkBoardContent(board: BoardMeasure, report: PageReport): void {
     const { boardClient: client, boardScroll: scroll } = board;
     report.expect(
         scroll.width <= client.width + EPSILON && scroll.height <= client.height + EPSILON,
@@ -265,7 +217,7 @@ function checkBoardContent(
     report.expect(outside.length === 0, `${outside.length} tile(s) outside the board`);
     const strayPlates = board.nameplates.filter((plate) => !contains(board.board, plate));
     report.expect(strayPlates.length === 0, `${strayPlates.length} nameplate(s) outside the board`);
-    const overlaps = findAreaOverlaps(board, pastOrdinary);
+    const overlaps = findAreaOverlaps(board);
     report.expect(overlaps.length === 0, `areas overlap: ${overlaps.join(", ")}`);
     report.expect(
         board.clippedWords.length === 0,
@@ -298,27 +250,14 @@ function checkAside(board: BoardMeasure, frame: Box, report: PageReport): void {
 }
 
 /**
- * The board stays on the page: on the scrollable page upright, else on the screen, and the aside beside it on the
- * screen, or on the page where a storybook's switches lie below the board.
+ * The board stays on the screen, and the aside beside it on the screen, or on the page where a storybook's switches lie below the board.
  */
 function checkPlacement(
     board: BoardMeasure,
-    {
-        measure,
-        screen,
-        viewport,
-    }: { readonly measure: PageMeasure; readonly screen: Box; readonly viewport: Viewport },
+    { measure, screen }: { readonly measure: PageMeasure; readonly screen: Box },
     report: PageReport,
 ): void {
     const pageExtent = { height: measure.scrollHeight, left: 0, top: 0, width: measure.innerWidth };
-    if (viewport.portrait) {
-        report.expect(
-            contains(pageExtent, board.board),
-            "the board is outside the scrollable page",
-        );
-        checkAside(board, pageExtent, report);
-        return;
-    }
     report.expect(
         contains(screen, board.board),
         `the board ${describeBox(board.board)} leaves the viewport`,
@@ -1086,11 +1025,7 @@ async function checkBoard({
     screen,
     viewport,
 }: BoardRun): Promise<void> {
-    checkBoardContent(
-        board,
-        viewport.portrait ? await measureTopDiscardsPastOrdinary(page) : [],
-        report,
-    );
+    checkBoardContent(board, report);
     await checkDiffLabel(page, report);
     report.expect(
         board.aside === null || board.zones === null || !intersects(board.zones, board.aside.box),
@@ -1103,15 +1038,12 @@ async function checkBoard({
         report.expect(crowded.length === 0, `centre pieces overlap: ${crowded.join(", ")}`);
     }
     checkCallouts(board, report);
-    checkPlacement(board, { measure, screen, viewport }, report);
+    checkPlacement(board, { measure, screen }, report);
     checkTurnCue(await measureTurnCues(page), board, report);
     if (viewport.supported) {
         checkBadgeTaps(board, report);
     }
-    if (options.rightSecondLine === true && viewport.name === SQUARE_UPRIGHT) {
-        await expectRightSecondLine(page, report);
-    }
-    if (!viewport.supported || viewport.portrait) {
+    if (!viewport.supported) {
         return;
     }
     checkLocalHand(board, { floor: viewport.ownTileFloor, screen }, report);
@@ -1129,26 +1061,6 @@ async function checkBoard({
             `badge name(s) shortened though ordinary: ${board.cutNames.join(", ")}`,
         );
     }
-}
-
-/**
- * A page at the near-square upright window for the right strip's second meld line must draw one: the
- * strip's depth as laid out (`--right-depth`) past its first line's reserve (`--geo-strip-depth`), or the places beside
- * it go untested. The tiles' rims draw a one-line strip a few pixels past that reserve, so their boxes cannot tell.
- */
-async function expectRightSecondLine(page: Page, report: PageReport): Promise<void> {
-    const { depth, firstLine } = await page.evaluate(() => {
-        const table = document.querySelector(".game-board .board-table");
-        const style = table === null ? null : getComputedStyle(table);
-        return {
-            depth: Number.parseFloat(style?.getPropertyValue("--right-depth") ?? "0"),
-            firstLine: Number.parseFloat(style?.getPropertyValue("--geo-strip-depth") ?? "0"),
-        };
-    });
-    report.expect(
-        firstLine > 0 && depth > firstLine + EPSILON,
-        `the right strip is ${Math.round(depth)}px deep, within its first line's ${Math.round(firstLine)}px: no second meld line to test`,
-    );
 }
 
 /** The table: the storybooks of tiles and boards, dense and sparse, and the face's fallback. */

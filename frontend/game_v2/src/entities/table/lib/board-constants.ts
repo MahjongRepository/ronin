@@ -228,14 +228,7 @@ const MENU_MAX = 56;
 /** The band's control row past its control: the room the decisions' row keeps over it (px). */
 const BAND_ROW_EXTRA = 20;
 
-/**
- * An upright board's notices' place keeps room for one clamped notice (`NOTICE_TAP_MIN`) and the rivers' rounding,
- * and this far off the core (px).
- */
-const UPRIGHT_NOTICE_ROOM = 44;
-const UPRIGHT_NOTICE_GAP = 6;
-
-/** Over a panel, a phone's or an upright board's notices stand in a column this wide under the right strip (px). */
+/** Over a panel, a phone's notices stand in a column this wide under the right strip (px). */
 const NOTICES_BESIDE_PANEL = 84;
 
 /** The desktop's centre share of the core, and its own tile's and core's caps in shares of the board. */
@@ -285,20 +278,6 @@ const PHONE_CHROME: DesktopChrome = {
 /** A phone's chrome grows with its river tile past this one (px). */
 const PHONE_CHROME_RIVER = 24;
 
-/**
- * An upright board's chrome over the desktop tier's: a phone's margin, band gap, control and timer, and room before its
- * own hand.
- */
-const UPRIGHT_CHROME = {
-    bandGap: 8,
-    chipGap: PHONE_CHROME.chipGap,
-    controlH: 40,
-    m: 4,
-    ownInline: 96,
-    switchH: PHONE_CHROME.switchH,
-    timerW: 60,
-} as const;
-
 export {
     BAND_ROW_EXTRA,
     CORE_TILES,
@@ -344,9 +323,6 @@ export {
     TILE_ASPECT,
     TILE_EDGE_SHARE,
     TILE_UNITS,
-    UPRIGHT_CHROME,
     UPRIGHT_DEPTH,
-    UPRIGHT_NOTICE_GAP,
-    UPRIGHT_NOTICE_ROOM,
 };
 export type { ChromeTier, DesktopChrome };

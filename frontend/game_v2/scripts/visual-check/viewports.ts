@@ -32,18 +32,12 @@ export const SHORT_TABLET = "tablet-short";
 export const FLOOR = "phone-se-landscape";
 /** The notched landscape phone, whose insets and capture model only it emulates. */
 export const NOTCH_PHONE = "phone-notch-landscape";
-/** The upright phone, where the live game shows the rotate panel and a board lays out upright. */
+/** The upright phone, where the live game and a replay show the rotate panel. */
 export const UPRIGHT_PHONE = "phone-portrait";
 /**
- * A narrow desktop window (375x548): the live game shows the rotate panel even without touch input,
- * while replays and storybooks keep their upright board.
+ * A narrow desktop window (375x548): the live game shows the rotate panel even without touch input.
  */
 export const SHORT_UPRIGHT = "window-upright";
-/**
- * A near-square upright window (800x801, no touch screen), where the river tile is largest against the right strip's
- * room, so the densest right strip takes its second meld line beside the decisions, the options and the notices.
- */
-export const SQUARE_UPRIGHT = "window-square";
 /** The mid desktop (1440x900), the spec's reference desktop. */
 export const MID_DESKTOP = "desktop-1440";
 /** The three classes the representative worst cases are chosen across: the floor, the mid and the largest desktop. */
@@ -72,7 +66,6 @@ const LAPTOP_VIEWPORTS: readonly Viewport[] = (
     engine: chromium,
     name,
     portrait: false,
-    rotates: false,
     supported: true,
 }));
 export const LAPTOPS: readonly string[] = [SHORT_LAPTOP, SHORTEST_REGULAR_DESKTOP];
@@ -90,7 +83,6 @@ const SMALL_WINDOW_VIEWPORTS: readonly Viewport[] = [
     engine: chromium,
     name: `window-${width}`,
     portrait: false,
-    rotates: false,
     supported: true,
 }));
 export const SMALL_WINDOWS: readonly string[] = SMALL_WINDOW_VIEWPORTS.map(({ name }) => name);
@@ -116,7 +108,6 @@ const WIDER_PHONE_VIEWPORTS: readonly Viewport[] = [
     name: `phone-${dimensions.width}`,
     ownTileFloor: MIN_TAP,
     portrait: false,
-    rotates: false,
     supported: true,
 }));
 export const WIDER_PHONES: readonly string[] = WIDER_PHONE_VIEWPORTS.map(({ name }) => name);
@@ -168,7 +159,6 @@ const BROWSER_PHONE_VIEWPORTS: readonly Viewport[] = [
         name: SAFARI_PHONE,
         ownTileFloor: MIN_TAP,
         portrait: false,
-        rotates: false,
         supported: true,
     },
     {
@@ -183,7 +173,6 @@ const BROWSER_PHONE_VIEWPORTS: readonly Viewport[] = [
         name: CHROME_PHONE,
         ownTileFloor: MIN_TAP,
         portrait: false,
-        rotates: false,
         supported: true,
     },
 ];
@@ -206,7 +195,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         engine: chromium,
         name: MID_DESKTOP,
         portrait: false,
-        rotates: false,
         supported: true,
     },
     {
@@ -215,7 +203,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         engine: chromium,
         name: SHORT_DESKTOP,
         portrait: false,
-        rotates: false,
         supported: true,
     },
     {
@@ -224,7 +211,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         engine: chromium,
         name: NARROW_DESKTOP,
         portrait: false,
-        rotates: false,
         supported: true,
     },
     ...LAPTOP_VIEWPORTS,
@@ -235,7 +221,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         engine: chromium,
         name: ULTRAWIDE,
         portrait: false,
-        rotates: false,
         supported: true,
     },
     {
@@ -244,7 +229,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         engine: chromium,
         name: SHORT_TABLET,
         portrait: false,
-        rotates: false,
         supported: true,
     },
     {
@@ -253,7 +237,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         engine: chromium,
         name: LARGE_DESKTOP,
         portrait: false,
-        rotates: false,
         supported: true,
     },
     {
@@ -263,7 +246,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         name: UPRIGHT_PHONE,
         ownTileFloor: MIN_TAP,
         portrait: true,
-        rotates: true,
         supported: true,
     },
     {
@@ -272,16 +254,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         engine: chromium,
         name: SHORT_UPRIGHT,
         portrait: true,
-        rotates: true,
-        supported: true,
-    },
-    {
-        context: { viewport: { height: 801, width: 800 } },
-        desktop: true,
-        engine: chromium,
-        name: SQUARE_UPRIGHT,
-        portrait: true,
-        rotates: false,
         supported: true,
     },
     {
@@ -301,7 +273,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         name: NOTCH_PHONE,
         ownTileFloor: MIN_TAP,
         portrait: false,
-        rotates: false,
         supported: true,
     },
     {
@@ -321,7 +292,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         name: FULLSCREEN_PHONE,
         ownTileFloor: MIN_TAP,
         portrait: false,
-        rotates: false,
         supported: true,
     },
     {
@@ -331,7 +301,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         name: FLOOR,
         ownTileFloor: MIN_TAP,
         portrait: false,
-        rotates: false,
         supported: true,
     },
     ...WIDER_PHONE_VIEWPORTS,

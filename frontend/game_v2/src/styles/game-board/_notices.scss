@@ -45,10 +45,10 @@
     visibility: hidden;
 }
 
-/* Over a panel, a short or upright board's notices move to the reserve under the right strip's end; a narrow
+/* Over a panel, a phone's notices move to the reserve under the right strip's end; a narrow
    desktop's panel leaves them their own field. */
 .game-board:has(> .board-overlay):where(:not(:has(> .board-overlay [aria-modal="true"]))) {
-    @include board-where("#{$phone-board}, #{$upright-board}") {
+    @include phone-board {
         .board-notices__list {
             align-items: stretch;
         }

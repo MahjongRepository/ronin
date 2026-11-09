@@ -54,13 +54,6 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
         padding-right: calc(#{$row-end} + #{$small-decision-gap});
     }
 
-    @include upright-board {
-        flex: 1;
-        flex-flow: row wrap;
-        justify-content: flex-end;
-        gap: $small-decision-gap;
-    }
-
     @include short-desktop-board {
         --action-min-w: 64px;
         --win-min-w: 96px;
@@ -82,11 +75,6 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     @include shared-corners-board {
         display: contents;
     }
-
-    @include upright-board {
-        flex-wrap: wrap;
-        gap: $small-decision-gap;
-    }
 }
 
 .decision-controls__band {
@@ -98,12 +86,6 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
 }
 
 .decision-controls__upper {
-    @include upright-board {
-        flex-shrink: 0;
-        max-width: var(--upright-upper-width);
-        margin-right: var(--upright-upper-clear);
-    }
-
     @include shared-corners-board {
         @for $from-end from 1 through 6 {
             > :nth-last-child(#{$from-end}) {

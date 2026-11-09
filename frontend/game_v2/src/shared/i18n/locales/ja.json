@@ -161,6 +161,7 @@
     },
     "game.rotate.hint": "端末を横向きにするか、ウィンドウを広げてください。その間も対局は続きます。",
     "game.rotate.play_continues": "{move}。この表示中も対局は続き、あなたのタイマーも進みます。",
+    "game.rotate.replay_hint": "端末を横向きにするか、ウィンドウを広げてください。",
     "game.rotate.seconds_left": {
         "other": "残り{count}秒"
     },

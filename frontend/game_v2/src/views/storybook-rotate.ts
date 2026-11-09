@@ -125,7 +125,7 @@ function rotateStorybookTemplate(
 }
 
 /**
- * Mount the rotate panel's storybook: the panel the live game shows on an upright phone, always shown here, in the
+ * Mount the rotate panel's storybook: the panel the live game shows in a portrait viewport, always shown here, in the
  * story the page's `?state=` names.
  */
 export function mountStorybookRotate(host: HTMLElement): () => void {

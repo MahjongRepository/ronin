@@ -9,8 +9,6 @@ import {
     SIDEWAYS_UNITS,
     TILE_EDGE_SHARE,
     UPRIGHT_DEPTH,
-    UPRIGHT_NOTICE_GAP,
-    UPRIGHT_NOTICE_ROOM,
 } from "@/entities/table/lib/board-constants";
 import {
     type BoardBox,
@@ -27,7 +25,6 @@ import { RIVER_ROW_SIZE } from "@/entities/tile";
 /** The sizes pinned, in the order each case lists them. */
 const SIZES = ["rw", "ow", "c", "w", "core-top"] as const;
 const SHORT_DESKTOP_SIZES = ["rw", "w", "core-top"] as const;
-const UPRIGHT_SIZES = ["rw", "c", "core-top"] as const;
 
 const NO_INSETS: BoardEdges = { bottom: 0, left: 0, right: 0, top: 0 };
 const LIVE_SLOTS: BoardSlots = { band: "play" };
@@ -266,7 +263,6 @@ describe("boardGeometry", () => {
         { chrome: "regular", family: "short-desktop", height: 657, width: 1366 },
         { chrome: "regular", family: "short-desktop", height: 540, width: 1280 },
         { chrome: "regular", family: "short-desktop", height: 770, width: 1440 },
-        { chrome: "small", family: "upright", height: 548, width: 375 },
     ])(
         "gives a $width x $height window a $family board with $chrome chrome in a 10px gutter, whichever is applied",
         ({ chrome, family, height, width }) => {
@@ -304,10 +300,6 @@ describe("boardGeometry", () => {
                     "short-desktop": [
                         length("cy") + length("h"),
                         length("band-bottom") - length("control-h"),
-                    ],
-                    upright: [
-                        coreBottom,
-                        length("notices-bottom") - UPRIGHT_NOTICE_ROOM - UPRIGHT_NOTICE_GAP,
                     ],
                 }[family] ?? [Number.NaN, Number.NaN];
                 expect(aboveBand).toBeLessThanOrEqual(bandTop + 0.001);
@@ -394,20 +386,6 @@ describe("boardGeometry", () => {
             const switchesTop = length("switches-bottom") - Math.max(movesH, switchH);
 
             expect(leftRiverEnd + 4).toBeLessThanOrEqual(switchesTop + 0.001);
-        },
-    );
-
-    it.each([
-        [375, 548, [10, 114.333, 93.667]],
-        [800, 801, [26, 167.27, 114]],
-    ])(
-        "sizes a %ix%i window's upright board, its core holding the latest discards' gaps",
-        (width, height, expected) => {
-            const { lengths } = windowGeometry({ height, width });
-
-            for (const [index, name] of UPRIGHT_SIZES.entries()) {
-                expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
-            }
         },
     );
 
@@ -540,15 +518,6 @@ describe("boardGeometry", () => {
         },
     );
 
-    it.each([
-        { height: 620, width: 260 },
-        { height: 601, width: 600 },
-    ])("keeps an upright $width x $height centre square and at least 100px across", (box) => {
-        const { lengths } = windowGeometry(box);
-        expect(lengths["w"]).toBeGreaterThanOrEqual(100);
-        expect(lengths["c"]).toBe(lengths["w"]);
-    });
-
     it("keeps the notices' field free of the panel", () => {
         const { lengths } = windowGeometry({ height: 900, width: 1440 });
 
@@ -560,41 +529,8 @@ describe("boardGeometry", () => {
     });
 });
 
-describe("boardGeometry's counters", () => {
-    it.each([
-        { height: 640, slots: REPLAY_SLOTS, width: 360 },
-        { height: 620, slots: LIVE_SLOTS, width: 340 },
-        { height: 548, slots: LIVE_SLOTS, width: 375 },
-    ])(
-        "stands a $width x $height upright board's dora box 6px over the left badge, clear of the top badge",
-        ({ height, slots, width }) => {
-            const { lengths } = boardGeometry({
-                appliedEdges: NO_INSETS,
-                box: { height, width },
-                safeInsets: NO_INSETS,
-                slots,
-            });
-            function length(name: string): number {
-                return lengths[name] ?? Number.NaN;
-            }
-            const doraRight = length("side-badge-x") + length("counters-w");
-            const doraBottom = length("counters-top") + length("counters-h");
-            const topBadgeBottom = length("top-badge-top") + length("badge-h");
-            const topLaneStart = length("top-strip-x") - length("top-lane");
-
-            expect(length("side-badge-top") - doraBottom).toBeCloseTo(6, 3);
-            expect(topLaneStart >= doraRight || length("counters-top") >= topBadgeBottom).toBe(
-                true,
-            );
-        },
-    );
-});
-
 describe("boardGeometry's strips", () => {
-    it.each([
-        { height: 900, under: 0, width: 1440 },
-        { height: 548, under: 2, width: 375 },
-    ])(
+    it.each([{ height: 900, under: 0, width: 1440 }])(
         "runs a $width x $height board's right strip to the top margin, past $under top strip tiles",
         ({ height, under, width }) => {
             const { lengths, strips, tracks } = windowGeometry({ height, width });
@@ -735,29 +671,6 @@ describe("boardGeometry's shell tracks", () => {
     });
 
     it.each([
-        { height: 548, width: 375 },
-        { height: 801, width: 800 },
-    ])(
-        "reserves an upright $width x $height switch row clear of decisions, notices and the hand",
-        (box) => {
-            const { tracks } = windowGeometry(box);
-            const areas = slotAreas(tracks);
-            function edge(slot: string, index: number): number {
-                return areas[slot]?.[index] ?? Number.NaN;
-            }
-
-            expect(edge("switches", 2) - edge("switches", 0)).toBeGreaterThanOrEqual(4 * 40);
-            expect(edge("switches", 3) - edge("switches", 1)).toBe(40);
-            expect(edge("switches", 2)).toBeLessThan(edge("actions", 0));
-            expect(
-                Math.max(edge("field", 3), edge("strip-left", 3), edge("strip-right", 3)),
-            ).toBeLessThan(edge("switches", 1));
-            expect(edge("switches", 3)).toBe(edge("actions", 3));
-            expect(edge("switches", 3)).toBeLessThan(edge("hand", 1));
-        },
-    );
-
-    it.each([
         { height: 800, width: 1280 },
         { height: 375, width: 667 },
     ])("keeps the $width x $height settings target clear of both top corner strips", (box) => {
@@ -816,31 +729,4 @@ describe("boardGeometry's shell tracks", () => {
             rows: "20px [kept-start] 30px [inverted-start] 0px [inverted-end] 10px [kept-end] 40px",
         });
     });
-});
-
-describe("boardGeometry on a replay", () => {
-    it.each([
-        { height: 844, lane: 124.1, oneRow: false, width: 390 },
-        { height: 1024, lane: 251.9, oneRow: true, width: 768 },
-    ])(
-        "stands a $width x $height upright replay's group in the own badge's row only where it leaves the badge an ordinary lane ($oneRow)",
-        ({ height, lane, oneRow, width }) => {
-            const { lengths } = boardGeometry({
-                appliedEdges: NO_INSETS,
-                box: { height, width },
-                safeInsets: NO_INSETS,
-                slots: REPLAY_SLOTS,
-            });
-            function length(name: string): number {
-                return lengths[name] ?? Number.NaN;
-            }
-            const handTop = length("hand-top");
-
-            expect(length("actions-bottom")).toBeCloseTo(
-                oneRow ? handTop - length("own-meld-rise") - 2 : handTop - length("own-rise") - 4,
-                3,
-            );
-            expect(length("own-lane")).toBeCloseTo(lane, 3);
-        },
-    );
 });

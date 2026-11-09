@@ -3,7 +3,7 @@ import { type TemplateResult, html, nothing, render } from "lit-html";
 import "@/styles/replay-page.scss";
 import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
-import { type GameSound } from "@/entities/client";
+import { type GameSound, ReplayRotatePanel } from "@/entities/client";
 import {
     CURRENT_ROUND_FOCUS_KEY,
     type LoadedReplayScreen,
@@ -306,6 +306,7 @@ function replayTemplate(
     handlers: ReplayHandlers,
 ): TemplateResult {
     return html`
+        ${screen.kind === "loaded" ? ReplayRotatePanel(links.history) : nothing}
         <div
             class="board-page replay-board-mode"
             tabindex="0"

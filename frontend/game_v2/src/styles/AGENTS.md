@@ -28,10 +28,10 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   insets, live and replay alike, over the cog where they reach it. The cog reserves no room in the strips: in landscape
   its corner slot ends inside the right strip's deepest reach with a gap, keeping its target clear of the melds.
   Where the top hand leaves too little room beside it, the corner starts below the top strip and badge.
-  Upright it stays at the board's top right. The notices' field is reserved whether a
+  The notices' field is reserved whether a
   notice shows or not, so no notice changes the panel's box or tiles. The panel's tile unit stays `--board-unit`, from
   that box's width and the board's height: one from `--rw` would draw a phone's result at 17px tiles where its box holds
-  32px, an upright one's at 11px.
+  32px.
 - **One source per fact.** The directive writes the sizes as `--geo-<name>` on `.game-board`; one rule (`_grid.scss`)
   maps those the styles read onto the lengths' own names on `.board-layout` and `.board-overlay`, inside `:where()` so
   it keeps (0,2,0); a name a family does not emit stays unset on its board, where nothing reads it. There is no CSS solve,
@@ -45,8 +45,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   decisions or a replay's group, its field (`.board-notices`) the notices and a replay's status; the band end's lengths
   (`--actions-*`, its room for a live row or a replay's group from the band the page fills) are the geometry's, so
   what stands beside it reads them.
-  `_replay-state.scss` places no slot. Upright, the band
-  end's row and the own badge's lane are the geometry's (`--geo-actions-bottom`, `--own-lane`).
+  `_replay-state.scss` places no slot.
 - **A phone's composition is its own.** `boardGeometry` solves a phone's river and own tiles together from the box
   (the spec's sizing rule), and its band's controls, chrome and right hand's place there too, never with a length
   switch.
@@ -65,7 +64,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   oldest at the far end; side melds never wrap into parallel columns. `stripLayout` scales all melds
   together to fit, using their actual footprints to clear the geometry's reserved badge, switches
   and own row. `stripLayout` (`entities/table/lib`) stays separate from
-  `boardGeometry`. Contents never enter the viewport's solve. The own row's melds take `--own-meld-w` and the upright hand's lead steps back by `--own-shift`, both from `ownMeldLayout` over the melds' structure, never from the hand's current width. No tile size, hand start or laid meld's place may follow transient content (a draw, a discard, an offer): a stylesheet never fits tiles to the room content leaves.
+  `boardGeometry`. Contents never enter the viewport's solve. The own row's melds take `--own-meld-w` from `ownMeldTile` over the melds' structure, never from the hand's current width. No tile size, hand start or laid meld's place may follow transient content (a draw, a discard, an offer): a stylesheet never fits tiles to the room content leaves.
 - **One river primitive, four seats.** GameBoard's `River` draws every seat's river on the tile slice's shape
   (`river-shape.ts`), its overflow an explicit per-seat policy (`RIVER_OVERFLOW`: a side river wraps a fourth row, a
   top or bottom one runs its third row on); it stays in the core's pinwheel, absolutely placed, its area a normal

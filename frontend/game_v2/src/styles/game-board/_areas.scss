@@ -130,7 +130,7 @@ $max-melds: 4;
 }
 
 .board-strip--top > .board-strip__frame {
-    left: calc(100% - var(--top-pull));
+    left: 100%;
     top: 0;
 }
 
@@ -162,7 +162,7 @@ $max-melds: 4;
 }
 
 /* The own row, in the hand's slot: the hand from a full hand's fixed start, its melds at the row's right end by the
-   board's edge, both placed by `ownMeldLayout`. */
+   board's edge, both placed by `ownMeldTile`. */
 .board-local {
     --board-tile-w: var(--ow);
     --board-tile-h: var(--oh);
@@ -171,15 +171,6 @@ $max-melds: 4;
     grid-area: hand;
     display: flex;
     align-items: flex-end;
-
-    @include upright-board {
-        &::before {
-            content: "";
-            flex: none;
-            width: calc(var(--own-start) - var(--m) - var(--own-shift));
-            order: 0;
-        }
-    }
 
     > .board-area--bottom-hand {
         order: 2;

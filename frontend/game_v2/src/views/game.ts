@@ -244,7 +244,7 @@ function logTemplate(
 
 /**
  * The live game: its board, played from the viewer's seat, with the page's controls in its corner, and the rotate
- * panel the stylesheet shows in its place in a narrow portrait viewport, rendered from the same state so its status
+ * panel the stylesheet shows in its place in a portrait viewport, rendered from the same state so its status
  * and countdown stay current while it is hidden.
  */
 function gameTemplate(props: GameViewProps): TemplateResult {

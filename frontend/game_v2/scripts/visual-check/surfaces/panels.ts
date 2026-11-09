@@ -75,13 +75,6 @@ function resultStory(
     };
 }
 
-/** An upright board's result panel made as tall as its overlay allows. */
-async function forceResultPanelTall(page: Page): Promise<void> {
-    await page.addStyleTag({
-        content: ".board-overlay__panel:has(> .round-end-result) { height: 100vh !important; }",
-    });
-}
-
 /** What a rotate story shows: an element proving it, whether it counts seconds down, and the words it must read. */
 interface RotateExpectation {
     readonly content: string;
@@ -92,7 +85,7 @@ interface RotateExpectation {
     readonly announced?: Readonly<Record<string, string>>;
 }
 
-/** A rotate panel story: the panel an upright phone shows in place of the live board, reading its own state's words. */
+/** A rotate panel story: the panel a portrait viewport shows in place of the live board, reading its own state's words. */
 function rotateCase(
     state: string,
     { announced = {}, content, countdown, texts = {} }: RotateExpectation,
@@ -282,12 +275,6 @@ const PAGES: readonly PageCase[] = [
             ],
         },
     },
-    {
-        ...decisionCase("round_end", [".round-end-result__confirm"]),
-        at: [UPRIGHT_PHONE],
-        name: "decisions-round-end-tall",
-        prepare: forceResultPanelTall,
-    },
     decisionCase("round_end", [".round-end-result__confirm", ".round-end-result__countdown"]),
     {
         ...decisionCase("double_ron_first", [
@@ -368,31 +355,6 @@ function checkOverlay(board: BoardMeasure, viewport: Viewport, report: PageRepor
             `the overlay panel's content overflows it: ${describeSize(overlay.scroll)} > ${describeSize(overlay.client)}`,
         );
     }
-}
-
-/**
- * Upright, where the notices' own checks do not run, a notice shown over a panel stands in its reserve under the right
- * strip's end, clear of the panel, which stops above the foreground for it.
- */
-async function checkUprightNotices(page: Page, panel: Box, report: PageReport): Promise<void> {
-    const notices = await page.evaluate(() =>
-        [...document.querySelectorAll(".game-board .board-notice")]
-            .filter((notice) => notice.checkVisibility({ visibilityProperty: true }))
-            .map((notice) => {
-                const rect = notice.getBoundingClientRect();
-                return {
-                    height: rect.height,
-                    left: rect.left + window.scrollX,
-                    top: rect.top + window.scrollY,
-                    width: rect.width,
-                };
-            }),
-    );
-    const over = notices.filter((notice) => intersects(notice, panel));
-    report.expect(
-        over.length === 0,
-        `notice(s) over the upright panel ${describeBox(panel)}: ${over.map(describeBox).join(", ")}`,
-    );
 }
 
 /** What a round result's panel shows. */
@@ -668,7 +630,7 @@ function checkSeating(
         seating.minFontPx >= MIN_TEXT_PX,
         `seating text at ${seating.minFontPx}px, under ${MIN_TEXT_PX}px`,
     );
-    if (!viewport.supported || viewport.portrait) {
+    if (!viewport.supported) {
         return;
     }
     const outside = seating.controls.filter(
@@ -746,9 +708,6 @@ async function checkRotatePanel(
  */
 async function checkBoard({ board, page, report, screen, viewport }: BoardRun): Promise<void> {
     checkOverlay(board, viewport, report);
-    if (viewport.portrait && board.overlay !== null) {
-        await checkUprightNotices(page, board.overlay.box, report);
-    }
     if (viewport.supported) {
         checkResultPanel(await measureResultPanel(page), report);
     }
@@ -758,7 +717,7 @@ async function checkBoard({ board, page, report, screen, viewport }: BoardRun): 
         wrapped.length === 0,
         `result score figure(s) wrapped past one line: ${wrapped.join(", ")}`,
     );
-    if (viewport.supported && !viewport.portrait) {
+    if (viewport.supported) {
         checkResultNames(
             await measureBoxes(page, ".board-overlay .round-end-result__score-name"),
             report,

@@ -39,13 +39,11 @@ interface SideStripRoom {
 }
 
 /**
- * The top strip's room (px): its anchor (`top-strip-x`), the farthest a dense strip may move it (upright, to the
- * board's edge) or none, its line's start, and the depth its melds have above what they keep clear of, closer where
+ * The top strip's room (px): its anchor (`top-strip-x`), its line's start, and the depth its melds have above what they keep clear of, closer where
  * they reach the top badge's lane.
  */
 interface TopStripRoom {
     readonly anchor: number;
-    readonly cap: number | null;
     readonly start: number;
     readonly depth: number;
     readonly badgeDepth: number;
@@ -72,7 +70,6 @@ interface MeldPlace {
 interface StripLayout {
     readonly melds: readonly MeldPlace[];
     readonly depth: number;
-    readonly pull: number;
 }
 
 /** A meld deeper than this many river-tile widths takes its side strip's stacked room. */
@@ -181,7 +178,6 @@ function fitSideMelds(
             return {
                 depth: Math.max(UPRIGHT_DEPTH * rw, ...melds.map((meld) => meld.depth)),
                 melds,
-                pull: 0,
             };
         }
         end -= shift;
@@ -228,7 +224,6 @@ function overflowSideMelds(
             return {
                 depth: Math.max(UPRIGHT_DEPTH * rw, ...melds.map((meld) => meld.depth)),
                 melds,
-                pull: 0,
             };
         }
         end += shift;
@@ -237,7 +232,6 @@ function overflowSideMelds(
     return {
         depth: Math.max(UPRIGHT_DEPTH * rw, ...melds.map((meld) => meld.depth)),
         melds,
-        pull: 0,
     };
 }
 
@@ -245,7 +239,7 @@ function overflowSideMelds(
 function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripRooms): StripLayout {
     const { rw } = rooms;
     if (content.melds.length === 0) {
-        return { depth: UPRIGHT_DEPTH * rw, melds: [], pull: 0 };
+        return { depth: UPRIGHT_DEPTH * rw, melds: [] };
     }
     const handEnd = reservedHandLength(content, rw, seat);
     for (const tile of getTileCandidates(rw)) {
@@ -270,11 +264,10 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
 /**
  * The top strip: one line, its melds ending at its anchor at one size, the largest that keeps each above what it keeps
  * clear of where it stands (the top badge only for a meld reaching its lane) and fits them beside the hand, never under
- * the face floor; upright, a dense strip moves its anchor as far right as its melds at the face floor need, up to its
- * cap.
+ * the face floor.
  */
 function topLayout(content: StripContent, { gap, rw, top }: StripRooms): StripLayout {
-    const { anchor, badgeDepth, cap, depth, lane, start } = top;
+    const { anchor, badgeDepth, depth, lane, start } = top;
     const units = content.melds.map((meld) => meld.units);
     const count = units.length;
     const total = sum(units);
@@ -285,9 +278,7 @@ function topLayout(content: StripContent, { gap, rw, top }: StripRooms): StripLa
         seat: "top",
         tiles: content.hand - (content.drawn ? 1 : 0),
     });
-    const need = start + handLen + count * gap + total * FACE_FLOOR;
-    const anchorAt = cap === null ? anchor : Math.min(cap, Math.max(anchor, need));
-    const room = anchorAt - start;
+    const room = anchor - start;
     function near(index: number): number {
         return Math.max(heldLen + gap, room - sum(units.slice(index)) * rw - (count - index) * gap);
     }
@@ -303,15 +294,15 @@ function topLayout(content: StripContent, { gap, rw, top }: StripRooms): StripLa
         rise: 0,
         tile,
     }));
-    return { depth: 0, melds, pull: (cap ?? anchor) - anchorAt };
+    return { depth: 0, melds };
 }
 
 function stripLayout(seat: StripSeat, content: StripContent, rooms: StripRooms): StripLayout {
     return seat === "top" ? topLayout(content, rooms) : sideLayout(seat, content, rooms);
 }
 
-/** A strip's layout as lengths (px): its melds, the top strip's pull and a side strip's depth as drawn. */
-function seatLengths(seat: StripSeat, { depth, melds, pull }: StripLayout): [string, number][] {
+/** A strip's layout as lengths (px): its melds and a side strip's depth as drawn. */
+function seatLengths(seat: StripSeat, { depth, melds }: StripLayout): [string, number][] {
     const places = melds.flatMap(({ along, rise, tile }, index): [string, number][] => [
         [`${seat}-meld-${index}-along`, along],
         [`${seat}-meld-${index}-tile`, tile],
@@ -320,7 +311,7 @@ function seatLengths(seat: StripSeat, { depth, melds, pull }: StripLayout): [str
     const frame: Record<StripSeat, [string, number][]> = {
         left: [["left-depth", depth]],
         right: [["right-depth", depth]],
-        top: [["top-pull", pull]],
+        top: [],
     };
     return [...frame[seat], ...places];
 }
@@ -341,43 +332,34 @@ function stripLengths(
 const OWN_MELDS_SLACK = 2;
 
 /**
- * The own row from the hand's start (px): its width to the board's edge, how far the hand may step back toward the
- * margin, its hand's tile and river gap, and its melds' largest tile.
+ * The own row from the hand's start (px): its width to the board's edge, its hand's tile and river gap, and its melds'
+ * largest tile.
  */
 interface OwnRow {
     readonly width: number;
-    readonly lead: number;
     readonly ow: number;
     readonly gap: number;
     readonly cap: number;
 }
 
-/** The own melds' tile and how far the hand steps back from its start to hold them (px). */
-interface OwnMeldLayout {
-    readonly tile: number;
-    readonly shift: number;
-}
-
 /**
- * The own melds laid out from their structure alone: one tile, their cap where they fit beside the hand at its fullest
- * with its drawn tile and gap, never under the face floor, the hand stepping back into its lead only for melds at that
- * floor; so a draw, a discard or anything but a call never resizes or moves them or the hand.
+ * The own melds' one tile from their structure alone: their cap where they fit beside the hand at its fullest with its
+ * drawn tile and gap, never under the face floor; so a draw, a discard or anything but a call never resizes them.
  */
-function ownMeldLayout(row: OwnRow, melds: readonly MeldShape[]): OwnMeldLayout {
-    const { cap, gap, lead, ow, width } = row;
+function ownMeldTile(row: OwnRow, melds: readonly MeldShape[]): number {
+    const { cap, gap, ow, width } = row;
     const units = sum(melds.map((meld) => meld.units));
     if (units === 0) {
-        return { shift: 0, tile: cap };
+        return cap;
     }
     const tiles = FULL_HAND_TILES - TILES_PER_MELD * melds.length;
     const hand = tiles * ow + (tiles - 1) * (ow / TILE_UNITS) + 2 * OWN_DRAWN_GAP * ow;
     const gaps = (melds.length - 1) * (gap + MELD_GAP_EXTRA) + OWN_MELDS_SLACK;
     const room = width - hand - gaps;
-    const tile = Math.max(FACE_FLOOR, Math.min(cap, room / units));
-    return { shift: Math.min(lead, Math.max(0, units * tile - room)), tile };
+    return Math.max(FACE_FLOOR, Math.min(cap, room / units));
 }
 
-export { drawnGap, hairline, handLength, ownMeldLayout, stripLayout, stripLengths };
+export { drawnGap, hairline, handLength, ownMeldTile, stripLayout, stripLengths };
 export type {
     MeldShape,
     MeldPlace,

@@ -13,7 +13,7 @@ import {
     type MeldShape,
     type StripContent,
     type StripSeat,
-    ownMeldLayout,
+    ownMeldTile,
     stripLengths,
 } from "@/entities/table/lib/strip-layout";
 
@@ -62,7 +62,7 @@ function pageEdges(board: HTMLElement): PageEdges | null {
  * `data-board-family` / `data-board-chrome` and its sizes as `--geo-<name>` on the board,
  * measured once its first render is in the document and again as its box or its slots change, until it leaves; and
  * lay out the opponents' strips in the rooms it leaves them (`stripLayout`) as `--<seat>-meld-<n>-*` lengths and the
- * own melds in their row (`ownMeldLayout`) as `--own-meld-w` / `--own-shift`, again as what they hold changes. An empty box (a hidden board) changes nothing and the board stays watched.
+ * own melds in their row (`ownMeldTile`) as `--own-meld-w`, again as what they hold changes. An empty box (a hidden board) changes nothing and the board stays watched.
  */
 class SizeBoard extends AsyncDirective {
     private board: HTMLElement | null = null;
@@ -185,11 +185,10 @@ class SizeBoard extends AsyncDirective {
         this.geometry = geometry;
         const laid =
             strips === null || this.strips === null ? {} : stripLengths(strips, this.strips);
-        const own = ownMeldLayout(
+        const ownTile = ownMeldTile(
             {
                 cap: lengths["own-meld-tile"] ?? 0,
                 gap: lengths["g"] ?? 0,
-                lead: lengths["own-row-lead"] ?? 0,
                 ow: lengths["ow"] ?? 0,
                 width: lengths["own-row-w"] ?? 0,
             },
@@ -209,8 +208,7 @@ class SizeBoard extends AsyncDirective {
                 ),
                 ["--geo-shell-columns", tracks.columns],
                 ["--geo-shell-rows", tracks.rows],
-                ["--own-meld-w", `${own.tile}px`],
-                ["--own-shift", `${own.shift}px`],
+                ["--own-meld-w", `${ownTile}px`],
                 ...Object.entries(laid).map(
                     ([name, length]) => [`--${name}`, `${length}px`] as const,
                 ),

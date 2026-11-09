@@ -1,9 +1,6 @@
 @use "@/styles/game-board/queries" as *;
 @use "@/styles/type";
 
-/* The live game on an upright screen narrower than this shows the rotate panel instead of its table. */
-$rotate-below-width: 600px;
-
 .rotate-panel {
     display: flex;
     flex-direction: column;
@@ -87,12 +84,14 @@ $rotate-below-width: 600px;
     color: var(--ronin-text);
 }
 
-.game__rotate {
+.game__rotate,
+.replay-rotate {
     display: none;
 }
 
-@media (orientation: portrait) and (width < $rotate-below-width) {
-    .game__rotate {
+@media (orientation: portrait) {
+    .game__rotate,
+    .replay-rotate {
         display: block;
         position: fixed;
         inset: 0;
@@ -100,7 +99,8 @@ $rotate-below-width: 600px;
         overflow-y: auto;
     }
 
-    .game__play {
+    .game__play,
+    .replay-rotate + .replay-board-mode {
         display: none;
     }
 }

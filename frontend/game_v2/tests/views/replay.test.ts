@@ -398,6 +398,7 @@ describe("mountReplayView - moving", () => {
         const { host } = await mountLoadedReplay();
 
         expect(host.querySelector(".game-board")).not.toBeNull();
+        expect(host.querySelector(".replay-rotate a")?.getAttribute("href")).toBe(LINKS.history);
         expect(position(host)).toBe("East 1 Step 1 of 28");
         expect(button(host, ".replay-controls__move--prev").disabled).toBe(true);
     });
@@ -997,7 +998,10 @@ describe("mountReplayView - loading", () => {
         const undecodable = mountReplay();
         await undecodable.answer({ content: new Uint8Array([129, 161, 49, 1]), ok: true });
 
-        expect(textOf(host, ".replay-state__title")).toBe("This replay cannot be shown");
+        expect([
+            textOf(host, ".replay-state__title"),
+            host.querySelector(".replay-rotate"),
+        ]).toEqual(["This replay cannot be shown", null]);
         expect(textOf(host, ".replay-state__detail")).toBe(
             'It was recorded in format "0.1", which this page cannot read.',
         );
