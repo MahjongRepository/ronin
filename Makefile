@@ -84,3 +84,5 @@ profile-games:
 
 measure-wall:
 	cd backend && uv run python -m scripts.measure_wall $(MEASURE_ARGS)
+
+-include Makefile.local
