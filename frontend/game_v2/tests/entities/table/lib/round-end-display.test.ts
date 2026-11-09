@@ -199,16 +199,13 @@ describe("roundEndDisplay - a win", () => {
         ]);
     });
 
-    test("a double ron on honba: each winner's page notes its own honba bonus", () => {
+    test("a double ron on honba: only the closest winner's page notes the honba bonus", () => {
         const table = roundEndTables("double_ron_on_honba").find(
             (candidate) => (candidate.roundEndResult?.winners.length ?? 0) > 1,
         );
         assert(table !== undefined);
 
-        expect([winPage(table, 0).notes, winPage(table, 1).notes]).toEqual([
-            ["Honba +600"],
-            ["Honba +600"],
-        ]);
+        expect([winPage(table, 0).notes, winPage(table, 1).notes]).toEqual([["Honba +600"], []]);
     });
 });
 

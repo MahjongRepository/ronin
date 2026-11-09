@@ -322,14 +322,14 @@ class TestRonScoring:
 
 class TestDoubleRonScoring:
     @pytest.mark.parametrize(
-        ("loser_seat", "stick_receiver", "score_changes"),
+        ("loser_seat", "closer_winner", "score_changes"),
         [
-            pytest.param(1, 2, {0: 8700, 1: -17700, 2: 11000, 3: 0}, id="closer_winner_is_the_higher_seat"),
-            pytest.param(3, 0, {0: 10700, 1: 0, 2: 9000, 3: -17700}, id="closer_winner_wraps_past_seat_3"),
+            pytest.param(1, 2, {0: 7700, 1: -16700, 2: 11000, 3: 0}, id="closer_winner_is_the_higher_seat"),
+            pytest.param(3, 0, {0: 10700, 1: 0, 2: 8000, 3: -16700}, id="closer_winner_wraps_past_seat_3"),
         ],
     )
-    def test_double_ron_score__should_charge_the_discarder_both_hands_with_honba_and_give_sticks_to_the_closer_winner(
-        self, loser_seat, stick_receiver, score_changes
+    def test_double_ron_score__should_charge_the_discarder_both_hands_and_give_honba_and_sticks_to_the_closer_winner(
+        self, loser_seat, closer_winner, score_changes
     ):
         game_state = _three_pin_discarded(
             loser_seat=loser_seat, honba_sticks=2, riichi_sticks=2, settings=GameSettings(honba_ron_bonus=500)
@@ -346,11 +346,11 @@ class TestDoubleRonScoring:
         result = _round_result(events)
         assert isinstance(result, DoubleRonResult)
         assert [(w.winner_seat, w.hand_result.points, w.honba_bonus) for w in result.winners] == [
-            (0, 7700, 1000),
-            (2, 8000, 1000),
+            (0, 7700, 1000 if closer_winner == 0 else 0),
+            (2, 8000, 1000 if closer_winner == 2 else 0),
         ]
         assert {w.winner_seat: w.riichi_sticks_collected for w in result.winners} == {
-            seat: 2 if seat == stick_receiver else 0 for seat in (0, 2)
+            seat: 2 if seat == closer_winner else 0 for seat in (0, 2)
         }
         assert {w.winner_seat: w.ura_dora_indicators for w in result.winners} == {
             0: None,
@@ -693,7 +693,30 @@ class TestPaoRonScoring:
         assert [w.hand_result.points for w in result.winners] == [48000, 5200]
         assert [w.score_changes for w in result.winners] == [
             {0: 48300, 1: 0, 2: -24300, 3: -24000},
-            {0: 0, 1: 5500, 2: 0, 3: -5500},
+            {0: 0, 1: 5200, 2: 0, 3: -5200},
+        ]
+        assert result.score_changes == {0: 48300, 1: 5200, 2: -24300, 3: -29200}
+
+    def test_pao__when_double_ron_pao_winner_is_the_farther_one__should_charge_the_pao_player_no_honba(self):
+        closer_winner = create_player(seat=1, tiles=_ITTSUU_SHANPON_HAND)
+        pao_winner = _daisangen_tanki_player(2, pao_seat=3)
+        game_state = _stage_pao_win(
+            dealer_seat=0,
+            winners=[closer_winner, pao_winner],
+            current_seat=0,
+            discarded_tile=_DAISANGEN_WIN_TILE,
+            honba_sticks=1,
+        )
+
+        _new_state, events = process_ron_call(
+            game_state,
+            ron_input=RonCallInput(ron_callers=[1, 2], tile_id=_DAISANGEN_WIN_TILE, discarder_seat=0),
+        )
+        result = _round_result(events)
+        assert isinstance(result, DoubleRonResult)
+        assert [w.pao for w in result.winners] == [
+            None,
+            PaoLiability(yaku_ids=[Daisangen.yaku_id], share=PaoShare.HALF, pays_honba=False),
         ]
         assert result.score_changes == {0: 48300, 1: 5500, 2: -24300, 3: -29500}
 

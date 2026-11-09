@@ -962,7 +962,7 @@ def double_ron_on_honba() -> Recording:
         WireKey.LOSER_SEAT: 0,
         WireKey.WINNERS: [
             {WireKey.WINNER_SEAT: 1, WireKey.SCORE_CHANGES: {"0": -22, "1": 22}},
-            {WireKey.WINNER_SEAT: 3, WireKey.SCORE_CHANGES: {"0": -22, "3": 22}},
+            {WireKey.WINNER_SEAT: 3, WireKey.SCORE_CHANGES: {"0": -16, "3": 16}},
         ],
     }
     require_outcome(

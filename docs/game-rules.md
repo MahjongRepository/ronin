@@ -99,7 +99,7 @@ When the caller declares another quad on the replacement tile instead of discard
 - Keishiki tenpai (形式聴牌): Counts as tenpai for noten payments, except pure karaten (all 4 copies in own hand/melds). Tiles in the player's own melds count toward the 4 copies, as in the M-League and Nihon Pro Mahjong Association rules; Tenhou counts only the closed hand, which is not our rule. Waiting for a tile where all 4 copies are visible in others' discards/melds still counts as tenpai.
 - Goshashonyu rounding (五捨六入): ≤500 rounds toward zero, ≥600 rounds away
 - Tie-breaking: When players have equal final scores, the player closer counter-clockwise to the starting dealer ranks higher. The starting dealer is chosen by dice from the game seed, so it is not always seat 0.
-- Double ron riichi sticks: the winner closest counter-clockwise to the discarder receives them. For chankan the kan caller takes the discarder's role.
+- Double ron riichi sticks and honba bonus: only the winner closest counter-clockwise to the discarder receives them. For chankan the kan caller takes the discarder's role.
 
 ### Liability (Pao)
 
@@ -109,7 +109,7 @@ When the caller declares another quad on the replacement tile instead of discard
 - Tsumo: Liable player pays the liable yakuman's whole value and the whole honba bonus. The other yakuman's value is paid as an ordinary tsumo by all three players, the liable player included. Example: dealer Big Three Dragons + All Honors (96,000) — liable player pays 48,000 + 16,000, the other two pay 16,000 each.
 - Ron off a player other than the liable one: Liable player pays half the liable yakuman's value and the whole honba bonus; the discarder pays the other half and any other yakuman's value. Example: the same dealer hand by ron — liable player pays 24,000, discarder 72,000.
 - Ron off the liable player: They pay the full hand value and honba bonus, as an ordinary ron
-- Riichi sticks go to the winner as usual. In a double ron each winner is settled separately: liability applies only to the winner it is for, whose honba bonus the liable player pays (unless they are the discarder); the discarder pays the other winner's honba bonus.
+- Riichi sticks go to the winner as usual. In a double ron each winner is settled separately: liability applies only to the winner it is for, and the liable player pays that winner's honba bonus, if the winner is the one who receives it (unless they are the discarder).
 
 ### Dealer Rotation
 
@@ -169,7 +169,7 @@ Rules that could theoretically be adjusted through game settings. Current Ronin 
   - Suji restriction: For the discard immediately after chii, also forbid the tile that would complete a sequence with the two tiles contributed from hand: calling 1m with 23m forbids discarding 4m; calling 4m with 23m forbids 1m. Calling the middle tile (2m with 13m) adds no suji restriction.
   - Red and ordinary fives share a tile type for kuikae.
   - A chii is legal only if at least one legal discard remains after the meld is formed; a chii shape that would leave only kuikae-forbidden tiles is not offered and is rejected. A pon can never leave such a hand.
-- Multiple Ron (Double Ron): Allowed (2 players win simultaneously); riichi sticks from previous rounds go to the winner closest counter-clockwise to the discarder. Both winners receive the honba bonus (+300 per counter each) — the discarder pays the honba bonus to each winner separately. When disabled, Head Bump (Atama Hane) applies: only the player closest counter-clockwise to the discarder wins, and only they receive riichi sticks. For chankan the kan caller takes the discarder's role in both rules.
+- Multiple Ron (Double Ron): Allowed (2 players win simultaneously); riichi sticks from previous rounds and the honba bonus (+300 per counter) go only to the winner closest counter-clockwise to the discarder; the other winner receives the hand value alone. When disabled, Head Bump (Atama Hane) applies: only the player closest counter-clockwise to the discarder wins, and only they receive riichi sticks. For chankan the kan caller takes the discarder's role in both rules.
 
 ### Dora
 

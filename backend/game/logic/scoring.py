@@ -577,8 +577,11 @@ def apply_double_ron_score(
     Returns (new_game_state, result).
 
     Payment structure:
-    - Loser pays each winner separately: main_cost + honba * 300
-    - Riichi sticks go to winner closest to loser's right (counter-clockwise)
+    - Loser pays each winner's main_cost separately
+        is_closest_winner = winner_seat == closest_winner_seat
+        winner_honba_bonus = honba_bonus if is_closest_winner else 0
+        winner_riichi_bonus = riichi_bonus if is_closest_winner else 0
+    - Honba (honba * 300) and riichi sticks go only to the winner closest to loser's right (counter-clockwise)
     - Each winner's pao is evaluated independently (same logic as single ron): a liable player other than the loser
       pays half that winner's pao yakuman and that winner's whole honba bonus, and the loser pays the rest
     """
@@ -591,7 +594,7 @@ def apply_double_ron_score(
     riichi_bonus = game_state.riichi_sticks * settings.riichi_stick_value
 
     winner_seats = {w[0] for w in winners}
-    riichi_receiver = next(
+    closest_winner_seat = next(
         (loser_seat + offset) % NUM_PLAYERS
         for offset in range(1, NUM_PLAYERS)
         if (loser_seat + offset) % NUM_PLAYERS in winner_seats
@@ -605,14 +608,10 @@ def apply_double_ron_score(
             liable_seat=liable_seat,
             loser_seat=loser_seat,
             hand_result=hand_result,
-            honba_bonus=honba_bonus,
+            honba_bonus=winner_honba_bonus,
         )
 
-        winner_total = hand_result.cost_main + honba_bonus
-        if winner_seat == riichi_receiver:
-            winner_total += riichi_bonus
-
-        winner_changes[winner_seat] += winner_total
+        winner_changes[winner_seat] += hand_result.cost_main + winner_honba_bonus + winner_riichi_bonus
         for seat, change in winner_changes.items():
             score_changes[seat] += change
 
@@ -621,14 +620,12 @@ def apply_double_ron_score(
                 winner_seat=winner_seat,
                 hand_result=hand_result.to_info(points=hand_result.cost_main),
                 score_changes=winner_changes,
-                riichi_sticks_collected=(
-                    riichi_bonus // settings.riichi_stick_value if winner_seat == riichi_receiver else 0
-                ),
+                riichi_sticks_collected=winner_riichi_bonus // settings.riichi_stick_value,
                 closed_tiles=list(winner.tiles),
                 melds=[frozen_meld_to_compact(m) for m in winner.melds],
-                honba_bonus=honba_bonus,
+                honba_bonus=winner_honba_bonus,
                 pao_seat=liable_seat,
-                pao=_pao_liability(liable_seat, hand_result, loser_seat=loser_seat, honba_bonus=honba_bonus),
+                pao=_pao_liability(liable_seat, hand_result, loser_seat=loser_seat, honba_bonus=winner_honba_bonus),
                 ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings=settings),
             ),
         )

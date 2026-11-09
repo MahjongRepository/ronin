@@ -103,7 +103,7 @@ describe("extractRoundEndResult", () => {
         expect(after.players.map((player) => player.score)).toEqual([5300, 38_000, 31_700, 25_000]);
     });
 
-    test("double ron on honba: each winner collects its own honba bonus beyond its hand value", () => {
+    test("double ron on honba: only the winner closest to the discarder collects the honba bonus", () => {
         const doubleRon = roundEnds(loadEngineReplay("double_ron_on_honba")).find(
             (end) => end.event.resultType === ROUND_RESULT_TYPE.DOUBLE_RON,
         );
@@ -117,7 +117,7 @@ describe("extractRoundEndResult", () => {
             ]),
         ).toEqual([
             [1, 1600, 600],
-            [3, 1600, 600],
+            [3, 1600, 0],
         ]);
     });
 
