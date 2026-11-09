@@ -71,8 +71,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   top or bottom one runs its third row on); it stays in the core's pinwheel, absolutely placed, its area a normal
   river's turned footprint with its frame turned to the seat inside (a rotation, never `writing-mode`) from the area's
   corner where the first row starts. The geometry reserves nineteen discards for top and bottom rivers when placing
-  slots and badges; a rarer longer third row may overflow that reserve. The styles read only the bottom river's
-  reserved run-on reach (`--reach-bottom-right`).
+  slots and badges; a rarer longer third row may overflow that reserve.
 - **Places are fixed per viewport.** Badges, an opponent's full hand reach, the decisions' place, the notices' place
   and the replay's controls never move with tile counts or what a stop shows; nothing else enters a full hand's reach.
   A place beside a side strip keeps clear of the strip's deepest reach, never its depth as drawn.

@@ -52,13 +52,11 @@ const PHONE_FURITEN_HEIGHT = 18;
  */
 const CONTROL_FAMILIES: readonly string[] = ["decisions-anchor-call"];
 /**
- * Pages showing a toggle off and then pressed (riichi in the band; a call's first step, then its choice of tiles, in
- * the column), whose toggle must stand in one place on a phone: pressing it never moves it.
+ * Pages showing the riichi toggle off and then pressed, which must stand in one place on a phone: pressing it never
+ * moves it. A call's first step may move along the row when its choices open.
  */
 const TOGGLE_FAMILIES: readonly (readonly [string, string])[] = [
     ["decisions-anchor-riichi-off", "decisions-anchor-riichi"],
-    ["decisions-kan-offer", "decisions-kan-choice"],
-    ["decisions-call-prompt", "decisions-chi-choice"],
 ];
 
 /** A toggle with a lamp (the riichi toggle): the state it announces and whether its lamp shows the check. */

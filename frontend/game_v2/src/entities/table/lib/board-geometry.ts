@@ -1474,9 +1474,22 @@ function landscapeLeft(
 }
 
 /**
+ * Where a live row of decisions may start at a row top: anywhere where the bottom river's first two rows end above it
+ * (it may cover the third, which a round rarely reaches), else past the second row, a sideways riichi tile counted.
+ */
+function liveRowStart(at: (name: string) => number, rowTop: number): number {
+    const secondRowBottom = at("cy") + at("h") + at("g") + 2 * at("rh") + LATEST_DISCARD_GAP;
+    if (secondRowBottom <= rowTop) {
+        return -Infinity;
+    }
+    const secondRowEnd = at("cx") - at("hx") + RIVER_ROW_SIZE * at("rw") + at("rh") - at("rw");
+    return secondRowEnd + LATEST_DISCARD_GAP + ACTIONS_GAP;
+}
+
+/**
  * A desktop's decisions' place: after the switches and the own badge's lane where it is its own (a short desktop's
- * past the bottom and right rivers' reach too), to the hand's right end or as far past it as a full row of offers (or
- * a replay's group) needs; its controls stand at its bottom.
+ * past the bottom river's second row where it reaches the row's height, a replay's group past both rivers' reach), to the hand's right end or as far past it as a full row of offers (or
+ * a replay's group) needs, a short desktop's live row to the board's margin, as a phone's; its controls stand at its bottom.
  */
 function desktopActions(
     { at, frame, tier }: ShellRoom,
@@ -1486,7 +1499,10 @@ function desktopActions(
     const { width } = box;
     const m = at("m");
     const short = family === "short-desktop";
-    const pastRivers = Math.max(at("reach-bottom-right"), at("reach-right")) + ACTIONS_GAP;
+    const pastRivers =
+        slots.band === "play"
+            ? liveRowStart(at, own.rowBottom - at("control-h"))
+            : Math.max(at("reach-bottom-right"), at("reach-right")) + ACTIONS_GAP;
     const left = Math.max(
         own.switchesRight + at("band-gap"),
         own.badgeEnd,
@@ -1499,11 +1515,15 @@ function desktopActions(
               DECISION_OFFERS * tier.actionMinW +
               tier.timerW +
               (DECISION_OFFERS + 1) * DECISION_GAP;
+    const shortRight =
+        slots.band === "play"
+            ? m
+            : Math.max(
+                  m + STACKED_DEPTH * at("rw") + DECISION_GAP,
+                  Math.min(width - own.handRight, width - left - ACTIONS_ROW_MIN),
+              );
     const right = short
-        ? Math.max(
-              m + STACKED_DEPTH * at("rw") + DECISION_GAP,
-              Math.min(width - own.handRight, width - left - ACTIONS_ROW_MIN),
-          )
+        ? shortRight
         : Math.max(m, Math.min(width - own.handRight, width - left - need));
     return { bottom: own.rowBottom, left, right: width - right, top: 0 };
 }
@@ -1762,7 +1782,10 @@ function landscapeShell(room: ShellRoom): BoardShell {
     const actions = phone
         ? {
               bottom: rowBottom,
-              left: at("reach-right") + ACTIONS_GAP,
+              left:
+                  frame.slots.band === "play"
+                      ? Math.max(liveRowStart(at, bandTop), switchesRight + at("band-gap"))
+                      : at("reach-right") + ACTIONS_GAP,
               right: width - m,
               top: badges.rightBadgeTop + badgeH + ACTIONS_GAP,
           }

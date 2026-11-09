@@ -711,7 +711,7 @@ describe("boardGeometry's shell tracks", () => {
 
     it("lays a landscape phone's slots where its board measured them", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
-            actions: [493.2, 126, 663, 309.9],
+            actions: [403.2, 126, 663, 309.9],
             corner: [0, 4, 583, 375],
             field: [82, 126, 171.8, 239.9],
             "field-beside": [554.3, 265.9, 634.3, 313.9],

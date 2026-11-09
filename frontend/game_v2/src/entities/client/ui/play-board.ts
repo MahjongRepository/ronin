@@ -176,9 +176,8 @@ function opensTileChoice(action: DecisionAction): boolean {
 }
 
 /**
- * Which control takes the foreground band beside the timer on a phone: the lowest-ranked (the riichi toggle among
- * them), unless it is a win, a choice of tiles or a call's first step, which rise with the rest, so opening a choice
- * never moves its control.
+ * Which control takes the foreground band beside the timer: the lowest-ranked (the riichi toggle among them), unless
+ * it is a win, a choice of tiles or a call's first step, which stay with the rest.
  */
 function bandAction(actions: readonly DecisionAction[]): DecisionAction | null {
     const last = actions.at(-1);
@@ -194,8 +193,8 @@ export type DecisionView = Pick<PlayDisplay, "actions" | "countdown" | "decision
 
 /**
  * The decision's controls by the hand, ranked, with the timer's slot after them: a desktop lays them in one row ending
- * at the hand's right end; a phone keeps the lowest-ranked in the band beside the timer and stacks the rest above it,
- * pairing them when the column is too short. They stay in place while the decision is open or expired, and disappear once answered.
+ * at the hand's right end; a phone lays them in one row ending at the timer and wraps what it cannot hold above it.
+ * They stay in place while the decision is open or expired, and disappear once answered.
  * Only the countdown's thresholds and its bank are announced.
  */
 export function DecisionControls(

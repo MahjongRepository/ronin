@@ -322,8 +322,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   tsumo) outranks every other action; kyuushu kyuuhai, offered at a seat's first turn, ranks with a
   win since it ends the hand, with playing on as the alternative; calls, kan and riichi come next;
   pass is subordinate and never the most prominent thing on screen; several equally valid actions
-  are presented as equals. Decision: a win is larger and ringed; on a phone it takes a row of its
-  own above the calls. The controls show exactly the offer the server made and vanish as soon as
+  are presented as equals. Decision: a win is larger and ringed. The controls show exactly the offer the server made and vanish as soon as
   the player or a play switch answers it. Pass dismisses them silently; a declaration immediately
   shows its callout and plays its voice, while the table waits for the server to resolve the action.
   Decision: a call with a choice of tiles (which chi, which tile to kan) is
@@ -338,19 +337,16 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   After a reconnect the open decision resumes with its remaining time, never a fresh one, and no
   stale selection survives. Decision: on a desktop the controls and the timer after them stand in
   one row ending at the hand's right end, its drawn tile included; on a short desktop, whose core
-  shares the band's corners, the row starts past the bottom river's reserved reach, ending past the
-  hand's end where that leaves less than a wide control (short of the right strip's reserved
-  depth), and the higher-ranked controls stand
-  above the band's control and the timer (the band's control too where the row cannot hold it
-  beside the timer), clear of the right strip's deepest reach. On a phone the lowest-ranked
-  controls, pass last, and the timer float in the gap between the bottom river and the hand instead
-  of owning a foreground row, and never reach past the own river's reserved edge (a sideways riichi
-  tile counted): at the band's right end, past the bottom and right rivers' reserved reach, the
-  row stepping in past the right hand where it runs across the band; the rest rise in rank order,
-  right-aligned, between the right river's capacity edge and the right strip's deepest reach,
-  pairing up before they would reach the side badge; at the first step a pair may shed its tile
-  previews to fit, since the action source shows the tile, while the second step's groups always
-  keep their tiles. Every control keeps visible space around its label and its choice tiles, the
+  shares the band's corners, the row starts past the switches and the own badge's lane, over the bottom river's third row if it must (a round rarely reaches it), ends short of the
+  right strip's deepest reach, the timer just past its end in that lane under the strip, and, like a
+  phone's, wraps what it cannot hold above it in rank order. On a phone the controls and the timer float in the gap between the bottom
+  river and the hand instead of owning a foreground row, and never reach over the own river's
+  first two rows (a sideways riichi tile counted), as Mahjong Soul's and Tenhou's stand over the hand:
+  one row, pass last by the timer at the band's right end, past the bottom river's second row, stepping in past the right hand where it runs across the band; what the row cannot hold
+  wraps above it in rank order, the highest on top, short of the right strip's deepest reach; on the smallest
+  phone a wrapped line may reach into a side river's fourth row (a rare overlap, accepted). Two or more offers above pass shed their first-step tile previews;
+  the second step's groups always keep their tiles, and opening that step may move its toggle along
+  the row, as the choices take its place. Every control keeps visible space around its label and its choice tiles, the
   longest label at the floor viewport included; a target that meets the size floor with its text
   touching its border has failed.
 - **Input.** The contract the current board has, kept: a tile of the own hand is a button; one tap,
@@ -689,7 +685,7 @@ own side of the panel. Off a phone the centre is square. On a short desktop its 
 play switches. On a desktop the core stands above the
 foreground band, its side at most 0.74 of the height. On a phone and a short desktop the core uses
 the height between the top strip's slot and the own hand, and the foreground band shares its lower
-corners, which the pinwheel leaves empty, its controls kept outside every river's reserved reach. A
+corners, which the pinwheel leaves empty, its controls kept off the own river's first two rows, its third row free to lie under them (a round rarely reaches it). A
 short desktop's core ends its left river's capacity above the play switches, which stand over the
 own badge's lane, centred in its room only as far as that allows. On a short desktop that place is
 as tall as the play switches or the replay's moves (which stand there where the band shares the

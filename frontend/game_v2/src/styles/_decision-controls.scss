@@ -2,22 +2,8 @@
 @use "@/styles/type";
 
 $row: 40px;
-$choice-tile-share: 0.45;
 $preview-tile-share: 0.42;
-
-@property --upper-clear {
-    syntax: "<length>";
-    inherits: true;
-    initial-value: 0;
-}
-
-/* A short desktop's rows of decisions stand clear of the right strip's deepest reach. */
-.board-table {
-    --upper-clear: max(
-        0px,
-        var(--m) + var(--strip-reserve) + #{$decision-gap} - var(--actions-right)
-    );
-}
+$row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
 
 /* The band end's slot: a desktop's band row past the switches and the own badge's lane, its controls at its bottom; a
    phone's column beside the right river and strip, under the right badge. */
@@ -58,12 +44,14 @@ $preview-tile-share: 0.42;
     gap: var(--decision-gap, #{$decision-gap});
     min-width: 0;
 
-    @include phone-board {
+    @include shared-corners-board {
+        position: relative;
         flex: 1;
-        flex-flow: column nowrap;
-        align-items: stretch;
-        justify-content: flex-end;
+        flex-flow: row-reverse wrap-reverse;
+        align-items: flex-start;
+        align-content: flex-start;
         gap: $small-decision-gap;
+        padding-right: calc(#{$row-end} + #{$small-decision-gap});
     }
 
     @include upright-board {
@@ -74,22 +62,8 @@ $preview-tile-share: 0.42;
     }
 
     @include short-desktop-board {
-        flex-flow: column-reverse nowrap;
-        align-items: flex-end;
-
-        > .decision-controls__band {
-            flex-flow: row-reverse wrap-reverse;
-            justify-content: flex-start;
-            max-width: 100%;
-        }
-
-        > .decision-controls__band > .decision-timer {
-            order: -1;
-        }
-
-        > .decision-controls__band > .decision-controls__action {
-            margin-right: var(--upper-clear);
-        }
+        --action-min-w: 64px;
+        --win-min-w: 96px;
     }
 }
 
@@ -105,8 +79,8 @@ $preview-tile-share: 0.42;
         display: none;
     }
 
-    @include phone-board {
-        gap: $small-decision-gap;
+    @include shared-corners-board {
+        display: contents;
     }
 
     @include upright-board {
@@ -121,29 +95,8 @@ $preview-tile-share: 0.42;
     @include desktop-board {
         order: -1;
     }
-
-    @include phone-board {
-        justify-content: flex-end;
-        min-height: var(--control-h);
-        margin-right: var(--band-shift);
-        margin-left: max(
-            0px,
-            var(--reach-bottom-right) + 5px - var(--actions-left),
-            var(--switches-right) + var(--band-gap) - var(--actions-left)
-        );
-
-        &:empty {
-            display: flex;
-        }
-
-        > .decision-controls__action {
-            margin-right: max(0px, var(--strip-reserve) - var(--band-shift) - var(--timer-w));
-        }
-    }
 }
 
-/* A phone's column: one control a row, right-aligned, a win or a choice across it; pairs where it is too short, each
-   pair shedding its previews (the action source shows the tile). A short desktop's rows stand clear of the right strip. */
 .decision-controls__upper {
     @include upright-board {
         flex-shrink: 0;
@@ -151,43 +104,12 @@ $preview-tile-share: 0.42;
         margin-right: var(--upright-upper-clear);
     }
 
-    @include short-desktop-board {
-        padding-right: var(--upper-clear);
-    }
-
-    @include phone-board {
-        flex-flow: column nowrap;
-        align-items: flex-end;
-        padding-right: calc(
-            max(var(--strip-reserve), var(--band-shift) + var(--timer-w)) + #{$small-decision-gap}
-        );
-
-        > .decision-controls__action--win,
-        > .decision-controls__action--choice {
-            align-self: stretch;
+    @include shared-corners-board {
+        @for $from-end from 1 through 6 {
+            > :nth-last-child(#{$from-end}) {
+                order: $from-end;
+            }
         }
-    }
-}
-
-$pair-gap: 4px;
-
-@mixin paired-column {
-    flex-flow: row wrap;
-    place-content: flex-end flex-end;
-    column-gap: $pair-gap;
-
-    > .decision-controls__action {
-        flex: 0 1 calc(50% - #{$pair-gap} / 2);
-        padding-inline: 0.3em;
-    }
-
-    > .decision-controls__action--win,
-    > .decision-controls__action--choice {
-        flex-basis: 100%;
-    }
-
-    .decision-controls__tiles {
-        display: none;
     }
 }
 
@@ -208,14 +130,6 @@ $pair-gap: 4px;
             .decision-controls__action--win {
                 min-width: 96px;
             }
-        }
-    }
-}
-
-@for $rows from 2 through 6 {
-    @container decisions (height < #{$rows * ($row + $small-decision-gap) + $row + $win-rise}) {
-        .decision-controls[data-upper="#{$rows}"] > .decision-controls__upper {
-            @include paired-column;
         }
     }
 }
@@ -260,6 +174,10 @@ $pair-gap: 4px;
         padding-inline: 1em;
         border-radius: 12px;
     }
+
+    @include shared-corners-board {
+        padding-inline: 0.5em;
+    }
 }
 
 .decision-controls .decision-controls__action--pass {
@@ -294,7 +212,7 @@ $pair-gap: 4px;
 
 /* A desktop row reads the open call first, before its choices; a phone's column keeps it last, where it stood. */
 .decision-controls .decision-controls__action--step[aria-pressed="true"] {
-    @include desktop-board {
+    @include board-where('[data-board-family="desktop"]') {
         order: -1;
     }
 }
@@ -308,6 +226,10 @@ $pair-gap: 4px;
         background-color: var(--ronin-surface);
         box-shadow: none;
         color: var(--ronin-text);
+
+        @include shared-corners-board {
+            padding-inline: 0.25rem;
+        }
     }
 }
 
@@ -352,6 +274,12 @@ $pair-gap: 4px;
     gap: 1px;
 }
 
+.decision-controls:not([data-upper="0"], [data-upper="1"]) .decision-controls__tiles {
+    @include phone-board {
+        display: none;
+    }
+}
+
 /* A control's tiles stay inside the room the band keeps for its row: the control's height and the band's slack, less
    the 4px a control keeps from a tile, so a large board's controls never reach the bottom river. */
 .decision-controls {
@@ -367,11 +295,16 @@ $pair-gap: 4px;
 }
 
 .decision-controls__group {
-    --board-tile-w: min(var(--ow) * #{$choice-tile-share}, (var(--row-room) - 18px) * 3 / 4);
+    --choice-tile-share: 0.45;
+    --board-tile-w: min(var(--ow) * var(--choice-tile-share), (var(--row-room) - 18px) * 3 / 4);
     --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
 
+    @include phone-board {
+        --choice-tile-share: 0.4;
+    }
+
     &:has(.meld-tile-stacked) {
-        --board-tile-w: min(var(--ow) * #{$choice-tile-share}, (var(--row-room) - 18px) / 2);
+        --board-tile-w: min(var(--ow) * var(--choice-tile-share), (var(--row-room) - 18px) / 2);
     }
 }
 
@@ -385,6 +318,12 @@ $pair-gap: 4px;
     height: var(--control-h);
     white-space: nowrap;
     color: var(--ronin-text);
+
+    @include shared-corners-board {
+        position: absolute;
+        right: calc(#{$row-end} - var(--timer-w));
+        bottom: 0;
+    }
 }
 
 .decision-timer__caption {
