@@ -31,3 +31,24 @@
     min-width: 0;
     overflow-wrap: anywhere;
 }
+
+.tournament-delete {
+    summary {
+        width: fit-content;
+        color: var(--ronin-danger-text);
+        cursor: pointer;
+    }
+
+    form {
+        max-width: 36rem;
+        margin-top: 0.75rem;
+    }
+
+    button {
+        width: auto;
+        margin-bottom: 0;
+        border-color: var(--ronin-danger);
+        background: var(--ronin-danger);
+        color: #fff;
+    }
+}

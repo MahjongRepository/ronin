@@ -8,6 +8,9 @@ if TYPE_CHECKING:
 
     from lobby.players import LobbyPlayer
 
+TOURNAMENT_DELETED = "tournament_deleted"
+_DELETED_CLOSE_CODE = 4000
+
 
 class TournamentHub:
     """
@@ -103,6 +106,17 @@ class TournamentHub:
         Send a message to the players online in the tournament only, encoded once; ``exclude`` skips one connection.
         """
         self._send_to_players(tournament_id, json.dumps(message), exclude=exclude)
+
+    def close_deleted_tournament(self, tournament_id: str) -> None:
+        """
+        Tell every player connection and events subscriber of a deleted tournament ``tournament_deleted``, close them
+        and forget them all.
+        """
+        players = self._online.pop(tournament_id, {})
+        subscribers = self._subscribers.pop(tournament_id, {})
+        for connection in [*players.values(), *subscribers.values()]:
+            connection.send({"type": "error", "message": TOURNAMENT_DELETED})
+            connection.connection.close(code=_DELETED_CLOSE_CODE, reason=TOURNAMENT_DELETED)
 
     def _send_to_players(self, tournament_id: str, payload: str, *, exclude: str | None) -> None:
         for player in self._online.get(tournament_id, {}).values():

@@ -269,6 +269,7 @@
     "tournament.error.page_setup_failed": "この大会を読み込めませんでした。ページを再読み込みしてください。",
     "tournament.error.rate_limited": "メッセージの送信が速すぎます。少し待ってください。",
     "tournament.error.replaced_by_new_connection": "この大会は別のタブまたはウィンドウで開かれています。このページは閉じてかまいません。",
+    "tournament.error.tournament_deleted": "主催者がこの大会を削除しました。",
     "tournament.error.tournament_not_found": "この大会はもう存在しません。",
     "tournament.error.unknown": "大会で問題が発生しました。",
     "tournament.online_count": {

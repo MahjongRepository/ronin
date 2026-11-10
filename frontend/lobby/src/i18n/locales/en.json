@@ -277,6 +277,7 @@
     "tournament.error.page_setup_failed": "This tournament couldn't be loaded. Reload the page to try again.",
     "tournament.error.rate_limited": "You're sending messages too fast. Wait a moment.",
     "tournament.error.replaced_by_new_connection": "This tournament is now open in another tab or window. You can close this one.",
+    "tournament.error.tournament_deleted": "The owner deleted this tournament.",
     "tournament.error.tournament_not_found": "This tournament no longer exists.",
     "tournament.error.unknown": "Something went wrong in this tournament.",
     "tournament.online_count": {

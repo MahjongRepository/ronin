@@ -19,6 +19,8 @@ if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.responses import Response
 
+    from lobby.tournaments.game_end_poller import TournamentGameEndPoller
+    from lobby.tournaments.hub import TournamentHub
     from shared.dal.tournament_repository import TournamentRepository
 
 TOURNAMENT_NAME_MAX_LENGTH = 80
@@ -83,10 +85,67 @@ async def tournament_page(request: Request) -> Response:
             "share_url": str(request.url_for("tournament_page", tournament_id=tournament.id)),
             "ws_url": f"{ws_scheme}://{request.url.netloc}/ws/tournaments/{tournament.id}",
             "chat_max_length": CHAT_MAX_LENGTH,
+            "tournament_name_max_length": TOURNAMENT_NAME_MAX_LENGTH,
             "is_owner": tournament.owner_user_id == request.user.user_id,
             "username": request.user.username,
         },
     )
+
+
+async def rename_tournament_and_redirect(request: Request) -> Response:
+    """
+    POST /tournaments/{tournament_id}/rename - rename the owner's tournament and redirect back to its page.
+
+    Anyone but the owner gets the 404 of an unknown tournament; an invalid name gets a 400.
+    """
+    form = await request.form()
+    csrf_error = validate_csrf(request, form)
+    if csrf_error:
+        return csrf_error
+
+    tournament = await _find_owned_tournament(request)
+    name = _parse_tournament_name(form.get("name"))
+    if name is None:
+        raise HTTPException(HTTPStatus.BAD_REQUEST)
+
+    tournament_repo: TournamentRepository = request.app.state.tournament_repo
+    await tournament_repo.rename_tournament(tournament.id, name)
+    return RedirectResponse(f"/tournaments/{tournament.id}", status_code=303)
+
+
+async def delete_tournament_and_redirect(request: Request) -> Response:
+    """
+    POST /tournaments/{tournament_id}/delete - delete the owner's tournament and redirect to the lobby.
+
+    Its open sockets are told ``tournament_deleted`` and closed, and its games are no longer watched for their end;
+    games already running keep playing. Anyone but the owner gets the 404 of an unknown tournament.
+    """
+    form = await request.form()
+    csrf_error = validate_csrf(request, form)
+    if csrf_error:
+        return csrf_error
+
+    tournament = await _find_owned_tournament(request)
+    tournament_repo: TournamentRepository = request.app.state.tournament_repo
+    await tournament_repo.delete_tournament(tournament.id)
+
+    hub: TournamentHub = request.app.state.tournament_hub
+    hub.close_deleted_tournament(tournament.id)
+    poller: TournamentGameEndPoller = request.app.state.tournament_game_end_poller
+    poller.untrack_tournament(tournament.id)
+    return RedirectResponse("/", status_code=303)
+
+
+async def _find_owned_tournament(request: Request) -> Tournament:
+    """
+    Return the tournament of the path when the user owns it; raise a 404 for an unknown one or anyone else's.
+    """
+    tournament_repo: TournamentRepository = request.app.state.tournament_repo
+    tournament = await tournament_repo.get_tournament(request.path_params["tournament_id"])
+    if tournament is None or tournament.owner_user_id != request.user.user_id:
+        raise HTTPException(HTTPStatus.NOT_FOUND)
+
+    return tournament
 
 
 async def game_exit_redirect(request: Request) -> Response:

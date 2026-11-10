@@ -20,9 +20,12 @@ const RECONNECT_MAX_DELAY_MS = 15_000;
 const MAX_RECONNECT_ATTEMPTS = 24;
 const RESUME_RECONNECT_AFTER_HIDDEN_MS = 20_000;
 
+const TOURNAMENT_DELETED = "tournament_deleted";
+
 const TOURNAMENT_ERROR_CODES = [
     "rate_limited",
     "tournament_not_found",
+    TOURNAMENT_DELETED,
     OCCUPANCY.REPLACED_BY_NEW_CONNECTION,
     PAGE_ERROR.GAME_START_INVALID,
     PAGE_ERROR.PAGE_SETUP_FAILED,
@@ -205,7 +208,12 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
 
     function onError(message: Record<string, unknown>): void {
         const code = message.message;
-        if (!state.joined || state.reconnecting || code === OCCUPANCY.REPLACED_BY_NEW_CONNECTION) {
+        if (
+            !state.joined ||
+            state.reconnecting ||
+            code === OCCUPANCY.REPLACED_BY_NEW_CONNECTION ||
+            code === TOURNAMENT_DELETED
+        ) {
             endPage(String(code));
             return;
         }

@@ -293,6 +293,7 @@
     "tournament.error.page_setup_failed": "Не удалось загрузить турнир. Обновите страницу.",
     "tournament.error.rate_limited": "Вы отправляете сообщения слишком часто. Подождите немного.",
     "tournament.error.replaced_by_new_connection": "Турнир открыт в другой вкладке или окне. Эту можно закрыть.",
+    "tournament.error.tournament_deleted": "Владелец удалил этот турнир.",
     "tournament.error.tournament_not_found": "Этого турнира больше нет.",
     "tournament.error.unknown": "В турнире что-то пошло не так.",
     "tournament.online_count": {

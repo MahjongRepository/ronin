@@ -37,6 +37,21 @@
         <li>{{ t("tournament.owner.state", value=state_code) }}</li>
         <li>{{ t("tournament.owner.events", value=events_code) }}</li>
     </ul>
+
+    <form method="POST" action="/tournaments/{{ tournament.id }}/rename" class="lobby-tournament-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="text" name="name" value="{{ tournament.name }}" required maxlength="{{ tournament_name_max_length }}" aria-label="{{ t('lobby.tournament.name_label') }}" autocomplete="off">
+        <button type="submit" class="outline">{{ t("tournament.owner.rename") }}</button>
+    </form>
+
+    <details class="tournament-delete">
+        <summary>{{ t("tournament.owner.delete.open") }}</summary>
+        <form method="POST" action="/tournaments/{{ tournament.id }}/delete">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <p>{{ t("tournament.owner.delete.warning") }}</p>
+            <button type="submit">{{ t("tournament.owner.delete.confirm") }}</button>
+        </form>
+    </details>
 </section>
 {% endif %}
 {% endblock %}

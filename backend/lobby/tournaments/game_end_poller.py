@@ -47,6 +47,12 @@ class TournamentGameEndPoller:
         """
         self._games[game.game_id] = game
 
+    def untrack_tournament(self, tournament_id: str) -> None:
+        """
+        Stop watching every game of a tournament.
+        """
+        self._games = {game_id: game for game_id, game in self._games.items() if game.tournament_id != tournament_id}
+
     async def start(self) -> None:
         """
         Track the tournament games left unfinished, then start the polling task.

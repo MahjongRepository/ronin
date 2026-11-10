@@ -40,6 +40,18 @@ class SqliteTournamentRepository(TournamentRepository):
         """
         return await self._db.submit_read(partial(_select_tournaments_by_owner, owner_user_id=owner_user_id))
 
+    async def rename_tournament(self, tournament_id: str, name: str) -> None:
+        """
+        Give the tournament a new name.
+        """
+        await self._db.submit_write(partial(_update_tournament_name, tournament_id=tournament_id, name=name))
+
+    async def delete_tournament(self, tournament_id: str) -> None:
+        """
+        Remove the tournament and the record of its games in one write.
+        """
+        await self._db.submit_write(partial(_delete_tournament, tournament_id=tournament_id))
+
     async def add_game(self, game: TournamentGame) -> None:
         """
         Insert a game started for a tournament.
@@ -95,6 +107,15 @@ def _select_tournaments_by_owner(conn: sqlite3.Connection, *, owner_user_id: str
         (owner_user_id,),
     ).fetchall()
     return [_tournament_from_row(row) for row in rows]
+
+
+def _update_tournament_name(conn: sqlite3.Connection, *, tournament_id: str, name: str) -> None:
+    conn.execute("UPDATE tournaments SET name = ? WHERE id = ?", (name, tournament_id))
+
+
+def _delete_tournament(conn: sqlite3.Connection, *, tournament_id: str) -> None:
+    conn.execute("DELETE FROM tournament_games WHERE tournament_id = ?", (tournament_id,))
+    conn.execute("DELETE FROM tournaments WHERE id = ?", (tournament_id,))
 
 
 def _tournament_from_row(row: tuple[str, str, str, float]) -> Tournament:

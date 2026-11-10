@@ -324,3 +324,35 @@ def test_game_exit__when_game_is_not_tournament__should_redirect_to_lobby(client
 
     assert response.status_code == 303
     assert response.headers["location"] == "/"
+
+
+def test_tournament_delete__when_owner_deletes__should_close_sockets_and_return_404(client, tournament_id):
+    owner_key = _issue_api_token(client)
+    csrf = client.cookies.get(CSRF_COOKIE_NAME)
+
+    with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
+        ws_alice.receive_json()
+
+        deleted = client.post(f"/tournaments/{tournament_id}/delete", data={"csrf_token": csrf}, follow_redirects=False)
+
+        assert ws_alice.receive_json() == {"type": "error", "message": "tournament_deleted"}
+        with pytest.raises(WebSocketDisconnect) as closed:
+            ws_alice.receive_json()
+
+    assert (deleted.status_code, deleted.headers["location"]) == (303, "/")
+    assert closed.value.code == 4000
+    assert client.get(f"/tournaments/{tournament_id}").status_code == 404
+    client.cookies.delete("session_id")
+    assert client.get(f"/api/tournaments/{tournament_id}", headers={"x-api-key": owner_key}).status_code == 404
+
+
+def test_tournament_delete__when_user_is_not_owner__should_return_404(client, tournament_id):
+    login_with_csrf(client, "bob")
+    client.get(f"/tournaments/{tournament_id}")
+
+    refused = client.post(
+        f"/tournaments/{tournament_id}/delete", data={"csrf_token": client.cookies.get(CSRF_COOKIE_NAME)}
+    )
+
+    assert refused.status_code == 404
+    assert client.get(f"/tournaments/{tournament_id}").status_code == 200

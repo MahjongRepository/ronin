@@ -13,7 +13,8 @@ session cookie: a cookie takes precedence over the key, so such a request gets t
 everything the account can do, so keep it secret.
 
 A tournament that does not exist, or that the key's account does not own, gets
-`404 {"error": "tournament_not_found"}` on every route below.
+`404 {"error": "tournament_not_found"}` on every route below. A deleted tournament is gone with its games: it answers
+the same 404, and its open events sockets are closed (see Events).
 
 ## Players
 
@@ -102,6 +103,8 @@ sends; anything the client sends is ignored. Several may be open at once. Every 
   game's end.
 - `error` — `{"type": "error", "message": "tournament_not_found"}`, then the socket closes with code 4000. A handshake
   without a valid key is refused with 4001.
+- `error` — `{"type": "error", "message": "tournament_deleted"}`: the owner deleted the tournament on its page. The
+  socket then closes with code 4000.
 
 ## Reconciliation and limits
 
@@ -110,3 +113,4 @@ gaps, connect the events socket first, then read the snapshot, and on a reconnec
 
 A game that never started (nobody joined it within the game server's pending timeout) or that was lost to a game
 server crash never gets an end: it stays with a `null` `ended_at` in the snapshot and no `game_ended` is sent for it.
+Deleting a tournament does not stop its running games: they play on, and no `game_ended` is sent for them.

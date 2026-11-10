@@ -22,6 +22,15 @@ class TournamentRepository(ABC):
     async def list_tournaments_by_owner(self, owner_user_id: str) -> list[Tournament]: ...
 
     @abstractmethod
+    async def rename_tournament(self, tournament_id: str, name: str) -> None: ...
+
+    @abstractmethod
+    async def delete_tournament(self, tournament_id: str) -> None:
+        """
+        Remove the tournament and the record of its games.
+        """
+
+    @abstractmethod
     async def add_game(self, game: TournamentGame) -> None: ...
 
     @abstractmethod

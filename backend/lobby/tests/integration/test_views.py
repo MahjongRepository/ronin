@@ -424,6 +424,17 @@ class TestTournamentViews:
         lobby = client.get("/")
         assert f'<a href="{page_path}">Spring Cup</a>' in lobby.text
 
+    def test_tournament_rename__when_owner_posts_new_name__should_show_it_on_page(self, client):
+        client.get("/")
+        csrf = client.cookies.get(CSRF_COOKIE_NAME)
+        page_path = client.post("/tournaments/new", data={"name": "Spring Cup", "csrf_token": csrf}).url.path
+
+        renamed = client.post(f"{page_path}/rename", data={"name": " Autumn Cup ", "csrf_token": csrf})
+
+        assert renamed.url.path == page_path
+        assert '<h2 class="tournament-name">Autumn Cup</h2>' in renamed.text
+        assert "Spring Cup" not in renamed.text
+
     def test_tournament_create__when_name_has_format_character__should_refuse_and_create_nothing(self, client):
         client.get("/")
         csrf = client.cookies.get(CSRF_COOKIE_NAME)
