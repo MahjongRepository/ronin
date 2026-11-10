@@ -39,7 +39,7 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   occupancy rule as an injected callable.
 * `game_transition.py` — the one game start for rooms and matchmaking, the game server client calls,
   the "is this user playing" lookup and the recovery of a lost handoff. `websocket_utils.py` — the
-  socket prologue rooms, matchmaking and tournaments share (`Origin` check, auth, accept, the writer's lifetime);
+  socket prologue rooms, matchmaking and tournaments share (auth, `Origin` check, accept, the writer's lifetime);
   each handler decides what an unexpected error does.
 * The lobby calls the game server through one HTTP client per app, built in `create_app()` and
   closed in the lifespan. Its idle connections expire well before the game server's keep-alive
@@ -204,10 +204,10 @@ Mandatory for all lobby code; review must catch violations.
   response carrying a credential (a game ticket) is `Cache-Control: no-store`.
 * The internal API secret is sent only to the game server, as a bearer header; no page or browser
   response ever holds it.
-* Room, matchmaking and tournament WebSockets refuse a cookie-authenticated or unauthenticated socket whose
-  `Origin` is not exactly the configured one, a setting every deployment must supply. A key-authenticated
-  handshake on any lobby socket is exempt: the check defends the cookie a browser attaches to a cross-site socket,
-  and no browser sends an `X-API-Key` on its own.
+* Room, matchmaking and tournament WebSockets refuse an unauthenticated socket with 4001, then a
+  cookie-authenticated one with 4003 when its `Origin` is not exactly the configured one, a setting every
+  deployment must supply. A key-authenticated handshake on any lobby socket is exempt from the `Origin` check: it
+  defends the cookie a browser attaches to a cross-site socket, and no browser sends an `X-API-Key` on its own.
 * Two CSP tiers: lobby pages (same-origin connect) and game pages (`/play/*`, `/game-assets/`,
   external WebSockets allowed). A new route fits a tier or gets an explicit policy.
 * Replay serving reads files only through `shared.storage.read_replay`, which keeps the id checks,

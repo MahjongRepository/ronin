@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from starlette.authentication import AuthCredentials
 
-from lobby.auth.backend import SessionOrApiKeyBackend
+from lobby.auth.backend import API_KEY_SCOPE, SessionOrApiKeyBackend
 from lobby.auth.models import AuthenticatedPlayer
 from shared.dal.models import AccountType, AuthSession, Player
 
@@ -215,6 +215,7 @@ class TestSessionTakesPrecedenceOverApiKey:
 
         result = await backend.authenticate(conn)
         assert result is not None
-        _, user = result
+        creds, user = result
         assert user.username == "testuser"  # from session, not bot
+        assert API_KEY_SCOPE not in creds.scopes
         auth_service.validate_api_key.assert_not_called()

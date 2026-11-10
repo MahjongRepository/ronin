@@ -32,16 +32,16 @@ async def serve_lobby_socket(websocket: WebSocket, serve: Callable[[LobbyPlayer]
     """
     Admit a lobby socket and hand its player to ``serve``; this task owns the connection's writer.
 
-    A cookie-authenticated or unauthenticated socket with a foreign ``Origin`` is refused with 4003 and an
-    unauthenticated one with 4001, both before accept; a key-authenticated socket skips the ``Origin`` check. The writer
-    runs while ``serve`` does and is stopped however it ends; ``serve`` decides what an unexpected error does.
+    An unauthenticated socket is refused with 4001 and then a cookie-authenticated one with a foreign ``Origin`` with
+    4003, both before accept; a key-authenticated socket skips the ``Origin`` check. The writer runs while ``serve``
+    does and is stopped however it ends; ``serve`` decides what an unexpected error does.
     """
-    if not _check_origin(websocket):
-        await reject_websocket(websocket, code=4003, reason="forbidden_origin")
-        return
-
     if not websocket.user.is_authenticated:
         await reject_websocket(websocket, code=4001, reason="unauthorized")
+        return
+
+    if not _check_origin(websocket):
+        await reject_websocket(websocket, code=4003, reason="forbidden_origin")
         return
 
     if not await accept_websocket(websocket):

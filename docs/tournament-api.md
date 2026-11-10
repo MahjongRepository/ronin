@@ -101,7 +101,7 @@ sends; anything the client sends is ignored. Several may be open at once. Every 
   "...", "result": [...]}`, with `end_reason` and `result` as in the snapshot. It arrives within a few seconds of the
   game's end.
 - `error` — `{"type": "error", "message": "tournament_not_found"}`, then the socket closes with code 4000. A handshake
-  without a valid key is refused: 4001, or 4003 when it also lacks the lobby's own `Origin`.
+  without a valid key is refused with 4001.
 
 ## Reconciliation and limits
 
