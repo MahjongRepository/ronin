@@ -5,8 +5,8 @@ Connect the tournament's events socket, wait until every given player is online,
 start those through the tournament API, then wait for a ``game_started`` and a ``game_ended`` of every started game
 and read the snapshot. Every API response and every event goes to the log. Exits 1 when a table fails to start, a
 ``game_started`` names other players or another order than submitted, a game does not end as completed, its
-``game_ended`` seats do not run East to North in the submitted order (each player one engine seat after the one before,
-counted from the seat East holds), the snapshot read fails, or a deadline passes.
+``game_ended`` seats do not hold the table in submitted turn order (each player one engine seat after the one before;
+the event names no dealer, so which seat is East is not checked), the snapshot read fails, or a deadline passes.
 
 Usage: uv run --project backend python bin/tournament_manager.py --lobby-url URL --tournament ID --api-key KEY
     --log PATH <player>...
@@ -109,7 +109,8 @@ def check_started(event: dict[str, object], submitted: dict[str, list[str]]) -> 
 
 def check_seating(event: dict[str, object], table: list[str]) -> bool:
     """
-    Return whether the game's engine seats hold the table in wind order, each player one seat after the one before.
+    Return whether the game's engine seats hold the table in submitted turn order, each player one seat after the one
+    before; whether the first sits at the dealer seat is not checked, as the event names no dealer.
     """
     seats = {entry["name"]: entry["seat"] for entry in event["result"]}
     east_seat = seats[table[0]]
@@ -118,7 +119,7 @@ def check_seating(event: dict[str, object], table: list[str]) -> bool:
         logger.error("game %s seated %s, the submitted table needs %s", event["game_id"], seats, expected)
         return False
 
-    logger.info("game %s seated East to North as submitted, engine seats %s", event["game_id"], seats)
+    logger.info("game %s seated in submitted turn order, engine seats %s", event["game_id"], seats)
     return True
 
 
@@ -139,7 +140,7 @@ async def follow_games(events: ClientConnection, submitted: dict[str, list[str]]
                 ended[event["game_id"]] = completed and check_seating(event, submitted[event["game_id"]])
 
     all_started = all(started.get(game_id, False) for game_id in submitted)
-    logger.info("games ended completed and seated as submitted: %s", json.dumps(ended))
+    logger.info("games ended completed and seated in submitted turn order: %s", json.dumps(ended))
     return all_started and all(ended.values())
 
 
