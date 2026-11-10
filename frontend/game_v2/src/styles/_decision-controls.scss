@@ -364,13 +364,13 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     align-items: center;
     gap: 0.4em;
     padding: 0.25em 0.55em;
-    font-size: 12px;
+    font-size: max(12px, var(--text));
     font-weight: 650;
     line-height: 1;
     white-space: nowrap;
     color: var(--ronin-badge-ink);
     background: var(--ronin-badge);
-    border-radius: 4px;
+    border-radius: 0.33em;
 }
 
 .board-furiten__dot {
