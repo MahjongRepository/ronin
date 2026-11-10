@@ -1,9 +1,9 @@
 import { assertNever } from "@/shared/lib";
 
 import { boardNotices } from "./board-notices";
-import { choosingTiles, pickingRiichi } from "./decision-controls";
+import { pickingRiichi } from "./decision-controls";
 import { decisionOf } from "./pending";
-import { type PlayCommand, type PlayUi, type PlayUiInput, type TileChoiceKind } from "./play-ui";
+import { type PlayCommand, type PlayUi, type PlayUiInput } from "./play-ui";
 import { resultRound } from "./result-controls";
 import { stepSettingsMenu } from "./settings-menu";
 import { type LiveClient, type LocalIntent } from "./types";
@@ -21,34 +21,21 @@ function answeredDecision(state: LiveClient): boolean {
     return decisionOf(state)?.status.kind === "submitted";
 }
 
-/** Picking riichi's discard turned on (for the open decision, closing a choice of tiles) or off. */
+/** Picking riichi's discard turned on (for the open decision) or off. */
 function toggledRiichiPick(state: LiveClient, ui: PlayUi): PlayUi {
     if (answeredDecision(state)) {
         return ui;
     }
     const waitId = decisionOf(state)?.waitId ?? null;
     const riichiPickWaitId = pickingRiichi(state, ui) ? null : waitId;
-    return { ...ui, riichiPickWaitId, tileChoice: null };
+    return { ...ui, riichiPickWaitId };
 }
 
-/** A call's choice of tiles opened (for the open decision, turning the riichi pick off) or closed. */
-function toggledTileChoice(state: LiveClient, ui: PlayUi, kind: TileChoiceKind): PlayUi {
-    const decision = decisionOf(state);
-    if (decision === null || answeredDecision(state)) {
-        return ui;
-    }
-    const tileChoice = choosingTiles(state, ui) === kind ? null : { kind, waitId: decision.waitId };
-    return { ...ui, riichiPickWaitId: null, tileChoice };
-}
-
-/** The view's `ui` after one of the open decision's steps: an armed tile, the riichi toggle, a call's choice of tiles, a step back. */
+/** The view's `ui` after one of the open decision's steps: an armed tile, the riichi toggle, a step back. */
 function steppedDecision(
     state: LiveClient,
     ui: PlayUi,
-    command: Extract<
-        PlayCommand,
-        { kind: "arm_tile" | "toggle_riichi_pick" | "toggle_tile_choice" | "step_back" }
-    >,
+    command: Extract<PlayCommand, { kind: "arm_tile" | "toggle_riichi_pick" | "step_back" }>,
 ): PlayUi {
     if (command.kind === "arm_tile") {
         return armedTileUi(state, ui, command.tileId);
@@ -56,9 +43,7 @@ function steppedDecision(
     if (command.kind === "toggle_riichi_pick") {
         return toggledRiichiPick(state, ui);
     }
-    return command.kind === "toggle_tile_choice"
-        ? toggledTileChoice(state, ui, command.offer)
-        : steppedBack(state, ui);
+    return steppedBack(state, ui);
 }
 
 type PageControlCommand = Extract<
@@ -112,13 +97,10 @@ function pageControlsUi(ui: PlayUi, command: PageControlCommand): PlayUi {
     }
 }
 
-/** One step back: out of a call's choice of tiles, else the riichi pick off. */
+/** One step back: the riichi pick off. */
 function steppedBack(state: LiveClient, ui: PlayUi): PlayUi {
     if (answeredDecision(state)) {
         return ui;
-    }
-    if (choosingTiles(state, ui) !== null) {
-        return { ...ui, tileChoice: null };
     }
     return { ...ui, riichiPickWaitId: null };
 }
@@ -146,9 +128,8 @@ function toggledInputSetting(ui: PlayUi, kind: "toggle_right_click" | "toggle_ke
 }
 
 /**
- * The view's `ui` after a command, before it settles: picking riichi's discard, or choosing a call's tiles, turns on or off for the open
- * decision, each turning the other off, and an answered decision keeps both as they were; stepping back leaves the
- * choice of tiles, else the riichi pick; the result's panel turns to a page of the result showing, and the game's last
+ * The view's `ui` after a command, before it settles: picking riichi's discard turns on or off for the open
+ * decision, and an answered decision keeps it as it was; stepping back turns the riichi pick off; the result's panel turns to a page of the result showing, and the game's last
  * result reopens on its first; a nameplate is pinned, or none; the play switches' names show or hide; a notice opens whole in its sheet, or the sheet closes;
  * the settings menu opens or closes, and closes as the leave question or a notice's sheet opens; the sound turns on
  * or off.
@@ -178,7 +159,6 @@ function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): P
         }
         case "arm_tile":
         case "toggle_riichi_pick":
-        case "toggle_tile_choice":
         case "step_back": {
             return steppedDecision(state, ui, command);
         }

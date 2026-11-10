@@ -91,9 +91,8 @@ table transition and call model; replay dispatch loads with the replay route.
   the topmost UI, backs out of a selection, or answers one decision; a result always needs its explicit control, which takes the focus as it first shows so Enter or Space presses it. The
   one exception is a pointer's click on a playable tile with the settings menu open, which closes the menu and goes on
   to the tile (a mouse discards, a finger lifts); any other click outside the menu only closes it.
-  Digit keys 1-9 press the decision controls the mapper numbers (`DecisionAction.digit`, shown as keycaps): at a first
-  step all but the pass, at a call's second step only its choices of tiles, in the mapper's order, never a layout's
-  (the desktop row moves the pressed call first). They read the physical key (`event.code`), the numpad only while it
+  Digit keys 1-9 press the decision controls the mapper numbers (`DecisionAction.digit`, shown as keycaps): all
+  but the pass, in the mapper's order, never a layout's. They read the physical key (`event.code`), the numpad only while it
   types digits, never under any panel or the open menu, and the same digit within `DIGIT_SETTLE_MS` of acting is dropped
   once the controls it presses changed, so a double tap never takes an unseen choice.
   Enter or Space outside a focused control presses the opening screen's OK (`confirm`), its only key; the board's own

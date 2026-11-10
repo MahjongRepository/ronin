@@ -41,16 +41,14 @@ export {
     pendingCountdown,
     roundConfirmCountdown,
 } from "./model/countdown";
-export type {
-    NoticeKind,
-    PlayAction,
-    PlayCommand,
-    PlayUi,
-    PlayUiInput,
-    TileChoiceKind,
-} from "./model/play-ui";
+export type { NoticeKind, PlayAction, PlayCommand, PlayUi, PlayUiInput } from "./model/play-ui";
 export { CLIENT_STEPPED, NO_PLAY_UI, intentCommand } from "./model/play-ui";
-export type { ActionRank, DecisionAction, DecisionStanding } from "./model/decision-controls";
+export type {
+    ActionKind,
+    ActionRank,
+    DecisionAction,
+    DecisionStanding,
+} from "./model/decision-controls";
 export type { ResultControls } from "./model/result-controls";
 export type { NoticeSheetDisplay, PlayNotice } from "./model/board-notices";
 export type { LeaveControls } from "./model/session-end";

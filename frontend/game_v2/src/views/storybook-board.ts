@@ -1,6 +1,7 @@
 import { type TemplateResult, html, render } from "lit-html";
 
 import {
+    type ActionKind,
     type ActionRank,
     type DecisionAction,
     DecisionControls,
@@ -257,16 +258,17 @@ function parseStoryOffers(value: string | null): StoryOffers {
 interface StoryOffer {
     readonly command: PlayCommand;
     readonly rank: ActionRank;
+    readonly kind: ActionKind;
     readonly label: string;
     readonly tiles?: readonly TileFace[];
     readonly pressed?: boolean;
 }
 
-function storyControl({ command, label, pressed, rank, tiles }: StoryOffer): DecisionAction {
+function storyControl({ command, kind, label, pressed, rank, tiles }: StoryOffer): DecisionAction {
     return {
         command,
         digit: null,
-        group: null,
+        kind,
         label,
         pressed: pressed ?? null,
         rank,
@@ -281,32 +283,40 @@ function choosing(offer: Offer): PlayCommand {
 /** A played board's hand input, so a board with offers keeps a played board's row (its furiten slot included). */
 const PLAYED_HAND = { onTile: () => {}, tileAction: "discard" } as const;
 
-/** A discarded 3m's offers: a win, a kan and a pon of it, a chi with a choice of tiles, and a pass. */
+/** A discarded 3m's offers: a win, a pon of it, either of two chis, and a pass. */
 function fiveOffers(): DecisionView {
     const tileId = 8;
     return {
         actions: [
-            storyControl({ command: choosing({ kind: "ron" }), label: "Ron", rank: "win" }),
             storyControl({
-                command: choosing({ kanType: "open", kind: "kan", tileId }),
-                label: "Kan",
-                rank: "call",
-                tiles: ["3m"],
+                command: choosing({ kind: "ron" }),
+                kind: "ron",
+                label: "Ron",
+                rank: "win",
             }),
             storyControl({
                 command: choosing({ kind: "pon", tileId }),
+                kind: "pon",
                 label: "Pon",
                 rank: "call",
-                tiles: ["3m"],
             }),
             storyControl({
-                command: { kind: "toggle_tile_choice", offer: "chi" },
+                command: choosing({ kind: "chi", sequence: [0, 4], tileId }),
+                kind: "chi",
                 label: "Chii",
-                pressed: false,
                 rank: "call",
+                tiles: ["1m", "2m"],
+            }),
+            storyControl({
+                command: choosing({ kind: "chi", sequence: [4, 12], tileId }),
+                kind: "chi",
+                label: "Chii",
+                rank: "call",
+                tiles: ["2m", "4m"],
             }),
             storyControl({
                 command: { intent: { type: "pass" }, kind: "intent" },
+                kind: "pass",
                 label: "Pass",
                 rank: "pass",
             }),
@@ -328,6 +338,7 @@ function riichiOffer(): DecisionView {
         actions: [
             storyControl({
                 command: { kind: "toggle_riichi_pick" },
+                kind: "riichi",
                 label: "Riichi",
                 pressed: true,
                 rank: "call",
@@ -344,19 +355,25 @@ function riichiOffer(): DecisionView {
     };
 }
 
-/** A turn whose base time ran out, its bank draining, with a tsumo, a choice of two kans and riichi to take. */
+/** A turn whose base time ran out, its bank draining, with a tsumo, a kan and riichi to take. */
 function bankOffers(): DecisionView {
     return {
         actions: [
-            storyControl({ command: choosing({ kind: "tsumo" }), label: "Tsumo", rank: "win" }),
             storyControl({
-                command: { kind: "toggle_tile_choice", offer: "kan" },
+                command: choosing({ kind: "tsumo" }),
+                kind: "tsumo",
+                label: "Tsumo",
+                rank: "win",
+            }),
+            storyControl({
+                command: choosing({ kanType: "closed", kind: "kan", tileId: 0 }),
+                kind: "kan",
                 label: "Kan",
-                pressed: false,
                 rank: "call",
             }),
             storyControl({
                 command: { kind: "toggle_riichi_pick" },
+                kind: "riichi",
                 label: "Riichi",
                 pressed: false,
                 rank: "call",

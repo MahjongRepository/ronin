@@ -5,9 +5,6 @@ import { DEFAULT_INPUT_SETTING } from "./input-setting";
 import { DEFAULT_MOTION_SETTING } from "./motion-setting";
 import { type LocalIntent } from "./types";
 
-/** A call whose offers of one kind differ by their tiles (which chi, which kan), taken in two steps. */
-export type TileChoiceKind = "chi" | "kan";
-
 /**
  * What a notice tells, in the stack's order: the ongoing conditions (the connection, messages the client could not
  * read, tile faces) that stay until they recover, then the acknowledgements (the seat back, a refused
@@ -22,8 +19,8 @@ export type NoticeKind =
     | "refused";
 
 /**
- * What a control of the page does: send the client an intent, turn picking riichi's discard on or off, open or close
- * a call's choice of tiles, step back from either (Back, Escape), arm a tile for a second finger tap (or none), turn the round result's panel to a page, pin a
+ * What a control of the page does: send the client an intent, turn picking riichi's discard on or off, step back
+ * from it (Escape), arm a tile for a second finger tap (or none), turn the round result's panel to a page, pin a
  * nameplate (or none) for the others' score differences, show or hide the play switches' names, ask to leave mid-game
  * or take that back, open a notice whole in its sheet or close it, open or close the controls' help, open or close the
  * settings menu, turn the sound on or off, or reload the page after a failure.
@@ -31,7 +28,6 @@ export type NoticeKind =
 export type PlayCommand =
     | { readonly kind: "intent"; readonly intent: LocalIntent }
     | { readonly kind: "toggle_riichi_pick" }
-    | { readonly kind: "toggle_tile_choice"; readonly offer: TileChoiceKind }
     | { readonly kind: "step_back" }
     | { readonly kind: "show_result_page"; readonly page: number }
     | { readonly kind: "arm_tile"; readonly tileId: number | null }
@@ -76,8 +72,7 @@ export interface PlayAction {
 }
 
 /**
- * What the view holds beside the client state: that the player is picking riichi's discard, or choosing a call's
- * tiles, or that a first finger tap armed a tile, for the decision of this wait id, so a newer decision never inherits any; the page of a round's result the player turned to, for
+ * What the view holds beside the client state: that the player is picking riichi's discard, or that a first finger tap armed a tile, for the decision of this wait id, so a newer decision never inherits any; the page of a round's result the player turned to, for
  * the round it names, so a newer result opens on its first page while a reconnect's copy of the same one keeps it;
  * the nameplate pinned for the others' score differences, which stays pinned until the player unpins it, since the
  * viewer's seat stays at the bottom; that the player opened the play switches' names beside their letters, which stay
@@ -89,7 +84,6 @@ export interface PlayAction {
  */
 export interface PlayUi {
     readonly riichiPickWaitId: number | null;
-    readonly tileChoice: { readonly waitId: number; readonly kind: TileChoiceKind } | null;
     readonly armedTile: { readonly waitId: number; readonly tileId: number } | null;
     readonly resultPage: { readonly round: string; readonly page: number } | null;
     readonly pinnedNameplate: SeatPosition | null;
@@ -129,7 +123,6 @@ export const NO_PLAY_UI: PlayUi = {
     settingsOpen: false,
     soundOn: true,
     switchNames: false,
-    tileChoice: null,
     tileSprite: "loading",
 };
 
@@ -137,30 +130,20 @@ export function intentCommand(intent: LocalIntent): PlayCommand {
     return { intent, kind: "intent" };
 }
 
-/** A control that opens a step of the decision Escape steps back from: the riichi toggle or a call's choice of tiles. */
-export type StepOpener = Extract<
-    PlayCommand,
-    { kind: "toggle_riichi_pick" | "toggle_tile_choice" }
->;
+const RIICHI_PICK_FOCUS_KEY = "riichi-pick";
 
-/** What Escape does while a step of the decision is open: its command, and the control that opened the step. */
+/** What Escape does while riichi's discard is picked: its command, and the key of the toggle it focuses back. */
 export interface EscapeStep {
     readonly command: PlayCommand;
-    readonly opener: StepOpener;
+    readonly focusKey: string;
 }
 
-function stepOpenerKey(opener: StepOpener): string {
-    return opener.kind === "toggle_riichi_pick" ? "riichi-pick" : `tile-choice-${opener.offer}`;
-}
+export const RIICHI_PICK_STEP_BACK: EscapeStep = {
+    command: { kind: "step_back" },
+    focusKey: RIICHI_PICK_FOCUS_KEY,
+};
 
-/** The key a step's opener renders, by its command, so Escape focuses it back; null for any other control. */
+/** The key the riichi toggle renders, by its command, so Escape focuses it back; null for any other control. */
 export function commandFocusKey(command: PlayCommand): string | null {
-    return command.kind === "toggle_riichi_pick" || command.kind === "toggle_tile_choice"
-        ? stepOpenerKey(command)
-        : null;
-}
-
-/** The key of the control that opened the step Escape steps back from. */
-export function escapeFocusKey(escape: EscapeStep): string {
-    return stepOpenerKey(escape.opener);
+    return command.kind === "toggle_riichi_pick" ? RIICHI_PICK_FOCUS_KEY : null;
 }

@@ -7,11 +7,9 @@ $tile-w: 60;
 $tile-h: 80;
 $drawn-gap: 0.35;
 
-/* The decisions' gap per tier and a win's rise; a container query takes no `var()`, so the geometry's `DECISION_GAP`
-   and `WIN_RISE` mirror these. */
+/* The decisions' gap per tier; a container query takes no `var()`, so the geometry's `DECISION_GAP` mirrors it. */
 $decision-gap: 12px;
 $small-decision-gap: 6px;
-$win-rise: 4px;
 
 /* Every layer, low to high; `.game-board` isolates the board's from the page's. */
 $layers: (

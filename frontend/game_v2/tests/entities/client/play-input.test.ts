@@ -21,7 +21,7 @@ import {
     stepGameClient,
     stepPlayUi,
 } from "@/entities/client";
-import { DIGIT_SETTLE_MS, SHORTCUT_SETTLE_MS } from "@/entities/client/ui/play-input";
+import { SHORTCUT_SETTLE_MS } from "@/entities/client/ui/play-input";
 import { HAND_TILE_FOCUS_KEY, PLAYABLE_TILE_FOCUS_KEY } from "@/entities/tile";
 import { keyedControls } from "@/shared/lib";
 import {
@@ -251,18 +251,12 @@ describe("live board input", () => {
         expect(element(host, ".seating__confirm")).toHaveProperty("disabled", true);
     });
 
-    it("backs out of chi before passing, ignores held Escape, and sends one pass", () => {
+    it("passes a call once on Escape, ignoring a held key and a double press", () => {
         const state = checkpointState("call_prompt_seat_1", "prompt");
-        const { board, commands, effects, host } = mountInput(state);
-        element(host, '[data-focus-key~="tile-choice-chi"]').click();
-        keys(board, [{ key: "Escape" }, { key: "Escape", repeat: true }]);
-        expect(commands).toEqual([
-            { kind: "toggle_tile_choice", offer: "chi" },
-            { kind: "step_back" },
-        ]);
+        const { board, effects } = mountInput(state);
+        keys(board, [{ key: "Escape", repeat: true }]);
         expect(messages(effects)).toEqual([]);
 
-        passTime(SHORTCUT_SETTLE_MS);
         keys(board, [{ key: "Escape" }, { key: "Escape" }]);
         expect(messages(effects)).toEqual([buildPassAction(waitId(state))]);
     });
@@ -407,36 +401,14 @@ describe("live board keys", () => {
         ]).toEqual([0, all[0], all.at(-1), []]);
     });
 
-    it.each([
-        { code: "Digit2", group: 2, takes: "another digit at once", wait: 0 },
-        {
-            code: "Digit1",
-            group: 1,
-            takes: "the same digit once it settled",
-            wait: DIGIT_SETTLE_MS,
-        },
-    ])(
-        "opens a kan's choice by its digit, drops a quick same-digit tap, and takes $takes",
-        ({ code, group, wait }) => {
-            const state = checkpointState("kan_choice_seat_1", "kan offer");
-            const choosing = stepPlayUi(state, NO_PLAY_UI, {
-                kind: "toggle_tile_choice",
-                offer: "kan",
-            });
-            const choice = playDisplay(state, choosing).actions.find(
-                (action) => action.digit === group,
-            );
-            const { board, commands } = mountInput(state);
-            key(board, { code: "Digit1", key: "1" });
-            key(board, { code: "Digit1", key: "1" });
-            passTime(wait);
-            key(board, { code, key: code.slice(-1) });
-            expect(commands).toEqual([
-                { kind: "toggle_tile_choice", offer: "kan" },
-                choice?.command,
-            ]);
-        },
-    );
+    it("presses a control by its digit, dropping a quick second tap of any digit", () => {
+        const state = checkpointState("kan_choice_seat_1", "kan offer");
+        const [first] = playDisplay(state, NO_PLAY_UI).actions;
+        const { board, commands } = mountInput(state);
+        key(board, { code: "Digit1", key: "1" });
+        key(board, { code: "Digit1", key: "1" });
+        expect(commands).toEqual([first.command]);
+    });
 
     it("leaves a held digit's repeats, a numpad navigating with NumLock off, a modified digit and digits under the open menu alone", () => {
         const { board, commands } = mountInput(checkpointState("call_prompt_seat_1", "prompt"));

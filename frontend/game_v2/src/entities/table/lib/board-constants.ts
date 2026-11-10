@@ -106,7 +106,7 @@ interface DesktopChrome {
     readonly ownPillH: number;
     readonly badgeGap: number;
     readonly sideCardW: number;
-    readonly winMinW: number;
+    readonly tiledActionW: number;
     readonly actionMinW: number;
     readonly timerW: number;
     /** The board's and its badges' text size. */
@@ -159,9 +159,9 @@ const REGULAR_CHROME: DesktopChrome = {
     switchLabelW: 112,
     switchText: 22,
     text: 17,
+    tiledActionW: 150,
     timerW: 120,
     topLaneMin: 160,
-    winMinW: 150,
 };
 
 const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
@@ -217,9 +217,9 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         switchLabelW: 0,
         switchText: 17,
         text: 12,
+        tiledActionW: 96,
         timerW: 76,
         topLaneMin: 90,
-        winMinW: 96,
     },
 };
 

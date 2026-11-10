@@ -2,7 +2,6 @@
 @use "@/styles/type";
 
 $row: 40px;
-$preview-tile-share: 0.42;
 $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
 
 /* The band end's slot: a desktop's band row past the switches and the own badge's lane, its controls at its bottom; a
@@ -56,7 +55,6 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
 
     @include short-desktop-board {
         --action-min-w: 64px;
-        --win-min-w: 96px;
     }
 }
 
@@ -95,44 +93,47 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     }
 }
 
-/* Four or more controls in a narrow row shed their tile previews (the action source shows the tile) and their spare
-   width, down to the tap floor. */
+/* Four or more controls in a narrow row give up their spare width, down to the tap floor. */
 :where(.game-board):where(#{$desktop-board}) {
     @container decisions (width < 800px) {
-        .decision-controls:is([data-upper="4"], [data-upper="5"], [data-upper="6"]) {
-            .decision-controls__tiles {
-                display: none;
-            }
-
+        .decision-controls:is(
+            [data-upper="4"],
+            [data-upper="5"],
+            [data-upper="6"],
+            [data-upper="7"]
+        ) {
             .decision-controls__action {
                 min-width: 64px;
                 padding-inline: 0.6em;
-            }
-
-            .decision-controls__action--win {
-                min-width: 96px;
             }
         }
     }
 }
 
+/* Every control is one flat box: the same height, least width and type, filled with its kind's colour, with no rim or
+   edge. A win alone takes the bright accent; the rest are deep and alike in weight, so equal choices read as equals. */
 .decision-controls .decision-controls__action {
+    --action-h: #{$row};
+    --action-face: var(--ronin-action-riichi);
+    --action-ink: var(--ronin-action-ink);
+
     position: relative;
     display: inline-flex;
     flex: none;
     align-items: center;
     justify-content: center;
     gap: 0.4em;
+    box-sizing: border-box;
     width: auto;
     min-width: $row;
-    min-height: $row;
+    height: var(--action-h);
     margin: 0;
-    padding: 0.25rem 0.7em;
-    border: 1px solid var(--ronin-accent);
+    padding: 0 0.7em;
+    border: 0;
     border-radius: 10px;
-    background-color: var(--ronin-accent);
-    box-shadow: 0 2px 0 var(--ronin-accent-edge);
-    color: var(--ronin-accent-ink);
+    background-color: var(--action-face);
+    box-shadow: none;
+    color: var(--action-ink);
     font-size: var(--action-text);
     font-weight: 700;
     line-height: 1;
@@ -140,9 +141,8 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     touch-action: manipulation;
 
     &:is(:hover, :active, :focus) {
-        border-color: var(--ronin-accent);
-        background-color: var(--ronin-accent);
-        color: var(--ronin-accent-ink);
+        background-color: var(--action-face);
+        color: var(--action-ink);
     }
 
     &:focus-visible {
@@ -151,8 +151,9 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     }
 
     @include desktop-board {
+        --action-h: var(--control-h);
+
         min-width: var(--action-min-w);
-        min-height: var(--control-h);
         padding-inline: 1em;
         border-radius: 12px;
     }
@@ -162,65 +163,66 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     }
 }
 
+.decision-controls .decision-controls__action--ron,
+.decision-controls .decision-controls__action--tsumo,
+.decision-controls .decision-controls__action--kyuushu {
+    --action-face: var(--ronin-accent);
+    --action-ink: var(--ronin-accent-ink);
+}
+
+/* A win's face catches the light: a soft sheen crosses it, then rests, so it draws the eye without pulsing. */
+.decision-controls .decision-controls__action--ron,
+.decision-controls .decision-controls__action--tsumo {
+    background-image: linear-gradient(
+        105deg,
+        transparent 42%,
+        var(--ronin-action-sheen) 50%,
+        transparent 58%
+    );
+    background-repeat: no-repeat;
+    background-size: 300% 100%;
+    background-position: 150% 0;
+    animation: win-sheen 2s ease-in-out infinite;
+
+    @include reduced-motion {
+        animation: none;
+    }
+}
+
+@keyframes win-sheen {
+    0%,
+    30% {
+        background-position: 150% 0;
+    }
+
+    100% {
+        background-position: -50% 0;
+    }
+}
+
+.decision-controls .decision-controls__action--riichi {
+    --action-ink: var(--ronin-action-riichi-ink);
+}
+
+.decision-controls .decision-controls__action--pon {
+    --action-face: var(--ronin-action-pon);
+}
+
+.decision-controls .decision-controls__action--chi {
+    --action-face: var(--ronin-action-chi);
+}
+
+.decision-controls .decision-controls__action--kan {
+    --action-face: var(--ronin-action-kan);
+}
+
 .decision-controls .decision-controls__action--pass {
-    border-color: var(--ronin-action-quiet-rim);
-    background-color: var(--ronin-action-quiet);
-    box-shadow: none;
-    color: var(--ronin-action-quiet-ink);
-    font-weight: 600;
-
-    &:is(:hover, :active, :focus) {
-        border-color: var(--ronin-action-quiet-rim);
-        background-color: var(--ronin-action-quiet);
-        color: var(--ronin-action-quiet-ink);
-    }
+    --action-face: var(--ronin-action-pass);
 }
 
-/* A win outranks every other control: larger, and ringed. */
-.decision-controls .decision-controls__action--win {
-    min-height: calc(#{$row} + #{$win-rise});
-    font-size: calc(var(--action-text) * 1.2);
-    font-weight: 800;
-    box-shadow:
-        0 2px 0 var(--ronin-accent-edge),
-        inset 0 0 0 2px var(--ronin-accent),
-        inset 0 0 0 4px var(--ronin-surface);
-
-    @include desktop-board {
-        min-width: var(--win-min-w);
-        min-height: calc(var(--control-h) + #{$win-rise});
-    }
-}
-
-/* A desktop row reads the open call first, before its choices; a phone's column keeps it last, where it stood. */
-.decision-controls .decision-controls__action--step[aria-pressed="true"] {
-    @include board-where('[data-board-family="desktop"]') {
-        order: -1;
-    }
-}
-
-/* A choice of tiles stands on a dark face ringed in the accent, so its tiles (backs included) read on it. */
-.decision-controls .decision-controls__action--choice {
-    &,
-    &:is(:hover, :active, :focus) {
-        padding: 0.3rem 0.5rem;
-        border: 2px solid var(--ronin-accent);
-        background-color: var(--ronin-surface);
-        box-shadow: none;
-        color: var(--ronin-text);
-
-        @include shared-corners-board {
-            padding-inline: 0.25rem;
-        }
-    }
-}
-
-/* Rings lie inside a control's box, so its box is all it takes on the board. */
+/* A toggle that is on wears the accent as a ring inside its box, so its state reads by more than a colour. */
 .decision-controls .decision-controls__action[aria-pressed="true"] {
-    box-shadow:
-        0 2px 0 var(--ronin-accent-edge),
-        inset 0 0 0 2px var(--ronin-accent),
-        inset 0 0 0 4px var(--ronin-surface);
+    box-shadow: inset 0 0 0 3px var(--ronin-accent);
 }
 
 /* A control's digit key, a small cap over its corner where a mouse (and so, likely, a keyboard) plays. */
@@ -245,71 +247,21 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     }
 }
 
-/* A toggle's lamp: an empty box, checked while on, so the state never reads by colour alone. */
-.decision-controls__lamp {
-    position: relative;
-    flex: none;
-    width: 1em;
-    height: 1em;
-    border: 2px solid currentcolor;
-    border-radius: 3px;
-
-    &--on::after {
-        content: "";
-        position: absolute;
-        left: 0.26em;
-        top: 0.06em;
-        width: 0.28em;
-        height: 0.52em;
-        border: solid currentcolor;
-        border-width: 0 0.13em 0.13em 0;
-        transform: rotate(45deg);
-    }
-}
-
-.decision-controls__tiles,
-.decision-controls__group {
+.decision-controls__tiles {
     display: inline-flex;
-    align-items: flex-end;
+    align-items: center;
+    gap: 1px;
     line-height: 0;
 }
 
-.decision-controls__tiles {
-    gap: 1px;
-}
-
-.decision-controls:not([data-upper="0"], [data-upper="1"]) .decision-controls__tiles {
-    @include phone-board {
-        display: none;
-    }
-}
-
-/* A control's tiles stay inside the room the band keeps for its row: the control's height and the band's slack, less
-   the 4px a control keeps from a tile, so a large board's controls never reach the bottom river. */
-.decision-controls {
-    --row-room: calc(var(--control-h) + 16px);
-}
-
+/* A control's tiles stand inside its box, a margin above and below, so a control with tiles is no taller than one
+   without. */
 .decision-controls__tile {
-    --board-tile-w: min(var(--ow) * #{$preview-tile-share}, (var(--row-room) - 14px) * 3 / 4);
-    --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
+    --board-tile-h: calc(var(--action-h) - 10px);
+    --board-tile-w: calc(var(--board-tile-h) * 3 / 4);
 
     display: inline-block;
     line-height: 0;
-}
-
-.decision-controls__group {
-    --choice-tile-share: 0.45;
-    --board-tile-w: min(var(--ow) * var(--choice-tile-share), (var(--row-room) - 18px) * 3 / 4);
-    --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
-
-    @include phone-board {
-        --choice-tile-share: 0.4;
-    }
-
-    &:has(.meld-tile-stacked) {
-        --board-tile-w: min(var(--ow) * var(--choice-tile-share), (var(--row-room) - 18px) / 2);
-    }
 }
 
 /* The timer's slot, fixed in size and place: a caption line over the digits, the base large and the bank after it. */

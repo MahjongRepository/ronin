@@ -101,28 +101,6 @@ const CONTRAST_MARKS: readonly ContrastMark[] = [
         selector: ".play-switch--on .play-switch__lamp",
     },
     {
-        hide: [
-            ["", "border-color: transparent !important"],
-            ["::after", "border-color: currentcolor !important"],
-        ],
-        name: "toggle lamp's box",
-        reach: 0,
-        selector: ".decision-controls__lamp",
-    },
-    {
-        hide: [["::after", HIDDEN]],
-        name: "pressed toggle's check",
-        reach: 0,
-        selector: "[aria-pressed='true'] > .decision-controls__lamp",
-    },
-    {
-        absent: true,
-        hide: [["::after", HIDDEN]],
-        name: "unpressed toggle's check",
-        reach: 0,
-        selector: "[aria-pressed='false'] > .decision-controls__lamp",
-    },
-    {
         hide: [["::after", HIDDEN]],
         name: "answered control's check",
         reach: 0,

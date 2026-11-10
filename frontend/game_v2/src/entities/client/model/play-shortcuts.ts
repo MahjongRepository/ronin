@@ -2,13 +2,7 @@ import { type DecisionAction } from "./decision-controls";
 import { takesIntent } from "./intents";
 import { decisionOf, roundConfirmOf } from "./pending";
 import { type PlayOverlay, type PlayPanel } from "./play-display";
-import {
-    type EscapeStep,
-    type PlayCommand,
-    type PlayUi,
-    escapeFocusKey,
-    intentCommand,
-} from "./play-ui";
+import { type EscapeStep, type PlayCommand, type PlayUi, intentCommand } from "./play-ui";
 import { SETTINGS_FOCUS_KEY } from "./settings-menu";
 import { type LiveClient, type LocalIntent, type PlayIntent } from "./types";
 
@@ -119,7 +113,7 @@ export function playShortcuts(
     },
 ): PlayShortcuts {
     const close = closeShortcut(ui, overlay);
-    const back = step === null ? null : shortcut(step.command, escapeFocusKey(step));
+    const back = step === null ? null : shortcut(step.command, step.focusKey);
     const boardKeys = leavesBoardKeys(overlay);
     const escape =
         close ?? (boardKeys ? (back ?? passShortcut(state) ?? discardShortcut(state)) : null);

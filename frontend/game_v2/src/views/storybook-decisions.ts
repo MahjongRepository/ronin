@@ -12,7 +12,6 @@ import {
     type PlayCommand,
     type PlayUi,
     type SeatTranscript,
-    type TileChoiceKind,
     decisionOf,
     parseSeatTranscript,
     playDisplay,
@@ -73,7 +72,7 @@ type TranscriptName = keyof typeof TRANSCRIPTS;
 
 /**
  * A board at a checkpoint of a generated seat transcript: the client state after the step its label names, as the
- * live game reaches it, with the view's riichi pick on or off, a call's choice of tiles open or not, and its round
+ * live game reaches it, with the view's riichi pick on or off and its round
  * result at a page.
  */
 interface DecisionStory {
@@ -81,7 +80,6 @@ interface DecisionStory {
     readonly transcript: TranscriptName;
     readonly label: string;
     readonly pickRiichi: boolean;
-    readonly chooseTiles?: TileChoiceKind;
     readonly resultPage: number;
     /** What happens next, stepped on the checkpoint's state: a drop, a refusal, a kick. */
     readonly followUp?: (state: LiveClient) => readonly LiveEvent[];
@@ -96,8 +94,8 @@ interface DecisionStory {
 /**
  * The stories in the order the page lists them: the look spec's anchor (`docs/game-client-look.md`, States) at its
  * three checkpoints and its call passed, declared and expired, the opening screen over the first deal (its start
- * confirm owed, then sent) and over a page that joined the game in play, a lone chi offer, the call prompts and a
- * chi's choice of tiles, the turns (a kan's choice of tiles, in their base time and in the bank), the play switches on
+ * confirm owed, then sent) and over a page that joined the game in play, a lone chi offer, the call prompts,
+ * the turns (either of two kans, in their base time and in the bank), the play switches on
  * beside furiten, what follows an answer, the first turns of a hand (kyuushu, tenhou), the round results the
  * player confirms, the game's end and the last result reopened from it, a game ended out of step, then another
  * player's seat left to an AI and back, the viewer's own seat back, the board's notices (alone, stacked, long, over a
@@ -117,14 +115,12 @@ const STORY_KEYS = [
     "game_resume",
     "chi_offer",
     "call_prompt",
-    "chi_choice",
     "ron_prompt",
     "ron_call",
     "chankan_prompt",
     "kuikae_turn",
     "own_turn",
     "kan_offer",
-    "kan_choice",
     "added_kan",
     "turn_in_bank",
     "riichi_pick",
@@ -302,10 +298,6 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     anchor_turn: checkpoint("anchor_seat_1", "own turn", "Anchor: own turn"),
     call_prompt: checkpoint("call_prompt_seat_1", "prompt", "Call prompt"),
     chankan_prompt: checkpoint("chankan_robbed_seat_3", "chankan prompt", "Chankan prompt"),
-    chi_choice: {
-        ...checkpoint("call_prompt_seat_1", "prompt", "Chi: choose the tiles"),
-        chooseTiles: "chi",
-    },
     chi_offer: checkpoint("chi_prompt_seat_1", "prompt", "Chi offer"),
     connection_lost: {
         ...checkpoint("call_prompt_seat_1", "turn", "Connection lost"),
@@ -334,10 +326,6 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     game_start_waiting: {
         ...checkpoint("call_prompt_seat_1", "dealt", "Game start: waiting for others"),
         followUp: answering({ type: "confirm_opening" }),
-    },
-    kan_choice: {
-        ...checkpoint("kan_choice_seat_1", "kan offer", "Kan: choose the tiles"),
-        chooseTiles: "kan",
     },
     kan_offer: checkpoint("kan_choice_seat_1", "kan offer", "Kan of either of two types"),
     kicked: { ...checkpoint("call_prompt_seat_1", "turn", "Kicked"), followUp: closedWith(1008) },
@@ -473,7 +461,6 @@ function freshPageState(transcriptName: TranscriptName, label: string): LiveClie
 
 function storyScreen(key: DecisionStoryKey): StoryScreen {
     const {
-        chooseTiles,
         confirmingLeave,
         followUp,
         freshPage,
@@ -497,8 +484,6 @@ function storyScreen(key: DecisionStoryKey): StoryScreen {
         confirmingLeave: confirmingLeave ?? false,
         noticeSheet: noticeSheet ?? null,
         riichiPickWaitId: pickRiichi ? waitId : null,
-        tileChoice:
-            chooseTiles === undefined || waitId === null ? null : { kind: chooseTiles, waitId },
         tileSprite: tileSprite ?? NO_PLAY_UI.tileSprite,
     };
     const ui = stepPlayUi(state, picked, { kind: "show_result_page", page: resultPage });

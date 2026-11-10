@@ -31,7 +31,7 @@ import {
     type PanelAction,
     TablePanelDisplay,
 } from "@/entities/table";
-import { Meld, Tile, spokenTileName } from "@/entities/tile";
+import { Tile, spokenTileName } from "@/entities/tile";
 import { type Clock } from "@/shared/clock";
 import { type Locale, type MessageKey, formatList, t } from "@/shared/i18n";
 import { assertNever, focusKeys } from "@/shared/lib";
@@ -111,28 +111,18 @@ function DecisionTimer(display: DecisionView): TemplateResult {
     </div>`;
 }
 
-function rankClass(action: DecisionAction): string {
-    const choice = action.group === null ? "" : " decision-controls__action--choice";
-    const step = opensTileChoice(action) ? " decision-controls__action--step" : "";
-    return `decision-controls__action--${action.rank}${choice}${step}`;
+function kindClass(action: DecisionAction): string {
+    return `decision-controls__action--${action.rank} decision-controls__action--${action.kind}`;
 }
 
-/** The tiles a control shows: a second step's group as its meld will lie, or a first step's preview faces. */
+/** The hand's tiles a control shows after its label: a chi's pair, the tile of one kan among several. */
 function ActionTiles(action: DecisionAction): TemplateResult | typeof nothing {
-    if (action.group !== null) {
-        return html`<span class="decision-controls__group">${Meld(action.group)}</span>`;
-    }
     if (action.tiles.length === 0) {
         return nothing;
     }
     return html`<span class="decision-controls__tiles">${action.tiles.map(
         (face) => html`<span class="decision-controls__tile">${Tile(face, "face")}</span>`,
     )}</span>`;
-}
-
-/** The riichi toggle's lamp, so its on state reads by more than its colour: a box, checked while on. */
-function Lamp(pressed: boolean | null): TemplateResult {
-    return html`<span class="decision-controls__lamp ${pressed ? "decision-controls__lamp--on" : ""}" aria-hidden="true"></span>`;
 }
 
 function offerLabel(action: DecisionAction): string {
@@ -142,35 +132,27 @@ function offerLabel(action: DecisionAction): string {
     return `${action.label} ${formatList(action.tiles.map(spokenTileName))}`;
 }
 
-/**
- * A decision control: its label (a second step's choice shows its tiles in its place), riichi's lamp, Back's arrow.
- */
+/** A decision control: its label, then the hand's tiles that tell it from another of its kind. */
 function ActionButton(
     action: DecisionAction,
     onCommand: PlayBoardProps["onCommand"],
     keyHints: boolean,
 ): TemplateResult {
-    const isBack = action.command.kind === "step_back";
-    const isPass = action.command.kind === "intent" && action.command.intent.type === "pass";
-    const label =
-        action.group === null
-            ? html`<span class="decision-controls__label">${isBack ? html`<span aria-hidden="true">← </span>` : nothing}${action.label}</span>`
-            : nothing;
-    const lamp = action.command.kind === "toggle_riichi_pick" ? Lamp(action.pressed) : nothing;
+    const isPass = action.kind === "pass";
     return html`<button
         type="button"
-        class="decision-controls__action ${rankClass(action)}"
+        class="decision-controls__action ${kindClass(action)}"
         aria-label=${offerLabel(action)}
-        aria-keyshortcuts=${actionKeys(action, isPass || isBack)}
+        aria-keyshortcuts=${actionKeys(action, isPass)}
         aria-pressed=${action.pressed === null ? nothing : String(action.pressed)}
         data-focus-key=${focusKeys(commandFocusKey(action.command), DECISION_ACTION_FOCUS_KEY) ?? nothing}
         @click=${() => onCommand(action.command)}
     >
-        ${lamp}${label}${ActionTiles(action)}${keyHints ? KeyCap(action, isPass || isBack) : nothing}
+        <span class="decision-controls__label">${action.label}</span>${ActionTiles(action)}${keyHints ? KeyCap(action, isPass) : nothing}
     </button>`;
 }
 
-/** A control's key as its cap shows it: Escape for a pass or Back, else its digit; none for a control with neither. */
+/** A control's key as its cap shows it: Escape for a pass, else its digit; none for a control with neither. */
 function KeyCap(action: DecisionAction, escapes: boolean): TemplateResult | typeof nothing {
     const keyName = escapes ? t("game.help.escape_key") : action.digit;
     return keyName === null
@@ -178,7 +160,7 @@ function KeyCap(action: DecisionAction, escapes: boolean): TemplateResult | type
         : html`<span class="decision-controls__key" aria-hidden="true">${keyName}</span>`;
 }
 
-/** The keys a control answers to, for assistive technology: Escape for a pass or Back, else its digit, if any. */
+/** The keys a control answers to, for assistive technology: Escape for a pass, else its digit, if any. */
 function actionKeys(action: DecisionAction, escapes: boolean): string | typeof nothing {
     if (escapes) {
         return "Escape";
@@ -191,22 +173,10 @@ function actionKey(action: DecisionAction): string {
     return JSON.stringify(action.command);
 }
 
-/** Whether a control opens or closes a call's choice of tiles, which the second step keeps in the column. */
-function opensTileChoice(action: DecisionAction): boolean {
-    return action.command.kind === "toggle_tile_choice";
-}
-
-/**
- * Which control takes the foreground band beside the timer: the lowest-ranked (the riichi toggle among them), unless
- * it is a win, a choice of tiles or a call's first step, which stay with the rest.
- */
+/** Which control takes the foreground band beside the timer: the lowest-ranked, unless it is a win. */
 function bandAction(actions: readonly DecisionAction[]): DecisionAction | null {
     const last = actions.at(-1);
-    if (last === undefined) {
-        return null;
-    }
-    const rises = last.rank === "win" || last.group !== null || opensTileChoice(last);
-    return rises ? null : last;
+    return last === undefined || last.rank === "win" ? null : last;
 }
 
 /** What the decision's controls draw: its controls, its countdown and where it stands. */

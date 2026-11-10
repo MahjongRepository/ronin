@@ -53,16 +53,16 @@ const PHONE_FURITEN_HEIGHT = 18;
 const CONTROL_FAMILIES: readonly string[] = ["decisions-anchor-call"];
 /**
  * Pages showing the riichi toggle off and then pressed, which must stand in one place on a phone: pressing it never
- * moves it. A call's first step may move along the row when its choices open.
+ * moves it.
  */
 const TOGGLE_FAMILIES: readonly (readonly [string, string])[] = [
     ["decisions-anchor-riichi-off", "decisions-anchor-riichi"],
 ];
 
-/** A toggle with a lamp (the riichi toggle): the state it announces and whether its lamp shows the check. */
-interface LampMeasure {
+/** A toggle (the riichi toggle): the state it announces and whether it wears the ring of a toggle that is on. */
+interface ToggleMeasure {
     readonly pressed: boolean;
-    readonly checked: boolean;
+    readonly ringed: boolean;
 }
 
 /** The decision controls' boxes and then the timer's, where a page showed a decision in landscape. */
@@ -192,7 +192,6 @@ const PAGES: readonly PageCase[] = [
         at: [FLOOR, MID_DESKTOP],
     },
     decisionCase("call_prompt", [ACTION, ".decision-controls__countdown"]),
-    decisionCase("chi_choice", [`${ACTION}--choice .meld-tile-sideways`, `${ACTION}--pass`]),
     {
         ...decisionCase("anchor_pon_declared", [".board-callout--bottom.board-callout--pon"]),
         at: [FLOOR, MID_DESKTOP],
@@ -201,9 +200,8 @@ const PAGES: readonly PageCase[] = [
             await page.waitForSelector(".decision-controls", { state: "detached" });
         },
     },
-    decisionCase("kan_offer", [`${ACTION}[aria-pressed="false"]`, ".decision-controls__countdown"]),
     {
-        ...decisionCase("kan_choice", [`${ACTION}--choice .tile-back`, `${ACTION}--pass`]),
+        ...decisionCase("kan_offer", [`${ACTION}--kan .tile`, ".decision-controls__countdown"]),
         at: [FLOOR, NARROW_DESKTOP, LARGE_DESKTOP],
     },
     decisionCase("chankan_prompt", [ACTION, ".board-strip .meld--source"]),
@@ -246,20 +244,14 @@ const PAGES: readonly PageCase[] = [
     { ...gameCase("turn", ".game__play .board-local .hand-tile--selectable"), at: LIVE_AT },
 ];
 
-function measureLamps(page: Page): Promise<readonly LampMeasure[]> {
+function measureToggles(page: Page): Promise<readonly ToggleMeasure[]> {
     return page.evaluate(() => {
         const board = document.querySelector(".game-board");
-        return [...(board?.querySelectorAll(".decision-controls__lamp") ?? [])].map((lamp) => {
-            const check = getComputedStyle(lamp, "::after");
-            return {
-                checked:
-                    check.content !== "none" &&
-                    check.display !== "none" &&
-                    Number.parseFloat(check.width) > 0 &&
-                    Number.parseFloat(check.height) > 0,
-                pressed: lamp.closest("[aria-pressed]")?.getAttribute("aria-pressed") === "true",
-            };
-        });
+        const toggles = board?.querySelectorAll(".decision-controls__action[aria-pressed]") ?? [];
+        return [...toggles].map((toggle) => ({
+            pressed: toggle.getAttribute("aria-pressed") === "true",
+            ringed: getComputedStyle(toggle).boxShadow.includes("0px 0px 0px 3px inset"),
+        }));
     });
 }
 
@@ -369,12 +361,12 @@ function checkSwitches(board: BoardMeasure, screen: Box, report: PageReport): vo
     );
 }
 
-/** A toggle's lamp shows its check exactly while the toggle is pressed, so its state never reads by colour alone. */
-function checkLamps(lamps: readonly LampMeasure[], report: PageReport): void {
-    const misread = lamps.filter((lamp) => lamp.checked !== lamp.pressed);
+/** A toggle wears its ring exactly while it is pressed, so its state never reads by colour alone. */
+function checkToggles(toggles: readonly ToggleMeasure[], report: PageReport): void {
+    const misread = toggles.filter((toggle) => toggle.ringed !== toggle.pressed);
     report.expect(
         misread.length === 0,
-        `${misread.length} toggle lamp(s) whose check does not match the toggle's state`,
+        `${misread.length} toggle(s) whose ring does not match the toggle's state`,
     );
 }
 
@@ -530,7 +522,7 @@ function checkFuritenMark(board: BoardMeasure, report: PageReport): void {
 
 /**
  * A decision's controls on a landscape board: its buttons and timer on the board and the screen and clear of the tiles,
- * the play switches, the toggles' lamps, and where the controls and the toggle stand, for the checks across pages.
+ * the play switches, the toggles' rings, and where the controls and the toggle stand, for the checks across pages.
  */
 async function checkBoard({ board, page, report, screen, viewport }: BoardRun): Promise<void> {
     if (!viewport.supported) {
@@ -543,7 +535,7 @@ async function checkBoard({ board, page, report, screen, viewport }: BoardRun): 
         CONTROL_PLACES.keep(report, [...(board.decisionCorner?.buttons ?? []), board.timer]);
     }
     checkActions(board, screen, report);
-    checkLamps(await measureLamps(page), report);
+    checkToggles(await measureToggles(page), report);
 }
 
 function checkResults(results: readonly TaskResult[]): readonly string[] {

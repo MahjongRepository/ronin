@@ -39,7 +39,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   it keeps (0,2,0); a name a family does not emit stays unset on its board, where nothing reads it. There is no CSS solve,
   so a board without `data-board-family` (not yet measured) hides its layers. A fact both sides need is TS's,
   emitted as a length (the chrome px, the river's footprint, the face floor, the latest discard's gaps); only what a
-  container query needs stays Sass, beside a note naming its TS mirror (the decisions' gap and a win's rise), and the
+  container query needs stays Sass, beside a note naming its TS mirror (the decisions' gap), and the
   page's 10px gutter, which the page holds before the board is measured. A narrow desktop, best-effort in the spec's
   support tiers, reads the left strip's drawn depth for its notices (a margin on the field's slot): past the deepest
   strip its field falls under the 7.5em floor (6.2em at 780x580, none at 1080x880), a trade-off that tier accepts.

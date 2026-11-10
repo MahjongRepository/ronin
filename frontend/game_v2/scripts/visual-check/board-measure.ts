@@ -52,7 +52,7 @@ export interface BoardMeasure {
     /** What an open offer refers to: the latest discard, a kan a chankan offer may rob. */
     /** The decision timer's slot. */
     readonly timer: Box | null;
-    /** The decision's first toggle (riichi, a call's first step), pressed or not. */
+    /** The decision's first toggle (riichi), pressed or not. */
     readonly toggle: Box | null;
     /** The play switches on the band. */
     readonly switches: readonly SwitchMeasure[];

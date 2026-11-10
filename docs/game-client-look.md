@@ -311,16 +311,20 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   tsumo) outranks every other action; kyuushu kyuuhai, offered at a seat's first turn, ranks with a
   win since it ends the hand, with playing on as the alternative; calls, kan and riichi come next;
   pass is subordinate and never the most prominent thing on screen; several equally valid actions
-  are presented as equals. Decision: a win is larger and ringed. The controls show exactly the offer the server made and vanish as soon as
+  are presented as equals. Decision: every control is the same flat box (one height, one least width, one type, no rim
+  or edge), filled with its kind's colour: a win (ron, tsumo) and kyuushu alone take the bright accent, with dark ink;
+  riichi takes the ivory of its stick, with dark ink; the rest are deep fills of one weight with a light label (pon blue, chi green, kan violet, pass a
+  grey-green), so equal choices read as equals and nothing competes with a win. A soft sheen crosses a win's face (ron, tsumo) every few seconds and rests between, the
+  controls' only motion, still under reduced motion or with animations off. The controls show exactly the offer the server made and vanish as soon as
   the player or a play switch answers it. Pass dismisses them silently; a declaration immediately
   shows its callout and plays its voice, while the table waits for the server to resolve the action.
   Decision: a call with a choice of tiles (which chi, which tile to kan) is
-  taken in two steps, the call, then the tiles, with a way to go back, and an illegal combination is
-  never selectable; the first step shows one control per kind, and at the second the choices are the
-  controls, in the controls' place, each a tile group drawn as the meld will lie (the called tile
-  turned toward its feeder, a closed kan's ends face down, an added kan's added tile stacked), with
-  Back in the place of Pass. Riichi is a toggle that marks the discards that declare it on the hand
-  and greys out the rest; it can be untoggled until the discard is sent, not after. An expired
+  one control per choice, all offered at once with no second step, and an illegal combination is
+  never offered. A control shows tiles only where they are the hand's own and tell something the table does not: a
+  chi its two hand tiles, low to high, the chis standing in that order as the hand lies (a red five's after the plain
+  one's); a kan its tile only beside another kan; a pon and a lone kan none, the marked discard naming theirs.
+  Riichi is a toggle that marks the discards that declare it on the hand
+  and greys out the rest, wearing the accent as a ring inside its box while on; it can be untoggled until the discard is sent, not after. An expired
   decision stays visible and looks different from an open one; expiry is the client's
   estimate, and the server's resulting move (a timeout's discard or pass) is shown when it arrives.
   After a reconnect the open decision resumes with its remaining time, never a fresh one, and no
@@ -333,16 +337,15 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   first two rows (a sideways riichi tile counted), as Mahjong Soul's and Tenhou's stand over the hand:
   one row, pass last by the timer at the band's right end, past the bottom river's second row, stepping in past the right hand where it runs across the band; what the row cannot hold
   wraps above it in rank order, the highest on top, short of the right strip's deepest reach; on the smallest
-  phone a wrapped line may reach into a side river's fourth row (a rare overlap, accepted). Two or more offers above pass shed their first-step tile previews;
-  the second step's groups always keep their tiles, and opening that step may move its toggle along
-  the row, as the choices take its place. Every control keeps visible space around its label and its choice tiles, the
+  phone a wrapped line may reach into a side river's fourth row (a rare overlap, accepted). A control keeps its tiles at every size.
+  Every control keeps visible space around its label and its choice tiles, the
   longest label at the floor viewport included; a target that meets the size floor with its text
   touching its border has failed.
 - **Input.** The contract the current board has, kept: a tile of the own hand is a button; one
   click, Enter or Space on a selectable tile sends it, a finger takes two taps (below), and a tile
   that is not selectable takes the press and does nothing. A decision control sends on one press,
-  except the riichi toggle and the first step of a two-step call, which only change what the next
-  press means and are undone by pressing them again, by the way back or by Escape. A play switch is
+  except the riichi toggle, which only changes what the next
+  press means and is undone by pressing it again or by Escape. A play switch is
   a board control, not a decision control: pressing it changes what the client answers from then on
   and sends nothing itself. Focus stays in the hand through a turn, and an offer's controls are
   reached from it without the focus being moved for the player. An expired decision still takes one
@@ -642,9 +645,9 @@ full concealed hand and as much of a line of four kans at the face floor as the 
 seat's melds closing their gaps down to 2px to stay on it, then lying on past the line; the right strip's line always holds three pons at the face floor beside the
 hand they leave, whatever that costs the river tile. The
 own tile is also the largest whose decisions' place, from under the right badge down to the band's
-bottom, holds a win over two rows of paired calls and the band's row (182px at the small chrome), else
+bottom, holds a row over two rows of paired calls and the band's row (182px at the small chrome), else
 the least at that river tile: this bound caps the own tile only, never the river tile. It is not the
-tallest stack (a chi's second step with three choices takes 224px), and a phone as short as 800x360
+tallest stack (a ron, a kan, a pon and three chis take more), and a phone as short as 800x360
 still lacks room for it, falling 10.7px short.
 The band's controls float in the gap above the hand, the gap below the top strip is 6px, and the
 phone's chrome scales from the river tile (the small chrome's px up to a 24px river tile, growing with

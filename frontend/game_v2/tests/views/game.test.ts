@@ -319,7 +319,6 @@ const JOIN = buildJoinGameMessage(HANDOFF.gameTicket);
 const FIRST_FREE_TILE = 12;
 const TURN_WAIT_ID = 3;
 const PROMPT_WAIT_ID = 2;
-const FIRST_STEP_CALL = '.decision-controls__action[aria-pressed="false"]';
 const ROUND_END_WAIT_ID = 3;
 const RECONNECT = buildReconnectMessage(HANDOFF.gameTicket);
 
@@ -1151,9 +1150,9 @@ describe("mountGameView settings", () => {
 
         expect([before, keycaps(first.host), saved, keycaps(next.host)]).toEqual([
             0,
-            4,
+            5,
             { keyHints: true, rightClick: true },
-            4,
+            5,
         ]);
         expect(readInputSetting({ rightClick: false })).toEqual({
             keyHints: false,
@@ -1288,39 +1287,7 @@ describe("mountGameView settings", () => {
     });
 });
 
-describe("mountGameView choice of tiles", () => {
-    it("moves the focus from a choice to its call's control when Escape goes back, never out of the board", () => {
-        const { host } = mountInDocumentAtCallPrompt();
-        press(host, FIRST_STEP_CALL);
-        host.querySelector<HTMLElement>(".game__play .decision-controls__action--choice")?.focus();
-
-        pressKey(host, ".decision-controls__action--choice", "Escape");
-
-        expect([
-            document.activeElement?.getAttribute("aria-label"),
-            document.activeElement?.getAttribute("aria-pressed"),
-        ]).toEqual(["Chii", "false"]);
-    });
-
-    it("leaves a choice of tiles open when Escape closes the leave question over it", async () => {
-        const { host, lobby } = mountInDocumentAtCallPrompt();
-        press(host, FIRST_STEP_CALL);
-        lobby.click();
-        await Promise.resolve();
-
-        document.activeElement?.dispatchEvent(
-            new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Escape" }),
-        );
-
-        expect(host.querySelector(".game__play .leave-confirm")).toBeNull();
-        expect(labelsAfter(host, () => {})).toEqual([
-            "Chii 2-man and 4-man",
-            "Chii 1-man and 2-man",
-            "Chii",
-            "Back",
-        ]);
-    });
-
+describe("mountGameView decision controls", () => {
     it("dismisses the controls silently once Pass is pressed", () => {
         const { connections, host, sound } = mountWithFakes();
         openCallPrompt(connections[0]);
@@ -1460,23 +1427,24 @@ describe("mountGameView board", () => {
         expect(connections[0].sent).toEqual([JOIN, buildPassAction(PROMPT_WAIT_ID)]);
     });
 
-    it("opens a chi's choice of tiles on Chi, sending nothing, goes back on Escape, and sends the chosen chi once", () => {
+    it("sends the chi pressed among the two offered, once, with its callout and voice", () => {
         const { connections, host, sound } = mountWithFakes();
         openCallPrompt(connections[0]);
 
-        const choosing = labelsAfter(host, () => press(host, FIRST_STEP_CALL));
-        const back = labelsAfter(host, () => pressKey(host, ".board-local .hand-tile", "Escape"));
-        press(host, FIRST_STEP_CALL);
-        press(host, ".decision-controls__action--choice");
+        const offered = labelsAfter(host, () => {});
+        press(host, '.decision-controls__action[aria-label="Chii 2-man and 4-man"]');
         expect(host.querySelector(".decision-controls")).toBeNull();
         expect([
             host.querySelector(".board-callout--bottom .board-callout__word")?.textContent,
             sound.played.filter((cue) => cue === "chi"),
         ]).toEqual(["Chii", ["chi"]]);
 
-        expect([choosing, back]).toEqual([
-            ["Chii 2-man and 4-man", "Chii 1-man and 2-man", "Chii", "Back"],
-            ["Kan 3-man", "Pon 3-man", "Chii", "Pass"],
+        expect(offered).toEqual([
+            "Kan",
+            "Pon",
+            "Chii 1-man and 2-man",
+            "Chii 2-man and 4-man",
+            "Pass",
         ]);
         expect(connections[0].sent).toEqual([JOIN, buildChiAction(8, [4, 12], PROMPT_WAIT_ID)]);
     });

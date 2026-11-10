@@ -276,9 +276,9 @@ function tierChrome(chrome: ChromeTier, share: number): DesktopChrome {
         switchLabelW: at("switchLabelW"),
         switchText: at("switchText"),
         text: at("text"),
+        tiledActionW: at("tiledActionW"),
         timerW: at("timerW"),
         topLaneMin: at("topLaneMin"),
-        winMinW: at("winMinW"),
     };
 }
 
@@ -823,7 +823,6 @@ function chromeLengths(tier: DesktopChrome): [string, number][] {
         ["switch-text", tier.switchText],
         ["text", tier.text],
         ["timer-w", tier.timerW],
-        ["win-min-w", tier.winMinW],
     ];
 }
 
@@ -1122,11 +1121,11 @@ interface ShellRoom {
     readonly tier: DesktopChrome;
 }
 
-/** The decisions' gap between controls and a win's rise past a control (px). */
+/** The decisions' gap between controls, and the room their stack keeps clear above its top row (px). */
 const DECISION_GAP = 12;
-const WIN_RISE = 4;
+const OFFERS_HEADROOM = 4;
 
-/** The decisions' least row (a win, four offers and the timer) and a short desktop's tallest column (five offers). */
+/** The decisions' least row (an offer with its tiles, four offers and the timer) and a short desktop's tallest column (five offers). */
 const DECISION_OFFERS = 4;
 const DECISION_ROWS = 6;
 
@@ -1140,7 +1139,7 @@ const ACTIONS_GAP = 6;
 const PHONE_DECISION_ROW = 40;
 const PHONE_DECISION_GAP = 6;
 
-/** A phone's offers' stack: a win over this many rows of paired calls, over the band's row. */
+/** A phone's offers' stack: a row over this many rows of paired calls, over the band's row. */
 const PHONE_CALL_ROWS = 2;
 
 /** The top badge stands this far past a river tile's edge, the side badges a step this far under its pill (px). */
@@ -1195,7 +1194,7 @@ function ownLane(
 function phoneOffersHeight(controlH: number): number {
     return (
         PHONE_DECISION_ROW +
-        WIN_RISE +
+        OFFERS_HEADROOM +
         PHONE_CALL_ROWS * PHONE_DECISION_ROW +
         controlH +
         (PHONE_CALL_ROWS + 1) * PHONE_DECISION_GAP
@@ -1222,7 +1221,10 @@ function landscapeBadges(room: ShellRoom, rowBottom: number): LandscapeBadges {
     const topBadgeTop = m + at("rh") + TILE_EDGE_SHARE * rw + TOP_BADGE_GAP;
     const stepped = topBadgeTop + pillH + SIDE_STEP_GAP;
     const decisionsTop =
-        rowBottom - DECISION_ROWS * at("control-h") - (DECISION_ROWS - 1) * DECISION_GAP - WIN_RISE;
+        rowBottom -
+        DECISION_ROWS * at("control-h") -
+        (DECISION_ROWS - 1) * DECISION_GAP -
+        OFFERS_HEADROOM;
     const shortStep = decisionsTop - BADGE_DECISIONS_GAP - badgeH - stepped > 0 ? stepped : 0;
     const sideStep = {
         desktop: stepped,
@@ -1325,7 +1327,7 @@ function desktopActions(
     const need =
         slots.band === "replay"
             ? replayGroupWidth(frame.chrome, tier.movesH, tier.replayGap)
-            : tier.winMinW +
+            : tier.tiledActionW +
               DECISION_OFFERS * tier.actionMinW +
               tier.timerW +
               (DECISION_OFFERS + 1) * DECISION_GAP;
