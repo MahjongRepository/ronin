@@ -56,12 +56,23 @@ describe("storybookView", () => {
 });
 
 describe("storybookMeldsView", () => {
-    test("renders sections for all 5 meld types", () => {
+    test("renders a row for every meld story", () => {
         const el = renderTo(storybookMeldsView());
-        const container = el.querySelector(".storybook");
-        expect(container).not.toBeNull();
-        const sections = container?.querySelectorAll("section");
-        expect(sections).toHaveLength(5);
+        const labels = [...el.querySelectorAll(".storybook-melds__label")].map(
+            (label) => label.textContent,
+        );
+        expect(labels).toEqual([
+            "Chi",
+            "Pon",
+            "Open Kan",
+            "Closed Kan",
+            "Closed Kan, aka 5",
+            "Added Kan",
+            "Added Kan, aka 5 called",
+            "Added Kan, aka 5 from hand",
+            "Added Kan, aka 5 added",
+        ]);
+        expect(el.querySelectorAll(".storybook-melds__row")).toHaveLength(9);
     });
 
     test("renders nav with melds badge active", () => {

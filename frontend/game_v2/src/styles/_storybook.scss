@@ -1,6 +1,9 @@
+#app:has(.storybook) {
+    max-width: none;
+}
+
 .storybook {
     width: 100%;
-    max-width: 960px;
     padding: 1rem;
 
     .hand {
@@ -66,6 +69,27 @@
     align-items: flex-end;
     padding-block: 1.25rem 0.5rem;
     overflow-x: auto;
+}
+
+.storybook-melds {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.75rem 1.25rem;
+    align-items: center;
+}
+
+.storybook-melds__label {
+    margin: 0;
+    color: var(--ronin-text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.storybook-melds__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
 }
 
 .decisions-storybook__sent {
