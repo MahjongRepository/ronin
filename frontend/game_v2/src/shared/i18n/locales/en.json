@@ -196,6 +196,7 @@
     "game.settings.animations": "Animations",
     "game.settings.keep_auto_win": "Keep Auto win between rounds",
     "game.settings.language": "Language",
+    "game.settings.leave": "Leave the game",
     "game.settings.off": "Off",
     "game.settings.on": "On",
     "game.settings.right_click": "Right-click shortcuts",

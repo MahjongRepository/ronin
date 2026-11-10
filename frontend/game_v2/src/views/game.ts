@@ -16,6 +16,7 @@ import {
     type PlayDisplay,
     type PlayUi,
     RotatePanel,
+    SETTINGS_FOCUS_KEY,
     describeClientStatus,
     failGameClient,
     intentCommand,
@@ -37,6 +38,7 @@ import {
     type LocalStore,
     assertNever,
     createDeadlineTimer,
+    focusByKey,
 } from "@/shared/lib";
 import {
     CLOSE_CODE,
@@ -440,9 +442,21 @@ class GameViewController {
         this.saveSetting(command);
         this.draw();
         if (command.kind === "cancel_leave") {
-            this.leaveOpener?.focus();
-            this.leaveOpener = null;
+            this.refocusLeaveOpener();
         }
+    }
+
+    private refocusLeaveOpener(): void {
+        const opener = this.leaveOpener;
+        this.leaveOpener = null;
+        if (opener === null) {
+            return;
+        }
+        if (opener.isConnected) {
+            opener.focus();
+            return;
+        }
+        focusByKey(this.host, SETTINGS_FOCUS_KEY);
     }
 
     private saveSetting(command: PlayCommand): void {

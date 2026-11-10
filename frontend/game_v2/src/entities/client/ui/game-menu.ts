@@ -22,6 +22,8 @@ interface GameMenuProps {
     readonly input?: { readonly rightClick: boolean; readonly onToggle: () => void };
     /** Whether Auto win carries into the next round; a live game's alone. */
     readonly keepAutoWin?: { readonly on: boolean; readonly onToggle: () => void };
+    /** The way back to the lobby, asking first when `asks`; a live game's alone. */
+    readonly leave?: { readonly asks: boolean; readonly onLeave: () => void };
     /** What the page adds before the settings (the debug log). */
     readonly extra?: TemplateResult;
 }
@@ -66,6 +68,23 @@ function SoundIcon(on: boolean): TemplateResult {
                 ? svg`<path d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.5a6 6 0 0 1 0 9" />`
                 : svg`<path d="M11 6l3.5 4M14.5 6l-3.5 4" />`
         }
+    </svg>`;
+}
+
+/** A door with an arrow out of it: leaving. */
+function LeaveIcon(): TemplateResult {
+    return html`<svg
+        class="game-menu__icon"
+        viewBox="0 0 16 16"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <path d="M6.5 2.5h-3.5v11h3.5" />
+        <path d="M7 8h6.5M11 5.5l2.5 2.5-2.5 2.5" />
     </svg>`;
 }
 
@@ -130,7 +149,17 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
             ${LanguageRow(onLanguage)}
             ${props.input === undefined ? nothing : InputSettings(props.input)}
             ${status === null ? nothing : StatusRow(status)}
+            ${props.leave === undefined ? nothing : LeaveRow(props.leave)}
         </div>`;
+}
+
+function LeaveRow(leave: NonNullable<GameMenuProps["leave"]>): TemplateResult {
+    return html`<button
+        type="button"
+        class="secondary game-menu__item game-menu__leave"
+        aria-haspopup=${leave.asks ? "dialog" : nothing}
+        @click=${leave.onLeave}
+    >${LeaveIcon()}<span class="game-menu__item-name">${t("game.settings.leave")}</span></button>`;
 }
 
 function onOff(on: boolean): string {

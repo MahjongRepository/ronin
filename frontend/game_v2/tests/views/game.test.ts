@@ -853,7 +853,7 @@ function mountInDocumentAtCallPrompt(overrides: FakeOverrides = {}): {
     return { connections, host, lobby: rotateLeave(host), sound };
 }
 
-/** The rotate panel's way back, the page's one way to leave mid-game. */
+/** The rotate panel's way back to the lobby. */
 function rotateLeave(host: HTMLElement): HTMLElement {
     const lobby = host.querySelector<HTMLElement>(".game__rotate .rotate-panel__leave");
     if (lobby === null) {
@@ -917,6 +917,28 @@ describe("mountGameView leaving", () => {
 
         expect(opened).toEqual([[true, true], "leave-confirm__stay"]);
         expect(closed).toEqual([[false, false], null, true, false]);
+    });
+
+    it("asks from the settings menu's leave row, closing the menu, and Stay focuses the cog back", async () => {
+        const { connections, host } = mountInDocumentAtCallPrompt();
+        press(host, ".game-menu__toggle");
+        const row = host.querySelector<HTMLElement>(".game__play .game-menu__leave");
+        row?.focus();
+
+        row?.click();
+        await Promise.resolve();
+        const opened = [
+            row?.getAttribute("aria-haspopup"),
+            host.querySelector(".game__play .game-menu__panel"),
+            document.activeElement?.className,
+        ];
+        press(host, ".leave-confirm__stay");
+
+        expect(opened).toEqual(["dialog", null, "leave-confirm__stay"]);
+        expect([
+            document.activeElement?.classList.contains("game-menu__toggle"),
+            connections[0].disconnected,
+        ]).toEqual([true, false]);
     });
 
     it("keeps Tab and Shift+Tab cycling between the question's two buttons", async () => {

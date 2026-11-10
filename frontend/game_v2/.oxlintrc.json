@@ -69,6 +69,8 @@
                     "InputSettings",
                     "KeepAutoWinRow",
                     "LanguageRow",
+                    "LeaveRow",
+                    "LeaveIcon",
                     "DebugLabel",
                     "DoraDisplay",
                     "HonbaStickIcon",

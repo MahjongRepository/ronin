@@ -189,6 +189,7 @@
     "game.settings.animations": "アニメーション",
     "game.settings.keep_auto_win": "自動和了を次局も維持",
     "game.settings.language": "言語",
+    "game.settings.leave": "対局から退出",
     "game.settings.off": "オフ",
     "game.settings.on": "オン",
     "game.settings.right_click": "右クリック操作",

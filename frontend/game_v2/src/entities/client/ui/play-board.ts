@@ -538,6 +538,10 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
                 on: display.keepAutoWin,
                 onToggle: () => onCommand(intentCommand({ type: "toggle_keep_auto_win" })),
             },
+            leave: {
+                asks: display.leave.command.kind === "ask_leave",
+                onLeave: () => onCommand(display.leave.command),
+            },
             onClose: () => onCommand(CLOSE_SETTINGS),
             onLanguage,
             onToggleAnimations: () => onCommand(TOGGLE_ANIMATIONS),
