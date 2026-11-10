@@ -307,6 +307,19 @@ def test_events_socket__when_user_is_not_owner__should_be_refused(client, tourna
     assert refusal.value.code == 4000
 
 
+def test_events_socket__when_key_is_invalid_and_origin_missing__should_close_unauthenticated(client, tournament_id):
+    client.cookies.delete("session_id")
+    del client.headers["origin"]
+
+    with (
+        pytest.raises(WebSocketDisconnect) as refusal,
+        client.websocket_connect(f"/ws/tournaments/{tournament_id}/events", headers={"x-api-key": "bogus"}),
+    ):
+        pass
+
+    assert refusal.value.code == 4001
+
+
 def test_game_exit__when_game_belongs_to_tournament__should_redirect_to_tournament_page(app, client, tournament_id):
     tournament_game = TournamentGame(
         game_id="cup-game-1",
