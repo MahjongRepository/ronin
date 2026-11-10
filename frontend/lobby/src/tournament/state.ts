@@ -38,7 +38,7 @@ function isOnline(state: TournamentState): boolean {
     return state.joined && state.pageError === null;
 }
 
-function canChat(state: TournamentState): boolean {
+function isLive(state: TournamentState): boolean {
     return isOnline(state) && state.connectionStatus === "connected" && !state.reconnecting;
 }
 
@@ -47,5 +47,5 @@ function isConnectionLost(state: TournamentState): boolean {
     return closed && state.pageError === null && state.reconnectTimer === null;
 }
 
-export { PAGE_ERROR, canChat, createTournamentState, isConnectionLost, isOnline };
-export type { ConnectionStatus, TournamentState };
+export { PAGE_ERROR, createTournamentState, isConnectionLost, isLive, isOnline };
+export type { TournamentState };

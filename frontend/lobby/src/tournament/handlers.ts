@@ -6,8 +6,8 @@ import { enterGame, readGameStart } from "@/session";
 import {
     PAGE_ERROR,
     type TournamentState,
-    canChat,
     createTournamentState,
+    isLive,
     isOnline,
 } from "@/tournament/state";
 
@@ -205,7 +205,7 @@ function handleMessage(handlers: MessageHandlerMap, message: Record<string, unkn
 
 function sendChat(state: TournamentState, text: string): boolean {
     const trimmed = text.trim();
-    if (!trimmed || !state.socket || !canChat(state)) {
+    if (!trimmed || !state.socket || !isLive(state)) {
         return false;
     }
     return state.socket.send({ text: trimmed, type: "chat" });
@@ -226,7 +226,6 @@ function rejoinOnPageShow(state: TournamentState, rejoin: () => void): void {
 }
 
 export {
-    MAX_RECONNECT_ATTEMPTS,
     RESUME_RECONNECT_AFTER_HIDDEN_MS,
     TOURNAMENT_ERROR_CODES,
     buildMessageHandlers,
@@ -239,4 +238,3 @@ export {
     rejoinOnPageShow,
     sendChat,
 };
-export type { MessageHandlerMap, RenderTournament };

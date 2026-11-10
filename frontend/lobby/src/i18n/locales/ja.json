@@ -269,5 +269,6 @@
     "tournament.error.unknown": "大会で問題が発生しました。",
     "tournament.online_count": {
         "other": "オンライン {count}人"
-    }
+    },
+    "tournament.online_title": "オンライン"
 }

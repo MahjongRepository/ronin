@@ -296,5 +296,6 @@
         "few": "{count} игрока в сети",
         "many": "{count} игроков в сети",
         "other": "{count} игрока в сети"
-    }
+    },
+    "tournament.online_title": "В сети"
 }

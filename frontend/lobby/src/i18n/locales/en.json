@@ -278,5 +278,6 @@
     "tournament.online_count": {
         "one": "{count} player online",
         "other": "{count} players online"
-    }
+    },
+    "tournament.online_title": "Online"
 }

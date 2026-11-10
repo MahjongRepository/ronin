@@ -4,16 +4,27 @@ import { t } from "@/i18n";
 import {
     TOURNAMENT_ERROR_CODES,
     buildMessageHandlers,
+    buildStatusHandler,
     describeTournamentError,
     handleMessage,
 } from "@/tournament/handlers";
 import { createTournamentState, isConnectionLost } from "@/tournament/state";
+import { renderTournament } from "@/tournament/ui";
 
 function buildTournament() {
     const state = createTournamentState();
     const handlers = buildMessageHandlers(state, vi.fn());
     handleMessage(handlers, { players: ["Alice", "Bob"], type: "joined" });
     return { handlers, state };
+}
+
+function mountPage(state: ReturnType<typeof createTournamentState>) {
+    const container = document.createElement("div");
+    return {
+        container,
+        render: () =>
+            renderTournament({ chatMaxLength: 100, container, sendChat: () => false, state }),
+    };
 }
 
 function chatTexts(state: ReturnType<typeof createTournamentState>): string[] {
@@ -49,6 +60,29 @@ describe("buildMessageHandlers", () => {
 
         expect(state.pageError).toBe("replaced_by_new_connection");
         expect(isConnectionLost(state)).toBe(false);
+    });
+});
+
+describe("buildStatusHandler", () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    test("hides the online list behind a connecting notice while a lost socket waits to reconnect", () => {
+        vi.useFakeTimers();
+        const { state } = buildTournament();
+        const rejoin = vi.fn();
+        const { container, render } = mountPage(state);
+
+        buildStatusHandler(state, render, rejoin)("disconnected");
+
+        expect(state.reconnectTimer).not.toBeNull();
+        expect(rejoin).not.toHaveBeenCalled();
+        expect(container.querySelectorAll(".room-player-item")).toHaveLength(0);
+        expect(container.querySelector("#tournament-online-title")?.textContent?.trim()).toBe(
+            "Online",
+        );
+        expect(container.querySelector("[role=status]")?.textContent).toBe("Connecting…");
     });
 });
 
