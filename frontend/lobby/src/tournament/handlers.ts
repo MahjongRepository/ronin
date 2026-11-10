@@ -54,6 +54,45 @@ function readNames(message: Record<string, unknown>): string[] | null {
     return players;
 }
 
+interface Placement {
+    name: string;
+    score: number;
+}
+
+function isPlacement(entry: unknown): entry is Placement {
+    return (
+        typeof entry === "object" &&
+        entry !== null &&
+        "name" in entry &&
+        typeof entry.name === "string" &&
+        "score" in entry &&
+        typeof entry.score === "number"
+    );
+}
+
+function readPlacements(message: Record<string, unknown>): Placement[] | null {
+    const { result } = message;
+    if (!Array.isArray(result) || !result.every(isPlacement)) {
+        return null;
+    }
+    return result;
+}
+
+function describeGameEnd(message: Record<string, unknown>): string | null {
+    const placements = message.end_reason === "completed" ? readPlacements(message) : null;
+    if (placements !== null) {
+        const results = placements.map(({ name, score }, index) =>
+            t("tournament.chat.game_ended_place", { name, place: index + 1, score }),
+        );
+        return t("tournament.chat.game_ended", { results: formatList(results) });
+    }
+    const players = readNames(message);
+    if (players === null) {
+        return null;
+    }
+    return t("tournament.chat.game_ended_without_result", { players: formatList(players) });
+}
+
 function cancelReconnect(state: TournamentState): void {
     if (state.reconnectTimer !== null) {
         clearTimeout(state.reconnectTimer);
@@ -187,6 +226,15 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
         render();
     }
 
+    function onGameEnded(message: Record<string, unknown>): void {
+        const line = describeGameEnd(message);
+        if (line === null) {
+            return;
+        }
+        appendChat(LOG_TYPE_SYSTEM, line);
+        render();
+    }
+
     function onGameStarting(message: Record<string, unknown>): void {
         state.socket?.disconnect();
         const start = readGameStart(message);
@@ -203,6 +251,7 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
     return {
         chat: onChat,
         error: onError,
+        game_ended: onGameEnded,
         game_started: onGameStarted,
         game_starting: onGameStarting,
         joined: onJoined,

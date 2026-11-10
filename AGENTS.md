@@ -25,6 +25,8 @@ Ronin is a Riichi Mahjong game server and browser client.
 * `deploy/` — spot playbook, production compose and the Docker image. See `deploy/AGENTS.md`.
 * `bin/` — the scripts behind the `make` targets.
 * `docs/architecture.md` — the map of how the lobby, matchmaking and the game server fit together.
+* `docs/tournament-api.md` — the tournament API for external managers: starting games, the snapshot and the
+  events socket.
 * `docs/game-rules.md` — the Riichi ruleset the engine implements, read before rule work.
 * `docs/rng.md` — how the seed becomes the walls, the first dealer and the seating, and what
   `make measure-wall` reports for it; update it with any change to `game/logic/rng.py`.

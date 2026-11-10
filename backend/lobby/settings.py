@@ -55,6 +55,7 @@ class LobbyServerSettings(BaseSettings):
     replay_dir: str = Field(min_length=1)
     metrics_db_path: str = Field(min_length=1)
     ws_allowed_origin: str = Field(min_length=1)
+    tournament_game_poll_interval: float = Field(default=3.0, gt=0)
 
     @field_validator("cors_origins", mode="before")
     @classmethod

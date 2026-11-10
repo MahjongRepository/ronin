@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
     from lobby.occupancy import Occupancy
     from lobby.players import LobbyPlayer
+    from lobby.tournaments.game_end_poller import TournamentGameEndPoller
     from lobby.tournaments.hub import TournamentHub
     from shared.dal.models import Tournament
     from shared.dal.tournament_repository import TournamentRepository
@@ -151,9 +152,10 @@ async def _start_table(request: Request, *, tournament_id: str, names: list[str]
         hub.disconnect(tournament_id, player)
 
     tournament_repo: TournamentRepository = request.app.state.tournament_repo
-    await tournament_repo.add_game(
-        TournamentGame(game_id=game_id, tournament_id=tournament_id, players=names, created_at=time.time())
-    )
+    game_end_poller: TournamentGameEndPoller = request.app.state.tournament_game_end_poller
+    game = TournamentGame(game_id=game_id, tournament_id=tournament_id, players=names, created_at=time.time())
+    await tournament_repo.add_game(game)
+    game_end_poller.track(game)
     hub.publish(tournament_id, {"type": "game_started", "game_id": game_id, "players": names})
     hub.broadcast_presence(tournament_id)
     log.info("tournament game started", game_id=game_id)

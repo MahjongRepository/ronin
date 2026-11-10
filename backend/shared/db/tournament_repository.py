@@ -10,6 +10,7 @@ from shared.dal.tournament_repository import TournamentRepository
 if TYPE_CHECKING:
     import sqlite3
 
+    from shared.dal.models import GameEndReason, PlayedGameStanding
     from shared.db.connection import Database
 
 
@@ -50,6 +51,22 @@ class SqliteTournamentRepository(TournamentRepository):
         Return the tournament's games, oldest first.
         """
         return await self._db.submit_read(partial(_select_games, tournament_id=tournament_id))
+
+    async def list_unfinished_games(self) -> list[TournamentGame]:
+        """
+        Return every tournament's games that have no finish yet, oldest first.
+        """
+        return await self._db.submit_read(_select_unfinished_games)
+
+    async def finish_game(
+        self, game_id: str, *, ended_at: float, end_reason: GameEndReason, result: list[PlayedGameStanding]
+    ) -> bool:
+        """
+        Record a tournament game's finish; return False when the game is unknown or already finished.
+        """
+        return await self._db.submit_write(
+            partial(_update_game_finish, game_id=game_id, ended_at=ended_at, end_reason=end_reason, result=result)
+        )
 
 
 def _insert_tournament(conn: sqlite3.Connection, *, tournament: Tournament) -> None:
@@ -93,6 +110,29 @@ def _select_games(conn: sqlite3.Connection, *, tournament_id: str) -> list[Tourn
         (tournament_id,),
     ).fetchall()
     return [_game_from_row(row) for row in rows]
+
+
+def _select_unfinished_games(conn: sqlite3.Connection) -> list[TournamentGame]:
+    rows = conn.execute(
+        "SELECT game_id, tournament_id, players, created_at, ended_at, end_reason, result FROM tournament_games "
+        "WHERE ended_at IS NULL ORDER BY created_at, rowid"
+    ).fetchall()
+    return [_game_from_row(row) for row in rows]
+
+
+def _update_game_finish(
+    conn: sqlite3.Connection,
+    *,
+    game_id: str,
+    ended_at: float,
+    end_reason: GameEndReason,
+    result: list[PlayedGameStanding],
+) -> bool:
+    cursor = conn.execute(
+        "UPDATE tournament_games SET ended_at = ?, end_reason = ?, result = ? WHERE game_id = ? AND ended_at IS NULL",
+        (ended_at, end_reason, json.dumps([standing.model_dump(mode="json") for standing in result]), game_id),
+    )
+    return cursor.rowcount > 0
 
 
 def _game_from_row(row: tuple[str, str, str, float, float | None, str | None, str | None]) -> TournamentGame:

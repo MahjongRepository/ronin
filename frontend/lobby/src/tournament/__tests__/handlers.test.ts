@@ -59,6 +59,38 @@ describe("buildMessageHandlers", () => {
         expect(chatTexts(state).filter((text) => text.endsWith("went offline"))).toEqual([]);
     });
 
+    test("announces a completed game by placement with scores and any other end without a result", () => {
+        const { handlers, state } = buildTournament();
+        const players = ["Dave", "Carol", "Bob", "Alice"];
+
+        handleMessage(handlers, {
+            end_reason: "completed",
+            game_id: "g1",
+            players,
+            result: [
+                { final_score: 51, name: "Bob", score: 41_000, seat: 2 },
+                { final_score: 8, name: "Dave", score: 28_000, seat: 0 },
+                { final_score: -21, name: "Alice", score: 19_000, seat: 3 },
+                { final_score: -38, name: "Carol", score: 12_000, seat: 1 },
+            ],
+            type: "game_ended",
+        });
+        handleMessage(handlers, {
+            end_reason: "abandoned",
+            game_id: "g2",
+            players,
+            result: [{ final_score: null, name: "Dave", score: null, seat: 0 }],
+            type: "game_ended",
+        });
+
+        expect(chatTexts(state).at(-2)).toBe(
+            "A game ended: 1. Bob (41,000), 2. Dave (28,000), 3. Alice (19,000), and 4. Carol (12,000)",
+        );
+        expect(chatTexts(state).at(-1)).toBe(
+            "A game ended without a result: Dave, Carol, Bob, and Alice",
+        );
+    });
+
     test("appends a chat message with its sender", () => {
         const { handlers, state } = buildTournament();
 

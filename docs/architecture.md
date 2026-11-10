@@ -44,6 +44,7 @@ flowchart LR
     LobbyPages -- "HTTP + JSON WebSocket" --> Auth
     Auth --> Rooms & MM & Tour
     Tour --> DB
+    Tour -. "poll played_games<br/>for game ends" .-> DB
     Rooms & MM --> Occ
     Rooms & MM & Tour --> Start
     Start -- "POST /games" --> REST
@@ -298,6 +299,13 @@ game start's own reason. A started table's players leave the online list at once
 naming one of them finds them offline; the game is recorded in `tournament_games` and the page is
 sent `game_started` and the new `presence`. `GET /api/tournaments/{id}` is the owner's snapshot:
 the online names and the recorded games.
+
+The game server never calls the lobby about a game's end. A lobby background task polls the
+`played_games` record of each unfinished tournament game every few seconds; once the game server's
+finish row has `ended_at`, the lobby copies the end reason and standings into `tournament_games`
+and, only when that update finished the row, sends `game_ended` to the page and the owner's events
+sockets (`/ws/tournaments/{id}/events`, key-authenticated, `presence` first). A game with no finish
+row stays unfinished. The manager's side of all this is `docs/tournament-api.md`.
 
 ## Game start (shared by rooms, matchmaking and tournaments)
 

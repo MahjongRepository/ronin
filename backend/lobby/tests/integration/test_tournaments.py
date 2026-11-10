@@ -1,6 +1,7 @@
 import json
 import re
 from contextlib import ExitStack
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -8,6 +9,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
 from lobby.tests.integration.conftest import login_with_csrf, register_with_csrf, session_user_id
+from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 
 
 @pytest.fixture
@@ -218,6 +220,77 @@ def test_events_socket__when_owner_connects_with_api_key__should_receive_game_st
         [result] = response.json()["results"]
         assert events.receive_json() == {"type": "game_started", "game_id": result["game_id"], "players": names}
         assert events.receive_json() == {"type": "presence", "players": [], "count": 0}
+
+
+def test_game_end_poll__when_played_game_gains_ended_at__should_update_row_and_publish_once(
+    app, client, tournament_id, game_server
+):
+    owner_key = _issue_api_token(client)
+    game_server.respond = lambda request: httpx.Response(201)
+    names = ["erin", "frank", "gina", "hank"]
+    ended_at = datetime(2026, 11, 11, 12, 30, tzinfo=UTC)
+    standings_by_placement = [
+        PlayedGameStanding(name="gina", seat=2, score=41000, final_score=51),
+        PlayedGameStanding(name="erin", seat=0, score=28000, final_score=8),
+        PlayedGameStanding(name="hank", seat=3, score=19000, final_score=-21),
+        PlayedGameStanding(name="frank", seat=1, score=12000, final_score=-38),
+    ]
+    expected_result = [standing.model_dump(mode="json") for standing in standings_by_placement]
+
+    with ExitStack() as stack:
+        for name in names:
+            register_with_csrf(client, name)
+            stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}")).receive_json()
+        register_with_csrf(client, "dave")
+        dave = stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}"))
+        dave.receive_json()
+        client.cookies.delete("session_id")
+        events = stack.enter_context(
+            client.websocket_connect(f"/ws/tournaments/{tournament_id}/events", headers={"x-api-key": owner_key})
+        )
+        events.receive_json()
+
+        response = client.post(
+            f"/api/tournaments/{tournament_id}/games", json={"games": [names]}, headers={"x-api-key": owner_key}
+        )
+        [result] = response.json()["results"]
+        game_id = result["game_id"]
+        for ws in (dave, events):
+            _receive_until(ws, "game_started")
+            ws.receive_json()
+
+        app.state.game_repo.finish_game(
+            PlayedGame(
+                game_id=game_id,
+                started_at=datetime(2026, 11, 11, 12, 0, tzinfo=UTC),
+                ended_at=ended_at,
+                end_reason=GameEndReason.COMPLETED,
+                standings=standings_by_placement,
+            )
+        )
+        client.portal.call(app.state.tournament_game_end_poller.poll_once)
+        client.portal.call(app.state.tournament_game_end_poller.poll_once)
+        register_with_csrf(client, "ivan")
+        stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}")).receive_json()
+        client.cookies.delete("session_id")
+
+        expected_event = {
+            "type": "game_ended",
+            "game_id": game_id,
+            "players": names,
+            "end_reason": "completed",
+            "result": expected_result,
+        }
+        for ws in (dave, events):
+            assert ws.receive_json() == expected_event
+            assert ws.receive_json() == {"type": "presence", "players": ["dave", "ivan"], "count": 2}
+
+        snapshot = client.get(f"/api/tournaments/{tournament_id}", headers={"x-api-key": owner_key}).json()
+
+    [game] = snapshot["games"]
+    assert game["ended_at"] == ended_at.timestamp()
+    assert game["end_reason"] == "completed"
+    assert game["result"] == expected_result
 
 
 def test_events_socket__when_user_is_not_owner__should_be_refused(client, tournament_id):
