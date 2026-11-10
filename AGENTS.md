@@ -62,6 +62,10 @@ The `Makefile` lists the targets; the non-obvious ones:
   with the game server sampling its own stacks (`bin/profile_game_server.py`) and reporting where real
   games spend its CPU; `make profile` measures engine changes. The sampler stays in-process: py-spy
   pauses the server per sample and stalls it past the health check.
+* `make run-tournament` — eight bots on a new tournament's page, fresh servers and the dev database, managed by
+  `bin/tournament_manager.py` through the tournament API (two shuffled tables, both followed to their end); every
+  API response and event goes to `backend/logs/tournament/manager.log`. It wipes only `backend/logs/tournament`
+  and kills whatever holds `:8710`/`:8711`. Run it only when asked.
 * `make measure-wall [MEASURE_ARGS=...]` — sample games from the engine's seed, dealer and wall functions and
   report their statistics against exact references and a stdlib-shuffle control (`backend/scripts/measure_wall/`).
   A structural failure exits 1; a statistical warning is printed, never a gate.
