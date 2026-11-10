@@ -8,15 +8,15 @@ interface StorybookPage {
 const STORYBOOK_INDEX = "/play/storybook";
 
 const STORYBOOK_PAGES: StorybookPage[] = [
-    { path: STORYBOOK_INDEX, title: "Index" },
+    { path: STORYBOOK_INDEX, title: "Tiles" },
     { path: "/play/storybook/board", title: "Board" },
     { path: "/play/storybook/decisions", title: "Decisions" },
     { path: "/play/storybook/discards", title: "Discards" },
     { path: "/play/storybook/hand", title: "Hand" },
     { path: "/play/storybook/melds", title: "Melds" },
-    { path: "/play/storybook/replay", title: "Replay" },
     { path: "/play/storybook/rotate", title: "Rotate" },
     { path: "/play/storybook/sounds", title: "Sounds" },
+    { path: "/play/storybook/system", title: "System" },
 ];
 
 /** Renders the storybook header with a row of badge links.

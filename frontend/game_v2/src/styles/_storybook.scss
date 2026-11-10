@@ -71,6 +71,23 @@
     overflow-x: auto;
 }
 
+.storybook-connections {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+}
+
+.storybook-connection {
+    --menu-size: 56px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+    width: 24rem;
+    height: 17.5rem;
+}
+
 .storybook-melds {
     display: grid;
     grid-template-columns: max-content minmax(0, 1fr);

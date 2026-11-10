@@ -15,7 +15,7 @@ const SILENT: GameSound = {
 };
 
 /** The replay page's stories: positions of generated replays, and every way a replay may fail to show. */
-export const REPLAY_STORIES = [
+const REPLAY_STORIES = [
     "start",
     "custom_settings",
     "seating",

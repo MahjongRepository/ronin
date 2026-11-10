@@ -72,7 +72,7 @@ element id, class or `snapshot -i` refs.
 
 The lobby serves `frontend/game_v2/` on every game page. The pages below need no login but the live game.
 
-- **Storybooks:** `/play/storybook` and `/play/storybook/{board,decisions,discards,hand,melds,replay,rotate}`.
+- **Storybooks:** `/play/storybook` and `/play/storybook/{board,decisions,discards,hand,melds,replay,rotate,sounds,system}`.
   A board page takes its story as `?state=<key>`; its switches (offers, callout, pinned badge,
   overlay) write their own parameters into the address, so a shot's URL reproduces it. The
   decisions page runs a generated seat transcript to a labelled checkpoint, `?state=<story>`; the

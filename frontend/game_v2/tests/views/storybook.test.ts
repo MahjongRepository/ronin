@@ -3,7 +3,6 @@ import { describe, expect, test } from "vitest";
 
 import { loadSeatScenario, receivedPayload } from "#tests/fixtures/seat-transcripts";
 import { CLIENT_MESSAGE_TYPE, GAME_ACTION, WIRE_KEY, buildRiichiAction } from "@/shared/protocol";
-import { storybookView } from "@/views/storybook";
 import { mountStorybookDecisions } from "@/views/storybook-decisions";
 import { storybookDiscardsView } from "@/views/storybook-discards";
 import { storybookHandView } from "@/views/storybook-hand";
@@ -21,15 +20,15 @@ describe("storybookNav", () => {
         const el = renderTo(storybookNav("/play/storybook"));
         const badges = el.querySelectorAll(".storybook-badge");
         expect([...badges].map((badge) => badge.textContent)).toEqual([
-            "Index",
+            "Tiles",
             "Board",
             "Decisions",
             "Discards",
             "Hand",
             "Melds",
-            "Replay",
             "Rotate",
             "Sounds",
+            "System",
         ]);
     });
 
@@ -38,20 +37,6 @@ describe("storybookNav", () => {
         const active = el.querySelector(".storybook-badge.active");
         expect(active).not.toBeNull();
         expect(active?.textContent).toBe("Melds");
-    });
-});
-
-describe("storybookView", () => {
-    test("renders nav with index badge active", () => {
-        const el = renderTo(storybookView());
-        const active = el.querySelector(".storybook-badge.active");
-        expect(active?.textContent).toBe("Index");
-    });
-
-    test("renders a link to /play/storybook/hand", () => {
-        const el = renderTo(storybookView());
-        const handLink = el.querySelector('a[href="/play/storybook/hand"]');
-        expect(handLink).not.toBeNull();
     });
 });
 

@@ -265,6 +265,7 @@ function createStorybookRoutes(): Route[] {
         storybookRoute(/^\/play\/storybook\/melds$/, (routes) => routes.mountStorybookMelds),
         storybookRoute(/^\/play\/storybook\/replay$/, (routes) => routes.mountStorybookReplay),
         storybookRoute(/^\/play\/storybook\/rotate$/, (routes) => routes.mountStorybookRotate),
+        storybookRoute(/^\/play\/storybook\/system$/, (routes) => routes.mountStorybookSystem),
         storybookRoute(/^\/play\/storybook$/, (routes) => routes.mountStorybookIndex),
     ];
 }

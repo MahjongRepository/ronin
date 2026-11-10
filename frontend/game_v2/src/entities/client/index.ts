@@ -72,6 +72,7 @@ export type { DecisionView, GameEndLinks, PlayBoardProps } from "./ui/play-board
 export { DecisionControls, PlayBoard } from "./ui/play-board";
 export type { GameMenuProps } from "./ui/game-menu";
 export { GameMenu } from "./ui/game-menu";
+export { connectionDisplay } from "./model/round-trip";
 export type { RotatePanelView } from "./ui/rotate-panel";
 export { ReplayRotatePanel, RotatePanel } from "./ui/rotate-panel";
 export { describeClientStatus } from "./model/client-status";
