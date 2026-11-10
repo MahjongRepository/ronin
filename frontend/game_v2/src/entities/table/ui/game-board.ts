@@ -265,26 +265,6 @@ function CenterSeat(
 }
 
 /**
- * While a badge's differences show, the label naming whose they are, beside the wall's count, which stays: one per
- * seat, which the board's stylesheet shows for the hovered badge, naming the seat whole where its name fits
- * the line, else by its wind, which assistive technology skips for the whole name.
- */
-function DiffLabels(plates: BoardDisplayState["nameplates"]): TemplateResult {
-    return html`${SEAT_POSITIONS.map(
-        (position, index) =>
-            html`<div class="board-center__diff-label board-center__diff-label--${position}">
-                <span class="board-center__diff-vs">${t("game.board.vs")}</span>
-                <span class="board-center__diff-slot"
-                    ><span class="board-center__diff-names"
-                        ><span class="board-center__diff-name">${plates[index].name}</span
-                        ><span class="board-center__diff-wind" aria-hidden="true">${plates[index].windName}</span></span
-                    ></span
-                >
-            </div>`,
-    )}`;
-}
-
-/**
  * The centre: each seat's wind and score on its side, its riichi stick inside the edge, the turn's bar on it, and in
  * its middle the round over the wall's count and the honba and riichi sticks on the table, as Tenhou's.
  */
@@ -314,7 +294,6 @@ function CenterInfo(
                         >
                     </span>
                 </div>
-                ${DiffLabels(plates)}
             </div>
         </div>
     `;

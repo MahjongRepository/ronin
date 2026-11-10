@@ -220,21 +220,6 @@ $plate-seats: bottom, right, top, left;
         text-decoration-thickness: 2px;
         text-underline-offset: 3px;
     }
-
-    .board-center__round,
-    .board-center__sticks {
-        display: none;
-    }
-
-    .board-center__diff-label--#{$seat} {
-        display: block;
-    }
-
-    .board-center__counts {
-        @include phone-board {
-            display: none;
-        }
-    }
 }
 
 @media (hover: hover) {

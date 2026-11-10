@@ -244,39 +244,3 @@
     clip-path: inset(50%);
     white-space: nowrap;
 }
-
-.board-center__diff-label {
-    color: var(--ronin-text);
-}
-
-/* While a badge's differences show, its label takes the round's line: the seat's whole name on one line where it fits,
-   else its wind, which the column moves up past the wrapped name by the name's own height (no script measures it). */
-.board-center__diff-label {
-    display: none;
-    width: 100%;
-    font-size: max(11.5px, calc(var(--c) * 0.08));
-    font-weight: 600;
-    line-height: 1.1;
-    text-align: center;
-    white-space: normal;
-}
-
-.board-center__diff-vs {
-    display: block;
-}
-
-.board-center__diff-slot {
-    display: block;
-    height: 1.1em;
-    overflow: hidden;
-}
-
-.board-center__diff-names {
-    display: flex;
-    flex-direction: column;
-    translate: 0 calc(-1 * min(100% - 1.1em, max(0px, 100% - 2.7em) * 1000));
-}
-
-.board-center__diff-name {
-    overflow-wrap: anywhere;
-}
