@@ -38,6 +38,9 @@
     border: 1px solid var(--ronin-border);
     border-radius: var(--corner);
     box-shadow: var(--ronin-panel-shadow);
+    cursor: default;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 /* A seat's frame is the panel turned to face it: a side seat's is as long as the panel is tall. */
