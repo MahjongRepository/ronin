@@ -4,8 +4,9 @@ Play an external tournament manager against a running lobby: wait for the player
 Connect the tournament's events socket, wait until every given player is online, shuffle them into tables of four and
 start those through the tournament API, then wait for a ``game_started`` and a ``game_ended`` of every started game
 and read the snapshot. Every API response and every event goes to the log. Exits 1 when a table fails to start, a
-``game_started`` seats other players or another order than submitted, a game does not end as completed, or a deadline
-passes.
+``game_started`` names other players or another order than submitted, a game does not end as completed, its
+``game_ended`` seats do not run East to North in the submitted order (each player one engine seat after the one before,
+counted from the seat East holds), the snapshot read fails, or a deadline passes.
 
 Usage: uv run --project backend python bin/tournament_manager.py --lobby-url URL --tournament ID --api-key KEY
     --log PATH <player>...
@@ -102,28 +103,44 @@ def check_started(event: dict[str, object], submitted: dict[str, list[str]]) -> 
         logger.error("game %s started as %s, submitted %s", game_id, event["players"], submitted.get(game_id))
         return False
 
-    logger.info("game %s seated as submitted, East to North %s", game_id, event["players"])
+    logger.info("game %s started with the submitted table %s", game_id, event["players"])
+    return True
+
+
+def check_seating(event: dict[str, object], table: list[str]) -> bool:
+    """
+    Return whether the game's engine seats hold the table in wind order, each player one seat after the one before.
+    """
+    seats = {entry["name"]: entry["seat"] for entry in event["result"]}
+    east_seat = seats[table[0]]
+    expected = {name: (east_seat + wind) % TABLE_SIZE for wind, name in enumerate(table)}
+    if seats != expected:
+        logger.error("game %s seated %s, the submitted table needs %s", event["game_id"], seats, expected)
+        return False
+
+    logger.info("game %s seated East to North as submitted, engine seats %s", event["game_id"], seats)
     return True
 
 
 async def follow_games(events: ClientConnection, submitted: dict[str, list[str]]) -> bool:
     """
-    Wait for a game_started and a game_ended of every submitted game; return whether all matched and completed.
+    Wait for a game_started and a game_ended of every submitted game; return whether all matched, completed and kept
+    the submitted seating.
     """
     started: dict[str, bool] = {}
-    ended: dict[str, object] = {}
+    ended: dict[str, bool] = {}
     async with asyncio.timeout(GAMES_TIMEOUT_SECONDS):
         while set(ended) != set(submitted):
             event = await receive_event(events)
             if event["type"] == "game_started":
                 started[event["game_id"]] = check_started(event, submitted)
             elif event["type"] == "game_ended" and event["game_id"] in submitted:
-                ended[event["game_id"]] = event["end_reason"]
+                completed = event["end_reason"] == COMPLETED
+                ended[event["game_id"]] = completed and check_seating(event, submitted[event["game_id"]])
 
     all_started = all(started.get(game_id, False) for game_id in submitted)
-    all_completed = all(reason == COMPLETED for reason in ended.values())
-    logger.info("games ended: %s", json.dumps(ended))
-    return all_started and all_completed
+    logger.info("games ended completed and seated as submitted: %s", json.dumps(ended))
+    return all_started and all(ended.values())
 
 
 async def manage(args: argparse.Namespace) -> bool:
@@ -143,7 +160,7 @@ async def manage(args: argparse.Namespace) -> bool:
         succeeded = await follow_games(events, submitted)
         response = await http.get(f"/api/tournaments/{args.tournament}")
         logger.info("GET /api/tournaments/%s -> %s %s", args.tournament, response.status_code, response.text)
-        return succeeded
+        return succeeded and response.status_code == httpx.codes.OK
 
 
 def main() -> None:

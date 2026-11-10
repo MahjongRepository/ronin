@@ -172,8 +172,9 @@ MANAGER_STATUS=0
     --log "$RUN_LOG_DIR/manager.log" "${BOT_NAMES[@]}") || MANAGER_STATUS=$?
 
 BOTS_STATUS=0
-wait_for_bots || BOTS_STATUS=1
-BOT_PIDS=()
+if [[ $MANAGER_STATUS -eq 0 ]]; then
+    wait_for_bots || BOTS_STATUS=1
+fi
 
 echo ""
 echo "logs in $RUN_LOG_DIR (manager.log holds every API response and event)"
