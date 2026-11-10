@@ -47,8 +47,10 @@ interface GameMenuProps {
     };
     /** Whether Auto win carries into the next round; a live game's alone. */
     readonly keepAutoWin?: { readonly on: boolean; readonly onToggle: () => void };
-    /** The way back to the lobby, asking first when `asks`; a live game's alone. */
-    readonly leave?: { readonly asks: boolean; readonly onLeave: () => void };
+    /** The way back to the lobby: a live game's leave, asking first when `asks`, or a replay's link. */
+    readonly leave?:
+        | { readonly kind: "leave"; readonly asks: boolean; readonly onLeave: () => void }
+        | { readonly kind: "link"; readonly href: string };
     /** What the page adds before the settings (the debug log). */
     readonly extra?: TemplateResult;
 }
@@ -223,6 +225,13 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
 }
 
 function LeaveRow(leave: NonNullable<GameMenuProps["leave"]>): TemplateResult {
+    if (leave.kind === "link") {
+        return html`<a
+            href=${leave.href}
+            role="button"
+            class="secondary game-menu__item game-menu__leave"
+        >${LeaveIcon()}<span class="game-menu__item-name">${t("common.back_to_lobby")}</span></a>`;
+    }
     return html`<button
         type="button"
         class="secondary game-menu__item game-menu__leave"

@@ -104,10 +104,10 @@ function positionOf(seat: number, { replay, view }: LoadedReplayScreen): SeatPos
 }
 
 /** The ways back from the game's end: the lobby and the game history. */
-function endActions(links: ReplayLinks): readonly PanelAction[] {
+function endActions(lobby: string, history: string): readonly PanelAction[] {
     return [
-        { href: links.lobby, kind: "link", label: t("common.lobby") },
-        { href: links.history, kind: "link", label: t("common.game_history"), primary: true },
+        { href: lobby, kind: "link", label: t("common.lobby") },
+        { href: history, kind: "link", label: t("common.game_history"), primary: true },
     ];
 }
 
@@ -123,8 +123,9 @@ export function ReplayBoard({
     screen,
 }: ReplayBoardProps): TemplateResult {
     const { overlay } = display;
+    const { lobby } = links;
     const controls: TablePanelControls = {
-        endActions: endActions(links),
+        endActions: endActions(lobby, links.history),
         onPage: handlers.showResultPage,
         onPickSeat: (seat) => handlers.viewSeat(positionOf(seat, screen)),
         seatingActions: [
@@ -145,6 +146,7 @@ export function ReplayBoard({
         menu: GameMenu({
             animationsOn: screen.animationsOn,
             backdrop: true,
+            leave: { href: lobby, kind: "link" },
             onClose: handlers.closeSettings,
             onLanguage: handlers.setLanguage,
             onTileLabels: handlers.setTileLabels,

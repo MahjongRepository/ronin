@@ -800,6 +800,18 @@ describe("mountReplayView - view", () => {
         ]);
     });
 
+    it("links the cog's menu back to the lobby", async () => {
+        const { host } = await mountLoadedReplay("riichi", "?round=0&step=10");
+
+        button(host, ".game-menu__toggle").click();
+        const row = element(host, "a.game-menu__leave");
+
+        expect([textOf(host, "a.game-menu__leave"), row.getAttribute("href")]).toEqual([
+            "Back to lobby",
+            LINKS.lobby,
+        ]);
+    });
+
     it("turns the board's animations off from the cog and keeps the setting the live game shares", async () => {
         onTestFinished(() => localStorage.removeItem(MOTION_SETTING_KEY));
         const { host } = await mountLoadedReplay("riichi", "?round=0&step=10");

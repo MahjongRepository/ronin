@@ -544,6 +544,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             },
             leave: {
                 asks: display.leave.command.kind === "ask_leave",
+                kind: "leave",
                 onLeave: () => onCommand(display.leave.command),
             },
             onClose: () => onCommand(CLOSE_SETTINGS),

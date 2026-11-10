@@ -208,6 +208,10 @@ section {
     white-space: nowrap;
 }
 
+a.game-menu__item {
+    display: flex;
+}
+
 .game-menu__right-click,
 .game-menu__key-hints,
 .game-menu__controls {
