@@ -129,6 +129,8 @@ const COLUMN_FURITEN_GAP = 4;
 
 /** The replay's moves in the switches' place. */
 const REPLAY_MOVES = 7;
+/** The replay's options at the band's end: the viewpoint, the other hands and the round list. */
+const REPLAY_OPTIONS = 3;
 
 /** An opponent's full hand's tiles. */
 const HAND_TILES = 14;
@@ -174,6 +176,8 @@ const RIGHT_FROM_BAND_GAP = 2;
 
 /** A phone's switches' place holds the replay's five moves, wider than the play switches. */
 const REPLAY_MOVES_ON_PHONE = 5;
+/** A smaller board's band holds two options: its viewpoint is the seating's and the plates'. */
+const REPLAY_OPTIONS_ON_PHONE = 2;
 
 /**
  * A phone's side fields beside the deepest strips: the notices' place (7.5 of its 11px ems) and its gaps to the strip
@@ -723,9 +727,10 @@ function replayMovesWidth(chrome: ChromeTier, movesH: number, replayGap: number)
     return rowWidth(chrome === "small" ? REPLAY_MOVES_ON_PHONE : REPLAY_MOVES, movesH, replayGap);
 }
 
-/** A replay's group: its moves and two more controls, its gap between them. */
+/** A replay's group: its moves and its options (a smaller board's two, else three), its gap between them. */
 function replayGroupWidth(chrome: ChromeTier, movesH: number, replayGap: number): number {
-    return replayMovesWidth(chrome, movesH, replayGap) + 2 * (movesH + replayGap);
+    const options = chrome === "small" ? REPLAY_OPTIONS_ON_PHONE : REPLAY_OPTIONS;
+    return replayMovesWidth(chrome, movesH, replayGap) + options * (movesH + replayGap);
 }
 
 function replayLengths(

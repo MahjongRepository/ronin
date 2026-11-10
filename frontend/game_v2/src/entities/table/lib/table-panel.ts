@@ -72,7 +72,10 @@ export function tableSeatingPanel(table: TableState, viewerSeat: number | null):
     return { display: tableSeatingDisplay(table, viewerSeat), kind: "seating" };
 }
 
-/** The seating a replay opens on, from its table as the game started: the starting scores, no seat the reader's. */
-export function replaySeatingPanel(startTable: TableState): TablePanel {
-    return { display: replaySeatingDisplay(startTable), kind: "seating" };
+/**
+ * The seating a replay opens on, from its table as the game started: the starting scores, no seat the reader's, the
+ * seat its board is seen from marked.
+ */
+export function replaySeatingPanel(startTable: TableState, viewpointSeat: number): TablePanel {
+    return { display: replaySeatingDisplay(startTable, viewpointSeat), kind: "seating" };
 }

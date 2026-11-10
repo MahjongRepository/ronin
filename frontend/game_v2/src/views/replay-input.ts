@@ -13,15 +13,17 @@ const SCROLL_COMMANDS: ReadonlySet<ReplayKeyCommand> = new Set([
     "first",
     "last",
     "nextRound",
+    "nextTurn",
     "prevRound",
+    "prevTurn",
 ]);
 
 /** By `key`, or by `code` for the letters, so a layout that types other letters keeps them. */
 const KEY_COMMANDS: ReadonlyMap<string, ReplayKeyCommand> = new Map([
-    ["ArrowDown", "nextRound"],
+    ["ArrowDown", "nextTurn"],
     ["ArrowLeft", "prev"],
     ["ArrowRight", "next"],
-    ["ArrowUp", "prevRound"],
+    ["ArrowUp", "prevTurn"],
     ["End", "last"],
     ["Home", "first"],
     ["KeyH", "hands"],

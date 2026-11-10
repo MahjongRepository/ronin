@@ -47,15 +47,16 @@ const DESKTOP_TEXT_LINES: Readonly<Partial<Record<StatusPart, number>>> = {
     incomplete: 4,
 };
 
-/** The moves every board shows, either end too where its chrome is the desktop's, and the options. */
+/** The moves every board shows, the rounds' too where its chrome is the desktop's, and the options. */
 const CORE_MOVES = [
-    ".replay-controls__move--prevRound",
+    ".replay-controls__move--prevTurn",
     ".replay-controls__move--prev",
     ".replay-controls__play",
     ".replay-controls__move--next",
-    ".replay-controls__move--nextRound",
+    ".replay-controls__move--nextTurn",
 ];
-const END_MOVES = [".replay-controls__move--first", ".replay-controls__move--last"];
+const END_MOVES = [".replay-controls__move--prevRound", ".replay-controls__move--nextRound"];
+const VIEW_OPTION = ".replay-controls__option--view";
 const ROUNDS_TOGGLE = ".replay-controls__option--rounds";
 const OPTIONS = [".replay-controls__option--hands", ROUNDS_TOGGLE];
 
@@ -427,7 +428,10 @@ function measureReplay(page: Page): Promise<ReplayMeasure> {
                 status: status === null ? null : box(status),
             };
         },
-        { bandSelectors: [...CORE_MOVES, ...END_MOVES, ...OPTIONS], parts: STATUS_PARTS },
+        {
+            bandSelectors: [...CORE_MOVES, ...END_MOVES, VIEW_OPTION, ...OPTIONS],
+            parts: STATUS_PARTS,
+        },
     );
 }
 
@@ -451,7 +455,7 @@ function replayState(board: BoardMeasure): ReplayState {
 function expectedControls({ compact, desktopChrome }: ReplayState): readonly string[] {
     return [
         ...CORE_MOVES,
-        ...(desktopChrome ? END_MOVES : []),
+        ...(desktopChrome ? [...END_MOVES, VIEW_OPTION] : []),
         ...(compact ? [ROUNDS_TOGGLE] : OPTIONS),
     ];
 }

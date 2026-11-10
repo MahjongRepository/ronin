@@ -100,6 +100,8 @@ class TestRecordGame:
         repo.finish_game(_finish())
 
         assert await repo.get_recent_completed_games() == [_finish()]
+        assert await repo.get_game(_finish().game_id) == _finish()
+        assert await repo.get_game("unrecorded-game") is None
 
     async def test_game_repository__when_finished_without_a_start_row__should_store_the_whole_record(
         self, repo: SqliteGameRepository

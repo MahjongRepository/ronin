@@ -36,6 +36,12 @@ class GameRepository(ABC):
         """
 
     @abstractmethod
+    async def get_game(self, game_id: str) -> PlayedGame | None:
+        """
+        Return the recorded game with this id, or None when none is recorded.
+        """
+
+    @abstractmethod
     async def get_games_summary(self, *, since: datetime) -> GamesSummary:
         """
         Summarize the games started at or after ``since``, a UTC-aware datetime.

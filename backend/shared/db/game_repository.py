@@ -38,6 +38,9 @@ class SqliteGameRepository(GameRepository):
         """
         return await self._db.submit_read(partial(_select_recent_completed_games, limit=limit))
 
+    async def get_game(self, game_id: str) -> PlayedGame | None:
+        return await self._db.submit_read(partial(_select_game, game_id=game_id))
+
     async def get_games_summary(self, *, since: datetime) -> GamesSummary:
         return await self._db.submit_read(partial(_summarize_games_since, since=since))
 
@@ -80,6 +83,11 @@ def _select_recent_completed_games(conn: sqlite3.Connection, *, limit: int) -> l
         (GameEndReason.COMPLETED, limit),
     ).fetchall()
     return [PlayedGame.model_validate(json.loads(row[0])) for row in rows]
+
+
+def _select_game(conn: sqlite3.Connection, *, game_id: str) -> PlayedGame | None:
+    row = conn.execute("SELECT data FROM played_games WHERE id = ?", (game_id,)).fetchone()
+    return None if row is None else PlayedGame.model_validate(json.loads(row[0]))
 
 
 def _summarize_games_since(conn: sqlite3.Connection, *, since: datetime) -> GamesSummary:

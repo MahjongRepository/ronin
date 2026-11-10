@@ -221,9 +221,13 @@ function isStep(command: keyof ReplayMoves): command is StepDirection {
     return command === "next" || command === "prev";
 }
 
+function movesOf({ replay, view }: LoadedReplayScreen): ReplayMoves {
+    return replayMoves(replay.navigation, view.cursor, view.bottomSeat);
+}
+
 /** Where one step toward `direction` goes from the cursor shown; null where it cannot go on. */
 function stepTarget(screen: LoadedReplayScreen, direction: StepDirection): ReplayCursor | null {
-    return replayMoves(screen.replay.navigation, screen.view.cursor)[direction];
+    return movesOf(screen)[direction];
 }
 
 /**
@@ -426,7 +430,7 @@ function onKey(screen: LoadedReplayScreen, { at, command, repeat }: Timed<KeyInp
     if (repeat && atPauseStop(cleared)) {
         return quiet(cleared);
     }
-    const target = replayMoves(cleared.replay.navigation, cleared.view.cursor)[command];
+    const target = movesOf(cleared)[command];
     return target === null
         ? quiet(cleared)
         : moveTo(cleared, { announce: !repeat && isStep(command), at, to: target });

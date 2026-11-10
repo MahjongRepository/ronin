@@ -54,6 +54,7 @@ from lobby.views import (
     monitoring_page,
     play_page,
     replay_content,
+    replay_page,
     resolve_vite_asset_urls,
     room_page,
     storybook_page,
@@ -168,7 +169,7 @@ def create_app(  # noqa: PLR0913
         # Protected HTML routes (redirect to login when unauthenticated)
         Route("/", protected_html(lobby_page), methods=["GET"], name="lobby_page"),
         Route("/history", protected_html(history_page), methods=["GET"], name="history_page"),
-        Route("/play/history/{game_id}", public_route(play_page), methods=["GET"], name="replay_page"),
+        Route("/play/history/{game_id}", public_route(replay_page), methods=["GET"], name="replay_page"),
         Route("/play/storybook/sounds", public_route(play_page), methods=["GET"], name="storybook_sounds_page"),
         Route("/play/storybook/board", public_route(play_page), methods=["GET"], name="storybook_board_page"),
         Route("/play/storybook/discards", public_route(play_page), methods=["GET"], name="storybook_discards_page"),

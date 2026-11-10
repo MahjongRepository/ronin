@@ -3,10 +3,11 @@ from __future__ import annotations
 from dataclasses import asdict
 from http import HTTPStatus
 from typing import TYPE_CHECKING
+from urllib.parse import urlencode
 
 import structlog
 from starlette.exceptions import HTTPException
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, RedirectResponse
 
 from lobby.game_transition import GameLookupError, find_game_handoff
 from lobby.views.assets import render_page
@@ -34,6 +35,24 @@ async def play_page(request: Request) -> Response:
 
     game_client: GameClient = request.app.state.game_client
     return await game_client.serve_page()
+
+
+async def replay_page(request: Request) -> Response:
+    """
+    GET /play/history/{game_id} — serve the replay page, from the reader's own seat when the link names none.
+
+    A link without `seat` opened by a logged-in player of that game redirects to the same link with their seat; any
+    other reader, and any link naming a seat, gets the page as asked.
+    """
+    if "seat" not in request.query_params and request.user.is_authenticated:
+        game = await request.app.state.game_repo.get_game(request.path_params["game_id"])
+        standings = game.standings if game is not None else []
+        seat = next((s.seat for s in standings if s.user_id == request.user.user_id), None)
+        if seat is not None:
+            query = urlencode([*request.query_params.multi_items(), ("seat", seat)])
+            return RedirectResponse(f"{request.url.path}?{query}", status_code=HTTPStatus.FOUND, headers=_NO_STORE)
+
+    return await play_page(request)
 
 
 async def game_session(request: Request) -> JSONResponse:

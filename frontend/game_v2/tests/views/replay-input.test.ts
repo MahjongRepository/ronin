@@ -7,7 +7,7 @@ function command(key: string, code = ""): ReturnType<typeof keyCommand> {
 }
 
 describe("keyCommand", () => {
-    it("steps on the side arrows and moves rounds on the up and down arrows and the page keys", () => {
+    it("steps on the side arrows, moves turns on the up and down arrows and rounds on the page keys", () => {
         expect(
             [
                 "ArrowLeft",
@@ -22,8 +22,8 @@ describe("keyCommand", () => {
         ).toEqual([
             "prev",
             "next",
-            "prevRound",
-            "nextRound",
+            "prevTurn",
+            "nextTurn",
             "prevRound",
             "nextRound",
             "first",

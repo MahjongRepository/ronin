@@ -15,6 +15,8 @@ import { RoundEndDisplay } from "./round-end-display";
 export interface TablePanelControls {
     readonly seatingActions?: readonly PanelAction[];
     readonly seatingControls?: TemplateResult;
+    /** A replay's seating lets its reader pick the seat to view from, by the table's seat. */
+    readonly onPickSeat?: (seat: number) => void;
     readonly resultControls?: TemplateResult;
     readonly onPage?: (page: number) => void;
     readonly endActions?: readonly PanelAction[];
@@ -27,11 +29,10 @@ export function TablePanelDisplay(
 ): TemplateResult {
     switch (panel.kind) {
         case "seating": {
-            return GameStartDisplay(
-                panel.display,
-                controls.seatingActions,
-                controls.seatingControls,
-            );
+            return GameStartDisplay(panel.display, controls.seatingActions, {
+                controls: controls.seatingControls,
+                onPickSeat: controls.onPickSeat,
+            });
         }
         case "result": {
             return RoundEndDisplay({

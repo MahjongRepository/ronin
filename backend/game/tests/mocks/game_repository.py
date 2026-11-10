@@ -27,6 +27,9 @@ class FakeGameRepository(GameRepository):
         completed = [game for game in self.games.values() if game.end_reason == GameEndReason.COMPLETED]
         return sorted(completed, key=lambda game: game.started_at, reverse=True)[:limit]
 
+    async def get_game(self, game_id: str) -> PlayedGame | None:
+        return self.games.get(game_id)
+
     async def get_games_summary(self, *, since: datetime) -> GamesSummary:
         return GamesSummary.from_timings(
             (game.end_reason, game.started_at, game.ended_at)

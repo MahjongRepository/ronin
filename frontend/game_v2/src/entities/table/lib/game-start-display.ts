@@ -12,12 +12,15 @@ const GAME_TYPE_NAMES: Readonly<Record<GameType, MessageKey>> = {
 
 /** A seat at the table: its seat wind, its player, and whether it deals, is the viewer's or AI. */
 export interface GameStartSeat {
+    readonly seat: number;
     readonly wind: string;
     readonly windName: string;
     readonly name: string;
     readonly isDealer: boolean;
     readonly isViewer: boolean;
     readonly isAiPlayer: boolean;
+    /** Whether a replay's board is seen from the seat; never on a live seating. */
+    readonly isViewpoint: boolean;
     /** The seat's score where the view knows it (a dealt round's, a replay's first deal's); else null. */
     readonly score: string | null;
 }
@@ -33,13 +36,14 @@ export interface GameStartDisplayState {
 interface SeatingView {
     readonly dealer: number;
     readonly viewerSeat: number | null;
+    readonly viewpointSeat: number | null;
     readonly scored: boolean;
 }
 
 /** The seats in wind order from the dealer's seat round, each scored where the view shows scores. */
 function seatsInWindOrder(
     table: TableState,
-    { dealer, scored, viewerSeat }: SeatingView,
+    { dealer, scored, viewerSeat, viewpointSeat }: SeatingView,
 ): GameStartSeat[] {
     function windOf(seat: number): number {
         return seatDistance(dealer, seat);
@@ -50,8 +54,10 @@ function seatsInWindOrder(
             isAiPlayer: player.isAiPlayer,
             isDealer: player.seat === dealer,
             isViewer: player.seat === viewerSeat,
+            isViewpoint: player.seat === viewpointSeat,
             name: player.name,
             score: scored ? formatPoints(player.score) : null,
+            seat: player.seat,
             wind: windLetter(windOf(player.seat)),
             windName: windName(windOf(player.seat)),
         }));
@@ -72,15 +78,23 @@ export function tableSeatingDisplay(
     return {
         gameType: gameTypeName(table),
         round: formatRoundName(table.roundWind, table.roundInWind, table.honbaSticks),
-        seats: seatsInWindOrder(table, { dealer: table.dealerSeat, scored: true, viewerSeat }),
+        seats: seatsInWindOrder(table, {
+            dealer: table.dealerSeat,
+            scored: true,
+            viewerSeat,
+            viewpointSeat: null,
+        }),
     };
 }
 
 /**
  * The seating a replay opens on, from its table as the game started at its first deal's scores: each seat's starting
- * score shown, no seat the reader's.
+ * score shown, no seat the reader's, the seat at the board's bottom its viewpoint.
  */
-export function replaySeatingDisplay(table: TableState): GameStartDisplayState {
+export function replaySeatingDisplay(
+    table: TableState,
+    viewpointSeat: number,
+): GameStartDisplayState {
     return {
         gameType: gameTypeName(table),
         round: roundName(WIND.EAST, 1),
@@ -88,6 +102,7 @@ export function replaySeatingDisplay(table: TableState): GameStartDisplayState {
             dealer: table.firstDealerSeat,
             scored: true,
             viewerSeat: null,
+            viewpointSeat,
         }),
     };
 }

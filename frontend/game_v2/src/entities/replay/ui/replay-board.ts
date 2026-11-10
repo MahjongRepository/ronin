@@ -8,6 +8,7 @@ import {
     GameBoard,
     type PanelAction,
     type PlatePress,
+    SEAT_POSITIONS,
     type SeatPosition,
     type TablePanelControls,
     TablePanelDisplay,
@@ -31,6 +32,7 @@ export interface ReplayBoardHandlers {
     readonly move: (cursor: ReplayCursor) => void;
     readonly showResultPage: (page: number) => void;
     readonly viewSeat: (seat: SeatPosition) => void;
+    readonly nextView: () => void;
     readonly toggleRoundList: () => void;
     readonly closeRoundList: () => void;
     readonly selectRound: (start: ReplayCursor) => void;
@@ -85,6 +87,7 @@ function controlsTemplate(
     return html`<div class="replay-controls">${ReplayControls({
         moves: display.moves,
         onMove: handlers.move,
+        onNextView: handlers.nextView,
         onStepClick: handlers.stepClick,
         onStepPress: handlers.stepPress,
         onToggleHands: handlers.toggleHands,
@@ -93,6 +96,12 @@ function controlsTemplate(
         playback: { hideHands, playing: autoplay.playing },
         roundListOpen,
     })}${roundList}</div>`;
+}
+
+/** Where a table's seat stands on the board as the screen views it. */
+function positionOf(seat: number, { replay, view }: LoadedReplayScreen): SeatPosition {
+    const { seatCount } = replay;
+    return SEAT_POSITIONS[(seat - view.bottomSeat + seatCount) % seatCount];
 }
 
 /** The ways back from the game's end: the lobby and the game history. */
@@ -105,7 +114,8 @@ function endActions(links: ReplayLinks): readonly PanelAction[] {
 
 /**
  * The replay's board: the table at the display's stop, its panel (the seating's Start, a result, the game's end), the
- * replay's controls and status in the band, and the settings menu in the corner. A nameplate press views that seat.
+ * replay's controls and status in the band, and the settings menu in the corner. A nameplate press views that seat,
+ * as a press of its name on the seating does.
  */
 export function ReplayBoard({
     display,
@@ -118,6 +128,7 @@ export function ReplayBoard({
     const controls: TablePanelControls = {
         endActions: endActions(links),
         onPage: handlers.showResultPage,
+        onPickSeat: (seat) => handlers.viewSeat(positionOf(seat, screen)),
         seatingActions: [
             {
                 focusKey: SEATING_START_FOCUS_KEY,

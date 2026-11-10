@@ -436,11 +436,11 @@ describe("mountReplayView - moving", () => {
     it("jumps to either end, with no way on from the last step", async () => {
         const { host } = await mountLoadedReplay();
 
-        button(host, ".replay-controls__move--last").click();
+        pressKey(rootOf(host), "End");
         expect(position(host)).toBe("East 1 Step 28 of 28");
         expect(button(host, ".replay-controls__move--next").disabled).toBe(true);
 
-        button(host, ".replay-controls__move--first").click();
+        pressKey(rootOf(host), "Home");
         expect(position(host)).toBe("East 1 Step 1 of 28");
     });
 
@@ -459,7 +459,7 @@ describe("mountReplayView - moving", () => {
 
     it("shows the result page the cursor stands on", async () => {
         const { host } = await mountLoadedReplay("double_ron");
-        button(host, ".replay-controls__move--last").click();
+        pressKey(rootOf(host), "End");
         expect(textOf(host, ".round-end-result__winner")).toBe("Charlie");
 
         button(host, ".replay-controls__move--prev").click();
@@ -742,6 +742,27 @@ describe("mountReplayView - view", () => {
 
         expect(afterPlate).toBe(right);
         expect(written.at(-1)).toBe("?round=0&step=10&seat=3");
+    });
+
+    it("views from the seat whose name the seating's row is pressed on, and from the next seat on the view button, moving turns as that seat's", async () => {
+        const { host } = await mountLoadedReplay("double_ron");
+        const [, , pick] = host.querySelectorAll<HTMLButtonElement>(".seating__pick");
+
+        pick.click();
+        const marked = host.querySelector(".seating__seat--viewer .seating__name")?.textContent;
+        button(host, ".seating__action").click();
+        const names = [".board-local", ".nameplate--right"].map((place) =>
+            textOf(host, `${place} .nameplate__name`),
+        );
+        button(host, ".replay-controls__option--view").click();
+        button(host, ".replay-controls__move--nextTurn").click();
+
+        expect([marked, names[0], textOf(host, ".board-local .nameplate__name")]).toEqual([
+            pick.textContent,
+            pick.textContent,
+            names[1],
+        ]);
+        expect(host.querySelectorAll(".board-local .hand .tile").length).toBe(14);
     });
 
     it("hides the other hands, and keeps the choice in the reader's settings", async () => {
@@ -1068,7 +1089,7 @@ describe("mountReplayView - loading", () => {
 
     it("labels a replay that stops before the game's end, and says where it ends at its last stop", async () => {
         const { host } = await mountLoadedReplay("truncated_mid_round");
-        button(host, ".replay-controls__move--last").click();
+        pressKey(rootOf(host), "End");
 
         expect(textOf(host, ".replay-status__incomplete--end")).toBe(
             "Incomplete The recording ends here, before the game's end Ends here",

@@ -576,14 +576,21 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the group does not fit beside the rivers' reach: the moves keep the switches' place and the
   options the decisions', on a phone filling the live slots of its composition: the moves in the
   switches' one-row place, the options at the band's right end. The status (an incomplete recording's note) takes the
-  notices' place, under any notice. Decision: the moves are a round
-  back, a step back, play (in the accent, the player's own action), a step on and a round on, with
-  either end too on a desktop's chrome (elsewhere the round list's
-  first row and its foot, Last step, always in view, reach them by touch); the options are hide hands and
+  notices' place, under any notice. Decision: the moves are the viewpoint seat's turn
+  back (its last draw or call), a step back, play (in the accent, the player's own action), a step on and
+  its turn on (past its last turn the round's result, then the next deal), with
+  a round back and on at either end on a desktop's chrome (elsewhere the round list reaches them by
+  touch); either end of the replay is the keys' and the round list's (its
+  first row and its foot, Last step, always in view). The options are hide hands and
   the round list, the switch over the round list's toggle where the band holds fewer than two, the
-  toggle in the band. Decision: autoplay has one pace, no speed control. Decision: the viewpoint has no
-  control of its own: pressing another seat's badge, or its score in the centre, views from that seat,
-  so a replay's badge pins no differences (hovering still shows them). A panel over a replay's board never covers the controls, so the replay
+  toggle in the band, with the next seat's view before them on a desktop's chrome. Every control shows
+  its name and key at once on hover and keyboard focus. Decision: autoplay has one pace, no speed
+  control. Decision: the viewpoint changes three ways: the view control (a desktop's chrome), pressing
+  another seat's badge or its score in the centre, and pressing a seat's name on the seating, which
+  marks the seat viewed from; so a replay's badge pins no differences (hovering still shows them).
+  Decision: a replay greys a discard of the tile just drawn (tsumogiri) in every river, one shade over
+  its face alone (its edge and shadow stay as any tile's), and marks it with a small dark corner at its artwork's bottom left;
+  live play marks none. A panel over a replay's board never covers the controls, so the replay
   always moves on. Decision, a panel-only exception: on a board smaller than a desktop's chrome a panel
   takes all but the moves' row, the options hide but the round list's toggle, and an incomplete
   recording's "Ends here" stands between them, compact (before the group where they share a row), and the panel's

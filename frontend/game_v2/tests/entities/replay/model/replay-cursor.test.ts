@@ -10,9 +10,11 @@ import {
     lastCursor,
     nextCursor,
     nextRoundCursor,
+    nextTurnCursor,
     positionCursor,
     prevCursor,
     prevRoundCursor,
+    prevTurnCursor,
     roundPosition,
     roundResultCursor,
 } from "@/entities/replay/model/replay-cursor";
@@ -109,5 +111,70 @@ describe("replay cursor", () => {
         expect(positionCursor(nav, roundPosition(nav, standings))).toEqual(standings);
         expect(positionCursor(nav, { round: 1, step: nav.rounds[1].stopCount })).toBeNull();
         expect(positionCursor(nav, { round: nav.rounds.length, step: 0 })).toBeNull();
+    });
+});
+
+/** The stops `seat`'s turns take a walk on from a round's deal, up to the round's result. */
+function turnStops(nav: NavigationIndex, round: number, seat: number): number[] {
+    const { firstStop, resultStop } = nav.rounds[round];
+    const visited: number[] = [];
+    let cursor = nextTurnCursor(nav, { page: 0, stop: firstStop }, seat);
+    while (cursor !== null && cursor.stop !== resultStop) {
+        visited.push(cursor.stop);
+        cursor = nextTurnCursor(nav, cursor, seat);
+    }
+    return visited;
+}
+
+describe("turn cursors", () => {
+    test("walk a seat's turns one stop each (a draw or a call, one discard apart), then the result and the next deal", () => {
+        const { events, tables } = loadEngineReplay("full_game");
+        const nav = buildNavigationIndex(events, tables);
+        const [round, nextRound] = nav.rounds;
+        const seat = (round.dealerSeat + 2) % 4;
+        const result = { page: 0, stop: round.resultStop ?? -1 };
+        const visited = turnStops(nav, 0, seat);
+
+        expect(visited.length).toBeGreaterThan(1);
+        expect(
+            visited
+                .map((stop) => events[nav.stops[stop].moveEntry])
+                .every(
+                    (event) =>
+                        (event.type === "draw" && event.seat === seat) ||
+                        (event.type === "meld" && event.callerSeat === seat),
+                ),
+        ).toBe(true);
+        expect(
+            visited.slice(1).map(
+                (stop, index) =>
+                    nav.stops.slice(visited[index], stop).filter(({ moveEntry }) => {
+                        const event = events[moveEntry];
+                        return event.type === "discard" && event.seat === seat;
+                    }).length,
+            ),
+        ).toEqual(visited.slice(1).map(() => 1));
+        expect([
+            nextTurnCursor(nav, { page: 0, stop: visited.at(-1) ?? -1 }, seat),
+            nextTurnCursor(nav, result, seat),
+            prevTurnCursor(nav, result, seat),
+        ]).toEqual([
+            result,
+            { page: 0, stop: nextRound.firstStop },
+            { page: 0, stop: visited.at(-1) },
+        ]);
+    });
+
+    test("step back from a seat's first turn to the deal, then the round before's last stop, and nowhere from the first deal", () => {
+        const nav = navigationOf("full_game");
+        const [, { dealerSeat, firstStop }] = nav.rounds;
+        const seat = (dealerSeat + 1) % 4;
+        const deal = { page: 0, stop: firstStop };
+        const [firstTurn] = turnStops(nav, 1, seat);
+
+        expect(prevTurnCursor(nav, { page: 0, stop: firstTurn }, seat)).toEqual(deal);
+        expect(prevTurnCursor(nav, deal, seat)).toEqual({ page: 0, stop: firstStop - 1 });
+        expect(prevTurnCursor(nav, { page: 0, stop: 0 }, 0)).toBeNull();
+        expect(nextTurnCursor(nav, { page: 0, stop: nav.stops.length - 1 }, 0)).toBeNull();
     });
 });

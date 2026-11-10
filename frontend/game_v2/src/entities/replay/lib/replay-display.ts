@@ -7,8 +7,10 @@ import {
     lastCursor,
     nextCursor,
     nextRoundCursor,
+    nextTurnCursor,
     prevCursor,
     prevRoundCursor,
+    prevTurnCursor,
     roundPosition,
     roundStartCursor,
 } from "@/entities/replay/model/replay-cursor";
@@ -52,12 +54,14 @@ export interface ReplaySource {
     readonly damage: ReplayLineError | null;
 }
 
-/** Where each move control goes from the cursor: null where it cannot move. */
+/** Where each move goes from the cursor, the turns being the bottom seat's: null where it cannot move. */
 export interface ReplayMoves {
     readonly first: ReplayCursor | null;
     readonly prevRound: ReplayCursor | null;
+    readonly prevTurn: ReplayCursor | null;
     readonly prev: ReplayCursor | null;
     readonly next: ReplayCursor | null;
+    readonly nextTurn: ReplayCursor | null;
     readonly nextRound: ReplayCursor | null;
     readonly last: ReplayCursor | null;
 }
@@ -113,8 +117,12 @@ function endNotice(source: ReplaySource, cursor: ReplayCursor): string | null {
         : t("replay.incomplete.damaged_stops_here", { record: source.damage.lineNumber });
 }
 
-/** Where each move control goes from the cursor. */
-export function replayMoves(nav: NavigationIndex, cursor: ReplayCursor): ReplayMoves {
+/** Where each move goes from the cursor, the turns being `bottomSeat`'s. */
+export function replayMoves(
+    nav: NavigationIndex,
+    cursor: ReplayCursor,
+    bottomSeat: number,
+): ReplayMoves {
     const atFirst = cursor.stop === 0 && cursor.page === 0;
     const last = lastCursor(nav);
     const atLast = last !== null && last.stop === cursor.stop && last.page === cursor.page;
@@ -123,8 +131,10 @@ export function replayMoves(nav: NavigationIndex, cursor: ReplayCursor): ReplayM
         last: atLast ? null : last,
         next: nextCursor(nav, cursor),
         nextRound: nextRoundCursor(nav, cursor),
+        nextTurn: nextTurnCursor(nav, cursor, bottomSeat),
         prev: prevCursor(nav, cursor),
         prevRound: prevRoundCursor(nav, cursor),
+        prevTurn: prevTurnCursor(nav, cursor, bottomSeat),
     };
 }
 
@@ -187,7 +197,7 @@ function stopBoard(
             board: tableStateToDisplayState(source.startTable, perspective),
             callouts: null,
             matchResult: false,
-            overlay: replaySeatingPanel(source.startTable),
+            overlay: replaySeatingPanel(source.startTable, perspective.bottomSeat),
         };
     }
     const { stateIndex } = source.navigation.stops[cursor.stop];
@@ -219,7 +229,7 @@ export function replayDisplay(source: ReplaySource, place: ReplayPlace): ReplayD
         endNotice: endNotice(source, cursor),
         incomplete: incompleteness(source),
         motion: { mode: "replay", sequence: place.seating ? -1 : cursor.stop },
-        moves: replayMoves(nav, cursor),
+        moves: replayMoves(nav, cursor, place.perspective.bottomSeat),
         roundName: formatRoundName(round.wind, round.roundInWind, round.honba),
         rounds: roundRows(nav, stop.round),
         step: { count: round.stopCount, index: position.step + 1 },

@@ -357,6 +357,7 @@ class ReplayViewController {
         keydown: (event) => this.onKeydown(event),
         keyup: (event) => this.onKeyup(event),
         move: (cursor) => this.dispatch({ cursor, kind: "move" }),
+        nextView: () => this.dispatch({ command: "view", kind: "key", repeat: false }),
         retry: () => this.startLoad(),
         root: createRef<HTMLElement>(),
         selectRound: (cursor) => this.dispatch({ cursor, kind: "select_round" }),

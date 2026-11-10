@@ -11,6 +11,10 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
 - A stop is a move; bookkeeping (a deal's first draw, a new dora, an accepted riichi) belongs to the move before it,
   and annotations (game start, seat control lines) are never a stop (`buildActionSteps`). The replay opens on the
   first deal; `readReplay` refuses one without a deal.
+- A turn move is the bottom seat's: to the stop that starts its next or previous turn in the round (`ReplayStop.turnSeat`:
+  its deal as dealer, a draw, a call of a discard; a draw after its own kan starts none), past the last to the round's
+  result and then the next deal, before the first to the deal and then the round before's last stop. Changing the
+  viewpoint changes where they go.
 - A result stop has a page per winner; stepping back into it lands on its last page.
 - The address (`docs/architecture.md`, Replays) never names a result page; reader settings (hidden hands) never go
   in the address.
@@ -30,7 +34,7 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
   (`play_sounds`, from `moveSoundCues`) while the sound is on; a jump, a step back or a result's page plays none. The
   sound setting is the live game's (`save_sound`), never the reader's settings.
 - A move says whether the calls it shows are announced (`ShownReplayCall.announce`): a single step either way (Next or
-  Prev, a key press, a press's first step) and autoplay do; a jump (a round, an end, the round list, an address), a
+  Prev, a key press, a press's first step) and autoplay do; a jump (a turn, a round, an end, the round list, an address), a
   held step's repeats (pointer or key) and the wheel show them silently. A showing carried over later moves keeps its
   flag. This is not `moveEffects`' step-on test, which a held Next and the wheel pass.
 - `ReplayBoard` assembles the replay's `GameBoard` (panel, controls, status, menu) from `replayDisplay` and the

@@ -62,4 +62,19 @@ describe("buildNavigationIndex", () => {
         expect(afterRound.complete).toBe(false);
         expect(afterRound.rounds.every((round) => round.result !== null)).toBe(true);
     });
+
+    test("starts a seat's turn once, the draw after its kan staying in the turn the kan was made in", () => {
+        const { events } = loadEngineReplay("kans");
+        const { stops } = navigationOf("kans");
+        const afterOwnKan = stops.filter((stop, index) => {
+            const before = events[stops[index - 1]?.moveEntry];
+            const move = events[stop.moveEntry];
+            return (
+                move.type === "draw" && before?.type === "meld" && before.callerSeat === move.seat
+            );
+        });
+
+        expect(afterOwnKan.length).toBeGreaterThan(0);
+        expect(afterOwnKan.map((stop) => stop.turnSeat)).toEqual(afterOwnKan.map(() => null));
+    });
 });

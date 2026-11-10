@@ -459,7 +459,9 @@ honours this contract can replace it.
   bottom of the table (default: the recorded first dealer's), `round` the recorded deal (repeats
   counted), `step` the position in that round (0 its deal; the game's end is the last round's
   last step). A link opens there. A bad `seat` falls back to the default, a missing or bad `round`
-  to round 0's deal (its `step` ignored), a bad `step` to its round's deal. The page then keeps the
+  to round 0's deal (its `step` ignored), a bad `step` to its round's deal. The lobby redirects a link
+  without `seat` to the reader's own seat when a logged-in player of that game opens it; anyone else
+  gets the default. The page then keeps the
   query on the position shown with `history.replaceState`, so the address bar is the share link and
   Back leaves the replay. The lobby history page links a participant to a replay from their own
   seat, but its copy-link button copies the link without `seat`, so a shared link imposes no

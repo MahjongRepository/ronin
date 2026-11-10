@@ -116,6 +116,7 @@ APPS = (
                 "game.status.round_trip",
                 "list.separator",
                 "replay.outcome.win_separator",
+                "replay.tip",
                 "round.unknown",
                 "wind.short.unknown",
             }

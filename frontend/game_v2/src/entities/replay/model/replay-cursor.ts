@@ -74,6 +74,48 @@ export function prevRoundCursor(nav: NavigationIndex, cursor: ReplayCursor): Rep
     return roundStartCursor(nav, atDeal ? round - 1 : round);
 }
 
+/**
+ * On to `seat`'s next turn in this round; with none left, to the round's result, then the next round's deal; null at
+ * the replay's end.
+ */
+export function nextTurnCursor(
+    nav: NavigationIndex,
+    cursor: ReplayCursor,
+    seat: number,
+): ReplayCursor | null {
+    const { round } = nav.stops[cursor.stop];
+    const { firstStop, resultStop, stopCount } = nav.rounds[round];
+    for (let stop = cursor.stop + 1; stop < firstStop + stopCount; stop++) {
+        if (nav.stops[stop].turnSeat === seat) {
+            return { page: 0, stop };
+        }
+    }
+    return resultStop !== null && resultStop > cursor.stop
+        ? { page: 0, stop: resultStop }
+        : roundStartCursor(nav, round + 1);
+}
+
+/**
+ * Back to `seat`'s turn before the cursor in this round; with none, to the round's deal, then the previous round's
+ * last stop; null at the first deal.
+ */
+export function prevTurnCursor(
+    nav: NavigationIndex,
+    cursor: ReplayCursor,
+    seat: number,
+): ReplayCursor | null {
+    const { firstStop } = nav.rounds[nav.stops[cursor.stop].round];
+    for (let stop = cursor.stop - 1; stop > firstStop; stop--) {
+        if (nav.stops[stop].turnSeat === seat) {
+            return { page: 0, stop };
+        }
+    }
+    if (cursor.stop > firstStop) {
+        return { page: 0, stop: firstStop };
+    }
+    return firstStop === 0 ? null : { page: lastPage(nav, firstStop - 1), stop: firstStop - 1 };
+}
+
 /** A cursor's place in its round, as the address names it: the round, and its stop counted from 0 at the deal. */
 export function roundPosition(nav: NavigationIndex, cursor: ReplayCursor): RoundPosition {
     const { round } = nav.stops[cursor.stop];

@@ -495,6 +495,33 @@ class TestHistoryPage:
         assert response.text.count('href="/play/history/viewer-played-game?seat=0"') == 1
         assert response.text.count('data-replay-url="/play/history/viewer-played-game"') == 1
 
+    def test_replay_page__when_a_player_opens_a_link_without_a_seat__should_redirect_to_their_seat(self, client):
+        now = datetime.now(UTC)
+        client.app.state.game_repo.create_game(
+            PlayedGame(
+                game_id="seatless-link-game",
+                started_at=now - timedelta(minutes=30),
+                ended_at=now,
+                end_reason=GameEndReason.COMPLETED,
+                game_type="hanchan",
+                standings=[
+                    PlayedGameStanding(name="Tsumogiri 1", seat=0, score=41000, final_score=51),
+                    PlayedGameStanding(
+                        name="gamesuser", seat=2, user_id=session_user_id(client), score=27000, final_score=7
+                    ),
+                ],
+            ),
+        )
+
+        seatless = client.get("/play/history/seatless-link-game?round=1&step=4", follow_redirects=False)
+        seated = client.get("/play/history/seatless-link-game?seat=1", follow_redirects=False)
+        other_game = client.get("/play/history/unknown-game", follow_redirects=False)
+
+        assert seatless.status_code == 302
+        assert seatless.headers["location"] == "/play/history/seatless-link-game?round=1&step=4&seat=2"
+        assert seated.status_code == 200
+        assert other_game.status_code == 200
+
     def test_history_page__when_unauthenticated__should_redirect_to_login(self, app):
         with open_client(app) as c:
             response = c.get("/history", follow_redirects=False)

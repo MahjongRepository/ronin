@@ -23,6 +23,9 @@ from lobby.views.game_handlers import (
     play_page as play_page,
 )
 from lobby.views.game_handlers import (
+    replay_page as replay_page,
+)
+from lobby.views.game_handlers import (
     storybook_page as storybook_page,
 )
 from lobby.views.handlers import (
