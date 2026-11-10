@@ -182,29 +182,44 @@ $back-split: 45%;
    corners: the table's colour lies under the hairline, over that edge, a corner's radius into both tiles. */
 $corner-share: 0.09;
 
-.board-strip--left,
-.board-strip--right {
-    .hand {
+/* Firefox on macOS draws a filter inside a turned frame unturned, so an opponent's tiles draw their own depth, every
+   tile's below every face of its group. */
+.board-strip {
+    .hand,
+    .meld {
         isolation: isolate;
         filter: none;
     }
 
-    .hand-tile > .tile {
+    :where(.hand-tile, .meld-tile:not(.meld-tile-sideways, .meld-tile-stacked)) > .tile {
         position: relative;
+    }
 
-        &::after {
-            content: "";
-            position: absolute;
-            z-index: layer(tile-depth);
-            inset: 0;
-            border-radius: inherit;
-            box-shadow: var(--tile-depth);
+    :is(.hand-tile > .tile, .meld .tile)::after {
+        content: "";
+        position: absolute;
+        z-index: layer(tile-depth);
+        inset: 0;
+        border-radius: inherit;
+        box-shadow: var(--tile-depth);
+    }
+}
+
+$max-meld-tiles: 4;
+
+/* A reflow's transform gives each meld tile its own stacking context, so where a tile's depth falls toward the tile
+   before it, the tiles paint last to first. */
+:is(.board-strip--top, .board-strip--right) .meld {
+    flex-direction: row-reverse;
+
+    @for $k from 1 through $max-meld-tiles {
+        > :nth-child(#{$k}) {
+            order: $max-meld-tiles - $k;
         }
     }
 }
 
-/* A standing tile's end, split as its top, shows below it: the top strip sees only the back's layer, a side strip both.
-   So the top strip's group casts only the shadow, from tiles that draw their own edge. */
+/* A standing tile's end, split as its top, shows below it: the top strip sees only the back's layer, a side strip both. */
 .board-strip .hand-tile > .tile-back {
     @include screen-offset(
         standing-cast,
@@ -223,27 +238,9 @@ $corner-share: 0.09;
         inset: 0;
         border-radius: inherit;
         background: standing-top(var(--ronin-tile-back-edge), var(--ronin-tile-edge));
-        box-shadow: none;
-        transform: translate(var(--back-x), var(--back-y));
-    }
-}
-
-.board-strip--left,
-.board-strip--right {
-    .hand-tile > .tile-back::after {
         box-shadow: var(--standing-cast-x) var(--standing-cast-y) calc(var(--unit) * #{$cast-blur})
             calc(var(--unit) * #{-$cast-blur}) var(--ronin-tile-shadow);
-    }
-}
-
-.board-strip--top .hand {
-    filter: drop-shadow(
-        var(--group-cast-x) var(--group-cast-y) calc(var(--unit) * #{$cast-blur * 0.5})
-            var(--ronin-tile-shadow)
-    );
-
-    .tile:not(.tile-back) {
-        --tile-lift: var(--tile-edge);
+        transform: translate(var(--back-x), var(--back-y));
     }
 }
 

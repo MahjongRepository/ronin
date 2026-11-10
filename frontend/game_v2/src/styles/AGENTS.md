@@ -105,20 +105,22 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   tile, a riichi discard) is an unturned box as long as a tile is tall with only its face turned: a turned box of a
   fractional size paints off its layout box, below its row's baseline. Flying tiles use that same
   material with animated dimensions and orientation; their grouped depth stays on an unturned wrapper, so the
-  light does not rotate with the face. Native reflow stays inside its original group. Side hands isolate separate
-  tile-depth and seam-mask layers below their faces: masks must never enter a shadow filter, or a separated tile
+  light does not rotate with the face. Native reflow stays inside its original group. An opponent's hand and melds
+  isolate each tile's own depth layer below every face, never a group filter: their frame is turned (see the rivers
+  below). Side hands add seam-mask layers there too: masks must never enter a shadow filter, or a separated tile
   casts a detached rectangular edge. A seam's mask stands on the tile whose edge does not fall into that seam (the
   later tile on the left, the earlier on the right), so a tile a reflow carries off keeps its whole edge attached
   instead of a mask riding with it cutting a detached sliver. An opponent's standing back draws its own edge, its top
-  in the edge's colours on a pseudo-element moved down the screen (the tile itself never transformed), so the top
-  strip's group casts only the shadow and its faces draw their own edge. Other groups keep their shared shadow. Hands and
+  in the edge's colours on a pseudo-element moved down the screen (the tile itself never transformed), which casts its
+  shadow. Other groups keep their shared edge and shadow. Hands and
   rivers use positional offsets: a transform creates per-tile stacking contexts that lift the side strips' seam
   masks over neighbouring faces and depth. Laid melds have no seam masks and transform their tile wrappers to
-  interpolate position and size. Reveal backs stay inside the native hand slots, absolutely placed over the hidden
+  interpolate position and size, each then its own stacking context, so where a tile's depth falls toward the tile before
+  it (the top and right strips) a meld paints its tiles last to first. Reveal backs stay inside the native hand slots, absolutely placed over the hidden
   faces so they retain the hand's depth and gap masks without changing its layout.
 - The rivers' shared edge and shadow come from `.board-rivers` (`_tile.scss`), the unturned layer holding all four,
-  never from a turned river frame's own filter: Firefox on macOS draws a turned element's filter unturned and clipped
-  to its box.
+  never from a turned river frame's own filter: Firefox on macOS draws a filter inside a turned frame unturned and
+  clipped to its box, so no filter of a tile group may stand inside one.
 - **Layers come from one scale.** Every `z-index` is a `$layers` name (`game-board/_queries.scss`), never a literal.
   `.game-board` isolates its layers from the page's. `.board-layout` and `.board-table` form no stacking context, so
   the notices and a replay's band end stand over the overlay's dim by their layers in the board's own context; an
