@@ -1,4 +1,15 @@
 {
+    "nav.settings": "設定",
     "page.title.default": "Ronin Beta",
-    "page.title.with_page": "{page} · Ronin Beta"
+    "page.title.with_page": "{page} · Ronin Beta",
+    "settings.api_token.generate": "トークンを発行",
+    "settings.api_token.guest_note": "ゲストはAPIトークンを持てません。トークンを取得するにはアカウントを登録してください。",
+    "settings.api_token.intro": "APIトークンを使うと、大会管理システムなどのプログラムがあなたのアカウントとして操作できます。プログラムはトークンを{header}ヘッダーで送信します。",
+    "settings.api_token.rotate": "トークンを再発行",
+    "settings.api_token.rotate_note": "再発行すると新しいトークンが発行され、古いトークンはすぐに使えなくなります。",
+    "settings.api_token.shown_once": "今すぐトークンをコピーしてください。表示されるのは一度だけです。",
+    "settings.api_token.status_active": "有効なAPIトークンがあります。",
+    "settings.api_token.status_none": "APIトークンはまだありません。",
+    "settings.api_token.title": "APIトークン",
+    "settings.api_token.token_label": "あなたのAPIトークン"
 }

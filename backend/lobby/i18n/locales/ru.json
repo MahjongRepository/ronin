@@ -1,4 +1,15 @@
 {
+    "nav.settings": "Настройки",
     "page.title.default": "Ronin Beta",
-    "page.title.with_page": "{page} · Ronin Beta"
+    "page.title.with_page": "{page} · Ronin Beta",
+    "settings.api_token.generate": "Создать токен",
+    "settings.api_token.guest_note": "У гостя не может быть API-токена. Зарегистрируйте аккаунт, чтобы получить его.",
+    "settings.api_token.intro": "API-токен позволяет программе, например системе управления турниром, действовать от имени вашего аккаунта. Программа передаёт его в заголовке {header}.",
+    "settings.api_token.rotate": "Заменить токен",
+    "settings.api_token.rotate_note": "При замене создаётся новый токен, а старый сразу перестаёт работать.",
+    "settings.api_token.shown_once": "Скопируйте токен сейчас: он показывается только один раз.",
+    "settings.api_token.status_active": "У вас есть действующий API-токен.",
+    "settings.api_token.status_none": "У вас пока нет API-токена.",
+    "settings.api_token.title": "API-токен",
+    "settings.api_token.token_label": "Ваш API-токен"
 }

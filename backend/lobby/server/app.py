@@ -68,6 +68,7 @@ from lobby.views.lobby_api_handlers import (
 )
 from lobby.views.monitoring_handlers import monitoring_data
 from lobby.views.spa_handlers import spa_shell
+from lobby.views.settings_handlers import issue_api_token
 from shared.auth import AuthService
 from shared.auth.password import BcryptHasher
 from shared.auth.settings import AuthSettings
@@ -180,6 +181,7 @@ def create_app(  # noqa: PLR0913
         Route("/rooms/{room_id}", protected_html(spa_shell), methods=["GET"], name="room_page"),
         Route("/matchmaking", protected_html(spa_shell), methods=["GET"], name="matchmaking_page"),
         Route("/settings", protected_html(spa_shell), methods=["GET"], name="settings_page"),
+        Route("/settings/api-token", protected_html(issue_api_token), methods=["POST"], name="issue_api_token"),
         Route("/admin/monitoring", admin_html(spa_shell), methods=["GET"], name="monitoring_page"),
         # WebSocket routes (auth handled inside the handlers)
         WebSocketRoute("/ws/rooms/{room_id}", room_websocket, name="room_websocket"),

@@ -9,6 +9,7 @@ from http.cookies import SimpleCookie
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 
+import httpx
 import pytest
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
@@ -54,6 +55,42 @@ def _get_csrf_token(client: TestClient, path: str = "/login") -> str:
     token = response.cookies.get(CSRF_COOKIE_NAME) or client.cookies.get(CSRF_COOKIE_NAME)
     assert token, f"CSRF cookie not available after GET {path}"
     return token
+
+
+def _register_user(client: TestClient, username: str, password: str = "securepass123") -> None:  # noqa: S107
+    csrf = _get_csrf_token(client, "/register")
+    client.post(
+        "/register",
+        data={
+            "username": username,
+            "password": password,
+            "confirm_password": password,
+            "csrf_token": csrf,
+        },
+    )
+
+
+def _log_in(client: TestClient, username: str, password: str = "securepass123") -> None:  # noqa: S107
+    csrf = _get_csrf_token(client, "/login")
+    client.post("/login", data={"username": username, "password": password, "csrf_token": csrf})
+
+
+def _shown_api_token(page_html: str) -> str:
+    match = re.search(r'id="api-token" value="([^"]+)"', page_html)
+    assert match, "the page shows no API token"
+    return match.group(1)
+
+
+def _issue_api_token(client: TestClient) -> str:
+    csrf = _get_csrf_token(client, "/settings")
+    response = client.post("/settings/api-token", data={"csrf_token": csrf})
+    assert response.status_code == 200
+    return _shown_api_token(response.text)
+
+
+def _game_session_status_by_key(client: TestClient, api_key: str) -> int:
+    assert "session_id" not in client.cookies
+    return client.get("/api/game-session", headers={"x-api-key": api_key}).status_code
 
 
 def _chunked(*chunks: bytes) -> Iterator[bytes]:
@@ -375,6 +412,35 @@ class TestAuthPolicyWiring:
         assert response.status_code == case.status
         assert response.content == case.body
         assert {name: response.headers.get(name) for name in case.headers} == case.headers
+
+
+class TestApiToken:
+    def test_api_key_auth__when_human_rotates_token__should_accept_new_key_and_reject_old(self, client, game_server):
+        game_server.respond = lambda _request: httpx.Response(404)
+        _register_user(client, username="owner")
+        old_key = _issue_api_token(client)
+        client.cookies.delete("session_id")
+
+        assert _game_session_status_by_key(client, old_key) == 404
+
+        _log_in(client, username="owner")
+        new_key = _issue_api_token(client)
+        client.cookies.delete("session_id")
+
+        assert _game_session_status_by_key(client, old_key) == 401
+        assert _game_session_status_by_key(client, new_key) == 404
+
+    def test_settings_token_post__when_human_generates__should_show_token_once(self, client):
+        _register_user(client, username="owner")
+
+        csrf = _get_csrf_token(client, "/settings")
+        issued = client.post("/settings/api-token", data={"csrf_token": csrf})
+        token = _shown_api_token(issued.text)
+        assert issued.headers["cache-control"] == "no-store"
+
+        settings = client.get("/settings")
+        assert settings.status_code == 200
+        assert token not in settings.text
 
 
 class TestAdminMonitoringPage:

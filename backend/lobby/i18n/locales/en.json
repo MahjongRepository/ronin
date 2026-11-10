@@ -1,4 +1,15 @@
 {
+    "nav.settings": "Settings",
     "page.title.default": "Ronin Beta",
-    "page.title.with_page": "{page} · Ronin Beta"
+    "page.title.with_page": "{page} · Ronin Beta",
+    "settings.api_token.generate": "Generate token",
+    "settings.api_token.guest_note": "Guests cannot hold an API token. Register an account to get one.",
+    "settings.api_token.intro": "An API token lets a program, such as a tournament manager, act as your account. The program sends it in the {header} header.",
+    "settings.api_token.rotate": "Rotate token",
+    "settings.api_token.rotate_note": "Rotating issues a new token; the old one stops working at once.",
+    "settings.api_token.shown_once": "Copy your token now: it is shown only once.",
+    "settings.api_token.status_active": "You have an active API token.",
+    "settings.api_token.status_none": "You have no API token yet.",
+    "settings.api_token.title": "API token",
+    "settings.api_token.token_label": "Your API token"
 }

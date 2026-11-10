@@ -149,8 +149,13 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   `Origin`; from the handshake on, a bot runs the human code path.
 * An account becomes an admin through `scripts/grant_admin.py` (`--revoke` takes the flag back); the
   flag lives on the player record and is the only admin concept.
-* The backend tries the session cookie first and falls back to a BOT account's `X-API-Key`, so a
-  valid cookie wins over a key. `bot_only` routes answer JSON errors, never a login redirect.
+* A registered human gets an API token on the settings page: one per account, shown once, stored
+  only as the same SHA-256 hash in the same field as a bot's key; generating again rotates it. A guest
+  has no account and so no token. The token grants everything the account can do.
+* The backend tries the session cookie first and falls back to `X-API-Key` of any account, bot or
+  human, so a valid cookie wins over a key. Key auth adds the `api_key` scope, which is how a handler
+  or policy tells it from cookie auth. `bot_only` still gates bot routes by account type, and
+  answers JSON errors, never a login redirect.
 
 ## Security requirements
 

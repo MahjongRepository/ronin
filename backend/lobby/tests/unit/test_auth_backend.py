@@ -52,13 +52,13 @@ def _bot_player(user_id: str = "bot-1", username: str = "TestBot") -> Player:
     )
 
 
-def _human_player_with_key(user_id: str = "human-1", username: str = "Sneaky") -> Player:
+def _human_player_with_key(user_id: str = "human-1", username: str = "Owner") -> Player:
     return Player(
         user_id=user_id,
         username=username,
         password_hash="$2b$12$fakehash",
         account_type=AccountType.HUMAN,
-        api_key_hash=hashlib.sha256(b"sneaky-key").hexdigest(),
+        api_key_hash=hashlib.sha256(b"owner-key").hexdigest(),
     )
 
 
@@ -75,7 +75,7 @@ class TestSessionCookieAuth:
         assert result is not None
         credentials, user = result
         assert isinstance(credentials, AuthCredentials)
-        assert "authenticated" in credentials.scopes
+        assert credentials.scopes == ["authenticated"]
         assert isinstance(user, AuthenticatedPlayer)
         assert user.username == "testuser"
         assert user.user_id == "user-1"
@@ -133,7 +133,7 @@ class TestApiKeyAuth:
         assert result is not None
         credentials, user = result
         assert isinstance(credentials, AuthCredentials)
-        assert "authenticated" in credentials.scopes
+        assert credentials.scopes == ["authenticated", "api_key"]
         assert isinstance(user, AuthenticatedPlayer)
         assert user.username == "TestBot"
         assert user.user_id == "bot-1"
@@ -149,7 +149,7 @@ class TestApiKeyAuth:
         result = await backend.authenticate(conn)
         assert result is None
 
-    async def test_api_key_auth__when_key_belongs_to_human_account__should_return_none(
+    async def test_api_key_auth__when_key_belongs_to_human_account__should_authenticate_with_api_key_scope(
         self,
         auth_service: MagicMock,
         backend: SessionOrApiKeyBackend,
@@ -159,10 +159,13 @@ class TestApiKeyAuth:
 
         conn = MagicMock()
         conn.cookies = {}
-        conn.headers = {"x-api-key": "sneaky-key"}
+        conn.headers = {"x-api-key": "owner-key"}
 
         result = await backend.authenticate(conn)
-        assert result is None
+        assert result is not None
+        credentials, user = result
+        assert credentials.scopes == ["authenticated", "api_key"]
+        assert (user.user_id, user.username, user.account_type) == ("human-1", "Owner", AccountType.HUMAN)
 
 
 class TestAccountTypePropagation:

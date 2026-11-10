@@ -136,13 +136,17 @@ class AuthService:
                 AuthErrorCode.HUMAN_ACCOUNT, f"Username '{bot_name}' belongs to a human account", username=bot_name
             )
 
-        raw_api_key, api_key_hash = _generate_token()
-        try:
-            await self._player_repo.set_api_key_hash(player.user_id, api_key_hash)
-        except ValueError as e:
-            raise AuthError(AuthErrorCode.ACCOUNT_NOT_SAVED, str(e)) from e
-
+        raw_api_key, api_key_hash = await self._replace_api_key(player.user_id)
         return player.model_copy(update={"api_key_hash": api_key_hash}), raw_api_key
+
+    async def issue_account_api_key(self, player: Player) -> str:
+        """
+        Give the account a fresh API key and return it raw; the previous key, if any, stops working.
+
+        The raw key is returned once and never stored.
+        """
+        raw_api_key, _ = await self._replace_api_key(player.user_id)
+        return raw_api_key
 
     async def login(self, username: str, password: str, *, replacing: str | None = None) -> tuple[AuthSession, str]:
         """
@@ -229,7 +233,7 @@ class AuthService:
 
     async def validate_api_key(self, api_key: str) -> Player | None:
         """
-        Validate a bot API key by hashing and looking up the hash.
+        Return the account holding this API key, a bot or a human, by hashing it and looking up the hash.
         """
         return await self._player_repo.get_by_api_key_hash(_hash_token(api_key))
 
@@ -239,8 +243,18 @@ class AuthService:
 
         A guest has no account and is never an admin.
         """
+        player = await self.get_account(user_id=user_id, username=username)
+        return player is not None and player.is_admin
+
+    async def get_account(self, *, user_id: str, username: str) -> Player | None:
+        """
+        Return the account named username with this user id, or None for a guest, who has no account.
+        """
         player = await self._player_repo.get_by_username(username)
-        return player is not None and player.user_id == user_id and player.is_admin
+        if player is None or player.user_id != user_id:
+            return None
+
+        return player
 
     # -- private helpers --
 
@@ -250,6 +264,18 @@ class AuthService:
         """
         if await self._player_repo.get_by_username(username) is not None:
             raise AuthError(AuthErrorCode.USERNAME_TAKEN, f"Username '{username}' is already taken", username=username)
+
+    async def _replace_api_key(self, user_id: str) -> tuple[str, str]:
+        """
+        Store a fresh API key hash for the player with this id and return (raw_api_key, api_key_hash).
+        """
+        raw_api_key, api_key_hash = _generate_token()
+        try:
+            await self._player_repo.set_api_key_hash(user_id, api_key_hash)
+        except ValueError as e:
+            raise AuthError(AuthErrorCode.ACCOUNT_NOT_SAVED, str(e)) from e
+
+        return raw_api_key, api_key_hash
 
     async def _save_player(self, player: Player) -> Player:
         """

@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from starlette.authentication import AuthCredentials, AuthenticationBackend
 
 from lobby.auth.models import AuthenticatedPlayer
-from shared.dal.models import AccountType
 
 if TYPE_CHECKING:
     from starlette.requests import HTTPConnection
@@ -13,11 +12,15 @@ if TYPE_CHECKING:
     from shared.auth.service import AuthService
 
 
+API_KEY_SCOPE = "api_key"
+
+
 class SessionOrApiKeyBackend(AuthenticationBackend):
     """
     Authenticate requests via the session cookie or the X-API-Key header.
 
-    Checks the session cookie first. If it is absent or invalid, falls back to the X-API-Key header for bot accounts.
+    Checks the session cookie first. If it is absent or invalid, falls back to the X-API-Key header of any account, bot
+    or human, and adds the ``api_key`` scope so handlers and policies can tell key auth from cookie auth.
     """
 
     def __init__(self, auth_service: AuthService) -> None:
@@ -38,8 +41,8 @@ class SessionOrApiKeyBackend(AuthenticationBackend):
         api_key = conn.headers.get("x-api-key")
         if api_key:
             player = await self._auth_service.validate_api_key(api_key)
-            if player is not None and player.account_type == AccountType.BOT:
-                return AuthCredentials(["authenticated"]), AuthenticatedPlayer(
+            if player is not None:
+                return AuthCredentials(["authenticated", API_KEY_SCOPE]), AuthenticatedPlayer(
                     user_id=player.user_id,
                     username=player.username,
                     account_type=player.account_type,
