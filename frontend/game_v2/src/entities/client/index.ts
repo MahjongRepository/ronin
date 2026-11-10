@@ -89,6 +89,12 @@ export type {
 export { runSeatScenario, scenarioCheckpoint, scenarioStateIndex } from "./model/scenario";
 export type { SeatTranscript } from "./model/seat-transcript";
 export { parseSeatTranscript, seatScenarioFromTranscript } from "./model/seat-transcript";
+export {
+    AUTO_WIN_SETTING_KEY,
+    DEFAULT_AUTO_WIN_SETTING,
+    readAutoWinSetting,
+} from "./model/auto-win-setting";
+export type { AutoWinSetting } from "./model/auto-win-setting";
 export { DEFAULT_INPUT_SETTING, INPUT_SETTING_KEY, readInputSetting } from "./model/input-setting";
 export type { InputSetting } from "./model/input-setting";
 export {

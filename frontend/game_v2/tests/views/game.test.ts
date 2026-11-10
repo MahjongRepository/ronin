@@ -17,12 +17,15 @@ import {
     wireSessionError,
 } from "#tests/fixtures/wire";
 import {
+    AUTO_WIN_SETTING_KEY,
+    DEFAULT_AUTO_WIN_SETTING,
     DEFAULT_INPUT_SETTING,
     DEFAULT_MOTION_SETTING,
     INPUT_SETTING_KEY,
     MOTION_SETTING_KEY,
     type SoundCue,
     type SoundSetting,
+    readAutoWinSetting,
     readInputSetting,
     readMotionSetting,
 } from "@/entities/client";
@@ -121,6 +124,7 @@ interface FakeOverrides {
     readonly soundSetting?: SoundSetting;
     readonly inputSetting?: GameViewDeps["inputSetting"];
     readonly motionSetting?: GameViewDeps["motionSetting"];
+    readonly autoWinSetting?: GameViewDeps["autoWinSetting"];
     readonly setLanguage?: GameViewDeps["setLanguage"];
 }
 
@@ -169,6 +173,10 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
     const sound: FakeSound = { played: [], setting: overrides.soundSetting ?? { sound_on: true } };
     const host = document.createElement("div");
     const dispose = mountGameView(host, GAME_ID, {
+        autoWinSetting: overrides.autoWinSetting ?? {
+            load: () => DEFAULT_AUTO_WIN_SETTING,
+            save: () => {},
+        },
         browserBars,
         clock: steadyClockOn(clock),
         connect: overrides.connect ?? connect,
@@ -954,6 +962,10 @@ function inputSettingInBrowser(): GameViewDeps["inputSetting"] {
     return localStore(INPUT_SETTING_KEY, readInputSetting, DEFAULT_INPUT_SETTING);
 }
 
+function keepSwitch(host: HTMLElement): string | null | undefined {
+    return host.querySelector(".game-menu__keep-auto-win")?.getAttribute("aria-checked");
+}
+
 function motionOf(host: HTMLElement): string | null | undefined {
     return host.querySelector(".game-board")?.getAttribute("data-motion");
 }
@@ -985,6 +997,32 @@ describe("mountGameView settings", () => {
         pressKey(next.host, ".game-menu__right-click", "Escape");
         pressKey(next.host, ".board-local .hand-tile", "Escape");
         expect(next.connections[0].sent).toEqual([JOIN, buildPassAction(PROMPT_WAIT_ID)]);
+    });
+
+    it("defaults keeping Auto win off over a bad stored value and remembers it across mounts", () => {
+        localStorage.setItem(
+            AUTO_WIN_SETTING_KEY,
+            JSON.stringify({ keepBetweenRounds: "invalid" }),
+        );
+        onTestFinished(() => localStorage.removeItem(AUTO_WIN_SETTING_KEY));
+        const autoWinSetting = localStore(
+            AUTO_WIN_SETTING_KEY,
+            readAutoWinSetting,
+            DEFAULT_AUTO_WIN_SETTING,
+        );
+        const first = mountInDocumentAtCallPrompt({ autoWinSetting });
+        press(first.host, ".game-menu__toggle");
+        const before = keepSwitch(first.host);
+        press(first.host, ".game-menu__keep-auto-win");
+        const next = mountInDocumentAtCallPrompt({ autoWinSetting });
+        press(next.host, ".game-menu__toggle");
+
+        expect([
+            before,
+            keepSwitch(first.host),
+            JSON.parse(localStorage.getItem(AUTO_WIN_SETTING_KEY) ?? "null"),
+            keepSwitch(next.host),
+        ]).toEqual(["false", "true", { keepBetweenRounds: true }, "true"]);
     });
 
     it("defaults the animations on over a bad stored value and keeps them off across mounts", () => {

@@ -19,6 +19,7 @@ import {
     type PlayAction,
     type PlayCommand,
     commandFocusKey,
+    intentCommand,
 } from "@/entities/client/model/play-ui";
 import { type ResultControls } from "@/entities/client/model/result-controls";
 import {
@@ -531,6 +532,10 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             input: {
                 onToggle: () => onCommand({ kind: "toggle_right_click" }),
                 rightClick: display.shortcuts.rightClickEnabled,
+            },
+            keepAutoWin: {
+                on: display.keepAutoWin,
+                onToggle: () => onCommand(intentCommand({ type: "toggle_keep_auto_win" })),
             },
             onClose: () => onCommand(CLOSE_SETTINGS),
             onLanguage,

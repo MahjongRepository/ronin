@@ -45,6 +45,7 @@ import {
     decisionIntentStep,
     discardAutomaticDrawStep,
     settleAutomaticDiscard,
+    toggleKeepAutoWinStep,
     toggleSwitchStep,
 } from "./intents";
 import { keptNotice, submittedWaitId, withNotice } from "./notices";
@@ -57,7 +58,7 @@ import {
     settledPending,
     withPending,
 } from "./pending";
-import { SWITCHES_OFF, snapshotLeftHand, unseenWait } from "./play-switches";
+import { SWITCHES_OFF, snapshotLeftHand, switchesForNewHand, unseenWait } from "./play-switches";
 import {
     confirmStep,
     followRoundConfirm,
@@ -168,8 +169,9 @@ function withViewer(state: LiveClient, message: ParsedServerMessage): LiveClient
 
 /**
  * The play switches after a message, from the table it found (`before`): a deal turns them off, as does a reconnect's
- * snapshot of another hand or of a round result pending. Any other message leaves them, a snapshot of the same hand
- * included. A table of another game forgets the highest wait id opened, which belongs to its game.
+ * snapshot of another hand or of a round result pending, except an Auto win the player keeps between rounds. Any other
+ * message leaves them, a snapshot of the same hand included. A table of another game forgets the highest wait id
+ * opened, which belongs to its game.
  */
 function withSwitches(
     state: LiveClient,
@@ -179,7 +181,9 @@ function withSwitches(
     const leaves =
         message.type === "round_started" ||
         (message.type === "game_reconnected" && snapshotLeftHand(before, state.table));
-    const switched = leaves ? { ...state, switches: SWITCHES_OFF } : state;
+    const switched = leaves
+        ? { ...state, switches: switchesForNewHand(state.switches, state.keepAutoWin) }
+        : state;
     return state.table.gameId === before.gameId
         ? switched
         : { ...switched, highestOpenedWaitId: null };
@@ -376,6 +380,9 @@ function onIntent(state: LiveClient, intent: LocalIntent): ClientStep<LiveClient
         case "toggle_switch": {
             return toggleSwitchStep(state, intent.playSwitch) ?? { effects: [], state };
         }
+        case "toggle_keep_auto_win": {
+            return toggleKeepAutoWinStep(state);
+        }
         case "confirm_result": {
             return confirmStep(state, canAnswer(state)) ?? { effects: [], state };
         }
@@ -463,6 +470,7 @@ export function startGameClient(
         calls: null,
         furiten: false,
         highestOpenedWaitId: null,
+        keepAutoWin: false,
         kind: "live",
         notice: null,
         now: at,

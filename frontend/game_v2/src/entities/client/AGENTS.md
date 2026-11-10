@@ -41,8 +41,10 @@ table transition and call model; replay dispatch loads with the replay route.
 - **Play switches** answer only decisions on a wait id above `highestOpenedWaitId`, so a decision already open when a
   switch turns on, one re-sent after reconnect, or one a refusal reopened is the player's. The mark is never lowered,
   never taken from a snapshot's `wi`, and forgotten only on another game's table. `switchAnswer` is the policy. A
-  deal, or a snapshot that left the hand (`snapshotLeftHand`), turns all switches off; a snapshot of the same hand,
-  its result pending included, keeps them.
+  deal, or a snapshot that left the hand (`snapshotLeftHand`), turns all switches off, except Auto win while the
+  settings menu keeps it between rounds (`LiveClient.keepAutoWin`, the driver storing it in this browser; turning it
+  on turns Auto win on, turning it off leaves Auto win as it is); a snapshot of the same hand, its result pending
+  included, keeps them.
 
 ## Desync
 

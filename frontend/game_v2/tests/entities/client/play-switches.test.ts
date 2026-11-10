@@ -83,6 +83,16 @@ function rejoinedAfter(
     return [...rejoining, { event: { at, kind: "server_message", raw: snapshot } }];
 }
 
+function keepToggledBefore(scenario: SeatScenario, label: string, keep: boolean): SeatScenario {
+    const index = scenarioStateIndex(scenario, label) - 1;
+    const { at } = scenario.steps[index].event;
+    const step: ScenarioStep = {
+        effects: [{ keep, type: "save_keep_auto_win" }],
+        event: { at, intent: { type: "toggle_keep_auto_win" }, kind: "intent" },
+    };
+    return { ...scenario, steps: scenario.steps.toSpliced(index, 0, step) };
+}
+
 function lastState(run: ScenarioRun): LiveClient {
     return timelineStates(run.timeline).at(-1) ?? run.timeline.start;
 }
@@ -633,5 +643,45 @@ describe("stepGameClient - play switches", () => {
         expect(stateAt(atResult, atResultRun, "kyuushu round end").switches.auto_win).toBe(true);
         expect(stateAt(atResult, atResultRun, "reconnected").switches).toEqual(ALL_OFF);
         expect(lastState(runClean(inHand)).switches).toEqual(ALL_OFF);
+    });
+});
+
+describe("keeping Auto win between rounds", () => {
+    it("turns Auto win on with the setting, leaves the open decision alone, and carries it alone past a deal and a snapshot that left the hand", () => {
+        const { scenario } = loadSeatScenario("double_ron_seat_1");
+        const switched = keepToggledBefore(
+            switchedOnBefore(scenario, "ron chosen", ["no_calls"]),
+            "ron chosen",
+            true,
+        );
+        const run = runClean(switched);
+        const onlyAutoWin = { ...ALL_OFF, auto_win: true };
+
+        expect(stateAt(switched, run, "reconnected").switches).toEqual(onlyAutoWin);
+        expect(stateAt(switched, run, "next round").switches).toEqual(onlyAutoWin);
+    });
+
+    it("leaves Auto win on when the setting turns off, until the next deal ends it", () => {
+        const { scenario } = loadSeatScenario("double_ron_seat_1");
+        const switched = keepToggledBefore(
+            keepToggledBefore(scenario, "ron chosen", true),
+            "ron chosen",
+            false,
+        );
+        const run = runClean(switched);
+
+        expect(stateAt(switched, run, "ron chosen").switches.auto_win).toBe(true);
+        expect(stateAt(switched, run, "next round").switches).toEqual(ALL_OFF);
+    });
+
+    it("leaves Auto win off across a deal when the player turned it off with the setting on", () => {
+        const { scenario } = loadSeatScenario("double_ron_seat_1");
+        const switched = switchedOnBefore(
+            keepToggledBefore(scenario, "ron chosen", true),
+            "ron chosen",
+            ["auto_win"],
+        );
+
+        expect(stateAt(switched, runClean(switched), "next round").switches).toEqual(ALL_OFF);
     });
 });

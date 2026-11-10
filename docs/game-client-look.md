@@ -390,11 +390,14 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the server's refusal reopened, which is the player's to answer again. Decision: all three reset
   at each deal, and when a reconnect's snapshot shows another hand or a round result pending,
   since a switch is an instruction about this hand.
-  This goes against the precedents for Auto win (Tenhou's manual clears only its no-call every hand
-  and its auto-discard when the mouse was touched; Mahjong Soul players ask for auto-win to
-  persist): one rule for all three switches, and no win taken on a later hand the player might have
-  declined. They survive a reconnect within the hand in the mounted client; a reload or a new tab
-  starts with them off. They are the client's standing answers, taken exactly where the player's
+  One setting in the settings menu, off by default and kept in this browser, excepts Auto win from
+  that reset, so a player who turned it on keeps it into the next round (Tenhou's manual clears only
+  its no-call every hand and its auto-discard when the mouse was touched; Mahjong Soul players ask
+  for auto-win to persist); off, no win is taken on a later hand the player might have declined.
+  Turning the setting on also turns *Auto win* on, and turning it off leaves *Auto win* as it is
+  until the next deal.
+  They survive a reconnect within the hand in the mounted client; a reload or a new tab starts with
+  all three off, the setting staying as chosen. They are the client's standing answers, taken exactly where the player's
   press would be, with the decision's wait id, so the server, which keeps no preference, sees an
   ordinary answer; the latest-discard mark and the table are unchanged by an automatic pass, and an
   automatic discard travels like a pressed one. Decision: every switch is one press away, never

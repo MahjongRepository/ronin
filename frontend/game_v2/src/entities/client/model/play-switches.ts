@@ -18,6 +18,11 @@ export const SWITCHES_OFF: PlaySwitches = {
     no_calls: false,
 };
 
+/** The switches a new hand starts with: all off, but Auto win stays as it was while the player keeps it between rounds. */
+export function switchesForNewHand(switches: PlaySwitches, keepAutoWin: boolean): PlaySwitches {
+    return { ...SWITCHES_OFF, auto_win: keepAutoWin && switches.auto_win };
+}
+
 /** The answer a play switch gives a decision: the intent the player's press would step, and the switch giving it. */
 export interface SwitchAnswer {
     readonly intent: DecisionIntent;
@@ -65,7 +70,7 @@ export function switchAnswer(decision: Decision, switches: PlaySwitches): Switch
  * Whether a reconnect's snapshot leaves the hand the table played before it: either table is not in a round (the one
  * before showed a result, so any snapshot is of that result or a later hand; the snapshot shows the hand's own result
  * pending, which keeps the hand's deal number), or the snapshot is of another game or another deal. The switches are
- * an instruction about one hand, so such a snapshot turns them off.
+ * an instruction about one hand, so such a snapshot ends them as a deal does (`switchesForNewHand`).
  */
 export function snapshotLeftHand(before: TableState, after: TableState): boolean {
     return (

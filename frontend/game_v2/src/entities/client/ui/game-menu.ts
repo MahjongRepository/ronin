@@ -18,6 +18,8 @@ interface GameMenuProps {
     readonly onToggleAnimations: () => void;
     readonly onLanguage: (locale: Locale) => void;
     readonly input?: { readonly rightClick: boolean; readonly onToggle: () => void };
+    /** Whether Auto win carries into the next round; a live game's alone. */
+    readonly keepAutoWin?: { readonly on: boolean; readonly onToggle: () => void };
     /** What the page adds before the settings (the debug log). */
     readonly extra?: TemplateResult;
 }
@@ -121,6 +123,7 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
                 <span class="game-menu__item-name">${t("game.settings.animations")}</span
                 ><span class="game-menu__item-value">${onOff(animationsOn)}</span>
             </button>
+            ${props.keepAutoWin === undefined ? nothing : KeepAutoWinRow(props.keepAutoWin)}
             ${LanguageRow(onLanguage)}
             ${props.input === undefined ? nothing : InputSettings(props.input)}
             ${status === null ? nothing : StatusRow(status)}
@@ -129,6 +132,17 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
 
 function onOff(on: boolean): string {
     return t(on ? "game.settings.on" : "game.settings.off");
+}
+
+function KeepAutoWinRow(keep: NonNullable<GameMenuProps["keepAutoWin"]>): TemplateResult {
+    return html`<button
+        type="button"
+        class="secondary game-menu__item game-menu__keep-auto-win"
+        role="switch"
+        aria-checked=${String(keep.on)}
+        @click=${keep.onToggle}
+    ><span class="game-menu__item-name">${t("game.settings.keep_auto_win")}</span
+        ><span class="game-menu__item-value">${onOff(keep.on)}</span></button>`;
 }
 
 function InputSettings(input: NonNullable<GameMenuProps["input"]>): TemplateResult {

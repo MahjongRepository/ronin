@@ -208,6 +208,7 @@
     "game.seating.heading": "{type} · {round}",
     "game.seating.label": "Рассадка",
     "game.settings.animations": "Анимация",
+    "game.settings.keep_auto_win": "Сохранять автопобеду между раздачами",
     "game.settings.language": "Язык",
     "game.settings.off": "Выкл",
     "game.settings.on": "Вкл",

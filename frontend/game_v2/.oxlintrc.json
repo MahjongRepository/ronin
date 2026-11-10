@@ -67,6 +67,7 @@
                     "StatusRow",
                     "GameMenu",
                     "InputSettings",
+                    "KeepAutoWinRow",
                     "LanguageRow",
                     "DebugLabel",
                     "DoraDisplay",

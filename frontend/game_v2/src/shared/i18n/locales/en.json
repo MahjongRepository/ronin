@@ -194,6 +194,7 @@
     "game.seating.heading": "{type} · {round}",
     "game.seating.label": "Seating",
     "game.settings.animations": "Animations",
+    "game.settings.keep_auto_win": "Keep Auto win between rounds",
     "game.settings.language": "Language",
     "game.settings.off": "Off",
     "game.settings.on": "On",

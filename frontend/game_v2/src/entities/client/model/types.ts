@@ -94,7 +94,8 @@ export type Decision = TurnDecision | CallDecision;
 /**
  * A local user intent: leave for the lobby, answer the open decision, confirm the round result read, reopen the
  * game's last result from the game's end, press the opening screen's OK (the start confirm the seat owes, else a close
- * that sends nothing), or turn a play switch on or off, which sends nothing.
+ * that sends nothing), turn a play switch on or off, or change whether Auto win carries into the next round, neither
+ * of which sends anything.
  */
 export type LocalIntent =
     | { readonly type: "leave" }
@@ -104,7 +105,8 @@ export type LocalIntent =
     | { readonly type: "pass" }
     | { readonly type: "confirm_result" }
     | { readonly type: "show_last_result" }
-    | { readonly type: "toggle_switch"; readonly playSwitch: PlaySwitch };
+    | { readonly type: "toggle_switch"; readonly playSwitch: PlaySwitch }
+    | { readonly type: "toggle_keep_auto_win" };
 
 /** An intent that answers the open decision. */
 export type DecisionIntent = Exclude<
@@ -115,12 +117,13 @@ export type DecisionIntent = Exclude<
             | "confirm_opening"
             | "confirm_result"
             | "show_last_result"
-            | "toggle_switch";
+            | "toggle_switch"
+            | "toggle_keep_auto_win";
     }
 >;
 
 /** An intent the board offers: an answer to the open decision, the round result's confirm, or a play switch. */
-export type PlayIntent = Exclude<LocalIntent, { readonly type: "leave" }>;
+export type PlayIntent = Exclude<LocalIntent, { readonly type: "leave" | "toggle_keep_auto_win" }>;
 
 /**
  * The one input of the game client's dispatcher, from any source: the live socket, a scripted scenario, or a
@@ -327,8 +330,10 @@ export interface LiveClient extends ClientBase {
      * however often its snapshots arrive.
      */
     readonly resyncRequests: number;
-    /** The play switches the player turned on for this hand; a deal turns them off. */
+    /** The play switches the player turned on for this hand; a deal turns them off, but for a kept Auto win. */
     readonly switches: PlaySwitches;
+    /** The settings menu's choice that a deal leaves Auto win on. */
+    readonly keepAutoWin: boolean;
     readonly automaticDiscard: {
         readonly waitId: number;
         readonly due: number;
@@ -353,7 +358,8 @@ export type GameClientState = ReplayClient | LiveClient;
  */
 export type ClientEffect =
     | SessionEffect
-    | { readonly type: "report_protocol_failure"; readonly detail: string };
+    | { readonly type: "report_protocol_failure"; readonly detail: string }
+    | { readonly type: "save_keep_auto_win"; readonly keep: boolean };
 
 export interface ClientStep<State extends GameClientState = GameClientState> {
     readonly state: State;

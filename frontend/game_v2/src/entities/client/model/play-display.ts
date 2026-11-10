@@ -147,6 +147,7 @@ export interface PlayDisplay {
     /** The game plays its sounds, as the settings menu's switch shows. */
     readonly soundOn: boolean;
     readonly animationsOn: boolean;
+    readonly keepAutoWin: boolean;
 }
 
 const SWITCH_LABELS: Readonly<
@@ -378,6 +379,7 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
         decisionStanding: decisionStanding(state),
         failure,
         furiten: furiten && viewer !== undefined && table.phase === "in_round",
+        keepAutoWin: state.keepAutoWin,
         lastResult: lastResultAction(state),
         leave,
         matchResult: overlay?.panel.kind === "game_end",

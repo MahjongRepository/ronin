@@ -159,6 +159,19 @@ export function discardAutomaticDrawStep(state: LiveClient): ClientStep<LiveClie
     );
 }
 
+/**
+ * Change whether Auto win carries into the next round, which the driver keeps in this browser; sends nothing. Turning
+ * it on turns Auto win on too; turning it off leaves Auto win as it is.
+ */
+export function toggleKeepAutoWinStep(state: LiveClient): ClientStep<LiveClient> {
+    const keepAutoWin = !state.keepAutoWin;
+    const switches = { ...state.switches, auto_win: keepAutoWin || state.switches.auto_win };
+    return {
+        effects: [{ keep: keepAutoWin, type: "save_keep_auto_win" }],
+        state: { ...state, keepAutoWin, switches },
+    };
+}
+
 /** Turn a play switch on or off, sending nothing: it answers the waits the client sees from then on. */
 export function toggleSwitchStep(
     state: LiveClient,

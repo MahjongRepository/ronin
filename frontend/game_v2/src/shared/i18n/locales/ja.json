@@ -187,6 +187,7 @@
     "game.seating.heading": "{type} · {round}",
     "game.seating.label": "席順",
     "game.settings.animations": "アニメーション",
+    "game.settings.keep_auto_win": "自動和了を次局も維持",
     "game.settings.language": "言語",
     "game.settings.off": "オフ",
     "game.settings.on": "オン",

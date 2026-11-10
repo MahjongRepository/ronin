@@ -14,6 +14,8 @@ import decisionUrl from "@/assets/audio/decision-radar-reply.flac?no-inline";
 import discardUrl from "@/assets/audio/discard-resin.flac?no-inline";
 import tileSpriteUrl from "@/assets/tiles/sprites/fluffy-stuff.svg?url";
 import {
+    AUTO_WIN_SETTING_KEY,
+    DEFAULT_AUTO_WIN_SETTING,
     DEFAULT_INPUT_SETTING,
     DEFAULT_MOTION_SETTING,
     DEFAULT_SOUND_SETTING,
@@ -22,6 +24,7 @@ import {
     MOTION_SETTING_KEY,
     SOUND_SETTING_KEY,
     type SoundCue,
+    readAutoWinSetting,
     readInputSetting,
     readMotionSetting,
     readSoundSetting,
@@ -204,6 +207,11 @@ function browserBars(): BrowserBars {
 
 function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
     return {
+        autoWinSetting: localStore(
+            AUTO_WIN_SETTING_KEY,
+            readAutoWinSetting,
+            DEFAULT_AUTO_WIN_SETTING,
+        ),
         browserBars: browserBars(),
         clock: browserClock,
         connect: (url, handlers) => new GameSocket(url, handlers),

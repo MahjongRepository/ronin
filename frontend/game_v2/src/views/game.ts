@@ -2,6 +2,7 @@ import { type TemplateResult, html, nothing, render } from "lit-html";
 import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
 import {
+    type AutoWinSetting,
     CLIENT_STEPPED,
     type ClientEffect,
     type GameSound,
@@ -74,6 +75,7 @@ export interface GameViewDeps {
     readonly sound: GameSound;
     readonly inputSetting: LocalStore<InputSetting>;
     readonly motionSetting: LocalStore<MotionSetting>;
+    readonly autoWinSetting: LocalStore<AutoWinSetting>;
     readonly setLanguage: (locale: Locale) => void;
 }
 
@@ -107,7 +109,14 @@ const EVENT_NAMES: ReadonlyMap<number, string> = new Map(
 type SocketEffect = Extract<ClientEffect, { type: "open_socket" | "close_socket" | "send" }>;
 type SinkEffect = Extract<
     ClientEffect,
-    { type: "clear_handoff" | "redirect_to_lobby" | "store_handoff" | "redirect_to_game" }
+    {
+        type:
+            | "clear_handoff"
+            | "redirect_to_lobby"
+            | "store_handoff"
+            | "redirect_to_game"
+            | "save_keep_auto_win";
+    }
 >;
 
 /** A line of the debug log, formatted once when it is added; it lives in the view, never in the client state. */
@@ -345,7 +354,7 @@ class GameViewController {
         this.stopTileSprite = this.followTileSprite();
         this.stopBrowserBars = this.followBrowserBars();
         const { effects, state } = startGameClient(gameId, deps.handoff, deps.clock.now());
-        this.state = state;
+        this.state = { ...state, keepAutoWin: deps.autoWinSetting.load().keepBetweenRounds };
         this.settle(effects);
     }
 
@@ -600,7 +609,8 @@ class GameViewController {
             case "clear_handoff":
             case "store_handoff":
             case "redirect_to_lobby":
-            case "redirect_to_game": {
+            case "redirect_to_game":
+            case "save_keep_auto_win": {
                 this.runSinkEffect(effect);
                 return;
             }
@@ -661,6 +671,8 @@ class GameViewController {
             sink.storeHandoff(effect.gameId, effect.handoff);
         } else if (effect.type === "redirect_to_lobby") {
             sink.leaveToLobby();
+        } else if (effect.type === "save_keep_auto_win") {
+            this.deps.autoWinSetting.save({ keepBetweenRounds: effect.keep });
         } else {
             sink.openGame(effect.gameId, effect.gameClientUrl);
         }
