@@ -7,7 +7,6 @@ import { type LoadedReplayScreen, type StepDirection } from "@/entities/replay/m
 import {
     GameBoard,
     type PanelAction,
-    type PlatePress,
     SEAT_POSITIONS,
     type SeatPosition,
     type TablePanelControls,
@@ -123,7 +122,6 @@ export function ReplayBoard({
     links,
     screen,
 }: ReplayBoardProps): TemplateResult {
-    const platePress: PlatePress = { kind: "view", onView: handlers.viewSeat };
     const { overlay } = display;
     const controls: TablePanelControls = {
         endActions: endActions(links),
@@ -159,9 +157,9 @@ export function ReplayBoard({
             status: null,
         }),
         motion: display.motion,
+        onViewSeat: handlers.viewSeat,
         overlay: overlay === null ? undefined : TablePanelDisplay(overlay, controls),
         overlayAfterCall: overlay?.kind === "result" && overlay.afterCall,
-        platePress,
         replay: {
             controls: controlsTemplate(screen, display, handlers),
             status: ReplayStatus({ display }),

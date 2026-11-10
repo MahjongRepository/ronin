@@ -108,7 +108,6 @@
     "game.move.start": "対局開始の確認待ちです",
     "game.move.turn": "あなたの番です",
     "game.nameplate.dealer": "{wind}、親",
-    "game.nameplate.diff": "{name}との差 {diff}",
     "game.nameplate.riichi": "リーチ",
     "game.nameplate.to_play": "手番",
     "game.nameplate.view": "この席の視点で見る",

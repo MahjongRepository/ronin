@@ -78,6 +78,8 @@ $result-column-gap: 1rem;
     min-width: 0;
     max-width: 100%;
     white-space: pre;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .player-name__head {

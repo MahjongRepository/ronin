@@ -76,12 +76,6 @@ const CONTRAST_MARKS: readonly ContrastMark[] = [
         selector: ".nameplate--current .nameplate__pill",
     },
     {
-        hide: [["", "box-shadow: none !important"]],
-        name: "pinned badge's ring",
-        reach: 0,
-        selector: ".nameplate[aria-pressed='true'] .nameplate__pill",
-    },
-    {
         hide: [[" .board-stick-icon__body", HIDDEN]],
         name: "stick icon's body",
         reach: 1,

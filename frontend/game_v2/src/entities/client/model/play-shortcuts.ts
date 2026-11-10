@@ -40,10 +40,7 @@ function closeShortcut(ui: PlayUi, overlay: PlayOverlay | null): PlayShortcut | 
     if (overlay?.blocksBoard) {
         return null;
     }
-    if (ui.settingsOpen) {
-        return shortcut({ kind: "close_settings" }, SETTINGS_FOCUS_KEY);
-    }
-    return ui.pinnedNameplate === null ? null : shortcut({ kind: "pin_nameplate", seat: null });
+    return ui.settingsOpen ? shortcut({ kind: "close_settings" }, SETTINGS_FOCUS_KEY) : null;
 }
 
 const CONFIRM_OPENING: PlayIntent = { type: "confirm_opening" };

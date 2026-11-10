@@ -135,7 +135,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   pinwheel, so a long row never meets the next
   side's; a short phone centre's side rows start nearer their corner, so a long score stays on the panel. The counts keep one line, a narrow centre's at a smaller size; where even the floor's
   size cannot hold them, the wall count takes a line of its own and the honba and riichi sticks stay
-  together on the next. While a badge is pinned, the wall count stays (a phone's short centre drops it for the label's two lines) and a label in the round's
+  together on the next. While a badge's differences show, the wall count stays (a phone's short centre drops it for the label's two lines) and a label in the round's
   place names whose differences show: the seat's whole name on one line where it fits at a readable
   size, never shortened or broken, else the seat's wind; the honba and stick counts step aside for
   it. One primary cue on the centre for the seat in turn: Tenhou's green bar along that seat's whole
@@ -264,13 +264,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   less than an ordinary name's lane (an ultrawide desktop's hand starts near or past it), its lane is its own, short of
   the bottom river, and the decisions' row starts past it.
   A long name is shortened in the middle so its end, which tells AI players apart, stays. Decision:
-  the badge carries no wind or score; the centre holds every seat's score, and hovering or tapping a badge
+  the badge carries no wind or score; the centre holds every seat's score, and hovering a badge
   shows the other seats' scores in the centre as differences from it, labelled as that seat's
   differences (kept from the current board); hovering the centre does the same for the bottom seat's
-  badge, as Tenhou's. The badge is therefore a control: its tap area meets
-  the control floor whatever the drawn badge's size, a key activates it like a tap, a tap pins the
-  differences, and tapping it again, tapping elsewhere or Escape returns the totals; a pinned badge
-  shows a faint 1px inset ring on a slightly lighter plate, quieter than the turn cue, and a focused one the accent's outline. The name
+  badge, as Tenhou's. In a live game the badge takes no press, no pointer cursor and no text selection; a
+  replay's badge is a control that views the table from its seat, its tap area meeting the control floor
+  whatever the drawn badge's size, and a focused one shows the accent's outline. The name
   shows on every board, shortened rather than dropped.
 - **Dora indicators.** The five dora indicator slots (each indicator as a face once the event
   that reveals it has arrived, the rest unreadable backs; indicators are not the bonus tiles), in

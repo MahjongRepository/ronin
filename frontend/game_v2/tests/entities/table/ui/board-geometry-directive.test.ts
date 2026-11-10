@@ -80,7 +80,6 @@ function board(overlay?: TemplateResult, state: BoardDisplayState | null = null)
     return GameBoard({
         debug: false,
         overlay,
-        platePress: { kind: "pin", onPin: vi.fn(), pinned: null },
         state,
     });
 }

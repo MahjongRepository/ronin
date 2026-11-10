@@ -22,7 +22,6 @@ import {
     type PlayerState,
     RoundEndDisplay,
     SEAT_POSITIONS,
-    type SeatPosition,
     TablePanelDisplay,
     type TableState,
     boardCallouts,
@@ -147,8 +146,6 @@ interface BoardStoryState {
     readonly noticeOpen: boolean;
     /** The calls shown, held still, kept in the page's `?callout=`; null for none. */
     readonly callout: StoryCall | null;
-    /** The nameplate pinned for the others' score differences, kept in the page's `?pin=`. */
-    readonly pinned: SeatPosition | null;
     readonly overlay: OverlayMode;
     /** The game ends under rules that award the leftover sticks to nobody, kept in the page's `?leftover=lost`. */
     readonly leftoverLost: boolean;
@@ -409,11 +406,6 @@ function storyOffers(offers: StoryOffers): DecisionView | null {
             return assertNever(offers);
         }
     }
-}
-
-function parsePinParam(search: string): SeatPosition | null {
-    const param = new URLSearchParams(search).get("pin");
-    return SEAT_POSITIONS.find((seat) => seat === param) ?? null;
 }
 
 function parseStoryParam(search: string): BoardStory {
@@ -1032,7 +1024,6 @@ interface BoardStoryHandlers {
     readonly showPage: (page: number) => void;
     readonly showCallout: (call: string) => void;
     readonly showOffers: (offers: string) => void;
-    readonly pin: (seat: SeatPosition | null) => void;
     readonly toggleDebug: () => void;
     readonly toggleOverlay: (mode: OverlayMode) => void;
     readonly openNotice: (open: boolean) => void;
@@ -1153,7 +1144,6 @@ function storybookBoardTemplate(
                             : undefined,
                     notices,
                     overlay: sheet ?? buildOverlay(story, handlers),
-                    platePress: { kind: "pin", onPin: handlers.pin, pinned: story.pinned },
                     state,
                 })}
             </div>
@@ -1216,7 +1206,6 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
         offers: parseStoryOffers(query.get("offers")),
         overlay: parseOverlayParam(window.location.search),
         page: parsePageParam(window.location.search),
-        pinned: parsePinParam(window.location.search),
         result: parseResultParam(window.location.search),
         story: parseStoryParam(window.location.search),
     };
@@ -1228,10 +1217,6 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
 
     const handlers: BoardStoryHandlers = {
         openNotice: (open) => show({ ...story, noticeOpen: open }),
-        pin(seat) {
-            syncQueryParam("pin", seat ?? "", "");
-            show({ ...story, pinned: seat });
-        },
         showCallout(value) {
             const callout = parseStoryCall(value);
             syncQueryParam("callout", callout ?? "", "");

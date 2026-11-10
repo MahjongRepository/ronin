@@ -115,10 +115,9 @@ const PAGES: readonly PageCase[] = [
         at: [FLOOR, MID_DESKTOP],
     },
     {
-        ...boardCase("board-worst", "?state=worst&pin=right", [
+        ...boardCase("board-worst", "?state=worst", [
             ".board-strip .meld",
             ".board-dora .tile",
-            ".board-center__seat--left .board-center__diff--right",
             ".nameplate__ai",
         ]),
         at: [FLOOR, NOTCH_PHONE, FULLSCREEN_PHONE, MID_DESKTOP, NARROW_DESKTOP],
@@ -148,15 +147,14 @@ const PAGES: readonly PageCase[] = [
     boardCase("board-mixed-hands-b", "?state=mixed_hands_b", [".board-strip .meld"]),
     boardCase("board-mixed-hands-c", "?state=mixed_hands_c", [".board-strip .meld"]),
     {
-        ...boardCase("board-kans-a", "?state=kans_a&callout=every&pin=left", [
+        ...boardCase("board-kans-a", "?state=kans_a&callout=every", [
             ".board-strip .meld",
             ".board-callout",
-            ".board-center__diff-label--left",
         ]),
         longNames: true,
     },
     {
-        ...boardCase("board-kans-b", "?state=kans_b&callout=triple_ron&pin=bottom", [
+        ...boardCase("board-kans-b", "?state=kans_b&callout=triple_ron", [
             ".board-strip .meld",
             ".board-callout--ron",
             ".discard-tile--last",
@@ -164,17 +162,14 @@ const PAGES: readonly PageCase[] = [
         longNames: true,
     },
     {
-        ...boardCase("board-worst-bank", "?state=worst&offers=bank&pin=left", [
+        ...boardCase("board-worst-bank", "?state=worst&offers=bank", [
             ACTION,
             ".decision-timer--bank .decision-controls__bank--draining",
         ]),
         longNames: true,
     },
     {
-        ...boardCase("board-kans-c", "?state=kans_c&offers=five&pin=top", [
-            ACTION,
-            ".board-strip .meld",
-        ]),
+        ...boardCase("board-kans-c", "?state=kans_c&offers=five", [ACTION, ".board-strip .meld"]),
         at: [FLOOR, SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
         longNames: true,
     },
@@ -672,8 +667,7 @@ interface LabelPiece {
 }
 
 /**
- * The centre's label for the badge whose differences show (a hovered badge's on a hovering screen, else the pinned
- * one's): that badge's name and wind letter, the label's pieces, its font size and the name's width on one line.
+ * The centre's label for the badge whose differences show (a hovered badge's on a hovering screen): that badge's name and wind letter, the label's pieces, its font size and the name's width on one line.
  */
 interface DiffLabelMeasure {
     readonly seat: string;
@@ -749,10 +743,9 @@ function measureDiffLabel(page: Page): Promise<DiffLabelRead> {
             };
         }
         const labels = [...document.querySelectorAll(".board-center__diff-label")];
-        const hovered = matchMedia("(hover: hover)").matches
+        const plate = matchMedia("(hover: hover)").matches
             ? document.querySelector(".nameplate:hover")
             : null;
-        const plate = hovered ?? document.querySelector(".nameplate[aria-pressed='true']");
         if (plate === null) {
             return { kind: "none" as const, labelsShown: labels.filter(shown).length };
         }
@@ -844,12 +837,12 @@ async function checkDiffLabel(page: Page, report: PageReport): Promise<void> {
     if (read.kind === "none") {
         report.expect(
             read.labelsShown === 0,
-            `${read.labelsShown} differences label(s) show with no badge pinned`,
+            `${read.labelsShown} differences label(s) show with no badge hovered`,
         );
         return;
     }
     if (read.kind === "unreadable") {
-        report.expect(false, `the pinned label could not be read: ${read.why}`);
+        report.expect(false, `the hovered badge's label could not be read: ${read.why}`);
         return;
     }
     const where = `the ${read.seat} badge's label`;
@@ -1010,7 +1003,7 @@ function checkCenterContent(board: BoardMeasure, viewport: Viewport, report: Pag
 
 /**
  * The board as a whole: its content inside its box and readable, the table's surface clear of the aside, the board on
- * the page, the pinned badge's label, every badge's tap area on a supported screen, and in landscape on a supported screen the own hand, the rivers' and strips'
+ * the page, the hovered badge's label, every badge's tap area on a supported screen, and in landscape on a supported screen the own hand, the rivers' and strips'
  * gaps, the badges, the page's corner and the side hands' reserved reach.
  */
 /** Below this width a desktop window is best-effort (the spec's support tiers), and a whole name may not fit its lane. */

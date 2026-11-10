@@ -43,7 +43,6 @@ export { DECISION_ACTION_FOCUS_KEY, PANEL_CONTROL_FOCUS_KEY } from "./ui/focus";
 export type { BoardNotice } from "./ui/board-notices";
 export type { Notice, NoticeTone } from "./model/notice";
 export type { GameBoardProps, LocalHandInput } from "./ui/game-board";
-export type { PlatePress } from "./ui/nameplate";
 export { TablePanelDisplay } from "./ui/table-panel";
 export type { TablePanelControls } from "./ui/table-panel";
 export { replaySeatingPanel, tablePanel, tableSeatingPanel } from "./lib/table-panel";

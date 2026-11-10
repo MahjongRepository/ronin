@@ -21,7 +21,14 @@ $plate-seats: bottom, right, top, left;
     color: var(--ronin-badge-ink);
     background: none;
     border: 0;
-    cursor: pointer;
+    box-shadow: none;
+    cursor: default;
+    -webkit-user-select: none;
+    user-select: none;
+
+    &:is(button) {
+        cursor: pointer;
+    }
 
     &:focus-visible {
         outline: 3px solid var(--ronin-accent);
@@ -61,11 +68,6 @@ $plate-seats: bottom, right, top, left;
 
     .nameplate--current &::after {
         visibility: visible;
-    }
-
-    .nameplate[aria-pressed="true"] & {
-        background: var(--ronin-border-subtle);
-        box-shadow: inset 0 0 0 1px var(--ronin-badge-muted);
     }
 }
 
@@ -235,24 +237,13 @@ $plate-seats: bottom, right, top, left;
     }
 }
 
-/* A hovered badge, or the hovered centre for the bottom seat's, wins over the pinned one where a pointer hovers; a touch
-   screen's tap, which may leave its badge hovered, only pins. */
-@each $seat in $plate-seats {
-    @media (hover: hover) {
-        .board-layout:has(.nameplate--#{$seat}:hover),
-        .game-board--diff-#{$seat} .board-layout:not(:has(.nameplate:hover, .board-center:hover)) {
-            @include diffs-from($seat);
-        }
-    }
-
-    @media (hover: none) {
-        .game-board--diff-#{$seat} .board-layout {
-            @include diffs-from($seat);
-        }
-    }
-}
-
 @media (hover: hover) {
+    @each $seat in $plate-seats {
+        .board-layout:has(.nameplate--#{$seat}:hover) {
+            @include diffs-from($seat);
+        }
+    }
+
     .board-layout:has(.board-center:hover) {
         @include diffs-from(bottom);
     }

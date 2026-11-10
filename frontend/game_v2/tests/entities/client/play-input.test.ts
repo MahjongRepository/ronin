@@ -326,19 +326,14 @@ describe("live board input", () => {
         expect(commands.at(-1)?.kind).toBe("intent");
     });
 
-    it("closes settings, then unpins scores, before right-click can pass a call", () => {
+    it("closes settings before right-click can pass a call", () => {
         const state = checkpointState("call_prompt_seat_1", "prompt");
         const { board, commands, effects } = mountInput(state, {
             ...NO_PLAY_UI,
-            pinnedNameplate: "left",
             settingsOpen: true,
         });
         rightClick(board);
-        rightClick(board);
-        expect(commands).toEqual([
-            { kind: "close_settings" },
-            { kind: "pin_nameplate", seat: null },
-        ]);
+        expect(commands).toEqual([{ kind: "close_settings" }]);
         expect(messages(effects)).toEqual([]);
 
         rightClick(board);

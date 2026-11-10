@@ -4,7 +4,6 @@ import {
     type BoardDisplayState,
     type BoardMotionCue,
     type BoardPlayerDisplay,
-    type SeatPosition,
     type TablePanel,
     boardCallouts,
     tablePanel,
@@ -128,8 +127,6 @@ export interface PlayDisplay {
     readonly switches: readonly SwitchControl[];
     /** The play switches' names show beside their letters. */
     readonly switchNames: boolean;
-    /** The nameplate pinned for the others' score differences, or null. */
-    readonly pinnedNameplate: SeatPosition | null;
     /** The result panel's controls while the viewer has a round result to confirm or waits on one; else null. */
     readonly result: ResultControls | null;
     /** The game end's way back to the game's last result once the player dismissed it; else null. */
@@ -415,7 +412,6 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
         opening: openingControls(state),
         overlay,
         owedCountdown: pendingCountdown(state),
-        pinnedNameplate: ui.pinnedNameplate,
         result: resultControls(state, resultPage),
         settingsOpen: ui.settingsOpen && overlay?.blocksBoard !== true,
         shortcuts,

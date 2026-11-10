@@ -1,8 +1,8 @@
 import { html, render } from "lit-html";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
-import { type BoardCallouts, type SeatPosition } from "@/entities/table/model/board-types";
+import { type BoardCallouts } from "@/entities/table/model/board-types";
 import {
     createInitialPlayerState,
     createInitialTableState,
@@ -10,7 +10,7 @@ import {
 import { type BoardNotice } from "@/entities/table/ui/board-notices";
 import { GameBoard } from "@/entities/table/ui/game-board";
 
-function renderBoard(pinned: SeatPosition | null, onPin = vi.fn()): HTMLElement {
+function renderBoard(): HTMLElement {
     const players = [0, 1, 2, 3].map((seat) => ({
         ...createInitialPlayerState({
             isAiPlayer: false,
@@ -31,24 +31,8 @@ function renderBoard(pinned: SeatPosition | null, onPin = vi.fn()): HTMLElement 
     };
     const state = tableStateToDisplayState(table, { bottomSeat: 0, reveal: "bottom" });
     const host = document.createElement("div");
-    render(GameBoard({ debug: false, platePress: { kind: "pin", onPin, pinned }, state }), host);
+    render(GameBoard({ debug: false, state }), host);
     return host;
-}
-
-function press(host: HTMLElement, selector: string, init: KeyboardEventInit | null = null): void {
-    const target = host.querySelector(selector);
-    if (target === null) {
-        throw new Error(`nothing matches ${selector}`);
-    }
-    target.dispatchEvent(
-        init === null
-            ? new MouseEvent("click", { bubbles: true })
-            : new KeyboardEvent("keydown", { bubbles: true, ...init }),
-    );
-}
-
-function escapeKey(): KeyboardEvent {
-    return new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Escape" });
 }
 
 function texts(host: HTMLElement, selector: string): (string | undefined)[] {
@@ -57,7 +41,7 @@ function texts(host: HTMLElement, selector: string): (string | undefined)[] {
 
 describe("GameBoard centre and dora", () => {
     it("gives each seat its wind and score in hundreds on its side of the centre, its differences beside, and its riichi stick", () => {
-        const host = renderBoard(null);
+        const host = renderBoard();
         expect(texts(host, ".board-center__wind")).toEqual(["N", "E", "S", "W"]);
         expect(texts(host, ".board-center__seat--dealer .board-center__wind")).toEqual(["E"]);
         expect(texts(host, ".board-center__score")).toEqual(["25000", "26000", "27000", "28000"]);
@@ -76,7 +60,7 @@ describe("GameBoard centre and dora", () => {
     });
 
     it("shows the dora indicators turned so far, a back in each of the five slots still to turn, and counts the wall and sticks in the centre", () => {
-        const host = renderBoard(null);
+        const host = renderBoard();
         const slots = [...host.querySelectorAll(".board-dora__tile .tile")];
         expect(slots.map((tile) => tile.classList.contains("tile-back"))).toEqual([
             false,
@@ -88,43 +72,6 @@ describe("GameBoard centre and dora", () => {
         expect(
             texts(host, ".board-center__count").map((text) => text?.replaceAll(/\s+/gu, " ")),
         ).toEqual(["Wall 34", "Honba 2", "Riichi sticks 1"]);
-    });
-});
-
-describe("GameBoard nameplates", () => {
-    it("marks the board with the pinned plate, whose own click goes to the plate alone", () => {
-        const onPin = vi.fn();
-        const host = renderBoard("left", onPin);
-        expect(host.querySelector(".game-board")?.classList.contains("game-board--diff-left")).toBe(
-            true,
-        );
-        press(host, ".nameplate--top");
-        expect(onPin.mock.calls).toEqual([["top"]]);
-    });
-
-    it("unpins the pinned plate on a click elsewhere on the board or on Escape", () => {
-        const onPin = vi.fn();
-        const host = renderBoard("left", onPin);
-        press(host, ".board-center");
-        press(host, ".nameplate--top", { key: "Escape" });
-        expect(onPin.mock.calls).toEqual([[null], [null]]);
-    });
-
-    it("leaves an Escape already taken by a panel alone", () => {
-        const onPin = vi.fn();
-        const host = renderBoard("left", onPin);
-        const taken = escapeKey();
-        taken.preventDefault();
-        host.querySelector(".board-center")?.dispatchEvent(taken);
-        expect(onPin).not.toHaveBeenCalled();
-    });
-
-    it("asks nothing on a click elsewhere or Escape while no plate is pinned", () => {
-        const onPin = vi.fn();
-        const host = renderBoard(null, onPin);
-        press(host, ".board-center");
-        press(host, ".board-center", { key: "Escape" });
-        expect(onPin).not.toHaveBeenCalled();
     });
 });
 
@@ -147,7 +94,6 @@ describe("GameBoard announcements", () => {
                 callouts,
                 debug: false,
                 notices,
-                platePress: { kind: "pin", onPin: vi.fn(), pinned: null },
                 state: null,
             }),
             host,
@@ -201,7 +147,6 @@ describe("GameBoard callouts", () => {
                 callouts,
                 debug: false,
                 overlay: html`<p>Result</p>`,
-                platePress: { kind: "pin", onPin: vi.fn(), pinned: null },
                 state: null,
             }),
             host,
@@ -233,7 +178,6 @@ describe("GameBoard callouts", () => {
         const props = {
             debug: false,
             overlay: html`<p>Result</p>`,
-            platePress: { kind: "pin", onPin: vi.fn(), pinned: null } as const,
             state: null,
         };
         render(GameBoard({ ...props, overlayAfterCall: true }), host);

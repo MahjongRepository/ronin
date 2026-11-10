@@ -110,7 +110,6 @@
     "game.move.start": "The game's start awaits your OK",
     "game.move.turn": "It is your turn",
     "game.nameplate.dealer": "{wind}, dealer",
-    "game.nameplate.diff": "{diff} from {name}",
     "game.nameplate.riichi": "riichi",
     "game.nameplate.to_play": "to play",
     "game.nameplate.view": "view from this seat",

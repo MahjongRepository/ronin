@@ -698,18 +698,6 @@ describe("playDisplay nameplates", () => {
     });
 });
 
-describe("playDisplay pinned nameplate", () => {
-    it("shows the nameplate a tap pins until a tap pins none", () => {
-        const { state } = playingScenario();
-        const pinned = stepPlayUi(state, NO_PLAY_UI, { kind: "pin_nameplate", seat: "top" });
-
-        expect(playDisplay(state, pinned).pinnedNameplate).toBe("top");
-        expect(stepPlayUi(state, pinned, { kind: "pin_nameplate", seat: null })).toEqual(
-            NO_PLAY_UI,
-        );
-    });
-});
-
 describe("playDisplay leave", () => {
     it("asks before leaving a held seat, and the player can take the question back", () => {
         const { state } = playingScenario();

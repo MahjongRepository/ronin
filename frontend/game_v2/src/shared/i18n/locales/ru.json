@@ -114,7 +114,6 @@
     "game.move.start": "Начало игры ждёт вашего подтверждения",
     "game.move.turn": "Ваш ход",
     "game.nameplate.dealer": "{wind}, дилер",
-    "game.nameplate.diff": "{diff} от {name}",
     "game.nameplate.riichi": "риичи",
     "game.nameplate.to_play": "ходит",
     "game.nameplate.view": "показать вид с этого места",

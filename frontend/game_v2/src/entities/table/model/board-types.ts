@@ -25,7 +25,7 @@ interface NameplateAiMark {
 /**
  * A seat's nameplate: who plays it, its seat wind and score, and its marks. `scoreDiffs` gives, by board position, how
  * far this seat's score is from that seat's, signed (`+1000`, `-3000`, `0`): what the plate shows while that seat's
- * plate is hovered or pinned; its own position's is empty.
+ * plate is hovered; its own position's is empty.
  */
 interface BoardNameplate {
     readonly name: string;

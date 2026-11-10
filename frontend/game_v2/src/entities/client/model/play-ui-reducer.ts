@@ -130,7 +130,7 @@ function toggledInputSetting(ui: PlayUi, kind: "toggle_right_click" | "toggle_ke
 /**
  * The view's `ui` after a command, before it settles: picking riichi's discard turns on or off for the open
  * decision, and an answered decision keeps it as it was; stepping back turns the riichi pick off; the result's panel turns to a page of the result showing, and the game's last
- * result reopens on its first; a nameplate is pinned, or none; the play switches' names show or hide; a notice opens whole in its sheet, or the sheet closes;
+ * result reopens on its first; the play switches' names show or hide; a notice opens whole in its sheet, or the sheet closes;
  * the settings menu opens or closes, and closes as the leave question or a notice's sheet opens; the sound turns on
  * or off.
  */
@@ -165,9 +165,6 @@ function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): P
         case "show_result_page": {
             const round = resultRound(state.table);
             return { ...ui, resultPage: round === null ? null : { page: command.page, round } };
-        }
-        case "pin_nameplate": {
-            return { ...ui, pinnedNameplate: command.seat };
         }
         case "toggle_switch_names": {
             return { ...ui, switchNames: !ui.switchNames };

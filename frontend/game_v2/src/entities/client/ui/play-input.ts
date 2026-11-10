@@ -397,8 +397,7 @@ class PlayInput extends AsyncDirective {
             command === "close_settings" ||
             command === "cancel_leave" ||
             command === "close_notice" ||
-            command === "close_controls" ||
-            command === "pin_nameplate";
+            command === "close_controls";
         return (
             closing ||
             target.closest("button, nav, .play-switches, summary") === null ||

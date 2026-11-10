@@ -562,11 +562,6 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
         notices: display.notices.map((notice) => boardNotice(notice, onCommand)),
         overlay: overlay === null ? undefined : OverlayPanel(overlay.panel, props),
         overlayAfterCall: overlay?.panel.kind === "result" && overlay.panel.afterCall,
-        platePress: {
-            kind: "pin",
-            onPin: (seat) => onCommand({ kind: "pin_nameplate", seat }),
-            pinned: display.pinnedNameplate,
-        },
         state: display.board,
         switches: PlaySwitches(display.switches, display.switchNames, onCommand),
     });

@@ -32,7 +32,7 @@ import { sizeBoard } from "./board-geometry-directive";
 import { animateBoard } from "./board-motion-directive";
 import { type BoardNotice, BoardNotices, NoticeAnnouncements } from "./board-notices";
 import { HonbaStickIcon } from "./honba-stick-icon";
-import { Nameplates, type PlatePress, pinnedPlate } from "./nameplate";
+import { Nameplates, type SeatView } from "./nameplate";
 import { fadeMatchResult, revealAfterCall } from "./panel-motion-directive";
 import { RiichiStickIcon } from "./riichi-stick-icon";
 
@@ -57,8 +57,8 @@ interface GameBoardProps {
     readonly notices?: readonly BoardNotice[];
     /** The overlay's panel blocks the board: everything under it takes no input, by keyboard or pointer. */
     readonly inert?: boolean;
-    /** What pressing a plate does: pin it to show the others' score differences, or view the table from its seat. */
-    readonly platePress: PlatePress;
+    /** Views the table from the seat whose plate (or, but the bottom's, centre score) was pressed: a replay's; else they take no press. */
+    readonly onViewSeat?: SeatView;
     /** The page's own controls (the settings: sound and the connection), in the board's top-right corner. */
     readonly menu?: TemplateResult;
     /**
@@ -228,7 +228,7 @@ function ScoreFigures(score: string): TemplateResult {
 
 /**
  * A seat's side of the centre, turned to face it: its wind (the dealer's, East, on a muted red chip) and score, or while a plate is
- * hovered or pinned (or the centre, standing for the bottom plate, is hovered) its difference from that plate's seat, and above them its riichi stick once its riichi stands. A
+ * hovered (or the centre, standing for the bottom plate, is hovered) its difference from that plate's seat, and above them its riichi stick once its riichi stands. A
  * bar along its edge marks whose turn it is. Where pressing a plate views from its seat, so does a pointer's press of
  * another seat's score; the keyboard's is the plate's.
  */
@@ -266,7 +266,7 @@ function CenterSeat(
 
 /**
  * While a badge's differences show, the label naming whose they are, beside the wall's count, which stays: one per
- * seat, which the board's stylesheet shows for the hovered or pinned badge, naming the seat whole where its name fits
+ * seat, which the board's stylesheet shows for the hovered badge, naming the seat whole where its name fits
  * the line, else by its wind, which assistive technology skips for the whole name.
  */
 function DiffLabels(plates: BoardDisplayState["nameplates"]): TemplateResult {
@@ -291,9 +291,8 @@ function DiffLabels(plates: BoardDisplayState["nameplates"]): TemplateResult {
 function CenterInfo(
     center: BoardCenterInfo,
     plates: BoardDisplayState["nameplates"],
-    press: PlatePress,
+    onView: SeatView | null,
 ): TemplateResult {
-    const onView = press.kind === "view" ? press.onView : null;
     return html`
         <div class="board-area board-center" data-area="center">
             ${SEAT_POSITIONS.map((position, index) => CenterSeat(plates[index], position, onView))}
@@ -409,41 +408,24 @@ function EmptyCenterArea(): TemplateResult {
  * rivers in their pinwheel, the other seats' strips and badges in their zones toward the edges, the pooled counters in
  * the top-left corner and the page's own controls (`menu`) in the top-right, and over the foreground band the bottom
  * seat's badge, hand and melds with the decision's controls and the play switches, when given, by the hand; a board
- * the viewer plays (`localHand`) also marks its badge furiten while it is. A pinned badge unpins on a click anywhere else on
- * the board or on Escape (a replay's badges pin nothing: pressing one, or another seat's score, views from its seat); with none pinned, Escape steps back from a decision's step. Calls show over their seats' rivers for a
+ * the viewer plays (`localHand`) also marks its badge furiten while it is. On a replay, pressing a badge, or another seat's
+ * score, views from its seat. Calls show over their seats' rivers for a
  * moment, clear of the latest discard, and a win's call shows before the panel over the board does.
  */
 function GameBoard(props: GameBoardProps): TemplateResult {
-    const { platePress, state } = props;
-    const pinned = pinnedPlate(platePress);
+    const { state } = props;
+    const onView = props.onViewSeat ?? null;
     const boardClass = [
         "game-board",
         props.localHand ? "game-board--play" : "",
         props.replay ? "game-board--replay" : "",
         import.meta.env.DEV && props.debug ? "game-board--debug" : "",
-        pinned === null ? "" : `game-board--diff-${pinned}`,
     ]
         .filter(Boolean)
         .join(" ");
     const bandEnd = props.actions ?? props.replay?.controls;
     const bottom = state?.players[0] ?? null;
-    const plates = state ? Nameplates(state.nameplates, platePress) : null;
-    function unpinOnClickElsewhere(event: MouseEvent): void {
-        const { target } = event;
-        const onPlate = target instanceof Element && target.closest(".nameplate") !== null;
-        if (platePress.kind === "pin" && pinned !== null && !onPlate) {
-            platePress.onPin(null);
-        }
-    }
-    function onKey(event: KeyboardEvent): void {
-        if (props.input !== undefined || event.key !== "Escape" || event.defaultPrevented) {
-            return;
-        }
-        if (platePress.kind === "pin" && pinned !== null) {
-            platePress.onPin(null);
-            return;
-        }
-    }
+    const plates = state ? Nameplates(state.nameplates, onView) : null;
 
     const animationsOn = props.animationsOn !== false;
     return html`
@@ -462,8 +444,6 @@ function GameBoard(props: GameBoardProps): TemplateResult {
             )}
             ${animateBoard(state, props.motion, animationsOn)}
             ${fadeMatchResult(props.matchResult === true, animationsOn)}
-            @click=${unpinOnClickElsewhere}
-            @keydown=${onKey}
         >
             <div class="board-layout" ?inert=${props.inert ?? false}>
                 ${Zones()}
@@ -471,7 +451,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     <div class="board-rivers">
                         ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
                     </div>
-                    ${state ? CenterInfo(state.center, state.nameplates, platePress) : EmptyCenterArea()}
+                    ${state ? CenterInfo(state.center, state.nameplates, onView) : EmptyCenterArea()}
                     ${STRIP_SEATS.map((seat) => Strip(seat, seatPlayer(state, seat)))}
                     ${state ? DoraDisplay(state.center) : ""}
                     ${plates ? html`${plates.right}${plates.top}${plates.left}` : ""}
