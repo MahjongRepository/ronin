@@ -5,6 +5,7 @@ import {
     readMotionSetting,
 } from "@/entities/client";
 import { DEFAULT_REPLAY_PREFS, readReplayPrefs } from "@/entities/replay";
+import { applyTileLabels } from "@/entities/tile";
 import { fetchReplay } from "@/shared/api";
 import { browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, getLobbyUrl } from "@/shared/config";
@@ -43,6 +44,7 @@ export function mountReplay(host: HTMLElement, gameId: string, sound: GameSound)
         motionSetting: localStore(MOTION_SETTING_KEY, readMotionSetting, DEFAULT_MOTION_SETTING),
         prefs: localStore(REPLAY_PREFS_KEY, readReplayPrefs, DEFAULT_REPLAY_PREFS),
         setLanguage: applyPageLocale,
+        setTileLabels: applyTileLabels,
         setWinds: applyWindScript,
         sound,
     });

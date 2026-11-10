@@ -204,6 +204,7 @@
     "game.settings.on": "オン",
     "game.settings.right_click": "右クリック操作",
     "game.settings.sound": "音声",
+    "game.settings.tile_labels": "牌の補助表示",
     "game.settings.title": "設定",
     "game.settings.title_with_status": "設定、{status}",
     "game.settings.winds": "風の表記",

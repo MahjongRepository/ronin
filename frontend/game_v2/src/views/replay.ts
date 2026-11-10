@@ -79,6 +79,7 @@ export interface ReplayViewDeps {
     readonly motionSetting: LocalStore<MotionSetting>;
     readonly setLanguage: (locale: Locale) => void;
     readonly setWinds: (script: WindScript) => void;
+    readonly setTileLabels: (on: boolean) => void;
     /** Open on the round list, as a storybook state shows it; closed when omitted. */
     readonly roundListOpen?: boolean;
     /** Open with autoplay running, as a storybook state shows it; paused when omitted. */
@@ -360,6 +361,7 @@ class ReplayViewController {
         root: createRef<HTMLElement>(),
         selectRound: (cursor) => this.dispatch({ cursor, kind: "select_round" }),
         setLanguage: (locale) => this.changeLanguage(locale),
+        setTileLabels: (on) => this.changeTileLabels(on),
         setWinds: (script) => this.changeWinds(script),
         showResultPage: (page) => this.dispatch({ kind: "result_page", page }),
         start: () => this.dispatch({ kind: "start" }),
@@ -417,6 +419,11 @@ class ReplayViewController {
 
     private changeWinds(script: WindScript): void {
         this.deps.setWinds(script);
+        this.guard(() => this.show(this.screen));
+    }
+
+    private changeTileLabels(on: boolean): void {
+        this.deps.setTileLabels(on);
         this.guard(() => this.show(this.screen));
     }
 

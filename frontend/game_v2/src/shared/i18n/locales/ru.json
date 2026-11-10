@@ -225,6 +225,7 @@
     "game.settings.on": "Вкл",
     "game.settings.right_click": "Действия правой кнопкой мыши",
     "game.settings.sound": "Звук",
+    "game.settings.tile_labels": "Подписи на тайлах",
     "game.settings.title": "Настройки",
     "game.settings.title_with_status": "Настройки, {status}",
     "game.settings.winds": "Ветра",

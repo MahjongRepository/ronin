@@ -29,7 +29,13 @@ import {
     readMotionSetting,
     readSoundSetting,
 } from "@/entities/client";
-import { type TileSprite, injectTileSprite, loadTileSprite } from "@/entities/tile";
+import {
+    type TileSprite,
+    applyTileLabels,
+    injectTileSprite,
+    loadTileSprite,
+    restoreTileLabels,
+} from "@/entities/tile";
 import { type Route, lazyRoute, startRouter } from "@/router";
 import { fetchGameHandoff } from "@/shared/api";
 import { browserClock } from "@/shared/clock";
@@ -231,6 +237,7 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
         motionSetting: localStore(MOTION_SETTING_KEY, readMotionSetting, DEFAULT_MOTION_SETTING),
         recoverHandoff: fetchGameHandoff,
         setLanguage: applyPageLocale,
+        setTileLabels: applyTileLabels,
         setWinds: applyWindScript,
         sink: {
             clearHandoff: clearGameSession,
@@ -279,6 +286,7 @@ function createStorybookRoutes(): Route[] {
 
 document.documentElement.lang = resolveLocale(document.cookie, navigator.languages);
 restoreWindScript();
+restoreTileLabels();
 document.title = t("game.page.title");
 
 const app = document.getElementById("app");

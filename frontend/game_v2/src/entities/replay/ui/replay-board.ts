@@ -45,6 +45,7 @@ export interface ReplayBoardHandlers {
     readonly toggleAnimations: () => void;
     readonly setLanguage: (locale: Locale) => void;
     readonly setWinds: (script: WindScript) => void;
+    readonly setTileLabels: (on: boolean) => void;
 }
 
 export interface ReplayBoardProps {
@@ -137,6 +138,7 @@ export function ReplayBoard({
             backdrop: true,
             onClose: handlers.closeSettings,
             onLanguage: handlers.setLanguage,
+            onTileLabels: handlers.setTileLabels,
             onToggleAnimations: handlers.toggleAnimations,
             onToggleOpen: handlers.toggleSettings,
             onToggleSound: handlers.toggleSound,

@@ -22,7 +22,7 @@ import {
     stepPlayUi,
 } from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
-import { type TileSpriteStatus } from "@/entities/tile";
+import { type TileSpriteStatus, applyTileLabels } from "@/entities/tile";
 import ADDED_KAN_SEAT_1 from "@/fixtures/seat-scenarios/added_kan_seat_1.json";
 import ANCHOR_SEAT_1 from "@/fixtures/seat-scenarios/anchor_seat_1.json";
 import CALL_PROMPT_SEAT_1 from "@/fixtures/seat-scenarios/call_prompt_seat_1.json";
@@ -526,10 +526,11 @@ function pickStory(event: Event, show: (story: DecisionStoryKey) => void): void 
     }
 }
 
-/** The settings menu's language and wind-letter choices. */
+/** The settings menu's choices kept on the page: the language, the wind letters, the tiles' labels. */
 interface PageLanguageHandlers {
     readonly onLanguage: (locale: Locale) => void;
     readonly onWinds: (script: WindScript) => void;
+    readonly onTileLabels: (on: boolean) => void;
 }
 
 /** The page's controls: the story picker's and the board's. */
@@ -541,7 +542,7 @@ interface StoryHandlers extends PageLanguageHandlers {
 function storyBoard(
     { state, ui }: StoryScreen,
     onCommand: (command: PlayCommand) => void,
-    { onLanguage, onWinds }: PageLanguageHandlers,
+    { onLanguage, onTileLabels, onWinds }: PageLanguageHandlers,
 ): TemplateResult {
     return PlayBoard({
         clock: browserClock,
@@ -552,6 +553,7 @@ function storyBoard(
         },
         onCommand,
         onLanguage,
+        onTileLabels,
         onWinds,
     });
 }
@@ -560,12 +562,12 @@ const GALLERY_PATH = "/play/storybook/decisions";
 
 function storybookTemplate(
     screen: StoryScreen,
-    { onCommand, onLanguage, onWinds, show }: StoryHandlers,
+    { onCommand, onLanguage, onTileLabels, onWinds, show }: StoryHandlers,
 ): TemplateResult {
     const { sent, story } = screen;
     return html`
         <div class="board-page decisions-storybook">
-            <div class="board-page__board">${storyBoard(screen, onCommand, { onLanguage, onWinds })}</div>
+            <div class="board-page__board">${storyBoard(screen, onCommand, { onLanguage, onTileLabels, onWinds })}</div>
             <div class="board-page__aside">
                 <a class="board-storybook__btn" href="${STORYBOOK_INDEX}">Back</a>
                 <a class="board-storybook__btn" href="${GALLERY_PATH}">All decisions</a>
@@ -669,17 +671,30 @@ export function mountStorybookDecisions(host: HTMLElement): () => void {
     const named = parseStory(window.location.search);
     const gallery = named === null;
     let screens = named === null ? galleryScreens() : [storyScreen(named)];
+    const page: PageLanguageHandlers = {
+        onLanguage: (locale) => {
+            applyPageLocale(locale);
+            draw();
+        },
+        onTileLabels: (on) => {
+            applyTileLabels(on);
+            draw();
+        },
+        onWinds: (script) => {
+            applyWindScript(script);
+            draw();
+        },
+    };
 
     function draw(): void {
         const [first] = screens;
         if (gallery) {
-            render(galleryTemplate(screens, onStoryCommand, { onLanguage, onWinds }), host);
+            render(galleryTemplate(screens, onStoryCommand, page), host);
         } else if (first !== undefined) {
             render(
                 storybookTemplate(first, {
+                    ...page,
                     onCommand: (command) => onStoryCommand(first.story, command),
-                    onLanguage,
-                    onWinds,
                     show,
                 }),
                 host,
@@ -697,16 +712,6 @@ export function mountStorybookDecisions(host: HTMLElement): () => void {
         screens = screens.map((screen) =>
             screen.story === story ? commanded(screen, command) : screen,
         );
-        draw();
-    }
-
-    function onLanguage(locale: Locale): void {
-        applyPageLocale(locale);
-        draw();
-    }
-
-    function onWinds(script: WindScript): void {
-        applyWindScript(script);
         draw();
     }
 

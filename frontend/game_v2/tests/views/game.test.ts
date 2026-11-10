@@ -30,7 +30,12 @@ import {
     readMotionSetting,
 } from "@/entities/client";
 import { SHORTCUT_SETTLE_MS } from "@/entities/client/ui/play-input";
-import { type TileSprite, type TileSpriteStatus } from "@/entities/tile";
+import {
+    TILE_LABELS_KEY,
+    type TileSprite,
+    type TileSpriteStatus,
+    applyTileLabels,
+} from "@/entities/tile";
 import { type HandoffRecovery } from "@/shared/api";
 import { WIND_SCRIPT_KEY, applyWindScript } from "@/shared/i18n";
 import { localStore } from "@/shared/lib";
@@ -129,6 +134,7 @@ interface FakeOverrides {
     readonly autoWinSetting?: GameViewDeps["autoWinSetting"];
     readonly setLanguage?: GameViewDeps["setLanguage"];
     readonly setWinds?: GameViewDeps["setWinds"];
+    readonly setTileLabels?: GameViewDeps["setTileLabels"];
 }
 
 /** The game's sounds as a test hears them: each cue played, and the setting as this browser would keep it. */
@@ -207,6 +213,7 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
             overrides.recoverHandoff ??
             (() => Promise.reject(new Error("the tab holds a handoff"))),
         setLanguage: overrides.setLanguage ?? (() => {}),
+        setTileLabels: overrides.setTileLabels ?? (() => {}),
         setWinds: overrides.setWinds ?? (() => {}),
         sink,
         sound: {
@@ -1314,6 +1321,30 @@ describe("mountGameView settings", () => {
             host.querySelector(".game__play .game-menu__panel") !== null,
             connections[0].sent,
         ]).toEqual([["E", "N", "S", "W"], ["北", "南", "東", "西"], "東南西北", true, [JOIN]]);
+    });
+
+    it("labels the hand's tiles once the cog's switch turns them on, its menu open, sending nothing", () => {
+        onTestFinished(() => {
+            delete document.documentElement.dataset.tileLabels;
+            localStorage.removeItem(TILE_LABELS_KEY);
+        });
+        const { connections, host } = mountWithFakes({ setTileLabels: applyTileLabels });
+        openCallPrompt(connections[0]);
+        function labelled(): number {
+            return host.querySelectorAll(".game__play .board-local .hand .tile__label").length;
+        }
+        const before = labelled();
+
+        press(host, ".game-menu__toggle");
+        press(host, ".game-menu__tile-labels");
+
+        expect([
+            before,
+            labelled() > 0,
+            host.querySelector(".game__play .game-menu__tile-labels")?.getAttribute("aria-checked"),
+            host.querySelector(".game__play .game-menu__panel") !== null,
+            connections[0].sent,
+        ]).toEqual([0, true, "true", true, [JOIN]]);
     });
 });
 

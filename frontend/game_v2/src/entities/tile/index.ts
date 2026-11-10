@@ -22,3 +22,9 @@ export {
 } from "./lib/tile-utils";
 export type { TileFace } from "./lib/tile-utils";
 export { PLAYABLE_TILE_FOCUS_KEY } from "./ui/hand";
+export {
+    TILE_LABELS_KEY,
+    applyTileLabels,
+    pageTileLabels,
+    restoreTileLabels,
+} from "./lib/tile-labels";

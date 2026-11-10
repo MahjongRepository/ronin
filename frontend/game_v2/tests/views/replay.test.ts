@@ -220,6 +220,7 @@ function mountReplay(
         motionSetting: localStore(MOTION_SETTING_KEY, readMotionSetting, DEFAULT_MOTION_SETTING),
         prefs: store,
         setLanguage,
+        setTileLabels: () => {},
         setWinds: () => {},
         sound: deps,
     });

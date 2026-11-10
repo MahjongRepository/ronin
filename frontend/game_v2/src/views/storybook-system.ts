@@ -84,6 +84,7 @@ function ConnectionStoryView(story: ConnectionStory): TemplateResult {
             backdrop: false,
             onClose: ignore,
             onLanguage: ignore,
+            onTileLabels: ignore,
             onToggleAnimations: ignore,
             onToggleOpen: ignore,
             onToggleSound: ignore,

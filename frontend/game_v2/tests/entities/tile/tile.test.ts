@@ -1,8 +1,16 @@
 import { type TemplateResult, render } from "lit-html";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { TILE_FACES, Tile, injectTileSprite, spokenTileName } from "@/entities/tile";
-import { t } from "@/shared/i18n";
+import {
+    TILE_FACES,
+    TILE_LABELS_KEY,
+    Tile,
+    applyTileLabels,
+    injectTileSprite,
+    restoreTileLabels,
+    spokenTileName,
+} from "@/entities/tile";
+import { WIND_SCRIPT_KEY, applyWindScript, t } from "@/shared/i18n";
 
 function renderTo(template: TemplateResult): HTMLElement {
     const el = document.createElement("div");
@@ -73,6 +81,55 @@ describe("Tile", () => {
         const el = renderTo(Tile("1m", "back"));
         expect(el.querySelector(".tile-back")).not.toBeNull();
         expect(el.querySelector("use")).toBeNull();
+    });
+});
+
+describe("Tile labels", () => {
+    afterEach(() => {
+        document.documentElement.lang = "";
+        delete document.documentElement.dataset.tileLabels;
+        delete document.documentElement.dataset.winds;
+        localStorage.removeItem(TILE_LABELS_KEY);
+        localStorage.removeItem(WIND_SCRIPT_KEY);
+    });
+
+    function labels(): (string | null)[] {
+        return (["0p", "9s", "2z", "5z", "7z"] as const).map((face) => {
+            const label = renderTo(Tile(face, "face")).querySelector(".tile__label");
+            const red = label?.classList.contains("tile__label--red") === true ? " red" : "";
+            return label === null ? null : `${label.textContent}${red}`;
+        });
+    }
+
+    test("label a suit tile by its rank, a red five's in red, a wind in the page's wind script and a dragon by its colour, an honor unlabelled in kanji", () => {
+        document.documentElement.lang = "ru";
+        const off = labels();
+        applyTileLabels(true);
+        const latin = labels();
+        applyWindScript("cyrillic");
+        const cyrillic = labels();
+        applyWindScript("kanji");
+
+        expect([off, latin, cyrillic, labels()]).toEqual([
+            [null, null, null, null, null],
+            ["5 red", "9", "S", "Wh", "R"],
+            ["5 red", "9", "Ю", "Б", "К"],
+            ["5 red", "9", null, null, null],
+        ]);
+    });
+
+    test("come back on at the next page load once switched on, and stay off once switched off", () => {
+        applyTileLabels(true);
+        delete document.documentElement.dataset.tileLabels;
+        restoreTileLabels();
+        const restoredOn = labels();
+        applyTileLabels(false);
+        restoreTileLabels();
+
+        expect([restoredOn, labels()]).toEqual([
+            ["5 red", "9", "S", "Wh", "R"],
+            [null, null, null, null, null],
+        ]);
     });
 });
 

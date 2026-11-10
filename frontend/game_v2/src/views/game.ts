@@ -81,6 +81,7 @@ export interface GameViewDeps {
     readonly autoWinSetting: LocalStore<AutoWinSetting>;
     readonly setLanguage: (locale: Locale) => void;
     readonly setWinds: (script: WindScript) => void;
+    readonly setTileLabels: (on: boolean) => void;
 }
 
 /**
@@ -140,6 +141,7 @@ interface GameViewProps {
     readonly onCommand: (command: PlayCommand) => void;
     readonly onLanguage: (locale: Locale) => void;
     readonly onWinds: (script: WindScript) => void;
+    readonly onTileLabels: (on: boolean) => void;
 }
 
 function describeError(error: unknown): string {
@@ -265,7 +267,7 @@ function logTemplate(
  * and countdown stay current while it is hidden.
  */
 function gameTemplate(props: GameViewProps): TemplateResult {
-    const { links, log, onCommand, onLanguage, onWinds, panel, state, ui } = props;
+    const { links, log, onCommand, onLanguage, onTileLabels, onWinds, panel, state, ui } = props;
     const display: PlayDisplay = playDisplay(state, ui);
     const board = PlayBoard({
         clock: props.clock,
@@ -274,6 +276,7 @@ function gameTemplate(props: GameViewProps): TemplateResult {
         menuExtra: log === null ? undefined : logTemplate(log, panel, state),
         onCommand,
         onLanguage,
+        onTileLabels,
         onWinds,
     });
     return html`
@@ -429,6 +432,11 @@ class GameViewController {
 
     private readonly changeWinds = (script: WindScript): void => {
         this.deps.setWinds(script);
+        this.guard(() => this.draw());
+    };
+
+    private readonly changeTileLabels = (on: boolean): void => {
+        this.deps.setTileLabels(on);
         this.guard(() => this.draw());
     };
 
@@ -628,13 +636,15 @@ class GameViewController {
         if (this.disposed || this.broken) {
             return;
         }
-        const { changeLanguage, changeWinds, command, log, panel, state, ui } = this;
+        const { changeLanguage, changeTileLabels, changeWinds, command, log, panel, state, ui } =
+            this;
         const props = {
             clock: this.deps.clock,
             links: this.deps.links,
             log,
             onCommand: command,
             onLanguage: changeLanguage,
+            onTileLabels: changeTileLabels,
             onWinds: changeWinds,
             panel,
             state,

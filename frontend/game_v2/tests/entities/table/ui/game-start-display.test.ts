@@ -24,6 +24,7 @@ function renderBoard(state: LiveClient): HTMLElement {
             display: playDisplay(state, NO_PLAY_UI),
             onCommand: () => {},
             onLanguage: () => {},
+            onTileLabels: () => {},
             onWinds: () => {},
         }),
         host,

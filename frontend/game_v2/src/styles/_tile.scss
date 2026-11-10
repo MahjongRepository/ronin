@@ -238,3 +238,25 @@ $corner-share: 0.09;
         display: none;
     }
 }
+
+/* A face's corner label lies over its artwork, which stays as drawn: in the tile's corner, out past the artwork's box
+   into the room around it, ringed in the face's ivory to read where it still overlaps. */
+.tile svg:has(.tile__label) {
+    overflow: visible;
+}
+
+.tile__label {
+    font-size: 110px;
+    font-weight: 800;
+    text-anchor: end;
+    dominant-baseline: hanging;
+    fill: var(--ronin-tile-label);
+    stroke: var(--ronin-tile-face);
+    stroke-width: 18px;
+    stroke-linejoin: round;
+    paint-order: stroke;
+
+    &--red {
+        fill: var(--ronin-tile-red);
+    }
+}

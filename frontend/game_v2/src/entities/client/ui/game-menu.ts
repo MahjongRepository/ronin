@@ -3,6 +3,7 @@ import { type TemplateResult, html, nothing, svg } from "lit-html";
 import { type CogAlert, type RoundTripDisplay } from "@/entities/client/model/round-trip";
 import { SETTINGS_FOCUS_KEY } from "@/entities/client/model/settings-menu";
 import { type SessionStatusDisplay } from "@/entities/session";
+import { pageTileLabels } from "@/entities/tile";
 import {
     LOCALES,
     type Locale,
@@ -35,6 +36,7 @@ interface GameMenuProps {
     readonly onToggleAnimations: () => void;
     readonly onLanguage: (locale: Locale) => void;
     readonly onWinds: (script: WindScript) => void;
+    readonly onTileLabels: (on: boolean) => void;
     /** The keyboard and mouse settings: the right-click switch and the controls' help it opens over the board. */
     readonly input?: {
         readonly rightClick: boolean;
@@ -181,6 +183,7 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
         onClose,
         onLanguage,
         onToggleAnimations,
+        onTileLabels,
         onToggleSound,
         onWinds,
         soundOn,
@@ -208,6 +211,7 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
                 <span class="game-menu__item-name">${t("game.settings.animations")}</span
                 >${SwitchValue(animationsOn)}
             </button>
+            ${TileLabelsRow(onTileLabels)}
             ${props.keepAutoWin === undefined ? nothing : KeepAutoWinRow(props.keepAutoWin)}
             ${props.input === undefined ? nothing : InputSettings(props.input)}
             ${LanguageRow(onLanguage)}
@@ -239,6 +243,19 @@ function SwitchValue(on: boolean): TemplateResult {
     return html`<span class="game-menu__item-value game-menu__switch-value" data-reserve=${onOff(!on)}
         ><span>${onOff(on)}</span></span
     >`;
+}
+
+/** The tiles' corner labels: a suit tile's rank, a wind's letter in the chosen script. */
+function TileLabelsRow(onTileLabels: (on: boolean) => void): TemplateResult {
+    const on = pageTileLabels() !== null;
+    return html`<button
+        type="button"
+        class="secondary game-menu__item game-menu__tile-labels"
+        role="switch"
+        aria-checked=${String(on)}
+        @click=${() => onTileLabels(!on)}
+    ><span class="game-menu__item-name">${t("game.settings.tile_labels")}</span
+        >${SwitchValue(on)}</button>`;
 }
 
 function KeepAutoWinRow(keep: NonNullable<GameMenuProps["keepAutoWin"]>): TemplateResult {

@@ -1,7 +1,8 @@
-import { html, svg } from "lit-html";
+import { html, nothing, svg } from "lit-html";
 
+import { pageTileLabels, tileLabel } from "@/entities/tile/lib/tile-labels";
 import { type TileFace, spokenTileName } from "@/entities/tile/lib/tile-utils";
-import { t } from "@/shared/i18n";
+import { type WindScript, t } from "@/shared/i18n";
 
 const HONOR_FACES = ["東", "南", "西", "北", "白", "發", "中"] as const;
 
@@ -41,13 +42,19 @@ function TileBack() {
  * "face" renders the tile's face sprite over its short name, which the stylesheet hides once the sprite is in the
  * document, so a tile stays readable while the sprite loads or when it never does.
  * "back" renders the tile's back (the face identity is preserved but not visible).
+ * `labels` is the script of the face's corner label, the page's setting unless given; null draws none.
  */
-function Tile(face: TileFace, show: "face" | "back") {
+function Tile(face: TileFace, show: "face" | "back", labels: WindScript | null = pageTileLabels()) {
     if (show === "back") {
         return TileBack();
     }
     const red = face.startsWith("0") ? " tile__name--red" : "";
-    return html`<span class="tile">${svg`<svg width="100%" height="100%" viewBox="0 0 300 400" aria-label="${spokenTileName(face)}"><text class="tile__name${red}" x="150" y="200" aria-hidden="true">${placeholderFace(face)}</text><use href="#tile-${face}"/></svg>`}</span>`;
+    const label = labels === null ? null : tileLabel(face, labels);
+    const labelMark =
+        label === null
+            ? nothing
+            : svg`<text class="tile__label${red === "" ? "" : " tile__label--red"}" x="318" y="-18" aria-hidden="true">${label}</text>`;
+    return html`<span class="tile">${svg`<svg width="100%" height="100%" viewBox="0 0 300 400" aria-label="${spokenTileName(face)}"><text class="tile__name${red}" x="150" y="200" aria-hidden="true">${placeholderFace(face)}</text><use href="#tile-${face}"/>${labelMark}</svg>`}</span>`;
 }
 
 export { Tile, TileBack, injectTileSprite };

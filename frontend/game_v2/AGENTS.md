@@ -45,7 +45,9 @@ The board's look is `docs/game-client-look.md`; where it and any `AGENTS.md` or 
   the view's `deps.setLanguage` (cookie, `<html lang>`, title) and redraws; it never goes through a command, a
   reducer or state. The wind letters' script rides on the language the same way: `<html data-winds>`, set through
   `deps.setWinds` and kept in this browser with the language it was picked in, so it counts only in that language and
-  a language switch drops it for the new language's default.
+  a language switch drops it for the new language's default. The tiles' corner labels (the corner indices setting)
+  are a page attribute the same way, `<html data-tile-labels>` through `deps.setTileLabels`, kept whatever the
+  language; `Tile` reads it at render.
 
 ## Structure
 

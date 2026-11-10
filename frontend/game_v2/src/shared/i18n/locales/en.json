@@ -211,6 +211,7 @@
     "game.settings.on": "On",
     "game.settings.right_click": "Right-click shortcuts",
     "game.settings.sound": "Sound",
+    "game.settings.tile_labels": "Corner indices",
     "game.settings.title": "Settings",
     "game.settings.title_with_status": "Settings, {status}",
     "game.settings.winds": "Winds",
