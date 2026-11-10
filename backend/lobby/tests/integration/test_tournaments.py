@@ -342,9 +342,16 @@ def test_game_exit__when_game_is_not_tournament__should_redirect_to_lobby(client
     assert response.headers["location"] == "/"
 
 
-def test_tournament_delete__when_owner_deletes__should_close_sockets_and_return_404(client, tournament_id):
+def test_tournament_delete__when_owner_deletes__should_close_sockets_and_return_404(app, client, tournament_id):
     owner_key = _issue_api_token(client)
     csrf = client.cookies.get(CSRF_COOKIE_NAME)
+    tournament_game = TournamentGame(
+        game_id="cup-game-1",
+        tournament_id=tournament_id,
+        players=["erin", "frank", "gina", "hank"],
+        created_at=datetime(2026, 11, 11, 12, 0, tzinfo=UTC).timestamp(),
+    )
+    client.portal.call(app.state.tournament_repo.add_game, tournament_game)
 
     with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
         ws_alice.receive_json()
@@ -358,6 +365,8 @@ def test_tournament_delete__when_owner_deletes__should_close_sockets_and_return_
     assert (deleted.status_code, deleted.headers["location"]) == (303, "/")
     assert closed.value.code == 4000
     assert client.get(f"/tournaments/{tournament_id}").status_code == 404
+    game_exit = client.get("/games/cup-game-1/exit", follow_redirects=False)
+    assert (game_exit.status_code, game_exit.headers["location"]) == (303, "/")
     client.cookies.delete("session_id")
     assert client.get(f"/api/tournaments/{tournament_id}", headers={"x-api-key": owner_key}).status_code == 404
 
