@@ -172,9 +172,8 @@ function ScoreGrid(rows: readonly ResultScoreRow[]): TemplateResult {
             (row) => html`<li class="round-end-result__score">
                 <span class="round-end-result__score-who">
                     <span class="round-end-result__score-wind"
-                        >${row.wind.slice(0, 1)}<span class="round-end-result__score-wind-rest"
-                            >${row.wind.slice(1)}</span
-                        ></span
+                        ><span class="round-end-result__score-wind-letter" aria-hidden="true">${row.wind}</span
+                        ><span class="round-end-result__score-wind-name">${row.windName}</span></span
                     >
                     ${PlayerName(row.name, "round-end-result__score-name")}
                 </span>

@@ -87,6 +87,7 @@ function ConnectionStoryView(story: ConnectionStory): TemplateResult {
             onToggleAnimations: ignore,
             onToggleOpen: ignore,
             onToggleSound: ignore,
+            onWinds: ignore,
             open: true,
             roundTrip: display.roundTrip,
             soundOn: true,

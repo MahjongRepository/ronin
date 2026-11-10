@@ -34,7 +34,7 @@ import {
     loadReplayUntilFound,
 } from "@/shared/api";
 import { type Clock } from "@/shared/clock";
-import { type Locale, type MessageKey, t } from "@/shared/i18n";
+import { type Locale, type MessageKey, type WindScript, t } from "@/shared/i18n";
 import {
     type DeadlineTimer,
     type LocalStore,
@@ -78,6 +78,7 @@ export interface ReplayViewDeps {
     /** Whether the board animates, a setting the live game shares. */
     readonly motionSetting: LocalStore<MotionSetting>;
     readonly setLanguage: (locale: Locale) => void;
+    readonly setWinds: (script: WindScript) => void;
     /** Open on the round list, as a storybook state shows it; closed when omitted. */
     readonly roundListOpen?: boolean;
     /** Open with autoplay running, as a storybook state shows it; paused when omitted. */
@@ -359,6 +360,7 @@ class ReplayViewController {
         root: createRef<HTMLElement>(),
         selectRound: (cursor) => this.dispatch({ cursor, kind: "select_round" }),
         setLanguage: (locale) => this.changeLanguage(locale),
+        setWinds: (script) => this.changeWinds(script),
         showResultPage: (page) => this.dispatch({ kind: "result_page", page }),
         start: () => this.dispatch({ kind: "start" }),
         stepClick: (direction) => this.dispatch({ direction, kind: "step_click" }),
@@ -410,6 +412,11 @@ class ReplayViewController {
 
     private changeLanguage(locale: Locale): void {
         this.deps.setLanguage(locale);
+        this.guard(() => this.show(this.screen));
+    }
+
+    private changeWinds(script: WindScript): void {
+        this.deps.setWinds(script);
         this.guard(() => this.show(this.screen));
     }
 

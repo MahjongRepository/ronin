@@ -25,10 +25,19 @@ function renderResult(table: TableState, page = 0, onPage?: (page: number) => vo
     return el;
 }
 
+function heard(node: Element): string {
+    const copy = node.cloneNode(true);
+    if (!(copy instanceof Element)) {
+        return "";
+    }
+    for (const hidden of copy.querySelectorAll('[aria-hidden="true"]')) {
+        hidden.remove();
+    }
+    return copy.textContent?.replaceAll(/\s+/g, " ").trim() ?? "";
+}
+
 function texts(el: HTMLElement, selector: string): string[] {
-    return [...el.querySelectorAll(selector)].map(
-        (node) => node.textContent?.replaceAll(/\s+/g, " ").trim() ?? "",
-    );
+    return [...el.querySelectorAll(selector)].map(heard);
 }
 
 afterEach(() => {

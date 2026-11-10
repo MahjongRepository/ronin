@@ -1,7 +1,8 @@
-import { DEFAULT_LOCALE, type Locale, isLocale, langCookie } from "./locale";
+import { DEFAULT_LOCALE, type Locale, langCookie, pageLocale } from "./locale";
 import en from "./locales/en.json";
 import ja from "./locales/ja.json";
 import ru from "./locales/ru.json";
+import { resetWindScript } from "./winds";
 
 const PLURAL_PARAM = "count";
 const PLACEHOLDER = /\{(?<name>[a-z][a-z0-9_]*)\}/g;
@@ -26,11 +27,6 @@ class I18nError extends Error {
         this.key = key;
         this.reason = reason;
     }
-}
-
-function pageLocale(): Locale {
-    const { lang } = document.documentElement;
-    return isLocale(lang) ? lang : DEFAULT_LOCALE;
 }
 
 function hasKey(record: object, key: string): boolean {
@@ -155,19 +151,21 @@ function t(key: MessageKey, params: Params = {}): string {
 function applyPageLocale(locale: Locale): void {
     document.cookie = langCookie(locale, window.location.protocol);
     document.documentElement.lang = locale;
+    resetWindScript();
     document.title = t("game.page.title");
 }
 
-export { LOCALES, isLocale, langCookie, resolveLocale } from "./locale";
+export { LOCALES, isLocale, langCookie, pageLocale, resolveLocale } from "./locale";
 export type { Locale } from "./locale";
 export {
-    I18nError,
-    applyPageLocale,
-    formatList,
-    formatNumber,
-    isMessageKey,
-    pageLocale,
-    reportI18nError,
-    t,
-};
+    WIND_LETTERS,
+    WIND_SCRIPT_KEY,
+    WIND_SCRIPT_LANGS,
+    applyWindScript,
+    pageWindScript,
+    restoreWindScript,
+    windScriptsOf,
+} from "./winds";
+export type { WindScript } from "./winds";
+export { I18nError, applyPageLocale, formatList, formatNumber, isMessageKey, reportI18nError, t };
 export type { MessageKey };

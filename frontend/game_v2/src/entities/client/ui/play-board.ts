@@ -33,7 +33,7 @@ import {
 } from "@/entities/table";
 import { Tile, spokenTileName } from "@/entities/tile";
 import { type Clock } from "@/shared/clock";
-import { type Locale, type MessageKey, formatList, t } from "@/shared/i18n";
+import { type Locale, type MessageKey, type WindScript, formatList, t } from "@/shared/i18n";
 import { assertNever, focusKeys } from "@/shared/lib";
 import { focusOnFirstRender } from "@/shared/ui";
 
@@ -54,6 +54,7 @@ export interface PlayBoardProps {
     readonly clock: Clock;
     readonly onCommand: (command: PlayCommand) => void;
     readonly onLanguage: (locale: Locale) => void;
+    readonly onWinds: (script: WindScript) => void;
     /** What the page adds to the corner before the settings (the debug log). */
     readonly menuExtra?: TemplateResult;
     /** The game end's links; without them it offers only the game's last result and the way back. */
@@ -505,7 +506,7 @@ function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"])
  * the board, the board under it is inert. Each new showing of calls is read out once.
  */
 export function PlayBoard(props: PlayBoardProps): TemplateResult {
-    const { clock, display, menuExtra, onCommand, onLanguage } = props;
+    const { clock, display, menuExtra, onCommand, onLanguage, onWinds } = props;
     const { overlay } = display;
     const inert = overlay?.blocksBoard ?? false;
     function onTile(tileId: number): void {
@@ -549,6 +550,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             onToggleAnimations: () => onCommand(TOGGLE_ANIMATIONS),
             onToggleOpen: () => onCommand(TOGGLE_SETTINGS),
             onToggleSound: () => onCommand(TOGGLE_SOUND),
+            onWinds,
             open: display.settingsOpen,
             roundTrip: display.roundTrip,
             soundOn: display.soundOn,

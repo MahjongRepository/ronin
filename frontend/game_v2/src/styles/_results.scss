@@ -331,6 +331,10 @@ $result-column-gap: 1rem;
     color: var(--ronin-text-secondary);
 }
 
+.round-end-result__score-wind-letter {
+    display: none;
+}
+
 .round-end-result__from {
     color: var(--ronin-text-secondary);
 }

@@ -1,7 +1,7 @@
 import { buildDiscardTiles } from "@/entities/table/lib/board-mapper";
 import { drawName, isAbortiveDraw } from "@/entities/table/lib/draw-name";
 import { handLimitName, isYakumanHand, yakumanName } from "@/entities/table/lib/hand-limit";
-import { windName } from "@/entities/table/lib/wind-name";
+import { windLetter, windName } from "@/entities/table/lib/wind-name";
 import { yakuName } from "@/entities/table/lib/yaku-names";
 import { roundEndPages } from "@/entities/table/model/handlers/round-end";
 import { seatEntry } from "@/entities/table/model/helpers";
@@ -50,7 +50,9 @@ export interface ResultYakuLine {
 
 export interface ResultScoreRow {
     readonly seat: number;
+    /** The seat wind's letter, in the script the player picked, which a narrow foot shows in place of its name. */
     readonly wind: string;
+    readonly windName: string;
     readonly name: string;
     /** For a draw that judges tenpai: Tenpai, Noten or Nagashi; Pao for the seat liable for the page's win; else null. */
     readonly tag: string | null;
@@ -112,14 +114,14 @@ export interface RoundEndDisplayState {
 
 interface SeatNames {
     readonly name: (seat: number) => string;
-    readonly wind: (seat: number) => string;
+    readonly wind: (seat: number) => number;
 }
 
 function seatNames(players: readonly PlayerState[], dealerSeat: number): SeatNames {
     return {
         name: (seat) =>
             players.find((p) => p.seat === seat)?.name ?? t("game.seat.fallback_name", { seat }),
-        wind: (seat) => windName(seatDistance(dealerSeat, seat)),
+        wind: (seat) => seatDistance(dealerSeat, seat),
     };
 }
 
@@ -392,7 +394,8 @@ function scoreRows(
                 result.draw === null
                     ? winTag(result.winners[index], seat)
                     : drawTag(result.draw, seat),
-            wind: names.wind(seat),
+            wind: windLetter(names.wind(seat)),
+            windName: windName(names.wind(seat)),
         };
     });
 }

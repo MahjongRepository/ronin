@@ -3,7 +3,18 @@ import { type TemplateResult, html, nothing, svg } from "lit-html";
 import { type CogAlert, type RoundTripDisplay } from "@/entities/client/model/round-trip";
 import { SETTINGS_FOCUS_KEY } from "@/entities/client/model/settings-menu";
 import { type SessionStatusDisplay } from "@/entities/session";
-import { LOCALES, type Locale, pageLocale, t } from "@/shared/i18n";
+import {
+    LOCALES,
+    type Locale,
+    type MessageKey,
+    WIND_LETTERS,
+    WIND_SCRIPT_LANGS,
+    type WindScript,
+    pageLocale,
+    pageWindScript,
+    t,
+    windScriptsOf,
+} from "@/shared/i18n";
 import { focusByKey } from "@/shared/lib";
 
 interface GameMenuProps {
@@ -23,6 +34,7 @@ interface GameMenuProps {
     readonly onToggleSound: () => void;
     readonly onToggleAnimations: () => void;
     readonly onLanguage: (locale: Locale) => void;
+    readonly onWinds: (script: WindScript) => void;
     /** The keyboard and mouse settings: the right-click switch and the controls' help it opens over the board. */
     readonly input?: {
         readonly rightClick: boolean;
@@ -43,6 +55,12 @@ const LANGUAGE_NAMES: Readonly<Record<Locale, string>> = {
     en: "English",
     ja: "日本語",
     ru: "Русский",
+};
+
+const WIND_SCRIPT_NAMES: Readonly<Record<WindScript, MessageKey>> = {
+    cyrillic: "game.settings.winds.cyrillic",
+    kanji: "game.settings.winds.kanji",
+    latin: "game.settings.winds.latin",
 };
 
 /** A cog: the settings. */
@@ -137,6 +155,25 @@ function LanguageRow(onLanguage: (locale: Locale) => void): TemplateResult {
     </div>`;
 }
 
+/** The wind letters' script, from those the page's language offers, each option written in its own letters. */
+function WindsRow(onWinds: (script: WindScript) => void): TemplateResult {
+    const current = pageWindScript();
+    return html`<div class="game-menu__item game-menu__language game-menu__winds" role="group" aria-label=${t("game.settings.winds")}>
+        <span class="game-menu__item-name" aria-hidden="true">${t("game.settings.winds")}</span>
+        <span class="game-menu__languages">${windScriptsOf(pageLocale()).map(
+            (script) => html`<button
+                type="button"
+                class="secondary game-menu__language-option game-menu__winds-option"
+                lang=${WIND_SCRIPT_LANGS[script]}
+                data-script=${script}
+                aria-label=${t(WIND_SCRIPT_NAMES[script])}
+                aria-current=${script === current ? "true" : nothing}
+                @click=${() => onWinds(script)}
+            >${WIND_LETTERS[script].join("")}</button>`,
+        )}</span>
+    </div>`;
+}
+
 function SettingsPanel(props: GameMenuProps): TemplateResult {
     const {
         animationsOn,
@@ -145,6 +182,7 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
         onLanguage,
         onToggleAnimations,
         onToggleSound,
+        onWinds,
         soundOn,
         status,
     } = props;
@@ -173,6 +211,7 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
             ${props.keepAutoWin === undefined ? nothing : KeepAutoWinRow(props.keepAutoWin)}
             ${props.input === undefined ? nothing : InputSettings(props.input)}
             ${LanguageRow(onLanguage)}
+            ${WindsRow(onWinds)}
             ${props.input === undefined ? nothing : ControlsRow(props.input.onShowControls)}
             ${status === null ? nothing : ConnectionRow(status, props.roundTrip ?? null)}
             ${props.leave === undefined ? nothing : LeaveRow(props.leave)}

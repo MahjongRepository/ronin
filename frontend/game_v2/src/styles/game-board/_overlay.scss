@@ -253,8 +253,17 @@ $overlay-chrome: 3rem;
         line-height: 1.45;
     }
 
-    .round-end-result__score-wind-rest {
-        display: none;
+    .round-end-result__score .round-end-result__score-wind-name {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .round-end-result__score .round-end-result__score-wind-letter {
+        display: inline;
     }
 
     .round-end-result__score .round-end-result__score-after {

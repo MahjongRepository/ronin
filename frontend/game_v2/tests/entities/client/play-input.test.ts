@@ -80,6 +80,7 @@ class InputBoard {
                 display: playDisplay(this.state, this.ui),
                 onCommand: this.onCommand,
                 onLanguage: () => {},
+                onWinds: () => {},
             }),
             this.host,
         );

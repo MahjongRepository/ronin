@@ -40,7 +40,13 @@ import {
     isDebugRequested,
     replayPageUrl,
 } from "@/shared/config";
-import { applyPageLocale, resolveLocale, t } from "@/shared/i18n";
+import {
+    applyPageLocale,
+    applyWindScript,
+    resolveLocale,
+    restoreWindScript,
+    t,
+} from "@/shared/i18n";
 import {
     type SoundSource,
     blockDownwardDrags,
@@ -225,6 +231,7 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
         motionSetting: localStore(MOTION_SETTING_KEY, readMotionSetting, DEFAULT_MOTION_SETTING),
         recoverHandoff: fetchGameHandoff,
         setLanguage: applyPageLocale,
+        setWinds: applyWindScript,
         sink: {
             clearHandoff: clearGameSession,
             leaveToLobby,
@@ -271,6 +278,7 @@ function createStorybookRoutes(): Route[] {
 }
 
 document.documentElement.lang = resolveLocale(document.cookie, navigator.languages);
+restoreWindScript();
 document.title = t("game.page.title");
 
 const app = document.getElementById("app");

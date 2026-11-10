@@ -42,7 +42,14 @@ import SEAT_LEFT_SEAT_1 from "@/fixtures/seat-scenarios/seat_left_seat_1.json";
 import SEAT_LEFT_SEAT_3 from "@/fixtures/seat-scenarios/seat_left_seat_3.json";
 import { browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, replayPageUrl } from "@/shared/config";
-import { LOCALES, type Locale, applyPageLocale, pageLocale } from "@/shared/i18n";
+import {
+    LOCALES,
+    type Locale,
+    type WindScript,
+    applyPageLocale,
+    applyWindScript,
+    pageLocale,
+} from "@/shared/i18n";
 import { WIRE_KEY } from "@/shared/protocol";
 
 import { STORYBOOK_INDEX, storybookNav } from "./storybook-nav";
@@ -519,17 +526,22 @@ function pickStory(event: Event, show: (story: DecisionStoryKey) => void): void 
     }
 }
 
+/** The settings menu's language and wind-letter choices. */
+interface PageLanguageHandlers {
+    readonly onLanguage: (locale: Locale) => void;
+    readonly onWinds: (script: WindScript) => void;
+}
+
 /** The page's controls: the story picker's and the board's. */
-interface StoryHandlers {
+interface StoryHandlers extends PageLanguageHandlers {
     readonly show: (story: DecisionStoryKey) => void;
     readonly onCommand: (command: PlayCommand) => void;
-    readonly onLanguage: (locale: Locale) => void;
 }
 
 function storyBoard(
     { state, ui }: StoryScreen,
     onCommand: (command: PlayCommand) => void,
-    onLanguage: (locale: Locale) => void,
+    { onLanguage, onWinds }: PageLanguageHandlers,
 ): TemplateResult {
     return PlayBoard({
         clock: browserClock,
@@ -540,6 +552,7 @@ function storyBoard(
         },
         onCommand,
         onLanguage,
+        onWinds,
     });
 }
 
@@ -547,12 +560,12 @@ const GALLERY_PATH = "/play/storybook/decisions";
 
 function storybookTemplate(
     screen: StoryScreen,
-    { onCommand, onLanguage, show }: StoryHandlers,
+    { onCommand, onLanguage, onWinds, show }: StoryHandlers,
 ): TemplateResult {
     const { sent, story } = screen;
     return html`
         <div class="board-page decisions-storybook">
-            <div class="board-page__board">${storyBoard(screen, onCommand, onLanguage)}</div>
+            <div class="board-page__board">${storyBoard(screen, onCommand, { onLanguage, onWinds })}</div>
             <div class="board-page__aside">
                 <a class="board-storybook__btn" href="${STORYBOOK_INDEX}">Back</a>
                 <a class="board-storybook__btn" href="${GALLERY_PATH}">All decisions</a>
@@ -596,8 +609,9 @@ function galleryScreens(): readonly StoryScreen[] {
 function galleryTemplate(
     screens: readonly StoryScreen[],
     onCommand: (story: DecisionStoryKey, command: PlayCommand) => void,
-    onLanguage: (locale: Locale) => void,
+    language: PageLanguageHandlers,
 ): TemplateResult {
+    const { onLanguage } = language;
     return html`
         <div class="decisions-gallery">
             ${storybookNav(GALLERY_PATH)}
@@ -620,7 +634,7 @@ function galleryTemplate(
                     </h2>
                     <div class="decisions-gallery__crop">
                         <div class="decisions-gallery__board">
-                            ${storyBoard(screen, (command) => onCommand(screen.story, command), onLanguage)}
+                            ${storyBoard(screen, (command) => onCommand(screen.story, command), language)}
                         </div>
                     </div>
                     ${describeSent(screen.sent)}
@@ -659,12 +673,13 @@ export function mountStorybookDecisions(host: HTMLElement): () => void {
     function draw(): void {
         const [first] = screens;
         if (gallery) {
-            render(galleryTemplate(screens, onStoryCommand, onLanguage), host);
+            render(galleryTemplate(screens, onStoryCommand, { onLanguage, onWinds }), host);
         } else if (first !== undefined) {
             render(
                 storybookTemplate(first, {
                     onCommand: (command) => onStoryCommand(first.story, command),
                     onLanguage,
+                    onWinds,
                     show,
                 }),
                 host,
@@ -687,6 +702,11 @@ export function mountStorybookDecisions(host: HTMLElement): () => void {
 
     function onLanguage(locale: Locale): void {
         applyPageLocale(locale);
+        draw();
+    }
+
+    function onWinds(script: WindScript): void {
+        applyWindScript(script);
         draw();
     }
 

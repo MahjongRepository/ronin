@@ -24,6 +24,7 @@ function drawPlay(host: HTMLElement, state: LiveClient, ui: PlayUi = NO_PLAY_UI)
             display: playDisplay(state, ui),
             onCommand: () => {},
             onLanguage: () => {},
+            onWinds: () => {},
         }),
         host,
     );
@@ -97,6 +98,7 @@ function mountLive(
                     draw();
                 },
                 onLanguage: () => {},
+                onWinds: () => {},
             }),
             host,
         );
@@ -144,6 +146,7 @@ function renderSwitchSlot(
             display: playDisplay(state, ui),
             onCommand,
             onLanguage: () => {},
+            onWinds: () => {},
         }),
         host,
     );
@@ -185,6 +188,7 @@ function renderLiveGameEnd(
             links: LINKS,
             onCommand: (command) => commands.push(command),
             onLanguage: () => {},
+            onWinds: () => {},
         }),
         host,
     );
@@ -233,6 +237,7 @@ describe("PlayBoard", () => {
                     display: playDisplay(roundEnd, { ...NO_PLAY_UI, confirmingLeave }),
                     onCommand: () => {},
                     onLanguage: () => {},
+                    onWinds: () => {},
                 }),
                 host,
             );

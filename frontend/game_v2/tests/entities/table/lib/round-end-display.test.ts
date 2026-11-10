@@ -110,11 +110,13 @@ describe("roundEndDisplay - a win", () => {
     test("the scores: each seat's change and the score it leads to, by wind and name", () => {
         const { scores } = displayAt(lastRoundEndTable("riichi"));
 
-        expect(scores.map((row) => [row.wind, row.name, row.delta, row.after, row.tag])).toEqual([
-            ["East", "Diana", -4000, 21_000, null],
-            ["South", "Alice", 10_000, 34_000, null],
-            ["West", "Charlie", -2000, 23_000, null],
-            ["North", "Bob", -2000, 22_000, null],
+        expect(
+            scores.map((row) => [row.wind, row.windName, row.name, row.delta, row.after, row.tag]),
+        ).toEqual([
+            ["E", "East", "Diana", -4000, 21_000, null],
+            ["S", "South", "Alice", 10_000, 34_000, null],
+            ["W", "West", "Charlie", -2000, 23_000, null],
+            ["N", "North", "Bob", -2000, 22_000, null],
         ]);
     });
 

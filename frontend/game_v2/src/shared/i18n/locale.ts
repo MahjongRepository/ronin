@@ -10,6 +10,11 @@ export function isLocale(value: string): value is Locale {
     return LOCALES.some((locale) => locale === value);
 }
 
+export function pageLocale(): Locale {
+    const { lang } = document.documentElement;
+    return isLocale(lang) ? lang : DEFAULT_LOCALE;
+}
+
 function cookieValue(cookies: string, name: string): string | undefined {
     for (const pair of cookies.split(";")) {
         const separator = pair.indexOf("=");

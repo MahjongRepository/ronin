@@ -8,7 +8,7 @@ import { DEFAULT_REPLAY_PREFS, readReplayPrefs } from "@/entities/replay";
 import { fetchReplay } from "@/shared/api";
 import { browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, getLobbyUrl } from "@/shared/config";
-import { applyPageLocale } from "@/shared/i18n";
+import { applyPageLocale, applyWindScript } from "@/shared/i18n";
 import { localStore } from "@/shared/lib";
 import { mountReplayView } from "@/views/replay";
 
@@ -43,6 +43,7 @@ export function mountReplay(host: HTMLElement, gameId: string, sound: GameSound)
         motionSetting: localStore(MOTION_SETTING_KEY, readMotionSetting, DEFAULT_MOTION_SETTING),
         prefs: localStore(REPLAY_PREFS_KEY, readReplayPrefs, DEFAULT_REPLAY_PREFS),
         setLanguage: applyPageLocale,
+        setWinds: applyWindScript,
         sound,
     });
 }

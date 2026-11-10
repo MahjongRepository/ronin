@@ -32,6 +32,7 @@ import {
 import { SHORTCUT_SETTLE_MS } from "@/entities/client/ui/play-input";
 import { type TileSprite, type TileSpriteStatus } from "@/entities/tile";
 import { type HandoffRecovery } from "@/shared/api";
+import { WIND_SCRIPT_KEY, applyWindScript } from "@/shared/i18n";
 import { localStore } from "@/shared/lib";
 import {
     type ClientMessage,
@@ -127,6 +128,7 @@ interface FakeOverrides {
     readonly motionSetting?: GameViewDeps["motionSetting"];
     readonly autoWinSetting?: GameViewDeps["autoWinSetting"];
     readonly setLanguage?: GameViewDeps["setLanguage"];
+    readonly setWinds?: GameViewDeps["setWinds"];
 }
 
 /** The game's sounds as a test hears them: each cue played, and the setting as this browser would keep it. */
@@ -205,6 +207,7 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
             overrides.recoverHandoff ??
             (() => Promise.reject(new Error("the tab holds a handoff"))),
         setLanguage: overrides.setLanguage ?? (() => {}),
+        setWinds: overrides.setWinds ?? (() => {}),
         sink,
         sound: {
             play: (cue) => sound.played.push(cue),
@@ -1284,6 +1287,33 @@ describe("mountGameView settings", () => {
             connections[0].sent,
         ]).toEqual([["ru"], "ru", "Ronin - Игра", "Пропустить", "Русский", true, [JOIN]]);
         expect(sink.reload).not.toHaveBeenCalled();
+    });
+
+    it("writes the compass's winds in the script picked from the cog, its menu open, sending nothing", () => {
+        onTestFinished(() => {
+            delete document.documentElement.dataset.winds;
+            localStorage.removeItem(WIND_SCRIPT_KEY);
+        });
+        const { connections, host } = mountWithFakes({ setWinds: applyWindScript });
+        openCallPrompt(connections[0]);
+        function winds(): string[] {
+            return [...host.querySelectorAll(".game__play .board-center__wind")].map(
+                (wind) => wind.textContent ?? "",
+            );
+        }
+        const before = winds();
+
+        press(host, ".game-menu__toggle");
+        press(host, '.game-menu__winds-option[data-script="kanji"]');
+
+        expect([
+            before.toSorted(),
+            winds().toSorted(),
+            host.querySelector('.game__play .game-menu__winds-option[aria-current="true"]')
+                ?.textContent,
+            host.querySelector(".game__play .game-menu__panel") !== null,
+            connections[0].sent,
+        ]).toEqual([["E", "N", "S", "W"], ["北", "南", "東", "西"], "東南西北", true, [JOIN]]);
     });
 });
 

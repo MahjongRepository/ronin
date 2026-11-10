@@ -12,7 +12,7 @@ import {
     type TablePanelControls,
     TablePanelDisplay,
 } from "@/entities/table";
-import { type Locale, t } from "@/shared/i18n";
+import { type Locale, type WindScript, t } from "@/shared/i18n";
 
 import { ReplayControls, ReplayStatus } from "./replay-controls";
 import { RoundList } from "./round-list";
@@ -44,6 +44,7 @@ export interface ReplayBoardHandlers {
     readonly toggleSound: () => void;
     readonly toggleAnimations: () => void;
     readonly setLanguage: (locale: Locale) => void;
+    readonly setWinds: (script: WindScript) => void;
 }
 
 export interface ReplayBoardProps {
@@ -139,6 +140,7 @@ export function ReplayBoard({
             onToggleAnimations: handlers.toggleAnimations,
             onToggleOpen: handlers.toggleSettings,
             onToggleSound: handlers.toggleSound,
+            onWinds: handlers.setWinds,
             open: screen.settingsOpen,
             soundOn: screen.soundOn,
             status: null,

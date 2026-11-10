@@ -33,7 +33,7 @@ import { BOARD_SELECTOR } from "@/entities/table";
 import { type TileSprite } from "@/entities/tile";
 import { type HandoffRecovery, type RecoverHandoff, isAbortError } from "@/shared/api";
 import { type Clock } from "@/shared/clock";
-import { type Locale, t } from "@/shared/i18n";
+import { type Locale, type WindScript, t } from "@/shared/i18n";
 import {
     type DeadlineTimer,
     type LocalStore,
@@ -80,6 +80,7 @@ export interface GameViewDeps {
     readonly motionSetting: LocalStore<MotionSetting>;
     readonly autoWinSetting: LocalStore<AutoWinSetting>;
     readonly setLanguage: (locale: Locale) => void;
+    readonly setWinds: (script: WindScript) => void;
 }
 
 /**
@@ -138,6 +139,7 @@ interface GameViewProps {
     readonly panel: Ref<HTMLElement>;
     readonly onCommand: (command: PlayCommand) => void;
     readonly onLanguage: (locale: Locale) => void;
+    readonly onWinds: (script: WindScript) => void;
 }
 
 function describeError(error: unknown): string {
@@ -263,7 +265,7 @@ function logTemplate(
  * and countdown stay current while it is hidden.
  */
 function gameTemplate(props: GameViewProps): TemplateResult {
-    const { links, log, onCommand, onLanguage, panel, state, ui } = props;
+    const { links, log, onCommand, onLanguage, onWinds, panel, state, ui } = props;
     const display: PlayDisplay = playDisplay(state, ui);
     const board = PlayBoard({
         clock: props.clock,
@@ -272,6 +274,7 @@ function gameTemplate(props: GameViewProps): TemplateResult {
         menuExtra: log === null ? undefined : logTemplate(log, panel, state),
         onCommand,
         onLanguage,
+        onWinds,
     });
     return html`
         <div class="game">
@@ -421,6 +424,11 @@ class GameViewController {
 
     private readonly changeLanguage = (locale: Locale): void => {
         this.deps.setLanguage(locale);
+        this.guard(() => this.draw());
+    };
+
+    private readonly changeWinds = (script: WindScript): void => {
+        this.deps.setWinds(script);
         this.guard(() => this.draw());
     };
 
@@ -620,13 +628,14 @@ class GameViewController {
         if (this.disposed || this.broken) {
             return;
         }
-        const { changeLanguage, command, log, panel, state, ui } = this;
+        const { changeLanguage, changeWinds, command, log, panel, state, ui } = this;
         const props = {
             clock: this.deps.clock,
             links: this.deps.links,
             log,
             onCommand: command,
             onLanguage: changeLanguage,
+            onWinds: changeWinds,
             panel,
             state,
             ui,
