@@ -401,3 +401,29 @@ class TestGameSessionRoute:
         game_server.respond = lambda _request: httpx.Response(500)
         failed = client.get("/api/game-session")
         assert (failed.status_code, failed.json()) == (503, {"error": "game_lookup_failed"})
+
+
+class TestTournamentViews:
+    @pytest.fixture
+    def client(self, client):
+        register_with_csrf(client, "organizer")
+        return client
+
+    def test_tournament_create__when_user_posts_name__should_redirect_to_page_and_list_it(self, client):
+        client.get("/")
+        csrf = client.cookies.get(CSRF_COOKIE_NAME)
+
+        created = client.post("/tournaments/new", data={"name": "  Spring Cup  ", "csrf_token": csrf})
+        assert created.status_code == 200
+        page_path = created.url.path
+        assert re.fullmatch(r"/tournaments/[0-9a-f-]{36}", page_path)
+        assert "<h2>Spring Cup</h2>" in created.text
+        assert f'value="http://testserver{page_path}"' in created.text
+        assert f"<code>POST /api/tournaments/{page_path.rsplit('/', 1)[1]}/games</code>" in created.text
+
+        lobby = client.get("/")
+        assert f'<a href="{page_path}">Spring Cup</a>' in lobby.text
+
+    def test_tournament_page__when_id_unknown__should_return_404(self, client):
+        response = client.get("/tournaments/unknown-id")
+        assert response.status_code == 404

@@ -1,4 +1,8 @@
 {
+    "lobby.tournament.create": "大会を作成",
+    "lobby.tournament.empty": "まだ大会はありません。",
+    "lobby.tournament.name_label": "大会名",
+    "lobby.tournament.title": "自分の大会",
     "nav.settings": "設定",
     "page.title.default": "Ronin Beta",
     "page.title.with_page": "{page} · Ronin Beta",
@@ -11,5 +15,12 @@
     "settings.api_token.status_active": "有効なAPIトークンがあります。",
     "settings.api_token.status_none": "APIトークンはまだありません。",
     "settings.api_token.title": "APIトークン",
-    "settings.api_token.token_label": "あなたのAPIトークン"
+    "settings.api_token.token_label": "あなたのAPIトークン",
+    "tournament.owner.events": "イベント用 WebSocket：{value}",
+    "tournament.owner.id": "大会 ID：{value}",
+    "tournament.owner.intro": "大会管理プログラムがあなたの API トークンでこの大会を運営します。トークンは{settings}で発行できます。",
+    "tournament.owner.start_games": "対局の開始：{value}",
+    "tournament.owner.state": "大会の状態：{value}",
+    "tournament.owner.title": "大会の管理",
+    "tournament.share_link": "共有用リンク"
 }

@@ -59,6 +59,8 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * `players.py` — `LobbyPlayer`, one connected user and the only holder of its socket. Every send or
   close is an enqueue, so no handler, broadcast or reaper tick ever waits on a slow or dead peer.
 * `occupancy.py` — the one owner of the occupancy rule.
+* Tournaments are durable rows in the shared SQLite database (id, name, owner); only an account (a
+  `players` row) can create one, and its page, the shareable link, opens for anyone signed in, guests included.
 * The one game server is two settings never derived from each other: the internal URL the lobby
   calls and the public WebSocket origin it hands clients.
 * Tests build the app through the fixtures in `tests/conftest.py`.

@@ -53,6 +53,16 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at
     ON sessions (expires_at);
+
+CREATE TABLE IF NOT EXISTS tournaments (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    owner_user_id TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_tournaments_owner_user_id
+    ON tournaments (owner_user_id);
 """
 
 _DROPPED_UNRUN = "dropped unrun: the database worker did not drain before shutdown"

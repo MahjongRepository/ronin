@@ -164,3 +164,16 @@ class AuthSession(BaseModel, frozen=True):
     is_guest: bool
     created_at: float
     expires_at: float
+
+
+class Tournament(BaseModel, frozen=True):
+    """
+    A tournament stored in the tournament repository; its owner is the account that created it.
+
+    `created_at` is epoch seconds.
+    """
+
+    id: str
+    name: str
+    owner_user_id: str
+    created_at: float

@@ -1,4 +1,8 @@
 {
+    "lobby.tournament.create": "Создать турнир",
+    "lobby.tournament.empty": "У вас пока нет турниров.",
+    "lobby.tournament.name_label": "Название турнира",
+    "lobby.tournament.title": "Мои турниры",
     "nav.settings": "Настройки",
     "page.title.default": "Ronin Beta",
     "page.title.with_page": "{page} · Ronin Beta",
@@ -11,5 +15,12 @@
     "settings.api_token.status_active": "У вас есть действующий API-токен.",
     "settings.api_token.status_none": "У вас пока нет API-токена.",
     "settings.api_token.title": "API-токен",
-    "settings.api_token.token_label": "Ваш API-токен"
+    "settings.api_token.token_label": "Ваш API-токен",
+    "tournament.owner.events": "WebSocket событий: {value}",
+    "tournament.owner.id": "ID турнира: {value}",
+    "tournament.owner.intro": "Программа управления турниром работает с ним по вашему API-токену. Получить токен можно в разделе «{settings}».",
+    "tournament.owner.start_games": "Запуск игр: {value}",
+    "tournament.owner.state": "Состояние турнира: {value}",
+    "tournament.owner.title": "Управление турниром",
+    "tournament.share_link": "Ссылка для приглашения"
 }

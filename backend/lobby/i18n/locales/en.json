@@ -1,4 +1,8 @@
 {
+    "lobby.tournament.create": "Create tournament",
+    "lobby.tournament.empty": "You have no tournaments yet.",
+    "lobby.tournament.name_label": "Tournament name",
+    "lobby.tournament.title": "My tournaments",
     "nav.settings": "Settings",
     "page.title.default": "Ronin Beta",
     "page.title.with_page": "{page} · Ronin Beta",
@@ -11,5 +15,12 @@
     "settings.api_token.status_active": "You have an active API token.",
     "settings.api_token.status_none": "You have no API token yet.",
     "settings.api_token.title": "API token",
-    "settings.api_token.token_label": "Your API token"
+    "settings.api_token.token_label": "Your API token",
+    "tournament.owner.events": "Events WebSocket: {value}",
+    "tournament.owner.id": "Tournament id: {value}",
+    "tournament.owner.intro": "A tournament manager program runs this tournament with your API token. Get the token in {settings}.",
+    "tournament.owner.start_games": "Start games: {value}",
+    "tournament.owner.state": "Tournament state: {value}",
+    "tournament.owner.title": "Tournament management",
+    "tournament.share_link": "Link to share"
 }

@@ -19,7 +19,10 @@ API_KEY_HEADER = "X-API-Key"
 _NO_STORE = {"Cache-Control": "no-store"}
 
 
-async def _find_account(request: Request) -> Player | None:
+async def find_account(request: Request) -> Player | None:
+    """
+    Return the account of the authenticated user, or None for a guest, who has no account.
+    """
     auth_service: AuthService = request.app.state.auth_service
     return await auth_service.get_account(user_id=request.user.user_id, username=request.user.username)
 
@@ -49,7 +52,7 @@ async def settings_page(request: Request) -> Response:
     """
     GET /settings - render the settings page; an account also sees its API token section, a guest does not.
     """
-    return _render_settings(request, account=await _find_account(request))
+    return _render_settings(request, account=await find_account(request))
 
 
 async def issue_api_token(request: Request) -> Response:
@@ -63,7 +66,7 @@ async def issue_api_token(request: Request) -> Response:
     if csrf_error:
         return csrf_error
 
-    account = await _find_account(request)
+    account = await find_account(request)
     if account is None:
         raise HTTPException(HTTPStatus.FORBIDDEN)
 

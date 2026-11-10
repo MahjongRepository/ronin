@@ -1,0 +1,24 @@
+.lobby-tournament-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    max-width: 36rem;
+    margin-bottom: 1rem;
+
+    input {
+        flex: 1 1 14rem;
+        min-width: 0;
+        margin-bottom: 0;
+    }
+
+    button {
+        flex: none;
+        width: auto;
+        margin-bottom: 0;
+        white-space: nowrap;
+    }
+}
+
+.tournament-owner-api {
+    overflow-wrap: anywhere;
+}

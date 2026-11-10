@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t("page.title.with_page", page=tournament.name) }}{% endblock %}
+
+{% block content %}
+<section class="lobby-section">
+    <div class="lobby-section-header">
+        <h2>{{ tournament.name }}</h2>
+    </div>
+
+    <label for="tournament-share-link">{{ t("tournament.share_link") }}
+        <input type="text" id="tournament-share-link" value="{{ share_url }}" readonly spellcheck="false">
+    </label>
+</section>
+
+<div id="tournament-app"
+     data-tournament-id="{{ tournament.id }}"
+     data-ws-url="{{ ws_url }}"
+     data-chat-max-length="{{ chat_max_length }}">
+</div>
+
+{% if is_owner %}
+<section class="lobby-section">
+    <div class="lobby-section-header">
+        <h2>{{ t("tournament.owner.title") }}</h2>
+    </div>
+
+    {% set settings_link %}<a href="/settings">{{ t("nav.settings") }}</a>{% endset %}
+    <p class="lobby-muted">{{ t("tournament.owner.intro", settings=settings_link) }}</p>
+    {% set id_code %}<code>{{ tournament.id }}</code>{% endset %}
+    {% set start_games_code %}<code>POST /api/tournaments/{{ tournament.id }}/games</code>{% endset %}
+    {% set state_code %}<code>GET /api/tournaments/{{ tournament.id }}</code>{% endset %}
+    {% set events_code %}<code>/ws/tournaments/{{ tournament.id }}/events</code>{% endset %}
+    <ul class="tournament-owner-api">
+        <li>{{ t("tournament.owner.id", value=id_code) }}</li>
+        <li>{{ t("tournament.owner.start_games", value=start_games_code) }}</li>
+        <li>{{ t("tournament.owner.state", value=state_code) }}</li>
+        <li>{{ t("tournament.owner.events", value=events_code) }}</li>
+    </ul>
+</section>
+{% endif %}
+{% endblock %}
