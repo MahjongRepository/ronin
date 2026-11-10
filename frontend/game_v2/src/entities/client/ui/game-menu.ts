@@ -158,7 +158,7 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
                 @click=${onToggleSound}
             >
                 ${SoundIcon(soundOn)}<span class="game-menu__item-name">${t("game.settings.sound")}</span
-                ><span class="game-menu__item-value">${onOff(soundOn)}</span>
+                >${SwitchValue(soundOn)}
             </button>
             <button
                 type="button"
@@ -168,7 +168,7 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
                 @click=${onToggleAnimations}
             >
                 <span class="game-menu__item-name">${t("game.settings.animations")}</span
-                ><span class="game-menu__item-value">${onOff(animationsOn)}</span>
+                >${SwitchValue(animationsOn)}
             </button>
             ${props.keepAutoWin === undefined ? nothing : KeepAutoWinRow(props.keepAutoWin)}
             ${props.input === undefined ? nothing : InputSettings(props.input)}
@@ -192,6 +192,16 @@ function onOff(on: boolean): string {
     return t(on ? "game.settings.on" : "game.settings.off");
 }
 
+/**
+ * A switch's state at its row's end, reserving the other state's width (`data-reserve`), so a toggle never resizes the
+ * menu when its row is the widest.
+ */
+function SwitchValue(on: boolean): TemplateResult {
+    return html`<span class="game-menu__item-value game-menu__switch-value" data-reserve=${onOff(!on)}
+        ><span>${onOff(on)}</span></span
+    >`;
+}
+
 function KeepAutoWinRow(keep: NonNullable<GameMenuProps["keepAutoWin"]>): TemplateResult {
     return html`<button
         type="button"
@@ -200,7 +210,7 @@ function KeepAutoWinRow(keep: NonNullable<GameMenuProps["keepAutoWin"]>): Templa
         aria-checked=${String(keep.on)}
         @click=${keep.onToggle}
     ><span class="game-menu__item-name">${t("game.settings.keep_auto_win")}</span
-        ><span class="game-menu__item-value">${onOff(keep.on)}</span></button>`;
+        >${SwitchValue(keep.on)}</button>`;
 }
 
 function InputSettings(input: NonNullable<GameMenuProps["input"]>): TemplateResult {
@@ -211,7 +221,7 @@ function InputSettings(input: NonNullable<GameMenuProps["input"]>): TemplateResu
         aria-checked=${String(input.rightClick)}
         @click=${input.onToggle}
     ><span class="game-menu__item-name">${t("game.settings.right_click")}</span
-        ><span class="game-menu__item-value">${onOff(input.rightClick)}</span></button>
+        >${SwitchValue(input.rightClick)}</button>
         <button
             type="button"
             class="secondary game-menu__item game-menu__key-hints"
@@ -219,7 +229,7 @@ function InputSettings(input: NonNullable<GameMenuProps["input"]>): TemplateResu
             aria-checked=${String(input.keyHints)}
             @click=${input.onToggleKeyHints}
         ><span class="game-menu__item-name">${t("game.settings.key_hints")}</span
-            ><span class="game-menu__item-value">${onOff(input.keyHints)}</span></button>`;
+            >${SwitchValue(input.keyHints)}</button>`;
 }
 
 /** The row that opens the controls' help panel. */

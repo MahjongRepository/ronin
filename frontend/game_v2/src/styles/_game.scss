@@ -230,6 +230,22 @@ section {
     color: var(--ronin-text-secondary);
 }
 
+.game-menu__switch-value {
+    display: grid;
+    justify-items: end;
+
+    > *,
+    &::after {
+        grid-area: 1 / 1;
+    }
+
+    &::after {
+        content: attr(data-reserve);
+        content: attr(data-reserve) / "";
+        visibility: hidden;
+    }
+}
+
 .game-menu__language {
     padding-block: 0;
     padding-right: 0.15rem;

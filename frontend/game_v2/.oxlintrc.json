@@ -63,6 +63,7 @@
                     "CenterSeat",
                     "CogIcon",
                     "SoundIcon",
+                    "SwitchValue",
                     "SettingsPanel",
                     "ConnectionRow",
                     "GameMenu",
