@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING
 
+from lobby.auth.backend import API_KEY_SCOPE
 from lobby.players import LobbyPlayer
 from shared.websocket import QueuedWebSocket, accept_websocket, reject_websocket
 
@@ -16,8 +17,13 @@ if TYPE_CHECKING:
 
 def _check_origin(websocket: WebSocket) -> bool:
     """
-    Verify the WebSocket origin header against the allowed origin setting.
+    Verify the WebSocket origin header against the allowed origin setting; a key-authenticated handshake passes.
+
+    The check defends cookie sessions against cross-site sockets, and a key is never sent by a browser on its own.
     """
+    if API_KEY_SCOPE in websocket.auth.scopes:
+        return True
+
     settings: LobbyServerSettings = websocket.app.state.settings
     return websocket.headers.get("origin") == settings.ws_allowed_origin
 
@@ -26,9 +32,9 @@ async def serve_lobby_socket(websocket: WebSocket, serve: Callable[[LobbyPlayer]
     """
     Admit a lobby socket and hand its player to ``serve``; this task owns the connection's writer.
 
-    A socket with a foreign ``Origin`` is refused with 4003 and an unauthenticated one with 4001, both before accept.
-    The writer runs while ``serve`` does and is stopped however it ends; ``serve`` decides what an unexpected error
-    does.
+    A cookie-authenticated or unauthenticated socket with a foreign ``Origin`` is refused with 4003 and an
+    unauthenticated one with 4001, both before accept; a key-authenticated socket skips the ``Origin`` check. The writer
+    runs while ``serve`` does and is stopped however it ends; ``serve`` decides what an unexpected error does.
     """
     if not _check_origin(websocket):
         await reject_websocket(websocket, code=4003, reason="forbidden_origin")

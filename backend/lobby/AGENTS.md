@@ -64,6 +64,11 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * `tournaments/` — the tournament page's socket and `TournamentHub`, the in-memory registry of who is online on
   each tournament page: one connection per user (a new one replaces the old), lost on a restart. Being online
   is no occupancy place. Chat is broadcast, never stored, so a late joiner sees none of it.
+  The owner's events socket makes an events subscriber, keyed by connection (an owner may hold several), never a
+  player: it is not online, never replaces the owner's player connection, and what it sends is dropped. Tournament
+  events (`presence`, `game_started`) are published once to the players and the subscribers; chat goes to the
+  players only. A subscriber gets a `presence` snapshot on connect and misses earlier events; the API's GET is the
+  catch-up.
   `chat_messages.py` holds the chat message model and the client frame limits both rooms and tournaments use.
 * The one game server is two settings never derived from each other: the internal URL the lobby
   calls and the public WebSocket origin it hands clients.
@@ -151,8 +156,8 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   every guest login. The IP is uvicorn's proxy-header client address, which Traefik sets.
 * Bots register through `scripts/register_bot.py` under an `ai-` name, a prefix no human can register, and get an API key, printed once and never stored;
   run for an existing bot, the script rotates its key, which invalidates the old one. Bots send the
-  key as `X-API-Key` on the bot API and the WebSocket handshakes, with the configured
-  `Origin`; from the handshake on, a bot runs the human code path.
+  key as `X-API-Key` on the bot API and the WebSocket handshakes, which skip the `Origin` check
+  (Security requirements); from the handshake on, a bot runs the human code path.
 * An account becomes an admin through `scripts/grant_admin.py` (`--revoke` takes the flag back); the
   flag lives on the player record and is the only admin concept.
 * A registered human gets an API token on the settings page: one per account, shown once, stored
@@ -199,8 +204,10 @@ Mandatory for all lobby code; review must catch violations.
   response carrying a credential (a game ticket) is `Cache-Control: no-store`.
 * The internal API secret is sent only to the game server, as a bearer header; no page or browser
   response ever holds it.
-* Room, matchmaking and tournament WebSockets refuse any socket whose `Origin` is not exactly the
-  configured one, a setting every deployment must supply.
+* Room, matchmaking and tournament WebSockets refuse a cookie-authenticated or unauthenticated socket whose
+  `Origin` is not exactly the configured one, a setting every deployment must supply. A key-authenticated
+  handshake on any lobby socket is exempt: the check defends the cookie a browser attaches to a cross-site socket,
+  and no browser sends an `X-API-Key` on its own.
 * Two CSP tiers: lobby pages (same-origin connect) and game pages (`/play/*`, `/game-assets/`,
   external WebSockets allowed). A new route fits a tier or gets an explicit policy.
 * Replay serving reads files only through `shared.storage.read_replay`, which keeps the id checks,

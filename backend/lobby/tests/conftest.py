@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 
 import httpx
 import pytest
+from starlette.authentication import AuthCredentials
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocket
 
@@ -180,7 +181,15 @@ def client(app: Starlette) -> Iterator[TestClient]:
 def make_websocket(peer: AsgiPeer, *, app: Starlette, **scope: object) -> WebSocket:
     origin_header = (b"origin", app.state.settings.ws_allowed_origin.encode())
     return WebSocket(
-        {"type": "websocket", "path": "/", "headers": [origin_header], "query_string": b"", "app": app, **scope},
+        {
+            "type": "websocket",
+            "path": "/",
+            "headers": [origin_header],
+            "query_string": b"",
+            "app": app,
+            "auth": AuthCredentials(["authenticated"]),
+            **scope,
+        },
         peer.receive,
         peer.send,
     )

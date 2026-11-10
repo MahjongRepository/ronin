@@ -49,6 +49,40 @@ async def tournament_websocket(websocket: WebSocket) -> None:
     await serve_lobby_socket(websocket, lambda player: _serve_player(player, ctx))
 
 
+async def tournament_events_websocket(websocket: WebSocket) -> None:
+    """
+    Handle the owner's events socket of a tournament: send-only, never online, several per owner allowed.
+    """
+    ctx = _TournamentContext(websocket)
+    await serve_lobby_socket(websocket, lambda subscriber: _serve_subscriber(subscriber, ctx))
+
+
+async def _serve_subscriber(subscriber: LobbyPlayer, ctx: _TournamentContext) -> None:
+    """
+    Subscribe the tournament's owner to its events, starting with a ``presence`` snapshot, until the socket ends.
+
+    Anyone else is refused as for an unknown tournament; whatever the client sends is read and dropped.
+    """
+    tournament = await ctx.tournament_repo.get_tournament(ctx.tournament_id)
+    if tournament is None or tournament.owner_user_id != subscriber.user_id:
+        logger.info("tournament events rejected", tournament_id=ctx.tournament_id, username=subscriber.username)
+        subscriber.send({"type": "error", "message": _TOURNAMENT_NOT_FOUND})
+        subscriber.connection.close(code=4000, reason=_TOURNAMENT_NOT_FOUND)
+        return
+
+    ctx.hub.subscribe(ctx.tournament_id, subscriber)
+    subscriber.send(ctx.hub.presence(ctx.tournament_id))
+    try:
+        while True:
+            await subscriber.connection.receive()
+    except ConnectionError:
+        pass
+    except Exception:
+        logger.exception("unexpected error in tournament events websocket", tournament_id=ctx.tournament_id)
+    finally:
+        ctx.hub.unsubscribe(ctx.tournament_id, subscriber)
+
+
 async def _serve_player(player: LobbyPlayer, ctx: _TournamentContext) -> None:
     """
     Put the player online and serve their chat until the socket ends; then take them offline, whatever happened.

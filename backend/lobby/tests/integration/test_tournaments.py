@@ -4,6 +4,7 @@ from contextlib import ExitStack
 
 import httpx
 import pytest
+from starlette.websockets import WebSocketDisconnect
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
 from lobby.tests.integration.conftest import login_with_csrf, register_with_csrf, session_user_id
@@ -158,3 +159,42 @@ def test_start_games__when_caller_is_not_owner__should_return_404(client, tourna
 
     assert response.status_code == 404
     assert response.json() == {"error": "tournament_not_found"}
+
+
+def test_events_socket__when_owner_connects_with_api_key__should_receive_game_started(
+    client, tournament_id, game_server
+):
+    owner_key = _issue_api_token(client)
+    game_server.respond = lambda request: httpx.Response(201)
+    names = ["erin", "frank", "gina", "hank"]
+
+    with ExitStack() as stack:
+        for name in names:
+            register_with_csrf(client, name)
+            stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}")).receive_json()
+        client.cookies.delete("session_id")
+        del client.headers["origin"]
+
+        events = stack.enter_context(
+            client.websocket_connect(f"/ws/tournaments/{tournament_id}/events", headers={"x-api-key": owner_key})
+        )
+        assert events.receive_json() == {"type": "presence", "players": names, "count": 4}
+
+        response = client.post(
+            f"/api/tournaments/{tournament_id}/games", json={"games": [names]}, headers={"x-api-key": owner_key}
+        )
+
+        [result] = response.json()["results"]
+        assert events.receive_json() == {"type": "game_started", "game_id": result["game_id"], "players": names}
+        assert events.receive_json() == {"type": "presence", "players": [], "count": 0}
+
+
+def test_events_socket__when_user_is_not_owner__should_be_refused(client, tournament_id):
+    login_with_csrf(client, "bob")
+
+    with client.websocket_connect(f"/ws/tournaments/{tournament_id}/events") as events:
+        assert events.receive_json() == {"type": "error", "message": "tournament_not_found"}
+        with pytest.raises(WebSocketDisconnect) as refusal:
+            events.receive_json()
+
+    assert refusal.value.code == 4000
