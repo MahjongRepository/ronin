@@ -26,7 +26,7 @@ TOURNAMENT_NAME_MAX_LENGTH = 80
 
 def _parse_tournament_name(raw_name: object) -> str | None:
     """
-    Return the stripped tournament name, or None when it is empty, too long or holds a control character.
+    Return the stripped tournament name, or None when it is empty, too long or holds a control or format character.
     """
     if not isinstance(raw_name, str):
         return None
@@ -35,7 +35,7 @@ def _parse_tournament_name(raw_name: object) -> str | None:
     if not name or len(name) > TOURNAMENT_NAME_MAX_LENGTH:
         return None
 
-    if any(unicodedata.category(char) == "Cc" for char in name):
+    if any(unicodedata.category(char) in {"Cc", "Cf"} for char in name):
         return None
 
     return name
