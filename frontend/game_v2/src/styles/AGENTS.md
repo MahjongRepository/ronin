@@ -109,7 +109,9 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   tile-depth and seam-mask layers below their faces: masks must never enter a shadow filter, or a separated tile
   casts a detached rectangular edge. A seam's mask stands on the tile whose edge does not fall into that seam (the
   later tile on the left, the earlier on the right), so a tile a reflow carries off keeps its whole edge attached
-  instead of a mask riding with it cutting a detached sliver. Other groups keep their shared shadow. Hands and
+  instead of a mask riding with it cutting a detached sliver. An opponent's standing back draws its own edge, its top
+  in the edge's colours on a pseudo-element moved down the screen (the tile itself never transformed), so the top
+  strip's group casts only the shadow and its faces draw their own edge. Other groups keep their shared shadow. Hands and
   rivers use positional offsets: a transform creates per-tile stacking contexts that lift the side strips' seam
   masks over neighbouring faces and depth. Laid melds have no seam masks and transform their tile wrappers to
   interpolate position and size. Reveal backs stay inside the native hand slots, absolutely placed over the hidden

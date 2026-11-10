@@ -38,9 +38,11 @@ $cast-blur: 0.07;
             var(--ronin-tile-shine),
         inset calc(var(--bevel-x) * -1) calc(var(--bevel-y) * -1)
             calc(var(--unit) * #{$bevel-share * 1.5}) var(--ronin-tile-shade);
-    --tile-depth:
+    --tile-edge:
         var(--body-x) var(--body-y) 0 var(--ronin-tile-edge),
-        var(--back-x) var(--back-y) 0 var(--ronin-tile-back-edge),
+        var(--back-x) var(--back-y) 0 var(--ronin-tile-back-edge);
+    --tile-depth:
+        var(--tile-edge),
         var(--cast-x) var(--cast-y) calc(var(--unit) * #{$cast-blur})
             calc(var(--unit) * #{-$cast-blur}) var(--ronin-tile-shadow);
     --tile-lift: var(--tile-depth);
@@ -163,12 +165,17 @@ $cast-blur: 0.07;
 /* An opponent's concealed tile stands on its edge, seen from above: its top, ivory toward its owner and the back's
    colour toward the centre, at its owner's edge of the slot it keeps whole for the face a reveal shows. */
 $cap-share: 0.5;
+$back-split: 45%;
+
+@function standing-top($back, $ivory) {
+    @return linear-gradient(to bottom, #{$back} 0 $back-split, #{$ivory} $back-split);
+}
 
 .board-strip .hand-tile > .tile-back {
     height: calc(var(--tile-w) * 4 / 3 * #{$cap-share});
     margin-top: calc(var(--tile-w) * 4 / 3 * #{1 - $cap-share});
     border-radius: 9% / 14%;
-    background: linear-gradient(to bottom, var(--ronin-back) 0 45%, var(--ronin-tile-face) 45%);
+    background: standing-top(var(--ronin-back), var(--ronin-tile-face));
 }
 
 /* A side strip runs along the light, so the group's edge would fill each hairline and show in the tiles' rounded
@@ -193,6 +200,50 @@ $corner-share: 0.09;
             border-radius: inherit;
             box-shadow: var(--tile-depth);
         }
+    }
+}
+
+/* A standing tile's end, split as its top, shows below it: the top strip sees only the back's layer, a side strip both.
+   So the top strip's group casts only the shadow, from tiles that draw their own edge. */
+.board-strip .hand-tile > .tile-back {
+    @include screen-offset(
+        standing-cast,
+        $cast-x,
+        $cast-y - $back-share,
+        var(--unit),
+        var(--tile-turn)
+    );
+
+    position: relative;
+
+    &::after {
+        content: "";
+        position: absolute;
+        z-index: layer(tile-depth);
+        inset: 0;
+        border-radius: inherit;
+        background: standing-top(var(--ronin-tile-back-edge), var(--ronin-tile-edge));
+        box-shadow: none;
+        transform: translate(var(--back-x), var(--back-y));
+    }
+}
+
+.board-strip--left,
+.board-strip--right {
+    .hand-tile > .tile-back::after {
+        box-shadow: var(--standing-cast-x) var(--standing-cast-y) calc(var(--unit) * #{$cast-blur})
+            calc(var(--unit) * #{-$cast-blur}) var(--ronin-tile-shadow);
+    }
+}
+
+.board-strip--top .hand {
+    filter: drop-shadow(
+        var(--group-cast-x) var(--group-cast-y) calc(var(--unit) * #{$cast-blur * 0.5})
+            var(--ronin-tile-shadow)
+    );
+
+    .tile:not(.tile-back) {
+        --tile-lift: var(--tile-edge);
     }
 }
 

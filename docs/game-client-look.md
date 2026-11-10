@@ -32,7 +32,8 @@ The derived proportions are the three reference viewports' values under the sizi
 - **Flat top-down.** No camera, no perspective. Depth comes from the surface, the tile's edge and
   its shadow. This keeps the client light and fast on low-end phones. Decision: one light for every
   seat, as Tenhou's: each tile's edge shows toward the screen's bottom (its ivory body over the
-  back's layer) and its shadow falls down and to the right, whatever the seat; tiles lying together
+  back's layer; a standing concealed tile, below, shows its end instead) and its shadow falls down
+  and to the right, whatever the seat; tiles lying together
   (a river, a meld, a hand that takes no input) share one edge and shadow under all their faces, so
   a tile nearer the screen's bottom covers the edge of the one behind it and no edge or shadow ever
   lies on a face. A chankan source's ring lies flat over the tiles.
@@ -204,7 +205,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   drawn as its top seen from above (Tenhou's side seats draw it in profile): half its 3:4 slot,
   at its owner's edge, ivory toward its owner and the back's colour toward the centre, so a live
   hand never reads as face-down tiles (a closed kan's ends, the unrevealed indicators); the slot is
-  kept whole, so a reveal shows the faces in the same place. Decision: a hand's tiles stand a
+  kept whole, so a reveal shows the faces in the same place. Its edge is its end, split as its
+  top: the top strip shows only the back's layer under it, a side strip the ivory body beside the
+  back's layer, never the ivory body under the back's colour. Decision: a hand's tiles stand a
   one-pixel hairline apart, as the own hand's; a side strip's tiles run along the light, so the
   tile edge would fill that hairline, and the table's colour is drawn into it instead; a side
   strip's drawn gap shows that edge under the tile the light lays it on and is deeper by it, so
