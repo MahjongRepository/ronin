@@ -92,7 +92,7 @@ describe("GameStartDisplay", () => {
         expect(dealt.querySelector(".seating__confirm-label")?.textContent).toBe("OK");
         expect([countdown(0), countdown(2500)]).toEqual(["10s left", "8s left"]);
         expect([waiting?.textContent?.replace(/\s+/gu, " ").trim(), waiting?.disabled]).toEqual([
-            "Waiting for others 9s left",
+            "Waiting… 9s left",
             true,
         ]);
         expect(

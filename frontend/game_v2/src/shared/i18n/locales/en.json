@@ -197,6 +197,7 @@
     "game.seat.away_tag": "Away",
     "game.seat.fallback_name": "Seat {seat}",
     "game.seat.you": "You",
+    "game.seating.confirm_waiting": "Waiting…",
     "game.seating.heading": "{type} · {round}",
     "game.seating.label": "Seating",
     "game.settings.animations": "Animations",

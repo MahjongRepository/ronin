@@ -353,8 +353,8 @@ function ResultControlsView(
 /**
  * The opening screen's OK at the seating's foot, focused as it first shows so Enter or Space presses it, with the
  * seconds the screen still shows under its label, as a round result's confirm counts its time. Once the seat sent its
- * start confirm the same button stays in place, disabled, saying it waits for the others, its time still counting. Its
- * label reserves the waiting label's width (`data-reserve`), so the button never grows when pressed.
+ * start confirm the same button stays in place, disabled, saying it waits (in short, read out whole), its time still
+ * counting. Its label reserves the short waiting label's width (`data-reserve`), so the button never grows when pressed.
  */
 function OpeningControlsView(
     opening: OpeningControls | null,
@@ -364,13 +364,13 @@ function OpeningControlsView(
         return undefined;
     }
     const { action, secondsLeft } = opening;
-    const label = action?.label ?? t("game.result.waiting");
+    const label = action?.label ?? t("game.seating.confirm_waiting");
     return html`<div class="seating__actions">
     <button
       type="button"
       class="seating__action seating__confirm"
       data-focus-key=${PANEL_CONTROL_FOCUS_KEY}
-      aria-label=${label}
+      aria-label=${action?.label ?? t("game.result.waiting")}
       ?disabled=${action === null}
       ${focusOnFirstRender()}
       @click=${() => {
@@ -379,7 +379,7 @@ function OpeningControlsView(
           }
       }}
     >
-      <span class="seating__confirm-label" data-reserve=${t("game.result.waiting")}><span>${label}</span></span>
+      <span class="seating__confirm-label" data-reserve=${t("game.seating.confirm_waiting")}><span>${label}</span></span>
       ${secondsLeft === null ? nothing : html`<span class="seating__countdown">${t("game.countdown.seconds_left", { count: secondsLeft })}</span>`}
     </button>
   </div>`;

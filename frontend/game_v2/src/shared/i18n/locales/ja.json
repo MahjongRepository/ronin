@@ -190,6 +190,7 @@
     "game.seat.away_tag": "離席",
     "game.seat.fallback_name": "席{seat}",
     "game.seat.you": "あなた",
+    "game.seating.confirm_waiting": "待機中…",
     "game.seating.heading": "{type} · {round}",
     "game.seating.label": "席順",
     "game.settings.animations": "アニメーション",

@@ -211,6 +211,7 @@
     "game.seat.away_tag": "Отсутствует",
     "game.seat.fallback_name": "Место {seat}",
     "game.seat.you": "Вы",
+    "game.seating.confirm_waiting": "Ожидание…",
     "game.seating.heading": "{type} · {round}",
     "game.seating.label": "Рассадка",
     "game.settings.animations": "Анимация",
