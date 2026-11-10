@@ -155,6 +155,14 @@ function roundRows(nav: NavigationIndex, current: number): ReplayRoundRow[] {
 }
 
 /**
+ * Whether the calls shown are a win's (ron, tsumo), whose result waits until they have been seen; a replay's result is
+ * a stop of its own, past the move that ended the round, so no other result waits.
+ */
+function callsAWin(callouts: BoardCallouts | null): boolean {
+    return callouts?.items.some((item) => item.kind === "ron" || item.kind === "tsumo") ?? false;
+}
+
+/**
  * The calls shown, keyed by their stop and the time they were shown from, so arriving on their stop plays them afresh
  * while turning its pages or moving on past it does not.
  */
@@ -204,7 +212,7 @@ function stopBoard(
     const table = source.tables[stateIndex];
     const callouts = shownCallouts(source, shownCall, perspective);
     const overlay = tablePanel(table, {
-        callouts,
+        holdsResult: callsAWin(callouts),
         overGameEnd: false,
         page: cursor.page,
         viewerSeat: null,

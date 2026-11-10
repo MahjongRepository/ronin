@@ -10,6 +10,13 @@ import {
 import { type BoardNotice } from "@/entities/table/ui/board-notices";
 import { GameBoard } from "@/entities/table/ui/game-board";
 
+function showHeldPanel(host: HTMLElement, held: boolean): void {
+    render(
+        GameBoard({ debug: false, overlay: html`<p>Result</p>`, overlayHeld: held, state: null }),
+        host,
+    );
+}
+
 function renderBoard(): HTMLElement {
     const players = [0, 1, 2, 3].map((seat) => ({
         ...createInitialPlayerState({
@@ -173,17 +180,17 @@ describe("GameBoard callouts", () => {
         expect(host.querySelector(".board-callout")).not.toBe(first);
     });
 
-    it("keeps a win panel's opening delay when its earlier local callout expires", () => {
-        const host = document.createElement("div");
-        const props = {
-            debug: false,
-            overlay: html`<p>Result</p>`,
-            state: null,
-        };
-        render(GameBoard({ ...props, overlayAfterCall: true }), host);
-        const panel = host.querySelector(".board-overlay--after-call");
+    it("decides a panel's opening delay on its first showing alone, never restarting or adding it later", () => {
+        const held = document.createElement("div");
+        const open = document.createElement("div");
+        showHeldPanel(held, true);
+        const panel = held.querySelector(".board-overlay--held");
+        showHeldPanel(held, false);
+        showHeldPanel(open, false);
+        showHeldPanel(open, true);
+
         expect(panel).not.toBeNull();
-        render(GameBoard({ ...props, overlayAfterCall: false }), host);
-        expect(host.querySelector(".board-overlay--after-call")).toBe(panel);
+        expect(held.querySelector(".board-overlay--held")).toBe(panel);
+        expect(open.querySelector(".board-overlay--held")).toBeNull();
     });
 });

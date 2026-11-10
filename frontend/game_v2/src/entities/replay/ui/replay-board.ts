@@ -161,7 +161,7 @@ export function ReplayBoard({
         motion: display.motion,
         onViewSeat: handlers.viewSeat,
         overlay: overlay === null ? undefined : TablePanelDisplay(overlay, controls),
-        overlayAfterCall: overlay?.kind === "result" && overlay.afterCall,
+        overlayHeld: overlay?.kind === "result" && overlay.held,
         replay: {
             controls: controlsTemplate(screen, display, handlers),
             status: ReplayStatus({ display }),

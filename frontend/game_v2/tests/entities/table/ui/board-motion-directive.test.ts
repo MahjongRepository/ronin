@@ -304,13 +304,13 @@ async function startRevealingHand(): Promise<{ state: TableState; view: BoardPer
     return { state, view };
 }
 
-async function showPanel(matchResult: boolean, afterCall: boolean): Promise<void> {
+async function showPanel(matchResult: boolean, held: boolean): Promise<void> {
     render(
         GameBoard({
             debug: false,
             matchResult,
             overlay: html`<p>${matchResult ? "Standings" : "Win result"}</p>`,
-            overlayAfterCall: afterCall,
+            overlayHeld: held,
             state: null,
         }),
         host,
@@ -392,10 +392,10 @@ describe("match result motion", () => {
         expect(leaving).not.toBeNull();
         expect([
             leaving?.textContent?.trim(),
-            leaving?.classList.contains("board-overlay--after-call"),
+            leaving?.classList.contains("board-overlay--held"),
             host
                 .querySelector(".board-overlay:not(.board-overlay--leaving)")
-                ?.classList.contains("board-overlay--after-call"),
+                ?.classList.contains("board-overlay--held"),
         ]).toEqual(["Standings", false, true]);
         expect(animations).toHaveLength(1);
         finishAll();

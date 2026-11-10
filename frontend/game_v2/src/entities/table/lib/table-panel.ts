@@ -5,23 +5,22 @@ import {
     tableSeatingDisplay,
 } from "@/entities/table/lib/game-start-display";
 import { type RoundEndDisplayState, roundEndDisplay } from "@/entities/table/lib/round-end-display";
-import { type BoardCallouts } from "@/entities/table/model/board-types";
 import { type TableState } from "@/entities/table/model/types";
 
 /**
- * A panel over the table's board: the seating (a live game's opening screen, a replay's start), a round's result at a page (`afterCall`:
- * it waits until the win's call shown with it has been seen), or the game's end.
+ * A panel over the table's board: the seating (a live game's opening screen, a replay's start), a round's result at a page (`held`:
+ * it opens after a pause, so the move that ended the round and its call are seen first), or the game's end.
  */
 export type TablePanel =
     | { readonly kind: "seating"; readonly display: GameStartDisplayState }
     | {
           readonly kind: "result";
           readonly display: RoundEndDisplayState;
-          readonly afterCall: boolean;
+          readonly held: boolean;
       }
     | { readonly kind: "game_end"; readonly display: GameEndDisplayState };
 
-/** How a view reads the table's panel: from whose seat, at which result page, and with which calls showing. */
+/** How a view reads the table's panel: from whose seat, at which result page, and whether a result opens after a pause. */
 export interface TablePanelView {
     /** The viewer's seat, which the game's end marks; null in a replay. */
     readonly viewerSeat: number | null;
@@ -29,12 +28,8 @@ export interface TablePanelView {
     readonly page: number;
     /** The game's last result still shows over the game's end (the live game's, until the player dismisses it). */
     readonly overGameEnd: boolean;
-    readonly callouts: BoardCallouts | null;
-}
-
-/** Whether the calls shown are a win's (ron, tsumo), whose result panel waits until they have been seen. */
-function callsAWin(callouts: BoardCallouts | null): boolean {
-    return callouts?.items.some((item) => item.kind === "ron" || item.kind === "tsumo") ?? false;
+    /** The round's result waits before it opens, so the move that ended the round has been seen. */
+    readonly holdsResult: boolean;
 }
 
 function resultPanel(table: TableState, view: TablePanelView): TablePanel | null {
@@ -44,12 +39,12 @@ function resultPanel(table: TableState, view: TablePanelView): TablePanel | null
         return null;
     }
     return {
-        afterCall: callsAWin(view.callouts),
         display: roundEndDisplay(
             { players: table.players, result: table.roundEndResult },
             view.page,
             table.hasAkadora,
         ),
+        held: view.holdsResult,
         kind: "result",
     };
 }

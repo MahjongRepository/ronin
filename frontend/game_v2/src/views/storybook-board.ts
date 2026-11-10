@@ -1010,7 +1010,7 @@ function buildOverlay(
         return undefined;
     }
     const panel = tablePanel(story.leftoverLost ? END_TABLE_STICK_LOST : END_TABLE, {
-        callouts: null,
+        holdsResult: false,
         overGameEnd: false,
         page: 0,
         viewerSeat: 0,

@@ -231,7 +231,7 @@ describe("PlayBoard", () => {
         ]);
     });
 
-    it("holds a won round's result back for its call, but asks about leaving over it at once, with no furiten", () => {
+    it("holds a won round's result back, but asks about leaving over it at once, with no furiten", () => {
         const roundEnd = checkpointState("own_turn_seat_1", "round end");
         function renderAt(confirmingLeave: boolean): HTMLElement {
             const host = document.createElement("div");
@@ -252,10 +252,10 @@ describe("PlayBoard", () => {
         const leaving = renderAt(true);
 
         expect(roundEnd.furiten).toBe(true);
-        expect(result.querySelector(".board-overlay--after-call .round-end-result")).not.toBeNull();
+        expect(result.querySelector(".board-overlay--held .round-end-result")).not.toBeNull();
         expect(result.querySelector(".decision-controls")).toBeNull();
         expect(leaving.querySelector(".board-overlay .leave-confirm__stay")).not.toBeNull();
-        expect(leaving.querySelector(".board-overlay--after-call")).toBeNull();
+        expect(leaving.querySelector(".board-overlay--held")).toBeNull();
     });
 
     it("opens the notices whole over the round confirm with its seconds, the board inert, the leave question in its place", () => {

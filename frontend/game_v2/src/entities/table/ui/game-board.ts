@@ -33,7 +33,7 @@ import { animateBoard } from "./board-motion-directive";
 import { type BoardNotice, BoardNotices, NoticeAnnouncements } from "./board-notices";
 import { HonbaStickIcon } from "./honba-stick-icon";
 import { Nameplates, type SeatView } from "./nameplate";
-import { fadeMatchResult, revealAfterCall } from "./panel-motion-directive";
+import { fadeMatchResult, holdPanel } from "./panel-motion-directive";
 import { RiichiStickIcon } from "./riichi-stick-icon";
 
 /** How the bottom seat's hand is played: what a selectable tile does and where its tap goes. */
@@ -66,8 +66,11 @@ interface GameBoardProps {
      * Each new announced showing is read out once, by its seats' names.
      */
     readonly callouts?: BoardCallouts | null;
-    /** The overlay's panel waits until the win's call shown with it has been seen (a round's result); else it shows at once. */
-    readonly overlayAfterCall?: boolean;
+    /**
+     * The overlay's panel opens after a pause (a round's result, so the move that ended the round is seen first); else
+     * it shows at once. Only its first showing counts: a panel already open never hides again.
+     */
+    readonly overlayHeld?: boolean;
     /** The bottom seat is furiten: a played board labels its hand with the mark. */
     readonly furiten?: boolean;
     /** The play switches, in their slot on the foreground band's side away from the decisions. */
@@ -454,7 +457,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
             ${CalloutAnnouncements(props.callouts, state)}
             ${
                 props.overlay
-                    ? html`<div class="board-overlay" ${revealAfterCall(props.overlayAfterCall === true)}>
+                    ? html`<div class="board-overlay" ${holdPanel(props.overlayHeld === true)}>
                       <div class="board-overlay__panel" data-board-panel>${props.overlay}</div>
                   </div>`
                     : ""

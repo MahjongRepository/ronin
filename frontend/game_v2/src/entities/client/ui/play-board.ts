@@ -562,7 +562,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
         motion: display.motion,
         notices: display.notices.map((notice) => boardNotice(notice, onCommand)),
         overlay: overlay === null ? undefined : OverlayPanel(overlay.panel, props),
-        overlayAfterCall: overlay?.panel.kind === "result" && overlay.panel.afterCall,
+        overlayHeld: overlay?.panel.kind === "result" && overlay.panel.held,
         state: display.board,
         switches: PlaySwitches(display.switches, display.switchNames, onCommand),
     });

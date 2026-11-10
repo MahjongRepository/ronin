@@ -498,7 +498,7 @@ describe("stepGameClient - desync around the game's start and end", () => {
     function resultDealerName(state: LiveClient): string | null {
         const host = document.createElement("div");
         const panel = tablePanel(state.table, {
-            callouts: null,
+            holdsResult: false,
             overGameEnd: true,
             page: 0,
             viewerSeat: state.viewerSeat,

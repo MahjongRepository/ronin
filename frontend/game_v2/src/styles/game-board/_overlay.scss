@@ -49,6 +49,21 @@ $overlay-chrome: 3rem;
     z-index: layer(overlay);
 }
 
+/* A press beside a result hides it and its dim to show the board until the press ends. */
+.board-overlay--peekable {
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.board-overlay--peeking {
+    background: none;
+    box-shadow: none;
+
+    .board-overlay__panel {
+        visibility: hidden;
+    }
+}
+
 .game-board:where(#{$phone-board}):has(.board-notices__list > *) > .board-overlay {
     --panel-right: var(--geo-overlay-right-beside-notices);
 }

@@ -303,7 +303,6 @@ function liveCallouts(state: LiveClient): BoardCallouts | null {
 
 /** What the overlay is chosen from, mapped once for the display beside it. */
 interface OverlaySource {
-    readonly callouts: BoardCallouts | null;
     readonly failure: FailureDisplay | null;
     readonly leave: LeaveControls;
     readonly notices: readonly PlayNotice[];
@@ -313,7 +312,7 @@ interface OverlaySource {
 /** The panel over the table that leaves the board playable: the opening screen's seating, else the table's own. */
 function tableOverlay(
     state: LiveClient,
-    { callouts, resultPage }: Pick<OverlaySource, "callouts" | "resultPage">,
+    { resultPage }: Pick<OverlaySource, "resultPage">,
 ): PlayOverlay | null {
     if (state.opening.kind === "showing") {
         return {
@@ -322,7 +321,7 @@ function tableOverlay(
         };
     }
     const panel = tablePanel(state.table, {
-        callouts,
+        holdsResult: state.boardMotion.mode === "step",
         overGameEnd: state.showsLastResult,
         page: resultPage,
         viewerSeat: state.viewerSeat,
@@ -383,13 +382,12 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
             ? new Map<number, TilePlay>()
             : tilePlays(state, viewer, { armed: armedTile, picking });
     const source: OverlaySource = {
-        callouts: liveCallouts(state),
         failure: failureDisplay(state.session),
         leave: leaveControls(state, ui),
         notices: boardNotices(state, ui),
         resultPage: shownResultPage(table, ui),
     };
-    const { callouts, failure, leave, notices, resultPage } = source;
+    const { failure, leave, notices, resultPage } = source;
     const overlay = playOverlay(state, ui, source);
     const { actions, shortcuts } = decisionKeys(state, ui, overlay);
     return {
@@ -397,7 +395,7 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
         animationsOn: ui.animationsOn,
         armedTile,
         board: viewerBoard(state, plays),
-        callouts,
+        callouts: liveCallouts(state),
         countdown: decisionCountdown(state),
         decisionStanding: decisionStanding(state),
         failure,

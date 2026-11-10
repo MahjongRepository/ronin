@@ -8,20 +8,23 @@ import {
     directive,
 } from "lit-html/directive.js";
 
-class RevealAfterCall extends Directive {
-    render(_afterCall: boolean): typeof nothing {
+class HoldPanel extends Directive {
+    private decided = false;
+
+    render(_held: boolean): typeof nothing {
         return nothing;
     }
 
-    override update(part: ElementPart, [afterCall]: [boolean]): typeof nothing {
-        if (afterCall) {
-            part.element.classList.add("board-overlay--after-call");
+    override update(part: ElementPart, [held]: [boolean]): typeof nothing {
+        if (!this.decided && held) {
+            part.element.classList.add("board-overlay--held");
         }
+        this.decided = true;
         return nothing;
     }
 }
 
-export const revealAfterCall = directive(RevealAfterCall);
+export const holdPanel = directive(HoldPanel);
 
 class FadeMatchResult extends AsyncDirective {
     private shown = false;
@@ -60,7 +63,11 @@ class FadeMatchResult extends AsyncDirective {
             return;
         }
         const { generation } = this;
-        clone.classList.remove("board-overlay--after-call");
+        clone.classList.remove(
+            "board-overlay--held",
+            "board-overlay--peekable",
+            "board-overlay--peeking",
+        );
         clone.classList.add("board-overlay--leaving");
         clone.setAttribute("aria-hidden", "true");
         clone.inert = true;

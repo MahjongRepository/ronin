@@ -1,8 +1,8 @@
-import { render } from "lit-html";
+import { html, render } from "lit-html";
 import { afterEach, assert, describe, expect, test, vi } from "vitest";
 
 import { loadEngineReplay } from "#tests/fixtures/replays";
-import { TablePanelDisplay, type TableState, tablePanel } from "@/entities/table";
+import { GameBoard, TablePanelDisplay, type TableState, tablePanel } from "@/entities/table";
 
 function lastRoundEndTable(name: string): TableState {
     const table = loadEngineReplay(name).tables.findLast(
@@ -14,7 +14,7 @@ function lastRoundEndTable(name: string): TableState {
 
 function renderResult(table: TableState, page = 0, onPage?: (page: number) => void): HTMLElement {
     const panel = tablePanel(table, {
-        callouts: null,
+        holdsResult: false,
         overGameEnd: false,
         page,
         viewerSeat: null,
@@ -40,6 +40,27 @@ function texts(el: HTMLElement, selector: string): string[] {
     return [...el.querySelectorAll(selector)].map(heard);
 }
 
+async function mountResultOnBoard(table: TableState): Promise<HTMLElement> {
+    const panel = tablePanel(table, {
+        holdsResult: false,
+        overGameEnd: false,
+        page: 0,
+        viewerSeat: null,
+    });
+    assert(panel !== null);
+    const host = document.createElement("div");
+    document.body.append(host);
+    render(GameBoard({ debug: false, overlay: TablePanelDisplay(panel), state: null }), host);
+    await Promise.resolve();
+    return host;
+}
+
+function peekingAfter(host: HTMLElement, selector: string, type: string): boolean | undefined {
+    const press = { bubbles: true, button: 0, isPrimary: true, pointerId: 1 };
+    host.querySelector(selector)?.dispatchEvent(new PointerEvent(type, press));
+    return host.querySelector(".board-overlay")?.classList.contains("board-overlay--peeking");
+}
+
 afterEach(() => {
     document.documentElement.lang = "";
 });
@@ -58,6 +79,20 @@ describe("RoundEndDisplay", () => {
         expect(texts(el, ".round-end-result__win-label")).toEqual(["Tsumo"]);
         expect(el.querySelectorAll(".round-end-result__win-tile .hand-tile")).toHaveLength(1);
         expect(el.querySelectorAll(".round-end-result__melds .meld")).toHaveLength(3);
+    });
+
+    test("a press beside the result shows the board under it until the press ends, never one on the result", async () => {
+        const host = await mountResultOnBoard(lastRoundEndTable("double_ron"));
+        const seen = [
+            peekingAfter(host, ".round-end-result", "pointerdown"),
+            peekingAfter(host, ".board-overlay", "pointerdown"),
+            peekingAfter(host, ".board-overlay", "pointermove"),
+            peekingAfter(host, ".board-overlay", "pointerup"),
+        ];
+        render(html``, host);
+        host.remove();
+
+        expect(seen).toEqual([false, true, true, false]);
     });
 
     test("a double ron: the pager asks for the next or previous page and stops at the ends", () => {

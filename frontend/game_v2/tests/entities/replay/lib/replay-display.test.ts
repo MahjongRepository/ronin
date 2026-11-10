@@ -89,7 +89,7 @@ describe("replayDisplay", () => {
         );
         expect([seating.callouts, seating.board === null]).toEqual([null, false]);
         assert(shown.overlay?.kind === "result");
-        expect([shown.overlay.display.page, shown.overlay.afterCall]).toEqual([1, true]);
+        expect([shown.overlay.display.page, shown.overlay.held]).toEqual([1, true]);
     });
 
     test("shows a riichi's deposit on its discard when a seat changes hands in the call window", () => {

@@ -549,7 +549,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the mangan payments, without a winning tile or a yaku breakdown, and still the tenpai verdicts;
   an abortive draw says why (four winds, four riichi, four kans, triple ron, kyuushu kyuuhai with
   its declarer). A first-turn win is an ordinary result over the board as it stands: empty rivers
-  for tenhou, the earlier seats' first discards for chiihou.
+  for tenhou, the earlier seats' first discards for chiihou. In live play a result whose round ends on the page
+  opens 1.5 seconds after it, a draw's as a win's, so the move that ended it (the haitei discard, the fourth wind
+  or riichi, a win's call) lands and is seen first; a page that joins or reconnects at a result opens it at once,
+  and a replay's result, a stop of its own past that move, waits only after a win's call. A press on the dim beside
+  a result hides the panel and the dim to show the board under it (the last discard, the rivers, the revealed
+  hands) until the press ends; the countdown runs on meanwhile. The result itself takes it, wherever it shows.
 - **Game end.** The seating panel again, its seats in the server's placement order with table points
   and adjusted results (uma and oka) told apart, signed values kept, the leftover riichi sticks (or a
   note that the game's rules award them to nobody), the viewer's seat marked, and the ways on (the

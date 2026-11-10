@@ -1,6 +1,6 @@
 @use "@/styles/game-board/grid" as *;
 
-$overlay-hold-ms: 1000ms;
+$overlay-hold-ms: 1500ms;
 
 .board-callouts {
     display: contents;
@@ -91,18 +91,19 @@ $overlay-hold-ms: 1000ms;
     }
 }
 
-/* A win's panel waits until its call has been seen; a redraw keeps the same element, so the wait runs once. */
-.board-overlay--after-call {
-    animation: overlay-after-call 200ms ease-out $overlay-hold-ms backwards;
+/* A result waits until the move that ended the round and its call have been seen; a redraw keeps the same element, so
+   the wait runs once. */
+.board-overlay--held {
+    animation: overlay-held 200ms ease-out $overlay-hold-ms backwards;
 }
 
-.board-overlay--after-call {
+.board-overlay--held {
     @include reduced-motion {
         animation-delay: $overlay-hold-ms !important;
     }
 }
 
-@keyframes overlay-after-call {
+@keyframes overlay-held {
     from {
         visibility: hidden;
         opacity: 0;

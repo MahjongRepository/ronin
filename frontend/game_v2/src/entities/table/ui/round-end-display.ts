@@ -13,6 +13,7 @@ import { Hand, Meld, Tile, type TileFace } from "@/entities/tile";
 import { t } from "@/shared/i18n";
 
 import { PANEL_CONTROL_FOCUS_KEY } from "./focus";
+import { peekWhilePressed } from "./panel-peek-directive";
 import { PlayerName } from "./player-name";
 
 export interface RoundEndDisplayProps {
@@ -207,7 +208,7 @@ function NagashiRivers(page: DrawPageDisplay): TemplateResult | typeof nothing {
 
 function WinPage(props: RoundEndDisplayProps, page: WinPageDisplay): TemplateResult {
     const { display } = props;
-    return html`<div class="round-end-result round-end-result--win">
+    return html`<div class="round-end-result round-end-result--win" ${peekWhilePressed()}>
         <div class="round-end-result__head">
             <span class="round-end-result__kind">${page.title}</span>
             <span class="round-end-result__who"
@@ -230,7 +231,7 @@ function WinPage(props: RoundEndDisplayProps, page: WinPageDisplay): TemplateRes
 function DrawPage(props: RoundEndDisplayProps, page: DrawPageDisplay): TemplateResult {
     const { controls, display } = props;
     const kind = t("draw.generic");
-    return html`<div class="round-end-result round-end-result--draw">
+    return html`<div class="round-end-result round-end-result--draw" ${peekWhilePressed()}>
         <div class="round-end-result__head">
             ${kind === page.title ? nothing : html`<span class="round-end-result__kind">${kind}</span>`}
             <span class="round-end-result__title">${page.title}</span>

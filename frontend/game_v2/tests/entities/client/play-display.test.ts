@@ -434,6 +434,23 @@ describe("playDisplay revealed hands", () => {
     });
 });
 
+describe("playDisplay result hold", () => {
+    it("holds a result back when its round ends in play, a draw with no call included, never after a reconnect's snapshot", () => {
+        const drawEnd = checkpointState("game_end_reconnect_seat_1", "kyuushu round end");
+        function held(state: LiveClient): boolean | null {
+            const panel = playDisplay(state, NO_PLAY_UI).overlay?.panel;
+            return panel?.kind === "result" ? panel.held : null;
+        }
+
+        expect(playDisplay(drawEnd, NO_PLAY_UI).callouts).toBeNull();
+        expect([
+            held(drawEnd),
+            held(checkpointState("double_ron_seat_1", "round end")),
+            held(checkpointState("double_ron_seat_1", "reconnected")),
+        ]).toEqual([true, true, false]);
+    });
+});
+
 describe("playDisplay notices", () => {
     it("shows a dropped connection until the snapshot, then that the seat is back for 3 s", () => {
         const scenario = playingScenario();
