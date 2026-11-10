@@ -130,7 +130,8 @@ class Player(BaseModel, frozen=True):
     """
     Player account stored in the player repository.
 
-    Humans carry a bcrypt `password_hash`; bots carry the "!" sentinel there and a SHA-256 `api_key_hash`.
+    Humans carry a bcrypt `password_hash` and, once they issue an API token on the settings page, a SHA-256
+    `api_key_hash`; bots carry the "!" sentinel as `password_hash` and always an `api_key_hash`.
     """
 
     user_id: str
