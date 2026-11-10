@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { LobbySocket } from "@/lobby-socket";
 import { buildActionCallbacks, buildMessageHandlers, handleMessage } from "@/room/handlers";
-import { type RoomState, createRoomState } from "@/room/state";
+import { ROOM_SEATS, type RoomState, createRoomState } from "@/room/state";
 import { renderRoom } from "@/room/ui";
 
 const ROOM_NAME = "Jade Crane";
@@ -51,12 +51,18 @@ describe("renderRoom", () => {
         document.body.replaceChildren();
     });
 
-    test("shows connecting and a disabled composer before the socket opens", () => {
+    test("keeps the seated layout with its controls disabled before the join lands", () => {
         const container = mount(createRoomState());
 
         expect(container.querySelector(".room-header h2")?.textContent).toBe(ROOM_NAME);
-        expect(container.querySelector(".connection-status")?.textContent).toBe("Connecting…");
+        expect(container.querySelector(".connection-status-label")?.textContent).toBe(
+            "Connecting…",
+        );
         expect(container.querySelector(".lobby-alert")).toBeNull();
+        expect(container.querySelectorAll(".room-player-item")).toHaveLength(ROOM_SEATS);
+        expect(container.querySelector(".room-player-name")?.textContent).toBe("Taking a seat…");
+        expect(container.querySelector<HTMLButtonElement>(".room-start-btn")?.disabled).toBe(true);
+        expect(container.querySelector(".room-leave-btn")).not.toBeNull();
         expect(chatInput(container).disabled).toBe(true);
     });
 

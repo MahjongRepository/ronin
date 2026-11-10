@@ -75,7 +75,7 @@ function refuseWhileTheGameStarts(): void {
 }
 
 function statusText(container: HTMLElement): string | null | undefined {
-    return container.querySelector(".connection-status")?.textContent;
+    return container.querySelector(".connection-status-label")?.textContent;
 }
 
 function alertText(container: HTMLElement): string {
@@ -203,8 +203,8 @@ describe("initRoomPage across the back-forward cache", () => {
         expect(mockConnect).toHaveBeenCalledTimes(2);
         expect(mockConnect).toHaveBeenLastCalledWith(WS_URL);
         expect(statusText(container)).toBe("Connecting…");
-        expect(container.querySelector(".room-placeholder")?.textContent).toBe("Taking a seat…");
-        expect(container.querySelector(".room-leave-btn, .room-chat-entry")).toBeNull();
+        expect(container.querySelector(".room-player-name")?.textContent).toBe("Taking a seat…");
+        expect(container.querySelector(".room-player-item.me, .room-chat-entry")).toBeNull();
     });
 
     test("drops a join retry pending when the page was hidden, so the restored seat is not taken twice", () => {

@@ -10,6 +10,7 @@ import {
     PAGE_ERROR,
     type PageError,
     type PlayerInfo,
+    ROOM_SEATS,
     type RoomState,
     canAct,
     describeStartBlocker,
@@ -149,11 +150,25 @@ function playerRowTemplate(state: RoomState, player: PlayerInfo): TemplateResult
     `;
 }
 
+function pendingSeatsTemplate(): TemplateResult {
+    return html`
+        <div class="room-player-list" aria-busy="true">
+            ${Array.from(
+                { length: ROOM_SEATS },
+                (_seat, index) => html`
+                    <div class="room-player-item open">
+                        <span class="room-player-status"></span>
+                        <span class="room-player-name">${index === 0 ? t("room.taking_seat") : nothing}</span>
+                    </div>
+                `,
+            )}
+        </div>
+    `;
+}
+
 function playerListTemplate(state: RoomState): TemplateResult {
     if (state.players.length === 0) {
-        return html`
-            <p class="room-placeholder">${t("room.taking_seat")}</p>
-        `;
+        return pendingSeatsTemplate();
     }
     return html`
         <div class="room-player-list">
@@ -174,7 +189,7 @@ function actionTemplate(
     actions: ActionCallbacks,
 ): TemplateResult | typeof nothing {
     if (!isSeated(state)) {
-        return nothing;
+        return html`<button class="room-start-btn" disabled>${t("room.start")}</button>`;
     }
     const enabled = canAct(state);
     if (state.isOwner) {
@@ -274,27 +289,38 @@ function panelsTemplate(page: RoomPage): TemplateResult {
     `;
 }
 
+function connectionStatusTemplate(status: ConnectionStatus): TemplateResult {
+    return html`
+        <span class="connection-status status-${status}" role="status">
+            <span class="connection-status-text">
+                <span class="connection-status-label">${t(STATUS_LABEL[status])}</span>
+                ${Object.values(STATUS_LABEL).map(
+                    (key) =>
+                        html`<span class="connection-status-sizer" aria-hidden="true">${t(key)}</span>`,
+                )}
+            </span>
+        </span>
+    `;
+}
+
 function headerTemplate(
     state: RoomState,
     roomName: string,
     actions: ActionCallbacks,
 ): TemplateResult {
-    const status = state.connectionStatus;
     return html`
         <header class="room-header">
             <h2>${roomName}</h2>
-            <div class="room-header-actions">
-                ${
-                    state.pageError
-                        ? nothing
-                        : html`<span class="connection-status status-${status}" role="status">${t(STATUS_LABEL[status])}</span>`
-                }
-                ${
-                    isSeated(state)
-                        ? html`<button class="outline secondary lobby-small-btn room-leave-btn" @click=${actions.handleLeaveRoom}>${t("room.leave")}</button>`
-                        : nothing
-                }
-            </div>
+            ${
+                state.pageError
+                    ? nothing
+                    : html`
+                          <div class="room-header-actions">
+                              ${connectionStatusTemplate(state.connectionStatus)}
+                              <button class="outline secondary lobby-small-btn room-leave-btn" @click=${actions.handleLeaveRoom}>${t("room.leave")}</button>
+                          </div>
+                      `
+            }
         </header>
     `;
 }

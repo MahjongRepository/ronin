@@ -22,6 +22,7 @@ interface PageError {
 }
 
 const LOG_TYPE_SYSTEM = "system";
+const ROOM_SEATS = 4;
 
 const PAGE_ERROR = {
     GAME_START_INVALID: "game_start_invalid",
@@ -103,6 +104,7 @@ function describeStartBlocker(state: RoomState): string | null {
 export {
     LOG_TYPE_SYSTEM,
     PAGE_ERROR,
+    ROOM_SEATS,
     canAct,
     createRoomState,
     describeStartBlocker,
