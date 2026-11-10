@@ -39,7 +39,7 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   occupancy rule as an injected callable.
 * `game_transition.py` — the one game start for rooms and matchmaking, the game server client calls,
   the "is this user playing" lookup and the recovery of a lost handoff. `websocket_utils.py` — the
-  socket prologue rooms and matchmaking share (`Origin` check, auth, accept, the writer's lifetime);
+  socket prologue rooms, matchmaking and tournaments share (`Origin` check, auth, accept, the writer's lifetime);
   each handler decides what an unexpected error does.
 * The lobby calls the game server through one HTTP client per app, built in `create_app()` and
   closed in the lifespan. Its idle connections expire well before the game server's keep-alive
@@ -61,6 +61,10 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * `occupancy.py` — the one owner of the occupancy rule.
 * Tournaments are durable rows in the shared SQLite database (id, name, owner); only an account (a
   `players` row) can create one, and its page, the shareable link, opens for anyone signed in, guests included.
+* `tournaments/` — the tournament page's socket and `TournamentHub`, the in-memory registry of who is online on
+  each tournament page: one connection per user (a new one replaces the old), lost on a restart. Being online
+  is no occupancy place. Chat is broadcast, never stored, so a late joiner sees none of it.
+  `chat_messages.py` holds the chat message model and the client frame limits both rooms and tournaments use.
 * The one game server is two settings never derived from each other: the internal URL the lobby
   calls and the public WebSocket origin it hands clients.
 * Tests build the app through the fixtures in `tests/conftest.py`.
@@ -195,8 +199,8 @@ Mandatory for all lobby code; review must catch violations.
   response carrying a credential (a game ticket) is `Cache-Control: no-store`.
 * The internal API secret is sent only to the game server, as a bearer header; no page or browser
   response ever holds it.
-* Room and matchmaking WebSockets refuse any socket whose `Origin` is not exactly the configured
-  one, a setting every deployment must supply.
+* Room, matchmaking and tournament WebSockets refuse any socket whose `Origin` is not exactly the
+  configured one, a setting every deployment must supply.
 * Two CSP tiers: lobby pages (same-origin connect) and game pages (`/play/*`, `/game-assets/`,
   external WebSockets allowed). A new route fits a tier or gets an explicit policy.
 * Replay serving reads files only through `shared.storage.read_replay`, which keeps the id checks,

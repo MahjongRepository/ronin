@@ -1,32 +1,15 @@
 from __future__ import annotations
 
-import json
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, TypeAdapter, field_validator
+from pydantic import BaseModel, Field, TypeAdapter
 
-CHAT_MAX_LENGTH = 1000
-_MAX_WS_MESSAGE_SIZE = 4096
-_SPACE_ORD = 0x20
-_DEL_ORD = 0x7F
+from lobby.chat_messages import LobbyChatMessage, decode_client_frame
 
 
 class LobbySetReadyMessage(BaseModel):
     type: Literal["set_ready"]
     ready: bool
-
-
-class LobbyChatMessage(BaseModel):
-    type: Literal["chat"]
-    text: str = Field(min_length=1, max_length=CHAT_MAX_LENGTH)
-
-    @field_validator("text")
-    @classmethod
-    def _validate_text(cls, v: str) -> str:
-        if any((ord(c) < _SPACE_ORD and c not in ("\t", "\n", "\r")) or ord(c) == _DEL_ORD for c in v):
-            raise ValueError("text must not contain control characters")
-
-        return v
 
 
 class LobbyLeaveRoomMessage(BaseModel):
@@ -54,9 +37,4 @@ def parse_lobby_message(
     Raise ``json.JSONDecodeError`` for malformed JSON, ``ValidationError`` for an invalid message and a plain
     ``ValueError`` for one over the size limit.
     """
-    byte_len = len(raw.encode("utf-8"))
-    if byte_len > _MAX_WS_MESSAGE_SIZE:
-        raise ValueError(f"Message too large ({byte_len} bytes, max {_MAX_WS_MESSAGE_SIZE})")
-
-    data = json.loads(raw)
-    return _lobby_message_adapter.validate_python(data)
+    return _lobby_message_adapter.validate_python(decode_client_frame(raw))

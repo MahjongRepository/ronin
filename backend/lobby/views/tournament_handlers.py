@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from starlette.exceptions import HTTPException
 from starlette.responses import RedirectResponse
 
-from lobby.rooms.messages import CHAT_MAX_LENGTH
+from lobby.chat_messages import CHAT_MAX_LENGTH
 from lobby.views.assets import render_page
 from lobby.views.error_pages import validate_csrf
 from lobby.views.settings_handlers import find_account

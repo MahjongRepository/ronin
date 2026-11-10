@@ -24,7 +24,7 @@ def _check_origin(websocket: WebSocket) -> bool:
 
 async def serve_lobby_socket(websocket: WebSocket, serve: Callable[[LobbyPlayer], Awaitable[None]]) -> None:
     """
-    Admit a room or matchmaking socket and hand its player to ``serve``; this task owns the connection's writer.
+    Admit a lobby socket and hand its player to ``serve``; this task owns the connection's writer.
 
     A socket with a foreign ``Origin`` is refused with 4003 and an unauthenticated one with 4001, both before accept.
     The writer runs while ``serve`` does and is stopped however it ends; ``serve`` decides what an unexpected error

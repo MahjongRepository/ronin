@@ -1,12 +1,11 @@
 import { type TemplateResult, html, nothing, render } from "lit-html";
 
+import { chatComposerTemplate, chatLogTemplate, scrollChatToLatest } from "@/chat";
 import { type MessageKey, t } from "@/i18n";
 import { OCCUPANCY } from "@/occupancy-errors";
 import { type ActionCallbacks, describeRoomError } from "@/room/handlers";
 import {
-    type ChatEntry,
     type ConnectionStatus,
-    LOG_TYPE_SYSTEM,
     PAGE_ERROR,
     type PageError,
     type PlayerInfo,
@@ -19,8 +18,6 @@ import {
     isMe,
     isSeated,
 } from "@/room/state";
-
-const IME_PROCESS_KEY_CODE = 229;
 
 const STATUS_LABEL: Readonly<Record<ConnectionStatus, MessageKey>> = {
     connected: "room.status.connected",
@@ -217,58 +214,6 @@ function actionTemplate(
     `;
 }
 
-function chatEntryTemplate(entry: ChatEntry): TemplateResult {
-    const system = entry.sender === LOG_TYPE_SYSTEM;
-    return html`
-        <div class="room-chat-entry ${system ? "system" : ""}">
-            <span class="room-chat-time">${entry.timestamp}</span>
-            ${system ? nothing : html`<span class="room-chat-sender">${entry.sender}</span>`}
-            <span class="room-chat-text">${entry.text}</span>
-        </div>
-    `;
-}
-
-function blockImeEnter(event: KeyboardEvent): void {
-    const composing = event.isComposing || event.keyCode === IME_PROCESS_KEY_CODE;
-    if (event.key === "Enter" && composing) {
-        event.preventDefault();
-    }
-}
-
-function chatComposerTemplate(page: RoomPage): TemplateResult {
-    const { actions, chatMaxLength, state } = page;
-    function handleSubmit(event: SubmitEvent): void {
-        event.preventDefault();
-        const form = event.currentTarget;
-        if (!(form instanceof HTMLFormElement)) {
-            return;
-        }
-        const input = form.elements.namedItem("text");
-        if (!(input instanceof HTMLInputElement)) {
-            return;
-        }
-        if (actions.handleSendChat(input.value)) {
-            input.value = "";
-        }
-    }
-
-    const enabled = canAct(state);
-    return html`
-        <form class="room-chat-input" role="group" @submit=${handleSubmit}>
-            <input type="text"
-                   id="chat-input"
-                   name="text"
-                   aria-label=${t("room.chat.label")}
-                   autocomplete="off"
-                   maxlength=${chatMaxLength}
-                   placeholder=${t("room.chat.placeholder")}
-                   ?disabled=${!enabled}
-                   @keydown=${blockImeEnter} />
-            <button type="submit" class="outline" ?disabled=${!enabled}>${t("room.chat.send")}</button>
-        </form>
-    `;
-}
-
 function panelsTemplate(page: RoomPage): TemplateResult {
     const { actions, state } = page;
     return html`
@@ -280,10 +225,12 @@ function panelsTemplate(page: RoomPage): TemplateResult {
             </section>
             <section class="room-panel room-chat-panel" aria-labelledby="room-chat-title">
                 <h3 class="room-panel-title" id="room-chat-title">${t("room.chat_title")}</h3>
-                <div class="room-chat-messages" id="room-chat-messages" role="log" aria-live="polite">
-                    ${state.chatMessages.map(chatEntryTemplate)}
-                </div>
-                ${chatComposerTemplate(page)}
+                ${chatLogTemplate(state.chatMessages)}
+                ${chatComposerTemplate({
+                    chatMaxLength: page.chatMaxLength,
+                    enabled: canAct(state),
+                    send: actions.handleSendChat,
+                })}
             </section>
         </div>
     `;
@@ -323,15 +270,6 @@ function headerTemplate(
             }
         </header>
     `;
-}
-
-function scrollChatToLatest(container: HTMLElement, count: number): void {
-    const log = container.querySelector<HTMLElement>("#room-chat-messages");
-    if (!log || log.dataset.count === String(count)) {
-        return;
-    }
-    log.dataset.count = String(count);
-    log.scrollTop = log.scrollHeight;
 }
 
 function renderRoom(page: RoomPage): void {

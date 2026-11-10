@@ -21,6 +21,7 @@ flowchart LR
         Auth["Auth<br/>session cookie or X-API-Key"]
         Rooms["Rooms<br/>LobbyRoomManager"]
         MM["Matchmaking<br/>MatchmakingManager"]
+        Tour["Tournaments<br/>TournamentHub (online players, chat)"]
         Occ["Occupancy<br/>one place per user"]
         Start["start_game<br/>(game_transition.py)"]
         History["History & replay pages"]
@@ -35,13 +36,14 @@ flowchart LR
         Replay["ReplayCollector"]
     end
 
-    DB[("SQLite<br/>players, played_games")]
+    DB[("SQLite<br/>players, played_games, tournaments")]
     Files[("Replay files")]
     Collector["Host collector<br/>Telegraf --once, every minute"]
     Metrics[("metrics.db")]
 
     LobbyPages -- "HTTP + JSON WebSocket" --> Auth
-    Auth --> Rooms & MM
+    Auth --> Rooms & MM & Tour
+    Tour --> DB
     Rooms & MM --> Occ
     Rooms & MM --> Start
     Start -- "POST /games" --> REST
@@ -274,6 +276,17 @@ sequenceDiagram
   anyway (until withdrawn, below).
 * A matched player who disconnects before the game starts keeps the seat; the game server gives a
   no-show seat to AI.
+
+## Tournaments
+
+A tournament is a stored row; the users online on its page are only in memory. The page holds a
+JSON socket, `/ws/tournaments/{id}`, through the same prologue as rooms and matchmaking
+(`Origin`, auth). The lobby's `TournamentHub` keeps one connection per user per tournament: a
+newer one replaces the older, which is told `replaced_by_new_connection` and closed. A join is
+acknowledged with the online names, and every join or leave sends the rest the new list
+(`presence`); the page words those changes as system chat lines. Chat goes to everyone online,
+the sender included, and is not stored. The tournament socket is outside the occupancy rule: being
+online holds no place.
 
 ## Game start (shared by rooms and matchmaking)
 

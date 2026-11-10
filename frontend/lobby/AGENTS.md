@@ -46,6 +46,11 @@ back silently; a refused one ends the page like any refused join. Returning to t
 hidden for a while, or the browser coming back online, reconnects at once, since a socket can die
 without a close event while the page is in the background. Matchmaking does not reconnect.
 
+The tournament page (`tournament/`) keeps the room's reconnect and binds its socket the same way.
+It holds no seat, so a reload or the footer's language switch (which reloads it) only reconnects; the
+chat shown so far is lost, as the server keeps none. `chat.ts` holds the chat log and composer both
+pages render.
+
 A page that holds a lobby socket binds it to `page-lifetime.ts`: it closes the socket and cancels
 any pending rejoin on `beforeunload` and again on `pagehide`, and rejoins from scratch on a `pageshow` that restores it from
 the back-forward cache, unless the page has already ended (refused, taken over). Chromium keeps a
