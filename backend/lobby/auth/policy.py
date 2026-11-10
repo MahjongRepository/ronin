@@ -10,6 +10,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
+from lobby.auth.backend import API_KEY_SCOPE
 from shared.dal.models import AccountType
 
 if TYPE_CHECKING:
@@ -79,6 +80,24 @@ def protected_json(endpoint: Endpoint) -> Endpoint:
         return await endpoint(request)
 
     setattr(wrapper, AUTH_POLICY_ATTR, "protected_json")
+    return wrapper
+
+
+def api_key_json(endpoint: Endpoint) -> Endpoint:
+    """
+    Require authentication by an API key, of any account; answer a JSON 401 otherwise, a cookie session included.
+
+    A cookie never authenticates these routes, which is why their POSTs need no CSRF check.
+    """
+
+    @functools.wraps(endpoint)
+    async def wrapper(request: Request) -> Response:
+        if not has_required_scope(request, ["authenticated", API_KEY_SCOPE]):
+            return JSONResponse({"error": "API key required"}, status_code=HTTPStatus.UNAUTHORIZED)
+
+        return await endpoint(request)
+
+    setattr(wrapper, AUTH_POLICY_ATTR, "api_key_json")
     return wrapper
 
 

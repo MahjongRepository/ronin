@@ -63,6 +63,19 @@ CREATE TABLE IF NOT EXISTS tournaments (
 
 CREATE INDEX IF NOT EXISTS idx_tournaments_owner_user_id
     ON tournaments (owner_user_id);
+
+CREATE TABLE IF NOT EXISTS tournament_games (
+    game_id TEXT PRIMARY KEY,
+    tournament_id TEXT NOT NULL,
+    players TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    ended_at REAL,
+    end_reason TEXT,
+    result TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_tournament_games_tournament_id
+    ON tournament_games (tournament_id);
 """
 
 _DROPPED_UNRUN = "dropped unrun: the database worker did not drain before shutdown"

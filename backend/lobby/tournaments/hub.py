@@ -50,6 +50,20 @@ class TournamentHub:
         """
         return [player.username for player in self._online.get(tournament_id, {}).values()]
 
+    def find_online(self, tournament_id: str, username: str) -> LobbyPlayer | None:
+        """
+        Return the connection of the user with this exact username online in the tournament, or None.
+        """
+        players = self._online.get(tournament_id, {}).values()
+        return next((player for player in players if player.username == username), None)
+
+    def broadcast_presence(self, tournament_id: str, *, exclude: str | None = None) -> None:
+        """
+        Send everyone online in the tournament the online names and their count; ``exclude`` skips one connection.
+        """
+        names = self.online_names(tournament_id)
+        self.broadcast(tournament_id, {"type": "presence", "players": names, "count": len(names)}, exclude=exclude)
+
     def broadcast(self, tournament_id: str, message: Mapping[str, object], *, exclude: str | None = None) -> None:
         """
         Send a message to every player online in the tournament, encoded once; ``exclude`` skips one connection.

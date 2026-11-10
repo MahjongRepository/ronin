@@ -36,7 +36,7 @@ flowchart LR
         Replay["ReplayCollector"]
     end
 
-    DB[("SQLite<br/>players, played_games, tournaments")]
+    DB[("SQLite<br/>players, played_games, tournaments, tournament_games")]
     Files[("Replay files")]
     Collector["Host collector<br/>Telegraf --once, every minute"]
     Metrics[("metrics.db")]
@@ -45,7 +45,7 @@ flowchart LR
     Auth --> Rooms & MM & Tour
     Tour --> DB
     Rooms & MM --> Occ
-    Rooms & MM --> Start
+    Rooms & MM & Tour --> Start
     Start -- "POST /games" --> REST
     Occ -- "GET /players/{user_id}" --> REST
     Start -- "GET /players/{user_id}/game-session<br/>(recovery, bearer secret)" --> REST
@@ -288,7 +288,18 @@ acknowledged with the online names, and every join or leave sends the rest the n
 the sender included, and is not stored. The tournament socket is outside the occupancy rule: being
 online holds no place.
 
-## Game start (shared by rooms and matchmaking)
+An external manager starts the games over a JSON API that only the tournament's owner can call,
+authenticated by the owner's API token (`X-API-Key`, never a cookie, so its POSTs need no CSRF; anyone
+else, like an unknown tournament, gets a 404). One request names up to 40 tables of four usernames,
+seated East to North in list order (`start_game` with `fixed_seats`). The tables start one after
+another in request order and each fails alone, with its own result: a name not online on the page,
+a player the game server reports playing (the same lookup room and matchmaking joins make), or the
+game start's own reason. A started table's players leave the online list at once, so a later table
+naming one of them finds them offline; the game is recorded in `tournament_games` and the page is
+sent `game_started` and the new `presence`. `GET /api/tournaments/{id}` is the owner's snapshot:
+the online names and the recorded games.
+
+## Game start (shared by rooms, matchmaking and tournaments)
 
 `start_game` in `lobby/game_transition.py` is the one handoff.
 
@@ -420,6 +431,7 @@ sequenceDiagram
 | Store | Written by | Read by |
 |---|---|---|
 | `players` (SQLite) | Lobby: register, bot registration script | Lobby auth |
+| `tournaments`, `tournament_games` (SQLite) | Lobby: tournament creation, each started tournament game | Lobby tournament pages and API |
 | `played_games` (SQLite) | Game server: start record at engine start, finish record from the end finalizer | Lobby history page |
 | `metrics.db` (SQLite, its own file) | Host collector (`ronin-metrics.timer`), one sample per minute; 90 days, Traefik 30 | Lobby admin monitoring page, read-only |
 | Replay files | Game server finalizer, completed and failed games (abandoned ones are discarded) | Lobby `/api/replays/{game_id}` and `/play/history/{game_id}`; game server's internal Tenhou export, behind the lobby's `/api/replays/{game_id}/tenhou.xml` |

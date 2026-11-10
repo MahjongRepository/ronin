@@ -1,5 +1,5 @@
 import { LOG_TYPE_SYSTEM } from "@/chat";
-import { type MessageKey, formatTime, reportI18nError, t } from "@/i18n";
+import { type MessageKey, formatList, formatTime, reportI18nError, t } from "@/i18n";
 import { type SocketStatus, readString } from "@/lobby-socket";
 import { OCCUPANCY } from "@/occupancy-errors";
 import { enterGame, readGameStart } from "@/session";
@@ -174,6 +174,18 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
         render();
     }
 
+    function onGameStarted(message: Record<string, unknown>): void {
+        const players = readNames(message);
+        if (players === null) {
+            return;
+        }
+        appendChat(
+            LOG_TYPE_SYSTEM,
+            t("tournament.chat.game_started", { players: formatList(players) }),
+        );
+        render();
+    }
+
     function onGameStarting(message: Record<string, unknown>): void {
         state.socket?.disconnect();
         const start = readGameStart(message);
@@ -190,6 +202,7 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
     return {
         chat: onChat,
         error: onError,
+        game_started: onGameStarted,
         game_starting: onGameStarting,
         joined: onJoined,
         presence: onPresence,

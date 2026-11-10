@@ -85,13 +85,9 @@ async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
 
     names = ctx.hub.online_names(ctx.tournament_id)
     player.send({"type": "joined", "players": names})
-    ctx.hub.broadcast(ctx.tournament_id, _presence(names), exclude=player.connection_id)
+    ctx.hub.broadcast_presence(ctx.tournament_id, exclude=player.connection_id)
     logger.info("player online in tournament", tournament_id=ctx.tournament_id, username=player.username)
     return True
-
-
-def _presence(names: list[str]) -> dict[str, object]:
-    return {"type": "presence", "players": names, "count": len(names)}
 
 
 async def _message_loop(player: LobbyPlayer, ctx: _TournamentContext) -> None:
@@ -145,4 +141,4 @@ def _leave(player: LobbyPlayer, ctx: _TournamentContext) -> None:
         username=player.username,
         close_code=player.connection.disconnect_code,
     )
-    ctx.hub.broadcast(ctx.tournament_id, _presence(ctx.hub.online_names(ctx.tournament_id)))
+    ctx.hub.broadcast_presence(ctx.tournament_id)

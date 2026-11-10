@@ -178,3 +178,19 @@ class Tournament(BaseModel, frozen=True):
     name: str
     owner_user_id: str
     created_at: float
+
+
+class TournamentGame(BaseModel, frozen=True):
+    """
+    A game started for a tournament: its players East to North, and its finish once the game has one.
+
+    `created_at` and `ended_at` are epoch seconds; `result` holds the final standings.
+    """
+
+    game_id: str
+    tournament_id: str
+    players: list[str]
+    created_at: float
+    ended_at: float | None = None
+    end_reason: GameEndReason | None = None
+    result: list[PlayedGameStanding] | None = None

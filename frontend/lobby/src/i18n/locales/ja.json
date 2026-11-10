@@ -254,6 +254,7 @@
     "room.status.error": "接続エラー",
     "room.taking_seat": "着席しています…",
     "room.waiting_for": "{names}の準備完了を待っています。",
+    "tournament.chat.game_started": "対局が始まりました：{players}",
     "tournament.chat.game_starting": "対局が始まります！",
     "tournament.chat.player_joined": "{name}さんがオンラインになりました",
     "tournament.chat.player_left": "{name}さんがオフラインになりました",

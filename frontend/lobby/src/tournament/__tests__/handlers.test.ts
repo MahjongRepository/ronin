@@ -45,6 +45,18 @@ describe("buildMessageHandlers", () => {
         ]);
     });
 
+    test("announces a started game with its players in seat order", () => {
+        const { handlers, state } = buildTournament();
+
+        handleMessage(handlers, {
+            game_id: "g1",
+            players: ["Dave", "Carol", "Bob", "Alice"],
+            type: "game_started",
+        });
+
+        expect(chatTexts(state).at(-1)).toBe("A game started: Dave, Carol, Bob, and Alice");
+    });
+
     test("appends a chat message with its sender", () => {
         const { handlers, state } = buildTournament();
 

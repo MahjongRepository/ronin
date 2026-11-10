@@ -278,6 +278,7 @@
     "room.status.error": "Ошибка соединения",
     "room.taking_seat": "Занимаем место…",
     "room.waiting_for": "Ждём готовности: {names}.",
+    "tournament.chat.game_started": "Началась игра: {players}",
     "tournament.chat.game_starting": "Ваша игра начинается!",
     "tournament.chat.player_joined": "Игрок {name} в сети",
     "tournament.chat.player_left": "Игрок {name} вышел из сети",

@@ -262,6 +262,7 @@
     "room.status.error": "Connection error",
     "room.taking_seat": "Taking a seat…",
     "room.waiting_for": "Waiting for {names} to get ready.",
+    "tournament.chat.game_started": "A game started: {players}",
     "tournament.chat.game_starting": "Your game is starting!",
     "tournament.chat.player_joined": "{name} is online",
     "tournament.chat.player_left": "{name} went offline",
