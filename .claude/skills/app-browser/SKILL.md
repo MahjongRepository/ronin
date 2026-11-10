@@ -75,7 +75,8 @@ The lobby serves `frontend/game_v2/` on every game page. The pages below need no
 - **Storybooks:** `/play/storybook` and `/play/storybook/{board,decisions,discards,hand,melds,replay,rotate,sounds,system}`.
   A board page takes its story as `?state=<key>`; its switches (offers, callout, pinned badge,
   overlay) write their own parameters into the address, so a shot's URL reproduces it. The
-  decisions page runs a generated seat transcript to a labelled checkpoint, `?state=<story>`; the
+  decisions page runs a generated seat transcript to a labelled checkpoint, `?state=<story>`; without one it lists every story owing a decision as
+  desktop boards cropped to the hand and controls. The
   look spec's anchor is `anchor_turn`, `anchor_call` and `anchor_riichi`. A story's board is the
   live game's box with its switches below, so shoot it at the viewport you are checking.
 - **Live game:** start a game as in *Reaching the pages*; it lands on `/play/<game_id>`.

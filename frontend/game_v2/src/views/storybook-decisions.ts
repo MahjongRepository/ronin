@@ -24,41 +24,47 @@ import {
 } from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
 import { type TileSpriteStatus } from "@/entities/tile";
+import ADDED_KAN_SEAT_1 from "@/fixtures/seat-scenarios/added_kan_seat_1.json";
 import ANCHOR_SEAT_1 from "@/fixtures/seat-scenarios/anchor_seat_1.json";
 import CALL_PROMPT_SEAT_1 from "@/fixtures/seat-scenarios/call_prompt_seat_1.json";
 import CHANKAN_ROBBED_SEAT_3 from "@/fixtures/seat-scenarios/chankan_robbed_seat_3.json";
+import CHI_PROMPT_SEAT_1 from "@/fixtures/seat-scenarios/chi_prompt_seat_1.json";
 import DOUBLE_RON_SEAT_1 from "@/fixtures/seat-scenarios/double_ron_seat_1.json";
 import FINAL_ROUND_SEAT_1 from "@/fixtures/seat-scenarios/final_round_seat_1.json";
 import FIRST_TURN_WIN_SEAT_1 from "@/fixtures/seat-scenarios/first_turn_win_seat_1.json";
-import FIRST_TURN_WIN_SEAT_3 from "@/fixtures/seat-scenarios/first_turn_win_seat_3.json";
+import FULL_TURN_SEAT_1 from "@/fixtures/seat-scenarios/full_turn_seat_1.json";
 import GAME_END_RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/game_end_reconnect_seat_1.json";
 import KAN_CHOICE_SEAT_1 from "@/fixtures/seat-scenarios/kan_choice_seat_1.json";
 import OWN_TURN_SEAT_1 from "@/fixtures/seat-scenarios/own_turn_seat_1.json";
 import RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/reconnect_seat_1.json";
 import RIICHI_KAN_SEAT_1 from "@/fixtures/seat-scenarios/riichi_kan_seat_1.json";
+import RON_CALL_SEAT_1 from "@/fixtures/seat-scenarios/ron_call_seat_1.json";
 import SEAT_LEFT_SEAT_1 from "@/fixtures/seat-scenarios/seat_left_seat_1.json";
 import SEAT_LEFT_SEAT_3 from "@/fixtures/seat-scenarios/seat_left_seat_3.json";
 import { browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, replayPageUrl } from "@/shared/config";
-import { type Locale, applyPageLocale } from "@/shared/i18n";
+import { LOCALES, type Locale, applyPageLocale, pageLocale } from "@/shared/i18n";
 import { WIRE_KEY } from "@/shared/protocol";
 
-import { STORYBOOK_INDEX } from "./storybook-nav";
+import { STORYBOOK_INDEX, storybookNav } from "./storybook-nav";
 
 /** The transcripts the stories run, imported one by one so the storybook's chunk carries no other. */
 const TRANSCRIPTS = {
+    added_kan_seat_1: ADDED_KAN_SEAT_1,
     anchor_seat_1: ANCHOR_SEAT_1,
     call_prompt_seat_1: CALL_PROMPT_SEAT_1,
     chankan_robbed_seat_3: CHANKAN_ROBBED_SEAT_3,
+    chi_prompt_seat_1: CHI_PROMPT_SEAT_1,
     double_ron_seat_1: DOUBLE_RON_SEAT_1,
     final_round_seat_1: FINAL_ROUND_SEAT_1,
     first_turn_win_seat_1: FIRST_TURN_WIN_SEAT_1,
-    first_turn_win_seat_3: FIRST_TURN_WIN_SEAT_3,
+    full_turn_seat_1: FULL_TURN_SEAT_1,
     game_end_reconnect_seat_1: GAME_END_RECONNECT_SEAT_1,
     kan_choice_seat_1: KAN_CHOICE_SEAT_1,
     own_turn_seat_1: OWN_TURN_SEAT_1,
     reconnect_seat_1: RECONNECT_SEAT_1,
     riichi_kan_seat_1: RIICHI_KAN_SEAT_1,
+    ron_call_seat_1: RON_CALL_SEAT_1,
     seat_left_seat_1: SEAT_LEFT_SEAT_1,
     seat_left_seat_3: SEAT_LEFT_SEAT_3,
 } as const satisfies Readonly<Record<string, unknown>>;
@@ -90,9 +96,9 @@ interface DecisionStory {
 /**
  * The stories in the order the page lists them: the look spec's anchor (`docs/game-client-look.md`, States) at its
  * three checkpoints and its call passed, declared and expired, the opening screen over the first deal (its start
- * confirm owed, then sent) and over a page that joined the game in play, the call prompts and a
+ * confirm owed, then sent) and over a page that joined the game in play, a lone chi offer, the call prompts and a
  * chi's choice of tiles, the turns (a kan's choice of tiles, in their base time and in the bank), the play switches on
- * beside furiten, what follows an answer, the first turns of a hand (kyuushu, tenhou, chiihou), the round results the
+ * beside furiten, what follows an answer, the first turns of a hand (kyuushu, tenhou), the round results the
  * player confirms, the game's end and the last result reopened from it, a game ended out of step, then another
  * player's seat left to an AI and back, the viewer's own seat back, the board's notices (alone, stacked, long, over a
  * panel and opened whole over a decision, over the round confirm and under the leave question), the ends (a kick,
@@ -101,31 +107,34 @@ interface DecisionStory {
 const STORY_KEYS = [
     "anchor_turn",
     "anchor_call",
-    "anchor_riichi",
     "anchor_riichi_off",
+    "anchor_riichi",
     "anchor_call_passed",
     "anchor_pon_declared",
     "anchor_call_expired",
     "game_start",
     "game_start_waiting",
     "game_resume",
+    "chi_offer",
     "call_prompt",
     "chi_choice",
     "ron_prompt",
+    "ron_call",
     "chankan_prompt",
     "kuikae_turn",
     "own_turn",
     "kan_offer",
     "kan_choice",
+    "added_kan",
     "turn_in_bank",
     "riichi_pick",
     "riichi_turn",
     "riichi_kan",
+    "full_turn",
     "switches_furiten",
     "discard_pending",
     "kyuushu_offer",
     "tenhou_offer",
-    "chiihou_offer",
     "round_end",
     "tenhou_result",
     "double_ron_first",
@@ -143,6 +152,7 @@ const STORY_KEYS = [
     "connection_lost",
     "move_refused",
     "faces_missing",
+    "move_refused",
     "notices_stacked",
     "notice_long",
     "notice_over_confirm",
@@ -264,6 +274,7 @@ function after(seconds: number): (state: LiveClient) => readonly LiveEvent[] {
 }
 
 const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
+    added_kan: checkpoint("added_kan_seat_1", "kan offer", "Added kan"),
     anchor_call: checkpoint("anchor_seat_1", "call offer", "Anchor: call offer"),
     anchor_call_expired: {
         ...checkpoint("anchor_seat_1", "call offer", "Anchor: call expired"),
@@ -295,7 +306,7 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         ...checkpoint("call_prompt_seat_1", "prompt", "Chi: choose the tiles"),
         chooseTiles: "chi",
     },
-    chiihou_offer: checkpoint("first_turn_win_seat_3", "chiihou draw", "Chiihou offered"),
+    chi_offer: checkpoint("chi_prompt_seat_1", "prompt", "Chi offer"),
     connection_lost: {
         ...checkpoint("call_prompt_seat_1", "turn", "Connection lost"),
         followUp: closedWith(1006),
@@ -310,6 +321,7 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         ...checkpoint("call_prompt_seat_1", "turn", "Faces missing"),
         tileSprite: "failed",
     },
+    full_turn: checkpoint("full_turn_seat_1", "win offer", "Tsumo, riichi and kan"),
     game_end: {
         ...checkpoint("final_round_seat_1", "game end", "Game end"),
         followUp: intentsAfterCall({ type: "confirm_result" }),
@@ -397,6 +409,7 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         pickRiichi: true,
     },
     riichi_turn: checkpoint("own_turn_seat_1", "tsumo draw", "In riichi"),
+    ron_call: checkpoint("ron_call_seat_1", "prompt", "Ron with calls"),
     ron_prompt: checkpoint("reconnect_seat_1", "ron prompt", "Ron prompt"),
     round_end: checkpoint("own_turn_seat_1", "round end", "Round end"),
     seat_back: checkpoint("seat_left_seat_3", "reconnected", "Own seat back"),
@@ -412,8 +425,6 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     },
     waiting: checkpoint("chankan_robbed_seat_3", "confirmed", "Waiting"),
 };
-
-const DEFAULT_STORY: DecisionStoryKey = "call_prompt";
 
 /** The page's story, the client state it shows, the view's `ui`, and what the last answer sent. */
 interface StoryScreen {
@@ -494,19 +505,15 @@ function storyScreen(key: DecisionStoryKey): StoryScreen {
     return { sent: [], state, story: key, ui };
 }
 
-function parseStory(search: string): DecisionStoryKey {
+function parseStory(search: string): DecisionStoryKey | null {
     const param = new URLSearchParams(search).get("state");
-    return STORY_KEYS.find((key) => key === param) ?? DEFAULT_STORY;
+    return STORY_KEYS.find((key) => key === param) ?? null;
 }
 
 /** Keep the story in the query, beside whatever else the page was opened with. */
 function syncStoryParam(story: DecisionStoryKey): void {
     const url = new URL(window.location.href);
-    if (story === DEFAULT_STORY) {
-        url.searchParams.delete("state");
-    } else {
-        url.searchParams.set("state", story);
-    }
+    url.searchParams.set("state", story);
     history.replaceState(null, "", url);
 }
 
@@ -534,27 +541,36 @@ interface StoryHandlers {
     readonly onLanguage: (locale: Locale) => void;
 }
 
+function storyBoard(
+    { state, ui }: StoryScreen,
+    onCommand: (command: PlayCommand) => void,
+    onLanguage: (locale: Locale) => void,
+): TemplateResult {
+    return PlayBoard({
+        clock: browserClock,
+        display: playDisplay(state, ui),
+        links: {
+            history: getLobbyHistoryUrl(),
+            replay: replayPageUrl(state.table.gameId, state.viewerSeat),
+        },
+        onCommand,
+        onLanguage,
+    });
+}
+
+const GALLERY_PATH = "/play/storybook/decisions";
+
 function storybookTemplate(
     screen: StoryScreen,
     { onCommand, onLanguage, show }: StoryHandlers,
 ): TemplateResult {
-    const { sent, state, story, ui } = screen;
+    const { sent, story } = screen;
     return html`
         <div class="board-page decisions-storybook">
-            <div class="board-page__board">
-                ${PlayBoard({
-                    clock: browserClock,
-                    display: playDisplay(state, ui),
-                    links: {
-                        history: getLobbyHistoryUrl(),
-                        replay: replayPageUrl(state.table.gameId, state.viewerSeat),
-                    },
-                    onCommand,
-                    onLanguage,
-                })}
-            </div>
+            <div class="board-page__board">${storyBoard(screen, onCommand, onLanguage)}</div>
             <div class="board-page__aside">
                 <a class="board-storybook__btn" href="${STORYBOOK_INDEX}">Back</a>
+                <a class="board-storybook__btn" href="${GALLERY_PATH}">All decisions</a>
                 <div class="board-storybook__picker"><select
                     class="board-storybook__select"
                     aria-label="Story"
@@ -569,41 +585,118 @@ function storybookTemplate(
     `;
 }
 
+/** Stories the gallery leaves out: what tells them from another story lies outside its crop, or nothing does. */
+const GALLERY_HIDDEN: ReadonlySet<DecisionStoryKey> = new Set([
+    "anchor_call_expired",
+    "anchor_turn",
+    "chankan_prompt",
+    "faces_missing",
+    "move_refused",
+    "notices_stacked",
+    "player_back",
+    "player_left",
+    "turn_in_bank",
+]);
+
+/** The stories whose board owes an open decision under no panel: the gallery's, in the page's order. */
+function galleryScreens(): readonly StoryScreen[] {
+    const shown = STORY_KEYS.filter((key) => !GALLERY_HIDDEN.has(key));
+    return shown.map(storyScreen).filter(({ state, ui }) => {
+        const display = playDisplay(state, ui);
+        return display.decisionStanding !== null && display.overlay === null;
+    });
+}
+
+/** Every decision story at once, each a desktop board cropped to its own hand, melds and controls. */
+function galleryTemplate(
+    screens: readonly StoryScreen[],
+    onCommand: (story: DecisionStoryKey, command: PlayCommand) => void,
+    onLanguage: (locale: Locale) => void,
+): TemplateResult {
+    return html`
+        <div class="decisions-gallery">
+            ${storybookNav(GALLERY_PATH)}
+            <div class="decisions-gallery__languages" role="group" aria-label="Language">
+                ${LOCALES.map(
+                    (locale) => html`<button
+                        type="button"
+                        class="board-storybook__btn ${locale === pageLocale() ? "board-storybook__btn--active" : ""}"
+                        aria-pressed=${String(locale === pageLocale())}
+                        @click=${() => onLanguage(locale)}
+                    >
+                        ${locale}
+                    </button>`,
+                )}
+            </div>
+            ${screens.map(
+                (screen) => html`<section class="decisions-gallery__item">
+                    <h2 class="decisions-gallery__title">
+                        <a href="?state=${screen.story}">${DECISION_STORIES[screen.story].title}</a>
+                    </h2>
+                    <div class="decisions-gallery__crop">
+                        <div class="decisions-gallery__board">
+                            ${storyBoard(screen, (command) => onCommand(screen.story, command), onLanguage)}
+                        </div>
+                    </div>
+                    ${describeSent(screen.sent)}
+                </section>`,
+            )}
+        </div>
+    `;
+}
+
+/** The screen after the board's command: an intent stepped through the client's dispatcher, the rest the view's. */
+function commanded(screen: StoryScreen, command: PlayCommand): StoryScreen {
+    const { state, ui } = screen;
+    if (command.kind !== "intent") {
+        return { ...screen, ui: stepPlayUi(state, ui, command) };
+    }
+    const step = stepGameClient(state, { at: state.now, intent: command.intent, kind: "intent" });
+    return {
+        ...screen,
+        sent: step.effects,
+        state: step.state,
+        ui: stepPlayUi(step.state, ui, command),
+    };
+}
+
 /**
  * Mount the decisions storybook: the live board at labelled checkpoints of the generated seat transcripts, in the
- * story the page's `?state=` names. Its controls step the client's own dispatcher, so a tap shows the answer the
- * live game would send and the state it leaves, with no socket behind it.
+ * story the page's `?state=` names, or, without one, every story owing a decision at once. Its controls step the
+ * client's own dispatcher, so a tap shows the answer the live game would send and the state it leaves, with no socket
+ * behind it.
  */
 export function mountStorybookDecisions(host: HTMLElement): () => void {
-    let screen = storyScreen(parseStory(window.location.search));
+    const named = parseStory(window.location.search);
+    const gallery = named === null;
+    let screens = named === null ? galleryScreens() : [storyScreen(named)];
 
     function draw(): void {
-        render(storybookTemplate(screen, { onCommand, onLanguage, show }), host);
+        const [first] = screens;
+        if (gallery) {
+            render(galleryTemplate(screens, onStoryCommand, onLanguage), host);
+        } else if (first !== undefined) {
+            render(
+                storybookTemplate(first, {
+                    onCommand: (command) => onStoryCommand(first.story, command),
+                    onLanguage,
+                    show,
+                }),
+                host,
+            );
+        }
     }
 
     function show(key: DecisionStoryKey): void {
         syncStoryParam(key);
-        screen = storyScreen(key);
+        screens = [storyScreen(key)];
         draw();
     }
 
-    function onCommand(command: PlayCommand): void {
-        const { state, ui } = screen;
-        if (command.kind === "intent") {
-            const step = stepGameClient(state, {
-                at: state.now,
-                intent: command.intent,
-                kind: "intent",
-            });
-            screen = {
-                ...screen,
-                sent: step.effects,
-                state: step.state,
-                ui: stepPlayUi(step.state, ui, command),
-            };
-        } else {
-            screen = { ...screen, ui: stepPlayUi(state, ui, command) };
-        }
+    function onStoryCommand(story: DecisionStoryKey, command: PlayCommand): void {
+        screens = screens.map((screen) =>
+            screen.story === story ? commanded(screen, command) : screen,
+        );
         draw();
     }
 

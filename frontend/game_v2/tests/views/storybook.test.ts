@@ -131,6 +131,18 @@ describe("mountStorybookDecisions", () => {
         expect(JSON.parse(sent)).toEqual({ message: buildRiichiAction(120, 3), type: "send" });
     });
 
+    test("without a story shows every story owing a decision at once, each linking to its own board", () => {
+        history.replaceState(null, "", "/play/storybook/decisions");
+        const host = document.createElement("div");
+        mountStorybookDecisions(host);
+        const items = [...host.querySelectorAll(".decisions-gallery__item")];
+        const links = items.map((item) => item.querySelector("a")?.getAttribute("href"));
+
+        expect(links).toContain("?state=call_prompt");
+        expect(links).not.toContain("?state=round_end");
+        expect(items.every((item) => item.querySelector(".decision-controls") !== null)).toBe(true);
+    });
+
     test("its Back link returns to the storybook index", () => {
         const back =
             mountStory("call_prompt").querySelector<HTMLAnchorElement>("a.board-storybook__btn");

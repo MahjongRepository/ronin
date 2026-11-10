@@ -79,6 +79,139 @@ def call_prompt() -> tuple[SeatTranscript, ...]:
         return game.transcripts("call_prompt", PLAYER)
 
 
+def chi_prompt() -> tuple[SeatTranscript, ...]:
+    """
+    Offer Alice (seat 1) a chi of the dealer's 3m one way only, with her 4m and 5m, and nothing else; she passes.
+    """
+    called_tile = tile(0, man="3")
+    staged = StagedWall(
+        hands=(
+            tile_copies(3, man="1245689", pin="13579", sou="1"),
+            tile_copies(0, man="459", pin="2468", sou="1357", honors="34"),
+            tile_copies(2, man="1245689", pin="24689", sou="2"),
+            tile_copies(1, man="12456", pin="1359", sou="4569"),
+        ),
+        draws=((0, called_tile), (1, tile(0, honors="7"))),
+    )
+
+    with seated_game("seat-chi-prompt", staged, players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
+        game.wait_until(4)
+        alice.label("prompt", WireEventType.CALL_PROMPT)
+        alice.pass_(at=5, label="passed")
+        alice.label("turn", WireEventType.DRAW)
+
+        return game.transcripts("chi_prompt", PLAYER)
+
+
+def ron_call() -> tuple[SeatTranscript, ...]:
+    """
+    Offer Alice (seat 1), ready with ittsu on 3m or 6m and holding a pair of 3m, a ron, a pon and a chi of the dealer's
+    3m at once; she passes.
+    """
+    called_tile = tile(0, man="3")
+    staged = StagedWall(
+        hands=(
+            tile_copies(3, man="1245689", pin="13579", sou="1"),
+            (*tile_copies(0, man="45", pin="123456789"), tile(1, man="3"), tile(2, man="3")),
+            tile_copies(2, man="1245689", pin="24689", sou="2"),
+            tile_copies(1, man="12456", pin="1359", sou="4569"),
+        ),
+        draws=((0, called_tile), (1, tile(0, honors="7"))),
+    )
+
+    with seated_game("seat-ron-call", staged, players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
+        game.wait_until(4)
+        alice.label("prompt", WireEventType.CALL_PROMPT)
+        alice.pass_(at=5, label="passed")
+        alice.label("turn", WireEventType.DRAW)
+
+        return game.transcripts("ron_call", PLAYER)
+
+
+def added_kan() -> tuple[SeatTranscript, ...]:
+    """
+    Let Alice (seat 1) pon the dealer's chun and discard; once the others have discarded honors nobody can call, she
+    draws the fourth chun, and her turn offers its added kan.
+    """
+    chun = tile(2, honors="7")
+    junk = tile(0, honors="4")
+    staged = StagedWall(
+        hands=(
+            tile_copies(3, man="156789", pin="1234", sou="123"),
+            (
+                *tile_copies(0, honors="7"),
+                tile(1, honors="7"),
+                *tile_copies(0, man="234", sou="78"),
+                *tile_copies(1, pin="567"),
+                tile(1, sou="5"),
+                tile(2, sou="5"),
+                junk,
+            ),
+            tile_copies(2, man="156789", pin="1234", sou="123"),
+            tile_copies(1, man="156789", pin="1234", sou="123"),
+        ),
+        draws=(
+            (0, chun),
+            (2, tile(0, honors="1")),
+            (3, tile(0, honors="2")),
+            (0, tile(0, honors="3")),
+            (1, tile(3, honors="7")),
+        ),
+    )
+
+    with seated_game("seat-added-kan", staged, players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
+        game.wait_until(4)
+        alice.pon(chun, at=5, label="pon chosen")
+        alice.discard(junk, at=6, label="discarded")
+        game.wait_until(12)
+        alice.label("kan offer", WireEventType.DRAW)
+
+        return game.transcripts("added_kan", PLAYER)
+
+
+def full_turn() -> tuple[SeatTranscript, ...]:
+    """
+    Deal Alice (seat 1) four 3m and a closed hand waiting on 9s alone; she discards her first draw, and her second, the
+    9s, offers tsumo, riichi and the closed kan of 3m in one turn.
+    """
+    staged = StagedWall(
+        hands=(
+            tile_copies(3, man="1245689", pin="13579", sou="1"),
+            (*(tile(copy, man="3") for copy in range(4)), *tile_copies(0, man="45", pin="456789", sou="9")),
+            tile_copies(2, man="1245689", pin="24689", sou="2"),
+            tile_copies(1, man="12456", pin="1359", sou="4569"),
+        ),
+        draws=(
+            (0, tile(0, honors="7")),
+            (1, tile(0, honors="6")),
+            (2, tile(0, honors="3")),
+            (3, tile(0, honors="2")),
+            (0, tile(0, honors="1")),
+            (1, tile(2, sou="9")),
+        ),
+    )
+
+    with seated_game("seat-full-turn", staged, players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
+        game.wait_until(4)
+        alice.discard(tile(0, honors="6"), at=5, label="discarded")
+        game.wait_until(12)
+        alice.label("win offer", WireEventType.DRAW)
+
+        return game.transcripts("full_turn", PLAYER)
+
+
 def kan_choice() -> tuple[SeatTranscript, ...]:
     """
     Deal Alice (seat 1) four 1m and three 9p, then draw her the fourth 9p: her turn offers a closed kan of either.
@@ -844,6 +977,10 @@ def anchor() -> tuple[SeatTranscript, ...]:
 
 SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "call_prompt": call_prompt,
+    "chi_prompt": chi_prompt,
+    "ron_call": ron_call,
+    "added_kan": added_kan,
+    "full_turn": full_turn,
     "kan_choice": kan_choice,
     "own_turn": own_turn,
     "riichi_kan": riichi_kan,

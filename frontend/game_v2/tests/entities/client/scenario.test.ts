@@ -110,16 +110,19 @@ function seatsAt(state: LiveClient): (number | number[])[][] {
 describe("seatScenarioFromTranscript", () => {
     it("runs every generated transcript with exactly the effects the client's policy adds to it", () => {
         expect([...SEAT_TRANSCRIPTS.keys()].toSorted()).toEqual([
+            "added_kan_seat_1",
             "anchor_seat_1",
             "bank_reconnect_seat_1",
             "call_prompt_seat_1",
             "chankan_passed_seat_3",
             "chankan_robbed_seat_1",
             "chankan_robbed_seat_3",
+            "chi_prompt_seat_1",
             "double_ron_seat_1",
             "final_round_seat_1",
             "first_turn_win_seat_1",
             "first_turn_win_seat_3",
+            "full_turn_seat_1",
             "game_end_reconnect_seat_1",
             "kan_choice_seat_1",
             "own_turn_seat_1",
@@ -128,6 +131,7 @@ describe("seatScenarioFromTranscript", () => {
             "resync_seat_1",
             "riichi_kan_seat_1",
             "riichi_reconnect_seat_1",
+            "ron_call_seat_1",
             "seat_left_seat_1",
             "seat_left_seat_3",
         ]);
