@@ -236,6 +236,9 @@ def test_game_end_poll__when_played_game_gains_ended_at__should_update_row_and_p
         PlayedGameStanding(name="frank", seat=1, score=12000, final_score=-38),
     ]
     expected_result = [standing.model_dump(mode="json") for standing in standings_by_placement]
+    expected_event_result = [
+        standing.model_dump(mode="json", exclude={"user_id"}) for standing in standings_by_placement
+    ]
 
     with ExitStack() as stack:
         for name in names:
@@ -279,7 +282,7 @@ def test_game_end_poll__when_played_game_gains_ended_at__should_update_row_and_p
             "game_id": game_id,
             "players": names,
             "end_reason": "completed",
-            "result": expected_result,
+            "result": expected_event_result,
         }
         for ws in (dave, events):
             assert ws.receive_json() == expected_event

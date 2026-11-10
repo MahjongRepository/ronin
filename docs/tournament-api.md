@@ -6,15 +6,15 @@ tournament's owner can call it. Error values are English and stable; match on th
 ## Authentication
 
 The owner generates an API token on the lobby's `/settings` page. It is shown once; generating again rotates it and
-the old token stops working. Send it as the `X-API-Key` header on every request and on the events socket handshake.
+the old token stops working. Send it as the `X-API-Key` header on both HTTP routes and on the events socket
+handshake. The token grants everything the account can do, so keep it secret.
 
-The API accepts only the key: a request without a valid `X-API-Key` gets `401 {"error": "API key required"}`. Send no
-session cookie: a cookie takes precedence over the key, so such a request gets the same 401. The token grants
-everything the account can do, so keep it secret.
-
-A tournament that does not exist, or that the key's account does not own, gets
-`404 {"error": "tournament_not_found"}` on every route below. A deleted tournament is gone with its games: it answers
-the same 404, and its open events sockets are closed (see Events).
+The two HTTP routes (`POST /api/tournaments/{id}/games` and `GET /api/tournaments/{id}`) accept only the key: a
+request without a valid `X-API-Key` gets `401 {"error": "API key required"}`. Send no session cookie: a cookie takes
+precedence over the key, so such a request gets the same 401. A tournament that does not exist, or that the key's
+account does not own, gets `404 {"error": "tournament_not_found"}` on them. A deleted tournament is gone with its
+games: it answers the same 404, and its open events sockets are closed. The events socket has its own rules (see
+Events).
 
 ## Players
 
@@ -72,8 +72,10 @@ each fails alone, so the other tables still start:
       "ended_at": 1794395400.0,
       "end_reason": "completed",
       "result": [
-        {"name": "west", "seat": 2, "user_id": "...", "score": 41000, "final_score": 51},
-        {"name": "east", "seat": 0, "user_id": "...", "score": 28000, "final_score": 8}
+        {"name": "west", "seat": 0, "user_id": "...", "score": 41000, "final_score": 51},
+        {"name": "east", "seat": 2, "user_id": "...", "score": 28000, "final_score": 8},
+        {"name": "north", "seat": 1, "user_id": "...", "score": 19000, "final_score": -21},
+        {"name": "south", "seat": 3, "user_id": "...", "score": 12000, "final_score": -38}
       ]
     }
   ]
@@ -86,25 +88,33 @@ each fails alone, so the other tables still start:
 - `end_reason` is `completed`, `abandoned` (no player stayed connected) or `error` (the game failed on a server
   error).
 - For a completed game, `result` is the final standings in placement order: `score` is the raw score, `final_score`
-  the uma/oka-adjusted one. For any other end it is the players in seat order with `null` scores.
-- A replay exists only for a completed game.
+  the uma/oka-adjusted one. For any other end it lists the four players with `null` scores and no placement.
+- `seat` in `result` is the game engine's seat index (0 to 3), not a wind: the first dealer's seat is drawn by the
+  game, so East may sit at any index (seat 2 in the example). Only `players` runs East to North.
+- `user_id` is the player's lobby account id (empty for an AI seat).
+- A completed game has a full replay, a game that ended in `error` may have a partial one, and an abandoned game has
+  none.
 
 ## Events: `/ws/tournaments/{id}/events`
 
-A WebSocket for the owner, opened with the `X-API-Key` header (no `Origin` header is needed with a key). It only
-sends; anything the client sends is ignored. Several may be open at once. Every message is a JSON object with a
-`type`:
+A WebSocket for the owner, opened with the `X-API-Key` header (no `Origin` header is needed with a key); a signed-in
+owner's session cookie also works when the handshake carries the lobby's own `Origin`. It only sends; anything the
+client sends is ignored. Several may be open at once. Every message is a JSON object with a `type`:
 
 - `presence` — `{"type": "presence", "players": [...], "count": n}`: who is online. Sent first on connect, then on
   every change.
 - `game_started` — `{"type": "game_started", "game_id": "...", "players": [east, south, west, north]}`.
 - `game_ended` — `{"type": "game_ended", "game_id": "...", "players": [east, south, west, north], "end_reason":
-  "...", "result": [...]}`, with `end_reason` and `result` as in the snapshot. It arrives within a few seconds of the
+  "...", "result": [...]}`, with `end_reason` and `result` as in the snapshot, except that `result` entries carry no
+  `user_id` (the event also reaches every player on the tournament page). It arrives within a few seconds of the
   game's end.
-- `error` — `{"type": "error", "message": "tournament_not_found"}`, then the socket closes with code 4000. A handshake
-  without a valid key is refused with 4001.
+- `error` — `{"type": "error", "message": "tournament_not_found"}`: the tournament does not exist or the socket's
+  account does not own it. The socket then closes with code 4000.
 - `error` — `{"type": "error", "message": "tournament_deleted"}`: the owner deleted the tournament on its page. The
   socket then closes with code 4000.
+
+A handshake with neither a valid key nor a session is refused with close code 4001, and a cookie handshake with a
+foreign `Origin` with 4003, both before any message.
 
 ## Reconciliation and limits
 

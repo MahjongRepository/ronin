@@ -99,7 +99,7 @@ class TournamentGameEndPoller:
                     "game_id": game.game_id,
                     "players": game.players,
                     "end_reason": played.end_reason,
-                    "result": [standing.model_dump(mode="json") for standing in played.standings],
+                    "result": [standing.model_dump(mode="json", exclude={"user_id"}) for standing in played.standings],
                 },
             )
             logger.info(
