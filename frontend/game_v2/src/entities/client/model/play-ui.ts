@@ -54,13 +54,15 @@ export type PlayCommand =
 
 /**
  * What moves the view's `ui` in one step: a page control, the client stepping on its own, the tile sprite's load
- * moving on, or the browser's bars shown or collapsed over the page.
+ * moving on, the browser's bars shown or collapsed over the page, or the socket's round trip measured, or forgotten
+ * as a new socket opens.
  */
 export type PlayUiInput =
     | PlayCommand
     | { readonly kind: "client_stepped" }
     | { readonly kind: "tile_sprite"; readonly status: TileSpriteStatus }
-    | { readonly kind: "browser_bars"; readonly shown: boolean };
+    | { readonly kind: "browser_bars"; readonly shown: boolean }
+    | { readonly kind: "round_trip"; readonly roundTripMs: number | null };
 
 export const CLIENT_STEPPED: PlayUiInput = { kind: "client_stepped" };
 
@@ -83,7 +85,7 @@ export interface PlayAction {
  * settings menu is open; whether the game plays its sounds, a setting the page keeps in this browser; where the
  * tile sprite's load stands, which the page's IO owns; and whether the browser's bars take part of the screen a swipe
  * would give the table (a phone browser's box shorter than its display), which the page measures, and whether this
- * browser can put the page in full screen instead.
+ * browser can put the page in full screen instead; and the current socket's round trip, which its pings measure.
  */
 export interface PlayUi {
     readonly riichiPickWaitId: number | null;
@@ -106,6 +108,8 @@ export interface PlayUi {
     readonly tileSprite: TileSpriteStatus;
     readonly browserBars: boolean;
     readonly canEnterFullscreen: boolean;
+    /** The current socket's round trip in milliseconds; null until its first pong. */
+    readonly roundTripMs: number | null;
 }
 
 export const NO_PLAY_UI: PlayUi = {
@@ -121,6 +125,7 @@ export const NO_PLAY_UI: PlayUi = {
     resultPage: null,
     rightClick: DEFAULT_INPUT_SETTING.rightClick,
     riichiPickWaitId: null,
+    roundTripMs: null,
     settingsOpen: false,
     soundOn: true,
     switchNames: false,

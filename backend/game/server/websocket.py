@@ -1,13 +1,13 @@
 import re
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import structlog
 
 from game.messaging.encoder import DecodeError, decode
 from game.messaging.protocol import ConnectionProtocol
-from game.messaging.types import ErrorMessage, SessionErrorCode, refused_wait_id
+from game.messaging.types import PONG_PAYLOAD, ErrorMessage, SessionErrorCode, refused_wait_id
 from game.messaging.wire_enums import WireClientMessageType
 from game.wire.keys import WireKey
 from shared.rate_limit import TokenBucket
@@ -117,6 +117,28 @@ async def websocket_endpoint(websocket: WebSocket, router: MessageRouter) -> Non
         structlog.contextvars.clear_contextvars()
 
 
+def _answered_before_routing(
+    connection: WebSocketConnection, data: dict[int, Any], resync_bucket: TokenBucket, socket_stats: SocketStats
+) -> bool:
+    """
+    Answer a frame the endpoint settles itself, a ping or a resync request past its own budget, and return whether it
+    did, so the frame never reaches the router.
+    """
+    message_type = data.get(WireKey.EVENT_TYPE)
+    if message_type == WireClientMessageType.PING:
+        connection.send_message(PONG_PAYLOAD)
+        return True
+
+    if message_type == WireClientMessageType.RESYNC and not resync_bucket.consume():
+        socket_stats.rate_limited_messages += 1
+        connection.send_message(
+            ErrorMessage(code=SessionErrorCode.RATE_LIMITED, message="Too many resync requests").payload(),
+        )
+        return True
+
+    return False
+
+
 async def _serve_connection(connection: WebSocketConnection, router: MessageRouter) -> None:
     logger.info("websocket connected", connection_id=connection.connection_id)
     router.handle_connect(connection)
@@ -171,11 +193,7 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
                 )
                 continue
 
-            if data.get(WireKey.EVENT_TYPE) == WireClientMessageType.RESYNC and not resync_bucket.consume():
-                socket_stats.rate_limited_messages += 1
-                connection.send_message(
-                    ErrorMessage(code=SessionErrorCode.RATE_LIMITED, message="Too many resync requests").payload(),
-                )
+            if _answered_before_routing(connection, data, resync_bucket, socket_stats):
                 continue
 
             router.handle_message(connection, data)

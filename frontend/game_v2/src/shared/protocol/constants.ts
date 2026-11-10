@@ -58,6 +58,7 @@ export type GameType = (typeof GAME_TYPE)[keyof typeof GAME_TYPE];
 export const CLIENT_MESSAGE_TYPE = {
     GAME_ACTION: 3,
     JOIN_GAME: 7,
+    PING: 9,
     RECONNECT: 6,
     RESYNC: 8,
 } as const;
@@ -87,6 +88,7 @@ export const SESSION_MESSAGE_TYPE = {
     ERROR: "session_error",
     GAME_JOINED: "game_joined",
     GAME_RECONNECTED: "game_reconnected",
+    PONG: "pong",
     SEAT_CONTROL: "seat_control",
 } as const;
 

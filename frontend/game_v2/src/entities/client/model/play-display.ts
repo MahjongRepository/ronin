@@ -51,6 +51,7 @@ import {
     resultControls,
     shownResultPage,
 } from "./result-controls";
+import { type CogAlert, type RoundTripDisplay, connectionDisplay } from "./round-trip";
 import {
     type FailureDisplay,
     type LeaveControls,
@@ -144,6 +145,10 @@ export interface PlayDisplay {
     readonly overlay: PlayOverlay | null;
     /** The session's status, which the board's settings menu and the rotate panel show. */
     readonly status: SessionStatusDisplay;
+    /** The socket's round trip, which the settings menu shows beside the status while connected. */
+    readonly roundTrip: RoundTripDisplay | null;
+    /** The settings cog's mark, or null while it has nothing to warn of. */
+    readonly cogAlert: CogAlert | null;
     /** The settings menu in the board's corner is open; never under a panel that blocks the board. */
     readonly settingsOpen: boolean;
     /** The game plays its sounds, as the settings menu's switch shows. */
@@ -415,10 +420,10 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
         settingsOpen: ui.settingsOpen && overlay?.blocksBoard !== true,
         shortcuts,
         soundOn: ui.soundOn,
-        status: describePlayerClientStatus(state),
         switchNames: ui.switchNames,
         switches: switchControls(state),
         tileAction: picking ? "riichi_discard" : "discard",
         tileIntents: intentsOf(plays),
+        ...connectionDisplay(describePlayerClientStatus(state), ui.roundTripMs),
     };
 }

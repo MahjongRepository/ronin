@@ -2,7 +2,13 @@ import { encode } from "@msgpack/msgpack";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { joinBytes } from "#tests/fixtures/replay-records";
-import { WIRE_KEY, decodeWireMessage, encodeWireMessage } from "@/shared/protocol";
+import {
+    SESSION_MESSAGE_TYPE,
+    WIRE_KEY,
+    buildPingMessage,
+    decodeWireMessage,
+    encodeWireMessage,
+} from "@/shared/protocol";
 import { MAX_WIRE_BYTES } from "@/shared/protocol/wire-codec";
 
 // eslint-disable-next-line import/no-relative-parent-imports -- Shared backend golden pins the cross-language wire contract.
@@ -10,6 +16,10 @@ import golden from "../../../../../backend/game/tests/fixtures/live-protocol-gol
 
 function fromHex(hex: string): Uint8Array<ArrayBuffer> {
     return Uint8Array.from(hex.match(/../g) ?? [], (byte) => Number.parseInt(byte, 16));
+}
+
+function goldenHex(name: string): string {
+    return golden.frames.find((frame) => frame.name === name)?.hex ?? "";
 }
 
 describe("live protocol codec", () => {
@@ -23,6 +33,11 @@ describe("live protocol codec", () => {
             );
             expectTypeOf(decoded).toEqualTypeOf<Record<string, unknown>>();
         }
+        expect(encodeWireMessage(buildPingMessage())).toEqual(fromHex(goldenHex("ping")));
+        const pong = fromHex(goldenHex("pong"));
+        expect(decodeWireMessage(pong)).toEqual({
+            [WIRE_KEY.SESSION_TYPE]: SESSION_MESSAGE_TYPE.PONG,
+        });
     });
 
     it.each([

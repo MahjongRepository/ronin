@@ -56,6 +56,7 @@ export type { ReplayLine, RecordedDrawEvent, SeatControlLine } from "./schemas/r
 export {
     buildJoinGameMessage,
     buildReconnectMessage,
+    buildPingMessage,
     buildResyncMessage,
     buildDiscardAction,
     buildRiichiAction,

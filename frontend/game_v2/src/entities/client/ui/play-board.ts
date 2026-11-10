@@ -554,6 +554,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
         localHand: { onTile, tileAction: display.tileAction },
         matchResult: display.matchResult,
         menu: GameMenu({
+            alert: display.cogAlert,
             animationsOn: display.animationsOn,
             backdrop: false,
             extra: menuExtra,
@@ -578,6 +579,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             onToggleOpen: () => onCommand(TOGGLE_SETTINGS),
             onToggleSound: () => onCommand(TOGGLE_SOUND),
             open: display.settingsOpen,
+            roundTrip: display.roundTrip,
             soundOn: display.soundOn,
             status: display.status,
         }),

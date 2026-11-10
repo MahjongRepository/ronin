@@ -200,8 +200,8 @@ function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): P
 
 /**
  * The view's `ui` after one step of the page, settled on the client state that step left (`state`): a page control
- * (an intent once the dispatcher stepped it), the client stepping on its own (a message, a tick, a failure) or the
- * tile sprite's load moving on. Every driver calls it after each step, so the board it draws is a function of the
+ * (an intent once the dispatcher stepped it), the client stepping on its own (a message, a tick, a failure), or the
+ * page's IO reporting (the tile sprite's load, the browser's bars, the socket's round trip). Every driver calls it after each step, so the board it draws is a function of the
  * client state and this `ui` alone.
  */
 export function stepPlayUi(state: LiveClient, ui: PlayUi, input: PlayUiInput): PlayUi {
@@ -214,6 +214,9 @@ export function stepPlayUi(state: LiveClient, ui: PlayUi, input: PlayUiInput): P
         }
         case "browser_bars": {
             return settledPlayUi(state, { ...ui, browserBars: input.shown });
+        }
+        case "round_trip": {
+            return settledPlayUi(state, { ...ui, roundTripMs: input.roundTripMs });
         }
         default: {
             return settledPlayUi(state, commandedPlayUi(state, ui, input));

@@ -5,6 +5,8 @@ import msgpack
 import pytest
 
 from game.messaging.encoder import MAX_BUFFER_LEN, MAX_NESTING, DecodeError, decode, encode
+from game.messaging.types import PONG_PAYLOAD
+from game.messaging.wire_enums import WireClientMessageType
 from game.wire.keys import LIVE_KEYS, WireKey
 
 _GOLDEN = Path(__file__).parents[1] / "fixtures/live-protocol-golden.json"
@@ -31,6 +33,10 @@ def test_encode_decode__when_shared_golden_frames__should_pin_integer_keys_and_p
         payload = _read_json_payload(frame["payload"])
         assert encode(payload) == content
         assert decode(content) == payload
+
+    frames = {frame["name"]: bytes.fromhex(frame["hex"]) for frame in golden["frames"]}
+    assert encode({WireKey.EVENT_TYPE: WireClientMessageType.PING}) == frames["ping"]
+    assert encode(PONG_PAYLOAD) == frames["pong"]
 
 
 def test_encode__when_nested_score_maps__should_preserve_seat_data_keys():

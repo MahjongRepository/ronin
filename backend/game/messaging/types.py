@@ -15,6 +15,7 @@ class SessionMessageType(StrEnum):
     GAME_JOINED = "game_joined"
     GAME_RECONNECTED = "game_reconnected"
     SEAT_CONTROL = "seat_control"
+    PONG = "pong"
 
 
 class SessionErrorCode(StrEnum):
@@ -113,6 +114,8 @@ class ResyncMessage(BaseModel):
 
 
 ClientMessage = GameActionMessage | ReconnectMessage | JoinGameMessage | ResyncMessage
+
+PONG_PAYLOAD: dict[int, Any] = {WireKey.SESSION_TYPE: SessionMessageType.PONG}
 
 
 class ErrorMessage(BaseModel):

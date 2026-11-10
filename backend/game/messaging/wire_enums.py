@@ -10,6 +10,7 @@ class WireClientMessageType(IntEnum):
     RECONNECT = 6
     JOIN_GAME = 7
     RESYNC = 8
+    PING = 9
 
 
 class WireGameAction(IntEnum):

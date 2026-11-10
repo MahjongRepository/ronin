@@ -1,5 +1,6 @@
 import { type TemplateResult, html, nothing, svg } from "lit-html";
 
+import { type CogAlert, type RoundTripDisplay } from "@/entities/client/model/round-trip";
 import { SETTINGS_FOCUS_KEY } from "@/entities/client/model/settings-menu";
 import { type SessionStatusDisplay } from "@/entities/session";
 import { LOCALES, type Locale, pageLocale, t } from "@/shared/i18n";
@@ -8,6 +9,10 @@ import { focusByKey } from "@/shared/lib";
 interface GameMenuProps {
     /** The session's status, which a live game shows; null on a page without one (a replay). */
     readonly status: SessionStatusDisplay | null;
+    /** The socket's round trip, shown beside the status; null while unmeasured or not connected. */
+    readonly roundTrip?: RoundTripDisplay | null;
+    /** The cog's mark, which the mapper chose; none on a page without a session (a replay). */
+    readonly alert?: CogAlert | null;
     readonly open: boolean;
     /** Whether a full-page backdrop catches a click outside the open menu; a live board's `playInput` handles it instead. */
     readonly backdrop: boolean;
@@ -94,11 +99,25 @@ function LeaveIcon(): TemplateResult {
     </svg>`;
 }
 
-/** The session's status as the menu's row: a dot and its whole label. */
-function StatusRow(status: SessionStatusDisplay): TemplateResult {
+/**
+ * The connection as the menu's row, a line of text like the other rows' values: the round trip once measured, its dot
+ * and figure amber while slow, else the status's label with a dot in its tone.
+ */
+function ConnectionRow(
+    status: SessionStatusDisplay,
+    roundTrip: RoundTripDisplay | null,
+): TemplateResult {
+    const value =
+        roundTrip === null
+            ? html`<span class="game-menu__status-dot status-${status.tone}" aria-hidden="true"></span
+                  >${status.label}`
+            : html`<span class="game-menu__status-dot ${roundTrip.slow ? "status-slow" : "status-connected"}" aria-hidden="true"></span
+                  ><span class=${roundTrip.slow ? "game-menu__round-trip game-menu__round-trip--slow" : "game-menu__round-trip"}
+                      >${t("game.status.round_trip", { ms: Math.round(roundTrip.ms) })}</span
+                  >`;
     return html`<div class="game-menu__item game-menu__status-row">
-        <span class="game-menu__item-name">${t("game.settings.status")}</span>
-        <span class="connection-status game-menu__status status-${status.tone}">${status.label}</span>
+        <span class="game-menu__item-name">${t("game.settings.connection")}</span>
+        <span class="game-menu__item-value game-menu__status">${value}</span>
     </div>`;
 }
 
@@ -155,7 +174,7 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
             ${props.input === undefined ? nothing : InputSettings(props.input)}
             ${LanguageRow(onLanguage)}
             ${props.input === undefined ? nothing : ControlsRow(props.input.onShowControls)}
-            ${status === null ? nothing : StatusRow(status)}
+            ${status === null ? nothing : ConnectionRow(status, props.roundTrip ?? null)}
             ${props.leave === undefined ? nothing : LeaveRow(props.leave)}
         </div>`;
 }
@@ -216,12 +235,12 @@ function ControlsRow(onShowControls: () => void): TemplateResult {
 
 /**
  * The page's own controls in the board's corner: a cog that opens the settings (the sound, and a live game's session
- * status), marked with the status's tone while the status has a word to say (a drop, an end), and the status read out
- * as it changes whether the menu is open or not. Escape closes the open menu and focuses the cog back.
+ * status), marked while the status has a word to say (a drop, an end) or the round trip is slow, and the status read
+ * out as it changes whether the menu is open or not. Escape closes the open menu and focuses the cog back.
  */
 function GameMenu(props: GameMenuProps): TemplateResult {
     const { extra, onClose, onToggleOpen, open, status } = props;
-    const word = status?.word ?? "";
+    const alert = props.alert ?? null;
     function onKeydown(event: KeyboardEvent): void {
         if (event.key !== "Escape" || !open || !(event.currentTarget instanceof HTMLElement)) {
             return;
@@ -242,15 +261,15 @@ function GameMenu(props: GameMenuProps): TemplateResult {
             type="button"
             class="secondary game-menu__toggle"
             title=${t("game.settings.title")}
-            aria-label=${word === "" ? t("game.settings.title") : t("game.settings.title_with_status", { status: word })}
+            aria-label=${alert === null ? t("game.settings.title") : t("game.settings.title_with_status", { status: alert.word })}
             aria-expanded=${open ? "true" : "false"}
             data-focus-key=${SETTINGS_FOCUS_KEY}
             @click=${onToggleOpen}
         >
             ${CogIcon()}${
-                status === null || word === ""
+                alert === null
                     ? nothing
-                    : html`<span class="game-menu__alert status-${status.tone}"></span>`
+                    : html`<span class="game-menu__alert status-${alert.tone}"></span>`
             }
         </button>
         ${open ? SettingsPanel(props) : nothing}

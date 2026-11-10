@@ -112,6 +112,14 @@ class TestWebSocketIntegration:
             assert response[WireKey.SESSION_TYPE] == SessionMessageType.ERROR
             assert response[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.INVALID_TICKET
 
+    def test_websocket__when_ping_sent__should_answer_pong_without_reaching_the_router(self, client):
+        with client.websocket_connect("/ws/test_game") as ws:
+            send_ws(ws, {WireKey.EVENT_TYPE: WireClientMessageType.PING})
+            assert recv_ws(ws) == {WireKey.SESSION_TYPE: "pong"}
+
+        status = client.get("/status").json()
+        assert (status["messages_in"], status["handled_messages"]) == (1, 0)
+
     def test_websocket__when_client_sends_a_text_frame__should_count_a_decode_strike_and_keep_connection(self, client):
         with client.websocket_connect("/ws/test_game") as ws:
             ws.send_text("not a binary frame")

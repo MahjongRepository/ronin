@@ -25,6 +25,11 @@ export function buildResyncMessage() {
     return { [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.RESYNC } as const;
 }
 
+/** Ask the server for a `pong` at once, which times the connection's round trip; it touches no session. */
+export function buildPingMessage() {
+    return { [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.PING } as const;
+}
+
 // --- Game action messages ---
 
 export function buildDiscardAction(tileId: number, waitId: number) {
@@ -119,6 +124,7 @@ export type ClientMessage = ReturnType<
     | typeof buildJoinGameMessage
     | typeof buildReconnectMessage
     | typeof buildResyncMessage
+    | typeof buildPingMessage
     | typeof buildDiscardAction
     | typeof buildRiichiAction
     | typeof buildTsumoAction

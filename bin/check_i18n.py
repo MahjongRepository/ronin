@@ -113,6 +113,7 @@ APPS = (
                 "game.help.escape_key",
                 "game.seat.ai_tag",
                 "game.seating.heading",
+                "game.status.round_trip",
                 "list.separator",
                 "replay.outcome.win_separator",
                 "round.unknown",

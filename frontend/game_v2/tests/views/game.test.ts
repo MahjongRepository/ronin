@@ -491,6 +491,36 @@ describe("mountGameView", () => {
     });
 });
 
+describe("mountGameView round trip", () => {
+    it("shows the socket's round trip in the settings menu while connected, and forgets it with the socket", () => {
+        const { clock, connections, host } = gameWithMenuOpen();
+
+        connections[0].handlers.onRoundTrip(47.6);
+        const connected = roundTrip(host);
+        connections[0].handlers.onClose(1006, "");
+        const dropped = roundTrip(host);
+        clock.advanceTo(1000);
+        connections[0].handlers.onRoundTrip(30);
+        connections[1].handlers.onOpen();
+
+        expect([connected, dropped, roundTrip(host)]).toEqual(["48 ms", undefined, undefined]);
+    });
+
+    it("warns on the cog from a 400 ms round trip on, and not below it", () => {
+        const { connections, host } = gameWithMenuOpen();
+
+        connections[0].handlers.onRoundTrip(399);
+        const fair = cogLabel(host);
+        connections[0].handlers.onRoundTrip(400);
+
+        expect([
+            fair,
+            cogLabel(host),
+            host.querySelectorAll(".game__play .game-menu__alert.status-slow").length,
+        ]).toEqual(["Settings", "Settings, Slow connection", 1]);
+    });
+});
+
 describe("mountGameView tile faces", () => {
     it("tells the player while the tile faces failed to load, with a reload, until a retry loads them", () => {
         const { host, sink, tileSprite } = mountWithFakes();
@@ -532,6 +562,22 @@ describe("mountGameView tile faces", () => {
         expect(browserBars.enterFullscreen).toHaveBeenCalledOnce();
     });
 });
+
+function gameWithMenuOpen(): ReturnType<typeof mountWithFakes> {
+    const mounted = mountWithFakes();
+    mounted.connections[0].handlers.onOpen();
+    seeGameStart(mounted.connections[0]);
+    press(mounted.host, ".game-menu__toggle");
+    return mounted;
+}
+
+function cogLabel(host: HTMLElement): string | null | undefined {
+    return host.querySelector(".game__play .game-menu__toggle")?.getAttribute("aria-label");
+}
+
+function roundTrip(host: HTMLElement): string | null | undefined {
+    return host.querySelector(".game__play .game-menu__round-trip")?.textContent;
+}
 
 function statusLabel(host: HTMLElement): string | null | undefined {
     return host.querySelector(".game-menu__status-label")?.textContent;

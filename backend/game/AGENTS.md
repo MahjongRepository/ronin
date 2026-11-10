@@ -59,7 +59,8 @@ Mandatory for all game server code; review must catch violations.
   auth timeout logs and closes. The endpoint owns the writer task, so the session holds no socket
   state; the lifespan shuts the session manager down before closing the database.
 * Liveness is uvicorn's WebSocket protocol ping (`deploy/AGENTS.md`); the server runs no ping or
-  heartbeat of its own.
+  heartbeat of its own. A client's PING is only a latency probe: the endpoint answers it with a `pong`
+  once it passes the rate limit, before routing, authenticated or not, and it touches no session.
 * Sends and closes never raise or wait on a dead or slow socket (an encoding error still raises);
   a dead socket surfaces only at receive, where the disconnect path seats an AI player.
 * No exception from handling a message leaves the ASGI app: a router handler that reaches a game

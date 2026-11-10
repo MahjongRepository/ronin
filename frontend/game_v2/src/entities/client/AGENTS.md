@@ -62,6 +62,10 @@ table transition and call model; replay dispatch loads with the replay route.
   twice.
 - **Silence watchdog:** `GameSocket` reports a server silent past `serverSilenceLimitMs` as a close, measured on the
   page's steady clock. The limit derives from the game's own timer settings; it copies none of the backend's pacing.
+- **Round trip:** `GameSocket` also pings the server, one ping in flight, and keeps the pongs from the dispatcher and
+  the silence watchdog, since the endpoint answers them without the game;
+  the median it reports is page IO in `PlayUi`, forgotten as a new socket opens, never client state. The mapper
+  decides the cog's mark (`round-trip.ts`): a slow round trip marks it like a status word, below any word the status has.
 
 ## The opening screen
 

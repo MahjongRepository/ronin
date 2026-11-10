@@ -5,12 +5,14 @@ import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
 import { type Clock } from "@/shared/clock";
 import {
     CLIENT_MESSAGE_TYPE,
+    SESSION_MESSAGE_TYPE,
     WIRE_KEY,
     buildJoinGameMessage,
+    buildPingMessage,
     decodeWireMessage,
     encodeWireMessage,
 } from "@/shared/protocol";
-import { GameSocket, type SocketHandlers } from "@/shared/websocket/websocket";
+import { GameSocket, PING_INTERVAL_MS, type SocketHandlers } from "@/shared/websocket/websocket";
 
 class FakeWebSocket {
     static readonly OPEN = 1;
@@ -65,6 +67,7 @@ function connectedSocket(
             onError: () => {},
             onMessage: () => {},
             onOpen: () => {},
+            onRoundTrip: () => {},
             onUndecodableFrame: () => {},
             ...handlers,
         },
@@ -207,8 +210,8 @@ describe("GameSocket frames", () => {
         const messages: Record<string, unknown>[] = [];
         const ws = connectedSocket([], { onMessage: (message) => messages.push(message) });
         socket?.send(buildJoinGameMessage("ticket"));
-        expect(ws.sent).toHaveLength(1);
-        expect(ws.sent[0]).toEqual(
+        expect(ws.sent).toHaveLength(2);
+        expect(ws.sent[1]).toEqual(
             new Uint8Array([
                 0x82,
                 WIRE_KEY.EVENT_TYPE,
@@ -217,10 +220,96 @@ describe("GameSocket frames", () => {
                 ...encode("ticket"),
             ]),
         );
-        expect(decodeWireMessage(ws.sent[0])).toEqual(buildJoinGameMessage("ticket"));
+        expect(decodeWireMessage(ws.sent[1])).toEqual(buildJoinGameMessage("ticket"));
         ws.receiveFrame(
             encodeWireMessage({ [WIRE_KEY.PACKED_MOVE]: 37, [WIRE_KEY.EVENT_TYPE]: 2 }).buffer,
         );
         expect(messages).toEqual([{ [WIRE_KEY.PACKED_MOVE]: 37, [WIRE_KEY.EVENT_TYPE]: 2 }]);
     });
 });
+
+describe("GameSocket pings", () => {
+    beforeEach(() => {
+        FakeWebSocket.created = [];
+        vi.stubGlobal("WebSocket", FakeWebSocket);
+    });
+
+    afterEach(() => {
+        socket?.disconnect();
+        socket = null;
+        vi.unstubAllGlobals();
+    });
+
+    it("reports the lower median of its latest five round trips after each pong, keeping the pongs from its messages", () => {
+        const { clock, messages, roundTrips, ws } = pingingSocket();
+
+        answerPings(clock, ws, [10, 10, 10, 10, 1000, 1000, 1000, 1000]);
+
+        expect([roundTrips, messages]).toEqual([[10, 10, 10, 10, 10, 10, 1000, 1000], []]);
+    });
+
+    it("pings on open, sends no ping while one is unanswered until it counts as lost, and stops once disconnected", () => {
+        const { clock, ws } = pingingSocket();
+
+        clock.advanceTo(PING_INTERVAL_MS * 5);
+        const unanswered = ws.sent.length;
+        clock.advanceTo(PING_INTERVAL_MS * 6);
+        const resent = ws.sent.length;
+        receivePong(ws);
+        socket?.disconnect();
+        clock.advanceTo(PING_INTERVAL_MS * 12);
+
+        expect([decodeWireMessage(ws.sent[0]), unanswered, resent, ws.sent.length]).toEqual([
+            buildPingMessage(),
+            1,
+            2,
+            2,
+        ]);
+    });
+
+    it("reports a server that answers its pings but sends nothing else past the silence limit as silent", () => {
+        const { clock, closes, ws } = pingingSocket();
+        socket?.setSilenceLimit(2 * PING_INTERVAL_MS);
+
+        answerPings(clock, ws, [10, 10, 10, 10]);
+
+        expect(closes).toEqual([[1006, "server_silent"]]);
+    });
+});
+
+function pingingSocket(): {
+    clock: ManualClock;
+    closes: [number, string][];
+    messages: Record<string, unknown>[];
+    roundTrips: number[];
+    ws: FakeWebSocket;
+} {
+    const clock = new ManualClock();
+    const closes: [number, string][] = [];
+    const roundTrips: number[] = [];
+    const messages: Record<string, unknown>[] = [];
+    const ws = connectedSocket(
+        closes,
+        {
+            onMessage: (message) => messages.push(message),
+            onRoundTrip: (roundTripMs) => roundTrips.push(roundTripMs),
+        },
+        steadyClockOn(clock),
+    );
+    return { clock, closes, messages, roundTrips, ws };
+}
+
+function receivePong(ws: FakeWebSocket): void {
+    ws.receiveFrame(
+        encodeWireMessage({ [WIRE_KEY.SESSION_TYPE]: SESSION_MESSAGE_TYPE.PONG }).buffer,
+    );
+}
+
+/** Answer the pings the socket sends from its open on, one per interval, each after its own round trip. */
+function answerPings(clock: ManualClock, ws: FakeWebSocket, roundTrips: readonly number[]): void {
+    for (const [index, roundTrip] of roundTrips.entries()) {
+        clock.advanceTo(index * PING_INTERVAL_MS);
+        clock.advanceTo(index * PING_INTERVAL_MS + roundTrip);
+        receivePong(ws);
+    }
+}

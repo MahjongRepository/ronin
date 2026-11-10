@@ -1,4 +1,5 @@
 @use "@/styles/game-board/queries" as *;
+@use "@/styles/type";
 
 // Game client styles - "Parlor at Night" refined dark theme
 // Technical sophistication with luxury details
@@ -137,7 +138,7 @@ section {
     }
 }
 
-/* The cog's mark while the status has a word to say: its tone's dot at the cog's corner. */
+/* The cog's mark while the status has a word to say, or the round trip is poor: its tone's dot at the cog's corner. */
 .game-menu__alert {
     position: absolute;
     top: 4px;
@@ -147,7 +148,8 @@ section {
     border-radius: 50%;
     border: 1px solid var(--ronin-surface);
 
-    &.status-connecting {
+    &.status-connecting,
+    &.status-slow {
         background: var(--ronin-warning);
     }
 
@@ -264,10 +266,45 @@ section {
     }
 }
 
+/* The connection row reads as information, not a control: its value is text with a dot, like the other rows' values. */
 .game-menu__status {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.65rem;
-    letter-spacing: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.game-menu__status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex: none;
+
+    &.status-connected {
+        background: var(--ronin-success);
+    }
+
+    &.status-connecting,
+    &.status-slow {
+        background: var(--ronin-warning);
+    }
+
+    &.status-disconnected {
+        background: var(--ronin-text-secondary);
+    }
+
+    &.status-error {
+        background: var(--ronin-danger);
+    }
+}
+
+.game-menu__round-trip {
+    @include type.figures;
+
+    color: var(--ronin-text);
+}
+
+.game-menu__round-trip--slow {
+    color: var(--ronin-warning);
 }
 
 /* The debug log (`?debug`): a summary in the board's corner that opens the log as a sheet over the board. */

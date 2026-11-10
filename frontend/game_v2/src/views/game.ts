@@ -744,6 +744,7 @@ class GameViewController {
     /** Open a socket; a factory that throws (a refused URL, say) is reported as a failed connection's close. */
     private openSocket(url: string): void {
         this.closeSocket();
+        this.ui = stepPlayUi(this.state, this.ui, { kind: "round_trip", roundTripMs: null });
         try {
             this.socket = this.deps.connect(url, this.handlersFor(this.socketGeneration));
         } catch (error: unknown) {
@@ -782,9 +783,19 @@ class GameViewController {
             onError: (detail) => fromCurrent({ at: clock.now(), detail, kind: "transport_error" }),
             onMessage: (raw) => fromCurrent({ at: clock.now(), kind: "server_message", raw }),
             onOpen: () => fromCurrent({ at: clock.now(), kind: "transport_opened" }),
+            onRoundTrip: (roundTripMs) => {
+                if (generation === this.socketGeneration) {
+                    this.guard(() => this.showRoundTrip(roundTripMs));
+                }
+            },
             onUndecodableFrame: (detail) =>
                 fromCurrent({ at: clock.now(), detail, kind: "frame_undecodable" }),
         };
+    }
+
+    private showRoundTrip(roundTripMs: number): void {
+        this.ui = stepPlayUi(this.state, this.ui, { kind: "round_trip", roundTripMs });
+        this.draw();
     }
 
     /** Keep one timer armed to the state's next wake; a replaced timer's late callback is dropped. */
