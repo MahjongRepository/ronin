@@ -262,6 +262,7 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
 
     display: inline-block;
     line-height: 0;
+    translate: 0 -1px;
 }
 
 /* The timer's slot, fixed in size and place: a caption line over the digits, the base large and the bank after it. */
