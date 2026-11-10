@@ -424,11 +424,11 @@ class TestTournamentViews:
         lobby = client.get("/")
         assert f'<a href="{page_path}">Spring Cup</a>' in lobby.text
 
-    def test_tournament_create__when_name_has_control_character__should_refuse_and_create_nothing(self, client):
+    def test_tournament_create__when_name_has_format_character__should_refuse_and_create_nothing(self, client):
         client.get("/")
         csrf = client.cookies.get(CSRF_COOKIE_NAME)
 
-        refused = client.post("/tournaments/new", data={"name": "Spring\nCup", "csrf_token": csrf})
+        refused = client.post("/tournaments/new", data={"name": "Spring\u202eCup", "csrf_token": csrf})
         assert refused.status_code == 400
 
         lobby = client.get("/")
