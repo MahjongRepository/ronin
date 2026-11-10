@@ -394,10 +394,35 @@ class PlayInput extends AsyncDirective {
             this.blockClick = false;
             return;
         }
+        if (this.endedByClosingSettings(event)) {
+            return;
+        }
         if (fingerTap) {
             this.armByFinger(event);
         }
     };
+
+    /**
+     * A pointer's click outside the open settings menu closes it: on a playable tile the click goes on to the tile, and
+     * anywhere else it ends here, as the whole of the gesture. A keyboard's or assistive technology's activation (no
+     * click count) has aimed at its control, so it leaves the menu alone.
+     */
+    private endedByClosingSettings(event: MouseEvent): boolean {
+        const { target } = event;
+        if (
+            !this.display?.settingsOpen ||
+            event.detail === 0 ||
+            (target instanceof Element && target.closest(".game-menu") !== null)
+        ) {
+            return false;
+        }
+        this.onCommand?.({ kind: "close_settings" });
+        if (playableTileId(target) !== null) {
+            return false;
+        }
+        consume(event);
+        return true;
+    }
 
     /**
      * A finger has no hover, so its first tap on a discardable tile only lifts it; the tap that follows on that tile

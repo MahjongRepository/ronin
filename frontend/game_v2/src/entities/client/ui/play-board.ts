@@ -528,6 +528,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
         matchResult: display.matchResult,
         menu: GameMenu({
             animationsOn: display.animationsOn,
+            backdrop: false,
             extra: menuExtra,
             input: {
                 onToggle: () => onCommand({ kind: "toggle_right_click" }),

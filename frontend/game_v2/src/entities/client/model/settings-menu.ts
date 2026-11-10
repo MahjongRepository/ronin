@@ -7,7 +7,7 @@ export interface SettingsMenu {
     readonly animationsOn: boolean;
 }
 
-/** The menu's own commands: the cog's toggle, a close (Escape, the backdrop) and its two switches. */
+/** The menu's own commands: the cog's toggle, a close (Escape, a click outside it) and its two switches. */
 export type SettingsMenuCommand =
     | "toggle_settings"
     | "close_settings"

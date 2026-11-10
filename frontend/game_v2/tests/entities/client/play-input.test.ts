@@ -27,6 +27,7 @@ import { type ClientMessage, buildDiscardAction, buildPassAction } from "@/share
 
 const manualClock = new ManualClock();
 const inputClock = steadyClockOn(manualClock);
+const SETTINGS_OPEN: PlayUi = { ...NO_PLAY_UI, settingsOpen: true };
 
 function passTime(ms: number): void {
     manualClock.advanceTo(manualClock.elapsedNow() + ms);
@@ -157,6 +158,13 @@ function fingerTap(target: HTMLElement): void {
     pointer(target, "pointerdown", finger);
     pointer(target, "pointerup", finger);
     target.click();
+}
+
+function pointerClick(target: HTMLElement, pointerType: "mouse" | "touch"): void {
+    const press = { button: 0, pointerType };
+    pointer(target, "pointerdown", press);
+    pointer(target, "pointerup", press);
+    target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));
 }
 
 function discardableTiles(state: LiveClient): readonly [number, number] {
@@ -326,6 +334,47 @@ describe("live board input", () => {
         expect(messages(effects)).toEqual([]);
 
         rightClick(board);
+        expect(messages(effects)).toEqual([buildPassAction(waitId(state))]);
+    });
+});
+
+describe("live board click outside open settings", () => {
+    it("closes settings and discards on one mouse click on a tile, with no backdrop to catch it", () => {
+        const state = checkpointState("own_turn_seat_1", "rinshan");
+        const [tileId] = discardableTiles(state);
+        const { effects, host } = mountInput(state, SETTINGS_OPEN);
+        expect(host.querySelector(".game-menu__backdrop")).toBeNull();
+
+        pointerClick(tileButton(host, tileId), "mouse");
+        expect(messages(effects)).toEqual([buildDiscardAction(tileId, waitId(state))]);
+        expect(host.querySelector(".game-menu__panel")).toBeNull();
+    });
+
+    it("closes settings and lifts the tile on a finger's tap, leaving the discard to the second", () => {
+        const state = checkpointState("own_turn_seat_1", "rinshan");
+        const [tileId] = discardableTiles(state);
+        const { effects, host } = mountInput(state, SETTINGS_OPEN);
+
+        pointerClick(tileButton(host, tileId), "touch");
+        expect(host.querySelector(".game-menu__panel")).toBeNull();
+        expect(host.querySelector(".hand-tile--armed")).not.toBeNull();
+        expect(messages(effects)).toEqual([]);
+    });
+
+    it("only closes settings on a pointer click on a call's Pass", () => {
+        const { commands, effects, host } = mountInput(
+            checkpointState("call_prompt_seat_1", "prompt"),
+            SETTINGS_OPEN,
+        );
+        pointerClick(element(host, ".decision-controls__action--pass"), "mouse");
+        expect(commands).toEqual([{ kind: "close_settings" }]);
+        expect(messages(effects)).toEqual([]);
+    });
+
+    it("answers a keyboard's activation of Pass under open settings", () => {
+        const state = checkpointState("call_prompt_seat_1", "prompt");
+        const { effects, host } = mountInput(state, SETTINGS_OPEN);
+        element(host, ".decision-controls__action--pass").click();
         expect(messages(effects)).toEqual([buildPassAction(waitId(state))]);
     });
 });

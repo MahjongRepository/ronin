@@ -10,6 +10,8 @@ interface GameMenuProps {
     /** The session's status, which a live game shows; null on a page without one (a replay). */
     readonly status: SessionStatusDisplay | null;
     readonly open: boolean;
+    /** Whether a full-page backdrop catches a click outside the open menu; a live board's `playInput` handles it instead. */
+    readonly backdrop: boolean;
     readonly soundOn: boolean;
     readonly animationsOn: boolean;
     readonly onToggleOpen: () => void;
@@ -94,6 +96,7 @@ function LanguageRow(onLanguage: (locale: Locale) => void): TemplateResult {
 function SettingsPanel(props: GameMenuProps): TemplateResult {
     const {
         animationsOn,
+        backdrop,
         onClose,
         onLanguage,
         onToggleAnimations,
@@ -101,7 +104,7 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
         soundOn,
         status,
     } = props;
-    return html`<div class="game-menu__backdrop" aria-hidden="true" @click=${onClose}></div>
+    return html`${backdrop ? html`<div class="game-menu__backdrop" aria-hidden="true" @click=${onClose}></div>` : nothing}
         <div class="game-menu__panel" role="group" aria-label=${t("game.settings.title")}>
             <button
                 type="button"

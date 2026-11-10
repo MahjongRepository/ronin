@@ -133,6 +133,7 @@ export function ReplayBoard({
         matchResult: display.matchResult,
         menu: GameMenu({
             animationsOn: screen.animationsOn,
+            backdrop: true,
             onClose: handlers.closeSettings,
             onLanguage: handlers.setLanguage,
             onToggleAnimations: handlers.toggleAnimations,

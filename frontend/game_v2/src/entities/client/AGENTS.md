@@ -83,7 +83,9 @@ table transition and call model; replay dispatch loads with the replay route.
 
 - A primary click or tap on the board's background never answers a decision or confirms or dismisses a round result.
 - Live shortcuts come from `playShortcuts` through the same intent gate as visible controls. One gesture closes only
-  the topmost UI, backs out of a selection, or answers one decision; a result always needs its explicit control.
+  the topmost UI, backs out of a selection, or answers one decision; a result always needs its explicit control. The
+  one exception is a pointer's click on a playable tile with the settings menu open, which closes the menu and goes on
+  to the tile (a mouse discards, a finger lifts); any other click outside the menu only closes it.
   Enter or Space outside a focused control presses the opening screen's OK (`confirm`), its only key; the board's own
   keys (Escape's back or pass, right-click's discard, tile arrows) still reach a decision under it (`leavesBoardKeys`). `playInput` owns the board's DOM listeners and cancels a press across an input scope change or disposal. A right-click within `RIGHT_CLICK_SETTLE_MS` of the last one that had a shortcut is dropped, so a double-click never answers a decision and then the one its answer opened. Repeated
   activation keys never answer again; arrow navigation only moves focus among playable tiles. The right-click
