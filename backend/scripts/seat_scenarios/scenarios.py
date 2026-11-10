@@ -163,6 +163,7 @@ def own_turn() -> tuple[SeatTranscript, ...]:
         alice.join(at=0)
         alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         alice.label("game started", WireEventType.GAME_STARTED)
+        alice.label("dealt", WireEventType.ROUND_STARTED)
         alice.drop_unseen(at=3.5, label="dropped")
         alice.label("first draw", WireEventType.DRAW)
         alice.reconnect(at=4.5, label="reopened")

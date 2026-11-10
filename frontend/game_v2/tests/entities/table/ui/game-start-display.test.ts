@@ -2,24 +2,19 @@ import { render } from "lit-html";
 import { describe, expect, it } from "vitest";
 
 import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
-import { checkpointState, loadSeatScenario } from "#tests/fixtures/seat-transcripts";
+import { checkpointState } from "#tests/fixtures/seat-transcripts";
 import {
     type LiveClient,
     NO_PLAY_UI,
     PlayBoard,
     playDisplay,
-    scenarioStateIndex,
     stepGameClient,
 } from "@/entities/client";
 
 const PAGE_CLOCK = steadyClockOn(new ManualClock());
 
 const STARTED = checkpointState("own_turn_seat_1", "game started");
-const { scenario } = loadSeatScenario("own_turn_seat_1");
-const DEALT = stepGameClient(
-    STARTED,
-    scenario.steps[scenarioStateIndex(scenario, "game started")].event,
-).state;
+const DEALT = checkpointState("own_turn_seat_1", "dealt");
 
 function renderBoard(state: LiveClient): HTMLElement {
     const host = document.createElement("div");
@@ -44,11 +39,12 @@ function seatRows(host: HTMLElement): string[][] {
 }
 
 describe("GameStartDisplay", () => {
-    it("seats the players from the game start in wind order, the dealer, AI players and the viewer marked", () => {
-        const host = renderBoard(STARTED);
-        const dealer = STARTED.table.firstDealerSeat;
-        const names = STARTED.table.players.map((player) => player.name);
+    it("shows nothing at the game start, then seats the players from the first deal in wind order, the dealer, AI players and the viewer marked", () => {
+        const host = renderBoard(DEALT);
+        const dealer = DEALT.table.dealerSeat;
+        const names = DEALT.table.players.map((player) => player.name);
 
+        expect(renderBoard(STARTED).querySelector(".seating")).toBeNull();
         expect(host.querySelector(".seating__title")?.textContent).toBe("Hanchan · East 1");
         expect(seatRows(host).map(([wind]) => wind)).toEqual(["E", "S", "W", "N"]);
         expect(seatRows(host)[0][1]).toBe(names[dealer]);
@@ -61,9 +57,9 @@ describe("GameStartDisplay", () => {
         ).toHaveLength(3);
     });
 
-    it("seats the players from the first dealer's seat round when the dealer is not seat 0", () => {
-        const host = renderBoard({ ...STARTED, table: { ...STARTED.table, firstDealerSeat: 2 } });
-        const names = STARTED.table.players.map((player) => player.name);
+    it("seats the players from the dealer's seat round when the dealer is not seat 0", () => {
+        const host = renderBoard({ ...DEALT, table: { ...DEALT.table, dealerSeat: 2 } });
+        const names = DEALT.table.players.map((player) => player.name);
 
         expect(seatRows(host).map(([wind, name]) => [wind, name])).toEqual([
             ["E", names[2]],

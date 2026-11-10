@@ -67,7 +67,7 @@ export function tablePanel(table: TableState, view: TablePanelView): TablePanel 
     return end === null ? null : { display: end, kind: "game_end" };
 }
 
-/** The seating of the round on a live table from the viewer's seat, the live game's opening screen. */
+/** The seating of the round on a dealt live table from the viewer's seat, the live game's opening screen. */
 export function tableSeatingPanel(table: TableState, viewerSeat: number | null): TablePanel {
     return { display: tableSeatingDisplay(table, viewerSeat), kind: "seating" };
 }

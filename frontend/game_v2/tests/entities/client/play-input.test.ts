@@ -16,6 +16,7 @@ import {
     type PlayUi,
     decisionOf,
     playDisplay,
+    roundConfirmOf,
     startGameClient,
     stepGameClient,
     stepPlayUi,
@@ -23,7 +24,12 @@ import {
 import { DIGIT_SETTLE_MS, SHORTCUT_SETTLE_MS } from "@/entities/client/ui/play-input";
 import { HAND_TILE_FOCUS_KEY, PLAYABLE_TILE_FOCUS_KEY } from "@/entities/tile";
 import { keyedControls } from "@/shared/lib";
-import { type ClientMessage, buildDiscardAction, buildPassAction } from "@/shared/protocol";
+import {
+    type ClientMessage,
+    buildConfirmRoundAction,
+    buildDiscardAction,
+    buildPassAction,
+} from "@/shared/protocol";
 
 const manualClock = new ManualClock();
 const inputClock = steadyClockOn(manualClock);
@@ -233,13 +239,16 @@ describe("live board input", () => {
         expect(messages(effects)).toEqual([buildDiscardAction(drawn, waitId(state))]);
     });
 
-    it("presses the opening screen's OK on Enter from the board, once for a held key, sending nothing", () => {
-        const state = checkpointState("own_turn_seat_1", "game started");
+    it("presses the opening screen's OK on Enter from the board, once for a held key, sending the start confirm", () => {
+        const state = checkpointState("own_turn_seat_1", "dealt");
+        const owed = roundConfirmOf(state);
+        assert(owed?.kind === "owed");
         const { board, commands, effects, host } = mountInput(state);
         keys(board, [{ key: "Enter" }, { key: "Enter", repeat: true }]);
 
         expect(commands).toEqual([{ intent: { type: "confirm_opening" }, kind: "intent" }]);
-        expect([effects, host.querySelector(".seating")]).toEqual([[], null]);
+        expect(messages(effects)).toEqual([buildConfirmRoundAction(owed.waitId)]);
+        expect(element(host, ".seating__confirm")).toHaveProperty("disabled", true);
     });
 
     it("backs out of chi before passing, ignores held Escape, and sends one pass", () => {

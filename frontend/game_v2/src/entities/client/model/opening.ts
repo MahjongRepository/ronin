@@ -23,13 +23,14 @@ function owesStartAfter(state: LiveClient, message: ParsedServerMessage): boolea
 }
 
 /**
- * The opening screen a message opens on a page that has shown none: the game start's; a snapshot's of the game's start
+ * The opening screen a message opens on a page that has shown none: the game start's at its first deal, so the seating
+ * first shows scored and with its OK, never growing them a moment after the game start; a snapshot's of the game's start
  * before its first draw, as the start's, or of a round in play, for `OPENING_SCREEN_MS`, while one of a round's result
  * pending opens none, since the result's own panel shows the round and the scores. Any other message opens none yet.
  */
 function openedBy(state: LiveClient, message: ParsedServerMessage): OpeningScreen {
     const { now, table } = state;
-    if (message.type === "game_started") {
+    if (message.type === "round_started") {
         return START;
     }
     if (message.type === "game_reconnected") {

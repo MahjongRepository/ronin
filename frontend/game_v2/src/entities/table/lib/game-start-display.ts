@@ -62,25 +62,17 @@ export function gameTypeName(table: TableState): string | null {
 }
 
 /**
- * The seating of the round on a live table from the viewer's seat: once dealt, the round with its honba, the seats in
- * wind order from its dealer and their scores now; before the first deal, the first round from the first dealer, with
- * no score, since the game's start names none.
+ * The seating of the round on a dealt live table from the viewer's seat: the round with its honba, the seats in wind
+ * order from its dealer and their scores now.
  */
 export function tableSeatingDisplay(
     table: TableState,
     viewerSeat: number | null,
 ): GameStartDisplayState {
-    const dealt = table.phase !== "pre_game";
     return {
         gameType: gameTypeName(table),
-        round: dealt
-            ? formatRoundName(table.roundWind, table.roundInWind, table.honbaSticks)
-            : roundName(WIND.EAST, 1),
-        seats: seatsInWindOrder(table, {
-            dealer: dealt ? table.dealerSeat : table.firstDealerSeat,
-            scored: dealt,
-            viewerSeat,
-        }),
+        round: formatRoundName(table.roundWind, table.roundInWind, table.honbaSticks),
+        seats: seatsInWindOrder(table, { dealer: table.dealerSeat, scored: true, viewerSeat }),
     };
 }
 

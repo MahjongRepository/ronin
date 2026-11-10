@@ -70,7 +70,8 @@ table transition and call model; replay dispatch loads with the replay route.
 ## The opening screen
 
 - The opening screen (`LiveClient.opening`) is the dispatcher's: unseen, showing, or closed, and a page shows it at
-  most once, unless a start confirm comes owed after it closed. The game start opens it (`start`), and so does a
+  most once, unless a start confirm comes owed after it closed. The game's first deal opens it (`start`), never the
+  game start just before it, so its seating never grows its scores and OK once shown; so does a
   page's first snapshot of the first deal before its first draw; the first draw closes it, never a client deadline,
   since the server times the start confirm out. A page's first snapshot of any other round in play, when it never saw
   the game start, opens it (`resume`) for `OPENING_SCREEN_MS` (none over a result pending). A round's or the game's

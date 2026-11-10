@@ -381,7 +381,8 @@ function ResultControlsView(
 /**
  * The opening screen's OK at the seating's foot, focused as it first shows so Enter or Space presses it, with the
  * seconds the screen still shows under its label, as a round result's confirm counts its time. Once the seat sent its
- * start confirm the same button stays in place, disabled, saying it waits for the others, its time still counting.
+ * start confirm the same button stays in place, disabled, saying it waits for the others, its time still counting. Its
+ * label reserves the waiting label's width (`data-reserve`), so the button never grows when pressed.
  */
 function OpeningControlsView(
     opening: OpeningControls | null,
@@ -406,7 +407,7 @@ function OpeningControlsView(
           }
       }}
     >
-      <span class="seating__confirm-label">${label}</span>
+      <span class="seating__confirm-label" data-reserve=${t("game.result.waiting")}><span>${label}</span></span>
       ${secondsLeft === null ? nothing : html`<span class="seating__countdown">${t("game.countdown.seconds_left", { count: secondsLeft })}</span>`}
     </button>
   </div>`;
