@@ -1,6 +1,6 @@
 import { type MeldType, seatDistance, tileType } from "@/shared/protocol";
 
-import { type TileFace, tile136toString } from "./tile-utils";
+import { RED_FIVES, type TileFace, tile136toString } from "./tile-utils";
 
 interface MeldInputBase {
     readonly tileIds: readonly number[];
@@ -82,8 +82,12 @@ function openMeldTiles(input: MeldInput, tileCount: number, hasAkadora: boolean)
     );
 }
 
+/** A closed kan shows its middle two tiles, so a red five is laid there, never face down at an end. */
 function closedKanTiles(input: MeldInput, hasAkadora: boolean): MeldTile[] {
-    return input.tileIds.map((tileId, idx) => ({
+    const redIds = hasAkadora ? input.tileIds.filter((tileId) => RED_FIVES.has(tileId)) : [];
+    const plainIds = input.tileIds.filter((tileId) => !redIds.includes(tileId));
+    const laidIds = [...plainIds.slice(0, 1), ...redIds, ...plainIds.slice(1)];
+    return laidIds.map((tileId, idx) => ({
         face: tile136toString(tileId, hasAkadora),
         kind: idx === 0 || idx === 3 ? "facedown" : "upright",
         tileId,

@@ -120,6 +120,78 @@ describe("Meld - closed kan", () => {
     });
 });
 
+describe("meldTiles - closed kan with a red five", () => {
+    test.each([
+        { position: "first", tileIds: [16, 17, 18, 19] },
+        { position: "last", tileIds: [17, 18, 19, 16] },
+    ])("lays a red five given $position face up", ({ tileIds }) => {
+        const input: MeldInput = {
+            calledTileId: null,
+            callerSeat: 0,
+            fromSeat: null,
+            meldType: "closed_kan",
+            tileIds,
+        };
+        const laid = meldTiles(input).map((tile) =>
+            tile.kind === "stacked" ? [] : [tile.kind, tile.face],
+        );
+        expect(laid).toEqual([
+            ["facedown", "5m"],
+            ["upright", "0m"],
+            ["upright", "5m"],
+            ["facedown", "5m"],
+        ]);
+    });
+});
+
+describe("meldTiles - added kan with a red five", () => {
+    test.each([
+        {
+            addedTileId: 55,
+            calledTileId: 52,
+            laid: [
+                ["stacked", "0p", "5p"],
+                ["upright", "5p"],
+                ["upright", "5p"],
+            ],
+            role: "called",
+        },
+        {
+            addedTileId: 55,
+            calledTileId: 54,
+            laid: [
+                ["stacked", "5p", "5p"],
+                ["upright", "0p"],
+                ["upright", "5p"],
+            ],
+            role: "from hand",
+        },
+        {
+            addedTileId: 52,
+            calledTileId: 54,
+            laid: [
+                ["stacked", "5p", "0p"],
+                ["upright", "5p"],
+                ["upright", "5p"],
+            ],
+            role: "added",
+        },
+    ])("keeps a red five $role in its place", ({ addedTileId, calledTileId, laid }) => {
+        const input: MeldInput = {
+            addedTileId,
+            calledTileId,
+            callerSeat: 0,
+            fromSeat: 3,
+            meldType: "added_kan",
+            tileIds: [52, 53, 54, 55],
+        };
+        const laidFaces = meldTiles(input).map((tile) =>
+            tile.kind === "stacked" ? [tile.kind, tile.bottom, tile.top] : [tile.kind, tile.face],
+        );
+        expect(laidFaces).toEqual(laid);
+    });
+});
+
 describe("Meld - added kan", () => {
     test.each([
         { feeder: "kamicha", fromSeat: 3, slot: 0 },
