@@ -45,7 +45,12 @@ export interface DecisionAction extends PlayAction {
     readonly rank: ActionRank;
     /** A choice of tiles at a call's second step, laid as the meld will lie; null for any other control. */
     readonly group: readonly MeldTile[] | null;
+    /** The digit key that presses it (`numberedActions`); null for one Escape answers or none reaches. */
+    readonly digit: number | null;
 }
+
+/** The highest digit key a control takes; a tenth control has none. */
+const MAX_ACTION_DIGIT = 9;
 
 /** Where an answerable decision stands: open or past its deadline. */
 export type DecisionStanding = "open" | "expired";
@@ -210,7 +215,7 @@ type ControlFields = Pick<DecisionAction, "label" | "command" | "rank"> &
     Partial<Pick<DecisionAction, "group" | "pressed" | "tiles">>;
 
 function control(fields: ControlFields): DecisionAction {
-    return { group: null, pressed: null, tiles: [], ...fields };
+    return { digit: null, group: null, pressed: null, tiles: [], ...fields };
 }
 
 function offerAction(offer: Offer): DecisionAction {
@@ -344,6 +349,24 @@ function firstStepActions(
     return [...wins, ...riichi, ...perKind, ...pass];
 }
 
+/**
+ * The controls with their digit keys, 1 up, in the order the mapper lists them (never as a layout draws them): at a
+ * first step every control but the pass, at a call's second step its choices of tiles alone, since the pressed call and
+ * Back both go back, as Escape does.
+ */
+function numberedActions(
+    actions: readonly DecisionAction[],
+    secondStep: boolean,
+): DecisionAction[] {
+    const numbered = actions.filter((action) =>
+        secondStep ? action.group !== null : action.rank !== "pass",
+    );
+    return actions.map((action) => {
+        const digit = numbered.indexOf(action) + 1;
+        return digit === 0 || digit > MAX_ACTION_DIGIT ? action : { ...action, digit };
+    });
+}
+
 export function decisionActions(state: LiveClient, ui: PlayUi): DecisionAction[] {
     if (decisionStanding(state) === null) {
         return [];
@@ -351,9 +374,11 @@ export function decisionActions(state: LiveClient, ui: PlayUi): DecisionAction[]
     const takes = judgeNow(state);
     const offers = takenOffers(state, takes);
     const choosing = choosingTilesBy(state, ui, takes);
-    return choosing === null
-        ? firstStepActions(offers, pickingRiichiBy(state, ui, takes), takes)
-        : tileChoiceActions(state, choosing, offers);
+    const actions =
+        choosing === null
+            ? firstStepActions(offers, pickingRiichiBy(state, ui, takes), takes)
+            : tileChoiceActions(state, choosing, offers);
+    return numberedActions(actions, choosing !== null);
 }
 
 /**

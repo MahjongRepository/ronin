@@ -128,7 +128,10 @@ describe("mountStorybookDecisions", () => {
         tiles[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
         const sent = host.querySelector(".decisions-storybook__sent")?.textContent ?? "";
 
-        expect([pressed?.textContent?.trim(), tiles.length]).toEqual(["Riichi", 1]);
+        expect([
+            pressed?.querySelector(".decision-controls__label")?.textContent?.trim(),
+            tiles.length,
+        ]).toEqual(["Riichi", 1]);
         expect(JSON.parse(sent)).toEqual({ message: buildRiichiAction(120, 3), type: "send" });
     });
 

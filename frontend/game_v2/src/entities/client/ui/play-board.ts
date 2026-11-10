@@ -37,6 +37,7 @@ import { type Locale, type MessageKey, formatList, t } from "@/shared/i18n";
 import { assertNever, focusKeys } from "@/shared/lib";
 import { focusOnFirstRender } from "@/shared/ui";
 
+import { ControlsHelp } from "./controls-help";
 import { GameMenu } from "./game-menu";
 import { playInput } from "./play-input";
 import { withSecondsFigure } from "./seconds-figure";
@@ -147,6 +148,7 @@ function offerLabel(action: DecisionAction): string {
 function ActionButton(
     action: DecisionAction,
     onCommand: PlayBoardProps["onCommand"],
+    keyHints: boolean,
 ): TemplateResult {
     const isBack = action.command.kind === "step_back";
     const isPass = action.command.kind === "intent" && action.command.intent.type === "pass";
@@ -159,13 +161,29 @@ function ActionButton(
         type="button"
         class="decision-controls__action ${rankClass(action)}"
         aria-label=${offerLabel(action)}
-        aria-keyshortcuts=${isPass || isBack ? "Escape" : nothing}
+        aria-keyshortcuts=${actionKeys(action, isPass || isBack)}
         aria-pressed=${action.pressed === null ? nothing : String(action.pressed)}
         data-focus-key=${focusKeys(commandFocusKey(action.command), DECISION_ACTION_FOCUS_KEY) ?? nothing}
         @click=${() => onCommand(action.command)}
     >
-        ${lamp}${label}${ActionTiles(action)}
+        ${lamp}${label}${ActionTiles(action)}${keyHints ? KeyCap(action, isPass || isBack) : nothing}
     </button>`;
+}
+
+/** A control's key as its cap shows it: Escape for a pass or Back, else its digit; none for a control with neither. */
+function KeyCap(action: DecisionAction, escapes: boolean): TemplateResult | typeof nothing {
+    const keyName = escapes ? t("game.help.escape_key") : action.digit;
+    return keyName === null
+        ? nothing
+        : html`<span class="decision-controls__key" aria-hidden="true">${keyName}</span>`;
+}
+
+/** The keys a control answers to, for assistive technology: Escape for a pass or Back, else its digit, if any. */
+function actionKeys(action: DecisionAction, escapes: boolean): string | typeof nothing {
+    if (escapes) {
+        return "Escape";
+    }
+    return action.digit === null ? nothing : String(action.digit);
 }
 
 /** A control's identity across renders, so a focused one keeps its element when a step opens or closes around it. */
@@ -192,7 +210,10 @@ function bandAction(actions: readonly DecisionAction[]): DecisionAction | null {
 }
 
 /** What the decision's controls draw: its controls, its countdown and where it stands. */
-export type DecisionView = Pick<PlayDisplay, "actions" | "countdown" | "decisionStanding">;
+export type DecisionView = Pick<
+    PlayDisplay,
+    "actions" | "countdown" | "decisionStanding" | "keyHints"
+>;
 
 /**
  * The decision's controls by the hand, ranked, with the timer's slot after them: a desktop lays them in one row ending
@@ -214,9 +235,9 @@ export function DecisionControls(
         class="decision-controls decision-controls--${decisionStanding}"
         data-upper=${upper.length}
     >
-        <div class="decision-controls__upper">${repeat(upper, actionKey, (action) => ActionButton(action, onCommand))}</div>
+        <div class="decision-controls__upper">${repeat(upper, actionKey, (action) => ActionButton(action, onCommand, display.keyHints))}</div>
         <div class="decision-controls__band">
-            ${band === null ? nothing : ActionButton(band, onCommand)}${DecisionTimer(display)}
+            ${band === null ? nothing : ActionButton(band, onCommand, display.keyHints)}${DecisionTimer(display)}
         </div>
         <span class="decision-controls__announce" aria-live="polite">${countdownAnnouncement(countdown)}</span>
     </div>`;
@@ -307,8 +328,9 @@ function ResultTime(countdown: DecisionCountdown | null): TemplateResult | typeo
 }
 
 /**
- * The round result's controls at the panel's foot, beside the scores: its primary button with the time left to the
- * round advance under its label, or, once the seat confirmed, that it waits for the others with the time still
+ * The round result's controls at the panel's foot, beside the scores: its primary button (Next, then OK), focused as it
+ * first shows so Enter or Space presses it, with the time left to the round advance under its label, or, once the seat
+ * confirmed, that it waits for the others with the time still
  * counting down. Both stack in one cell, the one not shown kept hidden in place, so confirming never resizes the panel.
  * Only the countdown's thresholds are announced.
  */
@@ -337,6 +359,7 @@ function ResultControlsView(
                   class="round-end-result__confirm"
                   data-focus-key=${PANEL_CONTROL_FOCUS_KEY}
                   aria-label=${action.label}
+                  ${focusOnFirstRender()}
                   @click=${() => onCommand(action.command)}
               >
                   <span class="round-end-result__confirm-label">${action.label}</span>
@@ -426,6 +449,7 @@ const TOGGLE_SETTINGS: PlayCommand = { kind: "toggle_settings" };
 const CLOSE_SETTINGS: PlayCommand = { kind: "close_settings" };
 const TOGGLE_SOUND: PlayCommand = { kind: "toggle_sound" };
 const TOGGLE_ANIMATIONS: PlayCommand = { kind: "toggle_animations" };
+const SHOW_CONTROLS: PlayCommand = { kind: "show_controls" };
 
 /** What goes on beneath a notice's sheet: play, and the decision or round confirm the player owes with its seconds. */
 function sheetNoteText(countdown: NoticeSheetDisplay["countdown"]): TemplateResult | string {
@@ -457,6 +481,9 @@ function OverlayPanel(panel: PlayPanel, props: PlayBoardProps): TemplateResult {
         }
         case "leave": {
             return LeaveConfirm(onCommand);
+        }
+        case "controls": {
+            return ControlsHelp(panel.rightClick, onCommand);
         }
         case "notice_sheet": {
             const { countdown, notices, opener } = panel.sheet;
@@ -531,7 +558,10 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             backdrop: false,
             extra: menuExtra,
             input: {
+                keyHints: display.keyHints,
+                onShowControls: () => onCommand(SHOW_CONTROLS),
                 onToggle: () => onCommand({ kind: "toggle_right_click" }),
+                onToggleKeyHints: () => onCommand({ kind: "toggle_key_hints" }),
                 rightClick: display.shortcuts.rightClickEnabled,
             },
             keepAutoWin: {

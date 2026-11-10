@@ -29,6 +29,7 @@ import {
     stepGameClient,
     stepPlayUi,
 } from "@/entities/client";
+import { BOARD_SELECTOR } from "@/entities/table";
 import { type TileSprite } from "@/entities/tile";
 import { type HandoffRecovery, type RecoverHandoff, isAbortError } from "@/shared/api";
 import { type Clock } from "@/shared/clock";
@@ -326,8 +327,11 @@ class GameViewController {
     private ui: PlayUi;
     private readonly stopTileSprite: () => void;
     private readonly stopBrowserBars: () => void;
-    /** The control that opened the leave question, which takes the focus back when the player stays. */
-    private leaveOpener: HTMLElement | null = null;
+    /**
+     * The control that opened a modal panel (the leave question, the controls' help), which takes the focus back as the
+     * panel closes, or the cog when the menu row that opened it is gone.
+     */
+    private panelOpener: HTMLElement | null = null;
     private readonly recovery = new AbortController();
     private readonly timer: DeadlineTimer;
     private socket: GameConnection | null = null;
@@ -349,7 +353,7 @@ class GameViewController {
             animationsOn: deps.motionSetting.load().animations,
             browserBars: deps.browserBars.shown(),
             canEnterFullscreen: deps.browserBars.canEnterFullscreen(),
-            rightClick: deps.inputSetting.load().rightClick,
+            ...deps.inputSetting.load(),
             soundOn: deps.sound.setting.load().sound_on,
             tileSprite: deps.tileSprite.status(),
         };
@@ -435,20 +439,20 @@ class GameViewController {
     private changeUi(
         command: Exclude<PlayCommand, { kind: "intent" | "reload" | "enter_fullscreen" }>,
     ): void {
-        if (command.kind === "ask_leave") {
-            this.leaveOpener = this.focusedControl();
+        if (command.kind === "ask_leave" || command.kind === "show_controls") {
+            this.panelOpener = this.focusedControl();
         }
         this.ui = stepPlayUi(this.state, this.ui, command);
         this.saveSetting(command);
         this.draw();
-        if (command.kind === "cancel_leave") {
-            this.refocusLeaveOpener();
+        if (command.kind === "cancel_leave" || command.kind === "close_controls") {
+            this.refocusPanelOpener();
         }
     }
 
-    private refocusLeaveOpener(): void {
-        const opener = this.leaveOpener;
-        this.leaveOpener = null;
+    private refocusPanelOpener(): void {
+        const opener = this.panelOpener;
+        this.panelOpener = null;
         if (opener === null) {
             return;
         }
@@ -466,8 +470,39 @@ class GameViewController {
         if (command.kind === "toggle_animations") {
             this.deps.motionSetting.save({ animations: this.ui.animationsOn });
         }
-        if (command.kind === "toggle_right_click") {
-            this.deps.inputSetting.save({ rightClick: this.ui.rightClick });
+        if (command.kind === "toggle_right_click" || command.kind === "toggle_key_hints") {
+            this.deps.inputSetting.save({
+                keyHints: this.ui.keyHints,
+                rightClick: this.ui.rightClick,
+            });
+        }
+    }
+
+    private renderKeepingFocus(template: TemplateResult): void {
+        const { activeElement, body } = this.host.ownerDocument;
+        const pageFocus =
+            activeElement === null || activeElement === body || this.host.contains(activeElement);
+        render(template, this.host);
+        if (pageFocus) {
+            this.keepFocusOnBoard();
+        }
+    }
+
+    /**
+     * Focus resting on the page's body (a page that opened mid-game) or taken by a render (the opening screen's OK, a
+     * discarded drawn tile, a result's buttons as the next deal comes) goes to the board, which holds the game's keys; a
+     * panel's own focus takes it from there.
+     */
+    private keepFocusOnBoard(): void {
+        const focused = this.host.ownerDocument.activeElement;
+        const kept =
+            focused instanceof HTMLElement &&
+            this.host.contains(focused) &&
+            !(focused instanceof HTMLButtonElement && focused.disabled);
+        if (!kept) {
+            this.host
+                .querySelector<HTMLElement>(`.game__play ${BOARD_SELECTOR}`)
+                ?.focus({ preventScroll: true });
         }
     }
 
@@ -596,7 +631,7 @@ class GameViewController {
             state,
             ui,
         };
-        render(gameTemplate(props), this.host);
+        this.renderKeepingFocus(gameTemplate(props));
         if (panel.value && this.logAppended !== this.logAppendedAtDraw) {
             panel.value.scrollTop = panel.value.scrollHeight;
         }

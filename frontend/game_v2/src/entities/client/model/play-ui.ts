@@ -25,8 +25,8 @@ export type NoticeKind =
  * What a control of the page does: send the client an intent, turn picking riichi's discard on or off, open or close
  * a call's choice of tiles, step back from either (Back, Escape), arm a tile for a second finger tap (or none), turn the round result's panel to a page, pin a
  * nameplate (or none) for the others' score differences, show or hide the play switches' names, ask to leave mid-game
- * or take that back, open a notice whole in its sheet or close it, open or close the settings menu, turn the sound on
- * or off, or reload the page after a failure.
+ * or take that back, open a notice whole in its sheet or close it, open or close the controls' help, open or close the
+ * settings menu, turn the sound on or off, or reload the page after a failure.
  */
 export type PlayCommand =
     | { readonly kind: "intent"; readonly intent: LocalIntent }
@@ -41,11 +41,14 @@ export type PlayCommand =
     | { readonly kind: "cancel_leave" }
     | { readonly kind: "show_notice"; readonly notice: NoticeKind }
     | { readonly kind: "close_notice" }
+    | { readonly kind: "show_controls" }
+    | { readonly kind: "close_controls" }
     | { readonly kind: "toggle_settings" }
     | { readonly kind: "close_settings" }
     | { readonly kind: "toggle_sound" }
     | { readonly kind: "toggle_animations" }
     | { readonly kind: "toggle_right_click" }
+    | { readonly kind: "toggle_key_hints" }
     | { readonly kind: "reload" }
     | { readonly kind: "enter_fullscreen" };
 
@@ -92,10 +95,14 @@ export interface PlayUi {
     readonly confirmingLeave: boolean;
     /** The notice the player opened whole in its sheet, while it shows. */
     readonly noticeSheet: NoticeKind | null;
+    /** The player opened the controls' help over the board from the settings menu. */
+    readonly controlsHelp: boolean;
     readonly settingsOpen: boolean;
     readonly soundOn: boolean;
     readonly animationsOn: boolean;
     readonly rightClick: boolean;
+    /** The decision controls show their digit keys, a setting the page keeps in this browser. */
+    readonly keyHints: boolean;
     readonly tileSprite: TileSpriteStatus;
     readonly browserBars: boolean;
     readonly canEnterFullscreen: boolean;
@@ -107,6 +114,8 @@ export const NO_PLAY_UI: PlayUi = {
     browserBars: false,
     canEnterFullscreen: false,
     confirmingLeave: false,
+    controlsHelp: false,
+    keyHints: DEFAULT_INPUT_SETTING.keyHints,
     noticeSheet: null,
     pinnedNameplate: null,
     resultPage: null,

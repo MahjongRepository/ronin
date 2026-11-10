@@ -223,6 +223,28 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
         inset 0 0 0 4px var(--ronin-surface);
 }
 
+/* A control's digit key, a small cap over its corner where a mouse (and so, likely, a keyboard) plays. */
+.decision-controls__key {
+    display: none;
+
+    @media (hover: hover) and (pointer: fine) {
+        position: absolute;
+        top: -0.45em;
+        left: -0.45em;
+        display: block;
+        min-width: 1.4em;
+        padding: 0.12em 0.25em;
+        font-size: calc(var(--action-text) * 0.6);
+        font-weight: 600;
+        line-height: 1;
+        text-align: center;
+        color: var(--ronin-text-secondary);
+        background: var(--ronin-badge);
+        border: 1px solid var(--ronin-border-subtle);
+        border-radius: 3px;
+    }
+}
+
 /* A toggle's lamp: an empty box, checked while on, so the state never reads by colour alone. */
 .decision-controls__lamp {
     position: relative;

@@ -311,7 +311,7 @@ describe("playDisplay", () => {
 });
 
 describe("playDisplay decisions", () => {
-    it("takes a chi with a choice in two steps: only the server's options, laid as they will lie, Back in Pass's place", () => {
+    it("takes a chi with a choice in two steps: only the server's options, laid as they will lie, Back in Pass's place, the options alone numbered", () => {
         const state = checkpointState("call_prompt_seat_1", "prompt");
         const choosing = stepPlayUi(state, NO_PLAY_UI, CHOOSE_CHI);
         const display = playDisplay(state, choosing);
@@ -329,12 +329,13 @@ describe("playDisplay decisions", () => {
                 action.pressed,
                 action.rank,
                 laid(action.group),
+                action.digit,
             ]),
         ).toEqual([
-            ["Chii", null, "call", ["sideways 3m", "upright 2m", "upright 4m"]],
-            ["Chii", null, "call", ["sideways 3m", "upright 1m", "upright 2m"]],
-            ["Chii", true, "call", null],
-            ["Back", null, "pass", null],
+            ["Chii", null, "call", ["sideways 3m", "upright 2m", "upright 4m"], 1],
+            ["Chii", null, "call", ["sideways 3m", "upright 1m", "upright 2m"], 2],
+            ["Chii", true, "call", null, null],
+            ["Back", null, "pass", null, null],
         ]);
         expect(display.actions.slice(0, 2).map((action) => action.command)).toEqual([
             {
@@ -350,7 +351,7 @@ describe("playDisplay decisions", () => {
         expect(playDisplay(sent.state, choosing).actions).toEqual([]);
     });
 
-    it("goes back from a call's choice of tiles by Back, Escape or the call pressed again, and never into a newer wait's", () => {
+    it("goes back from a call's choice of tiles by Back, Escape or the call pressed again, never into a newer wait's, and numbers a first step's controls but Pass", () => {
         const state = checkpointState("call_prompt_seat_1", "prompt");
         const choosing = stepPlayUi(state, NO_PLAY_UI, CHOOSE_CHI);
         const {
@@ -366,11 +367,13 @@ describe("playDisplay decisions", () => {
         ]);
         expect(stepPlayUi(state, choosing, escape.command)).toEqual(NO_PLAY_UI);
         expect(stepPlayUi(state, choosing, CHOOSE_CHI)).toEqual(NO_PLAY_UI);
-        expect(playDisplay(state, older).actions.map((action) => action.label)).toEqual([
-            "Kan",
-            "Pon",
-            "Chii",
-            "Pass",
+        expect(
+            playDisplay(state, older).actions.map((action) => [action.label, action.digit]),
+        ).toEqual([
+            ["Kan", 1],
+            ["Pon", 2],
+            ["Chii", 3],
+            ["Pass", null],
         ]);
         expect(playDisplay(state, NO_PLAY_UI).shortcuts.escape?.command).toEqual({
             intent: { type: "pass" },

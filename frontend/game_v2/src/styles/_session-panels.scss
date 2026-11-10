@@ -1,5 +1,5 @@
 /* The question leaving mid-game asks and the panel of an end that blocks the board: a title, a line of why, and
-   its buttons, the safe one first and primary. */
+   its buttons, the safe one first and primary. The controls' help shares their title. */
 
 .leave-confirm,
 .failure-panel {
@@ -16,7 +16,8 @@
 }
 
 .leave-confirm__title,
-.failure-panel__title {
+.failure-panel__title,
+.controls-help__title {
     font-size: 1.15rem;
     font-weight: 700;
     color: var(--ronin-text);
@@ -64,4 +65,62 @@
     &:focus-visible {
         --pico-background-color: color-mix(in srgb, var(--ronin-danger) 15%, transparent);
     }
+}
+
+.controls-help {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    max-width: 26rem;
+
+    p {
+        margin: 0;
+    }
+}
+
+.controls-help__keys {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.4rem 0.75rem;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.controls-help__row {
+    display: contents;
+
+    dt,
+    dd {
+        display: flex;
+        align-items: center;
+        margin: 0;
+    }
+
+    dd {
+        color: var(--ronin-text);
+    }
+}
+
+.controls-help__key {
+    padding: 0.1rem 0.45rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    color: var(--ronin-action-quiet-ink);
+    background: var(--ronin-action-quiet);
+    border: var(--pico-border-width) solid var(--ronin-action-quiet-rim);
+    border-radius: var(--pico-border-radius);
+}
+
+.controls-help__note {
+    font-size: 0.85rem;
+    color: var(--ronin-text-secondary);
+}
+
+.controls-help__close {
+    align-self: center;
+    width: auto;
+    min-width: 6rem;
+    min-height: 2.75rem;
+    margin: 0.25rem 0 0;
+    padding: 0.25rem 1rem;
 }

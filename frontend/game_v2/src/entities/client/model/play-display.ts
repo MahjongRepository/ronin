@@ -73,12 +73,14 @@ export interface SwitchControl {
 
 /**
  * What shows over the live board, in the overlay's precedence: an end that blocks the board, else the question leaving
- * mid-game asks, else a notice the player opened whole, else the opening screen's seating, else the table's own panel
+ * mid-game asks, else the controls' help (naming right-click only while its shortcuts are on), else a notice the
+ * player opened whole, else the opening screen's seating, else the table's own panel
  * (a result, the game's end from the viewer's seat), either coming back as the sheet closes.
  */
 export type PlayPanel =
     | { readonly kind: "failure"; readonly failure: FailureDisplay }
     | { readonly kind: "leave" }
+    | { readonly kind: "controls"; readonly rightClick: boolean }
     | { readonly kind: "notice_sheet"; readonly sheet: NoticeSheetDisplay }
     | TablePanel;
 
@@ -148,6 +150,8 @@ export interface PlayDisplay {
     readonly soundOn: boolean;
     readonly animationsOn: boolean;
     readonly keepAutoWin: boolean;
+    /** The decision controls show their digit keys, as the settings menu's switch shows. */
+    readonly keyHints: boolean;
 }
 
 const SWITCH_LABELS: Readonly<
@@ -157,10 +161,6 @@ const SWITCH_LABELS: Readonly<
     auto_win: { label: "game.auto.win", letter: "game.auto.win_letter" },
     no_calls: { label: "game.auto.no_call", letter: "game.auto.no_call_letter" },
 };
-
-export function switchLetters(): string[] {
-    return PLAY_SWITCHES.map((playSwitch) => t(SWITCH_LABELS[playSwitch].letter));
-}
 
 function playTile(tile: HandTile, plays: ReadonlyMap<number, TilePlay>): HandTile {
     const play = tile.tileId === undefined ? undefined : plays.get(tile.tileId);
@@ -328,20 +328,41 @@ function tableOverlay(
     return panel === null ? null : { blocksBoard: false, panel };
 }
 
+/** The panel the player opened over the board, which blocks it: the leave question, the controls' help or a notice's sheet. */
+function openedPanel(
+    state: LiveClient,
+    ui: PlayUi,
+    { leave, notices }: Pick<OverlaySource, "leave" | "notices">,
+): PlayPanel | null {
+    if (leave.confirming) {
+        return { kind: "leave" };
+    }
+    if (ui.controlsHelp) {
+        return { kind: "controls", rightClick: ui.rightClick };
+    }
+    const sheet = noticeSheet(state, ui, notices);
+    return sheet === null ? null : { kind: "notice_sheet", sheet };
+}
+
 /** The panel over the live board in the overlay's precedence; null while nothing shows over it. */
 function playOverlay(state: LiveClient, ui: PlayUi, source: OverlaySource): PlayOverlay | null {
-    const { failure, leave, notices } = source;
+    const { failure } = source;
     if (failure !== null) {
         return { blocksBoard: true, panel: { failure, kind: "failure" } };
     }
-    if (leave.confirming) {
-        return { blocksBoard: true, panel: { kind: "leave" } };
-    }
-    const sheet = noticeSheet(state, ui, notices);
-    if (sheet !== null) {
-        return { blocksBoard: true, panel: { kind: "notice_sheet", sheet } };
-    }
-    return tableOverlay(state, source);
+    const opened = openedPanel(state, ui, source);
+    return opened === null ? tableOverlay(state, source) : { blocksBoard: true, panel: opened };
+}
+
+/** The open decision's controls and the shortcuts that reach them and the page's own controls. */
+function decisionKeys(
+    state: LiveClient,
+    ui: PlayUi,
+    overlay: PlayOverlay | null,
+): Pick<PlayDisplay, "actions" | "shortcuts"> {
+    const actions = decisionActions(state, ui);
+    const step = escapeStep(state, ui);
+    return { actions, shortcuts: playShortcuts(state, ui, { actions, overlay, step }) };
 }
 
 /**
@@ -368,9 +389,9 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
     };
     const { callouts, failure, leave, notices, resultPage } = source;
     const overlay = playOverlay(state, ui, source);
-    const escape = escapeStep(state, ui);
+    const { actions, shortcuts } = decisionKeys(state, ui, overlay);
     return {
-        actions: decisionActions(state, ui),
+        actions,
         animationsOn: ui.animationsOn,
         armedTile,
         board: viewerBoard(state, plays),
@@ -380,6 +401,7 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
         failure,
         furiten: furiten && viewer !== undefined && table.phase === "in_round",
         keepAutoWin: state.keepAutoWin,
+        keyHints: ui.keyHints,
         lastResult: lastResultAction(state),
         leave,
         matchResult: overlay?.panel.kind === "game_end",
@@ -391,7 +413,7 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
         pinnedNameplate: ui.pinnedNameplate,
         result: resultControls(state, resultPage),
         settingsOpen: ui.settingsOpen && overlay?.blocksBoard !== true,
-        shortcuts: playShortcuts(state, ui, { overlay, step: escape }),
+        shortcuts,
         soundOn: ui.soundOn,
         status: describePlayerClientStatus(state),
         switchNames: ui.switchNames,

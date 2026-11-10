@@ -1,6 +1,5 @@
 import { type TemplateResult, html, nothing, svg } from "lit-html";
 
-import { switchLetters } from "@/entities/client/model/play-display";
 import { SETTINGS_FOCUS_KEY } from "@/entities/client/model/settings-menu";
 import { type SessionStatusDisplay } from "@/entities/session";
 import { LOCALES, type Locale, pageLocale, t } from "@/shared/i18n";
@@ -19,7 +18,14 @@ interface GameMenuProps {
     readonly onToggleSound: () => void;
     readonly onToggleAnimations: () => void;
     readonly onLanguage: (locale: Locale) => void;
-    readonly input?: { readonly rightClick: boolean; readonly onToggle: () => void };
+    /** The keyboard and mouse settings: the right-click switch and the controls' help it opens over the board. */
+    readonly input?: {
+        readonly rightClick: boolean;
+        readonly onToggle: () => void;
+        readonly keyHints: boolean;
+        readonly onToggleKeyHints: () => void;
+        readonly onShowControls: () => void;
+    };
     /** Whether Auto win carries into the next round; a live game's alone. */
     readonly keepAutoWin?: { readonly on: boolean; readonly onToggle: () => void };
     /** The way back to the lobby, asking first when `asks`; a live game's alone. */
@@ -146,8 +152,9 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
                 ><span class="game-menu__item-value">${onOff(animationsOn)}</span>
             </button>
             ${props.keepAutoWin === undefined ? nothing : KeepAutoWinRow(props.keepAutoWin)}
-            ${LanguageRow(onLanguage)}
             ${props.input === undefined ? nothing : InputSettings(props.input)}
+            ${LanguageRow(onLanguage)}
+            ${props.input === undefined ? nothing : ControlsRow(props.input.onShowControls)}
             ${status === null ? nothing : StatusRow(status)}
             ${props.leave === undefined ? nothing : LeaveRow(props.leave)}
         </div>`;
@@ -186,21 +193,25 @@ function InputSettings(input: NonNullable<GameMenuProps["input"]>): TemplateResu
         @click=${input.onToggle}
     ><span class="game-menu__item-name">${t("game.settings.right_click")}</span
         ><span class="game-menu__item-value">${onOff(input.rightClick)}</span></button>
-        <details class="game-menu__controls">
-            <summary>${t("game.help.title")}</summary>
-            <p>${t("game.help.tiles")}</p>
-            <p>${t("game.help.escape")}</p>
-            <p>${t("game.help.decline", {
-                pass: t("game.button.pass"),
-                ron: t("game.call.ron"),
-                tsumo: t("game.call.tsumo"),
-            })}</p>
-            <p>${t("game.help.results", {
-                letters: switchLetters().join("/"),
-                next: t("game.result.next"),
-                ok: t("common.ok"),
-            })}</p>
-        </details>`;
+        <button
+            type="button"
+            class="secondary game-menu__item game-menu__key-hints"
+            role="switch"
+            aria-checked=${String(input.keyHints)}
+            @click=${input.onToggleKeyHints}
+        ><span class="game-menu__item-name">${t("game.settings.key_hints")}</span
+            ><span class="game-menu__item-value">${onOff(input.keyHints)}</span></button>`;
+}
+
+/** The row that opens the controls' help panel. */
+function ControlsRow(onShowControls: () => void): TemplateResult {
+    return html`<button
+        type="button"
+        class="secondary game-menu__item game-menu__controls"
+        aria-haspopup="dialog"
+        @click=${onShowControls}
+    ><span class="game-menu__item-name">${t("game.help.title")}</span
+        ><span class="game-menu__item-value" aria-hidden="true">›</span></button>`;
 }
 
 /**

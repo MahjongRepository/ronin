@@ -83,13 +83,20 @@ table transition and call model; replay dispatch loads with the replay route.
 
 - A primary click or tap on the board's background never answers a decision or confirms or dismisses a round result.
 - Live shortcuts come from `playShortcuts` through the same intent gate as visible controls. One gesture closes only
-  the topmost UI, backs out of a selection, or answers one decision; a result always needs its explicit control. The
+  the topmost UI, backs out of a selection, or answers one decision; a result always needs its explicit control, which takes the focus as it first shows so Enter or Space presses it. The
   one exception is a pointer's click on a playable tile with the settings menu open, which closes the menu and goes on
   to the tile (a mouse discards, a finger lifts); any other click outside the menu only closes it.
+  Digit keys 1-9 press the decision controls the mapper numbers (`DecisionAction.digit`, shown as keycaps): at a first
+  step all but the pass, at a call's second step only its choices of tiles, in the mapper's order, never a layout's
+  (the desktop row moves the pressed call first). They read the physical key (`event.code`), the numpad only while it
+  types digits, never under any panel or the open menu, and the same digit within `DIGIT_SETTLE_MS` of acting is dropped
+  once the controls it presses changed, so a double tap never takes an unseen choice.
   Enter or Space outside a focused control presses the opening screen's OK (`confirm`), its only key; the board's own
-  keys (Escape's back or pass, right-click's discard, tile arrows) still reach a decision under it (`leavesBoardKeys`). `playInput` owns the board's DOM listeners and cancels a press across an input scope change or disposal. A right-click within `RIGHT_CLICK_SETTLE_MS` of the last one that had a shortcut is dropped, so a double-click never answers a decision and then the one its answer opened. Repeated
-  activation keys never answer again; arrow navigation only moves focus among playable tiles. The right-click
-  preference is independent of replay controls and lives in browser storage through the live driver's dependencies.
+  keys (Escape's and right-click's back, pass or drawn-tile discard, tile arrows) still reach a decision under it (`leavesBoardKeys`). `playInput` owns the board's DOM listeners and cancels a press across an input scope change or disposal. An Escape or a right-click within `SHORTCUT_SETTLE_MS` of the last of its kind that had a shortcut is dropped, so a double press never closes a panel and then discards, or answers a decision and then the one its answer opened. Repeated
+  activation keys never answer again; arrow navigation (the arrows, or A and D by position) only moves focus among playable tiles, or every hand tile while none plays, wrapping round the
+  hand. The right-click
+  preference is independent of replay controls and lives in browser storage through the live driver's dependencies;
+  turned off, a right-click does nothing, yet still never opens the browser's menu where it would have acted.
 - A local declaration shows its callout and plays its voice as soon as its intent is accepted, without changing the
   table. The submitted decision identifies its server echo even after the callout expires, so confirmation never
   repeats the voice or a lone callout. Other seats' calls still announce normally; a multi-ron result shows all

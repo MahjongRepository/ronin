@@ -193,27 +193,6 @@ section {
     border-radius: 0.5rem;
 }
 
-.game-menu__panel:has(.game-menu__controls[open]) {
-    width: min(22rem, 90cqw);
-}
-
-.game-menu__controls {
-    margin: 0;
-    padding: 0.35rem 0.6rem;
-    font-size: 0.85rem;
-
-    > summary {
-        display: flex;
-        align-items: center;
-        min-height: 40px;
-    }
-
-    p {
-        margin: 0.5rem 0;
-        font-size: inherit;
-    }
-}
-
 .game-menu__item {
     display: flex;
     align-items: center;
@@ -228,6 +207,7 @@ section {
 }
 
 .game-menu__right-click,
+.game-menu__key-hints,
 .game-menu__controls {
     @media (hover: none) and (pointer: coarse) {
         display: none;
@@ -248,22 +228,37 @@ section {
     color: var(--ronin-text-secondary);
 }
 
+.game-menu__language {
+    padding-block: 0;
+    padding-right: 0.15rem;
+    color: var(--ronin-action-quiet-ink);
+    background: var(--ronin-action-quiet);
+    border: var(--pico-border-width) solid var(--ronin-action-quiet-rim);
+    border-radius: var(--pico-border-radius);
+}
+
 .game-menu__languages {
     display: flex;
     flex: none;
-    gap: 0.25rem;
 }
 
-.game-menu__language-option {
+.game-menu__languages .game-menu__language-option {
     min-width: 40px;
-    min-height: 40px;
+    min-height: 38px;
     margin: 0;
     padding: 0.2rem 0.45rem;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
+    color: var(--ronin-text-secondary);
+    background-color: transparent;
+    border-color: transparent;
+
+    &:hover {
+        color: var(--ronin-action-quiet-ink);
+        background-color: var(--ronin-action-quiet-hover);
+    }
 
     &[aria-current="true"] {
         color: var(--ronin-accent);
-        border-color: var(--ronin-accent);
         text-decoration: underline 2px;
         text-underline-offset: 0.25em;
     }

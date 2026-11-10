@@ -7,6 +7,9 @@ The route views: the live game's driver, the replay page and the storybook, each
 
 - A step, effect or render that throws ends the client as failed on the page, socket closed, error on the console;
   never leave the queue stuck. A protocol failure never throws out of the dispatcher, so a throw is a client bug.
+- The game's keys listen on the board's root alone, so a render that removes or disables the focused control, or
+  finds the focus on the page's body, gives it to the board; a panel's own focus takes it from there. Without this,
+  every key goes dead once the opening screen's OK, a discarded drawn tile or a result's buttons leave the page.
 
 ## The replay page (`replay.ts`, `replay-input.ts`)
 

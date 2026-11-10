@@ -29,6 +29,7 @@ import {
     readInputSetting,
     readMotionSetting,
 } from "@/entities/client";
+import { SHORTCUT_SETTLE_MS } from "@/entities/client/ui/play-input";
 import { type TileSprite, type TileSpriteStatus } from "@/entities/tile";
 import { type HandoffRecovery } from "@/shared/api";
 import { localStore } from "@/shared/lib";
@@ -260,6 +261,15 @@ function openCallPrompt(socket: FakeConnection): void {
     const { transcript } = loadSeatScenario("call_prompt_seat_1");
     socket.handlers.onOpen();
     for (const payload of receivedThrough(transcript, "prompt")) {
+        socket.handlers.onMessage(payload);
+    }
+}
+
+/** Join, then receive the double ron scenario's messages through its round end. */
+function openDoubleRonEnd(socket: FakeConnection): void {
+    const { transcript } = loadSeatScenario("double_ron_seat_1");
+    socket.handlers.onOpen();
+    for (const payload of receivedThrough(transcript, "round end")) {
         socket.handlers.onMessage(payload);
     }
 }
@@ -836,21 +846,28 @@ describe("mountGameView handoff recovery", () => {
     });
 });
 
-/** Mount into the document, where focus works, at the call prompt; the test's end disposes it and takes it out. */
+/** Mount into the document, where focus works; the test's end disposes it and takes it out. */
+function mountInDocument(overrides: FakeOverrides = {}): ReturnType<typeof mountWithFakes> {
+    const mounted = mountWithFakes(overrides);
+    document.body.append(mounted.host);
+    onTestFinished(() => {
+        mounted.dispose();
+        mounted.host.remove();
+    });
+    return mounted;
+}
+
+/** Mount into the document at the call prompt. */
 function mountInDocumentAtCallPrompt(overrides: FakeOverrides = {}): {
+    clock: ManualClock;
     connections: FakeConnection[];
     host: HTMLElement;
     lobby: HTMLElement;
     sound: FakeSound;
 } {
-    const { connections, dispose, host, sound } = mountWithFakes(overrides);
-    document.body.append(host);
-    onTestFinished(() => {
-        dispose();
-        host.remove();
-    });
+    const { clock, connections, host, sound } = mountInDocument(overrides);
     openCallPrompt(connections[0]);
-    return { connections, host, lobby: rotateLeave(host), sound };
+    return { clock, connections, host, lobby: rotateLeave(host), sound };
 }
 
 /** The rotate panel's way back to the lobby. */
@@ -963,6 +980,79 @@ describe("mountGameView leaving", () => {
     });
 });
 
+/**
+ * Mount into the document and play the own turn scenario to its first draw, noting whether the opening screen held
+ * the focus before the draw closed it.
+ */
+async function mountInDocumentThroughFirstDraw(): Promise<{
+    host: HTMLElement;
+    openingFocused: boolean;
+}> {
+    const { connections, host } = mountInDocument();
+    const { transcript } = loadSeatScenario("own_turn_seat_1");
+    const toOpening = receivedThrough(transcript, "game started").length + 1;
+    const toDraw = receivedThrough(transcript, "first draw");
+    connections[0].handlers.onOpen();
+    toDraw.slice(0, toOpening).forEach((payload) => connections[0].handlers.onMessage(payload));
+    await Promise.resolve();
+    const openingFocused = document.activeElement?.closest(".seating") != null;
+    toDraw.slice(toOpening).forEach((payload) => connections[0].handlers.onMessage(payload));
+    return { host, openingFocused };
+}
+
+/** Press ArrowRight on the focused element, and say whether it moved the focus to a playable tile. */
+function arrowReachesTile(): boolean {
+    document.activeElement?.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" }),
+    );
+    return document.activeElement?.classList.contains("hand-tile--selectable") === true;
+}
+
+describe("mountGameView keyboard focus", () => {
+    it("gives the board the focus the opening screen's OK loses on the first draw, and the arrows reach the hand from it or the cog", async () => {
+        const { host, openingFocused } = await mountInDocumentThroughFirstDraw();
+
+        const boardFocused = document.activeElement?.classList.contains("game-board");
+        const fromBoard = arrowReachesTile();
+        host.querySelector<HTMLElement>(".game__play .game-menu__toggle")?.focus();
+        const fromCog = arrowReachesTile();
+
+        expect([openingFocused, boardFocused, fromBoard, fromCog]).toEqual([
+            true,
+            true,
+            true,
+            true,
+        ]);
+    });
+});
+
+describe("mountGameView controls help", () => {
+    it("opens over an inert board from the settings menu, and Escape closes it and focuses the cog back", async () => {
+        const { host } = mountInDocumentAtCallPrompt();
+        press(host, ".game-menu__toggle");
+        const row = host.querySelector<HTMLElement>(".game__play .game-menu__controls");
+        row?.focus();
+
+        row?.click();
+        await Promise.resolve();
+        const opened = [
+            host.querySelector(".game__play .game-menu__panel"),
+            inertAreas(host),
+            document.activeElement?.classList.contains("controls-help__close"),
+            host.querySelectorAll(".game__play .controls-help__row").length,
+        ];
+        document.activeElement?.dispatchEvent(
+            new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+        );
+
+        expect(opened).toEqual([null, [true, true], true, 6]);
+        expect([
+            host.querySelector(".game__play .controls-help"),
+            document.activeElement?.classList.contains("game-menu__toggle"),
+        ]).toEqual([null, true]);
+    });
+});
+
 /** The settings menu's sound switch: whether it is on, and what it reads. */
 function soundSwitch(host: HTMLElement): (string | null | undefined)[] {
     const button = host.querySelector(".game__play .game-menu__sound");
@@ -992,6 +1082,10 @@ function motionOf(host: HTMLElement): string | null | undefined {
     return host.querySelector(".game-board")?.getAttribute("data-motion");
 }
 
+function keycaps(host: HTMLElement): number {
+    return host.querySelectorAll(".game__play .decision-controls__key").length;
+}
+
 function mountInputMenu(
     inputSetting: GameViewDeps["inputSetting"],
 ): ReturnType<typeof mountInDocumentAtCallPrompt> {
@@ -1001,24 +1095,46 @@ function mountInputMenu(
 }
 
 describe("mountGameView settings", () => {
+    it("shows the decision controls' digit keys only once Key hints is on, kept across mounts beside right-click", () => {
+        const inputSetting = inputSettingInBrowser();
+        const first = mountInputMenu(inputSetting);
+        const before = keycaps(first.host);
+        press(first.host, ".game-menu__key-hints");
+        const saved: unknown = JSON.parse(localStorage.getItem(INPUT_SETTING_KEY) ?? "null");
+        const next = mountInputMenu(inputSetting);
+
+        expect([before, keycaps(first.host), saved, keycaps(next.host)]).toEqual([
+            0,
+            4,
+            { keyHints: true, rightClick: true },
+            4,
+        ]);
+        expect(readInputSetting({ rightClick: false })).toEqual({
+            keyHints: false,
+            rightClick: false,
+        });
+    });
+
     it("keeps right-click disabled across mounts without disabling Escape to pass", () => {
         const inputSetting = inputSettingInBrowser();
         const first = mountInputMenu(inputSetting);
-        expect(
-            first.host.querySelector(".game-menu__right-click")?.getAttribute("aria-checked"),
-        ).toBe("true");
         press(first.host, ".game-menu__right-click");
         expect(JSON.parse(localStorage.getItem(INPUT_SETTING_KEY) ?? "null")).toEqual({
+            keyHints: false,
             rightClick: false,
         });
 
         const next = mountInputMenu(inputSetting);
-        expect(
-            next.host.querySelector(".game-menu__right-click")?.getAttribute("aria-checked"),
-        ).toBe("false");
+        const nextChecked = next.host
+            .querySelector(".game-menu__right-click")
+            ?.getAttribute("aria-checked");
         pressKey(next.host, ".game-menu__right-click", "Escape");
+        next.clock.advanceTo(next.clock.elapsedNow() + SHORTCUT_SETTLE_MS);
         pressKey(next.host, ".board-local .hand-tile", "Escape");
-        expect(next.connections[0].sent).toEqual([JOIN, buildPassAction(PROMPT_WAIT_ID)]);
+        expect([nextChecked, next.connections[0].sent]).toEqual([
+            "false",
+            [JOIN, buildPassAction(PROMPT_WAIT_ID)],
+        ]);
     });
 
     it("defaults keeping Auto win off over a bad stored value and remembers it across mounts", () => {
@@ -1255,23 +1371,24 @@ describe("mountGameView board", () => {
         ).toHaveLength(0);
     });
 
-    it("pages a double ron with Next, sends one confirm on OK, then waits for the others, counting down", () => {
-        const { connections, host } = mountWithFakes();
-        const { transcript } = loadSeatScenario("double_ron_seat_1");
-        connections[0].handlers.onOpen();
-        for (const payload of receivedThrough(transcript, "round end")) {
-            connections[0].handlers.onMessage(payload);
-        }
+    it("pages a double ron with Next, its button focused for Enter or Space, sends one confirm on OK, then waits for the others, counting down", async () => {
+        const { connections, host } = mountInDocument();
+        openDoubleRonEnd(connections[0]);
+        await Promise.resolve();
 
         const labels = [0, 1].map(() => {
             const label = host.querySelector(
                 ".game__play .round-end-result__confirm-label",
             )?.textContent;
+            const focused = document.activeElement?.classList.contains("round-end-result__confirm");
             press(host, ".round-end-result__confirm");
-            return label?.trim();
+            return [label?.trim(), focused];
         });
 
-        expect(labels).toEqual(["Next", "OK"]);
+        expect(labels).toEqual([
+            ["Next", true],
+            ["OK", true],
+        ]);
         expect(connections[0].sent).toEqual([JOIN, buildConfirmRoundAction(ROUND_END_WAIT_ID)]);
         expect(
             host.querySelector(

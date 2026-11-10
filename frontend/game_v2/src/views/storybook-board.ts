@@ -265,6 +265,7 @@ interface StoryOffer {
 function storyControl({ command, label, pressed, rank, tiles }: StoryOffer): DecisionAction {
     return {
         command,
+        digit: null,
         group: null,
         label,
         pressed: pressed ?? null,
@@ -317,6 +318,7 @@ function fiveOffers(): DecisionView {
             secondsLeft: 25,
         },
         decisionStanding: "open",
+        keyHints: false,
     };
 }
 
@@ -338,6 +340,7 @@ function riichiOffer(): DecisionView {
             secondsLeft: 25,
         },
         decisionStanding: "open",
+        keyHints: false,
     };
 }
 
@@ -366,6 +369,7 @@ function bankOffers(): DecisionView {
             secondsLeft: 8,
         },
         decisionStanding: "open",
+        keyHints: false,
     };
 }
 

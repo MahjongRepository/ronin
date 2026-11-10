@@ -69,6 +69,8 @@ type PageControlCommand = Extract<
             | "cancel_leave"
             | "show_notice"
             | "close_notice"
+            | "show_controls"
+            | "close_controls"
             | "toggle_settings"
             | "close_settings"
             | "toggle_sound"
@@ -78,7 +80,7 @@ type PageControlCommand = Extract<
 
 /**
  * The page's own controls: the leave question asked or taken back, a notice opened whole in its sheet or the sheet
- * closed, either of which closes the settings menu; the settings menu opened or closed; the sound or animations turned on or off.
+ * closed, the controls' help opened or closed, any of which closes the settings menu; the settings menu opened or closed; the sound or animations turned on or off.
  */
 function pageControlsUi(ui: PlayUi, command: PageControlCommand): PlayUi {
     switch (command.kind) {
@@ -90,6 +92,10 @@ function pageControlsUi(ui: PlayUi, command: PageControlCommand): PlayUi {
         case "close_notice": {
             const noticeSheet = command.kind === "show_notice" ? command.notice : null;
             return { ...ui, noticeSheet, settingsOpen: false };
+        }
+        case "show_controls":
+        case "close_controls": {
+            return { ...ui, controlsHelp: command.kind === "show_controls", settingsOpen: false };
         }
         default: {
             const { menu } = stepSettingsMenu(
@@ -132,6 +138,13 @@ function armedTileUi(state: LiveClient, ui: PlayUi, tileId: number | null): Play
     };
 }
 
+/** The keyboard and mouse setting a switch turns: right-click's shortcuts or the decision controls' keycaps. */
+function toggledInputSetting(ui: PlayUi, kind: "toggle_right_click" | "toggle_key_hints"): PlayUi {
+    return kind === "toggle_key_hints"
+        ? { ...ui, keyHints: !ui.keyHints }
+        : { ...ui, rightClick: !ui.rightClick };
+}
+
 /**
  * The view's `ui` after a command, before it settles: picking riichi's discard, or choosing a call's tiles, turns on or off for the open
  * decision, each turning the other off, and an answered decision keeps both as they were; stepping back leaves the
@@ -142,8 +155,9 @@ function armedTileUi(state: LiveClient, ui: PlayUi, tileId: number | null): Play
  */
 function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): PlayUi {
     switch (command.kind) {
-        case "toggle_right_click": {
-            return { ...ui, rightClick: !ui.rightClick };
+        case "toggle_right_click":
+        case "toggle_key_hints": {
+            return toggledInputSetting(ui, command.kind);
         }
         case "intent":
         case "enter_fullscreen":
@@ -154,6 +168,8 @@ function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): P
         case "cancel_leave":
         case "show_notice":
         case "close_notice":
+        case "show_controls":
+        case "close_controls":
         case "toggle_settings":
         case "close_settings":
         case "toggle_sound":

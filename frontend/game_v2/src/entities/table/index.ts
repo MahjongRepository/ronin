@@ -38,7 +38,7 @@ export { windName } from "./lib/wind-name";
 export { yakuName } from "./lib/yaku-names";
 export { GameBoard } from "./ui/game-board";
 export { BoardNotices, NoticeSheet } from "./ui/board-notices";
-export { BOARD_NOTICES_SELECTOR, BOARD_PANEL_SELECTOR } from "./ui/board-parts";
+export { BOARD_NOTICES_SELECTOR, BOARD_PANEL_SELECTOR, BOARD_SELECTOR } from "./ui/board-parts";
 export { DECISION_ACTION_FOCUS_KEY, PANEL_CONTROL_FOCUS_KEY } from "./ui/focus";
 export type { BoardNotice } from "./ui/board-notices";
 export type { Notice, NoticeTone } from "./model/notice";

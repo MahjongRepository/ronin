@@ -13,10 +13,18 @@ import { focusByKey, keyedControls } from "@/shared/lib";
 type CommandHandler = (command: PlayCommand) => void;
 
 /**
- * How long after a right-click with a shortcut to run the next one is dropped, so a double-click cannot answer a
- * decision and then the one its answer opened. Windows' default double-click time.
+ * How long after an Escape or a right-click with a shortcut the next of its kind is dropped, so a double press cannot
+ * close a panel and then discard, or answer a decision and then the one its answer opened. Windows' default
+ * double-click time.
  */
-export const RIGHT_CLICK_SETTLE_MS = 500;
+export const SHORTCUT_SETTLE_MS = 500;
+
+/**
+ * How long after a digit key acted the same digit is dropped once the controls it presses changed (a call's choice of
+ * tiles opening under it, the next decision), so a double tap cannot open a choice and take its first option unseen.
+ * Another digit acts at once.
+ */
+export const DIGIT_SETTLE_MS = 500;
 
 interface PointerPress {
     readonly revision: number;
@@ -28,6 +36,22 @@ interface PointerPress {
 interface KeyPress {
     readonly key: string;
     readonly revision: number;
+}
+
+interface DigitPress {
+    readonly digit: number;
+    readonly at: number;
+    readonly scope: string;
+}
+
+/** A digit key as the decision controls take it: the number row by position, the numpad only while it types digits. */
+function actionDigit(event: KeyboardEvent): number | null {
+    const row = /^Digit(?<digit>[1-9])$/u.exec(event.code)?.groups?.digit;
+    if (row !== undefined) {
+        return Number(row);
+    }
+    const pad = /^Numpad(?<digit>[1-9])$/u.exec(event.code)?.groups?.digit;
+    return pad !== undefined && event.key === pad ? Number(pad) : null;
 }
 
 function isModified(event: MouseEvent | KeyboardEvent): boolean {
@@ -65,19 +89,33 @@ function playableTileId(target: EventTarget | null): number | null {
     return tile === null ? null : Number(tile.dataset.tileId);
 }
 
+/** The way a key steps through the hand: an arrow, or A and D by position (ф and в on a Russian layout). */
+function tileStep(event: KeyboardEvent): "ArrowLeft" | "ArrowRight" | null {
+    if (event.key === "ArrowLeft" || event.code === "KeyA") {
+        return "ArrowLeft";
+    }
+    return event.key === "ArrowRight" || event.code === "KeyD" ? "ArrowRight" : null;
+}
+
+/**
+ * Move the focus to the next tile an arrow names, wrapping round the hand's edges: among the playable tiles, or every
+ * tile of the hand while none plays (another's turn), so the focus waits on a tile for the turn to come.
+ */
 function moveTileFocus(board: HTMLElement, target: EventTarget | null, key: string): boolean {
     const tiles = keyedControls(board, HAND_TILE_FOCUS_KEY);
-    if (!(target instanceof HTMLElement) || (target !== board && !tiles.includes(target))) {
+    if (!(target instanceof HTMLElement) || !board.contains(target)) {
         return false;
     }
     const playable = keyedControls(board, PLAYABLE_TILE_FOCUS_KEY);
+    const stops = playable.length > 0 ? playable : tiles;
     const index = tiles.indexOf(target);
     const next =
         key === "ArrowRight"
-            ? playable.find((tile) => tiles.indexOf(tile) > index)
-            : playable.findLast((tile) => index === -1 || tiles.indexOf(tile) < index);
+            ? (stops.find((tile) => tiles.indexOf(tile) > index) ?? stops.at(0))
+            : (stops.findLast((tile) => index === -1 || tiles.indexOf(tile) < index) ??
+              stops.at(-1));
     next?.focus();
-    return playable.length > 0;
+    return stops.length > 0;
 }
 
 class PlayInput extends AsyncDirective {
@@ -92,6 +130,8 @@ class PlayInput extends AsyncDirective {
     private blockClick = false;
     private fingerTap = false;
     private lastRightClickAt = Number.NEGATIVE_INFINITY;
+    private lastEscapeAt = Number.NEGATIVE_INFINITY;
+    private lastDigit: DigitPress | null = null;
 
     constructor(partInfo: PartInfo) {
         super(partInfo);
@@ -189,18 +229,26 @@ class PlayInput extends AsyncDirective {
         }
     }
 
-    private readonly onKeydown = (event: KeyboardEvent): void => {
-        const { board, display } = this;
-        if (
-            board === null ||
-            display === null ||
+    /** Whether a key is none of the board's: before it is set up, already handled, composing, modified or typing. */
+    private ignoresKey(event: KeyboardEvent): boolean {
+        return (
+            this.board === null ||
+            this.display === null ||
             event.defaultPrevented ||
             event.isComposing ||
             isModified(event) ||
             isField(event.target)
-        ) {
-            return;
+        );
+    }
+
+    private readonly onKeydown = (event: KeyboardEvent): void => {
+        if (!this.ignoresKey(event)) {
+            this.routeKey(event);
         }
+    };
+
+    /** A key of the board's to what it does: Escape, Enter or Space, a digit, else the arrows' navigation. */
+    private routeKey(event: KeyboardEvent): void {
         if (event.key === "Escape") {
             this.escape(event);
             return;
@@ -209,8 +257,46 @@ class PlayInput extends AsyncDirective {
             this.activate(event);
             return;
         }
-        this.navigate(event);
-    };
+        if (!this.pressedDigit(event)) {
+            this.navigate(event);
+        }
+    }
+
+    /** Whether the key was a digit, pressing its decision control if one has it. */
+    private pressedDigit(event: KeyboardEvent): boolean {
+        const digit = actionDigit(event);
+        if (digit === null) {
+            return false;
+        }
+        this.pressDigit(event, digit);
+        return true;
+    }
+
+    /** A digit key presses its decision control once per press, never the control a quick second tap would remap to. */
+    private pressDigit(event: KeyboardEvent, digit: number): void {
+        const { clock, display } = this;
+        const shortcut = display?.shortcuts.digits.get(digit);
+        if (shortcut === undefined || display === null || clock === null) {
+            return;
+        }
+        consume(event);
+        const press: DigitPress = { at: clock.now(), digit, scope: display.shortcuts.scope };
+        if (event.repeat || this.remapsDigit(press)) {
+            return;
+        }
+        this.lastDigit = press;
+        this.run(shortcut);
+    }
+
+    /** Whether the same digit acted moments ago on controls that have since changed under it. */
+    private remapsDigit(press: DigitPress): boolean {
+        const last = this.lastDigit;
+        return (
+            last?.digit === press.digit &&
+            last.scope !== press.scope &&
+            press.at - last.at < DIGIT_SETTLE_MS
+        );
+    }
 
     private navigate(event: KeyboardEvent): void {
         const { board, display } = this;
@@ -222,18 +308,23 @@ class PlayInput extends AsyncDirective {
         ) {
             return;
         }
-        if (
-            (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
-            moveTileFocus(board, event.target, event.key)
-        ) {
+        const step = tileStep(event);
+        if (step !== null && moveTileFocus(board, event.target, step)) {
             consume(event);
         }
     }
 
+    /** Escape runs its shortcut once per press, never again within `SHORTCUT_SETTLE_MS` of the last one that had one. */
     private escape(event: KeyboardEvent): void {
         const shortcut = this.display?.shortcuts.escape;
         consume(event);
-        if (!event.repeat && shortcut !== null && shortcut !== undefined) {
+        if (event.repeat || shortcut === null || shortcut === undefined || this.clock === null) {
+            return;
+        }
+        const now = this.clock.now();
+        const settled = now - this.lastEscapeAt >= SHORTCUT_SETTLE_MS;
+        this.lastEscapeAt = now;
+        if (settled) {
             this.run(shortcut);
         }
     }
@@ -282,10 +373,18 @@ class PlayInput extends AsyncDirective {
     };
 
     private acceptsRightClick(event: MouseEvent): boolean {
+        return this.display?.shortcuts.rightClickEnabled === true && this.ownsRightClick(event);
+    }
+
+    /**
+     * Whether a right-click there is the board's, shortcuts on or off: anywhere a shortcut would act, or a panel would
+     * close, never a field, a link, a modified click or the board's other buttons, which keep the browser's menu.
+     */
+    private ownsRightClick(event: MouseEvent): boolean {
         const { display } = this;
         const { target } = event;
         if (
-            !display?.shortcuts.rightClickEnabled ||
+            display === null ||
             isModified(event) ||
             isField(target) ||
             !(target instanceof Element) ||
@@ -298,6 +397,7 @@ class PlayInput extends AsyncDirective {
             command === "close_settings" ||
             command === "cancel_leave" ||
             command === "close_notice" ||
+            command === "close_controls" ||
             command === "pin_nameplate";
         return (
             closing ||
@@ -330,14 +430,23 @@ class PlayInput extends AsyncDirective {
             revision: this.revision,
             target: event.target,
         };
-        if (
-            event.button === 0 &&
-            event.target instanceof Element &&
-            event.target.closest("button, a, summary, input, textarea, select") === null
-        ) {
+        if (event.button === 0 && this.takesFocusOnPress(event.target)) {
             this.board?.focus();
         }
     };
+
+    /**
+     * Whether a primary press gives the board the focus, so its keys work after a mouse plays: off its controls, and on
+     * one too while the focus is outside the board (Safari focuses no button a click presses).
+     */
+    private takesFocusOnPress(target: EventTarget | null): boolean {
+        const { board } = this;
+        if (board === null || !(target instanceof Element)) {
+            return false;
+        }
+        const onControl = target.closest("button, a, summary, input, textarea, select") !== null;
+        return !onControl || !board.contains(board.ownerDocument.activeElement);
+    }
 
     private readonly onPointerup = (event: PointerEvent): void => {
         const press = this.pointer;
@@ -370,7 +479,7 @@ class PlayInput extends AsyncDirective {
         }
         consume(event);
         const now = this.clock.now();
-        const settled = now - this.lastRightClickAt >= RIGHT_CLICK_SETTLE_MS;
+        const settled = now - this.lastRightClickAt >= SHORTCUT_SETTLE_MS;
         this.lastRightClickAt = now;
         if (settled) {
             this.run(shortcut);
@@ -378,7 +487,7 @@ class PlayInput extends AsyncDirective {
     }
 
     private readonly onContextmenu = (event: MouseEvent): void => {
-        if (event.button === 2 && this.acceptsRightClick(event)) {
+        if (event.button === 2 && this.ownsRightClick(event)) {
             event.preventDefault();
         }
     };

@@ -20,7 +20,7 @@ import {
     stepGameClient,
     stepPlayUi,
 } from "@/entities/client";
-import { RIGHT_CLICK_SETTLE_MS } from "@/entities/client/ui/play-input";
+import { DIGIT_SETTLE_MS, SHORTCUT_SETTLE_MS } from "@/entities/client/ui/play-input";
 import { HAND_TILE_FOCUS_KEY, PLAYABLE_TILE_FOCUS_KEY } from "@/entities/tile";
 import { keyedControls } from "@/shared/lib";
 import { type ClientMessage, buildDiscardAction, buildPassAction } from "@/shared/protocol";
@@ -144,12 +144,12 @@ function rightPress(target: HTMLElement): void {
 }
 
 function rightClick(target: HTMLElement): void {
-    passTime(RIGHT_CLICK_SETTLE_MS);
+    passTime(SHORTCUT_SETTLE_MS);
     rightPress(target);
 }
 
 function rightPressBeforeSettled(target: HTMLElement): void {
-    passTime(RIGHT_CLICK_SETTLE_MS - 1);
+    passTime(SHORTCUT_SETTLE_MS - 1);
     rightPress(target);
 }
 
@@ -253,6 +253,7 @@ describe("live board input", () => {
         ]);
         expect(messages(effects)).toEqual([]);
 
+        passTime(SHORTCUT_SETTLE_MS);
         keys(board, [{ key: "Escape" }, { key: "Escape" }]);
         expect(messages(effects)).toEqual([buildPassAction(waitId(state))]);
     });
@@ -269,17 +270,19 @@ describe("live board input", () => {
         expect(messages(effects)).toEqual([buildDiscardAction(120, waitId(state))]);
     });
 
-    it("discards the draw despite a tsumo offer, while Escape leaves that turn alone", () => {
+    it("discards the draw despite a tsumo offer by Escape as by right-click, once per double press", () => {
         const state = checkpointState("own_turn_seat_1", "tsumo draw");
         const drawn = playDisplay(state, NO_PLAY_UI).board?.players[0].drawnTile?.tileId;
         assert(drawn !== undefined);
-        const { board, effects } = mountInput(state);
-        key(board, { key: "Escape" });
-        expect(messages(effects)).toEqual([]);
-
-        rightClick(board);
-        rightClick(board);
-        expect(messages(effects)).toEqual([buildDiscardAction(drawn, waitId(state))]);
+        const byKey = mountInput(state);
+        keys(byKey.board, [{ key: "Escape" }, { key: "Escape" }]);
+        const byMouse = mountInput(state);
+        rightClick(byMouse.board);
+        rightClick(byMouse.board);
+        expect([messages(byKey.effects), messages(byMouse.effects)]).toEqual([
+            [buildDiscardAction(drawn, waitId(state))],
+            [buildDiscardAction(drawn, waitId(state))],
+        ]);
     });
 
     it("lifts a tile on a finger's first tap, moves the lift, drops it elsewhere, and discards on the second tap", () => {
@@ -379,6 +382,64 @@ describe("live board click outside open settings", () => {
     });
 });
 
+describe("live board keys", () => {
+    it("moves focus across the whole hand while no tile plays, wrapping, by arrow or by D and A on a Russian layout, without sending anything", () => {
+        const { board, effects } = mountInput(checkpointState("call_prompt_seat_1", "prompt"));
+        const all = keyedControls(board, HAND_TILE_FOCUS_KEY);
+        board.focus();
+        key(board, { code: "KeyD", key: "в" });
+        const first = document.activeElement;
+        key(all[0], { code: "KeyA", key: "ф" });
+        expect([
+            keyedControls(board, PLAYABLE_TILE_FOCUS_KEY).length,
+            first,
+            document.activeElement,
+            messages(effects),
+        ]).toEqual([0, all[0], all.at(-1), []]);
+    });
+
+    it.each([
+        { code: "Digit2", group: 2, takes: "another digit at once", wait: 0 },
+        {
+            code: "Digit1",
+            group: 1,
+            takes: "the same digit once it settled",
+            wait: DIGIT_SETTLE_MS,
+        },
+    ])(
+        "opens a kan's choice by its digit, drops a quick same-digit tap, and takes $takes",
+        ({ code, group, wait }) => {
+            const state = checkpointState("kan_choice_seat_1", "kan offer");
+            const choosing = stepPlayUi(state, NO_PLAY_UI, {
+                kind: "toggle_tile_choice",
+                offer: "kan",
+            });
+            const choice = playDisplay(state, choosing).actions.find(
+                (action) => action.digit === group,
+            );
+            const { board, commands } = mountInput(state);
+            key(board, { code: "Digit1", key: "1" });
+            key(board, { code: "Digit1", key: "1" });
+            passTime(wait);
+            key(board, { code, key: code.slice(-1) });
+            expect(commands).toEqual([
+                { kind: "toggle_tile_choice", offer: "kan" },
+                choice?.command,
+            ]);
+        },
+    );
+
+    it("leaves a held digit's repeats, a numpad navigating with NumLock off, a modified digit and digits under the open menu alone", () => {
+        const { board, commands } = mountInput(checkpointState("call_prompt_seat_1", "prompt"));
+        key(board, { code: "Digit1", key: "1", repeat: true });
+        key(board, { code: "Numpad1", key: "End" });
+        key(board, { code: "Digit1", key: "!", shiftKey: true });
+        const menu = mountInput(checkpointState("call_prompt_seat_1", "prompt"), SETTINGS_OPEN);
+        key(menu.board, { code: "Digit1", key: "1" });
+        expect([commands, menu.commands]).toEqual([[], []]);
+    });
+});
+
 describe("live board gesture guards", () => {
     it("accepts an accessibility click after the pointer leaves without a press", () => {
         const state = checkpointState("call_prompt_seat_1", "prompt");
@@ -428,16 +489,21 @@ describe("live board gesture guards", () => {
         },
     );
 
-    it("moves focus past kuikae-blocked tiles, clamps at the hand’s edge, without playing a tile", () => {
+    it("moves focus past kuikae-blocked tiles, wraps round the hand’s edges, without playing a tile", () => {
         const state = checkpointState("call_prompt_seat_1", "turn");
         const { board, effects } = mountInput(state);
         const all = keyedControls(board, HAND_TILE_FOCUS_KEY);
         const playable = keyedControls(board, PLAYABLE_TILE_FOCUS_KEY);
-        expect(all.length).toBeGreaterThan(playable.length);
         key(all[0], { key: "ArrowRight" });
-        expect(document.activeElement).toBe(playable[0]);
+        expect([all.length > playable.length, document.activeElement]).toEqual([true, playable[0]]);
         key(playable[0], { key: "ArrowLeft" });
-        expect([document.activeElement, messages(effects)]).toEqual([playable[0], []]);
+        const wrappedLeft = document.activeElement;
+        key(playable.at(-1) ?? board, { key: "ArrowRight" });
+        expect([wrappedLeft, document.activeElement, messages(effects)]).toEqual([
+            playable.at(-1),
+            playable[0],
+            [],
+        ]);
     });
 
     it("leaves modified shortcuts, field typing, and prevented events alone", () => {
@@ -455,7 +521,7 @@ describe("live board gesture guards", () => {
         expect(messages(effects)).toEqual([]);
     });
 
-    it("restores the browser context menu and disables right-click actions when switched off", () => {
+    it("keeps the browser context menu shut but does nothing on a right-click when switched off", () => {
         const { board, effects } = mountInput(checkpointState("call_prompt_seat_1", "prompt"), {
             ...NO_PLAY_UI,
             rightClick: false,
@@ -463,8 +529,7 @@ describe("live board gesture guards", () => {
         rightClick(board);
         const menu = new MouseEvent("contextmenu", { bubbles: true, button: 2, cancelable: true });
         board.dispatchEvent(menu);
-        expect(menu.defaultPrevented).toBe(false);
-        expect(messages(effects)).toEqual([]);
+        expect([menu.defaultPrevented, messages(effects)]).toEqual([true, []]);
     });
 
     it("blocks a canceled primary press even after it returns to a new decision", () => {
@@ -480,16 +545,16 @@ describe("live board gesture guards", () => {
         expect(messages(effects)).toEqual([]);
     });
 
-    it("allows a fresh native summary activation after Enter opened settings", () => {
+    it("allows a fresh native menu row activation after Enter opened settings", () => {
         const { host } = mountInput(checkpointState("call_prompt_seat_1", "prompt"));
         const toggle = element(host, ".game-menu__toggle");
         key(toggle, { key: "Enter" });
         toggle.click();
         key(toggle, { key: "Enter" }, "keyup");
-        const summary = element(host, ".game-menu__controls summary");
-        key(summary, { key: "Enter" });
+        const row = element(host, ".game-menu__controls");
+        key(row, { key: "Enter" });
         const click = new MouseEvent("click", { bubbles: true, cancelable: true });
-        summary.dispatchEvent(click);
+        row.dispatchEvent(click);
         expect(click.defaultPrevented).toBe(false);
     });
 

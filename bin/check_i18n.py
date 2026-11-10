@@ -107,6 +107,10 @@ APPS = (
             {
                 "common.ok",
                 "game.board.call",
+                "game.help.activate_key",
+                "game.help.arrows_key",
+                "game.help.digits_key",
+                "game.help.escape_key",
                 "game.seat.ai_tag",
                 "game.seating.heading",
                 "list.separator",

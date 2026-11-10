@@ -318,7 +318,7 @@ describe("PlayBoard", () => {
         host.remove();
     });
 
-    it("gives the focus to the result's first enabled control, past a disabled pager, when the sheet closes over it with no Show all shown", async () => {
+    it("gives the focus to the result's own Next, never its pagers, when the sheet closes over it with no Show all shown", async () => {
         const won = checkpointState("double_ron_seat_1", "round end");
         const firstPage = stepGameClient(won, { at: won.now + CALLOUT_MS, kind: "tick" }).state;
         const { host } = mountLive(firstPage, {
@@ -338,7 +338,7 @@ describe("PlayBoard", () => {
             ["Next winner", false],
             ["Next", false],
         ]);
-        expect(document.activeElement).toBe(buttons[1]);
+        expect(document.activeElement).toBe(buttons[2]);
         host.remove();
     });
 
