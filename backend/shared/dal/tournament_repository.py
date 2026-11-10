@@ -25,6 +25,9 @@ class TournamentRepository(ABC):
     async def add_game(self, game: TournamentGame) -> None: ...
 
     @abstractmethod
+    async def get_game(self, game_id: str) -> TournamentGame | None: ...
+
+    @abstractmethod
     async def list_games(self, tournament_id: str) -> list[TournamentGame]: ...
 
     @abstractmethod

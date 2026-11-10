@@ -1,4 +1,5 @@
 export {
+    gameExitUrl,
     gamePageUrl,
     getLobbyHistoryUrl,
     getLobbyUrl,

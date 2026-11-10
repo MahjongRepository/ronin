@@ -9,7 +9,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
 from lobby.tests.integration.conftest import login_with_csrf, register_with_csrf, session_user_id
-from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
+from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding, TournamentGame
 
 
 @pytest.fixture
@@ -302,3 +302,25 @@ def test_events_socket__when_user_is_not_owner__should_be_refused(client, tourna
             events.receive_json()
 
     assert refusal.value.code == 4000
+
+
+def test_game_exit__when_game_belongs_to_tournament__should_redirect_to_tournament_page(app, client, tournament_id):
+    tournament_game = TournamentGame(
+        game_id="cup-game-1",
+        tournament_id=tournament_id,
+        players=["erin", "frank", "gina", "hank"],
+        created_at=datetime(2026, 11, 11, 12, 0, tzinfo=UTC).timestamp(),
+    )
+    client.portal.call(app.state.tournament_repo.add_game, tournament_game)
+
+    response = client.get("/games/cup-game-1/exit", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/tournaments/{tournament_id}"
+
+
+def test_game_exit__when_game_is_not_tournament__should_redirect_to_lobby(client, tournament_id):
+    response = client.get("/games/room-game-1/exit", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"

@@ -87,3 +87,15 @@ async def tournament_page(request: Request) -> Response:
             "username": request.user.username,
         },
     )
+
+
+async def game_exit_redirect(request: Request) -> Response:
+    """
+    GET /games/{game_id}/exit - redirect a player leaving a game to its tournament page, or to the lobby otherwise.
+    """
+    tournament_repo: TournamentRepository = request.app.state.tournament_repo
+    game = await tournament_repo.get_game(request.path_params["game_id"])
+    if game is None:
+        return RedirectResponse("/", status_code=303)
+
+    return RedirectResponse(f"/tournaments/{game.tournament_id}", status_code=303)

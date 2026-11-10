@@ -14,6 +14,11 @@ export function getLobbyHistoryUrl(): string {
     return lobbyPageUrl("/history");
 }
 
+/** Where leaving a live game leads: the lobby's exit route for it, to its tournament's page or the lobby. */
+export function gameExitUrl(gameId: string): string {
+    return lobbyPageUrl(`/games/${encodeURIComponent(gameId)}/exit`);
+}
+
 /** A game's replay page, shown from `seat` (none: the recorded first dealer's). */
 export function replayPageUrl(gameId: string, seat: number | null): string {
     const params = new URLSearchParams();

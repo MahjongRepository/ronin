@@ -43,6 +43,7 @@ import {
 import { fetchGameHandoff } from "@/shared/api";
 import { browserClock } from "@/shared/clock";
 import {
+    gameExitUrl,
     gamePageUrl,
     getLobbyHistoryUrl,
     getLobbyUrl,
@@ -108,6 +109,10 @@ function gameSound(): GameSound {
 
 function leaveToLobby(): void {
     window.location.replace(getLobbyUrl());
+}
+
+function leaveGame(gameId: string): void {
+    window.location.replace(gameExitUrl(gameId));
 }
 
 /** Keep a recovered handoff for a reload, as the lobby would have; storage that refuses it only costs a refetch. */
@@ -249,7 +254,7 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
         setWinds: applyWindScript,
         sink: {
             clearHandoff: clearGameSession,
-            leaveToLobby,
+            leaveToLobby: () => leaveGame(gameId),
             openGame,
             reload: () => window.location.reload(),
             storeHandoff,

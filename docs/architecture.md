@@ -305,7 +305,9 @@ The game server never calls the lobby about a game's end. A lobby background tas
 finish row has `ended_at`, the lobby copies the end reason and standings into `tournament_games`
 and, only when that update finished the row, sends `game_ended` to the page and the owner's events
 sockets (`/ws/tournaments/{id}/events`, key-authenticated, `presence` first). A game with no finish
-row stays unfinished. The manager's side of all this is `docs/tournament-api.md`.
+row stays unfinished. A player leaving a tournament game returns to the tournament page through the
+game client's exit route (Game client contract). The manager's side of all this is
+`docs/tournament-api.md`.
 
 ## Game start (shared by rooms, matchmaking and tournaments)
 
@@ -497,6 +499,11 @@ honours this contract can replace it.
   `game_ended` close keeps reconnecting, so a client that missed the game end is refused on the
   reconnect. After a terminal close or a refusal, the client forgets the handoff and stays on the page, saying why, with a way back to the lobby and,
   where it may help, a reload (which recovers the handoff afresh).
+* **Exit:** a live game's way back to the lobby goes to `GET /games/{game_id}/exit`, which the lobby
+  redirects to the tournament page when the game is a tournament's and to the lobby otherwise. It
+  decides by the game id and the stored rows alone, so it holds after a reload on the end screen,
+  once the handoff is gone. The router fallback and the unsupported-browser notice name no game and
+  go to the lobby.
 * **Replays:** `GET /api/replays/{game_id}` returns `application/msgpack` with `Content-Encoding: gzip`,
   no login required. The browser fetches binary content and decodes it inside the lazy replay route;
   `GET /api/replays/{game_id}/tenhou.xml` downloads the same game as a tenhou.net XML log. The lobby

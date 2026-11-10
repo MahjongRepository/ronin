@@ -46,6 +46,12 @@ class SqliteTournamentRepository(TournamentRepository):
         """
         await self._db.submit_write(partial(_insert_game, game=game))
 
+    async def get_game(self, game_id: str) -> TournamentGame | None:
+        """
+        Return the tournament game with this id, or None when no tournament started it.
+        """
+        return await self._db.submit_read(partial(_select_game, game_id=game_id))
+
     async def list_games(self, tournament_id: str) -> list[TournamentGame]:
         """
         Return the tournament's games, oldest first.
@@ -101,6 +107,15 @@ def _insert_game(conn: sqlite3.Connection, *, game: TournamentGame) -> None:
         "INSERT INTO tournament_games (game_id, tournament_id, players, created_at) VALUES (?, ?, ?, ?)",
         (game.game_id, game.tournament_id, json.dumps(game.players), game.created_at),
     )
+
+
+def _select_game(conn: sqlite3.Connection, *, game_id: str) -> TournamentGame | None:
+    row = conn.execute(
+        "SELECT game_id, tournament_id, players, created_at, ended_at, end_reason, result FROM tournament_games "
+        "WHERE game_id = ?",
+        (game_id,),
+    ).fetchone()
+    return None if row is None else _game_from_row(row)
 
 
 def _select_games(conn: sqlite3.Connection, *, tournament_id: str) -> list[TournamentGame]:
