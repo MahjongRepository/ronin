@@ -45,7 +45,7 @@ describe("buildMessageHandlers", () => {
         ]);
     });
 
-    test("announces a started game with its players in seat order", () => {
+    test("announces a started game with its players in seat order and not their leaving", () => {
         const { handlers, state } = buildTournament();
 
         handleMessage(handlers, {
@@ -53,8 +53,10 @@ describe("buildMessageHandlers", () => {
             players: ["Dave", "Carol", "Bob", "Alice"],
             type: "game_started",
         });
+        handleMessage(handlers, { count: 0, players: [], type: "presence" });
 
         expect(chatTexts(state).at(-1)).toBe("A game started: Dave, Carol, Bob, and Alice");
+        expect(chatTexts(state).filter((text) => text.endsWith("went offline"))).toEqual([]);
     });
 
     test("appends a chat message with its sender", () => {

@@ -179,6 +179,7 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
         if (players === null) {
             return;
         }
+        state.players = state.players.filter((name) => !players.includes(name));
         appendChat(
             LOG_TYPE_SYSTEM,
             t("tournament.chat.game_started", { players: formatList(players) }),

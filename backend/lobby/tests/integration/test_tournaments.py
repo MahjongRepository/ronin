@@ -138,6 +138,37 @@ def test_start_games__when_tables_have_absent_and_busy_players__should_start_oth
     assert (game["ended_at"], game["end_reason"], game["result"]) == (None, None, None)
 
 
+def test_start_games__when_a_table_repeats_a_name__should_return_400_and_start_nothing(
+    client, tournament_id, game_server
+):
+    owner_key = _issue_api_token(client)
+    game_requests = []
+
+    def create_game(request):
+        game_requests.append(request)
+        return httpx.Response(201)
+
+    game_server.respond = create_game
+
+    with ExitStack() as stack:
+        for name in ["erin", "frank", "gina", "hank"]:
+            register_with_csrf(client, name)
+            stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}")).receive_json()
+        client.cookies.delete("session_id")
+
+        response = client.post(
+            f"/api/tournaments/{tournament_id}/games",
+            json={"games": [["erin", "frank", "gina", "hank"], ["erin", "frank", "gina", "erin"]]},
+            headers={"x-api-key": owner_key},
+        )
+        snapshot = client.get(f"/api/tournaments/{tournament_id}", headers={"x-api-key": owner_key}).json()
+
+    assert response.status_code == 400
+    assert set(response.json()) == {"error"}
+    assert game_requests == []
+    assert snapshot["games"] == []
+
+
 def test_start_games__when_called_with_cookie_only__should_return_401(client, tournament_id):
     response = client.post(
         f"/api/tournaments/{tournament_id}/games", json={"games": [["erin", "frank", "gina", "hank"]]}
