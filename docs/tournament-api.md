@@ -113,8 +113,8 @@ client sends is ignored. Several may be open at once. Every message is a JSON ob
 - `error` — `{"type": "error", "message": "tournament_deleted"}`: the owner deleted the tournament on its page. The
   socket then closes with code 4000.
 
-A handshake with neither a valid key nor a session is refused with close code 4001, and a cookie handshake with a
-foreign `Origin` with 4003, both before any message.
+A handshake with neither a valid key nor a session, or a cookie handshake with a foreign `Origin`, is refused with
+HTTP 403 before the socket opens; the two cases look the same on the wire.
 
 ## Reconciliation and limits
 
