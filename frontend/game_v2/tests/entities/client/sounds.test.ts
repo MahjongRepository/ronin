@@ -57,21 +57,24 @@ describe("soundCues", () => {
         ["first_turn_win_seat_1", "tenhou draw", ["decision"]],
         ["double_ron_seat_1", "ron prompt", ["decision"]],
         ["call_prompt_seat_1", "turn", []],
-        ["own_turn_seat_1", "rinshan", []],
+        ["own_turn_seat_1", "rinshan", ["decision"]],
         ["game_end_reconnect_seat_1", "first draw", []],
-    ] as const)("chimes only for a new call or win offer at %s / %s", (name, label, expected) => {
-        const { scenario } = loadSeatScenario(name);
-        const run = runSeatScenario(scenario);
-        expect(run.mismatches).toEqual([]);
-        const states = timelineStates(run.timeline);
-        const index = scenarioStateIndex(scenario, label);
-        const opened = states[index];
-        expect(decisionOf(opened)?.status.kind).toBe("open");
-        expect(soundCues(states[index - 1], opened)).toEqual(expected);
+    ] as const)(
+        "chimes only for a new call, riichi or win offer at %s / %s",
+        (name, label, expected) => {
+            const { scenario } = loadSeatScenario(name);
+            const run = runSeatScenario(scenario);
+            expect(run.mismatches).toEqual([]);
+            const states = timelineStates(run.timeline);
+            const index = scenarioStateIndex(scenario, label);
+            const opened = states[index];
+            expect(decisionOf(opened)?.status.kind).toBe("open");
+            expect(soundCues(states[index - 1], opened)).toEqual(expected);
 
-        const ticked = stepGameClient(opened, { at: opened.now + 50, kind: "tick" }).state;
-        expect(soundCues(opened, ticked)).toEqual([]);
-    });
+            const ticked = stepGameClient(opened, { at: opened.now + 50, kind: "tick" }).state;
+            expect(soundCues(opened, ticked)).toEqual([]);
+        },
+    );
 
     it("does not chime again for a repeated prompt or a refused answer reopening it", () => {
         const opened = checkpointState("call_prompt_seat_1", "prompt");

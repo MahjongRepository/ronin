@@ -10,7 +10,14 @@ import { type LiveClient, type Offer } from "./types";
 /** A move's sound, a new decision's chime, or a countdown's beep. */
 export type SoundCue = CalloutKind | "discard" | "yakuman" | "beep" | "decision";
 
-const DECISION_SOUND_OFFERS = new Set<Offer["kind"]>(["chi", "pon", "kan", "ron", "tsumo"]);
+const DECISION_SOUND_OFFERS = new Set<Offer["kind"]>([
+    "chi",
+    "pon",
+    "kan",
+    "riichi",
+    "ron",
+    "tsumo",
+]);
 
 /** The seconds of a decision's countdown that beep, each once; a decision no longer than them stays quiet. */
 const BEEP_SECONDS = 5;
@@ -112,7 +119,7 @@ function decisionCues(before: LiveClient, after: LiveClient): readonly SoundCue[
 /**
  * The sounds one step of the live client makes, from the state it found (`before`) to the one it left (`after`):
  * a discard's click, the voice of each call the board starts showing (a riichi's with its discard's click) with the
- * gong for a yakuman win, a new call or win decision's chime, and a beep at the bank's start and each last second.
+ * gong for a yakuman win, a new call, riichi or win decision's chime, and a beep at the bank's start and each last second.
  */
 export function soundCues(before: LiveClient, after: LiveClient): readonly SoundCue[] {
     const declared = submittedCall(before);

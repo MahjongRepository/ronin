@@ -464,9 +464,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   board has no way back of its own; the rotate panel in a narrow portrait viewport keeps
   one, which asks the leave question, and an end's panel offers the lobby.
 - **Sound.** The live game plays an original synthesized resin tile clack and a soft two-note countdown tone,
-  plus a soft 180 ms chime once for each newly seen decision offering chi, pon, kan, ron or tsumo that still needs
+  plus a soft 180 ms chime once for each newly seen decision offering chi, pon, kan, riichi, ron or tsumo that still needs
   the player's answer. A previously seen prompt repeated or reconnected, a refused answer reopening, an automatic answer and a
-  turn offering only a discard, riichi or kyuushu do not chime. The decision chime is live-only. The supplied
+  turn offering only a discard or kyuushu do not chime. The decision chime is live-only. The supplied
   recorded voices play as their callouts first show, with an additional voice when the server confirms a yakuman result.
   The countdown beeps for each of the last five
   seconds of a decision that runs
