@@ -62,10 +62,23 @@ function decisionClock(decision: Decision, deadline: number, now: number): Decis
     };
 }
 
-/** The countdown of the viewer's unanswered decision, read from the state's `now`; null with none awaiting it. */
+/** Whether the decision is a riichi hand's plain discard: its turn offers nothing, so only the drawn tile can go. */
+function isRiichiDiscard(state: LiveClient, decision: Decision): boolean {
+    const viewer = state.table.players.find((player) => player.seat === state.viewerSeat);
+    return decision.kind === "turn" && decision.offers.length === 0 && viewer?.isRiichi === true;
+}
+
+/**
+ * The countdown of the viewer's unanswered decision, read from the state's `now`; null with none awaiting it, or for a
+ * riichi hand's plain discard, which needs no clock.
+ */
 export function decisionCountdown(state: LiveClient): DecisionCountdown | null {
     const decision = decisionOf(state);
-    if (decision === null || decision.status.kind === "submitted") {
+    if (
+        decision === null ||
+        decision.status.kind === "submitted" ||
+        isRiichiDiscard(state, decision)
+    ) {
         return null;
     }
     const move = decisionMove(decision);

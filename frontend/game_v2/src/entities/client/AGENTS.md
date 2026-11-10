@@ -32,8 +32,8 @@ table transition and call model; replay dispatch loads with the replay route.
   of the first deal before its first draw restores it, owed, sent or in already, and the first draw closes it. Only
   the opening screen's OK sends it; the result's confirm never does.
 - **Automatic discards**, after riichi or with Auto discard on, hold a fresh draw with no offers in the hand for
-  one second. Riichi discards happen regardless of the play switches; otherwise turning Auto discard off cancels
-  the pending discard. The wait-bound deadline uses the dispatcher clock and is cancelled when the
+  one second; a riichi hand's turn with no offers shows no timer. Riichi discards happen regardless of the play
+  switches; otherwise turning Auto discard off cancels the pending discard. The wait-bound deadline uses the dispatcher clock and is cancelled when the
   decision is answered or lost, including on disconnect or desync. A kan or
   win offer stays answerable by the player (Auto win can still claim a win). `automaticStep` uses the same unseen-wait
   guard as the switches, so a duplicate, reconnect or refusal never causes a repeated automatic answer. The locked

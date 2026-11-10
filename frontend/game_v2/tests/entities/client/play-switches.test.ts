@@ -328,12 +328,15 @@ describe("automatic discards", () => {
     });
 
     it.each([false, true])(
-        "holds a plain riichi draw for one second before discarding once (Auto discard: %s)",
+        "holds a plain riichi draw for one second with no timer before discarding once (Auto discard: %s)",
         (autoDiscard) => {
             const { branch, run: unswitchedRun, tileId } = runPlainRiichiDraw(autoDiscard);
             const waiting = stateAt(branch, unswitchedRun, "waiting");
             expect(nextDeadline(waiting)).toBe(14_000);
-            expect(decisionOf(waiting)?.status.kind).toBe("open");
+            expect([
+                decisionOf(waiting)?.status.kind,
+                playDisplay(waiting, NO_PLAY_UI).countdown,
+            ]).toEqual(["open", null]);
             expect(
                 waiting.table.players.find((player) => player.seat === waiting.viewerSeat)
                     ?.drawnTileId,
@@ -375,7 +378,7 @@ describe("automatic discards", () => {
         expect(state.switches.auto_discard).toBe(false);
     });
 
-    it("leaves a post-riichi kan and its replacement draw's tsumo to the player", () => {
+    it("leaves a post-riichi kan and its replacement draw's tsumo to the player, timed", () => {
         const { scenario } = loadSeatScenario("riichi_kan_seat_1");
         const run = runClean(scenario);
         const offered = stateAt(scenario, run, "kan offer");
@@ -388,7 +391,8 @@ describe("automatic discards", () => {
             bySwitch(offered),
             display.actions.map((action) => action.label),
             display.tileIntents.size,
-        ]).toEqual(["open", ["Kan"], 1]);
+            display.countdown?.kind,
+        ]).toEqual(["open", ["Kan"], 1, "running"]);
         expect(display.board?.players[0].hand.map((tile) => tile.state)).toEqual(
             Array(13).fill("waiting"),
         );
