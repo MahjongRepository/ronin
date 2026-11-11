@@ -286,8 +286,9 @@ JSON socket, `/ws/tournaments/{id}`, through the same prologue as rooms and matc
 newer one replaces the older, which is told `replaced_by_new_connection` and closed. A join is
 acknowledged with the online names, and every join or leave sends the rest the new list
 (`presence`); the page words those changes as system chat lines. Chat goes to everyone online,
-the sender included, and is not stored. The tournament socket is outside the occupancy rule: being
-online holds no place.
+the sender included. The hub keeps the last day of it (at most 500 lines) in memory, lost on a
+restart, and a joining player gets those lines, oldest first, as `chat_history` before `joined`.
+The tournament socket is outside the occupancy rule: being online holds no place.
 
 An external manager starts the games over a JSON API that only the tournament's owner can call,
 authenticated by the owner's API token (`X-API-Key`, never a cookie, so its POSTs need no CSRF; anyone

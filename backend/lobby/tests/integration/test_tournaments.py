@@ -76,6 +76,22 @@ def test_tournament_chat__when_user_sends_message__should_broadcast_to_all(clien
             assert ws_alice.receive_json() == expected
 
 
+def test_tournament_socket__when_user_joins_after_chat__should_get_chat_history_before_joined(client, tournament_id):
+    with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
+        ws_alice.receive_json()
+        ws_alice.send_text(json.dumps({"type": "chat", "text": "who is here?"}))
+        ws_alice.receive_json()
+
+    login_with_csrf(client, "bob")
+    with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_bob:
+        history = ws_bob.receive_json()
+        joined = ws_bob.receive_json()
+
+    assert history["type"] == "chat_history"
+    assert [(line["player_name"], line["text"]) for line in history["messages"]] == [("alice", "who is here?")]
+    assert joined == {"type": "joined", "players": ["bob"]}
+
+
 def test_start_games__when_tables_have_absent_and_busy_players__should_start_other_and_report_in_order(
     client, tournament_id, game_server, busy_user_ids
 ):

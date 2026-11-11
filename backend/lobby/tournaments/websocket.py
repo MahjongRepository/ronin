@@ -102,7 +102,8 @@ async def _serve_player(player: LobbyPlayer, ctx: _TournamentContext) -> None:
 
 async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
     """
-    Put the player online, acknowledge it and announce it; return False when the tournament does not exist.
+    Put the player online, send them the kept chat history if any, then acknowledge it and announce it; return False
+    when the tournament does not exist.
 
     The same user's older connection is told ``replaced_by_new_connection`` and closed; the new one takes its place.
     """
@@ -117,6 +118,9 @@ async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
         replaced.send({"type": "error", "message": REPLACED_BY_NEW_CONNECTION})
         replaced.connection.close(code=4000, reason=REPLACED_BY_NEW_CONNECTION)
 
+    history = ctx.hub.chat_history(ctx.tournament_id)
+    if history:
+        player.send({"type": "chat_history", "messages": history})
     names = ctx.hub.online_names(ctx.tournament_id)
     player.send({"type": "joined", "players": names})
     ctx.hub.broadcast_presence(ctx.tournament_id, exclude=player.connection_id)
@@ -126,12 +130,14 @@ async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
 
 async def _message_loop(player: LobbyPlayer, ctx: _TournamentContext) -> None:
     """
-    Broadcast the player's chat to the whole tournament, its sender included, until the socket ends.
+    Keep each chat line of the player in the tournament's history and broadcast it to the whole tournament, its sender
+    included, until the socket ends.
     """
     bucket = TokenBucket(rate=_RATE_LIMIT_RATE, burst=_RATE_LIMIT_BURST)
     while True:
         message = _read_message(player, bucket=bucket, frame=await player.connection.receive())
         if message is not None:
+            ctx.hub.add_chat_line(ctx.tournament_id, player.username, message.text)
             ctx.hub.broadcast(ctx.tournament_id, {"type": "chat", "player_name": player.username, "text": message.text})
 
 

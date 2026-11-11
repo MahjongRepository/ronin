@@ -81,6 +81,33 @@ function readPlacements(message: Record<string, unknown>): Placement[] | null {
     return result;
 }
 
+interface ChatLine {
+    player_name: string;
+    text: string;
+    time: number;
+}
+
+function isChatLine(entry: unknown): entry is ChatLine {
+    return (
+        typeof entry === "object" &&
+        entry !== null &&
+        "player_name" in entry &&
+        typeof entry.player_name === "string" &&
+        "text" in entry &&
+        typeof entry.text === "string" &&
+        "time" in entry &&
+        typeof entry.time === "number"
+    );
+}
+
+function readChatLines(message: Record<string, unknown>): ChatLine[] | null {
+    const { messages } = message;
+    if (!Array.isArray(messages) || !messages.every(isChatLine)) {
+        return null;
+    }
+    return messages;
+}
+
 function describeGameEnd(message: Record<string, unknown>): string | null {
     const placements = message.end_reason === "completed" ? readPlacements(message) : null;
     if (placements !== null) {
@@ -156,6 +183,23 @@ function reconnectOnResume(state: TournamentState, rejoin: () => void): void {
     state.reconnectAttempts = 0;
     state.reconnecting = true;
     rejoin();
+}
+
+function showChatHistory(
+    state: TournamentState,
+    render: RenderTournament,
+    message: Record<string, unknown>,
+): void {
+    const lines = readChatLines(message);
+    if (lines === null) {
+        return;
+    }
+    state.chatMessages = lines.map((line) => ({
+        sender: line.player_name,
+        text: line.text,
+        timestamp: formatTime(new Date(line.time * 1000)),
+    }));
+    render();
 }
 
 function buildMessageHandlers(state: TournamentState, render: RenderTournament): MessageHandlerMap {
@@ -258,6 +302,9 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
 
     return {
         chat: onChat,
+        chat_history: (message) => {
+            showChatHistory(state, render, message);
+        },
         error: onError,
         game_ended: onGameEnded,
         game_started: onGameStarted,
