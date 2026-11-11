@@ -99,15 +99,24 @@ describe("buildMessageHandlers", () => {
         expect(state.chatMessages.at(-1)).toMatchObject({ sender: "Bob", text: "good luck" });
     });
 
-    test("shows the chat history as its chat in place of what it showed", () => {
+    test("shows the server history as its chat in place of what it showed", () => {
         const { handlers, state } = buildTournament();
         handleMessage(handlers, { player_name: "Bob", text: "good luck", type: "chat" });
         const { container, render } = mountPage(state);
 
         handleMessage(handlers, {
             messages: [
-                { player_name: "Alice", text: "hello", time: 1_794_393_000 },
-                { player_name: "Bob", text: "good luck", time: 1_794_393_060 },
+                { player_name: "Carol", time: 1_794_393_000, type: "player_online" },
+                { player_name: "Bob", text: "good luck", time: 1_794_393_060, type: "chat" },
+                {
+                    end_reason: "abandoned",
+                    game_id: "g1",
+                    players: ["Dave", "Carol", "Bob", "Alice"],
+                    result: [],
+                    time: 1_794_395_400,
+                    type: "game_ended",
+                },
+                { player_name: "Carol", time: 1_794_395_460, type: "player_offline" },
             ],
             type: "chat_history",
         });
@@ -118,8 +127,10 @@ describe("buildMessageHandlers", () => {
             entry.querySelector(".room-chat-text")?.textContent,
         ]);
         expect(entries).toEqual([
-            ["Alice", "hello"],
+            [undefined, "Carol is online"],
             ["Bob", "good luck"],
+            [undefined, "A game ended without a result: Dave, Carol, Bob, and Alice"],
+            [undefined, "Carol went offline"],
         ]);
     });
 

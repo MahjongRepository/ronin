@@ -1,24 +1,31 @@
-from lobby.tournaments.hub import CHAT_HISTORY_MAX_AGE_SECONDS, CHAT_HISTORY_MAX_LINES, TournamentHub
+from lobby.tournaments.hub import HISTORY_MAX_AGE_SECONDS, HISTORY_MAX_ENTRIES, TournamentHub
+
+
+def _chat(text):
+    return {"type": "chat", "player_name": "alice", "text": text}
 
 
 def _texts(hub, tournament_id):
-    return [line["text"] for line in hub.chat_history(tournament_id)]
+    return [entry["text"] for entry in hub.history(tournament_id)]
 
 
-def test_tournament_hub_add_chat_line__when_lines_age_past_a_day_or_overflow_the_cap__should_keep_newest_recent():
+def test_tournament_hub_record__when_entries_age_past_a_day_or_overflow_the_cap__should_keep_newest_recent():
     now = 1_794_393_000.0
     hub = TournamentHub(clock=lambda: now)
-    hub.add_chat_line("cup", "alice", "yesterday")
-    hub.add_chat_line("league", "bob", "abandoned")
-    now += CHAT_HISTORY_MAX_AGE_SECONDS + 1
+    hub.record("cup", _chat("yesterday"))
+    hub.record("league", _chat("abandoned"))
+    now += HISTORY_MAX_AGE_SECONDS / 2
+    hub.record("cup", _chat("last night"))
+    now += HISTORY_MAX_AGE_SECONDS / 2 + 1
 
-    hub.add_chat_line("cup", "carol", "today")
+    kept = hub.record("cup", _chat("today"))
 
-    assert hub.chat_history("cup") == [{"player_name": "carol", "text": "today", "time": now}]
-    assert hub.chat_history("league") == []
+    assert kept == {**_chat("today"), "time": now}
+    assert _texts(hub, "cup") == ["last night", "today"]
+    assert hub.history("league") == []
 
-    overflow = [f"line {index}" for index in range(CHAT_HISTORY_MAX_LINES)]
+    overflow = [f"line {index}" for index in range(HISTORY_MAX_ENTRIES)]
     for text in overflow:
-        hub.add_chat_line("cup", "carol", text)
+        hub.record("cup", _chat(text))
 
     assert _texts(hub, "cup") == overflow

@@ -2,6 +2,7 @@ import json
 import re
 from contextlib import ExitStack
 from datetime import UTC, datetime
+from unittest.mock import ANY
 
 import httpx
 import pytest
@@ -51,11 +52,11 @@ def tournament_id(client):
 
 def test_tournament_socket__when_second_user_connects__should_show_both_in_presence(client, tournament_id):
     with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
-        assert ws_alice.receive_json() == {"type": "joined", "players": ["alice"]}
+        assert _receive_until(ws_alice, "joined") == {"type": "joined", "players": ["alice"]}
 
         login_with_csrf(client, "bob")
         with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_bob:
-            assert ws_bob.receive_json() == {"type": "joined", "players": ["alice", "bob"]}
+            assert _receive_until(ws_bob, "joined") == {"type": "joined", "players": ["alice", "bob"]}
             assert ws_alice.receive_json() == {"type": "presence", "players": ["alice", "bob"], "count": 2}
 
         assert ws_alice.receive_json() == {"type": "presence", "players": ["alice"], "count": 1}
@@ -63,22 +64,22 @@ def test_tournament_socket__when_second_user_connects__should_show_both_in_prese
 
 def test_tournament_chat__when_user_sends_message__should_broadcast_to_all(client, tournament_id):
     with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
-        ws_alice.receive_json()
+        _receive_until(ws_alice, "joined")
         login_with_csrf(client, "bob")
         with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_bob:
-            ws_bob.receive_json()
+            _receive_until(ws_bob, "joined")
             ws_alice.receive_json()
 
             ws_bob.send_text(json.dumps({"type": "chat", "text": "good luck"}))
 
-            expected = {"type": "chat", "player_name": "bob", "text": "good luck"}
+            expected = {"type": "chat", "player_name": "bob", "text": "good luck", "time": ANY}
             assert ws_bob.receive_json() == expected
             assert ws_alice.receive_json() == expected
 
 
 def test_tournament_socket__when_user_joins_after_chat__should_get_chat_history_before_joined(client, tournament_id):
     with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
-        ws_alice.receive_json()
+        _receive_until(ws_alice, "joined")
         ws_alice.send_text(json.dumps({"type": "chat", "text": "who is here?"}))
         ws_alice.receive_json()
 
@@ -87,8 +88,14 @@ def test_tournament_socket__when_user_joins_after_chat__should_get_chat_history_
         history = ws_bob.receive_json()
         joined = ws_bob.receive_json()
 
-    assert history["type"] == "chat_history"
-    assert [(line["player_name"], line["text"]) for line in history["messages"]] == [("alice", "who is here?")]
+    assert history == {
+        "type": "chat_history",
+        "messages": [
+            {"type": "player_online", "player_name": "alice", "time": ANY},
+            {"type": "chat", "player_name": "alice", "text": "who is here?", "time": ANY},
+            {"type": "player_offline", "player_name": "alice", "time": ANY},
+        ],
+    }
     assert joined == {"type": "joined", "players": ["bob"]}
 
 
@@ -370,7 +377,7 @@ def test_tournament_delete__when_owner_deletes__should_close_sockets_and_return_
     client.portal.call(app.state.tournament_repo.add_game, tournament_game)
 
     with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
-        ws_alice.receive_json()
+        _receive_until(ws_alice, "joined")
 
         deleted = client.post(f"/tournaments/{tournament_id}/delete", data={"csrf_token": csrf}, follow_redirects=False)
 

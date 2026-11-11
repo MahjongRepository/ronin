@@ -13,15 +13,14 @@ if TYPE_CHECKING:
 
 TOURNAMENT_DELETED = "tournament_deleted"
 _DELETED_CLOSE_CODE = 4000
-CHAT_HISTORY_MAX_AGE_SECONDS = 24 * 60 * 60
-CHAT_HISTORY_MAX_LINES = 500
+HISTORY_MAX_AGE_SECONDS = 24 * 60 * 60
+HISTORY_MAX_ENTRIES = 1000
 
 
 @dataclass(frozen=True, slots=True)
-class _ChatLine:
-    player_name: str
-    text: str
+class _HistoryEntry:
     time: float
+    event: dict[str, object]
 
 
 class TournamentHub:
@@ -29,14 +28,15 @@ class TournamentHub:
     The players online on each tournament's page, one connection per user, and its events subscribers, in memory only.
 
     A subscriber is keyed by connection, so one user may hold several; it is never online, it only receives what
-    ``publish`` sends. It also keeps each tournament's recent player chat, lost on a restart like the rest. Every method
-    is one synchronous step on the event loop, so no lock is needed.
+    ``publish`` sends. It also keeps each tournament's recent history, the lines its page shows from server events
+    (chat, games started and ended, players coming online and going offline), lost on a restart like the rest. Every
+    method is one synchronous step on the event loop, so no lock is needed.
     """
 
     def __init__(self, *, clock: Callable[[], float] = time.time) -> None:
         self._online: dict[str, dict[str, LobbyPlayer]] = {}
         self._subscribers: dict[str, dict[str, LobbyPlayer]] = {}
-        self._chat: dict[str, deque[_ChatLine]] = {}
+        self._history: dict[str, deque[_HistoryEntry]] = {}
         self._clock = clock
 
     def connect(self, tournament_id: str, player: LobbyPlayer) -> LobbyPlayer | None:
@@ -122,38 +122,38 @@ class TournamentHub:
         """
         self._send_to_players(tournament_id, json.dumps(message), exclude=exclude)
 
-    def add_chat_line(self, tournament_id: str, player_name: str, text: str) -> None:
+    def record(self, tournament_id: str, entry: Mapping[str, object]) -> dict[str, object]:
         """
-        Keep a player's chat line in the tournament's history.
+        Keep a line the tournament page shows in the tournament's history; return the entry with its epoch-seconds time.
 
-        Every tournament's history drops its lines older than ``CHAT_HISTORY_MAX_AGE_SECONDS`` when it gains a line, and
-        keeps at most the newest ``CHAT_HISTORY_MAX_LINES``; a history whose newest line is that old is dropped.
+        Every tournament's history drops its entries older than ``HISTORY_MAX_AGE_SECONDS`` when it gains one, and keeps
+        at most the newest ``HISTORY_MAX_ENTRIES``; a history whose newest entry is that old is dropped.
         """
         now = self._clock()
-        cutoff = now - CHAT_HISTORY_MAX_AGE_SECONDS
-        for stale_id in [stale_id for stale_id, lines in self._chat.items() if lines[-1].time < cutoff]:
-            del self._chat[stale_id]
+        cutoff = now - HISTORY_MAX_AGE_SECONDS
+        for stale_id in [stale_id for stale_id, entries in self._history.items() if entries[-1].time < cutoff]:
+            del self._history[stale_id]
 
-        lines = self._chat.setdefault(tournament_id, deque(maxlen=CHAT_HISTORY_MAX_LINES))
-        lines.append(_ChatLine(player_name=player_name, text=text, time=now))
-        while lines[0].time < cutoff:
-            lines.popleft()
+        kept = _HistoryEntry(time=now, event={**entry, "time": now})
+        entries = self._history.setdefault(tournament_id, deque(maxlen=HISTORY_MAX_ENTRIES))
+        entries.append(kept)
+        while entries[0].time < cutoff:
+            entries.popleft()
 
-    def chat_history(self, tournament_id: str) -> list[dict[str, object]]:
+        return kept.event
+
+    def history(self, tournament_id: str) -> list[dict[str, object]]:
         """
-        Return the tournament's kept chat lines, oldest first, each with its sender, text and epoch-seconds time.
+        Return the tournament's kept entries, oldest first.
         """
-        return [
-            {"player_name": line.player_name, "text": line.text, "time": line.time}
-            for line in self._chat.get(tournament_id, ())
-        ]
+        return [entry.event for entry in self._history.get(tournament_id, ())]
 
     def close_deleted_tournament(self, tournament_id: str) -> None:
         """
         Tell every player connection and events subscriber of a deleted tournament ``tournament_deleted``, close them
-        and forget them all with its chat history.
+        and forget them all with its history.
         """
-        self._chat.pop(tournament_id, None)
+        self._history.pop(tournament_id, None)
         players = self._online.pop(tournament_id, {})
         subscribers = self._subscribers.pop(tournament_id, {})
         for connection in [*players.values(), *subscribers.values()]:

@@ -156,7 +156,9 @@ async def _start_table(request: Request, *, tournament_id: str, names: list[str]
     game = TournamentGame(game_id=game_id, tournament_id=tournament_id, players=names, created_at=time.time())
     await tournament_repo.add_game(game)
     game_end_poller.track(game)
-    hub.publish(tournament_id, {"type": "game_started", "game_id": game_id, "players": names})
+    game_started = {"type": "game_started", "game_id": game_id, "players": names}
+    hub.record(tournament_id, game_started)
+    hub.publish(tournament_id, game_started)
     hub.broadcast_presence(tournament_id)
     log.info("tournament game started", game_id=game_id)
     return {"game_id": game_id, "players": names}

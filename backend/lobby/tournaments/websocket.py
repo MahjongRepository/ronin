@@ -102,10 +102,12 @@ async def _serve_player(player: LobbyPlayer, ctx: _TournamentContext) -> None:
 
 async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
     """
-    Put the player online, send them the kept chat history if any, then acknowledge it and announce it; return False
-    when the tournament does not exist.
+    Put the player online, send them the tournament's history, then acknowledge it and announce it; return False when
+    the tournament does not exist.
 
-    The same user's older connection is told ``replaced_by_new_connection`` and closed; the new one takes its place.
+    The same user's older connection is told ``replaced_by_new_connection`` and closed; the new one takes its place,
+    with nothing kept or announced as a change. A new player's coming online is kept after their history is sent, as
+    their page shows its own line for it.
     """
     if await ctx.tournament_repo.get_tournament(ctx.tournament_id) is None:
         logger.info("tournament join rejected", tournament_id=ctx.tournament_id, username=player.username)
@@ -118,9 +120,9 @@ async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
         replaced.send({"type": "error", "message": REPLACED_BY_NEW_CONNECTION})
         replaced.connection.close(code=4000, reason=REPLACED_BY_NEW_CONNECTION)
 
-    history = ctx.hub.chat_history(ctx.tournament_id)
-    if history:
-        player.send({"type": "chat_history", "messages": history})
+    player.send({"type": "chat_history", "messages": ctx.hub.history(ctx.tournament_id)})
+    if replaced is None:
+        ctx.hub.record(ctx.tournament_id, {"type": "player_online", "player_name": player.username})
     names = ctx.hub.online_names(ctx.tournament_id)
     player.send({"type": "joined", "players": names})
     ctx.hub.broadcast_presence(ctx.tournament_id, exclude=player.connection_id)
@@ -137,8 +139,8 @@ async def _message_loop(player: LobbyPlayer, ctx: _TournamentContext) -> None:
     while True:
         message = _read_message(player, bucket=bucket, frame=await player.connection.receive())
         if message is not None:
-            ctx.hub.add_chat_line(ctx.tournament_id, player.username, message.text)
-            ctx.hub.broadcast(ctx.tournament_id, {"type": "chat", "player_name": player.username, "text": message.text})
+            chat = {"type": "chat", "player_name": player.username, "text": message.text}
+            ctx.hub.broadcast(ctx.tournament_id, ctx.hub.record(ctx.tournament_id, chat))
 
 
 def _read_message(player: LobbyPlayer, *, bucket: TokenBucket, frame: Message) -> TournamentClientMessage | None:
@@ -170,10 +172,13 @@ def _read_message(player: LobbyPlayer, *, bucket: TokenBucket, frame: Message) -
 
 def _leave(player: LobbyPlayer, ctx: _TournamentContext) -> None:
     """
-    Take the player offline and tell the rest; a connection another one replaced leaves nothing to announce.
+    Take the player offline, keep it in the history and tell the rest; a connection another one replaced, or one whose
+    player left for a game, leaves nothing to announce.
     """
     if not ctx.hub.disconnect(ctx.tournament_id, player):
         return
+
+    ctx.hub.record(ctx.tournament_id, {"type": "player_offline", "player_name": player.username})
 
     logger.info(
         "player offline in tournament",

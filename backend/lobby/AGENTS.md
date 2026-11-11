@@ -63,9 +63,10 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   `players` row) can create one, and its page, the shareable link, opens for anyone signed in, guests included.
 * `tournaments/` — the tournament page's socket and `TournamentHub`, the in-memory registry of who is online on
   each tournament page: one connection per user (a new one replaces the old), lost on a restart. Being online
-  is no occupancy place. The hub also keeps each tournament's player chat in memory (a day, at most the newest 500
-  lines, pruned as lines arrive), and a player's join gets it before `joined`; presence notices are never kept and
-  the events socket gets no history.
+  is no occupancy place. The hub also keeps each tournament's history in memory (a day, at most the newest 1000
+  entries, pruned as entries arrive): every line the page shows from a server event, as the event's fields, with
+  coming online and going offline decided where the socket joins and leaves. Every join gets it all before
+  `joined`; the events socket gets no history.
   The owner's events socket makes an events subscriber, keyed by connection (an owner may hold several), never a
   player: it is not online, never replaces the owner's player connection, and what it sends is dropped. Tournament
   events (`presence`, `game_started`) are published once to the players and the subscribers; chat goes to the

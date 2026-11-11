@@ -48,9 +48,10 @@ without a close event while the page is in the background. Matchmaking does not 
 
 The tournament page (`tournament/`) keeps the room's reconnect and binds its socket the same way.
 It holds no seat, so a reload or the footer's language switch (which reloads it) only reconnects. The
-server's `chat_history`, sent before `joined`, replaces the chat shown: the players' lines survive a reload
-and a reconnect duplicates none, while the page's own system lines are dropped. `chat.ts` holds the chat
-log and composer both pages render.
+server's `chat_history`, sent before `joined` on every join, replaces the chat log: it holds every line the
+page shows from a server event, as structured entries worded at render time, so a reload or reconnect
+loses only the lines the page made itself (its own "you're online", local errors). `chat.ts` holds the
+chat log and composer both pages render.
 
 A page that holds a lobby socket binds it to `page-lifetime.ts`: it closes the socket and cancels
 any pending rejoin on `beforeunload` and again on `pagehide`, and rejoins from scratch on a `pageshow` that restores it from
