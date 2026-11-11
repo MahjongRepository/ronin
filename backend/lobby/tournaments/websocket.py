@@ -26,6 +26,7 @@ _RATE_LIMIT_BURST = 10
 _RATE_LIMITED = "rate_limited"
 _BINARY_FRAME = "Binary frames are not supported"
 _TOURNAMENT_NOT_FOUND = "tournament_not_found"
+_PRESENCE_ENTRY_TYPES = frozenset({"player_online", "player_offline"})
 
 
 class _TournamentContext:
@@ -106,8 +107,7 @@ async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
     the tournament does not exist.
 
     The same user's older connection is told ``replaced_by_new_connection`` and closed; the new one takes its place,
-    with nothing kept or announced as a change. A new player's coming online is kept after their history is sent, as
-    their page shows its own line for it.
+    with nothing kept or announced as a change.
     """
     if await ctx.tournament_repo.get_tournament(ctx.tournament_id) is None:
         logger.info("tournament join rejected", tournament_id=ctx.tournament_id, username=player.username)
@@ -120,7 +120,7 @@ async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
         replaced.send({"type": "error", "message": REPLACED_BY_NEW_CONNECTION})
         replaced.connection.close(code=4000, reason=REPLACED_BY_NEW_CONNECTION)
 
-    player.send({"type": "chat_history", "messages": ctx.hub.history(ctx.tournament_id)})
+    player.send({"type": "history", "messages": _history_seen_by(player, ctx)})
     if replaced is None:
         ctx.hub.record(ctx.tournament_id, {"type": "player_online", "player_name": player.username})
     names = ctx.hub.online_names(ctx.tournament_id)
@@ -128,6 +128,18 @@ async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
     ctx.hub.broadcast_presence(ctx.tournament_id, exclude=player.connection_id)
     logger.info("player online in tournament", tournament_id=ctx.tournament_id, username=player.username)
     return True
+
+
+def _history_seen_by(player: LobbyPlayer, ctx: _TournamentContext) -> list[dict[str, object]]:
+    """
+    Return the tournament's history without the player's own coming online and going offline, which their page never
+    shows of itself.
+    """
+    return [
+        entry
+        for entry in ctx.hub.history(ctx.tournament_id)
+        if entry["type"] not in _PRESENCE_ENTRY_TYPES or entry["player_name"] != player.username
+    ]
 
 
 async def _message_loop(player: LobbyPlayer, ctx: _TournamentContext) -> None:

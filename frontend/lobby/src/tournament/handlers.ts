@@ -200,7 +200,7 @@ function reconnectOnResume(state: TournamentState, rejoin: () => void): void {
     rejoin();
 }
 
-function showChatHistory(
+function showHistory(
     state: TournamentState,
     render: RenderTournament,
     message: Record<string, unknown>,
@@ -313,13 +313,13 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
 
     return {
         chat: onChat,
-        chat_history: (message) => {
-            showChatHistory(state, render, message);
-        },
         error: onError,
         game_ended: onGameEnded,
         game_started: onGameStarted,
         game_starting: onGameStarting,
+        history: (message) => {
+            showHistory(state, render, message);
+        },
         joined: onJoined,
         presence: onPresence,
     };

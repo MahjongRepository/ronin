@@ -65,8 +65,8 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   each tournament page: one connection per user (a new one replaces the old), lost on a restart. Being online
   is no occupancy place. The hub also keeps each tournament's history in memory (a day, at most the newest 1000
   entries, pruned as entries arrive): every line the page shows from a server event, as the event's fields, with
-  coming online and going offline decided where the socket joins and leaves. Every join gets it all before
-  `joined`; the events socket gets no history.
+  coming online and going offline decided where the socket joins and leaves. Every join gets it as `history` before
+  `joined`, without the joiner's own coming online and going offline; the events socket gets no history.
   The owner's events socket makes an events subscriber, keyed by connection (an owner may hold several), never a
   player: it is not online, never replaces the owner's player connection, and what it sends is dropped. Tournament
   events (`presence`, `game_started`) are published once to the players and the subscribers; chat goes to the

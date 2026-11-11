@@ -77,7 +77,7 @@ def test_tournament_chat__when_user_sends_message__should_broadcast_to_all(clien
             assert ws_alice.receive_json() == expected
 
 
-def test_tournament_socket__when_user_joins_after_chat__should_get_chat_history_before_joined(client, tournament_id):
+def test_tournament_socket__when_users_join_after_chat__should_get_history_without_own_presence(client, tournament_id):
     with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
         _receive_until(ws_alice, "joined")
         ws_alice.send_text(json.dumps({"type": "chat", "text": "who is here?"}))
@@ -85,18 +85,28 @@ def test_tournament_socket__when_user_joins_after_chat__should_get_chat_history_
 
     login_with_csrf(client, "bob")
     with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_bob:
-        history = ws_bob.receive_json()
-        joined = ws_bob.receive_json()
+        bob_history = ws_bob.receive_json()
+        bob_joined = ws_bob.receive_json()
 
-    assert history == {
-        "type": "chat_history",
+    login_with_csrf(client, "alice")
+    with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
+        alice_history = ws_alice.receive_json()
+
+    chat = {"type": "chat", "player_name": "alice", "text": "who is here?", "time": ANY}
+    assert bob_history == {
+        "type": "history",
         "messages": [
             {"type": "player_online", "player_name": "alice", "time": ANY},
-            {"type": "chat", "player_name": "alice", "text": "who is here?", "time": ANY},
+            chat,
             {"type": "player_offline", "player_name": "alice", "time": ANY},
         ],
     }
-    assert joined == {"type": "joined", "players": ["bob"]}
+    assert bob_joined == {"type": "joined", "players": ["bob"]}
+    assert alice_history["messages"] == [
+        chat,
+        {"type": "player_online", "player_name": "bob", "time": ANY},
+        {"type": "player_offline", "player_name": "bob", "time": ANY},
+    ]
 
 
 def test_start_games__when_tables_have_absent_and_busy_players__should_start_other_and_report_in_order(
@@ -297,7 +307,7 @@ def test_game_end_poll__when_played_game_gains_ended_at__should_update_row_and_p
         client.portal.call(app.state.tournament_game_end_poller.poll_once)
         client.portal.call(app.state.tournament_game_end_poller.poll_once)
         register_with_csrf(client, "ivan")
-        stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}")).receive_json()
+        ivan_history = stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}")).receive_json()
         client.cookies.delete("session_id")
 
         expected_event = {
@@ -310,6 +320,13 @@ def test_game_end_poll__when_played_game_gains_ended_at__should_update_row_and_p
         for ws in (dave, events):
             assert ws.receive_json() == expected_event
             assert ws.receive_json() == {"type": "presence", "players": ["dave", "ivan"], "count": 2}
+        game_entries = [entry for entry in ivan_history["messages"] if entry["type"] in ("game_started", "game_ended")]
+        offline_entries = [entry for entry in ivan_history["messages"] if entry["type"] == "player_offline"]
+        assert game_entries == [
+            {"type": "game_started", "game_id": game_id, "players": names, "time": ANY},
+            {**expected_event, "time": ANY},
+        ]
+        assert offline_entries == []
 
         snapshot = client.get(f"/api/tournaments/{tournament_id}", headers={"x-api-key": owner_key}).json()
 

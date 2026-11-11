@@ -290,8 +290,8 @@ the sender included, with its server time in epoch seconds. The hub keeps, in me
 restart, the last day (at most 1000 entries) of what the page shows from server events: chat, games
 started and ended, and a player coming online or going offline, decided on the server as the page
 words `presence` (a replaced connection or a game's players changes nothing). Each entry is the
-event's own fields plus its time, never translated text. Every join gets them all, oldest first, as
-`chat_history` before `joined`; the joiner's own coming online is kept only after it.
+event's own fields plus its time, never translated text. Every join gets them, oldest first, as
+`history` before `joined`, without the joiner's own coming online and going offline.
 The tournament socket is outside the occupancy rule: being online holds no place.
 
 An external manager starts the games over a JSON API that only the tournament's owner can call,

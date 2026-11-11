@@ -118,7 +118,7 @@ describe("buildMessageHandlers", () => {
                 },
                 { player_name: "Carol", time: 1_794_395_460, type: "player_offline" },
             ],
-            type: "chat_history",
+            type: "history",
         });
         render();
 
