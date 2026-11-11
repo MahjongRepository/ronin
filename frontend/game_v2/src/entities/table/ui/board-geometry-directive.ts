@@ -13,6 +13,7 @@ import {
     type MeldShape,
     type StripContent,
     type StripSeat,
+    handLength,
     ownMeldTile,
     stripLengths,
 } from "@/entities/table/lib/strip-layout";
@@ -55,6 +56,23 @@ function pageEdges(board: HTMLElement): PageEdges | null {
             top: px("--ronin-safe-top"),
         },
     };
+}
+
+/** Throwaway (zones overlay): the opponents' strip lines and the hand a four-meld seat keeps, for `zones-overlay.ts`. */
+function zoneLengths({ strips }: BoardGeometry): (readonly [string, string])[] {
+    if (strips === null) {
+        return [];
+    }
+    const { rw } = strips;
+    const lengths = {
+        "left-line": strips.left.line,
+        "meld-gap": strips.gap,
+        "right-line": strips.right.line,
+        "side-hand2": handLength({ drawn: true, rw, seat: "left", tiles: 2 }),
+        "top-hand2": handLength({ drawn: true, rw, seat: "top", tiles: 2 }),
+        "top-line": strips.top.anchor - strips.top.start,
+    };
+    return Object.entries(lengths).map(([name, length]) => [`--zone-${name}`, `${length}px`] as const);
 }
 
 /**
@@ -209,6 +227,7 @@ class SizeBoard extends AsyncDirective {
                 ["--geo-shell-columns", tracks.columns],
                 ["--geo-shell-rows", tracks.rows],
                 ["--own-meld-w", `${ownTile}px`],
+                ...zoneLengths(geometry),
                 ...Object.entries(laid).map(
                     ([name, length]) => [`--${name}`, `${length}px`] as const,
                 ),

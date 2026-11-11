@@ -1,5 +1,6 @@
 import "@/zod-setup";
 import "@/styles/game-app.scss";
+import "@/zones-overlay";
 import { render } from "lit-html";
 
 import chiUrl from "@/assets/audio/calls/chi.mp3?no-inline";
