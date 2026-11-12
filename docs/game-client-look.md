@@ -62,9 +62,11 @@ The derived proportions are the three reference viewports' values under the sizi
   phone) and
   everything in front stay flat. Depth comes from the surface, the tile's edge and its shadow. One
   static transform per piece, no per-frame work. Decision: one light for every
-  seat, as Tenhou's: each tile's edge shows toward the screen's bottom (its ivory body over the
-  back's layer; a standing concealed tile, below, shows its end instead) and its shadow falls down
-  and to the right, whatever the seat; tiles lying together
+  seat: each tile's face is softly domed, and its edge shows toward the screen's bottom
+  (its ivory body, lit under the face's lip and darkening toward the table, over a thin dark seam
+  of the back's layer; a standing concealed tile, below, shows its end instead), with a tight dark
+  contact shadow at its base and a short soft shadow down and to the right, whatever the seat; the
+  edge's depth is a share of a tile's width the geometry reserves (`TILE_EDGE_SHARE`); tiles lying together
   (a river, a meld, a hand that takes no input) share one edge and shadow under all their faces, so
   a tile nearer the screen's bottom covers the edge of the one behind it and no edge or shadow ever
   lies on a face. A chankan source's ring lies flat over the tiles.
@@ -172,7 +174,7 @@ its foot, ending at the own row's top, the furiten mark above them and the notic
 the core's corners as on a desktop (Badges). Over a panel the notices move to the right bar.
 
 Four seat zones, top, left, right and bottom, are made perceptible on the surface. Decision: four
-faint seams pressed into the felt (a groove over a lip) from the centre panel's corners, the upper two to the play area's top corners (the table's, on a window taller than its table), the lower
+faint seams pressed into the felt (a soft groove over a fainter lip) from the centre panel's corners, the upper two to the play area's top corners (the table's, on a window taller than its table), the lower
 two to its sides at the top of the foreground, so the whole foreground is the viewer's own; the
 side fields carry a faint tint. They establish perceived ownership; they are not clipping
 boundaries, and a long river may cross one. A seat's tiles and the score data facing it are oriented
@@ -201,8 +203,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 ## Elements
 
 - **Surface.** Fills the viewport, under the safe-area insets too, while the content keeps to the
-  play area. Decision: a petrol felt in the dark teal family, lit over the core and falling off
-  toward the edges, with a fine static grain as its only texture (felt at full size, gone in a
+  play area. Decision: a petrol felt in the dark teal family, lit broadly over the core and falling
+  off slowly toward the edges, with a fine static grain as its only texture (felt at full size, gone in a
   thumbnail: no weave, motif or wear) and the zone device; nothing else is drawn on it. Ivory faces
   separate from it by value, the ochre backs by hue. The grain is one small repeating image under
   the gradient: no runtime noise, filter or blend mode, so a low-end phone paints it once.

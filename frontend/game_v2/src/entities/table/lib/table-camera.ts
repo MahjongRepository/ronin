@@ -60,6 +60,9 @@ const CAP_STEPS = 4;
 const PLANE_SPARE: PlaneSpare = "around-core";
 const PHONE_FLOOR_ROUNDS = 8;
 
+/** A tilted strip's farthest face shows this far over the face floor (px). */
+const TILTED_FACE_MARGIN = 1;
+
 /** A phone's plane may lay its undrawn own row this much narrower than the flat one to keep its river tile. */
 const PLANE_OWN_LEAST = 0.85;
 
@@ -1015,14 +1018,17 @@ function withinCaps(
     return apparentRiver(view) <= most && nearRiver(view) <= nearest + 0.5;
 }
 
-/** The strips' laid meld floor that shows their farthest faces at the face floor under `view`'s camera. */
+/**
+ * The strips' laid meld floor that shows their farthest faces a pixel over the face floor under `view`'s camera: a face
+ * the camera resamples softens its thinnest strokes, which a flat face at the floor keeps crisp.
+ */
 function stripFaceFloor(view: TableView): number {
     const down = Math.min(
         ...(["strip-top", "strip-left", "strip-right"] as const).map(
             (piece) => scalesAt(view.camera, view.pieces[piece].top).down,
         ),
     );
-    return laidFloor(FACE_FLOOR, down);
+    return laidFloor(FACE_FLOOR + TILTED_FACE_MARGIN, down);
 }
 
 function viewAt(input: BoardInput, screen: BoardGeometry, tilt: number): TableView {

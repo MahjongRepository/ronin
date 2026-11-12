@@ -42,6 +42,9 @@ interface ContrastMark {
 }
 
 const HIDDEN = "visibility: hidden !important";
+
+/** A compositor frame is taken at this many times the device's pixels and read scaled back (`compositorShot`). */
+const COMPOSITOR_OVERSAMPLE = 2;
 const SHOWN = "visibility: visible !important";
 const NO_OUTLINE = "outline-color: transparent !important";
 const STICK_DOTS = " :is(.board-stick-icon__dot, .board-stick-icon__honba)";
@@ -559,7 +562,7 @@ async function shootWith(page: Page, css: string | null, compositor: boolean): P
             }),
     );
     const shot = compositor
-        ? await compositorShot(page)
+        ? await compositorShot(page, COMPOSITOR_OVERSAMPLE)
         : await page.screenshot({ animations: "disabled", caret: "hide" });
     await style?.evaluate((element) => {
         if (element instanceof Element) {
@@ -607,7 +610,11 @@ function measureContrast(
             async function pixels(base64: string): Promise<ImageData> {
                 const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
                 const type = bytes[0] === JPEG_FIRST_BYTE ? "image/jpeg" : "image/png";
-                const bitmap = await createImageBitmap(new Blob([bytes], { type }));
+                const bitmap = await createImageBitmap(new Blob([bytes], { type }), {
+                    resizeHeight: Math.round(window.innerHeight * window.devicePixelRatio),
+                    resizeQuality: "high",
+                    resizeWidth: Math.round(window.innerWidth * window.devicePixelRatio),
+                });
                 const canvas = document.createElement("canvas");
                 canvas.width = bitmap.width;
                 canvas.height = bitmap.height;
