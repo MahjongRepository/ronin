@@ -90,22 +90,13 @@ describe("Discards row splitting", () => {
         expect(rows[1].querySelectorAll(":scope > .discard-tile")).toHaveLength(6);
     });
 
-    test("20 tiles produce 3 rows: 6, 6, 8", () => {
-        const el = renderTo(Discards(makeTiles(20)));
-        const rows = el.querySelectorAll(".discard-row");
-        expect(rows).toHaveLength(3);
-        expect(rows[0].querySelectorAll(":scope > .discard-tile")).toHaveLength(6);
-        expect(rows[1].querySelectorAll(":scope > .discard-tile")).toHaveLength(6);
-        expect(rows[2].querySelectorAll(":scope > .discard-tile")).toHaveLength(8);
-    });
-
-    test("a side river wraps 24 tiles into a fourth row of six, where a top or bottom river runs its third row on", () => {
+    test("a side river wraps 20 tiles into a fourth row of two, where a top or bottom river runs its third row on to eight", () => {
         function rowLengths(overflow: "run-on" | "wrap"): number[] {
             return [
-                ...renderTo(Discards(makeTiles(24), overflow)).querySelectorAll(".discard-row"),
+                ...renderTo(Discards(makeTiles(20), overflow)).querySelectorAll(".discard-row"),
             ].map((row) => row.querySelectorAll(":scope > .discard-tile").length);
         }
-        expect(rowLengths("wrap")).toEqual([6, 6, 6, 6]);
-        expect(rowLengths("run-on")).toEqual([6, 6, 12]);
+        expect(rowLengths("wrap")).toEqual([6, 6, 6, 2]);
+        expect(rowLengths("run-on")).toEqual([6, 6, 8]);
     });
 });

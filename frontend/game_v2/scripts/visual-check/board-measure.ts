@@ -43,8 +43,8 @@ export interface BoardMeasure {
     /** Every board tile but the local hand's and the decision buttons': rivers, other seats, melds, dora. */
     readonly otherTiles: readonly Box[];
     readonly actions: readonly Box[];
-    /** The decision's corner and its buttons, which must sit wholly in its box, never scrolled or clipped. */
-    readonly decisionCorner: {
+    /** The decision's band and its buttons, which must sit wholly in its box, never scrolled or clipped. */
+    readonly decisionBand: {
         readonly box: Box;
         readonly buttons: readonly Box[];
     } | null;
@@ -67,6 +67,7 @@ export interface BoardMeasure {
     readonly family: string;
     readonly furiten: Box | null;
     readonly noticesField: Box | null;
+    readonly reservedToastsPlace: Box | null;
     readonly nameplates: readonly Box[];
     /** Each badge by its seat's position, whose fixed place the decisions stories compare across checkpoints. */
     readonly badges: readonly GroupedBox[];
@@ -200,13 +201,21 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             };
         });
         const zones = board.querySelector(".board-zones");
+        const layoutBox = box(board.querySelector(".board-layout") ?? board);
+        const boardStyle = getComputedStyle(board);
+        const [toastsLeft, toastsTop, toastsWidth, toastsHeight] = [
+            "--geo-toasts-left",
+            "--geo-toasts-top",
+            "--geo-toasts-w",
+            "--geo-toasts-height",
+        ].map((name) => Number.parseFloat(boardStyle.getPropertyValue(name)));
         const resultActions = [
             ...board.querySelectorAll(
                 ".board-overlay .round-end-result__confirm:not(.round-end-result__ghost)",
             ),
         ].map(box);
         const actions = [...decisionActions, ...resultActions];
-        const corner = board.querySelector(".board-actions");
+        const band = board.querySelector(".board-actions");
         const timer = board.querySelector(".board-actions .decision-timer");
         const timerWords: DOMRect[] = [];
         const timerText =
@@ -331,7 +340,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             chrome: board.getAttribute("data-board-chrome"),
             clippedWords,
             cutNames,
-            decisionCorner: corner === null ? null : { box: box(corner), buttons: decisionActions },
+            decisionBand: band === null ? null : { box: box(band), buttons: decisionActions },
             family: board.getAttribute("data-board-family") ?? "",
             fonts,
             furiten: furitenMark === null ? null : box(furitenMark),
@@ -372,6 +381,16 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                               width: overlay.scrollWidth,
                           },
                       },
+            reservedToastsPlace: [toastsLeft, toastsTop, toastsWidth, toastsHeight].every(
+                Number.isFinite,
+            )
+                ? {
+                      height: toastsHeight ?? 0,
+                      left: layoutBox.left + (toastsLeft ?? 0),
+                      top: layoutBox.top + (toastsTop ?? 0),
+                      width: toastsWidth ?? 0,
+                  }
+                : null,
             riverTiles: bySeat(board, ".board-river .tile", ".board-river"),
             settledRiverTiles: bySeat(
                 board,
@@ -417,15 +436,9 @@ function describeLocalTile(tiles: readonly Size[]): string {
 }
 
 /** The board's line in the page's summary: its box and content, the own tile, the decision's buttons, the least text. */
-/** The own river's reserve, which the decision controls keep clear of: two rows of six and seven in its third row. */
-const OWN_RIVER_KEPT_CLEAR = 19;
-
-/** The own river's tiles past its reserve, which a decision control stands over: a round rarely lays them. */
-export function ownRiverPastReserve(board: BoardMeasure): readonly Box[] {
-    return board.riverTiles
-        .filter((tile) => tile.group === "bottom")
-        .slice(OWN_RIVER_KEPT_CLEAR)
-        .map((tile) => tile.box);
+/** The own river's tiles, which the decision controls stand over: no decision's source lies in them. */
+export function ownRiverUnderDecisions(board: BoardMeasure): readonly Box[] {
+    return board.riverTiles.filter((tile) => tile.group === "bottom").map((tile) => tile.box);
 }
 
 export function describeBoard(board: BoardMeasure): string {

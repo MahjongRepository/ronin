@@ -25,6 +25,8 @@ import { RIVER_ROW_SIZE } from "@/entities/tile";
 const SIZES = ["rw", "ow", "core-top", "col-left"] as const;
 
 const NO_INSETS: BoardEdges = { bottom: 0, left: 0, right: 0, top: 0 };
+const WIDEST_PROMPT_IN_ONE_ROW = 450;
+const WIDEST_PROMPT_FIRST_OF_TWO_ROWS = 238;
 const LIVE_SLOTS: BoardSlots = { band: "play" };
 const REPLAY_SLOTS: BoardSlots = { band: "replay" };
 
@@ -225,7 +227,7 @@ describe("boardGeometry in a phone's browser", () => {
             browser: "an iPhone 13 in iOS 26 Safari",
             height: 251,
             insets: { bottom: 0, left: 47, right: 47, top: 0 },
-            ow: 32,
+            ow: 34,
             rw: 10,
             width: 844,
         },
@@ -246,8 +248,9 @@ describe("boardGeometry in a phone's browser", () => {
     it.each([
         { height: 251, insets: { bottom: 0, left: 47, right: 47, top: 0 }, width: 844 },
         { height: 275, insets: { bottom: 0, left: 44, right: 44, top: 0 }, width: 896 },
+        { height: 331, insets: NO_INSETS, width: 891 },
     ])(
-        "stands a $width x $height box's side lanes beside its own row where above it they would cost the river tile or not hold three kans at the face floor, both lines and the bars down to the board's foot",
+        "stands a $width x $height box's side lanes beside its own row where above it they would cost the river tile, not hold three kans at the face floor or not leave the decisions' band the widest prompt's rows, both lines and the bars down to the board's foot",
         ({ height, insets, width }) => {
             const { box, lengths, strips, tracks } = windowGeometry({ height, width }, 0, insets);
             function length(name: string): number {
@@ -257,16 +260,16 @@ describe("boardGeometry in a phone's browser", () => {
             const foot = box.height - length("m");
 
             expect({
-                actionsFoot: areas["actions"]?.[3],
                 leftLaneShortOfRow: areas["strip-left"]?.[2],
                 leftLine: strips?.left.line,
+                rightBarFoot: areas["field-beside"]?.[3],
                 rightLaneShortOfRow: areas["strip-right"]?.[0],
                 rightLine: strips?.right.line,
                 switchesFoot: areas["switches"]?.[3],
             }).toEqual({
-                actionsFoot: tenths([foot - 2])[0],
                 leftLaneShortOfRow: tenths([length("own-start") - 6])[0],
                 leftLine: foot - length("m"),
+                rightBarFoot: tenths([foot - 2])[0],
                 rightLaneShortOfRow: tenths([length("own-start") + length("own-row-w") + 6])[0],
                 rightLine: foot - length("m"),
                 switchesFoot: tenths([foot])[0],
@@ -316,34 +319,28 @@ function toastsPlace(geometry: BoardGeometry): boolean {
 }
 
 /**
- * Where a desktop's decisions' corner stands at the core's bottom-right, clear of a bottom river of `reserve` discards
- * (two rows of six, the rest run on in its third row, one sideways, and the latest discard's gap), the right river's
- * first tile and its edge, the right strip's lane and the own row's melds' rise, the own plate under it; its controls at
- * least 40px tall with labels at least 14px.
+ * Where a desktop's decisions' band stands along the own row's top: from the bottom river's first tile, right of the
+ * notices' toasts, to short of the right strip's lane, under the centre and the right river's first tile and its edge,
+ * over the own row's melds' rise; its controls at least 40px tall with labels at least 14px.
  */
-function cornerPlace(geometry: BoardGeometry, reserve: number): Record<string, boolean> {
+function bandPlace(geometry: BoardGeometry): Record<string, boolean> {
     const { lengths, tracks } = geometry;
     function length(name: string): number {
         return lengths[name] ?? Number.NaN;
     }
-    const actions = slotAreas(tracks)["actions"] ?? [];
-    const [left = 0, top = 0, right = 0, bottom = 0] = actions;
-    const rw = length("rw");
-    const thirdRow = reserve - 2 * RIVER_ROW_SIZE;
+    const areas = slotAreas(tracks);
+    const [left = 0, top = 0, right = 0, bottom = 0] = areas["actions"] ?? [];
+    const [, , toastsRight = Infinity] = areas["toasts"] ?? [];
+    const riverStart = length("cx") - length("hx");
     return {
         clear:
-            left >=
-                length("cx") -
-                    length("hx") +
-                    (thirdRow - 1) * rw +
-                    length("rh") +
-                    LATEST_DISCARD_GAP &&
+            left >= toastsRight &&
             right <= length("col-right") - length("strip-depth") - SIDE_LANE_GAP &&
-            top >= length("cy") + length("h") + TILE_EDGE_SHARE * rw &&
+            top >= length("cy") + length("h") + TILE_EDGE_SHARE * length("rw") &&
             bottom <= length("hand-top") - length("own-meld-rise") &&
-            right - left > 0 &&
             bottom - top >= length("decision-h"),
         controls: length("decision-h") >= 40 && length("action-text") >= 14,
+        fromRiverStart: Math.abs(left - riverStart) <= 0.1,
     };
 }
 
@@ -509,10 +506,10 @@ function countersPlace(geometry: BoardGeometry): Record<string, boolean> {
 }
 
 /**
- * Whether a phone's board stands on its table column: both bars a tiled chi's control wide, every control in a bar, the
- * felt between each side lane and its river's reserve under three river tiles, both side strips' lines a full hand long
- * and ending above the own row, the centre at its least size, and the right bar the offers' stack tall (5 rows, 3 where it
- * holds two tiled chis side by side).
+ * Whether a phone's board stands on its table column: the left bar holding the counters at the face floor or more, every
+ * control in a bar, the felt between each side lane and its river's reserve under three river tiles, both side strips'
+ * lines a full hand long and ending above the own row, the centre at its least size, and a replay's column in the right
+ * bar under the cog.
  */
 function phonePlaces({ box, lengths, strips, tracks }: BoardGeometry): Record<string, boolean> {
     function length(name: string): number {
@@ -528,22 +525,34 @@ function phonePlaces({ box, lengths, strips, tracks }: BoardGeometry): Record<st
         length("strip-depth") + SIDE_LANE_GAP,
         length("hand-top") - length("own-meld-rise"),
     ];
-    const [actionsLeft = 0, actionsTop = 0, , actionsBottom = 0] = area("actions");
-    const barWidth = box.width - actionsLeft - length("m");
+    const [barLeft = 0] = area("field-beside");
+    const replay = boardGeometry({
+        appliedEdges: NO_INSETS,
+        box,
+        safeInsets: NO_INSETS,
+        slots: REPLAY_SLOTS,
+    });
+    const [replayLeft = 0, replayTop = 0, replayRight = 0] =
+        slotAreas(replay.tracks)["actions"] ?? [];
     return {
-        barsHoldChi: colLeft >= 108 && box.width - colRight >= 108,
         centreWhole: length("w") >= Math.max(RIVER_ROW_SIZE * rw, 100) && length("c") >= 68,
         controlsInBars:
             [area("field"), area("furiten"), area("switches")].every(
                 ([, , right = Infinity]) => right <= colLeft,
-            ) && actionsLeft >= colRight,
+            ) && barLeft >= colRight,
+        countersInLeftBar:
+            length("counters-x") + length("counters-w") <= colLeft - 6 + 0.1 &&
+            length("dora-w") >= FACE_FLOOR,
         feltUnderThreeTiles:
             length("reach-left") - (colLeft + lane) <= 3 * rw &&
             colRight - lane - length("reach-right") <= 3 * rw,
         fullHandAboveOwnRow:
             Math.min(strips?.left.line ?? 0, strips?.right.line ?? 0) >= length("full-reach") &&
             (area("strip-left")[3] ?? Infinity) <= rowTop,
-        offersInRightBar: actionsBottom - actionsTop >= (barWidth >= 202 ? 136 : 228) - 0.001,
+        replayInRightBar:
+            replayLeft >= colRight - 0.1 &&
+            replayRight <= box.width - length("m") + 0.1 &&
+            replayTop >= length("m") + length("menu-size"),
     };
 }
 
@@ -709,20 +718,19 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        { height: 375, holdsOffers: true, pinned: { ow: 45, rw: 18 }, width: 667 },
-        { height: 390, holdsOffers: true, pinned: { ow: 45, rw: 18 }, width: 667 },
-        { height: 354, holdsOffers: true, pinned: { ow: 42, rw: 19 }, width: 724 },
-        { height: 360, holdsOffers: true, pinned: { ow: 36, rw: 20 }, width: 800 },
-        { height: 390, holdsOffers: true, pinned: { ow: 47, rw: 21 }, width: 750 },
-        { height: 379, holdsOffers: true, pinned: { ow: 39, rw: 21 }, width: 761 },
-        { height: 414, holdsOffers: true, pinned: { ow: 44, rw: 23 }, width: 808 },
-        { height: 480, holdsOffers: true, pinned: { ow: 57, rw: 25 }, width: 850 },
-        { height: 430, holdsOffers: true, pinned: { ow: 45, rw: 24 }, width: 932 },
-        { height: 500, holdsOffers: true, pinned: { ow: 53, rw: 28 }, width: 1024 },
-        { height: 331, holdsOffers: true, pinned: { ow: 36, rw: 18 }, width: 891 },
+        { height: 375, pinned: { ow: 45, rw: 19 }, width: 667 },
+        { height: 390, pinned: { ow: 45, rw: 19 }, width: 667 },
+        { height: 354, pinned: { ow: 42, rw: 19 }, width: 724 },
+        { height: 360, pinned: { ow: 36, rw: 20 }, width: 800 },
+        { height: 390, pinned: { ow: 47, rw: 21 }, width: 750 },
+        { height: 379, pinned: { ow: 39, rw: 21 }, width: 761 },
+        { height: 414, pinned: { ow: 44, rw: 23 }, width: 808 },
+        { height: 480, pinned: { ow: 57, rw: 26 }, width: 850 },
+        { height: 430, pinned: { ow: 45, rw: 24 }, width: 932 },
+        { height: 500, pinned: { ow: 53, rw: 28 }, width: 1024 },
     ])(
-        "sizes a $width x $height window's phone board's tiles jointly on its table column: both bars a tiled chi wide, the side strips' lines a full hand long above the own row, the felt beside each side river under three river tiles, every control in a bar, the offers' stack in the right one ($holdsOffers)",
-        ({ height, holdsOffers, pinned, width }) => {
+        "sizes a $width x $height window's phone board's tiles jointly on its table column: the left bar holding the counters, the side strips' lines a full hand long above the own row, the felt beside each side river under three river tiles, every control in a bar, a replay's column in the right one",
+        ({ height, pinned, width }) => {
             const geometry = windowGeometry({ height, width });
             const { lengths } = geometry;
 
@@ -730,12 +738,12 @@ describe("boardGeometry", () => {
                 expect(lengths[name], name).toBeCloseTo(value, 2);
             }
             expect(phonePlaces(geometry)).toEqual({
-                barsHoldChi: true,
                 centreWhole: true,
                 controlsInBars: true,
+                countersInLeftBar: true,
                 feltUnderThreeTiles: true,
                 fullHandAboveOwnRow: true,
-                offersInRightBar: holdsOffers,
+                replayInRightBar: true,
             });
         },
     );
@@ -746,14 +754,14 @@ describe("boardGeometry", () => {
         [1366, 657],
         [390, 844],
     ])(
-        "reserves nineteen discards and the latest gap, deeper by the tile edge along the light off a phone (the top river's gap too, past its rows' edge), in a %ix%i window without reserving a twelve-tile third row",
+        "reserves twenty discards and the latest gap, deeper by the tile edge along the light off a phone (the top river's gap too, past its rows' edge), in a %ix%i window without reserving a longer third row",
         (width, height) => {
             const { family, lengths } = windowGeometry({ height, width });
             function length(name: string): number {
                 return lengths[name] ?? Number.NaN;
             }
             const across = length("g") + 4 * length("rh") + LATEST_DISCARD_GAP;
-            const runOn = 6 * length("rw") + length("rh") + LATEST_DISCARD_GAP;
+            const runOn = 7 * length("rw") + length("rh") + LATEST_DISCARD_GAP;
             const left = length("cx") - length("hx");
             const right = length("cx") + length("hx");
             const expected = {
@@ -1022,19 +1030,71 @@ describe("boardGeometry's strips", () => {
 
 describe("boardGeometry's decisions", () => {
     it.each([
-        { height: 1080, reserve: 19, width: 1920 },
-        { height: 768, reserve: 19, width: 1366 },
-        { height: 650, reserve: 19, width: 1366 },
-        { height: 720, reserve: 19, width: 1280 },
-        { height: 1551, reserve: 19, width: 1502 },
-        { height: 1000, reserve: 18, width: 960 },
+        { height: 1080, width: 1920 },
+        { height: 900, width: 1440 },
+        { height: 768, width: 1366 },
+        { height: 657, width: 1366 },
+        { height: 720, width: 1280 },
+        { height: 1551, width: 1502 },
+        { height: 1000, width: 960 },
+        { height: 600, width: 800 },
     ])(
-        "stands a $width x $height live desktop's decisions in the core's bottom-right corner clear of a $reserve-discard bottom river, the right river, the right strip's lane and the own row's melds, over the own plate, its controls 40px tall or more",
-        ({ height, reserve, width }) => {
-            expect(cornerPlace(windowGeometry({ height, width }, 10), reserve)).toEqual({
+        "stands a $width x $height live desktop's decisions in a band along the own row's top from the bottom river's first tile, right of the toasts, under the centre and the right river, short of the right strip's lane, its controls 40px tall or more",
+        ({ height, width }) => {
+            expect(bandPlace(windowGeometry({ height, width }, 10))).toEqual({
                 clear: true,
                 controls: true,
+                fromRiverStart: true,
             });
+        },
+    );
+
+    it.each([
+        { fromLane: true, height: 375, insets: NO_INSETS, rows: 2, width: 667 },
+        { fromLane: true, height: 390, insets: NO_INSETS, rows: 2, width: 750 },
+        { fromLane: true, height: 430, insets: NO_INSETS, rows: 2, width: 932 },
+        {
+            fromLane: true,
+            height: 275,
+            insets: { ...NO_INSETS, left: 44, right: 44 },
+            rows: 1,
+            width: 896,
+        },
+        {
+            fromLane: true,
+            height: 251,
+            insets: { ...NO_INSETS, left: 47, right: 47 },
+            rows: 1,
+            width: 844,
+        },
+        { fromLane: false, height: 331, insets: NO_INSETS, rows: 2, width: 891 },
+    ])(
+        "stands a $width x $height live phone's decisions in a band along the own row's top, short of both side strips' lanes, 4px under the centre and the right river's first tiles, its bottom row under the left river's longest reach or the band from the centre's left edge, $rows row(s) of 40px controls tall, as many as the widest prompt takes at its width",
+        ({ fromLane, height, insets, rows, width }) => {
+            const { family, lengths, tracks } = windowGeometry({ height, width }, 0, insets);
+            function length(name: string): number {
+                return lengths[name] ?? Number.NaN;
+            }
+            const [left = 0, top = 0, right = 0, bottom = 0] = slotAreas(tracks)["actions"] ?? [];
+            const lane = length("strip-depth") + SIDE_LANE_GAP;
+            const leftRiverEnd =
+                length("cy") - length("h") + 5 * length("rw") + length("rh") + LATEST_DISCARD_GAP;
+            const centreLeft = length("cx") - length("hx");
+
+            expect(family).toBe("phone");
+            expect({
+                clear:
+                    left >= length("col-left") + lane &&
+                    right <= length("col-right") - lane &&
+                    top >= length("cy") + length("h") + 4 - 0.1 &&
+                    bottom <= length("hand-top") - length("own-meld-rise") &&
+                    (bottom - 40 >= leftRiverEnd - 0.1 || left >= centreLeft - 0.1),
+                fromLane: left < centreLeft,
+                holdsWidestPrompt:
+                    right - left >=
+                    (rows === 1 ? WIDEST_PROMPT_IN_ONE_ROW : WIDEST_PROMPT_FIRST_OF_TWO_ROWS),
+                rows: Math.floor((bottom - top + 2) / 42),
+            }).toEqual({ clear: true, fromLane, holdsWidestPrompt: true, rows });
         },
     );
 
@@ -1108,29 +1168,26 @@ describe("boardGeometry's plates", () => {
 });
 
 describe("boardGeometry's shell tracks", () => {
-    it("stands a 667 x 375 phone's settings target in the right bar, past the right strip, over the decisions", () => {
+    it("stands a 667 x 375 phone's settings target in the right bar, past the right strip", () => {
         const { lengths, tracks } = windowGeometry({ height: 375, width: 667 });
         const areas = slotAreas(tracks);
-        const [cornerLeft = 0, cornerTop = 0, cornerRight = 0] = areas["corner"] ?? [];
+        const [cornerLeft = 0, , cornerRight = 0] = areas["corner"] ?? [];
 
         expect(cornerLeft).toBeGreaterThan(areas["strip-right"]?.[2] ?? Number.NaN);
         expect(cornerRight - cornerLeft).toBeGreaterThanOrEqual(lengths["menu-size"] ?? Infinity);
-        expect(cornerTop + (lengths["menu-size"] ?? Infinity)).toBeLessThan(
-            areas["actions"]?.[1] ?? Number.NaN,
-        );
     });
 
     it("lays a landscape phone's slots where its board measured them", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
-            actions: [564.5, 50, 663, 303.2],
-            corner: [564.5, 4, 663, 375],
-            field: [4, 36, 102.5, 191.1],
-            "field-beside": [564.5, 50, 663, 303.2],
-            furiten: [4, 199.1, 92, 217.2],
+            actions: [144, 218.2, 523, 305.2],
+            corner: [577, 4, 663, 375],
+            field: [4, 34.3, 90, 191.1],
+            "field-beside": [577, 50, 663, 303.2],
+            furiten: [4, 199.1, 90, 217.2],
             hand: [5, 309.2, 663, 369.2],
-            "strip-left": [108.5, 4, 148.5, 305.2],
-            "strip-right": [518.5, 4, 558.5, 305.2],
-            "strip-top": [148.5, 4, 467.5, 40],
+            "strip-left": [96, 4, 138, 305.2],
+            "strip-right": [529, 4, 571, 305.2],
+            "strip-top": [138, 4, 474.5, 42],
             switches: [4, 225.2, 84, 305.2],
         });
     });

@@ -645,7 +645,7 @@ const leftPlayer: BoardPlayerDisplay = {
     melds: laid(leftMelds),
 };
 
-/** Nineteen discards, a long river a drawn round can reach: its third row runs past the other two. */
+/** Twenty discards, the longest river a round lays: its third row runs on to eight, one of them sideways. */
 const fullRiver: DiscardTile[] = [
     ...bottomDiscards,
     ...topDiscards.slice(0, 7),
@@ -653,6 +653,7 @@ const fullRiver: DiscardTile[] = [
     { face: "6s", riichi: true },
     { face: "7s" },
     { face: "8s" },
+    { face: "9s" },
 ];
 
 const thirteenFaces: HandTile[] = [...bottomHand, ...leftHand.slice(0, 6)];
@@ -661,18 +662,8 @@ function withRiver(player: BoardPlayerDisplay, hand: readonly HandTile[]): Board
     return { ...player, discards: fullRiver, hand, melds: [] };
 }
 
-/** Twenty-four discards: the longest third row the worst case lays out, six past the others. */
-const longRiver: DiscardTile[] = [
-    ...fullRiver,
-    { face: "9s" },
-    { face: "1z" },
-    { face: "2z" },
-    { face: "3z" },
-    { face: "4z" },
-];
-
-/** The long river with its last tile the table's latest discard, which only one seat's river holds. */
-const latestRiver: DiscardTile[] = [...longRiver.slice(0, -1), { face: "4z", last: true }];
+/** The full river with its last tile the table's latest discard, which only one seat's river holds. */
+const latestRiver: DiscardTile[] = [...fullRiver.slice(0, -1), { face: "9s", last: true }];
 
 /** Nine discards, the ninth the table's latest, laid sideways for riichi: a call's chip must lie off its row. */
 const riichiLatestRiver: DiscardTile[] = [
@@ -784,7 +775,7 @@ function mixedHands(counts: readonly [number, number, number, number]): BoardDis
     };
 }
 
-function worstSeat(seat: number, discards: readonly DiscardTile[] = longRiver): BoardPlayerDisplay {
+function worstSeat(seat: number, discards: readonly DiscardTile[] = fullRiver): BoardPlayerDisplay {
     return {
         discards,
         drawnTile: { face: "6z", show: "face" },
@@ -857,7 +848,7 @@ const KANS_C_FEEDS: readonly KanFeed[] = [
 ];
 
 /**
- * Four kans a seat, one concealed tile and the drawn one beside a 24-tile river, with the worst case's long names and
+ * Four kans a seat, one concealed tile and the drawn one beside a full river, with the worst case's long names and
  * five dora: `show` the opponents' hands, `latest` the seat whose river holds the latest discard.
  */
 function kanStory(
@@ -866,7 +857,7 @@ function kanStory(
 ): BoardDisplayState {
     function seat(index: number): BoardPlayerDisplay {
         return capacitySeat(1, {
-            discards: index === latest ? latestRiver : longRiver,
+            discards: index === latest ? latestRiver : fullRiver,
             drawn: true,
             melds: kansOf(index, feeds),
             show: index === 0 ? "face" : show,
@@ -918,9 +909,9 @@ const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
         center: { ...mockCenter, tilesRemaining: 0 },
         nameplates: riverPlates,
         players: [
-            capacitySeat(13, { discards: longRiver, drawn: true, melds: [], show: "face" }),
-            capacitySeat(13, { discards: longRiver, drawn: true, melds: [], show: "face" }),
-            capacitySeat(13, { discards: longRiver, drawn: true, melds: [], show: "face" }),
+            capacitySeat(13, { discards: fullRiver, drawn: true, melds: [], show: "face" }),
+            capacitySeat(13, { discards: fullRiver, drawn: true, melds: [], show: "face" }),
+            capacitySeat(13, { discards: fullRiver, drawn: true, melds: [], show: "face" }),
             capacitySeat(13, { discards: latestRiver, drawn: true, melds: [], show: "face" }),
         ],
     },

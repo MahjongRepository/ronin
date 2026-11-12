@@ -140,7 +140,7 @@ const FULLSCREEN_11_BOARD: Size = { height: 414, width: 808 };
  * viewport tall for that). Each is a measured or estimated box of a device the game shipped unplayable on; a page
  * naming them runs on their real, far shorter height, where every px floor of the chrome binds first, and must still
  * lay out whole and tappable. The floor display's Safari box (667x236) is shorter still and pinned by the geometry's
- * tests alone: its decisions' column cannot hold a call over the band's row, which the swipe resolves.
+ * tests alone: its decisions' band is shorter than a row of controls, which the swipe resolves.
  */
 const BROWSER_PHONE_VIEWPORTS: readonly Viewport[] = [
     {

@@ -211,7 +211,7 @@ describe("sizeBoard", () => {
 
         nextFrame();
 
-        expect(written(element)).toEqual({ chrome: "small", family: "phone", rw: "18px" });
+        expect(written(element)).toEqual({ chrome: "small", family: "phone", rw: "19px" });
         expect(element.style.getPropertyValue("--geo-own-end")).toBe("663px");
 
         latestObserver().resize(1420, 700);

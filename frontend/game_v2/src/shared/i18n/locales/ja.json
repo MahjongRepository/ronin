@@ -273,7 +273,6 @@
     "game.switches.label": "自動操作",
     "game.switches.names": "スイッチ名",
     "game.switches.show_names": "スイッチ名を表示",
-    "game.timer.bank": "持ち時間",
     "game.timer.bank_seconds_left": "持ち時間の残り秒数",
     "game.timer.seconds_left": "残り秒数",
     "game.timer.seconds_then_bank": "残り秒数（その後は持ち時間）",

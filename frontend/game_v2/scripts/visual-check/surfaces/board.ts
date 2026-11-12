@@ -1,7 +1,7 @@
 import { type Page } from "playwright";
 
 import { RIVER_ROW_SIZE } from "../../../src/entities/tile/lib/river-shape.ts";
-import { type BoardMeasure, ownRiverPastReserve } from "../board-measure.ts";
+import { type BoardMeasure, ownRiverUnderDecisions } from "../board-measure.ts";
 import {
     type Box,
     EPSILON,
@@ -77,7 +77,7 @@ const BADGE_ANCHORS = new PageRecord<Readonly<Record<string, readonly [number, n
 const DOCUMENT_AT = { at: [UPRIGHT_PHONE] } as const;
 
 /**
- * The board's worst cases. The full hands with five offers bind the decisions' corner and the worst case is the densest table, so
+ * The board's worst cases. The full hands with five offers bind the decisions' band and the worst case is the densest table, so
  * both stand at the viewports guarding a path of the layout, as the longest strips (four open kans a seat) do where a
  * strip binds and the riichi call at every seat where a call's words do; a story they cover in a harsher form is left
  * out (full rivers, concealed hands, a tsumo at every seat), and every other dense story is checked once at the
@@ -123,7 +123,7 @@ const PAGES: readonly PageCase[] = [
         at: [FLOOR, LAPTOP_WINDOW],
     },
     {
-        ...boardCase("board-nineteen-discards", "?state=full_rivers&offers=five", [ACTION]),
+        ...boardCase("board-twenty-discards", "?state=full_rivers&offers=five", [ACTION]),
         at: [FLOOR, MID_DESKTOP],
     },
     {
@@ -176,7 +176,7 @@ const PAGES: readonly PageCase[] = [
     {
         ...boardCase("board-worst-bank", "?state=worst&offers=bank", [
             ACTION,
-            ".decision-timer--bank .decision-controls__bank--draining",
+            ".decision-controls__bank--draining",
         ]),
         longNames: true,
     },
@@ -187,12 +187,10 @@ const PAGES: readonly PageCase[] = [
     },
 ];
 
-const OWN_DISCARDS_PAST_RESERVE = "bottom-discards-past-reserve";
-/**
- * The spec's accepted rare overlap: a decision control over the own river's tiles past its nineteen discards' reserve.
- */
+const OWN_DISCARDS_UNDER_DECISIONS = "bottom-discards-under-decisions";
+/** The spec's accepted overlap: a decision control over the own river's tiles. */
 const ACCEPTED_OVERLAPS: ReadonlySet<string> = new Set(
-    [["actions", OWN_DISCARDS_PAST_RESERVE]].map((pair) => pair.toSorted().join(" x ")),
+    [["actions", OWN_DISCARDS_UNDER_DECISIONS]].map((pair) => pair.toSorted().join(" x ")),
 );
 
 /**
@@ -207,15 +205,15 @@ function isFurnitureOverlap(pair: string): boolean {
     return others.length === 1 && others.every((group) => !PLATE_KEPT_CLEAR_OF.has(group));
 }
 
-/** The areas that overlap, but for the spec's accepted rare overlap over a river's far discards and over a plate. */
+/** The areas that overlap, but for the spec's accepted overlaps: the decisions over the own river, and a plate. */
 function findAreaOverlaps(board: BoardMeasure): string[] {
-    const ownPastReserve = ownRiverPastReserve(board);
+    const ownUnderDecisions = ownRiverUnderDecisions(board);
     const grouped = board.grouped.map((entry) => {
         if (
             entry.group === "bottom-discards" &&
-            ownPastReserve.some((tile) => sameBox(tile, entry.box))
+            ownUnderDecisions.some((tile) => sameBox(tile, entry.box))
         ) {
-            return { ...entry, group: OWN_DISCARDS_PAST_RESERVE };
+            return { ...entry, group: OWN_DISCARDS_UNDER_DECISIONS };
         }
         return entry;
     });
@@ -336,7 +334,7 @@ function checkLocalHand(
 function checkHandReach(board: BoardMeasure, report: PageReport): void {
     const controls = [
         ...board.switches.map((control) => control.box),
-        ...(board.decisionCorner?.buttons ?? []),
+        ...(board.decisionBand?.buttons ?? []),
         ...(board.timer === null ? [] : [board.timer]),
     ];
     const unread = board.handReach.filter(
@@ -384,7 +382,7 @@ interface DerivedProportions {
  * review; the opponent's hand at the river tile holds everywhere (`checkHandScale`).
  */
 const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
-    [FLOOR, { riverGap: 0.28, riverToOwn: 0.4 }],
+    [FLOOR, { riverGap: 0.32, riverToOwn: 0.42 }],
     [NOTCH_PHONE, { riverGap: 0.29, riverToOwn: 0.45 }],
     [MID_DESKTOP, { riverGap: 0.14, riverToOwn: 0.74, topRiverGap: 0.27 }],
 ]);
@@ -692,7 +690,7 @@ function checkCallouts(board: BoardMeasure, report: PageReport): void {
         `call(s) over the local hand: ${overHand.map(describeBox).join(", ")}`,
     );
     const controls = [
-        ...(board.decisionCorner?.buttons ?? []),
+        ...(board.decisionBand?.buttons ?? []),
         ...(board.timerInk ? [board.timerInk] : []),
     ];
     const overControl = board.callouts.filter((callout) =>

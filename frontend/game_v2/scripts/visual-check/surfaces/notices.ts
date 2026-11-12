@@ -99,7 +99,7 @@ function checkNotices(
         ...board.tiles,
         ...board.nameplates,
         ...center,
-        ...(board.decisionCorner?.buttons ?? []),
+        ...(board.decisionBand?.buttons ?? []),
         ...(board.timer === null ? [] : [board.timer]),
         ...(board.overlay === null ? [] : [board.overlay.box]),
     ];

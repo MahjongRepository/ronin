@@ -99,7 +99,7 @@ function columnZones({ board, box, px }: BoardReader): Zone[] {
     ];
 }
 
-/** Each river's reserve: a top or bottom river's third row run on to seven tiles, a side river's fourth row. */
+/** Each river's reserve: a top or bottom river's third row run on to eight tiles, a side river's fourth row. */
 function riverZones({ box, px, rectOf }: BoardReader): Zone[] {
     const [bottom, right, top, left] = SEATS.map((seat) =>
         rectOf(`[data-area="${seat}-discards"]`),
@@ -189,11 +189,11 @@ function toastsZone({ box, px }: BoardReader): Zone {
 }
 
 /**
- * A desktop's decisions' corner at the core's bottom-right: past the bottom river's reserve to short of the right lane,
- * under the right river and over the own row's melds' rise.
+ * The decisions' band along the own row's top: a desktop's from the bottom river's start, a phone's from short of the
+ * left lane, to short of the right lane, under the centre and over the own row.
  */
 function decisionZones({ box, px }: BoardReader): Zone[] {
-    if (px("--geo-decision-h") === 0) {
+    if (px("--geo-decision-bottom") === 0) {
         return [];
     }
     return [

@@ -62,18 +62,14 @@ export interface PlayBoardProps {
     readonly links?: GameEndLinks;
 }
 
-type TimerCaption = "time_up" | "bank";
+type TimerCaption = "time_up";
 
 const TIMER_CAPTIONS: Readonly<Record<TimerCaption, MessageKey>> = {
-    bank: "game.timer.bank",
     time_up: "game.timer.time_up",
 };
 
 function timerCaption(countdown: DecisionCountdown | null): TimerCaption | null {
-    if (countdown?.kind === "expired") {
-        return "time_up";
-    }
-    return countdown?.kind === "running" && countdown.clock?.inBank === true ? "bank" : null;
+    return countdown?.kind === "expired" ? "time_up" : null;
 }
 
 /**
@@ -108,7 +104,7 @@ function DecisionTimer(display: DecisionView): TemplateResult {
     const caption = timerCaption(countdown);
     const digits = TimerDigits(countdown);
     return html`<div class="decision-timer ${caption === null ? "" : `decision-timer--${caption.replace("_", "-")}`}">
-        <span class="decision-timer__caption">${caption === null ? "" : t(TIMER_CAPTIONS[caption])}</span>
+        ${caption === null ? nothing : html`<span class="decision-timer__caption">${t(TIMER_CAPTIONS[caption])}</span>`}
         <span class="decision-timer__digits">${digits}</span>
     </div>`;
 }
@@ -500,7 +496,7 @@ function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"])
 }
 
 /**
- * The live board: the table from the viewer's seat with its decision's controls in their corner, its notices over the
+ * The live board: the table from the viewer's seat with its decision's controls in their place, its notices over the
  * table, and a panel over it: an end that blocks the board, the leave question, or the table's own, a round's result
  * at the page the display picked with its controls, or the game's last result over the game's end until the player
  * dismisses it. A press on one of the viewer's tiles sends the intent the display gives it (`playInput` holds a

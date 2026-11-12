@@ -1,4 +1,4 @@
-import { RIVER_ROWS, RIVER_ROW_SIZE } from "@/entities/tile";
+import { RIVER_ROWS } from "@/entities/tile";
 
 /** A tile's height to its width. */
 const TILE_ASPECT = 4 / 3;
@@ -48,9 +48,10 @@ const CORE_TILES = 2 * (RIVER_GAP_SHARE + RIVER_ROWS["run-on"] * TILE_ASPECT);
 /** What the side rivers' rows take of the board's width beside the centre, in river tiles. */
 const SIDE_REACH_TILES = 2 * RIVER_ROWS.wrap * TILE_ASPECT;
 
-/** A top or bottom river reserves nineteen discards: two rows of six and a third of seven, one sideways. */
+/** A top or bottom river reserves twenty discards: two rows of six and a third of eight, one sideways. */
+const RESERVED_THIRD_ROW = 8;
 const ROWS_BEFORE_RUN_ON = (RIVER_ROWS["run-on"] - 1) * TILE_ASPECT;
-const RUN_ON_REACH_TILES = RIVER_ROW_SIZE + TILE_ASPECT;
+const RUN_ON_REACH_TILES = RESERVED_THIRD_ROW - 1 + TILE_ASPECT;
 
 /** The latest discard's gap from the tile before it and the row above (px), across the light; along it, the geometry
  * adds the tile edge that falls into it. */

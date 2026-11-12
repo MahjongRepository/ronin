@@ -55,29 +55,35 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   (`info`, under the counters) fitted to 9 of its ems (`--status-text`), 6 in the bar under counters over the lane,
   never under 13px.
 - **Live decisions stand in one cluster; the bars hold the rest.** Off a phone live's decisions (`.board-actions`)
-  stand in the core's bottom-right corner: past the bottom river's nineteen discards' reserve to short of the right
-  strip's lane, under the right river's first tile and over the own row's melds' rise, in as many rows of
-  `--decision-h` controls as its width needs. A longer river's tiles and, on a short window, the right river's first
-  tiles may lie under it: the cluster stands over them (its layer, solid controls with `--action-lift`, the timer on a
-  badge), and no table width or stack row is reserved for it. Its controls, the offers'
+  stand in a band along the own row's top: from the bottom river's start (the centre's left edge, clear of the
+  toasts) to short of the right strip's lane, under the centre and the right river's first tile and over the own
+  row's melds' rise, in as many rows of `--decision-h` controls as its width needs. The own river, the plates there
+  and, on a short window, the right river's first tiles may lie under it: the cluster stands over them (its layer,
+  solid controls with `--action-lift`), since no decision's source lies in the own river, and no table width or
+  stack row is reserved for it. Its controls, the offers'
   (`.decision-controls__upper`, a box of none of its own there) and the band's (the pass, then the timer
-  `--actions-band-w` wide, as one piece), wrap up from its bottom right, every label at the geometry's
-  `--action-text`; the geometry holds the band in the corner from the same ems the stylesheet draws it with, so the
-  two change together. A desktop's notices stand apart from the field as toasts of up to two lines in the core's
+  `--actions-band-w` wide, as one piece), wrap up from its bottom right, growing left along the row first, every
+  label at the geometry's `--action-text`. A desktop's notices stand apart from the field as toasts of up to two lines in the core's
   bottom-left corner, under the left river's longest reach and over the own row (`toasts`), stacked down from its
   top, cut short with an ellipsis past their second line (the whole in the notice's title, the cut one opening the
   sheet), the last ones left out where the felt is short (the last shown its "+N"), under no panel only
   (`toast-board`), where a replay's status stands in `info`: over a panel they stand in the field, wrapping as a
   phone's do, the status with them. A replay's moves and options take
-  the right bar's foot. Nothing stands between the bottom river and the own row. On a phone the right bar holds live's decisions
-  whole, wrapping up from the timer at its foot, and a replay's column at its foot; the left bar the counters, the
-  notices and the switches as a two-by-two block. `_replay-state.scss` places no slot.
+  the right bar's foot. Nothing but live's decisions stands between the bottom river and the own row. On a phone
+  live's decisions stand in a band along the own row's top too, from short of the left strip's lane to short of the
+  right one's, under the centre and the right river (or from the centre's left edge where its bottom row cannot pass
+  under the left river's longest reach), the same cluster in 40px rows `$phone-band-row-gap` apart; the right bar
+  holds the cog and a replay's column at its foot, the left bar the counters, the notices and the switches as a
+  two-by-two block, each bar only as wide as those need: neither reserves room for the decisions, and the phone solve
+  takes no tile whose band would not hold the widest prompt's rows (`$phone-band-row-gap` mirrored in TS).
+  `_replay-state.scss` places no slot.
 - **One composition, two profiles.** Off a phone there is one desktop family: the river tile from
   the vertical stack, the own tile from the width a full hand between the side lanes keeps, 1.2 to 1.45 river
   tiles; no side strip's tile stands over the own row's span. A phone keeps the composition with its own profile: `boardGeometry`
   solves its river and own tiles together from the box (the spec's sizing rule), its own row spans the board under
-  both lanes (in the shortest browser boxes, where above it the lanes cannot hold three kans or the right bar the
-  offers, between them, the lanes and bars running down beside it), and its decisions stand in the right bar; a family difference is the geometry's, never a length switch.
+  both lanes (in the shortest browser boxes, where above it the lanes cannot hold three kans or the decisions' band
+  the widest prompt, between them, the lanes and bars running down beside it); a family difference is the geometry's, never a
+  length switch.
 - The centre is a rectangle in every family, `--c`/`--h` its height and `--w`/`--hx` its width: off a phone six river
   tiles wide by 4.5 tall, on a phone the height left over the own row. Its score rows and their inset follow the
   shorter of the two; the round and counts follow `--c` within the room `--w` leaves. The geometry fits the centre and the rivers together, at the spec's minimums (Proportions).
@@ -98,8 +104,10 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   (`river-shape.ts`), its overflow an explicit per-seat policy (`RIVER_OVERFLOW`: a side river wraps a fourth row, a
   top or bottom one runs its third row on); it stays in the core's pinwheel, absolutely placed, its area a normal
   river's turned footprint with its frame turned to the seat inside (a rotation, never `writing-mode`) from the area's
-  corner where the first row starts. The geometry reserves nineteen discards for top and bottom rivers when placing
-  slots and badges; a rarer longer third row may overflow that reserve.
+  corner where the first row starts. Layouts are designed and checked for rivers of up to twenty discards: the
+  geometry reserves a top or bottom river's third row run on to eight, a sideways riichi tile counted, when placing
+  slots and plates. A river of 21 or more may run under other elements (the decisions, plates, a strip); nothing
+  reserves room for it and no story or check builds one.
 - **Places are fixed per viewport.** Badges, an opponent's full hand reach, the decisions' place, the notices' place
   and the replay's controls never move with tile counts or what a stop shows; nothing else enters a full hand's reach.
   A place beside a side strip keeps clear of the strip's deepest reach, never its depth as drawn.

@@ -13,40 +13,28 @@ $row: 40px;
     align-items: flex-end;
     justify-content: flex-end;
     min-width: 0;
-
-    @include phone-board {
-        container: decisions / size;
-        align-items: stretch;
-    }
 }
 
 .decision-controls {
     --action-text: max(0.85rem, calc(26 * var(--board-table-unit)));
     --decision-row: var(--control-h);
-    --action-lift: 0 0 transparent;
+    --action-lift: 0 2px 6px var(--ronin-action-lift);
 
     @include desktop-board {
         --action-text: inherit;
         --decision-row: var(--decision-h);
-        --action-lift: 0 2px 6px var(--ronin-action-lift);
-
-        flex: 1;
-        align-content: flex-start;
     }
 
     display: flex;
+    flex: 1;
     flex-flow: row-reverse wrap-reverse;
+    place-content: flex-start;
     align-items: center;
-    justify-content: flex-start;
     gap: var(--decision-gap, #{$decision-gap});
     min-width: 0;
 
     @include phone-board {
-        position: relative;
-        flex: 1;
-        align-items: flex-start;
-        align-content: flex-start;
-        gap: $small-decision-gap;
+        gap: $phone-band-row-gap $small-decision-gap;
     }
 }
 
@@ -74,24 +62,19 @@ $row: 40px;
 }
 
 .decision-controls__band {
+    flex: none;
     flex-wrap: nowrap;
+    order: -1;
+    align-items: stretch;
 
     @include desktop-board {
-        flex: none;
-        order: -1;
-        align-items: stretch;
-
         > .decision-timer {
             width: var(--actions-band-w);
-            align-items: center;
-            border-radius: calc(var(--decision-h) / 4);
-            background: var(--ronin-badge);
-            box-shadow: var(--action-lift);
         }
     }
 
     @include phone-board {
-        display: contents;
+        gap: $small-decision-gap;
     }
 }
 
@@ -242,9 +225,7 @@ $row: 40px;
 }
 
 .decision-controls__upper > .decision-controls__action {
-    @include desktop-board {
-        max-width: 100%;
-    }
+    max-width: 100%;
 }
 
 /* A control's tiles stand inside its box, a margin above and below, so a control with tiles is no taller than one
@@ -263,19 +244,18 @@ $row: 40px;
     display: flex;
     flex: none;
     flex-direction: column;
-    justify-content: flex-end;
+    justify-content: center;
     width: var(--timer-w);
     height: var(--decision-row);
     white-space: nowrap;
+    align-items: flex-end;
     color: var(--ronin-text);
-
-    @include phone-board {
-        order: -1;
-    }
 }
 
 .decision-timer__caption {
-    min-height: 1.15em;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-size: max(11px, calc(var(--decision-row) * 0.22));
     font-weight: 650;
     line-height: 1.15;
@@ -286,7 +266,7 @@ $row: 40px;
     display: flex;
     align-items: baseline;
     gap: 0.2em;
-    font-size: calc(var(--decision-row) * 0.68);
+    font-size: calc(var(--decision-row) * 0.55);
     line-height: 0.9;
 }
 
@@ -313,10 +293,6 @@ $row: 40px;
         font-weight: 800;
         color: var(--ronin-warning);
     }
-}
-
-.decision-timer--bank .decision-timer__caption {
-    color: var(--ronin-warning);
 }
 
 .decision-timer--time-up .decision-timer__caption {

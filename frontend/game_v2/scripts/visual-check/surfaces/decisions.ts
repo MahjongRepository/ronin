@@ -1,6 +1,6 @@
 import { type Page } from "playwright";
 
-import { type BoardMeasure, ownRiverPastReserve } from "../board-measure.ts";
+import { type BoardMeasure, ownRiverUnderDecisions } from "../board-measure.ts";
 import {
     type Box,
     EPSILON,
@@ -256,18 +256,18 @@ function measureToggles(page: Page): Promise<readonly ToggleMeasure[]> {
 }
 
 /**
- * Decision buttons and a round result's confirm sit wholly on the board and the screen, large enough to tap, and every
- * decision button wholly inside its corner, never scrolled or clipped out of it.
+ * Decision buttons and a round result's confirm sit wholly on the board and the screen, large enough to tap; every
+ * decision button wholly inside its band, never scrolled or clipped out of it, clear of every tile but the own river's,
+ * and, the timer too, off the centre, a desktop's notices' toasts' place, the left bar's notices, furiten and switches,
+ * and the cog.
  */
 function checkActions(board: BoardMeasure, screen: Box, report: PageReport): void {
-    const { decisionCorner } = board;
-    if (decisionCorner !== null) {
-        const cut = decisionCorner.buttons.filter(
-            (button) => !contains(decisionCorner.box, button),
-        );
+    const { decisionBand } = board;
+    if (decisionBand !== null) {
+        const cut = decisionBand.buttons.filter((button) => !contains(decisionBand.box, button));
         report.expect(
             cut.length === 0,
-            `decision button(s) outside their corner ${describeBox(decisionCorner.box)}: ${cut.map(describeBox).join(", ")}`,
+            `decision button(s) outside their band ${describeBox(decisionBand.box)}: ${cut.map(describeBox).join(", ")}`,
         );
     }
     const outside = [...board.actions, ...(board.timer ? [board.timer] : [])].filter(
@@ -285,7 +285,7 @@ function checkActions(board: BoardMeasure, screen: Box, report: PageReport): voi
         small.length === 0,
         `decision buttons under ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE}: ${small.map(describeBox).join(", ")}`,
     );
-    const buttons = decisionCorner?.buttons ?? [];
+    const buttons = decisionBand?.buttons ?? [];
     const overlapping = buttons.filter((button, index) =>
         buttons.some((other, otherIndex) => otherIndex !== index && intersects(button, other)),
     );
@@ -299,16 +299,31 @@ function checkActions(board: BoardMeasure, screen: Box, report: PageReport): voi
         overTimer.length === 0,
         `decision button(s) over the timer: ${overTimer.map(describeBox).join(", ")}`,
     );
-    const ownPastReserve = ownRiverPastReserve(board);
+    const ownUnderDecisions = ownRiverUnderDecisions(board);
     const tiles = [...board.otherTiles, ...board.localTiles].filter(
-        (tile) => !ownPastReserve.some((covered) => sameBox(covered, tile)),
+        (tile) => !ownUnderDecisions.some((covered) => sameBox(covered, tile)),
     );
-    const crowded = (decisionCorner?.buttons ?? []).filter((button) =>
+    const crowded = (decisionBand?.buttons ?? []).filter((button) =>
         tiles.some((tile) => intersects(grown(button, MIN_CONTROL_TILE_GAP), tile)),
     );
     report.expect(
         crowded.length === 0,
         `decision button(s) within ${MIN_CONTROL_TILE_GAP}px of a tile: ${crowded.map(describeBox).join(", ")}`,
+    );
+    const keptClear = [
+        board.center,
+        board.reservedToastsPlace,
+        board.furiten,
+        board.noticesField,
+        ...board.switches.map((control) => control.box),
+        ...board.menu,
+    ].filter((place) => place !== null);
+    const intruding = [...buttons, ...(timer === null ? [] : [timer])].filter((control) =>
+        keptClear.some((place) => intersects(control, place)),
+    );
+    report.expect(
+        intruding.length === 0,
+        `decision button(s) or the timer over the centre, the toasts' place, the left bar's block or the cog: ${intruding.map(describeBox).join(", ")}`,
     );
 }
 
@@ -533,7 +548,7 @@ async function checkBoard({ board, page, report, screen, viewport }: BoardRun): 
     checkFuritenMark(board, report);
     TOGGLE_PLACES.keep(report, board.toggle);
     if (board.timer !== null) {
-        CONTROL_PLACES.keep(report, [...(board.decisionCorner?.buttons ?? []), board.timer]);
+        CONTROL_PLACES.keep(report, [...(board.decisionBand?.buttons ?? []), board.timer]);
     }
     checkActions(board, screen, report);
     checkToggles(await measureToggles(page), report);

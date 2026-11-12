@@ -349,7 +349,7 @@ function riverRows(rw: number, gap: number): number {
  * The core's lengths: the centre (`cx`/`cy` its middle, `c`/`h` its height and half, `w`/`hx` its width and half), the
  * river tile, the gaps between the centre and the rivers (the top one's `g-top`), and the rivers' reserved reach, a
  * row's sideways riichi tile and the latest discard's gap counted: a side river's fourth row, a top or bottom river's
- * third row run on to seven tiles, and the top river's third row's centre-facing edge, which no gap moves toward the
+ * third row run on to eight tiles, and the top river's third row's centre-facing edge, which no gap moves toward the
  * centre; and the latest discard's gaps.
  */
 function coreLengths(
@@ -791,12 +791,16 @@ function chromeLengths(tier: TierChrome): [string, number][] {
 
 /**
  * A phone's table column, centred: `TABLE_COLUMN_TILES` river tiles wide, wider where the core and both side lanes need
- * more (a centre at its least width over a small river tile), as far as the bars keep `PHONE_BAR_MIN` wide enough that
+ * more (a centre at its least width over a small river tile), as far as the bars keep `barLeast` wide enough that
  * the top strip's line holds four kans at the face floor beside its centred hand, and with both side lanes `beside` the
  * own row where they run down past it. Its edges (px).
  */
 function phoneColumn(
-    { beside, width }: { readonly beside: boolean; readonly width: number },
+    {
+        barLeast,
+        beside,
+        width,
+    }: { readonly barLeast: number; readonly beside: boolean; readonly width: number },
     { centreWidth, ow, rw }: Readonly<Record<"centreWidth" | "ow" | "rw", number>>,
 ): Readonly<Record<"left" | "right", number>> {
     const lane = sideLane(rw);
@@ -805,7 +809,7 @@ function phoneColumn(
     const columnWidth = Math.max(
         TABLE_COLUMN_TILES * rw,
         core + 2 * (lane + PLATE_GAP),
-        Math.min(width - 2 * PHONE_BAR_MIN, topKans),
+        Math.min(width - 2 * barLeast, topKans),
         beside ? FULL_HAND * ow + 2 * (lane + STEP_IN_GAP) : 0,
     );
     const left = (width - columnWidth) / 2;
@@ -902,8 +906,8 @@ function plateLengths(
 /**
  * A phone's lengths at a river and own tile, in px; whether its places fit them: the centre at its least height, both
  * side strips' lines a full concealed hand long (three pons may reach into the top margin) from the top margin to the
- * bars' foot (above the own row, or `beside` it at the board's foot), both bars `PHONE_BAR_MIN` wide, the plates' rows holding a pill above the right river's reserved top and above the own row (`plateRect`); and whether the
- * right bar holds the offers' stack under the cog.
+ * bars' foot (above the own row, or `beside` it at the board's foot), both bars as wide as the wider one's contents need, the plates' rows holding a pill above the right river's reserved top and above the own row (`plateRect`); and whether the
+ * decisions' band holds `call_prompt`'s rows and the right bar a replay's column under the cog.
  */
 function phoneLayout(
     frame: BoardFrame,
@@ -911,7 +915,8 @@ function phoneLayout(
 ): {
     readonly fits: boolean;
     readonly holdsKans: boolean;
-    readonly holdsOffers: boolean;
+    readonly holdsPrompt: boolean;
+    readonly holdsReplay: boolean;
     readonly lengths: BoardLengths;
 } {
     const { box, slots } = frame;
@@ -929,7 +934,13 @@ function phoneLayout(
     const centreTop = coreTop + LATEST_DISCARD_GAP + rows;
     const heightRoom = handTop - coreGap - LATEST_DISCARD_GAP - rows - centreTop;
     const centreWidth = Math.max(RIVER_ROW_SIZE * rw, PHONE_CENTRE_MIN_WIDTH);
-    const column = phoneColumn({ beside, width }, { centreWidth, ow, rw });
+    const replayRoom = phoneControlsBottom(foot) - phoneUnderCog(m, rw);
+    const replay = phoneReplayBlock(chrome, replayRoom);
+    const barLeast = Math.max(
+        phoneLeftBarLeast(chrome),
+        phoneRightBarLeast(chrome, replay.width, rw),
+    );
+    const column = phoneColumn({ barLeast, beside, width }, { centreWidth, ow, rw });
     const cy = centreTop + heightRoom / 2;
 
     const lengths = Object.fromEntries([
@@ -955,18 +966,24 @@ function phoneLayout(
         ["side-reach", phoneSideReach(rw, line)],
         ["switches-bottom", foot],
     ]);
-    const plates = plateRect((name) => lengths[name] ?? 0, chrome.pillH, rowTop);
-    const offersRoom = phoneControlsBottom(foot) - phoneUnderCog(m, rw);
+    function at(name: string): number {
+        return lengths[name] ?? 0;
+    }
+    const plates = plateRect(at, chrome.pillH, rowTop);
+    const band = phoneActions(at);
     const fits =
         heightRoom >= PHONE_CENTRE_MIN_HEIGHT &&
         fullReach(rw, "left") <= rowTop - m &&
         ponsReach(rw) <= foot &&
-        column.left >= PHONE_BAR_MIN &&
+        column.left >= barLeast - 0.001 &&
         plates.fits;
     return {
         fits,
         holdsKans: tightKansReach(rw) <= line + STRIP_CONTROL_CLEAR,
-        holdsOffers: offersRoom >= phoneOffersHeight(width - m - column.right - ACTIONS_GAP),
+        holdsPrompt:
+            band.bottom - band.top >=
+            phonePromptHeight(band.right - band.left, chrome.timerW) - 0.001,
+        holdsReplay: replay.height <= replayRoom,
         lengths,
     };
 }
@@ -974,14 +991,14 @@ function phoneLayout(
 /**
  * A phone's layout at a river and own tile: its side lanes at the table column's edges above the own row, or beside the
  * own row, the lanes and bars running down past it, where above it they do not fit, or do not hold `PHONE_LINE_KANS`
- * or the right bar the offers' stack, and beside it they fit.
+ * or the decisions' band `call_prompt` or the right bar a replay's column, and beside it they fit.
  */
 function phoneLaid(
     frame: BoardFrame,
     tiles: Readonly<Record<"ow" | "rw", number>>,
 ): ReturnType<typeof phoneLayout> {
     const above = phoneLayout(frame, { ...tiles, beside: false });
-    if (above.fits && above.holdsKans && above.holdsOffers) {
+    if (above.fits && above.holdsKans && above.holdsPrompt && above.holdsReplay) {
         return above;
     }
     const beside = phoneLayout(frame, { ...tiles, beside: true });
@@ -991,10 +1008,13 @@ function phoneLaid(
 /**
  * A phone's lengths at the largest river tile that fits above `ownFloor`, then the largest own tile that fits with it,
  * at most as wide as lets a full hand stand within the board's width less its margins and at least 4/3 of the river
- * tile, never under the floor, which wins where both cannot hold; null where no pair fits. The own tile is the largest
- * whose right bar holds the offers' stack, else the least at that river tile: that bound never lowers the river tile.
+ * tile, never under the floor, which wins where both cannot hold, and `holdingPrompt` its band `call_prompt`'s rows;
+ * null where no pair fits. The own tile is the largest whose right bar holds a replay's column, else the least.
  */
-function phoneSolve(frame: BoardFrame, ownFloor: number): BoardLengths | null {
+function phoneSolve(
+    frame: BoardFrame,
+    { holdingPrompt, ownFloor }: { readonly holdingPrompt: boolean; readonly ownFloor: number },
+): BoardLengths | null {
     const { box } = frame;
     const widest = Math.max(ownFloor, Math.floor((box.width - 2 * PHONE_CHROME.m) / FULL_HAND));
     for (
@@ -1005,12 +1025,23 @@ function phoneSolve(frame: BoardFrame, ownFloor: number): BoardLengths | null {
         const least = Math.max(ownFloor, Math.ceil(TILE_ASPECT * rw));
         for (let ow = widest; ow >= least; ow -= 1) {
             const laid = phoneLaid(frame, { ow, rw });
-            if (laid.fits && (laid.holdsOffers || ow === least)) {
+            if (
+                laid.fits &&
+                (laid.holdsPrompt || !holdingPrompt) &&
+                (laid.holdsReplay || ow === least)
+            ) {
                 return laid.lengths;
             }
         }
     }
     return null;
+}
+
+function phoneSolveHoldingPrompt(frame: BoardFrame, ownFloor: number): BoardLengths | null {
+    return (
+        phoneSolve(frame, { holdingPrompt: true, ownFloor }) ??
+        phoneSolve(frame, { holdingPrompt: false, ownFloor })
+    );
 }
 
 /**
@@ -1019,11 +1050,11 @@ function phoneSolve(frame: BoardFrame, ownFloor: number): BoardLengths | null {
  * it), the solve above the tap floor instead, when it lifts the river tile; the smallest pair where none fits.
  */
 function phoneLengths(frame: BoardFrame): BoardLengths {
-    const solved = phoneSolve(frame, PHONE_OWN_FLOOR);
+    const solved = phoneSolveHoldingPrompt(frame, PHONE_OWN_FLOOR);
     if (solved !== null && (solved["rw"] ?? 0) >= FACE_FLOOR) {
         return solved;
     }
-    const tapFloored = phoneSolve(frame, PHONE_OWN_TAP_FLOOR);
+    const tapFloored = phoneSolveHoldingPrompt(frame, PHONE_OWN_TAP_FLOOR);
     if (tapFloored !== null && (tapFloored["rw"] ?? 0) > (solved?.["rw"] ?? 0)) {
         return tapFloored;
     }
@@ -1083,10 +1114,10 @@ interface ShellRoom {
     readonly tier: TierChrome;
 }
 
-/** The room a phone's offers' stack keeps clear above its top row (px). */
-const OFFERS_HEADROOM = 4;
-
-/** The decisions stand this far past the rivers' reach and the own melds' rise, a phone's under the right badge (px). */
+/**
+ * The decisions stand this far off the right strip's lane, the centre and the own melds' rise, a phone's under the
+ * right badge (px).
+ */
 const ACTIONS_GAP = 6;
 
 /**
@@ -1097,21 +1128,15 @@ const DECISION_BY_RIVER = 0.85;
 const DECISION_FLOOR = 40;
 const DECISION_GAP_SHARE = 1 / 8;
 const DECISION_SQUARE = 4 / 3;
-const DECISION_TIMER_SHARE = 1.6;
+const DECISION_TIMER_SHARE = 1.75;
 const DECISION_TIMER_LEAST = 72;
 
 /** A desktop's notices' toasts stand this far under the left river's longest reach (px). */
 const TOASTS_RIVER_GAP = 4;
 
-/**
- * A control's label text: this share of its height, never under the floor (px); a control's padding on each side and
- * the pass's label's room (Japanese's スキップ the widest), in that text's ems. The stylesheet draws the controls from
- * these.
- */
+/** A control's label text: this share of its height, never under the floor (px). */
 const ACTION_TEXT_SHARE = 0.38;
 const ACTION_TEXT_MIN = 14;
-const ACTION_PAD_EMS = 0.5;
-const PASS_LABEL_EMS = 4;
 
 function actionText(height: number): number {
     return Math.max(ACTION_TEXT_MIN, ACTION_TEXT_SHARE * height);
@@ -1122,29 +1147,22 @@ function timerWidth(height: number): number {
     return Math.max(DECISION_TIMER_SHARE * height, DECISION_TIMER_LEAST);
 }
 
-/** The band at a control's height: the pass and the timer, one piece (px). */
-function bandWidth(height: number): number {
-    const pass = Math.max(
-        DECISION_SQUARE * height,
-        (2 * ACTION_PAD_EMS + PASS_LABEL_EMS) * actionText(height),
-    );
-    return pass + DECISION_GAP_SHARE * height + timerWidth(height);
-}
-
-/** A phone's decision row and the gap between its decisions (px); the stylesheet's `$row` and `$small-decision-gap`. */
+/**
+ * A phone's decision row, the gap between its decisions and between its band's rows (px); the stylesheet's `$row`,
+ * `$small-decision-gap` and `$phone-band-row-gap`.
+ */
 const PHONE_DECISION_ROW = 40;
 const PHONE_DECISION_GAP = 6;
+const PHONE_BAND_ROW_GAP = 2;
 
 /**
- * A phone's offers' stack (`call_prompt`'s: the timer, pass, pon beside kan and two tiled chis) in the rows a narrow right
- * bar stacks it in, and in the rows a bar that holds two tiled chis side by side pairs it in.
+ * `call_prompt`'s controls on a phone's 40px row at the widest of the three languages' labels (px): the pass (Japanese's
+ * スキップ), a tiled chi, and a kan or a pon; the band lays the pass and the timer as one piece, then two tiled chis, a pon
+ * and a kan.
  */
-const PHONE_STACKED_ROWS = 5;
-const PHONE_PAIRED_ROWS = 3;
-
-/** A phone's decisions' column: a tiled chi's control at least (px); a bar holds it with its gaps to the column and the edge. */
-const DECISIONS_COLUMN = 98;
-const PHONE_BAR_MIN = DECISIONS_COLUMN + ACTIONS_GAP + PHONE_CHROME.m;
+const PHONE_PASS_W = 68;
+const PHONE_TILED_CHI_W = 98;
+const PHONE_CALL_W = 48;
 
 /** A phone's left bar's fields keep this far off what they stand past (px). */
 const FIELD_GAP = 6;
@@ -1155,13 +1173,39 @@ const PHONE_SWITCH_COLUMNS = 2;
 /** Where the river's rows meet the board, from the tile slice's shape. */
 const ROW_BEFORE_SIDEWAYS = RIVER_ROW_SIZE - 1;
 
-/** The height of a phone's offers' stack in a right bar this wide (px). */
-function phoneOffersHeight(barWidth: number): number {
-    const rows =
-        barWidth >= 2 * DECISIONS_COLUMN + PHONE_DECISION_GAP
-            ? PHONE_PAIRED_ROWS
-            : PHONE_STACKED_ROWS;
-    return OFFERS_HEADROOM + rows * PHONE_DECISION_ROW + (rows - 1) * PHONE_DECISION_GAP;
+/** The height `call_prompt`'s controls take in a phone's band this wide, wrapping up in rows (px). */
+function phonePromptHeight(bandWidth: number, timerW: number): number {
+    const pieces = [
+        PHONE_PASS_W + PHONE_DECISION_GAP + timerW,
+        PHONE_TILED_CHI_W,
+        PHONE_TILED_CHI_W,
+        PHONE_CALL_W,
+        PHONE_CALL_W,
+    ];
+    let rows = 1;
+    let used = 0;
+    for (const piece of pieces) {
+        const along = used === 0 ? piece : used + PHONE_DECISION_GAP + piece;
+        if (along > bandWidth && used > 0) {
+            rows += 1;
+            used = piece;
+        } else {
+            used = along;
+        }
+    }
+    return rows * PHONE_DECISION_ROW + (rows - 1) * PHONE_BAND_ROW_GAP;
+}
+
+function phoneLeftBarLeast(chrome: PhoneChrome): number {
+    const counters = countersAt(FACE_FLOOR, DORA_SLOTS).width;
+    const switches = PHONE_SWITCH_COLUMNS * chrome.switchH;
+    const notices = NOTICE_FIELD_EMS * NOTICE_TEXT_MIN;
+    return chrome.m + Math.max(counters, switches, notices) + FIELD_GAP;
+}
+
+function phoneRightBarLeast(chrome: PhoneChrome, replayWidth: number, rw: number): number {
+    const notices = NOTICE_FIELD_EMS * NOTICE_TEXT_MIN;
+    return ACTIONS_GAP + Math.max(menuSize(rw), replayWidth, notices) + chrome.m;
 }
 
 /** A phone's right bar's controls' top: under the cog and a gap (px). */
@@ -1175,24 +1219,40 @@ function phoneControlsBottom(foot: number): number {
 }
 
 /**
- * A desktop's decisions' place, the core's bottom-right corner over the own row's right part: past the bottom river's
- * reserve (nineteen discards, its third row run on to seven tiles; less only where the corner is narrower than the pass
- * and the timer) to short of the right strip's lane, under the right river's first tile and over the own row's melds'
- * rise. Its controls wrap up from its bottom right and stand over any river tile a longer river lays past that reserve.
+ * A desktop's decisions' place, a band along the own row's top: from the bottom river's start (the centre's left edge,
+ * right of the notices' toasts) to short of the right strip's lane, under the centre and the right river's first tile
+ * and over the own row's melds' rise. Its controls wrap up from its bottom right and stand over the own river and the
+ * plates there, which no decision's source lies in.
  */
 function desktopActions({ at }: ShellRoom): { readonly rect: BoardRect } {
     const rw = at("rw");
-    const right = at("col-right") - sideLane(rw) - ACTIONS_GAP;
     return {
         rect: {
             bottom: at("hand-top") - at("own-meld-rise") - ACTIONS_GAP,
-            left: Math.min(
-                at("reach-bottom-right") + ACTIONS_GAP,
-                right - bandWidth(at("decision-h")),
-            ),
-            right,
+            left: at("cx") - at("hx"),
+            right: at("col-right") - sideLane(rw) - ACTIONS_GAP,
             top: at("cy") + at("h") + TILE_EDGE_SHARE * rw + ACTIONS_GAP,
         },
+    };
+}
+
+const PHONE_BAND_OVER_OWN_ROW = 4;
+const PHONE_BAND_UNDER_CENTRE = 4;
+
+function phoneActions(at: (name: string) => number): BoardRect {
+    const rw = at("rw");
+    const lane = sideLane(rw);
+    const bottom = at("hand-top") - at("own-meld-rise") - PHONE_BAND_OVER_OWN_ROW;
+    const leftRiverEnd =
+        at("cy") - at("h") + ROW_BEFORE_SIDEWAYS * rw + at("rh") + at("latest-drop-gap");
+    return {
+        bottom,
+        left:
+            bottom - PHONE_DECISION_ROW >= leftRiverEnd
+                ? at("col-left") + lane + ACTIONS_GAP
+                : at("cx") - at("hx"),
+        right: at("col-right") - lane - ACTIONS_GAP,
+        top: at("cy") + at("h") + PHONE_BAND_UNDER_CENTRE,
     };
 }
 
@@ -1571,6 +1631,23 @@ function desktopBars(
 /** A phone replay's options: the hide-hands switch and the round list. */
 const REPLAY_OPTIONS_ON_PHONE = 2;
 
+function phoneReplayBlock(
+    { movesH, replayGap }: Pick<TierChrome, "movesH" | "replayGap">,
+    room: number,
+): Readonly<Record<"height" | "width", number>> {
+    function block(columns: number): Readonly<Record<"height" | "width", number>> {
+        const rows =
+            Math.ceil(REPLAY_MOVES_ON_PHONE / columns) +
+            Math.ceil(REPLAY_OPTIONS_ON_PHONE / columns);
+        return {
+            height: rows * movesH + (rows - 2 + REPLAY_GROUP_GAPS) * replayGap,
+            width: columns * movesH + (columns - 1) * replayGap,
+        };
+    }
+    const one = block(1);
+    return one.height <= room ? one : block(2);
+}
+
 /**
  * A phone replay's controls in the right bar: the moves over the options at the tier's control, in one column where
  * the bar's height holds it, else two, standing on the bar's foot and centred across it.
@@ -1579,19 +1656,7 @@ function phoneReplayColumn(
     { tier }: ShellRoom,
     bar: BoardRect,
 ): { readonly rect: BoardRect; readonly width: number } {
-    const side = tier.movesH;
-    const gap = tier.replayGap;
-    function block(columns: number): Readonly<Record<"height" | "width", number>> {
-        const rows =
-            Math.ceil(REPLAY_MOVES_ON_PHONE / columns) +
-            Math.ceil(REPLAY_OPTIONS_ON_PHONE / columns);
-        return {
-            height: rows * side + (rows - 2 + REPLAY_GROUP_GAPS) * gap,
-            width: columns * side + (columns - 1) * gap,
-        };
-    }
-    const one = block(1);
-    const pick = one.height <= bar.bottom - bar.top ? one : block(2);
+    const pick = phoneReplayBlock(tier, bar.bottom - bar.top);
     const left = (bar.left + bar.right - pick.width) / 2;
     return {
         rect: { bottom: bar.bottom, left, right: left + pick.width, top: bar.bottom - pick.height },
@@ -1601,9 +1666,13 @@ function phoneReplayColumn(
 
 /**
  * A phone's controls in the bars beside the table column. The left bar: the counters at its top, the play switches'
- * block (`PHONE_SWITCH_COLUMNS` chips a row) at its foot, and the furiten mark and the notices' field between them. The right bar: the cog at its top and under it, to above the own row, live
- * play's decisions or a replay's controls (`phoneReplayColumn`); over a panel the notices stand there too, above a
- * replay's controls.
+ * block (`PHONE_SWITCH_COLUMNS` chips a row) at its foot, and the furiten mark and the notices' field between them. The right bar: the cog at its top and a replay's
+ * controls (`phoneReplayColumn`) under it, to above the own row; over a panel the notices stand there too, above a
+ * replay's controls. Live play's decisions stand in a band along the own row's top (`phoneActions`), as a desktop's:
+ * from short of the left strip's lane to short of the right one's, 4px under the centre and so the right river's first
+ * tiles (its row starts level with the centre's bottom) and 4px over the own row, their controls wrapping up from its
+ * bottom right over the own river and the plates; its bottom row passes under the left river's longest reach (its last
+ * tile's box), else the band starts at the centre's left edge.
  */
 function phoneControls(room: ShellRoom): ControlSlots {
     const { at, frame, tier } = room;
@@ -1618,7 +1687,8 @@ function phoneControls(room: ShellRoom): ControlSlots {
         top: phoneUnderCog(m, at("rw")),
     };
     const replay = phoneReplayColumn(room, rightBar);
-    const actions = replaying ? replay.rect : rightBar;
+    const band = phoneActions(at);
+    const actions = replaying ? replay.rect : band;
     const wanted = phoneChrome(at("rw")).doraW;
     const counters = countersAt(
         Math.min(wanted, doraFitting({ perRow: DORA_SLOTS, room: leftBarRight - m, wanted })),
@@ -1657,6 +1727,8 @@ function phoneControls(room: ShellRoom): ControlSlots {
             ["actions-bottom", actions.bottom],
             ["actions-left", actions.left],
             ["actions-right", width - actions.right],
+            ["decision-bottom", band.bottom],
+            ["decision-top", band.top],
             ["field-beside-height", Math.max(0, fieldBeside.bottom - fieldBeside.top)],
             ["field-height", Math.max(0, field.bottom - field.top)],
             ["notice-text", noticeText(tier.text, field.right - field.left)],
@@ -1933,9 +2005,9 @@ function desktopToasts(room: ShellRoom): BoardRect {
 
 /**
  * A desktop's slots: the opponents' strips, the own row between the side strips' lanes centred on the core, the
- * controls in the bars (`desktopBars`) under the counters and the round info (`desktopInfo`), the decisions in the
- * core's bottom-right corner (`desktopActions`), the notices in its bottom-left one (`desktopToasts`), and the plates
- * in the core's corners (`desktopPlates`).
+ * controls in the bars (`desktopBars`) under the counters and the round info (`desktopInfo`), the decisions in a band
+ * along the own row's top (`desktopActions`), the notices in the core's bottom-left corner (`desktopToasts`), and the
+ * plates in the core's corners (`desktopPlates`).
  */
 function desktopShell(room: ShellRoom): BoardShell {
     const { at, tier } = room;
@@ -1995,7 +2067,7 @@ function desktopShell(room: ShellRoom): BoardShell {
  * A phone's slots: the plates in the core's corners (`phonePlates`); the side strips at the table column's
  * edges, their lines from the top margin to the bars' foot, the top one between their lanes; the own row centred on the
  * board, under both lanes to the board's right edge, or between them where they stand beside it; and the controls in
- * the bars (`phoneControls`).
+ * the bars and the decisions' band over the own row (`phoneControls`).
  */
 function phoneShell(room: ShellRoom): BoardShell {
     const { at, frame } = room;

@@ -114,7 +114,7 @@ describe("stripLayout", () => {
         { atFloor: true, height: 491, width: 704 },
         { atFloor: true, height: 540, width: 700 },
         { atFloor: true, height: 800, width: 1280 },
-        { atFloor: false, height: 331, width: 891 },
+        { atFloor: true, height: 331, width: 891 },
         { atFloor: true, height: 275, width: 808 },
         { atFloor: false, height: 251, width: 844 },
     ])(

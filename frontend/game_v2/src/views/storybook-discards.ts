@@ -47,8 +47,6 @@ const TWENTY_FACES: TileFace[] = [
     "2s",
 ];
 
-const TWENTY_FOUR_FACES: TileFace[] = [...TWENTY_FACES, "1z", "2z", "3z", "4z"];
-
 function latestTiles(): DiscardTile[] {
     return [{ face: "1m" }, { face: "3m" }, { face: "5m" }, { face: "7m", last: true }];
 }
@@ -111,9 +109,9 @@ function storybookDiscardsView(): TemplateResult {
             </section>
 
             <section>
-                <h2>Side river wrapping a fourth row (24 tiles)</h2>
+                <h2>Side river wrapping a fourth row (20 tiles)</h2>
                 <div class="storybook-meld-row">
-                    ${Discards(makeTiles(TWENTY_FOUR_FACES), "wrap")}
+                    ${Discards(makeTiles(TWENTY_FACES), "wrap")}
                 </div>
             </section>
 

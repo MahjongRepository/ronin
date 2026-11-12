@@ -285,7 +285,6 @@
     "game.switches.label": "Play switches",
     "game.switches.names": "Switch names",
     "game.switches.show_names": "Show switch names",
-    "game.timer.bank": "Bank",
     "game.timer.bank_seconds_left": "Seconds left in your time bank",
     "game.timer.seconds_left": "Seconds left",
     "game.timer.seconds_then_bank": "Seconds left, then your time bank",
