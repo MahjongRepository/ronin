@@ -46,7 +46,15 @@ The derived proportions are the three reference viewports' values under the sizi
   faces still show at the floor after the tilt (its plane's undrawn own row narrower where that
   keeps its river tile, its strips beside or above the own row as the flat board's, its centre
   lifted clear of the band), and its counters stay flat in their corner; one whose river tile is
-  already at the face floor (an iPhone 11 with Safari's bars) stays flat. A desktop whose width
+  already at the face floor (an iPhone 11 with Safari's bars) stays flat, and so does one whose flat
+  board drops its river tile near the floor for a larger own tile (about 786-793 wide by 296-334
+  tall, beside neighbours that tilt 12 or 15 degrees); about 850-900x340 tilts 12 degrees where its
+  neighbours tilt 15, its 15-degree plane's river tile falling under the flat one's. A phone's plane
+  widens the felt under the top strip's meld room, not the room, so its deepest meld (an added
+  kan) shows no nearer the top river than on the flat board. On a desktop the top strip moves
+  across on the plane where the side strips, kept inside their flat places, come in under its
+  ends: each side strip's farthest tile keeps 16px (or the flat gap) off the strip's end tiles, and
+  the counters keep the flat gap off its first tile, never past the flat counters' left edge. A desktop whose width
   binds its river tile keeps the flat table's place, centred in its box, and tilts within it. The
   felt, its seams (drawn to the tilted centre's corners), the plates and calls (at the tilted points
   the table anchors them to, at their flat size, a plate standing on its edge toward the core, a

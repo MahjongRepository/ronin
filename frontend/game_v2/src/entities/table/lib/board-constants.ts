@@ -7,6 +7,9 @@ const TILE_ASPECT = 4 / 3;
 const STACKED_DEPTH = 2;
 const UPRIGHT_DEPTH = TILE_ASPECT;
 
+/** The top strip's melds keep this far above the core (px). */
+const TOP_CORE_CLEAR = 8;
+
 /** How long a sideways or stacked meld tile lies, in tile widths: as long as a tile is tall. */
 const SIDEWAYS_UNITS = TILE_ASPECT;
 
@@ -268,6 +271,7 @@ export {
     SIDE_REACH_TILES,
     SMALL_CHROME_WIDTH,
     STACKED_DEPTH,
+    TOP_CORE_CLEAR,
     TABLE_COLUMN_TILES,
     TIER_CHROME,
     TILE_ASPECT,

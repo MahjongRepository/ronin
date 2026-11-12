@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { TILE_ASPECT } from "@/entities/table/lib/board-constants";
-import { type BoardBox, type BoardRect, boardGeometry } from "@/entities/table/lib/board-geometry";
+import {
+    SIDEWAYS_UNITS,
+    STACKED_DEPTH,
+    TILE_ASPECT,
+    TILE_EDGE_SHARE,
+} from "@/entities/table/lib/board-constants";
+import {
+    type BoardBox,
+    type BoardGeometry,
+    type BoardRect,
+    boardGeometry,
+} from "@/entities/table/lib/board-geometry";
+import { stripLayout } from "@/entities/table/lib/strip-layout";
 import {
     TABLE_PIECES,
     apparentRiver,
@@ -15,7 +26,9 @@ import {
     shownBands,
     shownPiece,
     stickUnder,
+    tablePieces,
     tableView,
+    viewAt,
 } from "@/entities/table/lib/table-camera";
 
 const NO_EDGES = { bottom: 0, left: 0, right: 0, top: 0 };
@@ -26,6 +39,7 @@ const WIDE: readonly (readonly [string, BoardBox])[] = [
     ["a 1280x800 window", { height: 800, width: 1280 }],
     ["a laptop's 1366x657 window", { height: 657, width: 1366 }],
     ["a 1840x1380 window", { height: 1380, width: 1840 }],
+    ["a tall 1680x1220 window", { height: 1220, width: 1680 }],
 ];
 
 const WIDTH_BOUND: readonly (readonly [string, BoardBox])[] = [
@@ -49,6 +63,16 @@ const PHONE_BOXES = PHONES.map(([shape, box]) => [shape, box] as const);
 
 const SHORT_PHONE: BoardBox = { height: 275, width: 808 };
 
+const SEATS = ["bottom", "right", "top", "left"] as const;
+
+const ADDED_KAN = { depth: STACKED_DEPTH, units: 2 + SIDEWAYS_UNITS };
+
+/** Phones whose rounds settled slowly: the core rises over several rounds at 15 degrees. */
+const SLOW_PHONES: readonly BoardBox[] = [
+    { height: 340, width: 850 },
+    { height: 340, width: 900 },
+];
+
 function viewOf(box: BoardBox): {
     readonly screen: ReturnType<typeof boardGeometry>;
     readonly view: ReturnType<typeof tableView>;
@@ -61,6 +85,110 @@ function viewOf(box: BoardBox): {
     };
     const screen = boardGeometry(input);
     return { screen, view: tableView(input, screen) };
+}
+
+const GRID_WIDTHS = Array.from({ length: 45 }, (_unused, index) => 800 + 40 * index);
+
+const GRID_HEIGHTS = Array.from({ length: 46 }, (_unused, index) => 540 + 20 * index);
+
+/** The desktop windows 40x20 apart from 800x540 to 2560x1440, a row per height, solved once for the tests that walk them. */
+const desktopGrid = (() => {
+    let rows: readonly (readonly ReturnType<typeof tableView>[])[] | null = null;
+    return (): readonly (readonly ReturnType<typeof tableView>[])[] => {
+        rows ??= GRID_HEIGHTS.map((height) =>
+            GRID_WIDTHS.map((width) => viewOf({ height, width }).view),
+        );
+        return rows;
+    };
+})();
+
+/** A table seen flat or through its camera: where it shows a plane point, its pieces and their moves. */
+interface Seen {
+    readonly show: (point: { left: number; top: number }) => { left: number; top: number };
+    readonly pieces: ReturnType<typeof tableView>["pieces"];
+    readonly shifts: Partial<ReturnType<typeof tableView>["shifts"]>;
+    readonly rw: number;
+    readonly counters: BoardRect;
+}
+
+function flatOf(screen: BoardGeometry): Seen {
+    const pieces = tablePieces(screen);
+    return {
+        counters: pieces.dora,
+        pieces,
+        rw: screen.lengths["rw"] ?? 0,
+        shifts: {},
+        show: (point) => point,
+    };
+}
+
+function seenOf(view: ReturnType<typeof tableView>): Seen {
+    return {
+        counters: shownPiece(view, "dora"),
+        pieces: view.pieces,
+        rw: view.plane.lengths["rw"] ?? 0,
+        shifts: view.shifts,
+        show: (point) => projectPoint(view.camera, point),
+    };
+}
+
+/**
+ * The gaps the camera shows between the top strip's end tiles (at its stacked depth) and each side strip's farthest
+ * tile (on its lane's outer edge, a tile's length deep), and between the counters and the strip's first tile.
+ */
+function endGaps(
+    table: ReturnType<typeof tableView> | Seen,
+): Readonly<Record<"counters" | "left" | "right", number>> {
+    const { counters, pieces, rw, shifts, show } = "camera" in table ? seenOf(table) : table;
+    const strip = pieces["strip-top"];
+    const along = shifts["strip-top"]?.left ?? 0;
+    const deep = (TILE_ASPECT + TILE_EDGE_SHARE) * rw;
+    function gap(seat: "strip-left" | "strip-right"): number {
+        const left = seat === "strip-left";
+        const foot = show({ left: (left ? strip.left : strip.right) + along, top: strip.bottom });
+        const side = pieces[seat];
+        const shift = shifts[seat] ?? { left: 0, top: 0 };
+        const corner = show({
+            left: (left ? side.left + deep : side.right - deep) + shift.left,
+            top: side.top + shift.top,
+        });
+        return Math.max(
+            left ? foot.left - corner.left : corner.left - foot.left,
+            corner.top - foot.top,
+        );
+    }
+    const first = show({ left: strip.left + along, top: strip.bottom }).left;
+    return { counters: first - counters.right, left: gap("strip-left"), right: gap("strip-right") };
+}
+
+/** A plate's pill from its place, its box's width: its right edge there for the top and left seats, its left edge for the others. */
+function platePill(
+    screen: BoardGeometry,
+    view: ReturnType<typeof tableView>,
+    seat: (typeof SEATS)[number],
+): BoardRect {
+    const { left, top } = platePlace(view, screen, seat);
+    const width = screen.lengths["plate-w"] ?? 0;
+    const pill = screen.lengths["pill-h"] ?? 0;
+    const pillTop = top + ((screen.lengths["badge-h"] ?? 0) - pill) / 2;
+    const reachesLeft = seat === "top" || seat === "left";
+    return {
+        bottom: pillTop + pill,
+        left: reachesLeft ? left - width : left,
+        right: reachesLeft ? left : left + width,
+        top: pillTop,
+    };
+}
+
+/** How low the top strip's added kan draws its foot (its edge under it) on a geometry, laid by its strip rooms. */
+function addedKanFoot(geometry: BoardGeometry, stripTop: number): number {
+    if (geometry.strips === null) {
+        throw new Error("The board has no strip rooms");
+    }
+    const content = { drawn: true, hand: 11, melds: [ADDED_KAN] };
+    const [meld] = stripLayout("top", content, geometry.strips).melds;
+    const tile = meld?.tile ?? 0;
+    return stripTop + (STACKED_DEPTH + TILE_EDGE_SHARE) * tile;
 }
 
 function gapBetween(first: BoardRect, second: BoardRect): number {
@@ -105,32 +233,6 @@ describe("tableView", () => {
 
     it("keeps a phone flat where its river tile is already at the face floor", () => {
         expect(viewOf(SHORT_PHONE).view.camera.tilt).toBe(0);
-    });
-
-    it("changes its tilt by at most 8 degrees and its top margin by at most 12px between desktop windows 40x20 apart", () => {
-        const widths = Array.from({ length: 45 }, (_unused, index) => 800 + 40 * index);
-        const heights = Array.from({ length: 46 }, (_unused, index) => 540 + 20 * index);
-        const views = heights.map((height) =>
-            widths.map((width) => viewOf({ height, width }).view),
-        );
-        const steps = views.flatMap((row, down) =>
-            row.flatMap((view, across) =>
-                [row[across + 1], views[down + 1]?.[across]].flatMap((next) =>
-                    next === undefined
-                        ? []
-                        : [
-                              {
-                                  margin: Math.abs(next.margin - view.margin),
-                                  tilt: Math.abs(next.camera.tilt - view.camera.tilt),
-                              },
-                          ],
-                ),
-            ),
-        );
-
-        expect(Math.max(...steps.map(({ tilt }) => tilt))).toBeLessThanOrEqual(8);
-        expect(Math.max(...steps.map(({ margin }) => margin))).toBeLessThanOrEqual(12);
-        expect(views.flat().map((view) => view.camera.tilt)).not.toContain(0);
     });
 
     it.each(DESKTOPS)(
@@ -230,6 +332,89 @@ describe("tableView", () => {
             expect(shownPiece(view, "strip-right").bottom).toBeLessThanOrEqual(ownRowTop + 0.5);
         },
     );
+});
+
+describe("tableView on desktop windows 40x20 apart", () => {
+    it("changes its tilt by at most 8 degrees and its top margin by at most 12px between neighbours", () => {
+        const views = desktopGrid();
+        const steps = views.flatMap((row, down) =>
+            row.flatMap((view, across) =>
+                [row[across + 1], views[down + 1]?.[across]].flatMap((next) =>
+                    next === undefined
+                        ? []
+                        : [
+                              {
+                                  margin: Math.abs(next.margin - view.margin),
+                                  tilt: Math.abs(next.camera.tilt - view.camera.tilt),
+                              },
+                          ],
+                ),
+            ),
+        );
+
+        expect(Math.max(...steps.map(({ tilt }) => tilt))).toBeLessThanOrEqual(8);
+        expect(Math.max(...steps.map(({ margin }) => margin))).toBeLessThanOrEqual(12);
+        expect(views.flat().map((view) => view.camera.tilt)).not.toContain(0);
+    });
+
+    it("shows every table piece whole on the board", () => {
+        const outside = desktopGrid().flatMap((row, down) =>
+            row.flatMap((view, across) => {
+                const box = { height: GRID_HEIGHTS[down] ?? 0, width: GRID_WIDTHS[across] ?? 0 };
+                return TABLE_PIECES.filter((piece) => {
+                    const shown = shownPiece(view, piece);
+                    return (
+                        shown.left < -0.5 ||
+                        shown.right > box.width + 0.5 ||
+                        shown.top + view.tableTop < -0.5 ||
+                        shown.bottom + view.tableTop > box.height + 0.5
+                    );
+                }).map((piece) => `${piece} at ${box.width}x${box.height}`);
+            }),
+        );
+
+        expect(outside).toStrictEqual([]);
+    });
+
+    it("shows the side strips' farthest tiles 16px or the flat gap off the top strip's end tiles, the counters the flat gap off its first", () => {
+        const short = desktopGrid().flatMap((row, down) =>
+            row.flatMap((view, across) => {
+                const box = { height: GRID_HEIGHTS[down] ?? 0, width: GRID_WIDTHS[across] ?? 0 };
+                const { screen } = viewOf(box);
+                const tilted = endGaps(view);
+                const flat = endGaps(flatOf(screen));
+                const planeCounters = view.pieces["strip-top"].left - view.pieces.dora.right;
+                return [
+                    tilted.left >= Math.min(16, flat.left) - 0.5 ? "" : "left",
+                    tilted.right >= Math.min(16, flat.right) - 0.5 ? "" : "right",
+                    tilted.counters >= Math.min(flat.counters, planeCounters) - 0.5
+                        ? ""
+                        : "counters",
+                ]
+                    .filter((name) => name !== "")
+                    .map((name) => `${name} at ${box.width}x${box.height}`);
+            }),
+        );
+
+        expect(short).toStrictEqual([]);
+    });
+});
+
+describe("tableView's plates", () => {
+    it.each([...DESKTOPS, ...PHONE_BOXES])(
+        "keeps all four plates' pills 4px off the core on %s",
+        (_shape, box) => {
+            const { screen, view } = viewOf(box);
+            const core = (
+                ["centre", "river-bottom", "river-left", "river-right", "river-top"] as const
+            ).map((piece) => shownPiece(view, piece));
+            const gaps = SEATS.flatMap((seat) =>
+                core.map((piece) => gapBetween(platePill(screen, view, seat), piece)),
+            );
+
+            expect(Math.min(...gaps)).toBeGreaterThanOrEqual(4 - 0.01);
+        },
+    );
 
     it.each([...DESKTOPS, ...PHONE_BOXES])(
         "keeps a top row plate's riichi stick 10px off the core under it on a desktop, 6 on a phone, on %s",
@@ -239,7 +424,7 @@ describe("tableView", () => {
                 (piece) => shownPiece(view, piece),
             );
             const least = screen.family === "phone" ? 6 : 10;
-            const gaps = (["top", "right"] as const).flatMap((seat) => {
+            const gaps = (["top", "right"] as const).map((seat) => {
                 const { left, top } = platePlace(view, screen, seat);
                 const stick = stickUnder(screen, { left, seat, top });
                 return core
@@ -248,7 +433,62 @@ describe("tableView", () => {
                     .map((piece) => piece.top - stick.foot);
             });
 
-            expect(Math.min(Infinity, ...gaps)).toBeGreaterThanOrEqual(least - 0.01);
+            for (const seatGaps of gaps) {
+                expect(seatGaps).not.toStrictEqual([]);
+                expect(Math.min(...seatGaps)).toBeGreaterThanOrEqual(least - 0.01);
+            }
         },
     );
+});
+
+describe("tableView on phones", () => {
+    it.each(PHONE_BOXES)(
+        "shows the top strip's added kan no nearer the top river than the flat board does on %s",
+        (_shape, box) => {
+            const { screen, view } = viewOf(box);
+            const flat = flatOf(screen);
+            const strip = view.pieces["strip-top"];
+            const foot = projectPoint(view.camera, {
+                left: (strip.left + strip.right) / 2,
+                top: addedKanFoot(view.plane, strip.top),
+            });
+            const flatGap =
+                flat.pieces["river-top"].top - addedKanFoot(screen, flat.pieces["strip-top"].top);
+
+            expect(shownPiece(view, "river-top").top - foot.top).toBeGreaterThanOrEqual(
+                flatGap - 1,
+            );
+        },
+    );
+
+    it.each([...PHONE_BOXES.map(([, box]) => box), ...SLOW_PHONES])(
+        "settles its rounds at every phone tilt on %o",
+        (box) => {
+            const { screen } = viewOf(box);
+            const input = {
+                appliedEdges: NO_EDGES,
+                box,
+                safeInsets: NO_EDGES,
+                slots: { band: "play" as const },
+            };
+
+            for (const tilt of [15, 12, 10]) {
+                expect(viewAt(input, screen, tilt).converged).toBe(true);
+            }
+        },
+    );
+
+    it.each(DESKTOPS)("settles its cap steps at every desktop tilt on %s", (_shape, box) => {
+        const { screen } = viewOf(box);
+        const input = {
+            appliedEdges: NO_EDGES,
+            box,
+            safeInsets: NO_EDGES,
+            slots: { band: "play" as const },
+        };
+
+        for (const tilt of [20, 18, 15, 12, 10]) {
+            expect(viewAt(input, screen, tilt).converged).toBe(true);
+        }
+    });
 });

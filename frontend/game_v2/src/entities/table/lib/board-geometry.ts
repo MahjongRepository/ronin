@@ -43,6 +43,7 @@ import {
     TIER_CHROME,
     TILE_ASPECT,
     TILE_EDGE_SHARE,
+    TOP_CORE_CLEAR,
     TOP_HAND_AIR,
     TOP_HAND_GAP,
     type TierChrome,
@@ -1300,8 +1301,7 @@ const STRIP_ROOM_GAP = 8;
 /** Clearance around the switches' and own row's reserved footprints (px). */
 const STRIP_CONTROL_CLEAR = 4;
 
-/** The top strip's melds keep this far above the core and the top badge (px). */
-const TOP_CORE_CLEAR = 8;
+/** The top strip's melds keep this far above the top badge (px). */
 const TOP_BADGE_CLEAR = 6;
 
 /**
@@ -1372,7 +1372,7 @@ function opponentStrips(
             top: {
                 ...top,
                 badgeDepth: places.topBadgeTop - TOP_BADGE_CLEAR - TILE_EDGE_SHARE * rw - m,
-                depth: at("core-top") - TOP_CORE_CLEAR - m,
+                depth: at("core-top") - TOP_CORE_CLEAR - (frame.topGap ?? 0) - m,
                 lane: 0,
             },
         },
