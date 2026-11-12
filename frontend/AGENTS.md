@@ -72,8 +72,9 @@ Vitest does not show what a page looks like, so a change to the UI is checked in
   `backend/storage.db` starts empty, so register `dev` there too, in a separate
   `agent-browser --session` (the skill's *Logging in*). Stop it and `git worktree remove` it
   afterwards.
-* Save them to `thoughts/screenshots/<topic>/`, named so each pair sorts together:
-  `1-desktop-lobby-a-before.png`, `1-desktop-lobby-b-after.png`, `2-phone-lobby-a-before.png`.
+* Save them to `thoughts/screenshots/<topic>/`, as many as the work needs. What the human reviews is
+  `<topic>/_final/`: the latest before/after collages only, one per screen class (`mobile.png`,
+  `laptop.png`, `desktop.png`), built as the skill's *Final screenshots* says.
 * Read every after shot next to its before, the way a player will see it: a consistent grid and
   alignment, even spacing, a clear hierarchy (one primary action), no wrapped or overflowing text,
   nothing clipped off the viewport, no stray empty areas, nothing lost or duplicated versus before.
@@ -81,4 +82,4 @@ Vitest does not show what a page looks like, so a change to the UI is checked in
 * Each pair shows the same data and state. Anything the diff does not explain is a bug or a broken
   capture until a re-shoot proves otherwise; never report it as a capture artefact or an acceptable
   fallback. Fix it, or ask.
-* Then list the files for the user with a one-line verdict per pair.
+* Then list the `_final/` files for the user with a one-line verdict each.

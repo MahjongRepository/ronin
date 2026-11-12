@@ -7,9 +7,37 @@ allowed-tools: Bash(agent-browser:*), Bash(curl:*)
 # Driving ronin in agent-browser
 
 Project recipes on top of the generic `agent-browser` skill; they override it where they conflict.
-Save every screenshot to `thoughts/screenshots/<topic>/` (`$T` below), smoke checks included;
-`frontend/AGENTS.md` *UI changes* sets the names for before/after pairs. Throwaway scripts go in
-your scratchpad (`$S` below).
+Save every screenshot to `thoughts/screenshots/<topic>/` (`$T` below), smoke checks included.
+Throwaway scripts go in your scratchpad (`$S` below).
+
+## Final screenshots
+
+Shoot as many working screenshots as the work needs, anywhere under `$T`. What the human reviews is
+`$T/_final/` alone: three before/after collages, one per screen class, each the same page, data
+and state before (the base commit) on top and after (the working tree) below.
+
+| File | Screen | Game board | Lobby pages |
+|---|---|---|---|
+| `mobile.png` | phone | `phone-11-safari` (iPhone 11 landscape, Safari's bars shown), visual-check runner | 390x844 portrait, WebKit |
+| `laptop.png` | laptop | 1440x900 | 1440x900 |
+| `desktop.png` | desktop | 1920x1080 | 1920x1080 |
+
+- Each collage shows the change's worst case (the densest state that holds the changed element), the
+  whole viewport, so the change is read in context. Where the changed area is small, add one zoomed
+  pair of it beside the three (`<class>-zoom.png`, cropped from the same shots); nothing else.
+- `_final/` always holds the latest set only: empty it before writing a new one, so a stale collage
+  never sits next to a fresh one. Rebuild all three after any change the human will look at.
+- Build each with this skill's script, a title naming the screen and the state:
+
+  ```bash
+  uv run --no-project --with pillow python -I .claude/skills/app-browser/collage.py \
+      $T/_final/laptop.png $T/before-1440.png $T/after-1440.png --title "1440x900 laptop, dense replay"
+  ```
+
+- The visual-check runner shoots whatever `dist-dev/` holds: run `npm run build:dev` on each side
+  (base and working tree) before its shots, or both halves show the same build.
+- Read all three before presenting them, and check each pair's halves differ where the change
+  should show; then list the three paths with a one-line verdict each.
 
 ## Running the app
 
