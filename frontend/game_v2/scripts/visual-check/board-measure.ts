@@ -86,6 +86,8 @@ export interface BoardMeasure {
      */
     readonly tileScale: {
         readonly river: number | null;
+        /** The river tile as the camera shows it across the core's middle: the laid tile times the centre's shown share. */
+        readonly shownRiver: number | null;
         readonly hands: readonly number[];
         readonly own: number | null;
     };
@@ -206,10 +208,26 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                 return { left: rect.left + window.scrollX, top: rect.top + window.scrollY };
             });
         }
+        function shownRiverTile(tile: HTMLElement | null, center: Element | null): number | null {
+            if (tile === null || !(center instanceof HTMLElement) || center.offsetWidth === 0) {
+                return null;
+            }
+            const [topLeft, topRight, bottomRight, bottomLeft] = cornersOf(center);
+            if (
+                topLeft === undefined ||
+                topRight === undefined ||
+                bottomRight === undefined ||
+                bottomLeft === undefined
+            ) {
+                return null;
+            }
+            const middle = (topRight.left - topLeft.left + bottomRight.left - bottomLeft.left) / 2;
+            return (tile.offsetWidth * middle) / center.offsetWidth;
+        }
         function measurePlane(within: Element): PlaneMeasure {
             const flat = document.createElement("style");
             flat.textContent =
-                ".board-surface, .board-surface > * { transform: none !important; translate: none !important; scale: none !important; }";
+                ".board-surface > *, .board-surface > .board-rivers > .board-river { transform: none !important; }";
             document.head.append(flat);
             const center = within.querySelector(".board-center");
             const plane = {
@@ -346,6 +364,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             ].map((tile) => tile.offsetWidth),
             own: ownWidths.length === 0 ? null : Math.max(...ownWidths),
             river: riverTile?.offsetWidth ?? null,
+            shownRiver: shownRiverTile(riverTile, centerElement),
         };
         const cutNames = [...board.querySelectorAll(".nameplate .player-name")]
             .filter((name) => {

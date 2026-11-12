@@ -89,15 +89,15 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   shorter of the two; the round and counts follow `--c` within the room `--w` leaves. The geometry fits the centre and the rivers together, at the spec's minimums (Proportions).
 - Lengths CSS computes are registered with `@property` (`<length>`), so each computes once to pixels; an
   unregistered chain grows with every reference until a browser drops the declaration. A bridged length is px already.
-- **The tilted pieces.** `.board-surface`, inside `.board-table` and as large as it, holds the rivers, the centre and
-  the opponents' strips under one camera (`perspective() rotateX()` about the table's foot); each piece places itself
-  on that plane with `translate` and `scale` about its anchor, all from `tableView` (`entities/table/lib/
-  table-camera.ts`) through the geometry directive (`--geo-plane-*`). The surface is a stacking context, so only
-  those pieces stand in it: the felt, plates, calls and counters stay flat outside, the plates and calls at the
-  tilted points `tableView` emits (`--geo-shown-*`), and nothing outside may need to slot between the pieces. The
-  rivers' layer is the core's box, never the table's: a scaled table-sized layer overflows the board. No
-  `preserve-3d`; the gate measures the spec's proportions and floors with the camera off (`measurePlane`) and the
-  gaps and the foreshortened floor with it on.
+- **The tilted pieces.** `.board-surface`, inside `.board-table`, as tall as the board and standing at its top, holds
+  the rivers, the centre, the opponents' strips and the counters; each takes the 2D `matrix()` `tableView`
+  (`entities/table/lib/table-camera.ts`) emits for it (`--geo-camera-*`, the camera's own map at the piece's anchor)
+  from its top left corner, and the plane's lengths, which the directive writes on the surface itself, so inside it
+  every `--geo-*` is the plane's. No 3D transform anywhere: WebKit paints a shared `perspective() rotateX()` layer off
+  centre and enlarged, so TS owns the projection and both engines paint the same. The surface makes no stacking
+  context and clips nothing; the rivers' shared edge filter stays on the unturned `.board-rivers`. The felt, plates
+  and calls stay flat, outside, at the tilted points `tableView` emits (`--geo-shown-*`). The gate measures laid
+  sizes and floors with the pieces' transforms off (`measurePlane`) and the shown faces and gaps with them on.
 - **Layout measurements**: the board's geometry directive and the notices' clamp. Motion snapshots only measure
   existing tile positions for temporary copies; they never feed the layout solve. A choice between placements is
   made in TS, never with a length switch (`clamp(0px, x * 1000, 1px)` as a 0/1 boolean) or a `9999px` sentinel;

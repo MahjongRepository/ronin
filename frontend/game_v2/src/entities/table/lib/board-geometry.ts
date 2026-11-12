@@ -426,12 +426,19 @@ function desktopPanel(
  * What a family's sizes are solved for: the board's settled box, its family, its chrome's tier and px (`tierChrome`'s,
  * which a phone grows on its own path) and its page's slots.
  */
+type PlaneSpare = "below-core" | "around-core";
+
 interface BoardFrame {
     readonly box: BoardBox;
     readonly chrome: ChromeTier;
     readonly tier: TierChrome;
     readonly family: BoardFamily;
     readonly slots: BoardSlots;
+    /**
+     * Laid out for the camera's plane, its own row the flat board's: its spare height under the core, or around it
+     * where the flat board is width-bound and leaves that much spare.
+     */
+    readonly plane?: PlaneSpare;
 }
 
 /** A desktop's root sizes and the lengths the stylesheet reads with them, in px, at the largest river tile that fits. */
@@ -543,11 +550,14 @@ function desktopLayout(
 ): DesktopLayout {
     const tier = grownChrome(frame.tier, chromeGrowth(frame.chrome, rw));
     const plans = desktopPlans(tier, rw).filter(
-        (plan) => desktopOwnTile({ bar: plan.bar, rw, width: frame.box.width }) >= plan.share * rw,
+        (plan) =>
+            frame.plane !== undefined ||
+            desktopOwnTile({ bar: plan.bar, rw, width: frame.box.width }) >= plan.share * rw,
     );
     for (const plan of plans) {
         const layout = desktopAt(frame, rw, plan);
-        if (layout.ownShare >= plan.share && layout.infoInRow && fits(layout)) {
+        const ownHeld = frame.plane !== undefined || layout.ownShare >= plan.share;
+        if (ownHeld && layout.infoInRow && fits(layout)) {
             return layout;
         }
     }
@@ -632,7 +642,7 @@ function sideLinesStart({
 
 /** A desktop's layout at a river tile and a plan, with its own tile's share of the river tile. */
 function desktopAt(
-    { box, chrome, tier: tierAtRecord }: BoardFrame,
+    { box, chrome, plane, tier: tierAtRecord }: BoardFrame,
     rw: number,
     plan: DesktopPlan,
 ): DesktopLayout & { readonly ownShare: number } {
@@ -660,13 +670,20 @@ function desktopAt(
     const core = aboveCentre + centreHeight + drop + riverRows(rw, gap);
     const coreRoomTop = rh + TILE_EDGE_SHARE * rw + TOP_HAND_GAP * rw;
     const slack = handTop - ownMeldRise - edge - coreRoomTop - core;
-    const coreTop = coreRoomTop + slack;
+    const spareAbove: Readonly<Record<PlaneSpare | "flat", number>> = {
+        "around-core": slack / 2,
+        "below-core": 0,
+        flat: slack,
+    };
+    const coreTop = coreRoomTop + spareAbove[plane ?? "flat"];
     const cy = coreTop + aboveCentre + centreHeight / 2;
     const decisionTier = atDecisionScale(tier, decisionH);
     const reach = sideStripReach(rw);
     const place = plan.info;
     const info = desktopInfo(tier, { colLeft: column.left, place, rw });
-    const linesStart = sideLinesStart({ cy, height, infoFoot: info.linesFloor, reach });
+    const linesFoot =
+        plane === undefined ? height : sideLineEnd(handTop, ownMeldRise, STRIP_ROOM_GAP);
+    const linesStart = sideLinesStart({ cy, height: linesFoot, infoFoot: info.linesFloor, reach });
     const ownPill = handTop + oh - tier.pillH;
 
     const lengths = Object.fromEntries([
@@ -705,7 +722,7 @@ function desktopAt(
         tall:
             reserved.handTop - reserved.ownMeldRise - edge - coreRoomTop - core >= 0 &&
             reach <= height,
-        wide: fitted >= OWN_BY_RIVER_LEAST * rw && column.left >= BAR_MIN,
+        wide: (plane !== undefined || fitted >= OWN_BY_RIVER_LEAST * rw) && column.left >= BAR_MIN,
     };
 }
 
@@ -2222,33 +2239,42 @@ function boxUnderEdges({ appliedEdges: now, box }: BoardInput, edges: BoardEdges
  * px for that box; an empty or non-finite box has no sizes.
  */
 function boardGeometry(input: BoardInput): BoardGeometry {
+    return solveFrame(boardFrame(input), familyLengths);
+}
+
+function boardFrame(input: BoardInput): BoardFrame {
     const candidate = boxUnderEdges(input, gutteredEdges(input.safeInsets));
     const family = classifyFamily(candidate);
     const chrome = classifyChrome(candidate);
-    const phone = family === "phone";
-    const settled = phone ? boxUnderEdges(input, phoneEdges(input.safeInsets)) : candidate;
-    const sized =
-        Number.isFinite(settled.width) &&
-        Number.isFinite(settled.height) &&
-        settled.width > 0 &&
-        settled.height > 0;
-    const frame = {
-        box: settled,
+    return {
+        box: family === "phone" ? boxUnderEdges(input, phoneEdges(input.safeInsets)) : candidate,
         chrome,
         family,
         slots: input.slots,
         tier: tierChrome(chrome, chromeShare(candidate)),
     };
-    const sizes = sized ? familyLengths(frame) : {};
+}
+
+function solveFrame(
+    frame: BoardFrame,
+    lengthsOf: (frame: BoardFrame) => BoardLengths,
+): BoardGeometry {
+    const { box, chrome, family } = frame;
+    const sized =
+        Number.isFinite(box.width) &&
+        Number.isFinite(box.height) &&
+        box.width > 0 &&
+        box.height > 0;
+    const sizes = sized ? lengthsOf(frame) : {};
     const tableHeight = sizes["table-h"];
     const table = tableHeight === undefined ? frame : frameAtHeight(frame, tableHeight);
     const shell = sized ? boardShell(table, sizes) : null;
     return Object.freeze({
         areas: Object.freeze({ ...shell?.areas }),
-        box: Object.freeze(settled),
+        box: Object.freeze(box),
         chrome,
         family,
-        gutter: phone ? 0 : PAGE_GUTTER,
+        gutter: family === "phone" ? 0 : PAGE_GUTTER,
         lengths: Object.freeze({
             ...sizes,
             ...Object.fromEntries(shell?.lengths ?? []),
@@ -2261,7 +2287,46 @@ function boardGeometry(input: BoardInput): BoardGeometry {
     });
 }
 
-export { boardGeometry, shellTracks };
+/** The tiles a tilted table is laid out at: its river tile, and the own tile the flat board's own row keeps. */
+interface PlaneTiles {
+    readonly rw: number;
+    readonly ow: number;
+    readonly spare: PlaneSpare;
+}
+
+function planeLengths(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): BoardLengths {
+    return frame.family === "phone"
+        ? phoneLaid(frame, { ow, rw }).lengths
+        : desktopLayout({ ...frame, plane: spare }, rw).lengths;
+}
+
+function planeFits(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): boolean {
+    if (frame.family === "phone") {
+        return phoneLaid(frame, { ow, rw }).fits;
+    }
+    const layout = desktopLayout({ ...frame, plane: spare }, rw);
+    return fitsDesktop(layout) && layout.infoInRow;
+}
+
+/**
+ * The table the camera tilts: the board's frame on a plane box (`box`, deeper than the board), laid out at the largest
+ * river tile up to `cap` that fits it beside the flat board's own tile, its spare height placed by `spare`, never
+ * shortened into a table of its own.
+ */
+function planeGeometry(
+    input: BoardInput,
+    box: BoardBox,
+    { cap, ow, spare }: { cap: number; ow: number; spare: PlaneSpare },
+): BoardGeometry {
+    const frame = { ...boardFrame(input), box };
+    let rw = Math.max(1, Math.floor(cap));
+    while (rw > 1 && !planeFits(frame, { ow, rw, spare })) {
+        rw -= 1;
+    }
+    return solveFrame(frame, (laid) => planeLengths(laid, { ow, rw, spare }));
+}
+
+export { boardGeometry, planeGeometry, shellTracks };
 export type {
     BoardBox,
     BoardEdges,
@@ -2272,5 +2337,6 @@ export type {
     BoardRect,
     BoardSlots,
     BoardTracks,
+    PlaneSpare,
     SwitchesForm,
 };

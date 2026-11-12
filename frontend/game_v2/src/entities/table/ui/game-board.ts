@@ -419,8 +419,8 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                         </div>
                         ${state ? CenterInfo(state.center, state.nameplates, onView) : EmptyCenterArea()}
                         ${STRIP_SEATS.map((seat) => Strip(seat, seatPlayer(state, seat)))}
+                        ${state ? DoraDisplay(state.center) : ""}
                     </div>
-                    ${state ? DoraDisplay(state.center) : ""}
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}
                     ${bandEnd ? html`<div class="board-actions" data-area="actions">${bandEnd}</div>` : ""}
                     ${props.switches ?? ""}

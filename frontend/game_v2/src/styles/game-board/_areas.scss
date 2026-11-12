@@ -20,43 +20,33 @@ $max-melds: 4;
 }
 
 .board-surface {
-    transform-origin: var(--geo-plane-pivot-x) var(--geo-plane-pivot-y);
-    transform: perspective(var(--geo-plane-camera)) rotateX(var(--geo-plane-tilt));
-}
+    top: calc(-1 * var(--geo-table-top, 0px));
+    bottom: auto;
+    height: 100cqh;
 
-@mixin plane-pose($piece) {
-    translate: var(--geo-plane-#{$piece}-shift-x) var(--geo-plane-#{$piece}-shift-y);
-    scale: var(--geo-plane-#{$piece}-scale);
-}
+    > :is(.board-center, .board-strip, .board-dora),
+    > .board-rivers > .board-river {
+        transform-origin: 0 0;
+    }
 
-.board-surface > .board-rivers {
-    @include plane-pose(core);
+    > .board-center {
+        transform: var(--geo-camera-centre);
+    }
 
-    inset: auto;
-    left: var(--geo-plane-core-start-x);
-    top: var(--geo-plane-core-start-y);
-    width: var(--geo-plane-core-size-x);
-    height: var(--geo-plane-core-size-y);
-    transform-origin: calc(var(--cx) - var(--hx) + var(--geo-plane-core-anchor-x) - var(--geo-plane-core-start-x))
-        calc(var(--cy) - var(--h) + var(--geo-plane-core-anchor-y) - var(--geo-plane-core-start-y));
-
-    > .board-river {
-        margin-left: calc(-1 * var(--geo-plane-core-start-x));
-        margin-top: calc(-1 * var(--geo-plane-core-start-y));
+    > .board-dora {
+        transform: var(--geo-camera-dora);
     }
 }
 
-.board-surface > .board-center {
-    @include plane-pose(core);
-
-    transform-origin: var(--geo-plane-core-anchor-x) var(--geo-plane-core-anchor-y);
+@each $seat in bottom, right, top, left {
+    .board-surface > .board-rivers > .board-river--#{$seat} {
+        transform: var(--geo-camera-river-#{$seat});
+    }
 }
 
 @each $seat in top, right, left {
     .board-surface > .board-strip--#{$seat} {
-        @include plane-pose(strip-#{$seat});
-
-        transform-origin: var(--geo-plane-strip-#{$seat}-anchor-x) var(--geo-plane-strip-#{$seat}-anchor-y);
+        transform: var(--geo-camera-strip-#{$seat});
     }
 }
 

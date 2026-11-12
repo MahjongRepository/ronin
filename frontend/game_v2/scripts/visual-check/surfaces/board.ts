@@ -63,8 +63,8 @@ const MIN_RIVER_GAP = 3;
 /** The tile edge `_tile.scss` draws below a face, in shares of the tile's width (its body and back layers). */
 const DRAWN_EDGE_SHARE = 0.13;
 
-/** The share of a face's floor, or of a gap, the table's camera may foreshorten it to (the spec's Tilted table). */
-const FORESHORTENED_FLOOR = 0.9;
+/** How far under its floor a face the camera shows may measure: sub-pixel rounding of its box, never the camera's. */
+const SHOWN_FACE_SLACK = 0.25;
 /**
  * The least gap between an opponent's strip and any river, so neither reads as a row of the other: 8px drawn on a 2x
  * screen, which a browser-boxed phone's top strip keeps from an added kan's stack (more would cost its river tile).
@@ -404,6 +404,9 @@ const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
 ]);
 const DERIVED_TOLERANCE = 0.02;
 
+/** How far the camera may show the river tile across the core's middle from the flat board's (the spec's Tilted table). */
+const SHOWN_RIVER_SHARE = 0.05;
+
 /** How far apart two boxes stand: the larger of their gaps across and down, 0 where they touch or overlap. */
 function separation(first: Box, second: Box): number {
     const across = Math.max(
@@ -433,14 +436,15 @@ function riverGapsFromCenter(board: PlaneMeasure, center: Box): ReadonlyMap<stri
  */
 function checkDerivedProportions(board: BoardMeasure, viewport: string, report: PageReport): void {
     const derived = DERIVED.get(viewport);
-    const { own, river } = board.tileScale;
+    const { own, river, shownRiver } = board.tileScale;
     if (derived === undefined || river === null || own === null) {
         return;
     }
-    const ratio = river / own;
+    const ratio = (shownRiver ?? river) / own;
     report.expect(
-        Math.abs(ratio - derived.riverToOwn) <= DERIVED_TOLERANCE,
-        `the river tile is ${ratio.toFixed(3)} of the own tile (${river}px / ${own.toFixed(1)}px), not ${derived.riverToOwn}`,
+        Math.abs(ratio - derived.riverToOwn) <=
+            Math.max(DERIVED_TOLERANCE, SHOWN_RIVER_SHARE * derived.riverToOwn),
+        `the river tile is ${ratio.toFixed(3)} of the own tile (${(shownRiver ?? river).toFixed(1)}px / ${own.toFixed(1)}px), not ${derived.riverToOwn}`,
     );
     const { plane } = board;
     if (plane.center !== null) {
@@ -479,21 +483,21 @@ function checkDerivedProportions(board: BoardMeasure, viewport: string, report: 
  */
 function checkFaces(board: BoardMeasure, viewport: Viewport, report: PageReport): void {
     const floor: Size = viewport.barsShown?.riverFloor ?? MIN_FACE;
-    function under(tile: Box, share: number): boolean {
+    function underFloor(tile: Box, slack: number): boolean {
         return (
-            Math.min(tile.width, tile.height) < share * floor.width - EPSILON ||
-            longSide(tile) < share * floor.height - EPSILON
+            Math.min(tile.width, tile.height) < floor.width - slack ||
+            longSide(tile) < floor.height - slack
         );
     }
-    function underFloor(tile: Box): boolean {
-        return under(tile, 1);
+    function laidUnder(tile: Box): boolean {
+        return underFloor(tile, EPSILON);
     }
-    function foreshortenedPast(tile: Box): boolean {
-        return under(tile, FORESHORTENED_FLOOR);
+    function shownUnder(tile: Box): boolean {
+        return underFloor(tile, SHOWN_FACE_SLACK);
     }
     const smallRiver = [
-        ...board.plane.riverTiles.filter(({ box }) => underFloor(box)),
-        ...board.riverTiles.filter(({ box }) => foreshortenedPast(box)),
+        ...board.plane.riverTiles.filter(({ box }) => laidUnder(box)),
+        ...board.riverTiles.filter(({ box }) => shownUnder(box)),
     ];
     report.expect(
         smallRiver.length === 0,
@@ -503,8 +507,8 @@ function checkFaces(board: BoardMeasure, viewport: Viewport, report: PageReport)
             .join(", ")}`,
     );
     const small = [
-        ...board.plane.opponentFaces.filter((tile) => underFloor(tile)),
-        ...board.opponentFaces.filter((tile) => foreshortenedPast(tile)),
+        ...board.plane.opponentFaces.filter((tile) => laidUnder(tile)),
+        ...board.opponentFaces.filter((tile) => shownUnder(tile)),
     ];
     report.expect(
         small.length === 0,
@@ -646,7 +650,7 @@ function checkTurnCue(cues: TurnCues, board: BoardMeasure, report: PageReport): 
  */
 function checkRiverGaps(board: BoardMeasure, report: PageReport): void {
     const touching = new Set<string>();
-    const shownGap = FORESHORTENED_FLOOR * MIN_RIVER_GAP;
+    const shownGap = MIN_RIVER_GAP;
     const drawn = board.riverTiles.map(({ box, group }) => ({ box: withDrawnEdge(box), group }));
     for (const [index, first] of drawn.entries()) {
         for (const second of drawn.slice(index + 1)) {

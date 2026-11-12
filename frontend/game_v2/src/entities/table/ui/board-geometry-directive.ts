@@ -17,7 +17,12 @@ import {
     ownMeldTile,
     stripLengths,
 } from "@/entities/table/lib/strip-layout";
-import { tableViewValues } from "@/entities/table/lib/table-camera";
+import {
+    type TableView,
+    boardViewValues,
+    surfaceViewValues,
+    tableView,
+} from "@/entities/table/lib/table-camera";
 
 /** What the opponents' strips hold, by seat, and the own row's melds. */
 interface StripContents extends Readonly<Record<StripSeat, StripContent>> {
@@ -101,7 +106,9 @@ class SizeBoard extends AsyncDirective {
     private slots: BoardSlots | null = null;
     private strips: StripContents | null = null;
     private geometry: BoardGeometry | null = null;
+    private view: TableView | null = null;
     private readonly written = new Map<string, string>();
+    private readonly writtenOnSurface = new Map<string, string>();
 
     constructor(partInfo: PartInfo) {
         super(partInfo);
@@ -157,9 +164,9 @@ class SizeBoard extends AsyncDirective {
     }
 
     private relayout(): void {
-        const { board, geometry } = this;
-        if (this.observer !== null && board !== null && geometry !== null) {
-            this.write(board, geometry);
+        const { board, geometry, view } = this;
+        if (this.observer !== null && board !== null && geometry !== null && view !== null) {
+            this.write(board, geometry, view);
         }
     }
 
@@ -187,7 +194,7 @@ class SizeBoard extends AsyncDirective {
         }
         this.cancelFrame();
         const edges = pageEdges(board);
-        const geometry = boardGeometry({
+        const { geometry, view } = solveBoard({
             appliedEdges: edges?.appliedEdges ?? NO_EDGES,
             box: { height, width },
             safeInsets: edges?.safeInsets ?? NO_EDGES,
@@ -196,11 +203,11 @@ class SizeBoard extends AsyncDirective {
         if (delivering && edges !== null && geometry.gutter !== edges.gutter) {
             this.frame = requestAnimationFrame(() => {
                 this.frame = null;
-                this.write(board, geometry);
+                this.write(board, geometry, view);
             });
             return;
         }
-        this.write(board, geometry);
+        this.write(board, geometry, view);
     }
 
     private cancelFrame(): void {
@@ -210,9 +217,10 @@ class SizeBoard extends AsyncDirective {
         }
     }
 
-    private write(board: HTMLElement, geometry: BoardGeometry): void {
+    private write(board: HTMLElement, geometry: BoardGeometry, view: TableView): void {
         const { chrome, family, lengths, strips, switches, tracks } = geometry;
         this.geometry = geometry;
+        this.view = view;
         const laid =
             strips === null || this.strips === null ? {} : stripLengths(strips, this.strips);
         const ownTile = ownMeldTile(
@@ -239,14 +247,40 @@ class SizeBoard extends AsyncDirective {
                 ["--geo-shell-rows", tracks.rows],
                 ["--own-meld-w", `${ownTile}px`],
                 ...zoneLengths(geometry),
-                ...tableViewValues(geometry),
+                ...Object.entries(laid).map(
+                    ([name, length]) => [`--${name}`, `${length}px`] as const,
+                ),
+                ...boardViewValues(view),
+            ]),
+            this.written,
+        );
+        this.writeSurface(board, view);
+    }
+
+    private writeSurface(board: HTMLElement, view: TableView): void {
+        const surface = board.querySelector<HTMLElement>(":scope .board-surface");
+        if (surface === null) {
+            return;
+        }
+        const { strips } = view.plane;
+        const laid =
+            strips === null || this.strips === null ? {} : stripLengths(strips, this.strips);
+        writeValues(
+            surface,
+            new Map([
+                ...surfaceViewValues(view),
                 ...Object.entries(laid).map(
                     ([name, length]) => [`--${name}`, `${length}px`] as const,
                 ),
             ]),
-            this.written,
+            this.writtenOnSurface,
         );
     }
+}
+
+function solveBoard(input: BoardInput): { geometry: BoardGeometry; view: TableView } {
+    const geometry = boardGeometry(input);
+    return { geometry, view: tableView(input, geometry) };
 }
 
 function writeValues(

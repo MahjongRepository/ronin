@@ -16,7 +16,8 @@
     }
 }
 
-.game-board > :is(.board-layout, .board-overlay) {
+.game-board > :is(.board-layout, .board-overlay),
+.game-board .board-surface {
     /* An opponent's hand is at the river tile's size. */
     --bw: var(--rw);
     --bh: var(--rh);
@@ -26,7 +27,8 @@
 }
 
 /* Every size and place is `boardGeometry`'s, written as `--geo-<name>` on the board. */
-.game-board:where([data-board-family]) > :is(.board-layout, .board-overlay) {
+.game-board:where([data-board-family]) > :is(.board-layout, .board-overlay),
+.game-board:where([data-board-family]) .board-surface {
     --rw: var(--geo-rw);
     --rh: var(--geo-rh);
     --ow: var(--geo-ow);
