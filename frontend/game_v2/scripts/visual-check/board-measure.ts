@@ -71,8 +71,10 @@ export interface BoardMeasure {
     readonly nameplates: readonly Box[];
     /** Each badge by its seat's position, whose fixed place the decisions stories compare across checkpoints. */
     readonly badges: readonly GroupedBox[];
-    /** What each badge draws: its pill and, under it, its riichi stick while one stands, by seat. */
-    readonly plateParts: readonly GroupedBox[];
+    /** Each badge's pill, by seat. */
+    readonly platePills: readonly GroupedBox[];
+    /** Each badge's riichi stick under its pill while one stands, by seat. */
+    readonly plateSticks: readonly GroupedBox[];
     /** The rivers' tiles by seat, and every opponent strip's tiles (hand and melds) by seat. */
     readonly riverTiles: readonly GroupedBox[];
     /** The rivers' tiles by seat, less the latest discard, which lies apart from its slot toward its seat. */
@@ -452,7 +454,10 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                           },
                       },
             plane: measurePlane(board),
-            plateParts: bySeat(board, ".nameplate__pill, .nameplate__stick", ".nameplate").filter(
+            platePills: bySeat(board, ".nameplate__pill", ".nameplate").filter(
+                ({ box: part }) => part.width > 0 && part.height > 0,
+            ),
+            plateSticks: bySeat(board, ".nameplate__stick", ".nameplate").filter(
                 ({ box: part }) => part.width > 0 && part.height > 0,
             ),
             reservedToastsPlace: [toastsLeft, toastsTop, toastsWidth, toastsHeight].every(

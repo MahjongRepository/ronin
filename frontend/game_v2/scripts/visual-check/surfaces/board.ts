@@ -5,6 +5,7 @@ import { type BoardMeasure, type PlaneMeasure, ownRiverUnderDecisions } from "..
 import {
     type Box,
     EPSILON,
+    type GroupedBox,
     MIN_ACTION_SIZE,
     type Size,
     contains,
@@ -60,8 +61,12 @@ const MIN_FACE: Size = { height: 17, width: 13 };
  */
 const MIN_RIVER_GAP = 3;
 
-/** A badge's pill or stick keeps at least this far off any tile on the table (px). */
+/** A badge's pill keeps at least this far off any tile on the table (px). */
 const PLATE_TILE_GAP = 4;
+
+/** A badge's riichi stick keeps at least this far off any tile on a desktop's table, and a phone's (px). */
+const STICK_TILE_GAP = 10;
+const PHONE_STICK_TILE_GAP = 6;
 
 /** The tile edge `_tile.scss` draws below a face, in shares of the tile's width (its body and back layers). */
 const DRAWN_EDGE_SHARE = 0.13;
@@ -683,17 +688,29 @@ function withDrawnEdge(tile: Box): Box {
     return { ...tile, height: tile.height + DRAWN_EDGE_SHARE * widthDown };
 }
 
-/** A badge is furniture, yet what it draws (its pill and its riichi stick) keeps clear of every table tile. */
+/**
+ * A badge is furniture, yet what it draws keeps clear of every table tile: its pill by a few pixels, its riichi stick by
+ * more (a phone's less), so a tilted river's near end never reaches the stick.
+ */
 function checkPlatesClear(board: BoardMeasure, report: PageReport): void {
     const tiles = [...board.riverTiles, ...board.stripTiles];
-    const touching = board.plateParts.flatMap(({ box: part, group }) =>
-        tiles
-            .filter(({ box: tile }) => near(part, tile, PLATE_TILE_GAP))
-            .map((tile) => `${group} plate x ${tile.group} tile`),
+    const stickGap = board.family === "phone" ? PHONE_STICK_TILE_GAP : STICK_TILE_GAP;
+    function touching(parts: readonly GroupedBox[], gap: number, part: string): string[] {
+        return parts.flatMap(({ box: shown, group }) =>
+            tiles
+                .filter(({ box: tile }) => near(shown, tile, gap))
+                .map((tile) => `${group} ${part} x ${tile.group} tile`),
+        );
+    }
+    const pills = touching(board.platePills, PLATE_TILE_GAP, "plate");
+    const sticks = touching(board.plateSticks, stickGap, "riichi stick");
+    report.expect(
+        pills.length === 0,
+        `plates within ${PLATE_TILE_GAP}px of a tile: ${[...new Set(pills)].join(", ")}`,
     );
     report.expect(
-        touching.length === 0,
-        `plates within ${PLATE_TILE_GAP}px of a tile: ${[...new Set(touching)].join(", ")}`,
+        sticks.length === 0,
+        `riichi sticks within ${stickGap}px of a tile: ${[...new Set(sticks)].join(", ")}`,
     );
 }
 

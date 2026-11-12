@@ -39,16 +39,19 @@ The derived proportions are the three reference viewports' values under the sizi
   settles, shows the river tile across the core's middle within 5% of the flat board's and the
   nearest at most 0.85 of the own tile, keeps the side strips clear of the own row and a phone's
   core clear of its decisions' band, and shows the farthest faces at the face floor. Its felt
-  bands (the top strip to the top river, the core to the own row) open at most 0.75 river tiles
-  wider than the flat board's; felt beyond that lies over the table's top instead, at most 0.75
-  river tiles of it, and the top band never closes under 4px. A phone lays its tiles larger so its
+  bands (the top hand's foot to the top river, the core to the own row) open at most 0.75 river
+  tiles wider than the flat board's; felt beyond that lies over the table's top instead, at most
+  0.15 river tiles of it, the least margin that holds, and never narrower than the flat board's
+  (the top band to a pixel, the bottom one to its least of 4px). A phone lays its tiles larger so its
   faces still show at the floor after the tilt (its plane's undrawn own row narrower where that
   keeps its river tile, its strips beside or above the own row as the flat board's, its centre
   lifted clear of the band), and its counters stay flat in their corner; one whose river tile is
   already at the face floor (an iPhone 11 with Safari's bars) stays flat. A desktop whose width
   binds its river tile keeps the flat table's place, centred in its box, and tilts within it. The
   felt, its seams (drawn to the tilted centre's corners), the plates and calls (at the tilted points
-  the table anchors them to, at their flat size, a plate centred on its anchor's height) and
+  the table anchors them to, at their flat size, a plate standing on its edge toward the core, a
+  top row plate raised further where its riichi stick would come within 10px of the core, 6 on a
+  phone) and
   everything in front stay flat. Depth comes from the surface, the tile's edge and its shadow. One
   static transform per piece, no per-frame work. Decision: one light for every
   seat, as Tenhou's: each tile's edge shows toward the screen's bottom (its ivory body over the
@@ -979,7 +982,7 @@ values are review's, not the check's. On the tilted table the centre's size, the
 floors are measured as laid, before the camera; the river tile over the own tile is measured as shown across the
 core's middle, within the camera's 5% band; and the shown faces keep the same floors (a quarter pixel of rounding),
 the rivers their 3px least to each other and to the tilted centre with each tile's edge drawn under it, and
-a badge's pill and riichi stick keep 4px off every tile on the table. WebKit's pixels come from its compositor (a
+a badge's pill keeps 4px off every tile on the table and its riichi stick 10px (6 on a phone). WebKit's pixels come from its compositor (a
 software screenshot flattens the table's perspective). Clarity,
 hierarchy and coherence are judged by the checklist
 above. A visual failure that can be measured may earn a check; a judgement must not be turned into

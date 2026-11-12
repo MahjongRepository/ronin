@@ -14,6 +14,7 @@ import {
     scalesAt,
     shownBands,
     shownPiece,
+    stickUnder,
     tableView,
 } from "@/entities/table/lib/table-camera";
 
@@ -39,13 +40,14 @@ const PHONES: readonly (readonly [string, BoardBox, number])[] = [
     ["a 667x375 phone", { height: 375, width: 667 }, 15],
     ["an 844x390 phone", { height: 390, width: 844 }, 15],
     ["an A25's board with Chrome's bars", { height: 331, width: 891 }, 12],
+    ["an iPhone Plus's 736x414", { height: 414, width: 736 }, 15],
+    ["a 640x400 phone", { height: 400, width: 640 }, 15],
+    ["an 800x500 phone", { height: 500, width: 800 }, 15],
 ];
 
 const PHONE_BOXES = PHONES.map(([shape, box]) => [shape, box] as const);
 
 const SHORT_PHONE: BoardBox = { height: 275, width: 808 };
-
-const SEATS = ["bottom", "right", "top", "left"] as const;
 
 function viewOf(box: BoardBox): {
     readonly screen: ReturnType<typeof boardGeometry>;
@@ -68,24 +70,6 @@ function gapBetween(first: BoardRect, second: BoardRect): number {
         first.top - second.bottom,
         second.top - first.bottom,
     );
-}
-
-/** A plate's box from its place: its right edge there for the top and left seats, its left edge for the others. */
-function plateBox(
-    { left, top }: { readonly left: number; readonly top: number },
-    {
-        height,
-        seat,
-        width,
-    }: { readonly height: number; readonly seat: string; readonly width: number },
-): BoardRect {
-    const reachesLeft = seat === "top" || seat === "left";
-    return {
-        bottom: top + height,
-        left: reachesLeft ? left - width : left,
-        right: reachesLeft ? left : left + width,
-        top,
-    };
 }
 
 /** Where a CSS `matrix3d` (column-major) sends a point of its element's box. */
@@ -123,38 +107,46 @@ describe("tableView", () => {
         expect(viewOf(SHORT_PHONE).view.camera.tilt).toBe(0);
     });
 
-    it("changes its tilt by at most 8 degrees between neighbouring desktop windows", () => {
-        const widths = [800, 960, 1120, 1280, 1440, 1600, 1760, 1920, 2080, 2240, 2400, 2560];
-        const heights = [540, 660, 780, 900, 1020, 1140, 1260, 1380, 1440];
-        const tilts = heights.map((height) =>
-            widths.map((width) => viewOf({ height, width }).view.camera.tilt),
+    it("changes its tilt by at most 8 degrees and its top margin by at most 12px between desktop windows 40x20 apart", () => {
+        const widths = Array.from({ length: 45 }, (_unused, index) => 800 + 40 * index);
+        const heights = Array.from({ length: 46 }, (_unused, index) => 540 + 20 * index);
+        const views = heights.map((height) =>
+            widths.map((width) => viewOf({ height, width }).view),
         );
-        const jumps = tilts.flatMap((row, down) =>
-            row.flatMap((tilt, across) =>
-                [row[across + 1], tilts[down + 1]?.[across]]
-                    .filter((next) => next !== undefined)
-                    .map((next) => Math.abs((next ?? tilt) - tilt)),
+        const steps = views.flatMap((row, down) =>
+            row.flatMap((view, across) =>
+                [row[across + 1], views[down + 1]?.[across]].flatMap((next) =>
+                    next === undefined
+                        ? []
+                        : [
+                              {
+                                  margin: Math.abs(next.margin - view.margin),
+                                  tilt: Math.abs(next.camera.tilt - view.camera.tilt),
+                              },
+                          ],
+                ),
             ),
         );
 
-        expect(Math.max(...jumps)).toBeLessThanOrEqual(8);
-        expect(tilts.flat()).not.toContain(0);
+        expect(Math.max(...steps.map(({ tilt }) => tilt))).toBeLessThanOrEqual(8);
+        expect(Math.max(...steps.map(({ margin }) => margin))).toBeLessThanOrEqual(12);
+        expect(views.flat().map((view) => view.camera.tilt)).not.toContain(0);
     });
 
     it.each(DESKTOPS)(
-        "opens both felt bands at most 0.75 river tiles wider than the flat ones and the top margin no wider on %s",
+        "keeps both felt bands between the flat ones and 0.75 river tiles wider, its top margin under 0.15, on %s",
         (_shape, box) => {
             const { screen, view } = viewOf(box);
-            const allowance = 0.75 * (screen.lengths["rw"] ?? 0);
+            const rw = screen.lengths["rw"] ?? 0;
             const shown = shownBands(view);
             const flat = flatBands(screen);
 
             expect(shownPiece(view, "strip-top").top).toBeCloseTo(view.margin, 0);
-            expect(view.margin).toBeLessThanOrEqual(allowance);
-            expect(shown.top).toBeGreaterThanOrEqual(Math.min(flat.top, 4) - 0.5);
-            expect(shown.top).toBeLessThanOrEqual(Math.max(flat.top, 0) + allowance);
-            expect(shown.bottom).toBeGreaterThan(0);
-            expect(shown.bottom).toBeLessThanOrEqual(Math.max(flat.bottom, 0) + allowance);
+            expect(view.margin).toBeLessThanOrEqual(0.15 * rw + 0.5);
+            expect(shown.top).toBeGreaterThanOrEqual(flat.top - 1);
+            expect(shown.top).toBeLessThanOrEqual(Math.max(flat.top, 0) + 0.75 * rw + 0.5);
+            expect(shown.bottom).toBeGreaterThanOrEqual(Math.min(flat.bottom, 4) - 0.5);
+            expect(shown.bottom).toBeLessThanOrEqual(Math.max(flat.bottom, 0) + 0.75 * rw + 0.5);
         },
     );
 
@@ -192,24 +184,30 @@ describe("tableView", () => {
     );
 
     it.each([...DESKTOPS, ...PHONE_BOXES])(
-        "draws each piece's corners where the camera shows them on %s",
+        "draws all four corners of every tilted piece where the camera shows them on %s",
         (_shape, box) => {
-            const { view } = viewOf(box);
+            const { screen, view } = viewOf(box);
             const tilted = TABLE_PIECES.filter((piece) =>
                 pieceTransform(view, piece).startsWith("matrix3d"),
             );
-            for (const piece of tilted) {
+            const flatCounters = screen.family === "phone" ? ["dora"] : [];
+            expect(tilted).toStrictEqual(
+                TABLE_PIECES.filter((piece) => !flatCounters.includes(piece)),
+            );
+            const corners = tilted.flatMap((piece) => {
                 const rect = view.pieces[piece];
-                const shift = view.shifts[piece];
-                const far = { left: rect.right - rect.left, top: rect.bottom - rect.top };
-                const [drawnLeft, drawnTop] = applied(
-                    pieceTransform(view, piece),
-                    far.left,
-                    far.top,
-                );
+                return [
+                    [0, 0],
+                    [rect.right - rect.left, 0],
+                    [0, rect.bottom - rect.top],
+                    [rect.right - rect.left, rect.bottom - rect.top],
+                ].map(([left = 0, top = 0]) => ({ left, piece, rect, top }));
+            });
+            for (const { left, piece, rect, top } of corners) {
+                const [drawnLeft, drawnTop] = applied(pieceTransform(view, piece), left, top);
                 const shown = projectPoint(view.camera, {
-                    left: rect.right + shift.left,
-                    top: rect.bottom + shift.top,
+                    left: rect.left + view.shifts[piece].left + left,
+                    top: rect.top + view.shifts[piece].top + top,
                 });
                 expect(rect.left + drawnLeft).toBeCloseTo(shown.left, 3);
                 expect(rect.top + drawnTop - view.tableTop).toBeCloseTo(shown.top, 3);
@@ -234,21 +232,23 @@ describe("tableView", () => {
     );
 
     it.each([...DESKTOPS, ...PHONE_BOXES])(
-        "centres each plate on its anchor's height, clear of the rivers' reach (10px on a desktop, 4 on a phone), on %s",
+        "keeps a top row plate's riichi stick 10px off the core under it on a desktop, 6 on a phone, on %s",
         (_shape, box) => {
             const { screen, view } = viewOf(box);
-            const height = screen.lengths["badge-h"] ?? 0;
-            const width = screen.lengths["plate-w"] ?? 0;
-            const rivers = (
-                ["river-bottom", "river-right", "river-top", "river-left"] as const
-            ).map((piece) => shownPiece(view, piece));
-            const least = screen.family === "phone" ? 4 : 10;
-            const gaps = SEATS.flatMap((seat) => {
-                const plate = plateBox(platePlace(view, screen, seat), { height, seat, width });
-                return rivers.map((river) => gapBetween(plate, river));
+            const core = (["centre", "river-left", "river-right", "river-top"] as const).map(
+                (piece) => shownPiece(view, piece),
+            );
+            const least = screen.family === "phone" ? 6 : 10;
+            const gaps = (["top", "right"] as const).flatMap((seat) => {
+                const { left, top } = platePlace(view, screen, seat);
+                const stick = stickUnder(screen, { left, seat, top });
+                return core
+                    .filter((piece) => piece.left < stick.right && stick.left < piece.right)
+                    .filter((piece) => piece.bottom > stick.foot)
+                    .map((piece) => piece.top - stick.foot);
             });
 
-            expect(Math.min(...gaps)).toBeGreaterThanOrEqual(least);
+            expect(Math.min(Infinity, ...gaps)).toBeGreaterThanOrEqual(least - 0.01);
         },
     );
 });

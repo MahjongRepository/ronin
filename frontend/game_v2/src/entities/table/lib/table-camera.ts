@@ -1,6 +1,6 @@
 import { SEAT_POSITIONS, type SeatPosition } from "@/entities/table/model/board-types";
 
-import { FACE_FLOOR, TILE_ASPECT } from "./board-constants";
+import { FACE_FLOOR, TILE_ASPECT, TILE_EDGE_SHARE, UPRIGHT_DEPTH } from "./board-constants";
 import {
     type BoardGeometry,
     type BoardInput,
@@ -24,8 +24,23 @@ const NEAR_RIVER_BY_OWN = 0.85;
 /** A felt band between the table's pieces may open at most this many flat river tiles wider than the flat board's. */
 const BAND_RIVERS = 0.75;
 
-/** The felt the camera keeps between the top strip and the top river at least, where the flat board keeps more (px). */
-const TOP_BAND_LEAST = 4;
+/** How much narrower than the flat board's the camera may show the felt between the top hand and the top river (px). */
+const BAND_SLACK = 1;
+
+/** A plate's riichi stick hangs this far under its pill (px), as long as this many of the plate's text, at 6/32 tall. */
+const STICK_DROP = 3;
+const STICK_LENGTH_BY_TEXT = 2.2;
+const STICK_ASPECT = 6 / 32;
+
+/** A riichi stick keeps at least this far off the core under it on a desktop, and on a phone (px). */
+const STICK_GAP = 10;
+const PHONE_STICK_GAP = 6;
+
+/** The felt the camera keeps between the core and the own row's top at least, where the flat board keeps more (px). */
+const BOTTOM_BAND_LEAST = 4;
+
+/** Felt the bands cannot hold may lie over the table's top, at most this many flat river tiles of it. */
+const MARGIN_RIVERS = 0.15;
 
 /** The decisions' band keeps this far off the core's tiles (px), as the visual check's least. */
 const BAND_CLEAR = 4;
@@ -33,13 +48,14 @@ const BAND_CLEAR = 4;
 const CAP_STEPS = 4;
 
 const PLANE_SPARE: PlaneSpare = "around-core";
-const PHONE_FLOOR_ROUNDS = 3;
+const PHONE_FLOOR_ROUNDS = 6;
 
 /** A phone's plane may lay its undrawn own row this much narrower than the flat one to keep its river tile. */
 const PLANE_OWN_LEAST = 0.85;
 
 const PLANE_SOLVE_ROUNDS = 8;
-const MARGIN_ROUNDS = 4;
+/** The top margin is found to this much, and the bands' overflow counted from it (px). */
+const MARGIN_TOLERANCE = 0.5;
 const PLANE_TOLERANCE = 0.5;
 
 const TABLE_PIECES = [
@@ -266,6 +282,29 @@ function sideShift(
     return { left: outerFit(screen.areas[seat], seat, shown) / across, top };
 }
 
+/**
+ * The counters' move on the plane: across, away from the top strip, so the camera shows them no nearer it than the flat
+ * board keeps them (the strip's edge and the counters' converge toward the camera's far end).
+ */
+function countersShift(
+    camera: TableCamera,
+    { pieces, screen }: { pieces: Record<TablePiece, BoardRect>; screen: BoardGeometry },
+): PlanePoint {
+    const flat = tablePieces(screen);
+    const wanted = flat["strip-top"].left - flat.dora.right;
+    const { dora } = pieces;
+    const strip = pieces["strip-top"];
+    const shownGap = Math.min(
+        ...[dora.top, dora.bottom].map(
+            (top) =>
+                projectPoint(camera, { left: strip.left, top }).left -
+                projectPoint(camera, { left: dora.right, top }).left,
+        ),
+    );
+    const { across } = scalesAt(camera, dora.top);
+    return { left: Math.min(0, shownGap - wanted) / across, top: 0 };
+}
+
 function tableShifts(
     camera: TableCamera,
     {
@@ -280,7 +319,7 @@ function tableShifts(
     }
     return {
         centre: still,
-        dora: still,
+        dora: phone ? still : countersShift(camera, { pieces, screen }),
         "river-bottom": still,
         "river-left": still,
         "river-right": still,
@@ -483,10 +522,20 @@ function shownBands(view: TableView): { readonly top: number; readonly bottom: n
         shownPiece(view, "river-left").bottom,
         shownPiece(view, "river-right").bottom,
     );
+    const strip = view.pieces["strip-top"];
+    const handFoot = projectPoint(view.camera, {
+        left: (strip.left + strip.right) / 2,
+        top: strip.top + uprightFoot(view.plane),
+    }).top;
     return {
         bottom: ownRowTop - coreFoot,
-        top: shownPiece(view, "river-top").top - shownPiece(view, "strip-top").bottom,
+        top: shownPiece(view, "river-top").top - handFoot,
     };
+}
+
+/** How deep an upright tile of the top strip lies from the strip's top, its edge under it: the hand's drawn foot. */
+function uprightFoot(geometry: BoardGeometry): number {
+    return (UPRIGHT_DEPTH + TILE_EDGE_SHARE) * (geometry.lengths["rw"] ?? 0);
 }
 
 /** The flat board's same bands. */
@@ -499,11 +548,10 @@ function flatBands(screen: BoardGeometry): { readonly top: number; readonly bott
     );
     return {
         bottom: (screen.lengths["foreground-top"] ?? coreFoot) - coreFoot,
-        top: pieces["river-top"].top - pieces["strip-top"].bottom,
+        top: pieces["river-top"].top - pieces["strip-top"].top - uprightFoot(screen),
     };
 }
 
-/** Whether both side strips show clear of the own row beside them (a phone's strips run on beside it). */
 /**
  * Where a side strip's inner edge shows at the board's `top`, if the strip reaches down that far: the camera turns its
  * edge, so its box's inner side (its far end's) says nothing of where it stands beside the own row.
@@ -586,11 +634,12 @@ function holds(view: TableView, screen: BoardGeometry): boolean {
         coreClearOfBand(view, screen) &&
         (view.plane.lengths["rw"] ?? 0) >= flatRiver - (screen.family === "phone" ? 0 : 1) &&
         Math.abs(apparentRiver(view) - flatRiver) <= APPARENT_RIVER_SHARE * flatRiver + 0.5 &&
-        shown.top <= Math.max(flat.top, 0) + band &&
-        shown.top >= Math.min(flat.top, TOP_BAND_LEAST) - 0.5 &&
-        shown.bottom <= Math.max(flat.bottom, 0) + band &&
+        shown.top <= Math.max(flat.top, 0) + band + MARGIN_TOLERANCE &&
+        shown.top >= flat.top - BAND_SLACK &&
+        shown.bottom >= Math.min(flat.bottom, BOTTOM_BAND_LEAST) - 0.5 &&
+        shown.bottom <= Math.max(flat.bottom, 0) + band + MARGIN_TOLERANCE &&
         nearRiver(view) <= NEAR_RIVER_BY_OWN * (screen.lengths["ow"] ?? 0) + 0.5 &&
-        view.margin <= band &&
+        view.margin <= MARGIN_RIVERS * flatRiver + MARGIN_TOLERANCE &&
         face.short >= floor - 0.01 &&
         face.long >= floor * TILE_ASPECT - 0.01
     );
@@ -600,10 +649,7 @@ function laidFloor(shown: number, scale: number): number {
     return Math.ceil(shown / scale - 0.001);
 }
 
-/**
- * A phone's view at `tilt`, its plane laying its tiles so much larger that, after the camera's foreshortening, its
- * farthest faces still show at the face floor: the river tile and the strips' meld floor raised by rounds.
- */
+/** How much the camera squashes the farthest river row down the screen. */
 function farthestRiverDown(view: TableView): number {
     return Math.min(
         ...(["river-top", "river-left", "river-right"] as const).map(
@@ -633,29 +679,46 @@ function coreLiftWanted(view: TableView, screen: BoardGeometry, already: number)
 
 /** How much the plane's gap under the top strip must widen for the camera to show the flat board's. */
 function topGapWanted(view: TableView, screen: BoardGeometry, already: number): number {
-    const laidGap = view.pieces["river-top"].top - view.pieces["strip-top"].bottom;
-    const { down } = scalesAt(view.camera, view.pieces["strip-top"].bottom);
+    const handFoot = view.pieces["strip-top"].top + uprightFoot(view.plane);
+    const laidGap = view.pieces["river-top"].top - handFoot;
+    const { down } = scalesAt(view.camera, handFoot);
     return Math.max(already, Math.ceil(already + flatBands(screen).top / down - laidGap));
 }
 
+/**
+ * A phone's view at `tilt`, its plane laying its tiles so much larger that, after the camera's foreshortening, its
+ * farthest faces still show at the face floor: the river tile, the strips' meld floor and its gaps raised by rounds
+ * until a round asks for what the last one did, else marked unsettled.
+ */
 function phoneViewAt(input: BoardInput, screen: BoardGeometry, tilt: number): TableView {
     const flatRiver = screen.lengths["rw"] ?? 1;
     let view = viewWithin(input, screen, { cap: flatRiver, tilt });
-    let topGap = 0;
-    let coreLift = 0;
+    let at: PlaneAt = { cap: flatRiver, coreLift: 0, tilt, topGap: 0 };
     for (let round = 0; round < PHONE_FLOOR_ROUNDS; round += 1) {
-        topGap = topGapWanted(view, screen, topGap);
-        coreLift = coreLiftWanted(view, screen, coreLift);
-        const at = {
+        const next = {
             cap: Math.max(flatRiver, laidFloor(FACE_FLOOR, farthestRiverDown(view))),
-            coreLift,
+            coreLift: coreLiftWanted(view, screen, at.coreLift ?? 0),
             faceFloor: stripFaceFloor(view),
             tilt,
-            topGap,
+            topGap: topGapWanted(view, screen, at.topGap ?? 0),
         };
+        if (round > 0 && samePlaneAt(next, at)) {
+            return view;
+        }
+        at = next;
         view = narrowedOwnRow(input, screen, at);
     }
-    return view;
+    return { ...view, converged: false };
+}
+
+/** Whether two rounds ask the plane for the same tiles and gaps: the phone's rounds have settled. */
+function samePlaneAt(first: PlaneAt, second: PlaneAt): boolean {
+    return (
+        first.cap === second.cap &&
+        first.coreLift === second.coreLift &&
+        first.faceFloor === second.faceFloor &&
+        first.topGap === second.topGap
+    );
 }
 
 /**
@@ -683,11 +746,44 @@ function narrowedOwnRow(input: BoardInput, screen: BoardGeometry, at: PlaneAt): 
 function desktopViewAt(input: BoardInput, screen: BoardGeometry, tilt: number): TableView {
     const capped = cappedView(input, screen, tilt);
     const at = { cap: capped.plane.lengths["rw"] ?? 1, faceFloor: stripFaceFloor(capped), tilt };
-    let margin = 0;
-    let view = viewWithin(input, screen, at);
-    for (let round = 0; round < MARGIN_ROUNDS; round += 1) {
-        margin += 2 * bandOverflow(view, screen);
-        view = viewWithin(input, screen, { ...at, margin });
+    return marginedView(input, screen, at);
+}
+
+/**
+ * The view at `at` with the least top margin (to 0.75 river tiles) whose bands hold their allowance, found by halving:
+ * a wider margin leaves the plane shorter and its bands narrower. Where even the widest leaves them over, that one.
+ */
+function marginedView(input: BoardInput, screen: BoardGeometry, at: PlaneAt): TableView {
+    const unmargined = viewWithin(input, screen, at);
+    if (bandOverflow(unmargined, screen) <= MARGIN_TOLERANCE) {
+        return unmargined;
+    }
+    const widest = viewWithin(input, screen, {
+        ...at,
+        margin: MARGIN_RIVERS * (screen.lengths["rw"] ?? 0),
+    });
+    if (bandOverflow(widest, screen) > MARGIN_TOLERANCE) {
+        return widest;
+    }
+    return halvedMargin(input, screen, { at, held: widest });
+}
+
+/** The least margin whose bands hold, halving between none (which does not) and `held`'s (which does). */
+function halvedMargin(
+    input: BoardInput,
+    screen: BoardGeometry,
+    { at, held }: { readonly at: PlaneAt; readonly held: TableView },
+): TableView {
+    let low = 0;
+    let view = held;
+    while (view.margin - low > MARGIN_TOLERANCE) {
+        const margin = (low + view.margin) / 2;
+        const trial = viewWithin(input, screen, { ...at, margin });
+        if (bandOverflow(trial, screen) > MARGIN_TOLERANCE) {
+            low = margin;
+        } else {
+            view = trial;
+        }
     }
     return view;
 }
@@ -710,7 +806,7 @@ function cappedView(input: BoardInput, screen: BoardGeometry, tilt: number): Tab
         );
         view = viewWithin(input, screen, { cap, faceFloor: stripFaceFloor(view), tilt });
     }
-    return view;
+    return withinCaps(view, caps) ? view : { ...view, converged: false };
 }
 
 /** How much felt the bands show beyond their allowance, which the table's top margin takes instead (px). */
@@ -782,9 +878,9 @@ function flatView(screen: BoardGeometry): TableView {
 }
 
 /**
- * The table as the camera shows it: the steepest tilt (25 degrees at most on a desktop, 15 on a phone) whose plane
- * settles, keeps the farthest faces at the face floor, keeps the nearest river tile under the own tile and opens no
- * felt band much wider than the flat board's; else the flat board.
+ * The table as the camera shows it: the steepest tilt (20 degrees at most on a desktop, 15 on a phone, 10 at least)
+ * whose plane settles, keeps the farthest faces at the face floor, keeps the nearest river tile under the own tile and
+ * keeps its felt bands near the flat board's; else the flat board.
  */
 function tableView(input: BoardInput, screen: BoardGeometry): TableView {
     if (screen.family === "phone" && (screen.lengths["rw"] ?? 0) <= FACE_FLOOR) {
@@ -817,16 +913,24 @@ function calloutSpot(plane: BoardGeometry, seat: SeatPosition): PlanePoint {
     return spots[seat];
 }
 
-/** A plate's anchor: its inner edge at its box's middle, which the flat plate then stands centred on. */
+/** Whether a seat's plate stands in the top row of plates (over the core's top corners) or the bottom row. */
+function topRowPlate(seat: SeatPosition): boolean {
+    return seat === "top" || seat === "right";
+}
+
+/**
+ * A plate's anchor: its inner edge at its box's edge toward the rivers beside it (a top row plate's bottom, its riichi
+ * stick's side; a bottom row plate's top), which the flat plate then stands on, so the camera keeps that edge's gap.
+ */
 function plateAnchor(plane: BoardGeometry, seat: SeatPosition): PlanePoint {
     const at = lengthOf(plane);
     const inner = plane.box.width - at("plate-left-right");
-    const middle = at("badge-h") / 2;
+    const height = at("badge-h");
     const anchors: Readonly<Record<SeatPosition, PlanePoint>> = {
-        bottom: { left: at("plate-right-left"), top: at("plate-bottom-top") + middle },
-        left: { left: inner, top: at("plate-bottom-top") + middle },
-        right: { left: at("plate-right-left"), top: at("plate-top-top") + middle },
-        top: { left: inner, top: at("plate-top-top") + middle },
+        bottom: { left: at("plate-right-left"), top: at("plate-bottom-top") },
+        left: { left: inner, top: at("plate-bottom-top") },
+        right: { left: at("plate-right-left"), top: at("plate-top-top") + height },
+        top: { left: inner, top: at("plate-top-top") + height },
     };
     return anchors[seat];
 }
@@ -886,10 +990,55 @@ function pieceTransform(view: TableView, piece: TablePiece): string {
 
 const SCREEN_ONLY_LENGTHS = new Set(["table-h", "table-top"]);
 
-/** A plate's top left (or top right) corner on the layout: its flat box centred on its tilted anchor's height. */
+/**
+ * A plate's top left (or top right) corner on the layout: its flat box standing on its tilted anchor; a top row plate
+ * raised further where its riichi stick, hanging under its pill (which the box centres), would come nearer a river or
+ * the centre under it than the stick's least gap.
+ */
 function platePlace(view: TableView, screen: BoardGeometry, seat: SeatPosition): PlanePoint {
     const shown = showPlanePoint(view, plateAnchor(view.plane, seat));
-    return { left: shown.left, top: shown.top - (screen.lengths["badge-h"] ?? 0) / 2 };
+    if (!topRowPlate(seat)) {
+        return { left: shown.left, top: shown.top };
+    }
+    const top = shown.top - (screen.lengths["badge-h"] ?? 0);
+    const stick = stickUnder(screen, { left: shown.left, seat, top });
+    const nearest = Math.min(
+        Infinity,
+        ...(["centre", "river-left", "river-right", "river-top"] as const)
+            .map((piece) => shownPiece(view, piece))
+            .filter(
+                (piece) =>
+                    piece.left < stick.right &&
+                    stick.left < piece.right &&
+                    piece.bottom > stick.foot - 1,
+            )
+            .map((piece) => piece.top),
+    );
+    const least = screen.family === "phone" ? PHONE_STICK_GAP : STICK_GAP;
+    return { left: shown.left, top: top - Math.max(0, stick.foot + least - nearest) };
+}
+
+/**
+ * A top row plate's riichi stick's foot and the span its plate covers, for its plate's box at `top`: the pill centred
+ * in the box, the stick hanging under it.
+ */
+function stickUnder(
+    screen: BoardGeometry,
+    {
+        left,
+        seat,
+        top,
+    }: { readonly left: number; readonly seat: SeatPosition; readonly top: number },
+): { readonly foot: number; readonly left: number; readonly right: number } {
+    const at = lengthOf(screen);
+    const pillTop = top + (at("badge-h") - at("pill-h")) / 2;
+    const reachesLeft = seat === "top";
+    return {
+        foot:
+            pillTop + at("pill-h") + STICK_DROP + STICK_LENGTH_BY_TEXT * at("text") * STICK_ASPECT,
+        left: reachesLeft ? left - at("plate-w") : left,
+        right: reachesLeft ? left : left + at("plate-w"),
+    };
 }
 
 /** What the board takes from the camera: the flat table's place and the flat overlays' tilted anchors. */
@@ -944,6 +1093,7 @@ export {
     pieceTransform,
     platePlace,
     projectPoint,
+    stickUnder,
     scalesAt,
     showPlanePoint,
     shownBands,

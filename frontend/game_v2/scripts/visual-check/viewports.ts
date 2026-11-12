@@ -95,13 +95,14 @@ export const SMALL_WINDOWS: readonly string[] = SMALL_WINDOW_VIEWPORTS.map(({ na
 export const [SMALLEST_WINDOW] = SMALL_WINDOWS;
 
 /**
- * Wider phones at the floor's height and a larger landscape phone, where the centre must keep a full six-tile row
- * while the hand and decisions fit beside the rivers.
+ * Wider phones at the floor's height and larger landscape phones (an iPhone Plus's 736x414 among them), where the
+ * centre must keep a full six-tile row while the hand and decisions fit beside the rivers.
  */
 const WIDER_PHONE_VIEWPORTS: readonly Viewport[] = [
     { height: 375, width: 680 },
     { height: 375, width: 700 },
     { height: 430, width: 932 },
+    { height: 414, width: 736 },
 ].map((dimensions) => ({
     context: {
         ...deviceOptions("iPhone SE (3rd gen) landscape"),
