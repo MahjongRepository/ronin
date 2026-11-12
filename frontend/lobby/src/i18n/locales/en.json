@@ -70,6 +70,7 @@
     "room.error.page_setup_failed": "This table couldn't be loaded. Reload the page to try again.",
     "room.error.player_in_game": "A player at this table is already in a game.",
     "room.error.rate_limited": "You're sending messages too fast. Wait a moment.",
+    "room.error.room_expired": "This table closed an hour after it opened. Create a new one from the lobby.",
     "room.error.room_full": "This table filled up before you joined.",
     "room.error.room_not_found": "This table no longer exists.",
     "room.error.room_transitioning": "The game is starting.",

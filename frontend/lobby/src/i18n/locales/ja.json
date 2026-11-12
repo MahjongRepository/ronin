@@ -68,6 +68,7 @@
     "room.error.page_setup_failed": "この卓を読み込めませんでした。ページを再読み込みしてもう一度お試しください。",
     "room.error.player_in_game": "この卓のプレイヤーがすでに対局中です。",
     "room.error.rate_limited": "送信が速すぎます。少し待ってください。",
+    "room.error.room_expired": "この卓は開設から1時間が経ったため閉じられました。ロビーから新しい卓を作成してください。",
     "room.error.room_full": "参加する前にこの卓は満席になりました。",
     "room.error.room_not_found": "この卓はもう存在しません。",
     "room.error.room_transitioning": "対局が始まろうとしています。",

@@ -38,6 +38,8 @@ _RATE_LIMIT_BURST = 10
 _RATE_LIMITED = "rate_limited"
 _BINARY_FRAME = "Binary frames are not supported"
 _LEAVING_CLOSE_CODES = frozenset({1000, 1001})
+_ROOM_EXPIRED = "room_expired"
+_ROOM_EXPIRED_CLOSE_CODE = 4002
 
 
 class _RoomContext:
@@ -356,3 +358,14 @@ def announce_departure(room: LobbyRoom, *, player: LobbyPlayer, was_host: bool) 
         new_host.player.send({"type": "owner_changed", "is_owner": True, **_room_state(room)})
 
     _broadcast(room, {"type": "player_left", "player_name": player.username, **_room_state(room)})
+
+
+def announce_expiry(room: LobbyRoom) -> None:
+    """
+    Tell every player of an expired room that it closed, then close their sockets with 4002.
+
+    A held seat's dead connection takes the send and the close as no-ops; its reconnect finds no room.
+    """
+    _broadcast(room, {"type": "error", "message": _ROOM_EXPIRED})
+    for member in room.members:
+        member.player.connection.close(code=_ROOM_EXPIRED_CLOSE_CODE, reason=_ROOM_EXPIRED)

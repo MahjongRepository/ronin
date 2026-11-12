@@ -486,6 +486,23 @@ class TestRoomReaper:
         assert mgr.get_room("waiting") is not None
         player.connection.close.assert_not_called()
 
+    def test_room_manager_reaper__when_joined_rooms_were_created_over_an_hour_ago__should_expire_all_but_the_starting(
+        self,
+    ):
+        expired: list[str] = []
+        mgr = LobbyRoomManager(announce_expiry=lambda room: expired.append(room.room_id))
+        rooms = {room_id: mgr.create_room(room_id) for room_id in ("old", "starting", "fresh")}
+        for index, room_id in enumerate(rooms):
+            _join(mgr, room_id=room_id, connection_id=f"conn-{index}", user_id=f"user-{index}", username=f"P{index}")
+        rooms["old"].created_at -= 3601
+        rooms["starting"].created_at -= 3601
+        rooms["starting"].transitioning = True
+        rooms["fresh"].created_at -= 3599
+
+        mgr._reap()
+        assert [room_id for room_id in rooms if mgr.get_room(room_id) is not None] == ["starting", "fresh"]
+        assert expired == ["old"]
+
     def test_room_manager_hold_seat__when_user_reconnects__should_keep_the_seat_past_the_grace(self):
         mgr = LobbyRoomManager(seat_grace_seconds=0)
         mgr.create_room("room-1")

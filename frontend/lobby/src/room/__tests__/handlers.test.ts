@@ -97,6 +97,18 @@ describe("buildMessageHandlers", () => {
         expect(state.pageError?.code).toBe("replaced_by_new_connection");
     });
 
+    test("ends the page with the expiry notice, not a reconnect, when the server closes an expired table", () => {
+        const { handlers, loseConnection, rejoin, state } = buildRoom();
+        takeSeat(handlers);
+
+        handleMessage(handlers, { message: "room_expired", type: "error" });
+        loseConnection();
+        vi.runAllTimers();
+
+        expect(describeRoomError(state.pageError?.code)).toBe(t("room.error.room_expired"));
+        expect(rejoin).not.toHaveBeenCalled();
+    });
+
     test("ends the page once the join retries run out", () => {
         const { handlers, rejoin, state } = buildRoom();
 

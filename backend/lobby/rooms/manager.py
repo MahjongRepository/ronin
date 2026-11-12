@@ -28,6 +28,10 @@ def _announce_nothing(_room: LobbyRoom, *, player: LobbyPlayer, was_host: bool) 
     pass
 
 
+def _announce_no_expiry(_room: LobbyRoom) -> None:
+    pass
+
+
 @dataclass(frozen=True)
 class RoomJoin:
     """
@@ -43,25 +47,30 @@ class LobbyRoomManager:
     Manages pre-game rooms on the lobby server.
 
     State management: the WebSocket handler calls the manager and sends the responses. ``create_app()`` injects the
-    two links to the rest of the lobby. ``find_conflict`` is the occupancy rule (``lobby.occupancy``), the only link to
+    links to the rest of the lobby. ``find_conflict`` is the occupancy rule (``lobby.occupancy``), the only link to
     the matchmaking feature: given a user and a room, it returns why the user cannot be seated there (seated in another
     room, or queued), or None, which also admits a user already seated in that room to take their seat over.
     ``announce_departure`` is the rooms handler's announcement of a released seat, which the reaper makes when a held
-    seat's grace runs out.
+    seat's grace runs out, and ``announce_expiry`` its notice to the players of a room the reaper closed.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
+        *,
         unclaimed_room_ttl_seconds: float = 300,
+        room_ttl_seconds: float = 3600,
         seat_grace_seconds: float = 300,
         reaper_interval_seconds: float = 30,
         find_conflict: Callable[[str, str], str | None] = _no_conflict,
         announce_departure: Callable[..., None] = _announce_nothing,
+        announce_expiry: Callable[[LobbyRoom], None] = _announce_no_expiry,
     ) -> None:
         self._find_conflict = find_conflict
         self._announce_departure = announce_departure
+        self._announce_expiry = announce_expiry
         self._rooms: dict[str, LobbyRoom] = {}
         self._unclaimed_room_ttl_seconds = unclaimed_room_ttl_seconds
+        self._room_ttl_seconds = room_ttl_seconds
         self._seat_grace_seconds = seat_grace_seconds
         self._reaper_interval_seconds = reaper_interval_seconds
         self._reaper_task: asyncio.Task[None] | None = None
@@ -302,19 +311,27 @@ class LobbyRoomManager:
 
     def _reap(self) -> None:
         """
-        Remove the rooms nobody joined within their TTL, and release the held seats whose grace ran out.
+        Remove expired rooms, and release the held seats whose grace ran out.
 
-        A room with a seated member never expires: the last leave already removes a room. One synchronous pass: an
-        announcement is an enqueue on each connection, so no room waits on another room's slow socket, and no join or
+        A room nobody joined expires ``unclaimed_room_ttl_seconds`` after creation, a joined one ``room_ttl_seconds``
+        after it, its players told and their sockets closed; a transitioning room never expires. One synchronous pass:
+        an announcement is an enqueue on each connection, so no room waits on another room's slow socket, and no join or
         start can interleave with the tick.
         """
         now = time.monotonic()
         for room in list(self._rooms.values()):
+            age = now - room.created_at
             if room.is_empty:
-                if now - room.created_at > self._unclaimed_room_ttl_seconds:
+                if age > self._unclaimed_room_ttl_seconds:
                     self.remove_room(room.room_id)
                     logger.info("unclaimed room expired", room_id=room.room_id)
-            elif not room.transitioning:
+            elif room.transitioning:
+                continue
+            elif age > self._room_ttl_seconds:
+                self.remove_room(room.room_id)
+                logger.info("room expired", room_id=room.room_id)
+                self._announce_expiry(room)
+            else:
                 for member in room.members:
                     if self._is_hold_expired(member, now):
                         self._release_seat(room, member)

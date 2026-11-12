@@ -30,8 +30,10 @@ A room is a pre-game table of 4 fixed seats: `models.py` holds the room and its 
   included; a frame over it is answered rate-limited and dropped, and the connection stays. It
   keeps one client's chat from overflowing a slow honest peer's send queue. A binary frame gets an
   error and the connection stays. Chat echoes to its sender: the browser shows only the echo.
-* A room lives as long as anyone is seated: the last leave removes it. Only a room nobody joined
-  expires, `unclaimed_room_ttl_seconds` after creation.
+* The last leave removes a room. A room nobody joined expires `unclaimed_room_ttl_seconds` after
+  creation, a joined one `room_ttl_seconds` after it: the reaper removes it, sends its players the
+  `room_expired` error and closes their sockets with 4002, so the page ends with that notice instead
+  of reconnecting. A transitioning room never expires.
 * A socket the client closes with 1000 or 1001 (the page's own close, the browser leaving the page)
   is a leave, like the leave message. Any other end (a lost transport, a ping timeout, a socket the
   writer dropped, the page replacing its socket to reconnect) holds the seat as it was, ownership

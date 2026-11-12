@@ -597,6 +597,22 @@ class TestRoomWebSocketRaces:
         await guest_handler
         assert [message["type"] for message in guest_peer.received_json()[1:]] == ["owner_changed", "player_left"]
 
+    async def test_room_reaper__when_a_joined_room_outlives_the_room_ttl__should_tell_its_players_and_close_with_4002(
+        self, app, monkeypatch
+    ):
+        room = app.state.room_manager.create_room("old-room")
+        host_peer, host_handler = await _seat(app, room_id=room.room_id, username="alice")
+        guest_peer, guest_handler = await _seat(app, room_id=room.room_id, username="bob")
+        monkeypatch.setattr(app.state.room_manager, "_room_ttl_seconds", 0)
+
+        app.state.room_manager._reap()
+        await host_handler
+        await guest_handler
+        assert app.state.room_manager.get_room(room.room_id) is None
+        for peer in (host_peer, guest_peer):
+            assert peer.received_json()[-1] == {"type": "error", "message": "room_expired"}
+            assert peer.close_codes() == [4002]
+
 
 async def _hold_open(handler_coroutine, peer):
     peer.send_gate = asyncio.Event()

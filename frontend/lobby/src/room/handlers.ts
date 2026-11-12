@@ -31,10 +31,15 @@ const RECONNECT_FIRST_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 15_000;
 const MAX_RECONNECT_ATTEMPTS = 24;
 const RESUME_RECONNECT_AFTER_HIDDEN_MS = 20_000;
+const ROOM_EXPIRED = "room_expired";
 const ROOM_TRANSITIONING = "room_transitioning";
 const RETRYABLE_JOIN_ERRORS: ReadonlySet<unknown> = new Set([
     OCCUPANCY.MATCH_STARTING,
     ROOM_TRANSITIONING,
+]);
+const SEAT_ENDING_ERRORS: ReadonlySet<unknown> = new Set([
+    OCCUPANCY.REPLACED_BY_NEW_CONNECTION,
+    ROOM_EXPIRED,
 ]);
 
 const ROOM_OCCUPANCY_TEXT: OccupancyText = {
@@ -53,6 +58,7 @@ const ROOM_ERROR_CODES = [
     "owner_cannot_ready",
     "player_in_game",
     "rate_limited",
+    ROOM_EXPIRED,
     "room_full",
     "room_not_found",
     PAGE_ERROR.GAME_START_INVALID,
@@ -245,7 +251,7 @@ function buildMessageHandlers(
             scheduleRejoin(code);
             return;
         }
-        if (!joined || code === OCCUPANCY.REPLACED_BY_NEW_CONNECTION) {
+        if (!joined || SEAT_ENDING_ERRORS.has(code)) {
             endPage(String(code), readSeatedRoomId(message));
             return;
         }
