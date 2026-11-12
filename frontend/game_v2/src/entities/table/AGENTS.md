@@ -57,10 +57,10 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   the content layout scales ordered melds together without moving the hand or controls. GameBoard never binds `style` on its root, which
   would clear what `sizeBoard` wrote.
 - The table's camera is `lib/table-camera.ts`'s `tableView`, a function of the board's input and its flat geometry: it
-  lays the table out again for the camera (`planeGeometry`, a deeper box at the flat own tile, the river tile no
-  larger than the camera may show), finds that box's depth by rounds until the plane's own row's top holds still
-  (`converged`), and takes the steepest tilt that settles, fills the board and keeps the spec's bands. The flat
-  geometry stays the own row's, the controls' and the layout's; the plane only places the tilted pieces.
+  lays the table out again for the camera (`planeGeometry`, a deeper box at the flat own tile, its river tile found by
+  halving), finds that box's depth by rounds until the plane's own row's top holds still (`converged`), and takes the
+  steepest tilt that settles and keeps the spec's bands, floors and clearances, else the flat board. The flat geometry
+  stays the own row's, the controls' and the layout's; the plane only places the tilted pieces.
 - `model/replay-file.ts` refuses a file whose version is not `REPLAY_VERSION` and reports a bad or live-only line,
   never skipping it into a recording that looks whole.
 - Replay storage is concatenated MessagePack records, decoded only through the lazy replay route. The numeric metadata registry mirrors Python; the shared golden pins both registries.  A damaged record stops playback at its preceding readable prefix and names its record position.

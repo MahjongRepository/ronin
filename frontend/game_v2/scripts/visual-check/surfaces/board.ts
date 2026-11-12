@@ -32,6 +32,7 @@ import {
 import { MIN_TEXT_PX } from "../text.ts";
 import {
     FLOOR,
+    FLOOR_CHROMIUM,
     FULLSCREEN_PHONE,
     LAPTOPS,
     LAPTOP_WINDOW,
@@ -141,7 +142,15 @@ const PAGES: readonly PageCase[] = [
             ".board-dora .tile",
             ".nameplate--away",
         ]),
-        at: [FLOOR, NOTCH_PHONE, FULLSCREEN_PHONE, MID_DESKTOP, NARROW_DESKTOP, SQUARE_DESKTOP],
+        at: [
+            FLOOR,
+            FLOOR_CHROMIUM,
+            NOTCH_PHONE,
+            FULLSCREEN_PHONE,
+            MID_DESKTOP,
+            NARROW_DESKTOP,
+            SQUARE_DESKTOP,
+        ],
         contrast: true,
         longNames: true,
     },

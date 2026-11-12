@@ -54,6 +54,7 @@ interface TopStripRoom {
 /** What the viewport leaves the opponents' strips: their rooms, the river tile and the gap between melds (px). */
 interface StripRooms {
     readonly rw: number;
+    readonly floor?: number;
     readonly gap: number;
     readonly left: SideStripRoom;
     readonly right: SideStripRoom;
@@ -186,10 +187,10 @@ function fitSideMelds(
     return null;
 }
 
-function getTileCandidates(rw: number): readonly number[] {
-    const largest = Math.max(FACE_FLOOR, rw);
-    return Array.from({ length: Math.ceil(largest - FACE_FLOOR) + 1 }, (_value, step) =>
-        Math.max(FACE_FLOOR, largest - step),
+function getTileCandidates(rw: number, floor: number): readonly number[] {
+    const largest = Math.max(floor, rw);
+    return Array.from({ length: Math.ceil(largest - floor) + 1 }, (_value, step) =>
+        Math.max(floor, largest - step),
     );
 }
 
@@ -228,7 +229,8 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
         return { depth: UPRIGHT_DEPTH * rw, melds: [] };
     }
     const handEnd = reservedHandLength(content, rw, seat);
-    for (const tile of getTileCandidates(rw)) {
+    const faceFloor = rooms.floor ?? FACE_FLOOR;
+    for (const tile of getTileCandidates(rw, faceFloor)) {
         const layout = fitSideMelds(content.melds, rooms[seat], {
             gap: rooms.gap,
             handEnd,
@@ -239,7 +241,7 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
             return layout;
         }
     }
-    const floor = { handEnd, rw, tile: FACE_FLOOR };
+    const floor = { handEnd, rw, tile: faceFloor };
     for (const gap of getTighterGaps(rooms.gap)) {
         const layout = fitSideMelds(content.melds, rooms[seat], { ...floor, gap });
         if (layout) {
@@ -258,7 +260,7 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
  * clear of where it stands (the top badge only for a meld reaching its lane) and fits them beside the hand, never under
  * the face floor.
  */
-function topLayout(content: StripContent, { gap, rw, top }: StripRooms): StripLayout {
+function topLayout(content: StripContent, { floor, gap, rw, top }: StripRooms): StripLayout {
     const { anchor, badgeDepth, depth, lane, start } = top;
     const units = content.melds.map((meld) => meld.units);
     const count = units.length;
@@ -279,7 +281,7 @@ function topLayout(content: StripContent, { gap, rw, top }: StripRooms): StripLa
             Math.min(depth, lane - near(index) > 0 ? badgeDepth : Infinity) / meld.depth,
     );
     const fit = (room - handLen - count * gap) / Math.max(total, 1);
-    const tile = Math.max(FACE_FLOOR, Math.min(rw, fit, ...bounds));
+    const tile = Math.max(floor ?? FACE_FLOOR, Math.min(rw, fit, ...bounds));
     const end = handLen + Math.max(gap, room - handLen);
     const melds = units.map((_unit, index) => ({
         along: end - (sum(units.slice(index)) * tile + (count - 1 - index) * gap),

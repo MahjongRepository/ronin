@@ -30,20 +30,22 @@ The derived proportions are the three reference viewports' values under the sizi
 - **A map before tiles.** The board is a table with four seat zones a player perceives, not tiles
   on a void. Every tile has an obvious owner and every seat a fixed place for its identity.
 - **A tilted table.** The core (centre and rivers), the opponents' strips and the counters lie on one
-  plane seen through one camera, two board widths away, its foot on the own row's top. The table is
-  laid out for that camera: deeper than the board, so that tilted it fills the board from its top
+  plane seen through one camera, two board widths away, its foot on the own row's top, in true
+  perspective: each piece tapers and its tiles grow toward the viewer. The table is laid out for
+  that camera, deeper than the board, so that tilted it fills the flat table's height from its top
   edge to the own row, the own row itself the flat board's. The camera takes the steepest tilt (25
-  degrees down to none, in steps) whose plane settles, shows the river tile across the core's
-  middle within 5% of the flat board's, opens at most two river tiles more felt under the core
-  than the flat board shows, and keeps the farthest faces at the face floor; a phone's melds sit
-  at that floor, so a phone's table stays flat. Farther pieces show smaller than nearer ones. On a
-  desktop the side strips end above the own row's top; a phone's run on beside it as the flat
-  board lays them. A desktop whose width binds its river tile stands at the board's foot under the
-  tilted table, never letterboxed; its spare height lies half above and half below the core
-  (elsewhere the plane's spare lies under the core). The felt, its seams (drawn to the tilted centre's
-  corners), the plates and calls (at the tilted points the table anchors them to, at their flat
-  size) and everything in front stay flat. Depth comes from the surface, the tile's edge and its
-  shadow. One static transform per piece, no per-frame work. Decision: one light for every
+  degrees down to 3, in steps; else none) whose plane settles, shows the river tile across the
+  core's middle within 5% of the flat board's, shows the nearest river tile at most 0.85 of the
+  own tile, opens neither felt band (the top strip to the top river, the core to the own row)
+  wider than the flat board's by more than 0.75 river tiles nor narrower than it, keeps the side
+  strips clear of the own row beside them and shows the farthest faces at the face floor. A phone
+  lays its tiles larger so its faces still show at that floor after the tilt; one whose strips
+  beside the own row have no room to grow (an iPhone 11 with Safari's bars) stays flat. A desktop
+  whose width binds its river tile keeps the flat table's place, centred in its box, and tilts
+  within it. The felt, its seams (drawn to the tilted centre's corners), the plates and calls (at
+  the tilted points the table anchors them to, at their flat size) and everything in front stay
+  flat. Depth comes from the surface, the tile's edge and its shadow. One static transform per
+  piece, no per-frame work. Decision: one light for every
   seat, as Tenhou's: each tile's edge shows toward the screen's bottom (its ivory body over the
   back's layer; a standing concealed tile, below, shows its end instead) and its shadow falls down
   and to the right, whatever the seat; tiles lying together
@@ -969,7 +971,9 @@ from its neighbour); the opponent's hand at the river tile holds everywhere, and
 values are review's, not the check's. On the tilted table the centre's size, the pinwheel's gaps and the face
 floors are measured as laid, before the camera; the river tile over the own tile is measured as shown across the
 core's middle, within the camera's 5% band; and the shown faces keep the same floors (a quarter pixel of rounding),
-the rivers their 3px least to each other and to the tilted centre with each tile's edge drawn under it. Clarity,
+the rivers their 3px least to each other and to the tilted centre with each tile's edge drawn under it. A face the
+camera foreshortens is small for the red-stroke rule by its narrower drawn axis. Pixel checks of the tilted table
+(contrast, ink) run in Chromium, phones included; Playwright's WebKit on Linux skips the tilted pieces there. Clarity,
 hierarchy and coherence are judged by the checklist
 above. A visual failure that can be measured may earn a check; a judgement must not be turned into
 an arbitrary pixel rule.

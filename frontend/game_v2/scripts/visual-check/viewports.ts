@@ -30,6 +30,11 @@ export const SHORT_TABLET = "tablet-short";
 
 /** The smallest supported landscape (667x375), the one viewport a page names none is checked at. */
 export const FLOOR = "phone-se-landscape";
+/**
+ * The floor phone in Chromium: its viewport, pixel ratio and touch, painted by an engine that draws the table's CSS
+ * perspective as Safari does, which Playwright's WebKit on Linux does not; the pixel checks of the tilted table run here.
+ */
+export const FLOOR_CHROMIUM = "phone-se-chromium";
 /** The notched landscape phone, whose insets and capture model only it emulates. */
 export const NOTCH_PHONE = "phone-notch-landscape";
 /** The upright phone, where the live game and a replay show the rotate panel. */
@@ -319,6 +324,15 @@ export const VIEWPORTS: readonly Viewport[] = [
         desktop: false,
         engine: webkit,
         name: FLOOR,
+        ownTileFloor: MIN_TAP,
+        portrait: false,
+        supported: true,
+    },
+    {
+        context: deviceOptions("iPhone SE (3rd gen) landscape"),
+        desktop: false,
+        engine: chromium,
+        name: FLOOR_CHROMIUM,
         ownTileFloor: MIN_TAP,
         portrait: false,
         supported: true,

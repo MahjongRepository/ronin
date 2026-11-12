@@ -11,6 +11,7 @@ const MIN_CONTRAST = 4.5;
  */
 export const CONTRAST_VIEWPORTS: ReadonlySet<string> = new Set([
     "phone-se-landscape",
+    "phone-se-chromium",
     "phone-notch-landscape",
     "desktop-1440",
     "desktop-narrow",
@@ -22,7 +23,8 @@ export const CONTRAST_VIEWPORTS: ReadonlySet<string> = new Set([
  * The limit is the artwork's: those strokes are about 5 of the face's 300 units (half a device pixel at this bound; the
  * 800x600 window's smallest faces read 3.4-4.4:1), each drawn on a white band about four times as wide (the 1p's ring),
  * so a stroke wide enough for a pixel there (two to three times as wide) would all but cover the band: thickening it is
- * a redraw of the artwork, not a change to the sprite's build.
+ * a redraw of the artwork, not a change to the sprite's build. A face the table's camera foreshortens counts by its
+ * narrower axis as drawn: its width, or three quarters of its height.
  */
 const MIN_GLYPH_DEVICE_PX = 24;
 
@@ -214,9 +216,9 @@ interface ContrastResult {
  * every clipping box above it show. Each mark element is tagged with its rule's batch (`data-contrast-<rule>`) for the
  * CSS that hides it.
  */
-function collectContrastTargets(page: Page): Promise<ContrastTargets> {
+function collectContrastTargets(page: Page, skipTilted: boolean): Promise<ContrastTargets> {
     return page.evaluate(
-        ({ highlights, least, marks }) => {
+        ({ highlights, least, marks, tilted }) => {
             const HIGHLIGHTS = new Set(highlights);
             const unreadable: string[] = [];
             // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
@@ -247,6 +249,7 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
             function shown(element: Element): boolean {
                 const rect = element.getBoundingClientRect();
                 return (
+                    (!tilted || element.closest(".board-surface") === null) &&
                     rect.width >= 2 &&
                     rect.height >= 2 &&
                     element.checkVisibility({ opacityProperty: true, visibilityProperty: true })
@@ -496,7 +499,11 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
                                   kind: "glyph" as const,
                                   label,
                                   small:
-                                      Math.min(rect.width, rect.height) * window.devicePixelRatio <
+                                      Math.min(
+                                          Math.min(rect.width, rect.height),
+                                          (Math.max(rect.width, rect.height) * 3) / 4,
+                                      ) *
+                                          window.devicePixelRatio <
                                       least,
                               },
                           ];
@@ -534,7 +541,12 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
             }
             return { glyphs, marks: batches, texts, unreadable };
         },
-        { highlights: SPRITE_HIGHLIGHTS, least: MIN_GLYPH_DEVICE_PX, marks: CONTRAST_MARKS },
+        {
+            highlights: SPRITE_HIGHLIGHTS,
+            least: MIN_GLYPH_DEVICE_PX,
+            marks: CONTRAST_MARKS,
+            tilted: skipTilted,
+        },
     );
 }
 
@@ -979,8 +991,16 @@ function describeFinding(finding: ContrastFinding): string {
  * nothing. A small face's strokes under the floor as drawn are reported in the summary, never counted as passing.
  * The page is left as it was.
  */
-export async function checkContrast(page: Page, report: PageReport): Promise<string> {
-    const targets = await collectContrastTargets(page);
+/**
+ * Every shown text, glyph and mark against what it sits on. `skipTilted` leaves out the table's tilted pieces, for an
+ * engine whose paint of a CSS perspective is not the browsers' (Playwright's WebKit on Linux drops its divide).
+ */
+export async function checkContrast(
+    page: Page,
+    report: PageReport,
+    skipTilted = false,
+): Promise<string> {
+    const targets = await collectContrastTargets(page, skipTilted);
     const drawn = await shootWith(page, null);
     const ink = await shootWith(page, HIDE_INK);
     const pseudo = await shootWith(page, HIDE_PSEUDO_TEXT);

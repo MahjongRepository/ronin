@@ -146,7 +146,7 @@ async function runPage(
         report.summary = await checkPage({ page, report, viewport }, pageCase);
         await page.screenshot({ path: join(shots, `${viewport.name}-${pageCase.name}.png`) });
         if (pageCase.contrast === true && CONTRAST_VIEWPORTS.has(viewport.name)) {
-            report.summary += `, ${await checkContrast(page, report)}`;
+            report.summary += `, ${await checkContrast(page, report, viewport.engine === webkit)}`;
         }
         if (pageCase.kind === "board") {
             for (const surface of SURFACES) {

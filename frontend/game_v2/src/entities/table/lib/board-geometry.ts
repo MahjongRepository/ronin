@@ -230,25 +230,31 @@ const ORDINARY_PONS = 3;
  * A side hand with `count` open melds of `upright` tiles at the face floor beside its remaining tiles, `gap` apart, along
  * its line (px).
  */
-function meldsReach(rw: number, { count, gap, upright }: MeldsLine): number {
+function meldsReach(rw: number, { count, floor, gap, upright }: MeldsLine): number {
     return (
         handLength({ drawn: true, rw, seat: "left", tiles: HAND_TILES - 3 * count }) +
-        count * (gap + (upright + SIDEWAYS_UNITS) * FACE_FLOOR)
+        count * (gap + (upright + SIDEWAYS_UNITS) * (floor ?? FACE_FLOOR))
     );
 }
 
 interface MeldsLine {
     readonly count: number;
+    readonly floor?: number;
     readonly upright: number;
     readonly gap: number;
 }
 
-function kansReach(rw: number, count: number): number {
-    return meldsReach(rw, { count, gap: riverGap(rw) + MELD_GAP_EXTRA, upright: 3 });
+function kansReach(rw: number, count: number, floor?: number): number {
+    return meldsReach(rw, { count, floor, gap: riverGap(rw) + MELD_GAP_EXTRA, upright: 3 });
 }
 
-function ponsReach(rw: number): number {
-    return meldsReach(rw, { count: ORDINARY_PONS, gap: riverGap(rw) + MELD_GAP_EXTRA, upright: 2 });
+function ponsReach(rw: number, floor?: number): number {
+    return meldsReach(rw, {
+        count: ORDINARY_PONS,
+        floor,
+        gap: riverGap(rw) + MELD_GAP_EXTRA,
+        upright: 2,
+    });
 }
 
 /**
@@ -257,13 +263,16 @@ function ponsReach(rw: number): number {
  */
 const PHONE_LINE_KANS = 3;
 
-function tightKansReach(rw: number): number {
-    return meldsReach(rw, { count: PHONE_LINE_KANS, gap: MELD_GAP_TIGHT, upright: 3 });
+function tightKansReach(rw: number, floor?: number): number {
+    return meldsReach(rw, { count: PHONE_LINE_KANS, floor, gap: MELD_GAP_TIGHT, upright: 3 });
 }
 
 /** A side strip reserves one line even for four open kans at the meld face floor. */
-function sideStripReach(rw: number): number {
-    return Math.max(fullReach(rw, "left"), ...RESERVED_KANS.map((count) => kansReach(rw, count)));
+function sideStripReach(rw: number, floor?: number): number {
+    return Math.max(
+        fullReach(rw, "left"),
+        ...RESERVED_KANS.map((count) => kansReach(rw, count, floor)),
+    );
 }
 
 /**
@@ -271,8 +280,8 @@ function sideStripReach(rw: number): number {
  * (a browser's bars leave a box too short for all of it): the melds of a rarer denser seat lie on past the line
  * (`stripLayout`'s overflow), never shrinking the river tile for them.
  */
-function phoneSideReach(rw: number, room: number): number {
-    return Math.max(fullReach(rw, "left"), Math.min(sideStripReach(rw), room));
+function phoneSideReach(rw: number, room: number, floor?: number): number {
+    return Math.max(fullReach(rw, "left"), Math.min(sideStripReach(rw, floor), room));
 }
 
 /**
@@ -439,6 +448,9 @@ interface BoardFrame {
      * where the flat board is width-bound and leaves that much spare.
      */
     readonly plane?: PlaneSpare;
+    readonly faceFloor?: number;
+    /** How much wider a phone plane's gap under the top strip is than the chrome's, so the camera shows the chrome's. */
+    readonly topGap?: number;
 }
 
 /** A desktop's root sizes and the lengths the stylesheet reads with them, in px, at the largest river tile that fits. */
@@ -946,7 +958,7 @@ function phoneLayout(
     const rowTop = sideLineEnd(handTop, ownMeldRise, STRIP_CONTROL_CLEAR);
     const foot = beside ? height - m : rowTop;
     const line = foot - m;
-    const coreTop = m + rh + sep;
+    const coreTop = m + rh + sep + (frame.topGap ?? 0);
     const gap = riverGap(rw);
     const rows = riverRows(rw, gap);
     const centreTop = coreTop + LATEST_DISCARD_GAP + rows;
@@ -955,7 +967,7 @@ function phoneLayout(
     const replayRoom = phoneControlsBottom(foot) - phoneUnderCog(m, rw);
     const replay = phoneReplayBlock(chrome, replayRoom);
     const barLeast = Math.max(
-        phoneLeftBarLeast(chrome),
+        phoneLeftBarLeast(chrome, frame.faceFloor),
         phoneRightBarLeast(chrome, replay.width, rw),
     );
     const column = phoneColumn({ barLeast, beside, width }, { centreWidth, ow, rw });
@@ -981,7 +993,7 @@ function phoneLayout(
             { cx: width / 2, cy, height: heightRoom, rw, width: centreWidth },
             { drop: LATEST_DISCARD_GAP, gap, topGap: gap },
         ),
-        ["side-reach", phoneSideReach(rw, line)],
+        ["side-reach", phoneSideReach(rw, line, frame.faceFloor)],
         ["switches-bottom", foot],
     ]);
     function at(name: string): number {
@@ -992,12 +1004,12 @@ function phoneLayout(
     const fits =
         heightRoom >= PHONE_CENTRE_MIN_HEIGHT &&
         fullReach(rw, "left") <= rowTop - m &&
-        ponsReach(rw) <= foot &&
+        ponsReach(rw, frame.faceFloor) <= foot &&
         column.left >= barLeast - 0.001 &&
         plates.fits;
     return {
         fits,
-        holdsKans: tightKansReach(rw) <= line + STRIP_CONTROL_CLEAR,
+        holdsKans: tightKansReach(rw, frame.faceFloor) <= line + STRIP_CONTROL_CLEAR,
         holdsPrompt:
             band.bottom - band.top >=
             phonePromptHeight(band.right - band.left, chrome.timerW) - 0.001,
@@ -1214,8 +1226,8 @@ function phonePromptHeight(bandWidth: number, timerW: number): number {
     return rows * PHONE_DECISION_ROW + (rows - 1) * PHONE_BAND_ROW_GAP;
 }
 
-function phoneLeftBarLeast(chrome: PhoneChrome): number {
-    const counters = countersAt(FACE_FLOOR, DORA_SLOTS).width;
+function phoneLeftBarLeast(chrome: PhoneChrome, faceFloor = FACE_FLOOR): number {
+    const counters = countersAt(faceFloor, DORA_SLOTS).width;
     const switches = PHONE_SWITCH_COLUMNS * chrome.switchH;
     const notices = NOTICE_FIELD_EMS * NOTICE_TEXT_MIN;
     return chrome.m + Math.max(counters, switches, notices) + FIELD_GAP;
@@ -1344,6 +1356,7 @@ function opponentStrips(
             },
         },
         strips: {
+            floor: frame.faceFloor,
             gap: at("g") + MELD_GAP_EXTRA,
             left: { deepLine: leftLine, line: leftLine, obstacles: [pastLine] },
             right: { deepLine: rightLine, line: rightLine, obstacles: [] },
@@ -1707,7 +1720,7 @@ function phoneControls(room: ShellRoom): ControlSlots {
     const replay = phoneReplayColumn(room, rightBar);
     const band = phoneActions(at);
     const actions = replaying ? replay.rect : band;
-    const wanted = phoneChrome(at("rw")).doraW;
+    const wanted = Math.max(phoneChrome(at("rw")).doraW, frame.faceFloor ?? 0);
     const counters = countersAt(
         Math.min(wanted, doraFitting({ perRow: DORA_SLOTS, room: leftBarRight - m, wanted })),
         DORA_SLOTS,
@@ -2310,20 +2323,33 @@ function planeFits(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): boolean {
 
 /**
  * The table the camera tilts: the board's frame on a plane box (`box`, deeper than the board), laid out at the largest
- * river tile up to `cap` that fits it beside the flat board's own tile, its spare height placed by `spare`, never
+ * river tile up to `cap` that fits it beside the flat board's own tile (found by halving, a fit holding at every smaller
+ * tile), its spare height placed by `spare`, never
  * shortened into a table of its own.
  */
 function planeGeometry(
     input: BoardInput,
     box: BoardBox,
-    { cap, ow, spare }: { cap: number; ow: number; spare: PlaneSpare },
+    {
+        cap,
+        faceFloor,
+        ow,
+        spare,
+        topGap,
+    }: { cap: number; faceFloor?: number; ow: number; spare: PlaneSpare; topGap?: number },
 ): BoardGeometry {
-    const frame = { ...boardFrame(input), box };
-    let rw = Math.max(1, Math.floor(cap));
-    while (rw > 1 && !planeFits(frame, { ow, rw, spare })) {
-        rw -= 1;
+    const frame = { ...boardFrame(input), box, faceFloor, topGap };
+    let fits = 1;
+    let fails = Math.max(1, Math.floor(cap)) + 1;
+    while (fails - fits > 1) {
+        const rw = Math.floor((fits + fails) / 2);
+        if (planeFits(frame, { ow, rw, spare })) {
+            fits = rw;
+        } else {
+            fails = rw;
+        }
     }
-    return solveFrame(frame, (laid) => planeLengths(laid, { ow, rw, spare }));
+    return solveFrame(frame, (laid) => planeLengths(laid, { ow, rw: fits, spare }));
 }
 
 export { boardGeometry, planeGeometry, shellTracks };
