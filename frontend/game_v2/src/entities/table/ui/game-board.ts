@@ -422,21 +422,23 @@ function GameBoard(props: GameBoardProps): TemplateResult {
             ${fadeMatchResult(props.matchResult === true, animationsOn)}
         >
             <div class="board-layout" ?inert=${props.inert ?? false}>
-                ${Zones()}
                 <div class="board-table">
-                    ${plates ? html`${plates.right}${plates.top}${plates.left}${plates.bottom}` : ""}
-                    <div class="board-rivers">
-                        ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
+                    <div class="board-surface">
+                        ${Zones()}
+                        ${plates ? html`${plates.right}${plates.top}${plates.left}${plates.bottom}` : ""}
+                        <div class="board-rivers">
+                            ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
+                        </div>
+                        ${state ? CenterInfo(state.center, state.nameplates, onView) : EmptyCenterArea()}
+                        ${STRIP_SEATS.map((seat) => Strip(seat, seatPlayer(state, seat)))}
+                        ${state ? DoraDisplay(state.center) : ""}
+                        ${props.callouts ? Callouts(props.callouts) : ""}
                     </div>
-                    ${state ? CenterInfo(state.center, state.nameplates, onView) : EmptyCenterArea()}
-                    ${STRIP_SEATS.map((seat) => Strip(seat, seatPlayer(state, seat)))}
-                    ${state ? DoraDisplay(state.center) : ""}
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}
                     ${bandEnd ? html`<div class="board-actions" data-area="actions">${bandEnd}</div>` : ""}
                     ${props.switches ?? ""}
                     ${props.localHand !== undefined && props.furiten === true ? FuritenMark() : ""}
                     ${props.notices || props.replay ? BoardNotices(props.notices ?? [], props.replay?.status) : ""}
-                    ${props.callouts ? Callouts(props.callouts) : ""}
                 </div>
                 ${Strip("bottom", bottom, props.localHand ? { input: props.localHand } : {})}
             </div>

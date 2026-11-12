@@ -29,8 +29,12 @@ The derived proportions are the three reference viewports' values under the sizi
 
 - **A map before tiles.** The board is a table with four seat zones a player perceives, not tiles
   on a void. Every tile has an obvious owner and every seat a fixed place for its identity.
-- **Flat top-down.** No camera, no perspective. Depth comes from the surface, the tile's edge and
-  its shadow. This keeps the client light and fast on low-end phones. Decision: one light for every
+- **One tilted table.** The table's surface (felt, plates, rivers, centre, counters, calls and the
+  opponents' strips) lies on one plane tilted away from the viewer under one camera, its far side
+  smaller; the own row, decisions, switches, notices and the menu stand flat in front of it. The
+  plane is laid out deeper than the screen so that, tilted about the foreground's top, it fills the
+  screen above the own row. Depth comes from the surface, the tile's edge (deeper on the plane,
+  which foreshortens it) and its shadow. One static transform, no per-frame work. Decision: one light for every
   seat, as Tenhou's: each tile's edge shows toward the screen's bottom (its ivory body over the
   back's layer; a standing concealed tile, below, shows its end instead) and its shadow falls down
   and to the right, whatever the seat; tiles lying together

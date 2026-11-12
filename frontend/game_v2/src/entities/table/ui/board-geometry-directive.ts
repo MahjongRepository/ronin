@@ -7,7 +7,11 @@ import {
     type BoardGeometry,
     type BoardInput,
     type BoardSlots,
+    type PlaneGeometry,
+    type PlaneZone,
     boardGeometry,
+    planeGeometry,
+    planeZone,
 } from "@/entities/table/lib/board-geometry";
 import {
     type MeldShape,
@@ -100,7 +104,9 @@ class SizeBoard extends AsyncDirective {
     private slots: BoardSlots | null = null;
     private strips: StripContents | null = null;
     private geometry: BoardGeometry | null = null;
+    private plane: PlaneGeometry | null = null;
     private readonly written = new Map<string, string>();
+    private readonly writtenOnPlane = new Map<string, string>();
 
     constructor(partInfo: PartInfo) {
         super(partInfo);
@@ -156,9 +162,9 @@ class SizeBoard extends AsyncDirective {
     }
 
     private relayout(): void {
-        const { board, geometry } = this;
-        if (this.observer !== null && board !== null && geometry !== null) {
-            this.write(board, geometry);
+        const { board, geometry, plane } = this;
+        if (this.observer !== null && board !== null && geometry !== null && plane !== null) {
+            this.write(board, geometry, plane);
         }
     }
 
@@ -186,7 +192,7 @@ class SizeBoard extends AsyncDirective {
         }
         this.cancelFrame();
         const edges = pageEdges(board);
-        const geometry = boardGeometry({
+        const { geometry, plane } = solveBoard({
             appliedEdges: edges?.appliedEdges ?? NO_EDGES,
             box: { height, width },
             safeInsets: edges?.safeInsets ?? NO_EDGES,
@@ -195,11 +201,11 @@ class SizeBoard extends AsyncDirective {
         if (delivering && edges !== null && geometry.gutter !== edges.gutter) {
             this.frame = requestAnimationFrame(() => {
                 this.frame = null;
-                this.write(board, geometry);
+                this.write(board, geometry, plane);
             });
             return;
         }
-        this.write(board, geometry);
+        this.write(board, geometry, plane);
     }
 
     private cancelFrame(): void {
@@ -209,9 +215,10 @@ class SizeBoard extends AsyncDirective {
         }
     }
 
-    private write(board: HTMLElement, geometry: BoardGeometry): void {
+    private write(board: HTMLElement, geometry: BoardGeometry, plane: PlaneGeometry): void {
         const { chrome, family, lengths, strips, switches, tracks } = geometry;
         this.geometry = geometry;
+        this.plane = plane;
         const laid =
             strips === null || this.strips === null ? {} : stripLengths(strips, this.strips);
         const ownTile = ownMeldTile(
@@ -228,7 +235,7 @@ class SizeBoard extends AsyncDirective {
             boardFamily: family,
             boardSwitches: switches,
         });
-        this.writeValues(
+        writeValues(
             board,
             new Map([
                 ...Object.entries(lengths).map(
@@ -242,23 +249,72 @@ class SizeBoard extends AsyncDirective {
                     ([name, length]) => [`--${name}`, `${length}px`] as const,
                 ),
             ]),
+            this.written,
         );
+        this.writePlane(board, geometry, plane);
     }
 
-    private writeValues(board: HTMLElement, values: ReadonlyMap<string, string>): void {
-        for (const name of this.written.keys()) {
-            if (!values.has(name)) {
-                board.style.removeProperty(name);
-                this.written.delete(name);
-            }
-        }
-        for (const [name, value] of values) {
-            if (this.written.get(name) !== value) {
-                board.style.setProperty(name, value);
-                this.written.set(name, value);
-            }
+    private writePlane(board: HTMLElement, geometry: BoardGeometry, plane: PlaneGeometry): void {
+        const surface = board.querySelector<HTMLElement>(":scope .board-surface");
+        if (surface !== null) {
+            const zone = planeZone(plane, geometry, pageEdges(board)?.appliedEdges ?? NO_EDGES);
+            writeValues(surface, planeValues(plane, zone, this.strips), this.writtenOnPlane);
         }
     }
+}
+
+function solveBoard(input: BoardInput): { geometry: BoardGeometry; plane: PlaneGeometry } {
+    const geometry = boardGeometry(input);
+    return { geometry, plane: planeGeometry(input, geometry) };
+}
+
+function writeValues(
+    element: HTMLElement,
+    values: ReadonlyMap<string, string>,
+    written: Map<string, string>,
+): void {
+    for (const name of written.keys()) {
+        if (!values.has(name)) {
+            element.style.removeProperty(name);
+            written.delete(name);
+        }
+    }
+    for (const [name, value] of values) {
+        if (written.get(name) !== value) {
+            element.style.setProperty(name, value);
+            written.set(name, value);
+        }
+    }
+}
+
+const SCREEN_ONLY = new Set(["table-h", "table-top"]);
+
+function planeValues(
+    { camera, geometry, height, left, top }: PlaneGeometry,
+    zone: PlaneZone,
+    contents: StripContents | null,
+): ReadonlyMap<string, string> {
+    const { lengths, strips, tracks } = geometry;
+    const laid = strips === null || contents === null ? {} : stripLengths(strips, contents);
+    return new Map([
+        ...Object.entries(lengths)
+            .filter(([name]) => !SCREEN_ONLY.has(name))
+            .map(([name, length]) => [`--geo-${name}`, `${length}px`] as const),
+        ["--geo-shell-columns", tracks.columns],
+        ["--geo-shell-rows", tracks.rows],
+        ["--geo-plane-top", `${top}px`],
+        ["--geo-plane-left", `${left}px`],
+        ["--geo-plane-w", `${geometry.box.width}px`],
+        ["--geo-plane-h", `${height}px`],
+        ["--geo-plane-camera", `${camera.distance}px`],
+        ["--geo-plane-tilt", `${camera.tilt}deg`],
+        ["--geo-plane-zone-top", `${zone.top}px`],
+        ["--geo-plane-zone-side", `${zone.side}px`],
+        ["--geo-plane-zone-bottom", `${zone.bottom}px`],
+        ["--geo-plane-zone-floor", `${zone.floorHalf}px`],
+        ...zoneLengths(geometry),
+        ...Object.entries(laid).map(([name, length]) => [`--${name}`, `${length}px`] as const),
+    ]);
 }
 
 export const sizeBoard = directive(SizeBoard);

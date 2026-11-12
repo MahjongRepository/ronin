@@ -8,10 +8,40 @@ $max-melds: 4;
 }
 
 .board-table,
+.board-surface,
 .board-zones,
 .board-rivers {
     position: absolute;
     inset: 0;
+}
+
+.board-surface {
+    --tile-body-share: 0.26;
+    --plane-w: var(--geo-plane-w);
+
+    top: var(--geo-plane-top);
+    left: var(--geo-plane-left);
+    width: var(--geo-plane-w);
+    height: var(--geo-plane-h);
+    transform-origin: 50% var(--foreground-top);
+    transform: perspective(var(--geo-plane-camera)) rotateX(var(--geo-plane-tilt));
+}
+
+.board-table > .board-surface > .board-zones {
+    --ox: var(--geo-plane-zone-side);
+    --or: var(--geo-plane-zone-side);
+    --oy: var(--geo-plane-zone-top);
+    --ob: var(--geo-plane-zone-bottom);
+    --tt: 0px;
+    --tb: 0px;
+    --zone-w: calc(var(--plane-w) + var(--ox) + var(--or));
+
+    clip-path: polygon(
+        0 0,
+        100% 0,
+        calc(50% + var(--geo-plane-zone-floor)) 100%,
+        calc(50% - var(--geo-plane-zone-floor)) 100%
+    );
 }
 
 .board-zones {

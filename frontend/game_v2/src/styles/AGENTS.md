@@ -89,6 +89,11 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   shorter of the two; the round and counts follow `--c` within the room `--w` leaves. The geometry fits the centre and the rivers together, at the spec's minimums (Proportions).
 - Lengths CSS computes are registered with `@property` (`<length>`), so each computes once to pixels; an
   unregistered chain grows with every reference until a browser drops the declaration. A bridged length is px already.
+- **The table is one tilted plane.** `.board-surface`, inside `.board-table`, holds the felt, plates, rivers, centre,
+  counters, calls and opponents' strips under one `perspective() rotateX()`; everything else stays flat. Its lengths
+  are `planeGeometry`'s, the board's frame solved again on a deeper box and written on the surface itself, so inside
+  it every `--geo-*` is the plane's and `100cqw` is not its width (`--plane-w` is). No `preserve-3d`: what lies on the
+  plane is drawn on it.
 - **Layout measurements**: the board's geometry directive and the notices' clamp. Motion snapshots only measure
   existing tile positions for temporary copies; they never feed the layout solve. A choice between placements is
   made in TS, never with a length switch (`clamp(0px, x * 1000, 1px)` as a 0/1 boolean) or a `9999px` sentinel;
