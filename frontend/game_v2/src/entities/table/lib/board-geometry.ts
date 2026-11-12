@@ -517,15 +517,14 @@ interface DesktopPlan {
  * The plans a desktop tries, best first, each only where its own tile stays the share of the river tile it asks (the
  * wanted share, then the least): the play switches named, then lettered at the least bar; the counters' one row over
  * the lane with the round info where the side strips' lines can start below both, else over the lane alone, else in a
- * bar widened to hold it (any plan whose table leaves a bar that holds the row takes it there); the counters wrapped at
- * the least bar last.
+ * bar widened to hold it; the counters wrapped at the least bar last.
  */
 function desktopPlans(
     tier: TierChrome,
     rw: number,
 ): readonly (DesktopPlan & { readonly share: number })[] {
     const named = Math.max(BAR_MIN, namedSwitchesBar(tier));
-    const info = infoBar(tier, rw);
+    const info = infoBar(rw);
     const bars = named > BAR_MIN ? [named, BAR_MIN] : [BAR_MIN];
     return [OWN_BY_RIVER_WANTED, OWN_BY_RIVER_LEAST].flatMap((share) =>
         bars.flatMap((bar) => [
@@ -558,9 +557,11 @@ function desktopLayout(
  * The px the left bar takes to hold the counters' one row at their least indicator and the round info's lines at their
  * least text, their gaps counted.
  */
-function infoBar(tier: TierChrome, rw: number): number {
+function infoBar(rw: number): number {
     return (
-        BAR_GAP + Math.max(countersRow(tier, leastDora(rw)).width, leastInfo()) + FIELD_STRIP_GAP
+        BAR_GAP +
+        Math.max(countersAt(leastDora(rw), DORA_SLOTS).width, leastInfo()) +
+        FIELD_STRIP_GAP
     );
 }
 
@@ -569,24 +570,30 @@ function leastInfo(): number {
     return DESKTOP_NOTICE_FIELD_EMS * STATUS_TEXT_MIN;
 }
 
+/** The round info's least width with the round's name broken between the round and its honba (px). */
+function wrappedInfo(): number {
+    return STATUS_WRAPPED_EMS * STATUS_TEXT_MIN;
+}
+
 /**
  * Whether the counters' one row at their least indicator stands where `place` puts it, and the round info's lines at
  * their least text with them, or in the bar under them.
  */
-function infoHolds(
-    tier: TierChrome,
-    {
-        colLeft,
-        place,
-        rw,
-    }: { readonly colLeft: number; readonly place: InfoPlace; readonly rw: number },
-): boolean {
-    const row = countersRow(tier, leastDora(rw)).width;
+function infoHolds({
+    colLeft,
+    place,
+    rw,
+}: {
+    readonly colLeft: number;
+    readonly place: InfoPlace;
+    readonly rw: number;
+}): boolean {
+    const row = countersAt(leastDora(rw), DORA_SLOTS).width;
     const inBar = fieldRight(colLeft) - BAR_GAP;
-    const overLane = colLeft + sideLane(rw) - PLATE_GAP - BAR_GAP;
+    const overLane = laneEdge(colLeft, rw) - BAR_GAP;
     const holds: Readonly<Record<InfoPlace, boolean>> = {
         bar: Math.max(row, leastInfo()) <= inBar,
-        "counters-lane": row <= overLane && leastInfo() <= inBar,
+        "counters-lane": row <= overLane && wrappedInfo() <= inBar,
         lane: Math.max(row, leastInfo()) <= overLane,
         wrap: false,
     };
@@ -595,20 +602,17 @@ function infoHolds(
 
 /** A desktop's least dora indicator (px). */
 function leastDora(rw: number): number {
-    return Math.ceil(DORA_BY_RIVER * rw);
+    return Math.ceil(DORA_BY_RIVER_LEAST * rw);
 }
 
-/** The counters' one row of five at an indicator (px). */
-function countersRow(
-    tier: TierChrome,
-    size: number,
-): Readonly<Record<"height" | "rowW" | "width", number>> {
-    return doraBox(countersAt(tier, size / tier.doraW), DORA_SLOTS);
+/** Where a desktop's counters end over the left strip's lane: a plate's gap short of the lane's inner edge (px). */
+function laneEdge(colLeft: number, rw: number): number {
+    return colLeft + sideLane(rw) - PLATE_GAP;
 }
 
-/** The round info's height under the counters at its text (px): its two lines. */
-function infoHeight(text: number): number {
-    return STATUS_EMS * text;
+/** The round info's height under the counters at its text (px): its two lines, or three with the round's name broken. */
+function infoHeight(text: number, broken: boolean): number {
+    return (broken ? STATUS_BROKEN_EMS : STATUS_EMS) * text;
 }
 
 /**
@@ -659,7 +663,7 @@ function desktopAt(
     const cy = coreTop + aboveCentre + centreHeight / 2;
     const decisionTier = atDecisionScale(tier, decisionH);
     const reach = sideStripReach(rw);
-    const place = infoHolds(tier, { colLeft: column.left, place: "bar", rw }) ? "bar" : plan.info;
+    const place = plan.info;
     const info = desktopInfo(tier, { colLeft: column.left, place, rw });
     const linesStart = sideLinesStart({ cy, height, infoFoot: info.linesFloor, reach });
     const ownPill = handTop + oh - tier.pillH;
@@ -692,7 +696,7 @@ function desktopAt(
     ]);
     return {
         infoInRow:
-            infoHolds(tier, { colLeft: column.left, place, rw }) &&
+            infoHolds({ colLeft: column.left, place, rw }) &&
             (info.linesFloor === 0 || linesStart + reach <= ownPill - LINE_PLATE_GAP),
         lengths,
         ownShare: fitted / rw,
@@ -760,45 +764,12 @@ function phoneChrome(rw: number): PhoneChrome {
     return {
         ...PHONE_CHROME,
         controlH: control,
-        countersW: PHONE_CHROME.countersW * scale,
         doraW: PHONE_CHROME.doraW * scale,
         movesH: control,
         pillH: PHONE_CHROME.pillH * scale,
         switchH: control,
         timerW: PHONE_CHROME.timerW * scale,
     };
-}
-
-/** The counters' height: the indicator's, and the padding and rim above and below it. */
-function countersHeight({ countersFrame, doraW }: TierChrome): number {
-    return doraW * TILE_ASPECT + countersFrame;
-}
-
-/** A tier with its counters at a scale of their own: the indicator, its frame, padding, text and corner. */
-function countersAt(tier: TierChrome, scale: number): TierChrome {
-    return {
-        ...tier,
-        countersFrame: tier.countersFrame * scale,
-        countersW: tier.countersW * scale,
-        doraPadEnd: tier.doraPadEnd * scale,
-        doraPadStart: tier.doraPadStart * scale,
-        doraRadius: tier.doraRadius * scale,
-        doraText: tier.doraText * scale,
-        doraW: tier.doraW * scale,
-    };
-}
-
-/** The counters' px the stylesheet draws them with. */
-function counterLengths(tier: TierChrome): [string, number][] {
-    return [
-        ["counters-h", countersHeight(tier)],
-        ["counters-w", tier.countersW],
-        ["dora-pad-end", tier.doraPadEnd],
-        ["dora-pad-start", tier.doraPadStart],
-        ["dora-radius", tier.doraRadius],
-        ["dora-text", tier.doraText],
-        ["dora-w", tier.doraW],
-    ];
 }
 
 /** The chrome px the stylesheet draws with, by its names. */
@@ -808,7 +779,6 @@ function chromeLengths(tier: TierChrome): [string, number][] {
         ["callout-cap", tier.calloutCap],
         ["chip-gap", tier.chipGap],
         ["switch-label-w", tier.switchLabelW],
-        ...counterLengths(tier),
         ["cue-w", tier.cueW],
         ["moves-h", tier.movesH],
         ["pill-h", tier.pillH],
@@ -1456,8 +1426,14 @@ const DESKTOP_NOTICE_FIELD_EMS = 9;
 const TOAST_TEXT_MIN = 14;
 const STATUS_TEXT_MIN = 13;
 
-/** The round info's two lines in its text's ems; `.replay-status` draws them (`__round`, `__count`) in no more. */
+/**
+ * The round info's two lines in its text's ems, three with the round's name broken where its place is under
+ * `DESKTOP_NOTICE_FIELD_EMS` wide, never under `STATUS_WRAPPED_EMS`; `.replay-status` draws them (`__round`, `__count`)
+ * in no more.
+ */
 const STATUS_EMS = 2.5;
+const STATUS_BROKEN_EMS = 3.75;
+const STATUS_WRAPPED_EMS = 6;
 
 /** A side strip's line shifted under the counters ends this far over a pill's height above the own tiles' foot (px). */
 const LINE_PLATE_GAP = 2;
@@ -1643,7 +1619,11 @@ function phoneControls(room: ShellRoom): ControlSlots {
     };
     const replay = phoneReplayColumn(room, rightBar);
     const actions = replaying ? replay.rect : rightBar;
-    const counters = countersAt(tier, Math.min(1, (leftBarRight - m) / tier.countersW));
+    const wanted = phoneChrome(at("rw")).doraW;
+    const counters = countersAt(
+        Math.min(wanted, doraFitting({ perRow: DORA_SLOTS, room: leftBarRight - m, wanted })),
+        DORA_SLOTS,
+    );
     const switchesBottom = at("switches-bottom");
     const blockTop = switchesBottom - (SWITCH_CHIPS / PHONE_SWITCH_COLUMNS) * tier.switchH;
     const blockRight = m + PHONE_SWITCH_COLUMNS * tier.switchH;
@@ -1652,7 +1632,7 @@ function phoneControls(room: ShellRoom): ControlSlots {
         bottom: furitenBottom - FURITEN_H - FURITEN_GAP,
         left: m,
         right: leftBarRight,
-        top: m + countersHeight(counters) + FIELD_GAP,
+        top: m + counters.height + FIELD_GAP,
     };
     const fieldBeside = {
         ...rightBar,
@@ -1673,9 +1653,7 @@ function phoneControls(room: ShellRoom): ControlSlots {
             switches: { bottom: switchesBottom, left: m, right: blockRight, top: blockTop },
         },
         lengths: [
-            ...counterLengths(counters),
-            ["counters-top", m],
-            ["counters-x", m],
+            ...countersLengths(counters, { left: m, top: m }),
             ["actions-bottom", actions.bottom],
             ["actions-left", actions.left],
             ["actions-right", width - actions.right],
@@ -1715,53 +1693,70 @@ interface PlatePlaces {
 }
 
 /**
- * A desktop's dora tile is at least this share of the river tile; the counters hold five indicators a gap apart inside
- * a rim (px), in rows of the most of `DORA_ROW_SIZES` their room holds.
+ * A desktop's dora tile is this share of the river tile where its place holds it, never under the least; the counters
+ * hold five indicators a gap apart (px), in rows of the most of `DORA_ROW_SIZES` their room holds.
  */
-const DORA_BY_RIVER = 0.55;
+const DORA_BY_RIVER_WANTED = 0.8;
+const DORA_BY_RIVER_LEAST = 0.6;
 const DORA_SLOTS = 5;
 const DORA_TILE_GAP = 2;
-const DORA_RIM = 2;
 const DORA_ROW_SIZES = [5, 3, 2] as const;
 
-/** The counters' box, their indicators `perRow` to a row (px). */
-function doraBox(
-    tier: TierChrome,
-    perRow: number,
-): Readonly<Record<"height" | "rowW" | "width", number>> {
+/** The counters' padding and corner, in dora tiles. */
+const COUNTERS_PAD_BY_DORA = 0.2;
+const COUNTERS_RADIUS_BY_DORA = 0.3;
+
+/** The counters at a dora tile: the indicators' rows on a padded card (px). */
+interface Counters {
+    readonly dora: number;
+    readonly height: number;
+    readonly pad: number;
+    readonly radius: number;
+    readonly rowW: number;
+    readonly width: number;
+}
+
+/** The counters at a dora tile, their indicators `perRow` to a row (px). */
+function countersAt(dora: number, perRow: number): Counters {
     const rows = Math.ceil(DORA_SLOTS / perRow);
-    const rowW = perRow * tier.doraW + (perRow - 1) * DORA_TILE_GAP;
+    const pad = COUNTERS_PAD_BY_DORA * dora;
+    const rowW = rowWidth(perRow, dora, DORA_TILE_GAP);
     return {
-        height: rows * tier.doraW * TILE_ASPECT + (rows - 1) * DORA_TILE_GAP + tier.countersFrame,
+        dora,
+        height: 2 * pad + rows * dora * TILE_ASPECT + (rows - 1) * DORA_TILE_GAP,
+        pad,
+        radius: COUNTERS_RADIUS_BY_DORA * dora,
         rowW,
-        width: tier.doraPadStart + rowW + tier.doraPadEnd + DORA_RIM,
+        width: 2 * pad + rowW,
     };
 }
 
 /** The largest whole indicator, at most `wanted`, whose counters `perRow` to a row stand `room` wide (px). */
-function doraFitting(
-    tier: TierChrome,
-    { perRow, room, wanted }: Readonly<Record<"perRow" | "room" | "wanted", number>>,
-): number {
-    const pads = (tier.doraPadStart + tier.doraPadEnd) / tier.doraW;
+function doraFitting({
+    perRow,
+    room,
+    wanted,
+}: Readonly<Record<"perRow" | "room" | "wanted", number>>): number {
     return Math.min(
         wanted,
-        Math.floor((room - (perRow - 1) * DORA_TILE_GAP - DORA_RIM) / (pads + perRow)),
+        Math.floor((room - (perRow - 1) * DORA_TILE_GAP) / (perRow + 2 * COUNTERS_PAD_BY_DORA)),
     );
 }
 
-/** The counters' lengths the stylesheet draws them with at a scale and in a box (px). */
+/** The counters' lengths the stylesheet draws them with, their box's top left corner at `left` and `top` (px). */
 function countersLengths(
-    scaled: TierChrome,
-    box: Readonly<Record<"height" | "rowW" | "width", number>>,
+    counters: Counters,
+    { left, top }: Readonly<Record<"left" | "top", number>>,
 ): [string, number][] {
     return [
-        ...counterLengths(scaled),
-        ["counters-h", box.height],
-        ["counters-w", box.width],
-        ["counters-top", BAR_GAP],
-        ["counters-x", BAR_GAP],
-        ["dora-row-w", box.rowW],
+        ["counters-h", counters.height],
+        ["counters-top", top],
+        ["counters-w", counters.width],
+        ["counters-x", left],
+        ["dora-pad", counters.pad],
+        ["dora-radius", counters.radius],
+        ["dora-row-w", counters.rowW],
+        ["dora-w", counters.dora],
     ];
 }
 
@@ -1775,13 +1770,15 @@ interface DesktopInfo {
 }
 
 /**
- * A desktop's counters at the left bar's top, left-aligned with the field under them, and the round info (a replay's
- * round and step) under them (px). In the bar or over the left strip's lane (`place`), the counters stand in one row of
- * five, each indicator the tier's size in the bar and the least over the lane, never under `DORA_BY_RIVER` of a river
- * tile; the info its two lines as wide as its place (the bar, or the counters' over the lane), its text fitted to
- * `DESKTOP_NOTICE_FIELD_EMS` of them; the side strips' lines start under what stands over the lane (`linesFloor`).
- * Wrapped, where none holds the row (`linesStart` where the side lines start), the counters stand three and two (then
- * two to a row) in the bar or over the lane above that start, the info in the bar.
+ * A desktop's counters at the table's top-left corner, level with the top hand's top, and the round info (a replay's
+ * round and step) under them (px). Over the left strip's lane (`place`) the counters end a plate's gap short of the
+ * lane's inner edge, beside the top strip's line, in one row of five indicators `DORA_BY_RIVER_WANTED` of a river tile, smaller
+ * to fit the room from the bar's edge, never under `DORA_BY_RIVER_LEAST`; in the bar they end at its edge by the left
+ * strip, further left where the info under them needs the room. The info stands under them, left-aligned with them, its two lines as wide as its place (over the lane, or the
+ * bar), its text fitted to `DESKTOP_NOTICE_FIELD_EMS` of them; in the bar under counters over the lane, to
+ * `STATUS_WRAPPED_EMS`, the round's name broken where the place is narrower than the former; the side strips' lines start under what stands over the
+ * lane (`linesFloor`). Wrapped, where none holds the row (`linesStart` where the side lines start), the counters stand
+ * three and two (then two to a row) in the bar or over the lane above that start, the info in the bar.
  */
 function desktopInfo(
     tier: TierChrome,
@@ -1798,72 +1795,72 @@ function desktopInfo(
     },
 ): DesktopInfo {
     const least = leastDora(rw);
-    const onLane = place === "lane" || place === "counters-lane";
-    const wanted = onLane ? least : Math.max(least, tier.doraW);
-    const inBar = fieldRight(colLeft) - BAR_GAP;
-    const overLane = colLeft + sideLane(rw) - PLATE_GAP - BAR_GAP;
+    const wanted = Math.max(least, Math.floor(DORA_BY_RIVER_WANTED * rw));
+    const barEdge = fieldRight(colLeft);
+    const overLane = laneEdge(colLeft, rw);
     const rows = place === "wrap" ? DORA_ROW_SIZES : [DORA_SLOTS];
-    const roomsByPlace: Readonly<Record<InfoPlace, readonly number[]>> = {
-        bar: [inBar],
+    const edgesByPlace: Readonly<Record<InfoPlace, readonly number[]>> = {
+        bar: [barEdge],
         "counters-lane": [overLane],
         lane: [overLane],
-        wrap: [inBar, overLane],
+        wrap: [barEdge, overLane],
     };
-    const rooms = roomsByPlace[place];
     const places = rows.flatMap((perRow) =>
-        rooms.map((room) => {
-            const size = doraFitting(tier, { perRow, room, wanted });
-            const scaled = countersAt(tier, size / tier.doraW);
-            return { box: doraBox(scaled, perRow), overLane: room > inBar, scaled, size };
-        }),
+        edgesByPlace[place].map((edge) => ({
+            counters: countersAt(doraFitting({ perRow, room: edge - BAR_GAP, wanted }), perRow),
+            edge,
+        })),
     );
     const fallback = places.at(-2) ?? places[0];
-    const { box, scaled } =
+    const { counters, edge } =
         places.find(
             (candidate) =>
-                candidate.size >= least &&
+                candidate.counters.dora >= least &&
                 (place !== "wrap" ||
-                    !candidate.overLane ||
-                    BAR_GAP + candidate.box.height + PLATE_GAP <= linesStart),
+                    candidate.edge <= barEdge ||
+                    candidate.counters.height + PLATE_GAP <= linesStart),
         ) ?? fallback;
-    const top = 2 * BAR_GAP + box.height;
-    const right = place === "lane" ? overLane + BAR_GAP : fieldRight(colLeft);
+    const right = place === "lane" ? overLane : barEdge;
+    const breaks = place === "counters-lane";
+    const infoLeast = breaks ? wrappedInfo() : leastInfo();
+    const left = Math.max(BAR_GAP, Math.min(edge - counters.width, right - infoLeast));
+    const top = counters.height + BAR_GAP;
     const text = Math.max(
         STATUS_TEXT_MIN,
-        noticeText(tier.text, right - BAR_GAP, DESKTOP_NOTICE_FIELD_EMS),
+        noticeText(tier.text, right - left, breaks ? STATUS_WRAPPED_EMS : DESKTOP_NOTICE_FIELD_EMS),
     );
-    const bottom = top + infoHeight(text);
+    const bottom = top + infoHeight(text, right - left < DESKTOP_NOTICE_FIELD_EMS * text);
     const floors: Readonly<Record<InfoPlace, number>> = {
         bar: 0,
-        "counters-lane": top - BAR_GAP + PLATE_GAP,
+        "counters-lane": counters.height + PLATE_GAP,
         lane: bottom + PLATE_GAP,
         wrap: 0,
     };
     return {
-        counters: countersLengths(scaled, box),
+        counters: countersLengths(counters, { left, top: 0 }),
         fieldTop: top,
         linesFloor: floors[place],
-        rect: { bottom, left: BAR_GAP, right, top },
+        rect: { bottom, left, right, top },
         text,
     };
 }
 
 /**
- * Where a desktop's counters stand, from its lengths: in the bar where it holds their one row, else over the lane where
- * the side strips' lines start below them and the info, else below them alone, else wrapped.
+ * Where a desktop's counters stand, from its lengths: over the lane where the side strips' lines start below them and
+ * the info, else below them alone, else in the bar where it holds their one row, else wrapped.
  */
 function infoPlace({ at, tier }: ShellRoom): InfoPlace {
     const rw = at("rw");
     const colLeft = at("col-left");
-    if (infoHolds(tier, { colLeft, place: "bar", rw })) {
-        return "bar";
-    }
     const shifted = (["lane", "counters-lane"] as const).find(
         (place) =>
-            infoHolds(tier, { colLeft, place, rw }) &&
+            infoHolds({ colLeft, place, rw }) &&
             at("lines-start") >= desktopInfo(tier, { colLeft, place, rw }).linesFloor - 0.001,
     );
-    return shifted ?? "wrap";
+    if (shifted !== undefined) {
+        return shifted;
+    }
+    return infoHolds({ colLeft, place: "bar", rw }) ? "bar" : "wrap";
 }
 
 /** Where a plate's box would stand with its pill's foot level with the own tiles', within the table (px). */

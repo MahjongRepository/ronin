@@ -8,27 +8,18 @@
     top: var(--counters-top);
     left: var(--counters-x);
     z-index: layer(table);
-    display: flex;
-    align-items: center;
-    gap: 0.6em;
     width: var(--counters-w);
     height: var(--counters-h);
-    padding: 0 var(--dora-pad-end) 0 var(--dora-pad-start);
-    font-size: var(--dora-text);
-    background: var(--ronin-chip);
-    border: 1px solid var(--ronin-badge-rim);
+    padding: var(--dora-pad);
+    background: var(--ronin-plate);
     border-radius: var(--dora-radius);
 }
 
 .board-dora__tiles {
     display: flex;
-    flex: none;
+    flex-wrap: wrap;
     gap: 2px;
-
-    @include desktop-board {
-        flex-wrap: wrap;
-        width: var(--dora-row-w);
-    }
+    width: var(--dora-row-w);
 }
 
 .board-dora__tile {

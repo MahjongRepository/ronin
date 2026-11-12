@@ -52,7 +52,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   (`--notice-text`): a phone's smaller where the left bar is narrower than 7.5 of its ems, down to 11px at the bar's
   floor; a desktop's toasts' the board's share, never under 14px; a desktop's notices over a panel, in the left bar's
   field, fitted to 7.5 of their ems the same way (`--field-notice-text`); a desktop replay's status in its own area
-  (`info`, under the counters) fitted to 9 of its ems (`--status-text`), never under 13px.
+  (`info`, under the counters) fitted to 9 of its ems (`--status-text`), 6 in the bar under counters over the lane,
+  never under 13px.
 - **Live decisions stand in one cluster; the bars hold the rest.** Off a phone live's decisions (`.board-actions`)
   stand in the core's bottom-right corner: past the bottom river's nineteen discards' reserve to short of the right
   strip's lane, under the right river's first tile and over the own row's melds' rise, in as many rows of

@@ -480,26 +480,30 @@ function platesPlace(geometry: BoardGeometry): Record<string, boolean> {
     };
 }
 
-/** Whether a desktop's counters stand left-aligned at the left bar's top, in the bar or over the left lane above the left strip's line, their dora tiles in one row 0.55 river tiles wide at least. */
+/**
+ * Whether a desktop's counters stand at the table's top-left corner, level with its top: ending at most a plate's gap
+ * short of the left lane's inner edge above the left strip's line, or in the bar short of the strip; their dora in one row, 0.6
+ * to 0.8 river tiles.
+ */
 function countersPlace(geometry: BoardGeometry): Record<string, boolean> {
     const { lengths, tracks } = geometry;
     function length(name: string): number {
         return lengths[name] ?? Number.NaN;
     }
     const { "strip-left": stripLeft = [] } = slotAreas(tracks);
-    const laneLeft = length("col-left") + length("strip-depth") + SIDE_LANE_GAP;
+    const laneInner = length("col-left") + length("strip-depth") + SIDE_LANE_GAP;
     const countersRight = length("counters-x") + length("counters-w");
     const countersBottom = length("counters-top") + length("counters-h");
     return {
-        countersInBar:
-            length("counters-top") === 6 &&
-            length("counters-x") === 6 &&
+        countersAtCorner:
+            length("counters-top") === 0 &&
+            length("counters-x") >= 6 &&
             (countersRight <= length("col-left") - 6 + 0.001 ||
-                (countersRight <= laneLeft - 6 + 0.001 &&
+                (countersRight <= laneInner - 6 + 0.1 &&
                     countersBottom <= (stripLeft[1] ?? 0) - 6 + 0.1)),
         countersWhole:
-            length("dora-w") >= 0.55 * length("rw") &&
-            length("counters-w") >= length("dora-row-w") &&
+            length("dora-w") >= 0.6 * length("rw") &&
+            length("dora-w") <= 0.8 * length("rw") &&
             length("dora-row-w") >= 5 * length("dora-w"),
     };
 }
@@ -624,12 +628,12 @@ describe("boardGeometry", () => {
         [2560, 1440, [80, 116, 134.92, 259.2]],
         [1440, 900, [49, 66, 89.32, 126.2]],
         [1280, 800, [43, 56, 82.02, 131.2]],
-        [800, 600, [26, 32, 77.44, 98.33]],
-        [960, 1080, [33, 41, 76.97, 100.7]],
+        [800, 600, [26, 32, 49.44, 98.33]],
+        [960, 1080, [33, 41, 61.97, 100.7]],
         [1100, 1000, [40, 49, 74.63, 98.3]],
-        [1280, 1024, [49, 59, 93.23, 97.3]],
+        [1280, 1024, [49, 59, 92.23, 97.3]],
         [1502, 1551, [59, 71, 110.67, 100.7]],
-        [1024, 1366, [36, 45, 74.75, 97.5]],
+        [1024, 1366, [36, 45, 67.75, 97.5]],
     ])(
         "sizes a %ix%i desktop's river tile from its vertical stack and its own tile from its width, a full hand between the side strips' lanes, at most 1.45 river tiles, within bars that hold the switches named and the counters' row only while the own tile keeps 1.3 of the river tile, the river tile no larger than leaves it 1.2, the table centred",
         (width, height, expected) => {
@@ -920,7 +924,7 @@ describe("boardGeometry's strips", () => {
         { height: 768, switches: "letters", width: 1024 },
         { height: 600, switches: "letters", width: 800 },
     ])(
-        "keeps a $width x $height desktop's controls in the bars: the counters left-aligned over the field with the round info under them on lines 9 of its ems wide, furiten and $switches switches down the left one to the own row's foot, the cog and a replay's controls at its foot in the right one, the panel in the column, and the notices' toasts in the core's bottom-left corner",
+        "keeps a $width x $height desktop's controls in the bars: the counters over the field with the round info under them, left-aligned with them, on lines at least 6 of its ems wide, furiten and $switches switches down the left one to the own row's foot, the cog and a replay's controls at its foot in the right one, the panel in the column, and the notices' toasts in the core's bottom-left corner",
         ({ height, switches, width }) => {
             const live = windowGeometry({ height, width });
             const { box } = live;
@@ -937,16 +941,15 @@ describe("boardGeometry's strips", () => {
 
             expect({
                 countersOverField:
-                    length("counters-top") === 6 &&
                     length("counters-top") + length("counters-h") <= (field?.[1] ?? 0) &&
-                    Math.abs(length("counters-x") - (field?.[0] ?? 0)) <= 0.1,
+                    Math.abs(length("counters-x") - (info?.[0] ?? 0)) <= 0.1,
                 fieldWide: (field?.[2] ?? 0) - (field?.[0] ?? 0) >= 84,
                 fieldWordsPerLine:
                     (field?.[2] ?? 0) - (field?.[0] ?? 0) >=
                     7.5 * length("field-notice-text") - 0.1,
                 form: live.switches,
                 infoOnLines:
-                    (info?.[2] ?? 0) - (info?.[0] ?? 0) >= 9 * length("status-text") - 0.1 &&
+                    (info?.[2] ?? 0) - (info?.[0] ?? 0) >= 6 * length("status-text") - 0.1 &&
                     (info?.[1] ?? 0) >= length("counters-top") + length("counters-h"),
                 leftBar: [field, furiten, switchesArea].every(
                     (area) => (area?.[0] ?? -1) >= 0 && (area?.[2] ?? Infinity) <= colLeft,
@@ -1094,10 +1097,10 @@ describe("boardGeometry's plates", () => {
         [800, 600],
         [1502, 1551],
     ])(
-        "stands a %ix%i desktop's counters' dora in one row at least 0.55 river tiles at the left bar's top",
+        "stands a %ix%i desktop's counters' dora in one row of 0.6 to 0.8 river tiles at the table's top-left corner",
         (width, height) => {
             expect(countersPlace(windowGeometry({ height, width }, 10))).toEqual({
-                countersInBar: true,
+                countersAtCorner: true,
                 countersWhole: true,
             });
         },
@@ -1121,7 +1124,7 @@ describe("boardGeometry's shell tracks", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
             actions: [564.5, 50, 663, 303.2],
             corner: [564.5, 4, 663, 375],
-            field: [4, 40, 102.5, 191.1],
+            field: [4, 36, 102.5, 191.1],
             "field-beside": [564.5, 50, 663, 303.2],
             furiten: [4, 199.1, 92, 217.2],
             hand: [5, 309.2, 663, 369.2],

@@ -148,10 +148,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   on a width-bound one: a hand reads as its river's owner.
 - **Foreground**: the own hand and its melds between the side lanes at the board's bottom, with nothing reserved
   over it: the bottom river's longest reach stands right over the own melds' rise.
-- **Side bars**: the left one holds the dora in one row at its top on every desktop size and a replay's round and
-  step under them (where the bar is too narrow for that row, they stand over the left strip's lane and the side
-  strips' lines start under them, else the bar widens for them while the own tile keeps 1.3 river tiles), and the
-  furiten mark over the play switches, which end a band's height over the own tiles' foot; the right one
+- **Side bars**: the left one holds a replay's round and step under the dora, which stand at the table's top-left
+  corner (Dora indicators), and the furiten mark over the play switches, which end a band's height over the own tiles' foot; the right one
   the page's cog at its top and a replay's controls at its foot, by the own row. Nothing in a bar is a tile, and a
   desktop's panel, which stands in the table, leaves both usable. On a very wide window the cog and a replay's
   controls stand near the table's edge, not centred in the whole bar.
@@ -301,17 +299,20 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   In a live game the badge takes no press, no pointer cursor and no text selection; a replay's badge is a control
   that views the table from its seat, its tap area meeting the control floor whatever the drawn badge's size, and a
   focused one shows the accent's outline. The name shows on every board, shortened rather than dropped.
-- **Dora indicators.** The five dora indicator slots (each indicator as a face once the event
-  that reveals it has arrived, the rest unreadable backs; indicators are not the bonus tiles), at the left
-  bar's top on every board, left-aligned with a replay's round and step under them (a phone's notices too): the
-  table's, under no seat's plate, and never moving between sizes. Off a phone a dora tile is never under 0.55 river
-  tiles and the five stand in one row at every size: where the bar is narrower than that row the box stands over
-  the left strip's lane, the round and step under it there too where the bar cannot give their lines nine of their
-  ems, and both side strips' lines start below them (else the bar widens to hold the row while the own tile keeps
-  1.3 river tiles; three and two only where none of that holds). A phone's narrow bar shrinks them to fit, never to
-  a dora tile under the 13px face floor. The round's name breaks only between the round and its honba.
-  The honba and riichi-stick counts are the centre's, under the round, as Tenhou shows them; the
-  corner does not repeat them.
+- **Dora indicators.** One card on the plates' colour: the five dora indicator slots (each
+  indicator as a face once the event that reveals it has arrived, the rest unreadable backs; indicators are not the
+  bonus tiles). Off a phone the card stands at the
+  table's top-left corner, level with the top hand's top: over the left strip's lane, ending a plate's gap short of
+  its inner edge where the top strip's line begins, so it reads as the table's and not the window's, both side
+  strips' lines starting below it; in the bar beside the left strip only where its lines cannot start below it.
+  Its dora are 0.8 river tiles, smaller where the room from the window's edge is short, never under 0.6, the five
+  in one row at every size (three and two only where nothing else holds). A replay's round and step stand under
+  it, left-aligned with it, the card moving left where their lines need the room: over the lane too where the side
+  lines can start below both, else in the bar, its round's name broken onto its own line where the bar is under
+  nine of their ems. On a phone the card stands at the left bar's top, the notices under it, its dora shrinking to
+  fit a narrow bar, never under the 13px face floor. The round's name breaks only between the round and its
+  honba. The honba and riichi-stick counts are the centre's, under the round; the card does
+  not repeat them.
 - **Own hand.** Sorted, from its full reach's fixed start, the drawn tile set apart by a gap at the
   right: off a phone the left side lane's inner edge, on a phone the start of a full hand centred on the
   board; its bottom on the board's bottom. The melds stand at the row's right end, the right side lane's inner edge

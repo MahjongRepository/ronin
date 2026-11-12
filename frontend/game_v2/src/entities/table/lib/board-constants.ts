@@ -81,18 +81,14 @@ const LARGE_CHROME_HEIGHT = 1200;
 type ChromeTier = "small" | "regular" | "large";
 
 /**
- * A board's chrome px: the decisions' least control, the switches (their chips' size and gap), the
- * counters (the indicator's width, and the padding and rim above and below it), the replay's controls, the opponents'
- * badges and the decisions' least widths.
+ * A board's chrome px: the decisions' least control, the switches (their chips' size and gap), the replay's controls,
+ * the opponents' badges and the decisions' least widths.
  */
 interface TierChrome {
     readonly controlH: number;
     readonly switchH: number;
     readonly chipGap: number;
     readonly movesH: number;
-    readonly countersW: number;
-    readonly doraW: number;
-    readonly countersFrame: number;
     readonly replayGap: number;
     /** A plate's one-line pill, every seat's alike. */
     readonly pillH: number;
@@ -102,12 +98,6 @@ interface TierChrome {
     readonly text: number;
     /** The turn cue's bar under a badge's pill. */
     readonly cueW: number;
-    /** The counters' padding at their end and start. */
-    readonly doraPadEnd: number;
-    readonly doraPadStart: number;
-    /** The counters' text size and corner radius. */
-    readonly doraText: number;
-    readonly doraRadius: number;
     /** The play switches' letter size. */
     readonly switchText: number;
     /** A play switch's width where it shows its whole name; 0 on a tier that shows letters. */
@@ -121,14 +111,7 @@ const REGULAR_CHROME: TierChrome = {
     calloutCap: 40,
     chipGap: 6,
     controlH: 48,
-    countersFrame: 18,
-    countersW: 172,
     cueW: 3,
-    doraPadEnd: 14,
-    doraPadStart: 8,
-    doraRadius: 10,
-    doraText: 19,
-    doraW: 28,
     movesH: 52,
     pillH: 30,
     replayGap: 6,
@@ -143,14 +126,7 @@ const TIER_CHROME: Readonly<Record<ChromeTier, TierChrome>> = {
     large: {
         ...REGULAR_CHROME,
         calloutCap: 56,
-        countersFrame: 22,
-        countersW: 223,
         cueW: 4,
-        doraPadEnd: 18,
-        doraPadStart: 10,
-        doraRadius: 14,
-        doraText: 26,
-        doraW: 37,
         movesH: 60,
         pillH: 42,
         replayGap: 8,
@@ -165,12 +141,6 @@ const TIER_CHROME: Readonly<Record<ChromeTier, TierChrome>> = {
         ...REGULAR_CHROME,
         actionMinW: 64,
         calloutCap: 20,
-        countersFrame: 10,
-        countersW: 95,
-        doraPadEnd: 6,
-        doraPadStart: 4,
-        doraRadius: 8,
-        doraW: 15,
         movesH: 40,
         pillH: 24,
         replayGap: 4,
@@ -227,8 +197,12 @@ const PHONE_CENTRE_MIN_WIDTH = 100;
  */
 const PHONE_OWN_TAP_FLOOR = 32;
 
-/** A phone's chrome past a desktop's: its margin, and the gaps under the top strip and over the own row. */
+/**
+ * A phone's chrome past a desktop's: its margin, the gaps under the top strip and over the own row, and its counters'
+ * dora tile where its left bar holds it.
+ */
 interface PhoneChrome extends TierChrome {
+    readonly doraW: number;
     readonly m: number;
     readonly sep: number;
     readonly coreGap: number;
@@ -243,6 +217,7 @@ const PHONE_CHROME: PhoneChrome = {
     chipGap: 4,
     controlH: 40,
     coreGap: 6,
+    doraW: 15,
     m: 4,
     sep: 6,
     switchH: 40,
