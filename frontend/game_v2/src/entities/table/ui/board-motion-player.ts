@@ -1,4 +1,5 @@
 import { BOARD_MOTION, type MotionRect, type TileMotion } from "@/entities/table/lib/board-motion";
+import { type TileQuad, quadWarp, rectQuad, warpTransform } from "@/entities/table/lib/tile-quad";
 
 import {
     type TilePose,
@@ -15,7 +16,9 @@ interface Flight {
     readonly toPose: TilePose;
     readonly image: HTMLElement;
     readonly from: MotionRect;
+    readonly fromQuad: TileQuad;
     readonly to: MotionRect;
+    readonly toQuad: TileQuad;
     readonly board: MotionRect;
     readonly motion: TileMotion;
     readonly target: HTMLElement | null;
@@ -35,21 +38,29 @@ function createFlight(motion: TileMotion, scene: Scene, target: TileSnapshot): F
         board: scene.box,
         from: origin,
         fromPose: (source ?? target).pose,
+        fromQuad: source?.quad ?? rectQuad(origin),
         image: target.image,
         motion,
         target: target.element,
         to: target.rect,
         toPose: target.pose,
+        toQuad: target.quad,
     };
 }
 
-function flightFrames({ from, fromPose, to, toPose }: Flight): Keyframe[] {
+/**
+ * A flight from its source's pose and place to its target's, its image warped onto the target tile's corners as the
+ * camera shows them from the start (a tilted piece's taper and squash; none on a flat one), so it lands exactly as the
+ * tile it stands for.
+ */
+function flightFrames({ from, fromPose, to, toPose, toQuad }: Flight): Keyframe[] {
     const deltaX = from.left + from.width / 2 - to.left - to.width / 2;
     const deltaY = from.top + from.height / 2 - to.top - to.height / 2;
     const angle = fromPose.angle + (((toPose.angle - fromPose.angle + 540) % 360) - 180);
+    const transform = `translate(-50%, -50%) ${warpTransform(quadWarp(to, toQuad))}`;
     return [
-        { ...poseFrame(fromPose), translate: `${deltaX}px ${deltaY}px` },
-        { ...poseFrame({ ...toPose, angle }), translate: "0px 0px" },
+        { ...poseFrame(fromPose), transform, translate: `${deltaX}px ${deltaY}px` },
+        { ...poseFrame({ ...toPose, angle }), transform, translate: "0px 0px" },
     ];
 }
 
@@ -80,11 +91,8 @@ function sampleFlight(tile: TileSnapshot, active: RunningTile): TileSnapshot {
         standing: Number.parseFloat(style.getPropertyValue("--motion-standing")),
         width: Number.parseFloat(style.getPropertyValue("--motion-width")),
     };
-    return {
-        ...tile,
-        pose,
-        rect: image.querySelector(".tile")?.getBoundingClientRect() ?? tile.rect,
-    };
+    const rect = image.querySelector(".tile")?.getBoundingClientRect() ?? tile.rect;
+    return { ...tile, pose, quad: rectQuad(rect), rect };
 }
 
 interface RunningTile {
@@ -230,7 +238,7 @@ export class BoardMotionPlayer {
                     (flight.fromPose.angle - flight.toPose.angle) % 360 === 0) ||
                 (target.region === "discards" && hasSamePose(flight.fromPose, flight.toPose)))
         ) {
-            this.reflow.play(flight.motion, flight.from, target);
+            this.reflow.play(flight.motion, { quad: flight.fromQuad, rect: flight.from }, target);
             return;
         }
         this.playFlight(flight, target);

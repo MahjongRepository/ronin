@@ -544,10 +544,13 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Tile motion.** Draws travel from the centre to the separated hand slot and discards from hand to river in
   120ms, with a faint trail. The latest discard settles into its river slot in 120ms when its mark ends.
   A travelling tile keeps its body and shadow throughout, with size, orientation and the own hand's top band
-  changing continuously from source to destination. Light stays fixed to the screen. Rearranging hands, settling
+  changing continuously from source to destination; landing on the tilted table it flies already in its slot's look
+  (the camera's taper and squash), so it lands with no pop. Light stays
+  fixed to the screen. Rearranging hands, settling
   discards and moving or resizing laid melds animate their actual tile wrappers inside their group, retaining its
   shared edge and shadow and native button feedback. Meld resizing keeps its tiles moving and scaling together
-  under that shared shadow. A discard still changing size or orientation in flight finishes as a travelling tile.
+  under that shared shadow; on the tilted table their offsets are the slots' own, taken back through the camera, not
+  a uniform scale. A discard still changing size or orientation in flight finishes as a travelling tile.
   The hand closes gaps and sorts over 200ms after the discard's flight, with an additional 300ms pause in live play.
   Replay settles the previous stop's tile movements before measuring the next move, so rapid stepping animates
   only the latest move and never waits for an animation backlog. Calls assemble their
