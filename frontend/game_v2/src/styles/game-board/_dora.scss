@@ -1,14 +1,12 @@
 @use "@/styles/game-board/grid" as *;
 
-/* The dora indicator slots under the top strip's line, `--counters-h` tall, its indicators centred down it, over the
-   left badge from its edge, clear of the left strip; the honba and riichi-stick counts are the centre's. */
 .board-dora {
     --board-tile-w: var(--dora-w);
     --board-tile-h: calc(var(--dora-w) * 4 / 3);
 
     position: absolute;
     top: var(--counters-top);
-    left: var(--left-badge-x);
+    left: var(--counters-x);
     z-index: layer(table);
     display: flex;
     align-items: center;
@@ -26,6 +24,11 @@
     display: flex;
     flex: none;
     gap: 2px;
+
+    @include desktop-board {
+        flex-wrap: wrap;
+        width: var(--dora-row-w);
+    }
 }
 
 .board-dora__tile {

@@ -56,7 +56,7 @@ const OVERLAY_MODES: readonly OverlayMode[] = ["none", "round_end", "game_end"];
 
 /**
  * The board's hand-written stories, the edge cases no generated scenario reaches: full rivers, the worst case of all
- * at once (every seat with four melds, long rivers, five dora, AI marks), the strips' capacity: every opponent's
+ * at once (every seat with four melds, long rivers, five dora, away seats), the strips' capacity: every opponent's
  * full hand (fourteen faces with the drawn tile apart, or thirteen backs) and legal mixed hands, each seat at one,
  * two and three melds across the three mixed stories, four kans a seat, every kind, whose open and added kans
  * between two kan stories come from every feeder, and four open kans a seat, the longest strip. A board the
@@ -236,12 +236,13 @@ function storyCallouts(call: StoryCall | null, state: BoardDisplayState): BoardC
     return { announced: true, items: boardCallouts(storyCalls(call, state), 0), key: call };
 }
 
-const STORY_OFFERS = ["none", "five", "riichi", "bank"] as const;
+const STORY_OFFERS = ["none", "five", "call", "riichi", "bank"] as const;
 
 type StoryOffers = (typeof STORY_OFFERS)[number];
 
 const STORY_OFFER_LABELS: Readonly<Record<StoryOffers, string>> = {
     bank: "Offers: turn in bank",
+    call: "Offers: kan, pon and two chis",
     five: "Offers: five on a discard",
     none: "No offers",
     riichi: "Offers: riichi pressed",
@@ -329,6 +330,22 @@ function fiveOffers(): DecisionView {
     };
 }
 
+function callOffers(): DecisionView {
+    const five = fiveOffers();
+    return {
+        ...five,
+        actions: [
+            storyControl({
+                command: choosing({ kanType: "open", kind: "kan", tileId: 8 }),
+                kind: "kan",
+                label: "Kan",
+                rank: "call",
+            }),
+            ...five.actions.slice(1),
+        ],
+    };
+}
+
 /** A turn's riichi toggle, pressed, with its base and bank: the widest control the band takes beside the timer. */
 function riichiOffer(): DecisionView {
     return {
@@ -392,6 +409,9 @@ function storyOffers(offers: StoryOffers): DecisionView | null {
     switch (offers) {
         case "five": {
             return fiveOffers();
+        }
+        case "call": {
+            return callOffers();
         }
         case "riichi": {
             return riichiOffer();

@@ -13,17 +13,7 @@ interface BoardCenterInfo {
 }
 
 /**
- * An AI player marked on a seat: the plate's short tag, `AI` for one playing the seat as far as the source says or
- * `Away` for one holding it while its human is out (left, or never came), and the words for why.
- */
-interface NameplateAiMark {
-    readonly kind: "ai" | "away";
-    readonly tag: string;
-    readonly words: string;
-}
-
-/**
- * A seat's nameplate: who plays it, its seat wind and score, and its marks. `scoreDiffs` gives, by board position, how
+ * A seat's nameplate: who plays it, its seat wind and score, and its states. `scoreDiffs` gives, by board position, how
  * far this seat's score is from that seat's, signed (`+1000`, `-3000`, `0`): what the plate shows while that seat's
  * plate is hovered; its own position's is empty.
  */
@@ -39,8 +29,11 @@ interface BoardNameplate {
     readonly isCurrent: boolean;
     /** The seat declared riichi and its stick is down. */
     readonly isRiichi: boolean;
-    /** The AI player marked on the seat; null when none is known to play it. */
-    readonly aiMark: NameplateAiMark | null;
+    /**
+     * Why the seat's player is away, an AI holding the seat while they are out (left, or never came); null while they
+     * play it, and for an AI player seated as one.
+     */
+    readonly away: string | null;
 }
 
 /** A call a seat makes aloud, which the board shows by its seat for a moment. */
@@ -113,6 +106,5 @@ export type {
     BoardMotionCue,
     BoardNameplate,
     BoardPlayerDisplay,
-    NameplateAiMark,
     SeatPosition,
 };

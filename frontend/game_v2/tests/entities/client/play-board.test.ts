@@ -263,13 +263,18 @@ describe("PlayBoard", () => {
         const opened = { ...NO_PLAY_UI, noticeSheet: "tile_sprite", tileSprite: "failed" } as const;
         const sheet = renderPlay(roundEnd, opened);
         const leaving = renderPlay(roundEnd, { ...opened, confirmingLeave: true });
+        const onBoard = sheet.querySelector(".board-notice");
 
         expect([
+            onBoard?.querySelector(".board-notice__words")?.textContent,
+            onBoard?.getAttribute("title"),
             sheet.querySelector(".board-overlay .notice-sheet__text")?.textContent,
             sheet.querySelector(".notice-sheet__note")?.textContent?.replaceAll(/\s+/gu, " "),
             sheet.querySelector(".round-end-result"),
             sheet.querySelector(".board-layout")?.hasAttribute("inert"),
         ]).toEqual([
+            "Tiles shown as text",
+            "Tile images did not load; tiles show their names",
             "Tile images did not load; tiles show their names",
             "Play goes on beneath this sheet. The round's result awaits your OK: 10 s left.",
             null,

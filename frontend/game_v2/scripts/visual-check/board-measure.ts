@@ -44,7 +44,10 @@ export interface BoardMeasure {
     readonly otherTiles: readonly Box[];
     readonly actions: readonly Box[];
     /** The decision's corner and its buttons, which must sit wholly in its box, never scrolled or clipped. */
-    readonly decisionCorner: { readonly box: Box; readonly buttons: readonly Box[] } | null;
+    readonly decisionCorner: {
+        readonly box: Box;
+        readonly buttons: readonly Box[];
+    } | null;
     /** Text that shows whole or not at all (the status's word, a name's end, a plate's marks), clipped. */
     readonly clippedWords: readonly string[];
     /** The calls shown by their seats. */
@@ -52,6 +55,7 @@ export interface BoardMeasure {
     /** What an open offer refers to: the latest discard, a kan a chankan offer may rob. */
     /** The decision timer's slot. */
     readonly timer: Box | null;
+    readonly timerInk: Box | null;
     /** The decision's first toggle (riichi), pressed or not. */
     readonly toggle: Box | null;
     /** The play switches on the band. */
@@ -129,7 +133,10 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         const grouped: GroupedBox[] = [];
         for (const tile of tableTiles) {
             const area = tile.closest("[data-area], .board-dora");
-            grouped.push({ box: box(tile), group: area?.getAttribute("data-area") ?? "dora" });
+            grouped.push({
+                box: box(tile),
+                group: area?.getAttribute("data-area") ?? "dora",
+            });
         }
         for (const center of board.querySelectorAll(".board-center")) {
             grouped.push({ box: box(center), group: "center" });
@@ -143,16 +150,17 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                 box: box(plate),
                 group: plate.className.split(" ")[1] ?? "nameplate",
             }));
-        const onePillTopBadge =
-            board.getAttribute("data-board-family") === "phone"
-                ? board.querySelector(".nameplate--top .nameplate__pill")
-                : null;
+        const onPhone = board.getAttribute("data-board-family") === "phone";
+        const onePillBadges = new Set(["nameplate--top", "nameplate--bottom"]);
         grouped.push(
-            ...nameplates.map((plate) =>
-                plate.group === "nameplate--top" && onePillTopBadge !== null
-                    ? { ...plate, box: box(onePillTopBadge) }
-                    : plate,
-            ),
+            ...nameplates.map((plate) => {
+                const pill =
+                    (onPhone && onePillBadges.has(plate.group)) ||
+                    plate.group === "nameplate--bottom"
+                        ? board.querySelector(`.${plate.group} .nameplate__pill`)
+                        : null;
+                return pill === null ? plate : { ...plate, box: box(pill) };
+            }),
         );
         const furitenMark = board.querySelector(".board-furiten");
         if (furitenMark !== null) {
@@ -200,14 +208,36 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         const actions = [...decisionActions, ...resultActions];
         const corner = board.querySelector(".board-actions");
         const timer = board.querySelector(".board-actions .decision-timer");
+        const timerWords: DOMRect[] = [];
+        const timerText =
+            timer === null ? null : document.createTreeWalker(timer, NodeFilter.SHOW_TEXT);
+        for (
+            let node = timerText?.nextNode() ?? null;
+            node !== null;
+            node = timerText?.nextNode() ?? null
+        ) {
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            const rect = range.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+                timerWords.push(rect);
+            }
+        }
+        const inkLeft = Math.min(...timerWords.map((rect) => rect.left));
+        const inkTop = Math.min(...timerWords.map((rect) => rect.top));
+        const timerInk =
+            timerWords.length === 0
+                ? null
+                : {
+                      height: Math.max(...timerWords.map((rect) => rect.bottom)) - inkTop,
+                      left: inkLeft + window.scrollX,
+                      top: inkTop + window.scrollY,
+                      width: Math.max(...timerWords.map((rect) => rect.right)) - inkLeft,
+                  };
         const toggle = board.querySelector(
             ".board-actions .decision-controls__action[aria-pressed]",
         );
-        const wholeWords = [
-            ".nameplate .player-name__tail",
-            ".nameplate__ai",
-            ".nameplate__riichi",
-        ].join(", ");
+        const wholeWords = [".nameplate .player-name__tail"].join(", ");
         const clippedWords = [...board.querySelectorAll(wholeWords)]
             .filter((word) => {
                 const shown = word.getBoundingClientRect();
@@ -309,7 +339,10 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             handReach,
             hiddenTiles: tableTiles.filter(
                 (tile) =>
-                    !tile.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+                    !tile.checkVisibility({
+                        opacityProperty: true,
+                        visibilityProperty: true,
+                    }),
             ).length,
             localTileSizes: localTileElements.map((tile) => {
                 const slot = tile.closest(".hand-tile");
@@ -330,8 +363,14 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                     ? null
                     : {
                           box: box(overlay),
-                          client: { height: overlay.clientHeight, width: overlay.clientWidth },
-                          scroll: { height: overlay.scrollHeight, width: overlay.scrollWidth },
+                          client: {
+                              height: overlay.clientHeight,
+                              width: overlay.clientWidth,
+                          },
+                          scroll: {
+                              height: overlay.scrollHeight,
+                              width: overlay.scrollWidth,
+                          },
                       },
             riverTiles: bySeat(board, ".board-river .tile", ".board-river"),
             settledRiverTiles: bySeat(
@@ -344,6 +383,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             tileScale,
             tiles: tableTiles.map(box),
             timer: timer === null ? null : box(timer),
+            timerInk,
             toggle: toggle === null ? null : box(toggle),
             zones: zones === null ? null : box(zones),
         };
@@ -367,8 +407,6 @@ const BOARD_TEXT = {
         ".board-center__score-line",
         ".board-center__hundreds",
         ".nameplate__name",
-        ".nameplate__riichi",
-        ".nameplate__ai",
         ".board-callout",
     ].join(", "),
 } as const;
@@ -379,11 +417,11 @@ function describeLocalTile(tiles: readonly Size[]): string {
 }
 
 /** The board's line in the page's summary: its box and content, the own tile, the decision's buttons, the least text. */
-/** The own river's discards in its first two rows, which the decision controls keep clear of. */
-const OWN_RIVER_KEPT_CLEAR = 12;
+/** The own river's reserve, which the decision controls keep clear of: two rows of six and seven in its third row. */
+const OWN_RIVER_KEPT_CLEAR = 19;
 
-/** The own river's tiles past its second row, which a decision control may cover: a round rarely reaches them. */
-export function ownRiverThirdRow(board: BoardMeasure): readonly Box[] {
+/** The own river's tiles past its reserve, which a decision control stands over: a round rarely lays them. */
+export function ownRiverPastReserve(board: BoardMeasure): readonly Box[] {
     return board.riverTiles
         .filter((tile) => tile.group === "bottom")
         .slice(OWN_RIVER_KEPT_CLEAR)

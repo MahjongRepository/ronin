@@ -12,7 +12,10 @@ export function measurePage(page: Page): Promise<PageMeasure> {
     }));
 }
 
-/** The board's written geometry matches its box: its shell's tracks span the board's client size (none without a board). */
+/**
+ * The board's written geometry matches its box: its shell's tracks span the board's client size, or a width-bound
+ * board's table's height (none without a board).
+ */
 function boardSettled(page: Page): Promise<boolean> {
     return page.evaluate(() => {
         const board = document.querySelector<HTMLElement>(".game-board");
@@ -23,15 +26,19 @@ function boardSettled(page: Page): Promise<boolean> {
         // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
         function span(template: string): number {
             let total = 0;
-            for (const { groups } of template.matchAll(/(?<px>[\d.]+)px/gu)) {
+            for (const { groups } of template.matchAll(/(?<px>[\d.]+(?:e[+-]?\d+)?)px/gu)) {
                 total += Number(groups?.px);
             }
             return total;
         }
+        const tableHeight = Number.parseFloat(style.getPropertyValue("--geo-table-h"));
         return (
             Math.abs(span(style.getPropertyValue("--geo-shell-columns")) - board.clientWidth) <=
                 1 &&
-            Math.abs(span(style.getPropertyValue("--geo-shell-rows")) - board.clientHeight) <= 1
+            Math.abs(
+                span(style.getPropertyValue("--geo-shell-rows")) -
+                    (Number.isFinite(tableHeight) ? tableHeight : board.clientHeight),
+            ) <= 1
         );
     });
 }

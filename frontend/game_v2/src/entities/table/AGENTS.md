@@ -29,7 +29,8 @@ The game table model and board UI. `entities/client` steps it; views read the ta
 - A riichi's deposit (the declarer's score and the table's sticks), the sticks a round end leaves, a round's number
   within its wind (`roundInWind`) and a chankan prompt's kan type are the server's, never counted or inferred.
 - The latest discard is the server's on reconnect (`ld`); the client never infers it. Any draw ends it.
-- An AI stand-in for an absent human (`aiStandIn`, "Away") is never shown as an AI participant ("AI").
+- An AI stand-in for an absent human (`aiStandIn`) shows as the seat being away (its name red), never as an AI
+  participant; a seated AI participant is unmarked on the board (the seating and game end mark it "AI").
 - The board marks no tile playable and no offer source: that is the client mapper's.
 - Board motion is presentation only; its look is `docs/game-client-look.md` (Tile motion), the player's Animations
   switch turning it off as the system's reduced motion does (`data-motion` on the board, the `reduced-motion` mixin),
@@ -46,10 +47,13 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   box and the slots its page fills to a frozen result, its facts
   once in `lib/board-constants.ts` (the river's rows in the tile slice's `river-shape.ts`), and
   `ui/board-geometry-directive.ts`'s `sizeBoard` on GameBoard's root, the one place that measures the board and writes
-  the result. `lib/strip-layout.ts`'s `stripLayout` lays out a strip's melds in those rooms from what it holds, which
+  the result. A desktop whose width binds its river tile lays out in a table shorter than its box (`table-h`, at
+  `table-top`, centred), only as tall as its stack (or its side lines under the counters) needs plus a little air under the
+  top hand, so its spare height never opens between the hands and the core; the slots and tracks are that table's. Off a phone the own row stands between the side strips' lanes, the table as
+  wide as it and them: no opponent's tile, an added kan's stack included, ever stands over the own hand. `lib/strip-layout.ts`'s `stripLayout` lays out a strip's melds in those rooms from what it holds, which
   `sizeBoard` takes beside the slots and never hands `boardGeometry`. Every seat's melds stay in one line toward their owner's
   right, oldest at the far end. The geometry reserves enough length for four kans (a phone's as much of that line as its box
-  holds; `stripLayout` closes a denser seat's gaps at the face floor to hold it, else lays its melds on past the line) and supplies reserved footprints;
+  holds; `stripLayout` closes a denser seat's gaps at the face floor to hold it, else shrinks its melds under the floor to end on the line, never past it) and supplies reserved footprints;
   the content layout scales ordered melds together without moving the hand or controls. GameBoard never binds `style` on its root, which
   would clear what `sizeBoard` wrote.
 - `model/replay-file.ts` refuses a file whose version is not `REPLAY_VERSION` and reports a bad or live-only line,

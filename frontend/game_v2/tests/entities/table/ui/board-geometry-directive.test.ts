@@ -169,13 +169,17 @@ afterEach(() => {
 });
 
 describe("sizeBoard", () => {
-    it("writes the board's family, chrome and sizes once its first render is in the document", async () => {
+    it("writes the board's family, chrome, switches' form and sizes once its first render is in the document", async () => {
         box = { height: 880, width: 1420 };
 
         const { element } = await renderBoard();
 
-        expect(element.dataset).toMatchObject({ boardChrome: "regular", boardFamily: "desktop" });
-        expect(element.style.getPropertyValue("--geo-rw")).toBe("39px");
+        expect(element.dataset).toMatchObject({
+            boardChrome: "regular",
+            boardFamily: "desktop",
+            boardSwitches: "names",
+        });
+        expect(element.style.getPropertyValue("--geo-rw")).toBe("49px");
     });
 
     it("writes nothing for an empty box and sizes the board once it shows", async () => {
@@ -194,7 +198,7 @@ describe("sizeBoard", () => {
         observer.resize(1420, 880);
 
         expect(element.dataset.boardFamily).toBe("desktop");
-        expect(element.style.getPropertyValue("--geo-rw")).toBe("39px");
+        expect(element.style.getPropertyValue("--geo-rw")).toBe("49px");
     });
 
     it("writes a change keeping the gutter at once and one moving it in the next frame, dropping sizes it lost", async () => {
@@ -203,24 +207,21 @@ describe("sizeBoard", () => {
 
         latestObserver().resize(647, 355);
 
-        expect(written(element)).toEqual({ chrome: "regular", family: "desktop", rw: "39px" });
+        expect(written(element)).toEqual({ chrome: "regular", family: "desktop", rw: "49px" });
 
         nextFrame();
 
-        expect(written(element)).toEqual({ chrome: "small", family: "phone", rw: "17px" });
-        expect(parseFloat(element.style.getPropertyValue("--geo-band-shift"))).toBeCloseTo(
-            28.667,
-            2,
-        );
+        expect(written(element)).toEqual({ chrome: "small", family: "phone", rw: "18px" });
+        expect(element.style.getPropertyValue("--geo-own-end")).toBe("663px");
 
         latestObserver().resize(1420, 700);
 
         expect(written(element)).toEqual({
             chrome: "regular",
-            family: "short-desktop",
-            rw: "33px",
+            family: "desktop",
+            rw: "39px",
         });
-        expect(element.style.getPropertyValue("--geo-band-shift")).toBe("");
+        expect(element.style.getPropertyValue("--geo-own-end")).toBe("");
     });
 
     it("keeps a notched phone's family and sizes through the page baring the board's bottom edge", async () => {
@@ -228,7 +229,7 @@ describe("sizeBoard", () => {
         setPage({ gutter: 10, padding: { bottom: 21, left: 47, right: 47, top: 10 }, safe });
         box = { height: 359, width: 750 };
         const { element } = await renderBoard();
-        const settled = { chrome: "small", family: "phone", rw: "20px" };
+        const settled = { chrome: "small", family: "phone", rw: "21px" };
 
         expect(written(element)).toEqual(settled);
 
@@ -248,7 +249,7 @@ describe("sizeBoard", () => {
         expect(host.querySelector(".board-overlay")).not.toBeNull();
         expect(host.querySelector(".game-board")).toBe(element);
         expect(element.dataset.boardFamily).toBe("desktop");
-        expect(element.style.getPropertyValue("--geo-rw")).toBe("39px");
+        expect(element.style.getPropertyValue("--geo-rw")).toBe("49px");
     });
 
     it("lays a strip's melds out again when what it holds changes, without a resize", async () => {
@@ -284,6 +285,6 @@ describe("sizeBoard", () => {
             { disconnected: true, observed: [element] },
             { disconnected: false, observed: [element] },
         ]);
-        expect(element.style.getPropertyValue("--geo-rw")).toBe("34px");
+        expect(element.style.getPropertyValue("--geo-rw")).toBe("43px");
     });
 });

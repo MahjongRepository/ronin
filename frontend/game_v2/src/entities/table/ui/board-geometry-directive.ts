@@ -72,13 +72,24 @@ function zoneLengths({ strips }: BoardGeometry): (readonly [string, string])[] {
         "top-hand2": handLength({ drawn: true, rw, seat: "top", tiles: 2 }),
         "top-line": strips.top.anchor - strips.top.start,
     };
-    return Object.entries(lengths).map(([name, length]) => [`--zone-${name}`, `${length}px`] as const);
+    return Object.entries(lengths).map(
+        ([name, length]) => [`--zone-${name}`, `${length}px`] as const,
+    );
+}
+
+/** Write each of the board's data attributes that changed. */
+function writeData(board: HTMLElement, data: Readonly<Record<string, string>>): void {
+    for (const [name, value] of Object.entries(data)) {
+        if (board.dataset[name] !== value) {
+            board.dataset[name] = value;
+        }
+    }
 }
 
 /**
- * Size the board from its own box and the slots its page fills (`boardGeometry`): its family and chrome as
- * `data-board-family` / `data-board-chrome` and its sizes as `--geo-<name>` on the board,
- * measured once its first render is in the document and again as its box or its slots change, until it leaves; and
+ * Size the board from its own box and the slots its page fills (`boardGeometry`): its family, chrome and play switches'
+ * form as `data-board-family` / `data-board-chrome` / `data-board-switches` and its sizes as
+ * `--geo-<name>` on the board, measured once its first render is in the document and again as its box or its slots change, until it leaves; and
  * lay out the opponents' strips in the rooms it leaves them (`stripLayout`) as `--<seat>-meld-<n>-*` lengths and the
  * own melds in their row (`ownMeldTile`) as `--own-meld-w`, again as what they hold changes. An empty box (a hidden board) changes nothing and the board stays watched.
  */
@@ -199,7 +210,7 @@ class SizeBoard extends AsyncDirective {
     }
 
     private write(board: HTMLElement, geometry: BoardGeometry): void {
-        const { chrome, family, lengths, strips, tracks } = geometry;
+        const { chrome, family, lengths, strips, switches, tracks } = geometry;
         this.geometry = geometry;
         const laid =
             strips === null || this.strips === null ? {} : stripLengths(strips, this.strips);
@@ -212,12 +223,11 @@ class SizeBoard extends AsyncDirective {
             },
             this.strips?.own ?? [],
         );
-        if (board.dataset.boardFamily !== family) {
-            board.dataset.boardFamily = family;
-        }
-        if (board.dataset.boardChrome !== chrome) {
-            board.dataset.boardChrome = chrome;
-        }
+        writeData(board, {
+            boardChrome: chrome,
+            boardFamily: family,
+            boardSwitches: switches,
+        });
         this.writeValues(
             board,
             new Map([

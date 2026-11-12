@@ -40,8 +40,8 @@ interface SideStripRoom {
 }
 
 /**
- * The top strip's room (px): its anchor (`top-strip-x`), its line's start, and the depth its melds have above what they keep clear of, closer where
- * they reach the top badge's lane.
+ * The top strip's room (px): its anchor (where its hand ends, its area's right edge), its line's start, and the depth
+ * its melds have above what they keep clear of, closer where they reach the top badge's lane.
  */
 interface TopStripRoom {
     readonly anchor: number;
@@ -202,41 +202,19 @@ function getTighterGaps(gap: number): readonly number[] {
 
 /**
  * Where even the face floor at the tightest gap does not fit the line (a phone box too short to reserve four kans), the
- * melds lie at the floor from the hand on at that gap, moved along past every obstacle a deeper one would meet (the
- * badge, the switches, the own row), past the line if need be: the accepted overflow of a rare dense seat on a short
- * phone, never a smaller river tile for it and never a meld over a control.
+ * melds shrink under the floor, all together, to end on the line beside the hand: a rare dense seat on a short box
+ * takes smaller meld faces, never a smaller river tile and never a meld past its line over the own row or the board's
+ * edge.
  */
-function overflowSideMelds(
+function shrunkSideMelds(
     shapes: readonly MeldShape[],
     room: SideStripRoom,
-    fit: SideFit,
+    { gap, handEnd, rw }: Omit<SideFit, "tile">,
 ): StripLayout {
-    const { handEnd, gap, rw } = fit;
-    const offsets = placeSideMelds(shapes, fit, 0);
-    let end = Math.max(...offsets.map((meld) => handEnd + gap - meld.along));
-    for (let step = 0; step <= room.obstacles.length; step += 1) {
-        const melds = placeSideMelds(shapes, fit, end);
-        let shift = 0;
-        for (const meld of melds) {
-            for (const obstacle of room.obstacles) {
-                if (
-                    meld.depth > obstacle.depth + LAYOUT_EPSILON &&
-                    meld.along < obstacle.to - LAYOUT_EPSILON &&
-                    meld.end > obstacle.from + LAYOUT_EPSILON
-                ) {
-                    shift = Math.max(shift, obstacle.to - meld.along);
-                }
-            }
-        }
-        if (shift === 0) {
-            return {
-                depth: Math.max(UPRIGHT_DEPTH * rw, ...melds.map((meld) => meld.depth)),
-                melds,
-            };
-        }
-        end += shift;
-    }
-    const melds = placeSideMelds(shapes, fit, end);
+    const line = Math.min(room.line, room.deepLine);
+    const units = sum(shapes.map((shape) => shape.units));
+    const tile = Math.max(0, (line - handEnd - shapes.length * gap) / units);
+    const melds = placeSideMelds(shapes, { gap, tile }, line);
     return {
         depth: Math.max(UPRIGHT_DEPTH * rw, ...melds.map((meld) => meld.depth)),
         melds,
@@ -268,9 +246,10 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
             return layout;
         }
     }
-    return overflowSideMelds(content.melds, rooms[seat], {
-        ...floor,
+    return shrunkSideMelds(content.melds, rooms[seat], {
         gap: Math.min(rooms.gap, MELD_GAP_TIGHT),
+        handEnd,
+        rw,
     });
 }
 

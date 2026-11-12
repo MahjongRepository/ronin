@@ -32,6 +32,7 @@
     --ow: var(--geo-ow);
     --oh: var(--geo-oh);
     --g: var(--geo-g);
+    --g-top: var(--geo-g-top);
     --c: var(--geo-c);
     --h: var(--geo-h);
     --w: var(--geo-w);
@@ -39,46 +40,46 @@
     --cx: var(--geo-cx);
     --cy: var(--geo-cy);
     --own-meld-rise: var(--geo-own-meld-rise);
-    --switches-bottom: var(--geo-switches-bottom);
     --m: var(--geo-m);
     --control-h: var(--geo-control-h);
-    --band-gap: var(--geo-band-gap);
-    --own-badge-h: var(--geo-own-badge-h);
     --latest-discard-gap: var(--geo-latest-discard-gap);
     --latest-drop-gap: var(--geo-latest-drop-gap);
     --river-along: var(--geo-river-along);
     --river-across: var(--geo-river-across);
     --menu-size: var(--geo-menu-size);
     --top-badge-top: var(--geo-top-badge-top);
-    --side-badge-top: var(--geo-side-badge-top);
+    --top-badge-right: var(--geo-top-badge-right);
+    --top-badge-left: var(--geo-top-badge-left);
+    --top-badge-w: var(--geo-top-badge-w);
+    --left-badge-top: var(--geo-left-badge-top);
     --right-badge-top: var(--geo-right-badge-top);
-    --own-start: var(--geo-own-start);
-    --own-lane: var(--geo-own-lane);
-    --own-badge-x: var(--geo-own-badge-x);
-    --furiten-x: var(--geo-furiten-x);
-    --furiten-rise: var(--geo-furiten-rise);
-    --switches-left: var(--geo-switches-left);
-    --switches-right: var(--geo-switches-right);
-    --top-strip-x: var(--geo-top-strip-x);
+    --right-badge-left: var(--geo-right-badge-left);
+    --own-badge-left: var(--geo-own-badge-left);
+    --own-badge-top: var(--geo-own-badge-top);
+    --own-badge-w: var(--geo-own-badge-w);
     --top-lane: var(--geo-top-lane);
     --actions-left: var(--geo-actions-left);
-    --actions-right: var(--geo-actions-right);
     --actions-bottom: var(--geo-actions-bottom);
+    --actions-band-w: var(--geo-actions-band-w);
+    --action-text: var(--geo-action-text);
+    --decision-h: var(--geo-decision-h);
+    --decision-gap: var(--geo-decision-gap);
     --badge-h: var(--geo-badge-h);
     --pill-h: var(--geo-pill-h);
-    --own-pill-h: var(--geo-own-pill-h);
-    --top-pill-h: var(--geo-top-pill-h);
     --counters-w: var(--geo-counters-w);
     --counters-h: var(--geo-counters-h);
     --counters-top: var(--geo-counters-top);
+    --counters-x: var(--geo-counters-x);
     --dora-w: var(--geo-dora-w);
     --timer-w: var(--geo-timer-w);
     --switch-h: var(--geo-switch-h);
     --switch-label-w: var(--geo-switch-label-w);
+    --switch-name-text: var(--geo-switch-name-text);
+    --notice-text: var(--geo-notice-text);
+    --field-notice-text: var(--geo-field-notice-text);
+    --status-text: var(--geo-status-text);
+    --dora-row-w: var(--geo-dora-row-w);
     --chip-gap: var(--geo-chip-gap);
-    --moves-h: var(--geo-moves-h);
-    --moves-w: var(--geo-moves-w);
-    --side-lane-min: var(--geo-side-lane-min);
     --action-min-w: var(--geo-action-min-w);
     --text: var(--geo-text);
     --cue-w: var(--geo-cue-w);
@@ -88,17 +89,20 @@
     --dora-radius: var(--geo-dora-radius);
     --switch-text: var(--geo-switch-text);
     --callout-cap: var(--geo-callout-cap);
-    --band-shift: var(--geo-band-shift);
     --foreground-top: var(--geo-foreground-top);
-    --strip-reserve: var(--geo-strip-reserve);
-    --side-badge-x: var(--geo-side-badge-x);
-    --left-badge-x: var(--geo-left-badge-x);
+    --left-badge-right: var(--geo-left-badge-right);
+    --left-badge-left: var(--geo-left-badge-left);
+    --right-badge-right: var(--geo-right-badge-right);
+    --own-badge-right: var(--geo-own-badge-right);
     --left-badge-w: var(--geo-left-badge-w);
     --right-badge-w: var(--geo-right-badge-w);
     --bgap: var(--geo-bgap);
     --dg: var(--geo-dg);
     --side-dg: var(--geo-side-dg);
-    --face-floor: var(--geo-face-floor);
+}
+
+.game-board:where([data-board-family]) > .board-overlay {
+    --cy: calc(var(--geo-cy) + var(--geo-table-top, 0px));
 }
 
 .game-board:not([data-board-family]) > :is(.board-layout, .board-overlay) {
@@ -108,8 +112,9 @@
 /* No stacking context here or on `.board-table`, or the notices and a replay's band end drop under the overlay. */
 .board-layout {
     position: relative;
+    top: var(--geo-table-top, 0);
     width: 100%;
-    height: 100%;
+    height: var(--geo-table-h, 100%);
     font-size: var(--text);
 }
 

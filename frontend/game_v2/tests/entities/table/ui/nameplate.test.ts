@@ -25,6 +25,7 @@ function nameplates(): BoardDisplayState["nameplates"] {
         {
             ...createInitialPlayerState({ isAiPlayer: false, name: "Dan", score: 26_000, seat: 3 }),
             aiStandIn: SEAT_CONTROL_REASON.LEFT,
+            isRiichi: true,
         },
     ];
     const table: TableState = { ...createInitialTableState(), phase: "in_round", players };
@@ -50,17 +51,21 @@ function plate(host: HTMLElement, position: SeatPosition): HTMLElement {
 }
 
 describe("Nameplates", () => {
-    it("draws a live game's plates as no buttons, reading whose turn it is, each score and why an AI player is marked", () => {
+    it("draws a live game's plates as no buttons, marking an away riichi seat by class and reading why, never a seated AI player", () => {
         const host = renderPlates();
         expect(host.querySelector("button")).toBeNull();
         expect(plate(host, "bottom").getAttribute("aria-label")).toBe(
             "Alice, East, dealer, to play, 31,000 points",
         );
         expect(plate(host, "left").getAttribute("aria-label")).toBe(
-            "Dan, North, 26,000 points, Disconnected: an AI player plays this seat",
+            "Dan, North, 26,000 points, riichi, Disconnected: an AI player plays this seat",
         );
-        expect(plate(host, "right").querySelector(".nameplate__ai--ai")).not.toBeNull();
-        expect(plate(host, "left").querySelector(".nameplate__ai--away")).not.toBeNull();
+        expect(plate(host, "left").className).toBe(
+            "nameplate nameplate--left nameplate--riichi nameplate--away",
+        );
+        expect(plate(host, "left").title).toBe("Dan — Disconnected: an AI player plays this seat");
+        expect(plate(host, "right").className).toBe("nameplate nameplate--right");
+        expect(plate(host, "right").getAttribute("aria-label")).toBe("Bot, South, 25,000 points");
     });
 
     it("views the table from a plate's seat where a press views from one", () => {

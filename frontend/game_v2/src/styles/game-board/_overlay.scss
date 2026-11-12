@@ -12,6 +12,8 @@ $overlay-unit-max: 0.8px;
 $overlay-hand-units: 1000;
 $overlay-height-units: 640;
 $overlay-chrome: 3rem;
+$short-result-width: 46rem;
+$one-line-scores: 40rem;
 
 /* A length where it is set, so a tile in a container inside the overlay takes the board's unit, not its own. */
 @property --board-unit {
@@ -93,7 +95,10 @@ $overlay-chrome: 3rem;
     container: result-foot / inline-size;
     display: flex;
     flex-direction: column;
-    width: min(var(--panel-room), #{$overlay-hand-units} * var(--board-unit) + #{$overlay-chrome});
+    width: min(
+        var(--panel-room),
+        max(#{$two-column-result}, #{$overlay-hand-units} * var(--board-unit)) + #{$overlay-chrome}
+    );
     scrollbar-gutter: auto;
 }
 
@@ -328,5 +333,111 @@ $overlay-chrome: 3rem;
 
     .board-overlay .round-end-result__limit {
         font-size: 0.9rem;
+    }
+}
+
+@container game-board (height < 290px) {
+    .board-overlay__panel:has(> .round-end-result) {
+        width: min(var(--panel-room), #{$short-result-width});
+    }
+
+    .board-overlay .round-end-result {
+        row-gap: 0.3rem;
+    }
+
+    .board-overlay .round-end-result--win,
+    .board-overlay .round-end-result--win:has(> .round-end-result__controls) {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        grid-template-areas:
+            "head head head"
+            "hand hand hand"
+            "yaku value dora"
+            "scores scores scores";
+    }
+
+    .board-overlay .round-end-result--win:has(> .round-end-result__controls) {
+        grid-template-areas:
+            "head head head"
+            "hand hand hand"
+            "yaku value dora"
+            "scores scores controls";
+    }
+
+    .board-overlay .round-end-result__page-btn {
+        min-width: 2rem;
+        min-height: 2rem;
+    }
+
+    .board-overlay__panel > .round-end-result > .round-end-result__value {
+        min-height: 0;
+        max-width: 12rem;
+    }
+
+    .board-overlay .round-end-result__yaku {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 12rem));
+        align-content: start;
+        column-gap: 1rem;
+        max-width: none;
+
+        > li {
+            padding: 0;
+            line-height: 18px;
+        }
+
+        > li > :first-child {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        > li:not(.round-end-result__yaku-dora) + .round-end-result__yaku-dora {
+            margin-top: 0;
+        }
+    }
+
+    .board-overlay .round-end-result__indicators {
+        row-gap: 0.15rem;
+    }
+
+    .board-overlay .round-end-result__notes {
+        flex-basis: auto;
+    }
+
+    @container result-foot (width >= #{$one-line-scores}) {
+        .board-overlay .round-end-result {
+            @include score-name-line;
+
+            .round-end-result__scores {
+                grid-template-rows: repeat(3, auto);
+                column-gap: 0.75rem;
+            }
+
+            .round-end-result__score {
+                grid-row: span 3;
+                grid-template-columns: auto auto minmax(0, 1fr);
+            }
+
+            .round-end-result__score .round-end-result__delta {
+                grid-row: 3;
+                grid-column: 1;
+                font-size: 0.85rem;
+            }
+
+            .round-end-result__score .round-end-result__score-wind {
+                grid-row: 3;
+                grid-column: 2;
+                align-self: baseline;
+                line-height: inherit;
+            }
+
+            .round-end-result__score .round-end-result__score-after {
+                grid-row: 3;
+                grid-column: 3;
+                align-self: baseline;
+                line-height: inherit;
+            }
+        }
     }
 }

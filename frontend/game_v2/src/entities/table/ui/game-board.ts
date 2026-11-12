@@ -163,9 +163,8 @@ function seatPlayer(
     return state?.players[SEAT_POSITIONS.indexOf(seat)] ?? null;
 }
 
-/** The own row's badge and the hand's input, which only the bottom seat's strip holds. */
+/** The hand's input, which only the bottom seat's strip holds. */
 interface OwnRow {
-    readonly head: TemplateResult | "";
     readonly input?: LocalHandInput;
 }
 
@@ -181,7 +180,7 @@ function Strip(
 ): TemplateResult {
     if (seat === "bottom") {
         return html`<div class="board-local">
-            ${own?.head ?? ""}${HandArea(seat, player, own?.input)}${MeldsArea(seat, player)}
+            ${HandArea(seat, player, own?.input)}${MeldsArea(seat, player)}
         </div>`;
     }
     return html`<div class="board-strip board-strip--${seat}">
@@ -366,12 +365,7 @@ function CalloutAnnouncements(
     }</div>`;
 }
 
-/** The own badge over the hand's left end, and the furiten mark beside it while the seat is furiten. */
-function OwnHead(plate: TemplateResult, furiten: boolean): TemplateResult {
-    return html`<div class="board-own-head">${plate}${furiten ? FuritenMark() : ""}</div>`;
-}
-
-/** The furiten mark, a small label beside the own badge: a dot and the word. */
+/** The furiten mark, a small label in its own slot over the play switches: a dot and the word. */
 function FuritenMark(): TemplateResult {
     return html`<span class="board-furiten" title=${t("game.board.furiten_title")}
         ><span class="board-furiten__dot" aria-hidden="true"></span
@@ -387,10 +381,10 @@ function EmptyCenterArea(): TemplateResult {
 
 /**
  * The board, sized from its own box (docs/game-client-look.md, Composition): the core of the centre and the four
- * rivers in their pinwheel, the other seats' strips and badges in their zones toward the edges, the pooled counters in
- * the top-left corner and the page's own controls (`menu`) in the top-right, and over the foreground band the bottom
- * seat's badge, hand and melds with the decision's controls and the play switches, when given, by the hand; a board
- * the viewer plays (`localHand`) also marks its badge furiten while it is. On a replay, pressing a badge, or another seat's
+ * rivers in their pinwheel, every seat's badge in the core's corner past its river's first row, the other seats' strips
+ * toward the edges, the pooled counters in the top-left corner and the page's own controls (`menu`) in the top-right,
+ * and over the foreground band the bottom seat's hand and melds with the decision's controls and the play switches,
+ * when given, beside it; a board the viewer plays (`localHand`) also shows its furiten mark while it is. On a replay, pressing a badge, or another seat's
  * score, views from its seat. Calls show over their seats' rivers for a
  * moment, clear of the latest discard, and a win's call shows before the panel over the board does.
  */
@@ -436,22 +430,15 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     ${state ? CenterInfo(state.center, state.nameplates, onView) : EmptyCenterArea()}
                     ${STRIP_SEATS.map((seat) => Strip(seat, seatPlayer(state, seat)))}
                     ${state ? DoraDisplay(state.center) : ""}
-                    ${plates ? html`${plates.right}${plates.top}${plates.left}` : ""}
+                    ${plates ? html`${plates.right}${plates.top}${plates.left}${plates.bottom}` : ""}
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}
                     ${bandEnd ? html`<div class="board-actions" data-area="actions">${bandEnd}</div>` : ""}
                     ${props.switches ?? ""}
+                    ${props.localHand !== undefined && props.furiten === true ? FuritenMark() : ""}
                     ${props.notices || props.replay ? BoardNotices(props.notices ?? [], props.replay?.status) : ""}
                     ${props.callouts ? Callouts(props.callouts) : ""}
                 </div>
-                ${Strip("bottom", bottom, {
-                    head: plates
-                        ? OwnHead(
-                              plates.bottom,
-                              props.localHand !== undefined && props.furiten === true,
-                          )
-                        : "",
-                    ...(props.localHand ? { input: props.localHand } : {}),
-                })}
+                ${Strip("bottom", bottom, props.localHand ? { input: props.localHand } : {})}
             </div>
             ${props.notices ? NoticeAnnouncements(props.notices) : ""}
             ${CalloutAnnouncements(props.callouts, state)}

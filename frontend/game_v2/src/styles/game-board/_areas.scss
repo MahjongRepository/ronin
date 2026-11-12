@@ -53,7 +53,7 @@ $max-melds: 4;
         --frame-turn: 180deg;
 
         left: calc(var(--cx) + var(--hx) - var(--river-along));
-        top: calc(var(--cy) - var(--h) - var(--g) - var(--river-across));
+        top: calc(var(--cy) - var(--h) - var(--g-top) - var(--river-across));
     }
 
     &--left {

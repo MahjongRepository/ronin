@@ -31,7 +31,7 @@ $overlay-hold-ms: 1500ms;
 
     &--top {
         left: calc(var(--cx) + var(--hx) - var(--spot-along) * var(--rw));
-        top: calc(var(--cy) - var(--h) - var(--g) - var(--spot-across) * var(--rh));
+        top: calc(var(--cy) - var(--h) - var(--g-top) - var(--spot-across) * var(--rh));
     }
 
     /* A side chip stands from its river's outer edge inward. */

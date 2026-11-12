@@ -519,11 +519,15 @@ $result-column-gap: 1rem;
     white-space: nowrap;
     color: var(--ronin-text);
     font-weight: 600;
+}
 
-    &::after {
-        content: " han";
-        font-weight: 400;
-        color: var(--ronin-text-secondary);
+.round-end-result__han-unit {
+    margin-inline-start: 0.25em;
+    font-weight: 400;
+    color: var(--ronin-text-secondary);
+
+    &:lang(ja) {
+        margin-inline-start: 0;
     }
 }
 

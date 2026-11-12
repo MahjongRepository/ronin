@@ -18,20 +18,25 @@ $radius: 6px;
     }
 }
 
-/* The play switches' slot: the band's row on its side away from the decisions, which never reach into it. A strip of
-   square chips, a letter each, and the button showing their names over them. */
 .play-switches {
     position: relative;
     grid-area: switches;
     place-self: end start;
     z-index: layer(controls);
     display: flex;
+    flex-direction: column;
     align-items: flex-end;
     gap: var(--chip-gap);
     font-size: var(--switch-text);
 
     @include phone-board {
+        display: grid;
+        grid-template-columns: repeat(2, var(--switch-h));
         font-size: 16px;
+    }
+
+    &:has(.play-switches__names) {
+        z-index: layer(motion);
     }
 }
 
@@ -114,7 +119,6 @@ $radius: 6px;
     }
 }
 
-/* The letters' names, over the strip from its start, until the player hides them. */
 .play-switches__names {
     position: absolute;
     left: 0;
@@ -150,23 +154,21 @@ $radius: 6px;
     text-align: center;
 }
 
-/* The forms a board's family and chrome choose, over the strip above at its own specificity. */
 .play-switches {
-    @include labelled-switches-board {
+    @include named-switches-board {
         .play-switches__names-toggle,
         .play-switches__names {
             display: none;
         }
 
-        @include named-chips(calc(var(--switch-text) * 0.64));
+        @include named-chips(var(--switch-name-text));
 
         .play-switch {
             width: var(--switch-label-w);
         }
     }
 
-    @include phone-board {
-        flex-direction: column;
+    @include letter-switches-board {
         gap: 0;
 
         :is(.play-switch, .play-switches__names-toggle) {
@@ -183,10 +185,30 @@ $radius: 6px;
             border-bottom-width: 1px;
             border-radius: 0 0 $radius $radius;
         }
+    }
+}
 
-        .play-switches__names {
-            bottom: 0;
-            left: calc(100% + #{$gap});
+.play-switches {
+    @include phone-board {
+        :is(.play-switch, .play-switches__names-toggle) {
+            border-width: 1px;
+            border-radius: 0;
+        }
+
+        .play-switch:first-child {
+            border-radius: $radius 0 0;
+        }
+
+        .play-switch:nth-child(2) {
+            border-radius: 0 $radius 0 0;
+        }
+
+        .play-switch:nth-child(3) {
+            border-radius: 0 0 0 $radius;
+        }
+
+        .play-switches__names-toggle {
+            border-radius: 0 0 $radius;
         }
     }
 }

@@ -11,7 +11,13 @@ import {
     describeSize,
     intersects,
 } from "../boxes.ts";
-import { boardCase, decisionCase, expectAnnounced, expectTexts } from "../cases.ts";
+import {
+    SHOWN_RESULT_COUNTDOWN,
+    boardCase,
+    decisionCase,
+    expectAnnounced,
+    expectTexts,
+} from "../cases.ts";
 import {
     type BoardCase,
     type BoardRun,
@@ -27,9 +33,9 @@ import { checkVisible } from "../page-checks.ts";
 import { MIN_TEXT_PX } from "../text.ts";
 import {
     FLOOR,
+    LAPTOP_770,
     MID_DESKTOP,
     NOTCH_PHONE,
-    SHORTEST_REGULAR_DESKTOP,
     SMALLEST_WINDOW,
     SMALL_WINDOWS,
     UPRIGHT_PHONE,
@@ -235,7 +241,7 @@ const PAGES: readonly PageCase[] = [
             ".seating__result--positive",
             ".seating__seat--viewer",
         ]),
-        at: [...WORST_CASES, NOTCH_PHONE, SHORTEST_REGULAR_DESKTOP, ...SMALL_WINDOWS],
+        at: [...WORST_CASES, NOTCH_PHONE, LAPTOP_770, ...SMALL_WINDOWS],
     },
     {
         kind: "board",
@@ -275,20 +281,17 @@ const PAGES: readonly PageCase[] = [
             ],
         },
     },
-    decisionCase("round_end", [".round-end-result__confirm", ".round-end-result__countdown"]),
+    decisionCase("round_end", [".round-end-result__confirm", SHOWN_RESULT_COUNTDOWN]),
     {
         ...decisionCase("double_ron_first", [
             ".round-end-result__pager",
             ".round-end-result__confirm",
-            ".round-end-result__countdown",
+            SHOWN_RESULT_COUNTDOWN,
         ]),
         at: [FLOOR, MID_DESKTOP, ...SMALL_WINDOWS],
     },
     {
-        ...decisionCase("double_ron_last", [
-            ".round-end-result__confirm",
-            ".round-end-result__countdown",
-        ]),
+        ...decisionCase("double_ron_last", [".round-end-result__confirm", SHOWN_RESULT_COUNTDOWN]),
         prepare: (page) => expectTexts(page, { ".board-overlay .round-end-result__page": "2 / 2" }),
     },
     decisionCase("waiting", [".round-end-result__waiting"]),
@@ -415,7 +418,7 @@ function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
                 })),
                 kept: [
                     ...shownPanel.querySelectorAll(
-                        ".round-end-result__confirm, .round-end-result__countdown",
+                        ".round-end-result__confirm:not(.round-end-result__ghost), .round-end-result__countdown:not(.round-end-result__ghost *)",
                     ),
                 ].map((element) => ({ box: box(element), name: element.className.split(" ")[0] })),
                 pager: [...shownPanel.querySelectorAll(".round-end-result__page-btn")].map(box),

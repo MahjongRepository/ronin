@@ -6,8 +6,6 @@
 $tile-w: 60;
 $tile-h: 80;
 $drawn-gap: 0.35;
-
-/* The decisions' gap per tier; a container query takes no `var()`, so the geometry's `DECISION_GAP` mirrors it. */
 $decision-gap: 12px;
 $small-decision-gap: 6px;
 
@@ -47,14 +45,12 @@ $layers: (
 }
 
 $phone-board: '[data-board-family="phone"]';
-$desktop-board: ':is([data-board-family="desktop"], [data-board-family="short-desktop"])';
-$short-desktop-board: '[data-board-family="short-desktop"]';
-$shared-corners-board: ':is([data-board-family="phone"], [data-board-family="short-desktop"])';
-$narrow-desktop-board: '[data-board-family="desktop"][data-board-chrome="small"]';
+$desktop-board: '[data-board-family="desktop"]';
+$toast-board: '[data-board-family="desktop"]:not(:has(> .board-overlay))';
 $small-chrome: '[data-board-chrome="small"]';
 $large-chrome: '[data-board-chrome="large"]';
-$desktop-chrome: ':is([data-board-chrome="regular"], [data-board-chrome="large"])';
-$labelled-switches-board: "#{$desktop-board}#{$desktop-chrome}";
+$named-switches-board: '[data-board-switches="names"]';
+$letter-switches-board: '[data-board-switches="letters"]';
 
 @function board-scoped($parent, $condition) {
     $scoped: ();
@@ -106,23 +102,20 @@ $labelled-switches-board: "#{$desktop-board}#{$desktop-chrome}";
     }
 }
 
-/* A short desktop (a laptop's window) shares the band's lower corners with the core, as a phone does. */
-@mixin short-desktop-board {
-    @include board-where($short-desktop-board) {
+@mixin toast-board {
+    @include board-where($toast-board) {
         @content;
     }
 }
 
-/* A phone and a short desktop, whose foreground band shares the core's lower corners. */
-@mixin shared-corners-board {
-    @include board-where($shared-corners-board) {
+@mixin named-switches-board {
+    @include board-where($named-switches-board) {
         @content;
     }
 }
 
-/* A landscape desktop with room for the play switches' whole names, the tiers `switchLabelW` sizes. */
-@mixin labelled-switches-board {
-    @include board-where($labelled-switches-board) {
+@mixin letter-switches-board {
+    @include board-where($letter-switches-board) {
         @content;
     }
 }

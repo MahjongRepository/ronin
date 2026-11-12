@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
-    BAND_ROW_EXTRA,
-    DESKTOP_CHROME,
     FACE_FLOOR,
     FULL_HAND,
     LATEST_DISCARD_GAP,
     SIDEWAYS_UNITS,
+    SIDE_LANE_GAP,
     TILE_EDGE_SHARE,
     UPRIGHT_DEPTH,
 } from "@/entities/table/lib/board-constants";
@@ -19,12 +18,11 @@ import {
     boardGeometry,
     shellTracks,
 } from "@/entities/table/lib/board-geometry";
-import { stripLayout } from "@/entities/table/lib/strip-layout";
+import { type StripRooms, type StripSeat, stripLayout } from "@/entities/table/lib/strip-layout";
 import { RIVER_ROW_SIZE } from "@/entities/tile";
 
 /** The sizes pinned, in the order each case lists them. */
-const SIZES = ["rw", "ow", "c", "w", "core-top"] as const;
-const SHORT_DESKTOP_SIZES = ["rw", "w", "core-top"] as const;
+const SIZES = ["rw", "ow", "core-top", "col-left"] as const;
 
 const NO_INSETS: BoardEdges = { bottom: 0, left: 0, right: 0, top: 0 };
 const LIVE_SLOTS: BoardSlots = { band: "play" };
@@ -55,6 +53,18 @@ function windowGeometry(
     return boardGeometry({ appliedEdges, box, safeInsets: insets, slots: LIVE_SLOTS });
 }
 
+/** Whether a desktop's own tile is 1.2 to 1.45 river tiles, floored to a pixel. */
+function ownTileByRiver(lengths: Readonly<Record<string, number>>): boolean {
+    const [rw = 0, ow = 0] = [lengths["rw"], lengths["ow"]];
+    return ow >= 1.2 * rw && ow <= Math.floor(1.45 * rw);
+}
+
+/** A desktop's own row's room: the table between its side strips' lanes (px). */
+function rowBetweenLanes(lengths: Readonly<Record<string, number>>): number {
+    const lane = (lengths["strip-depth"] ?? 0) + SIDE_LANE_GAP;
+    return (lengths["col-right"] ?? 0) - (lengths["col-left"] ?? 0) - 2 * lane;
+}
+
 /** Each named line of a grid template at its offset from the grid's start (px). */
 function trackLines(template: string): Map<string, number> {
     const lines = new Map<string, number>();
@@ -66,6 +76,11 @@ function trackLines(template: string): Map<string, number> {
         offset += Number(groups?.size ?? 0);
     }
     return lines;
+}
+
+/** Each length to a tenth of a pixel, as `slotAreas` rounds an area's lines. */
+function tenths(edges: readonly number[]): number[] {
+    return edges.map((edge) => Math.round(edge * 10) / 10);
 }
 
 /** Each slot's area on the shell's tracks: its start and end lines across, then down, to a tenth of a pixel. */
@@ -88,66 +103,44 @@ function slotAreas({ columns, rows }: BoardTracks): Record<string, number[]> {
     );
 }
 
-describe("boardGeometry centre", () => {
-    it.each([
-        { height: 800, width: 800 },
-        { height: 801, width: 800 },
-        { height: 1601, width: 1600 },
-    ])("fits a full six-tile row along every centre edge at $width x $height", (box) => {
-        const { lengths } = windowGeometry(box);
-        expect(lengths["c"]).toBeGreaterThanOrEqual(RIVER_ROW_SIZE * (lengths["rw"] ?? Number.NaN));
-        expect(lengths["w"]).toBe(lengths["c"]);
-    });
-
-    it.each([
-        { height: 390, width: 844 },
-        { height: 430, width: 932 },
-    ])(
-        "keeps a $width x $height phone's centre six river tiles and 100px wide, and 68px tall, at least",
-        (box) => {
-            const { lengths } = windowGeometry(box);
-            expect(lengths["w"]).toBeGreaterThanOrEqual(
-                Math.max(RIVER_ROW_SIZE * (lengths["rw"] ?? Number.NaN), 100),
-            );
-            expect(lengths["c"]).toBeGreaterThanOrEqual(68);
-        },
-    );
-});
-
 describe("boardGeometry chrome", () => {
     it.each([
-        { badgeH: 54, height: 770, text: 17, width: 1440 },
-        { badgeH: 54 + 18 * (3 / 11), height: 900, text: 17 + 7 * (3 / 11), width: 1440 },
-        { badgeH: 63, height: 1000, text: 20.5, width: 1727 },
-        { badgeH: 72, height: 1440, text: 24, width: 2560 },
+        { height: 770, pillH: 30, text: 17, width: 1440 },
+        { height: 900, pillH: 30 + 12 * (3 / 11), text: 17 + 7 * (3 / 11), width: 1440 },
+        { height: 1000, pillH: 36, text: 20.5, width: 1727 },
+        { height: 1440, pillH: 42 * (80 / 68), text: 24 * (80 / 68), width: 2560 },
     ])(
-        "scales a $width x $height window's chrome from the regular record to the large one with its padded box, the top badge's lane a bot's name wide",
-        ({ badgeH, height, text, width }) => {
+        "scales a $width x $height window's chrome from the regular record to the large one with its padded box, and past it with the river tile, one plate pill, the top plate a bot's name wide",
+        ({ height, pillH, text, width }) => {
             const { lengths } = windowGeometry({ height, width }, 10);
 
-            expect(lengths["badge-h"]).toBeCloseTo(badgeH, 6);
+            expect(lengths["pill-h"]).toBeCloseTo(pillH, 6);
             expect(lengths["text"]).toBeCloseTo(text, 6);
-            expect(lengths["top-lane"]).toBeGreaterThanOrEqual(9.4 * text - 0.001);
+            expect(lengths["top-badge-w"]).toBeGreaterThanOrEqual(9.4 * text - 0.001);
         },
     );
 });
 
 describe("boardGeometry in a phone's browser", () => {
-    it.each([LIVE_SLOTS, REPLAY_SLOTS])(
-        "lets only a replay's moves meet the bottom river where they leave a phone box no solve, never where the box has one ($band)",
-        (slots) => {
-            function tiles(width: number, height: number): Record<"ow" | "rw", number | undefined> {
-                const { lengths } = boardGeometry({
+    it.each([
+        { height: 360, width: 592 },
+        { height: 375, width: 667 },
+    ])(
+        "sizes a $width x $height phone box's tiles and strips alike for a live board and a replay",
+        (box) => {
+            function placed(slots: BoardSlots): Pick<BoardGeometry, "strips"> & {
+                readonly tiles: Record<"ow" | "rw", number | undefined>;
+            } {
+                const { lengths, strips } = boardGeometry({
                     appliedEdges: NO_INSETS,
-                    box: { height, width },
+                    box,
                     safeInsets: NO_INSETS,
                     slots,
                 });
-                return { ow: lengths["ow"], rw: lengths["rw"] };
+                return { strips, tiles: { ow: lengths["ow"], rw: lengths["rw"] } };
             }
 
-            expect(tiles(592, 360)).toEqual({ ow: 36, rw: 13 });
-            expect(tiles(620, 360)).toEqual({ ow: 36, rw: 13 });
+            expect(placed(REPLAY_SLOTS)).toEqual(placed(LIVE_SLOTS));
         },
     );
 
@@ -190,8 +183,8 @@ describe("boardGeometry in a phone's browser", () => {
             board: { height: 390, width: 750 },
             height: 390,
             insets: { bottom: 21, left: 47, right: 47, top: 0 },
-            ow: 44,
-            rw: 20,
+            ow: 47,
+            rw: 21,
             width: 844,
         },
     ])(
@@ -234,7 +227,7 @@ describe("boardGeometry in a phone's browser", () => {
             height: 251,
             insets: { bottom: 0, left: 47, right: 47, top: 0 },
             ow: 32,
-            rw: 9,
+            rw: 10,
             width: 844,
         },
     ])(
@@ -245,9 +238,40 @@ describe("boardGeometry in a phone's browser", () => {
             expect(family).toBe("phone");
             expect(lengths).toMatchObject({ ow, rw });
             expect(lengths["side-reach"]).toBeLessThanOrEqual(
-                (lengths["hand-top"] ?? 0) - 4 - (lengths["m"] ?? 0),
+                (lengths["switches-bottom"] ?? 0) - (lengths["m"] ?? 0),
             );
             expect(lengths["c"]).toBeGreaterThanOrEqual(68);
+        },
+    );
+
+    it.each([
+        { height: 251, insets: { bottom: 0, left: 47, right: 47, top: 0 }, width: 844 },
+        { height: 275, insets: { bottom: 0, left: 44, right: 44, top: 0 }, width: 896 },
+    ])(
+        "stands a $width x $height box's side lanes beside its own row where above it they would cost the river tile or not hold three kans at the face floor, both lines and the bars down to the board's foot",
+        ({ height, insets, width }) => {
+            const { box, lengths, strips, tracks } = windowGeometry({ height, width }, 0, insets);
+            function length(name: string): number {
+                return lengths[name] ?? Number.NaN;
+            }
+            const areas = slotAreas(tracks);
+            const foot = box.height - length("m");
+
+            expect({
+                actionsFoot: areas["actions"]?.[3],
+                leftLaneShortOfRow: areas["strip-left"]?.[2],
+                leftLine: strips?.left.line,
+                rightLaneShortOfRow: areas["strip-right"]?.[0],
+                rightLine: strips?.right.line,
+                switchesFoot: areas["switches"]?.[3],
+            }).toEqual({
+                actionsFoot: tenths([foot - 2])[0],
+                leftLaneShortOfRow: tenths([length("own-start") - 6])[0],
+                leftLine: foot - length("m"),
+                rightLaneShortOfRow: tenths([length("own-start") + length("own-row-w") + 6])[0],
+                rightLine: foot - length("m"),
+                switchesFoot: tenths([foot])[0],
+            });
         },
     );
 
@@ -255,14 +279,362 @@ describe("boardGeometry in a phone's browser", () => {
         { height: 275, insets: { bottom: 0, left: 44, right: 44, top: 0 }, width: 896 },
         { height: 331, insets: NO_INSETS, width: 891 },
     ])(
-        "keeps a bot's whole name, its AI mark and riichi stick on a $width x $height box's top badge",
+        "keeps a bot's whole name on a $width x $height box's top plate, its lane as wide as a 667 x 375 phone's at least",
         ({ height, insets, width }) => {
             const { lengths } = windowGeometry({ height, width }, 0, insets);
+            const phone = windowGeometry({ height: 375, width: 667 }).lengths;
 
-            expect(lengths["top-lane"]).toBeGreaterThanOrEqual(154);
+            expect(lengths["top-lane"]).toBeGreaterThanOrEqual(phone["top-lane"] ?? Infinity);
         },
     );
 });
+
+/** The replay's board in a live board's box. */
+function replayOf({ box }: BoardGeometry): BoardGeometry {
+    return boardGeometry({
+        appliedEdges: { bottom: 10, left: 10, right: 10, top: 10 },
+        box,
+        safeInsets: NO_INSETS,
+        slots: REPLAY_SLOTS,
+    });
+}
+
+/** Whether two boxes, each its left, top, right and bottom, share no area. */
+function apart(first: readonly number[], second: readonly number[]): boolean {
+    const [left = 0, top = 0, right = 0, bottom = 0] = first;
+    const [otherLeft = 0, otherTop = 0, otherRight = 0, otherBottom = 0] = second;
+    return right <= otherLeft || otherRight <= left || bottom <= otherTop || otherBottom <= top;
+}
+
+/**
+ * Whether a desktop's notices stand as toasts at 14px or more in the core's bottom-left corner: past the left strip's
+ * lane, short of the bottom river's first tile, under the left river's longest reach (its sixth tile past a riichi
+ * tile, the latest discard's gap and a tile's edge) and the left plate's pill, over the own row's melds' rise, a clamped
+ * toast tall at least.
+ */
+function toastsPlace(geometry: BoardGeometry): boolean {
+    const { lengths, tracks } = geometry;
+    function length(name: string): number {
+        return lengths[name] ?? Number.NaN;
+    }
+    const toasts = slotAreas(tracks)["toasts"] ?? [];
+    const [left = 0, top = 0, right = 0, bottom = 0] = toasts;
+    const { left: plate } = desktopPills(geometry);
+    const rw = length("rw");
+    return (
+        length("notice-text") >= 14 &&
+        apart(toasts, [plate.left, plate.top, plate.right, plate.bottom]) &&
+        left >= length("col-left") + length("strip-depth") + SIDE_LANE_GAP &&
+        right <= length("cx") - length("hx") &&
+        top >=
+            length("cy") -
+                length("h") +
+                5 * rw +
+                length("rh") +
+                length("latest-drop-gap") +
+                TILE_EDGE_SHARE * rw &&
+        bottom <= length("hand-top") - length("own-meld-rise") &&
+        bottom - top >= 40
+    );
+}
+
+/**
+ * Where a desktop's decisions' corner stands at the core's bottom-right, clear of a bottom river of `reserve` discards
+ * (two rows of six, the rest run on in its third row, one sideways, and the latest discard's gap), the right river's
+ * first tile and its edge, the right strip's lane, the own row's melds' rise and the own plate's pill; its controls at
+ * least 40px tall with labels at least 14px.
+ */
+function cornerPlace(geometry: BoardGeometry, reserve: number): Record<string, boolean> {
+    const { lengths, tracks } = geometry;
+    function length(name: string): number {
+        return lengths[name] ?? Number.NaN;
+    }
+    const actions = slotAreas(tracks)["actions"] ?? [];
+    const [left = 0, top = 0, right = 0, bottom = 0] = actions;
+    const { own } = desktopPills(geometry);
+    const rw = length("rw");
+    const thirdRow = reserve - 2 * RIVER_ROW_SIZE;
+    return {
+        clear:
+            apart(actions, [own.left, own.top, own.right, own.bottom]) &&
+            left >=
+                length("cx") -
+                    length("hx") +
+                    (thirdRow - 1) * rw +
+                    length("rh") +
+                    LATEST_DISCARD_GAP &&
+            right <= length("col-right") - length("strip-depth") - SIDE_LANE_GAP &&
+            top >= length("cy") + length("h") + TILE_EDGE_SHARE * rw &&
+            bottom <= length("hand-top") - length("own-meld-rise") &&
+            right - left > 0 &&
+            bottom - top >= length("decision-h"),
+        controls: length("decision-h") >= 40 && length("action-text") >= 14,
+    };
+}
+
+/** Whether a strip's line holds four open kans and four added kans beside its hand's last two tiles, no deeper than its lane. */
+function holdsFourKans(rooms: StripRooms, seat: StripSeat, depth: number): boolean {
+    const line = seat === "top" ? rooms.top.anchor - rooms.top.start : rooms[seat].line;
+    const openKan = { depth: UPRIGHT_DEPTH, units: 3 + SIDEWAYS_UNITS };
+    const addedKan = { depth: 2, units: 2 + SIDEWAYS_UNITS };
+    return [openKan, addedKan].every((kan) => {
+        const laid = stripLayout(
+            seat,
+            { drawn: true, hand: 2, melds: [kan, kan, kan, kan] },
+            rooms,
+        );
+        return (
+            laid.depth <= depth + 0.001 &&
+            laid.melds.every(
+                ({ along, tile }) => along >= 0 && along + kan.units * tile <= line + 0.001,
+            )
+        );
+    });
+}
+
+/**
+ * Whether a desktop keeps every opponent's tile off its own row's span: the side strips' lanes at the centred table's
+ * edges, an added kan's stack deep, outside the own row, which holds a full hand; the top strip between them; each side
+ * line centred on the core where the table's height allows, or starting under the counters that stand over the left
+ * lane and ending over the own plate's pill; and four kans on every line.
+ */
+function ownRowPlace({ box, lengths, strips, tracks }: BoardGeometry): Record<string, unknown> {
+    function length(name: string): number {
+        return lengths[name] ?? Number.NaN;
+    }
+    const {
+        hand = [],
+        "strip-left": left = [],
+        "strip-right": right = [],
+        "strip-top": top = [],
+    } = slotAreas(tracks);
+    const tableHeight = lengths["table-h"] ?? box.height;
+    const ownPill = length("own-badge-top") + (length("badge-h") - length("pill-h")) / 2;
+    function centred([, lineTop = 0, , lineBottom = 0]: readonly number[]): boolean {
+        const underCounters =
+            lineTop >= length("counters-top") + length("counters-h") + 6 - 0.1 &&
+            lineBottom <= ownPill + 0.1;
+        return (
+            Math.abs((lineTop + lineBottom) / 2 - length("cy")) <= 0.1 ||
+            lineTop === 0 ||
+            lineBottom === tableHeight ||
+            underCounters
+        );
+    }
+    const [leftInner = 0, rightInner = 0] = [left[2], right[0]];
+    return {
+        barsEqual: Math.abs(box.width - length("col-right") - length("col-left")) <= 0.001,
+        kansOnLines: (["left", "right", "top"] as const).map(
+            (seat) => strips !== null && holdsFourKans(strips, seat, length("strip-depth")),
+        ),
+        lanesAtEdges:
+            Math.abs((left[0] ?? 0) - length("col-left")) <= 0.1 &&
+            Math.abs((right[2] ?? 0) - length("col-right")) <= 0.1,
+        lanesDeep:
+            Math.min(leftInner - (left[0] ?? 0), (right[2] ?? 0) - rightInner) >= 2 * length("rw"),
+        linesCentred: centred(left) && centred(right),
+        rowBetweenLanes: (hand[0] ?? 0) >= leftInner && (hand[2] ?? Infinity) <= rightInner,
+        rowHoldsHand: (hand[2] ?? 0) - (hand[0] ?? 0) >= FULL_HAND * length("ow") - 0.1,
+        topBetweenLanes: (top[0] ?? 0) >= leftInner && (top[2] ?? Infinity) <= rightInner,
+    };
+}
+
+/**
+ * Whether a desktop's plates and counters stand where they must: each pill (its box less the tap box's padding) beside
+ * its owner's tiles, a gap off every reach a river lays there (a riichi tile, the latest discard's gap, a tile's edge)
+ * and off the side lanes: the top seat's right of its hand's start, centred on that row (or raised to clear the right
+ * strip's line), short of the right lane or over it where the right strip's line starts below it, seven ems of its text wide at least; the left seat's against
+ * the left lane, above its river's start under the top strip's melds, short of the top river's first two rows (under
+ * its river's reserve where the corner is too short); the right seat's against the right lane, above its river's
+ * reserved top, past the top river; the own seat's left of the own row's first tile, its foot level with the own
+ * tiles', under the left strip's line, ten characters wide; the counters left-aligned at the left bar's top, in the bar
+ * or over the left lane above the left strip's line, their dora tiles 0.55 river tiles wide at least.
+ */
+type PillBox = Readonly<Record<"bottom" | "left" | "right" | "top", number>>;
+
+/** A desktop's plates' pills (each plate's box less the tap box's padding), by seat. */
+function desktopPills({
+    box,
+    lengths,
+}: BoardGeometry): Readonly<Record<StripSeat | "own", PillBox>> {
+    function length(name: string): number {
+        return lengths[name] ?? Number.NaN;
+    }
+    function pill(top: string, left: number, width: string): PillBox {
+        const pillTop = length(top) + (length("badge-h") - length("pill-h")) / 2;
+        return {
+            bottom: pillTop + length("pill-h"),
+            left,
+            right: left + length(width),
+            top: pillTop,
+        };
+    }
+    function fromRight(right: string, width: string): number {
+        return box.width - length(right) - length(width);
+    }
+    return {
+        left: pill("left-badge-top", length("left-badge-left"), "left-badge-w"),
+        own: pill("own-badge-top", fromRight("own-badge-right", "own-badge-w"), "own-badge-w"),
+        right: pill(
+            "right-badge-top",
+            fromRight("right-badge-right", "right-badge-w"),
+            "right-badge-w",
+        ),
+        top: pill("top-badge-top", length("top-badge-left"), "top-badge-w"),
+    };
+}
+
+function desktopPlaces(geometry: BoardGeometry): Record<string, boolean> {
+    const { lengths, tracks } = geometry;
+    function length(name: string): number {
+        return lengths[name] ?? Number.NaN;
+    }
+    const {
+        hand = [],
+        "strip-left": stripLeft = [],
+        "strip-right": stripRight = [],
+        "strip-top": stripTop = [],
+    } = slotAreas(tracks);
+    const [rw, rh, edge] = [length("rw"), length("rh"), TILE_EDGE_SHARE * length("rw")];
+    const [laneLeft, laneRight, coreRight] = [
+        length("col-left") + length("strip-depth") + SIDE_LANE_GAP,
+        length("col-right") - length("strip-depth") - SIDE_LANE_GAP,
+        length("cx") + length("hx"),
+    ];
+    const { left, own, right, top } = desktopPills(geometry);
+    const pad = (length("badge-h") - length("pill-h")) / 2;
+    const countersRight = length("counters-x") + length("counters-w");
+    const countersBottom = length("counters-top") + length("counters-h");
+    return {
+        countersInBar:
+            length("counters-top") === 6 &&
+            length("counters-x") === 6 &&
+            (countersRight <= length("col-left") - 6 + 0.001 ||
+                (countersRight <= laneLeft - 6 + 0.001 &&
+                    countersBottom <= (stripLeft[1] ?? 0) - 6 + 0.1)),
+        countersWhole:
+            length("dora-w") >= 0.55 * rw &&
+            length("counters-w") >= length("dora-row-w") &&
+            length("dora-row-w") >= 5 * length("dora-w"),
+        left:
+            left.left >= laneLeft &&
+            ((left.bottom <= length("cy") - length("h") - 6 + 0.001 &&
+                left.right <= coreRight - 5 * rw - rh - LATEST_DISCARD_GAP &&
+                left.top >= length("core-top") - 0.001) ||
+                (left.top >=
+                    length("cy") -
+                        length("h") +
+                        5 * rw +
+                        rh +
+                        length("latest-drop-gap") +
+                        edge +
+                        6 &&
+                    left.right <= length("cx") - length("hx") &&
+                    left.bottom <= length("hand-top") - length("own-meld-rise"))),
+        own:
+            own.right <= (hand[0] ?? 0) - 6 + 0.001 &&
+            own.left >= 6 - 0.001 &&
+            Math.abs(own.bottom - (length("hand-top") + length("oh"))) <=
+                (length("badge-h") - length("pill-h")) / 2 &&
+            own.top + length("badge-h") - (length("badge-h") - length("pill-h")) / 2 <=
+                (lengths["table-h"] ?? geometry.box.height) + 0.001 &&
+            own.top >= (stripLeft[3] ?? Infinity) &&
+            length("own-badge-w") >= 8.5 * length("text"),
+        right:
+            right.right <= laneRight + 0.001 &&
+            right.bottom <=
+                length("cy") + length("h") - 5 * rw - rh - length("latest-drop-gap") - 6 + 0.001 &&
+            right.left >= coreRight &&
+            right.top >= rh + edge,
+        tapFloor: length("badge-h") >= 40,
+        top:
+            top.left >= (stripTop[2] ?? Infinity) + 6 - 0.1 &&
+            top.top >= 0 &&
+            (Math.abs((top.top + top.bottom) / 2 - Math.max(rh + edge, length("badge-h")) / 2) <=
+                0.001 ||
+                top.bottom + pad <= (stripRight[1] ?? 0) - 2 + 0.1) &&
+            (top.right <= laneRight + 0.001 ||
+                (top.right <= length("col-right") + 0.001 &&
+                    top.bottom + pad <= (stripRight[1] ?? 0) - 2 + 0.1)) &&
+            top.right - top.left >= 7 * length("text") - 0.001,
+    };
+}
+
+/**
+ * Where a phone's own plate stands: its pill level with the bottom river's first row's top,
+ * past that row's six tiles (a riichi tile and the latest discard's gap counted), above the row's run-on, short of the
+ * right strip's lane and above the own row; and whether it holds a ten-character name (8.5 of the board's text).
+ */
+function ownPlace({ lengths }: BoardGeometry): Record<string, boolean> {
+    function length(name: string): number {
+        return lengths[name] ?? Number.NaN;
+    }
+    const [rw, rh] = [length("rw"), length("rh")];
+    const rowTop = length("cy") + length("h") + length("g");
+    const pillTop = length("own-badge-top") + (length("badge-h") - length("pill-h")) / 2;
+    const left = length("own-badge-left");
+    const right = left + length("own-badge-w");
+    return {
+        aboveOwnRow: pillTop + length("pill-h") <= length("hand-top") - length("own-meld-rise"),
+        aboveRunOn: pillTop + length("pill-h") <= rowTop + 2 * rh,
+        clearOfLane: right <= length("col-right") - length("strip-depth") - SIDE_LANE_GAP,
+        holdsTenCharacters: length("own-badge-w") >= 8.5 * length("text"),
+        level: Math.abs(pillTop - rowTop) < 0.001,
+        pastFirstRow: left >= length("cx") - length("hx") + 5 * rw + rh + LATEST_DISCARD_GAP,
+    };
+}
+
+/**
+ * Whether a phone's board stands on its table column: both bars a tiled chi's control wide, every control in a bar, the
+ * felt between each side lane and its river's reserve under three river tiles, both side strips' lines a full hand long
+ * and ending above the own row, the plates' pills in the core's corners clear of the rivers' reserves (the left one's
+ * tap box above the own row), the centre at its least size, and the right bar the offers' stack tall (5 rows, 3 where it
+ * holds two tiled chis side by side).
+ */
+function phonePlaces({ box, lengths, strips, tracks }: BoardGeometry): Record<string, boolean> {
+    function length(name: string): number {
+        return lengths[name] ?? Number.NaN;
+    }
+    const areas = slotAreas(tracks);
+    function area(slot: string): readonly number[] {
+        return areas[slot] ?? [];
+    }
+    const [rw, rh, edge] = [length("rw"), length("rh"), TILE_EDGE_SHARE * length("rw")];
+    const [colLeft, colRight] = [length("col-left"), length("col-right")];
+    const [lane, rowTop, centreTop, pad] = [
+        length("strip-depth") + SIDE_LANE_GAP,
+        length("hand-top") - length("own-meld-rise"),
+        length("cy") - length("h"),
+        (length("badge-h") - length("pill-h")) / 2,
+    ];
+    const [actionsLeft = 0, actionsTop = 0, , actionsBottom = 0] = area("actions");
+    const barWidth = box.width - actionsLeft - length("m");
+    return {
+        barsHoldChi: colLeft >= 108 && box.width - colRight >= 108,
+        centreWhole: length("w") >= Math.max(RIVER_ROW_SIZE * rw, 100) && length("c") >= 68,
+        controlsInBars:
+            [area("field"), area("furiten"), area("switches")].every(
+                ([, , right = Infinity]) => right <= colLeft,
+            ) && actionsLeft >= colRight,
+        feltUnderThreeTiles:
+            length("reach-left") - (colLeft + lane) <= 3 * rw &&
+            colRight - lane - length("reach-right") <= 3 * rw,
+        fullHandAboveOwnRow:
+            Math.min(strips?.left.line ?? 0, strips?.right.line ?? 0) >= length("full-reach") &&
+            (area("strip-left")[3] ?? Infinity) <= rowTop,
+        leftPlateUnderLeftRiver:
+            length("left-badge-top") + pad >=
+                centreTop + 5 * rw + rh + length("latest-drop-gap") + edge - 0.001 &&
+            length("left-badge-top") + length("badge-h") <= rowTop,
+        offersInRightBar: actionsBottom - actionsTop >= (barWidth >= 202 ? 136 : 228) - 0.001,
+        rightPlateUnderCoreTop:
+            length("right-badge-top") + pad >= length("core-top") - 0.001 &&
+            length("right-badge-top") + pad + length("pill-h") <=
+                length("cy") + length("h") - 5 * rw - rh - length("latest-drop-gap"),
+        topPlateUnderTopRiver:
+            length("top-badge-top") + pad >= length("reach-top-row3") + edge - 0.001,
+    };
+}
 
 describe("boardGeometry", () => {
     it.each([
@@ -272,11 +644,11 @@ describe("boardGeometry", () => {
         { chrome: "small", family: "desktop", height: 540, width: 1024 },
         { chrome: "small", family: "desktop", height: 900, width: 1100 },
         { chrome: "regular", family: "desktop", height: 900, width: 1120 },
-        { chrome: "regular", family: "short-desktop", height: 657, width: 1366 },
-        { chrome: "regular", family: "short-desktop", height: 540, width: 1280 },
-        { chrome: "regular", family: "short-desktop", height: 770, width: 1440 },
+        { chrome: "regular", family: "desktop", height: 657, width: 1366 },
+        { chrome: "regular", family: "desktop", height: 540, width: 1280 },
+        { chrome: "regular", family: "desktop", height: 770, width: 1440 },
     ])(
-        "gives a $width x $height window a $family board with $chrome chrome in a 10px gutter, whichever is applied",
+        "gives a $width x $height window a $family board with $chrome chrome in a 10px gutter, whichever is applied, its 6x4.5 centre and its own row at 1.2 to 1.45 river tiles (a full hand between the side strips' lanes) stacked from the top hand to the bottom edge, the height's slack between the top hand and the core",
         ({ chrome, family, height, width }) => {
             for (const applied of [0, 10]) {
                 const geometry = windowGeometry({ height, width }, applied);
@@ -291,30 +663,26 @@ describe("boardGeometry", () => {
                     family,
                     gutter: 10,
                 });
-                expect(length("w")).toBe(length("c"));
-                expect(FULL_HAND * length("ow")).toBeLessThanOrEqual(
-                    box.width - 2 * length("m") - length("own-inline"),
-                );
-                const coreBottom =
-                    length("cy") +
-                    length("h") +
-                    length("g") +
-                    3 * length("rh") +
-                    length("latest-drop-gap");
-                const [aboveBand, bandTop] = {
-                    desktop: [
-                        coreBottom,
-                        length("band-bottom") -
-                            length("control-h") -
-                            length("row-rise") -
-                            BAND_ROW_EXTRA,
-                    ],
-                    "short-desktop": [
-                        length("cy") + length("h"),
-                        length("band-bottom") - length("control-h"),
-                    ],
-                }[family] ?? [Number.NaN, Number.NaN];
-                expect(aboveBand).toBeLessThanOrEqual(bandTop + 0.001);
+                const rw = length("rw");
+                const slackAbove =
+                    length("core-top") - length("rh") - TILE_EDGE_SHARE * rw - 0.1 * rw;
+                const slackBelow =
+                    length("hand-top") - length("own-meld-rise") - length("river-foot");
+
+                expect({
+                    centre: [length("w"), length("c")],
+                    handBetweenLanes: FULL_HAND * length("ow") <= rowBetweenLanes(lengths) + 0.001,
+                    ownByRiver: ownTileByRiver(lengths),
+                    ownRowOnBottom:
+                        length("hand-top") + length("oh") + TILE_EDGE_SHARE * length("ow"),
+                    slackAbove: slackAbove >= -0.001 && slackBelow >= -0.001,
+                }).toEqual({
+                    centre: [RIVER_ROW_SIZE * rw, 4.5 * rw],
+                    handBetweenLanes: true,
+                    ownByRiver: true,
+                    ownRowOnBottom: expect.closeTo(lengths["table-h"] ?? box.height, 6),
+                    slackAbove: true,
+                });
             }
         },
     );
@@ -343,146 +711,124 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [1440, 900, [39, 62, 234, 234, 94.4]],
-        [1440, 800, [34, 54, 204, 204, 82.4]],
-        [2560, 1440, [68, 108, 408, 408, 134.8]],
-        [800, 600, [21, 33, 126, 126, 71.6]],
-        [1727, 1000, [44, 70, 264, 264, 108.4]],
-        [1920, 1080, [49, 78, 294, 294, 102.4]],
-        [2150, 1700, [80, 106, 480, 480, 188]],
-        [2170, 1700, [80, 107, 480, 480, 188]],
+        [1280, 720, [39, 56, 65.62, 139.2]],
+        [1366, 768, [42, 60, 68.4, 147]],
+        [1920, 1080, [59, 85, 105.85, 207.5]],
+        [2560, 1440, [80, 116, 134.92, 259.2]],
+        [1440, 900, [49, 66, 89.32, 126.2]],
+        [1280, 800, [43, 56, 82.02, 131.2]],
+        [800, 600, [26, 32, 77.44, 98.33]],
+        [960, 1080, [33, 41, 76.97, 100.7]],
+        [1100, 1000, [40, 49, 74.63, 98.3]],
+        [1280, 1024, [49, 59, 93.23, 97.3]],
+        [1502, 1551, [59, 71, 110.67, 100.7]],
+        [1024, 1366, [36, 45, 74.75, 97.5]],
     ])(
-        "fits six-tile rows along both centre edges in a %ix%i desktop, keeping the latest discards inside the core",
+        "sizes a %ix%i desktop's river tile from its vertical stack and its own tile from its width, a full hand between the side strips' lanes, at most 1.45 river tiles, within bars that hold the switches named and the counters' row only while the own tile keeps 1.3 of the river tile, the river tile no larger than leaves it 1.2, the table centred",
         (width, height, expected) => {
             const { lengths } = windowGeometry({ height, width });
-            expect(lengths["c"]).toBeGreaterThanOrEqual(
-                RIVER_ROW_SIZE * (lengths["rw"] ?? Number.NaN),
-            );
-            expect(lengths["w"]).toBe(lengths["c"]);
 
             for (const [index, name] of SIZES.entries()) {
-                expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
+                expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 1);
             }
         },
     );
 
     it.each([
-        [1366, 657, [29, 174, 80.167]],
-        [1280, 720, [33, 198, 81.333]],
-        [1440, 770, [36, 216, 82]],
-        [1170, 620, [27, 162, 77.333]],
+        [1502, 1551],
+        [1024, 1366],
+        [1280, 1024],
     ])(
-        "sizes a %ix%i window's short desktop board, a replay's full left river ending over its moves",
-        (width, height, expected) => {
-            const { lengths } = windowGeometry({ height, width });
-            const replay = boardGeometry({
-                appliedEdges: NO_INSETS,
-                box: { height, width },
-                safeInsets: NO_INSETS,
-                slots: REPLAY_SLOTS,
-            }).lengths;
-            function length(name: string): number {
-                return replay[name] ?? Number.NaN;
-            }
-            const leftRiverEnd =
-                length("cy") -
-                length("h") +
-                5 * length("rw") +
-                length("rh") +
-                length("latest-drop-gap");
-
-            for (const [index, name] of SHORT_DESKTOP_SIZES.entries()) {
-                expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
-            }
-            const { movesH, switchH } = DESKTOP_CHROME.regular;
-            const switchesTop = length("switches-bottom") - Math.max(movesH, switchH);
-
-            expect(leftRiverEnd + 4).toBeLessThanOrEqual(switchesTop + 0.001);
-        },
-    );
-
-    it.each([
-        {
-            height: 375,
-            holdsOffers: true,
-            pinned: { "band-shift": 28.667, ow: 39, rw: 17 },
-            width: 667,
-        },
-        { height: 390, holdsOffers: true, pinned: { ow: 39, rw: 17 }, width: 667 },
-        { height: 354, holdsOffers: false, pinned: { ow: 36, rw: 19 }, width: 724 },
-        { height: 360, holdsOffers: false, pinned: { ow: 36, rw: 19 }, width: 800 },
-        { height: 390, holdsOffers: true, pinned: { ow: 44, rw: 20 }, width: 750 },
-        { height: 379, holdsOffers: true, pinned: { ow: 37, rw: 21 }, width: 761 },
-        { height: 414, holdsOffers: true, pinned: { ow: 44, rw: 23 }, width: 808 },
-        { height: 480, holdsOffers: true, pinned: { ow: 50, rw: 24 }, width: 850 },
-        {
-            height: 430,
-            holdsOffers: true,
-            pinned: { "band-shift": 38, ow: 45, rw: 24 },
-            width: 932,
-        },
-        {
-            height: 500,
-            holdsOffers: true,
-            pinned: { "control-h": 46.667, ow: 53, rw: 28 },
-            width: 1024,
-        },
-    ])(
-        "sizes a $width x $height window's phone board's tiles jointly: a full hand clear of the side strips, the offers' stack in its corner ($holdsOffers), a full left river above the switches' row or past its end, the moves' row short of the bottom river, the furiten mark short of the left river and the top badge's one-line pill above the right river",
-        ({ height, holdsOffers, pinned, width }) => {
-            const { lengths, tracks } = windowGeometry({ height, width });
+        "stands a width-bound %ix%i desktop's table no taller than its stack or its side strips' lines under the counters need, centred in the window: the own row hugs the bottom river and the top hand the core where the lines start beside it, the spare height lies above and below the table, every slot inside it",
+        (width, height) => {
+            const geometry = windowGeometry({ height, width });
+            const { box, lengths, tracks } = geometry;
             function length(name: string): number {
                 return lengths[name] ?? Number.NaN;
             }
-            const leftRiverEnd =
-                length("cy") -
-                length("h") +
-                5 * length("rw") +
-                length("rh") +
-                length("latest-drop-gap");
+            const table = length("table-h");
+            const linesUnderCounters =
+                length("lines-start") >= length("counters-top") + length("counters-h");
+            const slotBottoms = Object.values(slotAreas(tracks)).map((area) => area[3] ?? 0);
+            const spareAbove = length("table-top");
+            const spareBelow = box.height - spareAbove - table;
+
+            expect({
+                ownRowOnTableBottom:
+                    length("hand-top") + length("oh") + TILE_EDGE_SHARE * length("ow"),
+                ownRowToCore:
+                    length("hand-top") - length("own-meld-rise") - length("river-foot") < 1,
+                slotsInTable: Math.max(...slotBottoms) <= table,
+                spareOutside: Math.min(spareAbove, spareBelow) > 0,
+                spareSplit: Math.abs(spareAbove - spareBelow) <= 1,
+                topHandToCore:
+                    length("core-top") - length("rh") - TILE_EDGE_SHARE * length("rw") <
+                        0.5 * length("rw") || linesUnderCounters,
+            }).toEqual({
+                ownRowOnTableBottom: expect.closeTo(table, 6),
+                ownRowToCore: true,
+                slotsInTable: true,
+                spareOutside: true,
+                spareSplit: true,
+                topHandToCore: true,
+            });
+        },
+    );
+
+    it.each([
+        { across: 1366, axis: "height", ends: [32, 52] },
+        { across: 1920, axis: "height", ends: [32, 72] },
+        { across: 768, axis: "width", ends: [26, 42] },
+        { across: 1080, axis: "width", ends: [26, 59] },
+    ])(
+        "never shrinks a desktop's river tile as its window grows in $axis from $across across",
+        ({ across, axis, ends }) => {
+            const tiles = Array.from({ length: 701 }, (_unused, step) => {
+                const along = 600 + step;
+                const box =
+                    axis === "height"
+                        ? { height: along, width: across }
+                        : { height: across, width: along + 200 };
+                return windowGeometry(box).lengths["rw"] ?? 0;
+            });
+
+            expect(tiles.filter((rw, step) => rw < (tiles[step - 1] ?? 0))).toEqual([]);
+            expect([tiles[0], tiles.at(-1)]).toEqual(ends);
+        },
+    );
+
+    it.each([
+        { height: 375, holdsOffers: true, pinned: { ow: 45, rw: 18 }, width: 667 },
+        { height: 390, holdsOffers: true, pinned: { ow: 45, rw: 18 }, width: 667 },
+        { height: 354, holdsOffers: true, pinned: { ow: 42, rw: 19 }, width: 724 },
+        { height: 360, holdsOffers: true, pinned: { ow: 36, rw: 20 }, width: 800 },
+        { height: 390, holdsOffers: true, pinned: { ow: 47, rw: 21 }, width: 750 },
+        { height: 379, holdsOffers: true, pinned: { ow: 39, rw: 21 }, width: 761 },
+        { height: 414, holdsOffers: true, pinned: { ow: 44, rw: 23 }, width: 808 },
+        { height: 480, holdsOffers: true, pinned: { ow: 57, rw: 25 }, width: 850 },
+        { height: 430, holdsOffers: true, pinned: { ow: 45, rw: 24 }, width: 932 },
+        { height: 500, holdsOffers: true, pinned: { ow: 53, rw: 28 }, width: 1024 },
+        { height: 331, holdsOffers: true, pinned: { ow: 36, rw: 18 }, width: 891 },
+    ])(
+        "sizes a $width x $height window's phone board's tiles jointly on its table column: both bars a tiled chi wide, the side strips' lines a full hand long above the own row, the felt beside each side river under three river tiles, the plates in the core's corners, every control in a bar, the offers' stack in the right one ($holdsOffers)",
+        ({ height, holdsOffers, pinned, width }) => {
+            const geometry = windowGeometry({ height, width });
+            const { lengths } = geometry;
 
             for (const [name, value] of Object.entries(pinned)) {
-                expect(length(name), name).toBeCloseTo(value, 2);
+                expect(lengths[name], name).toBeCloseTo(value, 2);
             }
-            expect(length("w")).toBeGreaterThanOrEqual(
-                Math.max(RIVER_ROW_SIZE * length("rw"), 100),
-            );
-            expect(length("c")).toBeGreaterThanOrEqual(68);
-            expect({
-                furitenShortOfLeftRiver: length("furiten-x") + 88 <= length("reach-left") + 0.001,
-                handClearOfStrips:
-                    (width - FULL_HAND * length("ow")) / 2 >=
-                    length("m") + length("strip-depth") + 6,
-                leftRiverClearOfSwitches:
-                    leftRiverEnd + 4 <= length("switches-bottom") - length("control-h") + 0.001 ||
-                    length("switches-left") + 5 * length("control-h") + 4 * 4 + 8 <=
-                        length("reach-left") + 0.001,
-                movesShortOfBottomRiver:
-                    length("switches-left") + 5 * length("control-h") + 4 * 4 + 8 <=
-                    length("cx") - length("hx") + 0.001,
-                offersInCorner:
-                    (slotAreas(tracks)["actions"]?.[3] ?? 0) -
-                        (slotAreas(tracks)["actions"]?.[1] ?? 0) >=
-                    44 + 2 * 40 + length("control-h") + 3 * 6,
-                topBadgeAboveRightRiver:
-                    length("top-badge-top") + length("top-pill-h") + 4 <=
-                    length("cy") +
-                        length("h") -
-                        5 * length("rw") -
-                        length("rh") -
-                        length("latest-drop-gap") +
-                        0.001,
-            }).toEqual({
-                furitenShortOfLeftRiver: true,
-                handClearOfStrips: true,
-                leftRiverClearOfSwitches: true,
-                movesShortOfBottomRiver: true,
-                offersInCorner: holdsOffers,
-                topBadgeAboveRightRiver: true,
+            expect(phonePlaces(geometry)).toEqual({
+                barsHoldChi: true,
+                centreWhole: true,
+                controlsInBars: true,
+                feltUnderThreeTiles: true,
+                fullHandAboveOwnRow: true,
+                leftPlateUnderLeftRiver: true,
+                offersInRightBar: holdsOffers,
+                rightPlateUnderCoreTop: true,
+                topPlateUnderTopRiver: true,
             });
-            expect(
-                length("reach-top-row3") - length("rh") - length("latest-drop-gap"),
-            ).toBeGreaterThanOrEqual(length("core-top") - 0.001);
         },
     );
 
@@ -492,7 +838,7 @@ describe("boardGeometry", () => {
         [1366, 657],
         [390, 844],
     ])(
-        "reserves nineteen discards and the latest gap, deeper by the tile edge along the light off a phone, in a %ix%i window without reserving a twelve-tile third row",
+        "reserves nineteen discards and the latest gap, deeper by the tile edge along the light off a phone (the top river's gap too, past its rows' edge), in a %ix%i window without reserving a twelve-tile third row",
         (width, height) => {
             const { family, lengths } = windowGeometry({ height, width });
             function length(name: string): number {
@@ -511,7 +857,11 @@ describe("boardGeometry", () => {
                 "reach-left": left - across,
                 "reach-right": right + across,
                 "reach-top-left": right - runOn,
-                "reach-top-row3": length("cy") - length("h") - length("g") - 2 * length("rh"),
+                "reach-top-row3":
+                    length("cy") -
+                    length("h") -
+                    (lengths["g-top"] ?? length("g")) -
+                    2 * length("rh"),
             };
 
             for (const [name, reach] of Object.entries(expected)) {
@@ -530,28 +880,45 @@ describe("boardGeometry", () => {
         },
     );
 
-    it("keeps the notices' field free of the panel", () => {
-        const { lengths } = windowGeometry({ height: 900, width: 1440 });
-
-        expect(lengths["overlay-left"]).toBeGreaterThanOrEqual(lengths["reach-left"] ?? Infinity);
-    });
-
     it("gives an empty box no sizes", () => {
         expect(windowGeometry({ height: 0, width: 0 }).lengths).toEqual({});
     });
 });
 
 describe("boardGeometry's strips", () => {
-    it.each([{ height: 900, under: 0, width: 1440 }])(
-        "runs a $width x $height board's right strip to the top margin, past $under top strip tiles",
-        ({ height, under, width }) => {
-            const { lengths, strips, tracks } = windowGeometry({ height, width });
-            const origin = slotAreas(tracks)["strip-right"]?.[3] ?? Number.NaN;
-            const end =
-                (lengths["m"] ?? Number.NaN) + (under > 0 ? under * (lengths["rw"] ?? 0) + 8 : 0);
-
-            expect(strips?.right.line).toBeCloseTo(origin - end, 1);
-            expect(strips?.right.deepLine).toBe(strips?.right.line);
+    it.each([
+        [1920, 1080],
+        [1920, 950],
+        [1726, 1000],
+        [1536, 864],
+        [1536, 730],
+        [1440, 900],
+        [1440, 790],
+        [1366, 768],
+        [1366, 650],
+        [1280, 720],
+        [1280, 620],
+        [1280, 800],
+        [1680, 1050],
+        [2560, 1440],
+        [2560, 1300],
+        [1502, 1551],
+        [960, 1000],
+        [1280, 1024],
+        [1024, 768],
+    ])(
+        "stands no opponent's tile above a %ix%i desktop's own row: the side strips at the centred table's edges, their lanes an added kan's stack deep outside the own row's span, the top strip between them, each line centred on the core and holding four open kans",
+        (width, height) => {
+            expect(ownRowPlace(windowGeometry({ height, width }))).toEqual({
+                barsEqual: true,
+                kansOnLines: [true, true, true],
+                lanesAtEdges: true,
+                lanesDeep: true,
+                linesCentred: true,
+                rowBetweenLanes: true,
+                rowHoldsHand: true,
+                topBetweenLanes: true,
+            });
         },
     );
 
@@ -579,133 +946,283 @@ describe("boardGeometry's strips", () => {
         },
     );
 
-    it("runs a desktop's left first line past the switches to the bottom margin for every meld's depth", () => {
-        const { box, lengths, strips, tracks } = windowGeometry({ height: 900, width: 1440 });
-        function length(name: string): number {
-            return lengths[name] ?? Number.NaN;
-        }
-        const start = slotAreas(tracks)["strip-left"]?.[1] ?? Number.NaN;
+    it.each([
+        { height: 236, width: 667 },
+        { height: 331, width: 891 },
+        { height: 375, width: 667 },
+    ])(
+        "stands a $width x $height phone's play switches as a two-by-two block at the left bar's foot, the counters at its top and the notices' field over the furiten mark between them",
+        ({ height, width }) => {
+            const { lengths, tracks } = windowGeometry({ height, width });
+            function length(name: string): number {
+                return lengths[name] ?? Number.NaN;
+            }
+            const areas = slotAreas(tracks);
+            const [, fieldTop = 0, , fieldBottom = 0] = areas["field"] ?? [];
+            const [, furitenTop = 0, furitenRight = 0, furitenBottom = 0] = areas["furiten"] ?? [];
 
-        expect(length("switches-left")).toBeGreaterThan(length("m") + 2 * length("rw"));
-        expect(start + (strips?.left.line ?? 0)).toBeCloseTo(box.height - length("m"), 1);
-        expect(strips?.left.deepLine).toBe(strips?.left.line);
+            expect(areas["switches"]).toEqual(
+                tenths([
+                    length("m"),
+                    length("switches-bottom") - 2 * length("switch-h"),
+                    length("m") + 2 * length("switch-h"),
+                    length("switches-bottom"),
+                ]),
+            );
+            expect({
+                countersAbove: length("counters-top") + length("counters-h") <= fieldTop,
+                fieldAboveFuriten: fieldBottom <= furitenTop,
+                furitenAboveBlock:
+                    furitenBottom <= length("switches-bottom") - 2 * length("switch-h"),
+                furitenInBar: furitenRight <= length("col-left"),
+            }).toEqual({
+                countersAbove: true,
+                fieldAboveFuriten: true,
+                furitenAboveBlock: true,
+                furitenInBar: true,
+            });
+        },
+    );
+
+    it("names the play switches at the plates' text where the bar holds it, never under 14px or three quarters of it, nor smaller on a larger board", () => {
+        const boards = [
+            [1280, 720],
+            [1366, 768],
+            [1536, 864],
+            [1920, 1080],
+            [2560, 1440],
+        ].map(([width = 0, height = 0]) => windowGeometry({ height, width }, 10).lengths);
+        const labels = boards.map((lengths) => lengths["switch-name-text"] ?? 0);
+
+        expect(
+            labels.map(
+                (label, index) =>
+                    label >= Math.max(14, 0.75 * (boards[index]?.["text"] ?? Infinity)) &&
+                    label >= (labels[index - 1] ?? 0),
+            ),
+        ).toEqual([true, true, true, true, true]);
+        expect(labels.at(-1)).toBeCloseTo(boards.at(-1)?.["text"] ?? 0);
     });
 
     it.each([
-        { height: 236, under: false, width: 667 },
-        { height: 275, under: false, width: 896 },
-        { height: 331, under: false, width: 896 },
-        { height: 375, under: true, width: 667 },
-        { height: 414, under: true, width: 896 },
+        { height: 720, switches: "names", width: 1280 },
+        { height: 600, switches: "names", width: 1366 },
+        { height: 1080, switches: "names", width: 1920 },
+        { height: 900, switches: "names", width: 1440 },
+        { height: 800, switches: "names", width: 1280 },
+        { height: 1440, switches: "names", width: 2560 },
+        { height: 1440, switches: "names", width: 3440 },
+        { height: 900, switches: "letters", width: 1100 },
+        { height: 768, switches: "letters", width: 1024 },
+        { height: 600, switches: "letters", width: 800 },
     ])(
-        "keeps a $width x $height phone's switches' column on the left edge, the left badge clear of it (under: $under)",
-        ({ height, under, width }) => {
-            const { lengths } = windowGeometry({ height, width });
+        "keeps a $width x $height desktop's controls in the bars: the counters left-aligned over the field with the round info under them on lines 9 of its ems wide, furiten and $switches switches down the left one to the own plate, the cog and a replay's controls at its foot in the right one, the panel in the column, and the notices' toasts in the core's bottom-left corner",
+        ({ height, switches, width }) => {
+            const live = windowGeometry({ height, width });
+            const { box } = live;
+            const replay = replayOf(live);
             function length(name: string): number {
-                return lengths[name] ?? Number.NaN;
+                return live.lengths[name] ?? Number.NaN;
             }
-            const columnTop = length("switches-bottom") - 4 * length("switch-h");
-
-            expect(length("switches-right") - length("switches-left")).toBeCloseTo(
-                length("switch-h"),
-                3,
-            );
-            expect(columnTop).toBeGreaterThanOrEqual(0);
-            expect(columnTop >= length("side-badge-top") + length("badge-h")).toBe(under);
-            expect(length("left-badge-x") >= length("switches-right")).toBe(!under);
-            expect(length("left-badge-x") + length("left-badge-w")).toBeLessThanOrEqual(
-                length("reach-left"),
-            );
-        },
-    );
-
-    it.each([
-        { height: 900, labelled: true, width: 1440 },
-        { height: 720, labelled: true, width: 1280 },
-        { height: 768, labelled: false, width: 1024 },
-    ])(
-        "reserves a $width x $height board's switches their whole names' row ($labelled), short of the decisions",
-        ({ height, labelled, width }) => {
-            const { lengths } = windowGeometry({ height, width });
-            function length(name: string): number {
-                return lengths[name] ?? Number.NaN;
+            const { field, furiten, info, switches: switchesArea } = slotAreas(live.tracks);
+            const { actions: moves, corner, hand } = slotAreas(replay.tracks);
+            const [colLeft, colRight] = [length("col-left"), length("col-right")];
+            function panel(lengths: Readonly<Record<string, number>>): (number | undefined)[] {
+                return [lengths["overlay-left"], lengths["overlay-right"]];
             }
-            const gap = length("chip-gap");
-            const row = labelled
-                ? 3 * length("switch-label-w") + 2 * gap
-                : 4 * length("switch-h") + 3 * gap;
 
-            expect(length("switches-right") - length("switches-left")).toBeCloseTo(row, 3);
-            expect(length("switches-right") + length("band-gap")).toBeLessThanOrEqual(
-                length("actions-left"),
-            );
-        },
-    );
-
-    it.each([
-        { height: 770, stacked: true, width: 1440 },
-        { height: 640, stacked: false, width: 1127 },
-    ])(
-        "steps a $width x $height short desktop's switches past a stacked meld ($stacked), moves clear of the river",
-        ({ height, stacked, width }) => {
-            const { lengths } = boardGeometry({
-                appliedEdges: { bottom: 10, left: 10, right: 10, top: 10 },
-                box: { height: height - 20, width: width - 20 },
-                safeInsets: NO_INSETS,
-                slots: REPLAY_SLOTS,
+            expect({
+                countersOverField:
+                    length("counters-top") === 6 &&
+                    length("counters-top") + length("counters-h") <= (field?.[1] ?? 0) &&
+                    Math.abs(length("counters-x") - (field?.[0] ?? 0)) <= 0.1,
+                fieldWide: (field?.[2] ?? 0) - (field?.[0] ?? 0) >= 84,
+                fieldWordsPerLine:
+                    (field?.[2] ?? 0) - (field?.[0] ?? 0) >=
+                    7.5 * length("field-notice-text") - 0.1,
+                form: live.switches,
+                infoOnLines:
+                    (info?.[2] ?? 0) - (info?.[0] ?? 0) >= 9 * length("status-text") - 0.1 &&
+                    (info?.[1] ?? 0) >= length("counters-top") + length("counters-h"),
+                leftBar: [field, furiten, switchesArea].every(
+                    (area) => (area?.[0] ?? -1) >= 0 && (area?.[2] ?? Infinity) <= colLeft,
+                ),
+                leftBarDown:
+                    (field?.[3] ?? Infinity) <= (furiten?.[1] ?? 0) &&
+                    (furiten?.[3] ?? Infinity) <= (switchesArea?.[1] ?? 0),
+                panel: [panel(live.lengths), panel(replay.lengths)],
+                replayAtFoot: Math.abs((moves?.[3] ?? 0) - (hand?.[3] ?? Infinity)) <= 0.1,
+                replayControl:
+                    (replay.lengths["replay-b"] ?? 0) >= 40 &&
+                    (replay.lengths["replay-b"] ?? Infinity) <=
+                        Math.max(length("ow"), length("moves-h")),
+                rightBar: [corner?.[0], moves?.[0]].every(
+                    (left) => (left ?? 0) >= (replay.lengths["col-right"] ?? Number.NaN),
+                ),
+                rightBarDown: (moves?.[1] ?? 0) >= (corner?.[1] ?? Infinity) + length("menu-size"),
+                rightBarNearColumn:
+                    (moves?.[2] ?? Infinity) <=
+                        (replay.lengths["col-right"] ?? 0) +
+                            6 +
+                            3 * (replay.lengths["replay-w"] ?? 0) +
+                            0.1 &&
+                    (corner?.[2] ?? Infinity) <=
+                        (replay.lengths["col-right"] ?? 0) +
+                            6 +
+                            3 * (replay.lengths["replay-w"] ?? 0) +
+                            0.1,
+                switchesOverPlate:
+                    (switchesArea?.[3] ?? Infinity) <= length("own-badge-top") - 6 + 0.1,
+                switchesWide:
+                    (switchesArea?.[2] ?? 0) -
+                    (switchesArea?.[0] ?? 0) -
+                    (switches === "names" ? length("switch-label-w") : length("switch-h")),
+                toasts: toastsPlace(live),
+            }).toEqual({
+                countersOverField: true,
+                fieldWide: true,
+                fieldWordsPerLine: true,
+                form: switches,
+                infoOnLines: true,
+                leftBar: true,
+                leftBarDown: true,
+                panel: [
+                    [colLeft + 8, box.width - colRight + 8],
+                    [
+                        (replay.lengths["col-left"] ?? 0) + 8,
+                        box.width - (replay.lengths["col-right"] ?? 0) + 8,
+                    ],
+                ],
+                replayAtFoot: true,
+                replayControl: true,
+                rightBar: true,
+                rightBarDown: true,
+                rightBarNearColumn: true,
+                switchesOverPlate: true,
+                switchesWide: expect.closeTo(0, 0),
+                toasts: true,
             });
-            function length(name: string): number {
-                return lengths[name] ?? Number.NaN;
-            }
-            const movesEnd = length("switches-left") + length("moves-w");
+            expect(
+                Object.values(slotAreas(live.tracks)).filter(
+                    ([areaLeft, areaTop, areaRight, areaBottom]) =>
+                        !(areaLeft < areaRight && areaTop < areaBottom),
+                ),
+            ).toEqual([]);
+        },
+    );
+});
 
-            expect(length("switches-left") > length("m") + 2 * length("rw")).toBe(stacked);
-            expect(length("cx") - length("hx")).toBeGreaterThanOrEqual(movesEnd + 8 - 0.001);
+describe("boardGeometry's decisions", () => {
+    it.each([
+        { height: 1080, reserve: 19, width: 1920 },
+        { height: 768, reserve: 19, width: 1366 },
+        { height: 650, reserve: 19, width: 1366 },
+        { height: 720, reserve: 19, width: 1280 },
+        { height: 1551, reserve: 19, width: 1502 },
+        { height: 1000, reserve: 18, width: 960 },
+    ])(
+        "stands a $width x $height live desktop's decisions in the core's bottom-right corner clear of a $reserve-discard bottom river, the right river, the right strip's lane, the own row's melds and plate, its controls 40px tall or more",
+        ({ height, reserve, width }) => {
+            expect(cornerPlace(windowGeometry({ height, width }, 10), reserve)).toEqual({
+                clear: true,
+                controls: true,
+            });
+        },
+    );
+
+    it("sizes a desktop's decision controls from its river tile, 0.85 of it and never under 40px, so a larger window never draws them smaller", () => {
+        const boards = [
+            [1280, 720],
+            [1920, 1080],
+            [2560, 1440],
+            [3440, 1440],
+        ].map(([width = 0, height = 0]) => windowGeometry({ height, width }, 10).lengths);
+        const heights = boards.map((lengths) => lengths["decision-h"] ?? 0);
+
+        expect(heights).toEqual([40, 50, 68, 68]);
+        expect(heights).toEqual(
+            boards.map((lengths) => Math.max(40, Math.floor(0.85 * (lengths["rw"] ?? 0)))),
+        );
+    });
+});
+
+describe("boardGeometry's plates", () => {
+    it.each([
+        [1280, 720],
+        [1366, 768],
+        [1440, 900],
+        [1920, 1080],
+        [2560, 1440],
+        [1024, 768],
+        [1366, 657],
+        [1280, 632],
+        [1366, 550],
+        [800, 600],
+        [1502, 1551],
+        [960, 1000],
+    ])(
+        "stands a %ix%i desktop's plates each beside its owner's tiles, clear of every river's reserve and the side lanes, and the counters' dora in one row at least 0.55 river tiles at the left bar's top",
+        (width, height) => {
+            expect(desktopPlaces(windowGeometry({ height, width }, 10))).toEqual({
+                countersInBar: true,
+                countersWhole: true,
+                left: true,
+                own: true,
+                right: true,
+                tapFloor: true,
+                top: true,
+            });
+        },
+    );
+
+    it.each([
+        [667, 375],
+        [844, 390],
+        [932, 430],
+        [896, 275],
+        [891, 331],
+        [808, 275],
+        [844, 251],
+    ])(
+        "stands a %ix%i phone's own plate in the core's bottom-right corner, level with its river's first row, clear of every tile",
+        (width, height) => {
+            expect(ownPlace(windowGeometry({ height, width }))).toEqual({
+                aboveOwnRow: true,
+                aboveRunOn: true,
+                clearOfLane: true,
+                holdsTenCharacters: true,
+                level: true,
+                pastFirstRow: true,
+            });
         },
     );
 });
 
 describe("boardGeometry's shell tracks", () => {
-    it("sizes a 1440x770 short desktop board's side badges to their lanes, past a 200px card", () => {
-        const { family, lengths } = windowGeometry({ height: 770, width: 1440 });
-
-        expect(family).toBe("short-desktop");
-        expect(lengths["left-badge-w"]).toBeGreaterThan(300);
-        expect(lengths["right-badge-w"]).toBeGreaterThan(300);
-    });
-
-    it("keeps a 932x430 phone board's side badges to their 130px card at most", () => {
-        const { family, lengths } = windowGeometry({ height: 430, width: 932 });
-
-        expect(family).toBe("phone");
-        expect(lengths["left-badge-w"]).toBeLessThanOrEqual(130);
-        expect(lengths["right-badge-w"]).toBeLessThanOrEqual(130);
-    });
-
-    it.each([
-        { height: 800, width: 1280 },
-        { height: 375, width: 667 },
-    ])("keeps the $width x $height settings target clear of both top corner strips", (box) => {
-        const { lengths, tracks } = windowGeometry(box);
+    it("stands a 667 x 375 phone's settings target in the right bar, past the right strip, over the decisions", () => {
+        const { lengths, tracks } = windowGeometry({ height: 375, width: 667 });
         const areas = slotAreas(tracks);
-        const cornerRight = areas["corner"]?.[2] ?? Number.NaN;
-        const menuSize = lengths["menu-size"] ?? Number.NaN;
+        const [cornerLeft = 0, cornerTop = 0, cornerRight = 0] = areas["corner"] ?? [];
 
-        expect(cornerRight).toBeLessThan(areas["strip-right"]?.[0] ?? Number.NaN);
-        expect(cornerRight - menuSize).toBeGreaterThan(areas["strip-top"]?.[2] ?? Number.NaN);
+        expect(cornerLeft).toBeGreaterThan(areas["strip-right"]?.[2] ?? Number.NaN);
+        expect(cornerRight - cornerLeft).toBeGreaterThanOrEqual(lengths["menu-size"] ?? Infinity);
+        expect(cornerTop + (lengths["menu-size"] ?? Infinity)).toBeLessThan(
+            areas["actions"]?.[1] ?? Number.NaN,
+        );
     });
 
     it("lays a landscape phone's slots where its board measured them", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
-            actions: [403.2, 126, 663, 309.9],
-            corner: [0, 4, 583, 375],
-            field: [90, 126, 171.8, 287.9],
-            "field-beside": [554.3, 265.9, 634.3, 313.9],
-            hand: [48.8, 317.9, 663, 369.9],
-            "strip-left": [4, 44, 76, 261.9],
-            "strip-right": [591, 4, 663, 297.3],
-            "strip-top": [4, 4, 535, 38],
-            switches: [44, 0, 667, 313.9],
+            actions: [564.5, 50, 663, 303.2],
+            corner: [564.5, 4, 663, 375],
+            field: [4, 40, 102.5, 191.1],
+            "field-beside": [564.5, 50, 663, 303.2],
+            furiten: [4, 199.1, 92, 217.2],
+            hand: [5, 309.2, 663, 369.2],
+            "strip-left": [108.5, 4, 148.5, 305.2],
+            "strip-right": [518.5, 4, 558.5, 305.2],
+            "strip-top": [148.5, 4, 467.5, 40],
+            switches: [4, 225.2, 84, 305.2],
         });
     });
 
@@ -717,28 +1234,6 @@ describe("boardGeometry's shell tracks", () => {
         expect(width - (lengths["overlay-right-beside-notices"] ?? Number.NaN)).toBeLessThanOrEqual(
             slotAreas(tracks)["field-beside"]?.[0] ?? Number.NaN,
         );
-    });
-
-    it("places the settings below the top strip and badge in a near-square landscape window", () => {
-        const { lengths, tracks } = windowGeometry({ height: 699, width: 700 });
-        const areas = slotAreas(tracks);
-        const cornerTop = areas["corner"]?.[1] ?? Number.NaN;
-
-        expect(cornerTop).toBeGreaterThan(areas["strip-top"]?.[3] ?? Number.NaN);
-        expect(cornerTop).toBeGreaterThan(
-            (lengths["top-badge-top"] ?? Number.NaN) + DESKTOP_CHROME.small.badgeH,
-        );
-        expect(areas["corner"]?.[2]).toBeLessThan(areas["strip-right"]?.[0] ?? Number.NaN);
-    });
-
-    it("ends a narrow desktop's notices' field short of the left river, every slot on lines of its own", () => {
-        const { lengths, tracks } = windowGeometry({ height: 900, width: 1100 });
-        const areas = Object.values(slotAreas(tracks));
-
-        expect(slotAreas(tracks)["field"]?.[2]).toBeCloseTo((lengths["reach-left"] ?? 0) - 8, 1);
-        expect(
-            areas.filter(([left, top, right, bottom]) => !(left < right && top < bottom)),
-        ).toEqual([]);
     });
 
     it("keeps an empty or inverted area's end on a line past its start, a 0px track apart", () => {

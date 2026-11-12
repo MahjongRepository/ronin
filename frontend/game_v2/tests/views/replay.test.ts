@@ -734,7 +734,7 @@ describe("mountReplayView - view", () => {
         const right = textOf(host, ".nameplate--right .nameplate__name");
 
         button(host, ".nameplate--right").click();
-        const afterPlate = textOf(host, ".board-local .nameplate__name");
+        const afterPlate = textOf(host, ".nameplate--bottom .nameplate__name");
         host.querySelector<HTMLElement>(
             ".board-center__seat--top .board-center__score-line",
         )?.click();
@@ -751,13 +751,13 @@ describe("mountReplayView - view", () => {
         pick.click();
         const marked = host.querySelector(".seating__seat--viewer .seating__name")?.textContent;
         button(host, ".seating__action").click();
-        const names = [".board-local", ".nameplate--right"].map((place) =>
+        const names = [".nameplate--bottom", ".nameplate--right"].map((place) =>
             textOf(host, `${place} .nameplate__name`),
         );
         button(host, ".replay-controls__option--view").click();
         button(host, ".replay-controls__move--nextTurn").click();
 
-        expect([marked, names[0], textOf(host, ".board-local .nameplate__name")]).toEqual([
+        expect([marked, names[0], textOf(host, ".nameplate--bottom .nameplate__name")]).toEqual([
             pick.textContent,
             pick.textContent,
             names[1],

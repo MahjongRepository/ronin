@@ -294,7 +294,7 @@ describe("tableStateToDisplayState nameplates", () => {
         expect(right.scoreDiffs).toEqual({ bottom: "-32100", left: "0", right: "", top: "+1500" });
     });
 
-    test("marks an AI player seated from the start apart from one standing in for a human who left or never came", () => {
+    test("words why a human who left or never came is away, and marks no AI player seated from the start", () => {
         const state = makeTableState({
             players: [
                 makePlayer({ seat: 0 }),
@@ -304,11 +304,11 @@ describe("tableStateToDisplayState nameplates", () => {
             ],
         });
         const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
-        expect(result.nameplates.map((plate) => plate.aiMark)).toEqual([
+        expect(result.nameplates.map((plate) => plate.away)).toEqual([
             null,
-            { kind: "ai", tag: "AI", words: "An AI player plays this seat" },
-            { kind: "away", tag: "Away", words: "Disconnected: an AI player plays this seat" },
-            { kind: "away", tag: "Away", words: "Absent: an AI player plays this seat" },
+            null,
+            "Disconnected: an AI player plays this seat",
+            "Absent: an AI player plays this seat",
         ]);
     });
 });
@@ -327,7 +327,7 @@ describe("tableStateToDisplayState nameplates on a replay", () => {
         return display.nameplates.map(
             (plate) =>
                 `${plate.name} ${plate.wind}${plate.isDealer ? " dealer" : ""}${plate.isCurrent ? " turn" : ""}` +
-                `${plate.isRiichi ? " riichi" : ""} ${plate.score}${plate.aiMark === null ? "" : ` [${plate.aiMark.tag}]`}`,
+                `${plate.isRiichi ? " riichi" : ""} ${plate.score}${plate.away === null ? "" : " [away]"}`,
         );
     }
 
@@ -336,16 +336,16 @@ describe("tableStateToDisplayState nameplates on a replay", () => {
             "Diana E dealer turn 25000",
             "Alice S 25000",
             "Charlie W 25000",
-            "Bob N 25000 [Away]",
+            "Bob N 25000 [away]",
         ]);
         expect(platesAfter("ai_replacements", "round_end")).toEqual([
             "Diana E dealer 25000",
             "Alice S 32700",
-            "Charlie W 17300 [Away]",
-            "Bob N 25000 [Away]",
+            "Charlie W 17300 [away]",
+            "Bob N 25000 [away]",
         ]);
         expect(platesAfter("ai_replacements", "discard", 3)).toEqual([
-            "Diana N 25000 [Away]",
+            "Diana N 25000 [away]",
             "Alice E dealer turn 32700",
             "Charlie S 17300",
             "Bob W 25000",

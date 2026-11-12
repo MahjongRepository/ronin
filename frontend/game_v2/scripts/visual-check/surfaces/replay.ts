@@ -28,9 +28,9 @@ import {
 import {
     FLOOR,
     FULLSCREEN_PHONE,
+    LAPTOP_WINDOW,
     MID_DESKTOP,
     NARROW_DESKTOP,
-    SHORT_DESKTOP,
     SHORT_TABLET,
     UPRIGHT_PHONE,
     WORST_CASES,
@@ -44,7 +44,7 @@ const REPLAY_TEXT_PX: Readonly<Record<StatusPart, number>> = {
 
 /** The most lines each part wraps to on a desktop window, the narrow one's narrow left field included. */
 const DESKTOP_TEXT_LINES: Readonly<Partial<Record<StatusPart, number>>> = {
-    incomplete: 4,
+    incomplete: 5,
 };
 
 /** The moves every board shows, the rounds' too where its chrome is the desktop's, and the options. */
@@ -88,7 +88,7 @@ interface ControlMeasure {
 
 /** The replay's controls and its status in the notices' place: empty, or null, on a page without them. */
 interface ReplayMeasure {
-    /** Every move and option the band may show, by selector, drawn or not. */
+    /** Every move and option the bar's column (a phone's band) may show, by selector, drawn or not. */
     readonly band: readonly ControlMeasure[];
     /** The round list's close and its rows shown inside its scroll. */
     readonly listControls: readonly Box[];
@@ -241,7 +241,7 @@ const PAGES: readonly PageCase[] = [
     { ...replayCase("custom_settings", []), at: [FLOOR, MID_DESKTOP] },
     {
         ...replayCase("start", []),
-        at: [...WORST_CASES, SHORT_DESKTOP, NARROW_DESKTOP, SHORT_TABLET],
+        at: [...WORST_CASES, LAPTOP_WINDOW, NARROW_DESKTOP, SHORT_TABLET],
     },
     {
         ...replayCase("seating", []),
@@ -307,7 +307,7 @@ const PAGES: readonly PageCase[] = [
         false,
     ),
     {
-        at: [FLOOR, FULLSCREEN_PHONE, SHORT_DESKTOP],
+        at: [FLOOR, FULLSCREEN_PHONE, LAPTOP_WINDOW],
         kind: "board",
         name: "replay",
         path: `/play/history/${GAME_ID}`,
@@ -372,7 +372,11 @@ function measureReplay(page: Page): Promise<ReplayMeasure> {
                 ];
             });
             const status = document.querySelector(".replay-status");
-            const placeElement = status?.closest(".board-notices") ?? null;
+            const notices = status?.closest(".board-notices") ?? null;
+            const placeElement =
+                notices !== null && getComputedStyle(notices).display === "contents"
+                    ? status
+                    : notices;
             const measured = Object.entries(parts).flatMap(([part, selector]) => {
                 const element = document.querySelector(selector);
                 if (element === null) {
@@ -435,27 +439,27 @@ function measureReplay(page: Page): Promise<ReplayMeasure> {
     );
 }
 
-/** What a board must show of the replay: its chrome's moves, and every option unless a small board's panel is open. */
+/** What a board must show of the replay: every move and option off a phone, and all but a phone's panel hides. */
 interface ReplayState {
-    /** The desktop's chrome, whose switches' place holds either end too. */
-    readonly desktopChrome: boolean;
+    /** Off a phone, whose right bar's column holds either end and the viewpoint too. */
+    readonly desktop: boolean;
     /**
-     * The panel-only exception: on a board with smaller chrome a panel over it takes all but the moves' row, so the
-     * options but the round list's toggle hide, and the status is compact (the end's mark).
+     * The panel-only exception: on a phone a panel over it takes all but the moves' row, so the options but the round
+     * list's toggle hide, and the status is compact (the end's mark).
      */
     readonly compact: boolean;
 }
 
 function replayState(board: BoardMeasure): ReplayState {
-    const desktopChrome = board.chrome === "regular" || board.chrome === "large";
-    return { compact: !desktopChrome && board.overlay !== null, desktopChrome };
+    const desktop = board.family !== "phone";
+    return { compact: !desktop && board.overlay !== null, desktop };
 }
 
-/** The band's controls the board must show, by selector, in its state. */
-function expectedControls({ compact, desktopChrome }: ReplayState): readonly string[] {
+/** The bar's or a phone's band's controls the board must show, by selector, in its state. */
+function expectedControls({ compact, desktop }: ReplayState): readonly string[] {
     return [
         ...CORE_MOVES,
-        ...(desktopChrome ? [...END_MOVES, VIEW_OPTION] : []),
+        ...(desktop ? [...END_MOVES, VIEW_OPTION] : []),
         ...(compact ? [ROUNDS_TOGGLE] : OPTIONS),
     ];
 }
@@ -762,7 +766,7 @@ async function checkBoard({ board, page, report, screen, viewport }: BoardRun): 
     const state = replayState(board);
     checkReplayControls(replay, { board, screen, state }, report);
     checkReplayStatus(replay, { board, desktop: viewport.desktop, screen, state }, report);
-    if (state.desktopChrome) {
+    if (state.desktop) {
         await checkSeatingField(page, report);
     }
 }

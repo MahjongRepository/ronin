@@ -5,14 +5,17 @@
     --oy: 0px;
     --or: 0px;
     --ob: 0px;
+    --tt: var(--geo-table-top, 0px);
+    --tb: calc(100cqh - var(--geo-table-h, 100cqh) - var(--tt));
     --zone-w: calc(100cqw + var(--ox) + var(--or));
     --zone-tl-x: calc(var(--cx) - var(--hx) + var(--ox));
     --zone-tr-x: calc(var(--cx) + var(--hx) + var(--ox));
-    --zone-top-y: calc(var(--cy) - var(--h) + var(--oy));
-    --zone-bottom-y: calc(var(--cy) + var(--h) + var(--oy));
-    --zone-band-y: calc(var(--foreground-top) + var(--oy));
+    --zone-top-y: calc(var(--cy) - var(--h) + var(--oy) + var(--tt));
+    --zone-bottom-y: calc(var(--cy) + var(--h) + var(--oy) + var(--tt));
+    --zone-band-y: calc(var(--foreground-top) + var(--oy) + var(--tt));
 
-    inset: calc(-1 * var(--oy)) calc(-1 * var(--or)) calc(-1 * var(--ob)) calc(-1 * var(--ox));
+    inset: calc(-1 * (var(--oy) + var(--tt))) calc(-1 * var(--or))
+        calc(-1 * (var(--ob) + var(--tb))) calc(-1 * var(--ox));
     pointer-events: none;
 
     .board-page & {
@@ -39,7 +42,7 @@
     &--left {
         background: var(--ronin-table-field-side);
         clip-path: polygon(
-            0 0,
+            0 var(--tt),
             var(--zone-tl-x) var(--zone-top-y),
             var(--zone-tl-x) var(--zone-bottom-y),
             0 var(--zone-band-y)
@@ -49,7 +52,7 @@
     &--right {
         background: var(--ronin-table-field-side);
         clip-path: polygon(
-            100% 0,
+            100% var(--tt),
             var(--zone-tr-x) var(--zone-top-y),
             var(--zone-tr-x) var(--zone-bottom-y),
             100% var(--zone-band-y)
@@ -61,8 +64,10 @@
         clip-path: polygon(
             0 0,
             100% 0,
+            100% var(--tt),
             var(--zone-tr-x) var(--zone-top-y),
-            var(--zone-tl-x) var(--zone-top-y)
+            var(--zone-tl-x) var(--zone-top-y),
+            0 var(--tt)
         );
     }
 }
@@ -90,14 +95,14 @@
         --x1: var(--zone-tl-x);
         --y1: var(--zone-top-y);
         --x2: 0px;
-        --y2: 0px;
+        --y2: var(--tt);
     }
 
     &--top-right {
         --x1: var(--zone-tr-x);
         --y1: var(--zone-top-y);
         --x2: var(--zone-w);
-        --y2: 0px;
+        --y2: var(--tt);
     }
 
     &--bottom-right {

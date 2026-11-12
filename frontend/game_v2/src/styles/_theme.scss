@@ -40,9 +40,9 @@
 :root {
     --ronin-text: var(--pico-color);
     --ronin-text-secondary: #a8bab4;
+    --ronin-text-bank: #bccbc6;
     --ronin-accent: #f2b544;
     --ronin-accent-ink: #1d1606;
-    --ronin-accent-edge: #b8841a;
     --ronin-success: #5fd08a;
     --ronin-warning: #ffb36b;
     --ronin-danger: #ff9c8f;
@@ -91,7 +91,7 @@
     --ronin-badge: rgb(11 21 23 / 78%);
     --ronin-badge-rim: #344b50;
     --ronin-badge-ink: #eef3ef;
-    --ronin-badge-muted: #b9c9c4;
+    --ronin-plate-away: #ff6f61;
     --ronin-chip: rgb(11 21 23 / 62%);
     --ronin-notice: rgb(11 21 23 / 88%);
     --ronin-dealer: #c2382f;
@@ -116,6 +116,7 @@
     --ronin-action-quiet-ink: #e2eae6;
     --ronin-action-quiet-rim: #56707a;
     --ronin-action-quiet-hover: rgb(255 255 255 / 10%);
+    --ronin-action-lift: rgb(0 0 0 / 55%);
     --ronin-callout: #0f1c1f;
     --ronin-callout-ink: #f4f7f5;
     --ronin-callout-win-rim: #ff8a7a;
@@ -123,7 +124,6 @@
     --ronin-switch-rim: #37505a;
     --ronin-switch-track: #8ea39e;
     --ronin-switch-on: #86dfc0;
-    --ronin-switch-on-knob: #0f1c1f;
     --ronin-font: system-ui, -apple-system, "Segoe UI", sans-serif;
     --ronin-font-debug: ui-monospace, "SF Mono", "Menlo", "Consolas", "Liberation Mono", monospace;
     --pico-font-family-sans-serif: var(--ronin-font);

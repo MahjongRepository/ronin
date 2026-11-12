@@ -195,14 +195,13 @@
     color: var(--ronin-text);
 }
 
-/* One line shrunk to the room between the side rows; past the floor the wall's count takes a line of its own,
-   the honba and riichi sticks staying together. */
+/* One line shrunk to the room between the side rows, down to a floor whose gaps still hold it on a phone's. */
 .board-center__counts {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     justify-content: center;
-    gap: 0.2em 0.4em;
+    gap: 0.3em;
     max-width: 100%;
     font-size: max(
         10px,
@@ -215,7 +214,7 @@
 
 .board-center__sticks {
     display: inline-flex;
-    gap: 0.4em;
+    gap: 0.3em;
 }
 
 .board-center__count {

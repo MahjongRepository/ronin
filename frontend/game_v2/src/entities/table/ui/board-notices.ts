@@ -61,10 +61,12 @@ function noticeKey(notice: BoardNotice): string {
 }
 
 /**
- * The notices' place in the table's left field, outside every river's capacity, so a notice never covers a tile, a
- * badge or a control: the notices, ongoing conditions first, each clamped to whole lines with "Show all" where the
- * stack is taller than the place, and under them what the board's page shows there too (a replay's position). They
- * are read out by `NoticeAnnouncements`, never from here, so a clamp is never announced.
+ * The notices' place (a phone's left field; off a phone their toasts in the core's bottom-left corner, the page's own
+ * keeping the field), outside every river's capacity, so a notice never covers a tile, a badge or a control: the
+ * notices, ongoing conditions first, each in its brief form where it has one and its whole words in its title, each
+ * clamped to whole lines (a toast to its two) with "Show all" where the stack is taller than the place, and under
+ * them what the board's page shows there too (a replay's position). They are read out by `NoticeAnnouncements`, never
+ * from here, so a clamp is never announced.
  */
 export function BoardNotices(
     notices: readonly BoardNotice[],
@@ -75,8 +77,12 @@ export function BoardNotices(
             notices,
             noticeKey,
             (notice) =>
-                html`<div class="board-notice board-notice--${notice.tone}" data-notice=${notice.id ?? nothing}>
-                    <span class="board-notice__body">${notice.text}${noticeAction(notice)}</span>${ShowAll(notice)}
+                html`<div
+                    class="board-notice board-notice--${notice.tone}"
+                    data-notice=${notice.id ?? nothing}
+                    title=${notice.text}
+                >
+                    <span class="board-notice__body"><span class="board-notice__words">${notice.brief ?? notice.text}</span>${noticeAction(notice)}</span>${ShowAll(notice)}
                 </div>`,
         )}</div>
         ${after}

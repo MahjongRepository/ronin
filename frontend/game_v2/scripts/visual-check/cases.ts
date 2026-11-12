@@ -98,6 +98,9 @@ export function decisionCase(story: string, extra: readonly string[]): BoardCase
 
 export const ACTION = ".board-actions .decision-controls__action";
 
+export const SHOWN_RESULT_COUNTDOWN =
+    ".round-end-result__countdown:not(.round-end-result__ghost *)";
+
 export function documentCase(name: string, path: string, content: string): PageCase {
     return { kind: "document", name, path, required: { visible: [content] } };
 }

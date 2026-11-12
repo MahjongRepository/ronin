@@ -485,8 +485,9 @@ function OverlayPanel(panel: PlayPanel, props: PlayBoardProps): TemplateResult {
 
 /** A notice as the board draws it: found by its kind, opened whole by "Show all". */
 function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"]): BoardNotice {
-    const { action, kind, text, tone } = notice;
+    const { action, brief, kind, text, tone } = notice;
     const shown = {
+        ...(brief === undefined ? {} : { brief }),
         id: kind,
         onShowAll: () => onCommand({ kind: "show_notice", notice: kind }),
         text,

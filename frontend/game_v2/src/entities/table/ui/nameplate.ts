@@ -1,4 +1,4 @@
-import { type TemplateResult, html, nothing } from "lit-html";
+import { type TemplateResult, html } from "lit-html";
 
 import {
     type BoardNameplate,
@@ -8,7 +8,6 @@ import {
 import { t } from "@/shared/i18n";
 
 import { PlayerName } from "./player-name";
-import { RiichiStickIcon } from "./riichi-stick-icon";
 
 /** Views the table from a seat, where pressing its plate does (a replay's); a live game's plates take no press. */
 type SeatView = (seat: SeatPosition) => void;
@@ -21,7 +20,7 @@ interface NameplateProps {
 
 /**
  * What a screen reader hears for a plate: its whole name, its seat's wind (shown in the centre), whose turn it is, its
- * score, why an AI player is marked, and where pressing it views from its seat, that.
+ * score, its riichi, why its player is away, and where pressing it views from its seat, that.
  */
 function nameplateLabel({ onView, plate, position }: NameplateProps): string {
     const seat = plate.isDealer
@@ -31,7 +30,7 @@ function nameplateLabel({ onView, plate, position }: NameplateProps): string {
         plate.isCurrent ? t("game.nameplate.to_play") : null,
         t("game.result.points", { count: Number(plate.score) }),
         plate.isRiichi ? t("game.nameplate.riichi") : null,
-        plate.aiMark?.words ?? null,
+        plate.away,
         onView === null ? null : viewWords(position),
     ].filter((mark) => mark !== null);
     return [plate.name, seat, ...marks].join(t("list.separator"));
@@ -43,10 +42,11 @@ function viewWords(position: SeatPosition): string {
 }
 
 /**
- * A seat's badge: its player's name, its AI and riichi marks quiet on a line under it (beside it on the own badge, whose
- * lane is wide and short); a bar along its bottom edge marks whose turn it is. Its score is the centre's, on
- * the seat's side, which shows the other seats' scores as differences from its own while a pointer hovers the badge.
- * Where pressing it views the table from its seat (a replay's), it is a button; a live game's badge takes no press.
+ * A seat's badge: its player's name alone on one line, its states each on its own channel so any of them combine: the
+ * name's ink red while its player is away (the reason in its title and label), a rim in the riichi stick's ivory after
+ * a riichi, a bar along its bottom edge whose turn it is. Its score is the centre's, on the seat's side, which shows
+ * the other seats' scores as differences from its own while a pointer hovers the badge. Where pressing it views the
+ * table from its seat (a replay's), it is a button; a live game's badge takes no press.
  */
 function Nameplate(props: NameplateProps): TemplateResult {
     const { onView, plate, position } = props;
@@ -54,41 +54,30 @@ function Nameplate(props: NameplateProps): TemplateResult {
         "nameplate",
         `nameplate--${position}`,
         plate.isCurrent ? "nameplate--current" : "",
+        plate.isRiichi ? "nameplate--riichi" : "",
+        plate.away === null ? "" : "nameplate--away",
     ]
         .filter(Boolean)
         .join(" ");
-    const pill = html`<span class="nameplate__pill">${PlayerName(plate.name, "nameplate__name")}${NameplateMarks(plate)}</span>`;
+    const title =
+        plate.away === null
+            ? plate.name
+            : t("game.nameplate.away_title", { name: plate.name, reason: plate.away });
+    const pill = html`<span class="nameplate__pill">${PlayerName(plate.name, "nameplate__name")}</span>`;
     if (onView === null) {
-        return html`<div class=${classes} role="group" title=${plate.name} aria-label=${nameplateLabel(props)}>
+        return html`<div class=${classes} role="group" title=${title} aria-label=${nameplateLabel(props)}>
             ${pill}
         </div>`;
     }
     return html`<button
         type="button"
         class=${classes}
-        title=${plate.name}
+        title=${title}
         aria-label=${nameplateLabel(props)}
         @click=${() => onView(position)}
     >
         ${pill}
     </button>`;
-}
-
-/**
- * A plate's quiet marks, AI or Away and riichi: on a line under the name, so the name keeps the plate's width, or
- * beside it on the own plate.
- */
-function NameplateMarks({ aiMark, isRiichi }: BoardNameplate): TemplateResult | typeof nothing {
-    if (aiMark === null && !isRiichi) {
-        return nothing;
-    }
-    return html`<span class="nameplate__marks"
-        >${
-            aiMark === null
-                ? nothing
-                : html`<span class="nameplate__ai nameplate__ai--${aiMark.kind}">${aiMark.tag}</span>`
-        }${isRiichi ? html`<span class="nameplate__riichi">${RiichiStickIcon("across")}</span>` : nothing}</span
-    >`;
 }
 
 /** The four seats' nameplates, by board position, each viewing from its own seat where a press views from one. */

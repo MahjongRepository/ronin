@@ -4,7 +4,7 @@ import { type ElementPart, type PartInfo, PartType, directive } from "lit-html/d
 
 import { t } from "@/shared/i18n";
 
-/** A clamped notice's least height: the whole notice is its "Show all" control's tap target. */
+/** A clamped notice's "Show all" is at least this tall, over the text above its line; the notice is its target. */
 export const NOTICE_TAP_MIN = 40;
 
 /**
@@ -34,12 +34,15 @@ export interface NoticeClampPlan {
     readonly shown: number;
 }
 
-/** A notice's height at `lines` of its text with "Show all" on a line of its own under them, or whole at null. */
+/**
+ * A notice's height at `lines` of its text with "Show all" on a line of its own under them, its target's height at
+ * least, or whole at null.
+ */
 function shownHeight(notice: NoticeMeasure, lines: number | null): number {
     if (lines === null) {
         return notice.chrome + notice.wholeExtra + notice.textHeight;
     }
-    return Math.max(NOTICE_TAP_MIN, notice.chrome + (lines + 1) * notice.lineHeight);
+    return notice.chrome + Math.max(NOTICE_TAP_MIN, (lines + 1) * notice.lineHeight);
 }
 
 function fullLines(notice: NoticeMeasure): number {
@@ -153,10 +156,10 @@ function measureNotice(notice: HTMLElement): NoticeMeasure | null {
         pixels(style.borderTopWidth) +
         pixels(style.borderBottomWidth);
     return {
-        chrome: clamped ? chrome : chrome - wholeExtra,
+        chrome,
         clampable: notice.querySelector(".board-notice__more") !== null,
         lineHeight: pixels(getComputedStyle(text).lineHeight),
-        textHeight: clamped ? text.scrollHeight : text.clientHeight,
+        textHeight: clamped ? text.scrollHeight : text.clientHeight - wholeExtra,
         wholeExtra,
     };
 }
@@ -203,55 +206,177 @@ function labelShowAll(showAll: Element, more: number): void {
     );
 }
 
-/** Each notice's measure, every one shown again first if it was left out, so it is measured as it would show. */
-function measureAll(notices: readonly HTMLElement[]): NoticeMeasure[] {
-    for (const notice of notices) {
-        notice.removeAttribute("data-overflow");
-    }
-    return notices.map(measureNotice).filter((measure) => measure !== null);
-}
-
-/**
- * The notices of a place, each shown again if it was left out, and their measures with the place's room for them
- * (its height less what else it holds, a replay's status) and their gap; null for a place that sets no height.
- */
 function readPlace(place: HTMLElement): {
+    readonly apart: boolean;
     readonly notices: HTMLElement[];
-    readonly measures: NoticeMeasure[];
     readonly place: NoticePlace;
 } | null {
     const list = place.querySelector(".board-notices__list");
-    const height = pixels(getComputedStyle(place).maxHeight);
     const notices = [...(list?.children ?? [])].filter((child) => child instanceof HTMLElement);
-    if (!(list instanceof HTMLElement) || height === 0 || notices.length === 0) {
+    const apart = getComputedStyle(place).display === "contents";
+    const room = list instanceof HTMLElement ? placeRoom(place, list, apart) : null;
+    if (room === null || notices.length === 0) {
         return null;
     }
-    const measures = measureAll(notices);
-    const room = {
+    for (const notice of notices) {
+        notice.removeAttribute("data-overflow");
+    }
+    return { apart, notices, place: room };
+}
+
+/**
+ * The room a place's notices take (its height less what else it holds; the list's own where they stand `apart`) and
+ * their gap; null for a place that sets no height.
+ */
+function placeRoom(place: HTMLElement, list: HTMLElement, apart: boolean): NoticePlace | null {
+    const height = pixels(getComputedStyle(apart ? list : place).maxHeight);
+    if (height === 0) {
+        return null;
+    }
+    return {
         gap: pixels(getComputedStyle(list).rowGap),
-        room: height - (place.scrollHeight - list.offsetHeight),
+        room: apart ? height : height - (place.scrollHeight - list.offsetHeight),
     };
-    return measures.length === notices.length ? { measures, notices, place: room } : null;
+}
+
+export interface ToastMeasure {
+    readonly wholeHeight: number;
+    readonly clampedHeight: number;
+    readonly cutPastTwoLines: boolean;
+    readonly clampable: boolean;
+}
+
+export interface ToastStackPlan {
+    readonly clamped: readonly boolean[];
+    readonly shown: number;
+}
+
+export function planToastStack(
+    room: number,
+    gap: number,
+    toasts: readonly ToastMeasure[],
+): ToastStackPlan {
+    function clampedOf(count: number): boolean[] {
+        return toasts
+            .slice(0, count)
+            .map(
+                (toast, index) =>
+                    toast.clampable &&
+                    (toast.cutPastTwoLines || (index === count - 1 && count < toasts.length)),
+            );
+    }
+    function toastStackHeight(count: number): number {
+        const clamped = clampedOf(count);
+        const heights = toasts
+            .slice(0, count)
+            .map((toast, index) =>
+                clamped[index] === true
+                    ? Math.max(NOTICE_TAP_MIN, toast.clampedHeight)
+                    : toast.wholeHeight,
+            );
+        return heights.reduce((sum, height) => sum + height, 0) + gap * Math.max(0, count - 1);
+    }
+    let shown = Math.min(1, toasts.length);
+    for (let count = toasts.length; count > 1; count -= 1) {
+        if (toastStackHeight(count) <= room) {
+            shown = count;
+            break;
+        }
+    }
+    return {
+        clamped: [...clampedOf(shown), ...toasts.slice(shown).map(() => false)],
+        shown,
+    };
+}
+
+function wordLines(words: HTMLElement): number {
+    const line = pixels(getComputedStyle(words).lineHeight);
+    return line > 0 ? Math.max(1, Math.round(words.clientHeight / line)) : 1;
+}
+
+function readAsClamped<Measured>(
+    notice: HTMLElement,
+    clamped: boolean,
+    read: () => Measured,
+): Measured {
+    const was = notice.hasAttribute("data-clamped");
+    setAttribute(notice, "data-clamped", clamped ? "" : null);
+    const value = read();
+    setAttribute(notice, "data-clamped", was ? "" : null);
+    return value;
+}
+
+function measureToast(
+    notice: HTMLElement,
+): (ToastMeasure & { readonly clampedLines: number }) | null {
+    const words = notice.querySelector(".board-notice__words");
+    if (!(words instanceof HTMLElement)) {
+        return null;
+    }
+    const whole = readAsClamped(notice, false, () => ({
+        cutPastTwoLines: words.scrollHeight > words.clientHeight + 1,
+        wholeHeight: notice.getBoundingClientRect().height,
+    }));
+    const clamped = readAsClamped(notice, true, () => ({
+        clampedHeight: notice.getBoundingClientRect().height,
+        clampedLines: wordLines(words),
+    }));
+    return {
+        ...whole,
+        ...clamped,
+        clampable: notice.querySelector(".board-notice__more") !== null,
+    };
+}
+
+function clampToasts(notices: readonly HTMLElement[], place: NoticePlace): void {
+    const measures = notices.map(measureToast);
+    if (measures.some((measure) => measure === null)) {
+        return;
+    }
+    const toasts = measures.filter((measure) => measure !== null);
+    const { clamped, shown } = planToastStack(place.room, place.gap, toasts);
+    notices.forEach((notice, index) => {
+        writeClamp(notice, {
+            left: index >= shown,
+            lines: clamped[index] === true ? (toasts[index]?.clampedLines ?? 1) : null,
+            more: index === shown - 1 ? notices.length - shown : 0,
+        });
+    });
+}
+
+function clampWrapped(notices: readonly HTMLElement[], place: NoticePlace): void {
+    const measures = notices.map(measureNotice).filter((measure) => measure !== null);
+    if (measures.length !== notices.length) {
+        return;
+    }
+    const { lines, shown } = planNoticeClamp(place.room, place.gap, measures);
+    notices.forEach((notice, index) => {
+        writeClamp(notice, {
+            left: index >= shown,
+            lines: lines[index] ?? null,
+            more: index === shown - 1 ? notices.length - shown : 0,
+        });
+    });
 }
 
 /**
  * Clamp the notices of a place to whole lines, and leave out the last ones, where the stack is taller than the place
  * lets it be: a text's overflow is the one thing CSS cannot tell, so this alone reads the layout. It reads each text's
- * whole height (a clamped text's scroll height, so it never undoes a clamp to measure; a whole one's own height, which
- * its way out's tap target overflowing it never adds to); only a notice it left out is shown again for a moment,
- * within the same task, so nothing paints between.
+ * whole height (a clamped text's scroll height, so it never undoes a clamp to measure; a whole one's own height less
+ * its way out's line); only a notice it left out is shown again for a moment, and a toast read both whole and clamped
+ * (`clampToasts`), within the same task, so nothing paints between.
  */
 function clampPlace(element: HTMLElement): void {
     const read = readPlace(element);
     if (read === null) {
         return;
     }
-    const { measures, notices, place } = read;
-    const { lines, shown } = planNoticeClamp(place.room, place.gap, measures);
-    notices.forEach((notice, index) => {
-        const more = index === shown - 1 ? notices.length - shown : 0;
-        writeClamp(notice, { left: index >= shown, lines: lines[index] ?? null, more });
-    });
+    const { apart, notices, place } = read;
+    if (apart) {
+        clampToasts(notices, place);
+    } else {
+        clampWrapped(notices, place);
+    }
 }
 
 /**

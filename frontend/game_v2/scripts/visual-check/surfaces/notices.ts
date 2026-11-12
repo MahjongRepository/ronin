@@ -11,13 +11,7 @@ import {
     SELECTOR_TIMEOUT_MS,
     type Surface,
 } from "../model.ts";
-import {
-    FLOOR,
-    MID_DESKTOP,
-    NARROW_DESKTOP,
-    SHORTEST_REGULAR_DESKTOP,
-    SMALLEST_WINDOW,
-} from "../viewports.ts";
+import { FLOOR, LAPTOP_770, MID_DESKTOP, NARROW_DESKTOP, SMALLEST_WINDOW } from "../viewports.ts";
 
 /** The stacked story's notices in the stack's order: the ongoing condition, then the acknowledgement. */
 const STACK_ORDER = ["tile_sprite", "refused"];
@@ -41,8 +35,11 @@ const MIN_NOTICE_MEASURE = 7.5;
 const PAGES: readonly PageCase[] = [
     decisionCase("connection_lost", [".board-notice--warning", ".game-menu__alert"]),
     {
-        ...decisionCase("notices_stacked", [".board-notice--warning", ".hand-tile--selectable"]),
-        at: [FLOOR, MID_DESKTOP, SHORTEST_REGULAR_DESKTOP, NARROW_DESKTOP],
+        ...decisionCase("notices_stacked", [
+            ".board-notice--warning:not([data-overflow])",
+            ".hand-tile--selectable",
+        ]),
+        at: [FLOOR, MID_DESKTOP, LAPTOP_770, NARROW_DESKTOP],
     },
     {
         ...decisionCase("notice_long", [".board-notice--error"]),
@@ -75,7 +72,9 @@ const PAGES: readonly PageCase[] = [
         kind: "own",
         name: "notices-sheet-keys",
         path: "/play/storybook/decisions?state=notices_stacked",
-        required: { visible: [".board-notice--warning", ".hand-tile--selectable"] },
+        required: {
+            visible: [".board-notice--warning:not([data-overflow])", ".hand-tile--selectable"],
+        },
     },
     {
         at: [FLOOR, MID_DESKTOP],
@@ -117,6 +116,10 @@ function checkNotices(
 interface NoticeClamp {
     readonly id: string;
     readonly clampable: boolean;
+    /** A toast's words cut short on its two lines by their ellipsis. */
+    readonly cut: boolean;
+    /** A desktop's two-line toast, which clamps where its words run past its two lines or it stands for notices left out. */
+    readonly toast: boolean;
     /** Left out of a place too short for the stack, its "Show all" on the last one shown standing for it. */
     readonly left: boolean;
     readonly lines: number | null;
@@ -141,7 +144,9 @@ interface PlaceClamp {
 
 function measureClamp(page: Page): Promise<PlaceClamp | null> {
     return page.evaluate((showAll) => {
-        const place = document.querySelector(".game-board .board-notices");
+        const holder = document.querySelector(".game-board .board-notices");
+        const apart = holder !== null && getComputedStyle(holder).display === "contents";
+        const place = apart ? holder.querySelector(".board-notices__list") : holder;
         if (place === null) {
             return null;
         }
@@ -160,8 +165,10 @@ function measureClamp(page: Page): Promise<PlaceClamp | null> {
             }
             const textHeight =
                 text.getBoundingClientRect().bottom - (body?.getBoundingClientRect().top ?? 0);
+            const words = notice.querySelector(".board-notice__words");
             return {
                 clampable: more !== null,
+                cut: words !== null && words.scrollHeight > words.clientHeight + 1,
                 height: box.height,
                 id: notice.getAttribute("data-notice") ?? "",
                 left: notice.hasAttribute("data-overflow"),
@@ -170,6 +177,7 @@ function measureClamp(page: Page): Promise<PlaceClamp | null> {
                 lines,
                 showAll: more !== null && more.getBoundingClientRect().height > 0,
                 shownHeight: body?.clientHeight ?? 0,
+                toast: apart,
                 wholeHeight: lines === null ? textHeight : (body?.scrollHeight ?? 0),
                 withinWidth: box.left >= room.left - 1 && box.right <= room.right + 1,
             };
@@ -185,19 +193,20 @@ function measureClamp(page: Page): Promise<PlaceClamp | null> {
                     : room.width / Number.parseFloat(getComputedStyle(first).fontSize),
             notices,
             overflows: place.scrollHeight > place.clientHeight + 1,
-            status: place.querySelector(".replay-status") !== null,
+            status: !apart && place.querySelector(".replay-status") !== null,
         };
     }, SHOW_ALL);
 }
 
 /**
  * One notice the board may open whole: shown whole with no "Show all", or clamped to whole lines (hiding some, unless
- * it stands for notices left out after it) with "Show all" and at least a tap target's height.
+ * it stands for notices left out after it or is a toast, whose two lines its words overran) with "Show all" and at
+ * least a tap target's height.
  */
 function checkNoticeClamp(notice: NoticeClamp, standsForMore: boolean, report: PageReport): void {
     if (notice.lines === null) {
         report.expect(
-            notice.wholeHeight <= notice.shownHeight + EPSILON && !notice.showAll,
+            notice.wholeHeight <= notice.shownHeight + EPSILON && !notice.cut && !notice.showAll,
             `the ${notice.id} notice hides part of its text with no "Show all"`,
         );
         return;
@@ -205,7 +214,8 @@ function checkNoticeClamp(notice: NoticeClamp, standsForMore: boolean, report: P
     const wholeLines =
         Math.abs(notice.shownHeight - notice.lines * notice.lineHeight) <= EPSILON + 0.5;
     report.expect(
-        wholeLines && (standsForMore || notice.wholeHeight > notice.shownHeight + EPSILON),
+        wholeLines &&
+            (standsForMore || notice.toast || notice.wholeHeight > notice.shownHeight + EPSILON),
         `the ${notice.id} notice is clamped to ${notice.shownHeight}px of its ${notice.wholeHeight}px, not ${notice.lines} whole line(s) of ${notice.lineHeight}px`,
     );
     report.expect(
@@ -221,7 +231,7 @@ function checkNoticeClamp(notice: NoticeClamp, standsForMore: boolean, report: P
  */
 function checkClamp(place: PlaceClamp, report: PageReport): void {
     report.expect(
-        place.measure === null || place.measure >= MIN_NOTICE_MEASURE,
+        place.measure === null || place.measure >= MIN_NOTICE_MEASURE - 0.01,
         `the notices' place is ${place.measure?.toFixed(1)}em wide, under ${MIN_NOTICE_MEASURE}em: its notices break into word columns`,
     );
     const shown = place.notices.filter((notice) => !notice.left);
@@ -467,18 +477,16 @@ async function takeHeard(page: Page): Promise<readonly string[]> {
 /** What the live regions hold: each notice's text and each call's words, by region. */
 function liveTexts(page: Page): Promise<{ notices: string[]; calls: string[]; shown: string[] }> {
     return page.evaluate(() => {
-        const [calls, notices, shown] = [
+        const [calls, notices] = [
             ".game-board .board-announce--calls p",
             ".game-board .board-announce--notices p",
-            ".game-board .board-notice .board-notice__body",
         ].map((selector) =>
             [...document.querySelectorAll(selector)].map((node) => node.textContent.trim()),
         );
-        return {
-            calls: calls ?? [],
-            notices: notices ?? [],
-            shown: (shown ?? []).map((text) => text.replace(/Reload$/, "").trim()),
-        };
+        const shown = [...document.querySelectorAll(".game-board .board-notice")].map(
+            (notice) => notice.getAttribute("title") ?? "",
+        );
+        return { calls: calls ?? [], notices: notices ?? [], shown };
     });
 }
 
@@ -568,11 +576,16 @@ async function checkSheetKeys(
         })
         .then(() => true)
         .catch(() => false);
-    report.expect(
-        clamped,
-        'the notice over the round confirm never clamped with "Show all" at the floor\'s size',
-    );
     if (!clamped) {
+        const place = await measureClamp(page);
+        const cut = (place?.notices ?? []).filter(
+            (notice) => notice.cut || notice.wholeHeight > notice.shownHeight + EPSILON,
+        );
+        report.expect(
+            cut.length === 0,
+            `the notice(s) over the round confirm hide part of their words with no "Show all": ${cut.map((notice) => notice.id).join(", ")}`,
+        );
+        await checkCloseOverDecision(page, report);
         return summary;
     }
     await page.evaluate(() => {

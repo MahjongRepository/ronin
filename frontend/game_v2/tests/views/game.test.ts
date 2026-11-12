@@ -478,8 +478,10 @@ describe("mountGameView", () => {
         expect(consoleError).toHaveBeenCalledTimes(2);
         expect([
             host.querySelector(".game__play .board-notice--error .board-notice__body")?.textContent,
+            host.querySelector(".game__play .board-notice--error")?.getAttribute("title"),
             host.querySelector(".log-entry"),
         ]).toEqual([
+            "2 messages unread",
             "The game server sent 2 messages this page could not read, so the table may be wrong until the server sends them again; play goes on.",
             null,
         ]);
@@ -541,7 +543,7 @@ describe("mountGameView tile faces", () => {
         press(host, ".board-notice__action");
         tileSprite.moveTo("ready");
 
-        const notice = /^Tile images did not load; tiles show their names\s*Reload$/;
+        const notice = /^Tiles shown as text\s*Reload$/;
         expect(shown).toEqual([expect.stringMatching(notice), expect.stringMatching(notice)]);
         expect(sink.reload).toHaveBeenCalledOnce();
         expect(spriteNotice(host)).toBeUndefined();
@@ -558,7 +560,7 @@ describe("mountGameView tile faces", () => {
         const shown = barsNotice();
         browserBars.moveTo(false);
 
-        expect(shown).toMatch(/^Swipe up to hide the browser bars and enlarge the table\s*$/);
+        expect(shown).toMatch(/^Swipe up to enlarge\s*$/);
         expect(barsNotice()).toBeUndefined();
     });
 
@@ -743,7 +745,7 @@ describe("mountGameView connection", () => {
         expect(connections[0].disconnected).toBe(true);
         expect(
             host.querySelector(".game__play .board-notice .board-notice__body")?.textContent,
-        ).toBe("Cannot reach the game. Retrying…");
+        ).toBe("Can't reach the game");
         clock.advanceTo(11_000);
 
         expect(connections).toHaveLength(2);
@@ -759,7 +761,7 @@ describe("mountGameView connection", () => {
         expect(
             host.querySelector(".game__play .board-notice--warning .board-notice__body")
                 ?.textContent,
-        ).toBe("Connection lost. Reconnecting…");
+        ).toBe("Reconnecting…");
     });
 
     it("blocks the board with why a terminal close ended the session, and leaves only on its button", () => {
@@ -1292,7 +1294,7 @@ describe("mountGameView settings", () => {
                 ?.textContent,
             host.querySelector(".game__play .game-menu__panel") !== null,
             connections[0].sent,
-        ]).toEqual([["ru"], "ru", "Ronin - Игра", "Пропустить", "Русский", true, [JOIN]]);
+        ]).toEqual([["ru"], "ru", "Ronin - Игра", "Пас", "Русский", true, [JOIN]]);
         expect(sink.reload).not.toHaveBeenCalled();
     });
 
@@ -1567,6 +1569,6 @@ describe("mountGameView view state", () => {
             null,
             null,
         ]);
-        expect(spriteNotice(host)).toMatch(/^Tile images did not load/);
+        expect(spriteNotice(host)).toMatch(/^Tiles shown as text/);
     });
 });

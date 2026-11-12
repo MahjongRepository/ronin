@@ -1,7 +1,7 @@
 import { type Page } from "playwright";
 
 import { RIVER_ROW_SIZE } from "../../../src/entities/tile/lib/river-shape.ts";
-import { type BoardMeasure, ownRiverThirdRow } from "../board-measure.ts";
+import { type BoardMeasure, ownRiverPastReserve } from "../board-measure.ts";
 import {
     type Box,
     EPSILON,
@@ -32,10 +32,10 @@ import {
     FLOOR,
     FULLSCREEN_PHONE,
     LAPTOPS,
+    LAPTOP_WINDOW,
     MID_DESKTOP,
     NARROW_DESKTOP,
     NOTCH_PHONE,
-    SHORT_DESKTOP,
     ULTRAWIDE,
     UPRIGHT_PHONE,
     WIDER_PHONES,
@@ -56,8 +56,20 @@ const MIN_FACE: Size = { height: 17, width: 13 };
  * 667x375 floor).
  */
 const MIN_RIVER_GAP = 3;
-/** The least gap between an opponent's strip and any river, so neither reads as a row of the other (8px drawn). */
-const MIN_STRIP_GAP = 6;
+/**
+ * The least gap between an opponent's strip and any river, so neither reads as a row of the other: 8px drawn on a 2x
+ * screen, which a browser-boxed phone's top strip keeps from an added kan's stack (more would cost its river tile).
+ */
+const MIN_STRIP_GAP = 4;
+
+function boxGap(first: Box, second: Box): number {
+    return Math.max(
+        second.left - (first.left + first.width),
+        first.left - (second.left + second.width),
+        second.top - (first.top + first.height),
+        first.top - (second.top + second.height),
+    );
+}
 
 /** Each badge's fixed point by its seat, where a page measured a board in landscape (`checkBadgePlaces`). */
 const BADGE_ANCHORS = new PageRecord<Readonly<Record<string, readonly [number, number]>>>();
@@ -65,7 +77,7 @@ const BADGE_ANCHORS = new PageRecord<Readonly<Record<string, readonly [number, n
 const DOCUMENT_AT = { at: [UPRIGHT_PHONE] } as const;
 
 /**
- * The board's worst cases. The full hands with five offers bind the band and the worst case is the densest table, so
+ * The board's worst cases. The full hands with five offers bind the decisions' corner and the worst case is the densest table, so
  * both stand at the viewports guarding a path of the layout, as the longest strips (four open kans a seat) do where a
  * strip binds and the riichi call at every seat where a call's words do; a story they cover in a harsher form is left
  * out (full rivers, concealed hands, a tsumo at every seat), and every other dense story is checked once at the
@@ -108,7 +120,7 @@ const PAGES: readonly PageCase[] = [
             ".discard-tile--last.discard-tile-riichi",
             ACTION,
         ]),
-        at: [FLOOR, SHORT_DESKTOP],
+        at: [FLOOR, LAPTOP_WINDOW],
     },
     {
         ...boardCase("board-nineteen-discards", "?state=full_rivers&offers=five", [ACTION]),
@@ -118,7 +130,7 @@ const PAGES: readonly PageCase[] = [
         ...boardCase("board-worst", "?state=worst", [
             ".board-strip .meld",
             ".board-dora .tile",
-            ".nameplate__ai",
+            ".nameplate--away",
         ]),
         at: [FLOOR, NOTCH_PHONE, FULLSCREEN_PHONE, MID_DESKTOP, NARROW_DESKTOP],
         contrast: true,
@@ -134,14 +146,14 @@ const PAGES: readonly PageCase[] = [
     },
     {
         ...boardCase("board-full-hands", "?state=full_hands&offers=five", [ACTION]),
-        at: [...WORST_CASES, SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
+        at: [...WORST_CASES, LAPTOP_WINDOW, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
     },
     {
         ...boardCase("board-full-hands-riichi", "?state=full_hands&offers=riichi", [
             `${ACTION}[aria-pressed="true"]`,
             ".decision-controls__bank",
         ]),
-        at: [FLOOR, SHORT_DESKTOP],
+        at: [FLOOR, LAPTOP_WINDOW],
     },
     boardCase("board-mixed-hands-a", "?state=mixed_hands_a", [".board-strip .meld"]),
     boardCase("board-mixed-hands-b", "?state=mixed_hands_b", [".board-strip .meld"]),
@@ -170,28 +182,28 @@ const PAGES: readonly PageCase[] = [
     },
     {
         ...boardCase("board-kans-c", "?state=kans_c&offers=five", [ACTION, ".board-strip .meld"]),
-        at: [FLOOR, SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
+        at: [FLOOR, LAPTOP_WINDOW, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
         longNames: true,
     },
 ];
 
-const OWN_DISCARDS_THIRD_ROW = "bottom-discards-third-row";
+const OWN_DISCARDS_PAST_RESERVE = "bottom-discards-past-reserve";
 /**
- * The spec's accepted rare overlap: a decision control over the own river's third row.
+ * The spec's accepted rare overlap: a decision control over the own river's tiles past its nineteen discards' reserve.
  */
 const ACCEPTED_OVERLAPS: ReadonlySet<string> = new Set(
-    [["actions", OWN_DISCARDS_THIRD_ROW]].map((pair) => pair.toSorted().join(" x ")),
+    [["actions", OWN_DISCARDS_PAST_RESERVE]].map((pair) => pair.toSorted().join(" x ")),
 );
 
 /** The areas that overlap, but for the spec's accepted rare overlap over a river's far discards. */
 function findAreaOverlaps(board: BoardMeasure): string[] {
-    const ownThirdRow = ownRiverThirdRow(board);
+    const ownPastReserve = ownRiverPastReserve(board);
     const grouped = board.grouped.map((entry) => {
         if (
             entry.group === "bottom-discards" &&
-            ownThirdRow.some((tile) => sameBox(tile, entry.box))
+            ownPastReserve.some((tile) => sameBox(tile, entry.box))
         ) {
-            return { ...entry, group: OWN_DISCARDS_THIRD_ROW };
+            return { ...entry, group: OWN_DISCARDS_PAST_RESERVE };
         }
         return entry;
     });
@@ -304,12 +316,13 @@ function checkLocalHand(
 
 /**
  * A side strip's full hand, as its place reserves it whatever the seat holds, stays clear of the play switches and the
- * decision's controls and timer (the cog reserves no room): a full concealed hand is the strips' binding capacity.
+ * decision's controls and timer on the board (the cog reserves no room, a panel's controls stand over the board it
+ * covers): a full concealed hand is the strips' binding capacity.
  */
 function checkHandReach(board: BoardMeasure, report: PageReport): void {
     const controls = [
         ...board.switches.map((control) => control.box),
-        ...board.actions,
+        ...(board.decisionCorner?.buttons ?? []),
         ...(board.timer === null ? [] : [board.timer]),
     ];
     const unread = board.handReach.filter(
@@ -347,6 +360,8 @@ interface DerivedProportions {
     readonly riverToOwn: number;
     /** The pinwheel's gap, in river tiles, between a river and the centre and between neighbouring rivers. */
     readonly riverGap: number;
+    /** The top river's gap to the centre where it also holds the tile edge its rows drop toward the centre. */
+    readonly topRiverGap?: number;
 }
 
 /**
@@ -355,9 +370,9 @@ interface DerivedProportions {
  * review; the opponent's hand at the river tile holds everywhere (`checkHandScale`).
  */
 const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
-    [FLOOR, { riverGap: 0.29, riverToOwn: 0.44 }],
-    [NOTCH_PHONE, { riverGap: 0.3, riverToOwn: 0.45 }],
-    [MID_DESKTOP, { riverGap: 0.31, riverToOwn: 0.63 }],
+    [FLOOR, { riverGap: 0.28, riverToOwn: 0.4 }],
+    [NOTCH_PHONE, { riverGap: 0.29, riverToOwn: 0.45 }],
+    [MID_DESKTOP, { riverGap: 0.14, riverToOwn: 0.74, topRiverGap: 0.27 }],
 ]);
 const DERIVED_TOLERANCE = 0.02;
 
@@ -401,7 +416,13 @@ function checkDerivedProportions(board: BoardMeasure, viewport: string, report: 
     );
     if (board.center !== null) {
         const off = [...riverGapsFromCenter(board, board.center)].filter(
-            ([, gap]) => Math.abs(gap / river - derived.riverGap) > DERIVED_TOLERANCE,
+            ([seat, gap]) =>
+                Math.abs(
+                    gap / river -
+                        (seat === "top"
+                            ? (derived.topRiverGap ?? derived.riverGap)
+                            : derived.riverGap),
+                ) > DERIVED_TOLERANCE,
         );
         report.expect(
             off.length === 0,
@@ -466,7 +487,7 @@ function checkSettingsCog(board: BoardMeasure, screen: Box, report: PageReport):
 
 /** Every badge is a control: its tap area, the plate's button, meets the control floor whatever its pill's size. */
 function checkBadgeTaps(board: BoardMeasure, report: PageReport): void {
-    const expected = board.family === "phone" ? 3 : 4;
+    const expected = 4;
     const small = board.nameplates.filter(
         (plate) =>
             plate.width < MIN_ACTION_SIZE - EPSILON || plate.height < MIN_ACTION_SIZE - EPSILON,
@@ -602,30 +623,41 @@ function checkRiverGaps(board: BoardMeasure, report: PageReport): void {
 
 /** An opponent's strip stands apart from the rivers, so its backs or faces never read as a river's row (look spec). */
 function checkStripsApart(board: BoardMeasure, report: PageReport): void {
-    const adjacent = new Set<string>();
+    const adjacent = new Map<string, number>();
     for (const strip of board.stripTiles) {
         for (const river of board.riverTiles) {
             if (near(strip.box, river.box, MIN_STRIP_GAP)) {
-                adjacent.add(`${strip.group} strip x ${river.group} river`);
+                const pair = `${strip.group} strip x ${river.group} river`;
+                const gap = boxGap(strip.box, river.box);
+                adjacent.set(pair, Math.min(gap, adjacent.get(pair) ?? gap));
             }
         }
     }
     report.expect(
         adjacent.size === 0,
-        `strips within ${MIN_STRIP_GAP}px of a river: ${[...adjacent].join(", ")}`,
+        `strips within ${MIN_STRIP_GAP}px of a river: ${[...adjacent].map(([pair, gap]) => `${pair} ${gap.toFixed(1)}px`).join(", ")}`,
     );
 }
 
+/**
+ * The badges set from their box's right side: a phone's right and top ones, a desktop's right and own ones (the top one
+ * stands right of its hand's start, set from its left).
+ */
+const RIGHT_SET_BADGES: Readonly<Record<string, ReadonlySet<string>>> = {
+    desktop: new Set(["right", "bottom"]),
+    phone: new Set(["top"]),
+};
+
 /** Each badge's fixed point: its box's side its place is set from, and its top (the own badge's foot). */
 function badgeAnchors(board: BoardMeasure): Readonly<Record<string, readonly [number, number]>> {
+    const rightSet = RIGHT_SET_BADGES[board.family] ?? new Set<string>();
     return Object.fromEntries(
         board.badges.map(({ box, group }) => {
-            const right = box.left + box.width;
-            const bottom = box.top + box.height;
-            const point: readonly [number, number] =
-                group === "right" || group === "top"
-                    ? [right, box.top]
-                    : [box.left, group === "bottom" ? bottom : box.top];
+            const side = rightSet.has(group) ? box.left + box.width : box.left;
+            const point: readonly [number, number] = [
+                side,
+                group === "bottom" ? box.top + box.height : box.top,
+            ];
             return [group, point];
         }),
     );
@@ -647,7 +679,7 @@ function checkCallouts(board: BoardMeasure, report: PageReport): void {
     );
     const controls = [
         ...(board.decisionCorner?.buttons ?? []),
-        ...(board.timer ? [board.timer] : []),
+        ...(board.timerInk ? [board.timerInk] : []),
     ];
     const overControl = board.callouts.filter((callout) =>
         controls.some((control) => intersects(callout, control)),
@@ -929,6 +961,8 @@ function checkBadgePlaces(results: readonly TaskResult[]): string[] {
 
 /** A landscape phone's centre at its least, whatever its river tile asks (`board-constants.ts`'s, not importable here). */
 const PHONE_CENTRE_LEAST: Size = { height: 68, width: 100 };
+/** A desktop's centre's height in river tiles (`board-constants.ts`'s `DESKTOP_CENTRE_TILES`, not importable here). */
+const DESKTOP_CENTRE_TILES = 4.5;
 
 function isLandscapePhone(viewport: Viewport): boolean {
     return !viewport.desktop && !viewport.portrait;
@@ -953,13 +987,11 @@ function checkCenterScale(board: BoardMeasure, viewport: Viewport, report: PageR
         );
         return;
     }
+    const desktopHeight = DESKTOP_CENTRE_TILES * tileScale.river;
     report.expect(
-        Math.abs(center.width - center.height) <= EPSILON,
-        `centre is not square: ${describeSize(center)}`,
-    );
-    report.expect(
-        Math.min(center.width, center.height) + EPSILON >= riverRow,
-        `centre ${describeSize(center)} is smaller than a six-tile row (${riverRow}px)`,
+        Math.abs(center.width - riverRow) <= EPSILON &&
+            Math.abs(center.height - desktopHeight) <= EPSILON,
+        `centre ${describeSize(center)} is not a six-tile row wide by four and a half river tiles tall (${riverRow}x${desktopHeight}px)`,
     );
 }
 

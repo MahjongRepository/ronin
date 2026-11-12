@@ -637,7 +637,7 @@ function plates(display: PlayDisplay): string[] {
     return (display.board?.nameplates ?? []).map(
         (plate) =>
             `${plate.name} ${plate.wind}${plate.isDealer ? " dealer" : ""}${plate.isCurrent ? " turn" : ""}` +
-            `${plate.isRiichi ? " riichi" : ""} ${plate.score}${plate.aiMark === null ? "" : ` [${plate.aiMark.tag}]`}`,
+            `${plate.isRiichi ? " riichi" : ""} ${plate.score}${plate.away === null ? "" : " [away]"}`,
     );
 }
 
@@ -662,19 +662,17 @@ describe("stepPlayUi", () => {
     });
 });
 
-const AI_PLAYER = "[AI]";
-
 describe("playDisplay nameplates", () => {
-    it("marks the AI players the game seated, and another player's seat while an AI holds it for them", () => {
+    it("marks another player's seat while an AI holds it for them, never the AI players the game seated", () => {
         const dealt = playDisplay(checkpointState("seat_left_seat_1", "first draw"), NO_PLAY_UI);
         expect(plates(dealt)).toEqual([
             "Alice S turn 25000",
-            `ai-tsumogiri-2 W 25000 ${AI_PLAYER}`,
+            "ai-tsumogiri-2 W 25000",
             "Bob N 25000",
-            `ai-tsumogiri-1 E dealer 25000 ${AI_PLAYER}`,
+            "ai-tsumogiri-1 E dealer 25000",
         ]);
         const left = playDisplay(checkpointState("seat_left_seat_1", "player left"), NO_PLAY_UI);
-        expect(plates(left)[2]).toBe("Bob N 25000 [Away]");
+        expect(plates(left)[2]).toBe("Bob N 25000 [away]");
     });
 
     it("keeps a seat held for its player marked through the viewer's own reconnect, then clears it when they return", () => {
@@ -682,12 +680,12 @@ describe("playDisplay nameplates", () => {
             checkpointState("seat_left_seat_1", "reconnected"),
             NO_PLAY_UI,
         );
-        expect(plates(snapshot)[2]).toBe("Bob N 25000 [Away]");
+        expect(plates(snapshot)[2]).toBe("Bob N 25000 [away]");
         const back = playDisplay(checkpointState("seat_left_seat_1", "player back"), NO_PLAY_UI);
         expect(plates(back).slice(1)).toEqual([
-            `ai-tsumogiri-2 W 25000 ${AI_PLAYER}`,
+            "ai-tsumogiri-2 W 25000",
             "Bob N 25000",
-            `ai-tsumogiri-1 E dealer 25000 ${AI_PLAYER}`,
+            "ai-tsumogiri-1 E dealer 25000",
         ]);
     });
 
@@ -698,9 +696,9 @@ describe("playDisplay nameplates", () => {
         );
         expect(plates(riichi)).toEqual([
             "Alice S riichi 23000",
-            `ai-tsumogiri-2 W turn 25000 ${AI_PLAYER}`,
-            `ai-tsumogiri-3 N 25000 ${AI_PLAYER}`,
-            `ai-tsumogiri-1 E dealer 25000 ${AI_PLAYER}`,
+            "ai-tsumogiri-2 W turn 25000",
+            "ai-tsumogiri-3 N 25000",
+            "ai-tsumogiri-1 E dealer 25000",
         ]);
         const returned = playDisplay(
             checkpointState("seat_left_seat_3", "reconnected"),
@@ -708,9 +706,9 @@ describe("playDisplay nameplates", () => {
         );
         expect(plates(returned)).toEqual([
             "Bob N 25000",
-            `ai-tsumogiri-1 E dealer 25000 ${AI_PLAYER}`,
+            "ai-tsumogiri-1 E dealer 25000",
             "Alice S turn 25000",
-            `ai-tsumogiri-2 W 25000 ${AI_PLAYER}`,
+            "ai-tsumogiri-2 W 25000",
         ]);
     });
 });

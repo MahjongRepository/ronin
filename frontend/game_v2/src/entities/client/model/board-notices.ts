@@ -27,6 +27,11 @@ export interface NoticeSheetDisplay {
     readonly countdown: DecisionCountdown | null;
 }
 
+/** A notice with its brief form for the board's field, where those words differ from its own. */
+function withBrief(notice: PlayNotice, brief: string): PlayNotice {
+    return brief === notice.text ? notice : { ...notice, brief };
+}
+
 /**
  * The connection's notice while it is not holding the seat: finding the game; the seat this page held, lost to a
  * drop and being retried; or a connection that has failed since the page opened, being retried. The words stay the
@@ -42,18 +47,16 @@ function connectionNotice(trouble: ConnectionTrouble | null): PlayNotice | null 
             return { kind: "connection", text: t("game.notice.finding_game"), tone: "info" };
         }
         case "seat_lost": {
-            return {
-                kind: "connection",
-                text: t("game.connection.lost"),
-                tone: "warning",
-            };
+            return withBrief(
+                { kind: "connection", text: t("game.connection.lost"), tone: "warning" },
+                t("game.connection.lost_brief"),
+            );
         }
         case "unreachable": {
-            return {
-                kind: "connection",
-                text: t("game.notice.unreachable"),
-                tone: "warning",
-            };
+            return withBrief(
+                { kind: "connection", text: t("game.notice.unreachable"), tone: "warning" },
+                t("game.notice.unreachable_brief"),
+            );
         }
         default: {
             return assertNever(trouble);
@@ -66,16 +69,29 @@ const REFUSAL_TEXTS: ReadonlyMap<string, MessageKey> = new Map<string, MessageKe
     [GAME_ERROR_CODE.NOT_YOUR_TURN, "game.refusal.not_your_turn"],
 ]);
 
-function refusalText(code: string): string {
-    return t(REFUSAL_TEXTS.get(code) ?? "game.refusal.refused");
+const REFUSAL_BRIEFS: ReadonlyMap<string, MessageKey> = new Map<string, MessageKey>([
+    [SESSION_ERROR_CODE.RATE_LIMITED, "game.refusal.rate_limited_brief"],
+]);
+
+function refusalNotice(code: string): PlayNotice {
+    const notice: PlayNotice = {
+        kind: "refused",
+        text: t(REFUSAL_TEXTS.get(code) ?? "game.refusal.refused"),
+        tone: "warning",
+    };
+    const brief = REFUSAL_BRIEFS.get(code);
+    return brief === undefined ? notice : withBrief(notice, t(brief));
 }
 
 function timedNotice(notice: TimedNotice | null): PlayNotice | null {
     if (notice?.kind === "reconnected") {
-        return { kind: "reconnected", text: t("game.connection.restored"), tone: "success" };
+        return withBrief(
+            { kind: "reconnected", text: t("game.connection.restored"), tone: "success" },
+            t("game.connection.restored_brief"),
+        );
     }
     if (notice?.kind === "refused") {
-        return { kind: "refused", text: refusalText(notice.code), tone: "warning" };
+        return refusalNotice(notice.code);
     }
     return null;
 }
@@ -85,11 +101,10 @@ function unreadNotice(count: number): PlayNotice | null {
     if (count === 0) {
         return null;
     }
-    return {
-        kind: "unread",
-        text: t("game.notice.unread", { count }),
-        tone: "error",
-    };
+    return withBrief(
+        { kind: "unread", text: t("game.notice.unread", { count }), tone: "error" },
+        t("game.notice.unread_brief", { count }),
+    );
 }
 
 /**
@@ -100,12 +115,15 @@ function tileSpriteNotice(status: TileSpriteStatus): PlayNotice | null {
     if (status !== "retrying" && status !== "failed") {
         return null;
     }
-    return {
-        action: { command: { kind: "reload" }, label: t("common.reload") },
-        kind: "tile_sprite",
-        text: t("game.notice.tile_sprite"),
-        tone: "warning",
-    };
+    return withBrief(
+        {
+            action: { command: { kind: "reload" }, label: t("common.reload") },
+            kind: "tile_sprite",
+            text: t("game.notice.tile_sprite"),
+            tone: "warning",
+        },
+        t("game.notice.tile_sprite_brief"),
+    );
 }
 
 /**
@@ -118,14 +136,23 @@ function browserBarsNotice(ui: PlayUi): PlayNotice | null {
         return null;
     }
     if (!ui.canEnterFullscreen) {
-        return { kind: "browser_bars", text: t("game.notice.browser_bars"), tone: "info" };
+        return withBrief(
+            { kind: "browser_bars", text: t("game.notice.browser_bars"), tone: "info" },
+            t("game.notice.browser_bars_brief"),
+        );
     }
-    return {
-        action: { command: { kind: "enter_fullscreen" }, label: t("game.notice.enter_fullscreen") },
-        kind: "browser_bars",
-        text: t("game.notice.browser_bars_fullscreen"),
-        tone: "info",
-    };
+    return withBrief(
+        {
+            action: {
+                command: { kind: "enter_fullscreen" },
+                label: t("game.notice.enter_fullscreen"),
+            },
+            kind: "browser_bars",
+            text: t("game.notice.browser_bars_fullscreen"),
+            tone: "info",
+        },
+        t("game.notice.browser_bars_fullscreen_brief"),
+    );
 }
 
 /** The notices over the table, ongoing conditions before acknowledgements (`NoticeKind`); none while a failure blocks it. */

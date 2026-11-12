@@ -107,7 +107,7 @@ describe("replayDisplay", () => {
             "24000",
             true,
         ]);
-        expect(charlie.aiMark?.tag).toBe("Away");
+        expect(charlie.away).toBe("Disconnected: an AI player plays this seat");
     });
 
     test("shows a deal with its first draw when a seat changes hands between them", () => {

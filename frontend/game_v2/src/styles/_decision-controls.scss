@@ -2,59 +2,51 @@
 @use "@/styles/type";
 
 $row: 40px;
-$row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
 
-/* The band end's slot: a desktop's band row past the switches and the own badge's lane, its controls at its bottom; a
-   phone's column beside the right river and strip, under the right badge. */
 .board-actions {
     container: decisions / inline-size;
     position: relative;
     grid-area: actions;
-    align-self: end;
+    align-self: stretch;
     z-index: layer(controls);
     display: flex;
+    align-items: flex-end;
     justify-content: flex-end;
     min-width: 0;
 
     @include phone-board {
         container: decisions / size;
-        align-self: stretch;
+        align-items: stretch;
     }
 }
 
-/* A desktop row too narrow for its controls keeps the band's control and the timer by the hand and wraps the rest
-   above them, never overlapping. */
 .decision-controls {
     --action-text: max(0.85rem, calc(26 * var(--board-table-unit)));
+    --decision-row: var(--control-h);
+    --action-lift: 0 0 transparent;
 
     @include desktop-board {
-        --action-text: max(18px, calc(var(--control-h) * 0.36));
+        --action-text: inherit;
+        --decision-row: var(--decision-h);
+        --action-lift: 0 2px 6px var(--ronin-action-lift);
 
-        @include small-chrome {
-            --action-text: 16px;
-            --decision-gap: #{$small-decision-gap};
-        }
+        flex: 1;
+        align-content: flex-start;
     }
 
     display: flex;
     flex-flow: row-reverse wrap-reverse;
-    align-items: flex-end;
+    align-items: center;
     justify-content: flex-start;
     gap: var(--decision-gap, #{$decision-gap});
     min-width: 0;
 
-    @include shared-corners-board {
+    @include phone-board {
         position: relative;
         flex: 1;
-        flex-flow: row-reverse wrap-reverse;
         align-items: flex-start;
         align-content: flex-start;
         gap: $small-decision-gap;
-        padding-right: calc(#{$row-end} + #{$small-decision-gap});
-    }
-
-    @include short-desktop-board {
-        --action-min-w: 64px;
     }
 }
 
@@ -69,9 +61,15 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     &:empty {
         display: none;
     }
+}
 
-    @include shared-corners-board {
-        display: contents;
+.decision-controls__upper {
+    display: contents;
+
+    @for $from-end from 1 through 8 {
+        > :nth-last-child(#{$from-end}) {
+            order: $from-end;
+        }
     }
 }
 
@@ -79,34 +77,21 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     flex-wrap: nowrap;
 
     @include desktop-board {
+        flex: none;
         order: -1;
-    }
-}
+        align-items: stretch;
 
-.decision-controls__upper {
-    @include shared-corners-board {
-        @for $from-end from 1 through 6 {
-            > :nth-last-child(#{$from-end}) {
-                order: $from-end;
-            }
+        > .decision-timer {
+            width: var(--actions-band-w);
+            align-items: center;
+            border-radius: calc(var(--decision-h) / 4);
+            background: var(--ronin-badge);
+            box-shadow: var(--action-lift);
         }
     }
-}
 
-/* Four or more controls in a narrow row give up their spare width, down to the tap floor. */
-:where(.game-board):where(#{$desktop-board}) {
-    @container decisions (width < 800px) {
-        .decision-controls:is(
-            [data-upper="4"],
-            [data-upper="5"],
-            [data-upper="6"],
-            [data-upper="7"]
-        ) {
-            .decision-controls__action {
-                min-width: 64px;
-                padding-inline: 0.6em;
-            }
-        }
+    @include phone-board {
+        display: contents;
     }
 }
 
@@ -132,7 +117,7 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     border: 0;
     border-radius: 10px;
     background-color: var(--action-face);
-    box-shadow: none;
+    box-shadow: var(--action-lift);
     color: var(--action-ink);
     font-size: var(--action-text);
     font-weight: 700;
@@ -151,14 +136,14 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     }
 
     @include desktop-board {
-        --action-h: var(--control-h);
+        --action-h: var(--decision-h);
 
         min-width: var(--action-min-w);
-        padding-inline: 1em;
-        border-radius: 12px;
+        padding-inline: 0.5em;
+        border-radius: calc(var(--decision-h) / 4);
     }
 
-    @include shared-corners-board {
+    @include phone-board {
         padding-inline: 0.5em;
     }
 }
@@ -222,7 +207,9 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
 
 /* A toggle that is on wears the accent as a ring inside its box, so its state reads by more than a colour. */
 .decision-controls .decision-controls__action[aria-pressed="true"] {
-    box-shadow: inset 0 0 0 3px var(--ronin-accent);
+    box-shadow:
+        inset 0 0 0 3px var(--ronin-accent),
+        var(--action-lift);
 }
 
 /* A control's digit key, a small cap over its corner where a mouse (and so, likely, a keyboard) plays. */
@@ -254,6 +241,12 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     line-height: 0;
 }
 
+.decision-controls__upper > .decision-controls__action {
+    @include desktop-board {
+        max-width: 100%;
+    }
+}
+
 /* A control's tiles stand inside its box, a margin above and below, so a control with tiles is no taller than one
    without. */
 .decision-controls__tile {
@@ -272,20 +265,18 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     flex-direction: column;
     justify-content: flex-end;
     width: var(--timer-w);
-    height: var(--control-h);
+    height: var(--decision-row);
     white-space: nowrap;
     color: var(--ronin-text);
 
-    @include shared-corners-board {
-        position: absolute;
-        right: calc(#{$row-end} - var(--timer-w));
-        bottom: 0;
+    @include phone-board {
+        order: -1;
     }
 }
 
 .decision-timer__caption {
     min-height: 1.15em;
-    font-size: max(11px, calc(var(--control-h) * 0.22));
+    font-size: max(11px, calc(var(--decision-row) * 0.22));
     font-weight: 650;
     line-height: 1.15;
     color: var(--ronin-text-secondary);
@@ -295,7 +286,7 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     display: flex;
     align-items: baseline;
     gap: 0.2em;
-    font-size: calc(var(--control-h) * 0.68);
+    font-size: calc(var(--decision-row) * 0.68);
     line-height: 0.9;
 }
 
@@ -315,7 +306,7 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
 
     font-size: 0.5em;
     font-weight: 600;
-    color: var(--ronin-text-secondary);
+    color: var(--ronin-text-bank);
 
     &--draining {
         font-size: 0.62em;
@@ -355,12 +346,11 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     white-space: nowrap;
 }
 
-/* The furiten mark: a small neutral label beside the own badge, on its baseline, a dot and the word, never a button's
-   shape. */
 .board-furiten {
+    grid-area: furiten;
+    place-self: end center;
+    z-index: layer(controls);
     display: inline-flex;
-    flex: none;
-    align-self: center;
     align-items: center;
     gap: 0.4em;
     padding: 0.25em 0.55em;
@@ -371,6 +361,10 @@ $row-end: "max(var(--strip-reserve), var(--band-shift, 0px) + var(--timer-w))";
     color: var(--ronin-badge-ink);
     background: var(--ronin-badge);
     border-radius: 0.33em;
+
+    @include phone-board {
+        place-self: end start;
+    }
 }
 
 .board-furiten__dot {

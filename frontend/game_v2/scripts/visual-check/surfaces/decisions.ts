@@ -1,6 +1,6 @@
 import { type Page } from "playwright";
 
-import { type BoardMeasure, ownRiverThirdRow } from "../board-measure.ts";
+import { type BoardMeasure, ownRiverPastReserve } from "../board-measure.ts";
 import {
     type Box,
     EPSILON,
@@ -11,7 +11,7 @@ import {
     intersects,
     sameBox,
 } from "../boxes.ts";
-import { ACTION, BOARD_VISIBLE, decisionCase } from "../cases.ts";
+import { ACTION, BOARD_VISIBLE, SHOWN_RESULT_COUNTDOWN, decisionCase } from "../cases.ts";
 import {
     type BoardRun,
     GAME_ID,
@@ -29,11 +29,11 @@ import {
     BROWSER_PHONES,
     FLOOR,
     FULLSCREEN_PHONE,
+    LAPTOP_WINDOW,
     LARGE_DESKTOP,
     MID_DESKTOP,
     NARROW_DESKTOP,
     NOTCH_PHONE,
-    SHORT_DESKTOP,
     SHORT_TABLET,
     SHORT_UPRIGHT,
     TALL_WINDOW,
@@ -131,7 +131,7 @@ function gameCase(checkpoint: LiveCheckpoint, shown: string): PageCase {
 const LIVE_AT = [
     ...WORST_CASES,
     NOTCH_PHONE,
-    SHORT_DESKTOP,
+    LAPTOP_WINDOW,
     NARROW_DESKTOP,
     SHORT_TABLET,
     UPRIGHT_PHONE,
@@ -141,7 +141,7 @@ const LIVE_AT = [
 
 /**
  * The live board's worst cases: the anchor's call offer at the viewports guarding a path of the layout, its turn
- * beside it at the notch phone and the short desktop so the badges' places are compared there, the anchor's three
+ * beside it at the notch phone and the laptop window so the badges' places are compared there, the anchor's three
  * checkpoints at the spec's three viewports (the review recipe's shots), the riichi toggle off beside it at the
  * floor and the notch phone so its pin is compared at both, the pages a check across pages compares at the
  * floor and the mid desktop, and every other decision once at the floor. A
@@ -151,7 +151,7 @@ const LIVE_AT = [
 const PAGES: readonly PageCase[] = [
     {
         ...decisionCase("anchor_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
-        at: [FLOOR, NOTCH_PHONE, FULLSCREEN_PHONE, MID_DESKTOP, SHORT_DESKTOP, ...BROWSER_PHONES],
+        at: [FLOOR, NOTCH_PHONE, FULLSCREEN_PHONE, MID_DESKTOP, LAPTOP_WINDOW, ...BROWSER_PHONES],
         contrast: true,
     },
     {
@@ -159,7 +159,7 @@ const PAGES: readonly PageCase[] = [
         at: [
             ...WORST_CASES,
             NOTCH_PHONE,
-            SHORT_DESKTOP,
+            LAPTOP_WINDOW,
             NARROW_DESKTOP,
             ULTRAWIDE,
             ...BROWSER_PHONES,
@@ -229,8 +229,8 @@ const PAGES: readonly PageCase[] = [
         `${ACTION}[aria-label="Tsumo"]`,
         ".decision-controls__countdown",
     ]),
-    decisionCase("tenhou_result", [".round-end-result__confirm", ".round-end-result__countdown"]),
-    decisionCase("player_left", [".nameplate__ai--away"]),
+    decisionCase("tenhou_result", [".round-end-result__confirm", SHOWN_RESULT_COUNTDOWN]),
+    decisionCase("player_left", [".nameplate--away"]),
     decisionCase("player_back", [".board-notice--success"]),
     {
         ...decisionCase("replaced", [
@@ -299,9 +299,9 @@ function checkActions(board: BoardMeasure, screen: Box, report: PageReport): voi
         overTimer.length === 0,
         `decision button(s) over the timer: ${overTimer.map(describeBox).join(", ")}`,
     );
-    const ownThirdRow = ownRiverThirdRow(board);
+    const ownPastReserve = ownRiverPastReserve(board);
     const tiles = [...board.otherTiles, ...board.localTiles].filter(
-        (tile) => !ownThirdRow.some((covered) => sameBox(covered, tile)),
+        (tile) => !ownPastReserve.some((covered) => sameBox(covered, tile)),
     );
     const crowded = (decisionCorner?.buttons ?? []).filter((button) =>
         tiles.some((tile) => intersects(grown(button, MIN_CONTROL_TILE_GAP), tile)),
@@ -311,6 +311,9 @@ function checkActions(board: BoardMeasure, screen: Box, report: PageReport): voi
         `decision button(s) within ${MIN_CONTROL_TILE_GAP}px of a tile: ${crowded.map(describeBox).join(", ")}`,
     );
 }
+
+/** A phone's play switches stand in a block of this many columns, a desktop's in one. */
+const PHONE_SWITCH_COLUMNS = 2;
 
 /**
  * The play switches sit wholly on the board and the screen, each large enough to tap, clear of every tile by the gap
@@ -323,11 +326,10 @@ function checkSwitches(board: BoardMeasure, screen: Box, report: PageReport): vo
         return;
     }
     const boxes = switches.map((control) => control.box);
-    const column = board.family === "phone";
-    const lineStart = boxes[0]?.[column ? "left" : "top"] ?? Number.NaN;
+    const columns = new Set(boxes.map((box) => Math.round(box.left)));
     report.expect(
-        boxes.every((box) => Math.abs(box[column ? "left" : "top"] - lineStart) <= EPSILON),
-        `play switches are not in one ${column ? "vertical column" : "horizontal row"}`,
+        columns.size === (board.family === "phone" ? PHONE_SWITCH_COLUMNS : 1),
+        `play switches stand in ${columns.size} column(s), not a phone's block or a desktop's column`,
     );
     const outside = boxes.filter((box) => !contains(board.board, box) || !contains(screen, box));
     report.expect(
@@ -509,10 +511,9 @@ function checkFuritenMark(board: BoardMeasure, report: PageReport): void {
         furiten.width <= PHONE_FURITEN_RESERVE && furiten.height <= PHONE_FURITEN_HEIGHT,
         `the furiten mark overflows its ${PHONE_FURITEN_RESERVE}x${PHONE_FURITEN_HEIGHT} box: ${describeBox(furiten)}`,
     );
-    const switchesRight = Math.max(...switches.map(({ box }) => box.left + box.width));
     report.expect(
-        furiten.left + EPSILON >= switchesRight,
-        `the furiten mark is not beside the switches: ${describeBox(furiten)}, switches to ${switchesRight}`,
+        switches.every(({ box }) => !intersects(furiten, box)),
+        `the furiten mark meets the switches: ${describeBox(furiten)}`,
     );
     report.expect(
         noticesField === null || !intersects(furiten, noticesField),

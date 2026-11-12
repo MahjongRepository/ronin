@@ -17,13 +17,13 @@ function deviceOptions(name: string): BrowserContextOptions {
 }
 
 /**
- * A short laptop's window (1366x768 less its browser's chrome), where the core is bounded by the foreground band rather
- * than its share of the height: the band's corners shared, a chip bounded by its row.
+ * A laptop's window (1366x768 less its browser's chrome, 1366x657): the shortest primary desktop, where the decisions'
+ * corner holds its three rows with the least to spare.
  */
-export const SHORT_DESKTOP = "desktop-short";
+export const LAPTOP_WINDOW = "laptop-window-1366x657";
 /** A narrow desktop (800x600, a tablet's or a small window's), where the desktop's geometry takes the phone's chrome. */
 export const NARROW_DESKTOP = "desktop-narrow";
-/** A large desktop (2560x1440), where the chrome steps up: a control's height against the band. */
+/** A large desktop (2560x1440), where the chrome steps up: a control's height against the decisions' corner. */
 export const LARGE_DESKTOP = "desktop-large";
 /** A short tablet's or a small laptop's window (1024x510): wide, but under the phone board's 520px height. */
 export const SHORT_TABLET = "tablet-short";
@@ -45,10 +45,10 @@ export const MID_DESKTOP = "desktop-1440";
 /** The three classes the representative worst cases are chosen across: the floor, the mid and the largest desktop. */
 export const WORST_CASES: readonly string[] = [FLOOR, MID_DESKTOP, LARGE_DESKTOP];
 
-/** A laptop window under the short desktop's 760px (1280x720), which shares the band's corners. */
-export const SHORT_LAPTOP = "laptop-720";
-/** The shortest regular desktop (1440x770), just over the short desktop's 760px: the band's corners its own. */
-export const SHORTEST_REGULAR_DESKTOP = "laptop-770";
+/** A 1280x720 laptop window, the decisions' narrowest corner on a primary desktop. */
+export const LAPTOP_720 = "laptop-720";
+/** A 1440x770 window, just over the 760px from which the chrome grows past its regular record. */
+export const LAPTOP_770 = "laptop-770";
 
 /**
  * An ultrawide window (2560x1080), where the own hand starts past the play switches: the own badge keeps a lane of its
@@ -56,11 +56,11 @@ export const SHORTEST_REGULAR_DESKTOP = "laptop-770";
  */
 export const ULTRAWIDE = "window-2560";
 
-/** Laptop windows on either side of the short desktop's 760px. */
+/** Laptop windows on either side of the 760px from which the chrome grows. */
 const LAPTOP_VIEWPORTS: readonly Viewport[] = (
     [
-        [SHORT_LAPTOP, 1280, 720],
-        [SHORTEST_REGULAR_DESKTOP, 1440, 770],
+        [LAPTOP_720, 1280, 720],
+        [LAPTOP_770, 1440, 770],
     ] as const
 ).map(([name, width, height]) => ({
     context: { viewport: { height, width } },
@@ -70,7 +70,7 @@ const LAPTOP_VIEWPORTS: readonly Viewport[] = (
     portrait: false,
     supported: true,
 }));
-export const LAPTOPS: readonly string[] = [SHORT_LAPTOP, SHORTEST_REGULAR_DESKTOP];
+export const LAPTOPS: readonly string[] = [LAPTOP_720, LAPTOP_770];
 
 /**
  * Small desktop windows (700x540, 900x600) where a panel's content meets the board's height and width at once: the
@@ -203,7 +203,7 @@ export const VIEWPORTS: readonly Viewport[] = [
         context: { viewport: { height: 657, width: 1366 } },
         desktop: true,
         engine: chromium,
-        name: SHORT_DESKTOP,
+        name: LAPTOP_WINDOW,
         portrait: false,
         supported: true,
     },

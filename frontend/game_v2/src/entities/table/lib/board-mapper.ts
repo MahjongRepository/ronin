@@ -5,7 +5,6 @@ import {
     type BoardNameplate,
     type BoardPerspective,
     type BoardPlayerDisplay,
-    type NameplateAiMark,
 } from "@/entities/table/model/board-types";
 import { type PlayerState, type TableState } from "@/entities/table/model/types";
 import { type DiscardTile, type HandTile, meldTiles, tile136toString } from "@/entities/tile";
@@ -132,24 +131,21 @@ function formatScoreDiff(score: number, from: number): string {
 }
 
 /**
- * Why an AI player marks the seat: one holding it for its human, as the seat control lines and session messages say,
- * else one the source names as AI. A reconnect's snapshot names an AI player whether it was seated from the start or
- * stands in for a human, so its word says only that one plays the seat.
+ * Why the seat's human is away while an AI holds it for them, as the seat control lines and session messages say; an
+ * AI player seated as one is not away.
  */
-function aiMark(player: PlayerState): NameplateAiMark | null {
+function awayWords(player: PlayerState): string | null {
     if (player.aiStandIn === SEAT_CONTROL_REASON.LEFT) {
-        return { kind: "away", tag: t("game.seat.away_tag"), words: t("game.seat.ai_left") };
+        return t("game.seat.ai_left");
     }
     if (player.aiStandIn === SEAT_CONTROL_REASON.ABSENT) {
-        return { kind: "away", tag: t("game.seat.away_tag"), words: t("game.seat.ai_absent") };
+        return t("game.seat.ai_absent");
     }
-    return player.isAiPlayer
-        ? { kind: "ai", tag: t("game.seat.ai_tag"), words: t("game.seat.ai") }
-        : null;
+    return null;
 }
 
 const EMPTY_NAMEPLATE: BoardNameplate = {
-    aiMark: null,
+    away: null,
     isCurrent: false,
     isDealer: false,
     isRiichi: false,
@@ -169,7 +165,7 @@ function mapNameplate(player: PlayerState, slots: SeatSlots, state: TableState):
     const [bottom, right, top, left] = slots;
     const wind = seatDistance(state.dealerSeat, player.seat);
     return {
-        aiMark: aiMark(player),
+        away: awayWords(player),
         isCurrent: state.phase === "in_round" && player.seat === state.currentPlayerSeat,
         isDealer: player.seat === state.dealerSeat,
         isRiichi: player.isRiichi,

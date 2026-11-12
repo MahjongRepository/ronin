@@ -181,13 +181,12 @@ function RoundsButton(props: ReplayControlsProps): TemplateResult {
 }
 
 /**
- * The replay's controls over the foreground band, one group at its right: the moves (a round back, the bottom seat's
- * turn back, a step back, autoplay, a step on, its turn on, a round on; a smaller board's keep the five between the
- * rounds), then the options (the next seat's view on a desktop's chrome, the other hands and the round list). Where
- * the band shares the core's corners (a phone, a short desktop) the moves keep the play switches' place and the
- * options the decisions', the hands' switch over the round list's toggle where the band beside the own river's reach
- * is too short for both. A move that cannot go is disabled. Each control's tip names it and its key. The seat at the
- * bottom is the board's: pressing another seat's plate or score views from it too.
+ * The replay's controls, one group: the moves (a round back, the bottom seat's turn back, a step back, autoplay, a step
+ * on, its turn on, a round on; a smaller board's keep the five between the rounds), then the options (the next seat's
+ * view on a desktop's chrome, the other hands and the round list). Every board stands them in the right bar's column,
+ * a phone's at the bar's foot, in two columns where the bar is too short for one. A move that cannot go is disabled.
+ * Each control's tip names it and its key. The seat at the bottom is the board's: pressing another seat's plate or
+ * score views from it too.
  */
 export function ReplayControls(props: ReplayControlsProps): TemplateResult {
     const { playback } = props;
@@ -239,17 +238,24 @@ function IncompleteNote(
     </p>`;
 }
 
+/** A round's name that breaks only after a comma, between its round and its honba, never inside either. */
+function unbrokenPhrases(text: string): string {
+    return text.replaceAll(/(?<!,) /gu, "\u00A0");
+}
+
 /**
- * What the replay shows in the notices' place: a replay that is not the whole game saying so (and where it ends at its
- * last stop). The round and step are for assistive technology alone; the board's centre shows the round.
+ * What the replay shows in the notices' place: the round and step (a phone's for assistive technology alone, its
+ * centre showing the round; a desktop's step shown as its count), and a replay that is not the whole game saying so
+ * (and where it ends at its last stop).
  */
 export function ReplayStatus({ display }: ReplayStatusProps): TemplateResult {
     const { step } = display;
     return html`<div class="replay-status">
         <p class="replay-status__position">
-            <span class="replay-status__round">${display.roundName}</span>
+            <span class="replay-status__round">${unbrokenPhrases(display.roundName)}</span>
             <span class="replay-status__step">${t("replay.step", { step: step.index, steps: step.count })}</span>
         </p>
+        <p class="replay-status__count" aria-hidden="true">${t("replay.step_count", { step: step.index, steps: step.count })}</p>
         ${IncompleteNote(display.incomplete, display.endNotice)}
     </div>`;
 }

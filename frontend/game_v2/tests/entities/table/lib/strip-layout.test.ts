@@ -110,32 +110,38 @@ describe("stripLayout", () => {
     );
 
     it.each([
-        { height: 375, width: 667 },
-        { height: 491, width: 704 },
-        { height: 540, width: 700 },
-        { height: 800, width: 1280 },
-    ])("fits four open kans on one line at $width x $height", (box) => {
-        const strips = windowStrips(box);
-        const content: StripContent = {
-            drawn: true,
-            hand: 2,
-            melds: [OPEN_KAN, OPEN_KAN, OPEN_KAN, OPEN_KAN],
-        };
-        for (const seat of ["left", "right"] as const) {
-            const { melds } = stripLayout(seat, content, strips);
-            expect(melds.map((meld) => meld.rise)).toEqual([0, 0, 0, 0]);
-            expect(melds[0]?.along).toBeGreaterThanOrEqual(
-                handLength({ drawn: true, rw: strips.rw, seat, tiles: content.hand }) +
-                    strips.gap -
-                    0.001,
-            );
-            expect(melds.every((meld) => meld.tile >= FACE_FLOOR)).toBe(true);
-            const [, , , oldest] = melds;
-            expect(
-                (oldest?.along ?? Number.NaN) + OPEN_KAN.units * (oldest?.tile ?? Number.NaN),
-            ).toBeLessThanOrEqual(strips[seat].line + 0.001);
-        }
-    });
+        { atFloor: true, height: 375, width: 667 },
+        { atFloor: true, height: 491, width: 704 },
+        { atFloor: true, height: 540, width: 700 },
+        { atFloor: true, height: 800, width: 1280 },
+        { atFloor: false, height: 331, width: 891 },
+        { atFloor: true, height: 275, width: 808 },
+        { atFloor: false, height: 251, width: 844 },
+    ])(
+        "fits four open kans on one line at $width x $height, under the face floor only where the floor overflows it",
+        ({ atFloor, ...box }) => {
+            const strips = windowStrips(box);
+            const content: StripContent = {
+                drawn: true,
+                hand: 2,
+                melds: [OPEN_KAN, OPEN_KAN, OPEN_KAN, OPEN_KAN],
+            };
+            for (const seat of ["left", "right"] as const) {
+                const { melds } = stripLayout(seat, content, strips);
+                expect(melds.map((meld) => meld.rise)).toEqual([0, 0, 0, 0]);
+                expect(melds[0]?.along).toBeGreaterThanOrEqual(
+                    handLength({ drawn: true, rw: strips.rw, seat, tiles: content.hand }) +
+                        Math.min(strips.gap, MELD_GAP_TIGHT) -
+                        0.001,
+                );
+                expect(melds.every((meld) => meld.tile >= FACE_FLOOR)).toBe(atFloor);
+                const [, , , oldest] = melds;
+                expect(
+                    (oldest?.along ?? Number.NaN) + OPEN_KAN.units * (oldest?.tile ?? Number.NaN),
+                ).toBeLessThanOrEqual(strips[seat].line + 0.001);
+            }
+        },
+    );
 
     it("fits a lone added kan past the switches once scaling makes its stack shallow enough", () => {
         const left = {

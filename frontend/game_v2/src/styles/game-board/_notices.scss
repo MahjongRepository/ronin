@@ -20,9 +20,8 @@
     max-height: var(--geo-field-height);
     overflow-y: auto;
 
-    /* Narrow desktop: past the deepest strip the field falls under 7.5em, so it starts past the strip as drawn. */
-    @include board-where($narrow-desktop-board) {
-        margin-left: var(--left-depth);
+    @include toast-board {
+        display: contents;
     }
 }
 
@@ -37,6 +36,29 @@
     &:not(:empty, :last-child) {
         margin-bottom: 6px;
     }
+
+    @include toast-board {
+        position: relative;
+        grid-area: toasts;
+        align-self: start;
+        z-index: layer(notices);
+        min-width: 0;
+        max-height: var(--geo-toasts-height);
+
+        &:not(:empty, :last-child) {
+            margin-bottom: 0;
+        }
+    }
+}
+
+.board-notices > :not(.board-notices__list) {
+    @include toast-board {
+        position: relative;
+        grid-area: info;
+        place-self: start;
+        z-index: layer(notices);
+        min-width: 0;
+    }
 }
 
 /* Under a modal panel (their sheet, which lists them all, or the leave question) the notices stay where they were,
@@ -45,8 +67,6 @@
     visibility: hidden;
 }
 
-/* Over a panel, a phone's notices move to the reserve under the right strip's end; a narrow
-   desktop's panel leaves them their own field. */
 .game-board:has(> .board-overlay):where(:not(:has(> .board-overlay [aria-modal="true"]))) {
     @include phone-board {
         .board-notices__list {
@@ -63,7 +83,6 @@
             min-width: 0;
             padding-inline: 0.3em;
             font-size: 10px;
-            overflow-wrap: anywhere;
         }
     }
 }
@@ -74,8 +93,8 @@
     max-width: 100%;
     margin: 0;
     overflow-wrap: break-word;
-    padding: 0.3em 0.8em;
-    font-size: max(11px, 0.92em);
+    padding: 0.3em 0.55em;
+    font-size: var(--notice-text);
     font-weight: 600;
     line-height: 1.3em;
     text-align: left;
@@ -103,43 +122,79 @@
 
 .board-notice__body {
     display: block;
+    text-wrap: balance;
 }
 
-/* Reload's 40x40 target: shown whole, the notice's padding grows by `--whole-extra` (the clamp counts it) to hold it,
-   clipped off every neighbour; the pill's margins keep its focus ring inside the content box the clip never cuts. */
+.board-notice {
+    @include desktop-board {
+        font-size: var(--field-notice-text);
+    }
+
+    @include toast-board {
+        font-size: var(--notice-text);
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+        padding-block: 0.2em;
+
+        &:has(.board-notice__action) {
+            padding-block: 0;
+        }
+    }
+}
+
+.board-notice__body {
+    @include toast-board {
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+        min-width: 0;
+    }
+}
+
+.board-notice__words {
+    @include toast-board {
+        display: -webkit-box;
+        min-width: 0;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+}
+
+/* Reload is a 40px target on a line of its own under the words, the room it takes the clamp's `--whole-extra`. */
 .board-notice:has(.board-notice__action) {
-    --whole-extra: max(0px, calc(42px - 1.9em));
+    --whole-extra: calc(40px + 0.3em);
 
-    overflow: clip;
-
-    &:not([data-clamped]) {
-        padding-block: calc(0.3em + var(--whole-extra) / 2);
+    @include toast-board {
+        --whole-extra: calc(40px - 1.3em);
     }
 }
 
 .board-notice__action {
     position: relative;
-    width: auto;
-    margin: 0 3px 0 0.6em;
-    padding: 0 0.7em;
+    display: flex;
+    align-items: center;
+    width: fit-content;
+    min-width: 40px;
+    height: 40px;
+    margin: 0.3em 0 0;
+    padding: 0 0.5em;
     font-size: inherit;
     line-height: inherit;
+    white-space: nowrap;
+    vertical-align: middle;
     pointer-events: auto;
+
+    @include toast-board {
+        flex: none;
+        margin: 0;
+    }
 
     &:focus-visible {
         outline: 2px solid var(--ronin-text);
         outline-offset: 1px;
         box-shadow: none;
-    }
-
-    &::after {
-        content: "";
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: max(100%, 40px);
-        height: max(100%, 40px);
-        translate: -50% -50%;
     }
 }
 
@@ -161,8 +216,6 @@
 }
 
 .board-notice[data-clamped] {
-    min-height: 40px;
-
     .board-notice__body {
         display: -webkit-box;
         overflow: hidden;
@@ -171,18 +224,17 @@
     }
 
     .board-notice__action {
-        visibility: hidden;
-
-        &::after {
-            content: none;
-        }
+        display: none;
     }
 
     .board-notice__more {
-        display: block;
+        display: flex;
+        align-items: flex-end;
         width: auto;
         height: auto;
-        margin: 0;
+        min-height: 40px;
+        margin: max(calc(1.3em - 40px), calc(-1.3em * var(--notice-lines))) 0 0;
+        white-space: nowrap;
         padding: 0;
         font: inherit;
         line-height: inherit;
@@ -202,6 +254,28 @@
 
         &:focus-visible {
             outline: none;
+        }
+
+        @include toast-board {
+            flex: none;
+            align-items: center;
+            min-height: 0;
+            margin: 0;
+            font-size: 0;
+
+            &::before {
+                content: attr(data-more);
+                font-size: var(--notice-text);
+            }
+        }
+    }
+
+    @include toast-board {
+        box-sizing: border-box;
+        min-height: 40px;
+
+        .board-notice__body {
+            display: flex;
         }
     }
 

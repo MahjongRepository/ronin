@@ -69,15 +69,10 @@ button.hand-tile {
     filter: grayscale(1) brightness(0.82);
 }
 
-/* A tile that declares riichi, or the one an answer played, is lifted, never into the 4px kept clear under the
-   controls in the band above the hand. */
+/* A tile that declares riichi, or the one an answer played, is lifted, off a phone never past the own melds' rise. */
 .hand-tile--declaring,
 .hand-tile--selected {
-    transform: translateY(max(-16%, 5px - var(--band-gap, 100px)));
-
-    @include desktop-board {
-        transform: translateY(max(-16%, calc(-1 * var(--own-meld-rise))));
-    }
+    transform: translateY(max(-16%, calc(-1 * var(--own-meld-rise))));
 
     @include phone-board {
         transform: translateY(-8%);

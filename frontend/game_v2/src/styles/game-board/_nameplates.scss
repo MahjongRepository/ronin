@@ -2,13 +2,11 @@
 
 $plate-seats: bottom, right, top, left;
 
-/* A seat's badge: one shape for every opponent (name, its marks on a line under it; the own one's beside it), a fixed
-   place that never depends on the tiles the seat holds, and a tap area at the control floor whatever the pill's size. */
 .nameplate {
     position: absolute;
     z-index: layer(badges);
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     width: auto;
     min-width: 40px;
     min-height: var(--badge-h);
@@ -38,11 +36,8 @@ $plate-seats: bottom, right, top, left;
 
 .nameplate__pill {
     position: relative;
-    display: inline-grid;
-    grid-template-rows: 1.2em 1em;
-    grid-template-columns: minmax(0, auto);
-    align-content: center;
-    row-gap: 0.15em;
+    display: inline-flex;
+    align-items: center;
     max-width: 100%;
     height: var(--pill-h);
     padding: 0 calc(0.55em + 2px);
@@ -69,93 +64,66 @@ $plate-seats: bottom, right, top, left;
     .nameplate--current &::after {
         visibility: visible;
     }
+
+    .nameplate--riichi & {
+        box-shadow: inset 0 0 0 2px var(--ronin-stick);
+    }
+
+    .nameplate--away & {
+        color: var(--ronin-plate-away);
+    }
 }
 
-/* Two lines when marks show, the name's alone without them: the pill grows down into the badge's reserved height, so a
-   mark appearing never moves the name or anything around the badge. */
-.nameplate:not(.nameplate--bottom) .nameplate__pill:not(:has(.nameplate__marks)) {
-    grid-template-rows: 1.2em;
-    height: var(--unmarked-pill-h, calc(var(--pill-h) - 1.15em));
-}
-
-/* The top badge mirrors the own one through the centre: under its hand's start, toward the table, right of the top
-   river by half a river tile. */
 .nameplate--top {
-    right: calc(100cqw - var(--top-strip-x));
+    right: var(--top-badge-right);
     top: var(--top-badge-top);
     justify-content: flex-end;
     max-width: var(--top-lane);
 
-    .nameplate__pill {
-        @include phone-board {
-            --pill-h: var(--top-pill-h);
-            --unmarked-pill-h: var(--top-pill-h);
-
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5em;
-        }
+    @include desktop-board {
+        right: auto;
+        left: var(--top-badge-left);
+        justify-content: flex-start;
+        max-width: var(--top-badge-w);
     }
 }
 
-.nameplate--left,
-.nameplate--right {
-    top: var(--side-badge-top);
-}
-
 .nameplate--left {
-    left: var(--left-badge-x);
+    top: var(--left-badge-top);
+    right: var(--left-badge-right);
+    justify-content: flex-end;
     max-width: var(--left-badge-w);
+
+    @include desktop-board {
+        right: auto;
+        left: var(--left-badge-left);
+        justify-content: flex-start;
+    }
 }
 
 .nameplate--right {
     top: var(--right-badge-top);
-    right: var(--side-badge-x);
-    justify-content: flex-end;
+    left: var(--right-badge-left);
+    justify-content: flex-start;
     max-width: var(--right-badge-w);
-}
 
-/* The own badge heads its hand above its left end, under the play switches (`--own-lane`), the one badge on one line:
-   its lane is wide and short. The furiten mark follows it on its line (`.board-furiten`). */
-.board-own-head {
-    /* A lane short of an ordinary name starts further left, under the switches, clear of the left strip. */
-    --own-badge-shift: clamp(
-        0px,
-        var(--side-lane-min) - var(--own-lane),
-        var(--own-badge-x) - var(--side-badge-x)
-    );
-
-    position: absolute;
-    z-index: layer(badges);
-    left: calc(-1 * var(--own-badge-shift));
-    bottom: calc(100% + 2px + var(--own-meld-rise));
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-
-    @include phone-board {
-        left: calc(var(--furiten-x) - var(--own-start));
-        bottom: calc(100% + var(--furiten-rise));
+    @include desktop-board {
+        right: var(--right-badge-right);
+        left: auto;
+        justify-content: flex-end;
     }
 }
 
 .nameplate--bottom {
-    position: relative;
-    align-items: flex-end;
-    min-height: var(--own-badge-h);
-    max-width: calc(var(--own-lane) + var(--own-badge-shift));
+    top: var(--own-badge-top);
+    left: var(--own-badge-left);
+    justify-content: flex-start;
+    max-width: var(--own-badge-w);
 
-    @include phone-board {
-        display: none;
-    }
-
-    .nameplate__pill {
-        --pill-h: var(--own-pill-h);
-
-        display: inline-flex;
-        flex-direction: row;
-        align-items: center;
-        gap: 0.6em;
+    @include desktop-board {
+        right: var(--own-badge-right);
+        left: auto;
+        justify-content: flex-end;
     }
 }
 
@@ -175,33 +143,6 @@ $plate-seats: bottom, right, top, left;
 .nameplate__name.player-name {
     min-width: 0;
     overflow: hidden;
-}
-
-.nameplate__marks {
-    display: flex;
-    gap: 0.5em;
-    align-items: center;
-    min-height: 1em;
-}
-
-.nameplate__ai {
-    flex: none;
-    font-size: max(11px, 0.74em);
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--ronin-badge-muted);
-}
-
-.nameplate__riichi {
-    display: inline-flex;
-    flex: none;
-
-    .board-stick-icon {
-        width: 1.9em;
-        height: auto;
-    }
 }
 
 @mixin diffs-from($seat) {
@@ -244,5 +185,9 @@ $plate-seats: bottom, right, top, left;
 
     &:has(.game-menu__panel) {
         z-index: layer(open);
+    }
+
+    @include desktop-board {
+        place-self: start center;
     }
 }

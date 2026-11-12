@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { type NoticeMeasure, planNoticeClamp } from "@/entities/table/ui/notice-clamp";
+import {
+    type NoticeMeasure,
+    type ToastMeasure,
+    planNoticeClamp,
+    planToastStack,
+} from "@/entities/table/ui/notice-clamp";
 
 const LINE = 14;
 const GAP = 6;
@@ -52,5 +57,30 @@ describe("planNoticeClamp", () => {
 
     it("never clamps a notice the board cannot open whole", () => {
         expect(planNoticeClamp(60, GAP, [notice(6, false)])).toEqual({ lines: [null], shown: 1 });
+    });
+});
+
+function toast(lines: number, cutPastTwoLines = false, clampable = true): ToastMeasure {
+    const wholeHeight = 8 + Math.min(lines, 2) * LINE;
+    return { clampable, clampedHeight: Math.max(40, wholeHeight), cutPastTwoLines, wholeHeight };
+}
+
+describe("planToastStack", () => {
+    it("shows two-line toasts whole, clamping only one whose words run past its two lines", () => {
+        expect(planToastStack(200, GAP, [toast(2), toast(1), toast(3, true)])).toEqual({
+            clamped: [false, false, true],
+            shown: 3,
+        });
+    });
+
+    it("leaves out the last toasts the place cannot hold, the last shown clamped a tap target high to open them", () => {
+        expect(planToastStack(80, GAP, [toast(1), toast(2), toast(2)])).toEqual({
+            clamped: [false, true, false],
+            shown: 2,
+        });
+        expect(planToastStack(60, GAP, [toast(2), toast(2)])).toEqual({
+            clamped: [true, false],
+            shown: 1,
+        });
     });
 });
