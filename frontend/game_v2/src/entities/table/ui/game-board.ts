@@ -424,13 +424,13 @@ function GameBoard(props: GameBoardProps): TemplateResult {
             <div class="board-layout" ?inert=${props.inert ?? false}>
                 ${Zones()}
                 <div class="board-table">
+                    ${plates ? html`${plates.right}${plates.top}${plates.left}${plates.bottom}` : ""}
                     <div class="board-rivers">
                         ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
                     </div>
                     ${state ? CenterInfo(state.center, state.nameplates, onView) : EmptyCenterArea()}
                     ${STRIP_SEATS.map((seat) => Strip(seat, seatPlayer(state, seat)))}
                     ${state ? DoraDisplay(state.center) : ""}
-                    ${plates ? html`${plates.right}${plates.top}${plates.left}${plates.bottom}` : ""}
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}
                     ${bandEnd ? html`<div class="board-actions" data-area="actions">${bandEnd}</div>` : ""}
                     ${props.switches ?? ""}

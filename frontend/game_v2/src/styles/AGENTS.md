@@ -152,6 +152,9 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   never from a turned river frame's own filter: Firefox on macOS draws a filter inside a turned frame unturned and
   clipped to its box, so no filter of a tile group may stand inside one.
 - **Layers come from one scale.** Every `z-index` is a `$layers` name (`game-board/_queries.scss`), never a literal.
+  The scale follows the spec's tiers (Principles, *Three tiers*): the plates take `furniture` and stand first in
+  `.board-table`, so every tile area after them, positioned, paints over them; a task element takes a layer over
+  every table piece it may stand on. Never raise a furniture or table element's layer to keep it in view.
   `.game-board` isolates its layers from the page's. `.board-layout` and `.board-table` form no stacking context, so
   the notices and a replay's controls stand over the overlay's dim by their layers in the board's own context; an
   `isolation`, `transform`, `filter`, `opacity` or `z-index` on either would drop them under it.

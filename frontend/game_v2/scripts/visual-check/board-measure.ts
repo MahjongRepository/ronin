@@ -391,8 +391,8 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
 }
 
 /**
- * The text whose size has a floor, and the centre's pieces of text, which must not overlap one another. Each
- * nameplate is an area of its own, so it must not overlap a tile, another plate or the centre.
+ * The text whose size has a floor, and the centre's pieces of text, which must not overlap one another. A nameplate
+ * is table furniture: it keeps clear of the other plates and the centre, and anything else may stand over it.
  */
 const BOARD_TEXT = {
     centerTextSelectors: [

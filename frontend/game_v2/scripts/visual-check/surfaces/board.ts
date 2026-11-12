@@ -195,7 +195,19 @@ const ACCEPTED_OVERLAPS: ReadonlySet<string> = new Set(
     [["actions", OWN_DISCARDS_PAST_RESERVE]].map((pair) => pair.toSorted().join(" x ")),
 );
 
-/** The areas that overlap, but for the spec's accepted rare overlap over a river's far discards. */
+/**
+ * A plate is table furniture: anything may stand over it, so a plate counts against only the fixed places it is laid
+ * out beside, the other plates and the centre.
+ */
+const PLATE_GROUP_PREFIX = "nameplate";
+const PLATE_KEPT_CLEAR_OF: ReadonlySet<string> = new Set(["center"]);
+
+function isFurnitureOverlap(pair: string): boolean {
+    const others = pair.split(" x ").filter((group) => !group.startsWith(PLATE_GROUP_PREFIX));
+    return others.length === 1 && others.every((group) => !PLATE_KEPT_CLEAR_OF.has(group));
+}
+
+/** The areas that overlap, but for the spec's accepted rare overlap over a river's far discards and over a plate. */
 function findAreaOverlaps(board: BoardMeasure): string[] {
     const ownPastReserve = ownRiverPastReserve(board);
     const grouped = board.grouped.map((entry) => {
@@ -207,7 +219,9 @@ function findAreaOverlaps(board: BoardMeasure): string[] {
         }
         return entry;
     });
-    return findOverlaps(grouped).filter((pair) => !ACCEPTED_OVERLAPS.has(pair));
+    return findOverlaps(grouped).filter(
+        (pair) => !ACCEPTED_OVERLAPS.has(pair) && !isFurnitureOverlap(pair),
+    );
 }
 
 function checkBoardContent(board: BoardMeasure, report: PageReport): void {

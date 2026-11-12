@@ -4,7 +4,7 @@ $plate-seats: bottom, right, top, left;
 
 .nameplate {
     position: absolute;
-    z-index: layer(badges);
+    z-index: layer(furniture);
     display: flex;
     align-items: center;
     width: auto;

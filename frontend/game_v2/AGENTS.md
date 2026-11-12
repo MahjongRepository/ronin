@@ -106,6 +106,8 @@ changed area and its one worst case, never a sweep. A phone change's worst case 
 Safari and Chrome.
 
 * A new page or check goes in its surface's module under `scripts/visual-check/surfaces/`, never the runner.
+* Overlap checks follow the spec's tiers: a plate counts against only the other plates and the centre
+  (`isFurnitureOverlap`); no check keeps furniture in view.
 * The check holds a few of the spec's proportions (`DERIVED` in `surfaces/board.ts`); change the spec's table and
   the check together.
 * A board state worth checking at phone size is a story (`/play/storybook/decisions?state=<story>`), not a

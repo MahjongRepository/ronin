@@ -52,6 +52,17 @@ The derived proportions are the three reference viewports' values under the sizi
   and the centre is one instrument; during an offer the offer leads; over a result the result
   leads. Table information stays scannable underneath. Colour marks an actionable or meaningful
   state, and tile identity (a red five), and nothing else.
+- **Three tiers, by what a player loses when a thing is covered.** Every element on the board belongs to one tier,
+  named before its place is chosen; the tier decides what may stand over it:
+  - *Furniture*: the table itself. The felt, the zones' tint and seams, the plates. It lies under every tile and
+    control; anything may cover it, and nothing moves, shrinks or keeps room clear to keep it in view.
+  - *Table*: what a player reads to play. The tiles, the centre, the dora card. Furniture never covers it; one
+    table piece over another is a layout fault, but for the overlaps this spec accepts (a river past its reserve).
+  - *Task*: what a player must act on or must not miss. The decisions (a call, ron, tsumo, riichi) and their timer,
+    the notices, a result or the game end's panel. It stands whole over the tiers below, which never cover it.
+
+  The test for a new element: if a tile lay over it, could the player make a wrong move or miss what happened? No
+  makes it furniture.
 - **Show what is known, never what is guessed.** The board draws the state the server supplied:
   no invented draw, no decremented wall, no deposited stick, no revealed indicator before the
   event that reveals it. A local countdown is an estimate; the server's move is the fact.
@@ -277,7 +288,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   an added kan's stack shrinks into the room above the top river.
 - **Badges.** One shape for every seat, state and size: the name alone in a one-line band of one fixed width,
   a faint darkening of the felt with muted ink, so the names stay quiet table furniture and never draw the eye
-  from the tiles. A name too long for the band is shortened in the middle so its end, which tells AI players apart,
+  from the tiles. A plate is furniture (Three tiers): every tile, meld, river and control may stand over it, a
+  replay's badge then pressable only where it shows. A name too long for the band is shortened in the middle so its end, which tells AI players apart,
   stays. Its states each take a channel of their own and never change the band's outline or ink: away (an AI stands
   in for a human who left or never came, the human identity kept, cleared when they return) turns the name's ink
   red, its reason in the badge's tooltip and screen-reader label, red being reserved for it among the badge's
@@ -292,8 +304,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   reserve (a riichi tile, the latest discard's gap and a tile's edge counted), mirrored about the centre's middle
   where the core's top and the own row allow, each row level otherwise. The band is as wide as the narrowest corner
   holds, at most eight of its ems. Places are fixed per viewport and viewpoint, never following how many tiles a
-  seat holds. The decisions and the notices are rare and brief and may stand over a plate: nobody reads a name while
-  deciding a call, so no plate moves out of its corner for them. Decision: the badge carries no wind or score; the
+  seat holds. The corners place it clear of the tiles of an ordinary
+  round, never of a river past its reserve, a meld line or a control that reaches it: those cover it, and no plate
+  moves out of its corner for them. Decision: the badge carries no wind or score; the
   centre holds every seat's score, and hovering a badge shows the other seats' scores in the centre as differences
   from it (kept from the current board); hovering the centre does the same for the bottom seat's badge.
   In a live game the badge takes no press, no pointer cursor and no text selection; a replay's badge is a control
