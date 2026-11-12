@@ -23,8 +23,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   named line); `.board-layout` and `.board-table` lay them out and each slot takes its `grid-area`, aligned the way its
   contents stand in it. A slot's place is never a CSS formula: what its contents read (`--actions-*`,
   `--switch-*`, the field's height and a desktop's toasts', which the notices' clamp reads as `max-height`) comes from the geometry too.
-  The core's pinwheel (centre, rivers), the plates (a phone's in the core's corners; off a phone each beside its
-  owner's tiles, the own one left of the own row's first tile, the top one right of its hand's start, anchored on the side facing its owner's tiles) and the
+  The core's pinwheel (centre, rivers), the plates (one rectangle in the core's corners on every board, its two
+  columns and two rows the geometry's) and the
   counters stand absolutely
   over the grid, by the geometry's lengths, and so does a replay's status over a smaller board's panel.
 - **A width-bound desktop's table is a frame of its own.** Where the board is taller than its table needs, the

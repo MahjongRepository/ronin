@@ -37,23 +37,25 @@ $plate-seats: bottom, right, top, left;
 .nameplate__pill {
     position: relative;
     display: inline-flex;
+    flex-shrink: 0;
+    justify-content: center;
     align-items: center;
-    max-width: 100%;
+    width: min(var(--plate-w), 8em);
     height: var(--pill-h);
-    padding: 0 calc(0.55em + 2px);
-    overflow: hidden;
+    padding: 0 6px;
+    font-weight: 500;
     white-space: nowrap;
-    background: var(--ronin-badge);
-    border-radius: 6px;
+    color: var(--ronin-plate-ink);
+    background: var(--ronin-plate);
+    border-radius: 3px;
 
     @include small-chrome {
-        padding-inline: 0.4em;
+        padding-inline: 4px;
     }
 
-    /* Whose turn it is: a bar along the pill's bottom edge, the same on every seat. */
     &::after {
         position: absolute;
-        inset-inline: 0;
+        inset-inline: 4px;
         bottom: 0;
         height: var(--cue-w);
         content: "";
@@ -65,66 +67,46 @@ $plate-seats: bottom, right, top, left;
         visibility: visible;
     }
 
-    .nameplate--riichi & {
-        box-shadow: inset 0 0 0 2px var(--ronin-stick);
-    }
-
     .nameplate--away & {
         color: var(--ronin-plate-away);
     }
 }
 
-.nameplate--top {
-    right: var(--top-badge-right);
-    top: var(--top-badge-top);
+.nameplate__stick {
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 50%;
+    display: none;
+    width: 2.2em;
+    transform: translateX(-50%);
+
+    .board-stick-icon {
+        display: block;
+        width: 100%;
+        height: auto;
+    }
+
+    .nameplate--riichi & {
+        display: block;
+    }
+}
+
+.nameplate:is(.nameplate--top, .nameplate--right) {
+    top: var(--plate-top-top);
+}
+
+.nameplate:is(.nameplate--left, .nameplate--bottom) {
+    top: var(--plate-bottom-top);
+}
+
+.nameplate:is(.nameplate--top, .nameplate--left) {
+    right: var(--plate-left-right);
     justify-content: flex-end;
-    max-width: var(--top-lane);
-
-    @include desktop-board {
-        right: auto;
-        left: var(--top-badge-left);
-        justify-content: flex-start;
-        max-width: var(--top-badge-w);
-    }
 }
 
-.nameplate--left {
-    top: var(--left-badge-top);
-    right: var(--left-badge-right);
-    justify-content: flex-end;
-    max-width: var(--left-badge-w);
-
-    @include desktop-board {
-        right: auto;
-        left: var(--left-badge-left);
-        justify-content: flex-start;
-    }
-}
-
-.nameplate--right {
-    top: var(--right-badge-top);
-    left: var(--right-badge-left);
+.nameplate:is(.nameplate--right, .nameplate--bottom) {
+    left: var(--plate-right-left);
     justify-content: flex-start;
-    max-width: var(--right-badge-w);
-
-    @include desktop-board {
-        right: var(--right-badge-right);
-        left: auto;
-        justify-content: flex-end;
-    }
-}
-
-.nameplate--bottom {
-    top: var(--own-badge-top);
-    left: var(--own-badge-left);
-    justify-content: flex-start;
-    max-width: var(--own-badge-w);
-
-    @include desktop-board {
-        right: var(--own-badge-right);
-        left: auto;
-        justify-content: flex-end;
-    }
 }
 
 /* A corner holding the debug log (`?debug`) holds its summary beside the cog, at most this wide. */

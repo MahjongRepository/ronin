@@ -8,6 +8,7 @@ import {
 import { t } from "@/shared/i18n";
 
 import { PlayerName } from "./player-name";
+import { RiichiStickIcon } from "./riichi-stick-icon";
 
 /** Views the table from a seat, where pressing its plate does (a replay's); a live game's plates take no press. */
 type SeatView = (seat: SeatPosition) => void;
@@ -63,7 +64,11 @@ function Nameplate(props: NameplateProps): TemplateResult {
         plate.away === null
             ? plate.name
             : t("game.nameplate.away_title", { name: plate.name, reason: plate.away });
-    const pill = html`<span class="nameplate__pill">${PlayerName(plate.name, "nameplate__name")}</span>`;
+    const pill = html`<span class="nameplate__pill"
+        >${PlayerName(plate.name, "nameplate__name")}<span class="nameplate__stick"
+            >${RiichiStickIcon("across")}</span
+        ></span
+    >`;
     if (onView === null) {
         return html`<div class=${classes} role="group" title=${title} aria-label=${nameplateLabel(props)}>
             ${pill}

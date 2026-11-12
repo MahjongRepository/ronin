@@ -110,13 +110,12 @@ describe("boardGeometry chrome", () => {
         { height: 1000, pillH: 36, text: 20.5, width: 1727 },
         { height: 1440, pillH: 42 * (80 / 68), text: 24 * (80 / 68), width: 2560 },
     ])(
-        "scales a $width x $height window's chrome from the regular record to the large one with its padded box, and past it with the river tile, one plate pill, the top plate a bot's name wide",
+        "scales a $width x $height window's chrome from the regular record to the large one with its padded box, and past it with the river tile, one plate pill",
         ({ height, pillH, text, width }) => {
             const { lengths } = windowGeometry({ height, width }, 10);
 
             expect(lengths["pill-h"]).toBeCloseTo(pillH, 6);
             expect(lengths["text"]).toBeCloseTo(text, 6);
-            expect(lengths["top-badge-w"]).toBeGreaterThanOrEqual(9.4 * text - 0.001);
         },
     );
 });
@@ -274,19 +273,6 @@ describe("boardGeometry in a phone's browser", () => {
             });
         },
     );
-
-    it.each([
-        { height: 275, insets: { bottom: 0, left: 44, right: 44, top: 0 }, width: 896 },
-        { height: 331, insets: NO_INSETS, width: 891 },
-    ])(
-        "keeps a bot's whole name on a $width x $height box's top plate, its lane as wide as a 667 x 375 phone's at least",
-        ({ height, insets, width }) => {
-            const { lengths } = windowGeometry({ height, width }, 0, insets);
-            const phone = windowGeometry({ height: 375, width: 667 }).lengths;
-
-            expect(lengths["top-lane"]).toBeGreaterThanOrEqual(phone["top-lane"] ?? Infinity);
-        },
-    );
 });
 
 /** The replay's board in a live board's box. */
@@ -299,18 +285,11 @@ function replayOf({ box }: BoardGeometry): BoardGeometry {
     });
 }
 
-/** Whether two boxes, each its left, top, right and bottom, share no area. */
-function apart(first: readonly number[], second: readonly number[]): boolean {
-    const [left = 0, top = 0, right = 0, bottom = 0] = first;
-    const [otherLeft = 0, otherTop = 0, otherRight = 0, otherBottom = 0] = second;
-    return right <= otherLeft || otherRight <= left || bottom <= otherTop || otherBottom <= top;
-}
-
 /**
  * Whether a desktop's notices stand as toasts at 14px or more in the core's bottom-left corner: past the left strip's
  * lane, short of the bottom river's first tile, under the left river's longest reach (its sixth tile past a riichi
- * tile, the latest discard's gap and a tile's edge) and the left plate's pill, over the own row's melds' rise, a clamped
- * toast tall at least.
+ * tile, the latest discard's gap and a tile's edge), over the left plate and the own row's melds' rise, a clamped toast
+ * tall at least.
  */
 function toastsPlace(geometry: BoardGeometry): boolean {
     const { lengths, tracks } = geometry;
@@ -319,11 +298,9 @@ function toastsPlace(geometry: BoardGeometry): boolean {
     }
     const toasts = slotAreas(tracks)["toasts"] ?? [];
     const [left = 0, top = 0, right = 0, bottom = 0] = toasts;
-    const { left: plate } = desktopPills(geometry);
     const rw = length("rw");
     return (
         length("notice-text") >= 14 &&
-        apart(toasts, [plate.left, plate.top, plate.right, plate.bottom]) &&
         left >= length("col-left") + length("strip-depth") + SIDE_LANE_GAP &&
         right <= length("cx") - length("hx") &&
         top >=
@@ -341,7 +318,7 @@ function toastsPlace(geometry: BoardGeometry): boolean {
 /**
  * Where a desktop's decisions' corner stands at the core's bottom-right, clear of a bottom river of `reserve` discards
  * (two rows of six, the rest run on in its third row, one sideways, and the latest discard's gap), the right river's
- * first tile and its edge, the right strip's lane, the own row's melds' rise and the own plate's pill; its controls at
+ * first tile and its edge, the right strip's lane and the own row's melds' rise, the own plate under it; its controls at
  * least 40px tall with labels at least 14px.
  */
 function cornerPlace(geometry: BoardGeometry, reserve: number): Record<string, boolean> {
@@ -351,12 +328,10 @@ function cornerPlace(geometry: BoardGeometry, reserve: number): Record<string, b
     }
     const actions = slotAreas(tracks)["actions"] ?? [];
     const [left = 0, top = 0, right = 0, bottom = 0] = actions;
-    const { own } = desktopPills(geometry);
     const rw = length("rw");
     const thirdRow = reserve - 2 * RIVER_ROW_SIZE;
     return {
         clear:
-            apart(actions, [own.left, own.top, own.right, own.bottom]) &&
             left >=
                 length("cx") -
                     length("hx") +
@@ -409,7 +384,7 @@ function ownRowPlace({ box, lengths, strips, tracks }: BoardGeometry): Record<st
         "strip-top": top = [],
     } = slotAreas(tracks);
     const tableHeight = lengths["table-h"] ?? box.height;
-    const ownPill = length("own-badge-top") + (length("badge-h") - length("pill-h")) / 2;
+    const ownPill = length("hand-top") + length("oh") - length("pill-h");
     function centred([, lineTop = 0, , lineBottom = 0]: readonly number[]): boolean {
         const underCounters =
             lineTop >= length("counters-top") + length("counters-h") + 6 - 0.1 &&
@@ -439,70 +414,80 @@ function ownRowPlace({ box, lengths, strips, tracks }: BoardGeometry): Record<st
     };
 }
 
-/**
- * Whether a desktop's plates and counters stand where they must: each pill (its box less the tap box's padding) beside
- * its owner's tiles, a gap off every reach a river lays there (a riichi tile, the latest discard's gap, a tile's edge)
- * and off the side lanes: the top seat's right of its hand's start, centred on that row (or raised to clear the right
- * strip's line), short of the right lane or over it where the right strip's line starts below it, seven ems of its text wide at least; the left seat's against
- * the left lane, above its river's start under the top strip's melds, short of the top river's first two rows (under
- * its river's reserve where the corner is too short); the right seat's against the right lane, above its river's
- * reserved top, past the top river; the own seat's left of the own row's first tile, its foot level with the own
- * tiles', under the left strip's line, ten characters wide; the counters left-aligned at the left bar's top, in the bar
- * or over the left lane above the left strip's line, their dora tiles 0.55 river tiles wide at least.
- */
 type PillBox = Readonly<Record<"bottom" | "left" | "right" | "top", number>>;
 
-/** A desktop's plates' pills (each plate's box less the tap box's padding), by seat. */
-function desktopPills({
-    box,
-    lengths,
-}: BoardGeometry): Readonly<Record<StripSeat | "own", PillBox>> {
+/** The plates' pills (each plate's box less the tap box's padding) at their widest, by seat. */
+function platePills({ box, lengths }: BoardGeometry): Readonly<Record<StripSeat | "own", PillBox>> {
     function length(name: string): number {
         return lengths[name] ?? Number.NaN;
     }
-    function pill(top: string, left: number, width: string): PillBox {
-        const pillTop = length(top) + (length("badge-h") - length("pill-h")) / 2;
-        return {
-            bottom: pillTop + length("pill-h"),
-            left,
-            right: left + length(width),
-            top: pillTop,
-        };
-    }
-    function fromRight(right: string, width: string): number {
-        return box.width - length(right) - length(width);
+    const pad = (length("badge-h") - length("pill-h")) / 2;
+    const [width, height] = [length("plate-w"), length("pill-h")];
+    const [leftEdge, rightEdge] = [
+        box.width - length("plate-left-right"),
+        length("plate-right-left"),
+    ];
+    const [upper, lower] = [length("plate-top-top") + pad, length("plate-bottom-top") + pad];
+    function pill(left: number, top: number): PillBox {
+        return { bottom: top + height, left, right: left + width, top };
     }
     return {
-        left: pill("left-badge-top", length("left-badge-left"), "left-badge-w"),
-        own: pill("own-badge-top", fromRight("own-badge-right", "own-badge-w"), "own-badge-w"),
-        right: pill(
-            "right-badge-top",
-            fromRight("right-badge-right", "right-badge-w"),
-            "right-badge-w",
-        ),
-        top: pill("top-badge-top", length("top-badge-left"), "top-badge-w"),
+        left: pill(leftEdge - width, lower),
+        own: pill(rightEdge, lower),
+        right: pill(rightEdge, upper),
+        top: pill(leftEdge - width, upper),
     };
 }
 
-function desktopPlaces(geometry: BoardGeometry): Record<string, boolean> {
+/**
+ * Whether the plates stand as one rectangle in the core's corners: the top seat's top-left, the right
+ * seat's top-right, the left seat's bottom-left and the own one bottom-right, the left pair's right edges and the right
+ * pair's left edges mirrored about the centre and each row's pills level; the left pair short of the top river's run-on
+ * and the bottom river, the right pair past the top river and the bottom river's run-on; the top row above the centre
+ * and the right river's reserved top, under the core's top; the bottom row under the centre and the left river's
+ * reserve, above the own row's melds' rise; every pill between the side lanes, its box the control floor tall.
+ */
+function platesPlace(geometry: BoardGeometry): Record<string, boolean> {
+    const { lengths } = geometry;
+    function length(name: string): number {
+        return lengths[name] ?? Number.NaN;
+    }
+    const { left, own, right, top } = platePills(geometry);
+    const [rw, rh, edge] = [length("rw"), length("rh"), TILE_EDGE_SHARE * length("rw")];
+    const [cx, cy] = [length("cx"), length("cy")];
+    const lane = length("strip-depth") + SIDE_LANE_GAP;
+    return {
+        bottomRow:
+            left.top === own.top &&
+            left.top >= cy + length("h") &&
+            left.top >= cy - length("h") + 5 * rw + rh + length("latest-drop-gap") + edge &&
+            left.bottom <= length("hand-top") - length("own-meld-rise"),
+        columns:
+            left.right === top.right &&
+            right.left === own.left &&
+            Math.abs(cx - left.right - (right.left - cx)) <= 0.001 &&
+            left.right <= Math.min(length("reach-top-left"), cx - length("hx")) &&
+            right.left >= Math.max(length("reach-bottom-right"), cx + length("hx")),
+        inLanes:
+            left.left >= length("col-left") + lane - 0.001 &&
+            right.right <= length("col-right") - lane + 0.001,
+        tapFloor: length("badge-h") >= 40,
+        topRow:
+            top.top === right.top &&
+            top.top >= length("core-top") - 0.001 &&
+            top.bottom <= cy - length("h") &&
+            top.bottom <= cy + length("h") - 5 * rw - rh - length("latest-drop-gap"),
+    };
+}
+
+/** Whether a desktop's counters stand left-aligned at the left bar's top, in the bar or over the left lane above the left strip's line, their dora tiles in one row 0.55 river tiles wide at least. */
+function countersPlace(geometry: BoardGeometry): Record<string, boolean> {
     const { lengths, tracks } = geometry;
     function length(name: string): number {
         return lengths[name] ?? Number.NaN;
     }
-    const {
-        hand = [],
-        "strip-left": stripLeft = [],
-        "strip-right": stripRight = [],
-        "strip-top": stripTop = [],
-    } = slotAreas(tracks);
-    const [rw, rh, edge] = [length("rw"), length("rh"), TILE_EDGE_SHARE * length("rw")];
-    const [laneLeft, laneRight, coreRight] = [
-        length("col-left") + length("strip-depth") + SIDE_LANE_GAP,
-        length("col-right") - length("strip-depth") - SIDE_LANE_GAP,
-        length("cx") + length("hx"),
-    ];
-    const { left, own, right, top } = desktopPills(geometry);
-    const pad = (length("badge-h") - length("pill-h")) / 2;
+    const { "strip-left": stripLeft = [] } = slotAreas(tracks);
+    const laneLeft = length("col-left") + length("strip-depth") + SIDE_LANE_GAP;
     const countersRight = length("counters-x") + length("counters-w");
     const countersBottom = length("counters-top") + length("counters-h");
     return {
@@ -513,82 +498,16 @@ function desktopPlaces(geometry: BoardGeometry): Record<string, boolean> {
                 (countersRight <= laneLeft - 6 + 0.001 &&
                     countersBottom <= (stripLeft[1] ?? 0) - 6 + 0.1)),
         countersWhole:
-            length("dora-w") >= 0.55 * rw &&
+            length("dora-w") >= 0.55 * length("rw") &&
             length("counters-w") >= length("dora-row-w") &&
             length("dora-row-w") >= 5 * length("dora-w"),
-        left:
-            left.left >= laneLeft &&
-            ((left.bottom <= length("cy") - length("h") - 6 + 0.001 &&
-                left.right <= coreRight - 5 * rw - rh - LATEST_DISCARD_GAP &&
-                left.top >= length("core-top") - 0.001) ||
-                (left.top >=
-                    length("cy") -
-                        length("h") +
-                        5 * rw +
-                        rh +
-                        length("latest-drop-gap") +
-                        edge +
-                        6 &&
-                    left.right <= length("cx") - length("hx") &&
-                    left.bottom <= length("hand-top") - length("own-meld-rise"))),
-        own:
-            own.right <= (hand[0] ?? 0) - 6 + 0.001 &&
-            own.left >= 6 - 0.001 &&
-            Math.abs(own.bottom - (length("hand-top") + length("oh"))) <=
-                (length("badge-h") - length("pill-h")) / 2 &&
-            own.top + length("badge-h") - (length("badge-h") - length("pill-h")) / 2 <=
-                (lengths["table-h"] ?? geometry.box.height) + 0.001 &&
-            own.top >= (stripLeft[3] ?? Infinity) &&
-            length("own-badge-w") >= 8.5 * length("text"),
-        right:
-            right.right <= laneRight + 0.001 &&
-            right.bottom <=
-                length("cy") + length("h") - 5 * rw - rh - length("latest-drop-gap") - 6 + 0.001 &&
-            right.left >= coreRight &&
-            right.top >= rh + edge,
-        tapFloor: length("badge-h") >= 40,
-        top:
-            top.left >= (stripTop[2] ?? Infinity) + 6 - 0.1 &&
-            top.top >= 0 &&
-            (Math.abs((top.top + top.bottom) / 2 - Math.max(rh + edge, length("badge-h")) / 2) <=
-                0.001 ||
-                top.bottom + pad <= (stripRight[1] ?? 0) - 2 + 0.1) &&
-            (top.right <= laneRight + 0.001 ||
-                (top.right <= length("col-right") + 0.001 &&
-                    top.bottom + pad <= (stripRight[1] ?? 0) - 2 + 0.1)) &&
-            top.right - top.left >= 7 * length("text") - 0.001,
-    };
-}
-
-/**
- * Where a phone's own plate stands: its pill level with the bottom river's first row's top,
- * past that row's six tiles (a riichi tile and the latest discard's gap counted), above the row's run-on, short of the
- * right strip's lane and above the own row; and whether it holds a ten-character name (8.5 of the board's text).
- */
-function ownPlace({ lengths }: BoardGeometry): Record<string, boolean> {
-    function length(name: string): number {
-        return lengths[name] ?? Number.NaN;
-    }
-    const [rw, rh] = [length("rw"), length("rh")];
-    const rowTop = length("cy") + length("h") + length("g");
-    const pillTop = length("own-badge-top") + (length("badge-h") - length("pill-h")) / 2;
-    const left = length("own-badge-left");
-    const right = left + length("own-badge-w");
-    return {
-        aboveOwnRow: pillTop + length("pill-h") <= length("hand-top") - length("own-meld-rise"),
-        aboveRunOn: pillTop + length("pill-h") <= rowTop + 2 * rh,
-        clearOfLane: right <= length("col-right") - length("strip-depth") - SIDE_LANE_GAP,
-        holdsTenCharacters: length("own-badge-w") >= 8.5 * length("text"),
-        level: Math.abs(pillTop - rowTop) < 0.001,
-        pastFirstRow: left >= length("cx") - length("hx") + 5 * rw + rh + LATEST_DISCARD_GAP,
     };
 }
 
 /**
  * Whether a phone's board stands on its table column: both bars a tiled chi's control wide, every control in a bar, the
  * felt between each side lane and its river's reserve under three river tiles, both side strips' lines a full hand long
- * and ending above the own row, the plates' pills in the core's corners clear of the rivers' reserves (the left one's
- * tap box above the own row), the centre at its least size, and the right bar the offers' stack tall (5 rows, 3 where it
+ * and ending above the own row, the centre at its least size, and the right bar the offers' stack tall (5 rows, 3 where it
  * holds two tiled chis side by side).
  */
 function phonePlaces({ box, lengths, strips, tracks }: BoardGeometry): Record<string, boolean> {
@@ -599,13 +518,11 @@ function phonePlaces({ box, lengths, strips, tracks }: BoardGeometry): Record<st
     function area(slot: string): readonly number[] {
         return areas[slot] ?? [];
     }
-    const [rw, rh, edge] = [length("rw"), length("rh"), TILE_EDGE_SHARE * length("rw")];
+    const rw = length("rw");
     const [colLeft, colRight] = [length("col-left"), length("col-right")];
-    const [lane, rowTop, centreTop, pad] = [
+    const [lane, rowTop] = [
         length("strip-depth") + SIDE_LANE_GAP,
         length("hand-top") - length("own-meld-rise"),
-        length("cy") - length("h"),
-        (length("badge-h") - length("pill-h")) / 2,
     ];
     const [actionsLeft = 0, actionsTop = 0, , actionsBottom = 0] = area("actions");
     const barWidth = box.width - actionsLeft - length("m");
@@ -622,17 +539,7 @@ function phonePlaces({ box, lengths, strips, tracks }: BoardGeometry): Record<st
         fullHandAboveOwnRow:
             Math.min(strips?.left.line ?? 0, strips?.right.line ?? 0) >= length("full-reach") &&
             (area("strip-left")[3] ?? Infinity) <= rowTop,
-        leftPlateUnderLeftRiver:
-            length("left-badge-top") + pad >=
-                centreTop + 5 * rw + rh + length("latest-drop-gap") + edge - 0.001 &&
-            length("left-badge-top") + length("badge-h") <= rowTop,
         offersInRightBar: actionsBottom - actionsTop >= (barWidth >= 202 ? 136 : 228) - 0.001,
-        rightPlateUnderCoreTop:
-            length("right-badge-top") + pad >= length("core-top") - 0.001 &&
-            length("right-badge-top") + pad + length("pill-h") <=
-                length("cy") + length("h") - 5 * rw - rh - length("latest-drop-gap"),
-        topPlateUnderTopRiver:
-            length("top-badge-top") + pad >= length("reach-top-row3") + edge - 0.001,
     };
 }
 
@@ -810,7 +717,7 @@ describe("boardGeometry", () => {
         { height: 500, holdsOffers: true, pinned: { ow: 53, rw: 28 }, width: 1024 },
         { height: 331, holdsOffers: true, pinned: { ow: 36, rw: 18 }, width: 891 },
     ])(
-        "sizes a $width x $height window's phone board's tiles jointly on its table column: both bars a tiled chi wide, the side strips' lines a full hand long above the own row, the felt beside each side river under three river tiles, the plates in the core's corners, every control in a bar, the offers' stack in the right one ($holdsOffers)",
+        "sizes a $width x $height window's phone board's tiles jointly on its table column: both bars a tiled chi wide, the side strips' lines a full hand long above the own row, the felt beside each side river under three river tiles, every control in a bar, the offers' stack in the right one ($holdsOffers)",
         ({ height, holdsOffers, pinned, width }) => {
             const geometry = windowGeometry({ height, width });
             const { lengths } = geometry;
@@ -824,10 +731,7 @@ describe("boardGeometry", () => {
                 controlsInBars: true,
                 feltUnderThreeTiles: true,
                 fullHandAboveOwnRow: true,
-                leftPlateUnderLeftRiver: true,
                 offersInRightBar: holdsOffers,
-                rightPlateUnderCoreTop: true,
-                topPlateUnderTopRiver: true,
             });
         },
     );
@@ -1016,7 +920,7 @@ describe("boardGeometry's strips", () => {
         { height: 768, switches: "letters", width: 1024 },
         { height: 600, switches: "letters", width: 800 },
     ])(
-        "keeps a $width x $height desktop's controls in the bars: the counters left-aligned over the field with the round info under them on lines 9 of its ems wide, furiten and $switches switches down the left one to the own plate, the cog and a replay's controls at its foot in the right one, the panel in the column, and the notices' toasts in the core's bottom-left corner",
+        "keeps a $width x $height desktop's controls in the bars: the counters left-aligned over the field with the round info under them on lines 9 of its ems wide, furiten and $switches switches down the left one to the own row's foot, the cog and a replay's controls at its foot in the right one, the panel in the column, and the notices' toasts in the core's bottom-left corner",
         ({ height, switches, width }) => {
             const live = windowGeometry({ height, width });
             const { box } = live;
@@ -1071,8 +975,9 @@ describe("boardGeometry's strips", () => {
                             6 +
                             3 * (replay.lengths["replay-w"] ?? 0) +
                             0.1,
-                switchesOverPlate:
-                    (switchesArea?.[3] ?? Infinity) <= length("own-badge-top") - 6 + 0.1,
+                switchesOverRowFoot:
+                    (switchesArea?.[3] ?? Infinity) <=
+                    length("hand-top") + length("oh") - length("pill-h") - 6 + 0.1,
                 switchesWide:
                     (switchesArea?.[2] ?? 0) -
                     (switchesArea?.[0] ?? 0) -
@@ -1098,7 +1003,7 @@ describe("boardGeometry's strips", () => {
                 rightBar: true,
                 rightBarDown: true,
                 rightBarNearColumn: true,
-                switchesOverPlate: true,
+                switchesOverRowFoot: true,
                 switchesWide: expect.closeTo(0, 0),
                 toasts: true,
             });
@@ -1121,7 +1026,7 @@ describe("boardGeometry's decisions", () => {
         { height: 1551, reserve: 19, width: 1502 },
         { height: 1000, reserve: 18, width: 960 },
     ])(
-        "stands a $width x $height live desktop's decisions in the core's bottom-right corner clear of a $reserve-discard bottom river, the right river, the right strip's lane, the own row's melds and plate, its controls 40px tall or more",
+        "stands a $width x $height live desktop's decisions in the core's bottom-right corner clear of a $reserve-discard bottom river, the right river, the right strip's lane and the own row's melds, over the own plate, its controls 40px tall or more",
         ({ height, reserve, width }) => {
             expect(cornerPlace(windowGeometry({ height, width }, 10), reserve)).toEqual({
                 clear: true,
@@ -1160,22 +1065,6 @@ describe("boardGeometry's plates", () => {
         [800, 600],
         [1502, 1551],
         [960, 1000],
-    ])(
-        "stands a %ix%i desktop's plates each beside its owner's tiles, clear of every river's reserve and the side lanes, and the counters' dora in one row at least 0.55 river tiles at the left bar's top",
-        (width, height) => {
-            expect(desktopPlaces(windowGeometry({ height, width }, 10))).toEqual({
-                countersInBar: true,
-                countersWhole: true,
-                left: true,
-                own: true,
-                right: true,
-                tapFloor: true,
-                top: true,
-            });
-        },
-    );
-
-    it.each([
         [667, 375],
         [844, 390],
         [932, 430],
@@ -1184,15 +1073,32 @@ describe("boardGeometry's plates", () => {
         [808, 275],
         [844, 251],
     ])(
-        "stands a %ix%i phone's own plate in the core's bottom-right corner, level with its river's first row, clear of every tile",
+        "stands a %ix%i board's plates as one rectangle in the core's corners, mirrored about the centre, clear of every river's reserve and the side lanes",
         (width, height) => {
-            expect(ownPlace(windowGeometry({ height, width }))).toEqual({
-                aboveOwnRow: true,
-                aboveRunOn: true,
-                clearOfLane: true,
-                holdsTenCharacters: true,
-                level: true,
-                pastFirstRow: true,
+            expect(platesPlace(windowGeometry({ height, width }))).toEqual({
+                bottomRow: true,
+                columns: true,
+                inLanes: true,
+                tapFloor: true,
+                topRow: true,
+            });
+        },
+    );
+
+    it.each([
+        [1280, 720],
+        [1440, 900],
+        [2560, 1440],
+        [1024, 768],
+        [1366, 550],
+        [800, 600],
+        [1502, 1551],
+    ])(
+        "stands a %ix%i desktop's counters' dora in one row at least 0.55 river tiles at the left bar's top",
+        (width, height) => {
+            expect(countersPlace(windowGeometry({ height, width }, 10))).toEqual({
+                countersInBar: true,
+                countersWhole: true,
             });
         },
     );
