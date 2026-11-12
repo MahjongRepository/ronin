@@ -1,6 +1,7 @@
 import { type Page } from "playwright";
 
 import { type Box } from "./boxes.ts";
+import { compositorShot } from "./compositor.ts";
 import { type PageReport } from "./model.ts";
 
 /** WCAG's floor for text and marks against what they are painted on (the spec's Automated checks). */
@@ -11,7 +12,6 @@ const MIN_CONTRAST = 4.5;
  */
 export const CONTRAST_VIEWPORTS: ReadonlySet<string> = new Set([
     "phone-se-landscape",
-    "phone-se-chromium",
     "phone-notch-landscape",
     "desktop-1440",
     "desktop-narrow",
@@ -23,8 +23,7 @@ export const CONTRAST_VIEWPORTS: ReadonlySet<string> = new Set([
  * The limit is the artwork's: those strokes are about 5 of the face's 300 units (half a device pixel at this bound; the
  * 800x600 window's smallest faces read 3.4-4.4:1), each drawn on a white band about four times as wide (the 1p's ring),
  * so a stroke wide enough for a pixel there (two to three times as wide) would all but cover the band: thickening it is
- * a redraw of the artwork, not a change to the sprite's build. A face the table's camera foreshortens counts by its
- * narrower axis as drawn: its width, or three quarters of its height.
+ * a redraw of the artwork, not a change to the sprite's build.
  */
 const MIN_GLYPH_DEVICE_PX = 24;
 
@@ -78,10 +77,10 @@ const CONTRAST_MARKS: readonly ContrastMark[] = [
         selector: ".nameplate--current .nameplate__pill",
     },
     {
-        hide: [["", "box-shadow: none !important"]],
-        name: "badge's riichi rim",
-        reach: 0,
-        selector: ".nameplate--riichi .nameplate__pill",
+        hide: [["", HIDDEN]],
+        name: "badge's riichi stick",
+        reach: 1,
+        selector: ".nameplate--riichi .nameplate__stick",
     },
     {
         hide: [[" .board-stick-icon__body", HIDDEN]],
@@ -216,9 +215,9 @@ interface ContrastResult {
  * every clipping box above it show. Each mark element is tagged with its rule's batch (`data-contrast-<rule>`) for the
  * CSS that hides it.
  */
-function collectContrastTargets(page: Page, skipTilted: boolean): Promise<ContrastTargets> {
+function collectContrastTargets(page: Page): Promise<ContrastTargets> {
     return page.evaluate(
-        ({ highlights, least, marks, tilted }) => {
+        ({ highlights, least, marks }) => {
             const HIGHLIGHTS = new Set(highlights);
             const unreadable: string[] = [];
             // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
@@ -249,7 +248,6 @@ function collectContrastTargets(page: Page, skipTilted: boolean): Promise<Contra
             function shown(element: Element): boolean {
                 const rect = element.getBoundingClientRect();
                 return (
-                    (!tilted || element.closest(".board-surface") === null) &&
                     rect.width >= 2 &&
                     rect.height >= 2 &&
                     element.checkVisibility({ opacityProperty: true, visibilityProperty: true })
@@ -499,11 +497,7 @@ function collectContrastTargets(page: Page, skipTilted: boolean): Promise<Contra
                                   kind: "glyph" as const,
                                   label,
                                   small:
-                                      Math.min(
-                                          Math.min(rect.width, rect.height),
-                                          (Math.max(rect.width, rect.height) * 3) / 4,
-                                      ) *
-                                          window.devicePixelRatio <
+                                      Math.min(rect.width, rect.height) * window.devicePixelRatio <
                                       least,
                               },
                           ];
@@ -541,12 +535,7 @@ function collectContrastTargets(page: Page, skipTilted: boolean): Promise<Contra
             }
             return { glyphs, marks: batches, texts, unreadable };
         },
-        {
-            highlights: SPRITE_HIGHLIGHTS,
-            least: MIN_GLYPH_DEVICE_PX,
-            marks: CONTRAST_MARKS,
-            tilted: skipTilted,
-        },
+        { highlights: SPRITE_HIGHLIGHTS, least: MIN_GLYPH_DEVICE_PX, marks: CONTRAST_MARKS },
     );
 }
 
@@ -561,7 +550,7 @@ function hideMarksCss(batch: number): string {
 }
 
 /** The viewport's pixels with `css` applied (none when null), as base64 PNG, once the page has drawn it. */
-async function shootWith(page: Page, css: string | null): Promise<string> {
+async function shootWith(page: Page, css: string | null, compositor: boolean): Promise<string> {
     const style = css === null ? null : await page.addStyleTag({ content: css });
     await page.evaluate(
         () =>
@@ -569,7 +558,9 @@ async function shootWith(page: Page, css: string | null): Promise<string> {
                 requestAnimationFrame(() => requestAnimationFrame(() => done()));
             }),
     );
-    const shot = await page.screenshot({ animations: "disabled", caret: "hide" });
+    const shot = compositor
+        ? await compositorShot(page)
+        : await page.screenshot({ animations: "disabled", caret: "hide" });
     await style?.evaluate((element) => {
         if (element instanceof Element) {
             element.remove();
@@ -609,12 +600,14 @@ function measureContrast(
     return page.evaluate(
         async ({ floor, sets, shotSet }) => {
             const INK_GAP = 2;
+            const JPEG_FIRST_BYTE = 255;
             const TEXT_CELLS_A_LINE = 6;
             const TEXT_CELL_FLOOR = 2;
             // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
             async function pixels(base64: string): Promise<ImageData> {
                 const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
-                const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+                const type = bytes[0] === JPEG_FIRST_BYTE ? "image/jpeg" : "image/png";
+                const bitmap = await createImageBitmap(new Blob([bytes], { type }));
                 const canvas = document.createElement("canvas");
                 canvas.width = bitmap.width;
                 canvas.height = bitmap.height;
@@ -992,23 +985,23 @@ function describeFinding(finding: ContrastFinding): string {
  * The page is left as it was.
  */
 /**
- * Every shown text, glyph and mark against what it sits on. `skipTilted` leaves out the table's tilted pieces, for an
- * engine whose paint of a CSS perspective is not the browsers' (Playwright's WebKit on Linux drops its divide).
+ * Every shown text, glyph and mark against what it sits on. `compositor` shoots the compositor's frames (`compositorShot`),
+ * for WebKit, whose software shot flattens the table's perspective.
  */
 export async function checkContrast(
     page: Page,
     report: PageReport,
-    skipTilted = false,
+    compositor = false,
 ): Promise<string> {
-    const targets = await collectContrastTargets(page, skipTilted);
-    const drawn = await shootWith(page, null);
-    const ink = await shootWith(page, HIDE_INK);
-    const pseudo = await shootWith(page, HIDE_PSEUDO_TEXT);
-    const forced = await shootWith(page, FORCE_INK);
-    const forcedPseudo = await shootWith(page, FORCE_PSEUDO_INK);
+    const targets = await collectContrastTargets(page);
+    const drawn = await shootWith(page, null, compositor);
+    const ink = await shootWith(page, HIDE_INK, compositor);
+    const pseudo = await shootWith(page, HIDE_PSEUDO_TEXT, compositor);
+    const forced = await shootWith(page, FORCE_INK, compositor);
+    const forcedPseudo = await shootWith(page, FORCE_PSEUDO_INK, compositor);
     const marks: string[] = [];
     for (const batch of targets.marks.keys()) {
-        marks.push(await shootWith(page, hideMarksCss(batch)));
+        marks.push(await shootWith(page, hideMarksCss(batch), compositor));
     }
     await page.evaluate((rules) => {
         for (const rule of Array.from(

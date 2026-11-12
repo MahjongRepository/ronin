@@ -32,7 +32,6 @@ import {
 import { MIN_TEXT_PX } from "../text.ts";
 import {
     FLOOR,
-    FLOOR_CHROMIUM,
     FULLSCREEN_PHONE,
     LAPTOPS,
     LAPTOP_WINDOW,
@@ -60,6 +59,9 @@ const MIN_FACE: Size = { height: 17, width: 13 };
  * 667x375 floor).
  */
 const MIN_RIVER_GAP = 3;
+
+/** A badge's pill or stick keeps at least this far off any tile on the table (px). */
+const PLATE_TILE_GAP = 4;
 
 /** The tile edge `_tile.scss` draws below a face, in shares of the tile's width (its body and back layers). */
 const DRAWN_EDGE_SHARE = 0.13;
@@ -142,15 +144,7 @@ const PAGES: readonly PageCase[] = [
             ".board-dora .tile",
             ".nameplate--away",
         ]),
-        at: [
-            FLOOR,
-            FLOOR_CHROMIUM,
-            NOTCH_PHONE,
-            FULLSCREEN_PHONE,
-            MID_DESKTOP,
-            NARROW_DESKTOP,
-            SQUARE_DESKTOP,
-        ],
+        at: [FLOOR, NOTCH_PHONE, FULLSCREEN_PHONE, MID_DESKTOP, NARROW_DESKTOP, SQUARE_DESKTOP],
         contrast: true,
         longNames: true,
     },
@@ -689,6 +683,20 @@ function withDrawnEdge(tile: Box): Box {
     return { ...tile, height: tile.height + DRAWN_EDGE_SHARE * widthDown };
 }
 
+/** A badge is furniture, yet what it draws (its pill and its riichi stick) keeps clear of every table tile. */
+function checkPlatesClear(board: BoardMeasure, report: PageReport): void {
+    const tiles = [...board.riverTiles, ...board.stripTiles];
+    const touching = board.plateParts.flatMap(({ box: part, group }) =>
+        tiles
+            .filter(({ box: tile }) => near(part, tile, PLATE_TILE_GAP))
+            .map((tile) => `${group} plate x ${tile.group} tile`),
+    );
+    report.expect(
+        touching.length === 0,
+        `plates within ${PLATE_TILE_GAP}px of a tile: ${[...new Set(touching)].join(", ")}`,
+    );
+}
+
 /** An opponent's strip stands apart from the rivers, so its backs or faces never read as a river's row (look spec). */
 function checkStripsApart(board: BoardMeasure, report: PageReport): void {
     const adjacent = new Map<string, number>();
@@ -1146,6 +1154,7 @@ async function checkBoard({
     }
     checkLocalHand(board, { floor: viewport.ownTileFloor, screen }, report);
     checkRiverGaps(board, report);
+    checkPlatesClear(board, report);
     checkStripsApart(board, report);
     BADGE_ANCHORS.keep(report, badgeAnchors(board));
     checkSettingsCog(board, screen, report);

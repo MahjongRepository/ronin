@@ -218,6 +218,13 @@ with sync_playwright() as p:
     browser.close()
 ```
 
+Playwright's `page.screenshot()` in WebKit on Linux paints in software and flattens 3D transforms
+(Playwright #21620, WebKit bug 68276): the game board's tilted table comes out as a skewed parallelogram, while iOS
+Safari and WebKit's compositor draw it right. Shoot any page holding the board from the compositor instead, a
+screencast frame: the visual check does this for its WebKit viewports (`scripts/visual-check/compositor.ts`,
+`compositorShot(page)`, a JPEG), so a board state is best shot through it; a throwaway Node script can import that
+helper. Lobby pages carry no 3D and keep `page.screenshot()`.
+
 Settle with `page.evaluate` polling, not `page.wait_for_function(<string>)`: the lobby CSP has no
 `unsafe-eval`, which a string predicate needs in WebKit. Run it outside the backend project, pinned
 to the version whose browsers are installed:

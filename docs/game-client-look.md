@@ -29,23 +29,28 @@ The derived proportions are the three reference viewports' values under the sizi
 
 - **A map before tiles.** The board is a table with four seat zones a player perceives, not tiles
   on a void. Every tile has an obvious owner and every seat a fixed place for its identity.
-- **A tilted table.** The core (centre and rivers), the opponents' strips and the counters lie on one
-  plane seen through one camera, two board widths away, its foot on the own row's top, in true
-  perspective: each piece tapers and its tiles grow toward the viewer. The table is laid out for
-  that camera, deeper than the board, so that tilted it fills the flat table's height from its top
-  edge to the own row, the own row itself the flat board's. The camera takes the steepest tilt (25
-  degrees down to 3, in steps; else none) whose plane settles, shows the river tile across the
-  core's middle within 5% of the flat board's, shows the nearest river tile at most 0.85 of the
-  own tile, opens neither felt band (the top strip to the top river, the core to the own row)
-  wider than the flat board's by more than 0.75 river tiles nor narrower than it, keeps the side
-  strips clear of the own row beside them and shows the farthest faces at the face floor. A phone
-  lays its tiles larger so its faces still show at that floor after the tilt; one whose strips
-  beside the own row have no room to grow (an iPhone 11 with Safari's bars) stays flat. A desktop
-  whose width binds its river tile keeps the flat table's place, centred in its box, and tilts
-  within it. The felt, its seams (drawn to the tilted centre's corners), the plates and calls (at
-  the tilted points the table anchors them to, at their flat size) and everything in front stay
-  flat. Depth comes from the surface, the tile's edge and its shadow. One static transform per
-  piece, no per-frame work. Decision: one light for every
+- **A tilted table.** The core (centre and rivers), the opponents' strips and, on a desktop, the
+  counters lie on one plane seen through one camera, two board widths away, its foot on the own
+  row's top, in true perspective: each piece tapers and its tiles grow toward the viewer. The table
+  is laid out for that camera, deeper than the board, so that tilted it fills the flat table's
+  height from its top edge to the own row, the own row itself the flat board's. The camera takes
+  the steepest tilt of 20, 18, 15, 12 and 10 degrees on a desktop and 15, 12 and 10 on a phone
+  (less than 10 reads flat and only softens the faces, so the board then stays flat) whose plane
+  settles, shows the river tile across the core's middle within 5% of the flat board's and the
+  nearest at most 0.85 of the own tile, keeps the side strips clear of the own row and a phone's
+  core clear of its decisions' band, and shows the farthest faces at the face floor. Its felt
+  bands (the top strip to the top river, the core to the own row) open at most 0.75 river tiles
+  wider than the flat board's; felt beyond that lies over the table's top instead, at most 0.75
+  river tiles of it, and the top band never closes under 4px. A phone lays its tiles larger so its
+  faces still show at the floor after the tilt (its plane's undrawn own row narrower where that
+  keeps its river tile, its strips beside or above the own row as the flat board's, its centre
+  lifted clear of the band), and its counters stay flat in their corner; one whose river tile is
+  already at the face floor (an iPhone 11 with Safari's bars) stays flat. A desktop whose width
+  binds its river tile keeps the flat table's place, centred in its box, and tilts within it. The
+  felt, its seams (drawn to the tilted centre's corners), the plates and calls (at the tilted points
+  the table anchors them to, at their flat size, a plate centred on its anchor's height) and
+  everything in front stay flat. Depth comes from the surface, the tile's edge and its shadow. One
+  static transform per piece, no per-frame work. Decision: one light for every
   seat, as Tenhou's: each tile's edge shows toward the screen's bottom (its ivory body over the
   back's layer; a standing concealed tile, below, shows its end instead) and its shadow falls down
   and to the right, whatever the seat; tiles lying together
@@ -714,7 +719,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   screen's top, a small consistent two-tone edge and shadow; a red five reads as red at every scale, in a river, a meld, a revealed hand and a result;
   backs in one colour, the canonical yellow-orange: an ochre plastic, darker and less luminous than
   the accent so a strip of backs never reads as a control, its darker shade the back's layer under
-  every tile's ivory body. Decision: the face artwork (the committed SVG set) stays; the room
+  every tile's ivory body. Decision: the face artwork (the committed SVG set) stays, its ordinary red
+  darkened from #b93c3c to #9a2424 (fill and stroke) so its thinnest strokes keep 4.5:1 on the ivory
+  once the camera resamples them, the red fives' brighter #d71e1e unchanged and the clearer for it; the room
   around the glyph comes from the tile box, not from new drawings, and a glyph that is still
   unreadable at river scale with that room is reported, not redrawn in a ticket. Decision: the lobby's
   system sans-serif stack, with tabular digits wherever numbers align; no downloaded fonts or
@@ -971,9 +978,9 @@ from its neighbour); the opponent's hand at the river tile holds everywhere, and
 values are review's, not the check's. On the tilted table the centre's size, the pinwheel's gaps and the face
 floors are measured as laid, before the camera; the river tile over the own tile is measured as shown across the
 core's middle, within the camera's 5% band; and the shown faces keep the same floors (a quarter pixel of rounding),
-the rivers their 3px least to each other and to the tilted centre with each tile's edge drawn under it. A face the
-camera foreshortens is small for the red-stroke rule by its narrower drawn axis. Pixel checks of the tilted table
-(contrast, ink) run in Chromium, phones included; Playwright's WebKit on Linux skips the tilted pieces there. Clarity,
+the rivers their 3px least to each other and to the tilted centre with each tile's edge drawn under it, and
+a badge's pill and riichi stick keep 4px off every tile on the table. WebKit's pixels come from its compositor (a
+software screenshot flattens the table's perspective). Clarity,
 hierarchy and coherence are judged by the checklist
 above. A visual failure that can be measured may earn a check; a judgement must not be turned into
 an arbitrary pixel rule.

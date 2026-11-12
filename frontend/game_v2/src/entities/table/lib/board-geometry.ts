@@ -451,6 +451,10 @@ interface BoardFrame {
     readonly faceFloor?: number;
     /** How much wider a phone plane's gap under the top strip is than the chrome's, so the camera shows the chrome's. */
     readonly topGap?: number;
+    /** A phone plane's side strips beside the own row or above it, as the flat board's stand. */
+    readonly beside?: boolean;
+    /** How much higher a phone plane's centre ends, so the camera shows it clear of the flat decisions' band (px). */
+    readonly coreLift?: number;
 }
 
 /** A desktop's root sizes and the lengths the stylesheet reads with them, in px, at the largest river tile that fits. */
@@ -962,12 +966,13 @@ function phoneLayout(
     const gap = riverGap(rw);
     const rows = riverRows(rw, gap);
     const centreTop = coreTop + LATEST_DISCARD_GAP + rows;
-    const heightRoom = handTop - coreGap - LATEST_DISCARD_GAP - rows - centreTop;
+    const heightRoom =
+        handTop - coreGap - (frame.coreLift ?? 0) - LATEST_DISCARD_GAP - rows - centreTop;
     const centreWidth = Math.max(RIVER_ROW_SIZE * rw, PHONE_CENTRE_MIN_WIDTH);
     const replayRoom = phoneControlsBottom(foot) - phoneUnderCog(m, rw);
     const replay = phoneReplayBlock(chrome, replayRoom);
     const barLeast = Math.max(
-        phoneLeftBarLeast(chrome, frame.faceFloor),
+        phoneLeftBarLeast(chrome),
         phoneRightBarLeast(chrome, replay.width, rw),
     );
     const column = phoneColumn({ barLeast, beside, width }, { centreWidth, ow, rw });
@@ -1027,6 +1032,9 @@ function phoneLaid(
     frame: BoardFrame,
     tiles: Readonly<Record<"ow" | "rw", number>>,
 ): ReturnType<typeof phoneLayout> {
+    if (frame.beside !== undefined) {
+        return phoneLayout(frame, { ...tiles, beside: frame.beside });
+    }
     const above = phoneLayout(frame, { ...tiles, beside: false });
     if (above.fits && above.holdsKans && above.holdsPrompt && above.holdsReplay) {
         return above;
@@ -1226,8 +1234,8 @@ function phonePromptHeight(bandWidth: number, timerW: number): number {
     return rows * PHONE_DECISION_ROW + (rows - 1) * PHONE_BAND_ROW_GAP;
 }
 
-function phoneLeftBarLeast(chrome: PhoneChrome, faceFloor = FACE_FLOOR): number {
-    const counters = countersAt(faceFloor, DORA_SLOTS).width;
+function phoneLeftBarLeast(chrome: PhoneChrome): number {
+    const counters = countersAt(FACE_FLOOR, DORA_SLOTS).width;
     const switches = PHONE_SWITCH_COLUMNS * chrome.switchH;
     const notices = NOTICE_FIELD_EMS * NOTICE_TEXT_MIN;
     return chrome.m + Math.max(counters, switches, notices) + FIELD_GAP;
@@ -1720,7 +1728,7 @@ function phoneControls(room: ShellRoom): ControlSlots {
     const replay = phoneReplayColumn(room, rightBar);
     const band = phoneActions(at);
     const actions = replaying ? replay.rect : band;
-    const wanted = Math.max(phoneChrome(at("rw")).doraW, frame.faceFloor ?? 0);
+    const wanted = phoneChrome(at("rw")).doraW;
     const counters = countersAt(
         Math.min(wanted, doraFitting({ perRow: DORA_SLOTS, room: leftBarRight - m, wanted })),
         DORA_SLOTS,
@@ -2336,9 +2344,19 @@ function planeGeometry(
         ow,
         spare,
         topGap,
-    }: { cap: number; faceFloor?: number; ow: number; spare: PlaneSpare; topGap?: number },
+        beside,
+        coreLift,
+    }: {
+        cap: number;
+        faceFloor?: number;
+        ow: number;
+        spare: PlaneSpare;
+        topGap?: number;
+        beside?: boolean;
+        coreLift?: number;
+    },
 ): BoardGeometry {
-    const frame = { ...boardFrame(input), box, faceFloor, topGap };
+    const frame = { ...boardFrame(input), beside, box, coreLift, faceFloor, topGap };
     let fits = 1;
     let fails = Math.max(1, Math.floor(cap)) + 1;
     while (fails - fits > 1) {

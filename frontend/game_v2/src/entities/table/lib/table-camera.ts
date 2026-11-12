@@ -10,8 +10,8 @@ import {
 } from "./board-geometry";
 import { CALLOUT_SPOTS } from "./callouts";
 
-const DESKTOP_TILTS = [25, 22, 20, 18, 15, 12, 9, 6, 3] as const;
-const PHONE_TILTS = [15, 12, 9, 6, 3] as const;
+const DESKTOP_TILTS = [20, 18, 15, 12, 10] as const;
+const PHONE_TILTS = [15, 12, 10] as const;
 
 const CAMERA_WIDTHS = 2;
 
@@ -24,12 +24,22 @@ const NEAR_RIVER_BY_OWN = 0.85;
 /** A felt band between the table's pieces may open at most this many flat river tiles wider than the flat board's. */
 const BAND_RIVERS = 0.75;
 
+/** The felt the camera keeps between the top strip and the top river at least, where the flat board keeps more (px). */
+const TOP_BAND_LEAST = 4;
+
+/** The decisions' band keeps this far off the core's tiles (px), as the visual check's least. */
+const BAND_CLEAR = 4;
+
 const CAP_STEPS = 4;
 
 const PLANE_SPARE: PlaneSpare = "around-core";
 const PHONE_FLOOR_ROUNDS = 3;
 
+/** A phone's plane may lay its undrawn own row this much narrower than the flat one to keep its river tile. */
+const PLANE_OWN_LEAST = 0.85;
+
 const PLANE_SOLVE_ROUNDS = 8;
+const MARGIN_ROUNDS = 4;
 const PLANE_TOLERANCE = 0.5;
 
 const TABLE_PIECES = [
@@ -83,10 +93,16 @@ interface TableView {
     readonly camera: TableCamera;
     readonly plane: BoardGeometry;
     readonly pieces: Readonly<Record<TablePiece, BoardRect>>;
-    /** What each piece moves by on the screen after the camera, to keep a side strip inside its flat place. */
+    /** What each piece moves by on the plane before the camera, to keep a side strip inside its flat place. */
     readonly shifts: Readonly<Record<TablePiece, PlanePoint>>;
-    /** The flat table's top on the board, where the tilted table's top shows too. */
+    /** The flat table's top on the board; the tilted table's top shows `margin` under it. */
     readonly tableTop: number;
+    readonly margin: number;
+    /**
+     * Where a phone's counters stand flat on the layout (its corner card stays chrome, its tiles at the face floor
+     * already); a desktop's tilt with the table.
+     */
+    readonly flatCounters: PlanePoint | null;
     readonly converged: boolean;
 }
 
@@ -218,14 +234,13 @@ function boundsOf(points: readonly PlanePoint[]): BoardRect {
 
 function shownRect(camera: TableCamera, piece: BoardRect, shift: PlanePoint): BoardRect {
     return boundsOf(
-        corners(piece).map((corner) => {
-            const shown = projectPoint(camera, corner);
-            return { left: shown.left + shift.left, top: shown.top + shift.top };
-        }),
+        corners(piece).map((corner) =>
+            projectPoint(camera, { left: corner.left + shift.left, top: corner.top + shift.top }),
+        ),
     );
 }
 
-/** How far a side strip moves in to keep its outer edge no farther out than the flat board's. */
+/** How far a side strip moves on the screen to keep its outer edge no farther out than the flat board's. */
 function outerFit(flat: BoardRect | undefined, seat: SideStrip, shown: BoardRect): number {
     if (flat === undefined) {
         return 0;
@@ -236,20 +251,19 @@ function outerFit(flat: BoardRect | undefined, seat: SideStrip, shown: BoardRect
 }
 
 /**
- * A side strip's screen shift: its outer edge no farther out than the flat board's, and on a desktop its near end above
- * the own row's top (a phone's strips run on beside the own row).
+ * A side strip's move on the plane: on a desktop its near end no lower than the plane's own row's top (a phone's strips
+ * run on beside the own row), then across so its outer edge, shown at its near end, stands no farther out than the
+ * flat board's.
  */
 function sideShift(
     camera: TableCamera,
     { phone, screen }: { readonly screen: BoardGeometry; readonly phone: boolean },
     { piece, seat }: { readonly piece: BoardRect; readonly seat: SideStrip },
 ): PlanePoint {
-    const shown = shownRect(camera, piece, { left: 0, top: 0 });
-    const ownRowTop = screen.lengths["foreground-top"] ?? shown.bottom;
-    return {
-        left: outerFit(screen.areas[seat], seat, shown),
-        top: phone ? 0 : Math.min(0, ownRowTop - shown.bottom),
-    };
+    const top = phone ? 0 : Math.min(0, camera.planePivot.top - piece.bottom);
+    const shown = shownRect(camera, piece, { left: 0, top });
+    const { across } = scalesAt(camera, piece.bottom + top);
+    return { left: outerFit(screen.areas[seat], seat, shown) / across, top };
 }
 
 function tableShifts(
@@ -282,6 +296,11 @@ interface PlaneAt {
     readonly tilt: number;
     readonly faceFloor?: number;
     readonly topGap?: number;
+    /** How far below the flat table's top the tilted table's top shows: the felt its bands could not hold (px). */
+    readonly margin?: number;
+    /** The own tile the plane lays its (undrawn) own row at; the flat board's when not given. */
+    readonly ow?: number;
+    readonly coreLift?: number;
 }
 
 interface PlaneTarget extends PlaneAt {
@@ -289,6 +308,7 @@ interface PlaneTarget extends PlaneAt {
     readonly width: number;
     readonly ow: number;
     readonly spare: PlaneSpare;
+    readonly beside?: boolean;
     /** The plane's own row's top the camera needs, from the plane's top (px). */
     readonly wanted: number;
 }
@@ -298,16 +318,24 @@ function settlePlane(
     target: PlaneTarget,
     start: number,
 ): { readonly plane: BoardGeometry; readonly converged: boolean } {
-    const { cap, faceFloor, input, ow, spare, topGap, wanted, width } = target;
+    const { beside, cap, coreLift, faceFloor, input, ow, spare, topGap, wanted, width } = target;
     let height = start;
-    let plane = planeGeometry(input, { height, width }, { cap, faceFloor, ow, spare, topGap });
+    let plane = planeGeometry(
+        input,
+        { height, width },
+        { beside, cap, coreLift, faceFloor, ow, spare, topGap },
+    );
     for (let round = 0; round < PLANE_SOLVE_ROUNDS; round += 1) {
         const foot = plane.lengths["foreground-top"] ?? height;
         if (Math.abs(foot - wanted) < PLANE_TOLERANCE) {
             return { converged: true, plane };
         }
         height += wanted - foot;
-        plane = planeGeometry(input, { height, width }, { cap, faceFloor, ow, spare, topGap });
+        plane = planeGeometry(
+            input,
+            { height, width },
+            { beside, cap, coreLift, faceFloor, ow, spare, topGap },
+        );
     }
     return { converged: false, plane };
 }
@@ -321,16 +349,12 @@ function viewWithin(input: BoardInput, screen: BoardGeometry, at: PlaneAt): Tabl
     const tableHeight = screen.lengths["table-h"] ?? screen.box.height;
     const footShown = screen.lengths["foreground-top"] ?? tableHeight;
     const lens = { distance: CAMERA_WIDTHS * width, tilt: at.tilt };
-    const wanted = laidRise(lens, footShown);
-    const target = {
-        ...at,
-        input,
-        ow: screen.lengths["ow"] ?? 1,
-        spare: PLANE_SPARE,
-        wanted,
-        width,
-    };
-    const { converged, plane } = settlePlane(target, wanted + tableHeight - footShown);
+    const margin = at.margin ?? 0;
+    const wanted = laidRise(lens, footShown - margin);
+    const { converged, plane } = settlePlane(
+        planeTarget(input, screen, { ...at, wanted }),
+        wanted + tableHeight - footShown + margin,
+    );
     const camera = {
         ...lens,
         pivot: { left: width / 2, top: footShown },
@@ -340,6 +364,8 @@ function viewWithin(input: BoardInput, screen: BoardGeometry, at: PlaneAt): Tabl
     return {
         camera,
         converged,
+        flatCounters: screen.family === "phone" ? countersPlace(screen) : null,
+        margin,
         pieces,
         plane,
         shifts: tableShifts(camera, { phone: screen.family === "phone", pieces, screen }),
@@ -347,8 +373,44 @@ function viewWithin(input: BoardInput, screen: BoardGeometry, at: PlaneAt): Tabl
     };
 }
 
+function planeTarget(
+    input: BoardInput,
+    screen: BoardGeometry,
+    at: PlaneAt & { readonly wanted: number },
+): PlaneTarget {
+    return {
+        ...at,
+        beside: screen.family === "phone" ? stripsBesideOwnRow(screen) : undefined,
+        input,
+        ow: at.ow ?? screen.lengths["ow"] ?? 1,
+        spare: PLANE_SPARE,
+        width: screen.box.width,
+    };
+}
+
+/** Whether a phone's side strips run on beside its own row, as the flat board lays them. */
+function stripsBesideOwnRow(screen: BoardGeometry): boolean {
+    const own = screen.areas.hand;
+    const strip = screen.areas["strip-left"];
+    return own !== undefined && strip !== undefined && strip.bottom > own.top;
+}
+
+function countersPlace(screen: BoardGeometry): PlanePoint {
+    return { left: screen.lengths["counters-x"] ?? 0, top: screen.lengths["counters-top"] ?? 0 };
+}
+
 function shownPiece(view: TableView, piece: TablePiece): BoardRect {
-    return shownRect(view.camera, view.pieces[piece], view.shifts[piece]);
+    const box = view.pieces[piece];
+    if (piece === "dora" && view.flatCounters !== null) {
+        const { left, top } = view.flatCounters;
+        return {
+            bottom: top + box.bottom - box.top,
+            left,
+            right: left + box.right - box.left,
+            top,
+        };
+    }
+    return shownRect(view.camera, box, view.shifts[piece]);
 }
 
 function middleOf(piece: BoardRect): number {
@@ -442,17 +504,71 @@ function flatBands(screen: BoardGeometry): { readonly top: number; readonly bott
 }
 
 /** Whether both side strips show clear of the own row beside them (a phone's strips run on beside it). */
+/**
+ * Where a side strip's inner edge shows at the board's `top`, if the strip reaches down that far: the camera turns its
+ * edge, so its box's inner side (its far end's) says nothing of where it stands beside the own row.
+ */
+function innerEdgeAt(view: TableView, seat: SideStrip, top: number): number | null {
+    const piece = view.pieces[seat];
+    const shift = view.shifts[seat];
+    const { camera } = view;
+    const rise = laidRise(camera, camera.pivot.top - top);
+    const planeTop = camera.planePivot.top - rise;
+    if (planeTop > piece.bottom + shift.top) {
+        return null;
+    }
+    const edge = seat === "strip-left" ? piece.right : piece.left;
+    return projectPoint(camera, { left: edge + shift.left, top: planeTop }).left;
+}
+
+/** Whether both side strips show clear of the own row beside them (a phone's strips run on beside it). */
 function sidesClearOwnRow(view: TableView, screen: BoardGeometry): boolean {
     const own = screen.areas.hand;
     if (own === undefined) {
         return true;
     }
-    const left = shownPiece(view, "strip-left");
-    const right = shownPiece(view, "strip-right");
-    const { left: ownLeft, right: ownRight, top: ownTop } = own;
+    const left = innerEdgeAt(view, "strip-left", own.top);
+    const right = innerEdgeAt(view, "strip-right", own.top);
+    return (left === null || left <= own.left) && (right === null || right >= own.right);
+}
+
+/** A piece's near edge as the camera shows it: its lowest line on the screen, from its two near corners. */
+function nearEdge(view: TableView, piece: TablePiece): BoardRect {
+    const { bottom, left, right } = view.pieces[piece];
+    const shift = view.shifts[piece];
+    const [start, end] = [left, right].map((edge) =>
+        projectPoint(view.camera, { left: edge + shift.left, top: bottom + shift.top }),
+    );
+    return {
+        bottom: start?.top ?? 0,
+        left: start?.left ?? 0,
+        right: end?.left ?? 0,
+        top: start?.top ?? 0,
+    };
+}
+
+/**
+ * Whether a phone's centre and side rivers show clear of its decisions' band by its least gap, where the flat board
+ * keeps them clear: the band starts just under the centre, beside the right river's first tiles.
+ */
+function coreClearOfBand(view: TableView, screen: BoardGeometry): boolean {
+    const band = screen.areas.actions;
+    if (band === undefined || screen.family !== "phone") {
+        return true;
+    }
+    const flat = tablePieces(screen);
+    return (["centre", "river-left", "river-right"] as const).every(
+        (piece) =>
+            meets(flat[piece], band, BAND_CLEAR) || !meets(nearEdge(view, piece), band, BAND_CLEAR),
+    );
+}
+
+function meets(first: BoardRect, second: BoardRect, gap: number): boolean {
     return (
-        (left.bottom <= ownTop || left.right <= ownLeft) &&
-        (right.bottom <= ownTop || right.left >= ownRight)
+        first.left < second.right + gap &&
+        second.left < first.right + gap &&
+        first.top < second.bottom + gap &&
+        second.top < first.bottom + gap
     );
 }
 
@@ -467,12 +583,14 @@ function holds(view: TableView, screen: BoardGeometry): boolean {
     return (
         view.converged &&
         sidesClearOwnRow(view, screen) &&
-        (view.plane.lengths["rw"] ?? 0) >= flatRiver &&
+        coreClearOfBand(view, screen) &&
+        (view.plane.lengths["rw"] ?? 0) >= flatRiver - (screen.family === "phone" ? 0 : 1) &&
+        Math.abs(apparentRiver(view) - flatRiver) <= APPARENT_RIVER_SHARE * flatRiver + 0.5 &&
         shown.top <= Math.max(flat.top, 0) + band &&
-        shown.top >= flat.top - 0.5 &&
-        shown.bottom >= flat.bottom - 0.5 &&
+        shown.top >= Math.min(flat.top, TOP_BAND_LEAST) - 0.5 &&
         shown.bottom <= Math.max(flat.bottom, 0) + band &&
         nearRiver(view) <= NEAR_RIVER_BY_OWN * (screen.lengths["ow"] ?? 0) + 0.5 &&
+        view.margin <= band &&
         face.short >= floor - 0.01 &&
         face.long >= floor * TILE_ASPECT - 0.01
     );
@@ -494,6 +612,25 @@ function farthestRiverDown(view: TableView): number {
     );
 }
 
+/** How much higher the plane's centre must end for its near edges to show clear of the flat decisions' band. */
+function coreLiftWanted(view: TableView, screen: BoardGeometry, already: number): number {
+    const band = screen.areas.actions;
+    if (band === undefined) {
+        return already;
+    }
+    const flat = tablePieces(screen);
+    const near = (["centre", "river-left", "river-right"] as const)
+        .filter((piece) => !meets(flat[piece], band, BAND_CLEAR))
+        .map((piece) => nearEdge(view, piece))
+        .filter(
+            (edge) => edge.left < band.right + BAND_CLEAR && band.left < edge.right + BAND_CLEAR,
+        );
+    const lowest = Math.max(-Infinity, ...near.map(({ bottom }) => bottom));
+    const over = Math.max(0, lowest - (band.top - BAND_CLEAR));
+    const { down } = scalesAt(view.camera, view.pieces.centre.bottom);
+    return Math.max(already, Math.ceil(already + over / down));
+}
+
 /** How much the plane's gap under the top strip must widen for the camera to show the flat board's. */
 function topGapWanted(view: TableView, screen: BoardGeometry, already: number): number {
     const laidGap = view.pieces["river-top"].top - view.pieces["strip-top"].bottom;
@@ -505,10 +642,36 @@ function phoneViewAt(input: BoardInput, screen: BoardGeometry, tilt: number): Ta
     const flatRiver = screen.lengths["rw"] ?? 1;
     let view = viewWithin(input, screen, { cap: flatRiver, tilt });
     let topGap = 0;
+    let coreLift = 0;
     for (let round = 0; round < PHONE_FLOOR_ROUNDS; round += 1) {
         topGap = topGapWanted(view, screen, topGap);
-        const cap = Math.max(flatRiver, laidFloor(FACE_FLOOR, farthestRiverDown(view)));
-        view = viewWithin(input, screen, { cap, faceFloor: stripFaceFloor(view), tilt, topGap });
+        coreLift = coreLiftWanted(view, screen, coreLift);
+        const at = {
+            cap: Math.max(flatRiver, laidFloor(FACE_FLOOR, farthestRiverDown(view))),
+            coreLift,
+            faceFloor: stripFaceFloor(view),
+            tilt,
+            topGap,
+        };
+        view = narrowedOwnRow(input, screen, at);
+    }
+    return view;
+}
+
+/**
+ * The plane at `at`, its undrawn own row laid narrower, a pixel at a time down to `PLANE_OWN_LEAST` of the flat own tile,
+ * where the flat one's width leaves the bars too little room for the larger laid tiles' river tile.
+ */
+function narrowedOwnRow(input: BoardInput, screen: BoardGeometry, at: PlaneAt): TableView {
+    const flatRiver = screen.lengths["rw"] ?? 1;
+    const flatOwn = screen.lengths["ow"] ?? 1;
+    let view = viewWithin(input, screen, at);
+    for (
+        let ow = flatOwn - 1;
+        ow >= Math.ceil(PLANE_OWN_LEAST * flatOwn) && (view.plane.lengths["rw"] ?? 0) < flatRiver;
+        ow -= 1
+    ) {
+        view = viewWithin(input, screen, { ...at, ow });
     }
     return view;
 }
@@ -518,17 +681,54 @@ function phoneViewAt(input: BoardInput, screen: BoardGeometry, tilt: number): Ta
  * board's, a few steps down from the largest the plane holds.
  */
 function desktopViewAt(input: BoardInput, screen: BoardGeometry, tilt: number): TableView {
-    const flatRiver = screen.lengths["rw"] ?? 1;
-    const most = (1 + APPARENT_RIVER_SHARE) * flatRiver;
-    let view = viewWithin(input, screen, { cap: 2 * flatRiver, tilt });
-    let faceFloor = stripFaceFloor(view);
-    for (let step = 0; step < CAP_STEPS && apparentRiver(view) > most; step += 1) {
-        const { across } = scalesAt(view.camera, middleOf(view.pieces.centre));
-        const cap = Math.min((view.plane.lengths["rw"] ?? 1) - 1, Math.floor(most / across));
-        view = viewWithin(input, screen, { cap, faceFloor, tilt });
-        faceFloor = stripFaceFloor(view);
+    const capped = cappedView(input, screen, tilt);
+    const at = { cap: capped.plane.lengths["rw"] ?? 1, faceFloor: stripFaceFloor(capped), tilt };
+    let margin = 0;
+    let view = viewWithin(input, screen, at);
+    for (let round = 0; round < MARGIN_ROUNDS; round += 1) {
+        margin += 2 * bandOverflow(view, screen);
+        view = viewWithin(input, screen, { ...at, margin });
     }
-    return viewWithin(input, screen, { cap: view.plane.lengths["rw"] ?? 1, faceFloor, tilt });
+    return view;
+}
+
+/** A desktop's view at `tilt` whose laid river tile keeps the middle river's 5% band and the nearest's lead under the own. */
+function cappedView(input: BoardInput, screen: BoardGeometry, tilt: number): TableView {
+    const flatRiver = screen.lengths["rw"] ?? 1;
+    const caps = {
+        most: (1 + APPARENT_RIVER_SHARE) * flatRiver,
+        nearest: NEAR_RIVER_BY_OWN * (screen.lengths["ow"] ?? flatRiver),
+    };
+    let view = viewWithin(input, screen, { cap: 2 * flatRiver, tilt });
+    for (let step = 0; step < CAP_STEPS && !withinCaps(view, caps); step += 1) {
+        const middle = scalesAt(view.camera, middleOf(view.pieces.centre)).across;
+        const near = scalesAt(view.camera, view.pieces["river-bottom"].bottom).across;
+        const cap = Math.min(
+            (view.plane.lengths["rw"] ?? 1) - 1,
+            Math.floor(caps.most / middle),
+            Math.floor(caps.nearest / near),
+        );
+        view = viewWithin(input, screen, { cap, faceFloor: stripFaceFloor(view), tilt });
+    }
+    return view;
+}
+
+/** How much felt the bands show beyond their allowance, which the table's top margin takes instead (px). */
+function bandOverflow(view: TableView, screen: BoardGeometry): number {
+    const shown = shownBands(view);
+    const flat = flatBands(screen);
+    const band = BAND_RIVERS * (screen.lengths["rw"] ?? 0);
+    return (
+        Math.max(0, shown.top - Math.max(flat.top, 0) - band) +
+        Math.max(0, shown.bottom - Math.max(flat.bottom, 0) - band)
+    );
+}
+
+function withinCaps(
+    view: TableView,
+    { most, nearest }: Readonly<Record<"most" | "nearest", number>>,
+): boolean {
+    return apparentRiver(view) <= most && nearRiver(view) <= nearest + 0.5;
 }
 
 /** The strips' laid meld floor that shows their farthest faces at the face floor under `view`'s camera. */
@@ -562,6 +762,8 @@ function flatView(screen: BoardGeometry): TableView {
     return {
         camera,
         converged: true,
+        flatCounters: null,
+        margin: 0,
         pieces,
         plane: screen,
         shifts: {
@@ -585,6 +787,9 @@ function flatView(screen: BoardGeometry): TableView {
  * felt band much wider than the flat board's; else the flat board.
  */
 function tableView(input: BoardInput, screen: BoardGeometry): TableView {
+    if (screen.family === "phone" && (screen.lengths["rw"] ?? 0) <= FACE_FLOOR) {
+        return flatView(screen);
+    }
     const tilts = screen.family === "phone" ? PHONE_TILTS : DESKTOP_TILTS;
     for (const tilt of tilts) {
         const view = viewAt(input, screen, tilt);
@@ -637,19 +842,26 @@ function pointValues(name: string, { left, top }: PlanePoint): [string, string][
     ];
 }
 
+/** A piece's homography from its own box onto the surface: its move on the plane, the camera, back to its box. */
+function pieceMatrix(view: TableView, piece: TablePiece): Matrix3 {
+    const box = view.pieces[piece];
+    const shift = view.shifts[piece];
+    const into = translation({ left: box.left + shift.left, top: box.top + shift.top });
+    const back = translation({ left: -box.left, top: view.tableTop - box.top });
+    return multiply(back, multiply(homography(view.camera), into));
+}
+
 /**
- * A piece's CSS `matrix3d`, from its own box's top left corner on the surface (which stands at the board's top, the
- * layout `surfaceTop` above it) to where the camera shows it: the camera's homography, then the piece's screen shift.
+ * A piece's CSS `matrix3d`, from its own box's top left corner on the surface (which stands the flat table's top above
+ * the layout) to where the camera shows it: the piece's move on the plane, then the camera's homography.
  */
 function pieceTransform(view: TableView, piece: TablePiece): string {
     const box = view.pieces[piece];
-    const shift = view.shifts[piece];
-    const into = translation({ left: box.left, top: box.top });
-    const back = translation({
-        left: shift.left - box.left,
-        top: shift.top + view.tableTop - box.top,
-    });
-    const [across, down, weight] = multiply(back, multiply(homography(view.camera), into));
+    if (piece === "dora" && view.flatCounters !== null) {
+        const { left, top } = view.flatCounters;
+        return `translate(${px(left - box.left)}, ${px(top + view.tableTop - box.top)})`;
+    }
+    const [across, down, weight] = pieceMatrix(view, piece);
     const scale = weight.at(-1) ?? 1;
     const values = [
         across[0] / scale,
@@ -674,8 +886,14 @@ function pieceTransform(view: TableView, piece: TablePiece): string {
 
 const SCREEN_ONLY_LENGTHS = new Set(["table-h", "table-top"]);
 
+/** A plate's top left (or top right) corner on the layout: its flat box centred on its tilted anchor's height. */
+function platePlace(view: TableView, screen: BoardGeometry, seat: SeatPosition): PlanePoint {
+    const shown = showPlanePoint(view, plateAnchor(view.plane, seat));
+    return { left: shown.left, top: shown.top - (screen.lengths["badge-h"] ?? 0) / 2 };
+}
+
 /** What the board takes from the camera: the flat table's place and the flat overlays' tilted anchors. */
-function boardViewValues(view: TableView): [string, string][] {
+function boardViewValues(view: TableView, screen: BoardGeometry): [string, string][] {
     const { centre } = view.pieces;
     const shownCorners = {
         bl: { left: centre.left, top: centre.bottom },
@@ -695,10 +913,7 @@ function boardViewValues(view: TableView): [string, string][] {
             ),
         ),
         ...SEAT_POSITIONS.flatMap((seat) =>
-            pointValues(
-                `--geo-shown-plate-${seat}`,
-                showPlanePoint(view, plateAnchor(view.plane, seat)),
-            ),
+            pointValues(`--geo-shown-plate-${seat}`, platePlace(view, screen, seat)),
         ),
     ];
 }
@@ -726,6 +941,8 @@ export {
     farthestFace,
     flatBands,
     nearRiver,
+    pieceTransform,
+    platePlace,
     projectPoint,
     scalesAt,
     showPlanePoint,

@@ -1,5 +1,5 @@
-import { readdir, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import {
@@ -12,6 +12,7 @@ import {
 } from "playwright";
 
 import { describeBoard, measureBoard } from "./board-measure.ts";
+import { compositorShot } from "./compositor.ts";
 import { CONTRAST_VIEWPORTS, checkContrast } from "./contrast.ts";
 import { APP_ROOT, type Fixtures, openContext, startServer, transcriptFrames } from "./fixtures.ts";
 import {
@@ -63,6 +64,16 @@ const SURFACES: readonly Surface[] = [
     noticesSurface,
 ];
 const PAGES: readonly PageCase[] = SURFACES.flatMap((surface) => surface.pages);
+
+/** The page's screenshot for review: WebKit's from its compositor (a JPEG), whose software shot flattens 3D. */
+async function shootPage(page: Page, viewport: Viewport, path: string): Promise<void> {
+    if (viewport.engine === webkit) {
+        await mkdir(dirname(path), { recursive: true });
+        await writeFile(`${path}.jpg`, await compositorShot(page));
+        return;
+    }
+    await page.screenshot({ path: `${path}.png` });
+}
 
 /** Measure the board once and hold it to every surface's checks, in turn; the board's summary line. */
 async function checkBoard(run: PageRun, options: BoardOptions): Promise<string> {
@@ -144,7 +155,7 @@ async function runPage(
         await page.waitForTimeout(SETTLE_MS);
         await checkTileFaces(page, report);
         report.summary = await checkPage({ page, report, viewport }, pageCase);
-        await page.screenshot({ path: join(shots, `${viewport.name}-${pageCase.name}.png`) });
+        await shootPage(page, viewport, join(shots, `${viewport.name}-${pageCase.name}`));
         if (pageCase.contrast === true && CONTRAST_VIEWPORTS.has(viewport.name)) {
             report.summary += `, ${await checkContrast(page, report, viewport.engine === webkit)}`;
         }

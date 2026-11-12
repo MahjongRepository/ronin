@@ -105,10 +105,10 @@ changed area and its one worst case, never a sweep. A phone change's worst case 
 (`phone-11-safari`, `phone-a25-chrome`), not a full display: the displays passed while the game shipped unplayable in
 Safari and Chrome.
 
-* Playwright's WebKit on Linux draws a CSS perspective (`matrix3d` with a perspective row, `perspective()`) as a skewed
-  parallelogram, without the divide; iOS Safari draws it correctly. So a check that reads painted pixels of the tilted
-  table runs in Chromium (`phone-se-chromium` is the floor phone there) and skips the tilted pieces in WebKit; checks
-  of DOM boxes hold in both. Never fix the board for that WebKit's paint.
+* Playwright's `page.screenshot()` in WebKit on Linux paints in software and flattens 3D transforms (Playwright #21620,
+  WebKit bug 68276), so the tilted table comes out a skewed parallelogram there; WebKit's compositor and iOS Safari draw
+  it right. The check's WebKit shots and contrast reads are compositor frames (`compositor.ts`, JPEG); checks of DOM
+  boxes hold in every engine. Never fix the board for a software shot's paint.
 * A new page or check goes in its surface's module under `scripts/visual-check/surfaces/`, never the runner.
 * Overlap checks follow the spec's tiers: a plate counts against only the other plates and the centre
   (`isFurnitureOverlap`); no check keeps furniture in view.
