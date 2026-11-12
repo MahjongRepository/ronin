@@ -25,25 +25,25 @@ $overlay-hold-ms: 1500ms;
     animation: callout-show var(--callout-ms) linear both;
 
     &--bottom {
-        left: calc(var(--cx) - var(--hx) + var(--spot-along) * var(--rw));
-        top: calc(var(--cy) + var(--h) + var(--g) + var(--spot-across) * var(--rh));
+        left: var(--geo-shown-callout-bottom-x);
+        top: var(--geo-shown-callout-bottom-y);
     }
 
     &--top {
-        left: calc(var(--cx) + var(--hx) - var(--spot-along) * var(--rw));
-        top: calc(var(--cy) - var(--h) - var(--g-top) - var(--spot-across) * var(--rh));
+        left: var(--geo-shown-callout-top-x);
+        top: var(--geo-shown-callout-top-y);
     }
 
     /* A side chip stands from its river's outer edge inward. */
     &--right {
-        left: calc(var(--cx) + var(--hx) + var(--g) + var(--spot-across) * var(--rh));
-        top: calc(var(--cy) + var(--h) - var(--spot-along) * var(--rw));
+        left: var(--geo-shown-callout-right-x);
+        top: var(--geo-shown-callout-right-y);
         translate: -100% -50%;
     }
 
     &--left {
-        left: calc(var(--cx) - var(--hx) - var(--g) - var(--spot-across) * var(--rh));
-        top: calc(var(--cy) - var(--h) + var(--spot-along) * var(--rw));
+        left: var(--geo-shown-callout-left-x);
+        top: var(--geo-shown-callout-left-y);
         translate: 0 -50%;
     }
 

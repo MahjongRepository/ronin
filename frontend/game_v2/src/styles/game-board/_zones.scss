@@ -8,10 +8,12 @@
     --tt: var(--geo-table-top, 0px);
     --tb: calc(100cqh - var(--geo-table-h, 100cqh) - var(--tt));
     --zone-w: calc(100cqw + var(--ox) + var(--or));
-    --zone-tl-x: calc(var(--cx) - var(--hx) + var(--ox));
-    --zone-tr-x: calc(var(--cx) + var(--hx) + var(--ox));
-    --zone-top-y: calc(var(--cy) - var(--h) + var(--oy) + var(--tt));
-    --zone-bottom-y: calc(var(--cy) + var(--h) + var(--oy) + var(--tt));
+    --zone-tl-x: calc(var(--geo-shown-centre-tl-x) + var(--ox));
+    --zone-tr-x: calc(var(--geo-shown-centre-tr-x) + var(--ox));
+    --zone-bl-x: calc(var(--geo-shown-centre-bl-x) + var(--ox));
+    --zone-br-x: calc(var(--geo-shown-centre-br-x) + var(--ox));
+    --zone-top-y: calc(var(--geo-shown-centre-tl-y) + var(--oy) + var(--tt));
+    --zone-bottom-y: calc(var(--geo-shown-centre-bl-y) + var(--oy) + var(--tt));
     --zone-band-y: calc(var(--foreground-top) + var(--oy) + var(--tt));
 
     inset: calc(-1 * (var(--oy) + var(--tt))) calc(-1 * var(--or))
@@ -44,7 +46,7 @@
         clip-path: polygon(
             0 var(--tt),
             var(--zone-tl-x) var(--zone-top-y),
-            var(--zone-tl-x) var(--zone-bottom-y),
+            var(--zone-bl-x) var(--zone-bottom-y),
             0 var(--zone-band-y)
         );
     }
@@ -54,7 +56,7 @@
         clip-path: polygon(
             100% var(--tt),
             var(--zone-tr-x) var(--zone-top-y),
-            var(--zone-tr-x) var(--zone-bottom-y),
+            var(--zone-br-x) var(--zone-bottom-y),
             100% var(--zone-band-y)
         );
     }
@@ -106,14 +108,14 @@
     }
 
     &--bottom-right {
-        --x1: var(--zone-tr-x);
+        --x1: var(--zone-br-x);
         --y1: var(--zone-bottom-y);
         --x2: var(--zone-w);
         --y2: var(--zone-band-y);
     }
 
     &--bottom-left {
-        --x1: var(--zone-tl-x);
+        --x1: var(--zone-bl-x);
         --y1: var(--zone-bottom-y);
         --x2: 0px;
         --y2: var(--zone-band-y);

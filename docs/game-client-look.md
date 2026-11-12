@@ -29,12 +29,18 @@ The derived proportions are the three reference viewports' values under the sizi
 
 - **A map before tiles.** The board is a table with four seat zones a player perceives, not tiles
   on a void. Every tile has an obvious owner and every seat a fixed place for its identity.
-- **One tilted table.** The table's surface (felt, plates, rivers, centre, counters, calls and the
-  opponents' strips) lies on one plane tilted away from the viewer under one camera, its far side
-  smaller; the own row, decisions, switches, notices and the menu stand flat in front of it. The
-  plane is laid out deeper than the screen so that, tilted about the foreground's top, it fills the
-  screen above the own row. Depth comes from the surface, the tile's edge (deeper on the plane,
-  which foreshortens it) and its shadow. One static transform, no per-frame work. Decision: one light for every
+- **A tilted table.** The core (centre and rivers) and the opponents' strips lie on one plane tilted
+  away from the viewer under one camera (25 degrees on a desktop, 15 on a phone, the camera two board
+  widths away, its foot at the table's foot), so each reads in perspective. The flat board's geometry
+  places them: each piece keeps its flat place by one point (the top strip its far edge, the others
+  their middle), scaled there to its flat size, so the river tile across the core's middle is the
+  flat one, nearer tiles a little larger and farther ones smaller; a side strip leans in with
+  distance, keeps its outer edge where the flat board puts it, and ends above the own row's top.
+  The camera foreshortens a piece's height, so the felt between the top strip and the core, and
+  between the core and the own row, grows with it. The felt, its seams (drawn to the tilted
+  centre's corners), the plates and calls (at the tilted points the flat board anchors them to, at
+  their flat size), the counters and everything in front stay flat. Depth comes from the surface,
+  the tile's edge and its shadow. One static transform per piece, no per-frame work. Decision: one light for every
   seat, as Tenhou's: each tile's edge shows toward the screen's bottom (its ivory body over the
   back's layer; a standing concealed tile, below, shows its end instead) and its shadow falls down
   and to the right, whatever the seat; tiles lying together
@@ -957,6 +963,9 @@ respected, the rotate panel in a narrow portrait viewport, and, at the reference
 derived proportions held within a tolerance, the river tile over the own tile and each river's gap
 from the centre, with neighbouring rivers no closer than that gap (a sparse river stands farther
 from its neighbour); the opponent's hand at the river tile holds everywhere, and the other derived
-values are review's, not the check's. Clarity, hierarchy and coherence are judged by the checklist
+values are review's, not the check's. On the tilted table the derived proportions, the centre's size and
+the face floors are measured as laid, before the camera; the camera may foreshorten a face to 0.9 of its floor and
+a gap between rivers, or a river and the centre, to 0.9 of its 3px least, measured on the tilted shapes with each
+tile's edge drawn under it. Clarity, hierarchy and coherence are judged by the checklist
 above. A visual failure that can be measured may earn a check; a judgement must not be turned into
 an arbitrary pixel rule.

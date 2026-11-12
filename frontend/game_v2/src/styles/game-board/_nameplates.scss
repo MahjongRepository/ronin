@@ -91,22 +91,26 @@ $plate-seats: bottom, right, top, left;
     }
 }
 
-.nameplate:is(.nameplate--top, .nameplate--right) {
-    top: var(--plate-top-top);
-}
-
-.nameplate:is(.nameplate--left, .nameplate--bottom) {
-    top: var(--plate-bottom-top);
-}
-
 .nameplate:is(.nameplate--top, .nameplate--left) {
-    right: var(--plate-left-right);
     justify-content: flex-end;
 }
 
 .nameplate:is(.nameplate--right, .nameplate--bottom) {
-    left: var(--plate-right-left);
     justify-content: flex-start;
+}
+
+@each $seat in top, left {
+    .nameplate--#{$seat} {
+        top: var(--geo-shown-plate-#{$seat}-y);
+        right: calc(100% - var(--geo-shown-plate-#{$seat}-x));
+    }
+}
+
+@each $seat in right, bottom {
+    .nameplate--#{$seat} {
+        top: var(--geo-shown-plate-#{$seat}-y);
+        left: var(--geo-shown-plate-#{$seat}-x);
+    }
 }
 
 /* A corner holding the debug log (`?debug`) holds its summary beside the cog, at most this wide. */

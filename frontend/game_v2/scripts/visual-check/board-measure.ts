@@ -1,6 +1,6 @@
 import { type Page } from "playwright";
 
-import { type Box, type GroupedBox, type Size, describeSize } from "./boxes.ts";
+import { type Box, type GroupedBox, type Point, type Size, describeSize } from "./boxes.ts";
 
 /**
  * A play switch: its box, the state it announces, and how it shows it apart from colour (its lamp a bar, wider than
@@ -90,9 +90,20 @@ export interface BoardMeasure {
         readonly own: number | null;
     };
     readonly center: Box | null;
+    /** The centre's corners as the table's camera shows them, clockwise from its top left. */
+    readonly centerQuad: readonly Point[] | null;
     readonly opponentFaces: readonly Box[];
+    /** The table's pieces as laid, before the camera tilts them: the spec's proportions and floors hold here. */
+    readonly plane: PlaneMeasure;
     /** The page's corner on the board: the settings cog, which a panel over the board may cover. */
     readonly menu: readonly Box[];
+}
+
+export interface PlaneMeasure {
+    readonly center: Box | null;
+    readonly riverTiles: readonly GroupedBox[];
+    readonly settledRiverTiles: readonly GroupedBox[];
+    readonly opponentFaces: readonly Box[];
 }
 
 export function measureBoard(page: Page): Promise<BoardMeasure> {
@@ -179,6 +190,43 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             }));
         }
         const centerElement = board.querySelector(".board-center");
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function cornersOf(element: Element): Point[] {
+            return [
+                ["0", "0"],
+                ["100%", "0"],
+                ["100%", "100%"],
+                ["0", "100%"],
+            ].map(([left, top]) => {
+                const probe = document.createElement("span");
+                probe.style.cssText = `position:absolute;left:${left};top:${top};width:0;height:0`;
+                element.append(probe);
+                const rect = probe.getBoundingClientRect();
+                probe.remove();
+                return { left: rect.left + window.scrollX, top: rect.top + window.scrollY };
+            });
+        }
+        function measurePlane(within: Element): PlaneMeasure {
+            const flat = document.createElement("style");
+            flat.textContent =
+                ".board-surface, .board-surface > * { transform: none !important; translate: none !important; scale: none !important; }";
+            document.head.append(flat);
+            const center = within.querySelector(".board-center");
+            const plane = {
+                center: center === null ? null : box(center),
+                opponentFaces: [
+                    ...within.querySelectorAll(".board-strip .tile:not(.tile-back)"),
+                ].map(box),
+                riverTiles: bySeat(within, ".board-river .tile", ".board-river"),
+                settledRiverTiles: bySeat(
+                    within,
+                    ".board-river :not(.discard-tile--last) > .tile",
+                    ".board-river",
+                ),
+            };
+            flat.remove();
+            return plane;
+        }
         const decisionActions = [
             ...board.querySelectorAll(".board-actions .decision-controls__action"),
         ].map(box);
@@ -336,6 +384,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             boardScroll: contentScroll(board),
             callouts: [...board.querySelectorAll(".board-callout")].map(box),
             center: centerElement === null ? null : box(centerElement),
+            centerQuad: centerElement === null ? null : cornersOf(centerElement),
             centerTexts,
             chrome: board.getAttribute("data-board-chrome"),
             clippedWords,
@@ -381,6 +430,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                               width: overlay.scrollWidth,
                           },
                       },
+            plane: measurePlane(board),
             reservedToastsPlace: [toastsLeft, toastsTop, toastsWidth, toastsHeight].every(
                 Number.isFinite,
             )

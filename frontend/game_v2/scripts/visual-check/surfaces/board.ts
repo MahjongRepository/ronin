@@ -1,19 +1,21 @@
 import { type Page } from "playwright";
 
 import { RIVER_ROW_SIZE } from "../../../src/entities/tile/lib/river-shape.ts";
-import { type BoardMeasure, ownRiverUnderDecisions } from "../board-measure.ts";
+import { type BoardMeasure, type PlaneMeasure, ownRiverUnderDecisions } from "../board-measure.ts";
 import {
     type Box,
     EPSILON,
     MIN_ACTION_SIZE,
     type Size,
     contains,
+    corners,
     describeBox,
     describeSize,
     findOverlaps,
     intersects,
     longSide,
     near,
+    polygonGap,
     sameBox,
 } from "../boxes.ts";
 import { ACTION, boardCase, documentCase } from "../cases.ts";
@@ -36,6 +38,7 @@ import {
     MID_DESKTOP,
     NARROW_DESKTOP,
     NOTCH_PHONE,
+    SQUARE_DESKTOP,
     ULTRAWIDE,
     UPRIGHT_PHONE,
     WIDER_PHONES,
@@ -56,6 +59,12 @@ const MIN_FACE: Size = { height: 17, width: 13 };
  * 667x375 floor).
  */
 const MIN_RIVER_GAP = 3;
+
+/** The tile edge `_tile.scss` draws below a face, in shares of the tile's width (its body and back layers). */
+const DRAWN_EDGE_SHARE = 0.13;
+
+/** The share of a face's floor, or of a gap, the table's camera may foreshorten it to (the spec's Tilted table). */
+const FORESHORTENED_FLOOR = 0.9;
 /**
  * The least gap between an opponent's strip and any river, so neither reads as a row of the other: 8px drawn on a 2x
  * screen, which a browser-boxed phone's top strip keeps from an added kan's stack (more would cost its river tile).
@@ -132,7 +141,7 @@ const PAGES: readonly PageCase[] = [
             ".board-dora .tile",
             ".nameplate--away",
         ]),
-        at: [FLOOR, NOTCH_PHONE, FULLSCREEN_PHONE, MID_DESKTOP, NARROW_DESKTOP],
+        at: [FLOOR, NOTCH_PHONE, FULLSCREEN_PHONE, MID_DESKTOP, NARROW_DESKTOP, SQUARE_DESKTOP],
         contrast: true,
         longNames: true,
     },
@@ -146,7 +155,14 @@ const PAGES: readonly PageCase[] = [
     },
     {
         ...boardCase("board-full-hands", "?state=full_hands&offers=five", [ACTION]),
-        at: [...WORST_CASES, LAPTOP_WINDOW, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
+        at: [
+            ...WORST_CASES,
+            LAPTOP_WINDOW,
+            NARROW_DESKTOP,
+            SQUARE_DESKTOP,
+            ...LAPTOPS,
+            ...WIDER_PHONES,
+        ],
     },
     {
         ...boardCase("board-full-hands-riichi", "?state=full_hands&offers=riichi", [
@@ -402,7 +418,7 @@ function separation(first: Box, second: Box): number {
 }
 
 /** Each seat's river that holds a settled tile, by its nearest one's distance from the centre, in pixels. */
-function riverGapsFromCenter(board: BoardMeasure, center: Box): ReadonlyMap<string, number> {
+function riverGapsFromCenter(board: PlaneMeasure, center: Box): ReadonlyMap<string, number> {
     const gaps = new Map<string, number>();
     for (const { box, group } of board.settledRiverTiles) {
         gaps.set(group, Math.min(gaps.get(group) ?? Infinity, separation(box, center)));
@@ -426,8 +442,9 @@ function checkDerivedProportions(board: BoardMeasure, viewport: string, report: 
         Math.abs(ratio - derived.riverToOwn) <= DERIVED_TOLERANCE,
         `the river tile is ${ratio.toFixed(3)} of the own tile (${river}px / ${own.toFixed(1)}px), not ${derived.riverToOwn}`,
     );
-    if (board.center !== null) {
-        const off = [...riverGapsFromCenter(board, board.center)].filter(
+    const { plane } = board;
+    if (plane.center !== null) {
+        const off = [...riverGapsFromCenter(plane, plane.center)].filter(
             ([seat, gap]) =>
                 Math.abs(
                     gap / river -
@@ -443,8 +460,8 @@ function checkDerivedProportions(board: BoardMeasure, viewport: string, report: 
     }
     const least = (derived.riverGap - DERIVED_TOLERANCE) * river;
     const crowded = new Set<string>();
-    for (const [index, first] of board.riverTiles.entries()) {
-        for (const second of board.riverTiles.slice(index + 1)) {
+    for (const [index, first] of plane.riverTiles.entries()) {
+        for (const second of plane.riverTiles.slice(index + 1)) {
             if (first.group !== second.group && separation(first.box, second.box) < least) {
                 crowded.add([first.group, second.group].toSorted().join(" x "));
             }
@@ -462,13 +479,22 @@ function checkDerivedProportions(board: BoardMeasure, viewport: string, report: 
  */
 function checkFaces(board: BoardMeasure, viewport: Viewport, report: PageReport): void {
     const floor: Size = viewport.barsShown?.riverFloor ?? MIN_FACE;
-    function underFloor(tile: Box): boolean {
+    function under(tile: Box, share: number): boolean {
         return (
-            Math.min(tile.width, tile.height) < floor.width - EPSILON ||
-            longSide(tile) < floor.height - EPSILON
+            Math.min(tile.width, tile.height) < share * floor.width - EPSILON ||
+            longSide(tile) < share * floor.height - EPSILON
         );
     }
-    const smallRiver = board.riverTiles.filter(({ box }) => underFloor(box));
+    function underFloor(tile: Box): boolean {
+        return under(tile, 1);
+    }
+    function foreshortenedPast(tile: Box): boolean {
+        return under(tile, FORESHORTENED_FLOOR);
+    }
+    const smallRiver = [
+        ...board.plane.riverTiles.filter(({ box }) => underFloor(box)),
+        ...board.riverTiles.filter(({ box }) => foreshortenedPast(box)),
+    ];
     report.expect(
         smallRiver.length === 0,
         `river tiles under ${describeSize(floor)} (${board.tileScale.river}px river tile): ${smallRiver
@@ -476,7 +502,10 @@ function checkFaces(board: BoardMeasure, viewport: Viewport, report: PageReport)
             .map(({ box, group }) => `${group} ${describeBox(box)}`)
             .join(", ")}`,
     );
-    const small = board.opponentFaces.filter((tile) => underFloor(tile));
+    const small = [
+        ...board.plane.opponentFaces.filter((tile) => underFloor(tile)),
+        ...board.opponentFaces.filter((tile) => foreshortenedPast(tile)),
+    ];
     report.expect(
         small.length === 0,
         `face-up tiles of other seats under ${describeSize(floor)}: ${small.slice(0, 3).map(describeBox).join(", ")}`,
@@ -617,20 +646,34 @@ function checkTurnCue(cues: TurnCues, board: BoardMeasure, report: PageReport): 
  */
 function checkRiverGaps(board: BoardMeasure, report: PageReport): void {
     const touching = new Set<string>();
-    for (const [index, first] of board.riverTiles.entries()) {
-        for (const second of board.riverTiles.slice(index + 1)) {
-            if (first.group !== second.group && near(first.box, second.box, MIN_RIVER_GAP)) {
+    const shownGap = FORESHORTENED_FLOOR * MIN_RIVER_GAP;
+    const drawn = board.riverTiles.map(({ box, group }) => ({ box: withDrawnEdge(box), group }));
+    for (const [index, first] of drawn.entries()) {
+        for (const second of drawn.slice(index + 1)) {
+            if (first.group !== second.group && near(first.box, second.box, shownGap)) {
                 touching.add([first.group, second.group].toSorted().join(" x "));
             }
         }
-        if (board.center !== null && near(first.box, board.center, MIN_RIVER_GAP)) {
+        if (
+            board.centerQuad !== null &&
+            polygonGap(corners(first.box), board.centerQuad) < shownGap
+        ) {
             touching.add(`${first.group} x center`);
         }
     }
     report.expect(
         touching.size === 0,
-        `rivers within ${MIN_RIVER_GAP}px of each other or the centre: ${[...touching].join(", ")}`,
+        `rivers within ${shownGap}px of each other or the centre: ${[...touching].join(", ")}`,
     );
+}
+
+/**
+ * A tile's box with the edge its group draws under it toward the screen's bottom (`_tile.scss`'s body and back), a share
+ * of the tile's width as the camera shows it down the screen: an upright tile's height is four thirds of its width.
+ */
+function withDrawnEdge(tile: Box): Box {
+    const widthDown = tile.height > tile.width ? (tile.height * 3) / 4 : tile.height;
+    return { ...tile, height: tile.height + DRAWN_EDGE_SHARE * widthDown };
 }
 
 /** An opponent's strip stands apart from the rivers, so its backs or faces never read as a river's row (look spec). */
@@ -981,7 +1024,8 @@ function isLandscapePhone(viewport: Viewport): boolean {
 }
 
 function checkCenterScale(board: BoardMeasure, viewport: Viewport, report: PageReport): void {
-    const { center, tileScale } = board;
+    const { tileScale } = board;
+    const { center } = board.plane;
     report.expect(center !== null, "the centre is measurable");
     if (center === null || tileScale.river === null) {
         return;

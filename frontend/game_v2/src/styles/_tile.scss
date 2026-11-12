@@ -6,7 +6,6 @@ $glyph-room: 0.08;
 
 /* One light for every seat (docs/game-client-look.md, Flat top-down), in shares of the tile's width. */
 $body-share: 0.095;
-$body: var(--tile-body-share, #{$body-share});
 $back-share: 0.035;
 $bevel-share: 0.045;
 $top-share: 0.05;
@@ -27,10 +26,10 @@ $cast-blur: 0.07;
     --tile-turn: var(--frame-turn, 0deg);
     --unit: var(--tile-w);
 
-    @include screen-offset(body, 0, $body, var(--unit), var(--tile-turn));
-    @include screen-offset(back, 0, calc(#{$body} + #{$back-share}), var(--unit), var(--tile-turn));
+    @include screen-offset(body, 0, $body-share, var(--unit), var(--tile-turn));
+    @include screen-offset(back, 0, $body-share + $back-share, var(--unit), var(--tile-turn));
     @include screen-offset(bevel, 0, $bevel-share, var(--unit), var(--tile-turn));
-    @include screen-offset(cast, $cast-x, calc(#{$cast-y} + #{$body}), var(--unit), var(--tile-turn));
+    @include screen-offset(cast, $cast-x, $cast-y + $body-share, var(--unit), var(--tile-turn));
 
     --tile-ring: inset 0 0 0 1px var(--ronin-tile-rim);
     --tile-top: 0 0 transparent;
@@ -86,7 +85,7 @@ $cast-blur: 0.07;
 @mixin group-edge($unit, $turn) {
     --unit: #{$unit};
 
-    @include screen-offset(group-body, 0, $body, var(--unit), $turn);
+    @include screen-offset(group-body, 0, $body-share, var(--unit), $turn);
     @include screen-offset(group-back, 0, $back-share, var(--unit), $turn);
     @include screen-offset(group-cast, $cast-x, $cast-y, var(--unit), $turn);
 

@@ -92,3 +92,64 @@ export function sameBox(first: Box, second: Box): boolean {
         Math.abs(first.height - second.height) <= EPSILON
     );
 }
+
+export interface Point {
+    readonly left: number;
+    readonly top: number;
+}
+
+export function corners({ height, left, top, width }: Box): readonly Point[] {
+    return [
+        { left, top },
+        { left: left + width, top },
+        { left: left + width, top: top + height },
+        { left, top: top + height },
+    ];
+}
+
+function pointToSegment(point: Point, from: Point, to: Point): number {
+    const across = to.left - from.left;
+    const down = to.top - from.top;
+    const length = across * across + down * down;
+    const reach = ((point.left - from.left) * across + (point.top - from.top) * down) / length;
+    const along = length === 0 ? 0 : Math.max(0, Math.min(1, reach));
+    return Math.hypot(
+        point.left - (from.left + along * across),
+        point.top - (from.top + along * down),
+    );
+}
+
+function edgesOf(polygon: readonly Point[]): readonly (readonly [Point, Point])[] {
+    return polygon.map(
+        (from, index) => [from, polygon[(index + 1) % polygon.length] ?? from] as const,
+    );
+}
+
+function projections(points: readonly Point[], [from, to]: readonly [Point, Point]): number[] {
+    const normal = { left: to.top - from.top, top: from.left - to.left };
+    return points.map((point) => point.left * normal.left + point.top * normal.top);
+}
+
+function separatedOnAxis(first: readonly Point[], second: readonly Point[]): boolean {
+    return [...edgesOf(first), ...edgesOf(second)].some((edge) => {
+        const one = projections(first, edge);
+        const other = projections(second, edge);
+        return Math.max(...one) < Math.min(...other) || Math.max(...other) < Math.min(...one);
+    });
+}
+
+function pointsToEdges(points: readonly Point[], polygon: readonly Point[]): number {
+    return Math.min(
+        ...points.flatMap((point) =>
+            edgesOf(polygon).map(([from, to]) => pointToSegment(point, from, to)),
+        ),
+    );
+}
+
+/** How far apart two convex polygons stand: 0 where they meet. */
+export function polygonGap(first: readonly Point[], second: readonly Point[]): number {
+    if (!separatedOnAxis(first, second)) {
+        return 0;
+    }
+    return Math.min(pointsToEdges(first, second), pointsToEdges(second, first));
+}

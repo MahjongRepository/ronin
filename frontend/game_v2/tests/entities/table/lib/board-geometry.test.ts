@@ -16,8 +16,6 @@ import {
     type BoardSlots,
     type BoardTracks,
     boardGeometry,
-    planeGeometry,
-    projectedRise,
     shellTracks,
 } from "@/entities/table/lib/board-geometry";
 import { type StripRooms, type StripSeat, stripLayout } from "@/entities/table/lib/strip-layout";
@@ -1214,28 +1212,4 @@ describe("boardGeometry's shell tracks", () => {
             rows: "20px [kept-start] 30px [inverted-start] 0px [inverted-end] 10px [kept-end] 40px",
         });
     });
-});
-
-describe("planeGeometry", () => {
-    it.each([
-        ["a laptop's window", { height: 637, width: 1346 }],
-        ["an iPhone 11 with Safari's bars", { height: 275, width: 808 }],
-    ])(
-        "tilts a deeper table about the foreground's top so its top lands on the screen's on %s",
-        (_name, box) => {
-            const input = {
-                appliedEdges: NO_INSETS,
-                box,
-                safeInsets: NO_INSETS,
-                slots: LIVE_SLOTS,
-            };
-            const screen = boardGeometry(input);
-            const plane = planeGeometry(input, screen);
-            const pivot = screen.lengths["foreground-top"] ?? 0;
-
-            expect(plane.geometry.family).toBe(screen.family);
-            expect(plane.height).toBeGreaterThan(screen.lengths["table-h"] ?? screen.box.height);
-            expect(projectedRise(pivot - plane.top, plane.camera)).toBeCloseTo(pivot, 0);
-        },
-    );
 });

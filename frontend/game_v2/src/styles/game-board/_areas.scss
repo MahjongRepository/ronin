@@ -15,37 +15,49 @@ $max-melds: 4;
     inset: 0;
 }
 
-.board-surface {
-    --tile-body-share: 0.26;
-    --plane-w: var(--geo-plane-w);
+.board-zones {
+    overflow: hidden;
+}
 
-    top: var(--geo-plane-top);
-    left: var(--geo-plane-left);
-    width: var(--geo-plane-w);
-    height: var(--geo-plane-h);
-    transform-origin: 50% var(--foreground-top);
+.board-surface {
+    transform-origin: var(--geo-plane-pivot-x) var(--geo-plane-pivot-y);
     transform: perspective(var(--geo-plane-camera)) rotateX(var(--geo-plane-tilt));
 }
 
-.board-table > .board-surface > .board-zones {
-    --ox: var(--geo-plane-zone-side);
-    --or: var(--geo-plane-zone-side);
-    --oy: var(--geo-plane-zone-top);
-    --ob: var(--geo-plane-zone-bottom);
-    --tt: 0px;
-    --tb: 0px;
-    --zone-w: calc(var(--plane-w) + var(--ox) + var(--or));
-
-    clip-path: polygon(
-        0 0,
-        100% 0,
-        calc(50% + var(--geo-plane-zone-floor)) 100%,
-        calc(50% - var(--geo-plane-zone-floor)) 100%
-    );
+@mixin plane-pose($piece) {
+    translate: var(--geo-plane-#{$piece}-shift-x) var(--geo-plane-#{$piece}-shift-y);
+    scale: var(--geo-plane-#{$piece}-scale);
 }
 
-.board-zones {
-    overflow: hidden;
+.board-surface > .board-rivers {
+    @include plane-pose(core);
+
+    inset: auto;
+    left: var(--geo-plane-core-start-x);
+    top: var(--geo-plane-core-start-y);
+    width: var(--geo-plane-core-size-x);
+    height: var(--geo-plane-core-size-y);
+    transform-origin: calc(var(--cx) - var(--hx) + var(--geo-plane-core-anchor-x) - var(--geo-plane-core-start-x))
+        calc(var(--cy) - var(--h) + var(--geo-plane-core-anchor-y) - var(--geo-plane-core-start-y));
+
+    > .board-river {
+        margin-left: calc(-1 * var(--geo-plane-core-start-x));
+        margin-top: calc(-1 * var(--geo-plane-core-start-y));
+    }
+}
+
+.board-surface > .board-center {
+    @include plane-pose(core);
+
+    transform-origin: var(--geo-plane-core-anchor-x) var(--geo-plane-core-anchor-y);
+}
+
+@each $seat in top, right, left {
+    .board-surface > .board-strip--#{$seat} {
+        @include plane-pose(strip-#{$seat});
+
+        transform-origin: var(--geo-plane-strip-#{$seat}-anchor-x) var(--geo-plane-strip-#{$seat}-anchor-y);
+    }
 }
 
 /* The rivers' pinwheel: each starts at the centre's corner on its seat's left, a gap from the centre. A river's area is

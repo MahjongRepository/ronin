@@ -2,6 +2,7 @@ import {
     type BoardCallout,
     type CalloutKind,
     SEAT_POSITIONS,
+    type SeatPosition,
 } from "@/entities/table/model/board-types";
 import { showsDeclaredKan } from "@/entities/table/model/handlers/kan-declared";
 import { shownKanOfMeld } from "@/entities/table/model/handlers/meld";
@@ -23,6 +24,18 @@ export interface Call {
     readonly seat: number;
     readonly kanTileType?: number;
 }
+
+/**
+ * Where a call's chip lies over its caller's river, in the river's frame (along its rows in river tiles, away from the
+ * centre in river rows): a top or bottom river's chip centred along its rows; a side river's, upright and wider than
+ * the river, from its outer edge inward, clear of the decisions beside it.
+ */
+export const CALLOUT_SPOTS: Readonly<Record<SeatPosition, readonly [number, number]>> = {
+    bottom: [3, 1.5],
+    left: [3, 4],
+    right: [3, 4],
+    top: [3, 2.5],
+};
 
 /** How long a call shows by its seat, live or in a replay: the board's callout plays its whole animation, a fade last, in this time. */
 export const CALLOUT_MS = 1250;

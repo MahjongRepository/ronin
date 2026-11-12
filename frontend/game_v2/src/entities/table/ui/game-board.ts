@@ -3,7 +3,7 @@ import { type DirectiveResult } from "lit-html/directive.js";
 import { keyed } from "lit-html/directives/keyed.js";
 
 import { SIDEWAYS_UNITS, STACKED_DEPTH, UPRIGHT_DEPTH } from "@/entities/table/lib/board-constants";
-import { CALLOUT_MS } from "@/entities/table/lib/callouts";
+import { CALLOUT_MS, CALLOUT_SPOTS } from "@/entities/table/lib/callouts";
 import { type MeldShape, type StripContent } from "@/entities/table/lib/strip-layout";
 import {
     type BoardCallout,
@@ -301,18 +301,6 @@ function CenterInfo(
     `;
 }
 
-/**
- * Where a call's chip lies over its caller's river, in the river's frame (along its rows in river tiles, away from the
- * centre in river rows): a top or bottom river's chip centred along its rows; a side river's, upright and wider than
- * the river, from its outer edge inward, clear of the decisions beside it.
- */
-const CALLOUT_SPOTS: Readonly<Record<SeatPosition, readonly [number, number]>> = {
-    bottom: [3, 1.5],
-    left: [3, 4],
-    right: [3, 4],
-    top: [3, 2.5],
-};
-
 function Callout({ kind, label, position }: BoardCallout): TemplateResult {
     const [along, across] = CALLOUT_SPOTS[position];
     return html`<div
@@ -422,23 +410,23 @@ function GameBoard(props: GameBoardProps): TemplateResult {
             ${fadeMatchResult(props.matchResult === true, animationsOn)}
         >
             <div class="board-layout" ?inert=${props.inert ?? false}>
+                ${Zones()}
                 <div class="board-table">
+                    ${plates ? html`${plates.right}${plates.top}${plates.left}${plates.bottom}` : ""}
                     <div class="board-surface">
-                        ${Zones()}
-                        ${plates ? html`${plates.right}${plates.top}${plates.left}${plates.bottom}` : ""}
                         <div class="board-rivers">
                             ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
                         </div>
                         ${state ? CenterInfo(state.center, state.nameplates, onView) : EmptyCenterArea()}
                         ${STRIP_SEATS.map((seat) => Strip(seat, seatPlayer(state, seat)))}
-                        ${state ? DoraDisplay(state.center) : ""}
-                        ${props.callouts ? Callouts(props.callouts) : ""}
                     </div>
+                    ${state ? DoraDisplay(state.center) : ""}
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}
                     ${bandEnd ? html`<div class="board-actions" data-area="actions">${bandEnd}</div>` : ""}
                     ${props.switches ?? ""}
                     ${props.localHand !== undefined && props.furiten === true ? FuritenMark() : ""}
                     ${props.notices || props.replay ? BoardNotices(props.notices ?? [], props.replay?.status) : ""}
+                    ${props.callouts ? Callouts(props.callouts) : ""}
                 </div>
                 ${Strip("bottom", bottom, props.localHand ? { input: props.localHand } : {})}
             </div>

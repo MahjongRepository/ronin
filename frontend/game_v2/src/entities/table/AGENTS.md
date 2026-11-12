@@ -56,6 +56,10 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   holds; `stripLayout` closes a denser seat's gaps at the face floor to hold it, else shrinks its melds under the floor to end on the line, never past it) and supplies reserved footprints;
   the content layout scales ordered melds together without moving the hand or controls. GameBoard never binds `style` on its root, which
   would clear what `sizeBoard` wrote.
+- The table's camera is `lib/table-camera.ts`'s `tableView`, a pure function of the board's geometry: it tilts the
+  pieces the flat solve placed (the core, the opponents' strips) and never changes that solve's sizes or places, so
+  every clearance the solve keeps holds through the camera up to its foreshortening. Its closed-form fits (a side
+  strip's outer edge, a piece's foot above the own row) take no iteration.
 - `model/replay-file.ts` refuses a file whose version is not `REPLAY_VERSION` and reports a bad or live-only line,
   never skipping it into a recording that looks whole.
 - Replay storage is concatenated MessagePack records, decoded only through the lazy replay route. The numeric metadata registry mirrors Python; the shared golden pins both registries.  A damaged record stops playback at its preceding readable prefix and names its record position.

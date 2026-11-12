@@ -89,11 +89,15 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   shorter of the two; the round and counts follow `--c` within the room `--w` leaves. The geometry fits the centre and the rivers together, at the spec's minimums (Proportions).
 - Lengths CSS computes are registered with `@property` (`<length>`), so each computes once to pixels; an
   unregistered chain grows with every reference until a browser drops the declaration. A bridged length is px already.
-- **The table is one tilted plane.** `.board-surface`, inside `.board-table`, holds the felt, plates, rivers, centre,
-  counters, calls and opponents' strips under one `perspective() rotateX()`; everything else stays flat. Its lengths
-  are `planeGeometry`'s, the board's frame solved again on a deeper box and written on the surface itself, so inside
-  it every `--geo-*` is the plane's and `100cqw` is not its width (`--plane-w` is). No `preserve-3d`: what lies on the
-  plane is drawn on it.
+- **The tilted pieces.** `.board-surface`, inside `.board-table` and as large as it, holds the rivers, the centre and
+  the opponents' strips under one camera (`perspective() rotateX()` about the table's foot); each piece places itself
+  on that plane with `translate` and `scale` about its anchor, all from `tableView` (`entities/table/lib/
+  table-camera.ts`) through the geometry directive (`--geo-plane-*`). The surface is a stacking context, so only
+  those pieces stand in it: the felt, plates, calls and counters stay flat outside, the plates and calls at the
+  tilted points `tableView` emits (`--geo-shown-*`), and nothing outside may need to slot between the pieces. The
+  rivers' layer is the core's box, never the table's: a scaled table-sized layer overflows the board. No
+  `preserve-3d`; the gate measures the spec's proportions and floors with the camera off (`measurePlane`) and the
+  gaps and the foreshortened floor with it on.
 - **Layout measurements**: the board's geometry directive and the notices' clamp. Motion snapshots only measure
   existing tile positions for temporary copies; they never feed the layout solve. A choice between placements is
   made in TS, never with a length switch (`clamp(0px, x * 1000, 1px)` as a 0/1 boolean) or a `9999px` sentinel;

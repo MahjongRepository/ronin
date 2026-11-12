@@ -42,6 +42,8 @@ export const TALL_WINDOW = "window-tall";
 export const SHORT_UPRIGHT = "window-upright";
 /** The mid desktop (1440x900), the spec's reference desktop. */
 export const MID_DESKTOP = "desktop-1440";
+/** A 4:3 desktop window, the squarest desktop box the table must fill. */
+export const SQUARE_DESKTOP = "desktop-1024x768";
 /** The three classes the representative worst cases are chosen across: the floor, the mid and the largest desktop. */
 export const WORST_CASES: readonly string[] = [FLOOR, MID_DESKTOP, LARGE_DESKTOP];
 
@@ -204,6 +206,14 @@ export const VIEWPORTS: readonly Viewport[] = [
         desktop: true,
         engine: chromium,
         name: LAPTOP_WINDOW,
+        portrait: false,
+        supported: true,
+    },
+    {
+        context: { viewport: { height: 768, width: 1024 } },
+        desktop: true,
+        engine: chromium,
+        name: SQUARE_DESKTOP,
         portrait: false,
         supported: true,
     },

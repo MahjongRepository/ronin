@@ -88,6 +88,7 @@ interface BoardGeometry {
     readonly tracks: BoardTracks;
     readonly strips: StripRooms | null;
     readonly switches: SwitchesForm;
+    readonly areas: Readonly<Partial<Record<string, BoardRect>>>;
 }
 
 /** The switches step in this far past an opponent's tile height (px). */
@@ -2221,38 +2222,33 @@ function boxUnderEdges({ appliedEdges: now, box }: BoardInput, edges: BoardEdges
  * px for that box; an empty or non-finite box has no sizes.
  */
 function boardGeometry(input: BoardInput): BoardGeometry {
-    return solveFrame(boardFrame(input));
-}
-
-function boardFrame(input: BoardInput): BoardFrame {
     const candidate = boxUnderEdges(input, gutteredEdges(input.safeInsets));
     const family = classifyFamily(candidate);
     const chrome = classifyChrome(candidate);
-    return {
-        box: family === "phone" ? boxUnderEdges(input, phoneEdges(input.safeInsets)) : candidate,
+    const phone = family === "phone";
+    const settled = phone ? boxUnderEdges(input, phoneEdges(input.safeInsets)) : candidate;
+    const sized =
+        Number.isFinite(settled.width) &&
+        Number.isFinite(settled.height) &&
+        settled.width > 0 &&
+        settled.height > 0;
+    const frame = {
+        box: settled,
         chrome,
         family,
         slots: input.slots,
         tier: tierChrome(chrome, chromeShare(candidate)),
     };
-}
-
-function solveFrame(frame: BoardFrame): BoardGeometry {
-    const { box, chrome, family } = frame;
-    const sized =
-        Number.isFinite(box.width) &&
-        Number.isFinite(box.height) &&
-        box.width > 0 &&
-        box.height > 0;
     const sizes = sized ? familyLengths(frame) : {};
     const tableHeight = sizes["table-h"];
     const table = tableHeight === undefined ? frame : frameAtHeight(frame, tableHeight);
     const shell = sized ? boardShell(table, sizes) : null;
     return Object.freeze({
-        box: Object.freeze(box),
+        areas: Object.freeze({ ...shell?.areas }),
+        box: Object.freeze(settled),
         chrome,
         family,
-        gutter: family === "phone" ? 0 : PAGE_GUTTER,
+        gutter: phone ? 0 : PAGE_GUTTER,
         lengths: Object.freeze({
             ...sizes,
             ...Object.fromEntries(shell?.lengths ?? []),
@@ -2265,98 +2261,7 @@ function solveFrame(frame: BoardFrame): BoardGeometry {
     });
 }
 
-const PLANE_TILT_DEG = 25;
-
-const PLANE_CAMERA_WIDTHS = 2;
-
-const PLANE_SOLVE_ROUNDS = 4;
-
-interface PlaneCamera {
-    readonly tilt: number;
-    readonly distance: number;
-}
-
-function projectedRise(rise: number, { distance, tilt }: PlaneCamera): number {
-    const angle = (tilt * Math.PI) / 180;
-    return (rise * Math.cos(angle) * distance) / (distance + rise * Math.sin(angle));
-}
-
-function planeRise(rise: number, { distance, tilt }: PlaneCamera): number {
-    const angle = (tilt * Math.PI) / 180;
-    return (rise * distance) / (Math.cos(angle) * distance - rise * Math.sin(angle));
-}
-
-function nearGrowth(drop: number, { distance, tilt }: PlaneCamera): number {
-    return distance / (distance - drop * Math.sin((tilt * Math.PI) / 180));
-}
-
-interface PlaneGeometry {
-    readonly camera: PlaneCamera;
-    readonly geometry: BoardGeometry;
-    readonly height: number;
-    readonly left: number;
-    readonly top: number;
-}
-
-function laidHeight({ box, lengths }: BoardGeometry): number {
-    return lengths["table-h"] ?? box.height;
-}
-
-function planeGeometry(input: BoardInput, screen: BoardGeometry): PlaneGeometry {
-    const frame = boardFrame(input);
-    const camera = { distance: PLANE_CAMERA_WIDTHS * screen.box.width, tilt: PLANE_TILT_DEG };
-    const pivot = screen.lengths["foreground-top"] ?? laidHeight(screen);
-    const wanted = planeRise(pivot, camera);
-    let box = { height: laidHeight(screen) + wanted - pivot, width: frame.box.width };
-    let geometry = solveFrame({ ...frame, box });
-    for (let round = 0; round < PLANE_SOLVE_ROUNDS; round += 1) {
-        const reached = geometry.lengths["foreground-top"] ?? box.height;
-        const height = box.height + wanted - reached;
-        box = {
-            height,
-            width: frame.box.width / nearGrowth(laidHeight(geometry) - reached, camera),
-        };
-        geometry = solveFrame({ ...frame, box });
-    }
-    return {
-        camera,
-        geometry,
-        height: laidHeight(geometry),
-        left: (frame.box.width - box.width) / 2,
-        top: pivot - (geometry.lengths["foreground-top"] ?? box.height),
-    };
-}
-
-interface PlaneZone {
-    readonly top: number;
-    readonly side: number;
-    readonly bottom: number;
-    readonly floorHalf: number;
-}
-
-function planeZone(plane: PlaneGeometry, screen: BoardGeometry, edges: BoardEdges): PlaneZone {
-    const { camera, geometry, height } = plane;
-    const angle = (camera.tilt * Math.PI) / 180;
-    const pivot = geometry.lengths["foreground-top"] ?? height;
-    const screenPivot = screen.lengths["foreground-top"] ?? laidHeight(screen);
-    const tableTop = screen.lengths["table-top"] ?? 0;
-    const half = geometry.box.width / 2;
-    const reachHalf = screen.box.width / 2 + Math.max(edges.left, edges.right);
-    const rise = planeRise(screenPivot + tableTop + edges.top, camera);
-    const screenDrop = screen.box.height - tableTop - screenPivot + edges.bottom;
-    const drop =
-        (screenDrop * camera.distance) /
-        (Math.cos(angle) * camera.distance + screenDrop * Math.sin(angle));
-    const topHalf = (reachHalf * (camera.distance + rise * Math.sin(angle))) / camera.distance;
-    return {
-        bottom: pivot + drop - height,
-        floorHalf: (reachHalf * (camera.distance - drop * Math.sin(angle))) / camera.distance,
-        side: topHalf - half,
-        top: rise - pivot,
-    };
-}
-
-export { boardGeometry, planeGeometry, planeZone, projectedRise, shellTracks };
+export { boardGeometry, shellTracks };
 export type {
     BoardBox,
     BoardEdges,
@@ -2367,8 +2272,5 @@ export type {
     BoardRect,
     BoardSlots,
     BoardTracks,
-    PlaneCamera,
-    PlaneGeometry,
-    PlaneZone,
     SwitchesForm,
 };
