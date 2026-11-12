@@ -12,7 +12,8 @@ runbook for a new server and lists the targets.
 * `.github/workflows/release.yml` is the **only** path that builds the image (`Dockerfile`) and
   pushes it to GHCR as a public package. The deploy Makefiles have no build or push target, and the
   deploy has no `docker login`.
-* `.github/workflows/create-release.yml` cuts a release and then calls `release.yml` for the image:
+* `.github/workflows/create-release.yml` cuts a release of the version `main` is already at (the
+  release skill sets it; the workflow never commits) and then calls `release.yml` for the image:
   its pushes use `GITHUB_TOKEN`, which starts no workflow, so that call is the only thing that builds
   a release cut this way.
 * `Makefile.server` is uploaded to `/opt/ronin/Makefile` on every deploy for manual control on the
