@@ -8,18 +8,18 @@ $glyph-room: 0.08;
 
 /* One light for every seat (docs/game-client-look.md, Flat top-down), in shares of the tile's width. */
 $lip-share: 0.025;
-$side-high-share: 0.065;
-$side-mid-share: 0.11;
-$body-share: 0.16;
-$back-share: 0.04;
+$side-high-share: 0.04;
+$side-mid-share: 0.1;
+$body-share: 0.15;
+$back-share: 0.05;
 $bevel-share: 0.045;
 $pillow-share: 0.09;
 $top-share: 0.06;
 $contact-y: 0.035;
 $contact-blur: 0.05;
-$cast-x: 0.05;
-$cast-y: 0.07;
-$cast-blur: 0.07;
+$cast-x: 0;
+$cast-y: 0.2;
+$cast-blur: 0.3;
 $edge-bands: (
     lip: (
         $lip-share,
@@ -82,7 +82,8 @@ $edge-bands: (
         @include screen-offset($band, 0, 1, band-depth($band, var(--edge-unit)), var(--tile-turn));
     }
 
-    @include screen-offset(bevel, 0, $bevel-share, var(--unit), var(--tile-turn));
+    @include screen-offset(bevel, $bevel-share * 0.7, $bevel-share * 0.7, var(--unit), var(--tile-turn));
+    @include screen-offset(shade, -$bevel-share, 0, var(--unit), var(--tile-turn));
     @include screen-offset(
         contact,
         0,
@@ -103,8 +104,8 @@ $edge-bands: (
     --tile-bevel:
         inset var(--bevel-x) var(--bevel-y) calc(var(--unit) * #{$bevel-share})
             var(--ronin-tile-shine),
-        inset calc(var(--bevel-x) * -1) calc(var(--bevel-y) * -1)
-            calc(var(--unit) * #{$bevel-share * 1.5}) var(--ronin-tile-shade),
+        inset var(--shade-x) var(--shade-y) calc(var(--unit) * #{$bevel-share * 1.5})
+            var(--ronin-tile-shade),
         inset 0 0 calc(var(--unit) * #{$pillow-share}) var(--ronin-tile-pillow);
     --tile-edge:
         var(--lip-x) var(--lip-y) 0 #{band-colour(lip)},
