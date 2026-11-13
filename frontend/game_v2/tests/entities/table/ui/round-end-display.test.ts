@@ -164,13 +164,18 @@ describe("RoundEndDisplay", () => {
         };
         const el = renderResult({ ...table, roundEndResult: { ...result, draw: declaredOn9p } });
         const sideways = [
-            ...el.querySelectorAll(".round-end-result__river-tiles .discard-tile-riichi svg"),
-        ].map((face) => face.getAttribute("aria-label"));
+            ...el.querySelectorAll(
+                ".round-end-result__river-tiles .discard-tile-riichi .tile__body",
+            ),
+        ].map((face) => [
+            face.getAttribute("aria-label"),
+            face.querySelector("use")?.getAttribute("href"),
+        ]);
 
         expect(texts(el, ".round-end-result__river .round-end-result__label")).toEqual([
             "Alice's river",
         ]);
         expect(el.querySelectorAll(".round-end-result__river-tiles .tile")).toHaveLength(18);
-        expect(sideways).toEqual(["9-pin"]);
+        expect(sideways).toEqual([["9-pin", "#body-lying-sideways"]]);
     });
 });

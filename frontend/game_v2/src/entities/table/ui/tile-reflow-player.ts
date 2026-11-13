@@ -1,7 +1,8 @@
 import { type MotionRect, type TileMotion } from "@/entities/table/lib/board-motion";
 import { type TileQuad, quadWarp, unwarpPoint, warpPoint } from "@/entities/table/lib/tile-quad";
+import { SEAT_TURNS } from "@/entities/table/model/board-types";
 
-import { SEAT_TURNS, type TileSnapshot } from "./board-motion-snapshot";
+import { type TileSnapshot } from "./board-motion-snapshot";
 
 /** Where a reflowing tile starts: its bounding box and its corners on the screen. */
 export interface ReflowSource {

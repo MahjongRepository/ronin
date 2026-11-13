@@ -125,13 +125,13 @@ describe("StandingTile", () => {
 describe("Tile", () => {
     test("face tile references the correct sprite symbol", () => {
         const el = renderTo(Tile("1m", "face"));
-        const use = el.querySelector("use");
+        const use = el.querySelector('use[href^="#tile-"]');
         expect(use?.getAttribute("href")).toBe("#tile-1m");
     });
 
     test("red five references its own sprite symbol", () => {
         const el = renderTo(Tile("0p", "face"));
-        const use = el.querySelector("use");
+        const use = el.querySelector('use[href^="#tile-"]');
         expect(use?.getAttribute("href")).toBe("#tile-0p");
     });
 
@@ -158,7 +158,7 @@ describe("Tile", () => {
     test("back mode renders tile-back instead of a sprite reference", () => {
         const el = renderTo(Tile("1m", "back"));
         expect(el.querySelector(".tile-back")).not.toBeNull();
-        expect(el.querySelector("use")).toBeNull();
+        expect(el.querySelector('use[href^="#tile-"]')).toBeNull();
     });
 });
 

@@ -19,7 +19,7 @@ describe("Hand", () => {
         const el = renderTo(Hand({ drawnTile: { face: "9m", show: "face" }, tiles }));
 
         const slots = [...el.querySelectorAll(".hand > .hand-tile")];
-        expect(slots.map((slot) => slot.querySelector("use") !== null)).toEqual([
+        expect(slots.map((slot) => slot.querySelector('use[href^="#tile-"]') !== null)).toEqual([
             true,
             false,
             false,
@@ -72,5 +72,30 @@ describe("Hand", () => {
             null,
         ]);
         expect(onTile).not.toHaveBeenCalled();
+    });
+
+    test("stands an opponent's concealed tiles in its seat's body, the right seat's painted from its far end down", () => {
+        const tiles: HandTile[] = [{ show: "concealed" }, { show: "concealed" }];
+        const drawnTile: HandTile = { show: "concealed" };
+        function slots(turn: 90 | 270): (string | undefined)[][] {
+            const el = renderTo(Hand({ drawnTile, tiles, turn }));
+            return [...el.querySelectorAll<HTMLElement>(".hand > .hand-tile")].map((slot) => [
+                slot.querySelector(".tile__body > use")?.getAttribute("href") ?? undefined,
+                slot.style.zIndex,
+            ]);
+        }
+
+        expect([slots(90), slots(270)]).toEqual([
+            [
+                ["#body-back-standing-left", ""],
+                ["#body-back-standing-left", ""],
+                ["#body-back-standing-left", ""],
+            ],
+            [
+                ["#body-back-standing-right", "3"],
+                ["#body-back-standing-right", "2"],
+                ["#body-back-standing-right", "1"],
+            ],
+        ]);
     });
 });

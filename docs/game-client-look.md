@@ -63,23 +63,24 @@ The derived proportions are the three reference viewports' values under the sizi
   phone) and
   everything in front stay flat. Depth comes from the surface, the tile's edge and its shadow. One
   static transform per piece, no per-frame work. Decision: one light for every
-  seat: each tile's face but the own hand's standing ones (below) is softly domed, with corners rounded by 0.07 of its width
-  (never under 1.5px), shaded with no outline: one soft highlight inside its top and left
-  edges, from the light at the screen's top-left (equal offsets down and right, never under 1px), over a soft pillow that darkens every edge, so tiles that touch meet
-  at a soft seam, shade then light, never a dark line, and its edge
-  shows toward the screen's bottom (a white lip under the face, then a flat grey side about 0.6 of
-  the face's lightness over a near-black base, within the reserved edge; a
-  standing concealed tile, below, shows its end instead), with a tight dark contact shadow at its
-  base and a soft cast shadow thrown toward the screen's lower right, from the same light whatever the seat or a
-  flying tile's angle: it starts below the tile's edge, however deep that edge is drawn, and its base parameters
-  are in the tile's width (0.12 right, 0.2 down, a 0.24 blur, 65% black), so a standing hand, a lying meld and a
-  river tile throw it alike and it shows past the edge's bottom and the tile's right side; the
-  edge reaches 0.2 of a tile's width, which the geometry reserves (`TILE_EDGE_SHARE`); tiles lying together
-  (a river, a meld, a hand that takes no input) share one edge and shadow under all their faces, so
-  a tile nearer the screen's bottom covers the edge of the one behind it and no edge or shadow ever
-  lies on a face; a hand that takes input draws each tile's shadow on its own, pulled in conservatively so it
-  never reaches past the tile's left side: it lies under the next tile, never on the one before, and only
-  approximates a group's shadow (a box's shadow and a drop shadow fall off differently).
+  seat: every tile is one generated body (`entities/tile/lib/tile-body.ts`, `npm run bodies`), drawn
+  for its pose on the screen, never by the stylesheet, so the light stays at the screen's top-left and the edge
+  toward the screen's bottom whatever the seat: a body turned with its seat's frame is turned back, and a tile picks
+  the body of its screen orientation (upright or across), its face art turned inside the face box. A lying tile's face
+  is the brightest surface on the board, its corners rounded by 0.07 of its width, shaded with no outline:
+  a lit rim on its left, a shaded roll on its right and a short roll at its foot, so tiles that touch read
+  tile by tile without a line between them. Below the face its edge shows toward the screen's bottom: a flat ivory
+  side, then the ochre base, the back's own layer, never near-black; the edge reaches 0.2 of a tile's width, which
+  the geometry reserves (`TILE_EDGE_SHARE`). A face-down tile (a closed kan's end, an unrevealed indicator) shows the
+  ochre back on top and its side ochre above, ivory below. Faces are not foreshortened by the body: the tilted
+  camera does that; only the own melds' bodies, on the flat own row, are foreshortened (below). A tile nearer the screen's bottom paints over the edge of the one behind it, so no edge ever
+  lies on a face: a river's later rows cover its earlier ones, the top river paints its rows from the centre out,
+  the right river and the right strip paint each line from its far end down the screen, and an added kan's called
+  tile covers the added one (the top seat's added tile lies nearer the screen's bottom and covers the called one).
+  Tiles lying together (a river, a meld, a hand that takes no input, the dora) throw one soft cast shadow toward the
+  screen's lower right, in the tile's width (0.12 right, 0.2 down, a 0.24 blur, 65% black), under all their bodies;
+  a tile alone throws its own, and a hand that takes input draws each tile's shadow on its own, pulled in
+  conservatively so it never reaches past the tile's left side.
   A chankan source's ring lies flat over the tiles.
   The own hand's tiles stand facing their player, each drawn as one generated body 1.5 of its width tall
   (`entities/tile/lib/tile-body.ts`, `npm run bodies`), not by the stylesheet: the back's ochre layer seen over its
@@ -90,9 +91,10 @@ The derived proportions are the three reference viewports' values under the sizi
   drawn from its top and running past its bottom by the rest of its height, which the own row reserves in whole
   pixels, so on a phone the foot may be clipped by up to 1px at the board's bottom edge. It throws only the cast shadow, the hand's
   shared one, or each tile's own where the hand takes input; a held-back tile greys the whole body.
-  The own melds lie on the table beside it: no band, each face foreshortened to 0.92 of its height
-  (the art, the glyph room and a sideways, stacked or face-down tile alike, a kan's stack 2 x 0.92 of a tile's width
-  deep) over a deeper edge, 0.25 of its width; a tile flying into a meld lands in that body. The own row reserves
+  The own melds lie on the table beside it: their own bodies, each face foreshortened to 0.92 of its
+  height (the art and a sideways, stacked or face-down tile alike, a kan's stack 2 x 0.92 of a tile's width deep)
+  over a deeper edge, 0.25 of its width. A flying tile takes its destination's body at take-off, turned with the
+  flight, and throws one cast shadow. The own row reserves
   the deeper of the hand's overhang and the melds' edge.
 - **Composed for ordinary play.** The design anchor is a mid-round state with real decisions on
   screen. Dense states (long rivers, four melds a seat, five dora indicators, long names) must
@@ -316,16 +318,13 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   river, backs or faces, so that neither reads as a row of the other. Decision: a concealed hand,
   backs or faces, is 3:4 at the river tile's size (Tenhou's and Mahjong Soul's ratio), so an
   opponent's hand reads as plainly as its river. Decision: a concealed tile stands on its edge,
-  drawn as its top seen from above (Tenhou's side seats draw it in profile): half its 3:4 slot,
-  at its owner's edge, off-white toward its owner and the back's colour toward the centre, so a live
-  hand never reads as face-down tiles (a closed kan's ends, the unrevealed indicators); the slot is
-  kept whole, so a reveal shows the faces in the same place. Its edge is its end, split as its
-  top: the top strip shows only the back's layer under it, a side strip the off-white body beside the
-  back's layer, never the off-white body under the back's colour. Decision: a hand's tiles stand a
-  one-pixel hairline apart, as the own hand's; a side strip's tiles run along the light, so the
-  tile edge would fill that hairline, and the table's colour is drawn into it instead; a side
-  strip's drawn gap shows that edge under the tile the light lays it on and is deeper by it, so
-  the clear table past the edge reads as the top strip's gap. Every seat
+  seen from above, filling its 3:4 slot and the edge reserved under it: a thin off-white
+  cap at its owner's side, 0.22 of the depth it shows, over the back's ochre face toward the centre (on a side seat
+  the cap at the owner's side, the ochre across the rest, its end under it split the same way), so a live hand never
+  reads as face-down tiles (a closed kan's ends, the unrevealed indicators); the slot is kept whole, so a reveal shows
+  the faces in the same place. Decision: a hand's tiles stand a one-pixel hairline apart, as the own hand's; a side
+  strip's tiles run along the light, each covering the end of the tile above it, and its drawn gap shows the end of
+  the tile above the gap and is deeper by it, so the clear table past the end reads as the top strip's gap. Every seat
   keeps its melds in one continuous line to the hand's right from that player's view: downward for the left seat, upward for the right. The oldest meld stays at the far end;
   newer melds join toward the hand. Melds never wrap beside the hand or into parallel columns.
   All melds in a strip scale together to fit, beside the hand at its fullest with a drawn tile set apart, so a draw
@@ -567,13 +566,13 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
 - **Tile motion.** Draws travel from the centre to the separated hand slot and discards from hand to river in
-  120ms, with a faint trail (its copies drawn without an edge or shadow; the tile itself draws its edge in three
-  passes, the body, a dark base as deep as a landed tile's with its contact shadow and a short cast shadow, as deep as its slot's, a standing body only its cast shadow, and a replay's tsumogiri keeps its shade). The latest discard settles into its river slot in 120ms when its mark ends.
+  120ms, with a faint trail (its copies drawn without a shadow; the tile itself throws one cast shadow, and a
+  replay's tsumogiri keeps its shade). The latest discard settles into its river slot in 120ms when its mark ends.
   A travelling tile takes its destination's body at take-off (a discard leaves the hand as the lying
   river tile, a call into the own melds as the lying own meld tile, a draw flies as the standing body), and keeps it
-  and its shadow throughout, with size and orientation changing continuously from source to destination; landing on the tilted table it flies already in its slot's look
-  (the camera's taper and squash), so it lands with no pop. Light stays
-  fixed to the screen. Rearranging hands, settling
+  and its shadow throughout, its size changing continuously from source to destination; landing on the tilted table it flies already in its slot's look
+  (the camera's taper and squash), so it lands with no pop. The body
+  flies upright on the screen in its slot's orientation, so the light and the edge stay fixed to the screen. Rearranging hands, settling
   discards and moving or resizing laid melds animate their actual tile wrappers inside their group, retaining its
   shared edge and shadow and native button feedback. Meld resizing keeps its tiles moving and scaling together
   under that shared shadow; on the tilted table their offsets are the slots' own, taken back through the camera, not
@@ -758,8 +757,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   as the panel closes. Loading, not found, incomplete
   and damaged replays each say so, as does a replay that cannot be drawn at a later stop (the failure
   screen); an incomplete one shows no result for its unfinished round.
-- **Material and type.** Neutral off-white tile faces (not cream) with room around the glyph and a soft bevel lit from the
-  screen's top, a small consistent two-tone edge and shadow; a red five reads as red at every scale, in a river, a meld, a revealed hand and a result;
+- **Material and type.** Neutral off-white tile faces (not cream) with room around the glyph, rolled rims lit
+  from the screen's top-left, a small consistent ivory-over-ochre edge and shadow; a red five reads as red at every scale, in a river, a meld, a revealed hand and a result;
   backs in one colour, the canonical yellow-orange: an ochre plastic, darker and less luminous than
   the accent so a strip of backs never reads as a control, its darker shade the back's layer under
   every tile's off-white body. Decision: the face artwork (the committed SVG set) stays, its ordinary red

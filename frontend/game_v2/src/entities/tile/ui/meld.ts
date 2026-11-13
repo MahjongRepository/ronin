@@ -1,27 +1,53 @@
-import { type TemplateResult, html } from "lit-html";
+import { type TemplateResult, html, nothing } from "lit-html";
 
 import { type MeldTile } from "@/entities/tile/lib/meld-tiles";
+import { type SeatTurn } from "@/entities/tile/lib/tile-body";
 
-import { Tile } from "./tile";
+import { Tile, type TileLayout } from "./tile";
 
-function MeldTileView(tile: MeldTile): TemplateResult {
+interface MeldLayout {
+    readonly own?: boolean;
+    readonly turn?: SeatTurn;
+}
+
+function tileLayout({ own, turn }: MeldLayout, sideways: boolean): TileLayout {
+    return { lay: own === true ? "own" : "lying", sideways, turn };
+}
+
+function StackedTile(
+    tile: Extract<MeldTile, { kind: "stacked" }>,
+    layout: MeldLayout,
+    paint: string | typeof nothing,
+): TemplateResult {
+    const bottom = html`<span class="meld-tile-stacked-bottom meld-tile-sideways" data-tile-id=${tile.bottomId ?? ""}>${Tile(tile.bottom, "face", tileLayout(layout, true))}</span>`;
+    const top = html`<span class="meld-tile-stacked-top meld-tile-sideways" data-tile-id=${tile.topId ?? ""}>${Tile(tile.top, "face", tileLayout(layout, true))}</span>`;
+    const parts = layout.turn === 180 ? [bottom, top] : [top, bottom];
+    return html`<span class="meld-tile meld-tile-stacked" style=${paint}>${parts}</span>`;
+}
+
+function MeldTileView(
+    tile: MeldTile,
+    layout: MeldLayout,
+    paint: string | typeof nothing,
+): TemplateResult {
     switch (tile.kind) {
         case "upright": {
-            return html`<span class="meld-tile" data-tile-id=${tile.tileId ?? ""}>${Tile(tile.face, "face")}</span>`;
+            return html`<span class="meld-tile" style=${paint} data-tile-id=${tile.tileId ?? ""}>${Tile(tile.face, "face", tileLayout(layout, false))}</span>`;
         }
         case "sideways": {
-            return html`<span class="meld-tile meld-tile-sideways" data-tile-id=${tile.tileId ?? ""}>${Tile(tile.face, "face")}</span>`;
+            return html`<span class="meld-tile meld-tile-sideways" style=${paint} data-tile-id=${tile.tileId ?? ""}>${Tile(tile.face, "face", tileLayout(layout, true))}</span>`;
         }
         case "facedown": {
-            return html`<span class="meld-tile" data-tile-id=${tile.tileId ?? ""}>${Tile(tile.face, "back")}</span>`;
+            return html`<span class="meld-tile" style=${paint} data-tile-id=${tile.tileId ?? ""}>${Tile(tile.face, "back", tileLayout(layout, false))}</span>`;
         }
         case "stacked": {
-            return html`<span class="meld-tile meld-tile-stacked">
-                <span class="meld-tile-stacked-bottom meld-tile-sideways" data-tile-id=${tile.bottomId ?? ""}>${Tile(tile.bottom, "face")}</span>
-                <span class="meld-tile-stacked-top meld-tile-sideways" data-tile-id=${tile.topId ?? ""}>${Tile(tile.top, "face")}</span>
-            </span>`;
+            return StackedTile(tile, layout, paint);
         }
     }
+}
+
+function paintOrder({ turn }: MeldLayout, index: number, count: number) {
+    return turn === 270 ? `z-index: ${count - index}` : nothing;
 }
 
 /**
@@ -29,9 +55,12 @@ function MeldTileView(tile: MeldTile): TemplateResult {
  * offer refers to (a kan a chankan may rob) is marked as the offer's source, by a ring around the tiles rather than on
  * them, so their shared edge and shadow leave the ring flat.
  */
-function Meld(tiles: readonly MeldTile[], source = false): TemplateResult {
-    const meld = html`<span class="meld">${tiles.map(MeldTileView)}</span>`;
+function Meld(tiles: readonly MeldTile[], source = false, layout: MeldLayout = {}): TemplateResult {
+    const meld = html`<span class="meld"
+        >${tiles.map((tile, index) => MeldTileView(tile, layout, paintOrder(layout, index, tiles.length)))}</span
+    >`;
     return source ? html`<span class="meld--source">${meld}</span>` : meld;
 }
 
 export { Meld };
+export type { MeldLayout };

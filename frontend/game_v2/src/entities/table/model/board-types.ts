@@ -1,8 +1,21 @@
-import { type DiscardTile, type HandTile, type MeldTile, type TileFace } from "@/entities/tile";
+import {
+    type DiscardTile,
+    type HandTile,
+    type MeldTile,
+    type SeatTurn,
+    type TileFace,
+} from "@/entities/tile";
 
 type SeatPosition = "bottom" | "right" | "top" | "left";
 
 const SEAT_POSITIONS: SeatPosition[] = ["bottom", "right", "top", "left"];
+
+const SEAT_TURNS: Readonly<Record<SeatPosition, SeatTurn>> = {
+    bottom: 0,
+    left: 90,
+    right: 270,
+    top: 180,
+};
 
 interface BoardCenterInfo {
     readonly roundDisplay: string;
@@ -95,7 +108,7 @@ interface BoardPerspective {
     readonly reveal: "all" | "bottom";
 }
 
-export { SEAT_POSITIONS };
+export { SEAT_POSITIONS, SEAT_TURNS };
 export type {
     BoardCallout,
     BoardCallouts,

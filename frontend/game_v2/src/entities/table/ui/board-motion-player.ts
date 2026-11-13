@@ -54,6 +54,15 @@ function createFlight(motion: TileMotion, scene: Scene, target: TileSnapshot): F
  * camera shows them from the start (a tilted piece's taper and squash; none on a flat one), so it lands exactly as the
  * tile it stands for.
  */
+function screenFace(rect: MotionRect, pose: TilePose, landing: TilePose): Keyframe {
+    const quarters = Math.round((pose.angle - landing.angle) / 90);
+    const turned = Math.abs(quarters) % 2 === 1;
+    return {
+        "--motion-across": `${turned ? rect.height : rect.width}px`,
+        "--motion-down": `${turned ? rect.width : rect.height}px`,
+    };
+}
+
 function flightFrames({ from, fromPose, to, toPose, toQuad }: Flight): Keyframe[] {
     const deltaX = from.left + from.width / 2 - to.left - to.width / 2;
     const deltaY = from.top + from.height / 2 - to.top - to.height / 2;
@@ -64,8 +73,18 @@ function flightFrames({ from, fromPose, to, toPose, toQuad }: Flight): Keyframe[
             ? fromPose
             : { ...fromPose, lying: toPose.lying, standing: toPose.standing };
     return [
-        { ...poseFrame(takeOff), transform, translate: `${deltaX}px ${deltaY}px` },
-        { ...poseFrame({ ...toPose, angle }), transform, translate: "0px 0px" },
+        {
+            ...poseFrame(takeOff),
+            ...screenFace(from, fromPose, toPose),
+            transform,
+            translate: `${deltaX}px ${deltaY}px`,
+        },
+        {
+            ...poseFrame({ ...toPose, angle }),
+            ...screenFace(to, toPose, toPose),
+            transform,
+            translate: "0px 0px",
+        },
     ];
 }
 
@@ -73,7 +92,6 @@ function poseFrame(pose: TilePose): Keyframe {
     return {
         "--motion-angle": `${pose.angle}deg`,
         "--motion-height": `${pose.height}px`,
-        "--motion-lying": String(pose.lying),
         "--motion-width": `${pose.width}px`,
     };
 }
@@ -95,7 +113,7 @@ function sampleFlight(tile: TileSnapshot, active: RunningTile): TileSnapshot {
     const pose = {
         angle: Number.parseFloat(style.getPropertyValue("--motion-angle")),
         height: Number.parseFloat(style.getPropertyValue("--motion-height")),
-        lying: Number.parseFloat(style.getPropertyValue("--motion-lying")),
+        lying: active.flight.toPose.lying,
         standing: face === null ? tile.pose.standing : standingOf(face),
         width: Number.parseFloat(style.getPropertyValue("--motion-width")),
     };

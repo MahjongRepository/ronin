@@ -149,30 +149,28 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   phone's board) and the safe insets as registered lengths, which the directive reads in px with the padding the page
   applies, so the classification never depends on a phone's own bottom edge; a gutter change it finds
   while the observer delivers (into or out of a phone) waits a frame, since it resizes the observed board.
-- Every tile's box and material is `_tile.scss`'s; each region sets `--board-tile-w`. The own hand's standing face
-  tiles alone draw their body as the generated SVG (`StandingTile`): their 4:3 box stays the layout and tap target, the
-  body's `<svg>` running past its bottom (no pointer events), and the stylesheet adds only their cast shadow (the hand's
-  group drop shadow, or each button's own on its body) and the state overlays, the focus ring on the body. A sideways tile (a called meld
-  tile, a riichi discard) is an unturned box as long as a tile is tall with only its face turned: a turned box of a
-  fractional size paints off its layout box, below its row's baseline. Flying tiles use their destination's
-  material from take-off with animated dimensions and orientation; their grouped depth stays on an unturned wrapper, so the
-  light does not rotate with the face. Native reflow stays inside its original group. An opponent's hand and melds
-  isolate each tile's own depth layer below every face, never a group filter: their frame is turned (see the rivers
-  below). Side hands add seam-mask layers there too: masks must never enter a shadow filter, or a separated tile
-  casts a detached rectangular edge. A seam's mask stands on the tile whose edge does not fall into that seam (the
-  later tile on the left, the earlier on the right), so a tile a reflow carries off keeps its whole edge attached
-  instead of a mask riding with it cutting a detached sliver. An opponent's standing back draws its own edge, its top
-  in the edge's colours on a pseudo-element moved down the screen (the tile itself never transformed), which casts its
-  shadow. Other groups keep their shared edge and shadow. Hands and
-  rivers use positional offsets: a transform creates per-tile stacking contexts that lift the side strips' seam
-  masks over neighbouring faces and depth. Laid melds have no seam masks and transform their tile wrappers to
-  interpolate position and size, each then its own stacking context, so where a tile's depth falls toward the tile before
-  it (the top and right strips) a meld paints its tiles last to first. Reveal backs stay inside the native hand slots, absolutely placed over the hidden
-  faces so they retain the hand's depth and gap masks without changing its layout.
-- The rivers' shared edge and shadow come from `.board-rivers` (`_tile.scss`), the unturned layer holding all four,
-  never from a turned river frame's own filter: Firefox on macOS draws a filter inside a turned frame unturned and
-  clipped to its box, so no filter of a tile group may stand inside one.
-- **Layers come from one scale.** Every `z-index` is a `$layers` name (`game-board/_queries.scss`), never a literal.
+- Every tile's box is `_tile.scss`'s; each region sets `--board-tile-w`. Its material is a generated body
+  (`entities/tile/lib/tile-body.ts`): `Tile` and `TileBack` pick it from the tile's lay and its seat's turn
+  (`tileBody`), draw it as an `<svg>` centred on the 4:3 box with its edge running past the box toward the screen's
+  bottom, and turn it back by the seat's frame turn (`--body-turn`), so a body is always drawn upright on the
+  screen. The own hand's standing face tiles draw `StandingTile`'s standing body instead: their 4:3 box stays the
+  layout and tap target, the body running past its bottom (no pointer events), the focus ring on the body. A sideways
+  tile (a called meld tile, a riichi discard) is an unturned box as long as a tile is tall: a turned box of a
+  fractional size paints off its layout box, below its row's baseline.
+- **Paint order replaces masks.** A body nearer the screen's bottom paints over the edge of the one above it. Where
+  DOM order runs up the screen the components set the slots' `z-index` from the seat's turn (the top river's rows,
+  the right river's and the right strip's lines); an added kan renders its two tiles in paint order; the right
+  strip's hand stands over its melds and its melds paint from the far end down (`_tile.scss`). Nothing masks a
+  seam.
+- **One cast shadow per group.** Tiles lying together cast one drop shadow from an unturned ancestor: the rivers'
+  from `.board-rivers`, an opponent's from its `.board-strip`, never from a turned frame (Firefox on macOS draws a
+  filter inside a turned frame unturned and clipped to its box). A tile alone casts its own; a hand that takes input
+  casts one per button. Flying tiles clone their destination's body from take-off, upright on the screen whatever
+  the flight's angle, and cast one shadow on their image. Native reflow stays inside its original group; reveal
+  backs stay inside the native hand slots, absolutely placed over the hidden faces.
+- **Layers come from one scale.** Every `z-index` is a `$layers` name (`game-board/_queries.scss`), never a literal,
+  but a tile group's paint order: ordinals counted from the seat's turn (the slots' inline `z-index`, the right
+  strip's areas and melds), which stay inside the group's stacking context and never meet a layer.
   The scale follows the spec's tiers (Principles, *Three tiers*): the plates take `furniture` and stand first in
   `.board-table`, so every tile area after them, positioned, paints over them; a task element takes a layer over
   every table piece it may stand on. Never raise a furniture or table element's layer to keep it in view.

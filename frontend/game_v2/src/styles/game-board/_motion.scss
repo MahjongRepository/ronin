@@ -18,8 +18,14 @@
     initial-value: 0deg;
 }
 
-@property --motion-lying {
-    syntax: "<number>";
+@property --motion-across {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 0;
+}
+
+@property --motion-down {
+    syntax: "<length>";
     inherits: true;
     initial-value: 0;
 }

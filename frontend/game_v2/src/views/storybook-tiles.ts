@@ -11,7 +11,7 @@ function tileRow(faces: readonly TileFace[], labels: WindScript | null): Templat
         ${faces.map(
             (id) => html`
                 <div class="storybook-tile-cell">
-                    ${Tile(id, "face", labels)}
+                    ${Tile(id, "face", { labels })}
                     <small>${id}</small>
                 </div>
             `,

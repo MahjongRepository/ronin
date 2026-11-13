@@ -1,4 +1,4 @@
-import { RIVER_ROWS } from "@/entities/tile";
+import { LYING_BODY, RIVER_ROWS } from "@/entities/tile";
 
 /** A tile's height to its width. */
 const TILE_ASPECT = 4 / 3;
@@ -18,14 +18,14 @@ const FULL_HAND = 14.6;
 
 /** An own meld's tile to the river tile. */
 const OWN_MELD_SCALE = 1;
-const OWN_LYING_HEIGHT_SHARE = 0.92;
+const OWN_LYING_HEIGHT_SHARE = LYING_BODY.ownTopShare;
 
 /** The gap between the centre and a river, in river tiles. */
 const RIVER_GAP_SHARE = 0.3;
 
 /** How far a tile's edge reaches below its box, in shares of its width. */
-const TILE_EDGE_SHARE = 0.2;
-const OWN_LYING_EDGE_SHARE = 0.25;
+const TILE_EDGE_SHARE = LYING_BODY.edge;
+const OWN_LYING_EDGE_SHARE = LYING_BODY.ownEdge;
 
 /** No meld face goes under this width (px). */
 const FACE_FLOOR = 13;

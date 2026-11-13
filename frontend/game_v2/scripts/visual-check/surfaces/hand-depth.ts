@@ -65,12 +65,14 @@ async function separateRightTile(page: Page): Promise<SeparatedTile> {
         if (!(slot instanceof HTMLElement) || !(tile instanceof HTMLElement)) {
             throw new Error("Missing right hand tile");
         }
-        const depth = getComputedStyle(tile, "::after");
-        const offsets = [
-            ...depth.boxShadow.matchAll(/\) (?<x>-?[\d.]+)px (?<y>-?[\d.]+)px 0px 0px/gu),
-            ...depth.transform.matchAll(/^matrix\(1, 0, 0, 1, (?<x>-?[\d.]+), (?<y>-?[\d.]+)\)$/gu),
-        ].map(({ groups }) => Math.hypot(Number(groups?.["x"] ?? 0), Number(groups?.["y"] ?? 0)));
-        const edgeDepth = Math.max(0, ...offsets);
+        const body = tile.querySelector(".tile__body");
+        if (body === null) {
+            throw new Error("Missing right hand tile body");
+        }
+        const edgeDepth = Math.max(
+            0,
+            body.getBoundingClientRect().bottom - tile.getBoundingClientRect().bottom,
+        );
         slot.classList.remove("hand-drawn-gap");
         const width = slot.offsetWidth;
         const animation = slot.animate([{ left: `${width * 1.2}px` }, { left: "0px" }], {

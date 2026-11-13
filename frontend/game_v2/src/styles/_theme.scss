@@ -76,18 +76,8 @@
     --ronin-tile-face-light: #fffffa;
     --ronin-tile-face-rim: #e5e5db;
     --ronin-tile-drawn-mark: #2b2f33;
-    --ronin-tile-drawn-shade: rgb(20 24 22 / 24%);
-    --ronin-tile-shine: rgb(255 255 255 / 85%);
-    --ronin-tile-shade: rgb(91 93 87 / 30%);
-    --ronin-tile-pillow: rgb(80 84 78 / 38%);
-    --ronin-tile-lip: #fff;
-    --ronin-tile-side-high: #bcbcb3;
-    --ronin-tile-side-mid: #86867e;
-    --ronin-tile-edge: #7b7b73;
-    --ronin-tile-back-edge: #16120e;
-    --ronin-tile-end-light: rgb(255 255 255 / 30%);
-    --ronin-tile-end-shade: rgb(0 0 0 / 30%);
-    --ronin-tile-contact: rgb(0 0 0 / 75%);
+    --ronin-tile-side: #a09f97;
+    --ronin-tile-side-low: #93928a;
     --ronin-tile-shadow: rgb(0 0 0 / 65%);
     --ronin-tile-red: #d71e1e;
     --ronin-tile-label: #941818;
@@ -102,6 +92,8 @@
     --ronin-back-shade: #c0821f;
     --ronin-back-end: #9c5e1a;
     --ronin-back-rim: #edb75a;
+    --ronin-back-dim: #9a6c2a;
+    --ronin-back-dim-low: #7a5422;
 
     /* Badges, the pooled counters and the page corner, notices. */
     --ronin-badge: rgb(11 21 23 / 78%);

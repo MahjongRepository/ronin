@@ -1,4 +1,5 @@
 @use "@/styles/game-board/queries";
+@use "@/styles/tile";
 @use "@/styles/type";
 
 $result-column-gap: 1rem;
@@ -456,6 +457,11 @@ $result-column-gap: 1rem;
     line-height: 1;
 }
 
+.round-end-result
+    :is(.hand, .meld, .round-end-result__river-tiles, .round-end-result__indicator-tiles) {
+    padding-bottom: calc(var(--board-tile-w, 60px) * var(--tile-edge-share, 0.2));
+}
+
 .round-end-result__hand {
     grid-area: hand;
     display: flex;
@@ -470,12 +476,9 @@ $result-column-gap: 1rem;
     display: inline-flex;
     margin-inline: 0.6rem 0.3rem;
 
-    .tile {
-        box-shadow:
-            var(--tile-ring),
-            var(--tile-bevel),
-            0 0 0 2px var(--ronin-table-latest),
-            var(--tile-lift);
+    .tile__body {
+        border-radius: calc(var(--tile-w) * #{tile.$corner-share});
+        outline: 2px solid var(--ronin-table-latest);
     }
 }
 

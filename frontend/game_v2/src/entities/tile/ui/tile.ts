@@ -6,8 +6,12 @@ import {
     type FaceBox,
     type FaceSuit,
     STANDING_BODY,
+    type SeatTurn,
+    type TileBody,
+    type TileLay,
     faceArtViewBox,
     standingFaceBox,
+    tileBody,
 } from "@/entities/tile/lib/tile-body";
 import { pageTileLabels, tileLabel } from "@/entities/tile/lib/tile-labels";
 import { type TileFace, spokenTileName } from "@/entities/tile/lib/tile-utils";
@@ -57,9 +61,11 @@ function placeholderFace(face: TileFace): string {
     return `${rank === "0" ? "5" : rank}${suit}`;
 }
 
-/** Render the back of a tile, a hidden tile or one whose face the view does not know: the stylesheet draws it whole. */
-function TileBack() {
-    return html`<span class="tile tile-back" aria-label=${t("tile.hidden")}></span>`;
+function TileBack(layout: TileLayout = {}) {
+    const body = bodyOf("back", layout);
+    const width = inBodyUnits(body.across);
+    const height = inBodyUnits(body.top + body.edge);
+    return html`<span class="tile tile-back" style=${bodyStyle(body, layout)} aria-label=${t("tile.hidden")}>${svg`<svg class="tile__body" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true"><use href="#${body.id}" width="${width}" height="${height}"/></svg>`}</span>`;
 }
 
 /**
@@ -70,17 +76,24 @@ function TileBack() {
  * "back" renders the tile's back (the face identity is preserved but not visible).
  * `labels` is the script of the face's corner label, the page's setting unless given; null draws none.
  */
-function Tile(face: TileFace, show: "face" | "back", labels: WindScript | null = pageTileLabels()) {
+function Tile(face: TileFace, show: "face" | "back", options: TileOptions = {}) {
     if (show === "back") {
-        return TileBack();
+        return TileBack(options);
     }
-    const red = face.startsWith("0") ? " tile__name--red" : "";
-    const label = labels === null ? null : tileLabel(face, labels);
-    const labelMark =
-        label === null
-            ? nothing
-            : svg`<text class="tile__label${red === "" ? "" : " tile__label--red"}" x="341" y="-47" aria-hidden="true">${label}</text>`;
-    return html`<span class="tile">${svg`<svg width="100%" height="100%" viewBox="0 0 300 400" aria-label="${spokenTileName(face)}"><text class="tile__name${red}" x="150" y="200" aria-hidden="true">${placeholderFace(face)}</text><use href="#tile-${face}"/>${labelMark}</svg>`}</span>`;
+    const body = bodyOf("face", options);
+    const labels = options.labels === undefined ? pageTileLabels() : options.labels;
+    return html`<span class="tile" style=${bodyStyle(body, options)}>${FaceBody(face, body, labels)}</span>`;
+}
+
+function FaceBody(face: TileFace, body: TileBody, labels: WindScript | null) {
+    const box = body.face;
+    if (box === null) {
+        throw new Error("A face-up tile's body must hold a face box");
+    }
+    const width = inBodyUnits(body.across);
+    const height = inBodyUnits(body.top + body.edge);
+    const view = faceArtViewBox(faceSuit(face));
+    return svg`<svg class="tile__body" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-label="${spokenTileName(face)}"><use href="#${body.id}" width="${width}" height="${height}"/><svg class="tile__face" x="${inBodyUnits(box.left)}" y="${inBodyUnits(box.top)}" width="${inBodyUnits(box.width)}" height="${inBodyUnits(box.height)}" viewBox="${artViewBox(view, body.artTurn)}" preserveAspectRatio="none"><g transform="${ART_TURNS[body.artTurn](view)}">${FaceArt(face, view, labels)}</g></svg></svg>`;
 }
 
 const BODY_VIEW_HEIGHT = BODY_VIEW_WIDTH * STANDING_BODY.height;
@@ -101,16 +114,67 @@ function viewBoxOf({ height, left, top, width }: FaceBox): string {
         .join(" ");
 }
 
-function StandingTile(face: TileFace, labels: WindScript | null = pageTileLabels()) {
+interface TileLayout {
+    readonly lay?: TileLay;
+    readonly sideways?: boolean;
+    readonly turn?: SeatTurn;
+}
+
+interface TileOptions extends TileLayout {
+    readonly labels?: WindScript | null;
+}
+
+function bodyOf(material: "back" | "face", layout: TileLayout): TileBody {
+    return tileBody({
+        lay: layout.lay ?? "lying",
+        material,
+        sideways: layout.sideways === true,
+        turn: layout.turn ?? 0,
+    });
+}
+
+function bodyStyle(body: TileBody, layout: TileLayout): string {
+    return [
+        `--body-across: ${roundShare(body.across)}`,
+        `--body-top: ${roundShare(body.top)}`,
+        `--body-down: ${roundShare(body.top + body.edge)}`,
+        `--body-turn: ${-(layout.turn ?? 0)}deg`,
+    ].join("; ");
+}
+
+function roundShare(share: number): string {
+    return String(Math.round(share * 10_000) / 10_000);
+}
+
+const ART_TURNS: Readonly<Record<SeatTurn, (view: FaceBox) => string>> = {
+    0: () => "",
+    180: ({ height, left, top, width }) => `rotate(180 ${left + width / 2} ${top + height / 2})`,
+    270: ({ left, top, width }) => `translate(0 ${width}) rotate(-90) translate(${-left} ${-top})`,
+    90: ({ height, left, top }) => `translate(${height} 0) rotate(90) translate(${-left} ${-top})`,
+};
+
+function artViewBox(view: FaceBox, turn: SeatTurn): string {
+    if (turn % 180 === 0) {
+        return viewBoxOf(view);
+    }
+    return viewBoxOf({ height: view.width, left: 0, top: 0, width: view.height });
+}
+
+function FaceArt(face: TileFace, view: FaceBox, labels: WindScript | null) {
     const red = face.startsWith("0") ? " tile__name--red" : "";
     const label = labels === null ? null : tileLabel(face, labels);
-    const box = standingFaceBox();
-    const view = faceArtViewBox(faceSuit(face));
     const labelMark =
         label === null
             ? nothing
             : svg`<text class="tile__label${red === "" ? "" : " tile__label--red"}" x="${view.left + view.width - FACE_LABEL_INSET}" y="${view.top + FACE_LABEL_INSET}" aria-hidden="true">${label}</text>`;
-    return html`<span class="tile tile--standing">${svg`<svg viewBox="0 0 ${BODY_VIEW_WIDTH} ${BODY_VIEW_HEIGHT}" aria-label="${spokenTileName(face)}"><use href="#body-standing" width="${BODY_VIEW_WIDTH}" height="${BODY_VIEW_HEIGHT}"/><svg class="tile__face" x="${inBodyUnits(box.left)}" y="${inBodyUnits(box.top)}" width="${inBodyUnits(box.width)}" height="${inBodyUnits(box.height)}" viewBox="${viewBoxOf(view)}" preserveAspectRatio="none"><g class="tile__art"><text class="tile__name${red}" x="150" y="200" aria-hidden="true">${placeholderFace(face)}</text><use href="#tile-${face}" width="${FACE_ART_VIEW.width}" height="${FACE_ART_VIEW.height}"/></g>${labelMark}</svg></svg>`}</span>`;
+    return svg`<g class="tile__art"><text class="tile__name${red}" x="150" y="200" aria-hidden="true">${placeholderFace(face)}</text><use href="#tile-${face}" width="${FACE_ART_VIEW.width}" height="${FACE_ART_VIEW.height}"/></g>${labelMark}`;
+}
+
+function StandingTile(face: TileFace, labels: WindScript | null = pageTileLabels()) {
+    const box = standingFaceBox();
+    const view = faceArtViewBox(faceSuit(face));
+    return html`<span class="tile tile--standing">${svg`<svg viewBox="0 0 ${BODY_VIEW_WIDTH} ${BODY_VIEW_HEIGHT}" aria-label="${spokenTileName(face)}"><use href="#body-standing" width="${BODY_VIEW_WIDTH}" height="${BODY_VIEW_HEIGHT}"/><svg class="tile__face" x="${inBodyUnits(box.left)}" y="${inBodyUnits(box.top)}" width="${inBodyUnits(box.width)}" height="${inBodyUnits(box.height)}" viewBox="${viewBoxOf(view)}" preserveAspectRatio="none">${FaceArt(face, view, labels)}</svg></svg>`}</span>`;
 }
 
 export { StandingTile, Tile, TileBack, injectTileBodies, injectTileSprite };
+export type { TileLayout, TileOptions };

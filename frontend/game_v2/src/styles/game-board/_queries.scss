@@ -12,7 +12,6 @@ $phone-band-row-gap: 2px;
 
 /* Every layer, low to high; `.game-board` isolates the board's from the page's. */
 $layers: (
-    tile-depth: -2,
     below: -1,
     furniture: 0,
     table: 1,

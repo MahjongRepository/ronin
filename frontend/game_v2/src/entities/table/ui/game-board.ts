@@ -14,6 +14,7 @@ import {
     type BoardNameplate,
     type BoardPlayerDisplay,
     SEAT_POSITIONS,
+    SEAT_TURNS,
     type SeatPosition,
 } from "@/entities/table/model/board-types";
 import {
@@ -22,6 +23,7 @@ import {
     Meld,
     type MeldTile,
     type RiverOverflow,
+    type SeatTurn,
     Tile,
     type TileAction,
     TileBack,
@@ -84,13 +86,17 @@ interface GameBoardProps {
     readonly input?: DirectiveResult;
 }
 
+function handPose(seat: SeatPosition): { readonly standing: true } | { readonly turn: SeatTurn } {
+    return seat === "bottom" ? { standing: true } : { turn: SEAT_TURNS[seat] };
+}
+
 function HandArea(
     seat: SeatPosition,
     player: BoardPlayerDisplay | null,
     input?: LocalHandInput,
 ): TemplateResult {
     return html`<div class="board-area board-area--${seat}-hand" data-area="${seat}-hand">
-        ${player ? Hand({ drawnTile: player.drawnTile, standing: seat === "bottom", tiles: player.hand, ...input }) : ""}
+        ${player ? Hand({ drawnTile: player.drawnTile, tiles: player.hand, ...handPose(seat), ...input }) : ""}
     </div>`;
 }
 
@@ -101,7 +107,7 @@ function HandArea(
 function MeldsArea(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
     const melds = player?.melds ?? [];
     return html`<div class="board-area board-melds board-area--${seat}-melds" data-area="${seat}-melds">
-        ${melds.toReversed().map((tiles, index) => Meld(tiles, melds.length - 1 - index === player?.sourceMeld))}
+        ${melds.toReversed().map((tiles, index) => Meld(tiles, melds.length - 1 - index === player?.sourceMeld, { own: seat === "bottom", turn: SEAT_TURNS[seat] }))}
     </div>`;
 }
 
@@ -119,7 +125,7 @@ const RIVER_OVERFLOW: Readonly<Record<SeatPosition, RiverOverflow>> = {
  */
 function River(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
     return html`<div class="board-area board-river board-river--${seat}" data-area="${seat}-discards">
-        <div class="board-river__frame">${player ? Discards(player.discards, RIVER_OVERFLOW[seat]) : ""}</div>
+        <div class="board-river__frame">${player ? Discards(player.discards, RIVER_OVERFLOW[seat], SEAT_TURNS[seat]) : ""}</div>
     </div>`;
 }
 

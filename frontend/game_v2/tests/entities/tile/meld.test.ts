@@ -226,4 +226,45 @@ describe("Meld - added kan", () => {
         expect(stacked.querySelector(".meld-tile-stacked-top")).not.toBeNull();
         expect(stacked.querySelectorAll(".meld-tile-sideways")).toHaveLength(2);
     });
+
+    test("paints an added kan's tile nearer the screen's bottom last at every seat: the called one, the added one at the top seat", () => {
+        const input: MeldInput = {
+            addedTileId: 3,
+            calledTileId: 2,
+            callerSeat: 0,
+            fromSeat: 1,
+            meldType: "added_kan",
+            tileIds: [0, 1, 2, 3],
+        };
+        const paintOrder = ([0, 90, 180, 270] as const).map((turn) => {
+            const el = renderTo(Meld(meldTiles(input), false, { turn }));
+            return [...el.querySelectorAll(".meld-tile-stacked > *")].map((part) =>
+                part.classList.contains("meld-tile-stacked-bottom") ? "called" : "added",
+            );
+        });
+
+        expect(paintOrder).toEqual([
+            ["added", "called"],
+            ["added", "called"],
+            ["called", "added"],
+            ["added", "called"],
+        ]);
+    });
+
+    test("lays an own meld's tiles in the own row's foreshortened bodies, its called tile across", () => {
+        const input: MeldInput = {
+            calledTileId: 4,
+            callerSeat: 0,
+            fromSeat: 3,
+            meldType: "chi",
+            tileIds: [8, 4, 0],
+        };
+        const el = renderTo(Meld(meldTiles(input), false, { own: true, turn: 0 }));
+
+        expect(
+            [...laidTiles(el)].map((tile) =>
+                tile.querySelector(".tile__body > use")?.getAttribute("href"),
+            ),
+        ).toEqual(["#body-lying-own-sideways", "#body-lying-own", "#body-lying-own"]);
+    });
 });

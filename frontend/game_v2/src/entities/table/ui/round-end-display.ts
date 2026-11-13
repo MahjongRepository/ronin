@@ -198,7 +198,7 @@ function NagashiRivers(page: DrawPageDisplay): TemplateResult | typeof nothing {
                 <span class="round-end-result__river-tiles">${river.tiles.map(
                     (tile) =>
                         html`<span class=${tile.riichi === true ? "discard-tile-riichi" : "discard-tile"}
-                            >${Tile(tile.face, "face")}</span
+                            >${Tile(tile.face, "face", { sideways: tile.riichi === true })}</span
                         >`,
                 )}</span>
             </li>`,

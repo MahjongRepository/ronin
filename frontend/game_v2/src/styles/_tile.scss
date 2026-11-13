@@ -1,68 +1,15 @@
 @use "sass:list";
-@use "sass:map";
 @use "sass:math";
-@use "@/styles/game-board/queries" as *;
 
-$glyph-room: 0.13;
 $corner-share: 0.07;
 $standing-art-shade: 0.8;
 $corner-floor: 1.5px;
-
-/* One light for every seat (docs/game-client-look.md, Flat top-down), in shares of the tile's width. */
-$lip-share: 0.025;
-$side-high-share: 0.04;
-$side-mid-share: 0.1;
-$body-share: 0.15;
-$back-share: 0.05;
-$bevel-share: 0.045;
-$pillow-share: 0.09;
-$contact-y: 0.035;
-$contact-blur: 0.05;
 $cast-x: 0.12;
 $cast-y: 0.2;
 $cast-blur: 0.24;
 $cast-pull: math.max(0, math.div($cast-blur - $cast-x, 2));
-$edge-bands: (
-    lip: (
-        $lip-share,
-        var(--ronin-tile-lip),
-    ),
-    side-high: (
-        $side-high-share,
-        var(--ronin-tile-side-high),
-    ),
-    side-mid: (
-        $side-mid-share,
-        var(--ronin-tile-side-mid),
-    ),
-    body: (
-        $body-share,
-        var(--ronin-tile-edge),
-    ),
-    back: (
-        $body-share + $back-share,
-        var(--ronin-tile-back-edge),
-    ),
-);
+$max-strip-melds: 4;
 
-@function band-share($band) {
-    @return list.nth(map.get($edge-bands, $band), 1);
-}
-
-/* A band's depth under the face for tiles of width `$unit`: its share, the body's ending at least 1px above the back
-   so a small tile's seam still draws, never above the band before it. */
-@function band-depth($band, $unit) {
-    @if $band == body {
-        @return max(
-            calc(#{band-share(side-mid)} * #{$unit}),
-            min(calc(#{band-share(body)} * #{$unit}), calc(#{band-share(back)} * #{$unit} - 1px))
-        );
-    }
-
-    @return calc(#{band-share($band)} * #{$unit});
-}
-
-/* The corners of a box `$across` tile widths wide and `$down` tall: round, a share of the tile's width. */
 @function corner-radius($across, $down, $share: $corner-share) {
     @return list.slash(
         max($corner-floor, math.percentage(math.div($share, $across))),
@@ -70,118 +17,45 @@ $edge-bands: (
     );
 }
 
-@function band-colour($band) {
-    @return list.nth(map.get($edge-bands, $band), 2);
-}
-
-/* `$name-x`/`$name-y`: the screen offset (`$x`, `$y`) times `$size`, in the frame turned by `$turn`, so it lands on the
-   screen where it would on an unturned tile. */
-@mixin screen-offset($name, $x, $y, $size, $turn) {
-    --#{$name}-x: calc((#{$x} * cos(#{$turn}) + #{$y} * sin(#{$turn})) * #{$size});
-    --#{$name}-y: calc((#{$y} * cos(#{$turn}) - #{$x} * sin(#{$turn})) * #{$size});
-}
-
-@mixin screen-shift($name, $x-length, $y-length, $turn) {
-    --#{$name}-x: calc(#{$x-length} * cos(#{$turn}) + #{$y-length} * sin(#{$turn}));
-    --#{$name}-y: calc(#{$y-length} * cos(#{$turn}) - #{$x-length} * sin(#{$turn}));
-}
-
-@mixin cast-shadow-shift($name, $edge-depth, $unit, $turn) {
-    @include screen-shift(
-        $name,
-        calc(#{$cast-x + $cast-pull} * #{$unit}),
-        calc(#{$edge-depth} + #{$cast-y + $cast-pull} * #{$unit}),
-        $turn
+@mixin cast-shadow($unit) {
+    filter: drop-shadow(
+        calc(#{$unit} * #{$cast-x}) calc(#{$unit} * #{$cast-y}) calc(#{$unit} * #{$cast-blur})
+            var(--ronin-tile-shadow)
     );
 }
 
 .tile {
     --tile-w: 60px;
-    --tile-turn: var(--frame-turn, 0deg);
-    --unit: var(--tile-w);
-    --edge-unit: var(--unit);
 
-    @each $band, $spec in $edge-bands {
-        @include screen-offset($band, 0, 1, band-depth($band, var(--edge-unit)), var(--tile-turn));
-    }
-
-    @include screen-offset(
-        bevel,
-        1,
-        1,
-        max(1px, calc(var(--unit) * #{$bevel-share * 0.7})),
-        var(--tile-turn)
-    );
-    @include screen-offset(
-        contact,
-        0,
-        band-share(back) + $contact-y,
-        var(--edge-unit),
-        var(--tile-turn)
-    );
-    @include cast-shadow-shift(
-        cast,
-        calc(var(--edge-unit) * #{band-share(back)}),
-        var(--unit),
-        var(--tile-turn)
-    );
-
-    --tile-ring: 0 0 transparent;
-    --tile-bevel:
-        inset var(--bevel-x) var(--bevel-y) max(1px, calc(var(--unit) * #{$bevel-share}))
-            var(--ronin-tile-shine),
-        inset 0 0 calc(var(--unit) * #{$pillow-share}) var(--ronin-tile-pillow);
-    --tile-edge:
-        var(--lip-x) var(--lip-y) 0 #{band-colour(lip)},
-        var(--side-high-x) var(--side-high-y) 0 #{band-colour(side-high)},
-        var(--side-mid-x) var(--side-mid-y) 0 #{band-colour(side-mid)},
-        var(--body-x) var(--body-y) 0 #{band-colour(body)},
-        var(--back-x) var(--back-y) 0 #{band-colour(back)};
-    --tile-depth:
-        var(--tile-edge),
-        var(--contact-x) var(--contact-y) calc(var(--unit) * #{$contact-blur})
-            calc(var(--unit) * #{-$contact-blur * 0.5}) var(--ronin-tile-contact),
-        var(--cast-x) var(--cast-y) calc(var(--unit) * #{$cast-blur})
-            calc(var(--unit) * #{-$cast-pull}) var(--ronin-tile-shadow);
-    --tile-lift: var(--tile-depth);
-
+    position: relative;
     display: inline-block;
     width: var(--tile-w);
     height: calc(var(--tile-w) * 4 / 3);
-    padding: calc(var(--tile-w) * #{$glyph-room});
-    border-radius: corner-radius(1, math.div(4, 3));
-    background: radial-gradient(
-        ellipse 80% 72% at 50% 42%,
-        var(--ronin-tile-face-light),
-        var(--ronin-tile-face) 62%,
-        var(--ronin-tile-face-rim)
-    );
-    box-shadow: var(--tile-ring), var(--tile-bevel), var(--tile-lift);
+}
+
+.tile__body {
+    @include cast-shadow(var(--tile-w));
+
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(var(--tile-w) * var(--body-across));
+    height: calc(var(--tile-w) * var(--body-down));
+    margin-left: calc(var(--tile-w) * var(--body-across) / -2);
+    margin-top: calc(var(--tile-w) * var(--body-top) / -2);
+    overflow: visible;
+    transform-origin: 50% calc(var(--tile-w) * var(--body-top) / 2);
+    transform: rotate(var(--body-turn, 0deg));
+}
+
+.tile--standing {
+    --tile-lift: calc(var(--tile-w) * #{$cast-x + $cast-pull})
+        calc(var(--tile-w) * #{$cast-y + $cast-pull}) calc(var(--tile-w) * #{$cast-blur})
+        calc(var(--tile-w) * #{-$cast-pull}) var(--ronin-tile-shadow);
 
     > svg {
         display: block;
         width: 100%;
-        height: 100%;
-    }
-}
-
-.tile--standing {
-    @include screen-offset(
-        cast,
-        $cast-x + $cast-pull,
-        $cast-y + $cast-pull,
-        var(--unit),
-        var(--tile-turn)
-    );
-
-    --tile-depth: var(--cast-x) var(--cast-y) calc(var(--unit) * #{$cast-blur})
-        calc(var(--unit) * #{-$cast-pull}) var(--ronin-tile-shadow);
-
-    padding: 0;
-    background: none;
-    box-shadow: none;
-
-    > svg {
         height: auto;
         border-radius: calc(var(--tile-w) * var(--standing-body-corner));
         box-shadow: var(--tile-lift);
@@ -189,160 +63,98 @@ $edge-bands: (
     }
 }
 
-@mixin standing-cast-filter($unit, $turn) {
-    @include screen-offset(group-cast, $cast-x, $cast-y, $unit, $turn);
-
-    filter: drop-shadow(
-        var(--group-cast-x) var(--group-cast-y) calc(#{$unit} * #{$cast-blur})
-            var(--ronin-tile-shadow)
-    );
-}
-
-/* A sideways tile is a box as long as the tile is tall with only its face turned: a turned box of a fractional size
-   paints off its layout box, below the row's baseline. */
 :is(.meld-tile-sideways, .discard-tile-riichi) > .tile {
     position: absolute;
     inset: 0;
     width: auto;
     height: auto;
-    border-radius: corner-radius(math.div(4, 3), 1);
-
-    svg {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: calc(var(--tile-w) * #{1 - 2 * $glyph-room});
-        height: calc(var(--tile-w) * 4 / 3 - var(--tile-w) * #{2 * $glyph-room});
-        transform: translate(-50%, -50%) rotate(90deg);
-    }
 }
 
-/* One edge and shadow under everything the element paints, for tiles of width `$unit` in a frame turned by `$turn`. */
-@mixin group-edge($unit, $turn, $cast-unit: $unit) {
-    --unit: #{$unit};
-    --cast-unit: #{$cast-unit};
-
-    $filter: ();
-    $reached: 0px;
-
-    @each $band, $spec in $edge-bands {
-        @include screen-offset(
-            group-#{$band},
-            0,
-            1,
-            calc(#{band-depth($band, var(--unit))} - #{$reached}),
-            $turn
-        );
-
-        $filter: list.append(
-            $filter,
-            drop-shadow(var(--group-#{$band}-x) var(--group-#{$band}-y) 0 band-colour($band))
-        );
-        $reached: band-depth($band, var(--unit));
-    }
-
-    @include screen-offset(group-contact, 0, $contact-y, var(--unit), $turn);
-    @include screen-offset(group-cast, $cast-x, $cast-y, var(--cast-unit), $turn);
-
-    filter: $filter
-        drop-shadow(
-            var(--group-contact-x) var(--group-contact-y) calc(var(--unit) * #{$contact-blur * 0.5})
-                var(--ronin-tile-contact)
-        )
-        drop-shadow(
-            var(--group-cast-x) var(--group-cast-y) calc(var(--cast-unit) * #{$cast-blur})
-                var(--ronin-tile-shadow)
-        );
+:where(
+        .discards,
+        .meld,
+        .hand:not(:has(> button)),
+        .board-dora__tiles,
+        .round-end-result__indicator-tiles,
+        .board-motion
+    )
+    .tile__body {
+    filter: none;
 }
 
 .discards,
 .meld,
-.hand:not(:has(> button)) {
-    @include group-edge(var(--board-tile-w, 60px), var(--frame-turn, 0deg));
+.hand:not(:has(> button)),
+.board-dora__tiles,
+.round-end-result__indicator-tiles {
+    @include cast-shadow(var(--board-tile-w, 60px));
 
-    .tile {
+    .tile--standing {
         --tile-lift: 0 0 transparent;
     }
 }
 
-/* Firefox on macOS draws a turned element's filter unturned, so the rivers take their edge from an unturned layer. */
 .board-rivers {
-    @include group-edge(var(--rw), 0deg);
+    @include cast-shadow(var(--rw));
 
     .discards {
         filter: none;
     }
 }
 
-.board-local .hand:not(:has(> button)):has(.tile--standing) {
-    @include standing-cast-filter(var(--board-tile-w, 60px), var(--frame-turn, 0deg));
+.board-strip {
+    @include cast-shadow(var(--bw));
+
+    :is(.hand, .meld) {
+        filter: none;
+    }
 }
 
-.board-local .meld {
-    @include group-edge(
-        calc(var(--board-tile-w, 60px) * var(--own-lying-edge-scale)),
-        var(--frame-turn, 0deg),
-        var(--board-tile-w, 60px)
-    );
+.board-strip--right {
+    .board-area--right-hand {
+        z-index: 2;
+    }
+
+    .board-area--right-melds {
+        z-index: 1;
+    }
+
+    @for $k from 1 through $max-strip-melds {
+        .board-melds > :nth-child(#{$k}) {
+            z-index: $max-strip-melds + 1 - $k;
+        }
+    }
 }
 
 .board-local .meld-tile:not(.meld-tile-sideways) > .tile {
     height: calc(var(--tile-w) * 4 / 3 * var(--own-lying-height-share));
-    padding-block: calc(var(--tile-w) * #{$glyph-room} * var(--own-lying-height-share));
-
-    svg {
-        height: calc(var(--tile-w) * #{math.div(4, 3) - 2 * $glyph-room});
-        transform: scaleY(var(--own-lying-height-share));
-        transform-origin: 50% 0;
-    }
-}
-
-.board-local .meld-tile-sideways > .tile svg {
-    transform: translate(-50%, -50%) scaleY(var(--own-lying-height-share)) rotate(90deg);
-}
-
-@mixin flight-edge($unit, $edge-unit) {
-    --unit: #{$unit};
-
-    $body-depth: band-depth(body, $edge-unit);
-    $base-depth: calc(
-        #{band-depth(back, $edge-unit)} - #{$body-depth} + #{$contact-y} * #{$edge-unit}
-    );
-
-    filter: drop-shadow(0 $body-depth 0 band-colour(side-mid))
-        drop-shadow(0 $base-depth 0 band-colour(back))
-        drop-shadow(
-            calc(#{$unit} * #{$cast-x}) calc(#{$unit} * #{$cast-y}) calc(#{$unit} * #{$cast-blur})
-                var(--ronin-tile-shadow)
-        );
 }
 
 .game-board .board-motion__tile {
-    --motion-edge-scale: calc(1 + (var(--own-lying-edge-scale) - 1) * var(--motion-lying));
-
-    @include flight-edge(var(--motion-width), calc(var(--motion-width) * var(--motion-edge-scale)));
+    @include cast-shadow(var(--motion-width));
 
     > .tile {
         --tile-w: var(--motion-width);
-        --edge-unit: calc(var(--unit) * var(--motion-edge-scale));
-        --tile-turn: var(--motion-angle);
 
         position: absolute;
         left: 50%;
         top: 50%;
         height: var(--motion-height);
         margin: 0;
-        transform: translate(-50%, -50%)
-            scaleY(calc(1 - (1 - var(--own-lying-height-share)) * var(--motion-lying)))
-            rotate(var(--motion-angle));
+        transform: translate(-50%, -50%) rotate(var(--motion-angle));
+
+        > .tile__body {
+            width: var(--motion-across);
+            height: calc(var(--motion-down) * var(--body-down) / var(--body-top));
+            margin-left: calc(var(--motion-across) / -2);
+            margin-top: calc(var(--motion-down) / -2);
+            transform-origin: 50% calc(var(--motion-down) / 2);
+            transform: rotate(calc(-1 * var(--motion-angle)));
+        }
     }
 
-    &:not(.board-motion__tile--individual) > .tile {
+    &:not(.board-motion__tile--individual) > .tile--standing {
         --tile-lift: 0 0 transparent;
-    }
-
-    &:has(> .tile--standing):not(.board-motion__tile--individual, .board-motion__tile--trail) {
-        @include standing-cast-filter(var(--motion-width), 0deg);
     }
 
     &--individual,
@@ -351,131 +163,6 @@ $edge-bands: (
     }
 }
 
-/* A back: one quiet colour with its own rim, on the same edge and shadow, so a strip of backs reads tile by tile. */
-.tile-back {
-    --tile-ring: inset 0 0 0 1px var(--ronin-back-rim);
-
-    background: radial-gradient(
-        ellipse 80% 72% at 50% 42%,
-        var(--ronin-back-light),
-        var(--ronin-back) 62%,
-        var(--ronin-back-shade)
-    );
-}
-
-$cap-share: 0.5;
-$back-split: 45%;
-
-@function standing-top($back, $face) {
-    @return linear-gradient(to bottom, #{$back} 0 $back-split, #{$face} $back-split);
-}
-
-.board-strip .hand-tile > .tile-back {
-    --tile-ring: inset 0 0 0 1px var(--ronin-tile-shade);
-
-    height: calc(var(--tile-w) * 4 / 3 * #{$cap-share});
-    margin-top: calc(var(--tile-w) * 4 / 3 * #{1 - $cap-share});
-    border-radius: corner-radius(1, math.div(4, 3) * $cap-share);
-    background: standing-top(var(--ronin-back), var(--ronin-tile-face));
-}
-
-/* Firefox on macOS draws a filter inside a turned frame unturned, so an opponent's tiles draw their own depth, every
-   tile's below every face of its group. */
-.board-strip {
-    .hand,
-    .meld {
-        isolation: isolate;
-        filter: none;
-    }
-
-    :where(.hand-tile, .meld-tile:not(.meld-tile-sideways, .meld-tile-stacked)) > .tile {
-        position: relative;
-    }
-
-    :is(.hand-tile > .tile, .meld .tile)::after {
-        content: "";
-        position: absolute;
-        z-index: layer(tile-depth);
-        inset: 0;
-        border-radius: inherit;
-        box-shadow: var(--tile-depth);
-    }
-}
-
-$max-meld-tiles: 4;
-
-/* A reflow's transform gives each meld tile its own stacking context, so where a tile's depth falls toward the tile
-   before it, the tiles paint last to first. */
-:is(.board-strip--top, .board-strip--right) .meld {
-    flex-direction: row-reverse;
-
-    @for $k from 1 through $max-meld-tiles {
-        > :nth-child(#{$k}) {
-            order: $max-meld-tiles - $k;
-        }
-    }
-}
-
-/* A standing tile's end, split as its top, shows below it: the top strip sees only the back's layer, a side strip both. */
-.board-strip .hand-tile > .tile-back {
-    @include cast-shadow-shift(
-        standing-cast,
-        calc(var(--edge-unit) * #{-$back-share}),
-        var(--unit),
-        var(--tile-turn)
-    );
-
-    position: relative;
-
-    &::after {
-        content: "";
-        position: absolute;
-        z-index: layer(tile-depth);
-        inset: 0;
-        border-radius: inherit;
-        background:
-            linear-gradient(
-                calc(180deg - var(--tile-turn)),
-                var(--ronin-tile-end-light) calc(100% - var(--edge-unit) * #{band-share(back)}),
-                transparent calc(100% - var(--edge-unit) * #{band-share(side-mid)}),
-                var(--ronin-tile-end-shade)
-            ),
-            standing-top(var(--ronin-back-end), var(--ronin-tile-side-mid));
-        box-shadow: var(--standing-cast-x) var(--standing-cast-y) calc(var(--unit) * #{$cast-blur})
-            calc(var(--unit) * #{-$cast-pull}) var(--ronin-tile-shadow);
-        transform: translate(var(--back-x), var(--back-y));
-    }
-}
-
-/* A side strip runs along the light, so the group's edge would fill each hairline and show in the tiles' rounded
-   corners: the table's colour lies under the hairline, over that edge, a corner's radius into both tiles. */
-@mixin seam-mask($left) {
-    --seam: var(--bgap);
-    --seam-corner: max(#{$corner-floor}, calc(var(--tile-w) * #{$corner-share}));
-
-    &::before {
-        content: "";
-        position: absolute;
-        z-index: layer(below);
-        top: 0;
-        bottom: 0;
-        left: $left;
-        width: calc(var(--seam) + 2 * var(--seam-corner));
-        background: var(--ronin-table-edge);
-    }
-}
-
-/* The mask stands on the tile whose edge does not fall into the seam, so a tile a reflow carries away keeps its edge
-   attached rather than cut: on the left the edge belongs to the tile before the seam, on the right to the one after. */
-.board-strip--left .hand-tile + .hand-tile:not(.hand-drawn-gap) > .tile {
-    @include seam-mask(calc(-1 * (var(--seam) + var(--seam-corner))));
-}
-
-.board-strip--right .hand-tile:has(+ .hand-tile:not(.hand-drawn-gap)) > .tile {
-    @include seam-mask(calc(100% - var(--seam-corner)));
-}
-
-/* A face's name stands in for it until the sprite is in the document, in the tile's own viewBox units. */
 .tile__name {
     font-size: 150px;
     font-weight: 700;
@@ -490,10 +177,6 @@ $max-meld-tiles: 4;
     :root[data-tile-sprite="ready"] & {
         display: none;
     }
-}
-
-.tile > svg:has(> .tile__label) {
-    overflow: visible;
 }
 
 .tile__label {

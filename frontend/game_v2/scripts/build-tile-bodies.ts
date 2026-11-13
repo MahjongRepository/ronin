@@ -1,14 +1,29 @@
 import { writeFile } from "node:fs/promises";
 
-import { BODY_VIEW_WIDTH, STANDING_BODY } from "../src/entities/tile/lib/tile-body.ts";
+import {
+    BODY_VIEW_WIDTH,
+    LYING_BODIES,
+    LYING_BODY,
+    type LyingBodyShape,
+    STANDING_BACK_BODIES,
+    STANDING_BACK_BODY,
+    STANDING_BODY,
+    type StandingBackShape,
+    standingBackCap,
+} from "../src/entities/tile/lib/tile-body.ts";
 
 const OUTPUT = new URL("../src/assets/tiles/sprites/bodies.svg", import.meta.url);
-const BODY_WIDTH = BODY_VIEW_WIDTH;
-const BODY_HEIGHT = String(STANDING_BODY.height * BODY_WIDTH);
 const MASK_COLOUR = "--ronin-tile-ridge";
 const RIM_STRENGTH_ON_TOP = 0.55;
 const RIM_STRENGTH_ON_CREST = 0.3;
 const RIM_STRENGTH_ON_FRONT = 0.8;
+const LYING_RIM_STRENGTH_ON_TOP = 0.9;
+const LYING_RIM_STRENGTH_ON_EDGE = 0.45;
+const LYING_ROLL_LEAD = 0.03;
+const LYING_TOP_SHINE = 0.022;
+const STANDING_BACK_ROLL_LEAD = 0.025;
+const STANDING_BACK_GLINT = 0.035;
+const STANDING_BACK_FOOT = 0.08;
 
 interface Stop {
     readonly at: number;
@@ -21,8 +36,48 @@ interface Layer {
     readonly mask?: string;
 }
 
+interface Size {
+    readonly height: number;
+    readonly width: number;
+}
+
+interface LyingPalette {
+    readonly crest: string;
+    readonly lit: string;
+    readonly middle: string;
+    readonly rolled: string;
+    readonly underLayer: readonly [string, string];
+    readonly upperLayer: readonly [string, string];
+}
+
+const FACE_UP_PALETTE: LyingPalette = {
+    crest: "--ronin-tile-ridge",
+    lit: "--ronin-tile-face-light",
+    middle: "--ronin-tile-face",
+    rolled: "--ronin-tile-face-rim",
+    underLayer: ["--ronin-back-shade", "--ronin-back-end"],
+    upperLayer: ["--ronin-tile-side", "--ronin-tile-side-low"],
+};
+
+const FACE_DOWN_PALETTE: LyingPalette = {
+    crest: "--ronin-back-rim",
+    lit: "--ronin-back-light",
+    middle: "--ronin-back",
+    rolled: "--ronin-back-shade",
+    underLayer: ["--ronin-tile-side", "--ronin-tile-side-low"],
+    upperLayer: ["--ronin-back-shade", "--ronin-back-end"],
+};
+
 function formatNumber(value: number): string {
     return String(Math.round(value * 10_000) / 10_000);
+}
+
+function inViewUnits(share: number): number {
+    return share * BODY_VIEW_WIDTH;
+}
+
+function sizeOf(across: number, down: number): Size {
+    return { height: inViewUnits(down), width: inViewUnits(across) };
 }
 
 function renderStop({ at, colour, opacity = 1 }: Stop): string {
@@ -35,21 +90,63 @@ function renderGradient(id: string, direction: "down" | "across", stops: readonl
     return `<linearGradient id="${id}" x1="0" y1="0" ${end}>${stops.map(renderStop).join("")}</linearGradient>`;
 }
 
-function renderBox(fill: string, mask?: string): string {
+function renderBox({ width, height }: Size, fill: string, mask?: string): string {
     const maskAttribute = mask === undefined ? "" : ` mask="url(#${mask})"`;
-    return `<rect width="${BODY_WIDTH}" height="${BODY_HEIGHT}" fill="url(#${fill})"${maskAttribute}/>`;
+    return `<rect width="${formatNumber(width)}" height="${formatNumber(height)}" fill="url(#${fill})"${maskAttribute}/>`;
 }
 
-function renderMask(id: string, gradient: string): string {
-    return `<mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="${BODY_WIDTH}" height="${BODY_HEIGHT}" style="mask-type: alpha">${renderBox(gradient)}</mask>`;
+function renderMask(size: Size, id: string, gradient: string): string {
+    return `<mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="${formatNumber(size.width)}" height="${formatNumber(size.height)}" style="mask-type: alpha">${renderBox(size, gradient)}</mask>`;
 }
 
-function standingHeightShare(depth: number): number {
-    return depth / STANDING_BODY.height;
+interface BodySymbol {
+    readonly cornerRadius: number;
+    readonly gradients: readonly string[];
+    readonly id: string;
+    readonly layers: readonly Layer[];
+    readonly masks: readonly (readonly [string, string])[];
+    readonly size: Size;
+}
+
+function renderSymbol({ id, size, cornerRadius, gradients, masks, layers }: BodySymbol): string {
+    const width = formatNumber(size.width);
+    const height = formatNumber(size.height);
+    const radius = formatNumber(inViewUnits(cornerRadius));
+    return [
+        `<symbol id="${id}" viewBox="0 0 ${width} ${height}">`,
+        "<defs>",
+        `<clipPath id="${id}-outline"><rect width="${width}" height="${height}" rx="${radius}"/></clipPath>`,
+        ...gradients,
+        ...masks.map(([mask, gradient]) => renderMask(size, mask, gradient)),
+        "</defs>",
+        `<g clip-path="url(#${id}-outline)">`,
+        ...layers.map((layer) => renderBox(size, layer.gradient, layer.mask)),
+        "</g>",
+        "</symbol>",
+    ].join("");
 }
 
 function strengthStops(points: readonly (readonly [number, number])[]): readonly Stop[] {
     return points.map(([at, opacity]) => ({ at, colour: MASK_COLOUR, opacity }));
+}
+
+function rimStops(across: number, litRim: number, shadedRim: number): readonly Stop[] {
+    const lit = litRim / across;
+    const shaded = shadedRim / across;
+    return [
+        { at: 0, colour: "--ronin-tile-rim-light", opacity: 0.8 },
+        { at: lit * 0.3, colour: "--ronin-tile-rim-light", opacity: 0.45 },
+        { at: lit * 0.65, colour: "--ronin-tile-rim-light", opacity: 0.15 },
+        { at: lit, colour: "--ronin-tile-rim-light", opacity: 0 },
+        { at: 1 - shaded, colour: "--ronin-tile-rim-shade", opacity: 0 },
+        { at: 1 - shaded * 0.6, colour: "--ronin-tile-rim-shade", opacity: 0.15 },
+        { at: 1 - shaded * 0.3, colour: "--ronin-tile-rim-shade", opacity: 0.45 },
+        { at: 1, colour: "--ronin-tile-rim-shade", opacity: 0.9 },
+    ];
+}
+
+function standingHeightShare(depth: number): number {
+    return depth / STANDING_BODY.height;
 }
 
 function standingDepthStops(): readonly Stop[] {
@@ -97,20 +194,6 @@ function standingCrestEndStops(): readonly Stop[] {
     ]);
 }
 
-function standingRimStops(): readonly Stop[] {
-    const { litRim, shadedRim } = STANDING_BODY;
-    return [
-        { at: 0, colour: "--ronin-tile-rim-light", opacity: 0.8 },
-        { at: litRim * 0.3, colour: "--ronin-tile-rim-light", opacity: 0.45 },
-        { at: litRim * 0.65, colour: "--ronin-tile-rim-light", opacity: 0.15 },
-        { at: litRim, colour: "--ronin-tile-rim-light", opacity: 0 },
-        { at: 1 - shadedRim, colour: "--ronin-tile-rim-shade", opacity: 0 },
-        { at: 1 - shadedRim * 0.6, colour: "--ronin-tile-rim-shade", opacity: 0.15 },
-        { at: 1 - shadedRim * 0.3, colour: "--ronin-tile-rim-shade", opacity: 0.45 },
-        { at: 1, colour: "--ronin-tile-rim-shade", opacity: 0.9 },
-    ];
-}
-
 function standingRimContourStops(): readonly Stop[] {
     const { crestStart, ridge, frontStart } = STANDING_BODY;
     return strengthStops([
@@ -133,37 +216,217 @@ function standingFootStops(): readonly Stop[] {
 
 function renderStandingBody(): string {
     const id = "body-standing";
-    const radius = formatNumber(STANDING_BODY.cornerRadius * BODY_WIDTH);
-    const layers: readonly Layer[] = [
-        { gradient: `${id}-depth` },
-        { gradient: `${id}-crest`, mask: `${id}-crest-ends` },
-        { gradient: `${id}-rims`, mask: `${id}-rim-contour` },
-        { gradient: `${id}-foot` },
-    ];
+    const size = sizeOf(1, STANDING_BODY.height);
+    return renderSymbol({
+        cornerRadius: STANDING_BODY.cornerRadius,
+        gradients: [
+            renderGradient(`${id}-depth`, "down", standingDepthStops()),
+            renderGradient(`${id}-crest`, "down", standingCrestStops()),
+            renderGradient(`${id}-crest-ends-fade`, "across", standingCrestEndStops()),
+            renderGradient(
+                `${id}-rims`,
+                "across",
+                rimStops(1, STANDING_BODY.litRim, STANDING_BODY.shadedRim),
+            ),
+            renderGradient(`${id}-rim-contour-fade`, "down", standingRimContourStops()),
+            renderGradient(`${id}-foot`, "down", standingFootStops()),
+        ],
+        id,
+        layers: [
+            { gradient: `${id}-depth` },
+            { gradient: `${id}-crest`, mask: `${id}-crest-ends` },
+            { gradient: `${id}-rims`, mask: `${id}-rim-contour` },
+            { gradient: `${id}-foot` },
+        ],
+        masks: [
+            [`${id}-crest-ends`, `${id}-crest-ends-fade`],
+            [`${id}-rim-contour`, `${id}-rim-contour-fade`],
+        ],
+        size,
+    });
+}
+
+function lyingDepthStops(shape: LyingBodyShape, palette: LyingPalette): readonly Stop[] {
+    const height = shape.top + shape.edge;
+    const upperLayer = shape.material === "face" ? 1 - LYING_BODY.backLayer : LYING_BODY.backLayer;
+    const rollEnd = shape.top + shape.edge * LYING_BODY.roll;
+    const layerEnd = shape.top + shape.edge * upperLayer;
     return [
-        `<symbol id="${id}" viewBox="0 0 ${BODY_WIDTH} ${BODY_HEIGHT}">`,
-        "<defs>",
-        `<clipPath id="${id}-outline"><rect width="${BODY_WIDTH}" height="${BODY_HEIGHT}" rx="${radius}"/></clipPath>`,
-        renderGradient(`${id}-depth`, "down", standingDepthStops()),
-        renderGradient(`${id}-crest`, "down", standingCrestStops()),
-        renderGradient(`${id}-crest-ends-fade`, "across", standingCrestEndStops()),
-        renderGradient(`${id}-rims`, "across", standingRimStops()),
-        renderGradient(`${id}-rim-contour-fade`, "down", standingRimContourStops()),
-        renderGradient(`${id}-foot`, "down", standingFootStops()),
-        renderMask(`${id}-crest-ends`, `${id}-crest-ends-fade`),
-        renderMask(`${id}-rim-contour`, `${id}-rim-contour-fade`),
-        "</defs>",
-        `<g clip-path="url(#${id}-outline)">`,
-        ...layers.map((layer) => renderBox(layer.gradient, layer.mask)),
-        "</g>",
-        "</symbol>",
-    ].join("");
+        { at: 0, colour: palette.crest },
+        { at: LYING_TOP_SHINE / height, colour: palette.lit },
+        { at: (shape.top * 0.55) / height, colour: palette.middle },
+        { at: (shape.top - LYING_ROLL_LEAD) / height, colour: palette.rolled },
+        { at: rollEnd / height, colour: palette.upperLayer[0] },
+        { at: layerEnd / height, colour: palette.upperLayer[1] },
+        { at: layerEnd / height, colour: palette.underLayer[0] },
+        { at: 1, colour: palette.underLayer[1] },
+    ];
+}
+
+function lyingRimContourStops(shape: LyingBodyShape): readonly Stop[] {
+    const height = shape.top + shape.edge;
+    return strengthStops([
+        [0, LYING_RIM_STRENGTH_ON_TOP],
+        [(shape.top - LYING_ROLL_LEAD) / height, LYING_RIM_STRENGTH_ON_TOP],
+        [(shape.top + shape.edge * LYING_BODY.roll) / height, LYING_RIM_STRENGTH_ON_EDGE],
+        [1, LYING_RIM_STRENGTH_ON_EDGE],
+    ]);
+}
+
+function renderLyingBody(id: string, shape: LyingBodyShape): string {
+    const palette = shape.material === "face" ? FACE_UP_PALETTE : FACE_DOWN_PALETTE;
+    return renderSymbol({
+        cornerRadius: LYING_BODY.cornerRadius,
+        gradients: [
+            renderGradient(`${id}-depth`, "down", lyingDepthStops(shape, palette)),
+            renderGradient(
+                `${id}-rims`,
+                "across",
+                rimStops(shape.across, LYING_BODY.litRim, LYING_BODY.shadedRim),
+            ),
+            renderGradient(`${id}-rim-contour-fade`, "down", lyingRimContourStops(shape)),
+        ],
+        id,
+        layers: [
+            { gradient: `${id}-depth` },
+            { gradient: `${id}-rims`, mask: `${id}-rim-contour` },
+        ],
+        masks: [[`${id}-rim-contour`, `${id}-rim-contour-fade`]],
+        size: sizeOf(shape.across, shape.top + shape.edge),
+    });
+}
+
+interface StandingBackPalette {
+    readonly crest: string;
+    readonly lit: string;
+    readonly middle: string;
+    readonly rolled: string;
+    readonly side: readonly [string, string];
+}
+
+const STANDING_FACE_LAYER: StandingBackPalette = {
+    crest: "--ronin-tile-ridge",
+    lit: "--ronin-tile-ridge",
+    middle: "--ronin-tile-top",
+    rolled: "--ronin-tile-face-rim",
+    side: ["--ronin-tile-side", "--ronin-tile-side-low"],
+};
+
+const STANDING_BACK_LAYER: StandingBackPalette = {
+    crest: "--ronin-back-shade",
+    lit: "--ronin-back-dim",
+    middle: "--ronin-back-dim",
+    rolled: "--ronin-back-dim-low",
+    side: ["--ronin-back-dim-low", "--ronin-back-dim-low"],
+};
+
+function standingTopStops(shape: StandingBackShape, palette: StandingBackPalette): readonly Stop[] {
+    const height = shape.top + shape.edge;
+    const rollEnd = shape.top + shape.edge * LYING_BODY.roll;
+    return [
+        { at: 0, colour: palette.crest },
+        { at: LYING_TOP_SHINE / height, colour: palette.lit },
+        { at: (shape.top * 0.55) / height, colour: palette.middle },
+        { at: (shape.top - STANDING_BACK_ROLL_LEAD) / height, colour: palette.rolled },
+        { at: rollEnd / height, colour: palette.side[0] },
+        { at: 1, colour: palette.side[1] },
+    ];
+}
+
+function standingCapStops(shape: StandingBackShape): readonly Stop[] {
+    const height = shape.top + shape.edge;
+    const cap = standingBackCap(shape);
+    return [
+        { at: 0, colour: STANDING_FACE_LAYER.crest },
+        { at: LYING_TOP_SHINE / height, colour: STANDING_FACE_LAYER.lit },
+        { at: (cap * 0.5) / height, colour: STANDING_FACE_LAYER.middle },
+        { at: cap / height, colour: STANDING_FACE_LAYER.rolled },
+        { at: 1, colour: STANDING_FACE_LAYER.rolled },
+    ];
+}
+
+function standingBackFaceStops(shape: StandingBackShape): readonly Stop[] {
+    const height = shape.top + shape.edge;
+    const cap = standingBackCap(shape);
+    return [
+        { at: 0, colour: STANDING_BACK_LAYER.crest },
+        { at: cap / height, colour: STANDING_BACK_LAYER.crest },
+        { at: (cap + STANDING_BACK_GLINT) / height, colour: STANDING_BACK_LAYER.lit },
+        { at: (cap + (height - cap) * 0.45) / height, colour: STANDING_BACK_LAYER.middle },
+        { at: (height - STANDING_BACK_FOOT) / height, colour: STANDING_BACK_LAYER.rolled },
+        { at: 1, colour: STANDING_BACK_LAYER.side[1] },
+    ];
+}
+
+function standingBackSplitStops(shape: StandingBackShape): readonly Stop[] {
+    const cap = standingBackCap(shape);
+    if (shape.backLayerSide === "bottom") {
+        const split = cap / (shape.top + shape.edge);
+        return strengthStops([
+            [0, 0],
+            [split, 0],
+            [split, 1],
+            [1, 1],
+        ]);
+    }
+    const capShare = cap / shape.across;
+    const split = shape.backLayerSide === "right" ? capShare : 1 - capShare;
+    const [before, after] = shape.backLayerSide === "right" ? [0, 1] : [1, 0];
+    return strengthStops([
+        [0, before],
+        [split, before],
+        [split, after],
+        [1, after],
+    ]);
+}
+
+function renderStandingBackBody(id: string, shape: StandingBackShape): string {
+    const upright = shape.backLayerSide === "bottom";
+    return renderSymbol({
+        cornerRadius: STANDING_BACK_BODY.cornerRadius,
+        gradients: [
+            renderGradient(
+                `${id}-face`,
+                "down",
+                upright ? standingCapStops(shape) : standingTopStops(shape, STANDING_FACE_LAYER),
+            ),
+            renderGradient(
+                `${id}-back`,
+                "down",
+                upright
+                    ? standingBackFaceStops(shape)
+                    : standingTopStops(shape, STANDING_BACK_LAYER),
+            ),
+            renderGradient(
+                `${id}-split-fade`,
+                upright ? "down" : "across",
+                standingBackSplitStops(shape),
+            ),
+            renderGradient(
+                `${id}-rims`,
+                "across",
+                rimStops(shape.across, STANDING_BACK_BODY.litRim, STANDING_BACK_BODY.shadedRim),
+            ),
+        ],
+        id,
+        layers: [
+            { gradient: `${id}-face` },
+            { gradient: `${id}-back`, mask: `${id}-split` },
+            { gradient: `${id}-rims` },
+        ],
+        masks: [[`${id}-split`, `${id}-split-fade`]],
+        size: sizeOf(shape.across, shape.top + shape.edge),
+    });
 }
 
 async function main(): Promise<void> {
     const sprite = [
         '<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true">',
         renderStandingBody(),
+        ...Object.entries(LYING_BODIES).map(([id, shape]) => renderLyingBody(id, shape)),
+        ...Object.entries(STANDING_BACK_BODIES).map(([id, shape]) =>
+            renderStandingBackBody(id, shape),
+        ),
         "</svg>",
         "",
     ].join("\n");

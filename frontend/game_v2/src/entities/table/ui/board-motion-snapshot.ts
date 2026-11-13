@@ -7,7 +7,7 @@ import {
     rectQuad,
     tiltedQuad,
 } from "@/entities/table/lib/tile-quad";
-import { SEAT_POSITIONS, type SeatPosition } from "@/entities/table/model/board-types";
+import { SEAT_POSITIONS, SEAT_TURNS, type SeatPosition } from "@/entities/table/model/board-types";
 
 export interface TilePose {
     readonly width: number;
@@ -38,21 +38,8 @@ export interface TileSnapshot extends MotionTile {
  */
 type PieceFrames = Map<Element, PieceFrame | null>;
 
-export const SEAT_TURNS: Readonly<Record<SeatPosition, number>> = {
-    bottom: 0,
-    left: 90,
-    right: 270,
-    top: 180,
-};
 const TILE_FEEDBACK_STYLE = ["filter", "outline", "outline-offset"];
-const TILE_STYLE = [
-    ...TILE_FEEDBACK_STYLE,
-    "background",
-    "border-radius",
-    "color",
-    "font-size",
-    "box-sizing",
-];
+const TILE_STYLE = [...TILE_FEEDBACK_STYLE, "color", "font-size", "box-sizing"];
 
 export function refreshTileFeedback(source: HTMLElement, image: HTMLElement): void {
     const face = image.querySelector<HTMLElement>(":scope > .tile");
@@ -86,19 +73,13 @@ function capturePose(tile: HTMLElement, rect: MotionRect, seat: SeatPosition): T
     };
 }
 
-function copiedTileStyle(tile: HTMLElement): readonly string[] {
-    return tile.classList.contains("tile-back") && !isSideways(tile)
-        ? TILE_STYLE
-        : TILE_STYLE.filter((name) => name !== "border-radius");
-}
-
 function copyTile(tile: HTMLElement, pose: TilePose): HTMLElement {
     const face = tile.cloneNode(true);
     if (!(face instanceof HTMLElement)) {
         throw new Error("A board tile must be an HTML element");
     }
     const style = getComputedStyle(tile);
-    for (const name of copiedTileStyle(tile)) {
+    for (const name of TILE_STYLE) {
         face.style.setProperty(name, style.getPropertyValue(name));
     }
     face.style.visibility = "visible";
@@ -107,7 +88,6 @@ function copyTile(tile: HTMLElement, pose: TilePose): HTMLElement {
     return image;
 }
 
-/** A flying image's classes from its tile: a hand button's own feedback, a replay's tsumogiri shade and edge shade. */
 function imageClasses(tile: HTMLElement): readonly string[] {
     const tsumogiri = tile.parentElement?.dataset.tsumogiri === "true";
     return [
@@ -116,9 +96,6 @@ function imageClasses(tile: HTMLElement): readonly string[] {
             ? ["board-motion__tile--individual"]
             : []),
         ...(tsumogiri ? ["board-motion__tile--tsumogiri"] : []),
-        ...(tsumogiri && tile.closest(".board-river--bottom") !== null
-            ? ["board-motion__tile--tsumogiri-edge"]
-            : []),
     ];
 }
 
@@ -128,7 +105,6 @@ function createImage(tile: HTMLElement, pose: TilePose): HTMLElement {
     image.style.setProperty("--motion-width", `${pose.width}px`);
     image.style.setProperty("--motion-height", `${pose.height}px`);
     image.style.setProperty("--motion-angle", `${pose.angle}deg`);
-    image.style.setProperty("--motion-lying", String(pose.lying));
     return image;
 }
 

@@ -11,6 +11,7 @@ $sideways-height: $tile-width; // 60px
 }
 
 .meld-tile {
+    position: relative;
     display: inline-block;
     line-height: 0;
 }

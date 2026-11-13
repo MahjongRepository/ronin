@@ -216,6 +216,17 @@ function renderTiltedDiscard(discarded: boolean, camera: string): void {
     );
 }
 
+function renderTiltedSideDiscard(discarded: boolean): void {
+    const held: HandTile = { face: "2m", show: "face", state: "selectable", tileId: 4 };
+    render(
+        html`<div class="board-local" data-area="bottom-hand">${Hand({ standing: true, tiles: discarded ? [held] : [{ face: "1m", show: "face", state: "selectable", tileId: 0 }, held] })}</div>
+        <div style=${`transform: ${TILTED}`}>
+            <div data-area="left-discards">${Discards(discarded ? [{ face: "1m", tileId: 0 }] : [], "wrap", 90)}</div>
+        </div>`,
+        host,
+    );
+}
+
 function startRiichiFlight(last = false): BoardMotionPlayer {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureFlightTile);
     renderRiichiFlight(false);
@@ -619,19 +630,26 @@ describe("tile flight material", () => {
         const player = startRiichiFlight();
         expect(getAnimationFrames(animations[0])).toMatchObject([
             {
+                "--motion-across": "64px",
                 "--motion-angle": "0deg",
+                "--motion-down": "48px",
                 "--motion-height": "64px",
-                "--motion-lying": "0",
                 "--motion-width": "48px",
             },
             {
+                "--motion-across": "48px",
                 "--motion-angle": "90deg",
+                "--motion-down": "36px",
                 "--motion-height": "48px",
-                "--motion-lying": "0",
                 "--motion-width": "36px",
             },
         ]);
         expect(host.querySelectorAll(".board-motion__tile > .tile--standing")).toHaveLength(0);
+        expect(
+            host
+                .querySelector(".board-motion__tile > .tile > .tile__body > use")
+                ?.getAttribute("href"),
+        ).toBe("#body-lying-sideways");
         player.cancel();
     });
 
@@ -712,7 +730,7 @@ describe("own draw flight", () => {
         const { flights, player } = discardDrawInFlight();
 
         const [start] = getAnimationFrames(animations[flights]);
-        expect(start).toMatchObject({ "--motion-lying": "0", "--motion-width": "42px" });
+        expect(start).toMatchObject({ "--motion-width": "42px" });
         expect(host.querySelectorAll(".board-motion__tile > .tile--standing")).toHaveLength(0);
         player.cancel();
     });
@@ -742,7 +760,6 @@ function discardDrawInFlight(): { readonly flights: number; readonly player: Boa
         {
             "--motion-angle": "0deg",
             "--motion-height": "56px",
-            "--motion-lying": "0",
             "--motion-width": "42px",
         },
     );
@@ -770,11 +787,15 @@ function renderOwnPon(called: boolean): void {
         { face: "3p", show: "face", state: "selectable", tileId: 10 },
         { face: "3p", show: "face", state: "selectable", tileId: 11 },
     ];
-    const pon = Meld([
-        { face: "3p", kind: "sideways", tileId: 9 },
-        { face: "3p", kind: "upright", tileId: 10 },
-        { face: "3p", kind: "upright", tileId: 11 },
-    ]);
+    const pon = Meld(
+        [
+            { face: "3p", kind: "sideways", tileId: 9 },
+            { face: "3p", kind: "upright", tileId: 10 },
+            { face: "3p", kind: "upright", tileId: 11 },
+        ],
+        false,
+        { own: true, turn: 0 },
+    );
     render(
         html`<div class="board-local">
             <div data-area="bottom-hand">${Hand({ standing: true, tiles: called ? [] : pair })}</div>
@@ -812,34 +833,26 @@ function startOwnPon(): BoardMotionPlayer {
 }
 
 describe("own call flight", () => {
-    it("lands a claimed tile and the hand's pair lying in the meld, the pair lying from take-off and the claimed tile's lying flag carrying the squash", () => {
+    it("flies a claimed tile and the hand's pair as the meld's own bodies and lands each at its slot's screen size", () => {
         const player = startOwnPon();
 
-        const starts = animations.map((animation) => getAnimationFrames(animation)[0]);
+        const bodies = [
+            ...host.querySelectorAll(
+                ".board-motion__tile:not(.board-motion__tile--trail) .tile__body > use",
+            ),
+        ].map((use) => use.getAttribute("href"));
         const landings = animations.map((animation) => getAnimationFrames(animation).at(-1));
-        function lyingAtTakeOff(fromHand: boolean): unknown[] {
-            return [
-                ...new Set(
-                    starts
-                        .filter((start) => (start?.["--motion-angle"] === "0deg") === fromHand)
-                        .map((start) => start?.["--motion-lying"]),
-                ),
-            ];
-        }
-        expect([lyingAtTakeOff(true), lyingAtTakeOff(false)]).toEqual([["1"], ["0"]]);
+        const lyingWidth = OWN_LYING_HEIGHT_SHARE * OWN_MELD_TILE_W;
+        expect(new Set(bodies)).toEqual(new Set(["#body-lying-own-sideways", "#body-lying-own"]));
         expect(landings).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
-                    "--motion-angle": "90deg",
-                    "--motion-height": "48px",
-                    "--motion-lying": "1",
-                    "--motion-width": "36px",
+                    "--motion-across": `${(OWN_MELD_TILE_W * 4) / 3}px`,
+                    "--motion-down": `${lyingWidth}px`,
                 }),
                 expect.objectContaining({
-                    "--motion-angle": "0deg",
-                    "--motion-height": "48px",
-                    "--motion-lying": "1",
-                    "--motion-width": "36px",
+                    "--motion-across": `${OWN_MELD_TILE_W}px`,
+                    "--motion-down": `${(lyingWidth * 4) / 3}px`,
                 }),
             ]),
         );
@@ -860,6 +873,30 @@ describe("tilted tile flight", () => {
             start.transform,
             "0px 314px",
             "0px 0px",
+        ]);
+        player.cancel();
+    });
+
+    it("lands a discard on a tilted side river at its slot's screen box, taking off at the hand tile's size across it", () => {
+        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+            function measureSideRiver(this: HTMLElement) {
+                if (this.matches("[data-area='left-discards'] .tile")) {
+                    return new DOMRect(300, 300, 60, 31);
+                }
+                return measureFlightTile.call(this);
+            },
+        );
+        renderTiltedSideDiscard(false);
+        const before = snapshotTiles(host);
+        renderTiltedSideDiscard(true);
+        const after = snapshotTiles(host);
+        const player = new BoardMotionPlayer(host);
+        player.play(planTileMotion(before, after), before, after);
+
+        const [start, end] = getAnimationFrames(animations[0]);
+        expect([start, end]).toMatchObject([
+            { "--motion-across": "64px", "--motion-down": "48px" },
+            { "--motion-across": "60px", "--motion-down": "31px" },
         ]);
         player.cancel();
     });

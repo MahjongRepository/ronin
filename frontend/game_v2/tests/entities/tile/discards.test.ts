@@ -100,3 +100,49 @@ describe("Discards row splitting", () => {
         expect(rowLengths("run-on")).toEqual([6, 6, 8]);
     });
 });
+
+describe("Discards paint order", () => {
+    function zIndexes(el: HTMLElement): string[][] {
+        return [...el.querySelectorAll(".discard-row")].map((row) =>
+            [...row.querySelectorAll<HTMLElement>(":scope > .discard-tile")].map(
+                (tile) => tile.style.zIndex,
+            ),
+        );
+    }
+
+    test("paints each tile over the edge of the one above it on the screen, whatever the river's turn", () => {
+        const tiles = makeTiles(8);
+        const [unturned, top, right] = [
+            Discards(tiles, "run-on", 0),
+            Discards(tiles, "run-on", 180),
+            Discards(tiles, "wrap", 270),
+        ].map((river) => zIndexes(renderTo(river)));
+
+        expect(unturned).toEqual([
+            ["", "", "", "", "", ""],
+            ["", ""],
+        ]);
+        expect(top).toEqual([
+            ["2", "2", "2", "2", "2", "2"],
+            ["1", "1"],
+        ]);
+        expect(right).toEqual([
+            ["6", "5", "4", "3", "2", "1"],
+            ["2", "1"],
+        ]);
+    });
+
+    test("draws a side river's riichi discard upright on the screen and its others across", () => {
+        const el = renderTo(
+            Discards(
+                makeTiles(2).map((tile, index) => ({ ...tile, riichi: index === 1 })),
+                "wrap",
+                90,
+            ),
+        );
+
+        expect(
+            [...el.querySelectorAll(".tile__body > use")].map((use) => use.getAttribute("href")),
+        ).toEqual(["#body-lying-sideways", "#body-lying"]);
+    });
+});
