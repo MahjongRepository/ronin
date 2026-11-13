@@ -20,6 +20,7 @@
         "fmt": "oxfmt",
         "fmt:check": "oxfmt --check",
         "sprite": "node scripts/build-tile-sprite.ts",
+        "bodies": "node scripts/build-tile-bodies.ts",
         "visual-check": "npm run build:dev && node scripts/visual-check/run.ts",
         "test": "vitest run --coverage",
         "test:watch": "vitest"
