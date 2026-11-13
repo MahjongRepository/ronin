@@ -407,8 +407,8 @@ interface DerivedProportions {
  */
 const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
     [FLOOR, { riverGap: 0.32, riverToOwn: 0.42 }],
-    [NOTCH_PHONE, { riverGap: 0.29, riverToOwn: 0.45 }],
-    [MID_DESKTOP, { riverGap: 0.14, riverToOwn: 0.74, topRiverGap: 0.27 }],
+    [NOTCH_PHONE, { riverGap: 0.29, riverToOwn: 0.46 }],
+    [MID_DESKTOP, { riverGap: 0.14, riverToOwn: 0.73, topRiverGap: 0.34 }],
 ]);
 const DERIVED_TOLERANCE = 0.02;
 

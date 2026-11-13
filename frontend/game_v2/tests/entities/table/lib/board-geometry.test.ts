@@ -4,6 +4,7 @@ import {
     FACE_FLOOR,
     FULL_HAND,
     LATEST_DISCARD_GAP,
+    OWN_STANDING_EDGE_SHARE,
     SIDEWAYS_UNITS,
     SIDE_LANE_GAP,
     TILE_EDGE_SHARE,
@@ -53,6 +54,13 @@ function windowGeometry(
         width: width - appliedEdges.left - appliedEdges.right,
     };
     return boardGeometry({ appliedEdges, box, safeInsets: insets, slots: LIVE_SLOTS });
+}
+
+function ownRowDepth(lengths: Readonly<Record<string, number>>): number {
+    return Math.max(
+        OWN_STANDING_EDGE_SHARE * (lengths["ow"] ?? 0),
+        TILE_EDGE_SHARE * (lengths["own-meld-tile"] ?? 0),
+    );
 }
 
 /** Whether a desktop's own tile is 1.2 to 1.45 river tiles, floored to a pixel. */
@@ -110,7 +118,7 @@ describe("boardGeometry chrome", () => {
         { height: 770, pillH: 30, text: 17, width: 1440 },
         { height: 900, pillH: 30 + 12 * (3 / 11), text: 17 + 7 * (3 / 11), width: 1440 },
         { height: 1000, pillH: 36, text: 20.5, width: 1727 },
-        { height: 1440, pillH: 42 * (80 / 68), text: 24 * (80 / 68), width: 2560 },
+        { height: 1440, pillH: 42 * (78 / 67), text: 24 * (78 / 67), width: 2560 },
     ])(
         "scales a $width x $height window's chrome from the regular record to the large one with its padded box, and past it with the river tile, one plate pill",
         ({ height, pillH, text, width }) => {
@@ -176,7 +184,7 @@ describe("boardGeometry in a phone's browser", () => {
             board: { height: 414, width: 808 },
             height: 414,
             insets: { bottom: 21, left: 44, right: 44, top: 0 },
-            ow: 44,
+            ow: 43,
             rw: 23,
             width: 896,
         },
@@ -184,7 +192,7 @@ describe("boardGeometry in a phone's browser", () => {
             board: { height: 390, width: 750 },
             height: 390,
             insets: { bottom: 21, left: 47, right: 47, top: 0 },
-            ow: 47,
+            ow: 46,
             rw: 21,
             width: 844,
         },
@@ -211,8 +219,8 @@ describe("boardGeometry in a phone's browser", () => {
             browser: "a Galaxy A25 in Android Chrome",
             height: 331,
             insets: NO_INSETS,
-            ow: 36,
-            rw: 18,
+            ow: 40,
+            rw: 17,
             width: 891,
         },
         {
@@ -593,8 +601,7 @@ describe("boardGeometry", () => {
                     centre: [length("w"), length("c")],
                     handBetweenLanes: FULL_HAND * length("ow") <= rowBetweenLanes(lengths) + 0.001,
                     ownByRiver: ownTileByRiver(lengths),
-                    ownRowOnBottom:
-                        length("hand-top") + length("oh") + TILE_EDGE_SHARE * length("ow"),
+                    ownRowOnBottom: length("hand-top") + length("oh") + ownRowDepth(lengths),
                     slackAbove: slackAbove >= -0.001 && slackBelow >= -0.001,
                 }).toEqual({
                     centre: [RIVER_ROW_SIZE * rw, 4.5 * rw],
@@ -631,18 +638,18 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [1280, 720, [39, 56, 65.62, 139.2]],
-        [1366, 768, [42, 60, 68.4, 147]],
-        [1920, 1080, [59, 85, 105.85, 207.5]],
-        [2560, 1440, [80, 116, 134.92, 259.2]],
-        [1440, 900, [49, 66, 89.32, 126.2]],
-        [1280, 800, [43, 56, 82.02, 131.2]],
-        [800, 600, [26, 32, 49.44, 98.33]],
-        [960, 1080, [33, 41, 61.97, 100.7]],
-        [1100, 1000, [40, 49, 74.63, 98.3]],
-        [1280, 1024, [49, 59, 92.23, 97.3]],
-        [1502, 1551, [59, 71, 110.67, 100.7]],
-        [1024, 1366, [36, 45, 67.75, 97.5]],
+        [1280, 720, [38, 55, 66.68, 148.5]],
+        [1366, 768, [41, 59, 69.26, 156.3]],
+        [1920, 1080, [58, 84, 101.88, 216.8]],
+        [2560, 1440, [78, 113, 137.08, 285.1]],
+        [1440, 900, [48, 66, 85.28, 128.2]],
+        [1280, 800, [42, 57, 86.12, 125.9]],
+        [800, 600, [26, 32, 51.36, 98.33]],
+        [960, 1080, [33, 41, 64.38, 100.7]],
+        [1100, 1000, [40, 49, 77.4, 98.3]],
+        [1280, 1024, [49, 59, 95.14, 97.3]],
+        [1502, 1551, [59, 71, 114.74, 100.7]],
+        [1024, 1366, [36, 45, 69.96, 97.5]],
     ])(
         "sizes a %ix%i desktop's river tile from its vertical stack and its own tile from its width, a full hand between the side strips' lanes, at most 1.45 river tiles, within bars that hold the switches named and the counters' row only while the own tile keeps 1.3 of the river tile, the river tile no larger than leaves it 1.2, the table centred",
         (width, height, expected) => {
@@ -674,8 +681,7 @@ describe("boardGeometry", () => {
             const spareBelow = box.height - spareAbove - table;
 
             expect({
-                ownRowOnTableBottom:
-                    length("hand-top") + length("oh") + TILE_EDGE_SHARE * length("ow"),
+                ownRowOnTableBottom: length("hand-top") + length("oh") + ownRowDepth(lengths),
                 ownRowToCore:
                     length("hand-top") - length("own-meld-rise") - length("river-foot") < 1,
                 slotsInTable: Math.max(...slotBottoms) <= table,
@@ -696,10 +702,10 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        { across: 1366, axis: "height", ends: [32, 52] },
-        { across: 1920, axis: "height", ends: [32, 72] },
-        { across: 768, axis: "width", ends: [26, 42] },
-        { across: 1080, axis: "width", ends: [26, 59] },
+        { across: 1366, axis: "height", ends: [31, 52] },
+        { across: 1920, axis: "height", ends: [31, 70] },
+        { across: 768, axis: "width", ends: [26, 41] },
+        { across: 1080, axis: "width", ends: [26, 58] },
     ])(
         "never shrinks a desktop's river tile as its window grows in $axis from $across across",
         ({ across, axis, ends }) => {
@@ -720,14 +726,14 @@ describe("boardGeometry", () => {
     it.each([
         { height: 375, pinned: { ow: 45, rw: 19 }, width: 667 },
         { height: 390, pinned: { ow: 45, rw: 19 }, width: 667 },
-        { height: 354, pinned: { ow: 42, rw: 19 }, width: 724 },
-        { height: 360, pinned: { ow: 36, rw: 20 }, width: 800 },
-        { height: 390, pinned: { ow: 47, rw: 21 }, width: 750 },
-        { height: 379, pinned: { ow: 39, rw: 21 }, width: 761 },
-        { height: 414, pinned: { ow: 44, rw: 23 }, width: 808 },
+        { height: 354, pinned: { ow: 41, rw: 19 }, width: 724 },
+        { height: 360, pinned: { ow: 45, rw: 19 }, width: 800 },
+        { height: 390, pinned: { ow: 46, rw: 21 }, width: 750 },
+        { height: 379, pinned: { ow: 38, rw: 21 }, width: 761 },
+        { height: 414, pinned: { ow: 43, rw: 23 }, width: 808 },
         { height: 480, pinned: { ow: 57, rw: 26 }, width: 850 },
-        { height: 430, pinned: { ow: 45, rw: 24 }, width: 932 },
-        { height: 500, pinned: { ow: 53, rw: 28 }, width: 1024 },
+        { height: 430, pinned: { ow: 44, rw: 24 }, width: 932 },
+        { height: 500, pinned: { ow: 52, rw: 28 }, width: 1024 },
     ])(
         "sizes a $width x $height window's phone board's tiles jointly on its table column: the left bar holding the counters, the side strips' lines a full hand long above the own row, the felt beside each side river under three river tiles, every control in a bar, a replay's column in the right one",
         ({ height, pinned, width }) => {
@@ -1067,7 +1073,7 @@ describe("boardGeometry's decisions", () => {
             rows: 1,
             width: 844,
         },
-        { fromLane: false, height: 331, insets: NO_INSETS, rows: 2, width: 891 },
+        { fromLane: true, height: 331, insets: NO_INSETS, rows: 1, width: 891 },
     ])(
         "stands a $width x $height live phone's decisions in a band along the own row's top, short of both side strips' lanes, 4px under the centre and the right river's first tiles, its bottom row under the left river's longest reach or the band from the centre's left edge, $rows row(s) of 40px controls tall, as many as the widest prompt takes at its width",
         ({ fromLane, height, insets, rows, width }) => {
@@ -1107,7 +1113,7 @@ describe("boardGeometry's decisions", () => {
         ].map(([width = 0, height = 0]) => windowGeometry({ height, width }, 10).lengths);
         const heights = boards.map((lengths) => lengths["decision-h"] ?? 0);
 
-        expect(heights).toEqual([40, 50, 68, 68]);
+        expect(heights).toEqual([40, 49, 66, 66]);
         expect(heights).toEqual(
             boards.map((lengths) => Math.max(40, Math.floor(0.85 * (lengths["rw"] ?? 0)))),
         );

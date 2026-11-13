@@ -21,6 +21,7 @@ import {
     OWN_BY_RIVER_WANTED,
     OWN_MELD_SCALE,
     OWN_ROW_GAP,
+    OWN_STANDING_EDGE_SHARE,
     PAGE_GUTTER,
     PHONE_CENTRE_MIN_HEIGHT,
     PHONE_CENTRE_MIN_WIDTH,
@@ -125,7 +126,8 @@ const DESKTOP_STACK_TILES =
     DESKTOP_CENTRE_TILES +
     OWN_ROW_GAP +
     Math.max(0, 2 * OWN_MELD_SCALE - OWN_BY_RIVER_OFF_PHONE * TILE_ASPECT) +
-    OWN_BY_RIVER_OFF_PHONE * (TILE_ASPECT + TILE_EDGE_SHARE);
+    OWN_BY_RIVER_OFF_PHONE * TILE_ASPECT +
+    Math.max(OWN_BY_RIVER_OFF_PHONE * OWN_STANDING_EDGE_SHARE, OWN_MELD_SCALE * TILE_EDGE_SHARE);
 
 /**
  * The latest discard's gap along the light off a phone (px): the gap across it and the tile edge that falls into it,
@@ -773,7 +775,10 @@ function ownRow({
     const oh = ow * TILE_ASPECT;
     const ownMeldTile = Math.max(FACE_FLOOR, Math.min(OWN_MELD_SCALE * rw, ow));
     return {
-        handTop: height - Math.max(margin, ow * TILE_EDGE_SHARE) - oh,
+        handTop:
+            height -
+            Math.max(margin, ow * OWN_STANDING_EDGE_SHARE, ownMeldTile * TILE_EDGE_SHARE) -
+            oh,
         oh,
         ownMeldRise: Math.max(0, 2 * ownMeldTile - oh),
         ownMeldTile,

@@ -29,7 +29,7 @@ const APPARENT_RIVER_SHARE = 0.05;
 const NEAR_RIVER_BY_OWN = 0.85;
 
 /** A felt band between the table's pieces may open at most this many flat river tiles wider than the flat board's. */
-const BAND_RIVERS = 0.75;
+const BAND_RIVERS = 0.95;
 
 /** How much narrower than the flat board's the camera may show the felt between the top hand and the top river (px). */
 const BAND_SLACK = 1;

@@ -179,7 +179,7 @@ describe("sizeBoard", () => {
             boardFamily: "desktop",
             boardSwitches: "names",
         });
-        expect(element.style.getPropertyValue("--geo-rw")).toBe("49px");
+        expect(element.style.getPropertyValue("--geo-rw")).toBe("48px");
     });
 
     it("writes nothing for an empty box and sizes the board once it shows", async () => {
@@ -198,7 +198,7 @@ describe("sizeBoard", () => {
         observer.resize(1420, 880);
 
         expect(element.dataset.boardFamily).toBe("desktop");
-        expect(element.style.getPropertyValue("--geo-rw")).toBe("49px");
+        expect(element.style.getPropertyValue("--geo-rw")).toBe("48px");
     });
 
     it("writes a change keeping the gutter at once and one moving it in the next frame, dropping sizes it lost", async () => {
@@ -207,7 +207,7 @@ describe("sizeBoard", () => {
 
         latestObserver().resize(647, 355);
 
-        expect(written(element)).toEqual({ chrome: "regular", family: "desktop", rw: "49px" });
+        expect(written(element)).toEqual({ chrome: "regular", family: "desktop", rw: "48px" });
 
         nextFrame();
 
@@ -219,7 +219,7 @@ describe("sizeBoard", () => {
         expect(written(element)).toEqual({
             chrome: "regular",
             family: "desktop",
-            rw: "39px",
+            rw: "38px",
         });
         expect(element.style.getPropertyValue("--geo-own-end")).toBe("");
     });
@@ -249,7 +249,7 @@ describe("sizeBoard", () => {
         expect(host.querySelector(".board-overlay")).not.toBeNull();
         expect(host.querySelector(".game-board")).toBe(element);
         expect(element.dataset.boardFamily).toBe("desktop");
-        expect(element.style.getPropertyValue("--geo-rw")).toBe("49px");
+        expect(element.style.getPropertyValue("--geo-rw")).toBe("48px");
     });
 
     it("lays a strip's melds out again when what it holds changes, without a resize", async () => {
@@ -285,6 +285,6 @@ describe("sizeBoard", () => {
             { disconnected: true, observed: [element] },
             { disconnected: false, observed: [element] },
         ]);
-        expect(element.style.getPropertyValue("--geo-rw")).toBe("43px");
+        expect(element.style.getPropertyValue("--geo-rw")).toBe("42px");
     });
 });

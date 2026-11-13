@@ -53,7 +53,7 @@ const DESKTOPS = [...WIDE, ...WIDTH_BOUND];
 const PHONES: readonly (readonly [string, BoardBox, number])[] = [
     ["a 667x375 phone", { height: 375, width: 667 }, 15],
     ["an 844x390 phone", { height: 390, width: 844 }, 15],
-    ["an A25's board with Chrome's bars", { height: 331, width: 891 }, 12],
+    ["an A25's board with Chrome's bars", { height: 331, width: 891 }, 15],
     ["an iPhone Plus's 736x414", { height: 414, width: 736 }, 15],
     ["a 640x400 phone", { height: 400, width: 640 }, 15],
     ["an 800x500 phone", { height: 500, width: 800 }, 15],
@@ -239,7 +239,7 @@ describe("tableView", () => {
     });
 
     it.each(DESKTOPS)(
-        "keeps both felt bands between the flat ones and 0.75 river tiles wider, its top margin under 0.15, on %s",
+        "keeps both felt bands between the flat ones and 0.95 river tiles wider, its top margin under 0.15, on %s",
         (_shape, box) => {
             const { screen, view } = viewOf(box);
             const rw = screen.lengths["rw"] ?? 0;
@@ -249,9 +249,9 @@ describe("tableView", () => {
             expect(shownPiece(view, "strip-top").top).toBeCloseTo(view.margin, 0);
             expect(view.margin).toBeLessThanOrEqual(0.15 * rw + 0.5);
             expect(shown.top).toBeGreaterThanOrEqual(flat.top - 1);
-            expect(shown.top).toBeLessThanOrEqual(Math.max(flat.top, 0) + 0.75 * rw + 0.5);
+            expect(shown.top).toBeLessThanOrEqual(Math.max(flat.top, 0) + 0.95 * rw + 0.5);
             expect(shown.bottom).toBeGreaterThanOrEqual(Math.min(flat.bottom, 4) - 0.5);
-            expect(shown.bottom).toBeLessThanOrEqual(Math.max(flat.bottom, 0) + 0.75 * rw + 0.5);
+            expect(shown.bottom).toBeLessThanOrEqual(Math.max(flat.bottom, 0) + 0.95 * rw + 0.5);
         },
     );
 

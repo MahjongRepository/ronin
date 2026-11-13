@@ -39,7 +39,7 @@ The derived proportions are the three reference viewports' values under the sizi
   settles, shows the river tile across the core's middle within 5% of the flat board's and the
   nearest at most 0.85 of the own tile, keeps the side strips clear of the own row and a phone's
   core clear of its decisions' band, and shows the farthest faces at the face floor. Its felt
-  bands (the top hand's foot to the top river, the core to the own row) open at most 0.75 river
+  bands (the top hand's foot to the top river, the core to the own row) open at most 0.95 river
   tiles wider than the flat board's; felt beyond that lies over the table's top instead, at most
   0.15 river tiles of it, the least margin that holds, and never narrower than the flat board's
   (the top band to a pixel, the bottom one to its least of 4px). A phone lays its tiles larger so its
@@ -67,11 +67,12 @@ The derived proportions are the three reference viewports' values under the sizi
   (its ivory body, lit under the face's lip and darkening toward the table, over a thin dark seam
   of the back's layer; a standing concealed tile, below, shows its end instead), with a tight dark
   contact shadow at its base and a short soft shadow down and to the right, whatever the seat; the
-  edge's depth is a share of a tile's width the geometry reserves (`TILE_EDGE_SHARE`); tiles lying together
+  edge reaches 0.2 of a tile's width, which the geometry reserves (`TILE_EDGE_SHARE`); tiles lying together
   (a river, a meld, a hand that takes no input) share one edge and shadow under all their faces, so
   a tile nearer the screen's bottom covers the edge of the one behind it and no edge or shadow ever
   lies on a face. A chankan source's ring lies flat over the tiles.
-  The own hand's tiles stand facing their player (Tenhou's): a band across each one's top.
+  The own hand's tiles stand facing their player: a band across each one's top and a
+  shallower edge below, 0.13 of its width; the own row reserves the deeper of that and its melds' edge.
 - **Composed for ordinary play.** The design anchor is a mid-round state with real decisions on
   screen. Dense states (long rivers, four melds a seat, five dora indicators, long names) must
   stay legible and unambiguous but never reshape the ordinary composition. Exception: a river of
@@ -252,7 +253,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   stored rounds about a fifth reach eighteen, 8% nineteen, 1% twenty, none more), so layouts are
   designed and checked for twenty: two rows of six and a third run on to eight (a side river's
   fourth row of two), counting a sideways riichi tile, and the latest-discard gap: 7px across the light, and along it (a side
-  river's from the tile before, a top or bottom river's from the row before) deeper by the 0.13
+  river's from the tile before, a top or bottom river's from the row before) deeper by the 0.2
   tile edge that falls into it, so every seat's reads as one gap; a phone keeps 7px along it too,
   its edge two pixels and the reserve a pixel of its river tile at the floor.
   A river of 21 or more discards still
@@ -860,19 +861,19 @@ river. A phone's play switches stand as a two-by-two block at
 the left bar's foot, ending at the own row's top, and a replay's moves in the right bar, so a replay's board is the
 live game's there too.
 An opponent's concealed hand tile is the river tile; its drawn tile stands 0.15 of a river tile
-apart on the top strip, and 0.28 on a side strip, where the 0.13 tile edge it shows lies in that gap.
+apart on the top strip, and 0.35 on a side strip, where the 0.2 tile edge it shows lies in that gap.
 
 | Relationship | Starting point | Derived (667x375 / 750x390 notch board / 1440x900) |
 |---|---|---|
 | Core height / play area height | 0.6 | 0.71 / 0.71 / 0.75 |
 | Centre height / core height | 0.3 | 0.34 / 0.30 / 0.33 |
 | Centre width / centre height (6/4.5 off a phone; on a phone its `w` / `c`: 114/90 and 126/83) | 1.2 | 1.27 / 1.51 / 1.33 |
-| River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand within the board and, where any own tile allows it, a right bar that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.42 / 0.45 / 0.74 |
+| River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand within the board and, where any own tile allows it, a right bar that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.42 / 0.46 / 0.73 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
-| Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand within the board and, where any own tile allows it, a right bar that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.42 / 0.45 / 0.74 |
+| Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand within the board and, where any own tile allows it, a right bar that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.42 / 0.46 / 0.73 |
 | Own hand tile width / play area width | 0.05 | 0.067 / 0.063 / 0.046 |
 | Own hand tile height / play area height | 0.15 | 0.160 / 0.161 / 0.100 |
-| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded; the top river 0.27, past its rows' tile edge) |
+| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded; the top river 0.34, past its rows' tile edge) |
 | Gap between neighbouring rivers, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,

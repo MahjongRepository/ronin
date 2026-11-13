@@ -7,16 +7,17 @@
 $glyph-room: 0.08;
 
 /* One light for every seat (docs/game-client-look.md, Flat top-down), in shares of the tile's width. */
-$lip-share: 0.014;
-$side-high-share: 0.04;
-$side-mid-share: 0.07;
-$body-share: 0.1;
-$back-share: 0.03;
+$lip-share: 0.025;
+$side-high-share: 0.065;
+$side-mid-share: 0.11;
+$body-share: 0.16;
+$back-share: 0.04;
+$own-standing-edge-scale: 0.65;
 $bevel-share: 0.045;
 $pillow-share: 0.09;
 $top-share: 0.06;
-$contact-y: 0.02;
-$contact-blur: 0.03;
+$contact-y: 0.035;
+$contact-blur: 0.05;
 $cast-x: 0.05;
 $cast-y: 0.07;
 $cast-blur: 0.07;
@@ -76,9 +77,10 @@ $edge-bands: (
     --tile-w: 60px;
     --tile-turn: var(--frame-turn, 0deg);
     --unit: var(--tile-w);
+    --edge-unit: var(--unit);
 
     @each $band, $spec in $edge-bands {
-        @include screen-offset($band, 0, 1, band-depth($band, var(--unit)), var(--tile-turn));
+        @include screen-offset($band, 0, 1, band-depth($band, var(--edge-unit)), var(--tile-turn));
     }
 
     @include screen-offset(bevel, 0, $bevel-share, var(--unit), var(--tile-turn));
@@ -86,14 +88,14 @@ $edge-bands: (
         contact,
         0,
         band-share(back) + $contact-y,
-        var(--unit),
+        var(--edge-unit),
         var(--tile-turn)
     );
     @include screen-offset(
         cast,
         $cast-x,
         $cast-y + band-share(back),
-        var(--unit),
+        var(--edge-unit),
         var(--tile-turn)
     );
 
@@ -219,6 +221,7 @@ $edge-bands: (
 /* The own hand's tiles stand facing their player, as Tenhou draws them: a band across their top, the tile's top edge
    seen above its face, inside the room the glyph keeps. */
 .board-local .hand .tile:not(.tile-back) {
+    --edge-unit: calc(var(--unit) * #{$own-standing-edge-scale});
     --tile-top:
         inset 0 calc(var(--unit) * #{$top-share}) 0 var(--ronin-tile-top),
         inset 0 calc(var(--unit) * #{$top-share} + 1px) 0 var(--ronin-tile-rim);
@@ -356,7 +359,14 @@ $max-meld-tiles: 4;
         z-index: layer(tile-depth);
         inset: 0;
         border-radius: inherit;
-        background: standing-top(var(--ronin-back-end), var(--ronin-tile-side-mid));
+        background:
+            linear-gradient(
+                calc(180deg - var(--tile-turn)),
+                var(--ronin-tile-end-light) calc(100% - var(--edge-unit) * #{band-share(back)}),
+                transparent calc(100% - var(--edge-unit) * #{band-share(side-mid)}),
+                var(--ronin-tile-end-shade)
+            ),
+            standing-top(var(--ronin-back-end), var(--ronin-tile-side-mid));
         box-shadow: var(--standing-cast-x) var(--standing-cast-y) calc(var(--unit) * #{$cast-blur})
             calc(var(--unit) * #{-$cast-blur}) var(--ronin-tile-shadow);
         transform: translate(var(--back-x), var(--back-y));

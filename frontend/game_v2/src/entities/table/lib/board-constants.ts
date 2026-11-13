@@ -23,7 +23,8 @@ const OWN_MELD_SCALE = 1.2;
 const RIVER_GAP_SHARE = 0.3;
 
 /** How far a tile's edge reaches below its box, in shares of its width. */
-const TILE_EDGE_SHARE = 0.13;
+const TILE_EDGE_SHARE = 0.2;
+const OWN_STANDING_EDGE_SHARE = 0.13;
 
 /** No meld face goes under this width (px). */
 const FACE_FLOOR = 13;
@@ -253,6 +254,7 @@ export {
     OWN_DRAWN_GAP,
     OWN_MELD_SCALE,
     OWN_ROW_GAP,
+    OWN_STANDING_EDGE_SHARE,
     PAGE_GUTTER,
     PHONE_CENTRE_MIN_HEIGHT,
     PHONE_CENTRE_MIN_WIDTH,

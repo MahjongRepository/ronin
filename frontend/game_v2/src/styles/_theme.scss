@@ -88,13 +88,15 @@
     --ronin-tile-shine: rgb(255 255 255 / 85%);
     --ronin-tile-shade: rgb(110 90 40 / 30%);
     --ronin-tile-pillow: rgb(120 100 55 / 14%);
-    --ronin-tile-lip: #fffcf3;
-    --ronin-tile-side-high: #d9ccad;
-    --ronin-tile-side-mid: #c0ae88;
-    --ronin-tile-edge: #a38d63;
-    --ronin-tile-back-edge: #7a4814;
-    --ronin-tile-contact: rgb(0 0 0 / 62%);
-    --ronin-tile-shadow: rgb(0 0 0 / 36%);
+    --ronin-tile-lip: #fff;
+    --ronin-tile-side-high: #e4dccb;
+    --ronin-tile-side-mid: #c5bba5;
+    --ronin-tile-edge: #9c9180;
+    --ronin-tile-back-edge: #6a4114;
+    --ronin-tile-end-light: rgb(255 255 255 / 30%);
+    --ronin-tile-end-shade: rgb(0 0 0 / 30%);
+    --ronin-tile-contact: rgb(0 0 0 / 68%);
+    --ronin-tile-shadow: rgb(0 0 0 / 40%);
     --ronin-tile-red: #d71e1e;
     --ronin-tile-label: #941818;
     --ronin-back: #d99a32;
@@ -118,7 +120,7 @@
     --ronin-dealer-soft-ink: #f6d9d5;
     --ronin-stick: #f4f1e8;
     --ronin-stick-rim: rgb(0 0 0 / 45%);
-    --ronin-stick-dot: #c42230;
+    --ronin-stick-dot: #b01c28;
     --ronin-honba-dot: #2b2b2b;
 
     /* Controls: the quiet one (Pass, Back, the replay's moves), the callouts' chips and the play switches. */
