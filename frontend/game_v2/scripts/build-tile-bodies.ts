@@ -1,9 +1,9 @@
 import { writeFile } from "node:fs/promises";
 
-import { STANDING_BODY } from "../src/entities/tile/lib/tile-body.ts";
+import { BODY_VIEW_WIDTH, STANDING_BODY } from "../src/entities/tile/lib/tile-body.ts";
 
 const OUTPUT = new URL("../src/assets/tiles/sprites/bodies.svg", import.meta.url);
-const BODY_WIDTH = 100;
+const BODY_WIDTH = BODY_VIEW_WIDTH;
 const BODY_HEIGHT = String(STANDING_BODY.height * BODY_WIDTH);
 const MASK_COLOUR = "--ronin-tile-ridge";
 const RIM_STRENGTH_ON_TOP = 0.55;

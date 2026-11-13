@@ -69,6 +69,10 @@ function isSideways(tile: HTMLElement): boolean {
     return tile.parentElement?.matches(".meld-tile-sideways, .discard-tile-riichi") === true;
 }
 
+export function standingOf(tile: Element): number {
+    return tile.classList.contains("tile--standing") ? 1 : 0;
+}
+
 function capturePose(tile: HTMLElement, rect: MotionRect, seat: SeatPosition): TilePose {
     const angle = SEAT_TURNS[seat] + (isSideways(tile) ? 90 : 0);
     const lying = tile.closest(".board-local .meld") !== null;
@@ -77,10 +81,7 @@ function capturePose(tile: HTMLElement, rect: MotionRect, seat: SeatPosition): T
         angle,
         height: angle % 180 === 0 ? unsquashedHeight : rect.width,
         lying: lying ? 1 : 0,
-        standing:
-            tile.closest(".board-local .hand") !== null && !tile.classList.contains("tile-back")
-                ? 1
-                : 0,
+        standing: standingOf(tile),
         width: angle % 180 === 0 ? rect.width : unsquashedHeight,
     };
 }
@@ -127,7 +128,6 @@ function createImage(tile: HTMLElement, pose: TilePose): HTMLElement {
     image.style.setProperty("--motion-width", `${pose.width}px`);
     image.style.setProperty("--motion-height", `${pose.height}px`);
     image.style.setProperty("--motion-angle", `${pose.angle}deg`);
-    image.style.setProperty("--motion-standing", String(pose.standing));
     image.style.setProperty("--motion-lying", String(pose.lying));
     return image;
 }

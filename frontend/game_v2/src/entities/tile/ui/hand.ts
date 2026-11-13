@@ -3,7 +3,7 @@ import { type TemplateResult, html, nothing } from "lit-html";
 import { type TileFace, spokenTileName } from "@/entities/tile/lib/tile-utils";
 import { type MessageKey, t } from "@/shared/i18n";
 
-import { Tile, TileBack } from "./tile";
+import { StandingTile, Tile, TileBack } from "./tile";
 
 /**
  * Where a tile of the player's own hand stands: one it may play now (declaring riichi, while the riichi toggle is on;
@@ -50,6 +50,7 @@ interface HandProps {
     /** Called with a selectable or declaring tile's id when the player taps it or presses Enter or Space on it. */
     readonly onTile?: (tileId: number) => void;
     readonly tileAction?: TileAction;
+    readonly standing?: boolean;
 }
 
 function tileLabel(face: TileFace, action: TileAction | undefined): string {
@@ -57,8 +58,11 @@ function tileLabel(face: TileFace, action: TileAction | undefined): string {
     return t(key, { tile: spokenTileName(face) });
 }
 
-function TileFaceView(tile: HandTile): TemplateResult {
-    return tile.show === "face" ? Tile(tile.face, "face") : TileBack();
+function TileFaceView(tile: HandTile, standing: boolean): TemplateResult {
+    if (tile.show !== "face") {
+        return TileBack();
+    }
+    return standing ? StandingTile(tile.face) : Tile(tile.face, "face");
 }
 
 /** The focus key every tile of the player's own hand holds. */
@@ -73,7 +77,7 @@ export const PLAYABLE_TILE_FOCUS_KEY = "playable-tile";
 function HandSlot(tile: HandTile, extraClass: string, props: HandProps): TemplateResult {
     const slotClass = `hand-tile${extraClass}`;
     if (tile.state === undefined) {
-        return html`<span class="${slotClass}" data-tile-id=${tile.tileId ?? ""}>${TileFaceView(tile)}</span>`;
+        return html`<span class="${slotClass}" data-tile-id=${tile.tileId ?? ""}>${TileFaceView(tile, props.standing === true)}</span>`;
     }
     const { state, tileId } = tile;
     const acts = state === "selectable" || state === "armed" || state === "declaring";
@@ -91,7 +95,7 @@ function HandSlot(tile: HandTile, extraClass: string, props: HandProps): Templat
         aria-pressed=${state === "selected" || state === "armed" ? "true" : nothing}
         data-focus-key=${acts ? `${HAND_TILE_FOCUS_KEY} ${PLAYABLE_TILE_FOCUS_KEY}` : HAND_TILE_FOCUS_KEY}
         @click=${press}
-    >${TileFaceView(tile)}</button>`;
+    >${TileFaceView(tile, props.standing === true)}</button>`;
 }
 
 /** Render a horizontal row of mahjong tiles with an optional drawn tile separated by a gap. */

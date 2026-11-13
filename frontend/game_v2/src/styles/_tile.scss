@@ -5,7 +5,7 @@
 
 $glyph-room: 0.13;
 $corner-share: 0.07;
-$standing-corner-share: 0.12;
+$standing-art-shade: 0.8;
 $corner-floor: 1.5px;
 
 /* One light for every seat (docs/game-client-look.md, Flat top-down), in shares of the tile's width. */
@@ -16,9 +16,6 @@ $body-share: 0.15;
 $back-share: 0.05;
 $bevel-share: 0.045;
 $pillow-share: 0.09;
-$top-share: 0.1;
-$face-view-width: 300;
-$standing-label-drop: math.div($top-share * $face-view-width, 1 - 2 * $glyph-room) * 1px;
 $contact-y: 0.035;
 $contact-blur: 0.05;
 $cast-x: 0.12;
@@ -70,16 +67,6 @@ $edge-bands: (
     @return list.slash(
         max($corner-floor, math.percentage(math.div($share, $across))),
         max($corner-floor, math.percentage(math.div($share, $down)))
-    );
-}
-
-@function standing-corner-radius() {
-    $top: corner-radius(1, math.div(4, 3), $standing-corner-share);
-    $bottom: corner-radius(1, math.div(4, 3));
-
-    @return list.slash(
-        list.nth($top, 1) list.nth($top, 1) list.nth($bottom, 1) list.nth($bottom, 1),
-        list.nth($top, 2) list.nth($top, 2) list.nth($bottom, 2) list.nth($bottom, 2)
     );
 }
 
@@ -140,7 +127,6 @@ $edge-bands: (
     );
 
     --tile-ring: 0 0 transparent;
-    --tile-top: 0 0 transparent;
     --tile-bevel:
         inset var(--bevel-x) var(--bevel-y) max(1px, calc(var(--unit) * #{$bevel-share}))
             var(--ronin-tile-shine),
@@ -170,13 +156,46 @@ $edge-bands: (
         var(--ronin-tile-face) 62%,
         var(--ronin-tile-face-rim)
     );
-    box-shadow: var(--tile-ring), var(--tile-top), var(--tile-bevel), var(--tile-lift);
+    box-shadow: var(--tile-ring), var(--tile-bevel), var(--tile-lift);
 
-    svg {
+    > svg {
         display: block;
         width: 100%;
         height: 100%;
     }
+}
+
+.tile--standing {
+    @include screen-offset(
+        cast,
+        $cast-x + $cast-pull,
+        $cast-y + $cast-pull,
+        var(--unit),
+        var(--tile-turn)
+    );
+
+    --tile-depth: var(--cast-x) var(--cast-y) calc(var(--unit) * #{$cast-blur})
+        calc(var(--unit) * #{-$cast-pull}) var(--ronin-tile-shadow);
+
+    padding: 0;
+    background: none;
+    box-shadow: none;
+
+    > svg {
+        height: auto;
+        border-radius: calc(var(--tile-w) * var(--standing-body-corner));
+        box-shadow: var(--tile-lift);
+        pointer-events: none;
+    }
+}
+
+@mixin standing-cast-filter($unit, $turn) {
+    @include screen-offset(group-cast, $cast-x, $cast-y, $unit, $turn);
+
+    filter: drop-shadow(
+        var(--group-cast-x) var(--group-cast-y) calc(#{$unit} * #{$cast-blur})
+            var(--ronin-tile-shadow)
+    );
 }
 
 /* A sideways tile is a box as long as the tile is tall with only its face turned: a turned box of a fractional size
@@ -255,22 +274,8 @@ $edge-bands: (
     }
 }
 
-/* The own hand's tiles stand facing their player, as Tenhou draws them: a band across their top, the tile's top edge
-   seen above its face, inside the room the glyph keeps. */
-.board-local .hand .tile:not(.tile-back) {
-    --edge-unit: calc(var(--unit) * var(--own-standing-edge-scale));
-    --tile-top: inset 0 calc(var(--unit) * #{$top-share}) 0 var(--ronin-tile-back-edge);
-    --standing-label-drop: #{$standing-label-drop};
-
-    border-radius: standing-corner-radius();
-}
-
-.board-local .hand:not(:has(> button), :has(.tile-back)) {
-    @include group-edge(
-        calc(var(--board-tile-w, 60px) * var(--own-standing-edge-scale)),
-        var(--frame-turn, 0deg),
-        var(--board-tile-w, 60px)
-    );
+.board-local .hand:not(:has(> button)):has(.tile--standing) {
+    @include standing-cast-filter(var(--board-tile-w, 60px), var(--frame-turn, 0deg));
 }
 
 .board-local .meld {
@@ -296,8 +301,6 @@ $edge-bands: (
     transform: translate(-50%, -50%) scaleY(var(--own-lying-height-share)) rotate(90deg);
 }
 
-/* A flying tile's edge in three passes cheap to repaint each frame (body, a base as deep as a landed one's with its
-   contact, cast shadow), shallower while it stands; trails draw none, as filtered copies wash out in WebKit. */
 @mixin flight-edge($unit, $edge-unit) {
     --unit: #{$unit};
 
@@ -315,9 +318,7 @@ $edge-bands: (
 }
 
 .game-board .board-motion__tile {
-    --motion-standing-edge: calc((var(--own-standing-edge-scale) - 1) * var(--motion-standing));
-    --motion-lying-edge: calc((var(--own-lying-edge-scale) - 1) * var(--motion-lying));
-    --motion-edge-scale: calc(1 + var(--motion-standing-edge) + var(--motion-lying-edge));
+    --motion-edge-scale: calc(1 + (var(--own-lying-edge-scale) - 1) * var(--motion-lying));
 
     @include flight-edge(var(--motion-width), calc(var(--motion-width) * var(--motion-edge-scale)));
 
@@ -325,22 +326,12 @@ $edge-bands: (
         --tile-w: var(--motion-width);
         --edge-unit: calc(var(--unit) * var(--motion-edge-scale));
         --tile-turn: var(--motion-angle);
-        --standing-share: calc(
-            #{$corner-share} + #{$standing-corner-share - $corner-share} * var(--motion-standing)
-        );
-        --standing-corner: max(#{$corner-floor}, calc(var(--motion-width) * var(--standing-share)))
-            max(#{$corner-floor}, calc(var(--motion-height) * 3 / 4 * var(--standing-share)));
-        --standing-label-drop: calc(#{$standing-label-drop} * var(--motion-standing));
-        --tile-top: inset 0 calc(var(--unit) * #{$top-share} * var(--motion-standing)) 0
-            var(--ronin-tile-back-edge);
 
         position: absolute;
         left: 50%;
         top: 50%;
         height: var(--motion-height);
         margin: 0;
-        border-top-left-radius: var(--standing-corner);
-        border-top-right-radius: var(--standing-corner);
         transform: translate(-50%, -50%)
             scaleY(calc(1 - (1 - var(--own-lying-height-share)) * var(--motion-lying)))
             rotate(var(--motion-angle));
@@ -348,6 +339,10 @@ $edge-bands: (
 
     &:not(.board-motion__tile--individual) > .tile {
         --tile-lift: 0 0 transparent;
+    }
+
+    &:has(> .tile--standing):not(.board-motion__tile--individual, .board-motion__tile--trail) {
+        @include standing-cast-filter(var(--motion-width), 0deg);
     }
 
     &--individual,
@@ -497,7 +492,7 @@ $max-meld-tiles: 4;
     }
 }
 
-.tile svg:has(.tile__label) {
+.tile > svg:has(> .tile__label) {
     overflow: visible;
 }
 
@@ -511,9 +506,18 @@ $max-meld-tiles: 4;
     stroke-width: 20px;
     stroke-linejoin: round;
     paint-order: stroke;
-    transform: translateY(var(--standing-label-drop, 0));
 
     &--red {
         fill: var(--ronin-tile-red);
+    }
+}
+
+.tile--standing {
+    .tile__art {
+        filter: brightness($standing-art-shade);
+    }
+
+    .tile__label {
+        stroke: var(--ronin-tile-front);
     }
 }

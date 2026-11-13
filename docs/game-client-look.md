@@ -63,7 +63,7 @@ The derived proportions are the three reference viewports' values under the sizi
   phone) and
   everything in front stay flat. Depth comes from the surface, the tile's edge and its shadow. One
   static transform per piece, no per-frame work. Decision: one light for every
-  seat: each tile's face is softly domed, with corners rounded by 0.07 of its width
+  seat: each tile's face but the own hand's standing ones (below) is softly domed, with corners rounded by 0.07 of its width
   (never under 1.5px), shaded with no outline: one soft highlight inside its top and left
   edges, from the light at the screen's top-left (equal offsets down and right, never under 1px), over a soft pillow that darkens every edge, so tiles that touch meet
   at a soft seam, shade then light, never a dark line, and its edge
@@ -81,13 +81,19 @@ The derived proportions are the three reference viewports' values under the sizi
   never reaches past the tile's left side: it lies under the next tile, never on the one before, and only
   approximates a group's shadow (a box's shadow and a drop shadow fall off differently).
   A chankan source's ring lies flat over the tiles.
-  The own hand's tiles stand facing their player: across each one's top a band 0.1 of its width deep in
-  the edge's near-black base, the tile's back seen above the face, meeting the felt and the face with no line, its top corners
-  rounded by 0.12 of its width, and below a shallower edge, 0.1 of its width, whether the hand takes input or not.
+  The own hand's tiles stand facing their player, each drawn as one generated body 1.5 of its width tall
+  (`entities/tile/lib/tile-body.ts`, `npm run bodies`), not by the stylesheet: the back's ochre layer seen over its
+  top, a pale top surface rolling over a crest into a calmer, darker front, rims that soften over the shoulder and a
+  rolled foot, its corners rounded by 0.08 of its width; the face art sits in a box on the front, 0.8 of the width,
+  foreshortened to 0.93 and shaded with the front (0.8 brightness, so a red five's red keeps 4.5:1 on it), its corner
+  label inside that box. Its tile box stays 4:3, the layout and tap target, the body
+  drawn from its top and running past its bottom by the rest of its height, which the own row reserves in whole
+  pixels, so on a phone the foot may be clipped by up to 1px at the board's bottom edge. It throws only the cast shadow, the hand's
+  shared one, or each tile's own where the hand takes input; a held-back tile greys the whole body.
   The own melds lie on the table beside it: no band, each face foreshortened to 0.92 of its height
   (the art, the glyph room and a sideways, stacked or face-down tile alike, a kan's stack 2 x 0.92 of a tile's width
   deep) over a deeper edge, 0.25 of its width; a tile flying into a meld lands in that body. The own row reserves
-  the deeper of the hand's edge and the melds'.
+  the deeper of the hand's overhang and the melds' edge.
 - **Composed for ordinary play.** The design anchor is a mid-round state with real decisions on
   screen. Dense states (long rivers, four melds a seat, five dora indicators, long names) must
   stay legible and unambiguous but never reshape the ordinary composition. Exception: a river of
@@ -478,7 +484,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   a second on it sends it, one on another selectable tile moves the lift there, and one anywhere
   else drops it. A riichi declaration's pick stays one tap, the riichi toggle being its first step.
 - **Timer.** The countdown beside the decision controls (right of the pass, in the cluster) as large digits, the base time and the bank
-  apart (`5 +20`), the bank marked while it alone is draining, so a player always knows which time
+  apart (`5 +20`), its digits and any caption each on a small dark chip in the plates' badge tone on every board, so
+  they read over whatever the cluster covers (a plate, a river), the bank marked while it alone is draining, so a player always knows which time
   is being spent. Decision: a slot of fixed size and place, a caption line over the digits once time is up
   (the draining bank needs none), so expiry and the bank never move it or the controls. Answering dismisses the timer with
   the controls; there is no submitted caption or checkmark. It is the viewer's
@@ -561,9 +568,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
 - **Tile motion.** Draws travel from the centre to the separated hand slot and discards from hand to river in
   120ms, with a faint trail (its copies drawn without an edge or shadow; the tile itself draws its edge in three
-  passes, the body, a dark base as deep as a landed tile's with its contact shadow and a short cast shadow, as deep as its slot's, and a replay's tsumogiri keeps its shade). The latest discard settles into its river slot in 120ms when its mark ends.
-  A travelling tile keeps its body and shadow throughout, with size, orientation and the own hand's top band, rounder top corners and
-  lowered corner label changing continuously from source to destination; landing on the tilted table it flies already in its slot's look
+  passes, the body, a dark base as deep as a landed tile's with its contact shadow and a short cast shadow, as deep as its slot's, a standing body only its cast shadow, and a replay's tsumogiri keeps its shade). The latest discard settles into its river slot in 120ms when its mark ends.
+  A travelling tile takes its destination's body at take-off (a discard leaves the hand as the lying
+  river tile, a call into the own melds as the lying own meld tile, a draw flies as the standing body), and keeps it
+  and its shadow throughout, with size and orientation changing continuously from source to destination; landing on the tilted table it flies already in its slot's look
   (the camera's taper and squash), so it lands with no pop. Light stays
   fixed to the screen. Rearranging hands, settling
   discards and moving or resizing laid melds animate their actual tile wrappers inside their group, retaining its

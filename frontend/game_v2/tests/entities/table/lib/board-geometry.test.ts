@@ -5,7 +5,6 @@ import {
     FULL_HAND,
     LATEST_DISCARD_GAP,
     OWN_LYING_EDGE_SHARE,
-    OWN_STANDING_EDGE_SHARE,
     PHONE_OWN_GIVEN_FOR_RIVER,
     SIDEWAYS_UNITS,
     SIDE_LANE_GAP,
@@ -23,7 +22,7 @@ import {
     shellTracks,
 } from "@/entities/table/lib/board-geometry";
 import { type StripRooms, type StripSeat, stripLayout } from "@/entities/table/lib/strip-layout";
-import { RIVER_ROW_SIZE } from "@/entities/tile";
+import { RIVER_ROW_SIZE, STANDING_BODY, STANDING_OVERHANG } from "@/entities/tile";
 
 /** The sizes pinned, in the order each case lists them. */
 const SIZES = ["rw", "ow", "core-top", "col-left"] as const;
@@ -61,7 +60,7 @@ function windowGeometry(
 
 function ownRowDepth(lengths: Readonly<Record<string, number>>): number {
     return Math.max(
-        OWN_STANDING_EDGE_SHARE * (lengths["ow"] ?? 0),
+        STANDING_OVERHANG * (lengths["ow"] ?? 0),
         OWN_LYING_EDGE_SHARE * (lengths["own-meld-tile"] ?? 0),
     );
 }
@@ -187,8 +186,8 @@ describe("boardGeometry in a phone's browser", () => {
             board: { height: 414, width: 808 },
             height: 414,
             insets: { bottom: 21, left: 44, right: 44, top: 0 },
-            ow: 53,
-            rw: 22,
+            ow: 54,
+            rw: 21,
             width: 896,
         },
         {
@@ -222,8 +221,8 @@ describe("boardGeometry in a phone's browser", () => {
             browser: "a Galaxy A25 in Android Chrome",
             height: 331,
             insets: NO_INSETS,
-            ow: 41,
-            rw: 17,
+            ow: 42,
+            rw: 16,
             width: 891,
         },
         {
@@ -754,13 +753,13 @@ describe("boardGeometry", () => {
     it.each([
         { height: 375, pinned: { ow: 45, rw: 19 }, width: 667 },
         { height: 390, pinned: { ow: 45, rw: 19 }, width: 667 },
-        { height: 354, pinned: { ow: 49, rw: 18 }, width: 724 },
-        { height: 360, pinned: { ow: 53, rw: 18 }, width: 800 },
+        { height: 354, pinned: { ow: 47, rw: 18 }, width: 724 },
+        { height: 360, pinned: { ow: 51, rw: 18 }, width: 800 },
         { height: 390, pinned: { ow: 50, rw: 20 }, width: 750 },
-        { height: 379, pinned: { ow: 49, rw: 20 }, width: 761 },
-        { height: 414, pinned: { ow: 53, rw: 22 }, width: 808 },
+        { height: 379, pinned: { ow: 51, rw: 19 }, width: 761 },
+        { height: 414, pinned: { ow: 54, rw: 21 }, width: 808 },
         { height: 480, pinned: { ow: 57, rw: 26 }, width: 850 },
-        { height: 430, pinned: { ow: 63, rw: 22 }, width: 932 },
+        { height: 430, pinned: { ow: 62, rw: 22 }, width: 932 },
         { height: 500, pinned: { ow: 69, rw: 26 }, width: 1024 },
     ])(
         "sizes a $width x $height window's phone board's tiles jointly on its table column: the left bar holding the counters, the side strips' lines a full hand long above the own row, the felt beside each side river under three river tiles, every control in a bar, a replay's column in the right one",
@@ -1087,7 +1086,7 @@ describe("boardGeometry's decisions", () => {
         const { lengths, tracks } = windowGeometry({ height: 308, width: 640 });
         const [left = 0, top = 0, right = 0] = slotAreas(tracks)["actions"] ?? [];
 
-        expect(right - left).toBeCloseTo(341.6, 1);
+        expect(right - left).toBeCloseTo(343.6, 1);
         expect(left).toBeLessThan((lengths["cx"] ?? 0) - (lengths["hx"] ?? 0));
         expect(top).toBeGreaterThanOrEqual((lengths["cy"] ?? 0) + (lengths["h"] ?? 0));
     });
@@ -1222,17 +1221,27 @@ describe("boardGeometry's shell tracks", () => {
 
     it("lays a landscape phone's slots where its board measured them", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
-            actions: [144, 219.3, 523, 306.3],
+            actions: [144, 217, 523, 304],
             corner: [577, 4, 663, 375],
-            field: [4, 37.1, 90, 192.3],
-            "field-beside": [577, 50, 663, 304.3],
-            furiten: [4, 200.3, 90, 218.3],
-            hand: [5, 310.3, 663, 370.3],
-            "strip-left": [96, 4, 138, 306.3],
-            "strip-right": [529, 4, 571, 306.3],
+            field: [4, 37.1, 90, 190],
+            "field-beside": [577, 50, 663, 302],
+            furiten: [4, 198, 90, 216],
+            hand: [5, 308, 663, 368],
+            "strip-left": [96, 4, 138, 304],
+            "strip-right": [529, 4, 571, 304],
             "strip-top": [138, 4, 474.5, 42],
-            switches: [4, 226.3, 84, 306.3],
+            switches: [4, 224, 84, 304],
         });
+    });
+
+    it("reserves a phone's own row its standing body's overhang in whole pixels where it runs deeper than the margin, the foot within a pixel of the board's bottom", () => {
+        const { lengths } = windowGeometry({ height: 375, width: 667 });
+        const [ow = 0, handTop = 0] = [lengths["ow"], lengths["hand-top"]];
+        const foot = handTop + STANDING_BODY.height * ow;
+
+        expect(375 - (handTop + (lengths["oh"] ?? 0))).toBe(Math.floor(STANDING_OVERHANG * ow));
+        expect(foot - 375).toBeGreaterThanOrEqual(0);
+        expect(foot - 375).toBeLessThan(1);
     });
 
     it("centres a live phone's panel, stopping short of the notices' column only while a notice shows", () => {

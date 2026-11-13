@@ -131,7 +131,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   (the game end's actions) the track never grew for. The round result, its width set, keeps no gutter.
 - Pages never clip the board: `.board-page` gives it the safe area, and a 10px gutter on every board but a phone's,
   whose bottom edge stays bare (a phone's board honours the side and top insets only).
-  The own row stands at least its edge's depth off the bottom.
+  The own row stands at least its edge's depth, or its standing body's overhang, off the bottom; the overhang is
+  reserved in whole pixels, so on a phone the body's foot may be clipped by up to 1px at the board's bottom edge.
 - **The live page lets a phone browser's bars collapse.** Its `.game` stands `100lvh` tall and the page sticks to the
   top, so with the bars shown the document scrolls by their height and a swipe collapses them, while the board keeps
   `100dvh` and grows into the room. In a touch browser's tab `.game` is a fixed scroll room taller and the page rests
@@ -148,10 +149,13 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   phone's board) and the safe insets as registered lengths, which the directive reads in px with the padding the page
   applies, so the classification never depends on a phone's own bottom edge; a gutter change it finds
   while the observer delivers (into or out of a phone) waits a frame, since it resizes the observed board.
-- Every tile's box and material is `_tile.scss`'s; each region sets `--board-tile-w`. A sideways tile (a called meld
+- Every tile's box and material is `_tile.scss`'s; each region sets `--board-tile-w`. The own hand's standing face
+  tiles alone draw their body as the generated SVG (`StandingTile`): their 4:3 box stays the layout and tap target, the
+  body's `<svg>` running past its bottom (no pointer events), and the stylesheet adds only their cast shadow (the hand's
+  group drop shadow, or each button's own on its body) and the state overlays, the focus ring on the body. A sideways tile (a called meld
   tile, a riichi discard) is an unturned box as long as a tile is tall with only its face turned: a turned box of a
-  fractional size paints off its layout box, below its row's baseline. Flying tiles use that same
-  material with animated dimensions and orientation; their grouped depth stays on an unturned wrapper, so the
+  fractional size paints off its layout box, below its row's baseline. Flying tiles use their destination's
+  material from take-off with animated dimensions and orientation; their grouped depth stays on an unturned wrapper, so the
   light does not rotate with the face. Native reflow stays inside its original group. An opponent's hand and melds
   isolate each tile's own depth layer below every face, never a group filter: their frame is turned (see the rivers
   below). Side hands add seam-mask layers there too: masks must never enter a shadow filter, or a separated tile

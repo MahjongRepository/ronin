@@ -17,6 +17,20 @@ function showHeldPanel(host: HTMLElement, held: boolean): void {
     );
 }
 
+function renderDealtBoard(): HTMLElement {
+    const players = [0, 1, 2, 3].map((seat) => ({
+        ...createInitialPlayerState({ isAiPlayer: false, name: `P${seat}`, score: 25_000, seat }),
+        tiles: Array.from({ length: 13 }, (_unused, index) => seat * 32 + index),
+    }));
+    const state = tableStateToDisplayState(
+        { ...createInitialTableState(), players },
+        { bottomSeat: 0, reveal: "all" },
+    );
+    const host = document.createElement("div");
+    render(GameBoard({ debug: false, state }), host);
+    return host;
+}
+
 function renderBoard(): HTMLElement {
     const players = [0, 1, 2, 3].map((seat) => ({
         ...createInitialPlayerState({
@@ -79,6 +93,16 @@ describe("GameBoard centre and dora", () => {
         expect(
             texts(host, ".board-center__count").map((text) => text?.replaceAll(/\s+/gu, " ")),
         ).toEqual(["Wall 34", "Honba 2", "Riichi sticks 1"]);
+    });
+});
+
+describe("GameBoard hands", () => {
+    it("stands only the bottom seat's face tiles, every opponent's shown hand lying", () => {
+        const host = renderDealtBoard();
+
+        expect(host.querySelectorAll(".board-local .hand .tile--standing")).toHaveLength(13);
+        expect(host.querySelectorAll(".board-strip .hand .tile:not(.tile-back)")).toHaveLength(39);
+        expect(host.querySelectorAll(".board-strip .tile--standing")).toHaveLength(0);
     });
 });
 

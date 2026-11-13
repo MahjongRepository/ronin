@@ -13,6 +13,7 @@ import yakumanUrl from "@/assets/audio/calls/yakuman.mp3?no-inline";
 import countdownUrl from "@/assets/audio/countdown-soft-reply.flac?no-inline";
 import decisionUrl from "@/assets/audio/decision-radar-reply.flac?no-inline";
 import discardUrl from "@/assets/audio/discard-resin.flac?no-inline";
+import tileBodies from "@/assets/tiles/sprites/bodies.svg?raw";
 import tileSpriteUrl from "@/assets/tiles/sprites/fluffy-stuff.svg?url";
 import {
     AUTO_WIN_SETTING_KEY,
@@ -33,6 +34,7 @@ import {
 import {
     type TileSprite,
     applyTileLabels,
+    injectTileBodies,
     injectTileSprite,
     loadTileSprite,
     restoreTileLabels,
@@ -294,6 +296,7 @@ const app = document.getElementById("app");
 if (app && !supportsBoardCss()) {
     render(unsupportedBrowserTemplate(getLobbyUrl()), app);
 } else if (app) {
+    injectTileBodies(tileBodies);
     const tileSprite = startTileSprite();
     startRouter(
         app,

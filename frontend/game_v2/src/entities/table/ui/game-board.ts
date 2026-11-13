@@ -90,7 +90,7 @@ function HandArea(
     input?: LocalHandInput,
 ): TemplateResult {
     return html`<div class="board-area board-area--${seat}-hand" data-area="${seat}-hand">
-        ${player ? Hand({ drawnTile: player.drawnTile, tiles: player.hand, ...input }) : ""}
+        ${player ? Hand({ drawnTile: player.drawnTile, standing: seat === "bottom", tiles: player.hand, ...input }) : ""}
     </div>`;
 }
 

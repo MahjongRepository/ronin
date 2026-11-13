@@ -1,4 +1,5 @@
-export { Tile, TileBack, injectTileSprite } from "./ui/tile";
+export { StandingTile, Tile, TileBack, injectTileBodies, injectTileSprite } from "./ui/tile";
+export { STANDING_BODY, STANDING_OVERHANG } from "./lib/tile-body";
 export type { TileSprite, TileSpriteDeps, TileSpriteStatus } from "./lib/sprite-loader";
 export { loadTileSprite } from "./lib/sprite-loader";
 export { HAND_TILE_FOCUS_KEY, Hand } from "./ui/hand";

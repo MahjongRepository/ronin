@@ -7,6 +7,7 @@ import {
     centerOrigin,
     refreshTileFeedback,
     snapshotTiles,
+    standingOf,
 } from "./board-motion-snapshot";
 import { TileReflowPlayer } from "./tile-reflow-player";
 import { TileRevealPlayer } from "./tile-reveal-player";
@@ -58,8 +59,12 @@ function flightFrames({ from, fromPose, to, toPose, toQuad }: Flight): Keyframe[
     const deltaY = from.top + from.height / 2 - to.top - to.height / 2;
     const angle = fromPose.angle + (((toPose.angle - fromPose.angle + 540) % 360) - 180);
     const transform = `translate(-50%, -50%) ${warpTransform(quadWarp(to, toQuad))}`;
+    const takeOff =
+        fromPose.standing === toPose.standing
+            ? fromPose
+            : { ...fromPose, lying: toPose.lying, standing: toPose.standing };
     return [
-        { ...poseFrame(fromPose), transform, translate: `${deltaX}px ${deltaY}px` },
+        { ...poseFrame(takeOff), transform, translate: `${deltaX}px ${deltaY}px` },
         { ...poseFrame({ ...toPose, angle }), transform, translate: "0px 0px" },
     ];
 }
@@ -69,7 +74,6 @@ function poseFrame(pose: TilePose): Keyframe {
         "--motion-angle": `${pose.angle}deg`,
         "--motion-height": `${pose.height}px`,
         "--motion-lying": String(pose.lying),
-        "--motion-standing": String(pose.standing),
         "--motion-width": `${pose.width}px`,
     };
 }
@@ -87,14 +91,15 @@ function hasSamePose(from: TilePose, to: TilePose): boolean {
 function sampleFlight(tile: TileSnapshot, active: RunningTile): TileSnapshot {
     const { image } = active.flight;
     const style = getComputedStyle(image);
+    const face = image.querySelector(":scope > .tile");
     const pose = {
         angle: Number.parseFloat(style.getPropertyValue("--motion-angle")),
         height: Number.parseFloat(style.getPropertyValue("--motion-height")),
         lying: Number.parseFloat(style.getPropertyValue("--motion-lying")),
-        standing: Number.parseFloat(style.getPropertyValue("--motion-standing")),
+        standing: face === null ? tile.pose.standing : standingOf(face),
         width: Number.parseFloat(style.getPropertyValue("--motion-width")),
     };
-    const rect = image.querySelector(".tile")?.getBoundingClientRect() ?? tile.rect;
+    const rect = face?.getBoundingClientRect() ?? tile.rect;
     return { ...tile, pose, quad: rectQuad(rect), rect };
 }
 

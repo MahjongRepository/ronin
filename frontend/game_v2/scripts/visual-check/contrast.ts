@@ -119,7 +119,7 @@ const SPRITE_HIGHLIGHTS: readonly string[] = ["#fff", "#ffffff", "white"];
 const HIDE_INK = `
     * { -webkit-text-fill-color: transparent !important; text-shadow: none !important;
         text-decoration-color: transparent !important; }
-    .tile svg use { visibility: hidden !important; }
+    .tile svg use[href^="#tile-"] { visibility: hidden !important; }
 `;
 
 /**
@@ -130,13 +130,13 @@ const FORCE_INK = `
     * { -webkit-text-fill-color: #f0f !important; text-shadow: none !important;
         text-decoration-color: transparent !important; }
     *::before, *::after { -webkit-text-fill-color: transparent !important; }
-    .tile svg use { visibility: hidden !important; }
+    .tile svg use[href^="#tile-"] { visibility: hidden !important; }
 `;
 const FORCE_PSEUDO_INK = `
     * { -webkit-text-fill-color: transparent !important; text-shadow: none !important;
         text-decoration-color: transparent !important; }
     *::before, *::after { -webkit-text-fill-color: #f0f !important; }
-    .tile svg use { visibility: hidden !important; }
+    .tile svg use[href^="#tile-"] { visibility: hidden !important; }
 `;
 
 /** Hides the text a pseudo-element draws (" han", "✓"), nothing else. */
@@ -473,9 +473,9 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
                 return [...inks.values()];
             }
             const glyphs: ContrastTarget[] = [...scope.querySelectorAll(".tile:not(.tile-back)")]
-                .filter((tile) => tile.querySelector("use") !== null && shown(tile))
+                .filter((tile) => tile.querySelector('use[href^="#tile-"]') !== null && shown(tile))
                 .flatMap((tile) => {
-                    const use = tile.querySelector("use");
+                    const use = tile.querySelector('use[href^="#tile-"]');
                     const href = use?.getAttribute("href") ?? "";
                     const symbol = document.querySelector(href);
                     if (symbol !== null && symbol.childElementCount === 0) {
@@ -485,7 +485,7 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
                     const inks =
                         symbol === null || instance === null ? [] : inksOf(symbol, instance);
                     const rect = tile.getBoundingClientRect();
-                    const box = clipOf(rect, tile);
+                    const box = use === null ? null : clipOf(use.getBoundingClientRect(), use);
                     const label = `glyph ${href.replace("#tile-", "")} in ${named(tile.parentElement ?? tile)}`;
                     if (inks.length === 0) {
                         unreadable.push(`${label} (no ink, or under a filter)`);

@@ -5,7 +5,6 @@ import { type ElementPart, type PartInfo, PartType, directive } from "lit-html/d
 import {
     OWN_LYING_EDGE_SHARE,
     OWN_LYING_HEIGHT_SHARE,
-    OWN_STANDING_EDGE_SHARE,
     TILE_EDGE_SHARE,
 } from "@/entities/table/lib/board-constants";
 import {
@@ -29,6 +28,7 @@ import {
     surfaceViewValues,
     tableView,
 } from "@/entities/table/lib/table-camera";
+import { STANDING_BODY } from "@/entities/tile";
 
 /** What the opponents' strips hold, by seat, and the own row's melds. */
 interface StripContents extends Readonly<Record<StripSeat, StripContent>> {
@@ -254,8 +254,8 @@ class SizeBoard extends AsyncDirective {
                 ["--own-meld-w", `${ownTile}px`],
                 ["--own-lying-edge-scale", String(OWN_LYING_EDGE_SHARE / TILE_EDGE_SHARE)],
                 ["--own-lying-height-share", String(OWN_LYING_HEIGHT_SHARE)],
-                ["--own-standing-edge-scale", String(OWN_STANDING_EDGE_SHARE / TILE_EDGE_SHARE)],
                 ["--tile-edge-share", String(TILE_EDGE_SHARE)],
+                ["--standing-body-corner", String(STANDING_BODY.cornerRadius)],
                 ...zoneLengths(geometry),
                 ...Object.entries(laid).map(
                     ([name, length]) => [`--${name}`, `${length}px`] as const,

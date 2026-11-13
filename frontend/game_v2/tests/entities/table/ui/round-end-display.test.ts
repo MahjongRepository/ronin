@@ -79,6 +79,7 @@ describe("RoundEndDisplay", () => {
         expect(texts(el, ".round-end-result__win-label")).toEqual(["Tsumo"]);
         expect(el.querySelectorAll(".round-end-result__win-tile .hand-tile")).toHaveLength(1);
         expect(el.querySelectorAll(".round-end-result__melds .meld")).toHaveLength(3);
+        expect(el.querySelectorAll(".tile--standing")).toHaveLength(0);
     });
 
     test("a press beside the result shows the board under it until the press ends, never one on the result", async () => {

@@ -252,8 +252,16 @@ $row: 40px;
     color: var(--ronin-text);
 }
 
+.decision-timer__caption,
+.decision-timer__digits {
+    padding: 0.08em 0.25em;
+    border-radius: 0.25em;
+    background: var(--ronin-badge);
+}
+
 .decision-timer__caption {
     max-width: 100%;
+    box-sizing: border-box;
     overflow: hidden;
     text-overflow: ellipsis;
     font-size: max(11px, calc(var(--decision-row) * 0.22));

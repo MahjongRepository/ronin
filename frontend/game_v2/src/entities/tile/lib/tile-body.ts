@@ -13,6 +13,10 @@ const STANDING_BODY = {
     topFlatEnd: 0.27,
 } as const;
 
+const BODY_VIEW_WIDTH = 100;
+const TILE_BOX_ASPECT = 4 / 3;
+const STANDING_OVERHANG = STANDING_BODY.height - TILE_BOX_ASPECT;
+
 const FACE_ART_ASPECT = 4 / 3;
 const FACE_ART_VIEW = { height: 400, width: 300 } as const;
 
@@ -51,10 +55,12 @@ function faceArtViewBox(suit: FaceSuit): FaceBox {
 }
 
 export {
+    BODY_VIEW_WIDTH,
     FACE_ART_ASPECT,
     FACE_ART_SUIT_SCALE,
     FACE_ART_VIEW,
     STANDING_BODY,
+    STANDING_OVERHANG,
     faceArtViewBox,
     standingFaceBox,
 };

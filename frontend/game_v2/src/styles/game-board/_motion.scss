@@ -18,12 +18,6 @@
     initial-value: 0deg;
 }
 
-@property --motion-standing {
-    syntax: "<number>";
-    inherits: true;
-    initial-value: 0;
-}
-
 @property --motion-lying {
     syntax: "<number>";
     inherits: true;

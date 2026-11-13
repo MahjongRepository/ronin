@@ -2,10 +2,13 @@ import { type TemplateResult, render } from "lit-html";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import {
+    STANDING_BODY,
+    StandingTile,
     TILE_FACES,
     TILE_LABELS_KEY,
     Tile,
     applyTileLabels,
+    injectTileBodies,
     injectTileSprite,
     restoreTileLabels,
     spokenTileName,
@@ -41,6 +44,81 @@ describe("injectTileSprite", () => {
 
         expect(document.body.childElementCount).toBe(0);
         expect(document.documentElement.dataset.tileSprite).toBeUndefined();
+    });
+});
+
+const BODIES =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"><symbol id="body-standing" viewBox="0 0 100 150"><rect width="100" height="150"/></symbol></svg>';
+
+describe("injectTileBodies", () => {
+    afterEach(() => {
+        document.body.innerHTML = "";
+    });
+
+    test("puts the body symbols in a rendered zero-size sprite, so their gradients and masks paint through a use", () => {
+        injectTileBodies(BODIES);
+
+        const sprite = document.querySelector("symbol#body-standing")?.closest("svg");
+        expect([sprite?.style.display, sprite?.style.width, sprite?.style.height]).toEqual([
+            "",
+            "0px",
+            "0px",
+        ]);
+        expect(sprite?.getAttribute("aria-hidden")).toBe("true");
+    });
+
+    test("throws on markup with no body symbol", () => {
+        expect(() => injectTileBodies(SPRITE)).toThrow("the tile body sprite holds no body symbol");
+        expect(document.body.childElementCount).toBe(0);
+    });
+});
+
+describe("StandingTile", () => {
+    function artOf(face: "1m" | "1p"): Record<"bottom" | "top" | "width", number> {
+        const el = renderTo(StandingTile(face, null));
+        const box = el.querySelector("svg.tile__face");
+        const art = box?.querySelector(`use[href="#tile-${face}"]`);
+        const [boxTop, boxWidth, boxHeight] = ["y", "width", "height"].map((name) =>
+            Number(box?.getAttribute(name)),
+        );
+        const [, viewTop = 0, viewWidth = 0, viewHeight = 0] = (box?.getAttribute("viewBox") ?? "")
+            .split(" ")
+            .map(Number);
+        const across = boxWidth / viewWidth;
+        const down = boxHeight / viewHeight;
+        return {
+            bottom: boxTop + (Number(art?.getAttribute("height")) - viewTop) * down,
+            top: boxTop - viewTop * down,
+            width: Number(art?.getAttribute("width")) * across,
+        };
+    }
+
+    test("draws a man face's art larger than a pin face's, each below the body's crest and inside its height", () => {
+        const man = artOf("1m");
+        const pin = artOf("1p");
+
+        expect(man.width).toBeGreaterThan(pin.width * 1.03);
+        for (const art of [man, pin]) {
+            expect(art.top).toBeGreaterThan(STANDING_BODY.ridge * 100);
+            expect(art.bottom).toBeLessThan(STANDING_BODY.height * 100);
+        }
+    });
+
+    test("keeps a red five's name and corner label red, the label inside the face box", () => {
+        const el = renderTo(StandingTile("0s", "latin"));
+        const box = el.querySelector("svg.tile__face");
+        const label = el.querySelector(".tile__label");
+        const [left = 0, top = 0, width = 0] = (box?.getAttribute("viewBox") ?? "")
+            .split(" ")
+            .map(Number);
+
+        expect([
+            el.querySelector(".tile__name")?.classList.contains("tile__name--red"),
+            label?.classList.contains("tile__label--red"),
+            label?.closest("svg") === box,
+        ]).toEqual([true, true, true]);
+        expect(Number(label?.getAttribute("x"))).toBeLessThan(left + width);
+        expect(Number(label?.getAttribute("y"))).toBeGreaterThan(top);
     });
 });
 

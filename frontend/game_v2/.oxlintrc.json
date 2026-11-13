@@ -24,6 +24,7 @@
                 "capIsNewExceptions": [
                     "Tile",
                     "TileBack",
+                    "StandingTile",
                     "HandTileView",
                     "Meld",
                     "Hand",

@@ -25,7 +25,6 @@ const RIVER_GAP_SHARE = 0.3;
 
 /** How far a tile's edge reaches below its box, in shares of its width. */
 const TILE_EDGE_SHARE = 0.2;
-const OWN_STANDING_EDGE_SHARE = 0.1;
 const OWN_LYING_EDGE_SHARE = 0.25;
 
 /** No meld face goes under this width (px). */
@@ -259,7 +258,6 @@ export {
     OWN_LYING_HEIGHT_SHARE,
     OWN_MELD_SCALE,
     OWN_ROW_GAP,
-    OWN_STANDING_EDGE_SHARE,
     PAGE_GUTTER,
     PHONE_CENTRE_MIN_HEIGHT,
     PHONE_CENTRE_MIN_WIDTH,
