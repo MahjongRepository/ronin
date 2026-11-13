@@ -81,7 +81,9 @@ function capturePose(tile: HTMLElement, rect: MotionRect, seat: SeatPosition): T
 }
 
 function copiedTileStyle(tile: HTMLElement): readonly string[] {
-    return isSideways(tile) ? TILE_STYLE.filter((name) => name !== "border-radius") : TILE_STYLE;
+    return tile.classList.contains("tile-back") && !isSideways(tile)
+        ? TILE_STYLE
+        : TILE_STYLE.filter((name) => name !== "border-radius");
 }
 
 function copyTile(tile: HTMLElement, pose: TilePose): HTMLElement {

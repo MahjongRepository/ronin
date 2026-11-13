@@ -75,8 +75,10 @@ The derived proportions are the three reference viewports' values under the sizi
   (a river, a meld, a hand that takes no input) share one edge and shadow under all their faces, so
   a tile nearer the screen's bottom covers the edge of the one behind it and no edge or shadow ever
   lies on a face. A chankan source's ring lies flat over the tiles.
-  The own hand's tiles stand facing their player: a band across each one's top and a
-  shallower edge below, 0.13 of its width; the own row reserves the deeper of that and its melds' edge.
+  The own hand's tiles stand facing their player: across each one's top a band 0.1 of its width deep in
+  the edge's near-black base, the tile's back seen above the face, meeting the face at a crisp seam, its top corners
+  rounded by 0.12 of its width, and below a shallower edge, 0.1 of its width, whether the hand takes input or not;
+  the own row reserves the deeper of that and its melds' edge.
 - **Composed for ordinary play.** The design anchor is a mid-round state with real decisions on
   screen. Dense states (long rivers, four melds a seat, five dora indicators, long names) must
   stay legible and unambiguous but never reshape the ordinary composition. Exception: a river of
@@ -550,8 +552,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Tile motion.** Draws travel from the centre to the separated hand slot and discards from hand to river in
   120ms, with a faint trail (its copies drawn without an edge or shadow; the tile itself draws its edge in three
   passes, the body, a dark base as deep as a landed tile's with its contact shadow and a short cast shadow, as deep as its slot's, and a replay's tsumogiri keeps its shade). The latest discard settles into its river slot in 120ms when its mark ends.
-  A travelling tile keeps its body and shadow throughout, with size, orientation and the own hand's top band
-  changing continuously from source to destination; landing on the tilted table it flies already in its slot's look
+  A travelling tile keeps its body and shadow throughout, with size, orientation and the own hand's top band, rounder top corners and
+  lowered corner label changing continuously from source to destination; landing on the tilted table it flies already in its slot's look
   (the camera's taper and squash), so it lands with no pop. Light stays
   fixed to the screen. Rearranging hands, settling
   discards and moving or resizing laid melds animate their actual tile wrappers inside their group, retaining its
@@ -729,7 +731,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   another seat's badge or its score in the centre, and pressing a seat's name on the seating, which
   marks the seat viewed from; so a replay's badge pins no differences (hovering still shows them).
   Decision: a replay greys a discard of the tile just drawn (tsumogiri) in every river, one shade over
-  its face alone (its edge and shadow stay as any tile's), and marks it with a small dark corner at its artwork's bottom left;
+  its face alone (its edge and shadow stay as any tile's), and marks it with a small dark corner in its face's bottom-left corner, placed by the tile's box;
   live play marks none. A panel over a replay's board never covers the controls, so the replay
   always moves on. Decision, a panel-only exception: on a phone a panel
   takes all but the moves, the options hide but the round list's toggle, and an incomplete

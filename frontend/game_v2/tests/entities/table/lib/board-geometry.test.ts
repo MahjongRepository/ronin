@@ -192,7 +192,7 @@ describe("boardGeometry in a phone's browser", () => {
             board: { height: 390, width: 750 },
             height: 390,
             insets: { bottom: 21, left: 47, right: 47, top: 0 },
-            ow: 46,
+            ow: 47,
             rw: 21,
             width: 844,
         },
@@ -219,7 +219,7 @@ describe("boardGeometry in a phone's browser", () => {
             browser: "a Galaxy A25 in Android Chrome",
             height: 331,
             insets: NO_INSETS,
-            ow: 40,
+            ow: 41,
             rw: 17,
             width: 891,
         },
@@ -727,8 +727,8 @@ describe("boardGeometry", () => {
         { height: 375, pinned: { ow: 45, rw: 19 }, width: 667 },
         { height: 390, pinned: { ow: 45, rw: 19 }, width: 667 },
         { height: 354, pinned: { ow: 41, rw: 19 }, width: 724 },
-        { height: 360, pinned: { ow: 45, rw: 19 }, width: 800 },
-        { height: 390, pinned: { ow: 46, rw: 21 }, width: 750 },
+        { height: 360, pinned: { ow: 46, rw: 19 }, width: 800 },
+        { height: 390, pinned: { ow: 47, rw: 21 }, width: 750 },
         { height: 379, pinned: { ow: 38, rw: 21 }, width: 761 },
         { height: 414, pinned: { ow: 43, rw: 23 }, width: 808 },
         { height: 480, pinned: { ow: 57, rw: 26 }, width: 850 },
@@ -1194,16 +1194,16 @@ describe("boardGeometry's shell tracks", () => {
 
     it("lays a landscape phone's slots where its board measured them", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
-            actions: [144, 218.2, 523, 305.2],
+            actions: [144, 219.4, 523, 306.4],
             corner: [577, 4, 663, 375],
-            field: [4, 37.1, 90, 191.1],
-            "field-beside": [577, 50, 663, 303.2],
-            furiten: [4, 199.1, 90, 217.2],
-            hand: [5, 309.2, 663, 369.2],
-            "strip-left": [96, 4, 138, 305.2],
-            "strip-right": [529, 4, 571, 305.2],
+            field: [4, 37.1, 90, 192.4],
+            "field-beside": [577, 50, 663, 304.4],
+            furiten: [4, 200.4, 90, 218.4],
+            hand: [5, 310.4, 663, 370.4],
+            "strip-left": [96, 4, 138, 306.4],
+            "strip-right": [529, 4, 571, 306.4],
             "strip-top": [138, 4, 474.5, 42],
-            switches: [4, 225.2, 84, 305.2],
+            switches: [4, 226.4, 84, 306.4],
         });
     });
 

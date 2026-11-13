@@ -24,7 +24,7 @@ const RIVER_GAP_SHARE = 0.3;
 
 /** How far a tile's edge reaches below its box, in shares of its width. */
 const TILE_EDGE_SHARE = 0.2;
-const OWN_STANDING_EDGE_SHARE = 0.13;
+const OWN_STANDING_EDGE_SHARE = 0.1;
 
 /** No meld face goes under this width (px). */
 const FACE_FLOOR = 13;
