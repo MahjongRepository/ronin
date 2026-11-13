@@ -109,12 +109,15 @@ interface Seen {
     readonly shifts: Partial<ReturnType<typeof tableView>["shifts"]>;
     readonly rw: number;
     readonly counters: BoardRect;
+    /** How far in from the top strip's box its line, and so its melds, start. */
+    readonly inset: number;
 }
 
 function flatOf(screen: BoardGeometry): Seen {
     const pieces = tablePieces(screen);
     return {
         counters: pieces.dora,
+        inset: 0,
         pieces,
         rw: screen.lengths["rw"] ?? 0,
         shifts: {},
@@ -125,6 +128,7 @@ function flatOf(screen: BoardGeometry): Seen {
 function seenOf(view: ReturnType<typeof tableView>): Seen {
     return {
         counters: shownPiece(view, "dora"),
+        inset: (view.plane.strips?.top.start ?? 0) - view.pieces["strip-top"].left,
         pieces: view.pieces,
         rw: view.plane.lengths["rw"] ?? 0,
         shifts: view.shifts,
@@ -139,13 +143,12 @@ function seenOf(view: ReturnType<typeof tableView>): Seen {
 function endGaps(
     table: ReturnType<typeof tableView> | Seen,
 ): Readonly<Record<"counters" | "left" | "right", number>> {
-    const { counters, pieces, rw, shifts, show } = "camera" in table ? seenOf(table) : table;
+    const { counters, inset, pieces, rw, shifts, show } = "camera" in table ? seenOf(table) : table;
     const strip = pieces["strip-top"];
-    const along = shifts["strip-top"]?.left ?? 0;
     const deep = (TILE_ASPECT + TILE_EDGE_SHARE) * rw;
     function gap(seat: "strip-left" | "strip-right"): number {
         const left = seat === "strip-left";
-        const foot = show({ left: (left ? strip.left : strip.right) + along, top: strip.bottom });
+        const foot = show({ left: left ? strip.left + inset : strip.right, top: strip.bottom });
         const side = pieces[seat];
         const shift = shifts[seat] ?? { left: 0, top: 0 };
         const corner = show({
@@ -157,7 +160,7 @@ function endGaps(
             corner.top - foot.top,
         );
     }
-    const first = show({ left: strip.left + along, top: strip.bottom }).left;
+    const first = show({ left: strip.left + inset, top: strip.bottom }).left;
     return { counters: first - counters.right, left: gap("strip-left"), right: gap("strip-right") };
 }
 
@@ -376,7 +379,7 @@ describe("tableView on desktop windows 40x20 apart", () => {
         expect(outside).toStrictEqual([]);
     });
 
-    it("shows the side strips' farthest tiles 16px or the flat gap off the top strip's end tiles, the counters the flat gap off its first", () => {
+    it("shows the side strips' farthest tiles 16px or the flat gap off the top strip's end tiles, the counters 8px or the flat gap off its first", () => {
         const short = desktopGrid().flatMap((row, down) =>
             row.flatMap((view, across) => {
                 const box = { height: GRID_HEIGHTS[down] ?? 0, width: GRID_WIDTHS[across] ?? 0 };
@@ -387,7 +390,7 @@ describe("tableView on desktop windows 40x20 apart", () => {
                 return [
                     tilted.left >= Math.min(16, flat.left) - 0.5 ? "" : "left",
                     tilted.right >= Math.min(16, flat.right) - 0.5 ? "" : "right",
-                    tilted.counters >= Math.min(flat.counters, planeCounters) - 0.5
+                    tilted.counters >= Math.max(8, Math.min(flat.counters, planeCounters)) - 0.5
                         ? ""
                         : "counters",
                 ]

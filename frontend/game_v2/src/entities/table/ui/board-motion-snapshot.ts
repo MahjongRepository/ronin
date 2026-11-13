@@ -1,7 +1,6 @@
 import { type MotionRect, type MotionTile } from "@/entities/table/lib/board-motion";
 import {
-    type PieceMatrix,
-    type ScreenPoint,
+    type PieceFrame,
     type TileQuad,
     pieceOrigin,
     rectQuad,
@@ -31,17 +30,11 @@ export interface TileSnapshot extends MotionTile {
     readonly image: HTMLElement;
 }
 
-/** A tilted piece's camera on the screen: its `matrix3d` and its box's top left corner. */
-interface PieceFrame {
-    readonly matrix: PieceMatrix;
-    readonly origin: ScreenPoint;
-}
-
-/** The tilted pieces' frames one snapshot reads, each piece's once. */
+/**
+ * What one snapshot has read of each tile's ancestors: a tilted piece's camera on the screen (its `matrix3d` and its
+ * box's top left corner), else null; each element read once.
+ */
 type PieceFrames = Map<Element, PieceFrame | null>;
-
-const TILTED_PIECES =
-    ".board-surface > .board-center, .board-surface > .board-strip, .board-surface > .board-dora, .board-rivers > .board-river";
 
 export const SEAT_TURNS: Readonly<Record<SeatPosition, number>> = {
     bottom: 0,
@@ -113,6 +106,10 @@ function createImage(tile: HTMLElement, pose: TilePose): HTMLElement {
         "board-motion__tile--individual",
         tile.parentElement instanceof HTMLButtonElement,
     );
+    image.classList.toggle(
+        "board-motion__tile--tsumogiri",
+        tile.parentElement?.dataset.tsumogiri === "true",
+    );
     image.style.setProperty("--motion-width", `${pose.width}px`);
     image.style.setProperty("--motion-height", `${pose.height}px`);
     image.style.setProperty("--motion-angle", `${pose.angle}deg`);
@@ -161,17 +158,38 @@ function readPieceFrame(piece: HTMLElement): PieceFrame | null {
     return { matrix, origin: pieceOrigin(matrix, size, piece.getBoundingClientRect()) };
 }
 
-/** A tile's corners on the screen: on a tilted piece as its camera shows them, else its bounding box's. */
+function cachedFrame(element: HTMLElement, frames: PieceFrames): PieceFrame | null {
+    if (!frames.has(element)) {
+        frames.set(element, readPieceFrame(element));
+    }
+    return frames.get(element) ?? null;
+}
+
+/** The camera of the tilted piece a tile lies on: its nearest ancestor drawn through a `matrix3d`, if any. */
+function tiltedFrame(tile: HTMLElement, frames: PieceFrames): PieceFrame | null {
+    for (let element = tile.parentElement; element !== null; element = element.parentElement) {
+        const frame = cachedFrame(element, frames);
+        if (frame !== null) {
+            return frame;
+        }
+    }
+    return null;
+}
+
+/**
+ * A tile's corners on the screen: on a tilted piece as its camera shows them, else its bounding box's. A camera that
+ * rolls the piece's rows cannot be read back from a bounding box, and fails loudly rather than flying the tile flat.
+ */
 function captureQuad(tile: HTMLElement, rect: MotionRect, frames: PieceFrames): TileQuad {
-    const piece = tile.closest<HTMLElement>(TILTED_PIECES);
-    if (piece === null) {
+    const frame = tiltedFrame(tile, frames);
+    if (frame === null) {
         return rectQuad(rect);
     }
-    if (!frames.has(piece)) {
-        frames.set(piece, readPieceFrame(piece));
+    const quad = tiltedQuad(frame, rect);
+    if (quad === null) {
+        throw new Error("A tilted piece's camera must keep its rows level");
     }
-    const frame = frames.get(piece);
-    return (frame && tiltedQuad(frame, rect)) ?? rectQuad(rect);
+    return quad;
 }
 
 function captureTile(

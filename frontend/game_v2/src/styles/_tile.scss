@@ -47,6 +47,19 @@ $edge-bands: (
     @return list.nth(map.get($edge-bands, $band), 1);
 }
 
+/* A band's depth under the face for tiles of width `$unit`: its share, the body's ending at least 1px above the back
+   so a small tile's seam still draws, never above the band before it. */
+@function band-depth($band, $unit) {
+    @if $band == body {
+        @return max(
+            calc(#{band-share(side-mid)} * #{$unit}),
+            min(calc(#{band-share(body)} * #{$unit}), calc(#{band-share(back)} * #{$unit} - 1px))
+        );
+    }
+
+    @return calc(#{band-share($band)} * #{$unit});
+}
+
 @function band-colour($band) {
     @return list.nth(map.get($edge-bands, $band), 2);
 }
@@ -65,7 +78,7 @@ $edge-bands: (
     --unit: var(--tile-w);
 
     @each $band, $spec in $edge-bands {
-        @include screen-offset($band, 0, band-share($band), var(--unit), var(--tile-turn));
+        @include screen-offset($band, 0, 1, band-depth($band, var(--unit)), var(--tile-turn));
     }
 
     @include screen-offset(bevel, 0, $bevel-share, var(--unit), var(--tile-turn));
@@ -150,16 +163,22 @@ $edge-bands: (
     --unit: #{$unit};
 
     $filter: ();
-    $reached: 0;
+    $reached: 0px;
 
     @each $band, $spec in $edge-bands {
-        @include screen-offset(group-#{$band}, 0, band-share($band) - $reached, var(--unit), $turn);
+        @include screen-offset(
+            group-#{$band},
+            0,
+            1,
+            calc(#{band-depth($band, var(--unit))} - #{$reached}),
+            $turn
+        );
 
         $filter: list.append(
             $filter,
             drop-shadow(var(--group-#{$band}-x) var(--group-#{$band}-y) 0 band-colour($band))
         );
-        $reached: band-share($band);
+        $reached: band-depth($band, var(--unit));
     }
 
     @include screen-offset(group-contact, 0, $contact-y, var(--unit), $turn);
@@ -205,8 +224,21 @@ $edge-bands: (
         inset 0 calc(var(--unit) * #{$top-share} + 1px) 0 var(--ronin-tile-rim);
 }
 
+/* A flying tile's edge in three passes, light enough to repaint every frame: its lit body down to the back's seam,
+   the seam, and one shadow; a trail's copies draw none, as translucent filtered copies wash out in WebKit. */
+@mixin flight-edge($unit) {
+    --unit: #{$unit};
+
+    filter: drop-shadow(0 band-depth(body, $unit) 0 band-colour(side-high))
+        drop-shadow(0 calc(#{band-depth(back, $unit)} - #{band-depth(body, $unit)}) 0 band-colour(back))
+        drop-shadow(
+            calc(#{$unit} * #{$cast-x}) calc(#{$unit} * #{$cast-y}) calc(#{$unit} * #{$cast-blur * 0.8})
+                var(--ronin-tile-shadow)
+        );
+}
+
 .game-board .board-motion__tile {
-    @include group-edge(var(--motion-width), 0deg);
+    @include flight-edge(var(--motion-width));
 
     > .tile {
         --tile-w: var(--motion-width);
@@ -229,7 +261,8 @@ $edge-bands: (
         --tile-lift: 0 0 transparent;
     }
 
-    &--individual {
+    &--individual,
+    &--trail {
         filter: none;
     }
 }

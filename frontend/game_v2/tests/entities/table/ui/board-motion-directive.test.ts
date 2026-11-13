@@ -200,6 +200,21 @@ function measureFlightTile(this: HTMLElement): DOMRect {
     return new DOMRect(100 + gap, 300 + gap, 48, 36);
 }
 
+/** A camera tilting its rows away (their weight falls down the box), and one that also rolls them. */
+const TILTED = "matrix3d(1, 0, 0, 0, 0, 0.9, 0, -0.0005, 0, 0, 1, 0, 0, 0, 0, 1)";
+const ROLLED = "matrix3d(1, 0.1, 0, 0, 0, 0.9, 0, -0.0005, 0, 0, 1, 0, 0, 0, 0, 1)";
+
+function renderTiltedDiscard(discarded: boolean, camera: string): void {
+    const held: HandTile = { face: "2m", show: "face", state: "selectable", tileId: 4 };
+    render(
+        html`<div class="board-local" data-area="bottom-hand">${Hand({ tiles: discarded ? [held] : [{ face: "1m", show: "face", state: "selectable", tileId: 0 }, held] })}</div>
+        <div style=${`transform: ${camera}`}>
+            <div data-area="bottom-discards">${Discards(discarded ? [{ face: "1m", tileId: 0 }] : [])}</div>
+        </div>`,
+        host,
+    );
+}
+
 function startRiichiFlight(last = false): BoardMotionPlayer {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureFlightTile);
     renderRiichiFlight(false);
@@ -648,6 +663,44 @@ describe("tile flight material", () => {
         finishAll();
         expect([hiddenTiles(), host.querySelector(".board-motion")]).toEqual([0, null]);
         player.cancel();
+    });
+});
+
+function startTiltedFlight(): BoardMotionPlayer {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureFlightTile);
+    renderTiltedDiscard(false, TILTED);
+    const before = snapshotTiles(host);
+    renderTiltedDiscard(true, TILTED);
+    const after = snapshotTiles(host);
+    const player = new BoardMotionPlayer(host);
+    player.play(planTileMotion(before, after), before, after);
+    return player;
+}
+
+describe("tilted tile flight", () => {
+    it("slides a discard onto a tilted river already in its landing taper, the warp fixed and the move a translate", () => {
+        const player = startTiltedFlight();
+
+        const [start, end] = getAnimationFrames(animations[0]);
+        expect(start.transform).toMatch(/^translate\(-50%, -50%\) matrix3d\(/u);
+        expect(start.transform).not.toBe(
+            "translate(-50%, -50%) matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)",
+        );
+        expect([end.transform, start.translate, end.translate]).toEqual([
+            start.transform,
+            "0px 314px",
+            "0px 0px",
+        ]);
+        player.cancel();
+    });
+
+    it("refuses a tilted piece whose camera rolls its rows rather than flying its tile flat", () => {
+        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+            measureFlightTile,
+        );
+        renderTiltedDiscard(true, ROLLED);
+
+        expect(() => snapshotTiles(host)).toThrow("keep its rows level");
     });
 });
 

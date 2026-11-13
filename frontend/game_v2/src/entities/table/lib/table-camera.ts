@@ -55,6 +55,9 @@ const BAND_CLEAR = 4;
 /** A desktop's side strip's farthest tile keeps at least this far off the top strip's nearest tile, or the flat gap (px). */
 const SIDE_TOP_CLEAR = 16;
 
+/** A desktop's counters keep at least this far off the top strip's first tile (px). */
+const COUNTERS_CLEAR = 8;
+
 const CAP_STEPS = 4;
 
 const PLANE_SPARE: PlaneSpare = "around-core";
@@ -300,14 +303,20 @@ function sideShift(
 /** A table as a camera shows it: its plane's pieces, each moved by its shift. */
 type SeenTable = Pick<TableView, "camera" | "pieces" | "plane" | "shifts">;
 
+/** How far in from its box's left edge the top strip's line starts, where its melds lie (px). */
+function topInsetOf({ pieces, plane }: Pick<SeenTable, "pieces" | "plane">): number {
+    const { left } = pieces["strip-top"];
+    return (plane.strips?.top.start ?? left) - left;
+}
+
 /**
- * Where the top strip's end tile by `seat` shows its outer foot corner, at its line's stacked depth: either end may hold
- * a meld (a kan stacked) or the hand.
+ * Where the top strip's end tile by `seat` shows its outer foot corner, at its line's stacked depth: the left end may
+ * hold a meld (a kan stacked) as far out as its line starts, the right end the hand.
  */
-function stripEndFoot({ camera, pieces, shifts }: SeenTable, seat: SideStrip): PlanePoint {
-    const strip = pieces["strip-top"];
-    const edge = seat === "strip-left" ? strip.left : strip.right;
-    return projectPoint(camera, { left: edge + shifts["strip-top"].left, top: strip.bottom });
+function stripEndFoot(table: SeenTable, seat: SideStrip): PlanePoint {
+    const strip = table.pieces["strip-top"];
+    const edge = seat === "strip-left" ? strip.left + topInsetOf(table) : strip.right;
+    return projectPoint(table.camera, { left: edge, top: strip.bottom });
 }
 
 /** Where a side strip's farthest tile shows its inner corner: it lies on the lane's outer edge, a tile's length deep. */
@@ -350,12 +359,18 @@ function sideTopWanted(screen: BoardGeometry, seat: SideStrip): number {
     return Math.min(SIDE_TOP_CLEAR, sideTopGap(flatView(screen), seat));
 }
 
-/** The gap the counters keep off the top strip's first tile: the flat board's, or the plane's where its card differs. */
+/**
+ * The gap the counters keep off the top strip's first tile: the flat board's, or the plane's where its card differs,
+ * never under `COUNTERS_CLEAR`.
+ */
 function countersWanted(pieces: Record<TablePiece, BoardRect>, screen: BoardGeometry): number {
     const flat = tablePieces(screen);
-    return Math.min(
-        flat["strip-top"].left - flat.dora.right,
-        pieces["strip-top"].left - pieces.dora.right,
+    return Math.max(
+        COUNTERS_CLEAR,
+        Math.min(
+            flat["strip-top"].left - flat.dora.right,
+            pieces["strip-top"].left - pieces.dora.right,
+        ),
     );
 }
 
@@ -371,24 +386,26 @@ function topLeftNeeds(table: SeenTable, screen: BoardGeometry, counters: number)
     return Math.max(side, counters - foot.left);
 }
 
-/** How far right the camera may show the top strip's right end with the right strip's farthest tile keeping its gap (px). */
-function topRightRoom(table: SeenTable, screen: BoardGeometry): number {
-    const foot = stripEndFoot(table, "strip-right");
-    const corner = sideFarCorner(table, "strip-right");
-    const wanted = sideTopWanted(screen, "strip-right");
-    return corner.top - foot.top >= wanted ? Infinity : corner.left - wanted - foot.left;
+/**
+ * How far in the top strip's line starts on the plane: where the side strips or the counters stand in under its left
+ * end, the least that shows each its wanted gap off the melds lying there; its hand, at the line's right end, never
+ * moves.
+ */
+function topInset(table: SeenTable, screen: BoardGeometry, counters: number): number {
+    const { across } = scalesAt(table.camera, table.pieces["strip-top"].bottom);
+    return Math.max(0, topLeftNeeds(table, screen, counters) / across);
 }
 
-/**
- * The top strip's move on the plane, across, where the side strips or the counters stand in under its ends: the least
- * that shows each its wanted gap off the strip's end tile while the other end keeps its own; none where both cannot
- * hold, which the view's check then rejects.
- */
-function topShift(table: SeenTable, screen: BoardGeometry, counters: number): PlanePoint {
-    const { across } = scalesAt(table.camera, table.pieces["strip-top"].bottom);
-    const least = topLeftNeeds(table, screen, counters) / across;
-    const most = topRightRoom(table, screen) / across;
-    return { left: least > most ? 0 : Math.min(Math.max(0, least), most), top: 0 };
+/** `plane` with its top strip's line starting `inset` further in. */
+function insetTopLine(plane: BoardGeometry, inset: number): BoardGeometry {
+    const { strips } = plane;
+    if (strips === null || inset === 0) {
+        return plane;
+    }
+    return {
+        ...plane,
+        strips: { ...strips, top: { ...strips.top, start: strips.top.start + inset } },
+    };
 }
 
 /**
@@ -410,10 +427,10 @@ function countersShift(table: SeenTable, screen: BoardGeometry): PlanePoint {
 }
 
 /**
- * Each piece's move on the plane: the side strips' to their flat places, then on a desktop the counters' off the top
- * strip and the top strip's off the side strips and the counters.
+ * Each piece's move on the plane (the side strips' to their flat places, then on a desktop the counters' off the top
+ * strip) and the plane with the top strip's line starting clear of the side strips and the counters.
  */
-function tableShifts(
+function laidTable(
     camera: TableCamera,
     {
         phone,
@@ -424,7 +441,7 @@ function tableShifts(
         readonly phone: boolean;
         readonly screen: BoardGeometry;
     },
-): Record<TablePiece, PlanePoint> {
+): Pick<SeenTable, "plane" | "shifts"> {
     function side(seat: SideStrip): PlanePoint {
         return sideShift(camera, { phone, screen }, { piece: pieces[seat], seat });
     }
@@ -434,14 +451,17 @@ function tableShifts(
         "strip-right": side("strip-right"),
     };
     if (phone) {
-        return shifts;
+        return { plane, shifts };
     }
     const table = { camera, pieces, plane, shifts };
     const dora = countersShift(table, screen);
     const counters =
         projectPoint(camera, { left: pieces.dora.right + dora.left, top: pieces.dora.top }).left +
         countersWanted(pieces, screen);
-    return { ...shifts, dora, "strip-top": topShift(table, screen, counters) };
+    return {
+        plane: insetTopLine(plane, topInset(table, screen, counters)),
+        shifts: { ...shifts, dora },
+    };
 }
 
 interface PlaneAt {
@@ -520,8 +540,7 @@ function viewWithin(input: BoardInput, screen: BoardGeometry, at: PlaneAt): Tabl
         flatCounters: screen.family === "phone" ? countersPlace(screen) : null,
         margin,
         pieces,
-        plane,
-        shifts: tableShifts(camera, { phone: screen.family === "phone", pieces, plane, screen }),
+        ...laidTable(camera, { phone: screen.family === "phone", pieces, plane, screen }),
         tableTop: screen.lengths["table-top"] ?? 0,
         topGap: at.topGap ?? 0,
     };

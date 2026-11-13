@@ -119,11 +119,13 @@ function sameRect(first: MotionRect, second: MotionRect): boolean {
 
 function showDestination(target: HTMLElement): void {
     target.style.removeProperty("visibility");
+    target.parentElement?.removeAttribute("data-landing");
     target.closest("button")?.style.removeProperty("pointer-events");
 }
 
 function hideDestination(target: HTMLElement): void {
     target.style.visibility = "hidden";
+    target.parentElement?.setAttribute("data-landing", "");
     const control = target.closest("button");
     if (control !== null) {
         control.style.pointerEvents = "none";
@@ -325,6 +327,7 @@ export class BoardMotionPlayer {
         for (const [index, opacity] of [0.06, 0.18, 0.06].entries()) {
             const ghost = flight.image.cloneNode(true);
             if (ghost instanceof HTMLElement) {
+                ghost.classList.add("board-motion__tile--trail");
                 ghost.style.opacity = String(opacity);
                 this.animateTile({
                     ...flight,

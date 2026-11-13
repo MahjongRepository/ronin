@@ -51,10 +51,11 @@ The derived proportions are the three reference viewports' values under the sizi
   tall, beside neighbours that tilt 12 or 15 degrees); about 850-900x340 tilts 12 degrees where its
   neighbours tilt 15, its 15-degree plane's river tile falling under the flat one's. A phone's plane
   widens the felt under the top strip's meld room, not the room, so its deepest meld (an added
-  kan) shows no nearer the top river than on the flat board. On a desktop the top strip moves
-  across on the plane where the side strips, kept inside their flat places, come in under its
-  ends: each side strip's farthest tile keeps 16px (or the flat gap) off the strip's end tiles, and
-  the counters keep the flat gap off its first tile, never past the flat counters' left edge. A desktop whose width
+  kan) shows no nearer the top river than on the flat board. On a desktop the top strip's line
+  starts further in where the left side strip, kept inside its flat place, comes in under its end
+  (its melds lie there; its hand, at the other end, never moves): each side strip's farthest tile
+  keeps 16px (or the flat gap) off the strip's end tiles, and the counters keep 8px (or the flat
+  gap) off its first tile, never past the flat counters' left edge. A desktop whose width
   binds its river tile keeps the flat table's place, centred in its box, and tilts within it. The
   felt, its seams (drawn to the tilted centre's corners), the plates and calls (at the tilted points
   the table anchors them to, at their flat size, a plate standing on its edge toward the core, a
@@ -542,7 +543,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
 - **Tile motion.** Draws travel from the centre to the separated hand slot and discards from hand to river in
-  120ms, with a faint trail. The latest discard settles into its river slot in 120ms when its mark ends.
+  120ms, with a faint trail (its copies drawn without an edge or shadow; the tile itself draws its edge in three
+  passes, the body, the back's seam and one shadow, and a replay's tsumogiri keeps its shade). The latest discard settles into its river slot in 120ms when its mark ends.
   A travelling tile keeps its body and shadow throughout, with size, orientation and the own hand's top band
   changing continuously from source to destination; landing on the tilted table it flies already in its slot's look
   (the camera's taper and squash), so it lands with no pop. Light stays

@@ -184,7 +184,7 @@
 
 /* A discard of the tile just drawn is greyed: one shade over its face, inside the tile's own box. The edge under it
    is the rivers' layer's and stays lit: a shade reaching it also falls on the next tile of a side river. */
-.game-board--replay .discard-tile[data-tsumogiri="true"] > .tile {
+.game-board--replay :is(.discard-tile[data-tsumogiri="true"], .board-motion__tile--tsumogiri) > .tile {
     &::after {
         content: "";
         position: absolute;
@@ -218,6 +218,11 @@
     background: var(--ronin-tile-drawn-mark);
     clip-path: polygon(0 0, 0 100%, 100% 100%);
     pointer-events: none;
+}
+
+/* A discard still flying in leaves its slot's mark unshown until it lands. */
+.game-board--replay .discard-tile[data-landing]::after {
+    visibility: hidden;
 }
 
 .game-board--replay .discard-tile-riichi[data-tsumogiri="true"]::after {
