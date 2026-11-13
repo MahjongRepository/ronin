@@ -1,4 +1,6 @@
+@use "sass:math";
 @use "@/styles/game-board/grid" as *;
+@use "@/styles/tile";
 
 .hand {
     display: inline-flex;
@@ -24,7 +26,7 @@ button.hand-tile {
     margin-bottom: 0;
     padding: 0;
     border: 0;
-    border-radius: 9% / 7%;
+    border-radius: tile.corner-radius(1, math.div(4, 3));
     background: none;
     box-shadow: none;
     color: inherit;

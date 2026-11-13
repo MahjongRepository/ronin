@@ -1,10 +1,13 @@
 @use "sass:list";
 @use "sass:map";
+@use "sass:math";
 @use "@/styles/game-board/queries" as *;
 
 /* The tile box, 3:4 from its width (60px standalone; a board sets `--tile-w`): the face artwork inset by the same
-   room on every side, 8% of the width (6% of the height), and the corners a share of the box. */
+   room on every side, 8% of the width (6% of the height), and the corners a share of the width, never under 1.5px. */
 $glyph-room: 0.08;
+$corner-share: 0.07;
+$corner-floor: 1.5px;
 
 /* One light for every seat (docs/game-client-look.md, Flat top-down), in shares of the tile's width. */
 $lip-share: 0.025;
@@ -16,7 +19,6 @@ $bevel-share: 0.045;
 $rim-top-share: 0.02;
 $rim-left-share: 0.025;
 $rim-right-share: 0.04;
-$rim-bottom-share: 0.03;
 $pillow-share: 0.09;
 $top-share: 0.06;
 $contact-y: 0.035;
@@ -64,6 +66,14 @@ $edge-bands: (
     @return calc(#{band-share($band)} * #{$unit});
 }
 
+/* The corners of a box `$across` tile widths wide and `$down` tall: round, a share of the tile's width. */
+@function corner-radius($across, $down) {
+    @return list.slash(
+        max($corner-floor, math.percentage(math.div($corner-share, $across))),
+        max($corner-floor, math.percentage(math.div($corner-share, $down)))
+    );
+}
+
 @function band-colour($band) {
     @return list.nth(map.get($edge-bands, $band), 2);
 }
@@ -86,12 +96,35 @@ $edge-bands: (
         @include screen-offset($band, 0, 1, band-depth($band, var(--edge-unit)), var(--tile-turn));
     }
 
-    @include screen-offset(bevel, $bevel-share * 0.7, $bevel-share * 0.7, var(--unit), var(--tile-turn));
+    @include screen-offset(
+        bevel,
+        $bevel-share * 0.7,
+        $bevel-share * 0.7,
+        var(--unit),
+        var(--tile-turn)
+    );
     @include screen-offset(shade, -$bevel-share, 0, var(--unit), var(--tile-turn));
-    @include screen-offset(rim-top, 0, 1, max(1px, calc(var(--unit) * #{$rim-top-share})), var(--tile-turn));
-    @include screen-offset(rim-left, 1, 0, max(1px, calc(var(--unit) * #{$rim-left-share})), var(--tile-turn));
-    @include screen-offset(rim-right, -1, 0, max(1px, calc(var(--unit) * #{$rim-right-share})), var(--tile-turn));
-    @include screen-offset(rim-bottom, 0, -1, max(1px, calc(var(--unit) * #{$rim-bottom-share})), var(--tile-turn));
+    @include screen-offset(
+        rim-top,
+        0,
+        1,
+        max(1px, calc(var(--unit) * #{$rim-top-share})),
+        var(--tile-turn)
+    );
+    @include screen-offset(
+        rim-left,
+        1,
+        0,
+        max(1px, calc(var(--unit) * #{$rim-left-share})),
+        var(--tile-turn)
+    );
+    @include screen-offset(
+        rim-right,
+        -1,
+        0,
+        max(1px, calc(var(--unit) * #{$rim-right-share})),
+        var(--tile-turn)
+    );
     @include screen-offset(
         contact,
         0,
@@ -114,8 +147,6 @@ $edge-bands: (
         inset var(--rim-left-x) var(--rim-left-y) calc(var(--unit) * #{$rim-left-share})
             var(--ronin-tile-rim-light),
         inset var(--rim-right-x) var(--rim-right-y) calc(var(--unit) * #{$rim-right-share})
-            var(--ronin-tile-rim-dark),
-        inset var(--rim-bottom-x) var(--rim-bottom-y) calc(var(--unit) * #{$rim-bottom-share})
             var(--ronin-tile-rim-dark),
         inset var(--bevel-x) var(--bevel-y) calc(var(--unit) * #{$bevel-share})
             var(--ronin-tile-shine),
@@ -140,7 +171,7 @@ $edge-bands: (
     width: var(--tile-w);
     height: calc(var(--tile-w) * 4 / 3);
     padding: calc(var(--tile-w) * #{$glyph-room});
-    border-radius: 9% / 7%;
+    border-radius: corner-radius(1, math.div(4, 3));
     background: radial-gradient(
         ellipse 80% 72% at 50% 42%,
         var(--ronin-tile-face-light),
@@ -163,7 +194,7 @@ $edge-bands: (
     inset: 0;
     width: auto;
     height: auto;
-    border-radius: 7% / 9%;
+    border-radius: corner-radius(math.div(4, 3), 1);
 
     svg {
         position: absolute;
@@ -242,18 +273,20 @@ $edge-bands: (
         inset 0 calc(var(--unit) * #{$top-share} + 1px) 0 var(--ronin-tile-rim);
 }
 
-/* A flying tile's edge in three passes cheap to repaint each frame (mid-tone body, seam, cast shadow), as shallow as
-   a standing tile's while it stands; trails draw none, as translucent filtered copies wash out in WebKit. */
+/* A flying tile's edge in three passes cheap to repaint each frame (body, a base as deep as a landed one's with its
+   contact, cast shadow), shallower while it stands; trails draw none, as filtered copies wash out in WebKit. */
 @mixin flight-edge($unit, $edge-unit) {
     --unit: #{$unit};
 
-    filter: drop-shadow(0 band-depth(body, $edge-unit) 0 band-colour(side-mid))
+    $body-depth: band-depth(body, $edge-unit);
+    $base-depth: calc(
+        #{band-depth(back, $edge-unit)} - #{$body-depth} + #{$contact-y} * #{$edge-unit}
+    );
+
+    filter: drop-shadow(0 $body-depth 0 band-colour(side-mid))
+        drop-shadow(0 $base-depth 0 band-colour(back))
         drop-shadow(
-            0 calc(#{band-depth(back, $edge-unit)} - #{band-depth(body, $edge-unit)}) 0
-                band-colour(back)
-        )
-        drop-shadow(
-            calc(#{$edge-unit} * #{$cast-x}) calc(#{$edge-unit} * #{$contact-y + $cast-y})
+            calc(#{$edge-unit} * #{$cast-x}) calc(#{$edge-unit} * #{$cast-y})
                 calc(#{$edge-unit} * #{$cast-blur * 0.8}) var(--ronin-tile-shadow)
         );
 }
@@ -317,13 +350,9 @@ $back-split: 45%;
 
     height: calc(var(--tile-w) * 4 / 3 * #{$cap-share});
     margin-top: calc(var(--tile-w) * 4 / 3 * #{1 - $cap-share});
-    border-radius: 9% / 14%;
+    border-radius: corner-radius(1, math.div(4, 3) * $cap-share);
     background: standing-top(var(--ronin-back), var(--ronin-tile-face));
 }
-
-/* A side strip runs along the light, so the group's edge would fill each hairline and show in the tiles' rounded
-   corners: the table's colour lies under the hairline, over that edge, a corner's radius into both tiles. */
-$corner-share: 0.09;
 
 /* Firefox on macOS draws a filter inside a turned frame unturned, so an opponent's tiles draw their own depth, every
    tile's below every face of its group. */
@@ -394,9 +423,11 @@ $max-meld-tiles: 4;
     }
 }
 
+/* A side strip runs along the light, so the group's edge would fill each hairline and show in the tiles' rounded
+   corners: the table's colour lies under the hairline, over that edge, a corner's radius into both tiles. */
 @mixin seam-mask($left) {
     --seam: var(--bgap);
-    --seam-corner: calc(var(--tile-w) * #{$corner-share});
+    --seam-corner: max(#{$corner-floor}, calc(var(--tile-w) * #{$corner-share}));
 
     &::before {
         content: "";

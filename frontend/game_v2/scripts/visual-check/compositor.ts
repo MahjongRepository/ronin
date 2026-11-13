@@ -8,8 +8,8 @@ const NUDGE_EVERY = 10;
 const NUDGE_ID = "compositor-nudge";
 
 /**
- * Repaint one pixel in the viewport's bottom right corner, a near-clear shade that flips by a colour level or two over
- * what lies under it, so the compositor has a change to send a frame for that no shot can see.
+ * Repaint one pixel in the viewport's bottom right corner, a near-clear black that flips between 2% and 6% over what
+ * lies under it, a few colour levels, so the compositor has a change to send a frame for that no shot looks at.
  */
 async function nudge(page: Page): Promise<void> {
     await page.evaluate((id) => {

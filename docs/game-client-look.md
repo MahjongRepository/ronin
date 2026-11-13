@@ -63,8 +63,9 @@ The derived proportions are the three reference viewports' values under the sizi
   phone) and
   everything in front stay flat. Depth comes from the surface, the tile's edge and its shadow. One
   static transform per piece, no per-frame work. Decision: one light for every
-  seat: each tile's face is softly domed, with a rounded rim (a bright line along
-  its top and left, a darker falloff along its right and bottom, a darker crease where it meets its
+  seat: each tile's face is softly domed, with corners rounded by 0.07 of its width
+  (never under 1.5px) and a rounded rim (a bright line along its top and left, a darker falloff
+  along its right, the face meeting its lip with no falloff, a darker crease where it meets its
   neighbour, each a share of its width, never under 1px) around a flat centre, and its edge
   shows toward the screen's bottom (a white lip under the face, then a flat grey side about 0.6 of
   the face's lightness over a near-black base, within the reserved edge; a
@@ -548,7 +549,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
 - **Tile motion.** Draws travel from the centre to the separated hand slot and discards from hand to river in
   120ms, with a faint trail (its copies drawn without an edge or shadow; the tile itself draws its edge in three
-  passes, the body, the back's seam and a short cast shadow, as deep as its slot's, and a replay's tsumogiri keeps its shade). The latest discard settles into its river slot in 120ms when its mark ends.
+  passes, the body, a dark base as deep as a landed tile's with its contact shadow and a short cast shadow, as deep as its slot's, and a replay's tsumogiri keeps its shade). The latest discard settles into its river slot in 120ms when its mark ends.
   A travelling tile keeps its body and shadow throughout, with size, orientation and the own hand's top band
   changing continuously from source to destination; landing on the tilted table it flies already in its slot's look
   (the camera's taper and squash), so it lands with no pop. Light stays
