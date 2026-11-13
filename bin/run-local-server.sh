@@ -20,6 +20,19 @@ for port in $GAME_PORT $LOBBY_PORT $VITE_PORT $GAME_V2_VITE_PORT; do
     fi
 done
 
+port_taken() {
+    (exec 3<>/dev/tcp/127.0.0.1/"$1") 2>/dev/null
+}
+
+for port in $GAME_PORT $LOBBY_PORT $VITE_PORT $GAME_V2_VITE_PORT; do
+    for _ in $(seq 1 10); do
+        port_taken "$port" || continue 2
+        sleep 0.2
+    done
+    echo "Error: port $port is still in use by a process this user cannot see or kill"
+    exit 1
+done
+
 if [ -f .env.local ]; then
     set -a && . .env.local && set +a
 fi
@@ -36,10 +49,14 @@ kill_tree() {
 
 wait_for_server() {
     local port="$1"
+    local pid="$2"
     local retries=0
 
     while [ $retries -lt $MAX_RETRIES ]; do
-        if curl -sf "http://localhost:$port/health" > /dev/null 2>&1; then
+        if ! kill -0 "$pid" 2>/dev/null; then
+            return 1
+        fi
+        if curl -sf --max-time 2 "http://localhost:$port/health" > /dev/null 2>&1; then
             return 0
         fi
         retries=$((retries + 1))
@@ -82,8 +99,8 @@ uv run --project backend uvicorn --factory game.server.app:get_app --reload --ho
 GAME_PID=$!
 
 echo "Waiting for game server to be ready..."
-if ! wait_for_server $GAME_PORT; then
-    echo "Error: Game server failed to start after $MAX_RETRIES retries"
+if ! wait_for_server $GAME_PORT $GAME_PID; then
+    echo "Error: Game server failed to start; see its output above"
     exit 1
 fi
 

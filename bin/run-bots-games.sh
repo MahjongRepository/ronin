@@ -168,7 +168,7 @@ start_server() {
     SERVER_PIDS+=($!)
 
     if ! wait_for_server "$port" || ! kill -0 "${SERVER_PIDS[-1]}" 2>/dev/null; then
-        echo "$name server failed to start after $MAX_RETRIES retries"
+        echo "$name server failed to start after $MAX_RETRIES retries, see $log_dir/stderr.log"
         exit 1
     fi
     echo "$name server ready"
