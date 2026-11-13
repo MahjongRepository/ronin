@@ -53,7 +53,7 @@ function Tile(face: TileFace, show: "face" | "back", labels: WindScript | null =
     const labelMark =
         label === null
             ? nothing
-            : svg`<text class="tile__label${red === "" ? "" : " tile__label--red"}" x="318" y="-18" aria-hidden="true">${label}</text>`;
+            : svg`<text class="tile__label${red === "" ? "" : " tile__label--red"}" x="341" y="-47" aria-hidden="true">${label}</text>`;
     return html`<span class="tile">${svg`<svg width="100%" height="100%" viewBox="0 0 300 400" aria-label="${spokenTileName(face)}"><text class="tile__name${red}" x="150" y="200" aria-hidden="true">${placeholderFace(face)}</text><use href="#tile-${face}"/>${labelMark}</svg>`}</span>`;
 }
 

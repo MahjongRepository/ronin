@@ -3,9 +3,7 @@
 @use "sass:math";
 @use "@/styles/game-board/queries" as *;
 
-/* The tile box, 3:4 from its width (60px standalone; a board sets `--tile-w`): the face artwork inset by the same
-   room on every side, 8% of the width (6% of the height), and the corners a share of the width, never under 1.5px. */
-$glyph-room: 0.08;
+$glyph-room: 0.13;
 $corner-share: 0.07;
 $corner-floor: 1.5px;
 
@@ -475,13 +473,13 @@ $max-meld-tiles: 4;
 }
 
 .tile__label {
-    font-size: 110px;
+    font-size: 125px;
     font-weight: 800;
     text-anchor: end;
     dominant-baseline: hanging;
     fill: var(--ronin-tile-label);
     stroke: var(--ronin-tile-face);
-    stroke-width: 18px;
+    stroke-width: 20px;
     stroke-linejoin: round;
     paint-order: stroke;
 
