@@ -1057,9 +1057,9 @@ function checkBadgePlaces(results: readonly TaskResult[]): string[] {
 
 /**
  * A landscape phone's centre at its least, whatever its river tile asks (`board-constants.ts`'s, not importable here),
- * less the 4px it may give the top river's edge (`board-geometry.ts`'s `CENTRE_EDGE_GIVE`).
+ * less the 1px it may give the top river's edge (`board-geometry.ts`'s `CENTRE_EDGE_GIVE`).
  */
-const PHONE_CENTRE_LEAST: Size = { height: 68 - 4, width: 100 };
+const PHONE_CENTRE_LEAST: Size = { height: 68 - 1, width: 100 };
 /** A desktop's centre's height in river tiles (`board-constants.ts`'s `DESKTOP_CENTRE_TILES`, not importable here). */
 const DESKTOP_CENTRE_TILES = 4.5;
 

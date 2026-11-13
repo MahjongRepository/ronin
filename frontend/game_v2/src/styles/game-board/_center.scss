@@ -25,7 +25,8 @@
     --stick-dot: calc(max(3px, var(--c) * 0.018) - var(--squeeze) * 0.05);
     --info-block: calc(var(--shorter-side) * 0.03 - var(--squeeze) * 0.05);
     --info-inline: calc(var(--shorter-side) * 0.02);
-    --info-gap: calc(var(--c) * 0.04 - var(--squeeze) * 0.035);
+    --info-gap: max(0px, calc(var(--c) * 0.04 - var(--squeeze) * 0.035 - var(--edge-give) * 2));
+    --edge-give: clamp(0px, 68px - var(--c), 4px);
     --round-floor: calc(14px - var(--squeeze) * 0.05);
     --corner: calc(var(--c) * 0.07);
 

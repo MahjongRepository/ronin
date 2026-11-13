@@ -955,6 +955,7 @@ function phoneLayout(
     frame: BoardFrame,
     { beside, ow, rw }: { readonly beside: boolean; readonly ow: number; readonly rw: number },
 ): {
+    readonly band: BoardRect;
     readonly fits: boolean;
     readonly holdsKans: boolean;
     readonly holdsPrompt: boolean;
@@ -1032,6 +1033,7 @@ function phoneLayout(
         column.left >= barLeast - 0.001 &&
         plates.fits;
     return {
+        band,
         fits,
         holdsKans: tightKansReach(rw, frame.faceFloor) <= line + STRIP_CONTROL_CLEAR,
         holdsPrompt:
@@ -1062,9 +1064,13 @@ function phoneLaid(
     return beside.fits || !above.fits ? beside : above;
 }
 
+/** How far the decisions' band may move for the top river's edge room and still count as kept (px). */
+const BAND_KEPT_TOLERANCE = 0.5;
+
 /**
  * A phone laid at `tiles` with its top river's edge given room off the centre's top, where the centre's spare height
- * allows and everything the plain layout holds still holds; else the plain layout. The tiles never change for it.
+ * allows, everything the plain layout holds still holds and its decisions' band keeps its place and width; else the
+ * plain layout. The tiles never change for it.
  */
 function phoneLaidWithEdgeRoom(
     frame: BoardFrame,
@@ -1075,7 +1081,11 @@ function phoneLaidWithEdgeRoom(
     const keeps = (["fits", "holdsKans", "holdsPrompt", "holdsReplay"] as const).every(
         (check) => !plain[check] || roomy[check],
     );
-    return keeps ? roomy : plain;
+    const bandKept =
+        roomy.band.left <= plain.band.left + BAND_KEPT_TOLERANCE &&
+        roomy.band.right >= plain.band.right - BAND_KEPT_TOLERANCE &&
+        roomy.band.top <= plain.band.top + BAND_KEPT_TOLERANCE;
+    return keeps && bandKept ? roomy : plain;
 }
 
 /** `lengths` laid again at their own tiles with the top river's edge room (`phoneLaidWithEdgeRoom`). */
@@ -1340,7 +1350,7 @@ const STRIP_ROOM_GAP = 8;
 const STRIP_CONTROL_CLEAR = 4;
 
 /** How much shorter than its least a phone's centre may stand to give the top river's edge its room (px). */
-const CENTRE_EDGE_GIVE = 4;
+const CENTRE_EDGE_GIVE = 1;
 
 /** The top strip's melds keep this far above the top badge (px). */
 const TOP_BADGE_CLEAR = 6;

@@ -873,7 +873,7 @@ apart on the top strip, and 0.35 on a side strip, where the 0.2 tile edge it sho
 | Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand within the board and, where any own tile allows it, a right bar that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.42 / 0.46 / 0.73 |
 | Own hand tile width / play area width | 0.05 | 0.067 / 0.063 / 0.046 |
 | Own hand tile height / play area height | 0.15 | 0.160 / 0.161 / 0.100 |
-| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded; the top river 0.53 / 0.52 / 0.34, past its rows' tile edge, a phone's taken from its centre's height, down to 4px under its least, never from a tile) |
+| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded; the top river 0.53 / 0.52 / 0.34, past its rows' tile edge, a phone's taken from its centre's height, down to 1px under its least, only where the decisions' band keeps its place, never from a tile) |
 | Gap between neighbouring rivers, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,

@@ -249,7 +249,7 @@ describe("boardGeometry in a phone's browser", () => {
             expect(lengths["side-reach"]).toBeLessThanOrEqual(
                 (lengths["switches-bottom"] ?? 0) - (lengths["m"] ?? 0),
             );
-            expect(lengths["c"]).toBeGreaterThanOrEqual(68 - 4);
+            expect(lengths["c"]).toBeGreaterThanOrEqual(68 - 1);
         },
     );
 
@@ -1055,9 +1055,18 @@ describe("boardGeometry's decisions", () => {
         },
     );
 
+    it("keeps a 640x308 phone's decisions band as wide as it stands without the top river's edge room, from the left strip's lane under the centre", () => {
+        const { lengths, tracks } = windowGeometry({ height: 308, width: 640 });
+        const [left = 0, top = 0, right = 0] = slotAreas(tracks)["actions"] ?? [];
+
+        expect(right - left).toBeCloseTo(341.6, 1);
+        expect(left).toBeLessThan((lengths["cx"] ?? 0) - (lengths["hx"] ?? 0));
+        expect(top).toBeGreaterThanOrEqual((lengths["cy"] ?? 0) + (lengths["h"] ?? 0));
+    });
+
     it.each([
         { fromLane: true, height: 375, insets: NO_INSETS, rows: 2, width: 667 },
-        { fromLane: false, height: 390, insets: NO_INSETS, rows: 2, width: 750 },
+        { fromLane: true, height: 390, insets: NO_INSETS, rows: 2, width: 750 },
         { fromLane: true, height: 430, insets: NO_INSETS, rows: 2, width: 932 },
         {
             fromLane: true,
