@@ -677,6 +677,38 @@ function startTiltedFlight(): BoardMotionPlayer {
     return player;
 }
 
+function renderOwnDraw(withDraw: boolean): void {
+    const held: HandTile = { face: "1m", show: "face", state: "selectable", tileId: 0 };
+    const newTile: HandTile = { face: "2m", show: "face", state: "selectable", tileId: 4 };
+    render(
+        html`<div class="board-local" data-area="bottom-hand">${Hand({ drawnTile: withDraw ? newTile : undefined, tiles: [held] })}</div>`,
+        host,
+    );
+}
+
+function startOwnDraw(): BoardMotionPlayer {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureFlightTile);
+    renderOwnDraw(false);
+    const before = snapshotTiles(host);
+    renderOwnDraw(true);
+    const after = snapshotTiles(host);
+    const player = new BoardMotionPlayer(host);
+    player.play(planTileMotion(before, after), before, after);
+    return player;
+}
+
+describe("own draw flight", () => {
+    it("lands a live own draw as its own button's standing tile, the pose its standing edge follows", () => {
+        const player = startOwnDraw();
+
+        const image = host.querySelector(".board-motion__tile:not(.board-motion__tile--trail)");
+        const [start, end] = getAnimationFrames(animations[0]);
+        expect(image?.classList.contains("board-motion__tile--individual")).toBe(true);
+        expect([start["--motion-standing"], end["--motion-standing"]]).toEqual(["1", "1"]);
+        player.cancel();
+    });
+});
+
 describe("tilted tile flight", () => {
     it("slides a discard onto a tilted river already in its landing taper, the warp fixed and the move a translate", () => {
         const player = startTiltedFlight();

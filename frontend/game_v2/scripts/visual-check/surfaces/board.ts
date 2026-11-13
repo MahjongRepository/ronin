@@ -404,7 +404,7 @@ interface DerivedProportions {
  */
 const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
     [FLOOR, { riverGap: 0.32, riverToOwn: 0.42, topRiverGap: 0.53 }],
-    [NOTCH_PHONE, { riverGap: 0.29, riverToOwn: 0.46, topRiverGap: 0.48 }],
+    [NOTCH_PHONE, { riverGap: 0.29, riverToOwn: 0.46, topRiverGap: 0.52 }],
     [MID_DESKTOP, { riverGap: 0.14, riverToOwn: 0.73, topRiverGap: 0.34 }],
 ]);
 const DERIVED_TOLERANCE = 0.02;
@@ -1055,8 +1055,11 @@ function checkBadgePlaces(results: readonly TaskResult[]): string[] {
     });
 }
 
-/** A landscape phone's centre at its least, whatever its river tile asks (`board-constants.ts`'s, not importable here). */
-const PHONE_CENTRE_LEAST: Size = { height: 68, width: 100 };
+/**
+ * A landscape phone's centre at its least, whatever its river tile asks (`board-constants.ts`'s, not importable here),
+ * less the 4px it may give the top river's edge (`board-geometry.ts`'s `CENTRE_EDGE_GIVE`).
+ */
+const PHONE_CENTRE_LEAST: Size = { height: 68 - 4, width: 100 };
 /** A desktop's centre's height in river tiles (`board-constants.ts`'s `DESKTOP_CENTRE_TILES`, not importable here). */
 const DESKTOP_CENTRE_TILES = 4.5;
 

@@ -226,7 +226,7 @@ $edge-bands: (
         inset 0 calc(var(--unit) * #{$top-share} + 1px) 0 var(--ronin-tile-rim);
 }
 
-/* A flying tile's edge in three passes cheap to repaint each frame (mid-tone body, seam, contact shadow), as shallow as
+/* A flying tile's edge in three passes cheap to repaint each frame (mid-tone body, seam, cast shadow), as shallow as
    a standing tile's while it stands; trails draw none, as translucent filtered copies wash out in WebKit. */
 @mixin flight-edge($unit, $edge-unit) {
     --unit: #{$unit};
@@ -237,8 +237,8 @@ $edge-bands: (
                 band-colour(back)
         )
         drop-shadow(
-            0 calc(#{$edge-unit} * #{$contact-y}) calc(#{$edge-unit} * #{$contact-blur * 0.5})
-                var(--ronin-tile-contact)
+            calc(#{$edge-unit} * #{$cast-x}) calc(#{$edge-unit} * #{$contact-y + $cast-y})
+                calc(#{$edge-unit} * #{$cast-blur * 0.8}) var(--ronin-tile-shadow)
         );
 }
 
@@ -249,6 +249,7 @@ $edge-bands: (
 
     > .tile {
         --tile-w: var(--motion-width);
+        --edge-unit: calc(var(--unit) * var(--motion-edge-scale));
         --tile-turn: var(--motion-angle);
         --tile-top:
             inset 0 calc(var(--unit) * #{$top-share} * var(--motion-standing)) 0

@@ -545,7 +545,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
 - **Tile motion.** Draws travel from the centre to the separated hand slot and discards from hand to river in
   120ms, with a faint trail (its copies drawn without an edge or shadow; the tile itself draws its edge in three
-  passes, the body, the back's seam and one shadow, and a replay's tsumogiri keeps its shade). The latest discard settles into its river slot in 120ms when its mark ends.
+  passes, the body, the back's seam and a short cast shadow, as deep as its slot's, and a replay's tsumogiri keeps its shade). The latest discard settles into its river slot in 120ms when its mark ends.
   A travelling tile keeps its body and shadow throughout, with size, orientation and the own hand's top band
   changing continuously from source to destination; landing on the tilted table it flies already in its slot's look
   (the camera's taper and squash), so it lands with no pop. Light stays
@@ -873,7 +873,7 @@ apart on the top strip, and 0.35 on a side strip, where the 0.2 tile edge it sho
 | Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand within the board and, where any own tile allows it, a right bar that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.42 / 0.46 / 0.73 |
 | Own hand tile width / play area width | 0.05 | 0.067 / 0.063 / 0.046 |
 | Own hand tile height / play area height | 0.15 | 0.160 / 0.161 / 0.100 |
-| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded; the top river 0.53 / 0.48 / 0.34, past its rows' tile edge, a phone's where its centre has the height) |
+| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded; the top river 0.53 / 0.52 / 0.34, past its rows' tile edge, a phone's taken from its centre's height, down to 4px under its least, never from a tile) |
 | Gap between neighbouring rivers, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,

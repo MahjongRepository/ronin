@@ -219,7 +219,7 @@ describe("boardGeometry in a phone's browser", () => {
             browser: "a Galaxy A25 in Android Chrome",
             height: 331,
             insets: NO_INSETS,
-            ow: 38,
+            ow: 40,
             rw: 17,
             width: 891,
         },
@@ -249,7 +249,7 @@ describe("boardGeometry in a phone's browser", () => {
             expect(lengths["side-reach"]).toBeLessThanOrEqual(
                 (lengths["switches-bottom"] ?? 0) - (lengths["m"] ?? 0),
             );
-            expect(lengths["c"]).toBeGreaterThanOrEqual(68);
+            expect(lengths["c"]).toBeGreaterThanOrEqual(68 - 4);
         },
     );
 
@@ -726,8 +726,8 @@ describe("boardGeometry", () => {
     it.each([
         { height: 375, pinned: { ow: 45, rw: 19 }, width: 667 },
         { height: 390, pinned: { ow: 45, rw: 19 }, width: 667 },
-        { height: 354, pinned: { ow: 40, rw: 19 }, width: 724 },
-        { height: 360, pinned: { ow: 44, rw: 19 }, width: 800 },
+        { height: 354, pinned: { ow: 41, rw: 19 }, width: 724 },
+        { height: 360, pinned: { ow: 45, rw: 19 }, width: 800 },
         { height: 390, pinned: { ow: 46, rw: 21 }, width: 750 },
         { height: 379, pinned: { ow: 38, rw: 21 }, width: 761 },
         { height: 414, pinned: { ow: 43, rw: 23 }, width: 808 },

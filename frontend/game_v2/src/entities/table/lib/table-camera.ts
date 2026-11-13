@@ -800,7 +800,7 @@ function holds(view: TableView, screen: BoardGeometry): boolean {
         stripsClearTop(view, screen) &&
         coreClearOfBand(view, screen) &&
         (screen.family !== "phone" || shownMeldClear(view) >= flatMeldClear(screen) - BAND_SLACK) &&
-        (view.plane.lengths["rw"] ?? 0) >= flatRiver - (screen.family === "phone" ? 0 : 1) &&
+        (view.plane.lengths["rw"] ?? 0) >= flatRiver - 1 &&
         Math.abs(apparentRiver(view) - flatRiver) <= APPARENT_RIVER_SHARE * flatRiver + 0.5 &&
         shown.top <= Math.max(flat.top, 0) + band + MARGIN_TOLERANCE &&
         shown.top >= flat.top - topBandSlack(screen) &&

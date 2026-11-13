@@ -514,4 +514,62 @@ describe("tableView between the grid's windows", () => {
         expect(tilts.flat()).not.toContain(0);
         expect(Math.max(...jumps)).toBeLessThanOrEqual(8);
     });
+
+    it("leaves a phone 20x20 apart off the grid flat only where no tilt shows its faces at the floor", () => {
+        const boxes = Array.from({ length: 10 }, (_unused, down) =>
+            Array.from({ length: 15 }, (_unused2, across) => ({
+                height: 305 + 20 * down,
+                width: 645 + 20 * across,
+            })),
+        ).flat();
+        const flatThoughFloored = boxes.flatMap((box) => {
+            const { screen, view } = viewOf(box);
+            if (screen.family !== "phone" || view.camera.tilt !== 0) {
+                return [];
+            }
+            const input = {
+                appliedEdges: NO_EDGES,
+                box,
+                safeInsets: NO_EDGES,
+                slots: { band: "play" as const },
+            };
+            const floored = [15, 12, 10].filter((tilt) => {
+                const face = farthestFace(viewAt(input, screen, tilt));
+                return face.short >= 13 - 0.01 && face.long >= 13 * TILE_ASPECT - 0.01;
+            });
+            return floored.length > 0 ? [`${box.width}x${box.height}`] : [];
+        });
+
+        expect(flatThoughFloored).toStrictEqual([]);
+    });
+
+    it("never drops a phone's river tile more than 2px between neighbours 20x20 apart off the grid", () => {
+        const widths = Array.from({ length: 15 }, (_unused, across) => 645 + 20 * across);
+        const heights = Array.from({ length: 10 }, (_unused, down) => 305 + 20 * down);
+        const rivers = heights.map((height) =>
+            widths.map((width) => {
+                const { screen } = viewOf({ height, width });
+                return screen.family === "phone" ? (screen.lengths["rw"] ?? 0) : null;
+            }),
+        );
+        const cliffs = rivers.flatMap((row, down) =>
+            row.flatMap((river, across) =>
+                [
+                    [row[across + 1], widths[across + 1], heights[down]],
+                    [rivers[down + 1]?.[across], widths[across], heights[down + 1]],
+                ].flatMap(([next, width, height]) =>
+                    river === null ||
+                    next === null ||
+                    next === undefined ||
+                    Math.abs(next - river) <= 2
+                        ? []
+                        : [
+                              `${widths[across]}x${heights[down]} ${river} -> ${width}x${height} ${next}`,
+                          ],
+                ),
+            ),
+        );
+
+        expect(cliffs).toStrictEqual([]);
+    });
 });

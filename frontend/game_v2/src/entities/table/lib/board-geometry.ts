@@ -458,6 +458,8 @@ interface BoardFrame {
     readonly beside?: boolean;
     /** How much higher a phone plane's centre ends, so the camera shows it clear of the flat decisions' band (px). */
     readonly coreLift?: number;
+    /** Whether a phone's centre gives the top river's centre-facing edge room off its top, from its spare height. */
+    readonly topEdgeRoom?: boolean;
 }
 
 /** A desktop's root sizes and the lengths the stylesheet reads with them, in px, at the largest river tile that fits. */
@@ -973,10 +975,15 @@ function phoneLayout(
     const rows = riverRows(rw, gap);
     const spareRoom =
         handTop - coreGap - (frame.coreLift ?? 0) - 2 * (LATEST_DISCARD_GAP + rows) - coreTop;
-    const edgeRoom = Math.max(
-        0,
-        Math.min(Math.round(TILE_EDGE_SHARE * rw), spareRoom - PHONE_CENTRE_MIN_HEIGHT),
-    );
+    const edgeRoom = frame.topEdgeRoom
+        ? Math.max(
+              0,
+              Math.min(
+                  Math.ceil(TILE_EDGE_SHARE * rw),
+                  spareRoom - PHONE_CENTRE_MIN_HEIGHT + CENTRE_EDGE_GIVE,
+              ),
+          )
+        : 0;
     const topGap = gap + edgeRoom;
     const centreTop = coreTop + LATEST_DISCARD_GAP + rows + edgeRoom;
     const heightRoom = spareRoom - edgeRoom;
@@ -1019,7 +1026,7 @@ function phoneLayout(
     const plates = plateRect(at, chrome.pillH, rowTop);
     const band = phoneActions(at);
     const fits =
-        heightRoom >= PHONE_CENTRE_MIN_HEIGHT &&
+        spareRoom >= PHONE_CENTRE_MIN_HEIGHT &&
         fullReach(rw, "left") <= rowTop - m &&
         ponsReach(rw, frame.faceFloor) <= foot &&
         column.left >= barLeast - 0.001 &&
@@ -1053,6 +1060,27 @@ function phoneLaid(
     }
     const beside = phoneLayout(frame, { ...tiles, beside: true });
     return beside.fits || !above.fits ? beside : above;
+}
+
+/**
+ * A phone laid at `tiles` with its top river's edge given room off the centre's top, where the centre's spare height
+ * allows and everything the plain layout holds still holds; else the plain layout. The tiles never change for it.
+ */
+function phoneLaidWithEdgeRoom(
+    frame: BoardFrame,
+    tiles: Readonly<Record<"ow" | "rw", number>>,
+): ReturnType<typeof phoneLayout> {
+    const plain = phoneLaid(frame, tiles);
+    const roomy = phoneLaid({ ...frame, topEdgeRoom: true }, tiles);
+    const keeps = (["fits", "holdsKans", "holdsPrompt", "holdsReplay"] as const).every(
+        (check) => !plain[check] || roomy[check],
+    );
+    return keeps ? roomy : plain;
+}
+
+/** `lengths` laid again at their own tiles with the top river's edge room (`phoneLaidWithEdgeRoom`). */
+function withEdgeRoom(frame: BoardFrame, lengths: BoardLengths): BoardLengths {
+    return phoneLaidWithEdgeRoom(frame, { ow: lengths["ow"] ?? 0, rw: lengths["rw"] ?? 0 }).lengths;
 }
 
 /**
@@ -1102,17 +1130,16 @@ function phoneSolveHoldingPrompt(frame: BoardFrame, ownFloor: number): BoardLeng
 function phoneLengths(frame: BoardFrame): BoardLengths {
     const solved = phoneSolveHoldingPrompt(frame, PHONE_OWN_FLOOR);
     if (solved !== null && (solved["rw"] ?? 0) >= FACE_FLOOR) {
-        return solved;
+        return withEdgeRoom(frame, solved);
     }
     const tapFloored = phoneSolveHoldingPrompt(frame, PHONE_OWN_TAP_FLOOR);
     if (tapFloored !== null && (tapFloored["rw"] ?? 0) > (solved?.["rw"] ?? 0)) {
-        return tapFloored;
+        return withEdgeRoom(frame, tapFloored);
     }
-    return (
-        solved ??
-        phoneLayout(frame, { beside: false, ow: PHONE_OWN_TAP_FLOOR, rw: PHONE_SMALLEST_RIVER })
-            .lengths
-    );
+    return solved === null
+        ? phoneLayout(frame, { beside: false, ow: PHONE_OWN_TAP_FLOOR, rw: PHONE_SMALLEST_RIVER })
+              .lengths
+        : withEdgeRoom(frame, solved);
 }
 
 /** A slot's box on the board, px from its top-left corner. */
@@ -1311,6 +1338,9 @@ const STRIP_ROOM_GAP = 8;
 
 /** Clearance around the switches' and own row's reserved footprints (px). */
 const STRIP_CONTROL_CLEAR = 4;
+
+/** How much shorter than its least a phone's centre may stand to give the top river's edge its room (px). */
+const CENTRE_EDGE_GIVE = 4;
 
 /** The top strip's melds keep this far above the top badge (px). */
 const TOP_BADGE_CLEAR = 6;
@@ -2332,7 +2362,7 @@ interface PlaneTiles {
 
 function planeLengths(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): BoardLengths {
     return frame.family === "phone"
-        ? phoneLaid(frame, { ow, rw }).lengths
+        ? phoneLaidWithEdgeRoom(frame, { ow, rw }).lengths
         : desktopLayout({ ...frame, plane: spare }, rw).lengths;
 }
 
