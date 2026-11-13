@@ -64,9 +64,9 @@ The derived proportions are the three reference viewports' values under the sizi
   everything in front stay flat. Depth comes from the surface, the tile's edge and its shadow. One
   static transform per piece, no per-frame work. Decision: one light for every
   seat: each tile's face is softly domed, with corners rounded by 0.07 of its width
-  (never under 1.5px) and a rounded rim (a bright line along its top and left, a darker falloff
-  along its right, the face meeting its lip with no falloff, a darker crease where it meets its
-  neighbour, each a share of its width, never under 1px) around a flat centre, and its edge
+  (never under 1.5px), shaded with no outline: one soft highlight inside its top and left
+  edges, from the light at the screen's top-left (equal offsets down and right, never under 1px), over a soft pillow that darkens every edge, so tiles that touch meet
+  at a soft seam, shade then light, never a dark line, and its edge
   shows toward the screen's bottom (a white lip under the face, then a flat grey side about 0.6 of
   the face's lightness over a near-black base, within the reserved edge; a
   standing concealed tile, below, shows its end instead), with a tight dark contact shadow at its
@@ -76,7 +76,7 @@ The derived proportions are the three reference viewports' values under the sizi
   a tile nearer the screen's bottom covers the edge of the one behind it and no edge or shadow ever
   lies on a face. A chankan source's ring lies flat over the tiles.
   The own hand's tiles stand facing their player: across each one's top a band 0.1 of its width deep in
-  the edge's near-black base, the tile's back seen above the face, meeting the face at a crisp seam, its top corners
+  the edge's near-black base, the tile's back seen above the face, meeting the felt and the face with no line, its top corners
   rounded by 0.12 of its width, and below a shallower edge, 0.1 of its width, whether the hand takes input or not.
   The own melds lie on the table beside it: no band, each face foreshortened to 0.92 of its height
   (the art, the glyph room and a sideways, stacked or face-down tile alike, a kan's stack 2 x 0.92 of a tile's width

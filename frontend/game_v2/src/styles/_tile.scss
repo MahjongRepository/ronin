@@ -15,9 +15,6 @@ $side-mid-share: 0.1;
 $body-share: 0.15;
 $back-share: 0.05;
 $bevel-share: 0.045;
-$rim-top-share: 0.02;
-$rim-left-share: 0.025;
-$rim-right-share: 0.04;
 $pillow-share: 0.09;
 $top-share: 0.1;
 $face-view-width: 300;
@@ -109,31 +106,9 @@ $edge-bands: (
 
     @include screen-offset(
         bevel,
-        $bevel-share * 0.7,
-        $bevel-share * 0.7,
-        var(--unit),
-        var(--tile-turn)
-    );
-    @include screen-offset(shade, -$bevel-share, 0, var(--unit), var(--tile-turn));
-    @include screen-offset(
-        rim-top,
-        0,
         1,
-        max(1px, calc(var(--unit) * #{$rim-top-share})),
-        var(--tile-turn)
-    );
-    @include screen-offset(
-        rim-left,
         1,
-        0,
-        max(1px, calc(var(--unit) * #{$rim-left-share})),
-        var(--tile-turn)
-    );
-    @include screen-offset(
-        rim-right,
-        -1,
-        0,
-        max(1px, calc(var(--unit) * #{$rim-right-share})),
+        max(1px, calc(var(--unit) * #{$bevel-share * 0.7})),
         var(--tile-turn)
     );
     @include screen-offset(
@@ -151,18 +126,11 @@ $edge-bands: (
         var(--tile-turn)
     );
 
-    --tile-ring: inset 0 0 0 1px var(--ronin-tile-rim);
+    --tile-ring: 0 0 transparent;
     --tile-top: 0 0 transparent;
     --tile-bevel:
-        inset var(--rim-top-x) var(--rim-top-y) 0 var(--ronin-tile-rim-light),
-        inset var(--rim-left-x) var(--rim-left-y) calc(var(--unit) * #{$rim-left-share})
-            var(--ronin-tile-rim-light),
-        inset var(--rim-right-x) var(--rim-right-y) calc(var(--unit) * #{$rim-right-share})
-            var(--ronin-tile-rim-dark),
-        inset var(--bevel-x) var(--bevel-y) calc(var(--unit) * #{$bevel-share})
+        inset var(--bevel-x) var(--bevel-y) max(1px, calc(var(--unit) * #{$bevel-share}))
             var(--ronin-tile-shine),
-        inset var(--shade-x) var(--shade-y) calc(var(--unit) * #{$bevel-share * 1.5})
-            var(--ronin-tile-shade),
         inset 0 0 calc(var(--unit) * #{$pillow-share}) var(--ronin-tile-pillow);
     --tile-edge:
         var(--lip-x) var(--lip-y) 0 #{band-colour(lip)},
@@ -277,9 +245,7 @@ $edge-bands: (
    seen above its face, inside the room the glyph keeps. */
 .board-local .hand .tile:not(.tile-back) {
     --edge-unit: calc(var(--unit) * var(--own-standing-edge-scale));
-    --tile-top:
-        inset 0 calc(var(--unit) * #{$top-share}) 0 var(--ronin-tile-back-edge),
-        inset 0 calc(var(--unit) * #{$top-share} + 1px) 0 var(--ronin-tile-rim);
+    --tile-top: inset 0 calc(var(--unit) * #{$top-share}) 0 var(--ronin-tile-back-edge);
     --standing-label-drop: #{$standing-label-drop};
 
     border-radius: standing-corner-radius();
@@ -346,15 +312,11 @@ $edge-bands: (
         --standing-share: calc(
             #{$corner-share} + #{$standing-corner-share - $corner-share} * var(--motion-standing)
         );
-        --standing-corner:
-            max(#{$corner-floor}, calc(var(--motion-width) * var(--standing-share)))
+        --standing-corner: max(#{$corner-floor}, calc(var(--motion-width) * var(--standing-share)))
             max(#{$corner-floor}, calc(var(--motion-height) * 3 / 4 * var(--standing-share)));
         --standing-label-drop: calc(#{$standing-label-drop} * var(--motion-standing));
-        --tile-top:
-            inset 0 calc(var(--unit) * #{$top-share} * var(--motion-standing)) 0
-                var(--ronin-tile-back-edge),
-            inset 0 calc((var(--unit) * #{$top-share} + 1px) * var(--motion-standing)) 0
-                var(--ronin-tile-rim);
+        --tile-top: inset 0 calc(var(--unit) * #{$top-share} * var(--motion-standing)) 0
+            var(--ronin-tile-back-edge);
 
         position: absolute;
         left: 50%;
