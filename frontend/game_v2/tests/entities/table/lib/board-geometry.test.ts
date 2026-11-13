@@ -4,6 +4,7 @@ import {
     FACE_FLOOR,
     FULL_HAND,
     LATEST_DISCARD_GAP,
+    OWN_LYING_EDGE_SHARE,
     OWN_STANDING_EDGE_SHARE,
     SIDEWAYS_UNITS,
     SIDE_LANE_GAP,
@@ -59,7 +60,7 @@ function windowGeometry(
 function ownRowDepth(lengths: Readonly<Record<string, number>>): number {
     return Math.max(
         OWN_STANDING_EDGE_SHARE * (lengths["ow"] ?? 0),
-        TILE_EDGE_SHARE * (lengths["own-meld-tile"] ?? 0),
+        OWN_LYING_EDGE_SHARE * (lengths["own-meld-tile"] ?? 0),
     );
 }
 
@@ -118,7 +119,7 @@ describe("boardGeometry chrome", () => {
         { height: 770, pillH: 30, text: 17, width: 1440 },
         { height: 900, pillH: 30 + 12 * (3 / 11), text: 17 + 7 * (3 / 11), width: 1440 },
         { height: 1000, pillH: 36, text: 20.5, width: 1727 },
-        { height: 1440, pillH: 42 * (78 / 67), text: 24 * (78 / 67), width: 2560 },
+        { height: 1440, pillH: 42 * (80 / 68), text: 24 * (80 / 68), width: 2560 },
     ])(
         "scales a $width x $height window's chrome from the regular record to the large one with its padded box, and past it with the river tile, one plate pill",
         ({ height, pillH, text, width }) => {
@@ -184,7 +185,7 @@ describe("boardGeometry in a phone's browser", () => {
             board: { height: 414, width: 808 },
             height: 414,
             insets: { bottom: 21, left: 44, right: 44, top: 0 },
-            ow: 43,
+            ow: 42,
             rw: 23,
             width: 896,
         },
@@ -638,18 +639,18 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [1280, 720, [38, 55, 66.68, 148.5]],
-        [1366, 768, [41, 59, 69.26, 156.3]],
-        [1920, 1080, [58, 84, 101.88, 216.8]],
-        [2560, 1440, [78, 113, 137.08, 285.1]],
-        [1440, 900, [48, 66, 85.28, 128.2]],
-        [1280, 800, [42, 57, 86.12, 125.9]],
-        [800, 600, [26, 32, 51.36, 98.33]],
-        [960, 1080, [33, 41, 64.38, 100.7]],
+        [1280, 720, [39, 56, 70.08, 139.2]],
+        [1366, 768, [42, 60, 74.5, 147]],
+        [1920, 1080, [60, 87, 99, 190.9]],
+        [2560, 1440, [80, 116, 143.33, 259.2]],
+        [1440, 900, [49, 66, 97.09, 126.2]],
+        [1280, 800, [43, 56, 90.63, 131.2]],
+        [800, 600, [26, 32, 50.66, 98.33]],
+        [960, 1080, [33, 41, 64.53, 100.7]],
         [1100, 1000, [40, 49, 77.4, 98.3]],
         [1280, 1024, [49, 59, 95.14, 97.3]],
-        [1502, 1551, [59, 71, 114.74, 100.7]],
-        [1024, 1366, [36, 45, 69.96, 97.5]],
+        [1502, 1551, [59, 71, 115.19, 100.7]],
+        [1024, 1366, [36, 45, 70.76, 97.5]],
     ])(
         "sizes a %ix%i desktop's river tile from its vertical stack and its own tile from its width, a full hand between the side strips' lanes, at most 1.45 river tiles, within bars that hold the switches named and the counters' row only while the own tile keeps 1.3 of the river tile, the river tile no larger than leaves it 1.2, the table centred",
         (width, height, expected) => {
@@ -702,10 +703,10 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        { across: 1366, axis: "height", ends: [31, 52] },
-        { across: 1920, axis: "height", ends: [31, 70] },
-        { across: 768, axis: "width", ends: [26, 41] },
-        { across: 1080, axis: "width", ends: [26, 58] },
+        { across: 1366, axis: "height", ends: [32, 52] },
+        { across: 1920, axis: "height", ends: [32, 72] },
+        { across: 768, axis: "width", ends: [26, 42] },
+        { across: 1080, axis: "width", ends: [26, 59] },
     ])(
         "never shrinks a desktop's river tile as its window grows in $axis from $across across",
         ({ across, axis, ends }) => {
@@ -727,13 +728,13 @@ describe("boardGeometry", () => {
         { height: 375, pinned: { ow: 45, rw: 19 }, width: 667 },
         { height: 390, pinned: { ow: 45, rw: 19 }, width: 667 },
         { height: 354, pinned: { ow: 41, rw: 19 }, width: 724 },
-        { height: 360, pinned: { ow: 46, rw: 19 }, width: 800 },
+        { height: 360, pinned: { ow: 45, rw: 19 }, width: 800 },
         { height: 390, pinned: { ow: 47, rw: 21 }, width: 750 },
         { height: 379, pinned: { ow: 38, rw: 21 }, width: 761 },
-        { height: 414, pinned: { ow: 43, rw: 23 }, width: 808 },
+        { height: 414, pinned: { ow: 42, rw: 23 }, width: 808 },
         { height: 480, pinned: { ow: 57, rw: 26 }, width: 850 },
         { height: 430, pinned: { ow: 44, rw: 24 }, width: 932 },
-        { height: 500, pinned: { ow: 52, rw: 28 }, width: 1024 },
+        { height: 500, pinned: { ow: 41, rw: 29 }, width: 1024 },
     ])(
         "sizes a $width x $height window's phone board's tiles jointly on its table column: the left bar holding the counters, the side strips' lines a full hand long above the own row, the felt beside each side river under three river tiles, every control in a bar, a replay's column in the right one",
         ({ height, pinned, width }) => {
@@ -1122,7 +1123,7 @@ describe("boardGeometry's decisions", () => {
         ].map(([width = 0, height = 0]) => windowGeometry({ height, width }, 10).lengths);
         const heights = boards.map((lengths) => lengths["decision-h"] ?? 0);
 
-        expect(heights).toEqual([40, 49, 66, 66]);
+        expect(heights).toEqual([40, 51, 68, 68]);
         expect(heights).toEqual(
             boards.map((lengths) => Math.max(40, Math.floor(0.85 * (lengths["rw"] ?? 0)))),
         );
@@ -1194,16 +1195,16 @@ describe("boardGeometry's shell tracks", () => {
 
     it("lays a landscape phone's slots where its board measured them", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
-            actions: [144, 219.4, 523, 306.4],
+            actions: [144, 219.3, 523, 306.3],
             corner: [577, 4, 663, 375],
-            field: [4, 37.1, 90, 192.4],
-            "field-beside": [577, 50, 663, 304.4],
-            furiten: [4, 200.4, 90, 218.4],
-            hand: [5, 310.4, 663, 370.4],
-            "strip-left": [96, 4, 138, 306.4],
-            "strip-right": [529, 4, 571, 306.4],
+            field: [4, 37.1, 90, 192.3],
+            "field-beside": [577, 50, 663, 304.3],
+            furiten: [4, 200.3, 90, 218.3],
+            hand: [5, 310.3, 663, 370.3],
+            "strip-left": [96, 4, 138, 306.3],
+            "strip-right": [529, 4, 571, 306.3],
             "strip-top": [138, 4, 474.5, 42],
-            switches: [4, 226.4, 84, 306.4],
+            switches: [4, 226.3, 84, 306.3],
         });
     });
 

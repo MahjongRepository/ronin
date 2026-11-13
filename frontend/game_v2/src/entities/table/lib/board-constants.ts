@@ -17,7 +17,8 @@ const SIDEWAYS_UNITS = TILE_ASPECT;
 const FULL_HAND = 14.6;
 
 /** An own meld's tile to the river tile. */
-const OWN_MELD_SCALE = 1.2;
+const OWN_MELD_SCALE = 1;
+const OWN_LYING_HEIGHT_SHARE = 0.92;
 
 /** The gap between the centre and a river, in river tiles. */
 const RIVER_GAP_SHARE = 0.3;
@@ -25,6 +26,7 @@ const RIVER_GAP_SHARE = 0.3;
 /** How far a tile's edge reaches below its box, in shares of its width. */
 const TILE_EDGE_SHARE = 0.2;
 const OWN_STANDING_EDGE_SHARE = 0.1;
+const OWN_LYING_EDGE_SHARE = 0.25;
 
 /** No meld face goes under this width (px). */
 const FACE_FLOOR = 13;
@@ -252,6 +254,8 @@ export {
     OWN_BY_RIVER_OFF_PHONE,
     OWN_BY_RIVER_WANTED,
     OWN_DRAWN_GAP,
+    OWN_LYING_EDGE_SHARE,
+    OWN_LYING_HEIGHT_SHARE,
     OWN_MELD_SCALE,
     OWN_ROW_GAP,
     OWN_STANDING_EDGE_SHARE,

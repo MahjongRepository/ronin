@@ -292,6 +292,28 @@ $edge-bands: (
     );
 }
 
+.board-local .meld {
+    @include group-edge(
+        calc(var(--board-tile-w, 60px) * var(--own-lying-edge-scale)),
+        var(--frame-turn, 0deg)
+    );
+}
+
+.board-local .meld-tile:not(.meld-tile-sideways) > .tile {
+    height: calc(var(--tile-w) * 4 / 3 * var(--own-lying-height-share));
+    padding-block: calc(var(--tile-w) * #{$glyph-room} * var(--own-lying-height-share));
+
+    svg {
+        height: calc(var(--tile-w) * #{math.div(4, 3) - 2 * $glyph-room});
+        transform: scaleY(var(--own-lying-height-share));
+        transform-origin: 50% 0;
+    }
+}
+
+.board-local .meld-tile-sideways > .tile svg {
+    transform: translate(-50%, -50%) scaleY(var(--own-lying-height-share)) rotate(90deg);
+}
+
 /* A flying tile's edge in three passes cheap to repaint each frame (body, a base as deep as a landed one's with its
    contact, cast shadow), shallower while it stands; trails draw none, as filtered copies wash out in WebKit. */
 @mixin flight-edge($unit, $edge-unit) {
@@ -311,7 +333,9 @@ $edge-bands: (
 }
 
 .game-board .board-motion__tile {
-    --motion-edge-scale: calc(1 + (var(--own-standing-edge-scale) - 1) * var(--motion-standing));
+    --motion-standing-edge: calc((var(--own-standing-edge-scale) - 1) * var(--motion-standing));
+    --motion-lying-edge: calc((var(--own-lying-edge-scale) - 1) * var(--motion-lying));
+    --motion-edge-scale: calc(1 + var(--motion-standing-edge) + var(--motion-lying-edge));
 
     @include flight-edge(var(--motion-width), calc(var(--motion-width) * var(--motion-edge-scale)));
 
@@ -339,7 +363,9 @@ $edge-bands: (
         margin: 0;
         border-top-left-radius: var(--standing-corner);
         border-top-right-radius: var(--standing-corner);
-        transform: translate(-50%, -50%) rotate(var(--motion-angle));
+        transform: translate(-50%, -50%)
+            scaleY(calc(1 - (1 - var(--own-lying-height-share)) * var(--motion-lying)))
+            rotate(var(--motion-angle));
     }
 
     &:not(.board-motion__tile--individual) > .tile {

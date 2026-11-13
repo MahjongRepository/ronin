@@ -24,6 +24,12 @@
     initial-value: 0;
 }
 
+@property --motion-lying {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: 0;
+}
+
 .board-motion {
     position: absolute;
     inset: 0;

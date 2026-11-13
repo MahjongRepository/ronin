@@ -68,6 +68,7 @@ function poseFrame(pose: TilePose): Keyframe {
     return {
         "--motion-angle": `${pose.angle}deg`,
         "--motion-height": `${pose.height}px`,
+        "--motion-lying": String(pose.lying),
         "--motion-standing": String(pose.standing),
         "--motion-width": `${pose.width}px`,
     };
@@ -78,7 +79,8 @@ function hasSamePose(from: TilePose, to: TilePose): boolean {
         Math.abs(from.width - to.width) < 0.5 &&
         Math.abs(from.height - to.height) < 0.5 &&
         (from.angle - to.angle) % 360 === 0 &&
-        from.standing === to.standing
+        from.standing === to.standing &&
+        from.lying === to.lying
     );
 }
 
@@ -88,6 +90,7 @@ function sampleFlight(tile: TileSnapshot, active: RunningTile): TileSnapshot {
     const pose = {
         angle: Number.parseFloat(style.getPropertyValue("--motion-angle")),
         height: Number.parseFloat(style.getPropertyValue("--motion-height")),
+        lying: Number.parseFloat(style.getPropertyValue("--motion-lying")),
         standing: Number.parseFloat(style.getPropertyValue("--motion-standing")),
         width: Number.parseFloat(style.getPropertyValue("--motion-width")),
     };

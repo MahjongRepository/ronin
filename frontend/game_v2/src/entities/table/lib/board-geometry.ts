@@ -19,6 +19,8 @@ import {
     OWN_BY_RIVER_LEAST,
     OWN_BY_RIVER_OFF_PHONE,
     OWN_BY_RIVER_WANTED,
+    OWN_LYING_EDGE_SHARE,
+    OWN_LYING_HEIGHT_SHARE,
     OWN_MELD_SCALE,
     OWN_ROW_GAP,
     OWN_STANDING_EDGE_SHARE,
@@ -125,9 +127,16 @@ const DESKTOP_STACK_TILES =
     3 * TILE_EDGE_SHARE +
     DESKTOP_CENTRE_TILES +
     OWN_ROW_GAP +
-    Math.max(0, 2 * OWN_MELD_SCALE - OWN_BY_RIVER_OFF_PHONE * TILE_ASPECT) +
+    Math.max(
+        0,
+        STACKED_DEPTH * OWN_LYING_HEIGHT_SHARE * OWN_MELD_SCALE -
+            OWN_BY_RIVER_OFF_PHONE * TILE_ASPECT,
+    ) +
     OWN_BY_RIVER_OFF_PHONE * TILE_ASPECT +
-    Math.max(OWN_BY_RIVER_OFF_PHONE * OWN_STANDING_EDGE_SHARE, OWN_MELD_SCALE * TILE_EDGE_SHARE);
+    Math.max(
+        OWN_BY_RIVER_OFF_PHONE * OWN_STANDING_EDGE_SHARE,
+        OWN_MELD_SCALE * OWN_LYING_EDGE_SHARE,
+    );
 
 /**
  * The latest discard's gap along the light off a phone (px): the gap across it and the tile edge that falls into it,
@@ -779,10 +788,10 @@ function ownRow({
     return {
         handTop:
             height -
-            Math.max(margin, ow * OWN_STANDING_EDGE_SHARE, ownMeldTile * TILE_EDGE_SHARE) -
+            Math.max(margin, ow * OWN_STANDING_EDGE_SHARE, ownMeldTile * OWN_LYING_EDGE_SHARE) -
             oh,
         oh,
-        ownMeldRise: Math.max(0, 2 * ownMeldTile - oh),
+        ownMeldRise: Math.max(0, STACKED_DEPTH * OWN_LYING_HEIGHT_SHARE * ownMeldTile - oh),
         ownMeldTile,
     };
 }

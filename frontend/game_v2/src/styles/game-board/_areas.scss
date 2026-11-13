@@ -226,5 +226,6 @@ $max-melds: 4;
     > :is(.meld, .meld--source) {
         --board-tile-w: var(--own-meld-w);
         --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
+        --board-tile-down: calc(var(--board-tile-w) * var(--own-lying-height-share));
     }
 }

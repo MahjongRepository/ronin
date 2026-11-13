@@ -1,3 +1,4 @@
+import { OWN_LYING_HEIGHT_SHARE } from "@/entities/table/lib/board-constants";
 import { type MotionRect, type MotionTile } from "@/entities/table/lib/board-motion";
 import {
     type PieceFrame,
@@ -13,6 +14,7 @@ export interface TilePose {
     readonly height: number;
     readonly angle: number;
     readonly standing: number;
+    readonly lying: number;
 }
 
 /** How much larger the screen shows a tile than it is laid, across and down the screen. */
@@ -69,14 +71,17 @@ function isSideways(tile: HTMLElement): boolean {
 
 function capturePose(tile: HTMLElement, rect: MotionRect, seat: SeatPosition): TilePose {
     const angle = SEAT_TURNS[seat] + (isSideways(tile) ? 90 : 0);
+    const lying = tile.closest(".board-local .meld") !== null;
+    const unsquashedHeight = lying ? rect.height / OWN_LYING_HEIGHT_SHARE : rect.height;
     return {
         angle,
-        height: angle % 180 === 0 ? rect.height : rect.width,
+        height: angle % 180 === 0 ? unsquashedHeight : rect.width,
+        lying: lying ? 1 : 0,
         standing:
             tile.closest(".board-local .hand") !== null && !tile.classList.contains("tile-back")
                 ? 1
                 : 0,
-        width: angle % 180 === 0 ? rect.width : rect.height,
+        width: angle % 180 === 0 ? rect.width : unsquashedHeight,
     };
 }
 
@@ -123,6 +128,7 @@ function createImage(tile: HTMLElement, pose: TilePose): HTMLElement {
     image.style.setProperty("--motion-height", `${pose.height}px`);
     image.style.setProperty("--motion-angle", `${pose.angle}deg`);
     image.style.setProperty("--motion-standing", String(pose.standing));
+    image.style.setProperty("--motion-lying", String(pose.lying));
     return image;
 }
 

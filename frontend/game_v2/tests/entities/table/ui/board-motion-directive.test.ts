@@ -1,6 +1,7 @@
 import { html, nothing, render } from "lit-html";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { OWN_LYING_HEIGHT_SHARE } from "@/entities/table/lib/board-constants";
 import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
 import { planTileMotion } from "@/entities/table/lib/board-motion";
 import {
@@ -705,6 +706,76 @@ describe("own draw flight", () => {
         const [start, end] = getAnimationFrames(animations[0]);
         expect(image?.classList.contains("board-motion__tile--individual")).toBe(true);
         expect([start["--motion-standing"], end["--motion-standing"]]).toEqual(["1", "1"]);
+        player.cancel();
+    });
+});
+
+function renderOwnPon(called: boolean): void {
+    const pair: readonly HandTile[] = [
+        { face: "3p", show: "face", state: "selectable", tileId: 10 },
+        { face: "3p", show: "face", state: "selectable", tileId: 11 },
+    ];
+    const pon = Meld([
+        { face: "3p", kind: "sideways", tileId: 9 },
+        { face: "3p", kind: "upright", tileId: 10 },
+        { face: "3p", kind: "upright", tileId: 11 },
+    ]);
+    render(
+        html`<div class="board-local">
+            <div data-area="bottom-hand">${Hand({ tiles: called ? [] : pair })}</div>
+            <div data-area="bottom-melds">${called ? pon : nothing}</div>
+        </div>
+        <div data-area="left-discards">${Discards(called ? [] : [{ face: "3p", tileId: 9 }])}</div>`,
+        host,
+    );
+}
+
+const OWN_MELD_TILE_W = 36;
+
+function measureLyingTile(this: HTMLElement): DOMRect {
+    if (!this.classList.contains("tile")) {
+        return getBox(this);
+    }
+    if (this.closest("[data-area='bottom-melds']") !== null) {
+        const lyingWidth = OWN_LYING_HEIGHT_SHARE * OWN_MELD_TILE_W;
+        return this.parentElement?.classList.contains("meld-tile-sideways") === true
+            ? new DOMRect(100, 600, (OWN_MELD_TILE_W * 4) / 3, lyingWidth)
+            : new DOMRect(150, 600, OWN_MELD_TILE_W, (lyingWidth * 4) / 3);
+    }
+    return measureFlightTile.call(this);
+}
+
+describe("own call flight", () => {
+    it("lands a claimed tile and the hand's pair lying in the meld: unsquashed tiles, the lying flag carrying the squash", () => {
+        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+            measureLyingTile,
+        );
+        renderOwnPon(false);
+        const before = snapshotTiles(host);
+        renderOwnPon(true);
+        const after = snapshotTiles(host);
+        const player = new BoardMotionPlayer(host);
+        player.play(planTileMotion(before, after), before, after);
+
+        const starts = animations.map((animation) => getAnimationFrames(animation)[0]);
+        const landings = animations.map((animation) => getAnimationFrames(animation).at(-1));
+        expect(starts.map((start) => start?.["--motion-lying"])).toEqual(starts.map(() => "0"));
+        expect(landings).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    "--motion-angle": "90deg",
+                    "--motion-height": "48px",
+                    "--motion-lying": "1",
+                    "--motion-width": "36px",
+                }),
+                expect.objectContaining({
+                    "--motion-angle": "0deg",
+                    "--motion-height": "48px",
+                    "--motion-lying": "1",
+                    "--motion-width": "36px",
+                }),
+            ]),
+        );
         player.cancel();
     });
 });

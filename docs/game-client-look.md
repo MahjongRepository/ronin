@@ -77,8 +77,11 @@ The derived proportions are the three reference viewports' values under the sizi
   lies on a face. A chankan source's ring lies flat over the tiles.
   The own hand's tiles stand facing their player: across each one's top a band 0.1 of its width deep in
   the edge's near-black base, the tile's back seen above the face, meeting the face at a crisp seam, its top corners
-  rounded by 0.12 of its width, and below a shallower edge, 0.1 of its width, whether the hand takes input or not;
-  the own row reserves the deeper of that and its melds' edge.
+  rounded by 0.12 of its width, and below a shallower edge, 0.1 of its width, whether the hand takes input or not.
+  The own melds lie on the table beside it: no band, each face foreshortened to 0.92 of its height
+  (the art, the glyph room and a sideways, stacked or face-down tile alike, a kan's stack 2 x 0.92 of a tile's width
+  deep) over a deeper edge, 0.25 of its width; a tile flying into a meld lands in that body. The own row reserves
+  the deeper of the hand's edge and the melds'.
 - **Composed for ordinary play.** The design anchor is a mid-round state with real decisions on
   screen. Dense states (long rivers, four melds a seat, five dora indicators, long names) must
   stay legible and unambiguous but never reshape the ordinary composition. Exception: a river of
@@ -376,7 +379,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   right: off a phone the left side lane's inner edge, on a phone the start of a full hand centred on the
   board; its bottom on the board's bottom. The melds stand at the row's right end, the right side lane's inner edge
   off a phone, as on a table, never larger than
-  its tiles. Decision: the melds take 1.2 river tiles, never past the hand's, where the row holds them
+  its tiles. Decision: the melds take 1 river tile (about 0.69 of the own tile at its cap, so
+  they read as secondary to the hand), never past the hand's, where the row holds them
   beside the hand at its fullest (its drawn tile and gap counted), else shrink together to fit, never
   under the face floor. Invariant: for one viewport and one set of melds, no draw, discard, offer,
   riichi or callout changes a table tile's size, the hand's start or a laid meld's place; tiles still
@@ -789,21 +793,23 @@ On a desktop two scales are solved: the river tile from the height, the own tile
 the largest whole-pixel size whose vertical stack fits the padded box's height, top to bottom: the top hand (a tile
 and its edge), a gap of 0.1 river tiles, the core (the top and bottom rivers' three rows with their latest-discard
 gaps around a centre 4.5 river tiles tall, 0.15-tile gaps, the top one past its rows' tile edge), the bottom river's
-edge, the own melds' rise and the own row at 1.45 river tiles (reserved
-at that size even where the width takes the own tile smaller, which barely changes the row's height: two own melds'
-stack rises over a smaller hand, and a larger own tile shrinks that rise as much); whose side strips' reach fits
+edge, the own melds' rise and the own row at 1.45 river tiles with the deeper of its edge and the melds' (reserved
+at that size even where the width takes the own tile smaller, which barely changes the row's height: an added kan's
+lying stack, 1.84 river tiles deep, rises over a hand smaller than 1.38 river tiles, and a larger own tile shrinks
+that rise as much); whose side strips' reach fits
 that height; and whose own tile the width gives at least 1.2 of it. The own tile is what a full hand of 14.6 own
 tiles leaves between the two side lanes within the bars, at most 1.45 river tiles: bars that hold the play switches
 named and the counters' one row where the own tile keeps 1.3 river tiles with them, else bars that give up the
 names, then the row (which then stands over the left lane, the side strips' lines under it), else bars of 96px; the
 table is that row and both lanes, centred, never narrower than the core and both lanes. The cap is the own hand's: at 1.45 it is the table's largest thing at a
 glance, the felt between a side hand and its river about four river tiles on 16:9 and 16:10. The own melds shrink
-into what the fullest hand leaves (four open kans to about 0.9 river tiles, above the face floor). The table keeps
+into what the fullest hand leaves, above the face floor (four open kans to about 0.95 river tiles on 16:9, 0.86 to
+0.89 on 16:10 and about 0.8 on a near-square or width-bound window). The table keeps
 no margin inside the gutter, and the height the stack leaves goes above the core, under the top hand. A desktop's
 decision control is 0.85 of a river tile tall, never under 40px, so it never shrinks as the window grows; its label is 0.38 of it, never under 14px, and the controls' least width (4/3 of it), gap (1/8) and the timer
 (1.75 of it, at least 72px, holding `10 +20`) scale with it.
 It gives river and own tiles of 39 and 56px at 1280x720, 35 and 50px at 1366x657, 42 and 60px at 1366x768, 43 and
-56px at 1280x800, 49 and 66px at 1440x900, 47 and 68px at 1536x864, 58 and 77px at 1680x1050, 59 and 85px at
+56px at 1280x800, 49 and 66px at 1440x900, 47 and 68px at 1536x864, 58 and 77px at 1680x1050, 60 and 87px at
 1920x1080 and 80 and 116px at 2560x1440, 33 and 41px at 960x1000, 40 and 49px at 1100x1000, 49 and 59px at
 1280x1024, 59 and 71px at 1502x1551 and 26 and 32px at 800x600 (width-bound: the own tile toward 1.2 river tiles);
 the river tile grows with the window's width and height, never falling back as either grows.
@@ -889,8 +895,8 @@ The opponent's hand at the river tile follows Tenhou (every opponent hand and me
 river tile, once a camera's depth
 is taken out). Decision off a phone: every other hand and river reads at one size, and the own hand
 at 1.2 to 1.45 of it (1.3 or more wherever the width allows), because the own row stands
-between the side strips and a wider row widens the felt between them and the rivers; the own melds, at 1.2 river
-tiles, stand at 0.83 of the own tile at the cap. Only width ratios are
+between the side strips and a wider row widens the felt between them and the rivers; the own melds, at 1 river
+tile, stand at 0.69 of the own tile at the cap. Only width ratios are
 compared: Mahjong Soul's hand faces its camera over foreshortened rivers and Tenhou's view squashes heights. A phone keeps a larger own tile, which touch needs, solved
 together with its river tile from the box, the own tile as large as a full hand within the board, the side
 strips' lines and a replay's moves in the right bar allow above its 36x48 floor: 2.37 river tiles at the floor, 2.24 at
