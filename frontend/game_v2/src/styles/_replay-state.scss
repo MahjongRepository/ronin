@@ -184,7 +184,9 @@
 
 /* A discard of the tile just drawn is greyed: one shade over its face, inside the tile's own box. The edge under it
    is the rivers' layer's and stays lit: a shade reaching it also falls on the next tile of a side river. */
-.game-board--replay :is(.discard-tile[data-tsumogiri="true"], .board-motion__tile--tsumogiri) > .tile {
+.game-board--replay
+    :is(.discard-tile[data-tsumogiri="true"], .board-motion__tile--tsumogiri)
+    > .tile {
     &::after {
         content: "";
         position: absolute;
@@ -198,7 +200,10 @@
 /* The own river's tiles show their edge whole under them, and nothing later lies there but the next row, drawn over
    it: there the shade reaches the edge too, as its own offset copy. */
 .game-board--replay
-    :is(.board-river--bottom .discard-tile[data-tsumogiri="true"], .board-motion__tile--tsumogiri-edge)
+    :is(
+        .board-river--bottom .discard-tile[data-tsumogiri="true"],
+        .board-motion__tile--tsumogiri-edge
+    )
     > .tile::after {
     box-shadow: var(--body-x) var(--body-y) 0 0 var(--ronin-tile-drawn-shade);
 }
