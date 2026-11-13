@@ -63,7 +63,9 @@ The derived proportions are the three reference viewports' values under the sizi
   phone) and
   everything in front stay flat. Depth comes from the surface, the tile's edge and its shadow. One
   static transform per piece, no per-frame work. Decision: one light for every
-  seat: each tile's face is softly domed and lit from its top left, and its edge
+  seat: each tile's face is softly domed, with a rounded rim (a bright line along
+  its top and left, a darker falloff along its right and bottom, a darker crease where it meets its
+  neighbour, each a share of its width, never under 1px) around a flat centre, and its edge
   shows toward the screen's bottom (a white lip under the face, then a flat grey side about 0.6 of
   the face's lightness over a near-black base, within the reserved edge; a
   standing concealed tile, below, shows its end instead), with a tight dark contact shadow at its

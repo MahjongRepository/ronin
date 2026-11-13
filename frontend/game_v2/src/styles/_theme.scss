@@ -78,20 +78,22 @@
 
     /* Tiles: an ivory face with a rim, lit from the screen's top; an edge toward the screen's bottom, the ivory body over
        the back's layer; a shadow down and to the right; backs an ochre plastic, darker than the accent. */
-    --ronin-tile-face: #f7f3e7;
-    --ronin-tile-face-light: #fdfbf4;
-    --ronin-tile-face-rim: #efe8d5;
+    --ronin-tile-face: #efeadc;
+    --ronin-tile-face-light: #f6f2e6;
+    --ronin-tile-face-rim: #e6dfcb;
     --ronin-tile-drawn-mark: #2b2f33;
     --ronin-tile-drawn-shade: rgb(20 24 22 / 24%);
-    --ronin-tile-rim: #d9d0b9;
+    --ronin-tile-rim: #b3a88f;
+    --ronin-tile-rim-light: rgb(255 255 255 / 75%);
+    --ronin-tile-rim-dark: rgb(80 66 36 / 35%);
     --ronin-tile-top: #e3d9bf;
     --ronin-tile-shine: rgb(255 255 255 / 85%);
     --ronin-tile-shade: rgb(110 90 40 / 30%);
     --ronin-tile-pillow: rgb(120 100 55 / 8%);
     --ronin-tile-lip: #fff;
     --ronin-tile-side-high: #c0baaa;
-    --ronin-tile-side-mid: #969184;
-    --ronin-tile-edge: #8e897c;
+    --ronin-tile-side-mid: #8a8578;
+    --ronin-tile-edge: #7f7a6e;
     --ronin-tile-back-edge: #16120e;
     --ronin-tile-end-light: rgb(255 255 255 / 30%);
     --ronin-tile-end-shade: rgb(0 0 0 / 30%);

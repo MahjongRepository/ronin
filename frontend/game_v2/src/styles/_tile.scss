@@ -13,6 +13,10 @@ $side-mid-share: 0.1;
 $body-share: 0.15;
 $back-share: 0.05;
 $bevel-share: 0.045;
+$rim-top-share: 0.02;
+$rim-left-share: 0.025;
+$rim-right-share: 0.04;
+$rim-bottom-share: 0.03;
 $pillow-share: 0.09;
 $top-share: 0.06;
 $contact-y: 0.035;
@@ -84,6 +88,10 @@ $edge-bands: (
 
     @include screen-offset(bevel, $bevel-share * 0.7, $bevel-share * 0.7, var(--unit), var(--tile-turn));
     @include screen-offset(shade, -$bevel-share, 0, var(--unit), var(--tile-turn));
+    @include screen-offset(rim-top, 0, 1, max(1px, calc(var(--unit) * #{$rim-top-share})), var(--tile-turn));
+    @include screen-offset(rim-left, 1, 0, max(1px, calc(var(--unit) * #{$rim-left-share})), var(--tile-turn));
+    @include screen-offset(rim-right, -1, 0, max(1px, calc(var(--unit) * #{$rim-right-share})), var(--tile-turn));
+    @include screen-offset(rim-bottom, 0, -1, max(1px, calc(var(--unit) * #{$rim-bottom-share})), var(--tile-turn));
     @include screen-offset(
         contact,
         0,
@@ -102,6 +110,13 @@ $edge-bands: (
     --tile-ring: inset 0 0 0 1px var(--ronin-tile-rim);
     --tile-top: 0 0 transparent;
     --tile-bevel:
+        inset var(--rim-top-x) var(--rim-top-y) 0 var(--ronin-tile-rim-light),
+        inset var(--rim-left-x) var(--rim-left-y) calc(var(--unit) * #{$rim-left-share})
+            var(--ronin-tile-rim-light),
+        inset var(--rim-right-x) var(--rim-right-y) calc(var(--unit) * #{$rim-right-share})
+            var(--ronin-tile-rim-dark),
+        inset var(--rim-bottom-x) var(--rim-bottom-y) calc(var(--unit) * #{$rim-bottom-share})
+            var(--ronin-tile-rim-dark),
         inset var(--bevel-x) var(--bevel-y) calc(var(--unit) * #{$bevel-share})
             var(--ronin-tile-shine),
         inset var(--shade-x) var(--shade-y) calc(var(--unit) * #{$bevel-share * 1.5})
