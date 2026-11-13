@@ -70,11 +70,17 @@ The derived proportions are the three reference viewports' values under the sizi
   shows toward the screen's bottom (a white lip under the face, then a flat grey side about 0.6 of
   the face's lightness over a near-black base, within the reserved edge; a
   standing concealed tile, below, shows its end instead), with a tight dark contact shadow at its
-  base and a soft shadow straight down, about 0.4 of a tile's width long, whatever the seat; the
+  base and a soft cast shadow thrown toward the screen's lower right, from the same light whatever the seat or a
+  flying tile's angle: it starts below the tile's edge, however deep that edge is drawn, and its base parameters
+  are in the tile's width (0.12 right, 0.2 down, a 0.24 blur, 65% black), so a standing hand, a lying meld and a
+  river tile throw it alike and it shows past the edge's bottom and the tile's right side; the
   edge reaches 0.2 of a tile's width, which the geometry reserves (`TILE_EDGE_SHARE`); tiles lying together
   (a river, a meld, a hand that takes no input) share one edge and shadow under all their faces, so
   a tile nearer the screen's bottom covers the edge of the one behind it and no edge or shadow ever
-  lies on a face. A chankan source's ring lies flat over the tiles.
+  lies on a face; a hand that takes input draws each tile's shadow on its own, pulled in conservatively so it
+  never reaches past the tile's left side: it lies under the next tile, never on the one before, and only
+  approximates a group's shadow (a box's shadow and a drop shadow fall off differently).
+  A chankan source's ring lies flat over the tiles.
   The own hand's tiles stand facing their player: across each one's top a band 0.1 of its width deep in
   the edge's near-black base, the tile's back seen above the face, meeting the felt and the face with no line, its top corners
   rounded by 0.12 of its width, and below a shallower edge, 0.1 of its width, whether the hand takes input or not.

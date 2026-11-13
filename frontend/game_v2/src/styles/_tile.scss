@@ -21,9 +21,10 @@ $face-view-width: 300;
 $standing-label-drop: math.div($top-share * $face-view-width, 1 - 2 * $glyph-room) * 1px;
 $contact-y: 0.035;
 $contact-blur: 0.05;
-$cast-x: 0;
+$cast-x: 0.12;
 $cast-y: 0.2;
-$cast-blur: 0.3;
+$cast-blur: 0.24;
+$cast-pull: math.max(0, math.div($cast-blur - $cast-x, 2));
 $edge-bands: (
     lip: (
         $lip-share,
@@ -93,7 +94,20 @@ $edge-bands: (
     --#{$name}-y: calc((#{$y} * cos(#{$turn}) - #{$x} * sin(#{$turn})) * #{$size});
 }
 
-/* A lone tile's shadow is pulled in by its blur, so on a row only the later tile, which covers it, lies under it. */
+@mixin screen-shift($name, $x-length, $y-length, $turn) {
+    --#{$name}-x: calc(#{$x-length} * cos(#{$turn}) + #{$y-length} * sin(#{$turn}));
+    --#{$name}-y: calc(#{$y-length} * cos(#{$turn}) - #{$x-length} * sin(#{$turn}));
+}
+
+@mixin cast-shadow-shift($name, $edge-depth, $unit, $turn) {
+    @include screen-shift(
+        $name,
+        calc(#{$cast-x + $cast-pull} * #{$unit}),
+        calc(#{$edge-depth} + #{$cast-y + $cast-pull} * #{$unit}),
+        $turn
+    );
+}
+
 .tile {
     --tile-w: 60px;
     --tile-turn: var(--frame-turn, 0deg);
@@ -118,11 +132,10 @@ $edge-bands: (
         var(--edge-unit),
         var(--tile-turn)
     );
-    @include screen-offset(
+    @include cast-shadow-shift(
         cast,
-        $cast-x,
-        $cast-y + band-share(back),
-        var(--edge-unit),
+        calc(var(--edge-unit) * #{band-share(back)}),
+        var(--unit),
         var(--tile-turn)
     );
 
@@ -143,7 +156,7 @@ $edge-bands: (
         var(--contact-x) var(--contact-y) calc(var(--unit) * #{$contact-blur})
             calc(var(--unit) * #{-$contact-blur * 0.5}) var(--ronin-tile-contact),
         var(--cast-x) var(--cast-y) calc(var(--unit) * #{$cast-blur})
-            calc(var(--unit) * #{-$cast-blur}) var(--ronin-tile-shadow);
+            calc(var(--unit) * #{-$cast-pull}) var(--ronin-tile-shadow);
     --tile-lift: var(--tile-depth);
 
     display: inline-block;
@@ -186,8 +199,9 @@ $edge-bands: (
 }
 
 /* One edge and shadow under everything the element paints, for tiles of width `$unit` in a frame turned by `$turn`. */
-@mixin group-edge($unit, $turn) {
+@mixin group-edge($unit, $turn, $cast-unit: $unit) {
     --unit: #{$unit};
+    --cast-unit: #{$cast-unit};
 
     $filter: ();
     $reached: 0px;
@@ -209,7 +223,7 @@ $edge-bands: (
     }
 
     @include screen-offset(group-contact, 0, $contact-y, var(--unit), $turn);
-    @include screen-offset(group-cast, $cast-x, $cast-y, var(--unit), $turn);
+    @include screen-offset(group-cast, $cast-x, $cast-y, var(--cast-unit), $turn);
 
     filter: $filter
         drop-shadow(
@@ -217,7 +231,7 @@ $edge-bands: (
                 var(--ronin-tile-contact)
         )
         drop-shadow(
-            var(--group-cast-x) var(--group-cast-y) calc(var(--unit) * #{$cast-blur * 0.8})
+            var(--group-cast-x) var(--group-cast-y) calc(var(--cast-unit) * #{$cast-blur})
                 var(--ronin-tile-shadow)
         );
 }
@@ -254,14 +268,16 @@ $edge-bands: (
 .board-local .hand:not(:has(> button), :has(.tile-back)) {
     @include group-edge(
         calc(var(--board-tile-w, 60px) * var(--own-standing-edge-scale)),
-        var(--frame-turn, 0deg)
+        var(--frame-turn, 0deg),
+        var(--board-tile-w, 60px)
     );
 }
 
 .board-local .meld {
     @include group-edge(
         calc(var(--board-tile-w, 60px) * var(--own-lying-edge-scale)),
-        var(--frame-turn, 0deg)
+        var(--frame-turn, 0deg),
+        var(--board-tile-w, 60px)
     );
 }
 
@@ -293,8 +309,8 @@ $edge-bands: (
     filter: drop-shadow(0 $body-depth 0 band-colour(side-mid))
         drop-shadow(0 $base-depth 0 band-colour(back))
         drop-shadow(
-            calc(#{$edge-unit} * #{$cast-x}) calc(#{$edge-unit} * #{$cast-y})
-                calc(#{$edge-unit} * #{$cast-blur * 0.8}) var(--ronin-tile-shadow)
+            calc(#{$unit} * #{$cast-x}) calc(#{$unit} * #{$cast-y}) calc(#{$unit} * #{$cast-blur})
+                var(--ronin-tile-shadow)
         );
 }
 
@@ -407,10 +423,9 @@ $max-meld-tiles: 4;
 
 /* A standing tile's end, split as its top, shows below it: the top strip sees only the back's layer, a side strip both. */
 .board-strip .hand-tile > .tile-back {
-    @include screen-offset(
+    @include cast-shadow-shift(
         standing-cast,
-        $cast-x,
-        $cast-y - $back-share,
+        calc(var(--edge-unit) * #{-$back-share}),
         var(--unit),
         var(--tile-turn)
     );
@@ -432,7 +447,7 @@ $max-meld-tiles: 4;
             ),
             standing-top(var(--ronin-back-end), var(--ronin-tile-side-mid));
         box-shadow: var(--standing-cast-x) var(--standing-cast-y) calc(var(--unit) * #{$cast-blur})
-            calc(var(--unit) * #{-$cast-blur}) var(--ronin-tile-shadow);
+            calc(var(--unit) * #{-$cast-pull}) var(--ronin-tile-shadow);
         transform: translate(var(--back-x), var(--back-y));
     }
 }
