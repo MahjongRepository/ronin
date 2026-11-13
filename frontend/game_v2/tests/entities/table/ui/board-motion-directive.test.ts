@@ -745,17 +745,20 @@ function measureLyingTile(this: HTMLElement): DOMRect {
     return measureFlightTile.call(this);
 }
 
+function startOwnPon(): BoardMotionPlayer {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureLyingTile);
+    renderOwnPon(false);
+    const before = snapshotTiles(host);
+    renderOwnPon(true);
+    const after = snapshotTiles(host);
+    const player = new BoardMotionPlayer(host);
+    player.play(planTileMotion(before, after), before, after);
+    return player;
+}
+
 describe("own call flight", () => {
     it("lands a claimed tile and the hand's pair lying in the meld: unsquashed tiles, the lying flag carrying the squash", () => {
-        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-            measureLyingTile,
-        );
-        renderOwnPon(false);
-        const before = snapshotTiles(host);
-        renderOwnPon(true);
-        const after = snapshotTiles(host);
-        const player = new BoardMotionPlayer(host);
-        player.play(planTileMotion(before, after), before, after);
+        const player = startOwnPon();
 
         const starts = animations.map((animation) => getAnimationFrames(animation)[0]);
         const landings = animations.map((animation) => getAnimationFrames(animation).at(-1));

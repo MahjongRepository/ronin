@@ -11,6 +11,7 @@ import {
     type BoardGeometry,
     type BoardRect,
     boardGeometry,
+    phonePromptHeight,
 } from "@/entities/table/lib/board-geometry";
 import { stripLayout } from "@/entities/table/lib/strip-layout";
 import {
@@ -543,30 +544,40 @@ describe("tableView between the grid's windows", () => {
         expect(flatThoughFloored).toStrictEqual([]);
     });
 
-    it("never drops a phone's river tile more than 2px between neighbours 20x20 apart off the grid", () => {
+    it("never moves a phone's river tile more than 2px between neighbours 20x20 apart off the grid, 3px where the widest prompt first fits", () => {
         const widths = Array.from({ length: 15 }, (_unused, across) => 645 + 20 * across);
         const heights = Array.from({ length: 10 }, (_unused, down) => 305 + 20 * down);
-        const rivers = heights.map((height) =>
+        const boards = heights.map((height) =>
             widths.map((width) => {
                 const { screen } = viewOf({ height, width });
-                return screen.family === "phone" ? (screen.lengths["rw"] ?? 0) : null;
+                if (screen.family !== "phone") {
+                    return null;
+                }
+                const { bottom = 0, left = 0, right = 0, top = 0 } = screen.areas["actions"] ?? {};
+                return {
+                    holdsPrompt:
+                        bottom - top >=
+                        phonePromptHeight(right - left, screen.lengths["timer-w"] ?? 0) - 0.001,
+                    river: screen.lengths["rw"] ?? 0,
+                };
             }),
         );
-        const cliffs = rivers.flatMap((row, down) =>
-            row.flatMap((river, across) =>
+        const cliffs = boards.flatMap((row, down) =>
+            row.flatMap((board, across) =>
                 [
-                    [row[across + 1], widths[across + 1], heights[down]],
-                    [rivers[down + 1]?.[across], widths[across], heights[down + 1]],
-                ].flatMap(([next, width, height]) =>
-                    river === null ||
-                    next === null ||
-                    next === undefined ||
-                    Math.abs(next - river) <= 2
+                    [row[across + 1], widths[across + 1], heights[down]] as const,
+                    [boards[down + 1]?.[across], widths[across], heights[down + 1]] as const,
+                ].flatMap(([next, width, height]) => {
+                    if (board === null || next === null || next === undefined) {
+                        return [];
+                    }
+                    const bound = board.holdsPrompt === next.holdsPrompt ? 2 : 3;
+                    return Math.abs(next.river - board.river) <= bound
                         ? []
                         : [
-                              `${widths[across]}x${heights[down]} ${river} -> ${width}x${height} ${next}`,
-                          ],
-                ),
+                              `${widths[across]}x${heights[down]} ${board.river} -> ${width}x${height} ${next.river}`,
+                          ];
+                }),
             ),
         );
 

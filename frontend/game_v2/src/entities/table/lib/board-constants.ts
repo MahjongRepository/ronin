@@ -203,6 +203,7 @@ const PHONE_CENTRE_MIN_WIDTH = 100;
  * the tap floor's width (px, the look spec's 32x42 safety limit) where that lifts the river tile.
  */
 const PHONE_OWN_TAP_FLOOR = 32;
+const PHONE_OWN_GIVEN_FOR_RIVER = 2;
 
 /**
  * A phone's chrome past a desktop's: its margin, the gaps under the top strip and over the own row, and its counters'
@@ -266,6 +267,7 @@ export {
     PHONE_CHROME_RIVER,
     PHONE_HEIGHT,
     PHONE_OWN_FLOOR,
+    PHONE_OWN_GIVEN_FOR_RIVER,
     PHONE_OWN_TAP_FLOOR,
     REGULAR_CHROME_HEIGHT,
     RIVER_GAP_SHARE,

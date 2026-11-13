@@ -814,12 +814,18 @@ It gives river and own tiles of 39 and 56px at 1280x720, 35 and 50px at 1366x657
 1280x1024, 59 and 71px at 1502x1551 and 26 and 32px at 800x600 (width-bound: the own tile toward 1.2 river tiles);
 the river tile grows with the window's width and height, never falling back as either grows.
 
-On a phone both tiles are solved together from the box: the river tile the largest that fits, then the
-own hand tile the largest that fits with it, at most as wide as lets a full hand's row, centred on the board,
-stand within the board's width less its margins, and at least 4/3 of the river tile, a larger river tile waiting for an
-own tile that keeps that share, but never under 36x48, the floor winning where both cannot hold; a box
-too short for the face floor over that own tile (a phone browser's bars shown) solves again over the
-32x42 tap floor and takes that solve where it lifts the river tile. A phone's table column is 25 river tiles
+On a phone both tiles are solved together from the box, led by the own hand tile: first the largest own tile that
+fits with a river tile at the 13px face floor or more, at most as wide as lets a full hand's row, centred on the board,
+stand within the board's width less its margins, never under 36x48 (32x42, the tap floor, where 36x48 leaves no river
+tile at the face floor, or none whose band holds the widest prompt), and at least 4/3 of the river tile; then the largest river tile whose own tile is within 2px
+of that largest own tile (`PHONE_OWN_GIVEN_FOR_RIVER`), with the largest own tile that fits beside it. So a taller or
+wider box never costs the own hand more than those 2px, which buy the rivers a step where they would otherwise give
+up a whole tile size to a pixel of own tile (the A25's box keeps 17px rivers for a 41px own tile rather than 13px ones
+for 43px). The decisions' band holding the widest prompt comes before all of that, over both own floors, so where a box first
+holds it the own tile falls back, 7 to 14px (at 333 to 336px tall from 636 to 724px wide: 43 to 36px at 640, 48 to
+36px at 720), and the river may step up 3px; a right bar holding a replay's column is preferred at each river tile. A box too short for the face floor at the tap floor (a phone browser's bars shown, under about 275px)
+takes the largest river tile that fits over the 36x48 floor instead, else over the tap floor where that lifts it.
+A phone's table column is 25 river tiles
 wide too, centred, and each bar beside it only as wide as what the bars still hold needs with their gaps: the left
 one the counters at the 13px face floor, the switches' two-by-two block and the notices at their 11px floor; the
 right one the cog, a replay's moves column (two columns where the bar's height does not hold one) and the notices
@@ -899,8 +905,8 @@ between the side strips and a wider row widens the felt between them and the riv
 tile, stand at 0.69 of the own tile at the cap. Only width ratios are
 compared: Mahjong Soul's hand faces its camera over foreshortened rivers and Tenhou's view squashes heights. A phone keeps a larger own tile, which touch needs, solved
 together with its river tile from the box, the own tile as large as a full hand within the board, the side
-strips' lines and a replay's moves in the right bar allow above its 36x48 floor: 2.37 river tiles at the floor, 2.24 at
-the notch phone and 1.88 at 932x430. A decision control's tiles stay inside
+strips' lines and a replay's moves in the right bar allow above its 36x48 floor: 2.37 river tiles at the floor, 2.5 at
+the notch phone and 2.86 at 932x430. A decision control's tiles stay inside
 its row.
 
 The starting points do not fit together at the 667x375 floor. The rule resolves it by the joint
@@ -959,8 +965,7 @@ and the phones as their browsers box the board with their bars shown, since ever
 third of its height in landscape until the swipe the board asks for collapses them: an iPhone 11 in
 iOS 26 Safari (896x275 with 44px side insets, measured) and a Galaxy A25 in Android Chrome (891x331,
 estimated from its toolbar and status bar). There the board lays out whole and tappable at the
-largest river tile the height holds (the face floor only where it fits: the A25's box holds it, the
-iPhone's 10px does not), and the box the collapsed bars leave is a display size above. The floor
+own tile and river tile the phone solve gives (the river at the face floor or more where it fits: the A25's box gives 17px, the iPhone's 13px), and the box the collapsed bars leave is a display size above. The floor
 display's Safari box (667x236) is pinned by the geometry's tests alone. The first release that reached
 these boxes drew a 2px river tile. The composition is identical on all the landscape ones.
 

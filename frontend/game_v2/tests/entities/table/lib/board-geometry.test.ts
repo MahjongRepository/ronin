@@ -6,6 +6,7 @@ import {
     LATEST_DISCARD_GAP,
     OWN_LYING_EDGE_SHARE,
     OWN_STANDING_EDGE_SHARE,
+    PHONE_OWN_GIVEN_FOR_RIVER,
     SIDEWAYS_UNITS,
     SIDE_LANE_GAP,
     TILE_EDGE_SHARE,
@@ -18,6 +19,7 @@ import {
     type BoardSlots,
     type BoardTracks,
     boardGeometry,
+    phonePromptHeight,
     shellTracks,
 } from "@/entities/table/lib/board-geometry";
 import { type StripRooms, type StripSeat, stripLayout } from "@/entities/table/lib/strip-layout";
@@ -185,16 +187,16 @@ describe("boardGeometry in a phone's browser", () => {
             board: { height: 414, width: 808 },
             height: 414,
             insets: { bottom: 21, left: 44, right: 44, top: 0 },
-            ow: 42,
-            rw: 23,
+            ow: 53,
+            rw: 22,
             width: 896,
         },
         {
             board: { height: 390, width: 750 },
             height: 390,
             insets: { bottom: 21, left: 47, right: 47, top: 0 },
-            ow: 47,
-            rw: 21,
+            ow: 50,
+            rw: 20,
             width: 844,
         },
     ])(
@@ -724,17 +726,42 @@ describe("boardGeometry", () => {
         },
     );
 
+    it("never drops a phone's own tile by more than the river's 2px give as its window grows in height across the old cliff at 800 across", () => {
+        const owns = Array.from(
+            { length: 61 },
+            (_unused, step) =>
+                windowGeometry({ height: 380 + step, width: 800 }).lengths["ow"] ?? 0,
+        );
+
+        expect(
+            owns.filter((ow, step) => ow < (owns[step - 1] ?? 0) - PHONE_OWN_GIVEN_FOR_RIVER),
+        ).toEqual([]);
+        expect(Math.min(...owns)).toBeGreaterThanOrEqual(
+            Math.max(...owns) - PHONE_OWN_GIVEN_FOR_RIVER,
+        );
+    });
+
+    it("keeps a 770 x 300 phone's band holding the widest prompt at the tap-floor range's own tile rather than a larger own tile without it", () => {
+        const { lengths, tracks } = windowGeometry({ height: 300, width: 770 });
+        const [left = 0, top = 0, right = 0, bottom = 0] = slotAreas(tracks)["actions"] ?? [];
+
+        expect({ ow: lengths["ow"], rw: lengths["rw"] }).toEqual({ ow: 34, rw: 15 });
+        expect(bottom - top).toBeGreaterThanOrEqual(
+            phonePromptHeight(right - left, lengths["timer-w"] ?? 0) - 0.001,
+        );
+    });
+
     it.each([
         { height: 375, pinned: { ow: 45, rw: 19 }, width: 667 },
         { height: 390, pinned: { ow: 45, rw: 19 }, width: 667 },
-        { height: 354, pinned: { ow: 41, rw: 19 }, width: 724 },
-        { height: 360, pinned: { ow: 45, rw: 19 }, width: 800 },
-        { height: 390, pinned: { ow: 47, rw: 21 }, width: 750 },
-        { height: 379, pinned: { ow: 38, rw: 21 }, width: 761 },
-        { height: 414, pinned: { ow: 42, rw: 23 }, width: 808 },
+        { height: 354, pinned: { ow: 49, rw: 18 }, width: 724 },
+        { height: 360, pinned: { ow: 53, rw: 18 }, width: 800 },
+        { height: 390, pinned: { ow: 50, rw: 20 }, width: 750 },
+        { height: 379, pinned: { ow: 49, rw: 20 }, width: 761 },
+        { height: 414, pinned: { ow: 53, rw: 22 }, width: 808 },
         { height: 480, pinned: { ow: 57, rw: 26 }, width: 850 },
-        { height: 430, pinned: { ow: 44, rw: 24 }, width: 932 },
-        { height: 500, pinned: { ow: 41, rw: 29 }, width: 1024 },
+        { height: 430, pinned: { ow: 63, rw: 22 }, width: 932 },
+        { height: 500, pinned: { ow: 69, rw: 26 }, width: 1024 },
     ])(
         "sizes a $width x $height window's phone board's tiles jointly on its table column: the left bar holding the counters, the side strips' lines a full hand long above the own row, the felt beside each side river under three river tiles, every control in a bar, a replay's column in the right one",
         ({ height, pinned, width }) => {

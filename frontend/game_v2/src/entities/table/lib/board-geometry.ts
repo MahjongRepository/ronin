@@ -31,6 +31,7 @@ import {
     PHONE_CHROME_RIVER,
     PHONE_HEIGHT,
     PHONE_OWN_FLOOR,
+    PHONE_OWN_GIVEN_FOR_RIVER,
     PHONE_OWN_TAP_FLOOR,
     type PhoneChrome,
     REGULAR_CHROME_HEIGHT,
@@ -1141,12 +1142,7 @@ function phoneSolveHoldingPrompt(frame: BoardFrame, ownFloor: number): BoardLeng
     );
 }
 
-/**
- * A phone's root sizes and the lengths the stylesheet reads with them, in px: the joint solve above the own tile's
- * floor (`phoneSolve`); where that leaves the river tile under the face floor (a box as short as a browser's bars leave
- * it), the solve above the tap floor instead, when it lifts the river tile; the smallest pair where none fits.
- */
-function phoneLengths(frame: BoardFrame): BoardLengths {
+function phoneLengthsRiverFirst(frame: BoardFrame): BoardLengths {
     const solved = phoneSolveHoldingPrompt(frame, PHONE_OWN_FLOOR);
     if (solved !== null && (solved["rw"] ?? 0) >= FACE_FLOOR) {
         return withEdgeRoom(frame, solved);
@@ -1159,6 +1155,115 @@ function phoneLengths(frame: BoardFrame): BoardLengths {
         ? phoneLayout(frame, { beside: false, ow: PHONE_OWN_TAP_FLOOR, rw: PHONE_SMALLEST_RIVER })
               .lengths
         : withEdgeRoom(frame, solved);
+}
+
+function phoneOwnAtRiver(
+    frame: BoardFrame,
+    {
+        holdingPrompt,
+        ownCeiling,
+        ownFloor,
+        rw,
+        smallestWanted,
+    }: {
+        readonly holdingPrompt: boolean;
+        readonly ownCeiling: number;
+        readonly ownFloor: number;
+        readonly rw: number;
+        readonly smallestWanted: number;
+    },
+): BoardLengths | null {
+    const widest = Math.min(
+        ownCeiling,
+        Math.max(ownFloor, Math.floor((frame.box.width - 2 * PHONE_CHROME.m) / FULL_HAND)),
+    );
+    const least = Math.max(ownFloor, Math.ceil(TILE_ASPECT * rw));
+    for (let ow = widest; ow >= Math.max(least, smallestWanted); ow -= 1) {
+        const laid = phoneLaid(frame, { ow, rw });
+        if (
+            laid.fits &&
+            (laid.holdsPrompt || !holdingPrompt) &&
+            (laid.holdsReplay || ow === least)
+        ) {
+            return laid.lengths;
+        }
+    }
+    return null;
+}
+
+function phoneOwnFitCeiling(
+    frame: BoardFrame,
+    { ownCeiling, ownFloor }: { readonly ownCeiling: number; readonly ownFloor: number },
+): number | null {
+    const widest = Math.min(
+        ownCeiling,
+        Math.max(ownFloor, Math.floor((frame.box.width - 2 * PHONE_CHROME.m) / FULL_HAND)),
+    );
+    for (let ow = widest; ow >= ownFloor; ow -= 1) {
+        if (phoneLaid(frame, { ow, rw: FACE_FLOOR }).fits) {
+            return ow;
+        }
+    }
+    return null;
+}
+
+function phoneSolveOwnLed(
+    frame: BoardFrame,
+    pass: {
+        readonly holdingPrompt: boolean;
+        readonly ownCeiling: number;
+        readonly ownFloor: number;
+    },
+): BoardLengths | null {
+    const fitsAtFaceFloor = phoneOwnFitCeiling(frame, pass);
+    if (fitsAtFaceFloor === null) {
+        return null;
+    }
+    const bounded = { ...pass, ownCeiling: fitsAtFaceFloor };
+    const tallestRiver = Math.floor(frame.box.height / PHONE_MAX_RIVER_SHARE);
+    let largestOwn = 0;
+    for (let rw = FACE_FLOOR; rw <= tallestRiver; rw += 1) {
+        const laid = phoneOwnAtRiver(frame, { ...bounded, rw, smallestWanted: largestOwn + 1 });
+        largestOwn = laid?.["ow"] ?? largestOwn;
+    }
+    if (largestOwn === 0) {
+        return null;
+    }
+    for (let rw = tallestRiver; rw >= FACE_FLOOR; rw -= 1) {
+        const laid = phoneOwnAtRiver(frame, {
+            ...bounded,
+            rw,
+            smallestWanted: largestOwn - PHONE_OWN_GIVEN_FOR_RIVER,
+        });
+        if (laid !== null) {
+            return laid;
+        }
+    }
+    return null;
+}
+
+const PHONE_OWN_LED_RANGES = [
+    { ownCeiling: Infinity, ownFloor: PHONE_OWN_FLOOR },
+    { ownCeiling: PHONE_OWN_FLOOR - 1, ownFloor: PHONE_OWN_TAP_FLOOR },
+] as const;
+
+function phoneLengths(frame: BoardFrame): BoardLengths {
+    const anyBands = PHONE_OWN_LED_RANGES.map((range) =>
+        phoneSolveOwnLed(frame, { ...range, holdingPrompt: false }),
+    );
+    for (const [index, range] of PHONE_OWN_LED_RANGES.entries()) {
+        const promptBand =
+            anyBands[index] === null
+                ? null
+                : phoneSolveOwnLed(frame, { ...range, holdingPrompt: true });
+        if (promptBand !== null) {
+            return withEdgeRoom(frame, promptBand);
+        }
+    }
+    const anyBand = anyBands.find((laid) => laid !== null);
+    return anyBand === undefined || anyBand === null
+        ? phoneLengthsRiverFirst(frame)
+        : withEdgeRoom(frame, anyBand);
 }
 
 /** A slot's box on the board, px from its top-left corner. */
@@ -2434,7 +2539,7 @@ function planeGeometry(
     return solveFrame(frame, (laid) => planeLengths(laid, { ow, rw: fits, spare }));
 }
 
-export { boardGeometry, planeGeometry, shellTracks };
+export { boardGeometry, phonePromptHeight, planeGeometry, shellTracks };
 export type {
     BoardBox,
     BoardEdges,
