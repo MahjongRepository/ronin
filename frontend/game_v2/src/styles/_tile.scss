@@ -352,13 +352,11 @@ $edge-bands: (
     );
 }
 
-/* An opponent's concealed tile stands on its edge, seen from above: its top, ivory toward its owner and the back's
-   colour toward the centre, at its owner's edge of the slot it keeps whole for the face a reveal shows. */
 $cap-share: 0.5;
 $back-split: 45%;
 
-@function standing-top($back, $ivory) {
-    @return linear-gradient(to bottom, #{$back} 0 $back-split, #{$ivory} $back-split);
+@function standing-top($back, $face) {
+    @return linear-gradient(to bottom, #{$back} 0 $back-split, #{$face} $back-split);
 }
 
 .board-strip .hand-tile > .tile-back {
@@ -484,8 +482,6 @@ $max-meld-tiles: 4;
     }
 }
 
-/* A face's corner label lies over its artwork, which stays as drawn: in the tile's corner, out past the artwork's box
-   into the room around it, ringed in the face's ivory to read where it still overlaps. */
 .tile svg:has(.tile__label) {
     overflow: visible;
 }

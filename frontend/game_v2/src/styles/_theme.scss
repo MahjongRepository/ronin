@@ -1,6 +1,3 @@
-/* The board's palette: treatment A of the approved look (docs/game-client-look.md, Material and type), a dark teal
-   table, ivory faces, one accent for the player's own action. Components use these tokens, never literal colours. */
-
 [data-theme="dark"] {
     --pico-background-color: #183735;
     --pico-color: #e8efeb;
@@ -75,21 +72,18 @@
     --ronin-table-latest: #f4f7f5;
     --ronin-table-latest-inner: #26332f;
     --ronin-table-turn: #4cc27a;
-
-    /* Tiles: an ivory face with a rim, lit from the screen's top; an edge toward the screen's bottom, the ivory body over
-       the back's layer; a shadow down and to the right; backs an ochre plastic, darker than the accent. */
-    --ronin-tile-face: #efeadc;
-    --ronin-tile-face-light: #fcf9f0;
-    --ronin-tile-face-rim: #e6dfcb;
+    --ronin-tile-face: #f0f0e8;
+    --ronin-tile-face-light: #fffffa;
+    --ronin-tile-face-rim: #e5e5db;
     --ronin-tile-drawn-mark: #2b2f33;
     --ronin-tile-drawn-shade: rgb(20 24 22 / 24%);
     --ronin-tile-shine: rgb(255 255 255 / 85%);
-    --ronin-tile-shade: rgb(110 90 40 / 30%);
-    --ronin-tile-pillow: rgb(100 80 40 / 38%);
+    --ronin-tile-shade: rgb(91 93 87 / 30%);
+    --ronin-tile-pillow: rgb(80 84 78 / 38%);
     --ronin-tile-lip: #fff;
-    --ronin-tile-side-high: #c0baaa;
-    --ronin-tile-side-mid: #8a8578;
-    --ronin-tile-edge: #7f7a6e;
+    --ronin-tile-side-high: #bcbcb3;
+    --ronin-tile-side-mid: #86867e;
+    --ronin-tile-edge: #7b7b73;
     --ronin-tile-back-edge: #16120e;
     --ronin-tile-end-light: rgb(255 255 255 / 30%);
     --ronin-tile-end-shade: rgb(0 0 0 / 30%);

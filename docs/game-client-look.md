@@ -216,7 +216,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Surface.** Fills the viewport, under the safe-area insets too, while the content keeps to the
   play area. Decision: a petrol felt in the dark teal family, lit broadly over the core and falling
   off slowly toward the edges, with a fine static grain as its only texture (felt at full size, gone in a
-  thumbnail: no weave, motif or wear) and the zone device; nothing else is drawn on it. Ivory faces
+  thumbnail: no weave, motif or wear) and the zone device; nothing else is drawn on it. Off-white faces
   separate from it by value, the ochre backs by hue. The grain is one small repeating image under
   the gradient: no runtime noise, filter or blend mode, so a low-end phone paints it once.
 - **Centre.** Decision: one panel, never square: off a phone six river tiles wide by four and a half tall, the side
@@ -305,11 +305,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   backs or faces, is 3:4 at the river tile's size (Tenhou's and Mahjong Soul's ratio), so an
   opponent's hand reads as plainly as its river. Decision: a concealed tile stands on its edge,
   drawn as its top seen from above (Tenhou's side seats draw it in profile): half its 3:4 slot,
-  at its owner's edge, ivory toward its owner and the back's colour toward the centre, so a live
+  at its owner's edge, off-white toward its owner and the back's colour toward the centre, so a live
   hand never reads as face-down tiles (a closed kan's ends, the unrevealed indicators); the slot is
   kept whole, so a reveal shows the faces in the same place. Its edge is its end, split as its
-  top: the top strip shows only the back's layer under it, a side strip the ivory body beside the
-  back's layer, never the ivory body under the back's colour. Decision: a hand's tiles stand a
+  top: the top strip shows only the back's layer under it, a side strip the off-white body beside the
+  back's layer, never the off-white body under the back's colour. Decision: a hand's tiles stand a
   one-pixel hairline apart, as the own hand's; a side strip's tiles run along the light, so the
   tile edge would fill that hairline, and the table's colour is drawn into it instead; a side
   strip's drawn gap shows that edge under the tile the light lays it on and is deeper by it, so
@@ -744,12 +744,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   as the panel closes. Loading, not found, incomplete
   and damaged replays each say so, as does a replay that cannot be drawn at a later stop (the failure
   screen); an incomplete one shows no result for its unfinished round.
-- **Material and type.** Ivory tile faces with room around the glyph and a soft bevel lit from the
+- **Material and type.** Neutral off-white tile faces (not cream) with room around the glyph and a soft bevel lit from the
   screen's top, a small consistent two-tone edge and shadow; a red five reads as red at every scale, in a river, a meld, a revealed hand and a result;
   backs in one colour, the canonical yellow-orange: an ochre plastic, darker and less luminous than
   the accent so a strip of backs never reads as a control, its darker shade the back's layer under
-  every tile's ivory body. Decision: the face artwork (the committed SVG set) stays, its ordinary red
-  darkened from #b93c3c to #9a2424 (fill and stroke) so its thinnest strokes keep 4.5:1 on the ivory
+  every tile's off-white body. Decision: the face artwork (the committed SVG set) stays, its ordinary red
+  darkened from #b93c3c to #9a2424 (fill and stroke) so its thinnest strokes keep 4.5:1 on the face
   once the camera resamples them, the red fives' brighter #d71e1e unchanged and the clearer for it; the room
   around the glyph comes from the tile box, not from new drawings, and a glyph that is still
   unreadable at river scale with that room is reported, not redrawn in a ticket. Decision: the lobby's
