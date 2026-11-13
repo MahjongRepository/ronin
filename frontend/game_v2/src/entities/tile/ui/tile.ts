@@ -7,6 +7,7 @@ import {
     type FaceSuit,
     STANDING_BODY,
     type SeatTurn,
+    type StandingBackEnd,
     type TileBody,
     type TileLay,
     faceArtViewBox,
@@ -65,7 +66,11 @@ function TileBack(layout: TileLayout = {}) {
     const body = bodyOf("back", layout);
     const width = inBodyUnits(body.across);
     const height = inBodyUnits(body.top + body.edge);
-    return html`<span class="tile tile-back" style=${bodyStyle(body, layout)} aria-label=${t("tile.hidden")}>${svg`<svg class="tile__body" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true"><use href="#${body.id}" width="${width}" height="${height}"/></svg>`}</span>`;
+    const uncovered =
+        body.uncoveredId === null
+            ? nothing
+            : svg`<use class="tile__uncovered" href="#${body.uncoveredId}" width="${width}" height="${height}"/>`;
+    return html`<span class="tile tile-back" style=${bodyStyle(body, layout)} aria-label=${t("tile.hidden")}>${svg`<svg class="tile__body" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">${uncovered}<use href="#${body.id}" width="${width}" height="${height}"/></svg>`}</span>`;
 }
 
 /**
@@ -115,6 +120,7 @@ function viewBoxOf({ height, left, top, width }: FaceBox): string {
 }
 
 interface TileLayout {
+    readonly end?: StandingBackEnd;
     readonly lay?: TileLay;
     readonly sideways?: boolean;
     readonly turn?: SeatTurn;
@@ -126,6 +132,7 @@ interface TileOptions extends TileLayout {
 
 function bodyOf(material: "back" | "face", layout: TileLayout): TileBody {
     return tileBody({
+        end: layout.end ?? "shown",
         lay: layout.lay ?? "lying",
         material,
         sideways: layout.sideways === true,

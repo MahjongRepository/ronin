@@ -161,7 +161,9 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   DOM order runs up the screen the components set the slots' `z-index` from the seat's turn (the top river's rows,
   the right river's and the right strip's lines); an added kan renders its two tiles in paint order; the right
   strip's hand stands over its melds and its melds paint from the far end down (`_tile.scss`). Nothing masks a
-  seam.
+  seam. A side strip's back whose end the next tile covers takes the body that draws no end (`Hand` picks it per
+  slot), so its hairline shows table; it also holds the end-drawing body, hidden, which shows while the reflow
+  player marks its hand `hand--sliding`: from a move's start, its delay included, until the hand's last move ends.
 - **One cast shadow per group.** Tiles lying together cast one drop shadow from an unturned ancestor: the rivers'
   from `.board-rivers`, an opponent's from its `.board-strip`, never from a turned frame (Firefox on macOS draws a
   filter inside a turned frame unturned and clipped to its box). A tile alone casts its own; a hand that takes input

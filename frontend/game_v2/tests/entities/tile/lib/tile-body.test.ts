@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
 
-import { LYING_BODIES, lyingFaceBox, tileBody } from "@/entities/tile/lib/tile-body";
+import {
+    LYING_BODIES,
+    STANDING_BACK_BODIES,
+    lyingFaceBox,
+    standingBackSpan,
+    tileBody,
+} from "@/entities/tile/lib/tile-body";
 
 describe("lyingFaceBox", () => {
     test("keeps each face-up lying body's art inside its top", () => {
@@ -19,7 +25,13 @@ describe("tileBody", () => {
     test("picks a lying body by the tile's pose on the screen, its art turned with the seat", () => {
         const bodies = ([0, 90, 180, 270] as const).flatMap((turn) =>
             [false, true].map((sideways) => {
-                const body = tileBody({ lay: "lying", material: "face", sideways, turn });
+                const body = tileBody({
+                    end: "shown",
+                    lay: "lying",
+                    material: "face",
+                    sideways,
+                    turn,
+                });
                 return `${turn}${sideways ? " sideways" : ""}: ${body.id} ${body.artTurn}`;
             }),
         );
@@ -38,9 +50,17 @@ describe("tileBody", () => {
 
     test("stands an opponent's back in its seat's body, a revealed face lying in its stead", () => {
         const backs = ([90, 180, 270] as const).map(
-            (turn) => tileBody({ lay: "standing", material: "back", sideways: false, turn }).id,
+            (turn) =>
+                tileBody({ end: "shown", lay: "standing", material: "back", sideways: false, turn })
+                    .id,
         );
-        const revealed = tileBody({ lay: "standing", material: "face", sideways: false, turn: 90 });
+        const revealed = tileBody({
+            end: "shown",
+            lay: "standing",
+            material: "face",
+            sideways: false,
+            turn: 90,
+        });
 
         expect(backs).toEqual([
             "body-back-standing-left",
@@ -48,5 +68,21 @@ describe("tileBody", () => {
             "body-back-standing-right",
         ]);
         expect([revealed.id, revealed.artTurn]).toEqual(["body-lying-sideways", 90]);
+    });
+});
+
+describe("standingBackSpan", () => {
+    test("paints a side seat's standing back from its owner's edge, the two seats mirrored", () => {
+        const [left, right] = (
+            ["body-back-standing-left", "body-back-standing-right"] as const
+        ).map((id) => {
+            const shape = STANDING_BACK_BODIES[id];
+            const { back, face, start } = standingBackSpan(shape);
+            return { across: shape.across, back, face, start };
+        });
+
+        expect(left.start).toBe(0);
+        expect(right.start + right.face + right.back).toBeCloseTo(right.across);
+        expect([right.face, right.back]).toEqual([left.face, left.back]);
     });
 });

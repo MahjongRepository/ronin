@@ -39,6 +39,16 @@ const STANDING_BACK_BODY = {
     shadedRim: 0.055,
 } as const;
 
+const SIDE_STANDING_BACK_BODY = {
+    cornerRadius: 0.07,
+    edge: TILE_EDGE_SHARE,
+    faceShare: 0.58,
+    litRim: 0.03,
+    roll: 0.045,
+    shadedRim: 0.04,
+    thickness: 0.72,
+} as const;
+
 type BodyMaterial = "back" | "face";
 
 interface LyingBodyShape {
@@ -75,34 +85,65 @@ type LyingBodyId = keyof typeof LYING_BODIES;
 
 type BackLayerSide = "bottom" | "left" | "right";
 
+type StandingBackEnd = "covered" | "shown";
+
 interface StandingBackShape {
     readonly across: number;
     readonly backLayerSide: BackLayerSide;
     readonly edge: number;
+    readonly end: StandingBackEnd;
     readonly top: number;
 }
 
-function standingBackShape(backLayerSide: BackLayerSide): StandingBackShape {
-    const upright = backLayerSide === "bottom";
+function uprightBackShape(): StandingBackShape {
     return {
-        across: upright ? 1 : TILE_BOX_ASPECT,
-        backLayerSide,
+        across: 1,
+        backLayerSide: "bottom",
         edge: STANDING_BACK_BODY.edge,
-        top: upright ? TILE_BOX_ASPECT : 1,
+        end: "shown",
+        top: TILE_BOX_ASPECT,
+    };
+}
+
+function sideBackShape(backLayerSide: "left" | "right", end: StandingBackEnd): StandingBackShape {
+    return {
+        across: TILE_BOX_ASPECT,
+        backLayerSide,
+        edge: SIDE_STANDING_BACK_BODY.edge,
+        end,
+        top: 1,
     };
 }
 
 const STANDING_BACK_BODIES = {
-    "body-back-standing": standingBackShape("bottom"),
-    "body-back-standing-left": standingBackShape("right"),
-    "body-back-standing-right": standingBackShape("left"),
+    "body-back-standing": uprightBackShape(),
+    "body-back-standing-left": sideBackShape("right", "shown"),
+    "body-back-standing-left-covered": sideBackShape("right", "covered"),
+    "body-back-standing-right": sideBackShape("left", "shown"),
+    "body-back-standing-right-covered": sideBackShape("left", "covered"),
 } as const satisfies Record<string, StandingBackShape>;
 
 type StandingBackBodyId = keyof typeof STANDING_BACK_BODIES;
 
-function standingBackCap(shape: StandingBackShape): number {
-    const depth = shape.backLayerSide === "bottom" ? shape.top + shape.edge : shape.across;
-    return depth * STANDING_BACK_BODY.capShare;
+interface StandingBackSpan {
+    readonly back: number;
+    readonly face: number;
+    readonly start: number;
+}
+
+function standingBackSpan(shape: StandingBackShape): StandingBackSpan {
+    if (shape.backLayerSide === "bottom") {
+        const depth = shape.top + shape.edge;
+        const face = depth * STANDING_BACK_BODY.capShare;
+        return { back: depth - face, face, start: 0 };
+    }
+    const { faceShare, thickness } = SIDE_STANDING_BACK_BODY;
+    const ownerOnLeft = shape.backLayerSide === "right";
+    return {
+        back: thickness * (1 - faceShare),
+        face: thickness * faceShare,
+        start: ownerOnLeft ? 0 : shape.across - thickness,
+    };
 }
 
 const FACE_ART_ASPECT = 4 / 3;
@@ -160,6 +201,7 @@ type SeatTurn = (typeof SEAT_TURNS)[number];
 type TileLay = "lying" | "own" | "standing";
 
 interface TileBodyRequest {
+    readonly end: StandingBackEnd;
     readonly lay: TileLay;
     readonly material: BodyMaterial;
     readonly sideways: boolean;
@@ -173,6 +215,7 @@ interface TileBody {
     readonly face: LyingFaceBox | null;
     readonly id: LyingBodyId | StandingBackBodyId;
     readonly top: number;
+    readonly uncoveredId: StandingBackBodyId | null;
 }
 
 function seatTurnOf(degrees: number): SeatTurn {
@@ -185,11 +228,11 @@ function seatTurnOf(degrees: number): SeatTurn {
 }
 
 const STANDING_BACK_BY_TURN = {
-    0: "body-back-standing",
-    180: "body-back-standing",
-    270: "body-back-standing-right",
-    90: "body-back-standing-left",
-} as const satisfies Record<SeatTurn, StandingBackBodyId>;
+    0: { covered: "body-back-standing", shown: "body-back-standing" },
+    180: { covered: "body-back-standing", shown: "body-back-standing" },
+    270: { covered: "body-back-standing-right-covered", shown: "body-back-standing-right" },
+    90: { covered: "body-back-standing-left-covered", shown: "body-back-standing-left" },
+} as const satisfies Record<SeatTurn, Record<StandingBackEnd, StandingBackBodyId>>;
 
 function lyingBodyId(material: BodyMaterial, own: boolean, turned: boolean): LyingBodyId {
     if (material === "face") {
@@ -204,12 +247,14 @@ function lyingBodyId(material: BodyMaterial, own: boolean, turned: boolean): Lyi
     return turned ? "body-back-lying-sideways" : "body-back-lying";
 }
 
-function tileBody({ lay, material, sideways, turn }: TileBodyRequest): TileBody {
+function tileBody({ end, lay, material, sideways, turn }: TileBodyRequest): TileBody {
     const artTurn = seatTurnOf(turn + (sideways ? 90 : 0));
     if (lay === "standing" && material === "back") {
-        const id = STANDING_BACK_BY_TURN[turn];
+        const id = STANDING_BACK_BY_TURN[turn][end];
+        const { shown } = STANDING_BACK_BY_TURN[turn];
         const { across, edge, top } = STANDING_BACK_BODIES[id];
-        return { across, artTurn, edge, face: null, id, top };
+        const uncoveredId = id === shown ? null : shown;
+        return { across, artTurn, edge, face: null, id, top, uncoveredId };
     }
     const id = lyingBodyId(material, lay === "own", artTurn % 180 === 90);
     const shape = LYING_BODIES[id];
@@ -220,6 +265,7 @@ function tileBody({ lay, material, sideways, turn }: TileBodyRequest): TileBody 
         face: material === "face" ? lyingFaceBox(shape) : null,
         id,
         top: shape.top,
+        uncoveredId: null,
     };
 }
 
@@ -238,13 +284,14 @@ export {
     LYING_BODIES,
     LYING_BODY,
     STANDING_BACK_BODIES,
+    SIDE_STANDING_BACK_BODY,
     STANDING_BACK_BODY,
     STANDING_BODY,
     STANDING_OVERHANG,
     TILE_EDGE_SHARE,
     faceArtViewBox,
     lyingFaceBox,
-    standingBackCap,
+    standingBackSpan,
     standingFaceBox,
     tileBody,
 };
@@ -258,7 +305,9 @@ export type {
     LyingFaceBox,
     SeatTurn,
     StandingBackBodyId,
+    StandingBackEnd,
     StandingBackShape,
+    StandingBackSpan,
     TileBody,
     TileBodyRequest,
     TileLay,

@@ -74,27 +74,30 @@ describe("Hand", () => {
         expect(onTile).not.toHaveBeenCalled();
     });
 
-    test("stands an opponent's concealed tiles in its seat's body, the right seat's painted from its far end down", () => {
+    test("stands an opponent's concealed tiles in its seat's body, the right seat's painted from its far end down, each end shown only where no tile covers it", () => {
         const tiles: HandTile[] = [{ show: "concealed" }, { show: "concealed" }];
         const drawnTile: HandTile = { show: "concealed" };
         function slots(turn: 90 | 270): (string | undefined)[][] {
             const el = renderTo(Hand({ drawnTile, tiles, turn }));
             return [...el.querySelectorAll<HTMLElement>(".hand > .hand-tile")].map((slot) => [
-                slot.querySelector(".tile__body > use")?.getAttribute("href") ?? undefined,
+                slot
+                    .querySelector(".tile__body > use:not(.tile__uncovered)")
+                    ?.getAttribute("href") ?? undefined,
+                slot.querySelector("use.tile__uncovered")?.getAttribute("href") ?? undefined,
                 slot.style.zIndex,
             ]);
         }
 
         expect([slots(90), slots(270)]).toEqual([
             [
-                ["#body-back-standing-left", ""],
-                ["#body-back-standing-left", ""],
-                ["#body-back-standing-left", ""],
+                ["#body-back-standing-left-covered", "#body-back-standing-left", ""],
+                ["#body-back-standing-left", undefined, ""],
+                ["#body-back-standing-left", undefined, ""],
             ],
             [
-                ["#body-back-standing-right", "3"],
-                ["#body-back-standing-right", "2"],
-                ["#body-back-standing-right", "1"],
+                ["#body-back-standing-right", undefined, "3"],
+                ["#body-back-standing-right-covered", "#body-back-standing-right", "2"],
+                ["#body-back-standing-right", undefined, "1"],
             ],
         ]);
     });

@@ -318,13 +318,20 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   river, backs or faces, so that neither reads as a row of the other. Decision: a concealed hand,
   backs or faces, is 3:4 at the river tile's size (Tenhou's and Mahjong Soul's ratio), so an
   opponent's hand reads as plainly as its river. Decision: a concealed tile stands on its edge,
-  seen from above, filling its 3:4 slot and the edge reserved under it: a thin off-white
-  cap at its owner's side, 0.22 of the depth it shows, over the back's ochre face toward the centre (on a side seat
-  the cap at the owner's side, the ochre across the rest, its end under it split the same way), so a live hand never
-  reads as face-down tiles (a closed kan's ends, the unrevealed indicators); the slot is kept whole, so a reveal shows
-  the faces in the same place. Decision: a hand's tiles stand a one-pixel hairline apart, as the own hand's; a side
-  strip's tiles run along the light, each covering the end of the tile above it, and its drawn gap shows the end of
-  the tile above the gap and is deeper by it, so the clear table past the end reads as the top strip's gap. Every seat
+  seen from above, so a live hand never reads as face-down tiles (a closed kan's ends, the
+  unrevealed indicators); the slot is kept whole, so a reveal shows the faces in the same place. The top seat's tile
+  fills its 3:4 slot and the edge reserved under it: a thin off-white cap at its owner's side, 0.22 of the depth it
+  shows, over the back's ochre face toward the centre. A side seat's tile shows its top only, no back face:
+  0.72 of a tile's width across, at the owner's edge of its slot, the rest of the slot bare table; 58%
+  off-white at the owner's side, 42% the back's bright ochre (the face-down tiles' colour) toward the centre, flat
+  but for a short roll at its foot and thin rims, its end under it split the same way. Decision: a hand's tiles stand
+  a one-pixel hairline apart, as the own hand's; a side strip's tiles run along the light, each covering the end of
+  the tile above it, and a covered end is not drawn, so the hairline shows the table between them; only an exposed
+  end shows (the run's lowest tile on the screen, and the tile above the drawn gap). While any tile of a hand slides,
+  from the moment the discard leaves through the slide's end, every tile of that hand shows its end, a covered one
+  under the next tile anyway, so a tile left above an empty slot never stands without its end. The drawn gap shows
+  the end of the tile above it and is deeper by it, so the clear table past the end reads as the top strip's gap.
+  Every seat
   keeps its melds in one continuous line to the hand's right from that player's view: downward for the left seat, upward for the right. The oldest meld stays at the far end;
   newer melds join toward the hand. Melds never wrap beside the hand or into parallel columns.
   All melds in a strip scale together to fit, beside the hand at its fullest with a drawn tile set apart, so a draw

@@ -48,6 +48,14 @@ $max-strip-melds: 4;
     transform: rotate(var(--body-turn, 0deg));
 }
 
+.tile__uncovered {
+    display: none;
+
+    .hand--sliding & {
+        display: inline;
+    }
+}
+
 .tile--standing {
     --tile-lift: calc(var(--tile-w) * #{$cast-x + $cast-pull})
         calc(var(--tile-w) * #{$cast-y + $cast-pull}) calc(var(--tile-w) * #{$cast-blur})

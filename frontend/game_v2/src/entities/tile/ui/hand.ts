@@ -1,6 +1,6 @@
 import { type TemplateResult, html, nothing } from "lit-html";
 
-import { type SeatTurn } from "@/entities/tile/lib/tile-body";
+import { type SeatTurn, type StandingBackEnd } from "@/entities/tile/lib/tile-body";
 import { type TileFace, spokenTileName } from "@/entities/tile/lib/tile-utils";
 import { type MessageKey, t } from "@/shared/i18n";
 
@@ -60,21 +60,35 @@ function tileLabel(face: TileFace, action: TileAction | undefined): string {
     return t(key, { tile: spokenTileName(face) });
 }
 
-function TileFaceView(tile: HandTile, props: HandProps): TemplateResult {
+function TileFaceView(tile: HandTile, end: StandingBackEnd, props: HandProps): TemplateResult {
     const { standing, turn } = props;
     if (tile.show !== "face") {
-        return TileBack(turn === undefined ? {} : { lay: "standing", turn });
+        return TileBack(turn === undefined ? {} : { end, lay: "standing", turn });
     }
     return standing === true ? StandingTile(tile.face) : Tile(tile.face, "face", { turn });
 }
 
 interface SlotPlace {
+    readonly end: StandingBackEnd;
     readonly extraClass: string;
     readonly paint: string | typeof nothing;
 }
 
-function slotPlace(props: HandProps, extraClass: string, fromEnd: number): SlotPlace {
-    return { extraClass, paint: props.turn === 270 ? `z-index: ${fromEnd}` : nothing };
+function slotPaint(props: HandProps, fromEnd: number): string | typeof nothing {
+    return props.turn === 270 ? `z-index: ${fromEnd}` : nothing;
+}
+
+function runSlotPlace(props: HandProps, index: number, count: number): SlotPlace {
+    const lowestOnScreen = props.turn === 270 ? 0 : props.tiles.length - 1;
+    return {
+        end: index === lowestOnScreen ? "shown" : "covered",
+        extraClass: "",
+        paint: slotPaint(props, count - index),
+    };
+}
+
+function drawnSlotPlace(props: HandProps): SlotPlace {
+    return { end: "shown", extraClass: " hand-drawn-gap", paint: slotPaint(props, 1) };
 }
 
 /** The focus key every tile of the player's own hand holds. */
@@ -88,12 +102,12 @@ export const PLAYABLE_TILE_FOCUS_KEY = "playable-tile";
  */
 function HandSlot(
     tile: HandTile,
-    { extraClass, paint }: SlotPlace,
+    { end, extraClass, paint }: SlotPlace,
     props: HandProps,
 ): TemplateResult {
     const slotClass = `hand-tile${extraClass}`;
     if (tile.state === undefined) {
-        return html`<span class="${slotClass}" style=${paint} data-tile-id=${tile.tileId ?? ""}>${TileFaceView(tile, props)}</span>`;
+        return html`<span class="${slotClass}" style=${paint} data-tile-id=${tile.tileId ?? ""}>${TileFaceView(tile, end, props)}</span>`;
     }
     const { state, tileId } = tile;
     const acts = state === "selectable" || state === "armed" || state === "declaring";
@@ -111,7 +125,7 @@ function HandSlot(
         aria-pressed=${state === "selected" || state === "armed" ? "true" : nothing}
         data-focus-key=${acts ? `${HAND_TILE_FOCUS_KEY} ${PLAYABLE_TILE_FOCUS_KEY}` : HAND_TILE_FOCUS_KEY}
         @click=${press}
-    >${TileFaceView(tile, props)}</button>`;
+    >${TileFaceView(tile, end, props)}</button>`;
 }
 
 /** Render a horizontal row of mahjong tiles with an optional drawn tile separated by a gap. */
@@ -119,8 +133,8 @@ function Hand(props: HandProps): TemplateResult {
     const { drawnTile, tiles } = props;
     const count = tiles.length + (drawnTile === undefined ? 0 : 1);
     return html`<span class="hand"
-        >${tiles.map((tile, index) => HandSlot(tile, slotPlace(props, "", count - index), props))}${
-            drawnTile ? HandSlot(drawnTile, slotPlace(props, " hand-drawn-gap", 1), props) : ""
+        >${tiles.map((tile, index) => HandSlot(tile, runSlotPlace(props, index, count), props))}${
+            drawnTile ? HandSlot(drawnTile, drawnSlotPlace(props), props) : ""
         }</span
     >`;
 }

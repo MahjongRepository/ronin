@@ -984,7 +984,9 @@ describe("replay motion", () => {
     it("settles the previous hand before measuring the next move", async () => {
         await showMovingHand(tiles, 0, "replay");
         await showMovingHand(tiles.toReversed(), 1, "replay");
-        expect(animations).toHaveLength(2);
+        expect([animations.length, host.querySelectorAll(".hand.hand--sliding").length]).toEqual([
+            2, 1,
+        ]);
         await showMovingHand(tiles, 2, "replay");
         expect(animations.map((animation) => animation.playState)).toEqual([
             "idle",
@@ -994,6 +996,21 @@ describe("replay motion", () => {
         ]);
         expect(getAnimationFrames(animations[2])[0]).toMatchObject({ left: "64px", top: "0px" });
         expect([hiddenTiles(), host.querySelector(".board-motion")]).toEqual([0, null]);
+        animations.forEach((animation) => {
+            animation.finish();
+        });
+        await Promise.resolve();
+        expect(host.querySelectorAll(".hand--sliding")).toHaveLength(0);
+    });
+
+    it("unmarks its sliding hand on cancel though a moving slot's tile was replaced", async () => {
+        await showMovingHand(tiles, 0, "replay");
+        await showMovingHand(tiles.toReversed(), 1, "replay");
+        const hand = host.querySelector(".hand");
+        host.querySelector(".hand-tile > .tile")?.replaceWith(document.createElement("span"));
+        const marked = hand?.classList.contains("hand--sliding");
+        render(nothing, host);
+        expect([marked, hand?.classList.contains("hand--sliding")]).toEqual([true, false]);
     });
 
     it("animates only the newest move when replay steps share a render task", async () => {

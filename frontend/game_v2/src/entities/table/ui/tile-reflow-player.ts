@@ -4,6 +4,8 @@ import { SEAT_TURNS } from "@/entities/table/model/board-types";
 
 import { type TileSnapshot } from "./board-motion-snapshot";
 
+const SLIDING_HAND = "hand--sliding";
+
 /** Where a reflowing tile starts: its bounding box and its corners on the screen. */
 export interface ReflowSource {
     readonly rect: MotionRect;
@@ -13,6 +15,7 @@ export interface ReflowSource {
 interface TileReflow {
     readonly animation: Animation;
     readonly effect: KeyframeEffect;
+    hand: HTMLElement | null;
     target: TileSnapshot;
     visible: MotionRect;
 }
@@ -77,8 +80,14 @@ function movedQuad(quad: TileQuad, from: MotionRect, to: MotionRect): TileQuad {
     return first && second && third && fourth ? [first, second, third, fourth] : quad;
 }
 
+function handOf(tile: TileSnapshot): HTMLElement | null {
+    return tile.element.parentElement?.closest<HTMLElement>(".hand") ?? null;
+}
+
 export class TileReflowPlayer {
     private readonly running = new Map<string, TileReflow>();
+
+    private readonly sliding = new Set<HTMLElement>();
 
     get suspended(): boolean {
         return [...this.running.values()].some(({ effect }) => effect.target === null);
@@ -116,6 +125,7 @@ export class TileReflowPlayer {
         for (const [key, active] of this.running) {
             this.rebind(key, active, changing.has(key) ? undefined : after.get(key));
         }
+        this.markSlidingHands();
     }
 
     private rebind(key: string, active: TileReflow, next: TileSnapshot | undefined): void {
@@ -124,6 +134,7 @@ export class TileReflowPlayer {
             return;
         }
         active.target = next;
+        active.hand = handOf(next);
         active.effect.target = next.element.parentElement;
     }
 
@@ -145,10 +156,15 @@ export class TileReflowPlayer {
         this.running.set(motion.target, {
             animation,
             effect: animation.effect,
+            hand: handOf(target),
             target,
             visible: source.rect,
         });
-        animation.onfinish = () => this.stop(motion.target);
+        this.markSlidingHands();
+        animation.onfinish = () => {
+            this.stop(motion.target);
+            this.markSlidingHands();
+        };
     }
 
     private stop(key: string): void {
@@ -163,6 +179,23 @@ export class TileReflowPlayer {
     cancel(): void {
         for (const key of this.running.keys()) {
             this.stop(key);
+        }
+        this.markSlidingHands();
+    }
+
+    private markSlidingHands(): void {
+        const hands = new Set(
+            [...this.running.values()].flatMap(({ hand }) => (hand === null ? [] : [hand])),
+        );
+        for (const hand of this.sliding) {
+            if (!hands.has(hand)) {
+                hand.classList.remove(SLIDING_HAND);
+                this.sliding.delete(hand);
+            }
+        }
+        for (const hand of hands) {
+            hand.classList.add(SLIDING_HAND);
+            this.sliding.add(hand);
         }
     }
 }

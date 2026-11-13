@@ -74,6 +74,7 @@ async function separateRightTile(page: Page): Promise<SeparatedTile> {
             body.getBoundingClientRect().bottom - tile.getBoundingClientRect().bottom,
         );
         slot.classList.remove("hand-drawn-gap");
+        slot.parentElement?.classList.add("hand--sliding");
         const width = slot.offsetWidth;
         const animation = slot.animate([{ left: `${width * 1.2}px` }, { left: "0px" }], {
             duration: 200,
