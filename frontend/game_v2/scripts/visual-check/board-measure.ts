@@ -101,6 +101,8 @@ export interface BoardMeasure {
     readonly opponentFaces: readonly Box[];
     /** The table's pieces as laid, before the camera tilts them: the spec's proportions and floors hold here. */
     readonly plane: PlaneMeasure;
+    /** The share of a lying tile's width its edge reaches below its face, as the board's geometry writes it. */
+    readonly edgeShare: number;
     /** The page's corner on the board: the settings cog, which a panel over the board may cover. */
     readonly menu: readonly Box[];
 }
@@ -413,6 +415,9 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             clippedWords,
             cutNames,
             decisionBand: band === null ? null : { box: box(band), buttons: decisionActions },
+            edgeShare: Number.parseFloat(
+                getComputedStyle(board).getPropertyValue("--tile-edge-share"),
+            ),
             family: board.getAttribute("data-board-family") ?? "",
             fonts,
             furiten: furitenMark === null ? null : box(furitenMark),

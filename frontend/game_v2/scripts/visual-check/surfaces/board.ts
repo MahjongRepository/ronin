@@ -68,9 +68,6 @@ const PLATE_TILE_GAP = 4;
 const STICK_TILE_GAP = 10;
 const PHONE_STICK_TILE_GAP = 6;
 
-/** The tile edge `_tile.scss` draws below a face, in shares of the tile's width (its body and back layers). */
-const DRAWN_EDGE_SHARE = 0.13;
-
 /** How far under its floor a face the camera shows may measure: sub-pixel rounding of its box, never the camera's. */
 const SHOWN_FACE_SLACK = 0.25;
 /**
@@ -406,8 +403,8 @@ interface DerivedProportions {
  * review; the opponent's hand at the river tile holds everywhere (`checkHandScale`).
  */
 const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
-    [FLOOR, { riverGap: 0.32, riverToOwn: 0.42 }],
-    [NOTCH_PHONE, { riverGap: 0.29, riverToOwn: 0.46 }],
+    [FLOOR, { riverGap: 0.32, riverToOwn: 0.42, topRiverGap: 0.53 }],
+    [NOTCH_PHONE, { riverGap: 0.29, riverToOwn: 0.46, topRiverGap: 0.48 }],
     [MID_DESKTOP, { riverGap: 0.14, riverToOwn: 0.73, topRiverGap: 0.34 }],
 ]);
 const DERIVED_TOLERANCE = 0.02;
@@ -659,7 +656,13 @@ function checkTurnCue(cues: TurnCues, board: BoardMeasure, report: PageReport): 
 function checkRiverGaps(board: BoardMeasure, report: PageReport): void {
     const touching = new Set<string>();
     const shownGap = MIN_RIVER_GAP;
-    const drawn = board.riverTiles.map(({ box, group }) => ({ box: withDrawnEdge(box), group }));
+    if (!Number.isFinite(board.edgeShare)) {
+        throw new Error("the board writes no --tile-edge-share");
+    }
+    const drawn = board.riverTiles.map(({ box, group }) => ({
+        box: withDrawnEdge(box, board.edgeShare),
+        group,
+    }));
     for (const [index, first] of drawn.entries()) {
         for (const second of drawn.slice(index + 1)) {
             if (first.group !== second.group && near(first.box, second.box, shownGap)) {
@@ -680,12 +683,12 @@ function checkRiverGaps(board: BoardMeasure, report: PageReport): void {
 }
 
 /**
- * A tile's box with the edge its group draws under it toward the screen's bottom (`_tile.scss`'s body and back), a share
- * of the tile's width as the camera shows it down the screen: an upright tile's height is four thirds of its width.
+ * A tile's box with the edge its group draws under it toward the screen's bottom (`_tile.scss`'s bands), `share` of the
+ * tile's width as the camera shows it down the screen: an upright tile's height is four thirds of its width.
  */
-function withDrawnEdge(tile: Box): Box {
+function withDrawnEdge(tile: Box, share: number): Box {
     const widthDown = tile.height > tile.width ? (tile.height * 3) / 4 : tile.height;
-    return { ...tile, height: tile.height + DRAWN_EDGE_SHARE * widthDown };
+    return { ...tile, height: tile.height + share * widthDown };
 }
 
 /**

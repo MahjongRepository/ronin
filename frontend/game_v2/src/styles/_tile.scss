@@ -12,7 +12,6 @@ $side-high-share: 0.065;
 $side-mid-share: 0.11;
 $body-share: 0.16;
 $back-share: 0.04;
-$own-standing-edge-scale: 0.65;
 $bevel-share: 0.045;
 $pillow-share: 0.09;
 $top-share: 0.06;
@@ -221,27 +220,32 @@ $edge-bands: (
 /* The own hand's tiles stand facing their player, as Tenhou draws them: a band across their top, the tile's top edge
    seen above its face, inside the room the glyph keeps. */
 .board-local .hand .tile:not(.tile-back) {
-    --edge-unit: calc(var(--unit) * #{$own-standing-edge-scale});
+    --edge-unit: calc(var(--unit) * var(--own-standing-edge-scale));
     --tile-top:
         inset 0 calc(var(--unit) * #{$top-share}) 0 var(--ronin-tile-top),
         inset 0 calc(var(--unit) * #{$top-share} + 1px) 0 var(--ronin-tile-rim);
 }
 
-/* A flying tile's edge in three passes, light enough to repaint every frame: its lit body down to the back's seam,
-   the seam, and one shadow; a trail's copies draw none, as translucent filtered copies wash out in WebKit. */
-@mixin flight-edge($unit) {
+/* A flying tile's edge in three passes cheap to repaint each frame (mid-tone body, seam, contact shadow), as shallow as
+   a standing tile's while it stands; trails draw none, as translucent filtered copies wash out in WebKit. */
+@mixin flight-edge($unit, $edge-unit) {
     --unit: #{$unit};
 
-    filter: drop-shadow(0 band-depth(body, $unit) 0 band-colour(side-high))
-        drop-shadow(0 calc(#{band-depth(back, $unit)} - #{band-depth(body, $unit)}) 0 band-colour(back))
+    filter: drop-shadow(0 band-depth(body, $edge-unit) 0 band-colour(side-mid))
         drop-shadow(
-            calc(#{$unit} * #{$cast-x}) calc(#{$unit} * #{$cast-y}) calc(#{$unit} * #{$cast-blur * 0.8})
-                var(--ronin-tile-shadow)
+            0 calc(#{band-depth(back, $edge-unit)} - #{band-depth(body, $edge-unit)}) 0
+                band-colour(back)
+        )
+        drop-shadow(
+            0 calc(#{$edge-unit} * #{$contact-y}) calc(#{$edge-unit} * #{$contact-blur * 0.5})
+                var(--ronin-tile-contact)
         );
 }
 
 .game-board .board-motion__tile {
-    @include flight-edge(var(--motion-width));
+    --motion-edge-scale: calc(1 + (var(--own-standing-edge-scale) - 1) * var(--motion-standing));
+
+    @include flight-edge(var(--motion-width), calc(var(--motion-width) * var(--motion-edge-scale)));
 
     > .tile {
         --tile-w: var(--motion-width);

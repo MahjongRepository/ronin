@@ -99,17 +99,24 @@ function copyTile(tile: HTMLElement, pose: TilePose): HTMLElement {
     return image;
 }
 
+/** A flying image's classes from its tile: a hand button's own feedback, a replay's tsumogiri shade and edge shade. */
+function imageClasses(tile: HTMLElement): readonly string[] {
+    const tsumogiri = tile.parentElement?.dataset.tsumogiri === "true";
+    return [
+        "board-motion__tile",
+        ...(tile.parentElement instanceof HTMLButtonElement
+            ? ["board-motion__tile--individual"]
+            : []),
+        ...(tsumogiri ? ["board-motion__tile--tsumogiri"] : []),
+        ...(tsumogiri && tile.closest(".board-river--bottom") !== null
+            ? ["board-motion__tile--tsumogiri-edge"]
+            : []),
+    ];
+}
+
 function createImage(tile: HTMLElement, pose: TilePose): HTMLElement {
     const image = document.createElement("span");
-    image.className = "board-motion__tile";
-    image.classList.toggle(
-        "board-motion__tile--individual",
-        tile.parentElement instanceof HTMLButtonElement,
-    );
-    image.classList.toggle(
-        "board-motion__tile--tsumogiri",
-        tile.parentElement?.dataset.tsumogiri === "true",
-    );
+    image.classList.add(...imageClasses(tile));
     image.style.setProperty("--motion-width", `${pose.width}px`);
     image.style.setProperty("--motion-height", `${pose.height}px`);
     image.style.setProperty("--motion-angle", `${pose.angle}deg`);

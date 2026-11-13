@@ -42,7 +42,7 @@ The derived proportions are the three reference viewports' values under the sizi
   bands (the top hand's foot to the top river, the core to the own row) open at most 0.95 river
   tiles wider than the flat board's; felt beyond that lies over the table's top instead, at most
   0.15 river tiles of it, the least margin that holds, and never narrower than the flat board's
-  (the top band to a pixel, the bottom one to its least of 4px). A phone lays its tiles larger so its
+  (the top band to a pixel, on a desktop to a tenth of a river tile, the bottom one to its least of 4px). A phone lays its tiles larger so its
   faces still show at the floor after the tilt (its plane's undrawn own row narrower where that
   keeps its river tile, its strips beside or above the own row as the flat board's, its centre
   lifted clear of the band), and its counters stay flat in their corner; one whose river tile is
@@ -873,7 +873,7 @@ apart on the top strip, and 0.35 on a side strip, where the 0.2 tile edge it sho
 | Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand within the board and, where any own tile allows it, a right bar that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.42 / 0.46 / 0.73 |
 | Own hand tile width / play area width | 0.05 | 0.067 / 0.063 / 0.046 |
 | Own hand tile height / play area height | 0.15 | 0.160 / 0.161 / 0.100 |
-| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded; the top river 0.34, past its rows' tile edge) |
+| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded; the top river 0.53 / 0.48 / 0.34, past its rows' tile edge, a phone's where its centre has the height) |
 | Gap between neighbouring rivers, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,

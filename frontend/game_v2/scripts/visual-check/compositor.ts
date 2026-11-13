@@ -5,18 +5,32 @@ const FRAME_TRIES = 100;
 const SETTLE_MS = 300;
 const NUDGE_EVERY = 10;
 
-/** Paint a 1px element for two frames, so the compositor sends a frame. */
+const NUDGE_ID = "compositor-nudge";
+
+/**
+ * Repaint one pixel in the viewport's bottom right corner, a near-black that flips between two shades, so the
+ * compositor has a change to send a frame for.
+ */
 async function nudge(page: Page): Promise<void> {
-    await page.evaluate(() => {
-        const mark = document.createElement("div");
-        mark.style.cssText =
-            "position:fixed;left:0;top:0;width:1px;height:1px;opacity:0.01;pointer-events:none";
-        document.documentElement.append(mark);
-        requestAnimationFrame(() => requestAnimationFrame(() => mark.remove()));
-    });
+    await page.evaluate((id) => {
+        const found = document.getElementById(id);
+        const mark = found ?? document.createElement("div");
+        if (found === null) {
+            mark.id = id;
+            mark.style.cssText =
+                "position:fixed;right:0;bottom:0;width:1px;height:1px;z-index:2147483647;pointer-events:none";
+            document.documentElement.append(mark);
+        }
+        mark.style.background =
+            mark.style.background === "rgb(0, 0, 0)" ? "rgb(2, 2, 2)" : "rgb(0, 0, 0)";
+    }, NUDGE_ID);
 }
 
-/** Nudge until the screencast delivers a frame past its `seen`th, painted after this call. */
+async function removeNudge(page: Page): Promise<void> {
+    await page.evaluate((id) => document.getElementById(id)?.remove(), NUDGE_ID);
+}
+
+/** Nudge until the screencast delivers a frame past its `seen`th, painted after this call; throws when none comes. */
 async function awaitFrameAfter(page: Page, count: () => number, seen: number): Promise<void> {
     await nudge(page);
     for (let tries = 0; tries < FRAME_TRIES && count() <= seen; tries += 1) {
@@ -25,13 +39,16 @@ async function awaitFrameAfter(page: Page, count: () => number, seen: number): P
         }
         await page.waitForTimeout(FRAME_WAIT_MS);
     }
+    if (count() <= seen) {
+        throw new Error("no screencast frame arrived after the page settled");
+    }
 }
 
 /**
  * The viewport as WebKit's compositor shows it, a screencast frame (JPEG): Playwright's `page.screenshot()` in WebKit on
  * Linux paints in software and flattens a CSS perspective (no divide, Playwright #21620, WebKit bug 68276), so a shot of
- * the tilted table must come from the compositor. A frame arrives only when something paints, so a 1px element
- * nudges one; it keeps nudging for a settling while, then returns a frame painted after it, never one the screencast
+ * the tilted table must come from the compositor. A frame arrives only when something paints, so a corner pixel
+ * that flips shade nudges one; it keeps nudging for a settling while, then returns a frame painted after it, never one the screencast
  * delivers late from before the page's last change. `oversample` asks for a frame that many times the device's pixels, which a reader scales back down: a
  * JPEG halves its colour's resolution, which would soften a thin red stroke's colour.
  */
@@ -58,13 +75,17 @@ export async function compositorShot(page: Page, oversample = 1): Promise<Buffer
         },
     });
     started = true;
-    await awaitFrameAfter(page, () => frames, 0);
-    for (let waited = 0; waited < SETTLE_MS; waited += FRAME_WAIT_MS) {
-        await nudge(page);
-        await page.waitForTimeout(FRAME_WAIT_MS);
+    try {
+        await awaitFrameAfter(page, () => frames, 0);
+        for (let waited = 0; waited < SETTLE_MS; waited += FRAME_WAIT_MS) {
+            await nudge(page);
+            await page.waitForTimeout(FRAME_WAIT_MS);
+        }
+        await awaitFrameAfter(page, () => frames, frames);
+    } finally {
+        await page.screencast.stop();
+        await removeNudge(page);
     }
-    await awaitFrameAfter(page, () => frames, frames);
-    await page.screencast.stop();
     if (latest === null) {
         throw new Error("no screencast frame arrived");
     }

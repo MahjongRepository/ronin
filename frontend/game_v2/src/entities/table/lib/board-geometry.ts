@@ -971,9 +971,15 @@ function phoneLayout(
     const coreTop = m + rh + sep + (frame.topGap ?? 0);
     const gap = riverGap(rw);
     const rows = riverRows(rw, gap);
-    const centreTop = coreTop + LATEST_DISCARD_GAP + rows;
-    const heightRoom =
-        handTop - coreGap - (frame.coreLift ?? 0) - LATEST_DISCARD_GAP - rows - centreTop;
+    const spareRoom =
+        handTop - coreGap - (frame.coreLift ?? 0) - 2 * (LATEST_DISCARD_GAP + rows) - coreTop;
+    const edgeRoom = Math.max(
+        0,
+        Math.min(Math.round(TILE_EDGE_SHARE * rw), spareRoom - PHONE_CENTRE_MIN_HEIGHT),
+    );
+    const topGap = gap + edgeRoom;
+    const centreTop = coreTop + LATEST_DISCARD_GAP + rows + edgeRoom;
+    const heightRoom = spareRoom - edgeRoom;
     const centreWidth = Math.max(RIVER_ROW_SIZE * rw, PHONE_CENTRE_MIN_WIDTH);
     const replayRoom = phoneControlsBottom(foot) - phoneUnderCog(m, rw);
     const replay = phoneReplayBlock(chrome, replayRoom);
@@ -1002,7 +1008,7 @@ function phoneLayout(
         ["own-meld-tile", ownMeldTile],
         ...coreLengths(
             { cx: width / 2, cy, height: heightRoom, rw, width: centreWidth },
-            { drop: LATEST_DISCARD_GAP, gap, topGap: gap },
+            { drop: LATEST_DISCARD_GAP, gap, topGap },
         ),
         ["side-reach", phoneSideReach(rw, line, frame.faceFloor)],
         ["switches-bottom", foot],
@@ -1832,14 +1838,18 @@ interface Counters {
     readonly width: number;
 }
 
-/** The counters at a dora tile, their indicators `perRow` to a row (px). */
+/** The counters at a dora tile, their indicators `perRow` to a row, the last row's edge inside the padding (px). */
 function countersAt(dora: number, perRow: number): Counters {
     const rows = Math.ceil(DORA_SLOTS / perRow);
     const pad = COUNTERS_PAD_BY_DORA * dora;
     const rowW = rowWidth(perRow, dora, DORA_TILE_GAP);
     return {
         dora,
-        height: 2 * pad + rows * dora * TILE_ASPECT + (rows - 1) * DORA_TILE_GAP,
+        height:
+            2 * pad +
+            rows * dora * TILE_ASPECT +
+            (rows - 1) * DORA_TILE_GAP +
+            TILE_EDGE_SHARE * dora,
         pad,
         radius: COUNTERS_RADIUS_BY_DORA * dora,
         rowW,

@@ -34,6 +34,9 @@ const BAND_RIVERS = 0.95;
 /** How much narrower than the flat board's the camera may show the felt between the top hand and the top river (px). */
 const BAND_SLACK = 1;
 
+/** On a desktop, that felt may show this many flat river tiles narrower, where that is more than `BAND_SLACK`. */
+const TOP_BAND_SLACK_RIVERS = 0.1;
+
 /** A plate's riichi stick hangs this far under its pill (px), as long as this many of the plate's text, at 6/32 tall. */
 const STICK_DROP = 3;
 const STICK_LENGTH_BY_TEXT = 2.2;
@@ -303,10 +306,9 @@ function sideShift(
 /** A table as a camera shows it: its plane's pieces, each moved by its shift. */
 type SeenTable = Pick<TableView, "camera" | "pieces" | "plane" | "shifts">;
 
-/** How far in from its box's left edge the top strip's line starts, where its melds lie (px). */
-function topInsetOf({ pieces, plane }: Pick<SeenTable, "pieces" | "plane">): number {
-    const { left } = pieces["strip-top"];
-    return (plane.strips?.top.start ?? left) - left;
+/** How far in from its box's left edge the top strip's melds end (px). */
+function topInsetOf({ plane }: Pick<SeenTable, "plane">): number {
+    return plane.strips?.top.inset ?? 0;
 }
 
 /**
@@ -404,7 +406,7 @@ function insetTopLine(plane: BoardGeometry, inset: number): BoardGeometry {
     }
     return {
         ...plane,
-        strips: { ...strips, top: { ...strips.top, start: strips.top.start + inset } },
+        strips: { ...strips, top: { ...strips.top, inset } },
     };
 }
 
@@ -773,6 +775,17 @@ function meets(first: BoardRect, second: BoardRect, gap: number): boolean {
     );
 }
 
+/**
+ * How much narrower the top band may show than the flat board's: a pixel, or on a desktop a tenth of a river tile, so a
+ * short desktop whose flat board opens a deep top band keeps a tilt step rather than going flat.
+ */
+function topBandSlack(screen: BoardGeometry): number {
+    const rw = screen.lengths["rw"] ?? 0;
+    return screen.family === "phone"
+        ? BAND_SLACK
+        : Math.max(BAND_SLACK, TOP_BAND_SLACK_RIVERS * rw);
+}
+
 /** A tilted board stands whole on its tiles' floors and keeps the flat board's bands within their allowance. */
 function holds(view: TableView, screen: BoardGeometry): boolean {
     const flatRiver = screen.lengths["rw"] ?? 0;
@@ -790,7 +803,7 @@ function holds(view: TableView, screen: BoardGeometry): boolean {
         (view.plane.lengths["rw"] ?? 0) >= flatRiver - (screen.family === "phone" ? 0 : 1) &&
         Math.abs(apparentRiver(view) - flatRiver) <= APPARENT_RIVER_SHARE * flatRiver + 0.5 &&
         shown.top <= Math.max(flat.top, 0) + band + MARGIN_TOLERANCE &&
-        shown.top >= flat.top - BAND_SLACK &&
+        shown.top >= flat.top - topBandSlack(screen) &&
         shown.bottom >= Math.min(flat.bottom, BOTTOM_BAND_LEAST) - 0.5 &&
         shown.bottom <= Math.max(flat.bottom, 0) + band + MARGIN_TOLERANCE &&
         nearRiver(view) <= NEAR_RIVER_BY_OWN * (screen.lengths["ow"] ?? 0) + 0.5 &&

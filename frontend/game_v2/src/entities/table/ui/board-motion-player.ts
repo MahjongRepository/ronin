@@ -117,15 +117,23 @@ function sameRect(first: MotionRect, second: MotionRect): boolean {
     );
 }
 
+/** The slot each hidden destination marked as landing, kept so a tile a render swaps out still clears its slot. */
+const landingSlots = new WeakMap<HTMLElement, HTMLElement>();
+
 function showDestination(target: HTMLElement): void {
     target.style.removeProperty("visibility");
-    target.parentElement?.removeAttribute("data-landing");
+    (landingSlots.get(target) ?? target.parentElement)?.removeAttribute("data-landing");
+    landingSlots.delete(target);
     target.closest("button")?.style.removeProperty("pointer-events");
 }
 
 function hideDestination(target: HTMLElement): void {
     target.style.visibility = "hidden";
-    target.parentElement?.setAttribute("data-landing", "");
+    const slot = target.parentElement;
+    if (slot !== null) {
+        slot.setAttribute("data-landing", "");
+        landingSlots.set(target, slot);
+    }
     const control = target.closest("button");
     if (control !== null) {
         control.style.pointerEvents = "none";

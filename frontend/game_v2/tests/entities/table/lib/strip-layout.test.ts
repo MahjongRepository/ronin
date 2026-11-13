@@ -173,6 +173,27 @@ describe("stripLayout", () => {
         expect(melds[1]?.along).toBeGreaterThan(top.lane);
     });
 
+    it("slides the top strip's melds in by its line's inset at their size while a drawn tile fits beside the hand, else shrinks them", () => {
+        const content: StripContent = { drawn: false, hand: 4, melds: [ADDED_KAN, CLOSED_KAN] };
+        function lastEnd(inset: number): { readonly end: number; readonly tile: number } {
+            const { melds } = stripLayout("top", content, {
+                ...ROOMS,
+                top: { ...ROOMS.top, inset },
+            });
+            const last = melds.at(-1);
+            return {
+                end: (last?.along ?? 0) + CLOSED_KAN.units * (last?.tile ?? 0),
+                tile: last?.tile ?? 0,
+            };
+        }
+        const [whole, slid, squeezed] = [lastEnd(0), lastEnd(20), lastEnd(160)];
+
+        expect(whole.tile).toBeLessThan(ROOMS.rw);
+        expect(slid.tile).toBeCloseTo(whole.tile, 6);
+        expect(slid.end).toBeCloseTo(whole.end - 20, 6);
+        expect(squeezed.tile).toBeLessThan(whole.tile);
+    });
+
     it("lays every opponent's strip out alike whether its hand has just discarded, drawn or called", () => {
         const boxes = [
             { height: 375, width: 667 },

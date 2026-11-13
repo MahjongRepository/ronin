@@ -197,7 +197,9 @@
 
 /* The own river's tiles show their edge whole under them, and nothing later lies there but the next row, drawn over
    it: there the shade reaches the edge too, as its own offset copy. */
-.game-board--replay .board-river--bottom .discard-tile[data-tsumogiri="true"] > .tile::after {
+.game-board--replay
+    :is(.board-river--bottom .discard-tile[data-tsumogiri="true"], .board-motion__tile--tsumogiri-edge)
+    > .tile::after {
     box-shadow: var(--body-x) var(--body-y) 0 0 var(--ronin-tile-drawn-shade);
 }
 

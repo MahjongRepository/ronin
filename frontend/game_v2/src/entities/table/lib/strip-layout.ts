@@ -46,6 +46,8 @@ interface SideStripRoom {
 interface TopStripRoom {
     readonly anchor: number;
     readonly start: number;
+    /** How far in from its start the line's melds must end, clear of what stands in under its end (px). */
+    readonly inset?: number;
     readonly depth: number;
     readonly badgeDepth: number;
     readonly lane: number;
@@ -255,34 +257,53 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
     });
 }
 
-/**
- * The top strip: one line, its melds ending at its anchor at one size, the largest that keeps each above what it keeps
- * clear of where it stands (the top badge only for a meld reaching its lane) and fits them beside the hand, never under
- * the face floor.
- */
-function topLayout(content: StripContent, { floor, gap, rw, top }: StripRooms): StripLayout {
-    const { anchor, badgeDepth, depth, lane, start } = top;
+/** The top strip's meld tile on a line `room` long: the largest that fits beside the hand, kept clear of what it must be. */
+function topMeldTile(content: StripContent, rooms: StripRooms, room: number): number {
+    const { floor, gap, rw, top } = rooms;
     const units = content.melds.map((meld) => meld.units);
     const count = units.length;
-    const total = sum(units);
-    const handLen = reservedHandLength(content, rw, "top");
     const heldLen = handLength({
         drawn: false,
         rw,
         seat: "top",
         tiles: content.hand - (content.drawn ? 1 : 0),
     });
-    const room = anchor - start;
     function near(index: number): number {
         return Math.max(heldLen + gap, room - sum(units.slice(index)) * rw - (count - index) * gap);
     }
     const bounds = content.melds.map(
         (meld, index) =>
-            Math.min(depth, lane - near(index) > 0 ? badgeDepth : Infinity) / meld.depth,
+            Math.min(top.depth, top.lane - near(index) > 0 ? top.badgeDepth : Infinity) /
+            meld.depth,
     );
-    const fit = (room - handLen - count * gap) / Math.max(total, 1);
-    const tile = Math.max(floor ?? FACE_FLOOR, Math.min(rw, fit, ...bounds));
-    const end = handLen + Math.max(gap, room - handLen);
+    const fit =
+        (room - reservedHandLength(content, rw, "top") - count * gap) / Math.max(sum(units), 1);
+    return Math.max(floor ?? FACE_FLOOR, Math.min(rw, fit, ...bounds));
+}
+
+/**
+ * The top strip: one line, its melds ending at its anchor at one size, the largest that keeps each above what it keeps
+ * clear of where it stands (the top badge only for a meld reaching its lane) and fits them beside the hand, never under
+ * the face floor. Where the line's inset moves its melds in, they keep the whole line's size and slide while a drawn
+ * tile still fits beside the hand, else they take the inset line's.
+ */
+function topLayout(content: StripContent, rooms: StripRooms): StripLayout {
+    const { gap, rw, top } = rooms;
+    const units = content.melds.map((meld) => meld.units);
+    const count = units.length;
+    const room = top.anchor - top.start;
+    const slid = room - (top.inset ?? 0);
+    const handLen = reservedHandLength(content, rw, "top");
+    const drawnHand = handLength({
+        drawn: true,
+        rw,
+        seat: "top",
+        tiles: content.hand - (content.drawn ? 1 : 0) + 1,
+    });
+    const whole = topMeldTile(content, rooms, room);
+    const kept = slid - sum(units) * whole - Math.max(0, count - 1) * gap >= drawnHand + gap;
+    const tile = kept ? whole : topMeldTile(content, rooms, slid);
+    const end = handLen + Math.max(gap, slid - handLen);
     const melds = units.map((_unit, index) => ({
         along: end - (sum(units.slice(index)) * tile + (count - 1 - index) * gap),
         rise: 0,

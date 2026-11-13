@@ -2,6 +2,7 @@ import { nothing } from "lit-html";
 import { AsyncDirective } from "lit-html/async-directive.js";
 import { type ElementPart, type PartInfo, PartType, directive } from "lit-html/directive.js";
 
+import { OWN_STANDING_EDGE_SHARE, TILE_EDGE_SHARE } from "@/entities/table/lib/board-constants";
 import {
     type BoardBox,
     type BoardGeometry,
@@ -246,6 +247,8 @@ class SizeBoard extends AsyncDirective {
                 ["--geo-shell-columns", tracks.columns],
                 ["--geo-shell-rows", tracks.rows],
                 ["--own-meld-w", `${ownTile}px`],
+                ["--own-standing-edge-scale", String(OWN_STANDING_EDGE_SHARE / TILE_EDGE_SHARE)],
+                ["--tile-edge-share", String(TILE_EDGE_SHARE)],
                 ...zoneLengths(geometry),
                 ...Object.entries(laid).map(
                     ([name, length]) => [`--${name}`, `${length}px`] as const,

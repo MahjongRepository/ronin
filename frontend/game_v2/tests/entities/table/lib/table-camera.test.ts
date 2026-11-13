@@ -128,7 +128,7 @@ function flatOf(screen: BoardGeometry): Seen {
 function seenOf(view: ReturnType<typeof tableView>): Seen {
     return {
         counters: shownPiece(view, "dora"),
-        inset: (view.plane.strips?.top.start ?? 0) - view.pieces["strip-top"].left,
+        inset: view.plane.strips?.top.inset ?? 0,
         pieces: view.pieces,
         rw: view.plane.lengths["rw"] ?? 0,
         shifts: view.shifts,
@@ -493,5 +493,25 @@ describe("tableView on phones", () => {
         for (const tilt of [20, 18, 15, 12, 10]) {
             expect(viewAt(input, screen, tilt).converged).toBe(true);
         }
+    });
+});
+
+describe("tableView between the grid's windows", () => {
+    it("tilts every desktop window 80x40 apart off the 40x20 grid, never flat, at most 8 degrees from its neighbours", () => {
+        const widths = Array.from({ length: 22 }, (_unused, index) => 860 + 80 * index);
+        const heights = Array.from({ length: 23 }, (_unused, index) => 530 + 40 * index);
+        const tilts = heights.map((height) =>
+            widths.map((width) => viewOf({ height, width }).view.camera.tilt),
+        );
+        const jumps = tilts.flatMap((row, down) =>
+            row.flatMap((tilt, across) =>
+                [row[across + 1], tilts[down + 1]?.[across]].flatMap((next) =>
+                    next === undefined ? [] : [Math.abs(next - tilt)],
+                ),
+            ),
+        );
+
+        expect(tilts.flat()).not.toContain(0);
+        expect(Math.max(...jumps)).toBeLessThanOrEqual(8);
     });
 });
