@@ -166,6 +166,10 @@ Shoot the changed area plus one worst case (the smallest phone, or the densest s
 the changed element), before and after, and nothing else: never a sweep of every viewport or
 story. The runner refuses a run that names no page or viewport.
 
+Board layout or look work (geometry, tile depth, the table's camera) is the exception: before calling it done,
+self-review it zone by zone across a small matrix of window shapes, as `zone-review.md` beside this skill says,
+and loop until that review finds no blocker or major.
+
 ## Screenshots
 
 - Desktop is `agent-browser set viewport 1280 800`. The game board fills the viewport and does not
