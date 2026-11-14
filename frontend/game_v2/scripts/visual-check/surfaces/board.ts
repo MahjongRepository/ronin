@@ -1138,11 +1138,14 @@ function checkCenterContent(board: BoardMeasure, viewport: Viewport, report: Pag
  * the page, the hovered badge's label, every badge's tap area on a supported screen, and in landscape on a supported screen the own hand, the rivers' and strips'
  * gaps, the badges, the page's corner and the side hands' reserved reach.
  */
-/** Below this width a desktop window is best-effort (the spec's support tiers), and a whole name may not fit its lane. */
+/**
+ * Below this width a desktop window is best-effort (the spec's support tiers), and a whole name may not fit its lane;
+ * a phone may shorten names too, since they matter less than the table.
+ */
 const PRIMARY_DESKTOP_WIDTH = 1100;
 
 function keepsNamesWhole(viewport: Viewport, screen: Box): boolean {
-    return !viewport.desktop || screen.width >= PRIMARY_DESKTOP_WIDTH;
+    return viewport.desktop && screen.width >= PRIMARY_DESKTOP_WIDTH;
 }
 
 async function checkBoard({

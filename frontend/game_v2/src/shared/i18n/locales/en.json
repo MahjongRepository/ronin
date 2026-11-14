@@ -355,7 +355,6 @@
     "replay.start": "Start",
     "replay.status.ends_here": "Ends here",
     "replay.step": "Step {step} of {steps}",
-    "replay.step_count": "{step} / {steps}",
     "replay.tip": "{label} ({key})",
     "round.east_1": "East 1",
     "round.east_2": "East 2",

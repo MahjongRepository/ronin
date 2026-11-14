@@ -51,9 +51,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   page's 10px gutter, which the page holds before the board is measured. The notices' text is the geometry's
   (`--notice-text`): a phone's smaller where the left bar is narrower than 7.5 of its ems, down to 11px at the bar's
   floor; a desktop's toasts' the board's share, never under 14px; a desktop's notices over a panel, in the left bar's
-  field, fitted to 7.5 of their ems the same way (`--field-notice-text`); a desktop replay's status in its own area
-  (`info`, under the counters) fitted to 9 of its ems (`--status-text`), 6 in the bar under counters over the lane,
-  never under 13px.
+  field, fitted to 7.5 of their ems the same way (`--field-notice-text`).
 - **Live decisions stand in one cluster; the bars hold the rest.** Off a phone live's decisions (`.board-actions`)
   stand in a band along the own row's top: from the bottom river's start (the centre's left edge, clear of the
   toasts) to short of the right strip's lane, under the centre and the right river's first tile and over the own
@@ -67,7 +65,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   bottom-left corner, under the left river's longest reach and over the own row (`toasts`), stacked down from its
   top, cut short with an ellipsis past their second line (the whole in the notice's title, the cut one opening the
   sheet), the last ones left out where the felt is short (the last shown its "+N"), under no panel only
-  (`toast-board`), where a replay's status stands in `info`: over a panel they stand in the field, wrapping as a
+  (`toast-board`), where a replay's status stands in the field alone: over a panel they stand in the field, wrapping as a
   phone's do, the status with them. A replay's moves and options take
   the right bar's foot. Nothing but live's decisions stands between the bottom river and the own row. On a phone
   live's decisions stand in a band along the own row's top too, from short of the left strip's lane to short of the

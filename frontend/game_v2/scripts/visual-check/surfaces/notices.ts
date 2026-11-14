@@ -1,6 +1,6 @@
 import { type Page, chromium } from "playwright";
 
-import { type BoardMeasure, measureBoxes } from "../board-measure.ts";
+import { type BoardMeasure } from "../board-measure.ts";
 import { type Box, EPSILON, MIN_ACTION_SIZE, contains, describeBox, intersects } from "../boxes.ts";
 import { boardCase, decisionCase } from "../cases.ts";
 import {
@@ -87,18 +87,11 @@ const PAGES: readonly PageCase[] = [
 ];
 
 /**
- * A notice over the table never hides a tile, a nameplate, the centre, the decision's buttons and timer or the panel over the
+ * A notice, a system message, may cover the table, but never the decision's buttons and timer or the panel over the
  * board, however long it stays.
  */
-function checkNotices(
-    { center, notices }: { readonly notices: readonly Box[]; readonly center: readonly Box[] },
-    board: BoardMeasure,
-    report: PageReport,
-): void {
+function checkNotices(notices: readonly Box[], board: BoardMeasure, report: PageReport): void {
     const covered = [
-        ...board.tiles,
-        ...board.nameplates,
-        ...center,
         ...(board.decisionBand?.buttons ?? []),
         ...(board.timer === null ? [] : [board.timer]),
         ...(board.overlay === null ? [] : [board.overlay.box]),
@@ -106,7 +99,7 @@ function checkNotices(
     const over = notices.filter((notice) => covered.some((box) => intersects(notice, box)));
     report.expect(
         over.length === 0,
-        `notice(s) over a tile, plate, the centre, a decision button, the timer or panel: ${over.map(describeBox).join(", ")}`,
+        `notice(s) over a decision button, the timer or panel: ${over.map(describeBox).join(", ")}`,
     );
     const outside = notices.filter((notice) => !contains(board.board, notice));
     report.expect(outside.length === 0, `${outside.length} notice(s) off the board`);
@@ -227,7 +220,7 @@ function checkNoticeClamp(notice: NoticeClamp, standsForMore: boolean, report: P
 /**
  * A notice the board may open whole shows its text whole, or, clamped, whole lines of it with "Show all" (the notice,
  * its target, at least 40px high); and a stack of such notices fits its place, never scrolled or cut, nor any notice
- * wider than the place.
+ * wider than the place. A lone toast, a system message, may run past its place's foot over the table.
  */
 function checkClamp(place: PlaceClamp, report: PageReport): void {
     report.expect(
@@ -252,7 +245,8 @@ function checkClamp(place: PlaceClamp, report: PageReport): void {
     for (const notice of clampable) {
         checkNoticeClamp(notice, leftOut > 0 && notice === last, report);
     }
-    if (clampable.length > 0 && clampable.length === shown.length && !place.status) {
+    const loneToast = shown.length === 1 && shown.every((notice) => notice.toast);
+    if (clampable.length > 0 && clampable.length === shown.length && !place.status && !loneToast) {
         report.expect(
             !place.overflows,
             "the notices' place scrolls: its stack does not fit it, clamped",
@@ -373,9 +367,7 @@ async function checkBoard({ board, page, report, viewport }: BoardRun): Promise<
     if (!viewport.supported) {
         return;
     }
-    const notices = await measureShownNotices(page);
-    const center = await measureBoxes(page, ".board-center");
-    checkNotices({ center, notices }, board, report);
+    checkNotices(await measureShownNotices(page), board, report);
     checkActionTaps(await measureShownActions(page), report);
     const place = await measureClamp(page);
     if (place !== null) {

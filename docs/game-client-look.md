@@ -220,7 +220,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   on a width-bound one: a hand reads as its river's owner.
 - **Foreground**: the own hand and its melds between the side lanes at the board's bottom, with nothing reserved
   over it: the bottom river's longest reach stands right over the own melds' rise.
-- **Side bars**: the left one holds a replay's round and step under the dora, which stand at the table's top-left
+- **Side bars**: the left one holds a replay's status under the dora, which stand at the table's top-left
   corner (Dora indicators), and the furiten mark over the play switches, which end a band's height over the own tiles' foot; the right one
   the page's cog at its top and a replay's controls at its foot, by the own row. Nothing in a bar is a tile, and a
   desktop's panel, which stands in the table, leaves both usable. On a very wide window the cog and a replay's
@@ -362,7 +362,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Badges.** One shape for every seat, state and size: the name alone in a one-line band of one fixed width,
   a faint darkening of the felt with muted ink, so the names stay quiet table furniture and never draw the eye
   from the tiles. A plate is furniture (Three tiers): every tile, meld, river and control may stand over it, a
-  replay's badge then pressable only where it shows. A name too long for the band is shortened in the middle so its end, which tells AI players apart,
+  replay's badge then pressable only where it shows. A name too long for the band is shortened in the middle (a phone or a best-effort desktop window may shorten
+  ordinary names too) so its end, which tells AI players apart,
   stays. Its states each take a channel of their own and never change the band's outline or ink: away (an AI stands
   in for a human who left or never came, the human identity kept, cleared when they return) turns the name's ink
   red, its reason in the badge's tooltip and screen-reader label, red being reserved for it among the badge's
@@ -392,12 +393,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   its inner edge where the top strip's line begins, so it reads as the table's and not the window's, both side
   strips' lines starting below it; in the bar beside the left strip only where its lines cannot start below it.
   Its dora are 0.8 river tiles, smaller where the room from the window's edge is short, never under 0.6, the five
-  in one row at every size (three and two only where nothing else holds). A replay's round and step stand under
-  it, left-aligned with it, the card moving left where their lines need the room: over the lane too where the side
-  lines can start below both, else in the bar, its round's name broken onto its own line where the bar is under
-  nine of their ems. On a phone the card stands at the left bar's top, the notices under it, its dora shrinking to
-  fit a narrow bar, never under the 13px face floor. The round's name breaks only between the round and its
-  honba. The honba and riichi-stick counts are the centre's, under the round; the card does
+  in one row at every size (three and two only where nothing else holds). Nothing is reserved under it: a
+  replay's status stands in the left bar's field under it. On a phone the card stands at the left bar's top, the
+  notices under it, its dora shrinking to fit a narrow bar, never under the 13px face floor. A replay shows no
+  round or step beside the card: the centre shows the round, and the status reads both out to assistive
+  technology only. The honba and riichi-stick counts are the centre's, under the round; the card does
   not repeat them.
 - **Own hand.** Sorted, from its full reach's fixed start, the drawn tile set apart by a gap at the
   right: off a phone the left side lane's inner edge, on a phone the start of a full hand centred on the
@@ -636,7 +636,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   squeezed them to 12px and wrapped them, so that felt, which no tile or control reaches at any size, holds
   them; a toast wraps to
   a second line where its words need it, and a stack the felt cannot hold shows its first toasts, the last one shown
-  saying how many more its sheet opens ("+N"; a short window holds one two-line toast and a one-line one). A toast's
+  saying how many more its sheet opens ("+N"; a short window holds one two-line toast and a one-line one); a
+  lone toast taller than the corner runs past its foot over the table, a task over the tiers below. A toast's
   words that run past its two lines end in an ellipsis, the whole in its title and in the sheet, the cut toast
   opening it; a clamped toast is at least its 40px target tall; a way out (Reload) stands beside the toast's words,
   40px tall. Over a panel, which may stand over that corner, they stand in the
@@ -746,7 +747,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   Notices). Decision: off a phone the controls stand at the right bar's foot, by the own row, the moves over the
   options, each 0.95 of a river tile (56px at 1920x1080, never under 40px), in the fewest columns that keep them in
   the bar's lower half at that size (two on a primary desktop), else the fewest that hold them at their size; the
-  status (the round and step, an incomplete recording's note) in the left bar's field under the dora. On a
+  status (an incomplete recording's note) in the left bar's field under the dora, up to 24 of its ems wide over the
+  table past the field's width, on the notices' backing. On a
   phone the column stands at the right bar's foot, in two columns where the bar's height does not hold one. A
   replay has no decisions, so its column and live's pass and timer never meet; the own plate stands where
   live's does, and the switches' place stays empty. Decision: the moves are the viewpoint seat's turn

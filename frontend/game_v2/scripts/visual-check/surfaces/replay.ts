@@ -558,9 +558,9 @@ function checkStatusPart(
 
 /**
  * The replay's status in the notices' place: on the board and the screen, wholly inside its place under any notice,
- * which scrolls down where it is too short but never clips sideways or silently, over no tile, badge, control or panel (over a panel's
- * dimming it covers only the inert table); every part the state asks for shown at its size, within its lines on a
- * desktop window.
+ * which scrolls down where it is too short but never clips sideways or silently, over no replay control or panel (a
+ * system message may cover the table); every part the state asks for shown at its size, within its lines on a desktop
+ * window.
  */
 function checkReplayStatus(
     replay: ReplayMeasure,
@@ -602,13 +602,10 @@ function checkReplayStatus(
     );
     const panel = board.overlay?.box;
     const band = replay.band.filter((control) => control.shown).map((control) => control.box);
-    const covered = [
-        ...band,
-        ...(panel === undefined ? [...board.tiles, ...board.nameplates] : [panel]),
-    ];
+    const covered = panel === undefined ? band : [...band, panel];
     report.expect(
         !covered.some((box) => intersects(place.box, box)),
-        `the notices' place ${describeBox(place.box)} covers a tile, a badge, a control or the panel`,
+        `the notices' place ${describeBox(place.box)} covers a replay control or the panel`,
     );
     for (const part of expectedParts(replay, state)) {
         checkStatusPart(part, { desktop, text: replay.parts[part] }, report);

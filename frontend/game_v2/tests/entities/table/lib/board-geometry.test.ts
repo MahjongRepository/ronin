@@ -965,7 +965,7 @@ describe("boardGeometry's strips", () => {
         { height: 768, switches: "letters", width: 1024 },
         { height: 600, switches: "letters", width: 800 },
     ])(
-        "keeps a $width x $height desktop's controls in the bars: the counters over the field with the round info under them, left-aligned with them, on lines at least 6 of its ems wide, furiten and $switches switches down the left one to the own row's foot, the cog and a replay's controls at its foot in the right one, the panel in the column, and the notices' toasts in the core's bottom-left corner",
+        "keeps a $width x $height desktop's controls in the bars: the counters over the field, furiten and $switches switches down the left one to the own row's foot, the cog and a replay's controls at its foot in the right one, the panel in the column, and the notices' toasts in the core's bottom-left corner",
         ({ height, switches, width }) => {
             const live = windowGeometry({ height, width });
             const { box } = live;
@@ -973,7 +973,7 @@ describe("boardGeometry's strips", () => {
             function length(name: string): number {
                 return live.lengths[name] ?? Number.NaN;
             }
-            const { field, furiten, info, switches: switchesArea } = slotAreas(live.tracks);
+            const { field, furiten, switches: switchesArea } = slotAreas(live.tracks);
             const { actions: moves, corner, hand } = slotAreas(replay.tracks);
             const [colLeft, colRight] = [length("col-left"), length("col-right")];
             function panel(lengths: Readonly<Record<string, number>>): (number | undefined)[] {
@@ -982,16 +982,12 @@ describe("boardGeometry's strips", () => {
 
             expect({
                 countersOverField:
-                    length("counters-top") + length("counters-h") <= (field?.[1] ?? 0) &&
-                    Math.abs(length("counters-x") - (info?.[0] ?? 0)) <= 0.1,
+                    length("counters-top") + length("counters-h") <= (field?.[1] ?? 0),
                 fieldWide: (field?.[2] ?? 0) - (field?.[0] ?? 0) >= 84,
                 fieldWordsPerLine:
                     (field?.[2] ?? 0) - (field?.[0] ?? 0) >=
                     7.5 * length("field-notice-text") - 0.1,
                 form: live.switches,
-                infoOnLines:
-                    (info?.[2] ?? 0) - (info?.[0] ?? 0) >= 6 * length("status-text") - 0.1 &&
-                    (info?.[1] ?? 0) >= length("counters-top") + length("counters-h"),
                 leftBar: [field, furiten, switchesArea].every(
                     (area) => (area?.[0] ?? -1) >= 0 && (area?.[2] ?? Infinity) <= colLeft,
                 ),
@@ -1032,7 +1028,6 @@ describe("boardGeometry's strips", () => {
                 fieldWide: true,
                 fieldWordsPerLine: true,
                 form: switches,
-                infoOnLines: true,
                 leftBar: true,
                 leftBarDown: true,
                 panel: [

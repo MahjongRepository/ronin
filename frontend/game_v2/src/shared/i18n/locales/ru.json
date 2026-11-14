@@ -379,7 +379,6 @@
     "replay.start": "Начать",
     "replay.status.ends_here": "Здесь конец",
     "replay.step": "Шаг {step} из {steps}",
-    "replay.step_count": "{step} / {steps}",
     "replay.tip": "{label} ({key})",
     "round.east_1": "Восток 1",
     "round.east_2": "Восток 2",

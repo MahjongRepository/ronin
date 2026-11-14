@@ -238,24 +238,17 @@ function IncompleteNote(
     </p>`;
 }
 
-/** A round's name that breaks only after a comma, between its round and its honba, never inside either. */
-function unbrokenPhrases(text: string): string {
-    return text.replaceAll(/(?<!,) /gu, "\u00A0");
-}
-
 /**
- * What the replay shows in the notices' place: the round and step (a phone's for assistive technology alone, its
- * centre showing the round; a desktop's step shown as its count), and a replay that is not the whole game saying so
- * (and where it ends at its last stop).
+ * What the replay shows in the notices' place: the round and step for assistive technology alone (the centre shows the
+ * round), and a replay that is not the whole game saying so (and where it ends at its last stop).
  */
 export function ReplayStatus({ display }: ReplayStatusProps): TemplateResult {
     const { step } = display;
     return html`<div class="replay-status">
         <p class="replay-status__position">
-            <span class="replay-status__round">${unbrokenPhrases(display.roundName)}</span>
+            <span>${display.roundName}</span>
             <span class="replay-status__step">${t("replay.step", { step: step.index, steps: step.count })}</span>
         </p>
-        <p class="replay-status__count" aria-hidden="true">${t("replay.step_count", { step: step.index, steps: step.count })}</p>
         ${IncompleteNote(display.incomplete, display.endNotice)}
     </div>`;
 }

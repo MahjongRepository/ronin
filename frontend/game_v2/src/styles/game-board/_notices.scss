@@ -51,13 +51,15 @@
     }
 }
 
+/* A system message, it stands over the board past its field's width rather than wrap in a narrow bar. */
 .board-notices > :not(.board-notices__list) {
     @include toast-board {
         position: relative;
-        grid-area: info;
+        grid-area: field;
         place-self: start;
         z-index: layer(notices);
-        min-width: 0;
+        width: max-content;
+        max-width: 24em;
     }
 }
 
