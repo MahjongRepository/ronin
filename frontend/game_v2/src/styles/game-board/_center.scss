@@ -111,11 +111,14 @@
     }
 }
 
-/* Scores start off each seat's left corner in a pinwheel, so a long row never meets the next side's. */
+/* Scores centre between the side rows' depths; a row too long for that starts off its seat's left corner instead. */
 .board-center__score-line {
     position: absolute;
     left: var(--row-depth);
+    right: var(--row-depth);
     bottom: var(--edge-gap);
+    width: max-content;
+    margin-inline: auto;
     display: flex;
     align-items: baseline;
     gap: 0.3em;

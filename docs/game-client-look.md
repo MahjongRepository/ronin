@@ -244,8 +244,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   as Mahjong Soul and Riichi City mark it in red; the score in hundreds with its last two digits
   smaller and quieter (`250` `00`), as Tenhou draws it. Every layout keeps the panel's width at least
   as long as a normal six-tile discard row, fitting the centre and tiles together.
-  The rivers keep its corners. Score rows offset toward their seat's right like the rivers'
-  pinwheel, so a long row never meets the next
+  The rivers keep its corners. Score rows stand centred on their edge, clear of the side rows' depth at both
+  ends; a row too long for that starts off its seat's left corner and runs toward its right, so it never meets the next
   side's; a short phone centre's side rows start nearer their corner, so a long score stays on the panel. The counts keep one line, a narrow centre's at a smaller size, down to a 10px floor
   whose tighter gaps still hold the line in a phone's centre. While a badge's differences show, the round and counts stay and no label
   names whose they are: that seat keeps its score, underlined, and the others' show as signed differences. One primary cue on the centre for the seat in turn: Tenhou's green bar along that seat's whole
