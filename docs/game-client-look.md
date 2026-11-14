@@ -70,7 +70,8 @@ The derived proportions are the three reference viewports' values under the sizi
   the body of its screen orientation (upright or across), its face art turned inside the face box. A lying tile's face
   is the brightest surface on the board, its corners rounded by 0.07 of its width, shaded with no outline:
   a lit rim on its left, a shaded roll on its right and a short roll at its foot, so tiles that touch read
-  tile by tile without a line between them. Below the face its edge shows toward the screen's bottom: a flat ivory
+  tile by tile without a line between them. Its top holds one tone from a short shine at its far end to a narrow bevel
+  at its foot: a top darkening down its length meets the next row's lit end in a step that greys the whole row. Below the face its edge shows toward the screen's bottom: a flat ivory
   side, then the ochre base, the back's own layer, never near-black; the edge reaches 0.2 of a tile's width, which
   the geometry reserves (`TILE_EDGE_SHARE`). A face-down tile (a closed kan's end, an unrevealed indicator) shows the
   ochre back on top and its side ochre above, ivory below. Faces are not foreshortened by the body: the tilted
