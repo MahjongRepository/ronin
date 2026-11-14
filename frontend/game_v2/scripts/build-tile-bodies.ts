@@ -22,8 +22,8 @@ const LYING_RIM_STRENGTH_ON_TOP = 0.9;
 const LYING_RIM_STRENGTH_ON_EDGE = 0.45;
 const LYING_ROLL_LEAD = 0.03;
 const LYING_TOP_SHINE = 0.022;
-const LYING_FACE_SHINE_FALLOFF = 0.15;
-const LYING_FACE_BEVEL = 0.1;
+const LYING_SHINE_FALLOFF = 0.15;
+const LYING_BEVEL = 0.1;
 
 interface Stop {
     readonly at: number;
@@ -283,20 +283,16 @@ function renderStandingBody(): string {
 }
 
 /**
- * The shading across a lying tile's top, from its far end: a face holds its middle tone from a short shine
- * to a narrow bevel at its near end, so a row laid against it meets the same tone rather than a darker band; a back
- * shades across its whole top.
+ * The shading across a lying tile's top, from its far end: it holds its middle tone from a short shine to a narrow
+ * bevel at its near end, so a row laid against it meets the same tone rather than a darker band, and a lying back
+ * reads the same ochre as a standing hand's.
  */
 function lyingTopStops(shape: LyingBodyShape, palette: LyingPalette): readonly Stop[] {
     const height = shape.top + shape.edge;
-    const rolled = { at: (shape.top - LYING_ROLL_LEAD) / height, colour: palette.rolled };
-    if (shape.material === "back") {
-        return [{ at: (shape.top * 0.55) / height, colour: palette.middle }, rolled];
-    }
     return [
-        { at: LYING_FACE_SHINE_FALLOFF / height, colour: palette.middle },
-        { at: (shape.top - LYING_FACE_BEVEL) / height, colour: palette.middle },
-        rolled,
+        { at: LYING_SHINE_FALLOFF / height, colour: palette.middle },
+        { at: (shape.top - LYING_BEVEL) / height, colour: palette.middle },
+        { at: (shape.top - LYING_ROLL_LEAD) / height, colour: palette.rolled },
     ];
 }
 

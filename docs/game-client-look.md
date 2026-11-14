@@ -74,7 +74,8 @@ The derived proportions are the three reference viewports' values under the sizi
   at its foot: a top darkening down its length meets the next row's lit end in a step that greys the whole row. Below the face its edge shows toward the screen's bottom: a flat ivory
   side, then the ochre base, the back's own layer, never near-black; the edge reaches 0.2 of a tile's width, which
   the geometry reserves (`TILE_EDGE_SHARE`). A face-down tile (a closed kan's end, an unrevealed indicator) shows the
-  ochre back on top and its side ochre above, ivory below. Faces are not foreshortened by the body: the tilted
+  ochre back on top, held at the one tone a standing hand's back shows, the same way a face's top is, and its side
+  ochre above, ivory below. Faces are not foreshortened by the body: the tilted
   camera does that; only the own melds' bodies, on the flat own row, are foreshortened (below). A tile nearer the screen's bottom paints over the edge of the one behind it, so no edge ever
   lies on a face: a river's later rows cover its earlier ones, the top river paints its rows from the centre out,
   the right river and the right strip paint each line from its far end down the screen, and an added kan's called
