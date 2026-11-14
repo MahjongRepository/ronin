@@ -16,6 +16,7 @@ import {
 import { stripLayout } from "@/entities/table/lib/strip-layout";
 import {
     TABLE_PIECES,
+    type TableView,
     apparentRiver,
     farthestFace,
     flatBands,
@@ -219,6 +220,57 @@ function applied(matrix: string, left: number, top: number): readonly [number, n
     ];
 }
 
+function appliedFlat(matrix: string, left: number, top: number): readonly [number, number] {
+    const [acrossX = 0, acrossY = 0, downX = 0, downY = 0, moveX = 0, moveY = 0] = (
+        /^matrix\((?<list>[^)]*)\)$/u.exec(matrix)?.groups?.list ?? ""
+    )
+        .split(",")
+        .map(Number);
+    return [acrossX * left + downX * top + moveX, acrossY * left + downY * top + moveY];
+}
+
+function flatCentreCorners(view: TableView): readonly { left: number; top: number }[] {
+    const { centre } = view.pieces;
+    const [width, height] = [centre.right - centre.left, centre.bottom - centre.top];
+    return [
+        [0, 0],
+        [width, 0],
+        [0, height],
+        [width, height],
+    ].map(([left = 0, top = 0]) => {
+        const [drawnLeft, drawnTop] = appliedFlat(pieceTransform(view, "centre"), left, top);
+        return {
+            left: centre.left + drawnLeft,
+            top: centre.top + drawnTop - view.tableTop,
+        };
+    });
+}
+
+function expectCentreFlatInsideItsQuad(view: TableView): void {
+    const { centre } = view.pieces;
+    const quad = shownPiece(view, "centre");
+    const [farLeft, , nearLeft, nearRight] = flatCentreCorners(view);
+    const shownFarLeft = projectPoint(view.camera, {
+        left: centre.left + view.shifts.centre.left,
+        top: centre.top + view.shifts.centre.top,
+    });
+    expect(farLeft).toStrictEqual({
+        left: expect.closeTo(shownFarLeft.left, 3),
+        top: expect.closeTo(shownFarLeft.top, 3),
+    });
+    const outsideQuad = flatCentreCorners(view).filter(
+        ({ left, top }) =>
+            left < quad.left - 0.001 ||
+            left > quad.right + 0.001 ||
+            top < quad.top - 0.001 ||
+            top > quad.bottom + 0.001,
+    );
+    expect(outsideQuad).toStrictEqual([]);
+    expect((nearRight?.left ?? 0) - (nearLeft?.left ?? 0)).toBeGreaterThan(
+        (quad.right - quad.left) * 0.9,
+    );
+}
+
 describe("tableView", () => {
     it.each(DESKTOPS)(
         "settles its plane solve and tilts between 10 and 20 degrees on %s",
@@ -290,16 +342,19 @@ describe("tableView", () => {
     );
 
     it.each([...DESKTOPS, ...PHONE_BOXES])(
-        "draws all four corners of every tilted piece where the camera shows them on %s",
+        "draws all four corners of every tilted piece where the camera shows them, the centre flat inside its quad, on %s",
         (_shape, box) => {
             const { screen, view } = viewOf(box);
             const tilted = TABLE_PIECES.filter((piece) =>
                 pieceTransform(view, piece).startsWith("matrix3d"),
             );
-            const flatCounters = screen.family === "phone" ? ["dora"] : [];
             expect(tilted).toStrictEqual(
-                TABLE_PIECES.filter((piece) => !flatCounters.includes(piece)),
+                TABLE_PIECES.filter(
+                    (piece) =>
+                        piece !== "centre" && (screen.family !== "phone" || piece !== "dora"),
+                ),
             );
+            expectCentreFlatInsideItsQuad(view);
             const corners = tilted.flatMap((piece) => {
                 const rect = view.pieces[piece];
                 return [

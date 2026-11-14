@@ -62,7 +62,8 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   steepest tilt that settles and keeps the spec's bands, floors and clearances, else the flat board. The flat geometry
   stays the own row's, the controls' and the layout's; the plane only places the tilted pieces, each moved across or
   along the plane (its shift, never a per-frame change) where the camera would bring it nearer a neighbour or the board's
-  edge than the flat board keeps it.
+  edge than the flat board keeps it. The centre, whose text changes every turn, is drawn flat: a 2D parallelogram inside its
+  shown quad, since macOS Firefox repaints text under a perspective `matrix3d` only in part.
 - `model/replay-file.ts` refuses a file whose version is not `REPLAY_VERSION` and reports a bad or live-only line,
   never skipping it into a recording that looks whole.
 - Replay storage is concatenated MessagePack records, decoded only through the lazy replay route. The numeric metadata registry mirrors Python; the shared golden pins both registries.  A damaged record stops playback at its preceding readable prefix and names its record position.

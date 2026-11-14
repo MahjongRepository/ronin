@@ -1170,15 +1170,50 @@ function pieceMatrix(view: TableView, piece: TablePiece): Matrix3 {
     return multiply(back, multiply(homography(view.camera), into));
 }
 
+function drawnCorner(view: TableView, piece: TablePiece, { left, top }: PlanePoint): PlanePoint {
+    const box = view.pieces[piece];
+    const shift = view.shifts[piece];
+    const shown = projectPoint(view.camera, {
+        left: box.left + shift.left + left,
+        top: box.top + shift.top + top,
+    });
+    return { left: shown.left - box.left, top: shown.top + view.tableTop - box.top };
+}
+
+function parallelogramInsideShownQuad(view: TableView, piece: TablePiece): string {
+    const box = view.pieces[piece];
+    const width = box.right - box.left;
+    const height = box.bottom - box.top;
+    const farLeft = drawnCorner(view, piece, { left: 0, top: 0 });
+    const farRight = drawnCorner(view, piece, { left: width, top: 0 });
+    const farMiddle = drawnCorner(view, piece, { left: width / 2, top: 0 });
+    const nearMiddle = drawnCorner(view, piece, { left: width / 2, top: height });
+    const values = [
+        (farRight.left - farLeft.left) / width,
+        (farRight.top - farLeft.top) / width,
+        (nearMiddle.left - farMiddle.left) / height,
+        (nearMiddle.top - farMiddle.top) / height,
+        farLeft.left,
+        farLeft.top,
+    ];
+    return `matrix(${values.join(", ")})`;
+}
+
+const TEXT_PIECES_FLAT_FOR_FIREFOX_REPAINTS: ReadonlySet<TablePiece> = new Set(["centre"]);
+
 /**
  * A piece's CSS `matrix3d`, from its own box's top left corner on the surface (which stands the flat table's top above
- * the layout) to where the camera shows it: the piece's move on the plane, then the camera's homography.
+ * the layout) to where the camera shows it: the piece's move on the plane, then the camera's homography. The centre
+ * takes a flat `matrix` instead, its far edge where the camera shows it and its near edge inside.
  */
 function pieceTransform(view: TableView, piece: TablePiece): string {
     const box = view.pieces[piece];
     if (piece === "dora" && view.flatCounters !== null) {
         const { left, top } = view.flatCounters;
         return `translate(${px(left - box.left)}, ${px(top + view.tableTop - box.top)})`;
+    }
+    if (TEXT_PIECES_FLAT_FOR_FIREFOX_REPAINTS.has(piece)) {
+        return parallelogramInsideShownQuad(view, piece);
     }
     const [across, down, weight] = pieceMatrix(view, piece);
     const scale = weight.at(-1) ?? 1;
