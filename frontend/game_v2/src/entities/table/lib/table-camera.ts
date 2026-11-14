@@ -575,18 +575,37 @@ function countersPlace(screen: BoardGeometry): PlanePoint {
     return { left: screen.lengths["counters-x"] ?? 0, top: screen.lengths["counters-top"] ?? 0 };
 }
 
+/**
+ * The counters as drawn, upright and untapered: a phone's at their flat size in their corner, a
+ * desktop's from the far edge the camera shows them at, as wide as that edge and as tall as its scale keeps them.
+ */
+function uprightCounters(view: TableView): { readonly drawn: BoardRect; readonly scale: number } {
+    const box = view.pieces.dora;
+    const width = box.right - box.left;
+    const height = box.bottom - box.top;
+    const { left, top, scale } =
+        view.flatCounters === null ? farEdgeOfCounters(view) : { ...view.flatCounters, scale: 1 };
+    return {
+        drawn: { bottom: top + height * scale, left, right: left + width * scale, top },
+        scale,
+    };
+}
+
+function farEdgeOfCounters(view: TableView): PlanePoint & { readonly scale: number } {
+    const box = view.pieces.dora;
+    const shift = view.shifts.dora;
+    const farLeft = projectPoint(view.camera, {
+        left: box.left + shift.left,
+        top: box.top + shift.top,
+    });
+    return { ...farLeft, scale: scalesAt(view.camera, box.top + shift.top).across };
+}
+
 function shownPiece(view: TableView, piece: TablePiece): BoardRect {
-    const box = view.pieces[piece];
-    if (piece === "dora" && view.flatCounters !== null) {
-        const { left, top } = view.flatCounters;
-        return {
-            bottom: top + box.bottom - box.top,
-            left,
-            right: left + box.right - box.left,
-            top,
-        };
+    if (piece === "dora") {
+        return uprightCounters(view).drawn;
     }
-    return shownRect(view.camera, box, view.shifts[piece]);
+    return shownRect(view.camera, view.pieces[piece], view.shifts[piece]);
 }
 
 function middleOf(piece: BoardRect): number {
@@ -1205,13 +1224,14 @@ const TEXT_PIECES_FLAT_FOR_FIREFOX_REPAINTS: ReadonlySet<TablePiece> = new Set([
 /**
  * A piece's CSS `matrix3d`, from its own box's top left corner on the surface (which stands the flat table's top above
  * the layout) to where the camera shows it: the piece's move on the plane, then the camera's homography. The centre
- * takes a flat `matrix` instead, its far edge where the camera shows it and its near edge inside.
+ * takes a flat `matrix` instead, its far edge where the camera shows it and its near edge inside; the counters an
+ * upright one.
  */
 function pieceTransform(view: TableView, piece: TablePiece): string {
     const box = view.pieces[piece];
-    if (piece === "dora" && view.flatCounters !== null) {
-        const { left, top } = view.flatCounters;
-        return `translate(${px(left - box.left)}, ${px(top + view.tableTop - box.top)})`;
+    if (piece === "dora") {
+        const { drawn, scale } = uprightCounters(view);
+        return `matrix(${scale}, 0, 0, ${scale}, ${drawn.left - box.left}, ${drawn.top + view.tableTop - box.top})`;
     }
     if (TEXT_PIECES_FLAT_FOR_FIREFOX_REPAINTS.has(piece)) {
         return parallelogramInsideShownQuad(view, piece);

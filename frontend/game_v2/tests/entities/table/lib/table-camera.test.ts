@@ -249,6 +249,24 @@ function flatCentreCorners(view: TableView): readonly { left: number; top: numbe
     });
 }
 
+function expectCountersUpright(view: TableView): void {
+    const { dora } = view.pieces;
+    const [width, height] = [dora.right - dora.left, dora.bottom - dora.top];
+    const transform = pieceTransform(view, "dora");
+    const [originX, originY] = appliedFlat(transform, 0, 0);
+    const [acrossX, acrossY] = appliedFlat(transform, width, 0);
+    const [downX, downY] = appliedFlat(transform, 0, height);
+
+    expect(acrossY).toBeCloseTo(originY, 6);
+    expect(downX).toBeCloseTo(originX, 6);
+    expect((acrossX - originX) / width).toBeCloseTo((downY - originY) / height, 6);
+}
+
+function expectCentreAndCountersFlat(view: TableView): void {
+    expectCentreFlatInsideItsQuad(view);
+    expectCountersUpright(view);
+}
+
 function expectCentreFlatInsideItsQuad(view: TableView): void {
     const { centre } = view.pieces;
     const quad = shownPiece(view, "centre");
@@ -345,19 +363,16 @@ describe("tableView", () => {
     );
 
     it.each([...DESKTOPS, ...PHONE_BOXES])(
-        "draws all four corners of every tilted piece where the camera shows them, the centre flat inside its quad, on %s",
+        "draws all four corners of every tilted piece where the camera shows them, the centre flat inside its quad and the counters upright, on %s",
         (_shape, box) => {
-            const { screen, view } = viewOf(box);
+            const { view } = viewOf(box);
             const tilted = TABLE_PIECES.filter((piece) =>
                 pieceTransform(view, piece).startsWith("matrix3d"),
             );
             expect(tilted).toStrictEqual(
-                TABLE_PIECES.filter(
-                    (piece) =>
-                        piece !== "centre" && (screen.family !== "phone" || piece !== "dora"),
-                ),
+                TABLE_PIECES.filter((piece) => piece !== "centre" && piece !== "dora"),
             );
-            expectCentreFlatInsideItsQuad(view);
+            expectCentreAndCountersFlat(view);
             const corners = tilted.flatMap((piece) => {
                 const rect = view.pieces[piece];
                 return [

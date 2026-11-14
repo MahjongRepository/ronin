@@ -92,7 +92,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
 - **The tilted pieces.** `.board-surface`, inside `.board-table`, as tall as the board and standing at its top, holds
   the rivers, the centre, the opponents' strips and the counters; each takes the `matrix3d()` `tableView`
   (`entities/table/lib/table-camera.ts`) emits for it (`--geo-camera-*`, the piece's move on the plane, then the one
-  camera's homography) from its top left corner (a phone's counters take a flat `translate` to their corner), and the plane's lengths, which the directive writes on the surface itself,
+  camera's homography) from its top left corner (the counters take an upright `matrix()`, a desktop's from their tilted far edge, a phone's at their flat corner), and the plane's lengths, which the directive writes on the surface itself,
   so inside it every `--geo-*` is the plane's. TS owns the projection, so the flat overlays (`--geo-shown-*`: the
   plates, calls and the felt's seams) and the checks land exactly on what the browser paints. The surface makes no
   stacking context and clips nothing; the rivers' shared edge filter stays on the unturned `.board-rivers`. The gate

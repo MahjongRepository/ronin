@@ -30,8 +30,9 @@ The derived proportions are the three reference viewports' values under the sizi
 - **A map before tiles.** The board is a table with four seat zones a player perceives, not tiles
   on a void. Every tile has an obvious owner and every seat a fixed place for its identity.
 - **A tilted table.** The core (centre and rivers), the opponents' strips and, on a desktop, the
-  counters lie on one plane seen through one camera, two board widths away, its foot on the own
-  row's top, in true perspective: each piece tapers and its tiles grow toward the viewer. The table
+  counters' place lie on one plane seen through one camera, two board widths away, its foot on the own
+  row's top, in true perspective: each piece tapers and its tiles grow toward the viewer, but the
+  counters stand upright and untapered, from their far edge at its shown scale. The table
   is laid out for that camera, deeper than the board, so that tilted it fills the flat table's
   height from its top edge to the own row, the own row itself the flat board's. The camera takes
   the steepest tilt of 20, 18, 15, 12 and 10 degrees on a desktop and 15, 12 and 10 on a phone
