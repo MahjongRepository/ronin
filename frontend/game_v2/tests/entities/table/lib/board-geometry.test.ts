@@ -21,7 +21,12 @@ import {
     phonePromptHeight,
     shellTracks,
 } from "@/entities/table/lib/board-geometry";
-import { type StripRooms, type StripSeat, stripLayout } from "@/entities/table/lib/strip-layout";
+import {
+    type StripRooms,
+    type StripSeat,
+    ownMeldTile,
+    stripLayout,
+} from "@/entities/table/lib/strip-layout";
 import { RIVER_ROW_SIZE, STANDING_BODY, STANDING_OVERHANG } from "@/entities/tile";
 
 /** The sizes pinned, in the order each case lists them. */
@@ -1237,6 +1242,17 @@ describe("boardGeometry's shell tracks", () => {
         expect(375 - (handTop + (lengths["oh"] ?? 0))).toBe(Math.floor(STANDING_OVERHANG * ow));
         expect(foot - 375).toBeGreaterThanOrEqual(0);
         expect(foot - 375).toBeLessThan(1);
+    });
+
+    it("takes a phone's own melds larger than its river tile, at one tile four open kans keep in the row, their edge within the hand's foot", () => {
+        const { lengths } = windowGeometry({ height: 375, width: 667 });
+        const [ow = 0, meld = 0] = [lengths["ow"], lengths["own-meld-tile"]];
+        const row = { cap: meld, gap: lengths["g"] ?? 0, ow, width: lengths["own-row-w"] ?? 0 };
+        const openKan = { depth: UPRIGHT_DEPTH, units: 3 + SIDEWAYS_UNITS };
+
+        expect(meld).toBeGreaterThan(lengths["rw"] ?? 0);
+        expect(OWN_LYING_EDGE_SHARE * meld).toBeLessThanOrEqual(Math.floor(STANDING_OVERHANG * ow));
+        expect(ownMeldTile(row, [openKan, openKan, openKan, openKan])).toBe(meld);
     });
 
     it("centres a live phone's panel, stopping short of the notices' column only while a notice shows", () => {

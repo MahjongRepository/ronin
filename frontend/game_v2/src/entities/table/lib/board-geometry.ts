@@ -50,8 +50,17 @@ import {
     TOP_HAND_AIR,
     TOP_HAND_GAP,
     type TierChrome,
+    UPRIGHT_DEPTH,
 } from "./board-constants";
-import { type StripRooms, type StripSeat, drawnGap, hairline, handLength } from "./strip-layout";
+import {
+    type MeldShape,
+    type StripRooms,
+    type StripSeat,
+    drawnGap,
+    ownMeldTile as fitOwnMelds,
+    hairline,
+    handLength,
+} from "./strip-layout";
 
 type BoardFamily = "phone" | "desktop";
 
@@ -656,8 +665,18 @@ function desktopAt(
     const rowRoom = column.right - column.left - 2 * lane;
     const wholeOwn = Math.floor(OWN_BY_RIVER_OFF_PHONE * rw);
     const ow = Math.max(fitted, Math.min(wholeOwn, Math.floor(rowRoom / FULL_HAND)));
-    const reserved = ownRow({ height, margin: 0, ow: wholeOwn, rw });
-    const { handTop, oh, ownMeldRise, ownMeldTile } = ownRow({ height, margin: 0, ow, rw });
+    const reserved = ownRow({
+        height,
+        margin: 0,
+        ow: wholeOwn,
+        ownMeldTile: desktopOwnMeldTile(rw, wholeOwn),
+    });
+    const { handTop, oh, ownMeldRise, ownMeldTile } = ownRow({
+        height,
+        margin: 0,
+        ow,
+        ownMeldTile: desktopOwnMeldTile(rw, ow),
+    });
     const centreHeight = DESKTOP_CENTRE_TILES * rw;
     const centreWidth = RIVER_ROW_SIZE * rw;
     const drop = latestDropGap(rw);
@@ -740,27 +759,46 @@ function leftRiverReach(rw: number, drop: number): number {
 /** The own row at an own tile: its top, its tile's height, its melds' tile and the rise two of them take over the hand. */
 type OwnRow = Readonly<Record<"handTop" | "oh" | "ownMeldRise" | "ownMeldTile", number>>;
 
+/** A desktop's own melds' largest tile: the river tile, never past the own tile's, never under the face floor. */
+function desktopOwnMeldTile(rw: number, ow: number): number {
+    return Math.max(FACE_FLOOR, Math.min(OWN_MELD_SCALE * rw, ow));
+}
+
+/** The densest own melds a row holds: four open kans. */
+const FOUR_OPEN_KANS: readonly MeldShape[] = Array.from({ length: 4 }, () => ({
+    depth: UPRIGHT_DEPTH,
+    units: 3 + SIDEWAYS_UNITS,
+}));
+
+/**
+ * A phone's own melds' one tile: what four open kans take beside the hand at its fullest on the row, at most `cap` (the
+ * own tile, and no larger than keeps their edge within the hand's foot, so they never deepen the row the phone solve
+ * fits), so no call resizes them.
+ */
+function fourKansOwnMeldTile(
+    row: Readonly<Record<"cap" | "gap" | "ow" | "width", number>>,
+): number {
+    return fitOwnMelds(row, FOUR_OPEN_KANS);
+}
+
+/** How far the own hand's standing body runs past its box, in whole pixels. */
+function handFoot(ow: number): number {
+    return Math.floor(ow * STANDING_OVERHANG);
+}
+
 /**
  * The own row at an own tile (px): its top on the board's bottom less the tile and its edge or the `margin`, whichever
- * is deeper (a desktop keeps none, a phone its margin).
+ * is deeper (a desktop keeps none, a phone its margin), its melds at `ownMeldTile`.
  */
 function ownRow({
     height,
     margin,
     ow,
-    rw,
-}: Readonly<Record<"height" | "margin" | "ow" | "rw", number>>): OwnRow {
+    ownMeldTile,
+}: Readonly<Record<"height" | "margin" | "ow" | "ownMeldTile", number>>): OwnRow {
     const oh = ow * TILE_ASPECT;
-    const ownMeldTile = Math.max(FACE_FLOOR, Math.min(OWN_MELD_SCALE * rw, ow));
     return {
-        handTop:
-            height -
-            Math.max(
-                margin,
-                Math.floor(ow * STANDING_OVERHANG),
-                ownMeldTile * OWN_LYING_EDGE_SHARE,
-            ) -
-            oh,
+        handTop: height - Math.max(margin, handFoot(ow), ownMeldTile * OWN_LYING_EDGE_SHARE) - oh,
         oh,
         ownMeldRise: Math.max(0, STACKED_DEPTH * OWN_LYING_HEIGHT_SHARE * ownMeldTile - oh),
         ownMeldTile,
@@ -947,12 +985,25 @@ function phoneLayout(
     const chrome = phoneChrome(rw);
     const { controlH, coreGap, m, sep } = chrome;
     const rh = rw * TILE_ASPECT;
-    const { handTop, oh, ownMeldRise, ownMeldTile } = ownRow({ height, margin: m, ow, rw });
+    const gap = riverGap(rw);
+    const ownStart = Math.max(m, (width - FULL_HAND * ow) / 2);
+    const ownEnd = beside ? (width + FULL_HAND * ow) / 2 : width - m;
+    const edgeWithinFoot = Math.max(m, handFoot(ow)) / OWN_LYING_EDGE_SHARE;
+    const { handTop, oh, ownMeldRise, ownMeldTile } = ownRow({
+        height,
+        margin: m,
+        ow,
+        ownMeldTile: fourKansOwnMeldTile({
+            cap: Math.min(ow, edgeWithinFoot),
+            gap,
+            ow,
+            width: ownEnd - ownStart,
+        }),
+    });
     const rowTop = sideLineEnd(handTop, ownMeldRise, STRIP_CONTROL_CLEAR);
     const foot = beside ? height - m : rowTop;
     const line = foot - m;
     const coreTop = m + rh + sep + (frame.topGap ?? 0);
-    const gap = riverGap(rw);
     const rows = riverRows(rw, gap);
     const spareRoom =
         handTop - coreGap - (frame.coreLift ?? 0) - 2 * (LATEST_DISCARD_GAP + rows) - coreTop;
@@ -991,7 +1042,7 @@ function phoneLayout(
         ["m", m],
         ["oh", oh],
         ["ow", ow],
-        ["own-end", beside ? (width + FULL_HAND * ow) / 2 : width - m],
+        ["own-end", ownEnd],
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ...coreLengths(

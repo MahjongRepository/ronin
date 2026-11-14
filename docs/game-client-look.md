@@ -408,10 +408,13 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   right: off a phone the left side lane's inner edge, on a phone the start of a full hand centred on the
   board; its bottom on the board's bottom. The melds stand at the row's right end, the right side lane's inner edge
   off a phone, as on a table, never larger than
-  its tiles. Decision: the melds take 1 river tile (about 0.69 of the own tile at its cap, so
+  its tiles. Decision: off a phone the melds take 1 river tile (about 0.69 of the own tile at its cap, so
   they read as secondary to the hand), never past the hand's, where the row holds them
   beside the hand at its fullest (its drawn tile and gap counted), else shrink together to fit, never
-  under the face floor. Invariant: for one viewport and one set of melds, no draw, discard, offer,
+  under the face floor. A phone's river tile is a third of its own tile, so there the melds take one fixed tile for
+  the viewport instead: the largest at which four open kans stand beside the hand at its fullest, no larger than
+  keeps their edge within the hand's standing foot (about 0.63 of the own tile), so no call resizes them and they
+  never deepen the row. Invariant: for one viewport and one set of melds, no draw, discard, offer,
   riichi or callout changes a table tile's size, the hand's start or a laid meld's place; tiles still
   enter, leave, sort, rotate and take their drawn, latest-discard and selection offsets. Only a call
   or a kan refits the melds, inside their fixed room. Decision: its tiles are
