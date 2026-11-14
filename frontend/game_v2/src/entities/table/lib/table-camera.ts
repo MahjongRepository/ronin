@@ -1259,27 +1259,70 @@ function pieceTransform(view: TableView, piece: TablePiece): string {
     return `matrix3d(${values.join(", ")})`;
 }
 
+/** The tallest a top hand's standing back shows, in its widths, whatever the camera's tilt. */
+const TOP_BACK_SHOWN_ASPECT = 1.52;
+
+/** Where the strip's camera shows the top hand: its tiles' foot, how wide it shows them and how deep it lays them. */
+interface UprightHand {
+    readonly across: number;
+    readonly down: number;
+    readonly foot: number;
+    readonly footStart: PlanePoint;
+}
+
 /**
- * The top hand's transform: its host shares the top strip's box but stands unturned and off the plane, so its tiles
- * stand upright instead of lying with the perspective. Its owner's edge and its tiles' foot stand where the strip's
- * camera shows them, every tile as wide as the camera shows the foot.
+ * The top hand's host shares the top strip's box but stands unturned and off the plane, so its tiles stand upright
+ * instead of lying with the perspective: its tiles' foot stands where the strip's camera shows it, every tile as wide
+ * as the camera shows the foot, and as deep as the camera lays the slot from its owner's edge to its foot.
  */
-function uprightHandTransform(view: TableView): string {
+function uprightHand(view: TableView): UprightHand {
     const strip = view.pieces["strip-top"];
     const width = strip.right - strip.left;
     const foot = uprightFoot(view.plane);
     const ownerEdge = drawnCorner(view, "strip-top", { left: 0, top: 0 });
     const footStart = drawnCorner(view, "strip-top", { left: 0, top: foot });
     const footEnd = drawnCorner(view, "strip-top", { left: width, top: foot });
+    return {
+        across: (footEnd.left - footStart.left) / width,
+        down: (footStart.top - ownerEdge.top) / foot,
+        foot,
+        footStart,
+    };
+}
+
+/** How deep the concealed top hand is drawn: as the camera lays it, unless a back would show too tall. */
+function concealedHandDown(hand: UprightHand): number {
+    return Math.min(
+        hand.down,
+        (hand.across * TOP_BACK_SHOWN_ASPECT) / (UPRIGHT_DEPTH + TOP_HAND_EDGE_SHARE),
+    );
+}
+
+/** The top hand host's flat matrix, drawing the hand `down` deep from its foot. */
+function uprightHandTransform(hand: UprightHand, down: number): string {
     const values = [
-        (footEnd.left - footStart.left) / width,
+        hand.across,
         0,
         0,
-        (footStart.top - ownerEdge.top) / foot,
-        footStart.left,
-        ownerEdge.top,
+        down,
+        hand.footStart.left,
+        hand.footStart.top - hand.foot * down,
     ];
     return `matrix(${values.join(", ")})`;
+}
+
+/**
+ * The top hand's matrices: a concealed hand's capped; a revealed one's, whose faces lie on the table, as the camera
+ * lays it, with the share a back still showing in it during a reveal shrinks by, from its foot, to keep its height.
+ */
+function topHandValues(view: TableView): [string, string][] {
+    const hand = uprightHand(view);
+    const concealedDown = concealedHandDown(hand);
+    return [
+        ["--geo-camera-top-hand", uprightHandTransform(hand, concealedDown)],
+        ["--geo-camera-top-hand-revealed", uprightHandTransform(hand, hand.down)],
+        ["--geo-top-hand-back-scale", String(concealedDown / hand.down)],
+    ];
 }
 
 const SCREEN_ONLY_LENGTHS = new Set(["table-h", "table-top"]);
@@ -1374,7 +1417,7 @@ function surfaceViewValues(view: TableView): [string, string][] {
             `--geo-camera-${piece}`,
             pieceTransform(view, piece),
         ]),
-        ["--geo-camera-top-hand", uprightHandTransform(view)],
+        ...topHandValues(view),
     ];
 }
 

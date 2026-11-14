@@ -52,6 +52,10 @@ $max-melds: 4;
 
 .board-surface > .board-strip--top-hand {
     transform: var(--geo-camera-top-hand);
+
+    &.board-strip--revealed {
+        transform: var(--geo-camera-top-hand-revealed);
+    }
 }
 
 /* The rivers' pinwheel: each starts at the centre's corner on its seat's left, a gap from the centre. A river's area is

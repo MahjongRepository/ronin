@@ -1,16 +1,16 @@
 const STANDING_BODY = {
-    backDepth: 0.1,
+    backDepth: 0.07,
     cornerRadius: 0.08,
-    crestStart: 0.24,
+    crestStart: 0.17,
     faceForeshortening: 0.93,
     faceWidth: 0.8,
     footStart: 1.43,
-    frontStart: 0.44,
+    frontStart: 0.31,
     height: 1.5,
     litRim: 0.06,
-    ridge: 0.33,
+    ridge: 0.23,
     shadedRim: 0.11,
-    topFlatEnd: 0.27,
+    topFlatEnd: 0.19,
 } as const;
 
 const BODY_VIEW_WIDTH = 100;
@@ -32,7 +32,7 @@ const LYING_BODY = {
 } as const;
 
 const STANDING_BACK_BODY = {
-    capDepth: 0.26,
+    capDepth: 0.37,
     cornerRadius: 0.07,
     edge: TILE_EDGE_SHARE,
     litRim: 0.035,

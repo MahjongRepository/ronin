@@ -86,7 +86,8 @@ The derived proportions are the three reference viewports' values under the sizi
   The own hand's tiles stand facing their player, each drawn as one generated body 1.5 of its width tall
   (`entities/tile/lib/tile-body.ts`, `npm run bodies`), not by the stylesheet: the back's ochre layer seen over its
   top, a pale top surface rolling over a crest into a calmer, darker front, rims that soften over the shoulder and a
-  rolled foot, its corners rounded by 0.08 of its width; the face art sits in a box on the front, 0.8 of the width,
+  rolled foot, its corners rounded by 0.08 of its width. It is seen from low: the ochre and
+  the top take 0.31 of its width, leaving a front 1.19 of its width tall, so the face never reads as square. The face art sits in a box on the front, 0.8 of the width,
   foreshortened to 0.93 and shaded with the front (0.8 brightness, so a red five's red keeps 4.5:1 on it), its corner
   label inside that box. Its tile box stays 4:3, the layout and tap target, the body
   drawn from its top and running past its bottom by the rest of its height, which the own row reserves in whole
@@ -322,10 +323,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   seen from above, so a live hand never reads as face-down tiles (a closed kan's ends, the
   unrevealed indicators); the slot is kept whole, so a reveal shows the faces in the same place. The top seat's tile
   fills its 3:4 slot and reaches 0.44 of its width under it, its edge and a rise that keeps it tall
-  (about 1.5 of its width as the camera shows it) without taking height from the stack, the felt under the hand giving
-  it. The hand stands upright: the camera places its owner's edge and its foot, but its tiles are not
-  laid on the plane, so each is a rectangle as wide as the camera shows its foot and none leans with the perspective.
-  Its look: a thin off-white cap at its owner's side, 0.26 of its width deep, lit at its left end
+  without taking height from the stack, the felt under the hand giving it. The hand stands upright:
+  the camera places its foot, but its tiles are not laid on the plane, so each is a rectangle as wide as the camera
+  shows its foot and none leans with the perspective. Decision: a back shows at most 1.52 of its width tall,
+  whatever the camera's tilt, so a steep phone or narrow-window camera does not stretch it. A revealed
+  hand's faces lie on the table, so they keep the camera's foreshortening and start at its owner's edge.
+  Its look: a thin off-white cap at its owner's side, 0.37 of its width deep, lit at its left end
   and shaded at its right; under it the back in the face-down tiles' bright ochre, lit under the cap and shading toward its
   foot as a lying back does, with its own small rounded shoulders. A side seat's tile shows its top only, no back face:
   0.72 of a tile's width across, at the owner's edge of its slot, the rest of the slot bare table; 58%

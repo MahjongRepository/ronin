@@ -109,7 +109,10 @@ const desktopGrid = (() => {
 
 /** A table seen flat or through its camera: where it shows a plane point, its pieces and their moves. */
 interface Seen {
-    readonly show: (point: { left: number; top: number }) => { left: number; top: number };
+    readonly show: (point: { left: number; top: number }) => {
+        left: number;
+        top: number;
+    };
     readonly pieces: ReturnType<typeof tableView>["pieces"];
     readonly shifts: Partial<ReturnType<typeof tableView>["shifts"]>;
     readonly rw: number;
@@ -153,7 +156,10 @@ function endGaps(
     const deep = (TILE_ASPECT + TILE_EDGE_SHARE) * rw;
     function gap(seat: "strip-left" | "strip-right"): number {
         const left = seat === "strip-left";
-        const foot = show({ left: left ? strip.left + inset : strip.right, top: strip.bottom });
+        const foot = show({
+            left: left ? strip.left + inset : strip.right,
+            top: strip.bottom,
+        });
         const side = pieces[seat];
         const shift = shifts[seat] ?? { left: 0, top: 0 };
         const corner = show({
@@ -166,7 +172,11 @@ function endGaps(
         );
     }
     const first = show({ left: strip.left + inset, top: strip.bottom }).left;
-    return { counters: first - counters.right, left: gap("strip-left"), right: gap("strip-right") };
+    return {
+        counters: first - counters.right,
+        left: gap("strip-left"),
+        right: gap("strip-right"),
+    };
 }
 
 /** A plate's pill from its place, its box's width: its right edge there for the top and left seats, its left edge for the others. */
@@ -437,7 +447,10 @@ describe("tableView on desktop windows 40x20 apart", () => {
     it("shows every table piece whole on the board", () => {
         const outside = desktopGrid().flatMap((row, down) =>
             row.flatMap((view, across) => {
-                const box = { height: GRID_HEIGHTS[down] ?? 0, width: GRID_WIDTHS[across] ?? 0 };
+                const box = {
+                    height: GRID_HEIGHTS[down] ?? 0,
+                    width: GRID_WIDTHS[across] ?? 0,
+                };
                 return TABLE_PIECES.filter((piece) => {
                     const shown = shownPiece(view, piece);
                     return (
@@ -456,7 +469,10 @@ describe("tableView on desktop windows 40x20 apart", () => {
     it("shows the side strips' farthest tiles 16px or the flat gap off the top strip's end tiles, the counters 8px or the flat gap off its first", () => {
         const short = desktopGrid().flatMap((row, down) =>
             row.flatMap((view, across) => {
-                const box = { height: GRID_HEIGHTS[down] ?? 0, width: GRID_WIDTHS[across] ?? 0 };
+                const box = {
+                    height: GRID_HEIGHTS[down] ?? 0,
+                    width: GRID_WIDTHS[across] ?? 0,
+                };
                 const { screen } = viewOf(box);
                 const tilted = endGaps(view);
                 const flat = endGaps(flatOf(screen));
@@ -527,7 +543,10 @@ function topBackFoot(view: TableView, left: number): number {
         turn: 180,
     });
     const depth = (back.top + back.edge) * (view.plane.lengths["rw"] ?? 0);
-    return projectPoint(view.camera, { left, top: view.pieces["strip-top"].top + depth }).top;
+    return projectPoint(view.camera, {
+        left,
+        top: view.pieces["strip-top"].top + depth,
+    }).top;
 }
 
 describe("tableView on phones", () => {
@@ -607,13 +626,25 @@ function laidStripCorner(view: TableView, left: number, top: number): [number, n
     return [shown.left - piece.left, shown.top + view.tableTop - piece.top];
 }
 
+function topHandFoot(view: TableView): number {
+    return (TILE_ASPECT + TOP_HAND_EDGE_SHARE) * (view.plane.lengths["rw"] ?? 0);
+}
+
+function shownBackAspect(view: TableView, hand: (left: number, top: number) => number[]): number {
+    const width = view.pieces["strip-top"].right - view.pieces["strip-top"].left;
+    const foot = topHandFoot(view);
+    const tileWidth = view.plane.lengths["rw"] ?? 0;
+    const shownTileWidth = ((hand(width, foot)[0] - hand(0, foot)[0]) / width) * tileWidth;
+    return (hand(0, foot)[1] - hand(0, 0)[1]) / shownTileWidth;
+}
+
 describe("the top hand", () => {
     it.each([...WIDE, PHONE_BOXES[0]])(
-        "stands upright on %s: its owner's edge and its foot where the strip's camera lays them, as wide as the foot",
+        "revealed on %s: its owner's edge and its foot where the strip's camera lays them, as wide as the foot",
         (_shape, box) => {
             const { view } = viewOf(box);
             const hand = cssAffine(
-                Object.fromEntries(surfaceViewValues(view))["--geo-camera-top-hand"] ?? "",
+                Object.fromEntries(surfaceViewValues(view))["--geo-camera-top-hand-revealed"] ?? "",
             );
             const width = view.pieces["strip-top"].right - view.pieces["strip-top"].left;
             const foot = (TILE_ASPECT + TOP_HAND_EDGE_SHARE) * (view.plane.lengths["rw"] ?? 0);
@@ -624,6 +655,33 @@ describe("the top hand", () => {
                 expect(hand(along, foot)[1]).toBeCloseTo(footTop, 3);
                 expect(hand(along, 0)[1]).toBeCloseTo(laidStripCorner(view, along, 0)[1], 3);
             }
+        },
+    );
+
+    it.each([...WIDE, ...WIDTH_BOUND, PHONE_BOXES[0]])(
+        "concealed on %s: on the revealed hand's foot at its width, a back at most 1.52 tall, as a revealing back scaled from its foot",
+        (_shape, box) => {
+            const { view } = viewOf(box);
+            const values = Object.fromEntries(surfaceViewValues(view));
+            const concealed = cssAffine(values["--geo-camera-top-hand"] ?? "");
+            const revealed = cssAffine(values["--geo-camera-top-hand-revealed"] ?? "");
+            const width = view.pieces["strip-top"].right - view.pieces["strip-top"].left;
+            const foot = topHandFoot(view);
+
+            for (const along of [0, width]) {
+                expect(concealed(along, foot)).toEqual(
+                    revealed(along, foot).map((at) => expect.closeTo(at, 3)),
+                );
+                expect(concealed(along, 0)).toEqual(
+                    revealed(along, foot * (1 - Number(values["--geo-top-hand-back-scale"]))).map(
+                        (at) => expect.closeTo(at, 3),
+                    ),
+                );
+            }
+            expect(shownBackAspect(view, concealed)).toBeCloseTo(
+                Math.min(shownBackAspect(view, revealed), 1.52),
+                3,
+            );
         },
     );
 });

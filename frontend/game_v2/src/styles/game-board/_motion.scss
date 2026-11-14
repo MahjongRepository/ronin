@@ -52,6 +52,13 @@
     pointer-events: none;
 }
 
+.board-strip--top-hand.board-strip--revealed .board-reveal-back > .tile__body {
+    --reveal-back-foot: calc(var(--tile-w) * (var(--body-down) - var(--body-top) / 2));
+
+    transform: rotate(var(--body-turn, 0deg)) translateY(var(--reveal-back-foot))
+        scaleY(var(--geo-top-hand-back-scale, 1)) translateY(calc(-1 * var(--reveal-back-foot)));
+}
+
 .seating--end {
     animation: match-results 1500ms ease-out both;
 

@@ -100,6 +100,12 @@ function HandArea(
     </div>`;
 }
 
+/** Whether a seat's hand shows any face, so its tiles lie on the table rather than stand as backs. */
+function handRevealed(player: BoardPlayerDisplay | null): boolean {
+    const tiles = player ? [...player.hand, ...(player.drawnTile ? [player.drawnTile] : [])] : [];
+    return tiles.some((tile) => tile.show === "face");
+}
+
 /**
  * A seat's melds, newest first from the hand outward, so the first meld lies farthest right; the one an offer refers to
  * marked as its source.
@@ -193,7 +199,7 @@ function Strip(
         return html`<div class="board-strip board-strip--top">
                 <div class="board-strip__frame">${MeldsArea(seat, player)}</div>
             </div>
-            <div class="board-strip board-strip--top-hand">
+            <div class="board-strip board-strip--top-hand${handRevealed(player) ? " board-strip--revealed" : ""}">
                 <div class="board-strip__frame">${HandArea(seat, player)}</div>
             </div>`;
     }

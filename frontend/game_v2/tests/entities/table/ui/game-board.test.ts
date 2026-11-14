@@ -17,14 +17,14 @@ function showHeldPanel(host: HTMLElement, held: boolean): void {
     );
 }
 
-function renderDealtBoard(): HTMLElement {
+function renderDealtBoard(reveal: "all" | "bottom" = "all"): HTMLElement {
     const players = [0, 1, 2, 3].map((seat) => ({
         ...createInitialPlayerState({ isAiPlayer: false, name: `P${seat}`, score: 25_000, seat }),
         tiles: Array.from({ length: 13 }, (_unused, index) => seat * 32 + index),
     }));
     const state = tableStateToDisplayState(
         { ...createInitialTableState(), players },
-        { bottomSeat: 0, reveal: "all" },
+        { bottomSeat: 0, reveal },
     );
     const host = document.createElement("div");
     render(GameBoard({ debug: false, state }), host);
@@ -103,6 +103,14 @@ describe("GameBoard hands", () => {
         expect(host.querySelectorAll(".board-local .hand .tile--standing")).toHaveLength(13);
         expect(host.querySelectorAll(".board-strip .hand .tile:not(.tile-back)")).toHaveLength(39);
         expect(host.querySelectorAll(".board-strip .tile--standing")).toHaveLength(0);
+        expect(host.querySelector(".board-strip--top-hand.board-strip--revealed")).not.toBeNull();
+    });
+
+    it("keeps the top hand's host unrevealed while its tiles are backs", () => {
+        const host = renderDealtBoard("bottom");
+
+        expect(host.querySelectorAll(".board-strip--top-hand .tile-back")).toHaveLength(13);
+        expect(host.querySelector(".board-strip--top-hand.board-strip--revealed")).toBeNull();
     });
 });
 
