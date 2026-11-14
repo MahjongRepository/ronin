@@ -44,6 +44,12 @@ $max-melds: 4;
     }
 }
 
+@supports (-moz-orient: inline) {
+    .board-surface > .board-rivers > .board-river {
+        filter: blur(0.01px);
+    }
+}
+
 @each $seat in top, right, left {
     .board-surface > .board-strip--#{$seat} {
         transform: var(--geo-camera-strip-#{$seat});

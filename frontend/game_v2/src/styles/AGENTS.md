@@ -93,7 +93,11 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   camera's homography) from its top left corner (the counters take an upright `matrix()`, a desktop's from their tilted far edge, a phone's at their flat corner), and the plane's lengths, which the directive writes on the surface itself,
   so inside it every `--geo-*` is the plane's. TS owns the projection, so the flat overlays (`--geo-shown-*`: the
   plates, calls and the felt's seams) and the checks land exactly on what the browser paints. The surface makes no
-  stacking context and clips nothing; the rivers' shared edge filter stays on the unturned `.board-rivers`. The gate
+  stacking context and clips nothing; the rivers' shared edge filter stays on the unturned `.board-rivers`. Firefox
+  paints the edges inside a flat `matrix3d` piece unsmoothed, so the seams between river tiles step 1px at a time; a
+  river there takes a neutral `blur(0.01px)` on its own host, above its turned frame, which sends it through a path
+  that smooths them. `preserve-3d` smooths them too but makes Firefox drop the shared shadow around a tile hidden as
+  it is laid, so it is not used. The gate
   measures laid sizes and floors with the pieces' transforms off (`measurePlane`) and the shown faces and gaps with
   them on.
 - **The top hand stands off the plane.** The top seat's hand is not in its strip's tilted piece but in a sibling host,
