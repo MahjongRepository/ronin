@@ -18,7 +18,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
 - **The shell is a grid from the geometry's tracks; the pinwheel is local.** The table is centred, off a phone as
   wide as the own row and the two side lanes it stands between (a phone's a column of at least 25 river tiles),
   its side bars the rest of the width; `boardGeometry` places GameBoard's
-  slots (the cog, the left bar's notices' field, furiten and switches' column, the right bar's replay column, the
+  slots (the cog, the left bar's notices' field, furiten and switches' column, a replay's controls, the
   decisions' cluster, a desktop's toasts, the own row) as areas and emits the grid's templates (`--geo-shell-columns` / `--geo-shell-rows`, each area's edges a
   named line); `.board-layout` and `.board-table` lay them out and each slot takes its `grid-area`, aligned the way its
   contents stand in it. A slot's place is never a CSS formula: what its contents read (`--actions-*`,
@@ -32,8 +32,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   track and slot is in the table's frame, the zones' seams and fields reach its corners (their layer still covering
   the whole board), and the overlay, which spans the whole board for its dim, reads `--cy` shifted by the table's top.
   A height-bound board emits neither, its fallbacks the whole board.
-- **The panel's free box is the geometry's.** Off a phone it is the table column, so the bars' notices and replay
-  controls stay usable beside a panel; the overlay centres the panel within its `--geo-overlay-*` insets, live and
+- **The panel's free box is the geometry's.** Off a phone it is the table column, so the bars' notices stay usable
+  beside a panel, and above a replay's row of controls where the band holds one, so they stay usable under it; the overlay centres the panel within its `--geo-overlay-*` insets, live and
   replay alike, over the cog where they reach it. The cog stands at the right bar's top, in the board's top-right
   corner where the bar is narrower than its target and a gap. Off a phone the notices' field is reserved whether a
   notice shows or not, so no notice changes the panel's box or tiles. A phone's panel takes equal side gaps and stands
@@ -66,8 +66,12 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   top, cut short with an ellipsis past their second line (the whole in the notice's title, the cut one opening the
   sheet), the last ones left out where the felt is short (the last shown its "+N"), under no panel only
   (`toast-board`), where a replay's status stands in the field alone: over a panel they stand in the field, wrapping as a
-  phone's do, the status with them. A replay's moves and options take
-  the right bar's foot. Nothing but live's decisions stands between the bottom river and the own row. On a phone
+  phone's do, the status with them. A replay's moves and options stand in one row along that band's foot from its
+  start, over the bottom river's last row (a replay is read stepping past it), at the control floor or larger and off
+  the own plate's pill; where the band holds no such row (a small window) they take the right bar's foot instead, in one
+  column or two; in two, each move back stands beside its move on and autoplay spans both under them. The form is
+  the geometry's (`data-board-replay`), never a CSS query. Nothing but live's decisions or
+  a replay's row stands between the bottom river and the own row. On a phone
   live's decisions stand in a band along the own row's top too, from short of the left strip's lane to short of the
   right one's, under the centre and the right river (or from the centre's left edge where its bottom row cannot pass
   under the left river's longest reach), the same cluster in 40px rows `$phone-band-row-gap` apart; the right bar

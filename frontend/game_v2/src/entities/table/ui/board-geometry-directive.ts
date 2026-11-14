@@ -96,7 +96,8 @@ function writeData(board: HTMLElement, data: Readonly<Record<string, string>>): 
 
 /**
  * Size the board from its own box and the slots its page fills (`boardGeometry`): its family, chrome and play switches'
- * form as `data-board-family` / `data-board-chrome` / `data-board-switches` and its sizes as
+ * form and a replay's controls' as `data-board-family` / `data-board-chrome` / `data-board-switches` /
+ * `data-board-replay` and its sizes as
  * `--geo-<name>` on the board, measured once its first render is in the document and again as its box or its slots change, until it leaves; and
  * lay out the opponents' strips in the rooms it leaves them (`stripLayout`) as `--<seat>-meld-<n>-*` lengths and the
  * own melds in their row (`ownMeldTile`) as `--own-meld-w`, again as what they hold changes. An empty box (a hidden board) changes nothing and the board stays watched.
@@ -220,7 +221,7 @@ class SizeBoard extends AsyncDirective {
     }
 
     private write(board: HTMLElement, geometry: BoardGeometry, view: TableView): void {
-        const { chrome, family, lengths, strips, switches, tracks } = geometry;
+        const { chrome, family, lengths, replay, strips, switches, tracks } = geometry;
         this.geometry = geometry;
         this.view = view;
         const laid =
@@ -237,6 +238,7 @@ class SizeBoard extends AsyncDirective {
         writeData(board, {
             boardChrome: chrome,
             boardFamily: family,
+            boardReplay: replay,
             boardSwitches: switches,
         });
         writeValues(

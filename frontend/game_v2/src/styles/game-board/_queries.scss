@@ -51,6 +51,8 @@ $small-chrome: '[data-board-chrome="small"]';
 $large-chrome: '[data-board-chrome="large"]';
 $named-switches-board: '[data-board-switches="names"]';
 $letter-switches-board: '[data-board-switches="letters"]';
+$row-replay-board: '[data-board-replay="row"]';
+$pairs-replay-board: '[data-board-replay="pairs"]';
 
 @function board-scoped($parent, $condition) {
     $scoped: ();
@@ -110,6 +112,18 @@ $letter-switches-board: '[data-board-switches="letters"]';
 
 @mixin named-switches-board {
     @include board-where($named-switches-board) {
+        @content;
+    }
+}
+
+@mixin row-replay-board {
+    @include board-where($row-replay-board) {
+        @content;
+    }
+}
+
+@mixin pairs-replay-board {
+    @include board-where($pairs-replay-board) {
         @content;
     }
 }

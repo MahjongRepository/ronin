@@ -183,8 +183,9 @@ function RoundsButton(props: ReplayControlsProps): TemplateResult {
 /**
  * The replay's controls, one group: the moves (a round back, the bottom seat's turn back, a step back, autoplay, a step
  * on, its turn on, a round on; a smaller board's keep the five between the rounds), then the options (the next seat's
- * view on a desktop's chrome, the other hands and the round list). Every board stands them in the right bar's column,
- * a phone's at the bar's foot, in two columns where the bar is too short for one. A move that cannot go is disabled.
+ * view on a desktop's chrome, the other hands and the round list). A desktop stands them in one row over the own hand,
+ * a phone or a small window at the right bar's foot, in two columns of paired moves where the bar is too short for
+ * one; the board's geometry picks the form. A move that cannot go is disabled.
  * Each control's tip names it and its key. The seat at the bottom is the board's: pressing another seat's plate or
  * score views from it too.
  */

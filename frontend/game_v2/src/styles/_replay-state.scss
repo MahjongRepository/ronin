@@ -1,6 +1,7 @@
 @use "@/styles/game-board/queries" as *;
 
 $tsumogiri-shade: 0.78;
+$round-list-clear: 8px;
 
 @each $name in rb, rgap, status-left, status-right {
     @property --#{$name} {
@@ -83,6 +84,13 @@ $tsumogiri-shade: 0.78;
     justify-content: flex-end;
     gap: var(--geo-replay-group-gap);
     min-width: 0;
+
+    @include row-replay-board {
+        flex: none;
+        flex-direction: row;
+        align-items: flex-end;
+        width: auto;
+    }
 }
 
 .replay-controls__moves,
@@ -92,6 +100,16 @@ $tsumogiri-shade: 0.78;
     place-content: flex-start flex-start;
     gap: var(--rgap);
     width: var(--geo-replay-w);
+
+    @include row-replay-board {
+        flex-wrap: nowrap;
+        width: auto;
+    }
+
+    @include pairs-replay-board {
+        display: grid;
+        grid-template-columns: repeat(2, var(--rb));
+    }
 }
 
 /* The bottom plate is the seat viewed from, which pressing leaves as it is. */
@@ -144,6 +162,22 @@ $tsumogiri-shade: 0.78;
     -webkit-touch-callout: none;
 }
 
+@each $move, $order in (prevRound: 1, nextRound: 2, prevTurn: 3, nextTurn: 4, prev: 5, next: 6) {
+    .replay-controls__move--#{$move} {
+        @include pairs-replay-board {
+            order: $order;
+        }
+    }
+}
+
+.replay-controls__play {
+    @include pairs-replay-board {
+        grid-column: 1 / -1;
+        order: 7;
+        width: auto;
+    }
+}
+
 :is(.replay-controls__moves > :is(:first-child, :last-child), .replay-controls__option--view) {
     @include phone-board {
         display: none;
@@ -171,6 +205,11 @@ $tsumogiri-shade: 0.78;
         border-radius: 0.375rem;
         box-shadow: var(--ronin-panel-shadow);
         pointer-events: none;
+
+        @include row-replay-board {
+            inset: auto auto calc(100% + 6px) 50%;
+            translate: -50% 0;
+        }
     }
 
     &:focus-visible:not([aria-expanded="true"])::after {
@@ -406,6 +445,13 @@ $tsumogiri-shade: 0.78;
 
     > * {
         margin-block: 0;
+    }
+
+    @include row-replay-board {
+        right: 0;
+        bottom: calc(100% + var(--rgap));
+        width: min(24rem, var(--actions-left) + var(--geo-replay-w));
+        max-height: calc(var(--actions-bottom) - 100% - var(--rgap) - #{$round-list-clear});
     }
 }
 

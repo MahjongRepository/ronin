@@ -304,6 +304,41 @@ function replayOf({ box }: BoardGeometry): BoardGeometry {
 }
 
 /**
+ * Whether a desktop replay's controls stand in one row along the live decisions' band's foot from its start, clear of
+ * the own pill but for a 2px graze, the panel above them.
+ */
+function replayInRow(live: BoardGeometry, replay: BoardGeometry): boolean {
+    const [bandLeft = 0, , bandRight = 0, bandBottom = 0] = slotAreas(live.tracks)["actions"] ?? [];
+    const [left = 0, top = 0, right = 0, bottom = 0] = slotAreas(replay.tracks)["actions"] ?? [];
+    function length(name: string): number {
+        return replay.lengths[name] ?? 0;
+    }
+    const pillTop = length("plate-bottom-top") + (length("badge-h") - length("pill-h")) / 2;
+    return (
+        Math.abs(bottom - bandBottom) <= 0.1 &&
+        Math.abs(left - bandLeft) <= 0.1 &&
+        right <= bandRight + 0.1 &&
+        Math.abs(bottom - top - length("replay-b")) <= 0.1 &&
+        (right <= length("plate-right-left") ||
+            top >= pillTop + length("pill-h") - 2 ||
+            bottom <= pillTop + 2) &&
+        length("overlay-bottom") >= length("table-below") + replay.box.height - top
+    );
+}
+
+/** Whether a desktop replay's controls stand at the right bar's foot under the cog, the panel's foot left as it is. */
+function replayInColumn(replay: BoardGeometry): boolean {
+    const { actions = [], corner = [], hand = [] } = slotAreas(replay.tracks);
+    const [left = 0, top = 0, , bottom = 0] = actions;
+    return (
+        left >= (replay.lengths["col-right"] ?? Infinity) &&
+        top >= (corner[1] ?? Infinity) + (replay.lengths["menu-size"] ?? 0) &&
+        Math.abs(bottom - (hand[3] ?? Infinity)) <= 0.1 &&
+        replay.lengths["overlay-bottom"] === 8
+    );
+}
+
+/**
  * Whether a desktop's notices stand as toasts at 14px or more in the core's bottom-left corner: past the left strip's
  * lane, short of the bottom river's first tile, under the left river's longest reach (its sixth tile past a riichi
  * tile, the latest discard's gap and a tile's edge), over the left plate and the own row's melds' rise, a clamped toast
@@ -970,7 +1005,7 @@ describe("boardGeometry's strips", () => {
         { height: 768, switches: "letters", width: 1024 },
         { height: 600, switches: "letters", width: 800 },
     ])(
-        "keeps a $width x $height desktop's controls in the bars: the counters over the field, furiten and $switches switches down the left one to the own row's foot, the cog and a replay's controls at its foot in the right one, the panel in the column, and the notices' toasts in the core's bottom-left corner",
+        "keeps a $width x $height desktop's controls in the bars: the counters over the field, furiten and $switches switches down the left one to the own row's foot, the cog in the right one near the column, the panel in the column, and the notices' toasts in the core's bottom-left corner",
         ({ height, switches, width }) => {
             const live = windowGeometry({ height, width });
             const { box } = live;
@@ -979,7 +1014,7 @@ describe("boardGeometry's strips", () => {
                 return live.lengths[name] ?? Number.NaN;
             }
             const { field, furiten, switches: switchesArea } = slotAreas(live.tracks);
-            const { actions: moves, corner, hand } = slotAreas(replay.tracks);
+            const { corner } = slotAreas(replay.tracks);
             const [colLeft, colRight] = [length("col-left"), length("col-right")];
             function panel(lengths: Readonly<Record<string, number>>): (number | undefined)[] {
                 return [lengths["overlay-left"], lengths["overlay-right"]];
@@ -1000,26 +1035,9 @@ describe("boardGeometry's strips", () => {
                     (field?.[3] ?? Infinity) <= (furiten?.[1] ?? 0) &&
                     (furiten?.[3] ?? Infinity) <= (switchesArea?.[1] ?? 0),
                 panel: [panel(live.lengths), panel(replay.lengths)],
-                replayAtFoot: Math.abs((moves?.[3] ?? 0) - (hand?.[3] ?? Infinity)) <= 0.1,
-                replayControl:
-                    (replay.lengths["replay-b"] ?? 0) >= 40 &&
-                    (replay.lengths["replay-b"] ?? Infinity) <=
-                        Math.max(length("ow"), length("moves-h")),
-                rightBar: [corner?.[0], moves?.[0]].every(
-                    (left) => (left ?? 0) >= (replay.lengths["col-right"] ?? Number.NaN),
-                ),
-                rightBarDown: (moves?.[1] ?? 0) >= (corner?.[1] ?? Infinity) + length("menu-size"),
+                rightBar: (corner?.[0] ?? 0) >= colRight,
                 rightBarNearColumn:
-                    (moves?.[2] ?? Infinity) <=
-                        (replay.lengths["col-right"] ?? 0) +
-                            6 +
-                            3 * (replay.lengths["replay-w"] ?? 0) +
-                            0.1 &&
-                    (corner?.[2] ?? Infinity) <=
-                        (replay.lengths["col-right"] ?? 0) +
-                            6 +
-                            3 * (replay.lengths["replay-w"] ?? 0) +
-                            0.1,
+                    (corner?.[2] ?? Infinity) <= colRight + 6 + 6 * length("rw") + 0.1,
                 switchesOverRowFoot:
                     (switchesArea?.[3] ?? Infinity) <=
                     length("hand-top") + length("oh") - length("pill-h") - 6 + 0.1,
@@ -1042,10 +1060,7 @@ describe("boardGeometry's strips", () => {
                         box.width - (replay.lengths["col-right"] ?? 0) + 8,
                     ],
                 ],
-                replayAtFoot: true,
-                replayControl: true,
                 rightBar: true,
-                rightBarDown: true,
                 rightBarNearColumn: true,
                 switchesOverRowFoot: true,
                 switchesWide: expect.closeTo(0, 0),
@@ -1057,6 +1072,29 @@ describe("boardGeometry's strips", () => {
                         !(areaLeft < areaRight && areaTop < areaBottom),
                 ),
             ).toEqual([]);
+        },
+    );
+
+    it.each([
+        { form: "row", height: 720, width: 1280 },
+        { form: "row", height: 657, width: 1366 },
+        { form: "row", height: 1080, width: 1920 },
+        { form: "row", height: 1440, width: 3440 },
+        { form: "pairs", height: 768, width: 1024 },
+        { form: "pairs", height: 600, width: 800 },
+    ])(
+        "stands a $width x $height desktop replay's controls as $form: a row along the decisions' band's foot from the bottom river's start, off the own pill, the panel above it, else a bar's two paired columns at its foot",
+        ({ form, height, width }) => {
+            const live = windowGeometry({ height, width }, 10);
+            const replay = replayOf(live);
+            const side = replay.lengths["replay-b"] ?? 0;
+            const most = Math.max(replay.lengths["ow"] ?? 0, replay.lengths["moves-h"] ?? 0);
+
+            expect({
+                control: side >= 40 && side <= most,
+                form: replay.replay,
+                placed: form === "row" ? replayInRow(live, replay) : replayInColumn(replay),
+            }).toEqual({ control: true, form, placed: true });
         },
     );
 });

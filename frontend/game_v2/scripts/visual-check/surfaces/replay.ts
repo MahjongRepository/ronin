@@ -1,6 +1,6 @@
 import { type Page } from "playwright";
 
-import { type BoardMeasure } from "../board-measure.ts";
+import { type BoardMeasure, ownRiverUnderDecisions } from "../board-measure.ts";
 import {
     type Box,
     EPSILON,
@@ -466,7 +466,8 @@ function expectedControls({ compact, desktop }: ReplayState): readonly string[] 
 
 /**
  * The replay's controls sit on the board and the screen: every control the board's state asks for shown, large enough
- * to tap and apart from one another, covering no tile, badge or the centre, never under a panel over the board (so the
+ * to tap and apart from one another, covering no tile, badge or the centre (but a desktop's own river, which its row
+ * stands over as live decisions do), never under a panel over the board (so the
  * replay always moves on), and its round list on the board; the open list hides none of them from these checks.
  */
 function checkReplayControls(
@@ -505,8 +506,9 @@ function checkReplayControls(
         band.map((control, index) => ({ box: control, group: `${index}` })),
     );
     report.expect(crowded.length === 0, `replay controls overlap: ${crowded.join(", ")}`);
+    const ownRiver = state.desktop ? ownRiverUnderDecisions(board) : [];
     const table = [
-        ...board.tiles,
+        ...board.tiles.filter((tile) => !ownRiver.some((under) => sameBox(under, tile))),
         ...board.nameplates,
         ...(board.center === null ? [] : [board.center]),
     ];

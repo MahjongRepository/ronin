@@ -154,10 +154,10 @@ The derived proportions are the three reference viewports' values under the sizi
 | round    | l   [T plate]  [ top river ]  [R plate]       |          |
 |          | e                                           r |          |
 |          | f        [L river] [centre] [R river]       i |          |
-|          | t   [L plate]  [bottom river] [own plate]   g | replay   |
-|          |   [toasts]    [kan][pon][chi][pass][timer]  h | moves    |
-| furiten  |                                             t | and      |
-| switches |                                               | options  |
+|          | t   [L plate]  [bottom river] [own plate]   g |          |
+|          |   [toasts]    [kan][pon][chi][pass][timer]  h |          |
+| furiten  |               (replay: moves, options)      t |          |
+| switches |                                               |          |
 |          |[ OWN HAND ...................... ][melds]     |          |
 +----------+-----------------------------------------------+----------+
   left bar   table: own row between the side lanes         right bar
@@ -186,8 +186,8 @@ slack around the core than a height-bound board keeps (0.3 river tiles of air un
 centred in the window,
 the spare height above and below it. Everything is placed in the table: the top hand along its top, the side
 strips' lines centred on the core (or under the counters), the plates, the decisions' band, the own row along its
-bottom, and the bars' contents too: the counters, a replay's status and the cog at the table's top, the switches and
-the replay column ending level
+bottom, and the bars' contents too: the counters, a replay's status and the cog at the table's top, the switches (and
+a small window's replay column) ending level
 with the own row. The seams run to
 the table's corners; the felt continues above and below it, the top field's tint above, the plain foreground below.
 
@@ -197,7 +197,8 @@ box too short there for three kans or for the decisions' band to hold the prompt
 instead); the
 decisions and the timer stand in a band along the own row's top between the side lanes, as on a desktop (Decisions);
 the cog stands in the right bar, the replay's moves there too, at its
-foot, in two columns where the bar's height above the own row does not hold one; the dora stand at the left bar's
+foot, in two columns where the bar's height above the own row does not hold one, each move back beside its move on
+and autoplay spanning both under them; the dora stand at the left bar's
 top (a phone's top-left corner is too short for them under the plate), the play switches as a two-by-two block at
 its foot, ending at the own row's top, the furiten mark above them and the notices between; the plates stand in
 the core's corners as on a desktop (Badges). Over a panel the notices move to the right bar.
@@ -225,9 +226,13 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   over it: the bottom river's longest reach stands right over the own melds' rise.
 - **Side bars**: the left one holds a replay's status under the dora, which stand at the table's top-left
   corner (Dora indicators), and the furiten mark over the play switches, which end a band's height over the own tiles' foot; the right one
-  the page's cog at its top and a replay's controls at its foot, by the own row. Nothing in a bar is a tile, and a
-  desktop's panel, which stands in the table, leaves both usable. On a very wide window the cog and a replay's
-  controls stand near the table's edge, not centred in the whole bar.
+  the page's cog at its top. Nothing in a bar is a tile, and a desktop's panel, which stands in the table, leaves both
+  usable. On a very wide window the cog stands near the table's edge, not centred in the whole bar.
+- **Replay controls**: off a phone a replay's moves and options stand in one row over the own hand:
+  along the decisions' band's foot from the bottom river's start, at the control floor or larger, clear of the own
+  plate's pill; the row may cover the bottom river's last row, which the reader steps past, and a panel stands above
+  it so it stays usable. A window whose band holds no such row (a small one) stands them at the right bar's foot, by
+  the own row, paired as a phone's are.
 
 ## Elements
 

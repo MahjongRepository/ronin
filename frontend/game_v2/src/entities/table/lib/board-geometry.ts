@@ -101,6 +101,7 @@ interface BoardGeometry {
     readonly tracks: BoardTracks;
     readonly strips: StripRooms | null;
     readonly switches: SwitchesForm;
+    readonly replay: ReplayForm;
     readonly areas: Readonly<Partial<Record<string, BoardRect>>>;
 }
 
@@ -491,6 +492,7 @@ function desktopLengths(frame: BoardFrame): BoardLengths {
     }
     return {
         ...desktopLayout(table, rw, fitsDrawnOwnRow).lengths,
+        "table-below": Math.ceil((frame.box.height - table.box.height) / 2),
         "table-h": table.box.height,
         "table-top": Math.floor((frame.box.height - table.box.height) / 2),
     };
@@ -1323,6 +1325,7 @@ interface BoardShell {
     readonly lengths: readonly [string, number][];
     readonly strips: StripRooms;
     readonly switches: SwitchesForm;
+    readonly replay: ReplayForm;
 }
 
 /**
@@ -1609,11 +1612,11 @@ const REPLAY_GROUP_GAPS = 2;
 
 /**
  * A desktop replay's control: this share of a river tile, never under the control floor (px); the columns its block may
- * stand in, fewest first.
+ * stand in within a small window's bar, fewest first.
  */
 const REPLAY_BY_RIVER = 0.95;
 const REPLAY_CONTROL_FLOOR = 40;
-const REPLAY_COLUMNS = [1, 2, 3] as const;
+const REPLAY_COLUMNS = [1, 2] as const;
 
 /** The furiten mark's height in its text's ems, and its text's least size (px); `.board-furiten` mirrors both. */
 const FURITEN_EMS = 1.5;
@@ -1622,6 +1625,17 @@ const FURITEN_TEXT_MIN = 12;
 /** The play switches' form: each switch showing its name, or the letters' joined column. */
 type SwitchesForm = "names" | "letters";
 
+/**
+ * A replay's controls' form: one row over the own row, or in the right bar one column or two, the moves there paired
+ * back and forward with autoplay under them.
+ */
+type ReplayForm = "row" | "column" | "pairs";
+
+/** The form of a replay's controls standing in a bar in so many columns. */
+function barReplayForm(columns: number): ReplayForm {
+    return columns === 1 ? "column" : "pairs";
+}
+
 /** What a family places in its controls' slots: their areas, the lengths their contents read, the switches' form. */
 interface ControlSlots {
     readonly areas: Readonly<
@@ -1629,10 +1643,60 @@ interface ControlSlots {
     >;
     readonly lengths: readonly [string, number][];
     readonly switches: SwitchesForm;
+    readonly replay: ReplayForm;
+}
+
+/** A desktop replay's controls: their block's place, their side and the block's width (px). */
+interface ReplayBlock {
+    readonly rect: BoardRect;
+    readonly side: number;
+    readonly width: number;
+}
+
+/** A desktop replay's control at its wanted side: a share of a river tile, never under the control floor (px). */
+function wantedReplaySide(at: (name: string) => number): number {
+    return Math.max(REPLAY_CONTROL_FLOOR, Math.round(REPLAY_BY_RIVER * at("rw")));
+}
+
+/**
+ * The own plate's pill as a desktop's flat table places it: its left edge and its top and foot (px); a replay's row may
+ * graze its rounded edge by this much.
+ */
+const PILL_GRAZE = 2;
+type OwnPill = Readonly<Record<"bottom" | "left" | "top", number>>;
+
+/**
+ * A desktop replay's controls in the decisions' band, over the own hand: the moves and then the
+ * options in one row along the band's foot from its start (the bottom river's), each at its wanted side where the band
+ * holds them so large; null where the band holds no row at the control floor or the row would cover the own plate's
+ * pill. The row stands over the bottom river's last row, which a replay's reader steps past.
+ */
+function replayRow({ at, tier }: ShellRoom, band: BoardRect, pill: OwnPill): ReplayBlock | null {
+    const count = REPLAY_MOVES + REPLAY_OPTIONS;
+    const gaps = (count - 2 + REPLAY_GROUP_GAPS) * tier.replayGap;
+    const side = Math.floor(
+        Math.min(
+            wantedReplaySide(at),
+            (band.right - band.left - gaps) / count,
+            band.bottom - band.top,
+        ),
+    );
+    const width = count * side + gaps;
+    const rect = {
+        bottom: band.bottom,
+        left: band.left,
+        right: band.left + width,
+        top: band.bottom - side,
+    };
+    const clearOfPill =
+        rect.right <= pill.left ||
+        rect.top >= pill.bottom - PILL_GRAZE ||
+        rect.bottom <= pill.top + PILL_GRAZE;
+    return side >= REPLAY_CONTROL_FLOOR && clearOfPill ? { rect, side, width } : null;
 }
 
 /** A desktop replay's controls arranged in so many columns within a bar: their side, and the block they make (px). */
-function replayArrangement(
+function replayColumnArrangement(
     { at, tier }: ShellRoom,
     room: Readonly<Record<"across" | "down", number>>,
     columns: number,
@@ -1640,9 +1704,12 @@ function replayArrangement(
     const gap = tier.replayGap;
     const rows = Math.ceil(REPLAY_MOVES / columns) + Math.ceil(REPLAY_OPTIONS / columns);
     const gaps = (rows - 2 + REPLAY_GROUP_GAPS) * gap;
-    const wanted = Math.max(REPLAY_CONTROL_FLOOR, Math.round(REPLAY_BY_RIVER * at("rw")));
     const side = Math.floor(
-        Math.min(wanted, (room.across - (columns - 1) * gap) / columns, (room.down - gaps) / rows),
+        Math.min(
+            wantedReplaySide(at),
+            (room.across - (columns - 1) * gap) / columns,
+            (room.down - gaps) / rows,
+        ),
     );
     return {
         columns,
@@ -1653,17 +1720,18 @@ function replayArrangement(
 }
 
 /**
- * A desktop replay's controls in the right bar: the moves over the options, each `REPLAY_BY_RIVER` of a river tile
- * (never under the control floor) where the bar holds them so large, in the fewest columns holding them at their
- * largest whose block stays in the bar's lower half, else the fewest at that size; centred across the bar and standing
- * on its foot, by the own row.
+ * A small window's replay controls, whose band holds no row at the control floor, in the right bar: the moves over the
+ * options, in one column, or two (the moves paired) where that holds them larger or only two keep the block in the
+ * bar's lower half; centred across the bar and standing on its foot, by the own row.
  */
 function replayColumn(
     room: ShellRoom,
     bar: BoardRect,
-): { readonly rect: BoardRect; readonly side: number; readonly width: number } {
+): ReplayBlock & { readonly form: ReplayForm } {
     const free = { across: bar.right - bar.left, down: bar.bottom - bar.top };
-    const arrangements = REPLAY_COLUMNS.map((columns) => replayArrangement(room, free, columns));
+    const arrangements = REPLAY_COLUMNS.map((columns) =>
+        replayColumnArrangement(room, free, columns),
+    );
     function inLowerHalf({ height }: { readonly height: number }): boolean {
         return height <= free.down / 2;
     }
@@ -1676,6 +1744,7 @@ function replayColumn(
     const top = bar.bottom - pick.height;
     const left = (bar.left + bar.right - pick.width) / 2;
     return {
+        form: barReplayForm(pick.columns),
         rect: { bottom: bar.bottom, left, right: left + pick.width, top },
         side: pick.side,
         width: pick.width,
@@ -1707,8 +1776,8 @@ const TOAST_TEXT_MIN = 14;
 /** A side strip's line shifted under the counters ends this far over a pill's height above the own tiles' foot (px). */
 const LINE_PLATE_GAP = 2;
 
-/** A bar's controls stand centred within this many of their widths off the table column, however wide the bar. */
-const BAR_REACH_WIDTHS = 3;
+/** The cog stands centred within this many river tiles off the table column, however wide the bar. */
+const BAR_REACH_RIVER_TILES = 6;
 
 /**
  * The least bar the table column leaves a tier that names its switches: their width at the least label `namedSwitches`
@@ -1750,13 +1819,19 @@ function noticeText(text: number, fieldWidth: number, ems = NOTICE_FIELD_EMS): n
  * notices over a panel and a replay's status; the notices' toasts take their own text), the
  * furiten mark, and the play switches' column ending at `switchesFoot`
  * (a pill's height over the own tiles' foot), each switch named where the bar holds a named one at its label's floor; in the right bar the
- * cog at its top and a replay's controls (`replayColumn`) at its foot, both centred on the bar's part next to the
- * column, and where the cog stands (its left); live play's decisions' cluster over the own row (`desktopActions`).
+ * cog at its top, centred on the bar's part next to the column, and where it stands (its left); over the own row live
+ * play's decisions' cluster (`desktopActions`) or a replay's controls along that band's foot (`replayRow`), a replay's
+ * panel standing above them, where the band holds them at the control floor, else at the right bar's foot
+ * (`replayColumn`).
  */
 function desktopBars(
     room: ShellRoom,
     decisions: ReturnType<typeof desktopActions>,
-    { fieldTop, switchesFoot }: { readonly fieldTop: number; readonly switchesFoot: number },
+    {
+        fieldTop,
+        ownPill,
+        switchesFoot,
+    }: { readonly fieldTop: number; readonly ownPill: OwnPill; readonly switchesFoot: number },
 ): ControlSlots & { readonly cogLeft: number } {
     const { at, frame, tier } = room;
     const { height, width } = frame.box;
@@ -1790,11 +1865,23 @@ function desktopBars(
         right: fieldRight(colLeft),
         top: fieldTop,
     };
-    const below = { ...rightBar, top: BAR_GAP + at("menu-size") + BAR_GAP };
-    const replayWidth = replayColumn(room, below).width;
-    const nearRight = Math.min(rightBar.right, rightBar.left + BAR_REACH_WIDTHS * replayWidth);
-    const replay = replayColumn(room, { ...below, right: nearRight });
-    const actions = frame.slots.band === "replay" ? replay.rect : decisions.rect;
+    const nearRight = Math.min(rightBar.right, rightBar.left + BAR_REACH_RIVER_TILES * at("rw"));
+    const replaying = frame.slots.band === "replay";
+    const row = replayRow(room, decisions.rect, ownPill);
+    const inRow = row !== null;
+    const replay =
+        row === null
+            ? replayColumn(room, {
+                  ...rightBar,
+                  right: nearRight,
+                  top: BAR_GAP + at("menu-size") + BAR_GAP,
+              })
+            : { ...row, form: "row" as const };
+    const actions = replaying ? replay.rect : decisions.rect;
+    const replayPanel: [string, number][] =
+        replaying && inRow
+            ? [["overlay-bottom", height - replay.rect.top + PANEL_GAP + at("table-below")]]
+            : [];
     const namedLengths: [string, number][] =
         named === null
             ? []
@@ -1830,8 +1917,10 @@ function desktopBars(
             ["replay-gap", tier.replayGap],
             ["replay-group-gap", REPLAY_GROUP_GAPS * tier.replayGap],
             ["replay-w", replay.width],
+            ...replayPanel,
             ...namedLengths,
         ],
+        replay: replay.form,
         switches: named === null ? "letters" : "names",
     };
 }
@@ -1842,12 +1931,13 @@ const REPLAY_OPTIONS_ON_PHONE = 2;
 function phoneReplayBlock(
     { movesH, replayGap }: Pick<TierChrome, "movesH" | "replayGap">,
     room: number,
-): Readonly<Record<"height" | "width", number>> {
-    function block(columns: number): Readonly<Record<"height" | "width", number>> {
+): Readonly<Record<"columns" | "height" | "width", number>> {
+    function block(columns: number): Readonly<Record<"columns" | "height" | "width", number>> {
         const rows =
             Math.ceil(REPLAY_MOVES_ON_PHONE / columns) +
             Math.ceil(REPLAY_OPTIONS_ON_PHONE / columns);
         return {
+            columns,
             height: rows * movesH + (rows - 2 + REPLAY_GROUP_GAPS) * replayGap,
             width: columns * movesH + (columns - 1) * replayGap,
         };
@@ -1858,15 +1948,17 @@ function phoneReplayBlock(
 
 /**
  * A phone replay's controls in the right bar: the moves over the options at the tier's control, in one column where
- * the bar's height holds it, else two, standing on the bar's foot and centred across it.
+ * the bar's height holds it, else two (the moves paired), standing on the bar's foot at its right edge, under the
+ * cog.
  */
 function phoneReplayColumn(
     { tier }: ShellRoom,
     bar: BoardRect,
-): { readonly rect: BoardRect; readonly width: number } {
+): { readonly form: ReplayForm; readonly rect: BoardRect; readonly width: number } {
     const pick = phoneReplayBlock(tier, bar.bottom - bar.top);
-    const left = (bar.left + bar.right - pick.width) / 2;
+    const left = bar.right - pick.width;
     return {
+        form: barReplayForm(pick.columns),
         rect: { bottom: bar.bottom, left, right: left + pick.width, top: bar.bottom - pick.height },
         width: pick.width,
     };
@@ -1949,6 +2041,7 @@ function phoneControls(room: ShellRoom): ControlSlots {
             ["replay-group-gap", REPLAY_GROUP_GAPS * tier.replayGap],
             ["replay-w", replay.width],
         ],
+        replay: replay.form,
         switches: "letters",
     };
 }
@@ -2129,7 +2222,7 @@ function rowFootPlateTop({ at, frame, tier }: ShellRoom): number {
 }
 
 /** A desktop's plates (`plateRect`), their bottom row above the own row's melds' line end. */
-function desktopPlates(room: ShellRoom): PlatePlaces {
+function desktopPlates(room: ShellRoom): PlatePlaces & { readonly ownPill: OwnPill } {
     const { at, tier } = room;
     const rect = plateRect(
         at,
@@ -2138,6 +2231,11 @@ function desktopPlates(room: ShellRoom): PlatePlaces {
     );
     return {
         lengths: plateLengths(room.frame.box.width, room.at, rect),
+        ownPill: {
+            bottom: rect.bottom + tier.pillH,
+            left: at("cx") + rect.across,
+            top: rect.bottom,
+        },
         topBadgeTop: rect.top - rect.pad,
     };
 }
@@ -2207,11 +2305,12 @@ function desktopShell(room: ShellRoom): BoardShell {
         rw: at("rw"),
     });
     const decisions = desktopActions(room);
+    const plates = desktopPlates(room);
     const controls = desktopBars(room, decisions, {
         fieldTop: counters.fieldTop,
+        ownPill: plates.ownPill,
         switchesFoot: rowFootPlateTop(room) - BAR_GAP,
     });
-    const plates = desktopPlates(room);
     const strips = opponentStrips(room, {
         leftEnd: lines.end,
         leftStart: lines.start,
@@ -2242,6 +2341,7 @@ function desktopShell(room: ShellRoom): BoardShell {
             ["toasts-top", toasts.top],
             ["toasts-w", toasts.right - toasts.left],
         ],
+        replay: controls.replay,
         strips: strips.strips,
         switches: controls.switches,
     };
@@ -2275,6 +2375,7 @@ function phoneShell(room: ShellRoom): BoardShell {
     return {
         areas: { ...controls.areas, hand: own.area, ...strips.areas },
         lengths: [...controls.lengths, ...plates.lengths, ...own.lengths],
+        replay: controls.replay,
         strips: strips.strips,
         switches: controls.switches,
     };
@@ -2445,6 +2546,7 @@ function solveFrame(
             ...sizes,
             ...Object.fromEntries(shell?.lengths ?? []),
         }),
+        replay: shell?.replay ?? "column",
         strips: shell === null ? null : Object.freeze(shell.strips),
         switches: shell?.switches ?? "letters",
         tracks: Object.freeze(
@@ -2527,5 +2629,6 @@ export type {
     BoardSlots,
     BoardTracks,
     PlaneSpare,
+    ReplayForm,
     SwitchesForm,
 };
