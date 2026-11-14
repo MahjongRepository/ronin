@@ -337,9 +337,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   but for a short roll at its foot and thin rims, its end under it split the same way. Decision: a hand's tiles stand
   a one-pixel hairline apart, as the own hand's; a side strip's tiles run along the light, each covering the end of
   the tile above it, and a covered end is not drawn, so the hairline shows the table between them; only an exposed
-  end shows (the run's lowest tile on the screen, and the tile above the drawn gap). While any tile of a hand slides,
-  from the moment the discard leaves through the slide's end, every tile of that hand shows its end, a covered one
-  under the next tile anyway, so a tile left above an empty slot never stands without its end. The drawn gap shows
+  end shows (the run's lowest tile on the screen, and the tile above the drawn gap). While a hand slides, from the
+  moment the discard leaves through the slide's end, a tile shows its end only where the tile below it moves apart
+  from it (the tile left above an empty slot, or above a tile sliding in), so it never stands without its end, and
+  every tile moving together with its neighbour keeps its hairline. The drawn gap shows
   the end of the tile above it and is deeper by it, so the clear table past the end reads as the top strip's gap.
   Every seat
   keeps its melds in one continuous line to the hand's right from that player's view: downward for the left seat, upward for the right. The oldest meld stays at the far end;

@@ -5,13 +5,13 @@ import { OWN_LYING_HEIGHT_SHARE } from "@/entities/table/lib/board-constants";
 import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
 import { planTileMotion } from "@/entities/table/lib/board-motion";
 import {
-    type BoardMotionCue,
-    type BoardPerspective,
-    type SeatPosition,
+  type BoardMotionCue,
+  type BoardPerspective,
+  type SeatPosition,
 } from "@/entities/table/model/board-types";
 import {
-    createInitialPlayerState,
-    createInitialTableState,
+  createInitialPlayerState,
+  createInitialTableState,
 } from "@/entities/table/model/initial-state";
 import { type TableState } from "@/entities/table/model/types";
 import { animateBoard } from "@/entities/table/ui/board-motion-directive";
@@ -25,1000 +25,1217 @@ let animations: Animation[] = [];
 const perspective: BoardPerspective = { bottomSeat: 0, reveal: "all" };
 
 function table(dealt: boolean): TableState {
-    return {
-        ...createInitialTableState(),
-        gameId: "motion",
-        players: [0, 1, 2, 3].map((seat) => ({
-            ...createInitialPlayerState({
-                isAiPlayer: false,
-                name: `Seat ${seat}`,
-                score: 25_000,
-                seat,
-            }),
-            tiles: dealt ? Array.from({ length: 13 }, (_unused, index) => seat * 32 + index) : [],
-        })),
-    };
+  return {
+    ...createInitialTableState(),
+    gameId: "motion",
+    players: [0, 1, 2, 3].map((seat) => ({
+      ...createInitialPlayerState({
+        isAiPlayer: false,
+        name: `Seat ${seat}`,
+        score: 25_000,
+        seat,
+      }),
+      tiles: dealt
+        ? Array.from({ length: 13 }, (_unused, index) => seat * 32 + index)
+        : [],
+    })),
+  };
 }
 
 function drawn(state: TableState): TableState {
-    return {
-        ...state,
-        players: state.players.map((player) =>
-            player.seat === 0
-                ? { ...player, drawnTileId: 120, tiles: [...player.tiles, 120] }
-                : player,
-        ),
-    };
+  return {
+    ...state,
+    players: state.players.map((player) =>
+      player.seat === 0
+        ? { ...player, drawnTileId: 120, tiles: [...player.tiles, 120] }
+        : player,
+    ),
+  };
 }
 
 interface ShowOptions {
-    readonly view?: BoardPerspective;
-    readonly animationsOn?: boolean;
+  readonly view?: BoardPerspective;
+  readonly animationsOn?: boolean;
 }
 
 function draw(
-    state: TableState,
-    cue: BoardMotionCue,
-    { animationsOn = true, view = perspective }: ShowOptions = {},
+  state: TableState,
+  cue: BoardMotionCue,
+  { animationsOn = true, view = perspective }: ShowOptions = {},
 ): void {
-    render(
-        GameBoard({
-            animationsOn,
-            debug: false,
-            motion: cue,
-            state: tableStateToDisplayState(state, view),
-        }),
-        host,
-    );
+  render(
+    GameBoard({
+      animationsOn,
+      debug: false,
+      motion: cue,
+      state: tableStateToDisplayState(state, view),
+    }),
+    host,
+  );
 }
 
 function getBox(element: HTMLElement): DOMRect {
-    if (element.classList.contains("game-board")) {
-        return DOMRect.fromRect({ height: 800, width: 1200 });
-    }
-    const area = element.closest<HTMLElement>("[data-area]")?.dataset.area ?? "";
-    const siblings = element.parentElement?.parentElement?.querySelectorAll("[data-tile-id]") ?? [];
-    const index = [...siblings].indexOf(element.parentElement!);
-    return new DOMRect(100 + index * 32, area.endsWith("hand") ? 600 : 300, 30, 40);
+  if (element.classList.contains("game-board")) {
+    return DOMRect.fromRect({ height: 800, width: 1200 });
+  }
+  const area = element.closest<HTMLElement>("[data-area]")?.dataset.area ?? "";
+  const siblings =
+    element.parentElement?.parentElement?.querySelectorAll("[data-tile-id]") ??
+    [];
+  const index = [...siblings].indexOf(element.parentElement!);
+  return new DOMRect(
+    100 + index * 32,
+    area.endsWith("hand") ? 600 : 300,
+    30,
+    40,
+  );
 }
 
 async function show(
-    state: TableState,
-    cue: BoardMotionCue,
-    options: ShowOptions = {},
+  state: TableState,
+  cue: BoardMotionCue,
+  options: ShowOptions = {},
 ): Promise<void> {
-    draw(state, cue, options);
-    await Promise.resolve();
+  draw(state, cue, options);
+  await Promise.resolve();
 }
 
 function finishAll(): void {
-    for (const animation of animations) {
-        animation.finish();
-    }
+  for (const animation of animations) {
+    animation.finish();
+  }
 }
 
 function getAnimationFrames(animation: Animation): ComputedKeyframe[] {
-    if (!(animation.effect instanceof KeyframeEffect)) {
-        throw new Error("Expected a keyframe animation");
-    }
-    return animation.effect.getKeyframes();
+  if (!(animation.effect instanceof KeyframeEffect)) {
+    throw new Error("Expected a keyframe animation");
+  }
+  return animation.effect.getKeyframes();
 }
 
 function translateOf(animation: Animation): number[] {
-    const transform = String(getAnimationFrames(animation)[0].transform);
-    const match = /translate\((?<x>[^p]+)px, (?<y>[^p]+)px\)/u.exec(transform);
-    if (match?.groups === undefined) {
-        throw new Error(`Expected a translate in ${transform}`);
-    }
-    return [Number(match.groups.x), Number(match.groups.y)];
+  const transform = String(getAnimationFrames(animation)[0].transform);
+  const match = /translate\((?<x>[^p]+)px, (?<y>[^p]+)px\)/u.exec(transform);
+  if (match?.groups === undefined) {
+    throw new Error(`Expected a translate in ${transform}`);
+  }
+  return [Number(match.groups.x), Number(match.groups.y)];
 }
 
 function hiddenTiles(): number {
-    return host.querySelectorAll(".tile[style*='hidden']").length;
+  return host.querySelectorAll(".tile[style*='hidden']").length;
 }
 
 function renderHand(
-    tiles: readonly HandTile[],
-    onTile: (id: number) => void,
-    seat: SeatPosition = "bottom",
+  tiles: readonly HandTile[],
+  onTile: (id: number) => void,
+  seat: SeatPosition = "bottom",
 ): void {
-    render(html`<div data-area=${`${seat}-hand`}>${Hand({ onTile, tiles })}</div>`, host);
+  render(
+    html`<div data-area=${`${seat}-hand`}>${Hand({ onTile, tiles })}</div>`,
+    host,
+  );
 }
 
 function movingHand(seat: SeatPosition = "bottom") {
-    const onTile = vi.fn();
-    const tiles: HandTile[] = [
-        { face: "1m", show: "face", state: "selectable", tileId: 0 },
-        { face: "2m", show: "face", state: "selectable", tileId: 4 },
-    ];
-    renderHand(tiles, onTile, seat);
-    const before = snapshotTiles(host);
-    renderHand(tiles.toReversed(), onTile, seat);
-    const after = snapshotTiles(host);
-    const player = new BoardMotionPlayer(host);
-    player.play(planTileMotion(before, after), before, after);
-    return { onTile, player, target: after[1] };
+  const onTile = vi.fn();
+  const tiles: HandTile[] = [
+    { face: "1m", show: "face", state: "selectable", tileId: 0 },
+    { face: "2m", show: "face", state: "selectable", tileId: 4 },
+  ];
+  renderHand(tiles, onTile, seat);
+  const before = snapshotTiles(host);
+  renderHand(tiles.toReversed(), onTile, seat);
+  const after = snapshotTiles(host);
+  const player = new BoardMotionPlayer(host);
+  player.play(planTileMotion(before, after), before, after);
+  return { onTile, player, target: after[1] };
+}
+
+function discardSecondOfFour(seat: SeatPosition): BoardMotionPlayer {
+  const tiles: HandTile[] = [0, 4, 8, 12].map((tileId) => ({
+    face: "1m",
+    show: "face",
+    state: "selectable",
+    tileId,
+  }));
+  renderHand(tiles, vi.fn(), seat);
+  const before = snapshotTiles(host);
+  renderHand(tiles.toSpliced(1, 1), vi.fn(), seat);
+  const after = snapshotTiles(host);
+  const player = new BoardMotionPlayer(host);
+  player.play(planTileMotion(before, after), before, after);
+  return player;
 }
 
 function flyingHand() {
-    const onTile = vi.fn();
-    const tiles = [{ face: "1m", show: "face", state: "selectable", tileId: 0 }] as const;
-    renderHand(tiles, onTile);
-    const before = snapshotTiles(host);
-    render(
-        html`<div data-area="bottom-hand">${Hand({ drawnTile: { face: "2m", show: "face", state: "selectable", tileId: 4 }, onTile, tiles })}</div>`,
-        host,
-    );
-    const after = snapshotTiles(host);
-    const player = new BoardMotionPlayer(host);
-    player.play(planTileMotion(before, after), before, after);
-    return { onTile, player, target: after[1] };
+  const onTile = vi.fn();
+  const tiles = [
+    { face: "1m", show: "face", state: "selectable", tileId: 0 },
+  ] as const;
+  renderHand(tiles, onTile);
+  const before = snapshotTiles(host);
+  render(
+    html`<div data-area="bottom-hand">
+      ${Hand({ drawnTile: { face: "2m", show: "face", state: "selectable", tileId: 4 }, onTile, tiles })}
+    </div>`,
+    host,
+  );
+  const after = snapshotTiles(host);
+  const player = new BoardMotionPlayer(host);
+  player.play(planTileMotion(before, after), before, after);
+  return { onTile, player, target: after[1] };
 }
 
 async function showMovingHand(
-    tiles: readonly HandTile[],
-    sequence: number,
-    mode: BoardMotionCue["mode"] = "step",
+  tiles: readonly HandTile[],
+  sequence: number,
+  mode: BoardMotionCue["mode"] = "step",
 ): Promise<void> {
-    const state = tableStateToDisplayState(table(true), perspective);
-    render(
-        html`<div class="game-board" ${animateBoard(state, { mode, sequence }, true)}>
-        <div data-area="bottom-hand">${Hand({ tiles })}</div>
+  const state = tableStateToDisplayState(table(true), perspective);
+  render(
+    html`<div
+      class="game-board"
+      ${animateBoard(state, { mode, sequence }, true)}
+    >
+      <div data-area="bottom-hand">${Hand({ tiles })}</div>
     </div>`,
-        host,
-    );
-    await Promise.resolve();
+    host,
+  );
+  await Promise.resolve();
 }
 
 function getMovingFace(): HTMLElement {
-    const face = host.querySelector<HTMLElement>(".hand-tile[data-tile-id='4'] > .tile");
-    if (face === null) {
-        throw new Error("Expected a moving tile");
-    }
-    return face;
+  const face = host.querySelector<HTMLElement>(
+    ".hand-tile[data-tile-id='4'] > .tile",
+  );
+  if (face === null) {
+    throw new Error("Expected a moving tile");
+  }
+  return face;
 }
 
 function renderRiichiFlight(discarded: boolean, last = false): void {
-    const held: HandTile = { face: "2m", show: "face", state: "selectable", tileId: 4 };
-    const tiles: readonly HandTile[] = discarded
-        ? [held]
-        : [{ face: "1m", show: "face", state: "selectable", tileId: 0 }, held];
-    render(
-        html`<div class="board-local" data-area="bottom-hand">${Hand({ standing: true, tiles })}</div>
-        <div data-area="bottom-discards">${Discards(discarded ? [{ face: "1m", last, riichi: true, tileId: 0 }] : [])}</div>`,
-        host,
-    );
+  const held: HandTile = {
+    face: "2m",
+    show: "face",
+    state: "selectable",
+    tileId: 4,
+  };
+  const tiles: readonly HandTile[] = discarded
+    ? [held]
+    : [{ face: "1m", show: "face", state: "selectable", tileId: 0 }, held];
+  render(
+    html`<div class="board-local" data-area="bottom-hand">
+        ${Hand({ standing: true, tiles })}
+      </div>
+      <div data-area="bottom-discards">
+        ${Discards(discarded ? [{ face: "1m", last, riichi: true, tileId: 0 }] : [])}
+      </div>`,
+    host,
+  );
 }
 
 function measureFlightTile(this: HTMLElement): DOMRect {
-    if (!this.classList.contains("tile")) {
-        return getBox(this);
-    }
-    if (this.closest("[data-area='bottom-hand']") !== null) {
-        return new DOMRect(100, 600, 48, 64);
-    }
-    const gap = this.parentElement?.classList.contains("discard-tile--last") ? 7 : 0;
-    return new DOMRect(100 + gap, 300 + gap, 48, 36);
+  if (!this.classList.contains("tile")) {
+    return getBox(this);
+  }
+  if (this.closest("[data-area='bottom-hand']") !== null) {
+    return new DOMRect(100, 600, 48, 64);
+  }
+  const gap = this.parentElement?.classList.contains("discard-tile--last")
+    ? 7
+    : 0;
+  return new DOMRect(100 + gap, 300 + gap, 48, 36);
 }
 
 /** A camera tilting its rows away (their weight falls down the box), and one that also rolls them. */
-const TILTED = "matrix3d(1, 0, 0, 0, 0, 0.9, 0, -0.0005, 0, 0, 1, 0, 0, 0, 0, 1)";
-const ROLLED = "matrix3d(1, 0.1, 0, 0, 0, 0.9, 0, -0.0005, 0, 0, 1, 0, 0, 0, 0, 1)";
+const TILTED =
+  "matrix3d(1, 0, 0, 0, 0, 0.9, 0, -0.0005, 0, 0, 1, 0, 0, 0, 0, 1)";
+const ROLLED =
+  "matrix3d(1, 0.1, 0, 0, 0, 0.9, 0, -0.0005, 0, 0, 1, 0, 0, 0, 0, 1)";
 
 function renderTiltedDiscard(discarded: boolean, camera: string): void {
-    const held: HandTile = { face: "2m", show: "face", state: "selectable", tileId: 4 };
-    render(
-        html`<div class="board-local" data-area="bottom-hand">${Hand({ tiles: discarded ? [held] : [{ face: "1m", show: "face", state: "selectable", tileId: 0 }, held] })}</div>
-        <div style=${`transform: ${camera}`}>
-            <div data-area="bottom-discards">${Discards(discarded ? [{ face: "1m", tileId: 0 }] : [])}</div>
-        </div>`,
-        host,
-    );
+  const held: HandTile = {
+    face: "2m",
+    show: "face",
+    state: "selectable",
+    tileId: 4,
+  };
+  render(
+    html`<div class="board-local" data-area="bottom-hand">
+        ${Hand({ tiles: discarded ? [held] : [{ face: "1m", show: "face", state: "selectable", tileId: 0 }, held] })}
+      </div>
+      <div style=${`transform: ${camera}`}>
+        <div data-area="bottom-discards">
+          ${Discards(discarded ? [{ face: "1m", tileId: 0 }] : [])}
+        </div>
+      </div>`,
+    host,
+  );
 }
 
 function renderTiltedSideDiscard(discarded: boolean): void {
-    const held: HandTile = { face: "2m", show: "face", state: "selectable", tileId: 4 };
-    render(
-        html`<div class="board-local" data-area="bottom-hand">${Hand({ standing: true, tiles: discarded ? [held] : [{ face: "1m", show: "face", state: "selectable", tileId: 0 }, held] })}</div>
-        <div style=${`transform: ${TILTED}`}>
-            <div data-area="left-discards">${Discards(discarded ? [{ face: "1m", tileId: 0 }] : [], "wrap", 90)}</div>
-        </div>`,
-        host,
-    );
+  const held: HandTile = {
+    face: "2m",
+    show: "face",
+    state: "selectable",
+    tileId: 4,
+  };
+  render(
+    html`<div class="board-local" data-area="bottom-hand">
+        ${Hand({ standing: true, tiles: discarded ? [held] : [{ face: "1m", show: "face", state: "selectable", tileId: 0 }, held] })}
+      </div>
+      <div style=${`transform: ${TILTED}`}>
+        <div data-area="left-discards">
+          ${Discards(discarded ? [{ face: "1m", tileId: 0 }] : [], "wrap", 90)}
+        </div>
+      </div>`,
+    host,
+  );
 }
 
 function startRiichiFlight(last = false): BoardMotionPlayer {
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureFlightTile);
-    renderRiichiFlight(false);
-    const before = snapshotTiles(host);
-    renderRiichiFlight(true, last);
-    const after = snapshotTiles(host);
-    const player = new BoardMotionPlayer(host);
-    player.play(planTileMotion(before, after), before, after);
-    return player;
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    measureFlightTile,
+  );
+  renderRiichiFlight(false);
+  const before = snapshotTiles(host);
+  renderRiichiFlight(true, last);
+  const after = snapshotTiles(host);
+  const player = new BoardMotionPlayer(host);
+  player.play(planTileMotion(before, after), before, after);
+  return player;
 }
 
 function setHalfwayRiichiPose(): void {
-    const image = host.querySelector<HTMLElement>(".board-motion__tile");
-    if (image === null) {
-        throw new Error("Expected a flying discard");
-    }
-    image.style.setProperty("--motion-angle", "45deg");
-    image.style.setProperty("--motion-height", "56px");
-    image.style.setProperty("--motion-width", "42px");
+  const image = host.querySelector<HTMLElement>(".board-motion__tile");
+  if (image === null) {
+    throw new Error("Expected a flying discard");
+  }
+  image.style.setProperty("--motion-angle", "45deg");
+  image.style.setProperty("--motion-height", "56px");
+  image.style.setProperty("--motion-width", "42px");
 }
 
 function settleRiichiFlight(player: BoardMotionPlayer): void {
-    player.prepareRender();
-    const before = snapshotTiles(host);
-    renderRiichiFlight(true);
-    const after = snapshotTiles(host);
-    player.play(planTileMotion(before, after), before, after);
+  player.prepareRender();
+  const before = snapshotTiles(host);
+  renderRiichiFlight(true);
+  const after = snapshotTiles(host);
+  player.play(planTileMotion(before, after), before, after);
 }
 
-function renderSettlingRiver(seat: SeatPosition, riichi: boolean, last: boolean): void {
-    render(
-        html`<div data-area=${`${seat}-hand`}>${Hand({ tiles: [{ face: "1m", show: "face", tileId: 0 }] })}</div>
-        <div data-area=${`${seat}-discards`}>${Discards([
-            { face: "2m", tileId: 4 },
-            { face: "3m", last, riichi, tileId: 8 },
-        ])}</div>`,
-        host,
-    );
+function renderSettlingRiver(
+  seat: SeatPosition,
+  riichi: boolean,
+  last: boolean,
+): void {
+  render(
+    html`<div data-area=${`${seat}-hand`}>
+        ${Hand({ tiles: [{ face: "1m", show: "face", tileId: 0 }] })}
+      </div>
+      <div data-area=${`${seat}-discards`}>
+        ${Discards([
+          { face: "2m", tileId: 4 },
+          { face: "3m", last, riichi, tileId: 8 },
+        ])}
+      </div>`,
+    host,
+  );
 }
 
-function startSettlingRiver(seat: SeatPosition, riichi: boolean): BoardMotionPlayer {
-    renderSettlingRiver(seat, riichi, true);
-    const before = snapshotTiles(host);
-    renderSettlingRiver(seat, riichi, false);
-    const after = snapshotTiles(host);
-    const player = new BoardMotionPlayer(host);
-    player.play(planTileMotion(before, after), before, after);
-    return player;
+function startSettlingRiver(
+  seat: SeatPosition,
+  riichi: boolean,
+): BoardMotionPlayer {
+  renderSettlingRiver(seat, riichi, true);
+  const before = snapshotTiles(host);
+  renderSettlingRiver(seat, riichi, false);
+  const after = snapshotTiles(host);
+  const player = new BoardMotionPlayer(host);
+  player.play(planTileMotion(before, after), before, after);
+  return player;
 }
 
 function renderResizingMeld(small: boolean): void {
-    render(
-        html`<div data-area="right-hand">${Hand({ tiles: [{ face: "1m", show: "face", tileId: 0 }] })}</div>
-        <div data-area="right-melds" data-small=${String(small)}>${Meld([
-            { face: "2m", kind: "upright", tileId: 4 },
-            { face: "2m", kind: "sideways", tileId: 5 },
-            { face: "2m", kind: "upright", tileId: 6 },
-        ])}</div>`,
-        host,
-    );
+  render(
+    html`<div data-area="right-hand">
+        ${Hand({ tiles: [{ face: "1m", show: "face", tileId: 0 }] })}
+      </div>
+      <div data-area="right-melds" data-small=${String(small)}>
+        ${Meld([
+          { face: "2m", kind: "upright", tileId: 4 },
+          { face: "2m", kind: "sideways", tileId: 5 },
+          { face: "2m", kind: "upright", tileId: 6 },
+        ])}
+      </div>`,
+    host,
+  );
 }
 
 function measureMeldTile(this: HTMLElement): DOMRect {
-    const area = this.closest<HTMLElement>("[data-area='right-melds']");
-    if (area === null) {
-        return getBox(this);
-    }
-    const small = area.dataset.small === "true";
-    const id = Number(this.parentElement?.dataset.tileId);
-    const sideways = id === 5;
-    const scale = small ? 0.8 : 1;
-    return new DOMRect(
-        small ? 308 : 300,
-        200 - (id - 4) * 40 * scale,
-        (sideways ? 30 : 40) * scale,
-        (sideways ? 40 : 30) * scale,
-    );
+  const area = this.closest<HTMLElement>("[data-area='right-melds']");
+  if (area === null) {
+    return getBox(this);
+  }
+  const small = area.dataset.small === "true";
+  const id = Number(this.parentElement?.dataset.tileId);
+  const sideways = id === 5;
+  const scale = small ? 0.8 : 1;
+  return new DOMRect(
+    small ? 308 : 300,
+    200 - (id - 4) * 40 * scale,
+    (sideways ? 30 : 40) * scale,
+    (sideways ? 40 : 30) * scale,
+  );
 }
 
 function startResizingMeld(): BoardMotionPlayer {
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureMeldTile);
-    host.insertAdjacentHTML(
-        "beforeend",
-        "<style>.tile { width: 30px; } .meld-tile-sideways > .tile { width: 40px; }</style>",
-    );
-    renderResizingMeld(false);
-    const before = snapshotTiles(host);
-    renderResizingMeld(true);
-    const after = snapshotTiles(host);
-    const player = new BoardMotionPlayer(host);
-    player.play(planTileMotion(before, after), before, after);
-    return player;
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    measureMeldTile,
+  );
+  host.insertAdjacentHTML(
+    "beforeend",
+    "<style>.tile { width: 30px; } .meld-tile-sideways > .tile { width: 40px; }</style>",
+  );
+  renderResizingMeld(false);
+  const before = snapshotTiles(host);
+  renderResizingMeld(true);
+  const after = snapshotTiles(host);
+  const player = new BoardMotionPlayer(host);
+  player.play(planTileMotion(before, after), before, after);
+  return player;
 }
 
-async function startRevealingHand(): Promise<{ state: TableState; view: BoardPerspective }> {
-    const view = { bottomSeat: 0, reveal: "bottom" } as const;
-    const dealt = table(true);
-    await show(dealt, { mode: "reset", sequence: 0 }, { view });
-    const state = { ...dealt, revealedSeats: [1] };
-    await show(state, { mode: "step", sequence: 1 }, { view });
-    return { state, view };
+async function startRevealingHand(): Promise<{
+  state: TableState;
+  view: BoardPerspective;
+}> {
+  const view = { bottomSeat: 0, reveal: "bottom" } as const;
+  const dealt = table(true);
+  await show(dealt, { mode: "reset", sequence: 0 }, { view });
+  const state = { ...dealt, revealedSeats: [1] };
+  await show(state, { mode: "step", sequence: 1 }, { view });
+  return { state, view };
 }
 
 async function showPanel(matchResult: boolean, held: boolean): Promise<void> {
-    render(
-        GameBoard({
-            debug: false,
-            matchResult,
-            overlay: html`<p>${matchResult ? "Standings" : "Win result"}</p>`,
-            overlayHeld: held,
-            state: null,
-        }),
-        host,
-    );
-    await Promise.resolve();
+  render(
+    GameBoard({
+      debug: false,
+      matchResult,
+      overlay: html`<p>${matchResult ? "Standings" : "Win result"}</p>`,
+      overlayHeld: held,
+      state: null,
+    }),
+    host,
+  );
+  await Promise.resolve();
 }
 
 beforeEach(() => {
-    host = document.createElement("div");
-    document.body.append(host);
-    animations = [];
-    const { animate } = HTMLElement.prototype;
-    vi.spyOn(HTMLElement.prototype, "animate").mockImplementation(function animatePaused(
-        this: HTMLElement,
-        frames,
-        options,
-    ) {
-        const animation = animate.call(this, frames, options);
-        void animation.finished.catch((error: unknown) => {
-            expect(error).toMatchObject({ name: "AbortError" });
-        });
-        animation.pause();
-        animations.push(animation);
-        return animation;
-    });
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-        function measureTile(this: HTMLElement) {
-            return getBox(this);
-        },
-    );
+  host = document.createElement("div");
+  document.body.append(host);
+  animations = [];
+  const { animate } = HTMLElement.prototype;
+  vi.spyOn(HTMLElement.prototype, "animate").mockImplementation(
+    function animatePaused(this: HTMLElement, frames, options) {
+      const animation = animate.call(this, frames, options);
+      void animation.finished.catch((error: unknown) => {
+        expect(error).toMatchObject({ name: "AbortError" });
+      });
+      animation.pause();
+      animations.push(animation);
+      return animation;
+    },
+  );
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    function measureTile(this: HTMLElement) {
+      return getBox(this);
+    },
+  );
 });
 
 describe("moving hand feedback", () => {
-    it("updates disabled and selected feedback without restarting a tile's movement", async () => {
-        const tiles = [
-            { face: "1m", show: "face", state: "waiting", tileId: 0 },
-            { face: "2m", show: "face", state: "waiting", tileId: 4 },
-        ] as const satisfies readonly HandTile[];
-        host.insertAdjacentHTML(
-            "beforeend",
-            `<style>
+  it("updates disabled and selected feedback without restarting a tile's movement", async () => {
+    const tiles = [
+      { face: "1m", show: "face", state: "waiting", tileId: 0 },
+      { face: "2m", show: "face", state: "waiting", tileId: 4 },
+    ] as const satisfies readonly HandTile[];
+    host.insertAdjacentHTML(
+      "beforeend",
+      `<style>
             .hand-tile--disabled .tile { filter: grayscale(1) brightness(0.82); }
             .hand-tile--selected .tile { outline: 3px solid red; outline-offset: 2px; }
         </style>`,
-        );
-        await showMovingHand(tiles, 0);
-        await showMovingHand(tiles.toReversed(), 1);
-        const moving = getMovingFace();
-        animations.forEach((animation) => {
-            animation.currentTime = 60;
-        });
-        await showMovingHand(
-            tiles.toReversed().map((tile) => ({ ...tile, state: "disabled" })),
-            1,
-        );
-        expect(getComputedStyle(moving).filter).toBe("grayscale(1) brightness(0.82)");
-        await showMovingHand(
-            tiles.toReversed().map((tile) => ({ ...tile, state: "selected" })),
-            1,
-        );
-        expect([
-            getMovingFace(),
-            getComputedStyle(moving).filter,
-            getComputedStyle(moving).outline,
-            getComputedStyle(moving).outlineOffset,
-            animations.map((animation) => animation.currentTime),
-            hiddenTiles(),
-            host.querySelector(".board-motion"),
-        ]).toEqual([moving, "", "red solid 3px", "2px", [60, 60], 0, null]);
+    );
+    await showMovingHand(tiles, 0);
+    await showMovingHand(tiles.toReversed(), 1);
+    const moving = getMovingFace();
+    animations.forEach((animation) => {
+      animation.currentTime = 60;
     });
+    await showMovingHand(
+      tiles.toReversed().map((tile) => ({ ...tile, state: "disabled" })),
+      1,
+    );
+    expect(getComputedStyle(moving).filter).toBe(
+      "grayscale(1) brightness(0.82)",
+    );
+    await showMovingHand(
+      tiles.toReversed().map((tile) => ({ ...tile, state: "selected" })),
+      1,
+    );
+    expect([
+      getMovingFace(),
+      getComputedStyle(moving).filter,
+      getComputedStyle(moving).outline,
+      getComputedStyle(moving).outlineOffset,
+      animations.map((animation) => animation.currentTime),
+      hiddenTiles(),
+      host.querySelector(".board-motion"),
+    ]).toEqual([moving, "", "red solid 3px", "2px", [60, 60], 0, null]);
+  });
 });
 
 describe("match result motion", () => {
-    it("fades standings after a winning result without restarting the copied panel's opening delay", async () => {
-        await showPanel(false, true);
-        await showPanel(true, false);
-        await showPanel(false, false);
-        const leaving = host.querySelector(".board-overlay--leaving");
-        expect(leaving).not.toBeNull();
-        expect([
-            leaving?.textContent?.trim(),
-            leaving?.classList.contains("board-overlay--held"),
-            host
-                .querySelector(".board-overlay:not(.board-overlay--leaving)")
-                ?.classList.contains("board-overlay--held"),
-        ]).toEqual(["Standings", false, true]);
-        expect(animations).toHaveLength(1);
-        finishAll();
-        expect(host.querySelector(".board-overlay--leaving")).toBeNull();
-    });
+  it("fades standings after a winning result without restarting the copied panel's opening delay", async () => {
+    await showPanel(false, true);
+    await showPanel(true, false);
+    await showPanel(false, false);
+    const leaving = host.querySelector(".board-overlay--leaving");
+    expect(leaving).not.toBeNull();
+    expect([
+      leaving?.textContent?.trim(),
+      leaving?.classList.contains("board-overlay--held"),
+      host
+        .querySelector(".board-overlay:not(.board-overlay--leaving)")
+        ?.classList.contains("board-overlay--held"),
+    ]).toEqual(["Standings", false, true]);
+    expect(animations).toHaveLength(1);
+    finishAll();
+    expect(host.querySelector(".board-overlay--leaving")).toBeNull();
+  });
 });
 
 afterEach(() => {
-    render(nothing, host);
-    host.remove();
-    vi.restoreAllMocks();
+  render(nothing, host);
+  host.remove();
+  vi.restoreAllMocks();
 });
 
 describe("shared tile depth", () => {
-    it("resizes a laid meld's upright and sideways tiles inside their shared shadow", () => {
-        const player = startResizingMeld();
-        expect([animations.length, hiddenTiles(), host.querySelector(".board-motion")]).toEqual([
-            3,
-            0,
-            null,
-        ]);
-        expect(animations.map((animation) => getAnimationFrames(animation)[0].transform)).toEqual([
-            expect.stringContaining("scale(1.25)"),
-            expect.stringContaining("scale(1.25)"),
-            expect.stringContaining("scale(1.25)"),
-        ]);
-        expect(animations.map((animation) => translateOf(animation))).toEqual([
-            [expect.closeTo(-3.75), expect.closeTo(-5)],
-            [expect.closeTo(5), expect.closeTo(-6.25)],
-            [expect.closeTo(16.25), expect.closeTo(-5)],
-        ]);
-        expect(animations.map((animation) => getAnimationFrames(animation)[1].transform)).toEqual([
-            "translate(0px, 0px) scale(1)",
-            "translate(0px, 0px) scale(1)",
-            "translate(0px, 0px) scale(1)",
-        ]);
-        player.cancel();
-        expect(animations.every((animation) => animation.playState === "idle")).toBe(true);
-    });
+  it("resizes a laid meld's upright and sideways tiles inside their shared shadow", () => {
+    const player = startResizingMeld();
+    expect([
+      animations.length,
+      hiddenTiles(),
+      host.querySelector(".board-motion"),
+    ]).toEqual([3, 0, null]);
+    expect(
+      animations.map((animation) => getAnimationFrames(animation)[0].transform),
+    ).toEqual([
+      expect.stringContaining("scale(1.25)"),
+      expect.stringContaining("scale(1.25)"),
+      expect.stringContaining("scale(1.25)"),
+    ]);
+    expect(animations.map((animation) => translateOf(animation))).toEqual([
+      [expect.closeTo(-3.75), expect.closeTo(-5)],
+      [expect.closeTo(5), expect.closeTo(-6.25)],
+      [expect.closeTo(16.25), expect.closeTo(-5)],
+    ]);
+    expect(
+      animations.map((animation) => getAnimationFrames(animation)[1].transform),
+    ).toEqual([
+      "translate(0px, 0px) scale(1)",
+      "translate(0px, 0px) scale(1)",
+      "translate(0px, 0px) scale(1)",
+    ]);
+    player.cancel();
+    expect(
+      animations.every((animation) => animation.playState === "idle"),
+    ).toBe(true);
+  });
 
-    it("stages a revealed hand inside its native slots and keeps its timing through redraws", async () => {
-        const { state, view } = await startRevealingHand();
-        expect([
-            animations.length,
-            host.querySelectorAll(".hand-tile > .board-reveal-back").length,
-            host.querySelector(".board-motion"),
-        ]).toEqual([13, 13, null]);
-        animations[0].finish();
-        animations[5].currentTime = 90;
-        await show(state, { mode: "step", sequence: 1 }, { view });
-        expect([
-            animations.length,
-            animations[5].currentTime,
-            host.querySelectorAll(".hand-tile > .board-reveal-back").length,
-        ]).toEqual([13, 90, 12]);
-        render(nothing, host);
-        expect(animations.map((animation) => animation.playState)).toEqual(Array(13).fill("idle"));
-    });
+  it("stages a revealed hand inside its native slots and keeps its timing through redraws", async () => {
+    const { state, view } = await startRevealingHand();
+    expect([
+      animations.length,
+      host.querySelectorAll(".hand-tile > .board-reveal-back").length,
+      host.querySelector(".board-motion"),
+    ]).toEqual([13, 13, null]);
+    animations[0].finish();
+    animations[5].currentTime = 90;
+    await show(state, { mode: "step", sequence: 1 }, { view });
+    expect([
+      animations.length,
+      animations[5].currentTime,
+      host.querySelectorAll(".hand-tile > .board-reveal-back").length,
+    ]).toEqual([13, 90, 12]);
+    render(nothing, host);
+    expect(animations.map((animation) => animation.playState)).toEqual(
+      Array(13).fill("idle"),
+    );
+  });
 });
 
 describe("board motion", () => {
-    it("keeps a rearranging hand tile visible and clickable through its native button", () => {
-        const { onTile, player, target } = movingHand();
-        expect([target.id, hiddenTiles(), host.querySelector(".board-motion")]).toEqual([
-            "0",
-            0,
-            null,
-        ]);
-        target.element.closest("button")?.click();
-        expect(onTile).toHaveBeenCalledExactlyOnceWith(0);
-        player.cancel();
-        expect(target.element.closest("button")?.style.pointerEvents).toBe("");
-        expect(animations.every((animation) => animation.playState === "idle")).toBe(true);
-    });
+  it("keeps a rearranging hand tile visible and clickable through its native button", () => {
+    const { onTile, player, target } = movingHand();
+    expect([
+      target.id,
+      hiddenTiles(),
+      host.querySelector(".board-motion"),
+    ]).toEqual(["0", 0, null]);
+    target.element.closest("button")?.click();
+    expect(onTile).toHaveBeenCalledExactlyOnceWith(0);
+    player.cancel();
+    expect(target.element.closest("button")?.style.pointerEvents).toBe("");
+    expect(
+      animations.every((animation) => animation.playState === "idle"),
+    ).toBe(true);
+  });
 
-    it("blocks moving tile taps when an overlay makes the table inert", () => {
-        const { onTile, player, target } = flyingHand();
-        expect(target.image.isConnected).toBe(true);
-        host.setAttribute("inert", "");
-        target.image.click();
-        expect(onTile).not.toHaveBeenCalled();
-        player.cancel();
-    });
+  it("blocks moving tile taps when an overlay makes the table inert", () => {
+    const { onTile, player, target } = flyingHand();
+    expect(target.image.isConnected).toBe(true);
+    host.setAttribute("inert", "");
+    target.image.click();
+    expect(onTile).not.toHaveBeenCalled();
+    player.cancel();
+  });
 
-    it("shows starting hands immediately and animates the following draw without a deal delay", async () => {
-        await show(table(false), { mode: "reset", sequence: 0 });
-        const dealt = table(true);
-        await show(dealt, { mode: "step", sequence: 1 });
-        expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
-        await show(drawn(dealt), { mode: "step", sequence: 2 });
-        expect([animations.length, hiddenTiles()]).toEqual([4, 1]);
-        expect(animations[0].effect?.getTiming().delay).toBe(0);
-    });
+  it("shows starting hands immediately and animates the following draw without a deal delay", async () => {
+    await show(table(false), { mode: "reset", sequence: 0 });
+    const dealt = table(true);
+    await show(dealt, { mode: "step", sequence: 1 });
+    expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
+    await show(drawn(dealt), { mode: "step", sequence: 2 });
+    expect([animations.length, hiddenTiles()]).toEqual([4, 1]);
+    expect(animations[0].effect?.getTiming().delay).toBe(0);
+  });
 
-    it("shows a deal and first draw rendered in the same task immediately", async () => {
-        await show(table(false), { mode: "reset", sequence: 0 });
-        const dealt = table(true);
-        draw(dealt, { mode: "step", sequence: 1 });
-        await show(drawn(dealt), { mode: "step", sequence: 2 });
-        expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
-        finishAll();
-        expect(hiddenTiles()).toBe(0);
-    });
+  it("shows a deal and first draw rendered in the same task immediately", async () => {
+    await show(table(false), { mode: "reset", sequence: 0 });
+    const dealt = table(true);
+    draw(dealt, { mode: "step", sequence: 1 });
+    await show(drawn(dealt), { mode: "step", sequence: 2 });
+    expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
+    finishAll();
+    expect(hiddenTiles()).toBe(0);
+  });
 
-    it("clears old flights and shows a new round immediately even when it reuses tile ids", async () => {
-        const dealt = table(true);
-        await show(dealt, { mode: "reset", sequence: 0 });
-        await show(drawn(dealt), { mode: "step", sequence: 1 });
-        expect(hiddenTiles()).toBe(1);
-        await show({ ...dealt, roundNumber: dealt.roundNumber + 1 }, { mode: "step", sequence: 2 });
-        expect([
-            hiddenTiles(),
-            animations.length,
-            animations.every((animation) => animation.playState === "idle"),
-        ]).toEqual([0, 4, true]);
-    });
-
-    it.each([
-        { mode: "step", nextState: "paused" },
-        { mode: "replay", nextState: "idle" },
-    ] as const)(
-        "keeps a draw through redraws and handles the next $mode update",
-        async ({ mode, nextState }) => {
-            const dealt = table(true);
-            await show(dealt, { mode, sequence: 0 });
-            const after = drawn(dealt);
-            await show(after, { mode, sequence: 1 });
-            expect(animations.length).toBe(4);
-            await show(after, { mode, sequence: 1 });
-            expect(animations.every((animation) => animation.playState === "paused")).toBe(true);
-            await show({ ...after, doraIndicators: [24] }, { mode, sequence: 2 });
-            expect([
-                animations.length,
-                animations.every((animation) => animation.playState === nextState),
-                hiddenTiles(),
-            ]).toEqual([4, true, mode === "replay" ? 0 : 1]);
-        },
+  it("clears old flights and shows a new round immediately even when it reuses tile ids", async () => {
+    const dealt = table(true);
+    await show(dealt, { mode: "reset", sequence: 0 });
+    await show(drawn(dealt), { mode: "step", sequence: 1 });
+    expect(hiddenTiles()).toBe(1);
+    await show(
+      { ...dealt, roundNumber: dealt.roundNumber + 1 },
+      { mode: "step", sequence: 2 },
     );
+    expect([
+      hiddenTiles(),
+      animations.length,
+      animations.every((animation) => animation.playState === "idle"),
+    ]).toEqual([0, 4, true]);
+  });
 
-    it("snaps a reconnect without replaying it and restores every hidden tile", async () => {
-        const dealt = table(true);
-        await show(dealt, { mode: "reset", sequence: 0 });
-        await show(drawn(dealt), { mode: "step", sequence: 1 });
-        expect(hiddenTiles()).toBe(1);
-        await show(drawn(dealt), { mode: "reset", sequence: 2 });
-        expect([
-            animations.length,
-            hiddenTiles(),
-            animations.every((animation) => animation.playState === "idle"),
-        ]).toEqual([4, 0, true]);
-    });
+  it.each([
+    { mode: "step", nextState: "paused" },
+    { mode: "replay", nextState: "idle" },
+  ] as const)(
+    "keeps a draw through redraws and handles the next $mode update",
+    async ({ mode, nextState }) => {
+      const dealt = table(true);
+      await show(dealt, { mode, sequence: 0 });
+      const after = drawn(dealt);
+      await show(after, { mode, sequence: 1 });
+      expect(animations.length).toBe(4);
+      await show(after, { mode, sequence: 1 });
+      expect(
+        animations.every((animation) => animation.playState === "paused"),
+      ).toBe(true);
+      await show({ ...after, doraIndicators: [24] }, { mode, sequence: 2 });
+      expect([
+        animations.length,
+        animations.every((animation) => animation.playState === nextState),
+        hiddenTiles(),
+      ]).toEqual([4, true, mode === "replay" ? 0 : 1]);
+    },
+  );
 
-    it("cancels a flight on replay jumps or viewpoint changes and starts no new flights", async () => {
-        const dealt = table(true);
-        await show(dealt, { mode: "step", sequence: 0 });
-        await show(drawn(dealt), { mode: "step", sequence: 1 });
-        expect(animations.length).toBe(4);
-        draw(dealt, { mode: "step", sequence: 8 });
-        await show(
-            drawn(dealt),
-            { mode: "step", sequence: 9 },
-            { view: { bottomSeat: 1, reveal: "all" } },
-        );
-        expect([animations.length, hiddenTiles()]).toEqual([4, 0]);
-    });
+  it("snaps a reconnect without replaying it and restores every hidden tile", async () => {
+    const dealt = table(true);
+    await show(dealt, { mode: "reset", sequence: 0 });
+    await show(drawn(dealt), { mode: "step", sequence: 1 });
+    expect(hiddenTiles()).toBe(1);
+    await show(drawn(dealt), { mode: "reset", sequence: 2 });
+    expect([
+      animations.length,
+      hiddenTiles(),
+      animations.every((animation) => animation.playState === "idle"),
+    ]).toEqual([4, 0, true]);
+  });
 
-    it("cancels every flight when its board unmounts", async () => {
-        await show(table(true), { mode: "reset", sequence: 0 });
-        await show(drawn(table(true)), { mode: "step", sequence: 1 });
-        expect(animations.length).toBe(4);
-        render(nothing, host);
-        expect(animations.every((animation) => animation.playState === "idle")).toBe(true);
-        expect(host.querySelector(".board-motion")).toBeNull();
-    });
+  it("cancels a flight on replay jumps or viewpoint changes and starts no new flights", async () => {
+    const dealt = table(true);
+    await show(dealt, { mode: "step", sequence: 0 });
+    await show(drawn(dealt), { mode: "step", sequence: 1 });
+    expect(animations.length).toBe(4);
+    draw(dealt, { mode: "step", sequence: 8 });
+    await show(
+      drawn(dealt),
+      { mode: "step", sequence: 9 },
+      { view: { bottomSeat: 1, reveal: "all" } },
+    );
+    expect([animations.length, hiddenTiles()]).toEqual([4, 0]);
+  });
 
-    it("shows the destination immediately when reduced motion is requested", async () => {
-        const media = matchMedia("(prefers-reduced-motion: reduce)");
-        vi.spyOn(media, "matches", "get").mockReturnValue(true);
-        vi.spyOn(window, "matchMedia").mockReturnValue(media);
-        await show(table(false), { mode: "reset", sequence: 0 });
-        await show(table(true), { mode: "step", sequence: 1 });
-        expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
-    });
+  it("cancels every flight when its board unmounts", async () => {
+    await show(table(true), { mode: "reset", sequence: 0 });
+    await show(drawn(table(true)), { mode: "step", sequence: 1 });
+    expect(animations.length).toBe(4);
+    render(nothing, host);
+    expect(
+      animations.every((animation) => animation.playState === "idle"),
+    ).toBe(true);
+    expect(host.querySelector(".board-motion")).toBeNull();
+  });
+
+  it("shows the destination immediately when reduced motion is requested", async () => {
+    const media = matchMedia("(prefers-reduced-motion: reduce)");
+    vi.spyOn(media, "matches", "get").mockReturnValue(true);
+    vi.spyOn(window, "matchMedia").mockReturnValue(media);
+    await show(table(false), { mode: "reset", sequence: 0 });
+    await show(table(true), { mode: "step", sequence: 1 });
+    expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
+  });
 });
 
 describe("animations switch", () => {
-    it("cancels a running flight when the animations turn off and starts none while they stay off", async () => {
-        await show(table(true), { mode: "reset", sequence: 0 });
-        await show(drawn(table(true)), { mode: "step", sequence: 1 });
+  it("cancels a running flight when the animations turn off and starts none while they stay off", async () => {
+    await show(table(true), { mode: "reset", sequence: 0 });
+    await show(drawn(table(true)), { mode: "step", sequence: 1 });
 
-        const off = { animationsOn: false };
-        await show(drawn(table(true)), { mode: "step", sequence: 1 }, off);
-        await show(table(true), { mode: "step", sequence: 2 }, off);
+    const off = { animationsOn: false };
+    await show(drawn(table(true)), { mode: "step", sequence: 1 }, off);
+    await show(table(true), { mode: "step", sequence: 2 }, off);
 
-        expect([
-            animations.length,
-            animations.every((animation) => animation.playState === "idle"),
-            hiddenTiles(),
-            host.querySelector(".game-board")?.getAttribute("data-motion"),
-        ]).toEqual([4, true, 0, "off"]);
-    });
+    expect([
+      animations.length,
+      animations.every((animation) => animation.playState === "idle"),
+      hiddenTiles(),
+      host.querySelector(".game-board")?.getAttribute("data-motion"),
+    ]).toEqual([4, true, 0, "off"]);
+  });
 });
 
 describe("tile flight material", () => {
-    it("starts a riichi discard at hand size as the river's lying tile and rotates and shrinks it into the sideways river slot", () => {
-        const player = startRiichiFlight();
-        expect(getAnimationFrames(animations[0])).toMatchObject([
-            {
-                "--motion-across": "64px",
-                "--motion-angle": "0deg",
-                "--motion-down": "48px",
-                "--motion-height": "64px",
-                "--motion-width": "48px",
-            },
-            {
-                "--motion-across": "48px",
-                "--motion-angle": "90deg",
-                "--motion-down": "36px",
-                "--motion-height": "48px",
-                "--motion-width": "36px",
-            },
-        ]);
-        expect(host.querySelectorAll(".board-motion__tile > .tile--standing")).toHaveLength(0);
-        expect(
-            host
-                .querySelector(".board-motion__tile > .tile > .tile__body > use")
-                ?.getAttribute("href"),
-        ).toBe("#body-lying-sideways");
-        player.cancel();
-    });
+  it("starts a riichi discard at hand size as the river's lying tile and rotates and shrinks it into the sideways river slot", () => {
+    const player = startRiichiFlight();
+    expect(getAnimationFrames(animations[0])).toMatchObject([
+      {
+        "--motion-across": "64px",
+        "--motion-angle": "0deg",
+        "--motion-down": "48px",
+        "--motion-height": "64px",
+        "--motion-width": "48px",
+      },
+      {
+        "--motion-across": "48px",
+        "--motion-angle": "90deg",
+        "--motion-down": "36px",
+        "--motion-height": "48px",
+        "--motion-width": "36px",
+      },
+    ]);
+    expect(
+      host.querySelectorAll(".board-motion__tile > .tile--standing"),
+    ).toHaveLength(0);
+    expect(
+      host
+        .querySelector(".board-motion__tile > .tile > .tile__body > use")
+        ?.getAttribute("href"),
+    ).toBe("#body-lying-sideways");
+    player.cancel();
+  });
 
-    it("continues an unfinished riichi flight's pose when the next draw closes its river gap", () => {
-        const player = startRiichiFlight(true);
-        expect(animations).toHaveLength(4);
-        setHalfwayRiichiPose();
-        settleRiichiFlight(player);
-        expect(animations).toHaveLength(5);
-        expect(animations.slice(0, 4).map((animation) => animation.playState)).toEqual([
-            "idle",
-            "idle",
-            "idle",
-            "idle",
-        ]);
-        expect(getAnimationFrames(animations[4])).toMatchObject([
-            {
-                "--motion-angle": "45deg",
-                "--motion-height": "56px",
-                "--motion-width": "42px",
-            },
-            {
-                "--motion-angle": "90deg",
-                "--motion-height": "48px",
-                "--motion-width": "36px",
-            },
-        ]);
-        finishAll();
-        expect([hiddenTiles(), host.querySelector(".board-motion")]).toEqual([0, null]);
-        player.cancel();
-    });
+  it("continues an unfinished riichi flight's pose when the next draw closes its river gap", () => {
+    const player = startRiichiFlight(true);
+    expect(animations).toHaveLength(4);
+    setHalfwayRiichiPose();
+    settleRiichiFlight(player);
+    expect(animations).toHaveLength(5);
+    expect(
+      animations.slice(0, 4).map((animation) => animation.playState),
+    ).toEqual(["idle", "idle", "idle", "idle"]);
+    expect(getAnimationFrames(animations[4])).toMatchObject([
+      {
+        "--motion-angle": "45deg",
+        "--motion-height": "56px",
+        "--motion-width": "42px",
+      },
+      {
+        "--motion-angle": "90deg",
+        "--motion-height": "48px",
+        "--motion-width": "36px",
+      },
+    ]);
+    finishAll();
+    expect([hiddenTiles(), host.querySelector(".board-motion")]).toEqual([
+      0,
+      null,
+    ]);
+    player.cancel();
+  });
 });
 
 function startTiltedFlight(): BoardMotionPlayer {
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureFlightTile);
-    renderTiltedDiscard(false, TILTED);
-    const before = snapshotTiles(host);
-    renderTiltedDiscard(true, TILTED);
-    const after = snapshotTiles(host);
-    const player = new BoardMotionPlayer(host);
-    player.play(planTileMotion(before, after), before, after);
-    return player;
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    measureFlightTile,
+  );
+  renderTiltedDiscard(false, TILTED);
+  const before = snapshotTiles(host);
+  renderTiltedDiscard(true, TILTED);
+  const after = snapshotTiles(host);
+  const player = new BoardMotionPlayer(host);
+  player.play(planTileMotion(before, after), before, after);
+  return player;
 }
 
 function renderOwnDraw(withDraw: boolean): void {
-    const held: HandTile = { face: "1m", show: "face", state: "selectable", tileId: 0 };
-    const newTile: HandTile = { face: "2m", show: "face", state: "selectable", tileId: 4 };
-    render(
-        html`<div class="board-local" data-area="bottom-hand">${Hand({ drawnTile: withDraw ? newTile : undefined, standing: true, tiles: [held] })}</div>`,
-        host,
-    );
+  const held: HandTile = {
+    face: "1m",
+    show: "face",
+    state: "selectable",
+    tileId: 0,
+  };
+  const newTile: HandTile = {
+    face: "2m",
+    show: "face",
+    state: "selectable",
+    tileId: 4,
+  };
+  render(
+    html`<div class="board-local" data-area="bottom-hand">
+      ${Hand({ drawnTile: withDraw ? newTile : undefined, standing: true, tiles: [held] })}
+    </div>`,
+    host,
+  );
 }
 
 function startOwnDraw(): BoardMotionPlayer {
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureFlightTile);
-    renderOwnDraw(false);
-    const before = snapshotTiles(host);
-    renderOwnDraw(true);
-    const after = snapshotTiles(host);
-    const player = new BoardMotionPlayer(host);
-    player.play(planTileMotion(before, after), before, after);
-    return player;
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    measureFlightTile,
+  );
+  renderOwnDraw(false);
+  const before = snapshotTiles(host);
+  renderOwnDraw(true);
+  const after = snapshotTiles(host);
+  const player = new BoardMotionPlayer(host);
+  player.play(planTileMotion(before, after), before, after);
+  return player;
 }
 
 describe("own draw flight", () => {
-    it("flies a live own draw as its own button's standing body from take-off to landing", () => {
-        const player = startOwnDraw();
+  it("flies a live own draw as its own button's standing body from take-off to landing", () => {
+    const player = startOwnDraw();
 
-        const image = host.querySelector(".board-motion__tile:not(.board-motion__tile--trail)");
-        expect(image?.classList.contains("board-motion__tile--individual")).toBe(true);
-        expect(image?.querySelector(":scope > .tile--standing use")?.getAttribute("href")).toBe(
-            "#body-standing",
-        );
-        player.cancel();
-    });
+    const image = host.querySelector(
+      ".board-motion__tile:not(.board-motion__tile--trail)",
+    );
+    expect(image?.classList.contains("board-motion__tile--individual")).toBe(
+      true,
+    );
+    expect(
+      image
+        ?.querySelector(":scope > .tile--standing use")
+        ?.getAttribute("href"),
+    ).toBe("#body-standing");
+    player.cancel();
+  });
 
-    it("takes a draw discarded while still in flight off from its pose there as the river's lying tile", () => {
-        const { flights, player } = discardDrawInFlight();
+  it("takes a draw discarded while still in flight off from its pose there as the river's lying tile", () => {
+    const { flights, player } = discardDrawInFlight();
 
-        const [start] = getAnimationFrames(animations[flights]);
-        expect(start).toMatchObject({ "--motion-width": "42px" });
-        expect(host.querySelectorAll(".board-motion__tile > .tile--standing")).toHaveLength(0);
-        player.cancel();
-    });
+    const [start] = getAnimationFrames(animations[flights]);
+    expect(start).toMatchObject({ "--motion-width": "42px" });
+    expect(
+      host.querySelectorAll(".board-motion__tile > .tile--standing"),
+    ).toHaveLength(0);
+    player.cancel();
+  });
 });
 
 function flyOwnDraw(): BoardMotionPlayer {
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureFlightTile);
-    renderOwnDrawAndDiscard("held");
-    const held = snapshotTiles(host);
-    renderOwnDrawAndDiscard("drawn");
-    const holding = snapshotTiles(host);
-    const player = new BoardMotionPlayer(host);
-    player.play(planTileMotion(held, holding), held, holding);
-    return player;
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    measureFlightTile,
+  );
+  renderOwnDrawAndDiscard("held");
+  const held = snapshotTiles(host);
+  renderOwnDrawAndDiscard("drawn");
+  const holding = snapshotTiles(host);
+  const player = new BoardMotionPlayer(host);
+  player.play(planTileMotion(held, holding), held, holding);
+  return player;
 }
 
-function setFlightPose(image: HTMLElement | null, pose: Readonly<Record<string, string>>): void {
-    for (const [name, value] of Object.entries(pose)) {
-        image?.style.setProperty(name, value);
-    }
+function setFlightPose(
+  image: HTMLElement | null,
+  pose: Readonly<Record<string, string>>,
+): void {
+  for (const [name, value] of Object.entries(pose)) {
+    image?.style.setProperty(name, value);
+  }
 }
 
-function discardDrawInFlight(): { readonly flights: number; readonly player: BoardMotionPlayer } {
-    const player = flyOwnDraw();
-    setFlightPose(
-        host.querySelector<HTMLElement>(".board-motion__tile:not(.board-motion__tile--trail)"),
-        {
-            "--motion-angle": "0deg",
-            "--motion-height": "56px",
-            "--motion-width": "42px",
-        },
-    );
-    player.prepareRender();
-    const before = snapshotTiles(host);
-    renderOwnDrawAndDiscard("discarded");
-    const after = snapshotTiles(host);
-    const flights = animations.length;
-    player.play(planTileMotion(before, after), before, after);
-    return { flights, player };
+function discardDrawInFlight(): {
+  readonly flights: number;
+  readonly player: BoardMotionPlayer;
+} {
+  const player = flyOwnDraw();
+  setFlightPose(
+    host.querySelector<HTMLElement>(
+      ".board-motion__tile:not(.board-motion__tile--trail)",
+    ),
+    {
+      "--motion-angle": "0deg",
+      "--motion-height": "56px",
+      "--motion-width": "42px",
+    },
+  );
+  player.prepareRender();
+  const before = snapshotTiles(host);
+  renderOwnDrawAndDiscard("discarded");
+  const after = snapshotTiles(host);
+  const flights = animations.length;
+  player.play(planTileMotion(before, after), before, after);
+  return { flights, player };
 }
 
 function renderOwnDrawAndDiscard(stage: "held" | "drawn" | "discarded"): void {
-    const held: HandTile = { face: "1m", show: "face", state: "selectable", tileId: 0 };
-    const newTile: HandTile = { face: "2m", show: "face", state: "selectable", tileId: 4 };
-    render(
-        html`<div class="board-local" data-area="bottom-hand">${Hand({ drawnTile: stage === "drawn" ? newTile : undefined, standing: true, tiles: [held] })}</div>
-        <div data-area="bottom-discards">${Discards(stage === "discarded" ? [{ face: "2m", tileId: 4 }] : [])}</div>`,
-        host,
-    );
+  const held: HandTile = {
+    face: "1m",
+    show: "face",
+    state: "selectable",
+    tileId: 0,
+  };
+  const newTile: HandTile = {
+    face: "2m",
+    show: "face",
+    state: "selectable",
+    tileId: 4,
+  };
+  render(
+    html`<div class="board-local" data-area="bottom-hand">
+        ${Hand({ drawnTile: stage === "drawn" ? newTile : undefined, standing: true, tiles: [held] })}
+      </div>
+      <div data-area="bottom-discards">
+        ${Discards(stage === "discarded" ? [{ face: "2m", tileId: 4 }] : [])}
+      </div>`,
+    host,
+  );
 }
 
 function renderOwnPon(called: boolean): void {
-    const pair: readonly HandTile[] = [
-        { face: "3p", show: "face", state: "selectable", tileId: 10 },
-        { face: "3p", show: "face", state: "selectable", tileId: 11 },
-    ];
-    const pon = Meld(
-        [
-            { face: "3p", kind: "sideways", tileId: 9 },
-            { face: "3p", kind: "upright", tileId: 10 },
-            { face: "3p", kind: "upright", tileId: 11 },
-        ],
-        false,
-        { own: true, turn: 0 },
-    );
-    render(
-        html`<div class="board-local">
-            <div data-area="bottom-hand">${Hand({ standing: true, tiles: called ? [] : pair })}</div>
-            <div data-area="bottom-melds">${called ? pon : nothing}</div>
+  const pair: readonly HandTile[] = [
+    { face: "3p", show: "face", state: "selectable", tileId: 10 },
+    { face: "3p", show: "face", state: "selectable", tileId: 11 },
+  ];
+  const pon = Meld(
+    [
+      { face: "3p", kind: "sideways", tileId: 9 },
+      { face: "3p", kind: "upright", tileId: 10 },
+      { face: "3p", kind: "upright", tileId: 11 },
+    ],
+    false,
+    { own: true, turn: 0 },
+  );
+  render(
+    html`<div class="board-local">
+        <div data-area="bottom-hand">
+          ${Hand({ standing: true, tiles: called ? [] : pair })}
         </div>
-        <div data-area="left-discards">${Discards(called ? [] : [{ face: "3p", tileId: 9 }])}</div>`,
-        host,
-    );
+        <div data-area="bottom-melds">${called ? pon : nothing}</div>
+      </div>
+      <div data-area="left-discards">
+        ${Discards(called ? [] : [{ face: "3p", tileId: 9 }])}
+      </div>`,
+    host,
+  );
 }
 
 const OWN_MELD_TILE_W = 36;
 
 function measureLyingTile(this: HTMLElement): DOMRect {
-    if (!this.classList.contains("tile")) {
-        return getBox(this);
-    }
-    if (this.closest("[data-area='bottom-melds']") !== null) {
-        const lyingWidth = OWN_LYING_HEIGHT_SHARE * OWN_MELD_TILE_W;
-        return this.parentElement?.classList.contains("meld-tile-sideways") === true
-            ? new DOMRect(100, 600, (OWN_MELD_TILE_W * 4) / 3, lyingWidth)
-            : new DOMRect(150, 600, OWN_MELD_TILE_W, (lyingWidth * 4) / 3);
-    }
-    return measureFlightTile.call(this);
+  if (!this.classList.contains("tile")) {
+    return getBox(this);
+  }
+  if (this.closest("[data-area='bottom-melds']") !== null) {
+    const lyingWidth = OWN_LYING_HEIGHT_SHARE * OWN_MELD_TILE_W;
+    return this.parentElement?.classList.contains("meld-tile-sideways") === true
+      ? new DOMRect(100, 600, (OWN_MELD_TILE_W * 4) / 3, lyingWidth)
+      : new DOMRect(150, 600, OWN_MELD_TILE_W, (lyingWidth * 4) / 3);
+  }
+  return measureFlightTile.call(this);
 }
 
 function startOwnPon(): BoardMotionPlayer {
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureLyingTile);
-    renderOwnPon(false);
-    const before = snapshotTiles(host);
-    renderOwnPon(true);
-    const after = snapshotTiles(host);
-    const player = new BoardMotionPlayer(host);
-    player.play(planTileMotion(before, after), before, after);
-    return player;
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    measureLyingTile,
+  );
+  renderOwnPon(false);
+  const before = snapshotTiles(host);
+  renderOwnPon(true);
+  const after = snapshotTiles(host);
+  const player = new BoardMotionPlayer(host);
+  player.play(planTileMotion(before, after), before, after);
+  return player;
 }
 
 describe("own call flight", () => {
-    it("flies a claimed tile and the hand's pair as the meld's own bodies and lands each at its slot's screen size", () => {
-        const player = startOwnPon();
+  it("flies a claimed tile and the hand's pair as the meld's own bodies and lands each at its slot's screen size", () => {
+    const player = startOwnPon();
 
-        const bodies = [
-            ...host.querySelectorAll(
-                ".board-motion__tile:not(.board-motion__tile--trail) .tile__body > use",
-            ),
-        ].map((use) => use.getAttribute("href"));
-        const landings = animations.map((animation) => getAnimationFrames(animation).at(-1));
-        const lyingWidth = OWN_LYING_HEIGHT_SHARE * OWN_MELD_TILE_W;
-        expect(new Set(bodies)).toEqual(new Set(["#body-lying-own-sideways", "#body-lying-own"]));
-        expect(landings).toEqual(
-            expect.arrayContaining([
-                expect.objectContaining({
-                    "--motion-across": `${(OWN_MELD_TILE_W * 4) / 3}px`,
-                    "--motion-down": `${lyingWidth}px`,
-                }),
-                expect.objectContaining({
-                    "--motion-across": `${OWN_MELD_TILE_W}px`,
-                    "--motion-down": `${(lyingWidth * 4) / 3}px`,
-                }),
-            ]),
-        );
-        player.cancel();
-    });
+    const bodies = [
+      ...host.querySelectorAll(
+        ".board-motion__tile:not(.board-motion__tile--trail) .tile__body > use",
+      ),
+    ].map((use) => use.getAttribute("href"));
+    const landings = animations.map((animation) =>
+      getAnimationFrames(animation).at(-1),
+    );
+    const lyingWidth = OWN_LYING_HEIGHT_SHARE * OWN_MELD_TILE_W;
+    expect(new Set(bodies)).toEqual(
+      new Set(["#body-lying-own-sideways", "#body-lying-own"]),
+    );
+    expect(landings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          "--motion-across": `${(OWN_MELD_TILE_W * 4) / 3}px`,
+          "--motion-down": `${lyingWidth}px`,
+        }),
+        expect.objectContaining({
+          "--motion-across": `${OWN_MELD_TILE_W}px`,
+          "--motion-down": `${(lyingWidth * 4) / 3}px`,
+        }),
+      ]),
+    );
+    player.cancel();
+  });
 });
 
 describe("tilted tile flight", () => {
-    it("slides a discard onto a tilted river already in its landing taper, the warp fixed and the move a translate", () => {
-        const player = startTiltedFlight();
+  it("slides a discard onto a tilted river already in its landing taper, the warp fixed and the move a translate", () => {
+    const player = startTiltedFlight();
 
-        const [start, end] = getAnimationFrames(animations[0]);
-        expect(start.transform).toMatch(/^translate\(-50%, -50%\) matrix3d\(/u);
-        expect(start.transform).not.toBe(
-            "translate(-50%, -50%) matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)",
-        );
-        expect([end.transform, start.translate, end.translate]).toEqual([
-            start.transform,
-            "0px 314px",
-            "0px 0px",
-        ]);
-        player.cancel();
-    });
+    const [start, end] = getAnimationFrames(animations[0]);
+    expect(start.transform).toMatch(/^translate\(-50%, -50%\) matrix3d\(/u);
+    expect(start.transform).not.toBe(
+      "translate(-50%, -50%) matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)",
+    );
+    expect([end.transform, start.translate, end.translate]).toEqual([
+      start.transform,
+      "0px 314px",
+      "0px 0px",
+    ]);
+    player.cancel();
+  });
 
-    it("lands a discard on a tilted side river at its slot's screen box, taking off at the hand tile's size across it", () => {
-        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-            function measureSideRiver(this: HTMLElement) {
-                if (this.matches("[data-area='left-discards'] .tile")) {
-                    return new DOMRect(300, 300, 60, 31);
-                }
-                return measureFlightTile.call(this);
-            },
-        );
-        renderTiltedSideDiscard(false);
-        const before = snapshotTiles(host);
-        renderTiltedSideDiscard(true);
-        const after = snapshotTiles(host);
-        const player = new BoardMotionPlayer(host);
-        player.play(planTileMotion(before, after), before, after);
+  it("lands a discard on a tilted side river at its slot's screen box, taking off at the hand tile's size across it", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function measureSideRiver(this: HTMLElement) {
+        if (this.matches("[data-area='left-discards'] .tile")) {
+          return new DOMRect(300, 300, 60, 31);
+        }
+        return measureFlightTile.call(this);
+      },
+    );
+    renderTiltedSideDiscard(false);
+    const before = snapshotTiles(host);
+    renderTiltedSideDiscard(true);
+    const after = snapshotTiles(host);
+    const player = new BoardMotionPlayer(host);
+    player.play(planTileMotion(before, after), before, after);
 
-        const [start, end] = getAnimationFrames(animations[0]);
-        expect([start, end]).toMatchObject([
-            { "--motion-across": "64px", "--motion-down": "48px" },
-            { "--motion-across": "60px", "--motion-down": "31px" },
-        ]);
-        player.cancel();
-    });
+    const [start, end] = getAnimationFrames(animations[0]);
+    expect([start, end]).toMatchObject([
+      { "--motion-across": "64px", "--motion-down": "48px" },
+      { "--motion-across": "60px", "--motion-down": "31px" },
+    ]);
+    player.cancel();
+  });
 
-    it("refuses a tilted piece whose camera rolls its rows rather than flying its tile flat", () => {
-        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-            measureFlightTile,
-        );
-        renderTiltedDiscard(true, ROLLED);
+  it("refuses a tilted piece whose camera rolls its rows rather than flying its tile flat", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      measureFlightTile,
+    );
+    renderTiltedDiscard(true, ROLLED);
 
-        expect(() => snapshotTiles(host)).toThrow("keep its rows level");
-    });
+    expect(() => snapshotTiles(host)).toThrow("keep its rows level");
+  });
 });
 
 describe("side hand depth", () => {
-    it.each(["left", "right"] as const)(
-        "moves the %s hand in its rotated frame without lifting seam masks into a stacking context",
-        (seat) => {
-            const { player } = movingHand(seat);
-            const [start, end] = getAnimationFrames(animations[0]);
-            expect(animations).toHaveLength(2);
-            expect([hiddenTiles(), host.querySelector(".board-motion")]).toEqual([0, null]);
-            expect([start.translate, start.transform]).toEqual([undefined, undefined]);
-            expect(Number.parseFloat(String(start.left))).toBeCloseTo(0);
-            expect(Number.parseFloat(String(start.top))).toBeCloseTo(seat === "left" ? -32 : 32);
-            expect(end).toMatchObject({ left: "0px", top: "0px" });
-            player.cancel();
-        },
-    );
+  it.each(["left", "right"] as const)(
+    "moves the %s hand in its rotated frame without lifting seam masks into a stacking context",
+    (seat) => {
+      const { player } = movingHand(seat);
+      const [start, end] = getAnimationFrames(animations[0]);
+      expect(animations).toHaveLength(2);
+      expect([hiddenTiles(), host.querySelector(".board-motion")]).toEqual([
+        0,
+        null,
+      ]);
+      expect([start.translate, start.transform]).toEqual([
+        undefined,
+        undefined,
+      ]);
+      expect(Number.parseFloat(String(start.left))).toBeCloseTo(0);
+      expect(Number.parseFloat(String(start.top))).toBeCloseTo(
+        seat === "left" ? -32 : 32,
+      );
+      expect(end).toMatchObject({ left: "0px", top: "0px" });
+      player.cancel();
+    },
+  );
+});
+
+describe("side hand ends", () => {
+  it.each([
+    { parted: ["0"], seat: "left" },
+    { parted: ["8"], seat: "right" },
+  ] as const)(
+    "shows the $seat hand's end only on the tile whose cover slides away from it",
+    ({ parted, seat }) => {
+      const player = discardSecondOfFour(seat);
+      const marked = [
+        ...host.querySelectorAll<HTMLElement>(".hand-tile--parted"),
+      ];
+      expect(marked.map((slot) => slot.dataset.tileId)).toEqual(parted);
+      finishAll();
+      expect(host.querySelectorAll(".hand-tile--parted")).toHaveLength(0);
+      player.cancel();
+    },
+  );
 });
 
 describe("settling river depth", () => {
-    const seats = [
-        { dx: 7, dy: 7, seat: "bottom" },
-        { dx: -7, dy: 7, seat: "left" },
-        { dx: -7, dy: -7, seat: "top" },
-        { dx: 7, dy: -10, seat: "right" },
-    ] as const;
+  const seats = [
+    { dx: 7, dy: 7, seat: "bottom" },
+    { dx: -7, dy: 7, seat: "left" },
+    { dx: -7, dy: -7, seat: "top" },
+    { dx: 7, dy: -10, seat: "right" },
+  ] as const;
 
-    it.each(seats.flatMap((seat) => [false, true].map((riichi) => ({ ...seat, riichi }))))(
-        "settles the $seat discard (riichi: $riichi) inside the river in its seat's frame",
-        ({ dx, dy, riichi, seat }) => {
-            vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-                function measureRiver(this: HTMLElement) {
-                    if (!this.matches(".discard-tile[data-tile-id='8'] > .tile")) {
-                        return getBox(this);
-                    }
-                    const last = this.parentElement?.classList.contains("discard-tile--last");
-                    const sideways = (seat === "left" || seat === "right") !== riichi;
-                    return new DOMRect(
-                        100 + (last ? dx : 0),
-                        300 + (last ? dy : 0),
-                        sideways ? 40 : 30,
-                        sideways ? 30 : 40,
-                    );
-                },
-            );
-            const player = startSettlingRiver(seat, riichi);
-            expect(animations).toHaveLength(1);
-            const [start, end] = getAnimationFrames(animations[0]);
-            expect(Number.parseFloat(String(start.left))).toBeCloseTo(seat === "right" ? 10 : 7);
-            expect(Number.parseFloat(String(start.top))).toBeCloseTo(7);
-            expect([
-                hiddenTiles(),
-                host.querySelector(".board-motion"),
-                start.transform,
-                start.translate,
-                end.left,
-                end.top,
-            ]).toEqual([0, null, undefined, undefined, "0px", "0px"]);
-            finishAll();
-            expect([hiddenTiles(), animations[0].playState]).toEqual([0, "idle"]);
-            player.cancel();
-        },
-    );
+  it.each(
+    seats.flatMap((seat) =>
+      [false, true].map((riichi) => ({ ...seat, riichi })),
+    ),
+  )(
+    "settles the $seat discard (riichi: $riichi) inside the river in its seat's frame",
+    ({ dx, dy, riichi, seat }) => {
+      vi.spyOn(
+        HTMLElement.prototype,
+        "getBoundingClientRect",
+      ).mockImplementation(function measureRiver(this: HTMLElement) {
+        if (!this.matches(".discard-tile[data-tile-id='8'] > .tile")) {
+          return getBox(this);
+        }
+        const last =
+          this.parentElement?.classList.contains("discard-tile--last");
+        const sideways = (seat === "left" || seat === "right") !== riichi;
+        return new DOMRect(
+          100 + (last ? dx : 0),
+          300 + (last ? dy : 0),
+          sideways ? 40 : 30,
+          sideways ? 30 : 40,
+        );
+      });
+      const player = startSettlingRiver(seat, riichi);
+      expect(animations).toHaveLength(1);
+      const [start, end] = getAnimationFrames(animations[0]);
+      expect(Number.parseFloat(String(start.left))).toBeCloseTo(
+        seat === "right" ? 10 : 7,
+      );
+      expect(Number.parseFloat(String(start.top))).toBeCloseTo(7);
+      expect([
+        hiddenTiles(),
+        host.querySelector(".board-motion"),
+        start.transform,
+        start.translate,
+        end.left,
+        end.top,
+      ]).toEqual([0, null, undefined, undefined, "0px", "0px"]);
+      finishAll();
+      expect([hiddenTiles(), animations[0].playState]).toEqual([0, "idle"]);
+      player.cancel();
+    },
+  );
 });
 
 describe("replay motion", () => {
-    const tiles = [
-        { face: "1m", show: "face", tileId: 0 },
-        { face: "2m", show: "face", tileId: 4 },
-        { face: "3m", show: "face", tileId: 8 },
-    ] as const satisfies readonly HandTile[];
+  const tiles = [
+    { face: "1m", show: "face", tileId: 0 },
+    { face: "2m", show: "face", tileId: 4 },
+    { face: "3m", show: "face", tileId: 8 },
+  ] as const satisfies readonly HandTile[];
 
-    it("settles the previous hand before measuring the next move", async () => {
-        await showMovingHand(tiles, 0, "replay");
-        await showMovingHand(tiles.toReversed(), 1, "replay");
-        expect([animations.length, host.querySelectorAll(".hand.hand--sliding").length]).toEqual([
-            2, 1,
-        ]);
-        await showMovingHand(tiles, 2, "replay");
-        expect(animations.map((animation) => animation.playState)).toEqual([
-            "idle",
-            "idle",
-            "paused",
-            "paused",
-        ]);
-        expect(getAnimationFrames(animations[2])[0]).toMatchObject({ left: "64px", top: "0px" });
-        expect([hiddenTiles(), host.querySelector(".board-motion")]).toEqual([0, null]);
-        animations.forEach((animation) => {
-            animation.finish();
-        });
-        await Promise.resolve();
-        expect(host.querySelectorAll(".hand--sliding")).toHaveLength(0);
+  it("settles the previous hand before measuring the next move", async () => {
+    await showMovingHand(tiles, 0, "replay");
+    await showMovingHand(tiles.toReversed(), 1, "replay");
+    expect([
+      animations.length,
+      host.querySelectorAll(".hand-tile--parted").length,
+    ]).toEqual([2, 2]);
+    await showMovingHand(tiles, 2, "replay");
+    expect(animations.map((animation) => animation.playState)).toEqual([
+      "idle",
+      "idle",
+      "paused",
+      "paused",
+    ]);
+    expect(getAnimationFrames(animations[2])[0]).toMatchObject({
+      left: "64px",
+      top: "0px",
     });
+    expect([hiddenTiles(), host.querySelector(".board-motion")]).toEqual([
+      0,
+      null,
+    ]);
+    animations.forEach((animation) => {
+      animation.finish();
+    });
+    await Promise.resolve();
+    expect(host.querySelectorAll(".hand-tile--parted")).toHaveLength(0);
+  });
 
-    it("unmarks its sliding hand on cancel though a moving slot's tile was replaced", async () => {
-        await showMovingHand(tiles, 0, "replay");
-        await showMovingHand(tiles.toReversed(), 1, "replay");
-        const hand = host.querySelector(".hand");
-        host.querySelector(".hand-tile > .tile")?.replaceWith(document.createElement("span"));
-        const marked = hand?.classList.contains("hand--sliding");
-        render(nothing, host);
-        expect([marked, hand?.classList.contains("hand--sliding")]).toEqual([true, false]);
-    });
+  it("unmarks its parted slots on cancel though a moving slot's tile was replaced", async () => {
+    await showMovingHand(tiles, 0, "replay");
+    await showMovingHand(tiles.toReversed(), 1, "replay");
+    const slot = host.querySelector(".hand-tile");
+    host
+      .querySelector(".hand-tile > .tile")
+      ?.replaceWith(document.createElement("span"));
+    const marked = slot?.classList.contains("hand-tile--parted");
+    render(nothing, host);
+    expect([marked, slot?.classList.contains("hand-tile--parted")]).toEqual([
+      true,
+      false,
+    ]);
+  });
 
-    it("animates only the newest move when replay steps share a render task", async () => {
-        await showMovingHand(tiles, 0, "replay");
-        const pending = showMovingHand(tiles.toReversed(), 1, "replay");
-        await showMovingHand([tiles[1], tiles[2], tiles[0]], 2, "replay");
-        await pending;
-        expect(animations).toHaveLength(2);
-        expect(getAnimationFrames(animations[0])[0]).toMatchObject({ left: "32px", top: "0px" });
+  it("animates only the newest move when replay steps share a render task", async () => {
+    await showMovingHand(tiles, 0, "replay");
+    const pending = showMovingHand(tiles.toReversed(), 1, "replay");
+    await showMovingHand([tiles[1], tiles[2], tiles[0]], 2, "replay");
+    await pending;
+    expect(animations).toHaveLength(2);
+    expect(getAnimationFrames(animations[0])[0]).toMatchObject({
+      left: "32px",
+      top: "0px",
     });
+  });
 });

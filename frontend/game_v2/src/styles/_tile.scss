@@ -51,7 +51,7 @@ $max-strip-melds: 4;
 .tile__uncovered {
     display: none;
 
-    .hand--sliding & {
+    .hand-tile--parted & {
         display: inline;
     }
 }
