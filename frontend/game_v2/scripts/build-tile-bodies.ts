@@ -22,8 +22,6 @@ const LYING_RIM_STRENGTH_ON_TOP = 0.9;
 const LYING_RIM_STRENGTH_ON_EDGE = 0.45;
 const LYING_ROLL_LEAD = 0.03;
 const LYING_TOP_SHINE = 0.022;
-const STANDING_BACK_GLINT = 0.035;
-const STANDING_BACK_FOOT = 0.08;
 
 interface Stop {
     readonly at: number;
@@ -31,9 +29,15 @@ interface Stop {
     readonly opacity?: number;
 }
 
+interface Panel {
+    readonly radius: number;
+    readonly top: number;
+}
+
 interface Layer {
     readonly gradient: string;
     readonly mask?: string;
+    readonly panel?: Panel;
 }
 
 interface Size {
@@ -95,6 +99,21 @@ function renderBox({ width, height }: Size, fill: string, mask?: string): string
     return `<rect width="${formatNumber(width)}" height="${formatNumber(height)}" fill="url(#${fill})"${maskAttribute}/>`;
 }
 
+function panelHeight(size: Size, { radius, top }: Panel): number {
+    return size.height - top + radius;
+}
+
+function renderPanel(size: Size, fill: string, panel: Panel): string {
+    const radius = formatNumber(panel.radius);
+    return `<rect y="${formatNumber(panel.top)}" width="${formatNumber(size.width)}" height="${formatNumber(panelHeight(size, panel))}" rx="${radius}" ry="${radius}" fill="url(#${fill})"/>`;
+}
+
+function renderLayer(size: Size, { gradient, mask, panel }: Layer): string {
+    return panel === undefined
+        ? renderBox(size, gradient, mask)
+        : renderPanel(size, gradient, panel);
+}
+
 interface Outline {
     readonly height: number;
     readonly left: number;
@@ -135,7 +154,7 @@ function renderSymbol(symbol: BodySymbol): string {
         ...masks.map(([mask, gradient]) => renderMask(size, mask, gradient)),
         "</defs>",
         `<g clip-path="url(#${id}-outline)">`,
-        ...layers.map((layer) => renderBox(size, layer.gradient, layer.mask)),
+        ...layers.map((layer) => renderLayer(size, layer)),
         "</g>",
         "</symbol>",
     ].join("");
@@ -319,28 +338,12 @@ interface StandingBackPalette {
     readonly side: readonly [string, string];
 }
 
-const STANDING_FACE_LAYER: StandingBackPalette = {
-    crest: "--ronin-tile-ridge",
-    lit: "--ronin-tile-ridge",
-    middle: "--ronin-tile-top",
-    rolled: "--ronin-tile-face-rim",
-    side: ["--ronin-tile-side", "--ronin-tile-side-low"],
-};
-
-const STANDING_BACK_LAYER: StandingBackPalette = {
-    crest: "--ronin-back-shade",
-    lit: "--ronin-back-dim",
-    middle: "--ronin-back-dim",
-    rolled: "--ronin-back-dim-low",
-    side: ["--ronin-back-dim-low", "--ronin-back-dim-low"],
-};
-
 const SIDE_FACE_LAYER: StandingBackPalette = {
     crest: "--ronin-tile-ridge",
     lit: "--ronin-tile-ridge",
     middle: "--ronin-tile-face",
     rolled: "--ronin-tile-face-rim",
-    side: ["--ronin-tile-side", "--ronin-tile-side-low"],
+    side: ["--ronin-tile-front", "--ronin-tile-front-low"],
 };
 
 const SIDE_BACK_LAYER: StandingBackPalette = {
@@ -364,42 +367,56 @@ function sideTopStops(shape: StandingBackShape, palette: StandingBackPalette): r
     ];
 }
 
-function standingCapStops(shape: StandingBackShape): readonly Stop[] {
-    const height = shape.top + shape.edge;
-    const cap = standingBackSpan(shape).face;
+function standingCapAcrossStops(): readonly Stop[] {
     return [
-        { at: 0, colour: STANDING_FACE_LAYER.crest },
-        { at: LYING_TOP_SHINE / height, colour: STANDING_FACE_LAYER.lit },
-        { at: (cap * 0.5) / height, colour: STANDING_FACE_LAYER.middle },
-        { at: cap / height, colour: STANDING_FACE_LAYER.rolled },
-        { at: 1, colour: STANDING_FACE_LAYER.rolled },
+        { at: 0, colour: "--ronin-tile-ridge" },
+        { at: 0.04, colour: "--ronin-tile-ridge" },
+        { at: 0.16, colour: "--ronin-tile-top" },
+        { at: 0.84, colour: "--ronin-tile-top" },
+        { at: 0.93, colour: "--ronin-tile-front" },
+        { at: 1, colour: "--ronin-tile-side" },
     ];
 }
 
-function standingBackFaceStops(shape: StandingBackShape): readonly Stop[] {
+function standingCapFootStops(shape: StandingBackShape): readonly Stop[] {
     const height = shape.top + shape.edge;
     const cap = standingBackSpan(shape).face;
     return [
-        { at: 0, colour: STANDING_BACK_LAYER.crest },
-        { at: cap / height, colour: STANDING_BACK_LAYER.crest },
-        { at: (cap + STANDING_BACK_GLINT) / height, colour: STANDING_BACK_LAYER.lit },
-        { at: (cap + (height - cap) * 0.45) / height, colour: STANDING_BACK_LAYER.middle },
-        { at: (height - STANDING_BACK_FOOT) / height, colour: STANDING_BACK_LAYER.rolled },
-        { at: 1, colour: STANDING_BACK_LAYER.side[1] },
+        { at: 0, colour: "--ronin-tile-rim-shade", opacity: 0 },
+        { at: (cap - 0.035) / height, colour: "--ronin-tile-rim-shade", opacity: 0 },
+        { at: cap / height, colour: "--ronin-tile-rim-shade", opacity: 0.45 },
+        { at: 1, colour: "--ronin-tile-rim-shade", opacity: 0.45 },
     ];
 }
 
-function standingBackSplitStops(shape: StandingBackShape): readonly Stop[] {
+function uprightBackPanel(shape: StandingBackShape): Panel {
+    return {
+        radius: inViewUnits(STANDING_BACK_BODY.shoulderRadius),
+        top: inViewUnits(standingBackSpan(shape).face),
+    };
+}
+
+function standingBackDepthStops(): readonly Stop[] {
+    return [
+        { at: 0, colour: "--ronin-back-light" },
+        { at: 0.35, colour: "--ronin-back" },
+        { at: 1, colour: "--ronin-back-shade" },
+    ];
+}
+
+function standingBackEdgeStops(across: number): readonly Stop[] {
+    const lit = STANDING_BACK_BODY.litRim / across;
+    const shaded = STANDING_BACK_BODY.shadedRim / across;
+    return [
+        { at: 0, colour: "--ronin-tile-rim-light", opacity: 0.3 },
+        { at: lit, colour: "--ronin-tile-rim-light", opacity: 0 },
+        { at: 1 - shaded, colour: "--ronin-tile-rim-shade", opacity: 0 },
+        { at: 1, colour: "--ronin-tile-rim-shade", opacity: 0.5 },
+    ];
+}
+
+function sideBackSplitStops(shape: StandingBackShape): readonly Stop[] {
     const { face, start } = standingBackSpan(shape);
-    if (shape.backLayerSide === "bottom") {
-        const split = face / (shape.top + shape.edge);
-        return strengthStops([
-            [0, 0],
-            [split, 0],
-            [split, 1],
-            [1, 1],
-        ]);
-    }
     const ownerOnLeft = shape.backLayerSide === "right";
     const split = (ownerOnLeft ? start + face : shape.across - face) / shape.across;
     const [before, after] = ownerOnLeft ? [0, 1] : [1, 0];
@@ -423,25 +440,23 @@ function spanRimStops(shape: StandingBackShape): readonly Stop[] {
 }
 
 function renderUprightBackBody(id: string, shape: StandingBackShape): string {
+    const panel = uprightBackPanel(shape);
     return renderSymbol({
         cornerRadius: STANDING_BACK_BODY.cornerRadius,
         gradients: [
-            renderGradient(`${id}-face`, "down", standingCapStops(shape)),
-            renderGradient(`${id}-back`, "down", standingBackFaceStops(shape)),
-            renderGradient(`${id}-split-fade`, "down", standingBackSplitStops(shape)),
-            renderGradient(
-                `${id}-rims`,
-                "across",
-                rimStops(shape.across, STANDING_BACK_BODY.litRim, STANDING_BACK_BODY.shadedRim),
-            ),
+            renderGradient(`${id}-cap`, "across", standingCapAcrossStops()),
+            renderGradient(`${id}-cap-foot`, "down", standingCapFootStops(shape)),
+            renderGradient(`${id}-back`, "down", standingBackDepthStops()),
+            renderGradient(`${id}-back-edges`, "across", standingBackEdgeStops(shape.across)),
         ],
         id,
         layers: [
-            { gradient: `${id}-face` },
-            { gradient: `${id}-back`, mask: `${id}-split` },
-            { gradient: `${id}-rims` },
+            { gradient: `${id}-cap` },
+            { gradient: `${id}-cap-foot` },
+            { gradient: `${id}-back`, panel },
+            { gradient: `${id}-back-edges`, panel },
         ],
-        masks: [[`${id}-split`, `${id}-split-fade`]],
+        masks: [],
         size: sizeOf(shape.across, shape.top + shape.edge),
     });
 }
@@ -454,7 +469,7 @@ function renderSideBackBody(id: string, shape: StandingBackShape): string {
         gradients: [
             renderGradient(`${id}-face`, "down", sideTopStops(shape, SIDE_FACE_LAYER)),
             renderGradient(`${id}-back`, "down", sideTopStops(shape, SIDE_BACK_LAYER)),
-            renderGradient(`${id}-split-fade`, "across", standingBackSplitStops(shape)),
+            renderGradient(`${id}-split-fade`, "across", sideBackSplitStops(shape)),
             renderGradient(`${id}-rims`, "across", spanRimStops(shape)),
         ],
         id,

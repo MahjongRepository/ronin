@@ -98,6 +98,13 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   stacking context and clips nothing; the rivers' shared edge filter stays on the unturned `.board-rivers`. The gate
   measures laid sizes and floors with the pieces' transforms off (`measurePlane`) and the shown faces and gaps with
   them on.
+- **The top hand stands off the plane.** The top seat's hand is not in its strip's tilted piece but in a sibling host,
+  `.board-strip--top-hand`, on the same grid area with the same turned frame, taking a flat `matrix()`
+  (`--geo-camera-top-hand`) that stands its owner's edge and its foot where the strip's camera shows them, so its tiles
+  stand upright instead of leaning with the perspective. The host stays a direct, unturned child of the
+  surface with no `matrix3d` above it: its shadow casts from it like a strip's, motion snapshots read its tiles as
+  their boxes, and `measurePlane`'s reset covers it. Nesting it in the tilted strip would turn its shadow with the
+  frame and give snapshots a false taper.
 - **Layout measurements**: the board's geometry directive and the notices' clamp. Motion snapshots only measure
   existing tile positions for temporary copies; they never feed the layout solve. A choice between placements is
   made in TS, never with a length switch (`clamp(0px, x * 1000, 1px)` as a 0/1 boolean) or a `9999px` sentinel;

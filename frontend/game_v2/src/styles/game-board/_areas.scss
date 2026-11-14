@@ -50,6 +50,10 @@ $max-melds: 4;
     }
 }
 
+.board-surface > .board-strip--top-hand {
+    transform: var(--geo-camera-top-hand);
+}
+
 /* The rivers' pinwheel: each starts at the centre's corner on its seat's left, a gap from the centre. A river's area is
    a normal river's turned footprint, its frame turned to the seat from the area's corner where the first row starts. */
 .board-river {
@@ -133,6 +137,12 @@ $max-melds: 4;
         grid-area: strip-top;
     }
 
+    &--top-hand {
+        --frame-turn: 180deg;
+
+        grid-area: strip-top;
+    }
+
     &--right {
         --frame-turn: -90deg;
 
@@ -161,7 +171,7 @@ $max-melds: 4;
     }
 }
 
-.board-strip--top > .board-strip__frame {
+.board-strip:is(.board-strip--top, .board-strip--top-hand) > .board-strip__frame {
     left: 100%;
     top: 0;
 }

@@ -320,8 +320,13 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   opponent's hand reads as plainly as its river. Decision: a concealed tile stands on its edge,
   seen from above, so a live hand never reads as face-down tiles (a closed kan's ends, the
   unrevealed indicators); the slot is kept whole, so a reveal shows the faces in the same place. The top seat's tile
-  fills its 3:4 slot and the edge reserved under it: a thin off-white cap at its owner's side, 0.22 of the depth it
-  shows, over the back's ochre face toward the centre. A side seat's tile shows its top only, no back face:
+  fills its 3:4 slot and reaches 0.44 of its width under it, its edge and a rise that keeps it tall
+  (about 1.5 of its width as the camera shows it) without taking height from the stack, the felt under the hand giving
+  it. The hand stands upright: the camera places its owner's edge and its foot, but its tiles are not
+  laid on the plane, so each is a rectangle as wide as the camera shows its foot and none leans with the perspective.
+  Its look: a thin off-white cap at its owner's side, 0.26 of its width deep, lit at its left end
+  and shaded at its right; under it the back in the face-down tiles' bright ochre, lit under the cap and shading toward its
+  foot as a lying back does, with its own small rounded shoulders. A side seat's tile shows its top only, no back face:
   0.72 of a tile's width across, at the owner's edge of its slot, the rest of the slot bare table; 58%
   off-white at the owner's side, 42% the back's bright ochre (the face-down tiles' colour) toward the centre, flat
   but for a short roll at its foot and thin rims, its end under it split the same way. Decision: a hand's tiles stand

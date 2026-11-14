@@ -189,6 +189,14 @@ function Strip(
             ${HandArea(seat, player, own?.input)}${MeldsArea(seat, player)}
         </div>`;
     }
+    if (seat === "top") {
+        return html`<div class="board-strip board-strip--top">
+                <div class="board-strip__frame">${MeldsArea(seat, player)}</div>
+            </div>
+            <div class="board-strip board-strip--top-hand">
+                <div class="board-strip__frame">${HandArea(seat, player)}</div>
+            </div>`;
+    }
     return html`<div class="board-strip board-strip--${seat}">
         <div class="board-strip__frame">${HandArea(seat, player)}${MeldsArea(seat, player)}</div>
     </div>`;

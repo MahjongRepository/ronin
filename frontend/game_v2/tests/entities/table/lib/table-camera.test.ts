@@ -5,6 +5,7 @@ import {
     STACKED_DEPTH,
     TILE_ASPECT,
     TILE_EDGE_SHARE,
+    TOP_HAND_EDGE_SHARE,
 } from "@/entities/table/lib/board-constants";
 import {
     type BoardBox,
@@ -28,10 +29,12 @@ import {
     shownBands,
     shownPiece,
     stickUnder,
+    surfaceViewValues,
     tablePieces,
     tableView,
     viewAt,
 } from "@/entities/table/lib/table-camera";
+import { tileBody } from "@/entities/tile";
 
 const NO_EDGES = { bottom: 0, left: 0, right: 0, top: 0 };
 
@@ -500,23 +503,39 @@ describe("tableView's plates", () => {
     );
 });
 
+function topBackFoot(view: TableView, left: number): number {
+    const back = tileBody({
+        end: "shown",
+        lay: "standing",
+        material: "back",
+        sideways: false,
+        turn: 180,
+    });
+    const depth = (back.top + back.edge) * (view.plane.lengths["rw"] ?? 0);
+    return projectPoint(view.camera, { left, top: view.pieces["strip-top"].top + depth }).top;
+}
+
 describe("tableView on phones", () => {
-    it.each(PHONE_BOXES)(
-        "shows the top strip's added kan no nearer the top river than the flat board does on %s",
+    it.each([...PHONE_BOXES, ["a short flat phone", SHORT_PHONE] as const])(
+        "shows the top strip's added kan no nearer the top river than the flat board does, and its hand's standing backs clear of it, on %s",
         (_shape, box) => {
             const { screen, view } = viewOf(box);
             const flat = flatOf(screen);
             const strip = view.pieces["strip-top"];
+            const middle = (strip.left + strip.right) / 2;
             const foot = projectPoint(view.camera, {
-                left: (strip.left + strip.right) / 2,
+                left: middle,
                 top: addedKanFoot(view.plane, strip.top),
             });
             const flatGap =
                 flat.pieces["river-top"].top - addedKanFoot(screen, flat.pieces["strip-top"].top);
+            const handGap = shownPiece(view, "river-top").top - topBackFoot(view, middle);
 
             expect(shownPiece(view, "river-top").top - foot.top).toBeGreaterThanOrEqual(
                 flatGap - 1,
             );
+            expect(handGap).toBeGreaterThan(0);
+            expect(shownBands(view).top).toBeCloseTo(handGap, 5);
         },
     );
 
@@ -550,6 +569,48 @@ describe("tableView on phones", () => {
             expect(viewAt(input, screen, tilt).converged).toBe(true);
         }
     });
+});
+
+function cssAffine(value: string): (left: number, top: number) => [number, number] {
+    const [scaleX = 0, skewY = 0, skewX = 0, scaleY = 0, moveX = 0, moveY = 0] = value
+        .replace(/^matrix\(|\)$/g, "")
+        .split(",")
+        .map(Number);
+    return (left, top) => [
+        scaleX * left + skewX * top + moveX,
+        skewY * left + scaleY * top + moveY,
+    ];
+}
+
+function laidStripCorner(view: TableView, left: number, top: number): [number, number] {
+    const piece = view.pieces["strip-top"];
+    const shift = view.shifts["strip-top"];
+    const shown = projectPoint(view.camera, {
+        left: piece.left + shift.left + left,
+        top: piece.top + shift.top + top,
+    });
+    return [shown.left - piece.left, shown.top + view.tableTop - piece.top];
+}
+
+describe("the top hand", () => {
+    it.each([...WIDE, PHONE_BOXES[0]])(
+        "stands upright on %s: its owner's edge and its foot where the strip's camera lays them, as wide as the foot",
+        (_shape, box) => {
+            const { view } = viewOf(box);
+            const hand = cssAffine(
+                Object.fromEntries(surfaceViewValues(view))["--geo-camera-top-hand"] ?? "",
+            );
+            const width = view.pieces["strip-top"].right - view.pieces["strip-top"].left;
+            const foot = (TILE_ASPECT + TOP_HAND_EDGE_SHARE) * (view.plane.lengths["rw"] ?? 0);
+
+            for (const along of [0, width]) {
+                const [footLeft, footTop] = laidStripCorner(view, along, foot);
+                expect(hand(along, foot)[0]).toBeCloseTo(footLeft, 3);
+                expect(hand(along, foot)[1]).toBeCloseTo(footTop, 3);
+                expect(hand(along, 0)[1]).toBeCloseTo(laidStripCorner(view, along, 0)[1], 3);
+            }
+        },
+    );
 });
 
 describe("tableView between the grid's windows", () => {

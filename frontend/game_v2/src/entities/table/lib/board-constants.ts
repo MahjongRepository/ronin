@@ -1,4 +1,4 @@
-import { LYING_BODY, RIVER_ROWS } from "@/entities/tile";
+import { LYING_BODY, RIVER_ROWS, UPRIGHT_BACK_EDGE } from "@/entities/tile";
 
 /** A tile's height to its width. */
 const TILE_ASPECT = 4 / 3;
@@ -26,6 +26,9 @@ const RIVER_GAP_SHARE = 0.3;
 /** How far a tile's edge reaches below its box, in shares of its width. */
 const TILE_EDGE_SHARE = LYING_BODY.edge;
 const OWN_LYING_EDGE_SHARE = LYING_BODY.ownEdge;
+
+/** How far the top hand's standing backs reach below their boxes, in shares of their width: their edge and rise. */
+const TOP_HAND_EDGE_SHARE = UPRIGHT_BACK_EDGE;
 
 /** No meld face goes under this width (px). */
 const FACE_FLOOR = 13;
@@ -284,6 +287,7 @@ export {
     TILE_EDGE_SHARE,
     TILE_UNITS,
     TOP_HAND_AIR,
+    TOP_HAND_EDGE_SHARE,
     TOP_HAND_GAP,
     UPRIGHT_DEPTH,
 };

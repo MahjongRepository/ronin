@@ -6,6 +6,7 @@ import {
     TILE_ASPECT,
     TILE_EDGE_SHARE,
     TOP_CORE_CLEAR,
+    TOP_HAND_EDGE_SHARE,
     UPRIGHT_DEPTH,
 } from "./board-constants";
 import {
@@ -671,7 +672,7 @@ function shownBands(view: TableView): { readonly top: number; readonly bottom: n
 
 /** How deep an upright tile of the top strip lies from the strip's top, its edge under it: the hand's drawn foot. */
 function uprightFoot(geometry: BoardGeometry): number {
-    return (UPRIGHT_DEPTH + TILE_EDGE_SHARE) * (geometry.lengths["rw"] ?? 0);
+    return (UPRIGHT_DEPTH + TOP_HAND_EDGE_SHARE) * (geometry.lengths["rw"] ?? 0);
 }
 
 /** The flat board's same bands. */
@@ -1238,6 +1239,29 @@ function pieceTransform(view: TableView, piece: TablePiece): string {
     return `matrix3d(${values.join(", ")})`;
 }
 
+/**
+ * The top hand's transform: its host shares the top strip's box but stands unturned and off the plane, so its tiles
+ * stand upright instead of lying with the perspective. Its owner's edge and its tiles' foot stand where the strip's
+ * camera shows them, every tile as wide as the camera shows the foot.
+ */
+function uprightHandTransform(view: TableView): string {
+    const strip = view.pieces["strip-top"];
+    const width = strip.right - strip.left;
+    const foot = uprightFoot(view.plane);
+    const ownerEdge = drawnCorner(view, "strip-top", { left: 0, top: 0 });
+    const footStart = drawnCorner(view, "strip-top", { left: 0, top: foot });
+    const footEnd = drawnCorner(view, "strip-top", { left: width, top: foot });
+    const values = [
+        (footEnd.left - footStart.left) / width,
+        0,
+        0,
+        (footStart.top - ownerEdge.top) / foot,
+        footStart.left,
+        ownerEdge.top,
+    ];
+    return `matrix(${values.join(", ")})`;
+}
+
 const SCREEN_ONLY_LENGTHS = new Set(["table-h", "table-top"]);
 
 /**
@@ -1330,6 +1354,7 @@ function surfaceViewValues(view: TableView): [string, string][] {
             `--geo-camera-${piece}`,
             pieceTransform(view, piece),
         ]),
+        ["--geo-camera-top-hand", uprightHandTransform(view)],
     ];
 }
 

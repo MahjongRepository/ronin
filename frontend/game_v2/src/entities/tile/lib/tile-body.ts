@@ -32,12 +32,16 @@ const LYING_BODY = {
 } as const;
 
 const STANDING_BACK_BODY = {
-    capShare: 0.22,
+    capDepth: 0.26,
     cornerRadius: 0.07,
     edge: TILE_EDGE_SHARE,
     litRim: 0.035,
+    rise: 0.24,
     shadedRim: 0.055,
+    shoulderRadius: 0.06,
 } as const;
+
+const UPRIGHT_BACK_EDGE = STANDING_BACK_BODY.edge + STANDING_BACK_BODY.rise;
 
 const SIDE_STANDING_BACK_BODY = {
     cornerRadius: 0.07,
@@ -99,7 +103,7 @@ function uprightBackShape(): StandingBackShape {
     return {
         across: 1,
         backLayerSide: "bottom",
-        edge: STANDING_BACK_BODY.edge,
+        edge: UPRIGHT_BACK_EDGE,
         end: "shown",
         top: TILE_BOX_ASPECT,
     };
@@ -133,9 +137,8 @@ interface StandingBackSpan {
 
 function standingBackSpan(shape: StandingBackShape): StandingBackSpan {
     if (shape.backLayerSide === "bottom") {
-        const depth = shape.top + shape.edge;
-        const face = depth * STANDING_BACK_BODY.capShare;
-        return { back: depth - face, face, start: 0 };
+        const face = STANDING_BACK_BODY.capDepth;
+        return { back: shape.top + shape.edge - face, face, start: 0 };
     }
     const { faceShare, thickness } = SIDE_STANDING_BACK_BODY;
     const ownerOnLeft = shape.backLayerSide === "right";
@@ -289,6 +292,7 @@ export {
     STANDING_BODY,
     STANDING_OVERHANG,
     TILE_EDGE_SHARE,
+    UPRIGHT_BACK_EDGE,
     faceArtViewBox,
     lyingFaceBox,
     standingBackSpan,
