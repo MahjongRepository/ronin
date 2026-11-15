@@ -554,15 +554,15 @@ function platesPlace(geometry: BoardGeometry): Record<string, boolean> {
 
 /**
  * Whether a desktop's counters stand at the table's top-left corner, level with its top: ending at most a plate's gap
- * short of the left lane's inner edge above the left strip's line, or in the bar short of the strip; their dora in one row, 0.6
- * to 0.8 river tiles.
+ * short of the left lane's inner edge above the left strip's line, or in the bar short of the strip, or on a barless
+ * board 12px short of the top strip above the left strip's line; their dora in one row, 0.6 to 0.8 river tiles.
  */
 function countersPlace(geometry: BoardGeometry): Record<string, boolean> {
     const { lengths, tracks } = geometry;
     function length(name: string): number {
         return lengths[name] ?? Number.NaN;
     }
-    const { "strip-left": stripLeft = [] } = slotAreas(tracks);
+    const { "strip-left": stripLeft = [], "strip-top": stripTop = [] } = slotAreas(tracks);
     const laneInner = length("col-left") + length("strip-depth") + SIDE_LANE_GAP;
     const countersRight = length("counters-x") + length("counters-w");
     const countersBottom = length("counters-top") + length("counters-h");
@@ -572,6 +572,9 @@ function countersPlace(geometry: BoardGeometry): Record<string, boolean> {
             length("counters-x") >= 6 &&
             (countersRight <= length("col-left") - 6 + 0.001 ||
                 (countersRight <= laneInner - 6 + 0.1 &&
+                    countersBottom <= (stripLeft[1] ?? 0) - 6 + 0.1) ||
+                (length("felt-wide") === 1 &&
+                    countersRight + 12 <= (stripTop[0] ?? 0) + 0.1 &&
                     countersBottom <= (stripLeft[1] ?? 0) - 6 + 0.1)),
         countersWhole:
             length("dora-w") >= 0.6 * length("rw") &&
@@ -677,6 +680,37 @@ function phonePlaces(geometry: BoardGeometry): Record<string, boolean> {
     };
 }
 
+/**
+ * Whether a barless desktop lays its felt edge to edge: the cog over the right lane's top above the side lines, the
+ * switches in the left lane, the side lines ending above the furiten mark over them, and the table centred in the
+ * window, its spare height above and below it.
+ */
+function barlessPlaces({ box, lengths, tracks }: BoardGeometry): Record<string, boolean> {
+    function length(name: string): number {
+        return lengths[name] ?? Number.NaN;
+    }
+    const areas = slotAreas(tracks);
+    const lane = length("strip-depth") + SIDE_LANE_GAP;
+    const [cogLeft = 0, cogTop = 0, cogRight = 0] = areas["corner"] ?? [];
+    const [switchesLeft = 0, switchesTop = 0, switchesRight = 0] = areas["switches"] ?? [];
+    const [, furitenTop = 0, , furitenBottom = 0] = areas["furiten"] ?? [];
+    const spareAbove = length("table-top");
+    const spareBelow = box.height - spareAbove - length("table-h");
+    const linesEnd = Math.max(areas["strip-left"]?.[3] ?? 0, areas["strip-right"]?.[3] ?? 0);
+    return {
+        cogOverRightLane:
+            cogLeft >= length("col-right") - lane - 0.001 &&
+            cogRight <= length("col-right") + 0.001 &&
+            cogTop + length("menu-size") <= length("lines-start"),
+        feltEdgeToEdge: length("felt-left") <= 0 && length("felt-right") >= box.width,
+        linesAboveFoot: linesEnd <= furitenTop && furitenBottom <= switchesTop,
+        spareSplit: Math.min(spareAbove, spareBelow) > 0 && Math.abs(spareAbove - spareBelow) <= 1,
+        switchesInLeftLane:
+            switchesLeft >= length("col-left") - 0.001 &&
+            switchesRight <= length("col-left") + lane + 0.001,
+    };
+}
+
 describe("boardGeometry", () => {
     it.each([
         { chrome: "regular", family: "desktop", height: 900, width: 1440 },
@@ -758,13 +792,13 @@ describe("boardGeometry", () => {
         [1440, 900, [49, 66, 97.09, 126.2]],
         [1280, 800, [43, 56, 90.63, 131.2]],
         [800, 600, [26, 32, 50.66, 98.33]],
-        [960, 1080, [33, 41, 64.53, 100.7]],
-        [1100, 1000, [40, 49, 77.4, 98.3]],
-        [1280, 1024, [49, 59, 95.14, 97.3]],
-        [1502, 1551, [59, 71, 115.19, 100.7]],
-        [1024, 1366, [36, 45, 70.76, 97.5]],
+        [960, 1080, [43, 52, 171.93, 0.4]],
+        [1100, 1000, [49, 60, 135.56, 0]],
+        [1280, 1024, [51, 71, 136.19, 5.7]],
+        [1502, 1551, [68, 82, 163.97, 2.4]],
+        [1024, 1366, [45, 55, 174.97, 6.5]],
     ])(
-        "sizes a %ix%i desktop's river tile from its vertical stack and its own tile from its width, a full hand between the side strips' lanes, at most 1.45 river tiles, within bars that hold the switches named and the counters' row only while the own tile keeps 1.3 of the river tile, the river tile no larger than leaves it 1.2, the table centred",
+        "sizes a %ix%i desktop's river tile from its vertical stack and its own tile from its width, a full hand between the side strips' lanes, at most 1.45 river tiles, within bars that hold the switches named and the counters' row only while the own tile keeps 1.3 of the river tile, no bars where the width binds the river tile, the river tile no larger than leaves it 1.2, the table centred",
         (width, height, expected) => {
             const { lengths } = windowGeometry({ height, width });
 
@@ -775,9 +809,8 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [1502, 1551],
-        [1024, 1366],
-        [1280, 1024],
+        [1024, 768],
+        [800, 600],
     ])(
         "stands a width-bound %ix%i desktop's table no taller than its stack or its side strips' lines under the counters need, centred in the window: the own row hugs the bottom river and the top hand the core where the lines start beside it, the spare height lies above and below the table, every slot inside it",
         (width, height) => {
@@ -815,10 +848,10 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        { across: 1366, axis: "height", ends: [32, 52] },
+        { across: 1366, axis: "height", ends: [32, 61] },
         { across: 1920, axis: "height", ends: [32, 72] },
-        { across: 768, axis: "width", ends: [26, 42] },
-        { across: 1080, axis: "width", ends: [26, 59] },
+        { across: 768, axis: "width", ends: [30, 42] },
+        { across: 1080, axis: "width", ends: [35, 59] },
     ])(
         "never shrinks a desktop's river tile as its window grows in $axis from $across across",
         ({ across, axis, ends }) => {
@@ -1329,6 +1362,25 @@ describe("boardGeometry's plates", () => {
             expect(countersPlace(windowGeometry({ height, width }, 10))).toEqual({
                 countersAtCorner: true,
                 countersWhole: true,
+            });
+        },
+    );
+});
+
+describe("boardGeometry without bars", () => {
+    it.each([
+        [1502, 1551],
+        [1024, 1366],
+        [960, 1080],
+    ])(
+        "lays a width-bound %ix%i desktop's felt edge to edge with no bars: the cog over the right lane's top and the switches and furiten in the left lane's foot, the side strips' lines between the counters and the switches, the table centred in the window, its spare height above and below it",
+        (width, height) => {
+            expect(barlessPlaces(windowGeometry({ height, width }))).toEqual({
+                cogOverRightLane: true,
+                feltEdgeToEdge: true,
+                linesAboveFoot: true,
+                spareSplit: true,
+                switchesInLeftLane: true,
             });
         },
     );

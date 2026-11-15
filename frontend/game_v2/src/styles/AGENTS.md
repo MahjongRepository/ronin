@@ -19,7 +19,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   wide as the own row and the two side lanes it stands between (a phone's a column of at least 25 river tiles),
   its side bars the rest of the width. The zones' layer paints the felt between `--field-left` and `--field-right`,
   black (`--ronin-table-surround`) past them, the geometry's felt (`--geo-felt-left` / `--geo-felt-right`): a
-  desktop's meeting its bars' inner edges, so no bar's control stands on it, a phone's holding its own row too; `boardGeometry` places GameBoard's
+  desktop's meeting its bars' inner edges, so no bar's control stands on it (a barless desktop's edge to edge, its
+  controls over the side lanes), a phone's holding its own row too; `boardGeometry` places GameBoard's
   slots (the cog, the left bar's notices' field, furiten and switches' column, a replay's controls, the
   decisions' cluster, a desktop's toasts, the own row) as areas and emits the grid's templates (`--geo-shell-columns` / `--geo-shell-rows`, each area's edges a
   named line); `.board-layout` and `.board-table` lay them out and each slot takes its `grid-area`, aligned the way its

@@ -195,6 +195,16 @@ the felt's corners: the felt ends a page gutter above and below the table, as it
 strips, and the spare height past it is black (`--ronin-table-surround`) like the bars, so the table stands framed on
 all four sides.
 
+Where the width binds the river tile and the height holds the side lanes' controls, the board has no bars and
+its controls stand over the table rather than beside it: the felt runs edge to edge, the table as wide as
+the board, and the bars' contents stand over the side lanes. The counters stand in the table's top-left corner over
+the left lane and the top line's far end, the top strip starting 12px past them; the cog at the right lane's top; the
+play switches at the left lane's foot, ending over the own row's plate foot, two by two where the lane holds them,
+else the joined column, the furiten mark over them. The side strips' lines start below the counters and the cog and end
+above the furiten mark, and the table is as tall as that needs, its spare height split above and below the core,
+the felt still ending a page gutter above and below it. A replay keeps its controls' row in the band; one whose band
+holds no row keeps the bars. The bars' width goes to the tiles: 59 to 68px river tiles at 1502x1551.
+
 A phone in landscape keeps the composition with its own profile on a bounded felt, which
 stands on its surround: one rectangle holding the whole table, the own row and its melds included, centred on the
 board between two plain black rails (`--ronin-table-surround`), at most 1.78 times as wide as the board is tall (wider
@@ -255,7 +265,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 ## Elements
 
 - **Surface.** Fills the viewport, under the safe-area insets too, while the content keeps to the
-  play area. Off a phone the felt covers only the table's width, meeting the bars' inner edges (a bar's gap beside each side strip), and on a window taller than its table only its height and a page gutter above and below; the bars beside it and the spare height past it are black
+  play area. Off a phone the felt covers only the table's width, meeting the bars' inner edges (a bar's gap beside each side strip), and on a window taller than its table only its height and a page gutter above and below; the bars beside it and the spare height past it are black, and a desktop without bars has its felt edge to edge (Composition)
   (`--ronin-table-surround`); a phone's felt is its bounded table (Composition), the rails beside it black too. Decision: a petrol felt in the dark teal family, lit broadly over the core and falling
   off slowly toward the edges, with a fine static grain as its only texture (felt at full size, gone in a
   thumbnail: no weave, motif or wear) and the zone device; nothing else is drawn on it. Off-white faces
@@ -579,7 +589,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   ordinary answer; the latest-discard mark and the table are unchanged by an automatic pass, and an
   automatic discard travels like a pressed one. Decision: every switch is one press away, never
   behind a panel. They stand as one column at the left bar's foot, ending at the own tiles' foot on a desktop,
-  whose own row starts past the left side lane, and on a phone at the left rail's
+  whose own row starts past the left side lane (a desktop without bars at the left lane's foot, two by two where the
+  lane holds them, Composition), and on a phone at the left rail's
   foot by the screen's edge, beside the own row: the two-by-two block where the rail holds it, else the joined
   column, and the block above the own row only where the column would leave the notices no field above it. Their size is the tier's, never the decisions' larger one. Where the bar
   holds the whole names, each switch shows its name at the plates' text, narrowed with its label to the bar, never
@@ -875,8 +886,9 @@ decision control is 0.85 of a river tile tall, never under 40px, so it never shr
 (1.75 of it, at least 72px, holding `10 +20`) scale with it.
 It gives river and own tiles of 39 and 56px at 1280x720, 35 and 50px at 1366x657, 42 and 60px at 1366x768, 43 and
 56px at 1280x800, 49 and 66px at 1440x900, 47 and 68px at 1536x864, 58 and 77px at 1680x1050, 60 and 87px at
-1920x1080 and 80 and 116px at 2560x1440, 33 and 41px at 960x1000, 40 and 49px at 1100x1000, 49 and 59px at
-1280x1024, 59 and 71px at 1502x1551 and 26 and 32px at 800x600 (width-bound: the own tile toward 1.2 river tiles);
+1920x1080 and 80 and 116px at 2560x1440, 43 and 52px at 960x1000, 49 and 60px at 1100x1000, 51 and 71px at
+1280x1024, 68 and 82px at 1502x1551 (no bars) and 26 and 32px at 800x600 (width-bound: the own tile toward 1.2 river
+tiles);
 the river tile grows with the window's width and height, never falling back as either grows.
 
 On a phone both tiles are solved together from the box, led by the own hand tile: first the largest own tile that

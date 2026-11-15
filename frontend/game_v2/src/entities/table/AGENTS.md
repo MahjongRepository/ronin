@@ -49,7 +49,10 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   `ui/board-geometry-directive.ts`'s `sizeBoard` on GameBoard's root, the one place that measures the board and writes
   the result. A desktop whose width binds its river tile lays out in a table shorter than its box (`table-h`, at
   `table-top`, centred), only as tall as its stack (or its side lines under the counters) needs plus a little air under the
-  top hand, so its spare height never opens between the hands and the core; the slots and tracks are that table's. Off a phone the own row stands between the side strips' lanes, the table as
+  top hand, so its spare height never opens between the hands and the core; the slots and tracks are that table's.
+  Such a desktop drops its bars where its height holds their controls over the side lanes (`felt-wide`), its own tile
+  then from the whole width; it is the last plan at each river tile, so a board the bars fit never loses them, and a
+  desktop camera's plane takes the flat board's choice (`feltWide`), never its own. Off a phone the own row stands between the side strips' lanes, the table as
   wide as it and them: no opponent's tile, an added kan's stack included, ever stands over the own hand. `lib/strip-layout.ts`'s `stripLayout` lays out a strip's melds in those rooms from what it holds, which
   `sizeBoard` takes beside the slots and never hands `boardGeometry`. Every seat's melds stay in one line toward their owner's
   right, oldest at the far end. The geometry reserves enough length for four kans (a phone's as much of that line as its box

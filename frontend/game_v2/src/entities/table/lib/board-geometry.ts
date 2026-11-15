@@ -473,6 +473,8 @@ interface BoardFrame {
     readonly coreLift?: number;
     /** Whether a phone's centre gives the top river's centre-facing edge room off its top, from its spare height. */
     readonly topEdgeRoom?: boolean;
+    /** A desktop plane's bars as its flat board's: none (the felt edge to edge) or the bars beside the table. */
+    readonly feltWide?: boolean;
 }
 
 /** A desktop's root sizes and the lengths the stylesheet reads with them, in px, at the largest river tile that fits. */
@@ -545,9 +547,10 @@ interface DesktopLayout {
 
 /**
  * Where a desktop's counters stand: in the left bar; over the left strip's lane with the side strips' lines starting
- * below them; or wrapped where neither holds their one row.
+ * below them; wrapped where neither holds their one row; or, on a board without bars, in the table's top-left corner
+ * over the lane and the top line's far end, the side strips' lines starting below them and the cog.
  */
-type CountersPlace = "bar" | "lane" | "wrap";
+type CountersPlace = "bar" | "lane" | "wrap" | "corner";
 
 /** A desktop's bar and where its counters stand at it: the table's sizes solved for both. */
 interface DesktopPlan {
@@ -564,16 +567,23 @@ interface DesktopPlan {
 function desktopPlans(
     tier: TierChrome,
     rw: number,
+    feltWide?: boolean,
 ): readonly (DesktopPlan & { readonly share: number })[] {
     const named = Math.max(BAR_MIN, namedSwitchesBar(tier));
     const countersRoom = countersBar(rw);
     const bars = named > BAR_MIN ? [named, BAR_MIN] : [BAR_MIN];
-    return [OWN_BY_RIVER_WANTED, OWN_BY_RIVER_LEAST].flatMap((share) =>
+    const shares = [OWN_BY_RIVER_WANTED, OWN_BY_RIVER_LEAST];
+    const barred = shares.flatMap((share) =>
         bars.flatMap((bar) => [
             { bar, counters: "lane" as const, share },
             { bar: Math.max(bar, countersRoom), counters: "bar" as const, share },
         ]),
     );
+    const barless = shares.map((share) => ({ bar: 0, counters: "corner" as const, share }));
+    if (feltWide === undefined) {
+        return [...barred, ...barless];
+    }
+    return feltWide ? barless : barred;
 }
 
 function desktopLayout(
@@ -582,7 +592,7 @@ function desktopLayout(
     fits: (layout: DesktopLayout) => boolean = fitsDesktop,
 ): DesktopLayout {
     const tier = grownChrome(frame.tier, chromeGrowth(frame.chrome, rw));
-    const plans = desktopPlans(tier, rw).filter(
+    const plans = desktopPlans(tier, rw, frame.feltWide).filter(
         (plan) =>
             frame.plane !== undefined ||
             desktopOwnTile({ bar: plan.bar, rw, width: frame.box.width }) >= plan.share * rw,
@@ -615,6 +625,7 @@ function countersHold({
     const row = countersAt(leastDora(rw), DORA_SLOTS).width;
     const holds: Readonly<Record<CountersPlace, boolean>> = {
         bar: row <= fieldRight(colLeft) - BAR_GAP,
+        corner: true,
         lane: row <= laneEdge(colLeft, rw) - BAR_GAP,
         wrap: false,
     };
@@ -647,10 +658,11 @@ function sideLinesStart({
 
 /** A desktop's layout at a river tile and a plan, with its own tile's share of the river tile. */
 function desktopAt(
-    { box, chrome, plane, tier: tierAtRecord }: BoardFrame,
+    frame: BoardFrame,
     rw: number,
     plan: DesktopPlan,
 ): DesktopLayout & { readonly ownShare: number } {
+    const { box, chrome, plane, tier: tierAtRecord } = frame;
     const { width, height } = box;
     const growth = chromeGrowth(chrome, rw);
     const tier = grownChrome(tierAtRecord, growth);
@@ -690,14 +702,22 @@ function desktopAt(
         "below-core": 0,
         flat: slack,
     };
-    const coreTop = coreRoomTop + spareAbove[plane ?? "flat"];
+    const flatSpare = plan.counters === "corner" ? "around-core" : "flat";
+    const coreTop = coreRoomTop + spareAbove[plane ?? flatSpare];
     const cy = coreTop + aboveCentre + centreHeight / 2;
     const decisionTier = atDecisionScale(tier, decisionH);
     const reach = sideStripReach(rw);
     const place = plan.counters;
-    const { linesFloor } = desktopCounters({ colLeft: column.left, place, rw });
-    const linesFoot =
-        plane === undefined ? height : sideLineEnd(handTop, ownMeldRise, STRIP_ROOM_GAP);
+    const cog = menuSize(rw, MENU_MAX * growth);
+    const { linesFloor } = desktopCounters({ cog, colLeft: column.left, place, rw });
+    const laneFoot =
+        place === "corner"
+            ? laneFootTop({ handTop, height, oh, rw, tier }) - LINE_PLATE_GAP
+            : height;
+    const linesFoot = Math.min(
+        laneFoot,
+        plane === undefined ? height : sideLineEnd(handTop, ownMeldRise, STRIP_ROOM_GAP),
+    );
     const linesStart = sideLinesStart({ countersFoot: linesFloor, cy, height: linesFoot, reach });
     const ownPill = handTop + oh - tier.pillH;
 
@@ -716,6 +736,7 @@ function desktopAt(
         ["core-top", coreTop],
         ["hand-top", handTop],
         ["lines-start", linesStart],
+        ...(plan.counters === "corner" ? [["felt-wide", 1] as const] : []),
         ["m", 0],
         ["oh", oh],
         ["ow", ow],
@@ -727,17 +748,28 @@ function desktopAt(
             { drop, gap, topGap },
         ),
     ]);
+    const linesEnd = place === "corner" ? laneFoot : ownPill - LINE_PLATE_GAP;
+    const linesBelowCounters = place !== "corner" || linesStart >= linesFloor;
+    const bandWidth = column.right - lane - ACTIONS_GAP - (width - centreWidth) / 2;
+    const replayHeld =
+        place !== "corner" ||
+        frame.slots.band !== "replay" ||
+        replayRowSide(bandWidth, tier.replayGap) >= REPLAY_CONTROL_FLOOR;
     return {
         countersInRow:
+            replayHeld &&
+            linesBelowCounters &&
             countersHold({ colLeft: column.left, place, rw }) &&
-            (linesFloor === 0 || linesStart + reach <= ownPill - LINE_PLATE_GAP),
+            (linesFloor === 0 || linesStart + reach <= linesEnd),
         lengths,
         ownShare: fitted / rw,
         stacked: slack >= 0 && reach <= height,
         tall:
             reserved.handTop - reserved.ownMeldRise - edge - coreRoomTop - core >= 0 &&
             reach <= height,
-        wide: (plane !== undefined || fitted >= OWN_BY_RIVER_LEAST * rw) && column.left >= BAR_MIN,
+        wide:
+            (plane !== undefined || fitted >= OWN_BY_RIVER_LEAST * rw) &&
+            column.left >= Math.min(plan.bar, BAR_MIN),
     };
 }
 
@@ -1661,6 +1693,7 @@ interface StripPlaces {
     readonly ownStart: number;
     readonly topBadgeTop: number;
     readonly topEnd: number;
+    readonly topStart?: number;
 }
 
 /**
@@ -1679,7 +1712,7 @@ function opponentStrips(
     const { leftEnd, leftStart, rightEnd, rightStart } = places;
     const leftLine = leftEnd - leftStart;
     const rightLine = rightEnd - rightStart;
-    const top = topLine(at, places.topEnd);
+    const top = topLine(at, places.topEnd, places.topStart);
     const pastLine = {
         depth: places.ownStart - colLeft - STEP_IN_GAP,
         from: leftEnd + places.lineClear - leftStart,
@@ -1729,9 +1762,10 @@ function opponentStrips(
 function topLine(
     at: (name: string) => number,
     end: number,
+    from = 0,
 ): Readonly<Record<"anchor" | "start", number>> {
     const reach = fullReach(at("rw"), "top");
-    const start = at("col-left") + sideLane(at("rw"));
+    const start = Math.max(from, at("col-left") + sideLane(at("rw")));
     const anchor = Math.min(at("cx") + reach / 2, end);
     return { anchor: Math.max(start + reach, anchor), start };
 }
@@ -1829,11 +1863,11 @@ type OwnPill = Readonly<Record<"bottom" | "left" | "top", number>>;
  */
 function replayRow({ at, tier }: ShellRoom, band: BoardRect, pill: OwnPill): ReplayBlock | null {
     const count = REPLAY_MOVES + REPLAY_OPTIONS;
-    const gaps = (count - 2 + REPLAY_GROUP_GAPS) * tier.replayGap;
+    const gaps = replayRowGaps(tier.replayGap);
     const side = Math.floor(
         Math.min(
             wantedReplaySide(at),
-            (band.right - band.left - gaps) / count,
+            replayRowSide(band.right - band.left, tier.replayGap),
             band.bottom - band.top,
         ),
     );
@@ -1849,6 +1883,15 @@ function replayRow({ at, tier }: ShellRoom, band: BoardRect, pill: OwnPill): Rep
         rect.top >= pill.bottom - PILL_GRAZE ||
         rect.bottom <= pill.top + PILL_GRAZE;
     return side >= REPLAY_CONTROL_FLOOR && clearOfPill ? { rect, side, width } : null;
+}
+
+function replayRowGaps(gap: number): number {
+    return (REPLAY_MOVES + REPLAY_OPTIONS - 2 + REPLAY_GROUP_GAPS) * gap;
+}
+
+/** The side a desktop replay's controls take in one row `across` px wide (px). */
+function replayRowSide(across: number, gap: number): number {
+    return (across - replayRowGaps(gap)) / (REPLAY_MOVES + REPLAY_OPTIONS);
 }
 
 /** A desktop replay's controls arranged in so many columns within a bar: their side, and the block they make (px). */
@@ -1968,6 +2011,90 @@ function namedSwitches(
 /** A notice's text: the board's share, small enough that the field is `ems` wide, never under the floor. */
 function noticeText(text: number, fieldWidth: number, ems = NOTICE_FIELD_EMS): number {
     return Math.max(NOTICE_TEXT_MIN, Math.min(NOTICE_TEXT_SHARE * text, fieldWidth / ems));
+}
+
+/**
+ * A barless desktop's controls, standing over the side strips' lanes: the cog at
+ * the right lane's top; in the left lane's foot the play switches (`laneSwitches`) ending over the own row's plate foot
+ * and the furiten mark over them, the side lines ending above (`laneFootTop`); a replay's status in the field under the
+ * counters, over the left line; a replay's controls in the band's row (the layout keeps a board barless only where a
+ * replay's band holds one), else in the right lane's foot under its line; and the felt edge to edge.
+ */
+function desktopLaneControls(
+    room: ShellRoom,
+    decisions: ReturnType<typeof desktopActions>,
+    {
+        fieldTop,
+        linesEnd,
+        ownPill,
+        switchesFoot,
+    }: Readonly<Record<"fieldTop" | "linesEnd" | "switchesFoot", number>> & {
+        readonly ownPill: OwnPill;
+    },
+): ReturnType<typeof desktopBars> {
+    const { at, frame, tier } = room;
+    const { height, width } = frame.box;
+    const rw = at("rw");
+    const lane = sideLane(rw);
+    const colLeft = at("col-left");
+    const colRight = at("col-right");
+    const leftLane = { left: colLeft + BAR_GAP, right: colLeft + lane - BAR_GAP };
+    const rightLane = { left: colRight - lane + BAR_GAP, right: colRight - BAR_GAP };
+    const switches = laneSwitches(tier, rw);
+    const switchesLeft = (leftLane.left + leftLane.right - switches.width) / 2;
+    const switchesTop = switchesFoot - switches.height;
+    const furitenBottom = switchesTop - FURITEN_GAP;
+    const furiten = {
+        ...leftLane,
+        bottom: furitenBottom,
+        top: furitenBottom - furitenHeight(tier),
+    };
+    const field = { ...leftLane, bottom: furiten.top - FURITEN_GAP, top: fieldTop };
+    const replaying = frame.slots.band === "replay";
+    const row = replayRow(room, decisions.rect, ownPill);
+    const replay =
+        row === null
+            ? replayColumn(room, {
+                  ...rightLane,
+                  bottom: at("hand-top") + at("oh"),
+                  top: linesEnd + STRIP_ROOM_GAP,
+              })
+            : { ...row, form: "row" as const };
+    const actions = replaying ? replay.rect : decisions.rect;
+    const replayPanel: [string, number][] =
+        replaying && row !== null
+            ? [["overlay-bottom", height - replay.rect.top + PANEL_GAP + at("table-below")]]
+            : [];
+    const corner = { ...rightLane, bottom: height, top: BAR_GAP };
+    return {
+        areas: {
+            actions,
+            corner,
+            field,
+            furiten,
+            switches: {
+                bottom: switchesFoot,
+                left: switchesLeft,
+                right: switchesLeft + switches.width,
+                top: switchesTop,
+            },
+        },
+        cogLeft: (corner.left + corner.right - at("menu-size")) / 2,
+        felt: { left: -PAGE_GUTTER, right: width + PAGE_GUTTER },
+        lengths: [
+            ["actions-bottom", actions.bottom],
+            ["actions-left", actions.left],
+            ["actions-right", width - actions.right],
+            ["notice-text", Math.max(TOAST_TEXT_MIN, NOTICE_TEXT_SHARE * tier.text)],
+            ["replay-b", replay.side],
+            ["replay-gap", tier.replayGap],
+            ["replay-group-gap", REPLAY_GROUP_GAPS * tier.replayGap],
+            ["replay-w", replay.width],
+            ...replayPanel,
+        ],
+        replay: replay.form,
+        switches: switches.form,
+    };
 }
 
 /**
@@ -2386,6 +2513,7 @@ interface DesktopCounters {
     readonly counters: readonly [string, number][];
     readonly fieldTop: number;
     readonly linesFloor: number;
+    readonly right: number;
 }
 
 /**
@@ -2397,11 +2525,13 @@ interface DesktopCounters {
  * two (then two to a row) in the bar or over the lane above that start.
  */
 function desktopCounters({
+    cog = 0,
     colLeft,
     linesStart = 0,
     place,
     rw,
 }: {
+    readonly cog?: number;
     readonly colLeft: number;
     readonly linesStart?: number;
     readonly place: CountersPlace;
@@ -2409,10 +2539,19 @@ function desktopCounters({
 }): DesktopCounters {
     const least = leastDora(rw);
     const wanted = Math.max(least, Math.floor(DORA_BY_RIVER_WANTED * rw));
+    if (place === "corner") {
+        const counters = countersAt(wanted, DORA_SLOTS);
+        return {
+            counters: countersLengths(counters, { left: colLeft + BAR_GAP, top: 0 }),
+            fieldTop: counters.height + BAR_GAP,
+            linesFloor: Math.max(counters.height, BAR_GAP + cog) + PLATE_GAP,
+            right: colLeft + BAR_GAP + counters.width,
+        };
+    }
     const barEdge = fieldRight(colLeft);
     const overLane = laneEdge(colLeft, rw);
     const rows = place === "wrap" ? DORA_ROW_SIZES : [DORA_SLOTS];
-    const edgesByPlace: Readonly<Record<CountersPlace, readonly number[]>> = {
+    const edgesByPlace: Readonly<Record<Exclude<CountersPlace, "corner">, readonly number[]>> = {
         bar: [barEdge],
         lane: [overLane],
         wrap: [barEdge, overLane],
@@ -2437,6 +2576,7 @@ function desktopCounters({
         counters: countersLengths(counters, { left, top: 0 }),
         fieldTop: counters.height + BAR_GAP,
         linesFloor: place === "lane" ? counters.height + PLATE_GAP : 0,
+        right: left + counters.width,
     };
 }
 
@@ -2447,6 +2587,9 @@ function desktopCounters({
 function desktopCountersPlace({ at }: ShellRoom): CountersPlace {
     const rw = at("rw");
     const colLeft = at("col-left");
+    if (hasFeltWide(at)) {
+        return "corner";
+    }
     if (
         countersHold({ colLeft, place: "lane", rw }) &&
         at("lines-start") >= desktopCounters({ colLeft, place: "lane", rw }).linesFloor - 0.001
@@ -2456,12 +2599,62 @@ function desktopCountersPlace({ at }: ShellRoom): CountersPlace {
     return countersHold({ colLeft, place: "bar", rw }) ? "bar" : "wrap";
 }
 
+/** Whether a desktop's felt runs edge to edge, no bars beside its table, its controls over the side lanes. */
+function hasFeltWide(at: (name: string) => number): boolean {
+    return at("felt-wide") === 1;
+}
+
 /** Where a plate's box would stand with its pill's foot level with the own tiles', within the table (px). */
 function rowFootPlateTop({ at, frame, tier }: ShellRoom): number {
+    return plateTopAtRowFoot({
+        handTop: at("hand-top"),
+        height: frame.box.height,
+        oh: at("oh"),
+        tier,
+    });
+}
+
+function plateTopAtRowFoot({
+    handTop,
+    height,
+    oh,
+    tier,
+}: Readonly<Record<"handTop" | "height" | "oh", number>> & { readonly tier: TierChrome }): number {
     const pad = (plateBoxHeight(tier) - tier.pillH) / 2;
-    return Math.min(
-        at("hand-top") + at("oh") - tier.pillH - pad,
-        frame.box.height - plateBoxHeight(tier),
+    return Math.min(handTop + oh - tier.pillH - pad, height - plateBoxHeight(tier));
+}
+
+/** The play switches in a barless desktop's left lane: two by two where the lane holds the block, else the letters' column. */
+function laneSwitches(
+    tier: TierChrome,
+    rw: number,
+): Readonly<{ form: SwitchesForm; height: number; width: number }> {
+    if (2 * tier.switchH <= sideLane(rw) - 2 * BAR_GAP) {
+        return { form: "block", height: 2 * tier.switchH, width: 2 * tier.switchH };
+    }
+    return { form: "letters", height: SWITCH_CHIPS * tier.switchH, width: tier.switchH };
+}
+
+/**
+ * Where a barless desktop's left lane foot starts: the play switches ending a gap over the own row's plate foot, the
+ * furiten mark over them; the side strips' lines end above it (px).
+ */
+function laneFootTop({
+    handTop,
+    height,
+    oh,
+    rw,
+    tier,
+}: Readonly<Record<"handTop" | "height" | "oh" | "rw", number>> & {
+    readonly tier: TierChrome;
+}): number {
+    const switchesFoot = plateTopAtRowFoot({ handTop, height, oh, tier }) - BAR_GAP;
+    return (
+        switchesFoot -
+        laneSwitches(tier, rw).height -
+        FURITEN_GAP -
+        furitenHeight(tier) -
+        FURITEN_GAP
     );
 }
 
@@ -2542,19 +2735,24 @@ function desktopShell(room: ShellRoom): BoardShell {
     const ownStart = Math.max(at("col-left") + lane, at("cx") - halfRow);
     const ownEnd = Math.min(at("col-right") - lane, at("cx") + halfRow);
     const lines = desktopSideLines(room);
+    const place = desktopCountersPlace(room);
     const counters = desktopCounters({
+        cog: at("menu-size"),
         colLeft: at("col-left"),
         linesStart: lines.start,
-        place: desktopCountersPlace(room),
+        place,
         rw: at("rw"),
     });
     const decisions = desktopActions(room);
     const plates = desktopPlates(room);
-    const controls = desktopBars(room, decisions, {
+    const placed = {
         fieldTop: counters.fieldTop,
         ownPill: plates.ownPill,
         switchesFoot: rowFootPlateTop(room) - BAR_GAP,
-    });
+    };
+    const controls = hasFeltWide(at)
+        ? desktopLaneControls(room, decisions, { ...placed, linesEnd: lines.end })
+        : desktopBars(room, decisions, placed);
     const strips = opponentStrips(room, {
         leftEnd: lines.end,
         leftStart: lines.start,
@@ -2564,6 +2762,7 @@ function desktopShell(room: ShellRoom): BoardShell {
         rightStart: lines.start,
         topBadgeTop: plates.topBadgeTop,
         topEnd: Math.min(topHandEnd(at), controls.cogLeft - PLATE_GAP),
+        topStart: place === "corner" ? counters.right + FIELD_STRIP_GAP : undefined,
     });
     const own = ownRowSlot(at, {
         end: ownEnd,
@@ -2838,6 +3037,7 @@ function planeGeometry(
         topGap,
         beside,
         coreLift,
+        feltWide,
     }: {
         cap: number;
         faceFloor?: number;
@@ -2846,9 +3046,10 @@ function planeGeometry(
         topGap?: number;
         beside?: boolean;
         coreLift?: number;
+        feltWide?: boolean;
     },
 ): BoardGeometry {
-    const frame = { ...boardFrame(input), beside, box, coreLift, faceFloor, topGap };
+    const frame = { ...boardFrame(input), beside, box, coreLift, faceFloor, feltWide, topGap };
     let fits = 1;
     let fails = Math.max(1, Math.floor(cap)) + 1;
     while (fails - fits > 1) {
@@ -2862,7 +3063,12 @@ function planeGeometry(
     return solveFrame(frame, (laid) => planeLengths(laid, { ow, rw: fits, spare }));
 }
 
-export { boardGeometry, phonePromptHeight, planeGeometry, shellTracks };
+/** Whether a desktop board's felt runs edge to edge, with no bars beside its table; null for a phone. */
+function boardFeltWide(geometry: BoardGeometry): boolean | null {
+    return geometry.family === "phone" ? null : hasFeltWide((name) => geometry.lengths[name] ?? 0);
+}
+
+export { boardFeltWide, boardGeometry, phonePromptHeight, planeGeometry, shellTracks };
 export type {
     BoardBox,
     BoardEdges,
