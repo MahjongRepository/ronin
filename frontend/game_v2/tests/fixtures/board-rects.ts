@@ -3,12 +3,6 @@ import { type BoardGeometry, type BoardRect } from "@/entities/table/lib/board-g
 
 export const RIVERS = ["river-bottom", "river-right", "river-top", "river-left"] as const;
 
-/**
- * Each river's tiles' reserve on a board or a camera's plane, rebuilt from its lengths: a row of six with a sideways
- * riichi tile, the top and bottom rivers' third row run on (to `reach-top-left`, `reach-bottom-right`), the side rivers'
- * fourth wrapped (to `reach-left`, `reach-right`), the latest discard's gaps and the tile edge under the lowest tile. A
- * missing length leaves its edges not finite.
- */
 export function riverReserves({
     lengths,
 }: BoardGeometry): Record<(typeof RIVERS)[number], BoardRect> {
@@ -23,7 +17,7 @@ export function riverReserves({
         "g",
         "rh",
         "latest-drop-gap",
-    ].map(length) as [number, number, number, number, number, number, number];
+    ].map(length);
     const edge = TILE_EDGE_SHARE * length("rw");
     const sideRow = 5 * length("rw") + rh + drop;
     return {
@@ -54,7 +48,6 @@ export function riverReserves({
     };
 }
 
-/** The cog's own square on a flat board: `menu-size` from the corner slot's top, centred across it. */
 export function cogSquare({ areas, lengths }: BoardGeometry): BoardRect | undefined {
     const slot = areas["corner"];
     if (slot === undefined) {

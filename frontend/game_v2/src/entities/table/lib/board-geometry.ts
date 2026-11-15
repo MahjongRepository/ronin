@@ -645,21 +645,20 @@ function desktopPlans(
 }
 
 /**
- * The misfit a camera's plane lays through: its pocket holds no controls, which stand on the flat board, so its stack
- * is checked on the flat board alone.
+ * Whether a layout's controls stand where its plan puts them: with no misfit, or on a camera's plane with none but the
+ * pocket's stack, which a plane lays through unchecked: its pocket holds no controls, which stand on the flat board, so
+ * the stack is checked on the flat board alone.
  */
-const PLANE_UNCHECKED_POCKET_STACK: DesktopMisfit = "pocket-stack";
-
-/** Whether a layout's controls stand where its plan puts them: with no misfit, or on a plane only the pocket's stack. */
-function controlsStand(frame: BoardFrame, { misfits }: DesktopLayout): boolean {
-    return misfits.every(
-        (misfit) => frame.plane !== undefined && misfit === PLANE_UNCHECKED_POCKET_STACK,
+function controlsStandPlanePocketUnchecked(frame: BoardFrame, { misfits }: DesktopLayout): boolean {
+    return (
+        misfits.filter((misfit) => frame.plane === undefined || misfit !== "pocket-stack")
+            .length === 0
     );
 }
 
 /**
  * A desktop's layout at `rw`: the first of its plans (`desktopPlans`) whose own tile holds its share off a plane, whose
- * controls stand (`controlsStand`) and which `fits`; else the bars with the counters wrapped.
+ * controls stand (`controlsStandPlanePocketUnchecked`) and which `fits`; else the bars with the counters wrapped.
  */
 function desktopLayout(
     frame: BoardFrame,
@@ -675,7 +674,7 @@ function desktopLayout(
     for (const plan of plans) {
         const layout = desktopAt(frame, rw, plan);
         const ownHeld = frame.plane !== undefined || layout.ownShare >= plan.share;
-        if (ownHeld && controlsStand(frame, layout) && fits(layout)) {
+        if (ownHeld && controlsStandPlanePocketUnchecked(frame, layout) && fits(layout)) {
             return layout;
         }
     }
@@ -3201,8 +3200,8 @@ function planeLengths(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): LaidBoa
 }
 
 /**
- * Whether a plane lays at `rw`: its table fits and its controls stand (`controlsStand`, which lays a plane through the
- * pocket's stack).
+ * Whether a plane lays at `rw`: its table fits and its controls stand (`controlsStandPlanePocketUnchecked`, which
+ * lays a plane through the pocket's stack).
  */
 function planeFits(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): boolean {
     if (frame.family === "phone") {
@@ -3210,7 +3209,7 @@ function planeFits(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): boolean {
     }
     const planeFrame = { ...frame, plane: spare };
     const layout = desktopLayout(planeFrame, rw);
-    return fitsDesktop(layout) && controlsStand(planeFrame, layout);
+    return fitsDesktop(layout) && controlsStandPlanePocketUnchecked(planeFrame, layout);
 }
 
 /**

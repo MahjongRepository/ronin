@@ -504,7 +504,13 @@ describe("tableView on desktop windows 40x20 apart", () => {
             }),
         );
 
+        const arrangements = desktopGrid()
+            .flat()
+            .map(({ screen }) => screen.arrangement);
+
         expect(covered).toStrictEqual([]);
+        expect(arrangements).toContain("corner");
+        expect(arrangements).toContain("pocket");
     });
 
     it("shows the side strips' farthest tiles 16px or the flat gap off the top strip's end tiles, the counters 8px or the flat gap off its first", () => {
