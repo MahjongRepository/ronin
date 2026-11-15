@@ -573,7 +573,7 @@ function countersPlace(geometry: BoardGeometry): Record<string, boolean> {
             (countersRight <= length("col-left") - 6 + 0.001 ||
                 (countersRight <= laneInner - 6 + 0.1 &&
                     countersBottom <= (stripLeft[1] ?? 0) - 6 + 0.1) ||
-                (length("felt-wide") === 1 &&
+                (geometry.arrangement !== "bars" &&
                     countersRight + 12 <= (stripTop[0] ?? 0) + 0.1 &&
                     countersBottom <= (stripLeft[1] ?? 0) - 6 + 0.1)),
         countersWhole:

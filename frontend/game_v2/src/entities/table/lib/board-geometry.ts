@@ -103,6 +103,8 @@ interface BoardGeometry {
     readonly switches: SwitchesForm;
     readonly replay: ReplayForm;
     readonly areas: Readonly<Partial<Record<string, BoardRect>>>;
+    /** Where a desktop's controls stand (`DesktopArrangement`); null for a phone or an unsized board. */
+    readonly arrangement: DesktopArrangement | null;
 }
 
 /** The switches step in this far past an opponent's tile height (px). */
@@ -473,12 +475,21 @@ interface BoardFrame {
     readonly coreLift?: number;
     /** Whether a phone's centre gives the top river's centre-facing edge room off its top, from its spare height. */
     readonly topEdgeRoom?: boolean;
-    /** A desktop plane's bars as its flat board's: none (the felt edge to edge) or the bars beside the table. */
-    readonly feltWide?: boolean;
+    /** A desktop plane's arrangement as its flat board's; every arrangement where not given. */
+    readonly arrangement?: DesktopArrangement;
 }
 
-/** A desktop's root sizes and the lengths the stylesheet reads with them, in px, at the largest river tile that fits. */
-function desktopLengths(frame: BoardFrame): BoardLengths {
+/** A family's laid sizes and, off a phone, where its controls stand. */
+interface LaidBoard {
+    readonly lengths: BoardLengths;
+    readonly arrangement: DesktopArrangement | null;
+}
+
+/**
+ * A desktop's root sizes and the lengths the stylesheet reads with them, in px, at the largest river tile that fits,
+ * with the arrangement they were laid in.
+ */
+function desktopLengths(frame: BoardFrame): LaidBoard {
     let rw = Math.max(1, Math.floor(frame.box.height / DESKTOP_STACK_TILES));
     let layout = desktopLayout(frame, rw);
     while (rw > 1 && !fitsDesktop(layout)) {
@@ -487,13 +498,17 @@ function desktopLengths(frame: BoardFrame): BoardLengths {
     }
     const table = widthBoundTable(frame, rw);
     if (table === null) {
-        return layout.lengths;
+        return { arrangement: layout.arrangement, lengths: layout.lengths };
     }
+    const relaid = desktopLayout(table, rw, fitsDrawnOwnRow);
     return {
-        ...desktopLayout(table, rw, fitsDrawnOwnRow).lengths,
-        "table-below": Math.ceil((frame.box.height - table.box.height) / 2),
-        "table-h": table.box.height,
-        "table-top": Math.floor((frame.box.height - table.box.height) / 2),
+        arrangement: relaid.arrangement,
+        lengths: {
+            ...relaid.lengths,
+            "table-below": Math.ceil((frame.box.height - table.box.height) / 2),
+            "table-h": table.box.height,
+            "table-top": Math.floor((frame.box.height - table.box.height) / 2),
+        },
     };
 }
 
@@ -514,11 +529,11 @@ function widthBoundTable(frame: BoardFrame, rw: number): BoardFrame | null {
     if (!next.tall || next.wide) {
         return null;
     }
-    const { countersInRow } = desktopLayout(frame, rw);
+    const fullHeldControls = desktopLayout(frame, rw).misfits.length === 0;
     const height =
         leastHeight(frame, (table) => {
             const layout = desktopLayout(table, rw, fitsDrawnOwnRow);
-            return fitsDrawnOwnRow(layout) && (layout.countersInRow || !countersInRow);
+            return fitsDrawnOwnRow(layout) && (layout.misfits.length === 0 || !fullHeldControls);
         }) + Math.round(TOP_HAND_AIR * rw);
     return height < frame.box.height ? frameAtHeight(frame, height) : null;
 }
@@ -537,37 +552,54 @@ function leastHeight(frame: BoardFrame, holds: (table: BoardFrame) => boolean): 
     return tall;
 }
 
+/**
+ * Why a desktop plan's controls do not stand where it puts them: a barless replay's band holds no replay row; the side
+ * strips' lines cannot start below the counters; the counters' one row does not hold at their place; or the side
+ * lines do not fit between their start and end.
+ */
+type DesktopMisfit = "replay-row" | "lines-under-counters" | "counters-row" | "lines-fit";
+
+/**
+ * Where a desktop's controls stand: in the bars beside the table (`bars`); or with no bars, the felt edge to edge, the
+ * counters at the table's top-left corner and the cog at the right lane's top, the play switches and the furiten mark
+ * at the left lane's foot (`corner`) or in the free pocket over the left river (`pocket`).
+ */
+type DesktopArrangement = "bars" | "corner" | "pocket";
+
 interface DesktopLayout {
     readonly lengths: BoardLengths;
     readonly stacked: boolean;
     readonly tall: boolean;
     readonly wide: boolean;
-    readonly countersInRow: boolean;
+    /** Why its controls do not stand where its plan puts them; none where they all do. */
+    readonly misfits: readonly DesktopMisfit[];
+    readonly arrangement: DesktopArrangement;
 }
 
 /**
  * Where a desktop's counters stand: in the left bar; over the left strip's lane with the side strips' lines starting
- * below them; wrapped where neither holds their one row; or, on a board without bars, in the table's top-left corner
+ * below them; wrapped where neither holds their one row; or, on a barless board, in the table's top-left corner
  * over the lane and the top line's far end, the side strips' lines starting below them and the cog.
  */
 type CountersPlace = "bar" | "lane" | "wrap" | "corner";
 
-/** A desktop's bar and where its counters stand at it: the table's sizes solved for both. */
+/** A desktop's bar, where its counters stand at it and its arrangement: the table's sizes solved for them. */
 interface DesktopPlan {
     readonly bar: number;
     readonly counters: CountersPlace;
+    readonly arrangement: DesktopArrangement;
 }
 
 /**
  * The plans a desktop tries, best first, each only where its own tile stays the share of the river tile it asks (the
  * wanted share, then the least): the play switches named, then lettered at the least bar; the counters' one row over
- * the lane where the side strips' lines can start below it, else in a bar widened to hold it; the counters wrapped at
- * the least bar last.
+ * the lane where the side strips' lines can start below it, else in a bar widened to hold it; then barless; the
+ * counters wrapped at the least bar last. Only `arrangement`'s plans where it is given.
  */
 function desktopPlans(
     tier: TierChrome,
     rw: number,
-    feltWide?: boolean,
+    arrangement?: DesktopArrangement,
 ): readonly (DesktopPlan & { readonly share: number })[] {
     const named = Math.max(BAR_MIN, namedSwitchesBar(tier));
     const countersRoom = countersBar(rw);
@@ -575,15 +607,25 @@ function desktopPlans(
     const shares = [OWN_BY_RIVER_WANTED, OWN_BY_RIVER_LEAST];
     const barred = shares.flatMap((share) =>
         bars.flatMap((bar) => [
-            { bar, counters: "lane" as const, share },
-            { bar: Math.max(bar, countersRoom), counters: "bar" as const, share },
+            { arrangement: "bars" as const, bar, counters: "lane" as const, share },
+            {
+                arrangement: "bars" as const,
+                bar: Math.max(bar, countersRoom),
+                counters: "bar" as const,
+                share,
+            },
         ]),
     );
-    const barless = shares.map((share) => ({ bar: 0, counters: "corner" as const, share }));
-    if (feltWide === undefined) {
-        return [...barred, ...barless];
-    }
-    return feltWide ? barless : barred;
+    const barless = shares.map((share) => ({
+        arrangement: "corner" as const,
+        bar: 0,
+        counters: "corner" as const,
+        share,
+    }));
+    const plans = [...barred, ...barless];
+    return arrangement === undefined
+        ? plans
+        : plans.filter((plan) => plan.arrangement === arrangement);
 }
 
 function desktopLayout(
@@ -592,7 +634,7 @@ function desktopLayout(
     fits: (layout: DesktopLayout) => boolean = fitsDesktop,
 ): DesktopLayout {
     const tier = grownChrome(frame.tier, chromeGrowth(frame.chrome, rw));
-    const plans = desktopPlans(tier, rw, frame.feltWide).filter(
+    const plans = desktopPlans(tier, rw, frame.arrangement).filter(
         (plan) =>
             frame.plane !== undefined ||
             desktopOwnTile({ bar: plan.bar, rw, width: frame.box.width }) >= plan.share * rw,
@@ -600,11 +642,24 @@ function desktopLayout(
     for (const plan of plans) {
         const layout = desktopAt(frame, rw, plan);
         const ownHeld = frame.plane !== undefined || layout.ownShare >= plan.share;
-        if (ownHeld && layout.countersInRow && fits(layout)) {
+        if (ownHeld && layout.misfits.length === 0 && fits(layout)) {
             return layout;
         }
     }
-    return desktopAt(frame, rw, { bar: BAR_MIN, counters: "wrap" });
+    return desktopAt(frame, rw, { arrangement: "bars", bar: BAR_MIN, counters: "wrap" });
+}
+
+/** Each plan a desktop tries at a river tile, whatever its own tile's share, with why its controls misfit there. */
+function desktopPlanMisfits(
+    input: BoardInput,
+    rw: number,
+): readonly { readonly plan: DesktopPlan; readonly misfits: readonly DesktopMisfit[] }[] {
+    const frame = boardFrame(input);
+    const tier = grownChrome(frame.tier, chromeGrowth(frame.chrome, rw));
+    return desktopPlans(tier, rw).map((plan) => ({
+        misfits: desktopAt(frame, rw, plan).misfits,
+        plan,
+    }));
 }
 
 /** The px the left bar takes to hold the counters' one row at their least indicator, their gaps counted. */
@@ -736,7 +791,6 @@ function desktopAt(
         ["core-top", coreTop],
         ["hand-top", handTop],
         ["lines-start", linesStart],
-        ...(plan.counters === "corner" ? [["felt-wide", 1] as const] : []),
         ["m", 0],
         ["oh", oh],
         ["ow", ow],
@@ -755,13 +809,16 @@ function desktopAt(
         place !== "corner" ||
         frame.slots.band !== "replay" ||
         replayRowSide(bandWidth, tier.replayGap) >= REPLAY_CONTROL_FLOOR;
+    const checks: readonly (readonly [DesktopMisfit, boolean])[] = [
+        ["replay-row", replayHeld],
+        ["lines-under-counters", linesBelowCounters],
+        ["counters-row", countersHold({ colLeft: column.left, place, rw })],
+        ["lines-fit", linesFloor === 0 || linesStart + reach <= linesEnd],
+    ];
     return {
-        countersInRow:
-            replayHeld &&
-            linesBelowCounters &&
-            countersHold({ colLeft: column.left, place, rw }) &&
-            (linesFloor === 0 || linesStart + reach <= linesEnd),
+        arrangement: plan.arrangement,
         lengths,
+        misfits: checks.filter(([, holds]) => !holds).map(([misfit]) => misfit),
         ownShare: fitted / rw,
         stacked: slack >= 0 && reach <= height,
         tall:
@@ -2581,13 +2638,13 @@ function desktopCounters({
 }
 
 /**
- * Where a desktop's counters stand, from its lengths: over the lane where the side strips' lines start below them,
- * else in the bar where it holds their one row, else wrapped.
+ * Where a desktop's counters stand, from its arrangement and lengths: at the corner on a barless board; else over the
+ * lane where the side strips' lines start below them, else in the bar where it holds their one row, else wrapped.
  */
-function desktopCountersPlace({ at }: ShellRoom): CountersPlace {
+function desktopCountersPlace({ at }: ShellRoom, arrangement: DesktopArrangement): CountersPlace {
     const rw = at("rw");
     const colLeft = at("col-left");
-    if (hasFeltWide(at)) {
+    if (arrangement !== "bars") {
         return "corner";
     }
     if (
@@ -2597,11 +2654,6 @@ function desktopCountersPlace({ at }: ShellRoom): CountersPlace {
         return "lane";
     }
     return countersHold({ colLeft, place: "bar", rw }) ? "bar" : "wrap";
-}
-
-/** Whether a desktop's felt runs edge to edge, no bars beside its table, its controls over the side lanes. */
-function hasFeltWide(at: (name: string) => number): boolean {
-    return at("felt-wide") === 1;
 }
 
 /** Where a plate's box would stand with its pill's foot level with the own tiles', within the table (px). */
@@ -2724,18 +2776,18 @@ function desktopToasts(room: ShellRoom): BoardRect {
 
 /**
  * A desktop's slots: the opponents' strips, the own row between the side strips' lanes centred on the core, the
- * controls in the bars (`desktopBars`) under the counters (`desktopCounters`), the decisions in a band
- * along the own row's top (`desktopActions`), the notices in the core's bottom-left corner (`desktopToasts`), and the
- * plates in the core's corners (`desktopPlates`).
+ * controls as its arrangement puts them, in the bars (`desktopBars`) or over the lanes (`desktopLaneControls`), under
+ * the counters (`desktopCounters`), the decisions in a band along the own row's top (`desktopActions`), the notices in
+ * the core's bottom-left corner (`desktopToasts`), and the plates in the core's corners (`desktopPlates`).
  */
-function desktopShell(room: ShellRoom): BoardShell {
+function desktopShell(room: ShellRoom, arrangement: DesktopArrangement): BoardShell {
     const { at } = room;
     const lane = sideLane(at("rw"));
     const halfRow = (FULL_HAND * at("ow")) / 2;
     const ownStart = Math.max(at("col-left") + lane, at("cx") - halfRow);
     const ownEnd = Math.min(at("col-right") - lane, at("cx") + halfRow);
     const lines = desktopSideLines(room);
-    const place = desktopCountersPlace(room);
+    const place = desktopCountersPlace(room, arrangement);
     const counters = desktopCounters({
         cog: at("menu-size"),
         colLeft: at("col-left"),
@@ -2750,9 +2802,10 @@ function desktopShell(room: ShellRoom): BoardShell {
         ownPill: plates.ownPill,
         switchesFoot: rowFootPlateTop(room) - BAR_GAP,
     };
-    const controls = hasFeltWide(at)
-        ? desktopLaneControls(room, decisions, { ...placed, linesEnd: lines.end })
-        : desktopBars(room, decisions, placed);
+    const controls =
+        arrangement === "bars"
+            ? desktopBars(room, decisions, placed)
+            : desktopLaneControls(room, decisions, { ...placed, linesEnd: lines.end });
     const strips = opponentStrips(room, {
         leftEnd: lines.end,
         leftStart: lines.start,
@@ -2836,16 +2889,19 @@ function stripFacts(rw: number): [string, number][] {
     ];
 }
 
-/** A family's slots from its lengths. */
-function boardShell(frame: BoardFrame, lengths: BoardLengths): BoardShell {
+/** A family's slots from its lengths and, off a phone, its arrangement. */
+function boardShell(frame: BoardFrame, { arrangement, lengths }: LaidBoard): BoardShell {
     function at(name: string): number {
         return lengths[name] ?? 0;
     }
     const grown = grownChrome(frame.tier, chromeGrowth(frame.chrome, at("rw")));
     const shell =
-        frame.family === "phone"
+        arrangement === null
             ? phoneShell({ at, frame, tier: phoneChrome(at("rw")) })
-            : desktopShell({ at, frame, tier: atDecisionScale(grown, at("decision-h")) });
+            : desktopShell(
+                  { at, frame, tier: atDecisionScale(grown, at("decision-h")) },
+                  arrangement,
+              );
     return { ...shell, lengths: [...shell.lengths, ...stripFacts(at("rw"))] };
 }
 
@@ -2914,9 +2970,9 @@ function shellTracks(
     };
 }
 
-function familyLengths(frame: BoardFrame): BoardLengths {
+function familyLengths(frame: BoardFrame): LaidBoard {
     if (frame.family === "phone") {
-        return phoneLengths(frame);
+        return { arrangement: null, lengths: phoneLengths(frame) };
     }
     return desktopLengths(frame);
 }
@@ -2966,22 +3022,21 @@ function boardFrame(input: BoardInput): BoardFrame {
     };
 }
 
-function solveFrame(
-    frame: BoardFrame,
-    lengthsOf: (frame: BoardFrame) => BoardLengths,
-): BoardGeometry {
+function solveFrame(frame: BoardFrame, lay: (frame: BoardFrame) => LaidBoard): BoardGeometry {
     const { box, chrome, family } = frame;
     const sized =
         Number.isFinite(box.width) &&
         Number.isFinite(box.height) &&
         box.width > 0 &&
         box.height > 0;
-    const sizes = sized ? lengthsOf(frame) : {};
+    const laid = sized ? lay(frame) : null;
+    const sizes = laid?.lengths ?? {};
     const tableHeight = sizes["table-h"];
     const table = tableHeight === undefined ? frame : frameAtHeight(frame, tableHeight);
-    const shell = sized ? boardShell(table, sizes) : null;
+    const shell = laid === null ? null : boardShell(table, laid);
     return Object.freeze({
         areas: Object.freeze({ ...shell?.areas }),
+        arrangement: laid?.arrangement ?? null,
         box: Object.freeze(box),
         chrome,
         family,
@@ -3006,10 +3061,12 @@ interface PlaneTiles {
     readonly spare: PlaneSpare;
 }
 
-function planeLengths(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): BoardLengths {
-    return frame.family === "phone"
-        ? phoneLaidWithEdgeRoom(frame, { ow, rw }).lengths
-        : desktopLayout({ ...frame, plane: spare }, rw).lengths;
+function planeLengths(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): LaidBoard {
+    if (frame.family === "phone") {
+        return { arrangement: null, lengths: phoneLaidWithEdgeRoom(frame, { ow, rw }).lengths };
+    }
+    const { arrangement, lengths } = desktopLayout({ ...frame, plane: spare }, rw);
+    return { arrangement, lengths };
 }
 
 function planeFits(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): boolean {
@@ -3017,7 +3074,7 @@ function planeFits(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): boolean {
         return phoneLaid(frame, { ow, rw }).fits;
     }
     const layout = desktopLayout({ ...frame, plane: spare }, rw);
-    return fitsDesktop(layout) && layout.countersInRow;
+    return fitsDesktop(layout) && layout.misfits.length === 0;
 }
 
 /**
@@ -3037,7 +3094,7 @@ function planeGeometry(
         topGap,
         beside,
         coreLift,
-        feltWide,
+        arrangement,
     }: {
         cap: number;
         faceFloor?: number;
@@ -3046,10 +3103,10 @@ function planeGeometry(
         topGap?: number;
         beside?: boolean;
         coreLift?: number;
-        feltWide?: boolean;
+        arrangement?: DesktopArrangement;
     },
 ): BoardGeometry {
-    const frame = { ...boardFrame(input), beside, box, coreLift, faceFloor, feltWide, topGap };
+    const frame = { ...boardFrame(input), arrangement, beside, box, coreLift, faceFloor, topGap };
     let fits = 1;
     let fails = Math.max(1, Math.floor(cap)) + 1;
     while (fails - fits > 1) {
@@ -3063,12 +3120,7 @@ function planeGeometry(
     return solveFrame(frame, (laid) => planeLengths(laid, { ow, rw: fits, spare }));
 }
 
-/** Whether a desktop board's felt runs edge to edge, with no bars beside its table; null for a phone. */
-function boardFeltWide(geometry: BoardGeometry): boolean | null {
-    return geometry.family === "phone" ? null : hasFeltWide((name) => geometry.lengths[name] ?? 0);
-}
-
-export { boardFeltWide, boardGeometry, phonePromptHeight, planeGeometry, shellTracks };
+export { boardGeometry, desktopPlanMisfits, phonePromptHeight, planeGeometry, shellTracks };
 export type {
     BoardBox,
     BoardEdges,
@@ -3079,6 +3131,8 @@ export type {
     BoardRect,
     BoardSlots,
     BoardTracks,
+    DesktopArrangement,
+    DesktopMisfit,
     PlaneSpare,
     ReplayForm,
     SwitchesForm,

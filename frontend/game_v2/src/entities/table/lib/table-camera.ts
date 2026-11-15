@@ -13,8 +13,8 @@ import {
     type BoardGeometry,
     type BoardInput,
     type BoardRect,
+    type DesktopArrangement,
     type PlaneSpare,
-    boardFeltWide,
     planeGeometry,
 } from "./board-geometry";
 import { CALLOUT_SPOTS } from "./callouts";
@@ -486,7 +486,7 @@ interface PlaneTarget extends PlaneAt {
     readonly ow: number;
     readonly spare: PlaneSpare;
     readonly beside?: boolean;
-    readonly feltWide?: boolean;
+    readonly arrangement?: DesktopArrangement;
     /** The plane's own row's top the camera needs, from the plane's top (px). */
     readonly wanted: number;
 }
@@ -496,13 +496,24 @@ function settlePlane(
     target: PlaneTarget,
     start: number,
 ): { readonly plane: BoardGeometry; readonly converged: boolean } {
-    const { beside, cap, coreLift, faceFloor, feltWide, input, ow, spare, topGap, wanted, width } =
-        target;
+    const {
+        arrangement,
+        beside,
+        cap,
+        coreLift,
+        faceFloor,
+        input,
+        ow,
+        spare,
+        topGap,
+        wanted,
+        width,
+    } = target;
     let height = start;
     let plane = planeGeometry(
         input,
         { height, width },
-        { beside, cap, coreLift, faceFloor, feltWide, ow, spare, topGap },
+        { arrangement, beside, cap, coreLift, faceFloor, ow, spare, topGap },
     );
     for (let round = 0; round < PLANE_SOLVE_ROUNDS; round += 1) {
         const foot = plane.lengths["foreground-top"] ?? height;
@@ -513,7 +524,7 @@ function settlePlane(
         plane = planeGeometry(
             input,
             { height, width },
-            { beside, cap, coreLift, faceFloor, feltWide, ow, spare, topGap },
+            { arrangement, beside, cap, coreLift, faceFloor, ow, spare, topGap },
         );
     }
     return { converged: false, plane };
@@ -559,8 +570,8 @@ function planeTarget(
 ): PlaneTarget {
     return {
         ...at,
+        arrangement: screen.arrangement ?? undefined,
         beside: screen.family === "phone" ? stripsBesideOwnRow(screen) : undefined,
-        feltWide: boardFeltWide(screen) ?? undefined,
         input,
         ow: at.ow ?? screen.lengths["ow"] ?? 1,
         spare: PLANE_SPARE,
