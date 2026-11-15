@@ -171,8 +171,8 @@ table's bottom between the side strips' lanes (an added kan's stack deep), so no
 player's hand. The table is as wide as that row (a full hand of 14.6 own tiles) and both lanes. What it leaves on
 either side is a side bar, equal on both sides, holding the board's controls and no tile; the felt
 covers only the table's width and meets the bars' inner edges, a bar's gap beside each side strip, so every control
-in a bar stands on the surround, from the board's top to its bottom, and the bars are plain black, so the board
-stands on a plain surround. Two scales size it: the river tile (every river, the centre, the opponents' hands and melds) from the
+in a bar stands on the surround, from the board's top to its bottom, and the bars are the surround, as Mahjong
+Soul's board stands on its patterned backdrop (Surface). Two scales size it: the river tile (every river, the centre, the opponents' hands and melds) from the
 height, the own tile from the width a full hand between the lanes keeps, at most 1.45 river tiles, so the own hand
 is the table's largest thing; the bars hold the switches named and the counters' row only while the own tile keeps
 1.3 river tiles; where the width cannot give it 1.2 river tiles, the river tile steps down instead. On every
@@ -183,7 +183,7 @@ the decisions': they stand in a band along the own row's top, over the bottom ri
 
 A window taller than its table needs (the width binds the river tile: 5:4 and 4:3 screens, a near-square or portrait
 desktop window, a portrait tablet) never spreads the table over the spare height, keeping the board at
-its own aspect on a plain surround. The table is only as tall as its stack needs (or its side strips' lines under the counters), with no more
+its own aspect on its surround. The table is only as tall as its stack needs (or its side strips' lines under the counters), with no more
 slack around the core than a height-bound board keeps (0.3 river tiles of air under the top hand), and stands
 centred in the window,
 the spare height above and below it. Everything is placed in the table: the top hand along its top, the side
@@ -192,7 +192,7 @@ bottom, and the bars' contents too: the counters, a replay's status and the cog 
 a small window's replay column) ending level
 with the own row. The seams run to
 the felt's corners: the felt ends a page gutter above and below the table, as it ends a bar's gap beside the side
-strips, and the spare height past it is black (`--ronin-table-surround`) like the bars, so the table stands framed on
+strips, and the spare height past it is the surround (`--ronin-table-surround`) like the bars, so the table stands framed on
 all four sides.
 
 Where the width binds the river tile and the height holds the side lanes' controls, the board has no bars and
@@ -207,7 +207,7 @@ holds no row keeps the bars. The bars' width goes to the tiles: 59 to 68px river
 
 A phone in landscape keeps the composition with its own profile on a bounded felt, which
 stands on its surround: one rectangle holding the whole table, the own row and its melds included, centred on the
-board between two plain black rails (`--ronin-table-surround`), at most 1.78 times as wide as the board is tall (wider
+board between two rails of the surround (`--ronin-table-surround`), at most 1.78 times as wide as the board is tall (wider
 only where a full hand at the own tile's floor needs it) within rails a control wide, and never narrower than the table
 column and the page gutter's air; a board too narrow for a full hand at that floor within such rails narrows its rails
 first, down to none, its cog then standing over the felt's corner. The own tile is as large as a full hand and that
@@ -265,8 +265,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 ## Elements
 
 - **Surface.** Fills the viewport, under the safe-area insets too, while the content keeps to the
-  play area. Off a phone the felt covers only the table's width, meeting the bars' inner edges (a bar's gap beside each side strip), and on a window taller than its table only its height and a page gutter above and below; the bars beside it and the spare height past it are black, and a desktop without bars has its felt edge to edge (Composition)
-  (`--ronin-table-surround`); a phone's felt is its bounded table (Composition), the rails beside it black too. Decision: a petrol felt in the dark teal family, lit broadly over the core and falling
+  play area. Off a phone the felt covers only the table's width, meeting the bars' inner edges (a bar's gap beside each side strip), and on a window taller than its table only its height and a page gutter above and below; the bars beside it and the spare height past it are the surround, and a desktop without bars has its felt edge to edge (Composition)
+  (`--ronin-table-surround`); a phone's felt is its bounded table (Composition), the rails beside it the surround too.
+  The surround is a dark slate gradient under a repeating wallpaper of faint outlined tiles (1-pin, 中, 3-sou, 5-pin,
+  南; `--ronin-table-surround-motif`), each drawn simplified but read as its tile at a glance, about 60% as large on a
+  phone so its rails show whole tiles. Decision: a petrol felt in the dark teal family, lit broadly over the core and falling
   off slowly toward the edges, with a fine static grain as its only texture (felt at full size, gone in a
   thumbnail: no weave, motif or wear) and the zone device; nothing else is drawn on it. Off-white faces
   separate from it by value, the ochre backs by hue. The grain is one small repeating image under

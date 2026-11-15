@@ -18,7 +18,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
 - **The shell is a grid from the geometry's tracks; the pinwheel is local.** The table is centred, off a phone as
   wide as the own row and the two side lanes it stands between (a phone's a column of at least 25 river tiles),
   its side bars the rest of the width. The zones' layer paints the felt between `--field-left` and `--field-right`,
-  black (`--ronin-table-surround`) past them, the geometry's felt (`--geo-felt-left` / `--geo-felt-right`): a
+  the surround (`--ronin-table-surround` under its tile motif) past them, the geometry's felt (`--geo-felt-left` / `--geo-felt-right`): a
   desktop's meeting its bars' inner edges, so no bar's control stands on it (a barless desktop's edge to edge, its
   controls over the side lanes), a phone's holding its own row too; `boardGeometry` places GameBoard's
   slots (the cog, the left bar's notices' field, furiten and switches' column, a replay's controls, the
@@ -33,7 +33,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
 - **A width-bound desktop's table is a frame of its own.** Where the board is taller than its table needs, the
   geometry emits `--geo-table-top` and `--geo-table-h`, and `.board-layout` stands there, that tall: every length,
   track and slot is in the table's frame, the zones' seams and fields reach its corners (their layer still covering
-  the whole board, black past the felt, which ends a page gutter above and below the table), and the overlay, which spans the whole board for its dim, reads `--cy` shifted by the table's top.
+  the whole board, the surround past the felt, which ends a page gutter above and below the table), and the overlay, which spans the whole board for its dim, reads `--cy` shifted by the table's top.
   A height-bound board emits neither, its fallbacks the whole board.
 - **The panel's free box is the geometry's.** Off a phone it is the table column, so the bars' notices stay usable
   beside a panel, and above a replay's row of controls where the band holds one, so they stay usable under it; the overlay centres the panel within its `--geo-overlay-*` insets, live and

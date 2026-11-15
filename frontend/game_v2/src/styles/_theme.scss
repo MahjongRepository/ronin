@@ -65,7 +65,8 @@
     );
     --ronin-table-grain: url("@/assets/table/felt-grain.webp");
     --ronin-table-edge: #183735;
-    --ronin-table-surround: #000;
+    --ronin-table-surround: radial-gradient(ellipse 90% 80% at 50% 42%, #1b2631 0%, #131c25 55%, #0b1117 100%);
+    --ronin-table-surround-motif: url("@/assets/table/surround-motif.svg?no-inline");
     --ronin-table-zone-groove: rgb(4 23 21 / 20%);
     --ronin-table-zone-lip: rgb(207 228 211 / 7%);
     --ronin-table-field-side: rgb(207 228 211 / 3%);
