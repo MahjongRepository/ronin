@@ -89,11 +89,6 @@ function sum(values: readonly number[]): number {
     return values.reduce((total, value) => total + value, 0);
 }
 
-/** An opponent's hairline between tiles, a whole pixel (a side strip's quarter turn blurs a fractional one away). */
-function hairline(rw: number): number {
-    return Math.ceil(rw / TILE_UNITS);
-}
-
 /** An opponent's drawn tile's gap, a whole pixel; a side strip's is deeper by the tile edge it shows. */
 function drawnGap(rw: number, seat: StripSeat): number {
     return Math.round((seat === "top" ? OPPONENT_DRAWN_GAP : SIDE_DRAWN_GAP) * rw);
@@ -107,9 +102,9 @@ interface HandLine {
     readonly seat: StripSeat;
 }
 
-/** A hand's length along its line (px): its tiles, whole-pixel hairlines between them and a drawn tile's gap. */
+/** A hand's length along its line (px): its tiles edge to edge and a drawn tile's gap. */
 function handLength({ drawn, rw, seat, tiles }: HandLine): number {
-    return tiles * rw + Math.max(0, tiles - 1) * hairline(rw) + (drawn ? drawnGap(rw, seat) : 0);
+    return tiles * rw + (drawn ? drawnGap(rw, seat) : 0);
 }
 
 /** A full hand's tiles, a drawn one counted, and the tiles each meld takes from it. */
@@ -374,7 +369,7 @@ function ownMeldTile(row: OwnRow, melds: readonly MeldShape[]): number {
     return Math.max(FACE_FLOOR, Math.min(cap, room / units));
 }
 
-export { drawnGap, hairline, handLength, ownMeldTile, stripLayout, stripLengths };
+export { drawnGap, handLength, ownMeldTile, stripLayout, stripLengths };
 export type {
     MeldShape,
     MeldPlace,

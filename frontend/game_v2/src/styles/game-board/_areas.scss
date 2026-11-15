@@ -10,7 +10,8 @@ $max-melds: 4;
 .board-table,
 .board-surface,
 .board-zones,
-.board-rivers {
+.board-rivers,
+.board-strips {
     position: absolute;
     inset: 0;
 }
@@ -19,12 +20,21 @@ $max-melds: 4;
     overflow: hidden;
 }
 
+.board-strips {
+    pointer-events: none;
+
+    > .board-strip {
+        pointer-events: auto;
+    }
+}
+
 .board-surface {
     top: calc(-1 * var(--geo-table-top, 0px));
     bottom: auto;
     height: 100cqh;
 
-    > :is(.board-center, .board-strip, .board-dora),
+    > :is(.board-center, .board-dora),
+    > .board-strips > .board-strip,
     > .board-rivers > .board-river {
         transform-origin: 0 0;
     }
@@ -51,12 +61,12 @@ $max-melds: 4;
 }
 
 @each $seat in top, right, left {
-    .board-surface > .board-strip--#{$seat} {
+    .board-surface > .board-strips > .board-strip--#{$seat} {
         transform: var(--geo-camera-strip-#{$seat});
     }
 }
 
-.board-surface > .board-strip--top-hand {
+.board-surface > .board-strips > .board-strip--top-hand {
     transform: var(--geo-camera-top-hand);
 
     &.board-strip--revealed {

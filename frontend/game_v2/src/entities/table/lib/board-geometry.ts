@@ -59,7 +59,6 @@ import {
     type StripSeat,
     drawnGap,
     ownMeldTile as fitOwnMelds,
-    hairline,
     handLength,
 } from "./strip-layout";
 
@@ -2320,12 +2319,11 @@ interface PlatePlaces {
 
 /**
  * A desktop's dora tile is this share of the river tile where its place holds it, never under the least; the counters
- * hold five indicators a gap apart (px), in rows of the most of `DORA_ROW_SIZES` their room holds.
+ * hold five indicators edge to edge, in rows of the most of `DORA_ROW_SIZES` their room holds.
  */
 const DORA_BY_RIVER_WANTED = 0.8;
 const DORA_BY_RIVER_LEAST = 0.6;
 const DORA_SLOTS = 5;
-const DORA_TILE_GAP = 2;
 const DORA_ROW_SIZES = [5, 3, 2] as const;
 
 /** The counters' padding and corner, in dora tiles. */
@@ -2346,14 +2344,10 @@ interface Counters {
 function countersAt(dora: number, perRow: number): Counters {
     const rows = Math.ceil(DORA_SLOTS / perRow);
     const pad = COUNTERS_PAD_BY_DORA * dora;
-    const rowW = rowWidth(perRow, dora, DORA_TILE_GAP);
+    const rowW = perRow * dora;
     return {
         dora,
-        height:
-            2 * pad +
-            rows * dora * TILE_ASPECT +
-            (rows - 1) * DORA_TILE_GAP +
-            TILE_EDGE_SHARE * dora,
+        height: 2 * pad + rows * dora * TILE_ASPECT + TILE_EDGE_SHARE * dora,
         pad,
         radius: COUNTERS_RADIUS_BY_DORA * dora,
         rowW,
@@ -2367,10 +2361,7 @@ function doraFitting({
     room,
     wanted,
 }: Readonly<Record<"perRow" | "room" | "wanted", number>>): number {
-    return Math.min(
-        wanted,
-        Math.floor((room - (perRow - 1) * DORA_TILE_GAP) / (perRow + 2 * COUNTERS_PAD_BY_DORA)),
-    );
+    return Math.min(wanted, Math.floor(room / (perRow + 2 * COUNTERS_PAD_BY_DORA)));
 }
 
 /** The counters' lengths the stylesheet draws them with, their box's top left corner at `left` and `top` (px). */
@@ -2636,10 +2627,9 @@ function phoneShell(room: ShellRoom): BoardShell {
     };
 }
 
-/** What every family's board reads alike: an opponent's hand's gaps and full reach, and a side strip's stacked depth. */
+/** What every family's board reads alike: an opponent's drawn tile's gaps and full reach, and a side strip's stacked depth. */
 function stripFacts(rw: number): [string, number][] {
     return [
-        ["bgap", hairline(rw)],
         ["dg", drawnGap(rw, "top")],
         ["side-dg", drawnGap(rw, "left")],
         ["full-reach", fullReach(rw, "left")],

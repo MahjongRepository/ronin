@@ -237,7 +237,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         function measurePlane(within: Element): PlaneMeasure {
             const flat = document.createElement("style");
             flat.textContent =
-                ".board-surface > *, .board-surface > .board-rivers > .board-river { transform: none !important; }";
+                ".board-surface > *, .board-surface > :is(.board-rivers, .board-strips) > * { transform: none !important; }";
             document.head.append(flat);
             const center = within.querySelector(".board-center");
             const plane = {

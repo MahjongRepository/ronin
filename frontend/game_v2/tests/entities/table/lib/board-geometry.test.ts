@@ -201,15 +201,15 @@ describe("boardGeometry in a phone's browser", () => {
             height: 414,
             insets: { bottom: 21, left: 44, right: 44, top: 0 },
             ow: 47,
-            rw: 22,
+            rw: 23,
             width: 896,
         },
         {
             board: { height: 390, width: 750 },
             height: 390,
             insets: { bottom: 21, left: 47, right: 47, top: 0 },
-            ow: 43,
-            rw: 21,
+            ow: 41,
+            rw: 22,
             width: 844,
         },
     ])(
@@ -861,15 +861,15 @@ describe("boardGeometry", () => {
     it.each([
         { height: 375, pinned: { ow: 37, rw: 19 }, width: 667 },
         { height: 390, pinned: { ow: 37, rw: 19 }, width: 667 },
-        { height: 354, pinned: { ow: 40, rw: 19 }, width: 724 },
+        { height: 354, pinned: { ow: 41, rw: 19 }, width: 724 },
         { height: 360, pinned: { ow: 42, rw: 19 }, width: 800 },
-        { height: 390, pinned: { ow: 43, rw: 21 }, width: 750 },
-        { height: 379, pinned: { ow: 44, rw: 20 }, width: 761 },
-        { height: 414, pinned: { "dora-w": 15, ow: 47, rw: 22 }, width: 808 },
+        { height: 390, pinned: { ow: 41, rw: 22 }, width: 750 },
+        { height: 379, pinned: { ow: 42, rw: 21 }, width: 761 },
+        { height: 414, pinned: { "dora-w": 15, ow: 47, rw: 23 }, width: 808 },
         { height: 480, pinned: { ow: 49, rw: 26 }, width: 850 },
-        { height: 430, pinned: { "dora-w": 15, ow: 51, rw: 23 }, width: 932 },
-        { height: 414, pinned: { "dora-w": 15, ow: 49, rw: 22 }, width: 1000 },
-        { height: 500, pinned: { ow: 59, rw: 27 }, width: 1024 },
+        { height: 430, pinned: { "dora-w": 15, ow: 51, rw: 24 }, width: 932 },
+        { height: 414, pinned: { "dora-w": 15, ow: 49, rw: 23 }, width: 1000 },
+        { height: 500, pinned: { ow: 59, rw: 28 }, width: 1024 },
     ])(
         "sizes a $width x $height window's phone board's tiles jointly in its felt: the own row inside it with its air, the felt bounded by the height and its rails, the left bar holding the counters, the side strips' lines a full hand long above the own row, the felt beside each side river under three river tiles, every control in a bar, the cog and a replay's column in the right rail off the felt",
         ({ height, pinned, width }) => {
@@ -1211,15 +1211,15 @@ describe("boardGeometry's decisions", () => {
         const { lengths, tracks } = windowGeometry({ height: 308, width: 640 });
         const [left = 0, top = 0, right = 0] = slotAreas(tracks)["actions"] ?? [];
 
-        expect(right - left).toBeCloseTo(341.6, 1);
+        expect(right - left).toBeCloseTo(352.6, 1);
         expect(left).toBeLessThan((lengths["cx"] ?? 0) - (lengths["hx"] ?? 0));
         expect(top).toBeGreaterThanOrEqual((lengths["cy"] ?? 0) + (lengths["h"] ?? 0));
     });
 
     it.each([
         { fromLane: true, height: 375, insets: NO_INSETS, rows: 2, width: 667 },
-        { fromLane: true, height: 390, insets: NO_INSETS, rows: 2, width: 750 },
-        { fromLane: true, height: 430, insets: NO_INSETS, rows: 2, width: 932 },
+        { fromLane: false, height: 390, insets: NO_INSETS, rows: 2, width: 750 },
+        { fromLane: false, height: 430, insets: NO_INSETS, rows: 2, width: 932 },
         {
             fromLane: true,
             height: 275,
@@ -1348,12 +1348,12 @@ describe("boardGeometry's shell tracks", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
             actions: [144, 228.7, 523, 315.7],
             corner: [623, 4, 663, 375],
-            field: [4, 37.1, 90, 177],
+            field: [4, 39, 90, 177],
             furiten: [4, 185, 90, 203],
             hand: [63.4, 319.7, 609, 369],
             "strip-left": [96, 4, 138, 315.7],
             "strip-right": [529, 4, 571, 315.7],
-            "strip-top": [138, 4, 474.5, 42],
+            "strip-top": [138, 4, 468, 42],
             switches: [4, 211, 44, 371],
         });
     });

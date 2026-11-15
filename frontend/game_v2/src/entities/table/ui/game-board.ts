@@ -438,7 +438,9 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                             ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
                         </div>
                         ${state ? CenterInfo(state.center, state.nameplates, onView) : EmptyCenterArea()}
-                        ${STRIP_SEATS.map((seat) => Strip(seat, seatPlayer(state, seat)))}
+                        <div class="board-strips">
+                            ${STRIP_SEATS.map((seat) => Strip(seat, seatPlayer(state, seat)))}
+                        </div>
                         ${state ? DoraDisplay(state.center) : ""}
                     </div>
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}

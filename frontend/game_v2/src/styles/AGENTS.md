@@ -113,8 +113,9 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   instead of leaning with the perspective. Its height follows the camera only up to a fixed shown aspect
   of the back, so a steep camera never stretches the backs; a revealed hand (`.board-strip--revealed`) takes
   `--geo-camera-top-hand-revealed`, the same foot and width with its owner's edge where the camera shows it, since its
-  faces lie on the table. The host stays a direct, unturned child of the
-  surface with no `matrix3d` above it: its shadow casts from it like a strip's, motion snapshots read its tiles as
+  faces lie on the table. The host stays an unturned child of the
+  strips' wrapper (`.board-strips`, a grid of the surface's tracks) with no `matrix3d` above it: the wrapper casts its
+  shadow with the strips', motion snapshots read its tiles as
   their boxes, and `measurePlane`'s reset covers it. Nesting it in the tilted strip would turn its shadow with the
   frame and give snapshots a false taper.
 - **Layout measurements**: the board's geometry directive and the notices' clamp. Motion snapshots only measure
@@ -181,13 +182,14 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   the right river's and the right strip's lines); an added kan renders its two tiles in paint order; the right
   strip's hand stands over its melds and its melds paint from the far end down (`_tile.scss`). Nothing masks a
   seam. A side strip's back whose end the next tile covers takes the body that draws no end (`Hand` picks it per
-  slot), so its hairline shows table; it also holds the end-drawing body, hidden, which shows while the reflow
+  slot); it also holds the end-drawing body, hidden, which shows while the reflow
   player marks its slot `hand-tile--parted`: while the slot covering it moves differently (one moving, the other
   still, or a different offset or timing), from a move's start, its delay included, until its last move ends.
-  Marking the whole hand would draw every covered end and close every hairline for the slide.
+  Marking the whole hand would draw every covered end for the slide.
 - **One cast shadow per group.** Tiles lying together cast one drop shadow from an unturned ancestor: the rivers'
-  from `.board-rivers`, an opponent's from its `.board-strip`, never from a turned frame (Firefox on macOS draws a
-  filter inside a turned frame unturned and clipped to its box). A tile alone casts its own; a hand that takes input
+  from `.board-rivers`, the opponents' from `.board-strips`, never from a turned frame (Firefox on macOS draws a
+  filter inside one unturned and clipped to its box) nor from a `matrix3d` piece (Chrome rasterizes a filtered 3D
+  piece at 1x, blurring it on a 2x screen). A tile alone casts its own; a hand that takes input
   casts one per button. Flying tiles clone their destination's body from take-off, upright on the screen whatever
   the flight's angle, and cast one shadow on their image. Native reflow stays inside its original group; reveal
   backs stay inside the native hand slots, absolutely placed over the hidden faces.

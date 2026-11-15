@@ -229,7 +229,7 @@ describe("sizeBoard", () => {
         setPage({ gutter: 10, padding: { bottom: 21, left: 47, right: 47, top: 10 }, safe });
         box = { height: 359, width: 750 };
         const { element } = await renderBoard();
-        const settled = { chrome: "small", family: "phone", rw: "21px" };
+        const settled = { chrome: "small", family: "phone", rw: "22px" };
 
         expect(written(element)).toEqual(settled);
 

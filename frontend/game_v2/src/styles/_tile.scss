@@ -110,7 +110,7 @@ $max-strip-melds: 4;
     }
 }
 
-.board-strip {
+.board-strips {
     @include cast-shadow(var(--bw));
 
     :is(.hand, .meld) {

@@ -82,7 +82,6 @@
     --switch-text: var(--geo-switch-text);
     --callout-cap: var(--geo-callout-cap);
     --foreground-top: var(--geo-foreground-top);
-    --bgap: var(--geo-bgap);
     --dg: var(--geo-dg);
     --side-dg: var(--geo-side-dg);
 }
@@ -108,7 +107,8 @@
    lines); the core's pinwheel, the strips and the badges stand absolutely over it. */
 .board-layout,
 .board-table,
-.board-surface {
+.board-surface,
+.board-strips {
     display: grid;
     grid-template-rows: var(--geo-shell-rows);
     grid-template-columns: var(--geo-shell-columns);
