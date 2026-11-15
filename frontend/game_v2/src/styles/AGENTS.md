@@ -126,7 +126,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
 - **One strip primitive, four seats.** GameBoard's `Strip` draws every seat's hand and melds; an opponent's is a grid
   area the geometry sizes to its turned footprint (a side lane's reserve along its hand's room, the top one's
   stacked depth along its line), its frame turned to the seat inside (a rotation, never `writing-mode`, which leaves
-  each tile's SVG unturned) from the area's corner where its hand starts. Every seat keeps its melds in one line to its owner's right,
+  each tile's SVG unturned) from the area's corner where its line starts, a side hand at `--<seat>-hand-along`. Every seat keeps its melds in one line to its owner's right,
   oldest at the far end; side melds never wrap into parallel columns. `stripLayout` scales all melds
   together to fit, using their actual footprints to clear the own row. `stripLayout` (`entities/table/lib`) stays separate from
   `boardGeometry`. Contents never enter the viewport's solve. The own row's melds take `--own-meld-w` from `ownMeldTile` over the melds' structure, never from the hand's current width. No tile size, hand start or laid meld's place may follow transient content (a draw, a discard, an offer): a stylesheet never fits tiles to the room content leaves.

@@ -143,8 +143,8 @@ $max-melds: 4;
     left: 100%;
 }
 
-/* An opponent's strip: its area sized to its turned footprint, its frame turned to the seat from the area's corner
-   where its hand starts, its melds where `stripLayout` places them, so a call moves neither hand nor melds laid. */
+/* An opponent's strip: its frame turned to the seat from its line's start, its hand and melds where `stripLayout` places
+   them, so a call moves no meld laid and a side hand only where the melds need its room. */
 .board-strip {
     --board-tile-w: var(--bw);
     --board-tile-h: var(--bh);
@@ -204,6 +204,12 @@ $max-melds: 4;
 .board-strip--left > .board-strip__frame {
     left: 0;
     top: 0;
+}
+
+@each $seat in right, left {
+    .board-strip--#{$seat} > .board-strip__frame > .board-area--#{$seat}-hand {
+        left: var(--#{$seat}-hand-along, 0);
+    }
 }
 
 .board-strip .board-melds > :is(.meld, .meld--source) {

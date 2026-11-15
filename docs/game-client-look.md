@@ -352,7 +352,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   revealed hand, a live draw the server announced); a reconnect's snapshot cannot tell a held draw
   from the discard a call leaves owed (both leave 3n+2 tiles), so after one no gap is drawn until the
   seat's next draw; the seat's melds at river scale at the strip's far end (the
-  hand's right, from the seat's view), as the own row's, so a call moves neither the hand nor the melds already laid. The strip is not a turn cue. Invariant: a strip stands apart from its own
+  hand's right, from the seat's view), as the own row's, so a call moves no meld already laid. A side hand stands where
+  a full hand, its drawn tile's slot counted, is centred on its line, so the left hand does not hug the table's top nor
+  the right one the own row; a call leaves it there, and only melds that need its room slide it toward its line's
+  start. The strip is not a turn cue. Invariant: a strip stands apart from its own
   river, backs or faces, so that neither reads as a row of the other. Decision: a concealed hand,
   backs or faces, is 3:4 at the river tile's size (Tenhou's and Mahjong Soul's ratio), so an
   opponent's hand reads as plainly as its river. Decision: a concealed tile stands on its edge,

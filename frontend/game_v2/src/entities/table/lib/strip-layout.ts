@@ -70,10 +70,11 @@ interface MeldPlace {
     readonly rise: number;
 }
 
-/** A strip laid out: its melds' places, its depth as drawn and how far its frame stands short of its area's corner. */
+/** A strip laid out: its melds' places, its depth as drawn and where its hand starts along its line (px). */
 interface StripLayout {
     readonly melds: readonly MeldPlace[];
     readonly depth: number;
+    readonly hand: number;
 }
 
 /** A meld deeper than this many river-tile widths takes its side strip's stacked room. */
@@ -150,7 +151,7 @@ function fitSideMelds(
     shapes: readonly MeldShape[],
     room: SideStripRoom,
     fit: SideFit,
-): StripLayout | null {
+): Omit<StripLayout, "hand"> | null {
     const { handEnd, gap, rw } = fit;
     const offsets = placeSideMelds(shapes, fit, 0);
     const endLimits = offsets.map((meld) => {
@@ -208,7 +209,7 @@ function shrunkSideMelds(
     shapes: readonly MeldShape[],
     room: SideStripRoom,
     { gap, handEnd, rw }: Omit<SideFit, "tile">,
-): StripLayout {
+): Omit<StripLayout, "hand"> {
     const line = Math.min(room.line, room.deepLine);
     const units = sum(shapes.map((shape) => shape.units));
     const tile = Math.max(0, (line - handEnd - shapes.length * gap) / units);
@@ -219,8 +220,34 @@ function shrunkSideMelds(
     };
 }
 
-/** Side melds form one line toward their owner's right, oldest at the end, at one fitting size. */
+/**
+ * A side hand starts where a full hand stands centred on its line, the same place call after call, nearer the line's
+ * start only as far as its melds, laid at the line's end, leave it short (px).
+ */
+function sideHandStart(
+    seat: "left" | "right",
+    content: StripContent,
+    { line, melds, rooms }: { line: number; melds: readonly MeldPlace[]; rooms: StripRooms },
+): number {
+    const { gap, rw } = rooms;
+    const centred = (line - handLength({ drawn: true, rw, seat, tiles: FULL_HAND_TILES })) / 2;
+    const meldsStart = Math.min(Infinity, ...melds.map((meld) => meld.along));
+    const room = meldsStart - gap - reservedHandLength(content, rw, seat);
+    return Math.max(0, Math.min(centred, room));
+}
+
+/** Side melds form one line toward their owner's right, oldest at the end, at one fitting size; the hand centred. */
 function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripRooms): StripLayout {
+    const laid = sideMeldsLayout(seat, content, rooms);
+    const hand = sideHandStart(seat, content, { line: rooms[seat].line, melds: laid.melds, rooms });
+    return { ...laid, hand };
+}
+
+function sideMeldsLayout(
+    seat: "left" | "right",
+    content: StripContent,
+    rooms: StripRooms,
+): Omit<StripLayout, "hand"> {
     const { rw } = rooms;
     if (content.melds.length === 0) {
         return { depth: UPRIGHT_DEPTH * rw, melds: [] };
@@ -304,7 +331,7 @@ function topLayout(content: StripContent, rooms: StripRooms): StripLayout {
         rise: 0,
         tile,
     }));
-    return { depth: 0, melds };
+    return { depth: 0, hand: 0, melds };
 }
 
 function stripLayout(seat: StripSeat, content: StripContent, rooms: StripRooms): StripLayout {
@@ -312,15 +339,21 @@ function stripLayout(seat: StripSeat, content: StripContent, rooms: StripRooms):
 }
 
 /** A strip's layout as lengths (px): its melds and a side strip's depth as drawn. */
-function seatLengths(seat: StripSeat, { depth, melds }: StripLayout): [string, number][] {
+function seatLengths(seat: StripSeat, { depth, hand, melds }: StripLayout): [string, number][] {
     const places = melds.flatMap(({ along, rise, tile }, index): [string, number][] => [
         [`${seat}-meld-${index}-along`, along],
         [`${seat}-meld-${index}-tile`, tile],
         [`${seat}-meld-${index}-rise`, rise],
     ]);
     const frame: Record<StripSeat, [string, number][]> = {
-        left: [["left-depth", depth]],
-        right: [["right-depth", depth]],
+        left: [
+            ["left-depth", depth],
+            ["left-hand-along", hand],
+        ],
+        right: [
+            ["right-depth", depth],
+            ["right-hand-along", hand],
+        ],
         top: [],
     };
     return [...frame[seat], ...places];

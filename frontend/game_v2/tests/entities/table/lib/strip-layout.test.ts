@@ -194,6 +194,22 @@ describe("stripLayout", () => {
         expect(squeezed.tile).toBeLessThan(whole.tile);
     });
 
+    it("centres a side seat's full hand on its line, keeps it there through a call and slides it toward the line's start only as far as four kans need", () => {
+        const side = { deepLine: 500, line: 500, obstacles: [] };
+        const rooms: StripRooms = { ...ROOMS, left: side, right: side };
+        const full = handLength({ drawn: true, rw: rooms.rw, seat: "right", tiles: 14 });
+        function laid(hand: number, melds: StripContent["melds"]): ReturnType<typeof stripLayout> {
+            return stripLayout("right", { drawn: true, hand, melds }, rooms);
+        }
+        const dense = laid(2, [OPEN_KAN, OPEN_KAN, OPEN_KAN, OPEN_KAN]);
+        const reserved = handLength({ drawn: true, rw: rooms.rw, seat: "right", tiles: 2 });
+
+        expect(laid(14, []).hand).toBeCloseTo((side.line - full) / 2);
+        expect(laid(11, [CHI]).hand).toBeCloseTo((side.line - full) / 2);
+        expect(dense.hand).toBeLessThan((side.line - full) / 2);
+        expect(dense.melds[0]?.along).toBeCloseTo(dense.hand + reserved + rooms.gap);
+    });
+
     it("lays every opponent's strip out alike whether its hand has just discarded, drawn or called", () => {
         const boxes = [
             { height: 375, width: 667 },
