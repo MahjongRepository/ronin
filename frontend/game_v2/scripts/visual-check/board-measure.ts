@@ -1,6 +1,13 @@
 import { type Page } from "playwright";
 
-import { type Box, type GroupedBox, type Point, type Size, describeSize } from "./boxes.ts";
+import {
+    type Box,
+    type GroupedBox,
+    type GroupedQuad,
+    type Point,
+    type Size,
+    describeSize,
+} from "./boxes.ts";
 
 /**
  * A play switch: its box, the state it announces, and how it shows it apart from colour (its lamp a bar, wider than
@@ -83,6 +90,8 @@ export interface BoardMeasure {
     readonly riverTiles: readonly GroupedBox[];
     /** The rivers' tiles by seat, less the latest discard, which lies apart from its slot toward its seat. */
     readonly settledRiverTiles: readonly GroupedBox[];
+    /** The rivers' tiles by seat, each its corners as the table's camera shows them, clockwise from its top left. */
+    readonly riverQuads: readonly GroupedQuad[];
     readonly stripTiles: readonly GroupedBox[];
     /** The whole names of the badges that shorten theirs, their head cut by its ellipsis. */
     readonly cutNames: readonly string[];
@@ -192,13 +201,17 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         }
         const noticesField = board.querySelector(".board-notices");
         // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function seatOf(element: Element, frame: string): string {
+            return (
+                /--(?<seat>bottom|right|top|left)\b/u.exec(element.closest(frame)?.className ?? "")
+                    ?.groups?.seat ?? ""
+            );
+        }
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
         function bySeat(within: Element, selector: string, frame: string): GroupedBox[] {
             return [...within.querySelectorAll(selector)].map((element) => ({
                 box: box(element),
-                group:
-                    /--(?<seat>bottom|right|top|left)\b/u.exec(
-                        element.closest(frame)?.className ?? "",
-                    )?.groups?.seat ?? "",
+                group: seatOf(element, frame),
             }));
         }
         const centerElement = board.querySelector(".board-center");
@@ -482,6 +495,10 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                       width: toastsWidth ?? 0,
                   }
                 : null,
+            riverQuads: [...board.querySelectorAll(".board-river .tile")].map((tile) => ({
+                group: seatOf(tile, ".board-river"),
+                quad: cornersOf(tile),
+            })),
             riverTiles: bySeat(board, ".board-river .tile", ".board-river"),
             settledRiverTiles: bySeat(
                 board,

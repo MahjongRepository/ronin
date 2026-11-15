@@ -12,9 +12,10 @@ import {
     EPSILON,
     type GroupedBox,
     MIN_ACTION_SIZE,
+    type Point,
     type Size,
     contains,
-    corners,
+    convexHull,
     describeBox,
     describeSize,
     findOverlaps,
@@ -60,9 +61,9 @@ import { checkSeparatedHandDepth } from "./hand-depth.ts";
 const MIN_FACE: Size = { height: 17, width: 13 };
 
 /**
- * The least visible gap between two seats' rivers, and between a river and the centre, in CSS pixels: rivers never touch
- * each other or the centre, so each reads as its seat's block (the composition keeps 0.3 of a river tile, 6px on the
- * 667x375 floor).
+ * The least visible gap between two seats' rivers, and between a river and the centre, in CSS pixels, measured between
+ * the tiles' shown corners: rivers never touch each other or the centre, so each reads as its seat's block (a phone's
+ * composition keeps 0.3 of a river tile, 6px on the 667x375 floor; a desktop's 0.15).
  */
 const MIN_RIVER_GAP = 3;
 
@@ -652,20 +653,17 @@ function checkRiverGaps(board: BoardMeasure, report: PageReport): void {
     if (!Number.isFinite(board.edgeShare)) {
         throw new Error("the board writes no --tile-edge-share");
     }
-    const drawn = board.riverTiles.map(({ box, group }) => ({
-        box: withDrawnEdge(box, board.edgeShare),
+    const drawn = board.riverQuads.map(({ group, quad }) => ({
         group,
+        shape: withDrawnEdge(quad, board.edgeShare),
     }));
     for (const [index, first] of drawn.entries()) {
         for (const second of drawn.slice(index + 1)) {
-            if (first.group !== second.group && near(first.box, second.box, shownGap)) {
+            if (first.group !== second.group && polygonGap(first.shape, second.shape) < shownGap) {
                 touching.add([first.group, second.group].toSorted().join(" x "));
             }
         }
-        if (
-            board.centerQuad !== null &&
-            polygonGap(corners(first.box), board.centerQuad) < shownGap
-        ) {
+        if (board.centerQuad !== null && polygonGap(first.shape, board.centerQuad) < shownGap) {
             touching.add(`${first.group} x center`);
         }
     }
@@ -676,12 +674,17 @@ function checkRiverGaps(board: BoardMeasure, report: PageReport): void {
 }
 
 /**
- * A tile's box with the edge its group draws under it toward the screen's bottom (`_tile.scss`'s bands), `share` of the
- * tile's width as the camera shows it down the screen: an upright tile's height is four thirds of its width.
+ * A tile's shown corners swept down by the edge its group draws under it toward the screen's bottom (`_tile.scss`'s
+ * bands), `share` of the tile's width as the camera shows it down the screen: an upright tile's height is four thirds of
+ * its width.
  */
-function withDrawnEdge(tile: Box, share: number): Box {
-    const widthDown = tile.height > tile.width ? (tile.height * 3) / 4 : tile.height;
-    return { ...tile, height: tile.height + share * widthDown };
+function withDrawnEdge(quad: readonly Point[], share: number): readonly Point[] {
+    const lefts = quad.map(({ left }) => left);
+    const tops = quad.map(({ top }) => top);
+    const width = Math.max(...lefts) - Math.min(...lefts);
+    const height = Math.max(...tops) - Math.min(...tops);
+    const edge = share * (height > width ? (height * 3) / 4 : height);
+    return convexHull([...quad, ...quad.map(({ left, top }) => ({ left, top: top + edge }))]);
 }
 
 /**

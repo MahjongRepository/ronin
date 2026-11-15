@@ -22,6 +22,11 @@ export interface GroupedBox {
     readonly box: Box;
 }
 
+export interface GroupedQuad {
+    readonly group: string;
+    readonly quad: readonly Point[];
+}
+
 export function contains(outer: Box, inner: Box): boolean {
     return (
         inner.left >= outer.left - EPSILON &&
@@ -98,15 +103,6 @@ export interface Point {
     readonly top: number;
 }
 
-export function corners({ height, left, top, width }: Box): readonly Point[] {
-    return [
-        { left, top },
-        { left: left + width, top },
-        { left: left + width, top: top + height },
-        { left, top: top + height },
-    ];
-}
-
 function pointToSegment(point: Point, from: Point, to: Point): number {
     const across = to.left - from.left;
     const down = to.top - from.top;
@@ -144,6 +140,35 @@ function pointsToEdges(points: readonly Point[], polygon: readonly Point[]): num
             edgesOf(polygon).map(([from, to]) => pointToSegment(point, from, to)),
         ),
     );
+}
+
+function turn(origin: Point, first: Point, second: Point): number {
+    return (
+        (first.left - origin.left) * (second.top - origin.top) -
+        (first.top - origin.top) * (second.left - origin.left)
+    );
+}
+
+function halfHull(points: readonly Point[]): Point[] {
+    const chain: Point[] = [];
+    for (const point of points) {
+        while (
+            chain.length >= 2 &&
+            turn(chain.at(-2) ?? point, chain.at(-1) ?? point, point) <= 0
+        ) {
+            chain.pop();
+        }
+        chain.push(point);
+    }
+    return chain.slice(0, -1);
+}
+
+/** The smallest convex polygon holding every point (Andrew's monotone chain), counter-clockwise on screen. */
+export function convexHull(points: readonly Point[]): readonly Point[] {
+    const sorted = points.toSorted(
+        (first, second) => first.left - second.left || first.top - second.top,
+    );
+    return [...halfHull(sorted), ...halfHull(sorted.toReversed())];
 }
 
 /** How far apart two convex polygons stand: 0 where they meet. */
