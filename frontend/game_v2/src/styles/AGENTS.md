@@ -105,7 +105,11 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   paints the edges inside a flat `matrix3d` piece unsmoothed, so the seams between river tiles step 1px at a time; a
   river there takes a neutral `blur(0.01px)` on its own host, above its turned frame, which sends it through a path
   that smooths them. `preserve-3d` smooths them too but makes Firefox drop the shared shadow around a tile hidden as
-  it is laid, so it is not used. The gate
+  it is laid, so it is not used. iOS Safari leaves a tilted layer's outer edges unsmoothed, so a tile edge on a
+  piece's box steps a pixel at a time; every `matrix3d` piece (rivers, opponents' strips) and each motion flight
+  therefore stands in a transparent `$tilted-piece-edge-gutter` border, a piece's offset by a negative margin and its
+  `transform-origin` at the border's inner corner, so the camera still acts from the inner box's corner, which motion
+  snapshots read through `clientLeft`/`clientTop`. The gate
   measures laid sizes and floors with the pieces' transforms off (`measurePlane`) and the shown faces and gaps with
   them on.
 - **The top hand stands off the plane.** The top seat's hand is not in its strip's tilted piece but in a sibling host,

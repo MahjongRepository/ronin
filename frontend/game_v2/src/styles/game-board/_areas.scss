@@ -28,15 +28,26 @@ $max-melds: 4;
     }
 }
 
+@mixin tilted-piece-edge-gutter {
+    box-sizing: content-box;
+    margin: calc(-1 * $tilted-piece-edge-gutter);
+    border: $tilted-piece-edge-gutter solid transparent;
+    transform-origin: $tilted-piece-edge-gutter $tilted-piece-edge-gutter;
+}
+
 .board-surface {
     top: calc(-1 * var(--geo-table-top, 0px));
     bottom: auto;
     height: 100cqh;
 
     > :is(.board-center, .board-dora),
-    > .board-strips > .board-strip,
-    > .board-rivers > .board-river {
+    > .board-strips > .board-strip {
         transform-origin: 0 0;
+    }
+
+    > .board-rivers > .board-river,
+    > .board-strips > :is(.board-strip--top, .board-strip--right, .board-strip--left) {
+        @include tilted-piece-edge-gutter;
     }
 
     > .board-center {

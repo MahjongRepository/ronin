@@ -76,15 +76,21 @@ describe("tile quads on a tilted piece", () => {
         );
     }
 
-    it("finds a piece's corner from its shown bounding box", () => {
-        const box = boundsOf(
-            rectQuad({ height, left: 0, top: 0, width }).map((corner) => shown(frame, corner)),
-        );
+    it("finds a piece's inner corner from its shown bounding box, past a transparent border", () => {
+        for (const border of [0, 2]) {
+            const box = {
+                height: height + 2 * border,
+                left: -border,
+                top: -border,
+                width: width + 2 * border,
+            };
+            const bounds = boundsOf(rectQuad(box).map((corner) => shown(frame, corner)));
 
-        const found = pieceOrigin(matrix, { height, width }, box);
+            const found = pieceOrigin(matrix, box, bounds);
 
-        expect(found.left).toBeCloseTo(origin.left, 6);
-        expect(found.top).toBeCloseTo(origin.top, 6);
+            expect(found.left).toBeCloseTo(origin.left, 6);
+            expect(found.top).toBeCloseTo(origin.top, 6);
+        }
     });
 
     it("recovers a tilted tile's tapered corners from its bounding box", () => {

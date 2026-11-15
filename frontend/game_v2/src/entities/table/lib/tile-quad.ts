@@ -102,18 +102,13 @@ export function rectQuad({ height, left, top, width }: MotionRect): TileQuad {
 }
 
 /**
- * Where a piece's box's top left corner stands on the board: the camera shows the box (`size`) inside `shown`, its
- * bounding box on the screen.
+ * Where a piece's inner box's top left corner, the camera's origin, stands on the board: the camera shows the piece's
+ * border box (`box`, in the inner box's own pixels, a transparent border reaching past it) inside `shown`, its bounding
+ * box on the screen.
  */
-export function pieceOrigin(
-    matrix: PieceMatrix,
-    size: Readonly<Record<"height" | "width", number>>,
-    shown: MotionRect,
-): ScreenPoint {
+export function pieceOrigin(matrix: PieceMatrix, box: MotionRect, shown: MotionRect): ScreenPoint {
     const warp = pieceHomography(matrix);
-    const corners = rectQuad({ height: size.height, left: 0, top: 0, width: size.width }).map(
-        (corner) => warpPoint(warp, corner),
-    );
+    const corners = rectQuad(box).map((corner) => warpPoint(warp, corner));
     return {
         left: shown.left - Math.min(...corners.map(({ left }) => left)),
         top: shown.top - Math.min(...corners.map(({ top }) => top)),

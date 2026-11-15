@@ -145,8 +145,13 @@ function readPieceFrame(piece: HTMLElement): PieceFrame | null {
         value.m43,
         value.m44,
     ];
-    const size = { height: piece.offsetHeight, width: piece.offsetWidth };
-    return { matrix, origin: pieceOrigin(matrix, size, piece.getBoundingClientRect()) };
+    const box = {
+        height: piece.offsetHeight,
+        left: -piece.clientLeft,
+        top: -piece.clientTop,
+        width: piece.offsetWidth,
+    };
+    return { matrix, origin: pieceOrigin(matrix, box, piece.getBoundingClientRect()) };
 }
 
 function cachedFrame(element: HTMLElement, frames: PieceFrames): PieceFrame | null {
