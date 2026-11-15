@@ -1,16 +1,21 @@
 import { describe, expect, it } from "vitest";
 
+import { cogSquare, riverReserves } from "#tests/fixtures/board-rects";
 import {
     FACE_FLOOR,
     FULL_HAND,
+    LARGE_CHROME_HEIGHT,
+    LARGE_CHROME_WIDTH,
     LATEST_DISCARD_GAP,
     OWN_LYING_EDGE_SHARE,
     PAGE_GUTTER,
     PHONE_FELT_BY_HEIGHT,
+    PHONE_HEIGHT,
     PHONE_OWN_FLOOR,
     PHONE_OWN_GIVEN_FOR_RIVER,
     SIDEWAYS_UNITS,
     SIDE_LANE_GAP,
+    SMALL_CHROME_WIDTH,
     TILE_EDGE_SHARE,
     UPRIGHT_DEPTH,
 } from "@/entities/table/lib/board-constants";
@@ -18,9 +23,12 @@ import {
     type BoardBox,
     type BoardEdges,
     type BoardGeometry,
+    type BoardInput,
+    type BoardRect,
     type BoardSlots,
     type BoardTracks,
     boardGeometry,
+    desktopPlanMisfits,
     phonePromptHeight,
     shellTracks,
 } from "@/entities/table/lib/board-geometry";
@@ -1465,6 +1473,271 @@ describe("boardGeometry without bars", () => {
                 ),
             }).toEqual({ arrangement: "pocket", shortened: true, stackInPocket: true });
         }
+    });
+});
+
+const AUDIT_WIDTHS = Array.from({ length: 56 }, (_unused, step) => 800 + 32 * step);
+
+const AUDIT_HEIGHTS = Array.from({ length: 34 }, (_unused, step) => 544 + 32 * step);
+
+const AUDIT_SLOTS = [LIVE_SLOTS, REPLAY_SLOTS] as const;
+
+/** The window heights either side of the family switch: the last phone's and the first desktop's. */
+const FAMILY_EDGE = [PHONE_HEIGHT + 2 * PAGE_GUTTER - 1, PHONE_HEIGHT + 2 * PAGE_GUTTER] as const;
+
+/** Windows 1px apart along one axis, 16px either side of where the board's box crosses `threshold`. */
+function crossing(axis: "height" | "width", threshold: number, across: number): BoardBox[] {
+    return Array.from({ length: 33 }, (_unused, step) => {
+        const along = threshold + 2 * PAGE_GUTTER - 16 + step;
+        return axis === "height"
+            ? { height: along, width: across }
+            : { height: across, width: along };
+    });
+}
+
+/**
+ * The audited windows in sequences that grow in one axis: the grid's rows and columns 32px apart, then 1px lines across
+ * the chrome tiers' edges.
+ */
+const AUDIT_LINES: readonly (readonly BoardBox[])[] = [
+    ...AUDIT_HEIGHTS.map((height) => AUDIT_WIDTHS.map((width) => ({ height, width }))),
+    ...AUDIT_WIDTHS.map((width) => AUDIT_HEIGHTS.map((height) => ({ height, width }))),
+    ...[640, 900, 1200].map((height) => crossing("width", SMALL_CHROME_WIDTH, height)),
+    ...[1240, 1440, 1600].map((height) => crossing("width", LARGE_CHROME_WIDTH, height)),
+    ...[2100, 2400, 2560].map((width) => crossing("height", LARGE_CHROME_HEIGHT, width)),
+];
+
+/** A window's board input with no padding applied, so the board takes its gutter itself, as `windowGeometry`'s. */
+function auditInput(window: BoardBox, slots: BoardSlots): BoardInput {
+    return { appliedEdges: NO_INSETS, box: window, safeInsets: NO_INSETS, slots };
+}
+
+const auditSolved = new Map<string, BoardGeometry>();
+
+/** A window's board in `slots`, solved once for every audit that reads it. */
+function audited(window: BoardBox, slots: BoardSlots): BoardGeometry {
+    const key = `${window.width}x${window.height} ${slots.band}`;
+    const solved = auditSolved.get(key) ?? boardGeometry(auditInput(window, slots));
+    auditSolved.set(key, solved);
+    return solved;
+}
+
+/** Every audited window's board once, the desktop side of the family switch included, with its size and band. */
+function auditedBoards(): readonly (readonly [string, BoardGeometry])[] {
+    const windows = new Map(
+        [
+            ...AUDIT_LINES.flat(),
+            ...AUDIT_WIDTHS.map((width) => ({ height: FAMILY_EDGE[1], width })),
+        ].map((window) => [`${window.width}x${window.height}`, window]),
+    );
+    return AUDIT_SLOTS.flatMap((slots) =>
+        [...windows].map(
+            ([size, window]) => [`${size} (${slots.band})`, audited(window, slots)] as const,
+        ),
+    );
+}
+
+const UNPLACED: BoardRect = {
+    bottom: Number.NaN,
+    left: Number.NaN,
+    right: Number.NaN,
+    top: Number.NaN,
+};
+
+/**
+ * What a barless desktop's controls keep off: the side strips' lines at their full reach from `lines-start` (a full
+ * hand, or four open kans where longer) the lane wide, the top strip, the centre and each river's reserve.
+ */
+function tileReserves(geometry: BoardGeometry): readonly (readonly [string, BoardRect])[] {
+    const { areas, lengths, strips } = geometry;
+    function length(name: string): number {
+        return lengths[name] ?? Number.NaN;
+    }
+    const lane = length("strip-depth") + SIDE_LANE_GAP;
+    const start = length("lines-start");
+    function line(seat: "left" | "right"): number {
+        return start + Math.max(length("full-reach"), strips?.[seat].line ?? Number.NaN);
+    }
+    return [
+        [
+            "left line",
+            {
+                bottom: line("left"),
+                left: length("col-left"),
+                right: length("col-left") + lane,
+                top: start,
+            },
+        ],
+        [
+            "right line",
+            {
+                bottom: line("right"),
+                left: length("col-right") - lane,
+                right: length("col-right"),
+                top: start,
+            },
+        ],
+        ["top strip", areas["strip-top"] ?? UNPLACED],
+        [
+            "centre",
+            {
+                bottom: length("cy") + length("h"),
+                left: length("cx") - length("hx"),
+                right: length("cx") + length("hx"),
+                top: length("cy") - length("h"),
+            },
+        ],
+        ...Object.entries(riverReserves(geometry)),
+    ];
+}
+
+/**
+ * A barless desktop's controls that must keep off its tiles: the counters' box and the cog's square from their lengths,
+ * and on a pocket board the raw switches, furiten and field areas.
+ */
+function barlessControls(
+    geometry: BoardGeometry,
+): readonly (readonly [string, BoardRect | undefined])[] {
+    const { areas, arrangement, lengths } = geometry;
+    function length(name: string): number {
+        return lengths[name] ?? Number.NaN;
+    }
+    const fixed = [
+        [
+            "counters",
+            {
+                bottom: length("counters-top") + length("counters-h"),
+                left: length("counters-x"),
+                right: length("counters-x") + length("counters-w"),
+                top: length("counters-top"),
+            },
+        ],
+        ["cog", cogSquare(geometry)],
+    ] as const;
+    return arrangement === "pocket"
+        ? [
+              ...fixed,
+              ...(["switches", "furiten", "field"] as const).map(
+                  (slot) => [slot, areas[slot]] as const,
+              ),
+          ]
+        : fixed;
+}
+
+function overlaps(first: BoardRect, second: BoardRect): boolean {
+    return (
+        first.left < second.right &&
+        second.left < first.right &&
+        first.top < second.bottom &&
+        second.top < first.bottom
+    );
+}
+
+/** Whether a rect lies inside a board's table: the box across, the shortened table's height down. */
+function inTable(rect: BoardRect, { box, lengths }: BoardGeometry): boolean {
+    return (
+        rect.left >= -0.001 &&
+        rect.top >= -0.001 &&
+        rect.right <= box.width + 0.001 &&
+        rect.bottom <= (lengths["table-h"] ?? box.height) + 0.001
+    );
+}
+
+const CONTROL_SLOTS = ["switches", "furiten", "field", "corner", "actions"] as const;
+
+/** Why each occupied control area misplaces: not finite, inverted or empty, off the table, or off the tracks' lines. */
+function controlAreaFaults(geometry: BoardGeometry): string[] {
+    const tracked = slotAreas(geometry.tracks);
+    return CONTROL_SLOTS.flatMap((slot) => {
+        const area = geometry.areas[slot];
+        if (area === undefined) {
+            return [];
+        }
+        const edges = [area.left, area.top, area.right, area.bottom];
+        const lines = tracked[slot] ?? [];
+        return [
+            edges.every(Number.isFinite) && area.left < area.right && area.top < area.bottom
+                ? []
+                : [`${slot} not a box`],
+            inTable(area, geometry) ? [] : [`${slot} off the table`],
+            tenths(edges).every(
+                (edge, index) => Math.abs(edge - (lines[index] ?? Number.NaN)) <= 0.11,
+            )
+                ? []
+                : [`${slot} off its tracks`],
+        ].flat();
+    });
+}
+
+describe("boardGeometry over desktop windows 32px apart and 1px across the chrome tiers' edges", () => {
+    it("never shrinks the river tile from a window to its wider or taller neighbour, live and replay", () => {
+        const shrinks = AUDIT_SLOTS.flatMap((slots) =>
+            AUDIT_LINES.flatMap((line) =>
+                line.slice(1).flatMap((window, step) => {
+                    const before = line[step] ?? window;
+                    const [smaller = 0, larger = 0] = [
+                        audited(before, slots),
+                        audited(window, slots),
+                    ].map(({ lengths }) => lengths["rw"]);
+                    if (larger >= smaller) {
+                        return [];
+                    }
+                    const misfits = desktopPlanMisfits(auditInput(window, slots), smaller).map(
+                        ({ misfits: why, plan }, order) =>
+                            `${order + 1}. ${plan.arrangement}/${plan.counters}/${plan.bar}: ${why.join(",") || "none"}`,
+                    );
+                    return [
+                        `rw ${smaller} at ${before.width}x${before.height} -> ${larger} at ${window.width}x${window.height} (${slots.band}); full-height misfits at rw ${smaller}: ${misfits.join("; ")}`,
+                    ];
+                }),
+            ),
+        );
+
+        expect(shrinks).toStrictEqual([]);
+    });
+
+    it("keeps a barless desktop's counters, cog and pocket controls in its table, off the side lines' full reach, the top strip, the centre and the rivers' reserves, live and replay", () => {
+        const covered = auditedBoards().flatMap(([size, geometry]) => {
+            if (geometry.arrangement !== "corner" && geometry.arrangement !== "pocket") {
+                return [];
+            }
+            const reserves = tileReserves(geometry);
+            return barlessControls(geometry).flatMap(([control, rect]) =>
+                rect === undefined
+                    ? [`${control} missing at ${size}`]
+                    : [
+                          ...(inTable(rect, geometry)
+                              ? []
+                              : [`${control} off the table at ${size}`]),
+                          ...reserves
+                              .filter(
+                                  ([, reserve]) =>
+                                      !Object.values(reserve).every(Number.isFinite) ||
+                                      overlaps(rect, reserve),
+                              )
+                              .map(([reserve]) => `${control} on ${reserve} at ${size}`),
+                      ],
+            );
+        });
+
+        expect(covered).toStrictEqual([]);
+    });
+
+    it("lays every occupied control area as a box inside the table on the tracks' lines, either side of the family switch", () => {
+        const phoneSide = AUDIT_SLOTS.flatMap((slots) =>
+            AUDIT_WIDTHS.map(
+                (width) =>
+                    [
+                        `${width}x${FAMILY_EDGE[0]} (${slots.band})`,
+                        audited({ height: FAMILY_EDGE[0], width }, slots),
+                    ] as const,
+            ),
+        );
+        const faults = [...auditedBoards(), ...phoneSide].flatMap(([size, geometry]) =>
+            controlAreaFaults(geometry).map((fault) => `${fault} at ${size} (${geometry.family})`),
+        );
+
+        expect(faults).toStrictEqual([]);
     });
 });
 
