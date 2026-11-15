@@ -852,12 +852,12 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [864, 576],
-        [1024, 1366],
-        [800, 672],
+        [864, 576, "bars"],
+        [1024, 1366, "corner"],
+        [800, 672, "pocket"],
     ])(
-        "stands a width-bound %ix%i desktop's table no taller than its stack or its side strips' lines under the counters need, centred in the window: a barred one's own row hugging the bottom river and its top hand the core, the spare height lies above and below the table, every slot inside it",
-        (width, height) => {
+        "stands a width-bound %ix%i %s desktop's table no taller than its stack or its side strips' lines under the counters need, centred in the window: a barred one's own row hugging the bottom river and its top hand the core, the spare height lies above and below the table, every slot inside it",
+        (width, height, arrangement) => {
             const geometry = windowGeometry({ height, width });
             const { box, lengths, tracks } = geometry;
             function length(name: string): number {
@@ -869,6 +869,7 @@ describe("boardGeometry", () => {
             const spareAbove = length("table-top");
             const spareBelow = box.height - spareAbove - table;
 
+            expect(geometry.arrangement).toBe(arrangement);
             expect({
                 ownRowOnTableBottom: length("hand-top") + length("oh") + ownRowDepth(lengths),
                 ownRowToCore:
@@ -1482,10 +1483,8 @@ const AUDIT_HEIGHTS = Array.from({ length: 34 }, (_unused, step) => 544 + 32 * s
 
 const AUDIT_SLOTS = [LIVE_SLOTS, REPLAY_SLOTS] as const;
 
-/** The window heights either side of the family switch: the last phone's and the first desktop's. */
 const FAMILY_EDGE = [PHONE_HEIGHT + 2 * PAGE_GUTTER - 1, PHONE_HEIGHT + 2 * PAGE_GUTTER] as const;
 
-/** Windows 1px apart along one axis, 16px either side of where the board's box crosses `threshold`. */
 function crossing(axis: "height" | "width", threshold: number, across: number): BoardBox[] {
     return Array.from({ length: 33 }, (_unused, step) => {
         const along = threshold + 2 * PAGE_GUTTER - 16 + step;
@@ -1495,10 +1494,6 @@ function crossing(axis: "height" | "width", threshold: number, across: number): 
     });
 }
 
-/**
- * The audited windows in sequences that grow in one axis: the grid's rows and columns 32px apart, then 1px lines across
- * the chrome tiers' edges.
- */
 const AUDIT_LINES: readonly (readonly BoardBox[])[] = [
     ...AUDIT_HEIGHTS.map((height) => AUDIT_WIDTHS.map((width) => ({ height, width }))),
     ...AUDIT_WIDTHS.map((width) => AUDIT_HEIGHTS.map((height) => ({ height, width }))),
@@ -1507,14 +1502,12 @@ const AUDIT_LINES: readonly (readonly BoardBox[])[] = [
     ...[2100, 2400, 2560].map((width) => crossing("height", LARGE_CHROME_HEIGHT, width)),
 ];
 
-/** A window's board input with no padding applied, so the board takes its gutter itself, as `windowGeometry`'s. */
 function auditInput(window: BoardBox, slots: BoardSlots): BoardInput {
     return { appliedEdges: NO_INSETS, box: window, safeInsets: NO_INSETS, slots };
 }
 
 const auditSolved = new Map<string, BoardGeometry>();
 
-/** A window's board in `slots`, solved once for every audit that reads it. */
 function audited(window: BoardBox, slots: BoardSlots): BoardGeometry {
     const key = `${window.width}x${window.height} ${slots.band}`;
     const solved = auditSolved.get(key) ?? boardGeometry(auditInput(window, slots));
@@ -1522,7 +1515,6 @@ function audited(window: BoardBox, slots: BoardSlots): BoardGeometry {
     return solved;
 }
 
-/** Every audited window's board once, the desktop side of the family switch included, with its size and band. */
 function auditedBoards(): readonly (readonly [string, BoardGeometry])[] {
     const windows = new Map(
         [
@@ -1544,10 +1536,6 @@ const UNPLACED: BoardRect = {
     top: Number.NaN,
 };
 
-/**
- * What a barless desktop's controls keep off: the side strips' lines at their full reach from `lines-start` (a full
- * hand, or four open kans where longer) the lane wide, the top strip, the centre and each river's reserve.
- */
 function tileReserves(geometry: BoardGeometry): readonly (readonly [string, BoardRect])[] {
     const { areas, lengths, strips } = geometry;
     function length(name: string): number {
@@ -1591,10 +1579,6 @@ function tileReserves(geometry: BoardGeometry): readonly (readonly [string, Boar
     ];
 }
 
-/**
- * A barless desktop's controls that must keep off its tiles: the counters' box and the cog's square from their lengths,
- * and on a pocket board the raw switches, furiten and field areas.
- */
 function barlessControls(
     geometry: BoardGeometry,
 ): readonly (readonly [string, BoardRect | undefined])[] {
@@ -1633,7 +1617,6 @@ function overlaps(first: BoardRect, second: BoardRect): boolean {
     );
 }
 
-/** Whether a rect lies inside a board's table: the box across, the shortened table's height down. */
 function inTable(rect: BoardRect, { box, lengths }: BoardGeometry): boolean {
     return (
         rect.left >= -0.001 &&
@@ -1645,7 +1628,6 @@ function inTable(rect: BoardRect, { box, lengths }: BoardGeometry): boolean {
 
 const CONTROL_SLOTS = ["switches", "furiten", "field", "corner", "actions"] as const;
 
-/** Why each occupied control area misplaces: not finite, inverted or empty, off the table, or off the tracks' lines. */
 function controlAreaFaults(geometry: BoardGeometry): string[] {
     const tracked = slotAreas(geometry.tracks);
     return CONTROL_SLOTS.flatMap((slot) => {
@@ -1675,7 +1657,7 @@ describe("boardGeometry over desktop windows 32px apart and 1px across the chrom
             AUDIT_LINES.flatMap((line) =>
                 line.slice(1).flatMap((window, step) => {
                     const before = line[step] ?? window;
-                    const [smaller = 0, larger = 0] = [
+                    const [smaller = Number.NaN, larger = Number.NaN] = [
                         audited(before, slots),
                         audited(window, slots),
                     ].map(({ lengths }) => lengths["rw"]);
@@ -1697,10 +1679,11 @@ describe("boardGeometry over desktop windows 32px apart and 1px across the chrom
     });
 
     it("keeps a barless desktop's counters, cog and pocket controls in its table, off the side lines' full reach, the top strip, the centre and the rivers' reserves, live and replay", () => {
-        const covered = auditedBoards().flatMap(([size, geometry]) => {
-            if (geometry.arrangement !== "corner" && geometry.arrangement !== "pocket") {
-                return [];
-            }
+        const barless = auditedBoards().filter(
+            ([, geometry]) =>
+                geometry.arrangement === "corner" || geometry.arrangement === "pocket",
+        );
+        const covered = barless.flatMap(([size, geometry]) => {
             const reserves = tileReserves(geometry);
             return barlessControls(geometry).flatMap(([control, rect]) =>
                 rect === undefined
@@ -1720,6 +1703,9 @@ describe("boardGeometry over desktop windows 32px apart and 1px across the chrom
             );
         });
 
+        expect(new Set(barless.map(([, geometry]) => geometry.arrangement))).toStrictEqual(
+            new Set(["corner", "pocket"]),
+        );
         expect(covered).toStrictEqual([]);
     });
 
@@ -1733,10 +1719,15 @@ describe("boardGeometry over desktop windows 32px apart and 1px across the chrom
                     ] as const,
             ),
         );
-        const faults = [...auditedBoards(), ...phoneSide].flatMap(([size, geometry]) =>
+        const boards = [...auditedBoards(), ...phoneSide];
+        const faults = boards.flatMap(([size, geometry]) =>
             controlAreaFaults(geometry).map((fault) => `${fault} at ${size} (${geometry.family})`),
         );
+        const occupied = boards.flatMap(([, { areas }]) =>
+            CONTROL_SLOTS.filter((slot) => areas[slot] !== undefined),
+        );
 
+        expect(new Set(occupied)).toStrictEqual(new Set(CONTROL_SLOTS));
         expect(faults).toStrictEqual([]);
     });
 });

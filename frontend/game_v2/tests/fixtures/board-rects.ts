@@ -53,7 +53,7 @@ export function cogSquare({ areas, lengths }: BoardGeometry): BoardRect | undefi
     if (slot === undefined) {
         return undefined;
     }
-    const side = lengths["menu-size"] ?? 0;
+    const side = lengths["menu-size"] ?? Number.NaN;
     const middle = (slot.left + slot.right) / 2;
     return {
         bottom: slot.top + side,

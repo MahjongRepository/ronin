@@ -498,7 +498,7 @@ describe("tableView on desktop windows 40x20 apart", () => {
                     place === undefined
                         ? [`${control} missing at ${size}`]
                         : tiles
-                              .filter(([, tile]) => gapBetween(tile, place) < 0)
+                              .filter(([, tile]) => !(gapBetween(tile, place) >= 0))
                               .map(([piece]) => `${control} under ${piece} at ${size}`),
                 );
             }),
