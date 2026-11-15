@@ -38,7 +38,7 @@
     &::before {
         content: "";
         position: absolute;
-        inset-block: 0;
+        inset-block: var(--tt) var(--tb);
         left: var(--field-left);
         width: calc(var(--field-right) - var(--field-left));
         background:
@@ -74,12 +74,10 @@
     &--top {
         background: var(--ronin-table-field-end);
         clip-path: polygon(
-            var(--field-left) 0,
-            var(--field-right) 0,
+            var(--field-left) var(--tt),
             var(--field-right) var(--tt),
             var(--zone-tr-x) var(--zone-top-y),
-            var(--zone-tl-x) var(--zone-top-y),
-            var(--field-left) var(--tt)
+            var(--zone-tl-x) var(--zone-top-y)
         );
     }
 }

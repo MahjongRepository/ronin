@@ -182,8 +182,8 @@ and the felt beside the side rivers to their fourth rows' reserve. No band of th
 the decisions': they stand in a band along the own row's top, over the bottom river (Decisions).
 
 A window taller than its table needs (the width binds the river tile: 5:4 and 4:3 screens, a near-square or portrait
-desktop window, a portrait tablet) never spreads the table over the spare height, keeping the board at its
-own aspect. The table is only as tall as its stack needs (or its side strips' lines under the counters), with no more
+desktop window, a portrait tablet) never spreads the table over the spare height, keeping the board at
+its own aspect on a plain surround. The table is only as tall as its stack needs (or its side strips' lines under the counters), with no more
 slack around the core than a height-bound board keeps (0.3 river tiles of air under the top hand), and stands
 centred in the window,
 the spare height above and below it. Everything is placed in the table: the top hand along its top, the side
@@ -191,7 +191,9 @@ strips' lines centred on the core (or under the counters), the plates, the decis
 bottom, and the bars' contents too: the counters, a replay's status and the cog at the table's top, the switches (and
 a small window's replay column) ending level
 with the own row. The seams run to
-the table's corners; the felt continues above and below it, the top field's tint above, the plain foreground below.
+the felt's corners: the felt ends a page gutter above and below the table, as it ends a bar's gap beside the side
+strips, and the spare height past it is black (`--ronin-table-surround`) like the bars, so the table stands framed on
+all four sides.
 
 A phone in landscape keeps the composition with its own profile on a bounded felt, which
 stands on its surround: one rectangle holding the whole table, the own row and its melds included, centred on the
@@ -220,7 +222,7 @@ desktop (Badges). Over a panel the notices and a replay's status stay in their f
 reserving no room of their own.
 
 Four seat zones, top, left, right and bottom, are made perceptible on the surface. Decision: four
-faint seams pressed into the felt (a soft groove over a fainter lip) from the centre panel's corners, the upper two to the felt's top corners (the table's, on a window taller than its table), the lower
+faint seams pressed into the felt (a soft groove over a fainter lip) from the centre panel's corners, the upper two to the felt's top corners (a page gutter above the table's, on a window taller than its table), the lower
 two to its sides at the top of the foreground, so the whole foreground is the viewer's own; the
 side fields carry a faint tint. They establish perceived ownership; they are not clipping
 boundaries, and a long river may cross one. A seat's tiles and the score data facing it are oriented
@@ -253,7 +255,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 ## Elements
 
 - **Surface.** Fills the viewport, under the safe-area insets too, while the content keeps to the
-  play area. Off a phone the felt covers only the table's width, meeting the bars' inner edges (a bar's gap beside each side strip), and the bars beside it are black
+  play area. Off a phone the felt covers only the table's width, meeting the bars' inner edges (a bar's gap beside each side strip), and on a window taller than its table only its height and a page gutter above and below; the bars beside it and the spare height past it are black
   (`--ronin-table-surround`); a phone's felt is its bounded table (Composition), the rails beside it black too. Decision: a petrol felt in the dark teal family, lit broadly over the core and falling
   off slowly toward the edges, with a fine static grain as its only texture (felt at full size, gone in a
   thumbnail: no weave, motif or wear) and the zone device; nothing else is drawn on it. Off-white faces
