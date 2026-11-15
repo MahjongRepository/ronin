@@ -69,26 +69,6 @@
     visibility: hidden;
 }
 
-.game-board:has(> .board-overlay):where(:not(:has(> .board-overlay [aria-modal="true"]))) {
-    @include phone-board {
-        .board-notices__list {
-            align-items: stretch;
-        }
-
-        .board-notices {
-            grid-area: field-beside;
-            align-items: stretch;
-            max-height: var(--geo-field-beside-height);
-        }
-
-        .board-notice {
-            min-width: 0;
-            padding-inline: 0.3em;
-            font-size: 10px;
-        }
-    }
-}
-
 /* A notice's line height is a length, so its clamp reads its lines in pixels in every engine. */
 .board-notice {
     position: relative;
@@ -128,10 +108,6 @@
 }
 
 .board-notice {
-    @include desktop-board {
-        font-size: var(--field-notice-text);
-    }
-
     @include toast-board {
         font-size: var(--notice-text);
         display: flex;

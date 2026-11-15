@@ -212,7 +212,7 @@ describe("sizeBoard", () => {
         nextFrame();
 
         expect(written(element)).toEqual({ chrome: "small", family: "phone", rw: "19px" });
-        expect(element.style.getPropertyValue("--geo-own-end")).toBe("663px");
+        expect(element.style.getPropertyValue("--geo-own-end")).toBe("609px");
 
         latestObserver().resize(1420, 700);
 
@@ -229,7 +229,7 @@ describe("sizeBoard", () => {
         setPage({ gutter: 10, padding: { bottom: 21, left: 47, right: 47, top: 10 }, safe });
         box = { height: 359, width: 750 };
         const { element } = await renderBoard();
-        const settled = { chrome: "small", family: "phone", rw: "20px" };
+        const settled = { chrome: "small", family: "phone", rw: "21px" };
 
         expect(written(element)).toEqual(settled);
 

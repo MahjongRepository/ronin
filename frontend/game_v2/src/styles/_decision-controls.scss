@@ -337,6 +337,7 @@ $row: 40px;
     display: inline-flex;
     align-items: center;
     gap: 0.4em;
+    max-width: 100%;
     padding: 0.25em 0.55em;
     font-size: max(12px, var(--text));
     font-weight: 650;

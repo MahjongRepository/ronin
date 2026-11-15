@@ -602,12 +602,11 @@ function checkReplayStatus(
         over.length === 0,
         `notice(s) not over the replay's status ${describeBox(status)} in its place: ${over.map(describeBox).join(", ")}`,
     );
-    const panel = board.overlay?.box;
     const band = replay.band.filter((control) => control.shown).map((control) => control.box);
-    const covered = panel === undefined ? band : [...band, panel];
+    const covered = [...band, ...(board.overlay?.controls ?? []), ...board.menu];
     report.expect(
-        !covered.some((box) => intersects(place.box, box)),
-        `the notices' place ${describeBox(place.box)} covers a replay control or the panel`,
+        !covered.some((box) => intersects(status, box)),
+        `the replay's status ${describeBox(status)} covers a replay control, the panel's controls or the cog`,
     );
     for (const part of expectedParts(replay, state)) {
         checkStatusPart(part, { desktop, text: replay.parts[part] }, report);

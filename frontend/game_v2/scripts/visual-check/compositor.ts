@@ -8,8 +8,9 @@ const NUDGE_EVERY = 10;
 const NUDGE_ID = "compositor-nudge";
 
 /**
- * Repaint one pixel in the viewport's bottom right corner, a near-clear black that flips between 2% and 6% over what
- * lies under it, a few colour levels, so the compositor has a change to send a frame for that no shot looks at.
+ * Repaint one pixel in the viewport's bottom right corner, flipping between a near-clear black and a near-clear white
+ * over what lies under it, a few colour levels on any ground (the black surround included), so the compositor has a
+ * change to send a frame for that no shot looks at.
  */
 async function nudge(page: Page): Promise<void> {
     await page.evaluate((id) => {
@@ -22,9 +23,9 @@ async function nudge(page: Page): Promise<void> {
             document.documentElement.append(mark);
         }
         mark.style.background =
-            mark.style.background === "rgba(0, 0, 0, 0.02)"
-                ? "rgba(0, 0, 0, 0.06)"
-                : "rgba(0, 0, 0, 0.02)";
+            mark.style.background === "rgba(0, 0, 0, 0.04)"
+                ? "rgba(255, 255, 255, 0.04)"
+                : "rgba(0, 0, 0, 0.04)";
     }, NUDGE_ID);
 }
 

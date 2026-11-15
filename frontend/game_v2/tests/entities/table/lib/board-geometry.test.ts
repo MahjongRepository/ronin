@@ -5,6 +5,9 @@ import {
     FULL_HAND,
     LATEST_DISCARD_GAP,
     OWN_LYING_EDGE_SHARE,
+    PAGE_GUTTER,
+    PHONE_FELT_BY_HEIGHT,
+    PHONE_OWN_FLOOR,
     PHONE_OWN_GIVEN_FOR_RIVER,
     SIDEWAYS_UNITS,
     SIDE_LANE_GAP,
@@ -169,6 +172,12 @@ describe("boardGeometry in a phone's browser", () => {
         },
         { browser: "Android Chrome, its bars shown", height: 331, insets: NO_INSETS, width: 891 },
         {
+            browser: "a phone narrower than its felt's rails, under the supported width",
+            height: 320,
+            insets: NO_INSETS,
+            width: 568,
+        },
+        {
             browser: "Android Chrome, its bars collapsed",
             height: 387,
             insets: NO_INSETS,
@@ -191,16 +200,16 @@ describe("boardGeometry in a phone's browser", () => {
             board: { height: 414, width: 808 },
             height: 414,
             insets: { bottom: 21, left: 44, right: 44, top: 0 },
-            ow: 54,
-            rw: 21,
+            ow: 47,
+            rw: 22,
             width: 896,
         },
         {
             board: { height: 390, width: 750 },
             height: 390,
             insets: { bottom: 21, left: 47, right: 47, top: 0 },
-            ow: 50,
-            rw: 20,
+            ow: 43,
+            rw: 21,
             width: 844,
         },
     ])(
@@ -254,7 +263,7 @@ describe("boardGeometry in a phone's browser", () => {
             expect(family).toBe("phone");
             expect(lengths).toMatchObject({ ow, rw });
             expect(lengths["side-reach"]).toBeLessThanOrEqual(
-                (lengths["switches-bottom"] ?? 0) - (lengths["m"] ?? 0),
+                (lengths["lines-end"] ?? 0) - (lengths["m"] ?? 0),
             );
             expect(lengths["c"]).toBeGreaterThanOrEqual(68 - 1);
         },
@@ -265,7 +274,7 @@ describe("boardGeometry in a phone's browser", () => {
         { height: 275, insets: { bottom: 0, left: 44, right: 44, top: 0 }, width: 896 },
         { height: 331, insets: NO_INSETS, width: 891 },
     ])(
-        "stands a $width x $height box's side lanes beside its own row where above it they would cost the river tile, not hold three kans at the face floor or not leave the decisions' band the widest prompt's rows, both lines and the bars down to the board's foot",
+        "stands a $width x $height box's side lanes beside its own row where above it they would cost the river tile, not hold three kans at the face floor or not leave the decisions' band the widest prompt's rows, both lines and the bars down to the board's foot, its felt holding the column within rails that hold the controls, held as the box grows a pixel taller, the counters crossing its rim",
         ({ height, insets, width }) => {
             const { box, lengths, strips, tracks } = windowGeometry({ height, width }, 0, insets);
             function length(name: string): number {
@@ -277,17 +286,33 @@ describe("boardGeometry in a phone's browser", () => {
             expect({
                 leftLaneShortOfRow: areas["strip-left"]?.[2],
                 leftLine: strips?.left.line,
-                rightBarFoot: areas["field-beside"]?.[3],
                 rightLaneShortOfRow: areas["strip-right"]?.[0],
                 rightLine: strips?.right.line,
                 switchesFoot: areas["switches"]?.[3],
             }).toEqual({
                 leftLaneShortOfRow: tenths([length("own-start") - 6])[0],
                 leftLine: foot - length("m"),
-                rightBarFoot: tenths([foot - 2])[0],
                 rightLaneShortOfRow: tenths([length("own-start") + length("own-row-w") + 6])[0],
                 rightLine: foot - length("m"),
                 switchesFoot: tenths([foot])[0],
+            });
+            const shorter = windowGeometry({ height: height - 1, width }, 0, insets).lengths;
+            expect({
+                countersCrossRim: length("counters-x") + length("counters-w") > length("felt-left"),
+                feltHeldAcrossHeight:
+                    Math.abs((shorter["felt-left"] ?? 0) - length("felt-left")) <= PAGE_GUTTER,
+                feltHoldsColumn:
+                    length("felt-left") <= length("col-left") &&
+                    length("felt-right") >= length("col-right") &&
+                    Math.abs(length("felt-left") + length("felt-right") - box.width) <= 0.1,
+                railsHoldControls:
+                    length("felt-left") >=
+                    length("m") + Math.max(length("replay-w"), length("menu-size")),
+            }).toEqual({
+                countersCrossRim: true,
+                feltHeldAcrossHeight: true,
+                feltHoldsColumn: true,
+                railsHoldControls: true,
             });
         },
     );
@@ -556,12 +581,60 @@ function countersPlace(geometry: BoardGeometry): Record<string, boolean> {
 }
 
 /**
- * Whether a phone's board stands on its table column: the left bar holding the counters at the face floor or more, every
- * control in a bar, the felt between each side lane and its river's reserve under three river tiles, both side strips'
- * lines a full hand long and ending above the own row, the centre at its least size, and a replay's column in the right
- * bar under the cog.
+ * Whether a phone's felt is centred within rails that hold the cog, wider than its height's share only where a full
+ * hand at the own floor or the column and its air needs it; its own row inside it with the gutter's air, the melds
+ * ending at that air; the counters reaching its top-left edge; the cog and a one-column replay off it; and a replay's
+ * panel clear of its controls.
  */
-function phonePlaces({ box, lengths, strips, tracks }: BoardGeometry): Record<string, boolean> {
+function feltPlaces(
+    { box, lengths, tracks }: BoardGeometry,
+    replay: BoardGeometry,
+): Record<string, boolean> {
+    function length(name: string): number {
+        return lengths[name] ?? Number.NaN;
+    }
+    const { corner = [], hand = [] } = slotAreas(tracks);
+    const { actions = [] } = slotAreas(replay.tracks);
+    const [replayLeft = 0] = actions;
+    const [feltLeft, feltRight] = [length("felt-left"), length("felt-right")];
+    const [handLeft = 0, , handRight = 0] = hand;
+    const panelRight = box.width - (replay.lengths["overlay-right"] ?? 0);
+    return {
+        countersAtRim:
+            length("counters-x") <= feltLeft + length("m") + 0.1 &&
+            length("counters-x") + length("counters-w") >= feltLeft - 0.1,
+        feltBounded:
+            Math.abs(feltLeft + feltRight - box.width) <= 0.1 &&
+            feltLeft >= length("m") + length("menu-size") &&
+            (feltRight - feltLeft <= PHONE_FELT_BY_HEIGHT * box.height + 0.1 ||
+                length("ow") <= PHONE_OWN_FLOOR ||
+                Math.abs(
+                    feltRight -
+                        feltLeft -
+                        (length("col-right") - length("col-left")) -
+                        2 * PAGE_GUTTER,
+                ) <= 0.1),
+        ownRowInFelt:
+            handLeft >= feltLeft + PAGE_GUTTER - 0.1 &&
+            Math.abs(handRight - (feltRight - PAGE_GUTTER)) <= 0.1 &&
+            handRight - handLeft >= FULL_HAND * length("ow") - 0.1,
+        railsOffFelt:
+            (corner[0] ?? 0) >= feltRight &&
+            (replay.replay !== "column" || replayLeft >= feltRight),
+        replayPanelClear: panelRight <= replayLeft - 8 + 0.1,
+    };
+}
+
+/**
+ * Whether a phone's board stands on its table column inside its felt: the left bar holding the counters at the face
+ * floor or more, every control in a bar, the felt between each side lane and its river's reserve under three river
+ * tiles, both side strips' lines a full hand long and ending above the own row, the centre at its least size; the felt
+ * centred, within rails a control wide, no wider than the height's share (or a full hand at the own floor, or the column
+ * and its air), the own row inside it with its air, its melds ending at that air; the cog and a replay's column in the
+ * right rail off the felt.
+ */
+function phonePlaces(geometry: BoardGeometry): Record<string, boolean> {
+    const { box, lengths, strips, tracks } = geometry;
     function length(name: string): number {
         return lengths[name] ?? Number.NaN;
     }
@@ -569,13 +642,11 @@ function phonePlaces({ box, lengths, strips, tracks }: BoardGeometry): Record<st
     function area(slot: string): readonly number[] {
         return areas[slot] ?? [];
     }
-    const rw = length("rw");
-    const [colLeft, colRight] = [length("col-left"), length("col-right")];
+    const [rw, colLeft, colRight] = [length("rw"), length("col-left"), length("col-right")];
     const [lane, rowTop] = [
         length("strip-depth") + SIDE_LANE_GAP,
         length("hand-top") - length("own-meld-rise"),
     ];
-    const [barLeft = 0] = area("field-beside");
     const replay = boardGeometry({
         appliedEdges: NO_INSETS,
         box,
@@ -585,11 +656,11 @@ function phonePlaces({ box, lengths, strips, tracks }: BoardGeometry): Record<st
     const [replayLeft = 0, replayTop = 0, replayRight = 0] =
         slotAreas(replay.tracks)["actions"] ?? [];
     return {
+        ...feltPlaces(geometry, replay),
         centreWhole: length("w") >= Math.max(RIVER_ROW_SIZE * rw, 100) && length("c") >= 68,
-        controlsInBars:
-            [area("field"), area("furiten"), area("switches")].every(
-                ([, , right = Infinity]) => right <= colLeft,
-            ) && barLeft >= colRight,
+        controlsInBars: [area("field"), area("furiten"), area("switches")].every(
+            ([, , right = Infinity]) => right <= colLeft,
+        ),
         countersInLeftBar:
             length("counters-x") + length("counters-w") <= colLeft - 6 + 0.1 &&
             length("dora-w") >= FACE_FLOOR,
@@ -775,9 +846,6 @@ describe("boardGeometry", () => {
         expect(
             owns.filter((ow, step) => ow < (owns[step - 1] ?? 0) - PHONE_OWN_GIVEN_FOR_RIVER),
         ).toEqual([]);
-        expect(Math.min(...owns)).toBeGreaterThanOrEqual(
-            Math.max(...owns) - PHONE_OWN_GIVEN_FOR_RIVER,
-        );
     });
 
     it("keeps a 770 x 300 phone's band holding the widest prompt at the tap-floor range's own tile rather than a larger own tile without it", () => {
@@ -791,18 +859,19 @@ describe("boardGeometry", () => {
     });
 
     it.each([
-        { height: 375, pinned: { ow: 45, rw: 19 }, width: 667 },
-        { height: 390, pinned: { ow: 45, rw: 19 }, width: 667 },
-        { height: 354, pinned: { ow: 47, rw: 18 }, width: 724 },
-        { height: 360, pinned: { ow: 51, rw: 18 }, width: 800 },
-        { height: 390, pinned: { ow: 50, rw: 20 }, width: 750 },
-        { height: 379, pinned: { ow: 51, rw: 19 }, width: 761 },
-        { height: 414, pinned: { ow: 54, rw: 21 }, width: 808 },
-        { height: 480, pinned: { ow: 57, rw: 26 }, width: 850 },
-        { height: 430, pinned: { ow: 62, rw: 22 }, width: 932 },
-        { height: 500, pinned: { ow: 69, rw: 26 }, width: 1024 },
+        { height: 375, pinned: { ow: 37, rw: 19 }, width: 667 },
+        { height: 390, pinned: { ow: 37, rw: 19 }, width: 667 },
+        { height: 354, pinned: { ow: 40, rw: 19 }, width: 724 },
+        { height: 360, pinned: { ow: 42, rw: 19 }, width: 800 },
+        { height: 390, pinned: { ow: 43, rw: 21 }, width: 750 },
+        { height: 379, pinned: { ow: 44, rw: 20 }, width: 761 },
+        { height: 414, pinned: { "dora-w": 15, ow: 47, rw: 22 }, width: 808 },
+        { height: 480, pinned: { ow: 49, rw: 26 }, width: 850 },
+        { height: 430, pinned: { "dora-w": 15, ow: 51, rw: 23 }, width: 932 },
+        { height: 414, pinned: { "dora-w": 15, ow: 49, rw: 22 }, width: 1000 },
+        { height: 500, pinned: { ow: 59, rw: 27 }, width: 1024 },
     ])(
-        "sizes a $width x $height window's phone board's tiles jointly on its table column: the left bar holding the counters, the side strips' lines a full hand long above the own row, the felt beside each side river under three river tiles, every control in a bar, a replay's column in the right one",
+        "sizes a $width x $height window's phone board's tiles jointly in its felt: the own row inside it with its air, the felt bounded by the height and its rails, the left bar holding the counters, the side strips' lines a full hand long above the own row, the felt beside each side river under three river tiles, every control in a bar, the cog and a replay's column in the right rail off the felt",
         ({ height, pinned, width }) => {
             const geometry = windowGeometry({ height, width });
             const { lengths } = geometry;
@@ -813,10 +882,15 @@ describe("boardGeometry", () => {
             expect(phonePlaces(geometry)).toEqual({
                 centreWhole: true,
                 controlsInBars: true,
+                countersAtRim: true,
                 countersInLeftBar: true,
+                feltBounded: true,
                 feltUnderThreeTiles: true,
                 fullHandAboveOwnRow: true,
+                ownRowInFelt: true,
+                railsOffFelt: true,
                 replayInRightBar: true,
+                replayPanelClear: true,
             });
         },
     );
@@ -936,39 +1010,49 @@ describe("boardGeometry's strips", () => {
     );
 
     it.each([
-        { height: 236, width: 667 },
-        { height: 331, width: 891 },
-        { height: 375, width: 667 },
+        { foot: "rail", form: "letters", height: 375, width: 667 },
+        { foot: "rail", form: "letters", height: 414, width: 896 },
+        { foot: "rail", form: "block", height: 331, width: 891 },
+        { foot: "line", form: "block", height: 236, width: 667 },
     ])(
-        "stands a $width x $height phone's play switches as a two-by-two block at the left bar's foot, the counters at its top and the notices' field over the furiten mark between them",
-        ({ height, width }) => {
-            const { lengths, tracks } = windowGeometry({ height, width });
+        "stands a $width x $height phone's play switches as $form at the $foot's foot, by the screen's edge in a rail, the counters at the top and the notices' field over the furiten mark between them",
+        ({ foot, form, height, width }) => {
+            const { lengths, switches, tracks } = windowGeometry({ height, width });
             function length(name: string): number {
                 return lengths[name] ?? Number.NaN;
             }
             const areas = slotAreas(tracks);
+            const [switchesLeft = 0, switchesTop = 0, switchesRight = 0, switchesBottom = 0] =
+                areas["switches"] ?? [];
             const [, fieldTop = 0, , fieldBottom = 0] = areas["field"] ?? [];
             const [, furitenTop = 0, furitenRight = 0, furitenBottom = 0] = areas["furiten"] ?? [];
+            const columns = form === "block" ? 2 : 1;
 
-            expect(areas["switches"]).toEqual(
-                tenths([
-                    length("m"),
-                    length("switches-bottom") - 2 * length("switch-h"),
-                    length("m") + 2 * length("switch-h"),
-                    length("switches-bottom"),
-                ]),
+            expect(switches).toBe(form);
+            expect(tenths([switchesRight - switchesLeft, switchesBottom - switchesTop])).toEqual(
+                tenths([columns * length("switch-h"), (4 / columns) * length("switch-h")]),
             );
             expect({
+                atFoot:
+                    Math.abs(
+                        switchesBottom -
+                            (foot === "rail" ? height - length("m") : length("lines-end")),
+                    ) <= 0.1,
                 countersAbove: length("counters-top") + length("counters-h") <= fieldTop,
                 fieldAboveFuriten: fieldBottom <= furitenTop,
-                furitenAboveBlock:
-                    furitenBottom <= length("switches-bottom") - 2 * length("switch-h"),
+                furitenAboveSwitches: furitenBottom <= switchesTop,
                 furitenInBar: furitenRight <= length("col-left"),
+                inRail:
+                    foot !== "rail" ||
+                    (switchesLeft === length("m") &&
+                        switchesRight <= length("felt-left") - 4 + 0.1),
             }).toEqual({
+                atFoot: true,
                 countersAbove: true,
                 fieldAboveFuriten: true,
-                furitenAboveBlock: true,
+                furitenAboveSwitches: true,
                 furitenInBar: true,
+                inRail: true,
             });
         },
     );
@@ -1005,7 +1089,7 @@ describe("boardGeometry's strips", () => {
         { height: 768, switches: "letters", width: 1024 },
         { height: 600, switches: "letters", width: 800 },
     ])(
-        "keeps a $width x $height desktop's controls in the bars: the counters over the field, furiten and $switches switches down the left one to the own row's foot, the cog in the right one near the column, the panel in the column, and the notices' toasts in the core's bottom-left corner",
+        "keeps a $width x $height desktop's controls in the bars: the counters over the field, furiten and $switches switches down the left one to the own row's foot, the cog in the right one near the column, every bar's control off the felt, whose air beside the column gives way to them, the panel in the column, and the notices' toasts in the core's bottom-left corner",
         ({ height, switches, width }) => {
             const live = windowGeometry({ height, width });
             const { box } = live;
@@ -1021,12 +1105,16 @@ describe("boardGeometry's strips", () => {
             }
 
             expect({
+                barsOffFelt:
+                    (switchesArea?.[2] ?? Infinity) <= length("felt-left") + 0.1 &&
+                    ((corner?.[0] ?? 0) + (corner?.[2] ?? 0) - length("menu-size")) / 2 >=
+                        length("felt-right") - 0.1 &&
+                    length("felt-left") >= colLeft - PAGE_GUTTER - 0.1 &&
+                    (replay.replay === "row" ||
+                        (slotAreas(replay.tracks)["actions"]?.[0] ?? 0) >=
+                            (replay.lengths["felt-right"] ?? Infinity) - 0.1),
                 countersOverField:
                     length("counters-top") + length("counters-h") <= (field?.[1] ?? 0),
-                fieldWide: (field?.[2] ?? 0) - (field?.[0] ?? 0) >= 84,
-                fieldWordsPerLine:
-                    (field?.[2] ?? 0) - (field?.[0] ?? 0) >=
-                    7.5 * length("field-notice-text") - 0.1,
                 form: live.switches,
                 leftBar: [field, furiten, switchesArea].every(
                     (area) => (area?.[0] ?? -1) >= 0 && (area?.[2] ?? Infinity) <= colLeft,
@@ -1047,9 +1135,8 @@ describe("boardGeometry's strips", () => {
                     (switches === "names" ? length("switch-label-w") : length("switch-h")),
                 toasts: toastsPlace(live),
             }).toEqual({
+                barsOffFelt: true,
                 countersOverField: true,
-                fieldWide: true,
-                fieldWordsPerLine: true,
                 form: switches,
                 leftBar: true,
                 leftBarDown: true,
@@ -1124,7 +1211,7 @@ describe("boardGeometry's decisions", () => {
         const { lengths, tracks } = windowGeometry({ height: 308, width: 640 });
         const [left = 0, top = 0, right = 0] = slotAreas(tracks)["actions"] ?? [];
 
-        expect(right - left).toBeCloseTo(343.6, 1);
+        expect(right - left).toBeCloseTo(341.6, 1);
         expect(left).toBeLessThan((lengths["cx"] ?? 0) - (lengths["hx"] ?? 0));
         expect(top).toBeGreaterThanOrEqual((lengths["cy"] ?? 0) + (lengths["h"] ?? 0));
     });
@@ -1259,16 +1346,15 @@ describe("boardGeometry's shell tracks", () => {
 
     it("lays a landscape phone's slots where its board measured them", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
-            actions: [144, 217, 523, 304],
-            corner: [577, 4, 663, 375],
-            field: [4, 37.1, 90, 190],
-            "field-beside": [577, 50, 663, 302],
-            furiten: [4, 198, 90, 216],
-            hand: [5, 308, 663, 368],
-            "strip-left": [96, 4, 138, 304],
-            "strip-right": [529, 4, 571, 304],
+            actions: [144, 228.7, 523, 315.7],
+            corner: [623, 4, 663, 375],
+            field: [4, 37.1, 90, 177],
+            furiten: [4, 185, 90, 203],
+            hand: [63.4, 319.7, 609, 369],
+            "strip-left": [96, 4, 138, 315.7],
+            "strip-right": [529, 4, 571, 315.7],
             "strip-top": [138, 4, 474.5, 42],
-            switches: [4, 224, 84, 304],
+            switches: [4, 211, 44, 371],
         });
     });
 
@@ -1293,14 +1379,12 @@ describe("boardGeometry's shell tracks", () => {
         expect(ownMeldTile(row, [openKan, openKan, openKan, openKan])).toBe(meld);
     });
 
-    it("centres a live phone's panel, stopping short of the notices' column only while a notice shows", () => {
-        const width = 740;
-        const { lengths, tracks } = windowGeometry({ height: 393, width });
+    it("centres a live phone's panel whatever notices show, reserving them no room beside it", () => {
+        const { areas, lengths } = windowGeometry({ height: 393, width: 740 });
 
         expect(lengths["overlay-left"]).toBe(lengths["overlay-right"]);
-        expect(width - (lengths["overlay-right-beside-notices"] ?? Number.NaN)).toBeLessThanOrEqual(
-            slotAreas(tracks)["field-beside"]?.[0] ?? Number.NaN,
-        );
+        expect(lengths["overlay-right-beside-notices"]).toBeUndefined();
+        expect(areas["field-beside"]).toBeUndefined();
     });
 
     it("keeps an empty or inverted area's end on a line past its start, a 0px track apart", () => {

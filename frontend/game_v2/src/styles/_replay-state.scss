@@ -330,13 +330,9 @@ $round-list-clear: 8px;
     border: 1px solid color-mix(in srgb, var(--ronin-warning) 40%, transparent);
     border-radius: 0.375rem;
 
-    @include desktop-board {
-        max-width: var(--geo-field-w);
-        font-size: max(12px, 0.9 * var(--field-notice-text));
-    }
-
     @include toast-board {
         max-width: 100%;
+        font-size: max(12px, 0.9 * var(--notice-text));
     }
 
     @include phone-board {

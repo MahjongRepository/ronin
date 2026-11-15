@@ -17,7 +17,9 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   board itself.
 - **The shell is a grid from the geometry's tracks; the pinwheel is local.** The table is centred, off a phone as
   wide as the own row and the two side lanes it stands between (a phone's a column of at least 25 river tiles),
-  its side bars the rest of the width; `boardGeometry` places GameBoard's
+  its side bars the rest of the width. The zones' layer paints the felt between `--field-left` and `--field-right`,
+  black (`--ronin-table-surround`) past them, the geometry's felt (`--geo-felt-left` / `--geo-felt-right`): a
+  desktop's meeting its bars' inner edges, so no bar's control stands on it, a phone's holding its own row too; `boardGeometry` places GameBoard's
   slots (the cog, the left bar's notices' field, furiten and switches' column, a replay's controls, the
   decisions' cluster, a desktop's toasts, the own row) as areas and emits the grid's templates (`--geo-shell-columns` / `--geo-shell-rows`, each area's edges a
   named line); `.board-layout` and `.board-table` lay them out and each slot takes its `grid-area`, aligned the way its
@@ -35,11 +37,11 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
 - **The panel's free box is the geometry's.** Off a phone it is the table column, so the bars' notices stay usable
   beside a panel, and above a replay's row of controls where the band holds one, so they stay usable under it; the overlay centres the panel within its `--geo-overlay-*` insets, live and
   replay alike, over the cog where they reach it. The cog stands at the right bar's top, in the board's top-right
-  corner where the bar is narrower than its target and a gap. Off a phone the notices' field is reserved whether a
-  notice shows or not, so no notice changes the panel's box or tiles. A phone's panel takes equal side gaps and stands
-  centred (a replay's clear of the right bar, which holds its moves); only while a notice shows does it narrow, by
-  `--geo-overlay-right-beside-notices`, to clear the notices, which over a panel stand in the right bar
-  (`field-beside`). The panel's tile unit stays `--board-unit`, from
+  corner where the bar is narrower than its target and a gap. No notice changes the panel's box or tiles: the notices
+  and a replay's status reserve nothing and stand over the panel by their layer where it reaches them. A phone's panel takes equal side gaps and stands
+  centred (a replay's clear of its moves, by the geometry's `overlay-right`), whether or not a notice shows: its notices
+  and a replay's status keep their field in the left bar and stand over the panel by their layer, reserving nothing.
+  The panel's tile unit stays `--board-unit`, from
   that box's width and the board's height: one from `--rw` would draw a phone's result at 17px tiles where its box holds
   32px.
 - **One source per fact.** The directive writes the sizes as `--geo-<name>` on `.game-board`; one rule (`_grid.scss`)
@@ -50,11 +52,10 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   container query needs stays Sass, its TS mirror naming it (a phone's decision row and gap), and the
   page's 10px gutter, which the page holds before the board is measured. The notices' text is the geometry's
   (`--notice-text`): a phone's smaller where the left bar is narrower than 7.5 of its ems, down to 11px at the bar's
-  floor; a desktop's toasts' the board's share, never under 14px; a desktop's notices over a panel, in the left bar's
-  field, fitted to 7.5 of their ems the same way (`--field-notice-text`).
+  floor; a desktop's toasts' the board's share, never under 14px, over a panel too.
 - **Live decisions stand in one cluster; the bars hold the rest.** Off a phone live's decisions (`.board-actions`)
-  stand in a band along the own row's top: from the bottom river's start (the centre's left edge, clear of the
-  toasts) to short of the right strip's lane, under the centre and the right river's first tile and over the own
+  stand in a band along the own row's top: from the bottom river's start (the centre's left edge, the toasts
+  standing in the corner it leaves) to short of the right strip's lane, under the centre and the right river's first tile and over the own
   row's melds' rise, in as many rows of `--decision-h` controls as its width needs. The own river, the plates there
   and, on a short window, the right river's first tiles may lie under it: the cluster stands over them (its layer,
   solid controls with `--action-lift`), since no decision's source lies in the own river, and no table width or
@@ -64,9 +65,9 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   label at the geometry's `--action-text`. A desktop's notices stand apart from the field as toasts of up to two lines in the core's
   bottom-left corner, under the left river's longest reach and over the own row (`toasts`), stacked down from its
   top, cut short with an ellipsis past their second line (the whole in the notice's title, the cut one opening the
-  sheet), the last ones left out where the felt is short (the last shown its "+N"), under no panel only
-  (`toast-board`), where a replay's status stands in the field alone: over a panel they stand in the field, wrapping as a
-  phone's do, the status with them. A replay's moves and options stand in one row along that band's foot from its
+  sheet), the last ones left out where the felt is short (the last shown its "+N"), with or without a panel (`toast-board`,
+  every desktop board), over the panel where it reaches them; a replay's status stands apart in the left bar under
+  the dora, past the bar's width over the table where it needs to. Nothing is reserved for either. A replay's moves and options stand in one row along that band's foot from its
   start, over the bottom river's last row (a replay is read stepping past it), at the control floor or larger and off
   the own plate's pill; where the band holds no such row (a small window) they take the right bar's foot instead, in one
   column or two; in two, each move back stands beside its move on and autoplay spans both under them. The form is
@@ -74,15 +75,17 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   a replay's row stands between the bottom river and the own row. On a phone
   live's decisions stand in a band along the own row's top too, from short of the left strip's lane to short of the
   right one's, under the centre and the right river (or from the centre's left edge where its bottom row cannot pass
-  under the left river's longest reach), the same cluster in 40px rows `$phone-band-row-gap` apart; the right bar
-  holds the cog and a replay's column at its foot, the left bar the counters, the notices and the switches as a
-  two-by-two block, each bar only as wide as those need: neither reserves room for the decisions, and the phone solve
+  under the left river's longest reach), the same cluster in 40px rows `$phone-band-row-gap` apart, inside the felt; the right rail
+  holds the cog and a replay's column at its foot (two columns at the right bar's foot above the own row where a rail
+  a control wide holds no column), the left rail the switches at its foot by the screen's edge, as the geometry's form
+  (`data-board-switches`: the two-by-two `block` or the `letters` column), the left bar the counters at the felt's
+  corner and the notices, over the felt's edge beside the left strip: neither reserves room for the decisions, and the phone solve
   takes no tile whose band would not hold the widest prompt's rows (`$phone-band-row-gap` mirrored in TS).
   `_replay-state.scss` places no slot.
 - **One composition, two profiles.** Off a phone there is one desktop family: the river tile from
   the vertical stack, the own tile from the width a full hand between the side lanes keeps, 1.2 to 1.45 river
   tiles; no side strip's tile stands over the own row's span. A phone keeps the composition with its own profile: `boardGeometry`
-  solves its river and own tiles together from the box (the spec's sizing rule), its own row spans the board under
+  solves its river and own tiles together from the box (the spec's sizing rule), its own row spans its felt under
   both lanes (in the shortest browser boxes, where above it the lanes cannot hold three kans or the decisions' band
   the widest prompt, between them, the lanes and bars running down beside it); a family difference is the geometry's, never a
   length switch.

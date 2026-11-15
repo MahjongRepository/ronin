@@ -327,8 +327,11 @@ function checkActions(board: BoardMeasure, screen: Box, report: PageReport): voi
     );
 }
 
-/** A phone's play switches stand in a block of this many columns, a desktop's in one. */
-const PHONE_SWITCH_COLUMNS = 2;
+/** The columns and rows four play switches stand in by the form the geometry emitted: a phone's block, else a column. */
+const SWITCH_GRID: Readonly<Record<string, Readonly<Record<"columns" | "rows", number>>>> = {
+    block: { columns: 2, rows: 2 },
+};
+const SWITCH_COLUMN = { columns: 1, rows: 4 };
 
 /**
  * The play switches sit wholly on the board and the screen, each large enough to tap, clear of every tile by the gap
@@ -342,9 +345,11 @@ function checkSwitches(board: BoardMeasure, screen: Box, report: PageReport): vo
     }
     const boxes = switches.map((control) => control.box);
     const columns = new Set(boxes.map((box) => Math.round(box.left)));
+    const rows = new Set(boxes.map((box) => Math.round(box.top)));
+    const wanted = SWITCH_GRID[board.switchesForm] ?? SWITCH_COLUMN;
     report.expect(
-        columns.size === (board.family === "phone" ? PHONE_SWITCH_COLUMNS : 1),
-        `play switches stand in ${columns.size} column(s), not a phone's block or a desktop's column`,
+        columns.size === wanted.columns && rows.size === Math.min(wanted.rows, boxes.length),
+        `play switches stand in ${columns.size} column(s) and ${rows.size} row(s), not as their ${board.switchesForm} form`,
     );
     const outside = boxes.filter((box) => !contains(board.board, box) || !contains(screen, box));
     report.expect(

@@ -46,11 +46,12 @@ $layers: (
 
 $phone-board: '[data-board-family="phone"]';
 $desktop-board: '[data-board-family="desktop"]';
-$toast-board: '[data-board-family="desktop"]:not(:has(> .board-overlay))';
+$toast-board: '[data-board-family="desktop"]';
 $small-chrome: '[data-board-chrome="small"]';
 $large-chrome: '[data-board-chrome="large"]';
 $named-switches-board: '[data-board-switches="names"]';
 $letter-switches-board: '[data-board-switches="letters"]';
+$block-switches-board: '[data-board-switches="block"]';
 $row-replay-board: '[data-board-replay="row"]';
 $pairs-replay-board: '[data-board-replay="pairs"]';
 
@@ -130,6 +131,12 @@ $pairs-replay-board: '[data-board-replay="pairs"]';
 
 @mixin letter-switches-board {
     @include board-where($letter-switches-board) {
+        @content;
+    }
+}
+
+@mixin block-switches-board {
+    @include board-where($block-switches-board) {
         @content;
     }
 }

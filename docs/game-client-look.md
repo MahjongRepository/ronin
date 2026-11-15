@@ -169,8 +169,10 @@ The table is centred on the board and is laid out as a walled table, its wall no
 its edges, running down beside the own row, the top strip along its top between them, and the own row along the
 table's bottom between the side strips' lanes (an added kan's stack deep), so no opponent's tile stands above the
 player's hand. The table is as wide as that row (a full hand of 14.6 own tiles) and both lanes. What it leaves on
-either side is a side bar of the same felt, equal on both sides, holding the board's controls and no
-tile. Two scales size it: the river tile (every river, the centre, the opponents' hands and melds) from the
+either side is a side bar, equal on both sides, holding the board's controls and no tile; the felt
+covers only the table's width and meets the bars' inner edges, a bar's gap beside each side strip, so every control
+in a bar stands on the surround, from the board's top to its bottom, and the bars are plain black, so the board
+stands on a plain surround. Two scales size it: the river tile (every river, the centre, the opponents' hands and melds) from the
 height, the own tile from the width a full hand between the lanes keeps, at most 1.45 river tiles, so the own hand
 is the table's largest thing; the bars hold the switches named and the counters' row only while the own tile keeps
 1.3 river tiles; where the width cannot give it 1.2 river tiles, the river tile steps down instead. On every
@@ -191,20 +193,34 @@ a small window's replay column) ending level
 with the own row. The seams run to
 the table's corners; the felt continues above and below it, the top field's tint above, the plain foreground below.
 
-A phone in landscape keeps the composition with its own profile: the own row stays centred on the whole board,
-wider than the column and passing under both side lanes, so the side strips end above it (a phone browser's
-box too short there for three kans or for the decisions' band to hold the prompt stands its lanes beside the row
-instead); the
-decisions and the timer stand in a band along the own row's top between the side lanes, as on a desktop (Decisions);
-the cog stands in the right bar, the replay's moves there too, at its
-foot, in two columns where the bar's height above the own row does not hold one, each move back beside its move on
-and autoplay spanning both under them; the dora stand at the left bar's
-top (a phone's top-left corner is too short for them under the plate), the play switches as a two-by-two block at
-its foot, ending at the own row's top, the furiten mark above them and the notices between; the plates stand in
-the core's corners as on a desktop (Badges). Over a panel the notices move to the right bar.
+A phone in landscape keeps the composition with its own profile on a bounded felt, which
+stands on its surround: one rectangle holding the whole table, the own row and its melds included, centred on the
+board between two plain black rails (`--ronin-table-surround`), at most 1.78 times as wide as the board is tall (wider
+only where a full hand at the own tile's floor needs it) within rails a control wide, and never narrower than the table
+column and the page gutter's air; a board too narrow for a full hand at that floor within such rails narrows its rails
+first, down to none, its cog then standing over the felt's corner. The own tile is as large as a full hand and that
+air in the felt allow, the row starting at a full hand centred on the board and its melds ending that air short of the
+felt's right edge, so the side strips end above the own row and no tile stands outside the felt. A phone browser's
+box too short there for three kans or for the decisions' band to hold the prompt, even at the own tile its felt
+holds, stands its lanes beside the row instead: its own tile is then the column's, whatever its height, and its felt
+as wide as rails that hold its controls leave it, never narrower than the column, whose air gives way to the rails
+before the column narrows, so the felt holds still as the browser's bars come and go. The decisions and the timer
+stand in a band along the own row's top between the side lanes, inside the felt, as on a desktop (Decisions). The
+right rail holds the cog at its top and the replay's moves at its foot, down beside the own row, in one column where
+its height holds one, else in two (each move back beside its move on and autoplay spanning both under them), which a rail a
+control wide holds only at the right bar's foot above the own row, at the felt's edge. A replay's panel stands clear
+of its controls. The dora card stands at the felt's top-left corner, inside it or straddling its
+edge, whichever holds its dora larger (inside where both hold them as large), ending short of the left strip; where
+the lanes stand beside the own row it crosses the edge into the air beside the left strip. The play switches stand
+at the left rail's foot by the screen's edge: the two-by-two block where the rail holds it, else the joined column,
+or, where the rail holds no column or the column would leave the notices no field, the block above the own row at the
+felt's edge; the furiten mark stands above them and the notices between, at the left bar's width (over the felt's
+edge to short of the left strip). The plates stand in the core's corners as on a
+desktop (Badges). Over a panel the notices and a replay's status stay in their field and stand over it,
+reserving no room of their own.
 
 Four seat zones, top, left, right and bottom, are made perceptible on the surface. Decision: four
-faint seams pressed into the felt (a soft groove over a fainter lip) from the centre panel's corners, the upper two to the play area's top corners (the table's, on a window taller than its table), the lower
+faint seams pressed into the felt (a soft groove over a fainter lip) from the centre panel's corners, the upper two to the felt's top corners (the table's, on a window taller than its table), the lower
 two to its sides at the top of the foreground, so the whole foreground is the viewer's own; the
 side fields carry a faint tint. They establish perceived ownership; they are not clipping
 boundaries, and a long river may cross one. A seat's tiles and the score data facing it are oriented
@@ -237,7 +253,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 ## Elements
 
 - **Surface.** Fills the viewport, under the safe-area insets too, while the content keeps to the
-  play area. Decision: a petrol felt in the dark teal family, lit broadly over the core and falling
+  play area. Off a phone the felt covers only the table's width, meeting the bars' inner edges (a bar's gap beside each side strip), and the bars beside it are black
+  (`--ronin-table-surround`); a phone's felt is its bounded table (Composition), the rails beside it black too. Decision: a petrol felt in the dark teal family, lit broadly over the core and falling
   off slowly toward the edges, with a fine static grain as its only texture (felt at full size, gone in a
   thumbnail: no weave, motif or wear) and the zone device; nothing else is drawn on it. Off-white faces
   separate from it by value, the ochre backs by hue. The grain is one small repeating image under
@@ -405,16 +422,17 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   strips' lines starting below it; in the bar beside the left strip only where its lines cannot start below it.
   Its dora are 0.8 river tiles, smaller where the room from the window's edge is short, never under 0.6, the five
   in one row at every size (three and two only where nothing else holds). Nothing is reserved under it: a
-  replay's status stands in the left bar's field under it. On a phone the card stands at the left bar's top, the
-  notices under it, its dora shrinking to fit a narrow bar, never under the 13px face floor. A replay shows no
+  replay's status stands in the left bar's field under it. On a phone the card stands at the felt's top-left corner, inside it or
+  straddling its edge, whichever holds its dora larger, ending short of the left strip (Composition), the notices
+  under it, its dora shrinking to fit, never under the 13px face floor. A replay shows no
   round or step beside the card: the centre shows the round, and the status reads both out to assistive
   technology only. The honba and riichi-stick counts are the centre's, under the round; the card does
   not repeat them.
 - **Own hand.** Sorted, from its full reach's fixed start, the drawn tile set apart by a gap at the
   right: off a phone the left side lane's inner edge, on a phone the start of a full hand centred on the
-  board; its bottom on the board's bottom. The melds stand at the row's right end, the right side lane's inner edge
-  off a phone, as on a table, never larger than
-  its tiles. Decision: off a phone the melds take 1 river tile (about 0.69 of the own tile at its cap, so
+  board, inside the felt; its bottom on the board's bottom. The melds stand at the row's right end, the right side
+  lane's inner edge off a phone and the page gutter's air short of the felt's right edge on a phone, as on a table,
+  never larger than its tiles. Decision: off a phone the melds take 1 river tile (about 0.69 of the own tile at its cap, so
   they read as secondary to the hand), never past the hand's, where the row holds them
   beside the hand at its fullest (its drawn tile and gap counted), else shrink together to fit, never
   under the face floor. A phone's river tile is a third of its own tile, so there the melds take one fixed tile for
@@ -467,7 +485,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   After a reconnect the open decision resumes with its remaining time, never a fresh one, and no
   stale selection survives. Decision: on a desktop the controls and the timer stand together as one cluster,
   fixed per viewport, in a band along the own row's top, right over the own hand: from
-  the bottom river's start (the centre's left edge, clear of the notices' toasts) to short of the right strip's
+  the bottom river's start (the centre's left edge) to short of the right strip's
   lane, under the centre and the right river's first tile and 6px over the own row's melds' rise. Every prompt, a
   call's, a riichi or tsumo turn's, kyuushu and a kan's choice, stands there, so the pass and the timer are found
   without looking. Its controls are 0.85 of a river tile tall, never under 40px, so a larger window never draws them
@@ -476,8 +494,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   on its solid controls with a soft shadow, and on a short window a wrapped decision's top row rises over the right
   river's first tiles; neither the table nor the stack reserves room for either. Decision: covering the own river
   during a prompt hides nothing the prompt needs, since a call's source is never in the player's own river and the
-  server never offers ron in furiten; the band keeps clear of every other seat's tiles, the own hand, the centre and
-  the toasts. The controls wrap up
+  server never offers ron in furiten; the band keeps clear of every other seat's tiles, the own hand and the centre,
+  and the notices' toasts stand in the corner it leaves. The controls wrap up
   from its bottom right: the timer at the right end, the lowest-ranked control (the pass) left of it, the offers
   left of the pass in rank order, the lowest nearest, wrapping upward, the highest on top. Every label in the
   cluster is the call buttons' size (0.38 of the control's height, never under 14px), the pass's too (Russian's
@@ -560,8 +578,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   ordinary answer; the latest-discard mark and the table are unchanged by an automatic pass, and an
   automatic discard travels like a pressed one. Decision: every switch is one press away, never
   behind a panel. They stand as one column at the left bar's foot, ending at the own tiles' foot on a desktop,
-  whose own row starts past the left side lane, and on a phone as a two-by-two
-  block at the own row's top, whose own row passes under the bar, so the notices keep a field above it. Their size is the tier's, never the decisions' larger one. Where the bar
+  whose own row starts past the left side lane, and on a phone at the left rail's
+  foot by the screen's edge, beside the own row: the two-by-two block where the rail holds it, else the joined
+  column, and the block above the own row only where the column would leave the notices no field above it. Their size is the tier's, never the decisions' larger one. Where the bar
   holds the whole names, each switch shows its name at the plates' text, narrowed with its label to the bar, never
   under 14px nor three quarters of the plates' text, so a larger board never names them smaller (16-28px over the
   desktops that name them: 1280x720, 1366x768, 1536x864, 1600x900, 1920x1080, 2560x1440); a bar that holds no label
@@ -654,11 +673,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   lone toast taller than the corner runs past its foot over the table, a task over the tiers below. A toast's
   words that run past its two lines end in an ellipsis, the whole in its title and in the sheet, the cut toast
   opening it; a clamped toast is at least its 40px target tall; a way out (Reload) stands beside the toast's words,
-  40px tall. Over a panel, which may stand over that corner, they stand in the
-  left bar's field instead, wrapping and clamped to whole lines there. On a phone their one place is the left bar's top, at the bar's
-  width, their text smaller where the bar is narrower than 7.5 of its ems (to 11px, which an 84px field holds), down
-  to above the furiten mark, outside the table, which leaves free, so an automatic notice covers no tile, plate,
-  control or panel; a word breaks only where it alone is wider than the line, never hyphenated; a notice whose words
+  40px tall. They reserve nothing: no track, bar, slot or tile follows them, and over a panel, which may stand over
+  that corner, they stay there as they are and stand on the panel. On a phone their one place is the left bar's top, under the
+  dora card, at the bar's width (from the left rail over the felt's edge to short of the left strip), their text
+  smaller where the bar is narrower than 7.5 of its ems (to 11px, which an 84px field holds), down to above the
+  furiten mark, beside the table's tiles, which leave it free, so an automatic notice covers no tile, plate or
+  control (over a panel it stands on the panel, in the same place, at the same size); a word breaks only where it alone is wider than the line, never hyphenated; a notice whose words
   would run past three lines in a narrow field shows a brief form there (Tiles shown as text; Reconnecting…), its
   whole words in its title, in the sheet and in what is read out; and a way out (Reload) is a 40px button on a line
   of its own under the words, its label on one line;
@@ -667,7 +687,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   "Show all" control, which opens the whole message in a sheet. Decision (step 4.2): "Show all" is the
   clamped notice's last line, its own box 40px tall rising over the words above it, and the whole notice its
   target; where even one
-  line a notice leaves the stack too tall (a phone's reserve over a panel holds one notice), the last
+  line a notice leaves the stack too tall, the last
   notices are left out and the last one shown says how many more it opens ("+1"); the sheet shows every
   notice of the stack whole, each with its way out (Reload), so the clamped notice's control moves there.
   The player chose it, so it covers the board as a panel does, the
@@ -713,11 +733,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   browser needs before the game's sounds play. A replay opens on the seating with a Start in the OK's place (on a phone in landscape the seating also names the viewpoint), and off
   a phone's short board the replay's seating (start and end) covers the table's centre block, its text scaled to the
   block.
-  Decision: off a phone the notices' place is reserved whether or not a notice shows, so a panel's box and its
-  tile size never change as a notice comes or goes. On a desktop a panel stands centred on the core, inside the
+  Decision: no notice changes a panel's box or its tile size, the notices reserving nothing and standing over the
+  panel where it reaches them. On a desktop a panel stands centred on the core, inside the
   table column, so the bars (a replay's status and controls) stay usable beside it; on a
-  phone it stands centred on the board both ways, and only while a notice shows does it narrow to leave the
-  notices' column beside it. A desktop's panel fits its content whole.
+  phone it stands centred on the board both ways whether or not a notice shows (a replay's clear of its controls),
+  the notices standing over it in their field. A desktop's panel fits its content whole.
 - **Round result.** Decision (the established clients order it differently; Tenhou's viewer puts
   the total first): the winner and how (ron, and from whom; tsumo; a head bump names who lost the
   ron); the winning hand with the winning tile set apart and its melds in their shape; the yaku,
@@ -763,7 +783,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the bar's lower half at that size (two on a primary desktop), else the fewest that hold them at their size; the
   status (an incomplete recording's note) in the left bar's field under the dora, up to 24 of its ems wide over the
   table past the field's width, on the notices' backing. On a
-  phone the column stands at the right bar's foot, in two columns where the bar's height does not hold one. A
+  phone the column stands in the right rail, off the felt, at its foot under the cog and down beside the own row; in
+  two columns where the rail's height does not hold one, at the right bar's foot above the own row where the rail is a
+  control wide; a panel stands clear of them, and the status stands over it in the left bar's field. A
   replay has no decisions, so its column and live's pass and timer never meet; the own plate stands where
   live's does, and the switches' place stays empty. Decision: the moves are the viewpoint seat's turn
   back (its last draw or call), a step back, play (in the accent, the player's own action), a step on and
@@ -857,28 +879,28 @@ It gives river and own tiles of 39 and 56px at 1280x720, 35 and 50px at 1366x657
 the river tile grows with the window's width and height, never falling back as either grows.
 
 On a phone both tiles are solved together from the box, led by the own hand tile: first the largest own tile that
-fits with a river tile at the 13px face floor or more, at most as wide as lets a full hand's row, centred on the board,
-stand within the board's width less its margins, never under 36x48 (32x42, the tap floor, where 36x48 leaves no river
+fits with a river tile at the 13px face floor or more, at most, with the lanes above the own row, as wide as lets a full hand's
+row and the page gutter's air on each side stand within the felt's wanted width (1.78 of the board's height, or a
+full hand at 36px and its air where that is wider, within rails a control wide, which a board too narrow for that
+narrows first), and with the lanes beside it as wide as the column between the bars holds, never under 36x48 (32x42, the tap floor, where 36x48 leaves no river
 tile at the face floor, or none whose band holds the widest prompt), and at least 4/3 of the river tile; then the largest river tile whose own tile is within 2px
 of that largest own tile (`PHONE_OWN_GIVEN_FOR_RIVER`), with the largest own tile that fits beside it. So a taller or
 wider box never costs the own hand more than those 2px, which buy the rivers a step where they would otherwise give
-up a whole tile size to a pixel of own tile (the A25's box keeps 17px rivers for a 41px own tile rather than 13px ones
-for 43px). The decisions' band holding the widest prompt comes before all of that, over both own floors, so where a box first
-holds it the own tile falls back, 7 to 14px (at 333 to 336px tall from 636 to 724px wide: 43 to 36px at 640, 48 to
-36px at 720), and the river may step up 3px; a right bar holding a replay's column is preferred at each river tile. A box too short for the face floor at the tap floor (a phone browser's bars shown, under about 275px)
+up a whole tile size to a pixel of own tile (the A25's box keeps 16px rivers at a 42px own tile). The decisions' band holding the widest prompt comes before all of that, over both own floors, so where a box first
+holds it the own tile falls back by a few pixels and the river may step up 3px; a right bar holding a replay's column is preferred at each river tile. A box too short for the face floor at the tap floor (a phone browser's bars shown, under about 275px)
 takes the largest river tile that fits over the 36x48 floor instead, else over the tap floor where that lifts it.
 A phone's table column is 25 river tiles
 wide too, centred, and each bar beside it only as wide as what the bars still hold needs with their gaps: the left
 one the counters at the 13px face floor, the switches' two-by-two block and the notices at their 11px floor; the
-right one the cog, a replay's moves column (two columns where the bar's height does not hold one) and the notices
-over a panel (94px at the floor, which bounds the river tile on the narrowest phones); no bar reserves anything for
+right one the cog, a replay's moves (one column in the rail, two at the bar's foot above the own row where the rail's
+height does not hold one; 94px at the floor, which bounds the river tile on the narrowest phones); no bar reserves anything for
 the decisions, which stand over the own row. As far as the bars keep that, the column widens so the top strip's line
 holds four kans at the face floor beside its centred hand. Its side strips' lines run from the top margin to above
-the own row, which passes under both lanes, so the own tile is also no larger than lets a full concealed hand fit
+the own row, which spans the felt beneath both lanes, so the own tile is also no larger than lets a full concealed hand fit
 that line. Where that line would not hold three kans at the face floor (their gaps closed, reaching at most into
 the own row's clearance) or the decisions' band not the prompt below, or would cost the river tile, and the bars
 allow it, the column widens instead until both lanes stand beside the own row, so both lines, the switches and the
-right bar run down to the board's foot (an iPhone 11's 808x275 and a Galaxy A25's 891x331 with their browsers' bars
+right rail run down to the board's foot, the felt as wide as rails holding their controls leave it (an iPhone 11's 808x275 and a Galaxy A25's 891x331 with their browsers' bars
 shown); elsewhere the lanes stay
 at the column's edges, beside the rivers. A
 phone's side strips reserve the
@@ -891,21 +913,21 @@ decisions' band, from the centre's bottom to the own row's top less its 4px clea
 and a kan, 450px in one row) in as many 40px rows, 2px apart, as the band's width needs: one where it is that wide,
 else two; a river or own tile whose band would not hold them is not taken, unless no tile in the box holds them (the
 floor display's Safari box, 667x236, whose band is shorter than a row). The own tile is also the largest whose right
-bar, from under the cog down to the own row's top (to the board's foot where the lanes stand beside the own row),
-holds a replay's moves column; else the least at that river tile: this bound caps the own tile only, never the
+rail, from under the cog down to the board's foot, holds a replay's moves (where a rail a control wide holds no column,
+the right bar above the own row holds their two columns); else the least at that river tile: this bound caps the own tile only, never the
 river tile.
 The gap below the top strip is 6px (an added kan's stack at the face floor keeps 4px from the top river's third row
 on the shortest boxes), and the
 phone's chrome scales from the river tile (the small chrome's px up to a 24px river tile, growing with
 it past that, never under 40x40), except the decision controls, which keep their 40px rows. It gives
-river and own tiles of 19 and 45px at 667x375 (its bars bound the river tile), 21 and 47px at the notch phone's
-750x390, 23 and 44px at an iPhone 11's 808x414, and 24 and 45px at 932x430 (both bound by the side strips' line),
-whatever the state shows, with centres of 114x90, 126x83, 138x91 and 144x96px (width by height).
+river and own tiles of 19 and 37px at 667x375 (its rails bound the felt), 21 and 43px at the notch phone's
+750x390, 22 and 47px at an iPhone 11's 808x414, and 23 and 51px at 932x430 (both bound by the felt's height share),
+whatever the state shows, with centres of 114x96, 126x83, 132x90 and 138x90px (width by height).
 With a browser's bars shown the boxes
-give 18 and 36px at 891x331 (a 108x70 centre, its lanes beside the own row, where at the column's edges its band,
-starting at the centre's left edge, would need three rows), 13 and 32px at 808x275 (100x69, its lanes beside the
-own row), 10 and 34px at an iPhone 13's 750x251, and 7 and 32px at 667x236 (100x90, held there by the right seat's three pons). A desktop window short enough to use the phone layout follows the same solve: 28 and
-53px at 1024x500.
+give 16 and 42px at 891x331 (a 100x75 centre, its lanes beside the own row, where at the column's edges its band,
+starting at the centre's left edge, would need three rows), 13 and 32px at 808x275 (100x67, its lanes beside the
+own row), 10 and 34px at an iPhone 13's 750x251, and 7 and 32px at 667x236 (100x87, held there by the right seat's three pons). A desktop window short enough to use the phone layout follows the same solve: 27 and
+59px at 1024x500.
 
 The centre is a rectangle in every family, because one square side had to hold both the vertical room and six
 river tiles and so held the river tile back: off a phone six river tiles wide by 4.5
@@ -917,22 +939,21 @@ own side of the panel; the side rivers' wrapped fourth rows are reserved beside 
 river tiles wide off a phone. Its corners, which the pinwheel leaves empty, hold the four plates and, off a phone,
 the notices' toasts (bottom-left, under the left river's
 longest reach); the decisions stand along the own row's top, from the bottom river's start over it to the right
-river. A phone's play switches stand as a two-by-two block at
-the left bar's foot, ending at the own row's top, and a replay's moves in the right bar, so a replay's board is the
-live game's there too.
+river. A phone's play switches stand at the left rail's
+foot and a replay's moves in the right rail, so a replay's board is the live game's there too.
 An opponent's concealed hand tile is the river tile; its drawn tile stands 0.15 of a river tile
 apart on the top strip, and 0.35 on a side strip, where the 0.2 tile edge it shows lies in that gap.
 
 | Relationship | Starting point | Derived (667x375 / 750x390 notch board / 1440x900) |
 |---|---|---|
-| Core height / play area height | 0.6 | 0.71 / 0.71 / 0.75 |
-| Centre height / core height | 0.3 | 0.34 / 0.30 / 0.33 |
-| Centre width / centre height (6/4.5 off a phone; on a phone its `w` / `c`: 114/90 and 126/83) | 1.2 | 1.27 / 1.51 / 1.33 |
-| River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand within the board and, where any own tile allows it, a right bar that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.42 / 0.46 / 0.73 |
+| Core height / play area height | 0.6 | 0.74 / 0.72 / 0.75 |
+| Centre height / core height | 0.3 | 0.35 / 0.29 / 0.33 |
+| Centre width / centre height (6/4.5 off a phone; on a phone its `w` / `c`: 114/96 and 126/83) | 1.2 | 1.19 / 1.51 / 1.33 |
+| River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand and its air within the felt and, where any own tile allows it, a right rail that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.50 / 0.48 / 0.73 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
-| Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand within the board and, where any own tile allows it, a right bar that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.42 / 0.46 / 0.73 |
-| Own hand tile width / play area width | 0.05 | 0.067 / 0.063 / 0.046 |
-| Own hand tile height / play area height | 0.15 | 0.160 / 0.161 / 0.100 |
+| Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand and its air within the felt and, where any own tile allows it, a right rail that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.50 / 0.48 / 0.73 |
+| Own hand tile width / play area width | 0.05 | 0.055 / 0.057 / 0.046 |
+| Own hand tile height / play area height | 0.15 | 0.132 / 0.147 / 0.100 |
 | Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded; the top river 0.53 / 0.52 / 0.34, past its rows' tile edge, a phone's taken from its centre's height, down to 1px under its least, only where the decisions' band keeps its place, never from a tile) |
 | Gap between neighbouring rivers, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded) |
 
@@ -946,9 +967,9 @@ at 1.2 to 1.45 of it (1.3 or more wherever the width allows), because the own ro
 between the side strips and a wider row widens the felt between them and the rivers; the own melds, at 1 river
 tile, stand at 0.69 of the own tile at the cap. Only width ratios are
 compared: Mahjong Soul's hand faces its camera over foreshortened rivers and Tenhou's view squashes heights. A phone keeps a larger own tile, which touch needs, solved
-together with its river tile from the box, the own tile as large as a full hand within the board, the side
-strips' lines and a replay's moves in the right bar allow above its 36x48 floor: 2.37 river tiles at the floor, 2.5 at
-the notch phone and 2.86 at 932x430. A decision control's tiles stay inside
+together with its river tile from the box, the own tile as large as a full hand and its air within the felt, the
+side strips' lines and a replay's moves in the right rail allow above its 36x48 floor: 1.95 river tiles at the floor,
+2.05 at the notch phone and 2.22 at 932x430. A decision control's tiles stay inside
 its row.
 
 The starting points do not fit together at the 667x375 floor. The rule resolves it by the joint
@@ -956,8 +977,8 @@ solve: the core takes the height the own row leaves it, the controls standing in
 river rather than in a row of their own;
 the two tiles are the largest pair the box holds above the own tile's 36x48 floor; and the centre's
 share grows, its text following the centre down, so the round, the wall count and four winds with
-their scores stay readable at the floor. At the floor this gives a core of 0.71 of the height, a
-centre of 0.34 of the core (114 wide by 90px tall) and 19 and 45px tiles.
+their scores stay readable at the floor. At the floor this gives a core of 0.74 of the height, a
+centre of 0.35 of the core (114 wide by 96px tall) and 19 and 37px tiles.
 
 ## States
 

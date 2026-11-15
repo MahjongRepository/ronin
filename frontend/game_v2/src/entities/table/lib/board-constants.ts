@@ -237,6 +237,12 @@ const PHONE_CHROME: PhoneChrome = {
 /** A phone's chrome grows with its river tile past this one (px). */
 const PHONE_CHROME_RIVER = 24;
 
+/**
+ * A phone's felt, where its lanes stand above the own row, is at most this many times as wide as the board is tall,
+ * wider only for a full hand at the own tile's floor.
+ */
+const PHONE_FELT_BY_HEIGHT = 1.78;
+
 export {
     BAR_MIN,
     CORE_TILES,
@@ -266,6 +272,7 @@ export {
     PHONE_CENTRE_MIN_WIDTH,
     PHONE_CHROME,
     PHONE_CHROME_RIVER,
+    PHONE_FELT_BY_HEIGHT,
     PHONE_HEIGHT,
     PHONE_OWN_FLOOR,
     PHONE_OWN_GIVEN_FOR_RIVER,

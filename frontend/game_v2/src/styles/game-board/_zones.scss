@@ -15,10 +15,18 @@
     --zone-top-y: calc(var(--geo-shown-centre-tl-y) + var(--oy) + var(--tt));
     --zone-bottom-y: calc(var(--geo-shown-centre-bl-y) + var(--oy) + var(--tt));
     --zone-band-y: calc(var(--foreground-top) + var(--oy) + var(--tt));
+    --field-left: 0px;
+    --field-right: var(--zone-w);
 
     inset: calc(-1 * (var(--oy) + var(--tt))) calc(-1 * var(--or))
         calc(-1 * (var(--ob) + var(--tb))) calc(-1 * var(--ox));
     pointer-events: none;
+    background: var(--ronin-table-surround);
+
+    @include board-where("[data-board-family]") {
+        --field-left: calc(var(--geo-felt-left) + var(--ox));
+        --field-right: calc(var(--geo-felt-right) + var(--ox));
+    }
 
     .board-page & {
         --ox: var(--page-edge-left);
@@ -30,7 +38,9 @@
     &::before {
         content: "";
         position: absolute;
-        inset: 0;
+        inset-block: 0;
+        left: var(--field-left);
+        width: calc(var(--field-right) - var(--field-left));
         background:
             var(--ronin-table-grain) 0 0 / 128px 128px repeat,
             var(--ronin-table-fill);
@@ -44,32 +54,32 @@
     &--left {
         background: var(--ronin-table-field-side);
         clip-path: polygon(
-            0 var(--tt),
+            var(--field-left) var(--tt),
             var(--zone-tl-x) var(--zone-top-y),
             var(--zone-bl-x) var(--zone-bottom-y),
-            0 var(--zone-band-y)
+            var(--field-left) var(--zone-band-y)
         );
     }
 
     &--right {
         background: var(--ronin-table-field-side);
         clip-path: polygon(
-            100% var(--tt),
+            var(--field-right) var(--tt),
             var(--zone-tr-x) var(--zone-top-y),
             var(--zone-br-x) var(--zone-bottom-y),
-            100% var(--zone-band-y)
+            var(--field-right) var(--zone-band-y)
         );
     }
 
     &--top {
         background: var(--ronin-table-field-end);
         clip-path: polygon(
-            0 0,
-            100% 0,
-            100% var(--tt),
+            var(--field-left) 0,
+            var(--field-right) 0,
+            var(--field-right) var(--tt),
             var(--zone-tr-x) var(--zone-top-y),
             var(--zone-tl-x) var(--zone-top-y),
-            0 var(--tt)
+            var(--field-left) var(--tt)
         );
     }
 }
@@ -96,28 +106,28 @@
     &--top-left {
         --x1: var(--zone-tl-x);
         --y1: var(--zone-top-y);
-        --x2: 0px;
+        --x2: var(--field-left);
         --y2: var(--tt);
     }
 
     &--top-right {
         --x1: var(--zone-tr-x);
         --y1: var(--zone-top-y);
-        --x2: var(--zone-w);
+        --x2: var(--field-right);
         --y2: var(--tt);
     }
 
     &--bottom-right {
         --x1: var(--zone-br-x);
         --y1: var(--zone-bottom-y);
-        --x2: var(--zone-w);
+        --x2: var(--field-right);
         --y2: var(--zone-band-y);
     }
 
     &--bottom-left {
         --x1: var(--zone-bl-x);
         --y1: var(--zone-bottom-y);
-        --x2: 0px;
+        --x2: var(--field-left);
         --y2: var(--zone-band-y);
     }
 }

@@ -28,6 +28,7 @@ import {
     PHONE_CENTRE_MIN_WIDTH,
     PHONE_CHROME,
     PHONE_CHROME_RIVER,
+    PHONE_FELT_BY_HEIGHT,
     PHONE_HEIGHT,
     PHONE_OWN_FLOOR,
     PHONE_OWN_GIVEN_FOR_RIVER,
@@ -169,9 +170,6 @@ const PHONE_SMALLEST_RIVER = 2;
 
 /** A panel keeps this far off the board's edges where nothing else is reserved there (px). */
 const PANEL_GAP = 8;
-
-/** While a notice shows, a phone's live panel keeps this far off the notices' column beside it (px). */
-const NOTICES_PANEL_GAP = 4;
 
 function classifyFamily({ height }: BoardBox): BoardFamily {
     return height < PHONE_HEIGHT ? "phone" : "desktop";
@@ -878,14 +876,113 @@ function phoneColumn(
     return { left, right: left + columnWidth };
 }
 
-/** A phone's panel's free box: equal gaps on a live board, a replay's clear of the right bar, which holds its moves. */
-function phonePanel(slots: BoardSlots, width: number, columnRight: number): BoardEdges {
-    return {
-        bottom: PANEL_GAP,
-        left: PANEL_GAP,
-        right: slots.band === "replay" ? width - columnRight + PANEL_GAP : PANEL_GAP,
-        top: PANEL_GAP,
-    };
+/** A phone's panel's free box: equal gaps, a replay's right one moved clear of its controls by its shell. */
+function phonePanel(): BoardEdges {
+    return { bottom: PANEL_GAP, left: PANEL_GAP, right: PANEL_GAP, top: PANEL_GAP };
+}
+
+/** A phone's felt keeps the page gutter's air past the own row and the side lanes. */
+const FELT_AIR = PAGE_GUTTER;
+
+/** A phone's rails keep their controls this far off the felt (px). */
+const RAIL_GAP = 4;
+
+/** A full hand at the own tile's floor and the felt's air beside it: the narrowest felt a phone wants (px). */
+const LEAST_FELT = FULL_HAND * PHONE_OWN_FLOOR + 2 * FELT_AIR;
+
+/**
+ * A phone's rail beside its felt, either side alike: as wide as the widest of the cog, a replay's controls standing in
+ * it and a column of play switches needs, the margin and the rail's gap (px).
+ */
+function phoneRail(
+    chrome: PhoneChrome,
+    { replayWidth, rw }: Readonly<Record<"replayWidth" | "rw", number>>,
+): number {
+    return chrome.m + Math.max(menuSize(rw), replayWidth, chrome.switchH) + RAIL_GAP;
+}
+
+/**
+ * The width a phone's felt wants with its lanes above the own row (px): `PHONE_FELT_BY_HEIGHT` of the board's height, or
+ * `LEAST_FELT` where that is wider, within its rails (`rail` each); a board too narrow for `LEAST_FELT` within them
+ * narrows its rails first, down to none. The own tile is never larger than a full hand and its air in it holds.
+ */
+function phoneFeltWanted({
+    height,
+    rail,
+    width,
+}: Readonly<Record<"height" | "rail" | "width", number>>): number {
+    return Math.min(
+        Math.max(PHONE_FELT_BY_HEIGHT * height, LEAST_FELT),
+        phoneFeltWithin({ rail, width }),
+    );
+}
+
+/** The widest a phone's felt with its lanes above the own row stands within its rails (`phoneFeltWanted`), px. */
+function phoneFeltWithin({ rail, width }: Readonly<Record<"rail" | "width", number>>): number {
+    return Math.max(width - 2 * rail, Math.min(width, LEAST_FELT));
+}
+
+/**
+ * A phone's felt, the table's one rectangle (its edges, px): with the lanes above the own row, centred, as wide as it
+ * wants (`phoneFeltWanted`), never narrower than the table column and its air; with the lanes beside the own row (a
+ * browser's short box), as wide as its rails (`rail` each) leave it, holding the column and its air, that air giving way
+ * to the rails, down to their controls without the rails' gap, before the column narrows.
+ */
+function phoneFelt({
+    beside,
+    column,
+    height,
+    rail,
+    width,
+}: {
+    readonly beside: boolean;
+    readonly column: Readonly<Record<"left" | "right", number>>;
+    readonly height: number;
+    readonly rail: number;
+    readonly width: number;
+}): Readonly<Record<"left" | "right", number>> {
+    if (beside) {
+        const left = Math.min(rail, Math.max(column.left - FELT_AIR, rail - RAIL_GAP));
+        return { left, right: width - left };
+    }
+    const wanted = phoneFeltWanted({ height, rail, width });
+    const across = Math.min(width, Math.max(column.right - column.left + 2 * FELT_AIR, wanted));
+    const left = (width - across) / 2;
+    return { left, right: left + across };
+}
+
+/**
+ * Where a phone replay's controls stand, and their block (`phoneReplayBlock`): in the right rail, down its whole height
+ * beside the own row, where the lanes stand beside the own row or the rail holds them in one column; else their two
+ * columns at the right bar's foot above the own row, at the felt's edge, so the rails keep one control's width.
+ */
+function phoneReplayPlace({
+    beside,
+    chrome,
+    feltRight,
+    height,
+    lineEnd,
+    rw,
+    width,
+}: {
+    readonly beside: boolean;
+    readonly chrome: Pick<PhoneChrome, "m" | "movesH" | "replayGap">;
+} & Readonly<Record<"feltRight" | "height" | "lineEnd" | "rw" | "width", number>>): {
+    readonly block: ReturnType<typeof phoneReplayBlock>;
+    readonly inRail: boolean;
+    readonly room: Readonly<Record<"bottom" | "top", number>>;
+} {
+    const { m } = chrome;
+    const rail = phoneRailRoom({ height, m, rw });
+    const railBlock = phoneReplayBlock(chrome, rail.bottom - rail.top);
+    const inRail =
+        beside ||
+        (railBlock.columns === 1 && width - feltRight >= m + railBlock.width + RAIL_GAP - 0.001);
+    if (inRail) {
+        return { block: railBlock, inRail, room: rail };
+    }
+    const bar = { bottom: phoneControlsBottom(lineEnd), top: phoneUnderCog(m, rw) };
+    return { block: phoneReplayBlock(chrome, bar.bottom - bar.top), inRail, room: bar };
 }
 
 /**
@@ -968,8 +1065,10 @@ function plateLengths(
 /**
  * A phone's lengths at a river and own tile, in px; whether its places fit them: the centre at its least height, both
  * side strips' lines a full concealed hand long (three pons may reach into the top margin) from the top margin to the
- * bars' foot (above the own row, or `beside` it at the board's foot), both bars as wide as the wider one's contents need, the plates' rows holding a pill above the right river's reserved top and above the own row (`plateRect`); and whether the
- * decisions' band holds `call_prompt`'s rows and the right bar a replay's column under the cog.
+ * bars' foot (above the own row, or `beside` it at the board's foot), both bars as wide as the wider one's contents need,
+ * the felt (`phoneFelt`) within its rails holding the own row and its air, the own tile no larger than the felt's wanted
+ * width holds a full hand in, the plates' rows holding a pill above the right river's reserved top and above the own row
+ * (`plateRect`); and whether the decisions' band holds `call_prompt`'s rows and a replay's controls their place.
  */
 function phoneLayout(
     frame: BoardFrame,
@@ -980,16 +1079,28 @@ function phoneLayout(
     readonly holdsKans: boolean;
     readonly holdsPrompt: boolean;
     readonly holdsReplay: boolean;
+    readonly lanesFit: boolean;
     readonly lengths: BoardLengths;
+    readonly ownCap: number;
 } {
-    const { box, slots } = frame;
+    const { box } = frame;
     const { height, width } = box;
     const chrome = phoneChrome(rw);
     const { controlH, coreGap, m, sep } = chrome;
     const rh = rw * TILE_ASPECT;
     const gap = riverGap(rw);
-    const ownStart = Math.max(m, (width - FULL_HAND * ow) / 2);
-    const ownEnd = beside ? (width + FULL_HAND * ow) / 2 : width - m;
+    const railRoom = phoneRailRoom({ height, m, rw });
+    const replayWidth = phoneReplayBlock(chrome, railRoom.bottom - railRoom.top).width;
+    const rail = phoneRail(chrome, { replayWidth: beside ? replayWidth : 0, rw });
+    const barLeast = Math.max(
+        phoneLeftBarLeast(chrome),
+        phoneRightBarLeast(chrome, replayWidth, rw),
+    );
+    const centreWidth = Math.max(RIVER_ROW_SIZE * rw, PHONE_CENTRE_MIN_WIDTH);
+    const column = phoneColumn({ barLeast, beside, width }, { centreWidth, ow, rw });
+    const felt = phoneFelt({ beside, column, height, rail, width });
+    const ownStart = (width - FULL_HAND * ow) / 2;
+    const ownEnd = beside ? width - ownStart : felt.right - FELT_AIR;
     const edgeWithinFoot = Math.max(m, handFoot(ow)) / OWN_LYING_EDGE_SHARE;
     const { handTop, oh, ownMeldRise, ownMeldTile } = ownRow({
         height,
@@ -1021,66 +1132,79 @@ function phoneLayout(
     const topGap = gap + edgeRoom;
     const centreTop = coreTop + LATEST_DISCARD_GAP + rows + edgeRoom;
     const heightRoom = spareRoom - edgeRoom;
-    const centreWidth = Math.max(RIVER_ROW_SIZE * rw, PHONE_CENTRE_MIN_WIDTH);
-    const replayRoom = phoneControlsBottom(foot) - phoneUnderCog(m, rw);
-    const replay = phoneReplayBlock(chrome, replayRoom);
-    const barLeast = Math.max(
-        phoneLeftBarLeast(chrome),
-        phoneRightBarLeast(chrome, replay.width, rw),
-    );
-    const column = phoneColumn({ barLeast, beside, width }, { centreWidth, ow, rw });
     const cy = centreTop + heightRoom / 2;
 
     const lengths = Object.fromEntries([
         ...chromeLengths(chrome),
         ["badge-h", plateBoxHeight(chrome)],
         ...cornerLengths(rw),
-        ...panelLengths(phonePanel(slots, width, column.right)),
+        ...panelLengths(phonePanel()),
         ["col-left", column.left],
         ["col-right", column.right],
         ["control-h", controlH],
         ["core-top", coreTop],
+        ["felt-left", felt.left],
+        ["felt-right", felt.right],
         ["hand-top", handTop],
+        ["lines-end", foot],
         ["m", m],
         ["oh", oh],
         ["ow", ow],
         ["own-end", ownEnd],
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
+        ["own-start", ownStart],
         ...coreLengths(
             { cx: width / 2, cy, height: heightRoom, rw, width: centreWidth },
             { drop: LATEST_DISCARD_GAP, gap, topGap },
         ),
         ["side-reach", phoneSideReach(rw, line, frame.faceFloor)],
-        ["switches-bottom", foot],
     ]);
     function at(name: string): number {
         return lengths[name] ?? 0;
     }
     const plates = plateRect(at, chrome.pillH, rowTop);
     const band = phoneActions(at);
-    const fits =
+    const lanesFit =
         spareRoom >= PHONE_CENTRE_MIN_HEIGHT &&
         fullReach(rw, "left") <= rowTop - m &&
         ponsReach(rw, frame.faceFloor) <= foot &&
         column.left >= barLeast - 0.001 &&
         plates.fits;
+    const ownCap = beside
+        ? Infinity
+        : Math.floor((phoneFeltWanted({ height, rail, width }) - 2 * FELT_AIR) / FULL_HAND);
+    const handInFelt =
+        beside ||
+        (ow <= ownCap && felt.right - felt.left <= phoneFeltWithin({ rail, width }) + 0.001);
+    const replay = phoneReplayPlace({
+        beside,
+        chrome,
+        feltRight: felt.right,
+        height,
+        lineEnd: foot,
+        rw,
+        width,
+    });
     return {
         band,
-        fits,
+        fits: lanesFit && handInFelt,
         holdsKans: tightKansReach(rw, frame.faceFloor) <= line + STRIP_CONTROL_CLEAR,
         holdsPrompt:
             band.bottom - band.top >=
             phonePromptHeight(band.right - band.left, chrome.timerW) - 0.001,
-        holdsReplay: replay.height <= replayRoom,
+        holdsReplay: replay.block.height <= replay.room.bottom - replay.room.top,
+        lanesFit,
         lengths,
+        ownCap,
     };
 }
 
 /**
  * A phone's layout at a river and own tile: its side lanes at the table column's edges above the own row, or beside the
  * own row, the lanes and bars running down past it, where above it they do not fit, or do not hold `PHONE_LINE_KANS`
- * or the decisions' band `call_prompt` or the right bar a replay's column, and beside it they fit.
+ * or the decisions' band `call_prompt` or a replay's controls, and beside it they fit. Lanes that stand above it are
+ * never moved beside it for an own tile larger than the felt holds: that own tile does not fit.
  */
 function phoneLaid(
     frame: BoardFrame,
@@ -1090,11 +1214,16 @@ function phoneLaid(
         return phoneLayout(frame, { ...tiles, beside: frame.beside });
     }
     const above = phoneLayout(frame, { ...tiles, beside: false });
-    if (above.fits && above.holdsKans && above.holdsPrompt && above.holdsReplay) {
+    if (holdsAbove(above)) {
         return above;
     }
     const beside = phoneLayout(frame, { ...tiles, beside: true });
     return beside.fits || !above.fits ? beside : above;
+}
+
+/** Whether a phone's lanes stand above its own row at a layout's tiles, all they hold held, the felt aside. */
+function holdsAbove(laid: ReturnType<typeof phoneLayout>): boolean {
+    return laid.lanesFit && laid.holdsKans && laid.holdsPrompt && laid.holdsReplay;
 }
 
 /** How far the decisions' band may move for the top river's edge room and still count as kept (px). */
@@ -1270,7 +1399,28 @@ const PHONE_OWN_LED_RANGES = [
     { ownCeiling: PHONE_OWN_FLOOR - 1, ownFloor: PHONE_OWN_TAP_FLOOR },
 ] as const;
 
-function phoneLengths(frame: BoardFrame): BoardLengths {
+/**
+ * Whether a phone's lanes stand above its own row at some river tile with the own tile its felt holds, all they hold
+ * held: such a box never moves its lanes beside the own row for a larger own tile than its felt holds.
+ */
+function lanesHoldAbove(frame: BoardFrame): boolean {
+    for (let rw = FACE_FLOOR; rw <= Math.floor(frame.box.height / PHONE_MAX_RIVER_SHARE); rw += 1) {
+        const { ownCap } = phoneLayout(frame, { beside: false, ow: PHONE_OWN_FLOOR, rw });
+        if (
+            ownCap >= PHONE_OWN_FLOOR &&
+            holdsAbove(phoneLayout(frame, { beside: false, ow: ownCap, rw }))
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function phoneLengths(unsettled: BoardFrame): BoardLengths {
+    const frame =
+        unsettled.beside === undefined && lanesHoldAbove(unsettled)
+            ? { ...unsettled, beside: false }
+            : unsettled;
     const anyBands = PHONE_OWN_LED_RANGES.map((range) =>
         phoneSolveOwnLed(frame, { ...range, holdingPrompt: false }),
     );
@@ -1302,7 +1452,6 @@ type ShellSlot =
     | "actions"
     | "corner"
     | "field"
-    | "field-beside"
     | "furiten"
     | "hand"
     | "switches"
@@ -1427,8 +1576,7 @@ function phoneLeftBarLeast(chrome: PhoneChrome): number {
 }
 
 function phoneRightBarLeast(chrome: PhoneChrome, replayWidth: number, rw: number): number {
-    const notices = NOTICE_FIELD_EMS * NOTICE_TEXT_MIN;
-    return ACTIONS_GAP + Math.max(menuSize(rw), replayWidth, notices) + chrome.m;
+    return ACTIONS_GAP + Math.max(menuSize(rw), replayWidth) + chrome.m;
 }
 
 /** A phone's right bar's controls' top: under the cog and a gap (px). */
@@ -1439,6 +1587,15 @@ function phoneUnderCog(m: number, rw: number): number {
 /** A phone's right bar's controls' bottom: a gap above the bars' foot, where the side strips' lines end (px). */
 function phoneControlsBottom(foot: number): number {
     return foot + STRIP_CONTROL_CLEAR - ACTIONS_GAP;
+}
+
+/** A phone's right rail's room for a replay's controls: under the cog and the rail's gap, down to its margin (px). */
+function phoneRailRoom({
+    height,
+    m,
+    rw,
+}: Readonly<Record<"height" | "m" | "rw", number>>): Readonly<Record<"bottom" | "top", number>> {
+    return { bottom: height - m, top: m + menuSize(rw) + RAIL_GAP };
 }
 
 /**
@@ -1595,14 +1752,14 @@ function desktopSideLines({ at }: ShellRoom): Readonly<Record<"end" | "start", n
 }
 
 /**
- * A bar's contents keep this far off its edges and each other; the notices and the counters this far off the left
- * strip, the field never narrower than the notices' least for it (px).
+ * A bar's contents keep this far off its edges and each other; the counters and the field under them this far off the
+ * left strip, never narrower than the counters' least row there (px).
  */
 const BAR_GAP = 6;
 const FIELD_STRIP_GAP = 12;
 const FIELD_LEAST = 84;
 
-/** Where a desktop's notices' field and counters end, off the left strip at the table's edge `colLeft` (px). */
+/** Where a desktop's counters and the field under them end, off the left strip at the table's edge `colLeft` (px). */
 function fieldRight(colLeft: number): number {
     return Math.max(colLeft - FIELD_STRIP_GAP, Math.min(colLeft - BAR_GAP, BAR_GAP + FIELD_LEAST));
 }
@@ -1622,8 +1779,8 @@ const REPLAY_COLUMNS = [1, 2] as const;
 const FURITEN_EMS = 1.5;
 const FURITEN_TEXT_MIN = 12;
 
-/** The play switches' form: each switch showing its name, or the letters' joined column. */
-type SwitchesForm = "names" | "letters";
+/** The play switches' form: each switch showing its name, the letters' joined column, or a phone's two-by-two block. */
+type SwitchesForm = "names" | "letters" | "block";
 
 /**
  * A replay's controls' form: one row over the own row, or in the right bar one column or two, the moves there paired
@@ -1639,7 +1796,7 @@ function barReplayForm(columns: number): ReplayForm {
 /** What a family places in its controls' slots: their areas, the lengths their contents read, the switches' form. */
 interface ControlSlots {
     readonly areas: Readonly<
-        Record<"actions" | "corner" | "field" | "field-beside" | "furiten" | "switches", BoardRect>
+        Record<"actions" | "corner" | "field" | "furiten" | "switches", BoardRect>
     >;
     readonly lengths: readonly [string, number][];
     readonly switches: SwitchesForm;
@@ -1765,7 +1922,7 @@ const SWITCH_NAME_SHARE = 0.64;
 const SWITCH_NAME_FLOOR = 14;
 const SWITCH_NAME_LEAST_SHARE = 0.75;
 
-/** A notice's text is this share of the board's, never under this size (px); its place is at least this many ems wide. */
+/** A notice's text is this share of the board's, never under this size (px); a phone's field is at least this many ems wide. */
 const NOTICE_TEXT_SHARE = 0.92;
 const NOTICE_TEXT_MIN = 11;
 const NOTICE_FIELD_EMS = 7.5;
@@ -1815,14 +1972,14 @@ function noticeText(text: number, fieldWidth: number, ems = NOTICE_FIELD_EMS): n
 }
 
 /**
- * A desktop's controls: in the left bar the field under the counters (`fieldTop`) a clear gap off the left strip (the
- * notices over a panel and a replay's status; the notices' toasts take their own text), the
+ * A desktop's controls: in the left bar the field under the counters (`fieldTop`) a clear gap off the left strip, where
+ * a replay's status stands, reserving nothing (the notices stand as toasts, `desktopToasts`), the
  * furiten mark, and the play switches' column ending at `switchesFoot`
  * (a pill's height over the own tiles' foot), each switch named where the bar holds a named one at its label's floor; in the right bar the
  * cog at its top, centred on the bar's part next to the column, and where it stands (its left); over the own row live
  * play's decisions' cluster (`desktopActions`) or a replay's controls along that band's foot (`replayRow`), a replay's
  * panel standing above them, where the band holds them at the control floor, else at the right bar's foot
- * (`replayColumn`).
+ * (`replayColumn`); and the felt, which meets both bars' inner edges, so every bar's control stands on the surround.
  */
 function desktopBars(
     room: ShellRoom,
@@ -1832,7 +1989,10 @@ function desktopBars(
         ownPill,
         switchesFoot,
     }: { readonly fieldTop: number; readonly ownPill: OwnPill; readonly switchesFoot: number },
-): ControlSlots & { readonly cogLeft: number } {
+): ControlSlots & {
+    readonly cogLeft: number;
+    readonly felt: Readonly<Record<"left" | "right", number>>;
+} {
     const { at, frame, tier } = room;
     const { height, width } = frame.box;
     const colLeft = at("col-left");
@@ -1894,7 +2054,6 @@ function desktopBars(
             actions,
             corner: { ...rightBar, bottom: height, right: nearRight },
             field,
-            "field-beside": field,
             furiten,
             switches: {
                 ...leftBar,
@@ -1904,14 +2063,11 @@ function desktopBars(
             },
         },
         cogLeft: (rightBar.left + nearRight - at("menu-size")) / 2,
+        felt: { left: leftBar.right, right: rightBar.left },
         lengths: [
             ["actions-bottom", actions.bottom],
             ["actions-left", actions.left],
             ["actions-right", width - actions.right],
-            ["field-beside-height", Math.max(0, field.bottom - field.top)],
-            ["field-height", Math.max(0, field.bottom - field.top)],
-            ["field-notice-text", noticeText(tier.text, field.right - field.left)],
-            ["field-w", field.right - field.left],
             ["notice-text", Math.max(TOAST_TEXT_MIN, NOTICE_TEXT_SHARE * tier.text)],
             ["replay-b", replay.side],
             ["replay-gap", tier.replayGap],
@@ -1947,28 +2103,106 @@ function phoneReplayBlock(
 }
 
 /**
- * A phone replay's controls in the right bar: the moves over the options at the tier's control, in one column where
- * the bar's height holds it, else two (the moves paired), standing on the bar's foot at its right edge, under the
- * cog.
+ * A phone replay's controls where `phoneReplayPlace` stands them, standing on their room's foot at `right`: their box,
+ * form and width (px).
  */
 function phoneReplayColumn(
-    { tier }: ShellRoom,
-    bar: BoardRect,
+    { block, room }: ReturnType<typeof phoneReplayPlace>,
+    right: number,
 ): { readonly form: ReplayForm; readonly rect: BoardRect; readonly width: number } {
-    const pick = phoneReplayBlock(tier, bar.bottom - bar.top);
-    const left = bar.right - pick.width;
+    const left = right - block.width;
     return {
-        form: barReplayForm(pick.columns),
-        rect: { bottom: bar.bottom, left, right: left + pick.width, top: bar.bottom - pick.height },
-        width: pick.width,
+        form: barReplayForm(block.columns),
+        rect: { bottom: room.bottom, left, right, top: room.bottom - block.height },
+        width: block.width,
+    };
+}
+
+/** A phone's notices' field is at least this tall where the play switches stand in a column (px): two lines of its least text. */
+const PHONE_FIELD_LEAST =
+    2 * Math.ceil(1.3 * NOTICE_TEXT_MIN) + 2 * Math.ceil(0.3 * NOTICE_TEXT_MIN);
+
+/**
+ * A phone's play switches: at the left rail's foot by the screen's edge, as the thumb holds the board, the two-by-two
+ * block where the rail (to `railRight`) holds it, else a column where that leaves the notices' field over the furiten
+ * mark `PHONE_FIELD_LEAST` tall under `fieldTop`; else the block at the left bar's foot above the own row, at `lineEnd`,
+ * at the felt's edge. Their columns and box (px).
+ */
+function phoneSwitches({
+    fieldTop,
+    lineEnd,
+    m,
+    railFoot,
+    railRight,
+    switchH,
+}: Readonly<
+    Record<"fieldTop" | "lineEnd" | "m" | "railFoot" | "railRight" | "switchH", number>
+>): Readonly<Record<"bottom" | "columns" | "left" | "top", number>> {
+    const blockRows = SWITCH_CHIPS / PHONE_SWITCH_COLUMNS;
+    const blockWidth = PHONE_SWITCH_COLUMNS * switchH;
+    if (railRight - m >= blockWidth) {
+        return {
+            bottom: railFoot,
+            columns: PHONE_SWITCH_COLUMNS,
+            left: m,
+            top: railFoot - blockRows * switchH,
+        };
+    }
+    const columnTop = railFoot - SWITCH_CHIPS * switchH;
+    if (
+        railRight - m >= switchH &&
+        columnTop - 2 * FURITEN_GAP - FURITEN_H - fieldTop >= PHONE_FIELD_LEAST
+    ) {
+        return {
+            bottom: railFoot,
+            columns: 1,
+            left: m,
+            top: columnTop,
+        };
+    }
+    const foot = Math.max(m, lineEnd);
+    return {
+        bottom: foot,
+        columns: PHONE_SWITCH_COLUMNS,
+        left: m,
+        top: foot - blockRows * switchH,
     };
 }
 
 /**
- * A phone's controls in the bars beside the table column. The left bar: the counters at its top, the play switches'
- * block (`PHONE_SWITCH_COLUMNS` chips a row) at its foot, and the furiten mark and the notices' field between them. The right bar: the cog at its top and a replay's
- * controls (`phoneReplayColumn`) under it, to above the own row; over a panel the notices stand there too, above a
- * replay's controls. Live play's decisions stand in a band along the own row's top (`phoneActions`), as a desktop's:
+ * A phone's counters at the felt's top-left corner, at the larger dora of two places, inside it from its edge (`m` in)
+ * and straddling the edge, each at most the chrome's wanted and ending at `barRight`, short of the left strip; inside
+ * where both are as large, straddling centred on the edge where the margin and `barRight` allow (px).
+ */
+function phoneCounters({
+    barRight,
+    feltLeft,
+    m,
+    rw,
+}: Readonly<Record<"barRight" | "feltLeft" | "m" | "rw", number>>): {
+    readonly counters: Counters;
+    readonly left: number;
+} {
+    const wanted = phoneChrome(rw).doraW;
+    const insideLeft = feltLeft + m;
+    const inside = doraFitting({ perRow: DORA_SLOTS, room: barRight - insideLeft, wanted });
+    const straddling = doraFitting({ perRow: DORA_SLOTS, room: barRight - m, wanted });
+    if (inside >= straddling) {
+        return { counters: countersAt(inside, DORA_SLOTS), left: insideLeft };
+    }
+    const counters = countersAt(straddling, DORA_SLOTS);
+    return {
+        counters,
+        left: Math.max(m, Math.min(feltLeft - counters.width / 2, barRight - counters.width)),
+    };
+}
+
+/**
+ * A phone's controls in the rails beside its felt and the bars beside the table column. The left side: the counters at
+ * the felt's top-left corner (`phoneCounters`), the play switches at the rail's foot (`phoneSwitches`), and the furiten
+ * mark and the notices' field between them, reaching over the felt's edge to short of the left strip. The right rail:
+ * the cog at its top and a replay's controls (`phoneReplayColumn`) at its foot, or at the right bar's foot above the own
+ * row (`phoneReplayPlace`), a replay's panel clear of them; over a panel the notices keep their field, over it. Live play's decisions stand in a band along the own row's top (`phoneActions`), as a desktop's:
  * from short of the left strip's lane to short of the right one's, 4px under the centre and so the right river's first
  * tiles (its row starts level with the centre's bottom) and 4px over the own row, their controls wrapping up from its
  * bottom right over the own river and the plates; its bottom row passes under the left river's longest reach (its last
@@ -1979,70 +2213,89 @@ function phoneControls(room: ShellRoom): ControlSlots {
     const { height, width } = frame.box;
     const m = at("m");
     const replaying = frame.slots.band === "replay";
+    const [feltLeft, feltRight] = [at("felt-left"), at("felt-right")];
+    const lanesBeside = at("lines-end") >= height - m - 0.001;
     const leftBarRight = at("col-left") - FIELD_GAP;
-    const rightBar = {
-        bottom: phoneControlsBottom(at("switches-bottom")),
-        left: at("col-right") + ACTIONS_GAP,
+    const railFoot = height - m;
+    const place = phoneReplayPlace({
+        beside: lanesBeside,
+        chrome: { ...tier, m },
+        feltRight,
+        height,
+        lineEnd: at("lines-end"),
+        rw: at("rw"),
+        width,
+    });
+    const widestControl = Math.max(menuSize(at("rw")), place.inRail ? place.block.width : 0);
+    const rightRail = {
+        left: Math.min(feltRight + RAIL_GAP, width - m - widestControl),
         right: width - m,
-        top: phoneUnderCog(m, at("rw")),
     };
-    const replay = phoneReplayColumn(room, rightBar);
+    const replay = phoneReplayColumn(place, width - m);
     const band = phoneActions(at);
     const actions = replaying ? replay.rect : band;
-    const wanted = phoneChrome(at("rw")).doraW;
-    const counters = countersAt(
-        Math.min(wanted, doraFitting({ perRow: DORA_SLOTS, room: leftBarRight - m, wanted })),
-        DORA_SLOTS,
-    );
-    const switchesBottom = at("switches-bottom");
-    const blockTop = switchesBottom - (SWITCH_CHIPS / PHONE_SWITCH_COLUMNS) * tier.switchH;
-    const blockRight = m + PHONE_SWITCH_COLUMNS * tier.switchH;
-    const furitenBottom = blockTop - FURITEN_GAP;
+    const counters = phoneCounters({
+        barRight: leftBarRight,
+        feltLeft,
+        m,
+        rw: at("rw"),
+    });
+    const fieldTop = m + counters.counters.height + FIELD_GAP;
+    const switches = phoneSwitches({
+        fieldTop,
+        lineEnd: at("lines-end"),
+        m,
+        railFoot,
+        railRight: feltLeft - RAIL_GAP,
+        switchH: tier.switchH,
+    });
+    const blockRight = switches.left + switches.columns * tier.switchH;
+    const furitenBottom = switches.top - FURITEN_GAP;
+    const furitenLeft = Math.max(m, (switches.left + blockRight - FURITEN_RESERVE) / 2);
     const field = {
         bottom: furitenBottom - FURITEN_H - FURITEN_GAP,
         left: m,
         right: leftBarRight,
-        top: m + counters.height + FIELD_GAP,
+        top: fieldTop,
     };
-    const fieldBeside = {
-        ...rightBar,
-        bottom: replaying ? replay.rect.top - FIELD_GAP : rightBar.bottom,
-    };
+    const panelRight = replaying
+        ? width - Math.min(feltRight, replay.rect.left) + PANEL_GAP
+        : at("overlay-right");
     return {
         areas: {
             actions,
-            corner: { bottom: height, left: rightBar.left, right: rightBar.right, top: m },
+            corner: { bottom: height, left: rightRail.left, right: rightRail.right, top: m },
             field,
-            "field-beside": fieldBeside,
             furiten: {
                 bottom: furitenBottom,
-                left: m,
-                right: Math.min(leftBarRight, m + FURITEN_RESERVE),
+                left: furitenLeft,
+                right: Math.min(leftBarRight, furitenLeft + FURITEN_RESERVE),
                 top: furitenBottom - FURITEN_H,
             },
-            switches: { bottom: switchesBottom, left: m, right: blockRight, top: blockTop },
+            switches: {
+                bottom: switches.bottom,
+                left: switches.left,
+                right: blockRight,
+                top: switches.top,
+            },
         },
         lengths: [
-            ...countersLengths(counters, { left: m, top: m }),
+            ...countersLengths(counters.counters, { left: counters.left, top: m }),
             ["actions-bottom", actions.bottom],
             ["actions-left", actions.left],
             ["actions-right", width - actions.right],
             ["decision-bottom", band.bottom],
             ["decision-top", band.top],
-            ["field-beside-height", Math.max(0, fieldBeside.bottom - fieldBeside.top)],
             ["field-height", Math.max(0, field.bottom - field.top)],
             ["notice-text", noticeText(tier.text, field.right - field.left)],
-            [
-                "overlay-right-beside-notices",
-                Math.max(at("overlay-right"), width - rightBar.left + NOTICES_PANEL_GAP),
-            ],
             ["replay-b", tier.movesH],
             ["replay-gap", tier.replayGap],
             ["replay-group-gap", REPLAY_GROUP_GAPS * tier.replayGap],
+            ["overlay-right", panelRight],
             ["replay-w", replay.width],
         ],
         replay: replay.form,
-        switches: "letters",
+        switches: switches.columns === 1 ? "letters" : "block",
     };
 }
 
@@ -2331,6 +2584,8 @@ function desktopShell(room: ShellRoom): BoardShell {
         areas: { ...controls.areas, hand: own.area, ...strips.areas, toasts },
         lengths: [
             ...controls.lengths,
+            ["felt-left", controls.felt.left],
+            ["felt-right", controls.felt.right],
             ...counters.counters,
             ...plates.lengths,
             ...own.lengths,
@@ -2349,16 +2604,16 @@ function desktopShell(room: ShellRoom): BoardShell {
 
 /**
  * A phone's slots: the plates in the core's corners (`phonePlates`); the side strips at the table column's
- * edges, their lines from the top margin to the bars' foot, the top one between their lanes; the own row centred on the
- * board, under both lanes to the board's right edge, or between them where they stand beside it; and the controls in
- * the bars and the decisions' band over the own row (`phoneControls`).
+ * edges, their lines from the top margin to the bars' foot, the top one between their lanes; the own row in the felt,
+ * from a full hand centred on the board to the felt's air short of its right edge under both lanes, or between them
+ * where they stand beside it; and the controls in the rails and bars and the decisions' band over the own row
+ * (`phoneControls`).
  */
 function phoneShell(room: ShellRoom): BoardShell {
-    const { at, frame } = room;
-    const { width } = frame.box;
+    const { at } = room;
     const m = at("m");
-    const ownStart = Math.max(m, (width - FULL_HAND * at("ow")) / 2);
-    const lineEnd = at("switches-bottom");
+    const ownStart = at("own-start");
+    const lineEnd = at("lines-end");
     const plates = phonePlates(room);
     const strips = opponentStrips(room, {
         leftEnd: lineEnd,

@@ -87,19 +87,20 @@ const PAGES: readonly PageCase[] = [
 ];
 
 /**
- * A notice, a system message, may cover the table, but never the decision's buttons and timer or the panel over the
- * board, however long it stays.
+ * A notice, a system message, may cover the table and a panel over the board, standing on top, but never the
+ * decision's buttons and timer, the panel's controls or the cog, however long it stays.
  */
 function checkNotices(notices: readonly Box[], board: BoardMeasure, report: PageReport): void {
     const covered = [
         ...(board.decisionBand?.buttons ?? []),
         ...(board.timer === null ? [] : [board.timer]),
-        ...(board.overlay === null ? [] : [board.overlay.box]),
+        ...(board.overlay?.controls ?? []),
+        ...board.menu,
     ];
     const over = notices.filter((notice) => covered.some((box) => intersects(notice, box)));
     report.expect(
         over.length === 0,
-        `notice(s) over a decision button, the timer or panel: ${over.map(describeBox).join(", ")}`,
+        `notice(s) over a decision button, the timer, the panel's controls or the cog: ${over.map(describeBox).join(", ")}`,
     );
     const outside = notices.filter((notice) => !contains(board.board, notice));
     report.expect(outside.length === 0, `${outside.length} notice(s) off the board`);

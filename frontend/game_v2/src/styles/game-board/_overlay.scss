@@ -66,10 +66,6 @@ $one-line-scores: 40rem;
     }
 }
 
-.game-board:where(#{$phone-board}):has(.board-notices__list > *) > .board-overlay {
-    --panel-right: var(--geo-overlay-right-beside-notices);
-}
-
 /* An auto track leaves a percentage nothing to resolve against, so the panel's room is its free box's. */
 .board-overlay__panel {
     grid-area: 2 / 2;

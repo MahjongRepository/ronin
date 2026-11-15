@@ -30,9 +30,12 @@ $radius: 6px;
     font-size: var(--switch-text);
 
     @include phone-board {
+        font-size: 16px;
+    }
+
+    @include block-switches-board {
         display: grid;
         grid-template-columns: repeat(2, var(--switch-h));
-        font-size: 16px;
     }
 
     &:has(.play-switches__names) {
@@ -189,7 +192,9 @@ $radius: 6px;
 }
 
 .play-switches {
-    @include phone-board {
+    @include block-switches-board {
+        gap: 0;
+
         :is(.play-switch, .play-switches__names-toggle) {
             border-width: 1px;
             border-radius: 0;

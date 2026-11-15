@@ -29,6 +29,8 @@ export interface BoardMeasure {
         readonly box: Box;
         readonly scroll: Size;
         readonly client: Size;
+        /** The panel's shown controls, which nothing may cover though a notice may stand over the panel. */
+        readonly controls: readonly Box[];
     } | null;
     readonly tiles: readonly Box[];
     readonly hiddenTiles: number;
@@ -65,6 +67,8 @@ export interface BoardMeasure {
     readonly fonts: readonly { readonly name: string; readonly px: number }[];
     readonly centerTexts: readonly GroupedBox[];
     readonly family: string;
+    /** The play switches' form the geometry emitted (`data-board-switches`). */
+    readonly switchesForm: string;
     readonly furiten: Box | null;
     readonly noticesField: Box | null;
     readonly reservedToastsPlace: Box | null;
@@ -453,6 +457,9 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                               height: overlay.clientHeight,
                               width: overlay.clientWidth,
                           },
+                          controls: [...overlay.querySelectorAll("button, a[href]")]
+                              .filter((control) => control.getClientRects().length > 0)
+                              .map(box),
                           scroll: {
                               height: overlay.scrollHeight,
                               width: overlay.scrollWidth,
@@ -483,6 +490,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             ),
             stripTiles: bySeat(board, ".board-strip .tile", ".board-strip"),
             switches,
+            switchesForm: board.getAttribute("data-board-switches") ?? "",
             tileScale,
             tiles: tableTiles.map(box),
             timer: timer === null ? null : box(timer),
