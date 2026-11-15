@@ -1,7 +1,7 @@
 import { type Page } from "playwright";
 
 import { isFurnitureOverlap, measureBoard } from "./board-measure.ts";
-import { type Box, sameBox } from "./boxes.ts";
+import { type Box, intersects, sameBox } from "./boxes.ts";
 import { compositorShot } from "./compositor.ts";
 import { type PageReport } from "./model.ts";
 
@@ -167,23 +167,39 @@ interface GlyphInk extends PaintedColour {
 }
 
 /**
- * A plate's text that something outside the plate covers at its centre and corners: the plate's group, as the overlap
- * check names it, and the boxes of the covering element and its ancestors up to the board, in page pixels.
+ * A plate's text with something outside the plate over its centre: the plate's group, as the overlap check names it, the
+ * boxes, in page pixels, of what lies over its centre and its ancestors up to the board, and the value its element is
+ * tagged with (`COVER_ATTRIBUTE`) for the probe that paints its text alone.
  */
 interface FurnitureCover {
     readonly furniture: string;
     readonly over: readonly Box[];
+    readonly tag: string;
 }
+
+/** The attribute a covered plate text's element carries while the contrast check probes it. */
+const COVER_ATTRIBUTE = "data-contrast-cover";
+
+/** The loud colour a probe paints a covered plate's text in (`FORCE_INK`'s). */
+const PROBE_INK = "#f0f";
+
+/**
+ * The most probe pixels a covered plate text may still change and count as covered, in shot pixels: the antialiased
+ * sliver a rounded cover's corner leaves over a glyph's edge (two at 800x600, under a play switch's corner).
+ */
+const ROUNDED_COVER_CORNER_SLIVER_PIXELS = 4;
 
 /**
  * A text (an element's own text nodes, or the text its pseudo-elements draw), a face's glyph or a mark, by the part of
  * its box (in viewport pixels) the page shows. A text names its painted colour and the shot that hides it alone
- * (`hiddenIn`), and what covers it if it is a plate's (`cover`); a glyph its symbol's inks and whether its face is under
+ * (`hiddenIn`), and what covers it if it is a plate's (`cover`, `probe`); a glyph its symbol's inks and whether its face is under
  * `MIN_GLYPH_DEVICE_PX` (`small`); a mark whether it must paint nothing (`absent`).
  */
 interface ContrastTarget {
     readonly label: string;
     readonly cover?: FurnitureCover | null;
+    /** The probe shot (`ContrastShots.probes`) that paints this covered plate text alone. */
+    readonly probe?: number;
     readonly box: Box;
     readonly kind: ContrastKind;
     readonly colour?: PaintedColour;
@@ -231,7 +247,7 @@ interface ContrastResult {
  */
 function collectContrastTargets(page: Page): Promise<ContrastTargets> {
     return page.evaluate(
-        ({ highlights, least, marks }) => {
+        ({ coverAttribute, highlights, least, marks }) => {
             const HIGHLIGHTS = new Set(highlights);
             const unreadable: string[] = [];
             // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
@@ -375,29 +391,17 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
             if (scope === null || scope === undefined) {
                 return { glyphs: [], marks: [], texts: [], unreadable };
             }
+            let covers = 0;
             function furnitureCover(element: Element, box: Box): FurnitureCover | null {
                 const plate = element.closest(".nameplate");
                 if (plate === null) {
                     return null;
                 }
-                const hits = [
-                    [0.5, 0.5],
-                    [0.1, 0.1],
-                    [0.9, 0.1],
-                    [0.1, 0.9],
-                    [0.9, 0.9],
-                ].map(([across = 0, down = 0]) =>
-                    document.elementFromPoint(
-                        box.left + across * box.width,
-                        box.top + down * box.height,
-                    ),
+                const middle = document.elementFromPoint(
+                    box.left + box.width / 2,
+                    box.top + box.height / 2,
                 );
-                const [middle] = hits;
-                if (
-                    middle === null ||
-                    middle === undefined ||
-                    hits.some((hit) => hit === null || plate.contains(hit))
-                ) {
+                if (middle === null || plate.contains(middle)) {
                     return null;
                 }
                 const over: Box[] = [];
@@ -414,7 +418,10 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
                         width: rect.width,
                     });
                 }
-                return { furniture: plate.className.split(" ")[1] ?? "nameplate", over };
+                const tag = String(covers);
+                covers += 1;
+                element.setAttribute(coverAttribute, tag);
+                return { furniture: plate.className.split(" ")[1] ?? "nameplate", over, tag };
             }
             const elements = [...scope.querySelectorAll("*")].filter(
                 (element) => element.closest(".tile, svg") === null && shown(element),
@@ -461,7 +468,6 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
                               {
                                   box,
                                   colour,
-                                  cover: furnitureCover(element, box),
                                   hiddenIn: "pseudo" as const,
                                   kind: "text" as const,
                                   label,
@@ -592,7 +598,12 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
             }
             return { glyphs, marks: batches, texts, unreadable };
         },
-        { highlights: SPRITE_HIGHLIGHTS, least: MIN_GLYPH_DEVICE_PX, marks: CONTRAST_MARKS },
+        {
+            coverAttribute: COVER_ATTRIBUTE,
+            highlights: SPRITE_HIGHLIGHTS,
+            least: MIN_GLYPH_DEVICE_PX,
+            marks: CONTRAST_MARKS,
+        },
     );
 }
 
@@ -637,6 +648,8 @@ interface ContrastShots {
     readonly forcedPseudo: string;
     readonly pseudo: string;
     readonly marks: readonly string[];
+    /** Per probe batch, the inkless shot with only that batch's covered plate texts painted `PROBE_INK`. */
+    readonly probes: readonly string[];
 }
 
 /**
@@ -655,7 +668,7 @@ function measureContrast(
     { shots, targets }: { readonly shots: ContrastShots; readonly targets: ContrastTargets },
 ): Promise<ContrastResult> {
     return page.evaluate(
-        async ({ floor, sets, shotSet }) => {
+        async ({ floor, sets, shotSet, sliver }) => {
             const INK_GAP = 2;
             const JPEG_FIRST_BYTE = 255;
             const TEXT_CELLS_A_LINE = 6;
@@ -1009,7 +1022,26 @@ function measureContrast(
             const pseudo = await pixels(shotSet.pseudo);
             const forced = await pixels(shotSet.forced);
             const forcedPseudo = await pixels(shotSet.forcedPseudo);
-            for (const target of sets.texts) {
+            const probes = await Promise.all(shotSet.probes.map(pixels));
+            /** How many pixels of an area a probe's loud ink changes against the inkless shot: where the text shows. */
+            function exposed(
+                area: { left: number; top: number; right: number; bottom: number },
+                probe: ImageData,
+            ): number {
+                let count = 0;
+                for (let row = area.top; row < area.bottom; row += 1) {
+                    for (let column = area.left; column < area.right; column += 1) {
+                        const at = (row * drawn.width + column) * 4;
+                        count += changed(pixelAt(probe, at), pixelAt(ink, at)) ? 1 : 0;
+                    }
+                }
+                return count;
+            }
+            const shownTexts = sets.texts.filter((target) => {
+                const probe = target.probe === undefined ? undefined : probes[target.probe];
+                return probe === undefined || exposed(deviceBox(target.box), probe) > sliver;
+            });
+            for (const target of shownTexts) {
                 collected.text += 1;
                 const pseudoText = target.hiddenIn === "pseudo";
                 measureText(target, {
@@ -1031,7 +1063,12 @@ function measureContrast(
             }
             return { collected, failures, lowest, missing, reported };
         },
-        { floor: MIN_CONTRAST, sets: targets, shotSet: shots },
+        {
+            floor: MIN_CONTRAST,
+            sets: targets,
+            shotSet: shots,
+            sliver: ROUNDED_COVER_CORNER_SLIVER_PIXELS,
+        },
     );
 }
 
@@ -1040,30 +1077,44 @@ function describeFinding(finding: ContrastFinding): string {
 }
 
 /**
- * The targets but a plate's texts that a part of the board covers where the overlap check lets it stand over the plate
- * (`isFurnitureOverlap`): the spec lets anything but the other plates and the centre cover table furniture.
+ * The plate texts a part of the board stands over where the overlap check lets it (`isFurnitureOverlap`: anything but
+ * the other plates and the centre may cover table furniture), each given a probe batch whose texts' boxes never meet;
+ * every other text loses its cover.
  */
-async function withoutCoveredFurniture(
-    page: Page,
-    targets: ContrastTargets,
-): Promise<ContrastTargets> {
+async function withCoverProbes(page: Page, targets: ContrastTargets): Promise<ContrastTargets> {
     if (!targets.texts.some(({ cover }) => cover)) {
         return targets;
     }
     const { grouped } = await measureBoard(page);
-    return {
-        ...targets,
-        texts: targets.texts.filter(({ cover }) => {
-            if (!cover) {
-                return true;
-            }
-            const over = grouped.find(({ box }) => cover.over.some((shown) => sameBox(shown, box)));
-            return (
-                over === undefined ||
-                !isFurnitureOverlap([cover.furniture, over.group].toSorted().join(" x "))
-            );
-        }),
-    };
+    const batches: Box[][] = [];
+    const texts = targets.texts.map((target) => {
+        const { cover } = target;
+        const over = cover
+            ? grouped.find(({ box }) => cover.over.some((shown) => sameBox(shown, box)))
+            : undefined;
+        if (
+            !cover ||
+            over === undefined ||
+            !isFurnitureOverlap([cover.furniture, over.group].toSorted().join(" x "))
+        ) {
+            return { ...target, cover: null };
+        }
+        const free = batches.findIndex(
+            (boxes) => !boxes.some((box) => intersects(box, target.box)),
+        );
+        const probe = free === -1 ? batches.length : free;
+        batches[probe] = [...(batches[probe] ?? []), target.box];
+        return { ...target, probe };
+    });
+    return { ...targets, texts };
+}
+
+/** The CSS that hides every ink (`HIDE_INK`) but paints the covered plate texts of one probe batch `PROBE_INK`. */
+function probeCss(targets: ContrastTargets, batch: number): string {
+    const tagged = targets.texts
+        .filter(({ probe }) => probe === batch)
+        .map(({ cover }) => `[${COVER_ATTRIBUTE}="${cover?.tag ?? ""}"]`);
+    return `${HIDE_INK}\n${tagged.join(", ")} { -webkit-text-fill-color: ${PROBE_INK} !important; }`;
 }
 
 /**
@@ -1081,7 +1132,7 @@ export async function checkContrast(
     report: PageReport,
     compositor = false,
 ): Promise<string> {
-    const targets = await withoutCoveredFurniture(page, await collectContrastTargets(page));
+    const targets = await withCoverProbes(page, await collectContrastTargets(page));
     const drawn = await shootWith(page, null, compositor);
     const ink = await shootWith(page, HIDE_INK, compositor);
     const pseudo = await shootWith(page, HIDE_PSEUDO_TEXT, compositor);
@@ -1091,18 +1142,28 @@ export async function checkContrast(
     for (const batch of targets.marks.keys()) {
         marks.push(await shootWith(page, hideMarksCss(batch), compositor));
     }
-    await page.evaluate((rules) => {
-        for (const rule of Array.from(
-            { length: rules },
-            (_unused, index) => `data-contrast-${index}`,
-        )) {
-            for (const element of document.querySelectorAll(`[${rule}]`)) {
-                element.removeAttribute(rule);
+    const batches = new Set(
+        targets.texts.flatMap(({ probe }) => (probe === undefined ? [] : [probe])),
+    );
+    const probes: string[] = [];
+    for (const batch of [...batches].toSorted((first, second) => first - second)) {
+        probes.push(await shootWith(page, probeCss(targets, batch), compositor));
+    }
+    await page.evaluate(
+        ({ cover, rules }) => {
+            for (const rule of [
+                ...Array.from({ length: rules }, (_unused, index) => `data-contrast-${index}`),
+                cover,
+            ]) {
+                for (const element of document.querySelectorAll(`[${rule}]`)) {
+                    element.removeAttribute(rule);
+                }
             }
-        }
-    }, CONTRAST_MARKS.length);
+        },
+        { cover: COVER_ATTRIBUTE, rules: CONTRAST_MARKS.length },
+    );
     const { collected, failures, lowest, missing, reported } = await measureContrast(page, {
-        shots: { drawn, forced, forcedPseudo, ink, marks, pseudo },
+        shots: { drawn, forced, forcedPseudo, ink, marks, probes, pseudo },
         targets,
     });
     report.expect(

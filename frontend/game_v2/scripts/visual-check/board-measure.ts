@@ -544,7 +544,6 @@ function describeLocalTile(tiles: readonly Size[]): string {
     return tile ? `${tile.width.toFixed(1)}x${tile.height.toFixed(1)}` : "none";
 }
 
-/** The board's line in the page's summary: its box and content, the own tile, the decision's buttons, the least text. */
 /**
  * A plate is table furniture: anything may stand over it, so a plate counts against only the fixed places it is laid
  * out beside, the other plates and the centre.
@@ -562,6 +561,7 @@ export function ownRiverUnderDecisions(board: BoardMeasure): readonly Box[] {
     return board.riverTiles.filter((tile) => tile.group === "bottom").map((tile) => tile.box);
 }
 
+/** The board's line in the page's summary: its box and content, the own tile, the decision's buttons, the least text. */
 export function describeBoard(board: BoardMeasure): string {
     const fonts = Math.min(...board.fonts.map((font) => font.px));
     const scroll = `scroll ${describeSize(board.boardScroll)}`;

@@ -163,7 +163,7 @@ function halfHull(points: readonly Point[]): Point[] {
     return chain.slice(0, -1);
 }
 
-/** The smallest convex polygon holding every point (Andrew's monotone chain), counter-clockwise on screen. */
+/** The smallest convex polygon holding every point (Andrew's monotone chain), clockwise on screen. */
 export function convexHull(points: readonly Point[]): readonly Point[] {
     const sorted = points.toSorted(
         (first, second) => first.left - second.left || first.top - second.top,
