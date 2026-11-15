@@ -644,6 +644,23 @@ function desktopPlans(
         : plans.filter((plan) => plan.arrangement === arrangement);
 }
 
+/**
+ * The misfit a camera's plane lays through: its pocket holds no controls, which stand on the flat board, so its stack
+ * is checked on the flat board alone.
+ */
+const PLANE_UNCHECKED_POCKET_STACK: DesktopMisfit = "pocket-stack";
+
+/** Whether a layout's controls stand where its plan puts them: with no misfit, or on a plane only the pocket's stack. */
+function controlsStand(frame: BoardFrame, { misfits }: DesktopLayout): boolean {
+    return misfits.every(
+        (misfit) => frame.plane !== undefined && misfit === PLANE_UNCHECKED_POCKET_STACK,
+    );
+}
+
+/**
+ * A desktop's layout at `rw`: the first of its plans (`desktopPlans`) whose own tile holds its share off a plane, whose
+ * controls stand (`controlsStand`) and which `fits`; else the bars with the counters wrapped.
+ */
 function desktopLayout(
     frame: BoardFrame,
     rw: number,
@@ -658,7 +675,7 @@ function desktopLayout(
     for (const plan of plans) {
         const layout = desktopAt(frame, rw, plan);
         const ownHeld = frame.plane !== undefined || layout.ownShare >= plan.share;
-        if (ownHeld && layout.misfits.length === 0 && fits(layout)) {
+        if (ownHeld && controlsStand(frame, layout) && fits(layout)) {
             return layout;
         }
     }
@@ -2757,15 +2774,29 @@ function laneSwitchesRoom(rw: number): number {
 }
 
 /**
+ * How far the tilted table leans into the flat pocket, in river tiles: the left strip's far end toward the centre, the
+ * left river's top up and the top river's run-on left, measured over the desktop grid with the strips' lanes and the
+ * rivers' reserves. Fitted to the camera's 20-degree tilt cap and its distance of two board widths (`DESKTOP_TILTS`,
+ * `CAMERA_WIDTHS` in `table-camera.ts`): a steeper cap or a nearer camera leans the tiles farther, past these.
+ */
+const POCKET_LEFT_LEAN_AT_20_DEGREE_CAMERA = 1.25;
+const POCKET_BOTTOM_LEAN_AT_20_DEGREE_CAMERA = 0.3;
+const POCKET_RIGHT_LEAN_AT_20_DEGREE_CAMERA = 0.1;
+
+/**
  * A pocket desktop's free upper-left pocket: past the left strip's lane, short of the top river's run-on third row and
- * the centre, below the top strip's foot and above the left river, a plate's gap off each (px).
+ * the centre, below the top strip's foot and above the left river, a plate's gap off each, and in from the left, the
+ * bottom and the right by as far as the tilted table leans its tiles into it (px).
  */
 function pocketRect(at: (name: string) => number): BoardRect {
     const rw = at("rw");
     return {
-        bottom: at("cy") - at("h") - PLATE_GAP,
-        left: at("col-left") + sideLane(rw) + PLATE_GAP,
-        right: Math.min(at("reach-top-left"), at("cx") - at("hx")) - PLATE_GAP,
+        bottom: at("cy") - at("h") - PLATE_GAP - POCKET_BOTTOM_LEAN_AT_20_DEGREE_CAMERA * rw,
+        left: at("col-left") + sideLane(rw) + PLATE_GAP + POCKET_LEFT_LEAN_AT_20_DEGREE_CAMERA * rw,
+        right:
+            Math.min(at("reach-top-left"), at("cx") - at("hx")) -
+            PLATE_GAP -
+            POCKET_RIGHT_LEAN_AT_20_DEGREE_CAMERA * rw,
         top: at("m") + STACKED_DEPTH * rw + PLATE_GAP,
     };
 }
@@ -3169,12 +3200,17 @@ function planeLengths(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): LaidBoa
     return { arrangement, lengths };
 }
 
+/**
+ * Whether a plane lays at `rw`: its table fits and its controls stand (`controlsStand`, which lays a plane through the
+ * pocket's stack).
+ */
 function planeFits(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): boolean {
     if (frame.family === "phone") {
         return phoneLaid(frame, { ow, rw }).fits;
     }
-    const layout = desktopLayout({ ...frame, plane: spare }, rw);
-    return fitsDesktop(layout) && layout.misfits.length === 0;
+    const planeFrame = { ...frame, plane: spare };
+    const layout = desktopLayout(planeFrame, rw);
+    return fitsDesktop(layout) && controlsStand(planeFrame, layout);
 }
 
 /**

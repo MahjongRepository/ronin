@@ -713,7 +713,8 @@ function barlessPlaces({ box, lengths, tracks }: BoardGeometry): Record<string, 
 
 /**
  * A pocket desktop's free upper-left pocket, rebuilt from its lengths: past the left lane, short of the top river and the
- * centre, below the top strip and above the left river, 6px off each.
+ * centre, below the top strip and above the left river, 6px off each, and in by the tilted table's lean into it: 1.25
+ * river tiles from the left, 0.3 from the bottom and 0.1 from the right.
  */
 function pocketEdges(
     lengths: Readonly<Record<string, number>>,
@@ -722,9 +723,12 @@ function pocketEdges(
         return lengths[name] ?? Number.NaN;
     }
     return {
-        bottom: length("cy") - length("h") - 6,
-        left: length("col-left") + length("strip-depth") + SIDE_LANE_GAP + 6,
-        right: Math.min(length("reach-top-left"), length("cx") - length("hx")) - 6,
+        bottom: length("cy") - length("h") - 6 - 0.3 * length("rw"),
+        left: length("col-left") + length("strip-depth") + SIDE_LANE_GAP + 6 + 1.25 * length("rw"),
+        right:
+            Math.min(length("reach-top-left"), length("cx") - length("hx")) -
+            6 -
+            0.1 * length("rw"),
         top: length("m") + length("strip-depth") + 6,
     };
 }
@@ -891,7 +895,7 @@ describe("boardGeometry", () => {
     it.each([
         { across: 1366, axis: "height", ends: [32, 61] },
         { across: 1920, axis: "height", ends: [32, 72] },
-        { across: 768, axis: "width", ends: [35, 42] },
+        { across: 768, axis: "width", ends: [32, 42] },
         { across: 1080, axis: "width", ends: [35, 60] },
     ])(
         "never shrinks a desktop's river tile as its window grows in $axis from $across across",

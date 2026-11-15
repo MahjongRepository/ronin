@@ -205,9 +205,10 @@ status stand in one of two places:
   holds them, else the joined column, the furiten mark over them. The side strips' lines start below the counters and
   the cog and end above the furiten mark.
 - **Pocket**: in the free pocket left of the top river and above the left river, past the left lane and below the top
-  strip: the switches at its bottom-left, two by two where it holds them, else the joined column, the furiten mark over
-  them and the field above. The side strips' lines start below the counters and the cog and run to the own row, as a
-  barred board's. The controls may stand over the top seat's plate and its riichi stick, which are furniture.
+  strip, clear of the tilted table's left strip and rivers: the switches at its bottom-left, two by two where it holds
+  them, else the joined column, the furiten mark over them and the field above. The side strips' lines start below the
+  counters and the cog and run to the own row, as a barred board's. The controls may stand over the top seat's plate and
+  its riichi stick, which are furniture.
 
 The board takes whichever reaches the larger river tile; at the same river tile a fitting corner wins. The table is as
 tall as its arrangement needs, its spare height split above and below the core, the felt still ending a page gutter

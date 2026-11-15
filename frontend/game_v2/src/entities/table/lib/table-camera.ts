@@ -1451,6 +1451,7 @@ export {
     showPlanePoint,
     shownBands,
     shownPiece,
+    shownRect,
     surfaceViewValues,
     tablePieces,
     tableView,

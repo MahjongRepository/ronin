@@ -28,6 +28,7 @@ import {
     scalesAt,
     shownBands,
     shownPiece,
+    shownRect,
     stickUnder,
     surfaceViewValues,
     tablePieces,
@@ -98,10 +99,10 @@ const GRID_HEIGHTS = Array.from({ length: 46 }, (_unused, index) => 540 + 20 * i
 
 /** The desktop windows 40x20 apart from 800x540 to 2560x1440, a row per height, solved once for the tests that walk them. */
 const desktopGrid = (() => {
-    let rows: readonly (readonly ReturnType<typeof tableView>[])[] | null = null;
-    return (): readonly (readonly ReturnType<typeof tableView>[])[] => {
+    let rows: readonly (readonly ReturnType<typeof viewOf>[])[] | null = null;
+    return (): readonly (readonly ReturnType<typeof viewOf>[])[] => {
         rows ??= GRID_HEIGHTS.map((height) =>
-            GRID_WIDTHS.map((width) => viewOf({ height, width }).view),
+            GRID_WIDTHS.map((width) => viewOf({ height, width })),
         );
         return rows;
     };
@@ -207,6 +208,76 @@ function addedKanFoot(geometry: BoardGeometry, stripTop: number): number {
     const [meld] = stripLayout("top", content, geometry.strips).melds;
     const tile = meld?.tile ?? 0;
     return stripTop + (STACKED_DEPTH + TILE_EDGE_SHARE) * tile;
+}
+
+const TILED_PIECES = ["centre", "strip-top", "strip-left", "strip-right"] as const;
+
+const RIVERS = ["river-bottom", "river-right", "river-top", "river-left"] as const;
+
+/**
+ * Each river's tiles' reserve on a plane, rebuilt from its lengths: a row of six with a sideways riichi tile, the top
+ * and bottom rivers' third row run on (to `reach-top-left`, `reach-bottom-right`), the side rivers' fourth wrapped (to
+ * `reach-left`, `reach-right`), the latest discard's gaps and the tile edge under the lowest tile.
+ */
+function riverReserves(plane: BoardGeometry): Record<(typeof RIVERS)[number], BoardRect> {
+    function length(name: string): number {
+        return plane.lengths[name] ?? 0;
+    }
+    const [cx, cy, hx, h, gap] = ["cx", "cy", "hx", "h", "g"].map(length) as [
+        number,
+        number,
+        number,
+        number,
+        number,
+    ];
+    const [rh, drop, edge] = [
+        length("rh"),
+        length("latest-drop-gap"),
+        TILE_EDGE_SHARE * length("rw"),
+    ];
+    const sideRow = 5 * length("rw") + rh + drop;
+    return {
+        "river-bottom": {
+            bottom: cy + h + gap + 3 * rh + drop + edge,
+            left: cx - hx,
+            right: length("reach-bottom-right"),
+            top: cy + h + gap,
+        },
+        "river-left": {
+            bottom: cy - h + sideRow + edge,
+            left: length("reach-left"),
+            right: cx - hx - gap,
+            top: cy - h,
+        },
+        "river-right": {
+            bottom: cy + h + edge,
+            left: cx + hx + gap,
+            right: length("reach-right"),
+            top: cy + h - sideRow,
+        },
+        "river-top": {
+            bottom: cy - h - length("g-top") + edge,
+            left: length("reach-top-left"),
+            right: cx + hx,
+            top: length("reach-top-row3") - rh - drop,
+        },
+    };
+}
+
+/** The cog's own square on a flat board: `menu-size` from the corner slot's top, centred across it. */
+function cogSquare({ areas, lengths }: BoardGeometry): BoardRect | undefined {
+    const slot = areas["corner"];
+    if (slot === undefined) {
+        return undefined;
+    }
+    const side = lengths["menu-size"] ?? 0;
+    const middle = (slot.left + slot.right) / 2;
+    return {
+        bottom: slot.top + side,
+        left: middle - side / 2,
+        right: middle + side / 2,
+        top: slot.top,
+    };
 }
 
 function gapBetween(first: BoardRect, second: BoardRect): number {
@@ -423,7 +494,7 @@ describe("tableView", () => {
 
 describe("tableView on desktop windows 40x20 apart", () => {
     it("changes its tilt by at most 8 degrees and its top margin by at most 12px between neighbours", () => {
-        const views = desktopGrid();
+        const views = desktopGrid().map((row) => row.map(({ view }) => view));
         const steps = views.flatMap((row, down) =>
             row.flatMap((view, across) =>
                 [row[across + 1], views[down + 1]?.[across]].flatMap((next) =>
@@ -446,7 +517,7 @@ describe("tableView on desktop windows 40x20 apart", () => {
 
     it("shows every table piece whole on the board", () => {
         const outside = desktopGrid().flatMap((row, down) =>
-            row.flatMap((view, across) => {
+            row.flatMap(({ view }, across) => {
                 const box = {
                     height: GRID_HEIGHTS[down] ?? 0,
                     width: GRID_WIDTHS[across] ?? 0,
@@ -466,14 +537,50 @@ describe("tableView on desktop windows 40x20 apart", () => {
         expect(outside).toStrictEqual([]);
     });
 
+    it("keeps a barless board's tilted tiles off its flat play switches, furiten mark and cog, and its counters off the tiles", () => {
+        const covered = desktopGrid().flatMap((row, down) =>
+            row.flatMap(({ screen, view }, across) => {
+                if (screen.arrangement !== "corner" && screen.arrangement !== "pocket") {
+                    return [];
+                }
+                const size = `${GRID_WIDTHS[across] ?? 0}x${GRID_HEIGHTS[down] ?? 0}`;
+                const reserves = riverReserves(view.plane);
+                const tiles = [
+                    ...TILED_PIECES.map((piece) => [piece, shownPiece(view, piece)] as const),
+                    ...RIVERS.map(
+                        (river) =>
+                            [
+                                river,
+                                shownRect(view.camera, reserves[river], view.shifts[river]),
+                            ] as const,
+                    ),
+                ];
+                const controls = [
+                    ["cog", cogSquare(screen)],
+                    ["furiten", screen.areas["furiten"]],
+                    ["switches", screen.areas["switches"]],
+                    ["counters", shownPiece(view, "dora")],
+                ] as const;
+                return controls.flatMap(([control, place]) =>
+                    place === undefined
+                        ? [`${control} missing at ${size}`]
+                        : tiles
+                              .filter(([, tile]) => gapBetween(tile, place) < 0)
+                              .map(([piece]) => `${control} under ${piece} at ${size}`),
+                );
+            }),
+        );
+
+        expect(covered).toStrictEqual([]);
+    });
+
     it("shows the side strips' farthest tiles 16px or the flat gap off the top strip's end tiles, the counters 8px or the flat gap off its first", () => {
         const short = desktopGrid().flatMap((row, down) =>
-            row.flatMap((view, across) => {
+            row.flatMap(({ screen, view }, across) => {
                 const box = {
                     height: GRID_HEIGHTS[down] ?? 0,
                     width: GRID_WIDTHS[across] ?? 0,
                 };
-                const { screen } = viewOf(box);
                 const tilted = endGaps(view);
                 const flat = endGaps(flatOf(screen));
                 const planeCounters = view.pieces["strip-top"].left - view.pieces.dora.right;
