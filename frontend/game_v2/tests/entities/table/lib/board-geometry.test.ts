@@ -711,6 +711,46 @@ function barlessPlaces({ box, lengths, tracks }: BoardGeometry): Record<string, 
     };
 }
 
+/**
+ * A pocket desktop's free upper-left pocket, rebuilt from its lengths: past the left lane, short of the top river and the
+ * centre, below the top strip and above the left river, 6px off each.
+ */
+function pocketEdges(
+    lengths: Readonly<Record<string, number>>,
+): Record<"bottom" | "left" | "right" | "top", number> {
+    function length(name: string): number {
+        return lengths[name] ?? Number.NaN;
+    }
+    return {
+        bottom: length("cy") - length("h") - 6,
+        left: length("col-left") + length("strip-depth") + SIDE_LANE_GAP + 6,
+        right: Math.min(length("reach-top-left"), length("cx") - length("hx")) - 6,
+        top: length("m") + length("strip-depth") + 6,
+    };
+}
+
+/**
+ * Whether a pocket desktop lays its felt edge to edge, its play switches at the pocket's bottom-left and its side
+ * strips' lines running down past them to the own pill's top less the line's gap.
+ */
+function pocketPlaces({ areas, box, lengths }: BoardGeometry): Record<string, boolean> {
+    function length(name: string): number {
+        return lengths[name] ?? Number.NaN;
+    }
+    const pocket = pocketEdges(lengths);
+    const { switches } = areas;
+    const linesEnd = Math.max(areas["strip-left"]?.bottom ?? 0, areas["strip-right"]?.bottom ?? 0);
+    return {
+        feltEdgeToEdge: length("felt-left") <= 0 && length("felt-right") >= box.width,
+        linesToOwnPill:
+            linesEnd > (switches?.bottom ?? Infinity) &&
+            linesEnd <= length("hand-top") + length("oh") - length("pill-h") - 2 + 0.001,
+        switchesOnPocketFoot:
+            Math.abs((switches?.bottom ?? 0) - pocket.bottom) < 0.001 &&
+            Math.abs((switches?.left ?? 0) - pocket.left) < 0.001,
+    };
+}
+
 describe("boardGeometry", () => {
     it.each([
         { chrome: "regular", family: "desktop", height: 900, width: 1440 },
@@ -791,10 +831,10 @@ describe("boardGeometry", () => {
         [2560, 1440, [80, 116, 143.33, 259.2]],
         [1440, 900, [49, 66, 97.09, 126.2]],
         [1280, 800, [43, 56, 90.63, 131.2]],
-        [800, 600, [26, 32, 50.66, 98.33]],
+        [800, 600, [32, 44, 58.69, 0.8]],
         [960, 1080, [43, 52, 171.93, 0.4]],
         [1100, 1000, [49, 60, 135.56, 0]],
-        [1280, 1024, [51, 71, 136.19, 5.7]],
+        [1280, 1024, [56, 70, 102.21, 3]],
         [1502, 1551, [68, 82, 163.97, 2.4]],
         [1024, 1366, [45, 55, 174.97, 6.5]],
     ])(
@@ -809,8 +849,8 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [1024, 768],
-        [800, 600],
+        [1024, 1366],
+        [800, 672],
     ])(
         "stands a width-bound %ix%i desktop's table no taller than its stack or its side strips' lines under the counters need, centred in the window: the own row hugs the bottom river and the top hand the core where the lines start beside it, the spare height lies above and below the table, every slot inside it",
         (width, height) => {
@@ -829,7 +869,8 @@ describe("boardGeometry", () => {
             expect({
                 ownRowOnTableBottom: length("hand-top") + length("oh") + ownRowDepth(lengths),
                 ownRowToCore:
-                    length("hand-top") - length("own-meld-rise") - length("river-foot") < 1,
+                    length("hand-top") - length("own-meld-rise") - length("river-foot") < 1 ||
+                    linesUnderCounters,
                 slotsInTable: Math.max(...slotBottoms) <= table,
                 spareOutside: Math.min(spareAbove, spareBelow) > 0,
                 spareSplit: Math.abs(spareAbove - spareBelow) <= 1,
@@ -850,8 +891,8 @@ describe("boardGeometry", () => {
     it.each([
         { across: 1366, axis: "height", ends: [32, 61] },
         { across: 1920, axis: "height", ends: [32, 72] },
-        { across: 768, axis: "width", ends: [30, 42] },
-        { across: 1080, axis: "width", ends: [35, 59] },
+        { across: 768, axis: "width", ends: [35, 42] },
+        { across: 1080, axis: "width", ends: [35, 60] },
     ])(
         "never shrinks a desktop's river tile as its window grows in $axis from $across across",
         ({ across, axis, ends }) => {
@@ -1118,9 +1159,9 @@ describe("boardGeometry's strips", () => {
         { height: 800, switches: "names", width: 1280 },
         { height: 1440, switches: "names", width: 2560 },
         { height: 1440, switches: "names", width: 3440 },
-        { height: 900, switches: "letters", width: 1100 },
-        { height: 768, switches: "letters", width: 1024 },
-        { height: 600, switches: "letters", width: 800 },
+        { height: 672, switches: "letters", width: 1024 },
+        { height: 576, switches: "letters", width: 960 },
+        { height: 544, switches: "letters", width: 864 },
     ])(
         "keeps a $width x $height desktop's controls in the bars: the counters over the field, furiten and $switches switches down the left one to the own row's foot, the cog in the right one near the column, every bar's control off the felt, whose air beside the column gives way to them, the panel in the column, and the notices' toasts in the core's bottom-left corner",
         ({ height, switches, width }) => {
@@ -1200,7 +1241,6 @@ describe("boardGeometry's strips", () => {
         { form: "row", height: 657, width: 1366 },
         { form: "row", height: 1080, width: 1920 },
         { form: "row", height: 1440, width: 3440 },
-        { form: "pairs", height: 768, width: 1024 },
         { form: "pairs", height: 600, width: 800 },
     ])(
         "stands a $width x $height desktop replay's controls as $form: a row along the decisions' band's foot from the bottom river's start, off the own pill, the panel above it, else a bar's two paired columns at its foot",
@@ -1384,6 +1424,52 @@ describe("boardGeometry without bars", () => {
             });
         },
     );
+
+    it.each([
+        { arrangement: "pocket", height: 768, rw: 42, width: 1024 },
+        { arrangement: "corner", height: 660, rw: 23, width: 580 },
+    ])(
+        "lays a $width x $height desktop out barless in the arrangement that reaches the larger river tile, the corner where both reach it: $arrangement at $rw",
+        ({ arrangement, height, rw, width }) => {
+            const geometry = windowGeometry({ height, width });
+
+            expect([geometry.arrangement, geometry.lengths["rw"]]).toEqual([arrangement, rw]);
+        },
+    );
+
+    it("lays a 1024x768 pocket desktop's felt edge to edge, its play switches at the pocket's bottom-left and its side strips' lines down to the own pill", () => {
+        expect(pocketPlaces(windowGeometry({ height: 768, width: 1024 }))).toEqual({
+            feltEdgeToEdge: true,
+            linesToOwnPill: true,
+            switchesOnPocketFoot: true,
+        });
+    });
+
+    it("keeps a width-bound 864x736 pocket desktop's switches, furiten and field in the pocket of its shortened table, live and replay", () => {
+        const live = windowGeometry({ height: 736, width: 864 });
+        for (const geometry of [live, replayOf(live)]) {
+            const pocket = pocketEdges(geometry.lengths);
+            const stack = [
+                geometry.areas["switches"],
+                geometry.areas["furiten"],
+                geometry.areas["field"],
+            ];
+
+            expect({
+                arrangement: geometry.arrangement,
+                shortened: (geometry.lengths["table-h"] ?? Infinity) < geometry.box.height,
+                stackInPocket: stack.every(
+                    (area) =>
+                        area !== undefined &&
+                        area.left >= pocket.left - 0.001 &&
+                        area.right <= pocket.right + 0.001 &&
+                        area.top >= pocket.top - 0.001 &&
+                        area.bottom <= pocket.bottom + 0.001 &&
+                        area.top < area.bottom,
+                ),
+            }).toEqual({ arrangement: "pocket", shortened: true, stackInPocket: true });
+        }
+    });
 });
 
 describe("boardGeometry's shell tracks", () => {

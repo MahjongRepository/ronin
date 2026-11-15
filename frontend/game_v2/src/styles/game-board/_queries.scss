@@ -53,6 +53,7 @@ $large-chrome: '[data-board-chrome="large"]';
 $named-switches-board: '[data-board-switches="names"]';
 $letter-switches-board: '[data-board-switches="letters"]';
 $block-switches-board: '[data-board-switches="block"]';
+$pocket-board: '[data-board-arrangement="pocket"]';
 $row-replay-board: '[data-board-replay="row"]';
 $pairs-replay-board: '[data-board-replay="pairs"]';
 
@@ -138,6 +139,12 @@ $pairs-replay-board: '[data-board-replay="pairs"]';
 
 @mixin block-switches-board {
     @include board-where($block-switches-board) {
+        @content;
+    }
+}
+
+@mixin pocket-board {
+    @include board-where($pocket-board) {
         @content;
     }
 }

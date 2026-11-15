@@ -86,9 +86,11 @@ function zoneLengths({ strips }: BoardGeometry): (readonly [string, string])[] {
 }
 
 /** Write each of the board's data attributes that changed. */
-function writeData(board: HTMLElement, data: Readonly<Record<string, string>>): void {
+function writeData(board: HTMLElement, data: Readonly<Record<string, string | null>>): void {
     for (const [name, value] of Object.entries(data)) {
-        if (board.dataset[name] !== value) {
+        if (value === null) {
+            delete board.dataset[name];
+        } else if (board.dataset[name] !== value) {
             board.dataset[name] = value;
         }
     }
@@ -96,8 +98,8 @@ function writeData(board: HTMLElement, data: Readonly<Record<string, string>>): 
 
 /**
  * Size the board from its own box and the slots its page fills (`boardGeometry`): its family, chrome and play switches'
- * form and a replay's controls' as `data-board-family` / `data-board-chrome` / `data-board-switches` /
- * `data-board-replay` and its sizes as
+ * form, a replay's controls' and a desktop's arrangement as `data-board-family` / `data-board-chrome` /
+ * `data-board-switches` / `data-board-replay` / `data-board-arrangement` (none on a phone) and its sizes as
  * `--geo-<name>` on the board, measured once its first render is in the document and again as its box or its slots change, until it leaves; and
  * lay out the opponents' strips in the rooms it leaves them (`stripLayout`) as `--<seat>-meld-<n>-*` lengths and the
  * own melds in their row (`ownMeldTile`) as `--own-meld-w`, again as what they hold changes. An empty box (a hidden board) changes nothing and the board stays watched.
@@ -221,7 +223,7 @@ class SizeBoard extends AsyncDirective {
     }
 
     private write(board: HTMLElement, geometry: BoardGeometry, view: TableView): void {
-        const { chrome, family, lengths, replay, strips, switches, tracks } = geometry;
+        const { arrangement, chrome, family, lengths, replay, strips, switches, tracks } = geometry;
         this.geometry = geometry;
         this.view = view;
         const laid =
@@ -236,6 +238,7 @@ class SizeBoard extends AsyncDirective {
             this.strips?.own ?? [],
         );
         writeData(board, {
+            boardArrangement: arrangement,
             boardChrome: chrome,
             boardFamily: family,
             boardReplay: replay,

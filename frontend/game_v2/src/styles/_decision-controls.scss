@@ -350,6 +350,10 @@ $row: 40px;
     @include phone-board {
         place-self: end start;
     }
+
+    @include pocket-board {
+        place-self: end start;
+    }
 }
 
 .board-furiten__dot {

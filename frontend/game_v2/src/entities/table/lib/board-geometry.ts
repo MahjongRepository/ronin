@@ -524,18 +524,25 @@ function frameAtHeight(frame: BoardFrame, height: number): BoardFrame {
     return { ...frame, box: { height, width: frame.box.width } };
 }
 
+/**
+ * A width-bound desktop's table, in the arrangement its full height lays at `rw`: as short as keeps its stack drawn, its
+ * own row wide and, where the full height's controls all stand, the arrangement's controls too, plus the top hand's
+ * air; null where the next river tile is not bound by the width alone or the table takes the whole height.
+ */
 function widthBoundTable(frame: BoardFrame, rw: number): BoardFrame | null {
     const next = desktopLayout(frame, rw + 1);
     if (!next.tall || next.wide) {
         return null;
     }
-    const fullHeldControls = desktopLayout(frame, rw).misfits.length === 0;
+    const full = desktopLayout(frame, rw);
+    const pinned = { ...frame, arrangement: full.arrangement };
+    const fullHeldControls = full.misfits.length === 0;
     const height =
-        leastHeight(frame, (table) => {
+        leastHeight(pinned, (table) => {
             const layout = desktopLayout(table, rw, fitsDrawnOwnRow);
             return fitsDrawnOwnRow(layout) && (layout.misfits.length === 0 || !fullHeldControls);
         }) + Math.round(TOP_HAND_AIR * rw);
-    return height < frame.box.height ? frameAtHeight(frame, height) : null;
+    return height < frame.box.height ? frameAtHeight(pinned, height) : null;
 }
 
 function leastHeight(frame: BoardFrame, holds: (table: BoardFrame) => boolean): number {
@@ -554,15 +561,22 @@ function leastHeight(frame: BoardFrame, holds: (table: BoardFrame) => boolean): 
 
 /**
  * Why a desktop plan's controls do not stand where it puts them: a barless replay's band holds no replay row; the side
- * strips' lines cannot start below the counters; the counters' one row does not hold at their place; or the side
- * lines do not fit between their start and end.
+ * strips' lines cannot start below the counters; the counters' one row does not hold at their place; the side lines do
+ * not fit between their start and end; or the pocket (`pocketRect`) does not hold the play switches, the furiten mark
+ * and a field above them.
  */
-type DesktopMisfit = "replay-row" | "lines-under-counters" | "counters-row" | "lines-fit";
+type DesktopMisfit =
+    | "replay-row"
+    | "lines-under-counters"
+    | "counters-row"
+    | "lines-fit"
+    | "pocket-stack";
 
 /**
  * Where a desktop's controls stand: in the bars beside the table (`bars`); or with no bars, the felt edge to edge, the
  * counters at the table's top-left corner and the cog at the right lane's top, the play switches and the furiten mark
- * at the left lane's foot (`corner`) or in the free pocket over the left river (`pocket`).
+ * at the left lane's foot (`corner`) or in the free pocket over the left river (`pocket`, `pocketRect`), the side lines
+ * then running to the own row as a barred board's.
  */
 type DesktopArrangement = "bars" | "corner" | "pocket";
 
@@ -591,10 +605,10 @@ interface DesktopPlan {
 }
 
 /**
- * The plans a desktop tries, best first, each only where its own tile stays the share of the river tile it asks (the
- * wanted share, then the least): the play switches named, then lettered at the least bar; the counters' one row over
- * the lane where the side strips' lines can start below it, else in a bar widened to hold it; then barless; the
- * counters wrapped at the least bar last. Only `arrangement`'s plans where it is given.
+ * The plans a desktop tries, best first, each with the share of the river tile its own tile asks (the wanted share,
+ * then the least): barred at each share, the play switches named, then lettered at the least bar, the counters' one row
+ * over the lane, then in a bar widened to hold it; then barless, at the corner at both shares before the pocket at
+ * both. Only `arrangement`'s plans where it is given.
  */
 function desktopPlans(
     tier: TierChrome,
@@ -616,12 +630,14 @@ function desktopPlans(
             },
         ]),
     );
-    const barless = shares.map((share) => ({
-        arrangement: "corner" as const,
-        bar: 0,
-        counters: "corner" as const,
-        share,
-    }));
+    const barless = (["corner", "pocket"] as const).flatMap((barlessArrangement) =>
+        shares.map((share) => ({
+            arrangement: barlessArrangement,
+            bar: 0,
+            counters: "corner" as const,
+            share,
+        })),
+    );
     const plans = [...barred, ...barless];
     return arrangement === undefined
         ? plans
@@ -766,7 +782,7 @@ function desktopAt(
     const cog = menuSize(rw, MENU_MAX * growth);
     const { linesFloor } = desktopCounters({ cog, colLeft: column.left, place, rw });
     const laneFoot =
-        place === "corner"
+        plan.arrangement === "corner"
             ? laneFootTop({ handTop, height, oh, rw, tier }) - LINE_PLATE_GAP
             : height;
     const linesFoot = Math.min(
@@ -802,7 +818,7 @@ function desktopAt(
             { drop, gap, topGap },
         ),
     ]);
-    const linesEnd = place === "corner" ? laneFoot : ownPill - LINE_PLATE_GAP;
+    const linesEnd = plan.arrangement === "corner" ? laneFoot : ownPill - LINE_PLATE_GAP;
     const linesBelowCounters = place !== "corner" || linesStart >= linesFloor;
     const bandWidth = column.right - lane - ACTIONS_GAP - (width - centreWidth) / 2;
     const replayHeld =
@@ -814,6 +830,14 @@ function desktopAt(
         ["lines-under-counters", linesBelowCounters],
         ["counters-row", countersHold({ colLeft: column.left, place, rw })],
         ["lines-fit", linesFloor === 0 || linesStart + reach <= linesEnd],
+        [
+            "pocket-stack",
+            plan.arrangement !== "pocket" ||
+                pocketHolds(
+                    tier,
+                    pocketRect((name) => lengths[name] ?? 0),
+                ),
+        ],
     ];
     return {
         arrangement: plan.arrangement,
@@ -2071,42 +2095,78 @@ function noticeText(text: number, fieldWidth: number, ems = NOTICE_FIELD_EMS): n
 }
 
 /**
- * A barless desktop's controls, standing over the side strips' lanes: the cog at
- * the right lane's top; in the left lane's foot the play switches (`laneSwitches`) ending over the own row's plate foot
- * and the furiten mark over them, the side lines ending above (`laneFootTop`); a replay's status in the field under the
- * counters, over the left line; a replay's controls in the band's row (the layout keeps a board barless only where a
- * replay's band holds one), else in the right lane's foot under its line; and the felt edge to edge.
+ * Where a barless desktop's play switches, furiten mark and field stand: `rect`, from the field's top to the switches'
+ * foot, the switches centred across it (the left lane's) or at its left (the pocket's).
+ */
+interface BarlessStack {
+    readonly rect: BoardRect;
+    readonly centred: boolean;
+}
+
+/**
+ * A barless desktop's stack: at the corner the left lane within its gaps, from the field under the counters
+ * (`fieldTop`) to the switches' foot over the own row's plate foot (`switchesFoot`); in the pocket the pocket
+ * (`pocketRect`).
+ */
+function barlessStack(
+    { at }: ShellRoom,
+    arrangement: Exclude<DesktopArrangement, "bars">,
+    { fieldTop, switchesFoot }: Readonly<Record<"fieldTop" | "switchesFoot", number>>,
+): BarlessStack {
+    if (arrangement === "pocket") {
+        return { centred: false, rect: pocketRect(at) };
+    }
+    const colLeft = at("col-left");
+    return {
+        centred: true,
+        rect: {
+            bottom: switchesFoot,
+            left: colLeft + BAR_GAP,
+            right: colLeft + BAR_GAP + laneSwitchesRoom(at("rw")),
+            top: fieldTop,
+        },
+    };
+}
+
+/**
+ * A barless desktop's controls, standing over the table: the cog at the right lane's
+ * top; in the stack (`barlessStack`, the left lane's foot or the pocket) the play switches (`barlessSwitches`) at its
+ * foot and the furiten mark over them, a replay's status in the field above, the side lines ending above the lane's
+ * stack (`laneFootTop`) or at the own row; a replay's controls in the band's row (the layout keeps a board barless only
+ * where a replay's band holds one), else in the right lane's foot under its line; and the felt edge to edge.
  */
 function desktopLaneControls(
     room: ShellRoom,
     decisions: ReturnType<typeof desktopActions>,
     {
-        fieldTop,
         linesEnd,
         ownPill,
-        switchesFoot,
-    }: Readonly<Record<"fieldTop" | "linesEnd" | "switchesFoot", number>> & {
+        stack,
+    }: {
+        readonly linesEnd: number;
         readonly ownPill: OwnPill;
+        readonly stack: BarlessStack;
     },
 ): ReturnType<typeof desktopBars> {
     const { at, frame, tier } = room;
     const { height, width } = frame.box;
     const rw = at("rw");
     const lane = sideLane(rw);
-    const colLeft = at("col-left");
     const colRight = at("col-right");
-    const leftLane = { left: colLeft + BAR_GAP, right: colLeft + lane - BAR_GAP };
     const rightLane = { left: colRight - lane + BAR_GAP, right: colRight - BAR_GAP };
-    const switches = laneSwitches(tier, rw);
-    const switchesLeft = (leftLane.left + leftLane.right - switches.width) / 2;
+    const { rect } = stack;
+    const across = { left: rect.left, right: rect.right };
+    const switches = barlessSwitches(tier, rect.right - rect.left);
+    const switchesLeft = stack.centred ? (rect.left + rect.right - switches.width) / 2 : rect.left;
+    const switchesFoot = rect.bottom;
     const switchesTop = switchesFoot - switches.height;
     const furitenBottom = switchesTop - FURITEN_GAP;
     const furiten = {
-        ...leftLane,
+        ...across,
         bottom: furitenBottom,
         top: furitenBottom - furitenHeight(tier),
     };
-    const field = { ...leftLane, bottom: furiten.top - FURITEN_GAP, top: fieldTop };
+    const field = { ...across, bottom: furiten.top - FURITEN_GAP, top: rect.top };
     const replaying = frame.slots.band === "replay";
     const row = replayRow(room, decisions.rect, ownPill);
     const replay =
@@ -2638,8 +2698,9 @@ function desktopCounters({
 }
 
 /**
- * Where a desktop's counters stand, from its arrangement and lengths: at the corner on a barless board; else over the
- * lane where the side strips' lines start below them, else in the bar where it holds their one row, else wrapped.
+ * Where a desktop's counters stand, from its arrangement and lengths: at the corner on a barless board, whichever its
+ * arrangement; else over the lane where the side strips' lines start below them, else in the bar where it holds their
+ * one row, else wrapped.
  */
 function desktopCountersPlace({ at }: ShellRoom, arrangement: DesktopArrangement): CountersPlace {
     const rw = at("rw");
@@ -2676,15 +2737,50 @@ function plateTopAtRowFoot({
     return Math.min(handTop + oh - tier.pillH - pad, height - plateBoxHeight(tier));
 }
 
-/** The play switches in a barless desktop's left lane: two by two where the lane holds the block, else the letters' column. */
-function laneSwitches(
+/**
+ * The play switches in a barless desktop's room `width` wide (the left lane's within its gaps, or the pocket's): two by
+ * two where it holds the block, else the letters' column.
+ */
+function barlessSwitches(
     tier: TierChrome,
-    rw: number,
+    width: number,
 ): Readonly<{ form: SwitchesForm; height: number; width: number }> {
-    if (2 * tier.switchH <= sideLane(rw) - 2 * BAR_GAP) {
+    if (2 * tier.switchH <= width) {
         return { form: "block", height: 2 * tier.switchH, width: 2 * tier.switchH };
     }
     return { form: "letters", height: SWITCH_CHIPS * tier.switchH, width: tier.switchH };
+}
+
+/** The left lane's room for a barless desktop's play switches: the lane within a bar's gap on each side (px). */
+function laneSwitchesRoom(rw: number): number {
+    return sideLane(rw) - 2 * BAR_GAP;
+}
+
+/**
+ * A pocket desktop's free upper-left pocket: past the left strip's lane, short of the top river's run-on third row and
+ * the centre, below the top strip's foot and above the left river, a plate's gap off each (px).
+ */
+function pocketRect(at: (name: string) => number): BoardRect {
+    const rw = at("rw");
+    return {
+        bottom: at("cy") - at("h") - PLATE_GAP,
+        left: at("col-left") + sideLane(rw) + PLATE_GAP,
+        right: Math.min(at("reach-top-left"), at("cx") - at("hx")) - PLATE_GAP,
+        top: at("m") + STACKED_DEPTH * rw + PLATE_GAP,
+    };
+}
+
+/**
+ * Whether a pocket holds its stack: the play switches as wide as it lets them (`barlessSwitches`) within its width, and
+ * they, the furiten mark and its gaps short of its height, so the field above them keeps some.
+ */
+function pocketHolds(tier: TierChrome, pocket: BoardRect): boolean {
+    const width = pocket.right - pocket.left;
+    const switches = barlessSwitches(tier, width);
+    return (
+        switches.width <= width &&
+        switches.height + 2 * FURITEN_GAP + furitenHeight(tier) < pocket.bottom - pocket.top
+    );
 }
 
 /**
@@ -2703,7 +2799,7 @@ function laneFootTop({
     const switchesFoot = plateTopAtRowFoot({ handTop, height, oh, tier }) - BAR_GAP;
     return (
         switchesFoot -
-        laneSwitches(tier, rw).height -
+        barlessSwitches(tier, laneSwitchesRoom(rw)).height -
         FURITEN_GAP -
         furitenHeight(tier) -
         FURITEN_GAP
@@ -2776,7 +2872,7 @@ function desktopToasts(room: ShellRoom): BoardRect {
 
 /**
  * A desktop's slots: the opponents' strips, the own row between the side strips' lanes centred on the core, the
- * controls as its arrangement puts them, in the bars (`desktopBars`) or over the lanes (`desktopLaneControls`), under
+ * controls as its arrangement puts them, in the bars (`desktopBars`) or over the table (`desktopLaneControls`), under
  * the counters (`desktopCounters`), the decisions in a band along the own row's top (`desktopActions`), the notices in
  * the core's bottom-left corner (`desktopToasts`), and the plates in the core's corners (`desktopPlates`).
  */
@@ -2805,7 +2901,11 @@ function desktopShell(room: ShellRoom, arrangement: DesktopArrangement): BoardSh
     const controls =
         arrangement === "bars"
             ? desktopBars(room, decisions, placed)
-            : desktopLaneControls(room, decisions, { ...placed, linesEnd: lines.end });
+            : desktopLaneControls(room, decisions, {
+                  linesEnd: lines.end,
+                  ownPill: plates.ownPill,
+                  stack: barlessStack(room, arrangement, placed),
+              });
     const strips = opponentStrips(room, {
         leftEnd: lines.end,
         leftStart: lines.start,

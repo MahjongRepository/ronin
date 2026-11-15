@@ -7,8 +7,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
 - **Sizes come from `boardGeometry` (TS).** The sizes, the geometry family, the chrome tier and every reserved
   footprint come from it, through its directive on `.game-board`; the styles place from them. Its chrome lengths (text,
   badges, counters, switches, callout cap) reach CSS as px on every tier, bridged in `game-board/_grid.scss`; a new chrome length comes from it, never a per-tier literal.
-  Family, chrome and switch-form branches read the emitted `data-board-family` / `data-board-chrome` /
-  `data-board-switches`, never a CSS query
+  Family, chrome, switch-form and arrangement branches read the emitted `data-board-family` / `data-board-chrome` /
+  `data-board-switches` / `data-board-arrangement` (a desktop's only), never a CSS query
   of the board's box (nor
   `@container style()`, which Safari 16.4 lacks); container queries serve only content-responsive rules. The
   family and chrome mixins are `game-board/_queries.scss`'s, which emits no CSS, so a lazy chunk's stylesheet (the
@@ -20,7 +20,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   its side bars the rest of the width. The zones' layer paints the felt between `--field-left` and `--field-right`,
   the surround (`--ronin-table-surround` under its tile motif) past them, the geometry's felt (`--geo-felt-left` / `--geo-felt-right`): a
   desktop's meeting its bars' inner edges, so no bar's control stands on it (a barless desktop's edge to edge, its
-  controls over the side lanes), a phone's holding its own row too; `boardGeometry` places GameBoard's
+  controls over the table: the left lane's foot, or the pocket over the left river, where the furiten mark stands at
+  its area's left over the left-aligned switches, `pocket-board`), a phone's holding its own row too; `boardGeometry` places GameBoard's
   slots (the cog, the left bar's notices' field, furiten and switches' column, a replay's controls, the
   decisions' cluster, a desktop's toasts, the own row) as areas and emits the grid's templates (`--geo-shell-columns` / `--geo-shell-rows`, each area's edges a
   named line); `.board-layout` and `.board-table` lay them out and each slot takes its `grid-area`, aligned the way its
