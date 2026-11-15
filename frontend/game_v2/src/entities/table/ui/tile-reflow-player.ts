@@ -78,6 +78,12 @@ function reflowFrames(
             { transform: "translate(0px, 0px) scale(1)" },
         ];
     }
+    if (target.region === "discards") {
+        return [
+            { transform: `translate(${localX}px, ${localY}px)` },
+            { transform: "translate(0px, 0px)" },
+        ];
+    }
     return [
         { left: `${localX}px`, top: `${localY}px` },
         { left: "0px", top: "0px" },

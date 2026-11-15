@@ -1037,6 +1037,11 @@ describe("side hand ends", () => {
     );
 });
 
+function translationOf(transform: unknown): readonly number[] {
+    const match = /translate\((?<x>[^,]+)px, (?<y>[^)]+)px\)/u.exec(String(transform));
+    return [Number(match?.groups?.x), Number(match?.groups?.y)];
+}
+
 describe("settling river depth", () => {
     const seats = [
         { dx: 7, dy: 7, seat: "bottom" },
@@ -1066,16 +1071,17 @@ describe("settling river depth", () => {
             const player = startSettlingRiver(seat, riichi);
             expect(animations).toHaveLength(1);
             const [start, end] = getAnimationFrames(animations[0]);
-            expect(Number.parseFloat(String(start.left))).toBeCloseTo(seat === "right" ? 10 : 7);
-            expect(Number.parseFloat(String(start.top))).toBeCloseTo(7);
+            expect(translationOf(start.transform)).toEqual([
+                expect.closeTo(seat === "right" ? 10 : 7),
+                expect.closeTo(7),
+            ]);
             expect([
                 hiddenTiles(),
                 host.querySelector(".board-motion"),
-                start.transform,
-                start.translate,
-                end.left,
-                end.top,
-            ]).toEqual([0, null, undefined, undefined, "0px", "0px"]);
+                start.left,
+                start.top,
+                end.transform,
+            ]).toEqual([0, null, undefined, undefined, "translate(0px, 0px)"]);
             finishAll();
             expect([hiddenTiles(), animations[0].playState]).toEqual([0, "idle"]);
             player.cancel();
