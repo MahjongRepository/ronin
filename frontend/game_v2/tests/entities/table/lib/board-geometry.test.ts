@@ -711,11 +711,6 @@ function barlessPlaces({ box, lengths, tracks }: BoardGeometry): Record<string, 
     };
 }
 
-/**
- * A pocket desktop's free upper-left pocket, rebuilt from its lengths: past the left lane, short of the top river and the
- * centre, below the top strip and above the left river, 6px off each, and in by the tilted table's lean into it: 1.25
- * river tiles from the left, 0.3 from the bottom and 0.1 from the right.
- */
 function pocketEdges(
     lengths: Readonly<Record<string, number>>,
 ): Record<"bottom" | "left" | "right" | "top", number> {
@@ -733,10 +728,6 @@ function pocketEdges(
     };
 }
 
-/**
- * Whether a pocket desktop lays its felt edge to edge, its play switches at the pocket's bottom-left and its side
- * strips' lines running down past them to the own pill's top less the line's gap.
- */
 function pocketPlaces({ areas, box, lengths }: BoardGeometry): Record<string, boolean> {
     function length(name: string): number {
         return lengths[name] ?? Number.NaN;
@@ -853,10 +844,11 @@ describe("boardGeometry", () => {
     );
 
     it.each([
+        [864, 576],
         [1024, 1366],
         [800, 672],
     ])(
-        "stands a width-bound %ix%i desktop's table no taller than its stack or its side strips' lines under the counters need, centred in the window: the own row hugs the bottom river and the top hand the core where the lines start beside it, the spare height lies above and below the table, every slot inside it",
+        "stands a width-bound %ix%i desktop's table no taller than its stack or its side strips' lines under the counters need, centred in the window: a barred one's own row hugging the bottom river and its top hand the core, the spare height lies above and below the table, every slot inside it",
         (width, height) => {
             const geometry = windowGeometry({ height, width });
             const { box, lengths, tracks } = geometry;
@@ -864,8 +856,7 @@ describe("boardGeometry", () => {
                 return lengths[name] ?? Number.NaN;
             }
             const table = length("table-h");
-            const linesUnderCounters =
-                length("lines-start") >= length("counters-top") + length("counters-h");
+            const barless = geometry.arrangement !== "bars";
             const slotBottoms = Object.values(slotAreas(tracks)).map((area) => area[3] ?? 0);
             const spareAbove = length("table-top");
             const spareBelow = box.height - spareAbove - table;
@@ -874,13 +865,13 @@ describe("boardGeometry", () => {
                 ownRowOnTableBottom: length("hand-top") + length("oh") + ownRowDepth(lengths),
                 ownRowToCore:
                     length("hand-top") - length("own-meld-rise") - length("river-foot") < 1 ||
-                    linesUnderCounters,
+                    barless,
                 slotsInTable: Math.max(...slotBottoms) <= table,
                 spareOutside: Math.min(spareAbove, spareBelow) > 0,
                 spareSplit: Math.abs(spareAbove - spareBelow) <= 1,
                 topHandToCore:
                     length("core-top") - length("rh") - TILE_EDGE_SHARE * length("rw") <
-                        0.5 * length("rw") || linesUnderCounters,
+                        0.5 * length("rw") || barless,
             }).toEqual({
                 ownRowOnTableBottom: expect.closeTo(table, 6),
                 ownRowToCore: true,
@@ -1245,6 +1236,7 @@ describe("boardGeometry's strips", () => {
         { form: "row", height: 657, width: 1366 },
         { form: "row", height: 1080, width: 1920 },
         { form: "row", height: 1440, width: 3440 },
+        { form: "row", height: 768, width: 1024 },
         { form: "pairs", height: 600, width: 800 },
     ])(
         "stands a $width x $height desktop replay's controls as $form: a row along the decisions' band's foot from the bottom river's start, off the own pill, the panel above it, else a bar's two paired columns at its foot",
@@ -1433,7 +1425,7 @@ describe("boardGeometry without bars", () => {
         { arrangement: "pocket", height: 768, rw: 42, width: 1024 },
         { arrangement: "corner", height: 660, rw: 23, width: 580 },
     ])(
-        "lays a $width x $height desktop out barless in the arrangement that reaches the larger river tile, the corner where both reach it: $arrangement at $rw",
+        "lays a $width x $height desktop out barless in the arrangement that reaches the larger river tile, the corner where the pocket does not hold its controls: $arrangement at $rw",
         ({ arrangement, height, rw, width }) => {
             const geometry = windowGeometry({ height, width });
 

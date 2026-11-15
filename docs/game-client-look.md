@@ -193,7 +193,8 @@ a small window's replay column) ending level
 with the own row. The seams run to
 the felt's corners: the felt ends a page gutter above and below the table, as it ends a bar's gap beside the side
 strips, and the spare height past it is the surround (`--ronin-table-surround`) like the bars, so the table stands framed on
-all four sides. That four-sided frame holds only where no barless arrangement (below) fits the board.
+all four sides. That four-sided frame holds wherever the bars fit, unless a barless arrangement (below) reaches a
+larger river tile than they do.
 
 Where the width binds the river tile and the table holds the controls over it, the board has no bars, as Mahjong
 Soul's controls stand over its table rather than beside it: the felt runs edge to edge, the table as wide as the board.
