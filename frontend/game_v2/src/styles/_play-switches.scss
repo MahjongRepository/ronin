@@ -79,6 +79,21 @@ $radius: 6px;
     }
 }
 
+.play-switches {
+    @include pocket-board {
+        :is(.play-switch, .play-switches__names-toggle) {
+            &,
+            &:is(:hover, :active, :focus) {
+                background-color: var(--ronin-table-edge);
+                background-image: linear-gradient(
+                    var(--ronin-switch-face),
+                    var(--ronin-switch-face)
+                );
+            }
+        }
+    }
+}
+
 .play-switches .play-switch {
     position: relative;
     overflow: hidden;

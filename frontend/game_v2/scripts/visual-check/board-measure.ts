@@ -528,6 +528,18 @@ function describeLocalTile(tiles: readonly Size[]): string {
 }
 
 /** The board's line in the page's summary: its box and content, the own tile, the decision's buttons, the least text. */
+/**
+ * A plate is table furniture: anything may stand over it, so a plate counts against only the fixed places it is laid
+ * out beside, the other plates and the centre.
+ */
+const PLATE_GROUP_PREFIX = "nameplate";
+const PLATE_KEPT_CLEAR_OF: ReadonlySet<string> = new Set(["center"]);
+
+export function isFurnitureOverlap(pair: string): boolean {
+    const others = pair.split(" x ").filter((group) => !group.startsWith(PLATE_GROUP_PREFIX));
+    return others.length === 1 && others.every((group) => !PLATE_KEPT_CLEAR_OF.has(group));
+}
+
 /** The own river's tiles, which the decision controls stand over: no decision's source lies in them. */
 export function ownRiverUnderDecisions(board: BoardMeasure): readonly Box[] {
     return board.riverTiles.filter((tile) => tile.group === "bottom").map((tile) => tile.box);

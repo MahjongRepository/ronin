@@ -1,7 +1,12 @@
 import { type Page } from "playwright";
 
 import { RIVER_ROW_SIZE } from "../../../src/entities/tile/lib/river-shape.ts";
-import { type BoardMeasure, type PlaneMeasure, ownRiverUnderDecisions } from "../board-measure.ts";
+import {
+    type BoardMeasure,
+    type PlaneMeasure,
+    isFurnitureOverlap,
+    ownRiverUnderDecisions,
+} from "../board-measure.ts";
 import {
     type Box,
     EPSILON,
@@ -213,18 +218,6 @@ const OWN_DISCARDS_UNDER_DECISIONS = "bottom-discards-under-decisions";
 const ACCEPTED_OVERLAPS: ReadonlySet<string> = new Set(
     [["actions", OWN_DISCARDS_UNDER_DECISIONS]].map((pair) => pair.toSorted().join(" x ")),
 );
-
-/**
- * A plate is table furniture: anything may stand over it, so a plate counts against only the fixed places it is laid
- * out beside, the other plates and the centre.
- */
-const PLATE_GROUP_PREFIX = "nameplate";
-const PLATE_KEPT_CLEAR_OF: ReadonlySet<string> = new Set(["center"]);
-
-function isFurnitureOverlap(pair: string): boolean {
-    const others = pair.split(" x ").filter((group) => !group.startsWith(PLATE_GROUP_PREFIX));
-    return others.length === 1 && others.every((group) => !PLATE_KEPT_CLEAR_OF.has(group));
-}
 
 /** The areas that overlap, but for the spec's accepted overlaps: the decisions over the own river, and a plate. */
 function findAreaOverlaps(board: BoardMeasure): string[] {

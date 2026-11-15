@@ -1,6 +1,7 @@
 import { type Page } from "playwright";
 
-import { type Box } from "./boxes.ts";
+import { isFurnitureOverlap, measureBoard } from "./board-measure.ts";
+import { type Box, sameBox } from "./boxes.ts";
 import { compositorShot } from "./compositor.ts";
 import { type PageReport } from "./model.ts";
 
@@ -166,13 +167,23 @@ interface GlyphInk extends PaintedColour {
 }
 
 /**
+ * A plate's text that something outside the plate covers at its centre and corners: the plate's group, as the overlap
+ * check names it, and the boxes of the covering element and its ancestors up to the board, in page pixels.
+ */
+interface FurnitureCover {
+    readonly furniture: string;
+    readonly over: readonly Box[];
+}
+
+/**
  * A text (an element's own text nodes, or the text its pseudo-elements draw), a face's glyph or a mark, by the part of
  * its box (in viewport pixels) the page shows. A text names its painted colour and the shot that hides it alone
- * (`hiddenIn`); a glyph its symbol's inks and whether its face is under `MIN_GLYPH_DEVICE_PX` (`small`); a mark whether
- * it must paint nothing (`absent`).
+ * (`hiddenIn`), and what covers it if it is a plate's (`cover`); a glyph its symbol's inks and whether its face is under
+ * `MIN_GLYPH_DEVICE_PX` (`small`); a mark whether it must paint nothing (`absent`).
  */
 interface ContrastTarget {
     readonly label: string;
+    readonly cover?: FurnitureCover | null;
     readonly box: Box;
     readonly kind: ContrastKind;
     readonly colour?: PaintedColour;
@@ -364,6 +375,47 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
             if (scope === null || scope === undefined) {
                 return { glyphs: [], marks: [], texts: [], unreadable };
             }
+            function furnitureCover(element: Element, box: Box): FurnitureCover | null {
+                const plate = element.closest(".nameplate");
+                if (plate === null) {
+                    return null;
+                }
+                const hits = [
+                    [0.5, 0.5],
+                    [0.1, 0.1],
+                    [0.9, 0.1],
+                    [0.1, 0.9],
+                    [0.9, 0.9],
+                ].map(([across = 0, down = 0]) =>
+                    document.elementFromPoint(
+                        box.left + across * box.width,
+                        box.top + down * box.height,
+                    ),
+                );
+                const [middle] = hits;
+                if (
+                    middle === null ||
+                    middle === undefined ||
+                    hits.some((hit) => hit === null || plate.contains(hit))
+                ) {
+                    return null;
+                }
+                const over: Box[] = [];
+                for (
+                    let at: Element | null = middle;
+                    at !== null && at !== board;
+                    at = at.parentElement
+                ) {
+                    const rect = at.getBoundingClientRect();
+                    over.push({
+                        height: rect.height,
+                        left: rect.left + window.scrollX,
+                        top: rect.top + window.scrollY,
+                        width: rect.width,
+                    });
+                }
+                return { furniture: plate.className.split(" ")[1] ?? "nameplate", over };
+            }
             const elements = [...scope.querySelectorAll("*")].filter(
                 (element) => element.closest(".tile, svg") === null && shown(element),
             );
@@ -386,6 +438,7 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
                                   {
                                       box,
                                       colour,
+                                      cover: furnitureCover(element, box),
                                       hiddenIn: "ink" as const,
                                       kind: "text" as const,
                                       label,
@@ -408,6 +461,7 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
                               {
                                   box,
                                   colour,
+                                  cover: furnitureCover(element, box),
                                   hiddenIn: "pseudo" as const,
                                   kind: "text" as const,
                                   label,
@@ -986,6 +1040,33 @@ function describeFinding(finding: ContrastFinding): string {
 }
 
 /**
+ * The targets but a plate's texts that a part of the board covers where the overlap check lets it stand over the plate
+ * (`isFurnitureOverlap`): the spec lets anything but the other plates and the centre cover table furniture.
+ */
+async function withoutCoveredFurniture(
+    page: Page,
+    targets: ContrastTargets,
+): Promise<ContrastTargets> {
+    if (!targets.texts.some(({ cover }) => cover)) {
+        return targets;
+    }
+    const { grouped } = await measureBoard(page);
+    return {
+        ...targets,
+        texts: targets.texts.filter(({ cover }) => {
+            if (!cover) {
+                return true;
+            }
+            const over = grouped.find(({ box }) => cover.over.some((shown) => sameBox(shown, box)));
+            return (
+                over === undefined ||
+                !isFurnitureOverlap([cover.furniture, over.group].toSorted().join(" x "))
+            );
+        }),
+    };
+}
+
+/**
  * Every text, mark and face's glyph on the board (a held-back face included) keeps 4.5:1 against what it is painted
  * on (`measureContrast`), every target collected shows its ink (each of a face's inks), and an absent mark paints
  * nothing. A small face's strokes under the floor as drawn are reported in the summary, never counted as passing.
@@ -1000,7 +1081,7 @@ export async function checkContrast(
     report: PageReport,
     compositor = false,
 ): Promise<string> {
-    const targets = await collectContrastTargets(page);
+    const targets = await withoutCoveredFurniture(page, await collectContrastTargets(page));
     const drawn = await shootWith(page, null, compositor);
     const ink = await shootWith(page, HIDE_INK, compositor);
     const pseudo = await shootWith(page, HIDE_PSEUDO_TEXT, compositor);
