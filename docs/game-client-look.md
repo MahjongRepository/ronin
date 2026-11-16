@@ -991,7 +991,9 @@ apart on the top strip, and 0.35 on a side strip, where the 0.2 tile edge it sho
 | Gap between neighbouring rivers, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,
-only where it protects the approved layout from a regression a player would notice.
+only where it protects the approved layout from a regression a player would notice. The river tile and the gaps are
+whole pixels, so a gate's tolerance takes a pixel of rounding past its share, and on a phone a river tile at the ratio
+of an own tile up to 2px larger (`PHONE_OWN_GIVEN_FOR_RIVER`, the own tile the joint solve gave for it).
 
 The opponent's hand at the river tile follows Tenhou (every opponent hand and meld at exactly the
 river tile, once a camera's depth

@@ -432,6 +432,18 @@ const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
 ]);
 const DERIVED_TOLERANCE = 0.02;
 
+/**
+ * How far a whole-pixel length may stand off a derived share at its reference (px): the geometry lays the river tile, the
+ * own tile and the pinwheel's gaps in whole pixels, so a river tile's step moves each by up to a pixel.
+ */
+const WHOLE_PIXEL = 1;
+
+/**
+ * How many pixels of own tile a phone's solve may give for a larger river tile (`board-constants.ts`'s
+ * `PHONE_OWN_GIVEN_FOR_RIVER`, not importable here; the spec's joint solve).
+ */
+const PHONE_OWN_GIVEN_FOR_RIVER = 2;
+
 /** How far the camera may show the river tile across the core's middle from the flat board's (the spec's Tilted table). */
 const SHOWN_RIVER_SHARE = 0.05;
 
@@ -460,7 +472,9 @@ function riverGapsFromCenter(board: PlaneMeasure, center: Box): ReadonlyMap<stri
 /**
  * At a reference viewport, the own hand tile leads the river tile by the spec's ratio, every seat's river that holds a
  * tile stands the pinwheel's gap from the centre, and no two seats' rivers stand closer than that gap (a sparse river
- * stands farther from its neighbour, so that gap has no upper bound).
+ * stands farther from its neighbour, so that gap has no upper bound). The river tile and the gaps are whole pixels, so
+ * each may stand a pixel off its share beyond the tolerance, and a phone's river tile may stand at the ratio of an own
+ * tile up to `PHONE_OWN_GIVEN_FOR_RIVER` larger, the own tile the solve gave for it.
  */
 function checkDerivedProportions(board: BoardMeasure, viewport: string, report: PageReport): void {
     const derived = DERIVED.get(viewport);
@@ -468,22 +482,29 @@ function checkDerivedProportions(board: BoardMeasure, viewport: string, report: 
     if (derived === undefined || river === null || own === null) {
         return;
     }
-    const ratio = (shownRiver ?? river) / own;
+    const shown = shownRiver ?? river;
+    const ownGiven = board.family === "phone" ? PHONE_OWN_GIVEN_FOR_RIVER : 0;
+    const slack =
+        Math.max(DERIVED_TOLERANCE * own, SHOWN_RIVER_SHARE * derived.riverToOwn * own) +
+        WHOLE_PIXEL;
+    const leastRiver = derived.riverToOwn * own - slack;
+    const mostRiver = derived.riverToOwn * (own + ownGiven) + slack;
     report.expect(
-        Math.abs(ratio - derived.riverToOwn) <=
-            Math.max(DERIVED_TOLERANCE, SHOWN_RIVER_SHARE * derived.riverToOwn),
-        `the river tile is ${ratio.toFixed(3)} of the own tile (${(shownRiver ?? river).toFixed(1)}px / ${own.toFixed(1)}px), not ${derived.riverToOwn}`,
+        shown >= leastRiver && shown <= mostRiver,
+        `the river tile is ${(shown / own).toFixed(3)} of the own tile (${shown.toFixed(1)}px / ${own.toFixed(1)}px), not ${derived.riverToOwn} (${leastRiver.toFixed(1)}px to ${mostRiver.toFixed(1)}px)`,
     );
     const { plane } = board;
+    const gapSlack = Math.max(DERIVED_TOLERANCE * river, WHOLE_PIXEL);
     if (plane.center !== null) {
         const off = [...riverGapsFromCenter(plane, plane.center)].filter(
             ([seat, gap]) =>
                 Math.abs(
-                    gap / river -
-                        (seat === "top"
-                            ? (derived.topRiverGap ?? derived.riverGap)
-                            : derived.riverGap),
-                ) > DERIVED_TOLERANCE,
+                    gap -
+                        river *
+                            (seat === "top"
+                                ? (derived.topRiverGap ?? derived.riverGap)
+                                : derived.riverGap),
+                ) > gapSlack,
         );
         report.expect(
             off.length === 0,
