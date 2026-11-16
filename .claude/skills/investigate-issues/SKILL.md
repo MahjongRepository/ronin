@@ -43,4 +43,4 @@ If there is not enough information in the logs, suggest adding additional loggin
 
 Once everything was summarized:
 1. If the root cause is in the game or lobby server, first reproduce it with a unit test (new or an existing one extended), then fix it.
-2. If the root cause is on the bot side, report it with the evidence; change the bot repository only when the user asks for it. The bot's game logic has played thousands of games on tenhou.net, so its ronin client adapter is the likelier suspect, but let the logs decide.
+2. If the root cause is on the bot side, report it with the evidence; change the bot repository only when the user asks for it. The bot's game logic is well proven, so its ronin client adapter is the likelier suspect, but let the logs decide.

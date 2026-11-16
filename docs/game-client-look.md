@@ -143,7 +143,7 @@ The derived proportions are the three reference viewports' values under the sizi
   live page stands as tall as the viewport they leave when collapsed, so a swipe collapses them and
   the board grows into the room, and a notice asks for that swipe while they show (Notices).
 - **A phone's board ignores the bottom safe inset in landscape** (the user's decision). It honours the
-  side and top insets only, so the hand sits on the screen's edge like Tenhou's and the home indicator
+  side and top insets only, so the hand sits on the screen's edge and the home indicator
   overlays the hand's bared bottom edge.
 
 ## Composition (decisions)
@@ -292,15 +292,14 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   round name large (East 1, South 4, a West round when the game runs on) over one line of the wall
   count, the honba and the riichi sticks on the table (two lines where a phone's centre leaves under the
   48px its counts need between the side rows). Each side reads wind then score, all four at
-  the same emphasis, tabular digits: the wind a quiet letter, the dealer's (East) on a muted red chip,
-  as Mahjong Soul and Riichi City mark it in red; the score in hundreds with its last two digits
-  smaller and quieter (`250` `00`), as Tenhou draws it. Every layout keeps the panel's width at least
+  the same emphasis, tabular digits: the wind a quiet letter, the dealer's (East) on a muted red chip;
+  the score in hundreds with its last two digits smaller and quieter (`250` `00`). Every layout keeps the panel's width at least
   as long as a normal six-tile discard row, fitting the centre and tiles together.
   The rivers keep its corners. Score rows stand centred on their edge, clear of the side rows' depth at both
   ends; a row too long for that starts off its seat's left corner and runs toward its right, so it never meets the next
   side's; a short phone centre's side rows start nearer their corner, so a long score stays on the panel. The counts keep one line, a narrow centre's at a smaller size, down to a 10px floor
   whose tighter gaps still hold the line in a phone's centre. While a badge's differences show, the round and counts stay and no label
-  names whose they are: that seat keeps its score, underlined, and the others' show as signed differences. One primary cue on the centre for the seat in turn: Tenhou's green bar along that seat's whole
+  names whose they are: that seat keeps its score, underlined, and the others' show as signed differences. One primary cue on the centre for the seat in turn: a green bar along that seat's whole
   edge of the panel, its corners included, a shape the riichi stick never takes. Convention: a seat's
   accepted riichi stick lies on its side of the centre, as on a real table; this is where an
   established riichi is read, and the seat's badge only repeats it quietly, by a small stick under its band. Decision: the stick, a
@@ -336,7 +335,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   board edge; nothing shrinks tiles or moves controls for it, and it is not tested: no story or
   check builds one. Every row reads left to right from its seat, so the river reads in order and as its
   owner's in every orientation. Decision: a drawn-and-discarded tile is not told apart from one
-  played from the hand (Tenhou shades it, Mahjong Soul does not); the rivers keep as few tile states
+  played from the hand; the rivers keep as few tile states
   as possible so the latest discard and the riichi tile are found at a glance.
 - **Latest discard.** Decision: the newest discard is marked while it is the table's last action,
   whether or not the viewer has an offer on it, so a player can see what just happened: a small gap
@@ -371,7 +370,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the right one the own row; a call leaves it there, and only melds that need its room slide it toward its line's
   start. The strip is not a turn cue. Invariant: a strip stands apart from its own
   river, backs or faces, so that neither reads as a row of the other. Decision: a concealed hand,
-  backs or faces, is 3:4 at the river tile's size (Tenhou's and Mahjong Soul's ratio), so an
+  backs or faces, is 3:4 at the river tile's size, so an
   opponent's hand reads as plainly as its river. Decision: a concealed tile stands on its edge,
   seen from above, so a live hand never reads as face-down tiles (a closed kan's ends, the
   unrevealed indicators); the slot is kept whole, so a reveal shows the faces in the same place. The top seat's tile
@@ -564,7 +563,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the controls; there is no submitted caption or checkmark. It is the viewer's
   own: it shows for the viewer's open decision and round confirm only; the server sends no other
   seat's time, and none is drawn.
-- **Turn cue.** One primary cue for the seat in turn, Tenhou's green bar along its side of the
+- **Turn cue.** One primary cue for the seat in turn, a green bar along its side of the
   centre's edge, and one quiet reinforcement on its badge, a bar in the same green along the band's
   bottom edge on every seat, neither in the accent; no further turn decoration: the
   current board's "Your turn" and "Your call" labels and the line under the hand are decoration and
@@ -596,9 +595,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   at each deal, and when a reconnect's snapshot shows another hand or a round result pending,
   since a switch is an instruction about this hand.
   One setting in the settings menu, off by default and kept in this browser, excepts Auto win from
-  that reset, so a player who turned it on keeps it into the next round (Tenhou's manual clears only
-  its no-call every hand and its auto-discard when the mouse was touched; Mahjong Soul players ask
-  for auto-win to persist); off, no win is taken on a later hand the player might have declined.
+  that reset, so a player who turned it on keeps it into the next round; off, no win is taken on a later hand the player might have declined.
   Turning the setting on also turns *Auto win* on, and turning it off leaves *Auto win* as it is
   until the next deal.
   They survive a reconnect within the hand in the mounted client; a reload or a new tab starts with
@@ -619,8 +616,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   elsewhere (a phone, a narrow bar) the column is one joined bar with
   a square cell per switch showing its letter (A, C, D in English; each language picks its own) and
   a cell under them that shows each letter's name until pressed again, above them, off the own hand. The name is each chip's tooltip and its accessible name in every form.
-  Each switch shows on and off apart, not by colour alone (Mahjong Soul colours its letter, Tenhou
-  checks a box on a phone and dims the tab on a desktop): on, the turn cue's bar along its bottom
+  Each switch shows on and off apart, not by colour alone: on, the turn cue's bar along its bottom
   edge, as on a badge and the centre; off, no bar. The text stays centred either way. Each chip meets the control
   floor; a switch is reached from the hand's focus like a decision control. Not on a replay board;
   the decisions stories show them, on and off.
@@ -749,11 +745,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   countdown kept in view. A panel may cover the page
   corner, which reserves no room; the leave question is modal: it says that an AI takes the seat over
   and makes staying the clear default. The seating shows the game's length and the round, every seat's
-  wind and player, the dealer, AI players, the viewer and each seat's score. Live, it is the game's opening screen
-  (Tenhou's): it stands over the dealt table (the closed hands, scores and round under it, the board left playable)
+  wind and player, the dealer, AI players, the viewer and each seat's score. Live, it is the game's opening screen:
+  it stands over the dealt table (the closed hands, scores and round under it, the board left playable)
   from the game's start until play starts, with one primary OK and the seconds left under its label, as a round
-  result's confirm counts its time; Enter or Space presses it. The OK is the seat's start confirm (Tenhou's
-  NEXTREADY): pressed, it stays in place, disabled, reading "Waiting for others" while its time counts on to 0. Play
+  result's confirm counts its time; Enter or Space presses it. The OK is the seat's start confirm:
+  pressed, it stays in place, disabled, reading "Waiting for others" while its time counts on to 0. Play
   starts, with the first draw, once every player confirmed or the server's start timeout ran out, and closes the
   screen, as does a round's or the game's end; a seat the server awaits no confirm of closes it with the OK, which
   then sends nothing. A reload during the start confirm opens on the same screen, its OK owed or waiting. A page that
@@ -769,8 +765,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   table column, so the bars (a replay's status and controls) stay usable beside it; on a
   phone it stands centred on the board both ways whether or not a notice shows (a replay's clear of its controls),
   the notices standing over it in their field. A desktop's panel fits its content whole.
-- **Round result.** Decision (the established clients order it differently; Tenhou's viewer puts
-  the total first): the winner and how (ron, and from whom; tsumo; a head bump names who lost the
+- **Round result.** Decision: the winner and how (ron, and from whom; tsumo; a head bump names who lost the
   ron); the winning hand with the winning tile set apart and its melds in their shape; the yaku,
   with han where han are meaningful and yakuman names and multipliers where they are; the dora,
   red and ura counts apart, the ura indicators only for a riichi winner and per winner in a double
@@ -851,7 +846,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   system sans-serif stack, with tabular digits wherever numbers align; no downloaded fonts or
   monospace. Decision: one accent colour, used only for the player's own action (the primary
   control, the riichi toggle, a focused tile); the latest discard and the action source
-  are neutral, the turn cue Tenhou's green, and every text, mark and glyph on every face state keeps 4.5:1. Text
+  are neutral, the turn cue green, and every text, mark and glyph on every face state keeps 4.5:1. Text
   keeps a readable size at every supported viewport; the gate's 10px floor is a safety limit, never
   the size to design to.
 
@@ -995,13 +990,10 @@ only where it protects the approved layout from a regression a player would noti
 whole pixels, so a gate's tolerance takes a pixel of rounding past its share, and on a phone a river tile at the ratio
 of an own tile up to 2px larger (`PHONE_OWN_GIVEN_FOR_RIVER`, the own tile the joint solve gave for it).
 
-The opponent's hand at the river tile follows Tenhou (every opponent hand and meld at exactly the
-river tile, once a camera's depth
-is taken out). Decision off a phone: every other hand and river reads at one size, and the own hand
+Every opponent hand and meld stands at exactly the river tile, once a camera's depth is taken out. Decision off a phone: every other hand and river reads at one size, and the own hand
 at 1.2 to 1.45 of it (1.3 or more wherever the width allows), because the own row stands
 between the side strips and a wider row widens the felt between them and the rivers; the own melds, at 1 river
-tile, stand at 0.69 of the own tile at the cap. Only width ratios are
-compared: Mahjong Soul's hand faces its camera over foreshortened rivers and Tenhou's view squashes heights. A phone keeps a larger own tile, which touch needs, solved
+tile, stand at 0.69 of the own tile at the cap. A phone keeps a larger own tile, which touch needs, solved
 together with its river tile from the box, the own tile as large as a full hand and its air within the felt, the
 side strips' lines and a replay's moves in the right rail allow above its 36x48 floor: 1.95 river tiles at the floor,
 2.05 at the notch phone and 2.22 at 932x430. A decision control's tiles stay inside

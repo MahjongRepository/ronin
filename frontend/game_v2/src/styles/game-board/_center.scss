@@ -72,7 +72,7 @@
         transform: translate(-50%, -50%) rotate(90deg);
     }
 
-    /* The seat in turn: Tenhou's green bar along its whole edge, under the seat's stick and row. */
+    /* The seat in turn: a green bar along its whole edge, under the seat's stick and row. */
     &--current::after {
         content: "";
         position: absolute;
@@ -143,8 +143,7 @@
     cursor: pointer;
 }
 
-/* The wind is a quiet letter before its score; the dealer's, East, a muted red chip, as Mahjong Soul and Riichi City
-   mark it in red. */
+/* The wind is a quiet letter before its score; the dealer's, East, a muted red chip. */
 .board-center__wind {
     font-weight: 500;
     color: var(--ronin-text-secondary);

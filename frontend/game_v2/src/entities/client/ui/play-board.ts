@@ -248,7 +248,7 @@ function SwitchNames(switches: readonly SwitchControl[]): TemplateResult {
 }
 
 /**
- * The play switches in their slot on the band as a strip of letters, Mahjong Soul's, its last button showing or hiding
+ * The play switches in their slot on the band as a strip of letters, its last button showing or hiding
  * their names; none while the player may not turn them.
  */
 export function PlaySwitches(

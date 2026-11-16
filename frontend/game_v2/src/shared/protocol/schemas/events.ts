@@ -185,7 +185,7 @@ export const gameStartedSchema = z.pipe(
 );
 
 /**
- * The start confirm the game's first deal opens for a seat the server awaits before play starts (Tenhou's NEXTREADY):
+ * The start confirm the game's first deal opens for a seat the server awaits before play starts:
  * its wait id (`WIRE_KEY.WAIT_ID`) and the confirm's whole timeout (`WIRE_KEY.ROUND_ADVANCE_SECONDS`, seconds), which the
  * server names together, to that seat alone. Every other deal, a seat the server does not await and a replay name
  * neither.

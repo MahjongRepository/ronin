@@ -37,8 +37,8 @@ game ends.
 
 To get a number in `[0, n)`, the engine reads a 64-bit word, throws it away if it falls in the
 small incomplete bucket at the top of the 64-bit range, and otherwise returns `word mod n`. This is
-rejection sampling: every value in `[0, n)` is exactly equally likely. Plain `word mod n`, which
-Tenhou's published sample uses, makes small values slightly more likely.
+rejection sampling: every value in `[0, n)` is exactly equally likely. Plain `word mod n`
+makes small values slightly more likely.
 
 ## The wall of a round
 
@@ -87,7 +87,7 @@ detectable in play, and a longer seed would not change it.
 
 The seed proves that the game matches the seed. It does not prove that the server did not pick the
 seed. Proving that needs a commitment before the game (a hash of the seed, or a published list of
-hashes as Tenhou does); the engine does not do this today.
+hashes); the engine does not do this today.
 
 ## Measured results
 

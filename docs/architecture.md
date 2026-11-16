@@ -370,7 +370,7 @@ sequenceDiagram
   a 1000 `game_ended` close is not, so a client that missed the game end reconnects and is refused
   into the lobby.
 * An action for any wait but the current one is refused as stale and touches nothing.
-* The game start waits for its players (Tenhou's NEXTREADY): the engine stops after the first deal on a
+* The game start waits for its players: the engine stops after the first deal on a
   round advance that starts the game, each connected human's copy of the deal opens that confirm, and
   the dealer draws once every awaited seat sent CONFIRM_ROUND or `TimerConfig.game_start_confirm_seconds`
   ran out and confirmed for the rest. A seat without a connection at the start, or one that leaves

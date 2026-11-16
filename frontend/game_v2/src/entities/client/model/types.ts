@@ -197,7 +197,7 @@ export type OpeningScreen =
 /**
  * Where the viewer stands with what the server awaits every human seat's confirm of before play goes on: the round
  * result it reads before the next deal, or, while the table shows no result, the game's start before the first draw
- * (the start confirm, Tenhou's NEXTREADY, which the game's first deal opens). Owed: the server waits on the seat's
+ * (the start confirm, which the game's first deal opens). Owed: the server waits on the seat's
  * confirm by this wait id until its one deadline, the timeout the round end or the first deal names, when the client
  * can estimate it (logical time, backdated by a snapshot's elapsed time; null when unknown). It is for display only:
  * the server's timeout moves the game on, and the client never confirms on its own. Sent: the player confirmed it once

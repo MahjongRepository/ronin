@@ -240,7 +240,7 @@ function DoraDisplay(center: BoardCenterInfo): TemplateResult {
     `;
 }
 
-/** A score in hundreds with its last two digits apart, as Tenhou draws it (`250` `00`); a score is whole hundreds. */
+/** A score in hundreds with its last two digits apart (`250` `00`); a score is whole hundreds. */
 function ScoreFigures(score: string): TemplateResult {
     const split = /^(?<hundreds>[+-]?\d+)00$/u.exec(score);
     return split?.groups === undefined
@@ -288,7 +288,7 @@ function CenterSeat(
 
 /**
  * The centre: each seat's wind and score on its side, its riichi stick inside the edge, the turn's bar on it, and in
- * its middle the round over the wall's count and the honba and riichi sticks on the table, as Tenhou's.
+ * its middle the round over the wall's count and the honba and riichi sticks on the table.
  */
 function CenterInfo(
     center: BoardCenterInfo,
