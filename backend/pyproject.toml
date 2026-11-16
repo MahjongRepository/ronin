@@ -142,7 +142,6 @@ allowed_importers = [
     "game.engine",
     "game.tests.unit.logic",
     "game.tests.helpers.builders",
-    "game.tests.helpers.hands",
     "game.tests.helpers.wall",
 ]
 

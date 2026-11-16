@@ -74,6 +74,13 @@ Key facts the diagram cannot show:
   synchronous and stateless across games and knows nothing of sockets, accounts or time. A game
   server restart loses every live game: the SQLite records and replay files are history, not
   checkpoints.
+* **The engine sits behind one seam.** Everything else in the game server, the replay tools and the
+  scripts reaches the rules engine only through `game.engine` (`backend/game/engine/AGENTS.md`). The
+  engine owns rules, calculations and state transitions for one fixed rules preset and never learns who
+  answers a seat. The session owns who plays each seat (participant, AI player or timeout), decision ids,
+  timers and both pauses, the seed, seating and roster, and what a refusal leads to; messaging builds the
+  prompts from a seat's decision and the reconnect snapshot from its view, and with the wire layer owns
+  the integer codes, packed melds, score units, error events and the replay's rules envelope.
 * **SQLite is behind one worker thread per process**, and the game server's record writes are
   fire-and-forget (logged on failure).
 * **Monitoring is a host-side collector, not a service.** A systemd timer runs Telegraf once a

@@ -1,7 +1,8 @@
 # Game logic
 
 The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mechanics and the `GameSettings` values
-of its one preset); read it before changing or testing a rule, and update it when a rule changes.
+of its one preset); read it before changing or testing a rule, and update it when a rule changes. Outside code
+reaches it only through `game.engine`, whose seam invariants every change here keeps (`../engine/AGENTS.md`).
 
 ## Model
 

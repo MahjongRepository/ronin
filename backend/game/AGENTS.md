@@ -15,10 +15,13 @@ signed game ticket; players then connect by WebSocket and play. `logic/`, `sessi
 * `wire/` — the wire format both the server and the replay tool read: integer codes, the packed
   draw/discard codec, the replay storage codec and format version, and the replay-only record types, whose `t` codes share
   the events' space without taking one of their values, so a live wire code never changes for them.
-* `engine/` — the engine's facade: the one package the other layers, the scripts and `bin/` import the
-  engine from (`engine/AGENTS.md`).
+* `engine/` — the engine's facade and its seam: the one package the other layers, the scripts and `bin/`
+  import the engine from, and the invariants every engine behind it keeps (`engine/AGENTS.md`).
 * `logic/` — the rules engine behind the `GameService` protocol: synchronous, seat-keyed, stateless
-  across games, ignorant of connections, time and accounts.
+  across games, ignorant of connections, time, accounts and who answers a seat. It owns rules,
+  calculations and state transitions; who plays each seat, decision ids, timers, pauses, the roster and
+  the seed are the session's, and prompts, the reconnect snapshot, wire codes, packed melds and score
+  units are messaging's and the wire's.
 * `replay/` — runs recorded games through the same protocol for tests and profiling, plus the
   Tenhou export; input stays name-keyed and is mapped to seats once, at its boundary. A replay
   records the rules envelope of the one preset the engine plays (profile 1, no overrides) on its
@@ -78,6 +81,7 @@ prefer the real seeded engine.
 `tests/helpers/` builds a manager over in-memory fakes, signs tickets, drives the endpoint over
 real and fake WebSockets and holds hand staging shared by unit and integration tests; `tests/unit/session/` adds its own helpers and clock fixtures that run
 timers without waiting.
+`tests/seam/` pins the seam itself through `game.engine` alone (`engine/AGENTS.md`).
 Whole-game flows use the replay runner on `tests/integration/replays/fixtures/` or a built
 `ReplayInput`, asserting on each step's before/after state.
 A change to what the session sends a seat (a payload, a stamp, a delivery rule) is followed by
