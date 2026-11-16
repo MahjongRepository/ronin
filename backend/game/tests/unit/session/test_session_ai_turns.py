@@ -1,7 +1,7 @@
 import asyncio
 from typing import TYPE_CHECKING
 
-from game.engine import Discard, EventType, WaitKind
+from game.engine import Discard, EventType, Turn
 from game.session.timer import TimerConfig
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection
@@ -50,10 +50,10 @@ def _discard_drawn_tile(manager: SessionManager, conn: MockConnection) -> None:
 
 
 async def test_ai_turn_delay__when_the_start_confirm_hands_the_turn_to_ai_players__should_send_one_turn_per_delay(
-    paced_engine, held_manager_sleep
+    real_engine, held_manager_sleep
 ):
     config = TimerConfig(game_start_confirm_seconds=START_CONFIRM, ai_turn_delay_seconds=AI_TURN_DELAY)
-    manager = make_session_manager(paced_engine, seed=AI_DEALER_SEED, timer_config=config)
+    manager = make_session_manager(real_engine, seed=AI_DEALER_SEED, timer_config=config)
     [alice] = create_started_game(manager, player_names=["Alice"])
     game = game_of(manager)
     alice_seat = participant_of(manager, alice).seat
@@ -62,7 +62,7 @@ async def test_ai_turn_delay__when_the_start_confirm_hands_the_turn_to_ai_player
 
     manager.confirm_round(alice, wait_id=participant_of(manager, alice).decision_id)
     assert [m.get(WireKey.EVENT_TYPE) for m in alice.sent_messages][-1:] == [WireEventType.DRAW_NOTICE]
-    assert (game.awaiting.kind, game.ai_turn is not None) == (WaitKind.AI_TURN, True)
+    assert (game.awaiting, game.ai_turn is not None) == (Turn(seat=dealer_seat), True)
     assert _take_discarders(alice) == []
 
     discarders_per_delay = []
@@ -72,16 +72,16 @@ async def test_ai_turn_delay__when_the_start_confirm_hands_the_turn_to_ai_player
 
     assert discarders_per_delay == [[dealer_seat], [(dealer_seat + 1) % 4], [(dealer_seat + 2) % 4]]
     assert held_manager_sleep.durations.count(AI_TURN_DELAY) == 3
-    assert (game.awaiting.kind, game.awaiting.seats, game.ai_turn) == (WaitKind.TURN, frozenset({alice_seat}), None)
+    assert (game.awaiting, game.ai_turn) == (Turn(seat=alice_seat), None)
     assert participant_of(manager, alice).timer.task is not None
 
     await manager.shutdown()
 
 
 async def test_ai_turn_delay__when_a_human_leaves_during_it__should_keep_one_ai_turn_per_delay(
-    paced_engine, held_manager_sleep
+    real_engine, held_manager_sleep
 ):
-    manager = make_session_manager(paced_engine, seed=ENGINE_SEED, timer_config=PACED_AI_TURNS)
+    manager = make_session_manager(real_engine, seed=ENGINE_SEED, timer_config=PACED_AI_TURNS)
     alice, bob = create_started_game(manager, player_names=["Alice", "Bob"])
     game = game_of(manager)
     alice_seat = participant_of(manager, alice).seat
@@ -101,15 +101,15 @@ async def test_ai_turn_delay__when_a_human_leaves_during_it__should_keep_one_ai_
 
     assert discarders_per_delay == [[(alice_seat + 1) % 4], [(alice_seat + 2) % 4], [(alice_seat + 3) % 4]]
     assert held_manager_sleep.durations.count(AI_TURN_DELAY) == 3
-    assert (game.awaiting.kind, game.awaiting.seats) == (WaitKind.TURN, frozenset({alice_seat}))
+    assert game.awaiting == Turn(seat=alice_seat)
 
     await manager.shutdown()
 
 
 async def test_reconnect__when_its_ai_player_turn_is_still_delayed__should_cancel_it_and_open_the_human_turn(
-    paced_engine, held_manager_sleep
+    real_engine, held_manager_sleep
 ):
-    manager = make_session_manager(paced_engine, seed=ENGINE_SEED, timer_config=PACED_AI_TURNS)
+    manager = make_session_manager(real_engine, seed=ENGINE_SEED, timer_config=PACED_AI_TURNS)
     alice, bob = create_started_game(manager, player_names=["Alice", "Bob"])
     game = game_of(manager)
     bob_participant = participant_of(manager, bob)
@@ -118,7 +118,7 @@ async def test_reconnect__when_its_ai_player_turn_is_still_delayed__should_cance
     for _ in range(2):
         await _end_held_sleeps(held_manager_sleep)
 
-    assert (game.awaiting.kind, game.awaiting.seats) == (WaitKind.TURN, frozenset({bob_seat}))
+    assert game.awaiting == Turn(seat=bob_seat)
     decision_before = bob_participant.decision_id
     manager.disconnect(bob)
     delayed_ai_turn = game.ai_turn
@@ -130,7 +130,7 @@ async def test_reconnect__when_its_ai_player_turn_is_still_delayed__should_cance
     _take_discarders(alice)
     await _end_held_sleeps(held_manager_sleep)
     assert delayed_ai_turn.cancelled()
-    assert (game.awaiting.kind, game.awaiting.seats, game.ai_turn) == (WaitKind.TURN, frozenset({bob_seat}), None)
+    assert (game.awaiting, game.ai_turn) == (Turn(seat=bob_seat), None)
     assert (bob_participant.decision_id, bob_participant.timer.task is not None) == (decision_before + 1, True)
     resent_draws = [m for m in returning_bob.sent_messages if m.get(WireKey.EVENT_TYPE) == DRAW_T]
     assert [m[WireKey.WAIT_ID] for m in resent_draws] == [decision_before + 1]
@@ -143,9 +143,9 @@ async def test_reconnect__when_its_ai_player_turn_is_still_delayed__should_cance
 
 
 async def test_ai_turn_delay__when_the_last_human_leaves_during_it__should_abandon_the_game_without_the_ai_turn(
-    paced_engine, held_manager_sleep
+    real_engine, held_manager_sleep
 ):
-    manager = make_session_manager(paced_engine, seed=ENGINE_SEED, timer_config=PACED_AI_TURNS)
+    manager = make_session_manager(real_engine, seed=ENGINE_SEED, timer_config=PACED_AI_TURNS)
     [alice] = create_started_game(manager, player_names=["Alice"])
     game = game_of(manager)
     _discard_drawn_tile(manager, alice)

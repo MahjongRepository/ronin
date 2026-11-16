@@ -110,7 +110,7 @@ class GameSession:
     participant's decision_id identifies only their own visible decisions. start_record is the game's record as posted
     at the start (seat order, every seat's name and user_id); every finish record is built from it. replay holds the
     records collected since the start until the end claim detaches them. ai_turn is the sleeping task that plays the AI
-    player's turn the game waits on (WaitKind.AI_TURN) once the AI turn delay has passed.
+    player's turn the game waits on once the AI turn delay has passed.
     """
 
     game_id: str
@@ -144,3 +144,11 @@ class GameSession:
         Return the participant bound to a seat, or None for an AI seat.
         """
         return next((participant for participant in self.participants if participant.seat == seat), None)
+
+    def is_ai_seat(self, seat: int) -> bool:
+        """
+        Whether an AI player plays a seat of the started game: a seat no participant takes, or one whose participant has
+        no connection (it never joined, or it left and has not reconnected).
+        """
+        participant = self.at_seat(seat)
+        return participant is None or not participant.is_connected

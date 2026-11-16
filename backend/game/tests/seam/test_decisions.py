@@ -2,13 +2,13 @@ import pytest
 
 from game.engine import (
     Action,
+    Call,
     CallOpportunity,
     CallSource,
     Chi,
     Discard,
     GameEvent,
     GameRuntime,
-    GameUpdate,
     Kan,
     KanType,
     MahjongGameService,
@@ -21,6 +21,7 @@ from game.engine import (
     Riichi,
     Ron,
     Tsumo,
+    Turn,
     TurnAfterCall,
     TurnAfterDraw,
 )
@@ -39,9 +40,9 @@ def _start(hands: tuple[list[int], ...], draws: list[int]) -> tuple[MahjongGameS
 
 
 def _play(service: MahjongGameService, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent]:
-    update = service.act(runtime, seat, action)
-    assert isinstance(update, GameUpdate), update
-    return update.events
+    events = service.act(runtime, seat, action)
+    assert not isinstance(events, Refusal), events
+    return events
 
 
 def _assert_refused_unchanged(
@@ -140,6 +141,29 @@ def test_decision__when_a_discard_offers_ron_and_chi__should_list_ron_each_chi_s
         assert service.default_action(runtime, seat) is None
 
 
+def test_act__when_one_of_two_callers_passes__should_await_only_the_other_until_it_answers():
+    four_man = tile_copies(0, man="4")[0]
+    hands = (
+        tile_copies(0, pin="123456789", sou="1239"),
+        [*tile_copies(0, man="23"), *tile_copies(1, pin="2468", sou="2468"), *tile_copies(0, honors="123")],
+        [*tile_copies(1, man="4"), *tile_copies(2, man="4"), *tile_copies(2, pin="123456789", honors="12")],
+        tile_copies(3, pin="123456789", sou="1234"),
+    )
+    service, runtime = _start(hands, draws=[four_man])
+    _play(service, runtime, DEALER, Discard(tile=four_man))
+    assert service.get_awaiting(runtime) == Call(seats=frozenset({1, 2}))
+
+    _play(service, runtime, 2, Pass())
+    assert service.get_awaiting(runtime) == Call(seats=frozenset({1}))
+    assert service.decision(runtime, 2) is None
+    assert service.legal_actions(runtime, 1) == (Chi(tiles=tuple(tile_copies(0, man="23"))), Pass())
+    already_answered = Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.ALREADY_ANSWERED)
+    _assert_refused_unchanged(service, runtime, 2, Pass(), already_answered)
+
+    _play(service, runtime, 1, Pass())
+    assert service.get_awaiting(runtime) == Turn(seat=1)
+
+
 def test_decision__when_an_added_kan_can_be_robbed__should_offer_the_robber_ron_or_pass():
     red_five_pin, *held_five_pins = tile_copies(0, pin="5555")
     four_pin, six_pin = tile_copies(0, pin="4")[0], tile_copies(1, pin="6")[0]
@@ -229,7 +253,7 @@ def test_phase_calls__when_made_out_of_phase__should_be_refused_and_change_nothi
     assert service.deal_next_round(runtime) == wrong_phase
     assert runtime.state is dealt
 
-    assert isinstance(service.begin_round(runtime), GameUpdate)
+    assert not isinstance(service.begin_round(runtime), Refusal)
     playing = runtime.state
     assert service.begin_round(runtime) == wrong_phase
     assert service.deal_next_round(runtime) == wrong_phase

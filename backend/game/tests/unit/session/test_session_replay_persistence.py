@@ -1,8 +1,6 @@
 import logging
 from typing import TYPE_CHECKING
 
-import pytest
-
 from game.engine import (
     RNG_VERSION,
     Discard,
@@ -12,7 +10,6 @@ from game.engine import (
     MahjongGameService,
     PlayerStanding,
 )
-from game.logic.exceptions import GeneratedActionError
 from game.messaging.types import SessionErrorCode
 from game.server.types import PlayerSpec
 from game.session.replay_collector import ReplayCollector
@@ -73,9 +70,8 @@ class StagedWallEngine(MahjongGameService):
         *,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
-        ai_seats: frozenset[int] = frozenset(),
     ) -> tuple[GameRuntime, list[GameEvent]]:
-        return super().new_game(seed, walls=self._walls, start=start, ai_seats=ai_seats)
+        return super().new_game(seed, walls=self._walls, start=start)
 
 
 def _join(manager: SessionManager, ticket: str) -> MockConnection:
@@ -114,8 +110,8 @@ class TestReplayCollectorMerge:
 
 
 class TestSessionReplay:
-    async def test_replay_start__when_game_starts__should_record_with_the_engine_seed(self, paced_engine):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+    async def test_replay_start__when_game_starts__should_record_with_the_engine_seed(self, real_engine):
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         create_started_game(manager)
 
         replay = game_of(manager).replay
@@ -148,11 +144,11 @@ class TestSessionReplay:
         assert list(storage.saved) == ["game1"]
 
     async def test_replay_save__when_storage_fails_after_a_completion__should_record_an_error_end_and_close_with_1011(
-        self, paced_engine, caplog
+        self, real_engine, caplog
     ):
         game_repo = FakeGameRepository()
         manager = make_session_manager(
-            paced_engine, seed=ENGINE_SEED, repository=game_repo, storage=FailingReplayStorage()
+            real_engine, seed=ENGINE_SEED, repository=game_repo, storage=FailingReplayStorage()
         )
         conns = create_started_game(manager)
         alice_seat = participant_of(manager, conns[0]).seat
@@ -173,8 +169,8 @@ class TestSessionReplay:
         ] == SessionErrorCode.INTERNAL_ERROR
         assert (conns[0]._close_code, conns[0]._close_reason) == (1011, "internal_error")
 
-    async def test_disconnect__when_game_playing__should_record_the_ai_replacement_before_its_moves(self, paced_engine):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+    async def test_disconnect__when_game_playing__should_record_the_ai_replacement_before_its_moves(self, real_engine):
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = participant_of(manager, conns[0]).seat
         assert runtime_of(manager).state.round_state.current_player_seat == alice_seat
@@ -194,25 +190,8 @@ class TestSessionReplay:
 
         await manager.shutdown()
 
-    async def test_disconnect__when_the_ai_player_cannot_move__should_record_no_ai_replacement(
-        self, paced_engine, monkeypatch
-    ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
-        conns = create_started_game(manager, player_names=["Alice", "Bob"])
-        replay = game_of(manager).replay
-
-        def refuse_the_ai_move(*_args: object) -> None:
-            raise GeneratedActionError("AI seat returned no turn action")
-
-        monkeypatch.setattr(paced_engine, "process_ai_player_actions_after_replacement", refuse_the_ai_move)
-        with pytest.raises(GeneratedActionError):
-            manager.disconnect(conns[0])
-        assert [line for line in replay.records if line[WireKey.EVENT_TYPE] == 101] == []
-
-        await manager.shutdown()
-
-    async def test_reconnect__when_an_ai_player_held_the_seat__should_record_the_human_return(self, paced_engine):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+    async def test_reconnect__when_an_ai_player_held_the_seat__should_record_the_human_return(self, real_engine):
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = participant_of(manager, conns[0]).seat
         replay = game_of(manager).replay

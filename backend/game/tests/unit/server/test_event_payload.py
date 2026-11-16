@@ -3,7 +3,7 @@ from mahjong.tile import TilesConverter
 
 from game.engine import (
     AvailableActionItem,
-    Awaiting,
+    Call,
     CallPromptEvent,
     CallType,
     Discard,
@@ -14,6 +14,7 @@ from game.engine import (
     EventType,
     GameEndCause,
     GameEndedEvent,
+    GameOver,
     GameRuntime,
     GameStartedEvent,
     HandLimit,
@@ -26,10 +27,11 @@ from game.engine import (
     PaoShare,
     PlayerStanding,
     RoundEndEvent,
+    RoundOver,
     SeatTarget,
     TsumoResult,
+    Turn,
     TurnEvent,
-    WaitKind,
     WireCallType,
     WireMeldCallType,
     WirePlayerAction,
@@ -268,16 +270,16 @@ def _round_end() -> RoundEndEvent:
 
 class TestStampWaitId:
     @pytest.mark.parametrize(
-        ("kind", "event", "stamped"),
+        ("awaiting", "event", "stamped"),
         [
-            (WaitKind.TURN, DrawEvent(seat=1, tile_id=8, tiles_remaining=69, target=SeatTarget(seat=1)), True),
-            (WaitKind.TURN, DrawEvent(seat=2, tile_id=8, tiles_remaining=69, target=SeatTarget(seat=2)), False),
-            (WaitKind.TURN, TurnEvent(kuikae_tiles=[], target=SeatTarget(seat=1)), True),
-            (WaitKind.TURN, _meld(MeldViewType.PON, caller_seat=1), False),
-            (WaitKind.TURN, _meld(MeldViewType.CLOSED_KAN, caller_seat=1), False),
-            (WaitKind.CALL, _prompt_to(1), True),
-            (WaitKind.CALL, _prompt_to(2), False),
-            (WaitKind.NONE, _round_end(), False),
+            (Turn(seat=1), DrawEvent(seat=1, tile_id=8, tiles_remaining=69, target=SeatTarget(seat=1)), True),
+            (Turn(seat=1), DrawEvent(seat=2, tile_id=8, tiles_remaining=69, target=SeatTarget(seat=2)), False),
+            (Turn(seat=1), TurnEvent(kuikae_tiles=[], target=SeatTarget(seat=1)), True),
+            (Turn(seat=1), _meld(MeldViewType.PON, caller_seat=1), False),
+            (Turn(seat=1), _meld(MeldViewType.CLOSED_KAN, caller_seat=1), False),
+            (Call(seats=frozenset({1})), _prompt_to(1), True),
+            (Call(seats=frozenset({1})), _prompt_to(2), False),
+            (GameOver(), _round_end(), False),
         ],
         ids=[
             "turn_draw",
@@ -290,9 +292,9 @@ class TestStampWaitId:
             "round_end_of_the_game",
         ],
     )
-    def test_stamp_wait_id__when_event_may_open_the_wait__should_stamp_only_the_opening_one(self, kind, event, stamped):
-        awaiting = Awaiting(kind=kind, seats=frozenset({1}), round_number=0)
-
+    def test_stamp_wait_id__when_event_may_open_the_wait__should_stamp_only_the_opening_one(
+        self, awaiting, event, stamped
+    ):
         payload = stamp_wait_id(game_event_payload(event), event=event, awaiting=awaiting, wait_id=3)
         assert payload.get(WireKey.WAIT_ID) == (3 if stamped else None)
 
@@ -451,7 +453,7 @@ class TestReconnectionPayload:
         tenpai_hand = TilesConverter.string_to_136_array(man="123456789", pin="11", sou="45")
         _update_player(runtime, seat=tenpai_seat, tiles=tuple(tenpai_hand))
         _end_the_round_by_exhaustive_draw(service, runtime, seat=alice.seat)
-        assert service.get_awaiting(runtime).kind == WaitKind.ROUND_OVER
+        assert service.get_awaiting(runtime) == RoundOver()
 
         payload = reconnection_payload(
             service.build_reconnection_snapshot(runtime, alice.seat), roster=ROSTER, stand_ins={}

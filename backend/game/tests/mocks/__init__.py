@@ -4,7 +4,6 @@ from game.tests.mocks.game_service import (
     MOCK_AWAITING,
     MOCK_GAME_OVER,
     MockGameService,
-    mock_update,
 )
 from game.tests.mocks.replay_storage import FailingReplayStorage, FakeReplayStorage
 
@@ -16,5 +15,4 @@ __all__ = [
     "FakeReplayStorage",
     "MockConnection",
     "MockGameService",
-    "mock_update",
 ]

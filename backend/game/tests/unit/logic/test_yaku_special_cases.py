@@ -8,7 +8,6 @@ from mahjong.hand_calculating.yaku_list.yakuman import Chiihou, Ryuuiisou, Suuan
 
 from game.logic.action_handlers import handle_discard, handle_kan, handle_ron, handle_tsumo
 from game.logic.action_result import ActionResult
-from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Discard as DiscardAction
 from game.logic.decision import Kan
 from game.logic.enums import KanType
@@ -71,7 +70,6 @@ _LAST_EAST = tile_copies(1, honors="1")[0]
 def _before_last_draw(players: tuple[MahjongPlayer, ...], *, drawing_seat: int) -> MahjongGameState:
     runtime = GameRuntime(
         state=create_dealt_game_state(players, draws=(_LAST_EAST,), current_player_seat=drawing_seat),
-        ai=AIPlayerController({}),
     )
     wall = runtime.state.round_state.wall
     _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": (_LAST_EAST,)}))
@@ -144,7 +142,6 @@ def _after_open_kan_on_last_live_tile(rinshan_tile: int) -> MahjongGameState:
         state=create_dealt_game_state(
             players, rinshan_draws=(rinshan_tile,), dora_indicator=tile_copies(3, honors="7")[0]
         ),
-        ai=AIPlayerController({}),
     )
     wall = runtime.state.round_state.wall
     _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:1]}))
@@ -193,7 +190,7 @@ class TestRinshanKaihou:
                 for seat in range(1, 4)
             ),
         )
-        runtime = GameRuntime(state=create_dealt_game_state(players), ai=AIPlayerController({}))
+        runtime = GameRuntime(state=create_dealt_game_state(players))
         wall = runtime.state.round_state.wall
         live_tiles = wall.live_tiles[:live_tiles_before_kan]
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": live_tiles}))

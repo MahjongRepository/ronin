@@ -6,9 +6,11 @@ from typing import TYPE_CHECKING
 from game.engine import (
     NUM_PLAYERS,
     RNG_VERSION,
+    Call,
     Chi,
     Discard,
     DrawEvent,
+    GameOver,
     Kan,
     KanType,
     Kyuushu,
@@ -19,15 +21,17 @@ from game.engine import (
     Refusal,
     Riichi,
     Ron,
+    RoundOver,
     StartPosition,
     Tsumo,
-    WaitKind,
+    Turn,
     calculate_shanten,
     hand_to_34_array,
 )
 from game.messaging.roster import GameRoster
 from game.replay import run_replay
 from game.replay.loader import load_replay_from_bytes
+from game.session.ai_player import choose_ai_action
 from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.session.seating import seat_players
 from game.tests.helpers.hands import tile_copies
@@ -40,7 +44,7 @@ from game.wire.replay_format import REPLAY_VERSION, ReplayLineType, decode_repla
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from game.engine import Action, GameEvent, GameUpdate, MahjongGameState
+    from game.engine import Action, Awaiting, GameEvent, MahjongGameState
     from game.replay.models import ReplayTrace
 
 STAGED_SEED = "5" * 192
@@ -262,8 +266,12 @@ FOUR_AT_THE_TABLE = Seating()
 
 class _ScriptedGame:
     """
-    A game a script plays through the game service: every action must be accepted, and every event is recorded, a call
+    A game a script plays through the game service: every action must be accepted, and every event is recorded, a step
     at a time as the session would, with each seat's latest draw kept for the script.
+
+    The AI players' seats (those no player takes, the absent ones and those whose player left) are answered as the
+    session answers them (choose_ai_action), at once: each step records the moves of the AI players it leads to, up to
+    the next wait on a player's seat.
     """
 
     def __init__(
@@ -280,33 +288,49 @@ class _ScriptedGame:
         roster = GameRoster(game_id=game_id, names=seated.names, ai_seats=seated.ai_seats)
         self._recorder = ReplayRecorder(seed=seed, roster=roster, walls=walls, start=start_position)
         self._service = MahjongGameService()
-        self._runtime, start_events = self._service.new_game(
-            seed, walls=walls, start=start_position, ai_seats=seated.ai_seats
-        )
+        self._runtime, start_events = self._service.new_game(seed, walls=walls, start=start_position)
         self._draws: dict[int, DrawEvent] = {}
         if not seating.absent < set(seated.player_seats):
             raise ScenarioError(
                 f"{game_id}: absent seats {sorted(seating.absent)} are not some of the players' {seated.player_seats}"
             )
 
+        self._ai_seats = set(seated.ai_seats)
         self._record(start_events)
         absent_in_player_order = [seat for seat in seated.player_seats if seat in seating.absent]
         for seat in absent_in_player_order:
-            self._service.replace_with_ai_player(self._runtime, seat)
+            self._ai_seats.add(seat)
             self._recorder.record_ai_replacement(seat=seat, reason=SeatControlReason.ABSENT)
 
-        self._record(self._accepted(self._service.begin_round(self._runtime), "begin_round").events)
+        self._record(self._with_ai_moves(self._accepted(self._service.begin_round(self._runtime), "begin_round")))
 
     def _run(self, seat: int, action: Action) -> None:
-        update = self._accepted(self._service.act(self._runtime, seat, action), f"seat {seat} {action}")
+        events = self._accepted(self._service.act(self._runtime, seat, action), f"seat {seat} {action}")
         self._draws.pop(seat, None)
-        self._record(update.events)
+        self._record(self._with_ai_moves(events))
 
-    def _accepted(self, result: GameUpdate | Refusal, call: str) -> GameUpdate:
+    def _accepted(self, result: list[GameEvent] | Refusal, call: str) -> list[GameEvent]:
         if isinstance(result, Refusal):
             raise ScenarioError(f"{self._game_id}: {call} refused: {result.kind.value}: {result.code.value}")
 
         return result
+
+    def _with_ai_moves(self, events: list[GameEvent]) -> list[GameEvent]:
+        """
+        Return the events with those of the AI players' moves that follow them: every call an AI player's seat is
+        awaited on, answered in ascending seat order, and every AI player's turn, until the game waits on a player.
+        """
+        moves = list(events)
+        while ai_seats := sorted(self._ai_seats & self._service.get_awaiting(self._runtime).seats):
+            seat = ai_seats[0]
+            decision = self._service.decision(self._runtime, seat)
+            if decision is None:
+                raise ScenarioError(f"{self._game_id}: AI player's seat {seat} awaited with no decision")
+
+            action = choose_ai_action(decision)
+            moves.extend(self._accepted(self._service.act(self._runtime, seat, action), f"AI seat {seat} {action}"))
+
+        return moves
 
     def _advance_round(self) -> None:
         """
@@ -315,7 +339,7 @@ class _ScriptedGame:
         """
         dealt = self._accepted(self._service.deal_next_round(self._runtime), "deal_next_round")
         begun = self._accepted(self._service.begin_round(self._runtime), "begin_round")
-        self._record([*dealt.events, *begun.events])
+        self._record(self._with_ai_moves([*dealt, *begun]))
 
     def _record(self, events: Sequence[GameEvent]) -> None:
         self._recorder.record(events)
@@ -405,24 +429,23 @@ class StagedGame(_ScriptedGame):
         Hand the seat of a player who left to an AI player, recorded as the session records it: its seat control record,
         then the events of the moves the AI player makes at once.
 
-        From then on the engine plays the seat's turns and calls by itself.
+        From then on its AI player answers the seat's turns and calls.
         """
-        if self._runtime.ai.is_ai_player(seat):
+        if seat in self._ai_seats:
             raise ScenarioError(f"{self._game_id}: seat {seat} was replaced with an AI player twice")
 
-        self._service.replace_with_ai_player(self._runtime, seat)
-        update = self._service.process_ai_player_actions_after_replacement(self._runtime, seat)
+        self._ai_seats.add(seat)
         self._recorder.record_ai_replacement(seat=seat, reason=SeatControlReason.LEFT)
-        self._record(update.events)
+        self._record(self._with_ai_moves([]))
 
     def restore_human(self, seat: int) -> None:
         """
         Return the seat from its AI player to its participant, recorded as the session records a reconnect.
         """
-        if not self._runtime.ai.is_ai_player(seat):
+        if seat not in self._ai_seats:
             raise ScenarioError(f"{self._game_id}: seat {seat} was restored without an AI player in it")
 
-        self._service.restore_human_player(self._runtime, seat)
+        self._ai_seats.remove(seat)
         self._recorder.record_human_return(seat=seat)
 
     def pass_(self, seat: int) -> None:
@@ -441,13 +464,13 @@ class StagedGame(_ScriptedGame):
         while True:
             self._pass_calls()
             awaiting = self._service.get_awaiting(self._runtime)
-            if awaiting.kind != WaitKind.TURN:
+            if not isinstance(awaiting, Turn):
                 if seat is None:
                     return
 
                 raise ScenarioError(f"{self._game_id}: the round ended before seat {seat}'s turn")
 
-            (current,) = awaiting.seats
+            current = awaiting.seat
             if current == seat:
                 return
 
@@ -484,7 +507,7 @@ class StagedGame(_ScriptedGame):
         recording = self._recorder.recording()
         require_outcome(recording, outcome, name=self._game_id)
         self._pass_calls()
-        if self._service.get_awaiting(self._runtime).kind == WaitKind.ROUND_OVER:
+        if isinstance(self._service.get_awaiting(self._runtime), RoundOver):
             self.confirm_round()
 
         require_reproduces(recording, self._runtime.state, name=self._game_id)
@@ -543,27 +566,27 @@ class EagerGame(_ScriptedGame):
         Play the game to its end and return the recorded replay, after checking that it ends in the outcome and that the
         replay runner reproduces the game.
         """
-        while (awaiting := self._service.get_awaiting(self._runtime)).kind != WaitKind.NONE:
-            self._act(awaiting.kind, awaiting.seats)
+        while not isinstance(awaiting := self._service.get_awaiting(self._runtime), GameOver):
+            self._act(awaiting)
 
         recording = self._recorder.recording()
         require_outcome(recording, outcome, name=self._game_id)
         require_reproduces(recording, self._runtime.state, name=self._game_id)
         return recording
 
-    def _act(self, kind: WaitKind, seats: frozenset[int]) -> None:
-        if kind == WaitKind.ROUND_OVER:
+    def _act(self, awaiting: Awaiting) -> None:
+        if isinstance(awaiting, RoundOver):
             self._advance_round()
             return
 
-        if kind == WaitKind.CALL:
+        if isinstance(awaiting, Call):
             prompt = self._runtime.state.round_state.pending_call_prompt
-            seat = min(seats)
+            seat = min(awaiting.seats)
             can_ron = prompt is not None and prompt.caller(seat).can_ron
             self._run(seat, Ron() if can_ron else Pass())
             return
 
-        (seat,) = seats
+        (seat,) = awaiting.seats
         draw = self._draws[seat]
         if PlayerAction.TSUMO in {item.action for item in draw.available_actions}:
             self._run(seat, Tsumo())

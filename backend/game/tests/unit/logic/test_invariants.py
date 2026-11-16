@@ -1,6 +1,5 @@
 import pytest
 
-from game.logic.ai_player_controller import AIPlayerController
 from game.logic.exceptions import TileOwnershipError
 from game.logic.invariants import verify_tile_ownership
 from game.logic.mahjong_service import MahjongGameService
@@ -91,7 +90,7 @@ class TestVerifyTileOwnership:
 class TestGameRuntimeCommit:
     def test_commit__when_state_breaks_ownership__should_raise_and_keep_the_old_state(self):
         game_state = _started_game()
-        runtime = GameRuntime(state=game_state, ai=AIPlayerController({}))
+        runtime = GameRuntime(state=game_state)
         round_state = game_state.round_state
         broken = game_state.model_copy(
             update={"round_state": update_player(round_state, 0, tiles=round_state.players[1].tiles)},

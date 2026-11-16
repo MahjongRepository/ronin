@@ -9,7 +9,6 @@ from game.logic.abortive import AbortiveDrawType
 from game.logic.action_handlers import handle_discard, handle_kan, handle_pass, handle_riichi, handle_ron, handle_tsumo
 from game.logic.action_result import ActionResult
 from game.logic.actions import get_available_actions
-from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Discard as DiscardAction
 from game.logic.decision import Kan, Pass, Riichi, Ron
 from game.logic.enums import (
@@ -132,7 +131,7 @@ class TestExhaustiveDrawPhase:
             create_player(seat=0, tiles=(last_discard, *tile_copies(0, man="123456789", pin="1255"))),
             *(create_player(seat=seat, tiles=_JUNK_HANDS[seat]) for seat in (1, 2, 3)),
         )
-        runtime = GameRuntime(state=create_dealt_game_state(players), ai=AIPlayerController({}))
+        runtime = GameRuntime(state=create_dealt_game_state(players))
         wall = runtime.state.round_state.wall
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
         discarded = handle_discard(runtime.state, seat=0, action=DiscardAction(tile=last_discard))

@@ -10,7 +10,7 @@ from game.engine import (
     MahjongGameService,
     SeatTarget,
 )
-from game.tests.helpers.builders import start_game_in_play
+from game.tests.helpers.builders import answer_with_defaults, start_game_in_play
 
 
 class TestGameCreationAndJoin:
@@ -39,7 +39,6 @@ class TestGameServiceIntegration:
         human_seat = start.human_seats[0]
 
         actions_processed = 0
-        # play several discards (AI players will respond automatically)
         for _ in range(10):
             game_state = runtime.state
             if game_state.round_state.result is not None:
@@ -52,6 +51,7 @@ class TestGameServiceIntegration:
             if current_seat == human_seat and player.tiles:
                 tile_to_discard = player.tiles[-1]
                 service.act(runtime, human_seat, Discard(tile=tile_to_discard))
+                answer_with_defaults(service, runtime, seats=start.default_seats)
                 actions_processed += 1
 
         assert actions_processed >= 2, "expected multiple discards to be processed"
@@ -80,7 +80,10 @@ class TestUnifiedDiscardClaimIntegration:
                 break
 
             tile_to_discard = player.tiles[-1]
-            events = service.act(runtime, human_seat, Discard(tile=tile_to_discard)).events
+            events = [
+                *service.act(runtime, human_seat, Discard(tile=tile_to_discard)),
+                *answer_with_defaults(service, runtime, seats=start.default_seats),
+            ]
             call_prompt_events = [e for e in events if e.type == EventType.CALL_PROMPT]
             for cp_event in call_prompt_events:
                 found_prompt = True

@@ -1,6 +1,5 @@
 from game.logic.action_handlers import handle_chi, handle_discard, handle_pass, handle_pon, handle_riichi, handle_ron
 from game.logic.action_result import ActionResult
-from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Chi, Discard, Riichi, Ron
 from game.logic.enums import (
     CallType,
@@ -269,7 +268,7 @@ class TestLastDiscardRestriction:
             create_player(seat=2, tiles=pon_hand),
             create_player(seat=3, tiles=kanchan_on_three_pin),
         )
-        runtime = GameRuntime(state=create_dealt_game_state(players), ai=AIPlayerController({}))
+        runtime = GameRuntime(state=create_dealt_game_state(players))
         wall = runtime.state.round_state.wall
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
         settings = runtime.state.settings

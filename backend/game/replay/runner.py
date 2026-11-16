@@ -14,7 +14,7 @@ from game.engine import (
     Refusal,
     RefusalKind,
     Ron,
-    WaitKind,
+    RoundOver,
 )
 from game.replay.loader import ReplayLoadError
 from game.replay.models import (
@@ -30,7 +30,7 @@ from game.replay.models import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from game.engine import GameRuntime, GameService, GameUpdate
+    from game.engine import GameEvent, GameRuntime, GameService
 
 
 @dataclass(frozen=True)
@@ -152,16 +152,16 @@ def _execute_replay(
         seed=replay.seed,
         rng_version=replay.rng_version,
         seat_by_player=seat_by_player,
-        startup_events=(*startup_events, *begun.events),
+        startup_events=(*startup_events, *begun),
         initial_state=initial_state,
         steps=tuple(steps),
         final_state=runtime.state,
     )
 
 
-def _require_accepted(result: GameUpdate | Refusal) -> GameUpdate:
+def _require_accepted(result: list[GameEvent] | Refusal) -> list[GameEvent]:
     """
-    Return a phase call's update; the runner makes one only in its phase, so a refusal is a runner fault.
+    Return a phase call's events; the runner makes one only in its phase, so a refusal is a runner fault.
     """
     match result:
         case Refusal(kind=kind, code=code):
@@ -218,7 +218,7 @@ def _run_step(
         ReplayStep(
             input_event=input_event,
             synthetic=synthetic,
-            emitted_events=() if isinstance(result, Refusal) else tuple(result.events),
+            emitted_events=() if isinstance(result, Refusal) else tuple(result),
             refusal=refusal,
             state_before=state_before,
             state_after=ctx.runtime.state,
@@ -231,7 +231,7 @@ def _maybe_advance_round(ctx: _ReplayRunContext, *, steps: list[ReplayStep]) -> 
     Deal the next round and let its dealer draw, as one synthetic step with no input, when the game waits on a round's
     end.
     """
-    if not ctx.opts.advance_rounds or ctx.service.get_awaiting(ctx.runtime).kind != WaitKind.ROUND_OVER:
+    if not ctx.opts.advance_rounds or not isinstance(ctx.service.get_awaiting(ctx.runtime), RoundOver):
         return
 
     _check_step_limit(len(steps), ctx.opts.max_steps)
@@ -242,7 +242,7 @@ def _maybe_advance_round(ctx: _ReplayRunContext, *, steps: list[ReplayStep]) -> 
         ReplayStep(
             input_event=None,
             synthetic=True,
-            emitted_events=(*dealt.events, *begun.events),
+            emitted_events=(*dealt, *begun),
             state_before=state_before,
             state_after=ctx.runtime.state,
         ),

@@ -196,24 +196,6 @@ class WindName(StrEnum):
     UNKNOWN = "Unknown"
 
 
-class WaitKind(StrEnum):
-    """
-    What the game waits for: a seat's turn, an AI player's turn, call prompt responses, a dealt round's first draw, the
-    next round's deal, or nothing (game over).
-
-    AI_TURN awaits no human seat: the caller plays it with advance_ai_turn. Only a service that paces AI turns stops on
-    one; any other plays every AI turn inside the call that reaches it. DEALT and ROUND_OVER await no seat either: the
-    caller moves the game on with begin_round and deal_next_round when it is ready to.
-    """
-
-    TURN = "turn"
-    AI_TURN = "ai_turn"
-    CALL = "call"
-    DEALT = "dealt"
-    ROUND_OVER = "round_over"
-    NONE = "none"
-
-
 class MeldViewType(StrEnum):
     """
     Meld type names for client-facing view.

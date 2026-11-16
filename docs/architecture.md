@@ -30,7 +30,7 @@ flowchart LR
     subgraph Game["Game server :8711"]
         REST["REST<br/>POST /games, GET /players/{user_id}[/game-session]"]
         WS["WebSocket /ws/{game_id}<br/>MessagePack"]
-        SM["SessionManager<br/>live games, timers, AI replacement"]
+        SM["SessionManager<br/>live games, timers, AI players"]
         Engine["MahjongGameService<br/>rules engine"]
         Replay["ReplayCollector"]
     end
@@ -351,8 +351,8 @@ sequenceDiagram
         SM-->>P: wait-opening event (first deal, draw, call prompt, turn, round end) stamped with the participant's decision id
         P->>R: action echoing that decision id
         R->>SM: handle_game_action
-        SM->>E: validate + apply (AI seats and timeouts use the same pipeline)
-        E-->>SM: events + next Awaiting
+        SM->>E: act (AI players' answers and timeouts use the same call)
+        E-->>SM: events; the session then reads the next Awaiting
         SM-->>P: events (per-seat routing), timers re-armed from Awaiting
     end
     P-->>WS: socket closes
@@ -376,12 +376,12 @@ sequenceDiagram
   owing seat sent CONFIRM_ROUND or `TimerConfig.game_start_confirm_seconds` ran out and confirmed for the
   rest. A seat without a connection at the start owes none, and one that leaves during it drops out of
   the pause; both are AI players'. A zero timeout skips the confirm.
-* AI players' turns are paced in real time so a human can follow them: the engine stops before each AI
-  player's turn action and reports an AI turn wait, awaiting no human, and the session plays that one
-  turn after `TimerConfig.ai_turn_delay_seconds` (one engine call per turn). AI answers to call
-  prompts never wait. A human who reconnects during that delay gets the turn back as their own wait.
-  The replay runner and engine tests use the unpaced engine, which plays AI turns inside the call;
-  the events and their order are the same either way.
+* The session plays the AI players; the engine never learns which seats they hold. After each engine
+  call the session answers every call an AI player's seat is awaited on at once, one `act` per answer
+  in ascending seat order, and plays an AI player's turn after `TimerConfig.ai_turn_delay_seconds`, so a
+  human can follow AI turns one at a time. A human who reconnects during that delay gets the turn back
+  as their own decision, with no engine call. The replay runner and the fixture generators answer
+  each seat themselves.
 * Liveness is uvicorn's WebSocket ping; the apps run no heartbeat of their own. Rate limits, decode
   strikes and the auth timeout are in `backend/game/AGENTS.md`.
 

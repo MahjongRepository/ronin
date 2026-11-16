@@ -17,13 +17,13 @@ def manager():
 
 
 @pytest.fixture
-def paced_engine():
-    return MahjongGameService(pace_ai_turns=True)
+def real_engine():
+    return MahjongGameService()
 
 
 @pytest.fixture
-async def table(paced_engine):
-    table = SocketTable(make_session_manager(paced_engine, seed=ENGINE_SEED))
+async def table(real_engine):
+    table = SocketTable(make_session_manager(real_engine, seed=ENGINE_SEED))
     yield table
     await table.close()
 

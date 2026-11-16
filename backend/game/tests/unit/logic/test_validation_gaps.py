@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 import pytest
 
 from game.logic.abortive import can_call_kyuushu_kyuuhai
@@ -15,15 +13,12 @@ from game.logic.action_handlers import (
     handle_tsumo,
 )
 from game.logic.action_result import ActionResult
-from game.logic.ai_player import AIPlayer
-from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Chi, Kan, Kyuushu, Riichi, Tsumo
 from game.logic.decision import Discard as DiscardAction
 from game.logic.enums import (
     KanType,
     MeldCallType,
 )
-from game.logic.exceptions import GeneratedActionError
 from game.logic.game import init_game
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
@@ -39,7 +34,7 @@ from game.logic.state import (
 )
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_discard_phase
-from game.tests.helpers.builders import create_dealt_game_state, create_player, start_game_in_play
+from game.tests.helpers.builders import create_dealt_game_state, create_player
 from game.tests.helpers.hands import tile_copies
 from game.tests.unit.logic.helpers import _update_round_state
 
@@ -243,7 +238,7 @@ class TestAddedKanDeclarationValidation:
 
 class TestKanExecutionGuards:
     def test_closed_kan__when_wall_too_short__should_refuse_as_not_offered(self):
-        runtime = GameRuntime(state=_create_frozen_game_state(), ai=AIPlayerController({}))
+        runtime = GameRuntime(state=_create_frozen_game_state())
         wall = runtime.state.round_state.wall
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
         one_man_quad = runtime.state.round_state.players[0].tiles[:4]
@@ -343,7 +338,7 @@ class TestPendingCallPromptStateGate:
     )
     def test_turn_action__when_prompt_pending__should_refuse_as_not_awaited(self, turn_action_of):
         game_state = _nine_man_discard_prompt()
-        runtime = GameRuntime(state=game_state, ai=AIPlayerController({}))
+        runtime = GameRuntime(state=game_state)
         own_tile = game_state.round_state.players[0].tiles[-1]
 
         assert MahjongGameService().act(runtime, 0, turn_action_of(own_tile)) == SEAT_NOT_AWAITED
@@ -440,45 +435,3 @@ class TestStructuralInputRefusedAsNotOffered:
 
         action = Kan(kan_type=KanType.CLOSED, tile=one_man_triplet[0])
         assert handle_kan(game_state, seat=0, action=action) == NOT_OFFERED
-
-
-class TestServerGeneratedActionRefusals:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    @pytest.fixture
-    def runtime(self, service):
-        return start_game_in_play(service, humans=1, seed="a" * 192).runtime
-
-    def test_ai_call_response__when_handler_refuses_it__should_raise_generated_action_error(self, service):
-        game_state = _nine_man_discard_prompt()
-        runtime = GameRuntime(state=game_state, ai=AIPlayerController({1: AIPlayer()}))
-        prompt = game_state.round_state.pending_call_prompt
-        unheld_sequence = (_CHI_SEAT_SEVEN_MAN, tile_copies(1, man="8")[0])
-
-        with (
-            patch.object(AIPlayer, "should_call_chi", return_value=unheld_sequence),
-            pytest.raises(GeneratedActionError, match=r"Chi\(tiles=\(\d+, \d+\)\) refused"),
-        ):
-            service._dispatch_ai_player_call_responses(runtime, prompt, [])
-        assert runtime.state.round_state.pending_call_prompt == prompt
-
-    def test_ai_turn__when_its_discard_gets_a_soft_error__should_raise_without_progress(self, service):
-        game_state, ai_seat, forbidden_tile = _riichi_dealer_after_draw()
-        runtime = GameRuntime(state=game_state, ai=AIPlayerController({ai_seat: AIPlayer()}))
-
-        with (
-            patch.object(AIPlayer, "select_discard", return_value=forbidden_tile),
-            pytest.raises(GeneratedActionError, match="rule: riichi_drawn_tile_only"),
-        ):
-            service._process_ai_player_followup(runtime)
-        assert runtime.state is game_state
-
-    def test_act__when_the_seat_is_ai_controlled__should_raise_as_a_server_fault(self, service, runtime):
-        ai_player_seat = min(runtime.ai.ai_player_seats)
-        state_before = runtime.state
-
-        with pytest.raises(AssertionError, match=f"seat {ai_player_seat} is controlled by an AI player"):
-            service.act(runtime, ai_player_seat, DiscardAction(tile=0))
-        assert runtime.state is state_before

@@ -4,7 +4,7 @@
 lifecycle transitions: pending games, joins, disconnects, reconnects, timeouts, the start and the
 one end. `models.py` holds `GameSession` and its `Participant`s, `timer.py` the pacing
 (`TimerConfig`, `TurnTimer`), `replay_collector.py` the shaping and saving of replay records,
-`played_game.py` the finish record, `seating.py` each game's seed and seating.
+`played_game.py` the finish record, `seating.py` each game's seed and seating, `ai_player.py` the AI players' choice.
 
 ## Design
 
@@ -36,10 +36,21 @@ interleave.
   follow, and the participant keeps why it stands in, which the reconnect snapshot carries.
 * **The session owns the roster and the seed.** It draws each game's seed from its seed source and
   seats the participants by the seed's seat permutation (`seating.py`, `docs/rng.md`), the rest
-  AI players named apart from them; the engine gets only the seed and the AI seats. The game id,
-  every seat's name and the AI seats form the game's roster, which messaging adds to `game_started`
-  and the reconnect snapshot, and the start record and the replay's seed, RNG version and seats come
-  from it, never from engine state.
+  AI players named apart from them; the engine gets only the seed. The game id, every seat's name and
+  the AI seats form the game's roster, which messaging adds to `game_started` and the reconnect
+  snapshot. The start record and the replay's seats come from the roster, the replay's seed from the
+  seed source and its RNG version from the `RNG_VERSION` constant, never from engine state.
+* **The session plays the AI players.** The engine names every awaited seat and never learns who
+  answers one: a seat no participant takes, or one whose participant has no connection, is an AI
+  player's (`GameSession.is_ai_seat`), and the session answers it through `act` like a participant's
+  answer, from the seat's decision read at that moment (`ai_player.py`: the decision's default, so it
+  never wins or calls). After each engine call, every call an AI player's seat is awaited on is
+  answered at once, in ascending seat order, one `act` each whose events go out before the next; an
+  AI player's turn waits the AI turn delay (below). Each answer is an engine call whose actor is that
+  AI player's seat, and its seat gets no timer and no decision id, since it has no connected
+  participant. A refused AI player's answer is a server fault. The engine checks furiten once per
+  call, so with each AI answer its own call, a seat's furiten change can arrive ahead of the draw
+  that follows an AI-only call window.
 * **One connection per participant; the newest wins.** A JOIN_GAME or RECONNECT for a participant
   still bound to a connection (a half-open socket the server has not seen drop, or another tab)
   replaces it through the one binder (`_bind`): the old connection is evicted, then closed with
@@ -71,10 +82,11 @@ interleave.
   wait, or the pause opening with it, opens a decision for that connected participant; it survives replacements and reconnects,
   and never advances for other seats or for an absent participant's AI stand-in. The engine knows no wait or decision
   identity: the session tells a new wait from a kept one by comparing what each engine call reports it awaits with the
-  wait before (`_opens_new_wait`). A call's actor (the seat that acted, timed out or was replaced) no longer holds its
-  decision, so the wait is kept only while its kind is unchanged and it awaits only seats that held their decision
-  before the call: a partial call answer keeps the other callers' decisions and timers, while a kan's replacement draw
-  for the same seat, or a human taking back the AI player's turn of its seat, opens a new one. A seat not awaited, or an id different from that
+  wait before (`_opens_new_wait`). A call's actor (the seat that acted, an AI player's included, or timed out) no
+  longer holds its decision, so the wait is kept only while its kind is unchanged and it awaits only seats that held
+  their decision before the call: a partial call answer keeps the other callers' decisions and timers, while a kan's
+  replacement draw for the same seat opens a new one. A human taking back the AI player's turn of its seat opens a new
+  one too, with no engine call (`_take_back_decision`). A seat not awaited, or an id different from that
   participant's latest, gets the same stale-action `ErrorEvent` and touches neither the engine nor
   a timer, so guessed ids reveal no hidden waits. A call answer whose called tile is not the open call's is refused
   by the session too, with that answer's invalid code, and never reaches the engine. Every `ErrorEvent` answering an
@@ -107,10 +119,9 @@ interleave.
   a pause no longer owes its confirmation, so nobody is held to the timeout by an empty seat. Every AI
   player's turn action waits
   `TimerConfig.ai_turn_delay_seconds` after the move before it, so a human sees AI turns one at a time:
-  the engine (built with `pace_ai_turns`) stops before it as an AI turn wait, which awaits no seat and
-  arms no timer, and one task per game (`GameSession.ai_turn`) plays it after the delay through the
-  engine's `advance_ai_turn` and `_follow_engine` like any other move, which then schedules the next; a
-  zero delay plays them in the same step. AI answers to call prompts never wait.
+  the turn arms no timer, and one task per game (`GameSession.ai_turn`) plays it after the delay
+  through `act` like any other move, which then schedules the next; a zero delay plays them in the
+  same step. AI answers to call prompts never wait.
   A new wait or an end claim cancels the delayed AI turn, and a reconnect that takes back a seat whose
   AI turn is still delayed gets that turn as its own new wait, its timer starting with the reconnect.
   The game client derives its silence watchdog limit from the timer settings it is sent and,
@@ -120,7 +131,7 @@ interleave.
   opening message (`messaging/AGENTS.md`), so a change to how a wait is paced changes its countdown
   too; a pause's timeout, the game start's included, is named on the message that opens it and in the
   snapshot instead (`TimerConfig.round_advance_seconds`, which the timer arms too). Every participant's bank resets at each hand's first wait, before its opening messages go out,
-  including the first hand and disconnected seats. Turns and calls draw from the same bank after their free base
+  including the first hand and disconnected seats: the session resets them on the wait of each deal. Turns and calls draw from the same bank after their free base
   time; ending a wait charges every running decision, even a call resolved by another seat.
   The timers sleep on the event loop and measure the bank and elapsed time on the manager's clock,
   which every monotonic time the manager reads comes from (`time.monotonic` unless given), so the two

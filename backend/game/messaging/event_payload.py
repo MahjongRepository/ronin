@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 from game.engine import (
     AbortiveDrawResult,
+    Call,
     CallPromptEvent,
     DiscardEvent,
     DoraRevealedEvent,
@@ -23,8 +24,8 @@ from game.engine import (
     RoundStartedEvent,
     SeatTarget,
     TsumoResult,
+    Turn,
     TurnEvent,
-    WaitKind,
     meld_event_to_compact,
 )
 from game.messaging import serialization
@@ -293,10 +294,10 @@ def opens_wait(event: GameEvent, awaiting: Awaiting) -> bool:
     """
     target = event.target
     to_awaited_seat = isinstance(target, SeatTarget) and target.seat in awaiting.seats
-    if awaiting.kind == WaitKind.TURN:
-        return isinstance(event, DrawEvent | TurnEvent) and to_awaited_seat
-
-    if awaiting.kind == WaitKind.CALL:
-        return isinstance(event, CallPromptEvent) and to_awaited_seat
-
-    return False
+    match awaiting:
+        case Turn():
+            return isinstance(event, DrawEvent | TurnEvent) and to_awaited_seat
+        case Call():
+            return isinstance(event, CallPromptEvent) and to_awaited_seat
+        case _:
+            return False

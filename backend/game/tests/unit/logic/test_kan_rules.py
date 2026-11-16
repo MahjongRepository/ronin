@@ -18,7 +18,6 @@ from game.logic.action_handlers import (
 )
 from game.logic.action_result import ActionResult
 from game.logic.actions import get_available_actions
-from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Chi, Kan
 from game.logic.decision import Discard as DiscardAction
 from game.logic.enums import (
@@ -69,7 +68,7 @@ from game.tests.unit.logic.helpers import _update_round_state
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from game.logic.service import GameUpdate
+    from game.logic.events import GameEvent
 
 _ONE_MAN = tuple(tile_copies(0, man="1111"))
 _KAN_SEAT_REST = tuple(tile_copies(1, pin="123456789", sou="2"))
@@ -179,7 +178,7 @@ def _chi_by_seat_holding_quad_and_upgradable_pon() -> MahjongGameState:
 # ---------------------------------------------------------------------------
 class TestMinWallForKan:
     def test_closed_kan__when_min_wall_for_kan_setting_changes__should_require_that_many_wall_tiles(self):
-        runtime = GameRuntime(state=_kan_game(_one_man_quad_after_draw()), ai=AIPlayerController({}))
+        runtime = GameRuntime(state=_kan_game(_one_man_quad_after_draw()))
         wall = runtime.state.round_state.wall
         round_state = _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:1]}))
         player = round_state.players[0]
@@ -190,7 +189,7 @@ class TestMinWallForKan:
     def test_added_kan__when_min_wall_for_kan_setting_changes__should_require_that_many_wall_tiles(self):
         seat_0 = create_player(seat=0, tiles=(_ONE_MAN[3], *_KAN_SEAT_REST), melds=(_one_man_pon_from_seat_3(),))
         game_state = _kan_game(seat_0, seat_3=_seat_3_after_discarding(_ONE_MAN[2]))
-        runtime = GameRuntime(state=game_state, ai=AIPlayerController({}))
+        runtime = GameRuntime(state=game_state)
         wall = runtime.state.round_state.wall
         round_state = _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:1]}))
         player = round_state.players[0]
@@ -843,10 +842,10 @@ def _riichi_seat_after_draw(waiting_hand: Sequence[int], drawn_tile: int) -> Gam
             discards=(Discard(tile_id=tile_copies(0, honors="4")[0]),),
         ),
     )
-    return GameRuntime(state=create_dealt_game_state(players), ai=AIPlayerController({}))
+    return GameRuntime(state=create_dealt_game_state(players))
 
 
-def _declare_closed_kan(runtime: GameRuntime, tile_id: int) -> GameUpdate | Refusal:
+def _declare_closed_kan(runtime: GameRuntime, tile_id: int) -> list[GameEvent] | Refusal:
     return MahjongGameService().act(runtime, 0, Kan(kan_type=KanType.CLOSED, tile=tile_id))
 
 

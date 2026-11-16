@@ -1,12 +1,10 @@
-from unittest.mock import MagicMock
-
 import pytest
 
 from game.engine import Discard, EventType, GameEndCause, GameEndedEvent, GameEvent, PlayerStanding
 from game.session.models import GameLifecycle, PlayerSpec
 from game.session.timer import TimeoutType, TimerConfig
 from game.tests.helpers.session import make_session_manager
-from game.tests.mocks import MOCK_GAME_OVER, FakeGameRepository, MockConnection, mock_update
+from game.tests.mocks import MOCK_GAME_OVER, FakeGameRepository, MockConnection
 from shared.dal.models import GameEndReason
 
 from .helpers import (
@@ -69,9 +67,9 @@ class TestGameStartRecording:
         ]
 
     async def test_start_game__when_human_is_named_like_an_ai__should_seat_them_and_record_their_user_id(
-        self, paced_engine, game_repo
+        self, real_engine, game_repo
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, repository=game_repo)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED, repository=game_repo)
         conns = create_started_game(manager, player_names=["ai-tsumogiri-1"])
         human_seat = participant_of(manager, conns[0]).seat
         assert human_seat is not None
@@ -113,7 +111,7 @@ class TestGameCompletionRecording:
                 end_cause=GameEndCause.LENGTH,
             ),
         ]
-        manager_with_repo._game_service.act = MagicMock(return_value=mock_update(events, MOCK_GAME_OVER))
+        manager_with_repo._game_service.script_act(events, awaiting=MOCK_GAME_OVER)
 
         manager_with_repo.handle_game_action(
             conns[0], action=Discard(tile=0), called_tile=None, wait_id=current_wait_id(manager_with_repo, conns[0])
@@ -132,19 +130,17 @@ class TestGameCompletionRecording:
 
     async def test_game_history__when_timeout_ends_game__should_record_completed(self, manager_with_repo, game_repo):
         create_started_game(manager_with_repo, player_names=["Alice", "Bob"])
-        manager_with_repo._game_service.act = MagicMock(
-            return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER)
-        )
+        manager_with_repo._game_service.script_act(_make_game_end_events(), awaiting=MOCK_GAME_OVER)
 
         run_timeout(manager_with_repo, game_id="game1", timeout_type=TimeoutType.TURN, seat=0)
         await wait_for_background_tasks(manager_with_repo)
         assert game_repo.games["game1"].end_reason == GameEndReason.COMPLETED
 
     async def test_game_history__when_a_human_never_connected__should_keep_their_seat_in_the_finish_standings(
-        self, paced_engine, game_repo
+        self, real_engine, game_repo
     ):
         manager = make_session_manager(
-            paced_engine,
+            real_engine,
             seed=ENGINE_SEED,
             repository=game_repo,
             timer_config=TimerConfig(
@@ -205,9 +201,7 @@ class TestGameAbandonmentRecording:
         self, manager_with_repo, game_repo
     ):
         conns = create_started_game(manager_with_repo, player_names=["Alice", "Bob"])
-        manager_with_repo._game_service.act = MagicMock(
-            return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER)
-        )
+        manager_with_repo._game_service.script_act(_make_game_end_events(), awaiting=MOCK_GAME_OVER)
 
         manager_with_repo.handle_game_action(
             conns[0], action=Discard(tile=0), called_tile=None, wait_id=current_wait_id(manager_with_repo, conns[0])

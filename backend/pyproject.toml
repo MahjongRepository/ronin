@@ -74,8 +74,6 @@ ignore = [
     "SLF001", # Private member accessed
 ]
 "scripts/**/*.py" = ["T201", "PLR2004"]
-# Base class methods define the interface contract; parameters are unused in the default implementation
-"game/logic/ai_player.py" = ["ARG002"]
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseSettings"]
@@ -146,9 +144,6 @@ allowed_importers = [
     "game.tests.helpers.builders",
     "game.tests.helpers.hands",
     "game.tests.helpers.wall",
-    "game.tests.mocks.game_service",
-    "game.tests.unit.session.test_session_game_end",
-    "game.tests.unit.session.test_session_replay_persistence",
     "game.tests.unit.server.test_replay_runner",
 ]
 

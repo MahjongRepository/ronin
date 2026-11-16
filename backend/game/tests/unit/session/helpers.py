@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from mahjong.tile import TilesConverter
 
-from game.engine import EventType, WaitKind
+from game.engine import EventType, Turn
 from game.messaging.types import SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType
 from game.server.router import MessageRouter
@@ -164,12 +164,6 @@ def run_pause_timeout(manager: SessionManager, *, game_id: str, seat: int) -> No
     manager._handle_pause_timeout(participant)
 
 
-_TIMEOUT_OF_WAIT = {
-    WaitKind.TURN: TimeoutType.TURN,
-    WaitKind.CALL: TimeoutType.MELD,
-}
-
-
 def _is_round_start(message: dict) -> bool:
     return message.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.ROUND_STARTED]
 
@@ -212,13 +206,12 @@ class SocketTable:
         game = game_of(self.manager)
         awaiting = game.awaiting
         assert awaiting is not None
-        while not (awaiting.kind == WaitKind.TURN and seat in awaiting.seats):
+        while awaiting != Turn(seat=seat):
             if game.pause is not None:
                 run_pause_timeout(self.manager, game_id="game1", seat=min(game.pause.seats))
             else:
-                waiting_seat = min(awaiting.seats)
-                timeout_type = _TIMEOUT_OF_WAIT[awaiting.kind]
-                run_timeout(self.manager, game_id="game1", timeout_type=timeout_type, seat=waiting_seat)
+                timeout_type = TimeoutType.TURN if isinstance(awaiting, Turn) else TimeoutType.MELD
+                run_timeout(self.manager, game_id="game1", timeout_type=timeout_type, seat=min(awaiting.seats))
 
             awaiting = game.awaiting
             assert awaiting is not None

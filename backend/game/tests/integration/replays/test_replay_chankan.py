@@ -8,7 +8,6 @@ from game.engine import (
     NUM_TILES,
     RNG_VERSION,
     Discard,
-    EventType,
     Kan,
     KanType,
     MahjongGameService,
@@ -16,6 +15,7 @@ from game.engine import (
     MeldViewType,
     Pass,
     Pon,
+    Refusal,
     Ron,
     RoundEndEvent,
     RoundResultType,
@@ -110,9 +110,9 @@ def _play_record_and_replay(
 
     recorded_events = list(start.events)
     for seat, action in actions:
-        update = service.act(runtime, seat, action)
-        assert [e for e in update.events if e.type == EventType.ERROR] == []
-        recorded_events += update.events
+        events = service.act(runtime, seat, action)
+        assert not isinstance(events, Refusal), events
+        recorded_events += events
 
     record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION, roster=ROSTER)
     ReplayCollector(FakeReplayStorage()).collect_events(record, recorded_events)

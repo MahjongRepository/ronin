@@ -3,28 +3,29 @@ from typing import TYPE_CHECKING
 import pytest
 
 from game.logic.decision import Discard
-from game.logic.enums import RoundPhase, WaitKind
+from game.logic.enums import RoundPhase
 from game.logic.events import EventType, GameEndedEvent, RoundStartedEvent
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.refusal import Refusal, RefusalCode, RefusalKind
-from game.logic.service import GameUpdate
+from game.logic.service import Dealt, GameOver, RoundOver, Turn
 from game.tests.helpers.builders import start_game_in_play
 from game.tests.unit.logic.helpers import _update_player, _update_round_state
 
 if TYPE_CHECKING:
+    from game.logic.events import GameEvent
     from game.logic.runtime import GameRuntime
 
 FOUR_PLAYERS = ["Alice", "Bob", "Charlie", "Dave"]
 
 
-def _exhaust_the_wall(service: MahjongGameService, runtime: GameRuntime) -> GameUpdate:
+def _exhaust_the_wall(service: MahjongGameService, runtime: GameRuntime) -> list[GameEvent]:
     current_seat = runtime.state.round_state.current_player_seat
     wall = runtime.state.round_state.wall
     _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
     drawn_tile = runtime.state.round_state.players[current_seat].tiles[-1]
-    update = service.act(runtime, current_seat, Discard(tile=drawn_tile))
-    assert isinstance(update, GameUpdate)
-    return update
+    events = service.act(runtime, current_seat, Discard(tile=drawn_tile))
+    assert not isinstance(events, Refusal), events
+    return events
 
 
 class TestRoundOver:
@@ -34,26 +35,18 @@ class TestRoundOver:
 
     def test_deal_next_round__when_the_round_is_over__should_deal_it_for_begin_round_to_draw(self, service):
         runtime = start_game_in_play(service, seed="a" * 192).runtime
-        ended = _exhaust_the_wall(service, runtime)
-        assert (ended.awaiting.kind, ended.awaiting.seats, ended.awaiting.round_number) == (
-            WaitKind.ROUND_OVER,
-            frozenset(),
-            0,
-        )
+        _exhaust_the_wall(service, runtime)
+        assert service.get_awaiting(runtime) == RoundOver()
 
         dealt = service.deal_next_round(runtime)
-        assert [type(e) for e in dealt.events] == [RoundStartedEvent] * 4
-        assert (dealt.awaiting.kind, dealt.awaiting.seats, dealt.awaiting.round_number) == (
-            WaitKind.DEALT,
-            frozenset(),
-            1,
-        )
-        assert runtime.state.round_state.result is None
+        assert [type(e) for e in dealt] == [RoundStartedEvent] * 4
+        assert service.get_awaiting(runtime) == Dealt()
+        assert (runtime.state.round_number, runtime.state.round_state.result) == (1, None)
 
         begun = service.begin_round(runtime)
         dealer = runtime.state.round_state.dealer_seat
-        assert [(e.type, e.target.seat) for e in begun.events] == [(EventType.DRAW, dealer)]
-        assert (begun.awaiting.kind, begun.awaiting.seats) == (WaitKind.TURN, frozenset({dealer}))
+        assert [(e.type, e.target.seat) for e in begun] == [(EventType.DRAW, dealer)]
+        assert service.get_awaiting(runtime) == Turn(seat=dealer)
 
     def test_act__when_the_round_is_over__should_refuse_it_as_the_wrong_phase(self, service):
         runtime = start_game_in_play(service, seed="a" * 192).runtime
@@ -71,5 +64,5 @@ class TestRoundOver:
         _update_player(runtime, seat=busted_seat, score=-1000)
 
         ended = _exhaust_the_wall(service, runtime)
-        assert [type(e) for e in ended.events if isinstance(e, GameEndedEvent)] == [GameEndedEvent]
-        assert (ended.awaiting.kind, ended.awaiting.seats) == (WaitKind.NONE, frozenset())
+        assert [type(e) for e in ended if isinstance(e, GameEndedEvent)] == [GameEndedEvent]
+        assert service.get_awaiting(runtime) == GameOver()

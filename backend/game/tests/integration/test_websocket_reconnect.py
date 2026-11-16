@@ -8,6 +8,7 @@ from game.engine import EventType, GameType, PlayerReconnectState, ReconnectionS
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.app import create_app
+from game.session.timer import TimerConfig
 from game.tests.helpers.session import make_session_manager
 from game.tests.helpers.websocket import (
     create_pending_game,
@@ -21,6 +22,8 @@ from game.wire.keys import WireKey
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+
+DELAYED_AI_TURNS = TimerConfig(game_start_confirm_seconds=0, ai_turn_delay_seconds=1)
 
 
 def _make_snapshot(seat: int = 0) -> ReconnectionSnapshot:
@@ -65,7 +68,7 @@ def _game_with_player1_dropped(client: TestClient) -> Generator[str]:
 class TestWebSocketReconnect:
     @pytest.fixture
     def client(self):
-        session_manager = make_session_manager()
+        session_manager = make_session_manager(timer_config=DELAYED_AI_TURNS)
         app = create_app(game_service=session_manager._game_service, session_manager=session_manager)
         with TestClient(app) as client:
             yield client
@@ -150,7 +153,7 @@ def _look_up_game_session(client: TestClient, user_id: str):
 class TestGameSessionLookup:
     @pytest.fixture
     def client(self):
-        session_manager = make_session_manager()
+        session_manager = make_session_manager(timer_config=DELAYED_AI_TURNS)
         app = create_app(game_service=session_manager._game_service, session_manager=session_manager)
         with TestClient(app) as client:
             yield client

@@ -9,7 +9,7 @@ from shared import websocket as shared_websocket
 from shared.dal.models import GameEndReason
 from shared.tests.helpers.fake_websocket import ClosedWith
 
-from .helpers import arrange_final_discard, run_timeout, runtime_of, start_over_sockets
+from .helpers import arrange_final_discard, game_of, run_timeout, runtime_of, start_over_sockets
 
 
 class TestConnectionWriters:
@@ -64,7 +64,7 @@ class TestConnectionWriters:
         await alice_endpoint
         assert alice.written == []
         assert not table.manager._participants_by_ticket[table.tickets["Alice"]].is_connected
-        assert runtime_of(table.manager).ai.is_ai_player(table.seat_of("Alice")) is True
+        assert game_of(table.manager).is_ai_seat(table.seat_of("Alice")) is True
         assert {
             WireKey.SESSION_TYPE: "seat_control",
             WireKey.SEAT: table.seat_of("Alice"),

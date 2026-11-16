@@ -72,8 +72,10 @@ are, so the seating rule is not part of the replay format.
 
 ## Versioning
 
-`RNG_VERSION` (`shake256-v1`) is written into every replay. Any change to the above is a new
-version. The replay loader rejects other versions, so an old replay needs the code that recorded it.
+`RNG_VERSION` (`shake256-v1`) is written into every replay. A change to what a replay depends on,
+how the seed becomes the walls and the first dealer, is a new version. The replay loader rejects
+other versions, so an old replay needs the code that recorded it. A seating change alone needs no
+new version: replays seat their recorded names.
 
 ## How much randomness there is
 
@@ -90,7 +92,7 @@ detectable in play, and a longer seed would not change it.
 
 The seed proves that the game matches the seed. It does not prove that the server did not pick the
 seed. Proving that needs a commitment before the game (a hash of the seed, or a published list of
-hashes); the engine does not do this today.
+hashes); the session does not do this today.
 
 ## Measured results
 

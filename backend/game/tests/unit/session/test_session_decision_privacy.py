@@ -1,4 +1,4 @@
-from game.engine import Discard, Pass, WaitKind
+from game.engine import Call, Discard, Pass, Turn
 from game.messaging.types import SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter
@@ -10,8 +10,8 @@ from game.wire.keys import WireKey
 from .helpers import ENGINE_SEED, create_started_game, game_of, participant_of, runtime_of
 
 
-async def test_decision_ids__when_opponents_pass_private_calls__should_hide_their_waits(paced_engine, fake_clock):
-    manager = make_session_manager(paced_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
+async def test_decision_ids__when_opponents_pass_private_calls__should_hide_their_waits(real_engine, fake_clock):
+    manager = make_session_manager(real_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
     alice, _, caller, idle = create_started_game(
         manager, player_names=["Alice", "Bob", "Carol", "Dave"], keep_start_messages=True
     )
@@ -23,7 +23,7 @@ async def test_decision_ids__when_opponents_pass_private_calls__should_hide_thei
     tile = runtime.state.round_state.players[alice_seat].tiles[-1]
 
     manager.handle_game_action(alice, action=Discard(tile=tile), called_tile=None, wait_id=draw[WireKey.WAIT_ID])
-    assert game_of(manager).awaiting.kind == WaitKind.CALL
+    assert isinstance(game_of(manager).awaiting, Call)
     assert game_of(manager).awaiting.seats == frozenset({caller_seat})
     prompt = next(
         message for message in caller.sent_messages if message.get(WireKey.EVENT_TYPE) == WireEventType.CALL_PROMPT
@@ -39,7 +39,7 @@ async def test_decision_ids__when_opponents_pass_private_calls__should_hide_thei
     )
 
     manager.handle_game_action(caller, action=Pass(), called_tile=None, wait_id=prompt[WireKey.WAIT_ID])
-    assert game_of(manager).awaiting.kind == WaitKind.TURN
+    assert isinstance(game_of(manager).awaiting, Turn)
     next_draw = next(
         message for message in caller.sent_messages if message.get(WireKey.EVENT_TYPE) == WireEventType.DRAW
     )

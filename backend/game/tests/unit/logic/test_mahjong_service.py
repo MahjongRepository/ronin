@@ -1,13 +1,9 @@
-import logging
-from dataclasses import replace
-
 import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.action_result import ActionResult
-from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Discard as DiscardAction
-from game.logic.decision import Kan, Kyuushu, Pon, Ron
+from game.logic.decision import Kan, Kyuushu, Pass, Pon, Ron
 from game.logic.enums import (
     KanType,
     MeldCallType,
@@ -15,12 +11,9 @@ from game.logic.enums import (
     PromptKind,
     RoundPhase,
     RoundResultType,
-    WaitKind,
     WindName,
 )
 from game.logic.events import (
-    DiscardEvent,
-    DrawEvent,
     EventType,
     GameStartedEvent,
     RoundStartedEvent,
@@ -29,10 +22,12 @@ from game.logic.events import (
 from game.logic.exceptions import DiscardHistoryError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
+from game.logic.refusal import Refusal
 from game.logic.runtime import GameRuntime
+from game.logic.service import Call, Dealt, GameOver, RoundOver, Turn
 from game.logic.settings import GameSettings, GameType
 from game.logic.state import Caller, Discard, MeldOption, PendingCallPrompt
-from game.logic.tiles import NUM_TILES, tile_to_34
+from game.logic.tiles import NUM_TILES
 from game.logic.turn import process_draw_phase
 from game.logic.types import (
     ExhaustiveDrawResult,
@@ -65,49 +60,6 @@ class TestMahjongGameServiceAllPlayers:
         draw_events = [e for e in events if e.type == EventType.DRAW]
         assert len(draw_events) == 1
 
-    def test_new_game__when_dealer_is_ai__should_include_ai_dealer_draw_and_discard(self, service):
-        start = start_game_in_play(service, humans=1, seed="c" * 192)
-        dealer_seat = start.runtime.state.round_state.dealer_seat
-        assert start.runtime.ai.is_ai_player(dealer_seat)
-
-        dealer_turn = [e for e in start.events if isinstance(e, DrawEvent | DiscardEvent) and e.seat == dealer_seat]
-        assert [type(e) for e in dealer_turn] == [DrawEvent, DiscardEvent]
-        assert start.runtime.state.round_state.current_player_seat == start.human_seats[0]
-
-
-class TestMahjongGameServiceAdvanceAITurn:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService(pace_ai_turns=True)
-
-    def test_advance_ai_turn__when_ai_turns_are_paced__should_play_one_per_call_and_the_unpaced_game(self, service):
-        start = start_game_in_play(service, humans=1, seed="c" * 192)
-        runtime = start.runtime
-        dealer_seat = runtime.state.round_state.dealer_seat
-        assert (start.awaiting.kind, start.awaiting.seats) == (WaitKind.AI_TURN, frozenset())
-        assert [type(e) for e in start.events if isinstance(e, DrawEvent | DiscardEvent)] == [DrawEvent]
-
-        events = list(start.events)
-        awaiting = start.awaiting
-        discarders_per_call = []
-        while awaiting.kind == WaitKind.AI_TURN:
-            update = service.advance_ai_turn(runtime)
-            discarders_per_call.append([e.seat for e in update.events if isinstance(e, DiscardEvent)])
-            events.extend(update.events)
-            awaiting = update.awaiting
-
-        assert discarders_per_call == [[dealer_seat], [(dealer_seat + 1) % 4], [(dealer_seat + 2) % 4]]
-        assert (awaiting.kind, awaiting.seats) == (WaitKind.TURN, frozenset(start.human_seats))
-        unpaced = start_game_in_play(MahjongGameService(), humans=1, seed="c" * 192)
-        assert events == unpaced.events
-        assert runtime.state.round_state == unpaced.runtime.state.round_state
-
-    def test_advance_ai_turn__when_a_human_seat_is_to_play__should_raise(self, service):
-        runtime = start_game_in_play(service, seed="c" * 192).runtime
-
-        with pytest.raises(AssertionError, match="no AI player's turn to play"):
-            service.advance_ai_turn(runtime)
-
 
 class TestMahjongGameServiceBeginRound:
     @pytest.fixture
@@ -117,37 +69,13 @@ class TestMahjongGameServiceBeginRound:
     def test_new_game__when_started__should_stop_after_the_deal_until_begin_round_draws(self, service):
         runtime, events = service.new_game("c" * 192)
         assert [type(e) for e in events] == [GameStartedEvent] + [RoundStartedEvent] * 4
-        awaiting = service.get_awaiting(runtime)
-        assert (awaiting.kind, awaiting.seats) == (WaitKind.DEALT, frozenset())
+        assert service.get_awaiting(runtime) == Dealt()
 
         begun = service.begin_round(runtime)
         in_play = start_game_in_play(MahjongGameService(), seed="c" * 192)
-        assert begun.events == in_play.events[len(events) :]
-        assert begun.awaiting.kind == WaitKind.TURN
+        assert begun == in_play.events[len(events) :]
+        assert service.get_awaiting(runtime) == Turn(seat=runtime.state.round_state.dealer_seat)
         assert runtime.state.round_state == in_play.runtime.state.round_state
-
-
-class TestMahjongGameServiceReplaceWithAIPlayer:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    def test_replace_with_ai_player__when_player_replaced__should_register_ai_player_in_controller(self, service):
-        start = start_game_in_play(service, humans=1, seed="a" * 192)
-        runtime = start.runtime
-        player_seat = start.human_seats[0]
-        ai_player_controller = runtime.ai
-        assert ai_player_controller.is_ai_player(player_seat) is False
-
-        service.replace_with_ai_player(runtime, player_seat)
-        assert ai_player_controller.is_ai_player(player_seat) is True
-
-
-def _take_live_copy(live_tiles: list[int], man: str) -> int:
-    tile_34 = tile_to_34(TilesConverter.string_to_136_array(man=man)[0])
-    tile_id = next(t for t in live_tiles if tile_to_34(t) == tile_34)
-    live_tiles.remove(tile_id)
-    return tile_id
 
 
 def _discard_chun_to_two_ron_callers(service: MahjongGameService) -> tuple[GameRuntime, int]:
@@ -169,7 +97,7 @@ def _discard_chun_to_two_ron_callers(service: MahjongGameService) -> tuple[GameR
         ),
     )
     game_state = create_dealt_game_state(players, seed="a" * 192)
-    runtime = GameRuntime(state=game_state, ai=AIPlayerController({}))
+    runtime = GameRuntime(state=game_state)
     service.act(runtime, 0, DiscardAction(tile=chun_discard))
     prompt = runtime.state.round_state.pending_call_prompt
     assert prompt is not None
@@ -177,146 +105,20 @@ def _discard_chun_to_two_ron_callers(service: MahjongGameService) -> tuple[GameR
     return runtime, chun_discard
 
 
-class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
+class TestMahjongGameServiceCallAnswers:
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    def test_ai_actions_after_replacement__when_round_not_playing__should_return_no_events(self, service):
-        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
-        _update_round_state(runtime, phase=RoundPhase.FINISHED)
-
-        events = service.process_ai_player_actions_after_replacement(runtime, seat=0).events
-        assert events == []
-
-    def test_ai_actions_after_replacement__when_replaced_player_has_turn__should_play_turn(self, service):
-        runtime = start_game_in_play(service, humans=2, seed="a" * 192).runtime
-        game_state = runtime.state
-        round_state = game_state.round_state
-        player = _first_human(runtime.state)
-        player_seat = player.seat
-
-        player_tiles = list(player.tiles)
-        live_tiles = list(round_state.wall.live_tiles)
-        while len(player_tiles) < 14:
-            if live_tiles:
-                player_tiles.append(live_tiles.pop())
-
-        new_players = []
-        for p in round_state.players:
-            if p.seat == player_seat:
-                new_players.append(p.model_copy(update={"tiles": tuple(player_tiles)}))
-            elif len(p.tiles) > 13:
-                new_players.append(p.model_copy(update={"tiles": tuple(list(p.tiles)[:13])}))
-            else:
-                new_players.append(p)
-
-        new_wall = round_state.wall.model_copy(update={"live_tiles": tuple(live_tiles)})
-        _update_round_state(
-            runtime,
-            current_player_seat=player_seat,
-            wall=new_wall,
-            players=tuple(new_players),
-            pending_call_prompt=None,
-        )
-
-        service.replace_with_ai_player(runtime, player_seat)
-        events = service.process_ai_player_actions_after_replacement(runtime, player_seat).events
-        assert events[0] == DiscardEvent(seat=player_seat, tile_id=player_tiles[-1], is_tsumogiri=True)
-
-    def test_ai_actions_after_replacement__when_replaced_right_after_own_chi__should_discard_legally(
-        self, service, caplog
-    ):
-        runtime = start_game_in_play(service, seed="a" * 192).runtime
-        round_state = runtime.state.round_state
-        alice = _first_human(runtime.state)
-        kamicha_seat = (alice.seat - 1) % 4
-        live_tiles = list(round_state.wall.live_tiles)
-        called_4m, held_4m, chi_5m, chi_6m, held_7m = (
-            _take_live_copy(live_tiles, man=man) for man in ("4", "4", "5", "6", "7")
-        )
-        chi_meld = FrozenMeld(
-            meld_type=FrozenMeld.CHI,
-            tiles=(called_4m, chi_5m, chi_6m),
-            opened=True,
-            called_tile=called_4m,
-            who=alice.seat,
-            from_who=kamicha_seat,
-        )
-        hand_after_chi_of_4m_with_5m_6m = (*alice.tiles[:9], held_4m, held_7m)
-        chi_kuikae = (tile_to_34(called_4m), tile_to_34(held_7m))
-        _update_player(
-            runtime,
-            seat=alice.seat,
-            tiles=hand_after_chi_of_4m_with_5m_6m,
-            melds=(chi_meld,),
-            kuikae_tiles=chi_kuikae,
-        )
-        _update_round_state(
-            runtime,
-            wall=round_state.wall.model_copy(update={"live_tiles": tuple(live_tiles)}),
-            current_player_seat=alice.seat,
-            is_after_meld_call=True,
-        )
-
-        service.replace_with_ai_player(runtime, alice.seat)
-        events = service.process_ai_player_actions_after_replacement(runtime, alice.seat).events
-        discard = events[0]
-        assert isinstance(discard, DiscardEvent)
-        assert discard.seat == alice.seat
-        assert tile_to_34(discard.tile_id) not in chi_kuikae
-        assert [r for r in caplog.records if r.levelno >= logging.ERROR] == []
-
-    def test_ai_actions_after_replacement__when_replaced_player_is_pending_caller__should_answer_and_play_its_turn(
-        self, service
-    ):
-        chun_discard = tile_copies(1, honors="7")[0]
-        players = (
-            create_player(
-                seat=0,
-                tiles=(chun_discard, *tile_copies(0, sou="123456789"), *tile_copies(1, honors="1234")),
-            ),
-            create_player(seat=1, tiles=tile_copies(0, man="123456789", pin="444", honors="7")),
-            create_player(seat=2, tiles=(*tile_copies(1, sou="123456789"), *tile_copies(2, honors="1234"))),
-            create_player(seat=3, tiles=(*tile_copies(2, sou="123456789"), *tile_copies(3, honors="1234"))),
-        )
-        runtime = GameRuntime(state=create_dealt_game_state(players), ai=AIPlayerController({}))
-        service.act(runtime, 0, DiscardAction(tile=chun_discard))
-        prompt = runtime.state.round_state.pending_call_prompt
-        assert prompt is not None
-        assert prompt.callers == (Caller(seat=1, can_ron=True),)
-
-        service.replace_with_ai_player(runtime, 1)
-        events = service.process_ai_player_actions_after_replacement(runtime, 1).events
-        assert runtime.state.round_state.pending_call_prompt is None
-        assert [e.seat for e in events if isinstance(e, DiscardEvent)] == [1]
-        assert runtime.state.round_state.current_player_seat == 2
-
-    def test_ai_actions_after_replacement__when_other_player_still_pending__should_keep_prompt_for_them(self, service):
-        runtime, _ = _discard_chun_to_two_ron_callers(service)
-        waiting = service.get_awaiting(runtime)
-        assert (waiting.kind, waiting.seats) == (WaitKind.CALL, frozenset({1, 2}))
-
-        service.replace_with_ai_player(runtime, 1)
-        update = service.process_ai_player_actions_after_replacement(runtime, 1)
-        assert update.awaiting == replace(waiting, seats=frozenset({2}))
-        prompt = runtime.state.round_state.pending_call_prompt
-        assert prompt is not None
-        assert prompt.pending_seats == frozenset({2})
-        assert [(e.target, e.is_furiten) for e in update.events if e.type == EventType.FURITEN] == [
-            (SeatTarget(seat=1), True),
-        ]
-
-    def test_ai_actions_after_replacement__when_prompt_resolution_ends_round__should_handle_round_end(self, service):
+    def test_act__when_the_last_caller_passes_after_a_ron__should_end_the_round(self, service):
         runtime, chun_discard = _discard_chun_to_two_ron_callers(service)
         service.act(runtime, 2, Ron())
-        assert runtime.state.round_state.pending_call_prompt is not None
+        assert service.get_awaiting(runtime) == Call(seats=frozenset({1}))
 
-        service.replace_with_ai_player(runtime, 1)
-        update = service.process_ai_player_actions_after_replacement(runtime, 1)
-        round_ends = [e.result for e in update.events if e.type == EventType.ROUND_END]
+        events = service.act(runtime, 1, Pass())
+        round_ends = [e.result for e in events if e.type == EventType.ROUND_END]
         assert [(r.winner_seat, r.loser_seat, r.winning_tile) for r in round_ends] == [(2, 0, chun_discard)]
-        assert (update.awaiting.kind, update.awaiting.seats) == (WaitKind.ROUND_OVER, frozenset())
+        assert service.get_awaiting(runtime) == RoundOver()
         assert (runtime.state.round_number, runtime.state.round_state.dealer_seat) == (1, 1)
 
         service.deal_next_round(runtime)
@@ -376,8 +178,9 @@ class TestSeedDeterminism:
         for _ in range(2):
             service.act(runtime, dealer, Kyuushu())
             dealt = service.deal_next_round(runtime)
+            assert not isinstance(dealt, Refusal), dealt
             service.begin_round(runtime)
-            deals.append([event for event in dealt.events if isinstance(event, RoundStartedEvent)])
+            deals.append([event for event in dealt if isinstance(event, RoundStartedEvent)])
 
         second_deal, third_deal = deals
         assert sorted(second_deal[dealer].my_tiles) == sorted(dealer_hands[1])
@@ -397,8 +200,8 @@ class TestRoundEndAwaiting:
     @pytest.mark.parametrize(
         ("unique_dealers", "tenpai_seat_after_dealer", "expected_wait"),
         [
-            pytest.param(8, 0, WaitKind.NONE, id="south_4_dealer_stays_first_at_target"),
-            pytest.param(7, 1, WaitKind.ROUND_OVER, id="south_3_next_dealer_first_at_target"),
+            pytest.param(8, 0, GameOver(), id="south_4_dealer_stays_first_at_target"),
+            pytest.param(7, 1, RoundOver(), id="south_3_next_dealer_first_at_target"),
         ],
     )
     def test_round_end__when_tenpai_seat_is_first_at_target__should_stop_only_for_a_staying_dealer(
@@ -430,39 +233,11 @@ class TestRoundEndAwaiting:
 
         wall = runtime.state.round_state.wall
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
-        update = service.act(runtime, dealer_seat, DiscardAction(tile=dealer_discard))
-        (round_end,) = [event for event in update.events if event.type == EventType.ROUND_END]
+        events = service.act(runtime, dealer_seat, DiscardAction(tile=dealer_discard))
+        (round_end,) = [event for event in events if event.type == EventType.ROUND_END]
         assert round_end.result.tempai_seats == [tenpai_seat]
 
-        assert update.awaiting.kind == expected_wait
-
-
-class TestMahjongGameServiceRestoreHumanPlayer:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    def test_restore_human_player__when_seat_was_replaced__should_remove_ai_player_from_seat(self, service):
-        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
-        player = _first_human(runtime.state)
-        seat = player.seat
-
-        service.replace_with_ai_player(runtime, seat)
-        assert runtime.ai.is_ai_player(seat) is True
-
-        service.restore_human_player(runtime, seat)
-        assert runtime.ai.is_ai_player(seat) is False
-
-    def test_restore_human_player__when_its_ai_player_turn_is_unplayed__should_open_the_turn_as_a_new_wait(self):
-        service = MahjongGameService(pace_ai_turns=True)
-        runtime = start_game_in_play(service, seed="c" * 192).runtime
-        seat = runtime.state.round_state.current_player_seat
-        service.replace_with_ai_player(runtime, seat)
-        handed_over = service.process_ai_player_actions_after_replacement(runtime, seat)
-        assert (handed_over.events, handed_over.awaiting.kind) == ([], WaitKind.AI_TURN)
-
-        restored = service.restore_human_player(runtime, seat)
-        assert (restored.kind, restored.seats) == (WaitKind.TURN, frozenset({seat}))
+        assert service.get_awaiting(runtime) == expected_wait
 
 
 def _latest_discard_seat(service: MahjongGameService, runtime: GameRuntime) -> int | None:
@@ -513,8 +288,7 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         _update_player(runtime, seat=riichi_seat, tiles=tuple(tenpai_hand), is_riichi=True)
         _update_round_state(runtime, wall=make_wall())
         exhausted_game, draw_events = process_draw_phase(runtime.state)
-        runtime.commit(exhausted_game)
-        service._process_action_result_internal(runtime, ActionResult(draw_events, state=exhausted_game))
+        service._commit_and_process(runtime, ActionResult(draw_events, state=exhausted_game))
         service.deal_next_round(runtime)
         service.begin_round(runtime)
         assert runtime.state.round_number == 1
@@ -547,9 +321,8 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         _update_player(runtime, seat=tenpai_seat, tiles=tuple(tenpai_hand))
         _update_round_state(runtime, wall=make_wall())
         exhausted_game, draw_events = process_draw_phase(runtime.state)
-        runtime.commit(exhausted_game)
-        service._process_action_result_internal(runtime, ActionResult(draw_events, state=exhausted_game))
-        assert service.get_awaiting(runtime).kind == WaitKind.ROUND_OVER
+        service._commit_and_process(runtime, ActionResult(draw_events, state=exhausted_game))
+        assert service.get_awaiting(runtime) == RoundOver()
         assert (runtime.state.round_state.dealer_seat, runtime.state.round_number, runtime.state.honba_sticks) == (
             tenpai_seat,
             1,
@@ -588,7 +361,7 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         ).runtime
         service.act(runtime, 0, Kan(kan_type=KanType.CLOSED, tile=man_1[3]))
         service.act(runtime, 1, Ron())
-        assert service.get_awaiting(runtime).kind == WaitKind.ROUND_OVER
+        assert service.get_awaiting(runtime) == RoundOver()
 
         snapshot = service.build_reconnection_snapshot(runtime, 2)
         assert isinstance(snapshot.result, RonResult)
@@ -618,7 +391,6 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         )
         runtime = GameRuntime(
             state=create_dealt_game_state(players, current_player_seat=1, seed="a" * 192),
-            ai=AIPlayerController({}),
         )
 
         service.act(runtime, 1, DiscardAction(tile=haku))
@@ -686,7 +458,6 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
                 rinshan_draws=tile_copies(2, honors="7"),
                 seed="a" * 192,
             ),
-            ai=AIPlayerController({}),
         )
         after_the_draw = _latest_discard_seat(service, runtime)
 
@@ -713,7 +484,7 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
             create_player(seat=3, tiles=tile_copies(3, man="123456789", pin="1234")),
         )
         state = create_dealt_game_state(players, current_player_seat=1, all_discards=[second, first], seed="a" * 192)
-        runtime = GameRuntime(state=state, ai=AIPlayerController({}))
+        runtime = GameRuntime(state=state)
 
         with pytest.raises(DiscardHistoryError):
             service.build_reconnection_snapshot(runtime, 0)
@@ -800,7 +571,7 @@ class TestMahjongGameServiceBuildWaitEventsForSeat:
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
         drawn_tile = runtime.state.round_state.players[current_seat].tiles[-1]
         service.act(runtime, current_seat, DiscardAction(tile=drawn_tile))
-        assert service.get_awaiting(runtime).kind == WaitKind.ROUND_OVER
+        assert service.get_awaiting(runtime) == RoundOver()
 
         assert service.build_wait_events_for_seat(runtime, current_seat) == []
 

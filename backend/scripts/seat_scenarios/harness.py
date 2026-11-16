@@ -35,7 +35,6 @@ if TYPE_CHECKING:
         Action,
         GameEvent,
         GameRuntime,
-        GameUpdate,
         KanType,
         StartPosition,
     )
@@ -140,9 +139,8 @@ class _AdvancingSelector(selectors.SelectSelector):
 
 class _StagedEngine(MahjongGameService):
     """
-    The real engine, pacing AI turns as the live server's does, dealing every game it starts from the staged walls and
-    start position, as the session starts one with none of them, and from the staged seed, the scenario session's seed
-    source.
+    The real engine, dealing every game it starts from the staged walls and start position, as the session starts one
+    with none of them, and from the staged seed, the scenario session's seed source.
 
     The rounds after the first are dealt from the staged later rounds' walls in order, each checked against the dealer
     the game advanced to, and from the seed once those run out. Each staged draw of a round is checked against the seat
@@ -156,7 +154,7 @@ class _StagedEngine(MahjongGameService):
         later_rounds: Sequence[StagedWall],
         start: StartPosition | None,
     ) -> None:
-        super().__init__(pace_ai_turns=True)
+        super().__init__()
         dealer = start.dealer_seat if start is not None else 0
         if staged.dealer != dealer:
             raise ScenarioError(f"a staged game's first round is dealt from seat {dealer}, not {staged.dealer}")
@@ -183,7 +181,6 @@ class _StagedEngine(MahjongGameService):
         *,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
-        ai_seats: frozenset[int] = frozenset(),
     ) -> tuple[GameRuntime, list[GameEvent]]:
         if seed != STAGED_SEED or walls or start is not None:
             raise ScenarioError("the session started a game with another seed, or its own walls or start")
@@ -192,40 +189,27 @@ class _StagedEngine(MahjongGameService):
             seed,
             walls=[staged.tiles() for staged in self._staged_rounds],
             start=self._start,
-            ai_seats=ai_seats,
         )
         self._check_draws(events)
         return runtime, events
 
     @override
-    def begin_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
+    def begin_round(self, runtime: GameRuntime) -> list[GameEvent] | Refusal:
         return self._checked(super().begin_round(runtime))
 
     @override
-    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
+    def deal_next_round(self, runtime: GameRuntime) -> list[GameEvent] | Refusal:
         return self._checked(super().deal_next_round(runtime))
 
     @override
-    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
+    def act(self, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent] | Refusal:
         return self._checked(super().act(runtime, seat, action))
 
-    def _checked(self, result: GameUpdate | Refusal) -> GameUpdate | Refusal:
+    def _checked(self, result: list[GameEvent] | Refusal) -> list[GameEvent] | Refusal:
         if not isinstance(result, Refusal):
-            self._check_draws(result.events)
+            self._check_draws(result)
 
         return result
-
-    @override
-    def process_ai_player_actions_after_replacement(self, runtime: GameRuntime, seat: int) -> GameUpdate:
-        update = super().process_ai_player_actions_after_replacement(runtime, seat)
-        self._check_draws(update.events)
-        return update
-
-    @override
-    def advance_ai_turn(self, runtime: GameRuntime) -> GameUpdate:
-        update = super().advance_ai_turn(runtime)
-        self._check_draws(update.events)
-        return update
 
     def _check_draws(self, events: Sequence[GameEvent]) -> None:
         """

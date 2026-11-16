@@ -9,26 +9,20 @@ of its one preset); read it before changing or testing a rule, and update it whe
   the game state. One game state flows through the round-flow functions; only a helper scoped to a round or a player
   takes the round.
 * A round ends only through `finish_round()` (`state_utils.py`), so a finished round always carries its result, and
-  the result stays on the round while the game waits on its end (`WaitKind.ROUND_OVER`). It also appends the round's compact ledger entry to the
+  the result stays on the round while the game waits on its end (`RoundOver`). It also appends the round's compact ledger entry to the
   game state's `round_history`, the one record of past rounds (the reconnect snapshot sends it).
 * Domain events (`events.py`) carry integer tile ids only (136-format) and their own routing target, a broadcast or
   one seat. Domain models keep readable field names and full point values; `messaging/` owns explicit protocol
   serialization, including numeric keys, integer enum codes and scaled scores.
-* The engine holds no decision identity and no timeout: `Awaiting` says only what the game waits for, and which wait
-  is new, its decision ids, its timers and what a timeout plays (the seat's `default_action`, through `act`) are the
+* The engine holds no decision identity and no timeout: `Awaiting` (`service.py`: dealt, a seat's turn, an open call's
+  pending seats, round over, game over) says only what the game waits for, naming every awaited seat. Which wait is
+  new, its decision ids, its timers and what a timeout plays (the seat's `default_action`, through `act`) are the
   session's.
-* One dispatch pipeline for humans and AI. A human's refused action is returned before the commit: nothing
-  is stored and no AI turn runs. `AIPlayerController` only decides; every state change goes through
-  `MahjongGameService`.
-* Player type is a service-layer fact: the player model has no AI flag and no name, and only `AIPlayerController`
-  knows which seats AI players hold, as `new_game` is told. Names, AI flags and the game id are the caller's, which
-  adds them to `game_started` and the reconnect snapshot; events use seats. `act` acts only for a human seat; one for
-  an AI seat is a server fault, since the session only ever acts for a connected human.
-* A call plays every AI turn it reaches, unless the service is built with `pace_ai_turns` (the live server), which
-  stops before each AI player's turn action (`MahjongGameService`). AI answers to call prompts never wait. Both modes
-  play the same game with the same events in the same order; the replay runner and engine tests use the unpaced one.
-* The engine holds no pause: `new_game` and `deal_next_round` stop after the deal (`WaitKind.DEALT`) and a round end
-  that does not end the game stops on `WaitKind.ROUND_OVER`, neither awaiting a seat; the caller moves on with
+* The engine never learns who answers a seat: a person, an AI player and a timeout all answer through the same `act`,
+  one answer of one seat per call, and each call returns only that answer's events; what the game waits for next is
+  a separate read (`get_awaiting`). Who plays a seat, and when, is the caller's: AI players live in the session.
+* The engine holds no pause: `new_game` and `deal_next_round` stop after the deal (`Dealt`) and a round end that does
+  not end the game stops on `RoundOver`, neither awaiting a seat; the caller moves on with
   `begin_round` (the dealer's first draw) and `deal_next_round` when it is ready, and until then the round plays no
   action. Who confirms what in between, and for how long, is the session's.
 * The seat is a player's only identity: every call takes a seat and the engine holds no names. The seed, who sits
@@ -58,7 +52,7 @@ of its one preset); read it before changing or testing a rule, and update it whe
   except right after the player's own pon or chi, when nothing was drawn and a turn event names the tile types kuikae
   forbids.
 * `legal_discards` and `choose_default_discard` (`round.py`) are the one legal-discard rule, used by the discard
-  validator, the turn timeout and the AI; the chi check mirrors its non-riichi kuikae rule itself (a riichi seat
+  validator and a turn decision's default; the chi check mirrors its non-riichi kuikae rule itself (a riichi seat
   cannot chi) and drops a shape that would leave no legal discard, so the default chooser never comes up empty (if
   it does, that is an engine fault).
 * "No call yet" is one predicate on the round state (closed kans count), shared by every rule that needs it.
@@ -92,18 +86,16 @@ and message are messaging's.
 * **NOT_AWAITED**: a phase call in the wrong phase, an action while the round is not in play, from a seat the engine
   is not waiting on, or for another decision than the seat's (a pass on its own turn, a discard during a call), a race
   the server can detect from state alone.
-* **Server fault**: everything else raises, with no blame guessing and no fabricated pass, win or retry. An action the
-  engine made itself (an AI decision) that is refused raises `GeneratedActionError`, so a refusal never counts as AI
-  progress.
+* **Server fault**: everything else raises, with no blame guessing and no fabricated pass, win or retry.
 
 Validation completes before a handler returns and the service stores only an `ActionResult`, so a refusal never
 leaves a partial state.
 
 ## Determinism
 
-The same seed and inputs produce an identical replay trace. Randomness comes only from `rng.py` (`docs/rng.md`); AI strategies must be deterministic for a given
-state. The seed's seat permutation is part of the contract: the session seats its players by it (`docs/rng.md`), and a
-replay records each seat's name, which the loader seats as recorded. A change to wall or RNG behaviour bumps
+The same seed and inputs produce an identical replay trace. Randomness comes only from `rng.py` (`docs/rng.md`). The
+seed's seat permutation is the contract for live seating only: the session seats its players by it (`docs/rng.md`),
+while a replay records each seat's name, which the loader seats as recorded. A change to wall or RNG behaviour bumps
 `RNG_VERSION`; a change to the replay format bumps `REPLAY_VERSION` (`wire/replay_format.py`).
 
 ## Tile ownership

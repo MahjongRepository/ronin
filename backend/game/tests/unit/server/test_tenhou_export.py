@@ -11,13 +11,13 @@ from game.engine import (
     WIRE_SCORE_DIVISOR,
     AbortiveDrawResult,
     AbortiveDrawType,
+    Call,
     Discard,
     DiscardEvent,
     DoraRevealedEvent,
     DoubleRonResult,
     DoubleRonWinner,
     DrawEvent,
-    EventType,
     ExhaustiveDrawResult,
     GameEndCause,
     GameEndedEvent,
@@ -35,6 +35,7 @@ from game.engine import (
     Pass,
     PlayerStanding,
     Pon,
+    Refusal,
     Riichi,
     RiichiDeclaredEvent,
     RobbedKan,
@@ -46,7 +47,7 @@ from game.engine import (
     TenpaiHand,
     Tsumo,
     TsumoResult,
-    WaitKind,
+    Turn,
     YakuInfo,
 )
 from game.messaging.event_payload import game_event_payload, game_started_payload
@@ -518,9 +519,9 @@ def _play_and_record_replay_lines(
     service, start = _start_game(wall)
     recorded_events = list(start.events)
     for seat, action in actions:
-        update = service.act(start.runtime, seat, action)
-        assert [e for e in update.events if e.type == EventType.ERROR] == []
-        recorded_events += update.events
+        events = service.act(start.runtime, seat, action)
+        assert not isinstance(events, Refusal), events
+        recorded_events += events
 
     return _replay_lines(recorded_events)
 
@@ -531,17 +532,17 @@ def _play_by_tsumogiri_and_record_replay_lines(
     service, start = _start_game(wall, start_position)
     recorded_events = list(start.events)
     awaiting = start.awaiting
-    while awaiting.kind in (WaitKind.TURN, WaitKind.CALL):
+    while isinstance(awaiting, Turn | Call):
         seat = min(awaiting.seats)
-        if awaiting.kind == WaitKind.CALL:
-            update = service.act(start.runtime, seat, Pass())
+        if isinstance(awaiting, Call):
+            events = service.act(start.runtime, seat, Pass())
         else:
             drawn_tile = start.runtime.state.round_state.players[seat].tiles[-1]
-            update = service.act(start.runtime, seat, Discard(tile=drawn_tile))
+            events = service.act(start.runtime, seat, Discard(tile=drawn_tile))
 
-        assert [e for e in update.events if e.type == EventType.ERROR] == []
-        recorded_events += update.events
-        awaiting = update.awaiting
+        assert not isinstance(events, Refusal), events
+        recorded_events += events
+        awaiting = service.get_awaiting(start.runtime)
 
     return _replay_lines(recorded_events)
 

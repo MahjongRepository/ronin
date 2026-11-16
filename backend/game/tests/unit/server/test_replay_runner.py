@@ -9,7 +9,6 @@ from game.engine import (
     EventType,
     GameEvent,
     GamePhase,
-    GameUpdate,
     Kan,
     KanType,
     MahjongGameService,
@@ -21,7 +20,6 @@ from game.engine import (
     RefusalCode,
     RefusalKind,
     Ron,
-    WaitKind,
 )
 from game.logic.state import Caller, MeldOption, PendingCallPrompt
 from game.replay.loader import ReplayLoadError
@@ -52,11 +50,6 @@ if TYPE_CHECKING:
 
 PLAYER_NAMES = ("Alice", "Bob", "Charlie", "Diana")
 SEED = "a" * 192
-STUB_AWAITING = Awaiting(kind=WaitKind.TURN, seats=frozenset(), round_number=0)
-
-
-def _stub_update(events: list[GameEvent]) -> GameUpdate:
-    return GameUpdate(events=events, awaiting=STUB_AWAITING)
 
 
 def _pon_caller(seat: int) -> Caller:
@@ -82,17 +75,16 @@ class _StubService:
         *,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
-        ai_seats: frozenset[int] = frozenset(),
     ) -> tuple[GameRuntime, list[GameEvent]]:
-        return self._inner.new_game(seed, walls=walls, start=start, ai_seats=ai_seats)
+        return self._inner.new_game(seed, walls=walls, start=start)
 
-    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
+    def act(self, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent] | Refusal:
         return self._inner.act(runtime, seat, action)
 
-    def begin_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
+    def begin_round(self, runtime: GameRuntime) -> list[GameEvent] | Refusal:
         return self._inner.begin_round(runtime)
 
-    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
+    def deal_next_round(self, runtime: GameRuntime) -> list[GameEvent] | Refusal:
         return self._inner.deal_next_round(runtime)
 
     def get_awaiting(self, runtime: GameRuntime) -> Awaiting:
@@ -201,7 +193,7 @@ def test_run_replay__should_seat_each_player_at_its_index():
 def test_run_replay__when_strict_and_input_after_game_end__should_raise():
 
     class FinishedService(_StubService):
-        def begin_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
+        def begin_round(self, runtime: GameRuntime) -> list[GameEvent] | Refusal:
             update = super().begin_round(runtime)
             runtime.commit(runtime.state.model_copy(update={"game_phase": GamePhase.FINISHED}))
             return update
@@ -214,7 +206,7 @@ def test_run_replay__when_strict_and_input_after_game_end__should_raise():
 def test_run_replay__when_non_strict_and_input_after_game_end__should_skip_input():
 
     class FinishedService(_StubService):
-        def begin_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
+        def begin_round(self, runtime: GameRuntime) -> list[GameEvent] | Refusal:
             update = super().begin_round(runtime)
             runtime.commit(runtime.state.model_copy(update={"game_phase": GamePhase.FINISHED}))
             return update
@@ -265,7 +257,7 @@ def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other
             super().__init__()
             self._inject_prompt = False
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent] | Refusal:
             if action == Pass():
                 # Resolve the call prompt by removing it from state
                 state = runtime.state
@@ -283,7 +275,7 @@ def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other
                         )
                     )
 
-                return _stub_update([])
+                return []
 
             events = super().act(runtime, seat, action)
             # Inject a fake call prompt after a discard
@@ -385,7 +377,7 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
             )
             return runtime, events
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent] | Refusal:
             if action == Pass():
                 self._pass_calls.append(seat)
                 state = runtime.state
@@ -403,7 +395,7 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
                         )
                     )
 
-                return _stub_update([])
+                return []
 
             if action == Pon():
                 state = runtime.state
@@ -416,7 +408,7 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
                         update={"round_state": new_round},
                     )
                 )
-                return _stub_update([])
+                return []
 
             return super().act(runtime, seat, action)
 
@@ -467,7 +459,7 @@ def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_it
             )
             return runtime, events
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent] | Refusal:
             if action not in (Pass(), Ron()):
                 return super().act(runtime, seat, action)
 
@@ -482,7 +474,7 @@ def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_it
                     )
                 )
 
-            return _stub_update([])
+            return []
 
     replay = _build_replay(
         actions=(
@@ -529,7 +521,7 @@ def test_auto_pass_calls__when_prompted_seat_declares_self_kan__should_pass_its_
             )
             return runtime, events
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent] | Refusal:
             if action == Pass():
                 state = runtime.state
                 runtime.commit(
@@ -538,7 +530,7 @@ def test_auto_pass_calls__when_prompted_seat_declares_self_kan__should_pass_its_
                     )
                 )
 
-            return _stub_update([])
+            return []
 
     replay = _build_replay(actions=((kan_player, Kan(kan_type=kan_type, tile=0)),))
 
@@ -584,7 +576,7 @@ def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_re
             )
             return runtime, events
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent] | Refusal:
             if action == Pass():
                 return Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.ALREADY_ANSWERED)
 
@@ -607,7 +599,7 @@ def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_rema
             super().__init__()
             self._pass_calls: list[int] = []
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent] | Refusal:
             if action == Pass():
                 self._pass_calls.append(seat)
                 state = runtime.state
@@ -625,7 +617,7 @@ def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_rema
                         )
                     )
 
-                return _stub_update([])
+                return []
 
             events = super().act(runtime, seat, action)
             if isinstance(action, Discard):
@@ -714,7 +706,7 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
             )
             return runtime, events
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent] | Refusal:
             if action == Pass():
                 self._pass_count += 1
                 state = runtime.state
@@ -731,7 +723,7 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
                         },
                     )
                 )
-                return _stub_update([])
+                return []
 
             return super().act(runtime, seat, action)
 
@@ -751,7 +743,7 @@ def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip
         def __init__(self) -> None:
             super().__init__()
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent] | Refusal:
             if action == Pass():
                 state = runtime.state
 
@@ -766,7 +758,7 @@ def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip
                         },
                     )
                 )
-                return _stub_update([])
+                return []
 
             events = super().act(runtime, seat, action)
             if isinstance(action, Discard):
@@ -846,7 +838,7 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
             )
             return runtime, events
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent] | Refusal:
             if action == Pass():
                 self._pass_count += 1
                 state = runtime.state
@@ -859,7 +851,7 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
                         update={"round_state": new_round},
                     )
                 )
-                return _stub_update([])
+                return []
 
             if isinstance(action, Discard):
                 # Use real discard but ensure no new prompt is created

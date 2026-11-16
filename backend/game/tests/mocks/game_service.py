@@ -1,68 +1,89 @@
 from typing import TYPE_CHECKING, cast
 
-from game.logic.ai_player_controller import AIPlayerController
-from game.logic.decision import Discard
-from game.logic.enums import WaitKind, WindName
-from game.logic.events import (
+from game.engine import (
+    NUM_PLAYERS,
+    PRESET_GAME_TYPE,
     BroadcastTarget,
+    Dealt,
+    Decision,
+    Discard,
     DrawEvent,
     GameEvent,
+    GameOver,
+    GameRuntime,
+    GameService,
     GameStartedEvent,
+    PlayerView,
+    ReconnectionSnapshot,
+    Refusal,
     RoundStartedEvent,
     SeatTarget,
+    Turn,
+    TurnAfterDraw,
+    WindName,
 )
-from game.logic.rng import RNG_VERSION
-from game.logic.rule_profiles import PRESET_SETTINGS
-from game.logic.runtime import GameRuntime
-from game.logic.service import Awaiting, GameService, GameUpdate
-from game.logic.settings import NUM_PLAYERS
-from game.logic.types import PlayerView, ReconnectionSnapshot
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from game.logic.decision import Action, Decision
-    from game.logic.state import MahjongGameState
-    from game.logic.types import StartPosition
+    from game.engine import Action, Awaiting, MahjongGameState, StartPosition
+
+MOCK_RIICHI_STICK_VALUE = 1000
+MOCK_STARTING_SCORE = 25000
+MOCK_AWAITING = Turn(seat=0)
+MOCK_GAME_OVER = GameOver()
 
 
 class _MockGameState:
-    __slots__ = ("rng_version", "round_number", "seed", "settings")
+    __slots__ = ("seed",)
 
-    def __init__(self, seed: str, rng_version: str = RNG_VERSION, round_number: int = 0) -> None:
+    def __init__(self, seed: str) -> None:
         self.seed = seed
-        self.rng_version = rng_version
-        self.settings = PRESET_SETTINGS
-        self.round_number = round_number
 
 
-MOCK_DEALT = Awaiting(kind=WaitKind.DEALT, seats=frozenset(), round_number=0)
-MOCK_AWAITING = Awaiting(kind=WaitKind.TURN, seats=frozenset({0}), round_number=0)
-MOCK_GAME_OVER = Awaiting(kind=WaitKind.NONE, seats=frozenset(), round_number=0)
-
-
-def mock_update(events: list[GameEvent], awaiting: Awaiting = MOCK_AWAITING) -> GameUpdate:
-    return GameUpdate(events=events, awaiting=awaiting)
+class _MockRuntime(GameRuntime):
+    def __init__(self, seed: str) -> None:
+        super().__init__(state=cast("MahjongGameState", _MockGameState(seed=seed)))
+        self.awaiting: Awaiting = Dealt()
 
 
 class MockGameService(GameService):
-    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
-        event = DrawEvent(
-            target=BroadcastTarget(),
-            seat=seat,
-            tile_id=getattr(action, "tile", 0),
-            tiles_remaining=69,
-        )
-        return GameUpdate(events=[event], awaiting=MOCK_AWAITING)
+    def __init__(self) -> None:
+        self._scripted_acts: list[tuple[list[GameEvent] | Refusal, Awaiting | None]] = []
+
+    def script_act(self, result: list[GameEvent] | Refusal, *, awaiting: Awaiting | None = None) -> None:
+        self._scripted_acts.append((result, awaiting))
+
+    def act(self, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent] | Refusal:
+        mock_runtime = cast("_MockRuntime", runtime)
+        if self._scripted_acts:
+            result, awaiting = self._scripted_acts.pop(0)
+            if not isinstance(result, Refusal):
+                mock_runtime.awaiting = awaiting if awaiting is not None else Turn(seat=(seat + 1) % NUM_PLAYERS)
+
+            return result
+
+        mock_runtime.awaiting = Turn(seat=(seat + 1) % NUM_PLAYERS)
+        return [DrawEvent(target=BroadcastTarget(), seat=seat, tile_id=getattr(action, "tile", 0), tiles_remaining=69)]
 
     def legal_actions(self, runtime: GameRuntime, seat: int) -> tuple[Action, ...]:
-        return ()
+        decision = self.decision(runtime, seat)
+        return decision.legal if decision is not None else ()
 
     def default_action(self, runtime: GameRuntime, seat: int) -> Action | None:
-        return Discard(tile=0)
+        decision = self.decision(runtime, seat)
+        return decision.default if decision is not None else None
 
     def decision(self, runtime: GameRuntime, seat: int) -> Decision | None:
-        return None
+        if seat not in self.get_awaiting(runtime).seats:
+            return None
+
+        return Decision(
+            seat=seat,
+            context=TurnAfterDraw(drawn=0, rinshan=False, haitei=False),
+            legal=(Discard(tile=0),),
+            default=Discard(tile=0),
+        )
 
     def new_game(
         self,
@@ -70,15 +91,12 @@ class MockGameService(GameService):
         *,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
-        ai_seats: frozenset[int] = frozenset(),
     ) -> tuple[GameRuntime, list[GameEvent]]:
-        state = _MockGameState(seed=seed)
-        runtime = GameRuntime(state=cast("MahjongGameState", state), ai=AIPlayerController({}))
         game_started = GameStartedEvent(
-            game_type=state.settings.game_type,
+            game_type=PRESET_GAME_TYPE,
             dealer_seat=0,
             dealer_dice=((1, 1), (1, 1)),
-            riichi_stick_value=state.settings.riichi_stick_value,
+            riichi_stick_value=MOCK_RIICHI_STICK_VALUE,
         )
         round_started = [
             RoundStartedEvent(
@@ -92,42 +110,33 @@ class MockGameService(GameService):
                 honba_sticks=0,
                 riichi_sticks=0,
                 my_tiles=[],
-                players=[PlayerView(seat=i, score=state.settings.starting_score) for i in range(NUM_PLAYERS)],
+                players=[PlayerView(seat=i, score=MOCK_STARTING_SCORE) for i in range(NUM_PLAYERS)],
                 dice=(1, 1),
                 tiles_remaining=70,
                 target=SeatTarget(seat=seat),
             )
             for seat in range(NUM_PLAYERS)
         ]
-        runtime.first_draw_pending = True
-        return runtime, [game_started, *round_started]
+        return _MockRuntime(seed=seed), [game_started, *round_started]
 
-    def begin_round(self, runtime: GameRuntime) -> GameUpdate:
-        runtime.first_draw_pending = False
-        return GameUpdate(events=[], awaiting=MOCK_AWAITING)
+    def begin_round(self, runtime: GameRuntime) -> list[GameEvent]:
+        cast("_MockRuntime", runtime).awaiting = MOCK_AWAITING
+        return []
 
-    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate:
-        return GameUpdate(events=[], awaiting=MOCK_DEALT)
+    def deal_next_round(self, runtime: GameRuntime) -> list[GameEvent]:
+        cast("_MockRuntime", runtime).awaiting = Dealt()
+        return []
 
     def get_awaiting(self, runtime: GameRuntime) -> Awaiting:
-        return MOCK_DEALT if runtime.first_draw_pending else MOCK_AWAITING
-
-    def replace_with_ai_player(self, runtime: GameRuntime, seat: int) -> None:
-        pass
-
-    def restore_human_player(self, runtime: GameRuntime, seat: int) -> Awaiting:
-        return MOCK_AWAITING
-
-    def advance_ai_turn(self, runtime: GameRuntime) -> GameUpdate:
-        return GameUpdate(events=[], awaiting=MOCK_AWAITING)
+        return cast("_MockRuntime", runtime).awaiting
 
     def build_reconnection_snapshot(self, runtime: GameRuntime, seat: int) -> ReconnectionSnapshot:
         return ReconnectionSnapshot(
             dealer_seat=0,
             first_dealer_seat=0,
             dealer_dice=((1, 1), (1, 1)),
-            riichi_stick_value=1000,
-            game_type=runtime.state.settings.game_type,
+            riichi_stick_value=MOCK_RIICHI_STICK_VALUE,
+            game_type=PRESET_GAME_TYPE,
             seat=seat,
             round_wind=WindName.EAST,
             round_number=0,
@@ -146,10 +155,3 @@ class MockGameService(GameService):
 
     def build_wait_events_for_seat(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
         return []
-
-    def process_ai_player_actions_after_replacement(
-        self,
-        runtime: GameRuntime,
-        seat: int,
-    ) -> GameUpdate:
-        return GameUpdate(events=[], awaiting=MOCK_AWAITING)

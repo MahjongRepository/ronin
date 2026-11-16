@@ -11,19 +11,23 @@ from game.engine import (
     RNG_VERSION,
     Action,
     BroadcastTarget,
+    Call,
     CallOpportunity,
     CallPromptEvent,
+    Dealt,
     DoubleRonResult,
     DrawEvent,
     GameEndedEvent,
     GameEvent,
+    GameOver,
     GameStartedEvent,
     Refusal,
     RefusalKind,
     RoundEndEvent,
+    RoundOver,
     RoundStartedEvent,
     SeatTarget,
-    WaitKind,
+    Turn,
 )
 from game.messaging.encoder import encode
 from game.messaging.event_payload import (
@@ -48,6 +52,7 @@ from game.messaging.types import (
     SessionMessageType,
     TimerSettings,
 )
+from game.session.ai_player import choose_ai_action
 from game.session.models import GameLifecycle, GameSession, Participant, Pause
 from game.session.played_game import build_finish_record
 from game.session.replay_collector import ReplayRecord
@@ -62,7 +67,7 @@ from shared.tasks import cancel_and_wait
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
-    from game.engine import Awaiting, GameRuntime, GameService, GameUpdate
+    from game.engine import Awaiting, GameRuntime, GameService
     from game.messaging.protocol import ConnectionProtocol
     from game.session.models import PlayerSpec
     from game.session.replay_collector import ReplayCollector
@@ -93,10 +98,10 @@ class _Ending:
     ended_at: datetime
 
 
-def _require_accepted(result: GameUpdate | Refusal) -> GameUpdate:
+def _require_accepted(result: list[GameEvent] | Refusal) -> list[GameEvent]:
     """
-    Return the update of an engine call the session made itself, a phase call or a timeout's default action: it makes
-    one only when the engine awaits it, so a refusal is a server fault.
+    Return the events of an engine call the session made itself, a phase call, a timeout's default action or an AI
+    player's answer: it makes one only when the engine awaits it, so a refusal is a server fault.
     """
     match result:
         case Refusal(kind=kind, code=code):
@@ -434,8 +439,8 @@ class SessionManager:
         Seat every participant, connected or not, start the engine game from a new seed and open its first wait.
 
         Each participant is bound to the seat its spec's input order gives it (`seat_players`, never by name), and the
-        seats no participant takes are AI players'. The engine stops after the deal; the first wait opens from there
-        (`_open_first_wait`).
+        seats no participant takes are AI players', which the engine never learns. The engine stops after the deal; the
+        first wait opens from there (`_open_first_wait`).
         """
         game.lifecycle = GameLifecycle.PLAYING
         seed = self._seed_source()
@@ -444,14 +449,14 @@ class SessionManager:
             participant.seat = seat
 
         game.roster = GameRoster(game_id=game.game_id, names=seating.names, ai_seats=seating.ai_seats)
-        runtime, events = self._game_service.new_game(seed, ai_seats=seating.ai_seats)
+        runtime, events = self._game_service.new_game(seed)
         game.runtime = runtime
         game.replay = ReplayRecord(seed=seed, rng_version=RNG_VERSION, roster=game.roster)
         self._record_game_start(game, game.roster)
         logger.info("pending game completed", game_id=game.game_id)
-        self._open_first_wait(game, events=events, awaiting=self._game_service.get_awaiting(runtime))
+        self._open_first_wait(game, events=events)
 
-    def _open_first_wait(self, game: GameSession, *, events: list[GameEvent], awaiting: Awaiting) -> None:
+    def _open_first_wait(self, game: GameSession, *, events: list[GameEvent]) -> None:
         """
         Send the start's events, the game start and the deal, and open the first wait, with an AI player in the seat of
         every participant without a connection (never joined), who can RECONNECT later.
@@ -465,11 +470,9 @@ class SessionManager:
         if game.timer_config.game_start_confirm_seconds > 0:
             game.pause = Pause(starts_game=True, seats=frozenset(self._seat_of(p) for p in game.connected()))
 
-        self._apply_engine_update(game, events=events, awaiting=awaiting, actor=None)
-        runtime = self._runtime_of(game)
+        self._apply_engine_update(game, events=events, actor=None)
         absent = [participant for participant in game.participants if not participant.is_connected]
         for participant in absent:
-            self._game_service.replace_with_ai_player(runtime, self._seat_of(participant))
             self._hand_over_seat(participant, stand_in=SeatControlReason.ABSENT)
 
         if game.pause is None:
@@ -514,9 +517,9 @@ class SessionManager:
 
     def _release_seat(self, participant: Participant) -> None:
         """
-        Hand a departed participant's seat to an AI player, which answers any call it owed at once and plays a turn it
-        owed after the AI turn delay, and announce the handover (`_hand_over_seat`) ahead of the AI player's moves, once
-        the engine made them.
+        Hand a departed participant's seat to an AI player, announcing the handover (`_hand_over_seat`) ahead of the AI
+        player's moves: it answers any call the seat owed at once and plays a turn it owed after the AI turn delay
+        (`_play_ai_players`).
 
         The participant's timer stops, deducting the bank it used. When no connected participant remains the game is
         abandoned instead: there are never all-AI games. During a pause the seat's confirmation is given for it, so the
@@ -529,11 +532,8 @@ class SessionManager:
             return
 
         seat = self._seat_of(participant)
-        runtime = self._runtime_of(game)
-        self._game_service.replace_with_ai_player(runtime, seat)
-        update = self._game_service.process_ai_player_actions_after_replacement(runtime, seat)
         self._hand_over_seat(participant, stand_in=SeatControlReason.LEFT)
-        self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
+        self._play_ai_players(game)
         self._confirm_pause(game, seat)
 
     def _hand_over_seat(self, participant: Participant, *, stand_in: SeatControlReason | None) -> None:
@@ -610,7 +610,7 @@ class SessionManager:
 
         result = self._game_service.act(self._runtime_of(game), seat, action)
         if not isinstance(result, Refusal):
-            self._follow_engine(game, events=result.events, awaiting=result.awaiting, actor=seat)
+            self._follow_engine(game, events=result, actor=seat)
             return
 
         if result.kind == RefusalKind.NOT_OFFERED:
@@ -716,14 +716,14 @@ class SessionManager:
         """
         Bind a new connection to a participant of a playing game and send it the game's state.
 
-        A disconnected participant takes its seat back from the AI player (`restore_human_player`), which the replay
-        records and the others get as `seat_control` (`_hand_over_seat`); a turn the AI player had not played yet, its
-        delay still running, becomes the participant's own new wait, whose timer starts at once and whose scheduled AI
-        turn is cancelled (`_follow_engine`). A participant still bound to a connection (a half-open socket after a
-        network switch, or another client) has that connection replaced (`_bind`) instead: its seat was never handed
-        over, the others never saw it leave, and the wait, its timers and the bank carry on untouched. Either way the
-        new connection gets the seat's state (`_send_seat_state`). A RECONNECT on a connection the server already
-        evicted is dropped unanswered.
+        A disconnected participant takes its seat back from the AI player, which the replay records and the others get
+        as `seat_control` (`_hand_over_seat`); a turn the AI player had not played yet, its delay still running, becomes
+        the participant's own new decision, whose timer starts at once and whose scheduled AI turn is cancelled
+        (`_take_back_decision`). A participant still bound to a connection (a half-open socket after a network switch,
+        or another client) has that connection replaced (`_bind`) instead: its seat was never handed over, the others
+        never saw it leave, and the wait, its timers and the bank carry on untouched. Either way the new connection gets
+        the seat's state (`_send_seat_state`). A RECONNECT on a connection the server already evicted is dropped
+        unanswered.
         """
         if self._connections.get(connection.connection_id) is not connection:
             return
@@ -735,20 +735,16 @@ class SessionManager:
         game = participant.game
         seat = self._seat_of(participant)
         structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=seat)
-        runtime = self._runtime_of(game)
         taking_over = participant.is_connected
         if taking_over:
             self._bind(participant, connection)
-            awaiting = self._game_service.get_awaiting(runtime)
-            game.awaiting = awaiting
         else:
-            awaiting = self._game_service.restore_human_player(runtime, seat)
             self._hand_over_seat(participant, stand_in=None)
             self._bind(participant, connection)
-            self._follow_engine(game, events=[], awaiting=awaiting, actor=seat)
+            self._take_back_decision(game, participant)
             self._reconnects += 1
 
-        self._send_seat_state(participant, connection, awaiting=awaiting)
+        self._send_seat_state(participant, connection, awaiting=self._awaiting_of(game))
         logger.info("connection taken over" if taking_over else "player reconnected")
 
     def resync(self, connection: ConnectionProtocol) -> None:
@@ -887,51 +883,75 @@ class SessionManager:
         Stamp a turn or call opening with the bank its timer starts with (WireKey.BANK_SECONDS), so the client's
         countdown never carries an earlier decision's delivery delays into the next.
         """
-        if awaiting.kind in (WaitKind.TURN, WaitKind.CALL) and WireKey.WAIT_ID in message:
+        if isinstance(awaiting, Turn | Call) and WireKey.WAIT_ID in message:
             message[WireKey.BANK_SECONDS] = participant.timer.bank_seconds
 
         return message
 
-    def _follow_engine(
-        self,
-        game: GameSession,
-        *,
-        events: list[GameEvent],
-        awaiting: Awaiting,
-        actor: int | None,
-    ) -> None:
+    def _take_back_decision(self, game: GameSession, participant: Participant) -> None:
         """
-        Deliver an engine call's events, drive the timers from the wait it reports, and play the AI players' turns the
-        game then waits on.
+        Open the decision of a participant taking its seat back from its AI player when the game awaits its seat: the
+        turn its AI player had not played yet, its delay still running.
 
-        While the game waits on an AI player's turn, the AI turn delay passes in a task before the engine plays it
-        (`_play_ai_turn_after_delay`), so a human sees AI turns one at a time; with no delay they are played here, one
-        engine call each, until the game waits on something else.
+        No engine call is made, since the engine never knew who answered the seat: the delayed AI turn is cancelled, the
+        participant's decision id advances and its timer starts with the reconnect. A seat the game does not await opens
+        nothing.
         """
-        self._apply_engine_update(game, events=events, awaiting=awaiting, actor=actor)
-        while self._owes_ai_turn(game):
-            if game.timer_config.ai_turn_delay_seconds > 0:
+        awaiting = self._awaiting_of(game)
+        if self._seat_of(participant) not in awaiting.seats:
+            return
+
+        self._cancel_ai_turn(game)
+        participant.decision_id += 1
+        self._start_decision_timer(participant, awaiting=awaiting)
+
+    def _follow_engine(self, game: GameSession, *, events: list[GameEvent], actor: int | None) -> None:
+        """
+        Deliver an engine call's events, drive the timers from the wait it leaves, and let the AI players answer what
+        the game then waits on (`_play_ai_players`).
+        """
+        self._apply_engine_update(game, events=events, actor=actor)
+        self._play_ai_players(game)
+
+    def _play_ai_players(self, game: GameSession) -> None:
+        """
+        Let the AI players answer what a playing game waits on, until it waits on a participant, a pause or nothing.
+
+        Every call an AI player's seat is awaited on is answered at once, in ascending seat order, one engine call each
+        whose events go out before the next answer. An AI player's turn waits the AI turn delay in a task
+        (`_play_ai_turn_after_delay`), so a human sees AI turns one at a time; with no delay it is played here. A turn
+        whose task is already set waits for it.
+        """
+        while game.lifecycle is GameLifecycle.PLAYING and game.ai_turn is None:
+            awaiting = self._awaiting_of(game)
+            ai_seats = sorted(seat for seat in awaiting.seats if game.is_ai_seat(seat))
+            if not ai_seats:
+                return
+
+            if isinstance(awaiting, Turn) and game.timer_config.ai_turn_delay_seconds > 0:
                 game.ai_turn = self._spawn(self._play_ai_turn_after_delay(game))
                 return
 
-            update = self._game_service.advance_ai_turn(self._runtime_of(game))
-            self._apply_engine_update(game, events=update.events, awaiting=update.awaiting, actor=None)
+            self._play_ai_player(game, ai_seats[0])
 
-    @staticmethod
-    def _owes_ai_turn(game: GameSession) -> bool:
+    def _play_ai_player(self, game: GameSession, seat: int) -> None:
         """
-        Whether a playing game waits on an AI player's turn that no task is already set to play.
+        Play an AI player's answer to its seat's decision, read now, as one engine call whose actor is that seat.
         """
-        return (
-            game.lifecycle is GameLifecycle.PLAYING
-            and game.ai_turn is None
-            and game.awaiting is not None
-            and game.awaiting.kind == WaitKind.AI_TURN
-        )
+        runtime = self._runtime_of(game)
+        decision = self._game_service.decision(runtime, seat)
+        if decision is None:
+            raise AssertionError(f"AI player's seat {seat} awaited with no decision")
+
+        action = choose_ai_action(decision)
+        logger.debug("AI player action", ai_seat=seat, action=str(action))
+        events = _require_accepted(self._game_service.act(runtime, seat, action))
+        self._apply_engine_update(game, events=events, actor=seat)
 
     async def _play_ai_turn_after_delay(self, game: GameSession) -> None:
         """
-        Play the AI player's turn the game waits on once the AI turn delay has passed.
+        Play the AI player's turn the game waits on once the AI turn delay has passed, then what the AI players answer
+        after it.
 
         After its sleep the task detaches itself from the game (`ai_turn`), so the turn it plays may schedule the next.
         Every path that ends the wait it was set for (a reconnect taking the seat back, an end claim) cancels it, even
@@ -944,39 +964,37 @@ class SessionManager:
         structlog.contextvars.bind_contextvars(game_id=game.game_id)
         game.ai_turn = None
         try:
-            update = self._game_service.advance_ai_turn(self._runtime_of(game))
-            self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=None)
+            (seat,) = self._awaiting_of(game).seats
+            self._play_ai_player(game, seat)
+            self._play_ai_players(game)
         except Exception as exc:  # noqa: BLE001
             self.fail_game(game, reason="AI turn failed", exc=exc)
 
-    def _apply_engine_update(
-        self,
-        game: GameSession,
-        *,
-        events: list[GameEvent],
-        awaiting: Awaiting,
-        actor: int | None,
-    ) -> None:
+    def _apply_engine_update(self, game: GameSession, *, events: list[GameEvent], actor: int | None) -> None:
         """
-        Deliver an engine call's events and drive the timers from the wait it reports.
+        Deliver an engine call's events and drive the timers from the wait the game is left in.
 
-        The call's actor is the seat that acted, timed out, was replaced, took its seat back or ended a pause; a game
-        start or an AI player's turn has none. When the call opened a new wait (the game's first, or `_opens_new_wait`),
-        every timer stops (charging elapsed decision time) and so does a pending AI turn, a new round's banks reset, a
-        round over opens its pause (`_open_round_over_pause`), and each connected participant now awaited, by the engine
-        or the pause, advances its own decision id before the events go out. The new wait's timers start after them; an
-        AI player's turn, a dealt round and a game over await no participant and start none. When it kept the wait,
-        every seat that left it (the actor of a partial prompt response, or a seat the engine stopped awaiting) has its
-        timer stopped.
+        The call's actor is the seat that acted (an AI player's included), timed out or ended a pause; a game start has
+        none. When the call opened a new wait (the game's first, or `_opens_new_wait`), every timer stops (charging
+        elapsed decision time) and so does a pending AI turn, a dealt round resets every bank, a round over opens its
+        pause (`_open_round_over_pause`), and each connected participant now awaited, by the engine or the pause,
+        advances its own decision id before the events go out. The new wait's timers start after them, for connected
+        participants only: an AI player's seat, a dealt round and a game over start none. When it kept the wait, every
+        seat that left it (the actor of a partial call answer, or a seat the engine stopped awaiting) has its timer
+        stopped.
         """
+        awaiting = self._game_service.get_awaiting(self._runtime_of(game))
         previous = game.awaiting
         game.awaiting = awaiting
         new_wait = previous is None or self._opens_new_wait(previous, awaiting, actor=actor)
         if new_wait:
             self._end_wait_timers(game)
             self._cancel_ai_turn(game)
-            self._reset_round_banks(game, previous=previous, awaiting=awaiting)
-            if awaiting.kind == WaitKind.ROUND_OVER:
+            if isinstance(awaiting, Dealt):
+                for participant in game.participants:
+                    participant.timer.reset_bank()
+
+            if isinstance(awaiting, RoundOver):
                 self._open_round_over_pause(game, events)
 
             awaited = game.pause.seats if game.pause is not None else awaiting.seats
@@ -996,13 +1014,12 @@ class SessionManager:
         """
         Tell whether an engine call opened a new wait, rather than kept the one it was made in (previous).
 
-        The call's actor no longer holds the decision it had: it acted, timed out or was replaced, and a seat taking its
-        seat back held none. The wait is kept while its kind is unchanged and it awaits only seats that still hold their
-        decision from before the call, so a partial call answer keeps the other callers' decisions and timers. A turn
-        that returns to the seat that just acted (after its kan) is new, and so is an AI player's turn the seat's human
-        takes back, which becomes a turn.
+        The call's actor no longer holds the decision it had: it acted or timed out. The wait is kept while its kind is
+        unchanged and it awaits only seats that still hold their decision from before the call, so a partial call
+        answer, an AI player's included, keeps the other callers' decisions and timers. A turn that returns to the seat
+        that just acted (after its kan) is new.
         """
-        if awaiting.kind != previous.kind:
+        if type(awaiting) is not type(previous):
             return True
 
         return not awaiting.seats <= previous.seats - {actor}
@@ -1041,8 +1058,8 @@ class SessionManager:
 
         game.pause = None
         if not pause.starts_game:
-            update = _require_accepted(self._game_service.deal_next_round(self._runtime_of(game)))
-            self._apply_engine_update(game, events=update.events, awaiting=update.awaiting, actor=seat)
+            events = _require_accepted(self._game_service.deal_next_round(self._runtime_of(game)))
+            self._apply_engine_update(game, events=events, actor=seat)
 
         self._begin_round(game, actor=seat)
 
@@ -1050,8 +1067,8 @@ class SessionManager:
         """
         Let the dealt round's dealer draw its first tile, and follow the engine from there.
         """
-        update = _require_accepted(self._game_service.begin_round(self._runtime_of(game)))
-        self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=actor)
+        events = _require_accepted(self._game_service.begin_round(self._runtime_of(game)))
+        self._follow_engine(game, events=events, actor=actor)
 
     @staticmethod
     def _end_wait_timers(game: GameSession) -> None:
@@ -1073,16 +1090,6 @@ class SessionManager:
         if participant is not None:
             participant.timer.stop()
 
-    @staticmethod
-    def _reset_round_banks(game: GameSession, *, previous: Awaiting | None, awaiting: Awaiting) -> None:
-        """
-        Reset every participant's bank on the first wait of each round, including absent seats and the first round,
-        before sending the opening messages.
-        """
-        if previous is None or awaiting.round_number != previous.round_number:
-            for participant in game.participants:
-                participant.timer.reset_bank()
-
     def _start_wait_timers(self, game: GameSession, *, awaiting: Awaiting) -> None:
         """
         Start the timers of a new wait for its awaited seats that have a connected participant, or of a pause that
@@ -1097,13 +1104,17 @@ class SessionManager:
             return
 
         for participant in connected:
-            if participant.seat not in awaiting.seats:
-                continue
+            if participant.seat in awaiting.seats:
+                self._start_decision_timer(participant, awaiting=awaiting)
 
-            if awaiting.kind == WaitKind.TURN:
-                self._start_turn_timer(participant)
-            else:
-                self._start_meld_timer(participant)
+    def _start_decision_timer(self, participant: Participant, *, awaiting: Awaiting) -> None:
+        """
+        Start an awaited participant's decision timer: a turn's, or else a call's.
+        """
+        if isinstance(awaiting, Turn):
+            self._start_turn_timer(participant)
+        else:
+            self._start_meld_timer(participant)
 
     def _start_turn_timer(self, participant: Participant) -> None:
         participant.timer.start_decision_timer(lambda: self._handle_timeout(participant, TimeoutType.TURN))
@@ -1130,7 +1141,7 @@ class SessionManager:
         fails the game.
         """
         self._send_events(game, events, awaiting)
-        if awaiting.kind == WaitKind.NONE:
+        if isinstance(awaiting, GameOver):
             game_ended_event = next((e for e in events if isinstance(e, GameEndedEvent)), None)
             self._end_game(game, GameEndReason.COMPLETED, game_ended_event=game_ended_event)
 
@@ -1302,6 +1313,16 @@ class SessionManager:
         return game.runtime
 
     @staticmethod
+    def _awaiting_of(game: GameSession) -> Awaiting:
+        """
+        Return what a started game waits on, set from its first engine call on.
+        """
+        if game.awaiting is None:
+            raise AssertionError("wait read on a game that has not started")
+
+        return game.awaiting
+
+    @staticmethod
     def _roster_of(game: GameSession) -> GameRoster:
         """
         Return the roster of a started game, set with its seats at the start.
@@ -1341,9 +1362,9 @@ class SessionManager:
             raise AssertionError(f"{timeout_type} timeout for seat {seat}, which the game does not await")
 
         logger.info(_TIMEOUT_LOG_EVENTS[timeout_type], action=str(action))
-        update = _require_accepted(self._game_service.act(runtime, seat, action))
+        events = _require_accepted(self._game_service.act(runtime, seat, action))
         self._timeouts[timeout_type] += 1
-        self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
+        self._follow_engine(game, events=events, actor=seat)
 
     def _handle_pause_timeout(self, participant: Participant) -> None:
         """

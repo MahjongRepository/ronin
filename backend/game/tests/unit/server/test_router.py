@@ -217,9 +217,7 @@ class TestMessageRouterEntryPointFailures:
         session_manager = make_session_manager(game_service)
         router = MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
         conns = create_started_game(session_manager, player_names=["Alice", "Bob"])
-        game_service.process_ai_player_actions_after_replacement = MagicMock(
-            side_effect=ValueError("engine state broke"),
-        )
+        game_service.act = MagicMock(side_effect=ValueError("engine state broke"))
 
         router.handle_disconnect(conns[0])
         await wait_for_background_tasks(session_manager)

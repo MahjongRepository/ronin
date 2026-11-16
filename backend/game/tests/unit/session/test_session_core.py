@@ -13,13 +13,13 @@ from game.engine import (
     MeldCallType,
     Pon,
     SeatTarget,
-    WaitKind,
+    Turn,
 )
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MOCK_AWAITING
 from game.tests.unit.logic.helpers import _update_player
-from game.wire.compact import encode_draw
+from game.wire.compact import decode_draw, encode_draw
 from game.wire.enums import WireEventType
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
@@ -60,11 +60,10 @@ class TestSessionManager:
         manager.handle_game_action(
             conns[0], action=Discard(tile=0), called_tile=None, wait_id=current_wait_id(manager, conns[0])
         )
-        # mock service returns one event with target "all"
-        assert len(conns[0].sent_messages) == 1
-        msg = conns[0].sent_messages[0]
-        assert msg.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DRAW]
-        assert msg[WireKey.PACKED_MOVE] == encode_draw(0, 0)
+        own_moves = [m for m in conns[0].sent_messages if decode_draw(m[WireKey.PACKED_MOVE])[0] == 0]
+        assert len(own_moves) == 1
+        assert own_moves[0].get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DRAW]
+        assert own_moves[0][WireKey.PACKED_MOVE] == encode_draw(0, 0)
 
     async def test_broadcast_events__when_event_targets_seat__should_send_only_to_that_player(self, manager):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
@@ -138,8 +137,8 @@ def _replay_lines(manager: SessionManager) -> list[dict[int, Any]]:
 
 def _discard_drawn_tile(manager: SessionManager, conns: list[MockConnection]) -> None:
     awaiting = game_of(manager).awaiting
-    assert awaiting.kind == WaitKind.TURN
-    [seat] = awaiting.seats
+    assert isinstance(awaiting, Turn)
+    seat = awaiting.seat
     conn = next(conn for conn in conns if participant_of(manager, conn).seat == seat)
     drawn_tile = runtime_of(manager).state.round_state.players[seat].tiles[-1]
     manager.handle_game_action(
@@ -149,10 +148,10 @@ def _discard_drawn_tile(manager: SessionManager, conns: list[MockConnection]) ->
 
 class TestDrawDelivery:
     async def test_send_events__when_humans_and_ai_players_draw__should_send_the_drawer_its_draw_and_others_a_notice(
-        self, paced_engine
+        self, real_engine
     ):
         live_wall_after_deal = 70
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"], keep_start_messages=True)
         alice, bob = (participant_of(manager, conn) for conn in conns)
         for _ in range(4):
@@ -196,9 +195,9 @@ class TestDrawDelivery:
         await manager.shutdown()
 
     async def test_send_events__when_a_seat_draws_its_kan_replacement__should_send_the_others_its_notice(
-        self, paced_engine
+        self, real_engine
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
         alice = participant_of(manager, alice_conn)
         hand = runtime_of(manager).state.round_state.players[alice.seat].tiles
@@ -239,8 +238,8 @@ class TestDrawDelivery:
 
         await manager.shutdown()
 
-    async def test_send_events__when_a_seat_pons__should_send_nobody_a_draw_or_its_notice(self, paced_engine):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+    async def test_send_events__when_a_seat_pons__should_send_nobody_a_draw_or_its_notice(self, real_engine):
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = participant_of(manager, alice_conn), participant_of(manager, bob_conn)
         discarded_four_pin = arrange_pon_now_and_on_the_next_draw(

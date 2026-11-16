@@ -204,6 +204,20 @@ class GameInPlay:
     events: list[GameEvent]
     awaiting: Awaiting
     human_seats: tuple[int, ...]
+    default_seats: frozenset[int]
+
+
+def answer_with_defaults(service: GameService, runtime: GameRuntime, *, seats: frozenset[int]) -> list[GameEvent]:
+    events: list[GameEvent] = []
+    while answering := sorted(service.get_awaiting(runtime).seats & seats):
+        seat = answering[0]
+        action = service.default_action(runtime, seat)
+        assert action is not None
+        result = service.act(runtime, seat, action)
+        assert not isinstance(result, Refusal), result
+        events.extend(result)
+
+    return events
 
 
 def start_game_in_play(
@@ -215,10 +229,15 @@ def start_game_in_play(
     start: StartPosition | None = None,
 ) -> GameInPlay:
     human_seats = seat_permutation(seed)[:humans]
-    ai_seats = frozenset(range(NUM_PLAYERS)) - frozenset(human_seats)
-    runtime, events = service.new_game(seed, walls=walls, start=start, ai_seats=ai_seats)
+    default_seats = frozenset(range(NUM_PLAYERS)) - frozenset(human_seats)
+    runtime, events = service.new_game(seed, walls=walls, start=start)
     begun = service.begin_round(runtime)
     assert not isinstance(begun, Refusal), begun
+    answered = answer_with_defaults(service, runtime, seats=default_seats)
     return GameInPlay(
-        runtime=runtime, events=[*events, *begun.events], awaiting=begun.awaiting, human_seats=human_seats
+        runtime=runtime,
+        events=[*events, *begun, *answered],
+        awaiting=service.get_awaiting(runtime),
+        human_seats=human_seats,
+        default_seats=default_seats,
     )

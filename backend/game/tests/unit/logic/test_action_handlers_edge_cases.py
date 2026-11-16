@@ -3,7 +3,6 @@ from game.logic.action_handlers import (
     handle_pass,
 )
 from game.logic.action_result import ActionResult
-from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Kan
 from game.logic.enums import (
     KanType,
@@ -45,7 +44,7 @@ class TestResolveMeldResponse:
             create_player(seat=2, tiles=tile_copies(1, pin="123456789", honors="1234")),
             create_player(seat=3, tiles=(*tile_copies(1, sou="123456789"), *tile_copies(2, honors="1234"))),
         )
-        runtime = GameRuntime(state=create_dealt_game_state(players), ai=AIPlayerController({}))
+        runtime = GameRuntime(state=create_dealt_game_state(players))
         wall = runtime.state.round_state.wall
         minimal_live_tiles = wall.live_tiles[: runtime.state.settings.min_wall_for_kan]
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": minimal_live_tiles}))

@@ -5,9 +5,8 @@ import pytest
 
 from game.engine import (
     Action,
-    BroadcastTarget,
+    Call,
     Discard,
-    DrawEvent,
     EventType,
     Kan,
     KanType,
@@ -17,16 +16,15 @@ from game.engine import (
     RefusalCode,
     RefusalKind,
     Riichi,
-    WaitKind,
 )
 from game.messaging.game_errors import GameErrorCode
 from game.messaging.types import SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter
+from game.session import manager as manager_module
 from game.session.timer import TimeoutType
 from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.helpers.session import make_session_manager
-from game.tests.mocks import mock_update
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 
@@ -36,6 +34,7 @@ from .helpers import (
     create_started_game,
     current_wait_id,
     fire_turn_timer_now,
+    game_of,
     participant_of,
     run_timeout,
     runtime_of,
@@ -48,7 +47,7 @@ TILE_NOT_HELD = Refusal(kind=RefusalKind.NOT_OFFERED, code=RefusalCode.TILE_NOT_
 class TestSessionManagerInvalidAction:
     async def test_invalid_action__when_player_sends_it__should_close_with_1008(self, manager):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
-        manager._game_service.act = MagicMock(return_value=TILE_NOT_HELD)
+        manager._game_service.script_act(TILE_NOT_HELD)
 
         manager.handle_game_action(
             conns[0], action=Discard(tile=0), called_tile=None, wait_id=current_wait_id(manager, conns[0])
@@ -57,38 +56,34 @@ class TestSessionManagerInvalidAction:
         assert conns[0]._close_code == 1008
         assert conns[0]._close_reason == "invalid_game_action"
 
-    async def test_invalid_action__when_player_sends_it__should_replace_player_with_ai(self, manager):
+    async def test_invalid_action__when_player_sends_it__should_seat_an_ai_player_that_plays_the_owed_turn(
+        self, manager
+    ):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
-
-        replace_calls = []
-        original_replace = manager._game_service.replace_with_ai_player
-
-        def tracking_replace(runtime, seat):
-            replace_calls.append((runtime, seat))
-            return original_replace(runtime, seat)
-
-        manager._game_service.replace_with_ai_player = tracking_replace
-        manager._game_service.act = MagicMock(return_value=TILE_NOT_HELD)
+        manager._game_service.script_act(TILE_NOT_HELD)
 
         manager.handle_game_action(
             conns[0], action=Discard(tile=0), called_tile=None, wait_id=current_wait_id(manager, conns[0])
         )
-        assert replace_calls == [(runtime_of(manager), 0)]
+        assert (game_of(manager).is_ai_seat(0), manager.stats["ai_replacements"]) == (True, 1)
+        ai_player_msgs = [
+            m for m in conns[1].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DRAW]
+        ]
+        assert len(ai_player_msgs) == 1
 
     async def test_invalid_action__when_last_human_sends_it__should_clean_up_game(self, manager):
         conns = create_started_game(manager, player_names=["Alice"])
         assert manager.get_game("game1") is not None
 
-        manager._game_service.act = MagicMock(return_value=TILE_NOT_HELD)
+        manager._game_service.script_act(TILE_NOT_HELD)
         manager.handle_game_action(
             conns[0], action=Discard(tile=0), called_tile=None, wait_id=current_wait_id(manager, conns[0])
         )
-        # game should be cleaned up
         assert manager.get_game("game1") is None
 
     async def test_invalid_action__when_player_sends_it__should_log_warning(self, manager, caplog):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
-        manager._game_service.act = MagicMock(return_value=TILE_NOT_HELD)
+        manager._game_service.script_act(TILE_NOT_HELD)
 
         with caplog.at_level(logging.WARNING):
             manager.handle_game_action(
@@ -102,31 +97,11 @@ class TestSessionManagerInvalidAction:
         assert msg["action"] == "Discard(tile=0)"
         assert msg["reason"] == "tile_not_held"
 
-    async def test_invalid_action__when_player_replaced__should_broadcast_ai_pending_actions(self, manager):
-        conns = create_started_game(manager, player_names=["Alice", "Bob"])
-
-        ai_player_event = DrawEvent(target=BroadcastTarget(), seat=0, tile_id=0, tiles_remaining=69)
-        manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
-            return_value=mock_update([ai_player_event]),
-        )
-        manager._game_service.act = MagicMock(return_value=TILE_NOT_HELD)
-
-        manager.handle_game_action(
-            conns[0], action=Discard(tile=0), called_tile=None, wait_id=current_wait_id(manager, conns[0])
-        )
-        # Bob should receive the AI player action event
-        ai_player_msgs = [
-            m for m in conns[1].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DRAW]
-        ]
-        assert len(ai_player_msgs) == 1
-
-    async def test_invalid_action__when_ai_replacement_raises__should_fail_the_game(self, manager):
+    async def test_invalid_action__when_its_ai_player_raises__should_fail_the_game(self, manager, monkeypatch):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
-        manager._game_service.act = MagicMock(return_value=TILE_NOT_HELD)
-        manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
-            side_effect=ValueError("engine state broke during replacement"),
-        )
+        manager._game_service.script_act(TILE_NOT_HELD)
+        monkeypatch.setattr(manager_module, "choose_ai_action", MagicMock(side_effect=ValueError("engine state broke")))
 
         router.handle_message(
             conns[0],
@@ -143,30 +118,20 @@ class TestSessionManagerInvalidAction:
 
     async def test_invalid_action__when_offender_leaves_afterwards__should_not_replace_again(self, manager):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
-        manager._game_service.act = MagicMock(return_value=TILE_NOT_HELD)
+        manager._game_service.script_act(TILE_NOT_HELD)
         manager.handle_game_action(
             conns[0], action=Discard(tile=0), called_tile=None, wait_id=current_wait_id(manager, conns[0])
         )
 
-        replace_calls = []
-        original_replace = manager._game_service.replace_with_ai_player
-
-        def tracking_replace(game_id, seat):
-            replace_calls.append((game_id, seat))
-            return original_replace(game_id, seat)
-
-        manager._game_service.replace_with_ai_player = tracking_replace
-
         manager.disconnect(conns[0])
-        # no additional replacement should have happened
-        assert len(replace_calls) == 0
+        assert manager.stats["ai_replacements"] == 1
 
 
 class TestKickedConnection:
     async def test_invalid_action__when_kicked_client_pipelines_a_reconnect__should_drop_it_and_keep_the_ai_seat(
-        self, paced_engine
+        self, real_engine
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         player_of = {conn: participant_of(manager, conn) for conn in conns}
         awaited_seat = next(iter(manager.get_game("game1").awaiting.seats))
@@ -184,7 +149,7 @@ class TestKickedConnection:
         manager.reconnect(kicked, session_token=kicked_token)
         assert manager.get_connection_game(kicked) is None
         assert not player_of[kicked].is_connected
-        assert runtime_of(manager).ai.is_ai_player(awaited_seat)
+        assert game_of(manager).is_ai_seat(awaited_seat)
         assert [m for m in other.sent_messages if m.get(WireKey.SESSION_TYPE) == SessionMessageType.SEAT_CONTROL] == [
             {WireKey.SESSION_TYPE: "seat_control", WireKey.SEAT: awaited_seat, WireKey.SEAT_CONTROL_REASON: 0}
         ]
@@ -230,9 +195,9 @@ class TestRuleRefusal:
         assert participant_of(manager, conns[0]).timer.task is deadline
 
     async def test_rule_refusal__when_the_engine_refuses_an_action__should_name_the_wait_id_the_action_echoed(
-        self, paced_engine
+        self, real_engine
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice"])
         refused_wait = current_wait_id(manager, conns[0])
 
@@ -253,9 +218,9 @@ class TestRuleRefusal:
         ids=["pon", "open_kan"],
     )
     async def test_called_tile__when_a_call_names_another_copy_than_its_call__should_refuse_it_and_keep_the_call_open(
-        self, paced_engine, answer: Action, error_code: GameErrorCode
+        self, real_engine, answer: Action, error_code: GameErrorCode
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = (participant_of(manager, conn).seat for conn in conns)
         discarded_four_pin = arrange_pon_now_and_on_the_next_draw(runtime_of(manager), discarder=alice, caller=bob)
@@ -287,9 +252,9 @@ class TestRuleRefusal:
 
 class TestStaleAction:
     async def test_stale_action__when_a_discard_raced_its_own_turn_timeout__should_be_refused_with_nothing_changed(
-        self, paced_engine
+        self, real_engine
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
         conns = create_started_game(manager, player_names=["Alice"])
         alice = conns[0]
@@ -322,9 +287,9 @@ class TestStaleAction:
         await manager.shutdown()
 
     async def test_stale_action__when_a_pass_arrives_after_a_newer_prompt_opened__should_leave_that_prompt_pending(
-        self, paced_engine
+        self, real_engine
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = (participant_of(manager, conn).seat for conn in conns)
         discarded_four_pin = arrange_pon_now_and_on_the_next_draw(runtime_of(manager), discarder=alice, caller=bob)
@@ -336,11 +301,11 @@ class TestStaleAction:
         )
         first_prompt = manager.get_game("game1").awaiting
         first_prompt_id = current_wait_id(manager, conns[1])
-        assert (first_prompt.kind, first_prompt.seats) == (WaitKind.CALL, frozenset({bob}))
+        assert first_prompt == Call(seats=frozenset({bob}))
 
         run_timeout(manager, game_id="game1", timeout_type=TimeoutType.MELD, seat=bob)
         newer_prompt = manager.get_game("game1").awaiting
-        assert (newer_prompt.kind, newer_prompt.seats) == (WaitKind.CALL, frozenset({bob}))
+        assert newer_prompt == Call(seats=frozenset({bob}))
         assert current_wait_id(manager, conns[1]) == first_prompt_id + 1
         state_before = runtime_of(manager).state
         conns[1]._outbox.clear()

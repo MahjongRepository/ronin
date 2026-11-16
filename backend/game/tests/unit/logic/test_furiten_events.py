@@ -1,6 +1,5 @@
 import pytest
 
-from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Chi, Pass
 from game.logic.decision import Discard as DiscardAction
 from game.logic.enums import RoundPhase
@@ -70,7 +69,7 @@ def _waiting_seat_runtime(
     )
     game_state = create_dealt_game_state(players, draws=(waiting_seat_draw,))
     assert get_waiting_tiles(players[WAITING_SEAT]) == {tile_to_34(THREE_MAN_WAIT), tile_to_34(SIX_MAN_WAIT)}
-    return GameRuntime(state=game_state, ai=AIPlayerController({}))
+    return GameRuntime(state=game_state)
 
 
 def _discard_furiten_runtime(*, waiting_seat_draw: int) -> GameRuntime:
@@ -178,7 +177,7 @@ class TestFuritenEventsInGameFlow:
 
         runtime.furiten._state[player.seat] = True
         tile_id = player.tiles[-1]
-        events = service.act(runtime, player.seat, DiscardAction(tile=tile_id)).events
+        events = service.act(runtime, player.seat, DiscardAction(tile=tile_id))
         furiten_events = [e for e in events if isinstance(e, FuritenEvent)]
         assert len(furiten_events) == 1
         assert furiten_events[0].is_furiten is False
@@ -195,12 +194,12 @@ class TestFuritenEventsInGameFlow:
         drawn = service.act(runtime, 0, DiscardAction(tile=DEALER_EAST))
         assert runtime.state.round_state.current_player_seat == WAITING_SEAT
         assert runtime.state.round_state.players[WAITING_SEAT].tiles[-1] == CHUN
-        assert _furiten_events(drawn.events) == []
+        assert _furiten_events(drawn) == []
         assert service.build_reconnection_snapshot(runtime, WAITING_SEAT).is_furiten is True
         assert service.build_reconnection_snapshot(runtime, 0).is_furiten is False
 
         discarded = service.act(runtime, WAITING_SEAT, DiscardAction(tile=CHUN))
-        assert _furiten_events(discarded.events) == []
+        assert _furiten_events(discarded) == []
         assert service.build_reconnection_snapshot(runtime, WAITING_SEAT).is_furiten is True
 
     def test_furiten_events__when_discard_furiten_seat_calls_chi__should_keep_furiten_through_its_meld_turn(
@@ -212,12 +211,12 @@ class TestFuritenEventsInGameFlow:
         prompt = runtime.state.round_state.pending_call_prompt
         assert prompt is not None
         assert prompt.pending_seats == frozenset({WAITING_SEAT})
-        assert _furiten_events(prompted.events) == []
+        assert _furiten_events(prompted) == []
 
         called = service.act(runtime, WAITING_SEAT, Chi(tiles=WAITING_SEAT_PIN_CHI_PAIR))
         assert runtime.state.round_state.is_after_meld_call is True
         assert runtime.state.round_state.current_player_seat == WAITING_SEAT
-        assert _furiten_events(called.events) == []
+        assert _furiten_events(called) == []
         assert service.build_reconnection_snapshot(runtime, WAITING_SEAT).is_furiten is True
 
     def test_furiten_events__when_own_discard_drops_the_discarded_wait__should_clear_furiten(self, service):
@@ -226,9 +225,7 @@ class TestFuritenEventsInGameFlow:
 
         discarded = service.act(runtime, WAITING_SEAT, DiscardAction(tile=WAITING_SEAT_FOUR_MAN))
         assert get_waiting_tiles(runtime.state.round_state.players[WAITING_SEAT]) == {tile_to_34(SIX_MAN_WAIT)}
-        assert _furiten_events(discarded.events) == [
-            FuritenEvent(is_furiten=False, target=SeatTarget(seat=WAITING_SEAT))
-        ]
+        assert _furiten_events(discarded) == [FuritenEvent(is_furiten=False, target=SeatTarget(seat=WAITING_SEAT))]
         assert service.build_reconnection_snapshot(runtime, WAITING_SEAT).is_furiten is False
 
     @pytest.mark.parametrize(
@@ -257,5 +254,5 @@ class TestFuritenEventsInGameFlow:
         declined = service.act(runtime, WAITING_SEAT, response)
         assert runtime.state.round_state.current_player_seat == WAITING_SEAT
         assert len(runtime.state.round_state.players[WAITING_SEAT].tiles) % 3 == 2
-        assert _furiten_events(declined.events) == [FuritenEvent(is_furiten=True, target=SeatTarget(seat=WAITING_SEAT))]
+        assert _furiten_events(declined) == [FuritenEvent(is_furiten=True, target=SeatTarget(seat=WAITING_SEAT))]
         assert service.build_reconnection_snapshot(runtime, WAITING_SEAT).is_furiten is True

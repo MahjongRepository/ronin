@@ -3,13 +3,14 @@ import time
 import pytest
 
 from game.engine import (
+    Call,
     Discard,
     EventType,
     GameType,
     Pass,
     PlayerReconnectState,
     ReconnectionSnapshot,
-    WaitKind,
+    RoundOver,
     WindName,
     WireMeldCallType,
 )
@@ -17,7 +18,7 @@ from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType
 from game.server.router import MessageRouter
 from game.session.models import PlayerSpec
-from game.session.timer import TimeoutType
+from game.session.timer import TimeoutType, TimerConfig
 from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection
@@ -39,6 +40,8 @@ from game.wire.compact import decode_draw, encode_draw
 from game.wire.enums import WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
+
+DELAYED_AI_TURNS = TimerConfig(game_start_confirm_seconds=0, ai_turn_delay_seconds=1)
 
 
 def _make_snapshot(seat: int = 0) -> ReconnectionSnapshot:
@@ -177,9 +180,9 @@ class TestBankTimePreservation:
         assert reconnected[WireKey.TIMER_SETTINGS][WireKey.BANK_SECONDS] == bank_after_leave
 
     async def test_bank_time__when_player_leaves_during_meld_prompt__should_charge_overtime(
-        self, paced_engine, fake_clock
+        self, real_engine, fake_clock
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
         conns = create_started_game(manager, player_names=["Alice", "Bob", "Carol"])
         alice, bob, carol = (participant_of(manager, conn) for conn in conns)
         discarded_four_pin = arrange_ron_and_pon_on_a_discard(
@@ -191,7 +194,7 @@ class TestBankTimePreservation:
             called_tile=None,
             wait_id=current_wait_id(manager, conns[0]),
         )
-        assert game_of(manager).awaiting.kind == WaitKind.CALL
+        assert isinstance(game_of(manager).awaiting, Call)
         assert carol.seat in game_of(manager).awaiting.seats
         fake_clock.advance(7)
 
@@ -204,9 +207,9 @@ class TestBankTimePreservation:
 
 class TestReconnectTakeover:
     async def test_reconnect__when_the_turn_seat_is_still_connected__should_take_over_its_turn_without_resetting_it(
-        self, paced_engine, fake_clock
+        self, real_engine, fake_clock
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
         old_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
         alice = participant_of(manager, old_conn)
         runtime = runtime_of(manager)
@@ -245,7 +248,7 @@ class TestReconnectTakeover:
         assert alice.timer.task is deadline
         assert not deadline.done()
         assert alice.timer.bank_seconds == bank
-        assert not runtime.ai.is_ai_player(alice.seat)
+        assert not game_of(manager).is_ai_seat(alice.seat)
         assert bob_conn.sent_messages == []
 
         state_before = runtime.state
@@ -262,9 +265,9 @@ class TestReconnectTakeover:
         await manager.shutdown()
 
     async def test_reconnect__when_a_seat_with_an_unanswered_call_prompt_is_still_connected__should_resend_its_prompt(
-        self, paced_engine, fake_clock
+        self, real_engine, fake_clock
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
         conns = create_started_game(manager, player_names=["Alice", "Bob", "Carol"])
         alice, bob, carol = (participant_of(manager, conn) for conn in conns)
         discarded_four_pin = arrange_ron_and_pon_on_a_discard(
@@ -277,7 +280,7 @@ class TestReconnectTakeover:
             wait_id=current_wait_id(manager, conns[0]),
         )
         prompt = game_of(manager).awaiting
-        assert (prompt.kind, prompt.seats) == (WaitKind.CALL, frozenset({bob.seat, carol.seat}))
+        assert prompt == Call(seats=frozenset({bob.seat, carol.seat}))
         original_prompt = next(
             m for m in conns[2].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.CALL_PROMPT]
         )
@@ -315,9 +318,9 @@ class TestReconnectTakeover:
         await manager.shutdown()
 
     async def test_reconnect__when_taken_over_in_the_round_advance__should_send_the_owed_confirmation_and_its_wait(
-        self, paced_engine, fake_clock
+        self, real_engine, fake_clock
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
         alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = participant_of(manager, alice_conn), participant_of(manager, bob_conn)
         arrange_exhaustive_draw(runtime_of(manager))
@@ -335,7 +338,7 @@ class TestReconnectTakeover:
         assert (alice_result[WireKey.WAIT_ID], bob_result[WireKey.WAIT_ID]) == (2, 1)
         manager.confirm_round(alice_conn, wait_id=round_end)
         advance = game_of(manager).awaiting
-        assert (advance.kind, game_of(manager).pause.seats) == (WaitKind.ROUND_OVER, frozenset({bob.seat}))
+        assert (advance, game_of(manager).pause.seats) == (RoundOver(), frozenset({bob.seat}))
         bob_deadline = bob.timer.task
         fake_clock.advance(4)
 
@@ -357,14 +360,14 @@ class TestReconnectTakeover:
         assert bob.timer.task is bob_deadline
 
         manager.confirm_round(bob.connection, wait_id=bob_result[WireKey.WAIT_ID])
-        assert game_of(manager).awaiting.round_number == advance.round_number + 1
+        assert (game_of(manager).pause, runtime_of(manager).state.round_state.result) == (None, None)
 
         await manager.shutdown()
 
     async def test_reconnect__when_the_connection_is_already_bound__should_refuse_it_and_keep_the_seat_bound(
-        self, paced_engine
+        self, real_engine
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
         alice = participant_of(manager, alice_conn)
 
@@ -420,8 +423,8 @@ class TestReconnectEdgeCases:
 
 
 class TestReconnectToEndedGame:
-    async def test_reconnect__when_game_ended_while_player_was_away__should_refuse_with_no_session(self, paced_engine):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+    async def test_reconnect__when_game_ended_while_player_was_away__should_refuse_with_no_session(self, real_engine):
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = participant_of(manager, conns[0]).seat
         bob_token = participant_of(manager, conns[1]).ticket
@@ -439,8 +442,8 @@ class TestReconnectToEndedGame:
 
 
 class TestReconnectDuringRoundAdvance:
-    async def test_reconnect__when_round_advance_pending__should_send_round_result_and_wait_id(self, paced_engine):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+    async def test_reconnect__when_round_advance_pending__should_send_round_result_and_wait_id(self, real_engine):
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = participant_of(manager, conns[0]).seat
         bob_token = participant_of(manager, conns[1]).ticket
@@ -449,7 +452,7 @@ class TestReconnectDuringRoundAdvance:
         manager.disconnect(conns[1])
         arrange_exhaustive_draw(runtime_of(manager))
         run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
-        assert game_of(manager).awaiting.kind == WaitKind.ROUND_OVER
+        assert game_of(manager).awaiting == RoundOver()
 
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)
@@ -465,8 +468,8 @@ class TestReconnectDuringRoundAdvance:
 
 
 class TestReconnectToPendingGame:
-    async def test_reconnect__when_game_not_started_yet__should_answer_retry_later(self, paced_engine):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+    async def test_reconnect__when_game_not_started_yet__should_answer_retry_later(self, real_engine):
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         specs = [
             PlayerSpec(name=name, user_id=f"user-{name}", game_ticket=f"ticket-{name}") for name in ("A", "B", "C")
         ]
@@ -493,12 +496,15 @@ class TestReconnectToPendingGame:
 
 class TestReconnectThenPlay:
     @pytest.mark.asyncio
-    async def test_reconnect__when_discard_sent_after_reconnect__should_handle_it_as_reconnected_player(self, manager):
+    async def test_reconnect__when_discard_sent_after_reconnect__should_handle_it_as_reconnected_player(
+        self, monkeypatch
+    ):
+        manager = make_session_manager(timer_config=DELAYED_AI_TURNS)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
 
         snapshot = _make_snapshot(seat=0)
-        manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
+        monkeypatch.setattr(manager._game_service, "build_reconnection_snapshot", lambda runtime, seat: snapshot)
 
         new_conn, _new_token = disconnect_and_reconnect(manager, alice_conn, game_id="game1")
         new_conn._outbox.clear()

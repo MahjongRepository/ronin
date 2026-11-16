@@ -1,6 +1,6 @@
 import re
 
-from game.engine import RNG_VERSION, Discard, EventType, MahjongGameService, Ron, RoundEndEvent
+from game.engine import RNG_VERSION, Discard, EventType, MahjongGameService, Refusal, Ron, RoundEndEvent
 from game.messaging.roster import GameRoster
 from game.replay import run_replay
 from game.replay.external.tenhou import TenhouConverter
@@ -38,9 +38,14 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_abo
     runtime = start.runtime
     seat_by_player = {name: seat for seat, name in enumerate(ROSTER.names)}
     recorded_events = list(start.events)
-    recorded_events += service.act(runtime, seat_by_player[DEALER], Discard(tile=PIN_3_TRIPLE_RON_DISCARD)).events
-    for player in RON_CALLERS_BY_SEAT_ORDER:
-        recorded_events += service.act(runtime, seat_by_player[player], Ron()).events
+    plays = [
+        (DEALER, Discard(tile=PIN_3_TRIPLE_RON_DISCARD)),
+        *((player, Ron()) for player in RON_CALLERS_BY_SEAT_ORDER),
+    ]
+    for player, action in plays:
+        events = service.act(runtime, seat_by_player[player], action)
+        assert not isinstance(events, Refusal), events
+        recorded_events += events
 
     assert len([e for e in recorded_events if isinstance(e, RoundEndEvent)]) == 1
 

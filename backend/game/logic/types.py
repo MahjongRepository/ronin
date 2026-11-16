@@ -319,15 +319,6 @@ class MeldCallInput(BaseModel):
     sequence_tiles: tuple[int, int] | None = None
 
 
-class AIPlayerAction(BaseModel):
-    """
-    AI player's chosen action during their turn.
-    """
-
-    action: PlayerAction
-    tile_id: int | None = None
-
-
 class AvailableActionItem(BaseModel):
     """
     An available action for a player during their turn.

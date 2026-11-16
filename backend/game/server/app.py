@@ -278,7 +278,7 @@ def create_app(
         settings = GameServerSettings()
 
     if game_service is None:  # pragma: no cover (entrypoint)
-        game_service = MahjongGameService(pace_ai_turns=True)
+        game_service = MahjongGameService()
 
     # When the app creates its own SessionManager, it owns the DB lifecycle.
     owned_db: Database | None = None

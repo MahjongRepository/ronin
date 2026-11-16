@@ -3,7 +3,7 @@ import asyncio
 import pytest
 from starlette.testclient import TestClient
 
-from game.engine import Discard, EventType, WaitKind
+from game.engine import Call, Dealt, Discard, EventType, Turn
 from game.messaging.encoder import decode, encode
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType
@@ -161,9 +161,9 @@ class TestJoinGame:
 
 class TestPendingGameTimeout:
     async def test_pending_game_timeout__when_dealer_never_connected__should_play_it_by_ai_and_let_it_reconnect(
-        self, paced_engine
+        self, real_engine
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, timer_config=SHORT_PENDING_TIMEOUT)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED, timer_config=SHORT_PENDING_TIMEOUT)
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         assert manager.get_playing_game_id("user-0") == "game1"
         conn = _join(manager, "ticket-1")
@@ -181,7 +181,7 @@ class TestPendingGameTimeout:
         assert absent.seat == runtime_of(manager).state.round_state.dealer_seat
         assert absent.seat != connected.seat
         assert not absent.is_connected
-        assert runtime_of(manager).ai.is_ai_player(absent.seat) is True
+        assert game.is_ai_seat(absent.seat) is True
         assert game.awaiting is not None
         assert game.awaiting.seats == {connected.seat}
         recorded = game.replay.records
@@ -263,8 +263,8 @@ class TestWithdrawGame:
 
 
 class TestGameStartConfirm:
-    async def test_game_start_confirm__when_every_player_confirms__should_draw_at_once(self, paced_engine, held_sleep):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, timer_config=START_CONFIRM)
+    async def test_game_start_confirm__when_every_player_confirms__should_draw_at_once(self, real_engine, held_sleep):
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED, timer_config=START_CONFIRM)
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         alice, bob = _join(manager, "ticket-0"), _join(manager, "ticket-1")
         game = game_of(manager)
@@ -286,7 +286,7 @@ class TestGameStartConfirm:
             (conn.sent_messages[2][WireKey.WAIT_ID], conn.sent_messages[2][WireKey.ROUND_ADVANCE_SECONDS])
             for conn in (alice, bob)
         ] == [(1, START_CONFIRM_SECONDS)] * 2
-        assert (game.awaiting.kind, game.pause) == (WaitKind.DEALT, Pause(starts_game=True, seats=frozenset(seats)))
+        assert (game.awaiting, game.pause) == (Dealt(), Pause(starts_game=True, seats=frozenset(seats)))
         await asyncio.sleep(0)
         assert held_sleep.durations == [START_CONFIRM_SECONDS] * 2
 
@@ -300,14 +300,14 @@ class TestGameStartConfirm:
         assert [conn.sent_messages[3][WireKey.EVENT_TYPE] for conn in (alice, bob)] == [
             DRAW_T if seat == dealer_seat else WireEventType.DRAW_NOTICE for seat in seats
         ]
-        assert game.awaiting.kind in (WaitKind.TURN, WaitKind.CALL)
+        assert isinstance(game.awaiting, Turn | Call)
 
         await manager.shutdown()
 
     async def test_game_start_confirm__when_its_timeout_fires__should_confirm_for_the_seats_left_and_draw(
-        self, paced_engine, held_sleep
+        self, real_engine, held_sleep
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, timer_config=START_CONFIRM)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED, timer_config=START_CONFIRM)
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         alice, bob = _join(manager, "ticket-0"), _join(manager, "ticket-1")
         game = game_of(manager)
@@ -327,9 +327,9 @@ class TestGameStartConfirm:
         await manager.shutdown()
 
     async def test_confirm_round__when_a_seat_confirms_again_or_echoes_an_old_id__should_refuse_both_as_stale(
-        self, paced_engine, held_sleep
+        self, real_engine, held_sleep
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, timer_config=START_CONFIRM)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED, timer_config=START_CONFIRM)
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         alice, bob = _join(manager, "ticket-0"), _join(manager, "ticket-1")
         game = game_of(manager)
@@ -358,9 +358,9 @@ class TestGameStartConfirm:
         await manager.shutdown()
 
     async def test_game_start_confirm__when_a_player_leaves_during_it__should_stop_awaiting_the_seat(
-        self, paced_engine, held_sleep
+        self, real_engine, held_sleep
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, timer_config=START_CONFIRM)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED, timer_config=START_CONFIRM)
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         alice, bob = _join(manager, "ticket-0"), _join(manager, "ticket-1")
         game = game_of(manager)
@@ -396,10 +396,10 @@ class TestGameStartConfirm:
         await manager.shutdown()
 
     async def test_game_start_confirm__when_a_seat_reconnects_over_its_socket__should_owe_the_confirmation(
-        self, paced_engine, held_sleep, fake_clock
+        self, real_engine, held_sleep, fake_clock
     ):
         manager = make_session_manager(
-            paced_engine, seed=ENGINE_SEED, timer_config=START_CONFIRM, clock=fake_clock.monotonic
+            real_engine, seed=ENGINE_SEED, timer_config=START_CONFIRM, clock=fake_clock.monotonic
         )
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         alice, _bob = _join(manager, "ticket-0"), _join(manager, "ticket-1")
@@ -427,9 +427,9 @@ class TestGameStartConfirm:
         await manager.shutdown()
 
     async def test_game_start_confirm__when_every_player_leaves_during_it__should_abandon_the_game_before_the_draw(
-        self, paced_engine, held_sleep
+        self, real_engine, held_sleep
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, timer_config=START_CONFIRM)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED, timer_config=START_CONFIRM)
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         alice, bob = _join(manager, "ticket-0"), _join(manager, "ticket-1")
 

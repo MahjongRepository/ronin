@@ -96,11 +96,3 @@ class UnsupportedSettingsError(Exception):
     """
     Game settings contain unsupported values that cannot be silently ignored.
     """
-
-
-class GeneratedActionError(Exception):
-    """
-    The engine refused an action it made itself on an AI player's behalf.
-
-    The engine generated it, so the refusal is a server fault that ends the game, never the seat's fault.
-    """

@@ -21,9 +21,9 @@ def _is_snapshot(message: dict) -> bool:
 
 class TestResync:
     async def test_resync__when_the_turn_seat_asks__should_send_what_a_reconnect_sends_and_keep_the_seat_bound(
-        self, paced_engine, fake_clock
+        self, real_engine, fake_clock
     ):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
         alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
         alice = participant_of(manager, alice_conn)
         runtime = runtime_of(manager)
@@ -46,7 +46,7 @@ class TestResync:
         assert alice.connection is alice_conn
         assert not alice_conn.is_closed
         assert alice.stand_in is None
-        assert not runtime.ai.is_ai_player(alice.seat)
+        assert not game_of(manager).is_ai_seat(alice.seat)
         assert game_of(manager).awaiting is awaiting
         assert alice.timer.task is deadline
         assert not deadline.done()
@@ -62,8 +62,8 @@ class TestResync:
 
         await manager.shutdown()
 
-    async def test_resync__when_the_game_has_not_dealt__should_answer_game_not_started(self, paced_engine):
-        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
+    async def test_resync__when_the_game_has_not_dealt__should_answer_game_not_started(self, real_engine):
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         specs = [PlayerSpec(name=name, user_id=f"user-{name}", game_ticket=f"ticket-{name}") for name in ("A", "B")]
         manager.create_pending_game(game_id="game1", player_specs=specs)
         conn = MockConnection()
