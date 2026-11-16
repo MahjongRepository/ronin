@@ -12,11 +12,10 @@ def _make_round_state(
 ) -> tuple[MahjongPlayer, MahjongRoundState]:
     player = MahjongPlayer(
         seat=0,
-        name="AI",
         tiles=tuple(tiles),
         score=25000,
     )
-    players = (player, *(MahjongPlayer(seat=i, name=f"AI{i}", score=25000) for i in range(1, 4)))
+    players = (player, *(MahjongPlayer(seat=i, score=25000) for i in range(1, 4)))
     round_state = MahjongRoundState(
         wall=make_wall(live_tiles=tuple(range(10))),
         players=players,

@@ -28,7 +28,7 @@ def _dealer_after_draw(
         create_player(seat=2, tiles=_OTHER_HANDS[2]),
         create_player(seat=3, tiles=_OTHER_HANDS[3], discards=seat_3_discards),
     )
-    runtime = GameRuntime(game_id="game", state=create_dealt_game_state(players), ai=AIPlayerController({}))
+    runtime = GameRuntime(state=create_dealt_game_state(players), ai=AIPlayerController({}))
     if live_tiles_left is not None:
         wall = runtime.state.round_state.wall
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:live_tiles_left]}))

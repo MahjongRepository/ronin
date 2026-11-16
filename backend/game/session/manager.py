@@ -8,6 +8,7 @@ import structlog
 
 from game.engine import (
     PRESET_GAME_TYPE,
+    RNG_VERSION,
     Action,
     BroadcastTarget,
     CallOpportunity,
@@ -28,6 +29,7 @@ from game.messaging.encoder import encode
 from game.messaging.event_payload import (
     draw_notice_payload,
     game_event_payload,
+    game_started_payload,
     live_game_event_payload,
     opens_wait,
     reconnection_payload,
@@ -37,6 +39,7 @@ from game.messaging.event_payload import (
     stamp_wait_id,
 )
 from game.messaging.game_errors import called_tile_mismatch_event, refusal_error_event, stale_action_event
+from game.messaging.roster import GameRoster
 from game.messaging.types import (
     ErrorMessage,
     GameJoinedMessage,
@@ -48,6 +51,7 @@ from game.messaging.types import (
 from game.session.models import GameLifecycle, GameSession, Participant, Pause
 from game.session.played_game import build_finish_record
 from game.session.replay_collector import ReplayRecord
+from game.session.seating import generate_seed, seat_players
 from game.session.timer import TimeoutType, TimerConfig, TurnTimer
 from game.wire.enums import SeatControlReason
 from game.wire.keys import WireKey
@@ -108,10 +112,11 @@ class SessionManager:
     The registry holds only pending and playing games, their participants by game ticket, the registered connections and
     which participant each authenticated connection is bound to. A game's end is claimed once (`_end_game`), which
     releases it from the registry at once; its effects then run in one finalizer task the manager owns. Every monotonic
-    time it reads comes from its clock, the participants' turn timers (`TurnTimer`) included.
+    time it reads comes from its clock, the participants' turn timers (`TurnTimer`) included, and every game's seed from
+    its seed source.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         game_service: GameService,
         *,
@@ -119,12 +124,14 @@ class SessionManager:
         replay_collector: ReplayCollector,
         timer_config: TimerConfig | None = None,
         clock: Callable[[], float] = time.monotonic,
+        seed_source: Callable[[], str] = generate_seed,
     ) -> None:
         self._game_service = game_service
         self._game_repository = game_repository
         self._replay_collector = replay_collector
         self._timer_config = timer_config if timer_config is not None else TimerConfig()
         self._clock = clock
+        self._seed_source = seed_source
 
         self._games: dict[str, GameSession] = {}
         self._withdrawn_game_ids: dict[str, float] = {}
@@ -424,22 +431,25 @@ class SessionManager:
 
     def _start_game(self, game: GameSession) -> None:
         """
-        Start the engine game for every participant, connected or not, and open its first wait.
+        Seat every participant, connected or not, start the engine game from a new seed and open its first wait.
 
-        Each participant is bound to the seat the engine assigned to its spec (by input order, never by name). The
-        engine stops after the deal; the first wait opens from there (`_open_first_wait`).
+        Each participant is bound to the seat its spec's input order gives it (`seat_players`, never by name), and the
+        seats no participant takes are AI players'. The engine stops after the deal; the first wait opens from there
+        (`_open_first_wait`).
         """
         game.lifecycle = GameLifecycle.PLAYING
-        start = self._game_service.start_game(game.game_id, [participant.name for participant in game.participants])
-        game.runtime = start.runtime
-        for participant, seat in zip(game.participants, start.seats, strict=True):
+        seed = self._seed_source()
+        seating = seat_players([participant.name for participant in game.participants], seed)
+        for participant, seat in zip(game.participants, seating.player_seats, strict=True):
             participant.seat = seat
 
-        started_state = start.runtime.state
-        game.replay = ReplayRecord(seed=started_state.seed, rng_version=started_state.rng_version)
-        self._record_game_start(game, start.runtime)
+        game.roster = GameRoster(game_id=game.game_id, names=seating.names, ai_seats=seating.ai_seats)
+        runtime, events = self._game_service.new_game(seed, ai_seats=seating.ai_seats)
+        game.runtime = runtime
+        game.replay = ReplayRecord(seed=seed, rng_version=RNG_VERSION, roster=game.roster)
+        self._record_game_start(game, game.roster)
         logger.info("pending game completed", game_id=game.game_id)
-        self._open_first_wait(game, events=start.events, awaiting=start.awaiting)
+        self._open_first_wait(game, events=events, awaiting=self._game_service.get_awaiting(runtime))
 
     def _open_first_wait(self, game: GameSession, *, events: list[GameEvent], awaiting: Awaiting) -> None:
         """
@@ -465,15 +475,14 @@ class SessionManager:
         if game.pause is None:
             self._begin_round(game, actor=None)
 
-    def _record_game_start(self, game: GameSession, runtime: GameRuntime) -> None:
+    def _record_game_start(self, game: GameSession, roster: GameRoster) -> None:
         """
         Capture the game's start record and post it: every seat in seat order, each participant's user_id by seat.
         """
-        game_state = runtime.state
         user_ids_by_seat = {participant.seat: participant.user_id for participant in game.participants}
         standings = [
-            PlayedGameStanding(name=p.name, seat=p.seat, user_id=user_ids_by_seat.get(p.seat, ""))
-            for p in game_state.round_state.players
+            PlayedGameStanding(name=name, seat=seat, user_id=user_ids_by_seat.get(seat, ""))
+            for seat, name in enumerate(roster.names)
         ]
         game.start_record = PlayedGame(
             game_id=game.game_id,
@@ -781,7 +790,7 @@ class SessionManager:
         seat = self._seat_of(participant)
         snapshot = self._game_service.build_reconnection_snapshot(self._runtime_of(game), seat)
         stand_ins = {self._seat_of(p): p.stand_in for p in game.participants if p.stand_in is not None}
-        payload = reconnection_payload(snapshot, stand_ins=stand_ins)
+        payload = reconnection_payload(snapshot, roster=self._roster_of(game), stand_ins=stand_ins)
         payload[WireKey.SESSION_TYPE] = SessionMessageType.GAME_RECONNECTED
         payload[WireKey.WAIT_ID] = participant.decision_id
         pause = game.pause
@@ -956,8 +965,9 @@ class SessionManager:
         every timer stops (charging elapsed decision time) and so does a pending AI turn, a new round's banks reset, a
         round over opens its pause (`_open_round_over_pause`), and each connected participant now awaited, by the engine
         or the pause, advances its own decision id before the events go out. The new wait's timers start after them; an
-        AI player's turn, a dealt round and a game over await no participant and start none. When it kept the wait, only
-        an actor that left it (a partial prompt response) has its timer stopped.
+        AI player's turn, a dealt round and a game over await no participant and start none. When it kept the wait,
+        every seat that left it (the actor of a partial prompt response, or a seat the engine stopped awaiting) has its
+        timer stopped.
         """
         previous = game.awaiting
         game.awaiting = awaiting
@@ -973,8 +983,9 @@ class SessionManager:
             for participant in game.connected():
                 if participant.seat in awaited:
                     participant.decision_id += 1
-        elif actor is not None and actor in previous.seats:
-            self._stop_timer_at(game, actor)
+        else:
+            for seat in previous.seats - awaiting.seats:
+                self._stop_timer_at(game, seat)
 
         self._broadcast_events(game, events, awaiting)
         if new_wait and game.lifecycle is GameLifecycle.PLAYING:
@@ -1137,13 +1148,15 @@ class SessionManager:
             self._replay_collector.collect_events(game.replay, events)
 
         for event in events:
+            if isinstance(event, GameStartedEvent):
+                self._send_to_each_seat(game, game_started_payload(event, roster=self._roster_of(game)))
+                continue
+
             message = live_game_event_payload(event)
             if isinstance(event, CallPromptEvent):
                 message = shape_call_prompt_payload(message)
 
-            if isinstance(event, GameStartedEvent):
-                self._send_to_each_seat(game, message)
-            elif isinstance(event.target, BroadcastTarget):
+            if isinstance(event.target, BroadcastTarget):
                 self._send_broadcast_event(game, message=message, event=event, awaiting=awaiting)
             elif isinstance(event.target, SeatTarget):
                 participant = game.at_seat(event.target.seat)
@@ -1287,6 +1300,16 @@ class SessionManager:
             raise AssertionError("engine call on a game without a runtime")
 
         return game.runtime
+
+    @staticmethod
+    def _roster_of(game: GameSession) -> GameRoster:
+        """
+        Return the roster of a started game, set with its seats at the start.
+        """
+        if game.roster is None:
+            raise AssertionError("roster read on a game that has not started")
+
+        return game.roster
 
     def _handle_timeout(self, participant: Participant, timeout_type: TimeoutType) -> None:
         """

@@ -4,7 +4,6 @@ from types import SimpleNamespace
 import pytest
 
 from game.engine import MahjongGameService
-from game.logic import mahjong_service as mahjong_service_module
 from game.session import manager as manager_module
 from game.session import timer as timer_module
 from game.tests.helpers.session import make_session_manager
@@ -18,22 +17,13 @@ def manager():
 
 
 @pytest.fixture
-def engine_seeder(monkeypatch):
-    def seed_with(seed: str) -> None:
-        monkeypatch.setattr(mahjong_service_module, "generate_seed", lambda: seed)
-
-    return seed_with
-
-
-@pytest.fixture
-def seeded_engine(engine_seeder):
-    engine_seeder(ENGINE_SEED)
+def paced_engine():
     return MahjongGameService(pace_ai_turns=True)
 
 
 @pytest.fixture
-async def table(seeded_engine):
-    table = SocketTable(make_session_manager(seeded_engine))
+async def table(paced_engine):
+    table = SocketTable(make_session_manager(paced_engine, seed=ENGINE_SEED))
     yield table
     await table.close()
 

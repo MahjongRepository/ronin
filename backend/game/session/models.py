@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
     from game.engine import Awaiting, GameRuntime
     from game.messaging.protocol import ConnectionProtocol
+    from game.messaging.roster import GameRoster
     from game.session.replay_collector import ReplayRecord
     from game.session.timer import TimerConfig, TurnTimer
     from game.wire.enums import SeatControlReason
@@ -50,7 +51,7 @@ class Participant:
     """
     One expected human of a game, from POST /games to the game's end, across any number of connections.
 
-    The seat is bound once, at the start, from the engine's assignment for this participant's spec. The participant is
+    The seat is bound once, at the start, from the session's seating of this participant's spec. The participant is
     connected while it has a connection. Its timer lives as long as the participant, so its bank survives a disconnect.
     stand_in says why an AI player holds its seat, from the handover until the participant takes the seat back.
     decision_id counts only decisions opened while connected; other seats and AI play never advance it.
@@ -102,14 +103,14 @@ class GameSession:
     """
     A game in the session layer: its participants, pacing, lifecycle, engine runtime and what its end needs.
 
-    runtime is the engine's game, held from the start until the end claim drops it. awaiting is what the engine last
-    reported the game waits for (set from the start on); the session compares each new report with it to tell a new wait
-    from a kept one, which drives the timers and the decision ids. pause is the start's or a round end's pause the
-    session holds the game in, None otherwise. Each participant's decision_id identifies only their own visible
-    decisions. start_record is the game's record as posted at the start (seat order, every seat's name and user_id);
-    every finish record is built from it. replay holds the records collected since the start until the end claim
-    detaches them. ai_turn is the sleeping task that plays the AI player's turn the game waits on (WaitKind.AI_TURN)
-    once the AI turn delay has passed.
+    runtime is the engine's game, held from the start until the end claim drops it; roster is who sits where, under what
+    name, set at the start. awaiting is what the engine last reported the game waits for (set from the start on); the
+    session compares each new report with it to tell a new wait from a kept one, which drives the timers and the
+    decision ids. pause is the start's or a round end's pause the session holds the game in, None otherwise. Each
+    participant's decision_id identifies only their own visible decisions. start_record is the game's record as posted
+    at the start (seat order, every seat's name and user_id); every finish record is built from it. replay holds the
+    records collected since the start until the end claim detaches them. ai_turn is the sleeping task that plays the AI
+    player's turn the game waits on (WaitKind.AI_TURN) once the AI turn delay has passed.
     """
 
     game_id: str
@@ -117,6 +118,7 @@ class GameSession:
     participants: list[Participant] = field(default_factory=list)
     lifecycle: GameLifecycle = GameLifecycle.PENDING
     runtime: GameRuntime | None = None
+    roster: GameRoster | None = None
     awaiting: Awaiting | None = None
     pause: Pause | None = None
     start_record: PlayedGame | None = None

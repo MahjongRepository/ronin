@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import uuid
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from game.engine import (
@@ -40,7 +39,6 @@ class ReplayOptions:
     Configuration for a replay run.
     """
 
-    game_id: str = ""
     strict: bool = True
     advance_rounds: bool = True
     auto_pass_calls: bool = True
@@ -87,9 +85,6 @@ def run_replay(
     transition.
     """
     resolved_opts = opts or ReplayOptions()
-    if not resolved_opts.game_id:
-        resolved_opts = replace(resolved_opts, game_id=f"replay-{uuid.uuid4().hex}")
-
     factory = service_factory or _default_service_factory
     return _execute_replay(factory(), resolved_opts, replay)
 
@@ -105,19 +100,12 @@ def _execute_replay(
     if opts.auto_pass_calls:
         _reject_manual_pass(replay)
 
-    start = service.start_game(
-        opts.game_id,
-        list(replay.player_names),
-        seed=replay.seed,
-        walls=replay.walls,
-        start=replay.start,
-    )
-    runtime = start.runtime
+    runtime, startup_events = service.new_game(replay.seed, walls=replay.walls, start=replay.start)
     begun = _require_accepted(service.begin_round(runtime))
     ctx = _ReplayRunContext(service=service, opts=opts, events=replay.events, runtime=runtime)
 
     initial_state = runtime.state
-    seat_by_player = dict(zip(replay.player_names, start.seats, strict=True))
+    seat_by_player = {name: seat for seat, name in enumerate(replay.player_names)}
     seating = _ReplaySeating(
         seat_by_player=seat_by_player,
         player_by_seat={seat: name for name, seat in seat_by_player.items()},
@@ -164,7 +152,7 @@ def _execute_replay(
         seed=replay.seed,
         rng_version=replay.rng_version,
         seat_by_player=seat_by_player,
-        startup_events=(*start.events, *begun.events),
+        startup_events=(*startup_events, *begun.events),
         initial_state=initial_state,
         steps=tuple(steps),
         final_state=runtime.state,

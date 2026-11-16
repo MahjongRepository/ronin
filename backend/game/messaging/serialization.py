@@ -10,7 +10,6 @@ from game.engine import (
     DoubleRonResult,
     DoubleRonWinner,
     ExhaustiveDrawResult,
-    GamePlayerInfo,
     HandResultInfo,
     MeldCaller,
     NagashiManganResult,
@@ -49,6 +48,7 @@ if TYPE_CHECKING:
         TurnEvent,
     )
     from game.messaging.game_errors import ErrorEvent
+    from game.messaging.roster import GameRoster
     from game.wire.enums import SeatControlReason
 
 
@@ -56,18 +56,22 @@ def serialize_score_map(scores: dict[int, int]) -> dict[str, int]:
     return {str(seat): score // WIRE_SCORE_DIVISOR for seat, score in scores.items()}
 
 
-def serialize_game_player_info(
-    value: GamePlayerInfo, *, stand_in_reason: SeatControlReason | None = None
-) -> dict[int, object]:
-    payload: dict[int, object] = {
-        WireKey.SEAT: value.seat,
-        WireKey.NAME: value.name,
-        WireKey.AI_PLAYER: int(value.is_ai_player and stand_in_reason is None),
-    }
-    if stand_in_reason is not None:
-        payload[WireKey.STAND_IN_REASON] = stand_in_reason
+def serialize_roster_players(
+    roster: GameRoster, *, stand_ins: Mapping[int, SeatControlReason]
+) -> list[dict[int, object]]:
+    players: list[dict[int, object]] = []
+    for seat, name in enumerate(roster.names):
+        player: dict[int, object] = {
+            WireKey.SEAT: seat,
+            WireKey.NAME: name,
+            WireKey.AI_PLAYER: int(seat in roster.ai_seats),
+        }
+        if seat in stand_ins:
+            player[WireKey.STAND_IN_REASON] = stand_ins[seat]
 
-    return payload
+        players.append(player)
+
+    return players
 
 
 def serialize_yaku_info(value: YakuInfo) -> dict[int, object]:
@@ -206,14 +210,12 @@ def serialize_round_history_entry(value: RoundHistoryEntry) -> dict[int, object]
 
 
 def serialize_reconnection_snapshot(
-    value: ReconnectionSnapshot, *, stand_ins: Mapping[int, SeatControlReason]
+    value: ReconnectionSnapshot, *, roster: GameRoster, stand_ins: Mapping[int, SeatControlReason]
 ) -> dict[int, object]:
     payload: dict[int, object] = {
-        WireKey.GAME_ID: value.game_id,
+        WireKey.GAME_ID: roster.game_id,
         WireKey.GAME_TYPE: WireGameType[value.game_type.name],
-        WireKey.PLAYERS: [
-            serialize_game_player_info(item, stand_in_reason=stand_ins.get(item.seat)) for item in value.players
-        ],
+        WireKey.PLAYERS: serialize_roster_players(roster, stand_ins=stand_ins),
         WireKey.DEALER: value.dealer_seat,
         WireKey.FIRST_DEALER: value.first_dealer_seat,
         WireKey.DEALER_DICE: value.dealer_dice,
@@ -365,11 +367,11 @@ def serialize_error_event(value: ErrorEvent) -> dict[int, object]:
     return {key: item for key, item in payload.items() if item is not None}
 
 
-def serialize_game_started_event(value: GameStartedEvent) -> dict[int, object]:
+def serialize_game_started_event(value: GameStartedEvent, *, roster: GameRoster) -> dict[int, object]:
     return {
-        WireKey.GAME_ID: value.game_id,
+        WireKey.GAME_ID: roster.game_id,
         WireKey.GAME_TYPE: WireGameType[value.game_type.name],
-        WireKey.PLAYERS: [serialize_game_player_info(item) for item in value.players],
+        WireKey.PLAYERS: serialize_roster_players(roster, stand_ins={}),
         WireKey.DEALER: value.dealer_seat,
         WireKey.DEALER_DICE: value.dealer_dice,
         WireKey.RIICHI_STICK_VALUE: value.riichi_stick_value // WIRE_SCORE_DIVISOR,

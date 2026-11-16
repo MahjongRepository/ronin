@@ -2,13 +2,11 @@ from game.engine import Discard, DoraRevealedEvent, EventType, Kan, KanType, Pon
 from game.replay import run_replay
 from game.replay.models import ReplayInput, ReplayInputEvent
 
-# Seed determines seat assignment via fill_seats(names, seed):
-# Alice -> seat 2, Bob -> seat 1, Charlie -> seat 0, Diana -> seat 3
 SEED = (
     "23824ff8ec95775ba5bb8de82f2903f25472e4a1f10a54ee31a955210ee871508f95c77bbc51b410531abd33a18d26df"
     "ef563e3bcf5af18c7663313c52eacd650ec18e6993c2ab70912ca363e0ed5bd9c088a5d406dc03584e33879746e7d79f"
 )
-PLAYERS = ("Alice", "Bob", "Charlie", "Diana")
+PLAYERS_BY_SEAT = ("Charlie", "Bob", "Alice", "Diana")
 
 # tile_34=27 is East wind (1z), tile IDs 108-111
 EAST_WIND_TILES = (108, 109, 110, 111)
@@ -67,7 +65,7 @@ def _build_added_kan_events() -> tuple[ReplayInputEvent, ...]:
 def test_added_kan__when_replayed__should_upgrade_pon_and_draw_replacement():
     replay = ReplayInput(
         seed=SEED,
-        player_names=PLAYERS,
+        player_names=PLAYERS_BY_SEAT,
         walls=(_build_added_kan_wall(),),
         events=_build_added_kan_events(),
     )
@@ -102,7 +100,7 @@ def test_added_kan__when_replayed__should_upgrade_pon_and_draw_replacement():
 def test_added_kan__when_replayed__should_leave_eleven_tiles_in_hand():
     replay = ReplayInput(
         seed=SEED,
-        player_names=PLAYERS,
+        player_names=PLAYERS_BY_SEAT,
         walls=(_build_added_kan_wall(),),
         events=_build_added_kan_events(),
     )
@@ -126,7 +124,7 @@ def test_added_kan__when_replayed__should_leave_eleven_tiles_in_hand():
 def test_added_kan__when_replayed__should_reveal_dora_after_replacement_discard():
     replay = ReplayInput(
         seed=SEED,
-        player_names=PLAYERS,
+        player_names=PLAYERS_BY_SEAT,
         walls=(_build_added_kan_wall(),),
         events=_build_added_kan_events(),
     )

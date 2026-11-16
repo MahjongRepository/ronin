@@ -35,7 +35,6 @@ if TYPE_CHECKING:
         Action,
         GameEvent,
         GameRuntime,
-        GameStart,
         GameUpdate,
         KanType,
         StartPosition,
@@ -141,8 +140,9 @@ class _AdvancingSelector(selectors.SelectSelector):
 
 class _StagedEngine(MahjongGameService):
     """
-    The real engine, pacing AI turns as the live server's does, dealing every game it starts from the staged seed, walls
-    and start position, as the session starts one with none of them.
+    The real engine, pacing AI turns as the live server's does, dealing every game it starts from the staged walls and
+    start position, as the session starts one with none of them, and from the staged seed, the scenario session's seed
+    source.
 
     The rounds after the first are dealt from the staged later rounds' walls in order, each checked against the dealer
     the game advanced to, and from the seed once those run out. Each staged draw of a round is checked against the seat
@@ -177,27 +177,25 @@ class _StagedEngine(MahjongGameService):
             )
 
     @override
-    def start_game(
+    def new_game(
         self,
-        game_id: str,
-        player_names: list[str],
+        seed: str,
         *,
-        seed: str | None = None,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
-    ) -> GameStart:
-        if seed is not None or walls or start is not None:
-            raise ScenarioError(f"{game_id}: the session started a game with its own seed, walls or start")
+        ai_seats: frozenset[int] = frozenset(),
+    ) -> tuple[GameRuntime, list[GameEvent]]:
+        if seed != STAGED_SEED or walls or start is not None:
+            raise ScenarioError("the session started a game with another seed, or its own walls or start")
 
-        game_start = super().start_game(
-            game_id,
-            player_names,
-            seed=STAGED_SEED,
+        runtime, events = super().new_game(
+            seed,
             walls=[staged.tiles() for staged in self._staged_rounds],
             start=self._start,
+            ai_seats=ai_seats,
         )
-        self._check_draws(game_start.events)
-        return game_start
+        self._check_draws(events)
+        return runtime, events
 
     @override
     def begin_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
@@ -652,7 +650,7 @@ class SeatedGame:
     """
     A game the real session manager runs, from its pending registration on, for scripted human clients over in-memory
     sockets, on virtual time; the engine deals it from a staged wall, and its next rounds from the later rounds' walls
-    when any are staged, and seats AI players in the seats no player takes.
+    when any are staged, and the session seats AI players in the seats no player takes.
 
     Client messages go through the real message router, and the session's own pacing runs as in production: the default
     timer settings but the base turn time pinned at 5 s, the round advance's and the game start confirmation's timeouts
@@ -673,6 +671,7 @@ class SeatedGame:
             replay_collector=ReplayCollector(FakeReplayStorage()),
             timer_config=SCENARIO_TIMER_CONFIG,
             clock=loop.time,
+            seed_source=lambda: STAGED_SEED,
         )
         self.router = MessageRouter(self._manager, game_ticket_secret=TEST_TICKET_SECRET)
 

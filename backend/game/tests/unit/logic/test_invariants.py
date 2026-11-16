@@ -16,7 +16,7 @@ FIXED_SEED = "ab" * SEED_BYTES
 
 
 def _started_game():
-    return start_game_in_play(MahjongGameService(), "game", ["A", "B", "C", "D"], seed=FIXED_SEED).runtime.state
+    return start_game_in_play(MahjongGameService(), seed=FIXED_SEED).runtime.state
 
 
 def _with_pon(game_state, *, caller: int, discarder: int):
@@ -91,7 +91,7 @@ class TestVerifyTileOwnership:
 class TestGameRuntimeCommit:
     def test_commit__when_state_breaks_ownership__should_raise_and_keep_the_old_state(self):
         game_state = _started_game()
-        runtime = GameRuntime(game_id="game", state=game_state, ai=AIPlayerController({}))
+        runtime = GameRuntime(state=game_state, ai=AIPlayerController({}))
         round_state = game_state.round_state
         broken = game_state.model_copy(
             update={"round_state": update_player(round_state, 0, tiles=round_state.players[1].tiles)},

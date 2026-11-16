@@ -37,13 +37,11 @@ from game.logic.game import (
     init_round,
     process_round_end,
 )
-from game.logic.matchmaker import fill_seats
 from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.refusal import Refusal, RefusalCode, RefusalKind
-from game.logic.rng import generate_seed
 from game.logic.rule_profiles import PRESET_SETTINGS
 from game.logic.runtime import GameRuntime
-from game.logic.service import Awaiting, GameService, GameStart, GameUpdate
+from game.logic.service import Awaiting, GameService, GameUpdate
 from game.logic.settings import NUM_PLAYERS
 from game.logic.state import (
     MahjongGameState,
@@ -59,7 +57,6 @@ from game.logic.turn import (
 )
 from game.logic.types import (
     ExhaustiveDrawResult,
-    GamePlayerInfo,
     NagashiManganResult,
     PlayerReconnectState,
     ReconnectionSnapshot,
@@ -165,7 +162,7 @@ class MahjongGameService(GameService):
     """
     Game service for Mahjong implementing the GameService interface.
 
-    Holds no game: start_game hands each game's GameRuntime to the caller, and every later call takes it. With
+    Holds no game: new_game hands each game's GameRuntime to the caller, and every later call takes it. With
     pace_ai_turns, every call stops before an AI player's turn action and reports a WaitKind.AI_TURN wait, so the live
     session can space AI turns out in real time (advance_ai_turn plays each); without it, a call plays every AI turn it
     reaches, for the callers that want the whole game at once (the replay runner, engine tests). The game played is the
@@ -175,42 +172,35 @@ class MahjongGameService(GameService):
     def __init__(self, *, pace_ai_turns: bool = False) -> None:
         self._pace_ai_turns = pace_ai_turns
 
-    def start_game(
+    def new_game(
         self,
-        game_id: str,
-        player_names: list[str],
+        seed: str,
         *,
-        seed: str | None = None,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
-    ) -> GameStart:
+        ai_seats: frozenset[int] = frozenset(),
+    ) -> tuple[GameRuntime, list[GameEvent]]:
         """
-        Start a new mahjong game with the given players.
+        Build a game from its seed, with AI players at ai_seats, and deal its first round.
 
-        Uses matchmaker to assign seats randomly and fill with AI players. Returns the game's runtime, initial state
-        events for each player, the first wait and each input player's seat, in input order. When seed is provided, the
-        game is deterministically reproducible. When seed is None, a random seed is generated. The game plays the rules
-        preset (PRESET_SETTINGS). The first rounds are dealt from walls, in order, and the rest from the seed; a start
-        position starts the game at its table in place of East 1. The game stops after the deal, before the dealer's
-        first draw (begin_round).
+        Returns the game's runtime and its initial events. The game plays the rules preset (PRESET_SETTINGS). The first
+        rounds are dealt from walls, in order, and the rest from the seed; a start position starts the game at its table
+        in place of East 1. The game stops after the deal, before the dealer's first draw (begin_round).
         """
-        game_seed = seed if seed is not None else generate_seed()
-
-        seat_configs, player_seats = fill_seats(player_names, seed=game_seed)
         first_wall = list(walls[0]) if walls else None
-        frozen_game = init_game(seat_configs, seed=game_seed, settings=PRESET_SETTINGS, wall=first_wall, start=start)
-        ai_players = {seat: AIPlayer() for seat, config in enumerate(seat_configs) if config.ai_player_type is not None}
-        runtime = GameRuntime(game_id=game_id, state=frozen_game, ai=AIPlayerController(ai_players), walls=walls)
+        frozen_game = init_game(seed=seed, settings=PRESET_SETTINGS, wall=first_wall, start=start)
+        ai_players = {seat: AIPlayer() for seat in ai_seats}
+        runtime = GameRuntime(state=frozen_game, ai=AIPlayerController(ai_players), walls=walls)
 
         hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
-        logger.debug("starting game", player_names=player_names, hands=hands)
+        logger.debug("starting game", hands=hands)
 
         events: list[GameEvent] = [
-            self._create_game_started_event(runtime),
+            self._create_game_started_event(frozen_game),
             *self._create_round_started_events(frozen_game),
         ]
         runtime.first_draw_pending = True
-        return GameStart(runtime=runtime, events=events, awaiting=self.get_awaiting(runtime), seats=player_seats)
+        return runtime, events
 
     def begin_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
         """
@@ -248,19 +238,12 @@ class MahjongGameService(GameService):
         events: list[GameEvent] = [*self._create_round_started_events(frozen_game)]
         return GameUpdate(events=events, awaiting=self.get_awaiting(runtime))
 
-    def _create_game_started_event(self, runtime: GameRuntime) -> GameStartedEvent:
+    def _create_game_started_event(self, game_state: MahjongGameState) -> GameStartedEvent:
         """
         Create a single game_started event broadcast to all players.
         """
-        game_state = runtime.state
-        players = [
-            GamePlayerInfo(seat=p.seat, name=p.name, is_ai_player=runtime.ai.is_ai_player(p.seat))
-            for p in game_state.round_state.players
-        ]
         return GameStartedEvent(
-            game_id=runtime.game_id,
             game_type=game_state.settings.game_type,
-            players=players,
             dealer_seat=game_state.starting_dealer_seat,
             dealer_dice=game_state.dealer_dice,
             riichi_stick_value=game_state.settings.riichi_stick_value,
@@ -601,11 +584,6 @@ class MahjongGameService(GameService):
         """
         game_state = runtime.state
         round_state = game_state.round_state
-        players_info = [
-            GamePlayerInfo(seat=p.seat, name=p.name, is_ai_player=runtime.ai.is_ai_player(p.seat))
-            for p in round_state.players
-        ]
-
         player_states = [
             PlayerReconnectState(
                 seat=p.seat,
@@ -621,9 +599,7 @@ class MahjongGameService(GameService):
         view = get_player_view(game_state, seat)
         header = _snapshot_round_header(game_state)
         return ReconnectionSnapshot(
-            game_id=runtime.game_id,
             game_type=game_state.settings.game_type,
-            players=players_info,
             dealer_seat=header.dealer_seat,
             first_dealer_seat=game_state.starting_dealer_seat,
             dealer_dice=game_state.dealer_dice,

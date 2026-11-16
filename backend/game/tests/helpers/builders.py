@@ -1,9 +1,11 @@
-from dataclasses import replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from game.logic.enums import RoundPhase
 from game.logic.invariants import verify_tile_ownership
 from game.logic.refusal import Refusal
+from game.logic.rng import seat_permutation
+from game.logic.settings import NUM_PLAYERS
 from game.logic.state import (
     Discard,
     MahjongGameState,
@@ -18,8 +20,10 @@ from game.tests.helpers.wall import make_wall
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from game.logic.events import GameEvent
     from game.logic.meld_wrapper import FrozenMeld
-    from game.logic.service import GameService, GameStart
+    from game.logic.runtime import GameRuntime
+    from game.logic.service import Awaiting, GameService
     from game.logic.settings import GameSettings
     from game.logic.types import StartPosition
     from game.logic.wall import Wall
@@ -27,7 +31,6 @@ if TYPE_CHECKING:
 
 def create_player(
     seat: int = 0,
-    name: str | None = None,
     *,
     tiles: Sequence[int] | None = None,
     discards: Sequence[Discard] | None = None,
@@ -44,7 +47,6 @@ def create_player(
 ) -> MahjongPlayer:
     return MahjongPlayer(
         seat=seat,
-        name=name if name is not None else f"Player{seat}",
         tiles=tuple(tiles) if tiles is not None else (),
         discards=tuple(discards) if discards is not None else (),
         melds=tuple(melds) if melds is not None else (),
@@ -196,20 +198,27 @@ def create_game_state(
     return MahjongGameState(**kwargs)
 
 
+@dataclass(frozen=True)
+class GameInPlay:
+    runtime: GameRuntime
+    events: list[GameEvent]
+    awaiting: Awaiting
+    human_seats: tuple[int, ...]
+
+
 def start_game_in_play(
     service: GameService,
-    game_id: str,
-    player_names: list[str],
     *,
-    seed: str | None = None,
+    seed: str,
+    humans: int = NUM_PLAYERS,
     walls: Sequence[Sequence[int]] = (),
     start: StartPosition | None = None,
-) -> GameStart:
-    """
-    Start a game and let its dealer draw at once, as a session with no start pause does; the start's events and wait
-    include the first draw's.
-    """
-    game_start = service.start_game(game_id, player_names, seed=seed, walls=walls, start=start)
-    begun = service.begin_round(game_start.runtime)
+) -> GameInPlay:
+    human_seats = seat_permutation(seed)[:humans]
+    ai_seats = frozenset(range(NUM_PLAYERS)) - frozenset(human_seats)
+    runtime, events = service.new_game(seed, walls=walls, start=start, ai_seats=ai_seats)
+    begun = service.begin_round(runtime)
     assert not isinstance(begun, Refusal), begun
-    return replace(game_start, events=[*game_start.events, *begun.events], awaiting=begun.awaiting)
+    return GameInPlay(
+        runtime=runtime, events=[*events, *begun.events], awaiting=begun.awaiting, human_seats=human_seats
+    )

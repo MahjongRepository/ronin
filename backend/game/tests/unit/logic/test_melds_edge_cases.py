@@ -91,7 +91,7 @@ class TestKanLimits:
             create_player(seat=2, tiles=tile_copies(1, sou="123456789", honors="1234")),
             create_player(seat=3, tiles=tile_copies(2, sou="123456789", honors="1234")),
         )
-        runtime = GameRuntime(game_id="game", state=create_dealt_game_state(players), ai=AIPlayerController({}))
+        runtime = GameRuntime(state=create_dealt_game_state(players), ai=AIPlayerController({}))
         settings = runtime.state.settings
         wall = runtime.state.round_state.wall
         short_live_tiles = wall.live_tiles[: settings.min_wall_for_kan - 1]

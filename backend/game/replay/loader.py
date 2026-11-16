@@ -23,7 +23,6 @@ from game.engine import (
     Ron,
     Tsumo,
     WireGameType,
-    seat_permutation,
     validate_seed_hex,
 )
 from game.replay.models import ReplayInput, ReplayInputEvent
@@ -160,7 +159,7 @@ def load_replay_records(events: list[dict[int, object]]) -> ReplayInput:
     seed, rng_version, players = _validate_game_started(events[1])
 
     seat_to_name = _extract_seat_to_name(players)
-    player_names = _reconstruct_input_order(seed, seat_to_name)
+    player_names = _names_by_seat(seat_to_name)
     _validate_game_settings(events[1])
 
     actions: list[ReplayInputEvent] = []
@@ -223,16 +222,9 @@ def _extract_seat_to_name(players: list[dict[int, Any]]) -> dict[int, str]:
     return seat_to_name
 
 
-def _reconstruct_input_order(
-    seed: str,
-    seat_to_name: dict[int, str],
-) -> tuple[str, str, str, str]:
+def _names_by_seat(seat_to_name: dict[int, str]) -> tuple[str, str, str, str]:
     """
-    Reconstruct the original player name input order from the seed.
-
-    During replay, fill_seats receives all 4 names (human + AI) and seats them by the seed's seat permutation. This
-    function inverts that permutation: given the seed and the seat-to-name mapping, it produces the name ordering that,
-    fed back through fill_seats with the same seed, recreates the original seating.
+    Return the recorded names in seat order, which the replay runner seats as they are; every seat must have one.
     """
     expected_seats = set(range(NUM_PLAYERS))
     if set(seat_to_name.keys()) != expected_seats:
@@ -240,7 +232,7 @@ def _reconstruct_input_order(
             f"game_started players must have exactly seats {expected_seats}, got: {set(seat_to_name.keys())}",
         )
 
-    first, second, third, fourth = (seat_to_name[s] for s in seat_permutation(seed))
+    first, second, third, fourth = (seat_to_name[seat] for seat in range(NUM_PLAYERS))
     return first, second, third, fourth
 
 

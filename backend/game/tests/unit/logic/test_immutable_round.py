@@ -20,7 +20,7 @@ from game.tests.unit.logic.helpers import _string_to_34_tiles
 
 class TestDrawTileImmutable:
     def _create_round_state(self) -> MahjongRoundState:
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"AI{i}", score=25000) for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, score=25000) for i in range(4))
         return MahjongRoundState(
             wall=make_wall(live_tiles=tuple(TilesConverter.string_to_136_array(man="1111222233"))),
             players=players,
@@ -49,7 +49,7 @@ class TestDrawTileImmutable:
 
 class TestDrawFromDeadWallImmutable:
     def _create_round_state(self) -> MahjongRoundState:
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}" if i == 0 else f"AI{i}", score=25000) for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, score=25000) for i in range(4))
         # 14 tiles for dead wall: North(copies 2-3), Haku(4), Hatsu(4), Chun(4)
         dead_wall = (
             *TilesConverter.string_to_136_array(honors="4444")[2:],
@@ -136,25 +136,21 @@ class TestDiscardTileImmutable:
         players = (
             MahjongPlayer(
                 seat=0,
-                name="Player1",
                 tiles=(man_3[2], man_6[0], man_8[2], pin_2[0]),
                 score=25000,
             ),
             MahjongPlayer(
                 seat=1,
-                name="AI1",
                 tiles=(man_3[3], man_6[1], man_8[3], pin_2[1]),
                 score=25000,
             ),
             MahjongPlayer(
                 seat=2,
-                name="AI2",
                 tiles=(man_4[0], man_6[2], man_9[0], pin_2[2]),
                 score=25000,
             ),
             MahjongPlayer(
                 seat=3,
-                name="AI3",
                 tiles=(man_4[1], man_6[3], man_9[1], pin_2[3]),
                 score=25000,
             ),
@@ -281,7 +277,7 @@ class TestDiscardTileImmutable:
 
 class TestChooseDefaultDiscard:
     def _make_player(self, tiles: tuple[int, ...], kuikae_tiles: tuple[int, ...] = ()) -> MahjongPlayer:
-        return MahjongPlayer(seat=0, name="Test", tiles=tiles, kuikae_tiles=kuikae_tiles, score=25000)
+        return MahjongPlayer(seat=0, tiles=tiles, kuikae_tiles=kuikae_tiles, score=25000)
 
     def test_choose_default_discard__when_no_kuikae__should_return_drawn_tile(self):
         hand = tuple(TilesConverter.string_to_136_array(man="159"))

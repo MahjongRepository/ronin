@@ -40,29 +40,15 @@ class GameUpdate:
     awaiting: Awaiting
 
 
-@dataclass(frozen=True)
-class GameStart:
-    """
-    The outcome of starting a game: its runtime, initial events, what it waits for, and each input player's seat.
-
-    The caller owns the runtime: every later call on the game takes it, and dropping it disposes the game. The seats
-    are in input order.
-    """
-
-    runtime: GameRuntime
-    events: list[GameEvent]
-    awaiting: Awaiting
-    seats: tuple[int, ...]
-
-
 class GameService(Protocol):
     """
     Interface of the game logic, used by the session and the replay runner.
 
-    Players are identified by seat; names are display only. Every event carries its routing target: a BroadcastTarget
-    (every player in the game) or a SeatTarget (only the player at that seat). Every call that can change the game
-    returns what it waits for next (Awaiting), or a Refusal that changed nothing: no call raises for a player's input.
-    The service holds no game: start_game returns the game's GameRuntime, and every later call takes it. A service that
+    Players are identified by seat only: who sits where, under what name, is the caller's. Every event carries its
+    routing target: a BroadcastTarget (every player in the game) or a SeatTarget (only the player at that seat). Every
+    call that can change the game returns what it waits for next (Awaiting), or a Refusal that changed nothing: no call
+    raises for a player's input.
+    The service holds no game: new_game returns the game's GameRuntime, and every later call takes it. A service that
     paces AI turns stops before each AI player's turn action and reports it as a WaitKind.AI_TURN wait, which
     advance_ai_turn plays; AI responses to call prompts never wait.
     """
@@ -108,25 +94,23 @@ class GameService(Protocol):
         """
         ...
 
-    def start_game(
+    def new_game(
         self,
-        game_id: str,
-        player_names: list[str],
+        seed: str,
         *,
-        seed: str | None = None,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
-    ) -> GameStart:
+        ai_seats: frozenset[int] = frozenset(),
+    ) -> tuple[GameRuntime, list[GameEvent]]:
         """
-        Start a game with the given players, seating AI players in the empty seats.
+        Build a game from its seed and deal its first round, with AI players at ai_seats.
 
-        Returns the game's runtime, the initial state events (one per player with their view), the first wait and each
-        input player's seat, in input order. When seed is provided, the game is deterministically reproducible. When
-        seed is None, a random seed is generated. Every game plays the one rules preset. The game's first rounds are
-        dealt from walls, one 136-tile wall each, in order, and the rounds after them from the seed; a round dealt from
-        a given wall breaks it at dice (1, 1), and given walls make seat 0 the first dealer. A start position starts the
-        game at its scores, sticks, dealer, wind and round number in place of East 1. The game stops after the first
-        deal (WaitKind.DEALT): its dealer draws only on begin_round.
+        Returns the game's runtime and its initial events: the game start, then one round start per seat with its view;
+        get_awaiting reads its first wait. The same seed and inputs play the same game. Every game plays the one rules
+        preset. The game's first rounds are dealt from walls, one 136-tile wall each, in order, and the rounds after
+        them from the seed; a round dealt from a given wall breaks it at dice (1, 1), and given walls make seat 0 the
+        first dealer. A start position starts the game at its scores, sticks, dealer, wind and round number in place of
+        East 1. The game stops after the first deal (WaitKind.DEALT): its dealer draws only on begin_round.
         """
         ...
 
@@ -193,8 +177,6 @@ class GameService(Protocol):
     def build_reconnection_snapshot(self, runtime: GameRuntime, seat: int) -> ReconnectionSnapshot:
         """
         Build a full game state snapshot for a reconnecting player at the given seat.
-
-        For a seat an AI player held, call it after restore_human_player() so the AI player flag is correct.
         """
         ...
 

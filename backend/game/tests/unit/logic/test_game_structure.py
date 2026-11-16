@@ -15,7 +15,6 @@ from game.logic.settings import (
     GameType,
     validate_settings,
 )
-from game.logic.types import SeatConfig
 from game.tests.helpers.builders import create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.start_wall import make_start_wall
@@ -94,10 +93,9 @@ class TestInitRound:
 
 class TestStartingScore:
     def test_starting_score__when_custom__should_apply_to_init_game_players(self):
-        seat_configs = [SeatConfig(name=f"P{i}") for i in range(4)]
         wall = list(range(136))
 
-        game_state = init_game(seat_configs, seed="a" * 192, settings=GameSettings(starting_score=30000), wall=wall)
+        game_state = init_game(seed="a" * 192, settings=GameSettings(starting_score=30000), wall=wall)
         for player in game_state.round_state.players:
             assert player.score == 30000
 

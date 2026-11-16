@@ -147,7 +147,6 @@ allowed_importers = [
     "game.tests.helpers.hands",
     "game.tests.helpers.wall",
     "game.tests.mocks.game_service",
-    "game.tests.unit.session.conftest",
     "game.tests.unit.session.test_session_game_end",
     "game.tests.unit.session.test_session_replay_persistence",
     "game.tests.unit.server.test_replay_runner",

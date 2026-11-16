@@ -22,7 +22,6 @@ from game.logic.types import (
     NagashiManganResult,
     PlayerStanding,
     RoundResult,
-    SeatConfig,
     StartPosition,
 )
 from game.logic.wall import create_wall, create_wall_from_tiles, deal_initial_hands
@@ -98,14 +97,13 @@ def calculate_final_scores(
 
 
 def init_game(
-    seat_configs: list[SeatConfig],
     seed: str,
     settings: GameSettings | None = None,
     wall: list[int] | None = None,
     start: StartPosition | None = None,
 ) -> MahjongGameState:
     """
-    Initialize a new mahjong game with seat configurations.
+    Initialize a new mahjong game of four seats.
 
     The game starts at East 1 from the first dealer, every player at starting_score points (from settings), unless a
     start position gives the scores, sticks, dealer, wind and round number. The first dealer is seat 0 with a fixed
@@ -131,9 +129,7 @@ def init_game(
     dealer_seat = position.dealer_seat
 
     # Create players
-    players = tuple(
-        MahjongPlayer(seat=i, name=config.name, score=position.scores[i]) for i, config in enumerate(seat_configs)
-    )
+    players = tuple(MahjongPlayer(seat=seat, score=position.scores[seat]) for seat in range(NUM_PLAYERS))
 
     # Create wall using Wall module
     if wall is not None:
@@ -198,7 +194,6 @@ def init_round(
     players = tuple(
         MahjongPlayer(
             seat=p.seat,
-            name=p.name,
             tiles=tuple(hands[p.seat]),
             score=p.score,  # preserve score from previous round
         )

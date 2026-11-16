@@ -38,17 +38,21 @@ from game.engine import (
 from game.messaging.event_payload import (
     EVENT_TYPE_INT,
     game_event_payload,
+    game_started_payload,
     reconnection_payload,
     shape_call_prompt_payload,
     stamp_wait_id,
 )
+from game.messaging.roster import GameRoster
 from game.tests.helpers.builders import start_game_in_play
 from game.tests.helpers.wall import make_wall
-from game.tests.unit.logic.helpers import _find_player, _update_player, _update_round_state
+from game.tests.unit.logic.helpers import _first_human, _update_player, _update_round_state
 from game.wire.compact import decode_discard, decode_draw
 from game.wire.enums import WireRoundResultType
 from game.wire.keys import WireKey
 from shared.lib.melds import EVENT_TYPE_MELD, decode_meld_compact
+
+ROSTER = GameRoster(game_id="game1", names=("Alice", "Bob", "Charlie", "Dave"), ai_seats=frozenset())
 
 
 class TestEventTypeIntExhaustiveness:
@@ -405,13 +409,13 @@ class TestRoundEndPayload:
 class TestRiichiStickValuePayload:
     def test_start_payloads__when_the_stick_value_is_not_the_riichi_cost__should_send_only_the_stick_value(self):
         service = MahjongGameService()
-        start = start_game_in_play(service, "game1", ["Alice"], seed="a" * 192)
+        start = start_game_in_play(service, humans=1, seed="a" * 192)
         game_started = next(e for e in start.events if isinstance(e, GameStartedEvent))
         game_started = game_started.model_copy(update={"riichi_stick_value": 1500})
-        snapshot = service.build_reconnection_snapshot(start.runtime, start.seats[0])
+        snapshot = service.build_reconnection_snapshot(start.runtime, start.human_seats[0])
         snapshot = snapshot.model_copy(update={"riichi_stick_value": 1500})
-        started_payload = game_event_payload(game_started)
-        snapshot_payload = reconnection_payload(snapshot, stand_ins={})
+        started_payload = game_started_payload(game_started, roster=ROSTER)
+        snapshot_payload = reconnection_payload(snapshot, roster=ROSTER, stand_ins={})
 
         assert (started_payload.get(WireKey.RIICHI_COLLECTED), started_payload[WireKey.RIICHI_STICK_VALUE]) == (
             None,
@@ -435,11 +439,13 @@ class TestReconnectionPayload:
         return MahjongGameService()
 
     def test_reconnection_payload__when_round_is_over__should_carry_the_ended_round_and_its_result(self, service):
-        runtime = start_game_in_play(service, "game1", ["Alice"], seed="a" * 192).runtime
-        alice = _find_player(runtime.state.round_state, "Alice")
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
+        alice = _first_human(runtime.state)
         first_dealer = runtime.state.round_state.dealer_seat
         tenpai_seat = (first_dealer + 1) % 4
-        fresh_payload = reconnection_payload(service.build_reconnection_snapshot(runtime, alice.seat), stand_ins={})
+        fresh_payload = reconnection_payload(
+            service.build_reconnection_snapshot(runtime, alice.seat), roster=ROSTER, stand_ins={}
+        )
         assert WireKey.LATEST_DISCARD_SEAT not in fresh_payload
 
         tenpai_hand = TilesConverter.string_to_136_array(man="123456789", pin="11", sou="45")
@@ -447,7 +453,9 @@ class TestReconnectionPayload:
         _end_the_round_by_exhaustive_draw(service, runtime, seat=alice.seat)
         assert service.get_awaiting(runtime).kind == WaitKind.ROUND_OVER
 
-        payload = reconnection_payload(service.build_reconnection_snapshot(runtime, alice.seat), stand_ins={})
+        payload = reconnection_payload(
+            service.build_reconnection_snapshot(runtime, alice.seat), roster=ROSTER, stand_ins={}
+        )
         assert (
             payload[WireKey.DEALER],
             payload[WireKey.WIND],
@@ -465,8 +473,8 @@ class TestReconnectionPayload:
         }
 
     def test_reconnection_payload__when_round_ended_before__should_list_it_in_the_round_history(self, service):
-        runtime = start_game_in_play(service, "game1", ["Alice"], seed="a" * 192).runtime
-        alice = _find_player(runtime.state.round_state, "Alice")
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
+        alice = _first_human(runtime.state)
         riichi_seat = (alice.seat + 1) % 4
         first_dealer = runtime.state.round_state.dealer_seat
         tenpai_hand = TilesConverter.string_to_136_array(man="123456789", pin="11", sou="45")
@@ -476,7 +484,9 @@ class TestReconnectionPayload:
         service.begin_round(runtime)
         assert runtime.state.round_number == 1
 
-        payload = reconnection_payload(service.build_reconnection_snapshot(runtime, alice.seat), stand_ins={})
+        payload = reconnection_payload(
+            service.build_reconnection_snapshot(runtime, alice.seat), roster=ROSTER, stand_ins={}
+        )
         assert payload[WireKey.HONBA] == 1
         assert payload[WireKey.ROUND_HISTORY] == [
             {

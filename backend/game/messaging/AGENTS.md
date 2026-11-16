@@ -22,6 +22,9 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   score, go out live, on `game_started` and the reconnect snapshot: the settings a client consumes, the type for its
   headings and the stick value since every deposit and payment comes settled. Replay game-start records retain this viewing value and an explicit aka-dora flag; their
   compact `WireKey.GAME_SETTINGS` envelope always names the preset with no overrides.
+* The game id and the seats (`WireKey.PLAYERS`: each seat's name and whether an AI player holds it from the start) on
+  `game_started` and the reconnect snapshot come from the session's roster (`roster.py`), never from the engine,
+  whose events carry neither.
 * An accepted JOIN_GAME is answered by `game_joined` to the joining connection alone, ahead of anything
   the game sends it, as an accepted RECONNECT is by the snapshot; every refused one by a session error.
   So a client is admitted by the server's answer, never by inferring it from the game's messages.

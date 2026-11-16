@@ -22,7 +22,6 @@ from game.engine import (
     GameEndCause,
     GameEndedEvent,
     GameEvent,
-    GamePlayerInfo,
     GameStartedEvent,
     GameType,
     HandLimit,
@@ -50,7 +49,8 @@ from game.engine import (
     WaitKind,
     YakuInfo,
 )
-from game.messaging.event_payload import game_event_payload
+from game.messaging.event_payload import game_event_payload, game_started_payload
+from game.messaging.roster import GameRoster
 from game.replay.external.tenhou import TenhouConverter
 from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.tests.helpers.builders import start_game_in_play
@@ -62,12 +62,15 @@ from game.wire.keys import WireKey
 from game.wire.replay_format import REPLAY_VERSION, decode_replay_records, encode_replay_records, encode_replay_settings
 
 if TYPE_CHECKING:
-    from game.engine import Action, GameStart
+    from game.engine import Action
+    from game.tests.helpers.builders import GameInPlay
 
 SEED = (
     "23824ff8ec95775ba5bb8de82f2903f25472e4a1f10a54ee31a955210ee871508f95c77bbc51b410531abd33a18d26df"
     "ef563e3bcf5af18c7663313c52eacd650ec18e6993c2ab70912ca363e0ed5bd9c088a5d406dc03584e33879746e7d79f"
 )
+ROSTER = GameRoster(game_id="tenhou", names=("Charlie", "Bob", "Alice", "Diana"), ai_seats=frozenset())
+NUMBERED_ROSTER = GameRoster(game_id="game1", names=("P0", "P1", "P2", "P3"), ai_seats=frozenset())
 DEALER, DRAGON_CALLER, DRAGON_FEEDER, SOU_9_DISCARDER = 0, 1, 2, 3
 HAKU_DISCARD, HATSU_DISCARD, CHUN_DISCARD = tile_copies(2, honors="567")
 SOU_9_DISCARD = tile_copies(1, sou="9")[0]
@@ -101,14 +104,16 @@ KAN_GAME_DRAWS = (*SOUTH_DRAWS, tile_copies(1, honors="4")[0], PIN_3_ADDED)
 
 def _game_started_replay_line(*, first_dealer: int = 0) -> dict[int, Any]:
     event = GameStartedEvent(
-        game_id="game1",
         game_type=GameType.HANCHAN,
-        players=[GamePlayerInfo(seat=i, name=f"P{i}", is_ai_player=False) for i in range(4)],
         dealer_seat=first_dealer,
         dealer_dice=((1, 1), (1, 1)),
         riichi_stick_value=1000,
     )
-    payload = {**game_event_payload(event), WireKey.SEED: "a" * 192, WireKey.RNG_VERSION: RNG_VERSION}
+    payload = {
+        **game_started_payload(event, roster=NUMBERED_ROSTER),
+        WireKey.SEED: "a" * 192,
+        WireKey.RNG_VERSION: RNG_VERSION,
+    }
     return {**payload, WireKey.GAME_SETTINGS: encode_replay_settings()}
 
 
@@ -494,16 +499,14 @@ def test_tenhou_converter__when_the_same_events_convert_twice__should_write_each
     assert re.findall(r'doraHai="([^"]*)"', TenhouConverter(lines).convert()) == ["0,12"]
 
 
-def _start_game(wall: tuple[int, ...], start: StartPosition | None = None) -> tuple[MahjongGameService, GameStart]:
+def _start_game(wall: tuple[int, ...], start: StartPosition | None = None) -> tuple[MahjongGameService, GameInPlay]:
     service = MahjongGameService()
-    game_start = start_game_in_play(
-        service, "tenhou", ["Alice", "Bob", "Charlie", "Diana"], seed=SEED, walls=[wall], start=start
-    )
+    game_start = start_game_in_play(service, seed=SEED, walls=[wall], start=start)
     return service, game_start
 
 
 def _replay_lines(recorded_events: list[GameEvent]) -> list[dict[int, Any]]:
-    record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION)
+    record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION, roster=ROSTER)
     ReplayCollector(FakeReplayStorage()).collect_events(record, recorded_events)
     return decode_replay_records(encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *record.records]))[1:]
 

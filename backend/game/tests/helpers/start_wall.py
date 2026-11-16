@@ -47,7 +47,7 @@ def make_start_wall(
     ura: Sequence[int] = (),
 ) -> tuple[int, ...]:
     """
-    Build a full 136-tile wall for start_game that deals each seat its 13-tile hand and then the live draws in order.
+    Build a full 136-tile wall for new_game that deals each seat its 13-tile hand and then the live draws in order.
 
     The layout is the setup input's, not any engine's internals: the deal in blocks of four then one per seat, the live
     draws after it, and the 14-tile dead wall at the end as seven two-tile stacks (tops, then bottoms), the two nearest

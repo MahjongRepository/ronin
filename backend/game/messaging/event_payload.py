@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from game.engine import Awaiting, ReconnectionSnapshot, RoundResult
+    from game.messaging.roster import GameRoster
     from game.messaging.types import TimerSettings
     from game.wire.enums import SeatControlReason
 
@@ -102,9 +103,6 @@ def _serialize_event_fields(event: GameEvent) -> dict[int, Any]:
     elif isinstance(event, ErrorEvent):
         fields = serialization.serialize_error_event(event)
 
-    elif isinstance(event, GameStartedEvent):
-        fields = serialization.serialize_game_started_event(event)
-
     elif isinstance(event, RoundStartedEvent):
         fields = serialization.serialize_round_started_event(event)
 
@@ -118,6 +116,17 @@ def _serialize_event_fields(event: GameEvent) -> dict[int, Any]:
         raise TypeError(f"unsupported game event: {type(event).__name__}")
 
     return fields
+
+
+def game_started_payload(event: GameStartedEvent, *, roster: GameRoster) -> dict[int, Any]:
+    """
+    Build the game start's protocol message: the engine's table rules and first dealer with the session's game id and
+    seats (`WireKey.PLAYERS`), for both the socket and the replay.
+    """
+    return {
+        WireKey.EVENT_TYPE: EVENT_TYPE_INT[event.type],
+        **serialization.serialize_game_started_event(event, roster=roster),
+    }
 
 
 def live_game_event_payload(event: GameEvent) -> dict[int, Any]:
@@ -193,16 +202,18 @@ def _serialize_round_result(result: RoundResult) -> dict[int, Any]:
 def reconnection_payload(
     snapshot: ReconnectionSnapshot,
     *,
+    roster: GameRoster,
     stand_ins: Mapping[int, SeatControlReason],
 ) -> dict[int, Any]:
     """
     Return the wire-format dict of a reconnect snapshot, its round result (`WireKey.ROUND_RESULT`) shaped as a round
     end's and each round history entry's result type (`WireKey.RESULT_TYPE`) as its integer.
 
-    stand_ins maps seats held by an AI stand-in to their reasons. A stand-in keeps the participant identity and carries
-    WireKey.STAND_IN_REASON, while a permanent AI player carries WireKey.AI_PLAYER.
+    The game id and seats come from the roster. stand_ins maps seats held by an AI stand-in to their reasons. A stand-in
+    keeps the participant identity and carries WireKey.STAND_IN_REASON, while a permanent AI player carries
+    WireKey.AI_PLAYER.
     """
-    payload = serialization.serialize_reconnection_snapshot(snapshot, stand_ins=stand_ins)
+    payload = serialization.serialize_reconnection_snapshot(snapshot, roster=roster, stand_ins=stand_ins)
     if snapshot.result is not None:
         payload[WireKey.ROUND_RESULT] = round_end_fields(
             snapshot.result,

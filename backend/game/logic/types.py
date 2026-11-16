@@ -2,7 +2,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from game.logic.enums import (
     AbortiveDrawType,
-    AIPlayerType,
     HandLimit,
     KanType,
     MeldCallType,
@@ -12,15 +11,6 @@ from game.logic.enums import (
     WindName,
 )
 from game.logic.settings import GameType
-
-
-class SeatConfig(BaseModel):
-    """
-    Configuration for a single seat in a game.
-    """
-
-    name: str
-    ai_player_type: AIPlayerType | None = None
 
 
 class StartPosition(BaseModel):
@@ -37,16 +27,6 @@ class StartPosition(BaseModel):
     dealer_seat: int = 0
     round_wind: int = 0
     round_number: int = 0
-
-
-class GamePlayerInfo(BaseModel):
-    """
-    Player identity information sent at game start.
-    """
-
-    seat: int
-    name: str
-    is_ai_player: bool
 
 
 class YakuInfo(BaseModel):
@@ -433,9 +413,7 @@ class ReconnectionSnapshot(BaseModel):
     first_dealer_seat the game's first dealer, as game_started carries them.
     """
 
-    game_id: str
     game_type: GameType
-    players: list[GamePlayerInfo]
     dealer_seat: int
     first_dealer_seat: int
     dealer_dice: tuple[tuple[int, int], tuple[int, int]]

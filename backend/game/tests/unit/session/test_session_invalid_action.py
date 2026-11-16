@@ -31,6 +31,7 @@ from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 
 from .helpers import (
+    ENGINE_SEED,
     arrange_pon_now_and_on_the_next_draw,
     create_started_game,
     current_wait_id,
@@ -163,9 +164,9 @@ class TestSessionManagerInvalidAction:
 
 class TestKickedConnection:
     async def test_invalid_action__when_kicked_client_pipelines_a_reconnect__should_drop_it_and_keep_the_ai_seat(
-        self, seeded_engine
+        self, paced_engine
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         player_of = {conn: participant_of(manager, conn) for conn in conns}
         awaited_seat = next(iter(manager.get_game("game1").awaiting.seats))
@@ -183,12 +184,7 @@ class TestKickedConnection:
         manager.reconnect(kicked, session_token=kicked_token)
         assert manager.get_connection_game(kicked) is None
         assert not player_of[kicked].is_connected
-        other_seat = player_of[other].seat
-        assert (
-            seeded_engine.build_reconnection_snapshot(runtime_of(manager), other_seat)
-            .players[awaited_seat]
-            .is_ai_player
-        )
+        assert runtime_of(manager).ai.is_ai_player(awaited_seat)
         assert [m for m in other.sent_messages if m.get(WireKey.SESSION_TYPE) == SessionMessageType.SEAT_CONTROL] == [
             {WireKey.SESSION_TYPE: "seat_control", WireKey.SEAT: awaited_seat, WireKey.SEAT_CONTROL_REASON: 0}
         ]
@@ -234,9 +230,9 @@ class TestRuleRefusal:
         assert participant_of(manager, conns[0]).timer.task is deadline
 
     async def test_rule_refusal__when_the_engine_refuses_an_action__should_name_the_wait_id_the_action_echoed(
-        self, seeded_engine
+        self, paced_engine
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice"])
         refused_wait = current_wait_id(manager, conns[0])
 
@@ -257,9 +253,9 @@ class TestRuleRefusal:
         ids=["pon", "open_kan"],
     )
     async def test_called_tile__when_a_call_names_another_copy_than_its_call__should_refuse_it_and_keep_the_call_open(
-        self, seeded_engine, answer: Action, error_code: GameErrorCode
+        self, paced_engine, answer: Action, error_code: GameErrorCode
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = (participant_of(manager, conn).seat for conn in conns)
         discarded_four_pin = arrange_pon_now_and_on_the_next_draw(runtime_of(manager), discarder=alice, caller=bob)
@@ -291,9 +287,9 @@ class TestRuleRefusal:
 
 class TestStaleAction:
     async def test_stale_action__when_a_discard_raced_its_own_turn_timeout__should_be_refused_with_nothing_changed(
-        self, seeded_engine
+        self, paced_engine
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
         conns = create_started_game(manager, player_names=["Alice"])
         alice = conns[0]
@@ -326,9 +322,9 @@ class TestStaleAction:
         await manager.shutdown()
 
     async def test_stale_action__when_a_pass_arrives_after_a_newer_prompt_opened__should_leave_that_prompt_pending(
-        self, seeded_engine
+        self, paced_engine
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = (participant_of(manager, conn).seat for conn in conns)
         discarded_four_pin = arrange_pon_now_and_on_the_next_draw(runtime_of(manager), discarder=alice, caller=bob)

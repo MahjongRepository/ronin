@@ -20,7 +20,6 @@ class TestProcessExhaustiveDrawPayment:
         players = tuple(
             MahjongPlayer(
                 seat=seat,
-                name=f"Player{seat}",
                 tiles=tempai_hand if seat == 0 else non_tempai_hand,
                 score=25000,
             )
@@ -58,10 +57,10 @@ class TestProcessExhaustiveDrawNagashiTriggered:
             Discard(tile_id=east),
         )
         players = (
-            MahjongPlayer(seat=0, name="Player0", tiles=tempai_hand, score=25000, discards=nagashi_discards),
-            MahjongPlayer(seat=1, name="Player1", tiles=non_tempai_hand, score=25000),
-            MahjongPlayer(seat=2, name="Player2", tiles=non_tempai_hand, score=25000),
-            MahjongPlayer(seat=3, name="Player3", tiles=non_tempai_hand, score=25000),
+            MahjongPlayer(seat=0, tiles=tempai_hand, score=25000, discards=nagashi_discards),
+            MahjongPlayer(seat=1, tiles=non_tempai_hand, score=25000),
+            MahjongPlayer(seat=2, tiles=non_tempai_hand, score=25000),
+            MahjongPlayer(seat=3, tiles=non_tempai_hand, score=25000),
         )
         round_state = MahjongRoundState(players=players, wall=make_wall(), dealer_seat=1)
         game_state = MahjongGameState(round_state=round_state)

@@ -20,18 +20,16 @@ class GameRuntime:
 
     state is read-only: commit() is the only way to replace it, and it checks the tile ownership invariant first, so a
     corrupted state never becomes the game's state: the raise lands in the server-fault path and the game ends. The
-    initial state is checked by start_game's first commit, before any event leaves the engine.
+    initial state is checked by new_game's first commit, before any event leaves the engine.
     """
 
     def __init__(
         self,
         *,
-        game_id: str,
         state: MahjongGameState,
         ai: AIPlayerController,
         walls: Sequence[Sequence[int]] = (),
     ) -> None:
-        self.game_id = game_id
         self.walls = tuple(tuple(wall) for wall in walls)
         self._state = state
         self.ai = ai

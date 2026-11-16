@@ -13,7 +13,7 @@ from game.engine import (
     RoundStartedEvent,
     SeatTarget,
 )
-from game.messaging.event_payload import game_event_payload
+from game.messaging.event_payload import game_event_payload, game_started_payload
 from game.messaging.game_errors import ErrorEvent
 from game.wire.keys import WireKey
 from game.wire.replay_format import (
@@ -25,6 +25,7 @@ from game.wire.replay_format import (
 
 if TYPE_CHECKING:
     from game.engine import GameEvent
+    from game.messaging.roster import GameRoster
     from game.wire.enums import SeatControlReason
     from shared.storage import ReplayStorage
 
@@ -41,11 +42,13 @@ _EXCLUDED_EVENT_TYPES = (CallPromptEvent, ErrorEvent, FuritenEvent)
 @dataclass
 class ReplayRecord:
     """
-    One game's replay as recorded so far: the seed and RNG version its game_started record carries, and the records.
+    One game's replay as recorded so far: the seed, RNG version and roster its game_started record carries, and the
+    records.
     """
 
     seed: str
     rng_version: str
+    roster: GameRoster
     records: list[dict[int, object]] = field(default_factory=list)
 
 
@@ -93,21 +96,33 @@ class ReplayCollector:
             if not self._should_include(event):
                 continue
 
+            if isinstance(event, GameStartedEvent):
+                buffer.append(self._game_started_record(record, event))
+                continue
+
             payload = game_event_payload(event)
             if isinstance(event, DrawEvent):
                 payload.pop(WireKey.AVAILABLE_ACTIONS, None)
-
-            if isinstance(event, GameStartedEvent):
-                payload[WireKey.HAS_AKADORA] = PRESET_HAS_AKADORA
-                payload[WireKey.SEED] = record.seed
-                payload[WireKey.RNG_VERSION] = record.rng_version
-                payload[WireKey.GAME_SETTINGS] = encode_replay_settings()
 
             buffer.append(payload)
 
         # Flush any remaining round_started events at end of batch
         if pending_round_started:
             buffer.append(self._merge_round_started_payloads(pending_round_started))
+
+    @staticmethod
+    def _game_started_record(record: ReplayRecord, event: GameStartedEvent) -> dict[int, object]:
+        """
+        Shape the game start's record: its payload with the record's roster, plus what only a replay keeps of the start,
+        the aka-dora flag, the seed, the RNG version and the rules envelope.
+        """
+        return {
+            **game_started_payload(event, roster=record.roster),
+            WireKey.HAS_AKADORA: PRESET_HAS_AKADORA,
+            WireKey.SEED: record.seed,
+            WireKey.RNG_VERSION: record.rng_version,
+            WireKey.GAME_SETTINGS: encode_replay_settings(),
+        }
 
     @staticmethod
     def record_ai_replacement(record: ReplayRecord, *, seat: int, reason: SeatControlReason) -> None:

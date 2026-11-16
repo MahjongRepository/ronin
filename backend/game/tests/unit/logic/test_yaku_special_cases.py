@@ -70,7 +70,6 @@ _LAST_EAST = tile_copies(1, honors="1")[0]
 
 def _before_last_draw(players: tuple[MahjongPlayer, ...], *, drawing_seat: int) -> MahjongGameState:
     runtime = GameRuntime(
-        game_id="game",
         state=create_dealt_game_state(players, draws=(_LAST_EAST,), current_player_seat=drawing_seat),
         ai=AIPlayerController({}),
     )
@@ -142,7 +141,6 @@ def _after_open_kan_on_last_live_tile(rinshan_tile: int) -> MahjongGameState:
         create_player(seat=3, tiles=(*tile_copies(2, sou="12345678", honors="2356"), *tile_copies(3, honors="1"))),
     )
     runtime = GameRuntime(
-        game_id="game",
         state=create_dealt_game_state(
             players, rinshan_draws=(rinshan_tile,), dora_indicator=tile_copies(3, honors="7")[0]
         ),
@@ -195,7 +193,7 @@ class TestRinshanKaihou:
                 for seat in range(1, 4)
             ),
         )
-        runtime = GameRuntime(game_id="game", state=create_dealt_game_state(players), ai=AIPlayerController({}))
+        runtime = GameRuntime(state=create_dealt_game_state(players), ai=AIPlayerController({}))
         wall = runtime.state.round_state.wall
         live_tiles = wall.live_tiles[:live_tiles_before_kan]
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": live_tiles}))

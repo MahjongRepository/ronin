@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     from shared.dal.game_repository import GameRepository
     from shared.storage import ReplayStorage
 
+SEATS_IN_INPUT_ORDER_SEED = "16" * 96
+
 
 def make_session_manager(
     engine: GameService | None = None,
@@ -21,6 +23,7 @@ def make_session_manager(
     storage: ReplayStorage | None = None,
     timer_config: TimerConfig | None = None,
     clock: Callable[[], float] = time.monotonic,
+    seed: str = SEATS_IN_INPUT_ORDER_SEED,
 ) -> SessionManager:
     return SessionManager(
         engine if engine is not None else MockGameService(),
@@ -35,4 +38,5 @@ def make_session_manager(
             ai_turn_delay_seconds=0,
         ),
         clock=clock,
+        seed_source=lambda: seed,
     )

@@ -64,10 +64,7 @@ class TestConnectionWriters:
         await alice_endpoint
         assert alice.written == []
         assert not table.manager._participants_by_ticket[table.tickets["Alice"]].is_connected
-        snapshot = table.manager._game_service.build_reconnection_snapshot(
-            runtime_of(table.manager), table.seat_of("Bob")
-        )
-        assert snapshot.players[table.seat_of("Alice")].is_ai_player is True
+        assert runtime_of(table.manager).ai.is_ai_player(table.seat_of("Alice")) is True
         assert {
             WireKey.SESSION_TYPE: "seat_control",
             WireKey.SEAT: table.seat_of("Alice"),

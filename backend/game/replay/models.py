@@ -27,8 +27,9 @@ class ReplayInput(BaseModel):
     """
     Versioned input for deterministic replay execution.
 
-    Enforces exactly 4 unique player names (4-player replay contract). All events must target declared players. walls
-    and start are a staged game's setup for its re-run (see GameService.start_game), never read from a replay file.
+    Enforces exactly 4 unique player names (4-player replay contract), in seat order: the runner seats each name at its
+    index. All events must target declared players. walls and start are a staged game's setup for its re-run (see
+    GameService.new_game), never read from a replay file.
     """
 
     model_config = ConfigDict(frozen=True)

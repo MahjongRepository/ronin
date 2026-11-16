@@ -31,16 +31,16 @@ from game.tests.helpers.wall import make_wall
 class TestMahjongPlayerLogic:
     def test_has_open_melds__when_open_meld__should_be_true(self):
         open_meld = FrozenMeld(meld_type=FrozenMeld.PON, tiles=(0, 1, 2), opened=True)
-        player = MahjongPlayer(seat=0, name="P1", melds=(open_meld,), score=25000)
+        player = MahjongPlayer(seat=0, melds=(open_meld,), score=25000)
         assert player.has_open_melds() is True
 
     def test_has_open_melds__when_only_closed_meld__should_be_false(self):
         closed_meld = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3), opened=False)
-        player = MahjongPlayer(seat=0, name="P2", melds=(closed_meld,), score=25000)
+        player = MahjongPlayer(seat=0, melds=(closed_meld,), score=25000)
         assert player.has_open_melds() is False
 
     def test_has_open_melds__when_no_melds__should_be_false(self):
-        player = MahjongPlayer(seat=0, name="P3", score=25000)
+        player = MahjongPlayer(seat=0, score=25000)
         assert player.has_open_melds() is False
 
 
@@ -54,7 +54,7 @@ class TestFrozenMeldsToMeldsFunction:
 
 class TestStateUtilsUpdatePlayer:
     def _create_round_state_with_players(self) -> MahjongRoundState:
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, score=25000) for i in range(4))
         return MahjongRoundState(wall=make_wall(), players=players)
 
     def test_update_player__when_score_changed__should_leave_original_state_untouched(self):
@@ -77,8 +77,8 @@ class TestStateUtilsUpdatePlayer:
 class TestStateUtilsTileOperations:
     def _create_round_state_with_tiles(self) -> MahjongRoundState:
         tiles = tuple(TilesConverter.string_to_136_array(man="123456789"))
-        player = MahjongPlayer(seat=0, name="Player0", tiles=tiles, score=25000)
-        players = (player, *tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(1, 4)))
+        player = MahjongPlayer(seat=0, tiles=tiles, score=25000)
+        players = (player, *tuple(MahjongPlayer(seat=i, score=25000) for i in range(1, 4)))
         return MahjongRoundState(wall=make_wall(), players=players)
 
     def test_add_tile_to_player__should_append_tile_without_mutating_original(self):
@@ -93,7 +93,7 @@ class TestStateUtilsTileOperations:
 
 class TestStateUtilsTurnAdvance:
     def _players(self) -> tuple[MahjongPlayer, ...]:
-        return tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4))
+        return tuple(MahjongPlayer(seat=i, score=25000) for i in range(4))
 
     def test_advance_turn__should_move_to_next_seat(self):
         state = MahjongRoundState(wall=make_wall(), players=self._players(), current_player_seat=0)
@@ -173,7 +173,6 @@ class TestStateUtilsPlayerFlags:
         players = tuple(
             MahjongPlayer(
                 seat=i,
-                name=f"Player{i}",
                 is_ippatsu=(i in {0, 2}),
                 score=25000,
             )
@@ -204,15 +203,14 @@ class TestFrozenMeldScoringIntegration:
         players = (
             MahjongPlayer(
                 seat=0,
-                name="Player0",
                 tiles=tuple(closed_tiles),
                 melds=(frozen_meld,),
                 discards=(discard1,),
                 score=25000,
             ),
-            MahjongPlayer(seat=1, name="Player1", discards=(discard1,), score=25000),
-            MahjongPlayer(seat=2, name="Player2", discards=(discard1,), score=25000),
-            MahjongPlayer(seat=3, name="Player3", discards=(discard1,), score=25000),
+            MahjongPlayer(seat=1, discards=(discard1,), score=25000),
+            MahjongPlayer(seat=2, discards=(discard1,), score=25000),
+            MahjongPlayer(seat=3, discards=(discard1,), score=25000),
         )
         round_state = MahjongRoundState(
             players=players,
@@ -232,7 +230,7 @@ class TestFrozenMeldScoringIntegration:
 
 class TestUpdatePlayerValidation:
     def _create_round_state(self) -> MahjongRoundState:
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, score=25000) for i in range(4))
         return MahjongRoundState(wall=make_wall(), players=players)
 
     def test_update_player__when_seat_negative__should_raise_value_error(self):
@@ -253,7 +251,7 @@ class TestUpdatePlayerValidation:
 
 class TestGetPlayerViewValidation:
     def test_get_player_view__when_seat_not_found__should_raise_value_error(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, score=25000) for i in range(4))
         round_state = MahjongRoundState(wall=make_wall(), players=players)
         game_state = MahjongGameState(round_state=round_state)
 
@@ -261,7 +259,7 @@ class TestGetPlayerViewValidation:
             get_player_view(game_state, 5)
 
     def test_get_player_view__when_seat_valid__should_return_view(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", tiles=(i,), score=25000) for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, tiles=(i,), score=25000) for i in range(4))
         round_state = MahjongRoundState(wall=make_wall(), players=players)
         game_state = MahjongGameState(round_state=round_state)
 

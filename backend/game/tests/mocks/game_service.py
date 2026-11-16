@@ -14,9 +14,9 @@ from game.logic.events import (
 from game.logic.rng import RNG_VERSION
 from game.logic.rule_profiles import PRESET_SETTINGS
 from game.logic.runtime import GameRuntime
-from game.logic.service import Awaiting, GameService, GameStart, GameUpdate
+from game.logic.service import Awaiting, GameService, GameUpdate
 from game.logic.settings import NUM_PLAYERS
-from game.logic.types import GamePlayerInfo, PlayerView, ReconnectionSnapshot
+from game.logic.types import PlayerView, ReconnectionSnapshot
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -26,34 +26,12 @@ if TYPE_CHECKING:
     from game.logic.types import StartPosition
 
 
-class _MockPlayer:
-    __slots__ = ("name", "seat")
-
-    def __init__(self, seat: int, name: str) -> None:
-        self.seat = seat
-        self.name = name
-
-
-class _MockRoundState:
-    __slots__ = ("players",)
-
-    def __init__(self, players: list[_MockPlayer] | None = None) -> None:
-        self.players = players or []
-
-
 class _MockGameState:
-    __slots__ = ("rng_version", "round_number", "round_state", "seed", "settings")
+    __slots__ = ("rng_version", "round_number", "seed", "settings")
 
-    def __init__(
-        self,
-        seed: str = "0" * 192,
-        rng_version: str = RNG_VERSION,
-        round_state: _MockRoundState | None = None,
-        round_number: int = 0,
-    ) -> None:
+    def __init__(self, seed: str, rng_version: str = RNG_VERSION, round_number: int = 0) -> None:
         self.seed = seed
         self.rng_version = rng_version
-        self.round_state = round_state or _MockRoundState()
         self.settings = PRESET_SETTINGS
         self.round_number = round_number
 
@@ -86,30 +64,18 @@ class MockGameService(GameService):
     def decision(self, runtime: GameRuntime, seat: int) -> Decision | None:
         return None
 
-    def start_game(
+    def new_game(
         self,
-        game_id: str,
-        player_names: list[str],
+        seed: str,
         *,
-        seed: str | None = None,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
-    ) -> GameStart:
-        all_names = player_names + ["AI"] * (4 - len(player_names))
-        player_count = len(player_names)
-        state = _MockGameState(
-            seed=seed if seed is not None else "0" * 192,
-            round_state=_MockRoundState(players=[_MockPlayer(seat=i, name=name) for i, name in enumerate(all_names)]),
-        )
-        runtime = GameRuntime(game_id=game_id, state=cast("MahjongGameState", state), ai=AIPlayerController({}))
-
-        players = [
-            GamePlayerInfo(seat=i, name=name, is_ai_player=i >= player_count) for i, name in enumerate(all_names)
-        ]
+        ai_seats: frozenset[int] = frozenset(),
+    ) -> tuple[GameRuntime, list[GameEvent]]:
+        state = _MockGameState(seed=seed)
+        runtime = GameRuntime(state=cast("MahjongGameState", state), ai=AIPlayerController({}))
         game_started = GameStartedEvent(
-            game_id=game_id,
             game_type=state.settings.game_type,
-            players=players,
             dealer_seat=0,
             dealer_dice=((1, 1), (1, 1)),
             riichi_stick_value=state.settings.riichi_stick_value,
@@ -133,17 +99,18 @@ class MockGameService(GameService):
             )
             for seat in range(NUM_PLAYERS)
         ]
-        events = [game_started, *round_started]
-        return GameStart(runtime=runtime, events=events, awaiting=MOCK_DEALT, seats=tuple(range(player_count)))
+        runtime.first_draw_pending = True
+        return runtime, [game_started, *round_started]
 
     def begin_round(self, runtime: GameRuntime) -> GameUpdate:
+        runtime.first_draw_pending = False
         return GameUpdate(events=[], awaiting=MOCK_AWAITING)
 
     def deal_next_round(self, runtime: GameRuntime) -> GameUpdate:
         return GameUpdate(events=[], awaiting=MOCK_DEALT)
 
     def get_awaiting(self, runtime: GameRuntime) -> Awaiting:
-        return MOCK_AWAITING
+        return MOCK_DEALT if runtime.first_draw_pending else MOCK_AWAITING
 
     def replace_with_ai_player(self, runtime: GameRuntime, seat: int) -> None:
         pass
@@ -156,10 +123,6 @@ class MockGameService(GameService):
 
     def build_reconnection_snapshot(self, runtime: GameRuntime, seat: int) -> ReconnectionSnapshot:
         return ReconnectionSnapshot(
-            game_id=runtime.game_id,
-            players=[
-                GamePlayerInfo(seat=p.seat, name=p.name, is_ai_player=False) for p in runtime.state.round_state.players
-            ],
             dealer_seat=0,
             first_dealer_seat=0,
             dealer_dice=((1, 1), (1, 1)),

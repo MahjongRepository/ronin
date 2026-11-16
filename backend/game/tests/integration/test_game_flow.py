@@ -18,19 +18,14 @@ class TestGameCreationAndJoin:
     def service(self):
         return MahjongGameService()
 
-    def test_start_game__when_one_human_joins__should_emit_game_started_with_four_players(self, service):
-        events = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).events
+    def test_new_game__when_one_human_plays__should_broadcast_one_game_started(self, service):
+        events = start_game_in_play(service, humans=1, seed="a" * 192).events
         game_started_events = [e for e in events if e.type == EventType.GAME_STARTED]
         assert len(game_started_events) == 1
         event = game_started_events[0]
         assert isinstance(event, GameStartedEvent)
         assert event.target == BroadcastTarget()
-        assert event.game_id == "game1"
         assert event.dealer_seat in range(4)
-        assert len(event.players) == 4
-        for player in event.players:
-            assert player.seat is not None
-            assert player.name is not None
 
 
 class TestGameServiceIntegration:
@@ -39,9 +34,9 @@ class TestGameServiceIntegration:
         return MahjongGameService()
 
     def test_act__when_human_discards_repeatedly__should_process_multiple_discards(self, service):
-        start = start_game_in_play(service, "game1", ["Player"], seed="a" * 192)
+        start = start_game_in_play(service, humans=1, seed="a" * 192)
         runtime = start.runtime
-        human_seat = start.seats[0]
+        human_seat = start.human_seats[0]
 
         actions_processed = 0
         # play several discards (AI players will respond automatically)
@@ -68,9 +63,9 @@ class TestUnifiedDiscardClaimIntegration:
         return MahjongGameService()
 
     def test_call_prompt__when_discard_claimable__should_split_per_seat_into_ron_or_meld(self, service):
-        start = start_game_in_play(service, "game1", ["Player"], seed="a" * 192)
+        start = start_game_in_play(service, humans=1, seed="a" * 192)
         runtime = start.runtime
-        human_seat = start.seats[0]
+        human_seat = start.human_seats[0]
 
         found_prompt = False
         for _ in range(20):

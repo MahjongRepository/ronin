@@ -4,7 +4,7 @@
 lifecycle transitions: pending games, joins, disconnects, reconnects, timeouts, the start and the
 one end. `models.py` holds `GameSession` and its `Participant`s, `timer.py` the pacing
 (`TimerConfig`, `TurnTimer`), `replay_collector.py` the shaping and saving of replay records,
-`played_game.py` the finish record.
+`played_game.py` the finish record, `seating.py` each game's seed and seating.
 
 ## Design
 
@@ -27,13 +27,19 @@ interleave.
   any context, before the start included, it claims the end as an error and never cancels or awaits
   the current task. A caller that gets it back skips its own broadcast and timers.
 * **Participants.** One per `PlayerSpec`, keyed by its game ticket for the whole game, never
-  rotated; its seat is bound once, at the start, to the seat the engine returned for its spec (by
+  rotated; its seat is bound once, at the start, to the seat the session's seating gives its spec (by
   input order, never by name), and its timer lives as long as it does, so its bank survives a
   disconnect. A disconnected seat is played by an AI player until the participant reconnects; when
   no connected participant remains the game is abandoned, so there are never all-AI games. Every
   handover, either way, goes through one step (`_hand_over_seat`): the replay records its seat
   control record and the connected participants get `seat_control`, both ahead of the moves that
   follow, and the participant keeps why it stands in, which the reconnect snapshot carries.
+* **The session owns the roster and the seed.** It draws each game's seed from its seed source and
+  seats the participants by the seed's seat permutation (`seating.py`, `docs/rng.md`), the rest
+  AI players named apart from them; the engine gets only the seed and the AI seats. The game id,
+  every seat's name and the AI seats form the game's roster, which messaging adds to `game_started`
+  and the reconnect snapshot, and the start record and the replay's seed, RNG version and seats come
+  from it, never from engine state.
 * **One connection per participant; the newest wins.** A JOIN_GAME or RECONNECT for a participant
   still bound to a connection (a half-open socket the server has not seen drop, or another tab)
   replaces it through the one binder (`_bind`): the old connection is evicted, then closed with

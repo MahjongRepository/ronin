@@ -28,7 +28,7 @@ from game.tests.helpers.builders import create_dealt_game_state, create_player, 
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_wall
 from game.tests.unit.logic.helpers import (
-    _find_player,
+    _first_human,
     _update_player,
     _update_round_state,
 )
@@ -44,7 +44,6 @@ def _dealer_before_ronnable_discard(*, live_tiles: int | None = None) -> GameRun
         create_player(seat=3, tiles=(*tile_copies(1, pin="33"), *tile_copies(2, sou="123456789", honors="12"))),
     )
     runtime = GameRuntime(
-        game_id="game1",
         state=create_dealt_game_state(players, seed="a" * 192),
         ai=AIPlayerController({seat: AIPlayer() for seat in range(1, 4)}),
     )
@@ -69,9 +68,9 @@ class TestMahjongGameServiceAfterDiscard:
         return MahjongGameService()
 
     def test_process_action_result__when_discard_prompt_waits_for_human_player__should_return_its_events(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
         game_state = runtime.state
-        player = _find_player(game_state.round_state, "Player")
+        player = _first_human(game_state)
 
         prompt = PendingCallPrompt(
             kind=PromptKind.DISCARD,
@@ -151,9 +150,9 @@ class TestGameEndAwaiting:
         return MahjongGameService()
 
     def test_act__when_discard_ends_game__should_return_game_end_and_await_nothing(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
         game_state = runtime.state
-        player = _find_player(game_state.round_state, "Player")
+        player = _first_human(game_state)
 
         for seat in range(4):
             _update_player(runtime, seat=seat, score=-10000)
@@ -165,14 +164,14 @@ class TestGameEndAwaiting:
         )
 
         game_state = runtime.state
-        player = _find_player(game_state.round_state, "Player")
+        player = _first_human(game_state)
         tiles = list(player.tiles)
         if len(tiles) < 14:
             tiles.append(0)
 
         _update_player(runtime, seat=player.seat, tiles=tuple(tiles[:14]))
         game_state = runtime.state
-        player = _find_player(game_state.round_state, "Player")
+        player = _first_human(game_state)
         tile_id = player.tiles[-1]
 
         waiting = service.get_awaiting(runtime)

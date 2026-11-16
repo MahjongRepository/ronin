@@ -27,13 +27,13 @@ from game.engine import (
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.start_wall import make_start_wall
 
-PLAYERS = ["Alice", "Bob", "Charlie", "Diana"]
+SEED = "5" * 192
 DEALER = 0
 
 
 def _start(hands: tuple[list[int], ...], draws: list[int]) -> tuple[MahjongGameService, GameRuntime]:
     service = MahjongGameService()
-    runtime = service.start_game("seam", PLAYERS, walls=[make_start_wall(hands, draws=draws)]).runtime
+    runtime, _ = service.new_game(SEED, walls=[make_start_wall(hands, draws=draws)])
     service.begin_round(runtime)
     return service, runtime
 
@@ -222,7 +222,7 @@ def test_act__when_the_action_is_refused__should_return_the_refusal_and_change_n
 def test_phase_calls__when_made_out_of_phase__should_be_refused_and_change_nothing():
     wrong_phase = Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.WRONG_PHASE)
     service = MahjongGameService()
-    runtime = service.start_game("seam", PLAYERS, walls=[make_start_wall((RIICHI_READY_HAND,))]).runtime
+    runtime, _ = service.new_game(SEED, walls=[make_start_wall((RIICHI_READY_HAND,))])
     dealt = runtime.state
 
     assert service.act(runtime, DEALER, Discard(tile=RIICHI_READY_HAND[0])) == wrong_phase

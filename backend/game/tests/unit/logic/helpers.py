@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from mahjong.tile import TilesConverter
 
+from game.logic.rng import seat_permutation
 from game.logic.state import Discard
 from game.logic.tiles import NUM_TILES
 from game.logic.wall import DeadWall, TileStack, Wall
@@ -46,12 +47,8 @@ def _string_to_136_tile(
     return TilesConverter.string_to_136_array(sou=sou, pin=pin, man=man, honors=honors)[0]
 
 
-def _find_player(round_state: MahjongRoundState, name: str) -> MahjongPlayer:
-    for player in round_state.players:
-        if player.name == name:
-            return player
-
-    raise ValueError(f"player {name} not found")
+def _first_human(game_state: MahjongGameState) -> MahjongPlayer:
+    return game_state.round_state.players[seat_permutation(game_state.seed)[0]]
 
 
 def _imply_claimed_discards(players: list[MahjongPlayer]) -> list[int]:

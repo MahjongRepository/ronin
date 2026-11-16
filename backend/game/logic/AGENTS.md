@@ -20,19 +20,20 @@ of its one preset); read it before changing or testing a rule, and update it whe
 * One dispatch pipeline for humans and AI. A human's refused action is returned before the commit: nothing
   is stored and no AI turn runs. `AIPlayerController` only decides; every state change goes through
   `MahjongGameService`.
-* Player type is a service-layer fact: the player model has no AI flag, only `AIPlayerController` knows. Names and
-  AI flags go out once in `game_started`; later events use seats. `act` acts only for
-  a human seat; one for an AI seat is a server fault, since the session only ever acts for a connected human.
+* Player type is a service-layer fact: the player model has no AI flag and no name, and only `AIPlayerController`
+  knows which seats AI players hold, as `new_game` is told. Names, AI flags and the game id are the caller's, which
+  adds them to `game_started` and the reconnect snapshot; events use seats. `act` acts only for a human seat; one for
+  an AI seat is a server fault, since the session only ever acts for a connected human.
 * A call plays every AI turn it reaches, unless the service is built with `pace_ai_turns` (the live server), which
   stops before each AI player's turn action (`MahjongGameService`). AI answers to call prompts never wait. Both modes
   play the same game with the same events in the same order; the replay runner and engine tests use the unpaced one.
-* The engine holds no pause: `start_game` and `deal_next_round` stop after the deal (`WaitKind.DEALT`) and a round end
+* The engine holds no pause: `new_game` and `deal_next_round` stop after the deal (`WaitKind.DEALT`) and a round end
   that does not end the game stops on `WaitKind.ROUND_OVER`, neither awaiting a seat; the caller moves on with
   `begin_round` (the dealer's first draw) and `deal_next_round` when it is ready, and until then the round plays no
   action. Who confirms what in between, and for how long, is the session's.
-* The seat is a player's only identity: `start_game` returns each input player's seat and every later call takes a
-  seat. Names are display only and nothing looks a player up by name; AI names skip the names in use without
-  touching the RNG, so names stay unique for the replay format and the name-carrying session messages.
+* The seat is a player's only identity: every call takes a seat and the engine holds no names. The seed, who sits
+  where and under what name are the caller's (`session/seating.py`); `new_game` takes the seed and plays the same
+  game for the same seed and inputs.
 * The service plays one rules preset and takes no settings: profile 1 in `rule_profiles.py`, a frozen value that
   explicitly supplies every setting, independent of `GameSettings` defaults. `GameSettings` stays inside the engine
   for its mechanics and its own tests, which stage other values on the state; outside code sees only the preset
@@ -101,8 +102,8 @@ leaves a partial state.
 ## Determinism
 
 The same seed and inputs produce an identical replay trace. Randomness comes only from `rng.py` (`docs/rng.md`); AI strategies must be deterministic for a given
-state. Seat assignment is part of the contract: the replay loader inverts the seeded seat permutation to rebuild the
-input order, so a change to it is a change to the replay format. A change to wall or RNG behaviour bumps
+state. The seed's seat permutation is part of the contract: the session seats its players by it (`docs/rng.md`), and a
+replay records each seat's name, which the loader seats as recorded. A change to wall or RNG behaviour bumps
 `RNG_VERSION`; a change to the replay format bumps `REPLAY_VERSION` (`wire/replay_format.py`).
 
 ## Tile ownership

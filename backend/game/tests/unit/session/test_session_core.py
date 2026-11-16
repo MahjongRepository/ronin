@@ -25,6 +25,7 @@ from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 
 from .helpers import (
+    ENGINE_SEED,
     arrange_pon_now_and_on_the_next_draw,
     create_started_game,
     current_wait_id,
@@ -148,10 +149,10 @@ def _discard_drawn_tile(manager: SessionManager, conns: list[MockConnection]) ->
 
 class TestDrawDelivery:
     async def test_send_events__when_humans_and_ai_players_draw__should_send_the_drawer_its_draw_and_others_a_notice(
-        self, seeded_engine
+        self, paced_engine
     ):
         live_wall_after_deal = 70
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"], keep_start_messages=True)
         alice, bob = (participant_of(manager, conn) for conn in conns)
         for _ in range(4):
@@ -195,9 +196,9 @@ class TestDrawDelivery:
         await manager.shutdown()
 
     async def test_send_events__when_a_seat_draws_its_kan_replacement__should_send_the_others_its_notice(
-        self, seeded_engine
+        self, paced_engine
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
         alice = participant_of(manager, alice_conn)
         hand = runtime_of(manager).state.round_state.players[alice.seat].tiles
@@ -238,8 +239,8 @@ class TestDrawDelivery:
 
         await manager.shutdown()
 
-    async def test_send_events__when_a_seat_pons__should_send_nobody_a_draw_or_its_notice(self, seeded_engine):
-        manager = make_session_manager(seeded_engine)
+    async def test_send_events__when_a_seat_pons__should_send_nobody_a_draw_or_its_notice(self, paced_engine):
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = participant_of(manager, alice_conn), participant_of(manager, bob_conn)
         discarded_four_pin = arrange_pon_now_and_on_the_next_draw(

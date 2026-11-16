@@ -114,7 +114,6 @@ class MahjongPlayer(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     seat: int
-    name: str
     tiles: tuple[int, ...] = ()
     discards: tuple[Discard, ...] = ()
     melds: tuple[FrozenMeld, ...] = ()

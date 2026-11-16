@@ -18,7 +18,6 @@ class TestKyuushuKyuuhaiThresholds:
         players = tuple(
             MahjongPlayer(
                 seat=i,
-                name=f"P{i}",
                 tiles=tuple(tiles) if i == 0 else (),
                 score=25000,
             )
@@ -54,7 +53,7 @@ class TestFourWindsThresholds:
         east_tiles = TilesConverter.string_to_136_array(honors="111")[:3]
         rs = MahjongRoundState(
             wall=make_wall(),
-            players=tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4)),
+            players=tuple(MahjongPlayer(seat=i, score=25000) for i in range(4)),
             all_discards=tuple(east_tiles),
         )
         settings_default = GameSettings(four_winds_discard_count=4)

@@ -6,7 +6,6 @@ from game.logic.action_result import ActionResult
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Kan
 from game.logic.enums import (
-    AIPlayerType,
     KanType,
     MeldCallType,
     PromptKind,
@@ -23,25 +22,13 @@ from game.logic.state import (
 )
 from game.logic.state_utils import update_player
 from game.logic.turn import process_discard_phase
-from game.logic.types import (
-    SeatConfig,
-)
 from game.tests.helpers.builders import create_dealt_game_state, create_player
 from game.tests.helpers.hands import tile_copies
 from game.tests.unit.logic.helpers import _update_round_state
 
 
-def _default_seat_configs() -> list[SeatConfig]:
-    return [
-        SeatConfig(name="Player"),
-        SeatConfig(name="ai-tsumogiri-1", ai_player_type=AIPlayerType.TSUMOGIRI),
-        SeatConfig(name="ai-tsumogiri-2", ai_player_type=AIPlayerType.TSUMOGIRI),
-        SeatConfig(name="ai-tsumogiri-3", ai_player_type=AIPlayerType.TSUMOGIRI),
-    ]
-
-
 def _create_frozen_game_state() -> MahjongGameState:
-    game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
+    game_state = init_game(seed="a" * 192, wall=list(range(136)))
     new_round_state, _tile = draw_tile(game_state.round_state)
     return game_state.model_copy(update={"round_state": new_round_state})
 
@@ -58,7 +45,7 @@ class TestResolveMeldResponse:
             create_player(seat=2, tiles=tile_copies(1, pin="123456789", honors="1234")),
             create_player(seat=3, tiles=(*tile_copies(1, sou="123456789"), *tile_copies(2, honors="1234"))),
         )
-        runtime = GameRuntime(game_id="game", state=create_dealt_game_state(players), ai=AIPlayerController({}))
+        runtime = GameRuntime(state=create_dealt_game_state(players), ai=AIPlayerController({}))
         wall = runtime.state.round_state.wall
         minimal_live_tiles = wall.live_tiles[: runtime.state.settings.min_wall_for_kan]
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": minimal_live_tiles}))

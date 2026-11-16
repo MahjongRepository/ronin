@@ -1,6 +1,7 @@
 import re
 
 from game.engine import RNG_VERSION, Discard, EventType, MahjongGameService, Ron, RoundEndEvent
+from game.messaging.roster import GameRoster
 from game.replay import run_replay
 from game.replay.external.tenhou import TenhouConverter
 from game.replay.loader import load_replay_from_bytes
@@ -22,7 +23,7 @@ SEED = (
     "23824ff8ec95775ba5bb8de82f2903f25472e4a1f10a54ee31a955210ee871508f95c77bbc51b410531abd33a18d26df"
     "ef563e3bcf5af18c7663313c52eacd650ec18e6993c2ab70912ca363e0ed5bd9c088a5d406dc03584e33879746e7d79f"
 )
-PLAYERS = ("Alice", "Bob", "Charlie", "Diana")
+ROSTER = GameRoster(game_id="triple-ron", names=("Charlie", "Bob", "Alice", "Diana"), ai_seats=frozenset())
 DEALER = "Charlie"
 RON_CALLERS_BY_SEAT_ORDER = ("Bob", "Alice", "Diana")
 
@@ -33,9 +34,9 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_abo
         draws=(PIN_3_TRIPLE_RON_DISCARD,),
     )
     service = MahjongGameService()
-    start = start_game_in_play(service, "triple-ron", list(PLAYERS), seed=SEED, walls=[wall])
+    start = start_game_in_play(service, seed=SEED, walls=[wall])
     runtime = start.runtime
-    seat_by_player = dict(zip(PLAYERS, start.seats, strict=True))
+    seat_by_player = {name: seat for seat, name in enumerate(ROSTER.names)}
     recorded_events = list(start.events)
     recorded_events += service.act(runtime, seat_by_player[DEALER], Discard(tile=PIN_3_TRIPLE_RON_DISCARD)).events
     for player in RON_CALLERS_BY_SEAT_ORDER:
@@ -43,7 +44,7 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_abo
 
     assert len([e for e in recorded_events if isinstance(e, RoundEndEvent)]) == 1
 
-    record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION)
+    record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION, roster=ROSTER)
     ReplayCollector(FakeReplayStorage()).collect_events(record, recorded_events)
     loaded = load_replay_from_bytes(encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *record.records]))
     assert [(e.player_name, e.action) for e in loaded.events] == [

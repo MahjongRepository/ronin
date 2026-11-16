@@ -13,8 +13,8 @@ from game.engine import (
     is_terminal_or_honor,
     tile_to_34,
 )
+from game.messaging.roster import GameRoster
 from game.replay import load_replay_from_file, run_replay
-from game.replay.runner import ReplayOptions
 from game.tests.helpers.hands import (
     PIN_3_TRIPLE_RON_CALLER_HANDS,
     PIN_3_TRIPLE_RON_DEALER_HAND,
@@ -168,8 +168,9 @@ def full_game() -> Recording:
     Run the backend's recorded full game (twelve rounds into the West round, dealt from its seed) and record it.
     """
     source = load_replay_from_file(BACKEND_FULL_GAME)
-    trace = run_replay(source, ReplayOptions(game_id=BACKEND_FULL_GAME_ID))
-    recorder = ReplayRecorder(seed=source.seed)
+    trace = run_replay(source)
+    roster = GameRoster(game_id=BACKEND_FULL_GAME_ID, names=source.player_names, ai_seats=frozenset())
+    recorder = ReplayRecorder(seed=source.seed, roster=roster)
     recorder.record(trace.startup_events)
     for step in trace.steps:
         recorder.record(step.emitted_events)

@@ -19,7 +19,6 @@ from game.logic.types import (
     HandResultInfo,
     NagashiManganResult,
     RonResult,
-    SeatConfig,
     TenpaiHand,
     YakuInfo,
 )
@@ -59,9 +58,8 @@ class TestValidateSettings:
         validate_settings(GameSettings(uma=(30, 10, -10, -30)))
 
     def test_init_game__when_settings_unsupported__should_raise(self):
-        configs = [SeatConfig(name=f"Player{i}") for i in range(4)]
         with pytest.raises(UnsupportedSettingsError, match="renhou_value=BAIMAN"):
-            init_game(configs, seed="a" * 192, settings=GameSettings(renhou_value=RenhouValue.BAIMAN))
+            init_game(seed="a" * 192, settings=GameSettings(renhou_value=RenhouValue.BAIMAN))
 
 
 # ============================================================================
@@ -145,7 +143,7 @@ class TestGameTypeEnchousenExtensions:
         enchousen: EnchousenType = EnchousenType.SUDDEN_DEATH,
     ) -> MahjongGameState:
         scores = player_scores or [25000, 25000, 25000, 25000]
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, score=scores[i]) for i in range(4))
         round_state = MahjongRoundState(wall=make_wall(), players=players)
         settings = GameSettings(game_type=game_type, enchousen=enchousen)
         return MahjongGameState(
@@ -188,7 +186,7 @@ class TestEnchousenNone:
         game_type: GameType = GameType.HANCHAN,
     ) -> MahjongGameState:
         scores = [25000, 25000, 25000, 25000]
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=scores[i]) for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, score=scores[i]) for i in range(4))
         round_state = MahjongRoundState(wall=make_wall(), players=players)
         settings = GameSettings(enchousen=enchousen, game_type=game_type)
         return MahjongGameState(

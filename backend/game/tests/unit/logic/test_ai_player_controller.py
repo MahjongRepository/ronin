@@ -41,10 +41,10 @@ class _AcceptAllAI(AIPlayer):
 def _create_round_state(current_seat: int = 0) -> MahjongRoundState:
     hand = TilesConverter.string_to_136_array(man="13579", pin="2468", sou="13579")
     players = (
-        MahjongPlayer(seat=0, name="P0", tiles=tuple(hand[:13]), score=25000),
-        MahjongPlayer(seat=1, name="AI1", tiles=tuple(hand), score=25000),
-        MahjongPlayer(seat=2, name="P2", tiles=tuple(hand[:13]), score=25000),
-        MahjongPlayer(seat=3, name="P3", tiles=tuple(hand[:13]), score=25000),
+        MahjongPlayer(seat=0, tiles=tuple(hand[:13]), score=25000),
+        MahjongPlayer(seat=1, tiles=tuple(hand), score=25000),
+        MahjongPlayer(seat=2, tiles=tuple(hand[:13]), score=25000),
+        MahjongPlayer(seat=3, tiles=tuple(hand[:13]), score=25000),
     )
     return MahjongRoundState(
         players=players,

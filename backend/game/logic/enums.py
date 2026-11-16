@@ -196,14 +196,6 @@ class WindName(StrEnum):
     UNKNOWN = "Unknown"
 
 
-class AIPlayerType(StrEnum):
-    """
-    Types of AI players available for matchmaking.
-    """
-
-    TSUMOGIRI = "tsumogiri"
-
-
 class WaitKind(StrEnum):
     """
     What the game waits for: a seat's turn, an AI player's turn, call prompt responses, a dealt round's first draw, the

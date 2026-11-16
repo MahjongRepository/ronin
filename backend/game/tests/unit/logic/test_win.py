@@ -41,7 +41,7 @@ class TestCheckTsumoOpenHand:
             who=0,
             from_who=1,
         )
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
+        player = MahjongPlayer(seat=0, tiles=tuple(closed_tiles), melds=(pon,), score=25000)
 
         assert check_tsumo(player) is True
 
@@ -59,7 +59,7 @@ class TestCheckTsumoWithTiles:
             who=0,
             from_who=1,
         )
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
+        player = MahjongPlayer(seat=0, tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         ron_tile = TilesConverter.string_to_136_array(sou="4")[0]
 
         assert check_tsumo_with_tiles([*player.tiles, ron_tile]) is True
@@ -69,7 +69,7 @@ class TestGetWaitingTiles:
     def test_waiting_tiles__when_tempai_with_multiple_waits__should_list_all(self):
         # ryanmen wait: 123m 456m 789m 45p 5p -> waiting for 3p or 6p
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="4555")
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
+        player = MahjongPlayer(seat=0, tiles=tuple(tiles), score=25000)
 
         waiting = get_waiting_tiles(player)
         assert 11 in waiting  # 3p
@@ -78,14 +78,14 @@ class TestGetWaitingTiles:
     def test_waiting_tiles__when_tanki_wait__should_list_pair_tile(self):
         # tanki wait: 111m 222m 333m 444m 5m -> waiting for 5m
         tiles = TilesConverter.string_to_136_array(man="1112223334445")
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
+        player = MahjongPlayer(seat=0, tiles=tuple(tiles), score=25000)
 
         waiting = get_waiting_tiles(player)
         assert 4 in waiting  # 5m
 
     def test_waiting_tiles__when_all_four_copies_held__should_exclude_tile(self):
         tiles = TilesConverter.string_to_136_array(man="111123", pin="456", sou="5578")
-        player = MahjongPlayer(seat=0, name="Player0", tiles=tuple(tiles), score=25000)
+        player = MahjongPlayer(seat=0, tiles=tuple(tiles), score=25000)
 
         waiting = get_waiting_tiles(player)
         assert waiting == {23, 26}
@@ -93,7 +93,7 @@ class TestGetWaitingTiles:
     def test_waiting_tiles__when_chiitoitsu_tempai__should_list_wait(self):
         # 6 pairs + single: 11m 22m 33m 44p 55p 66s 7s -> waiting for 7s
         tiles = TilesConverter.string_to_136_array(man="112233", pin="4455", sou="667")
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), score=25000)
+        player = MahjongPlayer(seat=0, tiles=tuple(tiles), score=25000)
 
         waiting = get_waiting_tiles(player)
         assert 24 in waiting  # 7s
@@ -110,7 +110,7 @@ class TestGetWaitingTiles:
             who=0,
             from_who=1,
         )
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
+        player = MahjongPlayer(seat=0, tiles=tuple(closed_tiles), melds=(pon,), score=25000)
 
         waiting = get_waiting_tiles(player)
         assert 18 in waiting  # 1s
@@ -121,7 +121,7 @@ class TestGetWaitingTiles:
         waiting_hand = TilesConverter.string_to_136_array(man="123456789", pin="4555")
         drawn_tile = TilesConverter.string_to_136_array(sou="9")[0]
         tiles = (*waiting_hand, drawn_tile)[:hand_size]
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tiles, score=25000)
+        player = MahjongPlayer(seat=0, tiles=tiles, score=25000)
 
         with pytest.raises(AssertionError, match=f"holds {hand_size} tiles, not a waiting hand of 3n\\+1"):
             get_waiting_tiles(player)
@@ -132,7 +132,7 @@ class TestIsFuriten:
         # tempai waiting for 3p, discarded unrelated 1m
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         discards = (Discard(tile_id=TilesConverter.string_to_136_array(man="1")[0]),)
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), discards=discards, score=25000)
+        player = MahjongPlayer(seat=0, tiles=tuple(tiles), discards=discards, score=25000)
 
         assert is_furiten(player) is False
 
@@ -140,7 +140,7 @@ class TestIsFuriten:
         # tempai waiting for 3p, already discarded 3p
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         discards = (Discard(tile_id=TilesConverter.string_to_136_array(pin="3")[0]),)
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), discards=discards, score=25000)
+        player = MahjongPlayer(seat=0, tiles=tuple(tiles), discards=discards, score=25000)
 
         assert is_furiten(player) is True
 
@@ -151,7 +151,7 @@ class TestIsFuriten:
             Discard(tile_id=TilesConverter.string_to_136_array(man="1")[0]),
             Discard(tile_id=TilesConverter.string_to_136_array(pin="6")[0]),
         )
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), discards=discards, score=25000)
+        player = MahjongPlayer(seat=0, tiles=tuple(tiles), discards=discards, score=25000)
 
         assert is_furiten(player) is True
 
@@ -206,7 +206,6 @@ class TestIsEffectiveFuriten:
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         player = MahjongPlayer(
             seat=0,
-            name="P1",
             tiles=tuple(tiles),
             is_temporary_furiten=True,
             score=25000,
@@ -217,7 +216,6 @@ class TestIsEffectiveFuriten:
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
         player = MahjongPlayer(
             seat=0,
-            name="P1",
             tiles=tuple(tiles),
             is_riichi_furiten=True,
             score=25000,
@@ -226,13 +224,13 @@ class TestIsEffectiveFuriten:
 
     def test_effective_furiten__when_no_furiten_flags__should_be_false(self):
         tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        player = MahjongPlayer(seat=0, name="P1", tiles=tuple(tiles), score=25000)
+        player = MahjongPlayer(seat=0, tiles=tuple(tiles), score=25000)
         assert is_effective_furiten(player) is False
 
 
 class TestApplyTemporaryFuriten:
     def test_apply_temporary_furiten__when_applied__should_flag_only_that_seat(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, score=25000) for i in range(4))
         round_state = MahjongRoundState(
             wall=make_wall(),
             players=players,
@@ -250,7 +248,7 @@ class TestApplyTemporaryFuriten:
 
 class TestIsTenhou:
     def test_tenhou__when_dealer_first_draw__should_be_true(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, score=25000) for i in range(4))
         round_state = MahjongRoundState(
             wall=make_wall(),
             dealer_seat=0,
@@ -262,7 +260,7 @@ class TestIsTenhou:
         assert is_tenhou(players[0], round_state) is True
 
     def test_tenhou__when_non_dealer__should_be_false(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, score=25000) for i in range(4))
         round_state = MahjongRoundState(
             wall=make_wall(),
             dealer_seat=0,
@@ -274,7 +272,7 @@ class TestIsTenhou:
         assert is_tenhou(players[1], round_state) is False
 
     def test_tenhou__when_discards_made__should_be_false(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, score=25000) for i in range(4))
         round_state = MahjongRoundState(
             wall=make_wall(),
             dealer_seat=0,
@@ -293,9 +291,7 @@ class TestIsTenhou:
             who=1,
             from_who=0,
         )
-        players = tuple(
-            MahjongPlayer(seat=i, name=f"Player{i}", score=25000, melds=(pon,) if i == 1 else ()) for i in range(4)
-        )
+        players = tuple(MahjongPlayer(seat=i, score=25000, melds=(pon,) if i == 1 else ()) for i in range(4))
         round_state = MahjongRoundState(
             wall=make_wall(),
             dealer_seat=0,
@@ -315,7 +311,6 @@ class TestIsTenhou:
         players = tuple(
             MahjongPlayer(
                 seat=i,
-                name=f"Player{i}",
                 melds=(closed_kan,) if i == 0 else (),
                 score=25000,
             )
@@ -334,7 +329,7 @@ class TestIsTenhou:
 
 class TestIsChiihou:
     def test_chiihou__when_non_dealer_first_draw__should_be_true(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, score=25000) for i in range(4))
         round_state = MahjongRoundState(
             wall=make_wall(),
             dealer_seat=0,
@@ -346,7 +341,7 @@ class TestIsChiihou:
         assert is_chiihou(players[1], round_state) is True
 
     def test_chiihou__when_dealer__should_be_false(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
+        players = tuple(MahjongPlayer(seat=i, score=25000) for i in range(4))
         round_state = MahjongRoundState(
             wall=make_wall(),
             dealer_seat=0,
@@ -360,15 +355,14 @@ class TestIsChiihou:
     def test_chiihou__when_player_already_discarded__should_be_false(self):
         player_with_discard = MahjongPlayer(
             seat=1,
-            name="Player1",
             score=25000,
             discards=(Discard(tile_id=1),),
         )
         players = (
-            MahjongPlayer(seat=0, name="Player0", score=25000),
+            MahjongPlayer(seat=0, score=25000),
             player_with_discard,
-            MahjongPlayer(seat=2, name="Player2", score=25000),
-            MahjongPlayer(seat=3, name="Player3", score=25000),
+            MahjongPlayer(seat=2, score=25000),
+            MahjongPlayer(seat=3, score=25000),
         )
         round_state = MahjongRoundState(
             wall=make_wall(),
@@ -387,9 +381,7 @@ class TestIsChiihou:
             who=2,
             from_who=1,
         )
-        players = tuple(
-            MahjongPlayer(seat=i, name=f"Player{i}", score=25000, melds=(pon,) if i == 2 else ()) for i in range(4)
-        )
+        players = tuple(MahjongPlayer(seat=i, score=25000, melds=(pon,) if i == 2 else ()) for i in range(4))
         round_state = MahjongRoundState(
             wall=make_wall(),
             dealer_seat=0,
@@ -409,7 +401,6 @@ class TestIsChiihou:
         players = tuple(
             MahjongPlayer(
                 seat=i,
-                name=f"Player{i}",
                 melds=(closed_kan,) if i == 0 else (),
                 score=25000,
             )
@@ -436,7 +427,6 @@ class TestIsRenhouClosedKan:
         players = tuple(
             MahjongPlayer(
                 seat=i,
-                name=f"Player{i}",
                 melds=(closed_kan,) if i == 2 else (),
                 score=25000,
             )

@@ -1,30 +1,20 @@
 from game.logic.action_handlers import handle_tsumo
 from game.logic.actions import build_decision, get_available_actions
 from game.logic.decision import Kan, Tsumo
-from game.logic.enums import AIPlayerType, KanType, PlayerAction
+from game.logic.enums import KanType, PlayerAction
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.refusal import Refusal, RefusalCode, RefusalKind
 from game.logic.round import draw_tile
 from game.logic.state import Discard, MahjongGameState
-from game.logic.types import SeatConfig
 from game.tests.helpers.builders import create_dealt_game_state, create_player
 from game.tests.helpers.hands import tile_copies
 from game.tests.unit.logic.helpers import _string_to_34_tile, _string_to_34_tiles
 
 
-def _default_seat_configs() -> list[SeatConfig]:
-    return [
-        SeatConfig(name="Player"),
-        SeatConfig(name="ai-tsumogiri-1", ai_player_type=AIPlayerType.TSUMOGIRI),
-        SeatConfig(name="ai-tsumogiri-2", ai_player_type=AIPlayerType.TSUMOGIRI),
-        SeatConfig(name="ai-tsumogiri-3", ai_player_type=AIPlayerType.TSUMOGIRI),
-    ]
-
-
 class TestGetAvailableActions:
     def _create_game_state(self):
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
+        game_state = init_game(seed="a" * 192, wall=list(range(136)))
         # draw a tile for the dealer
         new_round_state, _tile = draw_tile(game_state.round_state)
         return game_state.model_copy(update={"round_state": new_round_state})

@@ -11,7 +11,7 @@ from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 from shared.dal.models import GameEndReason
 
-from .helpers import create_started_game, game_of, participant_of, runtime_of, wait_for_background_tasks
+from .helpers import ENGINE_SEED, create_started_game, game_of, participant_of, runtime_of, wait_for_background_tasks
 
 if TYPE_CHECKING:
     from game.session.manager import SessionManager
@@ -50,11 +50,10 @@ def _discard_drawn_tile(manager: SessionManager, conn: MockConnection) -> None:
 
 
 async def test_ai_turn_delay__when_the_start_confirm_hands_the_turn_to_ai_players__should_send_one_turn_per_delay(
-    seeded_engine, held_manager_sleep, engine_seeder
+    paced_engine, held_manager_sleep
 ):
-    engine_seeder(AI_DEALER_SEED)
     config = TimerConfig(game_start_confirm_seconds=START_CONFIRM, ai_turn_delay_seconds=AI_TURN_DELAY)
-    manager = make_session_manager(seeded_engine, timer_config=config)
+    manager = make_session_manager(paced_engine, seed=AI_DEALER_SEED, timer_config=config)
     [alice] = create_started_game(manager, player_names=["Alice"])
     game = game_of(manager)
     alice_seat = participant_of(manager, alice).seat
@@ -80,9 +79,9 @@ async def test_ai_turn_delay__when_the_start_confirm_hands_the_turn_to_ai_player
 
 
 async def test_ai_turn_delay__when_a_human_leaves_during_it__should_keep_one_ai_turn_per_delay(
-    seeded_engine, held_manager_sleep
+    paced_engine, held_manager_sleep
 ):
-    manager = make_session_manager(seeded_engine, timer_config=PACED_AI_TURNS)
+    manager = make_session_manager(paced_engine, seed=ENGINE_SEED, timer_config=PACED_AI_TURNS)
     alice, bob = create_started_game(manager, player_names=["Alice", "Bob"])
     game = game_of(manager)
     alice_seat = participant_of(manager, alice).seat
@@ -108,9 +107,9 @@ async def test_ai_turn_delay__when_a_human_leaves_during_it__should_keep_one_ai_
 
 
 async def test_reconnect__when_its_ai_player_turn_is_still_delayed__should_cancel_it_and_open_the_human_turn(
-    seeded_engine, held_manager_sleep
+    paced_engine, held_manager_sleep
 ):
-    manager = make_session_manager(seeded_engine, timer_config=PACED_AI_TURNS)
+    manager = make_session_manager(paced_engine, seed=ENGINE_SEED, timer_config=PACED_AI_TURNS)
     alice, bob = create_started_game(manager, player_names=["Alice", "Bob"])
     game = game_of(manager)
     bob_participant = participant_of(manager, bob)
@@ -144,9 +143,9 @@ async def test_reconnect__when_its_ai_player_turn_is_still_delayed__should_cance
 
 
 async def test_ai_turn_delay__when_the_last_human_leaves_during_it__should_abandon_the_game_without_the_ai_turn(
-    seeded_engine, held_manager_sleep
+    paced_engine, held_manager_sleep
 ):
-    manager = make_session_manager(seeded_engine, timer_config=PACED_AI_TURNS)
+    manager = make_session_manager(paced_engine, seed=ENGINE_SEED, timer_config=PACED_AI_TURNS)
     [alice] = create_started_game(manager, player_names=["Alice"])
     game = game_of(manager)
     _discard_drawn_tile(manager, alice)

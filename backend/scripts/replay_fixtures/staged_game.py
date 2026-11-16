@@ -25,9 +25,11 @@ from game.engine import (
     calculate_shanten,
     hand_to_34_array,
 )
+from game.messaging.roster import GameRoster
 from game.replay import run_replay
 from game.replay.loader import load_replay_from_bytes
 from game.session.replay_collector import ReplayCollector, ReplayRecord
+from game.session.seating import seat_players
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.start_wall import make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
@@ -79,18 +81,19 @@ class Recording:
 
 class ReplayRecorder:
     """
-    Record a game's events into replay records one engine call at a time, as the session does, and keep the walls and
-    start position the game was staged from for its recording.
+    Record a game's events into replay records one engine call at a time, as the session does, under the game's roster,
+    and keep the walls and start position the game was staged from for its recording.
     """
 
     def __init__(
         self,
         *,
         seed: str,
+        roster: GameRoster,
         walls: tuple[tuple[int, ...], ...] = (),
         start: StartPosition | None = None,
     ) -> None:
-        self._record = ReplayRecord(seed=seed, rng_version=RNG_VERSION)
+        self._record = ReplayRecord(seed=seed, rng_version=RNG_VERSION, roster=roster)
         self._walls = walls
         self._start = start
         self._collector = ReplayCollector(FakeReplayStorage())
@@ -245,9 +248,9 @@ class Seating:
     """
     Who plays a scripted game: its players in input order, and the seats of those with no connection at the first deal.
 
-    The engine seats AI players in the seats the players leave empty, as in a room of fewer than four. An absent seat is
-    an AI player's from the deal, recorded as the session records it: its record after the deal and ahead of the
-    dealer's first draw, its AI player's moves after them.
+    The session's seating puts AI players in the seats the players leave empty, as in a room of fewer than four. An
+    absent seat is an AI player's from the deal, recorded as the session records it: its record after the deal and ahead
+    of the dealer's first draw, its AI player's moves after them.
     """
 
     players: Sequence[str] = PLAYERS
@@ -273,18 +276,21 @@ class _ScriptedGame:
         start_position: StartPosition | None = None,
     ) -> None:
         self._game_id = game_id
-        self._recorder = ReplayRecorder(seed=seed, walls=walls, start=start_position)
+        seated = seat_players(seating.players, seed)
+        roster = GameRoster(game_id=game_id, names=seated.names, ai_seats=seated.ai_seats)
+        self._recorder = ReplayRecorder(seed=seed, roster=roster, walls=walls, start=start_position)
         self._service = MahjongGameService()
-        start = self._service.start_game(game_id, list(seating.players), seed=seed, walls=walls, start=start_position)
-        self._runtime = start.runtime
+        self._runtime, start_events = self._service.new_game(
+            seed, walls=walls, start=start_position, ai_seats=seated.ai_seats
+        )
         self._draws: dict[int, DrawEvent] = {}
-        if not seating.absent < set(start.seats):
+        if not seating.absent < set(seated.player_seats):
             raise ScenarioError(
-                f"{game_id}: absent seats {sorted(seating.absent)} are not some of the players' {start.seats}"
+                f"{game_id}: absent seats {sorted(seating.absent)} are not some of the players' {seated.player_seats}"
             )
 
-        self._record(start.events)
-        absent_in_player_order = [seat for seat in start.seats if seat in seating.absent]
+        self._record(start_events)
+        absent_in_player_order = [seat for seat in seated.player_seats if seat in seating.absent]
         for seat in absent_in_player_order:
             self._service.replace_with_ai_player(self._runtime, seat)
             self._recorder.record_ai_replacement(seat=seat, reason=SeatControlReason.ABSENT)

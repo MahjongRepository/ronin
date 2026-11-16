@@ -33,7 +33,7 @@ class TestRoundOver:
         return MahjongGameService()
 
     def test_deal_next_round__when_the_round_is_over__should_deal_it_for_begin_round_to_draw(self, service):
-        runtime = start_game_in_play(service, "game1", FOUR_PLAYERS, seed="a" * 192).runtime
+        runtime = start_game_in_play(service, seed="a" * 192).runtime
         ended = _exhaust_the_wall(service, runtime)
         assert (ended.awaiting.kind, ended.awaiting.seats, ended.awaiting.round_number) == (
             WaitKind.ROUND_OVER,
@@ -56,7 +56,7 @@ class TestRoundOver:
         assert (begun.awaiting.kind, begun.awaiting.seats) == (WaitKind.TURN, frozenset({dealer}))
 
     def test_act__when_the_round_is_over__should_refuse_it_as_the_wrong_phase(self, service):
-        runtime = start_game_in_play(service, "game1", FOUR_PLAYERS, seed="a" * 192).runtime
+        runtime = start_game_in_play(service, seed="a" * 192).runtime
         _exhaust_the_wall(service, runtime)
         assert runtime.state.round_state.phase == RoundPhase.FINISHED
         seat = runtime.state.round_state.current_player_seat
@@ -66,7 +66,7 @@ class TestRoundOver:
         assert refusal == Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.WRONG_PHASE)
 
     def test_round_end__when_the_game_ends__should_await_nothing(self, service):
-        runtime = start_game_in_play(service, "game1", FOUR_PLAYERS, seed="a" * 192).runtime
+        runtime = start_game_in_play(service, seed="a" * 192).runtime
         busted_seat = (runtime.state.round_state.current_player_seat + 1) % 4
         _update_player(runtime, seat=busted_seat, score=-1000)
 

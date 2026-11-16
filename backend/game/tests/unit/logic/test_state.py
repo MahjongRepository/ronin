@@ -20,7 +20,6 @@ class TestGetPlayerView:
         players = (
             MahjongPlayer(
                 seat=0,
-                name="Player1",
                 tiles=tuple(
                     TilesConverter.string_to_136_array(
                         man="123",
@@ -33,7 +32,6 @@ class TestGetPlayerView:
             ),
             MahjongPlayer(
                 seat=1,
-                name="AI1",
                 tiles=(
                     *TilesConverter.string_to_136_array(man="112233")[1::2],
                     *TilesConverter.string_to_136_array(pin="112233")[1::2],
@@ -45,7 +43,6 @@ class TestGetPlayerView:
             ),
             MahjongPlayer(
                 seat=2,
-                name="AI2",
                 tiles=(
                     *TilesConverter.string_to_136_array(man="111222333")[2::3],
                     *TilesConverter.string_to_136_array(pin="111222333")[2::3],
@@ -57,7 +54,6 @@ class TestGetPlayerView:
             ),
             MahjongPlayer(
                 seat=3,
-                name="AI3",
                 tiles=(
                     *TilesConverter.string_to_136_array(man="111122223333")[3::4],
                     *TilesConverter.string_to_136_array(pin="111122223333")[3::4],
@@ -120,7 +116,7 @@ class TestFinishRound:
     def test_finish_round__when_double_ron__should_record_both_winners_the_loser_and_the_pao_seat_in_round_history(
         self,
     ):
-        game_state = start_game_in_play(MahjongGameService(), "game1", ["Alice"], seed="a" * 192).runtime.state
+        game_state = start_game_in_play(MahjongGameService(), humans=1, seed="a" * 192).runtime.state
         winners = [
             DoubleRonWinner(
                 honba_bonus=0,
@@ -151,7 +147,7 @@ class TestFinishRound:
         assert (entry.result_type, entry.abortive_reason) == (RoundResultType.DOUBLE_RON, None)
 
     def test_finish_round__when_abortive_draw__should_record_its_reason_in_round_history(self):
-        game_state = start_game_in_play(MahjongGameService(), "game1", ["Alice"], seed="a" * 192).runtime.state
+        game_state = start_game_in_play(MahjongGameService(), humans=1, seed="a" * 192).runtime.state
         scores = dict.fromkeys(range(4), 25000)
         result = AbortiveDrawResult(
             reason=AbortiveDrawType.NINE_TERMINALS, scores=scores, score_changes=dict.fromkeys(scores, 0), seat=1

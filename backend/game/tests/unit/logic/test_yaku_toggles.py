@@ -31,7 +31,7 @@ class TestKuitanToggle:
             who=0,
             from_who=1,
         )
-        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
+        player = MahjongPlayer(seat=0, tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = _make_round_state()
 
         assert can_declare_tsumo(player, round_state, settings=GameSettings(has_kuitan=True)) is True
@@ -47,14 +47,14 @@ class TestKuitanToggle:
             who=0,
             from_who=1,
         )
-        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
+        player = MahjongPlayer(seat=0, tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = _make_round_state()
 
         assert can_declare_tsumo(player, round_state, settings=GameSettings(has_kuitan=False)) is False
 
     def test_kuitan__when_disabled_and_closed_tanyao__should_allow_declare(self):
         tiles = TilesConverter.string_to_136_array(man="234567", pin="234", sou="23455")
-        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(tiles), score=25000)
+        player = MahjongPlayer(seat=0, tiles=tuple(tiles), score=25000)
         round_state = _make_round_state()
 
         # menzen tsumo is a yaku by itself, so closed tanyao is allowed

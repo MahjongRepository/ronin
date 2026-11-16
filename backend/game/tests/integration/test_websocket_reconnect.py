@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 import pytest
 from starlette.testclient import TestClient
 
-from game.engine import EventType, GamePlayerInfo, GameType, PlayerReconnectState, ReconnectionSnapshot, WindName
+from game.engine import EventType, GameType, PlayerReconnectState, ReconnectionSnapshot, WindName
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.app import create_app
@@ -23,15 +23,8 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 
-def _make_snapshot(game_id: str = "test_game", seat: int = 0) -> ReconnectionSnapshot:
+def _make_snapshot(seat: int = 0) -> ReconnectionSnapshot:
     return ReconnectionSnapshot(
-        game_id=game_id,
-        players=[
-            GamePlayerInfo(seat=0, name="Player1", is_ai_player=False),
-            GamePlayerInfo(seat=1, name="AI", is_ai_player=True),
-            GamePlayerInfo(seat=2, name="AI", is_ai_player=True),
-            GamePlayerInfo(seat=3, name="AI", is_ai_player=True),
-        ],
         dealer_seat=0,
         first_dealer_seat=0,
         dealer_dice=((1, 2), (3, 4)),
@@ -79,7 +72,7 @@ class TestWebSocketReconnect:
 
     def test_reconnect__when_ticket_valid__should_send_game_reconnected(self, client):
         sm = client.app.state.session_manager
-        snapshot = _make_snapshot("test_game", seat=0)
+        snapshot = _make_snapshot(seat=0)
         sm._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
         with _game_with_player1_dropped(client) as ticket, client.websocket_connect("/ws/test_game") as ws:
             send_ws(
@@ -122,7 +115,7 @@ class TestWebSocketReconnect:
 
     def test_reconnect__when_action_sent_after_reconnect__should_process_it(self, client):
         sm = client.app.state.session_manager
-        snapshot = _make_snapshot("test_game", seat=0)
+        snapshot = _make_snapshot(seat=0)
         sm._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
         with _game_with_player1_dropped(client) as ticket, client.websocket_connect("/ws/test_game") as ws:
             send_ws(

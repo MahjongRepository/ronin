@@ -179,7 +179,7 @@ def _chi_by_seat_holding_quad_and_upgradable_pon() -> MahjongGameState:
 # ---------------------------------------------------------------------------
 class TestMinWallForKan:
     def test_closed_kan__when_min_wall_for_kan_setting_changes__should_require_that_many_wall_tiles(self):
-        runtime = GameRuntime(game_id="game", state=_kan_game(_one_man_quad_after_draw()), ai=AIPlayerController({}))
+        runtime = GameRuntime(state=_kan_game(_one_man_quad_after_draw()), ai=AIPlayerController({}))
         wall = runtime.state.round_state.wall
         round_state = _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:1]}))
         player = round_state.players[0]
@@ -190,7 +190,7 @@ class TestMinWallForKan:
     def test_added_kan__when_min_wall_for_kan_setting_changes__should_require_that_many_wall_tiles(self):
         seat_0 = create_player(seat=0, tiles=(_ONE_MAN[3], *_KAN_SEAT_REST), melds=(_one_man_pon_from_seat_3(),))
         game_state = _kan_game(seat_0, seat_3=_seat_3_after_discarding(_ONE_MAN[2]))
-        runtime = GameRuntime(game_id="game", state=game_state, ai=AIPlayerController({}))
+        runtime = GameRuntime(state=game_state, ai=AIPlayerController({}))
         wall = runtime.state.round_state.wall
         round_state = _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:1]}))
         player = round_state.players[0]
@@ -843,7 +843,7 @@ def _riichi_seat_after_draw(waiting_hand: Sequence[int], drawn_tile: int) -> Gam
             discards=(Discard(tile_id=tile_copies(0, honors="4")[0]),),
         ),
     )
-    return GameRuntime(game_id="game1", state=create_dealt_game_state(players), ai=AIPlayerController({}))
+    return GameRuntime(state=create_dealt_game_state(players), ai=AIPlayerController({}))
 
 
 def _declare_closed_kan(runtime: GameRuntime, tile_id: int) -> GameUpdate | Refusal:

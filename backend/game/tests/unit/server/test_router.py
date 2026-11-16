@@ -192,7 +192,7 @@ class TestMessageRouterBranches:
 class TestMessageRouterEntryPointFailures:
     async def test_message_router__when_the_final_join_starts_the_game_and_start_raises__should_fail_the_game(self):
         game_service = MockGameService()
-        game_service.start_game = MagicMock(side_effect=RuntimeError("start failed"))
+        game_service.new_game = MagicMock(side_effect=RuntimeError("start failed"))
         session_manager = make_session_manager(game_service)
         router = MessageRouter(session_manager, game_ticket_secret=TEST_TICKET_SECRET)
         ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")

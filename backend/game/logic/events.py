@@ -10,7 +10,6 @@ from game.logic.enums import CallType, GameEndCause, KanType, MeldViewType, Prom
 from game.logic.settings import GameType
 from game.logic.types import (
     AvailableActionItem,
-    GamePlayerInfo,
     MeldCaller,
     PlayerStanding,
     PlayerView,
@@ -192,7 +191,9 @@ class DoraRevealedEvent(GameEvent):
 
 class GameStartedEvent(GameEvent):
     """
-    Event broadcast to all players when the game starts.
+    Event broadcast to all players when the game starts: the table's rules and first dealer.
+
+    Who sits where, and the game's id, are the caller's.
 
     riichi_stick_value is the setting a client consumes: what each stick a winner collects pays it. The replay records
     every setting on its game_started line instead.
@@ -200,9 +201,7 @@ class GameStartedEvent(GameEvent):
 
     type: Literal[EventType.GAME_STARTED] = EventType.GAME_STARTED
     target: EventTarget = _BROADCAST
-    game_id: str
     game_type: GameType
-    players: list[GamePlayerInfo]
     dealer_seat: int
     dealer_dice: tuple[tuple[int, int], tuple[int, int]]
     riichi_stick_value: int

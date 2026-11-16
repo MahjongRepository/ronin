@@ -15,7 +15,6 @@ from game.engine import (
     FuritenEvent,
     GameEndCause,
     GameEndedEvent,
-    GamePlayerInfo,
     GameStartedEvent,
     GameType,
     MeldEvent,
@@ -29,8 +28,9 @@ from game.engine import (
     TenpaiHand,
     WindName,
 )
-from game.messaging.event_payload import game_event_payload
+from game.messaging.event_payload import game_started_payload
 from game.messaging.game_errors import ErrorEvent, GameErrorCode
+from game.messaging.roster import GameRoster
 from game.session import replay_collector as replay_collector_module
 from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.tests.mocks import FakeReplayStorage
@@ -82,15 +82,18 @@ def _make_dora_event() -> DoraRevealedEvent:
     return DoraRevealedEvent(tile_id=5)
 
 
-def _make_game_started_event(game_id: str = "game1") -> GameStartedEvent:
+def _make_game_started_event() -> GameStartedEvent:
     return GameStartedEvent(
-        game_id=game_id,
         game_type=GameType.HANCHAN,
-        players=[GamePlayerInfo(seat=i, name=f"P{i}", is_ai_player=False) for i in range(4)],
         dealer_seat=0,
         dealer_dice=((1, 1), (1, 1)),
         riichi_stick_value=1000,
     )
+
+
+ROSTER = GameRoster(
+    game_id="game1", names=("Alice", "ai-tsumogiri-1", "Bob", "ai-tsumogiri-2"), ai_seats=frozenset({1, 3})
+)
 
 
 def _make_game_ended_event() -> GameEndedEvent:
@@ -184,7 +187,7 @@ class TestReplayCollectorLifecycle:
         storage = ThreadRecordingStorage()
         collector = ReplayCollector(storage)
 
-        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION)
+        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, roster=ROSTER)
         collector.collect_events(replay, [_make_discard_event()])
         collector.collect_events(replay, [_make_meld_event()])
 
@@ -205,7 +208,7 @@ class TestReplayCollectorFiltering:
         storage = FakeReplayStorage()
         collector = ReplayCollector(storage)
 
-        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION)
+        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, roster=ROSTER)
         collector.collect_events(
             replay,
             [
@@ -229,7 +232,7 @@ class TestReplayCollectorFiltering:
         storage = FakeReplayStorage()
         collector = ReplayCollector(storage)
 
-        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION)
+        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, roster=ROSTER)
         collector.collect_events(
             replay,
             [
@@ -257,7 +260,7 @@ class TestReplayCollectorFiltering:
             available_actions=[AvailableActionItem(action="discard", tiles=[42])],
         )
 
-        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION)
+        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, roster=ROSTER)
         collector.collect_events(replay, [draw_with_actions])
 
         await collector.save("game1", replay.records)
@@ -270,7 +273,7 @@ class TestReplayCollectorFiltering:
         storage = FakeReplayStorage()
         collector = ReplayCollector(storage)
 
-        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION)
+        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, roster=ROSTER)
         collector.collect_events(
             replay,
             [
@@ -305,7 +308,7 @@ class TestReplayCollectorRoundStartedMerge:
         storage = FakeReplayStorage()
         collector = ReplayCollector(storage)
 
-        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION)
+        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, roster=ROSTER)
         collector.collect_events(replay, _make_all_round_started_events())
 
         await collector.save("game1", replay.records)
@@ -328,7 +331,7 @@ class TestReplayCollectorRoundStartedMerge:
     async def test_replay_collector__when_deal_is_missing_seat_views__should_refuse_to_save(self):
         storage = FakeReplayStorage()
         collector = ReplayCollector(storage)
-        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION)
+        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, roster=ROSTER)
         collector.collect_events(replay, [_make_round_started_event(seat=2)])
 
         with pytest.raises(ValueError, match=r"misses fields.*TILES"):
@@ -341,7 +344,7 @@ class TestReplayCollectorRoundStartedMerge:
         storage = FakeReplayStorage()
         collector = ReplayCollector(storage)
 
-        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION)
+        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, roster=ROSTER)
         collector.collect_events(
             replay,
             [
@@ -365,7 +368,7 @@ class TestReplayCollectorRoundStartedMerge:
         storage = FakeReplayStorage()
         collector = ReplayCollector(storage)
 
-        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION)
+        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, roster=ROSTER)
         # First round: all 4 events in one batch
         collector.collect_events(replay, _make_all_round_started_events())
         # Some gameplay
@@ -389,7 +392,7 @@ class TestReplayCollectorJsonLines:
         storage = FakeReplayStorage()
         collector = ReplayCollector(storage)
 
-        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION)
+        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, roster=ROSTER)
         collector.collect_events(replay, [_make_discard_event(seat=2, tile_id=42)])
 
         await collector.save("game1", replay.records)
@@ -403,7 +406,7 @@ class TestReplayCollectorJsonLines:
 
         riichi_discard = DiscardEvent(seat=0, tile_id=10, is_riichi=True)
 
-        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION)
+        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, roster=ROSTER)
         collector.collect_events(replay, [riichi_discard])
 
         await collector.save("game1", replay.records)
@@ -412,16 +415,25 @@ class TestReplayCollectorJsonLines:
 
 
 class TestReplayCollectorSeedInReplay:
-    async def test_replay_collector__when_game_started_collected__should_include_seed_rng_version_and_settings(self):
+    async def test_replay_collector__when_game_started_collected__should_include_roster_seed_rng_version_and_settings(
+        self,
+    ):
         storage = FakeReplayStorage()
         collector = ReplayCollector(storage)
 
-        replay = ReplayRecord(seed="d" * 192, rng_version=RNG_VERSION)
+        replay = ReplayRecord(seed="d" * 192, rng_version=RNG_VERSION, roster=ROSTER)
         collector.collect_events(replay, [_make_game_started_event()])
 
         await collector.save("game1", replay.records)
         record = _parse_saved_replay(storage.saved["game1"])[0]
         assert record[WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.GAME_STARTED]
+        assert record[WireKey.GAME_ID] == "game1"
+        assert record[WireKey.PLAYERS] == [
+            {WireKey.SEAT: 0, WireKey.NAME: "Alice", WireKey.AI_PLAYER: 0},
+            {WireKey.SEAT: 1, WireKey.NAME: "ai-tsumogiri-1", WireKey.AI_PLAYER: 1},
+            {WireKey.SEAT: 2, WireKey.NAME: "Bob", WireKey.AI_PLAYER: 0},
+            {WireKey.SEAT: 3, WireKey.NAME: "ai-tsumogiri-2", WireKey.AI_PLAYER: 1},
+        ]
         assert record[WireKey.SEED] == "d" * 192
         assert record[WireKey.RNG_VERSION] == RNG_VERSION
         assert record[WireKey.GAME_SETTINGS] == {"id": 1, "overrides": {}}
@@ -432,7 +444,7 @@ class TestReplayCollectorSeedInReplay:
         storage = FakeReplayStorage()
         collector = ReplayCollector(storage)
 
-        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION)
+        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, roster=ROSTER)
         collector.collect_events(
             replay,
             [_make_game_started_event(), _make_discard_event(), _make_game_ended_event()],
@@ -449,7 +461,7 @@ class TestReplayCollectorSeedInReplay:
         game_ended = lines[2]
         assert WireKey.SEED not in game_ended
 
-    def test_game_event_payload__when_game_started__should_exclude_seed(self):
+    def test_game_started_payload__when_built__should_exclude_seed(self):
         event = _make_game_started_event()
-        payload = game_event_payload(event)
+        payload = game_started_payload(event, roster=ROSTER)
         assert WireKey.SEED not in payload

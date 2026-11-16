@@ -7,11 +7,11 @@ from game.tests.helpers.session import make_session_manager
 from game.wire.enums import WireEventType
 from game.wire.keys import WireKey
 
-from .helpers import create_started_game, game_of, participant_of, runtime_of
+from .helpers import ENGINE_SEED, create_started_game, game_of, participant_of, runtime_of
 
 
-async def test_decision_ids__when_opponents_pass_private_calls__should_hide_their_waits(seeded_engine, fake_clock):
-    manager = make_session_manager(seeded_engine, clock=fake_clock.monotonic)
+async def test_decision_ids__when_opponents_pass_private_calls__should_hide_their_waits(paced_engine, fake_clock):
+    manager = make_session_manager(paced_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
     alice, _, caller, idle = create_started_game(
         manager, player_names=["Alice", "Bob", "Carol", "Dave"], keep_start_messages=True
     )

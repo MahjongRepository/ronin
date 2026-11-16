@@ -10,6 +10,7 @@ from game.tests.mocks import MOCK_GAME_OVER, FakeGameRepository, MockConnection,
 from shared.dal.models import GameEndReason
 
 from .helpers import (
+    ENGINE_SEED,
     arrange_final_discard,
     create_started_game,
     current_wait_id,
@@ -63,14 +64,14 @@ class TestGameStartRecording:
         assert _seat_rows(game_repo) == [
             (0, "Alice", "user-0", None),
             (1, "Bob", "user-1", None),
-            (2, "AI", "", None),
-            (3, "AI", "", None),
+            (2, "ai-tsumogiri-1", "", None),
+            (3, "ai-tsumogiri-2", "", None),
         ]
 
     async def test_start_game__when_human_is_named_like_an_ai__should_seat_them_and_record_their_user_id(
-        self, seeded_engine, game_repo
+        self, paced_engine, game_repo
     ):
-        manager = make_session_manager(seeded_engine, repository=game_repo)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, repository=game_repo)
         conns = create_started_game(manager, player_names=["ai-tsumogiri-1"])
         human_seat = participant_of(manager, conns[0]).seat
         assert human_seat is not None
@@ -125,8 +126,8 @@ class TestGameCompletionRecording:
         assert [(s.seat, s.name, s.user_id, s.score, s.final_score) for s in recorded.standings] == [
             (1, "Bob", "user-1", 40000, 50),
             (0, "Alice", "user-0", 25000, 0),
-            (2, "AI", "", 20000, -15),
-            (3, "AI", "", 15000, -35),
+            (2, "ai-tsumogiri-1", "", 20000, -15),
+            (3, "ai-tsumogiri-2", "", 15000, -35),
         ]
 
     async def test_game_history__when_timeout_ends_game__should_record_completed(self, manager_with_repo, game_repo):
@@ -140,10 +141,11 @@ class TestGameCompletionRecording:
         assert game_repo.games["game1"].end_reason == GameEndReason.COMPLETED
 
     async def test_game_history__when_a_human_never_connected__should_keep_their_seat_in_the_finish_standings(
-        self, seeded_engine, game_repo
+        self, paced_engine, game_repo
     ):
         manager = make_session_manager(
-            seeded_engine,
+            paced_engine,
+            seed=ENGINE_SEED,
             repository=game_repo,
             timer_config=TimerConfig(
                 pending_game_timeout_seconds=0.01, game_start_confirm_seconds=0, ai_turn_delay_seconds=0
@@ -194,9 +196,9 @@ class TestGameAbandonmentRecording:
         assert recorded.ended_at is not None
         assert _seat_rows(game_repo) == [
             (0, "Alice", "user-0", None),
-            (1, "AI", "", None),
-            (2, "AI", "", None),
-            (3, "AI", "", None),
+            (1, "ai-tsumogiri-1", "", None),
+            (2, "ai-tsumogiri-2", "", None),
+            (3, "ai-tsumogiri-3", "", None),
         ]
 
     async def test_game_history__when_completed_game_cleaned_up__should_not_record_abandoned(

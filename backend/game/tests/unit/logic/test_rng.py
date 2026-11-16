@@ -9,7 +9,6 @@ from game.logic.rng import (
     bounded_uint,
     determine_first_dealer,
     fisher_yates_shuffle,
-    generate_seed,
     generate_shuffled_wall_and_dice,
     roll_dice,
     seat_permutation,
@@ -27,16 +26,6 @@ class ScriptedWords:
 
     def next_uint64(self) -> int:
         return next(self._words)
-
-
-class TestGenerateSeed:
-    def test_generate_seed__should_return_hex_of_seed_length(self):
-        seed = generate_seed()
-        assert len(seed) == SEED_BYTES * 2
-        assert len(bytes.fromhex(seed)) == SEED_BYTES
-
-    def test_generate_seed__when_called_twice__should_return_different_seeds(self):
-        assert generate_seed() != generate_seed()
 
 
 class TestValidateSeedHex:

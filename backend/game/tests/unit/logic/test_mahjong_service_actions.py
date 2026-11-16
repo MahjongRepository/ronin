@@ -26,7 +26,7 @@ from game.logic.state import Caller, PendingCallPrompt
 from game.logic.types import ExhaustiveDrawResult
 from game.tests.helpers.builders import start_game_in_play
 from game.tests.unit.logic.helpers import (
-    _find_player,
+    _first_human,
     _update_player,
     _update_round_state,
 )
@@ -38,8 +38,8 @@ class TestMahjongGameServiceAddedKanChankan:
         return MahjongGameService()
 
     def test_act__when_ai_robber_passes_on_added_kan__should_complete_the_kan_and_draw(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
-        player = _find_player(runtime.state.round_state, "Player")
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
+        player = _first_human(runtime.state)
         robber_seat = (player.seat + 1) % 4
         pin_3_copies = TilesConverter.string_to_136_array(pin="3333")
         pon = FrozenMeld(
@@ -83,7 +83,7 @@ class TestProcessActionResultRoundEnd:
         return MahjongGameService()
 
     def test_process_action_result__when_round_ended__should_return_round_end_event(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
 
         scores = {i: runtime.state.round_state.players[i].score for i in range(4)}
         round_end = RoundEndEvent(
@@ -113,9 +113,9 @@ class TestMahjongGameServiceChankanPrompt:
         return MahjongGameService()
 
     def test_process_action_result__when_chankan_prompt_waits_for_human_player__should_keep_it_open(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
         game_state = runtime.state
-        player = _find_player(game_state.round_state, "Player")
+        player = _first_human(game_state)
 
         prompt = PendingCallPrompt(
             kind=PromptKind.CHANKAN,
@@ -150,8 +150,8 @@ class TestNoDataActionDispatchRouting:
         [Tsumo(), Kyuushu()],
     )
     def test_act__when_no_data_action_out_of_turn__should_refuse_it_and_run_nothing(self, service, action):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
-        player = _find_player(runtime.state.round_state, "Player")
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
+        player = _first_human(runtime.state)
         ai_seat_on_turn = (player.seat + 1) % 4
         _update_round_state(runtime, current_player_seat=ai_seat_on_turn)
         game_state = runtime.state
@@ -162,9 +162,9 @@ class TestNoDataActionDispatchRouting:
 
     @pytest.mark.parametrize("action", [Ron(), Pon(), Chi(tiles=(4, 8))])
     def test_act__when_call_without_call_prompt__should_refuse_as_not_awaited(self, service, action):
-        start = start_game_in_play(service, "game1", ["Player"], seed="a" * 192)
+        start = start_game_in_play(service, humans=1, seed="a" * 192)
         runtime = start.runtime
-        player_seat = start.seats[0]
+        player_seat = start.human_seats[0]
 
         refusal = service.act(runtime, player_seat, action)
         assert refusal == Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.SEAT_NOT_AWAITED)

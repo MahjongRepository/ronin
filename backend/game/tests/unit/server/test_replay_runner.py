@@ -48,7 +48,7 @@ from game.tests.helpers.start_wall import make_start_wall
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from game.engine import Action, GameRuntime, GameStart, StartPosition
+    from game.engine import Action, GameRuntime, StartPosition
 
 PLAYER_NAMES = ("Alice", "Bob", "Charlie", "Diana")
 SEED = "a" * 192
@@ -76,16 +76,15 @@ class _StubService:
     def __init__(self) -> None:
         self._inner = MahjongGameService()
 
-    def start_game(
+    def new_game(
         self,
-        game_id: str,
-        player_names: list[str],
+        seed: str,
         *,
-        seed: str | None = None,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
-    ) -> GameStart:
-        return self._inner.start_game(game_id, player_names, seed=seed, walls=walls, start=start)
+        ai_seats: frozenset[int] = frozenset(),
+    ) -> tuple[GameRuntime, list[GameEvent]]:
+        return self._inner.new_game(seed, walls=walls, start=start, ai_seats=ai_seats)
 
     def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
         return self._inner.act(runtime, seat, action)
@@ -101,8 +100,7 @@ class _StubService:
 
 
 def _pin_3_ron_replay() -> ReplayInput:
-    probe_state = start_game_in_play(MahjongGameService(), "probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
-    dealer, ron_caller, _, _ = (p.name for p in probe_state.round_state.players)
+    dealer, ron_caller, _, _ = PLAYER_NAMES
     return ReplayInput(
         seed=SEED,
         player_names=PLAYER_NAMES,
@@ -120,22 +118,21 @@ def _pin_3_ron_replay() -> ReplayInput:
 
 
 def _probe_current_player_discard() -> tuple[str, int]:
-    state = start_game_in_play(MahjongGameService(), "probe", list(PLAYER_NAMES), seed=SEED).runtime.state
+    state = start_game_in_play(MahjongGameService(), seed=SEED).runtime.state
     seat = state.round_state.current_player_seat
-    player = state.round_state.players[seat]
-    return player.name, player.tiles[-1]
+    return PLAYER_NAMES[seat], state.round_state.players[seat].tiles[-1]
 
 
 def _probe_foreign_tile(name: str) -> int:
-    state = start_game_in_play(MahjongGameService(), "probe", list(PLAYER_NAMES), seed=SEED).runtime.state
-    held = next(set(p.tiles) for p in state.round_state.players if p.name == name)
+    state = start_game_in_play(MahjongGameService(), seed=SEED).runtime.state
+    held = set(state.round_state.players[PLAYER_NAMES.index(name)].tiles)
     return next(tile for tile in range(136) if tile not in held)
 
 
 def _probe_waiting_player() -> str:
-    state = start_game_in_play(MahjongGameService(), "probe", list(PLAYER_NAMES), seed=SEED).runtime.state
+    state = start_game_in_play(MahjongGameService(), seed=SEED).runtime.state
     seat = (state.round_state.current_player_seat + 1) % 4
-    return state.round_state.players[seat].name
+    return PLAYER_NAMES[seat]
 
 
 def test_run_replay__when_discard_input__should_trace_discard_step():
@@ -196,13 +193,9 @@ def test_run_replay__when_max_steps_zero__should_raise_step_limit_error():
         run_replay(replay, ReplayOptions(max_steps=0))
 
 
-def test_run_replay__should_map_every_player_to_a_seat():
-    replay = _build_replay()
-    trace = run_replay(replay)
-    assert len(trace.seat_by_player) == 4
-    for name in PLAYER_NAMES:
-        assert name in trace.seat_by_player
-        assert trace.seat_by_player[name] in range(4)
+def test_run_replay__should_seat_each_player_at_its_index():
+    trace = run_replay(_build_replay())
+    assert trace.seat_by_player == {"Alice": 0, "Bob": 1, "Charlie": 2, "Diana": 3}
 
 
 def test_run_replay__when_strict_and_input_after_game_end__should_raise():
@@ -250,8 +243,7 @@ def test_step_limit__when_a_round_advance_reaches_max_steps__should_raise():
 
 
 def test_step_limit__when_synthetic_passes_reach_max_steps__should_raise_before_the_ron_input():
-    probe_state = start_game_in_play(MahjongGameService(), "probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
-    dealer, ron_caller, first_passer, second_passer = (p.name for p in probe_state.round_state.players)
+    dealer, ron_caller, first_passer, second_passer = PLAYER_NAMES
     replay = _pin_3_ron_replay()
 
     with pytest.raises(ReplayStepLimitError, match="exceeded 3 steps"):
@@ -350,9 +342,7 @@ def test_auto_pass_calls__when_disabled_and_input_has_pass__should_run_it_as_gam
 
 
 def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_others():
-    # Discover actual seat assignments (seed-dependent)
-    probe_state = start_game_in_play(MahjongGameService(), "probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
-    name_to_seat = {p.name: p.seat for p in probe_state.round_state.players}
+    name_to_seat = {name: seat for seat, name in enumerate(PLAYER_NAMES)}
 
     # Pick two seats: pon_player calls PON, auto_passed_player should be auto-passed
     pon_player = "Bob"
@@ -367,17 +357,16 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
             super().__init__()
             self._pass_calls: list[int] = []
 
-        def start_game(
+        def new_game(
             self,
-            game_id: str,
-            player_names: list[str],
+            seed: str,
             *,
-            seed: str | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
-        ) -> GameStart:
-            game_start = super().start_game(game_id, player_names, seed=seed)
-            state = game_start.runtime.state
+            ai_seats: frozenset[int] = frozenset(),
+        ) -> tuple[GameRuntime, list[GameEvent]]:
+            runtime, events = super().new_game(seed)
+            state = runtime.state
 
             prompt = PendingCallPrompt(
                 kind=PromptKind.DISCARD,
@@ -389,12 +378,12 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            game_start.runtime.commit(
+            runtime.commit(
                 state.model_copy(
                     update={"round_state": new_round},
                 )
             )
-            return game_start
+            return runtime, events
 
         def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action == Pass():
@@ -449,21 +438,19 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
 
 def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_its_seat_before_this_ron():
     dealer, dealer_tile = _probe_current_player_discard()
-    probe_state = start_game_in_play(MahjongGameService(), "probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
-    seat_by_name = {p.name: p.seat for p in probe_state.round_state.players}
+    seat_by_name = {name: seat for seat, name in enumerate(PLAYER_NAMES)}
     ron_player, later_ron_player = [name for name in PLAYER_NAMES if name != dealer][:2]
 
     class RonPromptService(_StubService):
-        def start_game(
+        def new_game(
             self,
-            game_id: str,
-            player_names: list[str],
+            seed: str,
             *,
-            seed: str | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
-        ) -> GameStart:
-            game_start = super().start_game(game_id, player_names, seed=seed)
+            ai_seats: frozenset[int] = frozenset(),
+        ) -> tuple[GameRuntime, list[GameEvent]]:
+            runtime, events = super().new_game(seed)
             ron_seats = (seat_by_name[ron_player], seat_by_name[later_ron_player])
             prompt = PendingCallPrompt(
                 kind=PromptKind.DISCARD,
@@ -472,13 +459,13 @@ def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_it
                 pending_seats=frozenset(ron_seats),
                 callers=tuple(Caller(seat=seat, can_ron=True) for seat in sorted(ron_seats)),
             )
-            state = game_start.runtime.state
-            game_start.runtime.commit(
+            state = runtime.state
+            runtime.commit(
                 state.model_copy(
                     update={"round_state": state.round_state.model_copy(update={"pending_call_prompt": prompt})}
                 )
             )
-            return game_start
+            return runtime, events
 
         def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action not in (Pass(), Ron()):
@@ -514,21 +501,19 @@ def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_it
 
 @pytest.mark.parametrize("kan_type", [KanType.CLOSED, KanType.ADDED])
 def test_auto_pass_calls__when_prompted_seat_declares_self_kan__should_pass_its_prompt_first(kan_type: KanType):
-    probe_state = start_game_in_play(MahjongGameService(), "probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
-    seat_by_name = {p.name: p.seat for p in probe_state.round_state.players}
+    seat_by_name = {name: seat for seat, name in enumerate(PLAYER_NAMES)}
     discarder, kan_player = "Alice", "Bob"
 
     class CallPromptService(_StubService):
-        def start_game(
+        def new_game(
             self,
-            game_id: str,
-            player_names: list[str],
+            seed: str,
             *,
-            seed: str | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
-        ) -> GameStart:
-            game_start = super().start_game(game_id, player_names, seed=seed)
+            ai_seats: frozenset[int] = frozenset(),
+        ) -> tuple[GameRuntime, list[GameEvent]]:
+            runtime, events = super().new_game(seed)
             prompt = PendingCallPrompt(
                 kind=PromptKind.DISCARD,
                 tile_id=0,
@@ -536,13 +521,13 @@ def test_auto_pass_calls__when_prompted_seat_declares_self_kan__should_pass_its_
                 pending_seats=frozenset({seat_by_name[kan_player]}),
                 callers=(_pon_caller(seat_by_name[kan_player]),),
             )
-            state = game_start.runtime.state
-            game_start.runtime.commit(
+            state = runtime.state
+            runtime.commit(
                 state.model_copy(
                     update={"round_state": state.round_state.model_copy(update={"pending_call_prompt": prompt})}
                 )
             )
-            return game_start
+            return runtime, events
 
         def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action == Pass():
@@ -570,17 +555,16 @@ def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_re
         def __init__(self) -> None:
             super().__init__()
 
-        def start_game(
+        def new_game(
             self,
-            game_id: str,
-            player_names: list[str],
+            seed: str,
             *,
-            seed: str | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
-        ) -> GameStart:
-            game_start = super().start_game(game_id, player_names, seed=seed)
-            state = game_start.runtime.state
+            ai_seats: frozenset[int] = frozenset(),
+        ) -> tuple[GameRuntime, list[GameEvent]]:
+            runtime, events = super().new_game(seed)
+            state = runtime.state
 
             # Inject a fake call prompt
             prompt = PendingCallPrompt(
@@ -593,12 +577,12 @@ def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_re
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            game_start.runtime.commit(
+            runtime.commit(
                 state.model_copy(
                     update={"round_state": new_round},
                 )
             )
-            return game_start
+            return runtime, events
 
         def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action == Pass():
@@ -701,17 +685,16 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
             super().__init__()
             self._pass_count = 0
 
-        def start_game(
+        def new_game(
             self,
-            game_id: str,
-            player_names: list[str],
+            seed: str,
             *,
-            seed: str | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
-        ) -> GameStart:
-            game_start = super().start_game(game_id, player_names, seed=seed)
-            state = game_start.runtime.state
+            ai_seats: frozenset[int] = frozenset(),
+        ) -> tuple[GameRuntime, list[GameEvent]]:
+            runtime, events = super().new_game(seed)
+            state = runtime.state
 
             # Inject a call prompt pending on seat 1
             prompt = PendingCallPrompt(
@@ -724,12 +707,12 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            game_start.runtime.commit(
+            runtime.commit(
                 state.model_copy(
                     update={"round_state": new_round},
                 )
             )
-            return game_start
+            return runtime, events
 
         def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action == Pass():
@@ -835,17 +818,16 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
             super().__init__()
             self._pass_count = 0
 
-        def start_game(
+        def new_game(
             self,
-            game_id: str,
-            player_names: list[str],
+            seed: str,
             *,
-            seed: str | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
-        ) -> GameStart:
-            game_start = super().start_game(game_id, player_names, seed=seed)
-            state = game_start.runtime.state
+            ai_seats: frozenset[int] = frozenset(),
+        ) -> tuple[GameRuntime, list[GameEvent]]:
+            runtime, events = super().new_game(seed)
+            state = runtime.state
 
             prompt = PendingCallPrompt(
                 kind=PromptKind.DISCARD,
@@ -857,12 +839,12 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            game_start.runtime.commit(
+            runtime.commit(
                 state.model_copy(
                     update={"round_state": new_round},
                 )
             )
-            return game_start
+            return runtime, events
 
         def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action == Pass():

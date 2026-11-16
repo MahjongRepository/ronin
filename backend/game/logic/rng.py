@@ -1,5 +1,4 @@
 import hashlib
-import secrets
 import string
 from typing import Protocol
 
@@ -69,13 +68,6 @@ class WordStream:
         word = int.from_bytes(self._buffer[self._cursor : end], byteorder="little")
         self._cursor = end
         return word
-
-
-def generate_seed() -> str:
-    """
-    Generate a cryptographic seed as a hex string (192 chars / 768 bits).
-    """
-    return secrets.token_bytes(SEED_BYTES).hex()
 
 
 def _round_stream(seed_hex: str, round_number: int) -> WordStream:
@@ -171,7 +163,7 @@ def seat_permutation(seed_hex: str) -> tuple[int, ...]:
     """
     Return the seed's permutation of the seats, from a dedicated stream (separate domain from the wall and dealer).
 
-    The matchmaker seats the k input players at the first k entries; the replay loader inverts the whole permutation.
+    The session seats its k players at the first k entries, in input order (`docs/rng.md`, Seating).
     """
     validate_seed_hex(seed_hex)
     return tuple(fisher_yates_shuffle(list(range(NUM_PLAYERS)), WordStream(_SEAT_DOMAIN, bytes.fromhex(seed_hex))))

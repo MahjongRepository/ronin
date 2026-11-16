@@ -12,7 +12,6 @@ from game.logic.action_result import ActionResult
 from game.logic.decision import Discard, Kan, Riichi, Ron
 from game.logic.enums import (
     AbortiveDrawType,
-    AIPlayerType,
     KanType,
     MeldViewType,
     PromptKind,
@@ -35,21 +34,11 @@ from game.logic.state import (
 from game.logic.state_utils import update_player
 from game.logic.types import (
     AbortiveDrawResult,
-    SeatConfig,
 )
 
 
-def _default_seat_configs() -> list[SeatConfig]:
-    return [
-        SeatConfig(name="Player"),
-        SeatConfig(name="ai-tsumogiri-1", ai_player_type=AIPlayerType.TSUMOGIRI),
-        SeatConfig(name="ai-tsumogiri-2", ai_player_type=AIPlayerType.TSUMOGIRI),
-        SeatConfig(name="ai-tsumogiri-3", ai_player_type=AIPlayerType.TSUMOGIRI),
-    ]
-
-
 def _create_frozen_game_state() -> MahjongGameState:
-    game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
+    game_state = init_game(seed="a" * 192, wall=list(range(136)))
     new_round_state, _tile = draw_tile(game_state.round_state)
     return game_state.model_copy(update={"round_state": new_round_state})
 
@@ -80,7 +69,7 @@ class TestHandleDiscardImmutable:
 class TestHandleRiichiImmutable:
     def _create_riichi_hand(self) -> MahjongGameState:
         # use a different seed to get a riichi-able hand
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
+        game_state = init_game(seed="a" * 192, wall=list(range(136)))
         new_round_state, _tile = draw_tile(game_state.round_state)
 
         # give player a tenpai hand
@@ -116,7 +105,7 @@ class TestHandleRiichiImmutable:
 
 class TestHandleTsumoImmutable:
     def _create_winning_game_state(self) -> MahjongGameState:
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
+        game_state = init_game(seed="a" * 192, wall=list(range(136)))
         round_state = game_state.round_state
 
         # give player 0 a complete winning hand (14 tiles)
@@ -156,7 +145,7 @@ class TestHandleRonImmutable:
         return game_state.model_copy(update={"round_state": round_state})
 
     def _create_ron_opportunity(self) -> tuple[MahjongGameState, int, int]:
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
+        game_state = init_game(seed="a" * 192, wall=list(range(136)))
         round_state = game_state.round_state
 
         # give player 1 a waiting hand: 123m 456m 789m 111p 2p
@@ -207,7 +196,7 @@ class TestHandleRonImmutable:
 
 class TestHandleKanImmutable:
     def _create_closed_kan_opportunity(self) -> tuple[MahjongGameState, int]:
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
+        game_state = init_game(seed="a" * 192, wall=list(range(136)))
         round_state = game_state.round_state
 
         # give player 0 four 1m tiles + filler
@@ -244,7 +233,7 @@ class TestHandleKanImmutable:
 
 class TestHandleKyuushuImmutable:
     def _create_kyuushu_opportunity(self) -> MahjongGameState:
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
+        game_state = init_game(seed="a" * 192, wall=list(range(136)))
         round_state = game_state.round_state
 
         # give player 0 nine or more different terminal/honor tiles

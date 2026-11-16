@@ -27,14 +27,13 @@ class TestCanCallKyuushuKyuuhai:
         players = (
             MahjongPlayer(
                 seat=0,
-                name="Player1",
                 tiles=tuple(tiles),
                 discards=player_discards or (),
                 score=25000,
             ),
-            MahjongPlayer(seat=1, name="AI1", tiles=(), score=25000),
-            MahjongPlayer(seat=2, name="AI2", tiles=(), score=25000),
-            MahjongPlayer(seat=3, name="AI3", tiles=(), score=25000),
+            MahjongPlayer(seat=1, tiles=(), score=25000),
+            MahjongPlayer(seat=2, tiles=(), score=25000),
+            MahjongPlayer(seat=3, tiles=(), score=25000),
         )
         return MahjongRoundState(
             wall=make_wall(),
@@ -85,12 +84,10 @@ class TestCanCallKyuushuKyuuhai:
 
     def test_can_call_kyuushu_kyuuhai__when_non_dealer_first_draw_after_others_discarded__should_allow(self):
         pin_4a, pin_4b = TilesConverter.string_to_136_array(pin="44")
-        dealer = MahjongPlayer(seat=0, name="Dealer", discards=(Discard(tile_id=pin_4a),), score=25000)
-        shimocha = MahjongPlayer(seat=1, name="Shimocha", discards=(Discard(tile_id=pin_4b),), score=25000)
-        toimen_on_first_draw = MahjongPlayer(
-            seat=2, name="Toimen", tiles=tuple(self._create_kyuushu_hand()), score=25000
-        )
-        kamicha = MahjongPlayer(seat=3, name="Kamicha", score=25000)
+        dealer = MahjongPlayer(seat=0, discards=(Discard(tile_id=pin_4a),), score=25000)
+        shimocha = MahjongPlayer(seat=1, discards=(Discard(tile_id=pin_4b),), score=25000)
+        toimen_on_first_draw = MahjongPlayer(seat=2, tiles=tuple(self._create_kyuushu_hand()), score=25000)
+        kamicha = MahjongPlayer(seat=3, score=25000)
         round_state = MahjongRoundState(
             wall=make_wall(),
             players=(dealer, shimocha, toimen_on_first_draw, kamicha),
@@ -133,19 +130,17 @@ class TestCanCallKyuushuKyuuhai:
         players = (
             MahjongPlayer(
                 seat=0,
-                name="Player1",
                 tiles=tuple(tiles),
                 score=25000,
             ),
             MahjongPlayer(
                 seat=1,
-                name="AI1",
                 tiles=(),
                 melds=(closed_kan,),
                 score=25000,
             ),
-            MahjongPlayer(seat=2, name="AI2", tiles=(), score=25000),
-            MahjongPlayer(seat=3, name="AI3", tiles=(), score=25000),
+            MahjongPlayer(seat=2, tiles=(), score=25000),
+            MahjongPlayer(seat=3, tiles=(), score=25000),
         )
         round_state = MahjongRoundState(
             wall=make_wall(),
@@ -176,10 +171,10 @@ class TestCanCallKyuushuKyuuhai:
 class TestCallKyuushuKyuuhai:
     def _create_round_state(self, current_player_seat: int = 0) -> MahjongRoundState:
         players = [
-            MahjongPlayer(seat=0, name="Player1", score=25000),
-            MahjongPlayer(seat=1, name="AI1", score=25000),
-            MahjongPlayer(seat=2, name="AI2", score=25000),
-            MahjongPlayer(seat=3, name="AI3", score=25000),
+            MahjongPlayer(seat=0, score=25000),
+            MahjongPlayer(seat=1, score=25000),
+            MahjongPlayer(seat=2, score=25000),
+            MahjongPlayer(seat=3, score=25000),
         ]
         return MahjongRoundState(
             wall=make_wall(),
@@ -207,10 +202,10 @@ class TestCheckFourRiichi:
         riichi_seats: tuple[int, ...] = (),
     ) -> MahjongRoundState:
         players = [
-            MahjongPlayer(seat=0, name="Player1", is_riichi=(0 in riichi_seats), score=25000),
-            MahjongPlayer(seat=1, name="AI1", is_riichi=(1 in riichi_seats), score=25000),
-            MahjongPlayer(seat=2, name="AI2", is_riichi=(2 in riichi_seats), score=25000),
-            MahjongPlayer(seat=3, name="AI3", is_riichi=(3 in riichi_seats), score=25000),
+            MahjongPlayer(seat=0, is_riichi=(0 in riichi_seats), score=25000),
+            MahjongPlayer(seat=1, is_riichi=(1 in riichi_seats), score=25000),
+            MahjongPlayer(seat=2, is_riichi=(2 in riichi_seats), score=25000),
+            MahjongPlayer(seat=3, is_riichi=(3 in riichi_seats), score=25000),
         ]
         return MahjongRoundState(wall=make_wall(), players=players)
 
@@ -234,10 +229,10 @@ class TestCheckFourWinds:
         player1_melds: tuple[FrozenMeld, ...] = (),
     ) -> MahjongRoundState:
         players = [
-            MahjongPlayer(seat=0, name="Player1", score=25000),
-            MahjongPlayer(seat=1, name="AI1", melds=player1_melds, score=25000),
-            MahjongPlayer(seat=2, name="AI2", score=25000),
-            MahjongPlayer(seat=3, name="AI3", score=25000),
+            MahjongPlayer(seat=0, score=25000),
+            MahjongPlayer(seat=1, melds=player1_melds, score=25000),
+            MahjongPlayer(seat=2, score=25000),
+            MahjongPlayer(seat=3, score=25000),
         ]
         return MahjongRoundState(
             wall=make_wall(),

@@ -1,7 +1,9 @@
 # Game randomness
 
 How a game gets its random outcomes: the wall of each round, the first dealer and the seating. The
-code is `backend/game/logic/rng.py`; the wall cut is in `wall.py`; `make measure-wall` measures it.
+engine's `backend/game/logic/rng.py` holds the seat permutation, the first dealer and the wall; the
+wall cut is in `wall.py`; the session's `backend/game/session/seating.py` generates the seed and
+seats the players; `make measure-wall` measures it.
 
 ## One seed per game
 
@@ -64,8 +66,9 @@ of being the first dealer.
 ## Seating
 
 The seat stream shuffles the four seats with the same Fisher-Yates routine. Players take the first
-entries of the result in input order; the remaining seats go to AI players. The replay loader
-inverts this permutation, so the seating rule is part of the replay format.
+entries of the result in input order; the remaining seats go to AI players. This decides the seats
+of a live game. A replay records each seat's name, and the loader seats the recorded names as they
+are, so the seating rule is not part of the replay format.
 
 ## Versioning
 

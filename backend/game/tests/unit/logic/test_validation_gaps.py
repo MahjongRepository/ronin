@@ -20,7 +20,6 @@ from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Chi, Kan, Kyuushu, Riichi, Tsumo
 from game.logic.decision import Discard as DiscardAction
 from game.logic.enums import (
-    AIPlayerType,
     KanType,
     MeldCallType,
 )
@@ -40,9 +39,6 @@ from game.logic.state import (
 )
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_discard_phase
-from game.logic.types import (
-    SeatConfig,
-)
 from game.tests.helpers.builders import create_dealt_game_state, create_player, start_game_in_play
 from game.tests.helpers.hands import tile_copies
 from game.tests.unit.logic.helpers import _update_round_state
@@ -52,17 +48,8 @@ TILE_NOT_HELD = Refusal(kind=RefusalKind.NOT_OFFERED, code=RefusalCode.TILE_NOT_
 SEAT_NOT_AWAITED = Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.SEAT_NOT_AWAITED)
 
 
-def _default_seat_configs():
-    return [
-        SeatConfig(name="Player"),
-        SeatConfig(name="AI1", ai_player_type=AIPlayerType.TSUMOGIRI),
-        SeatConfig(name="AI2", ai_player_type=AIPlayerType.TSUMOGIRI),
-        SeatConfig(name="AI3", ai_player_type=AIPlayerType.TSUMOGIRI),
-    ]
-
-
 def _create_frozen_game_state():
-    game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
+    game_state = init_game(seed="a" * 192, wall=list(range(136)))
     new_round_state, _tile = draw_tile(game_state.round_state)
     return game_state.model_copy(update={"round_state": new_round_state})
 
@@ -256,7 +243,7 @@ class TestAddedKanDeclarationValidation:
 
 class TestKanExecutionGuards:
     def test_closed_kan__when_wall_too_short__should_refuse_as_not_offered(self):
-        runtime = GameRuntime(game_id="test", state=_create_frozen_game_state(), ai=AIPlayerController({}))
+        runtime = GameRuntime(state=_create_frozen_game_state(), ai=AIPlayerController({}))
         wall = runtime.state.round_state.wall
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
         one_man_quad = runtime.state.round_state.players[0].tiles[:4]
@@ -356,7 +343,7 @@ class TestPendingCallPromptStateGate:
     )
     def test_turn_action__when_prompt_pending__should_refuse_as_not_awaited(self, turn_action_of):
         game_state = _nine_man_discard_prompt()
-        runtime = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({}))
+        runtime = GameRuntime(state=game_state, ai=AIPlayerController({}))
         own_tile = game_state.round_state.players[0].tiles[-1]
 
         assert MahjongGameService().act(runtime, 0, turn_action_of(own_tile)) == SEAT_NOT_AWAITED
@@ -462,11 +449,11 @@ class TestServerGeneratedActionRefusals:
 
     @pytest.fixture
     def runtime(self, service):
-        return start_game_in_play(service, "test", ["Player"], seed="a" * 192).runtime
+        return start_game_in_play(service, humans=1, seed="a" * 192).runtime
 
     def test_ai_call_response__when_handler_refuses_it__should_raise_generated_action_error(self, service):
         game_state = _nine_man_discard_prompt()
-        runtime = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({1: AIPlayer()}))
+        runtime = GameRuntime(state=game_state, ai=AIPlayerController({1: AIPlayer()}))
         prompt = game_state.round_state.pending_call_prompt
         unheld_sequence = (_CHI_SEAT_SEVEN_MAN, tile_copies(1, man="8")[0])
 
@@ -479,7 +466,7 @@ class TestServerGeneratedActionRefusals:
 
     def test_ai_turn__when_its_discard_gets_a_soft_error__should_raise_without_progress(self, service):
         game_state, ai_seat, forbidden_tile = _riichi_dealer_after_draw()
-        runtime = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({ai_seat: AIPlayer()}))
+        runtime = GameRuntime(state=game_state, ai=AIPlayerController({ai_seat: AIPlayer()}))
 
         with (
             patch.object(AIPlayer, "select_discard", return_value=forbidden_tile),

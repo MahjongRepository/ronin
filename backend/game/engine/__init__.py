@@ -61,14 +61,13 @@ from game.logic.rng import (
     RNG_VERSION,
     SEED_BYTES,
     determine_first_dealer,
-    generate_seed,
     generate_shuffled_wall_and_dice,
     seat_permutation,
     validate_seed_hex,
 )
 from game.logic.rule_profiles import PRESET_GAME_TYPE, PRESET_HAS_AKADORA, PRESET_HAS_KUITAN
 from game.logic.runtime import GameRuntime
-from game.logic.service import Awaiting, GameService, GameStart, GameUpdate
+from game.logic.service import Awaiting, GameService, GameUpdate
 from game.logic.settings import (
     NUM_PLAYERS,
     TRIPLE_RON_COUNT,
@@ -92,7 +91,6 @@ from game.logic.types import (
     DoubleRonResult,
     DoubleRonWinner,
     ExhaustiveDrawResult,
-    GamePlayerInfo,
     HandResultInfo,
     MeldCaller,
     NagashiManganResult,
@@ -151,10 +149,8 @@ __all__ = [
     "GameEndedEvent",
     "GameEvent",
     "GamePhase",
-    "GamePlayerInfo",
     "GameRuntime",
     "GameService",
-    "GameStart",
     "GameStartedEvent",
     "GameType",
     "GameUpdate",
@@ -215,7 +211,6 @@ __all__ = [
     "calculate_shanten",
     "deal_initial_hands",
     "determine_first_dealer",
-    "generate_seed",
     "generate_shuffled_wall_and_dice",
     "hand_to_34_array",
     "is_terminal_or_honor",

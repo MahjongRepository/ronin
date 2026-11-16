@@ -10,7 +10,7 @@ from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection
 from game.wire.keys import WireKey
 
-from .helpers import create_started_game, game_of, participant_of, runtime_of, start_over_sockets
+from .helpers import ENGINE_SEED, create_started_game, game_of, participant_of, runtime_of, start_over_sockets
 
 RESYNC = {WireKey.EVENT_TYPE: WireClientMessageType.RESYNC}
 
@@ -21,9 +21,9 @@ def _is_snapshot(message: dict) -> bool:
 
 class TestResync:
     async def test_resync__when_the_turn_seat_asks__should_send_what_a_reconnect_sends_and_keep_the_seat_bound(
-        self, seeded_engine, fake_clock
+        self, paced_engine, fake_clock
     ):
-        manager = make_session_manager(seeded_engine, clock=fake_clock.monotonic)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
         alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
         alice = participant_of(manager, alice_conn)
         runtime = runtime_of(manager)
@@ -62,8 +62,8 @@ class TestResync:
 
         await manager.shutdown()
 
-    async def test_resync__when_the_game_has_not_dealt__should_answer_game_not_started(self, seeded_engine):
-        manager = make_session_manager(seeded_engine)
+    async def test_resync__when_the_game_has_not_dealt__should_answer_game_not_started(self, paced_engine):
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         specs = [PlayerSpec(name=name, user_id=f"user-{name}", game_ticket=f"ticket-{name}") for name in ("A", "B")]
         manager.create_pending_game(game_id="game1", player_specs=specs)
         conn = MockConnection()

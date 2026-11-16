@@ -42,6 +42,7 @@ from shared.dal.models import GameEndReason
 from shared.storage import LocalReplayStorage, replay_file_path
 
 from .helpers import (
+    ENGINE_SEED,
     arrange_final_discard,
     create_started_game,
     current_wait_id,
@@ -149,7 +150,7 @@ class TestFailGame:
 
     async def test_pending_game_timeout__when_game_start_raises__should_fail_the_game(self):
         game_service = MockGameService()
-        game_service.start_game = MagicMock(side_effect=RuntimeError("start failed"))
+        game_service.new_game = MagicMock(side_effect=RuntimeError("start failed"))
         manager = make_session_manager(
             game_service,
             timer_config=TimerConfig(
@@ -180,16 +181,16 @@ class TestFailGame:
         assert conn._close_code == 1011
 
     async def test_game_action__when_the_engine_raises__should_fail_the_game_with_that_error(
-        self, seeded_engine, caplog, monkeypatch
+        self, paced_engine, caplog, monkeypatch
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
         conns = create_started_game(manager, player_names=["Alice"])
         alice_seat = participant_of(manager, conns[0]).seat
         round_state = runtime_of(manager).state.round_state
         assert round_state.current_player_seat == alice_seat
         engine_fault = RuntimeError("engine fault")
-        monkeypatch.setattr(seeded_engine, "act", MagicMock(side_effect=engine_fault))
+        monkeypatch.setattr(paced_engine, "act", MagicMock(side_effect=engine_fault))
 
         with caplog.at_level(logging.ERROR):
             router.handle_message(
@@ -210,9 +211,9 @@ class TestFailGame:
         assert (conns[0]._close_code, conns[0]._close_reason) == (1011, "internal_error")
 
     async def test_game_action__when_an_ai_turn_after_the_committed_discard_is_refused__should_fail_the_game(
-        self, seeded_engine, monkeypatch
+        self, paced_engine, monkeypatch
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
         conns = create_started_game(manager, player_names=["Alice"])
         alice_seat = participant_of(manager, conns[0]).seat
@@ -238,9 +239,9 @@ class TestFailGame:
         assert (conns[0]._close_code, conns[0]._close_reason) == (1011, "internal_error")
 
     async def test_fail_game__when_the_game_id_is_reused_before_the_finalizer_runs__should_leave_the_new_game_alone(
-        self, seeded_engine, tmp_path
+        self, paced_engine, tmp_path
     ):
-        manager = make_session_manager(seeded_engine, storage=LocalReplayStorage(tmp_path))
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, storage=LocalReplayStorage(tmp_path))
         old_conns = create_started_game(manager, player_names=["Alice"])
         manager.fail_game(game_of(manager), reason="engine fault")
 
@@ -258,10 +259,12 @@ class TestFailGame:
 
 class TestGameEndOwnership:
     async def test_game_end__when_the_game_fails_while_its_replay_is_saved__should_stay_the_only_finish(
-        self, seeded_engine, tmp_path, monkeypatch
+        self, paced_engine, tmp_path, monkeypatch
     ):
         game_repo = FakeGameRepository()
-        manager = make_session_manager(seeded_engine, repository=game_repo, storage=LocalReplayStorage(tmp_path))
+        manager = make_session_manager(
+            paced_engine, seed=ENGINE_SEED, repository=game_repo, storage=LocalReplayStorage(tmp_path)
+        )
         collector = manager._replay_collector
         conns = create_started_game(manager, player_names=["Alice"])
         alice = conns[0]
@@ -290,10 +293,12 @@ class TestGameEndOwnership:
         assert game_repo.games["game1"].end_reason == GameEndReason.COMPLETED
 
     async def test_game_end__when_sending_the_end_raises_unexpectedly__should_end_as_a_persisted_failure(
-        self, seeded_engine, tmp_path, monkeypatch
+        self, paced_engine, tmp_path, monkeypatch
     ):
         game_repo = FakeGameRepository()
-        manager = make_session_manager(seeded_engine, repository=game_repo, storage=LocalReplayStorage(tmp_path))
+        manager = make_session_manager(
+            paced_engine, seed=ENGINE_SEED, repository=game_repo, storage=LocalReplayStorage(tmp_path)
+        )
         conns = create_started_game(manager, player_names=["Alice"])
         alice = conns[0]
         alice_seat = participant_of(manager, alice).seat
@@ -356,10 +361,12 @@ class TestGameEndFromAction:
 
 class TestGameEndFromTimeout:
     async def test_game_end__when_turn_timer_fires_on_final_discard__should_save_replay_record_finish_and_close(
-        self, seeded_engine, tmp_path
+        self, paced_engine, tmp_path
     ):
         game_repo = FakeGameRepository()
-        manager = make_session_manager(seeded_engine, repository=game_repo, storage=LocalReplayStorage(tmp_path))
+        manager = make_session_manager(
+            paced_engine, seed=ENGINE_SEED, repository=game_repo, storage=LocalReplayStorage(tmp_path)
+        )
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = (participant_of(manager, conn) for conn in conns)
         arrange_final_discard(runtime_of(manager), seat=alice.seat)
@@ -384,9 +391,9 @@ class TestGameEndFromTimeout:
         assert [(c._close_code, c._close_reason) for c in conns] == [(1000, "game_ended"), (1000, "game_ended")]
 
     async def test_game_message__when_sent_after_the_end_claim_before_the_close__should_get_no_answer(
-        self, seeded_engine
+        self, paced_engine
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = participant_of(manager, conns[0]).seat
         arrange_final_discard(runtime_of(manager), seat=alice_seat)

@@ -269,7 +269,7 @@ class TestLastDiscardRestriction:
             create_player(seat=2, tiles=pon_hand),
             create_player(seat=3, tiles=kanchan_on_three_pin),
         )
-        runtime = GameRuntime(game_id="game", state=create_dealt_game_state(players), ai=AIPlayerController({}))
+        runtime = GameRuntime(state=create_dealt_game_state(players), ai=AIPlayerController({}))
         wall = runtime.state.round_state.wall
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
         settings = runtime.state.settings

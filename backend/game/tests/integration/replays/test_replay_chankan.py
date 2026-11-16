@@ -20,6 +20,7 @@ from game.engine import (
     RoundEndEvent,
     RoundResultType,
 )
+from game.messaging.roster import GameRoster
 from game.replay import run_replay
 from game.replay.external.tenhou import TenhouConverter
 from game.replay.loader import load_replay_from_bytes
@@ -40,8 +41,10 @@ SEED = (
     "23824ff8ec95775ba5bb8de82f2903f25472e4a1f10a54ee31a955210ee871508f95c77bbc51b410531abd33a18d26df"
     "ef563e3bcf5af18c7663313c52eacd650ec18e6993c2ab70912ca363e0ed5bd9c088a5d406dc03584e33879746e7d79f"
 )
-PLAYERS = ("Alice", "Bob", "Charlie", "Diana")
 NAME_BY_SEAT = {0: "Charlie", 1: "Bob", 2: "Alice", 3: "Diana"}
+ROSTER = GameRoster(
+    game_id="chankan", names=tuple(NAME_BY_SEAT[seat] for seat in range(NUM_PLAYERS)), ai_seats=frozenset()
+)
 DEALER, PON_CALLER, PENCHAN_SEAT, KANCHAN_SEAT = 0, 1, 2, 3
 DEALT_HAND_SIZE = 13
 KAN_DECLARER_FILLER_SIZE = DEALT_HAND_SIZE - 3
@@ -102,9 +105,8 @@ def _play_record_and_replay(
     actions: list[tuple[int, Action]],
 ) -> tuple[MahjongGameState, list[RoundResult], ReplayInput, ReplayTrace, str]:
     service = MahjongGameService()
-    start = start_game_in_play(service, "chankan", list(PLAYERS), seed=SEED, walls=[wall])
+    start = start_game_in_play(service, seed=SEED, walls=[wall])
     runtime = start.runtime
-    assert {NAME_BY_SEAT[seat]: seat for seat in range(NUM_PLAYERS)} == dict(zip(PLAYERS, start.seats, strict=True))
 
     recorded_events = list(start.events)
     for seat, action in actions:
@@ -112,7 +114,7 @@ def _play_record_and_replay(
         assert [e for e in update.events if e.type == EventType.ERROR] == []
         recorded_events += update.events
 
-    record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION)
+    record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION, roster=ROSTER)
     ReplayCollector(FakeReplayStorage()).collect_events(record, recorded_events)
     loaded = load_replay_from_bytes(encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *record.records]))
     trace = run_replay(

@@ -13,7 +13,7 @@ from game.logic.win import get_waiting_tiles
 from game.tests.helpers.builders import create_dealt_game_state, create_player, start_game_in_play
 from game.tests.helpers.hands import tile_copies
 from game.tests.unit.logic.helpers import (
-    _find_player,
+    _first_human,
     _update_player,
     _update_round_state,
 )
@@ -70,7 +70,7 @@ def _waiting_seat_runtime(
     )
     game_state = create_dealt_game_state(players, draws=(waiting_seat_draw,))
     assert get_waiting_tiles(players[WAITING_SEAT]) == {tile_to_34(THREE_MAN_WAIT), tile_to_34(SIX_MAN_WAIT)}
-    return GameRuntime(game_id="game1", state=game_state, ai=AIPlayerController({}))
+    return GameRuntime(state=game_state, ai=AIPlayerController({}))
 
 
 def _discard_furiten_runtime(*, waiting_seat_draw: int) -> GameRuntime:
@@ -93,14 +93,14 @@ class TestCheckFuritenChanges:
         return MahjongGameService()
 
     def test_check_furiten_changes__when_state_unchanged__should_emit_nothing(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
         game_state = runtime.state
 
         events = runtime.furiten.check_changes(game_state.round_state)
         assert len(events) == 0
 
     def test_check_furiten_changes__when_temporary_furiten_starts__should_emit_furiten_event(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
         waiting_seat = _next_seat_after_dealer(runtime)
         _update_player(runtime, seat=waiting_seat, is_temporary_furiten=True)
 
@@ -113,7 +113,7 @@ class TestCheckFuritenChanges:
         assert events[0].target == SeatTarget(seat=waiting_seat)
 
     def test_check_furiten_changes__when_furiten_clears__should_emit_event_with_false(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
         waiting_seat = _next_seat_after_dealer(runtime)
 
         runtime.furiten._state[waiting_seat] = True
@@ -125,7 +125,7 @@ class TestCheckFuritenChanges:
         assert events[0].is_furiten is False
 
     def test_check_furiten_changes__when_called_twice__should_emit_once(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
         waiting_seat = _next_seat_after_dealer(runtime)
 
         _update_player(runtime, seat=waiting_seat, is_temporary_furiten=True)
@@ -137,7 +137,7 @@ class TestCheckFuritenChanges:
         assert len(events2) == 0
 
     def test_check_furiten_changes__when_one_player_changes__should_target_only_that_seat(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
         _update_player(runtime, seat=1, is_temporary_furiten=True)
 
         game_state = runtime.state
@@ -146,7 +146,7 @@ class TestCheckFuritenChanges:
         assert events[0].target == SeatTarget(seat=1)
 
     def test_check_furiten_changes__when_round_finished__should_emit_nothing(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
         _update_round_state(runtime, phase=RoundPhase.FINISHED)
         _update_player(runtime, seat=0, is_temporary_furiten=True)
 
@@ -155,7 +155,7 @@ class TestCheckFuritenChanges:
         assert len(events) == 0
 
     def test_check_furiten_changes__when_riichi_furiten_starts__should_emit_furiten_event(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
         _update_player(runtime, seat=2, is_riichi_furiten=True)
 
         game_state = runtime.state
@@ -171,9 +171,9 @@ class TestFuritenEventsInGameFlow:
         return MahjongGameService()
 
     def test_furiten_events__when_action_changes_furiten__should_emit_event_to_player(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
         game_state = runtime.state
-        player = _find_player(game_state.round_state, "Player")
+        player = _first_human(game_state)
         assert game_state.round_state.current_player_seat == player.seat
 
         runtime.furiten._state[player.seat] = True
@@ -185,7 +185,7 @@ class TestFuritenEventsInGameFlow:
         assert furiten_events[0].target == SeatTarget(seat=player.seat)
 
     def test_furiten_events__when_game_starts__should_emit_none(self, service):
-        events = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).events
+        events = start_game_in_play(service, humans=1, seed="a" * 192).events
         furiten_events = [e for e in events if e.type == EventType.FURITEN]
         assert len(furiten_events) == 0
 

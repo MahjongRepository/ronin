@@ -42,6 +42,7 @@ from shared.dal.models import GameEndReason
 from shared.storage import LocalReplayStorage, replay_file_path
 
 from .helpers import (
+    ENGINE_SEED,
     arrange_exhaustive_draw,
     arrange_final_discard,
     arrange_ron_and_pon_on_a_discard,
@@ -157,10 +158,8 @@ class TestSessionManagerTimers:
 
 
 class TestWaitTimers:
-    async def test_turn_timer__when_the_players_action_is_refused__should_keep_the_running_deadline(
-        self, seeded_engine
-    ):
-        manager = make_session_manager(seeded_engine)
+    async def test_turn_timer__when_the_players_action_is_refused__should_keep_the_running_deadline(self, paced_engine):
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice"])
         timer = participant_of(manager, conns[0]).timer
         deadline, bank = timer.task, timer._bank_seconds
@@ -176,9 +175,9 @@ class TestWaitTimers:
         await manager.shutdown()
 
     async def test_meld_timers__when_one_of_two_callers_passes__should_keep_the_other_callers_deadline(
-        self, seeded_engine, fake_clock
+        self, paced_engine, fake_clock
     ):
-        manager = make_session_manager(seeded_engine, clock=fake_clock.monotonic)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
         conns = create_started_game(manager, player_names=["Alice", "Bob", "Carol"])
         alice, bob, carol = (participant_of(manager, conn).seat for conn in conns)
         discarded_four_pin = arrange_ron_and_pon_on_a_discard(runtime_of(manager), discarder=alice, ron=bob, pon=carol)
@@ -219,9 +218,9 @@ class TestWaitTimers:
         await manager.shutdown()
 
     async def test_turn_timer__when_a_closed_kan_returns_the_turn_to_the_seat__should_open_a_new_decision(
-        self, seeded_engine
+        self, paced_engine
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice = participant_of(manager, conns[0])
         assert game_of(manager).awaiting.seats == frozenset({alice.seat})
@@ -248,9 +247,9 @@ class TestWaitTimers:
         await manager.shutdown()
 
     async def test_call_bank__when_callers_time_out__should_exhaust_their_reserves_and_pass(
-        self, seeded_engine, fake_clock, held_sleep
+        self, paced_engine, fake_clock, held_sleep
     ):
-        manager = make_session_manager(seeded_engine, clock=fake_clock.monotonic)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
         conns = create_started_game(manager, player_names=["Alice", "Bob", "Carol"])
         alice, bob, carol = (participant_of(manager, conn) for conn in conns)
         discarded_four_pin = arrange_ron_and_pon_on_a_discard(
@@ -274,9 +273,9 @@ class TestWaitTimers:
         await manager.shutdown()
 
     async def test_round_bank__when_rounds_start_and_end__should_reset_once_before_the_first_draw(
-        self, seeded_engine, fake_clock
+        self, paced_engine, fake_clock
     ):
-        manager = make_session_manager(seeded_engine, clock=fake_clock.monotonic)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
         conns = create_started_game(manager, player_names=["Alice"])
         alice_seat = participant_of(manager, conns[0]).seat
         timer = participant_of(manager, conns[0]).timer
@@ -322,9 +321,9 @@ class TestWaitTimers:
         await manager.shutdown()
 
     async def test_round_bank__when_a_round_starts_while_a_participant_is_away__should_reset_their_bank(
-        self, seeded_engine
+        self, paced_engine
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = (participant_of(manager, conn) for conn in conns)
         first_round_bank = TimerConfig().initial_bank_seconds
@@ -385,9 +384,9 @@ class TestTimerCallbackLifecycle:
         ids=["own_discard", "disconnect"],
     )
     async def test_turn_timeout__when_the_wait_ends_after_its_sleep_but_before_it_ran__should_drop_the_default_action(
-        self, seeded_engine, held_sleep, player_names, end_the_wait
+        self, paced_engine, held_sleep, player_names, end_the_wait
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         create_started_game(manager, player_names=player_names)
         game = game_of(manager)
         [awaited_seat] = game.awaiting.seats
@@ -407,9 +406,9 @@ class TestTimerCallbackLifecycle:
         await manager.shutdown()
 
     async def test_turn_timeout__when_ai_turns_lead_back_to_the_human__should_keep_the_successor_timer_armed(
-        self, seeded_engine
+        self, paced_engine
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         conns = create_started_game(manager, player_names=["Alice"])
         alice_seat = participant_of(manager, conns[0]).seat
         timer = participant_of(manager, conns[0]).timer
@@ -432,9 +431,9 @@ class TestTimerCallbackLifecycle:
         await manager.shutdown()
 
     async def test_turn_timeout__when_armed_by_another_seats_discard__should_log_as_its_own_seat(
-        self, seeded_engine, held_sleep, caplog
+        self, paced_engine, held_sleep, caplog
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED)
         create_started_game(manager, player_names=["Alice", "Bob"])
         game = game_of(manager)
         [discarder_seat] = game.awaiting.seats
@@ -451,13 +450,15 @@ class TestTimerCallbackLifecycle:
         await manager.shutdown()
 
     async def test_turn_timeout__when_the_engine_refuses_the_default_action__should_fail_the_game_instead_of_stalling(
-        self, seeded_engine, tmp_path
+        self, paced_engine, tmp_path
     ):
         game_repo = FakeGameRepository()
-        manager = make_session_manager(seeded_engine, repository=game_repo, storage=LocalReplayStorage(tmp_path))
+        manager = make_session_manager(
+            paced_engine, seed=ENGINE_SEED, repository=game_repo, storage=LocalReplayStorage(tmp_path)
+        )
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = participant_of(manager, conns[0]).seat
-        seeded_engine.act = MagicMock(
+        paced_engine.act = MagicMock(
             return_value=Refusal(kind=RefusalKind.NOT_OFFERED, code=RefusalCode.TILE_NOT_HELD),
         )
 
@@ -471,11 +472,11 @@ class TestTimerCallbackLifecycle:
             assert conn._close_code == 1011
 
     async def test_shutdown__when_a_game_end_is_suspended_in_its_replay_save__should_wait_for_it_and_leave_no_task(
-        self, seeded_engine, tmp_path
+        self, paced_engine, tmp_path
     ):
         game_repo = FakeGameRepository()
         storage = _GatedReplayStorage(tmp_path)
-        manager = make_session_manager(seeded_engine, repository=game_repo, storage=storage)
+        manager = make_session_manager(paced_engine, seed=ENGINE_SEED, repository=game_repo, storage=storage)
         conns = create_started_game(manager, player_names=["Alice"])
         alice_seat = participant_of(manager, conns[0]).seat
         arrange_final_discard(runtime_of(manager), seat=alice_seat)
