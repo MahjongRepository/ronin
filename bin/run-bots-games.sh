@@ -6,14 +6,15 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BOT_ROOT="${BOT_ROOT:-$HOME/work/mahjong-bot}"
 
-BOT_LOG_DIR="$BOT_ROOT/project/logs"
+BOT_BIN="${BOT_BIN:-}"
+BOT_LOG_DIR="$BOT_ROOT/var/logs"
 
 . "$SCRIPT_DIR/bad-network.sh"
 
 PYTHON_WARNING_PATTERN=':[0-9]+: [A-Za-z]*Warning: '
 SERVER_ISSUE_PATTERN="\\[(warning|error|critical) *\\]|^(WARNING|ERROR|CRITICAL):|Traceback|$PYTHON_WARNING_PATTERN|timeout, auto-|auth timeout,|replaced player with AI|player reconnected|connection taken over|stale game action"
 BOT_CONSOLE_NOISE_PATTERN='^(.\[[0-9]+m)?[0-9-]{10} [0-9:,]{8,12} [^ ]+ (DEBUG|INFO): '
-BOT_ISSUE_PATTERN="ERROR|WARNING|CRITICAL|Traceback|$PYTHON_WARNING_PATTERN"
+BOT_ISSUE_PATTERN="ERROR|WARNING|CRITICAL|panicked"
 CHAOS_EXPECTED_EVENTS="connection taken over|player reconnected|replaced player with AI|stale game action|meld timeout, auto-passing|turn timeout, auto-discarding|decode error|invalid message|invalid game action|invalid pass: no pending call prompt|invalid call: tile_id mismatch|discard tile not in hand|discard forbidden by kuikae or riichi|action rejected: round not in progress|cannot call added kan: tile not in hand"
 CHAOS_EXPECTED_SESSION_ERRORS="reconnect_no_session"
 
@@ -29,6 +30,7 @@ if ! [[ $MAX_GAMES =~ ^[1-9][0-9]*$ && $TABLES =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 BOT_ARGS=()
+BOT_LOBBY_URL=""
 BATCH_TIMEOUT=120
 case "$MODE" in
     "") ;;
@@ -44,7 +46,8 @@ esac
 case "$NET" in
     "") ;;
     bad)
-        BOT_ARGS+=(--lobby-url "$BAD_NET_PUBLIC_ORIGIN" --unreliable-network)
+        BOT_LOBBY_URL="$BAD_NET_PUBLIC_ORIGIN"
+        BOT_ARGS+=(--unreliable-network)
         BATCH_TIMEOUT=$(( BATCH_TIMEOUT > 1800 ? BATCH_TIMEOUT : 1800 ))
         ;;
     *)
@@ -374,6 +377,18 @@ filter_bot_console() {
     rm "$raw_file"
 }
 
+build_bot() {
+    if [[ -n $BOT_BIN ]]; then
+        return 0
+    fi
+
+    if ! make -sC "$BOT_ROOT" release-bot; then
+        echo "building the bot in $BOT_ROOT failed"
+        exit 1
+    fi
+    BOT_BIN="$BOT_ROOT/rust/target/release/mahjong-bot"
+}
+
 register_bots() {
     local names=()
     for table in $(seq 1 "$TABLES"); do
@@ -403,8 +418,8 @@ start_bots() {
     BOT_PIDS=()
     for idx in $(seq 0 $((tables * ${#BOT_NAMES[@]} - 1))); do
         local name="${BOT_ACCOUNTS[$idx]}"
-        PYTHONPATH="$BOT_ROOT/project" "$BOT_ROOT/.venv/bin/python" "$BOT_ROOT/project/run_ronin.py" \
-            -p "$name" -k "${BOT_KEYS[$idx]}" "${BOT_ARGS[@]}" > "$BOT_LOG_DIR/console-$batch-$name.raw" 2>&1 &
+        "$BOT_BIN" -p "$name" -k "${BOT_KEYS[$idx]}" --lobby-url "${BOT_LOBBY_URL:-http://localhost:$LOBBY_PORT}" "${BOT_ARGS[@]}" \
+            > "$BOT_LOG_DIR/console-$batch-$name.raw" 2>&1 &
         BOT_PIDS+=($!)
     done
 }
@@ -569,6 +584,7 @@ for dir in "$GAME_LOG_DIR" "$LOBBY_LOG_DIR" "$BOT_LOG_DIR" "$NET_LOG_DIR"; do
 done
 exec > >(tee "$HARNESS_LOG") 2>&1
 
+build_bot
 register_bots
 
 GAME_LAUNCHER=(uv run --project backend uvicorn)

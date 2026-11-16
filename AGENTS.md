@@ -41,16 +41,16 @@ The `Makefile` lists the targets; the non-obvious ones:
   `agent-browser` skill plus this project's `app-browser` skill (`.claude/skills/app-browser/`).
 * `make test` — backend pytest with its coverage gate (`backend/AGENTS.md`, Tooling).
 * `make profile` — profile the game engine replay runner (the `optimize-engine` skill uses it).
-* `make run-games [GAMES=n] [TABLES=t] [MODE=m] [NET=bad]` — play bot games (the `mahjong-bot` repo at `BOT_ROOT`,
-  default `~/work/mahjong-bot`) on fresh servers, `t` tables at a time, the bots in play mode `m` (their `--mode`,
-  only when set; `chaos` misbehaves on purpose, the bot's `ronin/chaos.py`, and its log gate passes only the game
+* `make run-games [GAMES=n] [TABLES=t] [MODE=m] [NET=bad]` — play bot games (the Rust `mahjong-bot` repo at `BOT_ROOT`,
+  default `~/work/mahjong-bot`, built with its `make release-bot`) on fresh servers, `t` tables at a time, the bots in play mode `m` (their `--mode`,
+  only when set; `chaos` misbehaves on purpose, the bot's `ronin/chaos.rs`, and its log gate passes only the game
   server lines that causes). `NET=bad`, meant for `MODE=chaos`, puts a faulty proxy chain between the bots and the
   servers (`bin/bad-network.sh`). It stops at the first batch with a game that is not completed, whose replay does not reproduce it
   (`bin/verify_games.py`), or after which any log (server stderr and bot console included) holds a warning or an
   abnormal event such as a timeout auto-action or a bot replaced by AI. It forces debug console logging, so these
   gates cannot be configured away. It plays against the dev database (`AUTH_DATABASE_PATH`), so its games show on
   the dev lobby's history; it reuses four bot accounts per table by name, issuing each a fresh API key, and
-  verifies only the game ids its bots logged. It **wipes** `backend/logs` and the bot's `project/logs` first and
+  verifies only the game ids its bots logged. It **wipes** `backend/logs` and the bot's `var/logs` first and
   kills whatever holds `:8710`/`:8711`. Run it only when asked: tests and `make run-all-checks` are the
   verification.
 * `make profile-games` — the same run at production's INFO logging,

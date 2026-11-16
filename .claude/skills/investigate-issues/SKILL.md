@@ -19,7 +19,7 @@ logs go to journald on the server, not to files: `make -C deploy spot-check-logs
 
 ## Step 2: Find errors in bot logs
 
-The bot lives in a separate repository (`mahjong-bot`, logs under `project/logs/`). If the user gave
+The bot lives in a separate repository (`mahjong-bot`, logs under `var/logs/`). If the user gave
 its path or it is checked out next to this repo, grep its logs the same way; otherwise report that
 bot logs were not available.
 
