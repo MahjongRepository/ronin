@@ -204,16 +204,6 @@ class AIPlayerType(StrEnum):
     TSUMOGIRI = "tsumogiri"
 
 
-class TimeoutType(StrEnum):
-    """
-    Types of player timeouts.
-    """
-
-    TURN = "turn"
-    MELD = "meld"
-    ROUND_ADVANCE = "round_advance"
-
-
 class WaitKind(StrEnum):
     """
     What the game waits for: a seat's turn, an AI player's turn, call prompt responses, a dealt round's first draw, the

@@ -103,12 +103,13 @@ class GameSession:
     A game in the session layer: its participants, pacing, lifecycle, engine runtime and what its end needs.
 
     runtime is the engine's game, held from the start until the end claim drops it. awaiting is what the engine last
-    reported the game waits for (set from the start on); its internal wait id drives the timers. pause is the start's or
-    a round end's pause the session holds the game in, None otherwise. Each participant's decision_id identifies only
-    their own visible decisions. start_record is the game's record as posted at the start (seat order, every seat's name
-    and user_id); every finish record is built from it. replay holds the records collected since the start until the end
-    claim detaches them. ai_turn is the sleeping task that plays the AI player's turn the game waits on
-    (WaitKind.AI_TURN) once the AI turn delay has passed.
+    reported the game waits for (set from the start on); the session compares each new report with it to tell a new wait
+    from a kept one, which drives the timers and the decision ids. pause is the start's or a round end's pause the
+    session holds the game in, None otherwise. Each participant's decision_id identifies only their own visible
+    decisions. start_record is the game's record as posted at the start (seat order, every seat's name and user_id);
+    every finish record is built from it. replay holds the records collected since the start until the end claim
+    detaches them. ai_turn is the sleeping task that plays the AI player's turn the game waits on (WaitKind.AI_TURN)
+    once the AI turn delay has passed.
     """
 
     game_id: str

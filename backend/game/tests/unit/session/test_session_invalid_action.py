@@ -17,13 +17,13 @@ from game.engine import (
     RefusalCode,
     RefusalKind,
     Riichi,
-    TimeoutType,
     WaitKind,
 )
 from game.messaging.game_errors import GameErrorCode
 from game.messaging.types import SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter
+from game.session.timer import TimeoutType
 from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import mock_update
@@ -345,7 +345,7 @@ class TestStaleAction:
         run_timeout(manager, game_id="game1", timeout_type=TimeoutType.MELD, seat=bob)
         newer_prompt = manager.get_game("game1").awaiting
         assert (newer_prompt.kind, newer_prompt.seats) == (WaitKind.CALL, frozenset({bob}))
-        assert newer_prompt.wait_id != first_prompt.wait_id
+        assert current_wait_id(manager, conns[1]) == first_prompt_id + 1
         state_before = runtime_of(manager).state
         conns[1]._outbox.clear()
 

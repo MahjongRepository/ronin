@@ -155,12 +155,10 @@ class TestNoDataActionDispatchRouting:
         ai_seat_on_turn = (player.seat + 1) % 4
         _update_round_state(runtime, current_player_seat=ai_seat_on_turn)
         game_state = runtime.state
-        wait_id_before = runtime.wait_id
 
         refusal = service.act(runtime, player.seat, action)
         assert refusal == Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.SEAT_NOT_AWAITED)
         assert runtime.state is game_state
-        assert runtime.wait_id == wait_id_before
 
     @pytest.mark.parametrize("action", [Ron(), Pon(), Chi(tiles=(4, 8))])
     def test_act__when_call_without_call_prompt__should_refuse_as_not_awaited(self, service, action):

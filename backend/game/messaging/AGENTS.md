@@ -86,8 +86,7 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   Other seats' waits and decisions made by an AI stand-in never advance it. Reconnect and resync
   snapshots carry the participant's latest id, even when nothing is owed; re-sending an owed
   decision repeats that id. Round-end broadcasts are stamped separately for each recipient.
-  The engine's global wait counter stays server-only: neither outgoing metadata nor action
-  refusals may reveal it. Refusals echo the refused action's id and sit outside the increasing
+  Refusals echo the refused action's id and sit outside the increasing
   order. Every game action must echo its own decision id; a seat that owes no action or an action
   with any other id is refused as stale, without consulting the engine. A refusal names the id that action echoed, never the
   current wait's: a game error (stale or a rule judgment) always, and the endpoint's rate limit when

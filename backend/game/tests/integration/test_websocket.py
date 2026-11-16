@@ -20,7 +20,7 @@ from game.tests.helpers.websocket import (
     recv_ws,
     send_ws,
 )
-from game.tests.mocks import MOCK_AWAITING, MockGameService
+from game.tests.mocks import MockGameService
 from game.wire.compact import decode_draw
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
@@ -72,7 +72,7 @@ class TestWebSocketIntegration:
                 ws,
                 {
                     WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
-                    WireKey.WAIT_ID: MOCK_AWAITING.wait_id,
+                    WireKey.WAIT_ID: 1,
                     WireKey.ACTION: WireGameAction.DISCARD,
                     WireKey.TILE_ID: 0,
                 },

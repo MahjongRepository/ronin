@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
 PLAYER_NAMES = ("Alice", "Bob", "Charlie", "Diana")
 SEED = "a" * 192
-STUB_AWAITING = Awaiting(kind=WaitKind.TURN, seats=frozenset(), wait_id=0, round_number=0)
+STUB_AWAITING = Awaiting(kind=WaitKind.TURN, seats=frozenset(), round_number=0)
 
 
 def _stub_update(events: list[GameEvent]) -> GameUpdate:

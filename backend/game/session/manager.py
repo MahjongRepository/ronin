@@ -22,7 +22,6 @@ from game.engine import (
     RoundEndEvent,
     RoundStartedEvent,
     SeatTarget,
-    TimeoutType,
     WaitKind,
 )
 from game.messaging.encoder import encode
@@ -49,7 +48,7 @@ from game.messaging.types import (
 from game.session.models import GameLifecycle, GameSession, Participant, Pause
 from game.session.played_game import build_finish_record
 from game.session.replay_collector import ReplayRecord
-from game.session.timer import TimerConfig, TurnTimer
+from game.session.timer import TimeoutType, TimerConfig, TurnTimer
 from game.wire.enums import SeatControlReason
 from game.wire.keys import WireKey
 from shared.auth.game_ticket import TICKET_TTL_SECONDS
@@ -71,6 +70,10 @@ logger = structlog.get_logger()
 
 _AUTH_TIMEOUT_SECONDS = 10
 _CONFIRM_ROUND = "confirm_round"
+_TIMEOUT_LOG_EVENTS = {
+    TimeoutType.TURN: "turn timeout, auto-discarding",
+    TimeoutType.MELD: "meld timeout, auto-passing",
+}
 
 
 @dataclass(frozen=True)
@@ -88,11 +91,12 @@ class _Ending:
 
 def _require_accepted(result: GameUpdate | Refusal) -> GameUpdate:
     """
-    Return a phase call's update; the session makes one only in its phase, so a refusal is a server fault.
+    Return the update of an engine call the session made itself, a phase call or a timeout's default action: it makes
+    one only when the engine awaits it, so a refusal is a server fault.
     """
     match result:
         case Refusal(kind=kind, code=code):
-            raise AssertionError(f"phase call refused: {kind.value}: {code.value}")
+            raise AssertionError(f"session call refused: {kind.value}: {code.value}")
         case _:
             return result
 
@@ -948,17 +952,16 @@ class SessionManager:
         Deliver an engine call's events and drive the timers from the wait it reports.
 
         The call's actor is the seat that acted, timed out, was replaced, took its seat back or ended a pause; a game
-        start or an AI player's turn has none. When the wait id changed, every timer stops (charging elapsed decision
-        time) and so does a pending AI turn, a new round's banks reset, a round over opens its pause
-        (`_open_round_over_pause`), and each connected participant now awaited, by the engine or the pause, advances its
-        own decision id before the events go out. The new wait's timers start after them; an AI player's turn, a dealt
-        round and a game over await no participant and start none. When it did not, only an actor that left the wait (a
-        partial prompt response) has its timer stopped; an actor still awaited (an error) keeps it running with nothing
-        deducted.
+        start or an AI player's turn has none. When the call opened a new wait (the game's first, or `_opens_new_wait`),
+        every timer stops (charging elapsed decision time) and so does a pending AI turn, a new round's banks reset, a
+        round over opens its pause (`_open_round_over_pause`), and each connected participant now awaited, by the engine
+        or the pause, advances its own decision id before the events go out. The new wait's timers start after them; an
+        AI player's turn, a dealt round and a game over await no participant and start none. When it kept the wait, only
+        an actor that left it (a partial prompt response) has its timer stopped.
         """
         previous = game.awaiting
         game.awaiting = awaiting
-        new_wait = previous is None or awaiting.wait_id != previous.wait_id
+        new_wait = previous is None or self._opens_new_wait(previous, awaiting, actor=actor)
         if new_wait:
             self._end_wait_timers(game)
             self._cancel_ai_turn(game)
@@ -970,12 +973,28 @@ class SessionManager:
             for participant in game.connected():
                 if participant.seat in awaited:
                     participant.decision_id += 1
-        elif actor is not None and actor in previous.seats and actor not in awaiting.seats:
+        elif actor is not None and actor in previous.seats:
             self._stop_timer_at(game, actor)
 
         self._broadcast_events(game, events, awaiting)
         if new_wait and game.lifecycle is GameLifecycle.PLAYING:
             self._start_wait_timers(game, awaiting=awaiting)
+
+    @staticmethod
+    def _opens_new_wait(previous: Awaiting, awaiting: Awaiting, *, actor: int | None) -> bool:
+        """
+        Tell whether an engine call opened a new wait, rather than kept the one it was made in (previous).
+
+        The call's actor no longer holds the decision it had: it acted, timed out or was replaced, and a seat taking its
+        seat back held none. The wait is kept while its kind is unchanged and it awaits only seats that still hold their
+        decision from before the call, so a partial call answer keeps the other callers' decisions and timers. A turn
+        that returns to the seat that just acted (after its kan) is new, and so is an AI player's turn the seat's human
+        takes back, which becomes a turn.
+        """
+        if awaiting.kind != previous.kind:
+            return True
+
+        return not awaiting.seats <= previous.seats - {actor}
 
     def _open_round_over_pause(self, game: GameSession, events: list[GameEvent]) -> None:
         """
@@ -1271,7 +1290,8 @@ class SessionManager:
 
     def _handle_timeout(self, participant: Participant, timeout_type: TimeoutType) -> None:
         """
-        Run a fired timer's default action; any unexpected error ends the game through fail_game.
+        Play a fired timer's default action (`_play_default_action`); any unexpected error ends the game through
+        fail_game.
 
         It needs no guard: every path that ends the game, ends the wait or releases the seat cancels the timer, and a
         cancel after its sleep ended still stops it before this runs. It logs as the timer's own seat: the timer task
@@ -1280,12 +1300,27 @@ class SessionManager:
         game = participant.game
         structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=participant.seat)
         try:
-            seat = self._seat_of(participant)
-            update = self._game_service.handle_timeout(self._runtime_of(game), seat=seat, timeout_type=timeout_type)
-            self._timeouts[timeout_type] += 1
-            self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
+            self._play_default_action(game, seat=self._seat_of(participant), timeout_type=timeout_type)
         except Exception as exc:  # noqa: BLE001
             self.fail_game(game, reason=f"{timeout_type} timeout failed", exc=exc)
+
+    def _play_default_action(self, game: GameSession, *, seat: int, timeout_type: TimeoutType) -> None:
+        """
+        Play the engine's default action (`default_action`) for a seat whose turn or call timed out, and follow the
+        engine from there.
+
+        The timer runs only while the engine awaits the seat, so a seat it does not await, or a refusal of its own
+        default, is a server fault.
+        """
+        runtime = self._runtime_of(game)
+        action = self._game_service.default_action(runtime, seat)
+        if action is None:
+            raise AssertionError(f"{timeout_type} timeout for seat {seat}, which the game does not await")
+
+        logger.info(_TIMEOUT_LOG_EVENTS[timeout_type], action=str(action))
+        update = _require_accepted(self._game_service.act(runtime, seat, action))
+        self._timeouts[timeout_type] += 1
+        self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
 
     def _handle_pause_timeout(self, participant: Participant) -> None:
         """

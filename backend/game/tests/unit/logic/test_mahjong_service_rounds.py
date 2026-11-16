@@ -7,11 +7,10 @@ from game.logic.action_result import ActionResult
 from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Discard
-from game.logic.enums import CallType, MeldCallType, PromptKind, TimeoutType, WaitKind
+from game.logic.enums import CallType, MeldCallType, PromptKind, WaitKind
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
-    DiscardEvent,
     EventType,
     SeatTarget,
 )
@@ -37,7 +36,7 @@ from game.tests.unit.logic.helpers import (
 _DEALER_LAST_DISCARD = tile_copies(3, pin="3")[0]
 
 
-def _dealer_before_ronnable_discard(*, human_seat: int = 0, live_tiles: int | None = None) -> GameRuntime:
+def _dealer_before_ronnable_discard(*, live_tiles: int | None = None) -> GameRuntime:
     players = (
         create_player(seat=0, tiles=(_DEALER_LAST_DISCARD, *tile_copies(0, sou="123456789", honors="1234"))),
         create_player(seat=1, tiles=tile_copies(0, man="123456789", pin="1255")),
@@ -47,7 +46,7 @@ def _dealer_before_ronnable_discard(*, human_seat: int = 0, live_tiles: int | No
     runtime = GameRuntime(
         game_id="game1",
         state=create_dealt_game_state(players, seed="a" * 192),
-        ai=AIPlayerController({seat: AIPlayer() for seat in range(4) if seat != human_seat}),
+        ai=AIPlayerController({seat: AIPlayer() for seat in range(1, 4)}),
     )
     if live_tiles is not None:
         wall = runtime.state.round_state.wall
@@ -62,48 +61,6 @@ def _dealer_discard(runtime: GameRuntime) -> ActionResult:
     assert isinstance(result, ActionResult)
     runtime.commit(result.state)
     return result
-
-
-class TestMahjongGameServiceHandleTimeout:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    def test_handle_timeout__when_meld_timeout_without_pending_prompt__should_return_no_events(self, service):
-        start = start_game_in_play(service, "game1", ["Player"], seed="a" * 192)
-        runtime = start.runtime
-        player_seat = start.seats[0]
-
-        events = service.handle_timeout(runtime, seat=player_seat, timeout_type=TimeoutType.MELD).events
-        assert events == []
-
-    def test_handle_timeout__when_meld_timeout_with_pending_prompt__should_pass_for_the_seat(self, service):
-        runtime = _dealer_before_ronnable_discard(human_seat=3)
-        service._process_action_result_internal(runtime, _dealer_discard(runtime))
-        prompt = runtime.state.round_state.pending_call_prompt
-        assert prompt is not None
-        assert prompt.pending_seats == {3}
-
-        events = service.handle_timeout(runtime, seat=3, timeout_type=TimeoutType.MELD).events
-        assert (events[0].type, events[0].target) == (EventType.DRAW, SeatTarget(seat=1))
-
-    def test_handle_timeout__when_turn_timeout_and_prompt_pending_for_others__should_return_no_events(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
-        game_state = runtime.state
-        round_state = game_state.round_state
-        player = _find_player(round_state, "Player")
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=0,
-            from_seat=(player.seat + 1) % 4,
-            pending_seats=frozenset({(player.seat + 2) % 4}),
-            callers=(Caller(seat=(player.seat + 2) % 4, melds=(MeldOption(call_type=MeldCallType.PON),)),),
-        )
-        _update_round_state(runtime, pending_call_prompt=prompt)
-
-        events = service.handle_timeout(runtime, seat=player.seat, timeout_type=TimeoutType.TURN).events
-        assert events == []
 
 
 class TestMahjongGameServiceAfterDiscard:
@@ -149,40 +106,6 @@ class TestMahjongGameServiceAfterDiscard:
             (EventType.DRAW, SeatTarget(seat=1)),
         ]
         assert runtime.state.round_state.pending_call_prompt is None
-
-
-class TestMahjongGameServiceTimeoutIntegration:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    def test_handle_timeout__when_turn_timeout_on_players_turn__should_discard_tile(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
-        game_state = runtime.state
-        player = _find_player(game_state.round_state, "Player")
-
-        player_tiles = list(player.tiles)
-        live_tiles = list(game_state.round_state.wall.live_tiles)
-        if len(player_tiles) == 13 and live_tiles:
-            player_tiles.append(live_tiles.pop(0))
-
-        _update_player(runtime, seat=player.seat, tiles=tuple(player_tiles))
-        new_wall = game_state.round_state.wall.model_copy(update={"live_tiles": tuple(live_tiles)})
-        _update_round_state(runtime, current_player_seat=player.seat, wall=new_wall)
-
-        events = service.handle_timeout(runtime, seat=player.seat, timeout_type=TimeoutType.TURN).events
-        assert events[0] == DiscardEvent(seat=player.seat, tile_id=player_tiles[-1], is_tsumogiri=True)
-
-    def test_handle_timeout__when_turn_timeout_off_players_turn__should_return_no_events(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
-        game_state = runtime.state
-        player = _find_player(game_state.round_state, "Player")
-
-        other_seat = (player.seat + 1) % 4
-        _update_round_state(runtime, current_player_seat=other_seat)
-
-        events = service.handle_timeout(runtime, seat=player.seat, timeout_type=TimeoutType.TURN).events
-        assert events == []
 
 
 class TestMahjongGameServiceAfterDiscardRoundEnd:
@@ -256,35 +179,4 @@ class TestGameEndAwaiting:
         update = service.act(runtime, player.seat, Discard(tile=tile_id))
         game_end_events = [e for e in update.events if e.type == EventType.GAME_END]
         assert len(game_end_events) == 1
-        assert update.awaiting == Awaiting(
-            kind=WaitKind.NONE, seats=frozenset(), wait_id=waiting.wait_id + 1, round_number=waiting.round_number
-        )
-
-
-class TestTurnTimeoutKuikaeIntegration:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    def test_handle_timeout__when_turn_timeout_with_kuikae_restriction__should_discard_tile(self, service):
-        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
-        game_state = runtime.state
-        player = _find_player(game_state.round_state, "Player")
-
-        hand_tiles = list(player.tiles[:11])
-        last_tile = hand_tiles[-1]
-        kuikae_34 = tile_to_34(last_tile)
-
-        _update_player(
-            runtime,
-            seat=player.seat,
-            tiles=tuple(hand_tiles),
-            kuikae_tiles=(kuikae_34,),
-        )
-        _update_round_state(runtime, current_player_seat=player.seat)
-
-        events = service.handle_timeout(runtime, seat=player.seat, timeout_type=TimeoutType.TURN).events
-        player_discard = events[0]
-        assert isinstance(player_discard, DiscardEvent)
-        assert player_discard.seat == player.seat
-        assert tile_to_34(player_discard.tile_id) != kuikae_34
+        assert update.awaiting == Awaiting(kind=WaitKind.NONE, seats=frozenset(), round_number=waiting.round_number)

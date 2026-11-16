@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from game.logic.decision import Action, Decision
-    from game.logic.enums import TimeoutType, WaitKind
+    from game.logic.enums import WaitKind
     from game.logic.events import GameEvent
     from game.logic.refusal import Refusal
     from game.logic.runtime import GameRuntime
@@ -21,15 +21,12 @@ class Awaiting:
 
     seats are the awaited seats an AI player does not hold: the turn's seat or the callers still to respond to the call
     prompt; none for an AI player's turn, a dealt round whose dealer has not drawn yet (begin_round draws), a round over
-    (deal_next_round deals the next) or a game over. wait_id identifies the wait: it changes exactly when a call ends
-    the current wait (an error result, a partial prompt response, and a replacement or restore that resolves nothing
-    keep it), so a later wait of the same kind for the same seat gets a new one. round_number is the round the wait
-    belongs to; a round over belongs to the round that ended.
+    (deal_next_round deals the next) or a game over. round_number is the round the wait belongs to; a round over belongs
+    to the round that ended.
     """
 
     kind: WaitKind
     seats: frozenset[int]
-    wait_id: int
     round_number: int
 
 
@@ -153,21 +150,6 @@ class GameService(Protocol):
     def get_awaiting(self, runtime: GameRuntime) -> Awaiting:
         """
         Return what a running game waits for now, with the seats as the AI players hold them at this moment.
-        """
-        ...
-
-    def handle_timeout(
-        self,
-        runtime: GameRuntime,
-        *,
-        seat: int,
-        timeout_type: TimeoutType,
-    ) -> GameUpdate:
-        """
-        Handle a seat's timeout by performing the default action.
-
-        For TURN timeout: tsumogiri (discard last drawn tile).
-        For MELD timeout: pass on the call opportunity.
         """
         ...
 

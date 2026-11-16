@@ -19,7 +19,7 @@ from game.logic.actions import build_decision
 from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Action, Chi, Decision, Discard, Kan, Kyuushu, Pass, Pon, Riichi, Ron, Tsumo
-from game.logic.enums import GamePhase, RoundPhase, TimeoutType, WaitKind, WindName
+from game.logic.enums import GamePhase, RoundPhase, WaitKind, WindName
 from game.logic.events import (
     GameEndedEvent,
     GameEvent,
@@ -41,7 +41,6 @@ from game.logic.matchmaker import fill_seats
 from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.refusal import Refusal, RefusalCode, RefusalKind
 from game.logic.rng import generate_seed
-from game.logic.round import choose_default_discard
 from game.logic.rule_profiles import PRESET_SETTINGS
 from game.logic.runtime import GameRuntime
 from game.logic.service import Awaiting, GameService, GameStart, GameUpdate
@@ -77,17 +76,6 @@ if TYPE_CHECKING:
 logger = structlog.get_logger()
 
 _WRONG_PHASE = Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.WRONG_PHASE)
-
-
-@dataclass(frozen=True)
-class _CallStart:
-    """
-    The game as an engine call found it: its state and the wait in progress, with the AI players' seats included.
-    """
-
-    state: MahjongGameState
-    kind: WaitKind
-    seats: frozenset[int]
 
 
 @dataclass(frozen=True)
@@ -213,7 +201,6 @@ class MahjongGameService(GameService):
         frozen_game = init_game(seat_configs, seed=game_seed, settings=PRESET_SETTINGS, wall=first_wall, start=start)
         ai_players = {seat: AIPlayer() for seat, config in enumerate(seat_configs) if config.ai_player_type is not None}
         runtime = GameRuntime(game_id=game_id, state=frozen_game, ai=AIPlayerController(ai_players), walls=walls)
-        call = self._begin_call(runtime)
 
         hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
         logger.debug("starting game", player_names=player_names, hands=hands)
@@ -223,29 +210,29 @@ class MahjongGameService(GameService):
             *self._create_round_started_events(frozen_game),
         ]
         runtime.first_draw_pending = True
-        return GameStart(runtime=runtime, events=events, awaiting=self._end_call(runtime, call), seats=player_seats)
+        return GameStart(runtime=runtime, events=events, awaiting=self.get_awaiting(runtime), seats=player_seats)
 
     def begin_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
         """
         Draw the dealt round's first tile for its dealer, with the AI turns that follow it; refuse it on any other wait.
         """
-        call = self._begin_call(runtime)
-        if call.kind != WaitKind.DEALT:
-            logger.info("phase call refused: no dealt round to begin", wait=call.kind.value)
+        kind, _ = self._current_wait(runtime)
+        if kind != WaitKind.DEALT:
+            logger.info("phase call refused: no dealt round to begin", wait=kind.value)
             return _WRONG_PHASE
 
         runtime.first_draw_pending = False
         events = self._draw_first_turn(runtime)
-        return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
+        return GameUpdate(events=events, awaiting=self.get_awaiting(runtime))
 
     def deal_next_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
         """
         Deal the round after the one that ended, from the game's next given wall or else from its seed; refuse it on any
         other wait.
         """
-        call = self._begin_call(runtime)
-        if call.kind != WaitKind.ROUND_OVER:
-            logger.info("phase call refused: no round over to deal after", wait=call.kind.value)
+        kind, _ = self._current_wait(runtime)
+        if kind != WaitKind.ROUND_OVER:
+            logger.info("phase call refused: no round over to deal after", wait=kind.value)
             return _WRONG_PHASE
 
         round_index = len(runtime.state.round_history)
@@ -259,7 +246,7 @@ class MahjongGameService(GameService):
         runtime.furiten = FuritenTracker()
         runtime.first_draw_pending = True
         events: list[GameEvent] = [*self._create_round_started_events(frozen_game)]
-        return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
+        return GameUpdate(events=events, awaiting=self.get_awaiting(runtime))
 
     def _create_game_started_event(self, runtime: GameRuntime) -> GameStartedEvent:
         """
@@ -292,14 +279,13 @@ class MahjongGameService(GameService):
         Processes the action and triggers AI player turns as needed. An action for an AI player's seat is a server
         fault.
         """
-        call = self._begin_call(runtime)
         self._require_human_seat(runtime, seat)
         logger.debug("player action", action=action)
-        events = self._run_action(runtime, call.state, seat=seat, action=action)
+        events = self._run_action(runtime, runtime.state, seat=seat, action=action)
         if isinstance(events, Refusal):
             return events
 
-        return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
+        return GameUpdate(events=events, awaiting=self.get_awaiting(runtime))
 
     def decision(self, runtime: GameRuntime, seat: int) -> Decision | None:
         """
@@ -375,9 +361,9 @@ class MahjongGameService(GameService):
 
     def _dispatch_generated_action(self, runtime: GameRuntime, *, seat: int, action: Action) -> ActionResult:
         """
-        Dispatch an action the server made for a seat: an AI decision or a timeout default.
+        Dispatch an action the engine made for an AI player's seat.
 
-        The server generated it, so a refusal of any kind is a server fault: raise GeneratedActionError, never kick the
+        The engine generated it, so a refusal of any kind is a server fault: raise GeneratedActionError, never kick the
         seat or count the refusal as progress.
         """
         result = self._dispatch_action(runtime.state, seat=seat, action=action)
@@ -395,7 +381,7 @@ class MahjongGameService(GameService):
         """
         Dispatch a game action to the appropriate handler.
 
-        Single entry point for all action dispatch: player actions, AI decisions and timeout defaults.
+        Single entry point for all action dispatch: player actions and AI decisions.
         """
         match action:
             case Discard():
@@ -442,13 +428,6 @@ class MahjongGameService(GameService):
         kind, seats = self._current_wait(runtime)
         return self._build_awaiting(runtime, kind=kind, seats=seats)
 
-    def _begin_call(self, runtime: GameRuntime) -> _CallStart:
-        """
-        Capture the game's state and wait before an engine call that may change them.
-        """
-        kind, seats = self._current_wait(runtime)
-        return _CallStart(state=runtime.state, kind=kind, seats=seats)
-
     @staticmethod
     def _require_human_seat(runtime: GameRuntime, seat: int) -> None:
         """
@@ -456,22 +435,6 @@ class MahjongGameService(GameService):
         """
         if runtime.ai.is_ai_player(seat):
             raise AssertionError(f"seat {seat} is controlled by an AI player")
-
-    def _end_call(self, runtime: GameRuntime, call: _CallStart) -> Awaiting:
-        """
-        Return what the game waits for after a call, bumping the wait id when the call ended the wait it began in.
-
-        The call kept its wait when that wait is of the same kind and either lost seats (a partial prompt response, or
-        an AI player answering for a replaced seat) or, with the same seats, left the state untouched (an error result,
-        a timeout or replacement with nothing to do). Same seats on a changed state is a new wait: the turn came back to
-        the same seat, or a kan's replacement draw.
-        """
-        kind, seats = self._current_wait(runtime)
-        kept = kind == call.kind and (seats < call.seats or (seats == call.seats and runtime.state is call.state))
-        if not kept:
-            runtime.wait_id += 1
-
-        return self._build_awaiting(runtime, kind=kind, seats=seats)
 
     @staticmethod
     def _current_wait(runtime: GameRuntime) -> tuple[WaitKind, frozenset[int]]:
@@ -503,71 +466,8 @@ class MahjongGameService(GameService):
         return Awaiting(
             kind=kind,
             seats=frozenset(s for s in seats if not runtime.ai.is_ai_player(s)),
-            wait_id=runtime.wait_id,
             round_number=_current_round_number(runtime.state),
         )
-
-    def handle_timeout(
-        self,
-        runtime: GameRuntime,
-        *,
-        seat: int,
-        timeout_type: TimeoutType,
-    ) -> GameUpdate:
-        """
-        Handle a player timeout by performing the default action.
-
-        For TURN timeout: the default discard (the drawn tile unless kuikae forbids it).
-        For MELD timeout: pass on the call opportunity.
-        A timeout for an AI player's seat is a server fault.
-        """
-        call = self._begin_call(runtime)
-        self._require_human_seat(runtime, seat)
-        match timeout_type:
-            case TimeoutType.TURN:
-                events = self._handle_turn_timeout(runtime, seat)
-            case TimeoutType.MELD:
-                events = self._handle_meld_timeout(runtime, seat)
-            case _:  # pragma: no cover (exhaustive)
-                raise AssertionError(f"unknown timeout type: {timeout_type}")
-
-        return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
-
-    def _run_generated_action(self, runtime: GameRuntime, *, seat: int, action: Action) -> list[GameEvent]:
-        """
-        Run a timeout's default action for a seat, then the AI players' turns it leads to.
-        """
-        result = self._dispatch_generated_action(runtime, seat=seat, action=action)
-        events = self._commit_and_process(runtime, result)
-        return self._continue_with_ai_players(runtime, events)
-
-    def _handle_turn_timeout(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
-        """
-        Handle TURN timeout: make the default discard (choose_default_discard).
-        """
-        round_state = runtime.state.round_state
-        if round_state.phase != RoundPhase.PLAYING or round_state.current_player_seat != seat:
-            logger.debug("turn timeout ignored: not the seat's turn")
-            return []
-
-        if round_state.pending_call_prompt is not None:
-            logger.debug("turn timeout ignored: call prompt pending")
-            return []
-
-        tile_id = choose_default_discard(round_state.players[seat])
-        logger.info("turn timeout, auto-discarding", tile_id=tile_id)
-        return self._run_generated_action(runtime, seat=seat, action=Discard(tile=tile_id))
-
-    def _handle_meld_timeout(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
-        """
-        Handle MELD timeout: pass on the call opportunity.
-        """
-        prompt = runtime.state.round_state.pending_call_prompt
-        if prompt is None or seat not in prompt.pending_seats:
-            return []
-
-        logger.info("meld timeout, auto-passing")
-        return self._run_generated_action(runtime, seat=seat, action=Pass())
 
     def _check_and_handle_round_end(self, runtime: GameRuntime, events: list[GameEvent]) -> bool:
         """
@@ -678,24 +578,22 @@ class MahjongGameService(GameService):
         """
         Remove the AI player at a seat and restore it for human control; return what the game waits for now.
 
-        An AI player's turn the seat was owed and its AI player had not played yet becomes the human's turn, a new wait
-        (_end_call); any other wait is kept.
+        An AI player's turn the seat was owed and its AI player had not played yet becomes the human's turn.
         """
-        call = self._begin_call(runtime)
         runtime.ai.remove_ai_player(seat)
-        return self._end_call(runtime, call)
+        return self.get_awaiting(runtime)
 
     def advance_ai_turn(self, runtime: GameRuntime) -> GameUpdate:
         """
         Play the AI player's turn the game waits for: exactly one turn action, with the AI call responses and the round
         end it leads to; any other wait is a server fault.
         """
-        call = self._begin_call(runtime)
-        if call.kind != WaitKind.AI_TURN:
-            raise AssertionError(f"no AI player's turn to play: the game waits for {call.kind}")
+        kind, _ = self._current_wait(runtime)
+        if kind != WaitKind.AI_TURN:
+            raise AssertionError(f"no AI player's turn to play: the game waits for {kind}")
 
-        events = self._execute_ai_player_turn(runtime, seat=call.state.round_state.current_player_seat)
-        return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
+        events = self._execute_ai_player_turn(runtime, seat=runtime.state.round_state.current_player_seat)
+        return GameUpdate(events=events, awaiting=self.get_awaiting(runtime))
 
     def build_reconnection_snapshot(self, runtime: GameRuntime, seat: int) -> ReconnectionSnapshot:
         """
@@ -784,9 +682,8 @@ class MahjongGameService(GameService):
         """
         Process pending AI player actions after a player was replaced with an AI player at the given seat.
         """
-        call = self._begin_call(runtime)
-        events = self._run_ai_player_actions_after_replacement(runtime, call.state, seat=seat)
-        return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
+        events = self._run_ai_player_actions_after_replacement(runtime, runtime.state, seat=seat)
+        return GameUpdate(events=events, awaiting=self.get_awaiting(runtime))
 
     def _run_ai_player_actions_after_replacement(
         self,

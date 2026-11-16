@@ -10,7 +10,6 @@ from game.engine import (
     Pass,
     PlayerReconnectState,
     ReconnectionSnapshot,
-    TimeoutType,
     WaitKind,
     WindName,
     WireMeldCallType,
@@ -19,6 +18,7 @@ from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType
 from game.server.router import MessageRouter
 from game.session.models import PlayerSpec
+from game.session.timer import TimeoutType
 from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection

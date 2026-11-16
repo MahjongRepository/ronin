@@ -61,10 +61,14 @@ interleave.
   step, and a message that then arrives on it gets no answer: its close is queued or follows from
   the finalizer, and an error ahead of it would read as a permanent error to the client.
 * **Stale actions.** Every game action echoes the wait id the server stamped on the message that
-  opened that participant's decision. `Participant.decision_id` increases only when a new engine
+  opened that participant's decision. `Participant.decision_id` increases only when a new
   wait, or the pause opening with it, opens a decision for that connected participant; it survives replacements and reconnects,
-  and never advances for other seats or for an absent participant's AI stand-in. The engine's
-  global wait id is internal to pacing. A seat not awaited, or an id different from that
+  and never advances for other seats or for an absent participant's AI stand-in. The engine knows no wait or decision
+  identity: the session tells a new wait from a kept one by comparing what each engine call reports it awaits with the
+  wait before (`_opens_new_wait`). A call's actor (the seat that acted, timed out or was replaced) no longer holds its
+  decision, so the wait is kept only while its kind is unchanged and it awaits only seats that held their decision
+  before the call: a partial call answer keeps the other callers' decisions and timers, while a kan's replacement draw
+  for the same seat, or a human taking back the AI player's turn of its seat, opens a new one. A seat not awaited, or an id different from that
   participant's latest, gets the same stale-action `ErrorEvent` and touches neither the engine nor
   a timer, so guessed ids reveal no hidden waits. A call answer whose called tile is not the open call's is refused
   by the session too, with that answer's invalid code, and never reaches the engine. Every `ErrorEvent` answering an
@@ -78,8 +82,9 @@ interleave.
   releasing a seat, leaving PENDING, authenticating or evicting a connection, ending the game)
   cancels the timers it supersedes, the delayed AI turn included, so a timer that runs at all runs
   on the state it was armed for.
-* **Pacing.** The engine's `Awaiting` drives the timers, never the events: a new wait id re-arms
-  them for the new wait's connected seats, an unchanged one touches only an actor that left it.
+* **Pacing.** The engine's `Awaiting` drives the timers, never the events: a new wait re-arms
+  them for its connected seats, a kept one touches only the actor that left it. A turn or call timeout plays the seat's
+  `default_action` through `act`, like an answer of the seat's own.
   Every pacing duration comes from `TimerConfig`, the one pacing model (the engine has none; the
   auth timeout and transport ping are not pacing). Both pauses are the session's (`GameSession.pause`): the engine
   stops after a deal and after a round end that does not end the game, awaiting no seat, and the session lets the game

@@ -1,7 +1,8 @@
 from typing import TYPE_CHECKING, cast
 
 from game.logic.ai_player_controller import AIPlayerController
-from game.logic.enums import TimeoutType, WaitKind, WindName
+from game.logic.decision import Discard
+from game.logic.enums import WaitKind, WindName
 from game.logic.events import (
     BroadcastTarget,
     DrawEvent,
@@ -57,9 +58,9 @@ class _MockGameState:
         self.round_number = round_number
 
 
-MOCK_DEALT = Awaiting(kind=WaitKind.DEALT, seats=frozenset(), wait_id=0, round_number=0)
-MOCK_AWAITING = Awaiting(kind=WaitKind.TURN, seats=frozenset({0}), wait_id=1, round_number=0)
-MOCK_GAME_OVER = Awaiting(kind=WaitKind.NONE, seats=frozenset(), wait_id=2, round_number=0)
+MOCK_DEALT = Awaiting(kind=WaitKind.DEALT, seats=frozenset(), round_number=0)
+MOCK_AWAITING = Awaiting(kind=WaitKind.TURN, seats=frozenset({0}), round_number=0)
+MOCK_GAME_OVER = Awaiting(kind=WaitKind.NONE, seats=frozenset(), round_number=0)
 
 
 def mock_update(events: list[GameEvent], awaiting: Awaiting = MOCK_AWAITING) -> GameUpdate:
@@ -80,7 +81,7 @@ class MockGameService(GameService):
         return ()
 
     def default_action(self, runtime: GameRuntime, seat: int) -> Action | None:
-        return None
+        return Discard(tile=0)
 
     def decision(self, runtime: GameRuntime, seat: int) -> Decision | None:
         return None
@@ -189,13 +190,3 @@ class MockGameService(GameService):
         seat: int,
     ) -> GameUpdate:
         return GameUpdate(events=[], awaiting=MOCK_AWAITING)
-
-    def handle_timeout(
-        self,
-        runtime: GameRuntime,
-        *,
-        seat: int,
-        timeout_type: TimeoutType,
-    ) -> GameUpdate:
-        event = DrawEvent(target=BroadcastTarget(), seat=seat, tile_id=0, tiles_remaining=69)
-        return GameUpdate(events=[event], awaiting=MOCK_AWAITING)

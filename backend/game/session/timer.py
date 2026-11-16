@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
@@ -10,6 +11,18 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from game.session.models import Pause
+
+
+class TimeoutType(StrEnum):
+    """
+    What a fired timer timed out: a turn, a call (answered with a pass) or a pause's confirmation.
+
+    The values name the `/status` timeout totals (`timeouts_<value>`).
+    """
+
+    TURN = "turn"
+    MELD = "meld"
+    ROUND_ADVANCE = "round_advance"
 
 
 class TimerConfig(BaseModel):

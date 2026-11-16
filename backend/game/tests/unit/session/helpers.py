@@ -3,13 +3,13 @@ from typing import TYPE_CHECKING
 
 from mahjong.tile import TilesConverter
 
-from game.engine import EventType, TimeoutType, WaitKind
+from game.engine import EventType, WaitKind
 from game.messaging.types import SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType
 from game.server.router import MessageRouter
 from game.server.websocket import websocket_endpoint
 from game.session.models import PlayerSpec
-from game.session.timer import TimerConfig
+from game.session.timer import TimeoutType, TimerConfig
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.helpers.fake_websocket import FakeWebSocketClient
 from game.tests.mocks import MockConnection

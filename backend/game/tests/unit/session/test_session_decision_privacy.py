@@ -58,7 +58,7 @@ async def test_decision_ids__when_opponents_pass_private_calls__should_hide_thei
     router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
     state_before, awaiting_before = runtime.state, game_of(manager).awaiting
     deadline = participant_of(manager, caller).timer.task
-    guesses = (draw[WireKey.WAIT_ID], next_draw[WireKey.WAIT_ID], awaiting_before.wait_id)
+    guesses = (draw[WireKey.WAIT_ID], next_draw[WireKey.WAIT_ID])
     for guess in guesses:
         router.handle_message(
             alice,

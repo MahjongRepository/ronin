@@ -287,7 +287,7 @@ class TestStampWaitId:
         ],
     )
     def test_stamp_wait_id__when_event_may_open_the_wait__should_stamp_only_the_opening_one(self, kind, event, stamped):
-        awaiting = Awaiting(kind=kind, seats=frozenset({1}), wait_id=7, round_number=0)
+        awaiting = Awaiting(kind=kind, seats=frozenset({1}), round_number=0)
 
         payload = stamp_wait_id(game_event_payload(event), event=event, awaiting=awaiting, wait_id=3)
         assert payload.get(WireKey.WAIT_ID) == (3 if stamped else None)

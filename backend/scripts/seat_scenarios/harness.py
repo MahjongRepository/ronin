@@ -39,7 +39,6 @@ if TYPE_CHECKING:
         GameUpdate,
         KanType,
         StartPosition,
-        TimeoutType,
     )
     from scripts.replay_fixtures.staged_game import StagedWall
 
@@ -217,12 +216,6 @@ class _StagedEngine(MahjongGameService):
             self._check_draws(result.events)
 
         return result
-
-    @override
-    def handle_timeout(self, runtime: GameRuntime, *, seat: int, timeout_type: TimeoutType) -> GameUpdate:
-        update = super().handle_timeout(runtime, seat=seat, timeout_type=timeout_type)
-        self._check_draws(update.events)
-        return update
 
     @override
     def process_ai_player_actions_after_replacement(self, runtime: GameRuntime, seat: int) -> GameUpdate:

@@ -2,9 +2,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from game.engine import Discard, EventType, GameEndCause, GameEndedEvent, GameEvent, PlayerStanding, TimeoutType
+from game.engine import Discard, EventType, GameEndCause, GameEndedEvent, GameEvent, PlayerStanding
 from game.session.models import GameLifecycle, PlayerSpec
-from game.session.timer import TimerConfig
+from game.session.timer import TimeoutType, TimerConfig
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MOCK_GAME_OVER, FakeGameRepository, MockConnection, mock_update
 from shared.dal.models import GameEndReason
@@ -131,7 +131,7 @@ class TestGameCompletionRecording:
 
     async def test_game_history__when_timeout_ends_game__should_record_completed(self, manager_with_repo, game_repo):
         create_started_game(manager_with_repo, player_names=["Alice", "Bob"])
-        manager_with_repo._game_service.handle_timeout = MagicMock(
+        manager_with_repo._game_service.act = MagicMock(
             return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER)
         )
 

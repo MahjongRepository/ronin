@@ -14,7 +14,6 @@ from game.engine import (
     Refusal,
     RefusalCode,
     RefusalKind,
-    TimeoutType,
     WaitKind,
 )
 from game.logic.ai_player import AIPlayer
@@ -26,7 +25,7 @@ from game.session import manager as manager_module
 from game.session.manager import SessionManager
 from game.session.models import GameLifecycle, PlayerSpec
 from game.session.replay_collector import ReplayCollector
-from game.session.timer import TimerConfig
+from game.session.timer import TimeoutType, TimerConfig
 from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import (
@@ -368,13 +367,12 @@ class TestGameEndFromTimeout:
         assert manager.get_playing_game_id("user-0") == "game1"
 
         game = game_of(manager)
-        timed_out = game.awaiting
         bob_timer = bob.timer
         manager._start_meld_timer(bob)
         await fire_turn_timer_now(manager, game_id="game1", seat=alice.seat)
         await wait_for_background_tasks(manager)
         final_wait = game.awaiting
-        assert (final_wait.kind, final_wait.wait_id) == (WaitKind.NONE, timed_out.wait_id + 1)
+        assert final_wait.kind == WaitKind.NONE
         assert bob_timer.task is None
         assert manager.get_playing_game_id("user-0") is None
         assert game_repo.games["game1"].end_reason == GameEndReason.COMPLETED

@@ -16,10 +16,14 @@ from game.engine import (
     EventType,
     HandLimit,
     HandResultInfo,
+    Kan,
+    KanType,
     Pass,
     Pon,
+    Refusal,
+    RefusalCode,
+    RefusalKind,
     RoundEndEvent,
-    TimeoutType,
     WaitKind,
     YakuInfo,
 )
@@ -27,9 +31,11 @@ from game.messaging.game_errors import GameErrorCode
 from game.messaging.types import SessionErrorCode
 from game.session.manager import SessionManager
 from game.session.models import GameLifecycle, GameSession, Participant, Pause, PlayerSpec
-from game.session.timer import TimerConfig, TurnTimer
+from game.session.timer import TimeoutType, TimerConfig, TurnTimer
+from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import FakeGameRepository, MockConnection
+from game.tests.unit.logic.helpers import _update_player
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 from shared.dal.models import GameEndReason
@@ -54,6 +60,7 @@ if TYPE_CHECKING:
 
 
 ARMING_CONFIG = TimerConfig(base_turn_seconds=5, initial_bank_seconds=20)
+HAKU_COPIES = [tile_copies(copy, honors="5")[0] for copy in range(4)]
 
 
 def _double_ron_round_end() -> RoundEndEvent:
@@ -79,7 +86,7 @@ def _arm_double_ron_round_over_pause(manager: SessionManager, participant: Parti
     participant.connection = MockConnection()
     participant.game.participants.append(participant)
     manager._open_round_over_pause(participant.game, [_double_ron_round_end()])
-    round_over = Awaiting(kind=WaitKind.ROUND_OVER, seats=frozenset(), wait_id=1, round_number=0)
+    round_over = Awaiting(kind=WaitKind.ROUND_OVER, seats=frozenset(), round_number=0)
     manager._start_wait_timers(participant.game, awaiting=round_over)
 
 
@@ -211,6 +218,35 @@ class TestWaitTimers:
 
         await manager.shutdown()
 
+    async def test_turn_timer__when_a_closed_kan_returns_the_turn_to_the_seat__should_open_a_new_decision(
+        self, seeded_engine
+    ):
+        manager = make_session_manager(seeded_engine)
+        conns = create_started_game(manager, player_names=["Alice", "Bob"])
+        alice = participant_of(manager, conns[0])
+        assert game_of(manager).awaiting.seats == frozenset({alice.seat})
+        hand = runtime_of(manager).state.round_state.players[alice.seat].tiles
+        _update_player(
+            runtime_of(manager),
+            seat=alice.seat,
+            tiles=(*[tile for tile in hand if tile not in HAKU_COPIES][:10], *HAKU_COPIES),
+        )
+        kan_decision, kan_deadline = alice.decision_id, alice.timer.task
+
+        manager.handle_game_action(
+            conns[0], action=Kan(kan_type=KanType.CLOSED, tile=HAKU_COPIES[0]), called_tile=None, wait_id=kan_decision
+        )
+        awaiting = game_of(manager).awaiting
+        assert (awaiting.kind, awaiting.seats) == (WaitKind.TURN, frozenset({alice.seat}))
+        assert alice.decision_id == kan_decision + 1
+        [replacement_draw] = [
+            m for m in conns[0].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DRAW]
+        ]
+        assert replacement_draw[WireKey.WAIT_ID] == kan_decision + 1
+        assert alice.timer.task not in (None, kan_deadline)
+
+        await manager.shutdown()
+
     async def test_call_bank__when_callers_time_out__should_exhaust_their_reserves_and_pass(
         self, seeded_engine, fake_clock, held_sleep
     ):
@@ -260,6 +296,7 @@ class TestWaitTimers:
         conns[0]._outbox.clear()
         manager.confirm_round(conns[0], wait_id=current_wait_id(manager, conns[0]))
         second_round = manager.get_game("game1").awaiting
+        second_round_decision = current_wait_id(manager, conns[0])
         assert (second_round.round_number, second_round.seats) == (1, frozenset({alice_seat}))
         assert timer._bank_seconds == first_round_bank
         opening_draw = next(
@@ -279,7 +316,7 @@ class TestWaitTimers:
             )
         next_wait = manager.get_game("game1").awaiting
         assert next_wait.round_number == 1
-        assert next_wait.wait_id != second_round.wait_id
+        assert current_wait_id(manager, conns[0]) == second_round_decision + 1
         assert timer.bank_seconds == first_round_bank - 3
 
         await manager.shutdown()
@@ -377,12 +414,13 @@ class TestTimerCallbackLifecycle:
         alice_seat = participant_of(manager, conns[0]).seat
         timer = participant_of(manager, conns[0]).timer
         timed_out = manager.get_game("game1").awaiting
+        timed_out_decision = current_wait_id(manager, conns[0])
 
         fired = fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
         await fired
         successor = manager.get_game("game1").awaiting
         assert (successor.kind, successor.seats) == (timed_out.kind, timed_out.seats)
-        assert successor.wait_id != timed_out.wait_id
+        assert current_wait_id(manager, conns[0]) == timed_out_decision + 1
         draws_after_timeout = [
             m for m in conns[0].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.DRAW]
         ]
@@ -412,14 +450,16 @@ class TestTimerCallbackLifecycle:
 
         await manager.shutdown()
 
-    async def test_turn_timeout__when_callback_raises__should_fail_the_game_instead_of_stalling(
+    async def test_turn_timeout__when_the_engine_refuses_the_default_action__should_fail_the_game_instead_of_stalling(
         self, seeded_engine, tmp_path
     ):
         game_repo = FakeGameRepository()
         manager = make_session_manager(seeded_engine, repository=game_repo, storage=LocalReplayStorage(tmp_path))
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = participant_of(manager, conns[0]).seat
-        seeded_engine.handle_timeout = MagicMock(side_effect=RuntimeError("engine fault"))
+        seeded_engine.act = MagicMock(
+            return_value=Refusal(kind=RefusalKind.NOT_OFFERED, code=RefusalCode.TILE_NOT_HELD),
+        )
 
         await fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
         await wait_for_background_tasks(manager)

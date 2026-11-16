@@ -23,7 +23,6 @@ from game.logic.enums import (
     AIPlayerType,
     KanType,
     MeldCallType,
-    TimeoutType,
 )
 from game.logic.exceptions import GeneratedActionError
 from game.logic.game import init_game
@@ -46,7 +45,7 @@ from game.logic.types import (
 )
 from game.tests.helpers.builders import create_dealt_game_state, create_player, start_game_in_play
 from game.tests.helpers.hands import tile_copies
-from game.tests.unit.logic.helpers import _find_player, _update_round_state
+from game.tests.unit.logic.helpers import _update_round_state
 
 NOT_OFFERED = Refusal(kind=RefusalKind.NOT_OFFERED, code=RefusalCode.NOT_OFFERED)
 TILE_NOT_HELD = Refusal(kind=RefusalKind.NOT_OFFERED, code=RefusalCode.TILE_NOT_HELD)
@@ -360,10 +359,8 @@ class TestPendingCallPromptStateGate:
         runtime = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({}))
         own_tile = game_state.round_state.players[0].tiles[-1]
 
-        wait_id_before = runtime.wait_id
         assert MahjongGameService().act(runtime, 0, turn_action_of(own_tile)) == SEAT_NOT_AWAITED
         assert runtime.state is game_state
-        assert runtime.wait_id == wait_id_before
 
 
 def _kuikae_seat_after_chi() -> tuple[MahjongGameState, int, int]:
@@ -490,16 +487,6 @@ class TestServerGeneratedActionRefusals:
         ):
             service._process_ai_player_followup(runtime)
         assert runtime.state is game_state
-
-    def test_turn_timeout__when_default_discard_is_refused__should_raise_instead_of_kicking(self, service, runtime):
-        player_seat = _find_player(runtime.state.round_state, "Player").seat
-        assert runtime.state.round_state.current_player_seat == player_seat
-
-        with (
-            patch("game.logic.mahjong_service.choose_default_discard", return_value=999),
-            pytest.raises(GeneratedActionError, match=r"Discard\(tile=999\) refused: not_offered: tile_not_held"),
-        ):
-            service.handle_timeout(runtime, seat=player_seat, timeout_type=TimeoutType.TURN)
 
     def test_act__when_the_seat_is_ai_controlled__should_raise_as_a_server_fault(self, service, runtime):
         ai_player_seat = min(runtime.ai.ai_player_seats)

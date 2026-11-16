@@ -14,15 +14,14 @@ of its one preset); read it before changing or testing a rule, and update it whe
 * Domain events (`events.py`) carry integer tile ids only (136-format) and their own routing target, a broadcast or
   one seat. Domain models keep readable field names and full point values; `messaging/` owns explicit protocol
   serialization, including numeric keys, integer enum codes and scaled scores.
-* The runtime's `wait_id` (`GameRuntime`, beside the frozen state) identifies the current wait and
-  changes exactly when a call ends it (`mahjong_service.py` holds the rule); the session drives its
-  timers from it. This global counter stays server-only. Client actions use separate participant decision ids owned by the session,
-  so the engine API carries no wire id.
-* One dispatch pipeline for humans, AI and timeouts. A human's refused action is returned before the commit: nothing
+* The engine holds no decision identity and no timeout: `Awaiting` says only what the game waits for, and which wait
+  is new, its decision ids, its timers and what a timeout plays (the seat's `default_action`, through `act`) are the
+  session's.
+* One dispatch pipeline for humans and AI. A human's refused action is returned before the commit: nothing
   is stored and no AI turn runs. `AIPlayerController` only decides; every state change goes through
   `MahjongGameService`.
 * Player type is a service-layer fact: the player model has no AI flag, only `AIPlayerController` knows. Names and
-  AI flags go out once in `game_started`; later events use seats. `act` and `handle_timeout` act only for
+  AI flags go out once in `game_started`; later events use seats. `act` acts only for
   a human seat; one for an AI seat is a server fault, since the session only ever acts for a connected human.
 * A call plays every AI turn it reaches, unless the service is built with `pace_ai_turns` (the live server), which
   stops before each AI player's turn action (`MahjongGameService`). AI answers to call prompts never wait. Both modes
@@ -93,8 +92,8 @@ and message are messaging's.
   is not waiting on, or for another decision than the seat's (a pass on its own turn, a discard during a call), a race
   the server can detect from state alone.
 * **Server fault**: everything else raises, with no blame guessing and no fabricated pass, win or retry. An action the
-  engine made itself (an AI decision or a timeout default) that is refused raises `GeneratedActionError`, so a refusal
-  never counts as AI progress.
+  engine made itself (an AI decision) that is refused raises `GeneratedActionError`, so a refusal never counts as AI
+  progress.
 
 Validation completes before a handler returns and the service stores only an `ActionResult`, so a refusal never
 leaves a partial state.

@@ -92,7 +92,6 @@ class TestMahjongGameServiceAdvanceAITurn:
         discarders_per_call = []
         while awaiting.kind == WaitKind.AI_TURN:
             update = service.advance_ai_turn(runtime)
-            assert update.awaiting.wait_id == awaiting.wait_id + 1
             discarders_per_call.append([e.seat for e in update.events if isinstance(e, DiscardEvent)])
             events.extend(update.events)
             awaiting = update.awaiting
@@ -125,7 +124,6 @@ class TestMahjongGameServiceBeginRound:
         in_play = start_game_in_play(MahjongGameService(), "game1", ["Alice", "Bob"], seed="c" * 192)
         assert begun.events == in_play.events[len(start.events) :]
         assert begun.awaiting.kind == WaitKind.TURN
-        assert begun.awaiting.wait_id != start.awaiting.wait_id
         assert runtime.state.round_state == in_play.runtime.state.round_state
 
 
@@ -327,22 +325,6 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         assert runtime.state.round_state.result is None
 
 
-class TestAwaiting:
-    def test_awaiting__when_closed_kan_draws_a_replacement__should_open_a_new_wait_for_the_same_seat(self):
-        service = MahjongGameService()
-        start = start_game_in_play(service, "game1", ["Alice"], seed="a" * 192)
-        runtime = start.runtime
-        seat = start.seats[0]
-        hand = TilesConverter.string_to_136_array(man="1111", pin="234567", sou="2345")
-        _update_player(runtime, seat=seat, tiles=tuple(hand))
-        waiting = service.get_awaiting(runtime)
-        assert (waiting.kind, waiting.seats) == (WaitKind.TURN, frozenset({seat}))
-
-        update = service.act(runtime, seat, Kan(kan_type=KanType.CLOSED, tile=hand[0]))
-        assert [e.type for e in update.events if e.type == EventType.DRAW] == [EventType.DRAW]
-        assert update.awaiting == replace(waiting, wait_id=waiting.wait_id + 1)
-
-
 class TestSeedDeterminism:
     def test_start_game__when_same_seed__should_deal_identical_games(self):
         service1 = MahjongGameService()
@@ -485,11 +467,7 @@ class TestMahjongGameServiceRestoreHumanPlayer:
         assert (handed_over.events, handed_over.awaiting.kind) == ([], WaitKind.AI_TURN)
 
         restored = service.restore_human_player(runtime, seat)
-        assert (restored.kind, restored.seats, restored.wait_id) == (
-            WaitKind.TURN,
-            frozenset({seat}),
-            handed_over.awaiting.wait_id + 1,
-        )
+        assert (restored.kind, restored.seats) == (WaitKind.TURN, frozenset({seat}))
 
 
 def _latest_discard_seat(service: MahjongGameService, runtime: GameRuntime) -> int | None:

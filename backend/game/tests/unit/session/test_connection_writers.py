@@ -1,5 +1,6 @@
-from game.engine import EventType, TimeoutType
+from game.engine import EventType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
+from game.session.timer import TimeoutType
 from game.tests.mocks import MockConnection
 from game.wire.compact import decode_discard
 from game.wire.events import EVENT_TYPE_INT

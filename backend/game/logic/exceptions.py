@@ -100,7 +100,7 @@ class UnsupportedSettingsError(Exception):
 
 class GeneratedActionError(Exception):
     """
-    The engine refused an action the server made on a seat's behalf (an AI decision or a timeout default).
+    The engine refused an action it made itself on an AI player's behalf.
 
-    The server generated it, so the refusal is a server fault that ends the game, never the seat's fault.
+    The engine generated it, so the refusal is a server fault that ends the game, never the seat's fault.
     """
