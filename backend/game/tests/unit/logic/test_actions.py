@@ -1,8 +1,9 @@
 import pytest
 
 from game.logic.action_handlers import handle_tsumo
-from game.logic.actions import get_available_actions
-from game.logic.enums import AIPlayerType, PlayerAction
+from game.logic.actions import build_decision, get_available_actions
+from game.logic.decision import Kan, Tsumo
+from game.logic.enums import AIPlayerType, KanType, PlayerAction
 from game.logic.exceptions import InvalidGameActionError
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
@@ -55,6 +56,8 @@ class TestGetAvailableActions:
         kan_actions = [a for a in actions if a.action == PlayerAction.KAN]
         assert len(kan_actions) == 1
         assert kan_actions[0].tiles == _string_to_34_tiles(man="123")
+        legal_kans = [a for a in build_decision(game_state, seat=0).legal if isinstance(a, Kan)]
+        assert legal_kans == [Kan(kan_type=KanType.CLOSED, tile=tile) for tile in tile_copies(0, man="123")]
 
 
 def _dealer_after_draw(hand: tuple[int, ...]) -> MahjongGameState:
@@ -90,6 +93,7 @@ class TestTsumoAfterOwnCall:
 
         drawn_actions = get_available_actions(drawn_game, seat=0)
         assert PlayerAction.TSUMO in [a.action for a in drawn_actions]
+        assert Tsumo() in build_decision(drawn_game, seat=0).legal
 
         after_pon_actions = get_available_actions(after_pon_game, seat=0)
         assert PlayerAction.TSUMO not in [a.action for a in after_pon_actions]
@@ -107,3 +111,4 @@ class TestAddedKanAction:
         added_kan_actions = [a for a in actions if a.action == PlayerAction.ADDED_KAN]
         assert len(added_kan_actions) == 1
         assert added_kan_actions[0].tiles == [_string_to_34_tile(man="1")]
+        assert build_decision(game_state, seat=0).legal[-1] == Kan(kan_type=KanType.ADDED, tile=one_man[3])

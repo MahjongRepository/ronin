@@ -1,8 +1,7 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import structlog
-from pydantic import BaseModel, ValidationError
 
 from game.logic.action_handlers import (
     handle_chi,
@@ -16,9 +15,11 @@ from game.logic.action_handlers import (
     handle_tsumo,
 )
 from game.logic.action_result import Refusal, create_draw_event, create_turn_event
+from game.logic.actions import build_decision
 from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
-from game.logic.enums import GameAction, GameErrorCode, GamePhase, RoundPhase, TimeoutType, WaitKind, WindName
+from game.logic.decision import Action, Chi, Decision, Discard, Kan, Kyuushu, Pass, Pon, Riichi, Ron, Tsumo
+from game.logic.enums import GameErrorCode, GamePhase, RoundPhase, TimeoutType, WaitKind, WindName
 from game.logic.events import (
     ErrorEvent,
     GameEndedEvent,
@@ -58,16 +59,11 @@ from game.logic.turn import (
     process_draw_phase,
 )
 from game.logic.types import (
-    ChiActionData,
-    DiscardActionData,
     ExhaustiveDrawResult,
     GamePlayerInfo,
-    KanActionData,
     NagashiManganResult,
     PlayerReconnectState,
-    PonActionData,
     ReconnectionSnapshot,
-    RiichiActionData,
     RoundResult,
     StartPosition,
 )
@@ -104,14 +100,6 @@ class _RoundHeader:
     round_number: int
     round_in_wind: int
     honba_sticks: int
-
-
-def _parse_action_data[T: BaseModel](model: type[T], *, action: GameAction, seat: int, data: dict[str, Any]) -> T:
-    try:
-        return model(**data)
-    except ValidationError as e:
-        error_types = [err["type"] for err in e.errors(include_input=False)]
-        raise InvalidGameActionError(action=action.value, seat=seat, reason=f"malformed data: {error_types}") from e
 
 
 def _current_round_number(game_state: MahjongGameState) -> int:
@@ -294,25 +282,42 @@ class MahjongGameService(GameService):
         """
         return [get_player_view(game_state, seat) for seat in range(NUM_PLAYERS)]
 
-    def handle_action(
-        self,
-        runtime: GameRuntime,
-        *,
-        seat: int,
-        action: GameAction,
-        data: dict[str, Any],
-    ) -> GameUpdate:
+    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
         """
-        Handle a game action from the player at a seat.
+        Apply one action of the player at a seat.
 
         Processes the action and triggers AI player turns as needed. An action for an AI player's seat is a server
         fault.
         """
         call = self._begin_call(runtime)
         self._require_human_seat(runtime, seat)
-        logger.debug("player action", action=action, action_data=data)
-        events = self._run_action(runtime, call.state, seat=seat, action=action, data=data)
+        logger.debug("player action", action=action)
+        events = self._run_action(runtime, call.state, seat=seat, action=action)
         return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
+
+    def decision(self, runtime: GameRuntime, seat: int) -> Decision | None:
+        """
+        Return what the seat may do now, or None when the game does not await it.
+        """
+        _, seats = self._current_wait(runtime)
+        if seat not in seats:
+            return None
+
+        return build_decision(runtime.state, seat)
+
+    def legal_actions(self, runtime: GameRuntime, seat: int) -> tuple[Action, ...]:
+        """
+        Return every action the seat may take now; none when the game does not await it.
+        """
+        decision = self.decision(runtime, seat)
+        return decision.legal if decision is not None else ()
+
+    def default_action(self, runtime: GameRuntime, seat: int) -> Action | None:
+        """
+        Return the action a timeout takes for the seat, never a win or a call; None when the game does not await it.
+        """
+        decision = self.decision(runtime, seat)
+        return decision.default if decision is not None else None
 
     def _run_action(
         self,
@@ -320,8 +325,7 @@ class MahjongGameService(GameService):
         game_state: MahjongGameState,
         *,
         seat: int,
-        action: GameAction,
-        data: dict[str, Any],
+        action: Action,
     ) -> list[GameEvent]:
         """
         Run a player's action and the AI players' turns it leads to; return the events.
@@ -330,7 +334,7 @@ class MahjongGameService(GameService):
             logger.warning(
                 "action rejected: round not in progress",
                 phase=game_state.round_state.phase.value,
-                action=action.value,
+                action=action,
             )
             return self._create_error_event(
                 code=GameErrorCode.INVALID_ACTION,
@@ -338,7 +342,7 @@ class MahjongGameService(GameService):
                 seat=seat,
             )
 
-        result = self._dispatch_action(game_state, seat=seat, action=action, data=data)
+        result = self._dispatch_action(game_state, seat=seat, action=action)
         if isinstance(result, Refusal):
             return self._create_error_event(code=result.code, message=result.message, seat=seat)
 
@@ -366,14 +370,7 @@ class MahjongGameService(GameService):
         events = self._process_action_result_internal(runtime, result)
         return self._append_furiten_changes(runtime, events)
 
-    def _dispatch_generated_action(
-        self,
-        runtime: GameRuntime,
-        *,
-        seat: int,
-        action: GameAction,
-        data: dict[str, Any],
-    ) -> ActionResult:
+    def _dispatch_generated_action(self, runtime: GameRuntime, *, seat: int, action: Action) -> ActionResult:
         """
         Dispatch an action the server made for a seat: an AI decision or a timeout default.
 
@@ -381,12 +378,12 @@ class MahjongGameService(GameService):
         kick the seat or count the refusal as progress.
         """
         try:
-            result = self._dispatch_action(runtime.state, seat=seat, action=action, data=data)
+            result = self._dispatch_action(runtime.state, seat=seat, action=action)
         except InvalidGameActionError as e:
-            raise GeneratedActionError(f"seat {seat} {action.value} refused: {e.reason}") from e
+            raise GeneratedActionError(f"seat {seat} {action} refused: {e.reason}") from e
 
         if isinstance(result, Refusal):
-            raise GeneratedActionError(f"seat {seat} {action.value} refused: {result.code.value}: {result.message}")
+            raise GeneratedActionError(f"seat {seat} {action} refused: {result.code.value}: {result.message}")
 
         return result
 
@@ -394,8 +391,7 @@ class MahjongGameService(GameService):
         self,
         game_state: MahjongGameState,
         seat: int,
-        action: GameAction,
-        data: dict[str, Any],
+        action: Action,
     ) -> ActionResult | Refusal:
         """
         Dispatch a game action to the appropriate handler.
@@ -403,40 +399,24 @@ class MahjongGameService(GameService):
         Single entry point for all action dispatch: player actions, AI decisions and timeout defaults.
         """
         match action:
-            # No-data actions
-            case GameAction.DECLARE_TSUMO:
+            case Discard():
+                return handle_discard(game_state, seat=seat, action=action)
+            case Riichi():
+                return handle_riichi(game_state, seat=seat, action=action)
+            case Tsumo():
                 return handle_tsumo(game_state, seat=seat)
-            case GameAction.CALL_RON:
+            case Ron():
                 return handle_ron(game_state, seat=seat)
-            case GameAction.CALL_KYUUSHU:
+            case Kyuushu():
                 return handle_kyuushu(game_state, seat=seat)
-            case GameAction.PASS:
+            case Pass():
                 return handle_pass(game_state, seat=seat)
-            # Data actions
-            case GameAction.DISCARD:
-                return handle_discard(
-                    game_state,
-                    seat=seat,
-                    data=_parse_action_data(DiscardActionData, action=action, seat=seat, data=data),
-                )
-            case GameAction.DECLARE_RIICHI:
-                return handle_riichi(
-                    game_state,
-                    seat=seat,
-                    data=_parse_action_data(RiichiActionData, action=action, seat=seat, data=data),
-                )
-            case GameAction.CALL_PON:
-                return handle_pon(
-                    game_state, seat=seat, data=_parse_action_data(PonActionData, action=action, seat=seat, data=data)
-                )
-            case GameAction.CALL_CHI:
-                return handle_chi(
-                    game_state, seat=seat, data=_parse_action_data(ChiActionData, action=action, seat=seat, data=data)
-                )
-            case GameAction.CALL_KAN:
-                return handle_kan(
-                    game_state, seat=seat, data=_parse_action_data(KanActionData, action=action, seat=seat, data=data)
-                )
+            case Pon():
+                return handle_pon(game_state, seat=seat)
+            case Chi():
+                return handle_chi(game_state, seat=seat, action=action)
+            case Kan():
+                return handle_kan(game_state, seat=seat, action=action)
             case _:  # pragma: no cover (exhaustive)
                 raise AssertionError(f"action {action} has no handler")
 
@@ -554,18 +534,11 @@ class MahjongGameService(GameService):
 
         return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
 
-    def _run_generated_action(
-        self,
-        runtime: GameRuntime,
-        *,
-        seat: int,
-        action: GameAction,
-        data: dict[str, Any],
-    ) -> list[GameEvent]:
+    def _run_generated_action(self, runtime: GameRuntime, *, seat: int, action: Action) -> list[GameEvent]:
         """
         Run a timeout's default action for a seat, then the AI players' turns it leads to.
         """
-        result = self._dispatch_generated_action(runtime, seat=seat, action=action, data=data)
+        result = self._dispatch_generated_action(runtime, seat=seat, action=action)
         events = self._commit_and_process(runtime, result)
         return self._continue_with_ai_players(runtime, events)
 
@@ -584,7 +557,7 @@ class MahjongGameService(GameService):
 
         tile_id = choose_default_discard(round_state.players[seat])
         logger.info("turn timeout, auto-discarding", tile_id=tile_id)
-        return self._run_generated_action(runtime, seat=seat, action=GameAction.DISCARD, data={"tile_id": tile_id})
+        return self._run_generated_action(runtime, seat=seat, action=Discard(tile=tile_id))
 
     def _handle_meld_timeout(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
         """
@@ -595,7 +568,7 @@ class MahjongGameService(GameService):
             return []
 
         logger.info("meld timeout, auto-passing")
-        return self._run_generated_action(runtime, seat=seat, action=GameAction.PASS, data={})
+        return self._run_generated_action(runtime, seat=seat, action=Pass())
 
     def _create_error_event(
         self,
@@ -655,9 +628,9 @@ class MahjongGameService(GameService):
                 tile_id=prompt.tile_id,
                 caller=prompt.caller(seat),
             )
-            action, data = response if response is not None else (GameAction.PASS, {})
-            logger.debug("AI player call response", action=action.value, ai_seat=seat)
-            result = self._dispatch_generated_action(runtime, seat=seat, action=action, data=data)
+            action = response if response is not None else Pass()
+            logger.debug("AI player call response", action=action, ai_seat=seat)
+            result = self._dispatch_generated_action(runtime, seat=seat, action=action)
             runtime.commit(result.state)
             events.extend(result.events)
 
@@ -909,11 +882,10 @@ class MahjongGameService(GameService):
         """
         Execute a single AI player turn action; an AI that has no action or makes a refused one is a server fault.
         """
-        action_data = runtime.ai.get_turn_action(seat, runtime.state.round_state)
-        if action_data is None:
+        action = runtime.ai.get_turn_action(seat, runtime.state.round_state)
+        if action is None:
             raise GeneratedActionError(f"AI seat {seat} returned no turn action")
 
-        action, data = action_data
-        logger.debug("AI player action", action=action.value, ai_seat=seat)
-        result = self._dispatch_generated_action(runtime, seat=seat, action=action, data=data)
+        logger.debug("AI player action", action=action, ai_seat=seat)
+        result = self._dispatch_generated_action(runtime, seat=seat, action=action)
         return self._commit_and_process(runtime, result)

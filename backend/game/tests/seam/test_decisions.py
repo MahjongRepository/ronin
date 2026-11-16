@@ -1,0 +1,161 @@
+from game.engine import (
+    Action,
+    CallOpportunity,
+    CallSource,
+    Chi,
+    Discard,
+    ErrorEvent,
+    GameEvent,
+    GameRuntime,
+    Kan,
+    KanType,
+    MahjongGameService,
+    MeldEvent,
+    Pass,
+    Pon,
+    Riichi,
+    Ron,
+    TurnAfterCall,
+    TurnAfterDraw,
+)
+from game.tests.helpers.hands import tile_copies
+from game.tests.helpers.wall import make_start_wall
+
+PLAYERS = ["Alice", "Bob", "Charlie", "Diana"]
+DEALER = 0
+
+
+def _start(hands: tuple[list[int], ...], draws: list[int]) -> tuple[MahjongGameService, GameRuntime]:
+    service = MahjongGameService()
+    runtime = service.start_game("seam", PLAYERS, walls=[make_start_wall(hands, draws=draws)]).runtime
+    service.begin_round(runtime)
+    return service, runtime
+
+
+def _play(service: MahjongGameService, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent]:
+    events = service.act(runtime, seat, action).events
+    assert [e for e in events if isinstance(e, ErrorEvent)] == []
+    return events
+
+
+def test_decision__when_a_turn_follows_a_draw__should_offer_every_discard_then_the_riichi_discards():
+    dealer_hand = tile_copies(0, man="123456789", pin="11", sou="45")
+    drawn_nine_sou = tile_copies(0, sou="9")[0]
+    service, runtime = _start((dealer_hand,), draws=[drawn_nine_sou])
+
+    decision = service.decision(runtime, DEALER)
+    assert decision is not None
+    assert decision.context == TurnAfterDraw(drawn=drawn_nine_sou, rinshan=False, haitei=False)
+    assert decision.legal == (
+        *(Discard(tile=tile) for tile in (*dealer_hand, drawn_nine_sou)),
+        Riichi(tile=drawn_nine_sou),
+    )
+    assert decision.default == Discard(tile=drawn_nine_sou)
+    assert service.legal_actions(runtime, DEALER) == decision.legal
+
+
+def test_decision__when_a_turn_follows_the_seats_own_chi__should_leave_out_the_kuikae_discards():
+    three_man = tile_copies(0, man="3")[0]
+    four_man = tile_copies(0, man="4")[0]
+    plain_five_man, other_plain_five_man = tile_copies(1, man="5")[0], tile_copies(2, man="5")[0]
+    six_man = tile_copies(1, man="6")[0]
+    chi_seat_rest = [*tile_copies(1, pin="2468", sou="246"), *tile_copies(0, honors="12")]
+    hands = (
+        tile_copies(0, pin="123456789", sou="1239"),
+        [four_man, plain_five_man, other_plain_five_man, six_man, *chi_seat_rest],
+        tile_copies(2, pin="123456789", sou="1234"),
+        tile_copies(3, pin="123456789", sou="5678"),
+    )
+    service, runtime = _start(hands, draws=[three_man])
+    _play(service, runtime, DEALER, Discard(tile=three_man))
+    assert service.legal_actions(runtime, 1) == (Chi(tiles=(four_man, plain_five_man)), Pass())
+
+    chi_events = _play(service, runtime, 1, Chi(tiles=(four_man, other_plain_five_man)))
+    assert [e.tile_ids for e in chi_events if isinstance(e, MeldEvent)] == [[three_man, four_man, other_plain_five_man]]
+
+    decision = service.decision(runtime, 1)
+    assert decision is not None
+    assert decision.context == TurnAfterCall(kuikae=(2, 5))
+    assert decision.legal == tuple(Discard(tile=tile) for tile in (plain_five_man, *chi_seat_rest))
+    assert decision.default == Discard(tile=chi_seat_rest[-1])
+
+
+def test_decision__when_a_discard_offers_ron_and_chi__should_list_ron_each_chi_shape_then_pass():
+    four_man = tile_copies(0, man="4")[0]
+    two_man, three_man, red_five_man, six_man = tile_copies(0, man="2356")
+    plain_five_man = tile_copies(1, man="5")[0]
+    hands = (
+        tile_copies(0, pin="56789", sou="3456789", honors="1"),
+        [
+            two_man,
+            three_man,
+            red_five_man,
+            plain_five_man,
+            six_man,
+            *tile_copies(0, man="78", pin="234"),
+            *tile_copies(0, sou="222"),
+        ],
+        tile_copies(1, pin="123456789", sou="3456"),
+        tile_copies(2, pin="123456789", sou="3456"),
+    )
+    service, runtime = _start(hands, draws=[four_man])
+    _play(service, runtime, DEALER, Discard(tile=four_man))
+
+    decision = service.decision(runtime, 1)
+    assert decision is not None
+    assert decision.context == CallOpportunity(tile=four_man, from_seat=DEALER, source=CallSource.DISCARD, houtei=False)
+    assert decision.legal == (
+        Ron(),
+        Chi(tiles=(red_five_man, six_man)),
+        Chi(tiles=(plain_five_man, six_man)),
+        Chi(tiles=(three_man, red_five_man)),
+        Chi(tiles=(three_man, plain_five_man)),
+        Chi(tiles=(two_man, three_man)),
+        Pass(),
+    )
+    assert decision.default == Pass()
+    for seat in (DEALER, 2, 3):
+        assert service.decision(runtime, seat) is None
+        assert service.legal_actions(runtime, seat) == ()
+        assert service.default_action(runtime, seat) is None
+
+
+def test_decision__when_an_added_kan_can_be_robbed__should_offer_the_robber_ron_or_pass():
+    red_five_pin, *held_five_pins = tile_copies(0, pin="5555")
+    four_pin, six_pin = tile_copies(0, pin="4")[0], tile_copies(1, pin="6")[0]
+    north, haku = tile_copies(0, honors="4")[0], tile_copies(1, honors="5")[0]
+    hands = (
+        [*tile_copies(0, pin="1236789"), *tile_copies(1, sou="2468"), *tile_copies(2, honors="12")],
+        [*tile_copies(3, man="123456789"), *tile_copies(2, sou="2468")],
+        [
+            *held_five_pins,
+            *tile_copies(2, man="1479"),
+            *tile_copies(1, sou="3579"),
+            haku,
+            tile_copies(1, honors="6")[0],
+        ],
+        [*tile_copies(1, man="123456789"), *tile_copies(0, sou="11"), four_pin, north],
+    )
+    dealer_filler, seat_1_filler, seat_2_filler = (tile_copies(copy, honors="7")[0] for copy in (3, 2, 1))
+    service, runtime = _start(hands, draws=[red_five_pin, six_pin, dealer_filler, seat_1_filler, seat_2_filler])
+    _play(service, runtime, DEALER, Discard(tile=red_five_pin))
+    assert service.legal_actions(runtime, 2) == (Kan(kan_type=KanType.OPEN, tile=red_five_pin), Pon(), Pass())
+
+    pon_events = _play(service, runtime, 2, Pon())
+    assert [e.tile_ids for e in pon_events if isinstance(e, MeldEvent)] == [[red_five_pin, *held_five_pins[:2]]]
+
+    _play(service, runtime, 2, Discard(tile=haku))
+    _play(service, runtime, 3, Discard(tile=north))
+    _play(service, runtime, DEALER, Discard(tile=dealer_filler))
+    _play(service, runtime, 1, Discard(tile=seat_1_filler))
+    fourth_five_pin = held_five_pins[2]
+    assert Kan(kan_type=KanType.ADDED, tile=fourth_five_pin) in service.legal_actions(runtime, 2)
+
+    _play(service, runtime, 2, Kan(kan_type=KanType.ADDED, tile=red_five_pin))
+    decision = service.decision(runtime, 3)
+    assert decision is not None
+    assert decision.context == CallOpportunity(
+        tile=fourth_five_pin, from_seat=2, source=CallSource.ADDED_KAN, houtei=False
+    )
+    assert decision.legal == (Ron(), Pass())
+    assert decision.default == Pass()

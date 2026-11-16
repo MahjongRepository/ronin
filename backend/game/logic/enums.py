@@ -14,22 +14,6 @@ class PlayerAction(StrEnum):
     KYUUSHU = "kyuushu"
 
 
-class GameAction(StrEnum):
-    """
-    Actions dispatched from client to game service.
-    """
-
-    DISCARD = "discard"
-    DECLARE_RIICHI = "declare_riichi"
-    DECLARE_TSUMO = "declare_tsumo"
-    CALL_RON = "call_ron"
-    CALL_PON = "call_pon"
-    CALL_CHI = "call_chi"
-    CALL_KAN = "call_kan"
-    CALL_KYUUSHU = "call_kyuushu"
-    PASS = "pass"  # noqa: S105
-
-
 class GameErrorCode(StrEnum):
     """
     Error codes of an ErrorEvent: the action was refused and nothing changed.

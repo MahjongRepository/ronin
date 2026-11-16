@@ -2,7 +2,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from game.logic.enums import GameAction, GameErrorCode, RoundPhase, WaitKind
+from game.logic.decision import Discard
+from game.logic.enums import GameErrorCode, RoundPhase, WaitKind
 from game.logic.events import ErrorEvent, EventType, GameEndedEvent, RoundStartedEvent
 from game.logic.mahjong_service import MahjongGameService
 from game.tests.helpers.builders import start_game_in_play
@@ -20,7 +21,7 @@ def _exhaust_the_wall(service: MahjongGameService, runtime: GameRuntime) -> Game
     wall = runtime.state.round_state.wall
     _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
     drawn_tile = runtime.state.round_state.players[current_seat].tiles[-1]
-    return service.handle_action(runtime, seat=current_seat, action=GameAction.DISCARD, data={"tile_id": drawn_tile})
+    return service.act(runtime, current_seat, Discard(tile=drawn_tile))
 
 
 class TestRoundOver:
@@ -66,14 +67,14 @@ class TestRoundOver:
             phase_call(service, runtime)
         assert runtime.state is state_before
 
-    def test_handle_action__when_the_round_is_over__should_return_invalid_action_error(self, service):
+    def test_act__when_the_round_is_over__should_return_invalid_action_error(self, service):
         runtime = start_game_in_play(service, "game1", FOUR_PLAYERS, seed="a" * 192).runtime
         _exhaust_the_wall(service, runtime)
         assert runtime.state.round_state.phase == RoundPhase.FINISHED
         seat = runtime.state.round_state.current_player_seat
         tile_id = runtime.state.round_state.players[seat].tiles[0]
 
-        events = service.handle_action(runtime, seat=seat, action=GameAction.DISCARD, data={"tile_id": tile_id}).events
+        events = service.act(runtime, seat, Discard(tile=tile_id)).events
         assert [(type(e), e.code) for e in events] == [(ErrorEvent, GameErrorCode.INVALID_ACTION)]
         assert "not in progress" in events[0].message
 

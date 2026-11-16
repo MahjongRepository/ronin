@@ -66,8 +66,9 @@ interleave.
   and never advances for other seats or for an absent participant's AI stand-in. The engine's
   global wait id is internal to pacing. A seat not awaited, or an id different from that
   participant's latest, gets the same stale-action `ErrorEvent` and touches neither the engine nor
-  a timer, so guessed ids reveal no hidden waits. Every `ErrorEvent` answering an action, stale or the engine's,
-  names the wait id the action echoed (`messaging/AGENTS.md`, Wait identity).
+  a timer, so guessed ids reveal no hidden waits. A call answer whose called tile is not the open call's is refused
+  by the session too, with that answer's invalid code, and never reaches the engine. Every `ErrorEvent` answering an action, the session's or the
+  engine's, names the wait id the action echoed (`messaging/AGENTS.md`, Wait identity).
 * **Timers need no generation or lifecycle check.** Every path that supersedes a wait (ending it,
   releasing a seat, leaving PENDING, authenticating or evicting a connection, ending the game)
   cancels the timers it supersedes, the delayed AI turn included, so a timer that runs at all runs

@@ -4,8 +4,8 @@ from game.engine import (
     BroadcastTarget,
     CallPromptEvent,
     CallType,
+    Discard,
     EventType,
-    GameAction,
     GameStartedEvent,
     MahjongGameService,
     SeatTarget,
@@ -38,7 +38,7 @@ class TestGameServiceIntegration:
     def service(self):
         return MahjongGameService()
 
-    def test_handle_action__when_human_discards_repeatedly__should_process_multiple_discards(self, service):
+    def test_act__when_human_discards_repeatedly__should_process_multiple_discards(self, service):
         start = start_game_in_play(service, "game1", ["Player"], seed="a" * 192)
         runtime = start.runtime
         human_seat = start.seats[0]
@@ -56,12 +56,7 @@ class TestGameServiceIntegration:
 
             if current_seat == human_seat and player.tiles:
                 tile_to_discard = player.tiles[-1]
-                service.handle_action(
-                    runtime,
-                    seat=human_seat,
-                    action=GameAction.DISCARD,
-                    data={"tile_id": tile_to_discard},
-                )
+                service.act(runtime, human_seat, Discard(tile=tile_to_discard))
                 actions_processed += 1
 
         assert actions_processed >= 2, "expected multiple discards to be processed"
@@ -90,12 +85,7 @@ class TestUnifiedDiscardClaimIntegration:
                 break
 
             tile_to_discard = player.tiles[-1]
-            events = service.handle_action(
-                runtime,
-                seat=human_seat,
-                action=GameAction.DISCARD,
-                data={"tile_id": tile_to_discard},
-            ).events
+            events = service.act(runtime, human_seat, Discard(tile=tile_to_discard)).events
             call_prompt_events = [e for e in events if e.type == EventType.CALL_PROMPT]
             for cp_event in call_prompt_events:
                 found_prompt = True

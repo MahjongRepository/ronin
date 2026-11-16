@@ -1,6 +1,6 @@
 import re
 
-from game.engine import RNG_VERSION, EventType, GameAction, MahjongGameService, RoundEndEvent
+from game.engine import RNG_VERSION, Discard, EventType, MahjongGameService, Ron, RoundEndEvent
 from game.replay import run_replay
 from game.replay.external.tenhou import TenhouConverter
 from game.replay.loader import load_replay_from_bytes
@@ -37,13 +37,9 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_abo
     runtime = start.runtime
     seat_by_player = dict(zip(PLAYERS, start.seats, strict=True))
     recorded_events = list(start.events)
-    recorded_events += service.handle_action(
-        runtime, seat=seat_by_player[DEALER], action=GameAction.DISCARD, data={"tile_id": PIN_3_TRIPLE_RON_DISCARD}
-    ).events
+    recorded_events += service.act(runtime, seat_by_player[DEALER], Discard(tile=PIN_3_TRIPLE_RON_DISCARD)).events
     for player in RON_CALLERS_BY_SEAT_ORDER:
-        recorded_events += service.handle_action(
-            runtime, seat=seat_by_player[player], action=GameAction.CALL_RON, data={}
-        ).events
+        recorded_events += service.act(runtime, seat_by_player[player], Ron()).events
 
     assert len([e for e in recorded_events if isinstance(e, RoundEndEvent)]) == 1
 
@@ -51,8 +47,8 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_abo
     ReplayCollector(FakeReplayStorage()).collect_events(record, recorded_events)
     loaded = load_replay_from_bytes(encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *record.records]))
     assert [(e.player_name, e.action) for e in loaded.events] == [
-        (DEALER, GameAction.DISCARD),
-        *((player, GameAction.CALL_RON) for player in RON_CALLERS_BY_SEAT_ORDER),
+        (DEALER, Discard(tile=PIN_3_TRIPLE_RON_DISCARD)),
+        *((player, Ron()) for player in RON_CALLERS_BY_SEAT_ORDER),
     ]
     tenhou_xml = TenhouConverter(
         decode_replay_records(encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *record.records]))[1:]

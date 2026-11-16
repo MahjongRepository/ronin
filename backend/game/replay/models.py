@@ -1,13 +1,11 @@
-from typing import Any
-
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from game.engine import (
     NUM_PLAYERS,
     NUM_TILES,
     RNG_VERSION,
+    Action,
     ErrorEvent,
-    GameAction,
     GameEvent,
     MahjongGameState,
     StartPosition,
@@ -22,8 +20,7 @@ class ReplayInputEvent(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     player_name: str
-    action: GameAction
-    data: dict[str, Any] = Field(default_factory=dict)
+    action: Action
 
 
 class ReplayInput(BaseModel):

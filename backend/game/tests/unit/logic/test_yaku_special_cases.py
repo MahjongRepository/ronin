@@ -7,6 +7,8 @@ from mahjong.hand_calculating.yaku_list.yakuman import Chiihou, Ryuuiisou, Suuan
 from game.logic.action_handlers import handle_discard, handle_kan, handle_ron, handle_tsumo
 from game.logic.action_result import ActionResult, Refusal
 from game.logic.ai_player_controller import AIPlayerController
+from game.logic.decision import Discard as DiscardAction
+from game.logic.decision import Kan
 from game.logic.enums import KanType
 from game.logic.events import RoundEndEvent
 from game.logic.meld_wrapper import FrozenMeld
@@ -19,7 +21,7 @@ from game.logic.settings import GameSettings
 from game.logic.state import Caller, Discard, MahjongGameState, MahjongPlayer
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_discard_phase, process_draw_phase
-from game.logic.types import DiscardActionData, KanActionData, RonResult, TsumoResult
+from game.logic.types import RonResult, TsumoResult
 from game.tests.helpers.builders import create_dealt_game_state, create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
 from game.tests.unit.logic.helpers import _update_round_state
@@ -48,7 +50,7 @@ class TestTenhouAndChiihou:
         )
         game_state = create_dealt_game_state(players, draws=(drawn_three_pin,))
 
-        discarded = handle_discard(game_state, seat=0, data=DiscardActionData(tile_id=dealer_discard))
+        discarded = handle_discard(game_state, seat=0, action=DiscardAction(tile=dealer_discard))
         assert isinstance(discarded, ActionResult)
         assert discarded.state.round_state.pending_call_prompt is None
         assert discarded.state.round_state.all_discards == (dealer_discard,)
@@ -106,7 +108,7 @@ class TestHaiteiAndHoutei:
         )
         game_state = _before_last_draw(players, drawing_seat=1)
 
-        last_discard = handle_discard(game_state, seat=1, data=DiscardActionData(tile_id=_LAST_EAST))
+        last_discard = handle_discard(game_state, seat=1, action=DiscardAction(tile=_LAST_EAST))
         assert isinstance(last_discard, ActionResult)
         prompt = last_discard.state.round_state.pending_call_prompt
         assert prompt is not None
@@ -145,7 +147,7 @@ def _after_open_kan_on_last_live_tile(rinshan_tile: int) -> MahjongGameState:
     _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:1]}))
 
     prompted, _events = process_discard_phase(runtime.state, nine_sou)
-    kan = handle_kan(prompted, seat=1, data=KanActionData(tile_id=nine_sou, kan_type=KanType.OPEN))
+    kan = handle_kan(prompted, seat=1, action=Kan(kan_type=KanType.OPEN, tile=nine_sou))
     assert isinstance(kan, ActionResult)
     assert kan.state.round_state.players[1].tiles[-1] == rinshan_tile
     assert kan.state.round_state.wall.live_tiles == ()
@@ -161,7 +163,7 @@ class TestRinshanKaihou:
     def test_houtei__when_discarding_after_kan_on_the_last_live_tile__should_allow_only_ron_and_award_houtei(self):
         game_state = _after_open_kan_on_last_live_tile(_LAST_EAST)
 
-        last_discard = handle_discard(game_state, seat=1, data=DiscardActionData(tile_id=_LAST_EAST))
+        last_discard = handle_discard(game_state, seat=1, action=DiscardAction(tile=_LAST_EAST))
         assert isinstance(last_discard, ActionResult)
         prompt = last_discard.state.round_state.pending_call_prompt
         assert prompt is not None
@@ -196,7 +198,7 @@ class TestRinshanKaihou:
         rinshan_tile = game_state.round_state.wall.dead_wall.rinshan[0]
         assert tile_to_34(rinshan_tile) == tile_to_34(north_tanki_with_ittsu[-1])
 
-        kan = handle_kan(game_state, seat=0, data=KanActionData(tile_id=one_man_quad[0], kan_type=KanType.CLOSED))
+        kan = handle_kan(game_state, seat=0, action=Kan(kan_type=KanType.CLOSED, tile=one_man_quad[0]))
         assert isinstance(kan, ActionResult)
         assert kan.state.round_state.players[0].tiles[-1] == rinshan_tile
 

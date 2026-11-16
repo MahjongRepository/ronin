@@ -1,4 +1,4 @@
-from game.engine import GameAction, WaitKind
+from game.engine import Discard, Pass, WaitKind
 from game.messaging.types import SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter
@@ -22,7 +22,7 @@ async def test_decision_ids__when_opponents_pass_private_calls__should_hide_thei
     assert game_of(manager).awaiting.seats == frozenset({alice_seat})
     tile = runtime.state.round_state.players[alice_seat].tiles[-1]
 
-    manager.handle_game_action(alice, action=GameAction.DISCARD, data={"tile_id": tile}, wait_id=draw[WireKey.WAIT_ID])
+    manager.handle_game_action(alice, action=Discard(tile=tile), wait_id=draw[WireKey.WAIT_ID])
     assert game_of(manager).awaiting.kind == WaitKind.CALL
     assert game_of(manager).awaiting.seats == frozenset({caller_seat})
     prompt = next(
@@ -38,7 +38,7 @@ async def test_decision_ids__when_opponents_pass_private_calls__should_hide_thei
         1,
     )
 
-    manager.handle_game_action(caller, action=GameAction.PASS, data={}, wait_id=prompt[WireKey.WAIT_ID])
+    manager.handle_game_action(caller, action=Pass(), wait_id=prompt[WireKey.WAIT_ID])
     assert game_of(manager).awaiting.kind == WaitKind.TURN
     next_draw = next(
         message for message in caller.sent_messages if message.get(WireKey.EVENT_TYPE) == WireEventType.DRAW

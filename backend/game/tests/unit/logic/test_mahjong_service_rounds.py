@@ -6,7 +6,8 @@ from game.logic.action_handlers import handle_discard
 from game.logic.action_result import ActionResult
 from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
-from game.logic.enums import CallType, GameAction, MeldCallType, PromptKind, TimeoutType, WaitKind
+from game.logic.decision import Discard
+from game.logic.enums import CallType, MeldCallType, PromptKind, TimeoutType, WaitKind
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
@@ -22,7 +23,6 @@ from game.logic.service import Awaiting
 from game.logic.state import Caller, MeldOption, PendingCallPrompt
 from game.logic.tiles import tile_to_34
 from game.logic.types import (
-    DiscardActionData,
     ExhaustiveDrawResult,
 )
 from game.logic.win import get_waiting_tiles
@@ -59,7 +59,7 @@ def _dealer_before_ronnable_discard(*, human_seat: int = 0, live_tiles: int | No
 
 
 def _dealer_discard(runtime: GameRuntime) -> ActionResult:
-    result = handle_discard(runtime.state, seat=0, data=DiscardActionData(tile_id=_DEALER_LAST_DISCARD))
+    result = handle_discard(runtime.state, seat=0, action=Discard(tile=_DEALER_LAST_DISCARD))
     assert isinstance(result, ActionResult)
     runtime.commit(result.state)
     return result
@@ -192,12 +192,10 @@ class TestMahjongGameServiceAfterDiscardRoundEnd:
     def service(self):
         return MahjongGameService()
 
-    def test_handle_action__when_ai_passes_ron_on_the_last_discard__should_handle_the_exhaustive_draw(self, service):
+    def test_act__when_ai_passes_ron_on_the_last_discard__should_handle_the_exhaustive_draw(self, service):
         runtime = _dealer_before_ronnable_discard(live_tiles=0)
 
-        update = service.handle_action(
-            runtime, seat=0, action=GameAction.DISCARD, data={"tile_id": _DEALER_LAST_DISCARD}
-        )
+        update = service.act(runtime, 0, Discard(tile=_DEALER_LAST_DISCARD))
         assert [e.type for e in update.events if e.type in (EventType.CALL_PROMPT, EventType.ROUND_END)] == [
             EventType.CALL_PROMPT,
             EventType.ROUND_END,
@@ -223,7 +221,7 @@ class TestMahjongGameServiceProcessAIPlayerFollowupEdgeCases:
             patch.object(runtime.ai, "get_turn_action", return_value=None),
             pytest.raises(GeneratedActionError, match="AI seat 1 returned no turn action"),
         ):
-            service.handle_action(runtime, seat=0, action=GameAction.DISCARD, data={"tile_id": tsumogiri})
+            service.act(runtime, 0, Discard(tile=tsumogiri))
 
 
 class TestGameEndAwaiting:
@@ -231,7 +229,7 @@ class TestGameEndAwaiting:
     def service(self):
         return MahjongGameService()
 
-    def test_handle_action__when_discard_ends_game__should_return_game_end_and_await_nothing(self, service):
+    def test_act__when_discard_ends_game__should_return_game_end_and_await_nothing(self, service):
         runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
         game_state = runtime.state
         player = _find_player(game_state.round_state, "Player")
@@ -257,7 +255,7 @@ class TestGameEndAwaiting:
         tile_id = player.tiles[-1]
 
         waiting = service.get_awaiting(runtime)
-        update = service.handle_action(runtime, seat=player.seat, action=GameAction.DISCARD, data={"tile_id": tile_id})
+        update = service.act(runtime, player.seat, Discard(tile=tile_id))
         game_end_events = [e for e in update.events if e.type == EventType.GAME_END]
         assert len(game_end_events) == 1
         assert update.awaiting == Awaiting(

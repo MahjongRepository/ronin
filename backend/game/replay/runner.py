@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from game.engine import EventType, GameAction, GamePhase, KanType, MahjongGameService, WaitKind
+from game.engine import Chi, EventType, GamePhase, Kan, KanType, MahjongGameService, Pass, Pon, Ron, WaitKind
 from game.replay.loader import ReplayLoadError
 from game.replay.models import (
     ReplayError,
@@ -20,15 +20,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from game.engine import GameRuntime, GameService
-
-
-_CALL_RESPONSE_ACTIONS = frozenset(
-    {
-        GameAction.CALL_PON,
-        GameAction.CALL_CHI,
-        GameAction.CALL_RON,
-    },
-)
 
 
 @dataclass(frozen=True)
@@ -175,7 +166,7 @@ def _reject_manual_pass(replay: ReplayInput) -> None:
     When auto_pass_calls=True, the runner injects synthetic PASS steps automatically. Manual PASS events in the input
     would conflict and produce duplicate pass errors.
     """
-    pass_indices = [i for i, event in enumerate(replay.events) if event.action == GameAction.PASS]
+    pass_indices = [i for i, event in enumerate(replay.events) if isinstance(event.action, Pass)]
     if pass_indices:
         raise ReplayLoadError(
             f"ReplayInput.events contains PASS at indices {pass_indices}, "
@@ -206,12 +197,7 @@ def _run_step(
     _check_step_limit(len(steps), ctx.opts.max_steps)
 
     state_before = ctx.runtime.state
-    events = ctx.service.handle_action(
-        ctx.runtime,
-        seat=seat,
-        action=input_event.action,
-        data=dict(input_event.data),
-    ).events
+    events = ctx.service.act(ctx.runtime, seat, input_event.action).events
 
     if ctx.opts.strict:
         errors = [e for e in events if e.type == EventType.ERROR]
@@ -267,7 +253,7 @@ def _handle_auto_pass_for_input(
     - If the input is a call response from a pending seat, skip that seat
       (it will be processed normally) and auto-pass the remaining seats.
       A ron also spares the seats of the rons that directly follow it in the
-      input: a double or triple ron is recorded as consecutive CALL_RON inputs
+      input: a double or triple ron is recorded as consecutive Ron inputs
       answering the same prompt.
     - Otherwise, auto-pass all pending seats first.
     """
@@ -283,10 +269,10 @@ def _handle_auto_pass_for_input(
         return
 
     responding_seats = {input_seat}
-    if input_event.action == GameAction.CALL_RON:
+    if isinstance(input_event.action, Ron):
         for later_index in range(index + 1, len(events)):
             later_event = events[later_index]
-            if later_event.action != GameAction.CALL_RON:
+            if not isinstance(later_event.action, Ron):
                 break
 
             responding_seats.add(seating.seat_by_player[later_event.player_name])
@@ -298,10 +284,11 @@ def _is_call_response(input_event: ReplayInputEvent) -> bool:
     """
     Tell whether the input answers a call prompt: a closed or added kan is a turn action that needs a new own turn.
     """
-    if input_event.action == GameAction.CALL_KAN:
-        return input_event.data["kan_type"] == KanType.OPEN
+    action = input_event.action
+    if isinstance(action, Kan):
+        return action.kan_type == KanType.OPEN
 
-    return input_event.action in _CALL_RESPONSE_ACTIONS
+    return isinstance(action, Pon | Chi | Ron)
 
 
 def _inject_pass_calls(
@@ -328,5 +315,5 @@ def _inject_pass_calls(
         if ctx.runtime.state.round_state.pending_call_prompt is None:
             break
 
-        pass_event = ReplayInputEvent(player_name=seating.player_by_seat[seat], action=GameAction.PASS)
+        pass_event = ReplayInputEvent(player_name=seating.player_by_seat[seat], action=Pass())
         _run_step(ctx, steps=steps, seat=seat, input_event=pass_event, synthetic=True)

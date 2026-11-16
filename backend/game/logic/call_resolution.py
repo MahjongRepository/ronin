@@ -4,8 +4,8 @@ import structlog
 
 from game.logic.abortive import AbortiveDrawType
 from game.logic.action_result import ActionResult
+from game.logic.decision import CallAnswer, Chi, Kan, Pon, Ron
 from game.logic.enums import (
-    GameAction,
     MeldCallType,
     RoundPhase,
 )
@@ -33,10 +33,10 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger()
 
-_ACTION_TO_MELD_CALL_TYPE = {
-    GameAction.CALL_PON: MeldCallType.PON,
-    GameAction.CALL_CHI: MeldCallType.CHI,
-    GameAction.CALL_KAN: MeldCallType.OPEN_KAN,
+_ANSWER_TO_MELD_CALL_TYPE: dict[type[CallAnswer], MeldCallType] = {
+    Pon: MeldCallType.PON,
+    Chi: MeldCallType.CHI,
+    Kan: MeldCallType.OPEN_KAN,
 }
 
 
@@ -47,7 +47,7 @@ def pick_best_meld_response(meld_responses: list[CallResponse]) -> CallResponse:
     Priority comes from the call actually made, not the best one the seat was offered: a pon or kan beats a chi. No
     seat order is needed: one seat at most can pon or kan a discard, and only the next seat can chi it.
     """
-    return min(meld_responses, key=lambda r: r.action == GameAction.CALL_CHI)
+    return min(meld_responses, key=lambda r: isinstance(r.action, Chi))
 
 
 def _kan_open_to_chankan(prompt: PendingCallPrompt) -> RobbedKan | None:
@@ -114,10 +114,8 @@ def resolve_call_prompt(game_state: MahjongGameState) -> ActionResult:
         raise AssertionError("resolve_call_prompt called with no pending call prompt")
 
     game_state = update_game_with_round(game_state, clear_pending_prompt(game_state.round_state))
-    ron_responses = [r for r in prompt.responses if r.action == GameAction.CALL_RON]
-    meld_responses = [
-        r for r in prompt.responses if r.action in (GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_KAN)
-    ]
+    ron_responses = [r for r in prompt.responses if isinstance(r.action, Ron)]
+    meld_responses = [r for r in prompt.responses if not isinstance(r.action, Ron)]
 
     # priority 1: ron
     if ron_responses:
@@ -136,12 +134,13 @@ def resolve_call_prompt(game_state: MahjongGameState) -> ActionResult:
 
     if meld_responses:
         best = pick_best_meld_response(meld_responses)
-        logger.debug("call resolved: meld", caller_seat=best.seat, call_type=best.action.value)
+        call_type = _ANSWER_TO_MELD_CALL_TYPE[type(best.action)]
+        logger.debug("call resolved: meld", caller_seat=best.seat, call_type=call_type.value)
         meld_input = MeldCallInput(
             caller_seat=best.seat,
-            call_type=_ACTION_TO_MELD_CALL_TYPE[best.action],
+            call_type=call_type,
             tile_id=prompt.tile_id,
-            sequence_tiles=best.sequence_tiles,
+            sequence_tiles=best.action.tiles if isinstance(best.action, Chi) else None,
         )
         new_game_state, meld_events = process_meld_call(new_game_state, meld_input=meld_input)
         return ActionResult(events + meld_events, state=new_game_state)

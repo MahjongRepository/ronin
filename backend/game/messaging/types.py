@@ -3,7 +3,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
 
-from game.engine import NUM_TILES, KanType
+from game.engine import NUM_TILES, Action, Chi, Discard, Kan, KanType, Kyuushu, Pass, Pon, Riichi, Ron, Tsumo
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.wire.enums import SeatControlReason
 from game.wire.keys import WireKey
@@ -47,20 +47,46 @@ class GameActionMessage(BaseModel, frozen=True):
     action: WireGameAction
     wait_id: int = Field(ge=0, strict=True)
 
+    def to_action(self) -> Action:
+        """
+        Return the engine action the message asks for; a round confirmation is the session's and has none.
+        """
+        raise NotImplementedError(f"{self.action.name} is not an engine action")
+
+    @property
+    def called_tile(self) -> int | None:
+        """
+        Return the tile a call answer names as the one it calls, which the engine action does not carry.
+        """
+        return None
+
 
 class DiscardMessage(GameActionMessage):
     action: Literal[WireGameAction.DISCARD] = WireGameAction.DISCARD
     tile_id: int = _TILE_ID_FIELD
+
+    def to_action(self) -> Action:
+        return Discard(tile=self.tile_id)
 
 
 class RiichiMessage(GameActionMessage):
     action: Literal[WireGameAction.DECLARE_RIICHI] = WireGameAction.DECLARE_RIICHI
     tile_id: int = _TILE_ID_FIELD
 
+    def to_action(self) -> Action:
+        return Riichi(tile=self.tile_id)
+
 
 class PonMessage(GameActionMessage):
     action: Literal[WireGameAction.CALL_PON] = WireGameAction.CALL_PON
     tile_id: int = _TILE_ID_FIELD
+
+    def to_action(self) -> Action:
+        return Pon()
+
+    @property
+    def called_tile(self) -> int | None:
+        return self.tile_id
 
 
 class ChiMessage(GameActionMessage):
@@ -71,11 +97,37 @@ class ChiMessage(GameActionMessage):
         Annotated[int, Field(ge=0, lt=NUM_TILES, strict=True)],
     ]
 
+    def to_action(self) -> Action:
+        return Chi(tiles=self.sequence_tiles)
+
+    @property
+    def called_tile(self) -> int | None:
+        return self.tile_id
+
 
 class KanMessage(GameActionMessage):
+    """
+    A kan: an open kan's tile is the discard it calls, a closed or added kan's any tile of the kan's type.
+    """
+
     action: Literal[WireGameAction.CALL_KAN] = WireGameAction.CALL_KAN
     tile_id: int = _TILE_ID_FIELD
     kan_type: KanType
+
+    def to_action(self) -> Action:
+        return Kan(kan_type=self.kan_type, tile=self.tile_id)
+
+    @property
+    def called_tile(self) -> int | None:
+        return self.tile_id if self.kan_type == KanType.OPEN else None
+
+
+_NO_DATA_ACTIONS: dict[WireGameAction, Action] = {
+    WireGameAction.DECLARE_TSUMO: Tsumo(),
+    WireGameAction.CALL_RON: Ron(),
+    WireGameAction.CALL_KYUUSHU: Kyuushu(),
+    WireGameAction.PASS: Pass(),
+}
 
 
 class NoDataActionMessage(GameActionMessage):
@@ -86,6 +138,9 @@ class NoDataActionMessage(GameActionMessage):
         WireGameAction.PASS,
         WireGameAction.CONFIRM_ROUND,
     ]
+
+    def to_action(self) -> Action:
+        return _NO_DATA_ACTIONS[self.action]
 
 
 _AnyGameActionMessage = Annotated[

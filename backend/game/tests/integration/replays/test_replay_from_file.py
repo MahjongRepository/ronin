@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from game.engine import NUM_PLAYERS, RNG_VERSION, EventType, GameAction, RoundEndEvent, SeatTarget
+from game.engine import NUM_PLAYERS, RNG_VERSION, Discard, EventType, RoundEndEvent, SeatTarget
 from game.messaging.event_payload import game_event_payload
 from game.replay import run_replay
 from game.replay.external.tenhou import TenhouConverter
@@ -25,7 +25,7 @@ def test_replay_runner__when_single_discard_replay_loaded__should_produce_consis
     assert replay.rng_version == RNG_VERSION
     assert set(replay.player_names) == {"Ojisan", "Ichihime", "Akagi", "Wanjirou"}
     assert len(replay.events) == 1  # single discard action
-    assert replay.events[0].action == GameAction.DISCARD
+    assert isinstance(replay.events[0].action, Discard)
 
     # Play the replay
     trace = run_replay(replay)

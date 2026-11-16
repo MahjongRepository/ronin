@@ -11,6 +11,7 @@ from game.engine import (
     WIRE_SCORE_DIVISOR,
     AbortiveDrawResult,
     AbortiveDrawType,
+    Discard,
     DiscardEvent,
     DoraRevealedEvent,
     DoubleRonResult,
@@ -18,7 +19,6 @@ from game.engine import (
     DrawEvent,
     EventType,
     ExhaustiveDrawResult,
-    GameAction,
     GameEndCause,
     GameEndedEvent,
     GameEvent,
@@ -27,18 +27,25 @@ from game.engine import (
     GameType,
     HandLimit,
     HandResultInfo,
+    Kan,
     KanType,
+    Kyuushu,
     MahjongGameService,
     MeldEvent,
     MeldViewType,
+    Pass,
     PlayerStanding,
+    Pon,
+    Riichi,
     RiichiDeclaredEvent,
     RobbedKan,
+    Ron,
     RonResult,
     RoundEndEvent,
     SeatTarget,
     StartPosition,
     TenpaiHand,
+    Tsumo,
     TsumoResult,
     WaitKind,
     YakuInfo,
@@ -55,7 +62,7 @@ from game.wire.keys import WireKey
 from game.wire.replay_format import REPLAY_VERSION, decode_replay_records, encode_replay_records, encode_replay_settings
 
 if TYPE_CHECKING:
-    from game.engine import GameStart
+    from game.engine import Action, GameStart
 
 SEED = (
     "23824ff8ec95775ba5bb8de82f2903f25472e4a1f10a54ee31a955210ee871508f95c77bbc51b410531abd33a18d26df"
@@ -503,12 +510,12 @@ def _replay_lines(recorded_events: list[GameEvent]) -> list[dict[int, Any]]:
 
 def _play_and_record_replay_lines(
     wall: tuple[int, ...],
-    actions: list[tuple[int, GameAction, dict[str, Any]]],
+    actions: list[tuple[int, Action]],
 ) -> list[dict[int, Any]]:
     service, start = _start_game(wall)
     recorded_events = list(start.events)
-    for seat, action, data in actions:
-        update = service.handle_action(start.runtime, seat=seat, action=action, data=data)
+    for seat, action in actions:
+        update = service.act(start.runtime, seat, action)
         assert [e for e in update.events if e.type == EventType.ERROR] == []
         recorded_events += update.events
 
@@ -524,12 +531,10 @@ def _play_by_tsumogiri_and_record_replay_lines(
     while awaiting.kind in (WaitKind.TURN, WaitKind.CALL):
         seat = min(awaiting.seats)
         if awaiting.kind == WaitKind.CALL:
-            update = service.handle_action(start.runtime, seat=seat, action=GameAction.PASS, data={})
+            update = service.act(start.runtime, seat, Pass())
         else:
             drawn_tile = start.runtime.state.round_state.players[seat].tiles[-1]
-            update = service.handle_action(
-                start.runtime, seat=seat, action=GameAction.DISCARD, data={"tile_id": drawn_tile}
-            )
+            update = service.act(start.runtime, seat, Discard(tile=drawn_tile))
 
         assert [e for e in update.events if e.type == EventType.ERROR] == []
         recorded_events += update.events
@@ -542,10 +547,10 @@ def _play_by_tsumogiri_and_record_replay_lines(
     ("dealer_response", "agari_hands_melds_yaku_and_seats"),
     [
         pytest.param(
-            GameAction.PASS, [(DAISANGEN_AGARI_HAND, DRAGON_PONS_NEWEST_FIRST, DAISANGEN_YAKU, "1", "3", "2")], id="ron"
+            Pass(), [(DAISANGEN_AGARI_HAND, DRAGON_PONS_NEWEST_FIRST, DAISANGEN_YAKU, "1", "3", "2")], id="ron"
         ),
         pytest.param(
-            GameAction.CALL_RON,
+            Ron(),
             [
                 (DEALER_ITTSUU_AGARI_HAND, "", 'yaku="24,2"', "0", "3", ""),
                 (DAISANGEN_AGARI_HAND, DRAGON_PONS_NEWEST_FIRST, DAISANGEN_YAKU, "1", "3", "2"),
@@ -565,19 +570,19 @@ def test_tenhou_converter__when_daisangen_rons_after_a_liable_pon__should_write_
         action
         for (feeder, dragon), caller_discard in zip(dragon_feeds, DRAGON_CALLER_DISCARDS, strict=True)
         for action in (
-            (feeder, GameAction.DISCARD, {"tile_id": dragon}),
-            (DRAGON_CALLER, GameAction.CALL_PON, {"tile_id": dragon}),
-            (DRAGON_CALLER, GameAction.DISCARD, {"tile_id": caller_discard}),
+            (feeder, Discard(tile=dragon)),
+            (DRAGON_CALLER, Pon()),
+            (DRAGON_CALLER, Discard(tile=caller_discard)),
         )
     ]
     lines = _play_and_record_replay_lines(
         wall,
         [
             *dragon_pons,
-            (DRAGON_FEEDER, GameAction.DISCARD, {"tile_id": NORTH_DISCARD}),
-            (SOU_9_DISCARDER, GameAction.DISCARD, {"tile_id": SOU_9_DISCARD}),
-            (DEALER, dealer_response, {}),
-            (DRAGON_CALLER, GameAction.CALL_RON, {}),
+            (DRAGON_FEEDER, Discard(tile=NORTH_DISCARD)),
+            (SOU_9_DISCARDER, Discard(tile=SOU_9_DISCARD)),
+            (DEALER, dealer_response),
+            (DRAGON_CALLER, Ron()),
         ],
     )
 
@@ -604,14 +609,14 @@ def test_tenhou_converter__when_added_kan_caller_wins_on_the_rinshan_tile__shoul
     lines = _play_and_record_replay_lines(
         _with_first_rinshan_tile(wall, RINSHAN_WEST),
         [
-            (DEALER, GameAction.DISCARD, {"tile_id": PIN_3_PON_DISCARD}),
-            (KAN_CALLER, GameAction.CALL_PON, {"tile_id": PIN_3_PON_DISCARD}),
-            (KAN_CALLER, GameAction.DISCARD, {"tile_id": KAN_CALLER_PON_DISCARD}),
-            (2, GameAction.DISCARD, {"tile_id": SOUTH_DRAWS[1]}),
-            (3, GameAction.DISCARD, {"tile_id": SOUTH_DRAWS[2]}),
-            (DEALER, GameAction.DISCARD, {"tile_id": KAN_GAME_DRAWS[3]}),
-            (KAN_CALLER, GameAction.CALL_KAN, {"tile_id": PIN_3_ADDED, "kan_type": "added"}),
-            (KAN_CALLER, GameAction.DECLARE_TSUMO, {}),
+            (DEALER, Discard(tile=PIN_3_PON_DISCARD)),
+            (KAN_CALLER, Pon()),
+            (KAN_CALLER, Discard(tile=KAN_CALLER_PON_DISCARD)),
+            (2, Discard(tile=SOUTH_DRAWS[1])),
+            (3, Discard(tile=SOUTH_DRAWS[2])),
+            (DEALER, Discard(tile=KAN_GAME_DRAWS[3])),
+            (KAN_CALLER, Kan(kan_type=KanType.ADDED, tile=PIN_3_ADDED)),
+            (KAN_CALLER, Tsumo()),
         ],
     )
 
@@ -661,18 +666,18 @@ ADDED_KAN_TRIPLE_RON_WALL = _with_first_rinshan_tile(
     MAN_5_RINSHAN,
 )
 ADDED_KAN_TRIPLE_RON_ACTIONS = [
-    (DEALER, GameAction.DISCARD, {"tile_id": PIN_3_PON_DISCARD}),
-    (KAN_CALLER, GameAction.CALL_PON, {"tile_id": PIN_3_PON_DISCARD}),
-    (KAN_CALLER, GameAction.DISCARD, {"tile_id": KAN_CALLER_PON_DISCARD}),
-    (2, GameAction.DISCARD, {"tile_id": SOUTH_DRAWS[1]}),
-    (3, GameAction.DISCARD, {"tile_id": SOUTH_DRAWS[2]}),
-    (DEALER, GameAction.DISCARD, {"tile_id": KAN_GAME_DRAWS[3]}),
-    (KAN_CALLER, GameAction.CALL_KAN, {"tile_id": PIN_3_ADDED, "kan_type": "added"}),
-    (KAN_CALLER, GameAction.DISCARD, {"tile_id": KAN_CALLER_WEST_DISCARD}),
-    (2, GameAction.DISCARD, {"tile_id": EAST_DRAWS[0]}),
-    (3, GameAction.DISCARD, {"tile_id": EAST_DRAWS[1]}),
-    (DEALER, GameAction.DISCARD, {"tile_id": MAN_5_RON_DISCARD}),
-    *((seat, GameAction.CALL_RON, {}) for seat in (1, 2, 3)),
+    (DEALER, Discard(tile=PIN_3_PON_DISCARD)),
+    (KAN_CALLER, Pon()),
+    (KAN_CALLER, Discard(tile=KAN_CALLER_PON_DISCARD)),
+    (2, Discard(tile=SOUTH_DRAWS[1])),
+    (3, Discard(tile=SOUTH_DRAWS[2])),
+    (DEALER, Discard(tile=KAN_GAME_DRAWS[3])),
+    (KAN_CALLER, Kan(kan_type=KanType.ADDED, tile=PIN_3_ADDED)),
+    (KAN_CALLER, Discard(tile=KAN_CALLER_WEST_DISCARD)),
+    (2, Discard(tile=EAST_DRAWS[0])),
+    (3, Discard(tile=EAST_DRAWS[1])),
+    (DEALER, Discard(tile=MAN_5_RON_DISCARD)),
+    *((seat, Ron()) for seat in (1, 2, 3)),
 ]
 
 
@@ -681,7 +686,7 @@ ADDED_KAN_TRIPLE_RON_ACTIONS = [
     [
         pytest.param(
             KYUUSHU_WALL,
-            [(DEALER, GameAction.CALL_KYUUSHU, {})],
+            [(DEALER, Kyuushu())],
             "yao9",
             ' hai0="0,4,8,12,16,32,36,68,72,104,108,112,116,124"',
             [],
@@ -689,7 +694,7 @@ ADDED_KAN_TRIPLE_RON_ACTIONS = [
         ),
         pytest.param(
             FOUR_RIICHI_WALL,
-            [(seat, GameAction.DECLARE_RIICHI, {"tile_id": wind}) for seat, wind in enumerate(WIND_DRAWS)],
+            [(seat, Riichi(tile=wind)) for seat, wind in enumerate(WIND_DRAWS)],
             "reach4",
             ' hai0="0,4,8,12,16,20,24,28,32,36,40,44,68"'
             ' hai1="1,5,9,13,17,21,25,29,33,73,77,81,105"'

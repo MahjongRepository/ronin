@@ -9,10 +9,10 @@ from game.logic.action_handlers import (
     handle_tsumo,
 )
 from game.logic.action_result import ActionResult, Refusal
+from game.logic.decision import Discard, Kan, Riichi, Ron
 from game.logic.enums import (
     AbortiveDrawType,
     AIPlayerType,
-    GameAction,
     GameErrorCode,
     KanType,
     MeldViewType,
@@ -35,9 +35,6 @@ from game.logic.state import (
 from game.logic.state_utils import update_player
 from game.logic.types import (
     AbortiveDrawResult,
-    DiscardActionData,
-    KanActionData,
-    RiichiActionData,
     SeatConfig,
 )
 
@@ -66,7 +63,7 @@ class TestHandleDiscardImmutable:
         result = handle_discard(
             game_state,
             seat=0,
-            data=DiscardActionData(tile_id=tile_to_discard),
+            action=Discard(tile=tile_to_discard),
         )
         assert isinstance(result, ActionResult)
         # verify new state is returned
@@ -100,7 +97,7 @@ class TestHandleRiichiImmutable:
         result = handle_riichi(
             game_state,
             seat=0,
-            data=RiichiActionData(tile_id=tile_to_discard),
+            action=Riichi(tile=tile_to_discard),
         )
         assert isinstance(result, ActionResult)
         # should have discard event
@@ -113,7 +110,7 @@ class TestHandleRiichiImmutable:
         game_state = _create_frozen_game_state()
 
         tile_id = TilesConverter.string_to_136_array(man="1")[0]
-        result = handle_riichi(game_state, seat=1, data=RiichiActionData(tile_id=tile_id))
+        result = handle_riichi(game_state, seat=1, action=Riichi(tile=tile_id))
         assert isinstance(result, Refusal)
         assert result.code == GameErrorCode.NOT_YOUR_TURN
 
@@ -203,7 +200,7 @@ class TestHandleRonImmutable:
         assert prompt is not None
         assert len(prompt.responses) == 1
         assert prompt.responses[0].seat == 1
-        assert prompt.responses[0].action == GameAction.CALL_RON
+        assert prompt.responses[0].action == Ron()
         # seat 1 should be removed from pending
         assert 1 not in prompt.pending_seats
         assert 2 in prompt.pending_seats
@@ -228,7 +225,7 @@ class TestHandleKanImmutable:
         result = handle_kan(
             game_state,
             seat=0,
-            data=KanActionData(tile_id=tile_id, kan_type=KanType.CLOSED),
+            action=Kan(kan_type=KanType.CLOSED, tile=tile_id),
         )
         assert isinstance(result, ActionResult)
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
@@ -241,7 +238,7 @@ class TestHandleKanImmutable:
         result = handle_kan(
             game_state,
             seat=1,
-            data=KanActionData(tile_id=0, kan_type=KanType.CLOSED),
+            action=Kan(kan_type=KanType.CLOSED, tile=0),
         )
         assert isinstance(result, Refusal)
         assert result.code == GameErrorCode.NOT_YOUR_TURN

@@ -10,9 +10,10 @@ from game.logic.action_handlers import handle_discard, handle_kan, handle_pass, 
 from game.logic.action_result import ActionResult
 from game.logic.actions import get_available_actions
 from game.logic.ai_player_controller import AIPlayerController
+from game.logic.decision import Discard as DiscardAction
+from game.logic.decision import Kan, Pass, Riichi, Ron
 from game.logic.enums import (
     CallType,
-    GameAction,
     KanType,
     MeldCallType,
     PlayerAction,
@@ -42,7 +43,7 @@ from game.logic.turn import (
     process_draw_phase,
     process_meld_call,
 )
-from game.logic.types import DiscardActionData, KanActionData, MeldCallInput, RiichiActionData
+from game.logic.types import MeldCallInput
 from game.logic.win import get_waiting_tiles
 from game.tests.helpers.builders import create_dealt_game_state, create_player
 from game.tests.helpers.hands import (
@@ -65,10 +66,10 @@ def _create_pin_3_discard_with_three_ron_callers() -> MahjongGameState:
     return create_dealt_game_state(players, riichi_sticks=1)
 
 
-def _respond_to_call_prompt(game_state: MahjongGameState, responses: dict[int, GameAction]) -> ActionResult:
+def _respond_to_call_prompt(game_state: MahjongGameState, responses: dict[int, Ron | Pass]) -> ActionResult:
     result = ActionResult([], state=game_state)
     for seat, action in responses.items():
-        handler = handle_ron if action == GameAction.CALL_RON else handle_pass
+        handler = handle_ron if action == Ron() else handle_pass
         result = handler(result.state, seat=seat)
         assert isinstance(result, ActionResult)
 
@@ -114,7 +115,7 @@ class TestRinshanTsumoAfterOpenKan:
             (1, [MeldCallType.OPEN_KAN, MeldCallType.PON]),
         ]
 
-        kan = handle_kan(prompted, seat=1, data=KanActionData(tile_id=one_man[3], kan_type=KanType.OPEN))
+        kan = handle_kan(prompted, seat=1, action=Kan(kan_type=KanType.OPEN, tile=one_man[3]))
         assert isinstance(kan, ActionResult)
         assert kan.state.round_state.players[1].tiles[-1] == rinshan_five_sou
         assert PlayerAction.TSUMO in [a.action for a in get_available_actions(kan.state, seat=1)]
@@ -134,7 +135,7 @@ class TestExhaustiveDrawPhase:
         runtime = GameRuntime(game_id="game", state=create_dealt_game_state(players), ai=AIPlayerController({}))
         wall = runtime.state.round_state.wall
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
-        discarded = handle_discard(runtime.state, seat=0, data=DiscardActionData(tile_id=last_discard))
+        discarded = handle_discard(runtime.state, seat=0, action=DiscardAction(tile=last_discard))
         assert isinstance(discarded, ActionResult)
         assert discarded.state.round_state.phase == RoundPhase.FINISHED
         assert [type(e) for e in discarded.events] == [DiscardEvent, RoundEndEvent]
@@ -198,7 +199,7 @@ class TestRiichiFuriten:
         assert passed.state.round_state.players[1].tiles[-1] == _RIICHI_SEAT_DRAW
         assert passed.state.round_state.players[1].is_riichi_furiten is True
 
-        own_discard = handle_discard(passed.state, seat=1, data=DiscardActionData(tile_id=_RIICHI_SEAT_DRAW))
+        own_discard = handle_discard(passed.state, seat=1, action=DiscardAction(tile=_RIICHI_SEAT_DRAW))
         assert isinstance(own_discard, ActionResult)
         assert own_discard.state.round_state.players[1].is_riichi_furiten is True
 
@@ -209,7 +210,7 @@ class TestRiichiFuriten:
 
 def _discard(game_state: MahjongGameState, seat: int, tile_id: int) -> ActionResult:
     assert game_state.round_state.current_player_seat == seat
-    result = handle_discard(game_state, seat=seat, data=DiscardActionData(tile_id=tile_id))
+    result = handle_discard(game_state, seat=seat, action=DiscardAction(tile=tile_id))
     assert isinstance(result, ActionResult)
     return result
 
@@ -243,7 +244,7 @@ class TestTemporaryFuriten:
         assert get_waiting_tiles(players[1]) == {tile_to_34(three_man_without_yaku), tile_to_34(six_man_with_ittsu)}
         furiten = FuritenTracker()
 
-        passed = handle_discard(game_state, seat=2, data=DiscardActionData(tile_id=three_man_without_yaku))
+        passed = handle_discard(game_state, seat=2, action=DiscardAction(tile=three_man_without_yaku))
         assert isinstance(passed, ActionResult)
         assert passed.state.round_state.pending_call_prompt is None
         assert furiten.check_changes(passed.state.round_state) == [
@@ -290,7 +291,7 @@ class TestDoubleRonHandError:
         prompted, _events = process_discard_phase(
             _create_pin_3_discard_with_three_ron_callers(), PIN_3_TRIPLE_RON_DISCARD
         )
-        first_winner_declared = _respond_to_call_prompt(prompted, {1: GameAction.CALL_RON, 3: GameAction.PASS})
+        first_winner_declared = _respond_to_call_prompt(prompted, {1: Ron(), 3: Pass()})
 
         def fail_for_second_winner(ctx: ScoringContext, *, tiles: list[int], win_tile: int) -> HandResult:
             if ctx.player.seat == 2:
@@ -348,7 +349,7 @@ def _declare_one_man_added_kan(*, seat_1_hand: Sequence[int]) -> ActionResult:
     )
     game_state = create_dealt_game_state(players)
 
-    result = handle_kan(game_state, seat=0, data=KanActionData(tile_id=_ONE_MAN[3], kan_type=KanType.ADDED))
+    result = handle_kan(game_state, seat=0, action=Kan(kan_type=KanType.ADDED, tile=_ONE_MAN[3]))
     assert isinstance(result, ActionResult)
     return result
 
@@ -425,7 +426,7 @@ def _declare_fourth_riichi(riichi_discard: int) -> ActionResult:
     game_state = create_dealt_game_state(players, riichi_sticks=3)
     assert get_waiting_tiles(players[1]) == {tile_to_34(_FIVE_SOU)}
 
-    result = handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=riichi_discard))
+    result = handle_riichi(game_state, seat=0, action=Riichi(tile=riichi_discard))
     assert isinstance(result, ActionResult)
     return result
 
@@ -482,7 +483,7 @@ class TestAbortiveDrawIntegration:
 
         result = _respond_to_call_prompt(
             prompted_game,
-            {1: GameAction.CALL_RON, 2: GameAction.CALL_RON, 3: GameAction.CALL_RON},
+            {1: Ron(), 2: Ron(), 3: Ron()},
         )
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
@@ -500,7 +501,7 @@ class TestAbortiveDrawIntegration:
         prompted_game, _events = process_discard_phase(game_state, PIN_3_TRIPLE_RON_DISCARD)
         result = _respond_to_call_prompt(
             prompted_game,
-            {1: GameAction.CALL_RON, 2: GameAction.PASS, 3: GameAction.CALL_RON},
+            {1: Ron(), 2: Pass(), 3: Ron()},
         )
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1

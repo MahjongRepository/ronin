@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from contextvars import Context
 
     from game.engine import (
-        GameAction,
+        Action,
         GameEvent,
         GameRuntime,
         GameStart,
@@ -213,8 +213,8 @@ class _StagedEngine(MahjongGameService):
         return update
 
     @override
-    def handle_action(self, runtime: GameRuntime, *, seat: int, action: GameAction, data: dict[str, Any]) -> GameUpdate:
-        update = super().handle_action(runtime, seat=seat, action=action, data=data)
+    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+        update = super().act(runtime, seat, action)
         self._check_draws(update.events)
         return update
 

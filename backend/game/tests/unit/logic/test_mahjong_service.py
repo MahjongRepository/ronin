@@ -6,8 +6,9 @@ from mahjong.tile import TilesConverter
 
 from game.logic.action_result import ActionResult
 from game.logic.ai_player_controller import AIPlayerController
+from game.logic.decision import Discard as DiscardAction
+from game.logic.decision import Kan, Kyuushu, Pon, Ron
 from game.logic.enums import (
-    GameAction,
     GameErrorCode,
     KanType,
     MeldCallType,
@@ -128,15 +129,13 @@ class TestMahjongGameServiceBeginRound:
         assert begun.awaiting.wait_id != start.awaiting.wait_id
         assert runtime.state.round_state == in_play.runtime.state.round_state
 
-    def test_handle_action__when_the_round_is_dealt__should_refuse_the_dealer_discard(self, service):
+    def test_act__when_the_round_is_dealt__should_refuse_the_dealer_discard(self, service):
         start = service.start_game("game1", ["Alice", "Bob", "Carol", "Dave"], seed="c" * 192)
         runtime = start.runtime
         dealer = runtime.state.round_state.players[runtime.state.round_state.dealer_seat]
         dealt_state = runtime.state
 
-        update = service.handle_action(
-            runtime, seat=dealer.seat, action=GameAction.DISCARD, data={"tile_id": dealer.tiles[0]}
-        )
+        update = service.act(runtime, dealer.seat, DiscardAction(tile=dealer.tiles[0]))
         assert [(type(e), e.code) for e in update.events] == [(ErrorEvent, GameErrorCode.INVALID_ACTION)]
         assert runtime.state is dealt_state
         assert update.awaiting == start.awaiting
@@ -185,7 +184,7 @@ def _discard_chun_to_two_ron_callers(service: MahjongGameService) -> tuple[GameR
     )
     game_state = create_dealt_game_state(players, seed="a" * 192)
     runtime = GameRuntime(game_id="game1", state=game_state, ai=AIPlayerController({}))
-    service.handle_action(runtime, seat=0, action=GameAction.DISCARD, data={"tile_id": chun_discard})
+    service.act(runtime, 0, DiscardAction(tile=chun_discard))
     prompt = runtime.state.round_state.pending_call_prompt
     assert prompt is not None
     assert prompt.callers == (Caller(seat=1, can_ron=True), Caller(seat=2, can_ron=True))
@@ -296,7 +295,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
             create_player(seat=3, tiles=(*tile_copies(2, sou="123456789"), *tile_copies(3, honors="1234"))),
         )
         runtime = GameRuntime(game_id="game1", state=create_dealt_game_state(players), ai=AIPlayerController({}))
-        service.handle_action(runtime, seat=0, action=GameAction.DISCARD, data={"tile_id": chun_discard})
+        service.act(runtime, 0, DiscardAction(tile=chun_discard))
         prompt = runtime.state.round_state.pending_call_prompt
         assert prompt is not None
         assert prompt.callers == (Caller(seat=1, can_ron=True),)
@@ -324,7 +323,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
 
     def test_ai_actions_after_replacement__when_prompt_resolution_ends_round__should_handle_round_end(self, service):
         runtime, chun_discard = _discard_chun_to_two_ron_callers(service)
-        service.handle_action(runtime, seat=2, action=GameAction.CALL_RON, data={})
+        service.act(runtime, 2, Ron())
         assert runtime.state.round_state.pending_call_prompt is not None
 
         service.replace_with_ai_player(runtime, 1)
@@ -351,12 +350,7 @@ class TestAwaiting:
         waiting = service.get_awaiting(runtime)
         assert (waiting.kind, waiting.seats) == (WaitKind.TURN, frozenset({seat}))
 
-        update = service.handle_action(
-            runtime,
-            seat=seat,
-            action=GameAction.CALL_KAN,
-            data={"tile_id": hand[0], "kan_type": KanType.CLOSED},
-        )
+        update = service.act(runtime, seat, Kan(kan_type=KanType.CLOSED, tile=hand[0]))
         assert [e.type for e in update.events if e.type == EventType.DRAW] == [EventType.DRAW]
         assert update.awaiting == replace(waiting, wait_id=waiting.wait_id + 1)
 
@@ -415,7 +409,7 @@ class TestSeedDeterminism:
 
         deals = []
         for _ in range(2):
-            service.handle_action(runtime, seat=dealer, action=GameAction.CALL_KYUUSHU, data={})
+            service.act(runtime, dealer, Kyuushu())
             dealt = service.deal_next_round(runtime)
             service.begin_round(runtime)
             deals.append([event for event in dealt.events if isinstance(event, RoundStartedEvent)])
@@ -471,9 +465,7 @@ class TestRoundEndAwaiting:
 
         wall = runtime.state.round_state.wall
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
-        update = service.handle_action(
-            runtime, seat=dealer_seat, action=GameAction.DISCARD, data={"tile_id": dealer_discard}
-        )
+        update = service.act(runtime, dealer_seat, DiscardAction(tile=dealer_discard))
         (round_end,) = [event for event in update.events if event.type == EventType.ROUND_END]
         assert round_end.result.tempai_seats == [tenpai_seat]
 
@@ -649,10 +641,8 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
             walls=[wall],
             start=StartPosition(scores=(50000, 20000, 15000, 15000)),
         ).runtime
-        service.handle_action(
-            runtime, seat=0, action=GameAction.CALL_KAN, data={"tile_id": man_1[3], "kan_type": "closed"}
-        )
-        service.handle_action(runtime, seat=1, action=GameAction.CALL_RON, data={})
+        service.act(runtime, 0, Kan(kan_type=KanType.CLOSED, tile=man_1[3]))
+        service.act(runtime, 1, Ron())
         assert service.get_awaiting(runtime).kind == WaitKind.ROUND_OVER
 
         snapshot = service.build_reconnection_snapshot(runtime, 2)
@@ -687,10 +677,10 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
             ai=AIPlayerController({}),
         )
 
-        service.handle_action(runtime, seat=1, action=GameAction.DISCARD, data={"tile_id": haku})
+        service.act(runtime, 1, DiscardAction(tile=haku))
         assert runtime.state.round_state.pending_call_prompt is not None
         offered = _latest_discard_seat(service, runtime)
-        service.handle_action(runtime, seat=3, action=GameAction.CALL_PON, data={"tile_id": haku})
+        service.act(runtime, 3, Pon())
 
         assert (offered, _latest_discard_seat(service, runtime)) == (1, None)
 
@@ -757,17 +747,13 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         )
         after_the_draw = _latest_discard_seat(service, runtime)
 
-        service.handle_action(
-            runtime, seat=1, action=GameAction.CALL_KAN, data={"tile_id": man_1[0], "kan_type": KanType.CLOSED}
-        )
+        service.act(runtime, 1, Kan(kan_type=KanType.CLOSED, tile=man_1[0]))
         assert len(runtime.state.round_state.players[1].melds) == 2
         after_the_closed_kan = _latest_discard_seat(service, runtime)
-        service.handle_action(
-            runtime, seat=1, action=GameAction.CALL_KAN, data={"tile_id": sou_5[3], "kan_type": KanType.ADDED}
-        )
+        service.act(runtime, 1, Kan(kan_type=KanType.ADDED, tile=sou_5[3]))
         assert runtime.state.round_state.pending_call_prompt is not None
         in_the_chankan_window = _latest_discard_seat(service, runtime)
-        service.handle_action(runtime, seat=2, action=GameAction.CALL_RON, data={})
+        service.act(runtime, 2, Ron())
         assert runtime.state.round_state.result is not None
 
         assert (after_the_draw, after_the_closed_kan, in_the_chankan_window) == (None, None, None)
@@ -819,6 +805,7 @@ class TestMahjongGameServiceBuildWaitEventsForSeat:
 
         events = service.build_wait_events_for_seat(runtime, dealer_seat)
         assert [a.action for a in events[0].available_actions] == [PlayerAction.KYUUSHU]
+        assert service.legal_actions(runtime, dealer_seat)[-1] == Kyuushu()
 
     def test_build_wait_events_for_seat__when_right_after_own_call__should_return_turn_event_with_kuikae(self, service):
         runtime = start_game_in_play(service, "game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192).runtime
@@ -869,7 +856,7 @@ class TestMahjongGameServiceBuildWaitEventsForSeat:
         wall = runtime.state.round_state.wall
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
         drawn_tile = runtime.state.round_state.players[current_seat].tiles[-1]
-        service.handle_action(runtime, seat=current_seat, action=GameAction.DISCARD, data={"tile_id": drawn_tile})
+        service.act(runtime, current_seat, DiscardAction(tile=drawn_tile))
         assert service.get_awaiting(runtime).kind == WaitKind.ROUND_OVER
 
         assert service.build_wait_events_for_seat(runtime, current_seat) == []

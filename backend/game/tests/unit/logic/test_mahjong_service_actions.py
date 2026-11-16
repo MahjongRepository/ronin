@@ -2,9 +2,9 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.action_result import ActionResult
+from game.logic.decision import Chi, Kan, Kyuushu, Pon, Ron, Tsumo
 from game.logic.enums import (
     CallType,
-    GameAction,
     GameErrorCode,
     KanType,
     MeldViewType,
@@ -37,7 +37,7 @@ class TestMahjongGameServiceAddedKanChankan:
     def service(self):
         return MahjongGameService()
 
-    def test_handle_action__when_ai_robber_passes_on_added_kan__should_complete_the_kan_and_draw(self, service):
+    def test_act__when_ai_robber_passes_on_added_kan__should_complete_the_kan_and_draw(self, service):
         runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
         player = _find_player(runtime.state.round_state, "Player")
         robber_seat = (player.seat + 1) % 4
@@ -56,12 +56,7 @@ class TestMahjongGameServiceAddedKanChankan:
         _update_player(runtime, seat=robber_seat, tiles=robber_hand_waits_3p, melds=(), discards=())
         _update_round_state(runtime, current_player_seat=player.seat, is_after_meld_call=False)
 
-        update = service.handle_action(
-            runtime,
-            seat=player.seat,
-            action=GameAction.CALL_KAN,
-            data={"tile_id": pin_3_copies[3], "kan_type": KanType.ADDED},
-        )
+        update = service.act(runtime, player.seat, Kan(kan_type=KanType.ADDED, tile=pin_3_copies[3]))
         assert [(e.type, e.target) for e in update.events] == [
             (EventType.CALL_PROMPT, SeatTarget(seat=robber_seat)),
             (EventType.MELD, BroadcastTarget()),
@@ -152,9 +147,9 @@ class TestNoDataActionDispatchRouting:
 
     @pytest.mark.parametrize(
         "action",
-        [GameAction.DECLARE_TSUMO, GameAction.CALL_KYUUSHU],
+        [Tsumo(), Kyuushu()],
     )
-    def test_handle_action__when_no_data_action_out_of_turn__should_answer_error_and_run_nothing(self, service, action):
+    def test_act__when_no_data_action_out_of_turn__should_answer_error_and_run_nothing(self, service, action):
         runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
         player = _find_player(runtime.state.round_state, "Player")
         ai_seat_on_turn = (player.seat + 1) % 4
@@ -162,25 +157,26 @@ class TestNoDataActionDispatchRouting:
         game_state = runtime.state
         wait_id_before = runtime.wait_id
 
-        update = service.handle_action(runtime, seat=player.seat, action=action, data={})
+        update = service.act(runtime, player.seat, action)
         assert [(e.type, e.code) for e in update.events] == [(EventType.ERROR, GameErrorCode.NOT_YOUR_TURN)]
         assert runtime.state is game_state
         assert runtime.wait_id == wait_id_before
         assert update.awaiting.wait_id == wait_id_before
 
     @pytest.mark.parametrize(
-        ("action", "data", "code"),
+        ("action", "code"),
         [
-            (GameAction.CALL_RON, {}, GameErrorCode.INVALID_RON),
-            (GameAction.CALL_CHI, {"tile_id": 0, "sequence_tiles": (4, 8)}, GameErrorCode.INVALID_CHI),
+            (Ron(), GameErrorCode.INVALID_RON),
+            (Pon(), GameErrorCode.INVALID_PON),
+            (Chi(tiles=(4, 8)), GameErrorCode.INVALID_CHI),
         ],
     )
-    def test_handle_action__when_call_without_call_prompt__should_return_error_event(self, service, action, data, code):
+    def test_act__when_call_without_call_prompt__should_return_error_event(self, service, action, code):
         start = start_game_in_play(service, "game1", ["Player"], seed="a" * 192)
         runtime = start.runtime
         player_seat = start.seats[0]
 
-        events = service.handle_action(runtime, seat=player_seat, action=action, data=data).events
+        events = service.act(runtime, player_seat, action).events
         assert len(events) == 1
         assert events[0].type == EventType.ERROR
         assert events[0].code == code

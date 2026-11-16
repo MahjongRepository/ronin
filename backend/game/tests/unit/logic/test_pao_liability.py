@@ -3,13 +3,14 @@ from mahjong.tile import TilesConverter
 
 from game.logic.action_handlers import handle_discard, handle_kan, handle_pon
 from game.logic.action_result import ActionResult
+from game.logic.decision import Discard as DiscardAction
+from game.logic.decision import Kan
 from game.logic.enums import KanType
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import _check_pao
 from game.logic.settings import GameSettings
 from game.logic.state import Discard
 from game.logic.tiles import tile_to_34
-from game.logic.types import DiscardActionData, KanActionData, PonActionData
 from game.tests.helpers.builders import create_dealt_game_state, create_player
 from game.tests.helpers.hands import tile_copies
 
@@ -127,7 +128,7 @@ def _discard_to_dragon_caller(*, dragon_pons: str, closed_tiles: tuple[int, ...]
     )
     game_state = create_dealt_game_state(players, current_player_seat=1)
 
-    discard = handle_discard(game_state, seat=1, data=DiscardActionData(tile_id=discarded))
+    discard = handle_discard(game_state, seat=1, action=DiscardAction(tile=discarded))
     assert isinstance(discard, ActionResult)
     prompt = discard.state.round_state.pending_call_prompt
     assert prompt is not None
@@ -142,7 +143,7 @@ class TestPaoOnCalls:
             dragon_pons="56", closed_tiles=(*chun[:2], *tile_copies(0, man="12345")), discarded=chun[2]
         )
 
-        pon = handle_pon(offered.state, seat=0, data=PonActionData(tile_id=chun[2]))
+        pon = handle_pon(offered.state, seat=0)
         assert isinstance(pon, ActionResult)
         assert pon.state.round_state.players[0].pao_seat == 1
 
@@ -152,7 +153,7 @@ class TestPaoOnCalls:
             dragon_pons="56", closed_tiles=(*chun[:3], *tile_copies(0, man="1234")), discarded=chun[3]
         )
 
-        kan = handle_kan(offered.state, seat=0, data=KanActionData(tile_id=chun[3], kan_type=KanType.OPEN))
+        kan = handle_kan(offered.state, seat=0, action=Kan(kan_type=KanType.OPEN, tile=chun[3]))
         assert isinstance(kan, ActionResult)
         assert kan.state.round_state.players[0].melds[-1].type == FrozenMeld.KAN
         assert kan.state.round_state.players[0].pao_seat == 1
@@ -179,7 +180,7 @@ class TestPaoOnCalls:
         )
         game_state = create_dealt_game_state(players, current_player_seat=0)
 
-        kan = handle_kan(game_state, seat=0, data=KanActionData(tile_id=chun[3], kan_type=KanType.CLOSED))
+        kan = handle_kan(game_state, seat=0, action=Kan(kan_type=KanType.CLOSED, tile=chun[3]))
         assert isinstance(kan, ActionResult)
         assert kan.state.round_state.players[0].melds[-1].type == FrozenMeld.KAN
         assert not kan.state.round_state.players[0].melds[-1].opened
@@ -191,7 +192,7 @@ class TestPaoOnCalls:
             dragon_pons="56", closed_tiles=(*nine_man[:2], *tile_copies(0, man="12345")), discarded=nine_man[2]
         )
 
-        pon = handle_pon(offered.state, seat=0, data=PonActionData(tile_id=nine_man[2]))
+        pon = handle_pon(offered.state, seat=0)
         assert isinstance(pon, ActionResult)
         assert pon.state.round_state.players[0].pao_seat is None
 
@@ -205,6 +206,6 @@ class TestPaoOnCalls:
             dragon_pons=dragon_pons, closed_tiles=(*hatsu[:2], *filler), discarded=hatsu[2]
         )
 
-        pon = handle_pon(offered.state, seat=0, data=PonActionData(tile_id=hatsu[2]))
+        pon = handle_pon(offered.state, seat=0)
         assert isinstance(pon, ActionResult)
         assert pon.state.round_state.players[0].pao_seat is None

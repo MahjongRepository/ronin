@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Any
 import structlog
 from pydantic import ValidationError
 
-from game.engine import GameAction
 from game.messaging.types import (
     ErrorMessage,
     GameActionMessage,
@@ -175,8 +174,8 @@ class MessageRouter:
             else:
                 self._session_manager.handle_game_action(
                     connection=connection,
-                    action=GameAction[message.action.name],
-                    data=message.model_dump(exclude={"message_type", "action", "wait_id"}),
+                    action=message.to_action(),
+                    called_tile=message.called_tile,
                     wait_id=message.wait_id,
                 )
         except Exception as exc:  # noqa: BLE001

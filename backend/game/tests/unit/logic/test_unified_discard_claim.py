@@ -1,9 +1,9 @@
 from game.logic.action_handlers import handle_chi, handle_discard, handle_pass, handle_pon, handle_riichi, handle_ron
 from game.logic.action_result import ActionResult
 from game.logic.ai_player_controller import AIPlayerController
+from game.logic.decision import Chi, Discard, Riichi, Ron
 from game.logic.enums import (
     CallType,
-    GameAction,
     MeldCallType,
     RoundPhase,
     RoundResultType,
@@ -27,7 +27,7 @@ from game.logic.state import (
 )
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_discard_phase
-from game.logic.types import ChiActionData, DiscardActionData, MeldCaller, PonActionData, RiichiActionData
+from game.logic.types import MeldCaller
 from game.logic.win import get_waiting_tiles
 from game.tests.helpers.builders import create_dealt_game_state, create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
@@ -72,9 +72,7 @@ class TestRonPlusMeldCallersRonWins:
             (SeatTarget(seat=2), CallType.RON),
         ]
 
-        chi_result = handle_chi(
-            prompted_game, seat=1, data=ChiActionData(tile_id=three_pin, sequence_tiles=(one_pin, two_pin))
-        )
+        chi_result = handle_chi(prompted_game, seat=1, action=Chi(tiles=(one_pin, two_pin)))
         assert chi_result.events == []
 
         ron_result = handle_ron(chi_result.state, seat=2)
@@ -100,7 +98,7 @@ def _dealer_about_to_discard_three_pin() -> MahjongGameState:
 
 
 def _discard_three_pin(game_state: MahjongGameState) -> ActionResult:
-    result = handle_discard(game_state, seat=0, data=DiscardActionData(tile_id=_DISCARDED_THREE_PIN))
+    result = handle_discard(game_state, seat=0, action=Discard(tile=_DISCARDED_THREE_PIN))
     assert isinstance(result, ActionResult)
     prompt = result.state.round_state.pending_call_prompt
     assert prompt is not None
@@ -116,7 +114,7 @@ class TestRonPassMeldClaims:
         prompted = _discard_three_pin(_dealer_about_to_discard_three_pin())
 
         passed = handle_pass(prompted.state, seat=1)
-        result = handle_pon(passed.state, seat=2, data=PonActionData(tile_id=_DISCARDED_THREE_PIN))
+        result = handle_pon(passed.state, seat=2)
         assert [(e.caller_seat, e.called_tile_id) for e in result.events if isinstance(e, MeldEvent)] == [
             (2, _DISCARDED_THREE_PIN)
         ]
@@ -154,7 +152,7 @@ class TestDualEligibleSeatRonAndMeld:
             (SeatTarget(seat=1), CallType.RON, [MeldCaller(seat=1, call_type=MeldCallType.PON)]),
         ]
 
-        result = handle_pon(prompted_game, seat=1, data=PonActionData(tile_id=three_pin))
+        result = handle_pon(prompted_game, seat=1)
         melds = [e for e in result.events if isinstance(e, MeldEvent)]
         assert [(e.caller_seat, e.called_tile_id) for e in melds] == [(1, three_pin)]
         assert [e.target for e in result.events if isinstance(e, TurnEvent)] == [SeatTarget(seat=1)]
@@ -199,14 +197,12 @@ class TestDualEligibleSeatRonAndMeld:
             (2, False, [MeldCallType.PON]),
         ]
 
-        chi_result = handle_chi(
-            prompted_game, seat=1, data=ChiActionData(tile_id=four_pin, sequence_tiles=(two_pin, three_pin))
-        )
-        pon_result = handle_pon(chi_result.state, seat=2, data=PonActionData(tile_id=four_pin))
+        chi_result = handle_chi(prompted_game, seat=1, action=Chi(tiles=(two_pin, three_pin)))
+        pon_result = handle_pon(chi_result.state, seat=2)
         assert [e.caller_seat for e in pon_result.events if isinstance(e, MeldEvent)] == [2]
         assert pon_result.state.round_state.players[1].is_temporary_furiten is True
 
-        discard_result = handle_discard(pon_result.state, seat=2, data=DiscardActionData(tile_id=other_winning_one_pin))
+        discard_result = handle_discard(pon_result.state, seat=2, action=Discard(tile=other_winning_one_pin))
         assert not [e for e in discard_result.events if isinstance(e, CallPromptEvent)]
         assert discard_result.state.round_state.pending_call_prompt is None
 
@@ -215,9 +211,9 @@ class TestRiichiFinalizationAfterRonPass:
     def test_discard_claim__when_riichi_discard_claimed_by_meld__should_finalize_riichi_first(self):
         game_state = _dealer_about_to_discard_three_pin()
 
-        riichi = handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=_DISCARDED_THREE_PIN))
+        riichi = handle_riichi(game_state, seat=0, action=Riichi(tile=_DISCARDED_THREE_PIN))
         passed = handle_pass(riichi.state, seat=1)
-        pon = handle_pon(passed.state, seat=2, data=PonActionData(tile_id=_DISCARDED_THREE_PIN))
+        pon = handle_pon(passed.state, seat=2)
         assert [type(e) for e in pon.events if isinstance(e, (RiichiDeclaredEvent, MeldEvent))] == [
             RiichiDeclaredEvent,
             MeldEvent,
@@ -234,7 +230,7 @@ class TestHandleRonOnDiscardPrompt:
         assert result.events == []
         prompt = result.state.round_state.pending_call_prompt
         assert prompt is not None
-        assert prompt.responses == (CallResponse(seat=1, action=GameAction.CALL_RON),)
+        assert prompt.responses == (CallResponse(seat=1, action=Ron()),)
         assert prompt.pending_seats == frozenset({2})
 
 

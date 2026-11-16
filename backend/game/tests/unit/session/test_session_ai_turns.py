@@ -1,7 +1,7 @@
 import asyncio
 from typing import TYPE_CHECKING
 
-from game.engine import EventType, GameAction, WaitKind
+from game.engine import Discard, EventType, WaitKind
 from game.session.timer import TimerConfig
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection
@@ -46,9 +46,7 @@ def _discard_drawn_tile(manager: SessionManager, conn: MockConnection) -> None:
     seat = participant.seat
     assert seat is not None
     tile_id = runtime_of(manager).state.round_state.players[seat].tiles[-1]
-    manager.handle_game_action(
-        conn, action=GameAction.DISCARD, data={"tile_id": tile_id}, wait_id=participant.decision_id
-    )
+    manager.handle_game_action(conn, action=Discard(tile=tile_id), wait_id=participant.decision_id)
 
 
 async def test_ai_turn_delay__when_the_start_confirm_hands_the_turn_to_ai_players__should_send_one_turn_per_delay(

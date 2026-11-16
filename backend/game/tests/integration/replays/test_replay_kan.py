@@ -1,4 +1,4 @@
-from game.engine import DoraRevealedEvent, EventType, GameAction, tile_to_34
+from game.engine import Discard, DoraRevealedEvent, EventType, Kan, KanType, Pon, tile_to_34
 from game.replay import run_replay
 from game.replay.models import ReplayInput, ReplayInputEvent
 
@@ -45,26 +45,22 @@ def _build_added_kan_wall() -> tuple[int, ...]:
 def _build_added_kan_events() -> tuple[ReplayInputEvent, ...]:
     return (
         # 1. Dealer (Charlie, seat 0) discards after initial draw
-        ReplayInputEvent(player_name="Charlie", action=GameAction.DISCARD, data={"tile_id": 0}),
+        ReplayInputEvent(player_name="Charlie", action=Discard(tile=0)),
         # 2. Bob (seat 1) draws, discards tile 108 (1z)
-        ReplayInputEvent(player_name="Bob", action=GameAction.DISCARD, data={"tile_id": 108}),
+        ReplayInputEvent(player_name="Bob", action=Discard(tile=108)),
         # 3. Alice (seat 2) calls pon on tile 108
-        ReplayInputEvent(player_name="Alice", action=GameAction.CALL_PON, data={"tile_id": 108}),
+        ReplayInputEvent(player_name="Alice", action=Pon()),
         # 4. Alice discards tile 10
-        ReplayInputEvent(player_name="Alice", action=GameAction.DISCARD, data={"tile_id": 10}),
+        ReplayInputEvent(player_name="Alice", action=Discard(tile=10)),
         # 5. Diana (seat 3) draws, discards tile 12
-        ReplayInputEvent(player_name="Diana", action=GameAction.DISCARD, data={"tile_id": 12}),
+        ReplayInputEvent(player_name="Diana", action=Discard(tile=12)),
         # 6. Charlie (seat 0) draws, discards tile 1
-        ReplayInputEvent(player_name="Charlie", action=GameAction.DISCARD, data={"tile_id": 1}),
+        ReplayInputEvent(player_name="Charlie", action=Discard(tile=1)),
         # 7. Bob (seat 1) draws, discards tile 5
-        ReplayInputEvent(player_name="Bob", action=GameAction.DISCARD, data={"tile_id": 5}),
+        ReplayInputEvent(player_name="Bob", action=Discard(tile=5)),
         # 8. Alice (seat 2) draws tile 111 (1z), calls added kan
-        ReplayInputEvent(
-            player_name="Alice",
-            action=GameAction.CALL_KAN,
-            data={"tile_id": 111, "kan_type": "added"},
-        ),
-        ReplayInputEvent(player_name="Alice", action=GameAction.DISCARD, data={"tile_id": 122}),
+        ReplayInputEvent(player_name="Alice", action=Kan(kan_type=KanType.ADDED, tile=111)),
+        ReplayInputEvent(player_name="Alice", action=Discard(tile=122)),
     )
 
 
@@ -78,7 +74,7 @@ def test_added_kan__when_replayed__should_upgrade_pon_and_draw_replacement():
     trace = run_replay(replay)
     # Find the kan step
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
-    kan_steps = [s for s in non_synthetic_steps if s.input_event.action == GameAction.CALL_KAN]
+    kan_steps = [s for s in non_synthetic_steps if isinstance(s.input_event.action, Kan)]
     assert len(kan_steps) == 1
     kan_step = kan_steps[0]
     assert kan_step.input_event.player_name == "Alice"
@@ -96,9 +92,8 @@ def test_added_kan__when_replayed__should_upgrade_pon_and_draw_replacement():
     assert 122 in alice_after_kan.tiles
     # The discard step after kan must have succeeded
     discard_after_kan = non_synthetic_steps[-1]
-    assert discard_after_kan.input_event.action == GameAction.DISCARD
+    assert discard_after_kan.input_event.action == Discard(tile=122)
     assert discard_after_kan.input_event.player_name == "Alice"
-    assert discard_after_kan.input_event.data["tile_id"] == 122
     # State transitions must be consistent
     for i in range(len(trace.steps) - 1):
         assert trace.steps[i].state_after == trace.steps[i + 1].state_before
@@ -113,7 +108,7 @@ def test_added_kan__when_replayed__should_leave_eleven_tiles_in_hand():
     )
     trace = run_replay(replay)
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
-    kan_step = next(s for s in non_synthetic_steps if s.input_event.action == GameAction.CALL_KAN)
+    kan_step = next(s for s in non_synthetic_steps if isinstance(s.input_event.action, Kan))
     alice_after_kan = kan_step.state_after.round_state.players[2]
     # Hand should have 11 tiles (13 - 2 pon - 1 discard + 1 replacement draw)
     assert len(alice_after_kan.tiles) == 11
@@ -137,7 +132,7 @@ def test_added_kan__when_replayed__should_reveal_dora_after_replacement_discard(
     )
     trace = run_replay(replay)
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
-    kan_step = next(s for s in non_synthetic_steps if s.input_event.action == GameAction.CALL_KAN)
+    kan_step = next(s for s in non_synthetic_steps if isinstance(s.input_event.action, Kan))
     kan_step_idx = non_synthetic_steps.index(kan_step)
     discard_after_kan = non_synthetic_steps[kan_step_idx + 1]
     # Kan step: dora is deferred, so NO DoraRevealedEvent

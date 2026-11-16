@@ -6,8 +6,8 @@ from game.logic.abortive import (
 )
 from game.logic.action_result import ActionResult, Refusal
 from game.logic.call_resolution import resolve_call_prompt
+from game.logic.decision import CallAnswer, Chi, Discard, Kan, Pon, Riichi, Ron
 from game.logic.enums import (
-    GameAction,
     GameErrorCode,
     KanType,
     MeldCallType,
@@ -32,14 +32,7 @@ from game.logic.turn import (
     process_meld_call,
     process_tsumo_call,
 )
-from game.logic.types import (
-    ChiActionData,
-    DiscardActionData,
-    KanActionData,
-    MeldCallInput,
-    PonActionData,
-    RiichiActionData,
-)
+from game.logic.types import MeldCallInput
 from game.logic.win import apply_temporary_furiten
 
 logger = structlog.get_logger()
@@ -67,15 +60,15 @@ def _validate_call_prompt(
     round_state: MahjongRoundState,
     *,
     seat: int,
-    action: GameAction,
-    tile_id: int | None,
+    answer: CallAnswer,
     error_code: GameErrorCode,
 ) -> PendingCallPrompt | Refusal:
     """
     Validate a call response (ron, pon, chi or open kan) against the pending call prompt, before any call's own checks.
 
-    Refuse when no prompt waits on the seat or the tile_id is not the prompt's (a ron sends none); raise
-    InvalidGameActionError when the prompt did not offer the seat this call. A pass needs neither check.
+    Refuse when no prompt waits on the seat or an open kan names a tile of another type than the prompt's (the other
+    answers name no called tile); raise InvalidGameActionError when the prompt did not offer the seat this call. A pass
+    needs neither check.
 
     Return the validated PendingCallPrompt on success, or a Refusal on failure.
     """
@@ -84,11 +77,11 @@ def _validate_call_prompt(
         logger.warning("invalid call: no pending call prompt", seat=seat)
         return Refusal(code=error_code, message="no pending call prompt")
 
-    if tile_id is not None and prompt.tile_id != tile_id:
-        logger.warning("invalid call: tile_id mismatch", seat=seat, expected=prompt.tile_id, got=tile_id)
+    if isinstance(answer, Kan) and tile_to_34(answer.tile) != tile_to_34(prompt.tile_id):
+        logger.warning("invalid call: tile_id mismatch", seat=seat, expected=prompt.tile_id, got=answer.tile)
         return Refusal(code=error_code, message="tile_id mismatch")
 
-    _validate_caller_action_matches_prompt(prompt, seat=seat, action=action)
+    _validate_caller_action_matches_prompt(prompt, seat=seat, answer=answer)
     return prompt
 
 
@@ -135,7 +128,7 @@ def _validate_chi_sequence(
 def _validate_caller_action_matches_prompt(
     prompt: PendingCallPrompt,
     seat: int,
-    action: GameAction,
+    answer: CallAnswer,
 ) -> None:
     """
     Validate that the player's response action is among the calls the prompt offered the seat.
@@ -143,22 +136,25 @@ def _validate_caller_action_matches_prompt(
     The offered calls are the seat's ron and its melds. Raises InvalidGameActionError otherwise.
     """
     caller = prompt.caller(seat)
-    ron = [GameAction.CALL_RON] if caller.can_ron else []
-    offered = [*ron, *(_MELD_CALL_TYPE_TO_GAME_ACTION[m.call_type] for m in caller.melds)]
-    if action not in offered:
-        available = ", ".join(a.value for a in offered)
+    ron: list[type[CallAnswer]] = [Ron] if caller.can_ron else []
+    offered = [*ron, *(_MELD_CALL_TYPE_TO_ANSWER[m.call_type] for m in caller.melds)]
+    if type(answer) not in offered:
+        available = ", ".join(_ANSWER_NAMES[a] for a in offered)
+        name = _ANSWER_NAMES[type(answer)]
         raise InvalidGameActionError(
-            action=action.value,
+            action=name,
             seat=seat,
-            reason=f"action {action.value} does not match available call types: {available}",
+            reason=f"action {name} does not match available call types: {available}",
         )
 
 
-_MELD_CALL_TYPE_TO_GAME_ACTION: dict[MeldCallType, GameAction] = {
-    MeldCallType.PON: GameAction.CALL_PON,
-    MeldCallType.CHI: GameAction.CALL_CHI,
-    MeldCallType.OPEN_KAN: GameAction.CALL_KAN,
+_MELD_CALL_TYPE_TO_ANSWER: dict[MeldCallType, type[CallAnswer]] = {
+    MeldCallType.PON: Pon,
+    MeldCallType.CHI: Chi,
+    MeldCallType.OPEN_KAN: Kan,
 }
+
+_ANSWER_NAMES: dict[type[CallAnswer], str] = {Ron: "call_ron", Pon: "call_pon", Chi: "call_chi", Kan: "call_kan"}
 
 
 def _decline_ron(round_state: MahjongRoundState, seat: int) -> MahjongRoundState:
@@ -186,7 +182,7 @@ def _record_call_response(
     A meld from a seat that could ron declines the ron, with the furiten a pass would bring.
     """
     round_state = game_state.round_state
-    if response.action != GameAction.CALL_RON and prompt.caller(response.seat).can_ron:
+    if not isinstance(response.action, Ron) and prompt.caller(response.seat).can_ron:
         round_state = _decline_ron(round_state, response.seat)
 
     new_prompt = add_prompt_response(prompt, response)
@@ -203,7 +199,7 @@ def handle_discard(
     game_state: MahjongGameState,
     *,
     seat: int,
-    data: DiscardActionData,
+    action: Discard,
 ) -> ActionResult | Refusal:
     """
     Handle a discard action.
@@ -215,7 +211,7 @@ def handle_discard(
         return _NOT_YOUR_TURN
 
     try:
-        new_game_state, events = process_discard_phase(game_state, data.tile_id, is_riichi=False)
+        new_game_state, events = process_discard_phase(game_state, action.tile, is_riichi=False)
     except ImpossibleActionError as e:
         raise InvalidGameActionError(action="discard", seat=seat, reason=str(e)) from e
     except GameRuleError as e:
@@ -228,7 +224,7 @@ def handle_riichi(
     game_state: MahjongGameState,
     *,
     seat: int,
-    data: RiichiActionData,
+    action: Riichi,
 ) -> ActionResult | Refusal:
     """
     Handle a riichi declaration with discard.
@@ -241,7 +237,7 @@ def handle_riichi(
         return _NOT_YOUR_TURN
 
     try:
-        new_game_state, events = process_discard_phase(game_state, data.tile_id, is_riichi=True)
+        new_game_state, events = process_discard_phase(game_state, action.tile, is_riichi=True)
     except ImpossibleActionError as e:
         raise InvalidGameActionError(action="declare_riichi", seat=seat, reason=str(e)) from e
     except GameRuleError as e:
@@ -283,23 +279,18 @@ def handle_ron(
     with events and new state.
     """
     result = _validate_call_prompt(
-        game_state.round_state,
-        seat=seat,
-        action=GameAction.CALL_RON,
-        tile_id=None,
-        error_code=GameErrorCode.INVALID_RON,
+        game_state.round_state, seat=seat, answer=Ron(), error_code=GameErrorCode.INVALID_RON
     )
     if isinstance(result, Refusal):
         return result
 
-    return _record_call_response(game_state, result, CallResponse(seat=seat, action=GameAction.CALL_RON))
+    return _record_call_response(game_state, result, CallResponse(seat=seat, action=Ron()))
 
 
 def handle_pon(
     game_state: MahjongGameState,
     *,
     seat: int,
-    data: PonActionData,
 ) -> ActionResult | Refusal:
     """
     Handle a pon call from a player.
@@ -308,23 +299,19 @@ def handle_pon(
     Returns ActionResult with events and new state.
     """
     result = _validate_call_prompt(
-        game_state.round_state,
-        seat=seat,
-        action=GameAction.CALL_PON,
-        tile_id=data.tile_id,
-        error_code=GameErrorCode.INVALID_PON,
+        game_state.round_state, seat=seat, answer=Pon(), error_code=GameErrorCode.INVALID_PON
     )
     if isinstance(result, Refusal):
         return result
 
-    return _record_call_response(game_state, result, CallResponse(seat=seat, action=GameAction.CALL_PON))
+    return _record_call_response(game_state, result, CallResponse(seat=seat, action=Pon()))
 
 
 def handle_chi(
     game_state: MahjongGameState,
     *,
     seat: int,
-    data: ChiActionData,
+    action: Chi,
 ) -> ActionResult | Refusal:
     """
     Handle a chi call from a player.
@@ -333,30 +320,18 @@ def handle_chi(
     Returns ActionResult with events and new state.
     """
     round_state = game_state.round_state
-    result = _validate_call_prompt(
-        round_state,
-        seat=seat,
-        action=GameAction.CALL_CHI,
-        tile_id=data.tile_id,
-        error_code=GameErrorCode.INVALID_CHI,
-    )
+    result = _validate_call_prompt(round_state, seat=seat, answer=action, error_code=GameErrorCode.INVALID_CHI)
     if isinstance(result, Refusal):
         return result
 
-    prompt = result
-
-    # validate sequence_tiles before recording response
-    player = round_state.players[seat]
-    _validate_chi_sequence(player, prompt, seat=seat, sequence_tiles=data.sequence_tiles)
-
-    response = CallResponse(seat=seat, action=GameAction.CALL_CHI, sequence_tiles=data.sequence_tiles)
-    return _record_call_response(game_state, prompt, response)
+    _validate_chi_sequence(round_state.players[seat], result, seat=seat, sequence_tiles=action.tiles)
+    return _record_call_response(game_state, result, CallResponse(seat=seat, action=action))
 
 
 def _handle_open_kan_call_response(
     game_state: MahjongGameState,
     seat: int,
-    submitted_tile_id: int,
+    action: Kan,
 ) -> ActionResult | Refusal:
     """
     Handle open kan as a call response to a pending prompt.
@@ -365,22 +340,18 @@ def _handle_open_kan_call_response(
     state.
     """
     result = _validate_call_prompt(
-        game_state.round_state,
-        seat=seat,
-        action=GameAction.CALL_KAN,
-        tile_id=submitted_tile_id,
-        error_code=GameErrorCode.INVALID_KAN,
+        game_state.round_state, seat=seat, answer=action, error_code=GameErrorCode.INVALID_KAN
     )
     if isinstance(result, Refusal):
         return result
 
-    return _record_call_response(game_state, result, CallResponse(seat=seat, action=GameAction.CALL_KAN))
+    return _record_call_response(game_state, result, CallResponse(seat=seat, action=action))
 
 
 def _handle_self_kan(
     game_state: MahjongGameState,
     seat: int,
-    data: KanActionData,
+    action: Kan,
 ) -> ActionResult | Refusal:
     """
     Handle closed or added kan during the player's own turn.
@@ -397,8 +368,8 @@ def _handle_self_kan(
         )
 
     try:
-        meld_call_type = data.kan_type.to_meld_call_type()
-        meld_input = MeldCallInput(caller_seat=seat, call_type=meld_call_type, tile_id=data.tile_id)
+        meld_call_type = action.kan_type.to_meld_call_type()
+        meld_input = MeldCallInput(caller_seat=seat, call_type=meld_call_type, tile_id=action.tile)
         new_game_state, events = process_meld_call(game_state, meld_input=meld_input)
     except ImpossibleActionError as e:
         raise InvalidGameActionError(action="call_kan", seat=seat, reason=str(e)) from e
@@ -410,7 +381,7 @@ def handle_kan(
     game_state: MahjongGameState,
     *,
     seat: int,
-    data: KanActionData,
+    action: Kan,
 ) -> ActionResult | Refusal:
     """
     Handle a kan call (open, closed, or added).
@@ -420,14 +391,14 @@ def handle_kan(
     Returns ActionResult with events and new state.
     """
     # Open kan is a call response to another player's discard (validated by _validate_call_prompt)
-    if data.kan_type == KanType.OPEN:
-        return _handle_open_kan_call_response(game_state, seat=seat, submitted_tile_id=data.tile_id)
+    if action.kan_type == KanType.OPEN:
+        return _handle_open_kan_call_response(game_state, seat=seat, action=action)
 
     # closed/added kan during own turn - immediate execution
     if not _is_turn_of(game_state.round_state, seat):
         return _NOT_YOUR_TURN
 
-    return _handle_self_kan(game_state, seat=seat, data=data)
+    return _handle_self_kan(game_state, seat=seat, action=action)
 
 
 def handle_kyuushu(

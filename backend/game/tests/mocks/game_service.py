@@ -1,7 +1,7 @@
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 from game.logic.ai_player_controller import AIPlayerController
-from game.logic.enums import GameAction, TimeoutType, WaitKind, WindName
+from game.logic.enums import TimeoutType, WaitKind, WindName
 from game.logic.events import (
     BroadcastTarget,
     DrawEvent,
@@ -20,6 +20,7 @@ from game.logic.types import GamePlayerInfo, PlayerView, ReconnectionSnapshot
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from game.logic.decision import Action, Decision
     from game.logic.state import MahjongGameState
     from game.logic.types import StartPosition
 
@@ -66,21 +67,23 @@ def mock_update(events: list[GameEvent], awaiting: Awaiting = MOCK_AWAITING) -> 
 
 
 class MockGameService(GameService):
-    def handle_action(
-        self,
-        runtime: GameRuntime,
-        *,
-        seat: int,
-        action: GameAction,
-        data: dict[str, Any],
-    ) -> GameUpdate:
+    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
         event = DrawEvent(
             target=BroadcastTarget(),
             seat=seat,
-            tile_id=data.get("tile_id", 0),
+            tile_id=getattr(action, "tile", 0),
             tiles_remaining=69,
         )
         return GameUpdate(events=[event], awaiting=MOCK_AWAITING)
+
+    def legal_actions(self, runtime: GameRuntime, seat: int) -> tuple[Action, ...]:
+        return ()
+
+    def default_action(self, runtime: GameRuntime, seat: int) -> Action | None:
+        return None
+
+    def decision(self, runtime: GameRuntime, seat: int) -> Decision | None:
+        return None
 
     def start_game(
         self,

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -6,18 +6,22 @@ from game.engine import (
     RNG_VERSION,
     Awaiting,
     BroadcastTarget,
+    Discard,
     ErrorEvent,
     EventType,
-    GameAction,
     GameErrorCode,
     GameEvent,
     GamePhase,
     GameUpdate,
     InvalidGameActionError,
+    Kan,
     KanType,
     MahjongGameService,
     MeldCallType,
+    Pass,
+    Pon,
     PromptKind,
+    Ron,
     WaitKind,
 )
 from game.logic.state import Caller, MeldOption, PendingCallPrompt
@@ -45,7 +49,7 @@ from game.tests.helpers.wall import make_start_wall
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from game.engine import GameRuntime, GameStart, StartPosition
+    from game.engine import Action, GameRuntime, GameStart, StartPosition
 
 PLAYER_NAMES = ("Alice", "Bob", "Charlie", "Diana")
 SEED = "a" * 192
@@ -63,9 +67,9 @@ def _pon_caller(seat: int) -> Caller:
 def _build_replay(
     seed: str = SEED,
     player_names: tuple[str, str, str, str] = PLAYER_NAMES,
-    actions: tuple[tuple[str, GameAction, dict[str, Any]], ...] = (),
+    actions: tuple[tuple[str, Action], ...] = (),
 ) -> ReplayInput:
-    events = tuple(ReplayInputEvent(player_name=name, action=action, data=data) for name, action, data in actions)
+    events = tuple(ReplayInputEvent(player_name=name, action=action) for name, action in actions)
     return ReplayInput(seed=seed, player_names=player_names, events=events)
 
 
@@ -84,15 +88,8 @@ class _StubService:
     ) -> GameStart:
         return self._inner.start_game(game_id, player_names, seed=seed, walls=walls, start=start)
 
-    def handle_action(
-        self,
-        runtime: GameRuntime,
-        *,
-        seat: int,
-        action: GameAction,
-        data: dict[str, Any],
-    ) -> GameUpdate:
-        return self._inner.handle_action(runtime, seat=seat, action=action, data=data)
+    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+        return self._inner.act(runtime, seat, action)
 
     def begin_round(self, runtime: GameRuntime) -> GameUpdate:
         return self._inner.begin_round(runtime)
@@ -117,8 +114,8 @@ def _pin_3_ron_replay() -> ReplayInput:
             ),
         ),
         events=(
-            ReplayInputEvent(player_name=dealer, action=GameAction.DISCARD, data={"tile_id": PIN_3_TRIPLE_RON_DISCARD}),
-            ReplayInputEvent(player_name=ron_caller, action=GameAction.CALL_RON),
+            ReplayInputEvent(player_name=dealer, action=Discard(tile=PIN_3_TRIPLE_RON_DISCARD)),
+            ReplayInputEvent(player_name=ron_caller, action=Ron()),
         ),
     )
 
@@ -138,7 +135,7 @@ def _probe_waiting_player() -> str:
 
 def test_run_replay__when_discard_input__should_trace_discard_step():
     name, tile = _probe_current_player_discard()
-    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
+    replay = _build_replay(actions=((name, Discard(tile=tile)),))
 
     trace = run_replay(replay)
     assert isinstance(trace, ReplayTrace)
@@ -147,14 +144,14 @@ def test_run_replay__when_discard_input__should_trace_discard_step():
     assert trace.steps[0].input_event.player_name == name
     assert trace.steps[0].state_before is not None
     assert trace.steps[0].state_after is not None
-    assert trace.steps[0].input_event.action == GameAction.DISCARD
+    assert isinstance(trace.steps[0].input_event.action, Discard)
     assert any(e.type == EventType.DISCARD for e in trace.steps[0].emitted_events)
     assert trace.steps[0].state_after != trace.steps[0].state_before
 
 
 def test_run_replay__when_strict_and_action_invalid__should_raise_replay_error():
     name = _probe_waiting_player()
-    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": 0}),))
+    replay = _build_replay(actions=((name, Discard(tile=0)),))
 
     with pytest.raises(ReplayError) as exc_info:
         run_replay(replay)
@@ -163,7 +160,7 @@ def test_run_replay__when_strict_and_action_invalid__should_raise_replay_error()
 
 
 def test_run_replay__when_non_strict_and_action_invalid__should_record_error_step():
-    replay = _build_replay(actions=((_probe_waiting_player(), GameAction.DISCARD, {"tile_id": 0}),))
+    replay = _build_replay(actions=((_probe_waiting_player(), Discard(tile=0)),))
 
     trace = run_replay(replay, ReplayOptions(strict=False))
     assert len(trace.steps) == 1
@@ -174,17 +171,10 @@ def test_run_replay__when_non_strict_and_action_invalid__should_record_error_ste
 def test_run_replay__when_non_strict_and_service_raises_invalid_action__should_fail_the_replay():
 
     class RaisingService(_StubService):
-        def handle_action(
-            self,
-            runtime: GameRuntime,
-            *,
-            seat: int,
-            action: GameAction,
-            data: dict[str, Any],
-        ) -> GameUpdate:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
             raise InvalidGameActionError(action="discard", seat=0, reason="test error")
 
-    replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
+    replay = _build_replay(actions=(("Alice", Discard(tile=0)),))
     with pytest.raises(InvalidGameActionError, match="test error"):
         run_replay(replay, ReplayOptions(strict=False), service_factory=RaisingService)
 
@@ -198,7 +188,7 @@ def test_run_replay__should_return_trace_with_seed():
 
 def test_run_replay__when_max_steps_zero__should_raise_step_limit_error():
     name, tile = _probe_current_player_discard()
-    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
+    replay = _build_replay(actions=((name, Discard(tile=tile)),))
     with pytest.raises(ReplayStepLimitError, match="exceeded 0 steps"):
         run_replay(replay, ReplayOptions(max_steps=0))
 
@@ -220,7 +210,7 @@ def test_run_replay__when_strict_and_input_after_game_end__should_raise():
             runtime.commit(runtime.state.model_copy(update={"game_phase": GamePhase.FINISHED}))
             return update
 
-    replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
+    replay = _build_replay(actions=(("Alice", Discard(tile=0)),))
     with pytest.raises(ReplayInputAfterGameEndError, match="Input remains after game end"):
         run_replay(replay, service_factory=FinishedService)
 
@@ -233,7 +223,7 @@ def test_run_replay__when_non_strict_and_input_after_game_end__should_skip_input
             runtime.commit(runtime.state.model_copy(update={"game_phase": GamePhase.FINISHED}))
             return update
 
-    replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
+    replay = _build_replay(actions=(("Alice", Discard(tile=0)),))
     trace = run_replay(replay, ReplayOptions(strict=False), service_factory=FinishedService)
     assert trace.final_state.game_phase == GamePhase.FINISHED
     assert len(trace.steps) == 0
@@ -244,7 +234,7 @@ def test_round_advance__when_the_round_ends__should_deal_and_begin_the_next_roun
 
     *_, ron_step, advance = trace.steps
     assert ron_step.input_event is not None
-    assert ron_step.input_event.action == GameAction.CALL_RON
+    assert ron_step.input_event.action == Ron()
     assert (advance.input_event, advance.synthetic) == (None, True)
     assert [e.type for e in advance.emitted_events][:5] == [EventType.ROUND_STARTED] * 4 + [EventType.DRAW]
     assert advance.state_before is ron_step.state_after
@@ -266,10 +256,10 @@ def test_step_limit__when_synthetic_passes_reach_max_steps__should_raise_before_
 
     trace = run_replay(replay, ReplayOptions(advance_rounds=False, max_steps=4))
     assert [(s.input_event.player_name, s.input_event.action) for s in trace.steps] == [
-        (dealer, GameAction.DISCARD),
-        (first_passer, GameAction.PASS),
-        (second_passer, GameAction.PASS),
-        (ron_caller, GameAction.CALL_RON),
+        (dealer, Discard(tile=PIN_3_TRIPLE_RON_DISCARD)),
+        (first_passer, Pass()),
+        (second_passer, Pass()),
+        (ron_caller, Ron()),
     ]
 
 
@@ -280,15 +270,8 @@ def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other
             super().__init__()
             self._inject_prompt = False
 
-        def handle_action(
-            self,
-            runtime: GameRuntime,
-            *,
-            seat: int,
-            action: GameAction,
-            data: dict[str, Any],
-        ) -> GameUpdate:
-            if action == GameAction.PASS:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+            if action == Pass():
                 # Resolve the call prompt by removing it from state
                 state = runtime.state
 
@@ -307,9 +290,9 @@ def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other
 
                 return _stub_update([])
 
-            events = super().handle_action(runtime, seat=seat, action=action, data=data)
+            events = super().act(runtime, seat, action)
             # Inject a fake call prompt after a discard
-            if action == GameAction.DISCARD:
+            if isinstance(action, Discard):
                 state = runtime.state
                 other_seats = frozenset(p.seat for p in state.round_state.players if p.seat != seat)
                 prompt = PendingCallPrompt(
@@ -331,7 +314,7 @@ def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other
             return events
 
     name, tile = _probe_current_player_discard()
-    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
+    replay = _build_replay(actions=((name, Discard(tile=tile)),))
 
     trace = run_replay(
         replay,
@@ -341,18 +324,18 @@ def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other
     synthetic_steps = [s for s in trace.steps if s.synthetic]
     assert len(synthetic_steps) == 3  # 3 other players auto-passed
     for step in synthetic_steps:
-        assert step.input_event.action == GameAction.PASS
+        assert step.input_event.action == Pass()
 
 
 def test_auto_pass_calls__when_input_has_pass__should_raise_load_error():
-    replay = _build_replay(actions=(("Alice", GameAction.PASS, {}),))
+    replay = _build_replay(actions=(("Alice", Pass()),))
 
     with pytest.raises(ReplayLoadError, match=r"PASS.*auto_pass_calls=True"):
         run_replay(replay)
 
 
 def test_auto_pass_calls__when_disabled_and_input_has_pass__should_run_it_as_game_action():
-    replay = _build_replay(actions=(("Alice", GameAction.PASS, {}),))
+    replay = _build_replay(actions=(("Alice", Pass()),))
 
     # This should not raise ValueError; it may raise ReplayError due to
     # "no call prompt pending" but that's a game-logic error, not validation.
@@ -410,15 +393,8 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
             )
             return game_start
 
-        def handle_action(
-            self,
-            runtime: GameRuntime,
-            *,
-            seat: int,
-            action: GameAction,
-            data: dict[str, Any],
-        ) -> GameUpdate:
-            if action == GameAction.PASS:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+            if action == Pass():
                 self._pass_calls.append(seat)
                 state = runtime.state
 
@@ -437,7 +413,7 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
 
                 return _stub_update([])
 
-            if action == GameAction.CALL_PON:
+            if action == Pon():
                 state = runtime.state
 
                 new_round = state.round_state.model_copy(
@@ -450,9 +426,9 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
                 )
                 return _stub_update([])
 
-            return super().handle_action(runtime, seat=seat, action=action, data=data)
+            return super().act(runtime, seat, action)
 
-    replay = _build_replay(actions=((pon_player, GameAction.CALL_PON, {"tile_id": 0}),))
+    replay = _build_replay(actions=((pon_player, Pon()),))
     svc_instance = CallResponseService()
 
     trace = run_replay(
@@ -465,7 +441,7 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
     synthetic_steps = [s for s in trace.steps if s.synthetic]
     assert len(synthetic_steps) == 1
     assert synthetic_steps[0].input_event.player_name == auto_passed_player
-    assert synthetic_steps[0].input_event.action == GameAction.PASS
+    assert synthetic_steps[0].input_event.action == Pass()
 
 
 def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_its_seat_before_this_ron():
@@ -501,16 +477,9 @@ def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_it
             )
             return game_start
 
-        def handle_action(
-            self,
-            runtime: GameRuntime,
-            *,
-            seat: int,
-            action: GameAction,
-            data: dict[str, Any],
-        ) -> GameUpdate:
-            if action not in (GameAction.PASS, GameAction.CALL_RON):
-                return super().handle_action(runtime, seat=seat, action=action, data=data)
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+            if action not in (Pass(), Ron()):
+                return super().act(runtime, seat, action)
 
             state = runtime.state
             prompt = state.round_state.pending_call_prompt
@@ -527,16 +496,16 @@ def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_it
 
     replay = _build_replay(
         actions=(
-            (ron_player, GameAction.CALL_RON, {}),
-            (dealer, GameAction.DISCARD, {"tile_id": dealer_tile}),
-            (later_ron_player, GameAction.CALL_RON, {}),
+            (ron_player, Ron()),
+            (dealer, Discard(tile=dealer_tile)),
+            (later_ron_player, Ron()),
         ),
     )
 
     trace = run_replay(replay, ReplayOptions(strict=False), service_factory=RonPromptService)
     assert [(s.input_event.player_name, s.input_event.action, s.synthetic) for s in trace.steps[:2]] == [
-        (later_ron_player, GameAction.PASS, True),
-        (ron_player, GameAction.CALL_RON, False),
+        (later_ron_player, Pass(), True),
+        (ron_player, Ron(), False),
     ]
 
 
@@ -572,15 +541,8 @@ def test_auto_pass_calls__when_prompted_seat_declares_self_kan__should_pass_its_
             )
             return game_start
 
-        def handle_action(
-            self,
-            runtime: GameRuntime,
-            *,
-            seat: int,
-            action: GameAction,
-            data: dict[str, Any],
-        ) -> GameUpdate:
-            if action == GameAction.PASS:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+            if action == Pass():
                 state = runtime.state
                 runtime.commit(
                     state.model_copy(
@@ -590,12 +552,12 @@ def test_auto_pass_calls__when_prompted_seat_declares_self_kan__should_pass_its_
 
             return _stub_update([])
 
-    replay = _build_replay(actions=((kan_player, GameAction.CALL_KAN, {"tile_id": 0, "kan_type": kan_type}),))
+    replay = _build_replay(actions=((kan_player, Kan(kan_type=kan_type, tile=0)),))
 
     trace = run_replay(replay, ReplayOptions(strict=False), service_factory=CallPromptService)
     assert [(s.input_event.player_name, s.input_event.action, s.synthetic) for s in trace.steps] == [
-        (kan_player, GameAction.PASS, True),
-        (kan_player, GameAction.CALL_KAN, False),
+        (kan_player, Pass(), True),
+        (kan_player, Kan(kan_type=kan_type, tile=0), False),
     ]
 
 
@@ -635,15 +597,8 @@ def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_re
             )
             return game_start
 
-        def handle_action(
-            self,
-            runtime: GameRuntime,
-            *,
-            seat: int,
-            action: GameAction,
-            data: dict[str, Any],
-        ) -> GameUpdate:
-            if action == GameAction.PASS:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+            if action == Pass():
                 return _stub_update(
                     [
                         ErrorEvent(
@@ -654,10 +609,10 @@ def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_re
                     ]
                 )
 
-            return super().handle_action(runtime, seat=seat, action=action, data=data)
+            return super().act(runtime, seat, action)
 
     name, tile = _probe_current_player_discard()
-    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
+    replay = _build_replay(actions=((name, Discard(tile=tile)),))
 
     with pytest.raises(ReplayError, match="synthetic pass error"):
         run_replay(
@@ -673,15 +628,8 @@ def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_rema
             super().__init__()
             self._pass_calls: list[int] = []
 
-        def handle_action(
-            self,
-            runtime: GameRuntime,
-            *,
-            seat: int,
-            action: GameAction,
-            data: dict[str, Any],
-        ) -> GameUpdate:
-            if action == GameAction.PASS:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+            if action == Pass():
                 self._pass_calls.append(seat)
                 state = runtime.state
 
@@ -700,8 +648,8 @@ def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_rema
 
                 return _stub_update([])
 
-            events = super().handle_action(runtime, seat=seat, action=action, data=data)
-            if action == GameAction.DISCARD:
+            events = super().act(runtime, seat, action)
+            if isinstance(action, Discard):
                 state = runtime.state
                 other_seats = frozenset(p.seat for p in state.round_state.players if p.seat != seat)
                 prompt = PendingCallPrompt(
@@ -724,7 +672,7 @@ def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_rema
 
     name, tile = _probe_current_player_discard()
     # Single discard is the only input; the trailing block handles the prompt
-    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
+    replay = _build_replay(actions=((name, Discard(tile=tile)),))
 
     svc_instance = TrailingPromptService()
     trace = run_replay(
@@ -737,7 +685,7 @@ def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_rema
     synthetic_steps = [s for s in trace.steps if s.synthetic]
     assert len(synthetic_steps) == 3
     for step in synthetic_steps:
-        assert step.input_event.action == GameAction.PASS
+        assert step.input_event.action == Pass()
     assert len(svc_instance._pass_calls) == 3
 
 
@@ -788,15 +736,8 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
             )
             return game_start
 
-        def handle_action(
-            self,
-            runtime: GameRuntime,
-            *,
-            seat: int,
-            action: GameAction,
-            data: dict[str, Any],
-        ) -> GameUpdate:
-            if action == GameAction.PASS:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+            if action == Pass():
                 self._pass_count += 1
                 state = runtime.state
 
@@ -814,10 +755,10 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
                 )
                 return _stub_update([])
 
-            return super().handle_action(runtime, seat=seat, action=action, data=data)
+            return super().act(runtime, seat, action)
 
     name, tile = _probe_current_player_discard()
-    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
+    replay = _build_replay(actions=((name, Discard(tile=tile)),))
 
     with pytest.raises(ReplayInputAfterGameEndError, match="Input remains after game end"):
         run_replay(
@@ -832,15 +773,8 @@ def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip
         def __init__(self) -> None:
             super().__init__()
 
-        def handle_action(
-            self,
-            runtime: GameRuntime,
-            *,
-            seat: int,
-            action: GameAction,
-            data: dict[str, Any],
-        ) -> GameUpdate:
-            if action == GameAction.PASS:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+            if action == Pass():
                 state = runtime.state
 
                 new_round = state.round_state.model_copy(
@@ -856,8 +790,8 @@ def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip
                 )
                 return _stub_update([])
 
-            events = super().handle_action(runtime, seat=seat, action=action, data=data)
-            if action == GameAction.DISCARD:
+            events = super().act(runtime, seat, action)
+            if isinstance(action, Discard):
                 state = runtime.state
                 other_seats = frozenset(p.seat for p in state.round_state.players if p.seat != seat)
                 prompt = PendingCallPrompt(
@@ -882,8 +816,8 @@ def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip
     # Two discards, but game ends during auto-pass after first discard
     replay = _build_replay(
         actions=(
-            (name, GameAction.DISCARD, {"tile_id": tile}),
-            (name, GameAction.DISCARD, {"tile_id": tile}),
+            (name, Discard(tile=tile)),
+            (name, Discard(tile=tile)),
         ),
     )
 
@@ -896,7 +830,7 @@ def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip
     # First discard processed, then auto-pass ends game, second discard skipped
     non_synthetic = [s for s in trace.steps if not s.synthetic]
     assert len(non_synthetic) == 1
-    assert non_synthetic[0].input_event.action == GameAction.DISCARD
+    assert isinstance(non_synthetic[0].input_event.action, Discard)
 
 
 def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_passing():
@@ -935,15 +869,8 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
             )
             return game_start
 
-        def handle_action(
-            self,
-            runtime: GameRuntime,
-            *,
-            seat: int,
-            action: GameAction,
-            data: dict[str, Any],
-        ) -> GameUpdate:
-            if action == GameAction.PASS:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+            if action == Pass():
                 self._pass_count += 1
                 state = runtime.state
 
@@ -957,9 +884,9 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
                 )
                 return _stub_update([])
 
-            if action == GameAction.DISCARD:
+            if isinstance(action, Discard):
                 # Use real discard but ensure no new prompt is created
-                events = super().handle_action(runtime, seat=seat, action=action, data=data)
+                events = super().act(runtime, seat, action)
                 state = runtime.state
 
                 if state.round_state.pending_call_prompt is not None:
@@ -974,10 +901,10 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
 
                 return events
 
-            return super().handle_action(runtime, seat=seat, action=action, data=data)
+            return super().act(runtime, seat, action)
 
     name, tile = _probe_current_player_discard()
-    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
+    replay = _build_replay(actions=((name, Discard(tile=tile)),))
 
     svc_instance = EarlyResolveService()
     trace = run_replay(
@@ -987,5 +914,5 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
     )
     # Only 1 PASS should have been sent (prompt resolved after first, breaking loop)
     assert svc_instance._pass_count == 1
-    synthetic_pass_steps = [s for s in trace.steps if s.synthetic and s.input_event.action == GameAction.PASS]
+    synthetic_pass_steps = [s for s in trace.steps if s.synthetic and s.input_event.action == Pass()]
     assert len(synthetic_pass_steps) == 1

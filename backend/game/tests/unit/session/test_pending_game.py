@@ -3,7 +3,7 @@ import asyncio
 import pytest
 from starlette.testclient import TestClient
 
-from game.engine import EventType, GameAction, WaitKind
+from game.engine import Discard, EventType, WaitKind
 from game.messaging.encoder import decode, encode
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType
@@ -155,7 +155,7 @@ class TestJoinGame:
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         conn = _join(manager, "ticket-0")
 
-        manager.handle_game_action(conn, action=GameAction.DISCARD, data={}, wait_id=0)
+        manager.handle_game_action(conn, action=Discard(tile=0), wait_id=0)
         assert _error_codes(conn) == [SessionErrorCode.GAME_NOT_STARTED]
 
 

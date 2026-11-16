@@ -5,8 +5,8 @@ from mahjong.tile import TilesConverter
 
 from game.logic.action_handlers import handle_chi, handle_kan, handle_pass, handle_pon, handle_ron
 from game.logic.action_result import ActionResult
+from game.logic.decision import Chi, Kan, Pon
 from game.logic.enums import (
-    GameAction,
     KanType,
     MeldCallType,
     MeldViewType,
@@ -21,7 +21,7 @@ from game.logic.settings import GameSettings
 from game.logic.state import Caller, Discard
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_discard_phase
-from game.logic.types import ChiActionData, KanActionData, PonActionData, YakuInfo
+from game.logic.types import YakuInfo
 from game.logic.win import get_waiting_tiles
 from game.tests.helpers.builders import create_dealt_game_state, create_player
 from game.tests.helpers.hands import (
@@ -47,7 +47,7 @@ _FOUR_MAN_CALL_HANDS = (
 )
 
 
-def _call_four_man_discard(call: GameAction, *, settings: GameSettings | None = None) -> ActionResult:
+def _call_four_man_discard(call: type[Pon | Chi], *, settings: GameSettings | None = None) -> ActionResult:
     prompted, _events = process_discard_phase(
         create_dealt_game_state(_FOUR_MAN_CALL_HANDS, settings=settings), _FOUR_MAN
     )
@@ -58,13 +58,13 @@ def _call_four_man_discard(call: GameAction, *, settings: GameSettings | None = 
         (1, [MeldCallType.CHI]),
     ]
 
-    if call == GameAction.CALL_PON:
+    if call is Pon:
         passed = handle_pass(prompted, seat=1)
-        called = handle_pon(passed.state, seat=2, data=PonActionData(tile_id=_FOUR_MAN))
+        called = handle_pon(passed.state, seat=2)
     else:
         passed = handle_pass(prompted, seat=2)
         chi_tiles = (tile_copies(0, man="5")[0], tile_copies(0, man="6")[0])
-        called = handle_chi(passed.state, seat=1, data=ChiActionData(tile_id=_FOUR_MAN, sequence_tiles=chi_tiles))
+        called = handle_chi(passed.state, seat=1, action=Chi(tiles=chi_tiles))
 
     assert isinstance(called, ActionResult)
     assert called.state.round_state.is_after_meld_call
@@ -78,13 +78,13 @@ def _call_four_man_discard(call: GameAction, *, settings: GameSettings | None = 
 
 class TestKuikaeSameTileRestriction:
     def test_kuikae__when_pon__should_forbid_same_tile_type(self):
-        round_state = _call_four_man_discard(GameAction.CALL_PON).state.round_state
+        round_state = _call_four_man_discard(Pon).state.round_state
         assert round_state.players[2].kuikae_tiles == (tile_to_34(_FOUR_MAN),)
 
 
 class TestKuikaeDisabledSetting:
-    @pytest.mark.parametrize(("call", "caller_seat"), [(GameAction.CALL_PON, 2), (GameAction.CALL_CHI, 1)])
-    def test_kuikae__when_disabled__should_not_restrict_discard(self, call: GameAction, caller_seat: int):
+    @pytest.mark.parametrize(("call", "caller_seat"), [(Pon, 2), (Chi, 1)])
+    def test_kuikae__when_disabled__should_not_restrict_discard(self, call: type[Pon | Chi], caller_seat: int):
         round_state = _call_four_man_discard(call, settings=GameSettings(has_kuikae=False)).state.round_state
         assert round_state.players[caller_seat].kuikae_tiles == ()
 
@@ -152,7 +152,7 @@ class TestKuikaeSujiRestriction:
         self, has_kuikae_suji, forbidden
     ):
         settings = GameSettings(has_kuikae_suji=has_kuikae_suji)
-        chi = _call_four_man_discard(GameAction.CALL_CHI, settings=settings)
+        chi = _call_four_man_discard(Chi, settings=settings)
         forbidden_34 = tuple(tile_to_34(t) for t in forbidden)
         assert chi.state.round_state.players[1].kuikae_tiles == forbidden_34
         assert [type(e) for e in chi.events] == [MeldEvent, TurnEvent]
@@ -161,7 +161,7 @@ class TestKuikaeSujiRestriction:
         assert (turn_event.target, turn_event.kuikae_tiles) == (SeatTarget(seat=1), list(forbidden_34))
 
     def test_kuikae_suji__when_discarding_the_suji_tile_after_chi__should_raise(self):
-        round_state = _call_four_man_discard(GameAction.CALL_CHI).state.round_state
+        round_state = _call_four_man_discard(Chi).state.round_state
 
         with pytest.raises(InvalidDiscardError, match="not a legal discard"):
             discard_tile(round_state, seat=1, tile_id=_CHI_SEAT_SEVEN_MAN)
@@ -259,7 +259,7 @@ class TestRiichiSeatMeldOffers:
 
 class TestKuikaeClearedAfterDiscard:
     def test_kuikae__when_player_discards__should_clear_restriction(self):
-        round_state = _call_four_man_discard(GameAction.CALL_CHI).state.round_state
+        round_state = _call_four_man_discard(Chi).state.round_state
 
         new_state, discard = discard_tile(round_state, seat=1, tile_id=_CHI_SEAT_NINE_SOU)
         assert discard.tile_id == _CHI_SEAT_NINE_SOU
@@ -333,7 +333,7 @@ class TestHeadBumpWhenDoubleRonDisabled:
             settings=GameSettings(has_double_ron=False),
         )
 
-        kan = handle_kan(game_state, seat=2, data=KanActionData(tile_id=one_man[3], kan_type=KanType.ADDED))
+        kan = handle_kan(game_state, seat=2, action=Kan(kan_type=KanType.ADDED, tile=one_man[3]))
         prompt = kan.state.round_state.pending_call_prompt
         assert prompt is not None
         assert prompt.callers == (Caller(seat=3, can_ron=True), Caller(seat=0, can_ron=True))

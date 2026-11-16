@@ -8,17 +8,21 @@ import structlog
 
 from game.engine import (
     PRESET_GAME_TYPE,
+    Action,
     BroadcastTarget,
+    CallOpportunity,
     CallPromptEvent,
+    Chi,
     DoubleRonResult,
     DrawEvent,
     ErrorEvent,
-    GameAction,
     GameEndedEvent,
     GameErrorCode,
     GameEvent,
     GameStartedEvent,
     InvalidGameActionError,
+    Kan,
+    Pon,
     RoundEndEvent,
     RoundStartedEvent,
     SeatTarget,
@@ -70,6 +74,12 @@ logger = structlog.get_logger()
 
 _AUTH_TIMEOUT_SECONDS = 10
 _CONFIRM_ROUND = "confirm_round"
+
+_CALLED_TILE_MISMATCH_CODES: dict[type[Action], GameErrorCode] = {
+    Pon: GameErrorCode.INVALID_PON,
+    Chi: GameErrorCode.INVALID_CHI,
+    Kan: GameErrorCode.INVALID_KAN,
+}
 
 
 @dataclass(frozen=True)
@@ -560,19 +570,20 @@ class SessionManager:
         self,
         connection: ConnectionProtocol,
         *,
-        action: GameAction,
-        data: dict[str, Any],
+        action: Action,
         wait_id: int,
+        called_tile: int | None = None,
     ) -> None:
         """
-        Run a player's game action.
+        Run a player's game action; called_tile is the tile a call answer's message names as the one it calls.
 
         A seat that owes no action, or an action whose id is not its participant's current decision id, gets a
-        `stale_action` ErrorEvent, and neither the engine nor a timer is touched. A rule judgment or race comes back
-        from the engine as an ErrorEvent for the seat. Either ErrorEvent names the wait id the action echoed, so the
-        client matches the refusal to its own request. Structurally impossible input (InvalidGameActionError, always the
-        acting seat's) disconnects the player with 1008 and seats an AI player. Anything else the engine raises is a
-        server fault and propagates to the caller's boundary, which fails the game.
+        `stale_action` ErrorEvent, and neither the engine nor a timer is touched. A call answer naming another tile than
+        the call open for the seat gets its invalid code for the mismatch, without the engine. A rule judgment or race
+        comes back from the engine as an ErrorEvent for the seat. Each ErrorEvent names the wait id the action echoed,
+        so the client matches the refusal to its own request. Structurally impossible input (InvalidGameActionError,
+        always the acting seat's) disconnects the player with 1008 and seats an AI player. Anything else the engine
+        raises is a server fault and propagates to the caller's boundary, which fails the game.
         """
         participant = self._acting_participant(connection)
         if participant is None:
@@ -581,17 +592,54 @@ class SessionManager:
         game = participant.game
         seat = self._seat_of(participant)
         if game.awaiting is None or seat not in game.awaiting.seats or wait_id != participant.decision_id:
-            self._send_stale_action(connection, seat=seat, action=action.value, wait_id=wait_id)
+            self._send_stale_action(connection, seat=seat, action=str(action), wait_id=wait_id)
+            return
+
+        if called_tile is not None and self._mismatches_open_call(game, seat=seat, called_tile=called_tile):
+            self._refuse_called_tile(game, seat=seat, action=action, wait_id=wait_id, awaiting=game.awaiting)
             return
 
         try:
-            update = self._game_service.handle_action(self._runtime_of(game), seat=seat, action=action, data=data)
+            update = self._game_service.act(self._runtime_of(game), seat, action)
         except InvalidGameActionError as e:
             self._kick_player(connection, error=e)
             return
 
         events = [_naming_wait(event, wait_id=wait_id) for event in update.events]
         self._follow_engine(game, events=events, awaiting=update.awaiting, actor=seat)
+
+    def _mismatches_open_call(self, game: GameSession, *, seat: int, called_tile: int) -> bool:
+        """
+        Tell whether a call answer's called tile is not the tile of the call open for the seat; with no call open for
+        it, the engine judges the answer.
+        """
+        decision = self._game_service.decision(self._runtime_of(game), seat)
+        if decision is None or not isinstance(decision.context, CallOpportunity):
+            return False
+
+        return decision.context.tile != called_tile
+
+    def _refuse_called_tile(
+        self,
+        game: GameSession,
+        *,
+        seat: int,
+        action: Action,
+        wait_id: int,
+        awaiting: Awaiting,
+    ) -> None:
+        """
+        Answer a call answer that names another tile than its call with the answer's invalid code, delivered as the
+        engine's refusals are, naming the wait id the answer echoed.
+        """
+        logger.warning("invalid call: tile_id mismatch", action=str(action))
+        error = ErrorEvent(
+            code=_CALLED_TILE_MISMATCH_CODES[type(action)],
+            message="tile_id mismatch",
+            target=SeatTarget(seat=seat),
+            wait_id=wait_id,
+        )
+        self._send_events(game, [error], awaiting)
 
     def confirm_round(self, connection: ConnectionProtocol, *, wait_id: int) -> None:
         """

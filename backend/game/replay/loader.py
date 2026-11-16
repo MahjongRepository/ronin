@@ -12,9 +12,16 @@ from game.engine import (
     RNG_VERSION,
     TRIPLE_RON_COUNT,
     AbortiveDrawType,
+    Chi,
+    Discard,
     EventType,
-    GameAction,
+    Kan,
     KanType,
+    Kyuushu,
+    Pon,
+    Riichi,
+    Ron,
+    Tsumo,
     WireGameType,
     seat_permutation,
     validate_seed_hex,
@@ -283,17 +290,13 @@ def _parse_discard(event: dict[int, Any], seat_to_name: dict[int, str]) -> Repla
     except (ValueError, TypeError) as exc:
         raise ReplayLoadError(f"Invalid discard packed value: {exc}") from exc
 
-    action = GameAction.DECLARE_RIICHI if is_riichi else GameAction.DISCARD
     try:
         player_name = seat_to_name[seat]
     except KeyError:
         raise ReplayLoadError(f"discard event references unknown seat: {seat}") from None
 
-    return ReplayInputEvent(
-        player_name=player_name,
-        action=action,
-        data={"tile_id": tile_id},
-    )
+    action = Riichi(tile=tile_id) if is_riichi else Discard(tile=tile_id)
+    return ReplayInputEvent(player_name=player_name, action=action)
 
 
 def _parse_meld_compact(event: dict[int, Any], seat_to_name: dict[int, str]) -> ReplayInputEvent:
@@ -324,7 +327,7 @@ def _parse_meld_compact(event: dict[int, Any], seat_to_name: dict[int, str]) -> 
         case "chi":
             return _parse_chi_from_meld_data(meld_data, player_name)
         case "pon":
-            return _parse_pon_from_meld_data(meld_data, player_name)
+            return _parse_pon_from_meld_data(player_name)
         case "open_kan" | "closed_kan" | "added_kan":
             return _parse_kan_from_meld_data(meld_data, player_name)
         case _:
@@ -336,25 +339,15 @@ def _parse_chi_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayIn
     Parse a chi action from a decoded MeldData dict.
     """
     called_tile_id = meld_data["called_tile_id"]
-    tile_ids = meld_data["tile_ids"]
-    sequence_tiles = [t for t in tile_ids if t != called_tile_id]
-    return ReplayInputEvent(
-        player_name=player_name,
-        action=GameAction.CALL_CHI,
-        data={"tile_id": called_tile_id, "sequence_tiles": sequence_tiles},
-    )
+    first, second = (t for t in meld_data["tile_ids"] if t != called_tile_id)
+    return ReplayInputEvent(player_name=player_name, action=Chi(tiles=(first, second)))
 
 
-def _parse_pon_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayInputEvent:
+def _parse_pon_from_meld_data(player_name: str) -> ReplayInputEvent:
     """
-    Parse a pon action from a decoded MeldData dict.
+    Parse a pon action: the engine picks the hand tiles it takes, as it did in the recorded game.
     """
-    called_tile_id = meld_data["called_tile_id"]
-    return ReplayInputEvent(
-        player_name=player_name,
-        action=GameAction.CALL_PON,
-        data={"tile_id": called_tile_id},
-    )
+    return ReplayInputEvent(player_name=player_name, action=Pon())
 
 
 def _parse_kan_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayInputEvent:
@@ -362,17 +355,13 @@ def _parse_kan_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayIn
     Parse a kan action from a decoded MeldData dict.
     """
     meld_type = meld_data["meld_type"]
-    kan_type_map = {"open_kan": "open", "closed_kan": "closed", "added_kan": "added"}
+    kan_type_map = {"open_kan": KanType.OPEN, "closed_kan": KanType.CLOSED, "added_kan": KanType.ADDED}
     kan_type = kan_type_map[meld_type]
 
     tile_ids = meld_data["tile_ids"]
     called_tile_id = meld_data["called_tile_id"]
     tile_id = called_tile_id if called_tile_id is not None else tile_ids[0]
-    return ReplayInputEvent(
-        player_name=player_name,
-        action=GameAction.CALL_KAN,
-        data={"tile_id": tile_id, "kan_type": kan_type},
-    )
+    return ReplayInputEvent(player_name=player_name, action=Kan(kan_type=kan_type, tile=tile_id))
 
 
 def _parse_round_end(event: dict[int, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent] | None:
@@ -416,7 +405,7 @@ def _parse_tsumo_round_end(result: dict[int, Any], seat_to_name: dict[int, str])
     player_name = _parse_seat_player(
         result.get(WireKey.WINNER_SEAT), seat_to_name, field="tsumo round_end winner seat (ws)"
     )
-    return [ReplayInputEvent(player_name=player_name, action=GameAction.DECLARE_TSUMO)]
+    return [ReplayInputEvent(player_name=player_name, action=Tsumo())]
 
 
 def _parse_ron_round_end(result: dict[int, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent]:
@@ -428,7 +417,7 @@ def _parse_ron_round_end(result: dict[int, Any], seat_to_name: dict[int, str]) -
     )
     return [
         *_parse_robbed_kan(result, seat_to_name),
-        ReplayInputEvent(player_name=player_name, action=GameAction.CALL_RON),
+        ReplayInputEvent(player_name=player_name, action=Ron()),
         *_parse_head_bumped_rons(result, seat_to_name, winner_names={player_name}),
     ]
 
@@ -452,7 +441,7 @@ def _parse_double_ron_round_end(
         player_name = _parse_seat_player(
             winner.get(WireKey.WINNER_SEAT), seat_to_name, field="double_ron round_end winner seat (ws)"
         )
-        rons.append(ReplayInputEvent(player_name=player_name, action=GameAction.CALL_RON))
+        rons.append(ReplayInputEvent(player_name=player_name, action=Ron()))
 
     winner_names = {ron.player_name for ron in rons}
     return [
@@ -480,7 +469,7 @@ def _parse_abortive_draw_round_end(
     player_name = _parse_seat_player(
         result.get(WireKey.SEAT), seat_to_name, field="nine_terminals abortive_draw seat (s)"
     )
-    return [ReplayInputEvent(player_name=player_name, action=GameAction.CALL_KYUUSHU)]
+    return [ReplayInputEvent(player_name=player_name, action=Kyuushu())]
 
 
 def _parse_triple_ron_declarations(
@@ -488,7 +477,7 @@ def _parse_triple_ron_declarations(
     seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent]:
     """
-    Parse a triple_ron abortive_draw's declaring seats (rcl) into one CALL_RON per seat, in their recorded order.
+    Parse a triple_ron abortive_draw's declaring seats (rcl) into one ron per seat, in their recorded order.
 
     The seats must be TRIPLE_RON_COUNT distinct known seats; anything else is a malformed replay.
     """
@@ -502,7 +491,7 @@ def _parse_triple_ron_declarations(
     if len(set(player_names)) != len(player_names):
         raise ReplayLoadError(f"triple_ron abortive_draw has invalid ron seats (rcl): {seats!r}")
 
-    rons = [ReplayInputEvent(player_name=name, action=GameAction.CALL_RON) for name in player_names]
+    rons = [ReplayInputEvent(player_name=name, action=Ron()) for name in player_names]
     return [*_parse_robbed_kan(result, seat_to_name), *rons]
 
 
@@ -529,13 +518,7 @@ def _parse_robbed_kan(result: dict[int, Any], seat_to_name: dict[int, str]) -> l
     if not is_tile or kan_type not in (KanType.ADDED.value, KanType.CLOSED.value):
         raise ReplayLoadError(f"round_end has an invalid robbed kan (rk): {robbed_kan!r}")
 
-    return [
-        ReplayInputEvent(
-            player_name=player_name,
-            action=GameAction.CALL_KAN,
-            data={"tile_id": tile_id, "kan_type": kan_type},
-        ),
-    ]
+    return [ReplayInputEvent(player_name=player_name, action=Kan(kan_type=KanType(kan_type), tile=tile_id))]
 
 
 def _parse_head_bumped_rons(
@@ -545,7 +528,7 @@ def _parse_head_bumped_rons(
     winner_names: set[str],
 ) -> list[ReplayInputEvent]:
     """
-    Parse the seats whose declared ron lost to head bump (hbs) into their CALL_RON, after the winners' rons.
+    Parse the seats whose declared ron lost to head bump (hbs) into their ron, after the winners' rons.
 
     The live game resolved its prompt with those declarations, so the replay must declare them too: a pass in their
     place would leave them temporarily furiten. Absent when no declaration was bumped; when present it must hold
@@ -567,7 +550,7 @@ def _parse_head_bumped_rons(
     if len(set(player_names)) != len(player_names) or non_declarer_names & set(player_names):
         raise ReplayLoadError(f"round_end has invalid head-bumped ron seats (hbs): {seats!r}")
 
-    return [ReplayInputEvent(player_name=name, action=GameAction.CALL_RON) for name in player_names]
+    return [ReplayInputEvent(player_name=name, action=Ron()) for name in player_names]
 
 
 def _parse_seat_player(seat: object, seat_to_name: dict[int, str], *, field: str) -> str:

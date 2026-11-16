@@ -3,10 +3,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from game.engine import Chi, Discard, Kan, Kyuushu, Pon, Riichi, Ron, Tsumo
+
 if TYPE_CHECKING:
     from pathlib import Path
 
-from game.engine import RNG_VERSION, EventType, GameAction
+from game.engine import RNG_VERSION, EventType, KanType
 from game.replay import loader as replay_loader_module
 from game.replay.loader import (
     _MAX_REPLAY_EVENTS,
@@ -84,8 +86,7 @@ def test_load_replay__when_discard_event__should_produce_discard_action_for_seat
     assert set(replay.player_names) == {"Alice", "Bob", "Charlie", "Diana"}
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Alice"
-    assert replay.events[0].action == GameAction.DISCARD
-    assert replay.events[0].data == {"tile_id": 118}
+    assert replay.events[0].action == Discard(tile=118)
 
 
 def test_load_replay__when_discard_has_riichi_flag__should_produce_declare_riichi_action():
@@ -97,8 +98,7 @@ def test_load_replay__when_discard_has_riichi_flag__should_produce_declare_riich
     replay = load_replay_records(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Bob"
-    assert replay.events[0].action == GameAction.DECLARE_RIICHI
-    assert replay.events[0].data == {"tile_id": 50}
+    assert replay.events[0].action == Riichi(tile=50)
 
 
 def test_load_replay__when_pon_meld__should_produce_call_pon_action():
@@ -107,18 +107,16 @@ def test_load_replay__when_pon_meld__should_produce_call_pon_action():
     replay = load_replay_records(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Charlie"
-    assert replay.events[0].action == GameAction.CALL_PON
-    assert replay.events[0].data == {"tile_id": 8}
+    assert replay.events[0].action == Pon()
 
 
-def test_load_replay__when_chi_meld__should_produce_call_chi_action_with_sequence_tiles():
+def test_load_replay__when_chi_meld__should_produce_chi_with_the_hand_tiles():
     meld = _compact_meld(meld_type="chi", caller_seat=1, from_seat=0, tile_ids=[20, 24, 28], called_tile_id=20)
     content = _build_records(meld)
     replay = load_replay_records(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Bob"
-    assert replay.events[0].action == GameAction.CALL_CHI
-    assert replay.events[0].data == {"tile_id": 20, "sequence_tiles": [24, 28]}
+    assert replay.events[0].action == Chi(tiles=(24, 28))
 
 
 def test_load_replay__when_open_kan_meld__should_produce_open_call_kan_action():
@@ -127,8 +125,7 @@ def test_load_replay__when_open_kan_meld__should_produce_open_call_kan_action():
     replay = load_replay_records(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Diana"
-    assert replay.events[0].action == GameAction.CALL_KAN
-    assert replay.events[0].data == {"tile_id": 2, "kan_type": "open"}
+    assert replay.events[0].action == Kan(kan_type=KanType.OPEN, tile=2)
 
 
 def test_load_replay__when_closed_kan_meld__should_produce_closed_call_kan_action():
@@ -139,8 +136,7 @@ def test_load_replay__when_closed_kan_meld__should_produce_closed_call_kan_actio
     replay = load_replay_records(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Bob"
-    assert replay.events[0].action == GameAction.CALL_KAN
-    assert replay.events[0].data == {"tile_id": 0, "kan_type": "closed"}
+    assert replay.events[0].action == Kan(kan_type=KanType.CLOSED, tile=0)
 
 
 def test_load_replay__when_added_kan_meld__should_produce_added_call_kan_action():
@@ -151,8 +147,7 @@ def test_load_replay__when_added_kan_meld__should_produce_added_call_kan_action(
     replay = load_replay_records(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Alice"
-    assert replay.events[0].action == GameAction.CALL_KAN
-    assert replay.events[0].data == {"tile_id": 7, "kan_type": "added"}
+    assert replay.events[0].action == Kan(kan_type=KanType.ADDED, tile=7)
 
 
 def test_load_replay__when_round_ends_in_tsumo__should_produce_declare_tsumo_action():
@@ -166,7 +161,7 @@ def test_load_replay__when_round_ends_in_tsumo__should_produce_declare_tsumo_act
     replay = load_replay_records(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Charlie"
-    assert replay.events[0].action == GameAction.DECLARE_TSUMO
+    assert replay.events[0].action == Tsumo()
 
 
 def test_load_replay__when_round_ends_in_ron__should_produce_call_ron_action():
@@ -180,7 +175,7 @@ def test_load_replay__when_round_ends_in_ron__should_produce_call_ron_action():
     replay = load_replay_records(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Bob"
-    assert replay.events[0].action == GameAction.CALL_RON
+    assert replay.events[0].action == Ron()
 
 
 def test_load_replay__when_round_ends_in_double_ron__should_produce_call_ron_for_each_winner():
@@ -194,9 +189,9 @@ def test_load_replay__when_round_ends_in_double_ron__should_produce_call_ron_for
     replay = load_replay_records(content)
     assert len(replay.events) == 2
     assert replay.events[0].player_name == "Diana"
-    assert replay.events[0].action == GameAction.CALL_RON
+    assert replay.events[0].action == Ron()
     assert replay.events[1].player_name == "Bob"
-    assert replay.events[1].action == GameAction.CALL_RON
+    assert replay.events[1].action == Ron()
 
 
 def test_load_replay__when_round_ends_in_nine_terminals__should_produce_call_kyuushu_action():
@@ -210,7 +205,7 @@ def test_load_replay__when_round_ends_in_nine_terminals__should_produce_call_kyu
     replay = load_replay_records(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Alice"
-    assert replay.events[0].action == GameAction.CALL_KYUUSHU
+    assert replay.events[0].action == Kyuushu()
 
 
 def test_load_replay__when_round_ends_without_player_action__should_produce_no_actions():

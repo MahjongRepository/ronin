@@ -6,12 +6,12 @@ from game.engine import (
     Awaiting,
     CallPromptEvent,
     CallType,
+    Discard,
     DiscardEvent,
     DoubleRonResult,
     DoubleRonWinner,
     DrawEvent,
     EventType,
-    GameAction,
     GameEndCause,
     GameEndedEvent,
     GameRuntime,
@@ -426,7 +426,7 @@ class TestRiichiStickValuePayload:
 def _end_the_round_by_exhaustive_draw(service: MahjongGameService, runtime: GameRuntime, *, seat: int) -> None:
     _update_round_state(runtime, wall=make_wall())
     discard = runtime.state.round_state.players[seat].tiles[-1]
-    service.handle_action(runtime, seat=seat, action=GameAction.DISCARD, data={"tile_id": discard})
+    service.act(runtime, seat, Discard(tile=discard))
 
 
 class TestReconnectionPayload:

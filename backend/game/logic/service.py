@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from game.logic.enums import GameAction, TimeoutType, WaitKind
+    from game.logic.decision import Action, Decision
+    from game.logic.enums import TimeoutType, WaitKind
     from game.logic.events import GameEvent
     from game.logic.runtime import GameRuntime
     from game.logic.types import ReconnectionSnapshot, StartPosition
@@ -67,18 +68,35 @@ class GameService(Protocol):
     a WaitKind.AI_TURN wait, which advance_ai_turn plays; AI responses to call prompts never wait.
     """
 
-    def handle_action(
-        self,
-        runtime: GameRuntime,
-        *,
-        seat: int,
-        action: GameAction,
-        data: dict[str, Any],
-    ) -> GameUpdate:
+    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
         """
-        Handle a game action from the player at a seat.
+        Apply one action of the player at a seat: a domain action, checked against the rules and what the seat was
+        offered.
 
         Returns the events to deliver and the next wait.
+        """
+        ...
+
+    def legal_actions(self, runtime: GameRuntime, seat: int) -> tuple[Action, ...]:
+        """
+        Return every action the seat may take now, in offer order; none when the game does not await the seat.
+
+        An action equivalent to a listed one is legal too: a chi with another held copy of an offered shape, a kan from
+        any tile of an offered type.
+        """
+        ...
+
+    def default_action(self, runtime: GameRuntime, seat: int) -> Action | None:
+        """
+        Return the action a timeout takes for the seat: the default discard on a turn, a pass on a call, never a win or
+        a call; None when the game does not await the seat.
+        """
+        ...
+
+    def decision(self, runtime: GameRuntime, seat: int) -> Decision | None:
+        """
+        Return the seat's decision: its context, its legal actions and its default; None when the game does not await
+        the seat.
         """
         ...
 

@@ -4,12 +4,13 @@ import logging
 from unittest.mock import AsyncMock, MagicMock
 
 from game.engine import (
+    Discard,
     EventType,
-    GameAction,
     GameEndCause,
     GameEndedEvent,
     GameEvent,
     InvalidGameActionError,
+    Pass,
     PlayerStanding,
     TimeoutType,
     WaitKind,
@@ -187,7 +188,7 @@ class TestFailGame:
         round_state = runtime_of(manager).state.round_state
         assert round_state.current_player_seat == alice_seat
         engine_fault = RuntimeError("engine fault")
-        monkeypatch.setattr(seeded_engine, "handle_action", MagicMock(side_effect=engine_fault))
+        monkeypatch.setattr(seeded_engine, "act", MagicMock(side_effect=engine_fault))
 
         with caplog.at_level(logging.ERROR):
             router.handle_message(
@@ -326,13 +327,11 @@ class TestGameEndFromAction:
         manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
             return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER),
         )
-        manager._game_service.handle_action = MagicMock(
+        manager._game_service.act = MagicMock(
             side_effect=InvalidGameActionError(action="discard", seat=0, reason="tile not in hand"),
         )
 
-        manager.handle_game_action(
-            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager, conns[0])
-        )
+        manager.handle_game_action(conns[0], action=Discard(tile=0), wait_id=current_wait_id(manager, conns[0]))
         await wait_for_background_tasks(manager)
         assert (conns[0]._close_code, conns[0]._close_reason) == (1008, "invalid_game_action")
         assert (conns[1]._close_code, conns[1]._close_reason) == (1000, "game_ended")
@@ -341,13 +340,9 @@ class TestGameEndFromAction:
         self, manager
     ):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
-        manager._game_service.handle_action = MagicMock(
-            return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER)
-        )
+        manager._game_service.act = MagicMock(return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER))
 
-        manager.handle_game_action(
-            conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager, conns[0])
-        )
+        manager.handle_game_action(conns[0], action=Discard(tile=0), wait_id=current_wait_id(manager, conns[0]))
         assert (manager.game_count, manager.get_playing_game_id("user-0")) == (0, None)
 
         await wait_for_background_tasks(manager)
@@ -394,7 +389,7 @@ class TestGameEndFromTimeout:
         run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
         assert manager.get_game("game1") is None
 
-        manager.handle_game_action(conns[1], action=GameAction.PASS, data={}, wait_id=0)
+        manager.handle_game_action(conns[1], action=Pass(), wait_id=0)
         await wait_for_background_tasks(manager)
         assert conns[1].sent_messages[-1][WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.GAME_END]
         assert (conns[1]._close_code, conns[1]._close_reason) == (1000, "game_ended")

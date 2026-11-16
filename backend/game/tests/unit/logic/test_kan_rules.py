@@ -19,10 +19,11 @@ from game.logic.action_handlers import (
 from game.logic.action_result import ActionResult, Refusal
 from game.logic.actions import get_available_actions
 from game.logic.ai_player_controller import AIPlayerController
+from game.logic.decision import Chi, Kan
+from game.logic.decision import Discard as DiscardAction
 from game.logic.enums import (
     AbortiveDrawType,
     CallType,
-    GameAction,
     KanType,
     MeldViewType,
     PlayerAction,
@@ -54,7 +55,6 @@ from game.logic.state import Caller, Discard, MahjongGameState, MahjongPlayer
 from game.logic.state_utils import update_game_with_round
 from game.logic.tiles import NUM_TILES, tile_to_34
 from game.logic.turn import process_discard_phase
-from game.logic.types import ChiActionData, DiscardActionData, KanActionData, PonActionData
 from game.logic.wall import DEAD_WALL_SIZE, DeadWall, TileStack, Wall, increment_pending_dora
 from game.logic.win import (
     get_waiting_tiles,
@@ -107,7 +107,7 @@ def _seat_3_after_discarding(tile_id: int) -> MahjongPlayer:
 
 
 def _call_kan(game_state: MahjongGameState, *, seat: int, tile_id: int, kan_type: KanType) -> ActionResult:
-    result = handle_kan(game_state, seat=seat, data=KanActionData(tile_id=tile_id, kan_type=kan_type))
+    result = handle_kan(game_state, seat=seat, action=Kan(kan_type=kan_type, tile=tile_id))
     assert isinstance(result, ActionResult)
     return result
 
@@ -164,7 +164,7 @@ def _chi_by_seat_holding_quad_and_upgradable_pon() -> MahjongGameState:
     assert get_possible_added_kans(seat_0, game_state.round_state, settings=game_state.settings) != []
 
     prompted, _events = process_discard_phase(game_state, three_pin)
-    chi = handle_chi(prompted, seat=0, data=ChiActionData(tile_id=three_pin, sequence_tiles=one_two_pin))
+    chi = handle_chi(prompted, seat=0, action=Chi(tiles=one_two_pin))
     assert isinstance(chi, ActionResult)
     assert chi.state.round_state.is_after_meld_call
     return chi.state
@@ -212,7 +212,7 @@ class TestKanAfterMeldCallBlocked:
         two_man = tile_copies(0, man="2")[0]
 
         with pytest.raises(InvalidGameActionError, match="cannot declare kan after a meld call"):
-            handle_kan(game_state, seat=0, data=KanActionData(tile_id=two_man, kan_type=KanType.CLOSED))
+            handle_kan(game_state, seat=0, action=Kan(kan_type=KanType.CLOSED, tile=two_man))
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +292,7 @@ def _game_with_three_kans_on_table(
 
 
 def _declare_kan(game_state: MahjongGameState, *, seat: int, tile_id: int, kan_type: KanType) -> ActionResult:
-    result = handle_kan(game_state, seat=seat, data=KanActionData(tile_id=tile_id, kan_type=kan_type))
+    result = handle_kan(game_state, seat=seat, action=Kan(kan_type=kan_type, tile=tile_id))
     assert isinstance(result, ActionResult)
     assert result.state.round_state.phase == RoundPhase.PLAYING
     assert check_four_kans(result.state.round_state, result.state.settings) is True
@@ -300,7 +300,7 @@ def _declare_kan(game_state: MahjongGameState, *, seat: int, tile_id: int, kan_t
 
 
 def _discard(game_state: MahjongGameState, *, seat: int, tile_id: int) -> ActionResult:
-    result = handle_discard(game_state, seat=seat, data=DiscardActionData(tile_id=tile_id))
+    result = handle_discard(game_state, seat=seat, action=DiscardAction(tile=tile_id))
     assert isinstance(result, ActionResult)
     return result
 
@@ -418,7 +418,7 @@ class TestFourKansAbortTiming:
         )
         dora_before = len(game_state.round_state.wall.dora_indicators)
 
-        chankan_offer = handle_kan(game_state, seat=3, data=KanActionData(tile_id=_FIVE_MAN[3], kan_type=KanType.ADDED))
+        chankan_offer = handle_kan(game_state, seat=3, action=Kan(kan_type=KanType.ADDED, tile=_FIVE_MAN[3]))
         assert isinstance(chankan_offer, ActionResult)
         prompt = chankan_offer.state.round_state.pending_call_prompt
         assert prompt is not None
@@ -459,7 +459,7 @@ class TestFourKansAbort:
         )
         game_state = _game_with_three_kans_on_table(players, current_player_seat=0)
 
-        kan = handle_kan(game_state, seat=0, data=KanActionData(tile_id=_FIVE_MAN[0], kan_type=KanType.CLOSED))
+        kan = handle_kan(game_state, seat=0, action=Kan(kan_type=KanType.CLOSED, tile=_FIVE_MAN[0]))
         assert isinstance(kan, ActionResult)
         assert len(kan.state.round_state.players[0].melds) == 4
 
@@ -490,7 +490,7 @@ class TestFourKansAbort:
             settings=GameSettings(min_players_for_kan_abort=3),
         )
 
-        kan = handle_kan(game_state, seat=3, data=KanActionData(tile_id=_FIVE_MAN[0], kan_type=KanType.CLOSED))
+        kan = handle_kan(game_state, seat=3, action=Kan(kan_type=KanType.CLOSED, tile=_FIVE_MAN[0]))
         assert isinstance(kan, ActionResult)
         assert check_four_kans(kan.state.round_state, GameSettings()) is True
 
@@ -559,7 +559,7 @@ class TestKanDoraTiming:
         kan_dora_indicator = game_state.round_state.wall.dead_wall.indicators[1].top
 
         kan_offer = _discard(game_state, seat=0, tile_id=nine_pin[3])
-        kan = handle_kan(kan_offer.state, seat=1, data=KanActionData(tile_id=nine_pin[3], kan_type=KanType.OPEN))
+        kan = handle_kan(kan_offer.state, seat=1, action=Kan(kan_type=KanType.OPEN, tile=nine_pin[3]))
         assert isinstance(kan, ActionResult)
         assert kan.state.round_state.wall.pending_dora_count == 1
 
@@ -569,7 +569,7 @@ class TestKanDoraTiming:
             kan_dora_indicator
         ]
 
-        pon = handle_pon(replacement_discard.state, seat=3, data=PonActionData(tile_id=east[0]))
+        pon = handle_pon(replacement_discard.state, seat=3)
         assert isinstance(pon, ActionResult)
         assert not [e for e in pon.events if isinstance(e, DoraRevealedEvent)]
         assert pon.state.round_state.players[3].melds[-1].type == FrozenMeld.PON
@@ -594,7 +594,7 @@ class TestKanDoraTiming:
         )
 
         kan_offer = _discard(game_state, seat=0, tile_id=nine_pin[3])
-        kan = handle_kan(kan_offer.state, seat=1, data=KanActionData(tile_id=nine_pin[3], kan_type=KanType.OPEN))
+        kan = handle_kan(kan_offer.state, seat=1, action=Kan(kan_type=KanType.OPEN, tile=nine_pin[3]))
         assert isinstance(kan, ActionResult)
 
         replacement_discard = _discard(kan.state, seat=1, tile_id=east[0])
@@ -844,12 +844,7 @@ def _riichi_seat_after_draw(waiting_hand: Sequence[int], drawn_tile: int) -> Gam
 
 
 def _declare_closed_kan(runtime: GameRuntime, tile_id: int) -> None:
-    MahjongGameService().handle_action(
-        runtime,
-        seat=0,
-        action=GameAction.CALL_KAN,
-        data={"tile_id": tile_id, "kan_type": KanType.CLOSED},
-    )
+    MahjongGameService().act(runtime, 0, Kan(kan_type=KanType.CLOSED, tile=tile_id))
 
 
 def _offered_closed_kans(runtime: GameRuntime) -> list[int] | None:

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from game.logic.enums import GameAction, GamePhase, KanType, MeldCallType, PromptKind, RoundPhase, WindName
+from game.logic.decision import CallAnswer
+from game.logic.enums import GamePhase, KanType, MeldCallType, PromptKind, RoundPhase, WindName
 from game.logic.events import RoundStartedEvent, SeatTarget
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.rng import RNG_VERSION
@@ -28,14 +29,13 @@ class Discard(BaseModel):
 
 class CallResponse(BaseModel):
     """
-    Immutable call response record.
+    A seat's recorded answer to a call prompt: a ron or the meld it calls.
     """
 
     model_config = ConfigDict(frozen=True)
 
     seat: int
-    action: GameAction
-    sequence_tiles: tuple[int, int] | None = None
+    action: CallAnswer
 
 
 class MeldOption(BaseModel):

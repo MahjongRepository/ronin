@@ -4,6 +4,7 @@ from game.logic.action_handlers import (
 )
 from game.logic.action_result import ActionResult
 from game.logic.ai_player_controller import AIPlayerController
+from game.logic.decision import Kan
 from game.logic.enums import (
     AIPlayerType,
     KanType,
@@ -23,7 +24,6 @@ from game.logic.state import (
 from game.logic.state_utils import update_player
 from game.logic.turn import process_discard_phase
 from game.logic.types import (
-    KanActionData,
     SeatConfig,
 )
 from game.tests.helpers.builders import create_dealt_game_state, create_player
@@ -70,7 +70,7 @@ class TestResolveMeldResponse:
             (1, [MeldCallType.OPEN_KAN, MeldCallType.PON]),
         ]
 
-        kan = handle_kan(prompted, seat=1, data=KanActionData(tile_id=five_man, kan_type=KanType.OPEN))
+        kan = handle_kan(prompted, seat=1, action=Kan(kan_type=KanType.OPEN, tile=five_man))
         assert isinstance(kan, ActionResult)
         assert [type(e) for e in kan.events] == [MeldEvent, DrawEvent]
         assert [m.type for m in kan.state.round_state.players[1].melds] == [FrozenMeld.KAN]

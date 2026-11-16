@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from game.engine import GameAction
+from game.engine import Chi
 from game.messaging.types import (
     SessionErrorCode,
     SessionMessageType,
@@ -147,8 +147,8 @@ class TestMessageRouterBranches:
         )
         session_manager.handle_game_action.assert_called_once_with(
             connection=connection,
-            action=GameAction.CALL_CHI,
-            data={"tile_id": 8, "sequence_tiles": (4, 12)},
+            action=Chi(tiles=(4, 12)),
+            called_tile=8,
             wait_id=3,
         )
 

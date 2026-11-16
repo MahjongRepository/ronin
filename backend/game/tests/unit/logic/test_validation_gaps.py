@@ -17,9 +17,10 @@ from game.logic.action_handlers import (
 from game.logic.action_result import ActionResult, Refusal
 from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
+from game.logic.decision import Chi, Kan, Kyuushu, Riichi, Tsumo
+from game.logic.decision import Discard as DiscardAction
 from game.logic.enums import (
     AIPlayerType,
-    GameAction,
     GameErrorCode,
     KanType,
     MeldCallType,
@@ -42,11 +43,6 @@ from game.logic.state import (
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_discard_phase
 from game.logic.types import (
-    ChiActionData,
-    DiscardActionData,
-    KanActionData,
-    PonActionData,
-    RiichiActionData,
     SeatConfig,
 )
 from game.tests.helpers.builders import create_dealt_game_state, create_player, start_game_in_play
@@ -117,7 +113,7 @@ class TestChiEarlyValidation:
         ]
 
         sequence_tiles = (_CHI_SEAT_SEVEN_MAN, _CHI_SEAT_EIGHT_MAN)
-        chi = handle_chi(prompted, seat=1, data=ChiActionData(tile_id=_NINE_MAN[0], sequence_tiles=sequence_tiles))
+        chi = handle_chi(prompted, seat=1, action=Chi(tiles=sequence_tiles))
         assert isinstance(chi, ActionResult)
         assert [m.type for m in chi.state.round_state.players[1].melds] == [FrozenMeld.CHI]
 
@@ -130,42 +126,18 @@ class TestChiEarlyValidation:
     )
     def test_chi_validation__when_sequence_tiles_are_not_an_offered_chi__should_raise(self, sequence_tiles, reason):
         game_state = _nine_man_discard_prompt()
-        data = ChiActionData(tile_id=_NINE_MAN[0], sequence_tiles=sequence_tiles)
+        action = Chi(tiles=sequence_tiles)
 
         with pytest.raises(InvalidGameActionError, match=reason):
-            handle_chi(game_state, seat=1, data=data)
+            handle_chi(game_state, seat=1, action=action)
 
 
 class TestCallTileMismatch:
-    @pytest.mark.parametrize(
-        ("submit", "refusal_code"),
-        [
-            pytest.param(
-                lambda gs: handle_pon(gs, seat=2, data=PonActionData(tile_id=_NINE_MAN[1])),
-                GameErrorCode.INVALID_PON,
-                id="pon",
-            ),
-            pytest.param(
-                lambda gs: handle_kan(gs, seat=2, data=KanActionData(tile_id=_NINE_MAN[1], kan_type=KanType.OPEN)),
-                GameErrorCode.INVALID_KAN,
-                id="open_kan",
-            ),
-            pytest.param(
-                lambda gs: handle_chi(
-                    gs,
-                    seat=1,
-                    data=ChiActionData(tile_id=_NINE_MAN[1], sequence_tiles=(_CHI_SEAT_SEVEN_MAN, _CHI_SEAT_EIGHT_MAN)),
-                ),
-                GameErrorCode.INVALID_CHI,
-                id="chi",
-            ),
-        ],
-    )
-    def test_call_response__when_tile_id_mismatches_prompt__should_refuse(self, submit, refusal_code):
+    def test_open_kan__when_tile_is_of_another_type_than_the_discard__should_refuse(self):
         game_state = _nine_man_discard_prompt()
 
-        result = submit(game_state)
-        assert result == Refusal(code=refusal_code, message="tile_id mismatch")
+        result = handle_kan(game_state, seat=2, action=Kan(kan_type=KanType.OPEN, tile=_CHI_SEAT_EIGHT_MAN))
+        assert result == Refusal(code=GameErrorCode.INVALID_KAN, message="tile_id mismatch")
 
 
 _THREE_PIN = tile_copies(3, pin="3")[0]
@@ -176,16 +148,14 @@ class TestResponseActionMatchesPrompt:
     @pytest.mark.parametrize(
         ("submit", "offered"),
         [
+            pytest.param(lambda gs: handle_pon(gs, seat=1), "call_ron", id="pon"),
             pytest.param(
-                lambda gs: handle_pon(gs, seat=1, data=PonActionData(tile_id=_THREE_PIN)), "call_ron", id="pon"
-            ),
-            pytest.param(
-                lambda gs: handle_chi(gs, seat=2, data=ChiActionData(tile_id=_THREE_PIN, sequence_tiles=_ONE_TWO_PIN)),
+                lambda gs: handle_chi(gs, seat=2, action=Chi(tiles=_ONE_TWO_PIN)),
                 "call_pon",
                 id="chi",
             ),
             pytest.param(
-                lambda gs: handle_kan(gs, seat=2, data=KanActionData(tile_id=_THREE_PIN, kan_type=KanType.OPEN)),
+                lambda gs: handle_kan(gs, seat=2, action=Kan(kan_type=KanType.OPEN, tile=_THREE_PIN)),
                 "call_pon",
                 id="open_kan",
             ),
@@ -244,23 +214,23 @@ class TestAddedKanDeclarationValidation:
     def test_added_kan__when_seat_holds_a_triplet_but_no_pon__should_raise(self):
         game_state = _seat_1_to_play((*_FIVE_PIN[:3], *_SEAT_1_PON_HAND_WITHOUT_FIVE_PIN), has_five_pin_pon=False)
 
-        data = KanActionData(tile_id=_FIVE_PIN[0], kan_type=KanType.ADDED)
+        action = Kan(kan_type=KanType.ADDED, tile=_FIVE_PIN[0])
         with pytest.raises(InvalidGameActionError, match="no pon of tile type"):
-            handle_kan(game_state, seat=1, data=data)
+            handle_kan(game_state, seat=1, action=action)
 
     def test_added_kan__when_seat_holds_no_fourth_copy__should_raise(self):
         game_state = _seat_1_to_play(_SEAT_1_PON_HAND_WITHOUT_FIVE_PIN, has_five_pin_pon=True)
         assert _FIVE_PIN[3] in game_state.round_state.wall.live_tiles
 
-        data = KanActionData(tile_id=_FIVE_PIN[3], kan_type=KanType.ADDED)
+        action = Kan(kan_type=KanType.ADDED, tile=_FIVE_PIN[3])
         with pytest.raises(InvalidGameActionError, match="not in hand"):
-            handle_kan(game_state, seat=1, data=data)
+            handle_kan(game_state, seat=1, action=action)
 
     def test_added_kan__when_tile_id_names_a_melded_copy__should_kan_the_copy_in_hand(self):
         hand = (_FIVE_PIN[3], *_SEAT_1_PON_HAND_WITHOUT_FIVE_PIN[:-1])
         game_state = _seat_1_to_play(hand, has_five_pin_pon=True)
 
-        result = handle_kan(game_state, seat=1, data=KanActionData(tile_id=_FIVE_PIN[0], kan_type=KanType.ADDED))
+        result = handle_kan(game_state, seat=1, action=Kan(kan_type=KanType.ADDED, tile=_FIVE_PIN[0]))
         assert isinstance(result, ActionResult)
         seat_1 = result.state.round_state.players[1]
         assert [(m.type, m.tiles) for m in seat_1.melds] == [(FrozenMeld.SHOUMINKAN, _FIVE_PIN)]
@@ -285,9 +255,9 @@ class TestAddedKanDeclarationValidation:
         )
         game_state = create_dealt_game_state(players)
 
-        data = KanActionData(tile_id=drawn_one_man, kan_type=KanType.ADDED)
+        action = Kan(kan_type=KanType.ADDED, tile=drawn_one_man)
         with pytest.raises(InvalidGameActionError, match="cannot call added kan while in riichi"):
-            handle_kan(game_state, seat=0, data=data)
+            handle_kan(game_state, seat=0, action=action)
 
 
 class TestKanExecutionGuards:
@@ -298,9 +268,9 @@ class TestKanExecutionGuards:
         one_man_quad = runtime.state.round_state.players[0].tiles[:4]
         assert len({tile_to_34(t) for t in one_man_quad}) == 1
 
-        data = KanActionData(tile_id=one_man_quad[0], kan_type=KanType.CLOSED)
+        action = Kan(kan_type=KanType.CLOSED, tile=one_man_quad[0])
         with pytest.raises(InvalidGameActionError, match="not enough tiles in wall"):
-            handle_kan(runtime.state, seat=0, data=data)
+            handle_kan(runtime.state, seat=0, action=action)
 
     def test_added_kan__when_total_kans_at_limit__should_raise(self):
         five_pin = tile_copies(0, pin="5555")
@@ -325,9 +295,9 @@ class TestKanExecutionGuards:
         )
         game_state = create_dealt_game_state(players, current_player_seat=1)
 
-        data = KanActionData(tile_id=five_pin[3], kan_type=KanType.ADDED)
+        action = Kan(kan_type=KanType.ADDED, tile=five_pin[3])
         with pytest.raises(InvalidGameActionError, match="maximum kans per round"):
-            handle_kan(game_state, seat=1, data=data)
+            handle_kan(game_state, seat=1, action=action)
 
 
 _TENPAI_DEALER_AFTER_DRAW = tuple(tile_copies(0, man="112345", pin="456", sou="789", honors="11"))
@@ -346,7 +316,7 @@ class TestRiichiDiscardTenpaiValidation:
     def test_riichi_discard__when_discard_breaks_tenpai__should_refuse_with_invalid_riichi(self):
         three_man = tile_copies(0, man="3")[0]
 
-        result = handle_riichi(_tenpai_dealer_after_draw(), seat=0, data=RiichiActionData(tile_id=three_man))
+        result = handle_riichi(_tenpai_dealer_after_draw(), seat=0, action=Riichi(tile=three_man))
         assert result == Refusal(
             code=GameErrorCode.INVALID_RIICHI, message=f"hand is not tenpai after discarding tile {three_man}"
         )
@@ -359,14 +329,14 @@ class TestRiichiRaisesInvalidGameActionError:
         assert not can_declare_riichi(dealer, game_state.round_state, settings=game_state.settings)
 
         with pytest.raises(InvalidGameActionError, match="cannot declare riichi: conditions not met"):
-            handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=dealer.tiles[-1]))
+            handle_riichi(game_state, seat=0, action=Riichi(tile=dealer.tiles[-1]))
 
     def test_riichi__when_tenpai_hand_and_tile_not_in_hand__should_raise(self):
         game_state = _tenpai_dealer_after_draw()
         other_seats_tile = game_state.round_state.players[1].tiles[0]
 
         with pytest.raises(InvalidGameActionError, match="not in hand"):
-            handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=other_seats_tile))
+            handle_riichi(game_state, seat=0, action=Riichi(tile=other_seats_tile))
 
 
 class TestKyuushuRuleGate:
@@ -388,25 +358,24 @@ class TestKyuushuRuleGate:
 
 class TestPendingCallPromptStateGate:
     @pytest.mark.parametrize(
-        ("action", "data"),
+        "turn_action_of",
         [
-            (GameAction.DISCARD, {"tile_id": "own"}),
-            (GameAction.DECLARE_RIICHI, {"tile_id": "own"}),
-            (GameAction.DECLARE_TSUMO, {}),
-            (GameAction.CALL_KYUUSHU, {}),
-            (GameAction.CALL_KAN, {"tile_id": "own", "kan_type": KanType.CLOSED}),
-            (GameAction.CALL_KAN, {"tile_id": "own", "kan_type": KanType.ADDED}),
+            lambda tile: DiscardAction(tile=tile),
+            lambda tile: Riichi(tile=tile),
+            lambda _tile: Tsumo(),
+            lambda _tile: Kyuushu(),
+            lambda tile: Kan(kan_type=KanType.CLOSED, tile=tile),
+            lambda tile: Kan(kan_type=KanType.ADDED, tile=tile),
         ],
         ids=["discard", "riichi", "tsumo", "kyuushu", "closed_kan", "added_kan"],
     )
-    def test_turn_action__when_prompt_pending__should_answer_not_your_turn_without_kick(self, action, data):
+    def test_turn_action__when_prompt_pending__should_answer_not_your_turn_without_kick(self, turn_action_of):
         game_state = _nine_man_discard_prompt()
         runtime = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({}))
         own_tile = game_state.round_state.players[0].tiles[-1]
 
-        action_data = {key: own_tile if value == "own" else value for key, value in data.items()}
         wait_id_before = runtime.wait_id
-        update = MahjongGameService().handle_action(runtime, seat=0, action=action, data=action_data)
+        update = MahjongGameService().act(runtime, 0, turn_action_of(own_tile))
         assert [(e.code, e.target) for e in update.events] == [(GameErrorCode.NOT_YOUR_TURN, SeatTarget(seat=0))]
         assert runtime.state is game_state
         assert runtime.wait_id == wait_id_before
@@ -416,7 +385,7 @@ class TestPendingCallPromptStateGate:
 def _kuikae_seat_after_chi() -> tuple[MahjongGameState, int, int]:
     passed = handle_pass(_nine_man_discard_prompt(), seat=2)
     sequence_tiles = (_CHI_SEAT_SEVEN_MAN, _CHI_SEAT_EIGHT_MAN)
-    chi = handle_chi(passed.state, seat=1, data=ChiActionData(tile_id=_NINE_MAN[0], sequence_tiles=sequence_tiles))
+    chi = handle_chi(passed.state, seat=1, action=Chi(tiles=sequence_tiles))
     assert isinstance(chi, ActionResult)
     assert tile_to_34(_CHI_SEAT_SIX_MAN) in chi.state.round_state.players[1].kuikae_tiles
     return chi.state, 1, _CHI_SEAT_SIX_MAN
@@ -442,14 +411,14 @@ class TestSoftErrorsRemainUnchanged:
     def test_discard__when_rule_forbids_the_tile__should_refuse_with_invalid_discard(self, stage_forbidden_discard):
         game_state, seat, forbidden_tile = stage_forbidden_discard()
 
-        result = handle_discard(game_state, seat=seat, data=DiscardActionData(tile_id=forbidden_tile))
+        result = handle_discard(game_state, seat=seat, action=DiscardAction(tile=forbidden_tile))
         assert isinstance(result, Refusal)
         assert result.code == GameErrorCode.INVALID_DISCARD
 
     def test_soft_error__when_not_your_turn__should_return_refusal(self):
         game_state = _create_frozen_game_state()
 
-        result = handle_discard(game_state, seat=1, data=DiscardActionData(tile_id=0))
+        result = handle_discard(game_state, seat=1, action=DiscardAction(tile=0))
         assert isinstance(result, Refusal)
         assert result.code == GameErrorCode.NOT_YOUR_TURN
 
@@ -482,27 +451,8 @@ class TestDiscardRaisesInvalidGameActionError:
         other_tile = game_state.round_state.players[1].tiles[0]
 
         with pytest.raises(InvalidGameActionError, match="discard") as exc_info:
-            handle_discard(game_state, seat=0, data=DiscardActionData(tile_id=other_tile))
+            handle_discard(game_state, seat=0, action=DiscardAction(tile=other_tile))
         assert exc_info.value.seat == 0
-
-    @pytest.mark.parametrize(
-        ("action", "data", "error_types"),
-        [
-            (GameAction.DISCARD, {}, "'missing'"),
-            (GameAction.DISCARD, {"tile_id": 136}, "'less_than'"),
-            (GameAction.CALL_KAN, {"tile_id": 0}, "'missing'"),
-        ],
-    )
-    def test_handle_action__when_action_data_is_malformed__should_raise_invalid_game_action(
-        self, action, data, error_types
-    ):
-        game_state = _create_frozen_game_state()
-        runtime = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({}))
-
-        with pytest.raises(InvalidGameActionError, match=rf"malformed data: \[{error_types}\]$") as exc_info:
-            MahjongGameService().handle_action(runtime, seat=0, action=action, data=data)
-        assert exc_info.value.seat == 0
-        assert runtime.state is game_state
 
 
 class TestTsumoRaisesInvalidGameActionError:
@@ -529,9 +479,9 @@ class TestKanRaisesInvalidGameActionError:
         )
         game_state = create_dealt_game_state(players)
 
-        data = KanActionData(tile_id=one_man_triplet[0], kan_type=KanType.CLOSED)
+        action = Kan(kan_type=KanType.CLOSED, tile=one_man_triplet[0])
         with pytest.raises(InvalidGameActionError, match="closed kan requires 4 tiles"):
-            handle_kan(game_state, seat=0, data=data)
+            handle_kan(game_state, seat=0, action=action)
 
 
 class TestServerGeneratedActionRefusals:
@@ -551,7 +501,7 @@ class TestServerGeneratedActionRefusals:
 
         with (
             patch.object(AIPlayer, "should_call_chi", return_value=unheld_sequence),
-            pytest.raises(GeneratedActionError, match="call_chi refused"),
+            pytest.raises(GeneratedActionError, match=r"Chi\(tiles=\(\d+, \d+\)\) refused"),
         ):
             service._dispatch_ai_player_call_responses(runtime, prompt, [])
         assert runtime.state.round_state.pending_call_prompt == prompt
@@ -573,15 +523,15 @@ class TestServerGeneratedActionRefusals:
 
         with (
             patch("game.logic.mahjong_service.choose_default_discard", return_value=999),
-            pytest.raises(GeneratedActionError, match="discard refused") as exc_info,
+            pytest.raises(GeneratedActionError, match=r"Discard\(tile=999\) refused") as exc_info,
         ):
             service.handle_timeout(runtime, seat=player_seat, timeout_type=TimeoutType.TURN)
         assert isinstance(exc_info.value.__cause__, InvalidGameActionError)
 
-    def test_handle_action__when_the_seat_is_ai_controlled__should_raise_as_a_server_fault(self, service, runtime):
+    def test_act__when_the_seat_is_ai_controlled__should_raise_as_a_server_fault(self, service, runtime):
         ai_player_seat = min(runtime.ai.ai_player_seats)
         state_before = runtime.state
 
         with pytest.raises(AssertionError, match=f"seat {ai_player_seat} is controlled by an AI player"):
-            service.handle_action(runtime, seat=ai_player_seat, action=GameAction.DISCARD, data={"tile_id": 0})
+            service.act(runtime, ai_player_seat, DiscardAction(tile=0))
         assert runtime.state is state_before

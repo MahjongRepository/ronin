@@ -6,13 +6,21 @@ from typing import TYPE_CHECKING
 from game.engine import (
     NUM_PLAYERS,
     RNG_VERSION,
+    Chi,
+    Discard,
     DrawEvent,
     ErrorEvent,
-    GameAction,
+    Kan,
     KanType,
+    Kyuushu,
     MahjongGameService,
+    Pass,
     PlayerAction,
+    Pon,
+    Riichi,
+    Ron,
     StartPosition,
+    Tsumo,
     WaitKind,
     calculate_shanten,
     hand_to_34_array,
@@ -30,12 +38,11 @@ from game.wire.replay_format import REPLAY_VERSION, ReplayLineType, decode_repla
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from game.engine import GameEvent, MahjongGameState
+    from game.engine import Action, GameEvent, MahjongGameState
     from game.replay.models import ReplayTrace
 
 STAGED_SEED = "5" * 192
 PLAYERS = ("Alice", "Bob", "Charlie", "Diana")
-CALL_RESPONSES = frozenset({GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_RON})
 
 
 class ScenarioError(Exception):
@@ -284,11 +291,11 @@ class _ScriptedGame:
 
         self._record(self._service.begin_round(self._runtime).events)
 
-    def _run(self, seat: int, action: GameAction, data: dict[str, object]) -> None:
-        events = self._service.handle_action(self._runtime, seat=seat, action=action, data=data).events
+    def _run(self, seat: int, action: Action) -> None:
+        events = self._service.act(self._runtime, seat, action).events
         errors = [event for event in events if isinstance(event, ErrorEvent)]
         if errors:
-            raise ScenarioError(f"{self._game_id}: seat {seat} {action.value} refused: {errors[0].message}")
+            raise ScenarioError(f"{self._game_id}: seat {seat} {action} refused: {errors[0].message}")
 
         self._draws.pop(seat, None)
         self._record(events)
@@ -351,7 +358,7 @@ class StagedGame(_ScriptedGame):
         )
 
     def discard(self, seat: int, tile_id: int) -> None:
-        self.act(seat, GameAction.DISCARD, tile_id=tile_id)
+        self.act(seat, Discard(tile=tile_id))
 
     def tsumogiri(self, seat: int) -> None:
         self.discard(seat, self._draw(seat).tile_id)
@@ -361,16 +368,16 @@ class StagedGame(_ScriptedGame):
         Declare riichi with a discard of tile_id, or of the drawn tile when tile_id is None.
         """
         discard = tile_id if tile_id is not None else self._draw(seat).tile_id
-        self.act(seat, GameAction.DECLARE_RIICHI, tile_id=discard)
+        self.act(seat, Riichi(tile=discard))
 
-    def pon(self, seat: int, tile_id: int) -> None:
-        self.act(seat, GameAction.CALL_PON, tile_id=tile_id)
+    def pon(self, seat: int) -> None:
+        self.act(seat, Pon())
 
     def kan(self, seat: int, tile_id: int, kan_type: KanType) -> None:
-        self.act(seat, GameAction.CALL_KAN, tile_id=tile_id, kan_type=kan_type)
+        self.act(seat, Kan(kan_type=kan_type, tile=tile_id))
 
     def tsumo(self, seat: int) -> None:
-        self.act(seat, GameAction.DECLARE_TSUMO)
+        self.act(seat, Tsumo())
 
     def ron(self, *seats: int) -> None:
         """
@@ -380,10 +387,10 @@ class StagedGame(_ScriptedGame):
         """
         self._pass_calls(exclude=frozenset(seats))
         for seat in seats:
-            self._run(seat, GameAction.CALL_RON, {})
+            self._run(seat, Ron())
 
     def kyuushu(self, seat: int) -> None:
-        self.act(seat, GameAction.CALL_KYUUSHU)
+        self.act(seat, Kyuushu())
 
     def leave(self, seat: int) -> None:
         """
@@ -414,7 +421,7 @@ class StagedGame(_ScriptedGame):
         """
         Decline the pending call prompt for the seat, a ron included.
         """
-        self._run(seat, GameAction.PASS, {})
+        self._run(seat, Pass())
 
     def tsumogiri_until(self, seat: int | None = None) -> None:
         """
@@ -449,10 +456,11 @@ class StagedGame(_ScriptedGame):
         """
         self._advance_round()
 
-    def act(self, seat: int, action: GameAction, **data: object) -> None:
-        is_call_response = action in CALL_RESPONSES or data.get("kan_type") == KanType.OPEN
+    def act(self, seat: int, action: Action) -> None:
+        is_open_kan = isinstance(action, Kan) and action.kan_type == KanType.OPEN
+        is_call_response = isinstance(action, Pon | Chi | Ron) or is_open_kan
         self._pass_calls(exclude=frozenset({seat}) if is_call_response else frozenset())
-        self._run(seat, action, data)
+        self._run(seat, action)
 
     def replay(self, outcome: Outcome) -> Recording:
         """
@@ -544,16 +552,16 @@ class EagerGame(_ScriptedGame):
             prompt = self._runtime.state.round_state.pending_call_prompt
             seat = min(seats)
             can_ron = prompt is not None and prompt.caller(seat).can_ron
-            self._run(seat, GameAction.CALL_RON if can_ron else GameAction.PASS, {})
+            self._run(seat, Ron() if can_ron else Pass())
             return
 
         (seat,) = seats
         draw = self._draws[seat]
         if PlayerAction.TSUMO in {item.action for item in draw.available_actions}:
-            self._run(seat, GameAction.DECLARE_TSUMO, {})
+            self._run(seat, Tsumo())
             return
 
-        self._run(seat, GameAction.DISCARD, {"tile_id": self._closest_to_ready_discard(seat, draw.tile_id)})
+        self._run(seat, Discard(tile=self._closest_to_ready_discard(seat, draw.tile_id)))
 
     def _closest_to_ready_discard(self, seat: int, drawn_tile: int) -> int:
         hand = self._runtime.state.round_state.players[seat].tiles

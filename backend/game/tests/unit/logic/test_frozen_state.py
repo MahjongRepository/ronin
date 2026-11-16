@@ -1,7 +1,8 @@
 import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import GameAction, PromptKind, WindName
+from game.logic.decision import Ron
+from game.logic.enums import PromptKind, WindName
 from game.logic.meld_wrapper import FrozenMeld, frozen_melds_to_melds
 from game.logic.scoring import ScoringContext, calculate_hand_value
 from game.logic.settings import GameSettings
@@ -146,7 +147,7 @@ class TestStateUtilsPendingPrompt:
             pending_seats=frozenset({1, 2}),
             callers=(Caller(seat=1, can_ron=True), Caller(seat=2, can_ron=True)),
         )
-        response = CallResponse(seat=1, action=GameAction.PASS)
+        response = CallResponse(seat=1, action=Ron())
 
         new_prompt = add_prompt_response(prompt, response)
         assert len(prompt.responses) == 0
@@ -162,7 +163,7 @@ class TestStateUtilsPendingPrompt:
             pending_seats=frozenset({1}),
             callers=(Caller(seat=1, can_ron=True),),
         )
-        response = CallResponse(seat=3, action=GameAction.PASS)
+        response = CallResponse(seat=3, action=Ron())
         with pytest.raises(KeyError):
             add_prompt_response(prompt, response)
 

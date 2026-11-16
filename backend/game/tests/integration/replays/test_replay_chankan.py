@@ -1,5 +1,5 @@
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -7,11 +7,16 @@ from game.engine import (
     NUM_PLAYERS,
     NUM_TILES,
     RNG_VERSION,
+    Discard,
     EventType,
-    GameAction,
+    Kan,
+    KanType,
     MahjongGameService,
     MeldEvent,
     MeldViewType,
+    Pass,
+    Pon,
+    Ron,
     RoundEndEvent,
     RoundResultType,
 )
@@ -29,7 +34,7 @@ from game.wire.keys import WireKey
 from game.wire.replay_format import REPLAY_VERSION, decode_replay_records, encode_replay_records
 
 if TYPE_CHECKING:
-    from game.engine import MahjongGameState, RoundResult
+    from game.engine import Action, MahjongGameState, RoundResult
 
 SEED = (
     "23824ff8ec95775ba5bb8de82f2903f25472e4a1f10a54ee31a955210ee871508f95c77bbc51b410531abd33a18d26df"
@@ -60,14 +65,11 @@ KOKUSHI_WAITING_ON_MAN_1_HANDS = (
 
 
 TURNS_TO_ADDED_KAN = [
-    (DEALER, GameAction.DISCARD, {"tile_id": PIN_3_DISCARD}),
-    (PON_CALLER, GameAction.CALL_PON, {"tile_id": PIN_3_DISCARD}),
-    (PON_CALLER, GameAction.DISCARD, {"tile_id": PON_CALLER_DISCARD}),
-    *(
-        (seat, GameAction.DISCARD, {"tile_id": tile})
-        for seat, tile in zip((PENCHAN_SEAT, KANCHAN_SEAT, DEALER), INERT_DRAWS, strict=True)
-    ),
-    (PON_CALLER, GameAction.CALL_KAN, {"tile_id": PIN_3_ADDED, "kan_type": "added"}),
+    (DEALER, Discard(tile=PIN_3_DISCARD)),
+    (PON_CALLER, Pon()),
+    (PON_CALLER, Discard(tile=PON_CALLER_DISCARD)),
+    *((seat, Discard(tile=tile)) for seat, tile in zip((PENCHAN_SEAT, KANCHAN_SEAT, DEALER), INERT_DRAWS, strict=True)),
+    (PON_CALLER, Kan(kan_type=KanType.ADDED, tile=PIN_3_ADDED)),
 ]
 
 
@@ -97,7 +99,7 @@ def _kokushi_wall(robber_count: int) -> tuple[int, ...]:
 
 def _play_record_and_replay(
     wall: tuple[int, ...],
-    actions: list[tuple[int, GameAction, dict[str, Any]]],
+    actions: list[tuple[int, Action]],
 ) -> tuple[MahjongGameState, list[RoundResult], ReplayInput, ReplayTrace, str]:
     service = MahjongGameService()
     start = start_game_in_play(service, "chankan", list(PLAYERS), seed=SEED, walls=[wall])
@@ -105,8 +107,8 @@ def _play_record_and_replay(
     assert {NAME_BY_SEAT[seat]: seat for seat in range(NUM_PLAYERS)} == dict(zip(PLAYERS, start.seats, strict=True))
 
     recorded_events = list(start.events)
-    for seat, action, data in actions:
-        update = service.handle_action(runtime, seat=seat, action=action, data=data)
+    for seat, action in actions:
+        update = service.act(runtime, seat, action)
         assert [e for e in update.events if e.type == EventType.ERROR] == []
         recorded_events += update.events
 
@@ -137,30 +139,30 @@ def _tenhou_melds_and_round_ends(tenhou_xml: str) -> list[str]:
     ("responses", "round_end_types", "pon_caller_melds", "replayed_tail", "tenhou_tags"),
     [
         pytest.param(
-            [(PENCHAN_SEAT, GameAction.CALL_RON), (KANCHAN_SEAT, GameAction.PASS)],
+            [(PENCHAN_SEAT, Ron()), (KANCHAN_SEAT, Pass())],
             [RoundResultType.RON],
             [MeldViewType.PON],
-            [(PON_CALLER, GameAction.CALL_KAN), (PENCHAN_SEAT, GameAction.CALL_RON)],
+            [(PON_CALLER, Kan(kan_type=KanType.ADDED, tile=PIN_3_ADDED)), (PENCHAN_SEAT, Ron())],
             [TENHOU_PIN_3_PON, TENHOU_PIN_3_ADDED_KAN, "<AGARI"],
             id="single_ron",
         ),
         pytest.param(
-            [(PENCHAN_SEAT, GameAction.CALL_RON), (KANCHAN_SEAT, GameAction.CALL_RON)],
+            [(PENCHAN_SEAT, Ron()), (KANCHAN_SEAT, Ron())],
             [RoundResultType.DOUBLE_RON],
             [MeldViewType.PON],
             [
-                (PON_CALLER, GameAction.CALL_KAN),
-                (PENCHAN_SEAT, GameAction.CALL_RON),
-                (KANCHAN_SEAT, GameAction.CALL_RON),
+                (PON_CALLER, Kan(kan_type=KanType.ADDED, tile=PIN_3_ADDED)),
+                (PENCHAN_SEAT, Ron()),
+                (KANCHAN_SEAT, Ron()),
             ],
             [TENHOU_PIN_3_PON, TENHOU_PIN_3_ADDED_KAN, "<AGARI", "<AGARI"],
             id="double_ron",
         ),
         pytest.param(
-            [(PENCHAN_SEAT, GameAction.PASS), (KANCHAN_SEAT, GameAction.PASS)],
+            [(PENCHAN_SEAT, Pass()), (KANCHAN_SEAT, Pass())],
             [],
             [MeldViewType.PON, MeldViewType.ADDED_KAN],
-            [(DEALER, GameAction.DISCARD), (PON_CALLER, GameAction.CALL_KAN)],
+            [(DEALER, Discard(tile=INERT_DRAWS[2])), (PON_CALLER, Kan(kan_type=KanType.ADDED, tile=PIN_3_DISCARD))],
             [TENHOU_PIN_3_PON, TENHOU_PIN_3_ADDED_KAN],
             id="declined",
         ),
@@ -171,7 +173,7 @@ def test_chankan_replay__when_added_kan_is_robbed_or_declined__should_reproduce_
 ):
     live_state, round_ends, loaded, trace, tenhou_xml = _play_record_and_replay(
         _added_kan_wall(),
-        [*TURNS_TO_ADDED_KAN, *((seat, action, {}) for seat, action in responses)],
+        [*TURNS_TO_ADDED_KAN, *responses],
     )
 
     assert [r.type for r in round_ends] == round_end_types
@@ -198,15 +200,15 @@ def test_chankan_replay__when_kokushi_robs_a_closed_kan__should_reproduce_the_li
     live_state, round_ends, loaded, trace, tenhou_xml = _play_record_and_replay(
         _kokushi_wall(robber_count),
         [
-            (DEALER, GameAction.CALL_KAN, {"tile_id": MAN_1_COPIES[3], "kan_type": "closed"}),
-            *((seat, GameAction.CALL_RON, {}) for seat in robber_seats),
+            (DEALER, Kan(kan_type=KanType.CLOSED, tile=MAN_1_COPIES[3])),
+            *((seat, Ron()) for seat in robber_seats),
         ],
     )
 
     assert [r.type for r in round_ends] == [result_type]
-    assert [(e.player_name, e.action, e.data) for e in loaded.events] == [
-        (NAME_BY_SEAT[DEALER], GameAction.CALL_KAN, {"tile_id": MAN_1_COPIES[3], "kan_type": "closed"}),
-        *((NAME_BY_SEAT[seat], GameAction.CALL_RON, {}) for seat in robber_seats),
+    assert [(e.player_name, e.action) for e in loaded.events] == [
+        (NAME_BY_SEAT[DEALER], Kan(kan_type=KanType.CLOSED, tile=MAN_1_COPIES[3])),
+        *((NAME_BY_SEAT[seat], Ron()) for seat in robber_seats),
     ]
     assert trace.final_state == live_state
     assert _tenhou_melds_and_round_ends(tenhou_xml) == ['<N who="0" m="0" />', tenhou_round_end]

@@ -22,7 +22,7 @@ of its one preset); read it before changing or testing a rule, and update it whe
   is stored and no AI turn runs. `AIPlayerController` only decides; every state change goes through
   `MahjongGameService`.
 * Player type is a service-layer fact: the player model has no AI flag, only `AIPlayerController` knows. Names and
-  AI flags go out once in `game_started`; later events use seats. `handle_action` and `handle_timeout` act only for
+  AI flags go out once in `game_started`; later events use seats. `act` and `handle_timeout` act only for
   a human seat; one for an AI seat is a server fault, since the session only ever acts for a connected human.
 * A call plays every AI turn it reaches, unless the service is built with `pace_ai_turns` (the live server), which
   stops before each AI player's turn action (`MahjongGameService`). AI answers to call prompts never wait. Both modes
@@ -47,10 +47,16 @@ of its one preset); read it before changing or testing a rule, and update it whe
 
 ## Turn rules
 
-* `get_available_actions` (`actions.py`) builds a turn's offered actions in one place, for the live draw event and
-  the reconnect rebuild alike; each handler re-checks the predicate the offer used. Riichi lists the discards that
-  keep tenpai. A discard is never offered: any tile in hand is legal, in riichi only the drawn one, except right after
-  the player's own pon or chi, when nothing was drawn and a turn event names the tile types kuikae forbids.
+* Actions and decisions are domain values (`decision.py`): an action names physical tile ids and never a wire code,
+  a wait id or a call's tile (a pon or chi answers the open call; the session checks a message's called tile).
+  `build_decision` (`actions.py`) derives a seat's legal actions and default from the same offer code the handlers
+  re-check, so the two cannot drift; legality is equivalence, not equality with a listed entry (a chi with another held
+  copy of an offered shape, a kan from any tile of an offered type). The default is never a win or a call.
+* `get_available_actions` (`actions.py`) builds a turn's offered actions in one place, for the live draw event, the
+  reconnect rebuild and the decision alike; each handler re-checks the predicate the offer used. Riichi lists the
+  discards that keep tenpai. A draw never offers a discard: any tile in hand is legal, in riichi only the drawn one,
+  except right after the player's own pon or chi, when nothing was drawn and a turn event names the tile types kuikae
+  forbids.
 * `legal_discards` and `choose_default_discard` (`round.py`) are the one legal-discard rule, used by the discard
   validator, the turn timeout and the AI; the chi check mirrors its non-riichi kuikae rule itself (a riichi seat
   cannot chi) and drops a shape that would leave no legal discard, so the default chooser never comes up empty (if

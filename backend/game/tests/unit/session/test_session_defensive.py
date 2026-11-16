@@ -1,4 +1,4 @@
-from game.engine import GameAction
+from game.engine import Discard
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.session.models import PlayerSpec
 from game.tests.helpers.auth import make_test_game_ticket
@@ -13,7 +13,7 @@ class TestSessionManagerDefensiveChecks:
         conn = MockConnection()
         manager.register_connection(conn)
 
-        manager.handle_game_action(conn, action=GameAction.DISCARD, data={}, wait_id=MOCK_AWAITING.wait_id)
+        manager.handle_game_action(conn, action=Discard(tile=0), wait_id=MOCK_AWAITING.wait_id)
         assert len(conn.sent_messages) == 1
         msg = conn.sent_messages[0]
         assert msg[WireKey.SESSION_TYPE] == SessionMessageType.ERROR

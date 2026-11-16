@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from game.engine import GameAction
+from game.engine import Discard
 from game.replay.models import (
     ReplayInput,
     ReplayInputEvent,
@@ -27,7 +27,7 @@ class TestReplayInputValidation:
                 events=(
                     ReplayInputEvent(
                         player_name="UnknownPlayer",
-                        action=GameAction.DISCARD,
+                        action=Discard(tile=0),
                     ),
                 ),
             )

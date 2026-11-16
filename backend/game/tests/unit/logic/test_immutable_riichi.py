@@ -2,9 +2,9 @@ import pytest
 
 from game.logic.action_handlers import handle_riichi
 from game.logic.action_result import ActionResult
+from game.logic.decision import Riichi
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.state import Discard, MahjongPlayer, MahjongRoundState
-from game.logic.types import RiichiActionData
 from game.tests.helpers.builders import create_dealt_game_state, create_player
 from game.tests.helpers.hands import tile_copies
 
@@ -25,7 +25,7 @@ def _discards(*tiles: int) -> tuple[Discard, ...]:
 def _declare_riichi(players: tuple[MahjongPlayer, ...], *, seat: int) -> MahjongRoundState:
     game_state = create_dealt_game_state(players, current_player_seat=seat)
 
-    riichi = handle_riichi(game_state, seat=seat, data=RiichiActionData(tile_id=_RIICHI_DISCARD))
+    riichi = handle_riichi(game_state, seat=seat, action=Riichi(tile=_RIICHI_DISCARD))
     assert isinstance(riichi, ActionResult)
     assert riichi.state.round_state.pending_call_prompt is None
     assert riichi.state.round_state.players[seat].is_riichi is True

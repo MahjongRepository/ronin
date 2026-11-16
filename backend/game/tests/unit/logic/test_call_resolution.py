@@ -2,6 +2,7 @@ import pytest
 
 from game.logic.action_handlers import handle_chi, handle_kan, handle_pon
 from game.logic.call_resolution import resolve_call_prompt
+from game.logic.decision import Chi, Kan
 from game.logic.enums import (
     KanType,
     MeldCallType,
@@ -15,11 +16,6 @@ from game.logic.events import (
 )
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_discard_phase
-from game.logic.types import (
-    ChiActionData,
-    KanActionData,
-    PonActionData,
-)
 from game.tests.helpers.builders import create_dealt_game_state, create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
 
@@ -46,8 +42,8 @@ class TestResolveMeldPriority:
             (1, [MeldCallType.CHI]),
         ]
 
-        chi = handle_chi(prompted, seat=1, data=ChiActionData(tile_id=five_man, sequence_tiles=(four_man, six_man)))
-        kan = handle_kan(chi.state, seat=3, data=KanActionData(tile_id=five_man, kan_type=KanType.OPEN))
+        chi = handle_chi(prompted, seat=1, action=Chi(tiles=(four_man, six_man)))
+        kan = handle_kan(chi.state, seat=3, action=Kan(kan_type=KanType.OPEN, tile=five_man))
         melds = [e for e in kan.events if isinstance(e, MeldEvent)]
         assert [(e.caller_seat, e.meld_type) for e in melds] == [(3, MeldViewType.OPEN_KAN)]
 
@@ -81,7 +77,7 @@ class TestResolvePonMeldResponse:
         assert prompt is not None
         assert [(c.seat, [m.call_type for m in c.melds]) for c in prompt.callers] == [(2, [MeldCallType.PON])]
 
-        result = handle_pon(prompted, seat=2, data=PonActionData(tile_id=nine_man))
+        result = handle_pon(prompted, seat=2)
         assert [type(e) for e in result.events] == [MeldEvent, TurnEvent]
         meld_event, turn_event = result.events
         assert (meld_event.caller_seat, meld_event.meld_type) == (2, MeldViewType.PON)
