@@ -488,7 +488,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Action source.** What an offer refers to is marked where it lies: the latest discard in its
   river, or for a chankan offer the whole kan in its meld (an added kan, or a closed kan robbed for
   kokushi musou). A discard's mark is the latest-discard mark, which the next draw ends; a kan's
-  mark goes when its chankan offer resolves. No callout, animation or automatic notice covers the
+  mark goes when its chankan offer resolves. No animation or automatic notice covers the
   action source or the faces that identify it while an offer is open; a sheet the player opens does,
   by the player's choice.
 - **Decisions.** The decision controls have one stable place by the own hand, ranked: a win (ron,
@@ -632,8 +632,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   play switches are not settings: they last one hand and stay on the board.
 - **Callouts.** Decision: a call, a riichi, a kan, a kyuushu kyuuhai declaration and a win show as
   one word on a borderless chip over the caller's own river, upright, three river rows' worth of type,
-  a win's word in its own colour, covering no decision control and no face of the own hand; it may
-  cover an action source for its moment (decision: size over a clear source). A local declaration
+  a win's word in its own colour. It shows for about a second, so it may cover anything on the board for its
+  moment, the decision controls, the timer and an action source included (decision: size over a clear source), but
+  no face of the own hand, which takes the taps. A local declaration
   appears on selection, without moving tiles or changing scores. A matching server confirmation
   does not repeat a lone callout or its voice, even after its popup expires. Another player's winning
   call replaces it when the server resolves priority. A double or triple ron
@@ -948,7 +949,8 @@ rail, from under the cog down to the board's foot, holds a replay's moves (where
 the right bar above the own row holds their two columns); else the least at that river tile: this bound caps the own tile only, never the
 river tile.
 The gap below the top strip is 6px (an added kan's stack at the face floor keeps 4px from the top river's third row
-on the shortest boxes), and the
+on the shortest boxes; the latest discard's temporary raise, its latest-discard gap until the next discard, is exempt:
+the stack keeps the 4px from its settled slot), and the
 phone's chrome scales from the river tile (the small chrome's px up to a 24px river tile, growing with
 it past that, never under 40x40), except the decision controls, which keep their 40px rows. It gives
 river and own tiles of 19 and 37px at 667x375 (its rails bound the felt), 21 and 43px at the notch phone's

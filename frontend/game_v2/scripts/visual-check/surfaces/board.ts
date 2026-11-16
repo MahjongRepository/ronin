@@ -225,7 +225,23 @@ const ACCEPTED_OVERLAPS: ReadonlySet<string> = new Set(
     [["actions", OWN_DISCARDS_UNDER_DECISIONS]].map((pair) => pair.toSorted().join(" x ")),
 );
 
-/** The areas that overlap, but for the spec's accepted overlaps: the decisions over the own river, and a plate. */
+const OWN_HAND = "bottom-hand";
+const RIVER_AREA = /-discards$/u;
+const STRIP_AREA = /-(?:hand|melds)$/u;
+
+/** Whether the pair is a river and a seat's melds or an opponent's hand, which meet the latest discard only at rest. */
+function isStripRiverPair(pair: string): boolean {
+    const groups = pair.split(" x ");
+    return (
+        groups.some((group) => RIVER_AREA.test(group)) &&
+        groups.some((group) => STRIP_AREA.test(group) && group !== OWN_HAND)
+    );
+}
+
+/**
+ * The areas that overlap, but for the spec's accepted overlaps: the decisions over the own river, and a plate. A river
+ * meets a strip with its latest discard at rest, as it lies once the next discard comes.
+ */
 function findAreaOverlaps(board: BoardMeasure): string[] {
     const ownUnderDecisions = ownRiverUnderDecisions(board);
     const grouped = board.grouped.map((entry) => {
@@ -237,9 +253,14 @@ function findAreaOverlaps(board: BoardMeasure): string[] {
         }
         return entry;
     });
-    return findOverlaps(grouped).filter(
-        (pair) => !ACCEPTED_OVERLAPS.has(pair) && !isFurnitureOverlap(pair),
-    );
+    const resting = [
+        ...grouped.filter(({ group }) => !RIVER_AREA.test(group)),
+        ...board.restingRiverTiles.map(({ box, group }) => ({ box, group: `${group}-discards` })),
+    ];
+    return [
+        ...findOverlaps(grouped).filter((pair) => !isStripRiverPair(pair)),
+        ...findOverlaps(resting).filter(isStripRiverPair),
+    ].filter((pair) => !ACCEPTED_OVERLAPS.has(pair) && !isFurnitureOverlap(pair));
 }
 
 function checkBoardContent(board: BoardMeasure, report: PageReport): void {
@@ -718,11 +739,14 @@ function checkPlatesClear(board: BoardMeasure, report: PageReport): void {
     );
 }
 
-/** An opponent's strip stands apart from the rivers, so its backs or faces never read as a river's row (look spec). */
+/**
+ * An opponent's strip stands apart from the rivers, so its backs or faces never read as a river's row (look spec); the
+ * latest discard counts at rest, the gap it lies apart by gone with the next discard.
+ */
 function checkStripsApart(board: BoardMeasure, report: PageReport): void {
     const adjacent = new Map<string, number>();
     for (const strip of board.stripTiles) {
-        for (const river of board.riverTiles) {
+        for (const river of board.restingRiverTiles) {
             if (near(strip.box, river.box, MIN_STRIP_GAP)) {
                 const pair = `${strip.group} strip x ${river.group} river`;
                 const gap = boxGap(strip.box, river.box);
@@ -761,8 +785,8 @@ function badgeAnchors(board: BoardMeasure): Readonly<Record<string, readonly [nu
 }
 
 /**
- * A call shown by its seat stays on the board and never lies over the local hand's tiles, which take the taps, or over a
- * decision control or the timer; it may cover what an open offer refers to, for the moment it shows.
+ * A call shown by its seat stays on the board and never lies over the local hand's tiles, which take the taps; it may
+ * cover a decision control, the timer or what an open offer refers to, for the moment it shows.
  */
 function checkCallouts(board: BoardMeasure, options: BoardOptions, report: PageReport): void {
     const outside = board.callouts.filter((callout) => !contains(board.board, callout));
@@ -784,17 +808,6 @@ function checkCallouts(board: BoardMeasure, options: BoardOptions, report: PageR
     report.expect(
         overHand.length === 0,
         `call(s) over the local hand: ${overHand.map(describeBox).join(", ")}`,
-    );
-    const controls = [
-        ...(board.decisionBand?.buttons ?? []),
-        ...(board.timerInk ? [board.timerInk] : []),
-    ];
-    const overControl = board.callouts.filter((callout) =>
-        controls.some((control) => intersects(callout, control)),
-    );
-    report.expect(
-        overControl.length === 0,
-        `call(s) over a decision control or the timer: ${overControl.map(describeBox).join(", ")}`,
     );
 }
 

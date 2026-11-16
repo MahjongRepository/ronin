@@ -66,7 +66,6 @@ export interface BoardMeasure {
     /** What an open offer refers to: the latest discard, a kan a chankan offer may rob. */
     /** The decision timer's slot. */
     readonly timer: Box | null;
-    readonly timerInk: Box | null;
     /** The decision's first toggle (riichi), pressed or not. */
     readonly toggle: Box | null;
     /** The play switches on the band. */
@@ -92,6 +91,8 @@ export interface BoardMeasure {
     readonly riverTiles: readonly GroupedBox[];
     /** The rivers' tiles by seat, less the latest discard, which lies apart from its slot toward its seat. */
     readonly settledRiverTiles: readonly GroupedBox[];
+    /** The rivers' tiles by seat, the latest discard at its row's slot, without the gap it lies apart by. */
+    readonly restingRiverTiles: readonly GroupedBox[];
     /** The rivers' tiles by seat, each its corners as the table's camera shows them, clockwise from its top left. */
     readonly riverQuads: readonly GroupedQuad[];
     readonly stripTiles: readonly GroupedBox[];
@@ -250,6 +251,14 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             const middle = (topRight.left - topLeft.left + bottomRight.left - bottomLeft.left) / 2;
             return (tile.offsetWidth * middle) / center.offsetWidth;
         }
+        function measureRestingRiver(within: Element): GroupedBox[] {
+            const resting = document.createElement("style");
+            resting.textContent = ".board-river .discard-tile--last { margin: 0 !important; }";
+            document.head.append(resting);
+            const tiles = bySeat(within, ".board-river .tile", ".board-river");
+            resting.remove();
+            return tiles;
+        }
         function measurePlane(within: Element): PlaneMeasure {
             const flat = document.createElement("style");
             flat.textContent =
@@ -309,32 +318,6 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         const actions = [...decisionActions, ...resultActions];
         const band = board.querySelector(".board-actions");
         const timer = board.querySelector(".board-actions .decision-timer");
-        const timerWords: DOMRect[] = [];
-        const timerText =
-            timer === null ? null : document.createTreeWalker(timer, NodeFilter.SHOW_TEXT);
-        for (
-            let node = timerText?.nextNode() ?? null;
-            node !== null;
-            node = timerText?.nextNode() ?? null
-        ) {
-            const range = document.createRange();
-            range.selectNodeContents(node);
-            const rect = range.getBoundingClientRect();
-            if (rect.width > 0 && rect.height > 0) {
-                timerWords.push(rect);
-            }
-        }
-        const inkLeft = Math.min(...timerWords.map((rect) => rect.left));
-        const inkTop = Math.min(...timerWords.map((rect) => rect.top));
-        const timerInk =
-            timerWords.length === 0
-                ? null
-                : {
-                      height: Math.max(...timerWords.map((rect) => rect.bottom)) - inkTop,
-                      left: inkLeft + window.scrollX,
-                      top: inkTop + window.scrollY,
-                      width: Math.max(...timerWords.map((rect) => rect.right)) - inkLeft,
-                  };
         const toggle = board.querySelector(
             ".board-actions .decision-controls__action[aria-pressed]",
         );
@@ -511,6 +494,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                       width: toastsWidth ?? 0,
                   }
                 : null,
+            restingRiverTiles: measureRestingRiver(board),
             riverQuads: [...board.querySelectorAll(".board-river .tile")].map((tile) => ({
                 group: seatOf(tile, ".board-river"),
                 quad: cornersOf(tile),
@@ -527,7 +511,6 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             tileScale,
             tiles: tableTiles.map(box),
             timer: timer === null ? null : box(timer),
-            timerInk,
             toggle: toggle === null ? null : box(toggle),
             zones: zones === null ? null : box(zones),
         };
