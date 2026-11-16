@@ -10,7 +10,8 @@ if TYPE_CHECKING:
     from game.logic.events import GameEvent
     from game.logic.refusal import Refusal
     from game.logic.runtime import GameRuntime
-    from game.logic.types import ReconnectionSnapshot, StartPosition
+    from game.logic.types import StartPosition
+    from game.logic.view import SeatView
 
 
 @dataclass(frozen=True)
@@ -158,8 +159,11 @@ class GameService(Protocol):
         """
         ...
 
-    def build_reconnection_snapshot(self, runtime: GameRuntime, seat: int) -> ReconnectionSnapshot:
+    def view(self, runtime: GameRuntime, seat: int) -> SeatView:
         """
-        Build a full game state snapshot for a reconnecting player at the given seat.
+        Return what the seat may see of the game now: its own hand, furiten and decision, the public table, the round's
+        header (the ended round's while the game waits on its end, with its result) and the game's history.
+
+        It never holds another seat's concealed tiles, offers or pending answers.
         """
         ...

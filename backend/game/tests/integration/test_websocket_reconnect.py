@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 import pytest
 from starlette.testclient import TestClient
 
-from game.engine import EventType, GameType, PlayerReconnectState, ReconnectionSnapshot, WindName
+from game.engine import EventType
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.app import create_app
@@ -24,33 +24,6 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 DELAYED_AI_TURNS = TimerConfig(game_start_confirm_seconds=0, ai_turn_delay_seconds=1)
-
-
-def _make_snapshot(seat: int = 0) -> ReconnectionSnapshot:
-    return ReconnectionSnapshot(
-        dealer_seat=0,
-        first_dealer_seat=0,
-        dealer_dice=((1, 2), (3, 4)),
-        riichi_stick_value=1000,
-        game_type=GameType.HANCHAN,
-        seat=seat,
-        round_wind=WindName.EAST,
-        round_number=1,
-        round_in_wind=1,
-        current_player_seat=0,
-        dora_indicators=[0],
-        honba_sticks=0,
-        riichi_sticks=0,
-        my_tiles=[1, 2, 3],
-        dice=(3, 4),
-        tiles_remaining=70,
-        player_states=[
-            PlayerReconnectState(seat=i, score=25000, discards=[], melds=[], is_riichi=False, tile_count=13)
-            for i in range(4)
-        ],
-        is_furiten=False,
-        round_history=[],
-    )
 
 
 @contextmanager
@@ -74,9 +47,6 @@ class TestWebSocketReconnect:
             yield client
 
     def test_reconnect__when_ticket_valid__should_send_game_reconnected(self, client):
-        sm = client.app.state.session_manager
-        snapshot = _make_snapshot(seat=0)
-        sm._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
         with _game_with_player1_dropped(client) as ticket, client.websocket_connect("/ws/test_game") as ws:
             send_ws(
                 ws,
@@ -117,9 +87,6 @@ class TestWebSocketReconnect:
             assert msg[WireKey.SESSION_ERROR_CODE] == SessionErrorCode.RECONNECT_NO_SESSION
 
     def test_reconnect__when_action_sent_after_reconnect__should_process_it(self, client):
-        sm = client.app.state.session_manager
-        snapshot = _make_snapshot(seat=0)
-        sm._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
         with _game_with_player1_dropped(client) as ticket, client.websocket_connect("/ws/test_game") as ws:
             send_ws(
                 ws,

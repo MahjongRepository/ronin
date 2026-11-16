@@ -6,7 +6,7 @@ from game.logic.state import (
     MahjongGameState,
     MahjongPlayer,
     MahjongRoundState,
-    get_player_view,
+    build_round_started_event,
 )
 from game.logic.state_utils import finish_round
 from game.logic.types import AbortiveDrawResult, DoubleRonResult, DoubleRonWinner, HandResultInfo, YakuInfo
@@ -84,13 +84,15 @@ class TestGetPlayerView:
             riichi_sticks=0,
         )
 
-    def test_get_player_view__when_round_wind_is_int__should_convert_to_wind_name(self):
+    def test_build_round_started_event__when_round_wind_is_int__should_convert_to_wind_name(self):
         game_state = self._create_test_game_state()
-        view = get_player_view(game_state, seat=0)
+        view = build_round_started_event(game_state, seat=0)
         # round_wind=0 (int) should be converted to WindName.EAST
         assert view.round_wind == WindName.EAST
 
-    def test_get_player_view__when_south_second_dealer_deals__should_name_round_two_with_the_live_wall_left(self):
+    def test_build_round_started_event__when_south_second_dealer_deals__should_name_round_two_with_the_live_wall_left(
+        self,
+    ):
         game_state = self._create_test_game_state()
         south_2 = game_state.model_copy(
             update={
@@ -99,14 +101,14 @@ class TestGetPlayerView:
             }
         )
 
-        view = get_player_view(south_2, seat=0)
+        view = build_round_started_event(south_2, seat=0)
         assert (view.round_wind, view.round_in_wind, view.tiles_remaining) == (WindName.SOUTH, 2, 38)
 
-    def test_get_player_view__when_different_seats__should_show_each_seats_own_tiles(self):
+    def test_build_round_started_event__when_different_seats__should_show_each_seats_own_tiles(self):
         game_state = self._create_test_game_state()
 
-        view0 = get_player_view(game_state, seat=0)
-        view1 = get_player_view(game_state, seat=1)
+        view0 = build_round_started_event(game_state, seat=0)
+        view1 = build_round_started_event(game_state, seat=1)
         assert view0.my_tiles != view1.my_tiles
         assert len(view0.my_tiles) == 13
         assert len(view1.my_tiles) == 13

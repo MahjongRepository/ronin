@@ -59,7 +59,12 @@ from game.logic.rng import (
     seat_permutation,
     validate_seed_hex,
 )
-from game.logic.rule_profiles import PRESET_GAME_TYPE, PRESET_HAS_AKADORA, PRESET_HAS_KUITAN
+from game.logic.rule_profiles import (
+    PRESET_GAME_TYPE,
+    PRESET_HAS_AKADORA,
+    PRESET_HAS_KUITAN,
+    PRESET_RIICHI_STICK_VALUE,
+)
 from game.logic.runtime import GameRuntime
 from game.logic.service import Awaiting, Call, Dealt, GameOver, GameService, RoundOver, Turn
 from game.logic.settings import (
@@ -88,10 +93,8 @@ from game.logic.types import (
     NagashiManganResult,
     NagashiRiver,
     PaoLiability,
-    PlayerReconnectState,
     PlayerStanding,
     PlayerView,
-    ReconnectionSnapshot,
     RobbedKan,
     RonResult,
     RoundHistoryEntry,
@@ -101,6 +104,7 @@ from game.logic.types import (
     TsumoResult,
     YakuInfo,
 )
+from game.logic.view import PublicSeat, RoundHeader, SeatView
 from game.logic.wall import Wall, build_wall, deal_initial_hands
 
 __all__ = [
@@ -111,6 +115,7 @@ __all__ = [
     "PRESET_GAME_TYPE",
     "PRESET_HAS_AKADORA",
     "PRESET_HAS_KUITAN",
+    "PRESET_RIICHI_STICK_VALUE",
     "RNG_VERSION",
     "SEED_BYTES",
     "TRIPLE_RON_COUNT",
@@ -160,11 +165,10 @@ __all__ = [
     "PaoLiability",
     "PaoShare",
     "Pass",
-    "PlayerReconnectState",
     "PlayerStanding",
     "PlayerView",
     "Pon",
-    "ReconnectionSnapshot",
+    "PublicSeat",
     "Refusal",
     "RefusalCode",
     "RefusalKind",
@@ -174,12 +178,14 @@ __all__ = [
     "Ron",
     "RonResult",
     "RoundEndEvent",
+    "RoundHeader",
     "RoundHistoryEntry",
     "RoundOver",
     "RoundResult",
     "RoundResultType",
     "RoundStartedEvent",
     "SeatTarget",
+    "SeatView",
     "StartPosition",
     "TenpaiHand",
     "Tsumo",

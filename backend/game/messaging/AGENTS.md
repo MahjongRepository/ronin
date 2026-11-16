@@ -24,11 +24,14 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   the wire shape never follows the engine's internals. Openings are placed among an engine call's
   events (`place_openings`) so each seat gets its messages in the engine's order: a turn after a
   draw is that seat's private draw, enriched in place, never a second message; any other opening
-  follows the step's gameplay facts and precedes its furiten changes. A draw's offers list riichi
-  (its discards grouped, physical ids), tsumo, closed kan and added kan (34-format kinds), then
-  kyuushu, and never the discards; a call prompt is chankan for a kan source, ron when the seat may
-  ron (its melds listed too) and meld otherwise, its melds open kan, pon, then one chi with every
-  shape. Only an opening carries a wait id and bank (`stamp_opening`); the replay never sees one.
+  follows the step's gameplay facts and precedes its furiten changes. What an opening lists is
+  `serialization.py`'s (`serialize_draw_offers`, `serialize_available_calls`). Of a seat's decision,
+  only its opening carries the wait id and bank (`stamp_opening`); the replay never sees one.
+* The reconnect snapshot is built here from the seat's engine `SeatView` alone (`reconnection_payload`)
+  plus what the session owns (the roster, the stand-in reasons, the decision id, the timers and the
+  confirmation owed), the game type and riichi stick value coming from the preset; a reconnect or
+  resync re-sends the opening of the view's own decision. The engine's view is the one read of the
+  game, so the snapshot never follows the engine's state shape.
 * Of the rules preset only the game type (`WireKey.GAME_TYPE`) and the riichi stick value (`WireKey.RIICHI_STICK_VALUE`), a wire
   score, go out live, on `game_started` and the reconnect snapshot: the settings a client consumes, the type for its
   headings and the stick value since every deposit and payment comes settled. Replay game-start records retain this viewing value and an explicit aka-dora flag; their

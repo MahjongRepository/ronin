@@ -518,12 +518,12 @@ class StagedGame(_ScriptedGame):
         return self._draws[seat]
 
     def _pass_calls(self, exclude: frozenset[int] = frozenset()) -> None:
-        prompt = self._runtime.state.round_state.pending_call_prompt
-        if prompt is None:
+        awaiting = self._service.get_awaiting(self._runtime)
+        if not isinstance(awaiting, Call):
             return
 
-        for seat in sorted(prompt.pending_seats - exclude):
-            if prompt.caller(seat).can_ron:
+        for seat in sorted(awaiting.seats - exclude):
+            if Ron() in self._service.legal_actions(self._runtime, seat):
                 raise ScenarioError(f"{self._game_id}: seat {seat} was offered ron; pass_ it or call it")
 
             self.pass_(seat)
@@ -578,9 +578,8 @@ class EagerGame(_ScriptedGame):
             return
 
         if isinstance(awaiting, Call):
-            prompt = self._runtime.state.round_state.pending_call_prompt
             seat = min(awaiting.seats)
-            can_ron = prompt is not None and prompt.caller(seat).can_ron
+            can_ron = Ron() in self._service.legal_actions(self._runtime, seat)
             self._run(seat, Ron() if can_ron else Pass())
             return
 
@@ -592,7 +591,7 @@ class EagerGame(_ScriptedGame):
         self._run(seat, Discard(tile=self._closest_to_ready_discard(seat, self._draws[seat].tile_id)))
 
     def _closest_to_ready_discard(self, seat: int, drawn_tile: int) -> int:
-        hand = self._runtime.state.round_state.players[seat].tiles
+        hand = self._service.view(self._runtime, seat).hand
 
         def rank(tile_id: int) -> tuple[int, bool, int]:
             rest = list(hand)

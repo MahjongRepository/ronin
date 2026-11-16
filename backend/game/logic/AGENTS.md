@@ -10,13 +10,19 @@ of its one preset); read it before changing or testing a rule, and update it whe
   takes the round.
 * A round ends only through `finish_round()` (`state_utils.py`), so a finished round always carries its result, and
   the result stays on the round while the game waits on its end (`RoundOver`). It also appends the round's compact ledger entry to the
-  game state's `round_history`, the one record of past rounds (the reconnect snapshot sends it).
+  game state's `round_history`, the one record of past rounds (a seat's view carries it).
 * Domain events (`events.py`) carry integer tile ids only (136-format) and their own routing target, a broadcast or
   one seat. Domain models keep readable field names and full point values; `messaging/` owns explicit protocol
   serialization, including numeric keys, integer enum codes and scaled scores.
 * Events are facts, never prompts: what a seat may do is its `decision`, and the message that opens it is
   messaging's. A draw is a private draw to its seat, with the live wall left, plus a notice to each other seat that
   names only the drawer. The pending call prompt and its ron ranking stay in state and are never emitted.
+* What a seat may see is its `view` (`view.py`): its own hand, furiten and decision, the public table, the round's
+  header and the game's history, never another seat's concealed tiles, offers or pending answers. While the game
+  waits on a round's end the header is the ended round's, read back from its round history entry since the round end
+  already moved the table on, and the furiten is the tracker's last report to the seat. Outside code reads the game
+  only through the view, `get_awaiting` and the decision calls; `runtime.state` stays the trusted full state for the
+  engine's own tests and for equality checks, never read field by field outside the engine.
 * The engine holds no decision identity and no timeout: `Awaiting` (`service.py`: dealt, a seat's turn, an open call's
   pending seats, round over, game over) says only what the game waits for, naming every awaited seat. Which wait is
   new, its decision ids, its timers and what a timeout plays (the seat's `default_action`, through `act`) are the

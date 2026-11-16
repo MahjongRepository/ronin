@@ -44,6 +44,7 @@ from game.engine import (
     WirePlayerAction,
     YakuInfo,
 )
+from game.messaging import serialization
 from game.messaging.event_payload import (
     EVENT_TYPE_INT,
     build_opening,
@@ -382,13 +383,15 @@ class TestRoundEndPayload:
 
 
 class TestRiichiStickValuePayload:
-    def test_start_payloads__when_the_stick_value_is_not_the_riichi_cost__should_send_only_the_stick_value(self):
+    def test_start_payloads__when_the_stick_value_is_not_the_riichi_cost__should_send_only_the_stick_value(
+        self, monkeypatch
+    ):
         service = MahjongGameService()
         start = start_game_in_play(service, humans=1, seed="a" * 192)
         game_started = next(e for e in start.events if isinstance(e, GameStartedEvent))
         game_started = game_started.model_copy(update={"riichi_stick_value": 1500})
-        snapshot = service.build_reconnection_snapshot(start.runtime, start.human_seats[0])
-        snapshot = snapshot.model_copy(update={"riichi_stick_value": 1500})
+        monkeypatch.setattr(serialization, "PRESET_RIICHI_STICK_VALUE", 1500)
+        snapshot = service.view(start.runtime, start.human_seats[0])
         started_payload = game_started_payload(game_started, roster=ROSTER)
         snapshot_payload = reconnection_payload(snapshot, roster=ROSTER, stand_ins={})
 
@@ -418,9 +421,7 @@ class TestReconnectionPayload:
         alice = _first_human(runtime.state)
         first_dealer = runtime.state.round_state.dealer_seat
         tenpai_seat = (first_dealer + 1) % 4
-        fresh_payload = reconnection_payload(
-            service.build_reconnection_snapshot(runtime, alice.seat), roster=ROSTER, stand_ins={}
-        )
+        fresh_payload = reconnection_payload(service.view(runtime, alice.seat), roster=ROSTER, stand_ins={})
         assert WireKey.LATEST_DISCARD_SEAT not in fresh_payload
 
         tenpai_hand = TilesConverter.string_to_136_array(man="123456789", pin="11", sou="45")
@@ -428,9 +429,7 @@ class TestReconnectionPayload:
         _end_the_round_by_exhaustive_draw(service, runtime, seat=alice.seat)
         assert service.get_awaiting(runtime) == RoundOver()
 
-        payload = reconnection_payload(
-            service.build_reconnection_snapshot(runtime, alice.seat), roster=ROSTER, stand_ins={}
-        )
+        payload = reconnection_payload(service.view(runtime, alice.seat), roster=ROSTER, stand_ins={})
         assert (
             payload[WireKey.DEALER],
             payload[WireKey.WIND],
@@ -459,9 +458,7 @@ class TestReconnectionPayload:
         service.begin_round(runtime)
         assert runtime.state.round_number == 1
 
-        payload = reconnection_payload(
-            service.build_reconnection_snapshot(runtime, alice.seat), roster=ROSTER, stand_ins={}
-        )
+        payload = reconnection_payload(service.view(runtime, alice.seat), roster=ROSTER, stand_ins={})
         assert payload[WireKey.HONBA] == 1
         assert payload[WireKey.ROUND_HISTORY] == [
             {

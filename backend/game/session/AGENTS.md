@@ -57,7 +57,8 @@ interleave.
   connected participant's seat and has messaging build its opening (`messaging/AGENTS.md`), placed
   among that call's events so each seat gets its messages in the engine's order, then stamps it with
   the seat's decision id and bank. A kept wait (a partial call answer) sends no opening and re-times
-  nothing. A reconnect or resync rebuilds the seat's opening the same way, from the decision.
+  nothing. A reconnect or resync reads the seat's `view` once and builds both its snapshot and the
+  opening of the view's decision from it and the session's own data, with no other engine read.
 * **One connection per participant; the newest wins.** A JOIN_GAME or RECONNECT for a participant
   still bound to a connection (a half-open socket the server has not seen drop, or another tab)
   replaces it through the one binder (`_bind`): the old connection is evicted, then closed with

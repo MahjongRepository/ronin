@@ -10,7 +10,6 @@ from game.logic.enums import (
     RoundResultType,
     WindName,
 )
-from game.logic.settings import GameType
 
 
 class StartPosition(BaseModel):
@@ -218,7 +217,7 @@ class AbortiveDrawResult(BaseModel):
 
 class DiscardInfo(BaseModel):
     """
-    A discard as it lies in its river: in the reconnect snapshot, and in a nagashi mangan's proof.
+    A discard as it lies in its river: in a seat view, and in a nagashi mangan's proof.
     """
 
     tile_id: int
@@ -323,28 +322,12 @@ class PlayerView(BaseModel):
     score: int
 
 
-class PlayerReconnectState(BaseModel):
-    """
-    Per-player visible state in a reconnection snapshot.
-
-    tile_count is the number of tiles in the player's closed hand (3n+2 while it holds its turn's draw), which other
-    seats see face down but whose draws the snapshot does not replay.
-    """
-
-    seat: int
-    score: int
-    discards: list[DiscardInfo]
-    melds: list[int]
-    is_riichi: bool
-    tile_count: int
-
-
 class RoundHistoryEntry(BaseModel):
     """
     A finished round as the final standings' ledger shows it: its wind, dealer and honba, and its outcome.
 
-    round_in_wind, its number within the wind (from 1), stays off the wire: the reconnect snapshot's header reads it for
-    a round that ended.
+    round_in_wind, its number within the wind (from 1), stays off the wire: a seat view's round header reads it for a
+    round that ended.
 
     result_type is the result's type, and abortive_reason is set only on an abortive draw. riichi_seats are the seats
     whose riichi stood, so their deposit counts against the round; winner_seats is empty on a draw and holds every
@@ -372,42 +355,3 @@ class RoundHistoryEntry(BaseModel):
 RoundResult = (
     TsumoResult | RonResult | DoubleRonResult | ExhaustiveDrawResult | AbortiveDrawResult | NagashiManganResult
 )
-
-
-class ReconnectionSnapshot(BaseModel):
-    """
-    Full game state snapshot sent to a reconnecting player.
-
-    is_furiten is the furiten last reported to the reconnecting seat (FuritenTracker): the furiten event goes only to
-    its seat and is not sent again, so the snapshot restores it. round_history lists every finished round in play order,
-    the current one included once it has ended, so a reconnected client's standings cover the rounds it never saw.
-    result is the round's result through its round-advance wait, None while the round is in play. During that wait
-    the snapshot shows the round that ended: its dealer, wind, round number, number within the wind and honba with its
-    tiles, beside the scores and riichi sticks the result left. A robbed kan is in no meld list, so the result's robbed
-    kan is the one record of it for the reconnected table. latest_discard_seat is the seat whose discard is the table's
-    last action, which lies last in its river; None (absent on the wire) before the round's first discard, once a meld
-    claimed the latest one and once the next seat drew. game_type and riichi_stick_value are the game's, and
-    first_dealer_seat the game's first dealer, as game_started carries them.
-    """
-
-    game_type: GameType
-    dealer_seat: int
-    first_dealer_seat: int
-    dealer_dice: tuple[tuple[int, int], tuple[int, int]]
-    riichi_stick_value: int
-    seat: int
-    round_wind: WindName
-    round_number: int
-    round_in_wind: int
-    current_player_seat: int
-    latest_discard_seat: int | None = None
-    dora_indicators: list[int]
-    honba_sticks: int
-    riichi_sticks: int
-    my_tiles: list[int]
-    dice: tuple[int, int]
-    tiles_remaining: int
-    player_states: list[PlayerReconnectState]
-    is_furiten: bool
-    round_history: list[RoundHistoryEntry]
-    result: RoundResult | None = None

@@ -21,7 +21,6 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.refusal import Refusal
 from game.logic.runtime import GameRuntime
 from game.logic.service import Call, Dealt, GameOver, RoundOver, Turn
-from game.logic.settings import GameSettings, GameType
 from game.logic.state import Caller, Discard
 from game.logic.tiles import NUM_TILES
 from game.logic.turn import process_draw_phase
@@ -32,6 +31,7 @@ from game.logic.types import (
     RoundHistoryEntry,
     StartPosition,
 )
+from game.logic.view import RoundHeader
 from game.logic.wall import create_wall, deal_initial_hands
 from game.tests.helpers.builders import create_dealt_game_state, create_player, start_game_in_play
 from game.tests.helpers.hands import tile_copies
@@ -236,45 +236,63 @@ class TestRoundEndAwaiting:
 
 
 def _latest_discard_seat(service: MahjongGameService, runtime: GameRuntime) -> int | None:
-    return service.build_reconnection_snapshot(runtime, 0).latest_discard_seat
+    return service.view(runtime, 0).latest_discard_seat
 
 
 def _discards(*tiles: int) -> tuple[Discard, ...]:
     return tuple(Discard(tile_id=tile) for tile in tiles)
 
 
-class TestMahjongGameServiceBuildReconnectionSnapshot:
+def _discard_haku_seat_three_may_pon(service: MahjongGameService) -> GameRuntime:
+    earlier_discard = tile_copies(2, honors="1")[0]
+    haku = tile_copies(0, honors="5")[0]
+    players = (
+        create_player(
+            seat=0,
+            tiles=tile_copies(0, man="1479", pin="147", sou="147", honors="123"),
+            discards=_discards(earlier_discard),
+        ),
+        create_player(seat=1, tiles=tile_copies(0, man="258", pin="2589", sou="2589", honors="567")),
+        create_player(seat=2, tiles=tile_copies(1, man="258", pin="258", sou="1258", honors="123")),
+        create_player(
+            seat=3,
+            tiles=(
+                *tile_copies(0, man="36", pin="36", sou="36"),
+                *tile_copies(1, man="147", pin="14", honors="5"),
+                tile_copies(2, honors="5")[0],
+            ),
+        ),
+    )
+    runtime = GameRuntime(state=create_dealt_game_state(players, current_player_seat=1, seed="a" * 192))
+    service.act(runtime, 1, DiscardAction(tile=haku))
+    return runtime
+
+
+class TestMahjongGameServiceView:
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    def test_build_reconnection_snapshot__when_game_running__should_contain_full_game_state(self, service):
+    def test_view__when_game_running__should_show_the_seats_hand_and_the_public_table(self, service):
         runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
-        runtime.commit(runtime.state.model_copy(update={"settings": GameSettings(game_type=GameType.TONPUSEN)}))
         game_state = runtime.state
-        player = _first_human(game_state)
+        dealer_seat = game_state.round_state.dealer_seat
 
-        snapshot = service.build_reconnection_snapshot(runtime, player.seat)
-        assert snapshot is not None
-        assert snapshot.game_type == GameType.TONPUSEN
-        assert snapshot.my_tiles == list(player.tiles)
-        assert len(snapshot.player_states) == 4
-        assert snapshot.dora_indicators == list(game_state.round_state.wall.dora_indicators)
-        assert snapshot.tiles_remaining == len(game_state.round_state.wall.live_tiles)
-        assert (snapshot.round_in_wind, snapshot.first_dealer_seat) == (1, game_state.round_state.dealer_seat)
-        for ps in snapshot.player_states:
+        view = service.view(runtime, dealer_seat)
+        assert view.hand == game_state.round_state.players[dealer_seat].tiles
+        assert view.drawn_tile == view.hand[-1]
+        assert len(view.players) == 4
+        assert view.dora_indicators == game_state.round_state.wall.dora_indicators
+        assert view.tiles_remaining == len(game_state.round_state.wall.live_tiles)
+        assert (view.round.round_in_wind, view.first_dealer_seat) == (1, dealer_seat)
+        for ps in view.players:
             game_player = game_state.round_state.players[ps.seat]
             assert ps.score == game_player.score
 
-        dealer_seat = game_state.round_state.dealer_seat
-        assert [ps.tile_count for ps in snapshot.player_states] == [
-            14 if seat == dealer_seat else 13 for seat in range(4)
-        ]
-        assert snapshot.latest_discard_seat is None
+        assert [ps.tile_count for ps in view.players] == [14 if seat == dealer_seat else 13 for seat in range(4)]
+        assert view.latest_discard_seat is None
 
-    def test_build_reconnection_snapshot__when_round_ended_before__should_list_it_with_its_own_dealer_and_honba(
-        self, service
-    ):
+    def test_view__when_round_ended_before__should_list_it_with_its_own_dealer_and_honba(self, service):
         runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
         alice = _first_human(runtime.state)
         riichi_seat = (alice.seat + 1) % 4
@@ -288,9 +306,9 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         service.begin_round(runtime)
         assert runtime.state.round_number == 1
 
-        snapshot = service.build_reconnection_snapshot(runtime, alice.seat)
-        assert snapshot.honba_sticks == 1
-        assert snapshot.round_history == [
+        view = service.view(runtime, alice.seat)
+        assert view.round.honba_sticks == 1
+        assert view.round_history == (
             RoundHistoryEntry(
                 round_wind=WindName.EAST,
                 round_in_wind=1,
@@ -303,11 +321,9 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
                 tenpai_seats=(riichi_seat,),
                 score_changes={seat: 3000 if seat == riichi_seat else -1000 for seat in range(4)},
             ),
-        ]
+        )
 
-    def test_build_reconnection_snapshot__when_round_is_over__should_show_the_ended_round_with_its_result(
-        self, service
-    ):
+    def test_view__when_round_is_over__should_show_the_ended_round_header_with_its_result(self, service):
         runtime = start_game_in_play(service, humans=1, seed="a" * 192).runtime
         alice = _first_human(runtime.state)
         first_dealer = runtime.state.round_state.dealer_seat
@@ -324,24 +340,23 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
             1,
         )
 
-        snapshot = service.build_reconnection_snapshot(runtime, alice.seat)
-        assert (
-            snapshot.dealer_seat,
-            snapshot.round_wind,
-            snapshot.round_number,
-            snapshot.round_in_wind,
-            snapshot.honba_sticks,
-            snapshot.riichi_sticks,
-        ) == (first_dealer, WindName.EAST, 0, 1, 0, 0)
-        assert isinstance(snapshot.result, ExhaustiveDrawResult)
-        assert snapshot.result.tempai_seats == [tenpai_seat]
-        assert {ps.seat: ps.score for ps in snapshot.player_states} == {
+        view = service.view(runtime, alice.seat)
+        assert view.round == RoundHeader(
+            round_number=0,
+            round_wind=WindName.EAST,
+            round_in_wind=1,
+            dealer_seat=first_dealer,
+            honba_sticks=0,
+            dice=runtime.state.round_state.wall.dice,
+        )
+        assert (view.riichi_sticks, view.decision) == (0, None)
+        assert isinstance(view.result, ExhaustiveDrawResult)
+        assert view.result.tempai_seats == [tenpai_seat]
+        assert {ps.seat: ps.score for ps in view.players} == {
             seat: 28000 if seat == tenpai_seat else 24000 for seat in range(4)
         }
 
-    def test_build_reconnection_snapshot__when_round_over_follows_a_robbed_kan__should_name_the_robbed_kan(
-        self, service
-    ):
+    def test_view__when_round_over_follows_a_robbed_kan__should_name_the_robbed_kan(self, service):
         man_1 = [tile_copies(copy, man="1")[0] for copy in range(4)]
         kokushi_on_man_1 = (*tile_copies(0, man="9", pin="19", sou="19", honors="1234567"), *tile_copies(3, man="9"))
         others = [tile for tile in range(NUM_TILES) if tile not in {*man_1, *kokushi_on_man_1}]
@@ -358,44 +373,31 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         service.act(runtime, 1, Ron())
         assert service.get_awaiting(runtime) == RoundOver()
 
-        snapshot = service.build_reconnection_snapshot(runtime, 2)
-        assert isinstance(snapshot.result, RonResult)
-        assert snapshot.result.robbed_kan == RobbedKan(seat=0, tile_id=man_1[3], kan_type=KanType.CLOSED)
+        view = service.view(runtime, 2)
+        assert isinstance(view.result, RonResult)
+        assert view.result.robbed_kan == RobbedKan(seat=0, tile_id=man_1[3], kan_type=KanType.CLOSED)
 
-    def test_build_reconnection_snapshot__when_the_latest_discard_is_claimed__should_name_no_latest_discard(
-        self, service
-    ):
-        earlier_discard = tile_copies(2, honors="1")[0]
-        haku = tile_copies(0, honors="5")[0]
-        players = (
-            create_player(
-                seat=0,
-                tiles=tile_copies(0, man="1479", pin="147", sou="147", honors="123"),
-                discards=_discards(earlier_discard),
-            ),
-            create_player(seat=1, tiles=tile_copies(0, man="258", pin="2589", sou="2589", honors="567")),
-            create_player(seat=2, tiles=tile_copies(1, man="258", pin="258", sou="1258", honors="123")),
-            create_player(
-                seat=3,
-                tiles=(
-                    *tile_copies(0, man="36", pin="36", sou="36"),
-                    *tile_copies(1, man="147", pin="14", honors="5"),
-                    tile_copies(2, honors="5")[0],
-                ),
-            ),
-        )
-        runtime = GameRuntime(
-            state=create_dealt_game_state(players, current_player_seat=1, seed="a" * 192),
-        )
-
-        service.act(runtime, 1, DiscardAction(tile=haku))
-        assert runtime.state.round_state.pending_call_prompt is not None
+    def test_view__when_the_latest_discard_is_claimed__should_name_no_latest_discard(self, service):
+        runtime = _discard_haku_seat_three_may_pon(service)
         offered = _latest_discard_seat(service, runtime)
         service.act(runtime, 3, Pon())
 
         assert (offered, _latest_discard_seat(service, runtime)) == (1, None)
 
-    def test_build_reconnection_snapshot__when_the_next_seat_drew__should_name_no_latest_discard(self, service):
+    def test_view__when_a_call_is_open__should_show_each_seat_only_its_own_hand_and_decision(self, service):
+        runtime = _discard_haku_seat_three_may_pon(service)
+        round_state = runtime.state.round_state
+        assert service.get_awaiting(runtime) == Call(seats=frozenset({3}))
+
+        views = [service.view(runtime, seat) for seat in range(4)]
+        assert [view.hand for view in views] == [player.tiles for player in round_state.players]
+        assert [view.decision for view in views] == [None, None, None, service.decision(runtime, 3)]
+        assert all(
+            [public.tile_count for public in view.players] == [len(player.tiles) for player in round_state.players]
+            for view in views
+        )
+
+    def test_view__when_the_next_seat_drew__should_name_no_latest_discard(self, service):
         man_1 = [tile_copies(copy, man="1")[0] for copy in range(4)]
         sou_5 = [tile_copies(copy, sou="5")[0] for copy in range(4)]
         latest_discard = tile_copies(2, man="9")[0]
@@ -468,9 +470,7 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         assert (after_the_draw, after_the_closed_kan, in_the_chankan_window) == (None, None, None)
         assert _latest_discard_seat(service, runtime) is None
 
-    def test_build_reconnection_snapshot__when_the_discard_history_disagrees_with_the_rivers__should_raise(
-        self, service
-    ):
+    def test_view__when_the_discard_history_disagrees_with_the_rivers__should_raise(self, service):
         first, second = tile_copies(0, honors="12")
         players = (
             create_player(seat=0, tiles=tile_copies(0, man="123456789", pin="1234"), discards=_discards(first, second)),
@@ -482,4 +482,4 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         runtime = GameRuntime(state=state)
 
         with pytest.raises(DiscardHistoryError):
-            service.build_reconnection_snapshot(runtime, 0)
+            service.view(runtime, 0)

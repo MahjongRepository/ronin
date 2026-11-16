@@ -191,9 +191,9 @@ def round_in_wind(game_state: MahjongGameState) -> int:
     return (game_state.unique_dealers - 1) % NUM_PLAYERS + 1
 
 
-def get_player_view(game_state: MahjongGameState, seat: int) -> RoundStartedEvent:
+def build_round_started_event(game_state: MahjongGameState, seat: int) -> RoundStartedEvent:
     """
-    Return the round-start view for a specific player, as the round_started event sent to that seat.
+    Build the round_started event of the dealt round sent to one seat: the table, and that seat's own hand alone.
     """
     round_state = game_state.round_state
 

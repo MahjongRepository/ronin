@@ -4,8 +4,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from game.engine import (
+    Call,
     Chi,
-    GamePhase,
+    GameOver,
     Kan,
     KanType,
     MahjongGameService,
@@ -114,7 +115,7 @@ def _execute_replay(
     steps: list[ReplayStep] = []
     for index, input_event in enumerate(replay.events):
         _check_step_limit(len(steps), opts.max_steps)
-        if runtime.state.game_phase == GamePhase.FINISHED:
+        if _game_is_over(ctx):
             if opts.strict:
                 raise ReplayInputAfterGameEndError(
                     f"Input remains after game end at step {len(steps)}: {input_event}",
@@ -131,7 +132,7 @@ def _execute_replay(
         # the last call prompt resolves). Re-check for round advance.
         _maybe_advance_round(ctx, steps=steps)
 
-        if runtime.state.game_phase == GamePhase.FINISHED:
+        if _game_is_over(ctx):
             if opts.strict:
                 raise ReplayInputAfterGameEndError(
                     f"Input remains after game end at step {len(steps)}: {input_event}",
@@ -157,6 +158,18 @@ def _execute_replay(
         steps=tuple(steps),
         final_state=runtime.state,
     )
+
+
+def _game_is_over(ctx: _ReplayRunContext) -> bool:
+    return isinstance(ctx.service.get_awaiting(ctx.runtime), GameOver)
+
+
+def _call_seats(ctx: _ReplayRunContext) -> frozenset[int]:
+    """
+    Return the seats an open call still waits on; none when no call is open.
+    """
+    awaiting = ctx.service.get_awaiting(ctx.runtime)
+    return awaiting.seats if isinstance(awaiting, Call) else frozenset()
 
 
 def _require_accepted(result: list[GameEvent] | Refusal) -> list[GameEvent]:
@@ -260,7 +273,7 @@ def _handle_auto_pass_for_input(
     """
     Handle auto-pass logic before processing the input event at index.
 
-    If a call prompt is pending:
+    If a call is open (awaiting names its pending seats):
     - If the input is a call response from a pending seat, skip that seat
       (it will be processed normally) and auto-pass the remaining seats.
       A ron also spares the seats of the rons that directly follow it in the
@@ -268,14 +281,14 @@ def _handle_auto_pass_for_input(
       answering the same prompt.
     - Otherwise, auto-pass all pending seats first.
     """
-    prompt = ctx.runtime.state.round_state.pending_call_prompt
-    if prompt is None:
+    pending_seats = _call_seats(ctx)
+    if not pending_seats:
         return
 
     events = ctx.events
     input_event = events[index]
     input_seat = seating.seat_by_player[input_event.player_name]
-    if input_seat not in prompt.pending_seats or not _is_call_response(input_event):
+    if input_seat not in pending_seats or not _is_call_response(input_event):
         _inject_pass_calls(ctx, seating=seating, steps=steps)
         return
 
@@ -310,20 +323,15 @@ def _inject_pass_calls(
     exclude_seats: frozenset[int] = frozenset(),
 ) -> None:
     """
-    Inject synthetic PASS steps for pending call prompt seats.
+    Inject synthetic PASS steps for the seats an open call still waits on, stopping once an earlier pass closed it.
 
     exclude_seats: seats to skip because input events answer for them: the
     seat of the next input event when it is a call response, plus the seats
     of the rons that directly follow a ron.
     """
-    prompt = ctx.runtime.state.round_state.pending_call_prompt
-    if prompt is None:
-        return
-
-    seats_to_pass = sorted(prompt.pending_seats - exclude_seats)
+    seats_to_pass = sorted(_call_seats(ctx) - exclude_seats)
     for seat in seats_to_pass:
-        # Re-read prompt state: earlier PASS may have resolved the prompt entirely
-        if ctx.runtime.state.round_state.pending_call_prompt is None:
+        if not _call_seats(ctx):
             break
 
         pass_event = ReplayInputEvent(player_name=seating.player_by_seat[seat], action=Pass())

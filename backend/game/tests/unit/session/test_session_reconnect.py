@@ -1,4 +1,5 @@
 import time
+from dataclasses import replace
 
 import pytest
 
@@ -6,12 +7,11 @@ from game.engine import (
     Call,
     Discard,
     EventType,
-    GameType,
+    Kan,
+    KanType,
     Pass,
-    PlayerReconnectState,
-    ReconnectionSnapshot,
     RoundOver,
-    WindName,
+    WireCallType,
     WireMeldCallType,
 )
 from game.messaging.types import SessionErrorCode, SessionMessageType
@@ -20,8 +20,10 @@ from game.server.router import MessageRouter
 from game.session.models import PlayerSpec
 from game.session.timer import TimeoutType, TimerConfig
 from game.tests.helpers.auth import TEST_TICKET_SECRET
+from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection
+from game.tests.unit.logic.helpers import _update_player
 from game.tests.unit.session.helpers import (
     ENGINE_SEED,
     arrange_exhaustive_draw,
@@ -44,33 +46,6 @@ from game.wire.keys import WireKey
 DELAYED_AI_TURNS = TimerConfig(game_start_confirm_seconds=0, ai_turn_delay_seconds=1)
 
 
-def _make_snapshot(seat: int = 0) -> ReconnectionSnapshot:
-    return ReconnectionSnapshot(
-        dealer_seat=0,
-        first_dealer_seat=0,
-        dealer_dice=((1, 2), (3, 4)),
-        riichi_stick_value=1000,
-        game_type=GameType.HANCHAN,
-        seat=seat,
-        round_wind=WindName.EAST,
-        round_number=1,
-        round_in_wind=1,
-        current_player_seat=0,
-        dora_indicators=[0],
-        honba_sticks=0,
-        riichi_sticks=0,
-        my_tiles=[1, 2, 3],
-        dice=(3, 4),
-        tiles_remaining=70,
-        player_states=[
-            PlayerReconnectState(seat=i, score=25000, discards=[], melds=[], is_riichi=False, tile_count=13)
-            for i in range(4)
-        ],
-        is_furiten=False,
-        round_history=[],
-    )
-
-
 class TestSessionManagerReconnect:
     @pytest.mark.asyncio
     async def test_reconnect__when_session_disconnected__should_send_game_reconnected_and_tell_others_the_seat_is_back(
@@ -80,8 +55,8 @@ class TestSessionManagerReconnect:
         alice_conn, bob_conn = conns
         alice_token = participant_of(manager, alice_conn).ticket
 
-        snapshot = _make_snapshot(seat=0).model_copy(update={"is_furiten": True})
-        manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
+        mock_view = manager._game_service.view
+        manager._game_service.view = lambda runtime, seat: replace(mock_view(runtime, seat), is_furiten=True)
 
         manager.disconnect(alice_conn)
         bob_conn._outbox.clear()
@@ -108,7 +83,6 @@ class TestSessionManagerReconnect:
         alice_conn, bob_conn, _carol_conn = create_started_game(manager, player_names=["Alice", "Bob", "Carol"])
         bob_seat = participant_of(manager, bob_conn).seat
         alice_token = participant_of(manager, alice_conn).ticket
-        manager._game_service.build_reconnection_snapshot = lambda gid, seat: _make_snapshot(seat=0)
 
         manager.disconnect(bob_conn)
         manager.disconnect(alice_conn)
@@ -163,7 +137,6 @@ class TestBankTimePreservation:
         timer = alice.timer
         initial_bank = timer._bank_seconds
         timer._turn_start_time = time.monotonic() - (timer._config.base_turn_seconds + 1.0)
-        manager._game_service.build_reconnection_snapshot = lambda gid, seat: _make_snapshot(seat=0)
 
         manager.disconnect(alice_conn)
         bank_after_leave = timer._bank_seconds
@@ -317,6 +290,55 @@ class TestReconnectTakeover:
 
         await manager.shutdown()
 
+    async def test_reconnect__when_taken_over_during_a_chankan_prompt__should_rebuild_it_from_the_seats_view(
+        self, real_engine, fake_clock, monkeypatch
+    ):
+        manager = make_session_manager(real_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
+        alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
+        alice, bob = participant_of(manager, alice_conn), participant_of(manager, bob_conn)
+        man_1 = [tile_copies(copy, man="1")[0] for copy in range(4)]
+        kokushi_on_man_1 = (*tile_copies(0, man="9", pin="19", sou="19", honors="1234567"), *tile_copies(3, man="9"))
+        _update_player(runtime_of(manager), seat=bob.seat, tiles=kokushi_on_man_1)
+        _update_player(runtime_of(manager), seat=alice.seat, tiles=(*tile_copies(1, pin="2345678", sou="234"), *man_1))
+        manager.handle_game_action(
+            alice_conn,
+            action=Kan(kan_type=KanType.CLOSED, tile=man_1[3]),
+            called_tile=None,
+            wait_id=current_wait_id(manager, alice_conn),
+        )
+        assert game_of(manager).awaiting == Call(seats=frozenset({bob.seat}))
+        original_prompt = next(
+            m for m in bob_conn.sent_messages if m.get(WireKey.EVENT_TYPE) == WireEventType.CALL_PROMPT
+        )
+        fake_clock.advance(7)
+
+        bobs_view = real_engine.view(runtime_of(manager), bob.seat)
+
+        def engine_read_other_than_the_view(*_args: object) -> None:
+            raise AssertionError("a reconnect reads only the seat's view")
+
+        monkeypatch.setattr(real_engine, "view", lambda _runtime, _seat: bobs_view)
+        for read in ("decision", "legal_actions", "default_action", "get_awaiting"):
+            monkeypatch.setattr(real_engine, read, engine_read_other_than_the_view)
+
+        new_conn = MockConnection()
+        manager.register_connection(new_conn)
+        manager.reconnect(new_conn, session_token=bob.ticket)
+        monkeypatch.undo()
+        reconnected, call_prompt = new_conn.sent_messages
+        assert (reconnected[WireKey.SESSION_TYPE], reconnected[WireKey.WAIT_ID]) == (
+            SessionMessageType.GAME_RECONNECTED,
+            original_prompt[WireKey.WAIT_ID],
+        )
+        assert reconnected[WireKey.MY_TILES] == list(kokushi_on_man_1)
+        assert call_prompt == {**original_prompt, WireKey.WAIT_ELAPSED: 7}
+        assert (call_prompt[WireKey.CALL_TYPE], call_prompt[WireKey.KAN_TYPE]) == (
+            WireCallType.CHANKAN,
+            KanType.CLOSED,
+        )
+
+        await manager.shutdown()
+
     async def test_reconnect__when_taken_over_in_the_round_advance__should_send_the_owed_confirmation_and_its_wait(
         self, real_engine, fake_clock
     ):
@@ -407,7 +429,7 @@ class TestReconnectEdgeCases:
         def raise_error(gid, seat):
             raise RuntimeError("snapshot failed")
 
-        manager._game_service.build_reconnection_snapshot = raise_error
+        manager._game_service.view = raise_error
         new_conn = MockConnection()
         router.handle_connect(new_conn)
 
@@ -496,15 +518,10 @@ class TestReconnectToPendingGame:
 
 class TestReconnectThenPlay:
     @pytest.mark.asyncio
-    async def test_reconnect__when_discard_sent_after_reconnect__should_handle_it_as_reconnected_player(
-        self, monkeypatch
-    ):
+    async def test_reconnect__when_discard_sent_after_reconnect__should_handle_it_as_reconnected_player(self):
         manager = make_session_manager(timer_config=DELAYED_AI_TURNS)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
-
-        snapshot = _make_snapshot(seat=0)
-        monkeypatch.setattr(manager._game_service, "build_reconnection_snapshot", lambda runtime, seat: snapshot)
 
         new_conn, _new_token = disconnect_and_reconnect(manager, alice_conn, game_id="game1")
         new_conn._outbox.clear()

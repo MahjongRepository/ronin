@@ -15,7 +15,7 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
     PendingCallPrompt,
-    get_player_view,
+    build_round_started_event,
     wind_name,
 )
 from game.logic.state_utils import (
@@ -260,21 +260,21 @@ class TestUpdatePlayerValidation:
             update_player(state, 0, nonexistent_field=True)
 
 
-class TestGetPlayerViewValidation:
-    def test_get_player_view__when_seat_not_found__should_raise_value_error(self):
+class TestBuildRoundStartedEventValidation:
+    def test_build_round_started_event__when_seat_not_found__should_raise_value_error(self):
         players = tuple(MahjongPlayer(seat=i, score=25000) for i in range(4))
         round_state = MahjongRoundState(wall=make_wall(), players=players)
         game_state = MahjongGameState(round_state=round_state)
 
         with pytest.raises(ValueError, match="No player found at seat 5"):
-            get_player_view(game_state, 5)
+            build_round_started_event(game_state, 5)
 
-    def test_get_player_view__when_seat_valid__should_return_view(self):
+    def test_build_round_started_event__when_seat_valid__should_return_view(self):
         players = tuple(MahjongPlayer(seat=i, tiles=(i,), score=25000) for i in range(4))
         round_state = MahjongRoundState(wall=make_wall(), players=players)
         game_state = MahjongGameState(round_state=round_state)
 
-        view = get_player_view(game_state, 2)
+        view = build_round_started_event(game_state, 2)
         assert view.seat == 2
         assert view.my_tiles == [2]
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from game.engine import (
+    PRESET_GAME_TYPE,
+    PRESET_RIICHI_STICK_VALUE,
     WIRE_SCORE_DIVISOR,
     AbortiveDrawResult,
     Chi,
@@ -17,11 +19,9 @@ from game.engine import (
     NagashiManganResult,
     NagashiRiver,
     PaoLiability,
-    PlayerReconnectState,
     PlayerStanding,
     PlayerView,
     Pon,
-    ReconnectionSnapshot,
     Riichi,
     RobbedKan,
     RonResult,
@@ -49,8 +49,10 @@ if TYPE_CHECKING:
         FuritenEvent,
         GameEndedEvent,
         GameStartedEvent,
+        PublicSeat,
         RiichiDeclaredEvent,
         RoundStartedEvent,
+        SeatView,
     )
     from game.messaging.game_errors import ErrorEvent
     from game.messaging.roster import GameRoster
@@ -219,12 +221,12 @@ def serialize_player_view(value: PlayerView) -> dict[int, object]:
     }
 
 
-def serialize_player_reconnect_state(value: PlayerReconnectState) -> dict[int, object]:
+def serialize_public_seat(value: PublicSeat) -> dict[int, object]:
     return {
         WireKey.SEAT: value.seat,
         WireKey.SCORE: value.score // WIRE_SCORE_DIVISOR,
         WireKey.DISCARDS: [serialize_discard_info(item) for item in value.discards],
-        WireKey.MELDS: value.melds,
+        WireKey.MELDS: list(value.melds),
         WireKey.IS_RIICHI: value.is_riichi,
         WireKey.TILE_COUNT: value.tile_count,
     }
@@ -248,29 +250,29 @@ def serialize_round_history_entry(value: RoundHistoryEntry) -> dict[int, object]
 
 
 def serialize_reconnection_snapshot(
-    value: ReconnectionSnapshot, *, roster: GameRoster, stand_ins: Mapping[int, SeatControlReason]
+    value: SeatView, *, roster: GameRoster, stand_ins: Mapping[int, SeatControlReason]
 ) -> dict[int, object]:
     payload: dict[int, object] = {
         WireKey.GAME_ID: roster.game_id,
-        WireKey.GAME_TYPE: WireGameType[value.game_type.name],
+        WireKey.GAME_TYPE: WireGameType[PRESET_GAME_TYPE.name],
         WireKey.PLAYERS: serialize_roster_players(roster, stand_ins=stand_ins),
-        WireKey.DEALER: value.dealer_seat,
+        WireKey.DEALER: value.round.dealer_seat,
         WireKey.FIRST_DEALER: value.first_dealer_seat,
         WireKey.DEALER_DICE: value.dealer_dice,
-        WireKey.RIICHI_STICK_VALUE: value.riichi_stick_value // WIRE_SCORE_DIVISOR,
+        WireKey.RIICHI_STICK_VALUE: PRESET_RIICHI_STICK_VALUE // WIRE_SCORE_DIVISOR,
         WireKey.SEAT: value.seat,
-        WireKey.WIND: WireWind[value.round_wind.name],
-        WireKey.ROUND_NUMBER: value.round_number,
-        WireKey.ROUND_IN_WIND: value.round_in_wind,
+        WireKey.WIND: WireWind[value.round.round_wind.name],
+        WireKey.ROUND_NUMBER: value.round.round_number,
+        WireKey.ROUND_IN_WIND: value.round.round_in_wind,
         WireKey.CURRENT_PLAYER: value.current_player_seat,
         WireKey.LATEST_DISCARD_SEAT: value.latest_discard_seat,
-        WireKey.DORA_INDICATORS: value.dora_indicators,
-        WireKey.HONBA: value.honba_sticks,
+        WireKey.DORA_INDICATORS: list(value.dora_indicators),
+        WireKey.HONBA: value.round.honba_sticks,
         WireKey.RIICHI_STICKS: value.riichi_sticks,
-        WireKey.MY_TILES: value.my_tiles,
-        WireKey.DICE: value.dice,
+        WireKey.MY_TILES: list(value.hand),
+        WireKey.DICE: value.round.dice,
         WireKey.TILES_REMAINING: value.tiles_remaining,
-        WireKey.PLAYER_STATES: [serialize_player_reconnect_state(item) for item in value.player_states],
+        WireKey.PLAYER_STATES: [serialize_public_seat(item) for item in value.players],
         WireKey.FURITEN: value.is_furiten,
         WireKey.ROUND_HISTORY: [serialize_round_history_entry(item) for item in value.round_history],
     }

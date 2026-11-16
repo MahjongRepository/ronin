@@ -64,7 +64,7 @@ from shared.tasks import cancel_and_wait
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine, Sequence
 
-    from game.engine import Awaiting, GameRuntime, GameService
+    from game.engine import Awaiting, Decision, GameRuntime, GameService
     from game.messaging.protocol import ConnectionProtocol
     from game.session.models import PlayerSpec
     from game.session.replay_collector import ReplayCollector
@@ -779,9 +779,9 @@ class SessionManager:
         """
         game = participant.game
         seat = self._seat_of(participant)
-        snapshot = self._game_service.build_reconnection_snapshot(self._runtime_of(game), seat)
+        view = self._game_service.view(self._runtime_of(game), seat)
         stand_ins = {self._seat_of(p): p.stand_in for p in game.participants if p.stand_in is not None}
-        payload = reconnection_payload(snapshot, roster=self._roster_of(game), stand_ins=stand_ins)
+        payload = reconnection_payload(view, roster=self._roster_of(game), stand_ins=stand_ins)
         payload[WireKey.SESSION_TYPE] = SessionMessageType.GAME_RECONNECTED
         payload[WireKey.WAIT_ID] = participant.decision_id
         pause = game.pause
@@ -793,7 +793,8 @@ class SessionManager:
                 payload[WireKey.ROUND_ADVANCE_SECONDS] = game.timer_config.round_advance_seconds(pause)
 
         connection.send_message(stamp_timer_settings(payload, self._timer_settings(participant)))
-        self._send_wait_on_reconnect(participant, connection)
+        if view.decision is not None:
+            self._send_wait_on_reconnect(participant, connection, view.decision)
 
     def _reconnecting_participant(
         self,
@@ -842,7 +843,9 @@ class SessionManager:
 
         return participant
 
-    def _send_wait_on_reconnect(self, participant: Participant, connection: ConnectionProtocol) -> None:
+    def _send_wait_on_reconnect(
+        self, participant: Participant, connection: ConnectionProtocol, decision: Decision
+    ) -> None:
         """
         Re-send the opening of the decision the game owes a reconnected participant: its call prompt, or its turn's draw
         (the turn after its own pon or chi), rebuilt from the seat's decision as the live wait built it.
@@ -850,13 +853,9 @@ class SessionManager:
         Only a taken-over seat, or a seat whose turn its AI player had not played yet, can be awaited: an AI player
         answers any call of a seat it holds at once, and a pause owes no such event. The wait's timer runs from its
         opening (for a seat taken back, the reconnect itself), so nothing is re-armed. WireKey.WAIT_ELAPSED lets the
-        client count down what is left and charge the bank as the server will. Sent directly instead of through
-        `_send_events`, so the replay does not record the event twice.
+        client count down what is left and charge the bank as the server will. Sent directly to the one connection, not
+        through `_send_events`, since it goes to no other seat and never to the replay.
         """
-        decision = self._game_service.decision(self._runtime_of(participant.game), self._seat_of(participant))
-        if decision is None:
-            return
-
         message = stamp_opening(
             build_opening(decision).payload,
             wait_id=participant.decision_id,

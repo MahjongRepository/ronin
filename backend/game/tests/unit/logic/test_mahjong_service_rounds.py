@@ -61,7 +61,7 @@ class TestMahjongGameServiceAfterDiscardRoundEnd:
         round_end = next(e for e in answered if e.type == EventType.ROUND_END)
         assert isinstance(round_end.result, ExhaustiveDrawResult)
         assert round_end.result.tempai_seats == [1]
-        assert service.build_reconnection_snapshot(runtime, 0).latest_discard_seat == 0
+        assert service.view(runtime, 0).latest_discard_seat == 0
         assert service.get_awaiting(runtime) == RoundOver()
 
 

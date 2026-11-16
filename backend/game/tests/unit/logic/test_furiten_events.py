@@ -195,12 +195,12 @@ class TestFuritenEventsInGameFlow:
         assert runtime.state.round_state.current_player_seat == WAITING_SEAT
         assert runtime.state.round_state.players[WAITING_SEAT].tiles[-1] == CHUN
         assert _furiten_events(drawn) == []
-        assert service.build_reconnection_snapshot(runtime, WAITING_SEAT).is_furiten is True
-        assert service.build_reconnection_snapshot(runtime, 0).is_furiten is False
+        assert service.view(runtime, WAITING_SEAT).is_furiten is True
+        assert service.view(runtime, 0).is_furiten is False
 
         discarded = service.act(runtime, WAITING_SEAT, DiscardAction(tile=CHUN))
         assert _furiten_events(discarded) == []
-        assert service.build_reconnection_snapshot(runtime, WAITING_SEAT).is_furiten is True
+        assert service.view(runtime, WAITING_SEAT).is_furiten is True
 
     def test_furiten_events__when_discard_furiten_seat_calls_chi__should_keep_furiten_through_its_meld_turn(
         self, service
@@ -217,7 +217,7 @@ class TestFuritenEventsInGameFlow:
         assert runtime.state.round_state.is_after_meld_call is True
         assert runtime.state.round_state.current_player_seat == WAITING_SEAT
         assert _furiten_events(called) == []
-        assert service.build_reconnection_snapshot(runtime, WAITING_SEAT).is_furiten is True
+        assert service.view(runtime, WAITING_SEAT).is_furiten is True
 
     def test_furiten_events__when_own_discard_drops_the_discarded_wait__should_clear_furiten(self, service):
         runtime = _discard_furiten_runtime(waiting_seat_draw=SEVEN_MAN)
@@ -226,7 +226,7 @@ class TestFuritenEventsInGameFlow:
         discarded = service.act(runtime, WAITING_SEAT, DiscardAction(tile=WAITING_SEAT_FOUR_MAN))
         assert get_waiting_tiles(runtime.state.round_state.players[WAITING_SEAT]) == {tile_to_34(SIX_MAN_WAIT)}
         assert _furiten_events(discarded) == [FuritenEvent(is_furiten=False, target=SeatTarget(seat=WAITING_SEAT))]
-        assert service.build_reconnection_snapshot(runtime, WAITING_SEAT).is_furiten is False
+        assert service.view(runtime, WAITING_SEAT).is_furiten is False
 
     @pytest.mark.parametrize(
         ("is_riichi", "response"),
@@ -255,4 +255,4 @@ class TestFuritenEventsInGameFlow:
         assert runtime.state.round_state.current_player_seat == WAITING_SEAT
         assert len(runtime.state.round_state.players[WAITING_SEAT].tiles) % 3 == 2
         assert _furiten_events(declined) == [FuritenEvent(is_furiten=True, target=SeatTarget(seat=WAITING_SEAT))]
-        assert service.build_reconnection_snapshot(runtime, WAITING_SEAT).is_furiten is True
+        assert service.view(runtime, WAITING_SEAT).is_furiten is True

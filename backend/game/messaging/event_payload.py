@@ -42,7 +42,7 @@ from game.wire.keys import WireKey
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from game.engine import Decision, ReconnectionSnapshot, RoundResult
+    from game.engine import Decision, RoundResult, SeatView
     from game.messaging.roster import GameRoster
     from game.messaging.types import TimerSettings
     from game.wire.enums import SeatControlReason
@@ -183,26 +183,27 @@ def _serialize_round_result(result: RoundResult) -> dict[int, Any]:
 
 
 def reconnection_payload(
-    snapshot: ReconnectionSnapshot,
+    view: SeatView,
     *,
     roster: GameRoster,
     stand_ins: Mapping[int, SeatControlReason],
 ) -> dict[int, Any]:
     """
-    Return the wire-format dict of a reconnect snapshot, its round result (`WireKey.ROUND_RESULT`) shaped as a round
-    end's and each round history entry's result type (`WireKey.RESULT_TYPE`) as its integer.
+    Return the wire-format dict of a reconnect snapshot, built from the seat's view: its round result
+    (`WireKey.ROUND_RESULT`) shaped as a round end's and each round history entry's result type (`WireKey.RESULT_TYPE`)
+    as its integer.
 
-    The game id and seats come from the roster. stand_ins maps seats held by an AI stand-in to their reasons. A stand-in
-    keeps the participant identity and carries WireKey.STAND_IN_REASON, while a permanent AI player carries
-    WireKey.AI_PLAYER.
+    The game id and seats come from the roster, and the game type and riichi stick value from the rules preset.
+    stand_ins maps seats held by an AI stand-in to their reasons. A stand-in keeps the participant identity and carries
+    WireKey.STAND_IN_REASON, while a permanent AI player carries WireKey.AI_PLAYER.
     """
-    payload = serialization.serialize_reconnection_snapshot(snapshot, roster=roster, stand_ins=stand_ins)
-    if snapshot.result is not None:
+    payload = serialization.serialize_reconnection_snapshot(view, roster=roster, stand_ins=stand_ins)
+    if view.result is not None:
         payload[WireKey.ROUND_RESULT] = round_end_fields(
-            snapshot.result,
-            riichi_sticks=snapshot.riichi_sticks,
-            dealer_seat=snapshot.dealer_seat,
-            dora_indicators=snapshot.dora_indicators,
+            view.result,
+            riichi_sticks=view.riichi_sticks,
+            dealer_seat=view.round.dealer_seat,
+            dora_indicators=list(view.dora_indicators),
         )
 
     return payload
