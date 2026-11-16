@@ -556,7 +556,13 @@ function platesPlace(geometry: BoardGeometry): Record<string, boolean> {
             top.top === right.top &&
             top.top >= length("core-top") - 0.001 &&
             top.bottom <= cy - length("h") &&
-            top.bottom <= cy + length("h") - 5 * rw - rh - length("latest-drop-gap"),
+            top.bottom <=
+                cy +
+                    length("h") -
+                    length("river-right-lift") -
+                    5 * rw -
+                    rh -
+                    length("latest-drop-gap"),
     };
 }
 
@@ -1024,6 +1030,28 @@ describe("boardGeometry", () => {
     it("gives an empty box no sizes", () => {
         expect(windowGeometry({ height: 0, width: 0 }).lengths).toEqual({});
     });
+});
+
+describe("boardGeometry's rivers", () => {
+    it.each([
+        [667, 375],
+        [1366, 657],
+        [1728, 988],
+        [2560, 1440],
+    ])(
+        "keeps the right river's first tile's edge clear above the bottom river, whose first row a sideways tile runs past the centre's corner, in a %ix%i window",
+        (width, height) => {
+            const { lengths } = windowGeometry({ height, width });
+            function length(name: string): number {
+                return lengths[name] ?? Number.NaN;
+            }
+            const centreFoot = length("cy") + length("h");
+            const rightEdgeFoot =
+                centreFoot - length("river-right-lift") + TILE_EDGE_SHARE * length("rw");
+
+            expect(centreFoot + length("g") - rightEdgeFoot).toBeGreaterThanOrEqual(2);
+        },
+    );
 });
 
 describe("boardGeometry's strips", () => {

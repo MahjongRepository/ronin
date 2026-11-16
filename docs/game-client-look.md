@@ -319,7 +319,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   read, but a player reconstructs the seat's full discard order from river and melds together; the engine, not the player, judges furiten. A narrow
   but visible gap separates a river from the centre and from its neighbours (off a phone 0.15 of a river tile,
   the top river's past the tile edge its rows drop toward the centre); tiles touch inside a
-  river, rivers never touch each other. Decision, departing from the run-on convention for side
+  river, rivers never touch each other. Off a phone the right river stands higher by its first tile's edge
+  less that gap and 3px, so a bottom first row a sideways tile runs past the centre's corner passes under that edge
+  3px clear (a full edge would bring the right plate's riichi stick within 10px of the river's top); a phone's
+  0.3-tile gap already holds the edge. Decision, departing from the run-on convention for side
   rivers only: past eighteen discards a side river wraps its overflow into a fourth row toward its
   seat's edge, since a third row running on along a phone's short side would cross the hand; a top
   or bottom river keeps the convention, its third row running on along its line. In real play a river

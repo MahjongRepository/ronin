@@ -245,7 +245,12 @@ function tablePieces(plane: BoardGeometry): Record<TablePiece, BoardRect> {
         dora: rect([at("counters-x"), at("counters-top"), at("counters-w"), at("counters-h")]),
         "river-bottom": rect([cx - hx, cy + h + gap, along, across]),
         "river-left": rect([cx - hx - gap - across, cy - h, across, along]),
-        "river-right": rect([cx + hx + gap, cy + h - along, across, along]),
+        "river-right": rect([
+            cx + hx + gap,
+            cy + h - at("river-right-lift") - along,
+            across,
+            along,
+        ]),
         "river-top": rect([cx + hx - along, cy - h - at("g-top") - across, along, across]),
         "strip-left": plane.areas["strip-left"] ?? none,
         "strip-right": plane.areas["strip-right"] ?? none,

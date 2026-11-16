@@ -65,6 +65,9 @@ const RUN_ON_REACH_TILES = RESERVED_THIRD_ROW - 1 + TILE_ASPECT;
  * adds the tile edge that falls into it. */
 const LATEST_DISCARD_GAP = 7;
 
+/** Off a phone the right river's first tile's edge keeps this far above a bottom row run past the centre's corner (px). */
+const RIVER_CORNER_CLEAR = 3;
+
 /** A landscape board under this height is a phone's (px). */
 const PHONE_HEIGHT = 520;
 
@@ -278,6 +281,7 @@ export {
     PHONE_OWN_GIVEN_FOR_RIVER,
     PHONE_OWN_TAP_FLOOR,
     REGULAR_CHROME_HEIGHT,
+    RIVER_CORNER_CLEAR,
     RIVER_GAP_SHARE,
     ROWS_BEFORE_RUN_ON,
     RUN_ON_REACH_TILES,

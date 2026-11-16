@@ -113,7 +113,7 @@ $max-melds: 4;
         --frame-turn: -90deg;
 
         left: calc(var(--cx) + var(--hx) + var(--g));
-        top: calc(var(--cy) + var(--h) - var(--river-along));
+        top: calc(var(--cy) + var(--h) - var(--river-right-lift) - var(--river-along));
     }
 
     &--top {

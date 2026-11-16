@@ -35,6 +35,7 @@ import {
     PHONE_OWN_TAP_FLOOR,
     type PhoneChrome,
     REGULAR_CHROME_HEIGHT,
+    RIVER_CORNER_CLEAR,
     RIVER_GAP_SHARE,
     ROWS_BEFORE_RUN_ON,
     RUN_ON_REACH_TILES,
@@ -378,7 +379,8 @@ function riverRows(rw: number, gap: number): number {
  * river tile, the gaps between the centre and the rivers (the top one's `g-top`), and the rivers' reserved reach, a
  * row's sideways riichi tile and the latest discard's gap counted: a side river's fourth row, a top or bottom river's
  * third row run on to eight tiles, and the top river's third row's centre-facing edge, which no gap moves toward the
- * centre; and the latest discard's gaps.
+ * centre; the latest discard's gaps; and how far the right river stands above the centre's foot (`rightLift`), so its
+ * first tile's edge keeps off a bottom row a sideways tile runs past the centre's corner.
  */
 function coreLengths(
     {
@@ -388,7 +390,12 @@ function coreLengths(
         rw,
         width,
     }: Readonly<Record<"cx" | "cy" | "height" | "rw" | "width", number>>,
-    { drop, gap, topGap }: Readonly<Record<"drop" | "gap" | "topGap", number>>,
+    {
+        drop,
+        gap,
+        rightLift,
+        topGap,
+    }: Readonly<Record<"drop" | "gap" | "rightLift" | "topGap", number>>,
 ): [string, number][] {
     const hx = width / 2;
     const sideReach = (SIDE_REACH_TILES / 2) * rw + LATEST_DISCARD_GAP;
@@ -411,6 +418,7 @@ function coreLengths(
         ["rh", rw * TILE_ASPECT],
         ["river-across", RIVER_ROWS["run-on"] * rw * TILE_ASPECT],
         ["river-along", RIVER_ROW_SIZE * rw],
+        ["river-right-lift", rightLift],
         ["rw", rw],
         ["w", width],
     ];
@@ -831,7 +839,7 @@ function desktopAt(
         ["river-foot", coreTop + core + edge],
         ...coreLengths(
             { cx: width / 2, cy, height: centreHeight, rw, width: centreWidth },
-            { drop, gap, topGap },
+            { drop, gap, rightLift: edge - gap + RIVER_CORNER_CLEAR, topGap },
         ),
     ]);
     const linesEnd = plan.arrangement === "corner" ? laneFoot : ownPill - LINE_PLATE_GAP;
@@ -1150,7 +1158,12 @@ function plateRect(at: (name: string) => number, pillH: number, rowLimit: number
         at("latest-drop-gap") +
         TILE_EDGE_SHARE * rw;
     const rightRiverTop =
-        cy + at("h") - ROW_BEFORE_SIDEWAYS * rw - at("rh") - at("latest-drop-gap");
+        cy +
+        at("h") -
+        at("river-right-lift") -
+        ROW_BEFORE_SIDEWAYS * rw -
+        at("rh") -
+        at("latest-drop-gap");
     const leftLimit = Math.min(at("reach-top-left"), cx - at("hx")) - PLATE_GAP;
     const rightLimit = Math.max(at("reach-bottom-right"), cx + at("hx")) + PLATE_GAP;
     const across = Math.max(cx - leftLimit, rightLimit - cx);
@@ -1284,7 +1297,7 @@ function phoneLayout(
         ["own-start", ownStart],
         ...coreLengths(
             { cx: width / 2, cy, height: heightRoom, rw, width: centreWidth },
-            { drop: LATEST_DISCARD_GAP, gap, topGap },
+            { drop: LATEST_DISCARD_GAP, gap, rightLift: 0, topGap },
         ),
         ["side-reach", phoneSideReach(rw, line, frame.faceFloor)],
     ]);
