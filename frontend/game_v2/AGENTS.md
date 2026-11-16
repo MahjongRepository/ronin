@@ -72,8 +72,8 @@ the lowest layer allowed to hold it. `src/fixtures/` is generated data; only sto
 * Lint and format follow the lobby's config; keep them in sync. `new-cap` exceptions list this app's components.
 * Supported floor: Safari 16.4, Chrome/Edge 108, Firefox 128 and a 667x375 landscape phone. That is a display: its
   browser boxes the board shorter (iOS 26 Safari keeps 139px of bars in landscape, 667x236 on that phone, 896x275 on
-  an iPhone 11; Android Chrome about 80px). The live page stands a large viewport tall so a swipe collapses the
-  bars, which a notice asks for, and the geometry must still lay out whole and tappable in the shown-bars box
+  an iPhone 11; Android Chrome about 80px). The live page and the replay stand a large viewport tall so a swipe collapses the
+  bars, which the live board's notice asks for, and the geometry must still lay out whole and tappable in the shown-bars box
   (`tests/entities/table/lib/board-geometry.test.ts`, the visual check's `BROWSER_PHONES`). A phone board honours
   the side and top safe insets only and is classified from the page's raw box, whatever its current padding. The rotate panel is a
   media query's choice alone; the session runs on under it. The board cannot lay out without `:has()`, container
@@ -113,6 +113,9 @@ Safari and Chrome.
   it right. The check's WebKit shots and contrast reads are compositor frames (`compositor.ts`, JPEG); checks of DOM
   boxes hold in every engine. Never fix the board for a software shot's paint.
 * A new page or check goes in its surface's module under `scripts/visual-check/surfaces/`, never the runner.
+* The `browser-bars` pages are the only check that a phone's swipe can still collapse the browser's bars, on the
+  live and replay routes themselves: run them after a change to either page's shell (`_pages.scss`, the views' root
+  markup, the entries' page rest). The unit tests cover the notice alone.
 * Overlap checks follow the spec's tiers: a plate counts against only the other plates and the centre
   (`isFurnitureOverlap`); no check keeps furniture in view. One clearance holds anyway: a plate's pill keeps 4px off
   every table tile, its riichi stick 10px on a desktop and 6 on a phone (`checkPlatesClear`).

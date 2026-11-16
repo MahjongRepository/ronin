@@ -35,8 +35,16 @@ function onPageHide(listener: () => void): () => void {
     };
 }
 
-export function mountReplay(host: HTMLElement, gameId: string, sound: GameSound): () => void {
-    return mountReplayView(host, gameId, {
+/** What the page's entry hands the replay: the game's sounds, and the rest that lets a swipe collapse a phone's bars. */
+export interface ReplayPage {
+    readonly sound: GameSound;
+    /** Keep the page resting past its top while the replay is mounted; returns its stop. */
+    readonly keepPageRested: () => () => void;
+}
+
+export function mountReplay(host: HTMLElement, gameId: string, page: ReplayPage): () => void {
+    const stopRestingPage = page.keepPageRested();
+    const dispose = mountReplayView(host, gameId, {
         clock: browserClock,
         links: { history: getLobbyHistoryUrl(), lobby: getLobbyUrl() },
         loadReplay: fetchReplay,
@@ -46,6 +54,10 @@ export function mountReplay(host: HTMLElement, gameId: string, sound: GameSound)
         setLanguage: applyPageLocale,
         setTileLabels: applyTileLabels,
         setWinds: applyWindScript,
-        sound,
+        sound: page.sound,
     });
+    return () => {
+        dispose();
+        stopRestingPage();
+    };
 }

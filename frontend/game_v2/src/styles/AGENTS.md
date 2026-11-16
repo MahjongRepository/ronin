@@ -159,13 +159,17 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   whose bottom edge stays bare (a phone's board honours the side and top insets only).
   The own row stands at least its edge's depth, or its standing body's overhang, off the bottom; the overhang is
   reserved in whole pixels, so on a phone the body's foot may be clipped by up to 1px at the board's bottom edge.
-- **The live page lets a phone browser's bars collapse.** Its `.game` stands `100lvh` tall and the page sticks to the
+- **The live page and the replay let a phone browser's bars collapse.** The board page's parent (the live `.game`,
+  the replay's `#app`) stands `100lvh` tall and the page sticks to the
   top, so with the bars shown the document scrolls by their height and a swipe collapses them, while the board keeps
-  `100dvh` and grows into the room. In a touch browser's tab `.game` is a fixed scroll room taller and the page rests
-  past that room, so it still scrolls with the bars collapsed and is not at its top, where a browser brings them back;
-  an installed app and full screen keep no room and nothing scrolls. The view's `browserBars` source measures the
-  difference (`100lvh` against `innerHeight`) for the board's notice, no stylesheet deciding it, and rests the page,
-  again after every scroll settles. A swipe down must not reload a game: the root takes `overscroll-behavior-y: none`
+  `100dvh` and grows into the room. In a touch browser's tab that parent is a fixed scroll room taller and the page rests
+  part way down it (`--page-rest` on the root, which the stylesheet alone sets): off its top, where a browser brings the
+  bars back, and with more room below the rest than the bars are tall, so a drag never reaches the page's end with the
+  bars half collapsed, where Safari snaps them back;
+  an installed app and full screen keep no room and nothing scrolls. The live view's `browserBars` source measures the
+  difference (`100lvh` against `innerHeight`) for the board's notice, no stylesheet deciding it; the page's entry rests
+  the page (`index.ts`'s `keepPageRestedPastItsTop`, which the replay's entry takes too), back from either side once a
+  scroll settles and no finger is down. The replay shows no notice. A swipe down must not reload a game: the root takes `overscroll-behavior-y: none`
   for Android Chrome, and iOS, which reloads regardless, has every downward drag refused from its first move, so there
   a swipe down cannot bring the bars back.
 - **The gutter follows the family, decided once.** The board's box without the gutter, less on each edge what a

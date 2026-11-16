@@ -140,8 +140,9 @@ The derived proportions are the three reference viewports' values under the sizi
   device or widen the window and says that play and its timers go on. A replay's board is landscape only too: its
   panel asks the same and offers the game history, while its loading and failed screens, which hold no board, still
   show. A phone browser's address bar and toolbar take a third of the display in landscape: the
-  live page stands as tall as the viewport they leave when collapsed, so a swipe collapses them and
-  the board grows into the room, and a notice asks for that swipe while they show (Notices).
+  live page and the replay stand as tall as the viewport they leave when collapsed, so a swipe collapses
+  them and the board grows into the room, and on the live page a notice asks for that swipe while they
+  show (Notices).
 - **A phone's board ignores the bottom safe inset in landscape** (the user's decision). It honours the
   side and top insets only, so the hand sits on the screen's edge and the home indicator
   overlays the hand's bared bottom edge.

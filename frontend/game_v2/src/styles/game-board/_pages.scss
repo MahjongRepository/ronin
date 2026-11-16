@@ -50,25 +50,38 @@
     min-height: 0;
 }
 
-$bars-scroll-room: 100px;
+$bars-rest-room: 100px;
+$bars-swipe-room: 300px;
+$touch-browser-tab: "(hover: none) and (pointer: coarse) and (display-mode: browser)";
 
-:root:has(.game > .game__play) {
+:root:has(.game > .game__play, #app > .replay-board-mode) {
     overscroll-behavior-y: none;
-}
 
-.game:has(> .game__play) {
-    min-height: 100lvh;
+    @media #{$touch-browser-tab} {
+        --page-rest: #{$bars-rest-room};
+    }
 
-    @media (hover: none) and (pointer: coarse) and (display-mode: browser) {
-        min-height: calc(100lvh + #{$bars-scroll-room});
+    &:fullscreen {
+        --page-rest: 0px;
     }
 }
 
-:root:fullscreen .game:has(> .game__play) {
+.game:has(> .game__play),
+#app:has(> .replay-board-mode) {
+    min-height: 100lvh;
+
+    @media #{$touch-browser-tab} {
+        min-height: calc(100lvh + #{$bars-rest-room + $bars-swipe-room});
+    }
+}
+
+:root:fullscreen .game:has(> .game__play),
+:root:fullscreen #app:has(> .replay-board-mode) {
     min-height: 100lvh;
 }
 
-.game__play.board-page {
+.game__play.board-page,
+#app > .replay-board-mode {
     position: sticky;
     top: 0;
 }

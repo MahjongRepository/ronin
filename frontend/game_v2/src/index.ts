@@ -60,8 +60,8 @@ import {
     type SoundSource,
     blockDownwardDrags,
     createSoundPlayer,
+    keepPageRested,
     localStore,
-    onScrollSettled,
     supportsBoardCss,
     unlockOnGesture,
     webAudioOutput,
@@ -164,16 +164,10 @@ function browserBarsShown(): boolean {
 
 const PAGE_SCROLL_QUIET_MS = 150;
 
-/**
- * Rest the page past the scroll room it keeps beyond the large viewport, so it still scrolls with the bars collapsed
- * and is not at its top, where a phone browser brings them back and the next swipe down reloads the page. The board is
- * sticky and does not move.
- */
-function restPagePastItsTop(): void {
-    const room = document.body.offsetHeight - largeViewportHeight();
-    if (room > 0 && window.scrollY < room) {
-        window.scrollTo(0, room);
-    }
+/** How far down the page rests, which its stylesheet says where it keeps scroll room for the bars (`--page-rest`). */
+function pageRest(): number {
+    const rest = getComputedStyle(document.documentElement).getPropertyValue("--page-rest");
+    return Number.parseFloat(rest) || 0;
 }
 
 /** Whether a swipe down can reload the page whatever `overscroll-behavior` says: every browser on iOS is WebKit. */
@@ -188,10 +182,29 @@ function enterFullscreen(): void {
 }
 
 /**
- * The browser's bars over the page, read again as the viewport resizes, which a collapse does. The page rests past its
- * top whenever its body changes height (the first draw, a rotation, leaving full screen), which a collapse does not do,
- * and whenever a scroll settles, which a swipe down leaves at the top.
+ * Keep the page at its rest, part way down the scroll room it keeps around the large viewport: off its top, where a
+ * phone browser brings its bars back and the next swipe down reloads the page, and with room left below, so a swipe
+ * up scrolls far enough to collapse them. The board is sticky and does not move. The page returns there whenever its
+ * body changes height (the first draw, a rotation, leaving full screen), which a collapse of the bars does not do, and
+ * once a scroll settles. On iOS a downward drag is refused as well. Returns its stop.
  */
+function keepPageRestedPastItsTop(): () => void {
+    const page = keepPageRested(window, {
+        clock: browserClock,
+        quietMs: PAGE_SCROLL_QUIET_MS,
+        restAt: pageRest,
+    });
+    const bodyResize = new ResizeObserver(page.rest);
+    bodyResize.observe(document.body);
+    const stopBlockingDrags = isIosWebKit() ? blockDownwardDrags(document) : null;
+    return () => {
+        bodyResize.disconnect();
+        page.stop();
+        stopBlockingDrags?.();
+    };
+}
+
+/** The browser's bars over the page, read again as the viewport resizes, which a collapse does; the page kept rested. */
 function browserBars(): BrowserBars {
     return {
         canEnterFullscreen: () => document.fullscreenEnabled === true,
@@ -201,20 +214,11 @@ function browserBars(): BrowserBars {
             function onResize(): void {
                 listener(browserBarsShown());
             }
-            const pageRest = new ResizeObserver(restPagePastItsTop);
-            pageRest.observe(document.body);
-            const stopRestingAfterScroll = onScrollSettled(window, {
-                clock: browserClock,
-                listener: restPagePastItsTop,
-                quietMs: PAGE_SCROLL_QUIET_MS,
-            });
-            const stopBlockingDrags = isIosWebKit() ? blockDownwardDrags(document) : null;
+            const stopRestingPage = keepPageRestedPastItsTop();
             window.addEventListener("resize", onResize);
             return () => {
                 window.removeEventListener("resize", onResize);
-                pageRest.disconnect();
-                stopRestingAfterScroll();
-                stopBlockingDrags?.();
+                stopRestingPage();
             };
         },
     };
@@ -304,7 +308,11 @@ if (app && !supportsBoardCss()) {
             ...(import.meta.env.DEV ? createStorybookRoutes() : []),
             lazyRoute(/^\/play\/history\/(?<gameId>[^/]+)$/, async () => {
                 const { mountReplay } = await import("@/replay-entry");
-                return (host, params) => mountReplay(host, params.gameId, gameSound());
+                return (host, params) =>
+                    mountReplay(host, params.gameId, {
+                        keepPageRested: keepPageRestedPastItsTop,
+                        sound: gameSound(),
+                    });
             }),
             {
                 mount: (host, params) =>

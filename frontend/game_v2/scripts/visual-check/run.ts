@@ -33,6 +33,7 @@ import {
     waitForBoardSettled,
 } from "./page-checks.ts";
 import { boardSurface } from "./surfaces/board.ts";
+import { browserBarsSurface } from "./surfaces/browser-bars.ts";
 import { decisionsSurface } from "./surfaces/decisions.ts";
 import { noticesSurface } from "./surfaces/notices.ts";
 import { panelsSurface } from "./surfaces/panels.ts";
@@ -58,6 +59,7 @@ const MAX_PAGES = 60;
 
 const SURFACES: readonly Surface[] = [
     boardSurface,
+    browserBarsSurface,
     decisionsSurface,
     panelsSurface,
     replaySurface,
