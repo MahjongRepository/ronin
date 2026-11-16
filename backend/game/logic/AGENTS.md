@@ -1,7 +1,7 @@
 # Game logic
 
-The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mechanics and the configurable
-`GameSettings`); read it before changing or testing a rule, and update it when a rule changes.
+The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mechanics and the `GameSettings` values
+of its one preset); read it before changing or testing a rule, and update it when a rule changes.
 
 ## Model
 
@@ -35,11 +35,12 @@ The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mecha
 * The seat is a player's only identity: `start_game` returns each input player's seat and every later call takes a
   seat. Names are display only and nothing looks a player up by name; AI names skip the names in use without
   touching the RNG, so names stay unique for the replay format and the name-carrying session messages.
-* Replay rules profiles live beside settings in `rule_profiles.py`. Each frozen profile explicitly supplies every
-  setting, independent of application defaults. While stored replays are only test games, a rule change edits the
-  current profile's baseline in place, since playback reads recorded events and not the profile. New settings require
-  deliberate values in every profile. Profile lookup and strict override resolution stay in this
-  layer; `wire/` owns the compact replay envelope and serialization.
+* The service plays one rules preset and takes no settings: profile 1 in `rule_profiles.py`, a frozen value that
+  explicitly supplies every setting, independent of `GameSettings` defaults. `GameSettings` stays inside the engine
+  for its mechanics and its own tests, which stage other values on the state; outside code sees only the preset
+  constants it needs. While stored replays are only test games, a rule change edits the preset in place, since
+  playback reads recorded events and not the preset. A new setting needs a deliberate preset value. `wire/` owns the
+  replay's rules envelope, which always names this preset with no overrides.
 * Pacing (turn, bank, meld, round-advance and pending-game timeouts) is a session concern (`session/timer.py`),
   never a `GameSettings` field.
 * Everything the engine keeps for one game is its `GameRuntime` (`runtime.py`), owned by the caller: dropping it

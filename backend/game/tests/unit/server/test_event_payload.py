@@ -15,7 +15,6 @@ from game.engine import (
     GameEndCause,
     GameEndedEvent,
     GameRuntime,
-    GameSettings,
     GameStartedEvent,
     HandLimit,
     HandResultInfo,
@@ -406,12 +405,13 @@ class TestRoundEndPayload:
 
 
 class TestRiichiStickValuePayload:
-    def test_start_game__when_riichi_cost_and_stick_value_not_default__should_send_only_the_stick_value(self):
+    def test_start_payloads__when_the_stick_value_is_not_the_riichi_cost__should_send_only_the_stick_value(self):
         service = MahjongGameService()
-        settings = GameSettings(riichi_cost=2000, riichi_stick_value=1500)
-        start = service.start_game("game1", ["Alice"], seed="a" * 192, settings=settings)
+        start = service.start_game("game1", ["Alice"], seed="a" * 192)
         game_started = next(e for e in start.events if isinstance(e, GameStartedEvent))
+        game_started = game_started.model_copy(update={"riichi_stick_value": 1500})
         snapshot = service.build_reconnection_snapshot(start.runtime, start.seats[0])
+        snapshot = snapshot.model_copy(update={"riichi_stick_value": 1500})
         started_payload = game_event_payload(game_started)
         snapshot_payload = reconnection_payload(snapshot, stand_ins={})
 

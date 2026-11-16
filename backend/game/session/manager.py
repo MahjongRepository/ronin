@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from game.engine import (
+    PRESET_GAME_TYPE,
     BroadcastTarget,
     CallPromptEvent,
     DrawEvent,
@@ -429,11 +430,7 @@ class SessionManager:
             participant.seat = seat
 
         started_state = start.runtime.state
-        game.replay = ReplayRecord(
-            seed=started_state.seed,
-            rng_version=started_state.rng_version,
-            settings=started_state.settings,
-        )
+        game.replay = ReplayRecord(seed=started_state.seed, rng_version=started_state.rng_version)
         self._record_game_start(game, start.runtime)
         logger.info("pending game completed", game_id=game.game_id)
         self._open_first_wait(game, events=start.events, awaiting=start.awaiting)
@@ -480,7 +477,7 @@ class SessionManager:
         game.start_record = PlayedGame(
             game_id=game.game_id,
             started_at=datetime.now(UTC),
-            game_type=game_state.settings.game_type,
+            game_type=PRESET_GAME_TYPE,
             standings=standings,
         )
         self._game_repository.create_game(game.start_record)

@@ -286,6 +286,23 @@ class TestHeadBumpWhenDoubleRonDisabled:
         round_ends = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert [(e.result.type, e.result.winner_seat) for e in round_ends] == [(RoundResultType.RON, 2)]
 
+    def test_head_bump__when_three_seats_ron_with_triple_ron_abort_disabled__should_drop_the_farthest(self):
+        players = (
+            create_player(seat=0, tiles=(*PIN_3_TRIPLE_RON_DEALER_HAND, PIN_3_TRIPLE_RON_DISCARD)),
+            *(create_player(seat=seat, tiles=hand) for seat, hand in enumerate(PIN_3_TRIPLE_RON_CALLER_HANDS, start=1)),
+        )
+        game_state = create_dealt_game_state(players, settings=GameSettings(has_triple_ron_abort=False))
+        prompted, _events = process_discard_phase(game_state, PIN_3_TRIPLE_RON_DISCARD)
+
+        first = handle_ron(prompted, seat=1)
+        second = handle_ron(first.state, seat=2)
+        result = handle_ron(second.state, seat=3)
+        round_ends = [e for e in result.events if isinstance(e, RoundEndEvent)]
+        assert [
+            (e.result.type, [winner.winner_seat for winner in e.result.winners], e.result.head_bumped_seats)
+            for e in round_ends
+        ] == [(RoundResultType.DOUBLE_RON, [1, 2], [3])]
+
     def test_head_bump__when_chankan_robbed_by_two_seats__should_pick_closest_counter_clockwise_to_kan_caller(self):
         one_man = tuple(tile_copies(copy, man="1")[0] for copy in range(4))
         pon_meld = FrozenMeld(

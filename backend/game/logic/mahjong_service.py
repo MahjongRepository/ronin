@@ -42,6 +42,7 @@ from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.rng import generate_seed
 from game.logic.round import choose_default_discard
 from game.logic.round_advance import PendingRoundAdvance
+from game.logic.rule_profiles import PRESET_SETTINGS
 from game.logic.runtime import GameRuntime
 from game.logic.service import Awaiting, GameService, GameStart, GameUpdate
 from game.logic.settings import NUM_PLAYERS
@@ -78,7 +79,6 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from game.logic.action_result import ActionResult
-    from game.logic.settings import GameSettings
 
 logger = structlog.get_logger()
 
@@ -205,7 +205,6 @@ class MahjongGameService(GameService):
         player_names: list[str],
         *,
         seed: str | None = None,
-        settings: GameSettings | None = None,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
         confirm_start: bool = False,
@@ -215,16 +214,17 @@ class MahjongGameService(GameService):
 
         Uses matchmaker to assign seats randomly and fill with AI players. Returns the game's runtime, initial state
         events for each player, the first wait and each input player's seat, in input order. When seed is provided, the
-        game is deterministically reproducible. When seed is None, a random seed is generated. The first rounds are
-        dealt from walls, in order, and the rest from the seed; a start position starts the game at its table in place
-        of East 1. With confirm_start and a human seat, the game waits after the deal for the human seats to confirm its
-        start (a round advance that starts the game) before the dealer draws.
+        game is deterministically reproducible. When seed is None, a random seed is generated. The game plays the rules
+        preset (PRESET_SETTINGS). The first rounds are dealt from walls, in order, and the rest from the seed; a start
+        position starts the game at its table in place of East 1. With confirm_start and a human seat, the game waits
+        after the deal for the human seats to confirm its start (a round advance that starts the game) before the dealer
+        draws.
         """
         game_seed = seed if seed is not None else generate_seed()
 
         seat_configs, player_seats = fill_seats(player_names, seed=game_seed)
         first_wall = list(walls[0]) if walls else None
-        frozen_game = init_game(seat_configs, seed=game_seed, settings=settings, wall=first_wall, start=start)
+        frozen_game = init_game(seat_configs, seed=game_seed, settings=PRESET_SETTINGS, wall=first_wall, start=start)
         ai_players = {seat: AIPlayer() for seat, config in enumerate(seat_configs) if config.ai_player_type is not None}
         runtime = GameRuntime(game_id=game_id, state=frozen_game, ai=AIPlayerController(ai_players), walls=walls)
         call = self._begin_call(runtime)

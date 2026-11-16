@@ -9,7 +9,6 @@ from game.engine import (
     ErrorEvent,
     GameAction,
     GameEvent,
-    GameSettings,
     MahjongGameState,
     StartPosition,
 )
@@ -41,7 +40,6 @@ class ReplayInput(BaseModel):
     seed: str
     rng_version: str = RNG_VERSION
     player_names: tuple[str, str, str, str]
-    settings: GameSettings
     events: tuple[ReplayInputEvent, ...]
     walls: tuple[tuple[int, ...], ...] = ()
     start: StartPosition | None = None

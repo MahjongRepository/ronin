@@ -28,11 +28,11 @@ from game.logic.events import (
     RoundStartedEvent,
     SeatTarget,
 )
-from game.logic.exceptions import DiscardHistoryError, UnsupportedSettingsError
+from game.logic.exceptions import DiscardHistoryError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.runtime import GameRuntime
-from game.logic.settings import GameSettings, GameType, RenhouValue
+from game.logic.settings import GameSettings, GameType
 from game.logic.state import Caller, Discard, MeldOption, PendingCallPrompt
 from game.logic.tiles import NUM_TILES, tile_to_34
 from game.logic.turn import process_draw_phase
@@ -501,14 +501,6 @@ class TestRoundEndAwaiting:
         assert service.get_awaiting(runtime).kind == expected_wait
 
 
-class TestMahjongGameServiceInvalidStart:
-    def test_start_game__when_settings_unsupported__should_raise(self):
-        service = MahjongGameService()
-
-        with pytest.raises(UnsupportedSettingsError, match="renhou_value=BAIMAN"):
-            service.start_game("game1", ["Alice"], settings=GameSettings(renhou_value=RenhouValue.BAIMAN))
-
-
 class TestMahjongGameServiceRestoreHumanPlayer:
     @pytest.fixture
     def service(self):
@@ -555,9 +547,8 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         return MahjongGameService()
 
     def test_build_reconnection_snapshot__when_game_running__should_contain_full_game_state(self, service):
-        runtime = service.start_game(
-            "game1", ["Alice"], seed="a" * 192, settings=GameSettings(game_type=GameType.TONPUSEN)
-        ).runtime
+        runtime = service.start_game("game1", ["Alice"], seed="a" * 192).runtime
+        runtime.commit(runtime.state.model_copy(update={"settings": GameSettings(game_type=GameType.TONPUSEN)}))
         game_state = runtime.state
         player = _find_player(game_state.round_state, "Alice")
 
@@ -674,8 +665,8 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
             "game1",
             ["Alice", "Bob", "Charlie", "Diana"],
             seed="a" * 192,
-            settings=GameSettings(tobi_enabled=False),
             walls=[wall],
+            start=StartPosition(scores=(50000, 20000, 15000, 15000)),
         ).runtime
         service.handle_action(
             runtime, seat=0, action=GameAction.CALL_KAN, data={"tile_id": man_1[3], "kan_type": "closed"}

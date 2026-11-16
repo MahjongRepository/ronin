@@ -21,10 +21,9 @@ signed game ticket; players then connect by WebSocket and play. `logic/`, `sessi
   across games, ignorant of connections, time and accounts.
 * `replay/` — runs recorded games through the same protocol for tests and profiling, plus the
   Tenhou export; input stays name-keyed and is mapped to seats once, at its boundary. A replay
-  records an immutable rules-profile ID and sparse effective settings overrides on its `game_started`
-  record. Both the runner and the export resolve it through `logic/`'s profile registry, never current
-  defaults. The browser uses explicit viewing settings and recorded events, without a profile registry
-  or engine execution.
+  records the rules envelope of the one preset the engine plays (profile 1, no overrides) on its
+  `game_started` record, and loading refuses any other. The browser uses explicit viewing settings and
+  recorded events, without a profile registry or engine execution.
   Builders and consumers reference `WireKey` directly; string keys inside settings and score maps are data.
   A change to the replay records is followed by
   `make generate-replay-fixtures`, which re-records the v2 game client's replay fixtures.

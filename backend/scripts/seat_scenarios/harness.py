@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, NoReturn, override
 
-from game.engine import DrawEvent, GameSettings, MahjongGameService, RoundStartedEvent
+from game.engine import DrawEvent, MahjongGameService, RoundStartedEvent
 from game.messaging.encoder import decode, encode
 from game.messaging.protocol import ConnectionProtocol
 from game.messaging.types import SessionErrorCode, SessionMessageType
@@ -184,13 +184,12 @@ class _StagedEngine(MahjongGameService):
         player_names: list[str],
         *,
         seed: str | None = None,
-        settings: GameSettings | None = None,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
         confirm_start: bool = False,
     ) -> GameStart:
-        if seed is not None or settings is not None or walls or start is not None:
-            raise ScenarioError(f"{game_id}: the session started a game with its own seed, settings, walls or start")
+        if seed is not None or walls or start is not None:
+            raise ScenarioError(f"{game_id}: the session started a game with its own seed, walls or start")
 
         game_start = super().start_game(
             game_id,

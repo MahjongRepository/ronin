@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
-from types import MappingProxyType
-from typing import TYPE_CHECKING, Self
+from typing import Self
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -14,9 +12,6 @@ from game.logic.settings import (
     RenhouValue,
     validate_settings,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
 
 
 class RuleProfile(BaseModel):
@@ -100,20 +95,7 @@ STANDARD_RULE_PROFILE = RuleProfile(
     ),
 )
 
-RULE_PROFILES = MappingProxyType({profile.id: profile for profile in (STANDARD_RULE_PROFILE,)})
-
-
-def get_rule_profile(profile_id: int) -> RuleProfile:
-    profile = RULE_PROFILES.get(profile_id)
-    if profile is None:
-        raise ValueError(f"unknown rules profile: {profile_id}")
-
-    return profile
-
-
-def resolve_rule_profile(profile_id: int, overrides: Mapping[str, object]) -> GameSettings:
-    profile = get_rule_profile(profile_id)
-    merged = {**profile.settings.model_dump(mode="json"), **overrides}
-    settings = GameSettings.model_validate_json(json.dumps(merged), strict=True)
-    validate_settings(settings)
-    return settings
+PRESET_SETTINGS = STANDARD_RULE_PROFILE.settings
+PRESET_GAME_TYPE = PRESET_SETTINGS.game_type
+PRESET_HAS_AKADORA = PRESET_SETTINGS.has_akadora
+PRESET_HAS_KUITAN = PRESET_SETTINGS.has_kuitan

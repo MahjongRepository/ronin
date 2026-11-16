@@ -169,7 +169,7 @@ def full_game() -> Recording:
     """
     source = load_replay_from_file(BACKEND_FULL_GAME)
     trace = run_replay(source, ReplayOptions(game_id=BACKEND_FULL_GAME_ID))
-    recorder = ReplayRecorder(seed=source.seed, settings=source.settings)
+    recorder = ReplayRecorder(seed=source.seed)
     recorder.record(trace.startup_events)
     for step in trace.steps:
         recorder.record(step.emitted_events)

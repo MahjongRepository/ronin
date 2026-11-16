@@ -9,11 +9,21 @@ from mahjong.hand_calculating.yaku_config import YAKU_ID_TO_TENHOU_ID, YakuConfi
 from mahjong.hand_calculating.yaku_list import Renhou
 from mahjong.hand_calculating.yaku_list.yakuman import RenhouYakuman
 
-from game.engine import NUM_PLAYERS, WIRE_SCORE_DIVISOR, AbortiveDrawType, GameSettings, GameType, HandLimit, KanType
+from game.engine import (
+    NUM_PLAYERS,
+    PRESET_GAME_TYPE,
+    PRESET_HAS_AKADORA,
+    PRESET_HAS_KUITAN,
+    WIRE_SCORE_DIVISOR,
+    AbortiveDrawType,
+    GameType,
+    HandLimit,
+    KanType,
+)
 from game.wire.compact import decode_discard, decode_draw, encode_discard, encode_draw
 from game.wire.enums import WireEventType, WireRoundResultType
 from game.wire.keys import WireKey
-from game.wire.replay_format import MAX_REPLAY_BYTES, decode_replay_records, decode_replay_settings
+from game.wire.replay_format import MAX_REPLAY_BYTES, decode_replay_records
 from shared.lib.melds.compact import MeldData, decode_meld_compact, encode_meld_compact
 
 logger = structlog.get_logger()
@@ -57,6 +67,12 @@ TENHOU_GO_LENGTH_BITS = {
     GameType.HANCHAN: TENHOU_GO_HANCHAN,
     GameType.TONPUSEN: 0,
 }
+TENHOU_GO_TYPE = (
+    TENHOU_GO_VS_HUMAN
+    | TENHOU_GO_LENGTH_BITS[PRESET_GAME_TYPE]
+    | (0 if PRESET_HAS_AKADORA else TENHOU_GO_NO_AKADORA)
+    | (0 if PRESET_HAS_KUITAN else TENHOU_GO_NO_KUITAN)
+)
 
 _RESULT_SEAT_KEYS = frozenset({WireKey.WINNER_SEAT, WireKey.LOSER_SEAT, WireKey.PAO_SEAT, WireKey.SEAT})
 _RESULT_SCORE_MAP_KEYS = frozenset({WireKey.SCORES, WireKey.SCORE_CHANGES})
@@ -266,23 +282,6 @@ def _format_ten(hand: dict[int, Any]) -> str:
     return f"{hand[WireKey.FU]},{points},{TENHOU_LIMIT[HandLimit(hand[WireKey.HAND_LIMIT])]}"
 
 
-def _tenhou_go_type(settings: GameSettings) -> int:
-    """
-    Compute the tenhou GO type bitfield for a game's settings.
-
-    Four players against humans, the no-red-fives and no-open-tanyao bits set when the game had them off, plus the
-    hanchan bit for an East-South game.
-    """
-    go_type = TENHOU_GO_VS_HUMAN | TENHOU_GO_LENGTH_BITS[settings.game_type]
-    if not settings.has_akadora:
-        go_type |= TENHOU_GO_NO_AKADORA
-
-    if not settings.has_kuitan:
-        go_type |= TENHOU_GO_NO_KUITAN
-
-    return go_type
-
-
 def _game_started_event(events: list[dict[int, Any]]) -> dict[int, Any]:
     """
     Return the replay's game_started event, raising when the replay has none.
@@ -430,7 +429,6 @@ class TenhouConverter:
 
     def __init__(self, events: list[dict[int, Any]]) -> None:
         game_started = _game_started_event(events)
-        self.settings = decode_replay_settings(game_started.get(WireKey.GAME_SETTINGS))
         seating = _TenhouSeating(first_dealer=game_started[WireKey.DEALER])
         self.events = [seating.move_seats(event) for event in events]
         self.tags: list[str] = []
@@ -492,8 +490,7 @@ class TenhouConverter:
         self.tags.append('<mjloggm ver="2.3">')
         rng_version = event[WireKey.RNG_VERSION]
         self.tags.append(f'<SHUFFLE seed="{seed}" ref="{rng_version}"/>')
-        go_type = _tenhou_go_type(self.settings)
-        self.tags.append(f'<GO type="{go_type}" lobby="0"/>')
+        self.tags.append(f'<GO type="{TENHOU_GO_TYPE}" lobby="0"/>')
 
         names = [p[WireKey.NAME] for p in players]
         self.tags.append(

@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from game.engine import (
+    PRESET_HAS_AKADORA,
     CallPromptEvent,
     DrawEvent,
     ErrorEvent,
@@ -23,7 +24,7 @@ from game.wire.replay_format import (
 )
 
 if TYPE_CHECKING:
-    from game.engine import GameEvent, GameSettings
+    from game.engine import GameEvent
     from game.wire.enums import SeatControlReason
     from shared.storage import ReplayStorage
 
@@ -40,13 +41,11 @@ _EXCLUDED_EVENT_TYPES = (CallPromptEvent, ErrorEvent, FuritenEvent)
 @dataclass
 class ReplayRecord:
     """
-    One game's replay as recorded so far: the seed, RNG version and settings its game_started record carries, and the
-    records.
+    One game's replay as recorded so far: the seed and RNG version its game_started record carries, and the records.
     """
 
     seed: str
     rng_version: str
-    settings: GameSettings
     records: list[dict[int, object]] = field(default_factory=list)
 
 
@@ -99,10 +98,10 @@ class ReplayCollector:
                 payload.pop(WireKey.AVAILABLE_ACTIONS, None)
 
             if isinstance(event, GameStartedEvent):
-                payload[WireKey.HAS_AKADORA] = record.settings.has_akadora
+                payload[WireKey.HAS_AKADORA] = PRESET_HAS_AKADORA
                 payload[WireKey.SEED] = record.seed
                 payload[WireKey.RNG_VERSION] = record.rng_version
-                payload[WireKey.GAME_SETTINGS] = encode_replay_settings(record.settings)
+                payload[WireKey.GAME_SETTINGS] = encode_replay_settings()
 
             buffer.append(payload)
 

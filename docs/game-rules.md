@@ -140,7 +140,7 @@ Applies when the game type and winning score threshold settings allow the game t
 
 ## Configurable Settings
 
-Rules that could theoretically be adjusted through game settings. Current Ronin defaults shown.
+Rules the engine models as settings. Every game plays one preset; its values are shown.
 
 ### Game Structure
 

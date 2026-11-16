@@ -1,4 +1,4 @@
-from game.engine import DoraRevealedEvent, EventType, GameAction, GameSettings, tile_to_34
+from game.engine import DoraRevealedEvent, EventType, GameAction, tile_to_34
 from game.replay import run_replay
 from game.replay.models import ReplayInput, ReplayInputEvent
 
@@ -72,7 +72,6 @@ def test_added_kan__when_replayed__should_upgrade_pon_and_draw_replacement():
     replay = ReplayInput(
         seed=SEED,
         player_names=PLAYERS,
-        settings=GameSettings(),
         walls=(_build_added_kan_wall(),),
         events=_build_added_kan_events(),
     )
@@ -109,7 +108,6 @@ def test_added_kan__when_replayed__should_leave_eleven_tiles_in_hand():
     replay = ReplayInput(
         seed=SEED,
         player_names=PLAYERS,
-        settings=GameSettings(),
         walls=(_build_added_kan_wall(),),
         events=_build_added_kan_events(),
     )
@@ -134,7 +132,6 @@ def test_added_kan__when_replayed__should_reveal_dora_after_replacement_discard(
     replay = ReplayInput(
         seed=SEED,
         player_names=PLAYERS,
-        settings=GameSettings(),
         walls=(_build_added_kan_wall(),),
         events=_build_added_kan_events(),
     )

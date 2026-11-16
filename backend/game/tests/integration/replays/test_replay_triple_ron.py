@@ -1,8 +1,6 @@
 import re
 
-import pytest
-
-from game.engine import RNG_VERSION, EventType, GameAction, GameSettings, GameType, MahjongGameService, RoundEndEvent
+from game.engine import RNG_VERSION, EventType, GameAction, MahjongGameService, RoundEndEvent
 from game.replay import run_replay
 from game.replay.external.tenhou import TenhouConverter
 from game.replay.loader import load_replay_from_bytes
@@ -28,35 +26,13 @@ DEALER = "Charlie"
 RON_CALLERS_BY_SEAT_ORDER = ("Bob", "Alice", "Diana")
 
 
-@pytest.mark.parametrize(
-    ("settings", "tenhou_go_and_round_ends"),
-    [
-        pytest.param(
-            GameSettings(),
-            [("9", "", ""), ("", "", "ron3")],
-            id="triple_ron_aborts",
-        ),
-        pytest.param(
-            GameSettings(has_triple_ron_abort=False),
-            [("9", "", ""), ("", "1", ""), ("", "2", "")],
-            id="third_declarer_head_bumped",
-        ),
-        pytest.param(
-            GameSettings(game_type=GameType.TONPUSEN, has_double_ron=False, has_triple_ron_abort=False),
-            [("1", "", ""), ("", "1", "")],
-            id="tonpusen_head_bump_over_two_declarers",
-        ),
-    ],
-)
-def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_live_game_and_its_tenhou_log(
-    settings, tenhou_go_and_round_ends
-):
+def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_aborted_live_game_and_its_tenhou_log():
     wall = make_start_wall(
         (PIN_3_TRIPLE_RON_DEALER_HAND, *PIN_3_TRIPLE_RON_CALLER_HANDS),
         draws=(PIN_3_TRIPLE_RON_DISCARD,),
     )
     service = MahjongGameService()
-    start = service.start_game("triple-ron", list(PLAYERS), seed=SEED, settings=settings, walls=[wall])
+    start = service.start_game("triple-ron", list(PLAYERS), seed=SEED, walls=[wall])
     runtime = start.runtime
     seat_by_player = dict(zip(PLAYERS, start.seats, strict=True))
     recorded_events = list(start.events)
@@ -70,10 +46,9 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_liv
 
     assert len([e for e in recorded_events if isinstance(e, RoundEndEvent)]) == 1
 
-    record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION, settings=settings)
+    record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION)
     ReplayCollector(FakeReplayStorage()).collect_events(record, recorded_events)
     loaded = load_replay_from_bytes(encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *record.records]))
-    assert loaded.settings == settings
     assert [(e.player_name, e.action) for e in loaded.events] == [
         (DEALER, GameAction.DISCARD),
         *((player, GameAction.CALL_RON) for player in RON_CALLERS_BY_SEAT_ORDER),
@@ -82,13 +57,12 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_liv
         decode_replay_records(encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *record.records]))[1:]
     ).convert()
     tenhou_tags = r'<GO type="(\d+)"|<AGARI [^>]*who="(\d)"|<RYUUKYOKU type="(\w+)"'
-    assert re.findall(tenhou_tags, tenhou_xml) == tenhou_go_and_round_ends
+    assert re.findall(tenhou_tags, tenhou_xml) == [("9", "", ""), ("", "", "ron3")]
 
     trace = run_replay(
         ReplayInput(
             seed=loaded.seed,
             player_names=loaded.player_names,
-            settings=loaded.settings,
             walls=(wall,),
             events=loaded.events,
         ),

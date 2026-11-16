@@ -8,18 +8,16 @@ from typing import Any
 from game.engine import (
     NUM_PLAYERS,
     NUM_TILES,
+    PRESET_GAME_TYPE,
     RNG_VERSION,
     TRIPLE_RON_COUNT,
     AbortiveDrawType,
     EventType,
     GameAction,
-    GameSettings,
     KanType,
-    UnsupportedSettingsError,
     WireGameType,
     seat_permutation,
     validate_seed_hex,
-    validate_settings,
 )
 from game.replay.models import ReplayInput, ReplayInputEvent
 from game.wire.compact import decode_discard
@@ -31,7 +29,7 @@ from game.wire.replay_format import (
     REPLAY_VERSION,
     ReplayLineType,
     decode_replay_records,
-    decode_replay_settings,
+    validate_replay_settings,
 )
 from shared.lib.melds import MeldData, decode_meld_compact
 
@@ -111,25 +109,22 @@ def _validate_game_started(first: dict[int, Any]) -> tuple[str, str, list[dict[i
     return seed, rng_version, players
 
 
-def _parse_game_settings(first: dict[int, Any]) -> GameSettings:
+def _validate_game_settings(first: dict[int, Any]) -> None:
     """
-    Parse the game_started event's recorded settings (gs), which the engine must support and its game length (gt) must
-    match.
+    Check the game_started event's recorded rules (gs) are the preset the engine plays and its game length (gt) is the
+    preset's.
     """
     try:
-        settings = decode_replay_settings(first.get(WireKey.GAME_SETTINGS))
-        validate_settings(settings)
-    except (TypeError, ValueError, UnsupportedSettingsError) as exc:
+        validate_replay_settings(first.get(WireKey.GAME_SETTINGS))
+    except ValueError as exc:
         raise ReplayLoadError(f"game_started event has invalid settings (gs): {exc}") from exc
 
     game_type = first.get(WireKey.GAME_TYPE)
-    expected_game_type = WireGameType[settings.game_type.name]
+    expected_game_type = WireGameType[PRESET_GAME_TYPE.name]
     if not isinstance(game_type, int) or isinstance(game_type, bool) or game_type != expected_game_type:
         raise ReplayLoadError(
-            f"game_started game type (gt) {game_type!r} does not match its settings' {expected_game_type.value}",
+            f"game_started game type (gt) {game_type!r} does not match the preset's {expected_game_type.value}",
         )
-
-    return settings
 
 
 def load_replay_from_bytes(content: bytes) -> ReplayInput:
@@ -159,7 +154,7 @@ def load_replay_records(events: list[dict[int, object]]) -> ReplayInput:
 
     seat_to_name = _extract_seat_to_name(players)
     player_names = _reconstruct_input_order(seed, seat_to_name)
-    settings = _parse_game_settings(events[1])
+    _validate_game_settings(events[1])
 
     actions: list[ReplayInputEvent] = []
     for event in events[2:]:
@@ -171,7 +166,6 @@ def load_replay_records(events: list[dict[int, object]]) -> ReplayInput:
         seed=seed,
         rng_version=rng_version,
         player_names=player_names,
-        settings=settings,
         events=tuple(actions),
     )
 

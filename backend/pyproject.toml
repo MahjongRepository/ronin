@@ -150,7 +150,6 @@ allowed_importers = [
     "game.tests.unit.session.conftest",
     "game.tests.unit.session.test_session_game_end",
     "game.tests.unit.session.test_session_replay_persistence",
-    "game.tests.unit.server.test_replay_format",
     "game.tests.unit.server.test_replay_runner",
 ]
 

@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from game.engine import GameAction, GameSettings
+from game.engine import GameAction
 from game.replay.models import (
     ReplayInput,
     ReplayInputEvent,
@@ -15,7 +15,6 @@ class TestReplayInputValidation:
         with pytest.raises(ValidationError, match="4 unique names"):
             ReplayInput(
                 seed="a" * 192,
-                settings=GameSettings(),
                 player_names=("Alice", "Alice", "Bob", "Charlie"),
                 events=(),
             )
@@ -24,7 +23,6 @@ class TestReplayInputValidation:
         with pytest.raises(ValidationError, match="unknown player_name"):
             ReplayInput(
                 seed="a" * 192,
-                settings=GameSettings(),
                 player_names=PLAYER_NAMES,
                 events=(
                     ReplayInputEvent(
@@ -36,9 +34,7 @@ class TestReplayInputValidation:
 
     def test_replay_input__when_wall_not_136_tiles__should_reject(self):
         with pytest.raises(ValidationError, match="exactly 136 tiles"):
-            ReplayInput(
-                seed="a" * 192, player_names=PLAYER_NAMES, settings=GameSettings(), events=(), walls=((1, 2, 3),)
-            )
+            ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, events=(), walls=((1, 2, 3),))
 
     def test_replay_input__when_wall_not_tile_permutation__should_reject(self):
         # Shifted tile IDs (1-136 instead of 0-135)
@@ -46,13 +42,10 @@ class TestReplayInputValidation:
             ReplayInput(
                 seed="a" * 192,
                 player_names=PLAYER_NAMES,
-                settings=GameSettings(),
                 events=(),
                 walls=(tuple(range(1, 137)),),
             )
 
         # Duplicate tile IDs
         with pytest.raises(ValidationError, match="permutation of tile IDs"):
-            ReplayInput(
-                seed="a" * 192, player_names=PLAYER_NAMES, settings=GameSettings(), events=(), walls=((0,) * 136,)
-            )
+            ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, events=(), walls=((0,) * 136,))

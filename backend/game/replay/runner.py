@@ -109,7 +109,6 @@ def _execute_replay(
         opts.game_id,
         list(replay.player_names),
         seed=replay.seed,
-        settings=replay.settings,
         walls=replay.walls,
         start=replay.start,
     )

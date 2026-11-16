@@ -170,7 +170,7 @@ describe("isReplayEvent", () => {
 });
 
 describe("readReplayFile - shared format contract", () => {
-    test("restores Python golden records including seed, string overrides, score seats and ordinary tile arrays", () => {
+    test("restores Python golden records including seed, rules envelope, score seats and ordinary tile arrays", () => {
         const content = Uint8Array.from(golden.hex.match(/../g) ?? [], (byte) =>
             Number.parseInt(byte, 16),
         );

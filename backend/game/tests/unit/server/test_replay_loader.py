@@ -6,7 +6,7 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-from game.engine import RNG_VERSION, EventType, GameAction, GameSettings
+from game.engine import RNG_VERSION, EventType, GameAction
 from game.replay import loader as replay_loader_module
 from game.replay.loader import (
     _MAX_REPLAY_EVENTS,
@@ -41,7 +41,7 @@ GAME_STARTED: dict[int, object] = {
     ],
     WireKey.SEED: _TEST_SEED,
     WireKey.RNG_VERSION: RNG_VERSION,
-    WireKey.GAME_SETTINGS: encode_replay_settings(GameSettings()),
+    WireKey.GAME_SETTINGS: encode_replay_settings(),
 }
 GAME_STARTED_RECORD = GAME_STARTED
 ROUND_STARTED_RECORD = {WireKey.EVENT_TYPE: EVENT_TYPE_INT[EventType.ROUND_STARTED]}
@@ -737,7 +737,7 @@ def test_load_replay__when_head_bumped_ron_seats_malformed__should_raise(round_e
         load_replay_records(content)
 
 
-_DEFAULT_SETTINGS = encode_replay_settings(GameSettings())
+_DEFAULT_SETTINGS = encode_replay_settings()
 
 
 @pytest.mark.parametrize(
@@ -749,26 +749,6 @@ _DEFAULT_SETTINGS = encode_replay_settings(GameSettings())
             {**GAME_STARTED, WireKey.GAME_SETTINGS: {k: v for k, v in _DEFAULT_SETTINGS.items() if k != "overrides"}},
             "invalid settings",
             id="missing_field",
-        ),
-        pytest.param(
-            {**GAME_STARTED, WireKey.GAME_SETTINGS: {**_DEFAULT_SETTINGS, "overrides": {"has_sanma": True}}},
-            "invalid settings",
-            id="extra",
-        ),
-        pytest.param(
-            {**GAME_STARTED, WireKey.GAME_SETTINGS: {**_DEFAULT_SETTINGS, "overrides": {"riichi_cost": "1000"}}},
-            "invalid settings",
-            id="type",
-        ),
-        pytest.param(
-            {**GAME_STARTED, WireKey.GAME_SETTINGS: {**_DEFAULT_SETTINGS, "overrides": {"has_kuitan": 1}}},
-            "invalid settings",
-            id="int_bool",
-        ),
-        pytest.param(
-            {**GAME_STARTED, WireKey.GAME_SETTINGS: {**_DEFAULT_SETTINGS, "overrides": {"renhou_value": "baiman"}}},
-            "invalid settings",
-            id="unsupported",
         ),
         pytest.param(
             {**GAME_STARTED, WireKey.GAME_TYPE: 1}, "game type \\(gt\\) 1 does not match", id="game_type_mismatch"

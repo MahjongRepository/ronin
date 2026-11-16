@@ -6,14 +6,10 @@ from game.engine import (
     CallType,
     EventType,
     GameAction,
-    GameSettings,
     GameStartedEvent,
-    GameType,
     MahjongGameService,
     SeatTarget,
 )
-from game.messaging.event_payload import game_event_payload
-from game.wire.keys import WireKey
 
 
 class TestGameCreationAndJoin:
@@ -34,12 +30,6 @@ class TestGameCreationAndJoin:
         for player in event.players:
             assert player.seat is not None
             assert player.name is not None
-
-    def test_start_game__when_tonpusen__should_send_game_type_in_game_started(self, service):
-        settings = GameSettings(game_type=GameType.TONPUSEN)
-        events = service.start_game("game1", ["Player"], seed="a" * 192, settings=settings).events
-        game_started = next(e for e in events if e.type == EventType.GAME_STARTED)
-        assert game_event_payload(game_started)[WireKey.GAME_TYPE] == 1
 
 
 class TestGameServiceIntegration:

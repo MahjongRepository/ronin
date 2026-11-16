@@ -9,7 +9,6 @@ from game.engine import (
     DrawEvent,
     ErrorEvent,
     GameAction,
-    GameSettings,
     GameStartedEvent,
     KanType,
     MahjongGameService,
@@ -83,11 +82,10 @@ class ReplayRecorder:
         self,
         *,
         seed: str,
-        settings: GameSettings,
         walls: tuple[tuple[int, ...], ...] = (),
         start: StartPosition | None = None,
     ) -> None:
-        self._record = ReplayRecord(seed=seed, rng_version=RNG_VERSION, settings=settings)
+        self._record = ReplayRecord(seed=seed, rng_version=RNG_VERSION)
         self._walls = walls
         self._start = start
         self._collector = ReplayCollector(FakeReplayStorage())
@@ -260,22 +258,19 @@ class _ScriptedGame:
     at a time as the session would, with each seat's latest draw kept for the script.
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         game_id: str,
         *,
         seed: str,
-        settings: GameSettings,
         seating: Seating,
         walls: tuple[tuple[int, ...], ...] = (),
         start_position: StartPosition | None = None,
     ) -> None:
         self._game_id = game_id
-        self._recorder = ReplayRecorder(seed=seed, settings=settings, walls=walls, start=start_position)
+        self._recorder = ReplayRecorder(seed=seed, walls=walls, start=start_position)
         self._service = MahjongGameService()
-        start = self._service.start_game(
-            game_id, list(seating.players), seed=seed, settings=settings, walls=walls, start=start_position
-        )
+        start = self._service.start_game(game_id, list(seating.players), seed=seed, walls=walls, start=start_position)
         self._runtime = start.runtime
         self._draws: dict[int, DrawEvent] = {}
         if not seating.absent < set(start.seats):
@@ -332,7 +327,6 @@ class StagedGame(_ScriptedGame):
         game_id: str,
         staged: StagedWall,
         *,
-        settings: GameSettings | None = None,
         seating: Seating = FOUR_AT_THE_TABLE,
         start: StartPosition | None = None,
     ) -> None:
@@ -347,7 +341,6 @@ class StagedGame(_ScriptedGame):
         super().__init__(
             game_id,
             seed=STAGED_SEED,
-            settings=settings if settings is not None else GameSettings(),
             seating=seating,
             walls=(staged.tiles(),),
             start_position=start,
@@ -523,7 +516,7 @@ class EagerGame(_ScriptedGame):
     """
 
     def __init__(self, game_id: str, seed: str) -> None:
-        super().__init__(game_id, seed=seed, settings=GameSettings(), seating=FOUR_AT_THE_TABLE)
+        super().__init__(game_id, seed=seed, seating=FOUR_AT_THE_TABLE)
 
     def replay(self, outcome: Outcome) -> Recording:
         """

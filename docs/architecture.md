@@ -403,10 +403,9 @@ The storage version fixes the integer metadata-key mapping and the seed's 96-byt
 decoders preserve numeric keys and restore the hexadecimal seed. Score-map seats remain data keys, settings
 override names remain strings, and lists remain arrays. Replay storage and live WebSocket encoding have separate contracts over shared fixed field IDs.
 
-The game-start record stores an immutable rules-profile ID and only effective settings that differ
-from that profile. Complete historical baselines live beside `GameSettings` in Python; changing a
-baseline requires a new ID. Python loading, outcome verification and Tenhou export share the same
-decoder and strict profile resolver. Storage version, RNG version and profile ID are independent.
+The game-start record stores the rules envelope of the one preset the engine plays: profile 1 with no
+overrides. Python loading and outcome verification share the same strict decoder, which refuses any
+other envelope. Storage version, RNG version and profile ID are independent.
 Browser playback needs no engine or profile table: it reads recorded events and the explicit game
 length, riichi-stick value and aka-dora flag. A damaged record reports its position while preserving
 the readable prefix; a valid stream without a game end remains distinguishable from damaged input.

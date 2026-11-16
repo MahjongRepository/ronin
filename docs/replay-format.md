@@ -19,23 +19,16 @@ storage version. Unknown metadata keys are errors. Metadata conversion applies r
 string seat keys. Every list remains a MessagePack array. The sole binary value is `sd`, exactly 96 seed
 bytes; the Python and browser read boundaries restore its hexadecimal string.
 
-`gs` contains an integer profile `id` and an `overrides` map. Python owns the complete immutable profile
-baselines in `game/logic/rule_profiles.py`; the browser has no registry. Each baseline supplies every
-`GameSettings` field explicitly. A completeness validator rejects a profile that would inherit a current
-default, and a persisted-baseline test pins its normalized values. Never modify or reuse an existing
-profile ID: a new standard baseline requires a new ID. Adding, removing, or renaming a setting requires
-deliberate treatment of existing profiles and their completeness check.
-
-Recording compares normalized effective settings against the selected profile and includes every
-difference, including false, zero, and changes applied by the server. Resolution rejects unknown IDs and
-unknown override names, merges onto the recorded baseline, and applies strict `GameSettings` validation
-and engine support checks. Omitted settings never come from current application defaults.
+`gs` contains an integer profile `id` and an `overrides` map. The server plays one rules preset, profile 1
+(`game/logic/rule_profiles.py`), so recording always writes `{"id": 1, "overrides": {}}` and both Python
+readers refuse any other profile ID and any non-empty overrides; the browser has no registry. The preset
+supplies every `GameSettings` field explicitly, a completeness validator rejects one that would inherit a
+current default, and a persisted-baseline test pins its normalized values.
 
 The game-start record independently carries the viewing fields `gt` (game length), `rsv` (riichi-stick
-value in wire score units), and `aka` (boolean red-five setting). They come from the same effective
-settings as the profile overrides. Playback uses recorded events and these fields; it needs neither the
-Python profiles nor a running rules engine. Tenhou export and outcome verification use Python profile
-resolution.
+value in wire score units), and `aka` (boolean red-five setting). They come from the preset. Playback uses
+recorded events and these fields; it needs neither the preset nor a running rules engine. Tenhou export
+writes the preset's game type.
 
 A complete record is validated before being returned. Decode errors identify the record number and the
 byte offset after the last complete record. A truncated trailing MessagePack record is damaged input,

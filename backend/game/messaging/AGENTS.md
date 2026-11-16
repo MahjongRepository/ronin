@@ -12,10 +12,10 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   golden frames; protocol changes update all three together. Replay-only metadata is not accepted on the live wire.
 * `event_payload.py` builds every outgoing event, for both the socket and the replay. A draw, a
   discard and a meld each pack into one integer (`../wire/compact.py`, `shared/lib/melds/README.md`).
-* Of `GameSettings` only the game type (`WireKey.GAME_TYPE`) and the riichi stick value (`WireKey.RIICHI_STICK_VALUE`), a wire
+* Of the rules preset only the game type (`WireKey.GAME_TYPE`) and the riichi stick value (`WireKey.RIICHI_STICK_VALUE`), a wire
   score, go out live, on `game_started` and the reconnect snapshot: the settings a client consumes, the type for its
   headings and the stick value since every deposit and payment comes settled. Replay game-start records retain this viewing value and an explicit aka-dora flag; their
-  compact `WireKey.GAME_SETTINGS` profile reference resolves the full effective settings for Python consumers.
+  compact `WireKey.GAME_SETTINGS` envelope always names the preset with no overrides.
 * An accepted JOIN_GAME is answered by `game_joined` to the joining connection alone, ahead of anything
   the game sends it, as an accepted RECONNECT is by the snapshot; every refused one by a session error.
   So a client is admitted by the server's answer, never by inferring it from the game's messages.

@@ -5,14 +5,6 @@ from typing import TYPE_CHECKING
 import msgpack
 from pydantic import BaseModel, ConfigDict, JsonValue
 
-from game.engine import (
-    STANDARD_RULE_PROFILE,
-    GameSettings,
-    UnsupportedSettingsError,
-    get_rule_profile,
-    resolve_rule_profile,
-    validate_settings,
-)
 from game.wire.enums import WireEventType
 from game.wire.keys import REPLAY_KEYS, WireKey
 from game.wire.replay_schema import ReplayLineType, validate_replay_event
@@ -23,6 +15,7 @@ if TYPE_CHECKING:
 REPLAY_VERSION = "0.4-dev"
 REPLAY_SEED_BYTES = 96
 MAX_REPLAY_BYTES = 16 * 1024 * 1024
+REPLAY_RULES_PROFILE_ID = 1
 _SCORE_MAP_KEYS = frozenset({WireKey.SCORES, WireKey.SCORE_CHANGES})
 
 
@@ -39,19 +32,23 @@ class ReplaySettings(BaseModel):
     overrides: dict[str, JsonValue]
 
 
-def encode_replay_settings(settings: GameSettings, profile_id: int = STANDARD_RULE_PROFILE.id) -> dict[str, object]:
-    validate_settings(settings)
-    profile = get_rule_profile(profile_id)
-
-    baseline = profile.settings.model_dump(mode="json")
-    effective = settings.model_dump(mode="json")
-    overrides = {name: value for name, value in effective.items() if value != baseline[name]}
-    return {"id": profile.id, "overrides": overrides}
+def encode_replay_settings() -> dict[str, object]:
+    """
+    Return the rules envelope (gs) every replay records: the one rules profile the server plays, with no overrides.
+    """
+    return {"id": REPLAY_RULES_PROFILE_ID, "overrides": {}}
 
 
-def decode_replay_settings(raw: object) -> GameSettings:
+def validate_replay_settings(raw: object) -> None:
+    """
+    Accept only the rules envelope the server plays: its profile id with empty overrides.
+    """
     reference = ReplaySettings.model_validate(raw)
-    return resolve_rule_profile(reference.id, reference.overrides)
+    if reference.id != REPLAY_RULES_PROFILE_ID:
+        raise ValueError(f"unknown rules profile: {reference.id}")
+
+    if reference.overrides:
+        raise ValueError(f"unsupported rules overrides: {sorted(reference.overrides)}")
 
 
 def _encode_seed(value: object) -> bytes:
@@ -95,7 +92,7 @@ def _encode_value(value: object, field: int | None = None) -> object:
         return _encode_seed(value)
 
     if field == WireKey.GAME_SETTINGS:
-        decode_replay_settings(value)
+        validate_replay_settings(value)
         return value
 
     if field in _SCORE_MAP_KEYS and isinstance(value, dict):
@@ -122,7 +119,7 @@ def _decode_value(value: object, field: int | None = None) -> object:
         return _decode_seed(value)
 
     if field == WireKey.GAME_SETTINGS:
-        decode_replay_settings(value)
+        validate_replay_settings(value)
         return value
 
     if field in _SCORE_MAP_KEYS:
@@ -204,7 +201,7 @@ def decode_replay_records(content: bytes) -> list[dict[int, object]]:
             record = _validate_record(_decode_value(raw), len(records) + 1)
             records.append(record)
             complete_position = unpacker.tell()
-    except (ValueError, TypeError, UnsupportedSettingsError, msgpack.UnpackException) as error:
+    except (ValueError, TypeError, msgpack.UnpackException) as error:
         raise ValueError(f"replay record {len(records) + 1} at byte {complete_position}: {error}") from error
 
     if complete_position != len(content):

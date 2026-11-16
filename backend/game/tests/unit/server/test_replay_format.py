@@ -1,20 +1,17 @@
-import hashlib
 import json
 from pathlib import Path
 
 import msgpack
 import pytest
 
-from game.engine import STANDARD_RULE_PROFILE, GameSettings, UnsupportedSettingsError
-from game.logic.rule_profiles import RuleProfile
 from game.wire.keys import REPLAY_KEYS, WireKey
 from game.wire.replay_format import (
     MAX_REPLAY_BYTES,
     REPLAY_VERSION,
     decode_replay_records,
-    decode_replay_settings,
     encode_replay_records,
     encode_replay_settings,
+    validate_replay_settings,
 )
 
 _GOLDEN = Path(__file__).parents[2] / "fixtures" / "replay-format-golden.json"
@@ -53,10 +50,7 @@ def test_replay_records__when_shared_golden__should_preserve_records_and_binary_
     unpacker.feed(encoded)
     raw = list(unpacker)
     assert raw[1][WireKey.SEED] == bytes(range(96))
-    assert raw[1][WireKey.GAME_SETTINGS] == {
-        "id": 1,
-        "overrides": {"has_akadora": False, "riichi_stick_value": 0},
-    }
+    assert raw[1][WireKey.GAME_SETTINGS] == {"id": 1, "overrides": {}}
     assert raw[2][WireKey.DORA_INDICATORS] == [31]
     assert raw[3][WireKey.SCORE_CHANGES] == {"0": 30, "1": -10, "2": -10, "3": -10}
 
@@ -142,17 +136,10 @@ def test_replay_records__when_no_records__should_refuse():
         encode_replay_records([])
 
 
-def test_replay_settings__when_standard_and_custom__should_resolve_effective_values():
-    standard = encode_replay_settings(GameSettings())
-    assert standard == {"id": 1, "overrides": {}}
-    assert decode_replay_settings(standard) == STANDARD_RULE_PROFILE.settings
-    custom = GameSettings(has_akadora=False, riichi_cost=0, uma=(30, 10, -10, -30))
-    reference = encode_replay_settings(custom)
-    assert reference == {
-        "id": 1,
-        "overrides": {"has_akadora": False, "riichi_cost": 0, "uma": [30, 10, -10, -30]},
-    }
-    assert decode_replay_settings(reference) == custom
+def test_replay_settings__should_encode_the_preset_profile_without_overrides():
+    reference = encode_replay_settings()
+    assert reference == {"id": 1, "overrides": {}}
+    validate_replay_settings(reference)
 
 
 @pytest.mark.parametrize(
@@ -160,40 +147,13 @@ def test_replay_settings__when_standard_and_custom__should_resolve_effective_val
     [
         {"id": 999, "overrides": {}},
         {"id": True, "overrides": {}},
-        {"id": 1, "overrides": {"unknown": True}},
-        {"id": 1, "overrides": {"has_akadora": 0}},
-        {"id": 1, "overrides": {"starting_score": "25000"}},
+        {"id": 1, "overrides": {"has_akadora": True}},
         {"id": 1},
     ],
 )
-def test_replay_settings__when_reference_is_invalid__should_refuse(reference):
-    with pytest.raises(ValueError, match=r"unknown rules profile|validation error"):
-        decode_replay_settings(reference)
-
-
-def test_replay_settings__when_unsupported_rule__should_refuse():
-    with pytest.raises(UnsupportedSettingsError, match="renhou_value=BAIMAN"):
-        decode_replay_settings({"id": 1, "overrides": {"renhou_value": "baiman"}})
-
-
-def test_replay_settings__when_unknown_selected_profile__should_refuse():
-    with pytest.raises(ValueError, match="unknown rules profile"):
-        encode_replay_settings(GameSettings(), profile_id=999)
-
-
-def test_rule_profile__when_defaults_would_fill_fields__should_require_explicit_baseline():
-    with pytest.raises(ValueError, match="explicitly define settings"):
-        RuleProfile(id=2, settings=GameSettings())
-
-
-def test_rule_profile__should_pin_persisted_baseline_independently_of_defaults():
-    normalized = json.dumps(
-        STANDARD_RULE_PROFILE.settings.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
-    )
-    assert (
-        hashlib.sha256(normalized.encode()).hexdigest()
-        == "c35fef2b4be543aa2eb74373a1993b35639eeb764ae0bb0c77a60f6be6a5c1eb"
-    )
+def test_replay_settings__when_reference_is_not_the_preset__should_refuse(reference):
+    with pytest.raises(ValueError, match=r"unknown rules profile|unsupported rules overrides|validation error"):
+        validate_replay_settings(reference)
 
 
 @pytest.mark.parametrize(

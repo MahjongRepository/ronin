@@ -12,7 +12,6 @@ from game.engine import (
     GameErrorCode,
     GameEvent,
     GamePhase,
-    GameSettings,
     GameUpdate,
     InvalidGameActionError,
     KanType,
@@ -71,7 +70,7 @@ def _build_replay(
     actions: tuple[tuple[str, GameAction, dict[str, Any]], ...] = (),
 ) -> ReplayInput:
     events = tuple(ReplayInputEvent(player_name=name, action=action, data=data) for name, action, data in actions)
-    return ReplayInput(seed=seed, player_names=player_names, settings=GameSettings(), events=events)
+    return ReplayInput(seed=seed, player_names=player_names, events=events)
 
 
 class _StubService:
@@ -84,7 +83,6 @@ class _StubService:
         player_names: list[str],
         *,
         seed: str | None = None,
-        settings: GameSettings | None = None,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
     ) -> GameStart:
@@ -202,7 +200,6 @@ def test_run_replay__when_strict_and_input_after_game_end__should_raise():
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
         ) -> GameStart:
@@ -230,7 +227,6 @@ def test_run_replay__when_non_strict_and_input_after_game_end__should_skip_input
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
         ) -> GameStart:
@@ -264,7 +260,6 @@ def test_round_confirmation__when_round_advance_pending__should_inject_synthetic
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
         ) -> GameStart:
@@ -323,12 +318,11 @@ def test_round_confirmation__when_the_game_start_awaits_confirmation__should_con
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
             confirm_start: bool = False,
         ) -> GameStart:
-            return super().start_game(game_id, player_names, seed=seed, settings=settings, confirm_start=True)
+            return super().start_game(game_id, player_names, seed=seed, confirm_start=True)
 
     name, tile = _probe_current_player_discard()
     replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
@@ -434,7 +428,6 @@ def test_step_limit__when_synthetic_passes_reach_max_steps__should_raise_before_
     replay = ReplayInput(
         seed=SEED,
         player_names=PLAYER_NAMES,
-        settings=GameSettings(),
         walls=(
             make_start_wall(
                 (PIN_3_TRIPLE_RON_DEALER_HAND, *PIN_3_TRIPLE_RON_CALLER_HANDS),
@@ -589,7 +582,6 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
         ) -> GameStart:
@@ -684,7 +676,6 @@ def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_it
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
         ) -> GameStart:
@@ -757,7 +748,6 @@ def test_auto_pass_calls__when_prompted_seat_declares_self_kan__should_pass_its_
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
         ) -> GameStart:
@@ -816,7 +806,6 @@ def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_re
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
         ) -> GameStart:
@@ -970,7 +959,6 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
         ) -> GameStart:
@@ -1119,7 +1107,6 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
             player_names: list[str],
             *,
             seed: str | None = None,
-            settings: GameSettings | None = None,
             walls: Sequence[Sequence[int]] = (),
             start: StartPosition | None = None,
         ) -> GameStart:

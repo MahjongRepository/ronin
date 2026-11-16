@@ -23,7 +23,6 @@ from game.engine import (
     GameEndedEvent,
     GameEvent,
     GamePlayerInfo,
-    GameSettings,
     GameStartedEvent,
     GameType,
     HandLimit,
@@ -33,12 +32,12 @@ from game.engine import (
     MeldEvent,
     MeldViewType,
     PlayerStanding,
-    RenhouValue,
     RiichiDeclaredEvent,
     RobbedKan,
     RonResult,
     RoundEndEvent,
     SeatTarget,
+    StartPosition,
     TenpaiHand,
     TsumoResult,
     WaitKind,
@@ -92,32 +91,22 @@ SOUTH_DRAWS = tile_copies(1, honors="222")
 KAN_GAME_DRAWS = (*SOUTH_DRAWS, tile_copies(1, honors="4")[0], PIN_3_ADDED)
 
 
-def _game_started_replay_line(settings: GameSettings, *, first_dealer: int = 0) -> dict[int, Any]:
+def _game_started_replay_line(*, first_dealer: int = 0) -> dict[int, Any]:
     event = GameStartedEvent(
         game_id="game1",
-        game_type=settings.game_type,
+        game_type=GameType.HANCHAN,
         players=[GamePlayerInfo(seat=i, name=f"P{i}", is_ai_player=False) for i in range(4)],
         dealer_seat=first_dealer,
         dealer_dice=((1, 1), (1, 1)),
-        riichi_stick_value=settings.riichi_stick_value,
+        riichi_stick_value=1000,
     )
     payload = {**game_event_payload(event), WireKey.SEED: "a" * 192, WireKey.RNG_VERSION: RNG_VERSION}
-    return {**payload, WireKey.GAME_SETTINGS: encode_replay_settings(settings)}
+    return {**payload, WireKey.GAME_SETTINGS: encode_replay_settings()}
 
 
-@pytest.mark.parametrize(
-    ("settings", "go_tag"),
-    [
-        pytest.param(GameSettings(), '<GO type="9" lobby="0"/>', id="hanchan"),
-        pytest.param(GameSettings(game_type=GameType.TONPUSEN), '<GO type="1" lobby="0"/>', id="tonpusen"),
-        pytest.param(
-            GameSettings(has_akadora=False, has_kuitan=False), '<GO type="15" lobby="0"/>', id="no_red_no_kuitan"
-        ),
-    ],
-)
-def test_tenhou_converter__when_game_started__should_set_go_type_from_the_game_settings(settings, go_tag):
-    xml = TenhouConverter([_game_started_replay_line(settings)]).convert()
-    assert xml.count(go_tag) == 1
+def test_tenhou_converter__when_game_started__should_set_the_go_type_of_a_hanchan_with_red_fives_and_kuitan():
+    xml = TenhouConverter([_game_started_replay_line()]).convert()
+    assert xml.count('<GO type="9" lobby="0"/>') == 1
 
 
 def _round_started_replay_line(honba: int) -> dict[int, Any]:
@@ -137,8 +126,7 @@ def _replay_line(event: GameEvent) -> dict[int, Any]:
     return game_event_payload(event)
 
 
-CUSTOM_STICK_SETTINGS = GameSettings(riichi_cost=2000, honba_ron_bonus=500, honba_tsumo_bonus_per_loser=200)
-SCORES_AFTER_RIICHI = {0: 23000, 1: 25000, 2: 25000, 3: 25000}
+SCORES_AFTER_RIICHI = {0: 24000, 1: 25000, 2: 25000, 3: 25000}
 TWO_HAN_HAND = HandResultInfo(limit=HandLimit.NONE, han=2, fu=30, yaku=[YakuInfo(yaku_id=0, han=2)], points=2000)
 
 
@@ -171,11 +159,11 @@ def _tsumo_result(hand: HandResultInfo, *, winner_seat: int, score_changes: dict
     )
 
 
-def _single_win_replay_lines(settings: GameSettings, result: RonResult | TsumoResult) -> list[dict[int, Any]]:
+def _single_win_replay_lines(result: RonResult | TsumoResult) -> list[dict[int, Any]]:
     return [
-        _game_started_replay_line(settings),
+        _game_started_replay_line(),
         _round_started_replay_line(honba=2),
-        _replay_line(RiichiDeclaredEvent(seat=0, score=25000 - settings.riichi_cost, riichi_sticks=1)),
+        _replay_line(RiichiDeclaredEvent(seat=0, score=24000, riichi_sticks=1)),
         _replay_line(RoundEndEvent(dealer_seat=0, dora_indicators=[], result=result, riichi_sticks=0)),
     ]
 
@@ -185,21 +173,21 @@ def _single_win_replay_lines(settings: GameSettings, result: RonResult | TsumoRe
     [
         pytest.param(
             _ron_result(TWO_HAN_HAND, winner_seat=1, score_changes={0: 0, 1: 4000, 2: -3000, 3: 0}),
-            ("2,1", "30,2000,0", "230,0,250,40,250,-30,250,0"),
+            ("2,1", "30,2000,0", "240,0,250,40,250,-30,250,0"),
             id="ron",
         ),
         pytest.param(
             _tsumo_result(TWO_HAN_HAND, winner_seat=1, score_changes={0: -1400, 1: 4200, 2: -900, 3: -900}),
-            ("2,1", "30,2000,0", "230,-14,250,42,250,-9,250,-9"),
+            ("2,1", "30,2000,0", "240,-14,250,42,250,-9,250,-9"),
             id="tsumo",
         ),
     ],
 )
-def test_tenhou_converter__when_settings_change_riichi_cost_and_honba__should_deposit_the_cost_and_leave_honba_to_sc(
+def test_tenhou_converter__when_a_riichi_hand_wins_on_honba__should_deposit_the_stick_and_leave_honba_to_sc(
     result, agari_ba_ten_sc
 ):
-    xml = TenhouConverter(_single_win_replay_lines(CUSTOM_STICK_SETTINGS, result)).convert()
-    assert re.findall(r'<REACH who="(\d)" ten="([^"]*)" step="2"/>', xml) == [("0", "230,250,250,250")]
+    xml = TenhouConverter(_single_win_replay_lines(result)).convert()
+    assert re.findall(r'<REACH who="(\d)" ten="([^"]*)" step="2"/>', xml) == [("0", "240,250,250,250")]
     assert re.findall(r'<AGARI ba="([^"]*)"[^>]* ten="([^"]*)"[^>]* sc="([^"]*)"', xml) == [agari_ba_ten_sc]
 
 
@@ -211,36 +199,22 @@ NO_SCORE_CHANGES = {0: 0, 1: 0, 2: 0, 3: 0}
 
 
 @pytest.mark.parametrize(
-    ("settings", "result", "agari_ten"),
+    ("result", "agari_ten"),
     [
         pytest.param(
-            GameSettings(),
             _ron_result(_hand(4, 40, 8000, HandLimit.MANGAN), winner_seat=1, score_changes=NO_SCORE_CHANGES),
             "40,8000,1",
             id="fu_based_mangan",
         ),
         pytest.param(
-            GameSettings(has_kiriage_mangan=False),
             _tsumo_result(_hand(4, 30, 11700, HandLimit.NONE), winner_seat=0, score_changes=NO_SCORE_CHANGES),
             "30,11700,0",
             id="dealer_tsumo_just_below_mangan",
         ),
-        pytest.param(
-            GameSettings(has_kiriage_mangan=True),
-            _ron_result(_hand(4, 30, 8000, HandLimit.MANGAN), winner_seat=1, score_changes=NO_SCORE_CHANGES),
-            "30,8000,1",
-            id="kiriage_mangan",
-        ),
-        pytest.param(
-            GameSettings(has_kazoe_yakuman=False),
-            _ron_result(_hand(13, 40, 24000, HandLimit.SANBAIMAN), winner_seat=1, score_changes=NO_SCORE_CHANGES),
-            "40,24000,4",
-            id="thirteen_han_capped_at_sanbaiman",
-        ),
     ],
 )
-def test_tenhou_converter__when_a_hand_wins__should_write_the_limit_it_was_paid_at(settings, result, agari_ten):
-    xml = TenhouConverter(_single_win_replay_lines(settings, result)).convert()
+def test_tenhou_converter__when_a_hand_wins__should_write_the_limit_it_was_paid_at(result, agari_ten):
+    xml = TenhouConverter(_single_win_replay_lines(result)).convert()
     assert re.findall(r'<AGARI [^>]* ten="([^"]*)"', xml) == [agari_ten]
 
 
@@ -284,9 +258,7 @@ def test_tenhou_converter__when_game_ending_double_ron__should_give_each_agari_i
     round_end_line = _replay_line(RoundEndEvent(dealer_seat=0, dora_indicators=[], result=result, riichi_sticks=0))
     game_end_line = _game_end_replay_line({0: 27000, 1: 20000, 2: 29000, 3: 24000})
 
-    xml = TenhouConverter(
-        [_game_started_replay_line(GameSettings()), round_started_line, round_end_line, game_end_line]
-    ).convert()
+    xml = TenhouConverter([_game_started_replay_line(), round_started_line, round_end_line, game_end_line]).convert()
 
     assert re.findall(r'<AGARI ba="([^"]*)"[^>]*who="(\d)"[^>]* sc="([^"]*)"', xml) == [
         ("0,1", "2", "250,0,250,-30,250,40,240,0"),
@@ -375,7 +347,7 @@ def test_tenhou_converter__when_first_dealer_is_not_seat_0__should_seat_players_
         score_changes={THIRD_DEALER: -1000, FOURTH_DEALER: 3000, FIRST_DEALER: -1000, SECOND_DEALER: -1000},
     )
     lines = [
-        _game_started_replay_line(GameSettings(), first_dealer=FIRST_DEALER),
+        _game_started_replay_line(first_dealer=FIRST_DEALER),
         _first_dealer_led_round_started_replay_line(dealer=FIRST_DEALER, honba=0, scores=east_1_scores),
         _replay_line(
             DrawEvent(
@@ -472,7 +444,7 @@ def test_tenhou_converter__when_first_dealer_is_not_seat_0__should_seat_the_play
         ron_seats=[THIRD_DEALER, FOURTH_DEALER, FIRST_DEALER],
     )
     lines = [
-        _game_started_replay_line(GameSettings(), first_dealer=FIRST_DEALER),
+        _game_started_replay_line(first_dealer=FIRST_DEALER),
         _first_dealer_led_round_started_replay_line(dealer=FIRST_DEALER, honba=0, scores=east_1_scores),
         *_draw_and_tsumogiri_replay_lines(FIRST_DEALER, PIN_3_PON_DISCARD),
         _replay_line(THIRD_DEALER_PIN_3_PON),
@@ -506,7 +478,7 @@ KAN_DORA_INDICATOR = tile_copies(0, man="4")[0]
 
 def test_tenhou_converter__when_the_same_events_convert_twice__should_write_each_kan_dora_once():
     ron = _ron_result(TWO_HAN_HAND, winner_seat=1, score_changes=NO_SCORE_CHANGES)
-    *round_lines, round_end_line = _single_win_replay_lines(GameSettings(), ron)
+    *round_lines, round_end_line = _single_win_replay_lines(ron)
     lines = [*round_lines, _replay_line(DoraRevealedEvent(tile_id=KAN_DORA_INDICATOR)), round_end_line]
 
     TenhouConverter(lines).convert()
@@ -514,16 +486,16 @@ def test_tenhou_converter__when_the_same_events_convert_twice__should_write_each
     assert re.findall(r'doraHai="([^"]*)"', TenhouConverter(lines).convert()) == ["0,12"]
 
 
-def _start_game(wall: tuple[int, ...], settings: GameSettings | None) -> tuple[MahjongGameService, GameStart]:
+def _start_game(wall: tuple[int, ...], start: StartPosition | None = None) -> tuple[MahjongGameService, GameStart]:
     service = MahjongGameService()
-    start = service.start_game(
-        "tenhou", ["Alice", "Bob", "Charlie", "Diana"], seed=SEED, walls=[wall], settings=settings
+    game_start = service.start_game(
+        "tenhou", ["Alice", "Bob", "Charlie", "Diana"], seed=SEED, walls=[wall], start=start
     )
-    return service, start
+    return service, game_start
 
 
-def _replay_lines(recorded_events: list[GameEvent], settings: GameSettings) -> list[dict[int, Any]]:
-    record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION, settings=settings)
+def _replay_lines(recorded_events: list[GameEvent]) -> list[dict[int, Any]]:
+    record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION)
     ReplayCollector(FakeReplayStorage()).collect_events(record, recorded_events)
     return decode_replay_records(encode_replay_records([{WireKey.REPLAY_VERSION: REPLAY_VERSION}, *record.records]))[1:]
 
@@ -531,20 +503,21 @@ def _replay_lines(recorded_events: list[GameEvent], settings: GameSettings) -> l
 def _play_and_record_replay_lines(
     wall: tuple[int, ...],
     actions: list[tuple[int, GameAction, dict[str, Any]]],
-    settings: GameSettings | None = None,
 ) -> list[dict[int, Any]]:
-    service, start = _start_game(wall, settings)
+    service, start = _start_game(wall)
     recorded_events = list(start.events)
     for seat, action, data in actions:
         update = service.handle_action(start.runtime, seat=seat, action=action, data=data)
         assert [e for e in update.events if e.type == EventType.ERROR] == []
         recorded_events += update.events
 
-    return _replay_lines(recorded_events, start.runtime.state.settings)
+    return _replay_lines(recorded_events)
 
 
-def _play_by_tsumogiri_and_record_replay_lines(wall: tuple[int, ...], settings: GameSettings) -> list[dict[int, Any]]:
-    service, start = _start_game(wall, settings)
+def _play_by_tsumogiri_and_record_replay_lines(
+    wall: tuple[int, ...], start_position: StartPosition
+) -> list[dict[int, Any]]:
+    service, start = _start_game(wall, start_position)
     recorded_events = list(start.events)
     awaiting = start.awaiting
     while awaiting.kind in (WaitKind.TURN, WaitKind.CALL):
@@ -561,7 +534,7 @@ def _play_by_tsumogiri_and_record_replay_lines(wall: tuple[int, ...], settings: 
         recorded_events += update.events
         awaiting = update.awaiting
 
-    return _replay_lines(recorded_events, start.runtime.state.settings)
+    return _replay_lines(recorded_events)
 
 
 @pytest.mark.parametrize(
@@ -646,28 +619,6 @@ def test_tenhou_converter__when_added_kan_caller_wins_on_the_rinshan_tile__shoul
     assert re.findall(r'<AGARI [^>]*hai="([^"]*)" m="([^"]*)" machi="(\d+)"', xml) == [
         ("0,4,8,12,16,20,24,28,32,116,117", "18035", "117")
     ]
-
-
-PIN_8_DISCARD = tile_copies(2, pin="8")[0]
-SEVEN_PAIRS_PIN_8_TANKI_HAND = tile_copies(1, pin="2233445566778")
-NON_TENPAI_HANDS = (
-    (*tile_copies(1, man="1357", sou="1357"), *tile_copies(0, honors="12345")),
-    (*tile_copies(2, man="2468", sou="2468"), *tile_copies(2, honors="12345")),
-    (*tile_copies(3, man="2468", sou="2468"), *tile_copies(3, honors="12345")),
-)
-
-
-def test_tenhou_converter__when_renhou_scores_as_a_yakuman__should_write_it_under_tenhou_renhou_id():
-    dealer_hand, *bystander_hands = NON_TENPAI_HANDS
-    wall = make_start_wall((dealer_hand, SEVEN_PAIRS_PIN_8_TANKI_HAND, *bystander_hands), draws=(PIN_8_DISCARD,))
-    lines = _play_and_record_replay_lines(
-        wall,
-        [(DEALER, GameAction.DISCARD, {"tile_id": PIN_8_DISCARD}), (1, GameAction.CALL_RON, {})],
-        settings=GameSettings(renhou_value=RenhouValue.YAKUMAN),
-    )
-
-    xml = TenhouConverter(lines).convert()
-    assert re.findall(r'<AGARI [^>]* ten="[^"]*,5" (\w+="[^"]*") ', xml) == ['yakuman="36"']
 
 
 NINE_TERMINAL_TYPES_HAND = (*tile_copies(0, man="19", pin="19", sou="19", honors="123"), *tile_copies(0, man="2345"))
@@ -789,7 +740,7 @@ def test_tenhou_converter__when_tobi_follows_a_nagashi_mangan__should_write_an_n
     ]
     wall = make_start_wall(tenpai_hands, draws=live_wall_draws)
 
-    lines = _play_by_tsumogiri_and_record_replay_lines(wall, GameSettings(starting_score=1000))
+    lines = _play_by_tsumogiri_and_record_replay_lines(wall, StartPosition(scores=(1000, 1000, 1000, 1000)))
 
     xml = TenhouConverter(lines).convert()
     nagashi_ryuukyoku = (

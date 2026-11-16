@@ -87,7 +87,6 @@ class MockGameService(GameService):
         player_names: list[str],
         *,
         seed: str | None = None,
-        settings: GameSettings | None = None,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
         confirm_start: bool = False,
@@ -97,7 +96,6 @@ class MockGameService(GameService):
         state = _MockGameState(
             seed=seed if seed is not None else "0" * 192,
             round_state=_MockRoundState(players=[_MockPlayer(seat=i, name=name) for i, name in enumerate(all_names)]),
-            settings=settings,
         )
         runtime = GameRuntime(game_id=game_id, state=cast("MahjongGameState", state), ai=AIPlayerController({}))
 

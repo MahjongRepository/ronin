@@ -41,7 +41,7 @@ from game.logic.events import (
     SeatTarget,
     TurnEvent,
 )
-from game.logic.exceptions import InvalidGameActionError, UnsupportedSettingsError
+from game.logic.exceptions import InvalidGameActionError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_compact import meld_event_to_compact
 from game.logic.rng import (
@@ -53,18 +53,14 @@ from game.logic.rng import (
     seat_permutation,
     validate_seed_hex,
 )
-from game.logic.rule_profiles import STANDARD_RULE_PROFILE, get_rule_profile, resolve_rule_profile
+from game.logic.rule_profiles import PRESET_GAME_TYPE, PRESET_HAS_AKADORA, PRESET_HAS_KUITAN
 from game.logic.runtime import GameRuntime
 from game.logic.service import Awaiting, GameService, GameStart, GameUpdate
 from game.logic.settings import (
     NUM_PLAYERS,
     TRIPLE_RON_COUNT,
     WIRE_SCORE_DIVISOR,
-    EnchousenType,
-    GameSettings,
     GameType,
-    RenhouValue,
-    validate_settings,
 )
 from game.logic.shanten import calculate_shanten
 from game.logic.state import MahjongGameState
@@ -109,9 +105,11 @@ __all__ = [
     "NUM_PLAYERS",
     "NUM_TILES",
     "NUM_TILE_TYPES",
+    "PRESET_GAME_TYPE",
+    "PRESET_HAS_AKADORA",
+    "PRESET_HAS_KUITAN",
     "RNG_VERSION",
     "SEED_BYTES",
-    "STANDARD_RULE_PROFILE",
     "TRIPLE_RON_COUNT",
     "WIRE_SCORE_DIVISOR",
     "AbortiveDrawResult",
@@ -127,7 +125,6 @@ __all__ = [
     "DoubleRonResult",
     "DoubleRonWinner",
     "DrawEvent",
-    "EnchousenType",
     "ErrorEvent",
     "EventType",
     "ExhaustiveDrawResult",
@@ -141,7 +138,6 @@ __all__ = [
     "GamePlayerInfo",
     "GameRuntime",
     "GameService",
-    "GameSettings",
     "GameStart",
     "GameStartedEvent",
     "GameType",
@@ -166,7 +162,6 @@ __all__ = [
     "PlayerView",
     "PromptKind",
     "ReconnectionSnapshot",
-    "RenhouValue",
     "RiichiDeclaredEvent",
     "RobbedKan",
     "RonResult",
@@ -181,7 +176,6 @@ __all__ = [
     "TimeoutType",
     "TsumoResult",
     "TurnEvent",
-    "UnsupportedSettingsError",
     "WaitKind",
     "Wall",
     "WindName",
@@ -197,13 +191,10 @@ __all__ = [
     "determine_first_dealer",
     "generate_seed",
     "generate_shuffled_wall_and_dice",
-    "get_rule_profile",
     "hand_to_34_array",
     "is_terminal_or_honor",
     "meld_event_to_compact",
-    "resolve_rule_profile",
     "seat_permutation",
     "tile_to_34",
     "validate_seed_hex",
-    "validate_settings",
 ]
