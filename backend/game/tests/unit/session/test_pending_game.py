@@ -327,6 +327,37 @@ class TestGameStartConfirm:
 
         await manager.shutdown()
 
+    async def test_confirm_round__when_a_seat_confirms_again_or_echoes_an_old_id__should_refuse_both_as_stale(
+        self, seeded_engine, held_sleep
+    ):
+        manager = make_session_manager(seeded_engine, timer_config=START_CONFIRM)
+        manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
+        alice, bob = _join(manager, "ticket-0"), _join(manager, "ticket-1")
+        game = game_of(manager)
+        bob_participant = game.participants[1]
+        manager.confirm_round(alice, wait_id=1)
+        bob_deadline = bob_participant.timer.task
+        alice._outbox.clear()
+        bob._outbox.clear()
+
+        manager.confirm_round(alice, wait_id=1)
+        manager.confirm_round(bob, wait_id=0)
+        assert [conn.sent_messages for conn in (alice, bob)] == [
+            [
+                {
+                    WireKey.EVENT_TYPE: WireEventType.ERROR,
+                    WireKey.GAME_ERROR_CODE: "stale_action",
+                    WireKey.GAME_ERROR_MESSAGE: "the wait this action answers has already ended",
+                    WireKey.WAIT_ID: stale_id,
+                }
+            ]
+            for stale_id in (1, 0)
+        ]
+        assert game.pause.seats == {bob_participant.seat}
+        assert bob_participant.timer.task is bob_deadline
+
+        await manager.shutdown()
+
     async def test_game_start_confirm__when_a_player_leaves_during_it__should_stop_awaiting_the_seat(
         self, seeded_engine, held_sleep
     ):

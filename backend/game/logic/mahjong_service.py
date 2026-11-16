@@ -462,10 +462,10 @@ class MahjongGameService(GameService):
         """
         Return what the game waits for after a call, bumping the wait id when the call ended the wait it began in.
 
-        The call kept its wait when that wait is of the same kind and either lost seats (a partial prompt response or
-        confirmation, or an AI player answering for a replaced seat) or, with the same seats, left the state untouched
-        (an error result, a timeout or replacement with nothing to do). Same seats on a changed state is a new wait: the
-        turn came back to the same seat, or a kan's replacement draw.
+        The call kept its wait when that wait is of the same kind and either lost seats (a partial prompt response, or
+        an AI player answering for a replaced seat) or, with the same seats, left the state untouched (an error result,
+        a timeout or replacement with nothing to do). Same seats on a changed state is a new wait: the turn came back to
+        the same seat, or a kan's replacement draw.
         """
         kind, seats = self._current_wait(runtime)
         kept = kind == call.kind and (seats < call.seats or (seats == call.seats and runtime.state is call.state))

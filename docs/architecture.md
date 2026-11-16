@@ -370,11 +370,12 @@ sequenceDiagram
   a 1000 `game_ended` close is not, so a client that missed the game end reconnects and is refused
   into the lobby.
 * An action for any wait but the current one is refused as stale and touches nothing.
-* The game start waits for its players: the engine stops after the first deal on a
-  round advance that starts the game, each connected human's copy of the deal opens that confirm, and
-  the dealer draws once every awaited seat sent CONFIRM_ROUND or `TimerConfig.game_start_confirm_seconds`
-  ran out and confirmed for the rest. A seat without a connection at the start, or one that leaves
-  during it, is an AI player's and no longer owes a confirmation. A zero timeout skips the confirm.
+* The game start waits for its players: the engine stops after every deal and every round end without
+  awaiting anyone, and the session holds the pause. The participants connected at the first deal owe the
+  start's confirm, each one's copy of the deal opens it, and the session lets the dealer draw once every
+  owing seat sent CONFIRM_ROUND or `TimerConfig.game_start_confirm_seconds` ran out and confirmed for the
+  rest. A seat without a connection at the start owes none, and one that leaves during it drops out of
+  the pause; both are AI players'. A zero timeout skips the confirm.
 * AI players' turns are paced in real time so a human can follow them: the engine stops before each AI
   player's turn action and reports an AI turn wait, awaiting no human, and the session plays that one
   turn after `TimerConfig.ai_turn_delay_seconds` (one engine call per turn). AI answers to call
