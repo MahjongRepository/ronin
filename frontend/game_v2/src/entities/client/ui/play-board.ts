@@ -97,7 +97,8 @@ function TimerDigits(countdown: DecisionCountdown | null): TemplateResult | type
 }
 
 /**
- * The timer's slot, fixed in size and place while the decision is answerable: a caption line over the digits.
+ * The timer's slot, fixed in size and place while the decision is answerable: a caption line over the digits, the
+ * digits' badge left out while there is no time to show.
  */
 function DecisionTimer(display: DecisionView): TemplateResult {
     const { countdown } = display;
@@ -105,7 +106,7 @@ function DecisionTimer(display: DecisionView): TemplateResult {
     const digits = TimerDigits(countdown);
     return html`<div class="decision-timer ${caption === null ? "" : `decision-timer--${caption.replace("_", "-")}`}">
         ${caption === null ? nothing : html`<span class="decision-timer__caption">${t(TIMER_CAPTIONS[caption])}</span>`}
-        <span class="decision-timer__digits">${digits}</span>
+        ${digits === nothing ? nothing : html`<span class="decision-timer__digits">${digits}</span>`}
     </div>`;
 }
 

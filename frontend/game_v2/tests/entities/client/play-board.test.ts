@@ -135,6 +135,16 @@ function timer(host: HTMLElement): [string | undefined, string | undefined, bool
     ];
 }
 
+/** The state with its open decision offering nothing, as a riichi hand's turn that can only discard its draw. */
+function withoutOffers(state: LiveClient): LiveClient {
+    const { sync } = state;
+    if (sync.kind !== "in_step" || sync.pending?.kind !== "decision") {
+        throw new Error("expected an open decision");
+    }
+    const decision = { ...sync.pending.decision, offers: [] };
+    return { ...state, sync: { ...sync, pending: { decision, kind: "decision" } } };
+}
+
 /** The play switches' slot a live board draws for a state, each press going to `onCommand`. */
 function renderSwitchSlot(
     state: LiveClient,
@@ -399,6 +409,14 @@ describe("PlayBoard", () => {
         expect(timer(renderPlay(turn))).toEqual([undefined, "5+20", false]);
         expect(timer(renderPlay(inBank))).toEqual([undefined, "0+19", true]);
         expect(renderPlay(sent).querySelector(".decision-controls")).toBeNull();
+    });
+
+    it("draws no timer badge on a riichi hand's plain discard, which runs no clock", () => {
+        const riichiDiscard = withoutOffers(checkpointState("riichi_kan_seat_1", "tsumo draw"));
+        const host = renderPlay(riichiDiscard);
+
+        expect(host.querySelector(".decision-timer")).not.toBeNull();
+        expect(host.querySelector(".decision-timer__digits")).toBeNull();
     });
 });
 
