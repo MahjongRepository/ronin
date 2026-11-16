@@ -1,6 +1,6 @@
 # Ronin Game Rules
 
-Standard Japanese Riichi Mahjong (4-player). This document lists the specific rules and settings that define Ronin's ruleset, separated into fixed mechanics (inherent to the game) and configurable settings (adjustable per ruleset).
+Standard Japanese Riichi Mahjong (4-player). This document lists the specific rules and settings that define Ronin's ruleset, separated into fixed mechanics (inherent to the game) and the settings of the one preset every game plays.
 
 ---
 
@@ -138,7 +138,7 @@ Applies when the game type and winning score threshold settings allow the game t
 
 ---
 
-## Configurable Settings
+## Preset Settings
 
 Rules the engine models as settings. Every game plays one preset; its values are shown.
 

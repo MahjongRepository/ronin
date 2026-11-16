@@ -374,7 +374,7 @@ sequenceDiagram
   round advance that starts the game, each connected human's copy of the deal opens that confirm, and
   the dealer draws once every awaited seat sent CONFIRM_ROUND or `TimerConfig.game_start_confirm_seconds`
   ran out and confirmed for the rest. A seat without a connection at the start, or one that leaves
-  during it, is an AI player's, which confirms at once. A zero timeout skips the confirm.
+  during it, is an AI player's and no longer owes a confirmation. A zero timeout skips the confirm.
 * AI players' turns are paced in real time so a human can follow them: the engine stops before each AI
   player's turn action and reports an AI turn wait, awaiting no human, and the session plays that one
   turn after `TimerConfig.ai_turn_delay_seconds` (one engine call per turn). AI answers to call
@@ -400,8 +400,8 @@ the first deal and ahead of the dealer's first draw) and its human's return. A s
 Storage concatenates independent MessagePack records, then compresses the stream once with gzip
 level 9 and a zero timestamp. Files use `.msgpack.gz`, atomic replacement and owner-only permissions.
 The storage version fixes the integer metadata-key mapping and the seed's 96-byte binary form;
-decoders preserve numeric keys and restore the hexadecimal seed. Score-map seats remain data keys, settings
-override names remain strings, and lists remain arrays. Replay storage and live WebSocket encoding have separate contracts over shared fixed field IDs.
+decoders preserve numeric keys and restore the hexadecimal seed. Score-map seats remain data keys, the rules
+envelope's keys remain strings, and lists remain arrays. Replay storage and live WebSocket encoding have separate contracts over shared fixed field IDs.
 
 The game-start record stores the rules envelope of the one preset the engine plays: profile 1 with no
 overrides. Python loading and outcome verification share the same strict decoder, which refuses any

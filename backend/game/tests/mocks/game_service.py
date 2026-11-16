@@ -11,9 +11,10 @@ from game.logic.events import (
     SeatTarget,
 )
 from game.logic.rng import RNG_VERSION
+from game.logic.rule_profiles import PRESET_SETTINGS
 from game.logic.runtime import GameRuntime
 from game.logic.service import Awaiting, GameService, GameStart, GameUpdate
-from game.logic.settings import NUM_PLAYERS, GameSettings
+from game.logic.settings import NUM_PLAYERS
 from game.logic.types import GamePlayerInfo, PlayerView, ReconnectionSnapshot
 
 if TYPE_CHECKING:
@@ -46,13 +47,12 @@ class _MockGameState:
         seed: str = "0" * 192,
         rng_version: str = RNG_VERSION,
         round_state: _MockRoundState | None = None,
-        settings: GameSettings | None = None,
         round_number: int = 0,
     ) -> None:
         self.seed = seed
         self.rng_version = rng_version
         self.round_state = round_state or _MockRoundState()
-        self.settings = settings or GameSettings()
+        self.settings = PRESET_SETTINGS
         self.round_number = round_number
 
 
