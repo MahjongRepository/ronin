@@ -42,7 +42,6 @@ from game.logic.events import (
     TurnEvent,
 )
 from game.logic.exceptions import InvalidGameActionError, UnsupportedSettingsError
-from game.logic.game import init_round
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_compact import meld_event_to_compact
 from game.logic.rng import (
@@ -98,6 +97,7 @@ from game.logic.types import (
     RonResult,
     RoundHistoryEntry,
     RoundResult,
+    StartPosition,
     TenpaiHand,
     TsumoResult,
     YakuInfo,
@@ -176,6 +176,7 @@ __all__ = [
     "RoundResultType",
     "RoundStartedEvent",
     "SeatTarget",
+    "StartPosition",
     "TenpaiHand",
     "TimeoutType",
     "TsumoResult",
@@ -198,7 +199,6 @@ __all__ = [
     "generate_shuffled_wall_and_dice",
     "get_rule_profile",
     "hand_to_34_array",
-    "init_round",
     "is_terminal_or_honor",
     "meld_event_to_compact",
     "resolve_rule_profile",

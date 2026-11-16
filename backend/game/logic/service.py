@@ -4,11 +4,13 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from game.logic.enums import GameAction, TimeoutType, WaitKind
     from game.logic.events import GameEvent
     from game.logic.runtime import GameRuntime
     from game.logic.settings import GameSettings
-    from game.logic.types import ReconnectionSnapshot
+    from game.logic.types import ReconnectionSnapshot, StartPosition
 
 
 @dataclass(frozen=True)
@@ -92,7 +94,8 @@ class GameService(Protocol):
         *,
         seed: str | None = None,
         settings: GameSettings | None = None,
-        wall: list[int] | None = None,
+        walls: Sequence[Sequence[int]] = (),
+        start: StartPosition | None = None,
         confirm_start: bool = False,
     ) -> GameStart:
         """
@@ -100,10 +103,13 @@ class GameService(Protocol):
 
         Returns the game's runtime, the initial state events (one per player with their view), the first wait and each
         input player's seat, in input order. When seed is provided, the game is deterministically reproducible. When
-        seed is None, a random seed is generated. When settings is provided, the game uses the given settings. When wall
-        is provided, use it instead of generating from seed. With confirm_start, the game stops after the first deal on
-        a round advance (Awaiting.starts_game) its human seats confirm with CONFIRM_ROUND, and the dealer draws only
-        then; without it, or with no human seat, the dealer draws at once.
+        seed is None, a random seed is generated. When settings is provided, the game uses the given settings. The
+        game's first rounds are dealt from walls, one 136-tile wall each, in order, and the rounds after them from the
+        seed; a round dealt from a given wall breaks it at dice (1, 1), and given walls make seat 0 the first dealer. A
+        start position starts the game at its scores, sticks, dealer, wind and round number in place of East 1. With
+        confirm_start, the game stops after the first deal on a round advance (Awaiting.starts_game) its human seats
+        confirm with CONFIRM_ROUND, and the dealer draws only then; without it, or with no human seat, the dealer draws
+        at once.
         """
         ...
 

@@ -73,7 +73,7 @@ def test_added_kan__when_replayed__should_upgrade_pon_and_draw_replacement():
         seed=SEED,
         player_names=PLAYERS,
         settings=GameSettings(),
-        wall=_build_added_kan_wall(),
+        walls=(_build_added_kan_wall(),),
         events=_build_added_kan_events(),
     )
     trace = run_replay(replay)
@@ -110,7 +110,7 @@ def test_added_kan__when_replayed__should_leave_eleven_tiles_in_hand():
         seed=SEED,
         player_names=PLAYERS,
         settings=GameSettings(),
-        wall=_build_added_kan_wall(),
+        walls=(_build_added_kan_wall(),),
         events=_build_added_kan_events(),
     )
     trace = run_replay(replay)
@@ -135,7 +135,7 @@ def test_added_kan__when_replayed__should_reveal_dora_after_replacement_discard(
         seed=SEED,
         player_names=PLAYERS,
         settings=GameSettings(),
-        wall=_build_added_kan_wall(),
+        walls=(_build_added_kan_wall(),),
         events=_build_added_kan_events(),
     )
     trace = run_replay(replay)

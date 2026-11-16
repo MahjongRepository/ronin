@@ -70,10 +70,13 @@ from game.logic.types import (
     ReconnectionSnapshot,
     RiichiActionData,
     RoundResult,
+    StartPosition,
 )
 from game.logic.wall import tiles_remaining
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from game.logic.action_result import ActionResult
     from game.logic.settings import GameSettings
 
@@ -203,7 +206,8 @@ class MahjongGameService(GameService):
         *,
         seed: str | None = None,
         settings: GameSettings | None = None,
-        wall: list[int] | None = None,
+        walls: Sequence[Sequence[int]] = (),
+        start: StartPosition | None = None,
         confirm_start: bool = False,
     ) -> GameStart:
         """
@@ -211,16 +215,18 @@ class MahjongGameService(GameService):
 
         Uses matchmaker to assign seats randomly and fill with AI players. Returns the game's runtime, initial state
         events for each player, the first wait and each input player's seat, in input order. When seed is provided, the
-        game is deterministically reproducible. When seed is None, a random seed is generated. When wall is provided,
-        use it instead of generating from seed. With confirm_start and a human seat, the game waits after the deal for
-        the human seats to confirm its start (a round advance that starts the game) before the dealer draws.
+        game is deterministically reproducible. When seed is None, a random seed is generated. The first rounds are
+        dealt from walls, in order, and the rest from the seed; a start position starts the game at its table in place
+        of East 1. With confirm_start and a human seat, the game waits after the deal for the human seats to confirm its
+        start (a round advance that starts the game) before the dealer draws.
         """
         game_seed = seed if seed is not None else generate_seed()
 
         seat_configs, player_seats = fill_seats(player_names, seed=game_seed)
-        frozen_game = init_game(seat_configs, seed=game_seed, settings=settings, wall=wall)
+        first_wall = list(walls[0]) if walls else None
+        frozen_game = init_game(seat_configs, seed=game_seed, settings=settings, wall=first_wall, start=start)
         ai_players = {seat: AIPlayer() for seat, config in enumerate(seat_configs) if config.ai_player_type is not None}
-        runtime = GameRuntime(game_id=game_id, state=frozen_game, ai=AIPlayerController(ai_players))
+        runtime = GameRuntime(game_id=game_id, state=frozen_game, ai=AIPlayerController(ai_players), walls=walls)
         call = self._begin_call(runtime)
 
         hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
@@ -925,9 +931,11 @@ class MahjongGameService(GameService):
 
     def _start_next_round(self, runtime: GameRuntime) -> list[GameEvent]:
         """
-        Start the next round and return events.
+        Start the next round, dealt from the game's next given wall or else from its seed, and return events.
         """
-        frozen_game = self._deal_next_round(runtime.state)
+        round_index = len(runtime.state.round_history)
+        wall = list(runtime.walls[round_index]) if round_index < len(runtime.walls) else None
+        frozen_game = init_round(runtime.state, wall=wall)
         runtime.commit(frozen_game)
 
         hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
@@ -943,12 +951,6 @@ class MahjongGameService(GameService):
         new_game_state, draw_events = process_draw_phase(runtime.state)
         runtime.commit(new_game_state)
         return [*draw_events, *self._process_ai_player_followup(runtime)]
-
-    def _deal_next_round(self, game_state: MahjongGameState) -> MahjongGameState:
-        """
-        Deal the round the game advanced to, from its seed.
-        """
-        return init_round(game_state)
 
     def _process_ai_player_followup(self, runtime: GameRuntime) -> list[GameEvent]:
         """

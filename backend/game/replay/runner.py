@@ -110,7 +110,8 @@ def _execute_replay(
         list(replay.player_names),
         seed=replay.seed,
         settings=replay.settings,
-        wall=list(replay.wall) if replay.wall is not None else None,
+        walls=replay.walls,
+        start=replay.start,
     )
     runtime = start.runtime
     ctx = _ReplayRunContext(service=service, opts=opts, events=replay.events, runtime=runtime)

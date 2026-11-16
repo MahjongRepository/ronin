@@ -28,6 +28,22 @@ class SeatConfig(BaseModel):
     ai_player_type: AIPlayerType | None = None
 
 
+class StartPosition(BaseModel):
+    """
+    The table a game starts at in place of East 1: the scores by seat, the sticks on the table, the dealer and the round
+    wind, and the round number, which also picks the seeded wall of each round dealt from the seed.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    scores: tuple[int, int, int, int]
+    honba_sticks: int = 0
+    riichi_sticks: int = 0
+    dealer_seat: int = 0
+    round_wind: int = 0
+    round_number: int = 0
+
+
 class GamePlayerInfo(BaseModel):
     """
     Player identity information sent at game start.

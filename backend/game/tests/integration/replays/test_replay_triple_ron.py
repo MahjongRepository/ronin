@@ -56,7 +56,7 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_liv
         draws=(PIN_3_TRIPLE_RON_DISCARD,),
     )
     service = MahjongGameService()
-    start = service.start_game("triple-ron", list(PLAYERS), seed=SEED, settings=settings, wall=list(wall))
+    start = service.start_game("triple-ron", list(PLAYERS), seed=SEED, settings=settings, walls=[wall])
     runtime = start.runtime
     seat_by_player = dict(zip(PLAYERS, start.seats, strict=True))
     recorded_events = list(start.events)
@@ -89,7 +89,7 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_liv
             seed=loaded.seed,
             player_names=loaded.player_names,
             settings=loaded.settings,
-            wall=wall,
+            walls=(wall,),
             events=loaded.events,
         ),
         ReplayOptions(auto_confirm_rounds=False),

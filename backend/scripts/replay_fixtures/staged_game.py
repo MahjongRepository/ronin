@@ -15,6 +15,7 @@ from game.engine import (
     MahjongGameService,
     PlayerAction,
     RoundStartedEvent,
+    StartPosition,
     WaitKind,
     calculate_shanten,
     hand_to_34_array,
@@ -47,15 +48,17 @@ class ScenarioError(Exception):
 @dataclass(frozen=True)
 class Recording:
     """
-    A fixture's replay records, where each engine call's records end, and the staged wall its first round was dealt
-    from.
+    A fixture's replay records, where each engine call's records end, and the setup the game was staged from: the walls
+    its first rounds were dealt from and the position it started at.
 
-    call_ends counts the records after each engine call. wall is None for a game dealt from its seed.
+    call_ends counts the records after each engine call. walls is empty for a game dealt from its seed, and start is
+    None for a game started at East 1. Neither is a replay field: the replay runner is given them for the re-run.
     """
 
     records: tuple[dict[int, object], ...]
     call_ends: tuple[int, ...]
-    wall: tuple[int, ...] | None = None
+    walls: tuple[tuple[int, ...], ...] = ()
+    start: StartPosition | None = None
 
     @property
     def content(self) -> bytes:
@@ -63,18 +66,30 @@ class Recording:
 
     def run(self) -> ReplayTrace:
         """
-        Load the replay and run it through the replay runner on the same wall.
+        Load the replay and run it through the replay runner on the same walls and start position.
         """
-        return run_replay(load_replay_from_bytes(self.content).model_copy(update={"wall": self.wall}))
+        return run_replay(
+            load_replay_from_bytes(self.content).model_copy(update={"walls": self.walls, "start": self.start})
+        )
 
 
 class ReplayRecorder:
     """
-    Record a game's events into replay records one engine call at a time, as the session does.
+    Record a game's events into replay records one engine call at a time, as the session does, and keep the walls and
+    start position the game was staged from for its recording.
     """
 
-    def __init__(self, *, seed: str, settings: GameSettings) -> None:
+    def __init__(
+        self,
+        *,
+        seed: str,
+        settings: GameSettings,
+        walls: tuple[tuple[int, ...], ...] = (),
+        start: StartPosition | None = None,
+    ) -> None:
         self._record = ReplayRecord(seed=seed, rng_version=RNG_VERSION, settings=settings)
+        self._walls = walls
+        self._start = start
         self._collector = ReplayCollector(FakeReplayStorage())
         self._call_ends: list[int] = []
 
@@ -97,8 +112,13 @@ class ReplayRecorder:
         self._collector.record_human_return(self._record, seat=seat)
         self._call_ends.append(len(self._record.records))
 
-    def recording(self, wall: tuple[int, ...] | None = None) -> Recording:
-        return Recording(records=tuple(self._record.records), call_ends=tuple(self._call_ends), wall=wall)
+    def recording(self) -> Recording:
+        return Recording(
+            records=tuple(self._record.records),
+            call_ends=tuple(self._call_ends),
+            walls=self._walls,
+            start=self._start,
+        )
 
 
 def require_reproduces(recording: Recording, final_state: MahjongGameState, *, name: str) -> None:
@@ -176,7 +196,8 @@ def cut_after(recording: Recording, *, event_type: WireEventType, occurrence: in
     cut = Recording(
         records=recording.records[:end],
         call_ends=tuple(call_end for call_end in recording.call_ends if call_end <= end),
-        wall=recording.wall,
+        walls=recording.walls,
+        start=recording.start,
     )
     cut.run()
     return cut
@@ -193,7 +214,8 @@ def tile(copy: int, **suit: str) -> int:
 @dataclass(frozen=True)
 class StagedWall:
     """
-    A round's wall of a staged game, dealt from the dealer's seat: seat 0 for the first round.
+    A round's wall of a staged game, dealt from the dealer's seat: for the first round seat 0, or the start position's
+    dealer.
 
     hands are by seat; draws are the live wall's first draws as (seat, tile) pairs (StagedGame and the seat scenarios'
     engine check each against the seat that draws it), and later live draws take the tiles nobody placed, in ascending
@@ -238,20 +260,21 @@ class _ScriptedGame:
     at a time as the session would, with each seat's latest draw kept for the script.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         game_id: str,
         *,
         seed: str,
         settings: GameSettings,
         seating: Seating,
-        wall: tuple[int, ...] | None = None,
+        walls: tuple[tuple[int, ...], ...] = (),
+        start_position: StartPosition | None = None,
     ) -> None:
         self._game_id = game_id
-        self._recorder = ReplayRecorder(seed=seed, settings=settings)
+        self._recorder = ReplayRecorder(seed=seed, settings=settings, walls=walls, start=start_position)
         self._service = MahjongGameService()
         start = self._service.start_game(
-            game_id, list(seating.players), seed=seed, settings=settings, wall=None if wall is None else list(wall)
+            game_id, list(seating.players), seed=seed, settings=settings, walls=walls, start=start_position
         )
         self._runtime = start.runtime
         self._draws: dict[int, DrawEvent] = {}
@@ -295,7 +318,8 @@ class _ScriptedGame:
 
 class StagedGame(_ScriptedGame):
     """
-    A game dealt from a staged wall and played seat by seat, by four players unless fewer are given.
+    A game dealt from a staged wall and played seat by seat, by four players unless fewer are given, from East 1 or from
+    the start position when one is given.
 
     The staged seed seats the players in order at seats 1, 3, 2 and 0, so three players leave the dealer's seat to an AI
     player. The game records every event the engine emits, a call at a time as the session would, and hands out the
@@ -310,19 +334,23 @@ class StagedGame(_ScriptedGame):
         *,
         settings: GameSettings | None = None,
         seating: Seating = FOUR_AT_THE_TABLE,
+        start: StartPosition | None = None,
     ) -> None:
-        if staged.dealer != 0:
-            raise ScenarioError(f"{game_id}: a staged game's first round is dealt from seat 0, not {staged.dealer}")
+        dealer = start.dealer_seat if start is not None else 0
+        if staged.dealer != dealer:
+            raise ScenarioError(
+                f"{game_id}: a staged game's first round is dealt from seat {dealer}, not {staged.dealer}"
+            )
 
         self._staged_draws = tuple(staged.draws)
         self._next_staged_draw = 0
-        self._wall = staged.tiles()
         super().__init__(
             game_id,
             seed=STAGED_SEED,
             settings=settings if settings is not None else GameSettings(),
             seating=seating,
-            wall=self._wall,
+            walls=(staged.tiles(),),
+            start_position=start,
         )
 
     def discard(self, seat: int, tile_id: int) -> None:
@@ -432,7 +460,7 @@ class StagedGame(_ScriptedGame):
     def replay(self, outcome: Outcome) -> Recording:
         """
         Return the recorded replay after checking that it ends in the outcome and that the replay runner, given the same
-        wall, reproduces the game.
+        wall and start position, reproduces the game.
 
         The runner ends by passing a pending call prompt and confirming a pending round end, so the game does the same
         before the two final states are compared.
@@ -440,7 +468,7 @@ class StagedGame(_ScriptedGame):
         if self._next_staged_draw != len(self._staged_draws):
             raise ScenarioError(f"{self._game_id}: draw {self._next_staged_draw} and later were staged but not drawn")
 
-        recording = self._recorder.recording(wall=self._wall)
+        recording = self._recorder.recording()
         require_outcome(recording, outcome, name=self._game_id)
         self._pass_calls()
         if self._service.get_awaiting(self._runtime).kind == WaitKind.ROUND_ADVANCE:

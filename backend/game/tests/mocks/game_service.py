@@ -17,7 +17,10 @@ from game.logic.settings import NUM_PLAYERS, GameSettings
 from game.logic.types import GamePlayerInfo, PlayerView, ReconnectionSnapshot
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from game.logic.state import MahjongGameState
+    from game.logic.types import StartPosition
 
 
 class _MockPlayer:
@@ -85,7 +88,8 @@ class MockGameService(GameService):
         *,
         seed: str | None = None,
         settings: GameSettings | None = None,
-        wall: list[int] | None = None,
+        walls: Sequence[Sequence[int]] = (),
+        start: StartPosition | None = None,
         confirm_start: bool = False,
     ) -> GameStart:
         all_names = player_names + ["AI"] * (4 - len(player_names))

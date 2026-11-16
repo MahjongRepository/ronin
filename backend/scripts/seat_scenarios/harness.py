@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, NoReturn, override
 
-from game.engine import DrawEvent, GameSettings, MahjongGameService, RoundStartedEvent, init_round
+from game.engine import DrawEvent, GameSettings, MahjongGameService, RoundStartedEvent
 from game.messaging.encoder import decode, encode
 from game.messaging.protocol import ConnectionProtocol
 from game.messaging.types import SessionErrorCode, SessionMessageType
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
         GameStart,
         GameUpdate,
         KanType,
-        MahjongGameState,
+        StartPosition,
         TimeoutType,
     )
     from scripts.replay_fixtures.staged_game import StagedWall
@@ -143,7 +143,7 @@ class _AdvancingSelector(selectors.SelectSelector):
 class _StagedEngine(MahjongGameService):
     """
     The real engine, pacing AI turns as the live server's does, dealing every game it starts from the staged seed and
-    wall, as the session starts one with neither.
+    walls, as the session starts one with neither.
 
     The rounds after the first are dealt from the staged later rounds' walls in order, each checked against the dealer
     the game advanced to, and from the seed once those run out. Each staged draw of a round is checked against the seat
@@ -156,19 +156,19 @@ class _StagedEngine(MahjongGameService):
         if staged.dealer != 0:
             raise ScenarioError(f"a staged game's first round is dealt from seat 0, not {staged.dealer}")
 
-        self._wall = staged.tiles()
         self._settings = settings
-        self._later_rounds = tuple(later_rounds)
-        self._later_rounds_dealt = 0
-        self._rounds_to_deal: list[Sequence[tuple[int, int]]] = [staged.draws, *(r.draws for r in later_rounds)]
+        self._staged_rounds = (staged, *later_rounds)
+        self._rounds_dealt = 0
         self._round_draws: Sequence[tuple[int, int]] = ()
         self._next_draw = 0
         self.failure: ScenarioError | None = None
 
     def require_later_rounds_dealt(self, game_id: str) -> None:
-        if self._later_rounds_dealt != len(self._later_rounds):
+        later_rounds_staged = len(self._staged_rounds) - 1
+        later_rounds_dealt = min(self._rounds_dealt, len(self._staged_rounds)) - 1
+        if later_rounds_dealt != later_rounds_staged:
             raise ScenarioError(
-                f"{game_id}: {len(self._later_rounds)} later rounds were staged, {self._later_rounds_dealt} dealt"
+                f"{game_id}: {later_rounds_staged} later rounds were staged, {later_rounds_dealt} dealt"
             )
 
     @override
@@ -179,22 +179,23 @@ class _StagedEngine(MahjongGameService):
         *,
         seed: str | None = None,
         settings: GameSettings | None = None,
-        wall: list[int] | None = None,
+        walls: Sequence[Sequence[int]] = (),
+        start: StartPosition | None = None,
         confirm_start: bool = False,
     ) -> GameStart:
-        if seed is not None or settings is not None or wall is not None:
-            raise ScenarioError(f"{game_id}: the session started a game with its own seed, settings or wall")
+        if seed is not None or settings is not None or walls or start is not None:
+            raise ScenarioError(f"{game_id}: the session started a game with its own seed, settings, walls or start")
 
-        start = super().start_game(
+        game_start = super().start_game(
             game_id,
             player_names,
             seed=STAGED_SEED,
             settings=self._settings,
-            wall=list(self._wall),
+            walls=[staged.tiles() for staged in self._staged_rounds],
             confirm_start=confirm_start,
         )
-        self._check_draws(start.events)
-        return start
+        self._check_draws(game_start.events)
+        return game_start
 
     @override
     def handle_action(self, runtime: GameRuntime, *, seat: int, action: GameAction, data: dict[str, Any]) -> GameUpdate:
@@ -220,32 +221,18 @@ class _StagedEngine(MahjongGameService):
         self._check_draws(update.events)
         return update
 
-    @override
-    def _deal_next_round(self, game_state: MahjongGameState) -> MahjongGameState:
-        if self._later_rounds_dealt == len(self._later_rounds):
-            return super()._deal_next_round(game_state)
-
-        staged = self._later_rounds[self._later_rounds_dealt]
-        dealer = game_state.round_state.dealer_seat
-        if staged.dealer != dealer:
-            self._fail(f"later round {self._later_rounds_dealt} was staged for dealer {staged.dealer}, not {dealer}")
-
-        self._later_rounds_dealt += 1
-        return init_round(game_state, wall=list(staged.tiles()))
-
     def _check_draws(self, events: Sequence[GameEvent]) -> None:
         """
         Check each draw of a staged tile in the events against the seat and the order the round staged it in.
 
-        A deal (its run of round starts) begins the next staged round's draws, or none once a round is dealt from the
-        seed, whose tile ids say nothing of the staged walls.
+        A deal (its run of round starts) begins the next staged round's draws, after checking that round's dealer, or
+        none once a round is dealt from the seed, whose tile ids say nothing of the staged walls.
         """
         dealing = False
         for event in events:
             if isinstance(event, RoundStartedEvent):
                 if not dealing:
-                    self._round_draws = self._rounds_to_deal.pop(0) if self._rounds_to_deal else ()
-                    self._next_draw = 0
+                    self._start_round(event.dealer_seat)
 
                 dealing = True
                 continue
@@ -253,6 +240,20 @@ class _StagedEngine(MahjongGameService):
             dealing = False
             if isinstance(event, DrawEvent):
                 self._check_draw(event)
+
+    def _start_round(self, dealer: int) -> None:
+        round_index = self._rounds_dealt
+        self._rounds_dealt += 1
+        self._next_draw = 0
+        if round_index >= len(self._staged_rounds):
+            self._round_draws = ()
+            return
+
+        staged = self._staged_rounds[round_index]
+        if staged.dealer != dealer:
+            self._fail(f"later round {round_index - 1} was staged for dealer {staged.dealer}, not {dealer}")
+
+        self._round_draws = staged.draws
 
     def _check_draw(self, draw: DrawEvent) -> None:
         staged = [index for index, (_, tile_id) in enumerate(self._round_draws) if tile_id == draw.tile_id]

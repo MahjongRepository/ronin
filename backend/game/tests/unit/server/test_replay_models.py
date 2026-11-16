@@ -36,15 +36,23 @@ class TestReplayInputValidation:
 
     def test_replay_input__when_wall_not_136_tiles__should_reject(self):
         with pytest.raises(ValidationError, match="exactly 136 tiles"):
-            ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, settings=GameSettings(), events=(), wall=(1, 2, 3))
+            ReplayInput(
+                seed="a" * 192, player_names=PLAYER_NAMES, settings=GameSettings(), events=(), walls=((1, 2, 3),)
+            )
 
     def test_replay_input__when_wall_not_tile_permutation__should_reject(self):
         # Shifted tile IDs (1-136 instead of 0-135)
         with pytest.raises(ValidationError, match="permutation of tile IDs"):
             ReplayInput(
-                seed="a" * 192, player_names=PLAYER_NAMES, settings=GameSettings(), events=(), wall=tuple(range(1, 137))
+                seed="a" * 192,
+                player_names=PLAYER_NAMES,
+                settings=GameSettings(),
+                events=(),
+                walls=(tuple(range(1, 137)),),
             )
 
         # Duplicate tile IDs
         with pytest.raises(ValidationError, match="permutation of tile IDs"):
-            ReplayInput(seed="a" * 192, player_names=PLAYER_NAMES, settings=GameSettings(), events=(), wall=(0,) * 136)
+            ReplayInput(
+                seed="a" * 192, player_names=PLAYER_NAMES, settings=GameSettings(), events=(), walls=((0,) * 136,)
+            )

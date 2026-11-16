@@ -63,12 +63,14 @@ NO_CALLS_WALL = StagedWall(
 class StagedWallEngine(MahjongGameService):
     def __init__(self, staged: StagedWall) -> None:
         super().__init__()
-        self._wall = list(staged.tiles())
+        self._walls = [staged.tiles()]
 
     def start_game(
         self, game_id: str, player_names: list[str], *, confirm_start: bool = False, **_options: object
     ) -> GameStart:
-        return super().start_game(game_id, player_names, seed=STAGED_SEED, wall=self._wall, confirm_start=confirm_start)
+        return super().start_game(
+            game_id, player_names, seed=STAGED_SEED, walls=self._walls, confirm_start=confirm_start
+        )
 
 
 def _join(manager: SessionManager, ticket: str) -> MockConnection:

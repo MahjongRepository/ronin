@@ -23,6 +23,7 @@ from game.logic.types import (
     PlayerStanding,
     RoundResult,
     SeatConfig,
+    StartPosition,
 )
 from game.logic.wall import create_wall, create_wall_from_tiles, deal_initial_hands
 
@@ -101,12 +102,14 @@ def init_game(
     seed: str,
     settings: GameSettings | None = None,
     wall: list[int] | None = None,
+    start: StartPosition | None = None,
 ) -> MahjongGameState:
     """
     Initialize a new mahjong game with seat configurations.
 
-    All players start with starting_score points (from settings). The seed picks the first dealer by two dice rolls
-    (二度振り); with a fixed wall, dealer is seat 0. Returns a frozen MahjongGameState.
+    The game starts at East 1 from the first dealer, every player at starting_score points (from settings), unless a
+    start position gives the scores, sticks, dealer, wind and round number. The first dealer is seat 0 with a fixed
+    wall, else the seed's two dice rolls (二度振り) pick it. Returns a frozen MahjongGameState.
     """
     game_settings = settings or GameSettings()
 
@@ -114,23 +117,29 @@ def init_game(
 
     # Determine first dealer using two-dice-roll method (二度振り)
     if wall is not None:
-        dealer_seat = 0
+        first_dealer_seat = 0
         dealer_dice: tuple[tuple[int, int], tuple[int, int]] = ((1, 1), (1, 1))
     else:
-        dealer_seat, first_dice, second_dice = determine_first_dealer(seed)
+        first_dealer_seat, first_dice, second_dice = determine_first_dealer(seed)
         dealer_dice = (first_dice, second_dice)
+
+    if start is None:
+        position = StartPosition(scores=(game_settings.starting_score,) * NUM_PLAYERS, dealer_seat=first_dealer_seat)
+    else:
+        position = start
+
+    dealer_seat = position.dealer_seat
 
     # Create players
     players = tuple(
-        MahjongPlayer(seat=i, name=config.name, score=game_settings.starting_score)
-        for i, config in enumerate(seat_configs)
+        MahjongPlayer(seat=i, name=config.name, score=position.scores[i]) for i, config in enumerate(seat_configs)
     )
 
     # Create wall using Wall module
     if wall is not None:
         game_wall = create_wall_from_tiles(wall)
     else:
-        game_wall = create_wall(seed=seed, round_number=0, dealer_seat=dealer_seat)
+        game_wall = create_wall(seed=seed, round_number=position.round_number, dealer_seat=dealer_seat)
 
     # Deal initial hands
     game_wall, hands = deal_initial_hands(game_wall, dealer_seat)
@@ -144,23 +153,23 @@ def init_game(
         players=players,
         dealer_seat=dealer_seat,
         current_player_seat=dealer_seat,
-        round_wind=0,  # East
+        round_wind=position.round_wind,
         phase=RoundPhase.PLAYING,
     )
 
     # Create game state
     return MahjongGameState(
         round_state=round_state,
-        round_number=0,
-        unique_dealers=1,  # first dealer counts as 1
-        honba_sticks=0,
-        riichi_sticks=0,
+        round_number=position.round_number,
+        unique_dealers=position.round_wind * NUM_PLAYERS + (dealer_seat - first_dealer_seat) % NUM_PLAYERS + 1,
+        honba_sticks=position.honba_sticks,
+        riichi_sticks=position.riichi_sticks,
         game_phase=GamePhase.IN_PROGRESS,
         seed=seed,
         rng_version=RNG_VERSION,
         settings=game_settings,
         dealer_dice=dealer_dice,
-        starting_dealer_seat=dealer_seat,
+        starting_dealer_seat=first_dealer_seat,
     )
 
 

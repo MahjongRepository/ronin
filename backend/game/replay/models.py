@@ -11,6 +11,7 @@ from game.engine import (
     GameEvent,
     GameSettings,
     MahjongGameState,
+    StartPosition,
 )
 
 
@@ -30,7 +31,8 @@ class ReplayInput(BaseModel):
     """
     Versioned input for deterministic replay execution.
 
-    Enforces exactly 4 unique player names (4-player replay contract). All events must target declared players.
+    Enforces exactly 4 unique player names (4-player replay contract). All events must target declared players. walls
+    and start are a staged game's setup for its re-run (see GameService.start_game), never read from a replay file.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -41,7 +43,8 @@ class ReplayInput(BaseModel):
     player_names: tuple[str, str, str, str]
     settings: GameSettings
     events: tuple[ReplayInputEvent, ...]
-    wall: tuple[int, ...] | None = None
+    walls: tuple[tuple[int, ...], ...] = ()
+    start: StartPosition | None = None
 
     @model_validator(mode="after")
     def _validate_replay_input(self) -> ReplayInput:
@@ -55,15 +58,15 @@ class ReplayInput(BaseModel):
                 f"ReplayInput.events contain unknown player_name values: {sorted(invalid_names)}",
             )
 
-        if self.wall is not None:
-            if len(self.wall) != NUM_TILES:
+        for wall in self.walls:
+            if len(wall) != NUM_TILES:
                 raise ValueError(
-                    f"ReplayInput.wall must contain exactly {NUM_TILES} tiles, got {len(self.wall)}",
+                    f"ReplayInput.walls must hold walls of exactly {NUM_TILES} tiles, got {len(wall)}",
                 )
 
-            if sorted(self.wall) != list(range(NUM_TILES)):
+            if sorted(wall) != list(range(NUM_TILES)):
                 raise ValueError(
-                    f"ReplayInput.wall must be a permutation of tile IDs 0..{NUM_TILES - 1}",
+                    f"ReplayInput.walls must each be a permutation of tile IDs 0..{NUM_TILES - 1}",
                 )
 
         return self

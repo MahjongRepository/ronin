@@ -44,7 +44,9 @@ from game.tests.helpers.hands import (
 from game.tests.helpers.wall import make_start_wall
 
 if TYPE_CHECKING:
-    from game.engine import GameRuntime, GameStart
+    from collections.abc import Sequence
+
+    from game.engine import GameRuntime, GameStart, StartPosition
 
 PLAYER_NAMES = ("Alice", "Bob", "Charlie", "Diana")
 SEED = "a" * 192
@@ -83,9 +85,10 @@ class _StubService:
         *,
         seed: str | None = None,
         settings: GameSettings | None = None,
-        wall: list[int] | None = None,
+        walls: Sequence[Sequence[int]] = (),
+        start: StartPosition | None = None,
     ) -> GameStart:
-        return self._inner.start_game(game_id, player_names, seed=seed, wall=wall)
+        return self._inner.start_game(game_id, player_names, seed=seed, walls=walls, start=start)
 
     def handle_action(
         self,
@@ -200,17 +203,18 @@ def test_run_replay__when_strict_and_input_after_game_end__should_raise():
             *,
             seed: str | None = None,
             settings: GameSettings | None = None,
-            wall: list[int] | None = None,
+            walls: Sequence[Sequence[int]] = (),
+            start: StartPosition | None = None,
         ) -> GameStart:
-            start = super().start_game(game_id, player_names, seed=seed)
-            state = start.runtime.state
+            game_start = super().start_game(game_id, player_names, seed=seed)
+            state = game_start.runtime.state
 
-            start.runtime.commit(
+            game_start.runtime.commit(
                 state.model_copy(
                     update={"game_phase": GamePhase.FINISHED},
                 )
             )
-            return start
+            return game_start
 
     replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
     with pytest.raises(ReplayInputAfterGameEndError, match="Input remains after game end"):
@@ -227,17 +231,18 @@ def test_run_replay__when_non_strict_and_input_after_game_end__should_skip_input
             *,
             seed: str | None = None,
             settings: GameSettings | None = None,
-            wall: list[int] | None = None,
+            walls: Sequence[Sequence[int]] = (),
+            start: StartPosition | None = None,
         ) -> GameStart:
-            start = super().start_game(game_id, player_names, seed=seed)
-            state = start.runtime.state
+            game_start = super().start_game(game_id, player_names, seed=seed)
+            state = game_start.runtime.state
 
-            start.runtime.commit(
+            game_start.runtime.commit(
                 state.model_copy(
                     update={"game_phase": GamePhase.FINISHED},
                 )
             )
-            return start
+            return game_start
 
     replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
     trace = run_replay(replay, ReplayOptions(strict=False), service_factory=FinishedService)
@@ -260,11 +265,12 @@ def test_round_confirmation__when_round_advance_pending__should_inject_synthetic
             *,
             seed: str | None = None,
             settings: GameSettings | None = None,
-            wall: list[int] | None = None,
+            walls: Sequence[Sequence[int]] = (),
+            start: StartPosition | None = None,
         ) -> GameStart:
-            start = super().start_game(game_id, player_names, seed=seed)
-            self._advance_seats = list(start.seats)
-            return start
+            game_start = super().start_game(game_id, player_names, seed=seed)
+            self._advance_seats = list(game_start.seats)
+            return game_start
 
         def handle_action(
             self,
@@ -318,7 +324,8 @@ def test_round_confirmation__when_the_game_start_awaits_confirmation__should_con
             *,
             seed: str | None = None,
             settings: GameSettings | None = None,
-            wall: list[int] | None = None,
+            walls: Sequence[Sequence[int]] = (),
+            start: StartPosition | None = None,
             confirm_start: bool = False,
         ) -> GameStart:
             return super().start_game(game_id, player_names, seed=seed, settings=settings, confirm_start=True)
@@ -428,9 +435,11 @@ def test_step_limit__when_synthetic_passes_reach_max_steps__should_raise_before_
         seed=SEED,
         player_names=PLAYER_NAMES,
         settings=GameSettings(),
-        wall=make_start_wall(
-            (PIN_3_TRIPLE_RON_DEALER_HAND, *PIN_3_TRIPLE_RON_CALLER_HANDS),
-            draws=(PIN_3_TRIPLE_RON_DISCARD,),
+        walls=(
+            make_start_wall(
+                (PIN_3_TRIPLE_RON_DEALER_HAND, *PIN_3_TRIPLE_RON_CALLER_HANDS),
+                draws=(PIN_3_TRIPLE_RON_DISCARD,),
+            ),
         ),
         events=(
             ReplayInputEvent(player_name=dealer, action=GameAction.DISCARD, data={"tile_id": PIN_3_TRIPLE_RON_DISCARD}),
@@ -581,10 +590,11 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
             *,
             seed: str | None = None,
             settings: GameSettings | None = None,
-            wall: list[int] | None = None,
+            walls: Sequence[Sequence[int]] = (),
+            start: StartPosition | None = None,
         ) -> GameStart:
-            start = super().start_game(game_id, player_names, seed=seed)
-            state = start.runtime.state
+            game_start = super().start_game(game_id, player_names, seed=seed)
+            state = game_start.runtime.state
 
             prompt = PendingCallPrompt(
                 kind=PromptKind.DISCARD,
@@ -596,12 +606,12 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            start.runtime.commit(
+            game_start.runtime.commit(
                 state.model_copy(
                     update={"round_state": new_round},
                 )
             )
-            return start
+            return game_start
 
         def handle_action(
             self,
@@ -675,9 +685,10 @@ def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_it
             *,
             seed: str | None = None,
             settings: GameSettings | None = None,
-            wall: list[int] | None = None,
+            walls: Sequence[Sequence[int]] = (),
+            start: StartPosition | None = None,
         ) -> GameStart:
-            start = super().start_game(game_id, player_names, seed=seed)
+            game_start = super().start_game(game_id, player_names, seed=seed)
             ron_seats = (seat_by_name[ron_player], seat_by_name[later_ron_player])
             prompt = PendingCallPrompt(
                 kind=PromptKind.DISCARD,
@@ -686,13 +697,13 @@ def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_it
                 pending_seats=frozenset(ron_seats),
                 callers=tuple(Caller(seat=seat, can_ron=True) for seat in sorted(ron_seats)),
             )
-            state = start.runtime.state
-            start.runtime.commit(
+            state = game_start.runtime.state
+            game_start.runtime.commit(
                 state.model_copy(
                     update={"round_state": state.round_state.model_copy(update={"pending_call_prompt": prompt})}
                 )
             )
-            return start
+            return game_start
 
         def handle_action(
             self,
@@ -747,9 +758,10 @@ def test_auto_pass_calls__when_prompted_seat_declares_self_kan__should_pass_its_
             *,
             seed: str | None = None,
             settings: GameSettings | None = None,
-            wall: list[int] | None = None,
+            walls: Sequence[Sequence[int]] = (),
+            start: StartPosition | None = None,
         ) -> GameStart:
-            start = super().start_game(game_id, player_names, seed=seed)
+            game_start = super().start_game(game_id, player_names, seed=seed)
             prompt = PendingCallPrompt(
                 kind=PromptKind.DISCARD,
                 tile_id=0,
@@ -757,13 +769,13 @@ def test_auto_pass_calls__when_prompted_seat_declares_self_kan__should_pass_its_
                 pending_seats=frozenset({seat_by_name[kan_player]}),
                 callers=(_pon_caller(seat_by_name[kan_player]),),
             )
-            state = start.runtime.state
-            start.runtime.commit(
+            state = game_start.runtime.state
+            game_start.runtime.commit(
                 state.model_copy(
                     update={"round_state": state.round_state.model_copy(update={"pending_call_prompt": prompt})}
                 )
             )
-            return start
+            return game_start
 
         def handle_action(
             self,
@@ -805,10 +817,11 @@ def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_re
             *,
             seed: str | None = None,
             settings: GameSettings | None = None,
-            wall: list[int] | None = None,
+            walls: Sequence[Sequence[int]] = (),
+            start: StartPosition | None = None,
         ) -> GameStart:
-            start = super().start_game(game_id, player_names, seed=seed)
-            state = start.runtime.state
+            game_start = super().start_game(game_id, player_names, seed=seed)
+            state = game_start.runtime.state
 
             # Inject a fake call prompt
             prompt = PendingCallPrompt(
@@ -821,12 +834,12 @@ def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_re
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            start.runtime.commit(
+            game_start.runtime.commit(
                 state.model_copy(
                     update={"round_state": new_round},
                 )
             )
-            return start
+            return game_start
 
         def handle_action(
             self,
@@ -958,10 +971,11 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
             *,
             seed: str | None = None,
             settings: GameSettings | None = None,
-            wall: list[int] | None = None,
+            walls: Sequence[Sequence[int]] = (),
+            start: StartPosition | None = None,
         ) -> GameStart:
-            start = super().start_game(game_id, player_names, seed=seed)
-            state = start.runtime.state
+            game_start = super().start_game(game_id, player_names, seed=seed)
+            state = game_start.runtime.state
 
             # Inject a call prompt pending on seat 1
             prompt = PendingCallPrompt(
@@ -974,12 +988,12 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            start.runtime.commit(
+            game_start.runtime.commit(
                 state.model_copy(
                     update={"round_state": new_round},
                 )
             )
-            return start
+            return game_start
 
         def handle_action(
             self,
@@ -1106,10 +1120,11 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
             *,
             seed: str | None = None,
             settings: GameSettings | None = None,
-            wall: list[int] | None = None,
+            walls: Sequence[Sequence[int]] = (),
+            start: StartPosition | None = None,
         ) -> GameStart:
-            start = super().start_game(game_id, player_names, seed=seed)
-            state = start.runtime.state
+            game_start = super().start_game(game_id, player_names, seed=seed)
+            state = game_start.runtime.state
 
             prompt = PendingCallPrompt(
                 kind=PromptKind.DISCARD,
@@ -1121,12 +1136,12 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
             new_round = state.round_state.model_copy(
                 update={"pending_call_prompt": prompt},
             )
-            start.runtime.commit(
+            game_start.runtime.commit(
                 state.model_copy(
                     update={"round_state": new_round},
                 )
             )
-            return start
+            return game_start
 
         def handle_action(
             self,

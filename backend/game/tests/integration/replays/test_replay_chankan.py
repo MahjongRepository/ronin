@@ -101,7 +101,7 @@ def _play_record_and_replay(
     settings: GameSettings,
 ) -> tuple[MahjongGameState, list[RoundResult], ReplayInput, ReplayTrace, str]:
     service = MahjongGameService()
-    start = service.start_game("chankan", list(PLAYERS), seed=SEED, settings=settings, wall=list(wall))
+    start = service.start_game("chankan", list(PLAYERS), seed=SEED, settings=settings, walls=[wall])
     runtime = start.runtime
     assert {NAME_BY_SEAT[seat]: seat for seat in range(NUM_PLAYERS)} == dict(zip(PLAYERS, start.seats, strict=True))
 
@@ -119,7 +119,7 @@ def _play_record_and_replay(
             seed=loaded.seed,
             player_names=loaded.player_names,
             settings=loaded.settings,
-            wall=wall,
+            walls=(wall,),
             events=loaded.events,
         ),
         ReplayOptions(auto_confirm_rounds=False),

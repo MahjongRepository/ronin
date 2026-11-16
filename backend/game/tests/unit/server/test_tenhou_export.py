@@ -517,7 +517,7 @@ def test_tenhou_converter__when_the_same_events_convert_twice__should_write_each
 def _start_game(wall: tuple[int, ...], settings: GameSettings | None) -> tuple[MahjongGameService, GameStart]:
     service = MahjongGameService()
     start = service.start_game(
-        "tenhou", ["Alice", "Bob", "Charlie", "Diana"], seed=SEED, wall=list(wall), settings=settings
+        "tenhou", ["Alice", "Bob", "Charlie", "Diana"], seed=SEED, walls=[wall], settings=settings
     )
     return service, start
 

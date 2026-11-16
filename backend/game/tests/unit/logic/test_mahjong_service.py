@@ -41,8 +41,10 @@ from game.logic.types import (
     RobbedKan,
     RonResult,
     RoundHistoryEntry,
+    StartPosition,
     TenpaiHand,
 )
+from game.logic.wall import create_wall, deal_initial_hands
 from game.tests.helpers.builders import create_dealt_game_state, create_player
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_start_wall, make_wall
@@ -388,6 +390,55 @@ class TestSeedDeterminism:
         assert tiles1 == tiles2
         assert state1.round_state.wall == state2.round_state.wall
 
+    def test_start_game__when_given_two_walls_and_a_start__should_deal_from_the_start_each_wall_then_the_seed(self):
+        seed = "b" * 192
+        dealer = 2
+        start = StartPosition(
+            scores=(20000, 30000, 26000, 23000),
+            honba_sticks=1,
+            riichi_sticks=1,
+            dealer_seat=dealer,
+            round_wind=1,
+            round_number=5,
+        )
+        dealer_hands = [tile_copies(copy, man="19", pin="19", sou="19", honors="1234567") for copy in (0, 1)]
+        walls = [
+            make_start_wall(
+                [dealer_hand, *(tile_copies(copy, man="2345678", pin="234", sou="234") for copy in range(3))]
+            )
+            for dealer_hand in dealer_hands
+        ]
+        service = MahjongGameService()
+
+        game_start = service.start_game(
+            "game1", ["Alice", "Bob", "Charlie", "Dave"], seed=seed, walls=walls, start=start
+        )
+        first_deal = [event for event in game_start.events if isinstance(event, RoundStartedEvent)]
+        runtime = game_start.runtime
+        assert [[player.score for player in event.players] for event in first_deal] == [list(start.scores)] * 4
+        assert {
+            (event.dealer_seat, event.round_wind, event.round_in_wind, event.honba_sticks, event.riichi_sticks)
+            for event in first_deal
+        } == {(dealer, WindName.SOUTH, 3, 1, 1)}
+        assert sorted(first_deal[dealer].my_tiles) == sorted(dealer_hands[0])
+
+        deals = []
+        for _ in range(2):
+            service.handle_action(runtime, seat=dealer, action=GameAction.CALL_KYUUSHU, data={})
+            confirmations = [
+                service.handle_action(runtime, seat=seat, action=GameAction.CONFIRM_ROUND, data={}) for seat in range(4)
+            ]
+            deals.append([event for event in confirmations[-1].events if isinstance(event, RoundStartedEvent)])
+
+        second_deal, third_deal = deals
+        assert sorted(second_deal[dealer].my_tiles) == sorted(dealer_hands[1])
+        assert second_deal[dealer].dice == (1, 1)
+        seeded_wall, seeded_hands = deal_initial_hands(
+            create_wall(seed=seed, round_number=7, dealer_seat=dealer), dealer
+        )
+        assert [event.my_tiles for event in third_deal] == seeded_hands
+        assert {(event.round_number, event.dice) for event in third_deal} == {(7, seeded_wall.dice)}
+
 
 class TestRoundEndAwaiting:
     @pytest.fixture
@@ -622,7 +673,7 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
             ["Alice", "Bob", "Charlie", "Diana"],
             seed="a" * 192,
             settings=GameSettings(tobi_enabled=False),
-            wall=list(wall),
+            walls=[wall],
         ).runtime
         service.handle_action(
             runtime, seat=0, action=GameAction.CALL_KAN, data={"tile_id": man_1[3], "kan_type": "closed"}
