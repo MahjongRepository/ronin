@@ -152,6 +152,3 @@ class MockGameService(GameService):
             is_furiten=False,
             round_history=[],
         )
-
-    def build_wait_events_for_seat(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
-        return []

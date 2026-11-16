@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 from game.engine import (
     PRESET_HAS_AKADORA,
-    CallPromptEvent,
     DrawEvent,
     FuritenEvent,
     GameStartedEvent,
@@ -35,8 +34,7 @@ if TYPE_CHECKING:
 _SEAT_TARGET_INCLUDED = (DrawEvent,)
 
 # Event types excluded from replay persistence even if broadcast-targeted.
-# These are internal prompts or error signals, not gameplay state transitions.
-_EXCLUDED_EVENT_TYPES = (CallPromptEvent, ErrorEvent, FuritenEvent)
+_EXCLUDED_EVENT_TYPES = (ErrorEvent, FuritenEvent)
 
 
 @dataclass
@@ -57,11 +55,11 @@ class ReplayCollector:
     Shape gameplay events into replay records and persist a game's records for post-game replay.
 
     Accepts BroadcastTarget gameplay events (discards, melds, round end, etc.)
-    and selected SeatTarget events (DrawEvent for tile draws). The
-    available_actions field is stripped from draw payloads. Per-seat
-    RoundStartedEvent views are merged into a single record with all players'
-    tiles revealed. Other SeatTarget events (prompts, errors, furiten) are
-    excluded as internal signals.
+    and selected SeatTarget events (DrawEvent for tile draws, one record per
+    draw). Per-seat RoundStartedEvent views are merged into a single record
+    with all players' tiles revealed. Other SeatTarget events (draw notices,
+    errors, furiten) are excluded as internal signals. The session's decision
+    openings never reach it: messaging builds them beside the events.
 
     It also writes the replay-only seat control records the session reports: an AI replacement ahead of the AI player's
     moves, and a human return.
@@ -78,8 +76,7 @@ class ReplayCollector:
         Append the qualifying events to the record's records.
 
         Per-seat RoundStartedEvent views are merged into a single record with all players' tiles. DrawEvent is included
-        for draw reconstruction (available_actions stripped). Excluded internal types (prompts, errors, furiten) are
-        skipped.
+        for draw reconstruction, its notices skipped. Excluded internal types (errors, furiten) are skipped.
         """
         buffer = record.records
         pending_round_started: list[RoundStartedEvent] = []
@@ -100,11 +97,7 @@ class ReplayCollector:
                 buffer.append(self._game_started_record(record, event))
                 continue
 
-            payload = game_event_payload(event)
-            if isinstance(event, DrawEvent):
-                payload.pop(WireKey.AVAILABLE_ACTIONS, None)
-
-            buffer.append(payload)
+            buffer.append(game_event_payload(event))
 
         # Flush any remaining round_started events at end of batch
         if pending_round_started:

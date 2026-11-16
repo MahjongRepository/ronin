@@ -17,12 +17,11 @@ from game.logic.action_handlers import (
     handle_tsumo,
 )
 from game.logic.action_result import ActionResult
-from game.logic.actions import get_available_actions
-from game.logic.decision import Chi, Kan
+from game.logic.actions import build_decision, get_available_actions
+from game.logic.decision import Chi, Kan, Tsumo
 from game.logic.decision import Discard as DiscardAction
 from game.logic.enums import (
     AbortiveDrawType,
-    CallType,
     KanType,
     MeldViewType,
     PlayerAction,
@@ -31,10 +30,10 @@ from game.logic.enums import (
     RoundResultType,
 )
 from game.logic.events import (
-    CallPromptEvent,
     DiscardEvent,
     DoraRevealedEvent,
     DrawEvent,
+    DrawNoticeEvent,
     MeldEvent,
     RoundEndEvent,
     SeatTarget,
@@ -328,7 +327,7 @@ def _ronnable_replacement_discard() -> ActionResult:
     assert can_call_pon(players[0], _EIGHT_PIN[0])
 
     kan = _declare_kan(game_state, seat=3, tile_id=_FIVE_MAN[0], kan_type=KanType.CLOSED)
-    assert [type(e) for e in kan.events] == [MeldEvent, DoraRevealedEvent, DrawEvent]
+    assert [type(e) for e in kan.events] == [MeldEvent, DoraRevealedEvent, DrawEvent, *[DrawNoticeEvent] * 3]
 
     discard = _discard(kan.state, seat=3, tile_id=_EIGHT_PIN[0])
     prompt = discard.state.round_state.pending_call_prompt
@@ -356,11 +355,11 @@ class TestFourKansAbortTiming:
 
         kan_offer = _discard(game_state, seat=2, tile_id=_FIVE_MAN[0])
         kan = _declare_kan(kan_offer.state, seat=3, tile_id=_FIVE_MAN[0], kan_type=KanType.OPEN)
-        assert [type(e) for e in kan.events] == [MeldEvent, DrawEvent]
+        assert [type(e) for e in kan.events] == [MeldEvent, DrawEvent, *[DrawNoticeEvent] * 3]
         rinshan_draw = kan.events[1]
         assert isinstance(rinshan_draw, DrawEvent)
         assert rinshan_draw.tile_id == _RINSHAN_COMPLETING_SEAT_3
-        assert PlayerAction.TSUMO in {item.action for item in rinshan_draw.available_actions}
+        assert Tsumo() in build_decision(kan.state, 3).legal
         assert kan.state.round_state.wall.pending_dora_count == 1
 
         replacement_discard = _discard(kan.state, seat=3, tile_id=_EIGHT_PIN[0])
@@ -430,7 +429,12 @@ class TestFourKansAbortTiming:
         declined = handle_pass(chankan_offer.state, seat=0)
         assert isinstance(declined, ActionResult)
         assert declined.state.round_state.phase == RoundPhase.PLAYING
-        assert [type(e) for e in declined.events] == [MeldEvent, *[DoraRevealedEvent] * revealed, DrawEvent]
+        assert [type(e) for e in declined.events] == [
+            MeldEvent,
+            *[DoraRevealedEvent] * revealed,
+            DrawEvent,
+            *[DrawNoticeEvent] * 3,
+        ]
         assert [e.tile_id for e in declined.events if isinstance(e, DoraRevealedEvent)] == list(
             declined.state.round_state.wall.dora_indicators[dora_before:]
         )
@@ -442,8 +446,8 @@ class TestFourKansAbortTiming:
 
 def _assert_play_continues_to_seat(result: ActionResult, seat: int) -> None:
     assert result.state.round_state.phase == RoundPhase.PLAYING
-    assert [type(e) for e in result.events] == [DiscardEvent, DrawEvent]
-    assert result.events[-1].target == SeatTarget(seat=seat)
+    assert [type(e) for e in result.events] == [DiscardEvent, DrawEvent, *[DrawNoticeEvent] * 3]
+    assert result.events[1].target == SeatTarget(seat=seat)
     assert result.state.round_state.current_player_seat == seat
 
 
@@ -739,15 +743,17 @@ class TestKokushiChankanOnAnkan:
         kan = _call_kan(game_state, seat=0, tile_id=_ONE_MAN[0], kan_type=KanType.CLOSED)
         prompt = kan.state.round_state.pending_call_prompt
         assert prompt is not None
-        assert (prompt.kind, prompt.callers) == (PromptKind.CHANKAN, (Caller(seat=1, can_ron=True),))
-        assert [(e.target, e.call_type, e.kan_type) for e in kan.events if isinstance(e, CallPromptEvent)] == [
-            (SeatTarget(seat=1), CallType.CHANKAN, KanType.CLOSED),
-        ]
+        assert (prompt.kind, prompt.kan_type, prompt.callers) == (
+            PromptKind.CHANKAN,
+            KanType.CLOSED,
+            (Caller(seat=1, can_ron=True),),
+        )
+        assert kan.events == []
         assert kan.state.round_state.players[0].melds == ()
 
         declined = handle_pass(kan.state, seat=1)
         assert isinstance(declined, ActionResult)
-        assert [type(e) for e in declined.events] == [MeldEvent, DoraRevealedEvent, DrawEvent]
+        assert [type(e) for e in declined.events] == [MeldEvent, DoraRevealedEvent, DrawEvent, *[DrawNoticeEvent] * 3]
         assert [(e.meld_type, e.caller_seat) for e in declined.events if isinstance(e, MeldEvent)] == [
             (MeldViewType.CLOSED_KAN, 0),
         ]

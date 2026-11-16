@@ -4,12 +4,10 @@ import pytest
 
 from game.engine import (
     RNG_VERSION,
-    AvailableActionItem,
-    CallPromptEvent,
-    CallType,
     DiscardEvent,
     DoraRevealedEvent,
     DrawEvent,
+    DrawNoticeEvent,
     EventType,
     ExhaustiveDrawResult,
     FuritenEvent,
@@ -126,16 +124,6 @@ def _make_draw_event(seat: int = 0, tile_id: int = 1) -> DrawEvent:
     return DrawEvent(seat=seat, tile_id=tile_id, tiles_remaining=69, target=SeatTarget(seat=seat))
 
 
-def _make_call_prompt_event(seat: int = 1) -> CallPromptEvent:
-    return CallPromptEvent(
-        call_type=CallType.MELD,
-        tile_id=10,
-        from_seat=0,
-        callers=[seat],
-        target=SeatTarget(seat=seat),
-    )
-
-
 def _make_error_event(seat: int = 0) -> ErrorEvent:
     return ErrorEvent(code=GameErrorCode.INVALID_ACTION, message="nope", target=SeatTarget(seat=seat))
 
@@ -236,7 +224,6 @@ class TestReplayCollectorFiltering:
         collector.collect_events(
             replay,
             [
-                _make_call_prompt_event(),
                 _make_error_event(),
                 _make_furiten_event(),
                 _make_discard_event(),  # only this should survive
@@ -248,26 +235,23 @@ class TestReplayCollectorFiltering:
         assert len(lines) == 1
         assert lines[0][WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.DISCARD]
 
-    async def test_replay_collector__when_draw_has_available_actions__should_strip_them(self):
+    async def test_replay_collector__when_a_draw_comes_with_its_notices__should_record_the_draw_once(self):
         storage = FakeReplayStorage()
         collector = ReplayCollector(storage)
-
-        draw_with_actions = DrawEvent(
-            seat=0,
-            tile_id=42,
-            tiles_remaining=69,
-            target=SeatTarget(seat=0),
-            available_actions=[AvailableActionItem(action="discard", tiles=[42])],
-        )
+        draw = DrawEvent(seat=0, tile_id=42, tiles_remaining=69, target=SeatTarget(seat=0))
+        notices = [DrawNoticeEvent(seat=0, target=SeatTarget(seat=other)) for other in (1, 2, 3)]
 
         replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, roster=ROSTER)
-        collector.collect_events(replay, [draw_with_actions])
+        collector.collect_events(replay, [draw, *notices])
 
         await collector.save("game1", replay.records)
-        record = _parse_saved_replay(storage.saved["game1"])[0]
-        assert record[WireKey.EVENT_TYPE] == EVENT_TYPE_INT[EventType.DRAW]
-        assert record[WireKey.PACKED_MOVE] == encode_draw(0, 42)
-        assert WireKey.AVAILABLE_ACTIONS not in record
+        assert _parse_saved_replay(storage.saved["game1"]) == [
+            {
+                WireKey.EVENT_TYPE: EVENT_TYPE_INT[EventType.DRAW],
+                WireKey.PACKED_MOVE: encode_draw(0, 42),
+                WireKey.TILES_REMAINING: 69,
+            }
+        ]
 
     async def test_replay_collector__when_broadcast_gameplay_events__should_collect_all_in_order(self):
         storage = FakeReplayStorage()

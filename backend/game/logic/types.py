@@ -275,20 +275,6 @@ class GameEndResult(BaseModel):
     leftover_riichi_sticks: int
 
 
-class MeldCaller(BaseModel):
-    """
-    Immutable meld caller information.
-
-    Uses tuple instead of list for options to prevent nested mutation.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    seat: int
-    call_type: MeldCallType
-    options: tuple[tuple[int, int], ...] | None = None
-
-
 class RonCallInput(BaseModel):
     """
     Input data for ron call processing.

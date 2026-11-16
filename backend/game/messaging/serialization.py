@@ -5,31 +5,36 @@ from typing import TYPE_CHECKING
 from game.engine import (
     WIRE_SCORE_DIVISOR,
     AbortiveDrawResult,
-    AvailableActionItem,
+    Chi,
     DiscardInfo,
     DoubleRonResult,
     DoubleRonWinner,
     ExhaustiveDrawResult,
     HandResultInfo,
-    MeldCaller,
+    Kan,
+    KanType,
+    Kyuushu,
     NagashiManganResult,
     NagashiRiver,
     PaoLiability,
     PlayerReconnectState,
     PlayerStanding,
     PlayerView,
+    Pon,
     ReconnectionSnapshot,
+    Riichi,
     RobbedKan,
     RonResult,
     RoundHistoryEntry,
     TenpaiHand,
+    Tsumo,
     TsumoResult,
-    WireCallType,
     WireGameType,
     WireMeldCallType,
     WirePlayerAction,
     WireWind,
     YakuInfo,
+    tile_to_34,
 )
 from game.wire.enums import WireRoundResultType
 from game.wire.keys import WireKey
@@ -38,14 +43,14 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from game.engine import (
-        CallPromptEvent,
+        Action,
         DoraRevealedEvent,
+        DrawNoticeEvent,
         FuritenEvent,
         GameEndedEvent,
         GameStartedEvent,
         RiichiDeclaredEvent,
         RoundStartedEvent,
-        TurnEvent,
     )
     from game.messaging.game_errors import ErrorEvent
     from game.messaging.roster import GameRoster
@@ -157,21 +162,54 @@ def serialize_player_standing(value: PlayerStanding) -> dict[int, object]:
     }
 
 
-def serialize_meld_caller(value: MeldCaller) -> dict[int, object]:
-    payload: dict[int, object] = {
-        WireKey.SEAT: value.seat,
-        WireKey.CALL_TYPE: WireMeldCallType[value.call_type.name],
-        WireKey.CALL_OPTIONS: value.options,
-    }
-    return {key: item for key, item in payload.items() if item is not None}
+def serialize_draw_offers(legal: tuple[Action, ...]) -> list[dict[int, object]]:
+    """
+    Return the offers of a turn after a draw, from its legal actions: riichi with every discard it allows (physical tile
+    ids), tsumo, the closed and then the added kan kinds (34-format), and kyuushu; none for the discards.
+    """
+    riichi_tiles = [action.tile for action in legal if isinstance(action, Riichi)]
+    closed_kans = _kan_kinds(legal, KanType.CLOSED)
+    added_kans = _kan_kinds(legal, KanType.ADDED)
+    offers: list[dict[int, object]] = []
+    if riichi_tiles:
+        offers.append({WireKey.ACTION: WirePlayerAction.RIICHI, WireKey.TILES: riichi_tiles})
+
+    if Tsumo() in legal:
+        offers.append({WireKey.ACTION: WirePlayerAction.TSUMO})
+
+    if closed_kans:
+        offers.append({WireKey.ACTION: WirePlayerAction.KAN, WireKey.TILES: closed_kans})
+
+    if added_kans:
+        offers.append({WireKey.ACTION: WirePlayerAction.ADDED_KAN, WireKey.TILES: added_kans})
+
+    if Kyuushu() in legal:
+        offers.append({WireKey.ACTION: WirePlayerAction.KYUUSHU})
+
+    return offers
 
 
-def serialize_available_action_item(value: AvailableActionItem) -> dict[int, object]:
-    payload: dict[int, object] = {
-        WireKey.ACTION: WirePlayerAction[value.action.name],
-        WireKey.TILES: value.tiles,
-    }
-    return {key: item for key, item in payload.items() if item is not None}
+def serialize_available_calls(legal: tuple[Action, ...]) -> list[dict[int, object]]:
+    """
+    Return the melds a call offers, from its legal actions: an open kan, a pon, then one chi holding every shape; a ron
+    and a pass are never listed.
+    """
+    chi_options = tuple(action.tiles for action in legal if isinstance(action, Chi))
+    calls: list[dict[int, object]] = []
+    if _kan_kinds(legal, KanType.OPEN):
+        calls.append({WireKey.CALL_TYPE: WireMeldCallType.OPEN_KAN})
+
+    if Pon() in legal:
+        calls.append({WireKey.CALL_TYPE: WireMeldCallType.PON})
+
+    if chi_options:
+        calls.append({WireKey.CALL_TYPE: WireMeldCallType.CHI, WireKey.CALL_OPTIONS: chi_options})
+
+    return calls
+
+
+def _kan_kinds(legal: tuple[Action, ...], kan_type: KanType) -> list[int]:
+    return [tile_to_34(action.tile) for action in legal if isinstance(action, Kan) and action.kan_type == kan_type]
 
 
 def serialize_player_view(value: PlayerView) -> dict[int, object]:
@@ -325,23 +363,10 @@ def serialize_nagashi_mangan_result(value: NagashiManganResult) -> dict[int, obj
     }
 
 
-def serialize_turn_event(value: TurnEvent) -> dict[int, object]:
+def serialize_draw_notice_event(value: DrawNoticeEvent) -> dict[int, object]:
     return {
-        WireKey.KUIKAE_TILES: value.kuikae_tiles,
+        WireKey.SEAT: value.seat,
     }
-
-
-def serialize_call_prompt_event(value: CallPromptEvent) -> dict[int, object]:
-    payload: dict[int, object] = {
-        WireKey.CALL_TYPE: WireCallType[value.call_type.name],
-        WireKey.TILE_ID: value.tile_id,
-        WireKey.FROM_SEAT: value.from_seat,
-        WireKey.CALLERS: [
-            serialize_meld_caller(item) if isinstance(item, MeldCaller) else item for item in value.callers
-        ],
-        WireKey.KAN_TYPE: value.kan_type,
-    }
-    return {key: item for key, item in payload.items() if item is not None}
 
 
 def serialize_riichi_declared_event(value: RiichiDeclaredEvent) -> dict[int, object]:

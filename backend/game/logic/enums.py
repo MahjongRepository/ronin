@@ -58,19 +58,10 @@ class PromptKind(StrEnum):
     CHANKAN = "chankan"
 
 
-class CallType(StrEnum):
-    """
-    Kinds of per-seat call prompt events sent to players.
-    """
-
-    RON = "ron"
-    MELD = "meld"
-    CHANKAN = "chankan"
-
-
 class WireCallType(IntEnum):
     """
-    Integer wire encoding for CallType.
+    Integer wire encoding of a call prompt's type: a ron prompt (the seat may ron, and meld instead when it can), a
+    meld-only prompt, or a chankan prompt.
     """
 
     RON = 0
@@ -80,7 +71,7 @@ class WireCallType(IntEnum):
 
 class WireMeldCallType(IntEnum):
     """
-    Integer wire encoding for MeldCallType.
+    Integer wire encoding of a meld a call prompt offers.
     """
 
     PON = 0

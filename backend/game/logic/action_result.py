@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from game.logic.actions import get_available_actions
-from game.logic.events import DrawEvent, GameEvent, SeatTarget, TurnEvent
+from game.logic.events import DrawEvent, DrawNoticeEvent, GameEvent, SeatTarget
+from game.logic.settings import NUM_PLAYERS
 from game.logic.wall import tiles_remaining
 
 if TYPE_CHECKING:
@@ -24,23 +24,17 @@ class ActionResult:
     state: MahjongGameState
 
 
-def create_draw_event(game_state: MahjongGameState, seat: int, tile_id: int) -> DrawEvent:
+def create_draw_events(game_state: MahjongGameState, seat: int, tile_id: int) -> list[GameEvent]:
     """
-    Create a draw event for a player with available actions and the live wall left after the draw.
+    Create a player's draw, with the live wall left after it, then its notice to each other seat in seat order.
     """
-    available_actions = get_available_actions(game_state, seat=seat)
-    return DrawEvent(
+    draw = DrawEvent(
         seat=seat,
         tile_id=tile_id,
         tiles_remaining=tiles_remaining(game_state.round_state.wall),
-        available_actions=available_actions,
         target=SeatTarget(seat=seat),
     )
-
-
-def create_turn_event(game_state: MahjongGameState, seat: int) -> TurnEvent:
-    """
-    Create the event that opens a player's turn after their own pon or chi, with the tile types kuikae forbids.
-    """
-    player = game_state.round_state.players[seat]
-    return TurnEvent(kuikae_tiles=list(player.kuikae_tiles), target=SeatTarget(seat=seat))
+    notices = [
+        DrawNoticeEvent(seat=seat, target=SeatTarget(seat=other)) for other in range(NUM_PLAYERS) if other != seat
+    ]
+    return [draw, *notices]

@@ -46,12 +46,18 @@ interleave.
   answer, from the seat's decision read at that moment (`ai_player.py`: a tsumo or ron when legal, a
   chankan's included, otherwise the decision's default, so it never calls or declares riichi, a kan or
   kyuushu; a timeout's `default_action` never wins). After each engine call, every call an AI
-  player's seat is awaited on is answered at once, in ascending seat order, one `act` each whose events go out before the next; an
-  AI player's turn waits the AI turn delay (below). Each answer is an engine call whose actor is that
-  AI player's seat, and its seat gets no timer and no decision id, since it has no connected
-  participant. A refused AI player's answer is a server fault. The engine checks furiten once per
-  call, so with each AI answer its own call, a seat's furiten change can arrive ahead of the draw
-  that follows an AI-only call window.
+  player's seat is awaited on is answered at once, in ascending seat order, one `act` each whose
+  events go out before the next; an AI player's turn waits the AI turn delay (below). Each answer
+  is an engine call whose actor is that AI player's seat, and its seat gets no timer, no decision id
+  and no opening, since it has no connected participant. A refused AI player's answer is a server
+  fault. The engine checks furiten once per call, so with each AI answer its own call, a seat's
+  furiten change can arrive ahead of the draw that follows an AI-only call window.
+* **The session opens each decision.** The engine emits facts and keeps no prompt: after every
+  engine call that opens a new wait, the session reads the `decision` of each newly awaited
+  connected participant's seat and has messaging build its opening (`messaging/AGENTS.md`), placed
+  among that call's events so each seat gets its messages in the engine's order, then stamps it with
+  the seat's decision id and bank. A kept wait (a partial call answer) sends no opening and re-times
+  nothing. A reconnect or resync rebuilds the seat's opening the same way, from the decision.
 * **One connection per participant; the newest wins.** A JOIN_GAME or RECONNECT for a participant
   still bound to a connection (a half-open socket the server has not seen drop, or another tab)
   replaces it through the one binder (`_bind`): the old connection is evicted, then closed with
@@ -146,9 +152,10 @@ interleave.
   that lands even when the start write failed, and the first finish wins.
 * **Replays.** A game's replay records are collected from the start and detached by the end claim; an
   abandoned game's are discarded, and a failure to save a completed game's replay turns its end
-  into a failure. A reconnect re-sends the opening event of the wait the game owes the seat (its
-  draw, its `turn` event or its call prompt) directly, outside the replay path, so it is not
-  recorded twice, and re-arms no timer: only a replaced connection's seat, whose timer kept running,
+  into a failure. Openings never reach the replay: it records the engine's events only, each draw
+  once and none of its notices. A reconnect re-sends the opening of the decision the game owes the
+  seat (its draw, its `turn` or its call prompt) directly, outside the replay path, and re-arms no
+  timer: only a replaced connection's seat, whose timer kept running,
   or a seat taken back during its AI player's turn delay, whose turn opened with the reconnect, can be
   awaited, so the event carries how long its timer has run for the client's countdown.
   Beside the events the session writes replay-only annotation records, the seat control records, which

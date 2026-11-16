@@ -1,31 +1,35 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from game.engine import (
     AbortiveDrawResult,
-    Call,
-    CallPromptEvent,
+    CallOpportunity,
+    CallSource,
     DiscardEvent,
     DoraRevealedEvent,
     DoubleRonResult,
     DrawEvent,
+    DrawNoticeEvent,
     EventType,
     ExhaustiveDrawResult,
     FuritenEvent,
     GameEndedEvent,
     GameEvent,
     GameStartedEvent,
+    KanType,
     MeldEvent,
     NagashiManganResult,
     RiichiDeclaredEvent,
+    Ron,
     RonResult,
     RoundEndEvent,
     RoundStartedEvent,
-    SeatTarget,
     TsumoResult,
-    Turn,
-    TurnEvent,
+    TurnAfterCall,
+    TurnAfterDraw,
+    WireCallType,
     meld_event_to_compact,
 )
 from game.messaging import serialization
@@ -36,9 +40,9 @@ from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
-    from game.engine import Awaiting, ReconnectionSnapshot, RoundResult
+    from game.engine import Decision, ReconnectionSnapshot, RoundResult
     from game.messaging.roster import GameRoster
     from game.messaging.types import TimerSettings
     from game.wire.enums import SeatControlReason
@@ -53,17 +57,11 @@ def game_event_payload(event: GameEvent) -> dict[int, Any]:
 
     if isinstance(event, DrawEvent):
         d = encode_draw(event.seat, event.tile_id)
-        payload: dict[int, Any] = {
+        return {
             WireKey.EVENT_TYPE: EVENT_TYPE_INT[EventType.DRAW],
             WireKey.PACKED_MOVE: d,
             WireKey.TILES_REMAINING: event.tiles_remaining,
         }
-        if event.available_actions:
-            payload[WireKey.AVAILABLE_ACTIONS] = [
-                serialization.serialize_available_action_item(action) for action in event.available_actions
-            ]
-
-        return payload
 
     if isinstance(event, DiscardEvent):
         return {
@@ -89,11 +87,8 @@ def game_event_payload(event: GameEvent) -> dict[int, Any]:
 
 
 def _serialize_event_fields(event: GameEvent) -> dict[int, Any]:
-    if isinstance(event, TurnEvent):
-        fields = serialization.serialize_turn_event(event)
-
-    elif isinstance(event, CallPromptEvent):
-        fields = serialization.serialize_call_prompt_event(event)
+    if isinstance(event, DrawNoticeEvent):
+        fields = serialization.serialize_draw_notice_event(event)
 
     elif isinstance(event, RiichiDeclaredEvent):
         fields = serialization.serialize_riichi_declared_event(event)
@@ -139,19 +134,6 @@ def live_game_event_payload(event: GameEvent) -> dict[int, Any]:
         del payload[WireKey.TILES_REMAINING]
 
     return payload
-
-
-def draw_notice_payload(event: DrawEvent) -> dict[int, Any]:
-    """Return the public notice of a draw that every seat but the drawer's gets
-    in its place: the drawer's seat.
-
-    The draw stays private: no tile, offers, bank or wait id, and no `draw` type, so a notice never opens a decision.
-    Only the socket sends it; the replay records the draw itself.
-    """
-    return {
-        WireKey.EVENT_TYPE: WireEventType.DRAW_NOTICE,
-        WireKey.SEAT: event.seat,
-    }
 
 
 def round_end_fields(
@@ -226,33 +208,6 @@ def reconnection_payload(
     return payload
 
 
-def shape_call_prompt_payload(payload: dict[int, Any]) -> dict[int, Any]:
-    """
-    Shape a CallPromptEvent payload for the wire.
-
-    Replace the callers list with the recipient's seat; a prompt whose seat can meld, a ron prompt included, also lists
-    the recipient's meld choices, without the seat.
-    """
-    payload = dict(payload)
-    callers = payload.pop(WireKey.CALLERS)
-    first_caller = callers[0]
-    if isinstance(first_caller, int):
-        payload[WireKey.CALLER_SEAT] = first_caller
-        return payload
-
-    payload[WireKey.CALLER_SEAT] = first_caller[WireKey.SEAT]
-    available_calls: list[dict[int, Any]] = []
-    for caller in callers:
-        call: dict[int, Any] = {WireKey.CALL_TYPE: caller[WireKey.CALL_TYPE]}
-        if caller.get(WireKey.CALL_OPTIONS) is not None:
-            call[WireKey.CALL_OPTIONS] = caller[WireKey.CALL_OPTIONS]
-
-        available_calls.append(call)
-
-    payload[WireKey.AVAILABLE_CALLS] = available_calls
-    return payload
-
-
 def stamp_viewer_seat(payload: dict[int, Any], seat: int) -> dict[int, Any]:
     """
     Return a copy of a broadcast payload stamped with its recipient's seat (`WireKey.SEAT`).
@@ -273,31 +228,114 @@ def stamp_timer_settings(payload: dict[int, Any], timer: TimerSettings) -> dict[
     return {**payload, WireKey.TIMER_SETTINGS: timer.payload()}
 
 
-def stamp_wait_id(payload: dict[int, Any], *, event: GameEvent, awaiting: Awaiting, wait_id: int) -> dict[int, Any]:
-    """
-    Copy an opening event's payload with the recipient's decision id (`WireKey.WAIT_ID`); leave any other payload as it
-    is.
+_ROBBED_KAN_TYPES: dict[CallSource, KanType] = {
+    CallSource.ADDED_KAN: KanType.ADDED,
+    CallSource.CLOSED_KAN: KanType.CLOSED,
+}
 
-    The opening events: for a turn, the draw or the turn event to the awaited seat; for a call prompt, each prompt to an
-    awaited seat. Any other wait opens none here: the session stamps the openings of its own pauses. Only the socket
-    payloads carry it: the replay collector shapes its own payloads, so `WireKey.WAIT_ID` never reaches a replay file.
+
+@dataclass(frozen=True)
+class Opening:
     """
-    if opens_wait(event, awaiting):
-        return {**payload, WireKey.WAIT_ID: wait_id}
+    The message that opens one seat's decision, built from the decision alone (`build_opening`), for the live wait and
+    its re-send on a reconnect alike; the session stamps it with the seat's decision id and bank (`stamp_opening`).
+
+    replaces_draw marks a turn after a draw, whose opening is the seat's private draw itself, with its offers.
+    """
+
+    seat: int
+    payload: dict[int, Any]
+    replaces_draw: bool
+
+
+def build_opening(decision: Decision) -> Opening:
+    """
+    Build the opening of a seat's decision: its private draw with the draw's offers (`WireKey.AVAILABLE_ACTIONS`, only
+    when there are any), the turn after its own pon or chi with the tile types kuikae forbids, or its call prompt.
+    """
+    context = decision.context
+    if isinstance(context, TurnAfterDraw):
+        payload: dict[int, Any] = {
+            WireKey.EVENT_TYPE: WireEventType.DRAW,
+            WireKey.PACKED_MOVE: encode_draw(decision.seat, context.drawn),
+        }
+        offers = serialization.serialize_draw_offers(decision.legal)
+        if offers:
+            payload[WireKey.AVAILABLE_ACTIONS] = offers
+
+        return Opening(seat=decision.seat, payload=payload, replaces_draw=True)
+
+    if isinstance(context, TurnAfterCall):
+        payload = {WireKey.EVENT_TYPE: WireEventType.TURN, WireKey.KUIKAE_TILES: list(context.kuikae)}
+        return Opening(seat=decision.seat, payload=payload, replaces_draw=False)
+
+    return Opening(seat=decision.seat, payload=_call_prompt_payload(decision, context), replaces_draw=False)
+
+
+def _call_prompt_payload(decision: Decision, context: CallOpportunity) -> dict[int, Any]:
+    """
+    Shape a call prompt: a chankan prompt for a kan source, naming the kan it robs (`WireKey.KAN_TYPE`), else a ron
+    prompt when the seat may ron and a meld prompt otherwise; the recipient's seat (`WireKey.CALLER_SEAT`) and, when it
+    may meld, a ron prompt's seat included, its melds (`WireKey.AVAILABLE_CALLS`).
+    """
+    if context.source != CallSource.DISCARD:
+        call_type = WireCallType.CHANKAN
+    elif Ron() in decision.legal:
+        call_type = WireCallType.RON
+    else:
+        call_type = WireCallType.MELD
+
+    payload: dict[int, Any] = {
+        WireKey.EVENT_TYPE: WireEventType.CALL_PROMPT,
+        WireKey.CALL_TYPE: call_type,
+        WireKey.TILE_ID: context.tile,
+        WireKey.FROM_SEAT: context.from_seat,
+    }
+    if context.source != CallSource.DISCARD:
+        payload[WireKey.KAN_TYPE] = _ROBBED_KAN_TYPES[context.source]
+
+    payload[WireKey.CALLER_SEAT] = decision.seat
+    calls = serialization.serialize_available_calls(decision.legal)
+    if calls:
+        payload[WireKey.AVAILABLE_CALLS] = calls
 
     return payload
 
 
-def opens_wait(event: GameEvent, awaiting: Awaiting) -> bool:
+def place_openings(events: list[GameEvent], openings: Sequence[Opening]) -> list[GameEvent | Opening]:
     """
-    Tell whether an event opens the wait for its recipients, so each copy carries its recipient's decision id.
+    Return an engine call's events with the openings of the decisions it opened in place, so each seat gets its messages
+    in the engine's order.
+
+    A turn after a draw opens on the seat's private draw, which its opening replaces, and on nothing when the events
+    hold no draw to that seat; every other opening goes after the step's gameplay facts and ahead of its furiten
+    changes, in the order given.
     """
-    target = event.target
-    to_awaited_seat = isinstance(target, SeatTarget) and target.seat in awaiting.seats
-    match awaiting:
-        case Turn():
-            return isinstance(event, DrawEvent | TurnEvent) and to_awaited_seat
-        case Call():
-            return isinstance(event, CallPromptEvent) and to_awaited_seat
-        case _:
-            return False
+    draws = {opening.seat: opening for opening in openings if opening.replaces_draw}
+    inserted = [opening for opening in openings if not opening.replaces_draw]
+    placed = [draws.get(event.seat, event) if isinstance(event, DrawEvent) else event for event in events]
+    furiten_at = next((i for i, event in enumerate(events) if isinstance(event, FuritenEvent)), len(events))
+    return [*placed[:furiten_at], *inserted, *placed[furiten_at:]]
+
+
+def stamp_opening(
+    payload: dict[int, Any],
+    *,
+    wait_id: int,
+    bank_seconds: float,
+    elapsed: float | None = None,
+) -> dict[int, Any]:
+    """
+    Copy an opening's payload stamped for its recipient: how long its timer has run when it is re-sent
+    (`WireKey.WAIT_ELAPSED`), its decision id (`WireKey.WAIT_ID`) and the bank its timer starts with
+    (`WireKey.BANK_SECONDS`), so the client's countdown never carries an earlier decision's delivery delays.
+
+    Only the socket payloads carry them: the replay collector shapes its own payloads, so none reaches a replay file.
+    """
+    stamped = dict(payload)
+    if elapsed is not None:
+        stamped[WireKey.WAIT_ELAPSED] = elapsed
+
+    stamped[WireKey.WAIT_ID] = wait_id
+    stamped[WireKey.BANK_SECONDS] = bank_seconds
+    return stamped

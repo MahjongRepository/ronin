@@ -16,7 +16,6 @@ from game.engine import (
     Kyuushu,
     MahjongGameService,
     Pass,
-    PlayerAction,
     Pon,
     Refusal,
     Riichi,
@@ -474,8 +473,7 @@ class StagedGame(_ScriptedGame):
             if current == seat:
                 return
 
-            offers = {item.action for item in self._draw(current).available_actions}
-            if PlayerAction.TSUMO in offers:
+            if Tsumo() in self._service.legal_actions(self._runtime, current):
                 raise ScenarioError(f"{self._game_id}: seat {current} was offered tsumo while discarding draws")
 
             self.tsumogiri(current)
@@ -587,12 +585,11 @@ class EagerGame(_ScriptedGame):
             return
 
         (seat,) = awaiting.seats
-        draw = self._draws[seat]
-        if PlayerAction.TSUMO in {item.action for item in draw.available_actions}:
+        if Tsumo() in self._service.legal_actions(self._runtime, seat):
             self._run(seat, Tsumo())
             return
 
-        self._run(seat, Discard(tile=self._closest_to_ready_discard(seat, draw.tile_id)))
+        self._run(seat, Discard(tile=self._closest_to_ready_discard(seat, self._draws[seat].tile_id)))
 
     def _closest_to_ready_discard(self, seat: int, drawn_tile: int) -> int:
         hand = self._runtime.state.round_state.players[seat].tiles

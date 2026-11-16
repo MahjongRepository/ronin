@@ -36,9 +36,9 @@ def get_available_actions(game_state: MahjongGameState, seat: int) -> list[Avail
     """
     Return available actions for a player at their turn.
 
-    The single source of a draw's offered actions, for the draw event and its reconnect rebuild alike. Discard is
-    always available: the client may discard any tile in hand, in riichi only the drawn one; the kuikae types it may
-    not discard right after its own pon or chi come with that turn's event instead.
+    The single source of a turn's offered actions, which its decision lists after the legal discards. Discards are not
+    listed here: any tile in hand is legal, in riichi only the drawn one, and right after the seat's own pon or chi
+    none of a type kuikae forbids.
 
     Includes:
     - riichi option (if eligible), with the tile ids whose discard keeps the hand in tenpai

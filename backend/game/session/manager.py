@@ -11,12 +11,9 @@ from game.engine import (
     RNG_VERSION,
     Action,
     BroadcastTarget,
-    Call,
     CallOpportunity,
-    CallPromptEvent,
     Dealt,
     DoubleRonResult,
-    DrawEvent,
     GameEndedEvent,
     GameEvent,
     GameOver,
@@ -31,16 +28,16 @@ from game.engine import (
 )
 from game.messaging.encoder import encode
 from game.messaging.event_payload import (
-    draw_notice_payload,
+    Opening,
+    build_opening,
     game_event_payload,
     game_started_payload,
     live_game_event_payload,
-    opens_wait,
+    place_openings,
     reconnection_payload,
-    shape_call_prompt_payload,
+    stamp_opening,
     stamp_timer_settings,
     stamp_viewer_seat,
-    stamp_wait_id,
 )
 from game.messaging.game_errors import called_tile_mismatch_event, refusal_error_event, stale_action_event
 from game.messaging.roster import GameRoster
@@ -65,7 +62,7 @@ from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 from shared.tasks import cancel_and_wait
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Coroutine
+    from collections.abc import Callable, Coroutine, Sequence
 
     from game.engine import Awaiting, GameRuntime, GameService
     from game.messaging.protocol import ConnectionProtocol
@@ -605,7 +602,7 @@ class SessionManager:
             return
 
         if called_tile is not None and self._mismatches_open_call(game, seat=seat, called_tile=called_tile):
-            self._refuse_called_tile(game, seat=seat, action=action, wait_id=wait_id, awaiting=game.awaiting)
+            self._refuse_called_tile(game, seat=seat, action=action, wait_id=wait_id)
             return
 
         result = self._game_service.act(self._runtime_of(game), seat, action)
@@ -618,7 +615,7 @@ class SessionManager:
             return
 
         error = refusal_error_event(action, result, seat=seat, wait_id=wait_id)
-        self._send_events(game, [error], game.awaiting)
+        self._send_events(game, [error])
 
     def _mismatches_open_call(self, game: GameSession, *, seat: int, called_tile: int) -> bool:
         """
@@ -638,14 +635,13 @@ class SessionManager:
         seat: int,
         action: Action,
         wait_id: int,
-        awaiting: Awaiting,
     ) -> None:
         """
         Answer a call answer that names another tile than its call with the answer's invalid code, delivered as the
         engine's refusals are, naming the wait id the answer echoed.
         """
         logger.warning("invalid call: tile_id mismatch", action=str(action))
-        self._send_events(game, [called_tile_mismatch_event(action, seat=seat, wait_id=wait_id)], awaiting)
+        self._send_events(game, [called_tile_mismatch_event(action, seat=seat, wait_id=wait_id)])
 
     def confirm_round(self, connection: ConnectionProtocol, *, wait_id: int) -> None:
         """
@@ -744,7 +740,7 @@ class SessionManager:
             self._take_back_decision(game, participant)
             self._reconnects += 1
 
-        self._send_seat_state(participant, connection, awaiting=self._awaiting_of(game))
+        self._send_seat_state(participant, connection)
         logger.info("connection taken over" if taking_over else "player reconnected")
 
     def resync(self, connection: ConnectionProtocol) -> None:
@@ -767,15 +763,14 @@ class SessionManager:
             return
 
         structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=self._seat_of(participant))
-        awaiting = self._game_service.get_awaiting(self._runtime_of(game))
-        self._send_seat_state(participant, connection, awaiting=awaiting)
+        self._send_seat_state(participant, connection)
         self._resyncs += 1
         logger.info("seat resynced")
 
-    def _send_seat_state(self, participant: Participant, connection: ConnectionProtocol, *, awaiting: Awaiting) -> None:
+    def _send_seat_state(self, participant: Participant, connection: ConnectionProtocol) -> None:
         """
-        Send a participant's connection the `game_reconnected` snapshot of the wait `awaiting`, then the event that
-        opened the wait the game owes the seat, if any, changing nothing.
+        Send a participant's connection the `game_reconnected` snapshot, then the opening of the decision the game owes
+        the seat, if any, changing nothing.
 
         The snapshot carries the participant's latest decision id, every seat an AI player holds for its participant
         marked as such, the seat's timer settings (its bank as of its last turn) and, during a pause (the game start's
@@ -798,7 +793,7 @@ class SessionManager:
                 payload[WireKey.ROUND_ADVANCE_SECONDS] = game.timer_config.round_advance_seconds(pause)
 
         connection.send_message(stamp_timer_settings(payload, self._timer_settings(participant)))
-        self._send_wait_on_reconnect(participant, connection, awaiting=awaiting)
+        self._send_wait_on_reconnect(participant, connection)
 
     def _reconnecting_participant(
         self,
@@ -847,16 +842,10 @@ class SessionManager:
 
         return participant
 
-    def _send_wait_on_reconnect(
-        self,
-        participant: Participant,
-        connection: ConnectionProtocol,
-        *,
-        awaiting: Awaiting,
-    ) -> None:
-        """Re-send the event that opened the wait the game owes a reconnected
-        participant: its call prompt, or its turn's draw (the turn event after
-        its own pon or chi).
+    def _send_wait_on_reconnect(self, participant: Participant, connection: ConnectionProtocol) -> None:
+        """
+        Re-send the opening of the decision the game owes a reconnected participant: its call prompt, or its turn's draw
+        (the turn after its own pon or chi), rebuilt from the seat's decision as the live wait built it.
 
         Only a taken-over seat, or a seat whose turn its AI player had not played yet, can be awaited: an AI player
         answers any call of a seat it holds at once, and a pause owes no such event. The wait's timer runs from its
@@ -864,29 +853,17 @@ class SessionManager:
         client count down what is left and charge the bank as the server will. Sent directly instead of through
         `_send_events`, so the replay does not record the event twice.
         """
-        seat = self._seat_of(participant)
-        elapsed = participant.timer.elapsed_seconds
-        for event in self._game_service.build_wait_events_for_seat(self._runtime_of(participant.game), seat):
-            message = live_game_event_payload(event)
-            if isinstance(event, CallPromptEvent):
-                message = shape_call_prompt_payload(message)
+        decision = self._game_service.decision(self._runtime_of(participant.game), self._seat_of(participant))
+        if decision is None:
+            return
 
-            if elapsed is not None:
-                message[WireKey.WAIT_ELAPSED] = elapsed
-
-            message = stamp_wait_id(message, event=event, awaiting=awaiting, wait_id=participant.decision_id)
-            connection.send_message(self._stamp_decision_bank(message, participant, awaiting))
-
-    @staticmethod
-    def _stamp_decision_bank(message: dict[int, Any], participant: Participant, awaiting: Awaiting) -> dict[int, Any]:
-        """
-        Stamp a turn or call opening with the bank its timer starts with (WireKey.BANK_SECONDS), so the client's
-        countdown never carries an earlier decision's delivery delays into the next.
-        """
-        if isinstance(awaiting, Turn | Call) and WireKey.WAIT_ID in message:
-            message[WireKey.BANK_SECONDS] = participant.timer.bank_seconds
-
-        return message
+        message = stamp_opening(
+            build_opening(decision).payload,
+            wait_id=participant.decision_id,
+            bank_seconds=participant.timer.bank_seconds,
+            elapsed=participant.timer.elapsed_seconds,
+        )
+        connection.send_message(message)
 
     def _take_back_decision(self, game: GameSession, participant: Participant) -> None:
         """
@@ -983,10 +960,10 @@ class SessionManager:
         none. When the call opened a new wait (the game's first, or `_opens_new_wait`), every timer stops (charging
         elapsed decision time) and so does a pending AI turn, a dealt round resets every bank, a round over opens its
         pause (`_open_round_over_pause`), and each connected participant now awaited, by the engine or the pause,
-        advances its own decision id before the events go out. The new wait's timers start after them, for connected
-        participants only: an AI player's seat, a dealt round and a game over start none. When it kept the wait, every
-        seat that left it (the actor of a partial call answer, or a seat the engine stopped awaiting) has its timer
-        stopped.
+        advances its own decision id before the events go out, each engine decision's opening placed among them
+        (`place_openings`). The new wait's timers start after them, for connected participants only: an AI player's
+        seat, a dealt round and a game over start none. When it kept the wait, every seat that left it (the actor of a
+        partial call answer, or a seat the engine stopped awaiting) has its timer stopped, and no opening goes out.
         """
         awaiting = self._game_service.get_awaiting(self._runtime_of(game))
         previous = game.awaiting
@@ -1010,9 +987,29 @@ class SessionManager:
             for seat in previous.seats - awaiting.seats:
                 self._stop_timer_at(game, seat)
 
-        self._broadcast_events(game, events, awaiting)
+        openings = self._openings(game, awaiting) if new_wait else []
+        self._broadcast_events(game, events, awaiting, openings=openings)
         if new_wait and game.lifecycle is GameLifecycle.PLAYING:
             self._start_wait_timers(game, awaiting=awaiting)
+
+    def _openings(self, game: GameSession, awaiting: Awaiting) -> list[Opening]:
+        """
+        Build the opening of each decision a new wait opens for a connected participant, in seat order, from the seat's
+        decision read now; an AI player's seat gets none.
+        """
+        runtime = self._runtime_of(game)
+        openings: list[Opening] = []
+        for seat in sorted(awaiting.seats):
+            if game.is_ai_seat(seat):
+                continue
+
+            decision = self._game_service.decision(runtime, seat)
+            if decision is None:
+                raise AssertionError(f"seat {seat} awaited with no decision")
+
+            openings.append(build_opening(decision))
+
+        return openings
 
     @staticmethod
     def _opens_new_wait(previous: Awaiting, awaiting: Awaiting, *, actor: int | None) -> bool:
@@ -1137,69 +1134,84 @@ class SessionManager:
             lambda: self._handle_pause_timeout(participant),
         )
 
-    def _broadcast_events(self, game: GameSession, events: list[GameEvent], awaiting: Awaiting) -> None:
+    def _broadcast_events(
+        self,
+        game: GameSession,
+        events: list[GameEvent],
+        awaiting: Awaiting,
+        *,
+        openings: Sequence[Opening] = (),
+    ) -> None:
         """
-        Send an engine call's events; after a batch with which the game waits for nothing, claim its completion.
+        Send an engine call's events with the openings of the decisions it opened; after a batch with which the game
+        waits for nothing, claim its completion.
 
         Nothing between the sends and the claim can suspend, and the game end is queued to every socket before the
         finalizer queues its close. If a send raises (an encoding error), nothing was claimed and the caller's boundary
         fails the game.
         """
-        self._send_events(game, events, awaiting)
+        self._send_events(game, events, openings=openings)
         if isinstance(awaiting, GameOver):
             game_ended_event = next((e for e in events if isinstance(e, GameEndedEvent)), None)
             self._end_game(game, GameEndReason.COMPLETED, game_ended_event=game_ended_event)
 
-    def _send_events(self, game: GameSession, events: list[GameEvent], awaiting: Awaiting) -> None:
+    def _send_events(self, game: GameSession, events: list[GameEvent], *, openings: Sequence[Opening] = ()) -> None:
         """
-        Record the events for the replay, then send each to its target, the wait's opening messages stamped with
-        WireKey.WAIT_ID.
+        Record the events for the replay, then send each to its target, with each opening in its place
+        (`place_openings`) to its seat, stamped with its decision id and bank.
 
-        Each game start copy carries its recipient's WireKey.SEAT. A draw goes whole to the drawer and as its public
-        notice to every other seat, so each seat gets one representation of it. The round end that opens a round's
-        pause, and the deal that opens the game start's, also name its whole timeout (WireKey.ROUND_ADVANCE_SECONDS), so
-        the client counts it down by the server's word rather than by its own count of the results.
+        Each game start copy carries its recipient's WireKey.SEAT. A draw goes whole to the drawer, as its opening when
+        it opens the drawer's turn, and as its notice to every other seat, so each seat gets one representation of it.
+        The round end that opens a round's pause, and the deal that opens the game start's, also name its whole timeout
+        (WireKey.ROUND_ADVANCE_SECONDS), so the client counts it down by the server's word rather than by its own count
+        of the results.
         """
         if game.replay is not None:
             self._replay_collector.collect_events(game.replay, events)
 
-        for event in events:
-            if isinstance(event, GameStartedEvent):
-                self._send_to_each_seat(game, game_started_payload(event, roster=self._roster_of(game)))
+        for item in place_openings(events, openings):
+            if isinstance(item, Opening):
+                self._send_opening(game, item)
                 continue
 
-            message = live_game_event_payload(event)
-            if isinstance(event, CallPromptEvent):
-                message = shape_call_prompt_payload(message)
+            if isinstance(item, GameStartedEvent):
+                self._send_to_each_seat(game, game_started_payload(item, roster=self._roster_of(game)))
+                continue
 
-            if isinstance(event.target, BroadcastTarget):
-                self._send_broadcast_event(game, message=message, event=event, awaiting=awaiting)
-            elif isinstance(event.target, SeatTarget):
-                participant = game.at_seat(event.target.seat)
+            message = live_game_event_payload(item)
+            if isinstance(item.target, BroadcastTarget):
+                self._send_broadcast_event(game, message=message, event=item)
+            elif isinstance(item.target, SeatTarget):
+                participant = game.at_seat(item.target.seat)
                 if participant is not None:
-                    self._send_event_to_participant(participant, message=message, event=event, awaiting=awaiting)
+                    self._send_event_to_participant(participant, message=message, event=item)
 
-                if isinstance(event, DrawEvent):
-                    self._send_draw_notice(game, event)
+    @staticmethod
+    def _send_opening(game: GameSession, opening: Opening) -> None:
+        """
+        Send a decision's opening to its seat's connected participant, stamped with its decision id and the bank its
+        timer starts with.
+        """
+        participant = game.at_seat(opening.seat)
+        if participant is None or participant.connection is None:
+            return
 
-    def _send_broadcast_event(
-        self,
-        game: GameSession,
-        *,
-        message: dict[int, Any],
-        event: GameEvent,
-        awaiting: Awaiting,
-    ) -> None:
+        message = stamp_opening(
+            opening.payload, wait_id=participant.decision_id, bank_seconds=participant.timer.bank_seconds
+        )
+        participant.connection.send_message(message)
+
+    def _send_broadcast_event(self, game: GameSession, *, message: dict[int, Any], event: GameEvent) -> None:
         """
-        Send a broadcast event to every connected participant: stamped per recipient when it opens the wait or the
-        pause, otherwise encoded once for all of them.
+        Send a broadcast event to every connected participant: stamped per recipient when it opens the pause, otherwise
+        encoded once for all of them.
         """
-        if not opens_wait(event, awaiting) and not self._opens_pause(event, game.pause):
+        if not self._opens_pause(event, game.pause):
             self._broadcast_to_game(game, message)
             return
 
         for participant in game.connected():
-            self._send_event_to_participant(participant, message=message, event=event, awaiting=awaiting)
+            self._send_event_to_participant(participant, message=message, event=event)
 
     def _send_event_to_participant(
         self,
@@ -1207,23 +1219,20 @@ class SessionManager:
         *,
         message: dict[int, Any],
         event: GameEvent,
-        awaiting: Awaiting,
     ) -> None:
         if participant.connection is None:
             return
 
-        payload = stamp_wait_id(message, event=event, awaiting=awaiting, wait_id=participant.decision_id)
+        payload = message
         pause = participant.game.pause
         if pause is not None and self._opens_pause(event, pause):
             payload = {
-                **payload,
+                **message,
                 WireKey.WAIT_ID: participant.decision_id,
                 WireKey.ROUND_ADVANCE_SECONDS: participant.game.timer_config.round_advance_seconds(pause),
             }
 
-        participant.connection.send_message(
-            self._stamp_decision_bank(payload, participant=participant, awaiting=awaiting)
-        )
+        participant.connection.send_message(payload)
 
     @staticmethod
     def _opens_pause(event: GameEvent, pause: Pause | None) -> bool:
@@ -1240,23 +1249,6 @@ class SessionManager:
             return isinstance(event, RoundStartedEvent) and to_owing_seat
 
         return isinstance(event, RoundEndEvent)
-
-    @staticmethod
-    def _send_draw_notice(game: GameSession, event: DrawEvent) -> None:
-        """
-        Send a draw's public notice to every connected participant but the drawer's, whose seat gets the draw itself.
-        """
-        connections = [
-            participant.connection
-            for participant in game.participants
-            if participant.connection is not None and participant.seat != event.seat
-        ]
-        if not connections:
-            return
-
-        notice = encode(draw_notice_payload(event))
-        for connection in connections:
-            connection.send_bytes(notice)
 
     def _send_to_each_seat(self, game: GameSession, message: dict[int, Any]) -> None:
         """

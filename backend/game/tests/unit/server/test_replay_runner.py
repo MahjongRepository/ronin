@@ -12,15 +12,14 @@ from game.engine import (
     Kan,
     KanType,
     MahjongGameService,
-    MeldCallType,
     Pass,
     Pon,
-    PromptKind,
     Refusal,
     RefusalCode,
     RefusalKind,
     Ron,
 )
+from game.logic.enums import MeldCallType, PromptKind
 from game.logic.state import Caller, MeldOption, PendingCallPrompt
 from game.replay.loader import ReplayLoadError
 from game.replay.models import (

@@ -1,5 +1,6 @@
 import pytest
 from mahjong.tile import TilesConverter
+from pydantic import ValidationError
 
 from game.logic.decision import Ron
 from game.logic.enums import PromptKind, WindName
@@ -122,6 +123,16 @@ class TestPendingCallPromptCaller:
         assert prompt.caller(1) == Caller(seat=1, can_ron=True)
         with pytest.raises(AssertionError, match="seat 2 is not a caller"):
             prompt.caller(2)
+
+    def test_pending_call_prompt__when_kan_type_does_not_match_the_prompt_kind__should_raise(self):
+        with pytest.raises(ValidationError, match="names the kan it offers to rob"):
+            PendingCallPrompt(
+                kind=PromptKind.CHANKAN,
+                tile_id=10,
+                from_seat=2,
+                pending_seats=frozenset({0}),
+                callers=(Caller(seat=0, can_ron=True),),
+            )
 
 
 class TestStateUtilsPendingPrompt:

@@ -2,18 +2,16 @@ from typing import TYPE_CHECKING, Any
 
 from game.engine import (
     NUM_TILES,
-    CallPromptEvent,
-    CallType,
     Discard,
     EventType,
     FuritenEvent,
     Kan,
     KanType,
-    MeldCaller,
-    MeldCallType,
     Pon,
     SeatTarget,
     Turn,
+    WireCallType,
+    WireMeldCallType,
 )
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.session import make_session_manager
@@ -74,47 +72,6 @@ class TestSessionManager:
         manager._broadcast_events(game, [seat_event], MOCK_AWAITING)
         # only conn1 (seat 0) should receive the event
         assert len(conns[0].sent_messages) == 1
-        assert len(conns[1].sent_messages) == 0
-
-    async def test_broadcast_events__when_call_prompt_targets_seat__should_send_only_to_that_caller(self, manager):
-        conns = create_started_game(manager, player_names=["Alice", "Bob"])
-
-        # per-seat call_prompt targeting only seat 0 (Alice)
-        game = manager.get_game("game1")
-        call_event = CallPromptEvent(
-            call_type=CallType.RON,
-            tile_id=42,
-            from_seat=2,
-            callers=[0],
-            target=SeatTarget(seat=0),
-        )
-        manager._broadcast_events(game, [call_event], MOCK_AWAITING)
-        # only conn1 (seat 0) should receive the call_prompt
-        assert len(conns[0].sent_messages) == 1
-        assert conns[0].sent_messages[0].get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.CALL_PROMPT]
-        assert len(conns[1].sent_messages) == 0
-
-    async def test_broadcast_events__when_caller_has_pon_and_chi__should_send_call_prompt_once(self, manager):
-        conns = create_started_game(manager, player_names=["Alice", "Bob"])
-
-        # seat 0 can both pon and chi the same tile -- two MeldCaller entries for the same seat.
-        game = manager.get_game("game1")
-        callers = [
-            MeldCaller(seat=0, call_type=MeldCallType.PON),
-            MeldCaller(seat=0, call_type=MeldCallType.CHI, options=((57, 63),)),
-        ]
-        call_event = CallPromptEvent(
-            call_type=CallType.MELD,
-            tile_id=55,
-            from_seat=3,
-            callers=callers,
-            target=SeatTarget(seat=0),
-        )
-        manager._broadcast_events(game, [call_event], MOCK_AWAITING)
-        # seat 0 should receive the call_prompt exactly once
-        assert len(conns[0].sent_messages) == 1
-        assert conns[0].sent_messages[0].get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.CALL_PROMPT]
-        # seat 1 (Bob) should not receive it
         assert len(conns[1].sent_messages) == 0
 
 
@@ -238,13 +195,19 @@ class TestDrawDelivery:
 
         await manager.shutdown()
 
-    async def test_send_events__when_a_seat_pons__should_send_nobody_a_draw_or_its_notice(self, real_engine):
+    async def test_send_events__when_a_seat_pons_in_place_of_its_ron__should_send_meld_turn_then_furiten_and_no_draw(
+        self, real_engine
+    ):
         manager = make_session_manager(real_engine, seed=ENGINE_SEED)
         alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = participant_of(manager, alice_conn), participant_of(manager, bob_conn)
         discarded_four_pin = arrange_pon_now_and_on_the_next_draw(
             runtime_of(manager), discarder=alice.seat, caller=bob.seat
         )
+        pair_of_four_pin = runtime_of(manager).state.round_state.players[bob.seat].tiles[:2]
+        ittsu_shanpon_on_four_pin = (*tile_copies(1, man="123456789"), *pair_of_four_pin, *tile_copies(2, sou="55"))
+        _update_player(runtime_of(manager), seat=bob.seat, tiles=ittsu_shanpon_on_four_pin)
+        bob_conn._outbox.clear()
         manager.handle_game_action(
             alice_conn,
             action=Discard(tile=discarded_four_pin),
@@ -252,6 +215,12 @@ class TestDrawDelivery:
             wait_id=current_wait_id(manager, alice_conn),
         )
         assert game_of(manager).awaiting.seats == frozenset({bob.seat})
+        [prompt] = bob_conn.sent_messages[1:]
+        assert (prompt[WireKey.EVENT_TYPE], prompt[WireKey.CALL_TYPE], prompt[WireKey.AVAILABLE_CALLS]) == (
+            WireEventType.CALL_PROMPT,
+            WireCallType.RON,
+            [{WireKey.CALL_TYPE: WireMeldCallType.PON}],
+        )
         alice_conn._outbox.clear()
         bob_conn._outbox.clear()
 
@@ -262,6 +231,8 @@ class TestDrawDelivery:
         assert [message[WireKey.EVENT_TYPE] for message in bob_conn.sent_messages] == [
             WireEventType.MELD,
             WireEventType.TURN,
+            WireEventType.FURITEN,
         ]
+        assert bob_conn.sent_messages[-1][WireKey.FURITEN] is True
 
         await manager.shutdown()

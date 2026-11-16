@@ -2,22 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
-from game.logic.enums import CallType, GameEndCause, KanType, MeldViewType, PromptKind, WindName
+from game.logic.enums import GameEndCause, MeldViewType, WindName
 from game.logic.settings import GameType
 from game.logic.types import (
-    AvailableActionItem,
-    MeldCaller,
     PlayerStanding,
     PlayerView,
     RoundResult,
 )
-
-if TYPE_CHECKING:
-    from game.logic.state import PendingCallPrompt
 
 # ---------------------------------------------------------------------------
 # Typed routing targets
@@ -57,9 +52,9 @@ class EventType(StrEnum):
     """
 
     DRAW = "draw"
+    DRAW_NOTICE = "draw_notice"
     DISCARD = "discard"
     MELD = "meld"
-    CALL_PROMPT = "call_prompt"
     ROUND_END = "round_end"
     RIICHI_DECLARED = "riichi_declared"
     DORA_REVEALED = "dora_revealed"
@@ -68,7 +63,6 @@ class EventType(StrEnum):
     ROUND_STARTED = "round_started"
     GAME_END = "game_end"
     FURITEN = "furiten"
-    TURN = "turn"
 
 
 # ---------------------------------------------------------------------------
@@ -89,24 +83,24 @@ class GameEvent(BaseModel):
 
 class DrawEvent(GameEvent):
     """
-    Event sent to a player when they draw a tile, with the live wall's tiles left after it.
+    Event sent to the player who draws a tile, with the live wall's tiles left after it.
+
+    Every other seat gets a DrawNoticeEvent of the same draw instead.
     """
 
     type: Literal[EventType.DRAW] = EventType.DRAW
     seat: int
     tile_id: int
     tiles_remaining: int
-    available_actions: list[AvailableActionItem] = Field(default_factory=list)
 
 
-class TurnEvent(GameEvent):
+class DrawNoticeEvent(GameEvent):
     """
-    Event sent to a player whose turn opens without a draw (right after their own pon or chi): only a discard is legal,
-    of any tile in hand but the tile types kuikae forbids.
+    Event sent to each seat but the drawer's when a player draws a tile: the drawer's seat, never the tile.
     """
 
-    type: Literal[EventType.TURN] = EventType.TURN
-    kuikae_tiles: list[int]
+    type: Literal[EventType.DRAW_NOTICE] = EventType.DRAW_NOTICE
+    seat: int
 
 
 class DiscardEvent(GameEvent):
@@ -135,21 +129,6 @@ class MeldEvent(GameEvent):
     tile_ids: list[int]
     called_tile_id: int | None = None
     added_tile_id: int | None = None
-
-
-class CallPromptEvent(GameEvent):
-    """
-    Event sent to players who can respond to a call opportunity.
-
-    A chankan prompt names the kan it offers to rob (`kan_type`); a discard's prompt names none.
-    """
-
-    type: Literal[EventType.CALL_PROMPT] = EventType.CALL_PROMPT
-    call_type: CallType
-    tile_id: int
-    from_seat: int
-    callers: list[int | MeldCaller]
-    kan_type: KanType | None = None
 
 
 class RoundEndEvent(GameEvent):
@@ -257,9 +236,9 @@ class FuritenEvent(GameEvent):
 
 Event = (
     DrawEvent
+    | DrawNoticeEvent
     | DiscardEvent
     | MeldEvent
-    | CallPromptEvent
     | RoundEndEvent
     | RiichiDeclaredEvent
     | DoraRevealedEvent
@@ -267,41 +246,4 @@ Event = (
     | RoundStartedEvent
     | GameEndedEvent
     | FuritenEvent
-    | TurnEvent
 )
-
-
-def build_call_prompt_events(prompt: PendingCallPrompt) -> list[CallPromptEvent]:
-    """
-    Build the prompt's per-seat call prompt events: one per caller, in prompt order, each addressed to its seat.
-
-    On a discard prompt a ron caller gets a RON event and a meld-only caller a MELD event; on a chankan prompt every
-    caller gets a CHANKAN event. The event's callers list the seat's melds, the ones a ron caller may make instead of
-    the ron included, or only the seat when it has none.
-    """
-    events: list[CallPromptEvent] = []
-    for caller in prompt.callers:
-        if prompt.kind == PromptKind.CHANKAN:
-            call_type = CallType.CHANKAN
-        elif caller.can_ron:
-            call_type = CallType.RON
-        else:
-            call_type = CallType.MELD
-
-        melds: list[int | MeldCaller] = [
-            MeldCaller(seat=caller.seat, call_type=m.call_type, options=m.options) for m in caller.melds
-        ]
-        callers = melds or [caller.seat]
-
-        events.append(
-            CallPromptEvent(
-                call_type=call_type,
-                tile_id=prompt.tile_id,
-                from_seat=prompt.from_seat,
-                callers=callers,
-                kan_type=prompt.kan_type,
-                target=SeatTarget(seat=caller.seat),
-            ),
-        )
-
-    return events

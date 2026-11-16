@@ -14,6 +14,9 @@ of its one preset); read it before changing or testing a rule, and update it whe
 * Domain events (`events.py`) carry integer tile ids only (136-format) and their own routing target, a broadcast or
   one seat. Domain models keep readable field names and full point values; `messaging/` owns explicit protocol
   serialization, including numeric keys, integer enum codes and scaled scores.
+* Events are facts, never prompts: what a seat may do is its `decision`, and the message that opens it is
+  messaging's. A draw is a private draw to its seat, with the live wall left, plus a notice to each other seat that
+  names only the drawer. The pending call prompt and its ron ranking stay in state and are never emitted.
 * The engine holds no decision identity and no timeout: `Awaiting` (`service.py`: dealt, a seat's turn, an open call's
   pending seats, round over, game over) says only what the game waits for, naming every awaited seat. Which wait is
   new, its decision ids, its timers and what a timeout plays (the seat's `default_action`, through `act`) are the
@@ -46,11 +49,10 @@ of its one preset); read it before changing or testing a rule, and update it whe
   `build_decision` (`actions.py`) derives a seat's legal actions and default from the same offer code the handlers
   re-check, so the two cannot drift; legality is equivalence, not equality with a listed entry (a chi with another held
   copy of an offered shape, a kan from any tile of an offered type). The default is never a win or a call.
-* `get_available_actions` (`actions.py`) builds a turn's offered actions in one place, for the live draw event, the
-  reconnect rebuild and the decision alike; each handler re-checks the predicate the offer used. Riichi lists the
-  discards that keep tenpai. A draw never offers a discard: any tile in hand is legal, in riichi only the drawn one,
-  except right after the player's own pon or chi, when nothing was drawn and a turn event names the tile types kuikae
-  forbids.
+* `get_available_actions` (`actions.py`) builds a turn's offered actions in one place, which the decision lists after
+  the legal discards; each handler re-checks the predicate the offer used. Riichi lists the discards that keep tenpai.
+  A draw never offers a discard: any tile in hand is legal, in riichi only the drawn one, except right after the
+  player's own pon or chi, when nothing was drawn and the decision names the tile types kuikae forbids.
 * `legal_discards` and `choose_default_discard` (`round.py`) are the one legal-discard rule, used by the discard
   validator and a turn decision's default; the chi check mirrors its non-riichi kuikae rule itself (a riichi seat
   cannot chi) and drops a shape that would leave no legal discard, so the default chooser never comes up empty (if
@@ -61,11 +63,10 @@ of its one preset); read it before changing or testing a rule, and update it whe
 
 A discard, or a kan someone can rob, opens one `PendingCallPrompt` (`state.py`) that `call_resolution.py` resolves
 once every eligible seat has answered. The rules the two share: a seat eligible for both ron and a meld is offered
-both, in one ron prompt that lists its melds, and a meld it makes instead declines the ron (the furiten of a pass,
-applied where the response is recorded), while a seat the discard completes but which cannot ron is made furiten at the
-discard itself, prompt or not; the prompt's caller order is both the order clients get their prompts and the
-ron ranking; resolution picks ron > pon/kan > chi > pass; a deferred kan dora is revealed at the discard, before ron is
-judged; riichi finalization and then the four riichi and four kans aborts wait until no ron is taken. One step (`pass_ron_window`) runs them, before a meld on
+both, in one call decision that lists its ron and its melds, and a meld it makes instead declines the ron (the furiten
+of a pass, applied where the response is recorded), while a seat the discard completes but which cannot ron is made
+furiten at the discard itself, prompt or not; the prompt's caller order is the ron ranking; resolution picks ron >
+pon/kan > chi > pass; a deferred kan dora is revealed at the discard, before ron is judged; riichi finalization and then the four riichi and four kans aborts wait until no ron is taken. One step (`pass_ron_window`) runs them, before a meld on
 the discard executes, for the no-caller path and at resolution alike; the four kans check alone withholds meld offers on
 the fourth kan's replacement discard. A kan never ends the round itself: the four kans abort is its replacement
 discard's. A closed or added kan runs the same executor declared directly or completed after its robbers declined, and

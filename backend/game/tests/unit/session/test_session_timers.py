@@ -37,6 +37,7 @@ from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import FakeGameRepository, MockConnection
 from game.tests.unit.logic.helpers import _update_player
 from game.wire.compact import decode_draw
+from game.wire.enums import WireEventType
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 from shared.dal.models import GameEndReason
@@ -177,7 +178,7 @@ class TestWaitTimers:
 
         await manager.shutdown()
 
-    async def test_meld_timers__when_one_of_two_callers_passes__should_keep_the_other_callers_deadline(
+    async def test_meld_timers__when_one_of_two_callers_passes__should_keep_the_other_callers_deadline_and_prompt(
         self, real_engine, fake_clock
     ):
         manager = make_session_manager(real_engine, seed=ENGINE_SEED, clock=fake_clock.monotonic)
@@ -196,15 +197,17 @@ class TestWaitTimers:
         carol_timer = participant_of(manager, conns[2]).timer
         carol_deadline = carol_timer.task
         prompt_message = next(
-            m for m in conns[2].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.CALL_PROMPT]
+            m for m in conns[2].sent_messages if m.get(WireKey.EVENT_TYPE) == WireEventType.CALL_PROMPT
         )
         assert prompt_message[WireKey.BANK_SECONDS] == 20
         fake_clock.advance(7)
+        conns[2]._outbox.clear()
 
         manager.handle_game_action(
             conns[1], action=Pass(), called_tile=None, wait_id=current_wait_id(manager, conns[1])
         )
         assert manager.get_game("game1").awaiting == Call(seats=frozenset({carol}))
+        assert conns[2].sent_messages == []
         assert participant_of(manager, conns[1]).timer.task is None
         assert carol_timer.task is carol_deadline
         assert not carol_deadline.done()
@@ -215,7 +218,7 @@ class TestWaitTimers:
             conns[2], action=Pon(), called_tile=discarded_four_pin, wait_id=prompt_message[WireKey.WAIT_ID]
         )
         assert carol_timer.bank_seconds == 16
-        turn = next(m for m in conns[2].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.TURN])
+        turn = next(m for m in conns[2].sent_messages if m.get(WireKey.EVENT_TYPE) == WireEventType.TURN)
         assert turn[WireKey.BANK_SECONDS] == 16
 
         await manager.shutdown()

@@ -163,10 +163,3 @@ class GameService(Protocol):
         Build a full game state snapshot for a reconnecting player at the given seat.
         """
         ...
-
-    def build_wait_events_for_seat(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
-        """
-        Rebuild the event that opened the wait the game owes the seat: its call prompt, or its turn's draw with its
-        available actions (the turn event right after its own pon or chi); none for a wait that does not await the seat.
-        """
-        ...

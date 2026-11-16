@@ -9,8 +9,10 @@ if WireEventType.MELD != EVENT_TYPE_MELD:
         f"WireEventType.MELD ({WireEventType.MELD}) != EVENT_TYPE_MELD ({EVENT_TYPE_MELD})",
     )
 
-if set(WireEventType) - set(EVENT_TYPE_INT.values()) != {WireEventType.DRAW_NOTICE}:
+_OPENING_EVENT_TYPES = frozenset({WireEventType.CALL_PROMPT, WireEventType.TURN})
+
+if set(WireEventType) - set(EVENT_TYPE_INT.values()) != _OPENING_EVENT_TYPES:
     raise RuntimeError(  # pragma: no cover (exhaustive)
         f"WireEventType members without an EventType {set(WireEventType) - set(EVENT_TYPE_INT.values())} "
-        f"!= {{{WireEventType.DRAW_NOTICE!r}}}",
+        f"!= {set(_OPENING_EVENT_TYPES)}",
     )

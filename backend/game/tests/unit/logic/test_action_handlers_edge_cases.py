@@ -9,7 +9,7 @@ from game.logic.enums import (
     MeldCallType,
     PromptKind,
 )
-from game.logic.events import DrawEvent, MeldEvent
+from game.logic.events import DrawEvent, DrawNoticeEvent, MeldEvent
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
@@ -58,7 +58,7 @@ class TestResolveMeldResponse:
 
         kan = handle_kan(prompted, seat=1, action=Kan(kan_type=KanType.OPEN, tile=five_man))
         assert isinstance(kan, ActionResult)
-        assert [type(e) for e in kan.events] == [MeldEvent, DrawEvent]
+        assert [type(e) for e in kan.events] == [MeldEvent, DrawEvent, *[DrawNoticeEvent] * 3]
         assert [m.type for m in kan.state.round_state.players[1].melds] == [FrozenMeld.KAN]
         assert kan.state.round_state.wall.live_tiles == ()
 

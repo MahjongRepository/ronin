@@ -2,36 +2,43 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.engine import (
-    AvailableActionItem,
-    Call,
-    CallPromptEvent,
-    CallType,
+    CallOpportunity,
+    CallSource,
+    Chi,
+    Decision,
     Discard,
     DiscardEvent,
     DoubleRonResult,
     DoubleRonWinner,
     DrawEvent,
+    DrawNoticeEvent,
     EventType,
     GameEndCause,
     GameEndedEvent,
-    GameOver,
     GameRuntime,
     GameStartedEvent,
     HandLimit,
     HandResultInfo,
+    Kan,
     KanType,
+    Kyuushu,
     MahjongGameService,
     MeldEvent,
     MeldViewType,
     PaoLiability,
     PaoShare,
+    Pass,
     PlayerStanding,
+    Pon,
+    Riichi,
+    Ron,
     RoundEndEvent,
     RoundOver,
     SeatTarget,
+    Tsumo,
     TsumoResult,
-    Turn,
-    TurnEvent,
+    TurnAfterCall,
+    TurnAfterDraw,
     WireCallType,
     WireMeldCallType,
     WirePlayerAction,
@@ -39,18 +46,17 @@ from game.engine import (
 )
 from game.messaging.event_payload import (
     EVENT_TYPE_INT,
+    build_opening,
     game_event_payload,
     game_started_payload,
     reconnection_payload,
-    shape_call_prompt_payload,
-    stamp_wait_id,
 )
 from game.messaging.roster import GameRoster
 from game.tests.helpers.builders import start_game_in_play
 from game.tests.helpers.wall import make_wall
 from game.tests.unit.logic.helpers import _first_human, _update_player, _update_round_state
-from game.wire.compact import decode_discard, decode_draw
-from game.wire.enums import WireRoundResultType
+from game.wire.compact import decode_discard, decode_draw, encode_draw
+from game.wire.enums import WireEventType, WireRoundResultType
 from game.wire.keys import WireKey
 from shared.lib.melds import EVENT_TYPE_MELD, decode_meld_compact
 
@@ -114,101 +120,128 @@ class TestGameEventPayload:
         assert seat == 1
         assert tile_id == 42
 
-    def test_game_event_payload__when_draw_has_available_actions__should_include_them(self):
-        event = DrawEvent(
+    def test_game_event_payload__when_draw_notice__should_name_only_the_drawer(self):
+        notice = DrawNoticeEvent(seat=2, target=SeatTarget(seat=0))
+
+        assert game_event_payload(notice) == {WireKey.EVENT_TYPE: WireEventType.DRAW_NOTICE, WireKey.SEAT: 2}
+
+
+class TestBuildOpening:
+    def test_build_opening__when_a_turn_after_a_draw_offers_actions__should_list_them_in_order_on_the_draw(self):
+        decision = Decision(
+            seat=1,
+            context=TurnAfterDraw(drawn=42, rinshan=False, haitei=False),
+            legal=(
+                Discard(tile=8),
+                Discard(tile=42),
+                Riichi(tile=8),
+                Riichi(tile=42),
+                Tsumo(),
+                Kan(kan_type=KanType.CLOSED, tile=40),
+                Kan(kan_type=KanType.ADDED, tile=4),
+                Kyuushu(),
+            ),
+            default=Discard(tile=42),
+        )
+
+        opening = build_opening(decision)
+        assert (opening.seat, opening.replaces_draw) == (1, True)
+        assert opening.payload == {
+            WireKey.EVENT_TYPE: WireEventType.DRAW,
+            WireKey.PACKED_MOVE: encode_draw(1, 42),
+            WireKey.AVAILABLE_ACTIONS: [
+                {WireKey.ACTION: WirePlayerAction.RIICHI, WireKey.TILES: [8, 42]},
+                {WireKey.ACTION: WirePlayerAction.TSUMO},
+                {WireKey.ACTION: WirePlayerAction.KAN, WireKey.TILES: [10]},
+                {WireKey.ACTION: WirePlayerAction.ADDED_KAN, WireKey.TILES: [1]},
+                {WireKey.ACTION: WirePlayerAction.KYUUSHU},
+            ],
+        }
+
+    def test_build_opening__when_a_turn_after_a_draw_offers_only_discards__should_omit_the_offers(self):
+        decision = Decision(
             seat=0,
-            tile_id=10,
-            tiles_remaining=69,
-            target=SeatTarget(seat=0),
-            available_actions=[AvailableActionItem(action="discard", tiles=[10])],
-        )
-        payload = game_event_payload(event)
-        assert WireKey.AVAILABLE_ACTIONS in payload
-        assert len(payload[WireKey.AVAILABLE_ACTIONS]) == 1
-        assert payload[WireKey.AVAILABLE_ACTIONS][0] == {WireKey.ACTION: WirePlayerAction.DISCARD, WireKey.TILES: [10]}
-
-    def test_game_event_payload__when_available_action_has_no_tiles__should_omit_tile_list(self):
-        event = DrawEvent(
-            seat=0,
-            tile_id=10,
-            tiles_remaining=69,
-            target=SeatTarget(seat=0),
-            available_actions=[AvailableActionItem(action="tsumo")],
-        )
-        payload = game_event_payload(event)
-        assert payload[WireKey.AVAILABLE_ACTIONS][0] == {WireKey.ACTION: WirePlayerAction.TSUMO}
-        assert WireKey.TILES not in payload[WireKey.AVAILABLE_ACTIONS][0]
-
-    def test_game_event_payload__when_chankan_prompt__should_name_the_kan_it_offers_to_rob(self):
-        chankan = CallPromptEvent(
-            call_type=CallType.CHANKAN,
-            tile_id=8,
-            from_seat=0,
-            callers=[1],
-            kan_type=KanType.CLOSED,
-            target=SeatTarget(seat=1),
+            context=TurnAfterDraw(drawn=10, rinshan=False, haitei=False),
+            legal=(Discard(tile=10),),
+            default=Discard(tile=10),
         )
 
-        assert game_event_payload(chankan)[WireKey.KAN_TYPE] == "closed"
-        assert WireKey.KAN_TYPE not in game_event_payload(_prompt_to(1))
-
-    def test_game_event_payload__when_turn_event__should_carry_only_type_and_kuikae_types(self):
-        event = TurnEvent(kuikae_tiles=[4, 7], target=SeatTarget(seat=0))
-
-        payload = game_event_payload(event)
-        assert payload == {WireKey.EVENT_TYPE: 12, WireKey.KUIKAE_TILES: [4, 7]}
-
-
-class TestShapeCallPromptPayload:
-    def test_shape_call_prompt_payload__when_ron_prompt__should_drop_callers_and_keep_caller_seat(self):
-        payload = {
-            WireKey.CALL_TYPE: WireCallType.RON,
-            WireKey.TILE_ID: 42,
-            WireKey.FROM_SEAT: 1,
-            WireKey.CALLERS: [0],
-        }
-        result = shape_call_prompt_payload(payload)
-        assert WireKey.CALLERS not in result
-        assert result == {
-            WireKey.CALL_TYPE: WireCallType.RON,
-            WireKey.TILE_ID: 42,
-            WireKey.FROM_SEAT: 1,
-            WireKey.CALLER_SEAT: 0,
+        assert build_opening(decision).payload == {
+            WireKey.EVENT_TYPE: WireEventType.DRAW,
+            WireKey.PACKED_MOVE: encode_draw(0, 10),
         }
 
-    def test_shape_call_prompt_payload__when_ron_prompt_seat_can_also_pon__should_list_the_pon(self):
-        payload = {
-            WireKey.CALL_TYPE: WireCallType.RON,
-            WireKey.TILE_ID: 42,
-            WireKey.FROM_SEAT: 1,
-            WireKey.CALLERS: [{WireKey.SEAT: 2, WireKey.CALL_TYPE: WireMeldCallType.PON, WireKey.CALL_OPTIONS: None}],
-        }
-        result = shape_call_prompt_payload(payload)
-        assert result == {
+    def test_build_opening__when_a_turn_follows_the_seats_own_call__should_carry_only_type_and_kuikae_types(self):
+        decision = Decision(
+            seat=0, context=TurnAfterCall(kuikae=(4, 7)), legal=(Discard(tile=20),), default=Discard(tile=20)
+        )
+
+        opening = build_opening(decision)
+        assert (opening.replaces_draw, opening.payload) == (
+            False,
+            {WireKey.EVENT_TYPE: 12, WireKey.KUIKAE_TILES: [4, 7]},
+        )
+
+    def test_build_opening__when_a_ron_caller_may_also_meld__should_send_a_ron_prompt_listing_its_melds(self):
+        decision = Decision(
+            seat=2,
+            context=CallOpportunity(tile=42, from_seat=1, source=CallSource.DISCARD, houtei=False),
+            legal=(
+                Ron(),
+                Kan(kan_type=KanType.OPEN, tile=42),
+                Pon(),
+                Chi(tiles=(36, 40)),
+                Chi(tiles=(40, 48)),
+                Pass(),
+            ),
+            default=Pass(),
+        )
+
+        assert build_opening(decision).payload == {
+            WireKey.EVENT_TYPE: WireEventType.CALL_PROMPT,
             WireKey.CALL_TYPE: WireCallType.RON,
             WireKey.TILE_ID: 42,
             WireKey.FROM_SEAT: 1,
             WireKey.CALLER_SEAT: 2,
-            WireKey.AVAILABLE_CALLS: [{WireKey.CALL_TYPE: WireMeldCallType.PON}],
-        }
-
-    def test_shape_call_prompt_payload__when_meld_prompt_has_multiple_call_types__should_list_all_call_types(self):
-        payload = {
-            WireKey.CALL_TYPE: WireCallType.MELD,
-            WireKey.TILE_ID: 55,
-            WireKey.FROM_SEAT: 3,
-            WireKey.CALLERS: [
-                {WireKey.SEAT: 0, WireKey.CALL_TYPE: WireMeldCallType.PON, WireKey.CALL_OPTIONS: None},
-                {WireKey.SEAT: 0, WireKey.CALL_TYPE: WireMeldCallType.CHI, WireKey.CALL_OPTIONS: [[57, 63]]},
+            WireKey.AVAILABLE_CALLS: [
+                {WireKey.CALL_TYPE: WireMeldCallType.OPEN_KAN},
+                {WireKey.CALL_TYPE: WireMeldCallType.PON},
+                {WireKey.CALL_TYPE: WireMeldCallType.CHI, WireKey.CALL_OPTIONS: ((36, 40), (40, 48))},
             ],
         }
-        result = shape_call_prompt_payload(payload)
-        assert WireKey.CALLERS not in result
-        assert result[WireKey.CALLER_SEAT] == 0
-        assert result[WireKey.AVAILABLE_CALLS] == [
+
+    def test_build_opening__when_a_seat_may_only_meld__should_send_a_meld_prompt(self):
+        decision = Decision(
+            seat=0,
+            context=CallOpportunity(tile=55, from_seat=3, source=CallSource.DISCARD, houtei=False),
+            legal=(Pon(), Chi(tiles=(57, 63)), Pass()),
+            default=Pass(),
+        )
+
+        payload = build_opening(decision).payload
+        assert (payload[WireKey.CALL_TYPE], payload[WireKey.CALLER_SEAT]) == (WireCallType.MELD, 0)
+        assert WireKey.KAN_TYPE not in payload
+        assert payload[WireKey.AVAILABLE_CALLS] == [
             {WireKey.CALL_TYPE: WireMeldCallType.PON},
-            {WireKey.CALL_TYPE: WireMeldCallType.CHI, WireKey.CALL_OPTIONS: [[57, 63]]},
+            {WireKey.CALL_TYPE: WireMeldCallType.CHI, WireKey.CALL_OPTIONS: ((57, 63),)},
         ]
+
+    def test_build_opening__when_a_kan_can_be_robbed__should_send_a_chankan_prompt_naming_the_kan(self):
+        decision = Decision(
+            seat=1,
+            context=CallOpportunity(tile=8, from_seat=0, source=CallSource.CLOSED_KAN, houtei=False),
+            legal=(Ron(), Pass()),
+            default=Pass(),
+        )
+
+        assert build_opening(decision).payload == {
+            WireKey.EVENT_TYPE: WireEventType.CALL_PROMPT,
+            WireKey.CALL_TYPE: WireCallType.CHANKAN,
+            WireKey.TILE_ID: 8,
+            WireKey.FROM_SEAT: 0,
+            WireKey.KAN_TYPE: "closed",
+            WireKey.CALLER_SEAT: 1,
+        }
 
 
 class TestMeldEventPayload:
@@ -237,66 +270,6 @@ class TestMeldEventPayload:
 
 _HAND_RESULT = HandResultInfo(limit=HandLimit.NONE, han=1, fu=30, yaku=[], points=1000)
 _SCORES = {0: 25000, 1: 25000, 2: 25000, 3: 25000}
-
-
-def _meld(meld_type: MeldViewType, caller_seat: int) -> MeldEvent:
-    return MeldEvent(meld_type=meld_type, caller_seat=caller_seat, from_seat=0, tile_ids=[8, 9, 10], called_tile_id=8)
-
-
-def _prompt_to(seat: int) -> CallPromptEvent:
-    return CallPromptEvent(
-        call_type=CallType.MELD, tile_id=8, from_seat=0, callers=[seat], target=SeatTarget(seat=seat)
-    )
-
-
-def _round_end() -> RoundEndEvent:
-    return RoundEndEvent(
-        dealer_seat=0,
-        dora_indicators=[],
-        riichi_sticks=0,
-        result=TsumoResult(
-            honba_bonus=0,
-            winner_seat=0,
-            hand_result=_HAND_RESULT,
-            scores=_SCORES,
-            score_changes=_SCORES,
-            riichi_sticks_collected=0,
-            closed_tiles=[],
-            melds=[],
-            win_tile=1,
-        ),
-    )
-
-
-class TestStampWaitId:
-    @pytest.mark.parametrize(
-        ("awaiting", "event", "stamped"),
-        [
-            (Turn(seat=1), DrawEvent(seat=1, tile_id=8, tiles_remaining=69, target=SeatTarget(seat=1)), True),
-            (Turn(seat=1), DrawEvent(seat=2, tile_id=8, tiles_remaining=69, target=SeatTarget(seat=2)), False),
-            (Turn(seat=1), TurnEvent(kuikae_tiles=[], target=SeatTarget(seat=1)), True),
-            (Turn(seat=1), _meld(MeldViewType.PON, caller_seat=1), False),
-            (Turn(seat=1), _meld(MeldViewType.CLOSED_KAN, caller_seat=1), False),
-            (Call(seats=frozenset({1})), _prompt_to(1), True),
-            (Call(seats=frozenset({1})), _prompt_to(2), False),
-            (GameOver(), _round_end(), False),
-        ],
-        ids=[
-            "turn_draw",
-            "other_seats_draw",
-            "turn_after_own_call",
-            "own_pon_before_its_turn_event",
-            "kan_before_its_draw",
-            "call_prompt",
-            "other_seats_prompt",
-            "round_end_of_the_game",
-        ],
-    )
-    def test_stamp_wait_id__when_event_may_open_the_wait__should_stamp_only_the_opening_one(
-        self, awaiting, event, stamped
-    ):
-        payload = stamp_wait_id(game_event_payload(event), event=event, awaiting=awaiting, wait_id=3)
-        assert payload.get(WireKey.WAIT_ID) == (3 if stamped else None)
 
 
 class TestRoundEndPayload:

@@ -2,9 +2,8 @@ from enum import IntEnum
 
 
 class WireEventType(IntEnum):
-    """Integer wire encoding for EventType, plus DRAW_NOTICE, which no
-    EventType carries: the session shapes it from a draw for every seat but the
-    drawer's (`draw_notice_payload`), naming the drawer and never the tile."""
+    """Integer wire encoding for EventType, plus CALL_PROMPT and TURN, which no
+    EventType carries: messaging builds those openings from a seat's decision."""
 
     MELD = 0
     DRAW = 1

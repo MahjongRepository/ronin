@@ -14,7 +14,6 @@ from game.logic.action_handlers import (
     handle_ron,
     handle_tsumo,
 )
-from game.logic.action_result import create_draw_event, create_turn_event
 from game.logic.actions import build_decision
 from game.logic.decision import Action, Chi, Decision, Discard, Kan, Kyuushu, Pass, Pon, Riichi, Ron, Tsumo
 from game.logic.enums import GamePhase, RoundPhase, WindName
@@ -23,8 +22,6 @@ from game.logic.events import (
     GameEvent,
     GameStartedEvent,
     RoundStartedEvent,
-    SeatTarget,
-    build_call_prompt_events,
 )
 from game.logic.exceptions import DiscardHistoryError
 from game.logic.furiten_tracker import FuritenTracker
@@ -447,30 +444,3 @@ class MahjongGameService(GameService):
             round_history=list(game_state.round_history),
             result=round_state.result,
         )
-
-    def build_wait_events_for_seat(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
-        """
-        Rebuild the event that opened the wait the game owes the seat: its call prompt, or its turn's draw.
-
-        A turn opens with the draw and its available actions, or right after the seat's own pon or chi, when it drew
-        nothing, with the turn event, as on the live path. A wait that does not await the seat has no such event.
-        """
-        if seat not in self.get_awaiting(runtime).seats:
-            return []
-
-        game_state = runtime.state
-        round_state = game_state.round_state
-        prompt = round_state.pending_call_prompt
-        if prompt is not None:
-            return [e for e in build_call_prompt_events(prompt) if e.target == SeatTarget(seat=seat)]
-
-        if round_state.is_after_meld_call:
-            return [create_turn_event(game_state, seat=seat)]
-
-        player = round_state.players[seat]
-        if not player.tiles:
-            return []
-
-        # The last tile in hand is the drawn tile
-        tile_id = player.tiles[-1]
-        return [create_draw_event(game_state, seat=seat, tile_id=tile_id)]

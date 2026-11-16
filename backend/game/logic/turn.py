@@ -11,7 +11,7 @@ from game.logic.abortive import (
     find_passed_discard_abort,
     process_abortive_draw,
 )
-from game.logic.action_result import create_draw_event, create_turn_event
+from game.logic.action_result import create_draw_events
 from game.logic.enums import (
     KanType,
     MeldCallType,
@@ -25,7 +25,6 @@ from game.logic.events import (
     GameEvent,
     MeldEvent,
     RiichiDeclaredEvent,
-    build_call_prompt_events,
 )
 from game.logic.exceptions import (
     ImpossibleActionError,
@@ -119,8 +118,8 @@ def process_draw_phase(game_state: MahjongGameState) -> tuple[MahjongGameState, 
     """
     Process the draw phase for the current player.
 
-    Draws a tile and emits the draw event with the player's available actions (get_available_actions); an empty live
-    wall ends the round in an exhaustive draw instead.
+    Draws a tile and emits the draw with its notices to the other seats; an empty live wall ends the round in an
+    exhaustive draw instead.
     """
     round_state = game_state.round_state
     current_seat = round_state.current_player_seat
@@ -134,7 +133,7 @@ def process_draw_phase(game_state: MahjongGameState) -> tuple[MahjongGameState, 
 
     logger.debug("tile drawn", tile_id=drawn_tile)
     new_game_state = update_game_with_round(game_state, new_round_state)
-    return new_game_state, [create_draw_event(new_game_state, seat=current_seat, tile_id=drawn_tile)]
+    return new_game_state, create_draw_events(new_game_state, seat=current_seat, tile_id=drawn_tile)
 
 
 def _find_completing_seats(round_state: MahjongRoundState, tile_id: int, discarder_seat: int) -> list[int]:
@@ -272,9 +271,9 @@ def _build_discard_prompt(
     tile_id: int,
     ron_callers: list[int],
     meld_callers: list[Caller],
-) -> tuple[MahjongGameState, list[GameEvent]]:
+) -> MahjongGameState:
     """
-    Create the DISCARD call prompt for all callers and its per-seat prompt events.
+    Open the DISCARD call prompt for all callers.
 
     Ron callers come first, each with the melds it may make instead of the ron, then the seats that can only meld.
     """
@@ -293,7 +292,7 @@ def _build_discard_prompt(
         callers=callers,
     )
     new_round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-    return update_game_with_round(game_state, new_round_state), list(build_call_prompt_events(prompt))
+    return update_game_with_round(game_state, new_round_state)
 
 
 def pass_ron_window(game_state: MahjongGameState, discarder_seat: int) -> tuple[MahjongGameState, list[GameEvent]]:
@@ -342,7 +341,7 @@ def draw_for_next_player(game_state: MahjongGameState) -> tuple[MahjongGameState
     )
     logger.debug("tile drawn", tile_id=drawn_tile)
     new_game_state = update_game_with_round(game_state, new_round_state)
-    return new_game_state, [create_draw_event(new_game_state, seat=seat, tile_id=drawn_tile)]
+    return new_game_state, create_draw_events(new_game_state, seat=seat, tile_id=drawn_tile)
 
 
 def process_discard_phase(
@@ -410,13 +409,13 @@ def process_discard_phase(
 
     meld_callers = _find_meld_callers(new_round_state, tile_id=tile_id, discarder_seat=current_seat, settings=settings)
     if ron_callers or meld_callers:
-        new_game_state, prompt_events = _build_discard_prompt(
+        new_game_state = _build_discard_prompt(
             new_game_state,
             tile_id=tile_id,
             ron_callers=ron_callers,
             meld_callers=meld_callers,
         )
-        return new_game_state, events + prompt_events
+        return new_game_state, events
 
     new_game_state, passed_events = pass_ron_window(new_game_state, discarder_seat=current_seat)
     events.extend(passed_events)
@@ -587,7 +586,7 @@ def _process_pon_call(
             called_tile_id=tile_id,
         ),
     ]
-    return _open_turn_after_call(game_state, new_round_state, caller_seat=caller_seat, events=events)
+    return update_game_with_round(game_state, new_round_state), events
 
 
 def _process_chi_call(
@@ -620,22 +619,7 @@ def _process_chi_call(
             called_tile_id=tile_id,
         ),
     ]
-    return _open_turn_after_call(game_state, new_round_state, caller_seat=caller_seat, events=events)
-
-
-def _open_turn_after_call(
-    game_state: MahjongGameState,
-    new_round_state: MahjongRoundState,
-    *,
-    caller_seat: int,
-    events: list[GameEvent],
-) -> tuple[MahjongGameState, list[GameEvent]]:
-    """
-    Adopt the round state a pon or chi produced and open the caller's turn, which draws nothing.
-    """
-    new_game_state = update_game_with_round(game_state, new_round_state)
-    events.append(create_turn_event(new_game_state, seat=caller_seat))
-    return new_game_state, events
+    return update_game_with_round(game_state, new_round_state), events
 
 
 def _process_open_kan_call(
@@ -677,7 +661,7 @@ def _complete_kan(
 
     The dora it revealed are an earlier kan's deferred ones, then this kan's own when revealed at once.
 
-    The draw event is the kan's one rinshan draw, on every kan path.
+    The draw is the kan's one rinshan draw, with its notices, on every kan path.
     """
     old_dora_count = len(game_state.round_state.wall.dora_indicators)
     events: list[GameEvent] = [meld_event]
@@ -687,7 +671,7 @@ def _complete_kan(
 
     new_game_state = update_game_with_round(game_state, new_round_state)
     drawn_tile = new_round_state.players[caller_seat].tiles[-1]
-    events.append(create_draw_event(new_game_state, seat=caller_seat, tile_id=drawn_tile))
+    events.extend(create_draw_events(new_game_state, seat=caller_seat, tile_id=drawn_tile))
     return new_game_state, events
 
 
@@ -698,9 +682,9 @@ def _build_chankan_prompt(
     tile_id: int,
     kan_type: KanType,
     seats: list[int],
-) -> tuple[MahjongGameState, list[GameEvent]]:
+) -> MahjongGameState:
     """
-    Create the CHANKAN call prompt for the seats that can rob the kan of kan_type, and its per-seat prompt events.
+    Open the CHANKAN call prompt for the seats that can rob the kan of kan_type.
     """
     prompt = PendingCallPrompt(
         kind=PromptKind.CHANKAN,
@@ -711,7 +695,7 @@ def _build_chankan_prompt(
         kan_type=kan_type,
     )
     new_round_state = game_state.round_state.model_copy(update={"pending_call_prompt": prompt})
-    return update_game_with_round(game_state, new_round_state), list(build_call_prompt_events(prompt))
+    return update_game_with_round(game_state, new_round_state)
 
 
 def _process_closed_kan_call(
@@ -732,9 +716,10 @@ def _process_closed_kan_call(
     # kokushi musou may rob a closed kan; check before executing
     kokushi_seats = is_kokushi_chankan_possible(round_state, caller_seat=caller_seat, kan_tile=tile_id)
     if kokushi_seats:
-        return _build_chankan_prompt(
+        prompted = _build_chankan_prompt(
             game_state, caller_seat=caller_seat, tile_id=tile_id, kan_type=KanType.CLOSED, seats=kokushi_seats
         )
+        return prompted, []
 
     return _execute_closed_kan(game_state, caller_seat=caller_seat, tile_id=tile_id)
 
@@ -778,9 +763,10 @@ def _process_added_kan_call(
     # check for chankan first (using current state before kan is executed)
     chankan_seats = is_chankan_possible(round_state, caller_seat=caller_seat, kan_tile=resolved_tile_id)
     if chankan_seats:
-        return _build_chankan_prompt(
+        prompted = _build_chankan_prompt(
             game_state, caller_seat=caller_seat, tile_id=resolved_tile_id, kan_type=KanType.ADDED, seats=chankan_seats
         )
+        return prompted, []
 
     return _execute_added_kan(game_state, caller_seat=caller_seat, tile_id=resolved_tile_id)
 
@@ -829,8 +815,8 @@ def process_meld_call(
     For closed kan: tile_id is one of the 4 tiles to kan.
     For added kan: tile_id is the 4th tile to add to existing pon.
 
-    The events end with what opens the caller's next step: the turn event after a pon or chi, the rinshan draw after a
-    kan, or the chankan prompt events when a closed or added kan can be robbed.
+    After a pon or chi the caller's turn opens with no draw; after a kan the events end with its rinshan draw; a closed
+    or added kan that can be robbed opens the chankan prompt with no events.
     """
     caller_seat = meld_input.caller_seat
     call_type = meld_input.call_type

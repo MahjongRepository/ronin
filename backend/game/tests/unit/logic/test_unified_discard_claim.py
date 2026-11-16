@@ -2,19 +2,15 @@ from game.logic.action_handlers import handle_chi, handle_discard, handle_pass, 
 from game.logic.action_result import ActionResult
 from game.logic.decision import Chi, Discard, Riichi, Ron
 from game.logic.enums import (
-    CallType,
     MeldCallType,
     RoundPhase,
     RoundResultType,
 )
 from game.logic.events import (
-    CallPromptEvent,
     DrawEvent,
     MeldEvent,
     RiichiDeclaredEvent,
     RoundEndEvent,
-    SeatTarget,
-    TurnEvent,
 )
 from game.logic.melds import can_call_chi, can_call_pon
 from game.logic.runtime import GameRuntime
@@ -26,7 +22,6 @@ from game.logic.state import (
 )
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_discard_phase
-from game.logic.types import MeldCaller
 from game.logic.win import get_waiting_tiles
 from game.tests.helpers.builders import create_dealt_game_state, create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
@@ -61,15 +56,11 @@ class TestRonPlusMeldCallersRonWins:
         game_state = create_game_state(round_state)
         assert get_waiting_tiles(players[1]) == get_waiting_tiles(players[2]) == {tile_to_34(three_pin)}
 
-        prompted_game, events = process_discard_phase(game_state, three_pin)
+        prompted_game, _events = process_discard_phase(game_state, three_pin)
         prompt = prompted_game.round_state.pending_call_prompt
         assert prompt is not None
         chi = MeldOption(call_type=MeldCallType.CHI, options=((one_pin, two_pin),))
         assert prompt.callers == (Caller(seat=1, can_ron=True, melds=(chi,)), Caller(seat=2, can_ron=True))
-        assert [(e.target, e.call_type) for e in events if isinstance(e, CallPromptEvent)] == [
-            (SeatTarget(seat=1), CallType.RON),
-            (SeatTarget(seat=2), CallType.RON),
-        ]
 
         chi_result = handle_chi(prompted_game, seat=1, action=Chi(tiles=(one_pin, two_pin)))
         assert chi_result.events == []
@@ -143,18 +134,15 @@ class TestDualEligibleSeatRonAndMeld:
         game_state = create_game_state(round_state)
         assert get_waiting_tiles(players[1]) == {tile_to_34(three_pin), tile_to_34(tile_copies(0, pin="5")[0])}
 
-        prompted_game, events = process_discard_phase(game_state, three_pin)
+        prompted_game, _events = process_discard_phase(game_state, three_pin)
         prompt = prompted_game.round_state.pending_call_prompt
         assert prompt is not None
         assert prompt.callers == (Caller(seat=1, can_ron=True, melds=(MeldOption(call_type=MeldCallType.PON),)),)
-        assert [(e.target, e.call_type, e.callers) for e in events if isinstance(e, CallPromptEvent)] == [
-            (SeatTarget(seat=1), CallType.RON, [MeldCaller(seat=1, call_type=MeldCallType.PON)]),
-        ]
 
         result = handle_pon(prompted_game, seat=1)
         melds = [e for e in result.events if isinstance(e, MeldEvent)]
         assert [(e.caller_seat, e.called_tile_id) for e in melds] == [(1, three_pin)]
-        assert [e.target for e in result.events if isinstance(e, TurnEvent)] == [SeatTarget(seat=1)]
+        assert (result.state.round_state.current_player_seat, result.state.round_state.is_after_meld_call) == (1, True)
         assert result.state.round_state.pending_call_prompt is None
         assert result.state.round_state.players[1].is_temporary_furiten is True
 
@@ -202,7 +190,6 @@ class TestDualEligibleSeatRonAndMeld:
         assert pon_result.state.round_state.players[1].is_temporary_furiten is True
 
         discard_result = handle_discard(pon_result.state, seat=2, action=Discard(tile=other_winning_one_pin))
-        assert not [e for e in discard_result.events if isinstance(e, CallPromptEvent)]
         assert discard_result.state.round_state.pending_call_prompt is None
 
 
@@ -278,6 +265,7 @@ class TestLastDiscardRestriction:
         assert can_call_pon(players[2], last_three_pin)
         assert get_waiting_tiles(players[3]) == {tile_to_34(last_three_pin)}
 
-        _new_game, events = process_discard_phase(runtime.state, last_three_pin)
-        call_prompts = [e for e in events if isinstance(e, CallPromptEvent)]
-        assert [(e.call_type, e.target) for e in call_prompts] == [(CallType.RON, SeatTarget(seat=3))]
+        new_game, _events = process_discard_phase(runtime.state, last_three_pin)
+        prompt = new_game.round_state.pending_call_prompt
+        assert prompt is not None
+        assert prompt.callers == (Caller(seat=3, can_ron=True),)

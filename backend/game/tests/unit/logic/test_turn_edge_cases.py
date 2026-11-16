@@ -8,11 +8,10 @@ import pytest
 from game.logic.abortive import AbortiveDrawType
 from game.logic.action_handlers import handle_discard, handle_kan, handle_pass, handle_riichi, handle_ron, handle_tsumo
 from game.logic.action_result import ActionResult
-from game.logic.actions import get_available_actions
+from game.logic.actions import build_decision, get_available_actions
 from game.logic.decision import Discard as DiscardAction
-from game.logic.decision import Kan, Pass, Riichi, Ron
+from game.logic.decision import Kan, Kyuushu, Pass, Riichi, Ron
 from game.logic.enums import (
-    CallType,
     KanType,
     MeldCallType,
     PlayerAction,
@@ -21,9 +20,9 @@ from game.logic.enums import (
     RoundResultType,
 )
 from game.logic.events import (
-    CallPromptEvent,
     DiscardEvent,
     DrawEvent,
+    DrawNoticeEvent,
     FuritenEvent,
     MeldEvent,
     RiichiDeclaredEvent,
@@ -87,11 +86,8 @@ class TestKyuushuKyuuhaiDrawPhase:
         )
         game_state = create_dealt_game_state(players, draws=tile_copies(0, man="6"))
 
-        _new_game, events = process_draw_phase(game_state)
-        draw_events = [e for e in events if isinstance(e, DrawEvent) and e.available_actions]
-        assert len(draw_events) == 1
-        available_actions = [a.action for a in draw_events[0].available_actions]
-        assert PlayerAction.KYUUSHU in available_actions
+        new_game, _events = process_draw_phase(game_state)
+        assert Kyuushu() in build_decision(new_game, 0).legal
 
 
 class TestRinshanTsumoAfterOpenKan:
@@ -251,7 +247,6 @@ class TestTemporaryFuriten:
         ]
 
         missed = _discard(passed.state, seat=3, tile_id=six_man_with_ittsu)
-        assert not [e for e in missed.events if isinstance(e, CallPromptEvent)]
         assert missed.state.round_state.pending_call_prompt is None
 
         before_own_discard = _discard(missed.state, seat=0, tile_id=seat_0_draw)
@@ -361,12 +356,9 @@ class TestAddedKanChankan:
         result = _declare_one_man_added_kan(seat_1_hand=waiting_on_one_man)
         prompt = result.state.round_state.pending_call_prompt
         assert prompt is not None
-        assert prompt.kind == PromptKind.CHANKAN
+        assert (prompt.kind, prompt.kan_type) == (PromptKind.CHANKAN, KanType.ADDED)
         assert prompt.callers == (Caller(seat=1, can_ron=True),)
-        assert [(e.target, e.call_type, e.kan_type) for e in result.events if isinstance(e, CallPromptEvent)] == [
-            (SeatTarget(seat=1), CallType.CHANKAN, KanType.ADDED),
-        ]
-        assert not [e for e in result.events if isinstance(e, MeldEvent)]
+        assert result.events == []
 
 
 class TestChiSequenceTilesValidation:
@@ -555,7 +547,7 @@ class TestAddedKanNormalPath:
     def test_added_kan__when_no_chankan__should_upgrade_pon_to_shouminkan(self):
         result = _declare_one_man_added_kan(seat_1_hand=tile_copies(0, man="2468", pin="13579", honors="5566"))
         assert result.state.round_state.pending_call_prompt is None
-        assert [type(e) for e in result.events] == [MeldEvent, DrawEvent]
+        assert [type(e) for e in result.events] == [MeldEvent, DrawEvent, *[DrawNoticeEvent] * 3]
         assert [m.type for m in result.state.round_state.players[0].melds] == [FrozenMeld.SHOUMINKAN]
         kan = result.state.round_state.players[0].melds[0]
         assert kan.added_tile is not None

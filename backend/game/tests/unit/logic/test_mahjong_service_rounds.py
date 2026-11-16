@@ -54,9 +54,7 @@ class TestMahjongGameServiceAfterDiscardRoundEnd:
         runtime = _dealer_before_ronnable_discard(live_tiles=0)
 
         discarded = service.act(runtime, 0, Discard(tile=_DEALER_LAST_DISCARD))
-        assert [e.type for e in discarded if e.type in (EventType.CALL_PROMPT, EventType.ROUND_END)] == [
-            EventType.CALL_PROMPT,
-        ]
+        assert EventType.ROUND_END not in [e.type for e in discarded]
         assert service.get_awaiting(runtime) == Call(seats=frozenset({1}))
 
         answered = answer_with_defaults(service, runtime, seats=frozenset({1, 2, 3}))

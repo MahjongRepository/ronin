@@ -67,13 +67,12 @@ class PendingCallPrompt(BaseModel):
     """
     Immutable pending call prompt.
 
-    Callers are in prompt order, which is also the order of the per-seat prompt events and the order ron winners are
-    ranked in: for a discard, ron callers (with any melds they may make instead) by distance from the discarder, then
-    the meld-only callers by their best meld (kan > pon > chi), then seat index; for a chankan, ron callers
-    counter-clockwise from the kan caller.
+    Callers are in prompt order, the order ron winners are ranked in: for a discard, ron callers (with any melds they
+    may make instead) by distance from the discarder, then the meld-only callers by their best meld (kan > pon > chi),
+    then seat index; for a chankan, ron callers counter-clockwise from the kan caller.
 
-    A chankan prompt, and only one, names the kan it offers to rob (`kan_type`): an added kan, or the closed kan
-    kokushi musou may rob.
+    A chankan prompt, and only one, names the kan it offers to rob (`kan_type`): an added kan, or the closed kan kokushi
+    musou may rob.
     """
 
     model_config = ConfigDict(frozen=True)

@@ -18,6 +18,17 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   golden frames; protocol changes update all three together. Replay-only metadata is not accepted on the live wire.
 * `event_payload.py` builds every outgoing event, for both the socket and the replay. A draw, a
   discard and a meld each pack into one integer (`../wire/compact.py`, `shared/lib/melds/README.md`).
+* The engine emits facts only; the message that opens a seat's decision (its opening: the private
+  draw with its offers, the `turn` after its own pon or chi, a call prompt) is built here from the
+  seat's `Decision` alone (`build_opening`), for the live wait and a reconnect's re-send alike, so
+  the wire shape never follows the engine's internals. Openings are placed among an engine call's
+  events (`place_openings`) so each seat gets its messages in the engine's order: a turn after a
+  draw is that seat's private draw, enriched in place, never a second message; any other opening
+  follows the step's gameplay facts and precedes its furiten changes. A draw's offers list riichi
+  (its discards grouped, physical ids), tsumo, closed kan and added kan (34-format kinds), then
+  kyuushu, and never the discards; a call prompt is chankan for a kan source, ron when the seat may
+  ron (its melds listed too) and meld otherwise, its melds open kan, pon, then one chi with every
+  shape. Only an opening carries a wait id and bank (`stamp_opening`); the replay never sees one.
 * Of the rules preset only the game type (`WireKey.GAME_TYPE`) and the riichi stick value (`WireKey.RIICHI_STICK_VALUE`), a wire
   score, go out live, on `game_started` and the reconnect snapshot: the settings a client consumes, the type for its
   headings and the stick value since every deposit and payment comes settled. Replay game-start records retain this viewing value and an explicit aka-dora flag; their
@@ -39,7 +50,7 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   every awaited seat confirmed or the timeout confirmed for it; a later deal never carries either; a draw (the deal's first, a
   replacement after a kan and an AI player's included) goes whole only to the drawing seat, with its
   available actions when it has any, and every other connected seat gets its draw notice in its
-  place, shaped from the same engine draw (`draw_notice_payload`): only the drawer's seat,
+  place, the engine's own notice of the draw to that seat: only the drawer's seat,
   never the tile, the offers, the bank or a wait id, and a code of its own, so it never
   opens a decision. The
   replay records the draw once and no notice; a draw re-sent on a reconnect goes to its seat alone.

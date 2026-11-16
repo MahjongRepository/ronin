@@ -12,7 +12,7 @@ from game.logic.enums import (
     MeldViewType,
     RoundResultType,
 )
-from game.logic.events import MeldEvent, RoundEndEvent, SeatTarget, TurnEvent
+from game.logic.events import MeldEvent, RoundEndEvent
 from game.logic.exceptions import InvalidDiscardError
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import can_call_chi, can_call_open_kan, can_call_pon, get_kuikae_tiles
@@ -155,10 +155,9 @@ class TestKuikaeSujiRestriction:
         chi = _call_four_man_discard(Chi, settings=settings)
         forbidden_34 = tuple(tile_to_34(t) for t in forbidden)
         assert chi.state.round_state.players[1].kuikae_tiles == forbidden_34
-        assert [type(e) for e in chi.events] == [MeldEvent, TurnEvent]
-        meld_event, turn_event = chi.events
+        assert [type(e) for e in chi.events] == [MeldEvent]
+        (meld_event,) = chi.events
         assert (meld_event.caller_seat, meld_event.meld_type) == (1, MeldViewType.CHI)
-        assert (turn_event.target, turn_event.kuikae_tiles) == (SeatTarget(seat=1), list(forbidden_34))
 
     def test_kuikae_suji__when_discarding_the_suji_tile_after_chi__should_raise(self):
         round_state = _call_four_man_discard(Chi).state.round_state

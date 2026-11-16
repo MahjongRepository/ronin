@@ -6,9 +6,6 @@ from game.logic.decision import Discard as DiscardAction
 from game.logic.decision import Kan, Kyuushu, Pass, Pon, Ron
 from game.logic.enums import (
     KanType,
-    MeldCallType,
-    PlayerAction,
-    PromptKind,
     RoundPhase,
     RoundResultType,
     WindName,
@@ -17,7 +14,6 @@ from game.logic.events import (
     EventType,
     GameStartedEvent,
     RoundStartedEvent,
-    SeatTarget,
 )
 from game.logic.exceptions import DiscardHistoryError
 from game.logic.mahjong_service import MahjongGameService
@@ -26,7 +22,7 @@ from game.logic.refusal import Refusal
 from game.logic.runtime import GameRuntime
 from game.logic.service import Call, Dealt, GameOver, RoundOver, Turn
 from game.logic.settings import GameSettings, GameType
-from game.logic.state import Caller, Discard, MeldOption, PendingCallPrompt
+from game.logic.state import Caller, Discard
 from game.logic.tiles import NUM_TILES
 from game.logic.turn import process_draw_phase
 from game.logic.types import (
@@ -43,7 +39,6 @@ from game.tests.helpers.start_wall import make_start_wall
 from game.tests.helpers.wall import make_wall
 from game.tests.unit.logic.helpers import (
     _first_human,
-    _string_to_34_tile,
     _update_player,
     _update_round_state,
 )
@@ -488,98 +483,3 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
 
         with pytest.raises(DiscardHistoryError):
             service.build_reconnection_snapshot(runtime, 0)
-
-
-class TestMahjongGameServiceBuildWaitEventsForSeat:
-    @pytest.fixture
-    def service(self):
-        return MahjongGameService()
-
-    def test_build_wait_events_for_seat__when_seat_is_current_player__should_return_draw_event(self, service):
-        runtime = start_game_in_play(service, seed="a" * 192).runtime
-        game_state = runtime.state
-        current_seat = game_state.round_state.current_player_seat
-
-        events = service.build_wait_events_for_seat(runtime, current_seat)
-        assert len(events) == 1
-        assert events[0].type == EventType.DRAW
-        assert isinstance(events[0].target, SeatTarget)
-        assert events[0].target.seat == current_seat
-
-    def test_build_wait_events_for_seat__when_dealer_holds_nine_terminals_on_first_draw__should_offer_kyuushu(
-        self, service
-    ):
-        runtime = start_game_in_play(service, seed="a" * 192).runtime
-        dealer_seat = runtime.state.round_state.dealer_seat
-        nine_terminal_types_hand = tuple(
-            TilesConverter.string_to_136_array(man="19", pin="19", sou="19", honors="123")
-            + TilesConverter.string_to_136_array(man="22334"),
-        )
-        _update_player(runtime, seat=dealer_seat, tiles=nine_terminal_types_hand)
-
-        events = service.build_wait_events_for_seat(runtime, dealer_seat)
-        assert [a.action for a in events[0].available_actions] == [PlayerAction.KYUUSHU]
-        assert service.legal_actions(runtime, dealer_seat)[-1] == Kyuushu()
-
-    def test_build_wait_events_for_seat__when_right_after_own_call__should_return_turn_event_with_kuikae(self, service):
-        runtime = start_game_in_play(service, seed="a" * 192).runtime
-        current_seat = runtime.state.round_state.current_player_seat
-        kuikae_type = _string_to_34_tile(man="5")
-        _update_player(runtime, seat=current_seat, kuikae_tiles=(kuikae_type,))
-        _update_round_state(runtime, is_after_meld_call=True)
-
-        events = service.build_wait_events_for_seat(runtime, current_seat)
-        assert [e.type for e in events] == [EventType.TURN]
-        assert events[0].target == SeatTarget(seat=current_seat)
-        assert events[0].kuikae_tiles == [kuikae_type]
-
-    def test_build_wait_events_for_seat__when_seat_is_not_current_player__should_return_empty(self, service):
-        runtime = start_game_in_play(service, seed="a" * 192).runtime
-        game_state = runtime.state
-        other_seat = (game_state.round_state.current_player_seat + 1) % 4
-
-        events = service.build_wait_events_for_seat(runtime, other_seat)
-        assert events == []
-
-    def test_build_wait_events_for_seat__when_a_call_prompt_awaits_the_seat__should_return_its_prompt_not_a_draw(
-        self, service
-    ):
-        runtime = start_game_in_play(service, seed="a" * 192).runtime
-        discarder = runtime.state.round_state.current_player_seat
-        ron_seat, pon_seat = (discarder + 1) % 4, (discarder + 2) % 4
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=runtime.state.round_state.players[discarder].tiles[0],
-            from_seat=discarder,
-            pending_seats=frozenset({pon_seat}),
-            callers=(
-                Caller(seat=ron_seat, can_ron=True),
-                Caller(seat=pon_seat, melds=(MeldOption(call_type=MeldCallType.PON),)),
-            ),
-        )
-        _update_round_state(runtime, pending_call_prompt=prompt)
-
-        events = service.build_wait_events_for_seat(runtime, pon_seat)
-        assert [(e.type, e.target) for e in events] == [(EventType.CALL_PROMPT, SeatTarget(seat=pon_seat))]
-        assert service.build_wait_events_for_seat(runtime, ron_seat) == []
-        assert service.build_wait_events_for_seat(runtime, discarder) == []
-
-    def test_build_wait_events_for_seat__when_the_round_is_over__should_return_empty(self, service):
-        runtime = start_game_in_play(service, seed="a" * 192).runtime
-        current_seat = runtime.state.round_state.current_player_seat
-        wall = runtime.state.round_state.wall
-        _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
-        drawn_tile = runtime.state.round_state.players[current_seat].tiles[-1]
-        service.act(runtime, current_seat, DiscardAction(tile=drawn_tile))
-        assert service.get_awaiting(runtime) == RoundOver()
-
-        assert service.build_wait_events_for_seat(runtime, current_seat) == []
-
-    def test_build_wait_events_for_seat__when_player_has_no_tiles__should_return_empty(self, service):
-        runtime = start_game_in_play(service, seed="a" * 192).runtime
-        game_state = runtime.state
-        current_seat = game_state.round_state.current_player_seat
-        _update_player(runtime, seat=current_seat, tiles=())
-
-        events = service.build_wait_events_for_seat(runtime, current_seat)
-        assert events == []

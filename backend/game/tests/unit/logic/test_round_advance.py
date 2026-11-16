@@ -45,7 +45,11 @@ class TestRoundOver:
 
         begun = service.begin_round(runtime)
         dealer = runtime.state.round_state.dealer_seat
-        assert [(e.type, e.target.seat) for e in begun] == [(EventType.DRAW, dealer)]
+        others = [seat for seat in range(4) if seat != dealer]
+        assert [(e.type, e.target.seat) for e in begun] == [
+            (EventType.DRAW, dealer),
+            *((EventType.DRAW_NOTICE, seat) for seat in others),
+        ]
         assert service.get_awaiting(runtime) == Turn(seat=dealer)
 
     def test_act__when_the_round_is_over__should_refuse_it_as_the_wrong_phase(self, service):

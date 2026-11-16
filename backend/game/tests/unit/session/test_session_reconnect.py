@@ -37,7 +37,7 @@ from game.tests.unit.session.helpers import (
     wait_for_background_tasks,
 )
 from game.wire.compact import decode_draw, encode_draw
-from game.wire.enums import WireRoundResultType
+from game.wire.enums import WireEventType, WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 
@@ -282,7 +282,7 @@ class TestReconnectTakeover:
         prompt = game_of(manager).awaiting
         assert prompt == Call(seats=frozenset({bob.seat, carol.seat}))
         original_prompt = next(
-            m for m in conns[2].sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.CALL_PROMPT]
+            m for m in conns[2].sent_messages if m.get(WireKey.EVENT_TYPE) == WireEventType.CALL_PROMPT
         )
         carol_deadline = carol.timer.task
         fake_clock.advance(7)
@@ -299,7 +299,7 @@ class TestReconnectTakeover:
             call_prompt[WireKey.WAIT_ID],
             call_prompt[WireKey.WAIT_ELAPSED],
         ) == (
-            EVENT_TYPE_INT[EventType.CALL_PROMPT],
+            WireEventType.CALL_PROMPT,
             discarded_four_pin,
             carol.seat,
             original_prompt[WireKey.WAIT_ID],

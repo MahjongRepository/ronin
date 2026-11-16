@@ -1,8 +1,9 @@
 import pytest
 
 from game.logic.action_handlers import handle_chi, handle_kan, handle_pon
+from game.logic.actions import build_decision
 from game.logic.call_resolution import resolve_call_prompt
-from game.logic.decision import Chi, Kan
+from game.logic.decision import Chi, Kan, TurnAfterCall
 from game.logic.enums import (
     KanType,
     MeldCallType,
@@ -11,8 +12,6 @@ from game.logic.enums import (
 )
 from game.logic.events import (
     MeldEvent,
-    SeatTarget,
-    TurnEvent,
 )
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_discard_phase
@@ -57,7 +56,7 @@ class TestResolveWithoutPrompt:
 
 
 class TestResolvePonMeldResponse:
-    def test_resolve_call_prompt__when_pon_declared__should_emit_meld_then_turn_event_forbidding_the_called_type(self):
+    def test_resolve_call_prompt__when_pon_declared__should_emit_meld_and_open_a_turn_forbidding_the_called_type(self):
         nine_man = tile_copies(0, man="9")[0]
         players = (
             create_player(seat=0, tiles=tile_copies(0, man="9", pin="123456789", honors="1234")),
@@ -78,8 +77,7 @@ class TestResolvePonMeldResponse:
         assert [(c.seat, [m.call_type for m in c.melds]) for c in prompt.callers] == [(2, [MeldCallType.PON])]
 
         result = handle_pon(prompted, seat=2)
-        assert [type(e) for e in result.events] == [MeldEvent, TurnEvent]
-        meld_event, turn_event = result.events
+        assert [type(e) for e in result.events] == [MeldEvent]
+        (meld_event,) = result.events
         assert (meld_event.caller_seat, meld_event.meld_type) == (2, MeldViewType.PON)
-        assert turn_event.target == SeatTarget(seat=2)
-        assert turn_event.kuikae_tiles == [tile_to_34(nine_man)]
+        assert build_decision(result.state, 2).context == TurnAfterCall(kuikae=(tile_to_34(nine_man),))
