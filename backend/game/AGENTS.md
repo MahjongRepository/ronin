@@ -76,12 +76,14 @@ Mandatory for all game server code; review must catch violations.
 ## Tests
 
 State builders live in `tests/helpers/builders.py` (`create_dealt_game_state` stages a running round) and
-`tests/unit/logic/helpers.py`. `tests/mocks/` fakes the connection, engine, repository and storage, though lifecycle flows
+`tests/unit/logic/helpers.py`, the staging helpers session and server tests use to stage mid-round state, since
+those tests import no `game.logic` themselves. `tests/mocks/` fakes the connection, engine, repository and storage, though lifecycle flows
 prefer the real seeded engine.
 `tests/helpers/` builds a manager over in-memory fakes, signs tickets, drives the endpoint over
 real and fake WebSockets and holds hand staging shared by unit and integration tests; `tests/unit/session/` adds its own helpers and clock fixtures that run
 timers without waiting.
-`tests/seam/` pins the seam itself through `game.engine` alone (`engine/AGENTS.md`).
+`tests/seam/` covers the seam's decisions, defaults, refusals and partial call answers, staged through setup
+walls and played actions and importing only `game.engine` (`engine/AGENTS.md`).
 Whole-game flows use the replay runner on `tests/integration/replays/fixtures/` or a built
 `ReplayInput`, asserting on each step's before/after state.
 A change to what the session sends a seat (a payload, a stamp, a delivery rule) is followed by

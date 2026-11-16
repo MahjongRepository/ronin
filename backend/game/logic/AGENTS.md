@@ -12,41 +12,17 @@ reaches it only through `game.engine`, whose seam invariants every change here k
 * A round ends only through `finish_round()` (`state_utils.py`), so a finished round always carries its result, and
   the result stays on the round while the game waits on its end (`RoundOver`). It also appends the round's compact ledger entry to the
   game state's `round_history`, the one record of past rounds (a seat's view carries it).
-* Domain events (`events.py`) carry integer tile ids only (136-format) and their own routing target, a broadcast or
-  one seat. Domain models keep readable field names, full point values and domain melds (`FrozenMeld`, results and
-  the view alike); the engine knows no wire encoding (an import-linter contract keeps `shared.lib` out), and
-  `messaging/` and `wire/` own the integer codes, the packed melds and the score units.
-* Events are facts, never prompts: what a seat may do is its `decision`, and the message that opens it is
-  messaging's. A draw is a private draw to its seat, with the live wall left, plus a notice to each other seat that
-  names only the drawer. The pending call prompt and its ron ranking stay in state and are never emitted.
-* What a seat may see is its `view` (`view.py`): its own hand, furiten and decision, the public table, the round's
-  header and the game's history, never another seat's concealed tiles, offers or pending answers. While the game
-  waits on a round's end the header is the ended round's, read back from its round history entry since the round end
-  already moved the table on, and the furiten is the tracker's last report to the seat. Outside code reads the game
-  only through the view, `get_awaiting` and the decision calls; `runtime.state` stays the trusted full state for tests and
-  equality checks, never read field by field by outside code.
-* The engine holds no decision identity and no timeout: `Awaiting` (`service.py`: dealt, a seat's turn, an open call's
-  pending seats, round over, game over) says only what the game waits for, naming every awaited seat. Which wait is
-  new, its decision ids, its timers and what a timeout plays (the seat's `default_action`, through `act`) are the
-  session's.
-* The engine never learns who answers a seat: a person, an AI player and a timeout all answer through the same `act`,
-  one answer of one seat per call, and each call returns only that answer's events; what the game waits for next is
-  a separate read (`get_awaiting`). Who plays a seat, and when, is the caller's: AI players live in the session.
-* The engine holds no pause: `new_game` and `deal_next_round` stop after the deal (`Dealt`) and a round end that does
-  not end the game stops on `RoundOver`, neither awaiting a seat; the caller moves on with
-  `begin_round` (the dealer's first draw) and `deal_next_round` when it is ready, and until then the round plays no
-  action. Who confirms what in between, and for how long, is the session's.
-* The seat is a player's only identity: every call takes a seat and the engine holds no names. The seed, who sits
-  where and under what name are the caller's (`session/seating.py`); `new_game` takes the seed and plays the same
-  game for the same seed and inputs.
-* The service plays one rules preset and takes no settings: profile 1 in `rule_profiles.py`, a frozen value that
-  explicitly supplies every setting, independent of `GameSettings` defaults. `GameSettings` stays inside the engine
-  for its mechanics and its own tests, which stage other values on the state; outside code sees only the preset
-  constants it needs. While stored replays are only test games, a rule change edits the preset in place, since
-  playback reads recorded events and not the preset. A new setting needs a deliberate preset value. `wire/` owns the
-  replay's rules envelope, which always names this preset with no overrides.
-* Pacing (turn, bank, meld, round-advance and pending-game timeouts) is a session concern (`session/timer.py`),
-  never a `GameSettings` field.
+* Domain events (`events.py`) carry 136-format tile ids, and domain models keep readable field names and domain
+  melds (`FrozenMeld`); an import-linter contract keeps `shared.lib` out, so no wire encoding creeps in.
+* The pending call prompt and its ron ranking stay in state and are never emitted.
+* The view (`view.py`) is built from state and the furiten tracker. While the game waits on a round's end the
+  header is the ended round's, read back from its round history entry since the round end already moved the table
+  on, and the furiten is the tracker's last report to the seat.
+* The preset is profile 1 in `rule_profiles.py`, a frozen value that explicitly supplies every setting, independent
+  of `GameSettings` defaults. `GameSettings` stays inside the engine for its mechanics and its own tests, which stage
+  other values on the state. While stored replays are only test games, a rule change edits the preset in place,
+  since playback reads recorded events and not the preset. A new setting needs a deliberate preset value, and no
+  pacing duration is ever one.
 * Everything the engine keeps for one game is its `GameRuntime` (`runtime.py`), owned by the caller: dropping it
   disposes the game, so there is no game id registry, no cleanup call and no "game not found" path.
 

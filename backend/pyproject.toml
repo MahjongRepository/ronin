@@ -146,6 +146,18 @@ allowed_importers = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "the seam suite reaches the engine only through its facade"
+type = "forbidden"
+source_modules = ["game.tests.seam"]
+forbidden_modules = [
+    "game.logic",
+    "game.tests.helpers.builders",
+    "game.tests.helpers.wall",
+    "game.tests.unit.logic",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
 name = "game.logic and game.wire know nothing of replay, auth or persistence"
 type = "forbidden"
 source_modules = ["game.logic", "game.wire"]
