@@ -10,12 +10,13 @@ from game.logic.runtime import GameRuntime
 from game.logic.state import Discard
 from game.logic.state_utils import update_player
 from game.logic.tiles import NUM_TILES
+from game.tests.helpers.builders import start_game_in_play
 
 FIXED_SEED = "ab" * SEED_BYTES
 
 
 def _started_game():
-    return MahjongGameService().start_game("game", ["A", "B", "C", "D"], seed=FIXED_SEED).runtime.state
+    return start_game_in_play(MahjongGameService(), "game", ["A", "B", "C", "D"], seed=FIXED_SEED).runtime.state
 
 
 def _with_pon(game_state, *, caller: int, discarder: int):

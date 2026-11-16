@@ -56,6 +56,7 @@ class _MockGameState:
         self.round_number = round_number
 
 
+MOCK_DEALT = Awaiting(kind=WaitKind.DEALT, seats=frozenset(), wait_id=0, round_number=0)
 MOCK_AWAITING = Awaiting(kind=WaitKind.TURN, seats=frozenset({0}), wait_id=1, round_number=0)
 MOCK_GAME_OVER = Awaiting(kind=WaitKind.NONE, seats=frozenset(), wait_id=2, round_number=0)
 
@@ -89,7 +90,6 @@ class MockGameService(GameService):
         seed: str | None = None,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
-        confirm_start: bool = False,
     ) -> GameStart:
         all_names = player_names + ["AI"] * (4 - len(player_names))
         player_count = len(player_names)
@@ -130,7 +130,13 @@ class MockGameService(GameService):
             for seat in range(NUM_PLAYERS)
         ]
         events = [game_started, *round_started]
-        return GameStart(runtime=runtime, events=events, awaiting=MOCK_AWAITING, seats=tuple(range(player_count)))
+        return GameStart(runtime=runtime, events=events, awaiting=MOCK_DEALT, seats=tuple(range(player_count)))
+
+    def begin_round(self, runtime: GameRuntime) -> GameUpdate:
+        return GameUpdate(events=[], awaiting=MOCK_AWAITING)
+
+    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate:
+        return GameUpdate(events=[], awaiting=MOCK_DEALT)
 
     def get_awaiting(self, runtime: GameRuntime) -> Awaiting:
         return MOCK_AWAITING

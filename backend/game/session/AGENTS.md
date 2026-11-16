@@ -42,9 +42,9 @@ interleave.
   is replaced. A replacement is not a disconnect: no `seat_control`, no AI
   player, no engine call, and the wait, its timers and the bank carry on, so the old connection's
   late input and disconnect resolve to no participant (`_bound`) and touch nothing. The reconnect
-  snapshot says during a round advance whether the seat still owes its confirmation, which only a
-  replacement can make true: a disconnect confirms the seat, and a seat an AI player held at the
-  round end was never required.
+  snapshot says during a pause whether the seat still owes its confirmation, which only a
+  replacement can make true: a disconnect takes the seat out of the pause, and a seat an AI player held when the
+  pause opened never owed it.
 * **A resync is a reconnect without the socket.** A RESYNC on the connection that holds a seat gets
   exactly what a reconnect sends it (the snapshot, then the wait the game owes the seat with how long
   its timer has run), through the same step, on that connection, and is read-only: nothing is
@@ -62,7 +62,7 @@ interleave.
   the finalizer, and an error ahead of it would read as a permanent error to the client.
 * **Stale actions.** Every game action echoes the wait id the server stamped on the message that
   opened that participant's decision. `Participant.decision_id` increases only when a new engine
-  wait opens a decision for that connected participant; it survives replacements and reconnects,
+  wait, or the pause opening with it, opens a decision for that connected participant; it survives replacements and reconnects,
   and never advances for other seats or for an absent participant's AI stand-in. The engine's
   global wait id is internal to pacing. A seat not awaited, or an id different from that
   participant's latest, gets the same stale-action `ErrorEvent` and touches neither the engine nor
@@ -75,20 +75,25 @@ interleave.
 * **Pacing.** The engine's `Awaiting` drives the timers, never the events: a new wait id re-arms
   them for the new wait's connected seats, an unchanged one touches only an actor that left it.
   Every pacing duration comes from `TimerConfig`, the one pacing model (the engine has none; the
-  auth timeout and transport ping are not pacing). A round advance waits its timeout once per result
-  the client shows in turn, so a double ron's waits it once per winner. The game start is a round advance too (the
-  engine's, `Awaiting.starts_game`), so the client shows the start over the dealt table until its players are ready:
-  `game_started` and the deal go out at once, each awaited seat's deal stamped as the opening of its confirmation,
-  and the dealer draws once every awaited seat confirmed or `TimerConfig.game_start_confirm_seconds` (a fixed timer,
-  not the round advance's) confirmed for the rest; zero skips it and the dealer draws at once. A seat with no
-  connection at the start gets its AI player right after the deal, which confirms for it, and a seat that leaves
-  during it is handed over as on any round advance, so nobody is held to the timeout by an empty seat. Every AI
+  auth timeout and transport ping are not pacing). Both pauses are the session's (`GameSession.pause`): the engine
+  stops after a deal and after a round end that does not end the game, awaiting no seat, and the session lets the game
+  go on (`deal_next_round` after a round end, then `begin_round` for the dealer's first draw) once every seat that owes
+  its confirmation (its connected participants when the pause opened) confirmed with CONFIRM_ROUND, checked against
+  its decision id, had its fixed timer confirm for it, or left. A pause opens on the engine's new wait, with a
+  decision id for each seat that owes it, and opens no engine decision, so any other action in it is stale. A round
+  end's pause waits its timeout once per result the client shows in turn, so a double ron's waits it once per winner,
+  counted from the round end. The game start is a pause too, so the client shows the start over the dealt table until
+  its players are ready: `game_started` and the deal go out at once, each owing seat's deal stamped as the opening of
+  its confirmation, and the dealer draws once every owing seat confirmed or `TimerConfig.game_start_confirm_seconds`
+  (a fixed timer, not the round advance's) confirmed for the rest; zero skips it and the dealer draws at once. A seat
+  with no connection at the start owes none and gets its AI player right after the deal, and a seat that leaves during
+  a pause no longer owes its confirmation, so nobody is held to the timeout by an empty seat. Every AI
   player's turn action waits
   `TimerConfig.ai_turn_delay_seconds` after the move before it, so a human sees AI turns one at a time:
   the engine (built with `pace_ai_turns`) stops before it as an AI turn wait, which awaits no seat and
   arms no timer, and one task per game (`GameSession.ai_turn`) plays it after the delay through the
   engine's `advance_ai_turn` and `_follow_engine` like any other move, which then schedules the next; a
-  zero delay plays them in the same step. AI answers to call prompts and AI confirmations never wait.
+  zero delay plays them in the same step. AI answers to call prompts never wait.
   A new wait or an end claim cancels the delayed AI turn, and a reconnect that takes back a seat whose
   AI turn is still delayed gets that turn as its own new wait, its timer starting with the reconnect.
   The game client derives its silence watchdog limit from the timer settings it is sent and,
@@ -96,7 +101,7 @@ interleave.
   The client also re-implements the shared turn/call bank rules
   from the timer settings it is sent once, taking only the bank from each decision's
   opening message (`messaging/AGENTS.md`), so a change to how a wait is paced changes its countdown
-  too; a round advance's timeout, the game start's included, is named on the message that opens it and in the
+  too; a pause's timeout, the game start's included, is named on the message that opens it and in the
   snapshot instead (`TimerConfig.round_advance_seconds`, which the timer arms too). Every participant's bank resets at each hand's first wait, before its opening messages go out,
   including the first hand and disconnected seats. Turns and calls draw from the same bank after their free base
   time; ending a wait charges every running decision, even a call resolved by another seat.
@@ -123,7 +128,7 @@ interleave.
     disconnect (a kick included), which may fall between rounds, during a round advance;
   * a seat with no connection at the start, never joined, is recorded `absent` after the deal and
     ahead of the dealer's first draw, the moves of the AI players seated from the start included, since
-    its AI player holds it from the deal: it confirms the start for the seat, then plays its turns;
+    its AI player holds it from the deal: the seat owes no confirmation, and its AI player plays its turns;
     a seat that leaves during the start's confirmation is recorded `left`, also ahead of that draw;
   * an AI player seated from the game's start has no seat control record: it never had a human;
   * a reconnect that takes the seat back from its AI player writes a human return;

@@ -9,7 +9,7 @@ of its one preset); read it before changing or testing a rule, and update it whe
   the game state. One game state flows through the round-flow functions; only a helper scoped to a round or a player
   takes the round.
 * A round ends only through `finish_round()` (`state_utils.py`), so a finished round always carries its result, and
-  the result stays on the round through the round-advance wait. It also appends the round's compact ledger entry to the
+  the result stays on the round while the game waits on its end (`WaitKind.ROUND_OVER`). It also appends the round's compact ledger entry to the
   game state's `round_history`, the one record of past rounds (the reconnect snapshot sends it).
 * Domain events (`events.py`) carry integer tile ids only (136-format) and their own routing target, a broadcast or
   one seat. Domain models keep readable field names and full point values; `messaging/` owns explicit protocol
@@ -27,11 +27,10 @@ of its one preset); read it before changing or testing a rule, and update it whe
 * A call plays every AI turn it reaches, unless the service is built with `pace_ai_turns` (the live server), which
   stops before each AI player's turn action (`MahjongGameService`). AI answers to call prompts never wait. Both modes
   play the same game with the same events in the same order; the replay runner and engine tests use the unpaced one.
-* `start_game(confirm_start=True)` (the live server, unless its timeout is zero) stops after the first deal on a
-  round advance that starts the game (`PendingRoundAdvance.starts_game`, `Awaiting.starts_game`), awaiting the human
-  seats; its last CONFIRM_ROUND, a timeout or an AI player confirming for a replaced seat lets the dealer draw, where
-  a round end's deals the next round. Until then the round plays no other action. The replay runner and engine tests
-  start without it, the same game and events either way.
+* The engine holds no pause: `start_game` and `deal_next_round` stop after the deal (`WaitKind.DEALT`) and a round end
+  that does not end the game stops on `WaitKind.ROUND_OVER`, neither awaiting a seat; the caller moves on with
+  `begin_round` (the dealer's first draw) and `deal_next_round` when it is ready, and until then the round plays no
+  action. Who confirms what in between, and for how long, is the session's.
 * The seat is a player's only identity: `start_game` returns each input player's seat and every later call takes a
   seat. Names are display only and nothing looks a player up by name; AI names skip the names in use without
   touching the RNG, so names stay unique for the replay format and the name-carrying session messages.

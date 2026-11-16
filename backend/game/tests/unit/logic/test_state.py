@@ -10,6 +10,7 @@ from game.logic.state import (
 )
 from game.logic.state_utils import finish_round
 from game.logic.types import AbortiveDrawResult, DoubleRonResult, DoubleRonWinner, HandResultInfo, YakuInfo
+from game.tests.helpers.builders import start_game_in_play
 from game.tests.helpers.wall import make_wall
 
 
@@ -119,7 +120,7 @@ class TestFinishRound:
     def test_finish_round__when_double_ron__should_record_both_winners_the_loser_and_the_pao_seat_in_round_history(
         self,
     ):
-        game_state = MahjongGameService().start_game("game1", ["Alice"], seed="a" * 192).runtime.state
+        game_state = start_game_in_play(MahjongGameService(), "game1", ["Alice"], seed="a" * 192).runtime.state
         winners = [
             DoubleRonWinner(
                 honba_bonus=0,
@@ -150,7 +151,7 @@ class TestFinishRound:
         assert (entry.result_type, entry.abortive_reason) == (RoundResultType.DOUBLE_RON, None)
 
     def test_finish_round__when_abortive_draw__should_record_its_reason_in_round_history(self):
-        game_state = MahjongGameService().start_game("game1", ["Alice"], seed="a" * 192).runtime.state
+        game_state = start_game_in_play(MahjongGameService(), "game1", ["Alice"], seed="a" * 192).runtime.state
         scores = dict.fromkeys(range(4), 25000)
         result = AbortiveDrawResult(
             reason=AbortiveDrawType.NINE_TERMINALS, scores=scores, score_changes=dict.fromkeys(scores, 0), seat=1

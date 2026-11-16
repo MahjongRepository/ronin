@@ -49,7 +49,7 @@ from game.logic.types import (
     RiichiActionData,
     SeatConfig,
 )
-from game.tests.helpers.builders import create_dealt_game_state, create_player
+from game.tests.helpers.builders import create_dealt_game_state, create_player, start_game_in_play
 from game.tests.helpers.hands import tile_copies
 from game.tests.unit.logic.helpers import _find_player, _update_round_state
 
@@ -541,7 +541,7 @@ class TestServerGeneratedActionRefusals:
 
     @pytest.fixture
     def runtime(self, service):
-        return service.start_game("test", ["Player"], seed="a" * 192).runtime
+        return start_game_in_play(service, "test", ["Player"], seed="a" * 192).runtime
 
     def test_ai_call_response__when_handler_refuses_it__should_raise_generated_action_error(self, service):
         game_state = _nine_man_discard_prompt()
@@ -577,11 +577,6 @@ class TestServerGeneratedActionRefusals:
         ):
             service.handle_timeout(runtime, seat=player_seat, timeout_type=TimeoutType.TURN)
         assert isinstance(exc_info.value.__cause__, InvalidGameActionError)
-
-    def test_round_advance_timeout__when_no_round_awaits_confirmation__should_raise(self, service, runtime):
-        player_seat = _find_player(runtime.state.round_state, "Player").seat
-        with pytest.raises(GeneratedActionError, match="no round pending confirmation"):
-            service.handle_timeout(runtime, seat=player_seat, timeout_type=TimeoutType.ROUND_ADVANCE)
 
     def test_handle_action__when_the_seat_is_ai_controlled__should_raise_as_a_server_fault(self, service, runtime):
         ai_player_seat = min(runtime.ai.ai_player_seats)

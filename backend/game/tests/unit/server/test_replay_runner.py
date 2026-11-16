@@ -18,7 +18,6 @@ from game.engine import (
     MahjongGameService,
     MeldCallType,
     PromptKind,
-    SeatTarget,
     WaitKind,
 )
 from game.logic.state import Caller, MeldOption, PendingCallPrompt
@@ -35,6 +34,7 @@ from game.replay.runner import (
     ReplayOptions,
     run_replay,
 )
+from game.tests.helpers.builders import start_game_in_play
 from game.tests.helpers.hands import (
     PIN_3_TRIPLE_RON_CALLER_HANDS,
     PIN_3_TRIPLE_RON_DEALER_HAND,
@@ -54,10 +54,6 @@ STUB_AWAITING = Awaiting(kind=WaitKind.TURN, seats=frozenset(), wait_id=0, round
 
 def _stub_update(events: list[GameEvent]) -> GameUpdate:
     return GameUpdate(events=events, awaiting=STUB_AWAITING)
-
-
-def _round_advance_awaiting(seats: list[int]) -> Awaiting:
-    return Awaiting(kind=WaitKind.ROUND_ADVANCE, seats=frozenset(seats), wait_id=0, round_number=0)
 
 
 def _pon_caller(seat: int) -> Caller:
@@ -98,19 +94,44 @@ class _StubService:
     ) -> GameUpdate:
         return self._inner.handle_action(runtime, seat=seat, action=action, data=data)
 
+    def begin_round(self, runtime: GameRuntime) -> GameUpdate:
+        return self._inner.begin_round(runtime)
+
+    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate:
+        return self._inner.deal_next_round(runtime)
+
     def get_awaiting(self, runtime: GameRuntime) -> Awaiting:
         return self._inner.get_awaiting(runtime)
 
 
+def _pin_3_ron_replay() -> ReplayInput:
+    probe_state = start_game_in_play(MahjongGameService(), "probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
+    dealer, ron_caller, _, _ = (p.name for p in probe_state.round_state.players)
+    return ReplayInput(
+        seed=SEED,
+        player_names=PLAYER_NAMES,
+        walls=(
+            make_start_wall(
+                (PIN_3_TRIPLE_RON_DEALER_HAND, *PIN_3_TRIPLE_RON_CALLER_HANDS),
+                draws=(PIN_3_TRIPLE_RON_DISCARD,),
+            ),
+        ),
+        events=(
+            ReplayInputEvent(player_name=dealer, action=GameAction.DISCARD, data={"tile_id": PIN_3_TRIPLE_RON_DISCARD}),
+            ReplayInputEvent(player_name=ron_caller, action=GameAction.CALL_RON),
+        ),
+    )
+
+
 def _probe_current_player_discard() -> tuple[str, int]:
-    state = MahjongGameService().start_game("probe", list(PLAYER_NAMES), seed=SEED).runtime.state
+    state = start_game_in_play(MahjongGameService(), "probe", list(PLAYER_NAMES), seed=SEED).runtime.state
     seat = state.round_state.current_player_seat
     player = state.round_state.players[seat]
     return player.name, player.tiles[-1]
 
 
 def _probe_waiting_player() -> str:
-    state = MahjongGameService().start_game("probe", list(PLAYER_NAMES), seed=SEED).runtime.state
+    state = start_game_in_play(MahjongGameService(), "probe", list(PLAYER_NAMES), seed=SEED).runtime.state
     seat = (state.round_state.current_player_seat + 1) % 4
     return state.round_state.players[seat].name
 
@@ -194,24 +215,10 @@ def test_run_replay__should_map_every_player_to_a_seat():
 def test_run_replay__when_strict_and_input_after_game_end__should_raise():
 
     class FinishedService(_StubService):
-        def start_game(
-            self,
-            game_id: str,
-            player_names: list[str],
-            *,
-            seed: str | None = None,
-            walls: Sequence[Sequence[int]] = (),
-            start: StartPosition | None = None,
-        ) -> GameStart:
-            game_start = super().start_game(game_id, player_names, seed=seed)
-            state = game_start.runtime.state
-
-            game_start.runtime.commit(
-                state.model_copy(
-                    update={"game_phase": GamePhase.FINISHED},
-                )
-            )
-            return game_start
+        def begin_round(self, runtime: GameRuntime) -> GameUpdate:
+            update = super().begin_round(runtime)
+            runtime.commit(runtime.state.model_copy(update={"game_phase": GamePhase.FINISHED}))
+            return update
 
     replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
     with pytest.raises(ReplayInputAfterGameEndError, match="Input remains after game end"):
@@ -221,24 +228,10 @@ def test_run_replay__when_strict_and_input_after_game_end__should_raise():
 def test_run_replay__when_non_strict_and_input_after_game_end__should_skip_input():
 
     class FinishedService(_StubService):
-        def start_game(
-            self,
-            game_id: str,
-            player_names: list[str],
-            *,
-            seed: str | None = None,
-            walls: Sequence[Sequence[int]] = (),
-            start: StartPosition | None = None,
-        ) -> GameStart:
-            game_start = super().start_game(game_id, player_names, seed=seed)
-            state = game_start.runtime.state
-
-            game_start.runtime.commit(
-                state.model_copy(
-                    update={"game_phase": GamePhase.FINISHED},
-                )
-            )
-            return game_start
+        def begin_round(self, runtime: GameRuntime) -> GameUpdate:
+            update = super().begin_round(runtime)
+            runtime.commit(runtime.state.model_copy(update={"game_phase": GamePhase.FINISHED}))
+            return update
 
     replay = _build_replay(actions=(("Alice", GameAction.DISCARD, {"tile_id": 0}),))
     trace = run_replay(replay, ReplayOptions(strict=False), service_factory=FinishedService)
@@ -246,226 +239,38 @@ def test_run_replay__when_non_strict_and_input_after_game_end__should_skip_input
     assert len(trace.steps) == 0
 
 
-def test_round_confirmation__when_round_advance_pending__should_inject_synthetic_confirm_steps():
+def test_round_advance__when_the_round_ends__should_deal_and_begin_the_next_round_in_one_synthetic_step():
+    trace = run_replay(_pin_3_ron_replay())
 
-    class RoundAdvanceService(_StubService):
-        def __init__(self) -> None:
-            super().__init__()
-            self._advance_pending = False
-            self._advance_seats: list[int] = []
-
-        def start_game(
-            self,
-            game_id: str,
-            player_names: list[str],
-            *,
-            seed: str | None = None,
-            walls: Sequence[Sequence[int]] = (),
-            start: StartPosition | None = None,
-        ) -> GameStart:
-            game_start = super().start_game(game_id, player_names, seed=seed)
-            self._advance_seats = list(game_start.seats)
-            return game_start
-
-        def handle_action(
-            self,
-            runtime: GameRuntime,
-            *,
-            seat: int,
-            action: GameAction,
-            data: dict[str, Any],
-        ) -> GameUpdate:
-            if action == GameAction.CONFIRM_ROUND:
-                if seat in self._advance_seats:
-                    self._advance_seats.remove(seat)
-
-                if not self._advance_seats:
-                    self._advance_pending = False
-
-                return _stub_update([])
-
-            events = super().handle_action(runtime, seat=seat, action=action, data=data)
-            self._advance_pending = True
-            state = runtime.state
-
-            self._advance_seats = [p.seat for p in state.round_state.players]
-            return events
-
-        def get_awaiting(self, runtime: GameRuntime) -> Awaiting:
-            return _round_advance_awaiting(self._advance_seats) if self._advance_pending else STUB_AWAITING
-
-    name, tile = _probe_current_player_discard()
-    replay = _build_replay(
-        actions=(
-            (name, GameAction.DISCARD, {"tile_id": tile}),
-            (name, GameAction.DISCARD, {"tile_id": tile}),
-        ),
-    )
-
-    trace = run_replay(replay, ReplayOptions(strict=False), service_factory=RoundAdvanceService)
-    confirm_steps = [s for s in trace.steps if s.synthetic and s.input_event.action == GameAction.CONFIRM_ROUND]
-    handled_steps = [s for s in trace.steps if s.input_event.action != GameAction.CONFIRM_ROUND]
-    assert len(handled_steps) >= 2
-    assert len(confirm_steps) == 4 * len(handled_steps)
+    *_, ron_step, advance = trace.steps
+    assert ron_step.input_event is not None
+    assert ron_step.input_event.action == GameAction.CALL_RON
+    assert (advance.input_event, advance.synthetic) == (None, True)
+    assert [e.type for e in advance.emitted_events][:5] == [EventType.ROUND_STARTED] * 4 + [EventType.DRAW]
+    assert advance.state_before is ron_step.state_after
+    assert (advance.state_after.round_number, advance.state_after.round_state.result) == (1, None)
 
 
-def test_round_confirmation__when_the_game_start_awaits_confirmation__should_confirm_it_and_replay_the_same_game():
-
-    class StartConfirmService(MahjongGameService):
-        def start_game(
-            self,
-            game_id: str,
-            player_names: list[str],
-            *,
-            seed: str | None = None,
-            walls: Sequence[Sequence[int]] = (),
-            start: StartPosition | None = None,
-            confirm_start: bool = False,
-        ) -> GameStart:
-            return super().start_game(game_id, player_names, seed=seed, confirm_start=True)
-
-    name, tile = _probe_current_player_discard()
-    replay = _build_replay(actions=((name, GameAction.DISCARD, {"tile_id": tile}),))
-
-    confirmed = run_replay(replay, service_factory=StartConfirmService)
-    unconfirmed = run_replay(replay)
-    assert [(step.synthetic, step.input_event.action) for step in confirmed.steps] == [
-        *[(True, GameAction.CONFIRM_ROUND)] * 4,
-        (False, GameAction.DISCARD),
-    ]
-    assert [e for step in confirmed.steps for e in step.emitted_events] == list(unconfirmed.events)[
-        len(confirmed.startup_events) :
-    ]
-    assert confirmed.final_state.round_state == unconfirmed.final_state.round_state
-
-
-def test_round_confirmation__when_strict_and_confirm_returns_error__should_raise_replay_error():
-
-    class ConfirmErrorService(_StubService):
-        def __init__(self) -> None:
-            super().__init__()
-            self._advance_pending = False
-
-        def handle_action(
-            self,
-            runtime: GameRuntime,
-            *,
-            seat: int,
-            action: GameAction,
-            data: dict[str, Any],
-        ) -> GameUpdate:
-            if action == GameAction.CONFIRM_ROUND:
-                return _stub_update(
-                    [
-                        ErrorEvent(
-                            code=GameErrorCode.INVALID_ACTION,
-                            message="confirm_round error",
-                            target=SeatTarget(seat=seat),
-                        ),
-                    ]
-                )
-
-            events = super().handle_action(runtime, seat=seat, action=action, data=data)
-            self._advance_pending = True
-            return events
-
-        def get_awaiting(self, runtime: GameRuntime) -> Awaiting:
-            return _round_advance_awaiting([0]) if self._advance_pending else STUB_AWAITING
-
-    name, tile = _probe_current_player_discard()
-    replay = _build_replay(
-        actions=(
-            (name, GameAction.DISCARD, {"tile_id": tile}),
-            (name, GameAction.DISCARD, {"tile_id": tile}),
-        ),
-    )
-
-    with pytest.raises(ReplayError, match="confirm_round error"):
-        run_replay(replay, service_factory=ConfirmErrorService)
-
-
-def test_step_limit__when_synthetic_confirms_reach_max_steps__should_raise_before_next_input():
-
-    class RoundAdvanceService(_StubService):
-        def __init__(self) -> None:
-            super().__init__()
-            self._advance_pending = False
-
-        def handle_action(
-            self,
-            runtime: GameRuntime,
-            *,
-            seat: int,
-            action: GameAction,
-            data: dict[str, Any],
-        ) -> GameUpdate:
-            if action == GameAction.CONFIRM_ROUND:
-                self._advance_pending = False
-                return _stub_update([])
-
-            events = super().handle_action(runtime, seat=seat, action=action, data=data)
-            self._advance_pending = True
-            return events
-
-        def get_awaiting(self, runtime: GameRuntime) -> Awaiting:
-            return _round_advance_awaiting([0, 1]) if self._advance_pending else STUB_AWAITING
-
-    name, tile = _probe_current_player_discard()
-    replay = _build_replay(
-        actions=(
-            (name, GameAction.DISCARD, {"tile_id": tile}),
-            (name, GameAction.DISCARD, {"tile_id": tile}),
-        ),
-    )
-
-    with pytest.raises(ReplayStepLimitError, match="exceeded 3 steps"):
-        run_replay(replay, ReplayOptions(max_steps=3, strict=False), service_factory=RoundAdvanceService)
+def test_step_limit__when_a_round_advance_reaches_max_steps__should_raise():
+    with pytest.raises(ReplayStepLimitError, match="exceeded 4 steps"):
+        run_replay(_pin_3_ron_replay(), ReplayOptions(max_steps=4))
 
 
 def test_step_limit__when_synthetic_passes_reach_max_steps__should_raise_before_the_ron_input():
-    probe_state = MahjongGameService().start_game("probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
+    probe_state = start_game_in_play(MahjongGameService(), "probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
     dealer, ron_caller, first_passer, second_passer = (p.name for p in probe_state.round_state.players)
-    replay = ReplayInput(
-        seed=SEED,
-        player_names=PLAYER_NAMES,
-        walls=(
-            make_start_wall(
-                (PIN_3_TRIPLE_RON_DEALER_HAND, *PIN_3_TRIPLE_RON_CALLER_HANDS),
-                draws=(PIN_3_TRIPLE_RON_DISCARD,),
-            ),
-        ),
-        events=(
-            ReplayInputEvent(player_name=dealer, action=GameAction.DISCARD, data={"tile_id": PIN_3_TRIPLE_RON_DISCARD}),
-            ReplayInputEvent(player_name=ron_caller, action=GameAction.CALL_RON),
-        ),
-    )
+    replay = _pin_3_ron_replay()
 
     with pytest.raises(ReplayStepLimitError, match="exceeded 3 steps"):
-        run_replay(replay, ReplayOptions(auto_confirm_rounds=False, max_steps=3))
+        run_replay(replay, ReplayOptions(advance_rounds=False, max_steps=3))
 
-    trace = run_replay(replay, ReplayOptions(auto_confirm_rounds=False, max_steps=4))
+    trace = run_replay(replay, ReplayOptions(advance_rounds=False, max_steps=4))
     assert [(s.input_event.player_name, s.input_event.action) for s in trace.steps] == [
         (dealer, GameAction.DISCARD),
         (first_passer, GameAction.PASS),
         (second_passer, GameAction.PASS),
         (ron_caller, GameAction.CALL_RON),
     ]
-
-
-def test_auto_confirm_rounds__when_input_has_confirm_round__should_raise_load_error():
-    replay = _build_replay(actions=(("Alice", GameAction.CONFIRM_ROUND, {}),))
-
-    with pytest.raises(ReplayLoadError, match=r"CONFIRM_ROUND.*auto_confirm_rounds=True"):
-        run_replay(replay)
-
-
-def test_auto_confirm_rounds__when_disabled_and_input_has_confirm_round__should_run_it_as_game_action():
-    replay = _build_replay(actions=(("Alice", GameAction.CONFIRM_ROUND, {}),))
-
-    # This should not raise ValueError; it may raise ReplayError due to
-    # "no round pending confirmation" but that's a game-logic error, not validation.
-    with pytest.raises(ReplayError):
-        run_replay(replay, ReplayOptions(auto_confirm_rounds=False))
 
 
 def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other_seats():
@@ -560,7 +365,7 @@ def test_auto_pass_calls__when_disabled_and_input_has_pass__should_run_it_as_gam
 
 def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_others():
     # Discover actual seat assignments (seed-dependent)
-    probe_state = MahjongGameService().start_game("probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
+    probe_state = start_game_in_play(MahjongGameService(), "probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
     name_to_seat = {p.name: p.seat for p in probe_state.round_state.players}
 
     # Pick two seats: pon_player calls PON, auto_passed_player should be auto-passed
@@ -665,7 +470,7 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
 
 def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_its_seat_before_this_ron():
     dealer, dealer_tile = _probe_current_player_discard()
-    probe_state = MahjongGameService().start_game("probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
+    probe_state = start_game_in_play(MahjongGameService(), "probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
     seat_by_name = {p.name: p.seat for p in probe_state.round_state.players}
     ron_player, later_ron_player = [name for name in PLAYER_NAMES if name != dealer][:2]
 
@@ -737,7 +542,7 @@ def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_it
 
 @pytest.mark.parametrize("kan_type", [KanType.CLOSED, KanType.ADDED])
 def test_auto_pass_calls__when_prompted_seat_declares_self_kan__should_pass_its_prompt_first(kan_type: KanType):
-    probe_state = MahjongGameService().start_game("probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
+    probe_state = start_game_in_play(MahjongGameService(), "probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
     seat_by_name = {p.name: p.seat for p in probe_state.round_state.players}
     discarder, kan_player = "Alice", "Bob"
 
@@ -924,7 +729,7 @@ def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_rema
     svc_instance = TrailingPromptService()
     trace = run_replay(
         replay,
-        ReplayOptions(strict=False, auto_confirm_rounds=False),
+        ReplayOptions(strict=False, advance_rounds=False),
         service_factory=lambda: svc_instance,
     )
     # The in-loop auto-pass does NOT fire (no subsequent input event to trigger it).

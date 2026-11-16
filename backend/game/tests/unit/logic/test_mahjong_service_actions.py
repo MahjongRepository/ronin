@@ -24,6 +24,7 @@ from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.state import Caller, PendingCallPrompt
 from game.logic.types import ExhaustiveDrawResult
+from game.tests.helpers.builders import start_game_in_play
 from game.tests.unit.logic.helpers import (
     _find_player,
     _update_player,
@@ -37,7 +38,7 @@ class TestMahjongGameServiceAddedKanChankan:
         return MahjongGameService()
 
     def test_handle_action__when_ai_robber_passes_on_added_kan__should_complete_the_kan_and_draw(self, service):
-        runtime = service.start_game("game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
         player = _find_player(runtime.state.round_state, "Player")
         robber_seat = (player.seat + 1) % 4
         pin_3_copies = TilesConverter.string_to_136_array(pin="3333")
@@ -87,7 +88,7 @@ class TestProcessActionResultRoundEnd:
         return MahjongGameService()
 
     def test_process_action_result__when_round_ended__should_return_round_end_event(self, service):
-        runtime = service.start_game("game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
 
         scores = {i: runtime.state.round_state.players[i].score for i in range(4)}
         round_end = RoundEndEvent(
@@ -108,7 +109,7 @@ class TestProcessActionResultRoundEnd:
 
         events = service._process_action_result_internal(runtime, result)
         assert [e.type for e in events] == [EventType.ROUND_END]
-        assert runtime.pending_confirm is not None
+        assert service.get_awaiting(runtime).kind == WaitKind.ROUND_OVER
 
 
 class TestMahjongGameServiceChankanPrompt:
@@ -117,7 +118,7 @@ class TestMahjongGameServiceChankanPrompt:
         return MahjongGameService()
 
     def test_process_action_result__when_chankan_prompt_waits_for_human_player__should_keep_it_open(self, service):
-        runtime = service.start_game("game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
         game_state = runtime.state
         player = _find_player(game_state.round_state, "Player")
 
@@ -154,7 +155,7 @@ class TestNoDataActionDispatchRouting:
         [GameAction.DECLARE_TSUMO, GameAction.CALL_KYUUSHU],
     )
     def test_handle_action__when_no_data_action_out_of_turn__should_answer_error_and_run_nothing(self, service, action):
-        runtime = service.start_game("game1", ["Player"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
         player = _find_player(runtime.state.round_state, "Player")
         ai_seat_on_turn = (player.seat + 1) % 4
         _update_round_state(runtime, current_player_seat=ai_seat_on_turn)
@@ -175,7 +176,7 @@ class TestNoDataActionDispatchRouting:
         ],
     )
     def test_handle_action__when_call_without_call_prompt__should_return_error_event(self, service, action, data, code):
-        start = service.start_game("game1", ["Player"], seed="a" * 192)
+        start = start_game_in_play(service, "game1", ["Player"], seed="a" * 192)
         runtime = start.runtime
         player_seat = start.seats[0]
 

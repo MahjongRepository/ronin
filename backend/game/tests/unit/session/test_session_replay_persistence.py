@@ -65,12 +65,8 @@ class StagedWallEngine(MahjongGameService):
         super().__init__()
         self._walls = [staged.tiles()]
 
-    def start_game(
-        self, game_id: str, player_names: list[str], *, confirm_start: bool = False, **_options: object
-    ) -> GameStart:
-        return super().start_game(
-            game_id, player_names, seed=STAGED_SEED, walls=self._walls, confirm_start=confirm_start
-        )
+    def start_game(self, game_id: str, player_names: list[str], **_options: object) -> GameStart:
+        return super().start_game(game_id, player_names, seed=STAGED_SEED, walls=self._walls)
 
 
 def _join(manager: SessionManager, ticket: str) -> MockConnection:
@@ -243,14 +239,12 @@ class TestSessionReplay:
         await game.pending_timeout
         alice_seat, diana_seat = participant_of(manager, alice).seat, game.participants[3].seat
         assert diana_seat == runtime_of(manager).state.round_state.dealer_seat
-        assert game.awaiting is not None
-        assert game.awaiting.starts_game
-        assert game.awaiting.seats == {participant.seat for participant in game.participants[:3]}
+        assert game.pause is not None
+        assert game.pause.starts_game
+        assert game.pause.seats == {participant.seat for participant in game.participants[:3]}
 
         for connection in (alice, bob, charlie):
-            manager.handle_game_action(
-                connection, action=GameAction.CONFIRM_ROUND, data={}, wait_id=current_wait_id(manager, connection)
-            )
+            manager.confirm_round(connection, wait_id=current_wait_id(manager, connection))
         assert game.awaiting.seats == {alice_seat}
 
         manager.disconnect(alice)

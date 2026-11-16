@@ -7,7 +7,6 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from game.logic.ai_player_controller import AIPlayerController
-    from game.logic.round_advance import PendingRoundAdvance
     from game.logic.state import MahjongGameState
 
 
@@ -16,7 +15,7 @@ class GameRuntime:
     Everything the engine holds for one game: its frozen state and the side state beside it.
 
     ai knows which seats AI players hold (replacement and restoration change it); furiten remembers each seat's last
-    reported furiten; pending_confirm is the round end still waiting for human confirmations, None otherwise; wait_id
+    reported furiten; first_draw_pending is whether the round in play is dealt and its dealer has not drawn yet; wait_id
     identifies the current wait (see `Awaiting`): the service bumps it once per call that ends the wait; walls are the
     explicit walls of the game's first rounds, in dealing order, and the rounds after them come from the seed.
 
@@ -38,7 +37,7 @@ class GameRuntime:
         self._state = state
         self.ai = ai
         self.furiten = FuritenTracker()
-        self.pending_confirm: PendingRoundAdvance | None = None
+        self.first_draw_pending = False
         self.wait_id: int = 0
 
     @property

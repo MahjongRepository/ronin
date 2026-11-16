@@ -39,7 +39,7 @@ class ReplayOptions:
 
     game_id: str = ""
     strict: bool = True
-    auto_confirm_rounds: bool = True
+    advance_rounds: bool = True
     auto_pass_calls: bool = True
     max_steps: int = 10_000
 
@@ -99,9 +99,6 @@ def _execute_replay(
     """
     Core replay execution loop.
     """
-    if opts.auto_confirm_rounds:
-        _reject_manual_confirm_rounds(replay)
-
     if opts.auto_pass_calls:
         _reject_manual_pass(replay)
 
@@ -113,6 +110,7 @@ def _execute_replay(
         start=replay.start,
     )
     runtime = start.runtime
+    begun = service.begin_round(runtime)
     ctx = _ReplayRunContext(service=service, opts=opts, events=replay.events, runtime=runtime)
 
     initial_state = runtime.state
@@ -133,16 +131,15 @@ def _execute_replay(
 
             break
 
-        _maybe_confirm_round(ctx, seating=seating, steps=steps)
+        _maybe_advance_round(ctx, steps=steps)
 
         if opts.auto_pass_calls:
             _handle_auto_pass_for_input(ctx, index=index, seating=seating, steps=steps)
 
         # Auto-pass resolution may end the round (e.g. exhaustive draw after
         # the last call prompt resolves). Re-check for round advance.
-        _maybe_confirm_round(ctx, seating=seating, steps=steps)
+        _maybe_advance_round(ctx, steps=steps)
 
-        # Re-check game phase: auto-pass or round confirmation may have ended the game
         if runtime.state.game_phase == GamePhase.FINISHED:
             if opts.strict:
                 raise ReplayInputAfterGameEndError(
@@ -158,33 +155,17 @@ def _execute_replay(
         _inject_pass_calls(ctx, seating=seating, steps=steps)
 
     # Handle any trailing round advance after all input events are consumed
-    _maybe_confirm_round(ctx, seating=seating, steps=steps)
+    _maybe_advance_round(ctx, steps=steps)
 
     return ReplayTrace(
         seed=replay.seed,
         rng_version=replay.rng_version,
         seat_by_player=seat_by_player,
-        startup_events=tuple(start.events),
+        startup_events=(*start.events, *begun.events),
         initial_state=initial_state,
         steps=tuple(steps),
         final_state=runtime.state,
     )
-
-
-def _reject_manual_confirm_rounds(replay: ReplayInput) -> None:
-    """
-    Reject CONFIRM_ROUND events in input when auto_confirm_rounds is enabled.
-
-    When auto_confirm_rounds=True, the runner injects synthetic CONFIRM_ROUND steps automatically. Manual CONFIRM_ROUND
-    events in the input would conflict and produce duplicate confirmation errors.
-    """
-    confirm_indices = [i for i, event in enumerate(replay.events) if event.action == GameAction.CONFIRM_ROUND]
-    if confirm_indices:
-        raise ReplayLoadError(
-            f"ReplayInput.events contains CONFIRM_ROUND at indices {confirm_indices}, "
-            "but auto_confirm_rounds=True. Either remove CONFIRM_ROUND events from "
-            "the input or set auto_confirm_rounds=False.",
-        )
 
 
 def _reject_manual_pass(replay: ReplayInput) -> None:
@@ -248,22 +229,28 @@ def _run_step(
     )
 
 
-def _maybe_confirm_round(ctx: _ReplayRunContext, *, seating: _ReplaySeating, steps: list[ReplayStep]) -> None:
+def _maybe_advance_round(ctx: _ReplayRunContext, *, steps: list[ReplayStep]) -> None:
     """
-    Inject round confirmations if a round advance is pending.
+    Deal the next round and let its dealer draw, as one synthetic step with no input, when the game waits on a round's
+    end.
     """
-    if ctx.opts.auto_confirm_rounds and ctx.service.get_awaiting(ctx.runtime).kind == WaitKind.ROUND_ADVANCE:
-        _inject_round_confirmations(ctx, seating=seating, steps=steps)
-        _check_step_limit(len(steps), ctx.opts.max_steps)
+    if not ctx.opts.advance_rounds or ctx.service.get_awaiting(ctx.runtime).kind != WaitKind.ROUND_OVER:
+        return
 
-
-def _inject_round_confirmations(ctx: _ReplayRunContext, *, seating: _ReplaySeating, steps: list[ReplayStep]) -> None:
-    """
-    Inject synthetic CONFIRM_ROUND steps for all pending players, in seat order.
-    """
-    for seat in sorted(ctx.service.get_awaiting(ctx.runtime).seats):
-        confirm = ReplayInputEvent(player_name=seating.player_by_seat[seat], action=GameAction.CONFIRM_ROUND)
-        _run_step(ctx, steps=steps, seat=seat, input_event=confirm, synthetic=True)
+    _check_step_limit(len(steps), ctx.opts.max_steps)
+    state_before = ctx.runtime.state
+    dealt = ctx.service.deal_next_round(ctx.runtime)
+    begun = ctx.service.begin_round(ctx.runtime)
+    steps.append(
+        ReplayStep(
+            input_event=None,
+            synthetic=True,
+            emitted_events=(*dealt.events, *begun.events),
+            state_before=state_before,
+            state_after=ctx.runtime.state,
+        ),
+    )
+    _check_step_limit(len(steps), ctx.opts.max_steps)
 
 
 def _handle_auto_pass_for_input(

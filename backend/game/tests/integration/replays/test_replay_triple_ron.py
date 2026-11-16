@@ -7,6 +7,7 @@ from game.replay.loader import load_replay_from_bytes
 from game.replay.models import ReplayInput
 from game.replay.runner import ReplayOptions
 from game.session.replay_collector import ReplayCollector, ReplayRecord
+from game.tests.helpers.builders import start_game_in_play
 from game.tests.helpers.hands import (
     PIN_3_TRIPLE_RON_CALLER_HANDS,
     PIN_3_TRIPLE_RON_DEALER_HAND,
@@ -32,7 +33,7 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_abo
         draws=(PIN_3_TRIPLE_RON_DISCARD,),
     )
     service = MahjongGameService()
-    start = service.start_game("triple-ron", list(PLAYERS), seed=SEED, walls=[wall])
+    start = start_game_in_play(service, "triple-ron", list(PLAYERS), seed=SEED, walls=[wall])
     runtime = start.runtime
     seat_by_player = dict(zip(PLAYERS, start.seats, strict=True))
     recorded_events = list(start.events)
@@ -66,7 +67,7 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_abo
             walls=(wall,),
             events=loaded.events,
         ),
-        ReplayOptions(auto_confirm_rounds=False),
+        ReplayOptions(advance_rounds=False),
     )
     input_steps = [step for step in trace.steps if not step.synthetic]
     assert len(input_steps) == len(loaded.events)

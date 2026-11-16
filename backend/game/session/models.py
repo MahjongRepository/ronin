@@ -81,17 +81,34 @@ class Participant:
         return self.connection is not None
 
 
+@dataclass(frozen=True)
+class Pause:
+    """
+    A pause the session holds a game in until its seats confirm it: the game's start, between the first deal and the
+    dealer's first draw, or a round's end, before the next round's deal.
+
+    seats are the seats that still owe their confirmation: the connected participants' when the pause opened, each
+    leaving once it confirms, its timer confirms for it or it disconnects. results_shown is how many results a round's
+    end shows its players one after another: one per winner of a double ron, else one, and one for the game's start.
+    """
+
+    starts_game: bool
+    seats: frozenset[int]
+    results_shown: int = 1
+
+
 @dataclass(eq=False)
 class GameSession:
     """
     A game in the session layer: its participants, pacing, lifecycle, engine runtime and what its end needs.
 
     runtime is the engine's game, held from the start until the end claim drops it. awaiting is what the engine last
-    reported the game waits for (set from the start on); its internal wait id drives the timers. Each participant's
-    decision_id identifies only their own visible decisions. start_record is the game's record as posted at the start
-    (seat order, every seat's name and user_id); every finish record is built from it. replay holds the records
-    collected since the start until the end claim detaches them. ai_turn is the sleeping task that plays the AI player's
-    turn the game waits on (WaitKind.AI_TURN) once the AI turn delay has passed.
+    reported the game waits for (set from the start on); its internal wait id drives the timers. pause is the start's or
+    a round end's pause the session holds the game in, None otherwise. Each participant's decision_id identifies only
+    their own visible decisions. start_record is the game's record as posted at the start (seat order, every seat's name
+    and user_id); every finish record is built from it. replay holds the records collected since the start until the end
+    claim detaches them. ai_turn is the sleeping task that plays the AI player's turn the game waits on
+    (WaitKind.AI_TURN) once the AI turn delay has passed.
     """
 
     game_id: str
@@ -100,6 +117,7 @@ class GameSession:
     lifecycle: GameLifecycle = GameLifecycle.PENDING
     runtime: GameRuntime | None = None
     awaiting: Awaiting | None = None
+    pause: Pause | None = None
     start_record: PlayedGame | None = None
     replay: ReplayRecord | None = None
     pending_timeout: asyncio.Task[None] | None = None

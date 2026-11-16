@@ -27,7 +27,6 @@ from game.engine import (
     PlayerStanding,
     RoundEndEvent,
     SeatTarget,
-    TimeoutType,
     TsumoResult,
     TurnEvent,
     WaitKind,
@@ -43,6 +42,7 @@ from game.messaging.event_payload import (
     shape_call_prompt_payload,
     stamp_wait_id,
 )
+from game.tests.helpers.builders import start_game_in_play
 from game.tests.helpers.wall import make_wall
 from game.tests.unit.logic.helpers import _find_player, _update_player, _update_round_state
 from game.wire.compact import decode_discard, decode_draw
@@ -273,7 +273,6 @@ class TestStampWaitId:
             (WaitKind.TURN, _meld(MeldViewType.CLOSED_KAN, caller_seat=1), False),
             (WaitKind.CALL, _prompt_to(1), True),
             (WaitKind.CALL, _prompt_to(2), False),
-            (WaitKind.ROUND_ADVANCE, _round_end(), True),
             (WaitKind.NONE, _round_end(), False),
         ],
         ids=[
@@ -284,7 +283,6 @@ class TestStampWaitId:
             "kan_before_its_draw",
             "call_prompt",
             "other_seats_prompt",
-            "round_end",
             "round_end_of_the_game",
         ],
     )
@@ -407,7 +405,7 @@ class TestRoundEndPayload:
 class TestRiichiStickValuePayload:
     def test_start_payloads__when_the_stick_value_is_not_the_riichi_cost__should_send_only_the_stick_value(self):
         service = MahjongGameService()
-        start = service.start_game("game1", ["Alice"], seed="a" * 192)
+        start = start_game_in_play(service, "game1", ["Alice"], seed="a" * 192)
         game_started = next(e for e in start.events if isinstance(e, GameStartedEvent))
         game_started = game_started.model_copy(update={"riichi_stick_value": 1500})
         snapshot = service.build_reconnection_snapshot(start.runtime, start.seats[0])
@@ -436,10 +434,8 @@ class TestReconnectionPayload:
     def service(self):
         return MahjongGameService()
 
-    def test_reconnection_payload__when_round_advance_pending__should_carry_the_ended_round_and_its_result(
-        self, service
-    ):
-        runtime = service.start_game("game1", ["Alice"], seed="a" * 192).runtime
+    def test_reconnection_payload__when_round_is_over__should_carry_the_ended_round_and_its_result(self, service):
+        runtime = start_game_in_play(service, "game1", ["Alice"], seed="a" * 192).runtime
         alice = _find_player(runtime.state.round_state, "Alice")
         first_dealer = runtime.state.round_state.dealer_seat
         tenpai_seat = (first_dealer + 1) % 4
@@ -449,7 +445,7 @@ class TestReconnectionPayload:
         tenpai_hand = TilesConverter.string_to_136_array(man="123456789", pin="11", sou="45")
         _update_player(runtime, seat=tenpai_seat, tiles=tuple(tenpai_hand))
         _end_the_round_by_exhaustive_draw(service, runtime, seat=alice.seat)
-        assert service.get_awaiting(runtime).kind == WaitKind.ROUND_ADVANCE
+        assert service.get_awaiting(runtime).kind == WaitKind.ROUND_OVER
 
         payload = reconnection_payload(service.build_reconnection_snapshot(runtime, alice.seat), stand_ins={})
         assert (
@@ -469,14 +465,15 @@ class TestReconnectionPayload:
         }
 
     def test_reconnection_payload__when_round_ended_before__should_list_it_in_the_round_history(self, service):
-        runtime = service.start_game("game1", ["Alice"], seed="a" * 192).runtime
+        runtime = start_game_in_play(service, "game1", ["Alice"], seed="a" * 192).runtime
         alice = _find_player(runtime.state.round_state, "Alice")
         riichi_seat = (alice.seat + 1) % 4
         first_dealer = runtime.state.round_state.dealer_seat
         tenpai_hand = TilesConverter.string_to_136_array(man="123456789", pin="11", sou="45")
         _update_player(runtime, seat=riichi_seat, tiles=tuple(tenpai_hand), is_riichi=True)
         _end_the_round_by_exhaustive_draw(service, runtime, seat=alice.seat)
-        service.handle_timeout(runtime, seat=alice.seat, timeout_type=TimeoutType.ROUND_ADVANCE)
+        service.deal_next_round(runtime)
+        service.begin_round(runtime)
         assert runtime.state.round_number == 1
 
         payload = reconnection_payload(service.build_reconnection_snapshot(runtime, alice.seat), stand_ins={})

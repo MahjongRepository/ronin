@@ -21,6 +21,7 @@ from game.replay.loader import load_replay_from_bytes
 from game.replay.models import ReplayInput, ReplayTrace
 from game.replay.runner import ReplayOptions
 from game.session.replay_collector import ReplayCollector, ReplayRecord
+from game.tests.helpers.builders import start_game_in_play
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
@@ -99,7 +100,7 @@ def _play_record_and_replay(
     actions: list[tuple[int, GameAction, dict[str, Any]]],
 ) -> tuple[MahjongGameState, list[RoundResult], ReplayInput, ReplayTrace, str]:
     service = MahjongGameService()
-    start = service.start_game("chankan", list(PLAYERS), seed=SEED, walls=[wall])
+    start = start_game_in_play(service, "chankan", list(PLAYERS), seed=SEED, walls=[wall])
     runtime = start.runtime
     assert {NAME_BY_SEAT[seat]: seat for seat in range(NUM_PLAYERS)} == dict(zip(PLAYERS, start.seats, strict=True))
 
@@ -119,7 +120,7 @@ def _play_record_and_replay(
             walls=(wall,),
             events=loaded.events,
         ),
-        ReplayOptions(auto_confirm_rounds=False),
+        ReplayOptions(advance_rounds=False),
     )
     round_ends = [e.result for e in recorded_events if isinstance(e, RoundEndEvent)]
     tenhou_xml = TenhouConverter(

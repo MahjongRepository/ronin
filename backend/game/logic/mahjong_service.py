@@ -41,7 +41,6 @@ from game.logic.matchmaker import fill_seats
 from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.rng import generate_seed
 from game.logic.round import choose_default_discard
-from game.logic.round_advance import PendingRoundAdvance
 from game.logic.rule_profiles import PRESET_SETTINGS
 from game.logic.runtime import GameRuntime
 from game.logic.service import Awaiting, GameService, GameStart, GameUpdate
@@ -61,7 +60,6 @@ from game.logic.turn import (
 from game.logic.types import (
     ChiActionData,
     DiscardActionData,
-    DoubleRonResult,
     ExhaustiveDrawResult,
     GamePlayerInfo,
     KanActionData,
@@ -118,7 +116,7 @@ def _parse_action_data[T: BaseModel](model: type[T], *, action: GameAction, seat
 
 def _current_round_number(game_state: MahjongGameState) -> int:
     """
-    Return the number of the current round: the round in play, or the one that ended, through its advance wait.
+    Return the number of the current round: the round in play, or the one that ended, while the game waits on its end.
 
     The round end has already advanced the round number to the next round's, so an ended round's is the one before it.
     """
@@ -199,7 +197,7 @@ class MahjongGameService(GameService):
     def __init__(self, *, pace_ai_turns: bool = False) -> None:
         self._pace_ai_turns = pace_ai_turns
 
-    def start_game(  # noqa: PLR0913
+    def start_game(
         self,
         game_id: str,
         player_names: list[str],
@@ -207,7 +205,6 @@ class MahjongGameService(GameService):
         seed: str | None = None,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
-        confirm_start: bool = False,
     ) -> GameStart:
         """
         Start a new mahjong game with the given players.
@@ -216,9 +213,8 @@ class MahjongGameService(GameService):
         events for each player, the first wait and each input player's seat, in input order. When seed is provided, the
         game is deterministically reproducible. When seed is None, a random seed is generated. The game plays the rules
         preset (PRESET_SETTINGS). The first rounds are dealt from walls, in order, and the rest from the seed; a start
-        position starts the game at its table in place of East 1. With confirm_start and a human seat, the game waits
-        after the deal for the human seats to confirm its start (a round advance that starts the game) before the dealer
-        draws.
+        position starts the game at its table in place of East 1. The game stops after the deal, before the dealer's
+        first draw (begin_round).
         """
         game_seed = seed if seed is not None else generate_seed()
 
@@ -236,14 +232,43 @@ class MahjongGameService(GameService):
             self._create_game_started_event(runtime),
             *self._create_round_started_events(frozen_game),
         ]
-
-        human_seats = frozenset(range(NUM_PLAYERS)) - runtime.ai.ai_player_seats
-        if confirm_start and human_seats:
-            runtime.pending_confirm = PendingRoundAdvance(required_seats=human_seats, results_shown=1, starts_game=True)
-        else:
-            events.extend(self._draw_first_turn(runtime))
-
+        runtime.first_draw_pending = True
         return GameStart(runtime=runtime, events=events, awaiting=self._end_call(runtime, call), seats=player_seats)
+
+    def begin_round(self, runtime: GameRuntime) -> GameUpdate:
+        """
+        Draw the dealt round's first tile for its dealer, with the AI turns that follow it; any other wait is a server
+        fault.
+        """
+        call = self._begin_call(runtime)
+        if call.kind != WaitKind.DEALT:
+            raise AssertionError(f"no dealt round to begin: the game waits for {call.kind}")
+
+        runtime.first_draw_pending = False
+        events = self._draw_first_turn(runtime)
+        return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
+
+    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate:
+        """
+        Deal the round after the one that ended, from the game's next given wall or else from its seed; any other wait
+        is a server fault.
+        """
+        call = self._begin_call(runtime)
+        if call.kind != WaitKind.ROUND_OVER:
+            raise AssertionError(f"no round over to deal the next round after: the game waits for {call.kind}")
+
+        round_index = len(runtime.state.round_history)
+        wall = list(runtime.walls[round_index]) if round_index < len(runtime.walls) else None
+        frozen_game = init_round(runtime.state, wall=wall)
+        runtime.commit(frozen_game)
+
+        hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
+        logger.debug("starting next round", hands=hands)
+
+        runtime.furiten = FuritenTracker()
+        runtime.first_draw_pending = True
+        events: list[GameEvent] = [*self._create_round_started_events(frozen_game)]
+        return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
 
     def _create_game_started_event(self, runtime: GameRuntime) -> GameStartedEvent:
         """
@@ -301,12 +326,7 @@ class MahjongGameService(GameService):
         """
         Run a player's action and the AI players' turns it leads to; return the events.
         """
-        # handle confirm_round before dispatching to game logic
-        if action == GameAction.CONFIRM_ROUND:
-            return self._handle_confirm_round(runtime, seat)
-
-        # reject game actions when the round is not in progress
-        if game_state.round_state.phase != RoundPhase.PLAYING or runtime.pending_confirm is not None:
+        if game_state.round_state.phase != RoundPhase.PLAYING or runtime.first_draw_pending:
             logger.warning(
                 "action rejected: round not in progress",
                 phase=game_state.round_state.phase.value,
@@ -381,7 +401,6 @@ class MahjongGameService(GameService):
         Dispatch a game action to the appropriate handler.
 
         Single entry point for all action dispatch: player actions, AI decisions and timeout defaults.
-        CONFIRM_ROUND is handled separately by the round confirmation path.
         """
         match action:
             # No-data actions
@@ -484,8 +503,11 @@ class MahjongGameService(GameService):
         if game_state.game_phase == GamePhase.FINISHED:
             return WaitKind.NONE, frozenset()
 
-        if runtime.pending_confirm is not None:
-            return WaitKind.ROUND_ADVANCE, runtime.pending_confirm.unconfirmed_seats
+        if game_state.round_state.phase == RoundPhase.FINISHED:
+            return WaitKind.ROUND_OVER, frozenset()
+
+        if runtime.first_draw_pending:
+            return WaitKind.DEALT, frozenset()
 
         prompt = game_state.round_state.pending_call_prompt
         if prompt is not None:
@@ -499,15 +521,11 @@ class MahjongGameService(GameService):
         """
         Build the Awaiting for a wait: its seats without the AI players' ones, and the round it belongs to.
         """
-        game_state = runtime.state
-        advance = runtime.pending_confirm if kind == WaitKind.ROUND_ADVANCE else None
         return Awaiting(
             kind=kind,
             seats=frozenset(s for s in seats if not runtime.ai.is_ai_player(s)),
             wait_id=runtime.wait_id,
-            round_number=_current_round_number(game_state),
-            results_shown=advance.results_shown if advance is not None else 1,
-            starts_game=advance is not None and advance.starts_game,
+            round_number=_current_round_number(runtime.state),
         )
 
     def handle_timeout(
@@ -522,7 +540,6 @@ class MahjongGameService(GameService):
 
         For TURN timeout: the default discard (the drawn tile unless kuikae forbids it).
         For MELD timeout: pass on the call opportunity.
-        For ROUND_ADVANCE timeout: auto-confirm round advancement.
         A timeout for an AI player's seat is a server fault.
         """
         call = self._begin_call(runtime)
@@ -532,8 +549,6 @@ class MahjongGameService(GameService):
                 events = self._handle_turn_timeout(runtime, seat)
             case TimeoutType.MELD:
                 events = self._handle_meld_timeout(runtime, seat)
-            case TimeoutType.ROUND_ADVANCE:
-                events = self._handle_round_advance_timeout(runtime, seat)
             case _:  # pragma: no cover (exhaustive)
                 raise AssertionError(f"unknown timeout type: {timeout_type}")
 
@@ -582,17 +597,6 @@ class MahjongGameService(GameService):
         logger.info("meld timeout, auto-passing")
         return self._run_generated_action(runtime, seat=seat, action=GameAction.PASS, data={})
 
-    def _handle_round_advance_timeout(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
-        """
-        Handle ROUND_ADVANCE timeout: confirm the round end for the seat.
-
-        The timer runs only while the seat's confirmation is pending, so finding none is a server fault.
-        """
-        if runtime.pending_confirm is None:
-            raise GeneratedActionError(f"round advance timeout for seat {seat} with no round pending confirmation")
-
-        return self._handle_confirm_round(runtime, seat)
-
     def _create_error_event(
         self,
         code: GameErrorCode,
@@ -608,16 +612,11 @@ class MahjongGameService(GameService):
         """
         Handle the round's end when the stored round carries its result; return whether it did.
 
-        Appends the round end's own events (the game end) to events; the RoundEndEvent itself is already there. The
-        result stays on the round through the round-advance wait, so finding that wait already open means the round end
-        would be applied twice: a server fault.
+        Appends the round end's own events (the game end) to events; the RoundEndEvent itself is already there.
         """
         result = runtime.state.round_state.result
         if result is None:
             return False
-
-        if runtime.pending_confirm is not None:
-            raise AssertionError("round end already handled: its round advance is pending")
 
         events.extend(self._handle_round_end(runtime, result))
         return True
@@ -664,14 +663,8 @@ class MahjongGameService(GameService):
 
     def _handle_round_end(self, runtime: GameRuntime, round_result: RoundResult) -> list[GameEvent]:
         """
-        Handle the end of a round -- enter waiting state for confirmations.
-
-        The session abandons a game whose last human leaves, so a round never ends without a human seat to confirm it.
+        Handle the end of a round: settle it, then end the game or stop until the caller deals the next round.
         """
-        human_seats = frozenset(range(NUM_PLAYERS)) - runtime.ai.ai_player_seats
-        if not human_seats:
-            raise AssertionError("round ended with no human seat")
-
         frozen_game = runtime.state
         logger.info("round ended", result_type=type(round_result).__name__)
 
@@ -703,38 +696,8 @@ class MahjongGameService(GameService):
                 ),
             ]
 
-        # Store updated state
         runtime.commit(frozen_game)
-
-        # enter waiting state for round confirmation
-        results_shown = len(round_result.winners) if isinstance(round_result, DoubleRonResult) else 1
-        runtime.pending_confirm = PendingRoundAdvance(required_seats=human_seats, results_shown=results_shown)
-        # return empty -- the RoundEndEvent is already in the caller's events list
         return []
-
-    def _handle_confirm_round(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
-        """
-        Handle a player confirming readiness for the next round, or for the first round's play at the game's start.
-
-        The last confirmation deals the next round, or for the game's start lets the first round's dealer draw.
-        """
-        pending = runtime.pending_confirm
-        if pending is None:
-            logger.warning("confirm round rejected: no round pending")
-            return self._create_error_event(
-                code=GameErrorCode.INVALID_ACTION,
-                message="no round pending confirmation",
-                seat=seat,
-            )
-
-        if not pending.confirm(seat):
-            return []  # still waiting for other players
-
-        runtime.pending_confirm = None
-        if pending.starts_game:
-            return self._draw_first_turn(runtime)
-
-        return self._start_next_round(runtime)
 
     def _append_furiten_changes(self, runtime: GameRuntime, events: list[GameEvent]) -> list[GameEvent]:
         """
@@ -829,21 +792,17 @@ class MahjongGameService(GameService):
         Rebuild the event that opened the wait the game owes the seat: its call prompt, or its turn's draw.
 
         A turn opens with the draw and its available actions, or right after the seat's own pon or chi, when it drew
-        nothing, with the turn event, as on the live path. A round advance has no such event (the round's result is in
-        the reconnect snapshot), and neither has a wait that does not await the seat.
+        nothing, with the turn event, as on the live path. A wait that does not await the seat has no such event.
         """
-        kind, seats = self._current_wait(runtime)
+        _, seats = self._current_wait(runtime)
         if seat not in seats:
             return []
 
         game_state = runtime.state
         round_state = game_state.round_state
         prompt = round_state.pending_call_prompt
-        if kind == WaitKind.CALL and prompt is not None:
+        if prompt is not None:
             return [e for e in build_call_prompt_events(prompt) if e.target == SeatTarget(seat=seat)]
-
-        if kind != WaitKind.TURN:
-            return []
 
         if round_state.is_after_meld_call:
             return [create_turn_event(game_state, seat=seat)]
@@ -855,18 +814,6 @@ class MahjongGameService(GameService):
         # The last tile in hand is the drawn tile
         tile_id = player.tiles[-1]
         return [create_draw_event(game_state, seat=seat, tile_id=tile_id)]
-
-    def _auto_confirm_pending_advance(self, runtime: GameRuntime, seat: int) -> list[GameEvent] | None:
-        """
-        Auto-confirm a seat's pending round advance after AI player replacement.
-
-        Returns events if the pending advance was handled, None if not applicable.
-        """
-        pending = runtime.pending_confirm
-        if pending is None or seat not in pending.required_seats:
-            return None
-
-        return self._handle_confirm_round(runtime, seat)
 
     def process_ai_player_actions_after_replacement(
         self,
@@ -888,15 +835,11 @@ class MahjongGameService(GameService):
         seat: int,
     ) -> list[GameEvent]:
         """
-        Resolve the replaced seat's pending round confirmation or call response as an AI player, then run the AI turns.
+        Resolve the replaced seat's pending call response as an AI player, then run the AI turns; nothing while the
+        round is not in play.
         """
-        # if there's a pending round advance, auto-confirm for the replaced player
-        advance_events = self._auto_confirm_pending_advance(runtime, seat)
-        if advance_events is not None:
-            return advance_events
-
         round_state = game_state.round_state
-        if round_state.phase != RoundPhase.PLAYING:
+        if round_state.phase != RoundPhase.PLAYING or runtime.first_draw_pending:
             return []
 
         events: list[GameEvent] = []
@@ -928,21 +871,6 @@ class MahjongGameService(GameService):
             events.extend(ai_player_events)
 
         return events
-
-    def _start_next_round(self, runtime: GameRuntime) -> list[GameEvent]:
-        """
-        Start the next round, dealt from the game's next given wall or else from its seed, and return events.
-        """
-        round_index = len(runtime.state.round_history)
-        wall = list(runtime.walls[round_index]) if round_index < len(runtime.walls) else None
-        frozen_game = init_round(runtime.state, wall=wall)
-        runtime.commit(frozen_game)
-
-        hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
-        logger.debug("starting next round", hands=hands)
-
-        runtime.furiten = FuritenTracker()
-        return [*self._create_round_started_events(frozen_game), *self._draw_first_turn(runtime)]
 
     def _draw_first_turn(self, runtime: GameRuntime) -> list[GameEvent]:
         """

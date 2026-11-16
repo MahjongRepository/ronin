@@ -73,11 +73,13 @@ class ReplayInput(BaseModel):
 class ReplayStep(BaseModel):
     """
     One replay transition: state_before + input -> emitted events + state_after.
+
+    A round advance has no input: the runner deals the next round and lets its dealer draw, as a synthetic step.
     """
 
     model_config = ConfigDict(frozen=True)
 
-    input_event: ReplayInputEvent
+    input_event: ReplayInputEvent | None
     synthetic: bool = False
     emitted_events: tuple[GameEvent, ...]
     state_before: MahjongGameState

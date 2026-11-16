@@ -158,10 +158,15 @@ def run_timeout(manager: SessionManager, *, game_id: str, timeout_type: TimeoutT
     manager._handle_timeout(participant, timeout_type)
 
 
+def run_pause_timeout(manager: SessionManager, *, game_id: str, seat: int) -> None:
+    participant = game_of(manager, game_id).at_seat(seat)
+    assert participant is not None
+    manager._handle_pause_timeout(participant)
+
+
 _TIMEOUT_OF_WAIT = {
     WaitKind.TURN: TimeoutType.TURN,
     WaitKind.CALL: TimeoutType.MELD,
-    WaitKind.ROUND_ADVANCE: TimeoutType.ROUND_ADVANCE,
 }
 
 
@@ -204,12 +209,18 @@ class SocketTable:
         return seat
 
     def advance_to_turn_of(self, seat: int) -> None:
-        awaiting = game_of(self.manager).awaiting
+        game = game_of(self.manager)
+        awaiting = game.awaiting
         assert awaiting is not None
         while not (awaiting.kind == WaitKind.TURN and seat in awaiting.seats):
-            waiting_seat = min(awaiting.seats)
-            run_timeout(self.manager, game_id="game1", timeout_type=_TIMEOUT_OF_WAIT[awaiting.kind], seat=waiting_seat)
-            awaiting = game_of(self.manager).awaiting
+            if game.pause is not None:
+                run_pause_timeout(self.manager, game_id="game1", seat=min(game.pause.seats))
+            else:
+                waiting_seat = min(awaiting.seats)
+                timeout_type = _TIMEOUT_OF_WAIT[awaiting.kind]
+                run_timeout(self.manager, game_id="game1", timeout_type=timeout_type, seat=waiting_seat)
+
+            awaiting = game.awaiting
             assert awaiting is not None
 
     async def close(self) -> None:

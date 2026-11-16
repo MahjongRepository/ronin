@@ -9,11 +9,9 @@ from game.engine import (
     DrawEvent,
     ErrorEvent,
     GameAction,
-    GameStartedEvent,
     KanType,
     MahjongGameService,
     PlayerAction,
-    RoundStartedEvent,
     StartPosition,
     WaitKind,
     calculate_shanten,
@@ -278,16 +276,13 @@ class _ScriptedGame:
                 f"{game_id}: absent seats {sorted(seating.absent)} are not some of the players' {start.seats}"
             )
 
-        dealt = [event for event in start.events if isinstance(event, GameStartedEvent | RoundStartedEvent)]
-        self._record(dealt)
+        self._record(start.events)
         absent_in_player_order = [seat for seat in start.seats if seat in seating.absent]
         for seat in absent_in_player_order:
             self._service.replace_with_ai_player(self._runtime, seat)
             self._recorder.record_ai_replacement(seat=seat, reason=SeatControlReason.ABSENT)
 
-        self._record([event for event in start.events if not isinstance(event, GameStartedEvent | RoundStartedEvent)])
-        for seat in absent_in_player_order:
-            self._record(self._service.process_ai_player_actions_after_replacement(self._runtime, seat).events)
+        self._record(self._service.begin_round(self._runtime).events)
 
     def _run(self, seat: int, action: GameAction, data: dict[str, object]) -> None:
         events = self._service.handle_action(self._runtime, seat=seat, action=action, data=data).events
@@ -297,6 +292,15 @@ class _ScriptedGame:
 
         self._draws.pop(seat, None)
         self._record(events)
+
+    def _advance_round(self) -> None:
+        """
+        Deal the next round after a round's end and let its dealer draw, recorded as the one step the session's pause
+        ends in.
+        """
+        dealt = self._service.deal_next_round(self._runtime)
+        begun = self._service.begin_round(self._runtime)
+        self._record([*dealt.events, *begun.events])
 
     def _record(self, events: Sequence[GameEvent]) -> None:
         self._recorder.record(events)
@@ -440,10 +444,10 @@ class StagedGame(_ScriptedGame):
 
     def confirm_round(self) -> None:
         """
-        Confirm the round end for every seat, which deals the next round.
+        Let every seat confirm the round end, as the session's pause does, which deals the next round and lets its
+        dealer draw.
         """
-        for seat in sorted(self._service.get_awaiting(self._runtime).seats):
-            self._run(seat, GameAction.CONFIRM_ROUND, {})
+        self._advance_round()
 
     def act(self, seat: int, action: GameAction, **data: object) -> None:
         is_call_response = action in CALL_RESPONSES or data.get("kan_type") == KanType.OPEN
@@ -455,7 +459,7 @@ class StagedGame(_ScriptedGame):
         Return the recorded replay after checking that it ends in the outcome and that the replay runner, given the same
         wall and start position, reproduces the game.
 
-        The runner ends by passing a pending call prompt and confirming a pending round end, so the game does the same
+        The runner ends by passing a pending call prompt and advancing past a round end, so the game does the same
         before the two final states are compared.
         """
         if self._next_staged_draw != len(self._staged_draws):
@@ -464,7 +468,7 @@ class StagedGame(_ScriptedGame):
         recording = self._recorder.recording()
         require_outcome(recording, outcome, name=self._game_id)
         self._pass_calls()
-        if self._service.get_awaiting(self._runtime).kind == WaitKind.ROUND_ADVANCE:
+        if self._service.get_awaiting(self._runtime).kind == WaitKind.ROUND_OVER:
             self.confirm_round()
 
         require_reproduces(recording, self._runtime.state, name=self._game_id)
@@ -532,10 +536,8 @@ class EagerGame(_ScriptedGame):
         return recording
 
     def _act(self, kind: WaitKind, seats: frozenset[int]) -> None:
-        if kind == WaitKind.ROUND_ADVANCE:
-            for seat in sorted(seats):
-                self._run(seat, GameAction.CONFIRM_ROUND, {})
-
+        if kind == WaitKind.ROUND_OVER:
+            self._advance_round()
             return
 
         if kind == WaitKind.CALL:

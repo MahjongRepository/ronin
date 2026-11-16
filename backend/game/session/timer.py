@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from game.engine import Awaiting
+    from game.session.models import Pause
 
 
 class TimerConfig(BaseModel):
@@ -27,15 +27,15 @@ class TimerConfig(BaseModel):
     game_start_confirm_seconds: float = Field(default=10, ge=0)
     ai_turn_delay_seconds: float = Field(default=1, ge=0)
 
-    def round_advance_seconds(self, awaiting: Awaiting) -> float:
+    def round_advance_seconds(self, pause: Pause) -> float:
         """
-        How long a round advance waits: its timeout once for each result the round end shows in turn, or the game start
-        confirmation's timeout for the one that starts the game.
+        How long a pause waits: the round advance timeout once for each result a round's end shows in turn, or the game
+        start confirmation's timeout for the game's start.
         """
-        if awaiting.starts_game:
+        if pause.starts_game:
             return self.game_start_confirm_seconds
 
-        return self.round_advance_timeout_seconds * awaiting.results_shown
+        return self.round_advance_timeout_seconds * pause.results_shown
 
 
 class TurnTimer:

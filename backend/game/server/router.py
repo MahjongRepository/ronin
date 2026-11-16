@@ -13,6 +13,7 @@ from game.messaging.types import (
     SessionErrorCode,
     parse_client_message,
 )
+from game.messaging.wire_enums import WireGameAction
 from game.server.socket_stats import SocketStats
 from shared.auth.game_ticket import GameTicket, verify_game_ticket
 
@@ -164,16 +165,20 @@ class MessageRouter:
         message: GameActionMessage,
     ) -> None:
         """
-        Route a game action message; an unexpected error is a server fault that fails the connection's game.
+        Route a game action message, a round confirmation to the session's pause and any other action to the game; an
+        unexpected error is a server fault that fails the connection's game.
         """
         game = self._session_manager.get_connection_game(connection)
         try:
-            self._session_manager.handle_game_action(
-                connection=connection,
-                action=GameAction[message.action.name],
-                data=message.model_dump(exclude={"message_type", "action", "wait_id"}),
-                wait_id=message.wait_id,
-            )
+            if message.action == WireGameAction.CONFIRM_ROUND:
+                self._session_manager.confirm_round(connection, wait_id=message.wait_id)
+            else:
+                self._session_manager.handle_game_action(
+                    connection=connection,
+                    action=GameAction[message.action.name],
+                    data=message.model_dump(exclude={"message_type", "action", "wait_id"}),
+                    wait_id=message.wait_id,
+                )
         except Exception as exc:  # noqa: BLE001
             self._session_manager.fail_connection(connection, game, reason="game action failed", exc=exc)
 

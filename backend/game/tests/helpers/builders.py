@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from game.logic.enums import RoundPhase
@@ -16,7 +17,9 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from game.logic.meld_wrapper import FrozenMeld
+    from game.logic.service import GameService, GameStart
     from game.logic.settings import GameSettings
+    from game.logic.types import StartPosition
     from game.logic.wall import Wall
 
 
@@ -189,3 +192,21 @@ def create_game_state(
         kwargs["settings"] = settings
 
     return MahjongGameState(**kwargs)
+
+
+def start_game_in_play(
+    service: GameService,
+    game_id: str,
+    player_names: list[str],
+    *,
+    seed: str | None = None,
+    walls: Sequence[Sequence[int]] = (),
+    start: StartPosition | None = None,
+) -> GameStart:
+    """
+    Start a game and let its dealer draw at once, as a session with no start pause does; the start's events and wait
+    include the first draw's.
+    """
+    game_start = service.start_game(game_id, player_names, seed=seed, walls=walls, start=start)
+    begun = service.begin_round(game_start.runtime)
+    return replace(game_start, events=[*game_start.events, *begun.events], awaiting=begun.awaiting)

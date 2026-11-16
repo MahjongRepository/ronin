@@ -63,9 +63,7 @@ async def test_ai_turn_delay__when_the_start_confirm_hands_the_turn_to_ai_player
     dealer_seat = runtime_of(manager).state.round_state.dealer_seat
     assert dealer_seat != alice_seat
 
-    manager.handle_game_action(
-        alice, action=GameAction.CONFIRM_ROUND, data={}, wait_id=participant_of(manager, alice).decision_id
-    )
+    manager.confirm_round(alice, wait_id=participant_of(manager, alice).decision_id)
     assert [m.get(WireKey.EVENT_TYPE) for m in alice.sent_messages][-1:] == [WireEventType.DRAW_NOTICE]
     assert (game.awaiting.kind, game.ai_turn is not None) == (WaitKind.AI_TURN, True)
     assert _take_discarders(alice) == []

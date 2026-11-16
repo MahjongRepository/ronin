@@ -10,6 +10,7 @@ from game.engine import (
     MahjongGameService,
     SeatTarget,
 )
+from game.tests.helpers.builders import start_game_in_play
 
 
 class TestGameCreationAndJoin:
@@ -18,7 +19,7 @@ class TestGameCreationAndJoin:
         return MahjongGameService()
 
     def test_start_game__when_one_human_joins__should_emit_game_started_with_four_players(self, service):
-        events = service.start_game("game1", ["Player"], seed="a" * 192).events
+        events = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).events
         game_started_events = [e for e in events if e.type == EventType.GAME_STARTED]
         assert len(game_started_events) == 1
         event = game_started_events[0]
@@ -38,7 +39,7 @@ class TestGameServiceIntegration:
         return MahjongGameService()
 
     def test_handle_action__when_human_discards_repeatedly__should_process_multiple_discards(self, service):
-        start = service.start_game("game1", ["Player"], seed="a" * 192)
+        start = start_game_in_play(service, "game1", ["Player"], seed="a" * 192)
         runtime = start.runtime
         human_seat = start.seats[0]
 
@@ -72,7 +73,7 @@ class TestUnifiedDiscardClaimIntegration:
         return MahjongGameService()
 
     def test_call_prompt__when_discard_claimable__should_split_per_seat_into_ron_or_meld(self, service):
-        start = service.start_game("game1", ["Player"], seed="a" * 192)
+        start = start_game_in_play(service, "game1", ["Player"], seed="a" * 192)
         runtime = start.runtime
         human_seat = start.seats[0]
 

@@ -46,6 +46,7 @@ from game.engine import (
 from game.messaging.event_payload import game_event_payload
 from game.replay.external.tenhou import TenhouConverter
 from game.session.replay_collector import ReplayCollector, ReplayRecord
+from game.tests.helpers.builders import start_game_in_play
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import DEAD_WALL_START, make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
@@ -488,8 +489,8 @@ def test_tenhou_converter__when_the_same_events_convert_twice__should_write_each
 
 def _start_game(wall: tuple[int, ...], start: StartPosition | None = None) -> tuple[MahjongGameService, GameStart]:
     service = MahjongGameService()
-    game_start = service.start_game(
-        "tenhou", ["Alice", "Bob", "Charlie", "Diana"], seed=SEED, walls=[wall], start=start
+    game_start = start_game_in_play(
+        service, "tenhou", ["Alice", "Bob", "Charlie", "Diana"], seed=SEED, walls=[wall], start=start
     )
     return service, game_start
 

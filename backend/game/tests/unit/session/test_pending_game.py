@@ -10,7 +10,7 @@ from game.messaging.wire_enums import WireClientMessageType
 from game.server.app import create_app
 from game.server.router import MessageRouter
 from game.server.types import CreateGameRequest, PlayerSpec
-from game.session.models import GameLifecycle
+from game.session.models import GameLifecycle, Pause
 from game.session.timer import TimerConfig
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.helpers.session import make_session_manager
@@ -287,20 +287,16 @@ class TestGameStartConfirm:
             (conn.sent_messages[2][WireKey.WAIT_ID], conn.sent_messages[2][WireKey.ROUND_ADVANCE_SECONDS])
             for conn in (alice, bob)
         ] == [(1, START_CONFIRM_SECONDS)] * 2
-        assert (game.awaiting.kind, game.awaiting.starts_game, game.awaiting.seats) == (
-            WaitKind.ROUND_ADVANCE,
-            True,
-            frozenset(seats),
-        )
+        assert (game.awaiting.kind, game.pause) == (WaitKind.DEALT, Pause(starts_game=True, seats=frozenset(seats)))
         await asyncio.sleep(0)
         assert held_sleep.durations == [START_CONFIRM_SECONDS] * 2
 
-        manager.handle_game_action(alice, action=GameAction.CONFIRM_ROUND, data={}, wait_id=1)
+        manager.confirm_round(alice, wait_id=1)
         assert [len(conn.sent_messages) for conn in (alice, bob)] == [3, 3]
-        assert game.awaiting.seats == {bob_participant.seat}
+        assert game.pause.seats == {bob_participant.seat}
         assert alice_participant.timer.task is None
 
-        manager.handle_game_action(bob, action=GameAction.CONFIRM_ROUND, data={}, wait_id=1)
+        manager.confirm_round(bob, wait_id=1)
         dealer_seat = runtime_of(manager).state.round_state.dealer_seat
         assert [conn.sent_messages[3][WireKey.EVENT_TYPE] for conn in (alice, bob)] == [
             DRAW_T if seat == dealer_seat else WireEventType.DRAW_NOTICE for seat in seats
@@ -316,7 +312,7 @@ class TestGameStartConfirm:
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         alice, bob = _join(manager, "ticket-0"), _join(manager, "ticket-1")
         game = game_of(manager)
-        manager.handle_game_action(alice, action=GameAction.CONFIRM_ROUND, data={}, wait_id=1)
+        manager.confirm_round(alice, wait_id=1)
         await asyncio.sleep(0)
 
         await held_sleep.release_all()
@@ -327,7 +323,7 @@ class TestGameStartConfirm:
             True,
             True,
         ]
-        assert game.awaiting.kind is not WaitKind.ROUND_ADVANCE
+        assert game.pause is None
 
         await manager.shutdown()
 
@@ -346,7 +342,7 @@ class TestGameStartConfirm:
             WireKey.SEAT: bob_seat,
             WireKey.SEAT_CONTROL_REASON: 0,
         }
-        assert game.awaiting.seats == {alice_seat}
+        assert game.pause.seats == {alice_seat}
 
         bob_again = MockConnection()
         manager.register_connection(bob_again)
@@ -355,9 +351,9 @@ class TestGameStartConfirm:
         assert reconnected[WireKey.SESSION_TYPE] == SessionMessageType.GAME_RECONNECTED
         assert reconnected[WireKey.CONFIRMATION_OWED] is False
         assert WireKey.ROUND_ADVANCE_SECONDS not in reconnected
-        assert game.awaiting.seats == {alice_seat}
+        assert game.pause.seats == {alice_seat}
 
-        manager.handle_game_action(alice, action=GameAction.CONFIRM_ROUND, data={}, wait_id=1)
+        manager.confirm_round(alice, wait_id=1)
         recorded = game.replay.records
         assert [line[WireKey.EVENT_TYPE] for line in recorded[:5]] == [
             GAME_STARTED_T,
@@ -393,8 +389,8 @@ class TestGameStartConfirm:
         ) == (1, True, 2, START_CONFIRM_SECONDS)
         assert WireKey.ROUND_RESULT not in snapshot
 
-        manager.handle_game_action(alice_again, action=GameAction.CONFIRM_ROUND, data={}, wait_id=1)
-        assert game_of(manager).awaiting.seats == {game_of(manager).participants[1].seat}
+        manager.confirm_round(alice_again, wait_id=1)
+        assert game_of(manager).pause.seats == {game_of(manager).participants[1].seat}
 
         await manager.shutdown()
 

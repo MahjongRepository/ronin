@@ -267,9 +267,8 @@ def stamp_wait_id(payload: dict[int, Any], *, event: GameEvent, awaiting: Awaiti
     is.
 
     The opening events: for a turn, the draw or the turn event to the awaited seat; for a call prompt, each prompt to an
-    awaited seat; for a round advance, the round end, or for the one that confirms the game's start, the first round's
-    deal to an awaited seat. A game over opens no wait. Only the socket payloads carry it: the
-    replay collector shapes its own payloads, so `WireKey.WAIT_ID` never reaches a replay file.
+    awaited seat. Any other wait opens none here: the session stamps the openings of its own pauses. Only the socket
+    payloads carry it: the replay collector shapes its own payloads, so `WireKey.WAIT_ID` never reaches a replay file.
     """
     if opens_wait(event, awaiting):
         return {**payload, WireKey.WAIT_ID: wait_id}
@@ -289,10 +288,4 @@ def opens_wait(event: GameEvent, awaiting: Awaiting) -> bool:
     if awaiting.kind == WaitKind.CALL:
         return isinstance(event, CallPromptEvent) and to_awaited_seat
 
-    if awaiting.kind != WaitKind.ROUND_ADVANCE:
-        return False
-
-    if awaiting.starts_game:
-        return isinstance(event, RoundStartedEvent) and to_awaited_seat
-
-    return isinstance(event, RoundEndEvent)
+    return False

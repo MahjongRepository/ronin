@@ -186,7 +186,6 @@ class _StagedEngine(MahjongGameService):
         seed: str | None = None,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
-        confirm_start: bool = False,
     ) -> GameStart:
         if seed is not None or walls or start is not None:
             raise ScenarioError(f"{game_id}: the session started a game with its own seed, walls or start")
@@ -197,10 +196,21 @@ class _StagedEngine(MahjongGameService):
             seed=STAGED_SEED,
             walls=[staged.tiles() for staged in self._staged_rounds],
             start=self._start,
-            confirm_start=confirm_start,
         )
         self._check_draws(game_start.events)
         return game_start
+
+    @override
+    def begin_round(self, runtime: GameRuntime) -> GameUpdate:
+        update = super().begin_round(runtime)
+        self._check_draws(update.events)
+        return update
+
+    @override
+    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate:
+        update = super().deal_next_round(runtime)
+        self._check_draws(update.events)
+        return update
 
     @override
     def handle_action(self, runtime: GameRuntime, *, seat: int, action: GameAction, data: dict[str, Any]) -> GameUpdate:

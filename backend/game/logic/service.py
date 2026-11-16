@@ -17,22 +17,18 @@ class Awaiting:
     """
     The input the game waits for after an engine call.
 
-    seats are the awaited seats an AI player does not hold: the turn's seat, the callers still to respond to the call
-    prompt, or the seats still to confirm the round end; none for an AI player's turn or once the game is over. wait_id
-    identifies the wait: it changes exactly when a call ends the current wait (an error result, a partial prompt
-    response or confirmation, and a replacement or restore that resolves nothing keep it), so a later wait of the same
-    kind for the same seat gets a new one.
-    round_number is the round the wait belongs to; a round advance belongs to the round that ended. results_shown is how
-    many results a round advance shows in turn (one per winner of a double ron), one for any other wait. starts_game
-    marks the round advance that confirms the game's start, over the first round's deal, before its dealer draws.
+    seats are the awaited seats an AI player does not hold: the turn's seat or the callers still to respond to the call
+    prompt; none for an AI player's turn, a dealt round whose dealer has not drawn yet (begin_round draws), a round over
+    (deal_next_round deals the next) or a game over. wait_id identifies the wait: it changes exactly when a call ends
+    the current wait (an error result, a partial prompt response, and a replacement or restore that resolves nothing
+    keep it), so a later wait of the same kind for the same seat gets a new one. round_number is the round the wait
+    belongs to; a round over belongs to the round that ended.
     """
 
     kind: WaitKind
     seats: frozenset[int]
     wait_id: int
     round_number: int
-    results_shown: int = 1
-    starts_game: bool = False
 
 
 @dataclass(frozen=True)
@@ -86,7 +82,7 @@ class GameService(Protocol):
         """
         ...
 
-    def start_game(  # noqa: PLR0913
+    def start_game(
         self,
         game_id: str,
         player_names: list[str],
@@ -94,7 +90,6 @@ class GameService(Protocol):
         seed: str | None = None,
         walls: Sequence[Sequence[int]] = (),
         start: StartPosition | None = None,
-        confirm_start: bool = False,
     ) -> GameStart:
         """
         Start a game with the given players, seating AI players in the empty seats.
@@ -104,9 +99,25 @@ class GameService(Protocol):
         seed is None, a random seed is generated. Every game plays the one rules preset. The game's first rounds are
         dealt from walls, one 136-tile wall each, in order, and the rounds after them from the seed; a round dealt from
         a given wall breaks it at dice (1, 1), and given walls make seat 0 the first dealer. A start position starts the
-        game at its scores, sticks, dealer, wind and round number in place of East 1. With confirm_start, the game stops
-        after the first deal on a round advance (Awaiting.starts_game) its human seats confirm with CONFIRM_ROUND, and
-        the dealer draws only then; without it, or with no human seat, the dealer draws at once.
+        game at its scores, sticks, dealer, wind and round number in place of East 1. The game stops after the first
+        deal (WaitKind.DEALT): its dealer draws only on begin_round.
+        """
+        ...
+
+    def begin_round(self, runtime: GameRuntime) -> GameUpdate:
+        """
+        Draw the dealt round's first tile for its dealer (WaitKind.DEALT), with the AI turns that follow it.
+
+        Returns the events to deliver and the next wait. Calling it on any other wait is a server fault.
+        """
+        ...
+
+    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate:
+        """
+        Deal the round after the one that ended (WaitKind.ROUND_OVER), from the game's next given wall or else its seed.
+
+        Returns the deal's events and the next wait, a dealt round (WaitKind.DEALT). Calling it on any other wait is a
+        server fault.
         """
         ...
 
@@ -128,7 +139,6 @@ class GameService(Protocol):
 
         For TURN timeout: tsumogiri (discard last drawn tile).
         For MELD timeout: pass on the call opportunity.
-        For ROUND_ADVANCE timeout: auto-confirm round advancement.
         """
         ...
 
@@ -180,7 +190,6 @@ class GameService(Protocol):
     def build_wait_events_for_seat(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
         """
         Rebuild the event that opened the wait the game owes the seat: its call prompt, or its turn's draw with its
-        available actions (the turn event right after its own pon or chi); none for a round advance or a wait that does
-        not await the seat.
+        available actions (the turn event right after its own pon or chi); none for a wait that does not await the seat.
         """
         ...

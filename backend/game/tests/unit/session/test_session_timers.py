@@ -8,10 +8,23 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from game.engine import Awaiting, EventType, GameAction, GameErrorCode, TimeoutType, WaitKind
+from game.engine import (
+    Awaiting,
+    DoubleRonResult,
+    DoubleRonWinner,
+    EventType,
+    GameAction,
+    GameErrorCode,
+    HandLimit,
+    HandResultInfo,
+    RoundEndEvent,
+    TimeoutType,
+    WaitKind,
+    YakuInfo,
+)
 from game.messaging.types import SessionErrorCode
 from game.session.manager import SessionManager
-from game.session.models import GameLifecycle, GameSession, Participant, PlayerSpec
+from game.session.models import GameLifecycle, GameSession, Participant, Pause, PlayerSpec
 from game.session.timer import TimerConfig, TurnTimer
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import FakeGameRepository, MockConnection
@@ -41,17 +54,31 @@ if TYPE_CHECKING:
 ARMING_CONFIG = TimerConfig(base_turn_seconds=5, initial_bank_seconds=20)
 
 
-def _arm_double_ron_round_advance(manager: SessionManager, participant: Participant) -> None:
+def _double_ron_round_end() -> RoundEndEvent:
+    hand_result = HandResultInfo(limit=HandLimit.NONE, han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000)
+    scores = dict.fromkeys(range(4), 25000)
+    winners = [
+        DoubleRonWinner(
+            honba_bonus=0,
+            winner_seat=seat,
+            hand_result=hand_result,
+            score_changes=scores,
+            riichi_sticks_collected=0,
+            closed_tiles=[],
+            melds=[],
+        )
+        for seat in (2, 3)
+    ]
+    result = DoubleRonResult(loser_seat=1, winning_tile=0, winners=winners, scores=scores, score_changes=scores)
+    return RoundEndEvent(dealer_seat=0, dora_indicators=[], riichi_sticks=0, result=result)
+
+
+def _arm_double_ron_round_over_pause(manager: SessionManager, participant: Participant) -> None:
     participant.connection = MockConnection()
     participant.game.participants.append(participant)
-    awaiting = Awaiting(
-        kind=WaitKind.ROUND_ADVANCE,
-        seats=frozenset({participant.seat}),
-        wait_id=1,
-        round_number=0,
-        results_shown=2,
-    )
-    manager._start_wait_timers(participant.game, awaiting=awaiting)
+    manager._open_round_over_pause(participant.game, [_double_ron_round_end()])
+    round_over = Awaiting(kind=WaitKind.ROUND_OVER, seats=frozenset(), wait_id=1, round_number=0)
+    manager._start_wait_timers(participant.game, awaiting=round_over)
 
 
 class TestWaitTimerArming:
@@ -71,25 +98,17 @@ class TestWaitTimerArming:
             (SessionManager._start_turn_timer, TimeoutType.TURN, 25.0),
             (SessionManager._start_meld_timer, TimeoutType.MELD, 25.0),
             (
-                partial(
-                    SessionManager._start_round_advance_timer,
-                    awaiting=Awaiting(kind=WaitKind.ROUND_ADVANCE, seats=frozenset({0}), wait_id=1, round_number=0),
-                ),
+                partial(SessionManager._start_pause_timer, pause=Pause(starts_game=False, seats=frozenset({0}))),
                 TimeoutType.ROUND_ADVANCE,
                 ARMING_CONFIG.round_advance_timeout_seconds,
             ),
             (
-                partial(
-                    SessionManager._start_round_advance_timer,
-                    awaiting=Awaiting(
-                        kind=WaitKind.ROUND_ADVANCE, seats=frozenset({0}), wait_id=1, round_number=0, starts_game=True
-                    ),
-                ),
+                partial(SessionManager._start_pause_timer, pause=Pause(starts_game=True, seats=frozenset({0}))),
                 TimeoutType.ROUND_ADVANCE,
                 ARMING_CONFIG.game_start_confirm_seconds,
             ),
             (
-                _arm_double_ron_round_advance,
+                _arm_double_ron_round_over_pause,
                 TimeoutType.ROUND_ADVANCE,
                 2 * ARMING_CONFIG.round_advance_timeout_seconds,
             ),
@@ -101,6 +120,11 @@ class TestWaitTimerArming:
         manager = make_session_manager()
         timeout_log = []
         monkeypatch.setattr(manager, "_handle_timeout", lambda *timed_out: timeout_log.append(timed_out))
+        monkeypatch.setattr(
+            manager,
+            "_handle_pause_timeout",
+            lambda timed_out: timeout_log.append((timed_out, TimeoutType.ROUND_ADVANCE)),
+        )
         start, timeout_type, duration = arming
         start(manager, participant)
         await asyncio.sleep(0)
@@ -234,13 +258,11 @@ class TestWaitTimers:
             data={"tile_id": drawn_tile},
             wait_id=current_wait_id(manager, conns[0]),
         )
-        assert manager.get_game("game1").awaiting.kind == WaitKind.ROUND_ADVANCE
+        assert manager.get_game("game1").awaiting.kind == WaitKind.ROUND_OVER
         assert timer.bank_seconds == first_round_bank - 2
 
         conns[0]._outbox.clear()
-        manager.handle_game_action(
-            conns[0], action=GameAction.CONFIRM_ROUND, data={}, wait_id=current_wait_id(manager, conns[0])
-        )
+        manager.confirm_round(conns[0], wait_id=current_wait_id(manager, conns[0]))
         second_round = manager.get_game("game1").awaiting
         assert (second_round.round_number, second_round.seats) == (1, frozenset({alice_seat}))
         assert timer._bank_seconds == first_round_bank
@@ -290,9 +312,7 @@ class TestWaitTimers:
             data={"tile_id": drawn_tile},
             wait_id=current_wait_id(manager, conns[0]),
         )
-        manager.handle_game_action(
-            conns[0], action=GameAction.CONFIRM_ROUND, data={}, wait_id=current_wait_id(manager, conns[0])
-        )
+        manager.confirm_round(conns[0], wait_id=current_wait_id(manager, conns[0]))
         assert game.awaiting.round_number == 1
         assert alice.timer._bank_seconds == first_round_bank
 

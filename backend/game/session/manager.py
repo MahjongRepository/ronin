@@ -1,6 +1,6 @@
 import asyncio
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -10,6 +10,7 @@ from game.engine import (
     PRESET_GAME_TYPE,
     BroadcastTarget,
     CallPromptEvent,
+    DoubleRonResult,
     DrawEvent,
     ErrorEvent,
     GameAction,
@@ -18,6 +19,7 @@ from game.engine import (
     GameEvent,
     GameStartedEvent,
     InvalidGameActionError,
+    RoundEndEvent,
     RoundStartedEvent,
     SeatTarget,
     TimeoutType,
@@ -43,7 +45,7 @@ from game.messaging.types import (
     SessionMessageType,
     TimerSettings,
 )
-from game.session.models import GameLifecycle, GameSession, Participant
+from game.session.models import GameLifecycle, GameSession, Participant, Pause
 from game.session.played_game import build_finish_record
 from game.session.replay_collector import ReplayRecord
 from game.session.timer import TimerConfig, TurnTimer
@@ -67,6 +69,7 @@ logger = structlog.get_logger()
 
 
 _AUTH_TIMEOUT_SECONDS = 10
+_CONFIRM_ROUND = "confirm_round"
 
 
 @dataclass(frozen=True)
@@ -414,17 +417,11 @@ class SessionManager:
         """
         Start the engine game for every participant, connected or not, and open its first wait.
 
-        Each participant is bound to the seat the engine assigned to its spec (by input order, never by name). With a
-        game start confirmation timeout the engine stops after the deal on a round advance that starts the game, so the
-        client shows the start over the dealt table until every seat confirmed or the timeout confirmed for it, and the
-        dealer draws only then; a zero timeout lets the dealer draw at once.
+        Each participant is bound to the seat the engine assigned to its spec (by input order, never by name). The
+        engine stops after the deal; the first wait opens from there (`_open_first_wait`).
         """
         game.lifecycle = GameLifecycle.PLAYING
-        start = self._game_service.start_game(
-            game.game_id,
-            [participant.name for participant in game.participants],
-            confirm_start=game.timer_config.game_start_confirm_seconds > 0,
-        )
+        start = self._game_service.start_game(game.game_id, [participant.name for participant in game.participants])
         game.runtime = start.runtime
         for participant, seat in zip(game.participants, start.seats, strict=True):
             participant.seat = seat
@@ -437,32 +434,27 @@ class SessionManager:
 
     def _open_first_wait(self, game: GameSession, *, events: list[GameEvent], awaiting: Awaiting) -> None:
         """
-        Send the start's events and open the first wait, with an AI player in the seat of every participant without a
-        connection (never joined), who can RECONNECT later.
+        Send the start's events, the game start and the deal, and open the first wait, with an AI player in the seat of
+        every participant without a connection (never joined), who can RECONNECT later.
 
-        The game start and the deal open the wait, so a round advance that starts the game stamps the deal of each
-        awaited seat. Each absent seat is an AI player's from then on, so its line is recorded after the deal and ahead
-        of the dealer's draw, the moves of the AI players seated from the start included; its AI player then confirms
-        the start for it, or plays the turn or call the start leaves it.
+        With a game start confirmation timeout the game pauses over the dealt table (`Pause.starts_game`) for its
+        connected seats, each one's deal stamped as the opening of its confirmation, and the dealer draws
+        (`_begin_round`) once every seat confirmed or the timeout confirmed for the rest; a zero timeout lets the dealer
+        draw at once. Each absent seat is an AI player's from then on, so its line is recorded after the deal and ahead
+        of the dealer's draw, the moves of the AI players seated from the start included; it owes no confirmation.
         """
-        runtime = self._runtime_of(game)
-        dealt: list[GameEvent] = [event for event in events if isinstance(event, GameStartedEvent | RoundStartedEvent)]
-        self._apply_engine_update(game, events=dealt, awaiting=awaiting, actor=None)
+        if game.timer_config.game_start_confirm_seconds > 0:
+            game.pause = Pause(starts_game=True, seats=frozenset(self._seat_of(p) for p in game.connected()))
 
+        self._apply_engine_update(game, events=events, awaiting=awaiting, actor=None)
+        runtime = self._runtime_of(game)
         absent = [participant for participant in game.participants if not participant.is_connected]
         for participant in absent:
             self._game_service.replace_with_ai_player(runtime, self._seat_of(participant))
             self._hand_over_seat(participant, stand_in=SeatControlReason.ABSENT)
 
-        after_deal = [event for event in events if not isinstance(event, GameStartedEvent | RoundStartedEvent)]
-        self._follow_engine(game, events=after_deal, awaiting=awaiting, actor=None)
-        for participant in absent:
-            if game.lifecycle is not GameLifecycle.PLAYING:
-                return
-
-            seat = self._seat_of(participant)
-            update = self._game_service.process_ai_player_actions_after_replacement(runtime, seat)
-            self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
+        if game.pause is None:
+            self._begin_round(game, actor=None)
 
     def _record_game_start(self, game: GameSession, runtime: GameRuntime) -> None:
         """
@@ -504,13 +496,13 @@ class SessionManager:
 
     def _release_seat(self, participant: Participant) -> None:
         """
-        Hand a departed participant's seat to an AI player, which answers any call or confirmation it owed at once and
-        plays a turn it owed after the AI turn delay, and announce the handover (`_hand_over_seat`) ahead of the AI
-        player's moves, once the engine made them.
+        Hand a departed participant's seat to an AI player, which answers any call it owed at once and plays a turn it
+        owed after the AI turn delay, and announce the handover (`_hand_over_seat`) ahead of the AI player's moves, once
+        the engine made them.
 
         The participant's timer stops, deducting the bank it used. When no connected participant remains the game is
-        abandoned instead: there are never all-AI games. During the game start confirmation the AI player confirms for
-        the seat, so the others are not held to its timeout.
+        abandoned instead: there are never all-AI games. During a pause the seat's confirmation is given for it, so the
+        others are not held to its timeout.
         """
         game = participant.game
         participant.timer.stop()
@@ -524,6 +516,7 @@ class SessionManager:
         update = self._game_service.process_ai_player_actions_after_replacement(runtime, seat)
         self._hand_over_seat(participant, stand_in=SeatControlReason.LEFT)
         self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
+        self._confirm_pause(game, seat)
 
     def _hand_over_seat(self, participant: Participant, *, stand_in: SeatControlReason | None) -> None:
         """
@@ -581,19 +574,14 @@ class SessionManager:
         acting seat's) disconnects the player with 1008 and seats an AI player. Anything else the engine raises is a
         server fault and propagates to the caller's boundary, which fails the game.
         """
-        participant = self._bound_participant(connection)
+        participant = self._acting_participant(connection)
         if participant is None:
             return
 
         game = participant.game
-        if game.lifecycle is GameLifecycle.PENDING:
-            self._send_error(connection, code=SessionErrorCode.GAME_NOT_STARTED, message="Game has not started yet")
-            return
-
         seat = self._seat_of(participant)
-        structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=seat)
         if game.awaiting is None or seat not in game.awaiting.seats or wait_id != participant.decision_id:
-            self._send_stale_action(connection, seat=seat, action=action, wait_id=wait_id)
+            self._send_stale_action(connection, seat=seat, action=action.value, wait_id=wait_id)
             return
 
         try:
@@ -604,6 +592,43 @@ class SessionManager:
 
         events = [_naming_wait(event, wait_id=wait_id) for event in update.events]
         self._follow_engine(game, events=events, awaiting=update.awaiting, actor=seat)
+
+    def confirm_round(self, connection: ConnectionProtocol, *, wait_id: int) -> None:
+        """
+        Confirm the pause a player's seat owes its confirmation: the game's start, or a round's end.
+
+        A seat that owes none, or a confirmation whose id is not its participant's current decision id, gets a
+        `stale_action` ErrorEvent naming the id it echoed, and nothing else changes. The last confirmation ends the
+        pause (`_confirm_pause`).
+        """
+        participant = self._acting_participant(connection)
+        if participant is None:
+            return
+
+        game = participant.game
+        seat = self._seat_of(participant)
+        if game.pause is None or seat not in game.pause.seats or wait_id != participant.decision_id:
+            self._send_stale_action(connection, seat=seat, action=_CONFIRM_ROUND, wait_id=wait_id)
+            return
+
+        self._confirm_pause(game, seat)
+
+    def _acting_participant(self, connection: ConnectionProtocol) -> Participant | None:
+        """
+        Return the participant a game action's connection plays a started game for, bound to its log context, or None
+        after answering why it cannot act (`_bound_participant`, `game_not_started`).
+        """
+        participant = self._bound_participant(connection)
+        if participant is None:
+            return None
+
+        game = participant.game
+        if game.lifecycle is GameLifecycle.PENDING:
+            self._send_error(connection, code=SessionErrorCode.GAME_NOT_STARTED, message="Game has not started yet")
+            return None
+
+        structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=self._seat_of(participant))
+        return participant
 
     def _bound_participant(self, connection: ConnectionProtocol) -> Participant | None:
         """
@@ -624,13 +649,13 @@ class SessionManager:
         connection: ConnectionProtocol,
         *,
         seat: int,
-        action: GameAction,
+        action: str,
         wait_id: int,
     ) -> None:
         """
         Answer an action for a wait that already ended with a `stale_action` ErrorEvent to its seat.
         """
-        logger.info("stale game action", action=action.value, wait_id=wait_id)
+        logger.info("stale game action", action=action, wait_id=wait_id)
         error = ErrorEvent(
             code=GameErrorCode.STALE_ACTION,
             message="the wait this action answers has already ended",
@@ -709,9 +734,9 @@ class SessionManager:
         opened the wait the game owes the seat, if any, changing nothing.
 
         The snapshot carries the participant's latest decision id, every seat an AI player holds for its participant
-        marked as such, the seat's timer settings (its bank as of its last turn) and, during a round advance (the game
-        start's confirmation included), whether the seat still owes its confirmation, with how long that wait's timer
-        has run and its whole timeout when it does.
+        marked as such, the seat's timer settings (its bank as of its last turn) and, during a pause (the game start's
+        included), whether the seat still owes its confirmation, with how long that wait's timer has run and its whole
+        timeout when it does.
         """
         game = participant.game
         seat = self._seat_of(participant)
@@ -720,12 +745,13 @@ class SessionManager:
         payload = reconnection_payload(snapshot, stand_ins=stand_ins)
         payload[WireKey.SESSION_TYPE] = SessionMessageType.GAME_RECONNECTED
         payload[WireKey.WAIT_ID] = participant.decision_id
-        if awaiting.kind == WaitKind.ROUND_ADVANCE:
-            payload[WireKey.CONFIRMATION_OWED] = seat in awaiting.seats
+        pause = game.pause
+        if pause is not None:
+            payload[WireKey.CONFIRMATION_OWED] = seat in pause.seats
             elapsed = participant.timer.elapsed_seconds
-            if seat in awaiting.seats and elapsed is not None:
+            if seat in pause.seats and elapsed is not None:
                 payload[WireKey.WAIT_ELAPSED] = elapsed
-                payload[WireKey.ROUND_ADVANCE_SECONDS] = game.timer_config.round_advance_seconds(awaiting)
+                payload[WireKey.ROUND_ADVANCE_SECONDS] = game.timer_config.round_advance_seconds(pause)
 
         connection.send_message(stamp_timer_settings(payload, self._timer_settings(participant)))
         self._send_wait_on_reconnect(participant, connection, awaiting=awaiting)
@@ -789,10 +815,10 @@ class SessionManager:
         its own pon or chi).
 
         Only a taken-over seat, or a seat whose turn its AI player had not played yet, can be awaited: an AI player
-        answers any call or confirmation of a seat it holds at once. The wait's timer runs from its opening (for a seat
-        taken back, the reconnect itself), so nothing is re-armed. WireKey.WAIT_ELAPSED lets the client count down what
-        is left and charge the bank as the server will. Sent directly instead of through `_send_events`, so the replay
-        does not record the event twice.
+        answers any call of a seat it holds at once, and a pause owes no such event. The wait's timer runs from its
+        opening (for a seat taken back, the reconnect itself), so nothing is re-armed. WireKey.WAIT_ELAPSED lets the
+        client count down what is left and charge the bank as the server will. Sent directly instead of through
+        `_send_events`, so the replay does not record the event twice.
         """
         seat = self._seat_of(participant)
         elapsed = participant.timer.elapsed_seconds
@@ -886,12 +912,14 @@ class SessionManager:
         """
         Deliver an engine call's events and drive the timers from the wait it reports.
 
-        The call's actor is the seat that acted, timed out, was replaced or took its seat back; a game start or an AI
-        player's turn has none. When the wait id changed, every timer stops (charging elapsed decision time) and so does
-        a pending AI turn, a new round's banks reset, and each connected participant now awaited advances its own
-        decision id before the events go out. The new wait's timers start after them; an AI player's turn awaits no
-        participant and starts none. When it did not, only an actor that left the wait (a partial prompt response or
-        confirmation) has its timer stopped; an actor still awaited (an error) keeps it running with nothing deducted.
+        The call's actor is the seat that acted, timed out, was replaced, took its seat back or ended a pause; a game
+        start or an AI player's turn has none. When the wait id changed, every timer stops (charging elapsed decision
+        time) and so does a pending AI turn, a new round's banks reset, a round over opens its pause
+        (`_open_round_over_pause`), and each connected participant now awaited, by the engine or the pause, advances its
+        own decision id before the events go out. The new wait's timers start after them; an AI player's turn, a dealt
+        round and a game over await no participant and start none. When it did not, only an actor that left the wait (a
+        partial prompt response) has its timer stopped; an actor still awaited (an error) keeps it running with nothing
+        deducted.
         """
         previous = game.awaiting
         game.awaiting = awaiting
@@ -900,8 +928,12 @@ class SessionManager:
             self._end_wait_timers(game)
             self._cancel_ai_turn(game)
             self._reset_round_banks(game, previous=previous, awaiting=awaiting)
+            if awaiting.kind == WaitKind.ROUND_OVER:
+                self._open_round_over_pause(game, events)
+
+            awaited = game.pause.seats if game.pause is not None else awaiting.seats
             for participant in game.connected():
-                if participant.seat in awaiting.seats:
+                if participant.seat in awaited:
                     participant.decision_id += 1
         elif actor is not None and actor in previous.seats and actor not in awaiting.seats:
             self._stop_timer_at(game, actor)
@@ -909,6 +941,52 @@ class SessionManager:
         self._broadcast_events(game, events, awaiting)
         if new_wait and game.lifecycle is GameLifecycle.PLAYING:
             self._start_wait_timers(game, awaiting=awaiting)
+
+    def _open_round_over_pause(self, game: GameSession, events: list[GameEvent]) -> None:
+        """
+        Pause a round's end for its connected seats to confirm, showing one result for each winner of a double ron.
+
+        A round ends only in a step of a game with a connected participant, since the last one leaving abandons it, so a
+        round over with none is a server fault.
+        """
+        seats = frozenset(self._seat_of(participant) for participant in game.connected())
+        if not seats:
+            raise AssertionError("round ended with no connected participant")
+
+        round_end = next(event for event in events if isinstance(event, RoundEndEvent))
+        result = round_end.result
+        results_shown = len(result.winners) if isinstance(result, DoubleRonResult) else 1
+        game.pause = Pause(starts_game=False, seats=seats, results_shown=results_shown)
+
+    def _confirm_pause(self, game: GameSession, seat: int) -> None:
+        """
+        Take a seat's confirmation of the pause, when it owes one, stopping its timer.
+
+        The last one ends the pause: a round's end deals the next round, and either way the dealt round's dealer draws.
+        """
+        pause = game.pause
+        if pause is None or seat not in pause.seats:
+            return
+
+        self._stop_timer_at(game, seat)
+        seats = pause.seats - {seat}
+        if seats:
+            game.pause = replace(pause, seats=seats)
+            return
+
+        game.pause = None
+        if not pause.starts_game:
+            update = self._game_service.deal_next_round(self._runtime_of(game))
+            self._apply_engine_update(game, events=update.events, awaiting=update.awaiting, actor=seat)
+
+        self._begin_round(game, actor=seat)
+
+    def _begin_round(self, game: GameSession, *, actor: int | None) -> None:
+        """
+        Let the dealt round's dealer draw its first tile, and follow the engine from there.
+        """
+        update = self._game_service.begin_round(self._runtime_of(game))
+        self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=actor)
 
     @staticmethod
     def _end_wait_timers(game: GameSession) -> None:
@@ -942,12 +1020,14 @@ class SessionManager:
 
     def _start_wait_timers(self, game: GameSession, *, awaiting: Awaiting) -> None:
         """
-        Start the timers of a new wait for its awaited seats that have a connected participant.
+        Start the timers of a new wait for its awaited seats that have a connected participant, or of a pause that
+        opened with it for the seats that owe their confirmation.
         """
         connected = game.connected()
-        if awaiting.kind == WaitKind.ROUND_ADVANCE:
+        if game.pause is not None:
             for participant in connected:
-                self._start_round_advance_timer(participant, awaiting=awaiting)
+                if participant.seat in game.pause.seats:
+                    self._start_pause_timer(participant, pause=game.pause)
 
             return
 
@@ -966,14 +1046,14 @@ class SessionManager:
     def _start_meld_timer(self, participant: Participant) -> None:
         participant.timer.start_decision_timer(lambda: self._handle_timeout(participant, TimeoutType.MELD))
 
-    def _start_round_advance_timer(self, participant: Participant, *, awaiting: Awaiting) -> None:
+    def _start_pause_timer(self, participant: Participant, *, pause: Pause) -> None:
         """
-        Start the round advance timer: the round advance timeout once for each result the round end shows in turn, or
-        the game start confirmation's timeout.
+        Start the pause timer: the round advance timeout once for each result the round end shows in turn, or the game
+        start confirmation's timeout.
         """
         participant.timer.start_fixed_timer(
-            participant.game.timer_config.round_advance_seconds(awaiting),
-            lambda: self._handle_timeout(participant, TimeoutType.ROUND_ADVANCE),
+            participant.game.timer_config.round_advance_seconds(pause),
+            lambda: self._handle_pause_timeout(participant),
         )
 
     def _broadcast_events(self, game: GameSession, events: list[GameEvent], awaiting: Awaiting) -> None:
@@ -995,10 +1075,9 @@ class SessionManager:
         WireKey.WAIT_ID.
 
         Each game start copy carries its recipient's WireKey.SEAT. A draw goes whole to the drawer and as its public
-        notice to every other seat, so each seat gets one representation of it. The round end that opens a round
-        advance, and the deal that opens the game start's confirmation, also name its whole timeout
-        (WireKey.ROUND_ADVANCE_SECONDS), so the client counts it down by the server's word rather than by its own count
-        of the results.
+        notice to every other seat, so each seat gets one representation of it. The round end that opens a round's
+        pause, and the deal that opens the game start's, also name its whole timeout (WireKey.ROUND_ADVANCE_SECONDS), so
+        the client counts it down by the server's word rather than by its own count of the results.
         """
         if game.replay is not None:
             self._replay_collector.collect_events(game.replay, events)
@@ -1029,10 +1108,10 @@ class SessionManager:
         awaiting: Awaiting,
     ) -> None:
         """
-        Send a broadcast event to every connected participant: stamped per recipient when it opens the wait, otherwise
-        encoded once for all of them.
+        Send a broadcast event to every connected participant: stamped per recipient when it opens the wait or the
+        pause, otherwise encoded once for all of them.
         """
-        if not opens_wait(event, awaiting):
+        if not opens_wait(event, awaiting) and not self._opens_pause(event, game.pause):
             self._broadcast_to_game(game, message)
             return
 
@@ -1051,12 +1130,33 @@ class SessionManager:
             return
 
         payload = stamp_wait_id(message, event=event, awaiting=awaiting, wait_id=participant.decision_id)
-        if awaiting.kind == WaitKind.ROUND_ADVANCE and WireKey.WAIT_ID in payload:
-            payload[WireKey.ROUND_ADVANCE_SECONDS] = participant.game.timer_config.round_advance_seconds(awaiting)
+        pause = participant.game.pause
+        if pause is not None and self._opens_pause(event, pause):
+            payload = {
+                **payload,
+                WireKey.WAIT_ID: participant.decision_id,
+                WireKey.ROUND_ADVANCE_SECONDS: participant.game.timer_config.round_advance_seconds(pause),
+            }
 
         participant.connection.send_message(
             self._stamp_decision_bank(payload, participant=participant, awaiting=awaiting)
         )
+
+    @staticmethod
+    def _opens_pause(event: GameEvent, pause: Pause | None) -> bool:
+        """
+        Tell whether an event opens the pause for its recipients: a round's end opens the round's, and the deal to a
+        seat that owes the game start's confirmation opens the start's.
+        """
+        if pause is None:
+            return False
+
+        if pause.starts_game:
+            target = event.target
+            to_owing_seat = isinstance(target, SeatTarget) and target.seat in pause.seats
+            return isinstance(event, RoundStartedEvent) and to_owing_seat
+
+        return isinstance(event, RoundEndEvent)
 
     @staticmethod
     def _send_draw_notice(game: GameSession, event: DrawEvent) -> None:
@@ -1151,6 +1251,20 @@ class SessionManager:
             self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
         except Exception as exc:  # noqa: BLE001
             self.fail_game(game, reason=f"{timeout_type} timeout failed", exc=exc)
+
+    def _handle_pause_timeout(self, participant: Participant) -> None:
+        """
+        Confirm the pause for a seat whose pause timer fired; any unexpected error ends the game through fail_game.
+
+        Like a turn's timer it needs no guard, and logs as the timer's own seat.
+        """
+        game = participant.game
+        structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=participant.seat)
+        try:
+            self._confirm_pause(game, self._seat_of(participant))
+            self._timeouts[TimeoutType.ROUND_ADVANCE] += 1
+        except Exception as exc:  # noqa: BLE001
+            self.fail_game(game, reason=f"{TimeoutType.ROUND_ADVANCE} timeout failed", exc=exc)
 
     def _end_game(
         self,

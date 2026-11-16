@@ -345,9 +345,9 @@ class TestReconnectTakeover:
             m for m in bob_conn.sent_messages if m.get(WireKey.EVENT_TYPE) == EVENT_TYPE_INT[EventType.ROUND_END]
         )
         assert (alice_result[WireKey.WAIT_ID], bob_result[WireKey.WAIT_ID]) == (2, 1)
-        manager.handle_game_action(alice_conn, action=GameAction.CONFIRM_ROUND, data={}, wait_id=round_end)
+        manager.confirm_round(alice_conn, wait_id=round_end)
         advance = game_of(manager).awaiting
-        assert (advance.kind, advance.seats) == (WaitKind.ROUND_ADVANCE, frozenset({bob.seat}))
+        assert (advance.kind, game_of(manager).pause.seats) == (WaitKind.ROUND_OVER, frozenset({bob.seat}))
         bob_deadline = bob.timer.task
         fake_clock.advance(4)
 
@@ -368,9 +368,7 @@ class TestReconnectTakeover:
         assert owed == {"Alice": (False, None, None), "Bob": (True, 4, 10)}
         assert bob.timer.task is bob_deadline
 
-        manager.handle_game_action(
-            bob.connection, action=GameAction.CONFIRM_ROUND, data={}, wait_id=bob_result[WireKey.WAIT_ID]
-        )
+        manager.confirm_round(bob.connection, wait_id=bob_result[WireKey.WAIT_ID])
         assert game_of(manager).awaiting.round_number == advance.round_number + 1
 
         await manager.shutdown()
@@ -463,7 +461,7 @@ class TestReconnectDuringRoundAdvance:
         manager.disconnect(conns[1])
         arrange_exhaustive_draw(runtime_of(manager))
         run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
-        assert game_of(manager).awaiting.kind == WaitKind.ROUND_ADVANCE
+        assert game_of(manager).awaiting.kind == WaitKind.ROUND_OVER
 
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)
