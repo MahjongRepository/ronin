@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { RIVERS, cogSquare, riverReserves } from "#tests/fixtures/board-rects";
 import {
+    MELD_GAP_TIGHT,
     SIDEWAYS_UNITS,
     STACKED_DEPTH,
     TILE_ASPECT,
     TILE_EDGE_SHARE,
     TOP_HAND_EDGE_SHARE,
+    UPRIGHT_DEPTH,
 } from "@/entities/table/lib/board-constants";
 import {
     type BoardBox,
@@ -15,7 +17,7 @@ import {
     boardGeometry,
     phonePromptHeight,
 } from "@/entities/table/lib/board-geometry";
-import { stripLayout } from "@/entities/table/lib/strip-layout";
+import { handLength, stripLayout } from "@/entities/table/lib/strip-layout";
 import {
     TABLE_PIECES,
     type TableView,
@@ -616,6 +618,29 @@ describe("tableView on phones", () => {
             );
             expect(handGap).toBeGreaterThan(0);
             expect(shownBands(view).top).toBeCloseTo(handGap, 5);
+        },
+    );
+
+    it.each(PHONE_BOXES)(
+        "keeps the top strip's four kans, one added, a gap off its hand on the tilted plane on %s",
+        (_shape, box) => {
+            const { strips } = viewOf(box).view.plane;
+            if (strips === null) {
+                throw new Error("The plane has no strip rooms");
+            }
+            const openKan = { depth: UPRIGHT_DEPTH, units: 3 + SIDEWAYS_UNITS };
+            const closedKan = { depth: UPRIGHT_DEPTH, units: 4 };
+            const content = {
+                drawn: true,
+                hand: 2,
+                melds: [ADDED_KAN, openKan, openKan, closedKan],
+            };
+
+            const [newest] = stripLayout("top", content, strips).melds;
+
+            expect(newest?.along).toBeGreaterThanOrEqual(
+                handLength({ drawn: true, rw: strips.rw, seat: "top", tiles: 2 }) + MELD_GAP_TIGHT,
+            );
         },
     );
 
