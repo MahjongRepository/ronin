@@ -1,4 +1,4 @@
-from enum import IntEnum, StrEnum
+from enum import StrEnum
 
 
 class PlayerAction(StrEnum):
@@ -56,40 +56,6 @@ class PromptKind(StrEnum):
 
     DISCARD = "discard"
     CHANKAN = "chankan"
-
-
-class WireCallType(IntEnum):
-    """
-    Integer wire encoding of a call prompt's type: a ron prompt (the seat may ron, and meld instead when it can), a
-    meld-only prompt, or a chankan prompt.
-    """
-
-    RON = 0
-    MELD = 1
-    CHANKAN = 2
-
-
-class WireMeldCallType(IntEnum):
-    """
-    Integer wire encoding of a meld a call prompt offers.
-    """
-
-    PON = 0
-    CHI = 1
-    OPEN_KAN = 2
-
-
-class WirePlayerAction(IntEnum):
-    """
-    Integer wire encoding for PlayerAction.
-    """
-
-    DISCARD = 0
-    RIICHI = 1
-    TSUMO = 2
-    KAN = 3
-    ADDED_KAN = 4
-    KYUUSHU = 5
 
 
 class AbortiveDrawType(StrEnum):
@@ -153,26 +119,6 @@ class PaoShare(StrEnum):
 
     ALL = "all"
     HALF = "half"
-
-
-class WireWind(IntEnum):
-    """
-    Integer wire encoding for WindName.
-    """
-
-    EAST = 0
-    SOUTH = 1
-    WEST = 2
-    NORTH = 3
-
-
-class WireGameType(IntEnum):
-    """
-    Integer wire encoding for GameType.
-    """
-
-    HANCHAN = 0
-    TONPUSEN = 1
 
 
 class WindName(StrEnum):

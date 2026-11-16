@@ -1,5 +1,6 @@
 from game.engine import NUM_PLAYERS, NUM_TILES
 
+WIRE_SCORE_DIVISOR = 100
 _SEAT_TILE_SPACE = NUM_PLAYERS * NUM_TILES  # 544
 _NUM_DISCARD_FLAGS = 4  # 2 bits: is_tsumogiri | is_riichi
 

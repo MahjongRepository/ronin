@@ -183,15 +183,6 @@ class TestUma:
             validate_settings(settings)
 
 
-class TestRiichiCostSetting:
-    def test_validate_settings__when_riichi_cost_or_stick_value_not_whole_hundreds__should_reject_each(self):
-        with pytest.raises(UnsupportedSettingsError) as rejected:
-            validate_settings(GameSettings(riichi_cost=2050, riichi_stick_value=1050))
-
-        assert "riichi_cost must be a multiple of 100, got 2050" in str(rejected.value)
-        assert "riichi_stick_value must be a multiple of 100, got 1050" in str(rejected.value)
-
-
 class TestTobi:
     def test_tobi__when_score_below_zero__should_end_game(self):
         players = tuple(create_player(seat=i, score=-100 if i == 3 else 33367) for i in range(4))

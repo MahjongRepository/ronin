@@ -39,9 +39,6 @@ from game.engine import (
     TsumoResult,
     TurnAfterCall,
     TurnAfterDraw,
-    WireCallType,
-    WireMeldCallType,
-    WirePlayerAction,
     YakuInfo,
 )
 from game.messaging import serialization
@@ -57,7 +54,13 @@ from game.tests.helpers.builders import start_game_in_play
 from game.tests.helpers.wall import make_wall
 from game.tests.unit.logic.helpers import _first_human, _update_player, _update_round_state
 from game.wire.compact import decode_discard, decode_draw, encode_draw
-from game.wire.enums import WireEventType, WireRoundResultType
+from game.wire.enums import (
+    WireCallType,
+    WireEventType,
+    WireMeldCallType,
+    WirePlayerAction,
+    WireRoundResultType,
+)
 from game.wire.keys import WireKey
 from shared.lib.melds import EVENT_TYPE_MELD, decode_meld_compact
 
@@ -403,6 +406,13 @@ class TestRiichiStickValuePayload:
             None,
             15,
         )
+
+    def test_require_whole_wire_scores__when_riichi_values_not_whole_hundreds__should_reject_each(self):
+        with pytest.raises(ValueError, match="riichi_cost") as rejected:
+            serialization.require_whole_wire_scores({"riichi_cost": 2050, "riichi_stick_value": 1050})
+
+        assert "riichi_cost must be a multiple of 100, got 2050" in str(rejected.value)
+        assert "riichi_stick_value must be a multiple of 100, got 1050" in str(rejected.value)
 
 
 def _end_the_round_by_exhaustive_draw(service: MahjongGameService, runtime: GameRuntime, *, seat: int) -> None:

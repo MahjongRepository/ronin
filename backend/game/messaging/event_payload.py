@@ -29,13 +29,12 @@ from game.engine import (
     TsumoResult,
     TurnAfterCall,
     TurnAfterDraw,
-    WireCallType,
-    meld_event_to_compact,
 )
 from game.messaging import serialization
 from game.messaging.game_errors import ErrorEvent
+from game.messaging.meld_compact import meld_event_to_compact
 from game.wire.compact import encode_discard, encode_draw
-from game.wire.enums import WireEventType, WireRoundResultType
+from game.wire.enums import WireCallType, WireEventType, WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 

@@ -25,11 +25,6 @@ from game.logic.enums import (
     PaoShare,
     RoundResultType,
     WindName,
-    WireCallType,
-    WireGameType,
-    WireMeldCallType,
-    WirePlayerAction,
-    WireWind,
 )
 from game.logic.events import (
     BroadcastTarget,
@@ -49,7 +44,7 @@ from game.logic.events import (
     SeatTarget,
 )
 from game.logic.mahjong_service import MahjongGameService
-from game.logic.meld_compact import meld_event_to_compact
+from game.logic.meld_wrapper import FrozenMeld
 from game.logic.refusal import Refusal, RefusalCode, RefusalKind
 from game.logic.rng import (
     RNG_VERSION,
@@ -63,6 +58,7 @@ from game.logic.rule_profiles import (
     PRESET_GAME_TYPE,
     PRESET_HAS_AKADORA,
     PRESET_HAS_KUITAN,
+    PRESET_RIICHI_COST,
     PRESET_RIICHI_STICK_VALUE,
 )
 from game.logic.runtime import GameRuntime
@@ -70,7 +66,6 @@ from game.logic.service import Awaiting, Call, Dealt, GameOver, GameService, Rou
 from game.logic.settings import (
     NUM_PLAYERS,
     TRIPLE_RON_COUNT,
-    WIRE_SCORE_DIVISOR,
     GameType,
 )
 from game.logic.shanten import calculate_shanten
@@ -115,11 +110,11 @@ __all__ = [
     "PRESET_GAME_TYPE",
     "PRESET_HAS_AKADORA",
     "PRESET_HAS_KUITAN",
+    "PRESET_RIICHI_COST",
     "PRESET_RIICHI_STICK_VALUE",
     "RNG_VERSION",
     "SEED_BYTES",
     "TRIPLE_RON_COUNT",
-    "WIRE_SCORE_DIVISOR",
     "AbortiveDrawResult",
     "AbortiveDrawType",
     "Action",
@@ -141,6 +136,7 @@ __all__ = [
     "DrawNoticeEvent",
     "EventType",
     "ExhaustiveDrawResult",
+    "FrozenMeld",
     "FuritenEvent",
     "GameEndCause",
     "GameEndedEvent",
@@ -195,11 +191,6 @@ __all__ = [
     "TurnAfterDraw",
     "Wall",
     "WindName",
-    "WireCallType",
-    "WireGameType",
-    "WireMeldCallType",
-    "WirePlayerAction",
-    "WireWind",
     "YakuInfo",
     "build_wall",
     "calculate_shanten",
@@ -208,7 +199,6 @@ __all__ = [
     "generate_shuffled_wall_and_dice",
     "hand_to_34_array",
     "is_terminal_or_honor",
-    "meld_event_to_compact",
     "seat_permutation",
     "tile_to_34",
     "validate_seed_hex",

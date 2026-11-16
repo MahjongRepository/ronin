@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 
 from game.engine import (
     PRESET_GAME_TYPE,
+    PRESET_RIICHI_COST,
     PRESET_RIICHI_STICK_VALUE,
-    WIRE_SCORE_DIVISOR,
     AbortiveDrawResult,
     Chi,
     DiscardInfo,
@@ -29,14 +29,18 @@ from game.engine import (
     TenpaiHand,
     Tsumo,
     TsumoResult,
-    WireGameType,
-    WireMeldCallType,
-    WirePlayerAction,
-    WireWind,
     YakuInfo,
     tile_to_34,
 )
-from game.wire.enums import WireRoundResultType
+from game.messaging.meld_compact import frozen_meld_to_compact
+from game.wire.compact import WIRE_SCORE_DIVISOR
+from game.wire.enums import (
+    WireGameType,
+    WireMeldCallType,
+    WirePlayerAction,
+    WireRoundResultType,
+    WireWind,
+)
 from game.wire.keys import WireKey
 
 if TYPE_CHECKING:
@@ -57,6 +61,22 @@ if TYPE_CHECKING:
     from game.messaging.game_errors import ErrorEvent
     from game.messaging.roster import GameRoster
     from game.wire.enums import SeatControlReason
+
+
+def require_whole_wire_scores(points: Mapping[str, int]) -> None:
+    """
+    Raise ValueError naming each of `points` that is no whole number of wire score units (WIRE_SCORE_DIVISOR points).
+    """
+    not_whole = [
+        f"{name} must be a multiple of {WIRE_SCORE_DIVISOR}, got {value}"
+        for name, value in points.items()
+        if value % WIRE_SCORE_DIVISOR != 0
+    ]
+    if not_whole:
+        raise ValueError("; ".join(not_whole))
+
+
+require_whole_wire_scores({"riichi_cost": PRESET_RIICHI_COST, "riichi_stick_value": PRESET_RIICHI_STICK_VALUE})
 
 
 def serialize_score_map(scores: dict[int, int]) -> dict[str, int]:
@@ -124,7 +144,7 @@ def serialize_double_ron_winner(value: DoubleRonWinner) -> dict[int, object]:
         WireKey.SCORE_CHANGES: serialize_score_map(value.score_changes),
         WireKey.RIICHI_COLLECTED: value.riichi_sticks_collected,
         WireKey.CLOSED_TILES: value.closed_tiles,
-        WireKey.MELDS: value.melds,
+        WireKey.MELDS: [frozen_meld_to_compact(meld) for meld in value.melds],
         WireKey.HONBA_BONUS: value.honba_bonus // WIRE_SCORE_DIVISOR,
         WireKey.PAO_SEAT: value.pao_seat,
         WireKey.PAO_LIABILITY: serialize_pao_liability(value.pao) if value.pao is not None else None,
@@ -137,7 +157,7 @@ def serialize_tenpai_hand(value: TenpaiHand) -> dict[int, object]:
     return {
         WireKey.SEAT: value.seat,
         WireKey.CLOSED_TILES: value.closed_tiles,
-        WireKey.MELDS: value.melds,
+        WireKey.MELDS: [frozen_meld_to_compact(meld) for meld in value.melds],
     }
 
 
@@ -226,7 +246,7 @@ def serialize_public_seat(value: PublicSeat) -> dict[int, object]:
         WireKey.SEAT: value.seat,
         WireKey.SCORE: value.score // WIRE_SCORE_DIVISOR,
         WireKey.DISCARDS: [serialize_discard_info(item) for item in value.discards],
-        WireKey.MELDS: list(value.melds),
+        WireKey.MELDS: [frozen_meld_to_compact(meld) for meld in value.melds],
         WireKey.IS_RIICHI: value.is_riichi,
         WireKey.TILE_COUNT: value.tile_count,
     }
@@ -287,7 +307,7 @@ def serialize_tsumo_result(value: TsumoResult) -> dict[int, object]:
         WireKey.SCORE_CHANGES: serialize_score_map(value.score_changes),
         WireKey.RIICHI_COLLECTED: value.riichi_sticks_collected,
         WireKey.CLOSED_TILES: value.closed_tiles,
-        WireKey.MELDS: value.melds,
+        WireKey.MELDS: [frozen_meld_to_compact(meld) for meld in value.melds],
         WireKey.WINNING_TILE: value.win_tile,
         WireKey.HONBA_BONUS: value.honba_bonus // WIRE_SCORE_DIVISOR,
         WireKey.PAO_SEAT: value.pao_seat,
@@ -307,7 +327,7 @@ def serialize_ron_result(value: RonResult) -> dict[int, object]:
         WireKey.SCORE_CHANGES: serialize_score_map(value.score_changes),
         WireKey.RIICHI_COLLECTED: value.riichi_sticks_collected,
         WireKey.CLOSED_TILES: value.closed_tiles,
-        WireKey.MELDS: value.melds,
+        WireKey.MELDS: [frozen_meld_to_compact(meld) for meld in value.melds],
         WireKey.HONBA_BONUS: value.honba_bonus // WIRE_SCORE_DIVISOR,
         WireKey.PAO_SEAT: value.pao_seat,
         WireKey.PAO_LIABILITY: serialize_pao_liability(value.pao) if value.pao is not None else None,

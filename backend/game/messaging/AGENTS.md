@@ -17,7 +17,10 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   Score maps keep string seat keys as data. The browser and external bot mirror the same registry and shared
   golden frames; protocol changes update all three together. Replay-only metadata is not accepted on the live wire.
 * `event_payload.py` builds every outgoing event, for both the socket and the replay. A draw, a
-  discard and a meld each pack into one integer (`../wire/compact.py`, `shared/lib/melds/README.md`).
+  discard and a meld each pack into one integer (`../wire/compact.py`, `meld_compact.py` over
+  `shared/lib/melds/README.md`): the engine's events, results and view carry domain melds, packed only here. Scores
+  go out in wire score units (`WIRE_SCORE_DIVISOR` points, `../wire/compact.py`); the serializer refuses at import a
+  preset whose riichi cost or stick value is no whole number of them.
 * The engine emits facts only; the message that opens a seat's decision (its opening: the private
   draw with its offers, the `turn` after its own pon or chi, a call prompt) is built here from the
   seat's `Decision` alone (`build_opening`), for the live wait and a reconnect's re-send alike, so

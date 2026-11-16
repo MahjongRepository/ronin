@@ -14,13 +14,12 @@ from game.engine import (
     PRESET_GAME_TYPE,
     PRESET_HAS_AKADORA,
     PRESET_HAS_KUITAN,
-    WIRE_SCORE_DIVISOR,
     AbortiveDrawType,
     GameType,
     HandLimit,
     KanType,
 )
-from game.wire.compact import decode_discard, decode_draw, encode_discard, encode_draw
+from game.wire.compact import WIRE_SCORE_DIVISOR, decode_discard, decode_draw, encode_discard, encode_draw
 from game.wire.enums import WireEventType, WireRoundResultType
 from game.wire.keys import WireKey
 from game.wire.replay_format import MAX_REPLAY_BYTES, decode_replay_records

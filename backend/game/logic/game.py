@@ -1,4 +1,4 @@
-from game.logic.enums import GameEndCause, GamePhase, RoundPhase, RoundResultType, WireWind
+from game.logic.enums import GameEndCause, GamePhase, RoundPhase, RoundResultType
 from game.logic.rng import RNG_VERSION, determine_first_dealer
 from game.logic.settings import (
     NUM_PLAYERS,
@@ -370,16 +370,16 @@ def game_end_cause(
         # tonpusen: primary wind is East, sudden death extends into South
         primary_dealers = east_max
         sudden_death_limit = south_max
-        last_primary_wind = WireWind.EAST
     else:
         # hanchan: primary wind is East + South, sudden death extends into West
         primary_dealers = south_max
         sudden_death_limit = west_max
-        last_primary_wind = WireWind.SOUTH
 
     primary_complete = game_state.unique_dealers > primary_dealers
     dealer_stayed = round_state.dealer_seat == ended_dealer_seat
-    target_cause = GameEndCause.TARGET_REACHED if ended_round_wind > last_primary_wind else GameEndCause.LENGTH
+    primary_wind_count = primary_dealers // NUM_PLAYERS
+    ended_in_extension = ended_round_wind >= primary_wind_count
+    target_cause = GameEndCause.TARGET_REACHED if ended_in_extension else GameEndCause.LENGTH
 
     if settings.has_agariyame and dealer_stayed and game_state.unique_dealers >= primary_dealers:
         is_abortive = isinstance(round_state.result, AbortiveDrawResult)

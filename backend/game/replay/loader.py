@@ -22,12 +22,11 @@ from game.engine import (
     Riichi,
     Ron,
     Tsumo,
-    WireGameType,
     validate_seed_hex,
 )
 from game.replay.models import ReplayInput, ReplayInputEvent
 from game.wire.compact import decode_discard
-from game.wire.enums import WireRoundResultType
+from game.wire.enums import WireGameType, WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 from game.wire.replay_format import (

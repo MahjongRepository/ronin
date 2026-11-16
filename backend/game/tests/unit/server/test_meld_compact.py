@@ -1,13 +1,11 @@
 import pytest
 
-from game.logic.enums import MeldViewType
-from game.logic.events import MeldEvent
-from game.logic.meld_compact import (
+from game.engine import FrozenMeld, MeldEvent, MeldViewType
+from game.messaging.meld_compact import (
     frozen_meld_to_compact,
     frozen_meld_to_meld_data,
     meld_event_to_compact,
 )
-from game.logic.meld_wrapper import FrozenMeld
 from shared.lib.melds import decode_meld_compact
 
 
@@ -28,7 +26,6 @@ class TestFrozenMeldToMeldData:
 
 class TestFrozenMeldRoundTrip:
     def test_frozen_meld_compact__when_chi__should_round_trip(self):
-        # 1m-2m-3m chi, caller=1, from kamicha (seat 0), called tile is 1m copy 0
         meld = FrozenMeld(
             tiles=(0, 4, 8),
             meld_type=FrozenMeld.CHI,
@@ -46,7 +43,6 @@ class TestFrozenMeldRoundTrip:
         assert decoded["called_tile_id"] == 0
 
     def test_frozen_meld_compact__when_pon__should_round_trip(self):
-        # Pon of 1m (copies 0,1,2), caller=2, from seat 0
         meld = FrozenMeld(
             tiles=(0, 1, 2),
             meld_type=FrozenMeld.PON,
@@ -64,7 +60,6 @@ class TestFrozenMeldRoundTrip:
         assert decoded["called_tile_id"] == 0
 
     def test_frozen_meld_compact__when_open_kan__should_round_trip(self):
-        # Open kan of 1m (all 4 copies), caller=3, from seat 1
         meld = FrozenMeld(
             tiles=(0, 1, 2, 3),
             meld_type=FrozenMeld.KAN,
@@ -82,7 +77,6 @@ class TestFrozenMeldRoundTrip:
         assert decoded["called_tile_id"] == 0
 
     def test_frozen_meld_compact__when_closed_kan__should_round_trip(self):
-        # Closed kan of 2m (tile_34=1, copies 4,5,6,7), caller=0
         meld = FrozenMeld(
             tiles=(4, 5, 6, 7),
             meld_type=FrozenMeld.KAN,
@@ -100,7 +94,6 @@ class TestFrozenMeldRoundTrip:
         assert decoded["called_tile_id"] is None
 
     def test_frozen_meld_compact__when_shouminkan__should_round_trip_as_added_kan(self):
-        # Added kan (shouminkan) of 1m, caller=1, from seat 3
         meld = FrozenMeld(
             tiles=(0, 1, 2, 3),
             meld_type=FrozenMeld.SHOUMINKAN,
@@ -120,7 +113,6 @@ class TestFrozenMeldRoundTrip:
         assert decoded["added_tile_id"] == 2
 
     def test_frozen_meld_compact__when_chankan__should_encode_as_added_kan(self):
-        # Chankan uses same wire type as shouminkan (added_kan)
         meld = FrozenMeld(
             tiles=(0, 1, 2, 3),
             meld_type=FrozenMeld.CHANKAN,
@@ -138,7 +130,6 @@ class TestFrozenMeldRoundTrip:
         assert decoded["called_tile_id"] == 1
 
     def test_frozen_meld_compact__when_same_pon_from_different_seats__should_encode_distinct_values(self):
-        # Same pon from different seats should produce different IMME values
         compacts = set()
         for seat in range(4):
             from_seat = (seat + 1) % 4

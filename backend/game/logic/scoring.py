@@ -9,7 +9,6 @@ from mahjong.hand_calculating.hand_config import HandConfig
 from mahjong.hand_calculating.yaku_list.yakuman import Daisangen, DaiSuushii
 
 from game.logic.enums import HandLimit, PaoShare
-from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.meld_wrapper import frozen_melds_to_melds
 from game.logic.settings import NUM_PLAYERS, GameSettings, RenhouValue, build_optional_rules
 from game.logic.state import seat_to_wind
@@ -447,7 +446,7 @@ def apply_tsumo_score(
             score_changes=score_changes,
             riichi_sticks_collected=riichi_bonus // settings.riichi_stick_value,
             closed_tiles=list(winner.tiles[:-1]),
-            melds=[frozen_meld_to_compact(m) for m in winner.melds],
+            melds=list(winner.melds),
             win_tile=winner.tiles[-1],
             honba_bonus=honba_bonus,
             pao_seat=liable_seat,
@@ -533,7 +532,7 @@ def apply_ron_score(
             score_changes=score_changes,
             riichi_sticks_collected=riichi_bonus // settings.riichi_stick_value,
             closed_tiles=list(winner.tiles),
-            melds=[frozen_meld_to_compact(m) for m in winner.melds],
+            melds=list(winner.melds),
             honba_bonus=honba_bonus,
             pao_seat=liable_seat,
             pao=_pao_liability(liable_seat, hand_result, loser_seat=loser_seat, honba_bonus=honba_bonus),
@@ -599,7 +598,7 @@ def apply_double_ron_score(
                 score_changes=winner_changes,
                 riichi_sticks_collected=winner_riichi_bonus // settings.riichi_stick_value,
                 closed_tiles=list(winner.tiles),
-                melds=[frozen_meld_to_compact(m) for m in winner.melds],
+                melds=list(winner.melds),
                 honba_bonus=winner_honba_bonus,
                 pao_seat=liable_seat,
                 pao=_pao_liability(liable_seat, hand_result, loser_seat=loser_seat, honba_bonus=winner_honba_bonus),

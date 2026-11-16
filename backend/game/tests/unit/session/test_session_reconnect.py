@@ -11,8 +11,6 @@ from game.engine import (
     KanType,
     Pass,
     RoundOver,
-    WireCallType,
-    WireMeldCallType,
 )
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType
@@ -39,7 +37,7 @@ from game.tests.unit.session.helpers import (
     wait_for_background_tasks,
 )
 from game.wire.compact import decode_draw, encode_draw
-from game.wire.enums import WireEventType, WireRoundResultType
+from game.wire.enums import WireCallType, WireEventType, WireMeldCallType, WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 

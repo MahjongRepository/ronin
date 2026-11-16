@@ -4,7 +4,6 @@ import structlog
 
 from game.logic import wall as wall_ops
 from game.logic.exceptions import KuikaeDiscardError, RiichiTsumogiriError, TileNotHeldError
-from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.scoring import apply_nagashi_mangan_score
 from game.logic.settings import NUM_PLAYERS
 from game.logic.shanten import tenpai_discards_mask, waits_mask
@@ -248,7 +247,7 @@ def process_exhaustive_draw(
                 TenpaiHand(
                     seat=player.seat,
                     closed_tiles=list(player.tiles),
-                    melds=[frozen_meld_to_compact(m) for m in player.melds],
+                    melds=list(player.melds),
                 ),
             )
         else:

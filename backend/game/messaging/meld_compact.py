@@ -2,15 +2,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from game.logic.meld_wrapper import FrozenMeld
+from game.engine import FrozenMeld
 from shared.lib.melds import MeldData, MeldType, encode_meld_compact
 
 if TYPE_CHECKING:
-    from game.logic.events import MeldEvent
+    from game.engine import MeldEvent
 
-# FrozenMeld meld_type -> MeldData meld_type (wire vocabulary).
-# FrozenMeld.KAN is handled separately because it needs the `opened` flag
-# to distinguish open_kan vs closed_kan.
 _FROZEN_TO_WIRE_TYPE: dict[str, MeldType] = {
     FrozenMeld.CHI: "chi",
     FrozenMeld.PON: "pon",
@@ -21,7 +18,7 @@ _FROZEN_TO_WIRE_TYPE: dict[str, MeldType] = {
 
 def _frozen_meld_wire_type(meld: FrozenMeld) -> MeldType:
     """
-    Resolve the wire-format meld type for a FrozenMeld.
+    Resolve the wire-format meld type for a FrozenMeld; a kan is open or closed by its `opened` flag.
     """
     if meld.meld_type == FrozenMeld.KAN:
         return "open_kan" if meld.opened else "closed_kan"

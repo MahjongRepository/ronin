@@ -8,7 +8,6 @@ from mahjong.hand_calculating.yaku_config import YakuConfig
 from game.engine import (
     NUM_TILES,
     RNG_VERSION,
-    WIRE_SCORE_DIVISOR,
     AbortiveDrawResult,
     AbortiveDrawType,
     Call,
@@ -58,6 +57,7 @@ from game.tests.helpers.builders import start_game_in_play
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.start_wall import DEAD_WALL_START, make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
+from game.wire.compact import WIRE_SCORE_DIVISOR
 from game.wire.enums import WireEventType
 from game.wire.keys import WireKey
 from game.wire.replay_format import REPLAY_VERSION, decode_replay_records, encode_replay_records, encode_replay_settings

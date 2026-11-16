@@ -153,6 +153,12 @@ source_modules = ["game.logic", "game.wire"]
 forbidden_modules = ["game.replay", "shared.auth", "shared.dal", "shared.db", "shared.storage", "shared.logging"]
 
 [[tool.importlinter.contracts]]
+name = "game.logic knows no wire encoding"
+type = "forbidden"
+source_modules = ["game.logic"]
+forbidden_modules = ["shared.lib"]
+
+[[tool.importlinter.contracts]]
 name = "game.replay is a tool over logic and wire, outside the server"
 type = "forbidden"
 source_modules = ["game.replay"]

@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from game.logic.decision import TurnAfterDraw
 from game.logic.enums import RoundPhase, WindName
 from game.logic.exceptions import DiscardHistoryError
-from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.state import round_in_wind, wind_name
 from game.logic.state_utils import river_of
 from game.logic.types import ExhaustiveDrawResult, NagashiManganResult
@@ -15,6 +14,7 @@ from game.logic.wall import tiles_remaining
 if TYPE_CHECKING:
     from game.logic.decision import Decision
     from game.logic.enums import GamePhase
+    from game.logic.meld_wrapper import FrozenMeld
     from game.logic.state import MahjongGameState, MahjongRoundState
     from game.logic.types import DiscardInfo, RoundHistoryEntry, RoundResult
 
@@ -23,14 +23,14 @@ if TYPE_CHECKING:
 class PublicSeat:
     """
     What every seat sees of one seat: its score, how many tiles its closed hand holds (seen face down), its river as the
-    discards fell, its melds (packed) and whether it declared riichi.
+    discards fell, its melds and whether it declared riichi.
     """
 
     seat: int
     score: int
     tile_count: int
     discards: tuple[DiscardInfo, ...]
-    melds: tuple[int, ...]
+    melds: tuple[FrozenMeld, ...]
     is_riichi: bool
 
 
@@ -98,7 +98,7 @@ def build_seat_view(
             score=p.score,
             tile_count=len(p.tiles),
             discards=tuple(river_of(p)),
-            melds=tuple(frozen_meld_to_compact(m) for m in p.melds),
+            melds=p.melds,
             is_riichi=p.is_riichi,
         )
         for p in round_state.players

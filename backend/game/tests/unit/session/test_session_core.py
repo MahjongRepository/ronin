@@ -10,15 +10,13 @@ from game.engine import (
     Pon,
     SeatTarget,
     Turn,
-    WireCallType,
-    WireMeldCallType,
 )
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MOCK_AWAITING
 from game.tests.unit.logic.helpers import _update_player
 from game.wire.compact import decode_draw, encode_draw
-from game.wire.enums import WireEventType
+from game.wire.enums import WireCallType, WireEventType, WireMeldCallType
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 

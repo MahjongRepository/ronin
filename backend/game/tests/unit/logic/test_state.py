@@ -14,7 +14,7 @@ from game.tests.helpers.builders import start_game_in_play
 from game.tests.helpers.wall import make_wall
 
 
-class TestGetPlayerView:
+class TestBuildRoundStartedEvent:
     def _create_test_game_state(self):
         haku = TilesConverter.string_to_136_array(honors="5")[0]
         players = (

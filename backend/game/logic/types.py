@@ -10,6 +10,7 @@ from game.logic.enums import (
     RoundResultType,
     WindName,
 )
+from game.logic.meld_wrapper import FrozenMeld
 
 
 class StartPosition(BaseModel):
@@ -87,7 +88,7 @@ class TsumoResult(BaseModel):
     score_changes: dict[int, int]
     riichi_sticks_collected: int
     closed_tiles: list[int]
-    melds: list[int]
+    melds: list[FrozenMeld]
     win_tile: int
     honba_bonus: int
     pao_seat: int | None = None
@@ -126,7 +127,7 @@ class RonResult(BaseModel):
     score_changes: dict[int, int]
     riichi_sticks_collected: int
     closed_tiles: list[int]
-    melds: list[int]
+    melds: list[FrozenMeld]
     honba_bonus: int
     pao_seat: int | None = None
     pao: PaoLiability | None = None
@@ -149,7 +150,7 @@ class DoubleRonWinner(BaseModel):
     score_changes: dict[int, int]
     riichi_sticks_collected: int
     closed_tiles: list[int]
-    melds: list[int]
+    melds: list[FrozenMeld]
     honba_bonus: int
     pao_seat: int | None = None
     pao: PaoLiability | None = None
@@ -181,7 +182,7 @@ class TenpaiHand(BaseModel):
 
     seat: int
     closed_tiles: list[int]
-    melds: list[int]
+    melds: list[FrozenMeld]
 
 
 class ExhaustiveDrawResult(BaseModel):
