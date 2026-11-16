@@ -12,11 +12,10 @@ from game.engine import (
     SeatTarget,
     WaitKind,
 )
-from game.logic.wall import tiles_remaining
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MOCK_AWAITING
-from game.tests.unit.helpers import _update_player
+from game.tests.unit.logic.helpers import _update_player
 from game.wire.compact import encode_draw
 from game.wire.enums import WireEventType
 from game.wire.events import EVENT_TYPE_INT
@@ -214,7 +213,7 @@ class TestDrawDelivery:
         )
         round_state = runtime_of(manager).state.round_state
         replacement = encode_draw(alice.seat, round_state.players[alice.seat].tiles[-1])
-        wall_left = tiles_remaining(round_state.wall)
+        wall_left = len(round_state.wall.live_tiles)
         assert _seen_draws(alice_conn) == [
             {
                 WireKey.EVENT_TYPE: WireEventType.DRAW,

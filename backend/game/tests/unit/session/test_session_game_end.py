@@ -1,9 +1,7 @@
 import asyncio
 import gzip
 import logging
-from unittest.mock import AsyncMock, MagicMock, patch
-
-from mahjong.tile import TilesConverter
+from unittest.mock import AsyncMock, MagicMock
 
 from game.engine import (
     EventType,
@@ -17,8 +15,6 @@ from game.engine import (
     WaitKind,
 )
 from game.logic.ai_player import AIPlayer
-from game.logic.exceptions import ScoringError
-from game.logic.scoring import HandResult
 from game.messaging.encoder import decode
 from game.messaging.types import SessionErrorCode
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
@@ -37,7 +33,6 @@ from game.tests.mocks import (
     MockGameService,
     mock_update,
 )
-from game.tests.unit.helpers import _update_player, _update_round_state
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 from game.wire.replay_format import decode_replay_records
@@ -182,34 +177,33 @@ class TestFailGame:
         ]
         assert conn._close_code == 1011
 
-    async def test_game_action__when_the_scoring_library_fails_on_tsumo__should_fail_the_game_with_that_error(
-        self, seeded_engine, caplog
+    async def test_game_action__when_the_engine_raises__should_fail_the_game_with_that_error(
+        self, seeded_engine, caplog, monkeypatch
     ):
         manager = make_session_manager(seeded_engine)
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
         conns = create_started_game(manager, player_names=["Alice"])
         alice_seat = participant_of(manager, conns[0]).seat
-        winning_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="12355"))
-        _update_player(runtime_of(manager), seat=alice_seat, tiles=winning_hand)
-        _update_round_state(runtime_of(manager), current_player_seat=alice_seat, pending_call_prompt=None)
+        round_state = runtime_of(manager).state.round_state
+        assert round_state.current_player_seat == alice_seat
+        engine_fault = RuntimeError("engine fault")
+        monkeypatch.setattr(seeded_engine, "handle_action", MagicMock(side_effect=engine_fault))
 
-        with (
-            patch("game.logic.turn.calculate_hand_value", return_value=HandResult(error="library failure")),
-            caplog.at_level(logging.ERROR),
-        ):
+        with caplog.at_level(logging.ERROR):
             router.handle_message(
                 conns[0],
                 {
                     WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
                     WireKey.WAIT_ID: current_wait_id(manager, conns[0]),
-                    WireKey.ACTION: WireGameAction.DECLARE_TSUMO,
+                    WireKey.ACTION: WireGameAction.DISCARD,
+                    WireKey.TILE_ID: round_state.players[alice_seat].tiles[-1],
                 },
             )
             await wait_for_background_tasks(manager)
 
         failure = next(r.msg for r in caplog.records if r.msg["event"] == "game failed")
         assert failure["reason"] == "game action failed"
-        assert isinstance(failure["exc_info"], ScoringError)
+        assert failure["exc_info"] is engine_fault
         assert manager.get_game("game1") is None
         assert (conns[0]._close_code, conns[0]._close_reason) == (1011, "internal_error")
 

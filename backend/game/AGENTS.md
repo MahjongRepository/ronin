@@ -73,8 +73,8 @@ Mandatory for all game server code; review must catch violations.
 
 ## Tests
 
-State builders live in `tests/conftest.py` (`create_dealt_game_state` stages a running round) and
-`tests/unit/helpers.py`. `tests/mocks/` fakes the connection, engine, repository and storage, though lifecycle flows
+State builders live in `tests/helpers/builders.py` (`create_dealt_game_state` stages a running round) and
+`tests/unit/logic/helpers.py`. `tests/mocks/` fakes the connection, engine, repository and storage, though lifecycle flows
 prefer the real seeded engine.
 `tests/helpers/` builds a manager over in-memory fakes, signs tickets, drives the endpoint over
 real and fake WebSockets and holds hand staging shared by unit and integration tests; `tests/unit/session/` adds its own helpers and clock fixtures that run

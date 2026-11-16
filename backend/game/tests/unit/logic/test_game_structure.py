@@ -1,0 +1,274 @@
+import pytest
+
+from game.logic.enums import GameEndCause
+from game.logic.exceptions import UnsupportedSettingsError
+from game.logic.game import (
+    calculate_final_scores,
+    finalize_game,
+    game_end_cause,
+    init_game,
+    init_round,
+)
+from game.logic.settings import (
+    NUM_PLAYERS,
+    GameSettings,
+    GameType,
+    validate_settings,
+)
+from game.logic.types import SeatConfig
+from game.tests.helpers.builders import create_game_state, create_player, create_round_state
+from game.tests.helpers.hands import tile_copies
+from game.tests.helpers.wall import make_start_wall
+
+
+class TestGameType:
+    def test_game_type__when_hanchan_after_east__should_not_end(self):
+        players = tuple(create_player(seat=i, score=35000) for i in range(4))
+        round_state = create_round_state(players=players)
+        game_state = create_game_state(
+            round_state,
+            unique_dealers=5,
+            settings=GameSettings(game_type=GameType.HANCHAN),
+        )
+        # unique_dealers=5 means East is done, entering South — primary wind NOT complete yet
+        assert (
+            game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind, ended_dealer_seat=3) is None
+        )
+
+    def test_game_type__when_hanchan_after_south_with_winner__should_end(self):
+        players = tuple(create_player(seat=i, score=35000 if i == 0 else 21667) for i in range(4))
+        round_state = create_round_state(players=players)
+        game_state = create_game_state(
+            round_state,
+            unique_dealers=9,  # South complete
+            settings=GameSettings(game_type=GameType.HANCHAN),
+        )
+        assert (
+            game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind, ended_dealer_seat=3)
+            == GameEndCause.LENGTH
+        )
+
+    def test_game_type__when_tonpusen_after_east_with_winner__should_end(self):
+        players = tuple(create_player(seat=i, score=35000 if i == 0 else 21667) for i in range(4))
+        round_state = create_round_state(players=players)
+        game_state = create_game_state(
+            round_state,
+            unique_dealers=5,  # East complete
+            settings=GameSettings(game_type=GameType.TONPUSEN),
+        )
+        assert (
+            game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind, ended_dealer_seat=3)
+            == GameEndCause.LENGTH
+        )
+
+    def test_game_type__when_tonpusen_during_east__should_not_end(self):
+        players = tuple(create_player(seat=i, score=50000 if i == 0 else 16667) for i in range(4))
+        round_state = create_round_state(players=players)
+        game_state = create_game_state(
+            round_state,
+            unique_dealers=3,  # still in East
+            settings=GameSettings(game_type=GameType.TONPUSEN),
+        )
+        assert (
+            game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind, ended_dealer_seat=3) is None
+        )
+
+
+class TestInitRound:
+    def test_init_round__when_given_a_wall__should_deal_its_first_hand_and_draw_to_the_dealer(self):
+        dealer_seat = 1
+        hands_by_seat = [tile_copies(seat, man="123456789", pin="1234") for seat in range(NUM_PLAYERS)]
+        hands_in_deal_order = [hands_by_seat[(dealer_seat + offset) % NUM_PLAYERS] for offset in range(NUM_PLAYERS)]
+        dealer_draw = tile_copies(0, pin="9")[0]
+        wall = make_start_wall(hands_in_deal_order, draws=[dealer_draw])
+        game_state = create_game_state(
+            create_round_state(dealer_seat=dealer_seat, current_player_seat=dealer_seat), round_number=1
+        )
+
+        dealt = init_round(game_state, wall=list(wall))
+
+        players = dealt.round_state.players
+        assert [list(player.tiles) for player in players] == hands_by_seat
+        assert dealt.round_state.wall.live_tiles[0] == dealer_draw
+
+
+class TestStartingScore:
+    def test_starting_score__when_custom__should_apply_to_init_game_players(self):
+        seat_configs = [SeatConfig(name=f"P{i}") for i in range(4)]
+        wall = list(range(136))
+
+        game_state = init_game(seat_configs, seed="a" * 192, settings=GameSettings(starting_score=30000), wall=wall)
+        for player in game_state.round_state.players:
+            assert player.score == 30000
+
+    def test_starting_score__when_custom__should_change_oka_in_final_scores(self):
+        # With starting=20000, target=30000: oka = (30000-20000)*4/1000 = 40
+        # Raw scores summing to starting*4 = 80000
+        raw = [(0, 35000), (1, 25000), (2, 15000), (3, 5000)]
+        settings = GameSettings(starting_score=20000, target_score=30000)
+
+        result = calculate_final_scores(raw, settings)
+        # 1st: diff=5 + oka=40 + uma=20 = 65
+        assert result[0][1] == 65
+
+
+class TestTargetScore:
+    def test_target_score__when_custom__should_shift_final_scores(self):
+        raw = [(0, 40000), (1, 30000), (2, 20000), (3, 10000)]
+        settings = GameSettings(target_score=25000, starting_score=25000)
+
+        result = calculate_final_scores(raw, settings)
+        # target=starting, so oka=0
+        # diff from target: +15, +5, -5, -15
+        # uma: +20, +10, -10, -20
+        # adjusted: 35, 15, -15, -35
+        assert result == [(0, 35), (1, 15), (2, -15), (3, -35)]
+        assert sum(s for _, s in result) == 0
+
+
+class TestWinningScoreThreshold:
+    def test_winning_score_threshold__when_leader_above_target_but_below_threshold__should_not_end_game(self):
+        # Set high threshold: even 35000 doesn't end the game
+        players = tuple(create_player(seat=i, score=35000 if i == 0 else 21667) for i in range(4))
+        round_state = create_round_state(players=players)
+        game_state = create_game_state(
+            round_state,
+            unique_dealers=9,  # post-South (hanchan primary complete)
+            settings=GameSettings(
+                target_score=30000,
+                winning_score_threshold=40000,
+            ),
+        )
+        # 35000 < 40000, so game continues into West
+        assert (
+            game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind, ended_dealer_seat=3) is None
+        )
+
+    def test_winning_score_threshold__when_custom_low__should_end_game_early(self):
+        players = tuple(create_player(seat=i, score=26000 if i == 0 else 24667) for i in range(4))
+        round_state = create_round_state(players=players)
+        game_state = create_game_state(
+            round_state,
+            unique_dealers=9,
+            settings=GameSettings(winning_score_threshold=25000),
+        )
+        # 26000 >= 25000, game ends
+        assert (
+            game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind, ended_dealer_seat=3)
+            == GameEndCause.LENGTH
+        )
+
+
+class TestUma:
+    def test_uma__when_custom__should_apply_to_final_scores(self):
+        raw = [(0, 30000), (1, 30000), (2, 20000), (3, 20000)]
+        settings = GameSettings(uma=(30, 10, -10, -30))
+
+        result = calculate_final_scores(raw, settings)
+        # default oka=20 (target=30000, starting=25000)
+        # seat0: diff=0 + oka=20 + uma=30 = 50
+        # seat1: diff=0 + uma=10 = 10
+        # seat2: diff=-10 + uma=-10 = -20
+        # seat3: diff=-10 + uma=-30 = -40
+        # zero-sum adjust on 1st: sum=0 → no adjustment
+        assert result == [(0, 50), (1, 10), (2, -20), (3, -40)]
+        assert sum(s for _, s in result) == 0
+
+    def test_uma__when_wrong_length__should_be_rejected(self):
+        settings = GameSettings(uma=(20, 10, -30))
+        with pytest.raises(UnsupportedSettingsError, match="uma must have 4 entries"):
+            validate_settings(settings)
+
+    def test_uma__when_sum_nonzero__should_be_rejected(self):
+        settings = GameSettings(uma=(20, 10, -10, -10))
+        with pytest.raises(UnsupportedSettingsError, match="uma values must sum to zero"):
+            validate_settings(settings)
+
+
+class TestRiichiCostSetting:
+    def test_validate_settings__when_riichi_cost_or_stick_value_not_whole_hundreds__should_reject_each(self):
+        with pytest.raises(UnsupportedSettingsError) as rejected:
+            validate_settings(GameSettings(riichi_cost=2050, riichi_stick_value=1050))
+
+        assert "riichi_cost must be a multiple of 100, got 2050" in str(rejected.value)
+        assert "riichi_stick_value must be a multiple of 100, got 1050" in str(rejected.value)
+
+
+class TestTobi:
+    def test_tobi__when_score_below_zero__should_end_game(self):
+        players = tuple(create_player(seat=i, score=-100 if i == 3 else 33367) for i in range(4))
+        round_state = create_round_state(players=players)
+        game_state = create_game_state(
+            round_state,
+            unique_dealers=1,  # still in East round 1
+            settings=GameSettings(tobi_enabled=True),
+        )
+        assert (
+            game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind, ended_dealer_seat=3)
+            == GameEndCause.TOBI
+        )
+
+    def test_tobi__when_score_exactly_zero__should_not_end_game(self):
+        players = tuple(create_player(seat=i, score=0 if i == 3 else 33334) for i in range(4))
+        round_state = create_round_state(players=players)
+        game_state = create_game_state(
+            round_state,
+            unique_dealers=1,
+            settings=GameSettings(tobi_enabled=True),
+        )
+        assert (
+            game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind, ended_dealer_seat=3) is None
+        )
+
+    def test_tobi__when_disabled_and_score_negative__should_not_end_game(self):
+        players = tuple(create_player(seat=i, score=-5000 if i == 3 else 35000) for i in range(4))
+        round_state = create_round_state(players=players)
+        game_state = create_game_state(
+            round_state,
+            unique_dealers=1,
+            settings=GameSettings(tobi_enabled=False),
+        )
+        assert (
+            game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind, ended_dealer_seat=3) is None
+        )
+
+    def test_game_end_cause__when_tobi_disabled_and_score_negative_at_primary_end__should_end_by_length(self):
+        players = tuple(create_player(seat=i, score=-5000 if i == 3 else 35000) for i in range(4))
+        round_state = create_round_state(players=players)
+        game_state = create_game_state(
+            round_state,
+            unique_dealers=9,
+            settings=GameSettings(tobi_enabled=False),
+        )
+        assert game_end_cause(game_state, ended_round_wind=1, ended_dealer_seat=3) == GameEndCause.LENGTH
+
+    def test_tobi__when_custom_threshold__should_end_game_below_it(self):
+        players = tuple(create_player(seat=i, score=500 if i == 3 else 33167) for i in range(4))
+        round_state = create_round_state(players=players)
+        # threshold=1000: score of 500 < 1000 triggers tobi
+        game_state = create_game_state(
+            round_state,
+            unique_dealers=1,
+            settings=GameSettings(tobi_enabled=True, tobi_threshold=1000),
+        )
+        assert (
+            game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind, ended_dealer_seat=3)
+            == GameEndCause.TOBI
+        )
+
+
+class TestFinalizeGamePlacement:
+    def test_finalize_game__when_target_equals_starting_score__should_rank_by_score_with_zero_sum(self):
+        players = tuple(create_player(seat=i, score=score) for i, score in enumerate([40000, 30000, 20000, 10000]))
+        round_state = create_round_state(players=players)
+        settings = GameSettings(starting_score=25000, target_score=25000)
+        game_state = create_game_state(round_state, settings=settings)
+
+        _, result = finalize_game(game_state)
+        # With target==starting, oka=0
+        # Standings should be in order: seat 0, 1, 2, 3
+        assert result.winner_seat == 0
+        assert result.standings[0].seat == 0
+        assert result.standings[3].seat == 3
+        # Zero-sum check on final scores
+        assert sum(s.final_score for s in result.standings) == 0

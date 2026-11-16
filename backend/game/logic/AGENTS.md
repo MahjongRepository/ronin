@@ -108,5 +108,5 @@ input order, so a change to it is a change to the replay format. A change to wal
 * Every state the engine adopts goes through `GameRuntime.commit()`, which checks that hands, melds, unclaimed discards,
   the live wall and the dead wall own each of the 136 tiles exactly once (`invariants.py`). A failure is a server fault:
   nothing is repaired or retried. `runtime.state` is read-only, so `commit()` is the only way to replace it. Tests
-  that stage hands or walls on a runtime use the helpers in `tests/unit/helpers.py`, which restore ownership around
+  that stage hands or walls on a runtime use the helpers in `tests/unit/logic/helpers.py`, which restore ownership around
   what the test staged and commit the result.

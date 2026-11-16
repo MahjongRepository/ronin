@@ -11,10 +11,11 @@ from game.engine import (
     GameAction,
     GameSettings,
     MahjongGameService,
+    MeldEvent,
+    MeldViewType,
     RoundEndEvent,
     RoundResultType,
 )
-from game.logic.meld_wrapper import FrozenMeld
 from game.replay import run_replay
 from game.replay.external.tenhou import TenhouConverter
 from game.replay.loader import load_replay_from_bytes
@@ -135,12 +136,12 @@ def _tenhou_melds_and_round_ends(tenhou_xml: str) -> list[str]:
 
 
 @pytest.mark.parametrize(
-    ("responses", "round_end_types", "pon_caller_meld", "replayed_tail", "tenhou_tags"),
+    ("responses", "round_end_types", "pon_caller_melds", "replayed_tail", "tenhou_tags"),
     [
         pytest.param(
             [(PENCHAN_SEAT, GameAction.CALL_RON), (KANCHAN_SEAT, GameAction.PASS)],
             [RoundResultType.RON],
-            FrozenMeld.PON,
+            [MeldViewType.PON],
             [(PON_CALLER, GameAction.CALL_KAN), (PENCHAN_SEAT, GameAction.CALL_RON)],
             [TENHOU_PIN_3_PON, TENHOU_PIN_3_ADDED_KAN, "<AGARI"],
             id="single_ron",
@@ -148,7 +149,7 @@ def _tenhou_melds_and_round_ends(tenhou_xml: str) -> list[str]:
         pytest.param(
             [(PENCHAN_SEAT, GameAction.CALL_RON), (KANCHAN_SEAT, GameAction.CALL_RON)],
             [RoundResultType.DOUBLE_RON],
-            FrozenMeld.PON,
+            [MeldViewType.PON],
             [
                 (PON_CALLER, GameAction.CALL_KAN),
                 (PENCHAN_SEAT, GameAction.CALL_RON),
@@ -160,7 +161,7 @@ def _tenhou_melds_and_round_ends(tenhou_xml: str) -> list[str]:
         pytest.param(
             [(PENCHAN_SEAT, GameAction.PASS), (KANCHAN_SEAT, GameAction.PASS)],
             [],
-            FrozenMeld.SHOUMINKAN,
+            [MeldViewType.PON, MeldViewType.ADDED_KAN],
             [(DEALER, GameAction.DISCARD), (PON_CALLER, GameAction.CALL_KAN)],
             [TENHOU_PIN_3_PON, TENHOU_PIN_3_ADDED_KAN],
             id="declined",
@@ -168,7 +169,7 @@ def _tenhou_melds_and_round_ends(tenhou_xml: str) -> list[str]:
     ],
 )
 def test_chankan_replay__when_added_kan_is_robbed_or_declined__should_reproduce_the_live_game_and_its_tenhou_log(
-    responses, round_end_types, pon_caller_meld, replayed_tail, tenhou_tags
+    responses, round_end_types, pon_caller_melds, replayed_tail, tenhou_tags
 ):
     live_state, round_ends, loaded, trace, tenhou_xml = _play_record_and_replay(
         _added_kan_wall(),
@@ -177,7 +178,9 @@ def test_chankan_replay__when_added_kan_is_robbed_or_declined__should_reproduce_
     )
 
     assert [r.type for r in round_ends] == round_end_types
-    assert [m.meld_type for m in live_state.round_state.players[PON_CALLER].melds] == [pon_caller_meld]
+    assert [e.meld_type for e in trace.events if isinstance(e, MeldEvent) and e.caller_seat == PON_CALLER] == (
+        pon_caller_melds
+    )
     loaded_tail = [(e.player_name, e.action) for e in loaded.events[-len(replayed_tail) :]]
     assert loaded_tail == [(NAME_BY_SEAT[seat], action) for seat, action in replayed_tail]
     assert trace.final_state == live_state

@@ -13,7 +13,7 @@ from game.session.timer import TimerConfig
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.helpers.fake_websocket import FakeWebSocketClient
 from game.tests.mocks import MockConnection
-from game.tests.unit.helpers import _update_player, _update_round_state
+from game.tests.unit.logic.helpers import _update_player, _update_round_state
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 

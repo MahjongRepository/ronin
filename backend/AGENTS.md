@@ -71,12 +71,14 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 * `<subject>` in a test name (root naming rule) is the function, rule or component under test, in
   snake_case: `declare_riichi`, `furiten`, `matchmaking_queue`, `login_route`. A method in a `Test*`
   class carries the full name too; the class only groups.
-* Test logic once, at the lowest layer that owns it: engine rules in `game/tests/unit/`. Integration
-  tests cover only the wiring (routing, serialization, auth, error mapping) and never re-check engine
-  or service logic through a socket or HTTP.
+* Test logic once, at the lowest layer that owns it: engine rules in `game/tests/unit/logic/`, which
+  loads no server, session or messaging code, so no `conftest.py` above it may import them. Server,
+  messaging, wire and replay unit tests live in `game/tests/unit/server/`, session tests in
+  `game/tests/unit/session/`. Integration tests cover only the wiring (routing, serialization, auth,
+  error mapping) and never re-check engine or service logic through a socket or HTTP.
 * One error test per mechanism, not per field or route: Pydantic's built-in constraints need none; a
   custom validator or a raised `GameRuleError` subclass gets one.
 * Prefer real I/O against ephemeral resources (`tmp_path`, a temporary SQLite database) over mocks;
   mock only at process boundaries (sockets, the network).
-* Build test data with the helpers in `game/tests/helpers/` and the suite's `conftest.py` fixtures,
+* Build test data with the helpers in `game/tests/helpers/` and each package's `conftest.py` fixtures,
   not raw tile ids or magic strings.

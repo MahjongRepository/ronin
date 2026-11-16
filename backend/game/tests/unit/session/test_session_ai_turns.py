@@ -2,7 +2,6 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from game.engine import EventType, GameAction, WaitKind
-from game.logic import mahjong_service as mahjong_service_module
 from game.session.timer import TimerConfig
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection
@@ -53,9 +52,9 @@ def _discard_drawn_tile(manager: SessionManager, conn: MockConnection) -> None:
 
 
 async def test_ai_turn_delay__when_the_start_confirm_hands_the_turn_to_ai_players__should_send_one_turn_per_delay(
-    seeded_engine, held_manager_sleep, monkeypatch
+    seeded_engine, held_manager_sleep, engine_seeder
 ):
-    monkeypatch.setattr(mahjong_service_module, "generate_seed", lambda: AI_DEALER_SEED)
+    engine_seeder(AI_DEALER_SEED)
     config = TimerConfig(game_start_confirm_seconds=START_CONFIRM, ai_turn_delay_seconds=AI_TURN_DELAY)
     manager = make_session_manager(seeded_engine, timer_config=config)
     [alice] = create_started_game(manager, player_names=["Alice"])

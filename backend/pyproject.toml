@@ -137,10 +137,22 @@ type = "layers"
 layers = ["game.server", "game.session", "game.messaging", "game.wire", "game.engine", "game.logic"]
 
 [[tool.importlinter.contracts]]
-name = "outside the engine, only its facade and its tests import game.logic"
+name = "outside the engine, only its facade, its own tests and the state-staging test helpers import game.logic"
 type = "protected"
 protected_modules = ["game.logic"]
-allowed_importers = ["game.engine", "game.tests"]
+allowed_importers = [
+    "game.engine",
+    "game.tests.unit.logic",
+    "game.tests.helpers.builders",
+    "game.tests.helpers.hands",
+    "game.tests.helpers.wall",
+    "game.tests.mocks.game_service",
+    "game.tests.unit.session.conftest",
+    "game.tests.unit.session.test_session_game_end",
+    "game.tests.unit.session.test_session_replay_persistence",
+    "game.tests.unit.server.test_replay_format",
+    "game.tests.unit.server.test_replay_runner",
+]
 
 [[tool.importlinter.contracts]]
 name = "game.logic and game.wire know nothing of replay, auth or persistence"

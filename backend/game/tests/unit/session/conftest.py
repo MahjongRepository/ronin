@@ -18,8 +18,16 @@ def manager():
 
 
 @pytest.fixture
-def seeded_engine(monkeypatch):
-    monkeypatch.setattr(mahjong_service_module, "generate_seed", lambda: ENGINE_SEED)
+def engine_seeder(monkeypatch):
+    def seed_with(seed: str) -> None:
+        monkeypatch.setattr(mahjong_service_module, "generate_seed", lambda: seed)
+
+    return seed_with
+
+
+@pytest.fixture
+def seeded_engine(engine_seeder):
+    engine_seeder(ENGINE_SEED)
     return MahjongGameService(pace_ai_turns=True)
 
 

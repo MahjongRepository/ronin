@@ -12,7 +12,6 @@ from game.engine import (
     MahjongGameService,
     SeatTarget,
 )
-from game.logic.enums import RoundPhase
 from game.messaging.event_payload import game_event_payload
 from game.wire.keys import WireKey
 
@@ -57,7 +56,7 @@ class TestGameServiceIntegration:
         # play several discards (AI players will respond automatically)
         for _ in range(10):
             game_state = runtime.state
-            if game_state.round_state.phase == RoundPhase.FINISHED:
+            if game_state.round_state.result is not None:
                 break
 
             round_state = game_state.round_state
@@ -90,7 +89,7 @@ class TestUnifiedDiscardClaimIntegration:
         found_prompt = False
         for _ in range(20):
             game_state = runtime.state
-            if game_state.round_state.phase == RoundPhase.FINISHED:
+            if game_state.round_state.result is not None:
                 break
 
             round_state = game_state.round_state
