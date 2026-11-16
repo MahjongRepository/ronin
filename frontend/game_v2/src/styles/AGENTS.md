@@ -207,4 +207,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   every table piece it may stand on. Never raise a furniture or table element's layer to keep it in view.
   `.game-board` isolates its layers from the page's. `.board-layout` and `.board-table` form no stacking context, so
   the notices and a replay's controls stand over the overlay's dim by their layers in the board's own context; an
-  `isolation`, `transform`, `filter`, `opacity` or `z-index` on either would drop them under it.
+  `isolation`, `transform`, `filter`, `opacity` or `z-index` on either would drop them under it. A callout stands
+  over every layer but what the player opens (`open`, `sheet`) and the page's, the panel and notices included, and
+  its entrance grows from its edge toward its seat (a bottom one from its centre), so even its largest frame stays on
+  the board; `.board-page` clips, so nothing floating on the board can scroll the page and resize the board.

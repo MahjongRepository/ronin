@@ -27,6 +27,7 @@ import {
 } from "../boxes.ts";
 import { ACTION, boardCase, documentCase } from "../cases.ts";
 import {
+    type BoardOptions,
     type BoardRun,
     type PageCase,
     type PageMeasure,
@@ -133,6 +134,7 @@ const PAGES: readonly PageCase[] = [
         ...boardCase("board-callouts-riichi", "?state=worst&callout=riichi", [".board-callout"]),
         at: [FLOOR, MID_DESKTOP, NARROW_DESKTOP],
         longNames: true,
+        showsCallouts: true,
     },
     {
         ...boardCase("board-callouts-adjacent", "?state=riichi_latest&callout=riichi&offers=five", [
@@ -141,6 +143,7 @@ const PAGES: readonly PageCase[] = [
             ACTION,
         ]),
         at: [FLOOR, LAPTOP_WINDOW],
+        showsCallouts: true,
     },
     {
         ...boardCase("board-twenty-discards", "?state=full_rivers&offers=five", [ACTION]),
@@ -191,6 +194,7 @@ const PAGES: readonly PageCase[] = [
             ".board-callout",
         ]),
         longNames: true,
+        showsCallouts: true,
     },
     {
         ...boardCase("board-kans-b", "?state=kans_b&callout=triple_ron", [
@@ -199,6 +203,7 @@ const PAGES: readonly PageCase[] = [
             ".discard-tile--last",
         ]),
         longNames: true,
+        showsCallouts: true,
     },
     {
         ...boardCase("board-worst-bank", "?state=worst&offers=bank", [
@@ -759,9 +764,20 @@ function badgeAnchors(board: BoardMeasure): Readonly<Record<string, readonly [nu
  * A call shown by its seat stays on the board and never lies over the local hand's tiles, which take the taps, or over a
  * decision control or the timer; it may cover what an open offer refers to, for the moment it shows.
  */
-function checkCallouts(board: BoardMeasure, report: PageReport): void {
+function checkCallouts(board: BoardMeasure, options: BoardOptions, report: PageReport): void {
     const outside = board.callouts.filter((callout) => !contains(board.board, callout));
     report.expect(outside.length === 0, `${outside.length} call(s) off the board`);
+    if (options.showsCallouts === true) {
+        report.expect(board.calloutPeaks.length > 0, "no call to measure as it enters");
+    }
+    if (options.showsCallouts === true || board.callouts.length > 0) {
+        report.expect(board.calloutEntranceFound, "no callout-show keyframes to measure calls by");
+    }
+    const peaksOutside = board.calloutPeaks.filter((peak) => !contains(board.board, peak));
+    report.expect(
+        peaksOutside.length === 0,
+        `call(s) off the board as they enter: ${peaksOutside.map(describeBox).join(", ")}`,
+    );
     const overHand = board.callouts.filter((callout) =>
         board.localTiles.some((tile) => intersects(callout, tile)),
     );
@@ -1165,7 +1181,7 @@ async function checkBoard({
         const crowded = findOverlaps(board.centerTexts);
         report.expect(crowded.length === 0, `centre pieces overlap: ${crowded.join(", ")}`);
     }
-    checkCallouts(board, report);
+    checkCallouts(board, options, report);
     checkPlacement(board, { measure, screen }, report);
     checkTurnCue(await measureTurnCues(page), board, report);
     if (viewport.supported) {

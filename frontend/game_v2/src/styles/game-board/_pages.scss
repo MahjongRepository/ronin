@@ -33,6 +33,7 @@
 
     position: relative;
     display: grid;
+    overflow: clip;
     grid-template: "board" minmax(0, 1fr) / minmax(0, 1fr);
     gap: 0.25rem;
     height: 100dvh;

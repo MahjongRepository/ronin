@@ -56,6 +56,7 @@ interface Required {
 export interface BoardOptions {
     /** Its names are longer than any badge holds, so a badge may shorten them in the middle. */
     readonly longNames?: boolean;
+    readonly showsCallouts?: boolean;
 }
 
 type PageKind =

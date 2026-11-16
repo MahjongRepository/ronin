@@ -61,6 +61,8 @@ export interface BoardMeasure {
     readonly clippedWords: readonly string[];
     /** The calls shown by their seats. */
     readonly callouts: readonly Box[];
+    readonly calloutPeaks: readonly Box[];
+    readonly calloutEntranceFound: boolean;
     /** What an open offer refers to: the latest discard, a kan a chankan offer may rob. */
     /** The decision timer's slot. */
     readonly timer: Box | null;
@@ -158,6 +160,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         if (board === null) {
             throw new Error("no .game-board");
         }
+        const calloutEntrance = "callout-show";
         const tableTiles = [...board.querySelectorAll(".tile")].filter(
             (tile) =>
                 tile.closest(".board-overlay") === null &&
@@ -424,6 +427,19 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             board: box(board),
             boardClient: { height: board.clientHeight, width: board.clientWidth },
             boardScroll: contentScroll(board),
+            calloutEntranceFound: [...document.styleSheets].some((sheet) =>
+                [...sheet.cssRules].some(
+                    (rule) => rule instanceof CSSKeyframesRule && rule.name === calloutEntrance,
+                ),
+            ),
+            calloutPeaks: [...board.querySelectorAll(".board-callout")].map((callout) => {
+                const peak = callout.cloneNode(true) as HTMLElement;
+                peak.style.animation = `${calloutEntrance} 1s paused both`;
+                callout.after(peak);
+                const peakBox = box(peak);
+                peak.remove();
+                return peakBox;
+            }),
             callouts: [...board.querySelectorAll(".board-callout")].map(box),
             center: centerElement === null ? null : box(centerElement),
             centerQuad: centerElement === null ? null : cornersOf(centerElement),

@@ -32,6 +32,7 @@ $overlay-hold-ms: 1500ms;
     &--top {
         left: var(--geo-shown-callout-top-x);
         top: var(--geo-shown-callout-top-y);
+        transform-origin: 50% 0;
     }
 
     /* A side chip stands from its river's outer edge inward. */
@@ -39,12 +40,14 @@ $overlay-hold-ms: 1500ms;
         left: var(--geo-shown-callout-right-x);
         top: var(--geo-shown-callout-right-y);
         translate: -100% -50%;
+        transform-origin: 100% 50%;
     }
 
     &--left {
         left: var(--geo-shown-callout-left-x);
         top: var(--geo-shown-callout-left-y);
         translate: 0 -50%;
+        transform-origin: 0 50%;
     }
 
     &--ron,
