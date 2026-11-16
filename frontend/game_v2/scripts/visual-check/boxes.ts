@@ -171,6 +171,22 @@ export function convexHull(points: readonly Point[]): readonly Point[] {
     return [...halfHull(sorted), ...halfHull(sorted.toReversed())];
 }
 
+/** A box's corners, clockwise on screen from its top left. */
+export function boxCorners(box: Box): readonly Point[] {
+    const right = box.left + box.width;
+    const bottom = box.top + box.height;
+    return [
+        { left: box.left, top: box.top },
+        { left: right, top: box.top },
+        { left: right, top: bottom },
+        { left: box.left, top: bottom },
+    ];
+}
+
+export function describeQuad(quad: readonly Point[]): string {
+    return quad.map(({ left, top }) => `${Math.round(left)},${Math.round(top)}`).join(" ");
+}
+
 /** How far apart two convex polygons stand: 0 where they meet. */
 export function polygonGap(first: readonly Point[], second: readonly Point[]): number {
     if (!separatedOnAxis(first, second)) {

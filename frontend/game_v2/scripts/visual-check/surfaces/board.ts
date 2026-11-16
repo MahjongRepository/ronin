@@ -14,9 +14,11 @@ import {
     MIN_ACTION_SIZE,
     type Point,
     type Size,
+    boxCorners,
     contains,
     convexHull,
     describeBox,
+    describeQuad,
     describeSize,
     findOverlaps,
     intersects,
@@ -368,29 +370,30 @@ function checkLocalHand(
 }
 
 /**
- * A side strip's full hand, as its place reserves it whatever the seat holds, stays clear of the play switches and the
- * decision's controls and timer on the board (the cog reserves no room, a panel's controls stand over the board it
- * covers): a full concealed hand is the strips' binding capacity.
+ * A side strip's full hand, as its place reserves it whatever the seat holds and as the table's camera shows it, stays
+ * clear of the furiten mark, the play switches and the decision's controls and timer on the board (the cog reserves no
+ * room, a panel's controls stand over the board it covers): a full concealed hand is the strips' binding capacity.
  */
 function checkHandReach(board: BoardMeasure, report: PageReport): void {
     const controls = [
         ...board.switches.map((control) => control.box),
         ...(board.decisionBand?.buttons ?? []),
         ...(board.timer === null ? [] : [board.timer]),
+        ...(board.furiten === null ? [] : [board.furiten]),
     ];
-    const unread = board.handReach.filter(
-        (reach) => !Number.isFinite(reach.box.width) || !Number.isFinite(reach.box.height),
-    );
+    const unread = board.handReach.filter((reach) => reach.quad.length === 0);
     report.expect(
         unread.length === 0,
         `a side hand's full reach could not be read (--geo-full-reach, --bh): ${unread.map((reach) => reach.group).join(", ")}`,
     );
-    const crowded = board.handReach.filter((reach) =>
-        controls.some((control) => intersects(reach.box, control)),
+    const crowded = board.handReach.filter(
+        (reach) =>
+            reach.quad.length > 0 &&
+            controls.some((control) => polygonGap(reach.quad, boxCorners(control)) === 0),
     );
     report.expect(
         crowded.length === 0,
-        `a side hand's full reach meets a switch or a decision control: ${crowded.map((reach) => `${reach.group} ${describeBox(reach.box)}`).join(", ")}`,
+        `a side hand's full reach meets the furiten mark, a switch or a decision control: ${crowded.map((reach) => `${reach.group} ${describeQuad(reach.quad)}`).join(", ")}`,
     );
 }
 

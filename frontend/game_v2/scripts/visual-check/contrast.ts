@@ -18,15 +18,20 @@ export const CONTRAST_VIEWPORTS: ReadonlySet<string> = new Set([
     "desktop-narrow",
 ]);
 /**
- * The narrowest face, in device pixels, whose red strokes the contrast check fails: below it the sprite's finest red
- * strokes (a pinzu's ring) are narrower than a pixel, so no pixel shows their colour whatever the palette; they are
- * reported in the page's summary instead (the spec: reported, not redrawn). Every face on a phone is wider.
- * The limit is the artwork's: those strokes are about 5 of the face's 300 units (half a device pixel at this bound; the
- * 800x600 window's smallest faces read 3.4-4.4:1), each drawn on a white band about four times as wide (the 1p's ring),
- * so a stroke wide enough for a pixel there (two to three times as wide) would all but cover the band: thickening it is
- * a redraw of the artwork, not a change to the sprite's build.
+ * The finest red stroke in the tile artwork, in the face's 300 units across: a pinzu's ring, drawn on a white band
+ * about four times as wide (the 1p's ring), so thickening it to show its colour on a smaller face would all but cover
+ * the band: a redraw of the artwork, not a change to the sprite's build.
  */
-const MIN_GLYPH_DEVICE_PX = 24;
+const FINEST_STROKE_UNITS = 5;
+const FACE_UNITS = 300;
+/**
+ * The narrowest face, in device pixels, whose strokes the contrast check fails as drawn: the one whose finest stroke
+ * (`FINEST_STROKE_UNITS`) is a device pixel wide. On a narrower face that stroke covers only part of a pixel, so its
+ * best pixel is a blend with the face whose ratio turns on the pixel grid and the shot's resampling, whatever the
+ * palette (a phone's meld tile can read 4.49:1, the 800x600 window's smallest faces 3.4-4.4:1); it is reported in the
+ * page's summary instead (the spec: reported, not redrawn). Its inks' own colours are checked on every face.
+ */
+const MIN_GLYPH_DEVICE_PX = FACE_UNITS / FINEST_STROKE_UNITS;
 
 /**
  * A mark the contrast check measures: the elements it is drawn on (`selector`), how far past their boxes it reaches

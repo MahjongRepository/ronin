@@ -98,8 +98,11 @@ export interface BoardMeasure {
     readonly stripTiles: readonly GroupedBox[];
     /** The whole names of the badges that shorten theirs, their head cut by its ellipsis. */
     readonly cutNames: readonly string[];
-    /** Each side strip's full hand (fourteen tiles, the drawn one apart) as its place reserves it, by seat. */
-    readonly handReach: readonly GroupedBox[];
+    /**
+     * Each side strip's full hand (fourteen tiles, the drawn one apart) as its place reserves it, by seat: its corners as
+     * the table's camera shows them, clockwise from its top left, none when its lengths could not be read.
+     */
+    readonly handReach: readonly GroupedQuad[];
     /**
      * The laid widths, before the frames turn them, of a river tile, of every opponent's concealed hand tile and of the
      * widest own hand tile, unrounded (a held-back tile's recess never counts).
@@ -353,13 +356,18 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             if (strip === null) {
                 return [];
             }
-            const origin = box(strip);
             const style = getComputedStyle(strip);
             const reach = Number.parseFloat(style.getPropertyValue("--geo-full-reach"));
             const depth = Number.parseFloat(style.getPropertyValue("--bh"));
-            const left = seat === "left" ? origin.left : origin.left - depth;
-            const top = seat === "left" ? origin.top : origin.top - reach;
-            return [{ box: { height: reach, left, top, width: depth }, group: seat }];
+            if (!Number.isFinite(reach) || !Number.isFinite(depth)) {
+                return [{ group: seat, quad: [] }];
+            }
+            const probe = document.createElement("div");
+            probe.style.cssText = `position: absolute; left: 0; bottom: 0; width: ${reach}px; height: ${depth}px;`;
+            strip.append(probe);
+            const quad = cornersOf(probe);
+            probe.remove();
+            return [{ group: seat, quad }];
         });
         const riverTile = board.querySelector<HTMLElement>(
             ".board-river .tile:not(.discard-tile-riichi .tile)",
