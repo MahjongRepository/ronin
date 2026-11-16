@@ -1,4 +1,5 @@
 import pytest
+from mahjong.tile import TilesConverter
 
 from game.engine import (
     AvailableActionItem,
@@ -10,8 +11,10 @@ from game.engine import (
     DoubleRonWinner,
     DrawEvent,
     EventType,
+    GameAction,
     GameEndCause,
     GameEndedEvent,
+    GameRuntime,
     GameSettings,
     GameStartedEvent,
     HandLimit,
@@ -25,6 +28,7 @@ from game.engine import (
     PlayerStanding,
     RoundEndEvent,
     SeatTarget,
+    TimeoutType,
     TsumoResult,
     TurnEvent,
     WaitKind,
@@ -40,6 +44,8 @@ from game.messaging.event_payload import (
     shape_call_prompt_payload,
     stamp_wait_id,
 )
+from game.tests.helpers.wall import make_wall
+from game.tests.unit.logic.helpers import _find_player, _update_player, _update_round_state
 from game.wire.compact import decode_discard, decode_draw
 from game.wire.enums import WireRoundResultType
 from game.wire.keys import WireKey
@@ -399,7 +405,7 @@ class TestRoundEndPayload:
             assert WireKey.URA_DORA not in winner
 
 
-class TestMahjongGameServiceRiichiSettingsOnTheWire:
+class TestRiichiStickValuePayload:
     def test_start_game__when_riichi_cost_and_stick_value_not_default__should_send_only_the_stick_value(self):
         service = MahjongGameService()
         settings = GameSettings(riichi_cost=2000, riichi_stick_value=1500)
@@ -417,3 +423,74 @@ class TestMahjongGameServiceRiichiSettingsOnTheWire:
             None,
             15,
         )
+
+
+def _end_the_round_by_exhaustive_draw(service: MahjongGameService, runtime: GameRuntime, *, seat: int) -> None:
+    _update_round_state(runtime, wall=make_wall())
+    discard = runtime.state.round_state.players[seat].tiles[-1]
+    service.handle_action(runtime, seat=seat, action=GameAction.DISCARD, data={"tile_id": discard})
+
+
+class TestReconnectionPayload:
+    @pytest.fixture
+    def service(self):
+        return MahjongGameService()
+
+    def test_reconnection_payload__when_round_advance_pending__should_carry_the_ended_round_and_its_result(
+        self, service
+    ):
+        runtime = service.start_game("game1", ["Alice"], seed="a" * 192).runtime
+        alice = _find_player(runtime.state.round_state, "Alice")
+        first_dealer = runtime.state.round_state.dealer_seat
+        tenpai_seat = (first_dealer + 1) % 4
+        fresh_payload = reconnection_payload(service.build_reconnection_snapshot(runtime, alice.seat), stand_ins={})
+        assert WireKey.LATEST_DISCARD_SEAT not in fresh_payload
+
+        tenpai_hand = TilesConverter.string_to_136_array(man="123456789", pin="11", sou="45")
+        _update_player(runtime, seat=tenpai_seat, tiles=tuple(tenpai_hand))
+        _end_the_round_by_exhaustive_draw(service, runtime, seat=alice.seat)
+        assert service.get_awaiting(runtime).kind == WaitKind.ROUND_ADVANCE
+
+        payload = reconnection_payload(service.build_reconnection_snapshot(runtime, alice.seat), stand_ins={})
+        assert (
+            payload[WireKey.DEALER],
+            payload[WireKey.WIND],
+            payload[WireKey.ROUND_NUMBER],
+            payload[WireKey.ROUND_IN_WIND],
+            payload[WireKey.HONBA],
+        ) == (first_dealer, 0, 0, 1, 0)
+        assert (payload[WireKey.RIICHI_STICKS], payload[WireKey.ROUND_RESULT][WireKey.RIICHI_STICKS]) == (0, 0)
+        assert (
+            payload[WireKey.ROUND_RESULT][WireKey.DEALER],
+            payload[WireKey.ROUND_RESULT][WireKey.DORA_INDICATORS],
+        ) == (first_dealer, payload[WireKey.DORA_INDICATORS])
+        assert {ps[WireKey.SEAT]: ps[WireKey.SCORE] for ps in payload[WireKey.PLAYER_STATES]} == {
+            seat: 280 if seat == tenpai_seat else 240 for seat in range(4)
+        }
+
+    def test_reconnection_payload__when_round_ended_before__should_list_it_in_the_round_history(self, service):
+        runtime = service.start_game("game1", ["Alice"], seed="a" * 192).runtime
+        alice = _find_player(runtime.state.round_state, "Alice")
+        riichi_seat = (alice.seat + 1) % 4
+        first_dealer = runtime.state.round_state.dealer_seat
+        tenpai_hand = TilesConverter.string_to_136_array(man="123456789", pin="11", sou="45")
+        _update_player(runtime, seat=riichi_seat, tiles=tuple(tenpai_hand), is_riichi=True)
+        _end_the_round_by_exhaustive_draw(service, runtime, seat=alice.seat)
+        service.handle_timeout(runtime, seat=alice.seat, timeout_type=TimeoutType.ROUND_ADVANCE)
+        assert runtime.state.round_number == 1
+
+        payload = reconnection_payload(service.build_reconnection_snapshot(runtime, alice.seat), stand_ins={})
+        assert payload[WireKey.HONBA] == 1
+        assert payload[WireKey.ROUND_HISTORY] == [
+            {
+                WireKey.WIND: 0,
+                WireKey.DEALER: first_dealer,
+                WireKey.HONBA: 0,
+                WireKey.RESULT_TYPE: 3,
+                WireKey.RIICHI_SEATS: (riichi_seat,),
+                WireKey.WINNER_SEAT: (),
+                WireKey.PAO_SEAT: (),
+                WireKey.TENPAI_SEATS: (riichi_seat,),
+                WireKey.SCORE_CHANGES: {str(seat): 30 if seat == riichi_seat else -10 for seat in range(4)},
+            },
+        ]
