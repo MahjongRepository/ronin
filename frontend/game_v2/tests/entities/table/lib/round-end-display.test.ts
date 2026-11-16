@@ -1,5 +1,6 @@
 import { afterEach, assert, describe, expect, test } from "vitest";
 
+import { makeRonRoundEnd } from "#tests/fixtures/events";
 import { loadEngineReplay } from "#tests/fixtures/replays";
 import {
     type DrawPageDisplay,
@@ -7,6 +8,8 @@ import {
     type RoundEndDisplayState,
     type TableState,
     type WinPageDisplay,
+    createInitialPlayerState,
+    extractRoundEndResult,
     roundEndDisplay,
 } from "@/entities/table";
 import { type PaoLiability } from "@/shared/protocol";
@@ -49,6 +52,22 @@ function paoNotesWhen(loserSeat: number | null, pao: PaoLiability): readonly str
     assert(result !== null && result.winners[0] !== undefined);
     const winners = [{ ...result.winners[0], pao }];
     return winPage({ ...table, roundEndResult: { ...result, loserSeat, winners } }).notes;
+}
+
+function headBumpNotes(headBumpedSeats: number[]): readonly string[] {
+    const players = ["Diana", "Alice", "Charlie", "Bob"].map((name, seat) =>
+        createInitialPlayerState({ isAiPlayer: false, name, score: 25_000, seat }),
+    );
+    const event = makeRonRoundEnd({
+        headBumpedSeats,
+        loserSeat: 0,
+        scoreChanges: { "0": -3900, "1": 3900, "2": 0, "3": 0 },
+        winnerSeat: 1,
+    });
+    const result = extractRoundEndResult(event, { riichiStickValue: 1000 });
+    const { body } = roundEndDisplay({ players, result }, 0);
+    assert(body.kind === "win");
+    return body.notes;
 }
 
 function handFaces(hand: ResultHandDisplay): string[] {
@@ -185,19 +204,10 @@ describe("roundEndDisplay - a win", () => {
     });
 
     test("head bump: tells the player whose call lost and who won it", () => {
-        const table = lastRoundEndTable("head_bump");
-        const result = table.roundEndResult;
-        assert(result !== null);
-        const bumpedTwice: TableState = {
-            ...table,
-            roundEndResult: { ...result, headBumpedSeats: [...result.headBumpedSeats, 3] },
-        };
-        const thirdName = table.players.find((player) => player.seat === 3)?.name;
-
-        expect(winPage(table).notes).toEqual(["Atamahane: Alice won; no ron for Charlie"]);
+        expect(headBumpNotes([2])).toEqual(["Atamahane: Alice won; no ron for Charlie"]);
         document.documentElement.lang = "ru";
-        expect(winPage(bumpedTwice).notes).toEqual([
-            `Атамаханэ: рон засчитан (Alice), не засчитан (Charlie и ${thirdName})`,
+        expect(headBumpNotes([2, 3])).toEqual([
+            "Атамаханэ: рон засчитан (Alice), не засчитан (Charlie и Bob)",
         ]);
     });
 

@@ -415,6 +415,8 @@ class TestSeedDeterminism:
         )
         first_deal = [event for event in game_start.events if isinstance(event, RoundStartedEvent)]
         runtime = game_start.runtime
+        (game_started,) = [event for event in game_start.events if isinstance(event, GameStartedEvent)]
+        assert game_started.dealer_seat == 0
         assert [[player.score for player in event.players] for event in first_deal] == [list(start.scores)] * 4
         assert {
             (event.dealer_seat, event.round_wind, event.round_in_wind, event.honba_sticks, event.riichi_sticks)

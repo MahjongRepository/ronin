@@ -258,7 +258,7 @@ class MahjongGameService(GameService):
             game_id=runtime.game_id,
             game_type=game_state.settings.game_type,
             players=players,
-            dealer_seat=game_state.round_state.dealer_seat,
+            dealer_seat=game_state.starting_dealer_seat,
             dealer_dice=game_state.dealer_dice,
             riichi_stick_value=game_state.settings.riichi_stick_value,
         )

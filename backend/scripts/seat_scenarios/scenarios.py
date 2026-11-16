@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from game.engine import EnchousenType, GameSettings, GameType, KanType
+from game.engine import KanType, StartPosition
 from game.messaging.types import SessionMessageType
 from game.tests.helpers.hands import tile_copies
 from game.wire.enums import WireEventType
@@ -19,6 +19,7 @@ PLAYER = "Alice"
 ROBBER = "Bob"
 OWN_TURN_RINSHAN = tile(0, honors="4")
 START_CONFIRMED_AT = 3
+SOUTH_1 = StartPosition(scores=(32000, 24000, 23000, 21000), round_wind=1)
 
 
 def call_prompt() -> tuple[SeatTranscript, ...]:
@@ -423,16 +424,12 @@ def riichi_reconnect() -> tuple[SeatTranscript, ...]:
     """
     Declare riichi for Alice (seat 1) on her first draw, discarding a 1m; it passes, so the server takes her stick.
 
-    The game's riichi cost is 2000 and a collected stick pays 1500, neither the default. Her socket dies unseen at seat
-    2's 6s, and her reconnect takes it over: the snapshot, with her stick already taken, then the ron prompt sent again.
-    She rons it and never confirms the round end, so the server's round advance timeout deals the next round while her
-    result is still open. She plays no move after it: the server's timeouts play her seat, and the game, East only with
-    no extension, ends with East 4.
+    The game starts at South 1. Her socket dies unseen at seat 2's 6s, and her reconnect takes it over: the snapshot,
+    with her stick already taken, then the ron prompt sent again. She rons it and never confirms the round end, so the
+    server's round advance timeout deals the next round while her result is still open. She plays no move after it: the
+    server's timeouts play her seat, and the game ends with South 4.
     """
-    settings = GameSettings(
-        riichi_cost=2000, riichi_stick_value=1500, game_type=GameType.TONPUSEN, enchousen=EnchousenType.NONE
-    )
-    with seated_game("seat-riichi-reconnect", _own_turn_wall(), players=(PLAYER,), settings=settings) as game:
+    with seated_game("seat-riichi-reconnect", _own_turn_wall(), players=(PLAYER,), start=SOUTH_1) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
         alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
@@ -458,7 +455,7 @@ def riichi_reconnect() -> tuple[SeatTranscript, ...]:
 def chankan_robbed() -> tuple[SeatTranscript, ...]:
     """
     Alice (seat 1) declares a closed kan of 9m that Bob (seat 3), a kokushi musou hand waiting on 9m, robs: his chankan
-    prompt shows the kan, her round end names it. Tobi is off, so the yakuman she pays leaves the game going.
+    prompt shows the kan, her round end names it. She starts with 34,000, so the yakuman she pays leaves the game going.
 
     Her socket dies unseen during the round advance, before her client confirms it, and her reconnect takes it over: the
     snapshot carries the result and the kan it robbed, and she presses OK a second after it; Bob presses OK a second
@@ -482,8 +479,8 @@ def chankan_robbed() -> tuple[SeatTranscript, ...]:
         ),
     )
 
-    settings = GameSettings(tobi_enabled=False)
-    with seated_game("seat-chankan-robbed", staged, players=(PLAYER, ROBBER), settings=settings) as game:
+    start = StartPosition(scores=(22000, 34000, 22000, 22000))
+    with seated_game("seat-chankan-robbed", staged, players=(PLAYER, ROBBER), start=start) as game:
         alice = game.clients[PLAYER]
         bob = game.clients[ROBBER]
         alice.join(at=0)
@@ -565,7 +562,7 @@ def double_ron() -> tuple[SeatTranscript, ...]:
 
     Her socket dies unseen during the round advance, and her reconnect takes it over: the snapshot carries the same
     result with the time its timer has run, and she presses OK a second after it; Bob confirms a second after the round
-    end. Tobi is off, so what the dealer pays leaves the game going.
+    end.
     """
     winning_tile = tile(2, pin="4")
     staged = StagedWall(
@@ -578,8 +575,7 @@ def double_ron() -> tuple[SeatTranscript, ...]:
         draws=((0, winning_tile),),
     )
 
-    settings = GameSettings(tobi_enabled=False)
-    with seated_game("seat-double-ron", staged, players=(PLAYER, ROBBER), settings=settings) as game:
+    with seated_game("seat-double-ron", staged, players=(PLAYER, ROBBER)) as game:
         alice = game.clients[PLAYER]
         bob = game.clients[ROBBER]
         alice.join(at=0)
@@ -704,12 +700,11 @@ def game_end_reconnect() -> tuple[SeatTranscript, ...]:
     Alice (seat 1) declares kyuushu kyuuhai on her first draw: an abortive draw that moves no points, so the dealer
     deals again with a honba.
 
-    In that deal, which the seed deals, her socket dies unseen and her reconnect's snapshot lists the first round in its
-    history. She plays no move after it: the server's timeouts play her seat, and the AI players discard what they draw.
-    The game is East only with no extension, so it ends with East 4.
+    The game starts at South 1. In the second deal, which the seed deals, her socket dies unseen and her reconnect's
+    snapshot lists the first round in its history. She plays no move after it: the server's timeouts play her seat, and
+    the AI players discard what they draw, so the game ends with South 4.
     """
-    settings = GameSettings(game_type=GameType.TONPUSEN, enchousen=EnchousenType.NONE)
-    with seated_game("seat-game-end-reconnect", _kyuushu_wall(), players=(PLAYER,), settings=settings) as game:
+    with seated_game("seat-game-end-reconnect", _kyuushu_wall(), players=(PLAYER,), start=SOUTH_1) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
         alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
@@ -780,9 +775,9 @@ def first_turn_win() -> tuple[SeatTranscript, ...]:
     3), dealt a hand waiting on the east wind, draws it: chiihou over their three discards. Both confirm, and in East 2
     Alice, now dealer, is dealt a complete hand with her first draw: tenhou over empty rivers.
 
-    No one can call a discard (nobody holds a second copy of a discarded wind), and tobi is off, so the tenhou the AI
-    dealer of East 1 pays leaves the game going. Both confirm two seconds after the chiihou, once its call has gone, as
-    it has before a player can see the result.
+    No one can call a discard (nobody holds a second copy of a discarded wind), and the AI dealer of East 1 starts with
+    33,000, so the tenhou it pays after the chiihou leaves the game going. Both confirm two seconds after the chiihou,
+    once its call has gone, as it has before a player can see the result.
     """
     east_wind = tile(1, honors="1")
     east_1 = StagedWall(
@@ -805,9 +800,9 @@ def first_turn_win() -> tuple[SeatTranscript, ...]:
         dealer=1,
     )
 
-    settings = GameSettings(tobi_enabled=False)
+    start = StartPosition(scores=(33000, 25000, 25000, 17000))
     with seated_game(
-        "seat-first-turn-win", east_1, players=(PLAYER, ROBBER), settings=settings, later_rounds=(east_2,)
+        "seat-first-turn-win", east_1, players=(PLAYER, ROBBER), later_rounds=(east_2,), start=start
     ) as game:
         alice = game.clients[PLAYER]
         bob = game.clients[ROBBER]

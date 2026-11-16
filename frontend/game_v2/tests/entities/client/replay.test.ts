@@ -480,7 +480,7 @@ describe("readReplayTimeline - riichi deposits", () => {
         expect(stateAfter(timeline, index).riichiSticks).toBe(0);
     });
 
-    test("leftover riichi: the game end pays the stick left on the table, at the game's 1,500 stick value, to the winner's standing", () => {
+    test("leftover riichi: the game end pays the stick left on the table to the winner's standing", () => {
         const timeline = loadEngineReplay("leftover_riichi");
         const { index } = findRoundEnd(timeline);
         const gameEnd = timeline.events.at(-1);
@@ -488,14 +488,11 @@ describe("readReplayTimeline - riichi deposits", () => {
         const drawn = stateAfter(timeline, index);
         const end = stateAfter(timeline, timeline.events.length - 1);
 
-        expect([scoresOf(drawn), drawn.riichiSticks]).toEqual([
-            [23_500, 24_500, 26_500, 23_500],
-            1,
-        ]);
-        expect(gameEnd.leftoverRiichiBonus).toBe(1500);
-        expect([scoresOf(end), end.riichiSticks]).toEqual([[23_500, 24_500, 28_000, 23_500], 0]);
+        expect([scoresOf(drawn), drawn.riichiSticks]).toEqual([[23_500, 25_500, 50_500, -500], 1]);
+        expect(gameEnd.leftoverRiichiBonus).toBe(1000);
+        expect([scoresOf(end), end.riichiSticks]).toEqual([[23_500, 25_500, 51_500, -500], 0]);
         expect(end.gameEndResult).toMatchObject({
-            leftoverRiichiBonus: 1500,
+            leftoverRiichiBonus: 1000,
             leftoverSticks: 1,
             winnerSeat: 2,
         });

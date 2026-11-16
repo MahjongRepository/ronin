@@ -11,7 +11,8 @@ import {
 } from "@/entities/replay";
 import { shownReplayCall } from "@/entities/replay/model/replay-calls";
 import { type BoardPerspective, readReplayFile } from "@/entities/table";
-import { REPLAY_VERSION, WIRE_KEY } from "@/shared/protocol";
+import { decodeReplayRecords } from "@/entities/table/model/replay-codec";
+import { EVENT_TYPE, REPLAY_VERSION, WIRE_KEY } from "@/shared/protocol";
 
 const ALL: BoardPerspective = { bottomSeat: 0, reveal: "all" };
 
@@ -37,6 +38,24 @@ function displayAt(
             to: cursor,
         }),
     });
+}
+
+function withViewingSettings(
+    content: Uint8Array,
+    hasAkadora: boolean,
+    riichiStickValue: number,
+): Uint8Array {
+    return encodeReplayRecords(
+        [...decodeReplayRecords(content)].map((record) =>
+            record[WIRE_KEY.EVENT_TYPE] === EVENT_TYPE.GAME_STARTED
+                ? {
+                      ...record,
+                      [WIRE_KEY.HAS_AKADORA]: hasAkadora,
+                      [WIRE_KEY.RIICHI_STICK_VALUE]: riichiStickValue,
+                  }
+                : record,
+        ),
+    );
 }
 
 function lastStop(replay: LoadedReplay): number {
@@ -247,7 +266,9 @@ describe("replayDisplay callouts", () => {
 
 describe("replayDisplay - explicit viewing settings", () => {
     test("shows ordinary fives throughout a recorded game with aka-dora disabled and uses its explicit stick value", () => {
-        const replay = replayOf(engineReplayBytes("custom_settings"));
+        const replay = replayOf(
+            withViewingSettings(engineReplayBytes("leftover_riichi"), false, 20),
+        );
         expect(replay.navigation.complete).toBe(true);
         expect(replay.damage).toBeNull();
         const displays = replay.navigation.stops.map((_stop, stop) =>

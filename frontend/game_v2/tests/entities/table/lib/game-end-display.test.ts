@@ -40,20 +40,20 @@ describe("gameEndDisplay", () => {
         expect(
             display.seats.map((seat) => [seat.placement, seat.score, seat.result, seat.isViewer]),
         ).toEqual([
-            ["1st", "28,000", "+37.0", false],
-            ["2nd", "24,500", "+5.0", true],
+            ["1st", "51,500", "+60.0", false],
+            ["2nd", "25,500", "+6.0", true],
             ["3rd", "23,500", "−16.0", false],
-            ["4th", "23,500", "−26.0", false],
+            ["4th", "−500", "−50.0", false],
         ]);
         document.documentElement.lang = "ru";
         expect(shownEnd(endTable("leftover_riichi"), 1).seats.map((seat) => seat.result)).toEqual([
-            "+37,0",
-            "+5,0",
+            "+60,0",
+            "+6,0",
             "−16,0",
-            "−26,0",
+            "−50,0",
         ]);
         expect(display.leftover).toBe(
-            `1 leftover riichi stick: +1,500 to ${display.seats[0].name}`,
+            `1 leftover riichi stick: +1,000 to ${display.seats[0].name}`,
         );
     });
 

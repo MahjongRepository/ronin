@@ -687,7 +687,7 @@ describe("stepGameClient - generated first turns", () => {
         expect(offers).toContainEqual({ kind: "tsumo" });
         expect(winnersAndScores(stateAt(scenario, run, "round end"))).toEqual([
             [1],
-            [-7000, 65_000, 1000, 41_000],
+            [1000, 65_000, 1000, 33_000],
         ]);
     });
 
@@ -700,7 +700,7 @@ describe("stepGameClient - generated first turns", () => {
         expect(offers).toContainEqual({ kind: "tsumo" });
         expect(winnersAndScores(stateAt(scenario, run, "round end"))).toEqual([
             [3],
-            [9000, 17_000, 17_000, 57_000],
+            [17_000, 17_000, 17_000, 49_000],
         ]);
     });
 });
@@ -712,35 +712,35 @@ describe("stepGameClient - generated riichi reconnect", () => {
         return [state.table.riichiSticks, state.table.players.map((player) => player.score)];
     }
 
-    it("deposits the game's 2,000 riichi cost once the riichi passes; the snapshot already holds it and the ron settles once", () => {
+    it("deposits the 1,000 riichi cost once the riichi passes; the snapshot already holds it and the ron settles once", () => {
         const run = runClean(scenario);
         const reconnected = stateAt(scenario, run, "reconnected");
 
         expect(sticksAndScores(stateAt(scenario, run, "riichi chosen"))).toEqual([
             0,
-            [25_000, 25_000, 25_000, 25_000],
+            [32_000, 24_000, 23_000, 21_000],
         ]);
         expect(sticksAndScores(stateAt(scenario, run, "riichi accepted"))).toEqual([
             1,
-            [25_000, 23_000, 25_000, 25_000],
+            [32_000, 23_000, 23_000, 21_000],
         ]);
-        expect(sticksAndScores(reconnected)).toEqual([1, [25_000, 23_000, 25_000, 25_000]]);
+        expect(sticksAndScores(reconnected)).toEqual([1, [32_000, 23_000, 23_000, 21_000]]);
         expect(reconnected.table.players[1].isRiichi).toBe(true);
         expect(sticksAndScores(stateAt(scenario, run, "round end"))).toEqual([
             0,
-            [25_000, 29_700, 19_800, 25_000],
+            [32_000, 29_200, 17_800, 21_000],
         ]);
     });
 
-    it("pays the stick the ron collected at the game's 1,500 stick value, apart from the cost and from honba", () => {
+    it("pays the stick the ron collected at its 1,000 value, apart from the cost and from honba", () => {
         const { table } = stateAt(scenario, runClean(scenario), "round end");
         const result = table.roundEndResult;
         expect(result?.winners.map((winner) => [winner.honbaBonus, winner.riichiBonus])).toEqual([
-            [0, 1500],
+            [0, 1000],
         ]);
         assert(result !== null);
         const { body } = roundEndDisplay({ players: table.players, result }, 0);
-        expect(body.kind === "win" && body.notes).toEqual(["Riichi +1,500"]);
+        expect(body.kind === "win" && body.notes).toEqual(["Riichi +1,000"]);
     });
 });
 

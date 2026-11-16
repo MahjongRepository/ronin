@@ -18,7 +18,6 @@ const SILENT: GameSound = {
 /** The replay page's stories: positions of generated replays, and every way a replay may fail to show. */
 const REPLAY_STORIES = [
     "start",
-    "custom_settings",
     "seating",
     "mid",
     "autoplay",
@@ -119,14 +118,10 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
         prefs: { hideHands: false },
         search: "?round=0&step=14",
     },
-    custom_settings: {
-        load: servesFixture(() => import("@/fixtures/replays/custom_settings.msgpack?inline")),
-        search: "?round=0&step=0",
-    },
     damaged: { load: servesFixture(paoReplay, withBrokenLine), search: "?round=0&step=8" },
     double_ron: {
-        load: servesFixture(() => import("@/fixtures/replays/double_ron_head_bump.msgpack?inline")),
-        search: "?round=0&step=2",
+        load: servesFixture(() => import("@/fixtures/replays/double_ron.msgpack?inline")),
+        search: "?round=0&step=10",
     },
     ends_on_result: {
         load: servesFixture(
@@ -144,9 +139,9 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
     no_round: { load: serves(versionRecord(REPLAY_VERSION)), search: "" },
     not_found: { clock: HURRIED_CLOCK, load: () => Promise.resolve(NOT_FOUND), search: "" },
     result_hidden: {
-        load: servesFixture(() => import("@/fixtures/replays/double_ron_head_bump.msgpack?inline")),
+        load: servesFixture(() => import("@/fixtures/replays/double_ron.msgpack?inline")),
         prefs: { hideHands: true },
-        search: "?round=0&step=2",
+        search: "?round=0&step=10",
     },
     round_list: {
         load: servesFixture(() => import("@/fixtures/replays/ai_replacements.msgpack?inline")),

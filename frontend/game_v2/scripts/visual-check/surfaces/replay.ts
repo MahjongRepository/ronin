@@ -238,7 +238,6 @@ const PAGES: readonly PageCase[] = [
         path: "/play/storybook/replay?state=start",
         required: { visible: [".replay-rotate .rotate-panel__leave"] },
     },
-    { ...replayCase("custom_settings", []), at: [FLOOR, MID_DESKTOP] },
     {
         ...replayCase("start", []),
         at: [...WORST_CASES, LAPTOP_WINDOW, NARROW_DESKTOP, SHORT_TABLET],

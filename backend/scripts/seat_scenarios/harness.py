@@ -142,8 +142,8 @@ class _AdvancingSelector(selectors.SelectSelector):
 
 class _StagedEngine(MahjongGameService):
     """
-    The real engine, pacing AI turns as the live server's does, dealing every game it starts from the staged seed and
-    walls, as the session starts one with neither.
+    The real engine, pacing AI turns as the live server's does, dealing every game it starts from the staged seed, walls
+    and start position, as the session starts one with none of them.
 
     The rounds after the first are dealt from the staged later rounds' walls in order, each checked against the dealer
     the game advanced to, and from the seed once those run out. Each staged draw of a round is checked against the seat
@@ -151,12 +151,18 @@ class _StagedEngine(MahjongGameService):
     kept as the engine's failure for the scenario to raise with its cause.
     """
 
-    def __init__(self, staged: StagedWall, settings: GameSettings, later_rounds: Sequence[StagedWall]) -> None:
+    def __init__(
+        self,
+        staged: StagedWall,
+        later_rounds: Sequence[StagedWall],
+        start: StartPosition | None,
+    ) -> None:
         super().__init__(pace_ai_turns=True)
-        if staged.dealer != 0:
-            raise ScenarioError(f"a staged game's first round is dealt from seat 0, not {staged.dealer}")
+        dealer = start.dealer_seat if start is not None else 0
+        if staged.dealer != dealer:
+            raise ScenarioError(f"a staged game's first round is dealt from seat {dealer}, not {staged.dealer}")
 
-        self._settings = settings
+        self._start = start
         self._staged_rounds = (staged, *later_rounds)
         self._rounds_dealt = 0
         self._round_draws: Sequence[tuple[int, int]] = ()
@@ -190,8 +196,8 @@ class _StagedEngine(MahjongGameService):
             game_id,
             player_names,
             seed=STAGED_SEED,
-            settings=self._settings,
             walls=[staged.tiles() for staged in self._staged_rounds],
+            start=self._start,
             confirm_start=confirm_start,
         )
         self._check_draws(game_start.events)
@@ -762,16 +768,16 @@ def seated_game(
     staged: StagedWall,
     *,
     players: Sequence[str],
-    settings: GameSettings | None = None,
     later_rounds: Sequence[StagedWall] = (),
+    start: StartPosition | None = None,
 ) -> Generator[SeatedGame]:
     """
-    Open a SeatedGame on a loop of its own, dealt from the staged wall and then the later rounds' walls; on the way out
-    stop the game and close the loop, whatever happened.
+    Open a SeatedGame on a loop of its own, dealt from the staged wall and then the later rounds' walls, from East 1 or
+    from the start position when one is given; on the way out stop the game and close the loop, whatever happened.
     """
     loop = VirtualTimeLoop()
     try:
-        engine = _StagedEngine(staged, settings if settings is not None else GameSettings(), later_rounds)
+        engine = _StagedEngine(staged=staged, later_rounds=later_rounds, start=start)
         game = SeatedGame(loop, game_id, engine, players=players)
         try:
             yield game

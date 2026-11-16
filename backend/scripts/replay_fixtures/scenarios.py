@@ -8,9 +8,8 @@ from game.engine import (
     NUM_PLAYERS,
     NUM_TILES,
     AbortiveDrawType,
-    GameSettings,
     KanType,
-    RenhouValue,
+    StartPosition,
     is_terminal_or_honor,
     tile_to_34,
 )
@@ -54,7 +53,7 @@ EAGER_DOUBLE_RON_SEED = "033c" * 48
 GAME_ENDS = (WireEventType.GAME_END, {})
 
 
-def riichi(settings: GameSettings | None = None, *, ends_game: bool = False) -> Recording:
+def riichi() -> Recording:
     """
     Play a riichi on the drawn tile whose tile is ponned, a second riichi, and a riichi tsumo with ura dora.
 
@@ -88,7 +87,7 @@ def riichi(settings: GameSettings | None = None, *, ends_game: bool = False) -> 
         ura=(tile(1, pin="8"),),
     )
 
-    game = StagedGame("riichi", staged, settings=settings)
+    game = StagedGame("riichi", staged)
     game.discard(0, tile(3, honors="1"))
     game.tsumogiri(1)
     game.tsumogiri(2)
@@ -109,20 +108,8 @@ def riichi(settings: GameSettings | None = None, *, ends_game: bool = False) -> 
                 WireKey.RESULT_TYPE: WireRoundResultType.TSUMO,
                 WireKey.WINNER_SEAT: 1,
                 WireKey.URA_DORA: [tile(1, pin="8")],
-            },
-            then=GAME_ENDS if ends_game else None,
+            }
         ),
-    )
-
-
-@cache
-def custom_settings() -> Recording:
-    """
-    Record a no-red-fives game with a nonstandard riichi stick value.
-    """
-    return riichi(
-        GameSettings(has_akadora=False, has_kuitan=False, riichi_stick_value=2000, tobi_threshold=24000),
-        ends_game=True,
     )
 
 
@@ -271,76 +258,27 @@ def double_ron() -> Recording:
     )
 
 
-def _pin_3_multi_ron(game_id: str, settings: GameSettings, *, callers: tuple[int, ...], outcome: Outcome) -> Recording:
+def triple_ron() -> Recording:
     """
-    Discard the dealer's 3p into three hands waiting on it; the callers declare ron and every other seat passes.
+    Ron one discard by three callers, which aborts the round with no score change.
     """
     staged = StagedWall(
         hands=(PIN_3_TRIPLE_RON_DEALER_HAND, *PIN_3_TRIPLE_RON_CALLER_HANDS),
         draws=((0, PIN_3_TRIPLE_RON_DISCARD),),
     )
 
-    game = StagedGame(game_id, staged, settings=settings)
+    game = StagedGame("triple-ron", staged)
     game.discard(0, PIN_3_TRIPLE_RON_DISCARD)
-    for seat in (1, 2, 3):
-        if seat not in callers:
-            game.pass_(seat)
+    game.ron(1, 2, 3)
 
-    game.ron(*callers)
-
-    return game.replay(outcome)
-
-
-def triple_ron() -> Recording:
-    """
-    Ron one discard by three callers, which aborts the round with no score change.
-    """
-    return _pin_3_multi_ron(
-        "triple-ron",
-        GameSettings(),
-        callers=(1, 2, 3),
-        outcome=Outcome(
+    return game.replay(
+        Outcome(
             {
                 WireKey.RESULT_TYPE: WireRoundResultType.ABORTIVE_DRAW,
                 WireKey.ABORTIVE_REASON: AbortiveDrawType.TRIPLE_RON,
                 WireKey.RON_CALLERS: [1, 2, 3],
             }
-        ),
-    )
-
-
-def double_ron_head_bump() -> Recording:
-    """
-    Ron one discard by three callers with the triple ron abort off: the two nearest win and the third is head-bumped.
-
-    The dealer pays both wins and drops below zero, so the fixture ends the game.
-    """
-    return _pin_3_multi_ron(
-        "double-ron-head-bump",
-        GameSettings(has_triple_ron_abort=False, renhou_value=RenhouValue.MANGAN),
-        callers=(1, 2, 3),
-        outcome=Outcome(
-            {
-                WireKey.RESULT_TYPE: WireRoundResultType.DOUBLE_RON,
-                WireKey.WINNERS: [{WireKey.WINNER_SEAT: 1}, {WireKey.WINNER_SEAT: 2}],
-                WireKey.HEAD_BUMPED_SEATS: [3],
-            },
-            then=GAME_ENDS,
-        ),
-    )
-
-
-def head_bump() -> Recording:
-    """
-    Ron one discard by two callers with double ron off: the nearer one wins and the other is head-bumped.
-    """
-    return _pin_3_multi_ron(
-        "head-bump",
-        GameSettings(has_double_ron=False, renhou_value=RenhouValue.MANGAN),
-        callers=(1, 2),
-        outcome=Outcome(
-            {WireKey.RESULT_TYPE: WireRoundResultType.RON, WireKey.WINNER_SEAT: 1, WireKey.HEAD_BUMPED_SEATS: [2]}
-        ),
+        )
     )
 
 
@@ -563,7 +501,7 @@ def kazoe() -> Recording:
     return game.replay(Outcome({WireKey.RESULT_TYPE: WireRoundResultType.TSUMO, WireKey.WINNER_SEAT: 0}))
 
 
-def _riichi_to_exhaustive_draw(game_id: str, settings: GameSettings) -> StagedGame:
+def _riichi_to_exhaustive_draw(game_id: str, start: StartPosition | None = None) -> StagedGame:
     """
     Play a round out to an exhaustive draw with two tenpai hands, seat 1's in riichi, and the noten seats 0 and 3.
 
@@ -578,7 +516,7 @@ def _riichi_to_exhaustive_draw(game_id: str, settings: GameSettings) -> StagedGa
         ),
     )
 
-    game = StagedGame(game_id, staged, settings=settings)
+    game = StagedGame(game_id, staged, start=start)
     game.tsumogiri(0)
     game.riichi(1)
     game.tsumogiri_until()
@@ -591,7 +529,7 @@ def exhaustive_tenpai() -> Recording:
 
     The riichi stick and the honba carry into the second round's deal.
     """
-    game = _riichi_to_exhaustive_draw("exhaustive-tenpai", GameSettings())
+    game = _riichi_to_exhaustive_draw("exhaustive-tenpai")
     game.confirm_round()
 
     return game.replay(
@@ -608,13 +546,11 @@ def exhaustive_tenpai() -> Recording:
 
 def leftover_riichi() -> Recording:
     """
-    End the game at the exhaustive draw of a riichi round: with the tobi threshold raised above the noten seats' 23,500,
-    the riichi stick left on the table goes to the leader, seat 2, at the game end.
-
-    The riichi costs 2,000 and the stick it leaves pays its winner 1,500, neither the default.
+    End the game at the exhaustive draw of a riichi round: noten seat 3 starts with 1,000 and its noten payment busts
+    it, so the riichi stick left on the table goes to the leader, seat 2, at the game end.
     """
-    settings = GameSettings(tobi_threshold=24000, riichi_cost=2000, riichi_stick_value=1500)
-    game = _riichi_to_exhaustive_draw("leftover-riichi", settings)
+    start = StartPosition(scores=(25000, 25000, 49000, 1000))
+    game = _riichi_to_exhaustive_draw("leftover-riichi", start)
 
     return game.replay(
         Outcome(
@@ -625,7 +561,7 @@ def leftover_riichi() -> Recording:
             },
             then=(
                 WireEventType.GAME_END,
-                {WireKey.WINNER_SEAT: 2, WireKey.LEFTOVER_BONUS: 15, WireKey.LEFTOVER_RIICHI: 1},
+                {WireKey.WINNER_SEAT: 2, WireKey.LEFTOVER_BONUS: 10, WireKey.LEFTOVER_RIICHI: 1},
             ),
         )
     )
@@ -1000,15 +936,12 @@ def truncated_after_round() -> Recording:
 
 FIXTURES: dict[str, Callable[[], Recording]] = {
     "riichi.msgpack": riichi,
-    "custom_settings.msgpack": custom_settings,
     "kans.msgpack": kans,
     "full_game.msgpack": full_game,
     "truncated_mid_round.msgpack": truncated_mid_round,
     "truncated_after_round.msgpack": truncated_after_round,
     "ron_riichi_discard.msgpack": ron_riichi_discard,
     "double_ron.msgpack": double_ron,
-    "double_ron_head_bump.msgpack": double_ron_head_bump,
-    "head_bump.msgpack": head_bump,
     "chankan_added.msgpack": chankan_added,
     "chankan_ai_replacement.msgpack": chankan_ai_replacement,
     "chankan_closed_kokushi.msgpack": chankan_closed_kokushi,

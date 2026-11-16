@@ -696,9 +696,9 @@ describe("playDisplay nameplates", () => {
         );
         expect(plates(riichi)).toEqual([
             "Alice S riichi 23000",
-            "ai-tsumogiri-2 W turn 25000",
-            "ai-tsumogiri-3 N 25000",
-            "ai-tsumogiri-1 E dealer 25000",
+            "ai-tsumogiri-2 W turn 23000",
+            "ai-tsumogiri-3 N 21000",
+            "ai-tsumogiri-1 E dealer 32000",
         ]);
         const returned = playDisplay(
             checkpointState("seat_left_seat_3", "reconnected"),

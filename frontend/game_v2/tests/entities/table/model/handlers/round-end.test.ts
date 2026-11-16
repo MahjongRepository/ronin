@@ -135,13 +135,6 @@ describe("extractRoundEndResult", () => {
         expect(result.winners[0].melds).toHaveLength(3);
     });
 
-    test("head bump: keeps the ron callers the head bump passed over", () => {
-        const { result } = lastRoundEnd("head_bump");
-
-        expect(result).toMatchObject({ headBumpedSeats: [2], loserSeat: 0 });
-        expect(result.winners.map((winner) => winner.seat)).toEqual([1]);
-    });
-
     test("kazoe: the round's dealer and the hand's limit are the server's", () => {
         const { result } = lastRoundEnd("kazoe");
 

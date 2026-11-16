@@ -23,7 +23,6 @@ describe("handLimitName", () => {
     test.each([
         ["riichi", "5 han 20 fu", "Mangan"],
         ["chankan_added", "6 han", "Haneman"],
-        ["head_bump", "8 han", "Baiman"],
         ["kans", "11 han", "Sanbaiman"],
         ["pao", "daisangen", "Yakuman"],
         ["chankan_closed_kokushi", "kokushi", "Yakuman"],
