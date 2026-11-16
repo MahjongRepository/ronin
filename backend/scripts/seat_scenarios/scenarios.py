@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from game.logic.enums import KanType
-from game.logic.settings import EnchousenType, GameSettings, GameType
+from game.engine import EnchousenType, GameSettings, GameType, KanType
 from game.messaging.types import SessionMessageType
 from game.tests.helpers.hands import tile_copies
 from game.wire.enums import WireEventType

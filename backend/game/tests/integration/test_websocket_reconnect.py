@@ -4,14 +4,7 @@ from typing import TYPE_CHECKING
 import pytest
 from starlette.testclient import TestClient
 
-from game.logic.enums import WindName
-from game.logic.events import EventType
-from game.logic.settings import GameType
-from game.logic.types import (
-    GamePlayerInfo,
-    PlayerReconnectState,
-    ReconnectionSnapshot,
-)
+from game.engine import EventType, GamePlayerInfo, GameType, PlayerReconnectState, ReconnectionSnapshot, WindName
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.app import create_app

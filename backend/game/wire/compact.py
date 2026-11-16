@@ -1,5 +1,4 @@
-from game.logic.settings import NUM_PLAYERS
-from game.logic.tiles import NUM_TILES
+from game.engine import NUM_PLAYERS, NUM_TILES
 
 _SEAT_TILE_SPACE = NUM_PLAYERS * NUM_TILES  # 544
 _NUM_DISCARD_FLAGS = 4  # 2 bits: is_tsumogiri | is_riichi

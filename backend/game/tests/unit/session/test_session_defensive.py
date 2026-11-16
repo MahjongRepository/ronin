@@ -1,4 +1,4 @@
-from game.logic.enums import GameAction
+from game.engine import GameAction
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.session.models import PlayerSpec
 from game.tests.helpers.auth import make_test_game_ticket

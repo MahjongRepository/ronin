@@ -21,7 +21,7 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
-from game.logic.events import GameEndedEvent, RoundEndEvent
+from game.engine import GameEndedEvent, RoundEndEvent
 from game.messaging.event_payload import game_event_payload
 from game.replay import load_replay_from_file, run_replay
 from game.server.settings import GameServerSettings

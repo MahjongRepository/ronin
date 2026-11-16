@@ -5,9 +5,14 @@ from typing import TYPE_CHECKING
 import msgpack
 from pydantic import BaseModel, ConfigDict, JsonValue
 
-from game.logic.exceptions import UnsupportedSettingsError
-from game.logic.rule_profiles import STANDARD_RULE_PROFILE, get_rule_profile, resolve_rule_profile
-from game.logic.settings import GameSettings, validate_settings
+from game.engine import (
+    STANDARD_RULE_PROFILE,
+    GameSettings,
+    UnsupportedSettingsError,
+    get_rule_profile,
+    resolve_rule_profile,
+    validate_settings,
+)
 from game.wire.enums import WireEventType
 from game.wire.keys import REPLAY_KEYS, WireKey
 from game.wire.replay_schema import ReplayLineType, validate_replay_event

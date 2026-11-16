@@ -3,13 +3,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from game.logic.enums import GameAction, KanType, PlayerAction, WaitKind
-from game.logic.events import DrawEvent, ErrorEvent, GameStartedEvent, RoundStartedEvent
-from game.logic.mahjong_service import MahjongGameService
-from game.logic.rng import RNG_VERSION
-from game.logic.settings import NUM_PLAYERS, GameSettings
-from game.logic.shanten import calculate_shanten
-from game.logic.tiles import hand_to_34_array
+from game.engine import (
+    NUM_PLAYERS,
+    RNG_VERSION,
+    DrawEvent,
+    ErrorEvent,
+    GameAction,
+    GameSettings,
+    GameStartedEvent,
+    KanType,
+    MahjongGameService,
+    PlayerAction,
+    RoundStartedEvent,
+    WaitKind,
+    calculate_shanten,
+    hand_to_34_array,
+)
 from game.replay import run_replay
 from game.replay.loader import load_replay_from_bytes
 from game.session.replay_collector import ReplayCollector, ReplayRecord
@@ -23,8 +32,7 @@ from game.wire.replay_format import REPLAY_VERSION, ReplayLineType, decode_repla
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from game.logic.events import GameEvent
-    from game.logic.state import MahjongGameState
+    from game.engine import GameEvent, MahjongGameState
     from game.replay.models import ReplayTrace
 
 STAGED_SEED = "5" * 192

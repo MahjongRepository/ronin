@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 from pydantic import ValidationError
 
-from game.logic.enums import GameAction
+from game.engine import GameAction
 from game.messaging.types import (
     ErrorMessage,
     GameActionMessage,

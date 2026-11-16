@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from game.logic.events import BroadcastTarget, DrawEvent, EventType
+from game.engine import BroadcastTarget, DrawEvent, EventType
 from game.session.models import GameLifecycle
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import mock_update

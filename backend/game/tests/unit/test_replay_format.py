@@ -5,9 +5,8 @@ from pathlib import Path
 import msgpack
 import pytest
 
-from game.logic.exceptions import UnsupportedSettingsError
-from game.logic.rule_profiles import STANDARD_RULE_PROFILE, RuleProfile
-from game.logic.settings import GameSettings
+from game.engine import STANDARD_RULE_PROFILE, GameSettings, UnsupportedSettingsError
+from game.logic.rule_profiles import RuleProfile
 from game.wire.keys import REPLAY_KEYS, WireKey
 from game.wire.replay_format import (
     MAX_REPLAY_BYTES,

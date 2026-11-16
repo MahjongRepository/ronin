@@ -1,9 +1,18 @@
 import pytest
 
-from game.logic.enums import CallType, GameAction, RoundPhase
-from game.logic.events import BroadcastTarget, CallPromptEvent, EventType, GameStartedEvent, SeatTarget
-from game.logic.mahjong_service import MahjongGameService
-from game.logic.settings import GameSettings, GameType
+from game.engine import (
+    BroadcastTarget,
+    CallPromptEvent,
+    CallType,
+    EventType,
+    GameAction,
+    GameSettings,
+    GameStartedEvent,
+    GameType,
+    MahjongGameService,
+    SeatTarget,
+)
+from game.logic.enums import RoundPhase
 from game.messaging.event_payload import game_event_payload
 from game.wire.keys import WireKey
 

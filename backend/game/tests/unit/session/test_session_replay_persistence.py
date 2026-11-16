@@ -3,15 +3,16 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from game.logic.enums import GameAction, GameEndCause
-from game.logic.events import (
+from game.engine import (
+    RNG_VERSION,
     DiscardEvent,
+    GameAction,
+    GameEndCause,
     GameEndedEvent,
+    MahjongGameService,
+    PlayerStanding,
 )
 from game.logic.exceptions import GeneratedActionError
-from game.logic.mahjong_service import MahjongGameService
-from game.logic.rng import RNG_VERSION
-from game.logic.types import PlayerStanding
 from game.messaging.types import SessionErrorCode
 from game.server.types import PlayerSpec
 from game.session.replay_collector import ReplayCollector
@@ -45,7 +46,7 @@ from .helpers import (
 )
 
 if TYPE_CHECKING:
-    from game.logic.service import GameStart
+    from game.engine import GameStart
     from game.session.manager import SessionManager
 
 

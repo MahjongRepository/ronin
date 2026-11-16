@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from game.logic.events import (
+from game.engine import (
     CallPromptEvent,
     DrawEvent,
     ErrorEvent,
@@ -23,8 +23,7 @@ from game.wire.replay_format import (
 )
 
 if TYPE_CHECKING:
-    from game.logic.events import GameEvent
-    from game.logic.settings import GameSettings
+    from game.engine import GameEvent, GameSettings
     from game.wire.enums import SeatControlReason
     from shared.storage import ReplayStorage
 

@@ -1,9 +1,8 @@
 import asyncio
 from typing import TYPE_CHECKING
 
+from game.engine import EventType, GameAction, WaitKind
 from game.logic import mahjong_service as mahjong_service_module
-from game.logic.enums import GameAction, WaitKind
-from game.logic.events import EventType
 from game.session.timer import TimerConfig
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection

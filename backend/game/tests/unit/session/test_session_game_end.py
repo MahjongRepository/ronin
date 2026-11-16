@@ -5,12 +5,20 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from mahjong.tile import TilesConverter
 
+from game.engine import (
+    EventType,
+    GameAction,
+    GameEndCause,
+    GameEndedEvent,
+    GameEvent,
+    InvalidGameActionError,
+    PlayerStanding,
+    TimeoutType,
+    WaitKind,
+)
 from game.logic.ai_player import AIPlayer
-from game.logic.enums import GameAction, GameEndCause, TimeoutType, WaitKind
-from game.logic.events import EventType, GameEndedEvent, GameEvent
-from game.logic.exceptions import InvalidGameActionError, ScoringError
+from game.logic.exceptions import ScoringError
 from game.logic.scoring import HandResult
-from game.logic.types import PlayerStanding
 from game.messaging.encoder import decode
 from game.messaging.types import SessionErrorCode
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction

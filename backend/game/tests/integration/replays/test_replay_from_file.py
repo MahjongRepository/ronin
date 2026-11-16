@@ -4,10 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from game.logic.enums import GameAction
-from game.logic.events import EventType, RoundEndEvent, SeatTarget
-from game.logic.rng import RNG_VERSION
-from game.logic.settings import NUM_PLAYERS
+from game.engine import NUM_PLAYERS, RNG_VERSION, EventType, GameAction, RoundEndEvent, SeatTarget
 from game.messaging.event_payload import game_event_payload
 from game.replay import run_replay
 from game.replay.external.tenhou import TenhouConverter

@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from game.logic.enums import WireCallType, WireGameType, WireMeldCallType, WirePlayerAction, WireWind
-from game.logic.settings import WIRE_SCORE_DIVISOR
-from game.logic.types import (
+from game.engine import (
+    WIRE_SCORE_DIVISOR,
     AbortiveDrawResult,
     AvailableActionItem,
     DiscardInfo,
@@ -26,6 +25,11 @@ from game.logic.types import (
     RoundHistoryEntry,
     TenpaiHand,
     TsumoResult,
+    WireCallType,
+    WireGameType,
+    WireMeldCallType,
+    WirePlayerAction,
+    WireWind,
     YakuInfo,
 )
 from game.wire.enums import WireRoundResultType
@@ -34,7 +38,7 @@ from game.wire.keys import WireKey
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from game.logic.events import (
+    from game.engine import (
         CallPromptEvent,
         DoraRevealedEvent,
         ErrorEvent,

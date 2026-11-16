@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from game.engine import MahjongGameService
 from game.logic import mahjong_service as mahjong_service_module
-from game.logic.mahjong_service import MahjongGameService
 from game.session import manager as manager_module
 from game.session import timer as timer_module
 from game.tests.helpers.session import make_session_manager

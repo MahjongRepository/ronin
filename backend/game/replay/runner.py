@@ -4,9 +4,7 @@ import uuid
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from game.logic.enums import GameAction, GamePhase, KanType, WaitKind
-from game.logic.events import EventType
-from game.logic.mahjong_service import MahjongGameService
+from game.engine import EventType, GameAction, GamePhase, KanType, MahjongGameService, WaitKind
 from game.replay.loader import ReplayLoadError
 from game.replay.models import (
     ReplayError,
@@ -21,8 +19,7 @@ from game.replay.models import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from game.logic.runtime import GameRuntime
-    from game.logic.service import GameService
+    from game.engine import GameRuntime, GameService
 
 
 _CALL_RESPONSE_ACTIONS = frozenset(

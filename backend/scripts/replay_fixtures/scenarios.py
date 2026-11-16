@@ -4,9 +4,16 @@ from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from game.logic.enums import AbortiveDrawType, KanType
-from game.logic.settings import NUM_PLAYERS, GameSettings, RenhouValue
-from game.logic.tiles import NUM_TILES, is_terminal_or_honor, tile_to_34
+from game.engine import (
+    NUM_PLAYERS,
+    NUM_TILES,
+    AbortiveDrawType,
+    GameSettings,
+    KanType,
+    RenhouValue,
+    is_terminal_or_honor,
+    tile_to_34,
+)
 from game.replay import load_replay_from_file, run_replay
 from game.replay.runner import ReplayOptions
 from game.tests.helpers.hands import (

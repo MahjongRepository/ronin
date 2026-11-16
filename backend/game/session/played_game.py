@@ -5,7 +5,7 @@ from shared.dal.models import PlayedGameStanding
 if TYPE_CHECKING:
     from datetime import datetime
 
-    from game.logic.events import GameEndedEvent
+    from game.engine import GameEndedEvent
     from shared.dal.models import GameEndReason, PlayedGame
 
 

@@ -6,10 +6,7 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-from game.logic.enums import GameAction
-from game.logic.events import EventType
-from game.logic.rng import RNG_VERSION
-from game.logic.settings import GameSettings
+from game.engine import RNG_VERSION, EventType, GameAction, GameSettings
 from game.replay import loader as replay_loader_module
 from game.replay.loader import (
     _MAX_REPLAY_EVENTS,

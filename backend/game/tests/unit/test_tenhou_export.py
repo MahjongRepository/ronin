@@ -5,36 +5,43 @@ import pytest
 from mahjong.constants import HONOR_INDICES, TERMINAL_INDICES
 from mahjong.hand_calculating.yaku_config import YakuConfig
 
-from game.logic.enums import AbortiveDrawType, GameAction, GameEndCause, HandLimit, KanType, MeldViewType, WaitKind
-from game.logic.events import (
+from game.engine import (
+    NUM_TILES,
+    RNG_VERSION,
+    WIRE_SCORE_DIVISOR,
+    AbortiveDrawResult,
+    AbortiveDrawType,
     DiscardEvent,
     DoraRevealedEvent,
+    DoubleRonResult,
+    DoubleRonWinner,
     DrawEvent,
     EventType,
+    ExhaustiveDrawResult,
+    GameAction,
+    GameEndCause,
     GameEndedEvent,
     GameEvent,
     GamePlayerInfo,
+    GameSettings,
     GameStartedEvent,
-    MeldEvent,
-    RiichiDeclaredEvent,
-    RoundEndEvent,
-    SeatTarget,
-)
-from game.logic.mahjong_service import MahjongGameService
-from game.logic.rng import RNG_VERSION
-from game.logic.settings import WIRE_SCORE_DIVISOR, GameSettings, GameType, RenhouValue
-from game.logic.tiles import NUM_TILES
-from game.logic.types import (
-    AbortiveDrawResult,
-    DoubleRonResult,
-    DoubleRonWinner,
-    ExhaustiveDrawResult,
+    GameType,
+    HandLimit,
     HandResultInfo,
+    KanType,
+    MahjongGameService,
+    MeldEvent,
+    MeldViewType,
     PlayerStanding,
+    RenhouValue,
+    RiichiDeclaredEvent,
     RobbedKan,
     RonResult,
+    RoundEndEvent,
+    SeatTarget,
     TenpaiHand,
     TsumoResult,
+    WaitKind,
     YakuInfo,
 )
 from game.logic.wall import DEAD_WALL_SIZE
@@ -49,7 +56,7 @@ from game.wire.keys import WireKey
 from game.wire.replay_format import REPLAY_VERSION, decode_replay_records, encode_replay_records, encode_replay_settings
 
 if TYPE_CHECKING:
-    from game.logic.service import GameStart
+    from game.engine import GameStart
 
 SEED = (
     "23824ff8ec95775ba5bb8de82f2903f25472e4a1f10a54ee31a955210ee871508f95c77bbc51b410531abd33a18d26df"

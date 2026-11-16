@@ -9,8 +9,7 @@ from mahjong.hand_calculating.yaku_config import YAKU_ID_TO_TENHOU_ID, YakuConfi
 from mahjong.hand_calculating.yaku_list import Renhou
 from mahjong.hand_calculating.yaku_list.yakuman import RenhouYakuman
 
-from game.logic.enums import AbortiveDrawType, HandLimit, KanType
-from game.logic.settings import NUM_PLAYERS, WIRE_SCORE_DIVISOR, GameSettings, GameType
+from game.engine import NUM_PLAYERS, WIRE_SCORE_DIVISOR, AbortiveDrawType, GameSettings, GameType, HandLimit, KanType
 from game.wire.compact import decode_discard, decode_draw, encode_discard, encode_draw
 from game.wire.enums import WireEventType, WireRoundResultType
 from game.wire.keys import WireKey

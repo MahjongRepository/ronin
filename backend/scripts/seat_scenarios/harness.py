@@ -10,10 +10,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, NoReturn, override
 
-from game.logic.events import DrawEvent, RoundStartedEvent
-from game.logic.game import init_round
-from game.logic.mahjong_service import MahjongGameService
-from game.logic.settings import GameSettings
+from game.engine import DrawEvent, GameSettings, MahjongGameService, RoundStartedEvent, init_round
 from game.messaging.encoder import decode, encode
 from game.messaging.protocol import ConnectionProtocol
 from game.messaging.types import SessionErrorCode, SessionMessageType
@@ -34,11 +31,16 @@ if TYPE_CHECKING:
     from concurrent.futures import Executor
     from contextvars import Context
 
-    from game.logic.enums import GameAction, KanType, TimeoutType
-    from game.logic.events import GameEvent
-    from game.logic.runtime import GameRuntime
-    from game.logic.service import GameStart, GameUpdate
-    from game.logic.state import MahjongGameState
+    from game.engine import (
+        GameAction,
+        GameEvent,
+        GameRuntime,
+        GameStart,
+        GameUpdate,
+        KanType,
+        MahjongGameState,
+        TimeoutType,
+    )
     from scripts.replay_fixtures.staged_game import StagedWall
 
 TIME_GRAIN_SECONDS = 0.25

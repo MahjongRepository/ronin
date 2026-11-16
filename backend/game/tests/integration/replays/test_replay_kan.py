@@ -1,7 +1,4 @@
-from game.logic.enums import GameAction
-from game.logic.events import DoraRevealedEvent, EventType
-from game.logic.settings import GameSettings
-from game.logic.tiles import tile_to_34
+from game.engine import DoraRevealedEvent, EventType, GameAction, GameSettings, tile_to_34
 from game.replay import run_replay
 from game.replay.models import ReplayInput, ReplayInputEvent
 

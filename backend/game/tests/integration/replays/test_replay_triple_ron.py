@@ -2,11 +2,7 @@ import re
 
 import pytest
 
-from game.logic.enums import GameAction
-from game.logic.events import EventType, RoundEndEvent
-from game.logic.mahjong_service import MahjongGameService
-from game.logic.rng import RNG_VERSION
-from game.logic.settings import GameSettings, GameType
+from game.engine import RNG_VERSION, EventType, GameAction, GameSettings, GameType, MahjongGameService, RoundEndEvent
 from game.replay import run_replay
 from game.replay.external.tenhou import TenhouConverter
 from game.replay.loader import load_replay_from_bytes

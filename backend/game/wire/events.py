@@ -1,4 +1,4 @@
-from game.logic.events import EventType
+from game.engine import EventType
 from game.wire.enums import WireEventType
 from shared.lib.melds import EVENT_TYPE_MELD
 

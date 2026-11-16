@@ -4,10 +4,17 @@ import random
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from game.logic.rng import SEED_BYTES, determine_first_dealer, generate_shuffled_wall_and_dice, seat_permutation
-from game.logic.settings import NUM_PLAYERS
-from game.logic.tiles import NUM_TILES
-from game.logic.wall import Wall, build_wall, deal_initial_hands
+from game.engine import (
+    NUM_PLAYERS,
+    NUM_TILES,
+    SEED_BYTES,
+    Wall,
+    build_wall,
+    deal_initial_hands,
+    determine_first_dealer,
+    generate_shuffled_wall_and_dice,
+    seat_permutation,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

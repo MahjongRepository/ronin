@@ -1,8 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from game.logic.enums import GameAction
-from game.logic.settings import GameSettings
+from game.engine import GameAction, GameSettings
 from game.replay.models import (
     ReplayInput,
     ReplayInputEvent,

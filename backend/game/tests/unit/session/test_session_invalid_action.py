@@ -1,9 +1,16 @@
 import logging
 from unittest.mock import MagicMock
 
-from game.logic.enums import GameAction, GameErrorCode, TimeoutType, WaitKind
-from game.logic.events import BroadcastTarget, DrawEvent, EventType
-from game.logic.exceptions import InvalidGameActionError
+from game.engine import (
+    BroadcastTarget,
+    DrawEvent,
+    EventType,
+    GameAction,
+    GameErrorCode,
+    InvalidGameActionError,
+    TimeoutType,
+    WaitKind,
+)
 from game.messaging.types import SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter

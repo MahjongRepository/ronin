@@ -3,8 +3,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
 
-from game.logic.enums import KanType
-from game.logic.tiles import NUM_TILES
+from game.engine import NUM_TILES, KanType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.wire.enums import SeatControlReason
 from game.wire.keys import WireKey

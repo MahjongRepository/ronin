@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from game.logic.enums import GameAction
+from game.engine import GameAction
 from game.messaging.types import (
     SessionErrorCode,
     SessionMessageType,

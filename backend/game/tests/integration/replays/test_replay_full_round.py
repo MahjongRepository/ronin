@@ -1,8 +1,6 @@
 from pathlib import Path
 
-from game.logic.enums import GamePhase
-from game.logic.events import EventType, GameEndedEvent
-from game.logic.rng import RNG_VERSION
+from game.engine import RNG_VERSION, EventType, GameEndedEvent, GamePhase
 from game.replay import run_replay
 from game.replay.loader import load_replay_from_file
 

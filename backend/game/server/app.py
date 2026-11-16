@@ -15,7 +15,7 @@ from starlette.requests import ClientDisconnect
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route, WebSocketRoute
 
-from game.logic.mahjong_service import MahjongGameService
+from game.engine import MahjongGameService
 from game.replay.external.tenhou import IncompleteReplayError, convert_replay_content
 from game.server.loop_lag import LoopLagProbe
 from game.server.router import MessageRouter
@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.websockets import WebSocket
 
-    from game.logic.service import GameService
+    from game.engine import GameService
     from game.server.socket_stats import SocketStats
 
 

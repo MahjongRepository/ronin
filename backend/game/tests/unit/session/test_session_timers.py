@@ -8,11 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from game.logic.enums import GameAction, GameErrorCode, TimeoutType, WaitKind
-from game.logic.events import (
-    EventType,
-)
-from game.logic.service import Awaiting
+from game.engine import Awaiting, EventType, GameAction, GameErrorCode, TimeoutType, WaitKind
 from game.messaging.types import SessionErrorCode
 from game.session.manager import SessionManager
 from game.session.models import GameLifecycle, GameSession, Participant, PlayerSpec

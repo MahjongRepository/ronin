@@ -2,9 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from game.logic.enums import GameAction, GameEndCause, TimeoutType
-from game.logic.events import EventType, GameEndedEvent, GameEvent
-from game.logic.types import PlayerStanding
+from game.engine import EventType, GameAction, GameEndCause, GameEndedEvent, GameEvent, PlayerStanding, TimeoutType
 from game.session.models import GameLifecycle, PlayerSpec
 from game.session.timer import TimerConfig
 from game.tests.helpers.session import make_session_manager

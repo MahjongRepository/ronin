@@ -3,8 +3,7 @@ import asyncio
 import pytest
 from starlette.testclient import TestClient
 
-from game.logic.enums import GameAction, WaitKind
-from game.logic.events import EventType
+from game.engine import EventType, GameAction, WaitKind
 from game.messaging.encoder import decode, encode
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType

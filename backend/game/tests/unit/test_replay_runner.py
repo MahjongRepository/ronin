@@ -2,19 +2,26 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from game.logic.enums import GameAction, GameErrorCode, GamePhase, KanType, MeldCallType, PromptKind, WaitKind
-from game.logic.events import (
+from game.engine import (
+    RNG_VERSION,
+    Awaiting,
     BroadcastTarget,
     ErrorEvent,
     EventType,
+    GameAction,
+    GameErrorCode,
     GameEvent,
+    GamePhase,
+    GameSettings,
+    GameUpdate,
+    InvalidGameActionError,
+    KanType,
+    MahjongGameService,
+    MeldCallType,
+    PromptKind,
     SeatTarget,
+    WaitKind,
 )
-from game.logic.exceptions import InvalidGameActionError
-from game.logic.mahjong_service import MahjongGameService
-from game.logic.rng import RNG_VERSION
-from game.logic.service import Awaiting, GameUpdate
-from game.logic.settings import GameSettings
 from game.logic.state import Caller, MeldOption, PendingCallPrompt
 from game.replay.loader import ReplayLoadError
 from game.replay.models import (
@@ -37,8 +44,7 @@ from game.tests.helpers.hands import (
 from game.tests.helpers.wall import make_start_wall
 
 if TYPE_CHECKING:
-    from game.logic.runtime import GameRuntime
-    from game.logic.service import GameStart
+    from game.engine import GameRuntime, GameStart
 
 PLAYER_NAMES = ("Alice", "Bob", "Charlie", "Diana")
 SEED = "a" * 192

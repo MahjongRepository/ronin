@@ -7,8 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 if TYPE_CHECKING:
     import asyncio
 
-    from game.logic.runtime import GameRuntime
-    from game.logic.service import Awaiting
+    from game.engine import Awaiting, GameRuntime
     from game.messaging.protocol import ConnectionProtocol
     from game.session.replay_collector import ReplayRecord
     from game.session.timer import TimerConfig, TurnTimer

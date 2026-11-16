@@ -3,13 +3,18 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from game.logic.enums import GameAction, RoundResultType
-from game.logic.events import EventType, RoundEndEvent
-from game.logic.mahjong_service import MahjongGameService
+from game.engine import (
+    NUM_PLAYERS,
+    NUM_TILES,
+    RNG_VERSION,
+    EventType,
+    GameAction,
+    GameSettings,
+    MahjongGameService,
+    RoundEndEvent,
+    RoundResultType,
+)
 from game.logic.meld_wrapper import FrozenMeld
-from game.logic.rng import RNG_VERSION
-from game.logic.settings import NUM_PLAYERS, GameSettings
-from game.logic.tiles import NUM_TILES
 from game.replay import run_replay
 from game.replay.external.tenhou import TenhouConverter
 from game.replay.loader import load_replay_from_bytes
@@ -23,8 +28,7 @@ from game.wire.keys import WireKey
 from game.wire.replay_format import REPLAY_VERSION, decode_replay_records, encode_replay_records
 
 if TYPE_CHECKING:
-    from game.logic.state import MahjongGameState
-    from game.logic.types import RoundResult
+    from game.engine import MahjongGameState, RoundResult
 
 SEED = (
     "23824ff8ec95775ba5bb8de82f2903f25472e4a1f10a54ee31a955210ee871508f95c77bbc51b410531abd33a18d26df"

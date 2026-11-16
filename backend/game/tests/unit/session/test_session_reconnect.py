@@ -2,13 +2,17 @@ import time
 
 import pytest
 
-from game.logic.enums import GameAction, TimeoutType, WaitKind, WindName, WireMeldCallType
-from game.logic.events import EventType
-from game.logic.settings import GameType
-from game.logic.types import (
+from game.engine import (
+    EventType,
+    GameAction,
     GamePlayerInfo,
+    GameType,
     PlayerReconnectState,
     ReconnectionSnapshot,
+    TimeoutType,
+    WaitKind,
+    WindName,
+    WireMeldCallType,
 )
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType

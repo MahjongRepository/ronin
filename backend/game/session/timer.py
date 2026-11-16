@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from game.logic.service import Awaiting
+    from game.engine import Awaiting
 
 
 class TimerConfig(BaseModel):

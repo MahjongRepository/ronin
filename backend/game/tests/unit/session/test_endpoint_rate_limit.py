@@ -1,4 +1,4 @@
-from game.logic.events import EventType
+from game.engine import EventType
 from game.messaging.types import SessionErrorCode
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server import websocket as ws_module

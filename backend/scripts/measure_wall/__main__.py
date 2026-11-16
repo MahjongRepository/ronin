@@ -10,7 +10,7 @@ from itertools import batched
 from pathlib import Path
 from typing import Any
 
-from game.logic.rng import RNG_VERSION, SEED_BYTES
+from game.engine import RNG_VERSION, SEED_BYTES
 from scripts.measure_wall.measurement import Measurement
 from scripts.measure_wall.report import render_baseline, render_text, to_json
 from scripts.measure_wall.sampling import CONTROL_METHOD, control_rounds, engine_seeds, sample_engine_game

@@ -9,7 +9,7 @@ from game.tests.mocks import FakeGameRepository, FakeReplayStorage, MockGameServ
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from game.logic.service import GameService
+    from game.engine import GameService
     from shared.dal.game_repository import GameRepository
     from shared.storage import ReplayStorage
 

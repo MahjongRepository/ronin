@@ -5,12 +5,22 @@ import zlib
 from pathlib import Path
 from typing import Any
 
-from game.logic.enums import AbortiveDrawType, GameAction, KanType, WireGameType
-from game.logic.events import EventType
-from game.logic.exceptions import UnsupportedSettingsError
-from game.logic.rng import RNG_VERSION, seat_permutation, validate_seed_hex
-from game.logic.settings import NUM_PLAYERS, TRIPLE_RON_COUNT, GameSettings, validate_settings
-from game.logic.tiles import NUM_TILES
+from game.engine import (
+    NUM_PLAYERS,
+    NUM_TILES,
+    RNG_VERSION,
+    TRIPLE_RON_COUNT,
+    AbortiveDrawType,
+    EventType,
+    GameAction,
+    GameSettings,
+    KanType,
+    UnsupportedSettingsError,
+    WireGameType,
+    seat_permutation,
+    validate_seed_hex,
+    validate_settings,
+)
 from game.replay.models import ReplayInput, ReplayInputEvent
 from game.wire.compact import decode_discard
 from game.wire.enums import WireRoundResultType

@@ -1,4 +1,4 @@
-from game.logic.enums import GameAction, WaitKind
+from game.engine import GameAction, WaitKind
 from game.messaging.types import SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter

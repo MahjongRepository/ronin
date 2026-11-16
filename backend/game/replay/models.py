@@ -2,12 +2,16 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from game.logic.enums import GameAction
-from game.logic.events import ErrorEvent, GameEvent
-from game.logic.rng import RNG_VERSION
-from game.logic.settings import NUM_PLAYERS, GameSettings
-from game.logic.state import MahjongGameState
-from game.logic.tiles import NUM_TILES
+from game.engine import (
+    NUM_PLAYERS,
+    NUM_TILES,
+    RNG_VERSION,
+    ErrorEvent,
+    GameAction,
+    GameEvent,
+    GameSettings,
+    MahjongGameState,
+)
 
 
 class ReplayInputEvent(BaseModel):

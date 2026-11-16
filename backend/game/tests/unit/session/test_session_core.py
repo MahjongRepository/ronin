@@ -1,14 +1,17 @@
 from typing import TYPE_CHECKING, Any
 
-from game.logic.enums import CallType, GameAction, MeldCallType, WaitKind
-from game.logic.events import (
+from game.engine import (
+    NUM_TILES,
     CallPromptEvent,
+    CallType,
     EventType,
     FuritenEvent,
+    GameAction,
+    MeldCaller,
+    MeldCallType,
     SeatTarget,
+    WaitKind,
 )
-from game.logic.tiles import NUM_TILES
-from game.logic.types import MeldCaller
 from game.logic.wall import tiles_remaining
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.session import make_session_manager

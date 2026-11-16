@@ -81,7 +81,7 @@ ignore = [
 runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseSettings"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
-"mahjong.shanten".msg = "Use game.logic.shanten instead of mahjong.shanten directly."
+"mahjong.shanten".msg = "Use calculate_shanten from game.engine (game.logic.shanten inside the engine), not mahjong.shanten."
 
 [tool.docformatter]
 recursive = true
@@ -132,9 +132,15 @@ source_modules = ["shared"]
 forbidden_modules = ["game", "lobby", "scripts"]
 
 [[tool.importlinter.contracts]]
-name = "game: server -> session -> messaging -> wire -> logic"
+name = "game: server -> session -> messaging -> wire -> engine -> logic"
 type = "layers"
-layers = ["game.server", "game.session", "game.messaging", "game.wire", "game.logic"]
+layers = ["game.server", "game.session", "game.messaging", "game.wire", "game.engine", "game.logic"]
+
+[[tool.importlinter.contracts]]
+name = "outside the engine, only its facade and its tests import game.logic"
+type = "protected"
+protected_modules = ["game.logic"]
+allowed_importers = ["game.engine", "game.tests"]
 
 [[tool.importlinter.contracts]]
 name = "game.logic and game.wire know nothing of replay, auth or persistence"

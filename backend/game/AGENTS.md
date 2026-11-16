@@ -15,6 +15,8 @@ signed game ticket; players then connect by WebSocket and play. `logic/`, `sessi
 * `wire/` — the wire format both the server and the replay tool read: integer codes, the packed
   draw/discard codec, the replay storage codec and format version, and the replay-only record types, whose `t` codes share
   the events' space without taking one of their values, so a live wire code never changes for them.
+* `engine/` — the engine's facade: the one package the other layers, the scripts and `bin/` import the
+  engine from (`engine/AGENTS.md`).
 * `logic/` — the rules engine behind the `GameService` protocol: synchronous, seat-keyed, stateless
   across games, ignorant of connections, time and accounts.
 * `replay/` — runs recorded games through the same protocol for tests and profiling, plus the
@@ -27,9 +29,9 @@ signed game ticket; players then connect by WebSocket and play. `logic/`, `sessi
   A change to the replay records is followed by
   `make generate-replay-fixtures`, which re-records the v2 game client's replay fixtures.
 
-Import direction is `server` → `session` → `messaging` → `wire` → `logic` (the import-linter
-contracts in `backend/pyproject.toml`). Something two layers both need goes down into `wire/` or
-`logic/`, never sideways.
+Import direction is `server` → `session` → `messaging` → `wire` → `engine` → `logic` (the
+import-linter contracts in `backend/pyproject.toml`). Something two layers both need goes down into
+`wire/` or the engine, never sideways.
 
 ## Security requirements
 

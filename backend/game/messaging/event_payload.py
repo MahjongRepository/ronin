@@ -2,33 +2,31 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from game.logic.enums import WaitKind
-from game.logic.events import (
+from game.engine import (
+    AbortiveDrawResult,
     CallPromptEvent,
     DiscardEvent,
     DoraRevealedEvent,
+    DoubleRonResult,
     DrawEvent,
     ErrorEvent,
     EventType,
+    ExhaustiveDrawResult,
     FuritenEvent,
     GameEndedEvent,
     GameEvent,
     GameStartedEvent,
     MeldEvent,
+    NagashiManganResult,
     RiichiDeclaredEvent,
+    RonResult,
     RoundEndEvent,
     RoundStartedEvent,
     SeatTarget,
-    TurnEvent,
-)
-from game.logic.meld_compact import meld_event_to_compact
-from game.logic.types import (
-    AbortiveDrawResult,
-    DoubleRonResult,
-    ExhaustiveDrawResult,
-    NagashiManganResult,
-    RonResult,
     TsumoResult,
+    TurnEvent,
+    WaitKind,
+    meld_event_to_compact,
 )
 from game.messaging import serialization
 from game.wire.compact import encode_discard, encode_draw
@@ -39,8 +37,7 @@ from game.wire.keys import WireKey
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from game.logic.service import Awaiting
-    from game.logic.types import ReconnectionSnapshot, RoundResult
+    from game.engine import Awaiting, ReconnectionSnapshot, RoundResult
     from game.messaging.types import TimerSettings
     from game.wire.enums import SeatControlReason
 

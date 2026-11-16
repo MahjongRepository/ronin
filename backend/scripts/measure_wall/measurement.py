@@ -5,9 +5,7 @@ from itertools import pairwise, permutations, product
 from math import comb
 from typing import Any
 
-from game.logic.settings import NUM_PLAYERS
-from game.logic.shanten import calculate_shanten
-from game.logic.tiles import HONOR_34_START, NUM_TILE_TYPES, NUM_TILES, hand_to_34_array
+from game.engine import HONOR_34_START, NUM_PLAYERS, NUM_TILE_TYPES, NUM_TILES, calculate_shanten, hand_to_34_array
 from scripts.measure_wall.metrics import (
     CellFamily,
     Comparison,

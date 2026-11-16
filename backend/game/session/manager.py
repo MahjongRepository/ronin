@@ -6,19 +6,22 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from game.logic.enums import GameAction, GameErrorCode, TimeoutType, WaitKind
-from game.logic.events import (
+from game.engine import (
     BroadcastTarget,
     CallPromptEvent,
     DrawEvent,
     ErrorEvent,
+    GameAction,
     GameEndedEvent,
+    GameErrorCode,
     GameEvent,
     GameStartedEvent,
+    InvalidGameActionError,
     RoundStartedEvent,
     SeatTarget,
+    TimeoutType,
+    WaitKind,
 )
-from game.logic.exceptions import InvalidGameActionError
 from game.messaging.encoder import encode
 from game.messaging.event_payload import (
     draw_notice_payload,
@@ -52,8 +55,7 @@ from shared.tasks import cancel_and_wait
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
-    from game.logic.runtime import GameRuntime
-    from game.logic.service import Awaiting, GameService
+    from game.engine import Awaiting, GameRuntime, GameService
     from game.messaging.protocol import ConnectionProtocol
     from game.session.models import PlayerSpec
     from game.session.replay_collector import ReplayCollector

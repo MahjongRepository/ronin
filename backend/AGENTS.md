@@ -23,7 +23,7 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 
 ## Tooling
 
-* The uv project lives in `backend/` and imports are rooted there (`from game.logic.state import ...`).
+* The uv project lives in `backend/` and imports are rooted there (`from game.engine import ...`).
   Run checks from `backend/` (`cd backend && uv run pytest ...`); run the servers and `bin/` scripts
   from the repo root with `uv run --project backend ...`, where their relative paths resolve.
 * `conftest.py` loads the repo-root `.env.tests` and routes structlog through stdlib logging so

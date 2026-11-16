@@ -6,7 +6,7 @@ from starlette.responses import JSONResponse
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from game.logic.events import EventType
+from game.engine import EventType
 from game.messaging.encoder import decode, encode
 from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction

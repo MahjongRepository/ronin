@@ -3,8 +3,7 @@ from typing import TYPE_CHECKING
 
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import TimeoutType, WaitKind
-from game.logic.events import EventType
+from game.engine import EventType, TimeoutType, WaitKind
 from game.messaging.types import SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType
 from game.server.router import MessageRouter
@@ -19,7 +18,7 @@ from game.wire.events import EVENT_TYPE_INT
 from game.wire.keys import WireKey
 
 if TYPE_CHECKING:
-    from game.logic.runtime import GameRuntime
+    from game.engine import GameRuntime
     from game.session.manager import SessionManager
     from game.session.models import GameSession, Participant
 
