@@ -937,7 +937,12 @@ class SessionManager:
     def _play_ai_player(self, game: GameSession, seat: int) -> None:
         """
         Play an AI player's answer to its seat's decision, read now, as one engine call whose actor is that seat.
+
+        A seat a connected participant plays is a server fault, never an AI answer.
         """
+        if not game.is_ai_seat(seat):
+            raise AssertionError(f"AI player's answer for seat {seat}, which a connected participant plays")
+
         runtime = self._runtime_of(game)
         decision = self._game_service.decision(runtime, seat)
         if decision is None:

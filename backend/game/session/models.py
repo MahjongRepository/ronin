@@ -141,7 +141,10 @@ class GameSession:
 
     def at_seat(self, seat: int) -> Participant | None:
         """
-        Return the participant bound to a seat, or None for an AI seat.
+        Return the participant bound to a seat, or None for a seat no participant takes.
+
+        A disconnected participant's seat still returns its participant though an AI player plays it: is_ai_seat is the
+        test for an AI player's seat.
         """
         return next((participant for participant in self.participants if participant.seat == seat), None)
 
