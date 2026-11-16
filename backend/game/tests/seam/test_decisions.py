@@ -1,25 +1,31 @@
+import pytest
+
 from game.engine import (
     Action,
     CallOpportunity,
     CallSource,
     Chi,
     Discard,
-    ErrorEvent,
     GameEvent,
     GameRuntime,
+    GameUpdate,
     Kan,
     KanType,
     MahjongGameService,
     MeldEvent,
     Pass,
     Pon,
+    Refusal,
+    RefusalCode,
+    RefusalKind,
     Riichi,
     Ron,
+    Tsumo,
     TurnAfterCall,
     TurnAfterDraw,
 )
 from game.tests.helpers.hands import tile_copies
-from game.tests.helpers.wall import make_start_wall
+from game.tests.helpers.start_wall import make_start_wall
 
 PLAYERS = ["Alice", "Bob", "Charlie", "Diana"]
 DEALER = 0
@@ -33,9 +39,21 @@ def _start(hands: tuple[list[int], ...], draws: list[int]) -> tuple[MahjongGameS
 
 
 def _play(service: MahjongGameService, runtime: GameRuntime, seat: int, action: Action) -> list[GameEvent]:
-    events = service.act(runtime, seat, action).events
-    assert [e for e in events if isinstance(e, ErrorEvent)] == []
-    return events
+    update = service.act(runtime, seat, action)
+    assert isinstance(update, GameUpdate), update
+    return update.events
+
+
+def _assert_refused_unchanged(
+    service: MahjongGameService, runtime: GameRuntime, seat: int, action: Action, refusal: Refusal
+) -> None:
+    state_before, awaiting_before = runtime.state, service.get_awaiting(runtime)
+    decision_before = service.decision(runtime, seat)
+
+    assert service.act(runtime, seat, action) == refusal
+    assert runtime.state is state_before
+    assert service.get_awaiting(runtime) == awaiting_before
+    assert service.decision(runtime, seat) == decision_before
 
 
 def test_decision__when_a_turn_follows_a_draw__should_offer_every_discard_then_the_riichi_discards():
@@ -78,6 +96,8 @@ def test_decision__when_a_turn_follows_the_seats_own_chi__should_leave_out_the_k
     assert decision.context == TurnAfterCall(kuikae=(2, 5))
     assert decision.legal == tuple(Discard(tile=tile) for tile in (plain_five_man, *chi_seat_rest))
     assert decision.default == Discard(tile=chi_seat_rest[-1])
+    kuikae = Refusal(kind=RefusalKind.RULE, code=RefusalCode.KUIKAE)
+    _assert_refused_unchanged(service, runtime, 1, Discard(tile=six_man), kuikae)
 
 
 def test_decision__when_a_discard_offers_ron_and_chi__should_list_ron_each_chi_shape_then_pass():
@@ -159,3 +179,58 @@ def test_decision__when_an_added_kan_can_be_robbed__should_offer_the_robber_ron_
     )
     assert decision.legal == (Ron(), Pass())
     assert decision.default == Pass()
+
+
+def test_default_action__when_the_drawn_tile_completes_the_hand__should_discard_it_rather_than_tsumo():
+    dealer_hand = tile_copies(0, man="123456789", pin="11", sou="45")
+    drawn_six_sou = tile_copies(0, sou="6")[0]
+    service, runtime = _start((dealer_hand,), draws=[drawn_six_sou])
+
+    assert Tsumo() in service.legal_actions(runtime, DEALER)
+    assert service.default_action(runtime, DEALER) == Discard(tile=drawn_six_sou)
+
+
+RIICHI_READY_HAND = tile_copies(0, man="123456789", pin="11", sou="45")
+DRAWN_NINE_SOU = tile_copies(0, sou="9")[0]
+SEAT_1_HAND = tile_copies(1, man="123456789", sou="1234")
+SEAT_1_TILE = SEAT_1_HAND[0]
+NOT_AWAITED = Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.SEAT_NOT_AWAITED)
+
+
+@pytest.mark.parametrize(
+    ("seat", "action", "refusal"),
+    [
+        (
+            DEALER,
+            Riichi(tile=RIICHI_READY_HAND[0]),
+            Refusal(kind=RefusalKind.RULE, code=RefusalCode.RIICHI_BREAKS_TENPAI),
+        ),
+        (DEALER, Discard(tile=SEAT_1_TILE), Refusal(kind=RefusalKind.NOT_OFFERED, code=RefusalCode.TILE_NOT_HELD)),
+        (DEALER, Pass(), NOT_AWAITED),
+        (1, Discard(tile=SEAT_1_TILE), NOT_AWAITED),
+    ],
+    ids=["riichi_breaking_tenpai", "tile_not_held", "pass_on_own_turn", "discard_out_of_turn"],
+)
+def test_act__when_the_action_is_refused__should_return_the_refusal_and_change_nothing(
+    seat: int, action: Action, refusal: Refusal
+):
+    service, runtime = _start((RIICHI_READY_HAND, SEAT_1_HAND), draws=[DRAWN_NINE_SOU])
+
+    _assert_refused_unchanged(service, runtime, seat, action, refusal)
+
+
+def test_phase_calls__when_made_out_of_phase__should_be_refused_and_change_nothing():
+    wrong_phase = Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.WRONG_PHASE)
+    service = MahjongGameService()
+    runtime = service.start_game("seam", PLAYERS, walls=[make_start_wall((RIICHI_READY_HAND,))]).runtime
+    dealt = runtime.state
+
+    assert service.act(runtime, DEALER, Discard(tile=RIICHI_READY_HAND[0])) == wrong_phase
+    assert service.deal_next_round(runtime) == wrong_phase
+    assert runtime.state is dealt
+
+    assert isinstance(service.begin_round(runtime), GameUpdate)
+    playing = runtime.state
+    assert service.begin_round(runtime) == wrong_phase
+    assert service.deal_next_round(runtime) == wrong_phase
+    assert runtime.state is playing

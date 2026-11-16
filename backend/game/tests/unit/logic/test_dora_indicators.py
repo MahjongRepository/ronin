@@ -7,7 +7,7 @@ from game.logic.scoring import (
 )
 from game.logic.settings import GameSettings
 from game.tests.helpers.builders import create_game_state, create_player, create_round_state
-from game.tests.helpers.wall import FIRST_URA_POSITION
+from game.tests.helpers.start_wall import FIRST_URA_POSITION
 
 # Yaku IDs from the mahjong library
 DORA_YAKU_ID = 120

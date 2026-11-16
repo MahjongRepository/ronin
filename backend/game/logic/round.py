@@ -3,7 +3,7 @@ from __future__ import annotations
 import structlog
 
 from game.logic import wall as wall_ops
-from game.logic.exceptions import ImpossibleActionError, InvalidDiscardError
+from game.logic.exceptions import KuikaeDiscardError, RiichiTsumogiriError, TileNotHeldError
 from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.scoring import apply_nagashi_mangan_score
 from game.logic.settings import NUM_PLAYERS
@@ -88,17 +88,18 @@ def discard_tile(
     """
     Discard a tile from a player's hand.
 
-    Returns (new_round_state, discard_record). Raises ImpossibleActionError if the tile is not in hand, and
-    InvalidDiscardError if it is not a legal discard (kuikae, or a riichi player discarding other than the drawn tile).
+    Returns (new_round_state, discard_record). Raises TileNotHeldError if the tile is not in hand, RiichiTsumogiriError
+    if a riichi player discards other than the drawn tile, and KuikaeDiscardError if kuikae forbids the tile.
     """
     player = round_state.players[seat]
     if tile_id not in player.tiles:
         logger.warning("discard tile not in hand", seat=seat, tile_id=tile_id)
-        raise ImpossibleActionError(f"tile {tile_id} not in player's hand")
+        raise TileNotHeldError(f"tile {tile_id} not in player's hand")
 
     if (player.is_riichi or player.kuikae_tiles) and tile_id not in legal_discards(player):
         logger.warning("discard forbidden by kuikae or riichi", seat=seat, tile_id=tile_id)
-        raise InvalidDiscardError(f"tile {tile_id} is not a legal discard (kuikae or riichi tsumogiri)")
+        error = RiichiTsumogiriError if player.is_riichi else KuikaeDiscardError
+        raise error(f"tile {tile_id} is not a legal discard (kuikae or riichi tsumogiri)")
 
     # Tsumogiri: discarding the just-drawn tile (last in hand).
     # After a meld call (pon/chi), no tile was drawn, so tsumogiri is impossible.

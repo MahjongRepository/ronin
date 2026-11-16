@@ -9,7 +9,6 @@ from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Discard as DiscardAction
 from game.logic.decision import Kan, Kyuushu, Pon, Ron
 from game.logic.enums import (
-    GameErrorCode,
     KanType,
     MeldCallType,
     PlayerAction,
@@ -22,7 +21,6 @@ from game.logic.enums import (
 from game.logic.events import (
     DiscardEvent,
     DrawEvent,
-    ErrorEvent,
     EventType,
     GameStartedEvent,
     RoundStartedEvent,
@@ -46,7 +44,8 @@ from game.logic.types import (
 from game.logic.wall import create_wall, deal_initial_hands
 from game.tests.helpers.builders import create_dealt_game_state, create_player, start_game_in_play
 from game.tests.helpers.hands import tile_copies
-from game.tests.helpers.wall import make_start_wall, make_wall
+from game.tests.helpers.start_wall import make_start_wall
+from game.tests.helpers.wall import make_wall
 from game.tests.unit.logic.helpers import (
     _find_player,
     _string_to_34_tile,
@@ -128,17 +127,6 @@ class TestMahjongGameServiceBeginRound:
         assert begun.awaiting.kind == WaitKind.TURN
         assert begun.awaiting.wait_id != start.awaiting.wait_id
         assert runtime.state.round_state == in_play.runtime.state.round_state
-
-    def test_act__when_the_round_is_dealt__should_refuse_the_dealer_discard(self, service):
-        start = service.start_game("game1", ["Alice", "Bob", "Carol", "Dave"], seed="c" * 192)
-        runtime = start.runtime
-        dealer = runtime.state.round_state.players[runtime.state.round_state.dealer_seat]
-        dealt_state = runtime.state
-
-        update = service.act(runtime, dealer.seat, DiscardAction(tile=dealer.tiles[0]))
-        assert [(type(e), e.code) for e in update.events] == [(ErrorEvent, GameErrorCode.INVALID_ACTION)]
-        assert runtime.state is dealt_state
-        assert update.awaiting == start.awaiting
 
 
 class TestMahjongGameServiceReplaceWithAIPlayer:

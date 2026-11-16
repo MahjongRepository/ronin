@@ -10,13 +10,11 @@ from game.engine import (
     DiscardEvent,
     DoraRevealedEvent,
     DrawEvent,
-    ErrorEvent,
     EventType,
     ExhaustiveDrawResult,
     FuritenEvent,
     GameEndCause,
     GameEndedEvent,
-    GameErrorCode,
     GamePlayerInfo,
     GameStartedEvent,
     GameType,
@@ -32,6 +30,7 @@ from game.engine import (
     WindName,
 )
 from game.messaging.event_payload import game_event_payload
+from game.messaging.game_errors import ErrorEvent, GameErrorCode
 from game.session import replay_collector as replay_collector_module
 from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.tests.mocks import FakeReplayStorage

@@ -16,7 +16,7 @@ from game.logic.action_handlers import (
     handle_ron,
     handle_tsumo,
 )
-from game.logic.action_result import ActionResult, Refusal
+from game.logic.action_result import ActionResult
 from game.logic.actions import get_available_actions
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Chi, Kan
@@ -40,7 +40,6 @@ from game.logic.events import (
     RoundEndEvent,
     SeatTarget,
 )
-from game.logic.exceptions import InvalidGameActionError
 from game.logic.invariants import verify_tile_ownership
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
@@ -49,6 +48,7 @@ from game.logic.melds import (
     get_possible_added_kans,
     get_possible_closed_kans,
 )
+from game.logic.refusal import Refusal, RefusalCode, RefusalKind
 from game.logic.runtime import GameRuntime
 from game.logic.settings import GameSettings
 from game.logic.state import Caller, Discard, MahjongGameState, MahjongPlayer
@@ -63,16 +63,20 @@ from game.logic.win import (
 )
 from game.tests.helpers.builders import create_dealt_game_state, create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
-from game.tests.helpers.wall import FIRST_DORA_POSITION
+from game.tests.helpers.start_wall import FIRST_DORA_POSITION
 from game.tests.unit.logic.helpers import _update_round_state
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from game.logic.service import GameUpdate
+
 _ONE_MAN = tuple(tile_copies(0, man="1111"))
 _KAN_SEAT_REST = tuple(tile_copies(1, pin="123456789", sou="2"))
 _FILLER = {seat: tuple(tile_copies(seat, man="34579", sou="345678", honors="56")) for seat in (1, 2, 3)}
 _KOKUSHI_ON_ONE_MAN = create_player(seat=1, tiles=tile_copies(0, man="99", pin="19", sou="19", honors="1234567"))
+
+_NOT_OFFERED = Refusal(kind=RefusalKind.NOT_OFFERED, code=RefusalCode.NOT_OFFERED)
 
 
 def _kan_game(
@@ -207,12 +211,11 @@ class TestKanAfterMeldCallBlocked:
         assert get_possible_closed_kans(player, round_state, settings=game_state.settings) == []
         assert get_possible_added_kans(player, round_state, settings=game_state.settings) == []
 
-    def test_handle_kan__when_closed_kan_right_after_meld_call__should_raise(self):
+    def test_handle_kan__when_closed_kan_right_after_meld_call__should_refuse_as_not_offered(self):
         game_state = _chi_by_seat_holding_quad_and_upgradable_pon()
         two_man = tile_copies(0, man="2")[0]
 
-        with pytest.raises(InvalidGameActionError, match="cannot declare kan after a meld call"):
-            handle_kan(game_state, seat=0, action=Kan(kan_type=KanType.CLOSED, tile=two_man))
+        assert handle_kan(game_state, seat=0, action=Kan(kan_type=KanType.CLOSED, tile=two_man)) == _NOT_OFFERED
 
 
 # ---------------------------------------------------------------------------
@@ -843,8 +846,8 @@ def _riichi_seat_after_draw(waiting_hand: Sequence[int], drawn_tile: int) -> Gam
     return GameRuntime(game_id="game1", state=create_dealt_game_state(players), ai=AIPlayerController({}))
 
 
-def _declare_closed_kan(runtime: GameRuntime, tile_id: int) -> None:
-    MahjongGameService().act(runtime, 0, Kan(kan_type=KanType.CLOSED, tile=tile_id))
+def _declare_closed_kan(runtime: GameRuntime, tile_id: int) -> GameUpdate | Refusal:
+    return MahjongGameService().act(runtime, 0, Kan(kan_type=KanType.CLOSED, tile=tile_id))
 
 
 def _offered_closed_kans(runtime: GameRuntime) -> list[int] | None:
@@ -857,23 +860,21 @@ def _waits(player: MahjongPlayer, waiting_hand: Sequence[int]) -> set[int]:
 
 
 class TestRiichiClosedKanValidation:
-    def test_closed_kan__when_riichi_seat_holds_three_copies_of_drawn_tile__should_kick_seat(self):
+    def test_closed_kan__when_riichi_seat_holds_three_copies_of_drawn_tile__should_refuse_as_not_offered(self):
         drawn_one_man = tile_copies(2, man="1")[0]
         runtime = _riichi_seat_after_draw(tile_copies(0, man="11", pin="123456789", sou="12"), drawn_one_man)
         game_state = runtime.state
 
-        with pytest.raises(InvalidGameActionError, match="closed kan requires 4 tiles"):
-            _declare_closed_kan(runtime, drawn_one_man)
+        assert _declare_closed_kan(runtime, drawn_one_man) == _NOT_OFFERED
         assert runtime.state is game_state
 
-    def test_closed_kan__when_riichi_seat_quads_a_tile_held_before_the_draw__should_kick_seat(self):
+    def test_closed_kan__when_riichi_seat_quads_a_tile_held_before_the_draw__should_refuse_as_not_offered(self):
         waiting_hand = tile_copies(0, man="111123", pin="456789", sou="5")
         runtime = _riichi_seat_after_draw(waiting_hand, tile_copies(0, sou="9")[0])
         game_state = runtime.state
 
         assert _offered_closed_kans(runtime) is None
-        with pytest.raises(InvalidGameActionError, match="drawn tile must be the kan tile"):
-            _declare_closed_kan(runtime, waiting_hand[0])
+        assert _declare_closed_kan(runtime, waiting_hand[0]) == _NOT_OFFERED
         assert runtime.state is game_state
 
     @pytest.mark.parametrize(
@@ -902,7 +903,7 @@ class TestRiichiClosedKanValidation:
             ),
         ],
     )
-    def test_closed_kan__when_riichi_kan_changes_the_waits__should_not_offer_it_and_kick_seat(
+    def test_closed_kan__when_riichi_kan_changes_the_waits__should_not_offer_it_and_refuse_it_as_not_offered(
         self, waiting_hand, drawn_tile, waits_before, waits_after
     ):
         runtime = _riichi_seat_after_draw(waiting_hand, drawn_tile)
@@ -920,8 +921,7 @@ class TestRiichiClosedKanValidation:
         assert _waits(player.model_copy(update={"melds": (quad,)}), hand_without_quad) == waits_after
 
         assert _offered_closed_kans(runtime) is None
-        with pytest.raises(InvalidGameActionError, match="must not change waiting tiles"):
-            _declare_closed_kan(runtime, drawn_tile)
+        assert _declare_closed_kan(runtime, drawn_tile) == _NOT_OFFERED
         assert runtime.state is game_state
 
     def test_closed_kan__when_riichi_kan_keeps_the_waits_but_loses_ippeikou__should_declare_it(self):

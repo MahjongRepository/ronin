@@ -14,7 +14,6 @@ from game.engine import (
     DoubleRonResult,
     DoubleRonWinner,
     EventType,
-    GameErrorCode,
     HandLimit,
     HandResultInfo,
     Pass,
@@ -24,6 +23,7 @@ from game.engine import (
     WaitKind,
     YakuInfo,
 )
+from game.messaging.game_errors import GameErrorCode
 from game.messaging.types import SessionErrorCode
 from game.session.manager import SessionManager
 from game.session.models import GameLifecycle, GameSession, Participant, Pause, PlayerSpec
@@ -158,7 +158,9 @@ class TestWaitTimers:
         timer = participant_of(manager, conns[0]).timer
         deadline, bank = timer.task, timer._bank_seconds
 
-        manager.handle_game_action(conns[0], action=Pass(), wait_id=current_wait_id(manager, conns[0]))
+        manager.handle_game_action(
+            conns[0], action=Pass(), called_tile=None, wait_id=current_wait_id(manager, conns[0])
+        )
         assert [m[WireKey.GAME_ERROR_CODE] for m in conns[0].sent_messages] == [GameErrorCode.INVALID_PASS]
         assert timer.task is deadline
         assert not deadline.done()
@@ -175,7 +177,10 @@ class TestWaitTimers:
         discarded_four_pin = arrange_ron_and_pon_on_a_discard(runtime_of(manager), discarder=alice, ron=bob, pon=carol)
 
         manager.handle_game_action(
-            conns[0], action=Discard(tile=discarded_four_pin), wait_id=current_wait_id(manager, conns[0])
+            conns[0],
+            action=Discard(tile=discarded_four_pin),
+            called_tile=None,
+            wait_id=current_wait_id(manager, conns[0]),
         )
         prompt = manager.get_game("game1").awaiting
         assert (prompt.kind, prompt.seats) == (WaitKind.CALL, frozenset({bob, carol}))
@@ -187,7 +192,9 @@ class TestWaitTimers:
         assert prompt_message[WireKey.BANK_SECONDS] == 20
         fake_clock.advance(7)
 
-        manager.handle_game_action(conns[1], action=Pass(), wait_id=current_wait_id(manager, conns[1]))
+        manager.handle_game_action(
+            conns[1], action=Pass(), called_tile=None, wait_id=current_wait_id(manager, conns[1])
+        )
         assert manager.get_game("game1").awaiting == replace(prompt, seats=frozenset({carol}))
         assert participant_of(manager, conns[1]).timer.task is None
         assert carol_timer.task is carol_deadline
@@ -214,7 +221,10 @@ class TestWaitTimers:
             runtime_of(manager), discarder=alice.seat, ron=bob.seat, pon=carol.seat
         )
         manager.handle_game_action(
-            conns[0], action=Discard(tile=discarded_four_pin), wait_id=current_wait_id(manager, conns[0])
+            conns[0],
+            action=Discard(tile=discarded_four_pin),
+            called_tile=None,
+            wait_id=current_wait_id(manager, conns[0]),
         )
         assert game_of(manager).awaiting.seats == frozenset({bob.seat, carol.seat})
         await asyncio.sleep(0)
@@ -242,7 +252,7 @@ class TestWaitTimers:
         arrange_exhaustive_draw(runtime_of(manager))
         drawn_tile = runtime_of(manager).state.round_state.players[alice_seat].tiles[-1]
         manager.handle_game_action(
-            conns[0], action=Discard(tile=drawn_tile), wait_id=current_wait_id(manager, conns[0])
+            conns[0], action=Discard(tile=drawn_tile), called_tile=None, wait_id=current_wait_id(manager, conns[0])
         )
         assert manager.get_game("game1").awaiting.kind == WaitKind.ROUND_OVER
         assert timer.bank_seconds == first_round_bank - 2
@@ -259,11 +269,13 @@ class TestWaitTimers:
 
         fake_clock.advance(8)
         if second_round.kind == WaitKind.CALL:
-            manager.handle_game_action(conns[0], action=Pass(), wait_id=current_wait_id(manager, conns[0]))
+            manager.handle_game_action(
+                conns[0], action=Pass(), called_tile=None, wait_id=current_wait_id(manager, conns[0])
+            )
         else:
             drawn_tile = runtime_of(manager).state.round_state.players[alice_seat].tiles[-1]
             manager.handle_game_action(
-                conns[0], action=Discard(tile=drawn_tile), wait_id=current_wait_id(manager, conns[0])
+                conns[0], action=Discard(tile=drawn_tile), called_tile=None, wait_id=current_wait_id(manager, conns[0])
             )
         next_wait = manager.get_game("game1").awaiting
         assert next_wait.round_number == 1
@@ -288,7 +300,7 @@ class TestWaitTimers:
         arrange_exhaustive_draw(runtime_of(manager))
         drawn_tile = runtime_of(manager).state.round_state.players[alice.seat].tiles[-1]
         manager.handle_game_action(
-            conns[0], action=Discard(tile=drawn_tile), wait_id=current_wait_id(manager, conns[0])
+            conns[0], action=Discard(tile=drawn_tile), called_tile=None, wait_id=current_wait_id(manager, conns[0])
         )
         manager.confirm_round(conns[0], wait_id=current_wait_id(manager, conns[0]))
         assert game.awaiting.round_number == 1
@@ -320,6 +332,7 @@ def _discard_the_drawn_tile(manager: SessionManager, participant: Participant) -
     manager.handle_game_action(
         participant.connection,
         action=Discard(tile=drawn_tile),
+        called_tile=None,
         wait_id=current_wait_id(manager, participant.connection),
     )
 

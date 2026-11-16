@@ -31,6 +31,7 @@ from game.logic.exceptions import (
     ImpossibleActionError,
     InvalidRiichiError,
     ScoringError,
+    TileNotHeldError,
 )
 from game.logic.melds import (
     call_added_kan,
@@ -232,15 +233,15 @@ def _validate_riichi_discard(
     """
     Validate riichi declaration and that the discard keeps hand in tenpai.
 
-    Raises ImpossibleActionError when riichi was not offered or the tile is not in hand, and InvalidRiichiError when the
-    discard would leave the hand not tenpai.
+    Raises ImpossibleActionError when riichi was not offered, TileNotHeldError when the tile is not in hand, and
+    InvalidRiichiError when the discard would leave the hand not tenpai.
     """
     if not can_declare_riichi(player, round_state, settings=settings):
         logger.warning("cannot declare riichi: conditions not met", seat=player.seat)
         raise ImpossibleActionError("cannot declare riichi: conditions not met")
 
     if tile_id not in player.tiles:
-        raise ImpossibleActionError(f"tile {tile_id} not in hand")
+        raise TileNotHeldError(f"tile {tile_id} not in hand")
 
     if tile_id not in riichi_discards(player):
         raise InvalidRiichiError(f"hand is not tenpai after discarding tile {tile_id}")

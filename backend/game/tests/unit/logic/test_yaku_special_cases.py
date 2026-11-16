@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from mahjong.hand_calculating.yaku_list import AkaDora, DaburuRiichi, Haitei, Houtei, Ittsu, Riichi, Rinshan, Tsumo
 from mahjong.hand_calculating.yaku_list.yakuman import Chiihou, Ryuuiisou, SuuankouTanki, Tenhou
 
 from game.logic.action_handlers import handle_discard, handle_kan, handle_ron, handle_tsumo
-from game.logic.action_result import ActionResult, Refusal
+from game.logic.action_result import ActionResult
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Discard as DiscardAction
 from game.logic.decision import Kan
@@ -25,6 +27,9 @@ from game.logic.types import RonResult, TsumoResult
 from game.tests.helpers.builders import create_dealt_game_state, create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
 from game.tests.unit.logic.helpers import _update_round_state
+
+if TYPE_CHECKING:
+    from game.logic.refusal import Refusal
 
 _WINNING_DEALT_HAND = tuple(tile_copies(0, man="123456789", pin="12355"))
 _OTHER_HANDS = {seat: tuple(tile_copies(seat, sou="123456789", honors="1234")) for seat in (1, 2, 3)}

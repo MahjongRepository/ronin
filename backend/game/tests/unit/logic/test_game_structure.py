@@ -18,7 +18,7 @@ from game.logic.settings import (
 from game.logic.types import SeatConfig
 from game.tests.helpers.builders import create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
-from game.tests.helpers.wall import make_start_wall
+from game.tests.helpers.start_wall import make_start_wall
 
 
 class TestGameType:

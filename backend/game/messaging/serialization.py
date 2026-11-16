@@ -41,7 +41,6 @@ if TYPE_CHECKING:
     from game.engine import (
         CallPromptEvent,
         DoraRevealedEvent,
-        ErrorEvent,
         FuritenEvent,
         GameEndedEvent,
         GameStartedEvent,
@@ -49,6 +48,7 @@ if TYPE_CHECKING:
         RoundStartedEvent,
         TurnEvent,
     )
+    from game.messaging.game_errors import ErrorEvent
     from game.wire.enums import SeatControlReason
 
 

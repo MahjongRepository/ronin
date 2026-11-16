@@ -8,7 +8,6 @@ from game.logic.events import DrawEvent, GameEvent, SeatTarget, TurnEvent
 from game.logic.wall import tiles_remaining
 
 if TYPE_CHECKING:
-    from game.logic.enums import GameErrorCode
     from game.logic.state import MahjongGameState
 
 
@@ -23,16 +22,6 @@ class ActionResult:
 
     events: list[GameEvent]
     state: MahjongGameState
-
-
-@dataclass(frozen=True)
-class Refusal:
-    """
-    A refused action: nothing changed, and the service answers the acting seat with an ErrorEvent of this code.
-    """
-
-    code: GameErrorCode
-    message: str
 
 
 def create_draw_event(game_state: MahjongGameState, seat: int, tile_id: int) -> DrawEvent:

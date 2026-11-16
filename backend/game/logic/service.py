@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from game.logic.decision import Action, Decision
     from game.logic.enums import TimeoutType, WaitKind
     from game.logic.events import GameEvent
+    from game.logic.refusal import Refusal
     from game.logic.runtime import GameRuntime
     from game.logic.types import ReconnectionSnapshot, StartPosition
 
@@ -63,23 +64,29 @@ class GameService(Protocol):
 
     Players are identified by seat; names are display only. Every event carries its routing target: a BroadcastTarget
     (every player in the game) or a SeatTarget (only the player at that seat). Every call that can change the game
-    returns what it waits for next (Awaiting). The service holds no game: start_game returns the game's GameRuntime, and
-    every later call takes it. A service that paces AI turns stops before each AI player's turn action and reports it as
-    a WaitKind.AI_TURN wait, which advance_ai_turn plays; AI responses to call prompts never wait.
+    returns what it waits for next (Awaiting), or a Refusal that changed nothing: no call raises for a player's input.
+    The service holds no game: start_game returns the game's GameRuntime, and every later call takes it. A service that
+    paces AI turns stops before each AI player's turn action and reports it as a WaitKind.AI_TURN wait, which
+    advance_ai_turn plays; AI responses to call prompts never wait.
     """
 
-    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
         """
         Apply one action of the player at a seat: a domain action, checked against the rules and what the seat was
         offered.
 
-        Returns the events to deliver and the next wait.
+        Returns the events to deliver and the next wait, or the Refusal of an action a rule forbids (RULE), that the
+        seat was not offered or names a tile it does not hold (NOT_OFFERED), or that the game does not await from the
+        seat now (NOT_AWAITED: the round not in play, another seat's turn, an answered call, or another decision's
+        action). A refusal leaves the game unchanged.
         """
         ...
 
     def legal_actions(self, runtime: GameRuntime, seat: int) -> tuple[Action, ...]:
         """
         Return every action the seat may take now, in offer order; none when the game does not await the seat.
+
+        An AI player's seat on its turn counts as awaited here, though Awaiting leaves AI players' seats out.
 
         An action equivalent to a listed one is legal too: a chi with another held copy of an offered shape, a kan from
         any tile of an offered type.
@@ -90,6 +97,8 @@ class GameService(Protocol):
         """
         Return the action a timeout takes for the seat: the default discard on a turn, a pass on a call, never a win or
         a call; None when the game does not await the seat.
+
+        An AI player's seat on its turn counts as awaited here, though Awaiting leaves AI players' seats out.
         """
         ...
 
@@ -97,6 +106,8 @@ class GameService(Protocol):
         """
         Return the seat's decision: its context, its legal actions and its default; None when the game does not await
         the seat.
+
+        An AI player's seat on its turn counts as awaited here, though Awaiting leaves AI players' seats out.
         """
         ...
 
@@ -122,20 +133,20 @@ class GameService(Protocol):
         """
         ...
 
-    def begin_round(self, runtime: GameRuntime) -> GameUpdate:
+    def begin_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
         """
         Draw the dealt round's first tile for its dealer (WaitKind.DEALT), with the AI turns that follow it.
 
-        Returns the events to deliver and the next wait. Calling it on any other wait is a server fault.
+        Returns the events to deliver and the next wait; on any other wait a NOT_AWAITED Refusal (wrong phase).
         """
         ...
 
-    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate:
+    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
         """
         Deal the round after the one that ended (WaitKind.ROUND_OVER), from the game's next given wall or else its seed.
 
-        Returns the deal's events and the next wait, a dealt round (WaitKind.DEALT). Calling it on any other wait is a
-        server fault.
+        Returns the deal's events and the next wait, a dealt round (WaitKind.DEALT); on any other wait a NOT_AWAITED
+        Refusal (wrong phase).
         """
         ...
 

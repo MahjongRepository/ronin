@@ -10,7 +10,8 @@ from game.logic.settings import GameSettings
 from game.logic.wall import add_dora_indicator
 from game.logic.wall import collect_ura_dora_indicators as wall_collect_ura_dora
 from game.tests.helpers.builders import create_game_state, create_player, create_round_state
-from game.tests.helpers.wall import FIRST_URA_POSITION, make_wall
+from game.tests.helpers.start_wall import FIRST_URA_POSITION
+from game.tests.helpers.wall import make_wall
 
 DORA_YAKU_ID = 120
 URA_DORA_YAKU_ID = 122

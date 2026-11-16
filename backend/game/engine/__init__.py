@@ -19,7 +19,6 @@ from game.logic.enums import (
     AbortiveDrawType,
     CallType,
     GameEndCause,
-    GameErrorCode,
     GamePhase,
     HandLimit,
     KanType,
@@ -44,7 +43,6 @@ from game.logic.events import (
     DiscardEvent,
     DoraRevealedEvent,
     DrawEvent,
-    ErrorEvent,
     EventType,
     FuritenEvent,
     GameEndedEvent,
@@ -57,9 +55,9 @@ from game.logic.events import (
     SeatTarget,
     TurnEvent,
 )
-from game.logic.exceptions import InvalidGameActionError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_compact import meld_event_to_compact
+from game.logic.refusal import Refusal, RefusalCode, RefusalKind
 from game.logic.rng import (
     RNG_VERSION,
     SEED_BYTES,
@@ -147,13 +145,11 @@ __all__ = [
     "DoubleRonResult",
     "DoubleRonWinner",
     "DrawEvent",
-    "ErrorEvent",
     "EventType",
     "ExhaustiveDrawResult",
     "FuritenEvent",
     "GameEndCause",
     "GameEndedEvent",
-    "GameErrorCode",
     "GameEvent",
     "GamePhase",
     "GamePlayerInfo",
@@ -165,7 +161,6 @@ __all__ = [
     "GameUpdate",
     "HandLimit",
     "HandResultInfo",
-    "InvalidGameActionError",
     "Kan",
     "KanType",
     "Kyuushu",
@@ -187,6 +182,9 @@ __all__ = [
     "Pon",
     "PromptKind",
     "ReconnectionSnapshot",
+    "Refusal",
+    "RefusalCode",
+    "RefusalKind",
     "Riichi",
     "RiichiDeclaredEvent",
     "RobbedKan",

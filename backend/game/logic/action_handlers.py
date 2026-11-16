@@ -4,15 +4,15 @@ from game.logic.abortive import (
     call_kyuushu_kyuuhai,
     can_call_kyuushu_kyuuhai,
 )
-from game.logic.action_result import ActionResult, Refusal
+from game.logic.action_result import ActionResult
 from game.logic.call_resolution import resolve_call_prompt
 from game.logic.decision import CallAnswer, Chi, Discard, Kan, Pon, Riichi, Ron
 from game.logic.enums import (
-    GameErrorCode,
     KanType,
     MeldCallType,
 )
-from game.logic.exceptions import GameRuleError, ImpossibleActionError, InvalidGameActionError
+from game.logic.exceptions import GameRuleError, ImpossibleActionError
+from game.logic.refusal import Refusal, RefusalCode, RefusalKind
 from game.logic.state import (
     CallResponse,
     MahjongGameState,
@@ -48,12 +48,31 @@ def _is_turn_of(round_state: MahjongRoundState, seat: int) -> bool:
     return round_state.current_player_seat == seat and round_state.pending_call_prompt is None
 
 
-_NOT_YOUR_TURN = Refusal(code=GameErrorCode.NOT_YOUR_TURN, message="not your turn")
+_NOT_YOUR_TURN = Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.SEAT_NOT_AWAITED)
 
 
-def _create_rule_refusal(error: GameRuleError) -> Refusal:
+def _refuse_by_rule(error: GameRuleError) -> Refusal:
     logger.info("action refused by a rule judgment", code=error.code.value, reason=str(error))
-    return Refusal(code=error.code, message=str(error))
+    return Refusal(kind=RefusalKind.RULE, code=error.code)
+
+
+def _refuse_as_not_offered(code: RefusalCode, reason: str) -> Refusal:
+    logger.info("action refused as not offered", code=code.value, reason=reason)
+    return Refusal(kind=RefusalKind.NOT_OFFERED, code=code)
+
+
+def _refuse_impossible(error: ImpossibleActionError) -> Refusal:
+    return _refuse_as_not_offered(error.code, str(error))
+
+
+def _refuse_unanswerable_call(prompt: PendingCallPrompt | None, seat: int) -> Refusal:
+    """
+    Refuse a call answer, or a pass, from a seat no prompt waits on: already answered when it is one of the prompt's
+    callers, else not awaited.
+    """
+    answered = prompt is not None and any(caller.seat == seat for caller in prompt.callers)
+    code = RefusalCode.ALREADY_ANSWERED if answered else RefusalCode.SEAT_NOT_AWAITED
+    return Refusal(kind=RefusalKind.NOT_AWAITED, code=code)
 
 
 def _validate_call_prompt(
@@ -61,40 +80,38 @@ def _validate_call_prompt(
     *,
     seat: int,
     answer: CallAnswer,
-    error_code: GameErrorCode,
 ) -> PendingCallPrompt | Refusal:
     """
     Validate a call response (ron, pon, chi or open kan) against the pending call prompt, before any call's own checks.
 
-    Refuse when no prompt waits on the seat or an open kan names a tile of another type than the prompt's (the other
-    answers name no called tile); raise InvalidGameActionError when the prompt did not offer the seat this call. A pass
-    needs neither check.
+    Refuse as not awaited when no prompt waits on the seat, and as not offered when an open kan names a tile of another
+    type than the prompt's (the other answers name no called tile) or the prompt did not offer the seat this call. A
+    pass needs neither check.
 
     Return the validated PendingCallPrompt on success, or a Refusal on failure.
     """
     prompt = round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
         logger.warning("invalid call: no pending call prompt", seat=seat)
-        return Refusal(code=error_code, message="no pending call prompt")
+        return _refuse_unanswerable_call(prompt, seat)
 
     if isinstance(answer, Kan) and tile_to_34(answer.tile) != tile_to_34(prompt.tile_id):
-        logger.warning("invalid call: tile_id mismatch", seat=seat, expected=prompt.tile_id, got=answer.tile)
-        return Refusal(code=error_code, message="tile_id mismatch")
+        return _refuse_as_not_offered(RefusalCode.NOT_OFFERED, f"open kan tile {answer.tile} is not the call's type")
 
-    _validate_caller_action_matches_prompt(prompt, seat=seat, answer=answer)
-    return prompt
+    refusal = _check_caller_action_matches_prompt(prompt, seat=seat, answer=answer)
+    return refusal if refusal is not None else prompt
 
 
-def _validate_chi_sequence(
+def _check_chi_sequence(
     player: MahjongPlayer,
     prompt: PendingCallPrompt,
     seat: int,
     sequence_tiles: tuple[int, int],
-) -> None:
+) -> Refusal | None:
     """
-    Validate chi sequence_tiles before recording the response.
+    Check chi sequence_tiles before recording the response; return a Refusal when they do not hold, else None.
 
-    Raises InvalidGameActionError if:
+    Refuses if:
     - Either tile is not in the player's hand
     - The sequence_tiles don't match, by tile type, one of the seat's chi options in the prompt (each option is a run
       with the prompt's tile)
@@ -102,15 +119,10 @@ def _validate_chi_sequence(
     The seat's chi meld is the one checked, also when the seat is offered pon too (pon sorts first); it exists because
     _validate_call_prompt ran upstream.
     """
-    # Both tiles must be in the player's hand
     hand_list = list(player.tiles)
     for t in sequence_tiles:
         if t not in hand_list:
-            raise InvalidGameActionError(
-                action="call_chi",
-                seat=seat,
-                reason=f"sequence tile {t} not in hand",
-            )
+            return _refuse_as_not_offered(RefusalCode.TILE_NOT_HELD, f"sequence tile {t} not in hand")
 
         hand_list.remove(t)
 
@@ -118,34 +130,33 @@ def _validate_chi_sequence(
     submitted_34 = tuple(sorted(tile_to_34(t) for t in sequence_tiles))
     options = chi_meld.options or ()
     if not any(tuple(sorted(tile_to_34(t) for t in opt)) == submitted_34 for opt in options):
-        raise InvalidGameActionError(
-            action="call_chi",
-            seat=seat,
-            reason="sequence tiles not among available options",
-        )
+        return _refuse_as_not_offered(RefusalCode.NOT_OFFERED, "sequence tiles not among available options")
+
+    return None
 
 
-def _validate_caller_action_matches_prompt(
+def _check_caller_action_matches_prompt(
     prompt: PendingCallPrompt,
     seat: int,
     answer: CallAnswer,
-) -> None:
+) -> Refusal | None:
     """
-    Validate that the player's response action is among the calls the prompt offered the seat.
+    Check that the player's response action is among the calls the prompt offered the seat; return a Refusal when it is
+    not, else None.
 
-    The offered calls are the seat's ron and its melds. Raises InvalidGameActionError otherwise.
+    The offered calls are the seat's ron and its melds.
     """
     caller = prompt.caller(seat)
     ron: list[type[CallAnswer]] = [Ron] if caller.can_ron else []
     offered = [*ron, *(_MELD_CALL_TYPE_TO_ANSWER[m.call_type] for m in caller.melds)]
-    if type(answer) not in offered:
-        available = ", ".join(_ANSWER_NAMES[a] for a in offered)
-        name = _ANSWER_NAMES[type(answer)]
-        raise InvalidGameActionError(
-            action=name,
-            seat=seat,
-            reason=f"action {name} does not match available call types: {available}",
-        )
+    if type(answer) in offered:
+        return None
+
+    available = ", ".join(_ANSWER_NAMES[a] for a in offered)
+    name = _ANSWER_NAMES[type(answer)]
+    return _refuse_as_not_offered(
+        RefusalCode.NOT_OFFERED, f"action {name} does not match available call types: {available}"
+    )
 
 
 _MELD_CALL_TYPE_TO_ANSWER: dict[MeldCallType, type[CallAnswer]] = {
@@ -205,7 +216,7 @@ def handle_discard(
     Handle a discard action.
 
     Validates the player's turn and tile_id, then processes the discard. Returns ActionResult with events and new state;
-    an illegal discard (kuikae, riichi tsumogiri) is refused, a tile not in hand raises InvalidGameActionError.
+    an illegal discard (kuikae, riichi tsumogiri) is refused by rule, a tile not in hand as not offered.
     """
     if not _is_turn_of(game_state.round_state, seat):
         return _NOT_YOUR_TURN
@@ -213,9 +224,9 @@ def handle_discard(
     try:
         new_game_state, events = process_discard_phase(game_state, action.tile, is_riichi=False)
     except ImpossibleActionError as e:
-        raise InvalidGameActionError(action="discard", seat=seat, reason=str(e)) from e
+        return _refuse_impossible(e)
     except GameRuleError as e:
-        return _create_rule_refusal(e)
+        return _refuse_by_rule(e)
 
     return ActionResult(events, state=new_game_state)
 
@@ -230,8 +241,8 @@ def handle_riichi(
     Handle a riichi declaration with discard.
 
     Validates the player's turn and tile_id, then processes the riichi discard. Returns ActionResult with events and new
-    state; a discard that breaks tenpai or is not legal is refused, riichi not offered or a tile not in hand raises
-    InvalidGameActionError.
+    state; a discard that breaks tenpai or is not legal is refused by rule, riichi not offered or a tile not in hand as
+    not offered.
     """
     if not _is_turn_of(game_state.round_state, seat):
         return _NOT_YOUR_TURN
@@ -239,9 +250,9 @@ def handle_riichi(
     try:
         new_game_state, events = process_discard_phase(game_state, action.tile, is_riichi=True)
     except ImpossibleActionError as e:
-        raise InvalidGameActionError(action="declare_riichi", seat=seat, reason=str(e)) from e
+        return _refuse_impossible(e)
     except GameRuleError as e:
-        return _create_rule_refusal(e)
+        return _refuse_by_rule(e)
 
     return ActionResult(events, state=new_game_state)
 
@@ -262,7 +273,7 @@ def handle_tsumo(
     try:
         new_game_state, events = process_tsumo_call(game_state, winner_seat=seat)
     except ImpossibleActionError as e:
-        raise InvalidGameActionError(action="declare_tsumo", seat=seat, reason=str(e)) from e
+        return _refuse_impossible(e)
 
     return ActionResult(events, state=new_game_state)
 
@@ -278,9 +289,7 @@ def handle_ron(
     Record ron intent on the pending call prompt. Execute during resolution (supports double ron). Returns ActionResult
     with events and new state.
     """
-    result = _validate_call_prompt(
-        game_state.round_state, seat=seat, answer=Ron(), error_code=GameErrorCode.INVALID_RON
-    )
+    result = _validate_call_prompt(game_state.round_state, seat=seat, answer=Ron())
     if isinstance(result, Refusal):
         return result
 
@@ -298,9 +307,7 @@ def handle_pon(
     Record pon intent on the pending call prompt. Execute the pon only during resolution when all callers respond.
     Returns ActionResult with events and new state.
     """
-    result = _validate_call_prompt(
-        game_state.round_state, seat=seat, answer=Pon(), error_code=GameErrorCode.INVALID_PON
-    )
+    result = _validate_call_prompt(game_state.round_state, seat=seat, answer=Pon())
     if isinstance(result, Refusal):
         return result
 
@@ -320,11 +327,14 @@ def handle_chi(
     Returns ActionResult with events and new state.
     """
     round_state = game_state.round_state
-    result = _validate_call_prompt(round_state, seat=seat, answer=action, error_code=GameErrorCode.INVALID_CHI)
+    result = _validate_call_prompt(round_state, seat=seat, answer=action)
     if isinstance(result, Refusal):
         return result
 
-    _validate_chi_sequence(round_state.players[seat], result, seat=seat, sequence_tiles=action.tiles)
+    refusal = _check_chi_sequence(round_state.players[seat], result, seat=seat, sequence_tiles=action.tiles)
+    if refusal is not None:
+        return refusal
+
     return _record_call_response(game_state, result, CallResponse(seat=seat, action=action))
 
 
@@ -339,9 +349,7 @@ def _handle_open_kan_call_response(
     Record intent and trigger resolution when all callers have responded. Returns ActionResult with events and new
     state.
     """
-    result = _validate_call_prompt(
-        game_state.round_state, seat=seat, answer=action, error_code=GameErrorCode.INVALID_KAN
-    )
+    result = _validate_call_prompt(game_state.round_state, seat=seat, answer=action)
     if isinstance(result, Refusal):
         return result
 
@@ -359,12 +367,9 @@ def _handle_self_kan(
     Executes the kan immediately via process_meld_call, with its rinshan draw, unless it opened a chankan prompt (the
     kan then waits for the robbers' answers).
     """
-    # after pon/chi, the player must discard — kan requires a drawn tile
     if game_state.round_state.is_after_meld_call:
-        raise InvalidGameActionError(
-            action="call_kan",
-            seat=seat,
-            reason="cannot declare kan after a meld call (must discard first)",
+        return _refuse_as_not_offered(
+            RefusalCode.NOT_OFFERED, "cannot declare kan after a meld call (must discard first)"
         )
 
     try:
@@ -372,7 +377,7 @@ def _handle_self_kan(
         meld_input = MeldCallInput(caller_seat=seat, call_type=meld_call_type, tile_id=action.tile)
         new_game_state, events = process_meld_call(game_state, meld_input=meld_input)
     except ImpossibleActionError as e:
-        raise InvalidGameActionError(action="call_kan", seat=seat, reason=str(e)) from e
+        return _refuse_impossible(e)
 
     return ActionResult(events, state=new_game_state)
 
@@ -418,11 +423,7 @@ def handle_kyuushu(
 
     player = round_state.players[seat]
     if not can_call_kyuushu_kyuuhai(player, round_state, settings=game_state.settings):
-        raise InvalidGameActionError(
-            action="call_kyuushu",
-            seat=seat,
-            reason="kyuushu kyuuhai conditions not met",
-        )
+        return _refuse_as_not_offered(RefusalCode.NOT_OFFERED, "kyuushu kyuuhai conditions not met")
 
     new_round_state, result = call_kyuushu_kyuuhai(round_state)
     new_game_state, round_end = finish_round(update_game_with_round(game_state, new_round_state), result)
@@ -444,7 +445,7 @@ def handle_pass(
     prompt = new_round_state.pending_call_prompt
     if prompt is None or seat not in prompt.pending_seats:
         logger.warning("invalid pass: no pending call prompt", seat=seat)
-        return Refusal(code=GameErrorCode.INVALID_PASS, message="no pending call prompt")
+        return _refuse_unanswerable_call(prompt, seat)
 
     if prompt.caller(seat).can_ron:
         new_round_state = _decline_ron(new_round_state, seat)

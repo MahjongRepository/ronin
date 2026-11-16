@@ -67,8 +67,13 @@ interleave.
   global wait id is internal to pacing. A seat not awaited, or an id different from that
   participant's latest, gets the same stale-action `ErrorEvent` and touches neither the engine nor
   a timer, so guessed ids reveal no hidden waits. A call answer whose called tile is not the open call's is refused
-  by the session too, with that answer's invalid code, and never reaches the engine. Every `ErrorEvent` answering an action, the session's or the
-  engine's, names the wait id the action echoed (`messaging/AGENTS.md`, Wait identity).
+  by the session too, with that answer's invalid code, and never reaches the engine. Every `ErrorEvent` answering an
+  action names the wait id the action echoed (`messaging/AGENTS.md`, Wait identity).
+* **Refusals are the session's policy.** The engine returns a refused action's `Refusal` and changes nothing; the
+  session decides what follows. A rule judgment or an action the engine does not await now gets an `ErrorEvent` to the
+  seat (messaging maps the refusal to the wire code and message), and the decision, its id and its timer go on;
+  structurally impossible input (not offered, a tile not held included) disconnects that human with 1008 and seats an
+  AI player. A refused phase call, or a refused timeout default, is a server fault.
 * **Timers need no generation or lifecycle check.** Every path that supersedes a wait (ending it,
   releasing a seat, leaving PENDING, authenticating or evicting a connection, ending the game)
   cancels the timers it supersedes, the delayed AI turn included, so a timer that runs at all runs

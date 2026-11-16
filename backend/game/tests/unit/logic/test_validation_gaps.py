@@ -14,23 +14,22 @@ from game.logic.action_handlers import (
     handle_ron,
     handle_tsumo,
 )
-from game.logic.action_result import ActionResult, Refusal
+from game.logic.action_result import ActionResult
 from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Chi, Kan, Kyuushu, Riichi, Tsumo
 from game.logic.decision import Discard as DiscardAction
 from game.logic.enums import (
     AIPlayerType,
-    GameErrorCode,
     KanType,
     MeldCallType,
     TimeoutType,
 )
-from game.logic.events import SeatTarget
-from game.logic.exceptions import GeneratedActionError, InvalidGameActionError
+from game.logic.exceptions import GeneratedActionError
 from game.logic.game import init_game
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
+from game.logic.refusal import Refusal, RefusalCode, RefusalKind
 from game.logic.riichi import can_declare_riichi
 from game.logic.round import draw_tile
 from game.logic.runtime import GameRuntime
@@ -48,6 +47,10 @@ from game.logic.types import (
 from game.tests.helpers.builders import create_dealt_game_state, create_player, start_game_in_play
 from game.tests.helpers.hands import tile_copies
 from game.tests.unit.logic.helpers import _find_player, _update_round_state
+
+NOT_OFFERED = Refusal(kind=RefusalKind.NOT_OFFERED, code=RefusalCode.NOT_OFFERED)
+TILE_NOT_HELD = Refusal(kind=RefusalKind.NOT_OFFERED, code=RefusalCode.TILE_NOT_HELD)
+SEAT_NOT_AWAITED = Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.SEAT_NOT_AWAITED)
 
 
 def _default_seat_configs():
@@ -118,26 +121,27 @@ class TestChiEarlyValidation:
         assert [m.type for m in chi.state.round_state.players[1].melds] == [FrozenMeld.CHI]
 
     @pytest.mark.parametrize(
-        ("sequence_tiles", "reason"),
+        ("sequence_tiles", "refusal"),
         [
-            pytest.param((_CHI_SEAT_SEVEN_MAN, tile_copies(1, man="8")[0]), "not in hand", id="tile_not_in_hand"),
-            pytest.param((_CHI_SEAT_SIX_MAN, _CHI_SEAT_EIGHT_MAN), "not among available", id="not_a_run"),
+            pytest.param((_CHI_SEAT_SEVEN_MAN, tile_copies(1, man="8")[0]), TILE_NOT_HELD, id="tile_not_in_hand"),
+            pytest.param((_CHI_SEAT_SIX_MAN, _CHI_SEAT_EIGHT_MAN), NOT_OFFERED, id="not_a_run"),
         ],
     )
-    def test_chi_validation__when_sequence_tiles_are_not_an_offered_chi__should_raise(self, sequence_tiles, reason):
+    def test_chi_validation__when_sequence_tiles_are_not_an_offered_chi__should_refuse_as_not_offered(
+        self, sequence_tiles, refusal
+    ):
         game_state = _nine_man_discard_prompt()
         action = Chi(tiles=sequence_tiles)
 
-        with pytest.raises(InvalidGameActionError, match=reason):
-            handle_chi(game_state, seat=1, action=action)
+        assert handle_chi(game_state, seat=1, action=action) == refusal
 
 
 class TestCallTileMismatch:
-    def test_open_kan__when_tile_is_of_another_type_than_the_discard__should_refuse(self):
+    def test_open_kan__when_tile_is_of_another_type_than_the_discard__should_refuse_as_not_offered(self):
         game_state = _nine_man_discard_prompt()
 
         result = handle_kan(game_state, seat=2, action=Kan(kan_type=KanType.OPEN, tile=_CHI_SEAT_EIGHT_MAN))
-        assert result == Refusal(code=GameErrorCode.INVALID_KAN, message="tile_id mismatch")
+        assert result == NOT_OFFERED
 
 
 _THREE_PIN = tile_copies(3, pin="3")[0]
@@ -146,23 +150,18 @@ _ONE_TWO_PIN = tuple(tile_copies(0, pin="12"))
 
 class TestResponseActionMatchesPrompt:
     @pytest.mark.parametrize(
-        ("submit", "offered"),
+        "submit",
         [
-            pytest.param(lambda gs: handle_pon(gs, seat=1), "call_ron", id="pon"),
-            pytest.param(
-                lambda gs: handle_chi(gs, seat=2, action=Chi(tiles=_ONE_TWO_PIN)),
-                "call_pon",
-                id="chi",
-            ),
+            pytest.param(lambda gs: handle_pon(gs, seat=1), id="pon"),
+            pytest.param(lambda gs: handle_chi(gs, seat=2, action=Chi(tiles=_ONE_TWO_PIN)), id="chi"),
             pytest.param(
                 lambda gs: handle_kan(gs, seat=2, action=Kan(kan_type=KanType.OPEN, tile=_THREE_PIN)),
-                "call_pon",
                 id="open_kan",
             ),
-            pytest.param(lambda gs: handle_ron(gs, seat=2), "call_pon", id="ron"),
+            pytest.param(lambda gs: handle_ron(gs, seat=2), id="ron"),
         ],
     )
-    def test_response_action__when_seat_sends_a_call_it_was_not_offered__should_raise(self, submit, offered):
+    def test_response_action__when_seat_sends_a_call_it_was_not_offered__should_refuse_as_not_offered(self, submit):
         riichi_penchan_on_three_pin = create_player(
             seat=1,
             tiles=tile_copies(0, man="123456789", pin="1255"),
@@ -185,8 +184,7 @@ class TestResponseActionMatchesPrompt:
             Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON),)),
         )
 
-        with pytest.raises(InvalidGameActionError, match=f"does not match available call types: {offered}$"):
-            submit(prompted)
+        assert submit(prompted) == NOT_OFFERED
 
 
 _FIVE_PIN = tuple(tile_copies(0, pin="5555"))
@@ -211,20 +209,18 @@ def _seat_1_to_play(hand: tuple[int, ...], *, has_five_pin_pon: bool) -> Mahjong
 
 
 class TestAddedKanDeclarationValidation:
-    def test_added_kan__when_seat_holds_a_triplet_but_no_pon__should_raise(self):
+    def test_added_kan__when_seat_holds_a_triplet_but_no_pon__should_refuse_as_not_offered(self):
         game_state = _seat_1_to_play((*_FIVE_PIN[:3], *_SEAT_1_PON_HAND_WITHOUT_FIVE_PIN), has_five_pin_pon=False)
 
         action = Kan(kan_type=KanType.ADDED, tile=_FIVE_PIN[0])
-        with pytest.raises(InvalidGameActionError, match="no pon of tile type"):
-            handle_kan(game_state, seat=1, action=action)
+        assert handle_kan(game_state, seat=1, action=action) == NOT_OFFERED
 
-    def test_added_kan__when_seat_holds_no_fourth_copy__should_raise(self):
+    def test_added_kan__when_seat_holds_no_fourth_copy__should_refuse_as_not_offered(self):
         game_state = _seat_1_to_play(_SEAT_1_PON_HAND_WITHOUT_FIVE_PIN, has_five_pin_pon=True)
         assert _FIVE_PIN[3] in game_state.round_state.wall.live_tiles
 
         action = Kan(kan_type=KanType.ADDED, tile=_FIVE_PIN[3])
-        with pytest.raises(InvalidGameActionError, match="not in hand"):
-            handle_kan(game_state, seat=1, action=action)
+        assert handle_kan(game_state, seat=1, action=action) == NOT_OFFERED
 
     def test_added_kan__when_tile_id_names_a_melded_copy__should_kan_the_copy_in_hand(self):
         hand = (_FIVE_PIN[3], *_SEAT_1_PON_HAND_WITHOUT_FIVE_PIN[:-1])
@@ -236,7 +232,7 @@ class TestAddedKanDeclarationValidation:
         assert [(m.type, m.tiles) for m in seat_1.melds] == [(FrozenMeld.SHOUMINKAN, _FIVE_PIN)]
         assert _FIVE_PIN[3] not in seat_1.tiles
 
-    def test_added_kan__when_player_in_riichi__should_raise(self):
+    def test_added_kan__when_player_in_riichi__should_refuse_as_not_offered(self):
         drawn_one_man = tile_copies(3, man="1")[0]
         riichi_seat = create_player(
             seat=0,
@@ -256,12 +252,11 @@ class TestAddedKanDeclarationValidation:
         game_state = create_dealt_game_state(players)
 
         action = Kan(kan_type=KanType.ADDED, tile=drawn_one_man)
-        with pytest.raises(InvalidGameActionError, match="cannot call added kan while in riichi"):
-            handle_kan(game_state, seat=0, action=action)
+        assert handle_kan(game_state, seat=0, action=action) == NOT_OFFERED
 
 
 class TestKanExecutionGuards:
-    def test_closed_kan__when_wall_too_short__should_raise(self):
+    def test_closed_kan__when_wall_too_short__should_refuse_as_not_offered(self):
         runtime = GameRuntime(game_id="test", state=_create_frozen_game_state(), ai=AIPlayerController({}))
         wall = runtime.state.round_state.wall
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
@@ -269,10 +264,9 @@ class TestKanExecutionGuards:
         assert len({tile_to_34(t) for t in one_man_quad}) == 1
 
         action = Kan(kan_type=KanType.CLOSED, tile=one_man_quad[0])
-        with pytest.raises(InvalidGameActionError, match="not enough tiles in wall"):
-            handle_kan(runtime.state, seat=0, action=action)
+        assert handle_kan(runtime.state, seat=0, action=action) == NOT_OFFERED
 
-    def test_added_kan__when_total_kans_at_limit__should_raise(self):
+    def test_added_kan__when_total_kans_at_limit__should_refuse_as_not_offered(self):
         five_pin = tile_copies(0, pin="5555")
         seat_0_quads = tuple(
             FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tuple(tile_copies(0, sou=quad)), opened=False, who=0)
@@ -296,8 +290,7 @@ class TestKanExecutionGuards:
         game_state = create_dealt_game_state(players, current_player_seat=1)
 
         action = Kan(kan_type=KanType.ADDED, tile=five_pin[3])
-        with pytest.raises(InvalidGameActionError, match="maximum kans per round"):
-            handle_kan(game_state, seat=1, action=action)
+        assert handle_kan(game_state, seat=1, action=action) == NOT_OFFERED
 
 
 _TENPAI_DEALER_AFTER_DRAW = tuple(tile_copies(0, man="112345", pin="456", sou="789", honors="11"))
@@ -313,47 +306,40 @@ def _tenpai_dealer_after_draw() -> MahjongGameState:
 
 
 class TestRiichiDiscardTenpaiValidation:
-    def test_riichi_discard__when_discard_breaks_tenpai__should_refuse_with_invalid_riichi(self):
+    def test_riichi_discard__when_discard_breaks_tenpai__should_refuse_by_rule(self):
         three_man = tile_copies(0, man="3")[0]
 
         result = handle_riichi(_tenpai_dealer_after_draw(), seat=0, action=Riichi(tile=three_man))
-        assert result == Refusal(
-            code=GameErrorCode.INVALID_RIICHI, message=f"hand is not tenpai after discarding tile {three_man}"
-        )
+        assert result == Refusal(kind=RefusalKind.RULE, code=RefusalCode.RIICHI_BREAKS_TENPAI)
 
 
-class TestRiichiRaisesInvalidGameActionError:
-    def test_riichi__when_riichi_not_offered__should_raise_invalid_game_action(self):
+class TestRiichiRefusedAsNotOffered:
+    def test_riichi__when_riichi_not_offered__should_refuse_as_not_offered(self):
         game_state = _create_frozen_game_state()
         dealer = game_state.round_state.players[0]
         assert not can_declare_riichi(dealer, game_state.round_state, settings=game_state.settings)
 
-        with pytest.raises(InvalidGameActionError, match="cannot declare riichi: conditions not met"):
-            handle_riichi(game_state, seat=0, action=Riichi(tile=dealer.tiles[-1]))
+        assert handle_riichi(game_state, seat=0, action=Riichi(tile=dealer.tiles[-1])) == NOT_OFFERED
 
-    def test_riichi__when_tenpai_hand_and_tile_not_in_hand__should_raise(self):
+    def test_riichi__when_tenpai_hand_and_tile_not_in_hand__should_refuse_as_tile_not_held(self):
         game_state = _tenpai_dealer_after_draw()
         other_seats_tile = game_state.round_state.players[1].tiles[0]
 
-        with pytest.raises(InvalidGameActionError, match="not in hand"):
-            handle_riichi(game_state, seat=0, action=Riichi(tile=other_seats_tile))
+        assert handle_riichi(game_state, seat=0, action=Riichi(tile=other_seats_tile)) == TILE_NOT_HELD
 
 
 class TestKyuushuRuleGate:
-    def test_kyuushu_kyuuhai__when_conditions_not_met__should_raise(self):
+    def test_kyuushu_kyuuhai__when_conditions_not_met__should_refuse_as_not_offered(self):
         game_state = _create_frozen_game_state()
         dealer = game_state.round_state.players[0]
         assert not can_call_kyuushu_kyuuhai(dealer, game_state.round_state, settings=game_state.settings)
 
-        with pytest.raises(InvalidGameActionError, match="conditions not met"):
-            handle_kyuushu(game_state, seat=0)
+        assert handle_kyuushu(game_state, seat=0) == NOT_OFFERED
 
-    def test_kyuushu_kyuuhai__when_not_players_turn__should_refuse(self):
+    def test_kyuushu_kyuuhai__when_not_players_turn__should_refuse_as_not_awaited(self):
         game_state = _create_frozen_game_state()
 
-        result = handle_kyuushu(game_state, seat=1)
-        assert isinstance(result, Refusal)
-        assert result.code == GameErrorCode.NOT_YOUR_TURN
+        assert handle_kyuushu(game_state, seat=1) == SEAT_NOT_AWAITED
 
 
 class TestPendingCallPromptStateGate:
@@ -369,17 +355,15 @@ class TestPendingCallPromptStateGate:
         ],
         ids=["discard", "riichi", "tsumo", "kyuushu", "closed_kan", "added_kan"],
     )
-    def test_turn_action__when_prompt_pending__should_answer_not_your_turn_without_kick(self, turn_action_of):
+    def test_turn_action__when_prompt_pending__should_refuse_as_not_awaited(self, turn_action_of):
         game_state = _nine_man_discard_prompt()
         runtime = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({}))
         own_tile = game_state.round_state.players[0].tiles[-1]
 
         wait_id_before = runtime.wait_id
-        update = MahjongGameService().act(runtime, 0, turn_action_of(own_tile))
-        assert [(e.code, e.target) for e in update.events] == [(GameErrorCode.NOT_YOUR_TURN, SeatTarget(seat=0))]
+        assert MahjongGameService().act(runtime, 0, turn_action_of(own_tile)) == SEAT_NOT_AWAITED
         assert runtime.state is game_state
         assert runtime.wait_id == wait_id_before
-        assert update.awaiting.wait_id == wait_id_before
 
 
 def _kuikae_seat_after_chi() -> tuple[MahjongGameState, int, int]:
@@ -405,67 +389,58 @@ def _riichi_dealer_after_draw() -> tuple[MahjongGameState, int, int]:
 
 class TestSoftErrorsRemainUnchanged:
     @pytest.mark.parametrize(
-        "stage_forbidden_discard",
-        [pytest.param(_kuikae_seat_after_chi, id="kuikae"), pytest.param(_riichi_dealer_after_draw, id="riichi")],
+        ("stage_forbidden_discard", "code"),
+        [
+            pytest.param(_kuikae_seat_after_chi, RefusalCode.KUIKAE, id="kuikae"),
+            pytest.param(_riichi_dealer_after_draw, RefusalCode.RIICHI_DRAWN_TILE_ONLY, id="riichi"),
+        ],
     )
-    def test_discard__when_rule_forbids_the_tile__should_refuse_with_invalid_discard(self, stage_forbidden_discard):
+    def test_discard__when_rule_forbids_the_tile__should_refuse_by_rule(self, stage_forbidden_discard, code):
         game_state, seat, forbidden_tile = stage_forbidden_discard()
 
         result = handle_discard(game_state, seat=seat, action=DiscardAction(tile=forbidden_tile))
-        assert isinstance(result, Refusal)
-        assert result.code == GameErrorCode.INVALID_DISCARD
+        assert result == Refusal(kind=RefusalKind.RULE, code=code)
 
-    def test_soft_error__when_not_your_turn__should_return_refusal(self):
+    def test_soft_error__when_not_your_turn__should_refuse_as_not_awaited(self):
         game_state = _create_frozen_game_state()
 
-        result = handle_discard(game_state, seat=1, action=DiscardAction(tile=0))
-        assert isinstance(result, Refusal)
-        assert result.code == GameErrorCode.NOT_YOUR_TURN
+        assert handle_discard(game_state, seat=1, action=DiscardAction(tile=0)) == SEAT_NOT_AWAITED
 
-    def test_soft_error__when_ron_without_pending_prompt__should_return_refusal(self):
+    def test_soft_error__when_ron_without_pending_prompt__should_refuse_as_not_awaited(self):
         game_state = _create_frozen_game_state()
 
-        result = handle_ron(game_state, seat=0)
-        assert isinstance(result, Refusal)
-        assert result.code == GameErrorCode.INVALID_RON
+        assert handle_ron(game_state, seat=0) == SEAT_NOT_AWAITED
 
-    def test_soft_error__when_pass_without_prompt__should_return_refusal(self):
+    def test_soft_error__when_pass_without_prompt__should_refuse_as_not_awaited(self):
         game_state = _create_frozen_game_state()
 
-        result = handle_pass(game_state, seat=0)
-        assert isinstance(result, Refusal)
-        assert result.code == GameErrorCode.INVALID_PASS
+        assert handle_pass(game_state, seat=0) == SEAT_NOT_AWAITED
 
-    def test_soft_error__when_seat_not_pending__should_return_refusal(self):
-        result = handle_ron(_nine_man_discard_prompt(), seat=3)
-        assert result == Refusal(code=GameErrorCode.INVALID_RON, message="no pending call prompt")
+    def test_soft_error__when_seat_not_pending__should_refuse_as_not_awaited(self):
+        assert handle_ron(_nine_man_discard_prompt(), seat=3) == SEAT_NOT_AWAITED
+
+    def test_soft_error__when_seat_already_answered__should_refuse_as_already_answered(self):
+        passed = handle_pass(_nine_man_discard_prompt(), seat=2)
+        assert isinstance(passed, ActionResult)
+
+        result = handle_pass(passed.state, seat=2)
+        assert result == Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.ALREADY_ANSWERED)
 
 
-# --- Phase 3: Error Handling Conversion Tests ---
-
-
-class TestDiscardRaisesInvalidGameActionError:
-    def test_discard__when_tile_not_in_hand__should_raise_invalid_game_action(self):
+class TestStructuralInputRefusedAsNotOffered:
+    def test_discard__when_tile_not_in_hand__should_refuse_as_tile_not_held(self):
         game_state = _create_frozen_game_state()
 
         other_tile = game_state.round_state.players[1].tiles[0]
 
-        with pytest.raises(InvalidGameActionError, match="discard") as exc_info:
-            handle_discard(game_state, seat=0, action=DiscardAction(tile=other_tile))
-        assert exc_info.value.seat == 0
+        assert handle_discard(game_state, seat=0, action=DiscardAction(tile=other_tile)) == TILE_NOT_HELD
 
-
-class TestTsumoRaisesInvalidGameActionError:
-    def test_tsumo__when_hand_not_winning__should_raise_invalid_game_action(self):
+    def test_tsumo__when_hand_not_winning__should_refuse_as_not_offered(self):
         game_state = _create_frozen_game_state()
 
-        with pytest.raises(InvalidGameActionError, match="declare_tsumo") as exc_info:
-            handle_tsumo(game_state, seat=0)
-        assert exc_info.value.seat == 0
+        assert handle_tsumo(game_state, seat=0) == NOT_OFFERED
 
-
-class TestKanRaisesInvalidGameActionError:
-    def test_closed_kan__when_seat_holds_three_copies__should_raise_invalid_game_action(self):
+    def test_closed_kan__when_seat_holds_three_copies__should_refuse_as_not_offered(self):
         one_man_triplet = tile_copies(0, man="111")
         dealer = create_player(seat=0, tiles=(*one_man_triplet, *tile_copies(0, pin="123456789", sou="12")))
         players = (
@@ -480,8 +455,7 @@ class TestKanRaisesInvalidGameActionError:
         game_state = create_dealt_game_state(players)
 
         action = Kan(kan_type=KanType.CLOSED, tile=one_man_triplet[0])
-        with pytest.raises(InvalidGameActionError, match="closed kan requires 4 tiles"):
-            handle_kan(game_state, seat=0, action=action)
+        assert handle_kan(game_state, seat=0, action=action) == NOT_OFFERED
 
 
 class TestServerGeneratedActionRefusals:
@@ -512,7 +486,7 @@ class TestServerGeneratedActionRefusals:
 
         with (
             patch.object(AIPlayer, "select_discard", return_value=forbidden_tile),
-            pytest.raises(GeneratedActionError, match="invalid_discard"),
+            pytest.raises(GeneratedActionError, match="rule: riichi_drawn_tile_only"),
         ):
             service._process_ai_player_followup(runtime)
         assert runtime.state is game_state
@@ -523,10 +497,9 @@ class TestServerGeneratedActionRefusals:
 
         with (
             patch("game.logic.mahjong_service.choose_default_discard", return_value=999),
-            pytest.raises(GeneratedActionError, match=r"Discard\(tile=999\) refused") as exc_info,
+            pytest.raises(GeneratedActionError, match=r"Discard\(tile=999\) refused: not_offered: tile_not_held"),
         ):
             service.handle_timeout(runtime, seat=player_seat, timeout_type=TimeoutType.TURN)
-        assert isinstance(exc_info.value.__cause__, InvalidGameActionError)
 
     def test_act__when_the_seat_is_ai_controlled__should_raise_as_a_server_fault(self, service, runtime):
         ai_player_seat = min(runtime.ai.ai_player_seats)

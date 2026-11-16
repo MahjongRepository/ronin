@@ -12,7 +12,6 @@ from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
     DiscardEvent,
-    ErrorEvent,
     EventType,
     SeatTarget,
 )
@@ -87,7 +86,6 @@ class TestMahjongGameServiceHandleTimeout:
 
         events = service.handle_timeout(runtime, seat=3, timeout_type=TimeoutType.MELD).events
         assert (events[0].type, events[0].target) == (EventType.DRAW, SeatTarget(seat=1))
-        assert not any(isinstance(e, ErrorEvent) for e in events)
 
     def test_handle_timeout__when_turn_timeout_and_prompt_pending_for_others__should_return_no_events(self, service):
         runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime

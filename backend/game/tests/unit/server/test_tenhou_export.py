@@ -55,7 +55,7 @@ from game.replay.external.tenhou import TenhouConverter
 from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.tests.helpers.builders import start_game_in_play
 from game.tests.helpers.hands import tile_copies
-from game.tests.helpers.wall import DEAD_WALL_START, make_start_wall
+from game.tests.helpers.start_wall import DEAD_WALL_START, make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
 from game.wire.enums import WireEventType
 from game.wire.keys import WireKey

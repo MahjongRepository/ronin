@@ -18,7 +18,7 @@ of its one preset); read it before changing or testing a rule, and update it whe
   changes exactly when a call ends it (`mahjong_service.py` holds the rule); the session drives its
   timers from it. This global counter stays server-only. Client actions use separate participant decision ids owned by the session,
   so the engine API carries no wire id.
-* One dispatch pipeline for humans, AI and timeouts. A human's refused action is answered before the commit: nothing
+* One dispatch pipeline for humans, AI and timeouts. A human's refused action is returned before the commit: nothing
   is stored and no AI turn runs. `AIPlayerController` only decides; every state change goes through
   `MahjongGameService`.
 * Player type is a service-layer fact: the player model has no AI flag, only `AIPlayerController` knows. Names and
@@ -79,17 +79,22 @@ every kan emits its one rinshan draw there; the engine also draws for the next s
 
 ## Errors
 
-Every refusal or failure has exactly one outcome; `exceptions.py` says which class lands where.
+The engine never raises for a player's input: `act`, `begin_round` and `deal_next_round` return a `Refusal`
+(`refusal.py`) that changed nothing, its kind set by the handler that rejects the action and its code a reason, never a
+wire code. What a refusal leads to (an error to the seat, a kick, a failed game) is the caller's policy; the wire code
+and message are messaging's.
 
-* **ErrorEvent to the acting seat, nothing changes, the turn and its timer go on**: a rule judgment on an offered
-  action, a discard's kuikae and riichi rules included although the wire carries them, or a race the server can detect
-  from state alone.
-* **Kick**: structurally impossible input the wire never offered, raised only by the handler validating the acting
-  seat; the session disconnects that human and seats an AI player. A stale action never reaches the engine: the
-  session rejects it by wait id.
-* **Server fault, the session ends the game**: everything else, with no blame guessing and no fabricated pass, win or
-  retry. A refused action the server made itself (an AI decision or a timeout default) is a server fault, so a soft
-  error never counts as AI progress.
+* **RULE**: a rule judgment on a held tile or an offered action, a discard's kuikae and riichi rules included although
+  the client is told them (a `GameRuleError` subclass in `exceptions.py`, each with its code).
+* **NOT_OFFERED**: structurally impossible input the seat was never offered, a tile not held included, caught only by
+  the handler validating the acting seat (`ImpossibleActionError` and its subclasses). Raised anywhere else (call
+  resolution executes answers already validated) it stays an exception and a server fault.
+* **NOT_AWAITED**: a phase call in the wrong phase, an action while the round is not in play, from a seat the engine
+  is not waiting on, or for another decision than the seat's (a pass on its own turn, a discard during a call), a race
+  the server can detect from state alone.
+* **Server fault**: everything else raises, with no blame guessing and no fabricated pass, win or retry. An action the
+  engine made itself (an AI decision or a timeout default) that is refused raises `GeneratedActionError`, so a refusal
+  never counts as AI progress.
 
 Validation completes before a handler returns and the service stores only an `ActionResult`, so a refusal never
 leaves a partial state.

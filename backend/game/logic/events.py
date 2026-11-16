@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from game.logic.enums import CallType, GameEndCause, GameErrorCode, KanType, MeldViewType, PromptKind, WindName
+from game.logic.enums import CallType, GameEndCause, KanType, MeldViewType, PromptKind, WindName
 from game.logic.settings import GameType
 from game.logic.types import (
     AvailableActionItem,
@@ -190,20 +190,6 @@ class DoraRevealedEvent(GameEvent):
     tile_id: int
 
 
-class ErrorEvent(GameEvent):
-    """
-    Event sent to a player when an error occurs.
-
-    The session names the wait id the refused action echoed (`wait_id`), so the client matches the refusal to its own
-    request; the engine leaves it unset.
-    """
-
-    type: Literal[EventType.ERROR] = EventType.ERROR
-    code: GameErrorCode
-    message: str
-    wait_id: int | None = None
-
-
 class GameStartedEvent(GameEvent):
     """
     Event broadcast to all players when the game starts.
@@ -278,7 +264,6 @@ Event = (
     | RoundEndEvent
     | RiichiDeclaredEvent
     | DoraRevealedEvent
-    | ErrorEvent
     | GameStartedEvent
     | RoundStartedEvent
     | GameEndedEvent

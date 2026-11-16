@@ -13,7 +13,7 @@ from game.tests.helpers.hands import (
     PIN_3_TRIPLE_RON_DEALER_HAND,
     PIN_3_TRIPLE_RON_DISCARD,
 )
-from game.tests.helpers.wall import make_start_wall
+from game.tests.helpers.start_wall import make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
 from game.wire.keys import WireKey
 from game.wire.replay_format import REPLAY_VERSION, decode_replay_records, encode_replay_records

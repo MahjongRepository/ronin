@@ -5,15 +5,11 @@ import pytest
 from game.engine import (
     RNG_VERSION,
     Awaiting,
-    BroadcastTarget,
     Discard,
-    ErrorEvent,
     EventType,
-    GameErrorCode,
     GameEvent,
     GamePhase,
     GameUpdate,
-    InvalidGameActionError,
     Kan,
     KanType,
     MahjongGameService,
@@ -21,6 +17,9 @@ from game.engine import (
     Pass,
     Pon,
     PromptKind,
+    Refusal,
+    RefusalCode,
+    RefusalKind,
     Ron,
     WaitKind,
 )
@@ -44,7 +43,7 @@ from game.tests.helpers.hands import (
     PIN_3_TRIPLE_RON_DEALER_HAND,
     PIN_3_TRIPLE_RON_DISCARD,
 )
-from game.tests.helpers.wall import make_start_wall
+from game.tests.helpers.start_wall import make_start_wall
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -88,13 +87,13 @@ class _StubService:
     ) -> GameStart:
         return self._inner.start_game(game_id, player_names, seed=seed, walls=walls, start=start)
 
-    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
         return self._inner.act(runtime, seat, action)
 
-    def begin_round(self, runtime: GameRuntime) -> GameUpdate:
+    def begin_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
         return self._inner.begin_round(runtime)
 
-    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate:
+    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
         return self._inner.deal_next_round(runtime)
 
     def get_awaiting(self, runtime: GameRuntime) -> Awaiting:
@@ -125,6 +124,12 @@ def _probe_current_player_discard() -> tuple[str, int]:
     seat = state.round_state.current_player_seat
     player = state.round_state.players[seat]
     return player.name, player.tiles[-1]
+
+
+def _probe_foreign_tile(name: str) -> int:
+    state = start_game_in_play(MahjongGameService(), "probe", list(PLAYER_NAMES), seed=SEED).runtime.state
+    held = next(set(p.tiles) for p in state.round_state.players if p.name == name)
+    return next(tile for tile in range(136) if tile not in held)
 
 
 def _probe_waiting_player() -> str:
@@ -159,24 +164,22 @@ def test_run_replay__when_strict_and_action_invalid__should_raise_replay_error()
     assert exc_info.value.event.player_name == name
 
 
-def test_run_replay__when_non_strict_and_action_invalid__should_record_error_step():
+def test_run_replay__when_non_strict_and_action_invalid__should_record_the_refused_step():
     replay = _build_replay(actions=((_probe_waiting_player(), Discard(tile=0)),))
 
     trace = run_replay(replay, ReplayOptions(strict=False))
     assert len(trace.steps) == 1
-    error_events = [e for e in trace.steps[0].emitted_events if e.type == EventType.ERROR]
-    assert len(error_events) == 1
+    assert trace.steps[0].emitted_events == ()
+    assert trace.steps[0].refusal == Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.SEAT_NOT_AWAITED)
+    assert trace.steps[0].state_after is trace.steps[0].state_before
 
 
-def test_run_replay__when_non_strict_and_service_raises_invalid_action__should_fail_the_replay():
+def test_run_replay__when_non_strict_and_the_action_is_not_offered__should_fail_the_replay():
+    name, _tile = _probe_current_player_discard()
+    replay = _build_replay(actions=((name, Discard(tile=_probe_foreign_tile(name))),))
 
-    class RaisingService(_StubService):
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
-            raise InvalidGameActionError(action="discard", seat=0, reason="test error")
-
-    replay = _build_replay(actions=(("Alice", Discard(tile=0)),))
-    with pytest.raises(InvalidGameActionError, match="test error"):
-        run_replay(replay, ReplayOptions(strict=False), service_factory=RaisingService)
+    with pytest.raises(ReplayError, match="refused not_offered: tile_not_held"):
+        run_replay(replay, ReplayOptions(strict=False))
 
 
 def test_run_replay__should_return_trace_with_seed():
@@ -205,7 +208,7 @@ def test_run_replay__should_map_every_player_to_a_seat():
 def test_run_replay__when_strict_and_input_after_game_end__should_raise():
 
     class FinishedService(_StubService):
-        def begin_round(self, runtime: GameRuntime) -> GameUpdate:
+        def begin_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
             update = super().begin_round(runtime)
             runtime.commit(runtime.state.model_copy(update={"game_phase": GamePhase.FINISHED}))
             return update
@@ -218,7 +221,7 @@ def test_run_replay__when_strict_and_input_after_game_end__should_raise():
 def test_run_replay__when_non_strict_and_input_after_game_end__should_skip_input():
 
     class FinishedService(_StubService):
-        def begin_round(self, runtime: GameRuntime) -> GameUpdate:
+        def begin_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
             update = super().begin_round(runtime)
             runtime.commit(runtime.state.model_copy(update={"game_phase": GamePhase.FINISHED}))
             return update
@@ -270,7 +273,7 @@ def test_auto_pass_calls__when_call_prompt_pending__should_inject_pass_for_other
             super().__init__()
             self._inject_prompt = False
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action == Pass():
                 # Resolve the call prompt by removing it from state
                 state = runtime.state
@@ -393,7 +396,7 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
             )
             return game_start
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action == Pass():
                 self._pass_calls.append(seat)
                 state = runtime.state
@@ -477,7 +480,7 @@ def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_it
             )
             return game_start
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action not in (Pass(), Ron()):
                 return super().act(runtime, seat, action)
 
@@ -541,7 +544,7 @@ def test_auto_pass_calls__when_prompted_seat_declares_self_kan__should_pass_its_
             )
             return game_start
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action == Pass():
                 state = runtime.state
                 runtime.commit(
@@ -597,24 +600,16 @@ def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_re
             )
             return game_start
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action == Pass():
-                return _stub_update(
-                    [
-                        ErrorEvent(
-                            code=GameErrorCode.INVALID_PASS,
-                            message="synthetic pass error",
-                            target=BroadcastTarget(),
-                        ),
-                    ]
-                )
+                return Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.ALREADY_ANSWERED)
 
             return super().act(runtime, seat, action)
 
     name, tile = _probe_current_player_discard()
     replay = _build_replay(actions=((name, Discard(tile=tile)),))
 
-    with pytest.raises(ReplayError, match="synthetic pass error"):
+    with pytest.raises(ReplayError, match="refused not_awaited: already_answered"):
         run_replay(
             replay,
             service_factory=PassErrorService,
@@ -628,7 +623,7 @@ def test_auto_pass_calls__when_prompt_pending_after_last_input__should_pass_rema
             super().__init__()
             self._pass_calls: list[int] = []
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action == Pass():
                 self._pass_calls.append(seat)
                 state = runtime.state
@@ -736,7 +731,7 @@ def test_auto_pass_calls__when_strict_and_game_ends_during_pass__should_raise_in
             )
             return game_start
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action == Pass():
                 self._pass_count += 1
                 state = runtime.state
@@ -773,7 +768,7 @@ def test_auto_pass_calls__when_non_strict_and_game_ends_during_pass__should_skip
         def __init__(self) -> None:
             super().__init__()
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action == Pass():
                 state = runtime.state
 
@@ -869,7 +864,7 @@ def test_auto_pass_calls__when_prompt_resolves_after_first_pass__should_stop_pas
             )
             return game_start
 
-        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+        def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
             if action == Pass():
                 self._pass_count += 1
                 state = runtime.state

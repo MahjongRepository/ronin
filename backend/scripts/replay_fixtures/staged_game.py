@@ -9,7 +9,6 @@ from game.engine import (
     Chi,
     Discard,
     DrawEvent,
-    ErrorEvent,
     Kan,
     KanType,
     Kyuushu,
@@ -17,6 +16,7 @@ from game.engine import (
     Pass,
     PlayerAction,
     Pon,
+    Refusal,
     Riichi,
     Ron,
     StartPosition,
@@ -29,7 +29,7 @@ from game.replay import run_replay
 from game.replay.loader import load_replay_from_bytes
 from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.tests.helpers.hands import tile_copies
-from game.tests.helpers.wall import make_start_wall
+from game.tests.helpers.start_wall import make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
 from game.wire.enums import SeatControlReason, WireEventType
 from game.wire.keys import WireKey
@@ -38,7 +38,7 @@ from game.wire.replay_format import REPLAY_VERSION, ReplayLineType, decode_repla
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from game.engine import Action, GameEvent, MahjongGameState
+    from game.engine import Action, GameEvent, GameUpdate, MahjongGameState
     from game.replay.models import ReplayTrace
 
 STAGED_SEED = "5" * 192
@@ -289,24 +289,26 @@ class _ScriptedGame:
             self._service.replace_with_ai_player(self._runtime, seat)
             self._recorder.record_ai_replacement(seat=seat, reason=SeatControlReason.ABSENT)
 
-        self._record(self._service.begin_round(self._runtime).events)
+        self._record(self._accepted(self._service.begin_round(self._runtime), "begin_round").events)
 
     def _run(self, seat: int, action: Action) -> None:
-        events = self._service.act(self._runtime, seat, action).events
-        errors = [event for event in events if isinstance(event, ErrorEvent)]
-        if errors:
-            raise ScenarioError(f"{self._game_id}: seat {seat} {action} refused: {errors[0].message}")
-
+        update = self._accepted(self._service.act(self._runtime, seat, action), f"seat {seat} {action}")
         self._draws.pop(seat, None)
-        self._record(events)
+        self._record(update.events)
+
+    def _accepted(self, result: GameUpdate | Refusal, call: str) -> GameUpdate:
+        if isinstance(result, Refusal):
+            raise ScenarioError(f"{self._game_id}: {call} refused: {result.kind.value}: {result.code.value}")
+
+        return result
 
     def _advance_round(self) -> None:
         """
         Deal the next round after a round's end and let its dealer draw, recorded as the one step the session's pause
         ends in.
         """
-        dealt = self._service.deal_next_round(self._runtime)
-        begun = self._service.begin_round(self._runtime)
+        dealt = self._accepted(self._service.deal_next_round(self._runtime), "deal_next_round")
+        begun = self._accepted(self._service.begin_round(self._runtime), "begin_round")
         self._record([*dealt.events, *begun.events])
 
     def _record(self, events: Sequence[GameEvent]) -> None:

@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 
 from game.logic.enums import RoundPhase
 from game.logic.invariants import verify_tile_ownership
+from game.logic.refusal import Refusal
 from game.logic.state import (
     Discard,
     MahjongGameState,
@@ -11,7 +12,8 @@ from game.logic.state import (
 )
 from game.logic.tiles import NUM_TILES
 from game.logic.wall import DEAD_WALL_SIZE
-from game.tests.helpers.wall import FIRST_DORA_POSITION, URA_OFFSET, make_wall
+from game.tests.helpers.start_wall import FIRST_DORA_POSITION, URA_OFFSET
+from game.tests.helpers.wall import make_wall
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -209,4 +211,5 @@ def start_game_in_play(
     """
     game_start = service.start_game(game_id, player_names, seed=seed, walls=walls, start=start)
     begun = service.begin_round(game_start.runtime)
+    assert not isinstance(begun, Refusal), begun
     return replace(game_start, events=[*game_start.events, *begun.events], awaiting=begun.awaiting)

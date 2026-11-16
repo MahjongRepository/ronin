@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, NoReturn, override
 
-from game.engine import DrawEvent, MahjongGameService, RoundStartedEvent
+from game.engine import DrawEvent, MahjongGameService, Refusal, RoundStartedEvent
 from game.messaging.encoder import decode, encode
 from game.messaging.protocol import ConnectionProtocol
 from game.messaging.types import SessionErrorCode, SessionMessageType
@@ -201,22 +201,22 @@ class _StagedEngine(MahjongGameService):
         return game_start
 
     @override
-    def begin_round(self, runtime: GameRuntime) -> GameUpdate:
-        update = super().begin_round(runtime)
-        self._check_draws(update.events)
-        return update
+    def begin_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
+        return self._checked(super().begin_round(runtime))
 
     @override
-    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate:
-        update = super().deal_next_round(runtime)
-        self._check_draws(update.events)
-        return update
+    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
+        return self._checked(super().deal_next_round(runtime))
 
     @override
-    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
-        update = super().act(runtime, seat, action)
-        self._check_draws(update.events)
-        return update
+    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
+        return self._checked(super().act(runtime, seat, action))
+
+    def _checked(self, result: GameUpdate | Refusal) -> GameUpdate | Refusal:
+        if not isinstance(result, Refusal):
+            self._check_draws(result.events)
+
+        return result
 
     @override
     def handle_timeout(self, runtime: GameRuntime, *, seat: int, timeout_type: TimeoutType) -> GameUpdate:

@@ -36,7 +36,7 @@ from game.logic.types import (
 from game.logic.win import all_tiles_from_hand_and_melds, get_waiting_tiles
 from game.tests.helpers.builders import create_dealt_game_state, create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
-from game.tests.helpers.wall import FIRST_URA_POSITION
+from game.tests.helpers.start_wall import FIRST_URA_POSITION
 
 
 def _yaku(*yaku_ids: int) -> list[YakuInfo]:

@@ -14,25 +14,6 @@ class PlayerAction(StrEnum):
     KYUUSHU = "kyuushu"
 
 
-class GameErrorCode(StrEnum):
-    """
-    Error codes of an ErrorEvent: the action was refused and nothing changed.
-
-    STALE_ACTION comes from the session, not the engine: the action echoed the id of a wait that already ended.
-    """
-
-    NOT_YOUR_TURN = "not_your_turn"
-    INVALID_DISCARD = "invalid_discard"
-    INVALID_RIICHI = "invalid_riichi"
-    INVALID_RON = "invalid_ron"
-    INVALID_PON = "invalid_pon"
-    INVALID_CHI = "invalid_chi"
-    INVALID_KAN = "invalid_kan"
-    INVALID_PASS = "invalid_pass"  # noqa: S105
-    INVALID_ACTION = "invalid_action"
-    STALE_ACTION = "stale_action"
-
-
 class MeldCallType(StrEnum):
     """
     Types of meld calls that can be made on a discarded tile.

@@ -8,13 +8,13 @@ from game.engine import (
     PRESET_HAS_AKADORA,
     CallPromptEvent,
     DrawEvent,
-    ErrorEvent,
     FuritenEvent,
     GameStartedEvent,
     RoundStartedEvent,
     SeatTarget,
 )
 from game.messaging.event_payload import game_event_payload
+from game.messaging.game_errors import ErrorEvent
 from game.wire.keys import WireKey
 from game.wire.replay_format import (
     REPLAY_VERSION,

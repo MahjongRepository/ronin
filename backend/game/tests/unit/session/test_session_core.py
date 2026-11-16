@@ -56,7 +56,9 @@ class TestSessionManager:
     async def test_handle_game_action__when_service_returns_event__should_broadcast_it(self, manager):
         conns = create_started_game(manager)
 
-        manager.handle_game_action(conns[0], action=Discard(tile=0), wait_id=current_wait_id(manager, conns[0]))
+        manager.handle_game_action(
+            conns[0], action=Discard(tile=0), called_tile=None, wait_id=current_wait_id(manager, conns[0])
+        )
         # mock service returns one event with target "all"
         assert len(conns[0].sent_messages) == 1
         msg = conns[0].sent_messages[0]
@@ -139,7 +141,9 @@ def _discard_drawn_tile(manager: SessionManager, conns: list[MockConnection]) ->
     [seat] = awaiting.seats
     conn = next(conn for conn in conns if participant_of(manager, conn).seat == seat)
     drawn_tile = runtime_of(manager).state.round_state.players[seat].tiles[-1]
-    manager.handle_game_action(conn, action=Discard(tile=drawn_tile), wait_id=current_wait_id(manager, conn))
+    manager.handle_game_action(
+        conn, action=Discard(tile=drawn_tile), called_tile=None, wait_id=current_wait_id(manager, conn)
+    )
 
 
 class TestDrawDelivery:
@@ -207,6 +211,7 @@ class TestDrawDelivery:
         manager.handle_game_action(
             alice_conn,
             action=Kan(kan_type=KanType.CLOSED, tile=HAKU_COPIES[0]),
+            called_tile=None,
             wait_id=current_wait_id(manager, alice_conn),
         )
         round_state = runtime_of(manager).state.round_state
@@ -241,7 +246,10 @@ class TestDrawDelivery:
             runtime_of(manager), discarder=alice.seat, caller=bob.seat
         )
         manager.handle_game_action(
-            alice_conn, action=Discard(tile=discarded_four_pin), wait_id=current_wait_id(manager, alice_conn)
+            alice_conn,
+            action=Discard(tile=discarded_four_pin),
+            called_tile=None,
+            wait_id=current_wait_id(manager, alice_conn),
         )
         assert game_of(manager).awaiting.seats == frozenset({bob.seat})
         alice_conn._outbox.clear()

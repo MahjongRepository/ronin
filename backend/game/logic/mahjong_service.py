@@ -14,14 +14,13 @@ from game.logic.action_handlers import (
     handle_ron,
     handle_tsumo,
 )
-from game.logic.action_result import Refusal, create_draw_event, create_turn_event
+from game.logic.action_result import create_draw_event, create_turn_event
 from game.logic.actions import build_decision
 from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.decision import Action, Chi, Decision, Discard, Kan, Kyuushu, Pass, Pon, Riichi, Ron, Tsumo
-from game.logic.enums import GameErrorCode, GamePhase, RoundPhase, TimeoutType, WaitKind, WindName
+from game.logic.enums import GamePhase, RoundPhase, TimeoutType, WaitKind, WindName
 from game.logic.events import (
-    ErrorEvent,
     GameEndedEvent,
     GameEvent,
     GameStartedEvent,
@@ -29,7 +28,7 @@ from game.logic.events import (
     SeatTarget,
     build_call_prompt_events,
 )
-from game.logic.exceptions import DiscardHistoryError, GeneratedActionError, InvalidGameActionError
+from game.logic.exceptions import DiscardHistoryError, GeneratedActionError
 from game.logic.furiten_tracker import FuritenTracker
 from game.logic.game import (
     finalize_game,
@@ -40,6 +39,7 @@ from game.logic.game import (
 )
 from game.logic.matchmaker import fill_seats
 from game.logic.meld_compact import frozen_meld_to_compact
+from game.logic.refusal import Refusal, RefusalCode, RefusalKind
 from game.logic.rng import generate_seed
 from game.logic.round import choose_default_discard
 from game.logic.rule_profiles import PRESET_SETTINGS
@@ -75,6 +75,8 @@ if TYPE_CHECKING:
     from game.logic.action_result import ActionResult
 
 logger = structlog.get_logger()
+
+_WRONG_PHASE = Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.WRONG_PHASE)
 
 
 @dataclass(frozen=True)
@@ -223,27 +225,28 @@ class MahjongGameService(GameService):
         runtime.first_draw_pending = True
         return GameStart(runtime=runtime, events=events, awaiting=self._end_call(runtime, call), seats=player_seats)
 
-    def begin_round(self, runtime: GameRuntime) -> GameUpdate:
+    def begin_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
         """
-        Draw the dealt round's first tile for its dealer, with the AI turns that follow it; any other wait is a server
-        fault.
+        Draw the dealt round's first tile for its dealer, with the AI turns that follow it; refuse it on any other wait.
         """
         call = self._begin_call(runtime)
         if call.kind != WaitKind.DEALT:
-            raise AssertionError(f"no dealt round to begin: the game waits for {call.kind}")
+            logger.info("phase call refused: no dealt round to begin", wait=call.kind.value)
+            return _WRONG_PHASE
 
         runtime.first_draw_pending = False
         events = self._draw_first_turn(runtime)
         return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
 
-    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate:
+    def deal_next_round(self, runtime: GameRuntime) -> GameUpdate | Refusal:
         """
-        Deal the round after the one that ended, from the game's next given wall or else from its seed; any other wait
-        is a server fault.
+        Deal the round after the one that ended, from the game's next given wall or else from its seed; refuse it on any
+        other wait.
         """
         call = self._begin_call(runtime)
         if call.kind != WaitKind.ROUND_OVER:
-            raise AssertionError(f"no round over to deal the next round after: the game waits for {call.kind}")
+            logger.info("phase call refused: no round over to deal after", wait=call.kind.value)
+            return _WRONG_PHASE
 
         round_index = len(runtime.state.round_history)
         wall = list(runtime.walls[round_index]) if round_index < len(runtime.walls) else None
@@ -282,9 +285,9 @@ class MahjongGameService(GameService):
         """
         return [get_player_view(game_state, seat) for seat in range(NUM_PLAYERS)]
 
-    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate:
+    def act(self, runtime: GameRuntime, seat: int, action: Action) -> GameUpdate | Refusal:
         """
-        Apply one action of the player at a seat.
+        Apply one action of the player at a seat, or refuse it and change nothing.
 
         Processes the action and triggers AI player turns as needed. An action for an AI player's seat is a server
         fault.
@@ -293,11 +296,15 @@ class MahjongGameService(GameService):
         self._require_human_seat(runtime, seat)
         logger.debug("player action", action=action)
         events = self._run_action(runtime, call.state, seat=seat, action=action)
+        if isinstance(events, Refusal):
+            return events
+
         return GameUpdate(events=events, awaiting=self._end_call(runtime, call))
 
     def decision(self, runtime: GameRuntime, seat: int) -> Decision | None:
         """
-        Return what the seat may do now, or None when the game does not await it.
+        Return what the seat may do now, or None when the game does not await it; an AI player's seat on its turn is
+        awaited here, though Awaiting leaves it out.
         """
         _, seats = self._current_wait(runtime)
         if seat not in seats:
@@ -326,9 +333,9 @@ class MahjongGameService(GameService):
         *,
         seat: int,
         action: Action,
-    ) -> list[GameEvent]:
+    ) -> list[GameEvent] | Refusal:
         """
-        Run a player's action and the AI players' turns it leads to; return the events.
+        Run a player's action and the AI players' turns it leads to; return the events, or the action's refusal.
         """
         if game_state.round_state.phase != RoundPhase.PLAYING or runtime.first_draw_pending:
             logger.warning(
@@ -336,15 +343,11 @@ class MahjongGameService(GameService):
                 phase=game_state.round_state.phase.value,
                 action=action,
             )
-            return self._create_error_event(
-                code=GameErrorCode.INVALID_ACTION,
-                message="round is not in progress",
-                seat=seat,
-            )
+            return _WRONG_PHASE
 
         result = self._dispatch_action(game_state, seat=seat, action=action)
         if isinstance(result, Refusal):
-            return self._create_error_event(code=result.code, message=result.message, seat=seat)
+            return result
 
         events = self._commit_and_process(runtime, result)
         return self._continue_with_ai_players(runtime, events)
@@ -374,16 +377,12 @@ class MahjongGameService(GameService):
         """
         Dispatch an action the server made for a seat: an AI decision or a timeout default.
 
-        The server generated it, so a refusal, structural or soft, is a server fault: raise GeneratedActionError, never
-        kick the seat or count the refusal as progress.
+        The server generated it, so a refusal of any kind is a server fault: raise GeneratedActionError, never kick the
+        seat or count the refusal as progress.
         """
-        try:
-            result = self._dispatch_action(runtime.state, seat=seat, action=action)
-        except InvalidGameActionError as e:
-            raise GeneratedActionError(f"seat {seat} {action} refused: {e.reason}") from e
-
+        result = self._dispatch_action(runtime.state, seat=seat, action=action)
         if isinstance(result, Refusal):
-            raise GeneratedActionError(f"seat {seat} {action} refused: {result.code.value}: {result.message}")
+            raise GeneratedActionError(f"seat {seat} {action} refused: {result.kind.value}: {result.code.value}")
 
         return result
 
@@ -569,17 +568,6 @@ class MahjongGameService(GameService):
 
         logger.info("meld timeout, auto-passing")
         return self._run_generated_action(runtime, seat=seat, action=Pass())
-
-    def _create_error_event(
-        self,
-        code: GameErrorCode,
-        message: str,
-        seat: int,
-    ) -> list[GameEvent]:
-        """
-        Create an error event for a seat.
-        """
-        return [ErrorEvent(code=code, message=message, target=SeatTarget(seat=seat))]
 
     def _check_and_handle_round_end(self, runtime: GameRuntime, events: list[GameEvent]) -> bool:
         """

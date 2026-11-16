@@ -1,13 +1,16 @@
 # Game messaging (wire protocol)
 
 Binary MessagePack frames only. The code is the protocol reference: client and session messages
-with their codes in `types.py` and `wire_enums.py`, event and game error codes in `../wire/` and
-`../logic/enums.py`, event fields in `event_payload.py` and `serialization.py`.
+with their codes in `types.py` and `wire_enums.py`, event codes in `../wire/`, game error codes and the error event in
+`game_errors.py`, event fields in `event_payload.py` and `serialization.py`.
 Inbound dispatch lives in `../server/router.py`; this package only models and shapes messages.
 
 * A validated game action message becomes the engine's domain action (`to_action`); its wire code and wait id stay
   with messaging and the session. A call answer's called tile (`called_tile`) never reaches the engine: the session
-  answers a tile other than the open call's with the answer's own invalid code, as the engine answers its refusals.
+  answers a tile other than the open call's with the answer's own invalid code.
+* The engine's refusals are reasons, never wire codes: `game_errors.py` maps the refused action and its refusal to
+  the wire code and message (out of turn, no call prompt, the round not in play, a discard's rule), so the client
+  protocol never follows the engine's vocabulary.
 * Integer codes are only ever added, never renumbered or reused: a removed one leaves its gap.
 * Live metadata map keys are integers in both directions. `wire/keys.py` owns the named `WireKey`
   IDs; numeric IDs appear only in that declaration, and callers use the named keys directly.

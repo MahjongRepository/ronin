@@ -8,12 +8,11 @@ from game.logic.action_handlers import (
     handle_ron,
     handle_tsumo,
 )
-from game.logic.action_result import ActionResult, Refusal
+from game.logic.action_result import ActionResult
 from game.logic.decision import Discard, Kan, Riichi, Ron
 from game.logic.enums import (
     AbortiveDrawType,
     AIPlayerType,
-    GameErrorCode,
     KanType,
     MeldViewType,
     PromptKind,
@@ -26,6 +25,7 @@ from game.logic.events import (
     RoundEndEvent,
 )
 from game.logic.game import init_game
+from game.logic.refusal import Refusal, RefusalCode, RefusalKind
 from game.logic.round import draw_tile
 from game.logic.state import (
     Caller,
@@ -106,13 +106,12 @@ class TestHandleRiichiImmutable:
         assert discard_events[0].tile_id == tile_to_discard
         assert discard_events[0].is_riichi is True
 
-    def test_handle_riichi__when_not_players_turn__should_refuse_with_not_your_turn(self):
+    def test_handle_riichi__when_not_players_turn__should_refuse_as_not_awaited(self):
         game_state = _create_frozen_game_state()
 
         tile_id = TilesConverter.string_to_136_array(man="1")[0]
         result = handle_riichi(game_state, seat=1, action=Riichi(tile=tile_id))
-        assert isinstance(result, Refusal)
-        assert result.code == GameErrorCode.NOT_YOUR_TURN
+        assert result == Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.SEAT_NOT_AWAITED)
 
 
 class TestHandleTsumoImmutable:
@@ -232,7 +231,7 @@ class TestHandleKanImmutable:
         assert len(meld_events) == 1
         assert meld_events[0].meld_type == MeldViewType.CLOSED_KAN
 
-    def test_handle_kan__when_closed_kan_out_of_turn__should_refuse_with_not_your_turn(self):
+    def test_handle_kan__when_closed_kan_out_of_turn__should_refuse_as_not_awaited(self):
         game_state = _create_frozen_game_state()
 
         result = handle_kan(
@@ -240,8 +239,7 @@ class TestHandleKanImmutable:
             seat=1,
             action=Kan(kan_type=KanType.CLOSED, tile=0),
         )
-        assert isinstance(result, Refusal)
-        assert result.code == GameErrorCode.NOT_YOUR_TURN
+        assert result == Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.SEAT_NOT_AWAITED)
 
 
 class TestHandleKyuushuImmutable:

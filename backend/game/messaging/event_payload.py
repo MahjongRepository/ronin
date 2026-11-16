@@ -9,7 +9,6 @@ from game.engine import (
     DoraRevealedEvent,
     DoubleRonResult,
     DrawEvent,
-    ErrorEvent,
     EventType,
     ExhaustiveDrawResult,
     FuritenEvent,
@@ -29,6 +28,7 @@ from game.engine import (
     meld_event_to_compact,
 )
 from game.messaging import serialization
+from game.messaging.game_errors import ErrorEvent
 from game.wire.compact import encode_discard, encode_draw
 from game.wire.enums import WireEventType, WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT

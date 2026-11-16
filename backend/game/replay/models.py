@@ -5,9 +5,9 @@ from game.engine import (
     NUM_TILES,
     RNG_VERSION,
     Action,
-    ErrorEvent,
     GameEvent,
     MahjongGameState,
+    Refusal,
     StartPosition,
 )
 
@@ -71,7 +71,8 @@ class ReplayStep(BaseModel):
     """
     One replay transition: state_before + input -> emitted events + state_after.
 
-    A round advance has no input: the runner deals the next round and lets its dealer draw, as a synthetic step.
+    A round advance has no input: the runner deals the next round and lets its dealer draw, as a synthetic step. A
+    refused input, kept only outside strict mode, emits nothing and carries its refusal.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -79,6 +80,7 @@ class ReplayStep(BaseModel):
     input_event: ReplayInputEvent | None
     synthetic: bool = False
     emitted_events: tuple[GameEvent, ...]
+    refusal: Refusal | None = None
     state_before: MahjongGameState
     state_after: MahjongGameState
 
@@ -108,18 +110,16 @@ class ReplayTrace(BaseModel):
 
 class ReplayError(Exception):
     """
-    Raised when a replay step produces an error event in strict mode.
+    Raised when the engine refuses a replay step's input: any refusal in strict mode, a not-offered one in either.
     """
 
-    def __init__(self, step_index: int, event: ReplayInputEvent, errors: list[GameEvent]) -> None:
+    def __init__(self, step_index: int, event: ReplayInputEvent, refusal: Refusal) -> None:
         self.step_index = step_index
         self.event = event
-        self.errors = errors
-
-        messages = [e.message for e in errors if isinstance(e, ErrorEvent)]
+        self.refusal = refusal
         super().__init__(
             f"Replay error at step {step_index} ({event.action} by {event.player_name}): "
-            f"{len(errors)} error(s): {messages}",
+            f"refused {refusal.kind.value}: {refusal.code.value}",
         )
 
 

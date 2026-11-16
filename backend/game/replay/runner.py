@@ -4,7 +4,19 @@ import uuid
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from game.engine import Chi, EventType, GamePhase, Kan, KanType, MahjongGameService, Pass, Pon, Ron, WaitKind
+from game.engine import (
+    Chi,
+    GamePhase,
+    Kan,
+    KanType,
+    MahjongGameService,
+    Pass,
+    Pon,
+    Refusal,
+    RefusalKind,
+    Ron,
+    WaitKind,
+)
 from game.replay.loader import ReplayLoadError
 from game.replay.models import (
     ReplayError,
@@ -19,7 +31,7 @@ from game.replay.models import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from game.engine import GameRuntime, GameService
+    from game.engine import GameRuntime, GameService, GameUpdate
 
 
 @dataclass(frozen=True)
@@ -101,7 +113,7 @@ def _execute_replay(
         start=replay.start,
     )
     runtime = start.runtime
-    begun = service.begin_round(runtime)
+    begun = _require_accepted(service.begin_round(runtime))
     ctx = _ReplayRunContext(service=service, opts=opts, events=replay.events, runtime=runtime)
 
     initial_state = runtime.state
@@ -159,6 +171,17 @@ def _execute_replay(
     )
 
 
+def _require_accepted(result: GameUpdate | Refusal) -> GameUpdate:
+    """
+    Return a phase call's update; the runner makes one only in its phase, so a refusal is a runner fault.
+    """
+    match result:
+        case Refusal(kind=kind, code=code):
+            raise AssertionError(f"phase call refused: {kind.value}: {code.value}")
+        case _:
+            return result
+
+
 def _reject_manual_pass(replay: ReplayInput) -> None:
     """
     Reject PASS events in input when auto_pass_calls is enabled.
@@ -191,24 +214,24 @@ def _run_step(
     """
     Run one input or synthetic action through the service and append its step.
 
-    The step limit is checked first. In strict mode a rule judgment (the ErrorEvent the live server sends) fails the
-    replay at this step; structural input (InvalidGameActionError) or a server fault raises in either mode.
+    The step limit is checked first. In strict mode any refusal fails the replay at this step (ReplayError); outside it
+    a refusal the live server answers with an error (by rule, or not awaited) is kept as a step that emits nothing, and
+    one it kicks for (not offered) fails the replay too. A server fault raises in either mode.
     """
     _check_step_limit(len(steps), ctx.opts.max_steps)
 
     state_before = ctx.runtime.state
-    events = ctx.service.act(ctx.runtime, seat, input_event.action).events
-
-    if ctx.opts.strict:
-        errors = [e for e in events if e.type == EventType.ERROR]
-        if errors:
-            raise ReplayError(step_index=len(steps), event=input_event, errors=errors)
+    result = ctx.service.act(ctx.runtime, seat, input_event.action)
+    refusal = result if isinstance(result, Refusal) else None
+    if refusal is not None and (ctx.opts.strict or refusal.kind == RefusalKind.NOT_OFFERED):
+        raise ReplayError(step_index=len(steps), event=input_event, refusal=refusal)
 
     steps.append(
         ReplayStep(
             input_event=input_event,
             synthetic=synthetic,
-            emitted_events=tuple(events),
+            emitted_events=() if isinstance(result, Refusal) else tuple(result.events),
+            refusal=refusal,
             state_before=state_before,
             state_after=ctx.runtime.state,
         ),
@@ -225,8 +248,8 @@ def _maybe_advance_round(ctx: _ReplayRunContext, *, steps: list[ReplayStep]) -> 
 
     _check_step_limit(len(steps), ctx.opts.max_steps)
     state_before = ctx.runtime.state
-    dealt = ctx.service.deal_next_round(ctx.runtime)
-    begun = ctx.service.begin_round(ctx.runtime)
+    dealt = _require_accepted(ctx.service.deal_next_round(ctx.runtime))
+    begun = _require_accepted(ctx.service.begin_round(ctx.runtime))
     steps.append(
         ReplayStep(
             input_event=None,

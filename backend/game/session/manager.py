@@ -12,17 +12,13 @@ from game.engine import (
     BroadcastTarget,
     CallOpportunity,
     CallPromptEvent,
-    Chi,
     DoubleRonResult,
     DrawEvent,
-    ErrorEvent,
     GameEndedEvent,
-    GameErrorCode,
     GameEvent,
     GameStartedEvent,
-    InvalidGameActionError,
-    Kan,
-    Pon,
+    Refusal,
+    RefusalKind,
     RoundEndEvent,
     RoundStartedEvent,
     SeatTarget,
@@ -41,6 +37,7 @@ from game.messaging.event_payload import (
     stamp_viewer_seat,
     stamp_wait_id,
 )
+from game.messaging.game_errors import called_tile_mismatch_event, refusal_error_event, stale_action_event
 from game.messaging.types import (
     ErrorMessage,
     GameJoinedMessage,
@@ -62,7 +59,7 @@ from shared.tasks import cancel_and_wait
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
-    from game.engine import Awaiting, GameRuntime, GameService
+    from game.engine import Awaiting, GameRuntime, GameService, GameUpdate
     from game.messaging.protocol import ConnectionProtocol
     from game.session.models import PlayerSpec
     from game.session.replay_collector import ReplayCollector
@@ -74,12 +71,6 @@ logger = structlog.get_logger()
 
 _AUTH_TIMEOUT_SECONDS = 10
 _CONFIRM_ROUND = "confirm_round"
-
-_CALLED_TILE_MISMATCH_CODES: dict[type[Action], GameErrorCode] = {
-    Pon: GameErrorCode.INVALID_PON,
-    Chi: GameErrorCode.INVALID_CHI,
-    Kan: GameErrorCode.INVALID_KAN,
-}
 
 
 @dataclass(frozen=True)
@@ -95,11 +86,15 @@ class _Ending:
     ended_at: datetime
 
 
-def _naming_wait(event: GameEvent, *, wait_id: int) -> GameEvent:
+def _require_accepted(result: GameUpdate | Refusal) -> GameUpdate:
     """
-    Return an engine event of a player's action, an ErrorEvent refusing it named by the wait id the action echoed.
+    Return a phase call's update; the session makes one only in its phase, so a refusal is a server fault.
     """
-    return event.model_copy(update={"wait_id": wait_id}) if isinstance(event, ErrorEvent) else event
+    match result:
+        case Refusal(kind=kind, code=code):
+            raise AssertionError(f"phase call refused: {kind.value}: {code.value}")
+        case _:
+            return result
 
 
 class SessionManager:
@@ -551,7 +546,7 @@ class SessionManager:
         message = SeatControlMessage(seat=seat, reason=stand_in)
         self._broadcast_to_game(game, message.payload())
 
-    def _kick_player(self, connection: ConnectionProtocol, error: InvalidGameActionError) -> None:
+    def _kick_player(self, connection: ConnectionProtocol, *, action: Action, refusal: Refusal) -> None:
         """
         Disconnect a human who sent structurally impossible input for their own seat with 1008, and seat an AI player.
 
@@ -562,7 +557,7 @@ class SessionManager:
         the caller's boundary fails the game and closes this connection
         with 1011 itself, since the game's finalizer no longer holds it.
         """
-        logger.warning("invalid game action", action=error.action, reason=error.reason)
+        logger.warning("invalid game action", action=str(action), reason=refusal.code.value)
         self.disconnect(connection)
         connection.close(code=1008, reason="invalid_game_action")
 
@@ -572,18 +567,19 @@ class SessionManager:
         *,
         action: Action,
         wait_id: int,
-        called_tile: int | None = None,
+        called_tile: int | None,
     ) -> None:
         """
         Run a player's game action; called_tile is the tile a call answer's message names as the one it calls.
 
         A seat that owes no action, or an action whose id is not its participant's current decision id, gets a
         `stale_action` ErrorEvent, and neither the engine nor a timer is touched. A call answer naming another tile than
-        the call open for the seat gets its invalid code for the mismatch, without the engine. A rule judgment or race
-        comes back from the engine as an ErrorEvent for the seat. Each ErrorEvent names the wait id the action echoed,
-        so the client matches the refusal to its own request. Structurally impossible input (InvalidGameActionError,
-        always the acting seat's) disconnects the player with 1008 and seats an AI player. Anything else the engine
-        raises is a server fault and propagates to the caller's boundary, which fails the game.
+        the call open for the seat gets its invalid code for the mismatch, without the engine. The engine's refusal of a
+        rule judgment (RULE) or of an action it does not await now (NOT_AWAITED) is answered with an ErrorEvent to the
+        seat, and its decision and timer go on. Each ErrorEvent names the wait id the action echoed, so the client
+        matches the refusal to its own request. A refusal of structurally impossible input (NOT_OFFERED) disconnects the
+        player with 1008 and seats an AI player. Anything the engine raises is a server fault and propagates to the
+        caller's boundary, which fails the game.
         """
         participant = self._acting_participant(connection)
         if participant is None:
@@ -599,14 +595,17 @@ class SessionManager:
             self._refuse_called_tile(game, seat=seat, action=action, wait_id=wait_id, awaiting=game.awaiting)
             return
 
-        try:
-            update = self._game_service.act(self._runtime_of(game), seat, action)
-        except InvalidGameActionError as e:
-            self._kick_player(connection, error=e)
+        result = self._game_service.act(self._runtime_of(game), seat, action)
+        if not isinstance(result, Refusal):
+            self._follow_engine(game, events=result.events, awaiting=result.awaiting, actor=seat)
             return
 
-        events = [_naming_wait(event, wait_id=wait_id) for event in update.events]
-        self._follow_engine(game, events=events, awaiting=update.awaiting, actor=seat)
+        if result.kind == RefusalKind.NOT_OFFERED:
+            self._kick_player(connection, action=action, refusal=result)
+            return
+
+        error = refusal_error_event(action, result, seat=seat, wait_id=wait_id)
+        self._send_events(game, [error], game.awaiting)
 
     def _mismatches_open_call(self, game: GameSession, *, seat: int, called_tile: int) -> bool:
         """
@@ -633,13 +632,7 @@ class SessionManager:
         engine's refusals are, naming the wait id the answer echoed.
         """
         logger.warning("invalid call: tile_id mismatch", action=str(action))
-        error = ErrorEvent(
-            code=_CALLED_TILE_MISMATCH_CODES[type(action)],
-            message="tile_id mismatch",
-            target=SeatTarget(seat=seat),
-            wait_id=wait_id,
-        )
-        self._send_events(game, [error], awaiting)
+        self._send_events(game, [called_tile_mismatch_event(action, seat=seat, wait_id=wait_id)], awaiting)
 
     def confirm_round(self, connection: ConnectionProtocol, *, wait_id: int) -> None:
         """
@@ -704,13 +697,7 @@ class SessionManager:
         Answer an action for a wait that already ended with a `stale_action` ErrorEvent to its seat.
         """
         logger.info("stale game action", action=action, wait_id=wait_id)
-        error = ErrorEvent(
-            code=GameErrorCode.STALE_ACTION,
-            message="the wait this action answers has already ended",
-            target=SeatTarget(seat=seat),
-            wait_id=wait_id,
-        )
-        connection.send_message(game_event_payload(error))
+        connection.send_message(game_event_payload(stale_action_event(seat=seat, wait_id=wait_id)))
 
     def reconnect(self, connection: ConnectionProtocol, *, session_token: str) -> None:
         """
@@ -1024,7 +1011,7 @@ class SessionManager:
 
         game.pause = None
         if not pause.starts_game:
-            update = self._game_service.deal_next_round(self._runtime_of(game))
+            update = _require_accepted(self._game_service.deal_next_round(self._runtime_of(game)))
             self._apply_engine_update(game, events=update.events, awaiting=update.awaiting, actor=seat)
 
         self._begin_round(game, actor=seat)
@@ -1033,7 +1020,7 @@ class SessionManager:
         """
         Let the dealt round's dealer draw its first tile, and follow the engine from there.
         """
-        update = self._game_service.begin_round(self._runtime_of(game))
+        update = _require_accepted(self._game_service.begin_round(self._runtime_of(game)))
         self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=actor)
 
     @staticmethod

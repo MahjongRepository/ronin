@@ -21,7 +21,7 @@ from game.tests.helpers.hands import (
     PIN_3_TRIPLE_RON_DISCARD,
     tile_copies,
 )
-from game.tests.helpers.wall import DEAD_WALL_START, FIRST_DRAW_POSITION
+from game.tests.helpers.start_wall import DEAD_WALL_START, FIRST_DRAW_POSITION
 from game.wire.enums import WireEventType, WireRoundResultType
 from game.wire.keys import WireKey
 from game.wire.replay_format import ReplayLineType

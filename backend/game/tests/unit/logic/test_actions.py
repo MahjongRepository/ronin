@@ -1,12 +1,10 @@
-import pytest
-
 from game.logic.action_handlers import handle_tsumo
 from game.logic.actions import build_decision, get_available_actions
 from game.logic.decision import Kan, Tsumo
 from game.logic.enums import AIPlayerType, KanType, PlayerAction
-from game.logic.exceptions import InvalidGameActionError
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
+from game.logic.refusal import Refusal, RefusalCode, RefusalKind
 from game.logic.round import draw_tile
 from game.logic.state import Discard, MahjongGameState
 from game.logic.types import SeatConfig
@@ -97,8 +95,8 @@ class TestTsumoAfterOwnCall:
 
         after_pon_actions = get_available_actions(after_pon_game, seat=0)
         assert PlayerAction.TSUMO not in [a.action for a in after_pon_actions]
-        with pytest.raises(InvalidGameActionError, match="cannot declare tsumo"):
-            handle_tsumo(after_pon_game, seat=0)
+        not_offered = Refusal(kind=RefusalKind.NOT_OFFERED, code=RefusalCode.NOT_OFFERED)
+        assert handle_tsumo(after_pon_game, seat=0) == not_offered
 
 
 class TestAddedKanAction:

@@ -5,7 +5,6 @@ from game.logic.action_result import ActionResult
 from game.logic.decision import Chi, Kan, Kyuushu, Pon, Ron, Tsumo
 from game.logic.enums import (
     CallType,
-    GameErrorCode,
     KanType,
     MeldViewType,
     PromptKind,
@@ -22,6 +21,7 @@ from game.logic.events import (
 )
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
+from game.logic.refusal import Refusal, RefusalCode, RefusalKind
 from game.logic.state import Caller, PendingCallPrompt
 from game.logic.types import ExhaustiveDrawResult
 from game.tests.helpers.builders import start_game_in_play
@@ -149,7 +149,7 @@ class TestNoDataActionDispatchRouting:
         "action",
         [Tsumo(), Kyuushu()],
     )
-    def test_act__when_no_data_action_out_of_turn__should_answer_error_and_run_nothing(self, service, action):
+    def test_act__when_no_data_action_out_of_turn__should_refuse_it_and_run_nothing(self, service, action):
         runtime = start_game_in_play(service, "game1", ["Player"], seed="a" * 192).runtime
         player = _find_player(runtime.state.round_state, "Player")
         ai_seat_on_turn = (player.seat + 1) % 4
@@ -157,26 +157,16 @@ class TestNoDataActionDispatchRouting:
         game_state = runtime.state
         wait_id_before = runtime.wait_id
 
-        update = service.act(runtime, player.seat, action)
-        assert [(e.type, e.code) for e in update.events] == [(EventType.ERROR, GameErrorCode.NOT_YOUR_TURN)]
+        refusal = service.act(runtime, player.seat, action)
+        assert refusal == Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.SEAT_NOT_AWAITED)
         assert runtime.state is game_state
         assert runtime.wait_id == wait_id_before
-        assert update.awaiting.wait_id == wait_id_before
 
-    @pytest.mark.parametrize(
-        ("action", "code"),
-        [
-            (Ron(), GameErrorCode.INVALID_RON),
-            (Pon(), GameErrorCode.INVALID_PON),
-            (Chi(tiles=(4, 8)), GameErrorCode.INVALID_CHI),
-        ],
-    )
-    def test_act__when_call_without_call_prompt__should_return_error_event(self, service, action, code):
+    @pytest.mark.parametrize("action", [Ron(), Pon(), Chi(tiles=(4, 8))])
+    def test_act__when_call_without_call_prompt__should_refuse_as_not_awaited(self, service, action):
         start = start_game_in_play(service, "game1", ["Player"], seed="a" * 192)
         runtime = start.runtime
         player_seat = start.seats[0]
 
-        events = service.act(runtime, player_seat, action).events
-        assert len(events) == 1
-        assert events[0].type == EventType.ERROR
-        assert events[0].code == code
+        refusal = service.act(runtime, player_seat, action)
+        assert refusal == Refusal(kind=RefusalKind.NOT_AWAITED, code=RefusalCode.SEAT_NOT_AWAITED)
