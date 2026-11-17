@@ -212,6 +212,7 @@ class Tournament:
     async def drive_rounds(self) -> None:
         while not self.finished:
             try:
+                await self.reconcile()
                 await self.expire_games()
                 status = await self.portal.call("get_tournament_status", lang="en")
                 if not self.pending and is_break_over(status["end_break_time"]):
