@@ -60,8 +60,8 @@ import {
 import { type LiveClient, type LocalIntent, type PlayIntent, type PlaySwitch } from "./types";
 
 /**
- * A play switch on the board: its letter, its label, whether it is on, and the command turning it, which sends nothing
- * itself.
+ * A play switch on the board: its letter, its label, whether it is on, and the command turning it, which turned on
+ * answers the open decision the switch answers.
  */
 export interface SwitchControl {
     readonly playSwitch: PlaySwitch;

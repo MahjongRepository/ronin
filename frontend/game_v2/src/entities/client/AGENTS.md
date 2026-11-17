@@ -38,8 +38,9 @@ table transition and call model; replay dispatch loads with the replay route.
   win offer stays answerable by the player (Auto win can still claim a win). `automaticStep` uses the same unseen-wait
   guard as the switches, so a duplicate, reconnect or refusal never causes a repeated automatic answer. The locked
   hand keeps its normal appearance; only kuikae and picking the declaration discard grey out restricted tiles.
-- **Play switches** answer only decisions on a wait id above `highestOpenedWaitId`, so a decision already open when a
-  switch turns on, one re-sent after reconnect, or one a refusal reopened is the player's. The mark is never lowered,
+- **Play switches** answer a message's decision only on a wait id above `highestOpenedWaitId`, so one re-sent after
+  reconnect or one a refusal reopened is the player's. Turning a switch on (or Auto win through the keep setting)
+  answers the decision open at that moment, only when `switchAnswer` names that switch. The mark is never lowered,
   never taken from a snapshot's `wi`, and forgotten only on another game's table. `switchAnswer` is the policy. A
   deal, or a snapshot that left the hand (`snapshotLeftHand`), turns all switches off, except Auto win while the
   settings menu keeps it between rounds (`LiveClient.keepAutoWin`, the driver storing it in this browser; turning it

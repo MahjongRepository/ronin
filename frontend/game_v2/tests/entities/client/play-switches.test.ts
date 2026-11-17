@@ -83,14 +83,28 @@ function rejoinedAfter(
     return [...rejoining, { event: { at, kind: "server_message", raw: snapshot } }];
 }
 
-function keepToggledBefore(scenario: SeatScenario, label: string, keep: boolean): SeatScenario {
+function keepToggledBefore(
+    scenario: SeatScenario,
+    label: string,
+    { answer = [], keep }: { readonly answer?: readonly ClientEffect[]; readonly keep: boolean },
+): SeatScenario {
     const index = scenarioStateIndex(scenario, label) - 1;
     const { at } = scenario.steps[index].event;
     const step: ScenarioStep = {
-        effects: [{ keep, type: "save_keep_auto_win" }],
+        effects: [{ keep, type: "save_keep_auto_win" }, ...answer],
         event: { at, intent: { type: "toggle_keep_auto_win" }, kind: "intent" },
     };
     return { ...scenario, steps: scenario.steps.toSpliced(index, 0, step) };
+}
+
+/** The keep-Auto-win setting turned on while the prompt `ron chosen` answers is open: its ron sent with the press. */
+function keptAnsweringRon(scenario: SeatScenario): SeatScenario {
+    const ron = stepEffects(scenario, "ron chosen");
+    return expecting(
+        keepToggledBefore(scenario, "ron chosen", { answer: ron, keep: true }),
+        "ron chosen",
+        [],
+    );
 }
 
 function lastState(run: ScenarioRun): LiveClient {
@@ -139,7 +153,7 @@ function earlyWaitBranch(): { readonly early: SeatScenario; readonly waitId: num
     const unseen = { ...prompt, [WIRE_KEY.WAIT_ID]: waitId };
     const snapshot = { ...receivedPayload(transcript, "reconnected"), [WIRE_KEY.WAIT_ID]: waitId };
     const noCalls = { playSwitch: "no_calls", type: "toggle_switch" } as const;
-    const early = branchAfter(switchedOnBefore(scenario, "dropped", ["no_calls"]), "reopened", [
+    const early = branchAfter(switchedOnBefore(scenario, "reopened", ["no_calls"]), "reopened", [
         received(5500, unseen, "early prompt"),
         received(5500, wireRoundEnd(waitId + 1), "early round end"),
         received(5500, snapshot, "admitted"),
@@ -205,16 +219,15 @@ function runPlainRiichiDraw(autoDiscard: boolean): {
 }
 
 describe("automatic answers", () => {
-    it("Auto win takes the tsumo at its draw over Auto discard, leaving the prompt open when turned on; the press after sends nothing", () => {
+    it("Auto win takes the tsumo at its draw over Auto discard; the press after sends nothing", () => {
         const { scenario } = loadSeatScenario("own_turn_seat_1");
         const switched = answeredBySwitch(
-            switchedOnBefore(scenario, "passed", ["auto_win", "auto_discard"]),
+            switchedOnBefore(scenario, "furiten", ["auto_win", "auto_discard"]),
             "tsumo draw",
             "tsumo chosen",
         );
         const run = runClean(switched);
 
-        expect(bySwitch(stateAt(switched, run, "passed"))).toBeNull();
         expect(bySwitch(stateAt(switched, run, "tsumo draw"))).toBe("auto_win");
         expect(decisionOf(stateAt(switched, run, "tsumo chosen"))?.status).toEqual(
             decisionOf(stateAt(switched, run, "tsumo draw"))?.status,
@@ -235,6 +248,34 @@ describe("automatic answers", () => {
         const index = scenarioStateIndex(switched, "chankan prompt");
         expect(soundCues(states[index - 1], states[index])).toEqual(["kan", "ron"]);
     });
+
+    it.each([
+        ["auto_win", "double_ron_seat_1", "ron chosen"],
+        ["no_calls", "call_prompt_seat_1", "passed"],
+    ] as const)(
+        "turning %s on answers the decision already open at once, the player's press after sending nothing",
+        (playSwitch, name, answer) => {
+            const { scenario } = loadSeatScenario(name);
+            const index = scenarioStateIndex(scenario, answer) - 1;
+            const press: ScenarioStep = {
+                effects: stepEffects(scenario, answer),
+                event: {
+                    at: stepAt(scenario, answer).at,
+                    intent: { playSwitch, type: "toggle_switch" },
+                    kind: "intent",
+                },
+                label: "switched on",
+            };
+            const switched = expecting(
+                { ...scenario, steps: scenario.steps.toSpliced(index, 0, press) },
+                answer,
+                [],
+            );
+            const run = runClean(switched);
+
+            expect(bySwitch(stateAt(switched, run, "switched on"))).toBe(playSwitch);
+        },
+    );
 
     it("No calls passes a prompt of open kan, pon and chi before its controls show", () => {
         const { scenario, transcript } = loadSeatScenario("call_prompt_seat_1");
@@ -310,20 +351,21 @@ describe("automatic discards", () => {
         expect(bySwitch(stateAt(switched, run, "sent"))).toBe("auto_discard");
     });
 
-    it("cancels a pending Auto discard when switched off, leaving the current draw to the player if switched back on", () => {
-        const { scenario } = loadSeatScenario("call_prompt_seat_1");
+    it("cancels a pending Auto discard when switched off, discarding the draw at once when switched back on", () => {
+        const { scenario, transcript } = loadSeatScenario("call_prompt_seat_1");
+        const discard = drawnDiscard(receivedPayload(transcript, "next turn"));
         const toggle = { playSwitch: "auto_discard", type: "toggle_switch" } as const;
         const switched = branchAfter(
             switchedOnBefore(scenario, "prompt", ["auto_discard"]),
             "next turn",
             [
                 { event: { at: 14_500, intent: toggle, kind: "intent" } },
-                { event: { at: 14_600, intent: toggle, kind: "intent" } },
+                { effects: [discard], event: { at: 14_600, intent: toggle, kind: "intent" } },
                 { event: { at: 15_000, kind: "tick" } },
             ],
         );
         const state = lastState(runClean(switched));
-        expect(bySwitch(state)).toBe("open");
+        expect(bySwitch(state)).toBe("auto_discard");
         expect(state.switches.auto_discard).toBe(true);
     });
 
@@ -428,7 +470,7 @@ describe("stepGameClient - play switches", () => {
         const switched = expecting(switchedOnBefore(scenario, "prompt", ["no_calls"]), "prompt", [
             pass,
         ]);
-        const switchedLate = switchedOnBefore(scenario, "dropped", ["no_calls"]);
+        const switchedLate = switchedOnBefore(scenario, "reopened", ["no_calls"]);
         const run = runClean(switched);
         const resent = stateAt(switched, run, "prompt re-sent");
         const resentLate = stateAt(switchedLate, runClean(switchedLate), "prompt re-sent");
@@ -626,7 +668,11 @@ describe("stepGameClient - play switches", () => {
 
     it("turns the switches off on a reconnect's snapshot of a round result pending, and offers none between hands", () => {
         const { scenario } = loadSeatScenario("double_ron_seat_1");
-        const switched = switchedOnBefore(scenario, "ron chosen", ["auto_win", "no_calls"]);
+        const switched = answeredBySwitch(
+            switchedOnBefore(scenario, "ron prompt", ["auto_win", "no_calls"]),
+            "ron prompt",
+            "ron chosen",
+        );
         const droppedInHand = droppedAfter(switched, scenario, "ron chosen");
         const run = runClean(switched);
         const roundEnd = stateAt(switched, run, "round end");
@@ -651,27 +697,22 @@ describe("stepGameClient - play switches", () => {
 });
 
 describe("keeping Auto win between rounds", () => {
-    it("turns Auto win on with the setting, leaves the open decision alone, and carries it alone past a deal and a snapshot that left the hand", () => {
+    it("turns Auto win on with the setting, taking the open ron at once, and carries it alone past a deal and a snapshot that left the hand", () => {
         const { scenario } = loadSeatScenario("double_ron_seat_1");
-        const switched = keepToggledBefore(
-            switchedOnBefore(scenario, "ron chosen", ["no_calls"]),
-            "ron chosen",
-            true,
-        );
+        const switched = keptAnsweringRon(switchedOnBefore(scenario, "ron chosen", ["no_calls"]));
         const run = runClean(switched);
         const onlyAutoWin = { ...ALL_OFF, auto_win: true };
 
+        expect(bySwitch(stateAt(switched, run, "ron chosen"))).toBe("auto_win");
         expect(stateAt(switched, run, "reconnected").switches).toEqual(onlyAutoWin);
         expect(stateAt(switched, run, "next round").switches).toEqual(onlyAutoWin);
     });
 
     it("leaves Auto win on when the setting turns off, until the next deal ends it", () => {
         const { scenario } = loadSeatScenario("double_ron_seat_1");
-        const switched = keepToggledBefore(
-            keepToggledBefore(scenario, "ron chosen", true),
-            "ron chosen",
-            false,
-        );
+        const switched = keepToggledBefore(keptAnsweringRon(scenario), "ron chosen", {
+            keep: false,
+        });
         const run = runClean(switched);
 
         expect(stateAt(switched, run, "ron chosen").switches.auto_win).toBe(true);
@@ -680,11 +721,7 @@ describe("keeping Auto win between rounds", () => {
 
     it("leaves Auto win off across a deal when the player turned it off with the setting on", () => {
         const { scenario } = loadSeatScenario("double_ron_seat_1");
-        const switched = switchedOnBefore(
-            keepToggledBefore(scenario, "ron chosen", true),
-            "ron chosen",
-            ["auto_win"],
-        );
+        const switched = switchedOnBefore(keptAnsweringRon(scenario), "ron chosen", ["auto_win"]);
 
         expect(stateAt(switched, runClean(switched), "next round").switches).toEqual(ALL_OFF);
     });

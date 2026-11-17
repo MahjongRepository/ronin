@@ -94,8 +94,8 @@ export type Decision = TurnDecision | CallDecision;
 /**
  * A local user intent: leave for the lobby, answer the open decision, confirm the round result read, reopen the
  * game's last result from the game's end, press the opening screen's OK (the start confirm the seat owes, else a close
- * that sends nothing), turn a play switch on or off, or change whether Auto win carries into the next round, neither
- * of which sends anything.
+ * that sends nothing), turn a play switch on or off, or change whether Auto win carries into the next round, either
+ * of which answers the open decision only when it turns a switch on that answers it.
  */
 export type LocalIntent =
     | { readonly type: "leave" }

@@ -551,8 +551,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   that is not selectable takes the press and does nothing. A decision control sends on one press,
   except the riichi toggle, which only changes what the next
   press means and is undone by pressing it again or by Escape. A play switch is
-  a board control, not a decision control: pressing it changes what the client answers from then on
-  and sends nothing itself. Focus stays in the hand through a turn, and an offer's controls are
+  a board control, not a decision control: turning it on answers the decision open now, as it
+  answers the waits from then on; turning it off sends nothing. Focus stays in the hand through a turn, and an offer's controls are
   reached from it without the focus being moved for the player. An expired decision still takes one
   answer, since the server alone decides by the wait whether it counts; an answer the server refuses
   while the wait goes on reopens the decision as answerable, with the refusal as a notice. Decision:
@@ -591,9 +591,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   unless *Auto win* claims the win. Automatic riichi discards use the same unseen-wait guard as
   the switches, so a repeated wait, reconnect or refusal never causes an automatic resend. A
   win always outranks a discard or a pass, so with both switches on a tsumo offer wins. A switch
-  answers a wait the first time the client sees its id while the switch is on, and never a wait it
-  has already seen: not the decision already open when the switch is turned on, so nothing moves
-  under the player's finger; not the same wait re-sent after a reconnect, which the server re-sends
+  answers the decision open when it is turned on, if that switch gives the answer (turning one on
+  never sends what another switch left to the player), and a wait the first time the client sees
+  its id while the switch is on; never a wait it has already seen otherwise: not the same wait re-sent after a reconnect, which the server re-sends
   only while it still owes the seat an answer (one given before the drop never reached it), so the
   decision resumes answerable, for the player to answer again, never a switch; and not a decision
   the server's refusal reopened, which is the player's to answer again. Decision: all three reset
