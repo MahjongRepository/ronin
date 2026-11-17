@@ -8,6 +8,8 @@ BOT_ROOT="${BOT_ROOT:-$HOME/work/mahjong-bot}"
 BOT_BIN="${BOT_BIN:-}"
 PORTAL="${PORTAL:-}"
 PORTAL_RUN_TIMEOUT="${PORTAL_RUN_TIMEOUT:-3600}"
+PANTHEON_MIMIR_URL="${PANTHEON_MIMIR_URL:-http://127.0.0.1:4001}"
+PANTHEON_MIMIR_HOST="${PANTHEON_MIMIR_HOST:-mimir.pantheon.local}"
 
 GAME_PORT=8711
 LOBBY_PORT=8710
@@ -165,8 +167,16 @@ register_on_portal() {
 
 check_pantheon_games() {
     local expected="$1"
-    echo "check_pantheon_games is not wired yet: cannot check that Pantheon holds $expected games"
-    return 1
+    curl -sf --max-time 10 -H "Host: $PANTHEON_MIMIR_HOST" -H "Content-Type: application/json" \
+        -d "{\"eventIdList\": [$PANTHEON_EVENT_ID], \"limit\": 100, \"offset\": 0}" \
+        "$PANTHEON_MIMIR_URL/v2/common.Mimir/GetLastGames" \
+        | python3 -c '
+import json, sys
+expected = int(sys.argv[1])
+total = json.load(sys.stdin).get("totalGames", 0)
+print(f"pantheon event games: {total}, expected: {expected}")
+sys.exit(0 if total == expected else 1)
+' "$expected"
 }
 
 check_ronin_games() {
@@ -190,6 +200,7 @@ portal() {
 require_portal_env() {
     : "${PORTAL_URL:?PORTAL_URL is not set}" "${PORTAL_API_TOKEN:?PORTAL_API_TOKEN is not set}"
     : "${PORTAL_TOURNAMENT_ID:?PORTAL_TOURNAMENT_ID is not set}" "${PORTAL_LOBBY_ID:?PORTAL_LOBBY_ID is not set}"
+    : "${PANTHEON_EVENT_ID:?PANTHEON_EVENT_ID is not set}"
     export PORTAL_URL PORTAL_API_TOKEN PORTAL_TOURNAMENT_ID PORTAL_LOBBY_ID
 }
 

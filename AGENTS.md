@@ -67,8 +67,9 @@ The `Makefile` lists the targets; the non-obvious ones:
   API response and event goes to `backend/logs/tournament/manager.log`. It wipes only `backend/logs/tournament`
   and kills whatever holds `:8710`/`:8711`. Run it only when asked.
 * `make run-portal-tournament` — the same servers and a new tournament, with `bin/tournament.py` as the manager of a
-  local mahjong-portal tournament (`PORTAL_URL`, `PORTAL_API_TOKEN`, `PORTAL_TOURNAMENT_ID`, `PORTAL_LOBBY_ID`):
-  eight bots relaunched after every game, all four rounds played, then the Ronin and Pantheon game counts checked.
+  local mahjong-portal tournament (`PORTAL_URL`, `PORTAL_API_TOKEN`, `PORTAL_TOURNAMENT_ID`, `PORTAL_LOBBY_ID`,
+  `PANTHEON_EVENT_ID`): eight bots relaunched after every game, all four rounds played, then the Ronin and Pantheon
+  game counts checked.
   It wipes only `backend/logs/portal-tournament` and kills whatever holds `:8710`/`:8711`. Run it only when asked.
 * `make measure-wall [MEASURE_ARGS=...]` — sample games from the engine's seed, dealer and wall functions and
   report their statistics against exact references and a stdlib-shuffle control (`backend/scripts/measure_wall/`).
