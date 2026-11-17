@@ -322,9 +322,9 @@ class Tournament:
 
     async def finish_game(self, game_id: str, players: list[str], end_reason: str, ended_at: float) -> None:
         self.reported.add(game_id)
-        self.pending.pop(game_id, None)
         if end_reason != COMPLETED:
             await self.telegram.send(f"Game {game_id} ({', '.join(players)}) ended as {end_reason}, not added.")
+            self.pending.pop(game_id, None)
             return
 
         try:
@@ -347,6 +347,9 @@ class Tournament:
         if answer.get("added") is not True:
             logger.error("the portal did not add game %s: %s", game_id, answer.get("message"))
             self.reported.discard(game_id)
+            return
+
+        self.pending.pop(game_id, None)
 
 
 async def admin(command: argparse.Namespace) -> None:
