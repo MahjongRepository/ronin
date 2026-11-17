@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BOT_ROOT="${BOT_ROOT:-$HOME/work/mahjong-bot}"
+BOT_BIN="${BOT_BIN:-}"
 
 GAME_PORT=8711
 LOBBY_PORT=8710
@@ -79,6 +80,18 @@ stop_all() {
     done
 }
 
+build_bot() {
+    if [[ -n $BOT_BIN ]]; then
+        return 0
+    fi
+
+    if ! make -sC "$BOT_ROOT" release-bot; then
+        echo "building the bot in $BOT_ROOT failed"
+        exit 1
+    fi
+    BOT_BIN="$BOT_ROOT/rust/target/release/mahjong-bot"
+}
+
 register_bots() {
     local output
     local status=0
@@ -110,8 +123,8 @@ create_tournament() {
 start_bots() {
     for idx in "${!BOT_NAMES[@]}"; do
         local name="${BOT_NAMES[$idx]}"
-        PYTHONPATH="$BOT_ROOT/project" "$BOT_ROOT/.venv/bin/python" "$BOT_ROOT/project/run_ronin.py" \
-            -p "$name" -k "${BOT_KEYS[$idx]}" -t "$TOURNAMENT_ID" > "$RUN_LOG_DIR/bots/$name.log" 2>&1 &
+        "$BOT_BIN" -p "$name" -k "${BOT_KEYS[$idx]}" --lobby-url "http://localhost:$LOBBY_PORT" \
+            -t "$TOURNAMENT_ID" > "$RUN_LOG_DIR/bots/$name.log" 2>&1 &
         BOT_PIDS+=($!)
     done
 }
@@ -152,6 +165,8 @@ export LOG_LEVEL=info
 export LOG_FORMAT=console
 export GAME_LOG_DIR="$RUN_LOG_DIR/game"
 export LOBBY_LOG_DIR="$RUN_LOG_DIR/lobby"
+
+build_bot
 
 rm -rf "$RUN_LOG_DIR"
 mkdir -p "$GAME_LOG_DIR" "$LOBBY_LOG_DIR" "$RUN_LOG_DIR/bots"
