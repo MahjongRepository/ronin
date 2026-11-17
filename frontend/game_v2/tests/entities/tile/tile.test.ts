@@ -108,9 +108,7 @@ describe("StandingTile", () => {
         const el = renderTo(StandingTile("0s", "latin"));
         const box = el.querySelector("svg.tile__face");
         const label = el.querySelector(".tile__label");
-        const [, top = 0] = (box?.getAttribute("viewBox") ?? "")
-            .split(" ")
-            .map(Number);
+        const [, top = 0] = (box?.getAttribute("viewBox") ?? "").split(" ").map(Number);
 
         expect([
             el.querySelector(".tile__name")?.classList.contains("tile__name--red"),
@@ -126,10 +124,14 @@ describe("Tile", () => {
         const el = renderTo(Tile("9m", "face", { labels: "latin" }));
         const body = el.querySelector("svg.tile__body");
         const face = el.querySelector("svg.tile__face");
-        const [left = 0, , width = 0] = (face?.getAttribute("viewBox") ?? "").split(" ").map(Number);
+        const [left = 0, , width = 0] = (face?.getAttribute("viewBox") ?? "")
+            .split(" ")
+            .map(Number);
         const labelX = Number(el.querySelector(".tile__label")?.getAttribute("x"));
 
-        expect(`0 0 ${face?.getAttribute("width")} ${face?.getAttribute("height")}`).toBe(body?.getAttribute("viewBox"));
+        expect(`0 0 ${face?.getAttribute("width")} ${face?.getAttribute("height")}`).toBe(
+            body?.getAttribute("viewBox"),
+        );
         expect(labelX).toBeGreaterThan(300);
         expect(labelX).toBeLessThan(left + width);
     });
@@ -185,7 +187,8 @@ describe("Tile labels", () => {
     function labels(): (string | null)[] {
         return (["0p", "9s", "2z", "5z", "7z"] as const).map((face) => {
             const label = renderTo(Tile(face, "face")).querySelector(".tile__label");
-            const red = label?.classList.contains("tile__label--red-five") === true ? " red five" : "";
+            const red =
+                label?.classList.contains("tile__label--red-five") === true ? " red five" : "";
             return label === null ? null : `${label.textContent}${red}`;
         });
     }
