@@ -59,8 +59,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * `players.py` — `LobbyPlayer`, one connected user and the only holder of its socket. Every send or
   close is an enqueue, so no handler, broadcast or reaper tick ever waits on a slow or dead peer.
 * `occupancy.py` — the one owner of the occupancy rule.
-* Tournaments are durable rows in the shared SQLite database (id, name, owner); only an account (a
-  `players` row) can create one, and its page, the shareable link, opens for anyone signed in, guests included.
+* Tournaments are durable rows in the shared SQLite database (id, name, owner); only an admin account creates one
+  (`admin_html`) and sees the create form and its own tournaments in the lobby, and its page, the shareable link,
+  opens for anyone signed in, guests included.
 * `tournaments/` — the tournament page's socket and `TournamentHub`, the in-memory registry of who is online on
   each tournament page: one connection per user (a new one replaces the old), lost on a restart. Being online
   is no occupancy place. The hub also keeps each tournament's history in memory (a day, at most the newest 1000

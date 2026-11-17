@@ -12,7 +12,6 @@ from starlette.responses import RedirectResponse
 from lobby.chat_messages import CHAT_MAX_LENGTH
 from lobby.views.assets import render_page
 from lobby.views.error_pages import validate_csrf
-from lobby.views.settings_handlers import find_account
 from shared.dal.models import Tournament
 
 if TYPE_CHECKING:
@@ -45,17 +44,14 @@ def _parse_tournament_name(raw_name: object) -> str | None:
 
 async def create_tournament_and_redirect(request: Request) -> Response:
     """
-    POST /tournaments/new - create a tournament owned by the account and redirect to its page.
+    POST /tournaments/new - create a tournament owned by the admin account and redirect to its page.
 
-    A guest has no account to own one and gets a 403; an invalid name gets a 400.
+    Only an admin reaches it (`admin_html`); an invalid name gets a 400.
     """
     form = await request.form()
     csrf_error = validate_csrf(request, form)
     if csrf_error:
         return csrf_error
-
-    if await find_account(request) is None:
-        raise HTTPException(HTTPStatus.FORBIDDEN)
 
     name = _parse_tournament_name(form.get("name"))
     if name is None:

@@ -9,7 +9,7 @@ import pytest
 from starlette.websockets import WebSocketDisconnect
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
-from lobby.tests.integration.conftest import login_with_csrf, register_with_csrf, session_user_id
+from lobby.tests.integration.conftest import grant_admin, login_with_csrf, register_with_csrf, session_user_id
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding, TournamentGame
 
 
@@ -45,6 +45,7 @@ def _receive_until(ws, message_type):
 def tournament_id(client):
     register_with_csrf(client, "bob")
     register_with_csrf(client, "alice")
+    grant_admin(client, "alice")
     client.get("/")
     created = client.post("/tournaments/new", data={"name": "Cup", "csrf_token": client.cookies.get(CSRF_COOKIE_NAME)})
     return created.url.path.rsplit("/", 1)[1]
