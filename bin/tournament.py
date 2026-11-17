@@ -356,12 +356,8 @@ async def admin(command: argparse.Namespace) -> None:
         elif command.command == "close-registration":
             await portal.call("close_registration")
         elif command.command == "confirm":
-            answer = await portal.call(
-                "admin_confirm_player",
-                nickname=command.nickname,
-                friend_id="0",
-                telegram_username=command.telegram_username or command.nickname,
-            )
+            contact = {"telegram_username": command.telegram_username} if command.telegram_username else {}
+            answer = await portal.call("admin_confirm_player", nickname=command.nickname, **contact)
             if answer["message"] not in CONFIRMED_MESSAGES:
                 sys.exit(f"the portal refused to confirm {command.nickname}: {answer['message']}")
         else:
@@ -375,7 +371,7 @@ def main() -> None:
     commands.add_parser("close-registration", help="close the portal's confirmation stage")
     confirm = commands.add_parser("confirm", help="confirm a registered player as the admin")
     confirm.add_argument("nickname", help="the player's Ronin nickname")
-    confirm.add_argument("telegram_username", nargs="?", help="the player's Telegram username (default: the nickname)")
+    confirm.add_argument("telegram_username", nargs="?", help="the player's Telegram username, if any")
     commands.add_parser("run", help="play the tournament's rounds until the portal says it is finished")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
     logging.getLogger("httpx").setLevel(logging.WARNING)
