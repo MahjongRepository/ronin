@@ -4,9 +4,9 @@ import { type TemplateResult, html } from "lit-html";
 function RiichiStickIcon(lie: "upright" | "across" = "upright"): TemplateResult {
     if (lie === "across") {
         return html`
-            <svg class="board-stick-icon" viewBox="0 0 32 6" aria-hidden="true">
-                <rect class="board-stick-icon__body" x="0.5" y="0.5" width="31" height="5" rx="1.2" />
-                <circle cx="16" cy="3" r="1.7" class="board-stick-icon__dot" />
+            <svg class="board-stick-icon" viewBox="0 0 48 6" aria-hidden="true">
+                <rect class="board-stick-icon__body" x="0.5" y="0.5" width="47" height="5" rx="1.2" />
+                <circle cx="24" cy="3" r="1.7" class="board-stick-icon__dot" />
             </svg>
         `;
     }

@@ -558,12 +558,26 @@ describe("tableView's plates", () => {
     );
 
     it.each([...DESKTOPS, ...PHONE_BOXES])(
-        "keeps a top row plate's riichi stick 10px off the core under it on a desktop, 6 on a phone, on %s",
+        "keeps a top row plate's riichi stick 10px off the core under it, a river row's sideways riichi tile included, on a desktop, 6 on a phone, on %s",
         (_shape, box) => {
             const { screen, view } = viewOf(box);
-            const core = (["centre", "river-left", "river-right", "river-top"] as const).map(
-                (piece) => shownPiece(view, piece),
-            );
+            const sideways = (TILE_ASPECT - 1) * (view.plane.lengths["rw"] ?? 0);
+            const rightRiver = view.pieces["river-right"];
+            const topRiver = view.pieces["river-top"];
+            const core = [
+                shownPiece(view, "centre"),
+                shownPiece(view, "river-left"),
+                shownRect(
+                    view.camera,
+                    { ...rightRiver, top: rightRiver.top - sideways },
+                    view.shifts["river-right"],
+                ),
+                shownRect(
+                    view.camera,
+                    { ...topRiver, left: topRiver.left - sideways },
+                    view.shifts["river-top"],
+                ),
+            ];
             const least = screen.family === "phone" ? 6 : 10;
             const gaps = (["top", "right"] as const).map((seat) => {
                 const { left, top } = platePlace(view, screen, seat);

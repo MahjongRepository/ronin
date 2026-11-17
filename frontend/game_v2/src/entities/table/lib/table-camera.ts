@@ -39,10 +39,14 @@ const BAND_SLACK = 1;
 /** On a desktop, that felt may show this many flat river tiles narrower, where that is more than `BAND_SLACK`. */
 const TOP_BAND_SLACK_RIVERS = 0.1;
 
-/** A plate's riichi stick hangs this far under its pill (px), as long as this many of the plate's text, at 6/32 tall. */
+/**
+ * A plate's riichi stick hangs this far under its pill (px), as long as the centre's stick (this share of the centre's
+ * side) but never shorter than this many of the plate's text, at 6/48 tall.
+ */
 const STICK_DROP = 3;
+const STICK_LENGTH_BY_CENTRE = 0.45;
 const STICK_LENGTH_BY_TEXT = 2.2;
-const STICK_ASPECT = 6 / 32;
+const STICK_ASPECT = 6 / 48;
 
 /** A riichi stick keeps at least this far off the core under it on a desktop, and on a phone (px). */
 const STICK_GAP = 10;
@@ -1362,7 +1366,7 @@ function platePlace(view: TableView, screen: BoardGeometry, seat: SeatPosition):
     const nearest = Math.min(
         Infinity,
         ...(["centre", "river-left", "river-right", "river-top"] as const)
-            .map((piece) => shownPiece(view, piece))
+            .map((piece) => shownReach(view, piece))
             .filter(
                 (piece) =>
                     piece.left < stick.right &&
@@ -1372,7 +1376,27 @@ function platePlace(view: TableView, screen: BoardGeometry, seat: SeatPosition):
             .map((piece) => piece.top),
     );
     const least = screen.family === "phone" ? PHONE_STICK_GAP : STICK_GAP;
-    return { left: shown.left, top: top - Math.max(0, stick.foot + least - nearest) };
+    return { left: shown.left, top: top - Math.ceil(Math.max(0, stick.foot + least - nearest)) };
+}
+
+/**
+ * A piece as far as its tiles can reach on the screen: a river row holding a sideways riichi tile runs a tile's height
+ * instead of its width, past the river's box on the side it runs to (the right river's top, the top river's left).
+ */
+function shownReach(
+    view: TableView,
+    piece: "centre" | "river-left" | "river-right" | "river-top",
+): BoardRect {
+    const flat = view.pieces[piece];
+    const sideways = (TILE_ASPECT - 1) * (view.plane.lengths["rw"] ?? 0);
+    const shift = view.shifts[piece];
+    if (piece === "river-right") {
+        return shownRect(view.camera, { ...flat, top: flat.top - sideways }, shift);
+    }
+    if (piece === "river-top") {
+        return shownRect(view.camera, { ...flat, left: flat.left - sideways }, shift);
+    }
+    return shownRect(view.camera, flat, shift);
 }
 
 /**
@@ -1392,7 +1416,11 @@ function stickUnder(
     const reachesLeft = seat === "top";
     return {
         foot:
-            pillTop + at("pill-h") + STICK_DROP + STICK_LENGTH_BY_TEXT * at("text") * STICK_ASPECT,
+            pillTop +
+            at("pill-h") +
+            STICK_DROP +
+            Math.max(STICK_LENGTH_BY_TEXT * at("text"), STICK_LENGTH_BY_CENTRE * at("c")) *
+                STICK_ASPECT,
         left: reachesLeft ? left - at("plate-w") : left,
         right: reachesLeft ? left : left + at("plate-w"),
     };

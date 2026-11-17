@@ -303,7 +303,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   names whose they are: that seat keeps its score, underlined, and the others' show as signed differences. One primary cue on the centre for the seat in turn: a green bar along that seat's whole
   edge of the panel, its corners included, a shape the riichi stick never takes. Convention: a seat's
   accepted riichi stick lies on its side of the centre, as on a real table; this is where an
-  established riichi is read, and the seat's badge only repeats it quietly, by a small stick under its band. Decision: the stick, a
+  established riichi is read, and the seat's badge repeats it by a stick under its band, as long as the centre's. Decision: the stick, a
   short pill with its dot, lies inside the panel between that side's score and the middle, so the
   gap between the centre and the rivers stays free and the turn bar on the edge and the stick read
   apart. The stick appears only once the declaration discard has passed without a ron, never when a
@@ -426,10 +426,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   stays. Its states each take a channel of their own and never change the band's outline or ink: away (an AI stands
   in for a human who left or never came, the human identity kept, cleared when they return) turns the name's ink
   red, its reason in the badge's tooltip and screen-reader label, red being reserved for it among the badge's
-  states; riichi, a small riichi stick centred under the band, drawn over the felt so it moves nothing; the seat in
-  turn, the green bar along the band's bottom edge (Turn cue). A seated AI player is unmarked on the board (its
+  states; riichi, a riichi stick as long as the centre's, centred under the band, drawn over the felt so it moves nothing;
+  the seat in turn, the green bar along the band's whole bottom edge (Turn cue). A seated AI player is unmarked on the board (its
   name, the seating and the game end tell it). The band is one height per tier, its box at least the control floor
-  tall around it. Decision: on every board the four plates stand as one rectangle in the core's corners:
+  tall around it; a phone draws its band at 0.7 of that height and at most 7.2em wide in 10px text, inside the
+  same box, so the layout and the tap target stay the tier's. Decision: on every board the four plates stand as one rectangle in the core's corners:
   top-left the top seat's, top-right the right seat's, bottom-left the left seat's, bottom-right the own
   one. The left pair's right edges stand a gap short of the top river's run-on and of the centre, the right pair's
   left edges a gap past the bottom river's run-on and the centre, mirrored about the centre's middle; the top row a
