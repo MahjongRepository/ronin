@@ -8,7 +8,6 @@ from game.logic.enums import RoundPhase, WindName
 from game.logic.exceptions import DiscardHistoryError
 from game.logic.state import round_in_wind, wind_name
 from game.logic.state_utils import river_of
-from game.logic.types import ExhaustiveDrawResult, NagashiManganResult
 from game.logic.wall import tiles_remaining
 
 if TYPE_CHECKING:
@@ -57,9 +56,9 @@ class SeatView:
     furiten last reported to the seat. While the game waits on a round's end, round is the ended round's header and
     result its result, beside the scores and riichi sticks that result left; result is None while a round is in play.
     latest_discard_seat is the seat whose discard is the table's last action: None before the round's first discard,
-    once a meld claimed the latest one and once the next seat drew. round_history holds every finished round in play
-    order, the ended one included. decision is the seat's own decision, None when the game does not await it. A view
-    never holds another seat's concealed tiles, offers or pending answers.
+    once a meld claimed the latest one, once the next seat drew and once the round ended. round_history holds every
+    finished round in play order, the ended one included. decision is the seat's own decision, None when the game does
+    not await it. A view never holds another seat's concealed tiles, offers or pending answers.
     """
 
     seat: int
@@ -159,14 +158,13 @@ def _latest_discard_seat(round_state: MahjongRoundState) -> int | None:
     """
     Return the seat whose discard is the table's last action, else None.
 
-    all_discards holds the round's discarded tiles in play order, so its last is the latest discard. A meld that holds
-    that tile claimed it, and then no discard is the latest, never the one before it. The next seat's draw is the next
-    action: the turn passes to it only on that draw, so a current seat other than the discarder means the discard is no
-    longer the latest action, except after an exhaustive draw, whose turn passed to a seat the empty wall gave no tile.
-    A result on the discard itself (a ron, an abort) keeps it. Raises DiscardHistoryError when that unclaimed tile lies
-    last in no river.
+    A round's end leaves none, whatever ended it. all_discards holds the round's discarded tiles in play order, so its
+    last is the latest discard. A meld that holds that tile claimed it, and then no discard is the latest, never the one
+    before it. The next seat's draw is the next action: the turn passes to it only on that draw, so a current seat other
+    than the discarder means the discard is no longer the latest action. Raises DiscardHistoryError when that unclaimed
+    tile lies last in no river.
     """
-    if not round_state.all_discards:
+    if round_state.result is not None or not round_state.all_discards:
         return None
 
     tile_id = round_state.all_discards[-1]
@@ -177,8 +175,7 @@ def _latest_discard_seat(round_state: MahjongRoundState) -> int | None:
     if discarder is None:
         raise DiscardHistoryError(f"the latest discard {tile_id} lies last in no river")
 
-    wall_ran_out = isinstance(round_state.result, ExhaustiveDrawResult | NagashiManganResult)
-    if discarder != round_state.current_player_seat and not wall_ran_out:
+    if discarder != round_state.current_player_seat:
         return None
 
     return discarder

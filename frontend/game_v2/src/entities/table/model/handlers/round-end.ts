@@ -285,7 +285,8 @@ export function showRobbedKan(state: TableState, event: RoundEndEvent): TableSta
 
 /**
  * End the round: the kan a win robbed shows as declared first, then the scores pay out, the table keeps the riichi
- * sticks the server says the result left, and the hands the result reveals show.
+ * sticks the server says the result left, and the hands the result reveals show. Whatever ended it, the latest
+ * discard is unmarked and lies in the river as any other.
  */
 export function applyRoundEnd(state: TableState, event: RoundEndEvent): TableState {
     const declared = showRobbedKan(state, event);
@@ -293,6 +294,7 @@ export function applyRoundEnd(state: TableState, event: RoundEndEvent): TableSta
     return revealHands(
         {
             ...declared,
+            lastDiscardSeat: null,
             phase: "round_ended",
             players: settleScores(declared.players, event),
             riichiSticks: event.riichiSticks,

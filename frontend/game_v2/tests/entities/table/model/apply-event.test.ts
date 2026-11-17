@@ -292,6 +292,21 @@ describe("applyEvent - hidden hands", () => {
         ]).toEqual([1, null, null]);
     });
 
+    test("every round end unmarks the latest discard, a ron on it too", () => {
+        const discarded = applyEvent(
+            applyEvent(liveDeal(), makeDrawNoticeEvent(1)),
+            makeDiscardEvent({ seat: 1, tileId: 100 }),
+        );
+
+        expect(
+            [
+                makeExhaustiveDrawRoundEnd(),
+                makeNagashiManganRoundEnd(),
+                makeRonRoundEnd({ loserSeat: 1, winnerSeat: 2, winningTile: 100 }),
+            ].map((event) => applyEvent(discarded, event).lastDiscardSeat),
+        ).toEqual([null, null, null]);
+    });
+
     test("a hidden hand calls pon from its count and its discard after the call draws nothing", () => {
         const drawn = applyEvent(liveDeal(), makeDrawNoticeEvent(1));
         const afterDiscard = applyEvent(drawn, makeDiscardEvent({ seat: 1, tileId: 100 }));

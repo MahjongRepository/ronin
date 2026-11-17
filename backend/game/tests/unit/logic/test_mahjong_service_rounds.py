@@ -1,6 +1,6 @@
 import pytest
 
-from game.logic.decision import Discard
+from game.logic.decision import Discard, Ron
 from game.logic.events import (
     EventType,
 )
@@ -10,6 +10,7 @@ from game.logic.service import Call, GameOver, RoundOver
 from game.logic.tiles import tile_to_34
 from game.logic.types import (
     ExhaustiveDrawResult,
+    RonResult,
 )
 from game.logic.win import get_waiting_tiles
 from game.tests.helpers.builders import (
@@ -61,8 +62,18 @@ class TestMahjongGameServiceAfterDiscardRoundEnd:
         round_end = next(e for e in answered if e.type == EventType.ROUND_END)
         assert isinstance(round_end.result, ExhaustiveDrawResult)
         assert round_end.result.tempai_seats == [1]
-        assert service.view(runtime, 0).latest_discard_seat == 0
+        assert service.view(runtime, 0).latest_discard_seat is None
         assert service.get_awaiting(runtime) == RoundOver()
+
+    def test_act__when_a_seat_rons_the_discard__should_leave_no_latest_discard(self, service):
+        runtime = _dealer_before_ronnable_discard()
+        service.act(runtime, 0, Discard(tile=_DEALER_LAST_DISCARD))
+
+        answered = [*service.act(runtime, 1, Ron()), *answer_with_defaults(service, runtime, seats=frozenset({2, 3}))]
+
+        round_end = next(e for e in answered if e.type == EventType.ROUND_END)
+        assert isinstance(round_end.result, RonResult)
+        assert service.view(runtime, 0).latest_discard_seat is None
 
 
 class TestGameEndAwaiting:

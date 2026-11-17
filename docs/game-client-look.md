@@ -345,8 +345,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   whether or not the viewer has an offer on it, so a player can see what just happened: a small gap
   (7px; 10px along the right river's row) before it along its row and toward its seat, as a tile
   just thrown lies, with no ring, pointer or colour. The next draw ends it, the tile then lying in the river as any other; a call
-  that claims it ends it too, the claim then read from the meld, and a result on it (a ron, an
-  abortive or exhaustive draw) keeps it. During a discard offer this mark is the action source. A
+  that claims it ends it too, the claim then read from the meld, and so does the round's end,
+  whatever its result (a ron on it included: the result shows the winning tile). During a discard offer this mark is the action source. A
   chankan offer's source is a kan in a meld and is marked separately, the whole kan ringed in its
   meld.
 - **Melds**, every seat's. Convention: to the right of the hand from the seat's own view, the first
