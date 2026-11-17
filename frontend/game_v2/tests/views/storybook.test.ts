@@ -84,12 +84,12 @@ describe("storybookDiscardsView", () => {
 });
 
 describe("storybookHandView", () => {
-    test("renders all 5 hand sections", () => {
+    test("renders all 4 hand sections", () => {
         const el = renderTo(storybookHandView());
         const container = el.querySelector(".storybook");
         expect(container).not.toBeNull();
         const sections = container?.querySelectorAll("section");
-        expect(sections).toHaveLength(5);
+        expect(sections).toHaveLength(4);
     });
 
     test("renders nav with hand badge active", () => {

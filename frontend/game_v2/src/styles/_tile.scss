@@ -191,15 +191,14 @@ $max-strip-melds: 4;
     font-size: 125px;
     font-weight: 800;
     text-anchor: end;
-    dominant-baseline: hanging;
     fill: var(--ronin-tile-label);
     stroke: var(--ronin-tile-face);
     stroke-width: 20px;
     stroke-linejoin: round;
     paint-order: stroke;
 
-    &--red {
-        fill: var(--ronin-tile-red);
+    &--red-five {
+        fill: var(--ronin-tile-red-five-label);
     }
 }
 

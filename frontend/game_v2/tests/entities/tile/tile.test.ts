@@ -104,25 +104,36 @@ describe("StandingTile", () => {
         }
     });
 
-    test("keeps a red five's name and corner label red, the label inside the face box", () => {
+    test("keeps a red five's name red and marks its corner label as a red five's, below the face's top", () => {
         const el = renderTo(StandingTile("0s", "latin"));
         const box = el.querySelector("svg.tile__face");
         const label = el.querySelector(".tile__label");
-        const [left = 0, top = 0, width = 0] = (box?.getAttribute("viewBox") ?? "")
+        const [, top = 0] = (box?.getAttribute("viewBox") ?? "")
             .split(" ")
             .map(Number);
 
         expect([
             el.querySelector(".tile__name")?.classList.contains("tile__name--red"),
-            label?.classList.contains("tile__label--red"),
+            label?.classList.contains("tile__label--red-five"),
             label?.closest("svg") === box,
         ]).toEqual([true, true, true]);
-        expect(Number(label?.getAttribute("x"))).toBeLessThan(left + width);
         expect(Number(label?.getAttribute("y"))).toBeGreaterThan(top);
     });
 });
 
 describe("Tile", () => {
+    test("spans a face's viewport over the whole body, so a corner label past the art box stays whole", () => {
+        const el = renderTo(Tile("9m", "face", { labels: "latin" }));
+        const body = el.querySelector("svg.tile__body");
+        const face = el.querySelector("svg.tile__face");
+        const [left = 0, , width = 0] = (face?.getAttribute("viewBox") ?? "").split(" ").map(Number);
+        const labelX = Number(el.querySelector(".tile__label")?.getAttribute("x"));
+
+        expect(`0 0 ${face?.getAttribute("width")} ${face?.getAttribute("height")}`).toBe(body?.getAttribute("viewBox"));
+        expect(labelX).toBeGreaterThan(300);
+        expect(labelX).toBeLessThan(left + width);
+    });
+
     test("face tile references the correct sprite symbol", () => {
         const el = renderTo(Tile("1m", "face"));
         const use = el.querySelector('use[href^="#tile-"]');
@@ -174,12 +185,12 @@ describe("Tile labels", () => {
     function labels(): (string | null)[] {
         return (["0p", "9s", "2z", "5z", "7z"] as const).map((face) => {
             const label = renderTo(Tile(face, "face")).querySelector(".tile__label");
-            const red = label?.classList.contains("tile__label--red") === true ? " red" : "";
+            const red = label?.classList.contains("tile__label--red-five") === true ? " red five" : "";
             return label === null ? null : `${label.textContent}${red}`;
         });
     }
 
-    test("label a suit tile by its rank, a red five's in red, a wind in the page's wind script and a dragon by its colour, an honor unlabelled in kanji", () => {
+    test("label a suit tile by its rank, a red five's marked as one, a wind in the page's wind script and a dragon by its colour, an honor unlabelled in kanji", () => {
         document.documentElement.lang = "ru";
         const off = labels();
         applyTileLabels(true);
@@ -190,9 +201,9 @@ describe("Tile labels", () => {
 
         expect([off, latin, cyrillic, labels()]).toEqual([
             [null, null, null, null, null],
-            ["5 red", "9", "S", "Wh", "R"],
-            ["5 red", "9", "Ю", "Б", "К"],
-            ["5 red", "9", null, null, null],
+            ["5 red five", "9", "S", "Wh", "R"],
+            ["5 red five", "9", "Ю", "Б", "К"],
+            ["5 red five", "9", null, null, null],
         ]);
     });
 
@@ -205,7 +216,7 @@ describe("Tile labels", () => {
         restoreTileLabels();
 
         expect([restoredOn, labels()]).toEqual([
-            ["5 red", "9", "S", "Wh", "R"],
+            ["5 red five", "9", "S", "Wh", "R"],
             [null, null, null, null, null],
         ]);
     });
