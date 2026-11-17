@@ -45,6 +45,10 @@ GAME_FAILED = 2
 PLAYERS_MISSING = 3
 COMPLETED = "completed"
 NO_ROUND = -1
+CONFIRMED_MESSAGES = {
+    "Ваше участие в турнире было подтверждено!",
+    "Your participation in the tournament has been confirmed!",
+}
 
 logger = logging.getLogger("tournament")
 
@@ -354,12 +358,14 @@ async def admin(command: argparse.Namespace) -> None:
         elif command.command == "close-registration":
             await portal.call("close_registration")
         elif command.command == "confirm":
-            await portal.call(
+            answer = await portal.call(
                 "admin_confirm_player",
                 nickname=command.nickname,
                 friend_id="0",
                 telegram_username=command.telegram_username or command.nickname,
             )
+            if answer["message"] not in CONFIRMED_MESSAGES:
+                sys.exit(f"the portal refused to confirm {command.nickname}: {answer['message']}")
         else:
             await Tournament(http).run()
 
