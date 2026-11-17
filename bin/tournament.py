@@ -232,7 +232,7 @@ class Tournament:
         if round_number == NO_ROUND:
             return
 
-        tables = [[next(iter(player.values())) for player in table["players"]] for table in prepared["tables"]]
+        tables = [[player["ronin_username"] for player in table["players"]] for table in prepared["tables"]]
         await self.wait_online({name for table in tables for name in table})
 
         async with self.lock:

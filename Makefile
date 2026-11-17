@@ -83,7 +83,7 @@ run-tournament:
 	@bash ./bin/run-tournament.sh
 
 run-portal-tournament:
-	@PORTAL=1 bash ./bin/run-tournament.sh
+	@PORTAL=1 GAME_PORT=8721 LOBBY_PORT=8720 bash ./bin/run-tournament.sh
 
 profile-games:
 	@PROFILE=1 TABLES=12 MODE= bash ./bin/run-bots-games.sh 48

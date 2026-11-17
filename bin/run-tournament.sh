@@ -8,11 +8,13 @@ BOT_ROOT="${BOT_ROOT:-$HOME/work/mahjong-bot}"
 BOT_BIN="${BOT_BIN:-}"
 PORTAL="${PORTAL:-}"
 PORTAL_RUN_TIMEOUT="${PORTAL_RUN_TIMEOUT:-3600}"
+PORTAL_URL="${PORTAL_URL:-http://127.0.0.1:8060}"
+PORTAL_SERVER_DIR="${PORTAL_SERVER_DIR:-$HOME/work/mahjong-portal/server}"
 PANTHEON_MIMIR_URL="${PANTHEON_MIMIR_URL:-http://127.0.0.1:4001}"
 PANTHEON_MIMIR_HOST="${PANTHEON_MIMIR_HOST:-mimir.pantheon.local}"
 
-GAME_PORT=8711
-LOBBY_PORT=8710
+GAME_PORT="${GAME_PORT:-8711}"
+LOBBY_PORT="${LOBBY_PORT:-8710}"
 MAX_RETRIES=10
 BOT_EXIT_TIMEOUT=60
 
@@ -161,8 +163,19 @@ start_relaunching_bots() {
 }
 
 register_on_portal() {
-    echo "register_on_portal is not wired yet: register ${BOT_NAMES[*]} on portal tournament $PORTAL_TOURNAMENT_ID"
-    return 1
+    local output
+    local status=0
+    output=$(cd "$PORTAL_SERVER_DIR" && uv run --env-file ../.envs/.local-sqlite python manage.py setup_ronin_e2e \
+        "${BOT_NAMES[@]}" 2> "$RUN_LOG_DIR/portal-setup.log") || status=$?
+    PORTAL_TOURNAMENT_ID=$(sed -n 's/^PORTAL_TOURNAMENT_ID=//p' <<< "$output")
+    PORTAL_LOBBY_ID=$(sed -n 's/^PORTAL_LOBBY_ID=//p' <<< "$output")
+    PANTHEON_EVENT_ID=$(sed -n 's/^PANTHEON_EVENT_ID=//p' <<< "$output")
+    if [[ $status -ne 0 || -z $PORTAL_TOURNAMENT_ID || -z $PORTAL_LOBBY_ID || -z $PANTHEON_EVENT_ID ]]; then
+        echo "setting up the portal tournament failed with status $status, see $RUN_LOG_DIR/portal-setup.log"
+        exit 1
+    fi
+    export PORTAL_TOURNAMENT_ID PORTAL_LOBBY_ID PANTHEON_EVENT_ID
+    echo "portal tournament $PORTAL_TOURNAMENT_ID, lobby $PORTAL_LOBBY_ID, Pantheon event $PANTHEON_EVENT_ID"
 }
 
 check_pantheon_games() {
@@ -198,10 +211,8 @@ portal() {
 }
 
 require_portal_env() {
-    : "${PORTAL_URL:?PORTAL_URL is not set}" "${PORTAL_API_TOKEN:?PORTAL_API_TOKEN is not set}"
-    : "${PORTAL_TOURNAMENT_ID:?PORTAL_TOURNAMENT_ID is not set}" "${PORTAL_LOBBY_ID:?PORTAL_LOBBY_ID is not set}"
-    : "${PANTHEON_EVENT_ID:?PANTHEON_EVENT_ID is not set}"
-    export PORTAL_URL PORTAL_API_TOKEN PORTAL_TOURNAMENT_ID PORTAL_LOBBY_ID
+    : "${PORTAL_API_TOKEN:?PORTAL_API_TOKEN is not set}"
+    export PORTAL_URL PORTAL_API_TOKEN
 }
 
 run_portal_tournament() {
