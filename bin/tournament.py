@@ -26,6 +26,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 import sys
 import time
 from datetime import UTC, datetime
@@ -47,10 +48,7 @@ PLAYERS_MISSING = 3
 COMPLETED = "completed"
 NO_ROUND = -1
 TOO_MANY_REQUESTS = 429
-CONFIRMED_MESSAGES = {
-    "Ваше участие в турнире было подтверждено!",
-    "Your participation in the tournament has been confirmed!",
-}
+CONFIRMED_FIRST_LINES = (re.compile(r"Ник `[^`]+` подтверждён\."), re.compile(r"Nickname `[^`]+` is confirmed\."))
 
 logger = logging.getLogger("tournament")
 
@@ -61,6 +59,11 @@ def env(name: str) -> str:
         sys.exit(f"{name} is not set")
 
     return value
+
+
+def is_confirmed(message: str) -> bool:
+    first_line = message.split("\n", 1)[0]
+    return any(pattern.fullmatch(first_line) for pattern in CONFIRMED_FIRST_LINES)
 
 
 def is_break_over(end_break_time: str | None) -> bool:
@@ -358,7 +361,7 @@ async def admin(command: argparse.Namespace) -> None:
         elif command.command == "confirm":
             contact = {"telegram_username": command.telegram_username} if command.telegram_username else {}
             answer = await portal.call("admin_confirm_player", nickname=command.nickname, **contact)
-            if answer["message"] not in CONFIRMED_MESSAGES:
+            if not is_confirmed(answer["message"]):
                 sys.exit(f"the portal refused to confirm {command.nickname}: {answer['message']}")
         else:
             await Tournament(http).run()
