@@ -25,6 +25,7 @@ RUN_LOG_DIR="$PROJECT_ROOT/backend/logs/tournament"
 PORTAL_ROUNDS=4
 if [[ -n $PORTAL ]]; then
     BOT_NAMES=(ai-pt-1 ai-pt-2 ai-pt-3 ai-pt-4 ai-pt-5 ai-pt-6 ai-pt-7 ai-pt-8)
+    PORTAL_NAMES=(ai-pt-1 ai-pt-2 AI-PT-3 ai-pt-4 ai-pt-5 ai-pt-6 ai-pt-7 ai-pt-8)
     RUN_LOG_DIR="$PROJECT_ROOT/backend/logs/portal-tournament"
 fi
 
@@ -166,7 +167,7 @@ register_on_portal() {
     local output
     local status=0
     output=$(cd "$PORTAL_SERVER_DIR" && uv run --env-file ../.envs/.local-sqlite python manage.py setup_ronin_e2e \
-        --ronin-tournament-id "$TOURNAMENT_ID" --games-start-in 60 "${BOT_NAMES[@]}" 2> "$RUN_LOG_DIR/portal-setup.log") || status=$?
+        --ronin-tournament-id "$TOURNAMENT_ID" --games-start-in 60 "${PORTAL_NAMES[@]}" 2> "$RUN_LOG_DIR/portal-setup.log") || status=$?
     PORTAL_TOURNAMENT_ID=$(sed -n 's/^PORTAL_TOURNAMENT_ID=//p' <<< "$output")
     PORTAL_LOBBY_ID=$(sed -n 's/^PORTAL_LOBBY_ID=//p' <<< "$output")
     PANTHEON_EVENT_ID=$(sed -n 's/^PANTHEON_EVENT_ID=//p' <<< "$output")
@@ -222,7 +223,7 @@ run_portal_tournament() {
 
     register_on_portal
     portal open-registration
-    for name in "${BOT_NAMES[@]}"; do
+    for name in "${PORTAL_NAMES[@]}"; do
         portal confirm "$name"
     done
     portal close-registration
