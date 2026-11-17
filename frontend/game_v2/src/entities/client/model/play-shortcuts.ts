@@ -18,7 +18,7 @@ export interface PlayShortcuts {
     readonly confirm: PlayShortcut | null;
     readonly rightClick: PlayShortcut | null;
     readonly rightClickEnabled: boolean;
-    /** The digit keys' decision controls, while nothing shows over the board and the settings menu is closed. */
+    /** The digit keys' decision controls, while nothing shows over the board; the settings menu never holds them back. */
     readonly digits: ReadonlyMap<number, PlayShortcut>;
 }
 
@@ -32,26 +32,22 @@ const PANEL_CLOSE: Partial<Readonly<Record<PlayPanel["kind"], PlayCommand>>> = {
     notice_sheet: { kind: "close_notice" },
 };
 
-function closeShortcut(ui: PlayUi, overlay: PlayOverlay | null): PlayShortcut | null {
+function panelCloseShortcut(overlay: PlayOverlay | null): PlayShortcut | null {
     const panelClose = overlay === null ? undefined : PANEL_CLOSE[overlay.panel.kind];
-    if (panelClose !== undefined) {
-        return shortcut(panelClose);
-    }
-    if (overlay?.blocksBoard) {
-        return null;
-    }
-    return ui.settingsOpen ? shortcut({ kind: "close_settings" }, SETTINGS_FOCUS_KEY) : null;
+    return panelClose === undefined ? null : shortcut(panelClose);
+}
+
+function settingsCloseShortcut(ui: PlayUi, overlay: PlayOverlay | null): PlayShortcut | null {
+    return ui.settingsOpen && overlay?.blocksBoard !== true
+        ? shortcut({ kind: "close_settings" }, SETTINGS_FOCUS_KEY)
+        : null;
 }
 
 const CONFIRM_OPENING: PlayIntent = { type: "confirm_opening" };
 
-/** The opening screen's OK, while it shows unblocked and the settings menu is closed. */
-function openingShortcut(
-    state: LiveClient,
-    ui: PlayUi,
-    overlay: PlayOverlay | null,
-): PlayShortcut | null {
-    if (overlay?.panel.kind !== "seating" || overlay.blocksBoard || ui.settingsOpen) {
+/** The opening screen's OK, while it shows unblocked. */
+function openingShortcut(state: LiveClient, overlay: PlayOverlay | null): PlayShortcut | null {
+    if (overlay?.panel.kind !== "seating" || overlay.blocksBoard) {
         return null;
     }
     return takesIntent(state, CONFIRM_OPENING) ? shortcut(intentCommand(CONFIRM_OPENING)) : null;
@@ -80,13 +76,12 @@ export function leavesBoardKeys(overlay: PlayOverlay | null): boolean {
     return overlay === null || overlay.panel.kind === "seating";
 }
 
-/** The decision controls' digit keys; none under any panel (the opening screen's included) or the settings menu. */
+/** The decision controls' digit keys; none under any panel (the opening screen's included). */
 function digitShortcuts(
-    ui: PlayUi,
     overlay: PlayOverlay | null,
     actions: readonly DecisionAction[],
 ): ReadonlyMap<number, PlayShortcut> {
-    if (overlay !== null || ui.settingsOpen) {
+    if (overlay !== null) {
         return new Map();
     }
     return new Map(
@@ -94,6 +89,19 @@ function digitShortcuts(
             action.digit === null ? [] : [[action.digit, shortcut(action.command)] as const],
         ),
     );
+}
+
+/** What Escape or right-click does on the board itself: a step back, else the call's pass, else the drawn tile's discard. */
+function boardShortcut(
+    state: LiveClient,
+    overlay: PlayOverlay | null,
+    step: EscapeStep | null,
+): PlayShortcut | null {
+    if (!leavesBoardKeys(overlay)) {
+        return null;
+    }
+    const back = step === null ? null : shortcut(step.command, step.focusKey);
+    return back ?? passShortcut(state) ?? discardShortcut(state);
 }
 
 export function playShortcuts(
@@ -109,14 +117,13 @@ export function playShortcuts(
         readonly step: EscapeStep | null;
     },
 ): PlayShortcuts {
-    const close = closeShortcut(ui, overlay);
-    const back = step === null ? null : shortcut(step.command, step.focusKey);
-    const boardKeys = leavesBoardKeys(overlay);
-    const escape =
-        close ?? (boardKeys ? (back ?? passShortcut(state) ?? discardShortcut(state)) : null);
-    const rightClick = escape;
-    const confirm = openingShortcut(state, ui, overlay);
-    const digits = digitShortcuts(ui, overlay, actions);
+    const panelClose = panelCloseShortcut(overlay);
+    const settingsClose = settingsCloseShortcut(ui, overlay);
+    const boardAction = boardShortcut(state, overlay, step);
+    const escape = panelClose ?? settingsClose ?? boardAction;
+    const rightClick = panelClose ?? boardAction ?? settingsClose;
+    const confirm = openingShortcut(state, overlay);
+    const digits = digitShortcuts(overlay, actions);
     const decision = decisionOf(state);
     const roundConfirm = roundConfirmOf(state);
     return {

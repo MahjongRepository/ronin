@@ -300,12 +300,7 @@ class PlayInput extends AsyncDirective {
 
     private navigate(event: KeyboardEvent): void {
         const { board, display } = this;
-        if (
-            board === null ||
-            display === null ||
-            !leavesBoardKeys(display.overlay) ||
-            display.settingsOpen
-        ) {
+        if (board === null || display === null || !leavesBoardKeys(display.overlay)) {
             return;
         }
         const step = tileStep(event);
@@ -481,7 +476,17 @@ class PlayInput extends AsyncDirective {
         const settled = now - this.lastRightClickAt >= SHORTCUT_SETTLE_MS;
         this.lastRightClickAt = now;
         if (settled) {
-            this.run(shortcut);
+            this.runClosingSettings(shortcut);
+        }
+    }
+
+    /** Run a pointer's shortcut as if the settings menu were closed, then close the menu if it is still open. */
+    private runClosingSettings(shortcut: PlayShortcut): void {
+        const closesSettingsToo =
+            this.display?.settingsOpen === true && shortcut.command.kind !== "close_settings";
+        this.run(shortcut);
+        if (closesSettingsToo) {
+            this.onCommand?.({ kind: "close_settings" });
         }
     }
 
@@ -502,34 +507,25 @@ class PlayInput extends AsyncDirective {
             this.blockClick = false;
             return;
         }
-        if (this.endedByClosingSettings(event)) {
-            return;
-        }
+        this.closeSettingsOutside(event);
         if (fingerTap) {
             this.armByFinger(event);
         }
     };
 
     /**
-     * A pointer's click outside the open settings menu closes it: on a playable tile the click goes on to the tile, and
-     * anywhere else it ends here, as the whole of the gesture. A keyboard's or assistive technology's activation (no
-     * click count) has aimed at its control, so it leaves the menu alone.
+     * A pointer's click outside the open settings menu closes it and goes on to what it clicked, as if the menu were
+     * closed. A keyboard's or assistive technology's activation (no click count) leaves the menu alone.
      */
-    private endedByClosingSettings(event: MouseEvent): boolean {
+    private closeSettingsOutside(event: MouseEvent): void {
         const { target } = event;
         if (
-            !this.display?.settingsOpen ||
-            event.detail === 0 ||
-            (target instanceof Element && target.closest(".game-menu") !== null)
+            this.display?.settingsOpen === true &&
+            event.detail !== 0 &&
+            !(target instanceof Element && target.closest(".game-menu") !== null)
         ) {
-            return false;
+            this.onCommand?.({ kind: "close_settings" });
         }
-        this.onCommand?.({ kind: "close_settings" });
-        if (playableTileId(target) !== null) {
-            return false;
-        }
-        consume(event);
-        return true;
     }
 
     /**

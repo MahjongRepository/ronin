@@ -326,18 +326,13 @@ describe("live board input", () => {
         expect(commands.at(-1)?.kind).toBe("intent");
     });
 
-    it("closes settings before right-click can pass a call", () => {
+    it("passes a call by right-click under open settings, closing them with the same click", () => {
         const state = checkpointState("call_prompt_seat_1", "prompt");
-        const { board, commands, effects } = mountInput(state, {
-            ...NO_PLAY_UI,
-            settingsOpen: true,
-        });
-        rightClick(board);
-        expect(commands).toEqual([{ kind: "close_settings" }]);
-        expect(messages(effects)).toEqual([]);
-
+        const { board, commands, effects, host } = mountInput(state, SETTINGS_OPEN);
         rightClick(board);
         expect(messages(effects)).toEqual([buildPassAction(waitId(state))]);
+        expect(commands.at(-1)).toEqual({ kind: "close_settings" });
+        expect(host.querySelector(".game-menu__panel")).toBeNull();
     });
 });
 
@@ -364,14 +359,21 @@ describe("live board click outside open settings", () => {
         expect(messages(effects)).toEqual([]);
     });
 
-    it("only closes settings on a pointer click on a call's Pass", () => {
-        const { commands, effects, host } = mountInput(
-            checkpointState("call_prompt_seat_1", "prompt"),
-            SETTINGS_OPEN,
-        );
+    it("closes settings and passes on one pointer click on a call's Pass", () => {
+        const state = checkpointState("call_prompt_seat_1", "prompt");
+        const { effects, host } = mountInput(state, SETTINGS_OPEN);
         pointerClick(element(host, ".decision-controls__action--pass"), "mouse");
-        expect(commands).toEqual([{ kind: "close_settings" }]);
-        expect(messages(effects)).toEqual([]);
+        expect(messages(effects)).toEqual([buildPassAction(waitId(state))]);
+        expect(host.querySelector(".game-menu__panel")).toBeNull();
+    });
+
+    it("presses a decision control by its digit under open settings, leaving them open", () => {
+        const state = checkpointState("kan_choice_seat_1", "kan offer");
+        const [first] = playDisplay(state, NO_PLAY_UI).actions;
+        const { board, commands, host } = mountInput(state, SETTINGS_OPEN);
+        key(board, { code: "Digit1", key: "1" });
+        expect(commands).toEqual([first.command]);
+        expect(host.querySelector(".game-menu__panel")).not.toBeNull();
     });
 
     it("answers a keyboard's activation of Pass under open settings", () => {
@@ -407,14 +409,12 @@ describe("live board keys", () => {
         expect(commands).toEqual([first.command]);
     });
 
-    it("leaves a held digit's repeats, a numpad navigating with NumLock off, a modified digit and digits under the open menu alone", () => {
+    it("leaves a held digit's repeats, a numpad navigating with NumLock off and a modified digit alone", () => {
         const { board, commands } = mountInput(checkpointState("call_prompt_seat_1", "prompt"));
         key(board, { code: "Digit1", key: "1", repeat: true });
         key(board, { code: "Numpad1", key: "End" });
         key(board, { code: "Digit1", key: "!", shiftKey: true });
-        const menu = mountInput(checkpointState("call_prompt_seat_1", "prompt"), SETTINGS_OPEN);
-        key(menu.board, { code: "Digit1", key: "1" });
-        expect([commands, menu.commands]).toEqual([[], []]);
+        expect(commands).toEqual([]);
     });
 });
 

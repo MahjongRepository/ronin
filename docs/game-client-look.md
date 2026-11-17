@@ -674,8 +674,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   It reserves no room in the strips, hands or badges, which keep their places; a
   panel may cover it. Decision: its menu holds the sound switch, a language row (one compact strip of the
   three languages by their native names, the current one marked), then the
-  connection status (a dot and its whole label); a tap outside the menu only closes it, and Escape closes it back to
-  the cog. While the status has a word to say (a drop, an end), the cog carries a dot in the status's tone, so a drop
+  connection status (a dot and its whole label). The menu holds nothing on the board back: a tap or right-click
+  outside it closes it and still does what it would with the menu closed, the keys keep working while it is open, and
+  Escape closes it back to the cog. While the status has a word to say (a drop, an end), the cog carries a dot in the status's tone, so a drop
   shows without opening the menu. A replay has the same corner and cog, its menu the sound switch and the language row alone. The live
   board has no way back of its own; the rotate panel in a narrow portrait viewport keeps
   one, which asks the leave question, and an end's panel offers the lobby.

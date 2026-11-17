@@ -90,8 +90,9 @@ table transition and call model; replay dispatch loads with the replay route.
 - A primary click or tap on the board's background never answers a decision or confirms or dismisses a round result.
 - Live shortcuts come from `playShortcuts` through the same intent gate as visible controls. One gesture closes only
   the topmost UI, backs out of a selection, or answers one decision; a result always needs its explicit control, which takes the focus as it first shows so Enter or Space presses it. The
-  one exception is a pointer's click on a playable tile with the settings menu open, which closes the menu and goes on
-  to the tile (a mouse discards, a finger lifts); any other click outside the menu only closes it.
+  settings menu is the exception: it holds nothing back. A pointer's click or right-click outside it closes it and acts
+  as it would with the menu closed (a tile discards or lifts, a decision control answers, right-click passes or
+  discards), and digits and tile arrows work while it is open; only Escape closes it first.
   Digit keys 1-9 press the decision controls the mapper numbers (`DecisionAction.digit`, shown as keycaps): all
   but the pass, in the mapper's order, never a layout's. They read the physical key (`event.code`), the numpad only while it
   types digits, never under any panel or the open menu, and the same digit within `DIGIT_SETTLE_MS` of acting is dropped
