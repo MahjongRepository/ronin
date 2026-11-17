@@ -329,7 +329,7 @@ def chankan_added() -> Recording:
 def chankan_ai_replacement() -> Recording:
     """
     Raise a pon of 6p to an added kan that two hands waiting on 6p may rob: seat 3 leaves during the chankan prompt, its
-    AI player robs it at once, then seat 2 robs it too, a double ron.
+    AI player passes, then seat 2 robs it.
 
     Seat 3 is one tile from ready until its draw, so the pon's 6p offers it no ron.
     """
@@ -366,9 +366,8 @@ def chankan_ai_replacement() -> Recording:
     return game.replay(
         Outcome(
             {
-                WireKey.RESULT_TYPE: WireRoundResultType.DOUBLE_RON,
-                WireKey.LOSER_SEAT: 1,
-                WireKey.WINNERS: [{WireKey.WINNER_SEAT: 2}, {WireKey.WINNER_SEAT: 3}],
+                WireKey.RESULT_TYPE: WireRoundResultType.RON,
+                WireKey.WINNER_SEAT: 2,
                 WireKey.ROBBED_KAN: {WireKey.SEAT: 1, WireKey.KAN_TYPE: KanType.ADDED},
             }
         )

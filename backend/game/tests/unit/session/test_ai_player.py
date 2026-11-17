@@ -1,66 +1,39 @@
-import pytest
-
-from game.engine import (
-    CallOpportunity,
-    CallSource,
-    Chi,
-    Decision,
-    Discard,
-    Kan,
-    KanType,
-    Kyuushu,
-    Pass,
-    Pon,
-    Riichi,
-    Ron,
-    Tsumo,
-    TurnAfterDraw,
-)
+from game.engine import Discard, MahjongGameService, Pass, Ron, Tsumo
 from game.session.ai_player import choose_ai_action
 from game.tests.helpers.hands import tile_copies
+from game.tests.helpers.start_wall import make_start_wall
 
-DRAWN = tile_copies(0, sou="6")[0]
-CALLED = tile_copies(1, pin="5")[0]
-TURN = TurnAfterDraw(drawn=DRAWN, rinshan=False, haitei=False)
-DISCARD_CALL = CallOpportunity(tile=CALLED, from_seat=0, source=CallSource.DISCARD, houtei=False)
-ADDED_KAN_CALL = CallOpportunity(tile=CALLED, from_seat=0, source=CallSource.ADDED_KAN, houtei=False)
-DEFAULT_DISCARD = Discard(tile=DRAWN)
-
-
-def _decision(context: TurnAfterDraw | CallOpportunity, legal: tuple, default: Discard | Pass) -> Decision:
-    return Decision(seat=1, context=context, legal=legal, default=default)
+SEED = "5" * 192
+DEALER = 0
+READY_HAND = tile_copies(0, man="123456789", pin="11", sou="45")
+WINNING_SIX_SOU = tile_copies(0, sou="6")[0]
 
 
-@pytest.mark.parametrize(
-    ("decision", "win"),
-    [
-        (_decision(TURN, (DEFAULT_DISCARD, Riichi(tile=DRAWN), Tsumo()), DEFAULT_DISCARD), Tsumo()),
-        (_decision(DISCARD_CALL, (Ron(), Pon(), Pass()), Pass()), Ron()),
-        (_decision(ADDED_KAN_CALL, (Ron(), Pass()), Pass()), Ron()),
-    ],
-    ids=["tsumo", "ron_on_a_discard", "chankan_ron"],
-)
-def test_choose_ai_action__when_a_win_is_legal__should_take_it(decision, win):
-    assert choose_ai_action(decision) == win
+def test_choose_ai_action__when_its_drawn_tile_completes_the_hand__should_discard_it_rather_than_tsumo():
+    service = MahjongGameService()
+    runtime, _ = service.new_game(SEED, walls=[make_start_wall((READY_HAND,), draws=[WINNING_SIX_SOU])])
+    service.begin_round(runtime)
+    decision = service.decision(runtime, DEALER)
+    assert decision is not None
+    assert Tsumo() in decision.legal
+
+    assert choose_ai_action(decision) == Discard(tile=WINNING_SIX_SOU)
 
 
-@pytest.mark.parametrize(
-    "decision",
-    [
-        _decision(
-            TURN,
-            (DEFAULT_DISCARD, Riichi(tile=DRAWN), Kan(kan_type=KanType.CLOSED, tile=DRAWN), Kyuushu()),
-            DEFAULT_DISCARD,
-        ),
-        _decision(
-            DISCARD_CALL,
-            (Kan(kan_type=KanType.OPEN, tile=CALLED), Pon(), Chi(tiles=(CALLED + 4, CALLED + 8)), Pass()),
-            Pass(),
-        ),
-    ],
-    ids=["turn", "call"],
-)
-def test_choose_ai_action__when_no_win_is_legal__should_play_the_default_rather_than_riichi_kan_kyuushu_or_a_call(
-    decision,
-):
-    assert choose_ai_action(decision) == decision.default
+def test_choose_ai_action__when_a_discard_offers_it_ron__should_pass():
+    discarded_six_sou = tile_copies(1, sou="6")[0]
+    hands = (
+        tile_copies(0, pin="2345678", sou="12378", honors="1"),
+        READY_HAND,
+        tile_copies(2, pin="123456789", sou="1234"),
+        tile_copies(3, pin="123456789", sou="5789"),
+    )
+    service = MahjongGameService()
+    runtime, _ = service.new_game(SEED, walls=[make_start_wall(hands, draws=[discarded_six_sou])])
+    service.begin_round(runtime)
+    service.act(runtime, DEALER, Discard(tile=discarded_six_sou))
+    decision = service.decision(runtime, 1)
+    assert decision is not None
+    assert Ron() in decision.legal
+
+    assert choose_ai_action(decision) == Pass()
