@@ -45,6 +45,7 @@ GAME_FAILED = 2
 PLAYERS_MISSING = 3
 COMPLETED = "completed"
 NO_ROUND = -1
+TOO_MANY_REQUESTS = 429
 CONFIRMED_MESSAGES = {
     "Ваше участие в турнире было подтверждено!",
     "Your participation in the tournament has been confirmed!",
@@ -94,14 +95,22 @@ class Telegram:
         document: tuple[str, bytes] | None = None,
     ) -> dict:
         url = f"https://api.telegram.org/bot{self._token}/{method}"
-        if document is None:
-            response = await self._http.post(url, json=payload)
-        else:
-            name, content = document
-            files = {"document": (name, content, "application/xml")}
-            response = await self._http.post(url, data=payload, files=files)
+        while True:
+            if document is None:
+                response = await self._http.post(url, json=payload)
+            else:
+                name, content = document
+                files = {"document": (name, content, "application/xml")}
+                response = await self._http.post(url, data=payload, files=files)
 
-        answer = response.json()
+            answer = response.json()
+            retry_after = answer.get("parameters", {}).get("retry_after")
+            if answer.get("error_code") != TOO_MANY_REQUESTS or retry_after is None:
+                break
+
+            logger.info("telegram %s rate limited, retrying in %ss", method, retry_after)
+            await asyncio.sleep(retry_after)
+
         if not answer.get("ok"):
             logger.warning("telegram %s failed: %s", method, answer)
 
