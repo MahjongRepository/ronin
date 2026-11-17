@@ -360,6 +360,9 @@ class Tournament:
         response = await self.http.get(
             f"{self.ronin_url}/api/tournaments/{self.ronin_tournament}", headers=self.ronin_headers
         )
+        if response.status_code == httpx.codes.NOT_FOUND:
+            raise FatalError(f"Ronin tournament {self.ronin_tournament} not found or not owned by RONIN_API_KEY")
+
         response.raise_for_status()
         snapshot = response.json()
         self.online_folded = {name.casefold() for name in snapshot["online"]}
@@ -371,6 +374,8 @@ class Tournament:
         logger.info("event %s", json.dumps(event))
         if event["type"] == "presence":
             self.online_folded = {name.casefold() for name in event["players"]}
+        elif event["type"] == "error":
+            raise FatalError(f"Ronin events socket: {event['message']}")
         elif event["type"] == "game_ended" and event["game_id"] not in self.reported:
             await self.finish_game(event["game_id"], event["players"], event["end_reason"], time.time())
 
