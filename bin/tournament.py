@@ -48,8 +48,13 @@ GAME_FAILED = 2
 PLAYERS_MISSING = 3
 COMPLETED = "completed"
 TOO_MANY_REQUESTS = 429
+UNAUTHORIZED = 401
 
 logger = logging.getLogger("tournament")
+
+
+class FatalError(Exception):
+    pass
 
 
 def env(name: str) -> str:
@@ -109,6 +114,10 @@ class Telegram:
 
         if not answer.get("ok"):
             logger.warning("telegram %s failed: %s", method, answer)
+            if answer.get("error_code") == UNAUTHORIZED:
+                raise FatalError("Telegram rejected TG_BOT_TOKEN")
+
+            await asyncio.sleep(POLL_SECONDS)
 
         return answer
 
@@ -437,7 +446,10 @@ def main() -> None:
     )
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    asyncio.run(admin(parser.parse_args()))
+    try:
+        asyncio.run(admin(parser.parse_args()))
+    except* FatalError as group:
+        sys.exit("; ".join(str(error) for error in group.exceptions))
 
 
 if __name__ == "__main__":
