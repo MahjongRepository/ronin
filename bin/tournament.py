@@ -5,9 +5,10 @@ The portal's autobot API keeps the tournament's state: it seats each round, writ
 every finished game to Pantheon. This script connects it to Ronin and Telegram: it answers ``/me <nickname>`` and
 ``/status`` in Telegram, posts the portal's notifications to the chat, starts each round's tables through Ronin's
 tournament API once their players are online on the tournament page, and hands every finished game's Tenhou XML to the
-portal. A round starts once the portal's ``end_break_time`` has passed: the games start time for the first round, the
-end of the break after the previous one for the others. The run ends with the portal's ``tournament_finished``
-notification.
+portal. Once no game it started is still running and the portal's ``end_break_time`` (the games start time for the
+first round, the end of the break after the previous one for the others; null for no wait) has passed, it asks the
+portal for the next round, which the portal refuses while the round's games are unfinished or no rounds are left.
+The run ends with the portal's ``tournament_finished`` notification.
 
 Configuration comes from the environment: PORTAL_URL, PORTAL_API_TOKEN, PORTAL_TOURNAMENT_ID, PORTAL_LOBBY_ID,
 RONIN_URL, RONIN_TOURNAMENT_ID, RONIN_API_KEY, and optionally TG_BOT_TOKEN and TG_CHAT_ID (without them Telegram
@@ -64,7 +65,7 @@ def env(name: str) -> str:
 
 def is_break_over(end_break_time: str | None) -> bool:
     if end_break_time is None:
-        return False
+        return True
 
     moment = datetime.fromisoformat(end_break_time)
     return datetime.now(UTC) >= (moment if moment.tzinfo else moment.replace(tzinfo=UTC))
@@ -217,7 +218,7 @@ class Tournament:
             try:
                 await self.expire_games()
                 status = await self.portal.call("get_tournament_status", lang="en")
-                if is_break_over(status["end_break_time"]):
+                if not self.pending and is_break_over(status["end_break_time"]):
                     await self.play_round()
             except httpx.HTTPError, ValueError:
                 logger.exception("round step failed")
