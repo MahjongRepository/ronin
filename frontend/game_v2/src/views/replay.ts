@@ -21,10 +21,13 @@ import {
     type ReplayScreen,
     SEATING_START_FOCUS_KEY,
     type StepDirection,
+    TOOLS_FIRST_FOCUS_KEY,
+    TOOLS_TOGGLE_FOCUS_KEY,
     canStep,
     replayAddressSearch,
     replayDisplay,
     replayPageDeadline,
+    showsHand,
     stepReplayPage,
 } from "@/entities/replay";
 import {
@@ -38,6 +41,7 @@ import { type Locale, type MessageKey, type WindScript, t } from "@/shared/i18n"
 import {
     type DeadlineTimer,
     type LocalStore,
+    type ShortcutKeys,
     type ThrottledWriter,
     assertNever,
     createDeadlineTimer,
@@ -48,7 +52,9 @@ import {
     HOLD_EVENTS,
     boardWheel,
     holdInput,
+    isCopyKey,
     isOutsideRoundList,
+    isOutsideTools,
     keyCommand,
     pressedStepButton,
     stepKeyDirection,
@@ -71,6 +77,8 @@ export interface ReplayViewDeps {
     readonly clock: Clock;
     readonly location: ReplayLocation;
     readonly links: ReplayLinks;
+    /** Whose shortcut names the page shows: Apple's ⌘ or the others' Ctrl. */
+    readonly shortcuts: ShortcutKeys;
     /** The reader's own settings: whether the other hands hide. */
     readonly prefs: ReplayPrefsStore;
     /** The game's sounds, which a step on plays while the setting the live game shares keeps them on. */
@@ -80,6 +88,10 @@ export interface ReplayViewDeps {
     readonly setLanguage: (locale: Locale) => void;
     readonly setWinds: (script: WindScript) => void;
     readonly setTileLabels: (on: boolean) => void;
+    /** Put `text` on the clipboard; rejects where the browser refuses it. */
+    readonly copyText: (text: string) => Promise<void>;
+    /** Open `url` in a new tab. */
+    readonly openUrl: (url: string) => void;
     /** Open on the round list, as a storybook state shows it; closed when omitted. */
     readonly roundListOpen?: boolean;
     /** Open with autoplay running, as a storybook state shows it; paused when omitted. */
@@ -91,6 +103,15 @@ export interface ReplayViewDeps {
  * seconds, which a held key or autoplay would reach. A move within it is written once it has passed.
  */
 export const REPLAY_URL_WRITE_INTERVAL_MS = 500;
+
+/** The focus key of each target but the root; the current round scrolls into view, the others stay where they are. */
+const FOCUS_KEYS: Readonly<Record<Exclude<ReplayFocusTarget, "root">, string>> = {
+    current_round: CURRENT_ROUND_FOCUS_KEY,
+    round_list_toggle: ROUND_LIST_TOGGLE_FOCUS_KEY,
+    start: SEATING_START_FOCUS_KEY,
+    tools: TOOLS_FIRST_FOCUS_KEY,
+    tools_toggle: TOOLS_TOGGLE_FOCUS_KEY,
+};
 
 interface ReplayHandlers extends ReplayBoardHandlers {
     readonly root: Ref<HTMLElement>;
@@ -225,9 +246,12 @@ function drawsAlike(shown: ReplayScreen, next: ReplayScreen): boolean {
     );
 }
 
+/** What the page draws beside its screen: the ways out and whose shortcut names it shows. */
+type ReplayChrome = Pick<ReplayViewDeps, "links" | "shortcuts">;
+
 function loadedTemplate(
     screen: LoadedReplayScreen,
-    links: ReplayLinks,
+    { links, shortcuts }: ReplayChrome,
     handlers: ReplayHandlers,
 ): TemplateResult {
     const { hideHands, replay, seating, shownCall, view } = screen;
@@ -243,7 +267,7 @@ function loadedTemplate(
     });
     return html`
         <div class="board-page__board">
-            ${ReplayBoard({ display, handlers, links, screen })}
+            ${ReplayBoard({ display, handlers, links, screen, shortcuts })}
         </div>
     `;
 }
@@ -286,15 +310,15 @@ function loadingTemplate(waiting: boolean): TemplateResult {
 
 function screenTemplate(
     screen: ReplayScreen,
-    links: ReplayLinks,
+    chrome: ReplayChrome,
     handlers: ReplayHandlers,
 ): TemplateResult {
     switch (screen.kind) {
         case "loaded": {
-            return loadedTemplate(screen, links, handlers);
+            return loadedTemplate(screen, chrome, handlers);
         }
         case "failed": {
-            return failedTemplate(screen.failure, links, handlers);
+            return failedTemplate(screen.failure, chrome.links, handlers);
         }
         case "loading": {
             return loadingTemplate(screen.waiting);
@@ -307,11 +331,11 @@ function screenTemplate(
 
 function replayTemplate(
     screen: ReplayScreen,
-    links: ReplayLinks,
+    chrome: ReplayChrome,
     handlers: ReplayHandlers,
 ): TemplateResult {
     return html`
-        ${screen.kind === "loaded" ? ReplayRotatePanel(links.history) : nothing}
+        ${screen.kind === "loaded" ? ReplayRotatePanel(chrome.links.history) : nothing}
         <div
             class="board-page replay-board-mode"
             tabindex="0"
@@ -320,7 +344,7 @@ function replayTemplate(
             @keyup=${handlers.keyup}
             @wheel=${handlers.wheel}
         >
-            ${screenTemplate(screen, links, handlers)}
+            ${screenTemplate(screen, chrome, handlers)}
         </div>
     `;
 }
@@ -352,8 +376,11 @@ class ReplayViewController {
     private held: HTMLElement | null = null;
 
     private readonly handlers: ReplayHandlers = {
+        analyzeHand: () => this.dispatch({ kind: "analyze_hand" }),
         closeRoundList: () => this.dispatch({ kind: "close_round_list" }),
         closeSettings: () => this.dispatch({ kind: "close_settings" }),
+        closeTools: () => this.dispatch({ kind: "close_tools" }),
+        copyHand: () => this.dispatch({ kind: "copy_hand" }),
         keydown: (event) => this.onKeydown(event),
         keyup: (event) => this.onKeyup(event),
         move: (cursor) => this.dispatch({ cursor, kind: "move" }),
@@ -374,6 +401,8 @@ class ReplayViewController {
         toggleRoundList: () => this.dispatch({ kind: "toggle_round_list" }),
         toggleSettings: () => this.dispatch({ kind: "toggle_settings" }),
         toggleSound: () => this.dispatch({ kind: "toggle_sound" }),
+        toggleTools: () => this.dispatch({ kind: "toggle_tools" }),
+        toggleTsumogiri: () => this.dispatch({ kind: "toggle_tsumogiri" }),
         viewSeat: (seat) => this.dispatch({ kind: "view_seat", seat }),
         wheel: { handleEvent: (event) => this.onWheel(event), passive: false },
     };
@@ -431,6 +460,9 @@ class ReplayViewController {
     private readonly onClickOutside = (event: MouseEvent): void => {
         if (isOutsideRoundList(event, this.host)) {
             this.dispatch({ kind: "dismiss_round_list" });
+        }
+        if (isOutsideTools(event, this.host)) {
+            this.dispatch({ kind: "dismiss_tools" });
         }
     };
 
@@ -515,8 +547,7 @@ class ReplayViewController {
                 return;
             }
             case "play_sounds": {
-                effect.cues.forEach(this.deps.sound.play);
-                return;
+                return effect.cues.forEach(this.deps.sound.play);
             }
             case "save_prefs":
             case "save_sound":
@@ -525,13 +556,30 @@ class ReplayViewController {
                 return;
             }
             case "focus": {
-                this.focus(effect.target);
-                return;
+                return this.focus(effect.target);
+            }
+            case "copy_text": {
+                return void this.copyText(effect.text);
+            }
+            case "open_url": {
+                return this.deps.openUrl(effect.url);
             }
             default: {
                 assertNever(effect);
             }
         }
+    }
+
+    /** Put the text on the clipboard, then say whether it went through; a refusal's cause goes to the console. */
+    private async copyText(text: string): Promise<void> {
+        try {
+            await this.deps.copyText(text);
+        } catch (error: unknown) {
+            console.error("The hand could not be copied:", error);
+            this.dispatch({ kind: "hand_copy", outcome: "failed" });
+            return;
+        }
+        this.dispatch({ kind: "hand_copy", outcome: "copied" });
     }
 
     /** Keep the reader's settings, or the sound's or the animations', which the live game shares. */
@@ -572,27 +620,11 @@ class ReplayViewController {
     }
 
     private focus(target: ReplayFocusTarget): void {
-        switch (target) {
-            case "root": {
-                this.handlers.root.value?.focus({ preventScroll: true });
-                return;
-            }
-            case "current_round": {
-                focusByKey(this.host, CURRENT_ROUND_FOCUS_KEY, { preventScroll: false });
-                return;
-            }
-            case "round_list_toggle": {
-                focusByKey(this.host, ROUND_LIST_TOGGLE_FOCUS_KEY, { preventScroll: true });
-                return;
-            }
-            case "start": {
-                focusByKey(this.host, SEATING_START_FOCUS_KEY, { preventScroll: true });
-                return;
-            }
-            default: {
-                assertNever(target);
-            }
+        if (target === "root") {
+            this.handlers.root.value?.focus({ preventScroll: true });
+            return;
         }
+        focusByKey(this.host, FOCUS_KEYS[target], { preventScroll: target !== "current_round" });
     }
 
     /**
@@ -600,11 +632,25 @@ class ReplayViewController {
      * button's own click never repeats the step the key took.
      */
     private onKeydown(event: KeyboardEvent): void {
+        if (isCopyKey(event)) {
+            this.onCopyKey(event);
+            return;
+        }
         const command = keyCommand(event);
         if (command !== null && this.screen.kind === "loaded") {
             event.preventDefault();
         }
         this.dispatch({ command, kind: "key", repeat: event.repeat });
+    }
+
+    /** Ctrl+C or Cmd+C copies the hand shown, unless text is selected, which the browser copies as ever. */
+    private onCopyKey(event: KeyboardEvent): void {
+        const selection = this.host.ownerDocument.getSelection();
+        if ((selection !== null && !selection.isCollapsed) || !showsHand(this.screen)) {
+            return;
+        }
+        event.preventDefault();
+        this.dispatch({ kind: "copy_hand" });
     }
 
     /** Space's release on a step button, which would click it where the press's prevention did not hold. */
@@ -711,7 +757,7 @@ class ReplayViewController {
         this.screen = screen;
         const { ownerDocument } = this.host;
         const hadFocus = this.host.contains(ownerDocument.activeElement);
-        render(replayTemplate(screen, this.deps.links, this.handlers), this.host);
+        render(replayTemplate(screen, this.deps, this.handlers), this.host);
         if (hadFocus) {
             this.keepFocusInside();
         }

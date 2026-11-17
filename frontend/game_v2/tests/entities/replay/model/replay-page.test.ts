@@ -169,7 +169,7 @@ describe("stepReplayPage - loading", () => {
             opening: {
                 animationsOn: true,
                 autoplay: true,
-                prefs: { hideHands: true },
+                prefs: { ...DEFAULT_REPLAY_PREFS, hideHands: true },
                 roundListOpen: false,
                 search: "",
                 soundOn: false,
@@ -361,7 +361,7 @@ describe("stepReplayPage - autoplay", () => {
             (start.view.bottomSeat + 1) % start.replay.seatCount,
         ]);
         expect(effects).toEqual([
-            { kind: "save_prefs", prefs: { hideHands: true } },
+            { kind: "save_prefs", prefs: { hideHands: true, showTsumogiri: true } },
             WRITE_ADDRESS,
         ]);
     });

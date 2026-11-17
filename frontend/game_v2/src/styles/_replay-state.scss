@@ -223,7 +223,8 @@ $round-list-clear: 8px;
     }
 }
 
-.game-board--replay
+/* The reader's tsumogiri switch marks the discards of the tile just drawn: shaded, a corner mark at rest. */
+.game-board--marks-tsumogiri
     :is(.discard-tile[data-tsumogiri="true"], .board-motion__tile--tsumogiri)
     > .tile
     > .tile__body {
@@ -231,7 +232,7 @@ $round-list-clear: 8px;
 }
 
 /* A sideways tile's artwork is turned a quarter, so its corner mark stands at the box's top left. */
-.game-board--replay .discard-tile[data-tsumogiri="true"]::after {
+.game-board--marks-tsumogiri .discard-tile[data-tsumogiri="true"]::after {
     --mark: calc(var(--board-tile-w, 60px) * 0.17);
 
     content: "";
@@ -246,11 +247,11 @@ $round-list-clear: 8px;
 }
 
 /* A discard still flying in leaves its slot's mark unshown until it lands. */
-.game-board--replay .discard-tile[data-landing]::after {
+.game-board--marks-tsumogiri .discard-tile[data-landing]::after {
     visibility: hidden;
 }
 
-.game-board--replay .discard-tile-riichi[data-tsumogiri="true"]::after {
+.game-board--marks-tsumogiri .discard-tile-riichi[data-tsumogiri="true"]::after {
     top: calc(var(--board-tile-w, 60px) * 0.05);
     bottom: auto;
     clip-path: polygon(0 0, 100% 0, 0 100%);
@@ -347,6 +348,26 @@ $round-list-clear: 8px;
     }
 }
 
+.replay-status__copy {
+    --copy-tone: var(--ronin-success);
+
+    align-self: flex-start;
+    padding: 0.15em 0.5em;
+    font-size: max(12px, 0.9em);
+    color: var(--copy-tone);
+    background: var(--ronin-notice);
+    border: 1px solid color-mix(in srgb, var(--copy-tone) 40%, transparent);
+    border-radius: 0.375rem;
+
+    @include toast-board {
+        font-size: max(12px, 0.9 * var(--notice-text));
+    }
+
+    &--failed {
+        --copy-tone: var(--ronin-danger);
+    }
+}
+
 .replay-status__incomplete-end {
     display: none;
     font-weight: 650;
@@ -400,7 +421,8 @@ $round-list-clear: 8px;
 }
 
 .game-board--replay:has(> .board-overlay):where(#{$phone-board}) {
-    .replay-controls__options > :not(.replay-controls__option--rounds) {
+    .replay-controls__options
+        > :not(.replay-controls__option--rounds, .replay-controls__option--tools) {
         display: none;
     }
 
@@ -419,6 +441,79 @@ $round-list-clear: 8px;
 
     .replay-status__incomplete-end {
         display: inline;
+    }
+}
+
+.replay-tools {
+    position: absolute;
+    right: calc(100% + var(--rgap));
+    bottom: 0;
+    z-index: layer(open);
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    width: max-content;
+    max-width: min(20rem, var(--actions-left) - var(--m));
+    margin: 0;
+    padding: 0.25rem;
+    background: var(--ronin-surface);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.5rem;
+    box-shadow: var(--ronin-panel-shadow);
+
+    @include row-replay-board {
+        right: 0;
+        bottom: calc(100% + var(--rgap));
+        max-width: min(20rem, var(--actions-left) + var(--geo-replay-w));
+    }
+}
+
+.replay-tools__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+    min-height: 40px;
+    margin: 0;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.9rem;
+    text-align: left;
+    color: var(--ronin-text);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
+
+    &:hover:not(:disabled) {
+        background: var(--ronin-action-quiet);
+    }
+
+    &:disabled {
+        opacity: 0.45;
+    }
+}
+
+.replay-tools__end {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.replay-tools__value {
+    color: var(--ronin-text-secondary);
+}
+
+.replay-tools__key {
+    padding: 0.05em 0.35em;
+    font-size: 0.8em;
+    color: var(--ronin-text-secondary);
+    background: transparent;
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.25rem;
+
+    @media (hover: none) {
+        display: none;
     }
 }
 

@@ -806,7 +806,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   why and offers the way back; it is not quiet.
 - **Replay.** The board unchanged, its geometry identical to live play's, drawn from the chosen
   viewpoint seat, which need not be the reader's; plus controls with the
-  moves, play, the hide-hands switch and the round list, readable at the
+  moves, play, the round list and the tools, readable at the
   floor viewport. Decision: no narration; the board itself shows each move and its centre the round; off a
   phone the left bar shows the round and the step's count (`153 / 210`) under the dora, the whole position read
   out to assistive technology; on a phone the position is read out only. Its calls are read out as the live board's are, silent while the reader scrubs (see
@@ -824,17 +824,20 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   its turn on (past its last turn the round's result, then the next deal), with
   a round back and on at either end off a phone (on a phone the round list reaches them by
   touch); either end of the replay is the keys' and the round list's (its
-  first row and its foot, Last step, always in view). The options are hide hands and
-  the round list, with the next seat's view before them off a phone. Every control shows
+  first row and its foot, Last step, always in view). The options are the round list and
+  the tools, with the next seat's view before them off a phone. The tools open a small menu beside
+  the controls, as the round list does: copy the hand (the viewpoint seat's closed tiles, also Ctrl+C or Cmd+C), open it in
+  Tenhou's hand analysis (also A), and
+  the switches hide hands and mark tsumogiri. Every control shows
   its name and key at once on hover and keyboard focus. Decision: autoplay has one pace, no speed
   control. Decision: the viewpoint changes three ways: the view control (off a phone), pressing
   another seat's badge or its score in the centre, and pressing a seat's name on the seating, which
   marks the seat viewed from; so a replay's badge pins no differences (hovering still shows them).
-  Decision: a replay greys a discard of the tile just drawn (tsumogiri) in every river, one shade over
+  Decision: while its switch is on (the default) a replay greys a discard of the tile just drawn (tsumogiri) in every river, one shade over
   its face alone (its edge and shadow stay as any tile's), and marks it with a small dark corner in its face's bottom-left corner, placed by the tile's box;
   live play marks none. A panel over a replay's board never covers the controls, so the replay
   always moves on. Decision, a panel-only exception: on a phone a panel
-  takes all but the moves, the options hide but the round list's toggle, and an incomplete
+  takes all but the moves, the options hide but the round list's and the tools' toggles, and an incomplete
   recording's "Ends here" stands between them, compact (before the group where they share a row), and the panel's
   tiles keep their size, its content scrolling with its pager and action in reach. The options return
   as the panel closes. Loading, not found, incomplete

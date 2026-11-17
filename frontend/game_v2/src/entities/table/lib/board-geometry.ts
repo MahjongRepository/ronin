@@ -119,7 +119,7 @@ const LABELLED_SWITCHES = 3;
 
 /** The replay's moves in the switches' place. */
 const REPLAY_MOVES = 7;
-/** The replay's options at the band's end: the viewpoint, the other hands and the round list. */
+/** The replay's options at the band's end: the viewpoint, the round list and the tools. */
 const REPLAY_OPTIONS = 3;
 
 /** An opponent's full hand's tiles. */
@@ -2353,7 +2353,7 @@ function desktopBars(
     };
 }
 
-/** A phone replay's options: the hide-hands switch and the round list. */
+/** A phone replay's options: the round list and the tools. */
 const REPLAY_OPTIONS_ON_PHONE = 2;
 
 function phoneReplayBlock(

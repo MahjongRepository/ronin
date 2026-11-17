@@ -7,6 +7,7 @@ import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { type Clock, browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, getLobbyUrl } from "@/shared/config";
 import { applyPageLocale, applyWindScript } from "@/shared/i18n";
+import { shortcutKeysOf } from "@/shared/lib";
 import { REPLAY_VERSION, WIRE_KEY } from "@/shared/protocol";
 
 /** A storybook replay plays no sound, with the sound off. */
@@ -115,7 +116,7 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
         autoplay: true,
         clock: STILL_CLOCK,
         load: servesFixture(paoReplay),
-        prefs: { hideHands: false },
+        prefs: { ...DEFAULT_REPLAY_PREFS, hideHands: false },
         search: "?round=0&step=14",
     },
     damaged: { load: servesFixture(paoReplay, withBrokenLine), search: "?round=0&step=8" },
@@ -140,7 +141,7 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
     not_found: { clock: HURRIED_CLOCK, load: () => Promise.resolve(NOT_FOUND), search: "" },
     result_hidden: {
         load: servesFixture(() => import("@/fixtures/replays/double_ron.msgpack?inline")),
-        prefs: { hideHands: true },
+        prefs: { ...DEFAULT_REPLAY_PREFS, hideHands: true },
         search: "?round=0&step=10",
     },
     round_list: {
@@ -154,7 +155,7 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
     unsupported: { load: serves(versionRecord("0.1")), search: "" },
     viewpoint_hidden: {
         load: servesFixture(paoReplay),
-        prefs: { hideHands: true },
+        prefs: { ...DEFAULT_REPLAY_PREFS, hideHands: true },
         search: "?seat=2&round=0&step=18",
     },
     waiting: { load: notFoundThen(NEVER), search: "" },
@@ -182,15 +183,20 @@ export function mountStorybookReplay(host: HTMLElement): () => void {
         dispose = mountReplayView(host, "story", {
             autoplay: story.autoplay ?? false,
             clock: story.clock ?? browserClock,
+            copyText: (text) => navigator.clipboard.writeText(text),
             links: { history: getLobbyHistoryUrl(), lobby: getLobbyUrl() },
             loadReplay: story.load,
             location: { onPageHide: () => () => {}, replaceSearch: () => {}, search: story.search },
             motionSetting: { load: () => DEFAULT_MOTION_SETTING, save: () => {} },
+            openUrl: (url) => {
+                window.open(url, "_blank", "noopener");
+            },
             prefs: { load: () => story.prefs ?? DEFAULT_REPLAY_PREFS, save: () => {} },
             roundListOpen: story.roundListOpen ?? false,
             setLanguage: applyPageLocale,
             setTileLabels: applyTileLabels,
             setWinds: applyWindScript,
+            shortcuts: shortcutKeysOf(navigator.userAgent),
             sound: SILENT,
         });
     }

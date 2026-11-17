@@ -4,6 +4,8 @@ import {
     type ReplayKeyCommand,
     STEP_BUTTON_ATTRIBUTE,
     type StepDirection,
+    TOOLS_SELECTOR,
+    TOOLS_TOGGLE_SELECTOR,
 } from "@/entities/replay";
 import { BOARD_NOTICES_SELECTOR, BOARD_PANEL_SELECTOR } from "@/entities/table";
 import { wheelPixels } from "@/shared/lib";
@@ -26,6 +28,7 @@ const KEY_COMMANDS: ReadonlyMap<string, ReplayKeyCommand> = new Map([
     ["ArrowUp", "prevTurn"],
     ["End", "last"],
     ["Home", "first"],
+    ["KeyA", "analyze"],
     ["KeyH", "hands"],
     ["KeyV", "view"],
     ["PageDown", "nextRound"],
@@ -39,6 +42,8 @@ const OWN_KEYS_SELECTOR = `input, textarea, select, [contenteditable], ${ROUND_L
 const ACTIVATED_SELECTOR = "button, a[href], summary, [role='button']";
 /** Where a click leaves the round list open: the list itself and its toggle. */
 const ROUND_LIST_KEEPER_SELECTOR = `${ROUND_LIST_SELECTOR}, ${ROUND_LIST_TOGGLE_SELECTOR}`;
+/** Where a click leaves the tools' menu open: the menu itself and its toggle. */
+const TOOLS_KEEPER_SELECTOR = `${TOOLS_SELECTOR}, ${TOOLS_TOGGLE_SELECTOR}`;
 /** Where the wheel is not the page's over the board: the round list and the notices' place. */
 const WHEEL_OWNER_SELECTOR = `${ROUND_LIST_SELECTOR}, ${BOARD_NOTICES_SELECTOR}`;
 
@@ -110,6 +115,21 @@ function inScrollingPanel(element: Element): boolean {
 function scrollsVertically(element: Element): boolean {
     const { overflowY } = getComputedStyle(element);
     return overflowY === "auto" || overflowY === "scroll";
+}
+
+/**
+ * Whether the key is Ctrl+C or Cmd+C (by `code`, whatever letter the layout types), outside a field and the round
+ * list, which copies the hand shown where no text is selected.
+ */
+export function isCopyKey(event: KeyboardEvent): boolean {
+    return (
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        !event.isComposing &&
+        event.code === "KeyC" &&
+        !elementOf(event.target)?.closest(OWN_KEYS_SELECTOR)
+    );
 }
 
 /**
@@ -199,8 +219,17 @@ export function holdInput(event: Event, button: Element): HoldInput | null {
         : { kind: "hold_pointer", over: isOver(button, event) };
 }
 
+function isOutside(event: MouseEvent, host: HTMLElement, keeper: string): boolean {
+    const inside = elementOf(event.target)?.closest(keeper);
+    return !inside || !host.contains(inside);
+}
+
 /** Whether a click landed outside `host`'s round list and its toggle, which closes the list. */
 export function isOutsideRoundList(event: MouseEvent, host: HTMLElement): boolean {
-    const inside = elementOf(event.target)?.closest(ROUND_LIST_KEEPER_SELECTOR);
-    return !inside || !host.contains(inside);
+    return isOutside(event, host, ROUND_LIST_KEEPER_SELECTOR);
+}
+
+/** Whether a click landed outside `host`'s tools' menu and its toggle, which closes the menu. */
+export function isOutsideTools(event: MouseEvent, host: HTMLElement): boolean {
+    return isOutside(event, host, TOOLS_KEEPER_SELECTOR);
 }

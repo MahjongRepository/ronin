@@ -5,6 +5,7 @@ import {
     stepSettingsMenu,
 } from "@/entities/client";
 import { type ReplayMoves, replayMoves } from "@/entities/replay/lib/replay-display";
+import { handAnalysisUrl, handNotation } from "@/entities/replay/model/hand-notation";
 import {
     type LoadedReplay,
     type ReplayUnshowable,
@@ -39,6 +40,9 @@ export type StepDirection = "next" | "prev";
 export const HOLD_DELAY_MS = 350;
 export const HOLD_REPEAT_MS = 120;
 
+/** How long the page says a copy of the hand went through, or did not. */
+export const HAND_COPY_NOTICE_MS = 2000;
+
 const HTTP_NOT_FOUND = 404;
 
 /** Why the page shows no replay. */
@@ -60,6 +64,12 @@ export interface ReplayHold {
     readonly repeatAt: number | null;
 }
 
+/** Whether a copy of the hand went through, which the page says until `until`. */
+export interface ReplayHandCopy {
+    readonly outcome: "copied" | "failed";
+    readonly until: number;
+}
+
 export interface LoadedReplayScreen {
     readonly kind: "loaded";
     readonly replay: LoadedReplay;
@@ -68,6 +78,10 @@ export interface LoadedReplayScreen {
     readonly autoplay: ReplayAutoplay;
     /** Whether the other seats' hands hide, as a seat would see the table. */
     readonly hideHands: boolean;
+    /** Whether the rivers mark the discards of the tile just drawn. */
+    readonly showTsumogiri: boolean;
+    /** Whether the tools' menu by the options is open. */
+    readonly toolsOpen: boolean;
     /** Whether a step on plays its move's sounds, a setting the live game shares. */
     readonly soundOn: boolean;
     /** Whether the board animates, a setting the live game shares. */
@@ -85,6 +99,7 @@ export interface LoadedReplayScreen {
     readonly wheel: WheelGesture | null;
     /** The calls the board shows, which fade on their own time as the reader moves on. */
     readonly shownCall: ShownReplayCall | null;
+    readonly handCopy: ReplayHandCopy | null;
 }
 
 export type ReplayScreen =
@@ -92,10 +107,13 @@ export type ReplayScreen =
     | { readonly kind: "failed"; readonly failure: ReplayFailure }
     | LoadedReplayScreen;
 
-/** The switches among the key commands, which act once per press however long the key is held. */
-type ReplayToggle = "play" | "view" | "hands";
+/**
+ * The key commands that act once per press however long the key is held: autoplay's switch, the next seat's view, the
+ * other hands' switch and the hand opened in Tenhou's analysis.
+ */
+type ReplayToggle = "play" | "view" | "hands" | "analyze";
 
-/** What a key does on the page: a move, autoplay's switch, the next seat's view, or the other hands' switch. */
+/** What a key does on the page: a move, or one of the commands acting once per press. */
 export type ReplayKeyCommand = keyof ReplayMoves | ReplayToggle;
 
 /**
@@ -152,12 +170,22 @@ type RoundListInput =
     | { readonly kind: "close_round_list" }
     | { readonly kind: "dismiss_round_list" };
 
+/** The tools' menu opened, closed (Escape) or dismissed (a click outside it), and its tsumogiri switch. */
+type ToolsInput =
+    | { readonly kind: "toggle_tools" }
+    | { readonly kind: "close_tools" }
+    | { readonly kind: "dismiss_tools" }
+    | { readonly kind: "toggle_tsumogiri" };
+
 /**
  * The seating's start, the options, a seat chosen to view from (its plate or score, by board position), the page
  * hiding, and the settings menu opened or closed and its sound switch.
  */
 type OptionInput =
     | { readonly kind: "start" }
+    | { readonly kind: "copy_hand" }
+    | { readonly kind: "analyze_hand" }
+    | { readonly kind: "hand_copy"; readonly outcome: ReplayHandCopy["outcome"] }
     | { readonly kind: "toggle_play" }
     | { readonly kind: "view_seat"; readonly seat: SeatPosition }
     | { readonly kind: "toggle_hands" }
@@ -167,7 +195,7 @@ type OptionInput =
     | { readonly kind: "toggle_sound" }
     | { readonly kind: "toggle_animations" };
 
-type LoadedInput = StepInput | MoveInput | RoundListInput | OptionInput;
+type LoadedInput = StepInput | MoveInput | RoundListInput | ToolsInput | OptionInput;
 
 type Timed<Input> = { readonly at: number } & Input;
 
@@ -178,15 +206,23 @@ export type ReplayPageInput = LoadEvent | LoadedInput;
 export type ReplayPageEvent = { readonly at: number } & ReplayPageInput;
 
 /**
- * Where the page puts the focus after drawing: its root, the round list's current row, the list's toggle, or the
- * seating's start.
+ * Where the page puts the focus after drawing: its root, the round list's current row, the list's toggle, the tools'
+ * first item or their toggle, or the seating's start.
  */
-export type ReplayFocusTarget = "root" | "current_round" | "round_list_toggle" | "start";
+export type ReplayFocusTarget =
+    | "root"
+    | "current_round"
+    | "round_list_toggle"
+    | "tools"
+    | "tools_toggle"
+    | "start";
 
 /** The IO a transition asks of the view, which runs it after drawing the new screen. */
 export type ReplayPageEffect =
     | { readonly kind: "write_address" }
     | { readonly kind: "play_sounds"; readonly cues: readonly SoundCue[] }
+    | { readonly kind: "copy_text"; readonly text: string }
+    | { readonly kind: "open_url"; readonly url: string }
     | { readonly kind: "save_sound"; readonly soundOn: boolean }
     | { readonly kind: "save_animations"; readonly animationsOn: boolean }
     | { readonly kind: "save_prefs"; readonly prefs: ReplayPrefs }
@@ -214,7 +250,7 @@ function quiet<Screen extends ReplayScreen>(
 }
 
 function isToggle(command: ReplayKeyCommand): command is ReplayToggle {
-    return command === "play" || command === "view" || command === "hands";
+    return command === "play" || command === "view" || command === "hands" || command === "analyze";
 }
 
 function isStep(command: keyof ReplayMoves): command is StepDirection {
@@ -251,9 +287,11 @@ export function replayPageDeadline(screen: ReplayScreen): number | null {
     if (screen.kind !== "loaded") {
         return null;
     }
-    const dues = [screen.autoplay.dueAt, screen.hold?.repeatAt ?? null].filter(
-        (due) => due !== null,
-    );
+    const dues = [
+        screen.autoplay.dueAt,
+        screen.hold?.repeatAt ?? null,
+        screen.handCopy?.until ?? null,
+    ].filter((due) => due !== null);
     return dues.length === 0 ? null : Math.min(...dues);
 }
 
@@ -314,7 +352,7 @@ function moveTo(screen: LoadedReplayScreen, move: CursorMove): LoadedStep {
 }
 
 function savingPrefs(screen: LoadedReplayScreen): LoadedStep {
-    const prefs = { hideHands: screen.hideHands };
+    const prefs = { hideHands: screen.hideHands, showTsumogiri: screen.showTsumogiri };
     return { effects: [{ kind: "save_prefs", prefs }], screen };
 }
 
@@ -332,6 +370,7 @@ function openedScreen(replay: LoadedReplay, opening: ReplayOpening, at: number):
     const screen: LoadedReplayScreen = {
         animationsOn: opening.animationsOn,
         autoplay: { dueAt: null, playing: false },
+        handCopy: null,
         hideHands: opening.prefs.hideHands,
         hold: null,
         kind: "loaded",
@@ -340,6 +379,7 @@ function openedScreen(replay: LoadedReplay, opening: ReplayOpening, at: number):
         roundListOpen: opening.roundListOpen,
         seating: address.round === null || opening.soundOn,
         settingsOpen: false,
+        showTsumogiri: opening.prefs.showTsumogiri,
         shownCall: shownReplayCall(replay, null, {
             announce: false,
             at,
@@ -347,6 +387,7 @@ function openedScreen(replay: LoadedReplay, opening: ReplayOpening, at: number):
             to: view.cursor,
         }),
         soundOn: opening.soundOn,
+        toolsOpen: false,
         view,
         wheel: null,
     };
@@ -411,6 +452,9 @@ function runToggle(screen: LoadedReplayScreen, toggle: ReplayToggle, at: number)
         }
         case "hands": {
             return toggleHands(screen);
+        }
+        case "analyze": {
+            return sendHand(screen, "analyze_hand");
         }
         default: {
             return assertNever(toggle);
@@ -531,8 +575,19 @@ function holdTick(screen: LoadedReplayScreen, hold: ReplayHold, at: number): Loa
     };
 }
 
-/** A tick moves autoplay or repeats a held button once its time has come; one before both does nothing. */
-function onTick(screen: LoadedReplayScreen, at: number): LoadedStep {
+/** The screen with the hand copy's notice gone once its time has come. */
+function withoutPastHandCopy(screen: LoadedReplayScreen, at: number): LoadedReplayScreen {
+    return screen.handCopy !== null && screen.handCopy.until <= at
+        ? { ...screen, handCopy: null }
+        : screen;
+}
+
+/**
+ * A tick ends the hand copy's notice, and moves autoplay or repeats a held button, once each one's time has come; one
+ * before all of them does nothing.
+ */
+function onTick(shown: LoadedReplayScreen, at: number): LoadedStep {
+    const screen = withoutPastHandCopy(shown, at);
     const { autoplay, hold } = screen;
     if (autoplay.dueAt !== null && autoplay.dueAt <= at) {
         return autoplayTick(screen, at);
@@ -548,12 +603,54 @@ function closeRoundList(screen: LoadedReplayScreen): LoadedStep {
     return { effects: [focusOn("round_list_toggle")], screen: closed };
 }
 
-/** The round list opened with the focus on the current round's row, or closed with it back on the toggle. */
+/**
+ * The round list opened, the tools' menu closed, with the focus on the current round's row, or closed with it back on
+ * the toggle.
+ */
 function toggleRoundList(screen: LoadedReplayScreen): LoadedStep {
     if (screen.roundListOpen) {
         return closeRoundList(screen);
     }
-    return { effects: [focusOn("current_round")], screen: { ...screen, roundListOpen: true } };
+    return {
+        effects: [focusOn("current_round")],
+        screen: { ...screen, roundListOpen: true, toolsOpen: false },
+    };
+}
+
+function closeTools(screen: LoadedReplayScreen): LoadedStep {
+    const closed = screen.toolsOpen ? { ...screen, toolsOpen: false } : screen;
+    return { effects: [focusOn("tools_toggle")], screen: closed };
+}
+
+/** The tools' menu opened, the round list closed, with the focus on its first item, or closed with it back on the toggle. */
+function toggleTools(screen: LoadedReplayScreen): LoadedStep {
+    if (screen.toolsOpen) {
+        return closeTools(screen);
+    }
+    return {
+        effects: [focusOn("tools")],
+        screen: { ...screen, roundListOpen: false, toolsOpen: true },
+    };
+}
+
+function stepTools(screen: LoadedReplayScreen, event: ToolsInput): LoadedStep {
+    switch (event.kind) {
+        case "toggle_tools": {
+            return toggleTools(screen);
+        }
+        case "close_tools": {
+            return closeTools(screen);
+        }
+        case "dismiss_tools": {
+            return quiet(screen.toolsOpen ? { ...screen, toolsOpen: false } : screen);
+        }
+        case "toggle_tsumogiri": {
+            return savingPrefs({ ...screen, showTsumogiri: !screen.showTsumogiri });
+        }
+        default: {
+            return assertNever(event);
+        }
+    }
 }
 
 /** A round chosen from the list: the move, then the list closed with the focus back on its toggle. */
@@ -561,6 +658,44 @@ function selectRound(screen: LoadedReplayScreen, cursor: ReplayCursor, at: numbe
     const moved = moveTo(screen, { announce: false, at, to: cursor });
     const closed = closeRoundList(moved.screen);
     return { effects: [...moved.effects, ...closed.effects], screen: closed.screen };
+}
+
+/**
+ * The closed hand of the seat at the bottom, at the stop shown, as `handNotation` writes it; null under the seating or
+ * for a seat holding no tile.
+ */
+function shownHandNotation({ replay, seating, view }: LoadedReplayScreen): string | null {
+    if (seating) {
+        return null;
+    }
+    const table = replay.tables[replay.navigation.stops[view.cursor.stop].stateIndex];
+    const player = table.players.find(({ seat }) => seat === view.bottomSeat);
+    return player === undefined || player.tiles.length === 0
+        ? null
+        : handNotation(player, table.hasAkadora);
+}
+
+/** Whether the screen shows a hand to copy or to analyse: none under the seating. */
+export function showsHand(screen: ReplayScreen): boolean {
+    return screen.kind === "loaded" && shownHandNotation(screen) !== null;
+}
+
+/**
+ * The hand shown sent out: put on the clipboard or opened in Tenhou's analysis. Sent from the tools' menu, the menu
+ * closes with the focus on its toggle.
+ */
+function sendHand(screen: LoadedReplayScreen, kind: "copy_hand" | "analyze_hand"): LoadedStep {
+    const notation = shownHandNotation(screen);
+    if (notation === null) {
+        return quiet(screen);
+    }
+    const sent: ReplayPageEffect =
+        kind === "copy_hand"
+            ? { kind: "copy_text", text: notation }
+            : { kind: "open_url", url: handAnalysisUrl(notation) };
+    return screen.toolsOpen
+        ? { effects: [sent, focusOn("tools_toggle")], screen: { ...screen, toolsOpen: false } }
+        : { effects: [sent], screen };
 }
 
 /** The seating's start: the board shown, the focus on the root, where the keys step on from it. */
@@ -657,15 +792,20 @@ function stepSettings(screen: LoadedReplayScreen, command: SettingsMenuCommand):
     );
 }
 
-/** Inputs that leave the settings menu as it is: its own, the deadline's, the page hiding and a click anywhere. */
+/**
+ * Inputs that leave the settings menu as it is: its own, the deadline's, the clipboard's answer, the page hiding and a
+ * click anywhere.
+ */
 const KEEPS_SETTINGS: ReadonlySet<LoadedInput["kind"]> = new Set([
     "toggle_settings",
     "close_settings",
     "toggle_sound",
     "toggle_animations",
     "tick",
+    "hand_copy",
     "page_hide",
     "dismiss_round_list",
+    "dismiss_tools",
 ]);
 
 /** Whether the input is the reader's own, a key the page takes included, which closes the settings menu. */
@@ -683,6 +823,16 @@ function stepOption(screen: LoadedReplayScreen, event: Timed<OptionInput>): Load
     switch (event.kind) {
         case "start": {
             return start(screen);
+        }
+        case "copy_hand":
+        case "analyze_hand": {
+            return sendHand(screen, event.kind);
+        }
+        case "hand_copy": {
+            return quiet({
+                ...screen,
+                handCopy: { outcome: event.outcome, until: event.at + HAND_COPY_NOTICE_MS },
+            });
         }
         case "toggle_play": {
             return togglePlay(screen, event.at);
@@ -728,6 +878,12 @@ function stepLoadedInput(screen: LoadedReplayScreen, event: Timed<LoadedInput>):
         case "close_round_list":
         case "dismiss_round_list": {
             return stepRoundList(screen, event);
+        }
+        case "toggle_tools":
+        case "close_tools":
+        case "dismiss_tools":
+        case "toggle_tsumogiri": {
+            return stepTools(screen, event);
         }
         default: {
             return stepOption(screen, event);

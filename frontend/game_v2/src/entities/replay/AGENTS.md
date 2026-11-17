@@ -16,8 +16,8 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
   result and then the next deal, before the first to the deal and then the round before's last stop. Changing the
   viewpoint changes where they go.
 - A result stop has a page per winner; stepping back into it lands on its last page.
-- The address (`docs/architecture.md`, Replays) never names a result page; reader settings (hidden hands) never go
-  in the address.
+- The address (`docs/architecture.md`, Replays) never names a result page; reader settings (hidden hands, marked
+  tsumogiri) never go in the address.
 - Autoplay and a held button or key pause on every result page and at the last stop (`isPauseStop`); the wheel holds
   each result page `WHEEL_RESULT_HOLD_MS` and steps on while it keeps turning.
 - Replay tile motion settles the previous stop before measuring the next, so rapid navigation never queues behind
@@ -27,7 +27,7 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
 - The replay page's screen (loading, failed, loaded) moves only through `stepReplayPage`: stamped input in, screen and
   requested IO (address write, settings save, focus) out. It reads no DOM or clock and arms no timer; autoplay and a
   held button's repeat are deadlines in the screen (`replayPageDeadline`) that come back as ticks.
-- The reader's own input (a move, a key the page takes, Start, autoplay, the hands, the round list's toggle and close,
+- The reader's own input (a move, a key the page takes, Start, autoplay, the hands, the round list's or the tools' toggle and close,
   a seat to view from, the wheel, a step button's press) closes the settings menu; its own commands, ticks, the page
   hiding and a click outside the round list leave it as it is.
 - A step on to the next stop (Next, autoplay, a held Next, the wheel) asks the view to play that move's sounds
@@ -37,6 +37,12 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
   Prev, a key press, a press's first step) and autoplay do; a jump (a turn, a round, an end, the round list, an address), a
   held step's repeats (pointer or key) and the wheel show them silently. A showing carried over later moves keeps its
   flag. This is not `moveEffects`' step-on test, which a held Next and the wheel pass.
+- The tools' menu holds what the replay offers beyond moving: the hand sent out and the reader's switches. It and the
+  round list never stand open together. The bottom seat's closed hand at the stop shown (`handNotation`, the draw
+  last, no melds) is copied (its item, or Ctrl+C or Cmd+C) through the `copy_text` effect, the status saying whether
+  it went through for `HAND_COPY_NOTICE_MS`, or opened in Tenhou's analysis (its item, or A once per press)
+  through `open_url`. Neither acts under the seating, and the copy key leaves selected text to the browser. The live
+  game has neither.
 - `ReplayBoard` assembles the replay's `GameBoard` (panel, controls, status, menu) from `replayDisplay` and the
   loaded screen, as `PlayBoard` does the live one; it decides nothing. Its controls fill the live board's slots; none places itself.
 - What a page finds of the slice's UI by selector (`ROUND_LIST_SELECTOR`, `ROUND_LIST_TOGGLE_SELECTOR`,

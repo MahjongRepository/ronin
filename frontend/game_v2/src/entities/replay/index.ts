@@ -48,16 +48,20 @@ export type {
     StepDirection,
 } from "./model/replay-page";
 export {
+    HAND_COPY_NOTICE_MS,
     HOLD_DELAY_MS,
     WHEEL_RESULT_HOLD_MS,
     HOLD_REPEAT_MS,
     canStep,
     replayPageDeadline,
+    showsHand,
     stepReplayPage,
 } from "./model/replay-page";
 export {
     ROUND_LIST_TOGGLE_FOCUS_KEY,
     ROUND_LIST_TOGGLE_SELECTOR,
+    TOOLS_TOGGLE_FOCUS_KEY,
+    TOOLS_TOGGLE_SELECTOR,
     ReplayControls,
     ReplayStatus,
     STEP_BUTTON_ATTRIBUTE,
@@ -65,5 +69,6 @@ export {
 export type { ReplayControlsProps, ReplayPlayback, ReplayStatusProps } from "./ui/replay-controls";
 export { CURRENT_ROUND_FOCUS_KEY, ROUND_LIST_SELECTOR, RoundList } from "./ui/round-list";
 export { ReplayBoard, SEATING_START_FOCUS_KEY } from "./ui/replay-board";
+export { TOOLS_FIRST_FOCUS_KEY, TOOLS_SELECTOR } from "./ui/replay-tools";
 export type { ReplayBoardHandlers, ReplayBoardProps, ReplayLinks } from "./ui/replay-board";
 export type { RoundListEnd, RoundListProps } from "./ui/round-list";

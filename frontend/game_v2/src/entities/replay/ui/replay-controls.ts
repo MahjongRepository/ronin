@@ -6,7 +6,7 @@ import {
     type ReplayMoves,
 } from "@/entities/replay/lib/replay-display";
 import { type ReplayCursor } from "@/entities/replay/model/replay-cursor";
-import { type StepDirection } from "@/entities/replay/model/replay-page";
+import { type ReplayHandCopy, type StepDirection } from "@/entities/replay/model/replay-page";
 import { type MessageKey, t } from "@/shared/i18n";
 
 /** The round list's element id, which its toggle controls. */
@@ -18,10 +18,18 @@ export const ROUND_LIST_TOGGLE_FOCUS_KEY = "round-list-toggle";
 /** What the round list's toggle renders, so a click on it is told from one outside the list that closes it. */
 export const ROUND_LIST_TOGGLE_SELECTOR = "[data-round-list-toggle]";
 
-/** How the replay plays and is seen: autoplay and the other hands. */
+/** The tools' menu's element id, which its toggle controls. */
+export const REPLAY_TOOLS_ID = "replay-tools";
+
+/** The focus key the tools' toggle renders, so the page focuses it back as the menu closes. */
+export const TOOLS_TOGGLE_FOCUS_KEY = "replay-tools-toggle";
+
+/** What the tools' toggle renders, so a click on it is told from one outside the menu that closes it. */
+export const TOOLS_TOGGLE_SELECTOR = "[data-replay-tools-toggle]";
+
+/** How the replay plays: autoplay. */
 export interface ReplayPlayback {
     readonly playing: boolean;
-    readonly hideHands: boolean;
 }
 
 /** The attribute naming a step button's direction, by which the view takes Enter and Space on it as that step. */
@@ -32,19 +40,21 @@ export interface ReplayControlsProps {
     readonly playback: ReplayPlayback;
     readonly roundListOpen: boolean;
     readonly onToggleRoundList: () => void;
+    readonly toolsOpen: boolean;
+    readonly onToggleTools: () => void;
     readonly onMove: (cursor: ReplayCursor) => void;
     /** A pointer pressed a step button: it steps from the press and repeats while held. */
     readonly onStepPress: (direction: StepDirection, event: PointerEvent) => void;
     /** A step button was clicked, which the view drops when it ends a press that stepped already. */
     readonly onStepClick: (direction: StepDirection) => void;
     readonly onTogglePlay: () => void;
-    readonly onToggleHands: () => void;
     /** The next seat round the table takes the bottom. */
     readonly onNextView: () => void;
 }
 
 export interface ReplayStatusProps {
     readonly display: Pick<ReplayDisplay, "endNotice" | "incomplete" | "roundName" | "step">;
+    readonly handCopy: ReplayHandCopy["outcome"] | null;
 }
 
 /** The moves with a button of their own; either end is the keys' and the round list's. */
@@ -79,11 +89,10 @@ const MOVE_KEYS: Readonly<Record<MoveName, string>> = {
 };
 
 const OPTION_ICONS = {
-    hands: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
-    handsHidden: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM4 4l16 16",
     pause: "M9 5v14M15 5v14",
     play: "M8 5l11 7-11 7z",
     rounds: "M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1",
+    tools: "M4 7h9M17 7h3M15 5v4M4 17h3M11 17h9M9 15v4",
     view: "M4 11a8 8 0 0 1 14-5l2 2M20 4v4h-4M20 13a8 8 0 0 1-14 5l-2-2M4 20v-4h4",
 } as const;
 
@@ -180,17 +189,30 @@ function RoundsButton(props: ReplayControlsProps): TemplateResult {
     >${Icon(OPTION_ICONS.rounds)}</button>`;
 }
 
+function ToolsButton(props: ReplayControlsProps): TemplateResult {
+    return html`<button
+        type="button"
+        class="replay-controls__option replay-controls__option--tools"
+        data-tip=${t("replay.tools.title")}
+        aria-label=${t("replay.tools.title")}
+        aria-expanded=${props.toolsOpen ? "true" : "false"}
+        aria-controls=${REPLAY_TOOLS_ID}
+        data-focus-key=${TOOLS_TOGGLE_FOCUS_KEY}
+        data-replay-tools-toggle
+        @click=${props.onToggleTools}
+    >${Icon(OPTION_ICONS.tools)}</button>`;
+}
+
 /**
  * The replay's controls, one group: the moves (a round back, the bottom seat's turn back, a step back, autoplay, a step
  * on, its turn on, a round on; a smaller board's keep the five between the rounds), then the options (the next seat's
- * view on a desktop's chrome, the other hands and the round list). A desktop stands them in one row over the own hand,
+ * view on a desktop's chrome, the round list and the tools' menu). A desktop stands them in one row over the own hand,
  * a phone or a small window at the right bar's foot, in two columns of paired moves where the bar is too short for
  * one; the board's geometry picks the form. A move that cannot go is disabled.
  * Each control's tip names it and its key. The seat at the bottom is the board's: pressing another seat's plate or
  * score views from it too.
  */
 export function ReplayControls(props: ReplayControlsProps): TemplateResult {
-    const { playback } = props;
     return html`
         <div class="replay-controls__moves" role="group" aria-label=${t("replay.controls.moves")}>
             ${JumpButton("prevRound", props)}${JumpButton("prevTurn", props)}${StepButton("prev", props)}${PlayButton(props)}${StepButton("next", props)}${JumpButton("nextTurn", props)}${JumpButton("nextRound", props)}
@@ -203,15 +225,7 @@ export function ReplayControls(props: ReplayControlsProps): TemplateResult {
                 onClick: props.onNextView,
                 tip: tip(t("replay.options.next_view"), "V"),
             })}
-            ${OptionButton({
-                content: Icon(playback.hideHands ? OPTION_ICONS.handsHidden : OPTION_ICONS.hands),
-                kind: "hands",
-                label: t("replay.options.hide_hands"),
-                onClick: props.onToggleHands,
-                pressed: playback.hideHands,
-                tip: tip(t("replay.options.hide_hands"), "H"),
-            })}
-            ${RoundsButton(props)}
+            ${RoundsButton(props)}${ToolsButton(props)}
         </div>
     `;
 }
@@ -241,9 +255,15 @@ function IncompleteNote(
 
 /**
  * What the replay shows in the notices' place: the round and step for assistive technology alone (the centre shows the
- * round), and a replay that is not the whole game saying so (and where it ends at its last stop).
+ * round), a replay that is not the whole game saying so (and where it ends at its last stop), and whether a copy of the
+ * hand went through.
  */
-export function ReplayStatus({ display }: ReplayStatusProps): TemplateResult {
+const HAND_COPY_NOTICES: Readonly<Record<ReplayHandCopy["outcome"], MessageKey>> = {
+    copied: "replay.status.hand_copied",
+    failed: "replay.status.hand_copy_failed",
+};
+
+export function ReplayStatus({ display, handCopy }: ReplayStatusProps): TemplateResult {
     const { step } = display;
     return html`<div class="replay-status">
         <p class="replay-status__position">
@@ -251,5 +271,12 @@ export function ReplayStatus({ display }: ReplayStatusProps): TemplateResult {
             <span class="replay-status__step">${t("replay.step", { step: step.index, steps: step.count })}</span>
         </p>
         ${IncompleteNote(display.incomplete, display.endNotice)}
+        ${
+            handCopy === null
+                ? nothing
+                : html`<p class="replay-status__copy replay-status__copy--${handCopy}" role="status">
+                      ${t(HAND_COPY_NOTICES[handCopy])}
+                  </p>`
+        }
     </div>`;
 }

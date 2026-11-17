@@ -80,9 +80,13 @@ interface GameBoardProps {
     /**
      * A replay's controls, over the foreground band in the decisions' place, and in the switches' where the band shares
      * the core's corners (a board that shows them plays no hand), and what it shows in the notices' place under any
-     * notice (its position).
+     * notice (its position), and whether the rivers mark tsumogiri.
      */
-    readonly replay?: { readonly controls: TemplateResult; readonly status: TemplateResult };
+    readonly replay?: {
+        readonly controls: TemplateResult;
+        readonly status: TemplateResult;
+        readonly marksTsumogiri?: boolean;
+    };
     readonly input?: DirectiveResult;
 }
 
@@ -403,6 +407,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
         "game-board",
         props.localHand ? "game-board--play" : "",
         props.replay ? "game-board--replay" : "",
+        props.replay?.marksTsumogiri ? "game-board--marks-tsumogiri" : "",
         import.meta.env.DEV && props.debug ? "game-board--debug" : "",
     ]
         .filter(Boolean)

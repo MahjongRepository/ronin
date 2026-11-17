@@ -3,7 +3,11 @@ import { type TemplateResult, html, nothing } from "lit-html";
 import { GameMenu } from "@/entities/client";
 import { type ReplayDisplay } from "@/entities/replay/lib/replay-display";
 import { type ReplayCursor, lastCursor } from "@/entities/replay/model/replay-cursor";
-import { type LoadedReplayScreen, type StepDirection } from "@/entities/replay/model/replay-page";
+import {
+    type LoadedReplayScreen,
+    type StepDirection,
+    showsHand,
+} from "@/entities/replay/model/replay-page";
 import {
     GameBoard,
     type PanelAction,
@@ -13,8 +17,10 @@ import {
     TablePanelDisplay,
 } from "@/entities/table";
 import { type Locale, type WindScript, t } from "@/shared/i18n";
+import { type ShortcutKeys } from "@/shared/lib";
 
 import { ReplayControls, ReplayStatus } from "./replay-controls";
+import { ReplayTools } from "./replay-tools";
 import { RoundList } from "./round-list";
 
 /** The focus key the seating's Start renders, so the page focuses it as the seating opens. */
@@ -35,6 +41,11 @@ export interface ReplayBoardHandlers {
     readonly toggleRoundList: () => void;
     readonly closeRoundList: () => void;
     readonly selectRound: (start: ReplayCursor) => void;
+    readonly toggleTools: () => void;
+    readonly closeTools: () => void;
+    readonly copyHand: () => void;
+    readonly analyzeHand: () => void;
+    readonly toggleTsumogiri: () => void;
     readonly start: () => void;
     readonly stepPress: (direction: StepDirection, event: PointerEvent) => void;
     readonly stepClick: (direction: StepDirection) => void;
@@ -54,14 +65,37 @@ export interface ReplayBoardProps {
     readonly display: ReplayDisplay;
     readonly links: ReplayLinks;
     readonly handlers: ReplayBoardHandlers;
+    /** Whose shortcut names the tools show. */
+    readonly shortcuts: ShortcutKeys;
 }
 
-/** The replay's moves and options over the board's band, and the round list over the board while it is open. */
-function controlsTemplate(
-    { autoplay, hideHands, replay, roundListOpen }: LoadedReplayScreen,
-    display: ReplayDisplay,
-    handlers: ReplayBoardHandlers,
-): TemplateResult {
+function toolsTemplate({
+    handlers,
+    screen,
+    shortcuts,
+}: Pick<ReplayBoardProps, "handlers" | "screen" | "shortcuts">): TemplateResult | typeof nothing {
+    return screen.toolsOpen
+        ? ReplayTools({
+              hideHands: screen.hideHands,
+              onAnalyzeHand: handlers.analyzeHand,
+              onClose: handlers.closeTools,
+              onCopyHand: handlers.copyHand,
+              onToggleHands: handlers.toggleHands,
+              onToggleTsumogiri: handlers.toggleTsumogiri,
+              shortcuts,
+              showTsumogiri: screen.showTsumogiri,
+              showsHand: showsHand(screen),
+          })
+        : nothing;
+}
+
+/**
+ * The replay's moves and options over the board's band, and the round list or the tools' menu over the board while
+ * it is open.
+ */
+function controlsTemplate(props: ReplayBoardProps): TemplateResult {
+    const { display, handlers, screen } = props;
+    const { autoplay, replay, roundListOpen } = screen;
     const last = lastCursor(replay.navigation);
     const end =
         last === null
@@ -89,12 +123,13 @@ function controlsTemplate(
         onNextView: handlers.nextView,
         onStepClick: handlers.stepClick,
         onStepPress: handlers.stepPress,
-        onToggleHands: handlers.toggleHands,
         onTogglePlay: handlers.togglePlay,
         onToggleRoundList: handlers.toggleRoundList,
-        playback: { hideHands, playing: autoplay.playing },
+        onToggleTools: handlers.toggleTools,
+        playback: { playing: autoplay.playing },
         roundListOpen,
-    })}${roundList}</div>`;
+        toolsOpen: screen.toolsOpen,
+    })}${roundList}${toolsTemplate(props)}</div>`;
 }
 
 /** Where a table's seat stands on the board as the screen views it. */
@@ -116,12 +151,8 @@ function endActions(lobby: string, history: string): readonly PanelAction[] {
  * replay's controls and status in the band, and the settings menu in the corner. A nameplate press views that seat,
  * as a press of its name on the seating does.
  */
-export function ReplayBoard({
-    display,
-    handlers,
-    links,
-    screen,
-}: ReplayBoardProps): TemplateResult {
+export function ReplayBoard(props: ReplayBoardProps): TemplateResult {
+    const { display, handlers, links, screen } = props;
     const { overlay } = display;
     const { lobby } = links;
     const controls: TablePanelControls = {
@@ -163,8 +194,9 @@ export function ReplayBoard({
         overlay: overlay === null ? undefined : TablePanelDisplay(overlay, controls),
         overlayHeld: overlay?.kind === "result" && overlay.held,
         replay: {
-            controls: controlsTemplate(screen, display, handlers),
-            status: ReplayStatus({ display }),
+            controls: controlsTemplate(props),
+            marksTsumogiri: screen.showTsumogiri,
+            status: ReplayStatus({ display, handCopy: screen.handCopy?.outcome ?? null }),
         },
         state: display.board,
     });

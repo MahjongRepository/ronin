@@ -11,6 +11,8 @@ export { localStore } from "./local-store";
 export type { LocalStore } from "./local-store";
 export { keepPageRested } from "./page-rest";
 export type { PageRest, RestedPage, RestingPage } from "./page-rest";
+export { shortcutKeysOf } from "./shortcut-keys";
+export type { ShortcutKeys } from "./shortcut-keys";
 export { createSoundPlayer } from "./sound-player";
 export type { SoundOutput, SoundPlayer, SoundSamples, SoundSource } from "./sound-player";
 export { createThrottledWriter } from "./throttled-writer";

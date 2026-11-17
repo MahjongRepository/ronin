@@ -47,6 +47,12 @@ interface MountedReplay {
     readonly answer: (fetched: ReplayFetch) => Promise<void>;
     /** Every sound played, in order, and the sound setting as this browser would keep it. */
     readonly sound: { readonly played: SoundCue[]; setting: SoundSetting };
+    /** Every text put on the clipboard. */
+    readonly copied: string[];
+    /** Make every later clipboard write reject, as a browser refusing it would. */
+    readonly refuseCopies: () => void;
+    /** Every address opened in a new tab. */
+    readonly opened: string[];
 }
 
 const mounts: MountedReplay[] = [];
@@ -171,6 +177,28 @@ function fakePrefsStore(prefs: ReplayPrefs): {
     };
 }
 
+/** A clipboard recording every text put on it, whose writes reject once `refuseCopies` is called. */
+function fakeClipboard(): {
+    readonly copied: string[];
+    readonly copyText: (text: string) => Promise<void>;
+    readonly refuseCopies: () => void;
+} {
+    const copied: string[] = [];
+    const writes = { refused: false };
+    return {
+        copied,
+        copyText: async (text) => {
+            if (writes.refused) {
+                throw new Error("the clipboard write was refused");
+            }
+            copied.push(text);
+        },
+        refuseCopies: () => {
+            writes.refused = true;
+        },
+    };
+}
+
 /** The game's sounds, on or off, recording every cue played and every setting kept. */
 function fakeSound(soundOn: boolean): {
     readonly sound: MountedReplay["sound"];
@@ -196,6 +224,11 @@ interface MountOptions {
     readonly setLanguage?: (locale: Locale) => void;
 }
 
+function remembered(mounted: MountedReplay): MountedReplay {
+    mounts.push(mounted);
+    return mounted;
+}
+
 /** Mount a replay view at `search` whose every load waits until the test answers it. */
 function mountReplay(
     search = "",
@@ -212,33 +245,39 @@ function mountReplay(
     const { failWrites, hidePage, location, written } = fakeLocation(search);
     const { answer, loadReplay, signals } = fakeLoader();
     const { deps, sound } = fakeSound(soundOn);
+    const { copied, copyText, refuseCopies } = fakeClipboard();
+    const opened: string[] = [];
     const dispose = mountReplayView(host, "g1", {
         clock: steadyClockOn(clock),
+        copyText,
         links,
         loadReplay,
         location,
         motionSetting: localStore(MOTION_SETTING_KEY, readMotionSetting, DEFAULT_MOTION_SETTING),
+        openUrl: (url) => opened.push(url),
         prefs: store,
         setLanguage,
         setTileLabels: () => {},
         setWinds: () => {},
+        shortcuts: "other",
         sound: deps,
     });
-    const mounted: MountedReplay = {
+    return remembered({
         answer,
         clock,
+        copied,
         dispose,
         failPrefsLoad,
         failWrites,
         hidePage,
         host,
+        opened,
+        refuseCopies,
         savedPrefs,
         signals,
         sound,
         written,
-    };
-    mounts.push(mounted);
-    return mounted;
+    });
 }
 
 async function mountLoadedReplay(
@@ -282,6 +321,13 @@ function pressKey(target: EventTarget, key: string, init: KeyboardEventInit = {}
     );
 }
 
+/** Press `init`'s copy key on the root, let the clipboard answer and say whether the page prevented its default. */
+async function pressCopy(host: HTMLElement, init: KeyboardEventInit = COPY): Promise<boolean> {
+    const prevented = pressKey(rootOf(host), "c", init);
+    await settle();
+    return prevented;
+}
+
 /** Release `key` on `target` and say whether the page prevented its default. */
 function releaseKey(target: EventTarget, key: string, init: KeyboardEventInit = {}): boolean {
     return !target.dispatchEvent(
@@ -290,6 +336,7 @@ function releaseKey(target: EventTarget, key: string, init: KeyboardEventInit = 
 }
 
 const SPACE: KeyboardEventInit = { code: "Space" };
+const COPY: KeyboardEventInit = { code: "KeyC", ctrlKey: true };
 
 /** Fire the earliest live timer, and say whether there was one. */
 function fireNextTimer(clock: ManualClock): boolean {
@@ -468,6 +515,51 @@ describe("mountReplayView - moving", () => {
 });
 
 describe("mountReplayView - keys", () => {
+    it("copies the bottom seat's closed hand on Ctrl+C and Cmd+C, its draw last, and none under the seating", async () => {
+        const { copied, host } = await mountLoadedReplay();
+
+        const underSeating = await pressCopy(host);
+        pressKey(rootOf(host), "ArrowRight");
+        pressKey(rootOf(host), "ArrowDown");
+        const prevented = await pressCopy(host);
+        await pressCopy(host, { code: "KeyC", metaKey: true });
+
+        expect([underSeating, prevented]).toEqual([false, true]);
+        expect(copied).toEqual(["1308m268p168s234z2m", "1308m268p168s234z2m"]);
+    });
+
+    it("says the hand was copied until the notice's time passes", async () => {
+        const { clock, host } = await mountLoadedReplay("riichi", "?round=0&step=2");
+
+        await pressCopy(host);
+        const shown = textOf(host, ".replay-status__copy");
+        fireNextTimer(clock);
+
+        expect(shown).toBe("Hand copied");
+        expect(textOf(host, ".replay-status__copy")).toBeUndefined();
+    });
+
+    it("leaves Ctrl+C to selected text", async () => {
+        const { copied, host } = await mountLoadedReplay("riichi", "?round=0&step=2");
+
+        document.getSelection()?.selectAllChildren(element(host, ".replay-status"));
+        onTestFinished(() => document.getSelection()?.removeAllRanges());
+
+        expect(await pressCopy(host)).toBe(false);
+        expect(copied).toEqual([]);
+    });
+
+    it("says when the browser refuses the copy, its cause on the console", async () => {
+        const { host, refuseCopies } = await mountLoadedReplay("riichi", "?round=0&step=2");
+        const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+        refuseCopies();
+        await pressCopy(host);
+
+        expect(textOf(host, ".replay-status__copy--failed")).toBe("Could not copy the hand");
+        expect(logged).toHaveBeenCalledOnce();
+    });
+
     it("ignores keys typed into a field, composed by an input method or held with a modifier", async () => {
         const { host } = await mountLoadedReplay();
         const input = document.createElement("input");
@@ -484,10 +576,10 @@ describe("mountReplayView - keys", () => {
 
     it("leaves Space to a focused button, which activates itself, and takes it as autoplay's switch elsewhere", async () => {
         const { host } = await mountLoadedReplay();
-        const hands = button(host, ".replay-controls__option--hands");
-        hands.focus();
+        const view = button(host, ".replay-controls__option--view");
+        view.focus();
 
-        pressKey(hands, " ", SPACE);
+        pressKey(view, " ", SPACE);
         const onButton = [position(host), playing(host)];
         pressKey(rootOf(host), " ", SPACE);
 
@@ -765,15 +857,31 @@ describe("mountReplayView - view", () => {
         expect(host.querySelectorAll(".board-local .hand .tile").length).toBe(14);
     });
 
-    it("hides the other hands, and keeps the choice in the reader's settings", async () => {
+    it("hides the other hands from the tools' switch, and keeps the choice in the reader's settings", async () => {
         const { host, savedPrefs } = await mountLoadedReplay("riichi", "?round=0&step=2");
         const shownBacks = host.querySelectorAll(".board-strip .tile-back").length;
 
-        button(host, ".replay-controls__option--hands").click();
+        button(host, ".replay-controls__option--tools").click();
+        button(host, ".replay-tools__hands").click();
 
         expect(shownBacks).toBe(0);
         expect(host.querySelectorAll(".board-strip .tile-back").length).toBeGreaterThan(0);
-        expect(savedPrefs).toEqual([{ hideHands: true }]);
+        expect(savedPrefs).toEqual([{ ...DEFAULT_REPLAY_PREFS, hideHands: true }]);
+    });
+
+    it("stops marking tsumogiri while its switch is off, the tools left open and the choice kept", async () => {
+        const { host, savedPrefs } = await mountLoadedReplay("riichi", "?round=0&step=2");
+        const marked = element(host, ".game-board").classList.contains(
+            "game-board--marks-tsumogiri",
+        );
+
+        button(host, ".replay-controls__option--tools").click();
+        button(host, ".replay-tools__tsumogiri").click();
+
+        expect(marked).toBe(true);
+        expect(host.querySelector(".game-board--marks-tsumogiri")).toBeNull();
+        expect(button(host, ".replay-tools__tsumogiri").getAttribute("aria-checked")).toBe("false");
+        expect(savedPrefs).toEqual([{ ...DEFAULT_REPLAY_PREFS, showTsumogiri: false }]);
     });
     it("holds a deep link on the seating while the sound is on, the wheel moving nothing, then plays a step on's sounds until the reader turns them off from the cog", async () => {
         const { host, sound } = await mountLoadedReplay("riichi", "?round=0&step=10", {
@@ -852,7 +960,7 @@ describe("mountReplayView - view", () => {
 
     it("shows the hands a round's result reveals face up while the other hands hide", async () => {
         const { host } = await mountLoadedReplay("double_ron", "?round=0&step=10", {
-            prefs: { hideHands: true },
+            prefs: { ...DEFAULT_REPLAY_PREFS, hideHands: true },
         });
         expect(textOf(host, ".round-end-result__winner")).toBe("Alice");
         expect(["right", "top", "left"].map((seat) => handTiles(host, seat))).toEqual([
@@ -978,6 +1086,72 @@ describe("mountReplayView - round list", () => {
         button(host, ".replay-controls__option--rounds").click();
         pressKey(document.activeElement ?? host, "Escape");
         expect(host.querySelector(".round-list")).toBeNull();
+    });
+});
+
+describe("mountReplayView - tools", () => {
+    it("opens on Copy hand, which copies the hand and closes the menu with the focus back on its toggle", async () => {
+        const { copied, host } = await mountLoadedReplay("riichi", "?round=0&step=2");
+        const toggle = button(host, ".replay-controls__option--tools");
+
+        toggle.click();
+        const opened = document.activeElement?.className;
+        button(host, ".replay-tools__copy").click();
+        await settle();
+
+        expect(opened).toContain("replay-tools__copy");
+        expect(copied).toEqual(["1308m268p168s234z"]);
+        expect(host.querySelector(".replay-tools")).toBeNull();
+        expect(document.activeElement).toBe(toggle);
+    });
+
+    it("opens the hand in Tenhou's analysis from its item and once per press of A, the draw last", async () => {
+        const { host, opened } = await mountLoadedReplay("riichi", "?round=0&step=2");
+
+        button(host, ".replay-controls__option--tools").click();
+        button(host, ".replay-tools__analyze").click();
+        const menuAfter = host.querySelector(".replay-tools");
+        pressKey(rootOf(host), "ArrowDown");
+        const prevented = pressKey(rootOf(host), "a", { code: "KeyA" });
+        pressKey(rootOf(host), "a", { code: "KeyA", repeat: true });
+
+        expect(menuAfter).toBeNull();
+        expect(prevented).toBe(true);
+        expect(opened).toEqual([
+            "https://tenhou.net/2/?q=1308m268p168s234z",
+            "https://tenhou.net/2/?q=1308m268p168s234z2m",
+        ]);
+    });
+
+    it("closes on Escape and on a click outside it, not on one inside", async () => {
+        const { host } = await mountLoadedReplay("riichi", "?round=0&step=2");
+        button(host, ".replay-controls__option--tools").click();
+
+        button(host, ".replay-tools__hands").click();
+        expect(host.querySelector(".replay-tools")).not.toBeNull();
+
+        document.body.click();
+        expect(host.querySelector(".replay-tools")).toBeNull();
+
+        button(host, ".replay-controls__option--tools").click();
+        pressKey(document.activeElement ?? host, "Escape");
+        expect(host.querySelector(".replay-tools")).toBeNull();
+    });
+
+    it("gives way to the round list, and the round list to it", async () => {
+        const { host } = await mountLoadedReplay("riichi", "?round=0&step=2");
+
+        button(host, ".replay-controls__option--tools").click();
+        button(host, ".replay-controls__option--rounds").click();
+        const listOpened = [
+            host.querySelector(".replay-tools"),
+            host.querySelector(".round-list") !== null,
+        ];
+        button(host, ".replay-controls__option--tools").click();
+
+        expect(listOpened).toEqual([null, true]);
+        expect(host.querySelector(".round-list")).toBeNull();
+        expect(host.querySelector(".replay-tools")).not.toBeNull();
     });
 });
 
