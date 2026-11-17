@@ -284,8 +284,9 @@ export function PlaySwitches(
 /** The time left to the round advance, as words on the panel itself, since a touch screen shows no tooltip. */
 function ResultTime(countdown: DecisionCountdown | null): TemplateResult | typeof nothing {
     if (countdown?.kind === "running") {
+        const text = t("game.countdown.seconds_left", { count: countdown.secondsLeft });
         return html`<span class="round-end-result__countdown"
-            >${t("game.countdown.seconds_left", { count: countdown.secondsLeft })}</span
+            >${withSecondsFigure(text, countdown.secondsLeft, "round-end-result__seconds")}</span
         >`;
     }
     if (countdown?.kind === "expired") {
