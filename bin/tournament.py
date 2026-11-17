@@ -331,7 +331,7 @@ class Tournament:
             response = await self.http.get(f"{self.ronin_url}/api/replays/{game_id}/tenhou.xml")
             response.raise_for_status()
             async with self.lock:
-                await self.portal.call(
+                answer = await self.portal.call(
                     "game_finish",
                     log_id=game_id,
                     players=players,
@@ -341,6 +341,11 @@ class Tournament:
                 )
         except httpx.HTTPError, ValueError:
             logger.exception("reporting game %s failed", game_id)
+            self.reported.discard(game_id)
+            return
+
+        if answer.get("added") is not True:
+            logger.error("the portal did not add game %s: %s", game_id, answer.get("message"))
             self.reported.discard(game_id)
 
 
