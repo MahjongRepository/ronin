@@ -22,12 +22,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import contextlib
 import json
 import logging
 import os
 import sys
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import httpx
@@ -35,7 +35,7 @@ from websockets.asyncio.client import connect
 from websockets.exceptions import WebSocketException
 
 POLL_SECONDS = 5.0
-ONLINE_TIMEOUT_SECONDS = 300.0
+TABLE_START_DEADLINE_SECONDS = 300.0
 GAME_DEADLINE_SECONDS = 3 * 60 * 60.0
 TELEGRAM_LONG_POLL_SECONDS = 25
 HTTP_TIMEOUT_SECONDS = TELEGRAM_LONG_POLL_SECONDS + 15.0
@@ -45,7 +45,6 @@ GAME_STARTED = 1
 GAME_FAILED = 2
 PLAYERS_MISSING = 3
 COMPLETED = "completed"
-NO_ROUND = -1
 TOO_MANY_REQUESTS = 429
 
 logger = logging.getLogger("tournament")
@@ -135,6 +134,18 @@ class Telegram:
         return answer.get("result", [])
 
 
+@dataclass(frozen=True)
+class Table:
+    round_number: int
+    number: int
+    players: tuple[str, ...]
+    prepared_at: float
+
+
+def start_notice(round_number: int, table: int, kind: int, missing: list[str] | None = None) -> dict[str, object]:
+    return {"tour": round_number, "table_number": table, "type": kind, "missed_players": missing or []}
+
+
 class Tournament:
     def __init__(self, http: httpx.AsyncClient) -> None:
         self.portal = Portal(http)
@@ -145,9 +156,10 @@ class Tournament:
         self.http = http
         self.lock = asyncio.Lock()
         self.online_folded: set[str] = set()
-        self.presence_changed = asyncio.Event()
         self.reported: set[str] = set()
         self.pending: dict[str, tuple[int, int, float]] = {}
+        self.waiting: list[Table] = []
+        self.start_notices: list[tuple[str | None, dict[str, object]]] = []
         self.finished = False
 
     async def run(self) -> None:
@@ -215,46 +227,63 @@ class Tournament:
                 await self.reconcile()
                 await self.expire_games()
                 status = await self.portal.call("get_tournament_status", lang="en")
-                if not self.pending and is_break_over(status["end_break_time"]):
-                    await self.play_round()
+                if self.is_idle() and is_break_over(status["end_break_time"]):
+                    await self.prepare_round()
+
+                await self.start_waiting_tables()
+                await self.send_start_notices()
             except httpx.HTTPError, ValueError:
                 logger.exception("round step failed")
 
             await asyncio.sleep(POLL_SECONDS)
 
-    async def play_round(self) -> None:
+    def is_idle(self) -> bool:
+        return not (self.pending or self.waiting or self.start_notices)
+
+    async def prepare_round(self) -> None:
         prepared = await self.portal.call("prepare_next_round")
-        round_number = prepared["round"]
-        if round_number == NO_ROUND:
-            return
+        prepared_at = time.monotonic()
+        self.waiting = [
+            Table(
+                round_number=prepared["round"],
+                number=number,
+                players=tuple(player["ronin_username"] for player in table["players"]),
+                prepared_at=prepared_at,
+            )
+            for number, table in enumerate(prepared["tables"], start=1)
+        ]
 
-        tables = [[player["ronin_username"] for player in table["players"]] for table in prepared["tables"]]
-        await self.wait_online({name.casefold() for table in tables for name in table})
-
+    async def start_waiting_tables(self) -> None:
         async with self.lock:
-            startable = []
-            for number, table in enumerate(tables, start=1):
-                missing = [name for name in table if name.casefold() not in self.online_folded]
-                if missing:
-                    await self.notify_start(round_number, number, PLAYERS_MISSING, missing)
-                else:
-                    startable.append((number, table))
+            now = time.monotonic()
+            for table in [table for table in self.waiting if now - table.prepared_at > TABLE_START_DEADLINE_SECONDS]:
+                self.waiting.remove(table)
+                missing = [name for name in table.players if name.casefold() not in self.online_folded]
+                logger.error("table %d %s did not start in time, missing %s", table.number, table.players, missing)
+                kind = PLAYERS_MISSING if missing else GAME_FAILED
+                self.start_notices.append((None, start_notice(table.round_number, table.number, kind, missing)))
 
-            results = await self.start_games([table for _, table in startable])
-            for (number, table), result in zip(startable, results, strict=True):
-                if "game_id" in result:
-                    self.pending[result["game_id"]] = (round_number, number, time.monotonic())
-                    await self.notify_start(round_number, number, GAME_STARTED)
-                else:
-                    logger.error("table %d %s did not start: %s", number, table, result)
-                    await self.notify_start(round_number, number, GAME_FAILED)
+            ready = [table for table in self.waiting if all(self.is_online(name) for name in table.players)]
+            results = await self.start_games([list(table.players) for table in ready])
+            for table, result in zip(ready, results, strict=True):
+                if "game_id" not in result:
+                    logger.warning("table %d %s did not start, retrying: %s", table.number, table.players, result)
+                    continue
 
-    async def wait_online(self, folded_names: set[str]) -> None:
-        with contextlib.suppress(TimeoutError):
-            async with asyncio.timeout(ONLINE_TIMEOUT_SECONDS):
-                while not folded_names <= self.online_folded:
-                    self.presence_changed.clear()
-                    await self.presence_changed.wait()
+                self.waiting.remove(table)
+                self.pending[result["game_id"]] = (table.round_number, table.number, time.monotonic())
+                notice = start_notice(table.round_number, table.number, GAME_STARTED)
+                self.start_notices.append((result["game_id"], notice))
+
+    def is_online(self, name: str) -> bool:
+        return name.casefold() in self.online_folded
+
+    async def send_start_notices(self) -> None:
+        async with self.lock:
+            while self.start_notices:
+                _, notice = self.start_notices[0]
+                await self.portal.call("create_start_game_notification", **notice)
+                self.start_notices.pop(0)
 
     async def start_games(self, tables: list[list[str]]) -> list[dict]:
         if not tables:
@@ -271,22 +300,13 @@ class Tournament:
 
         return response.json()["results"]
 
-    async def notify_start(self, round_number: int, table: int, kind: int, missing: list[str] | None = None) -> None:
-        await self.portal.call(
-            "create_start_game_notification",
-            tour=round_number,
-            table_number=table,
-            type=kind,
-            missed_players=missing or [],
-        )
-
     async def expire_games(self) -> None:
         now = time.monotonic()
         for game_id, (round_number, table, started) in list(self.pending.items()):
             if now - started > GAME_DEADLINE_SECONDS:
                 logger.error("game %s of table %d has no end after %.0fs", game_id, table, GAME_DEADLINE_SECONDS)
                 del self.pending[game_id]
-                await self.notify_start(round_number, table, GAME_FAILED)
+                self.start_notices.append((None, start_notice(round_number, table, GAME_FAILED)))
 
     async def follow_events(self) -> None:
         url = f"{self.ronin_url.replace('http', 'ws', 1)}/ws/tournaments/{self.ronin_tournament}/events"
@@ -308,7 +328,6 @@ class Tournament:
         response.raise_for_status()
         snapshot = response.json()
         self.online_folded = {name.casefold() for name in snapshot["online"]}
-        self.presence_changed.set()
         for game in snapshot["games"]:
             if game["ended_at"] is not None and game["game_id"] not in self.reported:
                 await self.finish_game(game["game_id"], game["players"], game["end_reason"], game["ended_at"])
@@ -317,7 +336,6 @@ class Tournament:
         logger.info("event %s", json.dumps(event))
         if event["type"] == "presence":
             self.online_folded = {name.casefold() for name in event["players"]}
-            self.presence_changed.set()
         elif event["type"] == "game_ended" and event["game_id"] not in self.reported:
             await self.finish_game(event["game_id"], event["players"], event["end_reason"], time.time())
 
@@ -332,6 +350,11 @@ class Tournament:
             response = await self.http.get(f"{self.ronin_url}/api/replays/{game_id}/tenhou.xml")
             response.raise_for_status()
             async with self.lock:
+                if any(queued == game_id for queued, _ in self.start_notices):
+                    logger.info("game %s ended before its start notice went out, reporting it later", game_id)
+                    self.reported.discard(game_id)
+                    return
+
                 answer = await self.portal.call(
                     "game_finish",
                     log_id=game_id,
@@ -377,7 +400,13 @@ def main() -> None:
     confirm = commands.add_parser("confirm", help="confirm a registered player as the admin")
     confirm.add_argument("nickname", help="the player's Ronin nickname")
     confirm.add_argument("telegram_username", nargs="?", help="the player's Telegram username, if any")
-    commands.add_parser("run", help="play the tournament's rounds until the portal says it is finished")
+    commands.add_parser(
+        "run",
+        help="play the tournament's rounds until the portal says it is finished",
+        description="Play the tournament's rounds until the portal says it is finished. If run stops mid-round, start "
+        "it again: it reports the games that ended meanwhile from the Ronin snapshot. Tables of that round it had not "
+        "started yet are not retried; settle them on the portal (a penalty game) so the next round can start.",
+    )
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     asyncio.run(admin(parser.parse_args()))
