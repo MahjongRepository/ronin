@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BOT_ROOT="${BOT_ROOT:-$HOME/work/mahjong-bot}"
 BOT_BIN="${BOT_BIN:-}"
+PORTAL="${PORTAL:-}"
+PORTAL_RUN_TIMEOUT="${PORTAL_RUN_TIMEOUT:-3600}"
 
 GAME_PORT=8711
 LOBBY_PORT=8710
@@ -16,6 +18,11 @@ OWNER_NAME=tourney_host
 TOURNAMENT_NAME="Bot Cup $(date +%Y-%m-%d_%H-%M-%S)"
 BOT_NAMES=(ai-tour-1 ai-tour-2 ai-tour-3 ai-tour-4 ai-tour-5 ai-tour-6 ai-tour-7 ai-tour-8)
 RUN_LOG_DIR="$PROJECT_ROOT/backend/logs/tournament"
+PORTAL_ROUNDS=4
+if [[ -n $PORTAL ]]; then
+    BOT_NAMES=(ai-pt-1 ai-pt-2 ai-pt-3 ai-pt-4 ai-pt-5 ai-pt-6 ai-pt-7 ai-pt-8)
+    RUN_LOG_DIR="$PROJECT_ROOT/backend/logs/portal-tournament"
+fi
 
 SERVER_PIDS=()
 BOT_PIDS=()
@@ -129,6 +136,97 @@ start_bots() {
     done
 }
 
+relaunch_bot() {
+    local name="$1"
+    local key="$2"
+    local launch=0
+    while true; do
+        launch=$((launch + 1))
+        local status=0
+        echo "=== launch $launch" >> "$RUN_LOG_DIR/bots/$name.log"
+        "$BOT_BIN" -p "$name" -k "$key" --lobby-url "http://localhost:$LOBBY_PORT" -t "$TOURNAMENT_ID" \
+            >> "$RUN_LOG_DIR/bots/$name.log" 2>&1 || status=$?
+        echo "=== launch $launch exited with status $status" >> "$RUN_LOG_DIR/bots/$name.log"
+        sleep 1
+    done
+}
+
+start_relaunching_bots() {
+    for idx in "${!BOT_NAMES[@]}"; do
+        relaunch_bot "${BOT_NAMES[$idx]}" "${BOT_KEYS[$idx]}" &
+        BOT_PIDS+=($!)
+    done
+}
+
+register_on_portal() {
+    echo "register_on_portal is not wired yet: register ${BOT_NAMES[*]} on portal tournament $PORTAL_TOURNAMENT_ID"
+    return 1
+}
+
+check_pantheon_games() {
+    local expected="$1"
+    echo "check_pantheon_games is not wired yet: cannot check that Pantheon holds $expected games"
+    return 1
+}
+
+check_ronin_games() {
+    local expected="$1"
+    curl -sf --max-time 10 -H "X-API-Key: $OWNER_KEY" "http://localhost:$LOBBY_PORT/api/tournaments/$TOURNAMENT_ID" \
+        | python3 -c '
+import json, sys
+expected = int(sys.argv[1])
+games = json.load(sys.stdin)["games"]
+completed = sum(game["end_reason"] == "completed" for game in games)
+print(f"ronin games: {len(games)}, completed: {completed}, expected completed: {expected}")
+sys.exit(0 if completed == len(games) == expected else 1)
+' "$expected"
+}
+
+portal() {
+    (cd "$PROJECT_ROOT" && uv run --project backend python bin/tournament.py "$@") 2>&1 \
+        | tee -a "$RUN_LOG_DIR/tournament.log"
+}
+
+require_portal_env() {
+    : "${PORTAL_URL:?PORTAL_URL is not set}" "${PORTAL_API_TOKEN:?PORTAL_API_TOKEN is not set}"
+    : "${PORTAL_TOURNAMENT_ID:?PORTAL_TOURNAMENT_ID is not set}" "${PORTAL_LOBBY_ID:?PORTAL_LOBBY_ID is not set}"
+    export PORTAL_URL PORTAL_API_TOKEN PORTAL_TOURNAMENT_ID PORTAL_LOBBY_ID
+}
+
+run_portal_tournament() {
+    export RONIN_URL="http://localhost:$LOBBY_PORT"
+    export RONIN_TOURNAMENT_ID="$TOURNAMENT_ID"
+    export RONIN_API_KEY="$OWNER_KEY"
+
+    register_on_portal
+    portal open-registration
+    for name in "${BOT_NAMES[@]}"; do
+        portal confirm "$name"
+    done
+    portal close-registration
+
+    start_relaunching_bots
+
+    local run_status=0
+    (cd "$PROJECT_ROOT" && timeout "$PORTAL_RUN_TIMEOUT" uv run --project backend python bin/tournament.py run) \
+        > "$RUN_LOG_DIR/tournament-run.log" 2>&1 || run_status=$?
+    echo "tournament.py run exited with status $run_status"
+
+    local games=$(( ${#BOT_NAMES[@]} / 4 * PORTAL_ROUNDS ))
+    local ronin_status=0
+    check_ronin_games "$games" || ronin_status=1
+    local pantheon_status=0
+    check_pantheon_games "$games" || pantheon_status=1
+
+    echo ""
+    echo "logs in $RUN_LOG_DIR (tournament-run.log holds every portal call, Ronin call and event)"
+    if [[ $run_status -ne 0 || $ronin_status -ne 0 || $pantheon_status -ne 0 ]]; then
+        echo "=== portal tournament run failed ==="
+        exit 1
+    fi
+    echo "=== portal tournament run completed ==="
+}
+
 wait_for_bots() {
     local deadline=$(( $(date +%s) + BOT_EXIT_TIMEOUT ))
     local failed=0
@@ -165,6 +263,9 @@ export LOG_LEVEL=info
 export LOG_FORMAT=console
 export GAME_LOG_DIR="$RUN_LOG_DIR/game"
 export LOBBY_LOG_DIR="$RUN_LOG_DIR/lobby"
+if [[ -n $PORTAL ]]; then
+    require_portal_env
+fi
 
 build_bot
 
@@ -178,6 +279,11 @@ free_port "$GAME_PORT"
 free_port "$LOBBY_PORT"
 start_server game game.server.app:get_app "$GAME_PORT" 262144 "$GAME_LOG_DIR"
 start_server lobby lobby.server.app:get_app "$LOBBY_PORT" 8192 "$LOBBY_LOG_DIR"
+
+if [[ -n $PORTAL ]]; then
+    run_portal_tournament
+    exit 0
+fi
 
 start_bots
 
