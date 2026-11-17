@@ -7,8 +7,7 @@ every finished game to Pantheon. This script connects it to Ronin and Telegram: 
 tournament API once their players are online on the tournament page, and hands every finished game's Tenhou XML to the
 portal. Once no game it started is still running and the portal's ``end_break_time`` (the games start time for the
 first round, the end of the break after the previous one for the others) has passed, it asks the portal for the
-next round. A null end_break_time means no wait before the first round this run prepares, and the last round's end
-after it, as the portal sets no break then.
+next round (a null end_break_time means no wait), unless the status says the tournament is finished.
 The run ends with the portal's ``tournament_finished`` notification.
 
 Configuration comes from the environment: PORTAL_URL, PORTAL_API_TOKEN, PORTAL_TOURNAMENT_ID, PORTAL_LOBBY_ID,
@@ -63,6 +62,10 @@ def env(name: str) -> str:
         sys.exit(f"{name} is not set")
 
     return value
+
+
+def is_round_due(status: dict) -> bool:
+    return status.get("finished") is not True and is_break_over(status["end_break_time"])
 
 
 def is_break_over(end_break_time: str | None) -> bool:
@@ -178,7 +181,6 @@ class Tournament:
         self.waiting: list[Table] = []
         self.start_notices: list[tuple[str | None, dict[str, object]]] = []
         self.finished = False
-        self.prepared_any = False
 
     async def run(self) -> None:
         loops = [self.relay_notifications(), self.follow_events()]
@@ -245,7 +247,7 @@ class Tournament:
                 await self.reconcile()
                 await self.expire_games()
                 status = await self.portal.call("get_tournament_status", lang="en")
-                if self.is_idle() and self.is_round_due(status["end_break_time"]):
+                if self.is_idle() and is_round_due(status):
                     await self.prepare_round()
 
                 await self.start_waiting_tables()
@@ -254,12 +256,6 @@ class Tournament:
                 logger.exception("round step failed")
 
             await asyncio.sleep(POLL_SECONDS)
-
-    def is_round_due(self, end_break_time: str | None) -> bool:
-        if end_break_time is None:
-            return not self.prepared_any
-
-        return is_break_over(end_break_time)
 
     def is_idle(self) -> bool:
         return not (self.pending or self.waiting or self.start_notices)
@@ -270,7 +266,6 @@ class Tournament:
             logger.error("the portal refused the next round: %s", prepared.get("message"))
             return
 
-        self.prepared_any = True
         prepared_at = time.monotonic()
         self.waiting = [
             Table(
