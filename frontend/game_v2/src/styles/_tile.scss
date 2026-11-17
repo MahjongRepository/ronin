@@ -31,6 +31,8 @@ $max-strip-melds: 4;
     display: inline-block;
     width: var(--tile-w);
     height: calc(var(--tile-w) * 4 / 3);
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .tile__body {
