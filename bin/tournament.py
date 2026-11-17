@@ -6,13 +6,15 @@ every finished game to Pantheon. This script connects it to Ronin and Telegram: 
 ``/status`` in Telegram, posts the portal's notifications to the chat, starts each round's tables through Ronin's
 tournament API once their players are online on the tournament page, and hands every finished game's Tenhou XML to the
 portal. Once no game it started is still running and the portal's ``end_break_time`` (the games start time for the
-first round, the end of the break after the previous one for the others; null for no wait) has passed, it asks the
-portal for the next round, which the portal refuses while the round's games are unfinished or no rounds are left.
+first round, the end of the break after the previous one for the others) has passed, it asks the portal for the
+next round. A null end_break_time means no wait before the first round this run prepares, and the last round's end
+after it, as the portal sets no break then.
 The run ends with the portal's ``tournament_finished`` notification.
 
 Configuration comes from the environment: PORTAL_URL, PORTAL_API_TOKEN, PORTAL_TOURNAMENT_ID, PORTAL_LOBBY_ID,
-RONIN_URL, RONIN_TOURNAMENT_ID, RONIN_API_KEY, and optionally TG_BOT_TOKEN and TG_CHAT_ID (without them Telegram
-messages only go to the log).
+RONIN_URL, RONIN_TOURNAMENT_ID, RONIN_API_KEY, and optionally TG_BOT_TOKEN, TG_CHAT_ID and TG_ADMIN_CHAT_ID (without
+them Telegram messages only go to the log). Stalls (a table that does not start, a game with no end, a game that ends
+other than completed) are logged as errors and sent to TG_ADMIN_CHAT_ID.
 
 Usage: uv run --project backend python bin/tournament.py open-registration | close-registration
     | confirm NICKNAME [TELEGRAM_USERNAME] | run
@@ -90,6 +92,7 @@ class Telegram:
         self._http = http
         self._token = os.environ.get("TG_BOT_TOKEN", "")
         self.chat_id = os.environ.get("TG_CHAT_ID", "")
+        self.admin_chat_id = os.environ.get("TG_ADMIN_CHAT_ID", "")
         self.enabled = bool(self._token and self.chat_id)
 
     async def call(self, method: str, payload: dict[str, object]) -> dict:
@@ -111,7 +114,7 @@ class Telegram:
 
     async def send(self, text: str, chat_id: object = None, reply_to: object = None) -> None:
         logger.info("telegram message: %s", text)
-        if not self.enabled:
+        if not self._token or not (chat_id or self.chat_id):
             return
 
         message: dict[str, object] = {
@@ -125,6 +128,11 @@ class Telegram:
         answer = await self.call("sendMessage", {**message, "parse_mode": "Markdown"})
         if not answer.get("ok"):
             await self.call("sendMessage", message)
+
+    async def alert(self, text: str) -> None:
+        logger.error("admin alert: %s", text)
+        if self.admin_chat_id:
+            await self.send(text, chat_id=self.admin_chat_id)
 
     async def updates(self, offset: int | None) -> list[dict]:
         answer = await self.call(
@@ -161,6 +169,7 @@ class Tournament:
         self.waiting: list[Table] = []
         self.start_notices: list[tuple[str | None, dict[str, object]]] = []
         self.finished = False
+        self.prepared_any = False
 
     async def run(self) -> None:
         loops = [self.relay_notifications(), self.follow_events()]
@@ -227,7 +236,7 @@ class Tournament:
                 await self.reconcile()
                 await self.expire_games()
                 status = await self.portal.call("get_tournament_status", lang="en")
-                if self.is_idle() and is_break_over(status["end_break_time"]):
+                if self.is_idle() and self.is_round_due(status["end_break_time"]):
                     await self.prepare_round()
 
                 await self.start_waiting_tables()
@@ -237,11 +246,22 @@ class Tournament:
 
             await asyncio.sleep(POLL_SECONDS)
 
+    def is_round_due(self, end_break_time: str | None) -> bool:
+        if end_break_time is None:
+            return not self.prepared_any
+
+        return is_break_over(end_break_time)
+
     def is_idle(self) -> bool:
         return not (self.pending or self.waiting or self.start_notices)
 
     async def prepare_round(self) -> None:
         prepared = await self.portal.call("prepare_next_round")
+        if not prepared["tables"]:
+            logger.error("the portal refused the next round: %s", prepared.get("message"))
+            return
+
+        self.prepared_any = True
         prepared_at = time.monotonic()
         self.waiting = [
             Table(
@@ -259,7 +279,10 @@ class Tournament:
             for table in [table for table in self.waiting if now - table.prepared_at > TABLE_START_DEADLINE_SECONDS]:
                 self.waiting.remove(table)
                 missing = [name for name in table.players if name.casefold() not in self.online_folded]
-                logger.error("table %d %s did not start in time, missing %s", table.number, table.players, missing)
+                await self.telegram.alert(
+                    f"Round {table.round_number}, table {table.number} ({', '.join(table.players)}) did not start "
+                    f"in {TABLE_START_DEADLINE_SECONDS:.0f}s; missing: {', '.join(missing) or 'nobody'}."
+                )
                 kind = PLAYERS_MISSING if missing else GAME_FAILED
                 self.start_notices.append((None, start_notice(table.round_number, table.number, kind, missing)))
 
@@ -304,7 +327,10 @@ class Tournament:
         now = time.monotonic()
         for game_id, (round_number, table, started) in list(self.pending.items()):
             if now - started > GAME_DEADLINE_SECONDS:
-                logger.error("game %s of table %d has no end after %.0fs", game_id, table, GAME_DEADLINE_SECONDS)
+                await self.telegram.alert(
+                    f"Round {round_number}, table {table}: game {game_id} has no end after "
+                    f"{GAME_DEADLINE_SECONDS:.0f}s, reported to the portal as failed."
+                )
                 del self.pending[game_id]
                 self.start_notices.append((None, start_notice(round_number, table, GAME_FAILED)))
 
@@ -342,7 +368,9 @@ class Tournament:
     async def finish_game(self, game_id: str, players: list[str], end_reason: str, ended_at: float) -> None:
         self.reported.add(game_id)
         if end_reason != COMPLETED:
-            await self.telegram.send(f"Game {game_id} ({', '.join(players)}) ended as {end_reason}, not added.")
+            await self.telegram.alert(
+                f"Game {game_id} ({', '.join(players)}) ended as {end_reason}; it is not added to the portal."
+            )
             self.pending.pop(game_id, None)
             return
 
