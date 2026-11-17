@@ -19,8 +19,9 @@ Events).
 ## Players
 
 Players take part by opening the tournament's page (`/tournaments/{id}`, the shareable link); while it is open they
-are online. The API addresses them by username, matched exactly and case-sensitively against the online usernames.
-A player whose game starts leaves the online list at once and comes back online by returning to the page.
+are online. The API addresses them by username, matched against the online usernames ignoring case (usernames are
+unique ignoring case); responses and events name every player in their account's own spelling. A player whose game
+starts leaves the online list at once and comes back online by returning to the page.
 
 ## Start games: `POST /api/tournaments/{id}/games`
 
@@ -32,8 +33,8 @@ Each table is four distinct usernames, seated in list order: the first is East, 
 manager shuffles seats itself. One request holds 1 to 40 tables, and the body may be at most 4096 bytes; a larger body
 gets `413 {"error": "Request body too large"}` and starts nothing.
 
-A malformed body (wrong shape, a table not of four non-empty names, a name repeated in one table, more than 40 tables)
-gets one `400 {"error": "..."}` and starts nothing.
+A malformed body (wrong shape, a table not of four non-empty names, a name repeated in one table in any case, more
+than 40 tables) gets one `400 {"error": "..."}` and starts nothing.
 
 Otherwise the answer is `200` with one result per table, in request order. The tables start one after another and
 each fails alone, so the other tables still start:

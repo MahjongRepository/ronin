@@ -148,7 +148,7 @@ class Tournament:
         self.ronin_headers = {"X-API-Key": env("RONIN_API_KEY")}
         self.http = http
         self.lock = asyncio.Lock()
-        self.online: set[str] = set()
+        self.online_folded: set[str] = set()
         self.presence_changed = asyncio.Event()
         self.reported: set[str] = set()
         self.pending: dict[str, tuple[int, int, float]] = {}
@@ -232,12 +232,12 @@ class Tournament:
             return
 
         tables = [[player["ronin_username"] for player in table["players"]] for table in prepared["tables"]]
-        await self.wait_online({name for table in tables for name in table})
+        await self.wait_online({name.casefold() for table in tables for name in table})
 
         async with self.lock:
             startable = []
             for number, table in enumerate(tables, start=1):
-                missing = [name for name in table if name not in self.online]
+                missing = [name for name in table if name.casefold() not in self.online_folded]
                 if missing:
                     await self.notify_start(round_number, number, PLAYERS_MISSING, missing)
                 else:
@@ -252,10 +252,10 @@ class Tournament:
                     logger.error("table %d %s did not start: %s", number, table, result)
                     await self.notify_start(round_number, number, GAME_FAILED)
 
-    async def wait_online(self, names: set[str]) -> None:
+    async def wait_online(self, folded_names: set[str]) -> None:
         with contextlib.suppress(TimeoutError):
             async with asyncio.timeout(ONLINE_TIMEOUT_SECONDS):
-                while not names <= self.online:
+                while not folded_names <= self.online_folded:
                     self.presence_changed.clear()
                     await self.presence_changed.wait()
 
@@ -310,7 +310,7 @@ class Tournament:
         )
         response.raise_for_status()
         snapshot = response.json()
-        self.online = set(snapshot["online"])
+        self.online_folded = {name.casefold() for name in snapshot["online"]}
         self.presence_changed.set()
         for game in snapshot["games"]:
             if game["ended_at"] is not None and game["game_id"] not in self.reported:
@@ -319,7 +319,7 @@ class Tournament:
     async def on_event(self, event: dict) -> None:
         logger.info("event %s", json.dumps(event))
         if event["type"] == "presence":
-            self.online = set(event["players"])
+            self.online_folded = {name.casefold() for name in event["players"]}
             self.presence_changed.set()
         elif event["type"] == "game_ended" and event["game_id"] not in self.reported:
             await self.finish_game(event["game_id"], event["players"], event["end_reason"], time.time())

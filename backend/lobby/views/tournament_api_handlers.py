@@ -32,7 +32,7 @@ _INVALID_GAMES = f"games must be 1 to {MAX_TABLES_PER_START} tables of {_TABLE_S
 
 
 def _require_distinct(names: list[str]) -> list[str]:
-    if len(set(names)) != len(names):
+    if len({name.casefold() for name in names}) != len(names):
         msg = "a table names a player twice"
         raise ValueError(msg)
 
@@ -125,6 +125,8 @@ async def _start_table(request: Request, *, tournament_id: str, names: list[str]
         log.info("tournament table refused, players not online")
         missing = [name for name, player in zip(names, found, strict=True) if player is None]
         return {"error": "players_not_online", "players": missing}
+
+    names = [player.username for player in players]
 
     async with asyncio.TaskGroup() as group:
         lookups = [group.create_task(occupancy.find_game_conflict(player.user_id)) for player in players]

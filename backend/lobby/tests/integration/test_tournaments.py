@@ -110,7 +110,7 @@ def test_tournament_socket__when_users_join_after_chat__should_get_history_witho
     ]
 
 
-def test_start_games__when_tables_have_absent_and_busy_players__should_start_other_and_report_in_order(
+def test_start_games__when_tables_have_absent_busy_and_miscased_players__should_start_other_with_canonical_names(
     client, tournament_id, game_server, busy_user_ids
 ):
     owner_key = _issue_api_token(client)
@@ -137,7 +137,7 @@ def test_start_games__when_tables_have_absent_and_busy_players__should_start_oth
                 "games": [
                     ["erin", "frank", "gina", "ghost"],
                     ["erin", "frank", "gina", "dave"],
-                    ["hank", "gina", "frank", "erin"],
+                    ["Hank", "GINA", "frank", "erin"],
                 ]
             },
             headers={"x-api-key": owner_key},
@@ -174,7 +174,7 @@ def test_start_games__when_tables_have_absent_and_busy_players__should_start_oth
     assert (game["ended_at"], game["end_reason"], game["result"]) == (None, None, None)
 
 
-def test_start_games__when_a_table_repeats_a_name__should_return_400_and_start_nothing(
+def test_start_games__when_a_table_repeats_a_name_in_another_case__should_return_400_and_start_nothing(
     client, tournament_id, game_server
 ):
     owner_key = _issue_api_token(client)
@@ -194,7 +194,7 @@ def test_start_games__when_a_table_repeats_a_name__should_return_400_and_start_n
 
         response = client.post(
             f"/api/tournaments/{tournament_id}/games",
-            json={"games": [["erin", "frank", "gina", "hank"], ["erin", "frank", "gina", "erin"]]},
+            json={"games": [["erin", "frank", "gina", "hank"], ["erin", "frank", "gina", "Erin"]]},
             headers={"x-api-key": owner_key},
         )
         snapshot = client.get(f"/api/tournaments/{tournament_id}", headers={"x-api-key": owner_key}).json()

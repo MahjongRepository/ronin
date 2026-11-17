@@ -72,10 +72,13 @@ class TournamentHub:
 
     def find_online(self, tournament_id: str, username: str) -> LobbyPlayer | None:
         """
-        Return the connection of the user with this exact username online in the tournament, or None.
+        Return the connection of the user online in the tournament whose username matches, ignoring case, or None.
+
+        Usernames are unique ignoring case, so at most one matches.
         """
+        wanted = username.casefold()
         players = self._online.get(tournament_id, {}).values()
-        return next((player for player in players if player.username == username), None)
+        return next((player for player in players if player.username.casefold() == wanted), None)
 
     def subscribe(self, tournament_id: str, subscriber: LobbyPlayer) -> None:
         """
