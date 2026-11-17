@@ -166,7 +166,7 @@ register_on_portal() {
     local output
     local status=0
     output=$(cd "$PORTAL_SERVER_DIR" && uv run --env-file ../.envs/.local-sqlite python manage.py setup_ronin_e2e \
-        --ronin-tournament-id "$TOURNAMENT_ID" "${BOT_NAMES[@]}" 2> "$RUN_LOG_DIR/portal-setup.log") || status=$?
+        --ronin-tournament-id "$TOURNAMENT_ID" --games-start-in 60 "${BOT_NAMES[@]}" 2> "$RUN_LOG_DIR/portal-setup.log") || status=$?
     PORTAL_TOURNAMENT_ID=$(sed -n 's/^PORTAL_TOURNAMENT_ID=//p' <<< "$output")
     PORTAL_LOBBY_ID=$(sed -n 's/^PORTAL_LOBBY_ID=//p' <<< "$output")
     PANTHEON_EVENT_ID=$(sed -n 's/^PANTHEON_EVENT_ID=//p' <<< "$output")
