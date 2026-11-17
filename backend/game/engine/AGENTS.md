@@ -2,8 +2,8 @@
 
 `game.engine` is the seam between the rules engine (`game.logic`) and everything that manages a game: the
 session, messaging, wire, the replay tools, `scripts/` and `bin/`. Its `__init__.py` re-exports engine names
-explicitly through `__all__`; it holds no wrappers, no logic of its own and no re-exported modules, and the
-types stay defined in `game.logic`.
+explicitly, each with a redundant alias (`from game.logic.x import Name as Name`); it holds no wrappers, no
+logic of its own and no re-exported modules, and the types stay defined in `game.logic`.
 
 ## Import rule
 
@@ -20,8 +20,8 @@ types stay defined in `game.logic`.
 * The facade exports the seam and nothing else: the service protocol, its implementation and the game handle;
   the setup inputs; actions, decisions, refusals, the awaiting type and the seat view; the trusted state type;
   events and results with the domain enums and values on their fields; the RNG, wall, shanten and tile
-  primitives; the constants of the one rules preset. A name joins `__all__` only when it belongs to one of those,
-  and leaves it once nothing outside the engine imports it.
+  primitives; the constants of the one rules preset. A name joins the re-exports only when it belongs to one of
+  those, and leaves them once nothing outside the engine imports it.
 
 ## Seam invariants
 
