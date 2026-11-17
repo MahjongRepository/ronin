@@ -593,7 +593,7 @@ function countersPlace(geometry: BoardGeometry): Record<string, boolean> {
         countersWhole:
             length("dora-w") >= 0.6 * length("rw") &&
             length("dora-w") <= 0.8 * length("rw") &&
-            length("dora-row-w") >= 5 * length("dora-w"),
+            length("counters-w") >= 5 * length("dora-w") + 2 * length("dora-pad") - 0.001,
     };
 }
 

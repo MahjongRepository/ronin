@@ -17,10 +17,10 @@
 
 .board-dora__tiles {
     display: flex;
-    flex-wrap: wrap;
-    width: var(--dora-row-w);
+    flex-wrap: nowrap;
 }
 
 .board-dora__tile {
+    flex: none;
     line-height: 0;
 }

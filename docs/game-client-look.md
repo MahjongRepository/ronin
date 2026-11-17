@@ -454,7 +454,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   strips' lines starting below it; in the bar beside the left strip only where its lines cannot start below it. A
   barless board, corner or pocket alike, keeps it at the table's top-left corner, the pocket's controls below it.
   Its dora are 0.8 river tiles, smaller where the room from the window's edge is short, never under 0.6, the five
-  in one row at every size (three and two only where nothing else holds). Nothing is reserved under it: a
+  in one row at every size and zoom, never wrapping. Nothing is reserved under it: a
   replay's status stands in the left bar's field under it. On a phone the card stands at the felt's top-left corner, inside it or
   straddling its edge, whichever holds its dora larger, ending short of the left strip (Composition), the notices
   under it, its dora shrinking to fit, never under the 13px face floor. A replay shows no

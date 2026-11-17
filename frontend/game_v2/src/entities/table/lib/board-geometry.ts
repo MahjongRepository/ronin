@@ -600,10 +600,10 @@ interface DesktopLayout {
 
 /**
  * Where a desktop's counters stand: in the left bar; over the left strip's lane with the side strips' lines starting
- * below them; wrapped where neither holds their one row; or, on a barless board, in the table's top-left corner
+ * below them; shrunk below their least where neither holds their one row; or, on a barless board, in the table's top-left corner
  * over the lane and the top line's far end, the side strips' lines starting below them and the cog.
  */
-type CountersPlace = "bar" | "lane" | "wrap" | "corner";
+type CountersPlace = "bar" | "lane" | "shrunk" | "corner";
 
 /** A desktop's bar, where its counters stand at it and its arrangement: the table's sizes solved for them. */
 interface DesktopPlan {
@@ -666,7 +666,7 @@ function controlsStandPlanePocketUnchecked(frame: BoardFrame, { misfits }: Deskt
 
 /**
  * A desktop's layout at `rw`: the first of its plans (`desktopPlans`) whose own tile holds its share off a plane, whose
- * controls stand (`controlsStandPlanePocketUnchecked`) and which `fits`; else the bars with the counters wrapped.
+ * controls stand (`controlsStandPlanePocketUnchecked`) and which `fits`; else the bars with the counters shrunk.
  */
 function desktopLayout(
     frame: BoardFrame,
@@ -686,7 +686,7 @@ function desktopLayout(
             return layout;
         }
     }
-    return desktopAt(frame, rw, { arrangement: "bars", bar: BAR_MIN, counters: "wrap" });
+    return desktopAt(frame, rw, { arrangement: "bars", bar: BAR_MIN, counters: "shrunk" });
 }
 
 /** Each plan a desktop tries at a river tile, whatever its own tile's share, with why its controls misfit there. */
@@ -704,7 +704,7 @@ function desktopPlanMisfits(
 
 /** The px the left bar takes to hold the counters' one row at their least indicator, their gaps counted. */
 function countersBar(rw: number): number {
-    return BAR_GAP + countersAt(leastDora(rw), DORA_SLOTS).width + FIELD_STRIP_GAP;
+    return BAR_GAP + countersAt(leastDora(rw)).width + FIELD_STRIP_GAP;
 }
 
 /** Whether the counters' one row at their least indicator stands where `place` puts it. */
@@ -717,12 +717,12 @@ function countersHold({
     readonly place: CountersPlace;
     readonly rw: number;
 }): boolean {
-    const row = countersAt(leastDora(rw), DORA_SLOTS).width;
+    const row = countersAt(leastDora(rw)).width;
     const holds: Readonly<Record<CountersPlace, boolean>> = {
         bar: row <= fieldRight(colLeft) - BAR_GAP,
         corner: true,
         lane: row <= laneEdge(colLeft, rw) - BAR_GAP,
-        wrap: false,
+        shrunk: false,
     };
     return holds[place];
 }
@@ -1710,7 +1710,7 @@ function phonePromptHeight(bandWidth: number, timerW: number): number {
 }
 
 function phoneLeftBarLeast(chrome: PhoneChrome): number {
-    const counters = countersAt(FACE_FLOOR, DORA_SLOTS).width;
+    const counters = countersAt(FACE_FLOOR).width;
     const switches = PHONE_SWITCH_COLUMNS * chrome.switchH;
     const notices = NOTICE_FIELD_EMS * NOTICE_TEXT_MIN;
     return chrome.m + Math.max(counters, switches, notices) + FIELD_GAP;
@@ -2457,12 +2457,12 @@ function phoneCounters({
 } {
     const wanted = phoneChrome(rw).doraW;
     const insideLeft = feltLeft + m;
-    const inside = doraFitting({ perRow: DORA_SLOTS, room: barRight - insideLeft, wanted });
-    const straddling = doraFitting({ perRow: DORA_SLOTS, room: barRight - m, wanted });
+    const inside = doraFitting({ room: barRight - insideLeft, wanted });
+    const straddling = doraFitting({ room: barRight - m, wanted });
     if (inside >= straddling) {
-        return { counters: countersAt(inside, DORA_SLOTS), left: insideLeft };
+        return { counters: countersAt(inside), left: insideLeft };
     }
-    const counters = countersAt(straddling, DORA_SLOTS);
+    const counters = countersAt(straddling);
     return {
         counters,
         left: Math.max(m, Math.min(feltLeft - counters.width / 2, barRight - counters.width)),
@@ -2592,12 +2592,11 @@ interface PlatePlaces {
 
 /**
  * A desktop's dora tile is this share of the river tile where its place holds it, never under the least; the counters
- * hold five indicators edge to edge, in rows of the most of `DORA_ROW_SIZES` their room holds.
+ * hold five indicators edge to edge in one row.
  */
 const DORA_BY_RIVER_WANTED = 0.8;
 const DORA_BY_RIVER_LEAST = 0.6;
 const DORA_SLOTS = 5;
-const DORA_ROW_SIZES = [5, 3, 2] as const;
 
 /** The counters' padding and corner, in dora tiles. */
 const COUNTERS_PAD_BY_DORA = 0.2;
@@ -2609,32 +2608,24 @@ interface Counters {
     readonly height: number;
     readonly pad: number;
     readonly radius: number;
-    readonly rowW: number;
     readonly width: number;
 }
 
-/** The counters at a dora tile, their indicators `perRow` to a row, the last row's edge inside the padding (px). */
-function countersAt(dora: number, perRow: number): Counters {
-    const rows = Math.ceil(DORA_SLOTS / perRow);
+/** The counters at a dora tile, their one row's edge inside the padding (px). */
+function countersAt(dora: number): Counters {
     const pad = COUNTERS_PAD_BY_DORA * dora;
-    const rowW = perRow * dora;
     return {
         dora,
-        height: 2 * pad + rows * dora * TILE_ASPECT + TILE_EDGE_SHARE * dora,
+        height: 2 * pad + dora * TILE_ASPECT + TILE_EDGE_SHARE * dora,
         pad,
         radius: COUNTERS_RADIUS_BY_DORA * dora,
-        rowW,
-        width: 2 * pad + rowW,
+        width: 2 * pad + DORA_SLOTS * dora,
     };
 }
 
-/** The largest whole indicator, at most `wanted`, whose counters `perRow` to a row stand `room` wide (px). */
-function doraFitting({
-    perRow,
-    room,
-    wanted,
-}: Readonly<Record<"perRow" | "room" | "wanted", number>>): number {
-    return Math.min(wanted, Math.floor(room / (perRow + 2 * COUNTERS_PAD_BY_DORA)));
+/** The largest whole indicator, at most `wanted`, whose counters stand `room` wide (px). */
+function doraFitting({ room, wanted }: Readonly<Record<"room" | "wanted", number>>): number {
+    return Math.min(wanted, Math.floor(room / (DORA_SLOTS + 2 * COUNTERS_PAD_BY_DORA)));
 }
 
 /** The counters' lengths the stylesheet draws them with, their box's top left corner at `left` and `top` (px). */
@@ -2649,7 +2640,6 @@ function countersLengths(
         ["counters-x", left],
         ["dora-pad", counters.pad],
         ["dora-radius", counters.radius],
-        ["dora-row-w", counters.rowW],
         ["dora-w", counters.dora],
     ];
 }
@@ -2667,8 +2657,8 @@ interface DesktopCounters {
  * (`place`) they end a plate's gap short of the lane's inner edge, beside the top strip's line, in one row of five
  * indicators `DORA_BY_RIVER_WANTED` of a river tile, smaller to fit the room from the bar's edge, never under
  * `DORA_BY_RIVER_LEAST`, the side strips' lines starting under them (`linesFloor`); in the bar they end at its edge by
- * the left strip. Wrapped, where neither holds the row (`linesStart` where the side lines start), they stand three and
- * two (then two to a row) in the bar or over the lane above that start.
+ * the left strip. Shrunk, where neither holds the row at the least (`linesStart` where the side lines start), they keep
+ * one row over the lane above that start where it holds the least, else in the bar at whatever indicator it holds.
  */
 function desktopCounters({
     cog = 0,
@@ -2686,7 +2676,7 @@ function desktopCounters({
     const least = leastDora(rw);
     const wanted = Math.max(least, Math.floor(DORA_BY_RIVER_WANTED * rw));
     if (place === "corner") {
-        const counters = countersAt(wanted, DORA_SLOTS);
+        const counters = countersAt(wanted);
         return {
             counters: countersLengths(counters, { left: colLeft + BAR_GAP, top: 0 }),
             fieldTop: counters.height + BAR_GAP,
@@ -2696,27 +2686,23 @@ function desktopCounters({
     }
     const barEdge = fieldRight(colLeft);
     const overLane = laneEdge(colLeft, rw);
-    const rows = place === "wrap" ? DORA_ROW_SIZES : [DORA_SLOTS];
     const edgesByPlace: Readonly<Record<Exclude<CountersPlace, "corner">, readonly number[]>> = {
         bar: [barEdge],
         lane: [overLane],
-        wrap: [barEdge, overLane],
+        shrunk: [barEdge, overLane],
     };
-    const places = rows.flatMap((perRow) =>
-        edgesByPlace[place].map((edge) => ({
-            counters: countersAt(doraFitting({ perRow, room: edge - BAR_GAP, wanted }), perRow),
-            edge,
-        })),
-    );
-    const fallback = places.at(-2) ?? places[0];
+    const places = edgesByPlace[place].map((edge) => ({
+        counters: countersAt(doraFitting({ room: edge - BAR_GAP, wanted })),
+        edge,
+    }));
     const { counters, edge } =
         places.find(
             (candidate) =>
                 candidate.counters.dora >= least &&
-                (place !== "wrap" ||
+                (place !== "shrunk" ||
                     candidate.edge <= barEdge ||
                     candidate.counters.height + PLATE_GAP <= linesStart),
-        ) ?? fallback;
+        ) ?? places[0];
     const left = Math.max(BAR_GAP, edge - counters.width);
     return {
         counters: countersLengths(counters, { left, top: 0 }),
@@ -2729,7 +2715,7 @@ function desktopCounters({
 /**
  * Where a desktop's counters stand, from its arrangement and lengths: at the corner on a barless board, whichever its
  * arrangement; else over the lane where the side strips' lines start below them, else in the bar where it holds their
- * one row, else wrapped.
+ * one row, else shrunk.
  */
 function desktopCountersPlace({ at }: ShellRoom, arrangement: DesktopArrangement): CountersPlace {
     const rw = at("rw");
@@ -2743,7 +2729,7 @@ function desktopCountersPlace({ at }: ShellRoom, arrangement: DesktopArrangement
     ) {
         return "lane";
     }
-    return countersHold({ colLeft, place: "bar", rw }) ? "bar" : "wrap";
+    return countersHold({ colLeft, place: "bar", rw }) ? "bar" : "shrunk";
 }
 
 /** Where a plate's box would stand with its pill's foot level with the own tiles', within the table (px). */
