@@ -199,7 +199,7 @@ class Tournament:
     async def answer(self, message: dict) -> None:
         command, _, argument = (message.get("text") or "").partition(" ")
         command = command.split("@")[0]
-        if command == "/me" and argument.strip():
+        if command == "/me":
             answer = await self.portal.call(
                 "confirm_player",
                 nickname=argument.strip(),
