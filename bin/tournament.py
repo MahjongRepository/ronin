@@ -5,7 +5,7 @@ The portal's autobot API keeps the tournament's state: it seats each round, writ
 every finished game to Pantheon. This script connects it to Ronin and Telegram: it answers ``/me <nickname>`` and
 ``/status`` in Telegram, posts the portal's notifications to the chat, starts each round's tables through Ronin's
 tournament API once their players are online on the tournament page, and hands every finished game's Tenhou XML to the
-portal (and as a file to the chat). The next round starts when the portal's break after the last one is over; the run
+portal. The next round starts when the portal's break after the last one is over; the run
 ends with the portal's ``tournament_finished`` notification.
 
 Configuration comes from the environment: PORTAL_URL, PORTAL_API_TOKEN, PORTAL_TOURNAMENT_ID, PORTAL_LOBBY_ID,
@@ -88,21 +88,10 @@ class Telegram:
         self.chat_id = os.environ.get("TG_CHAT_ID", "")
         self.enabled = bool(self._token and self.chat_id)
 
-    async def call(
-        self,
-        method: str,
-        payload: dict[str, object],
-        document: tuple[str, bytes] | None = None,
-    ) -> dict:
+    async def call(self, method: str, payload: dict[str, object]) -> dict:
         url = f"https://api.telegram.org/bot{self._token}/{method}"
         while True:
-            if document is None:
-                response = await self._http.post(url, json=payload)
-            else:
-                name, content = document
-                files = {"document": (name, content, "application/xml")}
-                response = await self._http.post(url, data=payload, files=files)
-
+            response = await self._http.post(url, json=payload)
             answer = response.json()
             retry_after = answer.get("parameters", {}).get("retry_after")
             if answer.get("error_code") != TOO_MANY_REQUESTS or retry_after is None:
@@ -124,7 +113,7 @@ class Telegram:
         message: dict[str, object] = {
             "chat_id": chat_id or self.chat_id,
             "text": text,
-            "disable_web_page_preview": True,
+            "link_preview_options": {"is_disabled": True},
         }
         if reply_to:
             message["reply_to_message_id"] = reply_to
@@ -132,11 +121,6 @@ class Telegram:
         answer = await self.call("sendMessage", {**message, "parse_mode": "Markdown"})
         if not answer.get("ok"):
             await self.call("sendMessage", message)
-
-    async def send_document(self, name: str, content: bytes, caption: str) -> None:
-        logger.info("telegram document %s: %s", name, caption)
-        if self.enabled:
-            await self.call("sendDocument", {"chat_id": self.chat_id, "caption": caption}, document=(name, content))
 
     async def updates(self, offset: int | None) -> list[dict]:
         answer = await self.call(
@@ -344,7 +328,6 @@ class Tournament:
         try:
             response = await self.http.get(f"{self.ronin_url}/api/replays/{game_id}/tenhou.xml")
             response.raise_for_status()
-            await self.telegram.send_document(f"{game_id}.xml", response.content, " - ".join(players))
             async with self.lock:
                 await self.portal.call(
                     "game_finish",
