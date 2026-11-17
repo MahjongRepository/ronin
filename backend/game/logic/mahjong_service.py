@@ -235,7 +235,7 @@ class MahjongGameService(GameService):
             case Pass():
                 return handle_pass(game_state, seat=seat)
             case Pon():
-                return handle_pon(game_state, seat=seat)
+                return handle_pon(game_state, seat=seat, action=action)
             case Chi():
                 return handle_chi(game_state, seat=seat, action=action)
             case Kan():

@@ -18,7 +18,7 @@ from game.logic.action_handlers import (
 )
 from game.logic.action_result import ActionResult
 from game.logic.actions import build_decision, get_available_actions
-from game.logic.decision import Chi, Kan, Tsumo
+from game.logic.decision import Chi, Kan, Pon, Tsumo
 from game.logic.decision import Discard as DiscardAction
 from game.logic.enums import (
     AbortiveDrawType,
@@ -324,7 +324,7 @@ def _ronnable_replacement_discard() -> ActionResult:
         create_player(seat=3, tiles=(*_SEAT_3_TILES, *_FIVE_MAN)),
     )
     game_state = _game_with_three_kans_on_table(players, current_player_seat=3)
-    assert can_call_pon(players[0], _EIGHT_PIN[0])
+    assert can_call_pon(players[0], _EIGHT_PIN[0], has_akadora=True)
 
     kan = _declare_kan(game_state, seat=3, tile_id=_FIVE_MAN[0], kan_type=KanType.CLOSED)
     assert [type(e) for e in kan.events] == [MeldEvent, DoraRevealedEvent, DrawEvent, *[DrawNoticeEvent] * 3]
@@ -351,7 +351,7 @@ class TestFourKansAbortTiming:
             create_player(seat=3, tiles=(*_SEAT_3_TILES, *_FIVE_MAN[1:])),
         )
         game_state = _game_with_three_kans_on_table(players, current_player_seat=2)
-        assert can_call_pon(players[0], _EIGHT_PIN[0])
+        assert can_call_pon(players[0], _EIGHT_PIN[0], has_akadora=True)
 
         kan_offer = _discard(game_state, seat=2, tile_id=_FIVE_MAN[0])
         kan = _declare_kan(kan_offer.state, seat=3, tile_id=_FIVE_MAN[0], kan_type=KanType.OPEN)
@@ -575,7 +575,7 @@ class TestKanDoraTiming:
             kan_dora_indicator
         ]
 
-        pon = handle_pon(replacement_discard.state, seat=3)
+        pon = handle_pon(replacement_discard.state, seat=3, action=Pon())
         assert isinstance(pon, ActionResult)
         assert not [e for e in pon.events if isinstance(e, DoraRevealedEvent)]
         assert pon.state.round_state.players[3].melds[-1].type == FrozenMeld.PON

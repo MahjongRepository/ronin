@@ -94,7 +94,10 @@ describe("playDisplay", () => {
             ["Pass", [], "pass", null],
         ]);
         expect(display.actions[1].command).toEqual({
-            intent: { offer: { kind: "pon", tileId: 8 }, type: "choose" },
+            intent: {
+                offer: { kind: "pon", pair: [9, 10], tileId: 8 },
+                type: "choose",
+            },
             kind: "intent",
         });
         expect([display.countdown, display.tileIntents.size]).toEqual([
@@ -191,8 +194,14 @@ describe("playDisplay", () => {
             ...roundEnd,
             table: { ...roundEnd.table, roundNumber: roundEnd.table.roundNumber + 1 },
         };
-        const secondPage = stepPlayUi(roundEnd, NO_PLAY_UI, { kind: "show_result_page", page: 1 });
-        const pastLast = stepPlayUi(roundEnd, NO_PLAY_UI, { kind: "show_result_page", page: 4 });
+        const secondPage = stepPlayUi(roundEnd, NO_PLAY_UI, {
+            kind: "show_result_page",
+            page: 1,
+        });
+        const pastLast = stepPlayUi(roundEnd, NO_PLAY_UI, {
+            kind: "show_result_page",
+            page: 4,
+        });
 
         expect(
             [NO_PLAY_UI, secondPage, pastLast].map((ui) => resultPage(playDisplay(roundEnd, ui))),
@@ -206,7 +215,10 @@ describe("playDisplay", () => {
 
     it("pages a double ron's owed result with Next, then confirms it on the last page, counting down", () => {
         const roundEnd = checkpointState("double_ron_seat_1", "round end");
-        const lastPage = stepPlayUi(roundEnd, NO_PLAY_UI, { kind: "show_result_page", page: 1 });
+        const lastPage = stepPlayUi(roundEnd, NO_PLAY_UI, {
+            kind: "show_result_page",
+            page: 1,
+        });
         const first = playDisplay(roundEnd, NO_PLAY_UI).result;
         const last = playDisplay(roundEnd, lastPage).result;
 
@@ -217,7 +229,12 @@ describe("playDisplay", () => {
                 pressed: null,
                 tiles: [],
             },
-            countdown: { clock: null, kind: "running", move: "result", secondsLeft: 20 },
+            countdown: {
+                clock: null,
+                kind: "running",
+                move: "result",
+                secondsLeft: 20,
+            },
             waiting: false,
         });
         expect(last?.action).toMatchObject({
@@ -231,7 +248,12 @@ describe("playDisplay", () => {
 
         expect(playDisplay(confirmed, NO_PLAY_UI).result).toEqual({
             action: null,
-            countdown: { clock: null, kind: "running", move: "result", secondsLeft: 9 },
+            countdown: {
+                clock: null,
+                kind: "running",
+                move: "result",
+                secondsLeft: 9,
+            },
             waiting: true,
         });
         expect(nextCountdownChange(confirmed)).toBeGreaterThan(confirmed.now);
@@ -359,6 +381,19 @@ describe("playDisplay decisions", () => {
                     kind: "intent",
                 },
             ],
+        ]);
+    });
+
+    it("offers a pon of a plain five with and without the held red five as two pons, each showing its pair", () => {
+        const state = checkpointState("red_five_pon_seat_1", "prompt");
+
+        expect(
+            playDisplay(state, NO_PLAY_UI).actions.map((action) => [action.label, action.tiles]),
+        ).toEqual([
+            ["Kan", []],
+            ["Pon", ["5m", "5m"]],
+            ["Pon", ["5m", "0m"]],
+            ["Pass", []],
         ]);
     });
 
@@ -552,7 +587,11 @@ describe("playDisplay notices", () => {
     it("stacks the ongoing conditions before the acknowledgements, whichever came first, the browser's bars last among them", () => {
         const scenario = confirmSentScenario(50);
         scenario.step(clientEvent.message(100, wireGameError("invalid_action", 5)));
-        const ui = { ...NO_PLAY_UI, browserBars: true, tileSprite: "failed" } as const;
+        const ui = {
+            ...NO_PLAY_UI,
+            browserBars: true,
+            tileSprite: "failed",
+        } as const;
 
         const { notices } = playDisplay(scenario.state, ui);
         expect(notices.map((notice) => notice.kind)).toEqual([
@@ -614,7 +653,10 @@ describe("playDisplay notices", () => {
         expect(noticeTexts(scenario.state)).toEqual(["That move was refused"]);
 
         scenario.step(clientEvent.closed(200, 1008));
-        const display = playDisplay(scenario.state, { ...NO_PLAY_UI, confirmingLeave: true });
+        const display = playDisplay(scenario.state, {
+            ...NO_PLAY_UI,
+            confirmingLeave: true,
+        });
 
         expect(display.failure).toEqual({
             detail: "game.failure.removed_detail",
@@ -657,7 +699,10 @@ describe("stepPlayUi", () => {
 
         expect([kept.noticeSheet, closed.noticeSheet]).toEqual(["refused", null]);
         expect(
-            stepPlayUi(scenario.state, closed, { kind: "tile_sprite", status: "failed" }),
+            stepPlayUi(scenario.state, closed, {
+                kind: "tile_sprite",
+                status: "failed",
+            }),
         ).toEqual({ ...closed, tileSprite: "failed" });
     });
 });
@@ -755,7 +800,10 @@ describe("playDisplay callouts", () => {
 
     it("calls the viewer's chi by its seat for a while, then drops it once its time ran out", () => {
         const turn = checkpointState("call_prompt_seat_1", "turn");
-        const later = stepGameClient(turn, { at: turn.now + CALLOUT_MS, kind: "tick" }).state;
+        const later = stepGameClient(turn, {
+            at: turn.now + CALLOUT_MS,
+            kind: "tick",
+        }).state;
 
         expect(playDisplay(turn, NO_PLAY_UI).callouts).toEqual({
             announced: true,

@@ -101,13 +101,13 @@ def test_load_replay__when_discard_has_riichi_flag__should_produce_declare_riich
     assert replay.events[0].action == Riichi(tile=50)
 
 
-def test_load_replay__when_pon_meld__should_produce_call_pon_action():
+def test_load_replay__when_pon_meld__should_produce_call_pon_action_with_its_hand_tiles():
     meld = _compact_meld(meld_type="pon", caller_seat=2, from_seat=0, tile_ids=[8, 9, 10], called_tile_id=8)
     content = _build_records(meld)
     replay = load_replay_records(content)
     assert len(replay.events) == 1
     assert replay.events[0].player_name == "Charlie"
-    assert replay.events[0].action == Pon()
+    assert replay.events[0].action == Pon(tiles=(9, 10))
 
 
 def test_load_replay__when_chi_meld__should_produce_chi_with_the_hand_tiles():

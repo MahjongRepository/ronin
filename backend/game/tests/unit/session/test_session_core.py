@@ -217,7 +217,7 @@ class TestDrawDelivery:
         assert (prompt[WireKey.EVENT_TYPE], prompt[WireKey.CALL_TYPE], prompt[WireKey.AVAILABLE_CALLS]) == (
             WireEventType.CALL_PROMPT,
             WireCallType.RON,
-            [{WireKey.CALL_TYPE: WireMeldCallType.PON}],
+            [{WireKey.CALL_TYPE: WireMeldCallType.PON, WireKey.CALL_OPTIONS: [list(pair_of_four_pin)]}],
         )
         alice_conn._outbox.clear()
         bob_conn._outbox.clear()

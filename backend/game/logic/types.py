@@ -302,7 +302,7 @@ class MeldCallInput(BaseModel):
     caller_seat: int
     call_type: MeldCallType
     tile_id: int
-    sequence_tiles: tuple[int, int] | None = None
+    hand_tiles: tuple[int, int] | None = None
 
 
 class AvailableActionItem(BaseModel):

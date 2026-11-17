@@ -57,6 +57,7 @@ const sentActionSchema = z.discriminatedUnion(String(WIRE_KEY.ACTION), [
     z.strictObject({
         ...actionBase,
         [WIRE_KEY.ACTION]: z.literal(GAME_ACTION.CALL_PON),
+        [WIRE_KEY.SEQUENCE_TILES]: z.tuple([tileIdSchema, tileIdSchema]),
         [WIRE_KEY.TILE_ID]: tileIdSchema,
     }),
     z.strictObject({
@@ -208,7 +209,11 @@ function chosenOffer(action: ChosenAction): Offer {
             return { kind: "ron" };
         }
         case GAME_ACTION.CALL_PON: {
-            return { kind: "pon", tileId: action[WIRE_KEY.TILE_ID] };
+            return {
+                kind: "pon",
+                pair: action[WIRE_KEY.SEQUENCE_TILES],
+                tileId: action[WIRE_KEY.TILE_ID],
+            };
         }
         case GAME_ACTION.CALL_CHI: {
             return {

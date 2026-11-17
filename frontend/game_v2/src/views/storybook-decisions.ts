@@ -36,6 +36,7 @@ import GAME_END_RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/game_end_reconn
 import KAN_CHOICE_SEAT_1 from "@/fixtures/seat-scenarios/kan_choice_seat_1.json";
 import OWN_TURN_SEAT_1 from "@/fixtures/seat-scenarios/own_turn_seat_1.json";
 import RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/reconnect_seat_1.json";
+import RED_FIVE_PON_SEAT_1 from "@/fixtures/seat-scenarios/red_five_pon_seat_1.json";
 import RIICHI_KAN_SEAT_1 from "@/fixtures/seat-scenarios/riichi_kan_seat_1.json";
 import RON_CALL_SEAT_1 from "@/fixtures/seat-scenarios/ron_call_seat_1.json";
 import SEAT_LEFT_SEAT_1 from "@/fixtures/seat-scenarios/seat_left_seat_1.json";
@@ -69,6 +70,7 @@ const TRANSCRIPTS = {
     kan_choice_seat_1: KAN_CHOICE_SEAT_1,
     own_turn_seat_1: OWN_TURN_SEAT_1,
     reconnect_seat_1: RECONNECT_SEAT_1,
+    red_five_pon_seat_1: RED_FIVE_PON_SEAT_1,
     riichi_kan_seat_1: RIICHI_KAN_SEAT_1,
     ron_call_seat_1: RON_CALL_SEAT_1,
     seat_left_seat_1: SEAT_LEFT_SEAT_1,
@@ -121,6 +123,7 @@ const STORY_KEYS = [
     "game_start_waiting",
     "game_resume",
     "chi_offer",
+    "red_five_pon_offer",
     "call_prompt",
     "ron_prompt",
     "ron_call",
@@ -203,7 +206,11 @@ function intentsAfterCall(
 ): (state: LiveClient) => readonly LiveEvent[] {
     return (state) => {
         const at = state.now + CALLOUT_MS;
-        const answers: LiveEvent[] = picked.map((intent) => ({ at, intent, kind: "intent" }));
+        const answers: LiveEvent[] = picked.map((intent) => ({
+            at,
+            intent,
+            kind: "intent",
+        }));
         return [{ at, kind: "tick" }, ...answers];
     };
 }
@@ -249,7 +256,11 @@ function endedOutOfStep(
 /** A message the client cannot read, `ms` after the checkpoint: the long notice of a client out of step. */
 function unreadableAfter(ms: number): (state: LiveClient) => readonly LiveEvent[] {
     return (state) => [
-        { at: state.now + ms, kind: "server_message", raw: { [WIRE_KEY.EVENT_TYPE]: 999 } },
+        {
+            at: state.now + ms,
+            kind: "server_message",
+            raw: { [WIRE_KEY.EVENT_TYPE]: 999 },
+        },
     ];
 }
 
@@ -335,7 +346,10 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         followUp: answering({ type: "confirm_opening" }),
     },
     kan_offer: checkpoint("kan_choice_seat_1", "kan offer", "Kan of either of two types"),
-    kicked: { ...checkpoint("call_prompt_seat_1", "turn", "Kicked"), followUp: closedWith(1008) },
+    kicked: {
+        ...checkpoint("call_prompt_seat_1", "turn", "Kicked"),
+        followUp: closedWith(1008),
+    },
     kuikae_turn: checkpoint("call_prompt_seat_1", "turn", "Kuikae turn"),
     kyuushu_offer: checkpoint("game_end_reconnect_seat_1", "first draw", "First turn: kyuushu"),
     last_result: checkpoint("final_round_seat_1", "game end", "Last result"),
@@ -397,6 +411,11 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     player_back: checkpoint("seat_left_seat_1", "player back", "Player back"),
     player_left: checkpoint("seat_left_seat_1", "player left", "Player left"),
     reconnect_owed: checkpoint("double_ron_seat_1", "reconnected", "Reconnect owed"),
+    red_five_pon_offer: checkpoint(
+        "red_five_pon_seat_1",
+        "prompt",
+        "Pon with and without red five",
+    ),
     replaced: checkpoint("reconnect_seat_1", "replaced", "Opened elsewhere"),
     riichi_kan: checkpoint("riichi_kan_seat_1", "kan offer", "In riichi: kan offered"),
     riichi_pick: {
@@ -440,7 +459,10 @@ function parsedTranscript(transcriptName: TranscriptName): SeatTranscript {
 /** The client state after the transcript's step labelled `label`, run as the live driver would run it. */
 function checkpointState(transcriptName: TranscriptName, label: string): LiveClient {
     const transcript = parsedTranscript(transcriptName);
-    const handoff = { gameTicket: "storybook", wsUrl: `ws://storybook/ws/${transcript.gameId}` };
+    const handoff = {
+        gameTicket: "storybook",
+        wsUrl: `ws://storybook/ws/${transcript.gameId}`,
+    };
     return scenarioCheckpoint(seatScenarioFromTranscript(transcript, handoff), label);
 }
 
@@ -493,7 +515,10 @@ function storyScreen(key: DecisionStoryKey): StoryScreen {
         riichiPickWaitId: pickRiichi ? waitId : null,
         tileSprite: tileSprite ?? NO_PLAY_UI.tileSprite,
     };
-    const ui = stepPlayUi(state, picked, { kind: "show_result_page", page: resultPage });
+    const ui = stepPlayUi(state, picked, {
+        kind: "show_result_page",
+        page: resultPage,
+    });
     return { sent: [], state, story: key, ui };
 }
 
@@ -513,7 +538,8 @@ function describeSent(sent: readonly ClientEffect[]): TemplateResult | typeof no
     if (sent.length === 0) {
         return nothing;
     }
-    return html`<pre class="decisions-storybook__sent">${sent.map((effect) => JSON.stringify(effect)).join("\n")}</pre>`;
+    return html`<pre class="decisions-storybook__sent">
+${sent.map((effect) => JSON.stringify(effect)).join("\n")}</pre>`;
 }
 
 /** The story the picker's change names, shown; a value naming none is ignored. */
@@ -566,23 +592,31 @@ function storybookTemplate(
 ): TemplateResult {
     const { sent, story } = screen;
     return html`
-        <div class="board-page decisions-storybook">
-            <div class="board-page__board">${storyBoard(screen, onCommand, { onLanguage, onTileLabels, onWinds })}</div>
-            <div class="board-page__aside">
-                <a class="board-storybook__btn" href="${STORYBOOK_INDEX}">Back</a>
-                <a class="board-storybook__btn" href="${GALLERY_PATH}">All decisions</a>
-                <div class="board-storybook__picker"><select
-                    class="board-storybook__select"
-                    aria-label="Story"
-                    @change=${(event: Event) => pickStory(event, show)}
-                >${STORY_KEYS.map(
-                    (key) =>
-                        html`<option value=${key} ?selected=${key === story}>${DECISION_STORIES[key].title}</option>`,
-                )}</select></div>
-                ${describeSent(sent)}
-            </div>
+    <div class="board-page decisions-storybook">
+      <div class="board-page__board">
+        ${storyBoard(screen, onCommand, { onLanguage, onTileLabels, onWinds })}
+      </div>
+      <div class="board-page__aside">
+        <a class="board-storybook__btn" href="${STORYBOOK_INDEX}">Back</a>
+        <a class="board-storybook__btn" href="${GALLERY_PATH}">All decisions</a>
+        <div class="board-storybook__picker">
+          <select
+            class="board-storybook__select"
+            aria-label="Story"
+            @change=${(event: Event) => pickStory(event, show)}
+          >
+            ${STORY_KEYS.map(
+                (key) =>
+                    html`<option value=${key} ?selected=${key === story}>
+                  ${DECISION_STORIES[key].title}
+                </option>`,
+            )}
+          </select>
         </div>
-    `;
+        ${describeSent(sent)}
+      </div>
+    </div>
+  `;
 }
 
 /** Stories the gallery leaves out: what tells them from another story lies outside its crop, or nothing does. */
@@ -615,35 +649,43 @@ function galleryTemplate(
 ): TemplateResult {
     const { onLanguage } = language;
     return html`
-        <div class="decisions-gallery">
-            ${storybookNav(GALLERY_PATH)}
-            <div class="decisions-gallery__languages" role="group" aria-label="Language">
-                ${LOCALES.map(
-                    (locale) => html`<button
-                        type="button"
-                        class="board-storybook__btn ${locale === pageLocale() ? "board-storybook__btn--active" : ""}"
-                        aria-pressed=${String(locale === pageLocale())}
-                        @click=${() => onLanguage(locale)}
-                    >
-                        ${locale}
-                    </button>`,
-                )}
+    <div class="decisions-gallery">
+      ${storybookNav(GALLERY_PATH)}
+      <div
+        class="decisions-gallery__languages"
+        role="group"
+        aria-label="Language"
+      >
+        ${LOCALES.map(
+            (locale) =>
+                html`<button
+              type="button"
+              class="board-storybook__btn ${locale === pageLocale() ? "board-storybook__btn--active" : ""}"
+              aria-pressed=${String(locale === pageLocale())}
+              @click=${() => onLanguage(locale)}
+            >
+              ${locale}
+            </button>`,
+        )}
+      </div>
+      ${screens.map(
+          (screen) =>
+              html`<section class="decisions-gallery__item">
+            <h2 class="decisions-gallery__title">
+              <a href="?state=${screen.story}"
+                >${DECISION_STORIES[screen.story].title}</a
+              >
+            </h2>
+            <div class="decisions-gallery__crop">
+              <div class="decisions-gallery__board">
+                ${storyBoard(screen, (command) => onCommand(screen.story, command), language)}
+              </div>
             </div>
-            ${screens.map(
-                (screen) => html`<section class="decisions-gallery__item">
-                    <h2 class="decisions-gallery__title">
-                        <a href="?state=${screen.story}">${DECISION_STORIES[screen.story].title}</a>
-                    </h2>
-                    <div class="decisions-gallery__crop">
-                        <div class="decisions-gallery__board">
-                            ${storyBoard(screen, (command) => onCommand(screen.story, command), language)}
-                        </div>
-                    </div>
-                    ${describeSent(screen.sent)}
-                </section>`,
-            )}
-        </div>
-    `;
+            ${describeSent(screen.sent)}
+          </section>`,
+      )}
+    </div>
+  `;
 }
 
 /** The screen after the board's command: an intent stepped through the client's dispatcher, the rest the view's. */
@@ -652,7 +694,11 @@ function commanded(screen: StoryScreen, command: PlayCommand): StoryScreen {
     if (command.kind !== "intent") {
         return { ...screen, ui: stepPlayUi(state, ui, command) };
     }
-    const step = stepGameClient(state, { at: state.now, intent: command.intent, kind: "intent" });
+    const step = stepGameClient(state, {
+        at: state.now,
+        intent: command.intent,
+        kind: "intent",
+    });
     return {
         ...screen,
         sent: step.effects,

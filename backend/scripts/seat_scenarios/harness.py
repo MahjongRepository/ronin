@@ -467,8 +467,13 @@ class SeatClient:
     def ron(self, *, at: float, label: str | None = None) -> None:
         self._act(WireGameAction.CALL_RON, {}, at=at, label=label)
 
-    def pon(self, tile_id: int, *, at: float, label: str | None = None) -> None:
-        self._act(WireGameAction.CALL_PON, {WireKey.TILE_ID: tile_id}, at=at, label=label)
+    def pon(self, tile_id: int, pair: tuple[int, int], *, at: float, label: str | None = None) -> None:
+        self._act(
+            WireGameAction.CALL_PON,
+            {WireKey.TILE_ID: tile_id, WireKey.SEQUENCE_TILES: list(pair)},
+            at=at,
+            label=label,
+        )
 
     def chi(self, tile_id: int, sequence: tuple[int, int], *, at: float, label: str | None = None) -> None:
         self._act(

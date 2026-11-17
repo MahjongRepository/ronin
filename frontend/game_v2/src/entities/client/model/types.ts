@@ -15,8 +15,8 @@ import {
 
 /**
  * A choice the server offered at a decision, resolved to what answering it sends: a turn's tsumo, riichi with one
- * of its tenpai-keeping discards, a closed or added kan, kyuushu; a call prompt's ron, pon, chi with one of its
- * pairs, or open kan. A discard and a pass are not offers: a turn always takes a discard, a call prompt a pass.
+ * of its tenpai-keeping discards, a closed or added kan, kyuushu; a call prompt's ron, pon or chi with one of its
+ * pairs of hand tiles, or open kan. A discard and a pass are not offers: a turn always takes a discard, a call prompt a pass.
  */
 export type Offer =
     | { readonly kind: "tsumo" }
@@ -24,7 +24,7 @@ export type Offer =
     | { readonly kind: "kan"; readonly kanType: KanType; readonly tileId: number }
     | { readonly kind: "kyuushu" }
     | { readonly kind: "ron" }
-    | { readonly kind: "pon"; readonly tileId: number }
+    | { readonly kind: "pon"; readonly tileId: number; readonly pair: readonly [number, number] }
     | {
           readonly kind: "chi";
           readonly tileId: number;

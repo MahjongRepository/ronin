@@ -54,8 +54,12 @@ class Pass:
 @dataclass(frozen=True, slots=True)
 class Pon:
     """
-    Call pon on the offered discard; the engine picks the two hand tiles.
+    Call pon on the offered discard with two held tiles of its type, which pick whether a held red five joins the meld.
+
+    Without tiles the engine takes the first offered pair.
     """
+
+    tiles: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True, slots=True)

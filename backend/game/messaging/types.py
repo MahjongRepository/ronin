@@ -78,11 +78,22 @@ class RiichiMessage(GameActionMessage):
 
 
 class PonMessage(GameActionMessage):
+    """
+    A pon: its sequence tiles are the two hand tiles it takes, and a message without them takes the first offered pair.
+    """
+
     action: Literal[WireGameAction.CALL_PON] = WireGameAction.CALL_PON
     tile_id: int = _TILE_ID_FIELD
+    sequence_tiles: (
+        tuple[
+            Annotated[int, Field(ge=0, lt=NUM_TILES, strict=True)],
+            Annotated[int, Field(ge=0, lt=NUM_TILES, strict=True)],
+        ]
+        | None
+    ) = None
 
     def to_action(self) -> Action:
-        return Pon()
+        return Pon(tiles=self.sequence_tiles)
 
     @property
     def called_tile(self) -> int | None:

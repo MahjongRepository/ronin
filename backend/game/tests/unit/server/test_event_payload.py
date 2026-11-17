@@ -193,7 +193,7 @@ class TestBuildOpening:
             legal=(
                 Ron(),
                 Kan(kan_type=KanType.OPEN, tile=42),
-                Pon(),
+                Pon(tiles=(41, 43)),
                 Chi(tiles=(36, 40)),
                 Chi(tiles=(40, 48)),
                 Pass(),
@@ -209,7 +209,7 @@ class TestBuildOpening:
             WireKey.CALLER_SEAT: 2,
             WireKey.AVAILABLE_CALLS: [
                 {WireKey.CALL_TYPE: WireMeldCallType.OPEN_KAN},
-                {WireKey.CALL_TYPE: WireMeldCallType.PON},
+                {WireKey.CALL_TYPE: WireMeldCallType.PON, WireKey.CALL_OPTIONS: ((41, 43),)},
                 {WireKey.CALL_TYPE: WireMeldCallType.CHI, WireKey.CALL_OPTIONS: ((36, 40), (40, 48))},
             ],
         }
@@ -218,7 +218,7 @@ class TestBuildOpening:
         decision = Decision(
             seat=0,
             context=CallOpportunity(tile=55, from_seat=3, source=CallSource.DISCARD, houtei=False),
-            legal=(Pon(), Chi(tiles=(57, 63)), Pass()),
+            legal=(Pon(tiles=(52, 53)), Pon(tiles=(53, 54)), Chi(tiles=(57, 63)), Pass()),
             default=Pass(),
         )
 
@@ -226,7 +226,7 @@ class TestBuildOpening:
         assert (payload[WireKey.CALL_TYPE], payload[WireKey.CALLER_SEAT]) == (WireCallType.MELD, 0)
         assert WireKey.KAN_TYPE not in payload
         assert payload[WireKey.AVAILABLE_CALLS] == [
-            {WireKey.CALL_TYPE: WireMeldCallType.PON},
+            {WireKey.CALL_TYPE: WireMeldCallType.PON, WireKey.CALL_OPTIONS: ((52, 53), (53, 54))},
             {WireKey.CALL_TYPE: WireMeldCallType.CHI, WireKey.CALL_OPTIONS: ((57, 63),)},
         ]
 

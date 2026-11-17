@@ -1,6 +1,6 @@
 from game.logic.action_handlers import handle_chi, handle_discard, handle_pass, handle_pon, handle_riichi, handle_ron
 from game.logic.action_result import ActionResult
-from game.logic.decision import Chi, Discard, Riichi, Ron
+from game.logic.decision import Chi, Discard, Pon, Riichi, Ron
 from game.logic.enums import (
     MeldCallType,
     RoundPhase,
@@ -94,7 +94,7 @@ def _discard_three_pin(game_state: MahjongGameState) -> ActionResult:
     assert prompt is not None
     assert prompt.callers == (
         Caller(seat=1, can_ron=True),
-        Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON),)),
+        Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON, options=(tuple(tile_copies(1, pin="33")),)),)),
     )
     return result
 
@@ -104,7 +104,7 @@ class TestRonPassMeldClaims:
         prompted = _discard_three_pin(_dealer_about_to_discard_three_pin())
 
         passed = handle_pass(prompted.state, seat=1)
-        result = handle_pon(passed.state, seat=2)
+        result = handle_pon(passed.state, seat=2, action=Pon())
         assert [(e.caller_seat, e.called_tile_id) for e in result.events if isinstance(e, MeldEvent)] == [
             (2, _DISCARDED_THREE_PIN)
         ]
@@ -137,9 +137,11 @@ class TestDualEligibleSeatRonAndMeld:
         prompted_game, _events = process_discard_phase(game_state, three_pin)
         prompt = prompted_game.round_state.pending_call_prompt
         assert prompt is not None
-        assert prompt.callers == (Caller(seat=1, can_ron=True, melds=(MeldOption(call_type=MeldCallType.PON),)),)
+        held_three_pins = (tile_copies(0, pin="3")[0], tile_copies(1, pin="3")[0])
+        pon = MeldOption(call_type=MeldCallType.PON, options=(held_three_pins,))
+        assert prompt.callers == (Caller(seat=1, can_ron=True, melds=(pon,)),)
 
-        result = handle_pon(prompted_game, seat=1)
+        result = handle_pon(prompted_game, seat=1, action=Pon())
         melds = [e for e in result.events if isinstance(e, MeldEvent)]
         assert [(e.caller_seat, e.called_tile_id) for e in melds] == [(1, three_pin)]
         assert (result.state.round_state.current_player_seat, result.state.round_state.is_after_meld_call) == (1, True)
@@ -185,7 +187,7 @@ class TestDualEligibleSeatRonAndMeld:
         ]
 
         chi_result = handle_chi(prompted_game, seat=1, action=Chi(tiles=(two_pin, three_pin)))
-        pon_result = handle_pon(chi_result.state, seat=2)
+        pon_result = handle_pon(chi_result.state, seat=2, action=Pon())
         assert [e.caller_seat for e in pon_result.events if isinstance(e, MeldEvent)] == [2]
         assert pon_result.state.round_state.players[1].is_temporary_furiten is True
 
@@ -199,7 +201,7 @@ class TestRiichiFinalizationAfterRonPass:
 
         riichi = handle_riichi(game_state, seat=0, action=Riichi(tile=_DISCARDED_THREE_PIN))
         passed = handle_pass(riichi.state, seat=1)
-        pon = handle_pon(passed.state, seat=2)
+        pon = handle_pon(passed.state, seat=2, action=Pon())
         assert [type(e) for e in pon.events if isinstance(e, (RiichiDeclaredEvent, MeldEvent))] == [
             RiichiDeclaredEvent,
             MeldEvent,
@@ -262,7 +264,7 @@ class TestLastDiscardRestriction:
         assert can_call_chi(
             players[1], discarded_tile=last_three_pin, discarder_seat=0, caller_seat=1, settings=settings
         )
-        assert can_call_pon(players[2], last_three_pin)
+        assert can_call_pon(players[2], last_three_pin, has_akadora=True)
         assert get_waiting_tiles(players[3]) == {tile_to_34(last_three_pin)}
 
         new_game, _events = process_discard_phase(runtime.state, last_three_pin)

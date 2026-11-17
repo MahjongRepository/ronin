@@ -40,7 +40,7 @@ class CallResponse(BaseModel):
 
 class MeldOption(BaseModel):
     """
-    One meld a caller may make on the prompt's tile; options holds the chi shapes as pairs of hand tiles.
+    One meld a caller may make on the prompt's tile; options holds a pon's or a chi's choices as pairs of hand tiles.
     """
 
     model_config = ConfigDict(frozen=True)

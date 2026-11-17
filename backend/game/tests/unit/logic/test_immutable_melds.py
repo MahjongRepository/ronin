@@ -50,6 +50,7 @@ class TestCallPonImmutable:
             caller_seat=0,
             discarder_seat=3,
             tile_id=man_1m[2],
+            hand_tiles=(man_1m[0], man_1m[1]),
             settings=GameSettings(),
         )
         assert meld.type == Meld.PON
@@ -72,6 +73,7 @@ class TestCallPonImmutable:
             caller_seat=0,
             discarder_seat=3,
             tile_id=man_1m[2],
+            hand_tiles=(man_1m[0], man_1m[1]),
             settings=GameSettings(),
         )
         for p in new_state.players:

@@ -5,11 +5,14 @@ import { WIRE_KEY } from "@/shared/protocol/wire-keys";
 
 import { seatSchema, secondsSchema, tileIdSchema, waitIdSchema } from "./common";
 
-/** One offered call: a chi with the pairs it may be called with, a nonempty list; a pon or an open kan with none. */
+/** One offered call: a pon or a chi with the pairs of hand tiles it may be called with, a nonempty list; an open kan with none. */
 const availableCallSchema = z.union([
     z.pipe(
         z.object({
-            [WIRE_KEY.CALL_TYPE]: z.literal(MELD_CALL_TYPE.CHI),
+            [WIRE_KEY.CALL_TYPE]: z.union([
+                z.literal(MELD_CALL_TYPE.CHI),
+                z.literal(MELD_CALL_TYPE.PON),
+            ]),
             [WIRE_KEY.CALL_OPTIONS]: z
                 .array(z.tuple([tileIdSchema, tileIdSchema]))
                 .check(z.minLength(1)),
@@ -21,10 +24,7 @@ const availableCallSchema = z.union([
     ),
     z.pipe(
         z.object({
-            [WIRE_KEY.CALL_TYPE]: z.union([
-                z.literal(MELD_CALL_TYPE.PON),
-                z.literal(MELD_CALL_TYPE.OPEN_KAN),
-            ]),
+            [WIRE_KEY.CALL_TYPE]: z.literal(MELD_CALL_TYPE.OPEN_KAN),
         }),
         z.transform((raw) => ({ callType: raw[WIRE_KEY.CALL_TYPE] })),
     ),

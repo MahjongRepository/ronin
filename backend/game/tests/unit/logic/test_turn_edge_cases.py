@@ -375,8 +375,8 @@ class TestChiSequenceTilesValidation:
         assert prompt is not None
         assert [(c.seat, [m.call_type for m in c.melds]) for c in prompt.callers] == [(1, [MeldCallType.CHI])]
 
-        meld_input = MeldCallInput(caller_seat=1, call_type=MeldCallType.CHI, tile_id=five_man, sequence_tiles=None)
-        with pytest.raises(AssertionError, match="chi call requires sequence_tiles"):
+        meld_input = MeldCallInput(caller_seat=1, call_type=MeldCallType.CHI, tile_id=five_man, hand_tiles=None)
+        with pytest.raises(AssertionError, match="chi call requires hand_tiles"):
             process_meld_call(prompted, meld_input=meld_input)
 
 

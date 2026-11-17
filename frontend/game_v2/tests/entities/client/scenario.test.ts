@@ -72,8 +72,14 @@ const ALICE_VIEW = { bottomSeat: 1, reveal: "bottom" } as const;
 
 const CALLED_THREE_MAN = 8;
 const HAKU = 126;
-const PON_THREE_MAN = { offer: { kind: "pon", tileId: CALLED_THREE_MAN }, type: "choose" } as const;
-const PON_THREE_MAN_SENT = { message: buildPonAction(CALLED_THREE_MAN, 2), type: "send" } as const;
+const PON_THREE_MAN = {
+    offer: { kind: "pon", pair: [9, 10], tileId: CALLED_THREE_MAN },
+    type: "choose",
+} as const;
+const PON_THREE_MAN_SENT = {
+    message: buildPonAction(CALLED_THREE_MAN, [9, 10], 2),
+    type: "send",
+} as const;
 const TICKET = "<game ticket>";
 
 function runClean(scenario: SeatScenario): ScenarioRun {
@@ -127,6 +133,7 @@ describe("seatScenarioFromTranscript", () => {
             "kan_choice_seat_1",
             "own_turn_seat_1",
             "reconnect_seat_1",
+            "red_five_pon_seat_1",
             "resync_before_deal_seat_1",
             "resync_seat_1",
             "riichi_kan_seat_1",
@@ -226,7 +233,7 @@ describe("runSeatScenario", () => {
 
         expect(run.mismatches).toEqual([
             {
-                actual: [{ message: buildPonAction(HAKU, 2), type: "send" }],
+                actual: [{ message: buildPonAction(HAKU, [124, 125], 2), type: "send" }],
                 expected: [],
                 kind: "effects",
                 label: "pon chosen",
@@ -259,7 +266,7 @@ describe("stepGameClient - generated call prompt", () => {
             kind: "call",
             offers: [
                 { kanType: KAN_TYPE.OPEN, kind: "kan", tileId: CALLED_THREE_MAN },
-                { kind: "pon", tileId: CALLED_THREE_MAN },
+                { kind: "pon", pair: [9, 10], tileId: CALLED_THREE_MAN },
                 { kind: "chi", sequence: [4, 12], tileId: CALLED_THREE_MAN },
                 { kind: "chi", sequence: [0, 4], tileId: CALLED_THREE_MAN },
             ],
@@ -394,7 +401,7 @@ describe("stepGameClient - generated call prompt", () => {
 
         expect(decisionOf(stateAt(scenario, run, "pon prompt"))).toMatchObject({
             fromSeat: 2,
-            offers: [{ kind: "pon", tileId: 98 }],
+            offers: [{ kind: "pon", pair: [96, 97], tileId: 98 }],
         });
         expect(decisionOf(stateAt(scenario, run, "passed"))?.status.kind).toBe("submitted");
         expect(decisionOf(next)).toMatchObject({
@@ -886,8 +893,14 @@ describe("stepGameClient - generated round advance", () => {
 describe("stepGameClient - generated reconnect", () => {
     const { scenario, transcript } = RECONNECT;
     const resentWaitId = Number(receivedPayload(transcript, "prompt re-sent")[WIRE_KEY.WAIT_ID]);
-    const ponHaku = { offer: { kind: "pon", tileId: HAKU }, type: "choose" } as const;
-    const ponHakuSent = { message: buildPonAction(HAKU, resentWaitId), type: "send" } as const;
+    const ponHaku = {
+        offer: { kind: "pon", pair: [124, 125], tileId: HAKU },
+        type: "choose",
+    } as const;
+    const ponHakuSent = {
+        message: buildPonAction(HAKU, [124, 125], resentWaitId),
+        type: "send",
+    } as const;
 
     it("drops the prompt with the socket, and the prompt re-sent after the snapshot keeps its deadline", () => {
         const run = runClean(scenario);
@@ -906,7 +919,7 @@ describe("stepGameClient - generated reconnect", () => {
         ]);
         expect(decisionOf(resent)).toMatchObject({
             deadline: 28_000,
-            offers: [{ kind: "pon", tileId: HAKU }],
+            offers: [{ kind: "pon", pair: [124, 125], tileId: HAKU }],
             status: { kind: "open" },
             waitId: receivedPayload(transcript, "prompt re-sent")[WIRE_KEY.WAIT_ID],
         });
@@ -1195,7 +1208,7 @@ describe("stepGameClient - generated anchor", () => {
             deadline: 21_000 + 25_000,
             fromSeat: 2,
             kind: "call",
-            offers: [{ kind: "pon", tileId: CHARLIES_FIVE_SOU }],
+            offers: [{ kind: "pon", pair: [88, 89], tileId: CHARLIES_FIVE_SOU }],
             openedAt: 21_000,
             status: { kind: "open" },
             tileId: CHARLIES_FIVE_SOU,

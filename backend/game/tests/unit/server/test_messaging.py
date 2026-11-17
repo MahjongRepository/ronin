@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
+from game.engine import Pon
 from game.messaging.types import (
     ChiMessage,
     DiscardMessage,
@@ -28,6 +29,25 @@ class TestParseClientMessage:
         msg = parse_client_message(data)
         assert isinstance(msg, ChiMessage)
         assert msg.sequence_tiles == (41, 42)
+
+    @pytest.mark.parametrize(
+        ("sequence_tiles", "expected"),
+        [
+            pytest.param([41, 42], Pon(tiles=(41, 42)), id="named_hand_tiles"),
+            pytest.param(None, Pon(), id="no_hand_tiles"),
+        ],
+    )
+    def test_parse_client_message__when_pon__should_carry_its_hand_tiles_when_named(
+        self, sequence_tiles: list[int] | None, expected: Pon
+    ):
+        data = {
+            WireKey.EVENT_TYPE: WireClientMessageType.GAME_ACTION,
+            WireKey.WAIT_ID: 0,
+            WireKey.ACTION: WireGameAction.CALL_PON,
+            WireKey.TILE_ID: 40,
+            WireKey.SEQUENCE_TILES: sequence_tiles,
+        }
+        assert parse_client_message(data).to_action() == expected
 
     def test_parse_client_message__when_kan_without_kan_type__should_raise(self):
         data = {

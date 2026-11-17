@@ -135,6 +135,32 @@ def _check_chi_sequence(
     return None
 
 
+def _resolve_pon_tiles(
+    game_state: MahjongGameState,
+    prompt: PendingCallPrompt,
+    seat: int,
+    tiles: tuple[int, int] | None,
+) -> tuple[int, int] | Refusal:
+    """
+    Return the two hand tiles a pon takes, or a Refusal when the named tiles do not hold.
+
+    No tiles take the seat's first offered pair. Named tiles must be two distinct held copies of the prompt's tile type:
+    the pon offers a pair for every look the hand holds, so any such pair matches an offered one.
+    """
+    if tiles is None:
+        pon_meld = next(m for m in prompt.caller(seat).melds if m.call_type == MeldCallType.PON)
+        return next(iter(pon_meld.options or ()))
+
+    hand = game_state.round_state.players[seat].tiles
+    if tiles[0] == tiles[1] or any(t not in hand for t in tiles):
+        return _refuse_as_not_offered(RefusalCode.TILE_NOT_HELD, f"pon tiles {tiles} not held")
+
+    if any(tile_to_34(t) != tile_to_34(prompt.tile_id) for t in tiles):
+        return _refuse_as_not_offered(RefusalCode.NOT_OFFERED, "pon tiles not of the called tile's type")
+
+    return tiles
+
+
 def _check_caller_action_matches_prompt(
     prompt: PendingCallPrompt,
     seat: int,
@@ -300,18 +326,23 @@ def handle_pon(
     game_state: MahjongGameState,
     *,
     seat: int,
+    action: Pon,
 ) -> ActionResult | Refusal:
     """
     Handle a pon call from a player.
 
-    Record pon intent on the pending call prompt. Execute the pon only during resolution when all callers respond.
-    Returns ActionResult with events and new state.
+    Record pon intent, with the hand tiles it takes, on the pending call prompt. Execute the pon only during resolution
+    when all callers respond. Returns ActionResult with events and new state.
     """
-    result = _validate_call_prompt(game_state.round_state, seat=seat, answer=Pon())
+    result = _validate_call_prompt(game_state.round_state, seat=seat, answer=action)
     if isinstance(result, Refusal):
         return result
 
-    return _record_call_response(game_state, result, CallResponse(seat=seat, action=Pon()))
+    tiles = _resolve_pon_tiles(game_state, result, seat=seat, tiles=action.tiles)
+    if isinstance(tiles, Refusal):
+        return tiles
+
+    return _record_call_response(game_state, result, CallResponse(seat=seat, action=Pon(tiles=tiles)))
 
 
 def handle_chi(

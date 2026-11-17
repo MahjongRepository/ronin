@@ -189,7 +189,7 @@ def _find_meld_callers(
     Find all players who can call a meld on the discarded tile.
 
     Returns the meld callers in seat index order, a caller whose best meld is a chi last; each caller's melds are listed
-    kan, pon, chi, a chi with its options.
+    kan, pon, chi, a pon or a chi with its options.
 
     No meld calls are allowed (only ron) on a discard that ends the hand unless ronned: the final discard, when the live
     wall is empty, and the fourth kan's replacement discard, when that kan makes a four kans abortive draw.
@@ -207,8 +207,9 @@ def _find_meld_callers(
         if can_call_open_kan(player, discarded_tile=tile_id, round_state=round_state, settings=settings):
             melds.append(MeldOption(call_type=MeldCallType.OPEN_KAN))
 
-        if can_call_pon(player, tile_id):
-            melds.append(MeldOption(call_type=MeldCallType.PON))
+        pon_options = can_call_pon(player, tile_id, has_akadora=settings.has_akadora)
+        if pon_options:
+            melds.append(MeldOption(call_type=MeldCallType.PON, options=tuple(pon_options)))
 
         chi_options = can_call_chi(
             player, discarded_tile=tile_id, discarder_seat=discarder_seat, caller_seat=seat, settings=settings
@@ -564,6 +565,7 @@ def _process_pon_call(
     caller_seat: int,
     discarder_seat: int,
     tile_id: int,
+    hand_tiles: tuple[int, int],
 ) -> tuple[MahjongGameState, list[GameEvent]]:
     """
     Handle a pon meld call.
@@ -574,6 +576,7 @@ def _process_pon_call(
         caller_seat=caller_seat,
         discarder_seat=discarder_seat,
         tile_id=tile_id,
+        hand_tiles=hand_tiles,
         settings=game_state.settings,
     )
     tile_ids = list(meld.tiles)
@@ -804,6 +807,17 @@ def execute_unrobbed_kan(game_state: MahjongGameState, kan: RobbedKan) -> tuple[
     return _execute_closed_kan(game_state, caller_seat=kan.seat, tile_id=kan.tile_id)
 
 
+def _require_hand_tiles(meld_input: MeldCallInput) -> tuple[int, int]:
+    """
+    Return the two hand tiles a pon or chi call takes, which its input must name.
+    """
+    if meld_input.hand_tiles is None:
+        logger.error("meld call missing hand_tiles", caller_seat=meld_input.caller_seat, call_type=meld_input.call_type)
+        raise AssertionError(f"{meld_input.call_type} call requires hand_tiles")
+
+    return meld_input.hand_tiles
+
+
 def process_meld_call(
     game_state: MahjongGameState,
     meld_input: MeldCallInput,
@@ -826,18 +840,18 @@ def process_meld_call(
     match call_type:
         case MeldCallType.PON:
             return _process_pon_call(
-                game_state, caller_seat=caller_seat, discarder_seat=discarder_seat, tile_id=tile_id
+                game_state,
+                caller_seat=caller_seat,
+                discarder_seat=discarder_seat,
+                tile_id=tile_id,
+                hand_tiles=_require_hand_tiles(meld_input),
             )
         case MeldCallType.CHI:
-            if meld_input.sequence_tiles is None:
-                logger.error("chi call missing sequence_tiles", caller_seat=caller_seat)
-                raise AssertionError("chi call requires sequence_tiles")
-
             return _process_chi_call(
                 game_state,
                 caller_seat=caller_seat,
                 tile_id=tile_id,
-                sequence_tiles=meld_input.sequence_tiles,
+                sequence_tiles=_require_hand_tiles(meld_input),
             )
         case MeldCallType.OPEN_KAN:
             return _process_open_kan_call(

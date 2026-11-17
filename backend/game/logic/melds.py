@@ -107,26 +107,36 @@ def _chi_kuikae_tiles(called_tile: int, *, sequence_tiles: tuple[int, int], sett
     )
 
 
-def can_call_pon(player: MahjongPlayer, discarded_tile: int) -> bool:
+def can_call_pon(player: MahjongPlayer, discarded_tile: int, *, has_akadora: bool) -> list[tuple[int, int]]:
     """
-    Check if player can call pon on a discarded tile.
+    Return the pairs of held tiles a pon of the discarded tile may take, one per look: with a red five and with two
+    plain copies when akadora is played and the hand holds both, so the seat picks whether its red five joins the meld.
 
-    Requirements:
-    - Player has 2 matching tiles in hand (same tile_34 type)
-    - Player is not in riichi
+    A riichi player cannot pon.
     """
     if player.is_riichi:
-        return False
+        return []
 
-    discarded_34 = discarded_tile // 4
-    count = 0
-    for t in player.tiles:
-        if t // 4 == discarded_34:
-            count += 1
-            if count >= TILES_FOR_PON:
-                return True
+    discarded_34 = tile_to_34(discarded_tile)
+    held = [t for t in player.tiles if tile_to_34(t) == discarded_34]
+    red = [t for t in held if is_red_five(t, has_akadora=has_akadora)]
+    plain = [t for t in held if not is_red_five(t, has_akadora=has_akadora)]
 
-    return False
+    pairs: list[tuple[int, int]] = []
+    if red and plain:
+        pairs.append((red[0], plain[0]))
+
+    if len(plain) >= TILES_FOR_PON:
+        pairs.append((plain[0], plain[1]))
+
+    return pairs
+
+
+def is_red_five(tile_id: int, *, has_akadora: bool) -> bool:
+    """
+    Check whether the tile counts as a red five, which it does only when akadora is played.
+    """
+    return has_akadora and tile_id in AKA_DORAS
 
 
 def can_call_chi(
@@ -205,8 +215,7 @@ def _build_same_suit_tile_choices(
         if t34 // TILES_PER_SUIT != discarded_suit:
             continue
 
-        is_red = has_akadora and t in AKA_DORAS
-        tile_by_look.setdefault(t34, {}).setdefault(is_red, t)
+        tile_by_look.setdefault(t34, {}).setdefault(is_red_five(t, has_akadora=has_akadora), t)
 
     return {t34: list(by_look.values()) for t34, by_look in tile_by_look.items()}
 
@@ -531,27 +540,26 @@ def _handle_kan_dora_and_draw(
     return state
 
 
-def call_pon(
+def call_pon(  # noqa: PLR0913
     round_state: MahjongRoundState,
     *,
     caller_seat: int,
     discarder_seat: int,
     tile_id: int,
+    hand_tiles: tuple[int, int],
     settings: GameSettings,
 ) -> tuple[MahjongRoundState, FrozenMeld]:
     """
-    Execute a pon call on a discarded tile.
+    Execute a pon call on a discarded tile with the two held hand_tiles.
 
-    Removes 2 matching tiles from caller's hand, creates a FrozenMeld object, updates game state (open hands, ippatsu
-    flags, current player). Returns (new_round_state, created_meld).
+    Removes hand_tiles from caller's hand, creates a FrozenMeld object, updates game state (open hands, ippatsu flags,
+    current player). Returns (new_round_state, created_meld).
     """
     caller = round_state.players[caller_seat]
     tile_34 = tile_to_34(tile_id)
+    new_hand = [t for t in caller.tiles if t not in hand_tiles]
 
-    removed_tiles, new_hand = _remove_matching_tiles(hand=caller.tiles, tile_34=tile_34, count=TILES_FOR_PON)
-
-    # create meld with all 3 tiles (2 from hand + called tile)
-    meld_tiles = tuple(sorted([*removed_tiles, tile_id]))
+    meld_tiles = tuple(sorted([*hand_tiles, tile_id]))
     meld = FrozenMeld(
         meld_type=FrozenMeld.PON,
         tiles=meld_tiles,

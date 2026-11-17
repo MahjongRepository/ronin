@@ -13,7 +13,7 @@ from game.logic.action_handlers import (
     handle_tsumo,
 )
 from game.logic.action_result import ActionResult
-from game.logic.decision import Chi, Kan, Kyuushu, Riichi, Tsumo
+from game.logic.decision import Chi, Kan, Kyuushu, Pon, Riichi, Tsumo
 from game.logic.decision import Discard as DiscardAction
 from game.logic.enums import (
     KanType,
@@ -64,7 +64,13 @@ def _nine_man_discard_prompt() -> MahjongGameState:
     prompt = prompted.round_state.pending_call_prompt
     assert prompt is not None
     assert prompt.callers == (
-        Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.OPEN_KAN), MeldOption(call_type=MeldCallType.PON))),
+        Caller(
+            seat=2,
+            melds=(
+                MeldOption(call_type=MeldCallType.OPEN_KAN),
+                MeldOption(call_type=MeldCallType.PON, options=((_NINE_MAN[1], _NINE_MAN[2]),)),
+            ),
+        ),
         Caller(
             seat=1,
             melds=(MeldOption(call_type=MeldCallType.CHI, options=((_CHI_SEAT_SEVEN_MAN, _CHI_SEAT_EIGHT_MAN),)),),
@@ -133,7 +139,7 @@ class TestResponseActionMatchesPrompt:
     @pytest.mark.parametrize(
         "submit",
         [
-            pytest.param(lambda gs: handle_pon(gs, seat=1), id="pon"),
+            pytest.param(lambda gs: handle_pon(gs, seat=1, action=Pon()), id="pon"),
             pytest.param(lambda gs: handle_chi(gs, seat=2, action=Chi(tiles=_ONE_TWO_PIN)), id="chi"),
             pytest.param(
                 lambda gs: handle_kan(gs, seat=2, action=Kan(kan_type=KanType.OPEN, tile=_THREE_PIN)),
@@ -162,7 +168,7 @@ class TestResponseActionMatchesPrompt:
         assert prompt is not None
         assert prompt.callers == (
             Caller(seat=1, can_ron=True),
-            Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON),)),
+            Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON, options=(tuple(tile_copies(1, pin="33")),)),)),
         )
 
         assert submit(prompted) == NOT_OFFERED

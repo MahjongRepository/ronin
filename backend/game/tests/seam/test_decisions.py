@@ -183,7 +183,11 @@ def test_decision__when_an_added_kan_can_be_robbed__should_offer_the_robber_ron_
     dealer_filler, seat_1_filler, seat_2_filler = (tile_copies(copy, honors="7")[0] for copy in (3, 2, 1))
     service, runtime = _start(hands, draws=[red_five_pin, six_pin, dealer_filler, seat_1_filler, seat_2_filler])
     _play(service, runtime, DEALER, Discard(tile=red_five_pin))
-    assert service.legal_actions(runtime, 2) == (Kan(kan_type=KanType.OPEN, tile=red_five_pin), Pon(), Pass())
+    assert service.legal_actions(runtime, 2) == (
+        Kan(kan_type=KanType.OPEN, tile=red_five_pin),
+        Pon(tiles=(held_five_pins[0], held_five_pins[1])),
+        Pass(),
+    )
 
     pon_events = _play(service, runtime, 2, Pon())
     assert [e.tile_ids for e in pon_events if isinstance(e, MeldEvent)] == [[red_five_pin, *held_five_pins[:2]]]

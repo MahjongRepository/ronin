@@ -142,7 +142,7 @@ def _call_decision(game_state: MahjongGameState, prompt: PendingCallPrompt, *, s
             case MeldCallType.OPEN_KAN:
                 legal.append(Kan(kan_type=KanType.OPEN, tile=prompt.tile_id))
             case MeldCallType.PON:
-                legal.append(Pon())
+                legal.extend(Pon(tiles=option) for option in meld.options or ())
             case MeldCallType.CHI:
                 legal.extend(Chi(tiles=option) for option in meld.options or ())
             case _:  # pragma: no cover (exhaustive)

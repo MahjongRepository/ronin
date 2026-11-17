@@ -66,9 +66,14 @@ export function buildRonAction(waitId: number) {
     } as const;
 }
 
-export function buildPonAction(tileId: number, waitId: number) {
+export function buildPonAction(
+    tileId: number,
+    handTiles: readonly [number, number],
+    waitId: number,
+) {
     return {
         [WIRE_KEY.ACTION]: GAME_ACTION.CALL_PON,
+        [WIRE_KEY.SEQUENCE_TILES]: handTiles,
         [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.GAME_ACTION,
         [WIRE_KEY.TILE_ID]: tileId,
         [WIRE_KEY.WAIT_ID]: waitId,

@@ -156,29 +156,50 @@ export function intentsOf(plays: ReadonlyMap<number, TilePlay>): ReadonlyMap<num
     );
 }
 
-/** A red five's face, which a chi lists after the plain five's. */
+/** A red five's face, which a pon or chi lists after the plain five's. */
 function isRedFace(face: TileFace): boolean {
     return face.startsWith("0");
 }
 
-/** Where a chi stands among the chis of one call: by its hand tiles low to high, as the hand lies, a red five last. */
-function chiRank(offer: Extract<Offer, { kind: "chi" }>): readonly number[] {
-    const types = offer.sequence.map((tile) => tileType(tile)).toSorted((low, high) => low - high);
-    const reds = offer.sequence.filter((tile) => isRedFace(tile136toString(tile))).length;
+/**
+ * Where a pon or chi stands among those of its kind on one call: by its hand tiles low to high, as the hand lies, a
+ * red five last.
+ */
+function handTilesRank(handTiles: readonly number[]): readonly number[] {
+    const types = handTiles.map((tile) => tileType(tile)).toSorted((low, high) => low - high);
+    const reds = handTiles.filter((tile) => isRedFace(tile136toString(tile))).length;
     return [...types, reds];
 }
 
-function byChiRank(first: Offer, second: Offer): number {
-    if (first.kind !== "chi" || second.kind !== "chi") {
+function handTilesOf(offer: Offer): readonly number[] | null {
+    switch (offer.kind) {
+        case "chi": {
+            return offer.sequence;
+        }
+        case "pon": {
+            return offer.pair;
+        }
+        default: {
+            return null;
+        }
+    }
+}
+
+function byHandTilesRank(first: Offer, second: Offer): number {
+    const firstTiles = handTilesOf(first);
+    const secondTiles = handTilesOf(second);
+    if (firstTiles === null || secondTiles === null) {
         return 0;
     }
-    const ranks = chiRank(first).map((rank, index) => rank - (chiRank(second)[index] ?? 0));
+    const secondRank = handTilesRank(secondTiles);
+    const ranks = handTilesRank(firstTiles).map((rank, index) => rank - (secondRank[index] ?? 0));
     return ranks.find((difference) => difference !== 0) ?? 0;
 }
 
 /**
- * The hand's tiles a control shows, only where they tell something the table does not: a chi's pair, low to high, and
- * the tile of a kan offered beside another kan. A pon or a lone kan names its tile on the table already.
+ * The hand's tiles a control shows, only where they tell something the table does not: a chi's pair, low to high, a
+ * pon's pair beside another pon, a red five last, and the tile of a kan offered beside another kan. A lone pon or kan
+ * names its tile on the table already.
  */
 function offerTiles(offer: Offer, ofKind: number): TileFace[] {
     switch (offer.kind) {
@@ -187,10 +208,17 @@ function offerTiles(offer: Offer, ofKind: number): TileFace[] {
                 .toSorted((low, high) => tileType(low) - tileType(high))
                 .map((tile) => tile136toString(tile));
         }
+        case "pon": {
+            const faces = offer.pair.map((tile) => tile136toString(tile));
+            return ofKind > 1
+                ? faces.toSorted(
+                      (first, second) => Number(isRedFace(first)) - Number(isRedFace(second)),
+                  )
+                : [];
+        }
         case "kan": {
             return ofKind > 1 ? [tile136toString(offer.tileId)] : [];
         }
-        case "pon":
         case "tsumo":
         case "ron":
         case "kyuushu":
@@ -224,7 +252,8 @@ function offerAction(offer: Offer, ofKind: number): DecisionAction {
 
 /**
  * The decision's controls: the wins first, then riichi as one toggle that picks its discard from the hand, then one
- * control per other offer, kinds in the order the server listed them and a kind's chis as the hand lies, then a pass.
+ * control per other offer, kinds in the order the server listed them and a kind's pons or chis as the hand lies, then a
+ * pass.
  */
 function offerActions(
     offers: readonly Offer[],
@@ -245,7 +274,7 @@ function offerActions(
     const calls = offers.filter((offer) => !WIN_KINDS.has(offer.kind) && offer.kind !== "riichi");
     const kinds = [...new Set(calls.map((offer) => offer.kind))];
     const perKind = kinds.flatMap((kind): DecisionAction[] => {
-        const ofKind = calls.filter((offer) => offer.kind === kind).toSorted(byChiRank);
+        const ofKind = calls.filter((offer) => offer.kind === kind).toSorted(byHandTilesRank);
         return ofKind.map((offer) => offerAction(offer, ofKind.length));
     });
     const passControl = control({

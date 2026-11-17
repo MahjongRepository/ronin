@@ -318,7 +318,7 @@ def _parse_meld_compact(event: dict[int, Any], seat_to_name: dict[int, str]) -> 
         case "chi":
             return _parse_chi_from_meld_data(meld_data, player_name)
         case "pon":
-            return _parse_pon_from_meld_data(player_name)
+            return _parse_pon_from_meld_data(meld_data, player_name)
         case "open_kan" | "closed_kan" | "added_kan":
             return _parse_kan_from_meld_data(meld_data, player_name)
         case _:
@@ -334,11 +334,13 @@ def _parse_chi_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayIn
     return ReplayInputEvent(player_name=player_name, action=Chi(tiles=(first, second)))
 
 
-def _parse_pon_from_meld_data(player_name: str) -> ReplayInputEvent:
+def _parse_pon_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayInputEvent:
     """
-    Parse a pon action: the engine picks the hand tiles it takes, as it did in the recorded game.
+    Parse a pon action from a decoded MeldData dict: the two hand tiles the recorded pon took.
     """
-    return ReplayInputEvent(player_name=player_name, action=Pon())
+    called_tile_id = meld_data["called_tile_id"]
+    first, second = (t for t in meld_data["tile_ids"] if t != called_tile_id)
+    return ReplayInputEvent(player_name=player_name, action=Pon(tiles=(first, second)))
 
 
 def _parse_kan_from_meld_data(meld_data: MeldData, player_name: str) -> ReplayInputEvent:

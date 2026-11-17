@@ -32,7 +32,9 @@ reaches it only through `game.engine`, whose seam invariants every change here k
   a wait id or a call's tile (a pon or chi answers the open call; the session checks a message's called tile).
   `build_decision` (`actions.py`) derives a seat's legal actions and default from the same offer code the handlers
   re-check, so the two cannot drift; legality is equivalence, not equality with a listed entry (a chi with another held
-  copy of an offered shape, a kan from any tile of an offered type). The default is never a win or a call.
+  copy of an offered shape, a pon with any two held copies of the discard's type, a kan from any tile of an offered
+  type). A pon or chi is listed once per look, with and without a held red five. A pon naming no tiles takes the first
+  listed pair: the bots' wire pon names none. The default is never a win or a call.
 * `get_available_actions` (`actions.py`) builds a turn's offered actions in one place, which the decision lists after
   the legal discards; each handler re-checks the predicate the offer used. Riichi lists the discards that keep tenpai.
   A draw never offers a discard: any tile in hand is legal, in riichi only the drawn one, except right after the

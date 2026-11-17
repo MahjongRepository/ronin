@@ -213,16 +213,17 @@ def serialize_draw_offers(legal: tuple[Action, ...]) -> list[dict[int, object]]:
 
 def serialize_available_calls(legal: tuple[Action, ...]) -> list[dict[int, object]]:
     """
-    Return the melds a call offers, from its legal actions: an open kan, a pon, then one chi holding every shape; a ron
-    and a pass are never listed.
+    Return the melds a call offers, from its legal actions: an open kan, one pon holding every pair, then one chi
+    holding every shape; a ron and a pass are never listed.
     """
+    pon_options = tuple(action.tiles for action in legal if isinstance(action, Pon))
     chi_options = tuple(action.tiles for action in legal if isinstance(action, Chi))
     calls: list[dict[int, object]] = []
     if _kan_kinds(legal, KanType.OPEN):
         calls.append({WireKey.CALL_TYPE: WireMeldCallType.OPEN_KAN})
 
-    if Pon() in legal:
-        calls.append({WireKey.CALL_TYPE: WireMeldCallType.PON})
+    if pon_options:
+        calls.append({WireKey.CALL_TYPE: WireMeldCallType.PON, WireKey.CALL_OPTIONS: pon_options})
 
     if chi_options:
         calls.append({WireKey.CALL_TYPE: WireMeldCallType.CHI, WireKey.CALL_OPTIONS: chi_options})

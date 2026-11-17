@@ -58,9 +58,10 @@ describe("client message builders", () => {
         });
 
         it("buildPonAction creates correct wire format", () => {
-            const msg = buildPonAction(55, 7);
+            const msg = buildPonAction(55, [53, 54], 7);
             expect(msg).toEqual({
                 [WIRE_KEY.ACTION]: GAME_ACTION.CALL_PON,
+                [WIRE_KEY.SEQUENCE_TILES]: [53, 54],
                 [WIRE_KEY.EVENT_TYPE]: CLIENT_MESSAGE_TYPE.GAME_ACTION,
                 [WIRE_KEY.TILE_ID]: 55,
                 [WIRE_KEY.WAIT_ID]: 7,

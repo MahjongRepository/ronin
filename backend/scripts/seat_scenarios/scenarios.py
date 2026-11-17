@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from functools import partial
 from typing import TYPE_CHECKING
 
 from game.engine import KanType, StartPosition
@@ -106,6 +107,34 @@ def chi_prompt() -> tuple[SeatTranscript, ...]:
         return game.transcripts("chi_prompt", PLAYER)
 
 
+def red_five_pon() -> tuple[SeatTranscript, ...]:
+    """
+    Offer Alice (seat 1), holding 0m 5m 5m, an open kan and two pons of the dealer's plain 5m, one with her red five and
+    one with her plain fives; she pons with the plain fives and keeps the red five in hand.
+    """
+    red_five, plain_five, second_plain_five, called_tile = (tile(copy, man="5") for copy in range(4))
+    staged = StagedWall(
+        hands=(
+            tile_copies(3, man="124689", pin="13579", sou="1", honors="1"),
+            (red_five, plain_five, second_plain_five, *tile_copies(0, pin="2468", sou="1357", honors="34")),
+            tile_copies(2, man="124689", pin="24689", sou="2", honors="2"),
+            tile_copies(1, man="1246", pin="1359", sou="4569", honors="1"),
+        ),
+        draws=((0, called_tile),),
+    )
+
+    with seated_game("seat-red-five-pon", staged, players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
+        game.wait_until(4)
+        alice.label("prompt", WireEventType.CALL_PROMPT)
+        alice.pon(called_tile, (plain_five, second_plain_five), at=5, label="pon chosen")
+        alice.label("turn", WireEventType.TURN)
+
+        return game.transcripts("red_five_pon", PLAYER)
+
+
 def ron_call() -> tuple[SeatTranscript, ...]:
     """
     Offer Alice (seat 1), ready with ittsu on 3m or 6m and holding a pair of 3m, a ron, a pon and a chi of the dealer's
@@ -170,7 +199,7 @@ def added_kan() -> tuple[SeatTranscript, ...]:
         alice.join(at=0)
         alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(4)
-        alice.pon(chun, at=5, label="pon chosen")
+        alice.pon(chun, (tile(0, honors="7"), tile(1, honors="7")), at=5, label="pon chosen")
         alice.discard(junk, at=6, label="discarded")
         game.wait_until(12)
         alice.label("kan offer", WireEventType.DRAW)
@@ -409,7 +438,7 @@ def reconnect() -> tuple[SeatTranscript, ...]:
         alice.reconnect(at=5.5, label="reopened")
         alice.label("reconnected", SessionMessageType.GAME_RECONNECTED)
         alice.label("prompt re-sent", WireEventType.CALL_PROMPT)
-        alice.pon(haku, at=6.5, label="pon chosen")
+        alice.pon(haku, (tile(0, honors="5"), tile(1, honors="5")), at=6.5, label="pon chosen")
         alice.label("turn", WireEventType.TURN)
         alice.discard(junk, at=8, label="discarded")
         alice.label("ron prompt", WireEventType.CALL_PROMPT)
@@ -540,7 +569,7 @@ def chankan_passed() -> tuple[SeatTranscript, ...]:
         alice.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         bob.confirm_round(at=START_CONFIRMED_AT, label="start confirmed")
         game.wait_until(4)
-        alice.pon(ponned_tile, at=5, label="pon chosen")
+        alice.pon(ponned_tile, (tile(0, pin="6"), tile(1, pin="6")), at=5, label="pon chosen")
         alice.discard(tile(1, honors="1"), at=6, label="discarded")
         bob.discard(tile(0, sou="9"), at=7, label="discarded")
         alice.kan(tile(3, pin="6"), KanType.ADDED, at=8, label="kan chosen")
@@ -928,7 +957,7 @@ def anchor() -> tuple[SeatTranscript, ...]:
             (charlie.discard, tile(0, honors="2")),
             (bob.discard, tile(0, honors="1")),
             (alice.discard, tile(2, honors="7")),
-            (charlie.pon, tile(2, honors="7")),
+            (partial(charlie.pon, pair=(tile(0, honors="7"), tile(1, honors="7"))), tile(2, honors="7")),
             (charlie.discard, tile(0, honors="5")),
             (bob.discard, tile(1, sou="1")),
             (alice.discard, tile(0, pin="1")),
@@ -972,6 +1001,7 @@ def anchor() -> tuple[SeatTranscript, ...]:
 SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "call_prompt": call_prompt,
     "chi_prompt": chi_prompt,
+    "red_five_pon": red_five_pon,
     "ron_call": ron_call,
     "added_kan": added_kan,
     "full_turn": full_turn,

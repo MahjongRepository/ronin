@@ -31,7 +31,12 @@ describe("parseCallPrompt", () => {
 
         it("reads the meld choices offered beside the ron and a re-send's elapsed seconds", () => {
             const wire = {
-                [WIRE_KEY.AVAILABLE_CALLS]: [{ [WIRE_KEY.CALL_TYPE]: MELD_CALL_TYPE.PON }],
+                [WIRE_KEY.AVAILABLE_CALLS]: [
+                    {
+                        [WIRE_KEY.CALL_TYPE]: MELD_CALL_TYPE.PON,
+                        [WIRE_KEY.CALL_OPTIONS]: [[40, 41]],
+                    },
+                ],
                 [WIRE_KEY.BANK_SECONDS]: 17,
                 [WIRE_KEY.CALL_TYPE]: CALL_TYPE.RON,
                 [WIRE_KEY.CALLER_SEAT]: 2,
@@ -45,7 +50,9 @@ describe("parseCallPrompt", () => {
             if (result.callType !== CALL_TYPE.RON) {
                 throw new Error("wrong type");
             }
-            expect(result.availableCalls).toEqual([{ callType: MELD_CALL_TYPE.PON }]);
+            expect(result.availableCalls).toEqual([
+                { callType: MELD_CALL_TYPE.PON, options: [[40, 41]] },
+            ]);
             expect(result.elapsedSeconds).toBe(6.5);
             expect(result.bankSeconds).toBe(17);
             expectTypeOf(result.bankSeconds).toEqualTypeOf<number | null>();
@@ -153,7 +160,7 @@ describe("parseCallPrompt", () => {
         it("parses meld prompt with multiple available calls", () => {
             const wire = {
                 [WIRE_KEY.AVAILABLE_CALLS]: [
-                    { [WIRE_KEY.CALL_TYPE]: MELD_CALL_TYPE.PON },
+                    { [WIRE_KEY.CALL_TYPE]: MELD_CALL_TYPE.PON, [WIRE_KEY.CALL_OPTIONS]: [[5, 6]] },
                     { [WIRE_KEY.CALL_TYPE]: MELD_CALL_TYPE.CHI, [WIRE_KEY.CALL_OPTIONS]: [[0, 8]] },
                 ],
                 [WIRE_KEY.CALL_TYPE]: CALL_TYPE.MELD,

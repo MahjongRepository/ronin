@@ -3,7 +3,7 @@ import pytest
 from game.logic.action_handlers import handle_chi, handle_kan, handle_pon
 from game.logic.actions import build_decision
 from game.logic.call_resolution import resolve_call_prompt
-from game.logic.decision import Chi, Kan, TurnAfterCall
+from game.logic.decision import Chi, Kan, Pon, TurnAfterCall
 from game.logic.enums import (
     KanType,
     MeldCallType,
@@ -76,7 +76,7 @@ class TestResolvePonMeldResponse:
         assert prompt is not None
         assert [(c.seat, [m.call_type for m in c.melds]) for c in prompt.callers] == [(2, [MeldCallType.PON])]
 
-        result = handle_pon(prompted, seat=2)
+        result = handle_pon(prompted, seat=2, action=Pon())
         assert [type(e) for e in result.events] == [MeldEvent]
         (meld_event,) = result.events
         assert (meld_event.caller_seat, meld_event.meld_type) == (2, MeldViewType.PON)

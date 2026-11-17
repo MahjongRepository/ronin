@@ -176,6 +176,7 @@ Rules the engine models as settings. Every game plays one preset; its values are
 - Omote dora (face-up indicators): Enabled
 - Ura Dora: Enabled (revealed on Riichi win; tiles underneath Dora and Kan Dora indicators)
 - Red dora (Akadora): 3 (one per suit, #5 tiles)
+  - A pon or chii of a five whose hand holds both a red and a plain copy is offered both ways, with the red five and without it; a pon of the red five itself can take only plain copies, so it is offered once.
 - Kan dora: Enabled
 - Kan ura dora: Enabled
 

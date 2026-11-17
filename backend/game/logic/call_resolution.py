@@ -140,7 +140,7 @@ def resolve_call_prompt(game_state: MahjongGameState) -> ActionResult:
             caller_seat=best.seat,
             call_type=call_type,
             tile_id=prompt.tile_id,
-            sequence_tiles=best.action.tiles if isinstance(best.action, Chi) else None,
+            hand_tiles=best.action.tiles if isinstance(best.action, Pon | Chi) else None,
         )
         new_game_state, meld_events = process_meld_call(new_game_state, meld_input=meld_input)
         return ActionResult(events + meld_events, state=new_game_state)

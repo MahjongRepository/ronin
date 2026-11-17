@@ -5,7 +5,8 @@ from mahjong.tile import TilesConverter
 
 from game.logic.action_handlers import handle_chi, handle_kan, handle_pass, handle_pon, handle_ron
 from game.logic.action_result import ActionResult
-from game.logic.decision import Chi, Kan, Pon
+from game.logic.actions import build_decision
+from game.logic.decision import Chi, Kan, Pass, Pon
 from game.logic.enums import (
     KanType,
     MeldCallType,
@@ -16,9 +17,10 @@ from game.logic.events import MeldEvent, RoundEndEvent
 from game.logic.exceptions import InvalidDiscardError
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import can_call_chi, can_call_open_kan, can_call_pon, get_kuikae_tiles
+from game.logic.refusal import Refusal, RefusalCode, RefusalKind
 from game.logic.round import discard_tile
 from game.logic.settings import GameSettings
-from game.logic.state import Caller, Discard
+from game.logic.state import Caller, Discard, MahjongGameState
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_discard_phase
 from game.logic.types import YakuInfo
@@ -60,7 +62,7 @@ def _call_four_man_discard(call: type[Pon | Chi], *, settings: GameSettings | No
 
     if call is Pon:
         passed = handle_pass(prompted, seat=1)
-        called = handle_pon(passed.state, seat=2)
+        called = handle_pon(passed.state, seat=2, action=Pon())
     else:
         passed = handle_pass(prompted, seat=2)
         chi_tiles = (tile_copies(0, man="5")[0], tile_copies(0, man="6")[0])
@@ -226,6 +228,95 @@ class TestChiOfferWithRedFive:
         assert options == expected
 
 
+_PON_SEAT_ONE_SOU = tile_copies(1, sou="1")[0]
+_PON_SEAT_RED_AND_PLAIN_FIVES = (
+    _RED_5M,
+    _PLAIN_5M,
+    _SECOND_PLAIN_5M,
+    _PON_SEAT_ONE_SOU,
+    *tile_copies(1, sou="23456789", honors="6"),
+)
+_DISCARDED_PLAIN_5M = TilesConverter.string_to_136_array(man="5555")[3]
+
+
+class TestPonOfferWithRedFive:
+    @pytest.mark.parametrize(
+        ("hand_fives", "discarded", "settings", "expected"),
+        [
+            pytest.param(
+                (_RED_5M, _PLAIN_5M, _SECOND_PLAIN_5M),
+                _DISCARDED_PLAIN_5M,
+                GameSettings(),
+                [(_RED_5M, _PLAIN_5M), (_PLAIN_5M, _SECOND_PLAIN_5M)],
+                id="plain_discard_with_and_without_red_five",
+            ),
+            pytest.param(
+                (_PLAIN_5M, _SECOND_PLAIN_5M, _DISCARDED_PLAIN_5M),
+                _RED_5M,
+                GameSettings(),
+                [(_PLAIN_5M, _SECOND_PLAIN_5M)],
+                id="red_discard_one_pon",
+            ),
+            pytest.param(
+                (_RED_5M, _PLAIN_5M, _SECOND_PLAIN_5M),
+                _DISCARDED_PLAIN_5M,
+                GameSettings(has_akadora=False),
+                [(_RED_5M, _PLAIN_5M)],
+                id="no_akadora_one_pon",
+            ),
+        ],
+    )
+    def test_can_call_pon__when_hand_holds_fives__should_offer_one_pair_per_look(
+        self, hand_fives: tuple[int, ...], discarded: int, settings: GameSettings, expected: list[tuple[int, int]]
+    ):
+        caller = create_player(seat=1, tiles=(*hand_fives, *TilesConverter.string_to_136_array(honors="123")))
+        assert can_call_pon(caller, discarded, has_akadora=settings.has_akadora) == expected
+
+    def test_pon__when_seat_names_the_plain_pair__should_keep_its_red_five_in_hand(self):
+        prompted = _discard_plain_five_man_to_pon_seat()
+        assert prompted.round_state.pending_call_prompt is not None
+        assert build_decision(prompted, 2).legal == (
+            Kan(kan_type=KanType.OPEN, tile=_DISCARDED_PLAIN_5M),
+            Pon(tiles=(_RED_5M, _PLAIN_5M)),
+            Pon(tiles=(_PLAIN_5M, _SECOND_PLAIN_5M)),
+            Pass(),
+        )
+
+        called = handle_pon(prompted, seat=2, action=Pon(tiles=(_PLAIN_5M, _SECOND_PLAIN_5M)))
+        assert isinstance(called, ActionResult)
+        assert [e.tile_ids for e in called.events if isinstance(e, MeldEvent)] == [
+            [_PLAIN_5M, _SECOND_PLAIN_5M, _DISCARDED_PLAIN_5M]
+        ]
+        assert _RED_5M in called.state.round_state.players[2].tiles
+
+    @pytest.mark.parametrize(
+        ("tiles", "expected"),
+        [
+            pytest.param((_PLAIN_5M, _PLAIN_5M), RefusalCode.TILE_NOT_HELD, id="same_tile_twice"),
+            pytest.param((_RED_5M, _DISCARDED_PLAIN_5M), RefusalCode.TILE_NOT_HELD, id="tile_not_held"),
+            pytest.param((_RED_5M, _PON_SEAT_ONE_SOU), RefusalCode.NOT_OFFERED, id="other_tile_type"),
+        ],
+    )
+    def test_pon_validation__when_hand_tiles_are_not_a_held_pair_of_the_discard__should_refuse_as_not_offered(
+        self, tiles: tuple[int, int], expected: RefusalCode
+    ):
+        prompted = _discard_plain_five_man_to_pon_seat()
+        assert handle_pon(prompted, seat=2, action=Pon(tiles=tiles)) == Refusal(
+            kind=RefusalKind.NOT_OFFERED, code=expected
+        )
+
+
+def _discard_plain_five_man_to_pon_seat() -> MahjongGameState:
+    players = (
+        create_player(seat=0, tiles=(_DISCARDED_PLAIN_5M, *tile_copies(0, pin="123456789", honors="1234"))),
+        create_player(seat=1, tiles=tile_copies(0, sou="123456789", honors="5677")),
+        create_player(seat=2, tiles=_PON_SEAT_RED_AND_PLAIN_FIVES),
+        create_player(seat=3, tiles=tile_copies(1, pin="123456789", honors="1234")),
+    )
+    prompted, _events = process_discard_phase(create_dealt_game_state(players), _DISCARDED_PLAIN_5M)
+    return prompted
+
+
 class TestRiichiSeatMeldOffers:
     def test_meld_offers__when_riichi_seat_holds_a_triplet_of_the_discard__should_offer_neither_pon_nor_open_kan(self):
         five_pin = tile_copies(0, pin="5555")
@@ -244,7 +335,7 @@ class TestRiichiSeatMeldOffers:
         game_state = create_dealt_game_state(players)
         same_hand_out_of_riichi = riichi_seat_with_five_pin_triplet.model_copy(update={"is_riichi": False})
         assert tile_to_34(five_pin[3]) not in get_waiting_tiles(riichi_seat_with_five_pin_triplet)
-        assert can_call_pon(same_hand_out_of_riichi, five_pin[3])
+        assert can_call_pon(same_hand_out_of_riichi, five_pin[3], has_akadora=True)
         assert can_call_open_kan(
             same_hand_out_of_riichi,
             discarded_tile=five_pin[3],

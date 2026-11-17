@@ -293,7 +293,7 @@ function fiveOffers(): DecisionView {
                 rank: "win",
             }),
             storyControl({
-                command: choosing({ kind: "pon", tileId }),
+                command: choosing({ kind: "pon", pair: [9, 10], tileId }),
                 kind: "pon",
                 label: "Pon",
                 rank: "call",

@@ -158,7 +158,7 @@ function promptOffers(prompt: CallPromptEvent): Offer[] {
     const melds = prompt.availableCalls.flatMap((call): Offer[] => {
         switch (call.callType) {
             case MELD_CALL_TYPE.PON: {
-                return [{ kind: "pon", tileId }];
+                return call.options.map((pair) => ({ kind: "pon", pair, tileId }));
             }
             case MELD_CALL_TYPE.CHI: {
                 return call.options.map((sequence) => ({ kind: "chi", sequence, tileId }));
@@ -323,9 +323,11 @@ function offerKey(offer: Offer): string {
         case "ron": {
             return offer.kind;
         }
-        case "riichi":
+        case "riichi": {
+            return `riichi:${offer.tileId}`;
+        }
         case "pon": {
-            return `${offer.kind}:${offer.tileId}`;
+            return `pon:${offer.tileId}:${offer.pair.join(",")}`;
         }
         case "kan": {
             return `kan:${offer.kanType}:${offer.tileId}`;
@@ -375,7 +377,7 @@ function offerMessage(offer: Offer, waitId: number): ClientMessage {
             return buildRonAction(waitId);
         }
         case "pon": {
-            return buildPonAction(offer.tileId, waitId);
+            return buildPonAction(offer.tileId, offer.pair, waitId);
         }
         case "chi": {
             const [first, second] = offer.sequence;
