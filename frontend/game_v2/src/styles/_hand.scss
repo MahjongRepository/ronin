@@ -63,7 +63,8 @@ button.hand-tile {
     transition: transform 0.12s ease;
 }
 
-.hand-tile--selectable {
+.hand-tile--selectable,
+.hand-tile--waiting {
     @media (hover: hover) {
         &:hover {
             transform: translateY(-5px);
