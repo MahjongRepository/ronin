@@ -270,9 +270,11 @@ class SessionManager:
         logger.warning("session error sent to client", error_code=code.value, error_message=message)
         connection.send_message(ErrorMessage(code=code, message=message).payload())
 
-    def create_pending_game(self, *, game_id: str, player_specs: list[PlayerSpec]) -> None:
+    def create_pending_game(self, *, game_id: str, player_specs: list[PlayerSpec], fixed_seats: bool = False) -> None:
         """
         Register a pending game, waiting for its players to connect via JOIN_GAME, with its pending timeout armed.
+
+        With fixed_seats the session seats the players in wind order from the first dealer instead of at random.
         """
         if game_id in self._games:
             raise ValueError(f"Game {game_id} already exists")
@@ -280,7 +282,7 @@ class SessionManager:
         if game_id in self._withdrawn_game_ids:
             raise ValueError(f"Game {game_id} was withdrawn")
 
-        game = GameSession(game_id=game_id, timer_config=self._timer_config)
+        game = GameSession(game_id=game_id, timer_config=self._timer_config, fixed_seats=fixed_seats)
         for spec in player_specs:
             participant = Participant(spec=spec, game=game, timer=TurnTimer(self._timer_config, clock=self._clock))
             game.participants.append(participant)
@@ -441,7 +443,9 @@ class SessionManager:
         """
         game.lifecycle = GameLifecycle.PLAYING
         seed = self._seed_source()
-        seating = seat_players([participant.name for participant in game.participants], seed)
+        seating = seat_players(
+            [participant.name for participant in game.participants], seed, fixed_seats=game.fixed_seats
+        )
         for participant, seat in zip(game.participants, seating.player_seats, strict=True):
             participant.seat = seat
 

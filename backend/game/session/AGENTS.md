@@ -35,8 +35,9 @@ interleave.
   control record and the connected participants get `seat_control`, both ahead of the moves that
   follow, and the participant keeps why it stands in, which the reconnect snapshot carries.
 * **The session owns the roster and the seed.** It draws each game's seed from its seed source and
-  seats the participants by the seed's seat permutation (`seating.py`, `docs/rng.md`), the rest
-  AI players named apart from them; the engine gets only the seed. The game id, every seat's name and
+  seats the participants by the seed's seat permutation (`seating.py`, `docs/rng.md`), or with
+  `fixed_seats` in input order from the seed's first dealer, the rest AI players named apart from
+  them; the engine gets only the seed. The game id, every seat's name and
   the AI seats form the game's roster, which messaging adds to `game_started` and the reconnect
   snapshot. The start record and the replay's seats come from the roster, the replay's seed from the
   seed source and its RNG version from the `RNG_VERSION` constant, never from engine state.

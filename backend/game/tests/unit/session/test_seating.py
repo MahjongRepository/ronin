@@ -1,4 +1,4 @@
-from game.engine import SEED_BYTES, seat_permutation, validate_seed_hex
+from game.engine import SEED_BYTES, determine_first_dealer, seat_permutation, validate_seed_hex
 from game.session.seating import generate_seed, seat_players
 
 SEED = "a" * 192
@@ -42,3 +42,14 @@ class TestSeatPlayers:
         assert seating.player_seats != (0, 1, 2, 3)
         assert seating.ai_seats == frozenset()
         assert [seating.names[seat] for seat in seating.player_seats] == names
+
+    def test_seat_players__when_fixed_seats__should_seat_players_in_wind_order_from_the_first_dealer(self):
+        names = ["Alice", "Bob", "Charlie", "Dave"]
+        seed = "e" * 192
+        assert determine_first_dealer(seed)[0] == 3
+        assert seat_permutation(seed) != (3, 0, 1, 2)
+
+        seating = seat_players(names, seed, fixed_seats=True)
+        assert seating.player_seats == (3, 0, 1, 2)
+        assert seating.names == ("Bob", "Charlie", "Dave", "Alice")
+        assert seating.ai_seats == frozenset()

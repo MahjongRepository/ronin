@@ -110,11 +110,13 @@ class GameSession:
     participant's decision_id identifies only their own visible decisions. start_record is the game's record as posted
     at the start (seat order, every seat's name and user_id); every finish record is built from it. replay holds the
     records collected since the start until the end claim detaches them. ai_turn is the sleeping task that plays the AI
-    player's turn the game waits on once the AI turn delay has passed.
+    player's turn the game waits on once the AI turn delay has passed. fixed_seats seats the participants in wind order
+    from the first dealer instead of by the seed's seat permutation.
     """
 
     game_id: str
     timer_config: TimerConfig
+    fixed_seats: bool = False
     participants: list[Participant] = field(default_factory=list)
     lifecycle: GameLifecycle = GameLifecycle.PENDING
     runtime: GameRuntime | None = None

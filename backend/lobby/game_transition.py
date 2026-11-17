@@ -137,9 +137,12 @@ async def start_game(  # noqa: PLR0913
     ticket_secret: str,
     occupancy: Occupancy,
     game_server: httpx.AsyncClient,
+    fixed_seats: bool = False,
 ) -> str:
     """
     Create a game for the players, then send each of them ``game_starting`` and a 1000 close; return the game id.
+
+    With fixed_seats the game server seats the players in list order as East, South, West, North.
 
     Rooms and matchmaking both start games here, each keeping its own recovery. Every attempt gets a fresh game id: a
     failure may mean the game server created the game anyway (a timeout after the POST arrived), and a retry under the
@@ -163,18 +166,18 @@ async def start_game(  # noqa: PLR0913
             )
             for player in players
         ]
-        response = await game_server.post(
-            "/games",
-            json={
-                "game_id": game_id,
-                "players": [
-                    {"name": player.username, "user_id": player.user_id, "game_ticket": ticket}
-                    for player, ticket in zip(players, tickets, strict=True)
-                ],
-                "num_ai_players": num_ai_players,
-            },
-            timeout=_START_REQUEST_TIMEOUT,
-        )
+        body: dict[str, object] = {
+            "game_id": game_id,
+            "players": [
+                {"name": player.username, "user_id": player.user_id, "game_ticket": ticket}
+                for player, ticket in zip(players, tickets, strict=True)
+            ],
+            "num_ai_players": num_ai_players,
+        }
+        if fixed_seats:
+            body["fixed_seats"] = True
+
+        response = await game_server.post("/games", json=body, timeout=_START_REQUEST_TIMEOUT)
     except httpx.RequestError as e:
         log.exception("failed to create game")
         await _withdraw_game(game_id, settings=settings, game_server=game_server)

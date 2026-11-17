@@ -70,6 +70,11 @@ entries of the result in input order; the remaining seats go to AI players. This
 of a live game. A replay records each seat's name, and the loader seats the recorded names as they
 are, so the seating rule is not part of the replay format.
 
+A game created with `fixed_seats` (tournament tables) reads no seat stream: the players sit in input
+order from the seed's first dealer seat, so the first is East, the next South, then West and North.
+The first dealer still comes from the dealer stream. The replay records each seat's name as in any
+game, so it carries no seating mode.
+
 ## Versioning
 
 `RNG_VERSION` (`shake256-v1`) is written into every replay. A change to what a replay depends on,
