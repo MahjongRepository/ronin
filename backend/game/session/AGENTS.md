@@ -44,13 +44,14 @@ interleave.
   answers one: a seat no participant takes, or one whose participant has no connection, is an AI
   player's (`GameSession.is_ai_seat`), and the session answers it through `act` like a participant's
   answer, from the seat's decision read at that moment (`ai_player.py`: the decision's default, a
-  pass on every call and a discard of the drawn tile on its turn, so it never wins, calls or declares
-  riichi, a kan or kyuushu). After each engine call, every call an AI player's seat is awaited on is
-  answered at once, in ascending seat order, one `act` each whose events go out before the next; an
-  AI player's turn waits the AI turn delay (below). Each answer is an engine call whose actor is that
-  AI player's seat, and its seat gets no timer, no decision id and no opening, since it has no
-  connected participant. A refused AI player's answer is a server fault. The engine checks furiten once per call, so with each AI answer its own call, a seat's
-  furiten change can arrive ahead of the draw that follows an AI-only call window.
+  pass on every call and the default discard on its turn, so it never wins, calls or declares riichi,
+  a kan or kyuushu). After each engine call, every call an AI player's seat is awaited on is answered
+  at once, in ascending seat order, one `act` each whose events go out before the next; an AI
+  player's turn waits the AI turn delay (below). Each answer is an engine call whose actor is that AI
+  player's seat, and its seat gets no timer, no decision id and no opening, since it has no connected
+  participant. A refused AI player's answer is a server fault. The engine checks furiten once per
+  call, so with each AI answer its own call, a seat's furiten change can arrive ahead of the draw
+  that follows an AI-only call window.
 * **The session opens each decision.** The engine emits facts and keeps no prompt: after every
   engine call that opens a new wait, the session reads the `decision` of each newly awaited
   connected participant's seat and has messaging build its opening (`messaging/AGENTS.md`), placed
