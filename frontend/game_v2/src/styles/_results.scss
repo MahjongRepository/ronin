@@ -1,5 +1,4 @@
 @use "@/styles/game-board/queries";
-@use "@/styles/tile";
 @use "@/styles/type";
 
 $result-column-gap: 1rem;
@@ -470,16 +469,11 @@ $result-column-gap: 1rem;
     row-gap: 0.25rem;
 }
 
-/* The winning tile stands apart from the closed tiles and the melds, ringed in the neutral mark. */
+/* The winning tile stands apart from the closed tiles and the melds. */
 .round-end-result__win-tile {
     position: relative;
     display: inline-flex;
     margin-inline: 0.6rem 0.3rem;
-
-    .tile__body {
-        border-radius: calc(var(--tile-w) * #{tile.$corner-share});
-        outline: 2px solid var(--ronin-table-latest);
-    }
 }
 
 .round-end-result__win-label {
