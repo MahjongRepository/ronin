@@ -287,12 +287,20 @@ export GAME_LOG_DIR="$RUN_LOG_DIR/game"
 export LOBBY_LOG_DIR="$RUN_LOG_DIR/lobby"
 if [[ -n $PORTAL ]]; then
     require_portal_env
+    export AUTH_DATABASE_PATH="$RUN_LOG_DIR/data/storage.db"
+    export LOBBY_REPLAY_DIR="$RUN_LOG_DIR/data/replays"
+    export GAME_REPLAY_DIR="$RUN_LOG_DIR/data/replays"
+    export LOBBY_METRICS_DB_PATH="$RUN_LOG_DIR/data/metrics.db"
+    export LOBBY_WS_ALLOWED_ORIGIN="http://localhost:$LOBBY_PORT"
+    export LOBBY_GAME_SERVER_URL="http://localhost:$GAME_PORT"
+    export LOBBY_GAME_SERVER_WS_URL="ws://localhost:$GAME_PORT"
+    unset LOBBY_VITE_DEV_URL LOBBY_GAME_CLIENT_V2_DEV_URL
 fi
 
 build_bot
 
 rm -rf "$RUN_LOG_DIR"
-mkdir -p "$GAME_LOG_DIR" "$LOBBY_LOG_DIR" "$RUN_LOG_DIR/bots"
+mkdir -p "$GAME_LOG_DIR" "$LOBBY_LOG_DIR" "$RUN_LOG_DIR/bots" "$RUN_LOG_DIR/data/replays"
 
 register_bots
 create_tournament
