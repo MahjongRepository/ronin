@@ -202,9 +202,9 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   piece at 1x, blurring it on a 2x screen). A tile alone casts its own; a hand that takes input
   casts one per button. Flying tiles are shadowless ghost copies of their destination, its body, size and
   turn set once on the image (`--motion-*`), upright on the screen; only their `translate` animates. Native reflow
-  stays inside its original group; a hand slot's reflow animates `translate` alone, never `transform` (the own hand's
-  lifts and the snapshot's camera read hold it) and no `z-index` or `filter`; reveal backs stay inside the native hand slots, absolutely placed over the hidden
-  faces.
+  stays inside its original group; a hand slot's reflow animates `translate` alone, never `transform`, because the own
+  hand's lifts use `transform`, and no `z-index` or `filter`; reveal backs stay inside the native hand slots,
+  absolutely placed over the hidden faces.
 - **Layers come from one scale.** Every `z-index` is a `$layers` name (`game-board/_queries.scss`), never a literal,
   but a tile group's paint order: ordinals counted from the seat's turn (the slots' inline `z-index`, the right
   strip's areas and melds), which stay inside the group's stacking context and never meet a layer.
