@@ -23,7 +23,7 @@ import {
     boardViewValues,
     surfaceViewValues,
     tableView,
-} from "@/entities/table/lib/table-camera";
+} from "@/entities/table/lib/table-view";
 import { STANDING_BODY } from "@/entities/tile";
 
 /** What the opponents' strips hold, by seat, and the own row's melds. */

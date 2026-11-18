@@ -483,19 +483,12 @@ function desktopPanel(
  * What a family's sizes are solved for: the board's settled box, its family, its chrome's tier and px (`tierChrome`'s,
  * which a phone grows on its own path) and its page's slots.
  */
-type PlaneSpare = "below-core" | "around-core";
-
 interface BoardFrame {
     readonly box: BoardBox;
     readonly chrome: ChromeTier;
     readonly tier: TierChrome;
     readonly family: BoardFamily;
     readonly slots: BoardSlots;
-    /**
-     * Laid out for the camera's plane, its own row the flat board's: its spare height under the core, or around it
-     * where the flat board is width-bound and leaves that much spare.
-     */
-    readonly plane?: PlaneSpare;
     readonly faceFloor?: number;
     /** How much wider a phone plane's gap under the top strip is than the chrome's, so the camera shows the chrome's. */
     readonly topGap?: number;
@@ -675,20 +668,8 @@ function desktopPlans(
 }
 
 /**
- * Whether a layout's controls stand where its plan puts them: with no misfit, or on a camera's plane with none but the
- * pocket's stack, which a plane lays through unchecked: its pocket holds no controls, which stand on the flat board, so
- * the stack is checked on the flat board alone.
- */
-function controlsStandPlanePocketUnchecked(frame: BoardFrame, { misfits }: DesktopLayout): boolean {
-    return (
-        misfits.filter((misfit) => frame.plane === undefined || misfit !== "pocket-stack")
-            .length === 0
-    );
-}
-
-/**
- * A desktop's layout at `rw`: the first of its plans (`desktopPlans`) whose own tile holds its share off a plane, whose
- * controls stand (`controlsStandPlanePocketUnchecked`) and which `fits`; else the bars with the counters shrunk.
+ * A desktop's layout at `rw`: the first of its plans (`desktopPlans`) whose own tile holds its share, whose controls
+ * stand (no misfit) and which `fits`; else the bars with the counters shrunk.
  */
 function desktopLayout(
     frame: BoardFrame,
@@ -697,14 +678,11 @@ function desktopLayout(
 ): DesktopLayout {
     const tier = grownChrome(frame.tier, chromeGrowth(frame.chrome, rw));
     const plans = desktopPlans(tier, rw, frame.arrangement).filter(
-        (plan) =>
-            frame.plane !== undefined ||
-            desktopOwnTile({ bar: plan.bar, rw, width: frame.box.width }) >= plan.share * rw,
+        (plan) => desktopOwnTile({ bar: plan.bar, rw, width: frame.box.width }) >= plan.share * rw,
     );
     for (const plan of plans) {
         const layout = desktopAt(frame, rw, plan);
-        const ownHeld = frame.plane !== undefined || layout.ownShare >= plan.share;
-        if (ownHeld && controlsStandPlanePocketUnchecked(frame, layout) && fits(layout)) {
+        if (layout.ownShare >= plan.share && layout.misfits.length === 0 && fits(layout)) {
             return layout;
         }
     }
@@ -779,7 +757,7 @@ function desktopAt(
     rw: number,
     plan: DesktopPlan,
 ): DesktopLayout & { readonly ownShare: number } {
-    const { box, chrome, plane, tier: tierAtRecord } = frame;
+    const { box, chrome, tier: tierAtRecord } = frame;
     const { width, height } = box;
     const growth = chromeGrowth(chrome, rw);
     const tier = grownChrome(tierAtRecord, growth);
@@ -814,13 +792,7 @@ function desktopAt(
     const core = aboveCentre + centreHeight + drop + riverRows(rw, gap);
     const coreRoomTop = rh + TOP_HAND_BACK_EDGE_SHARE * rw + TOP_HAND_GAP * rw;
     const slack = handTop - ownMeldRise - edge - coreRoomTop - core;
-    const spareAbove: Readonly<Record<PlaneSpare | "flat", number>> = {
-        "around-core": slack / 2,
-        "below-core": 0,
-        flat: slack,
-    };
-    const flatSpare = plan.counters === "corner" ? "around-core" : "flat";
-    const coreTop = coreRoomTop + spareAbove[plane ?? flatSpare];
+    const coreTop = coreRoomTop + (plan.counters === "corner" ? slack / 2 : slack);
     const cy = coreTop + aboveCentre + centreHeight / 2;
     const decisionTier = atDecisionScale(tier, decisionH);
     const reach = sideStripReach(rw);
@@ -831,10 +803,7 @@ function desktopAt(
         plan.arrangement === "corner"
             ? laneFootTop({ handTop, height, oh, rw, tier }) - LINE_PLATE_GAP
             : height;
-    const linesFoot = Math.min(
-        laneFoot,
-        plane === undefined ? height : sideLineEnd(handTop, ownMeldRise, STRIP_ROOM_GAP),
-    );
+    const linesFoot = Math.min(laneFoot, height);
     const linesStart = sideLinesStart({ countersFoot: linesFloor, cy, height: linesFoot, reach });
     const ownPill = handTop + oh - tier.pillH;
 
@@ -894,9 +863,7 @@ function desktopAt(
         tall:
             reserved.handTop - reserved.ownMeldRise - edge - coreRoomTop - core >= 0 &&
             reach <= height,
-        wide:
-            (plane !== undefined || fitted >= OWN_BY_RIVER_LEAST * rw) &&
-            column.left >= Math.min(plan.bar, BAR_MIN),
+        wide: fitted >= OWN_BY_RIVER_LEAST * rw && column.left >= Math.min(plan.bar, BAR_MIN),
     };
 }
 
@@ -3221,78 +3188,7 @@ function solveFrame(frame: BoardFrame, lay: (frame: BoardFrame) => LaidBoard): B
     });
 }
 
-/** The tiles a tilted table is laid out at: its river tile, and the own tile the flat board's own row keeps. */
-interface PlaneTiles {
-    readonly rw: number;
-    readonly ow: number;
-    readonly spare: PlaneSpare;
-}
-
-function planeLengths(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): LaidBoard {
-    if (frame.family === "phone") {
-        return { arrangement: null, lengths: phoneLaidWithEdgeRoom(frame, { ow, rw }).lengths };
-    }
-    const { arrangement, lengths } = desktopLayout({ ...frame, plane: spare }, rw);
-    return { arrangement, lengths };
-}
-
-/**
- * Whether a plane lays at `rw`: its table fits and its controls stand (`controlsStandPlanePocketUnchecked`, which
- * lays a plane through the pocket's stack).
- */
-function planeFits(frame: BoardFrame, { ow, rw, spare }: PlaneTiles): boolean {
-    if (frame.family === "phone") {
-        return phoneLaid(frame, { ow, rw }).fits;
-    }
-    const planeFrame = { ...frame, plane: spare };
-    const layout = desktopLayout(planeFrame, rw);
-    return fitsDesktop(layout) && controlsStandPlanePocketUnchecked(planeFrame, layout);
-}
-
-/**
- * The table the camera tilts: the board's frame on a plane box (`box`, deeper than the board), laid out at the largest
- * river tile up to `cap` that fits it beside the flat board's own tile (found by halving, a fit holding at every smaller
- * tile), its spare height placed by `spare`, never
- * shortened into a table of its own.
- */
-function planeGeometry(
-    input: BoardInput,
-    box: BoardBox,
-    {
-        cap,
-        faceFloor,
-        ow,
-        spare,
-        topGap,
-        beside,
-        coreLift,
-        arrangement,
-    }: {
-        cap: number;
-        faceFloor?: number;
-        ow: number;
-        spare: PlaneSpare;
-        topGap?: number;
-        beside?: boolean;
-        coreLift?: number;
-        arrangement?: DesktopArrangement;
-    },
-): BoardGeometry {
-    const frame = { ...boardFrame(input), arrangement, beside, box, coreLift, faceFloor, topGap };
-    let fits = 1;
-    let fails = Math.max(1, Math.floor(cap)) + 1;
-    while (fails - fits > 1) {
-        const rw = Math.floor((fits + fails) / 2);
-        if (planeFits(frame, { ow, rw, spare })) {
-            fits = rw;
-        } else {
-            fails = rw;
-        }
-    }
-    return solveFrame(frame, (laid) => planeLengths(laid, { ow, rw: fits, spare }));
-}
-
-export { boardGeometry, desktopPlanMisfits, phonePromptHeight, planeGeometry, shellTracks };
+export { boardGeometry, desktopPlanMisfits, phonePromptHeight, shellTracks };
 export type {
     BoardBox,
     BoardEdges,
@@ -3305,7 +3201,6 @@ export type {
     BoardTracks,
     DesktopArrangement,
     DesktopMisfit,
-    PlaneSpare,
     ReplayForm,
     SwitchesForm,
 };

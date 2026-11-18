@@ -1,5 +1,4 @@
 import { BOARD_MOTION, type MotionRect, type TileMotion } from "@/entities/table/lib/board-motion";
-import { type TileQuad, quadWarp, unwarpPoint, warpPoint } from "@/entities/table/lib/tile-quad";
 import { SEAT_TURNS } from "@/entities/table/model/board-types";
 
 import { type TileSnapshot } from "./board-motion-snapshot";
@@ -7,12 +6,6 @@ import { type TileSnapshot } from "./board-motion-snapshot";
 const PARTED_SLOT = "hand-tile--parted";
 
 const SHIFT_TOLERANCE = 0.5;
-
-/** Where a reflowing tile starts: its bounding box and its corners on the screen. */
-export interface ReflowSource {
-    readonly rect: MotionRect;
-    readonly quad: TileQuad;
-}
 
 /** How a reflowing slot moves: its start offset in its frame (px) and its timing. */
 interface SlotShift {
@@ -31,35 +24,15 @@ interface TileReflow {
     visible: MotionRect;
 }
 
-/** Where the camera shows a tile's centre: its bounding box's centre, moved as its corners taper. */
-function shownCentre({ quad, rect }: ReflowSource): {
-    readonly left: number;
-    readonly top: number;
-} {
-    const centre = warpPoint(quadWarp(rect, quad), { left: 0, top: 0 });
-    return {
-        left: rect.left + rect.width / 2 + centre.left,
-        top: rect.top + rect.height / 2 + centre.top,
-    };
-}
-
-/**
- * How far a tile starts from its slot in its frame (px): the screen's offset between the two shown centres taken back
- * through the slot's camera (so a tilted strip's rows keep their spacing), unscaled and turned to its seat.
- */
-function localOffset(source: ReflowSource, target: TileSnapshot): readonly [number, number] {
+/** How far a tile starts from its slot in its frame (px): the screen's offset of their centres, unscaled and turned. */
+function localOffset(from: MotionRect, target: TileSnapshot): readonly [number, number] {
     const angle = (SEAT_TURNS[target.seat] * Math.PI) / 180;
-    const from = shownCentre(source);
-    const centre = {
-        left: target.rect.left + target.rect.width / 2,
-        top: target.rect.top + target.rect.height / 2,
-    };
-    const laid = unwarpPoint(quadWarp(target.rect, target.quad), {
-        left: from.left - centre.left,
-        top: from.top - centre.top,
-    });
-    const dx = laid.left / target.scales.across;
-    const dy = laid.top / target.scales.down;
+    const dx =
+        (from.left + from.width / 2 - target.rect.left - target.rect.width / 2) /
+        target.scales.across;
+    const dy =
+        (from.top + from.height / 2 - target.rect.top - target.rect.height / 2) /
+        target.scales.down;
     return [
         dx * Math.cos(angle) + dy * Math.sin(angle),
         dy * Math.cos(angle) - dx * Math.sin(angle),
@@ -68,11 +41,11 @@ function localOffset(source: ReflowSource, target: TileSnapshot): readonly [numb
 
 function reflowFrames(
     [localX, localY]: readonly [number, number],
-    source: ReflowSource,
+    from: MotionRect,
     target: TileSnapshot,
 ): Keyframe[] {
     if (target.region === "melds" || target.region === "dora") {
-        const scale = source.rect.width / target.rect.width;
+        const scale = from.width / target.rect.width;
         return [
             { transform: `translate(${localX}px, ${localY}px) scale(${scale})` },
             { transform: "translate(0px, 0px) scale(1)" },
@@ -85,16 +58,6 @@ function reflowFrames(
         ];
     }
     return [{ translate: `${localX}px ${localY}px` }, { translate: "0px 0px" }];
-}
-
-/** `quad` carried along as its bounding box moves and scales from `from` to `to`. */
-function movedQuad(quad: TileQuad, from: MotionRect, to: MotionRect): TileQuad {
-    const [across, down] = [to.width / (from.width || 1), to.height / (from.height || 1)];
-    const [first, second, third, fourth] = quad.map(({ left, top }) => ({
-        left: to.left + (left - from.left) * across,
-        top: to.top + (top - from.top) * down,
-    }));
-    return first && second && third && fourth ? [first, second, third, fourth] : quad;
 }
 
 function handOf(tile: TileSnapshot): HTMLElement | null {
@@ -183,18 +146,15 @@ export class TileReflowPlayer {
         if (active === undefined) {
             return tile;
         }
-        const quad = movedQuad(tile.quad, tile.rect, active.visible);
         const scale = tile.rect.width > 0 ? active.visible.width / tile.rect.width : 1;
         return {
             ...tile,
             painted: active.visible,
-            paintedQuad: quad,
             pose: {
                 ...tile.pose,
                 height: tile.pose.height * scale,
                 width: tile.pose.width * scale,
             },
-            quad,
             rect: active.visible,
         };
     }
@@ -217,17 +177,13 @@ export class TileReflowPlayer {
         active.effect.target = next.element.parentElement;
     }
 
-    play(motion: TileMotion, source: ReflowSource, target: TileSnapshot): void {
+    play(motion: TileMotion, from: MotionRect, target: TileSnapshot): void {
         const slot = target.element.parentElement;
         if (slot === null) {
             return;
         }
-        const offset = localOffset(source, target);
-        const { animation, effect } = animateSlot(
-            slot,
-            reflowFrames(offset, source, target),
-            motion,
-        );
+        const offset = localOffset(from, target);
+        const { animation, effect } = animateSlot(slot, reflowFrames(offset, from, target), motion);
         this.running.set(motion.target, {
             animation,
             effect,
@@ -239,7 +195,7 @@ export class TileReflowPlayer {
                 duration: motion.duration,
             },
             target,
-            visible: source.rect,
+            visible: from,
         });
         this.markPartedSlots();
         animation.onfinish = () => {

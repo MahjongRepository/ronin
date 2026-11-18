@@ -6,7 +6,7 @@ import {
     boardGeometry,
     phonePromptHeight,
 } from "@/entities/table/lib/board-geometry";
-import { type TableView, surfaceViewValues, tableView } from "@/entities/table/lib/table-camera";
+import { type TableView, surfaceViewValues, tableView } from "@/entities/table/lib/table-view";
 
 const NO_EDGES = { bottom: 0, left: 0, right: 0, top: 0 };
 

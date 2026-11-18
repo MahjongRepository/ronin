@@ -98,7 +98,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   unregistered chain grows with every reference until a browser drops the declaration. A bridged length is px already.
 - **The table's pieces are flat.** `.board-surface`, inside `.board-table`, as tall as the board and standing at its
   top, holds the rivers, the centre, the opponents' strips and the counters; each takes the transform `tableView`
-  (`entities/table/lib/table-camera.ts`) emits for it (`--geo-camera-*`) from its top left corner, which only moves it
+  (`entities/table/lib/table-view.ts`) emits for it (`--geo-camera-*`) from its top left corner, which only moves it
   to the table's top, and the lengths the directive writes on the surface itself. So every piece is shown as laid: the
   overlays (`--geo-shown-*`: the plates, calls and the felt's seams), motion snapshots and the checks read the boxes the
   browser paints, with no projection to take back. The view seam is a deferred no-op: a piece's transform stays one
@@ -192,7 +192,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
 - **One cast shadow per group.** Tiles lying together cast one drop shadow from an unturned ancestor: the rivers'
   from `.board-rivers`, the opponents' from `.board-strips`, never from a turned frame (Firefox on macOS draws a
   filter inside one unturned and clipped to its box) nor from a piece the view seam transforms (Chrome rasterizes a
-  filtered `matrix3d` piece at 1x, blurring it on a 2x screen). A tile alone casts its own; a hand that takes input
+  filtered 3D-transformed piece at 1x, blurring it on a 2x screen). A tile alone casts its own; a hand that takes input
   casts one per button. Flying tiles are shadowless ghost copies of their destination, its body, size and
   turn set once on the image (`--motion-*`), upright on the screen; only their `translate` animates. Native reflow
   stays inside its original group; a hand slot's reflow animates `translate` alone, never `transform`, because the own

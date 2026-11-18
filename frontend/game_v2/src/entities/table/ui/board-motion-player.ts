@@ -1,5 +1,4 @@
 import { BOARD_MOTION, type MotionRect, type TileMotion } from "@/entities/table/lib/board-motion";
-import { type TileQuad, quadWarp, warpTransform } from "@/entities/table/lib/tile-quad";
 
 import { type TilePose, type TileSnapshot, snapshotTiles } from "./board-motion-snapshot";
 import { TileHoldPlayer } from "./tile-hold-player";
@@ -11,9 +10,7 @@ interface Flight {
     readonly toPose: TilePose;
     readonly image: HTMLElement;
     readonly from: MotionRect;
-    readonly fromQuad: TileQuad;
     readonly to: MotionRect;
-    readonly toQuad: TileQuad;
     readonly board: MotionRect;
     readonly motion: TileMotion;
 }
@@ -35,23 +32,17 @@ function createFlight(motion: TileMotion, scene: Scene, target: TileSnapshot): F
         board: scene.box,
         from: target.latest ? source.rect : source.painted,
         fromPose: source.pose,
-        fromQuad: target.latest ? source.quad : source.paintedQuad,
         image: target.image,
         motion,
         to: target.painted,
         toPose: target.pose,
-        toQuad: target.paintedQuad,
     };
 }
 
-function flightFrames({ from, to, toQuad }: Flight): Keyframe[] {
+function flightFrames({ from, to }: Flight): Keyframe[] {
     const deltaX = from.left + from.width / 2 - to.left - to.width / 2;
     const deltaY = from.top + from.height / 2 - to.top - to.height / 2;
-    const transform = `translate(-50%, -50%) ${warpTransform(quadWarp(to, toQuad))}`;
-    return [
-        { transform, translate: `${deltaX}px ${deltaY}px` },
-        { transform, translate: "0px 0px" },
-    ];
+    return [{ translate: `${deltaX}px ${deltaY}px` }, { translate: "0px 0px" }];
 }
 
 function placeImage({ board, image, to }: Flight): void {
@@ -271,7 +262,7 @@ export class BoardMotionPlayer {
                 (flight.fromPose.angle - flight.toPose.angle) % 360 === 0) ||
             (target.region === "discards" && hasSamePose(flight.fromPose, flight.toPose))
         ) {
-            this.reflow.play(flight.motion, { quad: flight.fromQuad, rect: flight.from }, target);
+            this.reflow.play(flight.motion, flight.from, target);
         }
     }
 

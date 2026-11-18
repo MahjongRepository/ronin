@@ -259,31 +259,7 @@ function measureFlightTile(this: HTMLElement): DOMRect {
     return new DOMRect(100 + gap, 300 + gap, 48, 36 * LYING_Y_SHARE);
 }
 
-/** A camera tilting its rows away (their weight falls down the box), and one that also rolls them. */
-const TILTED = "matrix3d(1, 0, 0, 0, 0, 0.9, 0, -0.0005, 0, 0, 1, 0, 0, 0, 0, 1)";
-const ROLLED = "matrix3d(1, 0.1, 0, 0, 0, 0.9, 0, -0.0005, 0, 0, 1, 0, 0, 0, 0, 1)";
-
-function renderTiltedDiscard(discarded: boolean, camera: string): void {
-    const held: HandTile = {
-        face: "2m",
-        show: "face",
-        state: "selectable",
-        tileId: 4,
-    };
-    render(
-        html`<div class="board-local" data-area="bottom-hand">
-        ${Hand({ tiles: discarded ? [held] : [{ face: "1m", show: "face", state: "selectable", tileId: 0 }, held] })}
-      </div>
-      <div style=${`transform: ${camera}`}>
-        <div data-area="bottom-discards">
-          ${Discards(discarded ? [{ face: "1m", tileId: 0 }] : [])}
-        </div>
-      </div>`,
-        host,
-    );
-}
-
-function renderTiltedSideDiscard(discarded: boolean): void {
+function renderSideDiscard(discarded: boolean): void {
     const held: HandTile = {
         face: "2m",
         show: "face",
@@ -294,10 +270,8 @@ function renderTiltedSideDiscard(discarded: boolean): void {
         html`<div class="board-local" data-area="bottom-hand">
         ${Hand({ standing: true, tiles: discarded ? [held] : [{ face: "1m", show: "face", state: "selectable", tileId: 0 }, held] })}
       </div>
-      <div style=${`transform: ${TILTED}`}>
-        <div data-area="left-discards">
-          ${Discards(discarded ? [{ face: "1m", tileId: 0 }] : [], "wrap", 90)}
-        </div>
+      <div data-area="left-discards">
+        ${Discards(discarded ? [{ face: "1m", tileId: 0 }] : [], "wrap", 90)}
       </div>`,
         host,
     );
@@ -325,10 +299,9 @@ function animatedProperties(frame: ComputedKeyframe): readonly string[] {
 function expectTranslateOnly(animation: Animation): void {
     const [start, end] = getAnimationFrames(animation);
     expect([animatedProperties(start), animatedProperties(end)]).toEqual([
-        ["transform", "translate"],
-        ["transform", "translate"],
+        ["translate"],
+        ["translate"],
     ]);
-    expect(end.transform).toBe(start.transform);
     expect(end.translate).not.toBe(start.translate);
 }
 
@@ -869,17 +842,6 @@ describe("latest discard gap", () => {
     });
 });
 
-function startTiltedFlight(): BoardMotionPlayer {
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureFlightTile);
-    renderTiltedDiscard(false, TILTED);
-    const before = snapshotTiles(host);
-    renderTiltedDiscard(true, TILTED);
-    const after = snapshotTiles(host);
-    const player = new BoardMotionPlayer(host);
-    player.play(planTileMotion(before, after), before, after);
-    return player;
-}
-
 function renderOwnPon(called: boolean, last: boolean): void {
     const pair: readonly HandTile[] = [
         { face: "3p", show: "face", state: "selectable", tileId: 10 },
@@ -963,24 +925,8 @@ describe("own call flight", () => {
     });
 });
 
-describe("tilted tile flight", () => {
-    it("slides a discard onto a tilted river already in its landing taper, the warp fixed and the move a translate", () => {
-        const player = startTiltedFlight();
-
-        const [start, end] = getAnimationFrames(animations[0]);
-        expect(start.transform).toMatch(/^translate\(-50%, -50%\) matrix3d\(/u);
-        expect(start.transform).not.toBe(
-            "translate(-50%, -50%) matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)",
-        );
-        expect([end.transform, start.translate, end.translate]).toEqual([
-            start.transform,
-            "0px 316.7px",
-            "0px 0px",
-        ]);
-        player.cancel();
-    });
-
-    it("flies a discard onto a tilted side river at its slot's screen box from take-off", () => {
+describe("side river flight", () => {
+    it("flies a discard onto a side river at its slot's screen box from take-off", () => {
         vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
             function measureSideRiver(this: HTMLElement) {
                 if (this.matches("[data-area='left-discards'] .tile")) {
@@ -989,9 +935,9 @@ describe("tilted tile flight", () => {
                 return measureFlightTile.call(this);
             },
         );
-        renderTiltedSideDiscard(false);
+        renderSideDiscard(false);
         const before = snapshotTiles(host);
-        renderTiltedSideDiscard(true);
+        renderSideDiscard(true);
         const after = snapshotTiles(host);
         const player = new BoardMotionPlayer(host);
         player.play(planTileMotion(before, after), before, after);
@@ -1002,15 +948,6 @@ describe("tilted tile flight", () => {
             ),
         );
         player.cancel();
-    });
-
-    it("refuses a tilted piece whose camera rolls its rows rather than flying its tile flat", () => {
-        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-            measureFlightTile,
-        );
-        renderTiltedDiscard(true, ROLLED);
-
-        expect(() => snapshotTiles(host)).toThrow("keep its rows level");
     });
 });
 

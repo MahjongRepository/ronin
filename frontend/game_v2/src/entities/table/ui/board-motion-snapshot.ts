@@ -1,11 +1,4 @@
 import { type MotionRect, type MotionTile } from "@/entities/table/lib/board-motion";
-import {
-    type PieceFrame,
-    type TileQuad,
-    pieceOrigin,
-    rectQuad,
-    tiltedQuad,
-} from "@/entities/table/lib/tile-quad";
 import { SEAT_POSITIONS, SEAT_TURNS, type SeatPosition } from "@/entities/table/model/board-types";
 
 export interface TilePose {
@@ -24,19 +17,10 @@ export interface TileScales {
 
 export interface TileSnapshot extends MotionTile {
     readonly pose: TilePose;
-    /** The tile's corners as the camera shows them: its bounding box's, off the tilted table. */
-    readonly quad: TileQuad;
-    readonly paintedQuad: TileQuad;
     readonly scales: TileScales;
     readonly element: HTMLElement;
     readonly image: HTMLElement;
 }
-
-/**
- * What one snapshot has read of each tile's ancestors: a tilted piece's camera on the screen (its `matrix3d` and its
- * box's top left corner), else null; each element read once.
- */
-type PieceFrames = Map<Element, PieceFrame | null>;
 
 const TILE_STYLE = ["filter", "outline", "outline-offset", "color", "font-size", "box-sizing"];
 
@@ -109,73 +93,6 @@ function measureScales(tile: HTMLElement, rect: MotionRect, seat: SeatPosition):
     return upright ? { across, down } : { across: down, down: across };
 }
 
-function readPieceFrame(piece: HTMLElement): PieceFrame | null {
-    const { transform } = getComputedStyle(piece);
-    if (!transform.startsWith("matrix3d")) {
-        return null;
-    }
-    const value = new DOMMatrixReadOnly(transform);
-    const matrix = [
-        value.m11,
-        value.m12,
-        value.m13,
-        value.m14,
-        value.m21,
-        value.m22,
-        value.m23,
-        value.m24,
-        value.m31,
-        value.m32,
-        value.m33,
-        value.m34,
-        value.m41,
-        value.m42,
-        value.m43,
-        value.m44,
-    ];
-    const box = {
-        height: piece.offsetHeight,
-        left: -piece.clientLeft,
-        top: -piece.clientTop,
-        width: piece.offsetWidth,
-    };
-    return { matrix, origin: pieceOrigin(matrix, box, piece.getBoundingClientRect()) };
-}
-
-function cachedFrame(element: HTMLElement, frames: PieceFrames): PieceFrame | null {
-    if (!frames.has(element)) {
-        frames.set(element, readPieceFrame(element));
-    }
-    return frames.get(element) ?? null;
-}
-
-/** The camera of the tilted piece a tile lies on: its nearest ancestor drawn through a `matrix3d`, if any. */
-function tiltedFrame(tile: HTMLElement, frames: PieceFrames): PieceFrame | null {
-    for (let element = tile.parentElement; element !== null; element = element.parentElement) {
-        const frame = cachedFrame(element, frames);
-        if (frame !== null) {
-            return frame;
-        }
-    }
-    return null;
-}
-
-/**
- * A tile's corners on the screen: on a tilted piece as its camera shows them, else its bounding box's. A camera that
- * rolls the piece's rows cannot be read back from a bounding box, and fails loudly rather than flying the tile flat.
- */
-function captureQuad(tile: HTMLElement, rect: MotionRect, frames: PieceFrames): TileQuad {
-    const frame = tiltedFrame(tile, frames);
-    if (frame === null) {
-        return rectQuad(rect);
-    }
-    const quad = tiltedQuad(frame, rect);
-    if (quad === null) {
-        throw new Error("A tilted piece's camera must keep its rows level");
-    }
-    return quad;
-}
-
 function measureOnGrid(slot: HTMLElement, tile: HTMLElement): MotionRect {
     slot.style.setProperty("translate", "none", "important");
     const rect = tile.getBoundingClientRect();
@@ -183,26 +100,18 @@ function measureOnGrid(slot: HTMLElement, tile: HTMLElement): MotionRect {
     return rect;
 }
 
-type TilePlace = Pick<TileSnapshot, "latest" | "painted" | "paintedQuad" | "quad" | "rect">;
+type TilePlace = Pick<TileSnapshot, "latest" | "painted" | "rect">;
 
-function measurePlace(slot: HTMLElement, tile: HTMLElement, frames: PieceFrames): TilePlace {
+function measurePlace(slot: HTMLElement, tile: HTMLElement): TilePlace {
     const latest = slot.classList.contains("discard-tile--last");
     const rect = latest ? measureOnGrid(slot, tile) : tile.getBoundingClientRect();
     const painted = latest ? tile.getBoundingClientRect() : rect;
-    const quad = captureQuad(tile, rect, frames);
-    return {
-        latest,
-        painted,
-        paintedQuad: painted === rect ? quad : captureQuad(tile, painted, frames),
-        quad,
-        rect,
-    };
+    return { latest, painted, rect };
 }
 
 function captureTile(
     element: HTMLElement,
     location: Pick<MotionTile, "seat" | "region" | "index">,
-    frames: PieceFrames,
 ): TileSnapshot[] {
     const tile = element.querySelector<HTMLElement>(":scope > .tile");
     if (tile === null) {
@@ -211,7 +120,7 @@ function captureTile(
     const id = element.dataset.tileId ?? "";
     const drawn = element.classList.contains("hand-drawn-gap");
     const slot = drawn ? "drawn" : `slot-${location.index}`;
-    const place = measurePlace(element, tile, frames);
+    const place = measurePlace(element, tile);
     const pose = capturePose(tile, place.rect, location.seat);
     return [
         {
@@ -230,23 +139,22 @@ function captureTile(
     ];
 }
 
-function captureSeat(board: HTMLElement, seat: SeatPosition, frames: PieceFrames): TileSnapshot[] {
+function captureSeat(board: HTMLElement, seat: SeatPosition): TileSnapshot[] {
     return (["hand", "discards", "melds"] as const).flatMap((region) => {
         const area = board.querySelector(`[data-area="${seat}-${region}"]`);
         if (area === null) {
             return [];
         }
         return [...area.querySelectorAll<HTMLElement>("[data-tile-id]")].flatMap((element, index) =>
-            captureTile(element, { index, region, seat }, frames),
+            captureTile(element, { index, region, seat }),
         );
     });
 }
 
 export function snapshotTiles(board: HTMLElement): readonly TileSnapshot[] {
-    const frames: PieceFrames = new Map();
-    const tiles = SEAT_POSITIONS.flatMap((seat) => captureSeat(board, seat, frames));
+    const tiles = SEAT_POSITIONS.flatMap((seat) => captureSeat(board, seat));
     const dora = [...board.querySelectorAll<HTMLElement>(".board-dora__tile")].flatMap(
-        (element, index) => captureTile(element, { index, region: "dora", seat: "bottom" }, frames),
+        (element, index) => captureTile(element, { index, region: "dora", seat: "bottom" }),
     );
     return [...tiles, ...dora];
 }
