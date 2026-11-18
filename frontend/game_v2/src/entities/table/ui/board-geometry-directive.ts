@@ -290,7 +290,7 @@ class SizeBoard extends AsyncDirective {
 
 function solveBoard(input: BoardInput): { geometry: BoardGeometry; view: TableView } {
     const geometry = boardGeometry(input);
-    return { geometry, view: tableView(input, geometry) };
+    return { geometry, view: tableView(geometry) };
 }
 
 function writeValues(

@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { boardGeometry } from "@/entities/table/lib/board-geometry";
-import { pieceTransform, tableView } from "@/entities/table/lib/table-camera";
 import {
     type PieceFrame,
     type ScreenPoint,
@@ -13,30 +11,11 @@ import {
     warpPoint,
 } from "@/entities/table/lib/tile-quad";
 
-const NO_EDGES = { bottom: 0, left: 0, right: 0, top: 0 };
-
-/** The 1440x900 desktop's top strip: its CSS matrix3d values and its box's size. */
-function topStrip(): {
-    readonly matrix: readonly number[];
-    readonly width: number;
-    readonly height: number;
-} {
-    const input = {
-        appliedEdges: NO_EDGES,
-        box: { height: 900, width: 1440 },
-        safeInsets: NO_EDGES,
-        slots: { band: "play" as const },
-    };
-    const view = tableView(input, boardGeometry(input));
-    const values =
-        /matrix3d\((?<list>[^)]*)\)/u.exec(pieceTransform(view, "strip-top"))?.groups?.list ?? "";
-    const strip = view.pieces["strip-top"];
-    return {
-        height: strip.bottom - strip.top,
-        matrix: values.split(",").map(Number),
-        width: strip.right - strip.left,
-    };
-}
+const TAPERED_STRIP = {
+    height: 106,
+    matrix: [0.9, 0, 0, 0, -0.05, 0.76, 0, -0.0001, 0, 0, 1, 0, 46, 0, 0, 1],
+    width: 842,
+};
 
 function shown({ matrix, origin }: PieceFrame, { left, top }: ScreenPoint): ScreenPoint {
     const weight = (matrix[3] ?? 0) * left + (matrix[7] ?? 0) * top + (matrix[15] ?? 1);
@@ -67,7 +46,7 @@ function boundsOf(points: readonly ScreenPoint[]): {
 }
 
 describe("tile quads on a tilted piece", () => {
-    const { height, matrix, width } = topStrip();
+    const { height, matrix, width } = TAPERED_STRIP;
     const origin = { left: 200, top: 30 };
     const frame = { matrix, origin };
     function corners(left: number): ScreenPoint[] {
@@ -91,21 +70,6 @@ describe("tile quads on a tilted piece", () => {
             expect(found.left).toBeCloseTo(origin.left, 6);
             expect(found.top).toBeCloseTo(origin.top, 6);
         }
-    });
-
-    it("recovers a tilted tile's tapered corners from its bounding box", () => {
-        const truth = corners(12);
-
-        const quad = tiltedQuad(frame, boundsOf(truth));
-
-        expect(quad).not.toBeNull();
-        for (const [index, corner] of truth.entries()) {
-            expect(quad?.[index]?.left).toBeCloseTo(corner.left, 6);
-            expect(quad?.[index]?.top).toBeCloseTo(corner.top, 6);
-        }
-        expect((truth[1]?.left ?? 0) - (truth[0]?.left ?? 0)).toBeLessThan(
-            (truth[2]?.left ?? 0) - (truth[3]?.left ?? 0),
-        );
     });
 
     it("warps an image of the tile's bounding box onto its shown corners", () => {

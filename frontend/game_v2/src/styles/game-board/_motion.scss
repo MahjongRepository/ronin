@@ -8,10 +8,8 @@
 
     &__tile {
         position: absolute;
-        box-sizing: content-box;
         width: var(--motion-width);
         height: var(--motion-height);
-        border: $tilted-piece-edge-gutter solid transparent;
         transform: translate(-50%, -50%);
         pointer-events: none;
     }
