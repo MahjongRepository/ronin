@@ -2,10 +2,15 @@ import { type GameSound, type SoundCue } from "@/entities/client";
 import { DISCARD_LANDING_MS } from "@/entities/table";
 import { type CancelTimer, type Clock } from "@/shared/clock";
 
+interface PendingLanding {
+    readonly cancel: CancelTimer;
+    readonly cues: SoundCue[];
+}
+
 export class LandingClacks {
     private readonly clock: Clock;
     private readonly sound: GameSound;
-    private readonly pending = new Set<CancelTimer>();
+    private pending: readonly PendingLanding[] = [];
 
     constructor(clock: Clock, sound: GameSound) {
         this.clock = clock;
@@ -14,8 +19,11 @@ export class LandingClacks {
 
     play(cues: readonly SoundCue[], clackAtLanding: boolean): void {
         for (const cue of cues) {
+            const landing = this.pending.at(-1);
             if (clackAtLanding && cue === "discard") {
                 this.clackAtLanding();
+            } else if (cue === "decision" && landing !== undefined) {
+                landing.cues.push(cue);
             } else {
                 this.sound.play(cue);
             }
@@ -23,25 +31,29 @@ export class LandingClacks {
     }
 
     landNow(): void {
-        const landing = this.pending.size;
+        const landings = this.pending;
         this.cancel();
-        for (let clack = 0; clack < landing; clack += 1) {
-            this.sound.play("discard");
+        for (const landing of landings) {
+            landing.cues.forEach(this.sound.play);
         }
     }
 
     cancel(): void {
-        for (const cancelTimer of this.pending) {
-            cancelTimer();
+        for (const landing of this.pending) {
+            landing.cancel();
         }
-        this.pending.clear();
+        this.pending = [];
     }
 
     private clackAtLanding(): void {
-        const cancelTimer = this.clock.setTimer(DISCARD_LANDING_MS, () => {
-            this.pending.delete(cancelTimer);
-            this.sound.play("discard");
-        });
-        this.pending.add(cancelTimer);
+        const cues: SoundCue[] = ["discard"];
+        const landing: PendingLanding = {
+            cancel: this.clock.setTimer(DISCARD_LANDING_MS, () => {
+                this.pending = this.pending.filter((pending) => pending !== landing);
+                cues.forEach(this.sound.play);
+            }),
+            cues,
+        };
+        this.pending = [...this.pending, landing];
     }
 }

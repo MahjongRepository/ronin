@@ -1340,7 +1340,7 @@ describe("mountGameView settings", () => {
 });
 
 describe("mountGameView sounds", () => {
-    it("plays a step's cues at once and its discard's clack only as the tile lands", () => {
+    it("plays the discard that offers the player a chi with one clack as its tile lands, its decision chime with it", () => {
         const { clock, connections, sound } = mountWithFakes();
         openCallPrompt(connections[0]);
         const atOnce = [...sound.played];
@@ -1348,11 +1348,7 @@ describe("mountGameView sounds", () => {
         const beforeLanding = [...sound.played];
         clock.advanceTo(DISCARD_LANDING_MS);
 
-        expect([atOnce, beforeLanding, sound.played]).toEqual([
-            ["decision"],
-            ["decision"],
-            ["decision", "discard"],
-        ]);
+        expect([atOnce, beforeLanding, sound.played]).toEqual([[], [], ["discard", "decision"]]);
     });
 
     it("plays no sound once the player turns it off, not even a clack whose tile is still landing", () => {
@@ -1364,7 +1360,7 @@ describe("mountGameView sounds", () => {
         receiveThroughTurn(connections[0]);
         clock.advanceTo(DISCARD_LANDING_MS);
 
-        expect(sound.played).toEqual(["decision"]);
+        expect(sound.played).toEqual([]);
     });
 
     it.each([
