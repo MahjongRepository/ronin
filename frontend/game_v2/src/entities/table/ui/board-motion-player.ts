@@ -33,9 +33,9 @@ function createFlight(motion: TileMotion, scene: Scene, target: TileSnapshot): F
     }
     return {
         board: scene.box,
-        from: source.painted,
+        from: target.latest ? source.rect : source.painted,
         fromPose: source.pose,
-        fromQuad: source.paintedQuad,
+        fromQuad: target.latest ? source.quad : source.paintedQuad,
         image: target.image,
         motion,
         to: target.rect,

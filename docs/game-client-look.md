@@ -341,12 +341,13 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   owner's in every orientation. Decision: a drawn-and-discarded tile is not told apart from one
   played from the hand; the rivers keep as few tile states
   as possible so the latest discard and the riichi tile are found at a glance.
-- **Latest discard.** Decision: the newest discard lands in line in its river slot. It stands apart only while a
-  call on it is being decided, whether or not the viewer has an offer on it, and in a static state (motion off, a
-  reconnect, a replay jump) while it is the table's last action: a small gap (7px; 10px along the right river's row)
-  before it along its row and toward its seat, as a tile just thrown lies, with no ring, pointer or colour. In motion
-  it slides out to the gap as it lands only if the next draw has not arrived by then, so a turn nobody can call never
-  shows it. The next draw ends it, the tile then lying in the river as any other; a call
+- **Latest discard.** Decision: the newest discard lands in line in its river slot. In live play it stands apart
+  only while a call on it is being decided, whether or not the viewer has an offer on it; a replay's discard stop
+  shows it until the next step; and so does a static state (motion off, a reconnect, a replay jump) while it is the
+  table's last action: a small gap (7px; 10px along the right river's row) before it along its row and toward its
+  seat, as a tile just thrown lies, with no ring, pointer or colour. In motion it slides out to the gap as it lands
+  only if the next draw has not arrived by then, so in live play a turn nobody can call never shows it. The next
+  draw ends it, the tile then lying in the river as any other; a call
   that claims it ends it too, the claim then read from the meld, and so does the round's end,
   whatever its result (a ron on it included: the result shows the winning tile). During a discard offer this mark is the action source. A
   chankan offer's source is a kan in a meld and is marked separately, the whole kan ringed in its
