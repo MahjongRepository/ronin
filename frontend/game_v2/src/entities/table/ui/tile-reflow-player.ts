@@ -1,4 +1,4 @@
-import { type MotionRect, type TileMotion } from "@/entities/table/lib/board-motion";
+import { BOARD_MOTION, type MotionRect, type TileMotion } from "@/entities/table/lib/board-motion";
 import { type TileQuad, quadWarp, unwarpPoint, warpPoint } from "@/entities/table/lib/tile-quad";
 import { SEAT_TURNS } from "@/entities/table/model/board-types";
 
@@ -25,6 +25,7 @@ interface SlotShift {
 interface TileReflow {
     readonly animation: Animation;
     readonly effect: KeyframeEffect;
+    readonly opensGap: boolean;
     readonly shift: SlotShift;
     hand: HTMLElement | null;
     target: TileSnapshot;
@@ -148,12 +149,12 @@ function findPartedSlots(running: Iterable<TileReflow>): Set<HTMLElement> {
 function animateSlot(
     slot: HTMLElement,
     frames: Keyframe[],
-    { delay, duration }: TileMotion,
+    { delay, duration }: Pick<TileMotion, "delay" | "duration">,
 ): { readonly animation: Animation; readonly effect: KeyframeEffect } {
     const animation = slot.animate(frames, {
         delay,
         duration,
-        easing: "linear",
+        easing: BOARD_MOTION.slotEasing,
         fill: "both",
     });
     if (!(animation.effect instanceof KeyframeEffect)) {
@@ -186,15 +187,21 @@ export class TileReflowPlayer {
         if (active === undefined) {
             return tile;
         }
+        const quad = movedQuad(tile.quad, tile.rect, active.visible);
+        if (active.opensGap) {
+            return { ...tile, painted: active.visible, paintedQuad: quad };
+        }
         const scale = tile.rect.width > 0 ? active.visible.width / tile.rect.width : 1;
         return {
             ...tile,
+            painted: active.visible,
+            paintedQuad: quad,
             pose: {
                 ...tile.pose,
                 height: tile.pose.height * scale,
                 width: tile.pose.width * scale,
             },
-            quad: movedQuad(tile.quad, tile.rect, active.visible),
+            quad,
             rect: active.visible,
         };
     }
@@ -232,6 +239,7 @@ export class TileReflowPlayer {
             animation,
             effect,
             hand: handOf(target),
+            opensGap: false,
             shift: {
                 across: offset[0],
                 delay: motion.delay,
@@ -246,6 +254,32 @@ export class TileReflowPlayer {
             this.stop(motion.target);
             this.markPartedSlots();
         };
+    }
+
+    openGap(motion: TileMotion, target: TileSnapshot): void {
+        const slot = target.element.parentElement;
+        if (slot === null) {
+            return;
+        }
+        const timing = {
+            delay: motion.delay + BOARD_MOTION.landing,
+            duration: BOARD_MOTION.gapSlide,
+        };
+        const { animation, effect } = animateSlot(
+            slot,
+            [{ offset: 0, translate: "0px 0px" }],
+            timing,
+        );
+        this.running.set(motion.target, {
+            animation,
+            effect,
+            hand: null,
+            opensGap: true,
+            shift: { ...timing, across: 0, down: 0 },
+            target,
+            visible: target.rect,
+        });
+        animation.onfinish = () => this.stop(motion.target);
     }
 
     private stop(key: string): void {

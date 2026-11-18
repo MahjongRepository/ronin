@@ -51,13 +51,13 @@ function drawn(state: TableState): TableState {
     };
 }
 
-function discardDraw(state: TableState): TableState {
+function discardDraw(state: TableState, riichi = false): TableState {
     return {
         ...state,
         lastDiscardSeat: 0,
         players: state.players.map((player) =>
             player.seat === 0
-                ? { ...player, discards: [{ isRiichi: false, isTsumogiri: true, tileId: 120 }] }
+                ? { ...player, discards: [{ isRiichi: riichi, isTsumogiri: true, tileId: 120 }] }
                 : player,
         ),
     };
@@ -98,6 +98,16 @@ function draw(
     );
 }
 
+const LATEST_GAP = 7;
+
+function paintsGap(tile: HTMLElement): boolean {
+    const slot = tile.parentElement;
+    return (
+        slot?.classList.contains("discard-tile--last") === true &&
+        slot.style.getPropertyValue("translate") !== "none"
+    );
+}
+
 function getBox(element: HTMLElement): DOMRect {
     if (element.classList.contains("game-board")) {
         return DOMRect.fromRect({ height: 800, width: 1200 });
@@ -105,7 +115,8 @@ function getBox(element: HTMLElement): DOMRect {
     const area = element.closest<HTMLElement>("[data-area]")?.dataset.area ?? "";
     const siblings = element.parentElement?.parentElement?.querySelectorAll("[data-tile-id]") ?? [];
     const index = [...siblings].indexOf(element.parentElement!);
-    return new DOMRect(100 + index * 32, area.endsWith("hand") ? 600 : 300, 30, 40);
+    const gap = paintsGap(element) ? LATEST_GAP : 0;
+    return new DOMRect(100 + index * 32 + gap, (area.endsWith("hand") ? 600 : 300) + gap, 30, 40);
 }
 
 async function show(
@@ -208,7 +219,7 @@ function getMovingFace(): HTMLElement {
     return face;
 }
 
-function renderRiichiFlight(discarded: boolean, last = false): void {
+function renderRiichiFlight(discarded: boolean): void {
     const held: HandTile = {
         face: "2m",
         show: "face",
@@ -223,7 +234,7 @@ function renderRiichiFlight(discarded: boolean, last = false): void {
         ${Hand({ standing: true, tiles })}
       </div>
       <div data-area="bottom-discards">
-        ${Discards(discarded ? [{ face: "1m", last, riichi: true, tileId: 0 }] : [])}
+        ${Discards(discarded ? [{ face: "1m", riichi: true, tileId: 0 }] : [])}
       </div>`,
         host,
     );
@@ -236,7 +247,7 @@ function measureFlightTile(this: HTMLElement): DOMRect {
     if (this.closest("[data-area='bottom-hand']") !== null) {
         return new DOMRect(100, 600, 48, 64);
     }
-    const gap = this.parentElement?.classList.contains("discard-tile--last") ? 7 : 0;
+    const gap = paintsGap(this) ? LATEST_GAP : 0;
     return new DOMRect(100 + gap, 300 + gap, 48, 36);
 }
 
@@ -284,11 +295,11 @@ function renderTiltedSideDiscard(discarded: boolean): void {
     );
 }
 
-function startRiichiFlight(last = false): BoardMotionPlayer {
+function startRiichiFlight(): BoardMotionPlayer {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureFlightTile);
     renderRiichiFlight(false);
     const before = snapshotTiles(host);
-    renderRiichiFlight(true, last);
+    renderRiichiFlight(true);
     const after = snapshotTiles(host);
     const player = new BoardMotionPlayer(host);
     player.play(planTileMotion(before, after), before, after);
@@ -325,14 +336,6 @@ function flightPoses(): readonly Record<string, string>[] {
             ].map((name) => [name, image.style.getPropertyValue(name)]),
         ),
     );
-}
-
-function settleRiichiFlight(player: BoardMotionPlayer): void {
-    player.prepareRender();
-    const before = snapshotTiles(host);
-    renderRiichiFlight(true);
-    const after = snapshotTiles(host);
-    player.play(planTileMotion(before, after), before, after);
 }
 
 function renderSettlingRiver(seat: SeatPosition, riichi: boolean, last: boolean): void {
@@ -607,7 +610,7 @@ describe("board motion", () => {
             hiddenTiles(),
             animations.length,
             animations.every((animation) => animation.playState === "idle"),
-        ]).toEqual([0, 3, true]);
+        ]).toEqual([0, 4, true]);
     });
 
     it.each([
@@ -620,7 +623,7 @@ describe("board motion", () => {
             await show(drawn(dealt), { mode, sequence: 0 });
             const after = discardDraw(dealt);
             await show(after, { mode, sequence: 1 });
-            expect(animations.length).toBe(3);
+            expect(animations.length).toBe(4);
             await show(after, { mode, sequence: 1 });
             expect(animations.every((animation) => animation.playState === "paused")).toBe(true);
             await show({ ...after, doraIndicators: [24] }, { mode, sequence: 2 });
@@ -628,7 +631,7 @@ describe("board motion", () => {
                 animations.length,
                 animations.every((animation) => animation.playState === nextState),
                 hiddenTiles(),
-            ]).toEqual([3, true, mode === "replay" ? 0 : 1]);
+            ]).toEqual([4, true, mode === "replay" ? 0 : 1]);
         },
     );
 
@@ -642,27 +645,27 @@ describe("board motion", () => {
             animations.length,
             hiddenTiles(),
             animations.every((animation) => animation.playState === "idle"),
-        ]).toEqual([3, 0, true]);
+        ]).toEqual([4, 0, true]);
     });
 
     it("cancels a flight on replay jumps or viewpoint changes and starts no new flights", async () => {
         const dealt = table(true);
         await show(drawn(dealt), { mode: "step", sequence: 0 });
         await show(discardDraw(dealt), { mode: "step", sequence: 1 });
-        expect(animations.length).toBe(3);
+        expect(animations.length).toBe(4);
         draw(drawn(dealt), { mode: "step", sequence: 8 });
         await show(
             discardDraw(dealt),
             { mode: "step", sequence: 9 },
             { view: { bottomSeat: 1, reveal: "all" } },
         );
-        expect([animations.length, hiddenTiles()]).toEqual([3, 0]);
+        expect([animations.length, hiddenTiles()]).toEqual([4, 0]);
     });
 
     it("cancels every flight when its board unmounts", async () => {
         await show(drawn(table(true)), { mode: "reset", sequence: 0 });
         await show(discardDraw(table(true)), { mode: "step", sequence: 1 });
-        expect(animations.length).toBe(3);
+        expect(animations.length).toBe(4);
         render(nothing, host);
         expect(animations.every((animation) => animation.playState === "idle")).toBe(true);
         expect(host.querySelector(".board-motion")).toBeNull();
@@ -710,7 +713,7 @@ describe("opponent draw hold", () => {
     it("holds an opponent's draw after a discard through a redraw and ends the hold at the next cue", async () => {
         const after = await showHeldDraw();
         const hold = animations.at(-1);
-        expect([animations.length, targetOf(hold)]).toEqual([4, heldTile()]);
+        expect([animations.length, targetOf(hold)]).toEqual([5, heldTile()]);
         await show(after, { mode: "step", sequence: 2 }, { view: bottomOnly });
         expect([hold?.playState, targetOf(hold)]).toEqual(["paused", heldTile()]);
         await show(
@@ -718,7 +721,7 @@ describe("opponent draw hold", () => {
             { mode: "step", sequence: 3 },
             { view: bottomOnly },
         );
-        expect([animations.length, hold?.playState]).toEqual([4, "idle"]);
+        expect([animations.length, hold?.playState]).toEqual([5, "idle"]);
     });
 
     it("holds an opponent's draw committed with the discard until the discard lands and the pause passes", async () => {
@@ -750,7 +753,7 @@ describe("animations switch", () => {
             animations.every((animation) => animation.playState === "idle"),
             hiddenTiles(),
             host.querySelector(".game-board")?.getAttribute("data-motion"),
-        ]).toEqual([3, true, 0, "off"]);
+        ]).toEqual([4, true, 0, "off"]);
     });
 });
 
@@ -775,18 +778,80 @@ describe("tile flight material", () => {
         ).toBe("#body-lying-sideways");
         player.cancel();
     });
+});
 
-    it("lands a flight at once with its destination shown when the next draw closes its river gap", () => {
-        const player = startRiichiFlight(true);
-        expect(hiddenTiles()).toBe(1);
-        const ghosts = [...animations];
-        settleRiichiFlight(player);
+function ghostCentres(): readonly (readonly string[])[] {
+    return [...host.querySelectorAll<HTMLElement>(".board-motion__tile")].map((image) => [
+        image.style.left,
+        image.style.top,
+    ]);
+}
+
+async function showLatestDiscard(): Promise<TableState> {
+    const dealt = table(true);
+    await show(drawn(dealt), { mode: "reset", sequence: 0 });
+    const discarded = discardDraw(dealt);
+    await show(discarded, { mode: "step", sequence: 1 });
+    return discarded;
+}
+
+describe("latest discard gap", () => {
+    it("keeps a riichi discard's one flight, its landing time and its on-grid target when the next draw clears the gap mid-flight", async () => {
+        const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+        const view = { view: bottomOnly };
+        const dealt = table(true);
+        await show(drawn(dealt), { mode: "reset", sequence: 0 }, view);
+        const riichi = discardDraw(dealt, true);
+        await show(riichi, { mode: "step", sequence: 1 }, view);
+        const flight = [...animations];
+        now.mockReturnValue(1050);
+        await show(opponentDrew(riichi), { mode: "step", sequence: 2 }, view);
         expect([
-            ghosts.map((animation) => animation.playState),
+            animations.length,
+            flight.map((animation) => animation.playState),
+            animations.at(-1)?.effect?.getTiming().duration,
+            ghostCentres(),
             hiddenTiles(),
-            host.querySelector(".board-motion"),
-        ]).toEqual([ghosts.map(() => "idle"), 0, null]);
-        player.cancel();
+        ]).toEqual([
+            flight.length + 1,
+            flight.map(() => "paused"),
+            BOARD_MOTION.landing + BOARD_MOTION.drawHold - 50,
+            BOARD_MOTION.ghosts.map(() => ["115px", "320px"]),
+            1,
+        ]);
+    });
+
+    it("opens the latest discard's gap from its on-grid landing to the stylesheet's offset", async () => {
+        await showLatestDiscard();
+        const gap = animations.at(-1);
+        expect([
+            targetOf(gap),
+            gap && getAnimationFrames(gap).map(({ offset, translate }) => ({ offset, translate })),
+            gap?.effect?.getTiming(),
+        ]).toEqual([
+            host.querySelector(".discard-tile--last"),
+            [{ offset: 0, translate: "0px 0px" }],
+            expect.objectContaining({
+                delay: BOARD_MOTION.landing,
+                duration: BOARD_MOTION.gapSlide,
+                easing: BOARD_MOTION.slotEasing,
+            }),
+        ]);
+    });
+
+    it("returns the latest discard from its opened gap when the next draw resolves the call", async () => {
+        const discarded = await showLatestDiscard();
+        finishAll();
+        await show(opponentDrew(discarded), { mode: "step", sequence: 2 });
+        const slot = host.querySelector(".discard-tile[data-tile-id='120']");
+        const back = animations.findLast((animation) => targetOf(animation) === slot);
+        const [start, end] = back ? getAnimationFrames(back) : [];
+        expect([
+            slot?.classList.contains("discard-tile--last"),
+            translationOf(start?.transform),
+            end?.transform,
+            back?.effect?.getTiming().duration,
+        ]).toEqual([false, [LATEST_GAP, LATEST_GAP], "translate(0px, 0px)", BOARD_MOTION.gapSlide]);
     });
 });
 
@@ -801,7 +866,7 @@ function startTiltedFlight(): BoardMotionPlayer {
     return player;
 }
 
-function renderOwnPon(called: boolean): void {
+function renderOwnPon(called: boolean, last: boolean): void {
     const pair: readonly HandTile[] = [
         { face: "3p", show: "face", state: "selectable", tileId: 10 },
         { face: "3p", show: "face", state: "selectable", tileId: 11 },
@@ -823,7 +888,7 @@ function renderOwnPon(called: boolean): void {
         <div data-area="bottom-melds">${called ? pon : nothing}</div>
       </div>
       <div data-area="left-discards">
-        ${Discards(called ? [] : [{ face: "3p", tileId: 9 }])}
+        ${Discards(called ? [] : [{ face: "3p", last, tileId: 9 }])}
       </div>`,
         host,
     );
@@ -846,9 +911,9 @@ function measureLyingTile(this: HTMLElement): DOMRect {
 
 function startOwnPon(): BoardMotionPlayer {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureLyingTile);
-    renderOwnPon(false);
+    renderOwnPon(false, true);
     const before = snapshotTiles(host);
-    renderOwnPon(true);
+    renderOwnPon(true, false);
     const after = snapshotTiles(host);
     const player = new BoardMotionPlayer(host);
     player.play(planTileMotion(before, after), before, after);
@@ -856,7 +921,7 @@ function startOwnPon(): BoardMotionPlayer {
 }
 
 describe("own call flight", () => {
-    it("flies a claimed tile and the hand's pair as the meld's own bodies and lands each at its slot's screen size", () => {
+    it("flies a claimed tile from its shown gap and the hand's pair as the meld's own bodies and lands each at its slot's screen size", () => {
         const player = startOwnPon();
 
         const bodies = [...host.querySelectorAll(".board-motion__tile .tile__body > use")].map(
@@ -876,6 +941,9 @@ describe("own call flight", () => {
                     "--motion-down": `${(lyingWidth * 4) / 3}px`,
                 }),
             ]),
+        );
+        expect(getAnimationFrames(animations[0])[0].translate).toBe(
+            `${LATEST_GAP}px ${300 + LATEST_GAP + 18 - 600 - lyingWidth / 2}px`,
         );
         player.cancel();
     });
@@ -987,7 +1055,7 @@ describe("settling river depth", () => {
                     if (!this.matches(".discard-tile[data-tile-id='8'] > .tile")) {
                         return getBox(this);
                     }
-                    const last = this.parentElement?.classList.contains("discard-tile--last");
+                    const last = paintsGap(this);
                     const sideways = (seat === "left" || seat === "right") !== riichi;
                     return new DOMRect(
                         100 + (last ? dx : 0),

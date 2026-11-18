@@ -27,6 +27,7 @@ export interface TileSnapshot extends MotionTile {
     readonly pose: TilePose;
     /** The tile's corners as the camera shows them: its bounding box's, off the tilted table. */
     readonly quad: TileQuad;
+    readonly paintedQuad: TileQuad;
     readonly scales: TileScales;
     readonly element: HTMLElement;
     readonly image: HTMLElement;
@@ -78,10 +79,7 @@ function copyTile(tile: HTMLElement, pose: TilePose): HTMLElement {
 
 function imageClasses(tile: HTMLElement): readonly string[] {
     const tsumogiri = tile.parentElement?.dataset.tsumogiri === "true";
-    return [
-        "board-motion__tile",
-        ...(tsumogiri ? ["board-motion__tile--tsumogiri"] : []),
-    ];
+    return ["board-motion__tile", ...(tsumogiri ? ["board-motion__tile--tsumogiri"] : [])];
 }
 
 function createImage(tile: HTMLElement, pose: TilePose): HTMLElement {
@@ -173,6 +171,30 @@ function captureQuad(tile: HTMLElement, rect: MotionRect, frames: PieceFrames): 
     return quad;
 }
 
+function measureOnGrid(slot: HTMLElement, tile: HTMLElement): MotionRect {
+    slot.style.setProperty("translate", "none", "important");
+    const rect = tile.getBoundingClientRect();
+    slot.style.removeProperty("translate");
+    return rect;
+}
+
+type TilePlace = Pick<TileSnapshot, "latest" | "painted" | "paintedQuad" | "quad" | "rect">;
+
+function measurePlace(slot: HTMLElement, tile: HTMLElement, frames: PieceFrames): TilePlace {
+    const latest = slot.classList.contains("discard-tile--last");
+    const rect = latest ? measureOnGrid(slot, tile) : tile.getBoundingClientRect();
+    const painted =
+        latest && !slot.hasAttribute("data-landing") ? tile.getBoundingClientRect() : rect;
+    const quad = captureQuad(tile, rect, frames);
+    return {
+        latest,
+        painted,
+        paintedQuad: painted === rect ? quad : captureQuad(tile, painted, frames),
+        quad,
+        rect,
+    };
+}
+
 function captureTile(
     element: HTMLElement,
     location: Pick<MotionTile, "seat" | "region" | "index">,
@@ -185,8 +207,8 @@ function captureTile(
     const id = element.dataset.tileId ?? "";
     const drawn = element.classList.contains("hand-drawn-gap");
     const slot = drawn ? "drawn" : `slot-${location.index}`;
-    const rect = tile.getBoundingClientRect();
-    const pose = capturePose(tile, rect, location.seat);
+    const place = measurePlace(element, tile, frames);
+    const pose = capturePose(tile, place.rect, location.seat);
     return [
         {
             ...location,
@@ -196,10 +218,9 @@ function captureTile(
             id,
             image: copyTile(tile, pose),
             key: `${location.seat}-${location.region}-${id === "" ? slot : id}`,
+            ...place,
             pose,
-            quad: captureQuad(tile, rect, frames),
-            rect,
-            scales: measureScales(tile, rect, location.seat),
+            scales: measureScales(tile, place.rect, location.seat),
             tsumogiri: element.dataset.tsumogiri === "true",
         },
     ];

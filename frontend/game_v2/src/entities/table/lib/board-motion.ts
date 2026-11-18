@@ -11,6 +11,7 @@ export const BOARD_MOTION = {
     discardPause: 300,
     drawHold: 300,
     flight: FLIGHT,
+    gapSlide: 120,
     ghosts: GHOSTS,
     landing: GHOSTS[1].delay + FLIGHT,
     maxTravel: 300,
@@ -18,6 +19,7 @@ export const BOARD_MOTION = {
     minTravel: 80,
     reflow: 200,
     revealTile: 30,
+    slotEasing: "cubic-bezier(0.16, 1, 0.3, 1)",
 } as const;
 
 export interface MotionRect {
@@ -36,7 +38,9 @@ export interface MotionTile {
     readonly drawn: boolean;
     readonly concealed: boolean;
     readonly tsumogiri: boolean;
+    readonly latest: boolean;
     readonly rect: MotionRect;
+    readonly painted: MotionRect;
 }
 
 export interface TileMotion {
@@ -88,6 +92,10 @@ function hasChangedRect(first: MotionRect, second: MotionRect): boolean {
         Math.abs(first.width - second.width) > 0.5 ||
         Math.abs(first.height - second.height) > 0.5
     );
+}
+
+function isGapReturn(source: MotionTile, target: MotionTile): boolean {
+    return source.latest && !target.latest && hasChangedRect(source.painted, source.rect);
 }
 
 interface MoveContext {
@@ -149,6 +157,21 @@ function findMoveSource(
     return undefined;
 }
 
+function planInPlace(source: MotionTile, target: MotionTile): TileMotion | null {
+    const motion = { source: source.key, target: target.key };
+    if (target.region === "hand" && source.concealed && !target.concealed) {
+        return {
+            ...motion,
+            delay: target.index * BOARD_MOTION.revealTile,
+            duration: 1,
+            kind: "reveal",
+        };
+    }
+    return isGapReturn(source, target)
+        ? { ...motion, delay: 0, duration: BOARD_MOTION.gapSlide, kind: "reflow" }
+        : null;
+}
+
 function planMove(target: MotionTile, context: MoveContext): TileMotion | null {
     const source = findMoveSource(target, context);
     if (source === undefined) {
@@ -161,14 +184,9 @@ function planMove(target: MotionTile, context: MoveContext): TileMotion | null {
             : null;
     }
     const flight = !samePlace(source, target);
-    if (target.region === "hand" && source.concealed && !target.concealed && !flight) {
-        return {
-            delay: target.index * BOARD_MOTION.revealTile,
-            duration: 1,
-            kind: "reveal",
-            source: source.key,
-            target: target.key,
-        };
+    const inPlace = flight ? null : planInPlace(source, target);
+    if (inPlace !== null) {
+        return inPlace;
     }
     if (!hasChangedRect(source.rect, target.rect)) {
         return null;

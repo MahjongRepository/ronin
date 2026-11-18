@@ -33,9 +33,9 @@ function createFlight(motion: TileMotion, scene: Scene, target: TileSnapshot): F
     }
     return {
         board: scene.box,
-        from: source.rect,
+        from: source.painted,
         fromPose: source.pose,
-        fromQuad: source.quad,
+        fromQuad: source.paintedQuad,
         image: target.image,
         motion,
         to: target.rect,
@@ -285,8 +285,15 @@ export class BoardMotionPlayer {
                 });
             }
         }
+        this.followDiscard(motion, target);
+    }
+
+    private followDiscard(motion: TileMotion, target: TileSnapshot): void {
         if (target.region === "discards") {
             this.discardLandingAt = performance.now() + motion.delay + BOARD_MOTION.landing;
+        }
+        if (target.latest) {
+            this.reflow.openGap(motion, target);
         }
     }
 

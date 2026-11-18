@@ -8,13 +8,16 @@ import {
 } from "@/entities/table/lib/board-motion";
 
 function tile(key: string, overrides: Partial<MotionTile> = {}): MotionTile {
+    const rect = overrides.rect ?? { height: 40, left: 10, top: 100, width: 30 };
     return {
         concealed: false,
         drawn: false,
         id: key,
         index: 0,
         key,
-        rect: { height: 40, left: 10, top: 100, width: 30 },
+        latest: false,
+        painted: rect,
+        rect,
         region: "hand",
         seat: "bottom",
         tsumogiri: false,

@@ -341,10 +341,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   owner's in every orientation. Decision: a drawn-and-discarded tile is not told apart from one
   played from the hand; the rivers keep as few tile states
   as possible so the latest discard and the riichi tile are found at a glance.
-- **Latest discard.** Decision: the newest discard is marked while it is the table's last action,
-  whether or not the viewer has an offer on it, so a player can see what just happened: a small gap
-  (7px; 10px along the right river's row) before it along its row and toward its seat, as a tile
-  just thrown lies, with no ring, pointer or colour. The next draw ends it, the tile then lying in the river as any other; a call
+- **Latest discard.** Decision: the newest discard lands in line in its river slot. It stands apart only while a
+  call on it is being decided, whether or not the viewer has an offer on it, and in a static state (motion off, a
+  reconnect, a replay jump) while it is the table's last action: a small gap (7px; 10px along the right river's row)
+  before it along its row and toward its seat, as a tile just thrown lies, with no ring, pointer or colour. In motion
+  it slides out to the gap as it lands only if the next draw has not arrived by then, so a turn nobody can call never
+  shows it. The next draw ends it, the tile then lying in the river as any other; a call
   that claims it ends it too, the claim then read from the meld, and so does the round's end,
   whatever its result (a ron on it included: the result shows the winning tile). During a discard offer this mark is the action source. A
   chankan offer's source is a kan in a meld and is marked separately, the whole kan ringed in its
@@ -606,7 +608,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   They survive a reconnect within the hand in the mounted client; a reload or a new tab starts with
   all three off, the setting staying as chosen. They are the client's standing answers, taken exactly where the player's
   press would be, with the decision's wait id, so the server, which keeps no preference, sees an
-  ordinary answer; the latest-discard mark and the table are unchanged by an automatic pass, and an
+  ordinary answer; the table is unchanged by an automatic pass, the latest discard standing apart or in line as
+  after a pressed one, and an
   automatic discard travels like a pressed one. Decision: every switch is one press away, never
   behind a panel. They stand as one column at the left bar's foot, ending at the own tiles' foot on a desktop,
   whose own row starts past the left side lane (a desktop without bars at the left lane's foot, two by two where the
@@ -645,7 +648,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
 - **Tile motion.** A draw appears in its separated hand slot without travelling: the viewer's at once, an
   opponent's in live play 300ms after the preceding discard lands (at once in a replay). Discards travel from hand
-  to river in 120ms. The latest discard settles into its river slot in 120ms when its mark ends.
+  to river in 120ms and land in line in their slot; the latest discard then slides out to its gap in 120ms if the
+  next draw has not arrived, and back into line in 120ms when its mark ends.
   A travelling tile is three faint shadowless copies, 12ms apart, in its destination's look from take-off: its body
   (a discard leaves the hand as the lying river tile, a riichi discard already sideways, a call into the own melds as
   the lying own meld tile), its size and its turn, and on the tilted table its slot's taper and squash. Nothing
@@ -1080,7 +1084,8 @@ A review opens each anchor checkpoint at the three viewports and answers, in wri
 3. Is each seat's identity in the place the reference fixed for it, the same in every checkpoint: the four plates
    one rectangle in the core's corners, mirrored about the centre?
 4. Do the rivers read as six-wide rows with space around each river and no two rivers touching?
-5. Is there one strong cue for the seat in turn, is the latest discard found at a glance, and are
+5. Is there one strong cue for the seat in turn, is the latest discard found at a glance (apart while a call on it
+   is decided, in line otherwise), and are
    the available actions ranked as above, with the two-step call's way back visible?
 6. Are the decisions one cluster along the own row's top, the timer right of the
    pass, base and bank apart, in one row where the width holds it, clear of every opponent's tile, the own hand, the
