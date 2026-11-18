@@ -737,7 +737,11 @@ function pocketEdges(
         bottom: length("cy") - length("h") - 6,
         left: length("col-left") + length("strip-depth") + SIDE_LANE_GAP + 6,
         right: Math.min(length("reach-top-left"), length("cx") - length("hx")) - 6,
-        top: length("m") + length("strip-depth") * LYING_Y_SHARE + TILE_EDGE_SHARE * length("rw") + 6,
+        top:
+            length("m") +
+            length("strip-depth") * LYING_Y_SHARE +
+            TILE_EDGE_SHARE * length("rw") +
+            6,
     };
 }
 
