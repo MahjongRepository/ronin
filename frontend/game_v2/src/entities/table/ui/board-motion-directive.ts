@@ -94,6 +94,7 @@ class AnimateBoard extends AsyncDirective {
         priorCue: BoardMotionCue | undefined,
     ): void {
         const { board, cue, state } = this;
+        this.observe();
         const enabled =
             state !== null &&
             previous !== null &&
@@ -101,14 +102,14 @@ class AnimateBoard extends AsyncDirective {
             priorCue !== undefined &&
             cue.sequence === priorCue.sequence + 1 &&
             previous.motionContext === state.motionContext &&
-            previous.motionRound === state.motionRound;
+            previous.motionRound === state.motionRound &&
+            this.motionAllowed(board);
         if (!enabled || cue?.mode === "replay") {
             this.cancel();
         }
         const priorFrame =
             enabled && cue?.mode === "step" && this.queued?.enabled === true ? this.queued : null;
-        const before =
-            priorFrame?.before ?? (enabled && board !== null ? snapshotTiles(board) : []);
+        const before = priorFrame?.before ?? (enabled ? snapshotTiles(board) : []);
         const frame = { before, enabled };
         this.queued = frame;
         queueMicrotask(() => this.commit(frame));
@@ -123,21 +124,21 @@ class AnimateBoard extends AsyncDirective {
     }
 
     private animate({ before, enabled }: PendingMotion): void {
-        if (this.board === null) {
+        const { board } = this;
+        if (!enabled || this.state === null || !this.motionAllowed(board)) {
             return;
         }
-        this.observe();
-        if (
-            !enabled ||
-            !this.animationsOn ||
-            this.state === null ||
-            this.media?.matches === true ||
-            typeof this.board.animate !== "function"
-        ) {
-            return;
-        }
-        const after = snapshotTiles(this.board);
+        const after = snapshotTiles(board);
         this.player?.play(planTileMotion(before, after, this.cue?.mode), before, after);
+    }
+
+    private motionAllowed(board: HTMLElement | null): board is HTMLElement {
+        return (
+            board !== null &&
+            this.animationsOn &&
+            this.media?.matches !== true &&
+            typeof board.animate === "function"
+        );
     }
 
     private observe(): void {

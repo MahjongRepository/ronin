@@ -154,6 +154,14 @@ function hiddenTiles(): number {
     return host.querySelectorAll(".tile[style*='hidden']").length;
 }
 
+function tileBoxReads(): number {
+    return vi
+        .mocked(HTMLElement.prototype.getBoundingClientRect)
+        .mock.contexts.filter(
+            (element) => element instanceof HTMLElement && element.matches(".tile"),
+        ).length;
+}
+
 function renderHand(
     tiles: readonly HandTile[],
     onTile: (id: number) => void,
@@ -646,13 +654,14 @@ describe("board motion", () => {
         expect(host.querySelector(".board-motion")).toBeNull();
     });
 
-    it("shows the destination immediately when reduced motion is requested", async () => {
+    it("shows the destination immediately without reading a tile when reduced motion is requested", async () => {
         const media = matchMedia("(prefers-reduced-motion: reduce)");
         vi.spyOn(media, "matches", "get").mockReturnValue(true);
         vi.spyOn(window, "matchMedia").mockReturnValue(media);
-        await show(table(false), { mode: "reset", sequence: 0 });
-        await show(table(true), { mode: "step", sequence: 1 });
-        expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
+        await show(drawn(table(true)), { mode: "reset", sequence: 0 });
+        vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockClear();
+        await show(discardDraw(table(true)), { mode: "step", sequence: 1 });
+        expect([animations.length, hiddenTiles(), tileBoxReads()]).toEqual([0, 0, 0]);
     });
 });
 
@@ -737,12 +746,13 @@ describe("opponent draw hold", () => {
 });
 
 describe("animations switch", () => {
-    it("cancels a running flight when the animations turn off and starts none while they stay off", async () => {
+    it("cancels a running flight when the animations turn off and reads no tile and starts none while they stay off", async () => {
         await show(drawn(table(true)), { mode: "reset", sequence: 0 });
         await show(discardDraw(table(true)), { mode: "step", sequence: 1 });
 
         const off = { animationsOn: false };
         await show(discardDraw(table(true)), { mode: "step", sequence: 1 }, off);
+        vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockClear();
         await show(drawn(table(true)), { mode: "step", sequence: 2 }, off);
 
         expect([
@@ -750,7 +760,8 @@ describe("animations switch", () => {
             animations.every((animation) => animation.playState === "idle"),
             hiddenTiles(),
             host.querySelector(".game-board")?.getAttribute("data-motion"),
-        ]).toEqual([3, true, 0, "off"]);
+            tileBoxReads(),
+        ]).toEqual([3, true, 0, "off", 0]);
     });
 });
 
