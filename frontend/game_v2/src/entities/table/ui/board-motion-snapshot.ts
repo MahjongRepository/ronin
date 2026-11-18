@@ -45,7 +45,7 @@ function isSideways(tile: HTMLElement): boolean {
     return tile.parentElement?.matches(".meld-tile-sideways, .discard-tile-riichi") === true;
 }
 
-export function standingOf(tile: Element): number {
+function standingOf(tile: Element): number {
     return tile.classList.contains("tile--standing") ? 1 : 0;
 }
 

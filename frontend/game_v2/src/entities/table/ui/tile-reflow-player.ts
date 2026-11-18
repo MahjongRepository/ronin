@@ -72,7 +72,7 @@ function reflowFrames(
     source: ReflowSource,
     target: TileSnapshot,
 ): Keyframe[] {
-    if (target.region === "melds") {
+    if (target.region === "melds" || target.region === "dora") {
         const scale = source.rect.width / target.rect.width;
         return [
             { transform: `translate(${localX}px, ${localY}px) scale(${scale})` },

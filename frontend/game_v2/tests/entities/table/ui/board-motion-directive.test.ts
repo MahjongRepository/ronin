@@ -757,18 +757,24 @@ describe("animations switch", () => {
     });
 });
 
+function finishGhost(animation: Animation | undefined): number {
+    animation?.finish();
+    return hiddenTiles();
+}
+
 describe("tile flight material", () => {
     it("flies a riichi discard as ghosts already in the sideways river slot's pose, only their translate changing", () => {
         const player = startRiichiFlight();
-        const riverPose = {
-            "--motion-across": "48px",
-            "--motion-angle": "90deg",
-            "--motion-down": "36px",
-            "--motion-height": "48px",
-            "--motion-width": "36px",
-        };
         expect(animations).toHaveLength(BOARD_MOTION.ghosts.length);
-        expect(flightPoses()).toEqual(BOARD_MOTION.ghosts.map(() => riverPose));
+        expect(flightPoses()).toEqual(
+            BOARD_MOTION.ghosts.map(() => ({
+                "--motion-across": "48px",
+                "--motion-angle": "90deg",
+                "--motion-down": "36px",
+                "--motion-height": "48px",
+                "--motion-width": "36px",
+            })),
+        );
         animations.forEach(expectTranslateOnly);
         expect(host.querySelectorAll(".board-motion__tile > .tile--standing")).toHaveLength(0);
         expect(
@@ -776,6 +782,8 @@ describe("tile flight material", () => {
                 .querySelector(".board-motion__tile > .tile > .tile__body > use")
                 ?.getAttribute("href"),
         ).toBe("#body-lying-sideways");
+        const [first, middle] = animations;
+        expect([finishGhost(first), finishGhost(middle)]).toEqual([1, 0]);
         player.cancel();
     });
 });

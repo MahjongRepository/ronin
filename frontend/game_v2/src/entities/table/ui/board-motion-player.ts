@@ -255,7 +255,7 @@ export class BoardMotionPlayer {
         }
         if (
             target.region === "hand" ||
-            (target.region === "melds" &&
+            ((target.region === "melds" || target.region === "dora") &&
                 (flight.fromPose.angle - flight.toPose.angle) % 360 === 0) ||
             (target.region === "discards" && hasSamePose(flight.fromPose, flight.toPose))
         ) {
