@@ -20,6 +20,10 @@ $max-melds: 4;
     overflow: hidden;
 }
 
+.board-rivers {
+    pointer-events: none;
+}
+
 .board-strips {
     pointer-events: none;
 
@@ -39,6 +43,7 @@ $max-melds: 4;
     top: calc(-1 * var(--geo-table-top, 0px));
     bottom: auto;
     height: 100cqh;
+    pointer-events: none;
 
     > :is(.board-center, .board-dora),
     > .board-strips > .board-strip {
@@ -52,6 +57,7 @@ $max-melds: 4;
 
     > .board-center {
         transform: var(--geo-camera-centre);
+        pointer-events: auto;
     }
 
     > .board-dora {

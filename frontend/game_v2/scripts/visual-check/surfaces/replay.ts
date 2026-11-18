@@ -768,8 +768,56 @@ async function checkBoard({ board, page, report, screen, viewport }: BoardRun): 
     }
 }
 
+const POINTER_VIEW_PAGE = "state=mid";
+const VIEWABLE_SEATS = ["right", "top", "left"] as const;
+const BOTTOM_PLAYER = ".nameplate--bottom .nameplate__name";
+
+async function waitForBottomPlayer(page: Page, name: string): Promise<boolean> {
+    return page
+        .waitForFunction(
+            ({ selector, wanted }) => document.querySelector(selector)?.textContent === wanted,
+            { selector: BOTTOM_PLAYER, wanted: name },
+            { timeout: SELECTOR_TIMEOUT_MS },
+        )
+        .then(() => true)
+        .catch(() => false);
+}
+
+async function pointerViewsFrom(
+    page: Page,
+    seat: (typeof VIEWABLE_SEATS)[number],
+    target: string,
+): Promise<string | null> {
+    const name = await page.locator(`.nameplate--${seat} .nameplate__name`).textContent();
+    const box = await page.locator(target).boundingBox();
+    if (name === null || box === null) {
+        return `the ${seat} seat shows no ${target} to press`;
+    }
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    return (await waitForBottomPlayer(page, name))
+        ? null
+        : `a pointer's press at the centre of ${target} did not view from ${name}'s seat`;
+}
+
+async function checkPointerViews(page: Page, report: PageReport): Promise<void> {
+    if (!page.url().includes(POINTER_VIEW_PAGE)) {
+        return;
+    }
+    for (const seat of VIEWABLE_SEATS) {
+        const failure = await pointerViewsFrom(page, seat, `.nameplate--${seat} .nameplate__pill`);
+        report.expect(failure === null, failure ?? "");
+    }
+    const failure = await pointerViewsFrom(
+        page,
+        "top",
+        ".board-center__seat--top .board-center__score-line--view",
+    );
+    report.expect(failure === null, failure ?? "");
+}
+
 /** The replay page: its stories, its states without a board, and the route stepped to the local melds. */
 export const replaySurface: Surface = {
+    checkAfterShot: checkPointerViews,
     checkBoard,
     checkResults: checkLiveGeometry,
     pages: PAGES,
