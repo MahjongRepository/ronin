@@ -83,9 +83,11 @@ The derived proportions are the three reference viewports' values under the sizi
   the right river and the right strip paint each line from its far end down the screen, and an added kan's called
   tile covers the added one (the top seat's added tile lies nearer the screen's bottom and covers the called one).
   Tiles lying together (a river, a meld, a hand that takes no input, the dora) throw one soft cast shadow toward the
-  screen's lower right, in the tile's width (0.12 right, 0.2 down, a 0.24 blur, 65% black), under all their bodies;
-  a tile alone throws its own, and a hand that takes input draws each tile's shadow on its own, pulled in
-  conservatively so it never reaches past the tile's left side.
+  screen's lower right, in the tile's width (0.2 right, 0.39 down, a 0.3 blur, 65% black), under all their bodies:
+  it drops by the lying edge, so beside a group it starts at the body's foot. A tile alone throws its own. Standing
+  tiles keep a shorter one (0.12 right, 0.2 down, a 0.24 blur): the own hand's, shared where it takes no input, and
+  each tile's own where it takes input, pulled in conservatively so it never reaches past the tile's left side; an
+  opponent's standing backs share their strip's shadow, the lying one.
   A chankan source's ring lies flat over the tiles.
   The own hand's tiles stand facing their player, each drawn as one generated body 1.5 of its width tall
   (`entities/tile/lib/tile-body.ts`, `npm run bodies`), not by the stylesheet: the back's ochre layer seen over its

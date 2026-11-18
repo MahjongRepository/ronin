@@ -4,10 +4,13 @@
 $corner-share: 0.07;
 $standing-art-shade: 0.8;
 $corner-floor: 1.5px;
-$cast-x: 0.12;
-$cast-y: 0.2;
-$cast-blur: 0.24;
-$cast-pull: math.max(0, math.div($cast-blur - $cast-x, 2));
+$standing-cast-x: 0.12;
+$standing-cast-y: 0.2;
+$standing-cast-blur: 0.24;
+$standing-cast-pull: math.max(0, math.div($standing-cast-blur - $standing-cast-x, 2));
+$lying-cast-x: 0.2;
+$lying-cast-y: 0.39;
+$lying-cast-blur: 0.3;
 $max-strip-melds: 4;
 
 @function corner-radius($across, $down, $share: $corner-share) {
@@ -17,9 +20,9 @@ $max-strip-melds: 4;
     );
 }
 
-@mixin cast-shadow($unit) {
+@mixin cast-shadow($unit, $x: $lying-cast-x, $y: $lying-cast-y, $blur: $lying-cast-blur) {
     filter: drop-shadow(
-        calc(#{$unit} * #{$cast-x}) calc(#{$unit} * #{$cast-y}) calc(#{$unit} * #{$cast-blur})
+        calc(#{$unit} * #{$x}) calc(#{$unit} * #{$y}) calc(#{$unit} * #{$blur})
             var(--ronin-tile-shadow)
     );
 }
@@ -59,9 +62,10 @@ $max-strip-melds: 4;
 }
 
 .tile--standing {
-    --tile-lift: calc(var(--tile-w) * #{$cast-x + $cast-pull})
-        calc(var(--tile-w) * #{$cast-y + $cast-pull}) calc(var(--tile-w) * #{$cast-blur})
-        calc(var(--tile-w) * #{-$cast-pull}) var(--ronin-tile-shadow);
+    --tile-lift: calc(var(--tile-w) * #{$standing-cast-x + $standing-cast-pull})
+        calc(var(--tile-w) * #{$standing-cast-y + $standing-cast-pull})
+        calc(var(--tile-w) * #{$standing-cast-blur}) calc(var(--tile-w) * #{-$standing-cast-pull})
+        var(--ronin-tile-shadow);
 
     > svg {
         display: block;
@@ -102,6 +106,15 @@ $max-strip-melds: 4;
     .tile--standing {
         --tile-lift: 0 0 transparent;
     }
+}
+
+.hand:not(:has(> button)):has(.tile--standing) {
+    @include cast-shadow(
+        var(--board-tile-w, 60px),
+        $standing-cast-x,
+        $standing-cast-y,
+        $standing-cast-blur
+    );
 }
 
 .board-rivers {
