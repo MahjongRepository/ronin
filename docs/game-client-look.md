@@ -662,7 +662,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   under that shared shadow; on the tilted table their offsets are the slots' own, taken back through the camera, not
   a uniform scale. A settling discard whose size or turn changes, or a laid meld tile whose turn changes,
   shows in its new slot at once.
-  The hand closes gaps and sorts over 200ms after the discard's flight, with an additional 300ms pause in live play.
+  An opponent's concealed hand settles at once after a discard. A visible hand closes its gap and sorts over 300ms
+  from the discard's landing, decelerating, in live play and in a replay alike.
   Replay settles the previous stop's tile movements before measuring the next move, so rapid stepping animates
   only the latest move and never waits for an animation backlog. Calls assemble their
   meld from the original hand and river positions; travel time follows distance at the local tile scale, bounded

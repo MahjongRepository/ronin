@@ -34,7 +34,7 @@ describe("planTileMotion", () => {
         expect(result).toEqual([
             {
                 delay: 0,
-                duration: BOARD_MOTION.reflow,
+                duration: BOARD_MOTION.meldShift,
                 kind: "reflow",
                 source: meld.key,
                 target: meld.key,
@@ -42,37 +42,37 @@ describe("planTileMotion", () => {
         ]);
     });
 
-    it.each([
-        { mode: "step", pause: BOARD_MOTION.discardPause },
-        { mode: "replay", pause: 0 },
-    ] as const)("follows a discard and closes the hand with the $mode pause", ({ mode, pause }) => {
-        const first = tile("0");
-        const second = tile("1", { rect: { ...first.rect, left: 40 } });
-        const discarded = tile("river-1", {
-            id: "1",
-            rect: { ...first.rect, left: 60, top: 40 },
-            region: "discards",
-        });
-        const moved = tile("0", { rect: { ...first.rect, left: 20 } });
-        const result = planTileMotion([first, second], [moved, discarded], mode);
-        expect(result).toEqual([
-            {
-                delay: BOARD_MOTION.flight + pause,
-                duration: BOARD_MOTION.reflow,
-                kind: "reflow",
-                source: "0",
-                target: "0",
-            },
-            {
-                delay: 0,
-                duration: BOARD_MOTION.flight,
-                kind: "flight",
-                source: "1",
-                target: "river-1",
-            },
-        ]);
-        expectTypeOf(result).toEqualTypeOf<readonly TileMotion[]>();
-    });
+    it.each(["step", "replay"] as const)(
+        "follows a discard and closes the hand at its landing in %s mode",
+        (mode) => {
+            const first = tile("0");
+            const second = tile("1", { rect: { ...first.rect, left: 40 } });
+            const discarded = tile("river-1", {
+                id: "1",
+                rect: { ...first.rect, left: 60, top: 40 },
+                region: "discards",
+            });
+            const moved = tile("0", { rect: { ...first.rect, left: 20 } });
+            const result = planTileMotion([first, second], [moved, discarded], mode);
+            expect(result).toEqual([
+                {
+                    delay: BOARD_MOTION.landing,
+                    duration: BOARD_MOTION.handClose,
+                    kind: "reflow",
+                    source: "0",
+                    target: "0",
+                },
+                {
+                    delay: 0,
+                    duration: BOARD_MOTION.flight,
+                    kind: "flight",
+                    source: "1",
+                    target: "river-1",
+                },
+            ]);
+            expectTypeOf(result).toEqualTypeOf<readonly TileMotion[]>();
+        },
+    );
 
     it("takes a concealed tsumogiri from the separated draw, without inventing its identity", () => {
         const hand = tile("slot", { concealed: true, id: "" });
@@ -112,7 +112,7 @@ describe("planTileMotion", () => {
         ]);
     });
 
-    it("fills the concealed hand-discard slot from the separated draw after the throw", () => {
+    it("plans no reflow in an opponent's concealed hand after a tedashi", () => {
         const hand = tile("slot", { concealed: true, id: "" });
         const drawn = tile("drawn", {
             concealed: true,
@@ -120,20 +120,14 @@ describe("planTileMotion", () => {
             id: "",
             rect: { ...hand.rect, left: 60 },
         });
+        const settled = { ...hand, rect: { ...hand.rect, left: 40 } };
         const discard = tile("river", {
             id: "4",
             rect: { ...hand.rect, top: 40 },
             region: "discards",
         });
-        const result = planTileMotion([hand, drawn], [hand, discard]);
+        const result = planTileMotion([hand, drawn], [settled, discard]);
         expect(result).toEqual([
-            {
-                delay: BOARD_MOTION.flight + BOARD_MOTION.discardPause,
-                duration: BOARD_MOTION.reflow,
-                kind: "reflow",
-                source: "drawn",
-                target: "slot",
-            },
             {
                 delay: 0,
                 duration: BOARD_MOTION.flight,

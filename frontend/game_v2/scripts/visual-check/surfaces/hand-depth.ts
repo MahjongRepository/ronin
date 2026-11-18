@@ -76,10 +76,13 @@ async function separateRightTile(page: Page): Promise<SeparatedTile> {
         slot.classList.remove("hand-drawn-gap");
         slot.classList.add("hand-tile--parted");
         const width = slot.offsetWidth;
-        const animation = slot.animate([{ left: `${width * 1.2}px` }, { left: "0px" }], {
-            duration: 200,
-            fill: "both",
-        });
+        const animation = slot.animate(
+            [{ translate: `${width * 1.2}px 0px` }, { translate: "0px 0px" }],
+            {
+                duration: 200,
+                fill: "both",
+            },
+        );
         animation.pause();
         animation.currentTime = 0;
         const rect = tile.getBoundingClientRect();

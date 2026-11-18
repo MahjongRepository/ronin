@@ -8,16 +8,16 @@ const GHOSTS = [
 ] as const;
 
 export const BOARD_MOTION = {
-    discardPause: 300,
     drawHold: 300,
     flight: FLIGHT,
     gapSlide: 120,
     ghosts: GHOSTS,
+    handClose: 300,
     landing: GHOSTS[1].delay + FLIGHT,
     maxTravel: 300,
+    meldShift: 200,
     meldSpeed: 0.06,
     minTravel: 80,
-    reflow: 200,
     revealTile: 30,
     slotEasing: "cubic-bezier(0.16, 1, 0.3, 1)",
 } as const;
@@ -101,41 +101,12 @@ function isGapReturn(source: MotionTile, target: MotionTile): boolean {
 interface MoveContext {
     readonly before: readonly MotionTile[];
     readonly discarding: boolean;
-    readonly discardPause: number;
     readonly mode: BoardMotionCue["mode"];
     readonly used: Set<string>;
-    readonly replacements: ReadonlyMap<string, MotionTile>;
 }
 
-function concealedReplacements(
-    before: readonly MotionTile[],
-    after: readonly MotionTile[],
-): ReadonlyMap<string, MotionTile> {
-    const replacements = new Map<string, MotionTile>();
-    for (const discard of after.filter(
-        (tile) =>
-            tile.region === "discards" && !tile.tsumogiri && findSource(tile, before) === undefined,
-    )) {
-        const source = concealedSource(discard, before);
-        const drawn = before.find(
-            (tile) =>
-                tile.region === "hand" &&
-                tile.seat === discard.seat &&
-                tile.drawn &&
-                tile.concealed,
-        );
-        if (source !== undefined && drawn !== undefined) {
-            replacements.set(source.key, drawn);
-        }
-    }
-    return replacements;
-}
-
-function findMoveSource(
-    target: MotionTile,
-    { before, replacements, used }: MoveContext,
-): MotionTile | undefined {
-    const source = replacements.get(target.key) ?? findSource(target, before);
+function findMoveSource(target: MotionTile, { before, used }: MoveContext): MotionTile | undefined {
+    const source = findSource(target, before);
     if (source !== undefined) {
         return source;
     }
@@ -172,6 +143,10 @@ function planInPlace(source: MotionTile, target: MotionTile): TileMotion | null 
         : null;
 }
 
+function isConcealedSettle(flight: boolean, target: MotionTile): boolean {
+    return !flight && target.region === "hand" && target.concealed;
+}
+
 function planMove(target: MotionTile, context: MoveContext): TileMotion | null {
     const source = findMoveSource(target, context);
     if (source === undefined) {
@@ -188,14 +163,11 @@ function planMove(target: MotionTile, context: MoveContext): TileMotion | null {
     if (inPlace !== null) {
         return inPlace;
     }
-    if (!hasChangedRect(source.rect, target.rect)) {
+    if (isConcealedSettle(flight, target) || !hasChangedRect(source.rect, target.rect)) {
         return null;
     }
     return {
-        delay:
-            !flight && target.region === "hand" && context.discarding
-                ? BOARD_MOTION.flight + context.discardPause
-                : 0,
+        delay: !flight && target.region === "hand" && context.discarding ? BOARD_MOTION.landing : 0,
         duration: moveDuration(source, target),
         kind: flight ? "flight" : "reflow",
         source: source.key,
@@ -207,9 +179,10 @@ function moveDuration(source: MotionTile, target: MotionTile): number {
     if (!samePlace(source, target) && target.region === "melds") {
         return travelDuration(source.rect, target.rect, BOARD_MOTION.meldSpeed);
     }
-    return !samePlace(source, target) || target.region === "discards"
-        ? BOARD_MOTION.flight
-        : BOARD_MOTION.reflow;
+    if (!samePlace(source, target) || target.region === "discards") {
+        return BOARD_MOTION.flight;
+    }
+    return target.region === "hand" ? BOARD_MOTION.handClose : BOARD_MOTION.meldShift;
 }
 
 export function planTileMotion(
@@ -222,12 +195,10 @@ export function planTileMotion(
     }
     const context: MoveContext = {
         before,
-        discardPause: mode === "replay" ? 0 : BOARD_MOTION.discardPause,
         discarding: after.some(
             (tile) => tile.region === "discards" && findSource(tile, before)?.region !== "discards",
         ),
         mode,
-        replacements: concealedReplacements(before, after),
         used: new Set(),
     };
     return after.flatMap((target) => {

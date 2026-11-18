@@ -85,10 +85,7 @@ function reflowFrames(
             { transform: "translate(0px, 0px)" },
         ];
     }
-    return [
-        { left: `${localX}px`, top: `${localY}px` },
-        { left: "0px", top: "0px" },
-    ];
+    return [{ translate: `${localX}px ${localY}px` }, { translate: "0px 0px" }];
 }
 
 /** `quad` carried along as its bounding box moves and scales from `from` to `to`. */

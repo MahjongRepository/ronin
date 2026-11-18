@@ -1010,16 +1010,23 @@ describe("tilted tile flight", () => {
 
 describe("side hand depth", () => {
     it.each(["left", "right"] as const)(
-        "moves the %s hand in its rotated frame without lifting seam masks into a stacking context",
+        "moves the %s hand in its rotated frame on translate alone, leaving the lift's transform free",
         (seat) => {
             const { player } = movingHand(seat);
             const [start, end] = getAnimationFrames(animations[0]);
             expect(animations).toHaveLength(2);
             expect([hiddenTiles(), host.querySelector(".board-motion")]).toEqual([0, null]);
-            expect([start.translate, start.transform]).toEqual([undefined, undefined]);
-            expect(Number.parseFloat(String(start.left))).toBeCloseTo(0);
-            expect(Number.parseFloat(String(start.top))).toBeCloseTo(seat === "left" ? -32 : 32);
-            expect(end).toMatchObject({ left: "0px", top: "0px" });
+            expect([start.left, start.top, start.transform]).toEqual([
+                undefined,
+                undefined,
+                undefined,
+            ]);
+            const [across, down] = String(start.translate).split(" ").map(Number.parseFloat);
+            expect([across, down]).toEqual([
+                expect.closeTo(0),
+                expect.closeTo(seat === "left" ? -32 : 32),
+            ]);
+            expect(end.translate).toBe("0px 0px");
             player.cancel();
         },
     );
@@ -1114,10 +1121,7 @@ describe("replay motion", () => {
             "paused",
             "paused",
         ]);
-        expect(getAnimationFrames(animations[2])[0]).toMatchObject({
-            left: "64px",
-            top: "0px",
-        });
+        expect(getAnimationFrames(animations[2])[0].translate).toBe("64px 0px");
         expect([hiddenTiles(), host.querySelector(".board-motion")]).toEqual([0, null]);
         animations.forEach((animation) => {
             animation.finish();
@@ -1142,9 +1146,6 @@ describe("replay motion", () => {
         await showMovingHand([tiles[1], tiles[2], tiles[0]], 2, "replay");
         await pending;
         expect(animations).toHaveLength(2);
-        expect(getAnimationFrames(animations[0])[0]).toMatchObject({
-            left: "32px",
-            top: "0px",
-        });
+        expect(getAnimationFrames(animations[0])[0].translate).toBe("32px 0px");
     });
 });
