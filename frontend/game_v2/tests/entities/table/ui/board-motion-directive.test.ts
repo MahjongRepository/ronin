@@ -825,7 +825,32 @@ async function showLatestDiscard(): Promise<TableState> {
     return discarded;
 }
 
+function renderLatestRiver(tileIds: readonly number[]): void {
+    render(
+        html`<div data-area="bottom-hand">
+        ${Hand({ tiles: [{ face: "1m", show: "face", tileId: 0 }] })}
+      </div>
+      <div data-area="bottom-discards">
+        ${Discards(tileIds.map((tileId) => ({ face: "3m", last: tileId === 8, tileId })))}
+      </div>`,
+        host,
+    );
+}
+
 describe("latest discard gap", () => {
+    it("moves a discard that stays the latest by its grid displacement alone, its gap left to the stylesheet", () => {
+        renderLatestRiver([4, 8]);
+        const before = snapshotTiles(host);
+        renderLatestRiver([8]);
+        const after = snapshotTiles(host);
+        const player = new BoardMotionPlayer(host);
+        player.play(planTileMotion(before, after), before, after);
+        expect(
+            animations.map((animation) => translationOf(getAnimationFrames(animation)[0].transform)),
+        ).toEqual([[32, 0]]);
+        player.cancel();
+    });
+
     it("keeps a riichi discard's one flight, its landing time and its on-grid target when the next draw clears the gap mid-flight", async () => {
         const now = vi.spyOn(performance, "now").mockReturnValue(1000);
         const view = { view: bottomOnly };
