@@ -643,7 +643,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   appears on selection, without moving tiles or changing scores. A matching server confirmation
   does not repeat a lone callout or its voice, even after its popup expires. Another player's winning
   call replaces it when the server resolves priority. A double or triple ron
-  shows every claimant's at once. It shows for 1.25 seconds: a 250ms fade-in shrinking from twice its
+  shows every claimant's at once. It shows for 1.25 seconds: a 250ms fade-in shrinking from 1.2 times its
   resting size, a 500ms hold, then a 500ms fade-out. In live play it remains until
   then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
@@ -675,7 +675,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   game state or invents a hidden tile identity (an opponent's held draw delays only its picture); later events preserve unaffected movements. A fresh page,
   reconnect, replay jump or viewpoint change shows the requested position immediately. Reduced motion, asked by the
   system or by the settings menu's Animations switch, disables
-  tile travel and staged reveals. Match standings fade in over 1.5 seconds and fade away over 250ms when dismissed;
+  tile travel and staged reveals, and a hand tile's lift then applies without a transition. Match standings fade in over 1.5 seconds and fade away over 250ms when dismissed;
   round-result panels, their opening delay and their yaku presentation are unchanged.
 - **Page corner.** A settings cog, small, at the right bar's top; where the bar is too narrow for its tap
   target and a gap (a narrow window), in the board's top-right corner instead.

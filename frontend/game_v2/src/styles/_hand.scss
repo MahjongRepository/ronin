@@ -61,6 +61,10 @@ button.hand-tile {
 .hand-tile--declaring,
 .hand-tile--selected {
     transition: transform 0.12s ease;
+
+    @include reduced-motion {
+        transition: none;
+    }
 }
 
 .hand-tile--selectable,

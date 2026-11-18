@@ -67,7 +67,7 @@ $overlay-hold-ms: 1500ms;
 @keyframes callout-show {
     0% {
         opacity: 0;
-        transform: scale(2);
+        transform: scale(1.2);
     }
 
     20% {
