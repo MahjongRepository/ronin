@@ -846,7 +846,9 @@ describe("latest discard gap", () => {
         const player = new BoardMotionPlayer(host);
         player.play(planTileMotion(before, after), before, after);
         expect(
-            animations.map((animation) => translationOf(getAnimationFrames(animation)[0].transform)),
+            animations.map((animation) =>
+                translationOf(getAnimationFrames(animation)[0].transform),
+            ),
         ).toEqual([[32, 0]]);
         player.cancel();
     });

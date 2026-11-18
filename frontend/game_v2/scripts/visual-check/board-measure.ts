@@ -256,7 +256,8 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         }
         function measureRestingRiver(within: Element): GroupedBox[] {
             const resting = document.createElement("style");
-            resting.textContent = ".board-river .discard-tile--last { translate: none !important; }";
+            resting.textContent =
+                ".board-river .discard-tile--last { translate: none !important; }";
             document.head.append(resting);
             const tiles = bySeat(within, ".board-river .tile", ".board-river");
             resting.remove();
