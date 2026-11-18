@@ -97,8 +97,8 @@ The derived proportions are the three reference viewports' values under the sizi
   shared one, or each tile's own where the hand takes input; a held-back tile greys the whole body.
   The own melds lie on the table beside it: their own bodies, each face foreshortened to 0.92 of its
   height (the art and a sideways, stacked or face-down tile alike, a kan's stack 2 x 0.92 of a tile's width deep)
-  over a deeper edge, 0.25 of its width. A flying tile takes its destination's body at take-off, turned with the
-  flight, and throws one cast shadow. The own row reserves
+  over a deeper edge, 0.25 of its width. A flying tile is three faint shadowless copies of its destination's body,
+  size and turn from take-off. The own row reserves
   the deeper of the hand's overhang and the melds' edge.
 - **Composed for ordinary play.** The design anchor is a mid-round state with real decisions on
   screen. Dense states (long rivers, four melds a seat, five dora indicators, long names) must
@@ -645,17 +645,19 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
 - **Tile motion.** A draw appears in its separated hand slot without travelling: the viewer's at once, an
   opponent's in live play 300ms after the preceding discard lands (at once in a replay). Discards travel from hand
-  to river in 120ms, with a faint trail (its copies drawn without a shadow; the tile itself throws one cast shadow, and a
-  replay's tsumogiri keeps its shade). The latest discard settles into its river slot in 120ms when its mark ends.
-  A travelling tile takes its destination's body at take-off (a discard leaves the hand as the lying
-  river tile, a call into the own melds as the lying own meld tile), and keeps it
-  and its shadow throughout, its size changing continuously from source to destination; landing on the tilted table it flies already in its slot's look
-  (the camera's taper and squash), so it lands with no pop. The body
-  flies upright on the screen in its slot's orientation, so the light and the edge stay fixed to the screen. Rearranging hands, settling
+  to river in 120ms. The latest discard settles into its river slot in 120ms when its mark ends.
+  A travelling tile is three faint shadowless copies, 12ms apart, in its destination's look from take-off: its body
+  (a discard leaves the hand as the lying river tile, a riichi discard already sideways, a call into the own melds as
+  the lying own meld tile), its size and its turn, and on the tilted table its slot's taper and squash. Nothing
+  resizes or turns in flight; only its place moves. The solid tile appears in its slot when the middle copy lands, and
+  a replay's tsumogiri shade stays on the copies. The body
+  flies upright on the screen in its slot's orientation, so the light and the edge stay fixed to the screen. A
+  flight a later update touches lands at once and any further move starts from its slot. Rearranging hands, settling
   discards and moving or resizing laid melds animate their actual tile wrappers inside their group, retaining its
   shared edge and shadow and native button feedback. Meld resizing keeps its tiles moving and scaling together
   under that shared shadow; on the tilted table their offsets are the slots' own, taken back through the camera, not
-  a uniform scale. A discard still changing size or orientation in flight finishes as a travelling tile.
+  a uniform scale. A settling discard whose size or turn changes, or a laid meld tile whose turn changes,
+  shows in its new slot at once.
   The hand closes gaps and sorts over 200ms after the discard's flight, with an additional 300ms pause in live play.
   Replay settles the previous stop's tile movements before measuring the next move, so rapid stepping animates
   only the latest move and never waits for an animation backlog. Calls assemble their

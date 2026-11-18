@@ -1,12 +1,7 @@
 import { BOARD_MOTION, type MotionRect, type TileMotion } from "@/entities/table/lib/board-motion";
-import { type TileQuad, quadWarp, rectQuad, warpTransform } from "@/entities/table/lib/tile-quad";
+import { type TileQuad, quadWarp, warpTransform } from "@/entities/table/lib/tile-quad";
 
-import {
-    type TilePose,
-    type TileSnapshot,
-    snapshotTiles,
-    standingOf,
-} from "./board-motion-snapshot";
+import { type TilePose, type TileSnapshot, snapshotTiles } from "./board-motion-snapshot";
 import { TileHoldPlayer } from "./tile-hold-player";
 import { TileReflowPlayer } from "./tile-reflow-player";
 import { TileRevealPlayer } from "./tile-reveal-player";
@@ -21,7 +16,6 @@ interface Flight {
     readonly toQuad: TileQuad;
     readonly board: MotionRect;
     readonly motion: TileMotion;
-    readonly target: HTMLElement | null;
 }
 
 interface Scene {
@@ -29,6 +23,8 @@ interface Scene {
     readonly after: ReadonlyMap<string, TileSnapshot>;
     readonly box: MotionRect;
 }
+
+const [, MAIN_GHOST] = BOARD_MOTION.ghosts;
 
 function createFlight(motion: TileMotion, scene: Scene, target: TileSnapshot): Flight | null {
     const source = motion.source === null ? undefined : scene.before.get(motion.source);
@@ -42,58 +38,37 @@ function createFlight(motion: TileMotion, scene: Scene, target: TileSnapshot): F
         fromQuad: source.quad,
         image: target.image,
         motion,
-        target: target.element,
         to: target.rect,
         toPose: target.pose,
         toQuad: target.quad,
     };
 }
 
-/**
- * A flight from its source's pose and place to its target's, its image warped onto the target tile's corners as the
- * camera shows them from the start (a tilted piece's taper and squash; none on a flat one), so it lands exactly as the
- * tile it stands for.
- */
-function screenFace(rect: MotionRect, pose: TilePose, landing: TilePose): Keyframe {
-    const quarters = Math.round((pose.angle - landing.angle) / 90);
-    const turned = Math.abs(quarters) % 2 === 1;
-    return {
-        "--motion-across": `${turned ? rect.height : rect.width}px`,
-        "--motion-down": `${turned ? rect.width : rect.height}px`,
-    };
-}
-
-function flightFrames({ from, fromPose, to, toPose, toQuad }: Flight): Keyframe[] {
+function flightFrames({ from, to, toQuad }: Flight): Keyframe[] {
     const deltaX = from.left + from.width / 2 - to.left - to.width / 2;
     const deltaY = from.top + from.height / 2 - to.top - to.height / 2;
-    const angle = fromPose.angle + (((toPose.angle - fromPose.angle + 540) % 360) - 180);
     const transform = `translate(-50%, -50%) ${warpTransform(quadWarp(to, toQuad))}`;
-    const takeOff =
-        fromPose.standing === toPose.standing
-            ? fromPose
-            : { ...fromPose, lying: toPose.lying, standing: toPose.standing };
     return [
-        {
-            ...poseFrame(takeOff),
-            ...screenFace(from, fromPose, toPose),
-            transform,
-            translate: `${deltaX}px ${deltaY}px`,
-        },
-        {
-            ...poseFrame({ ...toPose, angle }),
-            ...screenFace(to, toPose, toPose),
-            transform,
-            translate: "0px 0px",
-        },
+        { transform, translate: `${deltaX}px ${deltaY}px` },
+        { transform, translate: "0px 0px" },
     ];
 }
 
-function poseFrame(pose: TilePose): Keyframe {
-    return {
-        "--motion-angle": `${pose.angle}deg`,
-        "--motion-height": `${pose.height}px`,
-        "--motion-width": `${pose.width}px`,
-    };
+function placeImage({ board, image, to }: Flight): void {
+    Object.assign(image.style, {
+        left: `${to.left + to.width / 2 - board.left}px`,
+        top: `${to.top + to.height / 2 - board.top}px`,
+    });
+    image.style.setProperty("--motion-across", `${to.width}px`);
+    image.style.setProperty("--motion-down", `${to.height}px`);
+}
+
+function copyImage(image: HTMLElement): HTMLElement {
+    const copy = image.cloneNode(true);
+    if (!(copy instanceof HTMLElement)) {
+        throw new Error("A flight image must be an HTML element");
+    }
+    return copy;
 }
 
 function hasSamePose(from: TilePose, to: TilePose): boolean {
@@ -106,24 +81,8 @@ function hasSamePose(from: TilePose, to: TilePose): boolean {
     );
 }
 
-function sampleFlight(tile: TileSnapshot, active: RunningTile): TileSnapshot {
-    const { image } = active.flight;
-    const style = getComputedStyle(image);
-    const face = image.querySelector(":scope > .tile");
-    const pose = {
-        angle: Number.parseFloat(style.getPropertyValue("--motion-angle")),
-        height: Number.parseFloat(style.getPropertyValue("--motion-height")),
-        lying: active.flight.toPose.lying,
-        standing: face === null ? tile.pose.standing : standingOf(face),
-        width: Number.parseFloat(style.getPropertyValue("--motion-width")),
-    };
-    const rect = face?.getBoundingClientRect() ?? tile.rect;
-    return { ...tile, pose, quad: rectQuad(rect), rect };
-}
-
 interface RunningTile {
     readonly rect: MotionRect;
-    readonly flight: Flight;
     readonly animation: Animation;
     target: HTMLElement;
 }
@@ -213,13 +172,10 @@ export class BoardMotionPlayer {
 
     private currentSources(before: readonly TileSnapshot[]): ReadonlyMap<string, TileSnapshot> {
         return new Map(
-            before.map((tile) => {
-                const active = this.running.get(tile.key);
-                return [
-                    tile.key,
-                    active === undefined ? this.reflow.source(tile) : sampleFlight(tile, active),
-                ];
-            }),
+            before.map((tile) => [
+                tile.key,
+                this.running.has(tile.key) ? tile : this.reflow.source(tile),
+            ]),
         );
     }
 
@@ -231,7 +187,7 @@ export class BoardMotionPlayer {
         for (const [key, active] of this.running) {
             const next = after.get(key);
             if (next === undefined || changing.has(key) || !sameRect(active.rect, next.rect)) {
-                this.stopTile(key);
+                this.landTile(key);
             } else {
                 active.target = next.element;
                 hideDestination(next.element);
@@ -239,7 +195,7 @@ export class BoardMotionPlayer {
         }
     }
 
-    private stopTile(key: string): void {
+    private landTile(key: string): void {
         this.running.delete(key);
         for (const sprite of this.sprites) {
             if (sprite.key === key) {
@@ -248,6 +204,14 @@ export class BoardMotionPlayer {
                 sprite.image.remove();
                 this.sprites.delete(sprite);
             }
+        }
+        this.removeIdleLayer();
+    }
+
+    private removeIdleLayer(): void {
+        if (this.sprites.size === 0) {
+            this.layer?.remove();
+            this.layer = null;
         }
     }
 
@@ -290,17 +254,18 @@ export class BoardMotionPlayer {
     }
 
     private playMove(flight: Flight, target: TileSnapshot): void {
-        if (
-            flight.motion.kind === "reflow" &&
-            (target.region === "hand" ||
-                (target.region === "melds" &&
-                    (flight.fromPose.angle - flight.toPose.angle) % 360 === 0) ||
-                (target.region === "discards" && hasSamePose(flight.fromPose, flight.toPose)))
-        ) {
-            this.reflow.play(flight.motion, { quad: flight.fromQuad, rect: flight.from }, target);
+        if (flight.motion.kind === "flight") {
+            this.playFlight(flight, target);
             return;
         }
-        this.playFlight(flight, target);
+        if (
+            target.region === "hand" ||
+            (target.region === "melds" &&
+                (flight.fromPose.angle - flight.toPose.angle) % 360 === 0) ||
+            (target.region === "discards" && hasSamePose(flight.fromPose, flight.toPose))
+        ) {
+            this.reflow.play(flight.motion, { quad: flight.fromQuad, rect: flight.from }, target);
+        }
     }
 
     private playReveal(motion: TileMotion, scene: Scene, target: TileSnapshot): void {
@@ -313,19 +278,41 @@ export class BoardMotionPlayer {
     private playFlight(flight: Flight, target: TileSnapshot): void {
         const { motion } = flight;
         hideDestination(target.element);
-        const animation = this.animateTile(flight);
-        this.running.set(motion.target, {
-            animation,
-            flight,
-            rect: target.rect,
-            target: target.element,
-        });
-        if (motion.kind === "flight") {
-            this.playTrail(flight);
+        placeImage(flight);
+        const frames = flightFrames(flight);
+        for (const ghost of BOARD_MOTION.ghosts) {
+            const animation = this.playGhost(flight, ghost, frames);
+            if (ghost === MAIN_GHOST) {
+                this.running.set(motion.target, {
+                    animation,
+                    rect: target.rect,
+                    target: target.element,
+                });
+            }
         }
-        if (motion.kind === "flight" && target.region === "discards") {
+        if (target.region === "discards") {
             this.discardLandingAt = performance.now() + motion.delay + BOARD_MOTION.landing;
         }
+    }
+
+    private playGhost(
+        { image: source, motion }: Flight,
+        ghost: (typeof BOARD_MOTION.ghosts)[number],
+        frames: Keyframe[],
+    ): Animation {
+        const image = copyImage(source);
+        image.style.opacity = String(ghost.alpha);
+        this.createLayer().append(image);
+        const animation = image.animate(frames, {
+            delay: motion.delay + ghost.delay,
+            duration: motion.duration,
+            easing: "linear",
+            fill: "both",
+        });
+        const sprite = { animation, image, key: motion.target };
+        this.sprites.add(sprite);
+        animation.onfinish = () => this.finish(sprite);
+        return animation;
     }
 
     prepareRender(): void {
@@ -343,57 +330,16 @@ export class BoardMotionPlayer {
         }
     }
 
-    private playTrail(flight: Flight): void {
-        for (const [index, opacity] of [0.06, 0.18, 0.06].entries()) {
-            const ghost = flight.image.cloneNode(true);
-            if (ghost instanceof HTMLElement) {
-                ghost.classList.add("board-motion__tile--trail");
-                ghost.style.opacity = String(opacity);
-                this.animateTile({
-                    ...flight,
-                    image: ghost,
-                    motion: {
-                        ...flight.motion,
-                        delay: flight.motion.delay + (index + 1) * BOARD_MOTION.trail,
-                    },
-                    target: null,
-                });
-            }
-        }
-    }
-
-    private animateTile(flight: Flight): Animation {
-        const { board, image, motion, to } = flight;
-        Object.assign(image.style, {
-            left: `${to.left + to.width / 2 - board.left}px`,
-            top: `${to.top + to.height / 2 - board.top}px`,
-        });
-        this.createLayer().append(image);
-        const animation = image.animate(flightFrames(flight), {
-            delay: motion.delay,
-            duration: motion.duration,
-            easing: "linear",
-            fill: "both",
-        });
-        const sprite = { animation, image, key: motion.target };
-        this.sprites.add(sprite);
-        animation.onfinish = () => this.finish(sprite, flight);
-        return animation;
-    }
-
-    private finish(sprite: RunningSprite, flight: Flight): void {
+    private finish(sprite: RunningSprite): void {
         this.sprites.delete(sprite);
         sprite.animation.cancel();
         sprite.image.remove();
-        const active = this.running.get(flight.motion.target);
-        if (flight.target !== null && active?.animation === sprite.animation) {
+        const active = this.running.get(sprite.key);
+        if (active?.animation === sprite.animation) {
             showDestination(active.target);
-            this.running.delete(flight.motion.target);
+            this.running.delete(sprite.key);
         }
-        if (this.sprites.size === 0) {
-            this.layer?.remove();
-            this.layer = null;
-        }
+        this.removeIdleLayer();
     }
 
     cancel(): void {

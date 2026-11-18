@@ -141,8 +141,6 @@ $max-strip-melds: 4;
 }
 
 .game-board .board-motion__tile {
-    @include cast-shadow(var(--motion-width));
-
     > .tile {
         --tile-w: var(--motion-width);
 
@@ -161,10 +159,6 @@ $max-strip-melds: 4;
             transform-origin: 50% calc(var(--motion-down) / 2);
             transform: rotate(calc(-1 * var(--motion-angle)));
         }
-    }
-
-    &--trail {
-        filter: none;
     }
 }
 

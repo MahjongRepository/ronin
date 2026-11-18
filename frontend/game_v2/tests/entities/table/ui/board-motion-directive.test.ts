@@ -295,14 +295,36 @@ function startRiichiFlight(last = false): BoardMotionPlayer {
     return player;
 }
 
-function setHalfwayRiichiPose(): void {
-    const image = host.querySelector<HTMLElement>(".board-motion__tile");
-    if (image === null) {
-        throw new Error("Expected a flying discard");
-    }
-    image.style.setProperty("--motion-angle", "45deg");
-    image.style.setProperty("--motion-height", "56px");
-    image.style.setProperty("--motion-width", "42px");
+const KEYFRAME_TIMING = new Set(["composite", "computedOffset", "easing", "offset"]);
+
+function animatedProperties(frame: ComputedKeyframe): readonly string[] {
+    return Object.keys(frame)
+        .filter((name) => !KEYFRAME_TIMING.has(name))
+        .toSorted();
+}
+
+function expectTranslateOnly(animation: Animation): void {
+    const [start, end] = getAnimationFrames(animation);
+    expect([animatedProperties(start), animatedProperties(end)]).toEqual([
+        ["transform", "translate"],
+        ["transform", "translate"],
+    ]);
+    expect(end.transform).toBe(start.transform);
+    expect(end.translate).not.toBe(start.translate);
+}
+
+function flightPoses(): readonly Record<string, string>[] {
+    return [...host.querySelectorAll<HTMLElement>(".board-motion__tile")].map((image) =>
+        Object.fromEntries(
+            [
+                "--motion-across",
+                "--motion-angle",
+                "--motion-down",
+                "--motion-height",
+                "--motion-width",
+            ].map((name) => [name, image.style.getPropertyValue(name)]),
+        ),
+    );
 }
 
 function settleRiichiFlight(player: BoardMotionPlayer): void {
@@ -585,7 +607,7 @@ describe("board motion", () => {
             hiddenTiles(),
             animations.length,
             animations.every((animation) => animation.playState === "idle"),
-        ]).toEqual([0, 4, true]);
+        ]).toEqual([0, 3, true]);
     });
 
     it.each([
@@ -598,7 +620,7 @@ describe("board motion", () => {
             await show(drawn(dealt), { mode, sequence: 0 });
             const after = discardDraw(dealt);
             await show(after, { mode, sequence: 1 });
-            expect(animations.length).toBe(4);
+            expect(animations.length).toBe(3);
             await show(after, { mode, sequence: 1 });
             expect(animations.every((animation) => animation.playState === "paused")).toBe(true);
             await show({ ...after, doraIndicators: [24] }, { mode, sequence: 2 });
@@ -606,7 +628,7 @@ describe("board motion", () => {
                 animations.length,
                 animations.every((animation) => animation.playState === nextState),
                 hiddenTiles(),
-            ]).toEqual([4, true, mode === "replay" ? 0 : 1]);
+            ]).toEqual([3, true, mode === "replay" ? 0 : 1]);
         },
     );
 
@@ -620,27 +642,27 @@ describe("board motion", () => {
             animations.length,
             hiddenTiles(),
             animations.every((animation) => animation.playState === "idle"),
-        ]).toEqual([4, 0, true]);
+        ]).toEqual([3, 0, true]);
     });
 
     it("cancels a flight on replay jumps or viewpoint changes and starts no new flights", async () => {
         const dealt = table(true);
         await show(drawn(dealt), { mode: "step", sequence: 0 });
         await show(discardDraw(dealt), { mode: "step", sequence: 1 });
-        expect(animations.length).toBe(4);
+        expect(animations.length).toBe(3);
         draw(drawn(dealt), { mode: "step", sequence: 8 });
         await show(
             discardDraw(dealt),
             { mode: "step", sequence: 9 },
             { view: { bottomSeat: 1, reveal: "all" } },
         );
-        expect([animations.length, hiddenTiles()]).toEqual([4, 0]);
+        expect([animations.length, hiddenTiles()]).toEqual([3, 0]);
     });
 
     it("cancels every flight when its board unmounts", async () => {
         await show(drawn(table(true)), { mode: "reset", sequence: 0 });
         await show(discardDraw(table(true)), { mode: "step", sequence: 1 });
-        expect(animations.length).toBe(4);
+        expect(animations.length).toBe(3);
         render(nothing, host);
         expect(animations.every((animation) => animation.playState === "idle")).toBe(true);
         expect(host.querySelector(".board-motion")).toBeNull();
@@ -685,7 +707,7 @@ describe("opponent draw hold", () => {
     it("holds an opponent's draw after a discard through a redraw and ends the hold at the next cue", async () => {
         const after = await showHeldDraw();
         const hold = animations.at(-1);
-        expect([animations.length, targetOf(hold)]).toEqual([5, heldTile()]);
+        expect([animations.length, targetOf(hold)]).toEqual([4, heldTile()]);
         await show(after, { mode: "step", sequence: 2 }, { view: bottomOnly });
         expect([hold?.playState, targetOf(hold)]).toEqual(["paused", heldTile()]);
         await show(
@@ -693,7 +715,7 @@ describe("opponent draw hold", () => {
             { mode: "step", sequence: 3 },
             { view: bottomOnly },
         );
-        expect([animations.length, hold?.playState]).toEqual([5, "idle"]);
+        expect([animations.length, hold?.playState]).toEqual([4, "idle"]);
     });
 
     it("holds an opponent's draw committed with the discard until the discard lands and the pause passes", async () => {
@@ -705,7 +727,7 @@ describe("opponent draw hold", () => {
         await show(opponentDrew(discardDraw(dealt)), { mode: "step", sequence: 2 }, view);
         const hold = animations.at(-1);
         expect([animations.length, hold?.effect?.getTiming().duration]).toEqual([
-            5,
+            4,
             BOARD_MOTION.landing + BOARD_MOTION.drawHold,
         ]);
     });
@@ -725,29 +747,23 @@ describe("animations switch", () => {
             animations.every((animation) => animation.playState === "idle"),
             hiddenTiles(),
             host.querySelector(".game-board")?.getAttribute("data-motion"),
-        ]).toEqual([4, true, 0, "off"]);
+        ]).toEqual([3, true, 0, "off"]);
     });
 });
 
 describe("tile flight material", () => {
-    it("starts a riichi discard at hand size as the river's lying tile and rotates and shrinks it into the sideways river slot", () => {
+    it("flies a riichi discard as ghosts already in the sideways river slot's pose, only their translate changing", () => {
         const player = startRiichiFlight();
-        expect(getAnimationFrames(animations[0])).toMatchObject([
-            {
-                "--motion-across": "64px",
-                "--motion-angle": "0deg",
-                "--motion-down": "48px",
-                "--motion-height": "64px",
-                "--motion-width": "48px",
-            },
-            {
-                "--motion-across": "48px",
-                "--motion-angle": "90deg",
-                "--motion-down": "36px",
-                "--motion-height": "48px",
-                "--motion-width": "36px",
-            },
-        ]);
+        const riverPose = {
+            "--motion-across": "48px",
+            "--motion-angle": "90deg",
+            "--motion-down": "36px",
+            "--motion-height": "48px",
+            "--motion-width": "36px",
+        };
+        expect(animations).toHaveLength(BOARD_MOTION.ghosts.length);
+        expect(flightPoses()).toEqual(BOARD_MOTION.ghosts.map(() => riverPose));
+        animations.forEach(expectTranslateOnly);
         expect(host.querySelectorAll(".board-motion__tile > .tile--standing")).toHaveLength(0);
         expect(
             host
@@ -757,32 +773,16 @@ describe("tile flight material", () => {
         player.cancel();
     });
 
-    it("continues an unfinished riichi flight's pose when the next draw closes its river gap", () => {
+    it("lands a flight at once with its destination shown when the next draw closes its river gap", () => {
         const player = startRiichiFlight(true);
-        expect(animations).toHaveLength(4);
-        setHalfwayRiichiPose();
+        expect(hiddenTiles()).toBe(1);
+        const ghosts = [...animations];
         settleRiichiFlight(player);
-        expect(animations).toHaveLength(5);
-        expect(animations.slice(0, 4).map((animation) => animation.playState)).toEqual([
-            "idle",
-            "idle",
-            "idle",
-            "idle",
-        ]);
-        expect(getAnimationFrames(animations[4])).toMatchObject([
-            {
-                "--motion-angle": "45deg",
-                "--motion-height": "56px",
-                "--motion-width": "42px",
-            },
-            {
-                "--motion-angle": "90deg",
-                "--motion-height": "48px",
-                "--motion-width": "36px",
-            },
-        ]);
-        finishAll();
-        expect([hiddenTiles(), host.querySelector(".board-motion")]).toEqual([0, null]);
+        expect([
+            ghosts.map((animation) => animation.playState),
+            hiddenTiles(),
+            host.querySelector(".board-motion"),
+        ]).toEqual([ghosts.map(() => "idle"), 0, null]);
         player.cancel();
     });
 });
@@ -856,15 +856,13 @@ describe("own call flight", () => {
     it("flies a claimed tile and the hand's pair as the meld's own bodies and lands each at its slot's screen size", () => {
         const player = startOwnPon();
 
-        const bodies = [
-            ...host.querySelectorAll(
-                ".board-motion__tile:not(.board-motion__tile--trail) .tile__body > use",
-            ),
-        ].map((use) => use.getAttribute("href"));
-        const landings = animations.map((animation) => getAnimationFrames(animation).at(-1));
+        const bodies = [...host.querySelectorAll(".board-motion__tile .tile__body > use")].map(
+            (use) => use.getAttribute("href"),
+        );
         const lyingWidth = OWN_LYING_HEIGHT_SHARE * OWN_MELD_TILE_W;
+        expect(animations).toHaveLength(3 * BOARD_MOTION.ghosts.length);
         expect(new Set(bodies)).toEqual(new Set(["#body-lying-own-sideways", "#body-lying-own"]));
-        expect(landings).toEqual(
+        expect(flightPoses()).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
                     "--motion-across": `${(OWN_MELD_TILE_W * 4) / 3}px`,
@@ -897,7 +895,7 @@ describe("tilted tile flight", () => {
         player.cancel();
     });
 
-    it("lands a discard on a tilted side river at its slot's screen box, taking off at the hand tile's size across it", () => {
+    it("flies a discard onto a tilted side river at its slot's screen box from take-off", () => {
         vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
             function measureSideRiver(this: HTMLElement) {
                 if (this.matches("[data-area='left-discards'] .tile")) {
@@ -913,11 +911,11 @@ describe("tilted tile flight", () => {
         const player = new BoardMotionPlayer(host);
         player.play(planTileMotion(before, after), before, after);
 
-        const [start, end] = getAnimationFrames(animations[0]);
-        expect([start, end]).toMatchObject([
-            { "--motion-across": "64px", "--motion-down": "48px" },
-            { "--motion-across": "60px", "--motion-down": "31px" },
-        ]);
+        expect(flightPoses()).toEqual(
+            BOARD_MOTION.ghosts.map(() =>
+                expect.objectContaining({ "--motion-across": "60px", "--motion-down": "31px" }),
+            ),
+        );
         player.cancel();
     });
 

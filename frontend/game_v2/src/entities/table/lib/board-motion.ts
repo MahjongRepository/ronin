@@ -18,7 +18,6 @@ export const BOARD_MOTION = {
     minTravel: 80,
     reflow: 200,
     revealTile: 30,
-    trail: 10,
 } as const;
 
 export interface MotionRect {

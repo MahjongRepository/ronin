@@ -200,9 +200,10 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   from `.board-rivers`, the opponents' from `.board-strips`, never from a turned frame (Firefox on macOS draws a
   filter inside one unturned and clipped to its box) nor from a `matrix3d` piece (Chrome rasterizes a filtered 3D
   piece at 1x, blurring it on a 2x screen). A tile alone casts its own; a hand that takes input
-  casts one per button. Flying tiles clone their destination's body from take-off, upright on the screen whatever
-  the flight's angle, and cast one shadow on their image. Native reflow stays inside its original group; reveal
-  backs stay inside the native hand slots, absolutely placed over the hidden faces.
+  casts one per button. Flying tiles are shadowless ghost copies of their destination, its body, size and
+  turn set once on the image (`--motion-*`), upright on the screen; only their `translate` animates. Native reflow
+  stays inside its original group; reveal backs stay inside the native hand slots, absolutely placed over the hidden
+  faces.
 - **Layers come from one scale.** Every `z-index` is a `$layers` name (`game-board/_queries.scss`), never a literal,
   but a tile group's paint order: ordinals counted from the seat's turn (the slots' inline `z-index`, the right
   strip's areas and melds), which stay inside the group's stacking context and never meet a layer.

@@ -1,35 +1,5 @@
 @use "@/styles/game-board/queries" as *;
 
-@property --motion-width {
-    syntax: "<length>";
-    inherits: true;
-    initial-value: 0;
-}
-
-@property --motion-height {
-    syntax: "<length>";
-    inherits: true;
-    initial-value: 0;
-}
-
-@property --motion-angle {
-    syntax: "<angle>";
-    inherits: true;
-    initial-value: 0deg;
-}
-
-@property --motion-across {
-    syntax: "<length>";
-    inherits: true;
-    initial-value: 0;
-}
-
-@property --motion-down {
-    syntax: "<length>";
-    inherits: true;
-    initial-value: 0;
-}
-
 .board-motion {
     position: absolute;
     inset: 0;
