@@ -69,7 +69,7 @@ function opponentDrew(state: TableState): TableState {
         lastDiscardSeat: null,
         players: state.players.map((player) =>
             player.seat === 1
-                ? { ...player, drawnTileId: 121, tiles: [...player.tiles, 121] }
+                ? { ...player, concealedCount: player.concealedCount + 1, drawnConcealed: true }
                 : player,
         ),
     };
@@ -701,6 +701,9 @@ describe("opponent draw hold", () => {
         const dealt = table(true);
         await show(dealt, { mode: "reset", sequence: 0 }, { view: bottomOnly });
         await show(opponentDrew(dealt), { mode: "step", sequence: 1 }, { view: bottomOnly });
+        expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
+        await show(dealt, { mode: "reset", sequence: 2 }, { view: bottomOnly });
+        await show(drawn(dealt), { mode: "step", sequence: 3 }, { view: bottomOnly });
         expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
     });
 

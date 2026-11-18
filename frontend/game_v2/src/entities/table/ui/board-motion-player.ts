@@ -109,7 +109,6 @@ function showDestination(target: HTMLElement): void {
     target.style.removeProperty("visibility");
     (landingSlots.get(target) ?? target.parentElement)?.removeAttribute("data-landing");
     landingSlots.delete(target);
-    target.closest("button")?.style.removeProperty("pointer-events");
 }
 
 function hideDestination(target: HTMLElement): void {
@@ -118,10 +117,6 @@ function hideDestination(target: HTMLElement): void {
     if (slot !== null) {
         slot.setAttribute("data-landing", "");
         landingSlots.set(target, slot);
-    }
-    const control = target.closest("button");
-    if (control !== null) {
-        control.style.pointerEvents = "none";
     }
 }
 
