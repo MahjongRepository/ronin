@@ -35,8 +35,8 @@ The derived proportions are the three reference viewports' values under the sizi
   lying tile, on the table and off it (a result, a decision's chip), is foreshortened along the screen's y axis and
   shows a thick edge at its end toward the screen's bottom; tiles lying together overlap far to near, the nearer face
   covering the edge they share, so an edge shows only where nothing lies nearer (a row's last tiles, an incomplete
-  row, the latest discard held apart), and one soft shadow per group grounds them. The felt, its seams (drawn to the
-  centre's corners), the plates and calls (at the points the table anchors them to, a plate standing on its edge toward the core, a top row plate raised further
+  row, the latest discard held apart), and one soft shadow per group grounds them. The felt, its seam (closing the
+  play area), the plates and calls (at the points the table anchors them to, a plate standing on its edge toward the core, a top row plate raised further
   where its riichi stick would come within 10px of the core, 6 on a phone) lie flat with it. One static place per
   piece, no per-frame work. Decision: one light for every
   seat: every tile is one generated body (`entities/tile/lib/tile-body.ts`, `npm run bodies`), drawn
@@ -57,7 +57,7 @@ The derived proportions are the three reference viewports' values under the sizi
   the right river and the right strip paint each line from its far end down the screen, and an added kan's called
   tile covers the added one (the top seat's added tile lies nearer the screen's bottom and covers the called one).
   Tiles lying together (a river, a meld, a hand that takes no input, the dora) throw one soft cast shadow toward the
-  screen's lower right, in the tile's width (0.2 right, 0.39 down, a 0.3 blur, 65% black), under all their bodies:
+  screen's lower right, short and sharp, in the tile's width (0.1 right, 0.39 down, a 0.14 blur, 65% black), under all their bodies:
   it drops by the lying edge, so beside a group it starts at the body's foot. A tile alone throws its own. Standing
   tiles keep a shorter one (0.12 right, 0.2 down, a 0.24 blur): the own hand's, shared where it takes no input, and
   each tile's own where it takes input, pulled in conservatively so it never reaches past the tile's left side; an
@@ -93,7 +93,7 @@ The derived proportions are the three reference viewports' values under the sizi
   state, and tile identity (a red five), and nothing else.
 - **Three tiers, by what a player loses when a thing is covered.** Every element on the board belongs to one tier,
   named before its place is chosen; the tier decides what may stand over it:
-  - *Furniture*: the table itself. The felt, the zones' tint and seams, the plates. It lies under every tile and
+  - *Furniture*: the table itself. The felt, the zones' tint and seam, the plates. It lies under every tile and
     control; anything may cover it, and nothing moves, shrinks or keeps room clear to keep it in view.
   - *Table*: what a player reads to play. The tiles, the centre, the dora card. Furniture never covers it; one
     table piece over another is a layout fault, but for the overlaps this spec accepts (a river past its reserve).
@@ -149,8 +149,8 @@ table's bottom between the side strips' lanes (an added kan's stack deep), so no
 player's hand. The table is as wide as that row (a full hand of 14.6 own tiles) and both lanes. What it leaves on
 either side is a side bar, equal on both sides, holding the board's controls and no tile; the felt
 covers only the table's width and meets the bars' inner edges, a bar's gap beside each side strip, so every control
-in a bar stands on the surround, from the board's top to its bottom, and the bars are the surround, as Mahjong
-Soul's board stands on its patterned backdrop (Surface). Two scales size it: the river tile (every river, the centre, the opponents' hands and melds) from the
+in a bar stands on the surround, from the board's top to its bottom, and the bars are the surround, plain dark
+margins (Surface). Two scales size it: the river tile (every river, the centre, the opponents' hands and melds) from the
 height, the own tile from the width a full hand between the lanes keeps, at most 1.45 river tiles, so the own hand
 is the table's largest thing; the bars hold the switches named and the counters' row only while the own tile keeps
 1.3 river tiles; where the width cannot give it 1.2 river tiles, the river tile steps down instead. On every
@@ -168,7 +168,7 @@ the spare height above and below it. Everything is placed in the table: the top 
 strips' lines centred on the core (or under the counters), the plates, the decisions' band, the own row along its
 bottom, and the bars' contents too: the counters, a replay's status and the cog at the table's top, the switches (and
 a small window's replay column) ending level
-with the own row. The seams run to
+with the own row. The side fields run to
 the felt's corners: the felt ends a page gutter above and below the table, as it ends a bar's gap beside the side
 strips, and the spare height past it is the surround (`--ronin-table-surround`) like the bars, so the table stands framed on
 all four sides. That four-sided frame holds wherever the bars fit, unless a barless arrangement (below) reaches a
@@ -220,12 +220,13 @@ edge to short of the left strip). The plates stand in the core's corners as on a
 desktop (Badges). Over a panel the notices and a replay's status stay in their field and stand over it,
 reserving no room of their own.
 
-Four seat zones, top, left, right and bottom, are made perceptible on the surface. Decision: five
-faint seams pressed into the felt (a soft groove over a fainter lip), four from the centre panel's corners, the upper two to the felt's top corners (a page gutter above the table's, on a window taller than its table), the lower
-two to the side strips' inner edges at the top of the foreground, and a fifth along that top between those two
-corners, closing the play area, so nothing reaches the felt's edge beside the own hand and the felt below the line,
-the whole foreground, is plain and the viewer's own; the side fields carry a faint tint, each closed along that line
-to the felt's edge. They establish perceived ownership; they are not clipping
+Four seat zones, top, left, right and bottom, are made perceptible on the surface. Decision: one
+faint seam pressed into the felt (a soft groove over a fainter lip) along the top of the foreground between the side
+strips' inner edges, closing the play area, so the felt below the line, the whole foreground, is plain and the
+viewer's own; above it the side fields carry a faint tint and the top field a fainter shade, their edges running from
+the centre panel's corners, the upper ones to the felt's top corners (a page gutter above the table's, on a window
+taller than its table), the lower ones to that seam's ends, each side field closed along the seam's line to the
+felt's edge. No seam runs along those diagonals: the fields' tints alone mark them, too faint to read as lines. They establish perceived ownership; they are not clipping
 boundaries, and a long river may cross one. A seat's tiles and the score data facing it are oriented
 toward that seat as on a real table: the top seat's tiles upside down, a side seat's on their side,
 every river reading left to right from its own seat. Names, notices, callouts and controls stay
@@ -258,14 +259,14 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Surface.** Fills the viewport, under the safe-area insets too, while the content keeps to the
   play area. Off a phone the felt covers only the table's width, meeting the bars' inner edges (a bar's gap beside each side strip), and on a window taller than its table only its height and a page gutter above and below; the bars beside it and the spare height past it are the surround, and a desktop without bars has its felt edge to edge (Composition)
   (`--ronin-table-surround`); a phone's felt is its bounded table (Composition), the rails beside it the surround too.
-  The surround is a dark slate gradient under a repeating wallpaper of faint outlined tiles (1-pin, 中, 3-sou, 5-pin,
-  南; `--ronin-table-surround-motif`), each drawn simplified but read as its tile at a glance, about 60% as large on a
-  phone so its rails show whole tiles. Decision: a petrol felt in the dark teal family, lit broadly over the core and falling
-  off slowly toward the edges, with a fine static grain as its only texture (felt at full size, gone in a
-  thumbnail: no weave, motif or wear) and the zone device; nothing else is drawn on it. Off-white faces
-  separate from it by value, the ochre backs by hue. The grain is one small repeating image under
-  the gradient: no runtime noise, filter or blend mode, so a low-end phone paints it once.
-- **Centre.** Decision: one panel, never square: off a phone six river tiles wide by four and a half tall, the side
+  The surround is a plain dark gradient with a hint of the felt's green and nothing drawn on it. Decision: a deep,
+  slightly warm table green, calm rather than saturated, lit softly over the core and falling off slowly toward the
+  edges, with a fine static grain as its only texture (felt at full size, gone in a thumbnail: no weave, motif,
+  marbling or wear) and the zone device; nothing else is drawn on it. Ivory faces separate from it by value, the ochre
+  backs by hue. The grain is one small repeating image under the gradient: no runtime noise, filter or blend mode, so
+  a low-end phone paints it once.
+- **Centre.** Decision: one flat dark charcoal panel with a hint of the felt's green (`--ronin-table-centre`),
+  with no rim or shadow and near-square corners, never square in shape: off a phone six river tiles wide by four and a half tall, the side
   rivers (six tiles with a sideways one) running past its corners into the core's corners;
   on a phone six river tiles and at least 100px wide and the height left, at least 68px. Each seat's wind and
   score on the side facing it, turned to that seat and close to its edge, and in the middle the
@@ -833,11 +834,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   as the panel closes. Loading, not found, incomplete
   and damaged replays each say so, as does a replay that cannot be drawn at a later stop (the failure
   screen); an incomplete one shows no result for its unfinished round.
-- **Material and type.** Neutral off-white tile faces (not cream) with room around the glyph, rolled rims lit
+- **Material and type.** Warm grey ivory tile faces (not cream, not white) with room around the glyph, rolled rims lit
   from the screen's top-left, a small consistent ivory-over-ochre edge and shadow; a red five reads as red at every scale, in a river, a meld, a revealed hand and a result;
   backs in one colour, the canonical yellow-orange: an ochre plastic, darker and less luminous than
   the accent so a strip of backs never reads as a control, its darker shade the back's layer under
-  every tile's off-white body. Decision: the face artwork (the committed SVG set) stays, its ordinary red
+  every tile's ivory body. Decision: the face artwork (the committed SVG set) stays, its ordinary red
   darkened from #b93c3c to #9a2424 (fill and stroke) so its thinnest strokes keep 4.5:1 on the face
   once a small, foreshortened face resamples them, the red fives' brighter #d71e1e unchanged and the clearer for it; the room
   around the glyph comes from the tile box, not from new drawings, and a glyph that is still

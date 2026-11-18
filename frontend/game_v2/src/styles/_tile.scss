@@ -8,9 +8,9 @@ $standing-cast-x: 0.12;
 $standing-cast-y: 0.2;
 $standing-cast-blur: 0.24;
 $standing-cast-pull: math.max(0, math.div($standing-cast-blur - $standing-cast-x, 2));
-$lying-cast-x: 0.2;
+$lying-cast-x: 0.1;
 $lying-cast-y: 0.39;
-$lying-cast-blur: 0.3;
+$lying-cast-blur: 0.14;
 $max-strip-melds: 4;
 
 @function corner-radius($across, $down, $share: $corner-share) {

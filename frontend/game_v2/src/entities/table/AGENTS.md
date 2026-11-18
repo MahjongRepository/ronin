@@ -64,7 +64,7 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   depth is the tiles' own (lying bodies foreshortened along the screen's y axis, their edge toward the screen's bottom,
   one shadow per group). `lib/table-view.ts`'s `tableView` is that view of the geometry, and its seam
   (`boardViewValues`, `surfaceViewValues`: the pieces' `--geo-camera-*` transforms, the `--geo-shown-*` anchors of the
-  plates, calls and felt seams) is a deferred no-op kept for a later camera: the overlays still take their places from
+  plates, calls and the felt's fields and seam) is a deferred no-op kept for a later camera: the overlays still take their places from
   it, never from the geometry's lengths, and a top row plate's raise clear of the core is computed there.
 - `model/replay-file.ts` refuses a file whose version is not `REPLAY_VERSION` and reports a bad or live-only line,
   never skipping it into a recording that looks whole.

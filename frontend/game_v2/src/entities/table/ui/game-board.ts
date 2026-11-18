@@ -212,35 +212,22 @@ function Strip(
     </div>`;
 }
 
-/** The faint lines from the centre's corners and the side fields' tint that make the four zones perceptible. */
 function Zones(): TemplateResult {
     return html`<div class="board-zones" aria-hidden="true">
         <span class="board-zones__field board-zones__field--left"></span>
         <span class="board-zones__field board-zones__field--right"></span>
         <span class="board-zones__field board-zones__field--top"></span>
-        ${ZONE_SEAMS.map(Seam)}
+        ${(["groove", "lip"] as const).map(
+            (part) =>
+                html`<svg
+                    class="board-zones__line board-zones__line--bottom board-zones__line--${part}"
+                    viewBox="0 0 1 1"
+                    preserveAspectRatio="none"
+                >
+                    <line x1="0" y1="0" x2="1" y2="0"></line>
+                </svg>`,
+        )}
     </div>`;
-}
-
-const ZONE_SEAMS = [
-    { seam: "top-left", y1: 0, y2: 1 },
-    { seam: "top-right", y1: 1, y2: 0 },
-    { seam: "bottom-right", y1: 0, y2: 1 },
-    { seam: "bottom-left", y1: 1, y2: 0 },
-    { seam: "bottom", y1: 0, y2: 0 },
-] as const;
-
-function Seam({ seam, y1, y2 }: (typeof ZONE_SEAMS)[number]): TemplateResult {
-    return html`${(["groove", "lip"] as const).map(
-        (part) =>
-            html`<svg
-                class="board-zones__line board-zones__line--${seam} board-zones__line--${part}"
-                viewBox="0 0 1 1"
-                preserveAspectRatio="none"
-            >
-                <line x1="0" y1=${y1} x2="1" y2=${y2}></line>
-            </svg>`,
-    )}`;
 }
 
 const DORA_SLOTS = 5;

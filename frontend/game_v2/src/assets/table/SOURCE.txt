@@ -6,6 +6,3 @@ its alpha up to 7% in 12 steps. Regenerate with ImageMagick 6:
   convert n.png -fx 'q=min(abs(u-0.5)*0.22,0.09); round(q/0.09*12)/12*0.09' a.png
   convert col.png a.png -alpha off -compose CopyOpacity -composite -strip grain.png
   convert grain.png -define webp:lossless=true -define webp:method=6 felt-grain.webp
-
-surround-motif.svg: the surround's tile wallpaper, hand-drawn outlines (no third-party source), loaded with
-?no-inline so it ships as a file: the game page's CSP allows no data: images.

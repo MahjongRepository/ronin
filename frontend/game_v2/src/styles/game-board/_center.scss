@@ -28,17 +28,15 @@
     --info-gap: max(0px, calc(var(--c) * 0.04 - var(--squeeze) * 0.035 - var(--edge-give) * 2));
     --edge-give: clamp(0px, 68px - var(--c), 4px);
     --round-floor: calc(14px - var(--squeeze) * 0.05);
-    --corner: calc(var(--c) * 0.07);
+    --corner: max(2px, calc(var(--c) * 0.015));
 
     position: absolute;
     left: calc(var(--cx) - var(--hx));
     top: calc(var(--cy) - var(--h));
     width: var(--w);
     height: var(--c);
-    background: var(--ronin-surface);
-    border: 1px solid var(--ronin-border);
+    background: var(--ronin-table-centre);
     border-radius: var(--corner);
-    box-shadow: var(--ronin-panel-shadow);
     cursor: default;
     -webkit-user-select: none;
     user-select: none;
@@ -77,7 +75,7 @@
         content: "";
         position: absolute;
         z-index: layer(below);
-        inset: -1px;
+        inset: 0;
         border-bottom: max(3px, calc(var(--c) * 0.028)) solid var(--ronin-table-turn);
         border-radius: var(--corner);
     }

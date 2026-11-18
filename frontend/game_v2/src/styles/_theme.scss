@@ -48,40 +48,37 @@
 
     /* Panels (the centre, the overlay's panels, the replay's controls) and their rims. */
     --ronin-surface: #0f1c1f;
+    --ronin-table-centre: #1c211e;
     --ronin-border: #2e464b;
     --ronin-border-subtle: #213538;
     --ronin-border-mark: #4f6a70;
     --ronin-panel-shadow: 0 6px 18px rgb(0 0 0 / 35%);
     --ronin-dim: rgb(8 15 17 / 62%);
-
-    /* The table's surface: a petrol felt with its grain (assets/table/SOURCE.txt), the zone seams and field tints, the
-       neutral latest mark and the green turn bar. */
     --ronin-table-fill: radial-gradient(
         ellipse 78% 82% at 50% 46%,
-        #32605a 0%,
-        #27504a 34%,
-        #1f443f 66%,
-        #163331 100%
+        #2f5a3e 0%,
+        #284e36 34%,
+        #1f412d 66%,
+        #152e20 100%
     );
     --ronin-table-grain: url("@/assets/table/felt-grain.webp");
-    --ronin-table-edge: #183735;
+    --ronin-table-edge: #16271e;
     --ronin-table-surround: radial-gradient(
         ellipse 90% 80% at 50% 42%,
-        #1b2631 0%,
-        #131c25 55%,
-        #0b1117 100%
+        #161c19 0%,
+        #101512 55%,
+        #0a0d0b 100%
     );
-    --ronin-table-surround-motif: url("@/assets/table/surround-motif.svg?no-inline");
-    --ronin-table-zone-groove: rgb(4 23 21 / 20%);
-    --ronin-table-zone-lip: rgb(207 228 211 / 7%);
-    --ronin-table-field-side: rgb(207 228 211 / 3%);
-    --ronin-table-field-end: rgb(4 23 21 / 7%);
+    --ronin-table-zone-groove: rgb(4 18 10 / 22%);
+    --ronin-table-zone-lip: rgb(214 232 210 / 6%);
+    --ronin-table-field-side: rgb(214 232 210 / 1.5%);
+    --ronin-table-field-end: rgb(4 18 10 / 3%);
     --ronin-table-latest: #f4f7f5;
     --ronin-table-latest-inner: #26332f;
     --ronin-table-turn: #4cc27a;
-    --ronin-tile-face: #f0f0e8;
-    --ronin-tile-face-light: #fffffa;
-    --ronin-tile-face-rim: #e5e5db;
+    --ronin-tile-face: #e6e5d8;
+    --ronin-tile-face-light: #f1f0e5;
+    --ronin-tile-face-rim: #d8d7cb;
     --ronin-tile-drawn-mark: #2b2f33;
     --ronin-tile-side: #a09f97;
     --ronin-tile-side-low: #93928a;
@@ -106,7 +103,7 @@
     --ronin-badge-rim: #344b50;
     --ronin-badge-ink: #eef3ef;
     --ronin-plate-away: #ff9488;
-    --ronin-plate: rgb(4 23 21 / 38%);
+    --ronin-plate: rgb(4 18 10 / 38%);
     --ronin-plate-ink: rgb(214 228 220 / 72%);
     --ronin-chip: rgb(11 21 23 / 62%);
     --ronin-notice: rgb(11 21 23 / 88%);

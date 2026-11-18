@@ -19,18 +19,11 @@
     --zone-inner-right-x: calc(var(--geo-shown-lane-right-x) + var(--ox));
     --field-left: 0px;
     --field-right: var(--zone-w);
-    --surround-motif-size: 480px;
 
     inset: calc(-1 * (var(--oy) + var(--tt))) calc(-1 * var(--or))
         calc(-1 * (var(--ob) + var(--tb))) calc(-1 * var(--ox));
     pointer-events: none;
-    background:
-        var(--ronin-table-surround-motif) center / var(--surround-motif-size) repeat,
-        var(--ronin-table-surround);
-
-    @include phone-board {
-        --surround-motif-size: 300px;
-    }
+    background: var(--ronin-table-surround);
 
     @include board-where("[data-board-family]") {
         --field-left: calc(var(--geo-felt-left) + var(--ox));
@@ -106,54 +99,6 @@
     &--lip {
         stroke: var(--ronin-table-zone-lip);
         translate: 0 1px;
-    }
-
-    &--top-left {
-        --x1: var(--zone-tl-x);
-        --y1: var(--zone-top-y);
-        --x2: var(--field-left);
-        --y2: var(--tt);
-
-        left: var(--x2);
-        top: var(--y2);
-        width: calc(var(--x1) - var(--x2));
-        height: calc(var(--y1) - var(--y2));
-    }
-
-    &--top-right {
-        --x1: var(--zone-tr-x);
-        --y1: var(--zone-top-y);
-        --x2: var(--field-right);
-        --y2: var(--tt);
-
-        left: var(--x1);
-        top: var(--y2);
-        width: calc(var(--x2) - var(--x1));
-        height: calc(var(--y1) - var(--y2));
-    }
-
-    &--bottom-right {
-        --x1: var(--zone-br-x);
-        --y1: var(--zone-bottom-y);
-        --x2: var(--zone-inner-right-x);
-        --y2: var(--zone-band-y);
-
-        left: var(--x1);
-        top: var(--y1);
-        width: calc(var(--x2) - var(--x1));
-        height: calc(var(--y2) - var(--y1));
-    }
-
-    &--bottom-left {
-        --x1: var(--zone-bl-x);
-        --y1: var(--zone-bottom-y);
-        --x2: var(--zone-inner-left-x);
-        --y2: var(--zone-band-y);
-
-        left: var(--x2);
-        top: var(--y1);
-        width: calc(var(--x1) - var(--x2));
-        height: calc(var(--y2) - var(--y1));
     }
 
     &--bottom {
