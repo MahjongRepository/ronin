@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OWN_LYING_HEIGHT_SHARE } from "@/entities/table/lib/board-constants";
 import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
-import { planTileMotion } from "@/entities/table/lib/board-motion";
+import { BOARD_MOTION, planTileMotion } from "@/entities/table/lib/board-motion";
 import {
     type BoardMotionCue,
     type BoardPerspective,
@@ -50,6 +50,32 @@ function drawn(state: TableState): TableState {
         ),
     };
 }
+
+function discardDraw(state: TableState): TableState {
+    return {
+        ...state,
+        lastDiscardSeat: 0,
+        players: state.players.map((player) =>
+            player.seat === 0
+                ? { ...player, discards: [{ isRiichi: false, isTsumogiri: true, tileId: 120 }] }
+                : player,
+        ),
+    };
+}
+
+function opponentDrew(state: TableState): TableState {
+    return {
+        ...state,
+        lastDiscardSeat: null,
+        players: state.players.map((player) =>
+            player.seat === 1
+                ? { ...player, drawnTileId: 121, tiles: [...player.tiles, 121] }
+                : player,
+        ),
+    };
+}
+
+const bottomOnly: BoardPerspective = { bottomSeat: 0, reveal: "bottom" };
 
 interface ShowOptions {
     readonly view?: BoardPerspective;
@@ -154,23 +180,6 @@ function discardSecondOfFour(seat: SeatPosition): BoardMotionPlayer {
     const player = new BoardMotionPlayer(host);
     player.play(planTileMotion(before, after), before, after);
     return player;
-}
-
-function flyingHand() {
-    const onTile = vi.fn();
-    const tiles = [{ face: "1m", show: "face", state: "selectable", tileId: 0 }] as const;
-    renderHand(tiles, onTile);
-    const before = snapshotTiles(host);
-    render(
-        html`<div data-area="bottom-hand">
-      ${Hand({ drawnTile: { face: "2m", show: "face", state: "selectable", tileId: 4 }, onTile, tiles })}
-    </div>`,
-        host,
-    );
-    const after = snapshotTiles(host);
-    const player = new BoardMotionPlayer(host);
-    player.play(planTileMotion(before, after), before, after);
-    return { onTile, player, target: after[1] };
 }
 
 async function showMovingHand(
@@ -556,25 +565,6 @@ describe("board motion", () => {
         expect(animations.every((animation) => animation.playState === "idle")).toBe(true);
     });
 
-    it("blocks moving tile taps when an overlay makes the table inert", () => {
-        const { onTile, player, target } = flyingHand();
-        expect(target.image.isConnected).toBe(true);
-        host.setAttribute("inert", "");
-        target.image.click();
-        expect(onTile).not.toHaveBeenCalled();
-        player.cancel();
-    });
-
-    it("shows starting hands immediately and animates the following draw without a deal delay", async () => {
-        await show(table(false), { mode: "reset", sequence: 0 });
-        const dealt = table(true);
-        await show(dealt, { mode: "step", sequence: 1 });
-        expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
-        await show(drawn(dealt), { mode: "step", sequence: 2 });
-        expect([animations.length, hiddenTiles()]).toEqual([4, 1]);
-        expect(animations[0].effect?.getTiming().delay).toBe(0);
-    });
-
     it("shows a deal and first draw rendered in the same task immediately", async () => {
         await show(table(false), { mode: "reset", sequence: 0 });
         const dealt = table(true);
@@ -587,8 +577,8 @@ describe("board motion", () => {
 
     it("clears old flights and shows a new round immediately even when it reuses tile ids", async () => {
         const dealt = table(true);
-        await show(dealt, { mode: "reset", sequence: 0 });
-        await show(drawn(dealt), { mode: "step", sequence: 1 });
+        await show(drawn(dealt), { mode: "reset", sequence: 0 });
+        await show(discardDraw(dealt), { mode: "step", sequence: 1 });
         expect(hiddenTiles()).toBe(1);
         await show({ ...dealt, roundNumber: dealt.roundNumber + 1 }, { mode: "step", sequence: 2 });
         expect([
@@ -602,11 +592,11 @@ describe("board motion", () => {
         { mode: "step", nextState: "paused" },
         { mode: "replay", nextState: "idle" },
     ] as const)(
-        "keeps a draw through redraws and handles the next $mode update",
+        "keeps a discard flight through redraws and handles the next $mode update",
         async ({ mode, nextState }) => {
             const dealt = table(true);
-            await show(dealt, { mode, sequence: 0 });
-            const after = drawn(dealt);
+            await show(drawn(dealt), { mode, sequence: 0 });
+            const after = discardDraw(dealt);
             await show(after, { mode, sequence: 1 });
             expect(animations.length).toBe(4);
             await show(after, { mode, sequence: 1 });
@@ -622,10 +612,10 @@ describe("board motion", () => {
 
     it("snaps a reconnect without replaying it and restores every hidden tile", async () => {
         const dealt = table(true);
-        await show(dealt, { mode: "reset", sequence: 0 });
-        await show(drawn(dealt), { mode: "step", sequence: 1 });
+        await show(drawn(dealt), { mode: "reset", sequence: 0 });
+        await show(discardDraw(dealt), { mode: "step", sequence: 1 });
         expect(hiddenTiles()).toBe(1);
-        await show(drawn(dealt), { mode: "reset", sequence: 2 });
+        await show(discardDraw(dealt), { mode: "reset", sequence: 2 });
         expect([
             animations.length,
             hiddenTiles(),
@@ -635,12 +625,12 @@ describe("board motion", () => {
 
     it("cancels a flight on replay jumps or viewpoint changes and starts no new flights", async () => {
         const dealt = table(true);
-        await show(dealt, { mode: "step", sequence: 0 });
-        await show(drawn(dealt), { mode: "step", sequence: 1 });
+        await show(drawn(dealt), { mode: "step", sequence: 0 });
+        await show(discardDraw(dealt), { mode: "step", sequence: 1 });
         expect(animations.length).toBe(4);
-        draw(dealt, { mode: "step", sequence: 8 });
+        draw(drawn(dealt), { mode: "step", sequence: 8 });
         await show(
-            drawn(dealt),
+            discardDraw(dealt),
             { mode: "step", sequence: 9 },
             { view: { bottomSeat: 1, reveal: "all" } },
         );
@@ -648,8 +638,8 @@ describe("board motion", () => {
     });
 
     it("cancels every flight when its board unmounts", async () => {
-        await show(table(true), { mode: "reset", sequence: 0 });
-        await show(drawn(table(true)), { mode: "step", sequence: 1 });
+        await show(drawn(table(true)), { mode: "reset", sequence: 0 });
+        await show(discardDraw(table(true)), { mode: "step", sequence: 1 });
         expect(animations.length).toBe(4);
         render(nothing, host);
         expect(animations.every((animation) => animation.playState === "idle")).toBe(true);
@@ -666,14 +656,69 @@ describe("board motion", () => {
     });
 });
 
+async function showHeldDraw(): Promise<TableState> {
+    const view = { view: bottomOnly };
+    const dealt = table(true);
+    await show(drawn(dealt), { mode: "reset", sequence: 0 }, view);
+    await show(discardDraw(dealt), { mode: "step", sequence: 1 }, view);
+    const after = opponentDrew(discardDraw(dealt));
+    await show(after, { mode: "step", sequence: 2 }, view);
+    return after;
+}
+
+function heldTile(): Element | null {
+    return host.querySelector("[data-area='right-hand'] .hand-drawn-gap > .tile");
+}
+
+function targetOf(animation: Animation | undefined): Element | null | undefined {
+    return animation?.effect instanceof KeyframeEffect ? animation.effect.target : undefined;
+}
+
+describe("opponent draw hold", () => {
+    it("shows an opponent's draw in place when no discard preceded it", async () => {
+        const dealt = table(true);
+        await show(dealt, { mode: "reset", sequence: 0 }, { view: bottomOnly });
+        await show(opponentDrew(dealt), { mode: "step", sequence: 1 }, { view: bottomOnly });
+        expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
+    });
+
+    it("holds an opponent's draw after a discard through a redraw and ends the hold at the next cue", async () => {
+        const after = await showHeldDraw();
+        const hold = animations.at(-1);
+        expect([animations.length, targetOf(hold)]).toEqual([5, heldTile()]);
+        await show(after, { mode: "step", sequence: 2 }, { view: bottomOnly });
+        expect([hold?.playState, targetOf(hold)]).toEqual(["paused", heldTile()]);
+        await show(
+            { ...after, doraIndicators: [24] },
+            { mode: "step", sequence: 3 },
+            { view: bottomOnly },
+        );
+        expect([animations.length, hold?.playState]).toEqual([5, "idle"]);
+    });
+
+    it("holds an opponent's draw committed with the discard until the discard lands and the pause passes", async () => {
+        vi.spyOn(performance, "now").mockReturnValue(1000);
+        const view = { view: bottomOnly };
+        const dealt = table(true);
+        await show(drawn(dealt), { mode: "reset", sequence: 0 }, view);
+        draw(discardDraw(dealt), { mode: "step", sequence: 1 }, view);
+        await show(opponentDrew(discardDraw(dealt)), { mode: "step", sequence: 2 }, view);
+        const hold = animations.at(-1);
+        expect([animations.length, hold?.effect?.getTiming().duration]).toEqual([
+            5,
+            BOARD_MOTION.landing + BOARD_MOTION.drawHold,
+        ]);
+    });
+});
+
 describe("animations switch", () => {
     it("cancels a running flight when the animations turn off and starts none while they stay off", async () => {
-        await show(table(true), { mode: "reset", sequence: 0 });
-        await show(drawn(table(true)), { mode: "step", sequence: 1 });
+        await show(drawn(table(true)), { mode: "reset", sequence: 0 });
+        await show(discardDraw(table(true)), { mode: "step", sequence: 1 });
 
         const off = { animationsOn: false };
-        await show(drawn(table(true)), { mode: "step", sequence: 1 }, off);
-        await show(table(true), { mode: "step", sequence: 2 }, off);
+        await show(discardDraw(table(true)), { mode: "step", sequence: 1 }, off);
+        await show(drawn(table(true)), { mode: "step", sequence: 2 }, off);
 
         expect([
             animations.length,
@@ -751,123 +796,6 @@ function startTiltedFlight(): BoardMotionPlayer {
     const player = new BoardMotionPlayer(host);
     player.play(planTileMotion(before, after), before, after);
     return player;
-}
-
-function renderOwnDraw(withDraw: boolean): void {
-    const held: HandTile = {
-        face: "1m",
-        show: "face",
-        state: "selectable",
-        tileId: 0,
-    };
-    const newTile: HandTile = {
-        face: "2m",
-        show: "face",
-        state: "selectable",
-        tileId: 4,
-    };
-    render(
-        html`<div class="board-local" data-area="bottom-hand">
-      ${Hand({ drawnTile: withDraw ? newTile : undefined, standing: true, tiles: [held] })}
-    </div>`,
-        host,
-    );
-}
-
-function startOwnDraw(): BoardMotionPlayer {
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureFlightTile);
-    renderOwnDraw(false);
-    const before = snapshotTiles(host);
-    renderOwnDraw(true);
-    const after = snapshotTiles(host);
-    const player = new BoardMotionPlayer(host);
-    player.play(planTileMotion(before, after), before, after);
-    return player;
-}
-
-describe("own draw flight", () => {
-    it("flies a live own draw as its own button's standing body from take-off to landing", () => {
-        const player = startOwnDraw();
-
-        const image = host.querySelector(".board-motion__tile:not(.board-motion__tile--trail)");
-        expect(image?.classList.contains("board-motion__tile--individual")).toBe(true);
-        expect(image?.querySelector(":scope > .tile--standing use")?.getAttribute("href")).toBe(
-            "#body-standing",
-        );
-        player.cancel();
-    });
-
-    it("takes a draw discarded while still in flight off from its pose there as the river's lying tile", () => {
-        const { flights, player } = discardDrawInFlight();
-
-        const [start] = getAnimationFrames(animations[flights]);
-        expect(start).toMatchObject({ "--motion-width": "42px" });
-        expect(host.querySelectorAll(".board-motion__tile > .tile--standing")).toHaveLength(0);
-        player.cancel();
-    });
-});
-
-function flyOwnDraw(): BoardMotionPlayer {
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureFlightTile);
-    renderOwnDrawAndDiscard("held");
-    const held = snapshotTiles(host);
-    renderOwnDrawAndDiscard("drawn");
-    const holding = snapshotTiles(host);
-    const player = new BoardMotionPlayer(host);
-    player.play(planTileMotion(held, holding), held, holding);
-    return player;
-}
-
-function setFlightPose(image: HTMLElement | null, pose: Readonly<Record<string, string>>): void {
-    for (const [name, value] of Object.entries(pose)) {
-        image?.style.setProperty(name, value);
-    }
-}
-
-function discardDrawInFlight(): {
-    readonly flights: number;
-    readonly player: BoardMotionPlayer;
-} {
-    const player = flyOwnDraw();
-    setFlightPose(
-        host.querySelector<HTMLElement>(".board-motion__tile:not(.board-motion__tile--trail)"),
-        {
-            "--motion-angle": "0deg",
-            "--motion-height": "56px",
-            "--motion-width": "42px",
-        },
-    );
-    player.prepareRender();
-    const before = snapshotTiles(host);
-    renderOwnDrawAndDiscard("discarded");
-    const after = snapshotTiles(host);
-    const flights = animations.length;
-    player.play(planTileMotion(before, after), before, after);
-    return { flights, player };
-}
-
-function renderOwnDrawAndDiscard(stage: "held" | "drawn" | "discarded"): void {
-    const held: HandTile = {
-        face: "1m",
-        show: "face",
-        state: "selectable",
-        tileId: 0,
-    };
-    const newTile: HandTile = {
-        face: "2m",
-        show: "face",
-        state: "selectable",
-        tileId: 4,
-    };
-    render(
-        html`<div class="board-local" data-area="bottom-hand">
-        ${Hand({ drawnTile: stage === "drawn" ? newTile : undefined, standing: true, tiles: [held] })}
-      </div>
-      <div data-area="bottom-discards">
-        ${Discards(stage === "discarded" ? [{ face: "2m", tileId: 4 }] : [])}
-      </div>`,
-        host,
-    );
 }
 
 function renderOwnPon(called: boolean): void {

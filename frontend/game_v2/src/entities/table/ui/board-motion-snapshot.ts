@@ -38,19 +38,7 @@ export interface TileSnapshot extends MotionTile {
  */
 type PieceFrames = Map<Element, PieceFrame | null>;
 
-const TILE_FEEDBACK_STYLE = ["filter", "outline", "outline-offset"];
-const TILE_STYLE = [...TILE_FEEDBACK_STYLE, "color", "font-size", "box-sizing"];
-
-export function refreshTileFeedback(source: HTMLElement, image: HTMLElement): void {
-    const face = image.querySelector<HTMLElement>(":scope > .tile");
-    if (face === null) {
-        return;
-    }
-    const style = getComputedStyle(source);
-    for (const name of TILE_FEEDBACK_STYLE) {
-        face.style.setProperty(name, style.getPropertyValue(name));
-    }
-}
+const TILE_STYLE = ["filter", "outline", "outline-offset", "color", "font-size", "box-sizing"];
 
 function isSideways(tile: HTMLElement): boolean {
     return tile.parentElement?.matches(".meld-tile-sideways, .discard-tile-riichi") === true;
@@ -92,9 +80,6 @@ function imageClasses(tile: HTMLElement): readonly string[] {
     const tsumogiri = tile.parentElement?.dataset.tsumogiri === "true";
     return [
         "board-motion__tile",
-        ...(tile.parentElement instanceof HTMLButtonElement
-            ? ["board-motion__tile--individual"]
-            : []),
         ...(tsumogiri ? ["board-motion__tile--tsumogiri"] : []),
     ];
 }
@@ -239,16 +224,4 @@ export function snapshotTiles(board: HTMLElement): readonly TileSnapshot[] {
         (element, index) => captureTile(element, { index, region: "dora", seat: "bottom" }, frames),
     );
     return [...tiles, ...dora];
-}
-
-export function centerOrigin(board: HTMLElement, target: TileSnapshot): MotionRect {
-    const center =
-        board.querySelector("[data-area='center']")?.getBoundingClientRect() ??
-        board.getBoundingClientRect();
-    return {
-        height: target.rect.height,
-        left: center.left + (center.width - target.rect.width) / 2,
-        top: center.top + (center.height - target.rect.height) / 2,
-        width: target.rect.width,
-    };
 }

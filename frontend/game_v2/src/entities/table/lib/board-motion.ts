@@ -1,8 +1,18 @@
 import { type BoardMotionCue, type SeatPosition } from "@/entities/table/model/board-types";
 
+const FLIGHT = 120;
+const GHOSTS = [
+    { alpha: 0.125, delay: 0 },
+    { alpha: 0.25, delay: 12 },
+    { alpha: 0.125, delay: 24 },
+] as const;
+
 export const BOARD_MOTION = {
     discardPause: 300,
-    flight: 120,
+    drawHold: 300,
+    flight: FLIGHT,
+    ghosts: GHOSTS,
+    landing: GHOSTS[1].delay + FLIGHT,
     maxTravel: 300,
     meldSpeed: 0.06,
     minTravel: 80,
@@ -33,7 +43,7 @@ export interface MotionTile {
 export interface TileMotion {
     readonly target: string;
     readonly source: string | null;
-    readonly kind: "flight" | "reflow" | "reveal";
+    readonly kind: "flight" | "hold" | "reflow" | "reveal";
     readonly duration: number;
     readonly delay: number;
 }
@@ -85,6 +95,7 @@ interface MoveContext {
     readonly before: readonly MotionTile[];
     readonly discarding: boolean;
     readonly discardPause: number;
+    readonly mode: BoardMotionCue["mode"];
     readonly used: Set<string>;
     readonly replacements: ReadonlyMap<string, MotionTile>;
 }
@@ -142,14 +153,12 @@ function findMoveSource(
 function planMove(target: MotionTile, context: MoveContext): TileMotion | null {
     const source = findMoveSource(target, context);
     if (source === undefined) {
-        return target.region === "hand" && target.drawn
-            ? {
-                  delay: 0,
-                  duration: BOARD_MOTION.flight,
-                  kind: "flight",
-                  source: null,
-                  target: target.key,
-              }
+        return context.mode === "step" &&
+            target.region === "hand" &&
+            target.drawn &&
+            target.concealed &&
+            target.seat !== "bottom"
+            ? { delay: 0, duration: 0, kind: "hold", source: null, target: target.key }
             : null;
     }
     const flight = !samePlace(source, target);
@@ -200,6 +209,7 @@ export function planTileMotion(
         discarding: after.some(
             (tile) => tile.region === "discards" && findSource(tile, before)?.region !== "discards",
         ),
+        mode,
         replacements: concealedReplacements(before, after),
         used: new Set(),
     };

@@ -4,11 +4,10 @@ import { type TileQuad, quadWarp, rectQuad, warpTransform } from "@/entities/tab
 import {
     type TilePose,
     type TileSnapshot,
-    centerOrigin,
-    refreshTileFeedback,
     snapshotTiles,
     standingOf,
 } from "./board-motion-snapshot";
+import { TileHoldPlayer } from "./tile-hold-player";
 import { TileReflowPlayer } from "./tile-reflow-player";
 import { TileRevealPlayer } from "./tile-reveal-player";
 
@@ -29,17 +28,18 @@ interface Scene {
     readonly before: ReadonlyMap<string, TileSnapshot>;
     readonly after: ReadonlyMap<string, TileSnapshot>;
     readonly box: MotionRect;
-    readonly board: HTMLElement;
 }
 
-function createFlight(motion: TileMotion, scene: Scene, target: TileSnapshot): Flight {
+function createFlight(motion: TileMotion, scene: Scene, target: TileSnapshot): Flight | null {
     const source = motion.source === null ? undefined : scene.before.get(motion.source);
-    const origin = source?.rect ?? centerOrigin(scene.board, target);
+    if (source === undefined) {
+        return null;
+    }
     return {
         board: scene.box,
-        from: origin,
-        fromPose: (source ?? target).pose,
-        fromQuad: source?.quad ?? rectQuad(origin),
+        from: source.rect,
+        fromPose: source.pose,
+        fromQuad: source.quad,
         image: target.image,
         motion,
         target: target.element,
@@ -169,10 +169,12 @@ function hideDestination(target: HTMLElement): void {
 export class BoardMotionPlayer {
     private readonly board: HTMLElement;
     private layer: HTMLElement | null = null;
+    private readonly hold = new TileHoldPlayer();
     private readonly reflow = new TileReflowPlayer();
     private readonly reveal = new TileRevealPlayer();
     private readonly sprites = new Set<RunningSprite>();
     private readonly running = new Map<string, RunningTile>();
+    private discardLandingAt: number | null = null;
 
     constructor(board: HTMLElement) {
         this.board = board;
@@ -191,14 +193,21 @@ export class BoardMotionPlayer {
         const scene: Scene = {
             after: new Map(after.map((tile) => [tile.key, tile])),
             before: this.currentSources(before),
-            board: this.board,
             box,
         };
+        this.hold.cancel();
         this.reconcile(scene.after, plan);
         this.reflow.reconcile(scene.after, plan);
         this.reveal.reconcile(scene.after, plan);
-        for (const motion of plan) {
+        this.playPlan(plan, scene);
+    }
+
+    private playPlan(plan: readonly TileMotion[], scene: Scene): void {
+        for (const motion of plan.filter(({ kind }) => kind !== "hold")) {
             this.playTile(motion, scene);
+        }
+        for (const motion of plan.filter(({ kind }) => kind === "hold")) {
+            this.playHold(motion, scene);
         }
     }
 
@@ -263,7 +272,21 @@ export class BoardMotionPlayer {
             this.playReveal(motion, scene, target);
             return;
         }
-        this.playMove(createFlight(motion, scene, target), target);
+        const flight = createFlight(motion, scene, target);
+        if (flight !== null) {
+            this.playMove(flight, target);
+        }
+    }
+
+    private playHold(motion: TileMotion, scene: Scene): void {
+        const target = scene.after.get(motion.target);
+        if (target === undefined || this.discardLandingAt === null) {
+            return;
+        }
+        const ms = Math.max(0, this.discardLandingAt + BOARD_MOTION.drawHold - performance.now());
+        if (ms > 0) {
+            this.hold.play(motion.target, target.element, ms);
+        }
     }
 
     private playMove(flight: Flight, target: TileSnapshot): void {
@@ -300,60 +323,23 @@ export class BoardMotionPlayer {
         if (motion.kind === "flight") {
             this.playTrail(flight);
         }
-        this.bindTileInput(flight);
-    }
-
-    private bindTileInput(flight: Flight): void {
-        if (!flight.target?.closest("button")) {
-            return;
+        if (motion.kind === "flight" && target.region === "discards") {
+            this.discardLandingAt = performance.now() + motion.delay + BOARD_MOTION.landing;
         }
-        flight.image.style.pointerEvents = "auto";
-        flight.image.addEventListener("pointerdown", (event) => {
-            const control = this.findControl(flight.motion.target);
-            if (control !== null && event.isPrimary && event.button === 0) {
-                control.focus({ preventScroll: true });
-                control.setPointerCapture(event.pointerId);
-            }
-        });
-        flight.image.addEventListener("click", () => {
-            const control = this.findControl(flight.motion.target);
-            if (control === null) {
-                return;
-            }
-            control.focus({ preventScroll: true });
-            control.click();
-        });
-    }
-
-    private findControl(key: string): HTMLButtonElement | null {
-        const active = this.running.get(key);
-        const control = active?.target.closest("button") ?? null;
-        if (control === null || control.closest("[inert]") !== null) {
-            return null;
-        }
-        return control;
     }
 
     prepareRender(): void {
+        this.hold.prepareRender();
         this.reveal.prepareRender();
         this.reflow.prepareRender();
     }
 
     finishRender(): void {
-        if (this.reflow.suspended || this.reveal.suspended) {
+        if (this.reflow.suspended || this.reveal.suspended || this.hold.suspended) {
             const after = new Map(snapshotTiles(this.board).map((tile) => [tile.key, tile]));
             this.reflow.reconcile(after, []);
             this.reveal.reconcile(after, []);
-        }
-        this.refreshFeedback();
-    }
-
-    private refreshFeedback(): void {
-        for (const { key, image } of this.sprites) {
-            const target = this.running.get(key)?.target;
-            if (target?.closest("button")) {
-                refreshTileFeedback(target, image);
-            }
+            this.hold.reconcile(after);
         }
     }
 
@@ -411,6 +397,8 @@ export class BoardMotionPlayer {
     }
 
     cancel(): void {
+        this.hold.cancel();
+        this.discardLandingAt = null;
         this.reveal.cancel();
         this.reflow.cancel();
         this.cancelFlights();

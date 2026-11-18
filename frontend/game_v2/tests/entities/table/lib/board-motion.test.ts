@@ -141,6 +141,24 @@ describe("planTileMotion", () => {
         ]);
     });
 
+    it("holds an opponent's concealed draw in step mode and plans nothing for the viewer's draw or a replay", () => {
+        const own = tile("own");
+        const ownDrawn = tile("own-drawn", { drawn: true, id: "9" });
+        const opponent = tile("right-slot", { concealed: true, id: "", seat: "right" });
+        const opponentDrawn = tile("right-drawn", {
+            concealed: true,
+            drawn: true,
+            id: "",
+            seat: "right",
+        });
+        const before = [own, opponent];
+        const after = [own, ownDrawn, opponent, opponentDrawn];
+        expect(planTileMotion(before, after, "step")).toEqual([
+            { delay: 0, duration: 0, kind: "hold", source: null, target: "right-drawn" },
+        ]);
+        expect(planTileMotion(before, after, "replay")).toEqual([]);
+    });
+
     it("reveals unknown hand slots in order without turning another seat's hidden tiles face up", () => {
         const before = [0, 1].map((index) =>
             tile(`slot-${index}`, { concealed: true, id: "", index }),

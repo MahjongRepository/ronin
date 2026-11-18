@@ -643,11 +643,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   resting size, a 500ms hold, then a 500ms fade-out. In live play it remains until
   then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
-- **Tile motion.** Draws travel from the centre to the separated hand slot and discards from hand to river in
-  120ms, with a faint trail (its copies drawn without a shadow; the tile itself throws one cast shadow, and a
+- **Tile motion.** A draw appears in its separated hand slot without travelling: the viewer's at once, an
+  opponent's in live play 300ms after the preceding discard lands (at once in a replay). Discards travel from hand
+  to river in 120ms, with a faint trail (its copies drawn without a shadow; the tile itself throws one cast shadow, and a
   replay's tsumogiri keeps its shade). The latest discard settles into its river slot in 120ms when its mark ends.
   A travelling tile takes its destination's body at take-off (a discard leaves the hand as the lying
-  river tile, a call into the own melds as the lying own meld tile, a draw flies as the standing body), and keeps it
+  river tile, a call into the own melds as the lying own meld tile), and keeps it
   and its shadow throughout, its size changing continuously from source to destination; landing on the tilted table it flies already in its slot's look
   (the camera's taper and squash), so it lands with no pop. The body
   flies upright on the screen in its slot's orientation, so the light and the edge stay fixed to the screen. Rearranging hands, settling
@@ -663,7 +664,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   Opponents' revealed hands replace their standing backs one tile every 30ms, without a flip; waiting backs stay
   in their native hand slots, retaining the hand's shared shadow and the side hands' gaps. The hand stays
   automatically sorted and keeps its existing hover and selection feedback. Motion never blocks input, delays
-  game state or invents a hidden tile identity; later events preserve unaffected movements. A fresh page,
+  game state or invents a hidden tile identity (an opponent's held draw delays only its picture); later events preserve unaffected movements. A fresh page,
   reconnect, replay jump or viewpoint change shows the requested position immediately. Reduced motion, asked by the
   system or by the settings menu's Animations switch, disables
   tile travel and staged reveals. Match standings fade in over 1.5 seconds and fade away over 250ms when dismissed;

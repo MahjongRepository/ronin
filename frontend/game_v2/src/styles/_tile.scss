@@ -163,11 +163,6 @@ $max-strip-melds: 4;
         }
     }
 
-    &:not(.board-motion__tile--individual) > .tile--standing {
-        --tile-lift: 0 0 transparent;
-    }
-
-    &--individual,
     &--trail {
         filter: none;
     }
