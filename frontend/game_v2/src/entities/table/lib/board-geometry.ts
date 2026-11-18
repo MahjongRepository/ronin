@@ -2823,30 +2823,17 @@ function laneSwitchesRoom(rw: number): number {
 }
 
 /**
- * How far the tilted table leans into the flat pocket, in river tiles: the left strip's far end toward the centre, the
- * left river's top up and the top river's run-on left, measured over the desktop grid with the strips' lanes and the
- * rivers' reserves. Fitted to the camera's 20-degree tilt cap and its distance of two board widths (`DESKTOP_TILTS`,
- * `CAMERA_WIDTHS` in `table-camera.ts`): a steeper cap or a nearer camera leans the tiles farther, past these.
- */
-const POCKET_LEFT_LEAN_AT_20_DEGREE_CAMERA = 1.25;
-const POCKET_BOTTOM_LEAN_AT_20_DEGREE_CAMERA = 0.3;
-const POCKET_RIGHT_LEAN_AT_20_DEGREE_CAMERA = 0.1;
-
-/**
  * A pocket desktop's free upper-left pocket: past the left strip's lane, short of the top river's run-on third row and
- * the centre, below the top strip's foot and above the left river, a plate's gap off each, and in from the left, the
- * bottom and the right by as far as the tilted table leans its tiles into it (px).
+ * the centre, below the top strip's painted foot (its edge included) and above the left river, a plate's gap off each
+ * (px).
  */
 function pocketRect(at: (name: string) => number): BoardRect {
     const rw = at("rw");
     return {
-        bottom: at("cy") - at("h") - PLATE_GAP - POCKET_BOTTOM_LEAN_AT_20_DEGREE_CAMERA * rw,
-        left: at("col-left") + sideLane(rw) + PLATE_GAP + POCKET_LEFT_LEAN_AT_20_DEGREE_CAMERA * rw,
-        right:
-            Math.min(at("reach-top-left"), at("cx") - at("hx")) -
-            PLATE_GAP -
-            POCKET_RIGHT_LEAN_AT_20_DEGREE_CAMERA * rw,
-        top: at("m") + STACKED_DEPTH * LYING_Y_SHARE * rw + PLATE_GAP,
+        bottom: at("cy") - at("h") - PLATE_GAP,
+        left: at("col-left") + sideLane(rw) + PLATE_GAP,
+        right: Math.min(at("reach-top-left"), at("cx") - at("hx")) - PLATE_GAP,
+        top: at("m") + (STACKED_DEPTH * LYING_Y_SHARE + TILE_EDGE_SHARE) * rw + PLATE_GAP,
     };
 }
 

@@ -734,13 +734,10 @@ function pocketEdges(
         return lengths[name] ?? Number.NaN;
     }
     return {
-        bottom: length("cy") - length("h") - 6 - 0.3 * length("rw"),
-        left: length("col-left") + length("strip-depth") + SIDE_LANE_GAP + 6 + 1.25 * length("rw"),
-        right:
-            Math.min(length("reach-top-left"), length("cx") - length("hx")) -
-            6 -
-            0.1 * length("rw"),
-        top: length("m") + length("strip-depth") * LYING_Y_SHARE + 6,
+        bottom: length("cy") - length("h") - 6,
+        left: length("col-left") + length("strip-depth") + SIDE_LANE_GAP + 6,
+        right: Math.min(length("reach-top-left"), length("cx") - length("hx")) - 6,
+        top: length("m") + length("strip-depth") * LYING_Y_SHARE + TILE_EDGE_SHARE * length("rw") + 6,
     };
 }
 
@@ -842,7 +839,7 @@ describe("boardGeometry", () => {
         [2560, 1440, [82, 118, 138.09, 240.6]],
         [1440, 900, [50, 65, 98.83, 131.5]],
         [1280, 800, [44, 60, 89.64, 100]],
-        [800, 600, [32, 44, 58.26, 0.8]],
+        [800, 600, [33, 43, 57.4, 6.1]],
         [960, 1080, [43, 52, 184.73, 0.4]],
         [1100, 1000, [49, 60, 149.96, 0]],
         [1280, 1024, [57, 70, 106.93, 1]],
@@ -903,7 +900,7 @@ describe("boardGeometry", () => {
     it.each([
         { across: 1366, axis: "height", ends: [33, 61] },
         { across: 1920, axis: "height", ends: [33, 73] },
-        { across: 768, axis: "width", ends: [33, 42] },
+        { across: 768, axis: "width", ends: [35, 42] },
         { across: 1080, axis: "width", ends: [35, 61] },
     ])(
         "never shrinks a desktop's river tile as its window grows in $axis from $across across",
