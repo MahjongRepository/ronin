@@ -1,5 +1,6 @@
 import {
     FACE_FLOOR,
+    LYING_Y_SHARE,
     MELD_GAP_EXTRA,
     MELD_GAP_TIGHT,
     OPPONENT_DRAWN_GAP,
@@ -136,11 +137,13 @@ function placeSideMelds(
     return shapes.map((meld, index) => {
         const remaining = shapes.slice(index);
         const along =
-            end - sum(remaining.map((shape) => shape.units)) * tile - (remaining.length - 1) * gap;
+            end -
+            sum(remaining.map((shape) => shape.units)) * LYING_Y_SHARE * tile -
+            (remaining.length - 1) * gap;
         return {
             along,
             depth: meld.depth * tile,
-            end: along + meld.units * tile,
+            end: along + meld.units * LYING_Y_SHARE * tile,
             rise: 0,
             tile,
         };
@@ -212,7 +215,7 @@ function shrunkSideMelds(
 ): Omit<StripLayout, "hand"> {
     const line = Math.min(room.line, room.deepLine);
     const units = sum(shapes.map((shape) => shape.units));
-    const tile = Math.max(0, (line - handEnd - shapes.length * gap) / units);
+    const tile = Math.max(0, (line - handEnd - shapes.length * gap) / (units * LYING_Y_SHARE));
     const melds = placeSideMelds(shapes, { gap, tile }, line);
     return {
         depth: Math.max(UPRIGHT_DEPTH * rw, ...melds.map((meld) => meld.depth)),
@@ -301,7 +304,7 @@ function topMeldLine(content: StripContent, rooms: StripRooms, room: number): Me
     const bounds = content.melds.map(
         (meld, index) =>
             Math.min(top.depth, top.lane - near(index) > 0 ? top.badgeDepth : Infinity) /
-            meld.depth,
+            (meld.depth * LYING_Y_SHARE),
     );
     const handLen = reservedHandLength(content, rw, "top");
     function fit(lineGap: number): number {

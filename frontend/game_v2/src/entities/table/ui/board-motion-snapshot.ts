@@ -1,4 +1,3 @@
-import { OWN_LYING_HEIGHT_SHARE } from "@/entities/table/lib/board-constants";
 import { type MotionRect, type MotionTile } from "@/entities/table/lib/board-motion";
 import {
     type PieceFrame,
@@ -49,10 +48,16 @@ function standingOf(tile: Element): number {
     return tile.classList.contains("tile--standing") ? 1 : 0;
 }
 
+function screenDownShare(tile: HTMLElement, seat: SeatPosition): number {
+    const name = SEAT_TURNS[seat] % 180 === 0 ? "--slot-down-share" : "--slot-across-share";
+    const share = Number.parseFloat(tile.style.getPropertyValue(name));
+    return Number.isFinite(share) ? share : 1;
+}
+
 function capturePose(tile: HTMLElement, rect: MotionRect, seat: SeatPosition): TilePose {
     const angle = SEAT_TURNS[seat] + (isSideways(tile) ? 90 : 0);
     const lying = tile.closest(".board-local .meld") !== null;
-    const unsquashedHeight = lying ? rect.height / OWN_LYING_HEIGHT_SHARE : rect.height;
+    const unsquashedHeight = rect.height / screenDownShare(tile, seat);
     return {
         angle,
         height: angle % 180 === 0 ? unsquashedHeight : rect.width,

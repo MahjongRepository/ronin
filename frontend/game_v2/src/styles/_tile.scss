@@ -29,8 +29,8 @@ $max-strip-melds: 4;
 
     position: relative;
     display: inline-block;
-    width: var(--tile-w);
-    height: calc(var(--tile-w) * 4 / 3);
+    width: calc(var(--tile-w) * var(--slot-across-share, 1));
+    height: calc(var(--tile-w) * 4 / 3 * var(--slot-down-share, 1));
     -webkit-user-select: none;
     user-select: none;
 }
@@ -136,10 +136,6 @@ $max-strip-melds: 4;
     }
 }
 
-.board-local .meld-tile:not(.meld-tile-sideways) > .tile {
-    height: calc(var(--tile-w) * 4 / 3 * var(--own-lying-height-share));
-}
-
 .game-board .board-motion__tile {
     > .tile {
         --tile-w: var(--motion-width);
@@ -147,6 +143,7 @@ $max-strip-melds: 4;
         position: absolute;
         left: 50%;
         top: 50%;
+        width: var(--motion-width);
         height: var(--motion-height);
         margin: 0;
         transform: translate(-50%, -50%) rotate(var(--motion-angle));

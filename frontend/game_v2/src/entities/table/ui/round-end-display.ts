@@ -9,7 +9,7 @@ import {
     formatDelta,
     formatPoints,
 } from "@/entities/table/lib/round-end-display";
-import { Hand, Meld, Tile, type TileFace } from "@/entities/tile";
+import { Hand, Meld, Tile, type TileFace, lyingSlotStyle } from "@/entities/tile";
 import { t } from "@/shared/i18n";
 
 import { PANEL_CONTROL_FOCUS_KEY } from "./focus";
@@ -198,6 +198,7 @@ function NagashiRivers(page: DrawPageDisplay): TemplateResult | typeof nothing {
                 <span class="round-end-result__river-tiles">${river.tiles.map(
                     (tile) =>
                         html`<span class=${tile.riichi === true ? "discard-tile-riichi" : "discard-tile"}
+                            style=${tile.riichi === true ? lyingSlotStyle({}) : nothing}
                             >${Tile(tile.face, "face", { sideways: tile.riichi === true })}</span
                         >`,
                 )}</span>

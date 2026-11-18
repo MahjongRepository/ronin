@@ -17,24 +17,27 @@ const BODY_VIEW_WIDTH = 100;
 const TILE_BOX_ASPECT = 4 / 3;
 const STANDING_OVERHANG = STANDING_BODY.height - TILE_BOX_ASPECT;
 
-const TILE_EDGE_SHARE = 0.2;
+const LYING_TOP_SHARE = 1;
+const LYING_EDGE_SHARE = 0.2;
+const STANDING_BACK_EDGE_SHARE = 0.2;
 
 const LYING_BODY = {
     backLayer: 0.35,
     cornerRadius: 0.07,
-    edge: TILE_EDGE_SHARE,
+    edge: LYING_EDGE_SHARE,
     faceWidth: 0.8,
     litRim: 0.05,
     ownEdge: 0.25,
     ownTopShare: 0.92,
     roll: 0.1,
     shadedRim: 0.08,
+    topShare: LYING_TOP_SHARE,
 } as const;
 
 const STANDING_BACK_BODY = {
     capDepth: 0.37,
     cornerRadius: 0.07,
-    edge: TILE_EDGE_SHARE,
+    edge: STANDING_BACK_EDGE_SHARE,
     litRim: 0.035,
     rise: 0.24,
     shadedRim: 0.055,
@@ -45,7 +48,7 @@ const UPRIGHT_BACK_EDGE = STANDING_BACK_BODY.edge + STANDING_BACK_BODY.rise;
 
 const SIDE_STANDING_BACK_BODY = {
     cornerRadius: 0.07,
-    edge: TILE_EDGE_SHARE,
+    edge: STANDING_BACK_EDGE_SHARE,
     faceShare: 0.58,
     litRim: 0.03,
     roll: 0.045,
@@ -64,7 +67,7 @@ interface LyingBodyShape {
 }
 
 function lyingShape(turned: boolean, own: boolean, material: BodyMaterial): LyingBodyShape {
-    const topShare = own ? LYING_BODY.ownTopShare : 1;
+    const topShare = own ? LYING_BODY.ownTopShare : LYING_BODY.topShare;
     return {
         across: turned ? TILE_BOX_ASPECT : 1,
         edge: own ? LYING_BODY.ownEdge : LYING_BODY.edge,
@@ -211,14 +214,27 @@ interface TileBodyRequest {
     readonly turn: SeatTurn;
 }
 
+interface TileSlot {
+    readonly across: number;
+    readonly down: number;
+}
+
 interface TileBody {
     readonly across: number;
     readonly artTurn: SeatTurn;
     readonly edge: number;
     readonly face: LyingFaceBox | null;
     readonly id: LyingBodyId | StandingBackBodyId;
+    readonly slot: TileSlot;
     readonly top: number;
     readonly uncoveredId: StandingBackBodyId | null;
+}
+
+const STANDING_SLOT: TileSlot = { across: 1, down: 1 };
+
+function lyingSlot(lay: TileLay, turn: SeatTurn): TileSlot {
+    const share = lay === "own" ? LYING_BODY.ownTopShare : LYING_BODY.topShare;
+    return turn % 180 === 0 ? { across: 1, down: share } : { across: share, down: 1 };
 }
 
 function seatTurnOf(degrees: number): SeatTurn {
@@ -257,7 +273,7 @@ function tileBody({ end, lay, material, sideways, turn }: TileBodyRequest): Tile
         const { shown } = STANDING_BACK_BY_TURN[turn];
         const { across, edge, top } = STANDING_BACK_BODIES[id];
         const uncoveredId = id === shown ? null : shown;
-        return { across, artTurn, edge, face: null, id, top, uncoveredId };
+        return { across, artTurn, edge, face: null, id, slot: STANDING_SLOT, top, uncoveredId };
     }
     const id = lyingBodyId(material, lay === "own", artTurn % 180 === 90);
     const shape = LYING_BODIES[id];
@@ -267,6 +283,7 @@ function tileBody({ end, lay, material, sideways, turn }: TileBodyRequest): Tile
         edge: shape.edge,
         face: material === "face" ? lyingFaceBox(shape) : null,
         id,
+        slot: lyingSlot(lay, turn),
         top: shape.top,
         uncoveredId: null,
     };
@@ -289,12 +306,13 @@ export {
     STANDING_BACK_BODIES,
     SIDE_STANDING_BACK_BODY,
     STANDING_BACK_BODY,
+    STANDING_BACK_EDGE_SHARE,
     STANDING_BODY,
     STANDING_OVERHANG,
-    TILE_EDGE_SHARE,
     UPRIGHT_BACK_EDGE,
     faceArtViewBox,
     lyingFaceBox,
+    lyingSlot,
     standingBackSpan,
     standingFaceBox,
     tileBody,
@@ -315,4 +333,5 @@ export type {
     TileBody,
     TileBodyRequest,
     TileLay,
+    TileSlot,
 };

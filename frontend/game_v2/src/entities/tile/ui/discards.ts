@@ -4,7 +4,7 @@ import { RIVER_ROWS, RIVER_ROW_SIZE, type RiverOverflow } from "@/entities/tile/
 import { type SeatTurn } from "@/entities/tile/lib/tile-body";
 import { type TileFace } from "@/entities/tile/lib/tile-utils";
 
-import { Tile } from "./tile";
+import { Tile, lyingSlotStyle } from "./tile";
 
 interface DiscardTile {
     readonly tileId?: number;
@@ -35,6 +35,11 @@ function paintOrder(turn: SeatTurn, { rowsAfter, tilesAfter }: RiverPlace) {
     return nothing;
 }
 
+function riichiSlotStyle(turn: SeatTurn, paint: string | typeof nothing): string {
+    const slot = lyingSlotStyle({ turn });
+    return paint === nothing ? slot : `${paint}; ${slot}`;
+}
+
 /** Render a player's discard pile as rows of six, past three rows as `overflow` says. */
 function Discards(
     tiles: readonly DiscardTile[],
@@ -59,10 +64,11 @@ function Discards(
                         if (t.last) {
                             classes.push("discard-tile--last");
                         }
-                        const paint = paintOrder(turn, {
+                        const order = paintOrder(turn, {
                             rowsAfter: rows.length - 1 - rowIndex,
                             tilesAfter: row.length - 1 - index,
                         });
+                        const paint = t.riichi === true ? riichiSlotStyle(turn, order) : order;
                         return html`<span class="${classes.join(" ")}" style=${paint} data-tile-id=${t.tileId ?? ""} data-tsumogiri=${t.tsumogiri === true}>${Tile(t.face, "face", { sideways: t.riichi === true, turn })}</span>`;
                     })}</span
                 >`,

@@ -93,15 +93,15 @@ $max-melds: 4;
 
     &--right,
     &--left {
-        width: var(--river-across);
-        height: var(--river-along);
+        width: var(--side-river-across);
+        height: var(--side-river-along);
     }
 
     &--right {
         --frame-turn: -90deg;
 
         left: calc(var(--cx) + var(--hx) + var(--g));
-        top: calc(var(--cy) + var(--h) - var(--river-right-lift) - var(--river-along));
+        top: calc(var(--cy) + var(--h) - var(--river-right-lift) - var(--side-river-along));
     }
 
     &--top {
@@ -114,7 +114,7 @@ $max-melds: 4;
     &--left {
         --frame-turn: 90deg;
 
-        left: calc(var(--cx) - var(--hx) - var(--g) - var(--river-across));
+        left: calc(var(--cx) - var(--hx) - var(--g) - var(--side-river-across));
         top: calc(var(--cy) - var(--h));
     }
 }
@@ -127,6 +127,11 @@ $max-melds: 4;
     height: var(--river-across);
     transform-origin: 0 0;
     transform: rotate(var(--frame-turn));
+}
+
+:is(.board-river--right, .board-river--left) > .board-river__frame {
+    width: var(--side-river-along);
+    height: var(--side-river-across);
 }
 
 .board-river--right > .board-river__frame {
@@ -261,6 +266,5 @@ $max-melds: 4;
     > :is(.meld, .meld--source) {
         --board-tile-w: var(--own-meld-w);
         --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
-        --board-tile-down: calc(var(--board-tile-w) * var(--own-lying-height-share));
     }
 }

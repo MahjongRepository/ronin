@@ -1,6 +1,6 @@
 import { SEAT_POSITIONS, type SeatPosition } from "@/entities/table/model/board-types";
 
-import { TILE_ASPECT, TOP_HAND_EDGE_SHARE, UPRIGHT_DEPTH } from "./board-constants";
+import { LYING_Y_SHARE, TILE_ASPECT, TOP_HAND_EDGE_SHARE } from "./board-constants";
 import { type BoardGeometry, type BoardRect } from "./board-geometry";
 import { CALLOUT_SPOTS } from "./callouts";
 
@@ -83,17 +83,19 @@ function tablePieces(plane: BoardGeometry): Record<TablePiece, BoardRect> {
     const [cx, cy, hx, h, gap] = [at("cx"), at("cy"), at("hx"), at("h"), at("g")];
     const along = at("river-along");
     const across = at("river-across");
+    const sideAlong = at("side-river-along");
+    const sideAcross = at("side-river-across");
     const none = rect([0, 0, 0, 0]);
     return {
         centre: rect([cx - hx, cy - h, at("w"), at("c")]),
         dora: rect([at("counters-x"), at("counters-top"), at("counters-w"), at("counters-h")]),
         "river-bottom": rect([cx - hx, cy + h + gap, along, across]),
-        "river-left": rect([cx - hx - gap - across, cy - h, across, along]),
+        "river-left": rect([cx - hx - gap - sideAcross, cy - h, sideAcross, sideAlong]),
         "river-right": rect([
             cx + hx + gap,
-            cy + h - at("river-right-lift") - along,
-            across,
-            along,
+            cy + h - at("river-right-lift") - sideAlong,
+            sideAcross,
+            sideAlong,
         ]),
         "river-top": rect([cx + hx - along, cy - h - at("g-top") - across, along, across]),
         "strip-left": plane.areas["strip-left"] ?? none,
@@ -144,11 +146,12 @@ function calloutSpot(plane: BoardGeometry, seat: SeatPosition): PlanePoint {
     const at = lengthOf(plane);
     const [along, across] = CALLOUT_SPOTS[seat];
     const [cx, cy, hx, h, gap, rw, rh] = ["cx", "cy", "hx", "h", "g", "rw", "rh"].map(at);
+    const [downRw, downRh] = [rw * LYING_Y_SHARE, rh * LYING_Y_SHARE];
     const spots: Readonly<Record<SeatPosition, PlanePoint>> = {
-        bottom: { left: cx - hx + along * rw, top: cy + h + gap + across * rh },
-        left: { left: cx - hx - gap - across * rh, top: cy - h + along * rw },
-        right: { left: cx + hx + gap + across * rh, top: cy + h - along * rw },
-        top: { left: cx + hx - along * rw, top: cy - h - at("g-top") - across * rh },
+        bottom: { left: cx - hx + along * rw, top: cy + h + gap + across * downRh },
+        left: { left: cx - hx - gap - across * rh, top: cy - h + along * downRw },
+        right: { left: cx + hx + gap + across * rh, top: cy + h - along * downRw },
+        top: { left: cx + hx - along * rw, top: cy - h - at("g-top") - across * downRh },
     };
     return spots[seat];
 }
@@ -194,7 +197,7 @@ function pieceTransform(view: TableView): string {
 const TOP_BACK_SHOWN_ASPECT = 1.52;
 
 function topHandValues(view: TableView): [string, string][] {
-    const depth = UPRIGHT_DEPTH + TOP_HAND_EDGE_SHARE;
+    const depth = TILE_ASPECT + TOP_HAND_EDGE_SHARE;
     const foot = depth * (view.plane.lengths["rw"] ?? 0);
     const concealedDown = Math.min(1, TOP_BACK_SHOWN_ASPECT / depth);
     function standingOnFoot(down: number): string {
@@ -243,7 +246,7 @@ function shownReach(
     const flat = view.pieces[piece];
     const sideways = (TILE_ASPECT - 1) * (view.plane.lengths["rw"] ?? 0);
     if (piece === "river-right") {
-        return { ...flat, top: flat.top - sideways };
+        return { ...flat, top: flat.top - sideways * LYING_Y_SHARE };
     }
     if (piece === "river-top") {
         return { ...flat, left: flat.left - sideways };

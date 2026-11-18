@@ -43,18 +43,18 @@
 
     .meld-tile-sideways,
     .discard-tile-riichi {
-        width: var(--board-tile-h);
-        height: var(--board-tile-down, var(--board-tile-w));
+        width: calc(var(--board-tile-h) * var(--slot-across-share, 1));
+        height: calc(var(--board-tile-w) * var(--slot-down-share, 1));
     }
 
     /* An added kan's added tile lies on its called tile on the centre-facing side, the two one column. */
     .meld-tile-stacked {
-        width: var(--board-tile-h);
-        height: calc(var(--board-tile-down, var(--board-tile-w)) * 2);
+        width: calc(var(--board-tile-h) * var(--slot-across-share, 1));
+        height: calc(var(--board-tile-w) * var(--slot-down-share, 1) * 2);
     }
 
     .meld-tile-stacked .meld-tile-stacked-top {
-        bottom: var(--board-tile-down, var(--board-tile-w));
+        bottom: calc(var(--board-tile-w) * var(--slot-down-share, 1));
     }
 
     /* The latest discard lies a little apart from the tile before it and the row above, as a tile just thrown does;

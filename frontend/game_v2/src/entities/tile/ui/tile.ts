@@ -10,7 +10,9 @@ import {
     type StandingBackEnd,
     type TileBody,
     type TileLay,
+    type TileSlot,
     faceArtViewBox,
+    lyingSlot,
     standingFaceBox,
     tileBody,
 } from "@/entities/tile/lib/tile-body";
@@ -152,7 +154,16 @@ function bodyStyle(body: TileBody, layout: TileLayout): string {
         `--body-top: ${roundShare(body.top)}`,
         `--body-down: ${roundShare(body.top + body.edge)}`,
         `--body-turn: ${-(layout.turn ?? 0)}deg`,
+        slotStyle(body.slot),
     ].join("; ");
+}
+
+function slotStyle({ across, down }: TileSlot): string {
+    return `--slot-across-share: ${roundShare(across)}; --slot-down-share: ${roundShare(down)}`;
+}
+
+function lyingSlotStyle(layout: TileLayout): string {
+    return slotStyle(lyingSlot(layout.lay ?? "lying", layout.turn ?? 0));
 }
 
 function roundShare(share: number): string {
@@ -256,5 +267,5 @@ function StandingTile(face: TileFace, labels: WindScript | null = pageTileLabels
     return html`<span class="tile tile--standing">${svg`<svg viewBox="0 0 ${BODY_VIEW_WIDTH} ${BODY_VIEW_HEIGHT}" aria-label="${spokenTileName(face)}"><use href="#body-standing" width="${BODY_VIEW_WIDTH}" height="${BODY_VIEW_HEIGHT}"/><svg class="tile__face" x="0" y="0" width="${BODY_VIEW_WIDTH}" height="${BODY_VIEW_HEIGHT}" viewBox="${viewBoxOf(spread.viewBox)}" preserveAspectRatio="none">${FaceArt(face, view, { labels, room: spread.labelRoom })}</svg></svg>`}</span>`;
 }
 
-export { StandingTile, Tile, TileBack, injectTileBodies, injectTileSprite };
+export { StandingTile, Tile, TileBack, injectTileBodies, injectTileSprite, lyingSlotStyle };
 export type { TileLayout, TileOptions };

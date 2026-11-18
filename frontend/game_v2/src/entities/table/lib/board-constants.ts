@@ -1,7 +1,15 @@
-import { LYING_BODY, RIVER_ROWS, UPRIGHT_BACK_EDGE } from "@/entities/tile";
+import {
+    LYING_BODY,
+    RIVER_ROWS,
+    STANDING_BACK_EDGE_SHARE,
+    UPRIGHT_BACK_EDGE,
+} from "@/entities/tile";
 
 /** A tile's height to its width. */
 const TILE_ASPECT = 4 / 3;
+
+const LYING_X_SHARE = 1;
+const LYING_Y_SHARE = LYING_BODY.topShare;
 
 /** How deep a laid meld stands, in its tiles' widths: an added kan's stack two tiles, any other meld a tile's height. */
 const STACKED_DEPTH = 2;
@@ -29,6 +37,7 @@ const OWN_LYING_EDGE_SHARE = LYING_BODY.ownEdge;
 
 /** How far the top hand's standing backs reach below their boxes, in shares of their width: their edge and rise. */
 const TOP_HAND_EDGE_SHARE = UPRIGHT_BACK_EDGE;
+const TOP_HAND_BACK_EDGE_SHARE = STANDING_BACK_EDGE_SHARE;
 
 /** No meld face goes under this width (px). */
 const FACE_FLOOR = 13;
@@ -51,14 +60,14 @@ const MELD_GAP_EXTRA = 2;
 const SIDE_DRAWN_GAP = OPPONENT_DRAWN_GAP + TILE_EDGE_SHARE;
 
 /** The core's height past the centre, in river tiles: a gap and a top or bottom river's rows on each side. */
-const CORE_TILES = 2 * (RIVER_GAP_SHARE + RIVER_ROWS["run-on"] * TILE_ASPECT);
+const CORE_TILES = 2 * (RIVER_GAP_SHARE + RIVER_ROWS["run-on"] * TILE_ASPECT * LYING_Y_SHARE);
 
 /** What the side rivers' rows take of the board's width beside the centre, in river tiles. */
 const SIDE_REACH_TILES = 2 * RIVER_ROWS.wrap * TILE_ASPECT;
 
 /** A top or bottom river reserves twenty discards: two rows of six and a third of eight, one sideways. */
 const RESERVED_THIRD_ROW = 8;
-const ROWS_BEFORE_RUN_ON = (RIVER_ROWS["run-on"] - 1) * TILE_ASPECT;
+const ROWS_BEFORE_RUN_ON = (RIVER_ROWS["run-on"] - 1) * TILE_ASPECT * LYING_Y_SHARE;
 const RUN_ON_REACH_TILES = RESERVED_THIRD_ROW - 1 + TILE_ASPECT;
 
 /** The latest discard's gap from the tile before it and the row above (px), across the light; along it, the geometry
@@ -256,6 +265,8 @@ export {
     LARGE_CHROME_HEIGHT,
     LARGE_CHROME_WIDTH,
     LATEST_DISCARD_GAP,
+    LYING_X_SHARE,
+    LYING_Y_SHARE,
     MELD_GAP_EXTRA,
     MELD_GAP_TIGHT,
     MENU_MAX,
@@ -298,6 +309,7 @@ export {
     TILE_EDGE_SHARE,
     TILE_UNITS,
     TOP_HAND_AIR,
+    TOP_HAND_BACK_EDGE_SHARE,
     TOP_HAND_EDGE_SHARE,
     TOP_HAND_GAP,
     UPRIGHT_DEPTH,

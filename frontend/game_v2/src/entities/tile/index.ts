@@ -1,6 +1,14 @@
-export { StandingTile, Tile, TileBack, injectTileBodies, injectTileSprite } from "./ui/tile";
+export {
+    StandingTile,
+    Tile,
+    TileBack,
+    injectTileBodies,
+    injectTileSprite,
+    lyingSlotStyle,
+} from "./ui/tile";
 export {
     LYING_BODY,
+    STANDING_BACK_EDGE_SHARE,
     STANDING_BODY,
     STANDING_OVERHANG,
     UPRIGHT_BACK_EDGE,

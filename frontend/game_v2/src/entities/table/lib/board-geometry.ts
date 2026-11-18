@@ -11,6 +11,8 @@ import {
     LARGE_CHROME_HEIGHT,
     LARGE_CHROME_WIDTH,
     LATEST_DISCARD_GAP,
+    LYING_X_SHARE,
+    LYING_Y_SHARE,
     MELD_GAP_EXTRA,
     MELD_GAP_TIGHT,
     MENU_MAX,
@@ -50,6 +52,7 @@ import {
     TILE_EDGE_SHARE,
     TOP_CORE_CLEAR,
     TOP_HAND_AIR,
+    TOP_HAND_BACK_EDGE_SHARE,
     TOP_HAND_GAP,
     type TierChrome,
     UPRIGHT_DEPTH,
@@ -133,7 +136,7 @@ const HAND_TILES = 14;
  */
 const DESKTOP_STACK_TILES =
     TILE_ASPECT +
-    TILE_EDGE_SHARE +
+    TOP_HAND_BACK_EDGE_SHARE +
     TOP_HAND_GAP +
     CORE_TILES +
     2 * (DESKTOP_RIVER_GAP_SHARE - RIVER_GAP_SHARE) +
@@ -249,10 +252,10 @@ const ORDINARY_PONS = 3;
  * A side hand with `count` open melds of `upright` tiles at the face floor beside its remaining tiles, `gap` apart, along
  * its line (px).
  */
-function meldsReach(rw: number, { count, floor, gap, upright }: MeldsLine): number {
+function meldsReach(rw: number, { count, floor, gap, share, upright }: MeldsLine): number {
     return (
         handLength({ drawn: true, rw, seat: "left", tiles: HAND_TILES - 3 * count }) +
-        count * (gap + (upright + SIDEWAYS_UNITS) * (floor ?? FACE_FLOOR))
+        count * (gap + (upright + SIDEWAYS_UNITS) * share * (floor ?? FACE_FLOOR))
     );
 }
 
@@ -261,10 +264,15 @@ interface MeldsLine {
     readonly floor?: number;
     readonly upright: number;
     readonly gap: number;
+    readonly share: number;
 }
 
-function kansReach(rw: number, count: number, floor?: number): number {
-    return meldsReach(rw, { count, floor, gap: riverGap(rw) + MELD_GAP_EXTRA, upright: 3 });
+function kansReach(
+    rw: number,
+    count: number,
+    line: Omit<MeldsLine, "count" | "gap" | "upright">,
+): number {
+    return meldsReach(rw, { ...line, count, gap: riverGap(rw) + MELD_GAP_EXTRA, upright: 3 });
 }
 
 function ponsReach(rw: number, floor?: number): number {
@@ -272,6 +280,7 @@ function ponsReach(rw: number, floor?: number): number {
         count: ORDINARY_PONS,
         floor,
         gap: riverGap(rw) + MELD_GAP_EXTRA,
+        share: LYING_Y_SHARE,
         upright: 2,
     });
 }
@@ -283,14 +292,24 @@ function ponsReach(rw: number, floor?: number): number {
 const PHONE_LINE_KANS = 3;
 
 function tightKansReach(rw: number, floor?: number): number {
-    return meldsReach(rw, { count: PHONE_LINE_KANS, floor, gap: MELD_GAP_TIGHT, upright: 3 });
+    return meldsReach(rw, {
+        count: PHONE_LINE_KANS,
+        floor,
+        gap: MELD_GAP_TIGHT,
+        share: LYING_Y_SHARE,
+        upright: 3,
+    });
 }
 
 /** A side strip reserves one line even for four open kans at the meld face floor. */
 function sideStripReach(rw: number, floor?: number): number {
+    return kansLineReach(rw, { floor, share: LYING_Y_SHARE });
+}
+
+function kansLineReach(rw: number, line: Omit<MeldsLine, "count" | "gap" | "upright">): number {
     return Math.max(
         fullReach(rw, "left"),
-        ...RESERVED_KANS.map((count) => kansReach(rw, count, floor)),
+        ...RESERVED_KANS.map((count) => kansReach(rw, count, line)),
     );
 }
 
@@ -416,10 +435,12 @@ function coreLengths(
         ["reach-top-left", cx + hx - runOnReach],
         ["reach-top-row3", cy - height / 2 - topGap - ROWS_BEFORE_RUN_ON * rw],
         ["rh", rw * TILE_ASPECT],
-        ["river-across", RIVER_ROWS["run-on"] * rw * TILE_ASPECT],
-        ["river-along", RIVER_ROW_SIZE * rw],
+        ["river-across", RIVER_ROWS["run-on"] * rw * TILE_ASPECT * LYING_Y_SHARE],
+        ["river-along", RIVER_ROW_SIZE * rw * LYING_X_SHARE],
         ["river-right-lift", rightLift],
         ["rw", rw],
+        ["side-river-across", RIVER_ROWS["run-on"] * rw * TILE_ASPECT * LYING_X_SHARE],
+        ["side-river-along", RIVER_ROW_SIZE * rw * LYING_Y_SHARE],
         ["w", width],
     ];
 }
@@ -790,7 +811,7 @@ function desktopAt(
     const topGap = gap + edge;
     const aboveCentre = drop + riverRows(rw, topGap);
     const core = aboveCentre + centreHeight + drop + riverRows(rw, gap);
-    const coreRoomTop = rh + TILE_EDGE_SHARE * rw + TOP_HAND_GAP * rw;
+    const coreRoomTop = rh + TOP_HAND_BACK_EDGE_SHARE * rw + TOP_HAND_GAP * rw;
     const slack = handTop - ownMeldRise - edge - coreRoomTop - core;
     const spareAbove: Readonly<Record<PlaneSpare | "flat", number>> = {
         "around-core": slack / 2,
@@ -885,8 +906,8 @@ function desktopAt(
 function leftRiverReach(rw: number, drop: number): number {
     return (
         -(DESKTOP_CENTRE_TILES / 2) * rw +
-        ROW_BEFORE_SIDEWAYS * rw +
-        rw * TILE_ASPECT +
+        ROW_BEFORE_SIDEWAYS * LYING_Y_SHARE * rw +
+        rw * TILE_ASPECT * LYING_Y_SHARE +
         drop +
         TILE_EDGE_SHARE * rw
     );
@@ -1001,7 +1022,8 @@ function phoneColumn(
 ): Readonly<Record<"left" | "right", number>> {
     const lane = sideLane(rw);
     const core = centreWidth + 2 * sideRiverReach(rw, riverGap(rw));
-    const topKans = 2 * (sideStripReach(rw) - fullReach(rw, "top") / 2 + lane);
+    const topKans =
+        2 * (kansLineReach(rw, { share: LYING_X_SHARE }) - fullReach(rw, "top") / 2 + lane);
     const columnWidth = Math.max(
         TABLE_COLUMN_TILES * rw,
         core + 2 * (lane + PLATE_GAP),
@@ -1153,16 +1175,16 @@ function plateRect(at: (name: string) => number, pillH: number, rowLimit: number
     const leftRiverEnd =
         cy -
         at("h") +
-        ROW_BEFORE_SIDEWAYS * rw +
-        at("rh") +
+        ROW_BEFORE_SIDEWAYS * LYING_Y_SHARE * rw +
+        at("rh") * LYING_Y_SHARE +
         at("latest-drop-gap") +
         TILE_EDGE_SHARE * rw;
     const rightRiverTop =
         cy +
         at("h") -
         at("river-right-lift") -
-        ROW_BEFORE_SIDEWAYS * rw -
-        at("rh") -
+        ROW_BEFORE_SIDEWAYS * LYING_Y_SHARE * rw -
+        at("rh") * LYING_Y_SHARE -
         at("latest-drop-gap");
     const leftLimit = Math.min(at("reach-top-left"), cx - at("hx")) - PLATE_GAP;
     const rightLimit = Math.max(at("reach-bottom-right"), cx + at("hx")) + PLATE_GAP;
@@ -1765,7 +1787,11 @@ function phoneActions(at: (name: string) => number): BoardRect {
     const lane = sideLane(rw);
     const bottom = at("hand-top") - at("own-meld-rise") - PHONE_BAND_OVER_OWN_ROW;
     const leftRiverEnd =
-        at("cy") - at("h") + ROW_BEFORE_SIDEWAYS * rw + at("rh") + at("latest-drop-gap");
+        at("cy") -
+        at("h") +
+        ROW_BEFORE_SIDEWAYS * LYING_Y_SHARE * rw +
+        at("rh") * LYING_Y_SHARE +
+        at("latest-drop-gap");
     return {
         bottom,
         left:
@@ -1843,7 +1869,7 @@ function opponentStrips(
                 top: rightStart,
             },
             "strip-top": {
-                bottom: m + STACKED_DEPTH * rw,
+                bottom: m + STACKED_DEPTH * LYING_Y_SHARE * rw,
                 left: top.start,
                 right: top.anchor,
                 top: m,
@@ -2616,7 +2642,7 @@ function countersAt(dora: number): Counters {
     const pad = COUNTERS_PAD_BY_DORA * dora;
     return {
         dora,
-        height: 2 * pad + dora * TILE_ASPECT + TILE_EDGE_SHARE * dora,
+        height: 2 * pad + dora * TILE_ASPECT * LYING_Y_SHARE + TILE_EDGE_SHARE * dora,
         pad,
         radius: COUNTERS_RADIUS_BY_DORA * dora,
         width: 2 * pad + DORA_SLOTS * dora,
@@ -2795,7 +2821,7 @@ function pocketRect(at: (name: string) => number): BoardRect {
             Math.min(at("reach-top-left"), at("cx") - at("hx")) -
             PLATE_GAP -
             POCKET_RIGHT_LEAN_AT_20_DEGREE_CAMERA * rw,
-        top: at("m") + STACKED_DEPTH * rw + PLATE_GAP,
+        top: at("m") + STACKED_DEPTH * LYING_Y_SHARE * rw + PLATE_GAP,
     };
 }
 
