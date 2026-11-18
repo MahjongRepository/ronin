@@ -96,36 +96,22 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   shorter of the two; the round and counts follow `--c` within the room `--w` leaves. The geometry fits the centre and the rivers together, at the spec's minimums (Proportions).
 - Lengths CSS computes are registered with `@property` (`<length>`), so each computes once to pixels; an
   unregistered chain grows with every reference until a browser drops the declaration. A bridged length is px already.
-- **The tilted pieces.** `.board-surface`, inside `.board-table`, as tall as the board and standing at its top, holds
-  the rivers, the centre, the opponents' strips and the counters; each takes the `matrix3d()` `tableView`
-  (`entities/table/lib/table-camera.ts`) emits for it (`--geo-camera-*`, the piece's move on the plane, then the one
-  camera's homography) from its top left corner (the counters take an upright `matrix()`, a desktop's from their tilted far edge, a phone's at their flat corner), and the plane's lengths, which the directive writes on the surface itself,
-  so inside it every `--geo-*` is the plane's. TS owns the projection, so the flat overlays (`--geo-shown-*`: the
-  plates, calls and the felt's seams) and the checks land exactly on what the browser paints. The surface makes no
-  stacking context and clips nothing; the rivers' shared edge filter stays on the unturned `.board-rivers`. Its
-  full-board layers (the surface, the rivers, the strips) pass the pointer through, so the plates under them take
-  presses; a piece that takes the pointer opts back in (the centre, each strip). Firefox
-  paints the edges inside a flat `matrix3d` piece unsmoothed, so the seams between river tiles step 1px at a time; a
-  river there takes a neutral `blur(0.01px)` on its own host, above its turned frame, which sends it through a path
-  that smooths them. `preserve-3d` smooths them too but makes Firefox drop the shared shadow around a tile hidden as
-  it is laid, so it is not used. iOS Safari leaves a tilted layer's outer edges unsmoothed, so a tile edge on a
-  piece's box steps a pixel at a time; every `matrix3d` piece (rivers, opponents' strips) and each motion flight
-  therefore stands in a transparent `$tilted-piece-edge-gutter` border, a piece's offset by a negative margin and its
-  `transform-origin` at the border's inner corner, so the camera still acts from the inner box's corner, which motion
-  snapshots read through `clientLeft`/`clientTop`. The gate
-  measures laid sizes and floors with the pieces' transforms off (`measurePlane`) and the shown faces and gaps with
-  them on.
-- **The top hand stands off the plane.** The top seat's hand is not in its strip's tilted piece but in a sibling host,
+- **The table's pieces are flat.** `.board-surface`, inside `.board-table`, as tall as the board and standing at its
+  top, holds the rivers, the centre, the opponents' strips and the counters; each takes the transform `tableView`
+  (`entities/table/lib/table-camera.ts`) emits for it (`--geo-camera-*`) from its top left corner, which only moves it
+  to the table's top, and the lengths the directive writes on the surface itself. So every piece is shown as laid: the
+  overlays (`--geo-shown-*`: the plates, calls and the felt's seams), motion snapshots and the checks read the boxes the
+  browser paints, with no projection to take back. The view seam is a deferred no-op: a piece's transform stays one
+  static value per resize, never per frame. The surface makes no stacking context and clips nothing. Its full-board
+  layers (the surface, the rivers, the strips) pass the pointer through, so the plates under them take presses; a
+  piece that takes the pointer opts back in (the centre, each strip).
+- **The top hand stands in its own host.** The top seat's hand is not in its strip's piece but in a sibling host,
   `.board-strip--top-hand`, on the same grid area with the same turned frame, taking a flat `matrix()`
-  (`--geo-camera-top-hand`) that stands its foot where the strip's camera shows it, so its tiles stand upright
-  instead of leaning with the perspective. Its height follows the camera only up to a fixed shown aspect
-  of the back, so a steep camera never stretches the backs; a revealed hand (`.board-strip--revealed`) takes
-  `--geo-camera-top-hand-revealed`, the same foot and width with its owner's edge where the camera shows it, since its
-  faces lie on the table. The host stays an unturned child of the
-  strips' wrapper (`.board-strips`, a grid of the surface's tracks) with no `matrix3d` above it: the wrapper casts its
-  shadow with the strips', motion snapshots read its tiles as
-  their boxes, and `measurePlane`'s reset covers it. Nesting it in the tilted strip would turn its shadow with the
-  frame and give snapshots a false taper.
+  (`--geo-camera-top-hand`) that stands it on its foot and caps a back's shown height at a fixed aspect; a revealed
+  hand (`.board-strip--revealed`) takes `--geo-camera-top-hand-revealed`, uncapped, since its faces lie on the table.
+  The host stays an unturned child of the strips' wrapper (`.board-strips`, a grid of the surface's tracks): the
+  wrapper casts its shadow with the strips' and motion snapshots read its tiles as their boxes. Nesting it in the
+  strip's turned frame would turn its shadow with the frame.
 - **Layout measurements**: the board's geometry directive and the notices' clamp. Motion snapshots only measure
   existing tile positions for temporary copies; they never feed the layout solve. A choice between placements is
   made in TS, never with a length switch (`clamp(0px, x * 1000, 1px)` as a 0/1 boolean) or a `9999px` sentinel;
@@ -181,14 +167,19 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   phone's board) and the safe insets as registered lengths, which the directive reads in px with the padding the page
   applies, so the classification never depends on a phone's own bottom edge; a gutter change it finds
   while the observer delivers (into or out of a phone) waits a frame, since it resizes the observed board.
-- Every tile's box is `_tile.scss`'s; each region sets `--board-tile-w`. Its material is a generated body
-  (`entities/tile/lib/tile-body.ts`): `Tile` and `TileBack` pick it from the tile's lay and its seat's turn
-  (`tileBody`), draw it as an `<svg>` centred on the 4:3 box with its edge running past the box toward the screen's
-  bottom, and turn it back by the seat's frame turn (`--body-turn`), so a body is always drawn upright on the
-  screen. The own hand's standing face tiles draw `StandingTile`'s standing body instead: their 4:3 box stays the
-  layout and tap target, the body running past its bottom (no pointer events), the focus ring on the body. A sideways
-  tile (a called meld tile, a riichi discard) is an unturned box as long as a tile is tall: a turned box of a
-  fractional size paints off its layout box, below its row's baseline.
+- Every tile's box is `_tile.scss`'s base `.tile` rule; each region sets `--board-tile-w`. A lying tile's box is its
+  slot, and its slot is its face: foreshortened along the screen's y axis by the per-axis shares its component sets
+  inline (`--slot-across-share`, `--slot-down-share`, the share on whichever axis of the seat's frame maps to the
+  screen's y), never by a board custom property, so a lying tile off the board (a result, a decision chip, a storybook)
+  is the board's. Its material is a generated body (`entities/tile/lib/tile-body.ts`): `Tile` and `TileBack` pick it
+  from the tile's lay and its seat's turn (`tileBody`), draw it as an `<svg>` on the slot with its edge running past
+  the slot toward the screen's bottom, and turn it back by the seat's frame turn (`--body-turn`), so a body is always
+  drawn upright on the screen. The edge is never part of the slot: tiles in a row overlap far to near, the nearer face
+  covering the edge they share, so the geometry reserves an edge only where one is exposed (an incomplete row's end,
+  the latest discard held apart). The own hand's standing face tiles draw `StandingTile`'s standing body instead:
+  their 4:3 box stays the layout and tap target, the body running past its bottom (no pointer events), the focus ring
+  on the body. A sideways tile (a called meld tile, a riichi discard) is an unturned box as long as a tile is tall: a
+  turned box of a fractional size paints off its layout box, below its row's baseline.
 - **Paint order replaces masks.** A body nearer the screen's bottom paints over the edge of the one above it. Where
   DOM order runs up the screen the components set the slots' `z-index` from the seat's turn (the top river's rows,
   the right river's and the right strip's lines); an added kan renders its two tiles in paint order; the right
@@ -200,8 +191,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   Marking the whole hand would draw every covered end for the slide.
 - **One cast shadow per group.** Tiles lying together cast one drop shadow from an unturned ancestor: the rivers'
   from `.board-rivers`, the opponents' from `.board-strips`, never from a turned frame (Firefox on macOS draws a
-  filter inside one unturned and clipped to its box) nor from a `matrix3d` piece (Chrome rasterizes a filtered 3D
-  piece at 1x, blurring it on a 2x screen). A tile alone casts its own; a hand that takes input
+  filter inside one unturned and clipped to its box) nor from a piece the view seam transforms (Chrome rasterizes a
+  filtered `matrix3d` piece at 1x, blurring it on a 2x screen). A tile alone casts its own; a hand that takes input
   casts one per button. Flying tiles are shadowless ghost copies of their destination, its body, size and
   turn set once on the image (`--motion-*`), upright on the screen; only their `translate` animates. Native reflow
   stays inside its original group; a hand slot's reflow animates `translate` alone, never `transform`, because the own

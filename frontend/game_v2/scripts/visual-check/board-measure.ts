@@ -109,8 +109,6 @@ export interface BoardMeasure {
      */
     readonly tileScale: {
         readonly river: number | null;
-        /** The river tile as the camera shows it across the core's middle: the laid tile times the centre's shown share. */
-        readonly shownRiver: number | null;
         readonly hands: readonly number[];
         readonly own: number | null;
     };
@@ -118,19 +116,10 @@ export interface BoardMeasure {
     /** The centre's corners as the table's camera shows them, clockwise from its top left. */
     readonly centerQuad: readonly Point[] | null;
     readonly opponentFaces: readonly Box[];
-    /** The table's pieces as laid, before the camera tilts them: the spec's proportions and floors hold here. */
-    readonly plane: PlaneMeasure;
     /** The share of a lying tile's width its edge reaches below its face, as the board's geometry writes it. */
     readonly edgeShare: number;
     /** The page's corner on the board: the settings cog, which a panel over the board may cover. */
     readonly menu: readonly Box[];
-}
-
-export interface PlaneMeasure {
-    readonly center: Box | null;
-    readonly riverTiles: readonly GroupedBox[];
-    readonly settledRiverTiles: readonly GroupedBox[];
-    readonly opponentFaces: readonly Box[];
 }
 
 export function measureBoard(page: Page): Promise<BoardMeasure> {
@@ -238,22 +227,6 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                 return { left: rect.left + window.scrollX, top: rect.top + window.scrollY };
             });
         }
-        function shownRiverTile(tile: HTMLElement | null, center: Element | null): number | null {
-            if (tile === null || !(center instanceof HTMLElement) || center.offsetWidth === 0) {
-                return null;
-            }
-            const [topLeft, topRight, bottomRight, bottomLeft] = cornersOf(center);
-            if (
-                topLeft === undefined ||
-                topRight === undefined ||
-                bottomRight === undefined ||
-                bottomLeft === undefined
-            ) {
-                return null;
-            }
-            const middle = (topRight.left - topLeft.left + bottomRight.left - bottomLeft.left) / 2;
-            return (tileWidth(tile) * middle) / center.offsetWidth;
-        }
         // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
         function tileWidth(tile: HTMLElement): number {
             const share = Number.parseFloat(tile.style.getPropertyValue("--slot-across-share"));
@@ -268,27 +241,6 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             const tiles = bySeat(within, ".board-river .tile", ".board-river");
             resting.remove();
             return tiles;
-        }
-        function measurePlane(within: Element): PlaneMeasure {
-            const flat = document.createElement("style");
-            flat.textContent =
-                ".board-surface > *, .board-surface > :is(.board-rivers, .board-strips) > * { transform: none !important; }";
-            document.head.append(flat);
-            const center = within.querySelector(".board-center");
-            const plane = {
-                center: center === null ? null : box(center),
-                opponentFaces: [
-                    ...within.querySelectorAll(".board-strip .tile:not(.tile-back)"),
-                ].map(box),
-                riverTiles: bySeat(within, ".board-river .tile", ".board-river"),
-                settledRiverTiles: bySeat(
-                    within,
-                    ".board-river :not(.discard-tile--last) > .tile",
-                    ".board-river",
-                ),
-            };
-            flat.remove();
-            return plane;
         }
         const decisionActions = [
             ...board.querySelectorAll(".board-actions .decision-controls__action"),
@@ -388,7 +340,6 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             ].map(tileWidth),
             own: ownWidths.length === 0 ? null : Math.max(...ownWidths),
             river: riverTile === null ? null : tileWidth(riverTile),
-            shownRiver: shownRiverTile(riverTile, centerElement),
         };
         const cutNames = [...board.querySelectorAll(".nameplate .player-name")]
             .filter((name) => {
@@ -492,7 +443,6 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                               width: overlay.scrollWidth,
                           },
                       },
-            plane: measurePlane(board),
             platePills: bySeat(board, ".nameplate__pill", ".nameplate").filter(
                 ({ box: part }) => part.width > 0 && part.height > 0,
             ),

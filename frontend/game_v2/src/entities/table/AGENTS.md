@@ -53,22 +53,19 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   Such a desktop drops its bars where the table holds their controls over it (`DesktopArrangement`: the left lane's
   foot, `corner`, or the pocket over the left river, `pocket`), its own tile then from the whole width; barless plans
   come last at each river tile, the corner's before the pocket's, so a board the bars fit never loses them. The
-  shortened table's re-lay keeps the arrangement its full height chose and that arrangement's fit, and a desktop
-  camera's plane takes the flat board's arrangement (`BoardGeometry.arrangement`), never its own. Off a phone the own row stands between the side strips' lanes, the table as
+  shortened table's re-lay keeps the arrangement its full height chose and that arrangement's fit. Off a phone the own row stands between the side strips' lanes, the table as
   wide as it and them: no opponent's tile, an added kan's stack included, ever stands over the own hand. `lib/strip-layout.ts`'s `stripLayout` lays out a strip's melds in those rooms from what it holds, which
   `sizeBoard` takes beside the slots and never hands `boardGeometry`. Every seat's melds stay in one line toward their owner's
   right, oldest at the far end. The geometry reserves enough length for four kans (a phone's as much of that line as its box
   holds; `stripLayout` closes a denser seat's gaps at the face floor to hold it, else shrinks its melds under the floor to end on the line, never past it) and supplies reserved footprints;
   the content layout scales ordered melds together without moving the hand or controls. GameBoard never binds `style` on its root, which
   would clear what `sizeBoard` wrote.
-- The table's camera is `lib/table-camera.ts`'s `tableView`, a function of the board's input and its flat geometry: it
-  lays the table out again for the camera (`planeGeometry`, a deeper box at the flat own tile, its river tile found by
-  halving), finds that box's depth by rounds until the plane's own row's top holds still (`converged`), and takes the
-  steepest tilt that settles and keeps the spec's bands, floors and clearances, else the flat board. The flat geometry
-  stays the own row's, the controls' and the layout's; the plane only places the tilted pieces, each moved across or
-  along the plane (its shift, never a per-frame change) where the camera would bring it nearer a neighbour or the board's
-  edge than the flat board keeps it. The centre, whose text changes every turn, is drawn flat: a 2D parallelogram inside its
-  shown quad, since macOS Firefox repaints text under a perspective `matrix3d` only in part.
+- The board has no camera: every piece is shown where the flat geometry lays it, moved only to the table's top, and
+  depth is the tiles' own (lying bodies foreshortened along the screen's y axis, their edge toward the screen's bottom,
+  one shadow per group). `lib/table-camera.ts`'s `tableView` is that view of the geometry, and its seam
+  (`boardViewValues`, `surfaceViewValues`: the pieces' `--geo-camera-*` transforms, the `--geo-shown-*` anchors of the
+  plates, calls and felt seams) is a deferred no-op kept for a later camera: the overlays still take their places from
+  it, never from the geometry's lengths, and a top row plate's raise clear of the core is computed there.
 - `model/replay-file.ts` refuses a file whose version is not `REPLAY_VERSION` and reports a bad or live-only line,
   never skipping it into a recording that looks whole.
 - Replay storage is concatenated MessagePack records, decoded only through the lazy replay route. The numeric metadata registry mirrors Python; the shared golden pins both registries.  A damaged record stops playback at its preceding readable prefix and names its record position.

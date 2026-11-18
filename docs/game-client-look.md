@@ -29,41 +29,16 @@ The derived proportions are the three reference viewports' values under the sizi
 
 - **A map before tiles.** The board is a table with four seat zones a player perceives, not tiles
   on a void. Every tile has an obvious owner and every seat a fixed place for its identity.
-- **A tilted table.** The core (centre and rivers), the opponents' strips and, on a desktop, the
-  counters' place lie on one plane seen through one camera, two board widths away, its foot on the own
-  row's top, in true perspective: each piece tapers and its tiles grow toward the viewer, but the
-  counters stand upright and untapered, from their far edge at its shown scale. The table
-  is laid out for that camera, deeper than the board, so that tilted it fills the flat table's
-  height from its top edge to the own row, the own row itself the flat board's. The camera takes
-  the steepest tilt of 20, 18, 15, 12 and 10 degrees on a desktop and 15, 12 and 10 on a phone
-  (less than 10 reads flat and only softens the faces, so the board then stays flat) whose plane
-  settles, shows the river tile across the core's middle within 5% of the flat board's and the
-  nearest at most 0.85 of the own tile, keeps the side strips clear of the own row and a phone's
-  core clear of its decisions' band, and shows the farthest faces at the face floor. Its felt
-  bands (the top hand's foot to the top river, the core to the own row) open at most 0.95 river
-  tiles wider than the flat board's; felt beyond that lies over the table's top instead, at most
-  0.15 river tiles of it, the least margin that holds, and never narrower than the flat board's
-  (the top band to a pixel, on a desktop to a tenth of a river tile, the bottom one to its least of 4px). A phone lays its tiles larger so its
-  faces still show at the floor after the tilt (its plane's undrawn own row narrower where that
-  keeps its river tile, its strips beside or above the own row as the flat board's, its centre
-  lifted clear of the band), and its counters stay flat in their corner; one whose river tile is
-  already at the face floor (an iPhone 11 with Safari's bars) stays flat, and so does one whose flat
-  board drops its river tile near the floor for a larger own tile (about 786-793 wide by 296-334
-  tall, beside neighbours that tilt 12 or 15 degrees); about 850-900x340 tilts 12 degrees where its
-  neighbours tilt 15, its 15-degree plane's river tile falling under the flat one's. A phone's plane
-  widens the felt under the top strip's meld room, not the room, so its deepest meld (an added
-  kan) shows no nearer the top river than on the flat board. On a desktop the top strip's line
-  starts further in where the left side strip, kept inside its flat place, comes in under its end
-  (its melds lie there; its hand, at the other end, never moves): each side strip's farthest tile
-  keeps 16px (or the flat gap) off the strip's end tiles, and the counters keep 8px (or the flat
-  gap) off its first tile, never past the flat counters' left edge. A desktop whose width
-  binds its river tile keeps the flat table's place, centred in its box, and tilts within it. The
-  felt, its seams (drawn to the tilted centre's corners), the plates and calls (at the tilted points
-  the table anchors them to, at their flat size, a plate standing on its edge toward the core, a
-  top row plate raised further where its riichi stick would come within 10px of the core, 6 on a
-  phone) and
-  everything in front stay flat. Depth comes from the surface, the tile's edge and its shadow. One
-  static transform per piece, no per-frame work. Decision: one light for every
+- **A parallel oblique view.** The table is seen from above and a little in front, with no camera: nothing
+  tapers or grows toward the viewer, and the board on every box, a phone's included, is the table as its layout lays
+  it (Composition, Proportions), so a resize never changes how it is seen. Depth comes from the tiles alone: every
+  lying tile, on the table and off it (a result, a decision's chip), is foreshortened along the screen's y axis and
+  shows a thick edge at its end toward the screen's bottom; tiles lying together overlap far to near, the nearer face
+  covering the edge they share, so an edge shows only where nothing lies nearer (a row's last tiles, an incomplete
+  row, the latest discard held apart), and one soft shadow per group grounds them. The felt, its seams (drawn to the
+  centre's corners), the plates and calls (at the points the table anchors them to, a plate standing on its edge toward the core, a top row plate raised further
+  where its riichi stick would come within 10px of the core, 6 on a phone) lie flat with it. One static place per
+  piece, no per-frame work. Decision: one light for every
   seat: every tile is one generated body (`entities/tile/lib/tile-body.ts`, `npm run bodies`), drawn
   for its pose on the screen, never by the stylesheet, so the light stays at the screen's top-left and the edge
   toward the screen's bottom whatever the seat: a body turned with its seat's frame is turned back, and a tile picks
@@ -73,12 +48,11 @@ The derived proportions are the three reference viewports' values under the sizi
   tile by tile without a line between them. Its top holds one tone from a short shine at its far end to a narrow bevel
   at its foot: a top darkening down its length meets the next row's lit end in a step that greys the whole row. Below the face its edge shows toward the screen's bottom: a flat ivory
   side, then the ochre base, the back's own layer, never near-black; the edge reaches 0.39 of a tile's width, which
-  the geometry reserves (`TILE_EDGE_SHARE`), and its top is foreshortened along the screen's y axis to 0.85 of its
+  the geometry reserves where it is exposed (`TILE_EDGE_SHARE`), and its top is foreshortened along the screen's y axis to 0.85 of its
   length (a face 1 x 1.133 tile widths upright on the screen, 1.333 x 0.85 across it); a standing back keeps a 0.2
   edge. A face-down tile (a closed kan's end, an unrevealed indicator) shows the
   ochre back on top, held at the one tone a standing hand's back shows, the same way a face's top is, and its side
-  ochre above, ivory below. Faces are not foreshortened by the body: the tilted
-  camera does that; only the own melds' bodies, on the flat own row, are foreshortened (below). A tile nearer the screen's bottom paints over the edge of the one behind it, so no edge ever
+  ochre above, ivory below. A tile nearer the screen's bottom paints over the edge of the one behind it, so no edge ever
   lies on a face: a river's later rows cover its earlier ones, the top river paints its rows from the centre out,
   the right river and the right strip paint each line from its far end down the screen, and an added kan's called
   tile covers the added one (the top seat's added tile lies nearer the screen's bottom and covers the called one).
@@ -210,7 +184,7 @@ status stand in one of two places:
   holds them, else the joined column, the furiten mark over them. The side strips' lines start below the counters and
   the cog and end above the furiten mark.
 - **Pocket**: in the free pocket left of the top river and above the left river, past the left lane and below the top
-  strip, clear of the tilted table's left strip and rivers: the switches at its bottom-left, two by two where it holds
+  strip, clear of the table's left strip and rivers: the switches at its bottom-left, two by two where it holds
   them, else the joined column, the furiten mark over them and the field above. The side strips' lines start below the
   counters and the cog and run to the own row, as a barred board's. The controls may stand over the top seat's plate and
   its riichi stick, which are furniture.
@@ -323,10 +297,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   read, but a player reconstructs the seat's full discard order from river and melds together; the engine, not the player, judges furiten. A narrow
   but visible gap separates a river from the centre and from its neighbours (off a phone 0.15 of a river tile,
   the top river's past the tile edge its rows drop toward the centre); tiles touch inside a
-  river, rivers never touch each other. Off a phone the right river stands higher by its first tile's edge
-  less that gap and 3px, so a bottom first row a sideways tile runs past the centre's corner passes under that edge
-  3px clear (a full edge would bring the right plate's riichi stick within 10px of the river's top); a phone's
-  0.3-tile gap already holds the edge. Decision, departing from the run-on convention for side
+  river, rivers never touch each other. The right river stands higher by its first tile's edge less that gap and
+  3px, so a bottom first row a sideways tile runs past the centre's corner passes under that edge 3px clear (a full
+  edge would bring the right plate's riichi stick within 10px of the river's top). Decision, departing from the run-on convention for side
   rivers only: past eighteen discards a side river wraps its overflow into a fourth row toward its
   seat's edge, since a third row running on along a phone's short side would cross the hand; a top
   or bottom river keeps the convention, its third row running on along its line. In real play a river
@@ -384,11 +357,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   seen from above, so a live hand never reads as face-down tiles (a closed kan's ends, the
   unrevealed indicators); the slot is kept whole, so a reveal shows the faces in the same place. The top seat's tile
   fills its 3:4 slot and reaches 0.44 of its width under it, its edge and a rise that keeps it tall
-  without taking height from the stack, the felt under the hand giving it. The hand stands upright:
-  the camera places its foot, but its tiles are not laid on the plane, so each is a rectangle as wide as the camera
-  shows its foot and none leans with the perspective. Decision: a back shows at most 1.52 of its width tall,
-  whatever the camera's tilt, so a steep phone or narrow-window camera does not stretch it. A revealed
-  hand's faces lie on the table, so they keep the camera's foreshortening and start at its owner's edge.
+  without taking height from the stack, the felt under the hand giving it. The hand stands upright on its foot, each
+  tile a rectangle. Decision: a back shows at most 1.52 of its width tall. A revealed hand's faces lie on the table,
+  in the common lying body, and start at its owner's edge.
   Its look: a thin off-white cap at its owner's side, 0.37 of its width deep, lit at its left end
   and shaded at its right; under it the back in the face-down tiles' bright ochre, lit under the cap and shading toward its
   foot as a lying back does, with its own small rounded shoulders. A side seat's tile shows its top only, no back face:
@@ -545,7 +516,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   bottom right in rows 2px apart (two rows hold `call_prompt`'s widest offers at 667x375, one at an iPhone 11's
   808x275 with Safari's bars shown), over the own river and the plates. Its bottom row passes under the left river's
   longest reach (its last tile's box, a riichi tile laid as the latest discard); where it cannot (a short centre over
-  a long left river, 891x331), the band starts at the centre's left edge instead, as a desktop's does. It keeps clear
+  a long left river), the band starts at the centre's left edge instead, as a desktop's does. It keeps clear
   of every other seat's tiles, the centre, the own hand, the left bar's block and the cog. A control keeps its
   tiles at every size.
   Every control keeps visible space around its label and its choice tiles, the
@@ -655,15 +626,14 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   while a call on it is being decided, then slides back into line over 120ms.
   A travelling tile is three faint shadowless copies, 12ms apart, in its destination's look from take-off: its body
   (a discard leaves the hand as the lying river tile, a riichi discard already sideways, a call into the own melds as
-  the lying own meld tile), its size and its turn, and on the tilted table its slot's taper and squash. Nothing
+  the lying own meld tile), its size and its turn. Nothing
   resizes or turns in flight; only its place moves. The solid tile appears in its slot when the middle copy lands, and
   a replay's tsumogiri shade stays on the copies. The body
   flies upright on the screen in its slot's orientation, so the light and the edge stay fixed to the screen. A
   flight a later update touches lands at once and any further move starts from its slot. Rearranging hands, settling
   discards and moving or resizing laid melds animate their actual tile wrappers inside their group, retaining its
   shared edge and shadow and native button feedback. Meld resizing keeps its tiles moving and scaling together
-  under that shared shadow; on the tilted table their offsets are the slots' own, taken back through the camera, not
-  a uniform scale. A settling discard whose size or turn changes, or a laid meld tile whose turn changes,
+  under that shared shadow. A settling discard whose size or turn changes, or a laid meld tile whose turn changes,
   shows in its new slot at once.
   An opponent's tedashi leaves from the middle of their concealed hand and leaves a hole there, which closes 300ms
   after the landing as the tiles to its right and the drawn tile slide over, over 300ms and decelerating; a
@@ -867,7 +837,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the accent so a strip of backs never reads as a control, its darker shade the back's layer under
   every tile's off-white body. Decision: the face artwork (the committed SVG set) stays, its ordinary red
   darkened from #b93c3c to #9a2424 (fill and stroke) so its thinnest strokes keep 4.5:1 on the face
-  once the camera resamples them, the red fives' brighter #d71e1e unchanged and the clearer for it; the room
+  once a small, foreshortened face resamples them, the red fives' brighter #d71e1e unchanged and the clearer for it; the room
   around the glyph comes from the tile box, not from new drawings, and a glyph that is still
   unreadable at river scale with that room is reported, not redrawn in a ticket. Decision: the lobby's
   system sans-serif stack, with tabular digits wherever numbers align; no downloaded fonts or
@@ -902,7 +872,7 @@ adds only what exceeds the safe inset), and a phone always has the small chrome.
 chrome's px scale continuously from the regular record to the large one with t = clamp(min((W − 1100)/900,
 (H − 760)/440), 0, 1) of the padded box: a desktop under 760 px high stays at the regular record (t = 0), and t
 saturates at 1 from 2000x1200; past it a large board's chrome (plates, switches, cog, counters, text) grows with its
-river tile from the tile a 1200px-tall board takes (68px), so a 2560x1440 board's is 80/68 of the large record. The
+river tile from the tile a 1200px-tall board takes (70px), so a 2560x1440 board's is 82/70 of the large record. The
 step from the small
 chrome to the regular one stays, and a phone scales its chrome from the small record on its own.
 
@@ -912,7 +882,7 @@ and its edge), a gap of 0.1 river tiles, the core (the top and bottom rivers' th
 gaps around a centre 4.5 river tiles tall, 0.15-tile gaps, the top one past its rows' tile edge), the bottom river's
 edge, the own melds' rise and the own row at 1.45 river tiles with the deeper of its edge and the melds' (reserved
 at that size even where the width takes the own tile smaller, which barely changes the row's height: an added kan's
-lying stack, 1.84 river tiles deep, rises over a hand smaller than 1.38 river tiles, and a larger own tile shrinks
+lying stack, 1.7 river tiles deep, rises over a hand smaller than about 1.27 river tiles, and a larger own tile shrinks
 that rise as much); whose side strips' reach fits
 that height; and whose own tile the width gives at least 1.2 of it. The own tile is what a full hand of 14.6 own
 tiles leaves between the two side lanes within the bars, at most 1.45 river tiles: bars that hold the play switches
@@ -925,10 +895,10 @@ into what the fullest hand leaves, above the face floor (four open kans to about
 no margin inside the gutter, and the height the stack leaves goes above the core, under the top hand. A desktop's
 decision control is 0.85 of a river tile tall, never under 40px, so it never shrinks as the window grows; its label is 0.38 of it, never under 14px, and the controls' least width (4/3 of it), gap (1/8) and the timer
 (1.75 of it, at least 72px, holding `10 +20`) scale with it.
-It gives river and own tiles of 39 and 56px at 1280x720, 35 and 50px at 1366x657, 42 and 60px at 1366x768, 43 and
-56px at 1280x800, 49 and 66px at 1440x900, 47 and 68px at 1536x864, 58 and 77px at 1680x1050, 60 and 87px at
-1920x1080 and 80 and 116px at 2560x1440, 43 and 52px at 960x1000, 49 and 60px at 1100x1000, 68 and 82px at
-1502x1551 (no bars, the corner), and 56 and 70px at 1280x1024, 42 and 56px at 1024x768 and 32 and 44px at 800x600 (no
+It gives river and own tiles of 39 and 56px at 1280x720, 36 and 52px at 1366x657, 42 and 60px at 1366x768, 44 and
+60px at 1280x800, 50 and 65px at 1440x900, 48 and 69px at 1536x864, 59 and 77px at 1680x1050, 61 and 88px at
+1920x1080 and 82 and 118px at 2560x1440, 43 and 52px at 960x1000, 49 and 60px at 1100x1000, 68 and 82px at
+1502x1551 (no bars, the corner), and 57 and 70px at 1280x1024, 42 and 56px at 1024x768 and 33 and 43px at 800x600 (no
 bars, the pocket);
 the river tile grows with the window's width and height, never falling back as either grows.
 
@@ -940,7 +910,7 @@ narrows first), and with the lanes beside it as wide as the column between the b
 tile at the face floor, or none whose band holds the widest prompt), and at least 4/3 of the river tile; then the largest river tile whose own tile is within 2px
 of that largest own tile (`PHONE_OWN_GIVEN_FOR_RIVER`), with the largest own tile that fits beside it. So a taller or
 wider box never costs the own hand more than those 2px, which buy the rivers a step where they would otherwise give
-up a whole tile size to a pixel of own tile (the A25's box keeps 16px rivers at a 42px own tile). The decisions' band holding the widest prompt comes before all of that, over both own floors, so where a box first
+up a whole tile size to a pixel of own tile. The decisions' band holding the widest prompt comes before all of that, over both own floors, so where a box first
 holds it the own tile falls back by a few pixels and the river may step up 3px; a right bar holding a replay's column is preferred at each river tile. A box too short for the face floor at the tap floor (a phone browser's bars shown, under about 275px)
 takes the largest river tile that fits over the 36x48 floor instead, else over the tap floor where that lifts it.
 A phone's table column is 25 river tiles
@@ -954,8 +924,8 @@ the own row, which spans the felt beneath both lanes, so the own tile is also no
 that line. Where that line would not hold three kans at the face floor (their gaps closed, reaching at most into
 the own row's clearance) or the decisions' band not the prompt below, or would cost the river tile, and the bars
 allow it, the column widens instead until both lanes stand beside the own row, so both lines, the switches and the
-right rail run down to the board's foot, the felt as wide as rails holding their controls leave it (an iPhone 11's 808x275 and a Galaxy A25's 891x331 with their browsers' bars
-shown); elsewhere the lanes stay
+right rail run down to the board's foot, the felt as wide as rails holding their controls leave it (an iPhone 11's 808x275 and an iPhone 13's 750x251 with
+their browsers' bars shown); elsewhere the lanes stay
 at the column's edges, beside the rivers. A
 phone's side strips reserve the
 full concealed hand and as much of a line of four kans at the face floor as the box holds, a denser
@@ -975,14 +945,14 @@ on the shortest boxes; the latest discard's temporary raise, its latest-discard 
 the stack keeps the 4px from its settled slot), and the
 phone's chrome scales from the river tile (the small chrome's px up to a 24px river tile, growing with
 it past that, never under 40x40), except the decision controls, which keep their 40px rows. It gives
-river and own tiles of 19 and 37px at 667x375 (its rails bound the felt), 21 and 43px at the notch phone's
-750x390, 22 and 47px at an iPhone 11's 808x414, and 23 and 51px at 932x430 (both bound by the felt's height share),
-whatever the state shows, with centres of 114x96, 126x83, 132x90 and 138x90px (width by height).
+river and own tiles of 19 and 37px at 667x375 (its rails bound the felt), 22 and 43px at the notch phone's
+750x390, 23 and 47px at an iPhone 11's 808x414, and 24 and 51px at 932x430 (both bound by the felt's height share),
+whatever the state shows, with centres of 114x109, 132x94, 138x104 and 144x105px (width by height).
 With a browser's bars shown the boxes
-give 16 and 42px at 891x331 (a 100x75 centre, its lanes beside the own row, where at the column's edges its band,
-starting at the centre's left edge, would need three rows), 13 and 32px at 808x275 (100x67, its lanes beside the
-own row), 10 and 34px at an iPhone 13's 750x251, and 7 and 32px at 667x236 (100x87, held there by the right seat's three pons). A desktop window short enough to use the phone layout follows the same solve: 27 and
-59px at 1024x500.
+give 18 and 38px at 891x331 (a 108x69 centre, its lanes above the own row), 13 and 37px at 808x275 (100x70, its
+lanes beside the own row), 11 and 34px at an iPhone 13's 750x251 (its lanes beside the own row), and 9 and 36px at
+667x236 (100x68). A desktop window short enough to use the phone layout follows the same solve: 28 and 59px at
+1024x500.
 
 The centre is a rectangle in every family, because one square side had to hold both the vertical room and six
 river tiles and so held the river tile back: off a phone six river tiles wide by 4.5
@@ -1001,14 +971,14 @@ apart on the top strip, and 0.35 on a side strip, where the 0.2 edge its standin
 
 | Relationship | Starting point | Derived (667x375 / 750x390 notch board / 1440x900) |
 |---|---|---|
-| Core height / play area height | 0.6 | 0.74 / 0.72 / 0.75 |
-| Centre height / core height | 0.3 | 0.35 / 0.29 / 0.33 |
-| Centre width / centre height (6/4.5 off a phone; on a phone its `w` / `c`: 114/96 and 126/83) | 1.2 | 1.19 / 1.51 / 1.33 |
+| Core height / play area height | 0.6 | 0.73 / 0.72 / 0.74 |
+| Centre height / core height | 0.3 | 0.40 / 0.33 / 0.34 |
+| Centre width / centre height (6/4.5 off a phone; on a phone its `w` / `c`: 114/109 and 132/94) | 1.2 | 1.05 / 1.41 / 1.33 |
 | River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand and its air within the felt and, where any own tile allows it, a right rail that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.51 / 0.51 / 0.77 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
 | Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand and its air within the felt and, where any own tile allows it, a right rail that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.51 / 0.51 / 0.77 |
 | Own hand tile width / play area width | 0.05 | 0.055 / 0.057 / 0.046 |
-| Own hand tile height / play area height | 0.15 | 0.132 / 0.147 / 0.100 |
+| Own hand tile height / play area height | 0.15 | 0.132 / 0.147 / 0.098 |
 | Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.32 / 0.16 (0.15, rounded; the top river 0.74 / 0.73 / 0.56, past its rows' tile edge, a phone's taken from its centre's height, down to 1px under its least, only where the decisions' band keeps its place, never from a tile) |
 | Gap between neighbouring rivers, in river tiles | 0.3 | 0.32 / 0.32 / 0.16 (0.15, rounded) |
 
@@ -1017,13 +987,13 @@ only where it protects the approved layout from a regression a player would noti
 whole pixels, so a gate's tolerance takes a pixel of rounding past its share, and on a phone a river tile at the ratio
 of an own tile up to 2px larger (`PHONE_OWN_GIVEN_FOR_RIVER`, the own tile the joint solve gave for it).
 
-Every opponent hand and meld stands at exactly the river tile, once a camera's depth is taken out. Decision off a phone: every other hand and river reads at one size, and the own hand
+Every opponent hand and meld stands at exactly the river tile. Decision off a phone: every other hand and river reads at one size, and the own hand
 at 1.2 to 1.45 of it (1.3 or more wherever the width allows), because the own row stands
 between the side strips and a wider row widens the felt between them and the rivers; the own melds, at 1 river
 tile, stand at 0.69 of the own tile at the cap. A phone keeps a larger own tile, which touch needs, solved
 together with its river tile from the box, the own tile as large as a full hand and its air within the felt, the
-side strips' lines and a replay's moves in the right rail allow above its 36x48 floor: 1.95 river tiles at the floor,
-2.05 at the notch phone and 2.22 at 932x430. A decision control's tiles stay inside
+side strips' lines and a replay's moves in the right rail allow above its 36x48 floor: 1.95 river tiles at the floor and
+the notch phone, 2.13 at 932x430. A decision control's tiles stay inside
 its row.
 
 The starting points do not fit together at the 667x375 floor. The rule resolves it by the joint
@@ -1031,8 +1001,8 @@ solve: the core takes the height the own row leaves it, the controls standing in
 river rather than in a row of their own;
 the two tiles are the largest pair the box holds above the own tile's 36x48 floor; and the centre's
 share grows, its text following the centre down, so the round, the wall count and four winds with
-their scores stay readable at the floor. At the floor this gives a core of 0.74 of the height, a
-centre of 0.35 of the core (114 wide by 96px tall) and 19 and 37px tiles.
+their scores stay readable at the floor. At the floor this gives a core of 0.73 of the height, a
+centre of 0.40 of the core (114 wide by 109px tall) and 19 and 37px tiles.
 
 ## States
 
@@ -1129,12 +1099,10 @@ respected, the rotate panel in a narrow portrait viewport, and, at the reference
 derived proportions held within a tolerance, the river tile over the own tile and each river's gap
 from the centre, with neighbouring rivers no closer than that gap (a sparse river stands farther
 from its neighbour); the opponent's hand at the river tile holds everywhere, and the other derived
-values are review's, not the check's. On the tilted table the centre's size, the pinwheel's gaps and the face
-floors are measured as laid, before the camera; the river tile over the own tile is measured as shown across the
-core's middle, within the camera's 5% band; and the shown faces keep the same floors (a quarter pixel of rounding),
-the rivers their 3px least to each other and to the tilted centre with each tile's edge drawn under it, and
-a badge's pill keeps 4px off every tile on the table and its riichi stick 10px (6 on a phone). WebKit's pixels come from its compositor (a
-software screenshot flattens the table's perspective). Clarity,
+values are review's, not the check's. Every size is measured as drawn, since the table is shown as laid: a face
+keeps its floor as foreshortened (a quarter pixel of rounding), the rivers keep their 3px least to each other and to
+the centre with each tile's edge drawn under it, and a badge's pill keeps 4px off every tile on the table and its
+riichi stick 10px (6 on a phone). Clarity,
 hierarchy and coherence are judged by the checklist
 above. A visual failure that can be measured may earn a check; a judgement must not be turned into
 an arbitrary pixel rule.

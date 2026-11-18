@@ -109,8 +109,7 @@ changed area and its one worst case, never a sweep. A phone change's worst case 
 Safari and Chrome.
 
 * Playwright's `page.screenshot()` in WebKit on Linux paints in software and flattens 3D transforms (Playwright #21620,
-  WebKit bug 68276), so the tilted table comes out a skewed parallelogram there; WebKit's compositor and iOS Safari draw
-  it right. The check's WebKit shots and contrast reads are compositor frames (`compositor.ts`, JPEG); checks of DOM
+  WebKit bug 68276); WebKit's compositor and iOS Safari draw them right. The check's WebKit shots and contrast reads are compositor frames (`compositor.ts`, JPEG); checks of DOM
   boxes hold in every engine. Never fix the board for a software shot's paint.
 * A new page or check goes in its surface's module under `scripts/visual-check/surfaces/`, never the runner.
 * The `browser-bars` pages are the only check that a phone's swipe can still collapse the browser's bars, on the
