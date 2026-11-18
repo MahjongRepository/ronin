@@ -699,6 +699,18 @@ function targetOf(animation: Animation | undefined): Element | null | undefined 
     return animation?.effect instanceof KeyframeEffect ? animation.effect.target : undefined;
 }
 
+function indicatorShift(animation: Animation | undefined): readonly unknown[] {
+    const [start] = animation === undefined ? [] : getAnimationFrames(animation);
+    return [targetOf(animation), start?.left, start?.top, start?.translate, start?.transform];
+}
+
+function measureShiftedIndicator(this: HTMLElement): DOMRect {
+    if (!this.matches(".board-dora__tile > .tile")) {
+        return getBox(this);
+    }
+    return new DOMRect(this.classList.contains("tile-back") ? 500 : 510, 100, 30, 40);
+}
+
 describe("opponent draw hold", () => {
     it("shows an opponent's draw in place when no discard preceded it", async () => {
         const dealt = table(true);
@@ -710,7 +722,10 @@ describe("opponent draw hold", () => {
         expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
     });
 
-    it("holds an opponent's draw after a discard through a redraw and ends the hold at the next cue", async () => {
+    it("holds an opponent's draw after a discard through a redraw, ends the hold at the next cue and slides a moved indicator", async () => {
+        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+            measureShiftedIndicator,
+        );
         const after = await showHeldDraw();
         const hold = animations.at(-1);
         expect([animations.length, targetOf(hold)]).toEqual([5, heldTile()]);
@@ -721,7 +736,14 @@ describe("opponent draw hold", () => {
             { mode: "step", sequence: 3 },
             { view: bottomOnly },
         );
-        expect([animations.length, hold?.playState]).toEqual([5, "idle"]);
+        expect([animations.length, hold?.playState]).toEqual([6, "idle"]);
+        expect(indicatorShift(animations.at(-1))).toEqual([
+            host.querySelector(".board-dora__tile"),
+            undefined,
+            undefined,
+            undefined,
+            "translate(-10px, 0px) scale(1)",
+        ]);
     });
 
     it("holds an opponent's draw committed with the discard until the discard lands and the pause passes", async () => {
