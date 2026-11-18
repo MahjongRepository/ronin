@@ -62,6 +62,8 @@ const OPTIONS = [ROUNDS_TOGGLE, ".replay-controls__option--tools"];
 
 const REPLAY_MAX_STEPS = 300;
 const REPLAY_LOCAL_MELDS = 2;
+const FOUR_KANS_STEP = 13;
+const FOUR_KANS_MELDS = 4;
 
 type StatusPart = "end" | "incomplete";
 
@@ -205,6 +207,18 @@ async function checkStepButton(page: Page): Promise<void> {
     }
 }
 
+/** The four kans' story stands at its stop with all four kans laid on the board and no result over it. */
+async function expectFourKans(page: Page): Promise<void> {
+    await expectStep(FOUR_KANS_STEP)(page);
+    const melds = await page.locator(".game-board .meld").count();
+    if (melds !== FOUR_KANS_MELDS) {
+        throw new Error(`the board shows ${melds} meld group(s), not ${FOUR_KANS_MELDS}`);
+    }
+    if ((await page.locator(".game-board .board-overlay").count()) > 0) {
+        throw new Error("the board shows a panel over the four kans");
+    }
+}
+
 async function stepReplayToLocalMelds(page: Page): Promise<void> {
     await page.waitForSelector(".replay-controls", { timeout: SELECTOR_TIMEOUT_MS });
     await checkStepButton(page);
@@ -263,6 +277,7 @@ const PAGES: readonly PageCase[] = [
             ".replay-status__incomplete--end",
         ]),
     },
+    { ...replayCase("four_kans", []), at: [FLOOR, MID_DESKTOP], prepare: expectFourKans },
     { ...replayCase("damaged", [".replay-status__incomplete--end"]), at: [FLOOR, MID_DESKTOP] },
     { ...replayCase("double_ron", [".round-end-result__pager"]), at: [FLOOR, SHORT_TABLET] },
     {

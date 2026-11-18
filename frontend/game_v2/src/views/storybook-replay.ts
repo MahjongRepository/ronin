@@ -24,6 +24,7 @@ const REPLAY_STORIES = [
     "autoplay",
     "viewpoint_hidden",
     "double_ron",
+    "four_kans",
     "result_hidden",
     "game_end",
     "round_list",
@@ -129,6 +130,10 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
             () => import("@/fixtures/replays/truncated_after_round.msgpack?inline"),
         ),
         search: "?round=1&step=140",
+    },
+    four_kans: {
+        load: servesFixture(() => import("@/fixtures/replays/four_kans.msgpack?inline")),
+        search: "?round=0&step=13",
     },
     game_end: { load: servesFixture(paoReplay), search: "?round=0&step=24" },
     incomplete: {
