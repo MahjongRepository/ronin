@@ -18,8 +18,8 @@ $sideways-height: $tile-width; // 60px
 
 .meld-tile-sideways {
     display: inline-block;
-    width: $sideways-width;
-    height: $sideways-height;
+    width: calc(#{$sideways-width} * var(--slot-across-share, 1));
+    height: calc(#{$sideways-height} * var(--slot-down-share, 1));
     position: relative;
 }
 
@@ -28,8 +28,8 @@ $stacked-gap: 2px;
 .meld-tile-stacked {
     display: inline-block;
     position: relative;
-    width: $sideways-width;
-    height: $sideways-height * 2 + $stacked-gap;
+    width: calc(#{$sideways-width} * var(--slot-across-share, 1));
+    height: calc(#{$sideways-height} * var(--slot-down-share, 1) * 2 + #{$stacked-gap});
 }
 
 .meld-tile-stacked .meld-tile-stacked-bottom {
@@ -40,6 +40,6 @@ $stacked-gap: 2px;
 
 .meld-tile-stacked .meld-tile-stacked-top {
     position: absolute;
-    bottom: $sideways-height + $stacked-gap;
+    bottom: calc(#{$sideways-height} * var(--slot-down-share, 1) + #{$stacked-gap});
     left: 0;
 }

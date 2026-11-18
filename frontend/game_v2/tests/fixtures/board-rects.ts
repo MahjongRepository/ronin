@@ -1,4 +1,4 @@
-import { TILE_EDGE_SHARE } from "@/entities/table/lib/board-constants";
+import { LYING_Y_SHARE, TILE_EDGE_SHARE } from "@/entities/table/lib/board-constants";
 import { type BoardGeometry, type BoardRect } from "@/entities/table/lib/board-geometry";
 
 export const RIVERS = ["river-bottom", "river-right", "river-top", "river-left"] as const;
@@ -19,10 +19,11 @@ export function riverReserves({
         "latest-drop-gap",
     ].map(length);
     const edge = TILE_EDGE_SHARE * length("rw");
-    const sideRow = 5 * length("rw") + rh + drop;
+    const down = rh * LYING_Y_SHARE;
+    const sideRow = 5 * length("rw") * LYING_Y_SHARE + down + drop;
     return {
         "river-bottom": {
-            bottom: cy + h + gap + 3 * rh + drop + edge,
+            bottom: cy + h + gap + 3 * down + drop + edge,
             left: cx - hx,
             right: length("reach-bottom-right"),
             top: cy + h + gap,
@@ -34,16 +35,16 @@ export function riverReserves({
             top: cy - h,
         },
         "river-right": {
-            bottom: cy + h + edge,
+            bottom: cy + h - length("river-right-lift") + edge,
             left: cx + hx + gap,
             right: length("reach-right"),
-            top: cy + h - sideRow,
+            top: cy + h - length("river-right-lift") - sideRow,
         },
         "river-top": {
             bottom: cy - h - length("g-top") + edge,
             left: length("reach-top-left"),
             right: cx + hx,
-            top: length("reach-top-row3") - rh - drop,
+            top: length("reach-top-row3") - down - drop,
         },
     };
 }

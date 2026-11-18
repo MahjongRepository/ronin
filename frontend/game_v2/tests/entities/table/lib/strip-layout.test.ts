@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
     FACE_FLOOR,
+    LYING_Y_SHARE,
     MELD_GAP_TIGHT,
     SIDEWAYS_UNITS,
     STACKED_DEPTH,
@@ -57,7 +58,7 @@ describe("stripLayout", () => {
         for (const [index, meld] of melds.entries()) {
             const [depth, end] = [
                 ADDED_KAN.depth * meld.tile,
-                meld.along + ADDED_KAN.units * meld.tile,
+                meld.along + ADDED_KAN.units * LYING_Y_SHARE * meld.tile,
             ];
             for (const obstacle of rooms.left.obstacles) {
                 expect(
@@ -69,12 +70,12 @@ describe("stripLayout", () => {
     });
 
     it("closes the gaps of a right seat's four melds so a phone browser's short box keeps them on its line", () => {
-        const strips = windowStrips({ height: 275, width: 808 });
+        const strips = windowStrips({ height: 251, width: 750 });
         const content: StripContent = { drawn: true, hand: 2, melds: [CHI, CHI, CHI, CHI] };
 
         const [first, second, , oldest] = stripLayout("right", content, strips).melds;
 
-        const unit = CHI.units * FACE_FLOOR;
+        const unit = CHI.units * LYING_Y_SHARE * FACE_FLOOR;
         const gap = (second?.along ?? Number.NaN) - (first?.along ?? Number.NaN) - unit;
         expect(first?.tile).toBe(FACE_FLOOR);
         expect(gap).toBeLessThan(strips.gap);
@@ -92,13 +93,15 @@ describe("stripLayout", () => {
             };
             const { melds } = stripLayout(seat, content, ROOMS);
             expect(melds.map((meld) => meld.rise)).toEqual([0, 0, 0, 0]);
-            expect(melds.map((meld) => meld.tile)).toEqual([14, 14, 14, 14]);
+            expect(melds.map((meld) => meld.tile)).toEqual([17, 17, 17, 17]);
             expect(melds[0]?.along).toBeGreaterThanOrEqual(
                 handLength({ drawn: true, rw: ROOMS.rw, seat, tiles: content.hand }) + ROOMS.gap,
             );
             for (const [index, shape] of content.melds.entries()) {
                 const meld = melds[index];
-                const end = (meld?.along ?? Number.NaN) + shape.units * (meld?.tile ?? Number.NaN);
+                const end =
+                    (meld?.along ?? Number.NaN) +
+                    shape.units * LYING_Y_SHARE * (meld?.tile ?? Number.NaN);
                 expect(end).toBeCloseTo(
                     index === melds.length - 1
                         ? SIDE.line
@@ -116,7 +119,7 @@ describe("stripLayout", () => {
         { atFloor: true, height: 800, width: 1280 },
         { atFloor: true, height: 331, width: 891 },
         { atFloor: true, height: 275, width: 808 },
-        { atFloor: false, height: 251, width: 844 },
+        { atFloor: true, height: 251, width: 844 },
     ])(
         "fits four open kans on one line at $width x $height, under the face floor only where the floor overflows it",
         ({ atFloor, ...box }) => {
@@ -137,7 +140,8 @@ describe("stripLayout", () => {
                 expect(melds.every((meld) => meld.tile >= FACE_FLOOR)).toBe(atFloor);
                 const [, , , oldest] = melds;
                 expect(
-                    (oldest?.along ?? Number.NaN) + OPEN_KAN.units * (oldest?.tile ?? Number.NaN),
+                    (oldest?.along ?? Number.NaN) +
+                        OPEN_KAN.units * LYING_Y_SHARE * (oldest?.tile ?? Number.NaN),
                 ).toBeLessThanOrEqual(strips[seat].line + 0.001);
             }
         },
@@ -158,10 +162,9 @@ describe("stripLayout", () => {
         expect(kan?.along).toBeGreaterThan(
             handLength({ drawn: true, rw: ROOMS.rw, seat: "left", tiles: content.hand }),
         );
-        expect((kan?.along ?? Number.NaN) + ADDED_KAN.units * (kan?.tile ?? 0)).toBeCloseTo(
-            left.line,
-            6,
-        );
+        expect(
+            (kan?.along ?? Number.NaN) + ADDED_KAN.units * LYING_Y_SHARE * (kan?.tile ?? 0),
+        ).toBeCloseTo(left.line, 6);
     });
 
     it("keeps the top strip at the river tile where its stacked kan stands past the badge's lane", () => {
@@ -195,7 +198,7 @@ describe("stripLayout", () => {
     });
 
     it("centres a side seat's full hand on its line, keeps it there through a call and slides it toward the line's start only as far as four kans need", () => {
-        const side = { deepLine: 500, line: 500, obstacles: [] };
+        const side = { deepLine: 440, line: 440, obstacles: [] };
         const rooms: StripRooms = { ...ROOMS, left: side, right: side };
         const full = handLength({ drawn: true, rw: rooms.rw, seat: "right", tiles: 14 });
         function laid(hand: number, melds: StripContent["melds"]): ReturnType<typeof stripLayout> {

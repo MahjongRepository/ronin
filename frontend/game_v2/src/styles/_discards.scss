@@ -26,6 +26,6 @@ $sideways-height: $tile-width; // 60px
 .discard-tile-riichi {
     position: relative;
     display: inline-block;
-    width: $sideways-width;
-    height: $sideways-height;
+    width: calc(#{$sideways-width} * var(--slot-across-share, 1));
+    height: calc(#{$sideways-height} * var(--slot-down-share, 1));
 }

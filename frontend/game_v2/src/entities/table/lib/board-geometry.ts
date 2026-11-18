@@ -21,8 +21,6 @@ import {
     OWN_BY_RIVER_LEAST,
     OWN_BY_RIVER_OFF_PHONE,
     OWN_BY_RIVER_WANTED,
-    OWN_LYING_EDGE_SHARE,
-    OWN_LYING_HEIGHT_SHARE,
     OWN_MELD_SCALE,
     OWN_ROW_GAP,
     PAGE_GUTTER,
@@ -145,11 +143,10 @@ const DESKTOP_STACK_TILES =
     OWN_ROW_GAP +
     Math.max(
         0,
-        STACKED_DEPTH * OWN_LYING_HEIGHT_SHARE * OWN_MELD_SCALE -
-            OWN_BY_RIVER_OFF_PHONE * TILE_ASPECT,
+        STACKED_DEPTH * LYING_Y_SHARE * OWN_MELD_SCALE - OWN_BY_RIVER_OFF_PHONE * TILE_ASPECT,
     ) +
     OWN_BY_RIVER_OFF_PHONE * TILE_ASPECT +
-    Math.max(OWN_BY_RIVER_OFF_PHONE * STANDING_OVERHANG, OWN_MELD_SCALE * OWN_LYING_EDGE_SHARE);
+    Math.max(OWN_BY_RIVER_OFF_PHONE * STANDING_OVERHANG, OWN_MELD_SCALE * TILE_EDGE_SHARE);
 
 /**
  * The latest discard's gap along the light off a phone (px): the gap across it and the tile edge that falls into it,
@@ -389,6 +386,10 @@ function desktopRiverGap(rw: number): number {
 }
 
 /** A top or bottom river's reach from the centre at its capacity: the gap and its rows. */
+function rightRiverLift(rw: number, gap: number): number {
+    return Math.max(0, Math.round(TILE_EDGE_SHARE * rw) - gap + RIVER_CORNER_CLEAR);
+}
+
 function riverRows(rw: number, gap: number): number {
     return gap + (CORE_TILES / 2 - RIVER_GAP_SHARE) * rw;
 }
@@ -860,7 +861,7 @@ function desktopAt(
         ["river-foot", coreTop + core + edge],
         ...coreLengths(
             { cx: width / 2, cy, height: centreHeight, rw, width: centreWidth },
-            { drop, gap, rightLift: edge - gap + RIVER_CORNER_CLEAR, topGap },
+            { drop, gap, rightLift: rightRiverLift(rw, gap), topGap },
         ),
     ]);
     const linesEnd = plan.arrangement === "corner" ? laneFoot : ownPill - LINE_PLATE_GAP;
@@ -914,7 +915,9 @@ function leftRiverReach(rw: number, drop: number): number {
 }
 
 /** The own row at an own tile: its top, its tile's height, its melds' tile and the rise two of them take over the hand. */
-type OwnRow = Readonly<Record<"handTop" | "oh" | "ownMeldRise" | "ownMeldTile", number>>;
+type OwnRow = Readonly<
+    Record<"handTop" | "oh" | "ownMeldLift" | "ownMeldRise" | "ownMeldTile", number>
+>;
 
 /** A desktop's own melds' largest tile: the river tile, never past the own tile's, never under the face floor. */
 function desktopOwnMeldTile(rw: number, ow: number): number {
@@ -927,11 +930,6 @@ const FOUR_OPEN_KANS: readonly MeldShape[] = Array.from({ length: 4 }, () => ({
     units: 3 + SIDEWAYS_UNITS,
 }));
 
-/**
- * A phone's own melds' one tile: what four open kans take beside the hand at its fullest on the row, at most `cap` (the
- * own tile, and no larger than keeps their edge within the hand's foot, so they never deepen the row the phone solve
- * fits), so no call resizes them.
- */
 function fourKansOwnMeldTile(
     row: Readonly<Record<"cap" | "gap" | "ow" | "width", number>>,
 ): number {
@@ -950,14 +948,21 @@ function handFoot(ow: number): number {
 function ownRow({
     height,
     margin,
+    meldsLiftedOverFoot = false,
     ow,
     ownMeldTile,
-}: Readonly<Record<"height" | "margin" | "ow" | "ownMeldTile", number>>): OwnRow {
+}: Readonly<Record<"height" | "margin" | "ow" | "ownMeldTile", number>> & {
+    readonly meldsLiftedOverFoot?: boolean;
+}): OwnRow {
     const oh = ow * TILE_ASPECT;
+    const meldsEdge = ownMeldTile * TILE_EDGE_SHARE;
+    const foot = Math.max(margin, handFoot(ow), meldsLiftedOverFoot ? 0 : meldsEdge);
+    const ownMeldLift = Math.max(0, Math.ceil(meldsEdge - foot));
     return {
-        handTop: height - Math.max(margin, handFoot(ow), ownMeldTile * OWN_LYING_EDGE_SHARE) - oh,
+        handTop: height - foot - oh,
         oh,
-        ownMeldRise: Math.max(0, STACKED_DEPTH * OWN_LYING_HEIGHT_SHARE * ownMeldTile - oh),
+        ownMeldLift,
+        ownMeldRise: Math.max(0, STACKED_DEPTH * LYING_Y_SHARE * ownMeldTile + ownMeldLift - oh),
         ownMeldTile,
     };
 }
@@ -1264,13 +1269,13 @@ function phoneLayout(
     const felt = phoneFelt({ beside, column, height, rail, width });
     const ownStart = (width - FULL_HAND * ow) / 2;
     const ownEnd = beside ? width - ownStart : felt.right - FELT_AIR;
-    const edgeWithinFoot = Math.max(m, handFoot(ow)) / OWN_LYING_EDGE_SHARE;
-    const { handTop, oh, ownMeldRise, ownMeldTile } = ownRow({
+    const { handTop, oh, ownMeldLift, ownMeldRise, ownMeldTile } = ownRow({
         height,
         margin: m,
+        meldsLiftedOverFoot: true,
         ow,
         ownMeldTile: fourKansOwnMeldTile({
-            cap: Math.min(ow, edgeWithinFoot),
+            cap: ow,
             gap,
             ow,
             width: ownEnd - ownStart,
@@ -1281,51 +1286,69 @@ function phoneLayout(
     const line = foot - m;
     const coreTop = m + rh + sep + (frame.topGap ?? 0);
     const rows = riverRows(rw, gap);
+    const topEdge = Math.ceil(TILE_EDGE_SHARE * rw);
+    const topEdgeHeld = Math.max(0, Math.min(topEdge, topEdge + PHONE_TOP_EDGE_CLEAR - gap));
     const spareRoom =
-        handTop - coreGap - (frame.coreLift ?? 0) - 2 * (LATEST_DISCARD_GAP + rows) - coreTop;
-    const edgeRoom = frame.topEdgeRoom
+        handTop -
+        coreGap -
+        (frame.coreLift ?? 0) -
+        2 * (LATEST_DISCARD_GAP + rows) -
+        topEdgeHeld -
+        coreTop;
+    const edgeRoomPastHeld = frame.topEdgeRoom
         ? Math.max(
               0,
               Math.min(
-                  Math.ceil(TILE_EDGE_SHARE * rw),
+                  topEdge - topEdgeHeld,
                   spareRoom - PHONE_CENTRE_MIN_HEIGHT + CENTRE_EDGE_GIVE,
               ),
           )
         : 0;
+    const edgeRoom = topEdgeHeld + edgeRoomPastHeld;
     const topGap = gap + edgeRoom;
     const centreTop = coreTop + LATEST_DISCARD_GAP + rows + edgeRoom;
-    const heightRoom = spareRoom - edgeRoom;
-    const cy = centreTop + heightRoom / 2;
-
-    const lengths = Object.fromEntries([
-        ...chromeLengths(chrome),
-        ["badge-h", plateBoxHeight(chrome)],
-        ...cornerLengths(rw),
-        ...panelLengths(phonePanel()),
-        ["col-left", column.left],
-        ["col-right", column.right],
-        ["control-h", controlH],
-        ["core-top", coreTop],
-        ["felt-left", felt.left],
-        ["felt-right", felt.right],
-        ["hand-top", handTop],
-        ["lines-end", foot],
-        ["m", m],
-        ["oh", oh],
-        ["ow", ow],
-        ["own-end", ownEnd],
-        ["own-meld-rise", ownMeldRise],
-        ["own-meld-tile", ownMeldTile],
-        ["own-start", ownStart],
-        ...coreLengths(
-            { cx: width / 2, cy, height: heightRoom, rw, width: centreWidth },
-            { drop: LATEST_DISCARD_GAP, gap, rightLift: 0, topGap },
-        ),
-        ["side-reach", phoneSideReach(rw, line, frame.faceFloor)],
-    ]);
-    function at(name: string): number {
-        return lengths[name] ?? 0;
+    const centreRoom = spareRoom - edgeRoomPastHeld;
+    function lengthsAt(laid: BoardLengths): (name: string) => number {
+        return (name) => laid[name] ?? 0;
     }
+    const roomy = layLengths(centreRoom);
+    const roomyBand = phoneActions(lengthsAt(roomy));
+    const bandShort =
+        phonePromptHeight(roomyBand.right - roomyBand.left, chrome.timerW) -
+        (roomyBand.bottom - roomyBand.top);
+    const centreGivesBand = Math.max(0, Math.min(bandShort, centreRoom - PHONE_CENTRE_MIN_HEIGHT));
+    const lengths = centreGivesBand > 0 ? layLengths(centreRoom - centreGivesBand) : roomy;
+    function layLengths(heightRoom: number): BoardLengths {
+        const cy = centreTop + heightRoom / 2;
+        return Object.fromEntries([
+            ...chromeLengths(chrome),
+            ["badge-h", plateBoxHeight(chrome)],
+            ...cornerLengths(rw),
+            ...panelLengths(phonePanel()),
+            ["col-left", column.left],
+            ["col-right", column.right],
+            ["control-h", controlH],
+            ["core-top", coreTop],
+            ["felt-left", felt.left],
+            ["felt-right", felt.right],
+            ["hand-top", handTop],
+            ["lines-end", foot],
+            ["m", m],
+            ["oh", oh],
+            ["ow", ow],
+            ["own-end", ownEnd],
+            ["own-meld-lift", ownMeldLift],
+            ["own-meld-rise", ownMeldRise],
+            ["own-meld-tile", ownMeldTile],
+            ["own-start", ownStart],
+            ...coreLengths(
+                { cx: width / 2, cy, height: heightRoom, rw, width: centreWidth },
+                { drop: LATEST_DISCARD_GAP, gap, rightLift: rightRiverLift(rw, gap), topGap },
+            ),
+            ["side-reach", phoneSideReach(rw, line, frame.faceFloor)],
+        ]);
+    }
+    const at = lengthsAt(lengths);
     const plates = plateRect(at, chrome.pillH, rowTop);
     const band = phoneActions(at);
     const lanesFit =
@@ -1811,6 +1834,8 @@ const STRIP_CONTROL_CLEAR = 4;
 
 /** How much shorter than its least a phone's centre may stand to give the top river's edge its room (px). */
 const CENTRE_EDGE_GIVE = 1;
+
+const PHONE_TOP_EDGE_CLEAR = 3;
 
 /** The top strip's melds keep this far above the top badge (px). */
 const TOP_BADGE_CLEAR = 6;

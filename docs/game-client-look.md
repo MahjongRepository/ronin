@@ -72,8 +72,10 @@ The derived proportions are the three reference viewports' values under the sizi
   a lit rim on its left, a shaded roll on its right and a short roll at its foot, so tiles that touch read
   tile by tile without a line between them. Its top holds one tone from a short shine at its far end to a narrow bevel
   at its foot: a top darkening down its length meets the next row's lit end in a step that greys the whole row. Below the face its edge shows toward the screen's bottom: a flat ivory
-  side, then the ochre base, the back's own layer, never near-black; the edge reaches 0.2 of a tile's width, which
-  the geometry reserves (`TILE_EDGE_SHARE`). A face-down tile (a closed kan's end, an unrevealed indicator) shows the
+  side, then the ochre base, the back's own layer, never near-black; the edge reaches 0.39 of a tile's width, which
+  the geometry reserves (`TILE_EDGE_SHARE`), and its top is foreshortened along the screen's y axis to 0.85 of its
+  length (a face 1 x 1.133 tile widths upright on the screen, 1.333 x 0.85 across it); a standing back keeps a 0.2
+  edge. A face-down tile (a closed kan's end, an unrevealed indicator) shows the
   ochre back on top, held at the one tone a standing hand's back shows, the same way a face's top is, and its side
   ochre above, ivory below. Faces are not foreshortened by the body: the tilted
   camera does that; only the own melds' bodies, on the flat own row, are foreshortened (below). A tile nearer the screen's bottom paints over the edge of the one behind it, so no edge ever
@@ -95,9 +97,8 @@ The derived proportions are the three reference viewports' values under the sizi
   drawn from its top and running past its bottom by the rest of its height, which the own row reserves in whole
   pixels, so on a phone the foot may be clipped by up to 1px at the board's bottom edge. It throws only the cast shadow, the hand's
   shared one, or each tile's own where the hand takes input; a held-back tile greys the whole body.
-  The own melds lie on the table beside it: their own bodies, each face foreshortened to 0.92 of its
-  height (the art and a sideways, stacked or face-down tile alike, a kan's stack 2 x 0.92 of a tile's width deep)
-  over a deeper edge, 0.25 of its width. A flying tile is three faint shadowless copies of its destination's body,
+  The own melds lie on the table beside it in the common lying body (a kan's stack 2 x 0.85 of a tile's width
+  deep), lifted on a phone by what their edge runs past the hand's foot. A flying tile is three faint shadowless copies of its destination's body,
   size and turn from take-off. The own row reserves
   the deeper of the hand's overhang and the melds' edge.
 - **Composed for ordinary play.** The design anchor is a mid-round state with real decisions on
@@ -331,9 +332,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   stored rounds about a fifth reach eighteen, 8% nineteen, 1% twenty, none more), so layouts are
   designed and checked for twenty: two rows of six and a third run on to eight (a side river's
   fourth row of two), counting a sideways riichi tile, and the latest-discard gap: 7px across the light, and along it (a side
-  river's from the tile before, a top or bottom river's from the row before) deeper by the 0.2
+  river's from the tile before, a top or bottom river's from the row before) deeper by the 0.39
   tile edge that falls into it, so every seat's reads as one gap; a phone keeps 7px along it too,
-  its edge two pixels and the reserve a pixel of its river tile at the floor.
+  its edge about as deep at the floor, where the reserve would cost it a river tile's pixel.
   A river of 21 or more discards still
   renders in full but may run under other elements (the decisions, plates, a strip) or clip at the
   board edge; nothing shrinks tiles or moves controls for it, and it is not tested: no story or
@@ -994,20 +995,20 @@ longest reach); the decisions stand along the own row's top, from the bottom riv
 river. A phone's play switches stand at the left rail's
 foot and a replay's moves in the right rail, so a replay's board is the live game's there too.
 An opponent's concealed hand tile is the river tile; its drawn tile stands 0.15 of a river tile
-apart on the top strip, and 0.35 on a side strip, where the 0.2 tile edge it shows lies in that gap.
+apart on the top strip, and 0.35 on a side strip, where the 0.2 edge its standing back shows lies in that gap.
 
 | Relationship | Starting point | Derived (667x375 / 750x390 notch board / 1440x900) |
 |---|---|---|
 | Core height / play area height | 0.6 | 0.74 / 0.72 / 0.75 |
 | Centre height / core height | 0.3 | 0.35 / 0.29 / 0.33 |
 | Centre width / centre height (6/4.5 off a phone; on a phone its `w` / `c`: 114/96 and 126/83) | 1.2 | 1.19 / 1.51 / 1.33 |
-| River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand and its air within the felt and, where any own tile allows it, a right rail that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.50 / 0.48 / 0.73 |
+| River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand and its air within the felt and, where any own tile allows it, a right rail that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.51 / 0.51 / 0.77 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
-| Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand and its air within the felt and, where any own tile allows it, a right rail that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.50 / 0.48 / 0.73 |
+| Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand and its air within the felt and, where any own tile allows it, a right rail that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.51 / 0.51 / 0.77 |
 | Own hand tile width / play area width | 0.05 | 0.055 / 0.057 / 0.046 |
 | Own hand tile height / play area height | 0.15 | 0.132 / 0.147 / 0.100 |
-| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded; the top river 0.53 / 0.52 / 0.34, past its rows' tile edge, a phone's taken from its centre's height, down to 1px under its least, only where the decisions' band keeps its place, never from a tile) |
-| Gap between neighbouring rivers, in river tiles | 0.3 | 0.32 / 0.29 / 0.14 (0.15, rounded) |
+| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.32 / 0.16 (0.15, rounded; the top river 0.74 / 0.73 / 0.56, past its rows' tile edge, a phone's taken from its centre's height, down to 1px under its least, only where the decisions' band keeps its place, never from a tile) |
+| Gap between neighbouring rivers, in river tiles | 0.3 | 0.32 / 0.32 / 0.16 (0.15, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,
 only where it protects the approved layout from a regression a player would notice. The river tile and the gaps are

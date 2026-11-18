@@ -1,7 +1,7 @@
 import { type TemplateResult, render } from "lit-html";
 import { describe, expect, test } from "vitest";
 
-import { type DiscardTile, Discards } from "@/entities/tile";
+import { type DiscardTile, Discards, LYING_BODY } from "@/entities/tile";
 
 function renderTo(template: TemplateResult): HTMLElement {
     const el = document.createElement("div");
@@ -53,6 +53,22 @@ describe("Discards tile classes", () => {
         const el = renderTo(Discards(tiles));
         const wrapper = el.querySelector(".discard-tile");
         expect(wrapper?.classList.contains("discard-tile-riichi")).toBe(true);
+    });
+
+    test("reserves a riichi discard its sideways oblique slot, foreshortened along the screen's y axis in every river", () => {
+        const slots = ([0, 90] as const).map((turn) => {
+            const wrapper = renderTo(
+                Discards([{ face: "5s", riichi: true }], "run-on", turn),
+            ).querySelector<HTMLElement>(".discard-tile-riichi");
+            return ["--slot-across-share", "--slot-down-share"].map((name) =>
+                Number(wrapper?.style.getPropertyValue(name)),
+            );
+        });
+
+        expect(slots).toEqual([
+            [1, LYING_BODY.topShare],
+            [LYING_BODY.topShare, 1],
+        ]);
     });
 });
 

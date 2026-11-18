@@ -163,7 +163,7 @@ function slotStyle({ across, down }: TileSlot): string {
 }
 
 function lyingSlotStyle(layout: TileLayout): string {
-    return slotStyle(lyingSlot(layout.lay ?? "lying", layout.turn ?? 0));
+    return slotStyle(lyingSlot(layout.turn ?? 0));
 }
 
 function roundShare(share: number): string {

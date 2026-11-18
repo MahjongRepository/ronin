@@ -6,12 +6,11 @@ import { type SeatTurn } from "@/entities/tile/lib/tile-body";
 import { Tile, type TileLayout, lyingSlotStyle } from "./tile";
 
 interface MeldLayout {
-    readonly own?: boolean;
     readonly turn?: SeatTurn;
 }
 
-function tileLayout({ own, turn }: MeldLayout, sideways: boolean): TileLayout {
-    return { lay: own === true ? "own" : "lying", sideways, turn };
+function tileLayout({ turn }: MeldLayout, sideways: boolean): TileLayout {
+    return { lay: "lying", sideways, turn };
 }
 
 function slotWrapperStyle(layout: MeldLayout, paint: string | typeof nothing): string {

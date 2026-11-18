@@ -1,6 +1,7 @@
 import { type Page } from "playwright";
 
 import { RIVER_ROW_SIZE } from "../../../src/entities/tile/lib/river-shape.ts";
+import { LYING_BODY } from "../../../src/entities/tile/lib/tile-body.ts";
 import {
     type BoardMeasure,
     type PlaneMeasure,
@@ -426,9 +427,9 @@ interface DerivedProportions {
  * review; the opponent's hand at the river tile holds everywhere (`checkHandScale`).
  */
 const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
-    [FLOOR, { riverGap: 0.32, riverToOwn: 0.5, topRiverGap: 0.53 }],
-    [NOTCH_PHONE, { riverGap: 0.29, riverToOwn: 0.48, topRiverGap: 0.52 }],
-    [MID_DESKTOP, { riverGap: 0.14, riverToOwn: 0.73, topRiverGap: 0.34 }],
+    [FLOOR, { riverGap: 0.32, riverToOwn: 0.51, topRiverGap: 0.74 }],
+    [NOTCH_PHONE, { riverGap: 0.32, riverToOwn: 0.51, topRiverGap: 0.73 }],
+    [MID_DESKTOP, { riverGap: 0.16, riverToOwn: 0.77, topRiverGap: 0.56 }],
 ]);
 const DERIVED_TOLERANCE = 0.02;
 
@@ -533,10 +534,10 @@ function checkDerivedProportions(board: BoardMeasure, viewport: string, report: 
 function checkFaces(board: BoardMeasure, viewport: Viewport, report: PageReport): void {
     const floor: Size = viewport.barsShown?.riverFloor ?? MIN_FACE;
     function underFloor(tile: Box, slack: number): boolean {
-        return (
-            Math.min(tile.width, tile.height) < floor.width - slack ||
-            longSide(tile) < floor.height - slack
-        );
+        const sideways = tile.width > tile.height;
+        const across = sideways ? floor.height : floor.width;
+        const down = (sideways ? floor.width : floor.height) * LYING_BODY.topShare;
+        return tile.width < across - slack || tile.height < down - slack;
     }
     function laidUnder(tile: Box): boolean {
         return underFloor(tile, EPSILON);
@@ -733,7 +734,7 @@ function withDrawnEdge(quad: readonly Point[], share: number): readonly Point[] 
     const tops = quad.map(({ top }) => top);
     const width = Math.max(...lefts) - Math.min(...lefts);
     const height = Math.max(...tops) - Math.min(...tops);
-    const edge = share * (height > width ? (height * 3) / 4 : height);
+    const edge = share * (height > width ? width : (width * 3) / 4);
     return convexHull([...quad, ...quad.map(({ left, top }) => ({ left, top: top + edge }))]);
 }
 

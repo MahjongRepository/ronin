@@ -26,14 +26,12 @@ const FULL_HAND = 14.6;
 
 /** An own meld's tile to the river tile. */
 const OWN_MELD_SCALE = 1;
-const OWN_LYING_HEIGHT_SHARE = LYING_BODY.ownTopShare;
 
 /** The gap between the centre and a river, in river tiles. */
 const RIVER_GAP_SHARE = 0.3;
 
 /** How far a tile's edge reaches below its box, in shares of its width. */
 const TILE_EDGE_SHARE = LYING_BODY.edge;
-const OWN_LYING_EDGE_SHARE = LYING_BODY.ownEdge;
 
 /** How far the top hand's standing backs reach below their boxes, in shares of their width: their edge and rise. */
 const TOP_HAND_EDGE_SHARE = UPRIGHT_BACK_EDGE;
@@ -57,7 +55,7 @@ const OWN_DRAWN_GAP = 0.35;
 const MELD_GAP_EXTRA = 2;
 
 /** A side strip's drawn gap runs along the light, so it adds the edge it shows and keeps the top strip's clear table. */
-const SIDE_DRAWN_GAP = OPPONENT_DRAWN_GAP + TILE_EDGE_SHARE;
+const SIDE_DRAWN_GAP = OPPONENT_DRAWN_GAP + STANDING_BACK_EDGE_SHARE;
 
 /** The core's height past the centre, in river tiles: a gap and a top or bottom river's rows on each side. */
 const CORE_TILES = 2 * (RIVER_GAP_SHARE + RIVER_ROWS["run-on"] * TILE_ASPECT * LYING_Y_SHARE);
@@ -277,8 +275,6 @@ export {
     OWN_BY_RIVER_OFF_PHONE,
     OWN_BY_RIVER_WANTED,
     OWN_DRAWN_GAP,
-    OWN_LYING_EDGE_SHARE,
-    OWN_LYING_HEIGHT_SHARE,
     OWN_MELD_SCALE,
     OWN_ROW_GAP,
     PAGE_GUTTER,

@@ -464,7 +464,7 @@ $result-column-gap: 1rem;
 
 .round-end-result
     :is(.hand, .meld, .round-end-result__river-tiles, .round-end-result__indicator-tiles) {
-    padding-bottom: calc(var(--board-tile-w, 60px) * var(--tile-edge-share, 0.2));
+    padding-bottom: calc(var(--board-tile-w, 60px) * var(--tile-edge-share, 0.39));
 }
 
 .round-end-result__hand {

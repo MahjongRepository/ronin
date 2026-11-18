@@ -257,6 +257,7 @@ $max-melds: 4;
     flex: 1 1 0;
     justify-content: flex-end;
     min-width: 0;
+    margin-bottom: var(--geo-own-meld-lift, 0);
     gap: calc(var(--g) + 2px);
 
     &:has(> :is(.meld, .meld--source)) {

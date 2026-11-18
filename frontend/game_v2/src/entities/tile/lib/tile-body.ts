@@ -17,8 +17,8 @@ const BODY_VIEW_WIDTH = 100;
 const TILE_BOX_ASPECT = 4 / 3;
 const STANDING_OVERHANG = STANDING_BODY.height - TILE_BOX_ASPECT;
 
-const LYING_TOP_SHARE = 1;
-const LYING_EDGE_SHARE = 0.2;
+const LYING_TOP_SHARE = 0.85;
+const LYING_EDGE_SHARE = 0.39;
 const STANDING_BACK_EDGE_SHARE = 0.2;
 
 const LYING_BODY = {
@@ -27,8 +27,6 @@ const LYING_BODY = {
     edge: LYING_EDGE_SHARE,
     faceWidth: 0.8,
     litRim: 0.05,
-    ownEdge: 0.25,
-    ownTopShare: 0.92,
     roll: 0.1,
     shadedRim: 0.08,
     topShare: LYING_TOP_SHARE,
@@ -66,26 +64,21 @@ interface LyingBodyShape {
     readonly turned: boolean;
 }
 
-function lyingShape(turned: boolean, own: boolean, material: BodyMaterial): LyingBodyShape {
-    const topShare = own ? LYING_BODY.ownTopShare : LYING_BODY.topShare;
+function lyingShape(turned: boolean, material: BodyMaterial): LyingBodyShape {
     return {
         across: turned ? TILE_BOX_ASPECT : 1,
-        edge: own ? LYING_BODY.ownEdge : LYING_BODY.edge,
+        edge: LYING_BODY.edge,
         material,
-        top: (turned ? 1 : TILE_BOX_ASPECT) * topShare,
+        top: (turned ? 1 : TILE_BOX_ASPECT) * LYING_BODY.topShare,
         turned,
     };
 }
 
 const LYING_BODIES = {
-    "body-back-lying": lyingShape(false, false, "back"),
-    "body-back-lying-own": lyingShape(false, true, "back"),
-    "body-back-lying-own-sideways": lyingShape(true, true, "back"),
-    "body-back-lying-sideways": lyingShape(true, false, "back"),
-    "body-lying": lyingShape(false, false, "face"),
-    "body-lying-own": lyingShape(false, true, "face"),
-    "body-lying-own-sideways": lyingShape(true, true, "face"),
-    "body-lying-sideways": lyingShape(true, false, "face"),
+    "body-back-lying": lyingShape(false, "back"),
+    "body-back-lying-sideways": lyingShape(true, "back"),
+    "body-lying": lyingShape(false, "face"),
+    "body-lying-sideways": lyingShape(true, "face"),
 } as const satisfies Record<string, LyingBodyShape>;
 
 type LyingBodyId = keyof typeof LYING_BODIES;
@@ -204,7 +197,7 @@ const SEAT_TURNS = [0, 90, 180, 270] as const;
 
 type SeatTurn = (typeof SEAT_TURNS)[number];
 
-type TileLay = "lying" | "own" | "standing";
+type TileLay = "lying" | "standing";
 
 interface TileBodyRequest {
     readonly end: StandingBackEnd;
@@ -232,8 +225,8 @@ interface TileBody {
 
 const STANDING_SLOT: TileSlot = { across: 1, down: 1 };
 
-function lyingSlot(lay: TileLay, turn: SeatTurn): TileSlot {
-    const share = lay === "own" ? LYING_BODY.ownTopShare : LYING_BODY.topShare;
+function lyingSlot(turn: SeatTurn): TileSlot {
+    const share = LYING_BODY.topShare;
     return turn % 180 === 0 ? { across: 1, down: share } : { across: share, down: 1 };
 }
 
@@ -253,15 +246,9 @@ const STANDING_BACK_BY_TURN = {
     90: { covered: "body-back-standing-left-covered", shown: "body-back-standing-left" },
 } as const satisfies Record<SeatTurn, Record<StandingBackEnd, StandingBackBodyId>>;
 
-function lyingBodyId(material: BodyMaterial, own: boolean, turned: boolean): LyingBodyId {
+function lyingBodyId(material: BodyMaterial, turned: boolean): LyingBodyId {
     if (material === "face") {
-        if (own) {
-            return turned ? "body-lying-own-sideways" : "body-lying-own";
-        }
         return turned ? "body-lying-sideways" : "body-lying";
-    }
-    if (own) {
-        return turned ? "body-back-lying-own-sideways" : "body-back-lying-own";
     }
     return turned ? "body-back-lying-sideways" : "body-back-lying";
 }
@@ -275,7 +262,7 @@ function tileBody({ end, lay, material, sideways, turn }: TileBodyRequest): Tile
         const uncoveredId = id === shown ? null : shown;
         return { across, artTurn, edge, face: null, id, slot: STANDING_SLOT, top, uncoveredId };
     }
-    const id = lyingBodyId(material, lay === "own", artTurn % 180 === 90);
+    const id = lyingBodyId(material, artTurn % 180 === 90);
     const shape = LYING_BODIES[id];
     return {
         across: shape.across,
@@ -283,7 +270,7 @@ function tileBody({ end, lay, material, sideways, turn }: TileBodyRequest): Tile
         edge: shape.edge,
         face: material === "face" ? lyingFaceBox(shape) : null,
         id,
-        slot: lyingSlot(lay, turn),
+        slot: lyingSlot(turn),
         top: shape.top,
         uncoveredId: null,
     };

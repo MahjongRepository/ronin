@@ -1,7 +1,7 @@
 import { html, nothing, render } from "lit-html";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { OWN_LYING_HEIGHT_SHARE } from "@/entities/table/lib/board-constants";
+import { LYING_Y_SHARE } from "@/entities/table/lib/board-constants";
 import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
 import { BOARD_MOTION, planTileMotion } from "@/entities/table/lib/board-motion";
 import {
@@ -256,7 +256,7 @@ function measureFlightTile(this: HTMLElement): DOMRect {
         return new DOMRect(100, 600, 48, 64);
     }
     const gap = paintsGap(this) ? LATEST_GAP : 0;
-    return new DOMRect(100 + gap, 300 + gap, 48, 36);
+    return new DOMRect(100 + gap, 300 + gap, 48, 36 * LYING_Y_SHARE);
 }
 
 /** A camera tilting its rows away (their weight falls down the box), and one that also rolls them. */
@@ -778,7 +778,7 @@ describe("tile flight material", () => {
             BOARD_MOTION.ghosts.map(() => ({
                 "--motion-across": "48px",
                 "--motion-angle": "90deg",
-                "--motion-down": "36px",
+                "--motion-down": `${36 * LYING_Y_SHARE}px`,
                 "--motion-height": "48px",
                 "--motion-width": "36px",
             })),
@@ -892,7 +892,7 @@ function renderOwnPon(called: boolean, last: boolean): void {
             { face: "3p", kind: "upright", tileId: 11 },
         ],
         false,
-        { own: true, turn: 0 },
+        { turn: 0 },
     );
     render(
         html`<div class="board-local">
@@ -915,7 +915,7 @@ function measureLyingTile(this: HTMLElement): DOMRect {
         return getBox(this);
     }
     if (this.closest("[data-area='bottom-melds']") !== null) {
-        const lyingWidth = OWN_LYING_HEIGHT_SHARE * OWN_MELD_TILE_W;
+        const lyingWidth = LYING_Y_SHARE * OWN_MELD_TILE_W;
         return this.parentElement?.classList.contains("meld-tile-sideways") === true
             ? new DOMRect(100, 600, (OWN_MELD_TILE_W * 4) / 3, lyingWidth)
             : new DOMRect(150, 600, OWN_MELD_TILE_W, (lyingWidth * 4) / 3);
@@ -941,9 +941,9 @@ describe("own call flight", () => {
         const bodies = [...host.querySelectorAll(".board-motion__tile .tile__body > use")].map(
             (use) => use.getAttribute("href"),
         );
-        const lyingWidth = OWN_LYING_HEIGHT_SHARE * OWN_MELD_TILE_W;
+        const lyingWidth = LYING_Y_SHARE * OWN_MELD_TILE_W;
         expect(animations).toHaveLength(3 * BOARD_MOTION.ghosts.length);
-        expect(new Set(bodies)).toEqual(new Set(["#body-lying-own-sideways", "#body-lying-own"]));
+        expect(new Set(bodies)).toEqual(new Set(["#body-lying-sideways", "#body-lying"]));
         expect(flightPoses()).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
@@ -957,7 +957,7 @@ describe("own call flight", () => {
             ]),
         );
         expect(getAnimationFrames(animations[0])[0].translate).toBe(
-            `${LATEST_GAP}px ${300 + LATEST_GAP + 18 - 600 - lyingWidth / 2}px`,
+            `${LATEST_GAP}px ${300 + LATEST_GAP + (36 * LYING_Y_SHARE) / 2 - 600 - lyingWidth / 2}px`,
         );
         player.cancel();
     });
@@ -974,7 +974,7 @@ describe("tilted tile flight", () => {
         );
         expect([end.transform, start.translate, end.translate]).toEqual([
             start.transform,
-            "0px 314px",
+            "0px 316.7px",
             "0px 0px",
         ]);
         player.cancel();

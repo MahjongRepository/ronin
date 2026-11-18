@@ -1,7 +1,7 @@
 import { type TemplateResult, render } from "lit-html";
 import { describe, expect, test } from "vitest";
 
-import { Meld, type MeldInput, meldTiles } from "@/entities/tile";
+import { LYING_BODY, Meld, type MeldInput, meldTiles } from "@/entities/tile";
 
 // Tile ID reference (136-format):
 //   Man: 0-35 (type34 0-8), Pin: 36-71 (type34 9-17), Sou: 72-107 (type34 18-26)
@@ -251,7 +251,31 @@ describe("Meld - added kan", () => {
         ]);
     });
 
-    test("lays an own meld's tiles in the own row's foreshortened bodies, its called tile across", () => {
+    test("reserves an added kan's stack its oblique slot, foreshortened along the screen's y axis at every seat", () => {
+        const input: MeldInput = {
+            addedTileId: 3,
+            calledTileId: 2,
+            callerSeat: 0,
+            fromSeat: 1,
+            meldType: "added_kan",
+            tileIds: [0, 1, 2, 3],
+        };
+        const slots = ([0, 90] as const).map((turn) => {
+            const stacked = renderTo(
+                Meld(meldTiles(input), false, { turn }),
+            ).querySelector<HTMLElement>(".meld-tile-stacked");
+            return ["--slot-across-share", "--slot-down-share"].map((name) =>
+                Number(stacked?.style.getPropertyValue(name)),
+            );
+        });
+
+        expect(slots).toEqual([
+            [1, LYING_BODY.topShare],
+            [LYING_BODY.topShare, 1],
+        ]);
+    });
+
+    test("lays an own meld's tiles in the common lying bodies, its called tile across", () => {
         const input: MeldInput = {
             calledTileId: 4,
             callerSeat: 0,
@@ -259,12 +283,12 @@ describe("Meld - added kan", () => {
             meldType: "chi",
             tileIds: [8, 4, 0],
         };
-        const el = renderTo(Meld(meldTiles(input), false, { own: true, turn: 0 }));
+        const el = renderTo(Meld(meldTiles(input), false, { turn: 0 }));
 
         expect(
             [...laidTiles(el)].map((tile) =>
                 tile.querySelector(".tile__body > use")?.getAttribute("href"),
             ),
-        ).toEqual(["#body-lying-own-sideways", "#body-lying-own", "#body-lying-own"]);
+        ).toEqual(["#body-lying-sideways", "#body-lying", "#body-lying"]);
     });
 });

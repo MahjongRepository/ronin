@@ -96,9 +96,9 @@ describe("the top hand", () => {
 });
 
 describe("tableView between the grid's windows", () => {
-    it("never moves a phone's river tile more than 2px between neighbours 20x20 apart off the grid, 3px where the widest prompt first fits", () => {
+    it("never moves a phone's river tile more than 2px between neighbours 20 across or 10 down apart off the grid, 3px where the widest prompt first fits", () => {
         const widths = Array.from({ length: 15 }, (_unused, across) => 645 + 20 * across);
-        const heights = Array.from({ length: 10 }, (_unused, down) => 305 + 20 * down);
+        const heights = Array.from({ length: 20 }, (_unused, down) => 305 + 10 * down);
         const boards = heights.map((height) =>
             widths.map((width) => {
                 const { screen } = viewOf({ height, width });

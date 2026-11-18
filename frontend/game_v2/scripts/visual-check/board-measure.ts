@@ -252,7 +252,13 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                 return null;
             }
             const middle = (topRight.left - topLeft.left + bottomRight.left - bottomLeft.left) / 2;
-            return (tile.offsetWidth * middle) / center.offsetWidth;
+            return (tileWidth(tile) * middle) / center.offsetWidth;
+        }
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function tileWidth(tile: HTMLElement): number {
+            const share = Number.parseFloat(tile.style.getPropertyValue("--slot-across-share"));
+            const width = Number.parseFloat(getComputedStyle(tile).width);
+            return width / (Number.isFinite(share) && share > 0 ? share : 1);
         }
         function measureRestingRiver(within: Element): GroupedBox[] {
             const resting = document.createElement("style");
@@ -379,9 +385,9 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         const tileScale = {
             hands: [
                 ...board.querySelectorAll<HTMLElement>(".board-strip [data-area$='-hand'] .tile"),
-            ].map((tile) => tile.offsetWidth),
+            ].map(tileWidth),
             own: ownWidths.length === 0 ? null : Math.max(...ownWidths),
-            river: riverTile?.offsetWidth ?? null,
+            river: riverTile === null ? null : tileWidth(riverTile),
             shownRiver: shownRiverTile(riverTile, centerElement),
         };
         const cutNames = [...board.querySelectorAll(".nameplate .player-name")]
