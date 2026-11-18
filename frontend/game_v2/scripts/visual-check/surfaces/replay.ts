@@ -58,7 +58,7 @@ const CORE_MOVES = [
 const END_MOVES = [".replay-controls__move--prevRound", ".replay-controls__move--nextRound"];
 const VIEW_OPTION = ".replay-controls__option--view";
 const ROUNDS_TOGGLE = ".replay-controls__option--rounds";
-const OPTIONS = [".replay-controls__option--hands", ROUNDS_TOGGLE];
+const OPTIONS = [ROUNDS_TOGGLE, ".replay-controls__option--tools"];
 
 const REPLAY_MAX_STEPS = 300;
 const REPLAY_LOCAL_MELDS = 2;
