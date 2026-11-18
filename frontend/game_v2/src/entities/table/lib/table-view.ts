@@ -282,7 +282,7 @@ function stickUnder(
 }
 
 function boardViewValues(view: TableView, screen: BoardGeometry): [string, string][] {
-    const { centre } = view.pieces;
+    const { centre, "strip-left": stripLeft, "strip-right": stripRight } = view.pieces;
     const shownCorners = {
         bl: { left: centre.left, top: centre.bottom },
         br: { left: centre.right, top: centre.bottom },
@@ -291,6 +291,8 @@ function boardViewValues(view: TableView, screen: BoardGeometry): [string, strin
     };
     return [
         ["--geo-table-top", px(view.tableTop)],
+        ["--geo-shown-lane-left-x", px(stripLeft.right)],
+        ["--geo-shown-lane-right-x", px(stripRight.left)],
         ...Object.entries(shownCorners).flatMap(([corner, point]) =>
             pointValues(`--geo-shown-centre-${corner}`, point),
         ),

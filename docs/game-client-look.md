@@ -220,10 +220,12 @@ edge to short of the left strip). The plates stand in the core's corners as on a
 desktop (Badges). Over a panel the notices and a replay's status stay in their field and stand over it,
 reserving no room of their own.
 
-Four seat zones, top, left, right and bottom, are made perceptible on the surface. Decision: four
-faint seams pressed into the felt (a soft groove over a fainter lip) from the centre panel's corners, the upper two to the felt's top corners (a page gutter above the table's, on a window taller than its table), the lower
-two to its sides at the top of the foreground, so the whole foreground is the viewer's own; the
-side fields carry a faint tint. They establish perceived ownership; they are not clipping
+Four seat zones, top, left, right and bottom, are made perceptible on the surface. Decision: five
+faint seams pressed into the felt (a soft groove over a fainter lip), four from the centre panel's corners, the upper two to the felt's top corners (a page gutter above the table's, on a window taller than its table), the lower
+two to the side strips' inner edges at the top of the foreground, and a fifth along that top between those two
+corners, closing the play area, so nothing reaches the felt's edge beside the own hand and the felt below the line,
+the whole foreground, is plain and the viewer's own; the side fields carry a faint tint, each closed along that line
+to the felt's edge. They establish perceived ownership; they are not clipping
 boundaries, and a long river may cross one. A seat's tiles and the score data facing it are oriented
 toward that seat as on a real table: the top seat's tiles upside down, a side seat's on their side,
 every river reading left to right from its own seat. Names, notices, callouts and controls stay

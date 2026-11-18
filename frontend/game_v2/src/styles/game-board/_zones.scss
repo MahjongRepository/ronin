@@ -15,6 +15,8 @@
     --zone-top-y: calc(var(--geo-shown-centre-tl-y) + var(--oy) + var(--tt));
     --zone-bottom-y: calc(var(--geo-shown-centre-bl-y) + var(--oy) + var(--tt));
     --zone-band-y: calc(var(--foreground-top) + var(--oy) + var(--tt));
+    --zone-inner-left-x: calc(var(--geo-shown-lane-left-x) + var(--ox));
+    --zone-inner-right-x: calc(var(--geo-shown-lane-right-x) + var(--ox));
     --field-left: 0px;
     --field-right: var(--zone-w);
     --surround-motif-size: 480px;
@@ -64,6 +66,7 @@
             var(--field-left) var(--tt),
             var(--zone-tl-x) var(--zone-top-y),
             var(--zone-bl-x) var(--zone-bottom-y),
+            var(--zone-inner-left-x) var(--zone-band-y),
             var(--field-left) var(--zone-band-y)
         );
     }
@@ -74,6 +77,7 @@
             var(--field-right) var(--tt),
             var(--zone-tr-x) var(--zone-top-y),
             var(--zone-br-x) var(--zone-bottom-y),
+            var(--zone-inner-right-x) var(--zone-band-y),
             var(--field-right) var(--zone-band-y)
         );
     }
@@ -131,7 +135,7 @@
     &--bottom-right {
         --x1: var(--zone-br-x);
         --y1: var(--zone-bottom-y);
-        --x2: var(--field-right);
+        --x2: var(--zone-inner-right-x);
         --y2: var(--zone-band-y);
 
         left: var(--x1);
@@ -143,12 +147,19 @@
     &--bottom-left {
         --x1: var(--zone-bl-x);
         --y1: var(--zone-bottom-y);
-        --x2: var(--field-left);
+        --x2: var(--zone-inner-left-x);
         --y2: var(--zone-band-y);
 
         left: var(--x2);
         top: var(--y1);
         width: calc(var(--x1) - var(--x2));
         height: calc(var(--y2) - var(--y1));
+    }
+
+    &--bottom {
+        left: var(--zone-inner-left-x);
+        top: var(--zone-band-y);
+        width: calc(var(--zone-inner-right-x) - var(--zone-inner-left-x));
+        height: 1px;
     }
 }
