@@ -63,6 +63,7 @@ export type {
 export { tableStateToDisplayState } from "./lib/board-mapper";
 export type { Call } from "./lib/callouts";
 export { CALLOUT_MS, boardCallouts, callsShownKan, eventCalls } from "./lib/callouts";
+export { DISCARD_LANDING_MS } from "./lib/board-motion";
 export { RoundEndDisplay } from "./ui/round-end-display";
 export type { RoundEndDisplayProps } from "./ui/round-end-display";
 export { roundEndDisplay, roundEndPageAt } from "./lib/round-end-display";

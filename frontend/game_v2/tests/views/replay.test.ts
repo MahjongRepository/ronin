@@ -19,6 +19,7 @@ import {
     type ReplayPrefs,
     type ReplayPrefsStore,
 } from "@/entities/replay";
+import { DISCARD_LANDING_MS } from "@/entities/table";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { type Locale } from "@/shared/i18n";
 import { localStore } from "@/shared/lib";
@@ -255,6 +256,7 @@ function mountReplay(
         location,
         motionSetting: localStore(MOTION_SETTING_KEY, readMotionSetting, DEFAULT_MOTION_SETTING),
         openUrl: (url) => opened.push(url),
+        prefersReducedMotion: () => false,
         prefs: store,
         setLanguage,
         setTileLabels: () => {},
@@ -355,6 +357,16 @@ function runTimers(clock: ManualClock, limit = 50): number {
         fired += 1;
     }
     return fired;
+}
+
+function soundsAfter(
+    sound: MountedReplay["sound"],
+    actions: readonly (() => void)[],
+): SoundCue[][] {
+    return actions.map((action) => {
+        action();
+        return [...sound.played];
+    });
 }
 
 /** Run each action in turn and return the position shown after each. */
@@ -884,7 +896,7 @@ describe("mountReplayView - view", () => {
         expect(savedPrefs).toEqual([{ ...DEFAULT_REPLAY_PREFS, showTsumogiri: false }]);
     });
     it("holds a deep link on the seating while the sound is on, the wheel moving nothing, then plays a step on's sounds until the reader turns them off from the cog", async () => {
-        const { host, sound } = await mountLoadedReplay("riichi", "?round=0&step=10", {
+        const { clock, host, sound } = await mountLoadedReplay("riichi", "?round=0&step=10", {
             soundOn: true,
         });
         const held = [
@@ -894,17 +906,44 @@ describe("mountReplayView - view", () => {
         ];
 
         button(host, ".seating__action").click();
-        button(host, ".replay-controls__move--next").click();
+        const heard = soundsAfter(sound, [
+            () => button(host, ".replay-controls__move--next").click(),
+            () => clock.advanceTo(clock.elapsedNow() + DISCARD_LANDING_MS),
+        ]);
         button(host, ".game-menu__toggle").click();
         const statusRows = host.querySelectorAll(".game-menu__status-row").length;
         button(host, ".game-menu__sound").click();
         button(host, ".replay-controls__move--next").click();
 
         expect(held).toEqual([false, "East 1 Step 11 of 28", true]);
-        expect([sound.played, sound.setting, statusRows]).toEqual([
-            ["discard", "riichi"],
+        expect([heard, sound.played, sound.setting, statusRows]).toEqual([
+            [["riichi"], ["riichi", "discard"]],
+            ["riichi", "discard"],
             { sound_on: false },
             0,
+        ]);
+    });
+
+    it("plays a landing clack at once when the reader steps on, and drops it when they step back before its tile lands", async () => {
+        const { clock, host, sound } = await mountLoadedReplay("riichi", "?round=0&step=0", {
+            soundOn: true,
+        });
+        button(host, ".seating__action").click();
+        function next(): void {
+            button(host, ".replay-controls__move--next").click();
+        }
+
+        const heard = soundsAfter(sound, [
+            next,
+            next,
+            next,
+            () => button(host, ".replay-controls__move--prev").click(),
+            () => clock.advanceTo(clock.elapsedNow() + DISCARD_LANDING_MS),
+        ]);
+
+        expect([heard, position(host)]).toEqual([
+            [[], ["discard"], ["discard"], ["discard"], ["discard"]],
+            "East 1 Step 3 of 28",
         ]);
     });
 

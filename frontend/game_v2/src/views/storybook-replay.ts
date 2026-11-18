@@ -191,6 +191,7 @@ export function mountStorybookReplay(host: HTMLElement): () => void {
             openUrl: (url) => {
                 window.open(url, "_blank", "noopener");
             },
+            prefersReducedMotion: () => matchMedia("(prefers-reduced-motion: reduce)").matches,
             prefs: { load: () => story.prefs ?? DEFAULT_REPLAY_PREFS, save: () => {} },
             roundListOpen: story.roundListOpen ?? false,
             setLanguage: applyPageLocale,

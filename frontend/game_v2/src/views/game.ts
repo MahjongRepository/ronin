@@ -50,6 +50,7 @@ import {
 } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 import { type ConnectSocket, type GameConnection, type SocketHandlers } from "@/shared/websocket";
+import { LandingClacks } from "@/views/landing-clacks";
 
 /** Where the game view's effects outside the socket land: the lobby's handoff storage and the page's location. */
 export interface GameViewSink {
@@ -78,6 +79,7 @@ export interface GameViewDeps {
     readonly sound: GameSound;
     readonly inputSetting: LocalStore<InputSetting>;
     readonly motionSetting: LocalStore<MotionSetting>;
+    readonly prefersReducedMotion: () => boolean;
     readonly autoWinSetting: LocalStore<AutoWinSetting>;
     readonly setLanguage: (locale: Locale) => void;
     readonly setWinds: (script: WindScript) => void;
@@ -340,6 +342,7 @@ class GameViewController {
     private panelOpener: HTMLElement | null = null;
     private readonly recovery = new AbortController();
     private readonly timer: DeadlineTimer;
+    private readonly clacks: LandingClacks;
     private socket: GameConnection | null = null;
     private socketGeneration = 0;
     private disposed = false;
@@ -353,7 +356,10 @@ class GameViewController {
         this.host = host;
         this.deps = deps;
         this.log = deps.debug ? [] : null;
-        this.timer = createDeadlineTimer(deps.clock, (at) => this.dispatch({ at, kind: "tick" }));
+        [this.timer, this.clacks] = [
+            createDeadlineTimer(deps.clock, (at) => this.dispatch({ at, kind: "tick" })),
+            new LandingClacks(deps.clock, deps.sound),
+        ];
         this.ui = {
             ...NO_PLAY_UI,
             animationsOn: deps.motionSetting.load().animations,
@@ -400,6 +406,7 @@ class GameViewController {
         this.recovery.abort();
         this.queue.length = 0;
         this.timer.disarm();
+        this.clacks.cancel();
         this.closeSocket();
         render(nothing, this.host);
     }
@@ -459,6 +466,9 @@ class GameViewController {
             this.panelOpener = this.focusedControl();
         }
         this.ui = stepPlayUi(this.state, this.ui, command);
+        if (!this.ui.soundOn) {
+            this.clacks.cancel();
+        }
         this.saveSetting(command);
         this.draw();
         if (command.kind === "cancel_leave" || command.kind === "close_controls") {
@@ -580,12 +590,14 @@ class GameViewController {
 
     /** Play the sounds a step made, while the player keeps the sound on. */
     private playSounds(before: LiveClient, after: LiveClient): void {
+        if (after.boardMotion !== before.boardMotion && after.boardMotion.mode === "reset") {
+            this.clacks.cancel();
+        }
         if (!this.ui.soundOn) {
             return;
         }
-        for (const cue of soundCues(before, after)) {
-            this.deps.sound.play(cue);
-        }
+        const motion = this.ui.animationsOn && !this.deps.prefersReducedMotion();
+        this.clacks.play(soundCues(before, after), motion);
     }
 
     /**

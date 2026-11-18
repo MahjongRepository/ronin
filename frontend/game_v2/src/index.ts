@@ -242,6 +242,7 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
             replay: (seat) => replayPageUrl(gameId, seat),
         },
         motionSetting: localStore(MOTION_SETTING_KEY, readMotionSetting, DEFAULT_MOTION_SETTING),
+        prefersReducedMotion: () => matchMedia("(prefers-reduced-motion: reduce)").matches,
         recoverHandoff: fetchGameHandoff,
         setLanguage: applyPageLocale,
         setTileLabels: applyTileLabels,

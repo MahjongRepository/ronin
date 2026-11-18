@@ -695,7 +695,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   recorded voices play as their callouts first show, with an additional voice when the server confirms a yakuman result.
   The countdown beeps for each of the last five
   seconds of a decision that runs
-  longer than five. A reconnect's snapshot plays nothing. A replay plays a move's sounds (no beep) on a step on to the
+  longer than five. The clack sounds as the discard lands, the landing delay after the move, while the board animates
+  (the Animations switch on and no system reduced motion); otherwise it plays with the move. A clack still waiting to
+  land is dropped when the sound is turned off, a reset snapshot comes or the page closes; in a replay also on a jump or a
+  step back, while a step on plays it at once. Every other sound plays with its move. A reconnect's snapshot plays nothing. A replay plays a move's sounds (no beep) on a step on to the
   next stop (Next, autoplay, a held Next, the wheel), never on a jump, a step back or a result's page. A browser
   plays no sound before a click, tap or key on the page, and a wheel is none, so with the sound on a replay always
   opens on its seating, a linked position included, and the wheel never leaves it: Start (or a key or a control) is

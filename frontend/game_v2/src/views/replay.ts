@@ -48,6 +48,7 @@ import {
     createThrottledWriter,
     focusByKey,
 } from "@/shared/lib";
+import { LandingClacks } from "@/views/landing-clacks";
 import {
     HOLD_EVENTS,
     boardWheel,
@@ -85,6 +86,7 @@ export interface ReplayViewDeps {
     readonly sound: GameSound;
     /** Whether the board animates, a setting the live game shares. */
     readonly motionSetting: LocalStore<MotionSetting>;
+    readonly prefersReducedMotion: () => boolean;
     readonly setLanguage: (locale: Locale) => void;
     readonly setWinds: (script: WindScript) => void;
     readonly setTileLabels: (on: boolean) => void;
@@ -372,6 +374,7 @@ class ReplayViewController {
     /** The failed screen could not be drawn either, so the page shows the bare notice and draws nothing more. */
     private broken = false;
     private readonly timer: DeadlineTimer;
+    private readonly clacks: LandingClacks;
     /** The step button a hold follows, whose pointer events the view listens to while the screen holds it. */
     private held: HTMLElement | null = null;
 
@@ -414,6 +417,7 @@ class ReplayViewController {
         this.timer = createDeadlineTimer(deps.clock, (at) =>
             this.guard(() => this.apply(stepReplayPage(this.screen, { at, kind: "tick" }))),
         );
+        this.clacks = new LandingClacks(deps.clock, deps.sound);
         this.addressWriter = createThrottledWriter(
             deps.clock,
             REPLAY_URL_WRITE_INTERVAL_MS,
@@ -434,6 +438,7 @@ class ReplayViewController {
     dispose(): void {
         this.disposed = true;
         this.timer.disarm();
+        this.clacks.cancel();
         this.releaseHold();
         this.host.ownerDocument.removeEventListener("click", this.onClickOutside);
         this.removePageHide();
@@ -501,6 +506,7 @@ class ReplayViewController {
      * changes nothing drawn), run its effects, follow its hold and arm its deadline.
      */
     private apply({ effects, screen }: ReplayPageStep): void {
+        this.followClacks(screen);
         if (drawsAlike(this.screen, screen)) {
             this.screen = screen;
         } else {
@@ -513,6 +519,20 @@ class ReplayViewController {
             this.releaseHold();
         }
         this.armDeadline();
+    }
+
+    private followClacks(next: ReplayScreen): void {
+        const shown = this.screen;
+        if (next.kind !== "loaded" || !next.soundOn || shown.kind !== "loaded") {
+            this.clacks.cancel();
+            return;
+        }
+        const [from, to] = [shown.view.cursor.stop, next.view.cursor.stop];
+        if (to === from + 1) {
+            this.clacks.landNow();
+        } else if (to !== from) {
+            this.clacks.cancel();
+        }
     }
 
     /**
@@ -547,7 +567,7 @@ class ReplayViewController {
                 return;
             }
             case "play_sounds": {
-                return effect.cues.forEach(this.deps.sound.play);
+                return this.clacks.play(effect.cues, this.motionEffective());
             }
             case "save_prefs":
             case "save_sound":
@@ -598,6 +618,14 @@ class ReplayViewController {
             return;
         }
         this.deps.motionSetting.save({ animations: effect.animationsOn });
+    }
+
+    private motionEffective(): boolean {
+        return (
+            this.screen.kind === "loaded" &&
+            this.screen.animationsOn &&
+            !this.deps.prefersReducedMotion()
+        );
     }
 
     /** Keep one timer armed to the screen's deadline, unless it is the one already armed. */

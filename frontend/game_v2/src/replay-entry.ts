@@ -54,6 +54,7 @@ export function mountReplay(host: HTMLElement, gameId: string, page: ReplayPage)
         openUrl: (url) => {
             window.open(url, "_blank", "noopener");
         },
+        prefersReducedMotion: () => matchMedia("(prefers-reduced-motion: reduce)").matches,
         prefs: localStore(REPLAY_PREFS_KEY, readReplayPrefs, DEFAULT_REPLAY_PREFS),
         setLanguage: applyPageLocale,
         setTileLabels: applyTileLabels,

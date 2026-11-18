@@ -22,6 +22,8 @@ export const BOARD_MOTION = {
     slotEasing: "cubic-bezier(0.16, 1, 0.3, 1)",
 } as const;
 
+export const DISCARD_LANDING_MS = BOARD_MOTION.landing;
+
 export interface MotionRect {
     readonly left: number;
     readonly top: number;

@@ -30,6 +30,7 @@ import {
     readMotionSetting,
 } from "@/entities/client";
 import { SHORTCUT_SETTLE_MS } from "@/entities/client/ui/play-input";
+import { DISCARD_LANDING_MS } from "@/entities/table";
 import {
     TILE_LABELS_KEY,
     type TileSprite,
@@ -131,6 +132,7 @@ interface FakeOverrides {
     readonly soundSetting?: SoundSetting;
     readonly inputSetting?: GameViewDeps["inputSetting"];
     readonly motionSetting?: GameViewDeps["motionSetting"];
+    readonly prefersReducedMotion?: boolean;
     readonly autoWinSetting?: GameViewDeps["autoWinSetting"];
     readonly setLanguage?: GameViewDeps["setLanguage"];
     readonly setWinds?: GameViewDeps["setWinds"];
@@ -209,6 +211,7 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
             load: () => DEFAULT_MOTION_SETTING,
             save: () => {},
         },
+        prefersReducedMotion: () => overrides.prefersReducedMotion ?? false,
         recoverHandoff:
             overrides.recoverHandoff ??
             (() => Promise.reject(new Error("the tab holds a handoff"))),
@@ -1262,20 +1265,6 @@ describe("mountGameView settings", () => {
         expect(document.activeElement?.classList.contains("game-menu__toggle")).toBe(true);
     });
 
-    it("plays the sounds of each step while the sound is on, and none once the player turns it off", () => {
-        const { connections, host, sound } = mountWithFakes();
-        openCallPrompt(connections[0]);
-        const heard = [...new Set(sound.played)];
-
-        press(host, ".game-menu__toggle");
-        press(host, ".game-menu__sound");
-        const played = sound.played.length;
-        receiveThroughTurn(connections[0]);
-
-        expect(heard).toEqual(["discard", "decision"]);
-        expect(sound.played).toHaveLength(played);
-    });
-
     it("switches the page to Russian in place while a call waits, its menu open, sending nothing and reloading nothing", () => {
         onTestFinished(resetPageLanguage);
         const languages = fakeLanguageSwitch();
@@ -1347,6 +1336,48 @@ describe("mountGameView settings", () => {
             host.querySelector(".game__play .game-menu__panel") !== null,
             connections[0].sent,
         ]).toEqual([0, true, "true", true, [JOIN]]);
+    });
+});
+
+describe("mountGameView sounds", () => {
+    it("plays a step's cues at once and its discard's clack only as the tile lands", () => {
+        const { clock, connections, sound } = mountWithFakes();
+        openCallPrompt(connections[0]);
+        const atOnce = [...sound.played];
+        clock.advanceTo(DISCARD_LANDING_MS - 1);
+        const beforeLanding = [...sound.played];
+        clock.advanceTo(DISCARD_LANDING_MS);
+
+        expect([atOnce, beforeLanding, sound.played]).toEqual([
+            ["decision"],
+            ["decision"],
+            ["decision", "discard"],
+        ]);
+    });
+
+    it("plays no sound once the player turns it off, not even a clack whose tile is still landing", () => {
+        const { clock, connections, host, sound } = mountWithFakes();
+        openCallPrompt(connections[0]);
+
+        press(host, ".game-menu__toggle");
+        press(host, ".game-menu__sound");
+        receiveThroughTurn(connections[0]);
+        clock.advanceTo(DISCARD_LANDING_MS);
+
+        expect(sound.played).toEqual(["decision"]);
+    });
+
+    it.each([
+        [
+            "the player keeps animations off",
+            { motionSetting: { load: () => ({ animations: false }), save: () => {} } },
+        ],
+        ["the system reduces motion", { prefersReducedMotion: true }],
+    ] as const)("plays a discard's clack at once while %s", (_case, overrides) => {
+        const { connections, sound } = mountWithFakes(overrides);
+        openCallPrompt(connections[0]);
+
+        expect(sound.played).toEqual(["discard", "decision"]);
     });
 });
 
