@@ -38,9 +38,9 @@ function createFlight(motion: TileMotion, scene: Scene, target: TileSnapshot): F
         fromQuad: target.latest ? source.quad : source.paintedQuad,
         image: target.image,
         motion,
-        to: target.rect,
+        to: target.painted,
         toPose: target.pose,
-        toQuad: target.quad,
+        toQuad: target.paintedQuad,
     };
 }
 
@@ -157,12 +157,22 @@ export class BoardMotionPlayer {
     }
 
     private playPlan(plan: readonly TileMotion[], scene: Scene): void {
+        const returnDelay = this.gapReturnDelay();
         for (const motion of plan.filter(({ kind }) => kind !== "hold")) {
-            this.playTile(motion, scene);
+            this.playTile(
+                motion.kind === "return" ? { ...motion, delay: returnDelay } : motion,
+                scene,
+            );
         }
         for (const motion of plan.filter(({ kind }) => kind === "hold")) {
             this.playHold(motion, scene);
         }
+    }
+
+    private gapReturnDelay(): number {
+        return this.discardLandingAt === null
+            ? 0
+            : Math.max(0, this.discardLandingAt + BOARD_MOTION.drawHold - performance.now());
     }
 
     private currentSources(before: readonly TileSnapshot[]): ReadonlyMap<string, TileSnapshot> {
@@ -175,7 +185,9 @@ export class BoardMotionPlayer {
     }
 
     private reconcile(after: ReadonlyMap<string, TileSnapshot>, plan: readonly TileMotion[]): void {
-        const changing = new Set(plan.map((motion) => motion.target));
+        const changing = new Set(
+            plan.filter(({ kind }) => kind !== "return").map((motion) => motion.target),
+        );
         for (const active of this.running.values()) {
             showDestination(active.target);
         }
@@ -285,15 +297,8 @@ export class BoardMotionPlayer {
                 });
             }
         }
-        this.followDiscard(motion, target);
-    }
-
-    private followDiscard(motion: TileMotion, target: TileSnapshot): void {
         if (target.region === "discards") {
             this.discardLandingAt = performance.now() + motion.delay + BOARD_MOTION.landing;
-        }
-        if (target.latest) {
-            this.reflow.openGap(motion, target);
         }
     }
 

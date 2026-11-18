@@ -74,27 +74,6 @@ describe("planTileMotion", () => {
         },
     );
 
-    it("takes a concealed tsumogiri from the separated draw, without inventing its identity", () => {
-        const hand = tile("slot", { concealed: true, id: "" });
-        const drawn = tile("drawn", { concealed: true, drawn: true, id: "" });
-        const discard = tile("river-4", {
-            id: "4",
-            rect: { ...hand.rect, top: 40 },
-            region: "discards",
-            tsumogiri: true,
-        });
-        const result = planTileMotion([hand, drawn], [hand, discard]);
-        expect(result).toEqual([
-            {
-                delay: 0,
-                duration: BOARD_MOTION.flight,
-                kind: "flight",
-                source: drawn.key,
-                target: discard.key,
-            },
-        ]);
-    });
-
     it("assembles a meld from its caller's hand and another seat's river", () => {
         const hand = tile("hand-1", { id: "1" });
         const river = tile("river-2", { id: "2", region: "discards", seat: "left" });
@@ -112,30 +91,39 @@ describe("planTileMotion", () => {
         ]);
     });
 
-    it("plans no reflow in an opponent's concealed hand after a tedashi", () => {
-        const hand = tile("slot", { concealed: true, id: "" });
+    it("opens a hole in the middle of an opponent's concealed hand for a tedashi and closes it after the landing, but not for a tsumogiri", () => {
+        const hand = [0, 1, 2, 3].map((index) =>
+            tile(`slot-${index}`, {
+                concealed: true,
+                id: "",
+                index,
+                rect: { height: 40, left: 10 + 30 * index, top: 100, width: 30 },
+                seat: "right",
+            }),
+        );
         const drawn = tile("drawn", {
             concealed: true,
             drawn: true,
             id: "",
-            rect: { ...hand.rect, left: 60 },
+            rect: { height: 40, left: 140, top: 100, width: 30 },
+            seat: "right",
         });
-        const settled = { ...hand, rect: { ...hand.rect, left: 40 } };
-        const discard = tile("river", {
-            id: "4",
-            rect: { ...hand.rect, top: 40 },
-            region: "discards",
-        });
-        const result = planTileMotion([hand, drawn], [settled, discard]);
-        expect(result).toEqual([
-            {
-                delay: 0,
-                duration: BOARD_MOTION.flight,
-                kind: "flight",
-                source: "slot",
-                target: "river",
-            },
+        const tedashi = tile("river", { id: "4", region: "discards", seat: "right" });
+        const flight = { delay: 0, duration: BOARD_MOTION.flight, kind: "flight", target: "river" };
+        const shift = {
+            delay: BOARD_MOTION.landing + BOARD_MOTION.gapHold,
+            duration: BOARD_MOTION.handClose,
+            kind: "reflow",
+        };
+        expect(planTileMotion([...hand, drawn], [...hand, tedashi])).toEqual([
+            { ...shift, source: "slot-2", target: "slot-1" },
+            { ...shift, source: "slot-3", target: "slot-2" },
+            { ...shift, source: "drawn", target: "slot-3" },
+            { ...flight, source: "slot-1" },
         ]);
+        expect(
+            planTileMotion([...hand, drawn], [...hand, { ...tedashi, tsumogiri: true }]),
+        ).toEqual([{ ...flight, source: "drawn" }]);
     });
 
     it("holds an opponent's concealed draw in step mode and plans nothing for the viewer's draw or a replay", () => {

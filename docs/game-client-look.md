@@ -341,13 +341,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   owner's in every orientation. Decision: a drawn-and-discarded tile is not told apart from one
   played from the hand; the rivers keep as few tile states
   as possible so the latest discard and the riichi tile are found at a glance.
-- **Latest discard.** Decision: the newest discard lands in line in its river slot. In live play it stands apart
-  only while a call on it is being decided, whether or not the viewer has an offer on it; a replay's discard stop
-  shows it until the next step; and so does a static state (motion off, a reconnect, a replay jump) while it is the
-  table's last action: a small gap (7px; 10px along the right river's row) before it along its row and toward its
-  seat, as a tile just thrown lies, with no ring, pointer or colour. In motion it slides out to the gap as it lands
-  only if the next draw has not arrived by then, so in live play a turn nobody can call never shows it. The next
-  draw ends it, the tile then lying in the river as any other; a call
+- **Latest discard.** Decision: every newest discard lands in its gap and stays there until 300ms after it lands
+  (when an opponent's held draw appears), or for as long as a call on it is being decided, whether or not the viewer
+  has an offer on it; then it slides back into line over 120ms, never outward. The gap is small (7px; 10px along the
+  right river's row), before it along its row and toward its seat, as a tile just thrown lies, with no ring, pointer
+  or colour. A replay's discard stop shows the gap until the next step, which slides it home at once, and a static
+  state (motion off, a reconnect, a replay jump) shows it while it is the table's last action. The next draw ends it, the tile then lying in the river as any other; a call
   that claims it ends it too, the claim then read from the meld, and so does the round's end,
   whatever its result (a ron on it included: the result shows the winning tile). During a discard offer this mark is the action source. A
   chankan offer's source is a kan in a meld and is marked separately, the whole kan ringed in its
@@ -643,14 +642,14 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   appears on selection, without moving tiles or changing scores. A matching server confirmation
   does not repeat a lone callout or its voice, even after its popup expires. Another player's winning
   call replaces it when the server resolves priority. A double or triple ron
-  shows every claimant's at once. It shows for 1.25 seconds: a 250ms fade-in shrinking from 1.2 times its
-  resting size, a 500ms hold, then a 500ms fade-out. In live play it remains until
+  shows every claimant's at once. It shows for 1.2 seconds: a 240ms fade-in shrinking from 1.2 times its
+  resting size, a 480ms hold, then a 480ms fade-out. In live play it remains until
   then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
 - **Tile motion.** A draw appears in its separated hand slot without travelling: the viewer's at once, an
   opponent's in live play 300ms after the preceding discard lands (at once in a replay). Discards travel from hand
-  to river in 120ms and land in line in their slot; the latest discard then slides out to its gap in 120ms if the
-  next draw has not arrived, and back into line in 120ms when its mark ends.
+  to river in 150ms and land in their slot, the latest in its gap; it stays there until 300ms after landing, or
+  while a call on it is being decided, then slides back into line over 120ms.
   A travelling tile is three faint shadowless copies, 12ms apart, in its destination's look from take-off: its body
   (a discard leaves the hand as the lying river tile, a riichi discard already sideways, a call into the own melds as
   the lying own meld tile), its size and its turn, and on the tilted table its slot's taper and squash. Nothing
@@ -663,13 +662,15 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   under that shared shadow; on the tilted table their offsets are the slots' own, taken back through the camera, not
   a uniform scale. A settling discard whose size or turn changes, or a laid meld tile whose turn changes,
   shows in its new slot at once.
-  An opponent's concealed hand settles at once after a discard. A visible hand closes its gap and sorts over 300ms
-  from the discard's landing, decelerating, in live play and in a replay alike.
+  An opponent's tedashi leaves from the middle of their concealed hand and leaves a hole there, which closes 300ms
+  after the landing as the tiles to its right and the drawn tile slide over, over 300ms and decelerating; a
+  tsumogiri leaves no hole, and a draw or a call settles a concealed hand at once. A visible hand closes its gap and
+  sorts over 300ms from the discard's landing, decelerating. Both run alike in live play and in a replay.
   Replay settles the previous stop's tile movements before measuring the next move, so rapid stepping animates
   only the latest move and never waits for an animation backlog. Calls assemble their
   meld from the original hand and river positions; travel time follows distance at the local tile scale, bounded
   to 80–300ms. Starting hands and indicator slots appear immediately at each deal. There is no drawn wall.
-  Opponents' revealed hands replace their standing backs one tile every 30ms, without a flip; waiting backs stay
+  Opponents' revealed hands replace their standing backs one tile every 35ms, without a flip; waiting backs stay
   in their native hand slots, retaining the hand's shared shadow and the side hands' gaps. The hand stays
   automatically sorted and keeps its existing hover and selection feedback. Motion never blocks input, delays
   game state or invents a hidden tile identity (an opponent's held draw delays only its picture); later events preserve unaffected movements. A fresh page,
@@ -699,7 +700,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   longer than five. The clack sounds as the discard lands, the landing delay after the move, while the board animates
   (the Animations switch on and no system reduced motion); otherwise it plays with the move. A clack still waiting to
   land is dropped when the sound is turned off, a reset snapshot comes or the page closes; in a replay also on a jump or a
-  step back, while a step on plays it at once. Every other sound plays with its move. A reconnect's snapshot plays nothing. A replay plays a move's sounds (no beep) on a step on to the
+  step back, while a step on plays it at once. A decision chime that comes while a clack waits sounds with that clack,
+  since the chime opens on a clack-like tap that would otherwise read as a second clack. Every other sound plays with
+  its move. A reconnect's snapshot plays nothing. A replay plays a move's sounds (no beep) on a step on to the
   next stop (Next, autoplay, a held Next, the wheel), never on a jump, a step back or a result's page. A browser
   plays no sound before a click, tap or key on the page, and a wheel is none, so with the sound on a replay always
   opens on its seating, a linked position included, and the wheel never leaves it: Start (or a key or a control) is

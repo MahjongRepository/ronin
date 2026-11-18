@@ -183,8 +183,7 @@ type TilePlace = Pick<TileSnapshot, "latest" | "painted" | "paintedQuad" | "quad
 function measurePlace(slot: HTMLElement, tile: HTMLElement, frames: PieceFrames): TilePlace {
     const latest = slot.classList.contains("discard-tile--last");
     const rect = latest ? measureOnGrid(slot, tile) : tile.getBoundingClientRect();
-    const painted =
-        latest && !slot.hasAttribute("data-landing") ? tile.getBoundingClientRect() : rect;
+    const painted = latest ? tile.getBoundingClientRect() : rect;
     const quad = captureQuad(tile, rect, frames);
     return {
         latest,

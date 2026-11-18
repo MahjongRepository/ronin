@@ -1,24 +1,25 @@
 import { type BoardMotionCue, type SeatPosition } from "@/entities/table/model/board-types";
 
-const FLIGHT = 120;
+const FLIGHT = 150;
 const GHOSTS = [
-    { alpha: 0.125, delay: 0 },
-    { alpha: 0.25, delay: 12 },
-    { alpha: 0.125, delay: 24 },
+    { alpha: 0.07, delay: 0 },
+    { alpha: 0.2, delay: 12 },
+    { alpha: 0.07, delay: 24 },
 ] as const;
 
 export const BOARD_MOTION = {
     drawHold: 300,
     flight: FLIGHT,
-    gapSlide: 120,
+    gapHold: 300,
+    gapReturn: 120,
     ghosts: GHOSTS,
     handClose: 300,
     landing: GHOSTS[1].delay + FLIGHT,
     maxTravel: 300,
     meldShift: 200,
-    meldSpeed: 0.06,
+    meldSpeed: 0.055,
     minTravel: 80,
-    revealTile: 30,
+    revealTile: 35,
     slotEasing: "cubic-bezier(0.16, 1, 0.3, 1)",
 } as const;
 
@@ -48,7 +49,7 @@ export interface MotionTile {
 export interface TileMotion {
     readonly target: string;
     readonly source: string | null;
-    readonly kind: "flight" | "hold" | "reflow" | "reveal";
+    readonly kind: "flight" | "hold" | "reflow" | "return" | "reveal";
     readonly duration: number;
     readonly delay: number;
 }
@@ -75,16 +76,48 @@ function findSource(target: MotionTile, before: readonly MotionTile[]): MotionTi
     );
 }
 
+function concealedHand(target: MotionTile, before: readonly MotionTile[]): readonly MotionTile[] {
+    return before.filter(
+        (tile) => tile.seat === target.seat && tile.region === "hand" && tile.concealed,
+    );
+}
+
+function middleSlot(kept: readonly MotionTile[]): number {
+    return Math.floor((kept.length - 1) / 2);
+}
+
 function concealedSource(
     target: MotionTile,
     before: readonly MotionTile[],
 ): MotionTile | undefined {
-    const hand = before.filter(
-        (tile) => tile.seat === target.seat && tile.region === "hand" && tile.concealed,
-    );
-    return target.tsumogiri
-        ? hand.find((tile) => tile.drawn)
-        : hand.findLast((tile) => !tile.drawn);
+    const hand = concealedHand(target, before);
+    if (target.tsumogiri) {
+        return hand.find((tile) => tile.drawn);
+    }
+    const kept = hand.filter((tile) => !tile.drawn);
+    return kept[middleSlot(kept)];
+}
+
+function concealedShifts(
+    before: readonly MotionTile[],
+    after: readonly MotionTile[],
+): ReadonlyMap<string, MotionTile> {
+    const shifts = new Map<string, MotionTile>();
+    for (const discard of after.filter(
+        (tile) =>
+            tile.region === "discards" && !tile.tsumogiri && findSource(tile, before) === undefined,
+    )) {
+        const hand = concealedHand(discard, before);
+        const kept = hand.filter((tile) => !tile.drawn);
+        const movers = [...kept.slice(middleSlot(kept) + 1), ...hand.filter((tile) => tile.drawn)];
+        kept.slice(middleSlot(kept)).forEach((slot, index) => {
+            const mover = movers[index];
+            if (mover !== undefined) {
+                shifts.set(slot.key, mover);
+            }
+        });
+    }
+    return shifts;
 }
 
 function hasChangedRect(first: MotionRect, second: MotionRect): boolean {
@@ -96,14 +129,11 @@ function hasChangedRect(first: MotionRect, second: MotionRect): boolean {
     );
 }
 
-function isGapReturn(source: MotionTile, target: MotionTile): boolean {
-    return source.latest && !target.latest && hasChangedRect(source.painted, source.rect);
-}
-
 interface MoveContext {
     readonly before: readonly MotionTile[];
     readonly discarding: boolean;
     readonly mode: BoardMotionCue["mode"];
+    readonly shifts: ReadonlyMap<string, MotionTile>;
     readonly used: Set<string>;
 }
 
@@ -130,19 +160,41 @@ function findMoveSource(target: MotionTile, { before, used }: MoveContext): Moti
     return undefined;
 }
 
-function planInPlace(source: MotionTile, target: MotionTile): TileMotion | null {
-    const motion = { source: source.key, target: target.key };
-    if (target.region === "hand" && source.concealed && !target.concealed) {
-        return {
-            ...motion,
-            delay: target.index * BOARD_MOTION.revealTile,
-            duration: 1,
-            kind: "reveal",
-        };
-    }
-    return isGapReturn(source, target)
-        ? { ...motion, delay: 0, duration: BOARD_MOTION.gapSlide, kind: "reflow" }
+function planReveal(source: MotionTile, target: MotionTile): TileMotion | null {
+    return target.region === "hand" && source.concealed && !target.concealed
+        ? {
+              delay: target.index * BOARD_MOTION.revealTile,
+              duration: 1,
+              kind: "reveal",
+              source: source.key,
+              target: target.key,
+          }
         : null;
+}
+
+function planReturn(source: MotionTile, target: MotionTile): TileMotion | null {
+    return source.latest && !target.latest && hasChangedRect(source.painted, source.rect)
+        ? {
+              delay: 0,
+              duration: BOARD_MOTION.gapReturn,
+              kind: "return",
+              source: source.key,
+              target: target.key,
+          }
+        : null;
+}
+
+function planConcealedShift(target: MotionTile, context: MoveContext): TileMotion | null {
+    const mover = context.shifts.get(target.key);
+    return mover === undefined
+        ? null
+        : {
+              delay: BOARD_MOTION.landing + BOARD_MOTION.gapHold,
+              duration: BOARD_MOTION.handClose,
+              kind: "reflow",
+              source: mover.key,
+              target: target.key,
+          };
 }
 
 function isConcealedSettle(flight: boolean, target: MotionTile): boolean {
@@ -161,7 +213,7 @@ function planMove(target: MotionTile, context: MoveContext): TileMotion | null {
             : null;
     }
     const flight = !samePlace(source, target);
-    const inPlace = flight ? null : planInPlace(source, target);
+    const inPlace = flight ? null : (planReveal(source, target) ?? planReturn(source, target));
     if (inPlace !== null) {
         return inPlace;
     }
@@ -201,10 +253,11 @@ export function planTileMotion(
             (tile) => tile.region === "discards" && findSource(tile, before)?.region !== "discards",
         ),
         mode,
+        shifts: concealedShifts(before, after),
         used: new Set(),
     };
     return after.flatMap((target) => {
-        const motion = planMove(target, context);
+        const motion = planConcealedShift(target, context) ?? planMove(target, context);
         if (motion?.kind === "flight" && motion.source !== null) {
             context.used.add(motion.source);
         }
