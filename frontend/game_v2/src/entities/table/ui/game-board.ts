@@ -218,11 +218,29 @@ function Zones(): TemplateResult {
         <span class="board-zones__field board-zones__field--left"></span>
         <span class="board-zones__field board-zones__field--right"></span>
         <span class="board-zones__field board-zones__field--top"></span>
-        <span class="board-zones__line board-zones__line--top-left"></span>
-        <span class="board-zones__line board-zones__line--top-right"></span>
-        <span class="board-zones__line board-zones__line--bottom-right"></span>
-        <span class="board-zones__line board-zones__line--bottom-left"></span>
+        ${ZONE_SEAMS.map(Seam)}
     </div>`;
+}
+
+const ZONE_SEAMS = [
+    { corner: "top-left", falling: true },
+    { corner: "top-right", falling: false },
+    { corner: "bottom-right", falling: true },
+    { corner: "bottom-left", falling: false },
+] as const;
+
+function Seam({ corner, falling }: (typeof ZONE_SEAMS)[number]): TemplateResult {
+    const y1 = falling ? 0 : 1;
+    return html`${(["groove", "lip"] as const).map(
+        (part) =>
+            html`<svg
+                class="board-zones__line board-zones__line--${corner} board-zones__line--${part}"
+                viewBox="0 0 1 1"
+                preserveAspectRatio="none"
+            >
+                <line x1="0" y1=${y1} x2="1" y2=${1 - y1}></line>
+            </svg>`,
+    )}`;
 }
 
 const DORA_SLOTS = 5;
