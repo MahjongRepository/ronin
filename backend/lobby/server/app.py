@@ -44,27 +44,17 @@ from lobby.views import (
     GAME_V2_ASSETS_PATH,
     BuiltGameClient,
     DevGameClient,
-    create_room_and_redirect,
     create_templates,
     game_session,
-    join_room_and_redirect,
     load_vite_manifest,
     play_page,
     replay_content,
     replay_page,
     resolve_vite_asset_urls,
-    storybook_page,
     tenhou_replay,
 )
 from lobby.views.auth_api_handlers import api_guest_login, api_login, api_register
-from lobby.views.auth_handlers import (
-    GUEST_LOGIN_BURST,
-    GUEST_LOGIN_REFILL_PER_SECOND,
-    guest_login,
-    login,
-    logout,
-    register,
-)
+from lobby.views.auth_handlers import GUEST_LOGIN_BURST, GUEST_LOGIN_REFILL_PER_SECOND, logout
 from lobby.views.bot_api_handlers import bot_create_room
 from lobby.views.error_pages import http_error_page, server_error_page
 from lobby.views.legal_handlers import privacy_page, terms_page
@@ -76,7 +66,6 @@ from lobby.views.lobby_api_handlers import (
     lobby_rooms,
     lobby_session,
 )
-from lobby.views.locale_handlers import set_language
 from lobby.views.monitoring_handlers import monitoring_data
 from lobby.views.spa_handlers import spa_shell
 from shared.auth import AuthService
@@ -188,19 +177,7 @@ def create_app(  # noqa: PLR0913
         Route("/play/storybook/system", public_route(play_page), methods=["GET"], name="storybook_system_page"),
         Route("/play/storybook", public_route(play_page), methods=["GET"], name="storybook_page"),
         Route("/play/{game_id}", protected_html(play_page), methods=["GET"], name="play_page"),
-        Route(
-            "/rooms/new",
-            protected_html(create_room_and_redirect),
-            methods=["POST"],
-            name="create_room_and_redirect",
-        ),
         Route("/rooms/{room_id}", protected_html(spa_shell), methods=["GET"], name="room_page"),
-        Route(
-            "/rooms/{room_id}/join",
-            protected_html(join_room_and_redirect),
-            methods=["POST"],
-            name="join_room_and_redirect",
-        ),
         Route("/matchmaking", protected_html(spa_shell), methods=["GET"], name="matchmaking_page"),
         Route("/settings", protected_html(spa_shell), methods=["GET"], name="settings_page"),
         Route("/admin/monitoring", admin_html(spa_shell), methods=["GET"], name="monitoring_page"),
@@ -210,12 +187,8 @@ def create_app(  # noqa: PLR0913
         # Public routes
         Route("/health", public_route(health), methods=["GET"], name="health"),
         Route("/login", public_route(spa_shell), methods=["GET"], name="login_page"),
-        Route("/login", public_route(login), methods=["POST"], name="login"),
-        Route("/guest", public_route(guest_login), methods=["POST"], name="guest_login"),
         Route("/register", public_route(spa_shell), methods=["GET"], name="register_page"),
-        Route("/register", public_route(register), methods=["POST"], name="register"),
         Route("/logout", public_route(logout), methods=["POST"], name="logout"),
-        Route("/lang", public_route(set_language), methods=["POST"], name="set_language"),
         Route("/terms", public_route(terms_page), methods=["GET"], name="terms_page"),
         Route("/privacy", public_route(privacy_page), methods=["GET"], name="privacy_page"),
         Route("/api/rooms", bot_only(bot_create_room), methods=["POST"], name="bot_create_room"),
@@ -236,7 +209,7 @@ def create_app(  # noqa: PLR0913
 
     if APP_VERSION == "dev":
         routes.append(
-            Route("/storybook", public_route(storybook_page), methods=["GET"], name="storybook_page"),
+            Route("/storybook", public_route(spa_shell), methods=["GET"], name="lobby_storybook_page"),
         )
 
     if static_dir.is_dir():

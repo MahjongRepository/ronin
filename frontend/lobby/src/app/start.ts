@@ -8,6 +8,8 @@ import { pageFailedView } from "@/app/page-failed";
 import { type PageMeta, readPageMeta } from "@/app/page-meta";
 import { lobbyRoutes } from "@/app/routes";
 import { fetchSession } from "@/app/session";
+import { readErrorPage, renderErrorView } from "@/retained/error-view";
+import { startLegalSwap } from "@/retained/legal-swap";
 
 function findChromeMounts(host: HTMLElement): ChromeMounts | null {
     const nav = document.querySelector<HTMLElement>("[data-lobby-nav]");
@@ -71,4 +73,31 @@ export function startLobbyApp(host: HTMLElement): void {
         return;
     }
     startShell(host, mounts, meta);
+}
+
+function startErrorView(host: HTMLElement): () => void {
+    const page = readErrorPage();
+    function draw(): void {
+        renderErrorView(host, page);
+    }
+    draw();
+    return draw;
+}
+
+function startRetainedContent(main: HTMLElement): () => void {
+    const errorHost = main.querySelector<HTMLElement>("[data-error-view]");
+    return errorHost === null ? startLegalSwap(main) : startErrorView(errorHost);
+}
+
+export function startRetainedPage(): void {
+    const meta = readPageMeta();
+    const main = document.querySelector<HTMLElement>("main");
+    const mounts = main === null ? null : findChromeMounts(main);
+    if (meta === null || main === null || mounts === null) {
+        console.error("lobby page is missing its page meta or chrome mounts");
+        return;
+    }
+    const chrome = startChrome(mounts, meta, startRetainedContent(main));
+    chrome.render();
+    void showSession(chrome);
 }

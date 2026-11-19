@@ -71,7 +71,7 @@ _SPA_SHELL_ROUTES = [
         (path, HTTPStatus.SEE_OTHER)
         for path in ["/", "/rooms/any-room", "/matchmaking", "/history", "/settings", "/admin/monitoring"]
     ),
-    *((path, HTTPStatus.OK) for path in ["/login", "/register"]),
+    *((path, HTTPStatus.OK) for path in ["/login", "/register", "/storybook"]),
 ]
 
 
@@ -140,10 +140,8 @@ class TestLobbyViews:
             response = c.get("/play/test-game", headers={"accept": "text/html"})
             assert response.status_code == 503
             assert response.headers["content-type"].startswith("text/html")
-            assert "Something went wrong" in response.text
+            assert '<meta name="ronin-error-code" content="server">' in response.text
             assert "Game client assets not available" not in response.text
-            assert "Try again in a moment." in response.text
-            assert 'href="/" role="button"' in response.text
 
     def test_game_assets_route__when_asset_requested__should_serve_it(self, client):
         response = client.get("/game-assets/v2/assets/index-v2.js")
@@ -161,23 +159,8 @@ class TestLobbyViews:
         assert response.status_code == 200
         assert response.text == "console.log('lobby');"
 
-    def test_storybook_page__when_first_visit__should_set_csrf_cookie(self, app):
-        with open_client(app) as c:
-            response = c.get("/storybook")
-            assert response.status_code == 200
-            assert CSRF_COOKIE_NAME in response.cookies
 
-    def test_storybook_page__when_visited__should_return_html(self, client):
-        response = client.get("/storybook")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-        assert "Lobby storybook" in response.text
-        assert "Typography" in response.text
-        assert "Buttons" in response.text
-        assert "Table cards" in response.text
-
-
-def test_legal_page__when_production__should_omit_storybook_links(
+def test_legal_page__when_production__should_hand_the_chrome_the_release_and_no_dev_links(
     make_app: Callable[..., Starlette],
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -185,21 +168,12 @@ def test_legal_page__when_production__should_omit_storybook_links(
     with open_client(make_app()) as client:
         response = client.get("/terms")
         assert response.status_code == 200
-        assert 'href="/storybook"' not in response.text
-        assert 'href="/play/storybook"' not in response.text
-        assert "footer-dev-links" not in response.text
-
-
-def test_footer__when_production__should_link_version_to_its_github_release(
-    make_app: Callable[..., Starlette],
-    monkeypatch: pytest.MonkeyPatch,
-):
-    monkeypatch.setattr("lobby.server.app.APP_VERSION", "1.0.0")
-    with open_client(make_app()) as client:
-        response = client.get("/terms")
-        footer = response.text.split("<footer", 1)[1]
-        assert '<a href="https://github.com/MahjongRepository/ronin/releases/tag/1.0.0"' in footer
-        assert ">v1.0.0</a>" in footer
+        assert '<meta name="ronin-app-version" content="1.0.0">' in response.text
+        assert (
+            '<meta name="ronin-release-url" content="https://github.com/MahjongRepository/ronin/releases/tag/1.0.0">'
+            in response.text
+        )
+        assert '<meta name="ronin-dev-mode" content="false">' in response.text
 
 
 @pytest.mark.parametrize("path", ["/storybook", "/play/storybook", "/play/storybook/board"])

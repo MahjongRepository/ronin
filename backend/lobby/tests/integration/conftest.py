@@ -5,32 +5,30 @@ import sqlite3
 from contextlib import closing
 from typing import TYPE_CHECKING
 
-from lobby.auth.csrf import CSRF_COOKIE_NAME
+from lobby.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 
 if TYPE_CHECKING:
     from starlette.testclient import TestClient
 
 
+def _csrf_headers(client: TestClient) -> dict[str, str]:
+    client.get("/login")
+    return {CSRF_HEADER_NAME: client.cookies[CSRF_COOKIE_NAME]}
+
+
 def register_with_csrf(client: TestClient, username: str) -> None:
-    response = client.get("/register")
-    csrf = response.cookies.get(CSRF_COOKIE_NAME) or client.cookies.get(CSRF_COOKIE_NAME)
     client.post(
-        "/register",
-        data={
-            "username": username,
-            "password": "securepass123",
-            "confirm_password": "securepass123",
-            "csrf_token": csrf,
-        },
+        "/api/lobby/auth/register",
+        json={"username": username, "password": "securepass123", "confirm_password": "securepass123"},
+        headers=_csrf_headers(client),
     )
 
 
 def login_with_csrf(client: TestClient, username: str) -> None:
-    response = client.get("/login")
-    csrf = response.cookies.get(CSRF_COOKIE_NAME) or client.cookies.get(CSRF_COOKIE_NAME)
     client.post(
-        "/login",
-        data={"username": username, "password": "securepass123", "csrf_token": csrf},
+        "/api/lobby/auth/login",
+        json={"username": username, "password": "securepass123"},
+        headers=_csrf_headers(client),
     )
 
 

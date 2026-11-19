@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from enum import StrEnum
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
@@ -8,7 +8,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse, PlainTextResponse, Response
 
 from lobby.auth.csrf import get_or_create_csrf_token, is_cross_site_post, is_csrf_valid, set_csrf_cookie
-from lobby.views.assets import render_page, same_origin_referer_path, translate_for_request
+from lobby.views.assets import render_page, same_origin_referer_path
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -19,23 +19,18 @@ if TYPE_CHECKING:
     from shared.auth.settings import AuthSettings
 
 
-@dataclass(frozen=True)
-class _ErrorPage:
+class ErrorCode(StrEnum):
     """
-    The catalog keys of the heading and the sentence of a styled error page.
+    The failure an error page names; the lobby app words it from the code in the page's language.
     """
 
-    title_key: str
-    message_key: str
+    NOT_FOUND = "not_found"
+    SERVER = "server"
+    REFUSED = "refused"
+    SESSION_EXPIRED = "session_expired"
 
 
-_NOT_FOUND = _ErrorPage("error.not_found.title", "error.not_found.message")
-_SERVER_FAILURE = _ErrorPage("error.server.title", "error.server.message")
-_REQUEST_REFUSED = _ErrorPage("error.refused.title", "error.refused.message")
-_SESSION_EXPIRED = _ErrorPage("error.session_expired.title", "error.session_expired.message")
 _LOBBY_PATH = "/"
-_BACK_TO_LOBBY_KEY = "common.back_to_lobby"
-_RELOAD_PAGE_KEY = "error.reload_page"
 NO_STORE_HEADERS = {"Cache-Control": "no-store"}
 
 
@@ -75,8 +70,7 @@ async def http_error_page(request: Request, exc: Exception) -> Response:
     Answer an HTTP error with the styled error page for a browser, and Starlette's plain text otherwise.
 
     Only a server error (5xx) tells the user to try again: a refused request fails the same way the next time. The page
-    names the failure by its status class in the user's language; ``detail``, written for logs, stays in the plain-text
-    answer.
+    names the failure by its status class; ``detail``, written for logs, stays in the plain-text answer.
     """
     assert isinstance(exc, HTTPException)  # noqa: S101 - registered for HTTPException only
     if exc.status_code in {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}:
@@ -86,13 +80,13 @@ async def http_error_page(request: Request, exc: Exception) -> Response:
         return PlainTextResponse(exc.detail, status_code=exc.status_code, headers=exc.headers)
 
     if exc.status_code == HTTPStatus.NOT_FOUND:
-        page = _NOT_FOUND
+        code = ErrorCode.NOT_FOUND
     elif exc.status_code >= HTTPStatus.INTERNAL_SERVER_ERROR:
-        page = _SERVER_FAILURE
+        code = ErrorCode.SERVER
     else:
-        page = _REQUEST_REFUSED
+        code = ErrorCode.REFUSED
 
-    return _render_error_page(request, status_code=exc.status_code, page=page, headers=exc.headers)
+    return _render_error_page(request, status_code=exc.status_code, code=code, headers=exc.headers)
 
 
 async def server_error_page(request: Request, _exc: Exception) -> Response:
@@ -102,49 +96,36 @@ async def server_error_page(request: Request, _exc: Exception) -> Response:
     if not _wants_html(request):
         return PlainTextResponse("Internal Server Error", status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
 
-    return _render_error_page(request, status_code=HTTPStatus.INTERNAL_SERVER_ERROR, page=_SERVER_FAILURE)
+    return _render_error_page(request, status_code=HTTPStatus.INTERNAL_SERVER_ERROR, code=ErrorCode.SERVER)
 
 
 def _session_expired_page(request: Request) -> Response:
     """
     Render the 403 page for a failed CSRF check: the form was stale, so reloading the page it came from fixes it.
     """
-    back_path = same_origin_referer_path(request)
     return _render_error_page(
         request,
         status_code=HTTPStatus.FORBIDDEN,
-        page=_SESSION_EXPIRED,
-        action_href=back_path or _LOBBY_PATH,
-        action_label_key=_RELOAD_PAGE_KEY if back_path else _BACK_TO_LOBBY_KEY,
+        code=ErrorCode.SESSION_EXPIRED,
+        action_href=same_origin_referer_path(request) or _LOBBY_PATH,
     )
 
 
-def _render_error_page(  # noqa: PLR0913
+def _render_error_page(
     request: Request,
     *,
     status_code: int,
-    page: _ErrorPage,
+    code: ErrorCode,
     action_href: str = _LOBBY_PATH,
-    action_label_key: str = _BACK_TO_LOBBY_KEY,
     headers: Mapping[str, str] | None = None,
 ) -> Response:
     """
-    Render ``error.html`` for the page, with the navigation of the user signed in, if any.
-
-    The user comes from the scope, not ``request.user``: an error raised before authentication ran leaves none there.
+    Render ``error.html`` with the status, the error code and the action's link for the lobby app to word.
     """
-    user = request.scope.get("user")
     return render_page(
         request,
         template_name="error.html",
-        context={
-            "status_code": status_code,
-            "title": translate_for_request(request, page.title_key),
-            "message": translate_for_request(request, page.message_key),
-            "action_href": action_href,
-            "action_label": translate_for_request(request, action_label_key),
-            "username": user.username if user is not None and user.is_authenticated else None,
-        },
+        context={"status_code": status_code, "error_code": code.value, "action_href": action_href},
         status_code=status_code,
         headers=headers,
     )

@@ -10,6 +10,7 @@
     <meta name="ronin-release-url" content="{{ release_url }}">
     <meta name="ronin-current-year" content="{{ current_year }}">
     <meta name="ronin-dev-mode" content="{{ 'true' if dev_mode else 'false' }}">
+    {% block meta %}{% endblock %}
     <title>{% block title %}{{ t("page.title.default") }}{% endblock %}</title>
     <link rel="icon" type="image/png" href="/static/favicon.png">
     <link rel="apple-touch-icon" type="image/png" sizes="180x180" href="/static/icons/apple-180.png">

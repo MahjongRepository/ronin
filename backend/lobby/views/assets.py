@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 from starlette.templating import Jinja2Templates
 
 from lobby.auth.csrf import get_or_create_csrf_token, is_cross_site_post, set_csrf_cookie
-from lobby.i18n import LANGUAGE_NAMES, format_decimal, format_number, resolve_request_locale
+from lobby.i18n import resolve_request_locale
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -26,10 +26,7 @@ LOBBY_ENTRY = "src/index.ts"
 
 def _i18n_context(request: Request) -> dict[str, object]:
     """
-    Give every template the request's ``locale``, ``t(key, **params)``, which returns the message as escaped HTML,
-    ``format_number(n)`` in the locale's digit grouping, ``format_decimal(x)`` rounded to one decimal (two significant
-    digits below that), and what the language switch needs: the languages by their native names and the page to return
-    to (path and query).
+    Give every template the request's ``locale`` and ``t(key, **params)``, which returns the message as escaped HTML.
     """
     translator: Translator = request.app.state.translator
     locale = resolve_request_locale(request).locale
@@ -37,42 +34,7 @@ def _i18n_context(request: Request) -> dict[str, object]:
     def t(key: str, /, **params: object) -> Markup:
         return translator.translate_markup(locale, key, **params)
 
-    def format_locale_number(number: int) -> str:
-        return format_number(locale, number)
-
-    def format_locale_decimal(number: float) -> str:
-        return format_decimal(locale, number)
-
-    return {
-        "locale": locale,
-        "t": t,
-        "format_number": format_locale_number,
-        "format_decimal": format_locale_decimal,
-        "language_names": LANGUAGE_NAMES,
-        "current_page": _return_page(request),
-    }
-
-
-def _return_page(request: Request) -> str:
-    """
-    Return the page the language switch sends the user back to: this one for a GET, else the page that posted the form.
-
-    A page rendered for a POST (a refused form, an error) has no GET route at its path, so returning there would fail;
-    the same-origin page that sent the form, or the lobby, is the closest page to reopen.
-    """
-    if request.method in {"GET", "HEAD"}:
-        query = request.url.query
-        return f"{request.url.path}?{query}" if query else request.url.path
-
-    return same_origin_referer_path(request) or "/"
-
-
-def translate_for_request(request: Request, key: str, /, **params: object) -> str:
-    """
-    Return the message ``key`` as plain text in the request's locale, for a handler to pass to its template.
-    """
-    translator: Translator = request.app.state.translator
-    return translator.translate(resolve_request_locale(request).locale, key, **params)
+    return {"locale": locale, "t": t}
 
 
 def create_templates() -> Jinja2Templates:

@@ -28,11 +28,9 @@ PLACEHOLDER = re.compile(r"\{([a-z][a-z0-9_]*)\}")
 HTML_TAG = re.compile(r"<[A-Za-z/]")
 KEY_SHAPE = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$")
 LOOKUP_CALL = re.compile(
-    r"""\b(?:t|tParts|translate|translate_markup|translate_for_request)\("""
+    r"""\b(?:t|tParts|translate|translate_markup)\("""
     r"""\s*(?:[A-Za-z_][\w.]*\s*,\s*)?(["'`])([^"'`$]*?)\1"""
 )
-I18N_ATTRIBUTE = re.compile(r"""\bdata-i18n(?:-([a-z-]+))?\s*=\s*(["'])([^"']*)\2""")
-NON_KEY_I18N_ATTRIBUTES = frozenset({"slot", "params"})
 STRING_LITERAL = re.compile(r"""(["'`])([a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+)\1""")
 QUOTED_LITERAL = re.compile(r"""(["'])([a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+)\1""")
 FILE_NAME_SUFFIXES = (".html", ".json", ".js", ".ts", ".py")
@@ -43,9 +41,6 @@ SKIPPED_DIRS = frozenset({"node_modules", "dist", "coverage", "tests", "__tests_
 class App:
     """
     One app's catalogs, the sources that look keys up, and the keys exempt from the usage and identity rules.
-
-    ``markup_roots`` hold another app's server-rendered markup whose ``data-i18n`` keys this app writes again in place
-    (the lobby scripts re-render the lobby templates' chrome on a language switch): only those attributes count there.
     """
 
     name: str
@@ -55,7 +50,6 @@ class App:
     dynamic_prefixes: tuple[str, ...] = ()
     identical_keys: frozenset[str] = frozenset()
     literals_in_namespaces_are_keys: bool = False
-    markup_roots: tuple[str, ...] = ()
 
 
 APPS = (
@@ -64,8 +58,7 @@ APPS = (
         catalog_dir="backend/lobby/i18n/locales",
         source_roots=("backend/lobby",),
         source_suffixes=frozenset({".py", ".html"}),
-        dynamic_prefixes=("auth.error.",),
-        identical_keys=frozenset({"nav.beta", "page.title.default", "page.title.with_page"}),
+        identical_keys=frozenset({"page.title.default", "page.title.with_page"}),
         literals_in_namespaces_are_keys=True,
     ),
     App(
@@ -87,7 +80,6 @@ APPS = (
                 "page.title.with_page",
             }
         ),
-        markup_roots=("backend/lobby/views/templates",),
     ),
     App(
         name="game client",
@@ -287,13 +279,6 @@ def iter_sources(roots: tuple[str, ...], suffixes: frozenset[str]) -> list[Path]
     return files
 
 
-def attribute_keys(text: str) -> list[str]:
-    """
-    Return the keys named by the ``data-i18n`` attributes of ``text``, leaving out those that hold no key.
-    """
-    return [value for name, _, value in I18N_ATTRIBUTE.findall(text) if name not in NON_KEY_I18N_ATTRIBUTES]
-
-
 def check_looked_up(source: Path, looked_up: list[str], en_path: Path, en: Catalog) -> list[Problem]:
     """
     Check the keys one source looks up: each must be shaped like a key and present in en.
@@ -314,25 +299,17 @@ def check_usage(app: App, en_path: Path, en: Catalog) -> list[Problem]:
     """
     Check that every literal key looked up in code exists in en, and every en key is used somewhere.
 
-    A key counts as used when it appears in code as a whole string literal (a lookup, a data-i18n attribute or a
-    constant naming it), or when it falls under one of the app's dynamic prefixes. A literal lookup or data-i18n
-    attribute whose value is not shaped like a key fails; `data-i18n-slot` and `data-i18n-params` hold no key. In an
-    app whose code holds keys in tables and constants (the lobby server's error pages and notices), every dotted
-    literal whose first word is one of the catalog's namespaces counts as a lookup too, so a typo in a table fails like
-    one in a call. In the app's markup roots only the data-i18n attributes count.
+    A key counts as used when it appears in code as a whole string literal (a lookup or a constant naming it), or when
+    it falls under one of the app's dynamic prefixes. A literal lookup whose value is not shaped like a key fails. In an
+    app whose code holds keys in tables and constants, every dotted literal whose first word is one of the catalog's
+    namespaces counts as a lookup too, so a typo in a table fails like one in a call.
     """
     problems: list[Problem] = []
     used: set[str] = set()
     namespaces = {key.split(".")[0] for key in en}
-    markup = iter_sources(app.markup_roots, frozenset({".html"}))
-    for source in markup:
-        looked_up = attribute_keys(source.read_text(encoding="utf-8"))
-        problems.extend(check_looked_up(source, looked_up, en_path, en))
-        used.update(key for key in looked_up if KEY_SHAPE.match(key))
-
     for source in iter_sources(app.source_roots, app.source_suffixes):
         text = source.read_text(encoding="utf-8")
-        looked_up = attribute_keys(text) + [match[1] for match in LOOKUP_CALL.findall(text)]
+        looked_up = [match[1] for match in LOOKUP_CALL.findall(text)]
         if app.literals_in_namespaces_are_keys:
             literals = (match[1] for match in QUOTED_LITERAL.findall(text))
             looked_up.extend(

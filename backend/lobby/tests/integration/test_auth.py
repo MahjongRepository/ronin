@@ -7,11 +7,12 @@ from contextlib import closing
 from dataclasses import dataclass
 from http.cookies import SimpleCookie
 from typing import TYPE_CHECKING
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from lobby.auth.csrf import CSRF_COOKIE_NAME
+from lobby.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
+from lobby.tests.integration.conftest import register_with_csrf
 from lobby.views.auth_handlers import GUEST_LOGIN_BURST
 from shared.dal.models import AccountType, Player
 
@@ -55,19 +56,6 @@ def _get_csrf_token(client: TestClient, path: str = "/login") -> str:
     return token
 
 
-def _register_user(client: TestClient, username: str, password: str = "securepass123") -> None:  # noqa: S107
-    csrf = _get_csrf_token(client, "/register")
-    client.post(
-        "/register",
-        data={
-            "username": username,
-            "password": password,
-            "confirm_password": password,
-            "csrf_token": csrf,
-        },
-    )
-
-
 def _chunked(*chunks: bytes) -> Iterator[bytes]:
     yield from chunks
 
@@ -103,172 +91,66 @@ def _set_admin_flag(client, *, username: str, is_admin: bool) -> None:
         )
 
 
+def _csrf_headers(client: TestClient) -> dict[str, str]:
+    return {CSRF_HEADER_NAME: _get_csrf_token(client)}
+
+
+_GUEST_LOGIN = "/api/lobby/auth/guest"
+
+
 class TestAuthEndpoints:
-    def test_register_route__when_valid_post__should_redirect_to_lobby_with_session(self, client):
-        csrf = _get_csrf_token(client, "/register")
-
+    def test_register_api__when_passwords_differ__should_answer_the_mismatch_without_a_session(self, client):
         response = client.post(
-            "/register",
-            data={
-                "username": "newuser",
-                "password": "securepass123",
-                "confirm_password": "securepass123",
-                "csrf_token": csrf,
-            },
-            follow_redirects=False,
+            "/api/lobby/auth/register",
+            json={"username": "newuser", "password": "securepass123", "confirm_password": "different"},
+            headers=_csrf_headers(client),
         )
-        assert response.status_code == 303
-        assert response.headers["location"] == "/"
-        assert "session_id" in response.cookies
-
-    def test_register_route__when_passwords_differ__should_show_error(self, client):
-        csrf = _get_csrf_token(client, "/register")
-
-        response = client.post(
-            "/register",
-            data={
-                "username": "newuser",
-                "password": "securepass123",
-                "confirm_password": "different",
-                "csrf_token": csrf,
-            },
-        )
-        assert response.status_code == 200
-        assert "Passwords do not match" in response.text
-        assert 'value="newuser"' in response.text
-        assert 'value="securepass123"' not in response.text
-        assert response.text.count('aria-invalid="true"') == 1
-        assert re.search(r'id="confirm_password"[^>]*aria-invalid="true"', response.text)
-
-    def test_register_route__when_chunked_body_oversized__should_return_413_without_registering(self, client):
-        csrf = _get_csrf_token(client, "/register")
-        fields = urlencode(
-            {
-                "username": "biguser",
-                "password": "securepass123",
-                "confirm_password": "securepass123",
-                "csrf_token": csrf,
-            }
-        )
-
-        response = client.post(
-            "/register",
-            content=_chunked(fields.encode(), b"&padding=" + b"x" * 5000),
-            headers={"content-type": "application/x-www-form-urlencoded"},
-            follow_redirects=False,
-        )
-        assert "content-length" not in response.request.headers
-        assert response.status_code == 413
+        assert response.status_code == 400
+        assert response.json() == {"error": "passwords_mismatch", "field": "confirm_password"}
         assert "session_id" not in response.cookies
 
-        response = client.post(
-            "/register", content=fields, headers={"content-type": "application/x-www-form-urlencoded"}
-        )
-        assert response.url.path == "/"
-
-    def test_register_route__when_username_taken__should_show_error(self, client):
-        _register_user(client, username="takenuser")
-        csrf = _get_csrf_token(client, "/register")
+    def test_login_api__when_credentials_valid__should_set_a_session_cookie_capped_at_ninety_days(self, client):
+        register_with_csrf(client, "loginuser")
+        client.cookies.delete("session_id")
 
         response = client.post(
-            "/register",
-            data={
-                "username": "takenuser",
-                "password": "securepass456",
-                "confirm_password": "securepass456",
-                "csrf_token": csrf,
-            },
+            "/api/lobby/auth/login",
+            json={"username": "loginuser", "password": "securepass123"},
+            headers=_csrf_headers(client),
         )
         assert response.status_code == 200
-        assert "already taken" in response.text
-
-    def test_register_route__when_password_too_short__should_show_error(self, client):
-        csrf = _get_csrf_token(client, "/register")
-
-        response = client.post(
-            "/register",
-            data={
-                "username": "newuser",
-                "password": "short",
-                "confirm_password": "short",
-                "csrf_token": csrf,
-            },
-        )
-        assert response.status_code == 200
-        assert "Password must be" in response.text
-
-    def test_login_route__when_credentials_valid__should_redirect_to_lobby_with_session(self, client):
-        _register_user(client, username="loginuser")
-        csrf = _get_csrf_token(client, "/login")
-
-        response = client.post(
-            "/login",
-            data={"username": "loginuser", "password": "securepass123", "csrf_token": csrf},
-            follow_redirects=False,
-        )
-        assert response.status_code == 303
-        assert response.headers["location"] == "/"
-        assert "session_id" in response.cookies
         session_cookie = SimpleCookie()
         for header in response.headers.get_list("set-cookie"):
             session_cookie.load(header)
         assert session_cookie["session_id"]["max-age"] == "7776000"
 
-    def test_login_route__when_password_wrong__should_show_error(self, client):
-        _register_user(client, username="loginuser")
-        csrf = _get_csrf_token(client, "/login")
-
-        response = client.post(
-            "/login",
-            data={"username": "loginuser", "password": "wrongpassword", "csrf_token": csrf},
-        )
+    def test_guest_login_api__when_posted__should_log_in_under_a_guest_name(self, client):
+        response = client.post(_GUEST_LOGIN, json={}, headers=_csrf_headers(client))
         assert response.status_code == 200
-        assert "Wrong username or password." in response.text
-        assert 'value="loginuser"' in response.text
-        assert "wrongpassword" not in response.text
-
-    def test_login_route__when_user_unknown__should_show_error(self, client):
-        csrf = _get_csrf_token(client, "/login")
-
-        response = client.post(
-            "/login",
-            data={"username": "ghost", "password": "securepass123", "csrf_token": csrf},
-        )
-        assert response.status_code == 200
-        assert "Wrong username or password." in response.text
-
-    def test_guest_login_route__when_posted__should_log_in_under_a_guest_name(self, client):
-        csrf = _get_csrf_token(client, "/login")
-
-        response = client.post("/guest", data={"csrf_token": csrf}, follow_redirects=False)
-        assert response.status_code == 303
-        assert response.headers["location"] == "/"
         assert "session_id" in response.cookies
 
         user = client.get("/api/lobby/session").json()["user"]
         assert re.fullmatch(r"Nanashi-\d{4}", user["username"])
         assert user["is_guest"] is True
 
-    def test_guest_login_route__when_one_client_exceeds_the_burst__should_refuse_with_429(self, client):
-        csrf = _get_csrf_token(client, "/login")
+    def test_guest_login_api__when_one_client_exceeds_the_burst__should_refuse_with_429(self, client):
         statuses = []
         for _ in range(GUEST_LOGIN_BURST):
-            statuses.append(client.post("/guest", data={"csrf_token": csrf}, follow_redirects=False).status_code)
+            statuses.append(client.post(_GUEST_LOGIN, json={}, headers=_csrf_headers(client)).status_code)
             client.cookies.delete("session_id")
 
-        response = client.post("/guest", data={"csrf_token": csrf}, follow_redirects=False)
-        assert statuses == [303] * GUEST_LOGIN_BURST
+        response = client.post(_GUEST_LOGIN, json={}, headers=_csrf_headers(client))
+        assert statuses == [200] * GUEST_LOGIN_BURST
         assert response.status_code == 429
-        assert "Too many guest logins from your network." in response.text
+        assert response.json() == {"error": "guest_rate_limited"}
         assert "session_id" not in response.cookies
 
-    def test_guest_login_route__when_already_logged_in__should_keep_the_current_session(self, client):
-        _register_user(client, username="seateduser")
-        csrf = _get_csrf_token(client, "/login")
+    def test_guest_login_api__when_already_logged_in__should_keep_the_current_session(self, client):
+        register_with_csrf(client, "seateduser")
 
-        response = client.post("/guest", data={"csrf_token": csrf}, follow_redirects=False)
-        assert response.status_code == 303
-        assert response.headers["location"] == "/"
+        response = client.post(_GUEST_LOGIN, json={}, headers=_csrf_headers(client))
+        assert response.status_code == 200
+        assert response.json() == {"next": "/"}
         assert "session_id" not in response.cookies
 
         user = client.get("/api/lobby/session").json()["user"]
@@ -276,130 +158,18 @@ class TestAuthEndpoints:
         assert user["is_guest"] is False
 
     def test_logout_route__when_posted__should_clear_session_and_redirect_to_login(self, client):
-        _register_user(client, username="logoutuser")
-        # After register, the CSRF cookie is already set. Read it for the logout POST.
+        register_with_csrf(client, "logoutuser")
         csrf = client.cookies.get(CSRF_COOKIE_NAME)
 
         response = client.post("/logout", data={"csrf_token": csrf}, follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/login"
 
-        # After logout, protected routes redirect to login with next param
         response = client.get("/", follow_redirects=False)
         assert response.status_code == 303
         location = urlparse(response.headers["location"])
         assert location.path == "/login"
         assert "next" in parse_qs(location.query)
-
-    def test_navigation__when_authenticated__should_show_username_and_logout(self, client):
-        _register_user(client, username="lobbyuser")
-
-        response = client.get("/terms")
-        assert response.status_code == 200
-        assert "lobbyuser" in response.text
-        assert "Log out" in response.text
-        assert 'href="/history"' in response.text
-
-    def test_navigation__when_logged_out__should_offer_log_in_instead_of_history(self, client):
-        response = client.get("/terms")
-        assert 'href="/history"' not in response.text
-        assert 'href="/register"' in response.text
-
-
-class TestNextRedirect:
-    @pytest.mark.parametrize(
-        ("route", "form", "register_first"),
-        [
-            pytest.param("/login", {"username": "nextuser", "password": "securepass123"}, True, id="login"),
-            pytest.param(
-                "/register",
-                {"username": "nextuser", "password": "securepass123", "confirm_password": "securepass123"},
-                False,
-                id="register",
-            ),
-            pytest.param("/guest", {}, False, id="guest"),
-        ],
-    )
-    def test_auth_post__when_next_is_a_local_path__should_redirect_there_with_a_session(
-        self, client, route, form, register_first
-    ):
-        if register_first:
-            _register_user(client, username=form["username"])
-
-        csrf = _get_csrf_token(client, "/login")
-
-        response = client.post(
-            route, data={**form, "next": "/rooms/r1?tab=chat", "csrf_token": csrf}, follow_redirects=False
-        )
-        assert response.status_code == 303
-        assert response.headers["location"] == "/rooms/r1?tab=chat"
-        assert "session_id" in response.cookies
-
-    @pytest.mark.parametrize(
-        "next_path",
-        ["//evil.example", "https://evil.example", "/\\evil.example", "rooms/r1"],
-    )
-    def test_guest_login_route__when_next_leaves_the_site__should_redirect_to_lobby(self, client, next_path):
-        csrf = _get_csrf_token(client, "/login")
-
-        response = client.post("/guest", data={"next": next_path, "csrf_token": csrf}, follow_redirects=False)
-        assert response.status_code == 303
-        assert response.headers["location"] == "/"
-
-
-class TestCreateRoomRedirect:
-    @pytest.fixture
-    def client(self, client):
-        _register_user(client, username="gameuser")
-        return client
-
-    def test_create_room_route__when_posted__should_redirect_to_room_page(self, client):
-        csrf = client.cookies.get(CSRF_COOKIE_NAME)
-
-        response = client.post("/rooms/new", data={"csrf_token": csrf}, follow_redirects=False)
-        assert response.status_code == 303
-        location = response.headers["location"]
-        assert location.startswith("/rooms/")
-        assert "game_ticket=" not in location
-
-    def test_create_room_route__when_posted__should_create_room_with_four_ai_seats(self, client):
-        csrf = client.cookies.get(CSRF_COOKIE_NAME)
-
-        response = client.post("/rooms/new", data={"csrf_token": csrf}, follow_redirects=False)
-        location = response.headers["location"]
-        room_id = location.split("/rooms/")[1]
-        room = client.app.state.room_manager.get_room(room_id)
-        assert room is not None
-        # Empty room: no humans joined yet, all 4 seats are bots
-        assert room.num_ai_players == 4
-
-
-class TestJoinRoomRedirect:
-    @pytest.fixture
-    def client(self, client):
-        _register_user(client, username="joinuser")
-        return client
-
-    def test_join_room_route__when_room_exists__should_redirect_to_room_page(self, client):
-        room_manager = client.app.state.room_manager
-        room_manager.create_room("test-room-123")
-
-        csrf = client.cookies.get(CSRF_COOKIE_NAME)
-
-        response = client.post(
-            "/rooms/test-room-123/join",
-            data={"csrf_token": csrf},
-            follow_redirects=False,
-        )
-        assert response.status_code == 303
-        assert response.headers["location"] == "/rooms/test-room-123"
-
-    def test_join_room_route__when_room_missing__should_redirect_to_the_lobby_with_a_notice(self, client):
-        csrf = client.cookies.get(CSRF_COOKIE_NAME)
-
-        response = client.post("/rooms/no-such-room/join", data={"csrf_token": csrf}, follow_redirects=False)
-        assert response.status_code == 303
-        assert response.headers["location"] == "/?notice=table_gone"
 
 
 class TestBotCreateRoom:
@@ -552,7 +322,7 @@ def _unknown_api_key(_client: TestClient) -> dict[str, str]:
 
 
 def _human_session(client: TestClient) -> dict[str, str]:
-    _register_user(client, username="humanuser")
+    register_with_csrf(client, "humanuser")
     return {}
 
 
@@ -609,7 +379,7 @@ class TestAuthPolicyWiring:
 
 class TestAdminMonitoringPage:
     def test_monitoring_page__when_admin_flag_granted_then_revoked__should_answer_only_while_granted(self, client):
-        _register_user(client, username="opsuser")
+        register_with_csrf(client, "opsuser")
 
         before_grant = client.get("/admin/monitoring")
         _set_admin_flag(client, username="opsuser", is_admin=True)
@@ -623,77 +393,19 @@ class TestAdminMonitoringPage:
         assert revoked.status_code == 404
 
     def test_monitoring_page__when_guest__should_answer_404(self, client):
-        csrf = _get_csrf_token(client, "/login")
-        client.post("/guest", data={"csrf_token": csrf})
+        client.post(_GUEST_LOGIN, json={}, headers=_csrf_headers(client))
 
         assert client.get("/admin/monitoring").status_code == 404
 
 
 class TestCsrfProtection:
-    def test_csrf_protection__when_login_post_has_no_token__should_return_403(self, client):
-        response = client.post("/login", data={"username": "a", "password": "b"})
-        assert response.status_code == 403
-
-    def test_csrf_protection__when_guest_post_has_no_token__should_return_403(self, client):
-        response = client.post("/guest", data={})
-        assert response.status_code == 403
-
-    def test_csrf_protection__when_register_post_has_no_token__should_return_403(self, client):
-        response = client.post(
-            "/register",
-            data={"username": "a", "password": "b", "confirm_password": "b"},
-        )
-        assert response.status_code == 403
-
     def test_csrf_protection__when_logout_post_has_no_cookie__should_return_403(self, client):
-        _register_user(client, username="csrfuser")
-        # Clear the CSRF cookie to simulate a cross-site request
+        register_with_csrf(client, "csrfuser")
         client.cookies.delete(CSRF_COOKIE_NAME)
 
         response = client.post("/logout", follow_redirects=False)
         assert response.status_code == 403
 
-    def test_csrf_protection__when_create_room_post_has_no_cookie__should_return_403(self, client):
-        _register_user(client, username="csrfuser")
-        client.cookies.delete(CSRF_COOKIE_NAME)
-
-        response = client.post("/rooms/new", follow_redirects=False)
-        assert response.status_code == 403
-
-    def test_csrf_protection__when_join_room_post_has_no_cookie__should_return_403(self, client):
-        _register_user(client, username="csrfuser")
-        client.cookies.delete(CSRF_COOKIE_NAME)
-
-        response = client.post("/rooms/some-room/join", follow_redirects=False)
-        assert response.status_code == 403
-
-    def test_csrf_protection__when_login_post_uses_token_from_get__should_succeed(self, client):
-        _register_user(client, username="logincsrf")
-        csrf = _get_csrf_token(client, "/login")
-
-        response = client.post(
-            "/login",
-            data={"username": "logincsrf", "password": "securepass123", "csrf_token": csrf},
-            follow_redirects=False,
-        )
-        assert response.status_code == 303
-
     def test_csrf_protection__when_login_page_first_visited__should_set_cookie(self, client):
         response = client.get("/login")
         assert CSRF_COOKIE_NAME in response.cookies
-
-    def test_csrf_protection__when_login_token_stale__should_rerender_the_form_with_a_valid_token(self, client):
-        _register_user(client, username="staleuser")
-        client.cookies.delete("session_id")
-        _get_csrf_token(client, "/login")
-
-        response = client.post(
-            "/login",
-            data={"username": "staleuser", "password": "securepass123", "csrf_token": "forged-token"},
-        )
-        assert response.status_code == 403
-        assert "Your session expired" in response.text
-        assert 'value="staleuser"' in response.text
-
-        fresh_token = client.cookies.get(CSRF_COOKIE_NAME)
-        assert f'name="csrf_token" value="{fresh_token}"' in response.text

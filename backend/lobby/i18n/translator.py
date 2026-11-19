@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypeIs
 
@@ -61,28 +60,6 @@ def format_number(locale: Locale, number: int) -> str:
     return grouped.replace(",", _NARROW_NO_BREAK_SPACE) if locale == Locale.RU else grouped
 
 
-def format_decimal(locale: Locale, number: float) -> str:
-    """
-    Format a number rounded to one decimal, dropped when it is zero, with the locale's grouping and decimal mark.
-
-    A non-zero number that would round to zero keeps two significant digits instead (0.04, 0.0031). The mark is a point
-    in en and ja and a comma in ru.
-    """
-    rounded = round(number, 1)
-    if rounded == 0 and number != 0:
-        decimals = 1 - math.floor(math.log10(abs(number)))
-        formatted = f"{number:.{decimals}f}".rstrip("0")
-    elif rounded.is_integer():
-        return format_number(locale, int(rounded))
-    else:
-        formatted = f"{rounded:,.1f}"
-
-    if locale != Locale.RU:
-        return formatted
-
-    return formatted.replace(",", _NARROW_NO_BREAK_SPACE).replace(".", ",")
-
-
 def _is_number(value: object) -> TypeIs[int]:
     return isinstance(value, int) and not isinstance(value, bool)
 
@@ -98,12 +75,6 @@ class Translator:
     catalogs: Catalogs
     strict: bool
     _reported_keys: set[str] = field(default_factory=set, compare=False, repr=False)
-
-    def translate(self, locale: Locale, key: str, /, **params: object) -> str:
-        """
-        Return the message ``key`` in ``locale`` as plain text, with ``params`` filled in.
-        """
-        return self._render(locale, key, params, convert=str)
 
     def translate_markup(self, locale: Locale, key: str, /, **params: object) -> Markup:
         """

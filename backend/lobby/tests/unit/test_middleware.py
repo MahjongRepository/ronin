@@ -323,7 +323,7 @@ _INLINE_HANDLER_RE = re.compile(
 )
 
 _TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "views" / "templates"
-_SCRIPT_SELF_TEMPLATES = ["layout.html", "base.html", "shell.html", "room.html"]
+_SCRIPT_SELF_TEMPLATES = ["layout.html", "base.html", "shell.html"]
 
 
 class TestCSPCompliance:

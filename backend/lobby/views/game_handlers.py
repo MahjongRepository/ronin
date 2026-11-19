@@ -10,7 +10,6 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse, RedirectResponse
 
 from lobby.game_transition import GameLookupError, find_game_handoff
-from lobby.views.assets import render_page
 
 if TYPE_CHECKING:
     import httpx
@@ -77,11 +76,3 @@ async def game_session(request: Request) -> JSONResponse:
         return JSONResponse({"error": "not_playing"}, status_code=HTTPStatus.NOT_FOUND, headers=_NO_STORE)
 
     return JSONResponse(asdict(handoff), headers=_NO_STORE)
-
-
-async def storybook_page(request: Request) -> Response:
-    """
-    Render the lobby storybook page for development.
-    """
-    username = request.user.username if request.user.is_authenticated else None
-    return render_page(request, template_name="storybook.html", context={"username": username})

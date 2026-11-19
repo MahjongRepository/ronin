@@ -13,7 +13,7 @@ lobby only and a WebSocket to players.
 ```mermaid
 flowchart LR
     subgraph Client["Browser / bot"]
-        LobbyPages["Lobby pages<br/>(server-rendered + lobby scripts)"]
+        LobbyPages["Lobby SPA<br/>(one shell + /api/lobby/* JSON)"]
         GameClient["Game client SPA<br/>(/play/{game_id})"]
     end
 
@@ -65,6 +65,16 @@ flowchart LR
 
 Key facts the diagram cannot show:
 
+* **The lobby is a single-page app behind one shell.** Every lobby page route answers the same Jinja
+  shell (meta tags for the CSRF token, version and dev mode, under the route's own login policy);
+  the lobby app (`frontend/lobby/`) draws the page from `/api/lobby/*` JSON and navigates in place
+  between its routes. Terms, privacy and error pages stay server-rendered (an error page keeps its
+  HTTP status but leaves its words to the app, by code). The app's lit chrome (nav, footer,
+  language switch, logout form) is on every page, and a language change never reloads or
+  navigates. The lobby app and the game client build separately; the code both need (the router,
+  the i18n runtime, the locale and its cookie, the session handoff, the player settings) is
+  TypeScript source in `frontend/shared/` that each bundles.
+
 * **Both servers are single-process asyncio.** Every state transition (seat, queue, join, action,
   disconnect) is one synchronous step on the event loop, so neither server holds a lock. Sends and
   closes only enqueue onto a per-connection writer task, so no step ever waits on a slow client.
@@ -108,9 +118,9 @@ flowchart TD
   restart, and a database leak yields no usable cookie. A session expires after 30 idle days for an
   account or 7 for a guest, and 90 days after login at the latest.
 * The login redirect's `next` (only for a GET: another method's target cannot be reopened) rides
-  through the login, register and guest forms, and each of them returns there after creating the
-  session.
-* A **guest** (`POST /guest`) gets a session like any other, with a fresh user id and a generated
+  through the login, register and guest views (`/api/lobby/auth/*`), and each of them returns there
+  after creating the session.
+* A **guest** (`POST /api/lobby/auth/guest`) gets a session like any other, with a fresh user id and a generated
   `Nanashi-NNNN` name, but no `players` row: nothing past the session reads that table.
 * Every HTTP route carries exactly one policy decorator; WebSocket handlers authenticate inside
   (`Origin` check, then `websocket.user`).
@@ -198,7 +208,7 @@ sequenceDiagram
     participant RM as LobbyRoomManager
     participant GS as Game server
 
-    Owner->>L: POST /rooms/new, then WS /ws/rooms/{id}
+    Owner->>L: POST /api/lobby/rooms, then WS /ws/rooms/{id}
     L->>RM: join_room (occupancy check inside)
     L-->>Owner: room_joined
     Guest->>L: WS /ws/rooms/{id}

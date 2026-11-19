@@ -1,15 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}{{ t("page.title.with_page", page=title) }}{% endblock %}
+{% block meta %}
+    <meta name="ronin-error-status" content="{{ status_code }}">
+    <meta name="ronin-error-code" content="{{ error_code }}">
+    <meta name="ronin-error-action" content="{{ action_href }}">
+{% endblock %}
 
 {% block content %}
-<section class="lobby-error-page" aria-labelledby="error-title">
-    <p class="lobby-error-code">{{ status_code }}</p>
-    <h1 id="error-title">{{ title }}</h1>
-    <p class="lobby-muted">{{ message }}</p>
-    <p class="lobby-button-row lobby-button-row--center lobby-error-actions">
-        <a href="{{ action_href }}" role="button">{{ action_label }}</a>
-        {% if action_href != "/" %}<a href="/" role="button" class="outline secondary">{{ t("common.back_to_lobby") }}</a>{% endif %}
-    </p>
-</section>
+<section class="lobby-error-page" aria-labelledby="error-title" data-error-view></section>
 {% endblock %}

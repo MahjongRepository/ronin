@@ -1,6 +1,6 @@
 # Lobby server
 
-Accounts, rooms, matchmaking, game history and the server-rendered pages (`:8710`); it also hosts
+Accounts, rooms, matchmaking, game history and the lobby pages (`:8710`); it also hosts
 the game client and serves replay files, and hands players to a game server with signed game tickets.
 The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` covers room behaviour.
 
@@ -10,22 +10,29 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   middleware. `settings.py` sits at the `lobby/` root so every feature may import it.
 * `auth/` — the session-or-API-key authentication backend, the route policy decorators and CSRF.
 * `views/` — page and API handlers by domain (`bot_api_handlers.py` is the bot JSON API, `lobby_api_handlers.py`
-  the lobby app's), the Jinja2 templates, and the lobby app's Vite manifest / dev-server resolution into template
-  globals.
+  and `auth_api_handlers.py` the lobby app's), the Jinja2 templates, and the lobby app's Vite manifest / dev-server
+  resolution into template globals. Every lobby page route answers `shell.html` (`spa_handlers.py`) under its own
+  policy decorator, and the lobby app (`frontend/lobby/`) draws the page from `/api/lobby/*`; only terms, privacy
+  and error pages render server content, through `base.html`, which holds the chrome's mounts around `<main>` and
+  no navigation of its own. `layout.html`, the base of both, prints the meta tags the lobby app reads (CSRF token,
+  version, release link, year, dev mode, and on an error page its status, code and action link). The only HTML
+  form left is the chrome's POST `/logout`.
   `game_client.py` hosts the game client (`frontend/game_v2/`), a separate app the lobby knows only by
   its built directory or, in local runs, by its Vite dev server, which it proxies so the game page keeps
   the lobby's origin and the `sessionStorage` handoff (`docs/architecture.md`, Game client contract) works.
-* `views/error_pages.py` — every error answer, the failed CSRF check included; the 500 handler runs outside the
+* `views/error_pages.py` — every error answer, the failed CSRF check included. A browser gets `error.html` with the
+  real status, the failure as a code and the action link (the same-origin referer for a stale form, else the
+  lobby), which the lobby app words; anything else gets Starlette's plain text. The 500 handler runs outside the
   middleware, so `create_app()` wraps it to add the security headers.
 * Storybook pages and footer links are development-only. Released servers return 404 for both
-  lobby and game storybooks, including direct requests to game storybook paths.
+  lobby and game storybooks, including direct requests to game storybook paths; the lobby storybook is a dev-only
+  route of the lobby app behind the shell.
 * `i18n/` — the en/ja/ru catalogs, loaded and cross-checked in `create_app()` (the lobby refuses to start on a
-  bad catalog), the locale resolver and the `Translator` (`docs/i18n.md` is the contract). Every
-  user-visible page string is a catalog key: views pass keys (error pages, notices) or codes (`AuthErrorCode`),
-  never English prose; bot JSON, plain-text and protocol answers stay English. Template text the lobby scripts rewrite in place on a language switch
-  names its key in a `data-i18n` attribute, so that key is in both lobby catalogs. Only an explicit choice writes the
-  cookie (the lobby's `POST /lang`; auto-detection never does), and every writer uses the same name, path and
-  attributes (`docs/i18n.md`).
+  bad catalog), the locale resolver and the `Translator` (`docs/i18n.md` is the contract). The server resolves
+  each page's locale into `<html lang>`; its catalog holds only the page titles the layout and the legal pages
+  print. Page, nav, footer and error text is the lobby app's: the server sends codes (`AuthErrorCode`, error
+  codes, room errors), never English prose; bot JSON, plain-text and protocol answers stay English. The server
+  never writes the `lang` cookie: only the clients' language switches do, on an explicit choice.
 * `rooms/` and `matchmaking/` — managers and WebSocket handlers. Matchmaking is a FIFO queue that
   starts a 4-human game once 4 players wait; its client sends nothing, so it needs no rate limit.
   The two never import each other: they share `start_game` and `LobbyPlayer`, and each gets the

@@ -2,7 +2,7 @@ http:
   routers:
     # Rate-limited auth endpoints (login, register) — highest priority
     lobby-auth:
-      rule: "Host(`%%DOMAIN%%`) && (Path(`/login`) || Path(`/register`) || Path(`/api/lobby/auth/login`) || Path(`/api/lobby/auth/register`)) && Method(`POST`)"
+      rule: "Host(`%%DOMAIN%%`) && PathRegexp(`^/api/lobby/auth/(login|register)/*$`) && Method(`POST`)"
       entryPoints: ["websecure"]
       service: lobby
       tls:

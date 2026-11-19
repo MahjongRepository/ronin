@@ -7,10 +7,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from starlette.requests import Request
-    from starlette.responses import Response
 
 LANG_COOKIE_NAME = "lang"
-LANG_COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60
 
 
 class Locale(StrEnum):
@@ -20,12 +18,6 @@ class Locale(StrEnum):
 
 
 DEFAULT_LOCALE = Locale.EN
-
-LANGUAGE_NAMES = {
-    Locale.EN: "English",
-    Locale.JA: "日本語",
-    Locale.RU: "Русский",
-}
 
 
 @dataclass(frozen=True)
@@ -115,18 +107,3 @@ def resolve_request_locale(request: Request) -> ResolvedLocale:
     )
     request.state.resolved_locale = resolved
     return resolved
-
-
-def set_lang_cookie(response: Response, *, locale: Locale, cookie_secure: bool) -> None:
-    """
-    Set the ``lang`` cookie the lobby and the game client both read; not HttpOnly, since the game client reads it.
-    """
-    response.set_cookie(
-        key=LANG_COOKIE_NAME,
-        value=locale.value,
-        max_age=LANG_COOKIE_MAX_AGE_SECONDS,
-        path="/",
-        samesite="lax",
-        secure=cookie_secure,
-        httponly=False,
-    )

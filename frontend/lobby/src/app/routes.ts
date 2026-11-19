@@ -42,6 +42,22 @@ function mountSignedInOnly(url: URL, deps: RouteDeps, mountView: () => MountedVi
     };
 }
 
+function developmentRoutes(): Route[] {
+    if (!import.meta.env.DEV) {
+        return [];
+    }
+    return [
+        lazyRoute(
+            /^\/storybook\/?$/,
+            async () => {
+                const { mountStorybookView } = await import("@/storybook");
+                return mountStorybookView;
+            },
+            pageFailedView,
+        ),
+    ];
+}
+
 export function lobbyRoutes(deps: RouteDeps): Route[] {
     return [
         {
@@ -84,5 +100,6 @@ export function lobbyRoutes(deps: RouteDeps): Route[] {
             },
             pageFailedView,
         ),
+        ...developmentRoutes(),
     ];
 }

@@ -1,49 +1,7 @@
 {% extends "layout.html" %}
 
 {% block body %}
-    {% set current_path = request.url.path if request is defined else "" %}
-    <nav class="container lobby-nav" aria-label="{{ t('nav.aria_label') }}" data-i18n-aria-label="nav.aria_label">
-        <ul>
-            <li><a href="/" class="lobby-brand"><span class="lobby-logo" aria-hidden="true"></span><span class="lobby-wordmark">Ronin <span class="lobby-beta" data-i18n="nav.beta">{{ t("nav.beta") }}</span></span></a></li>
-            {% if username %}
-            <li><a href="/history" class="lobby-nav-link"{% if current_path == "/history" %} aria-current="page"{% endif %} data-i18n="nav.history">{{ t("nav.history") }}</a></li>
-            {% endif %}
-        </ul>
-        <ul{% if username %} class="lobby-account"{% endif %}>
-            {% if username %}
-            <li class="lobby-username" title="{{ username }}">{{ username }}</li>
-            <li>
-                <form method="POST" action="/logout">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="lobby-logout" data-i18n="nav.log_out">{{ t("nav.log_out") }}</button>
-                </form>
-            </li>
-            {% else %}
-            <li><a href="/login{{ next_query }}" class="lobby-nav-link"{% if current_path == "/login" %} aria-current="page"{% endif %} data-i18n="nav.log_in">{{ t("nav.log_in") }}</a></li>
-            <li><a href="/register{{ next_query }}" role="button" class="outline lobby-small-btn"{% if current_path == "/register" %} aria-current="page"{% endif %} data-i18n="nav.register">{{ t("nav.register") }}</a></li>
-            {% endif %}
-        </ul>
-    </nav>
-    <main class="container">
-        <div class="lobby-alert warning" data-browser-notice hidden><p data-i18n="common.unsupported_browser">{{ t("common.unsupported_browser") }}</p></div>
-        {% block content %}{% endblock %}
-    </main>
-    <footer class="container">
-        <div class="footer-content">
-            <small class="footer-meta">&copy; {{ current_year }} Ronin &middot; {% if release_url %}<a href="{{ release_url }}" target="_blank" rel="noopener">v{{ app_version }}</a>{% else %}v{{ app_version | default('dev') }}{% endif %} &middot; <a href="/terms"{% if current_path == "/terms" %} aria-current="page"{% endif %} data-i18n="footer.terms">{{ t("footer.terms") }}</a> &middot; <a href="/privacy"{% if current_path == "/privacy" %} aria-current="page"{% endif %} data-i18n="footer.privacy">{{ t("footer.privacy") }}</a></small>
-            <form method="POST" action="/lang" class="footer-lang" aria-label="{{ t('footer.language_label') }}" data-i18n-aria-label="footer.language_label">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="next" value="{{ current_page }}">
-                {% for code, name in language_names.items() %}
-                <button type="submit" name="lang" value="{{ code }}" lang="{{ code }}"{% if code == locale %} aria-current="true"{% endif %}>{{ name }}</button>
-                {% endfor %}
-            </form>
-            {% if dev_mode %}
-            <nav class="footer-dev-links" aria-label="{{ t('footer.dev_links_label') }}" data-i18n-aria-label="footer.dev_links_label">
-                <a href="/storybook" data-i18n="footer.lobby_storybook">{{ t("footer.lobby_storybook") }}</a>
-                <a href="/play/storybook" data-i18n="footer.game_storybook">{{ t("footer.game_storybook") }}</a>
-            </nav>
-            {% endif %}
-        </div>
-    </footer>
+    <nav class="container lobby-nav" data-lobby-nav></nav>
+    <main class="container"><div class="lobby-alert warning" data-browser-notice hidden></div>{% block content %}{% endblock %}</main>
+    <footer class="container" data-lobby-footer></footer>
 {% endblock %}

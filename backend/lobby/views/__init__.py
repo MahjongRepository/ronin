@@ -25,14 +25,5 @@ from lobby.views.game_handlers import (
 from lobby.views.game_handlers import (
     replay_page as replay_page,
 )
-from lobby.views.game_handlers import (
-    storybook_page as storybook_page,
-)
-from lobby.views.handlers import (
-    create_room_and_redirect as create_room_and_redirect,
-)
-from lobby.views.handlers import (
-    join_room_and_redirect as join_room_and_redirect,
-)
 from lobby.views.replay_handlers import replay_content as replay_content
 from lobby.views.replay_handlers import tenhou_replay as tenhou_replay

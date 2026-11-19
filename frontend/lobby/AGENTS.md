@@ -1,8 +1,41 @@
 # Lobby app (TypeScript / lit-html)
 
-The scripts and styles of the server-rendered lobby pages. There is no routing: the Jinja2
-templates in `backend/lobby/views/templates/` are the pages, and `src/index.ts` loads on all of them
-and starts whatever the page holds (the room, the matchmaking queue, the history copy-link buttons).
+The lobby's pages as one single-page app. `src/index.ts` loads on every lobby page. On the shell
+the server answers for every lobby route (`<main id="lobby-spa">`) it starts the app
+(`app/start.ts`): the shared router (`@ronin/shared/router`) over the route list in `app/routes.ts`,
+which is also the allowlist of links it intercepts and URLs it navigates to in place; any other
+destination is a document navigation. On the pages that stay server-rendered (terms, privacy,
+error pages) it mounts only the chrome around their `<main>`.
+
+* **Chrome** (`app/chrome.ts`): the one nav and footer of every page, lit-html, drawn from the
+  page's meta tags (CSRF token, version, release link, year, dev mode) and `GET /api/lobby/session`;
+  its signed-in part waits for the session. Logout stays a form POST `/logout` that copies the
+  current meta CSRF token on submit. The Admin section shows only when the session says `is_admin`.
+* **Views** split like `room/` (Conventions) and export `mount<Page>View(host, ...)` returning
+  `{unmount, rerender}`: `unmount` closes sockets, listeners and timers and drops any fetch that
+  settles after it (no socket, render or redirect after dispose); `rerender` redraws from state for
+  a language switch. Each view sets `document.title` in its render.
+* A view never calls `router.navigate` synchronously inside its mount or unmount, and renders its
+  static frame at once while its data loads, so a route change never flashes an empty page.
+* **Data** comes from `api.ts` only, never a raw `fetch`, and is validated before use. A JSON 401
+  sends the user to `/login?next=<path+query>`; a POST carries the meta CSRF token as
+  `X-CSRF-Token` and retries once with the token a 403 `csrf_invalid` hands back.
+* **Settings** (`settings/`) writes the same localStorage keys the game client reads, through the
+  shared settings modules and rows. The server lets only signed-in users (guests included) load
+  `/settings`; an in-app navigation there renders the page at once and, once the awaited session
+  says nobody is signed in, replaces it with `/login?next=/settings`.
+* **Retained pages** (`retained/`): an error page carries its status, error code and action link
+  in meta tags, and `error-view.ts` words them from this app's catalog through a closed code→key map.
+  The lobby storybook is a dev-only lazy route (`import.meta.env.DEV`), so production ships none of it.
+
+The language switch never reloads or navigates. The chrome's buttons call the shared
+`switchLocale` (the `lang` cookie, `<html lang>`, the wind script), re-render the chrome, then
+redraw the page: an SPA view through the router's `rerender()`, an error page through its view, and
+terms or privacy through `legal-swap.ts`, which refetches the page and swaps its `<main>` content and
+title in place (a failed fetch keeps the old ones). The locale itself still comes from the server's
+`<html lang>` at load. Text a view keeps in its state is therefore stored as a code or key and
+translated at render time, except chat lines, which keep the language they arrived in.
+
 `lobby-socket.ts` is the JSON lobby WebSocket. Its close code is the server's cue: `disconnect()`
 closes with 1000, a leave, and a socket `connect()` replaces closes with 4100, so the server holds
 the room seat for the new one (`backend/lobby/rooms/AGENTS.md`).
@@ -19,15 +52,10 @@ the back-forward cache, unless the page has already ended (refused, taken over).
 cached page's socket open and answers the server's pings for it, so without this a user who
 navigates away keeps their queue entry or seat. Firefox aborts a page's sockets as soon as a
 navigation starts, before `pagehide`, so without `beforeunload` the page would flash its lost
-connection state while it unloads. A page leaves for the game, and the room's Leave
-table for the lobby, with `location.replace`, so Back never restores a page whose rejoin would only
-hand the user the same game or seat again.
-
-For the same reason the room and matchmaking pages never reload for a language change:
-`language-switch.ts` takes over the footer's language form there, saves the choice through `fetch`
-and switches the page in place (`docs/i18n.md`), then the page re-renders its view from its state.
-Text a page module keeps in its state is therefore stored as a code or key and translated at render
-time, except chat lines, which keep the language they arrived in.
+connection state while it unloads. A page leaves for the game with `location.replace`, and the room's Leave table
+goes to the lobby with an in-place navigation that replaces the history entry, so Back never
+restores a page whose rejoin would only hand the user the same game or seat again. For the same
+reason the room and matchmaking views never reload for a language change.
 
 ## Build
 

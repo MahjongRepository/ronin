@@ -3,8 +3,8 @@
 Two apps, each its own npm package with its own dependencies, lockfile, language, lint, format and
 test config, its own styles and its own build:
 
-* `lobby/` — the scripts and styles of the server-rendered lobby pages (TypeScript / lit-html). See
-  `lobby/AGENTS.md`.
+* `lobby/` — the lobby's single-page app and the chrome of its few server-rendered pages
+  (TypeScript / lit-html). See `lobby/AGENTS.md`.
 * `game_v2/` — the game client (TypeScript / lit-html). See `game_v2/AGENTS.md`.
 * `shared/` — TypeScript source both apps import through `@ronin/shared/*`; not a package. See
   `shared/AGENTS.md`.

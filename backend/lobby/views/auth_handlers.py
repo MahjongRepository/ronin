@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-from http import HTTPStatus
 from typing import TYPE_CHECKING
-from urllib.parse import urlencode
 
-from starlette.responses import RedirectResponse, Response
+from starlette.responses import RedirectResponse
 
-from lobby.auth.csrf import is_csrf_valid
-from lobby.views.assets import render_page, translate_for_request
 from lobby.views.error_pages import validate_csrf
 from shared.auth.service import (
     PASSWORD_MAX_LENGTH,
@@ -15,12 +11,11 @@ from shared.auth.service import (
     SESSION_MAX_AGE_SECONDS,
     USERNAME_MAX_LENGTH,
     USERNAME_MIN_LENGTH,
-    AuthError,
 )
 
 if TYPE_CHECKING:
-    from starlette.datastructures import FormData
     from starlette.requests import Request
+    from starlette.responses import Response
 
     from shared.auth.settings import AuthSettings
 
@@ -51,13 +46,6 @@ def parse_next_path(value: object) -> str | None:
     return value
 
 
-def describe_auth_error(request: Request, error: AuthError) -> str:
-    """
-    Word an auth failure in the request's locale from its code and params; its English message is for logs and bots.
-    """
-    return translate_for_request(request, f"auth.error.{error.code}", **error.params)
-
-
 def set_session_cookie(response: Response, *, token: str, auth_settings: AuthSettings) -> None:
     """
     Set the session cookie a login, a registration or a guest login hands the browser.
@@ -70,133 +58,6 @@ def set_session_cookie(response: Response, *, token: str, auth_settings: AuthSet
         secure=auth_settings.cookie_secure,
         max_age=SESSION_MAX_AGE_SECONDS,
         path="/",
-    )
-
-
-def _redirect_with_session_cookie(*, token: str, auth_settings: AuthSettings, next_path: str | None) -> Response:
-    """
-    Redirect to ``next_path`` (the lobby when there is none) and set the session cookie.
-    """
-    response = RedirectResponse(next_path or "/", status_code=303)
-    set_session_cookie(response, token=token, auth_settings=auth_settings)
-    return response
-
-
-def _render_auth_form(
-    request: Request,
-    *,
-    template_name: str,
-    form: FormData,
-    error: str | None = None,
-    invalid_field: str | None = None,
-) -> Response:
-    """
-    Render the login or register form again, keeping the submitted username (never a password) and the return page.
-
-    The username goes under ``form_username``: ``username`` is the logged-in user the navigation shows.
-    """
-    submitted = form.get("username", "")
-    next_path = parse_next_path(form.get("next"))
-    context: dict[str, object] = {
-        **ACCOUNT_RULES,
-        "error": error,
-        "invalid_field": invalid_field,
-        "form_username": submitted if isinstance(submitted, str) else "",
-        "next_path": next_path,
-        "next_query": f"?{urlencode({'next': next_path})}" if next_path else "",
-    }
-    return render_page(request, template_name=template_name, context=context)
-
-
-def _render_stale_auth_form(request: Request, *, template_name: str, form: FormData) -> Response:
-    """
-    Answer a login or register post whose CSRF check failed with its form again (403), under the cookie's token.
-
-    A browser that has lost its cookie gets a new one with the form, unless the post came from another site.
-    """
-    error = translate_for_request(request, "auth.form.session_expired")
-    response = _render_auth_form(request, template_name=template_name, form=form, error=error)
-    response.status_code = HTTPStatus.FORBIDDEN
-    return response
-
-
-async def login(request: Request) -> Response:
-    """POST /login - validate credentials, set session cookie, redirect to lobby."""
-    auth_service = request.app.state.auth_service
-    auth_settings = request.app.state.auth_settings
-    form = await request.form()
-
-    if not is_csrf_valid(request, form):
-        return _render_stale_auth_form(request, template_name="login.html", form=form)
-
-    username = form.get("username", "")
-    password = form.get("password", "")
-
-    try:
-        _, token = await auth_service.login(str(username), str(password), replacing=request.cookies.get("session_id"))
-    except AuthError as e:
-        return _render_auth_form(request, template_name="login.html", form=form, error=describe_auth_error(request, e))
-
-    return _redirect_with_session_cookie(
-        token=token, auth_settings=auth_settings, next_path=parse_next_path(form.get("next"))
-    )
-
-
-async def guest_login(request: Request) -> Response:
-    """POST /guest - start a guest session, set the session cookie, redirect to lobby."""
-    auth_service = request.app.state.auth_service
-    auth_settings = request.app.state.auth_settings
-    form = await request.form()
-
-    if not is_csrf_valid(request, form):
-        return _render_stale_auth_form(request, template_name="login.html", form=form)
-
-    next_path = parse_next_path(form.get("next"))
-    if request.user.is_authenticated:
-        return RedirectResponse(next_path or "/", status_code=303)
-
-    client_ip = request.client.host if request.client else ""
-    if not request.app.state.guest_login_limiter.consume(client_ip):
-        error = translate_for_request(request, "auth.form.guest_rate_limited")
-        response = _render_auth_form(request, template_name="login.html", form=form, error=error)
-        response.status_code = HTTPStatus.TOO_MANY_REQUESTS
-        return response
-
-    _, token = await auth_service.login_as_guest(replacing=request.cookies.get("session_id"))
-    return _redirect_with_session_cookie(token=token, auth_settings=auth_settings, next_path=next_path)
-
-
-async def register(request: Request) -> Response:
-    """POST /register - create account, auto-login, redirect to lobby."""
-    auth_service = request.app.state.auth_service
-    auth_settings = request.app.state.auth_settings
-    form = await request.form()
-
-    if not is_csrf_valid(request, form):
-        return _render_stale_auth_form(request, template_name="register.html", form=form)
-
-    username = form.get("username", "")
-    password = form.get("password", "")
-    confirm_password = form.get("confirm_password", "")
-    if password != confirm_password:
-        return _render_auth_form(
-            request,
-            template_name="register.html",
-            form=form,
-            error=translate_for_request(request, "auth.form.passwords_mismatch"),
-            invalid_field="confirm_password",
-        )
-
-    try:
-        await auth_service.register(str(username), str(password))
-        _, token = await auth_service.login(str(username), str(password), replacing=request.cookies.get("session_id"))
-    except AuthError as e:
-        return _render_auth_form(
-            request, template_name="register.html", form=form, error=describe_auth_error(request, e)
-        )
-
-    return _redirect_with_session_cookie(
-        token=token, auth_settings=auth_settings, next_path=parse_next_path(form.get("next"))
     )
 
 

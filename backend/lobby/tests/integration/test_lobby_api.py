@@ -21,7 +21,7 @@ def _revoke_admin(client, username: str) -> None:
 class TestLobbySessionRoute:
     def test_lobby_session_route__when_guest__should_report_a_guest_who_is_not_admin(self, client):
         client.get("/login")
-        client.post("/guest", data={"csrf_token": client.cookies[CSRF_COOKIE_NAME]})
+        client.post("/api/lobby/auth/guest", json={}, headers={CSRF_HEADER_NAME: client.cookies[CSRF_COOKIE_NAME]})
 
         response = client.get("/api/lobby/session")
 

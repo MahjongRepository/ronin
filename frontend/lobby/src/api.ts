@@ -98,6 +98,18 @@ function postOnce(path: string, body: unknown): Promise<ApiResult> {
     });
 }
 
+export async function fetchPageHtml(path: string): Promise<string | null> {
+    const response = await fetchResponse(path, { headers: { Accept: "text/html" }, method: "GET" });
+    if (response === null) {
+        return null;
+    }
+    if (!response.ok) {
+        console.error(`GET ${path} answered ${String(response.status)}`);
+        return null;
+    }
+    return readText(response, path);
+}
+
 export function apiGet(path: string): Promise<ApiResult> {
     return send(path, { method: "GET" });
 }

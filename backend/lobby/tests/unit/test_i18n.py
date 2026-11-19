@@ -6,8 +6,7 @@ from markupsafe import Markup
 
 from lobby.i18n import CatalogError, I18nError, Locale, Translator, load_catalogs
 from lobby.i18n.locale import resolve_locale
-from lobby.i18n.translator import format_decimal, plural_category
-from shared.auth.service import AuthErrorCode
+from lobby.i18n.translator import plural_category
 
 CATALOGS = {
     Locale.EN: {
@@ -86,15 +85,15 @@ class TestTranslator:
         translator = Translator(catalogs=CATALOGS, strict=True)
 
         with pytest.raises(I18nError):
-            translator.translate(Locale.RU, key, **params)
+            translator.translate_markup(Locale.RU, key, **params)
 
     def test_translate__when_not_strict_and_call_does_not_match__should_render_en_and_warn_once_per_key(self, caplog):
         translator = Translator(catalogs=CATALOGS, strict=False)
 
         with caplog.at_level(logging.WARNING):
-            first = translator.translate(Locale.RU, "auth.login.title", name="dev")
-            second = translator.translate(Locale.JA, "auth.login.title", name="dev")
-            untranslated = translator.translate(Locale.RU, "auth.login.untranslated")
+            first = translator.translate_markup(Locale.RU, "auth.login.title", name="dev")
+            second = translator.translate_markup(Locale.JA, "auth.login.title", name="dev")
+            untranslated = translator.translate_markup(Locale.RU, "auth.login.untranslated")
         assert first == second == "Log in"
         assert untranslated == "Only in English"
         warnings = [record.getMessage() for record in caplog.records if "i18n error" in record.getMessage()]
@@ -107,11 +106,12 @@ class TestTranslator:
     def test_translate__when_plural__should_pick_the_locale_form_and_format_the_count(self):
         translator = Translator(catalogs=CATALOGS, strict=True)
 
-        assert translator.translate(Locale.RU, "history.rounds", count=22) == "22 раунда"
+        assert translator.translate_markup(Locale.RU, "history.rounds", count=22) == "22 раунда"
         assert (
-            translator.translate(Locale.RU, "history.rounds", count=25000) == "25\N{NARROW NO-BREAK SPACE}000 раундов"
+            translator.translate_markup(Locale.RU, "history.rounds", count=25000)
+            == "25\N{NARROW NO-BREAK SPACE}000 раундов"
         )
-        assert translator.translate(Locale.EN, "history.rounds", count=1) == "1 round"
+        assert translator.translate_markup(Locale.EN, "history.rounds", count=1) == "1 round"
 
     def test_translate_markup__when_slot_is_markup__should_escape_text_params_but_keep_the_slot(self):
         translator = Translator(catalogs=CATALOGS, strict=True)
@@ -130,23 +130,6 @@ def test_plural_category__when_ru__should_follow_the_cldr_integer_rule(count, ca
     assert plural_category(Locale.RU, count) == category
 
 
-@pytest.mark.parametrize(
-    ("locale", "number", "shown"),
-    [
-        (Locale.EN, 12345.67, "12,345.7"),
-        (Locale.RU, 12345.67, "12\N{NARROW NO-BREAK SPACE}345,7"),
-        (Locale.JA, 2.96, "3"),
-        (Locale.EN, 0.04, "0.04"),
-        (Locale.RU, 0.00314, "0,0031"),
-        (Locale.EN, 0, "0"),
-    ],
-)
-def test_format_decimal__should_round_to_one_decimal_or_two_significant_digits_in_the_locale_marks(
-    locale, number, shown
-):
-    assert format_decimal(locale, number) == shown
-
-
 def test_load_catalogs__when_a_locale_lacks_an_en_key__should_refuse_to_load(tmp_path):
     for locale, catalog in CATALOGS.items():
         (tmp_path / f"{locale}.json").write_text(json.dumps(catalog))
@@ -154,27 +137,3 @@ def test_load_catalogs__when_a_locale_lacks_an_en_key__should_refuse_to_load(tmp
 
     with pytest.raises(CatalogError, match="keys differ"):
         load_catalogs(tmp_path)
-
-
-_AUTH_ERROR_PARAMS = {
-    AuthErrorCode.WRONG_CREDENTIALS: {},
-    AuthErrorCode.USERNAME_TAKEN: {"username": "dev"},
-    AuthErrorCode.USERNAME_LENGTH: {"min": 3, "max": 30},
-    AuthErrorCode.USERNAME_PATTERN: {},
-    AuthErrorCode.USERNAME_RESERVED_PREFIX: {"prefix": "ai-"},
-    AuthErrorCode.BOT_NAME_PATTERN: {},
-    AuthErrorCode.PASSWORD_LENGTH: {"min": 8, "max": 72},
-    AuthErrorCode.PASSWORD_BYTES: {"max": 72},
-    AuthErrorCode.HUMAN_ACCOUNT: {"username": "dev"},
-    AuthErrorCode.ACCOUNT_NOT_SAVED: {},
-}
-
-
-@pytest.mark.parametrize("locale", list(Locale))
-def test_lobby_catalog__when_walking_auth_error_codes__should_render_every_one_strictly(locale):
-    translator = Translator(catalogs=load_catalogs(), strict=True)
-
-    auth_errors = [
-        translator.translate(locale, f"auth.error.{code}", **_AUTH_ERROR_PARAMS[code]) for code in AuthErrorCode
-    ]
-    assert all(auth_errors)
