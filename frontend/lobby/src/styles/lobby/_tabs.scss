@@ -1,0 +1,25 @@
+.lobby-tabs {
+    display: flex;
+    gap: 1.5rem;
+    border-bottom: 1px solid var(--ronin-border-subtle);
+
+    [role="tab"] {
+        width: auto;
+        margin: 0 0 -1px;
+        padding: 0.5rem 0;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        background: none;
+        color: var(--pico-muted-color);
+
+        @media (width <= 576px), (pointer: coarse) {
+            min-height: var(--ronin-touch-target);
+        }
+    }
+
+    [role="tab"][aria-selected="true"] {
+        border-bottom-color: var(--pico-primary);
+        color: var(--pico-color);
+    }
+}

@@ -13,10 +13,20 @@ import {
 import { type WindScript } from "@ronin/shared/winds";
 import { type TemplateResult, html, type nothing, render } from "lit-html";
 
-import { t } from "@/i18n";
+import { type MessageKey, t } from "@/i18n";
+
+export const SETTINGS_TABS = ["game", "api"] as const;
+
+export type SettingsTab = (typeof SETTINGS_TABS)[number];
+
+export interface SettingsTabs {
+    readonly api: TemplateResult | typeof nothing;
+    readonly current: SettingsTab;
+    readonly onSelect: (tab: SettingsTab) => void;
+}
 
 export interface SettingsProps {
-    readonly accountSection: TemplateResult | typeof nothing;
+    readonly tabs: SettingsTabs | null;
     readonly animations: SwitchRowProps;
     readonly input: InputRowsProps;
     readonly keepAutoWin: SwitchRowProps;
@@ -28,19 +38,61 @@ export interface SettingsProps {
 
 const BLOCK = "settings-page";
 
+const TAB_LABELS: Record<SettingsTab, MessageKey> = {
+    api: "settings.tab.api",
+    game: "settings.tab.game",
+};
+
+function gameSettingsTemplate(props: SettingsProps): TemplateResult {
+    return html`<div class="${BLOCK}__list">
+        ${SoundRow(BLOCK, props.sound)} ${AnimationsRow(BLOCK, props.animations)}
+        ${TileLabelsRow(BLOCK, props.onTileLabels)} ${KeepAutoWinRow(BLOCK, props.keepAutoWin)}
+        ${InputRows(BLOCK, props.input)} ${LanguageRow(BLOCK, props.onLanguage)}
+        ${WindsRow(BLOCK, props.onWinds)}
+    </div>`;
+}
+
+function tabsTemplate(tabs: SettingsTabs): TemplateResult {
+    return html`<div class="lobby-tabs ${BLOCK}__tabs" role="tablist">
+        ${SETTINGS_TABS.map(
+            (tab) =>
+                html`<button
+                    type="button"
+                    role="tab"
+                    id="settings-tab-${tab}"
+                    aria-controls="settings-panel"
+                    aria-selected=${tab === tabs.current ? "true" : "false"}
+                    @click=${() => tabs.onSelect(tab)}
+                >
+                    ${t(TAB_LABELS[tab])}
+                </button>`,
+        )}
+    </div>`;
+}
+
+function panelTemplate(props: SettingsProps, tabs: SettingsTabs): TemplateResult {
+    return html`<div
+        class="${BLOCK}__panel"
+        id="settings-panel"
+        role="tabpanel"
+        aria-labelledby="settings-tab-${tabs.current}"
+    >
+        ${tabs.current === "api" ? tabs.api : gameSettingsTemplate(props)}
+    </div>`;
+}
+
 function settingsTemplate(props: SettingsProps): TemplateResult {
+    const { tabs } = props;
     return html`<section class="lobby-section ${BLOCK}">
         <div class="lobby-section-header">
-            <h2>${t("nav.settings")}</h2>
+            <h2>${t(tabs === null ? "nav.settings" : "settings.title")}</h2>
         </div>
-        <div class="${BLOCK}__list">
-            ${SoundRow(BLOCK, props.sound)} ${AnimationsRow(BLOCK, props.animations)}
-            ${TileLabelsRow(BLOCK, props.onTileLabels)} ${KeepAutoWinRow(BLOCK, props.keepAutoWin)}
-            ${InputRows(BLOCK, props.input)} ${LanguageRow(BLOCK, props.onLanguage)}
-            ${WindsRow(BLOCK, props.onWinds)}
-        </div>
-    </section>
-    ${props.accountSection}`;
+        ${
+            tabs === null
+                ? gameSettingsTemplate(props)
+                : html`${tabsTemplate(tabs)} ${panelTemplate(props, tabs)}`
+        }
+    </section>`;
 }
 
 export function renderSettings(host: HTMLElement, props: SettingsProps): void {

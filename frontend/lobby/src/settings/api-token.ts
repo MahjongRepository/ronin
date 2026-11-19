@@ -88,6 +88,7 @@ function showIssuedToken(state: ApiTokenState, result: ApiResult): void {
 }
 
 export interface ApiTokenSection {
+    readonly available: () => boolean;
     readonly dispose: () => void;
     readonly template: () => TemplateResult | typeof nothing;
 }
@@ -98,6 +99,7 @@ export function startApiTokenSection(render: () => void): ApiTokenSection {
     const context = { isDisposed: () => disposed, render };
     void loadApiTokenStatus(state, context);
     return {
+        available: () => state.status?.hasAccount === true,
         dispose: () => {
             disposed = true;
         },
@@ -143,10 +145,7 @@ function apiTokenTemplate(
         issue();
     }
     const header = html`<code>${status.header}</code>`;
-    return html`<section class="lobby-section settings-api-token">
-        <div class="lobby-section-header">
-            <h2>${t("settings.api_token.title")}</h2>
-        </div>
+    return html`<div class="settings-api-token">
         <p class="lobby-muted">${tParts("settings.api_token.intro", { header })}</p>
         ${tokenStatusTemplate(state, status.hasToken)}
         ${
@@ -168,5 +167,5 @@ function apiTokenTemplate(
                       </button>`
             }
         </form>
-    </section>`;
+    </div>`;
 }

@@ -87,19 +87,22 @@ describe("mountSettingsView", () => {
         const host = settingsPage();
         await settled();
 
+        click(host, "#settings-tab-api");
         host.querySelector<HTMLButtonElement>("form button[type=submit]")?.click();
         await settled();
 
+        expect(host.querySelector(".settings-page__item")).toBeNull();
         expect(host.querySelector<HTMLInputElement>("#api-token")?.value).toBe("tok-1");
         expect(host.querySelector("form button[type=submit]")?.textContent?.trim()).toBe(
             "Rotate token",
         );
     });
 
-    it("shows no API token section to a guest", async () => {
+    it("shows a guest the game settings with no API tab", async () => {
         const host = settingsPage();
         await settled();
 
-        expect(host.querySelectorAll(".lobby-section")).toHaveLength(1);
+        expect(host.querySelector('[role="tablist"]')).toBeNull();
+        expect(host.querySelector(".settings-page__sound")).not.toBeNull();
     });
 });

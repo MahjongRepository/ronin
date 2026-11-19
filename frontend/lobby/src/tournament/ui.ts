@@ -139,7 +139,7 @@ function tabsTemplate(page: TournamentPage): TemplateResult | typeof nothing {
         return nothing;
     }
     return html`
-        <div class="tournament-tabs" role="tablist">
+        <div class="lobby-tabs" role="tablist">
             ${TOURNAMENT_TABS.map(
                 (tab) => html`
                     <button type="button" role="tab" id="tournament-tab-${tab}" aria-controls="tournament-panel" aria-selected=${tab === state.tab ? "true" : "false"} @click=${() => actions.selectTab(tab)}>

@@ -24,7 +24,7 @@ error pages) it mounts only the chrome around their `<main>`.
   shared settings modules and rows. The server lets only signed-in users (guests included) load
   `/settings`; an in-app navigation there renders the page at once and, once the awaited session
   says nobody is signed in, replaces it with `/login?next=/settings`.
-  An account also gets its API token section there (`settings/api-token.ts`, `/api/lobby/api-token`); the token
+  An account also gets an API token tab beside the game settings (`settings/api-token.ts`, `/api/lobby/api-token`); a guest sees no tabs. The token
   is shown once, from the POST's answer, and never fetched again.
 * **Retained pages** (`retained/`): an error page carries its status, error code and action link
   in meta tags, and `error-view.ts` words them from this app's catalog through a closed code→key map.

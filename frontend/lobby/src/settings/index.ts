@@ -25,7 +25,7 @@ import { applyTileLabels } from "@ronin/shared/tile-labels";
 import { applyWindScript } from "@ronin/shared/winds";
 
 import { startApiTokenSection } from "@/settings/api-token";
-import { renderSettings } from "@/settings/ui";
+import { type SettingsTab, renderSettings } from "@/settings/ui";
 
 export interface SettingsViewDeps {
     readonly setLanguage: (locale: Locale) => void;
@@ -54,7 +54,6 @@ export function mountSettingsView(host: HTMLElement, deps: SettingsViewDeps): Mo
         const input = inputStore.load();
         const autoWin = autoWinStore.load();
         renderSettings(host, {
-            accountSection: apiToken.template(),
             animations: {
                 on: motion.animations,
                 onToggle: saveAndRender(() => motionStore.save({ animations: !motion.animations })),
@@ -88,9 +87,20 @@ export function mountSettingsView(host: HTMLElement, deps: SettingsViewDeps): Mo
                 on: sound.sound_on,
                 onToggle: saveAndRender(() => soundStore.save({ sound_on: !sound.sound_on })),
             },
+            tabs: apiToken.available()
+                ? {
+                      api: apiToken.template(),
+                      current: tab,
+                      onSelect: (next) => {
+                          tab = next;
+                          render();
+                      },
+                  }
+                : null,
         });
     }
 
+    let tab: SettingsTab = "game";
     const apiToken = startApiTokenSection(render);
     render();
     return { rerender: render, unmount: apiToken.dispose };
