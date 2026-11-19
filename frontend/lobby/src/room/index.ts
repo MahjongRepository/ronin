@@ -1,96 +1,138 @@
+import { type MountedView } from "@ronin/shared/router";
+import { nothing, render } from "lit-html";
+
 import { t } from "@/i18n";
-import { bindLanguageSwitchInPlace } from "@/language-switch";
 import { LobbySocket } from "@/lobby-socket";
 import { bindToPageLifetime, bindToResume } from "@/page-lifetime";
 import {
+    type Navigate,
     RESUME_RECONNECT_AFTER_HIDDEN_MS,
     buildActionCallbacks,
     buildMessageHandlers,
     buildStatusHandler,
+    fetchRoomConfig,
     handleMessage,
     joinRoom,
     leaveOnPageExit,
     reconnectOnResume,
     rejoinOnPageShow,
 } from "@/room/handlers";
-import { PAGE_ERROR, createRoomState } from "@/room/state";
-import { type RoomPage, renderRoom } from "@/room/ui";
+import { PAGE_ERROR, type RoomConfig, type RoomConfigAnswer, createRoomState } from "@/room/state";
+import { renderRoom } from "@/room/ui";
 
-interface RoomConfig {
-    chatMaxLength: number;
-    roomName: string;
-    wsUrl: string;
+export interface RoomViewDeps {
+    readonly navigate: Navigate;
 }
 
-function readRoomConfig(container: HTMLElement): RoomConfig | null {
-    const { chatMaxLength, roomName, wsUrl } = container.dataset;
-    const maxLength = Number(chatMaxLength);
-    if (!roomName || !wsUrl || !Number.isInteger(maxLength) || maxLength <= 0) {
-        return null;
+const TABLE_GONE_URL = "/?notice=table_gone";
+
+function showLoading(host: HTMLElement): MountedView {
+    function draw(): void {
+        document.title = t("page.title.with_page", { page: t("room.fallback_name") });
+        render(nothing, host);
     }
-    return { chatMaxLength: maxLength, roomName, wsUrl };
+    draw();
+    return { rerender: draw, unmount: () => {} };
 }
 
-function bindLanguageSwitch(roomName: string | undefined, render: () => void): void {
-    bindLanguageSwitchInPlace(() => {
-        document.title = t("page.title.with_page", { page: roomName || t("room.fallback_name") });
-        render();
-    });
-}
-
-function renderSetupFailure(container: HTMLElement): void {
+function showSetupFailure(host: HTMLElement, navigate: Navigate): MountedView {
     const state = createRoomState();
     state.pageError = { code: PAGE_ERROR.PAGE_SETUP_FAILED };
-    function render(): void {
+    function draw(): void {
         renderRoom({
-            actions: buildActionCallbacks(state),
+            actions: buildActionCallbacks(state, navigate),
             chatMaxLength: 0,
-            container,
-            roomName: container.dataset.roomName || t("room.fallback_name"),
+            container: host,
+            roomName: t("room.fallback_name"),
             state,
         });
     }
-    bindLanguageSwitch(container.dataset.roomName, render);
-    render();
+    draw();
+    return { rerender: draw, unmount: () => {} };
 }
 
-function openRoomPage(container: HTMLElement, config: RoomConfig): void {
+function leaveGoneRoom(gameUrl: string | null, navigate: Navigate): MountedView {
+    if (gameUrl === null) {
+        navigate(TABLE_GONE_URL, { replace: true });
+    } else {
+        window.location.replace(gameUrl);
+    }
+    return { rerender: () => {}, unmount: () => {} };
+}
+
+function openRoom(host: HTMLElement, config: RoomConfig, navigate: Navigate): MountedView {
     const state = createRoomState();
-    const page: RoomPage = {
-        actions: buildActionCallbacks(state),
+    const page = {
+        actions: buildActionCallbacks(state, navigate),
         chatMaxLength: config.chatMaxLength,
-        container,
+        container: host,
         roomName: config.roomName,
         state,
     };
-    function render(): void {
+    function draw(): void {
         renderRoom(page);
     }
     function rejoin(): void {
-        joinRoom(state, render, config.wsUrl);
+        joinRoom(state, draw, config.wsUrl);
     }
-    const handlers = buildMessageHandlers(state, render, rejoin);
+    const handlers = buildMessageHandlers(state, draw, rejoin);
 
     state.socket = new LobbySocket(
         (message) => handleMessage(handlers, message),
-        buildStatusHandler(state, render, rejoin),
+        buildStatusHandler(state, draw, rejoin),
     );
 
-    bindToPageLifetime({
+    const unbindLifetime = bindToPageLifetime({
         release: () => leaveOnPageExit(state),
         restore: () => rejoinOnPageShow(state, rejoin),
     });
-    bindToResume(() => reconnectOnResume(state, rejoin), RESUME_RECONNECT_AFTER_HIDDEN_MS);
-    bindLanguageSwitch(config.roomName, render);
+    const unbindResume = bindToResume(
+        () => reconnectOnResume(state, rejoin),
+        RESUME_RECONNECT_AFTER_HIDDEN_MS,
+    );
 
     rejoin();
+    return {
+        rerender: draw,
+        unmount: () => {
+            leaveOnPageExit(state);
+            unbindLifetime();
+            unbindResume();
+        },
+    };
 }
 
-export function initRoomPage(container: HTMLElement): void {
-    const config = readRoomConfig(container);
-    if (!config) {
-        renderSetupFailure(container);
-        return;
+function showAnswer(host: HTMLElement, answer: RoomConfigAnswer, navigate: Navigate): MountedView {
+    switch (answer.kind) {
+        case "open": {
+            return openRoom(host, answer.config, navigate);
+        }
+        case "gone": {
+            return leaveGoneRoom(answer.gameUrl, navigate);
+        }
+        case "failed": {
+            return showSetupFailure(host, navigate);
+        }
     }
-    openRoomPage(container, config);
+}
+
+export function mountRoomView(host: HTMLElement, roomId: string, deps: RoomViewDeps): MountedView {
+    let disposed = false;
+    let shown = showLoading(host);
+
+    async function load(): Promise<void> {
+        const answer = await fetchRoomConfig(roomId);
+        if (!disposed) {
+            shown = showAnswer(host, answer, deps.navigate);
+        }
+    }
+
+    void load();
+    return {
+        rerender: () => shown.rerender(),
+        unmount: () => {
+            disposed = true;
+            shown.unmount();
+        },
+    };
 }

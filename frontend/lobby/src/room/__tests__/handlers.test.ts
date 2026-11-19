@@ -218,11 +218,11 @@ describe("buildActionCallbacks", () => {
     });
 
     test("leaves for the lobby without a history entry, so Back cannot take the seat again", () => {
-        const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
+        const navigate = vi.fn();
 
-        buildActionCallbacks(createRoomState()).handleLeaveRoom();
+        buildActionCallbacks(createRoomState(), navigate).handleLeaveRoom();
 
-        expect(replace).toHaveBeenCalledWith("/");
+        expect(navigate).toHaveBeenCalledExactlyOnceWith("/", { replace: true });
     });
 });
 

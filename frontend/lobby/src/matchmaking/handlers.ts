@@ -1,3 +1,4 @@
+import { apiGet } from "@/api";
 import { type SocketStatus, readString } from "@/lobby-socket";
 import {
     GAME_START_INVALID,
@@ -5,6 +6,7 @@ import {
     type MatchmakingState,
     isFinished,
     isServerEndingCode,
+    parseMatchmakingWsUrl,
 } from "@/matchmaking/state";
 import { OCCUPANCY } from "@/occupancy-errors";
 import { enterGame, readGameStart } from "@/session";
@@ -121,5 +123,21 @@ function rejoinOnPageShow(state: MatchmakingState, rejoin: () => void): void {
     rejoin();
 }
 
-export { handleMessage, handleStatusChange, joinQueue, leaveOnPageExit, rejoinOnPageShow };
+async function fetchMatchmakingWsUrl(): Promise<string | null> {
+    const result = await apiGet("/api/lobby/matchmaking");
+    const wsUrl = result.ok ? parseMatchmakingWsUrl(result.data) : null;
+    if (wsUrl === null) {
+        console.error("matchmaking config not loaded", result.ok ? "invalid answer" : result.error);
+    }
+    return wsUrl;
+}
+
+export {
+    fetchMatchmakingWsUrl,
+    handleMessage,
+    handleStatusChange,
+    joinQueue,
+    leaveOnPageExit,
+    rejoinOnPageShow,
+};
 export type { RenderMatchmaking };

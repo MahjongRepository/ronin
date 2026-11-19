@@ -69,7 +69,7 @@ def app(make_app, tmp_path, monkeypatch):
     )
 
 
-_SPA_SHELL_ROUTES = ["/"]
+_SPA_SHELL_ROUTES = ["/", "/rooms/any-room", "/matchmaking"]
 
 
 @pytest.mark.parametrize("path", _SPA_SHELL_ROUTES)
@@ -154,57 +154,6 @@ class TestLobbyViews:
         response = client.get("/lobby-assets/assets/lobby-test.js")
         assert response.status_code == 200
         assert response.text == "console.log('lobby');"
-
-    def test_matchmaking_page__when_visited__should_return_html(self, client):
-        response = client.get("/matchmaking")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-        assert "matchmaking-app" in response.text
-        assert "ws://" in response.text
-        assert 'action="/lang"' in response.text.split("<footer", 1)[1]
-
-    def test_matchmaking_page__when_first_visit__should_set_csrf_cookie(self, client):
-        client.cookies.delete(CSRF_COOKIE_NAME)
-
-        response = client.get("/matchmaking")
-        assert response.status_code == 200
-        assert CSRF_COOKIE_NAME in response.cookies
-
-    def test_room_page__when_room_exists__should_render_room_template(self, client):
-        room_manager = client.app.state.room_manager
-        room = room_manager.create_room("test-room-42")
-
-        response = client.get("/rooms/test-room-42")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-        assert f'data-room-name="{room.name}"' in response.text
-        assert f"<title>{room.name} · Ronin Beta</title>" in response.text
-        assert 'data-chat-max-length="1000"' in response.text
-        assert 'action="/lang"' in response.text.split("<footer", 1)[1]
-
-    def test_room_page__when_first_visit__should_set_csrf_cookie(self, client):
-        client.app.state.room_manager.create_room("fresh-room")
-        client.cookies.delete(CSRF_COOKIE_NAME)
-
-        response = client.get("/rooms/fresh-room")
-        assert response.status_code == 200
-        assert CSRF_COOKIE_NAME in response.cookies
-
-    @pytest.mark.parametrize(
-        ("game_session_status", "location"),
-        [(200, "/play/game%201"), (404, "/?notice=table_gone"), (500, "/?notice=table_gone")],
-        ids=["playing", "not_playing", "lookup_failed"],
-    )
-    def test_room_page__when_room_not_found__should_redirect_to_the_users_live_game_or_the_lobby_notice(
-        self, client, game_server, game_session_status, location
-    ):
-        game_server.respond = lambda _request: httpx.Response(
-            game_session_status, json={"game_id": "game 1", "game_ticket": "ticket"}
-        )
-
-        response = client.get("/rooms/nonexistent-room", follow_redirects=False)
-        assert response.status_code == 303
-        assert response.headers["location"] == location
 
     def test_storybook_page__when_first_visit__should_set_csrf_cookie(self, app):
         with open_client(app) as c:

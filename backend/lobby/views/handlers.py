@@ -8,8 +8,6 @@ import structlog
 from starlette.responses import RedirectResponse
 
 from lobby.game_transition import GameLookupError, find_game_handoff
-from lobby.rooms.messages import CHAT_MAX_LENGTH
-from lobby.views.assets import render_page
 from lobby.views.error_pages import validate_csrf
 
 if TYPE_CHECKING:
@@ -64,44 +62,15 @@ async def join_room_and_redirect(request: Request) -> Response:
     return RedirectResponse(f"/rooms/{room_id}", status_code=303)
 
 
-async def matchmaking_page(request: Request) -> Response:
-    """GET /matchmaking - render matchmaking waiting page."""
-    ws_scheme = "wss" if request.url.scheme == "https" else "ws"
-    ws_url = f"{ws_scheme}://{request.url.netloc}/ws/matchmaking"
-    return render_page(
-        request, template_name="matchmaking.html", context={"ws_url": ws_url, "username": request.user.username}
-    )
-
-
-async def room_page(request: Request) -> Response:
+def lobby_websocket_url(request: Request, path: str) -> str:
     """
-    GET /rooms/{room_id} - render the room page.
-
-    A room that is gone sends the user to the game page of the game they play, or to the lobby with a notice saying so:
-    a room is removed once its game starts, and the game page recovers a lost handoff on its own.
+    Return the lobby WebSocket URL of ``path`` on the origin and scheme the request came in on.
     """
-    room_manager: LobbyRoomManager = request.app.state.room_manager
-    room_id = request.path_params["room_id"]
-
-    room = room_manager.get_room(room_id)
-    if room is None:
-        return RedirectResponse(await _find_live_game_page(request) or _TABLE_GONE_REDIRECT, status_code=303)
-
     ws_scheme = "wss" if request.url.scheme == "https" else "ws"
-    ws_url = f"{ws_scheme}://{request.url.netloc}/ws/rooms/{room_id}"
-    return render_page(
-        request,
-        template_name="room.html",
-        context={
-            "room_name": room.name,
-            "ws_url": ws_url,
-            "chat_max_length": CHAT_MAX_LENGTH,
-            "username": request.user.username,
-        },
-    )
+    return f"{ws_scheme}://{request.url.netloc}{path}"
 
 
-async def _find_live_game_page(request: Request) -> str | None:
+async def find_live_game_page(request: Request) -> str | None:
     """
     Return the game page of the game the authenticated user plays, or None when they play none or the lookup failed.
     """

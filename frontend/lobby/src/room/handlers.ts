@@ -1,3 +1,6 @@
+import { type NavigateOptions } from "@ronin/shared/router";
+
+import { apiGet } from "@/api";
 import { type MessageKey, formatTime, reportI18nError, t } from "@/i18n";
 import { type SocketStatus, readString } from "@/lobby-socket";
 import { OCCUPANCY, type OccupancyText, describeOccupancyError } from "@/occupancy-errors";
@@ -5,16 +8,20 @@ import {
     LOG_TYPE_SYSTEM,
     PAGE_ERROR,
     type PlayerInfo,
+    type RoomConfigAnswer,
     type RoomState,
     canAct,
     getMyReadyState,
     isMe,
     isSeated,
+    readRoomConfigAnswer,
     resetSeat,
 } from "@/room/state";
 import { enterGame, readGameStart } from "@/session";
 
 type RenderRoom = () => void;
+
+type Navigate = (url: string, options?: NavigateOptions) => void;
 
 interface ActionCallbacks {
     handleLeaveRoom: () => void;
@@ -31,6 +38,7 @@ const RECONNECT_FIRST_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 15_000;
 const MAX_RECONNECT_ATTEMPTS = 24;
 const RESUME_RECONNECT_AFTER_HIDDEN_MS = 20_000;
+const LOBBY_PATH = "/";
 const ROOM_EXPIRED = "room_expired";
 const ROOM_TRANSITIONING = "room_transitioning";
 const RETRYABLE_JOIN_ERRORS: ReadonlySet<unknown> = new Set([
@@ -303,12 +311,21 @@ function rejoinOnPageShow(state: RoomState, rejoin: () => void): void {
     rejoin();
 }
 
-function buildActionCallbacks(state: RoomState): ActionCallbacks {
+async function fetchRoomConfig(roomId: string): Promise<RoomConfigAnswer> {
+    const result = await apiGet(`/api/lobby/rooms/${encodeURIComponent(roomId)}`);
+    const answer = readRoomConfigAnswer(result);
+    if (answer.kind === "failed") {
+        console.error("room config not loaded", result.ok ? "invalid answer" : result.error);
+    }
+    return answer;
+}
+
+function buildActionCallbacks(state: RoomState, navigate: Navigate): ActionCallbacks {
     return {
         handleLeaveRoom() {
             state.socket?.send({ type: "leave_room" });
             state.socket?.disconnect();
-            window.location.replace("/");
+            navigate(LOBBY_PATH, { replace: true });
         },
         handleSendChat(text) {
             const trimmed = text.trim();
@@ -342,10 +359,11 @@ export {
     buildMessageHandlers,
     buildStatusHandler,
     describeRoomError,
+    fetchRoomConfig,
     handleMessage,
     joinRoom,
     leaveOnPageExit,
     reconnectOnResume,
     rejoinOnPageShow,
 };
-export type { ActionCallbacks, MessageHandlerMap, RenderRoom };
+export type { ActionCallbacks, MessageHandlerMap, Navigate, RenderRoom };

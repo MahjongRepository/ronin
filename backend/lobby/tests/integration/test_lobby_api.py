@@ -1,6 +1,7 @@
 import sqlite3
 from contextlib import closing
 
+import httpx
 import pytest
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
@@ -98,3 +99,37 @@ class TestLobbyRoomsRoute:
             "/api/lobby/rooms", json={}, headers={CSRF_HEADER_NAME: new_cookie, "sec-fetch-site": fetch_site}
         )
         assert retried.status_code == 201
+
+
+class TestLobbyRoomRoute:
+    def test_lobby_room_route__when_room_exists__should_answer_its_name_socket_and_chat_limit_uncached(self, client):
+        register_with_csrf(client, "alice")
+        room = client.app.state.room_manager.create_room("room-42")
+
+        response = client.get("/api/lobby/rooms/room-42")
+
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store"
+        assert response.json() == {
+            "room_name": room.name,
+            "ws_url": "ws://testserver/ws/rooms/room-42",
+            "chat_max_length": 1000,
+        }
+
+    @pytest.mark.parametrize(
+        ("game_session_status", "game_url"),
+        [(200, "/play/game%201"), (404, None), (500, None)],
+        ids=["playing", "not_playing", "lookup_failed"],
+    )
+    def test_lobby_room_route__when_room_not_found__should_answer_404_with_the_users_live_game_page(
+        self, client, game_server, game_session_status, game_url
+    ):
+        register_with_csrf(client, "alice")
+        game_server.respond = lambda _request: httpx.Response(
+            game_session_status, json={"game_id": "game 1", "game_ticket": "ticket"}
+        )
+
+        response = client.get("/api/lobby/rooms/gone-room")
+
+        assert response.status_code == 404
+        assert response.json() == {"error": "room_not_found", "game_url": game_url}

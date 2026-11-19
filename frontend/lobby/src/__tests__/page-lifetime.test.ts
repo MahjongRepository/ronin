@@ -38,4 +38,17 @@ describe("bindToPageLifetime", () => {
         expect(ws.close).toHaveBeenCalledWith(1000);
         expect(statuses).toEqual([]);
     });
+
+    it("stops releasing and restoring once unbound", () => {
+        const release = vi.fn();
+        const restore = vi.fn();
+        const unbind = bindToPageLifetime({ release, restore });
+
+        unbind();
+        window.dispatchEvent(new Event("beforeunload"));
+        window.dispatchEvent(new Event("pagehide"));
+        window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: true }));
+
+        expect([release.mock.calls.length, restore.mock.calls.length]).toEqual([0, 0]);
+    });
 });

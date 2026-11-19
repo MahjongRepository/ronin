@@ -2,7 +2,7 @@ import { readCsrfToken, storeCsrfToken } from "@/app/page-meta";
 
 export type ApiResult =
     | { readonly ok: true; readonly data: unknown }
-    | { readonly ok: false; readonly error: string };
+    | { readonly ok: false; readonly error: string; readonly data?: unknown };
 
 export const API_ERROR = {
     CSRF_INVALID: "csrf_invalid",
@@ -12,7 +12,7 @@ export const API_ERROR = {
 
 const HTTP_UNAUTHORIZED = 401;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
 }
 
@@ -61,7 +61,7 @@ function failedResult(response: Response, body: unknown): ApiResult {
     if (error === API_ERROR.CSRF_INVALID) {
         keepFreshCsrfToken(body);
     }
-    return { error, ok: false };
+    return { data: body, error, ok: false };
 }
 
 async function send(path: string, init: RequestInit): Promise<ApiResult> {

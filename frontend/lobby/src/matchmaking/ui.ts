@@ -133,7 +133,13 @@ function renderMatchmaking(
     state: MatchmakingState,
     actions: MatchmakingActions,
 ): void {
-    render(matchmakingTemplate(state, actions), container);
+    document.title = t("page.title.with_page", { page: t("lobby.action.quick_match") });
+    render(
+        html`<section class="lobby-section">
+            <div class="matchmaking-app">${matchmakingTemplate(state, actions)}</div>
+        </section>`,
+        container,
+    );
 }
 
 export { renderMatchmaking };

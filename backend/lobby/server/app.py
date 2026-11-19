@@ -49,13 +49,11 @@ from lobby.views import (
     history_page,
     join_room_and_redirect,
     load_vite_manifest,
-    matchmaking_page,
     monitoring_page,
     play_page,
     replay_content,
     replay_page,
     resolve_vite_asset_urls,
-    room_page,
     storybook_page,
     tenhou_replay,
 )
@@ -72,7 +70,13 @@ from lobby.views.auth_handlers import (
 from lobby.views.bot_api_handlers import bot_create_room
 from lobby.views.error_pages import http_error_page, server_error_page
 from lobby.views.legal_handlers import privacy_page, terms_page
-from lobby.views.lobby_api_handlers import lobby_create_room, lobby_rooms, lobby_session
+from lobby.views.lobby_api_handlers import (
+    lobby_create_room,
+    lobby_matchmaking,
+    lobby_room,
+    lobby_rooms,
+    lobby_session,
+)
 from lobby.views.locale_handlers import set_language
 from lobby.views.spa_handlers import spa_shell
 from shared.auth import AuthService
@@ -190,19 +194,14 @@ def create_app(  # noqa: PLR0913
             methods=["POST"],
             name="create_room_and_redirect",
         ),
-        Route(
-            "/rooms/{room_id}",
-            protected_html(room_page),
-            methods=["GET"],
-            name="room_page",
-        ),
+        Route("/rooms/{room_id}", protected_html(spa_shell), methods=["GET"], name="room_page"),
         Route(
             "/rooms/{room_id}/join",
             protected_html(join_room_and_redirect),
             methods=["POST"],
             name="join_room_and_redirect",
         ),
-        Route("/matchmaking", protected_html(matchmaking_page), methods=["GET"], name="matchmaking_page"),
+        Route("/matchmaking", protected_html(spa_shell), methods=["GET"], name="matchmaking_page"),
         Route("/admin/monitoring", admin_html(monitoring_page), methods=["GET"], name="monitoring_page"),
         # WebSocket routes (auth handled inside the handlers)
         WebSocketRoute("/ws/rooms/{room_id}", room_websocket, name="room_websocket"),
@@ -225,6 +224,8 @@ def create_app(  # noqa: PLR0913
         Route("/api/lobby/session", public_route(lobby_session), methods=["GET"], name="lobby_session"),
         Route("/api/lobby/rooms", protected_json(lobby_rooms), methods=["GET"], name="lobby_rooms"),
         Route("/api/lobby/rooms", protected_json(lobby_create_room), methods=["POST"], name="lobby_create_room"),
+        Route("/api/lobby/rooms/{room_id}", protected_json(lobby_room), methods=["GET"], name="lobby_room"),
+        Route("/api/lobby/matchmaking", protected_json(lobby_matchmaking), methods=["GET"], name="lobby_matchmaking"),
     ]
 
     if APP_VERSION == "dev":

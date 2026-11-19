@@ -34,12 +34,6 @@ from lobby.views.handlers import (
 from lobby.views.handlers import (
     join_room_and_redirect as join_room_and_redirect,
 )
-from lobby.views.handlers import (
-    matchmaking_page as matchmaking_page,
-)
-from lobby.views.handlers import (
-    room_page as room_page,
-)
 from lobby.views.history_handlers import history_page as history_page
 from lobby.views.monitoring_handlers import monitoring_page as monitoring_page
 from lobby.views.replay_handlers import replay_content as replay_content

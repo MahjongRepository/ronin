@@ -1,3 +1,4 @@
+import { type MountedView } from "@ronin/shared/router";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import type * as LobbySocketModule from "@/lobby-socket";
@@ -30,18 +31,26 @@ vi.mock("@/lobby-socket", async (importOriginal) => ({
 vi.mock("@/page-lifetime", () => ({
     bindToPageLifetime: (lifetime: PageLifetime) => {
         capturedLifetime = lifetime;
+        return () => {};
     },
 }));
 
-const { initMatchmakingPage } = await import("@/matchmaking");
+const { mountMatchmakingView } = await import("@/matchmaking");
 
 const WS_URL = "ws://lobby/ws/matchmaking";
 
-function renderPage(): HTMLElement {
-    document.body.innerHTML = `<div id="matchmaking-app" data-ws-url="${WS_URL}"></div>`;
-    const container = query(document.body, "#matchmaking-app");
-    initMatchmakingPage(container);
-    return container;
+let mounted: MountedView | null = null;
+
+async function renderPage(): Promise<HTMLElement> {
+    vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => Response.json({ ws_url: WS_URL })),
+    );
+    const host = document.createElement("main");
+    document.body.append(host);
+    mounted = mountMatchmakingView(host);
+    await vi.waitFor(() => expect(mockConnect).toHaveBeenCalled());
+    return host;
 }
 
 function query<ElementType extends HTMLElement = HTMLElement>(
@@ -72,15 +81,18 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    mounted?.unmount();
+    mounted = null;
     document.documentElement.lang = "";
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     sessionStorage.clear();
     document.body.replaceChildren();
 });
 
-describe("initMatchmakingPage", () => {
-    test("shows the players found so far while searching, with Cancel as the only action", () => {
-        const container = renderPage();
+describe("mountMatchmakingView", () => {
+    test("shows the players found so far while searching, with Cancel as the only action", async () => {
+        const container = await renderPage();
 
         capturedMessageHandler?.({ position: 1, queue_size: 1, type: "queue_joined" });
         capturedMessageHandler?.({ queue_size: 2, type: "queue_update" });
@@ -95,17 +107,17 @@ describe("initMatchmakingPage", () => {
         [1, "Найден 1 игрок из 4"],
         [2, "Найдено 2 игрока из 4"],
         [5, "Найдено 5 игроков из 4"],
-    ])("counts %i players found with the Russian plural form", (queueSize, status) => {
+    ])("counts %i players found with the Russian plural form", async (queueSize, status) => {
         document.documentElement.lang = "ru";
-        const container = renderPage();
+        const container = await renderPage();
 
         capturedMessageHandler?.({ queue_size: queueSize, type: "queue_update" });
 
         expect(text(container, ".matchmaking-status")).toBe(status);
     });
 
-    test("keeps the match_failed ending and offers a retry despite late queue messages and the close", () => {
-        const container = renderPage();
+    test("keeps the match_failed ending and offers a retry despite late queue messages and the close", async () => {
+        const container = await renderPage();
         capturedMessageHandler?.({ queue_size: 4, type: "queue_update" });
 
         capturedMessageHandler?.({ message: "match_failed", type: "error" });
@@ -117,8 +129,8 @@ describe("initMatchmakingPage", () => {
         expect(actionLabels(container)).toEqual(["Search again", "Back to lobby"]);
     });
 
-    test("reconnects and returns to searching when Search again is clicked", () => {
-        const container = renderPage();
+    test("reconnects and returns to searching when Search again is clicked", async () => {
+        const container = await renderPage();
         capturedMessageHandler?.({ message: "match_failed", type: "error" });
         capturedStatusHandler?.("disconnected");
 
@@ -138,8 +150,8 @@ describe("initMatchmakingPage", () => {
         ["replaced_by_new_connection", "Searching in another tab", ["Back to lobby"]],
     ])(
         "ends the search on %s with a terminal heading and a way back instead of Cancel",
-        (code, heading, actions) => {
-            const container = renderPage();
+        async (code, heading, actions) => {
+            const container = await renderPage();
 
             capturedMessageHandler?.({ message: code, type: "error" });
             capturedStatusHandler?.("disconnected");
@@ -150,8 +162,8 @@ describe("initMatchmakingPage", () => {
         },
     );
 
-    test("links already_in_room to the table the server names", () => {
-        const container = renderPage();
+    test("links already_in_room to the table the server names", async () => {
+        const container = await renderPage();
 
         capturedMessageHandler?.({ message: "already_in_room", room_id: "room 1", type: "error" });
 
@@ -160,8 +172,8 @@ describe("initMatchmakingPage", () => {
         expect(link.textContent).toBe("Go to your table");
     });
 
-    test("shows a lost connection with a retry after an error that does not end matchmaking", () => {
-        const container = renderPage();
+    test("shows a lost connection with a retry after an error that does not end matchmaking", async () => {
+        const container = await renderPage();
 
         capturedMessageHandler?.({ message: "Invalid message format", type: "error" });
         capturedStatusHandler?.("disconnected");
@@ -179,9 +191,9 @@ describe("initMatchmakingPage", () => {
         ["as the join's first and only message", () => {}],
     ])(
         "hands the game session to the game client %s and keeps showing the start",
-        (_when, before) => {
+        async (_when, before) => {
             const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
-            const container = renderPage();
+            const container = await renderPage();
             before();
 
             capturedMessageHandler?.({
@@ -204,9 +216,9 @@ describe("initMatchmakingPage", () => {
         },
     );
 
-    test("stops with a retry instead of leaving for a missing game when the start names none", () => {
+    test("stops with a retry instead of leaving for a missing game when the start names none", async () => {
         const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
-        const container = renderPage();
+        const container = await renderPage();
 
         capturedMessageHandler?.({
             game_ticket: "ticket-1",
@@ -220,9 +232,9 @@ describe("initMatchmakingPage", () => {
     });
 });
 
-describe("initMatchmakingPage across the back-forward cache", () => {
-    test("closes the socket when the page is hidden and requeues when the back-forward cache restores it", () => {
-        const container = renderPage();
+describe("mountMatchmakingView across the back-forward cache", () => {
+    test("closes the socket when the page is hidden and requeues when the back-forward cache restores it", async () => {
+        const container = await renderPage();
         capturedMessageHandler?.({ position: 1, queue_size: 1, type: "queue_joined" });
 
         capturedLifetime?.release();
@@ -233,8 +245,8 @@ describe("initMatchmakingPage across the back-forward cache", () => {
         expect(text(container, ".matchmaking-status")).toBe("Looking for players…");
     });
 
-    test("keeps an ended search ended when the back-forward cache restores the page", () => {
-        const container = renderPage();
+    test("keeps an ended search ended when the back-forward cache restores the page", async () => {
+        const container = await renderPage();
         capturedMessageHandler?.({ message: "replaced_by_new_connection", type: "error" });
 
         capturedLifetime?.release();

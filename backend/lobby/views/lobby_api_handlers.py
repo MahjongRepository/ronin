@@ -6,9 +6,10 @@ from typing import TYPE_CHECKING
 from starlette.responses import JSONResponse
 
 from lobby.auth.csrf import is_csrf_valid
+from lobby.rooms.messages import CHAT_MAX_LENGTH
 from lobby.views.auth_handlers import ACCOUNT_RULES
 from lobby.views.error_pages import NO_STORE_HEADERS, json_csrf_rejection
-from lobby.views.handlers import open_new_room
+from lobby.views.handlers import find_live_game_page, lobby_websocket_url, open_new_room
 from lobby.views.json_body import parse_json_body
 
 if TYPE_CHECKING:
@@ -57,3 +58,38 @@ async def lobby_create_room(request: Request) -> Response:
 
     room_id = open_new_room(request.app.state.room_manager)
     return JSONResponse({"room_id": room_id}, status_code=HTTPStatus.CREATED, headers=NO_STORE_HEADERS)
+
+
+async def lobby_room(request: Request) -> JSONResponse:
+    """
+    GET /api/lobby/rooms/{room_id} - what the room view opens the room's socket with.
+
+    A room that is gone answers 404 with the game page of the game the user plays, if any: a room is removed once its
+    game starts, and the game page recovers a lost handoff on its own.
+    """
+    room_manager: LobbyRoomManager = request.app.state.room_manager
+    room_id = request.path_params["room_id"]
+
+    room = room_manager.get_room(room_id)
+    if room is None:
+        return JSONResponse(
+            {"error": "room_not_found", "game_url": await find_live_game_page(request)},
+            status_code=HTTPStatus.NOT_FOUND,
+            headers=NO_STORE_HEADERS,
+        )
+
+    return JSONResponse(
+        {
+            "room_name": room.name,
+            "ws_url": lobby_websocket_url(request, f"/ws/rooms/{room_id}"),
+            "chat_max_length": CHAT_MAX_LENGTH,
+        },
+        headers=NO_STORE_HEADERS,
+    )
+
+
+async def lobby_matchmaking(request: Request) -> JSONResponse:
+    """
+    GET /api/lobby/matchmaking - what the matchmaking view opens the queue's socket with.
+    """
+    return JSONResponse({"ws_url": lobby_websocket_url(request, "/ws/matchmaking")}, headers=NO_STORE_HEADERS)

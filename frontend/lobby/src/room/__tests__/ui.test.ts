@@ -23,7 +23,7 @@ function mount(state: RoomState): HTMLElement {
     const container = document.createElement("div");
     document.body.append(container);
     renderRoom({
-        actions: buildActionCallbacks(state),
+        actions: buildActionCallbacks(state, () => {}),
         chatMaxLength: 1000,
         container,
         roomName: ROOM_NAME,

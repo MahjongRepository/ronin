@@ -1,3 +1,4 @@
+import { isRecord } from "@/api";
 import { type LobbySocket } from "@/lobby-socket";
 import { OCCUPANCY } from "@/occupancy-errors";
 
@@ -57,6 +58,12 @@ function isFinished(state: MatchmakingState): boolean {
     return state.phase === "ended" || state.phase === "starting";
 }
 
+function parseMatchmakingWsUrl(data: unknown): string | null {
+    return isRecord(data) && typeof data.ws_url === "string" && data.ws_url !== ""
+        ? data.ws_url
+        : null;
+}
+
 export {
     GAME_START_INVALID,
     MATCHMAKING_SEATS,
@@ -65,5 +72,6 @@ export {
     createMatchmakingState,
     isFinished,
     isServerEndingCode,
+    parseMatchmakingWsUrl,
 };
 export type { EndingCode, MatchmakingEnd, MatchmakingPhase, MatchmakingState };

@@ -336,6 +336,7 @@ function scrollChatToLatest(container: HTMLElement, count: number): void {
 
 function renderRoom(page: RoomPage): void {
     const { actions, container, roomName, state } = page;
+    document.title = t("page.title.with_page", { page: roomName });
     render(
         html`
             <div class="room">
