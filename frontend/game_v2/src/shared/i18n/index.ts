@@ -17,7 +17,7 @@ function applyPageLocale(locale: Locale): void {
 
 export { formatList, formatNumber } from "@ronin/shared/format";
 export { I18nError, reportI18nError } from "@ronin/shared/i18n";
-export { LOCALES, isLocale, langCookie, pageLocale, resolveLocale } from "@ronin/shared/locale";
+export { LOCALES, isLocale, pageLocale, resolveLocale } from "@ronin/shared/locale";
 export type { Locale } from "@ronin/shared/locale";
 export {
     WIND_LETTERS,

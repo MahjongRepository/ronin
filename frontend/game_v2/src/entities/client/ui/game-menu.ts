@@ -1,9 +1,11 @@
 import {
     AnimationsRow,
     InputRows,
+    type InputRowsProps,
     KeepAutoWinRow,
     LanguageRow,
     SoundRow,
+    type SwitchRowProps,
     TileLabelsRow,
     WindsRow,
 } from "@ronin/shared/settings-rows";
@@ -35,15 +37,9 @@ interface GameMenuProps {
     readonly onWinds: (script: WindScript) => void;
     readonly onTileLabels: (on: boolean) => void;
     /** The keyboard and mouse settings: the right-click switch and the controls' help it opens over the board. */
-    readonly input?: {
-        readonly rightClick: boolean;
-        readonly onToggle: () => void;
-        readonly keyHints: boolean;
-        readonly onToggleKeyHints: () => void;
-        readonly onShowControls: () => void;
-    };
+    readonly input?: InputRowsProps & { readonly onShowControls: () => void };
     /** Whether Auto win carries into the next round; a live game's alone. */
-    readonly keepAutoWin?: { readonly on: boolean; readonly onToggle: () => void };
+    readonly keepAutoWin?: SwitchRowProps;
     /** The way back to the lobby: a live game's leave, asking first when `asks`, or a replay's link. */
     readonly leave?:
         | { readonly kind: "leave"; readonly asks: boolean; readonly onLeave: () => void }
