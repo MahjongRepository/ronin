@@ -9,7 +9,7 @@ from starlette.responses import RedirectResponse
 
 from lobby.game_transition import GameLookupError, find_game_handoff
 from lobby.rooms.messages import CHAT_MAX_LENGTH
-from lobby.views.assets import render_page, translate_for_request
+from lobby.views.assets import render_page
 from lobby.views.error_pages import validate_csrf
 
 if TYPE_CHECKING:
@@ -22,30 +22,7 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger()
 
-_TABLE_GONE = "table_gone"
-_LOBBY_NOTICES = {
-    _TABLE_GONE: "lobby.notice.table_gone",
-}
-_TABLE_GONE_REDIRECT = f"/?notice={_TABLE_GONE}"
-
-
-async def lobby_page(request: Request) -> Response:
-    """
-    GET / - render the lobby page with the locally managed rooms, the user's own seat, and an optional notice.
-    """
-    room_manager: LobbyRoomManager = request.app.state.room_manager
-    my_room_id = room_manager.find_user_room(request.user.user_id)
-    notice_key = _LOBBY_NOTICES.get(request.query_params.get("notice", ""))
-    return render_page(
-        request,
-        template_name="lobby.html",
-        context={
-            "rooms": room_manager.get_rooms_info(),
-            "my_room": room_manager.get_room(my_room_id) if my_room_id else None,
-            "username": request.user.username,
-            "error": translate_for_request(request, notice_key) if notice_key else None,
-        },
-    )
+_TABLE_GONE_REDIRECT = "/?notice=table_gone"
 
 
 async def create_room_and_redirect(request: Request) -> Response:

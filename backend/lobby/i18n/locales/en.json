@@ -79,7 +79,6 @@
     "lobby.action.quick_match": "Quick match",
     "lobby.action.quick_match_hint": "Standard rules · unranked",
     "lobby.back_to_table": "Back to your table",
-    "lobby.notice.table_gone": "That table is no longer open: its game started or everyone left.",
     "lobby.room.full": "Full",
     "lobby.room.join": "Join table",
     "lobby.room.nobody_seated": "Nobody seated yet",

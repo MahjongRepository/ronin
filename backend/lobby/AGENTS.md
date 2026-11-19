@@ -164,8 +164,9 @@ Mandatory for all lobby code; review must catch violations.
   authenticate inside the handler. `protected_json` is for JSON a page script fetches: a JSON 401,
   never a login redirect.
 * `admin_html` reads the account's admin flag on every request, never from the session, so a grant or
-  revoke applies at the next request. Any session without the flag, a guest's included, gets a 404, and
-  no page links to an admin route, so signed-in non-admins never learn it exists.
+  revoke applies at the next request. Any session without the flag, a guest's included, gets a 404. Only
+  the chrome's Admin nav section links an admin route, and it shows only when `/api/lobby/session` says
+  `is_admin`; the lobby bundle's monitoring chunk is discoverable, but its data is not.
 * Unknown `Host` headers are rejected; a new deployment host goes in the allowed-hosts setting.
 * Session and CSRF cookies are HttpOnly, SameSite=Lax and Secure by default; only the test
   environment turns Secure off. The `lang` cookie is the one exception to HttpOnly: it carries no

@@ -85,7 +85,6 @@
     "lobby.action.quick_match": "Быстрая игра",
     "lobby.action.quick_match_hint": "Стандартные правила · без рейтинга",
     "lobby.back_to_table": "К своему столу",
-    "lobby.notice.table_gone": "Этот стол уже закрыт: игра началась или все игроки ушли.",
     "lobby.room.full": "Мест нет",
     "lobby.room.join": "Сесть за стол",
     "lobby.room.nobody_seated": "Пока никто не сел",

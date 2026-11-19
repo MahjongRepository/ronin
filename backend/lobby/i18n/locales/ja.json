@@ -76,7 +76,6 @@
     "lobby.action.quick_match": "クイックマッチ",
     "lobby.action.quick_match_hint": "標準ルール · ランクなし",
     "lobby.back_to_table": "自分の卓へ戻る",
-    "lobby.notice.table_gone": "その卓はもう開いていません。ゲームが始まったか、全員が退席しました。",
     "lobby.room.full": "満席",
     "lobby.room.join": "参加する",
     "lobby.room.nobody_seated": "まだ誰も着席していません",

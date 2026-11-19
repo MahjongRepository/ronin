@@ -49,7 +49,6 @@ from lobby.views import (
     history_page,
     join_room_and_redirect,
     load_vite_manifest,
-    lobby_page,
     matchmaking_page,
     monitoring_page,
     play_page,
@@ -75,6 +74,7 @@ from lobby.views.error_pages import http_error_page, server_error_page
 from lobby.views.legal_handlers import privacy_page, terms_page
 from lobby.views.lobby_api_handlers import lobby_create_room, lobby_rooms, lobby_session
 from lobby.views.locale_handlers import set_language
+from lobby.views.spa_handlers import spa_shell
 from shared.auth import AuthService
 from shared.auth.password import BcryptHasher
 from shared.auth.settings import AuthSettings
@@ -170,7 +170,7 @@ def create_app(  # noqa: PLR0913
 
     routes: list[BaseRoute] = [
         # Protected HTML routes (redirect to login when unauthenticated)
-        Route("/", protected_html(lobby_page), methods=["GET"], name="lobby_page"),
+        Route("/", protected_html(spa_shell), methods=["GET"], name="lobby_page"),
         Route("/history", protected_html(history_page), methods=["GET"], name="history_page"),
         Route("/play/history/{game_id}", public_route(replay_page), methods=["GET"], name="replay_page"),
         Route("/play/storybook/sounds", public_route(play_page), methods=["GET"], name="storybook_sounds_page"),

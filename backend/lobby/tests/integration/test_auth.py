@@ -252,10 +252,9 @@ class TestAuthEndpoints:
         assert response.headers["location"] == "/"
         assert "session_id" in response.cookies
 
-        lobby = client.get("/")
-        assert lobby.status_code == 200
-        assert re.search(r"Nanashi-\d{4}", lobby.text)
-        assert "Log out" in lobby.text
+        user = client.get("/api/lobby/session").json()["user"]
+        assert re.fullmatch(r"Nanashi-\d{4}", user["username"])
+        assert user["is_guest"] is True
 
     def test_guest_login_route__when_one_client_exceeds_the_burst__should_refuse_with_429(self, client):
         csrf = _get_csrf_token(client, "/login")
@@ -279,10 +278,9 @@ class TestAuthEndpoints:
         assert response.headers["location"] == "/"
         assert "session_id" not in response.cookies
 
-        lobby = client.get("/")
-        assert lobby.status_code == 200
-        assert "seateduser" in lobby.text
-        assert "Nanashi-" not in lobby.text
+        user = client.get("/api/lobby/session").json()["user"]
+        assert user["username"] == "seateduser"
+        assert user["is_guest"] is False
 
     def test_logout_route__when_posted__should_clear_session_and_redirect_to_login(self, client):
         _register_user(client, username="logoutuser")
@@ -300,10 +298,10 @@ class TestAuthEndpoints:
         assert location.path == "/login"
         assert "next" in parse_qs(location.query)
 
-    def test_lobby_page__when_authenticated__should_show_username_and_logout(self, client):
+    def test_navigation__when_authenticated__should_show_username_and_logout(self, client):
         _register_user(client, username="lobbyuser")
 
-        response = client.get("/")
+        response = client.get("/history")
         assert response.status_code == 200
         assert "lobbyuser" in response.text
         assert "Log out" in response.text
@@ -421,9 +419,6 @@ class TestJoinRoomRedirect:
         response = client.post("/rooms/no-such-room/join", data={"csrf_token": csrf}, follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/?notice=table_gone"
-
-        lobby = client.get(response.headers["location"])
-        assert "That table is no longer open" in lobby.text
 
 
 class TestBotCreateRoom:

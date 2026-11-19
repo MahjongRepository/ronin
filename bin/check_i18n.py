@@ -94,7 +94,7 @@ APPS = (
         source_roots=("frontend/lobby/src",),
         source_suffixes=frozenset({".ts"}),
         dynamic_prefixes=("occupancy.", "room.error."),
-        identical_keys=frozenset({"nav.beta", "page.title.with_page"}),
+        identical_keys=frozenset({"nav.beta", "page.title.default", "page.title.with_page"}),
         markup_roots=("backend/lobby/views/templates",),
     ),
     App(

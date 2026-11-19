@@ -7,7 +7,6 @@ from markupsafe import Markup
 from lobby.i18n import CatalogError, I18nError, Locale, Translator, load_catalogs
 from lobby.i18n.locale import resolve_locale
 from lobby.i18n.translator import format_decimal, plural_category
-from lobby.views.handlers import _LOBBY_NOTICES
 from shared.auth.service import AuthErrorCode
 
 CATALOGS = {
@@ -172,12 +171,10 @@ _AUTH_ERROR_PARAMS = {
 
 
 @pytest.mark.parametrize("locale", list(Locale))
-def test_lobby_catalog__when_walking_auth_error_codes_and_notices__should_render_every_one_strictly(locale):
+def test_lobby_catalog__when_walking_auth_error_codes__should_render_every_one_strictly(locale):
     translator = Translator(catalogs=load_catalogs(), strict=True)
 
     auth_errors = [
         translator.translate(locale, f"auth.error.{code}", **_AUTH_ERROR_PARAMS[code]) for code in AuthErrorCode
     ]
-    notices = [translator.translate(locale, key) for key in _LOBBY_NOTICES.values()]
     assert all(auth_errors)
-    assert all(notices)

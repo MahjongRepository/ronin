@@ -1,27 +1,6 @@
-<!DOCTYPE html>
-<html lang="{{ locale }}" data-theme="dark" style="background-color: var(--pico-background-color, #0d1415)">
-<head>
-    <meta charset="UTF-8">
-    <meta name="color-scheme" content="dark">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="app-version" content="{{ app_version | default('dev') }}">
-    <meta name="git-commit" content="{{ git_commit | default('dev') }}">
-    <title>{% block title %}{{ t("page.title.default") }}{% endblock %}</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png">
-    <link rel="apple-touch-icon" type="image/png" sizes="180x180" href="/static/icons/apple-180.png">
-    <link rel="manifest" href="/static/manifest.webmanifest">
-    <meta name="theme-color" content="#0d1415">
-    <meta name="apple-mobile-web-app-title" content="Ronin">
-    {% if vite_dev %}
-    <script type="module" src="{{ vite_dev_url }}/@vite/client"></script>
-    {% endif %}
-    {% block styles %}
-    {% if lobby_css_url %}
-    <link rel="stylesheet" href="{{ lobby_css_url }}">
-    {% endif %}
-    {% endblock %}
-</head>
-<body>
+{% extends "layout.html" %}
+
+{% block body %}
     {% set current_path = request.url.path if request is defined else "" %}
     <nav class="container lobby-nav" aria-label="{{ t('nav.aria_label') }}" data-i18n-aria-label="nav.aria_label">
         <ul>
@@ -67,10 +46,4 @@
             {% endif %}
         </div>
     </footer>
-    {% block scripts %}
-    {% if lobby_js_url %}
-    <script type="module" src="{{ lobby_js_url }}"></script>
-    {% endif %}
-    {% endblock %}
-</body>
-</html>
+{% endblock %}

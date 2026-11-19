@@ -4,6 +4,7 @@ import sqlite3
 from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
+from urllib.parse import urlencode
 
 import httpx
 import pytest
@@ -12,13 +13,15 @@ from starlette.responses import HTMLResponse, PlainTextResponse
 from starlette.routing import Route
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
-from lobby.tests.conftest import make_player, open_client
+from lobby.tests.conftest import open_client
 from lobby.tests.integration.conftest import register_with_csrf, session_user_id
 from lobby.views.history_handlers import HISTORY_GAMES_LIMIT
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from starlette.testclient import TestClient
 
 _GAME_CLIENT_INDEX = '<div id="app"></div><script type="module" src="/game-assets/v2/assets/index-v2.js"></script>'
 
@@ -66,85 +69,40 @@ def app(make_app, tmp_path, monkeypatch):
     )
 
 
+_SPA_SHELL_ROUTES = ["/"]
+
+
+@pytest.mark.parametrize("path", _SPA_SHELL_ROUTES)
+def test_spa_shell_route__when_requested__should_answer_signed_in_users_the_shell_and_others_a_login_redirect(
+    client: TestClient,
+    path: str,
+):
+    signed_out = client.get(path, params={"notice": "x"}, follow_redirects=False)
+    assert signed_out.status_code == 303
+    assert signed_out.headers["location"] == f"/login?{urlencode({'next': f'{path}?notice=x'})}"
+
+    register_with_csrf(client, "shelluser")
+    client.cookies.delete(CSRF_COOKIE_NAME)
+    client.cookies.set("lang", "ja")
+    response = client.get(path)
+    assert response.status_code == 200
+    assert '<html lang="ja"' in response.text
+    assert '<main class="container" id="lobby-spa">' in response.text
+    assert f'<meta name="csrf-token" content="{response.cookies[CSRF_COOKIE_NAME]}">' in response.text
+    assert '<meta name="ronin-app-version" content="dev">' in response.text
+    assert '<meta name="ronin-release-url" content="">' in response.text
+    assert f'<meta name="ronin-current-year" content="{datetime.now(tz=UTC).year}">' in response.text
+    assert '<meta name="ronin-dev-mode" content="true">' in response.text
+    assert '<link rel="stylesheet" href="/lobby-assets/assets/lobby-test.css">' in response.text
+    assert '<script type="module" src="/lobby-assets/assets/lobby-test.js"></script>' in response.text
+    assert "lobby-nav-link" not in response.text
+
+
 class TestLobbyViews:
     @pytest.fixture
     def client(self, client):
         register_with_csrf(client, "viewuser")
         return client
-
-    def test_lobby_page__when_first_visit__should_set_csrf_cookie(self, client):
-        client.cookies.delete(CSRF_COOKIE_NAME)
-
-        response = client.get("/")
-        assert response.status_code == 200
-        assert CSRF_COOKIE_NAME in response.cookies
-
-    def test_lobby_page__when_visited__should_return_html(self, client):
-        response = client.get("/")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-        assert "Ronin" in response.text
-        assert 'href="/storybook"' in response.text
-        assert 'href="/play/storybook"' in response.text
-
-    def test_lobby_page__when_visited__should_include_css_link(self, client):
-        response = client.get("/")
-        assert "/lobby-assets/assets/lobby-test.css" in response.text
-
-    def test_lobby_page__when_visited__should_include_script_tag(self, client):
-        response = client.get("/")
-        assert "/lobby-assets/assets/lobby-test.js" in response.text
-        assert '<script type="module"' in response.text
-
-    def test_lobby_page__when_visited__should_show_create_room_form(self, client):
-        response = client.get("/")
-        assert 'action="/rooms/new"' in response.text
-
-    def test_lobby_page__when_no_rooms__should_show_empty_message(self, client):
-        response = client.get("/")
-        assert "No custom tables open" in response.text
-
-    def test_lobby_page__when_room_has_player__should_list_it_with_join(self, client):
-        room_manager = client.app.state.room_manager
-        room = room_manager.create_room("abc12345-long-id")
-        room_manager.join_room(
-            room_id="abc12345-long-id", player=make_player(connection_id="conn-1", user_id="user-1", username="Alice")
-        )
-
-        response = client.get("/")
-        assert room.name in response.text
-        assert "1/4" in response.text
-        assert "Join" in response.text
-
-    def test_lobby_page__when_user_is_seated__should_link_back_to_their_table_instead_of_join(self, client):
-        room = client.app.state.room_manager.create_room("my-room-id")
-        with client.websocket_connect("/ws/rooms/my-room-id") as ws:
-            ws.receive_json()
-            response = client.get("/")
-
-        assert response.text.count(room.name) == 2
-        assert 'href="/rooms/my-room-id"' in response.text
-        assert 'action="/rooms/my-room-id/join"' not in response.text
-
-    @pytest.mark.parametrize(("notice", "alert_count"), [("table_gone", 1), ("<script>", 0)], ids=["known", "unknown"])
-    def test_lobby_page__when_notice_given__should_alert_only_a_known_one(self, client, notice, alert_count):
-        response = client.get("/", params={"notice": notice})
-        assert response.status_code == 200
-        assert response.text.count('role="alert"') == alert_count
-        assert response.text.count("That table is no longer open") == alert_count
-
-    def test_lobby_page__when_room_full__should_mark_it_full(self, client):
-        room_manager = client.app.state.room_manager
-        room = room_manager.create_room("full-room")
-        for i in range(4):
-            room_manager.join_room(
-                room_id="full-room",
-                player=make_player(connection_id=f"conn-full-{i}", user_id=f"user-full-{i}", username=f"Player{i}"),
-            )
-
-        response = client.get("/")
-        assert room.name in response.text
-        assert "Full" in response.text
 
     def test_static_css_route__should_serve_stylesheet(self, client):
         response = client.get("/static/styles/lobby.css")

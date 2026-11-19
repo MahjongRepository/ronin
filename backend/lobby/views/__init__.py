@@ -35,9 +35,6 @@ from lobby.views.handlers import (
     join_room_and_redirect as join_room_and_redirect,
 )
 from lobby.views.handlers import (
-    lobby_page as lobby_page,
-)
-from lobby.views.handlers import (
     matchmaking_page as matchmaking_page,
 )
 from lobby.views.handlers import (

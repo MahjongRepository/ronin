@@ -1,6 +1,6 @@
 import { type TemplateResult, html, nothing, svg } from "lit-html";
 
-import { LOCALES, type Locale, pageLocale } from "./locale";
+import { LANGUAGE_NAMES, LOCALES, type Locale, pageLocale } from "./locale";
 import { t } from "./shared-i18n";
 import { pageTileLabels } from "./tile-labels";
 import {
@@ -22,12 +22,6 @@ export interface InputRowsProps {
     readonly keyHints: boolean;
     readonly onToggleKeyHints: () => void;
 }
-
-const LANGUAGE_NAMES: Readonly<Record<Locale, string>> = {
-    en: "English",
-    ja: "日本語",
-    ru: "Русский",
-};
 
 const WIND_SCRIPT_NAMES = {
     cyrillic: "settings.winds.cyrillic",

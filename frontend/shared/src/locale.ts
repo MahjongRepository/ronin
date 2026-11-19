@@ -3,6 +3,12 @@ export const DEFAULT_LOCALE = "en";
 
 export type Locale = (typeof LOCALES)[number];
 
+export const LANGUAGE_NAMES: Readonly<Record<Locale, string>> = {
+    en: "English",
+    ja: "日本語",
+    ru: "Русский",
+};
+
 const LANG_COOKIE = "lang";
 const LANG_COOKIE_MAX_AGE_SECONDS = 31_536_000;
 
