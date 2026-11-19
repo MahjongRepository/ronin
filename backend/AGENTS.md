@@ -10,6 +10,10 @@ both servers use:
 * `shared/rate_limit.py` — the token-bucket rate limiter; `shared/logging.py` — structlog setup.
 * `shared/lib/melds/` — the IMME meld encoding (see its `README.md`).
 
+`game_v2/` is a Go module, the game server being ported to Go: it sits outside the uv project, imports
+nothing from `shared/`, is checked by its own `make` targets rather than the Python tooling, and has
+its own `AGENTS.md`.
+
 Each process opens the database once, as a `shared.db.Database` (its docstrings hold the threading and
 drain model): the event loop never touches SQLite directly, and a lifespan closes the database last.
 

@@ -15,6 +15,8 @@ Ronin is a Riichi Mahjong game server and browser client.
   * `backend/lobby/` — lobby server (auth, rooms, matchmaking, server-rendered pages). See
     `backend/lobby/AGENTS.md`.
   * `backend/shared/` — auth, SQLite data access, logging and helpers used by both servers.
+  * `backend/game_v2/` — the Go game server that will replace `backend/game/`: its own Go module, outside
+    the uv project. See `backend/game_v2/AGENTS.md`.
 * `frontend/` — Vite / npm on Node: two apps, each its own package built separately, sharing source from
   `frontend/shared/`. See `frontend/AGENTS.md`.
   * `frontend/lobby/` — the scripts and styles of the lobby pages (TypeScript / lit-html). See
@@ -83,9 +85,12 @@ The `Makefile` lists the targets; the non-obvious ones:
 ## Workflow
 
 * While iterating, run only the tests your change touches (`cd backend && uv run pytest <path> -k <expr>`,
-  `cd frontend/<app> && npx vitest run <path>`). Never run `make test` or `make run-all-checks` mid-work;
-  `make lint` and `make typecheck` (backend only, so they run without `make install-frontend`) and
-  `make lint-frontend` and `make typecheck-frontend` are fine.
+  `cd frontend/<app> && npx vitest run <path>`, `cd backend/game_v2 && go test ./<pkg> -run <name>`). Never
+  run `make test` or `make run-all-checks` mid-work;
+  `make lint` and `make typecheck` (backend only, so they run without `make install-frontend`),
+  `make lint-frontend` and `make typecheck-frontend`, and `make lint-go` are fine. A Go engine change
+  runs `cd backend/game_v2 && go test -race ./engine/... ./seam/...`: the engine's facade tests live in
+  `seam/`.
 * To check a visual change, screenshot only the changed area plus its single worst case (the
   smallest phone, the densest state); there is no full screenshot sweep (`frontend/game_v2/AGENTS.md`,
   Visual check).
