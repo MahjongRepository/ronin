@@ -50,10 +50,18 @@ function userLinks(user: SessionUser, path: string): TemplateResult {
         }`;
 }
 
+function postCurrentCsrfToken(event: SubmitEvent): void {
+    const form = event.currentTarget;
+    const input = form instanceof HTMLFormElement ? form.elements.namedItem("csrf_token") : null;
+    if (input instanceof HTMLInputElement) {
+        input.value = readCsrfToken();
+    }
+}
+
 function accountItems(user: SessionUser): TemplateResult {
     return html`<li class="lobby-username" title=${user.username}>${user.username}</li>
         <li>
-            <form method="POST" action="/logout">
+            <form method="POST" action="/logout" @submit=${postCurrentCsrfToken}>
                 <input type="hidden" name="csrf_token" value=${readCsrfToken()} />
                 <button type="submit" class="lobby-logout">${t("nav.log_out")}</button>
             </form>
@@ -171,6 +179,9 @@ export function startChrome(
     }
 
     function switchLanguage(locale: Locale): void {
+        if (locale === pageLocale()) {
+            return;
+        }
         switchLocale(locale);
         renderChrome();
         onLanguageSwitched();

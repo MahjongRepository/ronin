@@ -94,8 +94,17 @@ export function parseCreatedRoomId(data: unknown): string | null {
         : null;
 }
 
-export function seatedRoom(rooms: LobbyRooms): LobbyRoom | null {
-    return rooms.rooms.find((room) => room.roomId === rooms.myRoomId) ?? null;
+export interface SeatedTable {
+    readonly name: string | null;
+    readonly roomId: string;
+}
+
+export function seatedTable(rooms: LobbyRooms): SeatedTable | null {
+    if (rooms.myRoomId === null) {
+        return null;
+    }
+    const listed = rooms.rooms.find((room) => room.roomId === rooms.myRoomId);
+    return { name: listed?.name ?? null, roomId: rooms.myRoomId };
 }
 
 export function roomPath(roomId: string): string {

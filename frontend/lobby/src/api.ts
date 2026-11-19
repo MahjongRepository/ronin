@@ -11,13 +11,22 @@ export const API_ERROR = {
 } as const;
 
 const HTTP_UNAUTHORIZED = 401;
+const NETWORK_FAILURE: ApiResult = { error: API_ERROR.NETWORK, ok: false };
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
 }
 
-async function readBody(response: Response): Promise<unknown> {
-    const text = await response.text();
+async function readText(response: Response, path: string): Promise<string | null> {
+    try {
+        return await response.text();
+    } catch (error: unknown) {
+        console.error(`${path} answer not read`, error);
+        return null;
+    }
+}
+
+function parseBody(text: string): unknown {
     try {
         return JSON.parse(text) as unknown;
     } catch (error: unknown) {
@@ -52,11 +61,12 @@ async function fetchResponse(path: string, init: RequestInit): Promise<Response 
     }
 }
 
+function unauthorizedResult(): ApiResult {
+    sendToLogin();
+    return { error: API_ERROR.UNAUTHORIZED, ok: false };
+}
+
 function failedResult(response: Response, body: unknown): ApiResult {
-    if (response.status === HTTP_UNAUTHORIZED) {
-        sendToLogin();
-        return { error: API_ERROR.UNAUTHORIZED, ok: false };
-    }
     const error = errorCode(body, response.status);
     if (error === API_ERROR.CSRF_INVALID) {
         keepFreshCsrfToken(body);
@@ -67,9 +77,16 @@ function failedResult(response: Response, body: unknown): ApiResult {
 async function send(path: string, init: RequestInit): Promise<ApiResult> {
     const response = await fetchResponse(path, init);
     if (response === null) {
-        return { error: API_ERROR.NETWORK, ok: false };
+        return NETWORK_FAILURE;
     }
-    const body = await readBody(response);
+    if (response.status === HTTP_UNAUTHORIZED) {
+        return unauthorizedResult();
+    }
+    const text = await readText(response, path);
+    if (text === null) {
+        return NETWORK_FAILURE;
+    }
+    const body = parseBody(text);
     return response.ok ? { data: body, ok: true } : failedResult(response, body);
 }
 

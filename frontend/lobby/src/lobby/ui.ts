@@ -6,8 +6,9 @@ import {
     type LobbyRoom,
     type LobbyRooms,
     type LobbyState,
+    type SeatedTable,
     roomPath,
-    seatedRoom,
+    seatedTable,
 } from "@/lobby/state";
 import { ROOM_SEATS } from "@/room/state";
 
@@ -21,8 +22,9 @@ function alertTemplate(tone: "error" | "warning", key: MessageKey): TemplateResu
     </div>`;
 }
 
-function seatedHint(room: LobbyRoom): TemplateResult {
-    const table = html`<strong class="lobby-table-name">${room.name}</strong>`;
+function seatedHint(room: SeatedTable): TemplateResult {
+    const name = room.name ?? t("room.fallback_name");
+    const table = html`<strong class="lobby-table-name">${name}</strong>`;
     return html`<p class="lobby-seated-hint">
         ${tParts("lobby.seated_hint", { table })}
         <a href=${roomPath(room.roomId)}>${t("lobby.back_to_table")}</a>
@@ -115,36 +117,39 @@ function roomCard(room: LobbyRoom, index: number, myRoomId: string | null): Temp
     </article>`;
 }
 
-function tablesTemplate(rooms: LobbyRooms): TemplateResult {
+function roomsListTemplate(rooms: LobbyRooms): TemplateResult {
+    return rooms.rooms.length > 0
+        ? html`<div class="lobby-grid">
+                  ${rooms.rooms.map((room, index) => roomCard(room, index, rooms.myRoomId))}
+              </div>`
+        : html`<div class="lobby-empty lobby-muted">
+                  <p class="lobby-empty-title">${t("lobby.tables.empty_title")}</p>
+                  <p class="lobby-empty-hint">${t("lobby.tables.empty_hint")}</p>
+              </div>`;
+}
+
+function tablesTemplate(rooms: LobbyRooms | null): TemplateResult {
     return html`<section class="lobby-section">
         <div class="lobby-section-header">
             <h2>${t("lobby.tables.title")}</h2>
-            <small class="lobby-table-count"
-                >${t("lobby.tables.open_count", { count: rooms.rooms.length })}</small
-            >
+            ${
+                rooms
+                    ? html`<small class="lobby-table-count"
+                      >${t("lobby.tables.open_count", { count: rooms.rooms.length })}</small
+                  >`
+                    : nothing
+            }
         </div>
 
-        ${
-            rooms.rooms.length > 0
-                ? html`<div class="lobby-grid">
-                  ${rooms.rooms.map((room, index) => roomCard(room, index, rooms.myRoomId))}
-              </div>`
-                : html`<div class="lobby-empty lobby-muted">
-                  <p class="lobby-empty-title">${t("lobby.tables.empty_title")}</p>
-                  <p class="lobby-empty-hint">${t("lobby.tables.empty_hint")}</p>
-              </div>`
-        }
+        ${rooms ? roomsListTemplate(rooms) : nothing}
     </section>`;
 }
 
-function lobbyTemplate(state: LobbyState, actions: LobbyActions): TemplateResult | typeof nothing {
+function lobbyTemplate(state: LobbyState, actions: LobbyActions): TemplateResult {
     if (state.loadFailed) {
         return pageFailedView();
     }
-    if (state.rooms === null) {
-        return nothing;
-    }
-    const seated = seatedRoom(state.rooms);
+    const seated = state.rooms ? seatedTable(state.rooms) : null;
     return html`${state.notice ? alertTemplate("warning", state.notice) : nothing}
     ${state.createFailed ? alertTemplate("error", "lobby.error.create_failed") : nothing}
     ${seated ? seatedHint(seated) : nothing} ${actionsTemplate(seated !== null, actions)}

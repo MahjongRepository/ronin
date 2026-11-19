@@ -46,6 +46,20 @@ describe("apiPost", () => {
 });
 
 describe("apiGet", () => {
+    it("answers a network error when the body breaks off after the headers", async () => {
+        const brokenBody = new Response(
+            new ReadableStream({
+                start(controller) {
+                    controller.error(new TypeError("connection lost"));
+                },
+            }),
+        );
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(brokenBody));
+        vi.spyOn(console, "error").mockImplementation(() => {});
+
+        expect(await apiGet("/api/lobby/rooms")).toEqual({ error: "network_error", ok: false });
+    });
+
     it("sends a 401 to the login page with the current path and query as next", async () => {
         history.replaceState(null, "", "/history?page=2");
         vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(401, { error: "x" })));

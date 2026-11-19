@@ -1,4 +1,4 @@
-import { apiGet } from "@/api";
+import { apiGet, isRecord } from "@/api";
 
 export interface SessionUser {
     readonly isAdmin: boolean;
@@ -11,10 +11,10 @@ export interface Session {
 }
 
 function parseUser(value: unknown): SessionUser | undefined {
-    if (typeof value !== "object" || value === null) {
+    if (!isRecord(value)) {
         return undefined;
     }
-    const { is_admin: isAdmin, is_guest: isGuest, username } = value as Record<string, unknown>;
+    const { is_admin: isAdmin, is_guest: isGuest, username } = value;
     if (
         typeof username !== "string" ||
         typeof isAdmin !== "boolean" ||
