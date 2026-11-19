@@ -112,8 +112,7 @@ func nagashiSeats(draw play.ExhaustiveDraw) []tile.Seat {
 func playedNagashi(t *testing.T, qualifying []tile.Seat, start play.Option[play.StartPosition]) []play.Emitted {
 	t.Helper()
 	w := nagashiWall(t, notenHands(t), nil, qualifying, inSeatOrder)
-	events := playOut(t, begun(t, w, start))
-	return events
+	return playOut(t, begun(t, w, start))
 }
 
 func TestNagashiMangan_WhenTheDealerQualifies_ShouldCollect4000FromEach(t *testing.T) {
@@ -255,10 +254,10 @@ func TestExhaustiveDraw_WhenTheNagashiManganSeatDeclaredRiichi_ShouldShowItsRive
 		if len(awaitedSeats(g)) == 0 {
 			t.Fatal("the round ended before seat 0's turn")
 		}
-		for _, s := range awaitedSeats(g) {
-			action, _ := g.DefaultAction(s)
+		for _, awaited := range awaitedSeats(g) {
+			action, _ := g.DefaultAction(awaited)
 			var batch []play.Emitted
-			g, batch = script(t, g, act(s, action))
+			g, batch = script(t, g, act(awaited, action))
 			events = append(events, batch...)
 		}
 	}

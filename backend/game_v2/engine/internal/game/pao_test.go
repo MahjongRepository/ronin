@@ -74,11 +74,11 @@ type paoTable struct {
 	honba, riichiSticks int
 }
 
-func (table paoTable) lastSeat() tile.Seat {
-	if table.ronDiscarder.OK {
-		return table.ronDiscarder.Value
+func (pt paoTable) lastSeat() tile.Seat {
+	if pt.ronDiscarder.OK {
+		return pt.ronDiscarder.Value
 	}
-	return table.winner
+	return pt.winner
 }
 
 func paoDraws(t *testing.T, table paoTable) []tile.TileID {
@@ -123,15 +123,11 @@ func threeDragonPonsFedByThePaoSeat(t *testing.T, table paoTable) game.Game {
 	g := begun(t, w, play.Some(testkit.EastStart(sticksPaidScores(table.riichiSticks), table.honba, table.riichiSticks)))
 
 	for _, extra := range paoExtras(t) {
-		for turnSeat(t, g) != table.pao {
-			g, _ = discardDrawn(t, g, 1)
-		}
+		g = discardDrawnUntilTurnOf(t, g, table.pao)
 		g, _ = discardDrawn(t, g, 1)
 		g, _ = script(t, g, act(table.winner, firstPon(t, g, table.winner)), act(table.winner, play.DiscardAction(extra)))
 	}
-	for turnSeat(t, g) != table.lastSeat() {
-		g, _ = discardDrawn(t, g, 1)
-	}
+	g = discardDrawnUntilTurnOf(t, g, table.lastSeat())
 	if table.ronDiscarder.OK {
 		g, _ = discardDrawn(t, g, 1)
 	}
