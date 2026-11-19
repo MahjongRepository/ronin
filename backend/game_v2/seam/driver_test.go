@@ -1,6 +1,8 @@
 package seam_test
 
 import (
+	"cmp"
+	"fmt"
 	"slices"
 	"strconv"
 
@@ -39,7 +41,7 @@ type refusedError struct {
 }
 
 func (e refusedError) Error() string {
-	return "the engine refused an action from seat " + strconv.Itoa(e.seat.Index()) + ": " + e.refusal.Code.String()
+	return fmt.Sprintf("the engine refused %+v from seat %d: %v", e.action, e.seat.Index(), e.refusal.Code)
 }
 
 type stepLimitError struct{}
@@ -191,7 +193,7 @@ func playUntil(g *engine.Game, seated agents, sink eventSink, maxSteps int, end 
 			return nil
 		}
 
-		slices.SortFunc(seats, func(a, b tile.Seat) int { return a.Index() - b.Index() })
+		slices.SortFunc(seats, func(a, b tile.Seat) int { return cmp.Compare(a.Index(), b.Index()) })
 		for _, s := range seats {
 			batch, err := answer(g, s, seated[s.Index()])
 			if err != nil {

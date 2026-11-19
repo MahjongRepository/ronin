@@ -1,10 +1,12 @@
 package seam_test
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"reflect"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
@@ -12,12 +14,15 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-const twinGames = 4
+const (
+	twinGames     = 4
+	decisionGames = 4
+)
 
 func TestNewGame_WhenTheSetupHasNoWall_ShouldReturnNoGameAndANoFixedWallError(t *testing.T) {
 	g, events, err := engine.NewGame(engine.Setup{Walls: play.Fixed{}})
 
-	if !errors.As(err, new(engine.NoFixedWallError)) {
+	if _, ok := errors.AsType[engine.NoFixedWallError](err); !ok {
 		t.Errorf("NewGame error = %v, want a NoFixedWallError", err)
 	}
 	assertEqual(t, "events", events, nil)
@@ -39,7 +44,7 @@ func TestSeedFunctions_WhenGivenTheSeedOfAGame_ShouldDescribeItsStartAndSeating(
 	}
 	assertEqual(t, "first round dice", started.Header.Dice, dice)
 	sorted := permutation
-	slices.SortFunc(sorted[:], func(a, b tile.Seat) int { return a.Index() - b.Index() })
+	slices.SortFunc(sorted[:], func(a, b tile.Seat) int { return cmp.Compare(a.Index(), b.Index()) })
 	assertEqual(t, "seated", sorted, tile.Seats())
 }
 
@@ -66,7 +71,7 @@ func TestTsumogiriAgents_WhenTheyPlayASeededGame_ShouldReachItsStandingsWithTheL
 
 func TestDecision_ShouldCarryTheLegalActionsAndDefaultActionOfItsSeat(t *testing.T) {
 	var contexts [3]bool
-	for gameIndex := range twinGames {
+	for gameIndex := range decisionGames {
 		g, _ := newGame(t, seededSetup(t, fmt.Sprintf("%02x", gameIndex)))
 		picker := newRandomLegal(uint64(gameIndex))
 		for steps := 0; ; steps++ {
@@ -191,10 +196,11 @@ func (s *scribbled) note(value any) {
 func scribble(v reflect.Value) {
 	switch kind := v.Kind(); {
 	case kind == reflect.Slice:
-		for i := range v.Len() {
-			scribble(v.Index(i))
-			if v.Index(i).CanSet() {
-				v.Index(i).SetZero()
+		whole := v.Slice(0, v.Cap())
+		for i := range whole.Len() {
+			scribble(whole.Index(i))
+			if whole.Index(i).CanSet() {
+				whole.Index(i).SetZero()
 			}
 		}
 	case kind == reflect.Array:
@@ -212,9 +218,25 @@ func scribble(v reflect.Value) {
 	}
 }
 
+func playEveryTwin(t *testing.T, cases []twinCase, playCase func(t *testing.T, at int, c twinCase)) {
+	t.Helper()
+	t.Run("twins", func(t *testing.T) {
+		for at, c := range cases {
+			t.Run(strconv.Itoa(at), func(t *testing.T) {
+				t.Parallel()
+				playCase(t, at, c)
+			})
+		}
+	})
+}
+
 func TestGame_WhenACallerWritesIntoEverySliceItReturns_ShouldStayAsItsTwin(t *testing.T) {
-	var seen scribbled
-	for _, c := range twinCases(t) {
+	t.Parallel()
+	cases := twinCases(t)
+	seenByCase := make([]scribbled, len(cases))
+	playEveryTwin(t, cases, func(t *testing.T, at int, c twinCase) {
+		t.Helper()
+		seen := &seenByCase[at]
 		playTwins(t, c, func(g engine.Game, events []play.Emitted) engine.Game {
 			var returned []any
 			for _, e := range events {
@@ -233,8 +255,17 @@ func TestGame_WhenACallerWritesIntoEverySliceItReturns_ShouldStayAsItsTwin(t *te
 			}
 			return g
 		})
-	}
+	})
 
+	var seen scribbled
+	for _, s := range seenByCase {
+		seen = scribbled{
+			called:    seen.called || s.called,
+			afterCall: seen.afterCall || s.afterCall,
+			prompt:    seen.prompt || s.prompt,
+			win:       seen.win || s.win,
+		}
+	}
 	assertEqual(t, "scribbled", seen, scribbled{called: true, afterCall: true, prompt: true, win: true})
 }
 
@@ -267,8 +298,12 @@ func isOffered(legal []play.Action, action play.Action) bool {
 }
 
 func TestAct_WhenRefused_ShouldChangeNothing(t *testing.T) {
-	var kinds [3]bool
-	for _, c := range twinCases(t) {
+	t.Parallel()
+	cases := twinCases(t)
+	kindsByCase := make([][3]bool, len(cases))
+	playEveryTwin(t, cases, func(t *testing.T, at int, c twinCase) {
+		t.Helper()
+		kinds := &kindsByCase[at]
 		playTwins(t, c, func(g engine.Game, _ []play.Emitted) engine.Game {
 			for _, s := range tile.Seats() {
 				legal := g.LegalActions(s)
@@ -293,7 +328,13 @@ func TestAct_WhenRefused_ShouldChangeNothing(t *testing.T) {
 			}
 			return g
 		})
-	}
+	})
 
+	var kinds [3]bool
+	for _, caseKinds := range kindsByCase {
+		for kind, seen := range caseKinds {
+			kinds[kind] = kinds[kind] || seen
+		}
+	}
 	assertEqual(t, "refusal kinds", kinds, [3]bool{true, true, true})
 }

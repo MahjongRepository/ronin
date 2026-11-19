@@ -30,8 +30,8 @@ type Setup struct {
 	Start play.Option[play.StartPosition]
 }
 
-// Game is the full state of a game, held by its caller. Its zero value is no game; build one with
-// NewGame.
+// Game is the full state of a game, held by its caller. Its zero value is not a game and must not
+// be played or read; build one with NewGame.
 type Game struct {
 	game game.Game
 }
