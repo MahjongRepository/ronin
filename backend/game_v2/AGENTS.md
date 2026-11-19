@@ -89,6 +89,12 @@ comments either: a forbidigo pattern's `msg` is where its reason goes.
 * Fix a lint finding rather than silence it. A suppression is `//nolint:<linter> // reason` on the
   narrowest line; nolintlint rejects one without a named linter or a reason. Never loosen
   `.golangci.yml` to get green.
+* Go has no release-age setting like the 7-day cooldown uv and npm apply here, so it is a convention.
+  Add or upgrade a dependency only at an explicit version published at least 7 days ago:
+  `mise exec -- go list -m -json <module>@vX.Y.Z` prints its `Time`, then
+  `mise exec -- go get <module>@vX.Y.Z`, one module at a time. Never `go get <module>@latest` or
+  `go get -u`, which take a version published minutes ago. A security fix younger than 7 days is the
+  one exception, and the commit body says so.
 * `make vuln-go` runs govulncheck over the module. It needs the network, so it is not part of
   `make run-all-checks`: run it after adding or upgrading a dependency.
 * While iterating, run one package:
