@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from typing import TYPE_CHECKING
 
@@ -26,9 +27,9 @@ class PlayingGamesFeed:
 
     The game server never calls the lobby, so one task polls its list every interval while anyone watches, and sends
     every watcher the whole list, encoded once, whenever it changes. A new watcher gets the last list at once; with none
-    kept (nobody watched since the last watcher left), the next poll sends it. A failed poll keeps the last list and is
-    logged once until a poll succeeds again. Every method but the poll is one synchronous step on the event loop, so no
-    lock is needed.
+    kept (nobody watched since the last watcher left), it wakes the poll, which sends it. A failed poll keeps the last
+    list and is logged once until a poll succeeds again. Every method but the poll is one synchronous step on the event
+    loop, so no lock is needed.
     """
 
     def __init__(
@@ -41,6 +42,7 @@ class PlayingGamesFeed:
         self._interval_seconds = interval_seconds
         self._watchers: dict[str, LobbyPlayer] = {}
         self._watched = asyncio.Event()
+        self._poll_now = asyncio.Event()
         self._games: tuple[PlayingGame, ...] | None = None
         self._failing = False
         self._task: asyncio.Task[None] | None = None
@@ -51,8 +53,11 @@ class PlayingGamesFeed:
         """
         self._watchers[watcher.connection_id] = watcher
         self._watched.set()
-        if self._games is not None:
-            watcher.connection.send_text(_encode(self._games))
+        if self._games is None:
+            self._poll_now.set()
+            return
+
+        watcher.connection.send_text(_encode(self._games))
 
     def unwatch(self, watcher: LobbyPlayer) -> None:
         """
@@ -105,16 +110,20 @@ class PlayingGamesFeed:
 
     async def _poll_loop(self) -> None:
         """
-        Run a poll every interval while anyone watches; a failed poll is logged and the next one still runs.
+        Run a poll every interval while anyone watches, or sooner when a watcher waits for a list; a failed poll is
+        logged and the next one still runs.
         """
         while True:
             await self._watched.wait()
+            self._poll_now.clear()
             try:
                 await self.poll_once()
             except Exception:
                 logger.exception("playing games poll failed")
 
-            await asyncio.sleep(self._interval_seconds)
+            with contextlib.suppress(TimeoutError):
+                async with asyncio.timeout(self._interval_seconds):
+                    await self._poll_now.wait()
 
 
 def _encode(games: tuple[PlayingGame, ...]) -> str:
