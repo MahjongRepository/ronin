@@ -35,6 +35,7 @@ class TournamentHub:
 
     def __init__(self, *, clock: Callable[[], float] = time.time) -> None:
         self._online: dict[str, dict[str, LobbyPlayer]] = {}
+        self._away_at_game: dict[str, set[str]] = {}
         self._subscribers: dict[str, dict[str, LobbyPlayer]] = {}
         self._history: dict[str, deque[_HistoryEntry]] = {}
         self._clock = clock
@@ -61,6 +62,27 @@ class TournamentHub:
         del players[player.user_id]
         if not players:
             del self._online[tournament_id]
+
+        return True
+
+    def send_to_game(self, tournament_id: str, player: LobbyPlayer) -> None:
+        """
+        Take the player offline for a game the tournament started, so that their coming back is no arrival.
+        """
+        self.disconnect(tournament_id, player)
+        self._away_at_game.setdefault(tournament_id, set()).add(player.user_id)
+
+    def welcome_back_from_game(self, tournament_id: str, user_id: str) -> bool:
+        """
+        Forget that the user left for a game of the tournament; return True when they had.
+        """
+        away = self._away_at_game.get(tournament_id, set())
+        if user_id not in away:
+            return False
+
+        away.remove(user_id)
+        if not away:
+            del self._away_at_game[tournament_id]
 
         return True
 
@@ -157,6 +179,7 @@ class TournamentHub:
         and forget them all with its history.
         """
         self._history.pop(tournament_id, None)
+        self._away_at_game.pop(tournament_id, None)
         players = self._online.pop(tournament_id, {})
         subscribers = self._subscribers.pop(tournament_id, {})
         for connection in [*players.values(), *subscribers.values()]:

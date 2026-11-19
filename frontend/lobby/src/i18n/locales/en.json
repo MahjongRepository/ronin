@@ -278,7 +278,7 @@
     "settings.api_token.title": "API token",
     "settings.api_token.token_label": "Your API token",
     "tournament.chat.game_ended": "A game ended: {results}",
-    "tournament.chat.game_ended_place": "{place}. {name} ({score})",
+    "tournament.chat.game_ended_score": "{name} ({score})",
     "tournament.chat.game_ended_without_result": "A game ended without a result: {players}",
     "tournament.chat.game_started": "A game started: {players}",
     "tournament.chat.game_starting": "Your game is starting!",

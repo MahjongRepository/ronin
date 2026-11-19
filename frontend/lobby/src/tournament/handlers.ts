@@ -100,8 +100,8 @@ function readPlacements(message: Record<string, unknown>): Placement[] | null {
 function describeGameEnd(message: Record<string, unknown>): string | null {
     const placements = message.end_reason === "completed" ? readPlacements(message) : null;
     if (placements !== null) {
-        const results = placements.map(({ name, score }, index) =>
-            t("tournament.chat.game_ended_place", { name, place: index + 1, score }),
+        const results = placements.map(({ name, score }) =>
+            t("tournament.chat.game_ended_score", { name, score }),
         );
         return t("tournament.chat.game_ended", { results: formatList(results) });
     }
@@ -126,9 +126,9 @@ function systemLine(text: string | null): HistoryLine | null {
     return text === null ? null : { sender: LOG_TYPE_SYSTEM, text };
 }
 
-function presenceLine(entry: Record<string, unknown>, key: MessageKey): HistoryLine | null {
+function describePresence(entry: Record<string, unknown>, key: MessageKey): string | null {
     const name = readString(entry, "player_name");
-    return systemLine(name === null ? null : t(key, { name }));
+    return name === null ? null : t(key, { name });
 }
 
 const HISTORY_LINES: Record<string, (entry: Record<string, unknown>) => HistoryLine | null> = {
@@ -142,8 +142,8 @@ const HISTORY_LINES: Record<string, (entry: Record<string, unknown>) => HistoryL
         const players = readNames(entry);
         return systemLine(players === null ? null : describeGameStart(players));
     },
-    player_offline: (entry) => presenceLine(entry, "tournament.chat.player_left"),
-    player_online: (entry) => presenceLine(entry, "tournament.chat.player_joined"),
+    player_offline: (entry) => systemLine(describePresence(entry, "tournament.chat.player_left")),
+    player_online: (entry) => systemLine(describePresence(entry, "tournament.chat.player_joined")),
 };
 
 function readHistoryEntry(entry: unknown): ChatEntry | null {
@@ -259,12 +259,6 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
         if (players === null) {
             return;
         }
-        for (const name of players.filter((player) => !state.players.includes(player))) {
-            appendChat(LOG_TYPE_SYSTEM, t("tournament.chat.player_joined", { name }));
-        }
-        for (const name of state.players.filter((player) => !players.includes(player))) {
-            appendChat(LOG_TYPE_SYSTEM, t("tournament.chat.player_left", { name }));
-        }
         state.players = players;
         render();
     }
@@ -305,8 +299,7 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
         render();
     }
 
-    function onGameEnded(message: Record<string, unknown>): void {
-        const line = describeGameEnd(message);
+    function appendSystemLine(line: string | null): void {
         if (line === null) {
             return;
         }
@@ -330,13 +323,17 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
     return {
         chat: onChat,
         error: onError,
-        game_ended: onGameEnded,
+        game_ended: (message) => appendSystemLine(describeGameEnd(message)),
         game_started: onGameStarted,
         game_starting: onGameStarting,
         history: (message) => {
             showHistory(state, render, message);
         },
         joined: onJoined,
+        player_offline: (message) =>
+            appendSystemLine(describePresence(message, "tournament.chat.player_left")),
+        player_online: (message) =>
+            appendSystemLine(describePresence(message, "tournament.chat.player_joined")),
         presence: onPresence,
     };
 }

@@ -294,7 +294,7 @@
     "settings.api_token.title": "API-токен",
     "settings.api_token.token_label": "Ваш API-токен",
     "tournament.chat.game_ended": "Игра окончена: {results}",
-    "tournament.chat.game_ended_place": "{place}. {name} — {score}",
+    "tournament.chat.game_ended_score": "{name} — {score}",
     "tournament.chat.game_ended_without_result": "Игра окончена без результата: {players}",
     "tournament.chat.game_started": "Началась игра: {players}",
     "tournament.chat.game_starting": "Ваша игра начинается!",

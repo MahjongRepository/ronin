@@ -270,7 +270,7 @@
     "settings.api_token.title": "APIトークン",
     "settings.api_token.token_label": "あなたのAPIトークン",
     "tournament.chat.game_ended": "対局が終了しました：{results}",
-    "tournament.chat.game_ended_place": "{place}位 {name}（{score}）",
+    "tournament.chat.game_ended_score": "{name}（{score}）",
     "tournament.chat.game_ended_without_result": "対局は結果なしで終了しました：{players}",
     "tournament.chat.game_started": "対局が始まりました：{players}",
     "tournament.chat.game_starting": "対局が始まります！",

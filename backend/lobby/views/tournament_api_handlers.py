@@ -113,7 +113,8 @@ async def _start_table(request: Request, *, tournament_id: str, names: list[str]
     """
     Start one table's game and announce it to the tournament; return its result.
 
-    The started players leave the online list at once, so a later table naming one of them finds them offline.
+    The started players leave the online list at once, so a later table naming one of them finds them offline, and come
+    back to it without being announced.
     """
     hub: TournamentHub = request.app.state.tournament_hub
     occupancy: Occupancy = request.app.state.occupancy
@@ -151,7 +152,7 @@ async def _start_table(request: Request, *, tournament_id: str, names: list[str]
         return {"error": e.reason}
 
     for player in players:
-        hub.disconnect(tournament_id, player)
+        hub.send_to_game(tournament_id, player)
 
     tournament_repo: TournamentRepository = request.app.state.tournament_repo
     game_end_poller: TournamentGameEndPoller = request.app.state.tournament_game_end_poller

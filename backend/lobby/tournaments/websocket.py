@@ -107,7 +107,7 @@ async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
     the tournament does not exist.
 
     The same user's older connection is told ``replaced_by_new_connection`` and closed; the new one takes its place,
-    with nothing kept or announced as a change.
+    with nothing kept or announced as a change. A player back from a game the tournament started is no arrival either.
     """
     if await ctx.tournament_repo.get_tournament(ctx.tournament_id) is None:
         logger.info("tournament join rejected", tournament_id=ctx.tournament_id, username=player.username)
@@ -120,9 +120,12 @@ async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
         replaced.send({"type": "error", "message": REPLACED_BY_NEW_CONNECTION})
         replaced.connection.close(code=4000, reason=REPLACED_BY_NEW_CONNECTION)
 
+    back_from_game = ctx.hub.welcome_back_from_game(ctx.tournament_id, player.user_id)
     player.send({"type": "history", "messages": _history_seen_by(player, ctx)})
-    if replaced is None:
-        ctx.hub.record(ctx.tournament_id, {"type": "player_online", "player_name": player.username})
+    if replaced is None and not back_from_game:
+        online = ctx.hub.record(ctx.tournament_id, {"type": "player_online", "player_name": player.username})
+        ctx.hub.broadcast(ctx.tournament_id, online, exclude=player.connection_id)
+
     names = ctx.hub.online_names(ctx.tournament_id)
     player.send({"type": "joined", "players": names})
     ctx.hub.broadcast_presence(ctx.tournament_id, exclude=player.connection_id)
@@ -190,7 +193,8 @@ def _leave(player: LobbyPlayer, ctx: _TournamentContext) -> None:
     if not ctx.hub.disconnect(ctx.tournament_id, player):
         return
 
-    ctx.hub.record(ctx.tournament_id, {"type": "player_offline", "player_name": player.username})
+    offline = ctx.hub.record(ctx.tournament_id, {"type": "player_offline", "player_name": player.username})
+    ctx.hub.broadcast(ctx.tournament_id, offline)
 
     logger.info(
         "player offline in tournament",

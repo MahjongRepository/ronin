@@ -46,12 +46,19 @@ function chatTexts(state: ReturnType<typeof createTournamentState>): string[] {
 }
 
 describe("buildMessageHandlers", () => {
-    test("announces who came online and who left by diffing the online list", () => {
+    test("announces who came online and who left only from the server's presence events", () => {
         const { handlers, state } = buildTournament();
 
+        handleMessage(handlers, { player_name: "Carol", time: 1, type: "player_online" });
+        handleMessage(handlers, { player_name: "Bob", time: 2, type: "player_offline" });
         handleMessage(handlers, { count: 2, players: ["Alice", "Carol"], type: "presence" });
+        handleMessage(handlers, {
+            count: 3,
+            players: ["Alice", "Carol", "Dave"],
+            type: "presence",
+        });
 
-        expect(state.players).toEqual(["Alice", "Carol"]);
+        expect(state.players).toEqual(["Alice", "Carol", "Dave"]);
         expect(chatTexts(state)).toEqual([
             "You're online in this tournament",
             "Carol is online",
@@ -73,7 +80,7 @@ describe("buildMessageHandlers", () => {
         expect(chatTexts(state).filter((text) => text.endsWith("went offline"))).toEqual([]);
     });
 
-    test("announces a completed game by placement with scores and any other end without a result", () => {
+    test("announces a completed game's players with scores in placement order and any other end without a result", () => {
         const { handlers, state } = buildTournament();
         const players = ["Dave", "Carol", "Bob", "Alice"];
 
@@ -98,7 +105,7 @@ describe("buildMessageHandlers", () => {
         });
 
         expect(chatTexts(state).at(-2)).toBe(
-            "A game ended: 1. Bob (41,000), 2. Dave (28,000), 3. Alice (19,000), and 4. Carol (12,000)",
+            "A game ended: Bob (41,000), Dave (28,000), Alice (19,000), and Carol (12,000)",
         );
         expect(chatTexts(state).at(-1)).toBe(
             "A game ended without a result: Dave, Carol, Bob, and Alice",
