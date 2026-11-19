@@ -92,18 +92,7 @@ function storybookTemplate(): TemplateResult {
                 <small class="lobby-table-count">.lobby-action-tile</small>
             </div>
             <div class="lobby-actions">
-                <div class="lobby-action-form">
-                    <button type="button" class="lobby-action-tile">
-                        <svg class="lobby-action-icon" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M12 5v14M5 12h14"/>
-                        </svg>
-                        <span class="lobby-action-text">
-                            <span class="lobby-action-label">Custom table</span>
-                            <span class="lobby-action-hint">Play with friends</span>
-                        </span>
-                    </button>
-                </div>
-                <a href="#" class="lobby-action-tile">
+                <a href="#" class="lobby-action-tile lobby-action-tile--primary">
                     <svg class="lobby-action-icon" viewBox="0 0 24 24" aria-hidden="true">
                         <circle cx="12" cy="5" r="2.25"/>
                         <circle cx="19" cy="12" r="2.25"/>
@@ -115,75 +104,47 @@ function storybookTemplate(): TemplateResult {
                         <span class="lobby-action-hint">Standard rules · unranked</span>
                     </span>
                 </a>
+                <div class="lobby-action-form">
+                    <button type="button" class="lobby-action-tile">
+                        <svg class="lobby-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        <span class="lobby-action-text">
+                            <span class="lobby-action-label">Custom table</span>
+                            <span class="lobby-action-hint">Play with friends</span>
+                        </span>
+                    </button>
+                </div>
             </div>
         </section>
 
         <section class="lobby-section storybook-section">
             <div class="lobby-section-header">
-                <h2>Table cards</h2>
+                <h2>Table rows</h2>
                 <small class="lobby-table-count">4 open</small>
             </div>
-            <div class="lobby-grid">
-                <article class="lobby-room-card" style="--card-index: 0">
-                    <div class="lobby-room-header">
-                        <span class="lobby-table-name">Jade Torii</span>
-                        <span class="lobby-room-count">1/4</span>
-                    </div>
-                    <div class="lobby-table-vis" aria-hidden="true">
-                        <span class="lobby-seat filled"></span>
-                        <span class="lobby-seat open"></span>
-                        <span class="lobby-seat open"></span>
-                        <span class="lobby-seat open"></span>
-                    </div>
-                    <p class="lobby-room-players"><span class="lobby-room-names" title="dev">dev</span><span class="lobby-room-open">· 3 seats open</span></p>
+            <ul class="lobby-room-list">
+                <li class="lobby-room-row">
+                    <span class="lobby-table-name">Jade Torii</span>
+                    <span class="seat-names"><span class="seat-name" title="dev">dev</span><span class="seat-name seat-name--free">Free seat</span><span class="seat-name seat-name--free">Free seat</span><span class="seat-name seat-name--free">Free seat</span></span>
                     <button type="button" class="outline lobby-join-btn">Join table</button>
-                </article>
-
-                <article class="lobby-room-card" style="--card-index: 1">
-                    <div class="lobby-room-header">
-                        <span class="lobby-table-name">Misty Onsen</span>
-                        <span class="lobby-room-count">1/4</span>
-                    </div>
-                    <div class="lobby-table-vis" aria-hidden="true">
-                        <span class="lobby-seat filled"></span>
-                        <span class="lobby-seat open"></span>
-                        <span class="lobby-seat open"></span>
-                        <span class="lobby-seat open"></span>
-                    </div>
-                    <p class="lobby-room-players"><span class="lobby-room-names" title="a_very_long_username_for_tests">a_very_long_username_for_tests</span><span class="lobby-room-open">· 3 seats open</span></p>
+                </li>
+                <li class="lobby-room-row">
+                    <span class="lobby-table-name">Misty Onsen</span>
+                    <span class="seat-names"><span class="seat-name" title="a_very_long_username_for_tests">a_very_long_username_for_tests</span><span class="seat-name seat-name--free">Free seat</span><span class="seat-name seat-name--free">Free seat</span><span class="seat-name seat-name--free">Free seat</span></span>
                     <button type="button" class="outline lobby-join-btn">Join table</button>
-                </article>
-
-                <article class="lobby-room-card lobby-room-card--mine" style="--card-index: 2">
-                    <div class="lobby-room-header">
-                        <span class="lobby-table-name">Crimson Origami</span>
-                        <span class="lobby-room-count">3/4</span>
-                    </div>
-                    <div class="lobby-table-vis" aria-hidden="true">
-                        <span class="lobby-seat filled"></span>
-                        <span class="lobby-seat filled"></span>
-                        <span class="lobby-seat open"></span>
-                        <span class="lobby-seat filled"></span>
-                    </div>
-                    <p class="lobby-room-players"><span class="lobby-room-names" title="dev, dev2, dev3">dev, dev2, dev3</span><span class="lobby-room-open">· 1 seat open</span></p>
+                </li>
+                <li class="lobby-room-row lobby-room-row--mine">
+                    <span class="lobby-table-name">Crimson Origami</span>
+                    <span class="seat-names"><span class="seat-name" title="dev">dev</span><span class="seat-name" title="dev2">dev2</span><span class="seat-name seat-name--free">Free seat</span><span class="seat-name" title="dev3">dev3</span></span>
                     <a href="#" role="button" class="lobby-join-btn">Back to your table</a>
-                </article>
-
-                <article class="lobby-room-card" style="--card-index: 3">
-                    <div class="lobby-room-header">
-                        <span class="lobby-table-name">Silver Koi</span>
-                        <span class="lobby-room-count">4/4</span>
-                    </div>
-                    <div class="lobby-table-vis" aria-hidden="true">
-                        <span class="lobby-seat filled"></span>
-                        <span class="lobby-seat filled"></span>
-                        <span class="lobby-seat filled"></span>
-                        <span class="lobby-seat filled"></span>
-                    </div>
-                    <p class="lobby-room-players"><span class="lobby-room-names" title="dev, dev2, dev3, dev4">dev, dev2, dev3, dev4</span></p>
+                </li>
+                <li class="lobby-room-row">
+                    <span class="lobby-table-name">Silver Koi</span>
+                    <span class="seat-names"><span class="seat-name" title="dev">dev</span><span class="seat-name" title="dev2">dev2</span><span class="seat-name" title="dev3">dev3</span><span class="seat-name" title="dev4">dev4</span></span>
                     <span class="lobby-join-btn lobby-full-badge">Full</span>
-                </article>
-            </div>
+                </li>
+            </ul>
         </section>
 
         <section class="lobby-section storybook-section">
@@ -191,7 +152,7 @@ function storybookTemplate(): TemplateResult {
                 <h2>Empty state</h2>
                 <small class="lobby-table-count">.lobby-empty</small>
             </div>
-            <div class="lobby-empty lobby-empty--inline lobby-muted">
+            <div class="lobby-empty lobby-empty--boxed">
                 <p class="lobby-empty-title">No custom tables open</p>
                 <p class="lobby-empty-hint">Host one, or jump into a quick match.</p>
             </div>

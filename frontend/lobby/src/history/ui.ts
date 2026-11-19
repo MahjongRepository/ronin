@@ -2,14 +2,10 @@ import { type TemplateResult, html, nothing, render } from "lit-html";
 
 import { pageFailedView } from "@/app/page-failed";
 import { formatDuration } from "@/format-duration";
+import { gameTypeNameKey } from "@/game-types";
 import { copyReplayLink } from "@/games-history";
 import { type HistoryGame, type HistoryPlayer, type HistoryState } from "@/history/state";
-import { type MessageKey, formatDateTime, formatNumber, t } from "@/i18n";
-
-const GAME_TYPE_NAMES: ReadonlyMap<string, MessageKey> = new Map([
-    ["hanchan", "history.game_type.hanchan"],
-    ["tonpusen", "history.game_type.tonpusen"],
-]);
+import { formatDateTime, formatNumber, t } from "@/i18n";
 
 function finalScoreClass(finalScore: number): string {
     if (finalScore > 0) {
@@ -53,8 +49,8 @@ function standingTemplate(player: HistoryPlayer, rank: number): TemplateResult {
 }
 
 function gameTypeLabel(game: HistoryGame, number: number): TemplateResult | typeof nothing {
-    const nameKey = GAME_TYPE_NAMES.get(game.gameType);
-    if (nameKey === undefined) {
+    const nameKey = gameTypeNameKey(game.gameType);
+    if (nameKey === null) {
         return nothing;
     }
     return html`<span class="games-wind" aria-hidden="true">${game.wind ?? ""}</span>

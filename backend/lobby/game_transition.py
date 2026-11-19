@@ -76,11 +76,12 @@ class GameListError(Exception):
 
 class PlayingGame(BaseModel, frozen=True):
     """
-    A game the game server plays: its id, its start in epoch seconds and its players East to North.
+    A game the game server plays: its id, its start in epoch seconds, its game type and its players East to North.
     """
 
     game_id: str = Field(min_length=1)
     started_at: float
+    game_type: str = Field(min_length=1)
     players: tuple[str, ...]
 
 

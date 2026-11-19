@@ -84,7 +84,7 @@ afterEach(() => {
 });
 
 describe("startChrome", () => {
-    it("links the Admin section only for an admin and logs out with the current token", () => {
+    it("links Tournaments and the Admin section only for an admin and logs out with the current token", () => {
         const { chrome, nav } = chromeOnPage();
 
         chrome.showSession({ user: { isAdmin: false, isGuest: false, username: "dev" } });
@@ -93,7 +93,15 @@ describe("startChrome", () => {
         const postedToken = postedTokenAfterRotation(nav, "rotated-token");
 
         expect(playerLinks).toEqual(["/", "/history", "/settings"]);
-        expect(navHrefs(nav)).toEqual(["/", "/history", "/admin/monitoring", "/settings"]);
+        expect(navHrefs(nav)).toEqual([
+            "/",
+            "/history",
+            "/tournaments",
+            "/admin/monitoring",
+            "/tournaments",
+            "/admin/monitoring",
+            "/settings",
+        ]);
         expect(nav.querySelector(".lobby-username")?.textContent).toBe("dev");
         expect(postedToken).toBe("rotated-token");
     });

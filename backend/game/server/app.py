@@ -152,8 +152,8 @@ async def tenhou_replay(request: Request) -> Response:
 
 async def playing_games(request: Request) -> JSONResponse:
     """
-    Answer 200 with every game playing, oldest first, each with its start time and its players East to North (internal:
-    the lobby's list of current games).
+    Answer 200 with every game playing, oldest first, each with its start time, its game type and its players East to
+    North (internal: the lobby's list of current games).
 
     The answer names players, so only a caller with the internal API secret gets it.
     """
@@ -166,6 +166,7 @@ async def playing_games(request: Request) -> JSONResponse:
         {
             "game_id": record.game_id,
             "started_at": record.started_at.timestamp(),
+            "game_type": record.game_type,
             "players": [standing.name for standing in record.standings],
         }
         for record in session_manager.playing_games

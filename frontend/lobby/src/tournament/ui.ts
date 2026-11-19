@@ -174,7 +174,7 @@ function renameFormTemplate(page: TournamentPage, config: TournamentConfig): Tem
         }
     }
     return html`
-        <label for="tournament-rename-name">${t("lobby.tournament.name_label")}</label>
+        <label for="tournament-rename-name">${t("tournaments.name_label")}</label>
         <form class="lobby-tournament-form" @submit=${submitRename}>
             <input type="text" id="tournament-rename-name" name="name" .value=${state.name ?? config.name} required maxlength=${config.nameMaxLength} autocomplete="off" />
             <button type="submit" class="outline" ?disabled=${state.ownerBusy}>${t("tournament.owner.rename")}</button>

@@ -1,9 +1,42 @@
+.lobby-tournament-list,
+.lobby-tournaments-empty {
+    max-width: 48rem;
+}
+
+.lobby-tournament-list {
+    overflow-wrap: anywhere;
+    border: 1px solid var(--ronin-border);
+    border-radius: var(--ronin-radius-lg);
+    background: var(--ronin-surface);
+    overflow: hidden;
+
+    li + li {
+        border-top: 1px solid var(--ronin-border-subtle);
+    }
+
+    a {
+        display: block;
+        padding: 0.875rem 1.25rem;
+        color: var(--pico-color);
+        font-weight: 600;
+        text-decoration: none;
+        transition: background-color 0.12s ease-out;
+
+        @media (hover: hover) {
+            &:hover {
+                background: var(--ronin-surface-elevated);
+                color: var(--pico-primary-hover);
+            }
+        }
+    }
+}
+
 .lobby-tournament-form {
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
-    max-width: 36rem;
-    margin-bottom: 1rem;
+    max-width: 48rem;
+    margin-bottom: 1.5rem;
 
     input {
         flex: 1 1 14rem;
@@ -17,10 +50,6 @@
         margin-bottom: 0;
         white-space: nowrap;
     }
-}
-
-.lobby-tournament-list {
-    overflow-wrap: anywhere;
 }
 
 .tournament-tabs {

@@ -7,7 +7,7 @@ from lobby.tests.integration.conftest import login_with_csrf, register_with_csrf
 
 
 def _game(game_id, players):
-    return {"game_id": game_id, "started_at": 1_700_000_000.0, "players": players}
+    return {"game_id": game_id, "started_at": 1_700_000_000.0, "game_type": "hanchan", "players": players}
 
 
 @pytest.fixture

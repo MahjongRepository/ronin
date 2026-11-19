@@ -51,12 +51,15 @@ without a close event while the page is in the background. Matchmaking does not 
 The lobby view (`lobby/`) watches the games being played over `/ws/games` (`lobby/games-feed.ts`): each message
 is the whole list, which replaces the shown one, so a reconnect needs no catch-up. It reconnects with the room's
 backoff and resume and binds its socket the same way. `current-games.ts` reads and draws a games list, here and on
-the tournament page.
+the tournament page; the tournament socket carries no game type, so its games show only their start.
+
+The admin-only tournaments page (`tournaments/`, `/tournaments`) lists the admin's own tournaments and creates new
+ones. On phones the nav's admin links move into the account menu, so the bar never outgrows the narrowest screen.
 
 The tournament page (`tournament/`) keeps the room's reconnect and binds its socket the same way.
 It holds no seat, so a reload only reconnects, and a language switch only redraws. Its Settings tab (rename,
 delete) shows when `/api/lobby/tournaments/{id}` says `is_owner`; switching tabs keeps the socket, so the owner
-stays online, and a delete goes to the lobby. The
+stays online, and a delete goes to the tournaments page. The
 server's `history`, sent before `joined` on every join, replaces the chat log: it holds every line the
 page shows from a server event, as structured entries worded at render time, so a reload or reconnect
 loses only the lines the page made itself (its own "you're online", local errors). `chat.ts` holds the

@@ -8,7 +8,12 @@ const LISTED_ROOMS: LobbyRooms["rooms"] = [
         name: "Jade Crane",
         numAiPlayers: 3,
         playerCount: 1,
-        players: [{ isBot: false, name: "dev" }],
+        players: [
+            { isBot: true, name: "ai-1" },
+            { isBot: false, name: "dev" },
+            { isBot: true, name: "ai-3" },
+            { isBot: true, name: "ai-4" },
+        ],
         roomId: "r1",
     },
 ];
@@ -18,7 +23,7 @@ function renderSeatedAt(myRoomId: string): HTMLElement {
     state.rooms = { myRoomId, rooms: LISTED_ROOMS };
     const host = document.createElement("main");
     document.body.append(host);
-    renderLobby(host, state, { createRoom: () => {}, createTournament: () => {} });
+    renderLobby(host, state, { createRoom: () => {} });
     return host;
 }
 
@@ -35,7 +40,7 @@ afterEach(() => {
 });
 
 describe("renderLobby", () => {
-    it("shows the seated hint with a link back to the user's table, listed or starting", () => {
+    it("shows the seated hint, a link back to the user's table and its seats in seat order", () => {
         const host = renderSeatedAt("r1");
         const startingHost = renderSeatedAt("r2");
 
@@ -43,31 +48,47 @@ describe("renderLobby", () => {
         expect(
             host.querySelector(".lobby-actions")?.classList.contains("lobby-actions--seated"),
         ).toBe(true);
-        expect(host.querySelector(".lobby-room-card .lobby-join-btn")?.textContent).toBe(
+        expect(host.querySelector(".lobby-room-row .lobby-join-btn")?.textContent).toBe(
             "Back to your table",
         );
+        expect(
+            [...host.querySelectorAll(".lobby-room-row .seat-name")].map(
+                (seat) => seat.textContent,
+            ),
+        ).toEqual(["Free seat", "dev", "Free seat", "Free seat"]);
         expect(seatedHint(startingHost)).toEqual(["Table", "/rooms/r2"]);
     });
 
-    it("lists the games being played as numbered tables with their players East to North", () => {
+    it("lists each game being played with its wind and one column per seat, East to North", () => {
         const state = createLobbyState(null);
         state.games = [
-            { gameId: "g1", players: ["A", "B", "C", "D"], startedAt: new Date(0) },
-            { gameId: "g2", players: ["E", "F", "G", "H"], startedAt: new Date(0) },
+            {
+                gameId: "g1",
+                gameType: "hanchan",
+                players: ["A", "B", "C", "D"],
+                startedAt: new Date(0),
+            },
+            {
+                gameId: "g2",
+                gameType: "tonpusen",
+                players: ["E", "F", "G", "H"],
+                startedAt: new Date(0),
+            },
         ];
         const host = document.createElement("main");
         document.body.append(host);
-        renderLobby(host, state, { createRoom: () => {}, createTournament: () => {} });
+        renderLobby(host, state, { createRoom: () => {} });
 
-        const cards = [...host.querySelectorAll(".current-games .lobby-room-card")];
+        const games = [...host.querySelectorAll(".current-games .current-game")];
         expect(
-            cards.map((card) => [
-                card.querySelector(".lobby-table-name")?.textContent,
-                card.querySelector(".lobby-room-names")?.getAttribute("title"),
+            games.map((game) => [
+                game.querySelector(".current-game-wind")?.textContent,
+                game.querySelector(".current-game-wind")?.getAttribute("title"),
+                [...game.querySelectorAll(".seat-name")].map((seat) => seat.textContent),
             ]),
         ).toEqual([
-            ["Table 1", "A, B, C, D"],
-            ["Table 2", "E, F, G, H"],
+            ["南", "Hanchan", ["A", "B", "C", "D"]],
+            ["東", "Tonpuu", ["E", "F", "G", "H"]],
         ]);
         expect(host.querySelector(".current-games .lobby-table-count")?.textContent).toBe(
             "2 playing",

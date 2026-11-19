@@ -15,6 +15,7 @@ import { mountMatchmakingView } from "@/matchmaking";
 import { mountRoomView } from "@/room";
 import { mountSettingsView } from "@/settings";
 import { mountTournamentView } from "@/tournament";
+import { mountTournamentsView } from "@/tournaments";
 
 export interface RouteDeps {
     readonly navigate: (url: string, options?: NavigateOptions) => void;
@@ -69,6 +70,10 @@ export function lobbyRoutes(deps: RouteDeps): Route[] {
             mount: (host, params) =>
                 mountRoomView(host, params.id ?? "", { navigate: deps.navigate }),
             pattern: /^\/rooms\/(?<id>[^/]+)\/?$/,
+        },
+        {
+            mount: (host) => mountTournamentsView(host, { navigate: deps.navigate }),
+            pattern: /^\/tournaments\/?$/,
         },
         {
             mount: (host, params) =>

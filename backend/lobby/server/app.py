@@ -203,6 +203,7 @@ def create_app(  # noqa: PLR0913
         Route("/rooms/{room_id}", protected_html(spa_shell), methods=["GET"], name="room_page"),
         Route("/matchmaking", protected_html(spa_shell), methods=["GET"], name="matchmaking_page"),
         Route("/settings", protected_html(spa_shell), methods=["GET"], name="settings_page"),
+        Route("/tournaments", admin_html(spa_shell), methods=["GET"], name="tournaments_page"),
         Route("/tournaments/{tournament_id}", protected_html(spa_shell), methods=["GET"], name="tournament_page"),
         Route("/admin/monitoring", admin_html(spa_shell), methods=["GET"], name="monitoring_page"),
         # WebSocket routes (auth handled inside the handlers)

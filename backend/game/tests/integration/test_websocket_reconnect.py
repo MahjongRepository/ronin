@@ -199,7 +199,9 @@ class TestPlayingGamesList:
         assert response.status_code == 200
         assert response.headers["cache-control"] == "no-store"
         assert response.json() == {
-            "games": [{"game_id": "started_game", "started_at": ANY, "players": list(roster.names)}]
+            "games": [
+                {"game_id": "started_game", "started_at": ANY, "game_type": "hanchan", "players": list(roster.names)}
+            ]
         }
         assert "Player1" in roster.names
         assert refused.status_code == 401

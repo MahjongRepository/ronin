@@ -7,17 +7,15 @@ import {
     type LobbyRoom,
     type LobbyRooms,
     type LobbyState,
-    type OwnTournaments,
     type SeatedTable,
     roomPath,
     seatedTable,
-    tournamentPath,
 } from "@/lobby/state";
 import { ROOM_SEATS } from "@/room/state";
+import { seatNamesTemplate } from "@/seat-names";
 
 export interface LobbyActions {
     readonly createRoom: () => void;
-    readonly createTournament: (name: string) => void;
 }
 
 function alertTemplate(tone: "error" | "warning", key: MessageKey): TemplateResult {
@@ -41,19 +39,7 @@ function actionsTemplate(seated: boolean, actions: LobbyActions): TemplateResult
         actions.createRoom();
     }
     return html`<div class="lobby-actions${seated ? " lobby-actions--seated" : ""}">
-        <form class="lobby-action-form" @submit=${submitCreate}>
-            <button type="submit" class="lobby-action-tile lobby-create-btn">
-                <svg class="lobby-action-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 5v14M5 12h14" />
-                </svg>
-                <span class="lobby-action-text">
-                    <span class="lobby-action-label">${t("lobby.action.custom_table")}</span>
-                    <span class="lobby-action-hint">${t("lobby.action.custom_table_hint")}</span>
-                </span>
-            </button>
-        </form>
-
-        <a href="/matchmaking" class="lobby-action-tile">
+        <a href="/matchmaking" class="lobby-action-tile lobby-action-tile--primary">
             <svg class="lobby-action-icon" viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="12" cy="5" r="2.25" />
                 <circle cx="19" cy="12" r="2.25" />
@@ -65,26 +51,19 @@ function actionsTemplate(seated: boolean, actions: LobbyActions): TemplateResult
                 <span class="lobby-action-hint">${t("lobby.action.quick_match_hint")}</span>
             </span>
         </a>
-    </div>`;
-}
 
-function playersTemplate(room: LobbyRoom): TemplateResult {
-    const names = room.players.filter((player) => !player.isBot).map((player) => player.name);
-    const seated = names.join(", ");
-    return html`<p class="lobby-room-players">
-        ${
-            names.length > 0
-                ? html`<span class="lobby-room-names" title=${seated}>${seated}</span>`
-                : html`<span class="lobby-room-names">${t("lobby.room.nobody_seated")}</span>`
-        }
-        ${
-            room.numAiPlayers > 0
-                ? html`<span class="lobby-room-open"
-                  >· ${t("lobby.room.seats_open", { count: room.numAiPlayers })}</span
-              >`
-                : nothing
-        }
-    </p>`;
+        <form class="lobby-action-form" @submit=${submitCreate}>
+            <button type="submit" class="lobby-action-tile lobby-create-btn">
+                <svg class="lobby-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14" />
+                </svg>
+                <span class="lobby-action-text">
+                    <span class="lobby-action-label">${t("lobby.action.custom_table")}</span>
+                    <span class="lobby-action-hint">${t("lobby.action.custom_table_hint")}</span>
+                </span>
+            </button>
+        </form>
+    </div>`;
 }
 
 function joinTemplate(room: LobbyRoom, isMine: boolean): TemplateResult {
@@ -101,32 +80,21 @@ function joinTemplate(room: LobbyRoom, isMine: boolean): TemplateResult {
     return html`<span class="lobby-join-btn lobby-full-badge">${t("lobby.room.full")}</span>`;
 }
 
-function roomCard(room: LobbyRoom, index: number, myRoomId: string | null): TemplateResult {
+function roomRow(room: LobbyRoom, myRoomId: string | null): TemplateResult {
     const isMine = room.roomId === myRoomId;
-    return html`<article
-        class="lobby-room-card${isMine ? " lobby-room-card--mine" : ""}"
-        style="--card-index: ${index}"
-    >
-        <div class="lobby-room-header">
-            <span class="lobby-table-name">${room.name}</span>
-            <span class="lobby-room-count">${room.playerCount}/${ROOM_SEATS}</span>
-        </div>
-        <div class="lobby-table-vis" aria-hidden="true">
-            ${room.players.map(
-                (player) =>
-                    html`<span class="lobby-seat ${player.isBot ? "open" : "filled"}"></span>`,
-            )}
-        </div>
-        ${playersTemplate(room)} ${joinTemplate(room, isMine)}
-    </article>`;
+    return html`<li class="lobby-room-row${isMine ? " lobby-room-row--mine" : ""}">
+        <span class="lobby-table-name">${room.name}</span>
+        ${seatNamesTemplate(room.players.map((player) => (player.isBot ? null : player.name)))}
+        ${joinTemplate(room, isMine)}
+    </li>`;
 }
 
 function roomsListTemplate(rooms: LobbyRooms): TemplateResult {
     return rooms.rooms.length > 0
-        ? html`<div class="lobby-grid">
-                  ${rooms.rooms.map((room, index) => roomCard(room, index, rooms.myRoomId))}
-              </div>`
-        : html`<div class="lobby-empty lobby-empty--inline lobby-muted">
+        ? html`<ul class="lobby-room-list">
+                  ${rooms.rooms.map((room) => roomRow(room, rooms.myRoomId))}
+              </ul>`
+        : html`<div class="lobby-empty lobby-empty--boxed">
                   <p class="lobby-empty-title">${t("lobby.tables.empty_title")}</p>
                   <p class="lobby-empty-hint">${t("lobby.tables.empty_hint")}</p>
               </div>`;
@@ -137,7 +105,7 @@ function tablesTemplate(rooms: LobbyRooms | null): TemplateResult {
         <div class="lobby-section-header">
             <h2>${t("lobby.tables.title")}</h2>
             ${
-                rooms
+                rooms && rooms.rooms.length > 0
                     ? html`<small class="lobby-table-count"
                       >${t("lobby.tables.open_count", { count: rooms.rooms.length })}</small
                   >`
@@ -149,62 +117,16 @@ function tablesTemplate(rooms: LobbyRooms | null): TemplateResult {
     </section>`;
 }
 
-function ownTournamentsTemplate(
-    state: LobbyState,
-    actions: LobbyActions,
-): TemplateResult | typeof nothing {
-    const own: OwnTournaments | null = state.ownTournaments;
-    if (own === null) {
-        return nothing;
-    }
-    function submitCreate(event: SubmitEvent): void {
-        event.preventDefault();
-        const form = event.currentTarget;
-        const input = form instanceof HTMLFormElement ? form.elements.namedItem("name") : null;
-        if (input instanceof HTMLInputElement) {
-            actions.createTournament(input.value);
-        }
-    }
-    return html`<section class="lobby-section">
-        <div class="lobby-section-header">
-            <h2>${t("lobby.tournament.title")}</h2>
-        </div>
-        ${state.tournamentCreateFailed ? alertTemplate("error", "lobby.tournament.create_failed") : nothing}
-        <form class="lobby-tournament-form" @submit=${submitCreate}>
-            <input
-                type="text"
-                name="name"
-                required
-                maxlength=${own.nameMaxLength}
-                placeholder=${t("lobby.tournament.name_label")}
-                aria-label=${t("lobby.tournament.name_label")}
-                autocomplete="off"
-            />
-            <button type="submit" ?disabled=${state.creatingTournament}>${t("lobby.tournament.create")}</button>
-        </form>
-        ${
-            own.tournaments.length > 0
-                ? html`<ul class="lobby-tournament-list">
-                      ${own.tournaments.map(
-                          (tournament) =>
-                              html`<li><a href=${tournamentPath(tournament.id)}>${tournament.name}</a></li>`,
-                      )}
-                  </ul>`
-                : html`<p class="lobby-muted">${t("lobby.tournament.empty")}</p>`
-        }
-    </section>`;
-}
-
 function lobbyTemplate(state: LobbyState, actions: LobbyActions): TemplateResult {
     if (state.loadFailed) {
         return pageFailedView();
     }
     const seated = state.rooms ? seatedTable(state.rooms) : null;
     return html`${state.notice ? alertTemplate("warning", state.notice) : nothing}
-    ${state.createFailed ? alertTemplate("error", "lobby.error.create_failed") : nothing}
-    ${seated ? seatedHint(seated) : nothing} ${actionsTemplate(seated !== null, actions)}
-    ${tablesTemplate(state.rooms)} ${currentGamesTemplate(state.games, "lobby-games-title")}
-    ${ownTournamentsTemplate(state, actions)}`;
+        ${state.createFailed ? alertTemplate("error", "lobby.error.create_failed") : nothing}
+        ${seated ? seatedHint(seated) : nothing}
+        ${actionsTemplate(seated !== null, actions)} ${tablesTemplate(state.rooms)}
+        ${currentGamesTemplate(state.games, "lobby-games-title")}`;
 }
 
 export function renderLobby(host: HTMLElement, state: LobbyState, actions: LobbyActions): void {

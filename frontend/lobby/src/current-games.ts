@@ -1,11 +1,14 @@
 import { type TemplateResult, html, nothing } from "lit-html";
 
 import { isRecord } from "@/api";
+import { gameTypeNameKey, gameTypeWind } from "@/game-types";
 import { formatTime, t } from "@/i18n";
 import { readString } from "@/lobby-socket";
+import { seatNamesTemplate } from "@/seat-names";
 
 export interface CurrentGame {
     readonly gameId: string;
+    readonly gameType: string | null;
     readonly players: readonly string[];
     readonly startedAt: Date;
 }
@@ -28,7 +31,7 @@ export function readCurrentGame(message: Record<string, unknown>, at: Date): Cur
     if (gameId === null || players === null) {
         return null;
     }
-    return { gameId, players, startedAt: at };
+    return { gameId, gameType: readString(message, "game_type"), players, startedAt: at };
 }
 
 export function readCurrentGames(message: Record<string, unknown>): CurrentGame[] {
@@ -42,32 +45,35 @@ export function readCurrentGames(message: Record<string, unknown>): CurrentGame[
         .filter((game): game is CurrentGame => game !== null);
 }
 
-function gameCard(game: CurrentGame, index: number): TemplateResult {
-    const names = game.players.join(", ");
-    const last = game.players.length - 1;
-    return html`<article class="lobby-room-card" style="--card-index: ${index}">
-        <div class="lobby-room-header">
-            <span class="lobby-table-name">${t("current_games.table", { number: index + 1 })}</span>
-            <span class="lobby-room-count">${formatTime(game.startedAt)}</span>
-        </div>
-        <div class="lobby-table-vis" aria-hidden="true">
-            ${game.players.map(() => html`<span class="lobby-seat filled"></span>`)}
-        </div>
-        <p class="lobby-room-players">
-            <span class="lobby-room-names" title=${names}>
-                ${game.players.map((name, seat) => html`${seat > 0 ? " " : ""}<span class="current-game-player">${name}${seat < last ? "," : ""}</span>`)}
-            </span>
-        </p>
-    </article>`;
+function windTemplate(gameType: string | null): TemplateResult {
+    const nameKey = gameType === null ? null : gameTypeNameKey(gameType);
+    const wind = gameType === null ? null : gameTypeWind(gameType);
+    if (nameKey === null || wind === null) {
+        return html`<span class="current-game-wind"></span>`;
+    }
+    return html`<abbr class="current-game-wind" title=${t(nameKey)}>${wind}</abbr>`;
+}
+
+function gameRow(game: CurrentGame): TemplateResult {
+    return html`<li class="current-game">
+        <span class="current-game-meta">
+            ${windTemplate(game.gameType)}
+            <time datetime=${game.startedAt.toISOString()}>${formatTime(game.startedAt)}</time>
+        </span>
+        ${seatNamesTemplate(game.players)}
+    </li>`;
 }
 
 function gamesListTemplate(games: readonly CurrentGame[]): TemplateResult {
     if (games.length === 0) {
-        return html`<div class="lobby-empty lobby-empty--inline lobby-muted">
+        return html`<div class="lobby-empty lobby-empty--boxed">
             <p class="lobby-empty-title">${t("current_games.empty")}</p>
+            <p class="lobby-empty-hint">${t("current_games.empty_hint")}</p>
         </div>`;
     }
-    return html`<div class="lobby-grid">${games.map((game, index) => gameCard(game, index))}</div>`;
+    return html`<ul class="current-games-list">
+        ${games.map((game) => gameRow(game))}
+    </ul>`;
 }
 
 export function currentGamesTemplate(
@@ -78,7 +84,7 @@ export function currentGamesTemplate(
         <div class="lobby-section-header">
             <h2 id=${titleId}>${t("current_games.title")}</h2>
             ${
-                games === null
+                games === null || games.length === 0
                     ? nothing
                     : html`<small class="lobby-table-count">${t("current_games.count", { count: games.length })}</small>`
             }

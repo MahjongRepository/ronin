@@ -1,54 +1,43 @@
-// Lobby room grid, cards, and related components
-
-// ─── Section Header ─────────────────────────────────────────
-
 .lobby-section {
     margin-top: 0.5rem;
 }
 
 .lobby-section + .lobby-section {
-    margin-top: 2rem;
+    margin-top: 2.5rem;
 }
 
 .lobby-section-header {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0.25rem 0.75rem;
-    margin-bottom: 1rem;
+    gap: 0.25rem 0.625rem;
+    margin-bottom: 0.75rem;
 
     h2 {
         margin-bottom: 0;
-        font-size: 1.4rem;
+        font-size: 1.25rem;
         font-weight: 700;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.01em;
     }
 }
 
 .lobby-table-count {
     color: var(--pico-muted-color);
-    font-family: var(--ronin-font-mono);
-    font-size: 0.75rem;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
-.lobby-actions,
-.lobby-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
-    gap: 1rem;
-
-    @media (width <= 576px) {
-        gap: 0.75rem;
-    }
-}
-
 .lobby-actions {
-    margin-block: 1rem 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-block: 1.5rem 2.5rem;
 
     @media (width <= 576px) {
+        display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        margin-block: 0.75rem 1.5rem;
+        margin-block: 1rem 2rem;
     }
 }
 
@@ -63,7 +52,7 @@
 }
 
 .lobby-seated-hint {
-    margin-block: 1rem -0.25rem;
+    margin-block: 1rem 0;
     font-size: 0.875rem;
     color: var(--ronin-text-secondary);
 
@@ -78,31 +67,36 @@
 }
 
 .lobby-action-tile {
+    --lobby-tile-label: var(--pico-h3-color);
+    --lobby-tile-hint: var(--ronin-text-secondary);
+    --lobby-tile-icon: var(--pico-primary);
+
     display: flex;
     align-items: center;
     gap: 0.875rem;
-    width: 100%;
-    min-height: 4.5rem;
+    width: auto;
+    min-width: 13rem;
+    min-height: 4rem;
     margin: 0;
-    padding: 0.75rem 1rem;
+    padding: 0.75rem 1.25rem 0.75rem 1rem;
     text-align: left;
     text-decoration: none;
-    background: color-mix(in srgb, var(--pico-primary) 7%, var(--ronin-surface));
-    border: 1px solid color-mix(in srgb, var(--pico-primary) 50%, var(--ronin-border));
-    border-radius: var(--ronin-radius-lg);
+    background: var(--ronin-surface);
+    border: 1px solid var(--ronin-control-border);
+    border-radius: var(--ronin-radius-md);
     cursor: pointer;
     transition:
-        border-color 0.2s ease,
-        background 0.2s ease;
+        border-color 0.12s ease-out,
+        background-color 0.12s ease-out;
 
     &:active {
-        background: color-mix(in srgb, var(--pico-primary) 14%, var(--ronin-surface));
+        background: var(--ronin-surface-overlay);
     }
 
     @media (hover: hover) {
         &:hover {
-            border-color: var(--pico-primary);
-            background: color-mix(in srgb, var(--pico-primary) 11%, var(--ronin-surface));
+            border-color: var(--pico-secondary-hover);
+            background: var(--ronin-surface-elevated);
         }
     }
 
@@ -110,28 +104,54 @@
         flex-direction: column;
         align-items: flex-start;
         gap: 0.5rem;
+        width: 100%;
+        min-width: 0;
         min-height: 0;
         padding: 0.75rem;
     }
 }
 
+.lobby-action-tile--primary {
+    --lobby-tile-label: var(--pico-primary-inverse);
+    --lobby-tile-hint: color-mix(
+        in srgb,
+        var(--pico-primary-inverse) 78%,
+        var(--pico-primary-background)
+    );
+    --lobby-tile-icon: var(--pico-primary-inverse);
+
+    min-width: 16rem;
+    background: var(--pico-primary-background);
+    border-color: var(--pico-primary-background);
+
+    &:active {
+        background: var(--pico-primary-hover-background);
+    }
+
+    @media (hover: hover) {
+        &:hover {
+            border-color: var(--pico-primary-hover-background);
+            background: var(--pico-primary-hover-background);
+        }
+    }
+
+    @media (width <= 576px) {
+        min-width: 0;
+    }
+}
+
 .lobby-action-icon {
     flex-shrink: 0;
-    width: 1.75rem;
-    height: 1.75rem;
+    width: 1.5rem;
+    height: 1.5rem;
     fill: none;
-    stroke: var(--pico-primary);
+    stroke: var(--lobby-tile-icon);
     stroke-width: 2;
     stroke-linecap: round;
 
     circle {
-        fill: var(--pico-primary);
+        fill: var(--lobby-tile-icon);
         stroke: none;
-    }
-
-    @media (width <= 576px) {
-        width: 1.5rem;
-        height: 1.5rem;
     }
 }
 
@@ -143,73 +163,87 @@
 }
 
 .lobby-action-label {
-    color: var(--pico-h3-color);
+    color: var(--lobby-tile-label);
     font-family: var(--ronin-font-display);
-    font-size: 1rem;
+    font-size: 1.0625rem;
     font-weight: 600;
     line-height: 1.25;
 }
 
 .lobby-action-hint {
     font-family: var(--ronin-font-body);
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
     font-weight: 400;
     line-height: 1.3;
-    color: var(--ronin-text-secondary);
+    color: var(--lobby-tile-hint);
 }
 
-// ─── Room Card ──────────────────────────────────────────────
+.lobby-room-list,
+.current-games-list,
+.lobby-tournament-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
 
-.lobby-room-card {
-    position: relative;
-    padding: 1rem;
-    margin-bottom: 0;
+    li {
+        margin: 0;
+        list-style: none;
+    }
+}
+
+.lobby-room-list,
+.current-games-list {
+    --lobby-row-lead: minmax(0, 12rem);
+    --lobby-row-tail: 9rem;
+
+    border: 1px solid var(--ronin-border);
     border-radius: var(--ronin-radius-lg);
     background: var(--ronin-surface);
-    border: 1px solid var(--ronin-border);
-    display: flex;
-    flex-direction: column;
-    gap: 0.625rem;
     overflow: hidden;
-    transition:
-        border-color 0.3s ease,
-        box-shadow 0.3s ease;
-    animation: card-in 0.4s ease both;
-    animation-delay: calc(var(--card-index, 0) * 0.06s);
+}
 
-    &--mine {
-        border-color: color-mix(in srgb, var(--pico-primary) 45%, var(--ronin-border));
+.lobby-room-row {
+    display: grid;
+    grid-template-columns: var(--lobby-row-lead) minmax(0, 1fr) var(--lobby-row-tail);
+    align-items: center;
+    gap: 1.25rem;
+    min-height: 3.75rem;
+    padding: 0.5rem 0.75rem 0.5rem 1.25rem;
 
-        &::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, var(--pico-primary), transparent);
-        }
+    & + & {
+        border-top: 1px solid var(--ronin-border-subtle);
     }
 
-    @media (hover: hover) {
-        &:hover {
-            border-color: color-mix(in srgb, var(--pico-primary) 30%, var(--ronin-border));
-            box-shadow:
-                0 4px 24px rgb(0 0 0 / 30%),
-                0 0 0 1px color-mix(in srgb, var(--pico-primary) 8%, transparent);
-        }
+    .lobby-table-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     @media (width <= 576px) {
-        padding: 0.75rem;
+        grid-template:
+            "name join" auto
+            "seats seats" auto / minmax(0, 1fr) auto;
+        gap: 0.5rem 0.75rem;
+        padding: 0.625rem 0.625rem 0.75rem 0.875rem;
+
+        .lobby-table-name {
+            grid-area: name;
+        }
+
+        .seat-names {
+            grid-area: seats;
+        }
+
+        .lobby-join-btn {
+            grid-area: join;
+        }
     }
 }
 
-.lobby-room-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.75rem;
+.lobby-room-row--mine {
+    background: color-mix(in srgb, var(--pico-primary) 9%, var(--ronin-surface));
 }
 
 .lobby-table-name {
@@ -218,42 +252,56 @@
     color: var(--pico-color);
 }
 
-.lobby-room-header .lobby-table-name {
+.seat-names {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.25rem 1rem;
+    min-width: 0;
+    font-size: 0.9375rem;
+
+    @media (width <= 576px) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.seat-name {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.lobby-room-count {
-    font-family: var(--ronin-font-mono);
-    font-size: 0.8rem;
     color: var(--ronin-text-secondary);
 }
 
-.lobby-room-players {
-    display: flex;
-    gap: 0.25em;
-    min-width: 0;
-    margin: 0;
-    font-size: 0.85rem;
-    color: var(--ronin-text-secondary);
-    white-space: nowrap;
-}
-
-.lobby-room-names {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.lobby-room-open {
-    flex: none;
+.seat-name--free {
     color: var(--pico-muted-color);
+    font-style: italic;
 }
 
-// ─── Table Visualization (Diamond Seat Layout) ──────────────
+.lobby-join-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 2.25rem;
+    margin-bottom: 0;
+    padding: 0.375rem 1rem;
+    font-size: 0.875rem;
+    white-space: nowrap;
+
+    @media (width <= 576px), (pointer: coarse) {
+        min-height: var(--ronin-touch-target);
+    }
+
+    @media (width <= 576px) {
+        width: auto;
+    }
+}
+
+.lobby-full-badge {
+    color: var(--pico-muted-color);
+    font-family: var(--ronin-font-display);
+    font-weight: 600;
+}
 
 .lobby-table-vis {
     --seat-cell: 1.25rem;
@@ -268,7 +316,6 @@
     justify-content: center;
     padding: 0.25rem 0;
 
-    // Center table piece
     &::after {
         content: "";
         grid-area: t;
@@ -276,67 +323,40 @@
         border: 1px solid var(--ronin-border);
         border-radius: var(--ronin-radius-sm);
     }
-}
 
-.lobby-seat {
-    width: var(--seat-size);
-    height: var(--seat-size);
-    border-radius: 50%;
-    place-self: center;
-    border: 1.5px solid var(--ronin-control-border);
-    background: transparent;
-    transition: all 0.3s ease;
+    .lobby-seat {
+        width: var(--seat-size);
+        height: var(--seat-size);
+        border-radius: 50%;
+        place-self: center;
+        border: 1.5px solid var(--ronin-control-border);
+        background: transparent;
+        transition:
+            background-color 0.3s ease,
+            border-color 0.3s ease;
 
-    &.filled {
-        background: var(--pico-primary);
-        border-color: var(--pico-primary);
+        &.filled {
+            background: var(--pico-primary);
+            border-color: var(--pico-primary);
+        }
     }
 
-    &.open {
-        border-color: transparent;
-        background: color-mix(in srgb, var(--pico-muted-color) 45%, transparent);
+    .lobby-seat:nth-child(1) {
+        grid-area: a;
+    }
+
+    .lobby-seat:nth-child(2) {
+        grid-area: b;
+    }
+
+    .lobby-seat:nth-child(3) {
+        grid-area: c;
+    }
+
+    .lobby-seat:nth-child(4) {
+        grid-area: d;
     }
 }
-
-// Position seats around the table in N-E-S-W order
-.lobby-table-vis .lobby-seat:nth-child(1) {
-    grid-area: a;
-}
-
-.lobby-table-vis .lobby-seat:nth-child(2) {
-    grid-area: b;
-}
-
-.lobby-table-vis .lobby-seat:nth-child(3) {
-    grid-area: c;
-}
-
-.lobby-table-vis .lobby-seat:nth-child(4) {
-    grid-area: d;
-}
-
-.lobby-join-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    min-height: var(--ronin-touch-target);
-    margin-bottom: 0;
-    padding-block: 0.5rem;
-    font-size: 0.875rem;
-}
-
-.lobby-full-badge {
-    font-family: var(--ronin-font-mono);
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--pico-muted-color);
-    border: 1px solid var(--ronin-border);
-    border-radius: var(--pico-border-radius);
-}
-
-// ─── Empty State ────────────────────────────────────────────
 
 .lobby-empty {
     padding: 1.5rem 0;
@@ -361,25 +381,55 @@
         margin-top: 1rem;
     }
 
-    &.lobby-empty--inline {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: baseline;
-        gap: 0 0.5rem;
-        padding: 0;
+    &.lobby-empty--boxed {
+        padding: 1.25rem;
+        border: 1px dashed var(--ronin-border);
+        border-radius: var(--ronin-radius-lg);
 
-        p {
+        p:last-child {
             margin-bottom: 0;
         }
     }
 }
 
-.current-games .lobby-room-players {
-    white-space: normal;
+.current-game {
+    display: grid;
+    grid-template-columns: var(--lobby-row-lead) minmax(0, 1fr) var(--lobby-row-tail);
+    align-items: center;
+    gap: 0.5rem 1.25rem;
+    min-height: 3.25rem;
+    padding: 0.5rem 0.75rem 0.5rem 1.25rem;
 
-    .current-game-player {
-        display: inline-block;
-        max-width: 100%;
-        overflow-wrap: anywhere;
+    & + & {
+        border-top: 1px solid var(--ronin-border-subtle);
     }
+
+    .seat-name {
+        color: var(--pico-color);
+    }
+
+    @media (width <= 576px) {
+        grid-template-columns: minmax(0, 1fr);
+        padding: 0.625rem 0.875rem;
+    }
+}
+
+.current-game-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    color: var(--pico-muted-color);
+    font-size: 0.9375rem;
+    font-variant-numeric: tabular-nums;
+}
+
+abbr.current-game-wind,
+.current-game-wind {
+    min-width: 1.25em;
+    color: var(--ronin-text-secondary);
+    font-family: var(--ronin-font-display);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 0;
+    cursor: help;
 }

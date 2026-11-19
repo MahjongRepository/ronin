@@ -69,7 +69,15 @@ def app(make_app, tmp_path, monkeypatch):
 _SPA_SHELL_ROUTES = [
     *(
         (path, HTTPStatus.SEE_OTHER)
-        for path in ["/", "/rooms/any-room", "/matchmaking", "/history", "/settings", "/admin/monitoring"]
+        for path in [
+            "/",
+            "/rooms/any-room",
+            "/matchmaking",
+            "/history",
+            "/settings",
+            "/tournaments",
+            "/admin/monitoring",
+        ]
     ),
     *((path, HTTPStatus.OK) for path in ["/login", "/register", "/storybook"]),
 ]

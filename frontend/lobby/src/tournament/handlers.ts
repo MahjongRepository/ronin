@@ -433,7 +433,7 @@ async function deleteTournament(state: TournamentState, context: OwnerContext): 
 function leaveDeleted(state: TournamentState, context: OwnerContext, result: ApiResult): void {
     state.ownerBusy = false;
     if (result.ok) {
-        context.navigate("/", { replace: true });
+        context.navigate("/tournaments", { replace: true });
         return;
     }
     console.error("tournament not deleted", result.error);

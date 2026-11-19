@@ -1,13 +1,7 @@
 import { type MountedView } from "@ronin/shared/router";
 
 import { watchCurrentGames } from "@/lobby/games-feed";
-import {
-    type LobbyViewContext,
-    createRoom,
-    createTournament,
-    loadOwnTournaments,
-    loadRooms,
-} from "@/lobby/handlers";
+import { type LobbyViewContext, createRoom, loadRooms } from "@/lobby/handlers";
 import { type LobbyState, createLobbyState, noticeFromUrl } from "@/lobby/state";
 import { renderLobby } from "@/lobby/ui";
 
@@ -52,7 +46,6 @@ export function mountLobbyView(host: HTMLElement, url: URL, deps: LobbyViewDeps)
     };
     const actions = {
         createRoom: () => void createRoom(state, context),
-        createTournament: (name: string) => void createTournament(state, context, name),
     };
 
     function render(): void {
@@ -62,7 +55,6 @@ export function mountLobbyView(host: HTMLElement, url: URL, deps: LobbyViewDeps)
     dropNoticeFromUrl(url);
     render();
     const stopWatchingGames = loadRoomsAndWatchGames(state, context);
-    void loadOwnTournaments(state, context);
     return {
         rerender: render,
         unmount: () => {
