@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	dealersPerWind   = 4
+	dealersPerWind   = tile.SeatCount
 	eastDealers      = dealersPerWind
 	hanchanDealers   = dealersPerWind * 2
 	extensionDealers = dealersPerWind * 3
@@ -58,7 +58,7 @@ func (p position) after(result play.RoundResult) position {
 	return next
 }
 
-func (p position) afterWins(wins []play.WinResult) (int, bool) {
+func (p position) afterWins(wins []play.WinResult) (honba int, dealerStays bool) {
 	if slices.ContainsFunc(wins, func(win play.WinResult) bool { return win.Winner == p.dealer }) {
 		return p.honba + 1, true
 	}
