@@ -1,4 +1,4 @@
-export PATH := $(shell mise where node 2>/dev/null)/bin:$(PATH)
+export PATH := $(shell mise bin-paths node go golangci-lint 2>/dev/null | tr '\n' ':')$(PATH)
 
 BE_RUN := uv run --project backend
 
@@ -6,7 +6,7 @@ DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
 
 FRONTEND_APPS := lobby game_v2
 
-.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games run-tournament deadcode generate-replays generate-replay-fixtures replay-fixtures-check generate-seat-scenarios seat-scenarios-check profile profile-games measure-wall
+.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend format-go lint-go test-go run-all-checks run-games run-tournament deadcode generate-replays generate-replay-fixtures replay-fixtures-check generate-seat-scenarios seat-scenarios-check profile profile-games measure-wall
 
 test:
 	cd backend && uv run pytest -v --cov --cov-report=
@@ -48,6 +48,15 @@ lint-frontend:
 
 test-frontend:
 	for app in $(FRONTEND_APPS); do (cd frontend/$$app && npm run test) || exit 1; done
+
+format-go:
+	cd backend/game_v2 && golangci-lint fmt
+
+lint-go:
+	cd backend/game_v2 && golangci-lint run
+
+test-go:
+	cd backend/game_v2 && go test -race ./...
 
 run-debug:
 	$(BE_RUN) python backend/debug.py

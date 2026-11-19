@@ -24,6 +24,7 @@ backend/conftest.py
 backend/scripts/replay_fixtures
 backend/scripts/generate_replay_fixtures.py
 backend/config
+backend/game_v2
 **/*.md
 bin
 data
