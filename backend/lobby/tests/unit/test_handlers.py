@@ -118,6 +118,12 @@ class TestHistoryEntries:
         assert [player["is_viewer"] for player in entry["players"]] == [False, False]
         assert entry["viewer_replay_url"] == "/play/history/game-1"
 
+    def test_history_entries__when_start_stored_without_offset__should_send_it_as_utc(self):
+        game = PlayedGame(game_id="g", started_at=datetime(2026, 10, 24, 3, 9, tzinfo=UTC).replace(tzinfo=None))
+
+        [entry] = history_entries([game], user_id=_VIEWER_USER_ID)
+        assert entry["started_at"] == "2026-10-24T03:09:00+00:00"
+
     def test_history_entries__when_tonpusen__should_carry_the_east_wind(self):
         game = PlayedGame(game_id="g", started_at=datetime.now(UTC), game_type="tonpusen")
 

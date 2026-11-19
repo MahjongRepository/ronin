@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from datetime import UTC
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from datetime import datetime
 
     from shared.dal.models import PlayedGame
 
@@ -36,6 +38,16 @@ def format_duration_seconds(duration_seconds: float, *, translate: Translate) ->
         return translate("history.duration.minutes", minutes=minutes, seconds=seconds % SECONDS_PER_MINUTE)
 
     return translate("history.duration.seconds", seconds=seconds)
+
+
+def _as_utc_iso(moment: datetime) -> str:
+    """
+    Format ``moment`` as ISO 8601 with an explicit offset, reading a stored value without one as UTC.
+    """
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+
+    return moment.isoformat()
 
 
 def _build_replay_url(game_id: str, seat: int | None = None) -> str:
@@ -83,7 +95,7 @@ def history_entries(games: list[PlayedGame], user_id: str) -> list[dict]:
         result.append(
             {
                 "game_id": game.game_id,
-                "started_at": game.started_at.isoformat(),
+                "started_at": _as_utc_iso(game.started_at),
                 "num_rounds_played": game.num_rounds_played,
                 "duration_seconds": duration_seconds,
                 "game_type": game.game_type,

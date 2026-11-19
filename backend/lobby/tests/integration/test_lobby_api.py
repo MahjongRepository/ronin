@@ -155,8 +155,8 @@ class TestLobbyHistoryRoute:
                 num_rounds_played=8,
                 standings=[
                     PlayedGameStanding(name="gamesuser", seat=0, user_id="earlier-holder", score=41000, final_score=51),
-                    PlayedGameStanding(name="gamesuser", seat=1, user_id=viewer_id, score=27000, final_score=7),
-                    PlayedGameStanding(name="Tsumogiri 1", seat=2, score=19000, final_score=-21),
+                    PlayedGameStanding(name="gamesuser", seat=2, user_id=viewer_id, score=27000, final_score=7),
+                    PlayedGameStanding(name="Tsumogiri 1", seat=1, score=19000, final_score=-21),
                     PlayedGameStanding(name="Tsumogiri 2", seat=3, score=13000, final_score=-37),
                 ],
             ),
@@ -193,7 +193,7 @@ class TestLobbyHistoryRoute:
                         },
                     ],
                     "replay_url": "/play/history/name-reuse-game",
-                    "viewer_replay_url": "/play/history/name-reuse-game?seat=1",
+                    "viewer_replay_url": "/play/history/name-reuse-game?seat=2",
                 }
             ]
         }
