@@ -27,16 +27,17 @@ cmd -> internal/server -> session -> messaging -> wire -> engine -> engine/inter
 ```
 
 `session`, `messaging` and `wire` do not exist yet. Each is added under `internal/` when the port
-gives it work, in this order, never as an empty package. `cmd/gameserver` is the composition root:
-the only place that reads flags and signals, and the place the engine is wired into the server once
-a game message exists.
+gives it work, in this order, never as an empty package. Each `cmd/*` is its own composition root:
+its `main` is the only place that reads that binary's flags, environment and signals and wires the
+parts it uses, so a tool beside the server builds what it needs without going through
+`cmd/gameserver`. `cmd/gameserver` wires the engine into the server once a game message exists.
 
 ## Engine purity
 
 The engine is synchronous and deterministic: it does no transport and no I/O, reads no clock, starts
 no goroutine and draws randomness only from the seed it is given. The caller holds each `Game`; the
-engine keeps no registry and no package-level state. `make lint-go` holds this for non-test code
-under `engine/`:
+engine keeps no registry and no mutable package-level state. `make lint-go` holds this for non-test
+code under `engine/`:
 
 * Imports are an allow-list (`engine-purity`, depguard in strict mode): the engine's own packages and
   a short set of pure standard-library packages. Anything else, the module's `internal/` packages,
@@ -46,10 +47,21 @@ under `engine/`:
 * `time` is allowed for its types: time crosses the facade as `time.Time` and `time.Duration` values
   the caller passes in. Reading the clock or starting a timer (`time.Now`, `time.Since`,
   `time.Sleep`, `time.After`, tickers) is forbidden by forbidigo, and so is printing.
-* Package-level variables and `init` functions are rejected (gochecknoglobals, gochecknoinits).
+* Package-level variables and `init` functions are rejected (gochecknoglobals, gochecknoinits),
+  except read-only tables. Go has no constant arrays, so a small lookup table is a package-level
+  `var` array in a file named `table*.go`, the only engine files gochecknoglobals skips, and no code
+  writes to it. A table too large to write out is a `//go:embed` string, never a `[]byte`, which
+  would be mutable state. A table's generator sits beside its package behind `//go:build ignore`.
 
-* The engine exports concrete types, not interfaces. An interface over the engine is defined by the
-  server-side package that consumes it, when one needs it.
+* No interface abstracts the engine: an interface over it is defined by the server-side package that
+  consumes it, when one needs it. The one interface the engine declares is a sealed sum type, since
+  Go has no enum with payloads: an unexported marker method, one struct per variant, and
+  `//sumtype:decl` in the interface's doc comment, the only place that directive works.
+* A type switch over a sum type and a switch over an enum list every variant, anywhere in the
+  module: gochecksumtype and exhaustive both run with `default-signifies-exhaustive: false`, so a
+  `default:` branch does not cover the missing ones, and a new variant fails the lint at every switch
+  that misses it instead of falling into `default:`. gochecksumtype does not see through a type
+  alias, so a package that switches over a sum type imports the package that declares it.
 * `Refusal` is a domain outcome, deliberately not an `error`: a player's refused action is an
   expected result. `error` stays for failures that are not one.
 
@@ -73,7 +85,7 @@ under `engine/`:
 
 The commit hook rejects every added comment. In Go that leaves only doc comments on exported
 functions, methods and types, the package doc, `//go:` directives and `//nolint:<linter> // reason`.
-An unexported identifier or a line inside a function body gets none, and a `_test.go` file gets none
+A sum type's `//sumtype:decl` line belongs to its doc comment. An unexported identifier or a line inside a function body gets none, and a `_test.go` file gets none
 at all, so a test's name and its variables' names carry what it pins. `.golangci.yml` takes no
 comments either: a forbidigo pattern's `msg` is where its reason goes.
 
