@@ -56,15 +56,14 @@ from lobby.views import (
     storybook_page,
     tenhou_replay,
 )
+from lobby.views.auth_api_handlers import api_guest_login, api_login, api_register
 from lobby.views.auth_handlers import (
     GUEST_LOGIN_BURST,
     GUEST_LOGIN_REFILL_PER_SECOND,
     guest_login,
     login,
-    login_page,
     logout,
     register,
-    register_page,
 )
 from lobby.views.bot_api_handlers import bot_create_room
 from lobby.views.error_pages import http_error_page, server_error_page
@@ -208,10 +207,10 @@ def create_app(  # noqa: PLR0913
         WebSocketRoute("/ws/matchmaking", matchmaking_websocket, name="matchmaking_websocket"),
         # Public routes
         Route("/health", public_route(health), methods=["GET"], name="health"),
-        Route("/login", public_route(login_page), methods=["GET"], name="login_page"),
+        Route("/login", public_route(spa_shell), methods=["GET"], name="login_page"),
         Route("/login", public_route(login), methods=["POST"], name="login"),
         Route("/guest", public_route(guest_login), methods=["POST"], name="guest_login"),
-        Route("/register", public_route(register_page), methods=["GET"], name="register_page"),
+        Route("/register", public_route(spa_shell), methods=["GET"], name="register_page"),
         Route("/register", public_route(register), methods=["POST"], name="register"),
         Route("/logout", public_route(logout), methods=["POST"], name="logout"),
         Route("/lang", public_route(set_language), methods=["POST"], name="set_language"),
@@ -227,6 +226,9 @@ def create_app(  # noqa: PLR0913
         Route("/api/lobby/rooms/{room_id}", protected_json(lobby_room), methods=["GET"], name="lobby_room"),
         Route("/api/lobby/matchmaking", protected_json(lobby_matchmaking), methods=["GET"], name="lobby_matchmaking"),
         Route("/api/lobby/history", protected_json(lobby_history), methods=["GET"], name="lobby_history"),
+        Route("/api/lobby/auth/login", public_route(api_login), methods=["POST"], name="api_login"),
+        Route("/api/lobby/auth/register", public_route(api_register), methods=["POST"], name="api_register"),
+        Route("/api/lobby/auth/guest", public_route(api_guest_login), methods=["POST"], name="api_guest_login"),
     ]
 
     if APP_VERSION == "dev":

@@ -3,6 +3,7 @@ import re
 import sqlite3
 from contextlib import closing
 from datetime import UTC, datetime, timedelta
+from http import HTTPStatus
 from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
@@ -68,17 +69,22 @@ def app(make_app, tmp_path, monkeypatch):
     )
 
 
-_SPA_SHELL_ROUTES = ["/", "/rooms/any-room", "/matchmaking", "/history"]
+_SPA_SHELL_ROUTES = [
+    *((path, HTTPStatus.SEE_OTHER) for path in ["/", "/rooms/any-room", "/matchmaking", "/history"]),
+    *((path, HTTPStatus.OK) for path in ["/login", "/register"]),
+]
 
 
-@pytest.mark.parametrize("path", _SPA_SHELL_ROUTES)
-def test_spa_shell_route__when_requested__should_answer_signed_in_users_the_shell_and_others_a_login_redirect(
+@pytest.mark.parametrize(("path", "signed_out_status"), _SPA_SHELL_ROUTES)
+def test_spa_shell_route__when_requested__should_answer_the_shell_and_send_signed_out_users_of_protected_ones_to_login(
     client: TestClient,
     path: str,
+    signed_out_status: HTTPStatus,
 ):
     signed_out = client.get(path, params={"notice": "x"}, follow_redirects=False)
-    assert signed_out.status_code == 303
-    assert signed_out.headers["location"] == f"/login?{urlencode({'next': f'{path}?notice=x'})}"
+    assert signed_out.status_code == signed_out_status
+    if signed_out_status == HTTPStatus.SEE_OTHER:
+        assert signed_out.headers["location"] == f"/login?{urlencode({'next': f'{path}?notice=x'})}"
 
     register_with_csrf(client, "shelluser")
     client.cookies.delete(CSRF_COOKIE_NAME)
@@ -170,13 +176,13 @@ class TestLobbyViews:
         assert "Table cards" in response.text
 
 
-def test_login_page__when_production__should_omit_storybook_links(
+def test_legal_page__when_production__should_omit_storybook_links(
     make_app: Callable[..., Starlette],
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr("lobby.server.app.APP_VERSION", "1.0.0")
     with open_client(make_app()) as client:
-        response = client.get("/login")
+        response = client.get("/terms")
         assert response.status_code == 200
         assert 'href="/storybook"' not in response.text
         assert 'href="/play/storybook"' not in response.text
@@ -189,7 +195,7 @@ def test_footer__when_production__should_link_version_to_its_github_release(
 ):
     monkeypatch.setattr("lobby.server.app.APP_VERSION", "1.0.0")
     with open_client(make_app()) as client:
-        response = client.get("/login")
+        response = client.get("/terms")
         footer = response.text.split("<footer", 1)[1]
         assert '<a href="https://github.com/MahjongRepository/ronin/releases/tag/1.0.0"' in footer
         assert ">v1.0.0</a>" in footer

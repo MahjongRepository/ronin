@@ -89,13 +89,13 @@ def test_page_locale__when_resolved_from_accept_language__should_vary_on_it_and_
     assert "Accept-Language" not in from_cookie.headers["vary"]
 
 
-def test_login_page__when_lang_cookie_is_ja__should_render_in_japanese(client):
+def test_legal_page__when_lang_cookie_is_ja__should_render_the_navigation_in_japanese(client):
     client.cookies.set("lang", "ja")
 
-    response = client.get("/login")
+    response = client.get("/terms")
     assert '<html lang="ja"' in response.text
-    assert "<h1>ログイン</h1>" in response.text
-    assert response.text.count('<a href="/terms">利用規約</a>と<a href="/privacy">') == 1
+    assert 'data-i18n="nav.log_in">ログイン</a>' in response.text
+    assert 'data-i18n="nav.register">登録</a>' in response.text
 
 
 def test_register_route__when_username_taken_and_lang_is_ru__should_show_the_russian_error_with_the_name(client):
@@ -119,11 +119,11 @@ def test_register_route__when_username_taken_and_lang_is_ru__should_show_the_rus
 def test_language_switch__when_page_is_rendered__should_mark_the_active_language_and_return_to_the_page(client):
     client.cookies.set("lang", "ru")
 
-    response = client.get("/login?next=%2Fhistory")
+    response = client.get("/terms?section=cookies")
     footer = response.text.split("<footer", 1)[1]
     assert 'action="/lang"' in footer
     assert 'action="/lang"' not in response.text.split("<footer", 1)[0]
-    assert '<input type="hidden" name="next" value="/login?next=%2Fhistory">' in response.text
+    assert '<input type="hidden" name="next" value="/terms?section=cookies">' in response.text
     assert 'value="ru" lang="ru" aria-current="true">Русский</button>' in response.text
     assert 'value="ja" lang="ja">日本語</button>' in response.text
     assert 'value="en" lang="en">English</button>' in response.text

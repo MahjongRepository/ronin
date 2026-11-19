@@ -104,13 +104,6 @@ def _set_admin_flag(client, *, username: str, is_admin: bool) -> None:
 
 
 class TestAuthEndpoints:
-    def test_register_route__when_get__should_render_form_with_confirm_password(self, client):
-        response = client.get("/register")
-        assert response.status_code == 200
-        assert "Register" in response.text
-        assert "confirm_password" in response.text
-        assert ' pattern="' not in response.text
-
     def test_register_route__when_valid_post__should_redirect_to_lobby_with_session(self, client):
         csrf = _get_csrf_token(client, "/register")
 
@@ -308,24 +301,12 @@ class TestAuthEndpoints:
         assert 'href="/history"' in response.text
 
     def test_navigation__when_logged_out__should_offer_log_in_instead_of_history(self, client):
-        response = client.get("/login")
+        response = client.get("/terms")
         assert 'href="/history"' not in response.text
         assert 'href="/register"' in response.text
 
 
 class TestNextRedirect:
-    def test_login_page__when_reached_with_next__should_carry_it_into_both_forms_and_the_register_links(self, client):
-        response = client.get("/login", params={"next": "/rooms/r1?tab=chat"})
-        assert response.status_code == 200
-        assert response.text.count('name="next" value="/rooms/r1?tab=chat"') == 2
-        assert response.text.count('href="/register?next=%2Frooms%2Fr1%3Ftab%3Dchat"') == 2
-
-    def test_register_page__when_reached_with_next__should_carry_it_into_the_form_and_the_login_links(self, client):
-        response = client.get("/register", params={"next": "/rooms/r1"})
-        assert response.status_code == 200
-        assert response.text.count('name="next" value="/rooms/r1"') == 1
-        assert response.text.count('href="/login?next=%2Frooms%2Fr1"') == 2
-
     @pytest.mark.parametrize(
         ("route", "form", "register_first"),
         [
@@ -700,10 +681,6 @@ class TestCsrfProtection:
     def test_csrf_protection__when_login_page_first_visited__should_set_cookie(self, client):
         response = client.get("/login")
         assert CSRF_COOKIE_NAME in response.cookies
-
-    def test_csrf_protection__when_login_page_rendered__should_include_token_field(self, client):
-        response = client.get("/login")
-        assert 'name="csrf_token"' in response.text
 
     def test_csrf_protection__when_login_token_stale__should_rerender_the_form_with_a_valid_token(self, client):
         _register_user(client, username="staleuser")

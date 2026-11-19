@@ -58,11 +58,10 @@ def describe_auth_error(request: Request, error: AuthError) -> str:
     return translate_for_request(request, f"auth.error.{error.code}", **error.params)
 
 
-def _redirect_with_session_cookie(*, token: str, auth_settings: AuthSettings, next_path: str | None) -> Response:
+def set_session_cookie(response: Response, *, token: str, auth_settings: AuthSettings) -> None:
     """
-    Redirect to ``next_path`` (the lobby when there is none) and set the session cookie.
+    Set the session cookie a login, a registration or a guest login hands the browser.
     """
-    response = RedirectResponse(next_path or "/", status_code=303)
     response.set_cookie(
         key="session_id",
         value=token,
@@ -72,6 +71,14 @@ def _redirect_with_session_cookie(*, token: str, auth_settings: AuthSettings, ne
         max_age=SESSION_MAX_AGE_SECONDS,
         path="/",
     )
+
+
+def _redirect_with_session_cookie(*, token: str, auth_settings: AuthSettings, next_path: str | None) -> Response:
+    """
+    Redirect to ``next_path`` (the lobby when there is none) and set the session cookie.
+    """
+    response = RedirectResponse(next_path or "/", status_code=303)
+    set_session_cookie(response, token=token, auth_settings=auth_settings)
     return response
 
 
@@ -79,18 +86,17 @@ def _render_auth_form(
     request: Request,
     *,
     template_name: str,
-    form: FormData | None = None,
+    form: FormData,
     error: str | None = None,
     invalid_field: str | None = None,
 ) -> Response:
     """
-    Render the login or register form, keeping the submitted username (never a password) and the page to return to.
+    Render the login or register form again, keeping the submitted username (never a password) and the return page.
 
-    The username goes under ``form_username``: ``username`` is the logged-in user the navigation shows. The return page
-    comes from the submitted form, or from the ``next`` query parameter the login redirect adds.
+    The username goes under ``form_username``: ``username`` is the logged-in user the navigation shows.
     """
-    submitted = form.get("username", "") if form is not None else ""
-    next_path = parse_next_path(form.get("next") if form is not None else request.query_params.get("next"))
+    submitted = form.get("username", "")
+    next_path = parse_next_path(form.get("next"))
     context: dict[str, object] = {
         **ACCOUNT_RULES,
         "error": error,
@@ -112,11 +118,6 @@ def _render_stale_auth_form(request: Request, *, template_name: str, form: FormD
     response = _render_auth_form(request, template_name=template_name, form=form, error=error)
     response.status_code = HTTPStatus.FORBIDDEN
     return response
-
-
-async def login_page(request: Request) -> Response:
-    """GET /login - render login form with CSRF token."""
-    return _render_auth_form(request, template_name="login.html")
 
 
 async def login(request: Request) -> Response:
@@ -163,11 +164,6 @@ async def guest_login(request: Request) -> Response:
 
     _, token = await auth_service.login_as_guest(replacing=request.cookies.get("session_id"))
     return _redirect_with_session_cookie(token=token, auth_settings=auth_settings, next_path=next_path)
-
-
-async def register_page(request: Request) -> Response:
-    """GET /register - render registration form with CSRF token."""
-    return _render_auth_form(request, template_name="register.html")
 
 
 async def register(request: Request) -> Response:
