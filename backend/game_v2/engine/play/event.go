@@ -2,15 +2,17 @@ package play
 
 import "github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 
-// Visibility is who may see an event: every seat, or one seat only. Its zero value is every seat.
+// Visibility is who may see an event: every seat, or one seat only. Its zero value includes no
+// seat, so an event emitted without one is hidden rather than shown to the table.
 type Visibility struct {
 	seat   tile.Seat
 	single bool
+	all    bool
 }
 
 // ToAll returns the Visibility of every seat.
 func ToAll() Visibility {
-	return Visibility{}
+	return Visibility{all: true}
 }
 
 // ToSeat returns the Visibility of seat only.
@@ -25,7 +27,7 @@ func (v Visibility) Seat() (tile.Seat, bool) {
 
 // Includes reports whether seat may see.
 func (v Visibility) Includes(seat tile.Seat) bool {
-	return !v.single || v.seat == seat
+	return v.all || (v.single && v.seat == seat)
 }
 
 // Emitted is one fact of the game and who may see it.

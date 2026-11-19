@@ -19,8 +19,18 @@ func TestVisibility_WhenToAll_ShouldIncludeEverySeat(t *testing.T) {
 			t.Errorf("Includes(%d) = false", s.Index())
 		}
 	}
-	if everyone != (play.Visibility{}) {
-		t.Error("ToAll is not the zero Visibility")
+}
+
+func TestVisibility_WhenZero_ShouldIncludeNoSeat(t *testing.T) {
+	var unset play.Visibility
+
+	if _, single := unset.Seat(); single {
+		t.Error("Seat reports a single seat")
+	}
+	for _, s := range tile.Seats() {
+		if unset.Includes(s) {
+			t.Errorf("Includes(%d) = true", s.Index())
+		}
 	}
 }
 
