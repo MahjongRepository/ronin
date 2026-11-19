@@ -2,10 +2,10 @@
 
 The game server being ported from `backend/game/` to Go. It is one Go module, outside the uv
 project: it imports nothing from `backend/shared/` and the Python tooling does not see it. So far it
-holds the engine's base vocabulary, its seeded randomness, the wall, shanten and the hand reading
-(agari, divider, waits), and the structure the port fills, not the game: the facade's `NewGame`,
-`Act`, `Event`, `Action` and `Refusal` and their seam tests are placeholders, replaced by the first
-ported behaviour.
+holds the engine's base vocabulary, the seam types, its seeded randomness, the wall, shanten and the
+hand reading (agari, divider, waits), and the structure the port fills, not the game: the facade's
+`NewGame`, `Act`, `Event`, `Action` and `Refusal` and their seam tests are placeholders, replaced by
+the facade over `engine/play`'s types.
 
 ## The seam
 
@@ -19,9 +19,19 @@ The module is two sides, a server and an engine, and the engine is reachable onl
   seats, dice and mpsz notation. It imports nothing of the module, so every engine package can
   build on it. Its exported tables are functions returning arrays, never package `var`s, since any
   importer could write to a public `var`.
+* `engine/play` holds every type that crosses the facade: actions, decisions, what the game awaits,
+  events with their visibility, refusals, round results, standings, win values and yaku, and the
+  seat view. It imports only `engine/tile`, so the server side reads the engine's output without
+  reaching under the facade, and every engine package can produce it. gochecksumtype does not see
+  through a type alias, so the sum types live here and the facade does not re-export them.
+  An absent value is a `play.Option` (a value and an ok flag), never a pointer, so state stays a
+  plain value; an absent sum type is nil.
+* The server side and `seam/` import `engine`, `engine/play` and `engine/tile`, nothing else of the
+  engine; the compiler seals `engine/internal`. depguard holds the vocabulary itself:
+  `engine/tile` imports nothing of the module and `engine/play` only `engine/tile`.
 * `seam/` is a sibling directory of `engine/` holding tests only. A test package inside `engine/`
   may legally import `engine/internal/...`; a sibling may not, so a test in `seam/` proves a
-  behaviour is observable through the facade alone. It imports nothing of the module but `engine`.
+  behaviour is observable through the facade alone.
 
 ## Layers
 
@@ -31,8 +41,8 @@ Imports point one way:
 cmd -> internal/server -> session -> messaging -> wire -> engine -> engine/internal
 ```
 
-Inside the engine, `engine/internal/*` packages import `engine/tile` and each other along the
-module graph of mahjong-rs, the port's reference, and never `engine`.
+Inside the engine, `engine/internal/*` packages import `engine/tile`, `engine/play` and each other
+along the module graph of mahjong-rs, the port's reference, and never `engine`.
 
 `session`, `messaging` and `wire` do not exist yet. Each is added under `internal/` when the port
 gives it work, in this order, never as an empty package. Each `cmd/*` is its own composition root:
@@ -88,8 +98,9 @@ code under `engine/`:
   `-coverpkg=./engine/...`, so a `seam/` test counts toward engine coverage as much as a test beside
   the code. `bin/check_go_coverage.py` judges the raw profile, block by block, never a rounded
   percentage: a block is covered when any test binary ran it, an uncovered block is printed and
-  fails the gate, and so does a profile with no engine block. The server side is not gated. There is
-  no exclusion mechanism: reach the statement or restructure it away.
+  fails the gate, and so does a profile with no engine block. A block of no statement, such as a sum
+  type's empty marker method, has nothing to run and is skipped. The server side is not gated. There
+  is no exclusion mechanism: reach the statement or restructure it away.
 * A check too slow for every run sits in a `_test.go` file behind a build tag (`exhaustive`), outside
   `make test-go`; its package doc gives the command that runs it. `make lint-go` builds with the tag
   (`run.build-tags`), so the file is type-checked and linted on every run.

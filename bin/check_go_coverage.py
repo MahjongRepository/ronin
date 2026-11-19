@@ -2,8 +2,9 @@
 Check that a Go cover profile leaves no statement block under engine/ uncovered.
 
 The profile lists a block once per test binary, so a block is covered when any of its lines counts
-above zero. Each uncovered block prints one line; the exit status is 1 when there is any, or when
-the profile holds no engine block at all.
+above zero. A block of no statement, the empty body of a sum type's marker method, holds nothing
+to cover and is skipped. Each uncovered block prints one line; the exit status is 1 when there is
+any, or when the profile holds no engine block at all.
 """
 
 from __future__ import annotations
@@ -26,7 +27,10 @@ def find_uncovered_blocks(profile: str) -> list[str]:
         if not line or line.startswith(MODE_PREFIX):
             continue
 
-        block, _statements, count = line.rsplit(" ", 2)
+        block, statements, count = line.rsplit(" ", 2)
+        if int(statements) == 0:
+            continue
+
         covered_by_block[block] = covered_by_block.get(block, False) or int(count) > 0
 
     engine_blocks = {block: covered for block, covered in covered_by_block.items() if ENGINE_DIR in block}

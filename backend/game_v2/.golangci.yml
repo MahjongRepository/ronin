@@ -49,6 +49,23 @@ linters:
             - strconv$
             - strings$
             - time$
+        engine-vocabulary:
+          files:
+            - "**/game_v2/engine/tile/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/MahjongRepository/ronin/backend/game_v2
+              desc: engine/tile is the vocabulary under every engine package and imports nothing of the module
+        engine-seam-types:
+          list-mode: lax
+          files:
+            - "**/game_v2/engine/play/**"
+            - "!$test"
+          allow:
+            - github.com/MahjongRepository/ronin/backend/game_v2/engine/tile$
+          deny:
+            - pkg: github.com/MahjongRepository/ronin/backend/game_v2
+              desc: engine/play crosses the facade, so it imports only engine/tile of the module
     exhaustive:
       default-signifies-exhaustive: false
     forbidigo:
