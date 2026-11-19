@@ -77,7 +77,7 @@ linters:
           - forbidigo
           - gochecknoglobals
           - gochecknoinits
-      - path: ^engine/(.+/)?table[^/]*\.go$
+      - path: ^engine/(.+/)?lookup_[^/]*\.go$
         linters:
           - gochecknoglobals
 

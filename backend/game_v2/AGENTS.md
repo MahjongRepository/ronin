@@ -49,13 +49,15 @@ code under `engine/`:
   `time.Sleep`, `time.After`, tickers) is forbidden by forbidigo, and so is printing.
 * Package-level variables and `init` functions are rejected (gochecknoglobals, gochecknoinits),
   except read-only tables. Go has no constant arrays, so a small lookup table is a package-level
-  `var` array in a file named `table*.go`, the only engine files gochecknoglobals skips, and no code
-  writes to it. A table too large to write out is a `//go:embed` string, never a `[]byte`, which
-  would be mutable state. A table's generator sits beside its package behind `//go:build ignore`.
+  `var` array in a file named `lookup_*.go`, the only engine files gochecknoglobals skips; the
+  prefix is one no domain file takes, as `table` would (a table record). Read-only there is a
+  review rule, not a lint rule: such a file holds only `var` arrays of values, and no code assigns
+  to them. A table too large to write out is a `//go:embed` string, never a `[]byte`, which would be
+  mutable state. A table's generator sits beside its package behind `//go:build ignore`.
 
 * No interface abstracts the engine: an interface over it is defined by the server-side package that
-  consumes it, when one needs it. The one interface the engine declares is a sealed sum type, since
-  Go has no enum with payloads: an unexported marker method, one struct per variant, and
+  consumes it, when one needs it. The only interfaces the engine declares are sealed sum types,
+  since Go has no enum with payloads: an unexported marker method, one struct per variant, and
   `//sumtype:decl` in the interface's doc comment, the only place that directive works.
 * A type switch over a sum type and a switch over an enum list every variant, anywhere in the
   module: gochecksumtype and exhaustive both run with `default-signifies-exhaustive: false`, so a
@@ -85,8 +87,9 @@ code under `engine/`:
 
 The commit hook rejects every added comment. In Go that leaves only doc comments on exported
 functions, methods and types, the package doc, `//go:` directives and `//nolint:<linter> // reason`.
-A sum type's `//sumtype:decl` line belongs to its doc comment. An unexported identifier or a line inside a function body gets none, and a `_test.go` file gets none
-at all, so a test's name and its variables' names carry what it pins. `.golangci.yml` takes no
+A sum type's `//sumtype:decl` line belongs to its doc comment. An unexported identifier or a line
+inside a function body gets none, and a `_test.go` file gets none at all, so a test's name and its
+variables' names carry what it pins. `.golangci.yml` takes no
 comments either: a forbidigo pattern's `msg` is where its reason goes.
 
 ## Tooling
