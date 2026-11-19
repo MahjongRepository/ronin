@@ -54,8 +54,11 @@ const OWN_DRAWN_GAP = 0.35;
 /** The gap between a strip's melds past the river gap (px). */
 const MELD_GAP_EXTRA = 2;
 
-/** A side strip's drawn gap runs along the light, so it adds the edge it shows and keeps the top strip's clear table. */
-const SIDE_DRAWN_GAP = OPPONENT_DRAWN_GAP + STANDING_BACK_EDGE_SHARE;
+/**
+ * A side strip's drawn gap runs along the light, so it adds the deeper of the edges it shows (a revealed hand's lying
+ * face, a concealed one's standing back) and keeps the top strip's clear table.
+ */
+const SIDE_DRAWN_GAP = OPPONENT_DRAWN_GAP + Math.max(LYING_BODY.edge, STANDING_BACK_EDGE_SHARE);
 
 /** The core's height past the centre, in river tiles: a gap and a top or bottom river's rows on each side. */
 const CORE_TILES = 2 * (RIVER_GAP_SHARE + RIVER_ROWS["run-on"] * TILE_ASPECT * LYING_Y_SHARE);

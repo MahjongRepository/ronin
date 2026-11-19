@@ -841,7 +841,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the accent so a strip of backs never reads as a control, its darker shade the back's layer under
   every tile's ivory body. Decision: the face artwork (the committed SVG set) stays, its ordinary red
   darkened from #b93c3c to #9a2424 (fill and stroke) so its thinnest strokes keep 4.5:1 on the face
-  once a small, foreshortened face resamples them, the red fives' brighter #d71e1e unchanged and the clearer for it; the room
+  once a small, foreshortened face resamples them, the red fives' brighter #c61c1c (darkened from #d71e1e to keep 4.5:1 on the ivory face) the clearer for it; the room
   around the glyph comes from the tile box, not from new drawings, and a glyph that is still
   unreadable at river scale with that room is reported, not redrawn in a ticket. Decision: the lobby's
   system sans-serif stack, with tabular digits wherever numbers align; no downloaded fonts or

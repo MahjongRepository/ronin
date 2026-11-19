@@ -844,11 +844,11 @@ describe("boardGeometry", () => {
         [1440, 900, [50, 65, 98.83, 131.5]],
         [1280, 800, [44, 60, 89.64, 100]],
         [800, 600, [33, 43, 57.4, 6.1]],
-        [960, 1080, [43, 52, 184.73, 0.4]],
+        [960, 1080, [43, 52, 186.23, 0.4]],
         [1100, 1000, [49, 60, 149.96, 0]],
         [1280, 1024, [57, 70, 106.93, 1]],
-        [1502, 1551, [68, 82, 183.27, 2.4]],
-        [1024, 1366, [45, 55, 186.98, 6.5]],
+        [1502, 1551, [68, 82, 185.77, 2.4]],
+        [1024, 1366, [45, 55, 188.48, 6.5]],
     ])(
         "sizes a %ix%i desktop's river tile from its vertical stack and its own tile from its width, a full hand between the side strips' lanes, at most 1.45 river tiles, within bars that hold the switches named and the counters' row only while the own tile keeps 1.3 of the river tile, no bars where the width binds the river tile, the river tile no larger than leaves it 1.2, the table centred",
         (width, height, expected) => {
@@ -948,7 +948,7 @@ describe("boardGeometry", () => {
     it.each([
         { height: 375, pinned: { ow: 37, rw: 19 }, width: 667 },
         { height: 390, pinned: { ow: 37, rw: 19 }, width: 667 },
-        { height: 354, pinned: { ow: 39, rw: 20 }, width: 724 },
+        { height: 354, pinned: { ow: 41, rw: 19 }, width: 724 },
         { height: 360, pinned: { ow: 42, rw: 20 }, width: 800 },
         { height: 390, pinned: { ow: 43, rw: 22 }, width: 750 },
         { height: 379, pinned: { ow: 44, rw: 21 }, width: 761 },
@@ -1351,7 +1351,7 @@ describe("boardGeometry's decisions", () => {
         const { lengths, tracks } = windowGeometry({ height: 308, width: 640 });
         const [left = 0, top = 0, right = 0] = slotAreas(tracks)["actions"] ?? [];
 
-        expect(right - left).toBeCloseTo(354.6, 1);
+        expect(right - left).toBeCloseTo(356.6, 1);
         expect(left).toBeLessThan((lengths["cx"] ?? 0) - (lengths["hx"] ?? 0));
         expect(top).toBeGreaterThanOrEqual((lengths["cy"] ?? 0) + (lengths["h"] ?? 0));
     });
