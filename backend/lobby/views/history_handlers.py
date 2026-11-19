@@ -17,14 +17,14 @@ _GAME_TYPE_WINDS = {
 }
 
 
-def _as_utc_iso(moment: datetime) -> str:
+def _as_utc(moment: datetime) -> datetime:
     """
-    Format ``moment`` as ISO 8601 with an explicit offset, reading a stored value without one as UTC.
+    Return ``moment`` with an explicit offset, reading a stored value without one as UTC.
     """
     if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=UTC)
+        return moment.replace(tzinfo=UTC)
 
-    return moment.isoformat()
+    return moment
 
 
 def _build_replay_url(game_id: str, seat: int | None = None) -> str:
@@ -65,14 +65,15 @@ def history_entries(games: list[PlayedGame], user_id: str) -> list[dict]:
                 },
             )
 
+        started_at = _as_utc(game.started_at)
         duration_seconds = None
         if game.ended_at:
-            duration_seconds = (game.ended_at - game.started_at).total_seconds()
+            duration_seconds = (_as_utc(game.ended_at) - started_at).total_seconds()
 
         result.append(
             {
                 "game_id": game.game_id,
-                "started_at": _as_utc_iso(game.started_at),
+                "started_at": started_at.isoformat(),
                 "num_rounds_played": game.num_rounds_played,
                 "duration_seconds": duration_seconds,
                 "game_type": game.game_type,
