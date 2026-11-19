@@ -1,10 +1,11 @@
 # Game server (Go)
 
-The game server being ported from `backend/game/` to Go. It is one Go module, outside the uv project:
-it imports nothing from `backend/shared/` and the Python tooling does not see it. So far it holds
-the engine's base vocabulary, its seeded randomness, the wall and shanten, and the structure the
-port fills, not the game: the facade's `NewGame`, `Act`, `Event`, `Action` and `Refusal` and their seam
-tests are placeholders, replaced by the first ported behaviour.
+The game server being ported from `backend/game/` to Go. It is one Go module, outside the uv
+project: it imports nothing from `backend/shared/` and the Python tooling does not see it. So far it
+holds the engine's base vocabulary, its seeded randomness, the wall, shanten and the hand reading
+(agari, divider, waits), and the structure the port fills, not the game: the facade's `NewGame`,
+`Act`, `Event`, `Action` and `Refusal` and their seam tests are placeholders, replaced by the first
+ported behaviour.
 
 ## The seam
 

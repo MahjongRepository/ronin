@@ -39,3 +39,32 @@ func TestCountsFromArray_WhenEveryKindHasAtMostFour_ShouldKeepTheCounts(t *testi
 		t.Errorf("CountsFromArray = %v, %v; want %v", counts.Array(), err, tiles34)
 	}
 }
+
+func TestCountsWithoutOne_WhenTheKindIsHeld_ShouldTakeOneTileOut(t *testing.T) {
+	counts, err := tile.CountsFromTiles(mustTiles(t, "112m"))
+	if err != nil {
+		t.Fatalf("CountsFromTiles error = %v", err)
+	}
+
+	rest, ok := counts.WithoutOne(0)
+
+	if !ok || rest.Count(mustTile(t, "1m")) != 1 || rest.Count(mustTile(t, "2m")) != 1 {
+		t.Errorf("WithoutOne(1m) = %v, %v; want one 1m and one 2m left", rest.Array(), ok)
+	}
+	if counts.Count(mustTile(t, "1m")) != 2 {
+		t.Errorf("WithoutOne changed its receiver to %v", counts.Array())
+	}
+}
+
+func TestCountsWithoutOne_WhenTheKindIsNotHeldOrPastTheLast_ShouldRefuse(t *testing.T) {
+	counts, err := tile.CountsFromTiles(mustTiles(t, "1m"))
+	if err != nil {
+		t.Fatalf("CountsFromTiles error = %v", err)
+	}
+
+	for _, kind := range []tile.Kind{1, tile.KindCount, 255} {
+		if rest, ok := counts.WithoutOne(kind); ok || rest != counts {
+			t.Errorf("WithoutOne(%d) = %v, %v; want the counts unchanged, false", kind, rest.Array(), ok)
+		}
+	}
+}

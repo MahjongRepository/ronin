@@ -53,3 +53,13 @@ type TooManyCopiesError struct {
 func (e TooManyCopiesError) Error() string {
 	return "kind " + strconv.Itoa(int(e.Kind)) + " has more than 4 tiles"
 }
+
+// WithoutOne returns c with one tile of kind taken out, and false when c holds none of kind or kind
+// is past the last kind.
+func (c Counts) WithoutOne(kind Kind) (Counts, bool) {
+	if int(kind) >= KindCount || c.counts[kind] == 0 {
+		return c, false
+	}
+	c.counts[kind]--
+	return c, true
+}
