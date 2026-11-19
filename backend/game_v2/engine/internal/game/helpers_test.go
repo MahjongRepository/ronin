@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/game"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/testkit"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
@@ -239,4 +240,62 @@ func containsAction(actions []play.Action, action play.Action) bool {
 
 func refusal(kind play.RefusalKind, code play.RefusalCode) play.Refusal {
 	return play.Refusal{Kind: kind, Code: code}
+}
+
+func turnSeat(t *testing.T, g game.Game) tile.Seat {
+	t.Helper()
+	s, ok := testkit.TurnSeat(g)
+	if !ok {
+		t.Fatal("no turn is awaited")
+	}
+	return s
+}
+
+func doraFreeUra(t *testing.T) tile.TileID {
+	t.Helper()
+	return tileOf(t, 3, "7z")
+}
+
+func dragonFillers(t *testing.T) []tile.TileID {
+	t.Helper()
+	return slices.Concat(copies(t, 0, "5z"), copies(t, 1, "7z"), copies(t, 0, "7z"), copies(t, 3, "4z"))
+}
+
+func goAroundGame(
+	t *testing.T, hands [tile.SeatCount][]tile.TileID, drawsAfter []tile.TileID, start play.Option[play.StartPosition],
+	dora tile.TileID,
+) game.Game {
+	t.Helper()
+	w := testkit.StartWall{
+		Hands: hands,
+		Draws: slices.Concat(dragonFillers(t), drawsAfter),
+		Dora:  play.Some(dora),
+		Ura:   []tile.TileID{doraFreeUra(t)},
+	}
+	g, _ := discardDrawn(t, begun(t, w, start), tile.SeatCount)
+	return g
+}
+
+func sticksPaidScores(riichiSticks int) [tile.SeatCount]int {
+	scores := [tile.SeatCount]int{rules.StartingScore, rules.StartingScore, rules.StartingScore, rules.StartingScore}
+	for i := range riichiSticks {
+		scores[i%tile.SeatCount] -= rules.RiichiStickValue
+	}
+	return scores
+}
+
+func yakumanCount(value play.Value) int {
+	yakuman, _ := value.(play.Yakuman)
+	return yakuman.Count
+}
+
+func roundEnded(t *testing.T, events []play.Emitted) play.RoundEnded {
+	t.Helper()
+	for _, emitted := range events {
+		if ended, ok := emitted.Event.(play.RoundEnded); ok {
+			return ended
+		}
+	}
+	t.Fatal("the events end no round")
+	return play.RoundEnded{}
 }
