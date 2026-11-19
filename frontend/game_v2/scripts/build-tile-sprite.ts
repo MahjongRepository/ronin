@@ -3,11 +3,11 @@ import { readFile, readdir, writeFile } from "node:fs/promises";
 import { loadConfig, optimize } from "svgo";
 
 import { TILE_FACES_SET } from "../src/entities/tile/lib/tile-config.ts";
+import { faceViewBox, measureInkCentresX } from "./tile-ink-centre.ts";
 
 const name = process.argv[2] ?? TILE_FACES_SET;
 const TILES_DIR = new URL(`../src/assets/tiles/faces/${name}/`, import.meta.url);
 const OUTPUT = new URL(`../src/assets/tiles/sprites/${name}.svg`, import.meta.url);
-const VIEWBOX = "0 0 300 400";
 
 /**
  * Extract the inner content from an SVG string (everything between the root
@@ -36,17 +36,21 @@ async function main(): Promise<void> {
     const files = entries.filter((f) => f.endsWith(".svg")).toSorted();
 
     let totalRawBytes = 0;
-    const symbols: string[] = [];
+    const inners: string[] = [];
 
     for (const file of files) {
         const raw = await readFile(new URL(file, TILES_DIR), "utf8");
         totalRawBytes += Buffer.byteLength(raw);
 
         const result = optimize(raw, { ...config, path: file });
-        const inner = extractSvgInner(result.data);
-        const id = `tile-${file.replace(".svg", "")}`;
-        symbols.push(`<symbol id="${id}" viewBox="${VIEWBOX}">${inner}</symbol>`);
+        inners.push(extractSvgInner(result.data));
     }
+
+    const inkCentres = await measureInkCentresX(inners);
+    const symbols = files.map((file, index) => {
+        const id = `tile-${file.replace(".svg", "")}`;
+        return `<symbol id="${id}" viewBox="${faceViewBox(inkCentres[index])}">${inners[index]}</symbol>`;
+    });
 
     const sprite = [
         '<svg xmlns="http://www.w3.org/2000/svg" style="display:none">',

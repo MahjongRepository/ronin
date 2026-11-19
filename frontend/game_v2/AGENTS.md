@@ -79,8 +79,11 @@ the lowest layer allowed to hold it. `src/fixtures/` is generated data; only sto
   media query's choice alone; the session runs on under it. The board cannot lay out without `:has()`, container
   queries, `dvh` and `@property`: `supportsBoardCss` checks them, and a browser lacking one gets a notice instead of
   any page (the lobby's copy shows a banner). A new CSS feature the layout depends on joins that check.
-* `npm run sprite` rebuilds the committed tile sprite after a tile SVG changes; never hand-edit it. The active tile
-  set is `entities/tile/lib/tile-config.ts`'s alone. `npm run bodies` rebuilds the tile bodies' sprite (`bodies.svg`)
+* `npm run sprite` rebuilds the committed tile sprite after a tile SVG changes; never hand-edit it. It weighs each
+  face's ink in Chromium and shifts its symbol's viewBox so the ink's weight is centred across: a glyph reads centred
+  by its heavy strokes, not its outermost tips, and the runtime then centres art by its box alone
+  (`FACE_ART_SUIT_SCALE` sets only a suit's scale and height). The active tile set is
+  `entities/tile/lib/tile-config.ts`'s alone. `npm run bodies` rebuilds the tile bodies' sprite (`bodies.svg`)
   from `entities/tile/lib/tile-body.ts`, whose shares the geometry reads too. `index.ts` bundles it raw and injects it
   before the first render as a rendered zero-size `<svg>`: gradients, masks and clips inside `display: none` paint
   nothing through `<use>`.

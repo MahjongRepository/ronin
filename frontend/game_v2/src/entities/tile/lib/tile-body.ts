@@ -151,11 +151,11 @@ const FACE_ART_VIEW = { height: 400, width: 300 } as const;
 type FaceSuit = "m" | "p" | "s" | "z";
 
 const FACE_ART_SUIT_SCALE = {
-    m: { inkCentreX: 149, inkCentreY: 189.5, scale: 1.04 },
-    p: { inkCentreX: 150, inkCentreY: 200, scale: 1 },
-    s: { inkCentreX: 150, inkCentreY: 200, scale: 1 },
-    z: { inkCentreX: 150, inkCentreY: 200, scale: 1 },
-} as const satisfies Record<FaceSuit, { inkCentreX: number; inkCentreY: number; scale: number }>;
+    m: { inkCentreY: 189.5, scale: 1.04 },
+    p: { inkCentreY: 200, scale: 1 },
+    s: { inkCentreY: 200, scale: 1 },
+    z: { inkCentreY: 200, scale: 1 },
+} as const satisfies Record<FaceSuit, { inkCentreY: number; scale: number }>;
 
 interface FaceBox {
     readonly height: number;
@@ -277,10 +277,10 @@ function tileBody({ end, lay, material, sideways, turn }: TileBodyRequest): Tile
 }
 
 function faceArtViewBox(suit: FaceSuit): FaceBox {
-    const { inkCentreX, inkCentreY, scale } = FACE_ART_SUIT_SCALE[suit];
+    const { inkCentreY, scale } = FACE_ART_SUIT_SCALE[suit];
     const width = FACE_ART_VIEW.width / scale;
     const height = FACE_ART_VIEW.height / scale;
-    return { height, left: inkCentreX - width / 2, top: inkCentreY - height / 2, width };
+    return { height, left: (FACE_ART_VIEW.width - width) / 2, top: inkCentreY - height / 2, width };
 }
 
 export {
