@@ -44,31 +44,13 @@ function userLinks(user: SessionUser, path: string): TemplateResult {
         ${user.isAdmin ? adminItem(path) : nothing}`;
 }
 
-function adminIcon(): TemplateResult {
-    return html`<svg
-        class="lobby-nav-icon"
-        viewBox="0 0 16 16"
-        aria-hidden="true"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-    >
-        <path d="M2.5 13.5h11" />
-        <path d="M4.5 13.5v-4M8 13.5v-9M11.5 13.5v-6" />
-    </svg>`;
-}
-
 function adminItem(path: string): TemplateResult {
     return html`<li>
         <a
             href=${MONITORING_PATH}
-            class="lobby-nav-link lobby-admin-link"
-            aria-label=${t("nav.admin")}
-            title=${t("nav.admin")}
+            class="lobby-nav-link"
             aria-current=${currentPage(path, MONITORING_PATH)}
-            >${adminIcon()}<span class="lobby-admin-label">${t("nav.admin")}</span></a
+            >${t("nav.admin")}</a
         >
     </li>`;
 }
@@ -96,27 +78,119 @@ function cogIcon(): TemplateResult {
     </svg>`;
 }
 
-function settingsItem(user: SessionUser, path: string): TemplateResult {
-    return html`<li class="lobby-settings-item">
-        <a
-            href=${SETTINGS_PATH}
-            class="lobby-nav-link lobby-settings-link"
-            aria-label=${t("nav.account_settings", { username: user.username })}
-            title=${t("nav.settings")}
-            aria-current=${currentPage(path, SETTINGS_PATH)}
-            >${cogIcon()}<span class="lobby-username" title=${user.username}>${user.username}</span></a
-        >
-    </li>`;
+function personIcon(): TemplateResult {
+    return html`<svg
+        class="lobby-account-icon"
+        viewBox="0 0 16 16"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <circle cx="8" cy="5.5" r="2.75" />
+        <path d="M2.75 14c0-2.9 2.35-4.75 5.25-4.75s5.25 1.85 5.25 4.75" />
+    </svg>`;
 }
 
-function accountItems(user: SessionUser, path: string): TemplateResult {
-    return html`${settingsItem(user, path)}
-        <li>
-            <form method="POST" action="/logout" @submit=${postCurrentCsrfToken}>
-                <input type="hidden" name="csrf_token" value=${readCsrfToken()} />
-                <button type="submit" class="lobby-logout">${t("nav.log_out")}</button>
-            </form>
-        </li>`;
+function chevronIcon(): TemplateResult {
+    return html`<svg
+        class="lobby-account-chevron"
+        viewBox="0 0 16 16"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.75"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <path d="M4 6l4 4 4-4" />
+    </svg>`;
+}
+
+function logoutIcon(): TemplateResult {
+    return html`<svg
+        class="lobby-account-item-icon"
+        viewBox="0 0 16 16"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <path d="M6.5 2.5h-3.5v11h3.5" />
+        <path d="M7 8h6.5M11 5.5l2.5 2.5-2.5 2.5" />
+    </svg>`;
+}
+
+interface AccountMenu {
+    readonly open: boolean;
+    readonly close: () => void;
+    readonly closeAndFocusToggle: () => void;
+    readonly toggle: () => void;
+}
+
+const ACCOUNT_PANEL_ID = "lobby-account-panel";
+
+function closeOnEscape(menu: AccountMenu): (event: KeyboardEvent) => void {
+    return (event) => {
+        if (event.key !== "Escape" || !menu.open) {
+            return;
+        }
+        event.preventDefault();
+        menu.closeAndFocusToggle();
+    };
+}
+
+function closeOnItemChoice(menu: AccountMenu): (event: MouseEvent) => void {
+    return (event) => {
+        if (event.target instanceof Element && event.target.closest("a, button")) {
+            menu.close();
+        }
+    };
+}
+
+function accountPanel(user: SessionUser, path: string, menu: AccountMenu): TemplateResult {
+    return html`<div
+        id=${ACCOUNT_PANEL_ID}
+        class="lobby-account-panel"
+        ?hidden=${!menu.open}
+        @click=${closeOnItemChoice(menu)}
+    >
+        <p class="lobby-account-name">${user.username}</p>
+        <a
+            href=${SETTINGS_PATH}
+            class="lobby-account-item"
+            aria-current=${currentPage(path, SETTINGS_PATH)}
+            >${cogIcon()}<span>${t("nav.settings")}</span></a
+        >
+        <hr class="lobby-account-divider" />
+        <form method="POST" action="/logout" @submit=${postCurrentCsrfToken}>
+            <input type="hidden" name="csrf_token" value=${readCsrfToken()} />
+            <button type="submit" class="lobby-account-item">
+                ${logoutIcon()}<span>${t("nav.log_out")}</span>
+            </button>
+        </form>
+    </div>`;
+}
+
+function accountItems(user: SessionUser, path: string, menu: AccountMenu): TemplateResult {
+    return html`<li class="lobby-account-menu" @keydown=${closeOnEscape(menu)}>
+        <button
+            type="button"
+            class="lobby-account-toggle"
+            aria-expanded=${menu.open ? "true" : "false"}
+            aria-controls=${ACCOUNT_PANEL_ID}
+            aria-label=${t("nav.account_menu", { username: user.username })}
+            @click=${menu.toggle}
+        >
+            ${personIcon()}<span class="lobby-username" title=${user.username}>${user.username}</span
+            >${chevronIcon()}
+        </button>
+        ${accountPanel(user, path, menu)}
+    </li>`;
 }
 
 function signInItems(url: URL): TemplateResult {
@@ -137,14 +211,18 @@ function signInItems(url: URL): TemplateResult {
         </li>`;
 }
 
-function rightItems(session: Session | undefined, url: URL): TemplateResult | typeof nothing {
+function rightItems(
+    session: Session | undefined,
+    url: URL,
+    menu: AccountMenu,
+): TemplateResult | typeof nothing {
     if (session === undefined) {
         return nothing;
     }
-    return session.user ? accountItems(session.user, url.pathname) : signInItems(url);
+    return session.user ? accountItems(session.user, url.pathname, menu) : signInItems(url);
 }
 
-function navTemplate(session: Session | undefined, url: URL): TemplateResult {
+function navTemplate(session: Session | undefined, url: URL, menu: AccountMenu): TemplateResult {
     const user = session?.user ?? null;
     return html`<ul>
             <li>
@@ -156,7 +234,7 @@ function navTemplate(session: Session | undefined, url: URL): TemplateResult {
             ${user ? userLinks(user, url.pathname) : nothing}
         </ul>
         <ul class=${user ? "lobby-account" : nothing}>
-            ${rightItems(session, url)}
+            ${rightItems(session, url, menu)}
         </ul>`;
 }
 
@@ -218,11 +296,41 @@ export function startChrome(
     onLanguageSwitched: () => void,
 ): Chrome {
     let session: Session | undefined = undefined;
+    let accountOpen = false;
+
+    function setAccountOpen(open: boolean): void {
+        accountOpen = open;
+        drawChrome();
+    }
+
+    function accountMenu(): AccountMenu {
+        return {
+            close: () => setAccountOpen(false),
+            closeAndFocusToggle: () => {
+                setAccountOpen(false);
+                mounts.nav.querySelector<HTMLButtonElement>(".lobby-account-toggle")?.focus();
+            },
+            open: accountOpen,
+            toggle: () => setAccountOpen(!accountOpen),
+        };
+    }
+
+    function closeOnOutsideClick(event: MouseEvent): void {
+        const menu = mounts.nav.querySelector(".lobby-account-menu");
+        if (accountOpen && !(event.target instanceof Node && menu?.contains(event.target))) {
+            setAccountOpen(false);
+        }
+    }
 
     function renderChrome(): void {
+        accountOpen = false;
+        drawChrome();
+    }
+
+    function drawChrome(): void {
         const url = new URL(window.location.href);
         mounts.nav.setAttribute("aria-label", t("nav.aria_label"));
-        render(navTemplate(session, url), mounts.nav);
+        render(navTemplate(session, url, accountMenu()), mounts.nav);
         render(footerTemplate(meta, url.pathname, switchLanguage), mounts.footer);
         if (mounts.notice) {
             renderNotice(mounts.notice);
@@ -238,6 +346,7 @@ export function startChrome(
         onLanguageSwitched();
     }
 
+    document.addEventListener("click", closeOnOutsideClick);
     return {
         render: renderChrome,
         showSession(loaded) {

@@ -87,23 +87,6 @@
     }
 }
 
-.lobby-logout {
-    margin: 0;
-    padding: 0.35rem 0.5rem;
-    border: 0;
-    background: none;
-    box-shadow: none;
-    font-size: 0.8rem;
-    font-weight: 400;
-    color: var(--ronin-text-secondary);
-    white-space: nowrap;
-
-    &:hover {
-        background: var(--ronin-surface-elevated);
-        color: var(--pico-color);
-    }
-}
-
 .lobby-username {
     flex: 0 1 auto;
     min-width: 0;
@@ -115,55 +98,6 @@
     white-space: nowrap;
 
     @media (width <= 360px) {
-        display: none;
-    }
-}
-
-.lobby-settings-item {
-    --lobby-link-inset: var(--pico-nav-element-spacing-horizontal);
-    --lobby-link-overhang: var(--pico-nav-link-spacing-horizontal);
-
-    min-width: calc(
-        var(--ronin-touch-target) - 2 * (var(--lobby-link-overhang) - var(--lobby-link-inset))
-    );
-}
-
-.lobby-nav .lobby-settings-link {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    min-width: 0;
-
-    .lobby-username {
-        color: inherit;
-    }
-
-    &[aria-current="page"] .lobby-username {
-        padding-bottom: 0.6em;
-        margin-bottom: -0.6em;
-        text-decoration: underline 2px var(--pico-primary);
-        text-underline-offset: 0.45em;
-    }
-}
-
-.lobby-nav-icon {
-    display: none;
-    flex: none;
-    width: 1.1rem;
-    height: 1.1rem;
-}
-
-@media (width <= 576px) {
-    .lobby-nav .lobby-admin-link {
-        justify-content: center;
-        min-width: var(--ronin-touch-target);
-    }
-
-    .lobby-admin-link .lobby-nav-icon {
-        display: block;
-    }
-
-    .lobby-admin-label {
         display: none;
     }
 }
@@ -200,15 +134,152 @@
 
 @media (width <= 576px), (pointer: coarse) {
     .lobby-nav .lobby-nav-link,
-    .lobby-logout {
+    .lobby-nav .lobby-account-toggle {
         display: inline-flex;
         align-items: center;
         min-height: var(--ronin-touch-target);
     }
 
-    .lobby-nav .lobby-settings-link {
-        display: flex;
-        justify-content: center;
+    .lobby-nav .lobby-account-toggle {
         min-width: var(--ronin-touch-target);
+        justify-content: center;
     }
+
+    .lobby-nav .lobby-account-item {
+        min-height: var(--ronin-touch-target);
+    }
+}
+
+.lobby-account-menu {
+    position: relative;
+    min-width: calc(var(--ronin-touch-target) + 2 * var(--pico-nav-element-spacing-horizontal));
+}
+
+.lobby-nav .lobby-account-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: var(--ronin-text-secondary);
+    background: none;
+    border: 0;
+    box-shadow: none;
+
+    .lobby-username {
+        color: inherit;
+    }
+
+    &:hover,
+    &[aria-expanded="true"] {
+        color: var(--pico-color);
+        background: var(--ronin-surface-elevated);
+    }
+
+    &:active {
+        background: var(--ronin-surface-overlay);
+    }
+}
+
+.lobby-account-icon {
+    flex: none;
+    width: 1rem;
+    height: 1rem;
+}
+
+.lobby-account-chevron {
+    flex: none;
+    width: 0.75rem;
+    height: 0.75rem;
+    transition: transform 0.15s ease;
+
+    [aria-expanded="true"] > & {
+        transform: rotate(180deg);
+    }
+}
+
+.lobby-account-panel {
+    position: absolute;
+    top: calc(100% - var(--pico-nav-element-spacing-vertical) + 0.35rem);
+    right: var(--pico-nav-element-spacing-horizontal);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    width: max-content;
+    min-width: 12rem;
+    max-width: min(18rem, calc(100vw - 2rem));
+    padding: 0.35rem;
+    color: var(--pico-color);
+    background: var(--ronin-surface-elevated);
+    border: 1px solid var(--ronin-border);
+    border-radius: var(--ronin-radius-md);
+    box-shadow: 0 0.5rem 1.5rem color-mix(in srgb, var(--pico-background-color) 80%, transparent);
+
+    &[hidden] {
+        display: none;
+    }
+
+    form {
+        margin: 0;
+    }
+}
+
+.lobby-account-name {
+    margin: 0;
+    padding: 0.4rem 0.6rem 0.3rem;
+    overflow-wrap: anywhere;
+    font-size: 0.8rem;
+    color: var(--ronin-text-muted);
+}
+
+.lobby-nav .lobby-account-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    margin: 0;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 400;
+    text-align: left;
+    text-decoration: none;
+    color: var(--pico-color);
+    background: none;
+    border: 0;
+    border-radius: var(--ronin-radius-sm);
+    box-shadow: none;
+
+    &:hover {
+        color: var(--pico-color);
+        background: var(--ronin-surface-overlay);
+    }
+
+    &:active {
+        background: var(--ronin-border);
+    }
+
+    &[aria-current="page"] {
+        color: var(--pico-primary);
+    }
+
+    &:focus-visible {
+        outline-offset: -2px;
+    }
+}
+
+.lobby-account-item-icon {
+    flex: none;
+    width: 1rem;
+    height: 1rem;
+}
+
+.lobby-account-divider {
+    margin: 0.2rem 0;
+    border: 0;
+    border-top: 1px solid var(--ronin-border);
 }

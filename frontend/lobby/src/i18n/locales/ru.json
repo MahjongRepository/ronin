@@ -213,7 +213,7 @@
     "monitoring.unit.per_minute": "{value}/мин",
     "monitoring.unit.per_second": "{value}/с",
     "monitoring.unit.percent": "{value} %",
-    "nav.account_settings": "{username}, настройки",
+    "nav.account_menu": "{username}, меню аккаунта",
     "nav.admin": "Админка",
     "nav.aria_label": "Основное меню",
     "nav.beta": "Beta",

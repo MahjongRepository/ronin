@@ -57,6 +57,24 @@ function navHrefs(nav: HTMLElement): (string | null)[] {
     return [...nav.querySelectorAll("a")].map((link) => link.getAttribute("href"));
 }
 
+function openAccountMenu(nav: HTMLElement): { expanded: string | null; items: string[] } {
+    const toggle = nav.querySelector<HTMLButtonElement>(".lobby-account-toggle");
+    toggle?.click();
+    const panel = nav.querySelector<HTMLElement>(".lobby-account-panel:not([hidden])");
+    return {
+        expanded: toggle?.getAttribute("aria-expanded") ?? null,
+        items: [...(panel?.querySelectorAll(".lobby-account-item") ?? [])].map(
+            (item) => item.textContent?.trim() ?? "",
+        ),
+    };
+}
+
+function pressEscapeInAccountPanel(nav: HTMLElement): void {
+    const settings = nav.querySelector<HTMLAnchorElement>(".lobby-account-panel a");
+    settings?.focus();
+    settings?.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
+}
+
 afterEach(() => {
     document.body.replaceChildren();
     document.head.replaceChildren();
@@ -78,6 +96,21 @@ describe("startChrome", () => {
         expect(navHrefs(nav)).toEqual(["/", "/history", "/admin/monitoring", "/settings"]);
         expect(nav.querySelector(".lobby-username")?.textContent).toBe("dev");
         expect(postedToken).toBe("rotated-token");
+    });
+
+    it("opens the account panel with Settings and Log out, and Escape closes it onto its button", () => {
+        const { chrome, nav } = chromeOnPage();
+        chrome.showSession({ user: { isAdmin: false, isGuest: true, username: "Nanashi-1234" } });
+        const toggle = nav.querySelector<HTMLButtonElement>(".lobby-account-toggle");
+
+        const opened = openAccountMenu(nav);
+        pressEscapeInAccountPanel(nav);
+
+        expect(toggle?.getAttribute("aria-label")).toBe("Nanashi-1234, account menu");
+        expect(opened).toEqual({ expanded: "true", items: ["Settings", "Log out"] });
+        expect(nav.querySelector<HTMLElement>(".lobby-account-panel")?.hidden).toBe(true);
+        expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+        expect(document.activeElement).toBe(toggle);
     });
 
     it("switches language by cookie and page lang, re-rendering the view without a remount, once", () => {

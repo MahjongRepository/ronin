@@ -189,7 +189,7 @@
     "monitoring.unit.per_minute": "{value}/分",
     "monitoring.unit.per_second": "{value}/秒",
     "monitoring.unit.percent": "{value}%",
-    "nav.account_settings": "{username}、設定",
+    "nav.account_menu": "{username}、アカウントメニュー",
     "nav.admin": "管理",
     "nav.aria_label": "メイン",
     "nav.beta": "Beta",
