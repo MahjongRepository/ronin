@@ -453,7 +453,6 @@ def test_tournament_create__when_admin_posts_name__should_list_it_and_open_its_p
     page = client.get(f"/api/lobby/tournaments/{tournament_id}").json()
     assert page == {
         "name": "Spring Cup",
-        "share_url": f"http://testserver/tournaments/{tournament_id}",
         "ws_url": f"ws://testserver/ws/tournaments/{tournament_id}",
         "chat_max_length": 1000,
         "name_max_length": 80,

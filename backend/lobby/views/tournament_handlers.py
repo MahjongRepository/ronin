@@ -114,7 +114,6 @@ async def lobby_tournament(request: Request) -> JSONResponse:
     return JSONResponse(
         {
             "name": tournament.name,
-            "share_url": f"{request.url.scheme}://{request.url.netloc}/tournaments/{tournament.id}",
             "ws_url": lobby_websocket_url(request, f"/ws/tournaments/{tournament.id}"),
             "chat_max_length": CHAT_MAX_LENGTH,
             "name_max_length": TOURNAMENT_NAME_MAX_LENGTH,

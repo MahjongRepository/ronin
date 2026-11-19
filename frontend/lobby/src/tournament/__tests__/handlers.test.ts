@@ -9,6 +9,7 @@ import {
     handleMessage,
 } from "@/tournament/handlers";
 import {
+    type TournamentTab,
     createTournamentState,
     isConnectionLost,
     readTournamentConfigAnswer,
@@ -31,6 +32,7 @@ function mountPage(state: ReturnType<typeof createTournamentState>) {
                 actions: {
                     deleteTournament: () => {},
                     renameTournament: () => {},
+                    selectTab: () => {},
                     sendChat: () => false,
                 },
                 config: null,
@@ -215,18 +217,19 @@ describe("renderTournament", () => {
         isOwner: true,
         name: "Cup",
         nameMaxLength: 80,
-        shareUrl: "https://ronin.test/tournaments/cup",
         wsUrl: "wss://ronin.test/ws/tournaments/cup",
     };
 
-    function renderWith(isOwner: boolean): HTMLElement {
+    function renderWith(isOwner: boolean, tab: TournamentTab): HTMLElement {
         const state = createTournamentState();
         state.name = "Cup";
+        state.tab = tab;
         const container = document.createElement("div");
         renderTournament({
             actions: {
                 deleteTournament: () => {},
                 renameTournament: () => {},
+                selectTab: () => {},
                 sendChat: () => false,
             },
             config: { ...config, isOwner },
@@ -237,18 +240,18 @@ describe("renderTournament", () => {
         return container;
     }
 
-    test("shows the API hints, rename and delete to the owner only", () => {
-        const owner = renderWith(true);
-        const player = renderWith(false);
+    test("shows the owner a settings tab with rename and delete, and nobody else", () => {
+        const ownerTournament = renderWith(true, "tournament");
+        const ownerSettings = renderWith(true, "settings");
+        const player = renderWith(false, "settings");
 
-        expect(owner.querySelector(".tournament-owner-api")?.textContent).toContain(
-            "POST /api/tournaments/cup/games",
-        );
-        expect(owner.querySelector(".tournament-delete")).not.toBeNull();
-        expect(player.querySelector(".tournament-owner-api")).toBeNull();
-        expect(player.querySelector<HTMLInputElement>("#tournament-share-link")?.value).toBe(
-            config.shareUrl,
-        );
+        expect(ownerTournament.querySelectorAll('[role="tab"]')).toHaveLength(2);
+        expect(ownerTournament.querySelector(".tournament-delete")).toBeNull();
+        expect(ownerSettings.querySelector(".tournament-delete")).not.toBeNull();
+        expect(ownerSettings.querySelector(".tournament-chat, .room-panel")).toBeNull();
+        expect(player.querySelector('[role="tab"]')).toBeNull();
+        expect(player.querySelector(".tournament-delete")).toBeNull();
+        expect(player.querySelector(".room-panel")).not.toBeNull();
     });
 });
 

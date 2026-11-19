@@ -12,12 +12,15 @@ const PAGE_ERROR = {
 
 const TOURNAMENT_NOT_FOUND = "tournament_not_found";
 
+const TOURNAMENT_TABS = ["tournament", "settings"] as const;
+
+type TournamentTab = (typeof TOURNAMENT_TABS)[number];
+
 interface TournamentConfig {
     readonly chatMaxLength: number;
     readonly isOwner: boolean;
     readonly name: string;
     readonly nameMaxLength: number;
-    readonly shareUrl: string;
     readonly wsUrl: string;
 }
 
@@ -39,6 +42,7 @@ interface TournamentState {
     reconnectTimer: ReturnType<typeof setTimeout> | null;
     reconnecting: boolean;
     socket: LobbySocket | null;
+    tab: TournamentTab;
 }
 
 function createTournamentState(): TournamentState {
@@ -55,6 +59,7 @@ function createTournamentState(): TournamentState {
         reconnectTimer: null,
         reconnecting: false,
         socket: null,
+        tab: "tournament",
     };
 }
 
@@ -88,12 +93,10 @@ function parseTournamentConfig(data: unknown): TournamentConfig | null {
         is_owner: isOwner,
         name,
         name_max_length: nameMaxLength,
-        share_url: shareUrl,
         ws_url: wsUrl,
     } = data;
     if (
         !isFilledString(name) ||
-        !isFilledString(shareUrl) ||
         !isFilledString(wsUrl) ||
         typeof isOwner !== "boolean" ||
         !isPositiveInteger(chatMaxLength) ||
@@ -101,7 +104,7 @@ function parseTournamentConfig(data: unknown): TournamentConfig | null {
     ) {
         return null;
     }
-    return { chatMaxLength, isOwner, name, nameMaxLength, shareUrl, wsUrl };
+    return { chatMaxLength, isOwner, name, nameMaxLength, wsUrl };
 }
 
 function readTournamentConfigAnswer(result: ApiResult): TournamentConfigAnswer {
@@ -119,6 +122,7 @@ function parseRenamedName(data: unknown): string | null {
 export {
     PAGE_ERROR,
     TOURNAMENT_NOT_FOUND,
+    TOURNAMENT_TABS,
     createTournamentState,
     isConnectionLost,
     isLive,
@@ -126,4 +130,4 @@ export {
     parseRenamedName,
     readTournamentConfigAnswer,
 };
-export type { TournamentConfig, TournamentConfigAnswer, TournamentState };
+export type { TournamentConfig, TournamentConfigAnswer, TournamentState, TournamentTab };

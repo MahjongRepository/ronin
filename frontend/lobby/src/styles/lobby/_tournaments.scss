@@ -23,8 +23,30 @@
     overflow-wrap: anywhere;
 }
 
-.tournament-owner-api {
-    overflow-wrap: anywhere;
+.tournament-tabs {
+    display: flex;
+    gap: 1.5rem;
+    border-bottom: 1px solid var(--pico-muted-border-color);
+
+    [role="tab"] {
+        width: auto;
+        margin: 0 0 -1px;
+        padding: 0.5rem 0;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        background: none;
+        color: var(--pico-muted-color);
+    }
+
+    [role="tab"][aria-selected="true"] {
+        border-bottom-color: var(--pico-primary);
+        color: var(--pico-color);
+    }
+}
+
+.tournament-settings {
+    margin-block: 1.5rem 2rem;
 }
 
 .tournament-name {

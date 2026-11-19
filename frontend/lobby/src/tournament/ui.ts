@@ -1,12 +1,14 @@
 import { type TemplateResult, html, nothing, render } from "lit-html";
 
 import { chatComposerTemplate, chatLogTemplate, scrollChatToLatest } from "@/chat";
-import { t, tParts } from "@/i18n";
+import { type MessageKey, t } from "@/i18n";
 import { describeTournamentError } from "@/tournament/handlers";
 import {
     PAGE_ERROR,
+    TOURNAMENT_TABS,
     type TournamentConfig,
     type TournamentState,
+    type TournamentTab,
     isConnectionLost,
     isLive,
 } from "@/tournament/state";
@@ -14,6 +16,7 @@ import {
 interface TournamentActions {
     readonly deleteTournament: () => void;
     readonly renameTournament: (name: string) => void;
+    readonly selectTab: (tab: TournamentTab) => void;
     readonly sendChat: (text: string) => boolean;
 }
 
@@ -123,35 +126,38 @@ function panelsTemplate(page: TournamentPage): TemplateResult {
     `;
 }
 
-function headerTemplate(state: TournamentState, config: TournamentConfig | null): TemplateResult {
+const TAB_LABELS: Record<TournamentTab, MessageKey> = {
+    settings: "tournament.tab.settings",
+    tournament: "tournament.tab.tournament",
+};
+
+function tabsTemplate(page: TournamentPage): TemplateResult | typeof nothing {
+    const { actions, config, state } = page;
+    if (config === null || !config.isOwner || state.pageError) {
+        return nothing;
+    }
+    return html`
+        <div class="tournament-tabs" role="tablist">
+            ${TOURNAMENT_TABS.map(
+                (tab) => html`
+                    <button type="button" role="tab" id="tournament-tab-${tab}" aria-controls="tournament-panel" aria-selected=${tab === state.tab ? "true" : "false"} @click=${() => actions.selectTab(tab)}>
+                        ${t(TAB_LABELS[tab])}
+                    </button>
+                `,
+            )}
+        </div>
+    `;
+}
+
+function headerTemplate(page: TournamentPage): TemplateResult {
+    const { state } = page;
     return html`
         <section class="lobby-section">
             <div class="lobby-section-header">
                 <h2 class="tournament-name">${state.name ?? t("tournament.fallback_name")}</h2>
             </div>
-            ${
-                config === null
-                    ? nothing
-                    : html`<label for="tournament-share-link">${t("tournament.share_link")}
-                          <input type="text" id="tournament-share-link" .value=${config.shareUrl} readonly spellcheck="false" />
-                      </label>`
-            }
+            ${tabsTemplate(page)}
         </section>
-    `;
-}
-
-function code(text: string): TemplateResult {
-    return html`<code>${text}</code>`;
-}
-
-function apiHintsTemplate(tournamentId: string): TemplateResult {
-    return html`
-        <ul class="tournament-owner-api">
-            <li>${tParts("tournament.owner.id", { value: code(tournamentId) })}</li>
-            <li>${tParts("tournament.owner.start_games", { value: code(`POST /api/tournaments/${tournamentId}/games`) })}</li>
-            <li>${tParts("tournament.owner.state", { value: code(`GET /api/tournaments/${tournamentId}`) })}</li>
-            <li>${tParts("tournament.owner.events", { value: code(`/ws/tournaments/${tournamentId}/events`) })}</li>
-        </ul>
     `;
 }
 
@@ -166,8 +172,9 @@ function renameFormTemplate(page: TournamentPage, config: TournamentConfig): Tem
         }
     }
     return html`
+        <label for="tournament-rename-name">${t("lobby.tournament.name_label")}</label>
         <form class="lobby-tournament-form" @submit=${submitRename}>
-            <input type="text" name="name" .value=${state.name ?? config.name} required maxlength=${config.nameMaxLength} aria-label=${t("lobby.tournament.name_label")} autocomplete="off" />
+            <input type="text" id="tournament-rename-name" name="name" .value=${state.name ?? config.name} required maxlength=${config.nameMaxLength} autocomplete="off" />
             <button type="submit" class="outline" ?disabled=${state.ownerBusy}>${t("tournament.owner.rename")}</button>
         </form>
     `;
@@ -190,19 +197,10 @@ function deleteTemplate(page: TournamentPage): TemplateResult {
     `;
 }
 
-function ownerTemplate(page: TournamentPage): TemplateResult | typeof nothing {
-    const { config, state, tournamentId } = page;
-    if (config === null || !config.isOwner) {
-        return nothing;
-    }
-    const settingsLink = html`<a href="/settings">${t("nav.settings")}</a>`;
+function settingsTemplate(page: TournamentPage, config: TournamentConfig): TemplateResult {
+    const { state } = page;
     return html`
-        <section class="lobby-section">
-            <div class="lobby-section-header">
-                <h2>${t("tournament.owner.title")}</h2>
-            </div>
-            <p class="lobby-muted">${tParts("tournament.owner.intro", { settings: settingsLink })}</p>
-            ${apiHintsTemplate(tournamentId)}
+        <section class="lobby-section tournament-settings" id="tournament-panel" role="tabpanel" aria-labelledby="tournament-tab-settings">
             ${
                 state.ownerError === null
                     ? nothing
@@ -213,19 +211,33 @@ function ownerTemplate(page: TournamentPage): TemplateResult | typeof nothing {
     `;
 }
 
+function tournamentPanelTemplate(page: TournamentPage): TemplateResult {
+    const { state } = page;
+    return html`
+        <div class="tournament" id="tournament-panel" role=${page.config?.isOwner ? "tabpanel" : nothing} aria-labelledby=${page.config?.isOwner ? "tournament-tab-tournament" : nothing}>
+            ${noticeTemplate(state)}
+            ${state.pageError ? nothing : panelsTemplate(page)}
+        </div>
+    `;
+}
+
+function bodyTemplate(page: TournamentPage): TemplateResult {
+    const { config, state } = page;
+    if (state.tab === "settings" && config?.isOwner && !state.pageError) {
+        return settingsTemplate(page, config);
+    }
+    return tournamentPanelTemplate(page);
+}
+
 function renderTournament(page: TournamentPage): void {
-    const { config, container, state } = page;
+    const { container, state } = page;
     document.title = t("page.title.with_page", {
         page: state.name ?? t("tournament.fallback_name"),
     });
     render(
         html`
-            ${headerTemplate(state, config)}
-            <div class="tournament">
-                ${noticeTemplate(state)}
-                ${state.pageError ? nothing : panelsTemplate(page)}
-            </div>
-            ${state.pageError ? nothing : ownerTemplate(page)}
+            ${headerTemplate(page)}
+            ${bodyTemplate(page)}
         `,
         container,
     );

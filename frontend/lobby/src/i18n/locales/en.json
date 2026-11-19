@@ -305,13 +305,8 @@
     "tournament.owner.delete.open": "Delete this tournament…",
     "tournament.owner.delete.warning": "The tournament and its list of games are deleted for good, and everyone online on this page is disconnected. Games already running keep playing.",
     "tournament.owner.delete_failed": "The tournament could not be deleted. Try again.",
-    "tournament.owner.events": "Events WebSocket: {value}",
-    "tournament.owner.id": "Tournament id: {value}",
-    "tournament.owner.intro": "A tournament manager program runs this tournament with your API token. Get the token in {settings}.",
     "tournament.owner.rename": "Rename",
     "tournament.owner.rename_failed": "The tournament could not be renamed. Try again.",
-    "tournament.owner.start_games": "Start games: {value}",
-    "tournament.owner.state": "Tournament state: {value}",
-    "tournament.owner.title": "Tournament management",
-    "tournament.share_link": "Link to share"
+    "tournament.tab.settings": "Settings",
+    "tournament.tab.tournament": "Tournament"
 }

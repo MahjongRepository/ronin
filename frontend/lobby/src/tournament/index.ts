@@ -41,6 +41,7 @@ interface TournamentMount {
 const NO_ACTIONS: TournamentActions = {
     deleteTournament: () => {},
     renameTournament: () => {},
+    selectTab: () => {},
     sendChat: () => false,
 };
 
@@ -64,6 +65,10 @@ function buildActions(state: TournamentState, owner: OwnerContext): TournamentAc
     return {
         deleteTournament: () => void deleteTournament(state, owner),
         renameTournament: (name) => void renameTournament(state, owner, name),
+        selectTab: (tab) => {
+            state.tab = tab;
+            owner.render();
+        },
         sendChat: (text) => sendChat(state, text),
     };
 }

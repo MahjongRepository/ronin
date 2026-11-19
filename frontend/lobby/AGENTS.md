@@ -49,9 +49,9 @@ hidden for a while, or the browser coming back online, reconnects at once, since
 without a close event while the page is in the background. Matchmaking does not reconnect.
 
 The tournament page (`tournament/`) keeps the room's reconnect and binds its socket the same way.
-It holds no seat, so a reload only reconnects, and a language switch only redraws. Its owner section (the
-manager API hints, rename, delete) shows when `/api/lobby/tournaments/{id}` says `is_owner`; a delete goes to the
-lobby. The
+It holds no seat, so a reload only reconnects, and a language switch only redraws. Its Settings tab (rename,
+delete) shows when `/api/lobby/tournaments/{id}` says `is_owner`; switching tabs keeps the socket, so the owner
+stays online, and a delete goes to the lobby. The
 server's `history`, sent before `joined` on every join, replaces the chat log: it holds every line the
 page shows from a server event, as structured entries worded at render time, so a reload or reconnect
 loses only the lines the page made itself (its own "you're online", local errors). `chat.ts` holds the

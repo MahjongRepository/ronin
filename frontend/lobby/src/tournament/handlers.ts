@@ -363,7 +363,11 @@ function rejoinOnPageShow(state: TournamentState, rejoin: () => void): void {
         return;
     }
     cancelReconnect(state);
-    Object.assign(state, createTournamentState(), { name: state.name, socket: state.socket });
+    Object.assign(state, createTournamentState(), {
+        name: state.name,
+        socket: state.socket,
+        tab: state.tab,
+    });
     rejoin();
 }
 
