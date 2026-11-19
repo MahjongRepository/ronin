@@ -323,10 +323,14 @@ type block struct {
 }
 
 func blockOf(set Set) block {
-	if set.Shape == Sequence {
-		return block{set.Kind, sequenceBlock}
+	var shape blockShape
+	switch set.Shape {
+	case Sequence:
+		shape = sequenceBlock
+	case Triplet:
+		shape = tripletBlock
 	}
-	return block{set.Kind, tripletBlock}
+	return block{set.Kind, shape}
 }
 
 func (b block) compare(other block) int {
@@ -337,13 +341,16 @@ func (b block) compare(other block) int {
 }
 
 func (b block) kinds() []tile.Kind {
-	if b.shape == sequenceBlock {
-		return []tile.Kind{b.kind, b.kind + 1, b.kind + 2}
+	var kinds []tile.Kind
+	switch b.shape {
+	case tripletBlock:
+		kinds = []tile.Kind{b.kind, b.kind, b.kind}
+	case pairBlock:
+		kinds = []tile.Kind{b.kind, b.kind}
+	case sequenceBlock:
+		kinds = []tile.Kind{b.kind, b.kind + 1, b.kind + 2}
 	}
-	if b.shape == pairBlock {
-		return []tile.Kind{b.kind, b.kind}
-	}
-	return []tile.Kind{b.kind, b.kind, b.kind}
+	return kinds
 }
 
 type blockList struct {
