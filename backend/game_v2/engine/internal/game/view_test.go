@@ -279,15 +279,18 @@ func TestSeatView_ShouldShareNoSliceWithTheGame(t *testing.T) {
 	ponned, _ := script(t, riichi, act(seat(t, 2), firstPon(t, riichi, seat(t, 2))))
 	ronned, _ := script(t, threePinWithTwoRonCallers(t), act(seat(t, 0), play.RonAction()), act(seat(t, 3), play.RonAction()))
 
-	for name, g := range map[string]game.Game{"after a pon": ponned, "after a double ron": ronned} {
+	for _, c := range []struct {
+		name string
+		g    game.Game
+	}{{"after a pon", ponned}, {"after a double ron", ronned}} {
 		state := map[uintptr]bool{}
-		sliceArrays(reflect.ValueOf(g), state)
+		sliceArrays(reflect.ValueOf(c.g), state)
 		for _, s := range tile.Seats() {
 			view := map[uintptr]bool{}
-			sliceArrays(reflect.ValueOf(g.SeatView(s)), view)
+			sliceArrays(reflect.ValueOf(c.g.SeatView(s)), view)
 			for data := range view {
 				if state[data] {
-					t.Errorf("%s, seat %d: the view shares a slice with the game", name, s.Index())
+					t.Errorf("%s, seat %d: the view shares a slice with the game", c.name, s.Index())
 				}
 			}
 		}

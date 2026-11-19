@@ -82,7 +82,7 @@ func TestClone_ShouldShareNoSliceWithTheRecord(t *testing.T) {
 	assertNoSharedSlice(t, cloned, r)
 }
 
-func TestClone_WhenARoundIsInPlay_ShouldHaveNoResultAndNilForEmptySlices(t *testing.T) {
+func TestClone_WhenSlicesAreEmpty_ShouldMakeThemNil(t *testing.T) {
 	r := play.SeatRecord{Hand: []tile.TileID{}, History: []play.FinishedRound{}}
 
 	cloned := record.Clone(r)
