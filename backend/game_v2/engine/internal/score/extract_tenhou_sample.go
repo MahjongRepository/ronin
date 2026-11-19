@@ -6,7 +6,8 @@
 // than 60 times so far, each win once, with only the fields the tests read.
 //
 // Run from this directory: go run extract_tenhou_sample.go <agari dir>, the dir holding the
-// agari-000NN.jsonl shards that unpack_agari.py writes from the 2025 phoenix-room logs.
+// agari-000NN.jsonl shards that ~/work/mahjong-rs/thoughts/_benchmark/unpack_agari.py writes from
+// the 2025 phoenix-room logs into ~/work/mahjong-rs/thoughts/_benchmark/agari.
 package main
 
 import (

@@ -78,17 +78,23 @@ func paymentOf(value play.Value, win Win, seatWind tile.Wind, honba int, rules R
 }
 
 func limitAndShares(value play.Value, rules Rules) (play.Option[play.Limit], shares) {
-	han, isHan := value.(play.Han)
-	switch {
-	case isHan && han.Han >= manganHan:
-		limit, rounded := limitTier(han.Han)
-		return play.Some(limit), sharesOf(rounded)
-	case isHan:
-		return hanFuShares(han.Han, han.Fu, rules)
+	var limit play.Option[play.Limit]
+	var paid shares
+	switch v := value.(type) {
+	case play.Han:
+		limit, paid = hanShares(v, rules)
+	case play.Yakuman:
+		limit, paid = play.Some(play.LimitYakuman), sharesOf(yakumanBase*v.Count)
 	}
+	return limit, paid
+}
 
-	yakuman, _ := value.(play.Yakuman)
-	return play.Some(play.LimitYakuman), sharesOf(yakumanBase * yakuman.Count)
+func hanShares(value play.Han, rules Rules) (play.Option[play.Limit], shares) {
+	if value.Han < manganHan {
+		return hanFuShares(value.Han, value.Fu, rules)
+	}
+	limit, rounded := limitTier(value.Han)
+	return play.Some(limit), sharesOf(rounded)
 }
 
 func limitTier(han int) (play.Limit, int) {

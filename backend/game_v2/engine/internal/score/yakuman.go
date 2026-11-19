@@ -5,7 +5,6 @@ import "github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 const (
 	greenMask uint64 = 1<<19 | 1<<20 | 1<<21 | 1<<23 | 1<<25 | 1<<tile.KindHatsu
 
-	kokushiTiles         = 14
 	kokushiCountsProduct = 2
 	chuurenEndTiles      = 3
 )
@@ -19,7 +18,7 @@ func isKokushiMusou(counts [tile.KindCount]uint8) bool {
 	for _, kind := range tile.TerminalAndHonorKinds() {
 		product *= int(counts[kind])
 	}
-	return tiles == kokushiTiles && product == kokushiCountsProduct
+	return tiles == winningHandTiles && product == kokushiCountsProduct
 }
 
 func countRanks(counts [tile.KindCount]uint8) [suitRanks]int {

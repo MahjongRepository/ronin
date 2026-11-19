@@ -14,8 +14,7 @@ const (
 	honorSetTiles                          = 3
 	honorPairTiles                         = 2
 	toitoiTriplets                         = 4
-	suitsSpan                              = 9
-	lastSuitStartOffset                    = 2 * suitsSpan
+	lastSuitStartOffset                    = 2 * suitRanks
 	shousangenSets, shousuushiiSets        = 2, 3
 )
 
@@ -40,7 +39,7 @@ func isRoundWind(counts [tile.KindCount]uint8, wind tile.Kind, roundWind tile.Wi
 }
 
 func inEverySuit(kinds uint64) bool {
-	return kinds&(kinds>>suitsSpan)&(kinds>>lastSuitStartOffset)&manMask != 0
+	return kinds&(kinds>>suitRanks)&(kinds>>lastSuitStartOffset)&manMask != 0
 }
 
 func isSanshoku(sequences uint64) bool {

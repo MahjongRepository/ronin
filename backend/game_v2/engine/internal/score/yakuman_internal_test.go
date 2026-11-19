@@ -45,7 +45,7 @@ func TestHonorYakuman_WhenTheHandHoldsTheirSets_ShouldAccept(t *testing.T) {
 	}
 }
 
-func TestTileYakuman_WhenEveryKindFits_ShouldAccept(t *testing.T) {
+func TestTileYakuman_ShouldAcceptOnlyWhenEveryKindFits(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		check func(uint64) bool
