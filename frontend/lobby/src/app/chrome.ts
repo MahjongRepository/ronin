@@ -296,12 +296,12 @@ function footerTemplate(
     onLanguage: (locale: Locale) => void,
 ): TemplateResult {
     return html`<div class="footer-content">
-        <small class="footer-meta"
-            >&copy; ${meta.currentYear} Ronin &middot; ${versionTemplate(meta)} &middot;
+        <small class="footer-meta">
+            <span>&copy; ${meta.currentYear} Ronin</span>
+            <span>${versionTemplate(meta)}</span>
             <a href="/terms" aria-current=${currentPage(path, "/terms")}>${t("footer.terms")}</a>
-            &middot;
-            <a href="/privacy" aria-current=${currentPage(path, "/privacy")}>${t("footer.privacy")}</a></small
-        >
+            <a href="/privacy" aria-current=${currentPage(path, "/privacy")}>${t("footer.privacy")}</a>
+        </small>
         <form class="footer-lang" aria-label=${t("footer.language_label")}>${languageButtons(onLanguage)}</form>
         ${devLinksTemplate(meta)}
     </div>`;

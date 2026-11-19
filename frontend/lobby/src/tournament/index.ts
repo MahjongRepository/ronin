@@ -1,5 +1,6 @@
 import { type MountedView } from "@ronin/shared/router";
 
+import { redrawElapsedTimes } from "@/current-games";
 import { LobbySocket } from "@/lobby-socket";
 import { bindToPageLifetime, bindToResume } from "@/page-lifetime";
 import {
@@ -111,13 +112,15 @@ function openTournament(mount: TournamentMount, config: TournamentConfig): Mount
     function rejoin(): void {
         joinTournament(state, draw, config.wsUrl);
     }
-    const detach = attachSocket(state, draw, rejoin);
+    const stops = [attachSocket(state, draw, rejoin), redrawElapsedTimes(draw)];
     rejoin();
     return {
         rerender: draw,
         unmount: () => {
             disposed = true;
-            detach();
+            for (const stop of stops) {
+                stop();
+            }
         },
     };
 }

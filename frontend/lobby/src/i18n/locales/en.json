@@ -50,6 +50,9 @@
         "one": "{count} playing",
         "other": "{count} playing"
     },
+    "current_games.elapsed_hours": "{hours} h {minutes} min",
+    "current_games.elapsed_minutes": "{minutes} min",
+    "current_games.elapsed_new": "Just started",
     "current_games.empty": "No games are being played right now",
     "current_games.empty_hint": "Games show up here as soon as they start.",
     "current_games.title": "Current games",
@@ -99,9 +102,11 @@
     "lobby.error.create_failed": "Couldn't open a table. Try again.",
     "lobby.notice.table_gone": "That table is no longer open: its game started or everyone left.",
     "lobby.room.full": "Full",
-    "lobby.room.join": "Join table",
+    "lobby.room.join": "Join",
     "lobby.seated_hint": "You're seated at {table}.",
-    "lobby.tables.empty_hint": "Host one, or jump into a quick match.",
+    "lobby.tables.empty_hint": "{host}, or jump into a {quick_match}.",
+    "lobby.tables.empty_host": "Host one",
+    "lobby.tables.empty_quick_match": "quick match",
     "lobby.tables.empty_title": "No custom tables open",
     "lobby.tables.open_count": {
         "one": "{count} open",

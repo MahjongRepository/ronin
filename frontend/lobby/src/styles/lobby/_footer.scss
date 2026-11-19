@@ -20,13 +20,11 @@
 
 .footer-meta {
     grid-area: meta;
-    font-family: var(--ronin-font-mono);
-    font-size: 0.7rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    font-size: 0.8125rem;
     color: var(--pico-muted-color);
-
-    @media (width <= 576px) {
-        font-size: 0.75rem;
-    }
 
     @media (width > 576px) and (pointer: coarse) {
         display: flex;

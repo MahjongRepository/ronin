@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { type LobbyRooms, createLobbyState } from "@/lobby/state";
 import { renderLobby } from "@/lobby/ui";
@@ -36,6 +36,7 @@ function seatedHint(host: HTMLElement): (string | null | undefined)[] {
 }
 
 afterEach(() => {
+    vi.useRealTimers();
     document.body.replaceChildren();
 });
 
@@ -59,20 +60,22 @@ describe("renderLobby", () => {
         expect(seatedHint(startingHost)).toEqual(["Table", "/rooms/r2"]);
     });
 
-    it("lists each game being played with its wind and one column per seat, East to North", () => {
+    it("lists each game being played with its wind, time played and one column per seat, East to North", () => {
+        const now = new Date("2026-11-19T18:00:00Z");
+        vi.useFakeTimers({ now });
         const state = createLobbyState(null);
         state.games = [
             {
                 gameId: "g1",
                 gameType: "hanchan",
                 players: ["A", "B", "C", "D"],
-                startedAt: new Date(0),
+                startedAt: new Date(now.getTime() - 75 * 60_000 - 59_000),
             },
             {
                 gameId: "g2",
                 gameType: "tonpusen",
                 players: ["E", "F", "G", "H"],
-                startedAt: new Date(0),
+                startedAt: new Date(now.getTime() - 30_000),
             },
         ];
         const host = document.createElement("main");
@@ -84,11 +87,12 @@ describe("renderLobby", () => {
             games.map((game) => [
                 game.querySelector(".current-game-wind")?.textContent,
                 game.querySelector(".current-game-wind")?.getAttribute("title"),
+                game.querySelector("time")?.textContent,
                 [...game.querySelectorAll(".seat-name")].map((seat) => seat.textContent),
             ]),
         ).toEqual([
-            ["南", "Hanchan", ["A", "B", "C", "D"]],
-            ["東", "Tonpuu", ["E", "F", "G", "H"]],
+            ["南", "Hanchan", "1 h 15 min", ["A", "B", "C", "D"]],
+            ["東", "Tonpuu", "Just started", ["E", "F", "G", "H"]],
         ]);
         expect(host.querySelector(".current-games .lobby-table-count")?.textContent).toBe(
             "2 playing",

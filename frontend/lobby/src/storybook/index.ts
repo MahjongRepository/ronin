@@ -126,17 +126,17 @@ function storybookTemplate(): TemplateResult {
             <ul class="lobby-room-list">
                 <li class="lobby-room-row">
                     <span class="lobby-table-name">Jade Torii</span>
-                    <span class="seat-names"><span class="seat-name" title="dev">dev</span><span class="seat-name seat-name--free">Free seat</span><span class="seat-name seat-name--free">Free seat</span><span class="seat-name seat-name--free">Free seat</span></span>
-                    <button type="button" class="outline lobby-join-btn">Join table</button>
+                    <span class="seat-names"><span class="seat-name" title="dev">dev</span><span class="seat-name seat-name--free"><span class="lobby-visually-hidden">Free seat</span></span><span class="seat-name seat-name--free"><span class="lobby-visually-hidden">Free seat</span></span><span class="seat-name seat-name--free"><span class="lobby-visually-hidden">Free seat</span></span></span>
+                    <button type="button" class="lobby-join-btn lobby-join-btn--ghost">Join</button>
                 </li>
                 <li class="lobby-room-row">
                     <span class="lobby-table-name">Misty Onsen</span>
-                    <span class="seat-names"><span class="seat-name" title="a_very_long_username_for_tests">a_very_long_username_for_tests</span><span class="seat-name seat-name--free">Free seat</span><span class="seat-name seat-name--free">Free seat</span><span class="seat-name seat-name--free">Free seat</span></span>
-                    <button type="button" class="outline lobby-join-btn">Join table</button>
+                    <span class="seat-names"><span class="seat-name" title="a_very_long_username_for_tests">a_very_long_username_for_tests</span><span class="seat-name seat-name--free"><span class="lobby-visually-hidden">Free seat</span></span><span class="seat-name seat-name--free"><span class="lobby-visually-hidden">Free seat</span></span><span class="seat-name seat-name--free"><span class="lobby-visually-hidden">Free seat</span></span></span>
+                    <button type="button" class="lobby-join-btn lobby-join-btn--ghost">Join</button>
                 </li>
                 <li class="lobby-room-row lobby-room-row--mine">
                     <span class="lobby-table-name">Crimson Origami</span>
-                    <span class="seat-names"><span class="seat-name" title="dev">dev</span><span class="seat-name" title="dev2">dev2</span><span class="seat-name seat-name--free">Free seat</span><span class="seat-name" title="dev3">dev3</span></span>
+                    <span class="seat-names"><span class="seat-name" title="dev">dev</span><span class="seat-name" title="dev2">dev2</span><span class="seat-name seat-name--free"><span class="lobby-visually-hidden">Free seat</span></span><span class="seat-name" title="dev3">dev3</span></span>
                     <a href="#" role="button" class="lobby-join-btn">Back to your table</a>
                 </li>
                 <li class="lobby-room-row">

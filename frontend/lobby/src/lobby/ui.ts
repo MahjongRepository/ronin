@@ -73,7 +73,7 @@ function joinTemplate(room: LobbyRoom, isMine: boolean): TemplateResult {
         >`;
     }
     if (room.playerCount < ROOM_SEATS) {
-        return html`<a href=${roomPath(room.roomId)} role="button" class="outline lobby-join-btn"
+        return html`<a href=${roomPath(room.roomId)} role="button" class="lobby-join-btn lobby-join-btn--ghost"
             >${t("lobby.room.join")}</a
         >`;
     }
@@ -89,18 +89,28 @@ function roomRow(room: LobbyRoom, myRoomId: string | null): TemplateResult {
     </li>`;
 }
 
-function roomsListTemplate(rooms: LobbyRooms): TemplateResult {
+function emptyTablesHint(actions: LobbyActions): TemplateResult {
+    const host = html`<button type="button" class="lobby-link-btn" @click=${actions.createRoom}>
+        ${t("lobby.tables.empty_host")}
+    </button>`;
+    const quickMatch = html`<a href="/matchmaking">${t("lobby.tables.empty_quick_match")}</a>`;
+    return html`<p class="lobby-empty-hint">
+        ${tParts("lobby.tables.empty_hint", { host, quick_match: quickMatch })}
+    </p>`;
+}
+
+function roomsListTemplate(rooms: LobbyRooms, actions: LobbyActions): TemplateResult {
     return rooms.rooms.length > 0
         ? html`<ul class="lobby-room-list">
                   ${rooms.rooms.map((room) => roomRow(room, rooms.myRoomId))}
               </ul>`
         : html`<div class="lobby-empty lobby-empty--boxed">
                   <p class="lobby-empty-title">${t("lobby.tables.empty_title")}</p>
-                  <p class="lobby-empty-hint">${t("lobby.tables.empty_hint")}</p>
+                  ${emptyTablesHint(actions)}
               </div>`;
 }
 
-function tablesTemplate(rooms: LobbyRooms | null): TemplateResult {
+function tablesTemplate(rooms: LobbyRooms | null, actions: LobbyActions): TemplateResult {
     return html`<section class="lobby-section">
         <div class="lobby-section-header">
             <h2>${t("lobby.tables.title")}</h2>
@@ -113,7 +123,7 @@ function tablesTemplate(rooms: LobbyRooms | null): TemplateResult {
             }
         </div>
 
-        ${rooms ? roomsListTemplate(rooms) : nothing}
+        ${rooms ? roomsListTemplate(rooms, actions) : nothing}
     </section>`;
 }
 
@@ -125,7 +135,7 @@ function lobbyTemplate(state: LobbyState, actions: LobbyActions): TemplateResult
     return html`${state.notice ? alertTemplate("warning", state.notice) : nothing}
         ${state.createFailed ? alertTemplate("error", "lobby.error.create_failed") : nothing}
         ${seated ? seatedHint(seated) : nothing}
-        ${actionsTemplate(seated !== null, actions)} ${tablesTemplate(state.rooms)}
+        ${actionsTemplate(seated !== null, actions)} ${tablesTemplate(state.rooms, actions)}
         ${currentGamesTemplate(state.games, "lobby-games-title")}`;
 }
 

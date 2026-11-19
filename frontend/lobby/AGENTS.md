@@ -51,7 +51,7 @@ without a close event while the page is in the background. Matchmaking does not 
 The lobby view (`lobby/`) watches the games being played over `/ws/games` (`lobby/games-feed.ts`): each message
 is the whole list, which replaces the shown one, so a reconnect needs no catch-up. It reconnects with the room's
 backoff and resume and binds its socket the same way. `current-games.ts` reads and draws a games list, here and on
-the tournament page; the tournament socket carries no game type, so its games show only their start.
+the tournament page; the tournament socket carries no game type, so its games show only how long they have run (the view redraws it on a timer).
 
 The admin-only tournaments page (`tournaments/`, `/tournaments`) lists the admin's own tournaments and creates new
 ones. On phones the nav's admin links move into the account menu, so the bar never outgrows the narrowest screen.

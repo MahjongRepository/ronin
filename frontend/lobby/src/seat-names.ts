@@ -6,7 +6,9 @@ export function seatNamesTemplate(seats: readonly (string | null)[]): TemplateRe
     return html`<span class="seat-names">
         ${seats.map((name) =>
             name === null
-                ? html`<span class="seat-name seat-name--free">${t("seat.free")}</span>`
+                ? html`<span class="seat-name seat-name--free"
+                      ><span class="lobby-visually-hidden">${t("seat.free")}</span></span
+                  >`
                 : html`<span class="seat-name" title=${name}>${name}</span>`,
         )}
     </span>`;

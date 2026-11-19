@@ -48,6 +48,9 @@
     "current_games.count": {
         "other": "対局中 {count}"
     },
+    "current_games.elapsed_hours": "{hours}時間{minutes}分",
+    "current_games.elapsed_minutes": "{minutes}分",
+    "current_games.elapsed_new": "開始直後",
     "current_games.empty": "現在進行中の対局はありません",
     "current_games.empty_hint": "対局が始まると、ここに表示されます。",
     "current_games.title": "進行中の対局",
@@ -97,7 +100,9 @@
     "lobby.room.full": "満席",
     "lobby.room.join": "参加する",
     "lobby.seated_hint": "{table}に着席中です。",
-    "lobby.tables.empty_hint": "卓を立てるか、クイックマッチに参加できます。",
+    "lobby.tables.empty_hint": "{host}か、{quick_match}に参加できます。",
+    "lobby.tables.empty_host": "卓を立てる",
+    "lobby.tables.empty_quick_match": "クイックマッチ",
     "lobby.tables.empty_title": "募集中のカスタム卓はありません",
     "lobby.tables.open_count": {
         "other": "募集中 {count}"

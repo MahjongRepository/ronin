@@ -1,5 +1,6 @@
 import { type MountedView } from "@ronin/shared/router";
 
+import { redrawElapsedTimes } from "@/current-games";
 import { watchCurrentGames } from "@/lobby/games-feed";
 import { type LobbyViewContext, createRoom, loadRooms } from "@/lobby/handlers";
 import { type LobbyState, createLobbyState, noticeFromUrl } from "@/lobby/state";
@@ -55,11 +56,13 @@ export function mountLobbyView(host: HTMLElement, url: URL, deps: LobbyViewDeps)
     dropNoticeFromUrl(url);
     render();
     const stopWatchingGames = loadRoomsAndWatchGames(state, context);
+    const stopElapsedRedraw = redrawElapsedTimes(render);
     return {
         rerender: render,
         unmount: () => {
             disposed = true;
             stopWatchingGames();
+            stopElapsedRedraw();
         },
     };
 }

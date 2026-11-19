@@ -54,11 +54,36 @@ function windTemplate(gameType: string | null): TemplateResult {
     return html`<abbr class="current-game-wind" title=${t(nameKey)}>${wind}</abbr>`;
 }
 
-function gameRow(game: CurrentGame): TemplateResult {
+const ELAPSED_REDRAW_MS = 20_000;
+const MS_PER_MINUTE = 60_000;
+const MINUTES_PER_HOUR = 60;
+
+function formatElapsed(startedAt: Date, now: Date): string {
+    const minutes = Math.floor((now.getTime() - startedAt.getTime()) / MS_PER_MINUTE);
+    if (minutes < 1) {
+        return t("current_games.elapsed_new");
+    }
+    if (minutes < MINUTES_PER_HOUR) {
+        return t("current_games.elapsed_minutes", { minutes });
+    }
+    return t("current_games.elapsed_hours", {
+        hours: Math.floor(minutes / MINUTES_PER_HOUR),
+        minutes: minutes % MINUTES_PER_HOUR,
+    });
+}
+
+export function redrawElapsedTimes(redraw: () => void): () => void {
+    const timer = setInterval(redraw, ELAPSED_REDRAW_MS);
+    return () => clearInterval(timer);
+}
+
+function gameRow(game: CurrentGame, now: Date): TemplateResult {
     return html`<li class="current-game">
         <span class="current-game-meta">
             ${windTemplate(game.gameType)}
-            <time datetime=${game.startedAt.toISOString()}>${formatTime(game.startedAt)}</time>
+            <time datetime=${game.startedAt.toISOString()} title=${formatTime(game.startedAt)}
+                >${formatElapsed(game.startedAt, now)}</time
+            >
         </span>
         ${seatNamesTemplate(game.players)}
     </li>`;
@@ -71,8 +96,9 @@ function gamesListTemplate(games: readonly CurrentGame[]): TemplateResult {
             <p class="lobby-empty-hint">${t("current_games.empty_hint")}</p>
         </div>`;
     }
+    const now = new Date();
     return html`<ul class="current-games-list">
-        ${games.map((game) => gameRow(game))}
+        ${games.map((game) => gameRow(game, now))}
     </ul>`;
 }
 

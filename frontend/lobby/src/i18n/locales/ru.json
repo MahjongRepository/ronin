@@ -54,6 +54,9 @@
         "one": "идёт: {count}",
         "other": "идёт: {count}"
     },
+    "current_games.elapsed_hours": "{hours} ч {minutes} мин",
+    "current_games.elapsed_minutes": "{minutes} мин",
+    "current_games.elapsed_new": "Только началась",
     "current_games.empty": "Сейчас никто не играет",
     "current_games.empty_hint": "Игры появятся здесь, как только начнутся.",
     "current_games.title": "Текущие игры",
@@ -107,9 +110,11 @@
     "lobby.error.create_failed": "Не удалось создать стол. Попробуйте ещё раз.",
     "lobby.notice.table_gone": "Этот стол уже закрыт: игра началась или все игроки ушли.",
     "lobby.room.full": "Мест нет",
-    "lobby.room.join": "Сесть за стол",
+    "lobby.room.join": "Сесть",
     "lobby.seated_hint": "Вы сидите за столом «{table}».",
-    "lobby.tables.empty_hint": "Создайте свой или начните быструю игру.",
+    "lobby.tables.empty_hint": "{host} или начните {quick_match}.",
+    "lobby.tables.empty_host": "Создайте свой стол",
+    "lobby.tables.empty_quick_match": "быструю игру",
     "lobby.tables.empty_title": "Открытых столов нет",
     "lobby.tables.open_count": {
         "few": "открыто: {count}",

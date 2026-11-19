@@ -1,18 +1,18 @@
 [data-theme="dark"] {
-    --pico-background-color: #0d1415;
-    --pico-card-background-color: #131d1f;
-    --pico-card-sectioning-background-color: #192628;
-    --pico-color: #e8e4df;
-    --pico-muted-color: #959088;
+    --pico-background-color: #0b1112;
+    --pico-card-background-color: #141f20;
+    --pico-card-sectioning-background-color: #1a2627;
+    --pico-color: #e6ebe9;
+    --pico-muted-color: #8b9a97;
     --pico-muted-border-color: #2b3a3b;
     --ronin-text-secondary: #aab3b0;
     --ronin-text-muted: var(--pico-muted-color);
-    --pico-h1-color: #f3efe9;
-    --pico-h2-color: #ece8e2;
-    --pico-h3-color: #e0dbd4;
-    --pico-h4-color: #d6d0c8;
-    --pico-h5-color: #cfc9c1;
-    --pico-h6-color: #c8c2ba;
+    --pico-h1-color: #f1f4f3;
+    --pico-h2-color: #ebefee;
+    --pico-h3-color: #e0e6e4;
+    --pico-h4-color: #d5dcda;
+    --pico-h5-color: #ccd4d2;
+    --pico-h6-color: #c4cdca;
     --pico-primary: #7bb88a;
     --pico-primary-hover: #93c9a0;
     --pico-primary-underline: color-mix(in srgb, var(--pico-primary) 50%, transparent);
@@ -23,16 +23,16 @@
     --pico-primary-hover-background: #2b5c37;
     --pico-primary-hover-border: var(--pico-primary-hover-background);
     --pico-primary-inverse: #f5f3ef;
-    --pico-secondary: #b0aaa2;
-    --pico-secondary-hover: #d6d0c8;
+    --pico-secondary: #a9b4b1;
+    --pico-secondary-hover: #d5dcda;
     --pico-secondary-underline: color-mix(in srgb, var(--pico-secondary) 50%, transparent);
     --pico-secondary-hover-underline: var(--pico-secondary-hover);
     --pico-secondary-focus: transparent;
-    --pico-secondary-background: #2b2925;
-    --pico-secondary-border: #3d3a34;
-    --pico-secondary-hover-background: #36332e;
-    --pico-secondary-hover-border: #4a463f;
-    --pico-secondary-inverse: #e8e4df;
+    --pico-secondary-background: #1f2a2b;
+    --pico-secondary-border: #344445;
+    --pico-secondary-hover-background: #273435;
+    --pico-secondary-hover-border: #455657;
+    --pico-secondary-inverse: #e6ebe9;
     --pico-form-element-background-color: #10191b;
     --pico-form-element-active-background-color: #121c1e;
     --pico-form-element-border-color: var(--ronin-control-border);
@@ -54,17 +54,17 @@
     --ronin-danger-text: #e87b7b;
     --ronin-danger-inverse: #f5f3ef;
     --ronin-warning: #d4a04c;
-    --ronin-surface: #131d1f;
-    --ronin-surface-elevated: #192628;
+    --ronin-surface: #141f20;
+    --ronin-surface-elevated: #1a2627;
     --ronin-surface-overlay: #203032;
     --ronin-border: #2b3a3b;
-    --ronin-border-subtle: #1e2a2c;
-    --ronin-control-border: #6b665e;
+    --ronin-edge: color-mix(in srgb, white 6%, transparent);
+    --ronin-border-subtle: #1c2829;
+    --ronin-control-border: #63726f;
     --ronin-score-positive: #7bb88a;
     --ronin-score-negative: #d4726a;
     --ronin-radius-sm: 0.375rem;
     --ronin-radius-md: 0.5rem;
-    --ronin-radius-lg: 0.75rem;
     --ronin-radius-pill: 999px;
     --pico-border-radius: var(--ronin-radius-md);
     --ronin-touch-target: 2.75rem;
@@ -204,4 +204,13 @@ a[role="button"] {
     @media (width <= 360px) {
         padding-inline: 0.75rem;
     }
+}
+
+.lobby-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
 }

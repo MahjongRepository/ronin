@@ -82,7 +82,7 @@
     text-align: left;
     text-decoration: none;
     background: var(--ronin-surface);
-    border: 1px solid var(--ronin-control-border);
+    border: 1px solid var(--ronin-edge);
     border-radius: var(--ronin-radius-md);
     cursor: pointer;
     transition:
@@ -95,7 +95,7 @@
 
     @media (hover: hover) {
         &:hover {
-            border-color: var(--pico-secondary-hover);
+            border-color: var(--ronin-control-border);
             background: var(--ronin-surface-elevated);
         }
     }
@@ -196,8 +196,8 @@
     --lobby-row-lead: minmax(0, 12rem);
     --lobby-row-tail: 9rem;
 
-    border: 1px solid var(--ronin-border);
-    border-radius: var(--ronin-radius-lg);
+    border: 1px solid var(--ronin-edge);
+    border-radius: var(--ronin-radius-md);
     background: var(--ronin-surface);
     overflow: hidden;
 }
@@ -208,10 +208,17 @@
     align-items: center;
     gap: 1.25rem;
     min-height: 3.75rem;
+    position: relative;
     padding: 0.5rem 0.75rem 0.5rem 1.25rem;
 
     & + & {
         border-top: 1px solid var(--ronin-border-subtle);
+    }
+
+    @media (hover: hover) {
+        &:not(.lobby-room-row--mine):has(a.lobby-join-btn):hover {
+            background: var(--ronin-surface-elevated);
+        }
     }
 
     .lobby-table-name {
@@ -272,28 +279,46 @@
     color: var(--ronin-text-secondary);
 }
 
-.seat-name--free {
-    color: var(--pico-muted-color);
-    font-style: italic;
+.seat-name--free::before {
+    content: "";
+    display: inline-block;
+    width: 2rem;
+    height: 2px;
+    vertical-align: middle;
+    border-radius: 1px;
+    background: var(--ronin-border);
 }
 
 .lobby-join-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
+    justify-self: end;
     min-height: 2.25rem;
     margin-bottom: 0;
     padding: 0.375rem 1rem;
     font-size: 0.875rem;
     white-space: nowrap;
 
-    @media (width <= 576px), (pointer: coarse) {
-        min-height: var(--ronin-touch-target);
+    &.lobby-join-btn--ghost {
+        --pico-background-color: transparent;
+        --pico-border-color: transparent;
+        --pico-color: var(--pico-primary);
+
+        &:hover {
+            --pico-background-color: color-mix(in srgb, var(--pico-primary) 14%, transparent);
+            --pico-color: var(--pico-primary-hover);
+        }
+
+        &::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+        }
     }
 
-    @media (width <= 576px) {
-        width: auto;
+    @media (width <= 576px), (pointer: coarse) {
+        min-height: var(--ronin-touch-target);
     }
 }
 
@@ -377,14 +402,34 @@
         font-size: 0.875rem;
     }
 
+    .lobby-link-btn {
+        width: auto;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: var(--pico-primary);
+        font: inherit;
+        letter-spacing: inherit;
+        text-decoration: underline;
+        text-decoration-color: var(--pico-primary-underline);
+        text-underline-offset: 0.2em;
+        cursor: pointer;
+
+        &:hover {
+            color: var(--pico-primary-hover);
+        }
+    }
+
     [role="button"] {
         margin-top: 1rem;
     }
 
     &.lobby-empty--boxed {
-        padding: 1.25rem;
-        border: 1px dashed var(--ronin-border);
-        border-radius: var(--ronin-radius-lg);
+        padding: 1rem 1.25rem;
+        border: 1px solid var(--ronin-edge);
+        border-radius: var(--ronin-radius-md);
+        background: var(--ronin-surface);
 
         p:last-child {
             margin-bottom: 0;
