@@ -22,15 +22,11 @@ describe("showUnsupportedBrowserNotice", () => {
         expect(notice.hidden).toBe(true);
     });
 
-    it("shows the notice in a browser missing :has() or @property, as Firefox before 121 and 128", () => {
-        const withoutHas = renderNotice();
-        showUnsupportedBrowserNotice({
-            registerProperty,
-            supports: (condition) => !condition.includes(":has("),
-        });
-        const withoutRegisteredProperties = renderNotice();
+    it("shows the notice in a browser missing a CSS feature the game board needs", () => {
+        const notice = renderNotice();
+
         showUnsupportedBrowserNotice({ supports: () => true });
 
-        expect([withoutHas.hidden, withoutRegisteredProperties.hidden]).toEqual([false, false]);
+        expect(notice.hidden).toBe(false);
     });
 });

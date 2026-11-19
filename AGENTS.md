@@ -15,7 +15,8 @@ Ronin is a Riichi Mahjong game server and browser client.
   * `backend/lobby/` — lobby server (auth, rooms, matchmaking, server-rendered pages). See
     `backend/lobby/AGENTS.md`.
   * `backend/shared/` — auth, SQLite data access, logging and helpers used by both servers.
-* `frontend/` — Vite / npm on Node: two isolated apps, each its own package. See `frontend/AGENTS.md`.
+* `frontend/` — Vite / npm on Node: two apps, each its own package built separately, sharing source from
+  `frontend/shared/`. See `frontend/AGENTS.md`.
   * `frontend/lobby/` — the scripts and styles of the lobby pages (TypeScript / lit-html). See
     `frontend/lobby/AGENTS.md`.
   * `frontend/game_v2/` — the game client (TypeScript / lit-html). See `frontend/game_v2/AGENTS.md`.
