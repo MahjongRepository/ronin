@@ -109,4 +109,9 @@ button.settings-page__item:hover {
         text-decoration: underline 2px;
         text-underline-offset: 0.25em;
     }
+
+    &:focus-visible {
+        outline: 2px solid var(--pico-primary);
+        outline-offset: -2px;
+    }
 }

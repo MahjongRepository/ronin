@@ -22,8 +22,12 @@ export interface Chrome {
 const MONITORING_PATH = "/admin/monitoring";
 const SETTINGS_PATH = "/settings";
 
+function withoutTrailingSlash(path: string): string {
+    return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
+}
+
 function currentPage(path: string, href: string): "page" | typeof nothing {
-    return path === href ? "page" : nothing;
+    return withoutTrailingSlash(path) === href ? "page" : nothing;
 }
 
 function nextQuery(url: URL): string {
@@ -97,10 +101,10 @@ function settingsItem(user: SessionUser, path: string): TemplateResult {
         <a
             href=${SETTINGS_PATH}
             class="lobby-nav-link lobby-settings-link"
-            aria-label=${t("nav.settings")}
+            aria-label=${t("nav.account_settings", { username: user.username })}
             title=${t("nav.settings")}
             aria-current=${currentPage(path, SETTINGS_PATH)}
-            >${cogIcon()}<span class="lobby-username">${user.username}</span></a
+            >${cogIcon()}<span class="lobby-username" title=${user.username}>${user.username}</span></a
         >
     </li>`;
 }

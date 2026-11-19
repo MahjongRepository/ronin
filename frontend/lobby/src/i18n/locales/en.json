@@ -190,6 +190,7 @@
     "monitoring.unit.per_minute": "{value}/min",
     "monitoring.unit.per_second": "{value}/s",
     "monitoring.unit.percent": "{value}%",
+    "nav.account_settings": "{username}, Settings",
     "nav.admin": "Admin",
     "nav.aria_label": "Main",
     "nav.beta": "Beta",
