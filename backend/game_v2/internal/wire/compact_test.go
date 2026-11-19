@@ -37,7 +37,7 @@ func TestPackDiscard_ShouldPackTheTsumogiriAndRiichiFlagsAboveTheSeatAndTile(t *
 	}
 }
 
-func TestUnpackMove_WhenThePackedValueIsOutOfRange_ShouldRefuseIt(t *testing.T) {
+func TestUnpackDrawAndDiscard_WhenThePackedValueIsOutOfRange_ShouldRefuseIt(t *testing.T) {
 	for _, packed := range []int{-1, tile.SeatCount * tile.TileIDCount} {
 		if _, _, err := UnpackDraw(packed); err == nil {
 			t.Errorf("UnpackDraw(%d) = nil error, want one", packed)

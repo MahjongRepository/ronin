@@ -246,15 +246,6 @@ var keyNames = [keyCount]string{
 	KeyShownHands:          "SHOWN_HANDS",
 }
 
-var keyAliases = [...]struct {
-	name string
-	key  Key
-}{
-	{"PENDING_GAME_TIMEOUT", KeyPendingGameTimeout},
-	{"SEAT_CONTROL_REASON", KeySeatControlReason},
-	{"PAYS_HONBA", KeyPaysHonba},
-}
-
 // String returns k's name, as "EVENT_TYPE"; an alias reads as the key it shares a number with.
 func (k Key) String() string {
 	if int(k) < keyCount {

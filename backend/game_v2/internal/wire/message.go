@@ -51,8 +51,9 @@ func Encode(m Map) ([]byte, error) {
 	return appendValue(nil, m), nil
 }
 
-// Decode reads one live message, a map, refusing what Encode refuses, data past the message and
-// any extension type, with a DecodeError.
+// Decode reads one live message, a map, refusing what Encode refuses, data past the message, any
+// extension type and what breaks the decode limits (MaxMessageBytes in all, a string or binary of
+// 64 KiB, an array of 1024, a map of 256), with a DecodeError.
 func Decode(data []byte) (Map, error) {
 	m, err := decodeMessage(data)
 	if err != nil {

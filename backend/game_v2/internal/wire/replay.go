@@ -104,8 +104,10 @@ func EncodeReplay(records []Map) ([]byte, error) {
 	return content, nil
 }
 
-// DecodeReplay reads a replay EncodeReplay wrote, refusing what it refuses, any extension type,
-// and content above MaxReplayBytes (ErrReplayTooLarge) or with no record (ErrNoVersionRecord). A
+// DecodeReplay reads a replay EncodeReplay wrote, refusing what it refuses, any extension type, a
+// string or array over 4096, a map over 128 entries, binary data over ReplaySeedBytes, and content
+// above MaxReplayBytes (ErrReplayTooLarge) or with no record (ErrNoVersionRecord); EncodeReplay
+// applies none of these limits. A
 // record it cannot read comes back as a ReplayError; a first record of another version as one
 // wrapping an UnsupportedVersionError.
 func DecodeReplay(content []byte) ([]Map, error) {

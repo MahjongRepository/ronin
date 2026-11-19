@@ -52,9 +52,9 @@ Inside the engine, `engine/internal/*` packages import `engine/tile`, `engine/pl
 along the module graph of mahjong-rs, the port's reference, and never `engine`.
 
 `session` and `messaging` do not exist yet. Each is added under `internal/` when the port gives it
-work, `messaging` first, never as an empty package. Each layer's imports of the module are a
-depguard rule in `.golangci.yml`: `wire` imports only `engine`, `engine/play` and `engine/tile`. Each `cmd/*` is its own composition root:
-its `main` is the only place that reads that binary's flags, environment and signals and wires the
+work, `messaging` first, never as an empty package. `wire`'s imports of the module are a depguard
+rule in `.golangci.yml` (only `engine`, `engine/play` and `engine/tile`), and each layer added later
+gets its own. Each `cmd/*` is its own composition root: its `main` is the only place that reads that binary's flags, environment and signals and wires the
 parts it uses, so a tool beside the server builds what it needs without going through
 `cmd/gameserver`. `cmd/gameserver` wires the engine into the server once a game message exists.
 
@@ -69,9 +69,9 @@ a contract.
   binary data appears only as a replay's seed. Score maps and the replay's rules envelope are the
   only string-keyed maps.
 * Keys, event codes and result codes are only ever added: a retired one leaves its gap, never a
-  reused number. The live and replay key sets, the decode limits and the replay schema (the fields
-  each record and result type requires, and each field's type) live beside the codec, which checks
-  them on encode and decode alike.
+  reused number. The live and replay key sets and the replay schema (the fields each record and
+  result type requires, and each field's type) live beside the codec, which checks them on encode
+  and decode alike; the size, length and map limits bound decoding only, as they did in Python.
 * A change to the replay format bumps `wire.ReplayVersion`; a replay names the rules profile it was
   played under, this server's or the one every rewritten `0.4-dev` game keeps.
 * `internal/wire/testdata/` holds the goldens a Go test owns (`go test ./internal/wire -update`

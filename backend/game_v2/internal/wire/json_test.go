@@ -216,6 +216,15 @@ func wireRecordOf(t *testing.T, node any) Map {
 	return m
 }
 
+var keyAliases = [...]struct {
+	name string
+	key  Key
+}{
+	{"PENDING_GAME_TIMEOUT", KeyPendingGameTimeout},
+	{"SEAT_CONTROL_REASON", KeySeatControlReason},
+	{"PAYS_HONBA", KeyPaysHonba},
+}
+
 func namedKeys(includes *[keyCount]bool) jsonObject {
 	var names jsonObject
 	for k, name := range keyNames {

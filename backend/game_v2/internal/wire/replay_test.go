@@ -314,25 +314,31 @@ func TestDecodeReplay_WhenTheContentEndsInsideARecord_ShouldReportItIncompleteWh
 
 func TestDecodeReplay_WhenARecordIsMalformed_ShouldReportItsPosition(t *testing.T) {
 	version := appendValue(nil, VersionRecord())
-	tests := map[string][]byte{
-		"reserved type":   {0xc1},
-		"not a map":       {0x91, 0x01},
-		"duplicate key":   {0x82, 0x01, 0x02, 0x01, 0x03},
-		"float":           appendValue(nil, record(field(KeyEventType, Int(EventDiscard)), field(KeyPackedMove, Float(1.5)))),
-		"unknown key":     {0x81, 0xcc, 0xc8, 0x01},
-		"long seed":       appendValue(nil, record(field(KeySeed, Bin(make([]byte, ReplaySeedBytes+1))))),
-		"long array":      append([]byte{0x81, byte(KeyDoraIndicators), 0xdd, 0, 0, 0x10, 0x01}, make([]byte, 4097)...),
-		"long string":     append([]byte{0x81, byte(KeyName), 0xda, 0x10, 0x01}, make([]byte, 4097)...),
-		"wide map":        append([]byte{0x81, byte(KeyHandResult), 0xde, 0, 129}, make([]byte, 258)...),
-		"seed of 96 hexa": appendValue(nil, record(field(KeySeed, Str(strings.Repeat("0", 2*ReplaySeedBytes))))),
+	discard := record(field(KeyEventType, Int(EventDiscard)), field(KeyPackedMove, Int(1)))
+	tests := []struct {
+		name      string
+		malformed []byte
+		message   string
+	}{
+		{"reserved type", []byte{0xc1}, ""},
+		{"not a map", []byte{0x91, 0x01}, ""},
+		{"duplicate key", []byte{0x82, 0x01, 0x02, 0x01, 0x03}, ""},
+		{"float", appendValue(nil, with(discard, KeyPackedMove, Float(1.5))), ""},
+		{"unknown key", []byte{0x81, 0xcc, 0xc8, 0x01}, ""},
+		{"long seed", appendValue(nil, with(gameStartedRecord(), KeySeed, Bin(make([]byte, ReplaySeedBytes+1)))), "binary of 97 exceeds 96"},
+		{"long array", appendValue(nil, with(discard, KeyDoraIndicators, ints(make([]int, 4097)...))), ""},
+		{"long string", appendValue(nil, with(discard, KeyName, Str(strings.Repeat("a", 4097)))), ""},
+		{"wide map", append([]byte{0x81, byte(KeyHandResult), 0xde, 0, 129}, make([]byte, 258)...), "map of 129 exceeds 128"},
+		{"seed of 96 hexa", appendValue(nil, with(gameStartedRecord(), KeySeed, Str(strings.Repeat("0", 2*ReplaySeedBytes)))), ""},
 	}
-	for name, malformed := range tests {
-		_, err := DecodeReplay(append(bytes.Clone(version), malformed...))
+	for _, tc := range tests {
+		_, err := DecodeReplay(append(bytes.Clone(version), tc.malformed...))
 
 		replayErr, isType := errors.AsType[ReplayError](err)
 		if !isType || replayErr.Incomplete || replayErr.Record != 2 || replayErr.Offset != len(version) ||
-			!strings.HasPrefix(err.Error(), "replay record 2 at byte "+strconv.Itoa(len(version))+": ") {
-			t.Errorf("DecodeReplay(version + %s) = %v; want record 2 refused at byte %d", name, err, len(version))
+			!strings.HasPrefix(err.Error(), "replay record 2 at byte "+strconv.Itoa(len(version))+": ") ||
+			!strings.Contains(err.Error(), tc.message) {
+			t.Errorf("DecodeReplay(version + %s) = %v; want record 2 refused at byte %d", tc.name, err, len(version))
 		}
 	}
 }
