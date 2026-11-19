@@ -98,6 +98,10 @@ code under `engine/`:
   only behaviour observable through the facade, and does not repeat a rule already pinned below it.
   Server tests sit beside the server code and drive it through `net/http/httptest`, with a real
   WebSocket client for a socket route.
+* mahjong-rs is the reference for every rule and event order, and `seam/` holds the proof: it replays
+  games mahjong-rs dumped (`seam/testdata/README.md`) through the facade and the ported driver, and
+  every decision, action and event must match line for line. A change to a rule or to what the
+  engine emits and when follows mahjong-rs and regenerates that set there, never the other way.
 * A game's scenario tests play it through `engine/internal/testkit`, which stages walls and scripts
   actions. testkit is engine code under the coverage gate: it never imports `testing` and never
   asserts, returning values or errors, and it has its own tests. It imports `game`, so only external
