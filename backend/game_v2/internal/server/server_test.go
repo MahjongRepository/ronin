@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/coder/websocket"
+
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/server"
 )
 
@@ -26,5 +28,21 @@ func TestHealth_ShouldAnswerOKStatus(t *testing.T) {
 	}
 	if len(body) != 1 || body["status"] != "ok" {
 		t.Errorf("GET /health body = %v, want only status ok", body)
+	}
+}
+
+func TestSocket_WhenClientDials_ShouldUpgradeAndCloseNormally(t *testing.T) {
+	srv := httptest.NewServer(server.NewHandler())
+	t.Cleanup(srv.Close)
+
+	conn, _, err := websocket.Dial(t.Context(), srv.URL+"/ws", &websocket.DialOptions{HTTPClient: srv.Client()})
+	if err != nil {
+		t.Fatalf("dial /ws: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.CloseNow() })
+
+	_, _, readErr := conn.Read(t.Context())
+	if status := websocket.CloseStatus(readErr); status != websocket.StatusNormalClosure {
+		t.Errorf("read after upgrade: close status = %d (%v), want %d", status, readErr, websocket.StatusNormalClosure)
 	}
 }
