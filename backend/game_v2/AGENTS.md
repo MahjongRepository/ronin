@@ -90,7 +90,8 @@ code under `engine/`:
   fails the gate, and so does a profile with no engine block. The server side is not gated. There is
   no exclusion mechanism: reach the statement or restructure it away.
 * A check too slow for every run sits in a `_test.go` file behind a build tag (`exhaustive`), outside
-  `make test-go`; its package doc gives the command that runs it.
+  `make test-go`; its package doc gives the command that runs it. `make lint-go` builds with the tag
+  (`run.build-tags`), so the file is type-checked and linted on every run.
 
 ## Comments
 
