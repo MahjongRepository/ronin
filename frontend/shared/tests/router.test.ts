@@ -1,6 +1,12 @@
-import { type Route, interceptLinks, lazyRoute, startRouter } from "@ronin/shared/router";
+import {
+    type Route,
+    type Router,
+    interceptLinks,
+    lazyRoute,
+    startRouter,
+} from "@ronin/shared/router";
 import { type TemplateResult, html, render } from "lit-html";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const PATTERN = /^\/lazy$/;
 
@@ -30,6 +36,15 @@ function clickRecordingIntercepts(root: HTMLElement, selectors: readonly string[
     }
     return intercepted;
 }
+
+function startRouterAt(path: string, route: Route): Router {
+    history.replaceState(null, "", path);
+    return startRouter(document.createElement("div"), [route], vi.fn());
+}
+
+beforeEach(() => {
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+});
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -106,17 +121,23 @@ describe("startRouter", () => {
     it("remounts the route on a navigation that changes only the query", () => {
         const unmount = vi.fn();
         const mount = vi.fn<Route["mount"]>(() => unmount);
-        history.replaceState(null, "", "/admin/monitoring");
-        const router = startRouter(
-            document.createElement("div"),
-            [{ mount, pattern: /^\/admin\/monitoring$/ }],
-            vi.fn(),
-        );
+        const router = startRouterAt("/admin/monitoring", {
+            mount,
+            pattern: /^\/admin\/monitoring$/,
+        });
 
         router.navigate("/admin/monitoring?range=7d");
+        const historyLength = history.length;
+        router.navigate("/admin/monitoring?range=7d");
 
-        expect(unmount).toHaveBeenCalledOnce();
-        expect(mount.mock.calls.map((call) => call[2].search)).toEqual(["", "?range=7d"]);
+        expect(unmount).toHaveBeenCalledTimes(2);
+        expect(mount.mock.calls.map((call) => call[2].search)).toEqual([
+            "",
+            "?range=7d",
+            "?range=7d",
+        ]);
+        expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
+        expect(history.length).toBe(historyLength);
     });
 
     it("redraws the mounted view in place on rerender", () => {
