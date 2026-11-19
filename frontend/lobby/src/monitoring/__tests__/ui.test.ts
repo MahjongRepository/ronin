@@ -47,7 +47,7 @@ const REPORT = {
 };
 
 function renderReport(): HTMLElement {
-    const state = createMonitoringState();
+    const state = createMonitoringState(null);
     state.report = parseMonitoring(REPORT);
     const host = document.createElement("main");
     document.body.append(host);
@@ -89,5 +89,26 @@ describe("renderMonitoring", () => {
         expect(chart?.getAttribute("data-state")).toBe("never_collected");
         expect(chart?.querySelector(".monitoring-chart-note")?.textContent).toBe("Never collected");
         expect(chart?.querySelector("svg")).toBeNull();
+    });
+
+    it("keeps the range bar on the requested range while the report loads", () => {
+        const host = document.createElement("main");
+        document.body.append(host);
+
+        renderMonitoring(host, createMonitoringState("7d"));
+
+        expect(
+            [...host.querySelectorAll(".monitoring-range")].map((link) => [
+                link.getAttribute("href"),
+                link.getAttribute("aria-current"),
+            ]),
+        ).toEqual([
+            ["?range=1h", null],
+            ["?range=24h", null],
+            ["?range=7d", "page"],
+            ["?range=30d", null],
+            ["?range=90d", null],
+        ]);
+        expect(host.querySelector(".monitoring-panels")).toBeNull();
     });
 });

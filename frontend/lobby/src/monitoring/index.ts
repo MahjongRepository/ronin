@@ -30,7 +30,7 @@ export function mountMonitoringView(
     _params: Record<string, string>,
     url: URL,
 ): MountedView {
-    const state = createMonitoringState();
+    const state = createMonitoringState(url.searchParams.get("range"));
     let disposed = false;
     function render(): void {
         renderMonitoring(host, state);

@@ -187,3 +187,4 @@ class TestMonitoringDataAccess:
 
         response = client.get(MONITORING_PATH)
         assert (response.status_code, response.json()) == (404, {"error": "not_found"})
+        assert response.headers["cache-control"] == "no-store"

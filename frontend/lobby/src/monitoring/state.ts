@@ -62,12 +62,13 @@ export type MonitoringFailure = "failed" | "not_found";
 export interface MonitoringState {
     failure: MonitoringFailure | null;
     report: MonitoringReport | null;
+    readonly requestedRange: string | null;
 }
 
 const GAME_SERVER_UNAVAILABLE = "unavailable";
 
-export function createMonitoringState(): MonitoringState {
-    return { failure: null, report: null };
+export function createMonitoringState(requestedRange: string | null): MonitoringState {
+    return { failure: null, report: null, requestedRange };
 }
 
 function isNumberOrNull(value: unknown): value is number | null {

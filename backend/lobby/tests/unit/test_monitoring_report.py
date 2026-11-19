@@ -45,7 +45,10 @@ async def test_monitoring_report__when_one_table_has_a_gap__should_report_values
         last_backup_age_seconds=readings.last_backup_age_seconds,
     )
 
-    report = json.loads(json.dumps(monitoring_report(page, selected=MonitoringRange.HOUR)))
+    report = json.loads(json.dumps(monitoring_report(page, selected=MonitoringRange.HOUR, with_plots=True)))
+    report_without_plots = json.loads(
+        json.dumps(monitoring_report(page, selected=MonitoringRange.HOUR, with_plots=False))
+    )
 
     memory_used = next(chart for chart in report["chart_groups"]["host"] if chart["name"] == "memory_used")
     assert memory_used["state"] == "current"
@@ -67,3 +70,8 @@ async def test_monitoring_report__when_one_table_has_a_gap__should_report_values
     }
     assert report["last_backup_age_seconds"] is None
     assert report["live_status"] == "unavailable"
+    assert (report["plot_width"], report["plot_height"]) == (300, 100)
+    assert report_without_plots.keys() == report.keys() - {"plot_width", "plot_height"}
+    assert [list(chart) for chart in report_without_plots["chart_groups"]["host"]] == [
+        [key for key in chart if key != "plot"] for chart in report["chart_groups"]["host"]
+    ]

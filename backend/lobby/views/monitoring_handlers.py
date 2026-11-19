@@ -36,4 +36,4 @@ async def monitoring_data(request: Request) -> JSONResponse:
         game_repo=request.app.state.game_repo,
         game_server=request.app.state.game_server,
     )
-    return JSONResponse(monitoring_report(page, selected=selected), headers=NO_STORE_HEADERS)
+    return JSONResponse(monitoring_report(page, selected=selected, with_plots=True), headers=NO_STORE_HEADERS)

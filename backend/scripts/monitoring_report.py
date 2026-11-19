@@ -45,7 +45,7 @@ async def main() -> None:
         await game_server.aclose()
         await db.close()
 
-    print(json.dumps(monitoring_report(page, selected=selected), indent=2))
+    print(json.dumps(monitoring_report(page, selected=selected, with_plots=False), indent=2))
 
 
 if __name__ == "__main__":

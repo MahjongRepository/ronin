@@ -73,6 +73,7 @@ const CHART_STATE = {
     UNAVAILABLE: "unavailable",
 } as const;
 
+const DEFAULT_RANGE = "24h";
 const STORAGE_GROUP = "storage";
 const NOT_FOUND_STATUS = "404";
 const ROUNDS_TO_ZERO_BELOW = 0.05;
@@ -107,23 +108,27 @@ function stat(name: string, label: MessageKey, value: string): TemplateResult {
     return html`<div class="monitoring-stat"><dt>${t(label)}</dt><dd data-stat=${name}>${value}</dd></div>`;
 }
 
-function rangesTemplate(report: MonitoringReport): TemplateResult {
+function rangesTemplate(
+    ranges: readonly string[],
+    current: string,
+    collectedSince: string | null,
+): TemplateResult {
     return html`<nav class="monitoring-ranges" aria-label=${t("monitoring.range.label")}>
-            ${report.ranges.map(
+            ${ranges.map(
                 (choice) =>
                     html`<a
                         href="?range=${choice}"
                         class="monitoring-range"
-                        aria-current=${choice === report.range ? "page" : nothing}
+                        aria-current=${choice === current ? "page" : nothing}
                         >${codeLabel(RANGE_LABELS, choice, "monitoring.range.")}</a
                     >`,
             )}
         </nav>
         <p class="monitoring-chart-note monitoring-range-note">
             ${t("monitoring.range.times_utc")}${
-                report.collectedSince === null
+                collectedSince === null
                     ? nothing
-                    : ` · ${t("monitoring.range.collected_since", { time: report.collectedSince })}`
+                    : ` · ${t("monitoring.range.collected_since", { time: collectedSince })}`
             }
         </p>`;
 }
@@ -271,9 +276,17 @@ function chartGroupTemplate(group: MonitoringChartGroup, report: MonitoringRepor
 }
 
 function reportTemplate(report: MonitoringReport): TemplateResult {
-    return html`${rangesTemplate(report)}
+    return html`${rangesTemplate(report.ranges, report.range, report.collectedSince)}
         <div class="monitoring-panels">${livePanel(report.liveStatus)} ${gamesPanel(report.games)}</div>
         ${report.chartGroups.map((group) => chartGroupTemplate(group, report))}`;
+}
+
+function loadingRangesTemplate(requestedRange: string | null): TemplateResult {
+    const current =
+        requestedRange !== null && RANGE_LABELS.has(requestedRange)
+            ? requestedRange
+            : DEFAULT_RANGE;
+    return rangesTemplate([...RANGE_LABELS.keys()], current, null);
 }
 
 function notFoundTemplate(): TemplateResult {
@@ -299,7 +312,7 @@ function monitoringTemplate(state: MonitoringState): TemplateResult {
             <h2>${t("monitoring.title")}</h2>
         </div>
 
-        ${state.report ? reportTemplate(state.report) : nothing}
+        ${state.report ? reportTemplate(state.report) : loadingRangesTemplate(state.requestedRange)}
     </section>`;
 }
 

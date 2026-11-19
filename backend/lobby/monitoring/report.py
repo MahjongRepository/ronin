@@ -71,8 +71,8 @@ def _collected_since(page: MonitoringPage) -> str | None:
     return datetime.fromtimestamp(page.charted_from, UTC).strftime(_DAY_AND_CLOCK_FORMAT)
 
 
-def _chart_report(chart: Chart) -> dict[str, object]:
-    return {
+def _chart_report(chart: Chart, *, with_plot: bool) -> dict[str, object]:
+    report: dict[str, object] = {
         "name": chart.name,
         "unit": chart.unit.value,
         "state": chart.state.value,
@@ -80,24 +80,29 @@ def _chart_report(chart: Chart) -> dict[str, object]:
         if chart.latest is None
         else {"value": chart.latest.value, "age_seconds": chart.latest.age_seconds},
         "bucketed": _bucketed(chart),
-        "plot": _plot(chart),
         "retention_days": chart.retention_days,
     }
+    if with_plot:
+        report["plot"] = _plot(chart)
+
+    return report
 
 
-def monitoring_report(page: MonitoringPage, *, selected: MonitoringRange) -> dict[str, object]:
+def monitoring_report(page: MonitoringPage, *, selected: MonitoringRange, with_plots: bool) -> dict[str, object]:
     """
-    Turn the monitoring page's data into a JSON-ready document: the charts by group in the page's order, each with its
-    plot, the games started in the range, the game server's live counts and the backup's age, plus what the page draws
-    them with: the range choices, the plot box, the UTC time axis and the collection start when the charts begin there.
+    Turn the monitoring page's data into a JSON-ready document: the charts by group in the page's order, the games
+    started in the range, the game server's live counts and the backup's age, plus the range choices, the UTC time axis
+    and the collection start when the charts begin there.
+
+    ``with_plots`` adds what only the page draws: each chart's plot and the plot box.
 
     A missing value, an empty bucket's value and an unknown age are None, never 0.
     """
     groups: dict[str, list[dict[str, object]]] = {}
     for chart in page.charts:
-        groups.setdefault(chart.group.value, []).append(_chart_report(chart))
+        groups.setdefault(chart.group.value, []).append(_chart_report(chart, with_plot=with_plots))
 
-    return {
+    report: dict[str, object] = {
         "range": selected.value,
         "ranges": [choice.value for choice in MonitoringRange],
         "charted_from": page.charted_from,
@@ -105,8 +110,6 @@ def monitoring_report(page: MonitoringPage, *, selected: MonitoringRange) -> dic
         "starts_at_oldest_sample": page.starts_at_oldest_sample,
         "collected_since": _collected_since(page),
         "time_axis": _time_axis(page.charted_from, page.charted_to),
-        "plot_width": PLOT_WIDTH,
-        "plot_height": PLOT_HEIGHT,
         "chart_groups": groups,
         "last_backup_age_seconds": page.last_backup_age_seconds,
         "games": page.games.model_dump(mode="json"),
@@ -114,3 +117,8 @@ def monitoring_report(page: MonitoringPage, *, selected: MonitoringRange) -> dic
         if page.live_status is None
         else page.live_status.model_dump(mode="json"),
     }
+    if with_plots:
+        report["plot_width"] = PLOT_WIDTH
+        report["plot_height"] = PLOT_HEIGHT
+
+    return report

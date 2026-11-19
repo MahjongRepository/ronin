@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     type Endpoint = Callable[[Request], Awaitable[Response]]
 
 AUTH_POLICY_ATTR = "__auth_policy__"
+_NO_STORE_HEADERS = {"Cache-Control": "no-store"}
 
 
 def _login_redirect(request: Request) -> RedirectResponse:
@@ -123,7 +124,7 @@ def admin_json(endpoint: Endpoint) -> Endpoint:
             user_id=request.user.user_id, username=request.user.username
         )
         if not is_admin:
-            return JSONResponse({"error": "not_found"}, status_code=HTTPStatus.NOT_FOUND)
+            return JSONResponse({"error": "not_found"}, status_code=HTTPStatus.NOT_FOUND, headers=_NO_STORE_HEADERS)
 
         return await endpoint(request)
 
