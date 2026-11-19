@@ -4,3 +4,8 @@ package tile
 type Dice struct {
 	First, Second int
 }
+
+// Sum returns the sum of the two dice.
+func (d Dice) Sum() int {
+	return d.First + d.Second
+}

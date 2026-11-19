@@ -33,6 +33,7 @@ linters:
           allow:
             - github.com/MahjongRepository/ronin/backend/game_v2/engine
             - cmp$
+            - crypto/sha3$
             - errors$
             - fmt$
             - iter$

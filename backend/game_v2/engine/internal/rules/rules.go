@@ -65,9 +65,6 @@ const (
 	OmoteDora = true
 	// KanDora, has_kandora: a kan reveals a new indicator.
 	KanDora = true
-	// KanUraDora, has_kan_uradora: a riichi winner counts the ura dora under every revealed
-	// indicator, not only the first.
-	KanUraDora = true
 	// KanDoraImmediateForClosedKan, kandora_immediate_for_closed_kan: a closed kan reveals at once.
 	KanDoraImmediateForClosedKan = true
 	// KanDoraDeferredForOpenKan, kandora_deferred_for_open_kan: an open or added kan reveals its

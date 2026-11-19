@@ -1,6 +1,9 @@
 package tile
 
-import "iter"
+import (
+	"cmp"
+	"iter"
+)
 
 // TileIDCount is the number of tiles in a set.
 const TileIDCount = KindCount * CopiesPerKind
@@ -38,6 +41,11 @@ func AllTileIDs() [TileIDCount]TileID {
 // Index returns the 136-format id, an index into per-tile arrays.
 func (id TileID) Index() int {
 	return int(id.n)
+}
+
+// Compare returns -1, 0 or +1 as id's number is below, equal to or above other's.
+func (id TileID) Compare(other TileID) int {
+	return cmp.Compare(id.n, other.n)
 }
 
 // Kind returns id's kind, id / 4.
