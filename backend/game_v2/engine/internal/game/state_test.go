@@ -74,6 +74,35 @@ func TestAct_WhenARiichiAndAPlainDiscardBranchFromOneState_ShouldLeaveTheStateAn
 	)
 }
 
+func kokushiDealerGameInItsFourthRound(t *testing.T) game.Game {
+	t.Helper()
+	w := testkit.StartWall{
+		Hands: [tile.SeatCount][]tile.TileID{copies(t, 0, "19m19p19s1234567z"), junk(t, 1), junk(t, 2), junk(t, 3)},
+		Draws: copies(t, 1, "7z"),
+	}
+	tiles := wallTiles(t, w, seat(t, 0))
+	g, _ := newGame(t, fixed(tiles, tiles, tiles, tiles), noStart())
+	for range 3 {
+		g, _ = script(t, g, act(seat(t, 0), play.KyuushuAction()))
+		var refusal play.Option[play.Refusal]
+		g, _, refusal = g.DealNextRound()
+		if refusal.OK {
+			t.Fatalf("DealNextRound refusal = %+v", refusal.Value)
+		}
+	}
+	assertEqual(t, "finished rounds", len(g.History()), 3)
+	return g
+}
+
+func TestAct_WhenTwoRoundEndingActionsBranchFromOneState_ShouldLeaveTheStateAndEachBranchsHistoryApart(t *testing.T) {
+	build := func() game.Game { return kokushiDealerGameInItsFourthRound(t) }
+
+	assertBranchesStayApart(t, build,
+		[]testkit.SeatAction{act(seat(t, 0), play.KyuushuAction())},
+		[]testkit.SeatAction{act(seat(t, 0), play.TsumoAction())},
+	)
+}
+
 func TestHand_WhenTheSeatHasDrawn_ShouldReachItsBoundOfFourteenTiles(t *testing.T) {
 	g := begun(t, stagedWall(t), noStart())
 
