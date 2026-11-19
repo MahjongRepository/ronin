@@ -2,8 +2,8 @@
 
 The game server being ported from `backend/game/` to Go. It is one Go module, outside the uv project:
 it imports nothing from `backend/shared/` and the Python tooling does not see it. So far it holds
-the engine's base vocabulary, its seeded randomness and the wall, and the structure the port
-fills, not the game: the facade's `NewGame`, `Act`, `Event`, `Action` and `Refusal` and their seam
+the engine's base vocabulary, its seeded randomness, the wall and shanten, and the structure the
+port fills, not the game: the facade's `NewGame`, `Act`, `Event`, `Action` and `Refusal` and their seam
 tests are placeholders, replaced by the first ported behaviour.
 
 ## The seam
@@ -89,6 +89,8 @@ code under `engine/`:
   percentage: a block is covered when any test binary ran it, an uncovered block is printed and
   fails the gate, and so does a profile with no engine block. The server side is not gated. There is
   no exclusion mechanism: reach the statement or restructure it away.
+* A check too slow for every run sits in a `_test.go` file behind a build tag (`exhaustive`), outside
+  `make test-go`; its package doc gives the command that runs it.
 
 ## Comments
 
