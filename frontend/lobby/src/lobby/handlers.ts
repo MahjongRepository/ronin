@@ -1,10 +1,12 @@
-import { apiGet, apiPost } from "@/api";
+import { type ApiResult, apiGet, apiPost } from "@/api";
 import { fetchSession } from "@/app/session";
 import {
+    type LobbyRooms,
     type LobbyState,
     type OwnTournaments,
     parseCreatedRoomId,
     parseCreatedTournamentId,
+    parseGamesWsUrl,
     parseLobbyRooms,
     parseOwnTournaments,
     roomPath,
@@ -17,19 +19,37 @@ export interface LobbyViewContext {
     readonly render: () => void;
 }
 
-export async function loadRooms(state: LobbyState, context: LobbyViewContext): Promise<void> {
+interface RoomsAnswer {
+    readonly gamesWsUrl: string;
+    readonly rooms: LobbyRooms;
+}
+
+function readRoomsAnswer(result: ApiResult): RoomsAnswer | null {
+    const rooms = result.ok ? parseLobbyRooms(result.data) : null;
+    const gamesWsUrl = result.ok ? parseGamesWsUrl(result.data) : null;
+    if (rooms === null || gamesWsUrl === null) {
+        console.error("lobby rooms not loaded", result.ok ? "invalid answer" : result.error);
+        return null;
+    }
+    return { gamesWsUrl, rooms };
+}
+
+export async function loadRooms(
+    state: LobbyState,
+    context: LobbyViewContext,
+): Promise<string | null> {
     const result = await apiGet("/api/lobby/rooms");
     if (context.isDisposed()) {
-        return;
+        return null;
     }
-    const rooms = result.ok ? parseLobbyRooms(result.data) : null;
-    if (rooms === null) {
-        console.error("lobby rooms not loaded", result.ok ? "invalid answer" : result.error);
+    const answer = readRoomsAnswer(result);
+    if (answer === null) {
         state.loadFailed = true;
     } else {
-        state.rooms = rooms;
+        state.rooms = answer.rooms;
     }
     context.render();
+    return answer?.gamesWsUrl ?? null;
 }
 
 async function postNewRoom(): Promise<string | null> {

@@ -48,6 +48,11 @@ back silently; a refused one ends the page like any refused join. Returning to t
 hidden for a while, or the browser coming back online, reconnects at once, since a socket can die
 without a close event while the page is in the background. Matchmaking does not reconnect.
 
+The lobby view (`lobby/`) watches the games being played over `/ws/games` (`lobby/games-feed.ts`): each message
+is the whole list, which replaces the shown one, so a reconnect needs no catch-up. It reconnects with the room's
+backoff and resume and binds its socket the same way. `current-games.ts` reads and draws a games list, here and on
+the tournament page.
+
 The tournament page (`tournament/`) keeps the room's reconnect and binds its socket the same way.
 It holds no seat, so a reload only reconnects, and a language switch only redraws. Its Settings tab (rename,
 delete) shows when `/api/lobby/tournaments/{id}` says `is_owner`; switching tabs keeps the socket, so the owner

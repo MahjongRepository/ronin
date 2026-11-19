@@ -1,5 +1,6 @@
 import { type ApiResult, isRecord } from "@/api";
 import { type ChatEntry } from "@/chat";
+import { type CurrentGame } from "@/current-games";
 import { type MessageKey } from "@/i18n";
 import { type LobbySocket, type SocketStatus } from "@/lobby-socket";
 
@@ -22,12 +23,6 @@ interface TournamentConfig {
     readonly name: string;
     readonly nameMaxLength: number;
     readonly wsUrl: string;
-}
-
-interface CurrentGame {
-    readonly gameId: string;
-    readonly players: readonly string[];
-    readonly startedAt: Date;
 }
 
 type TournamentConfigAnswer =
@@ -138,10 +133,4 @@ export {
     parseRenamedName,
     readTournamentConfigAnswer,
 };
-export type {
-    CurrentGame,
-    TournamentConfig,
-    TournamentConfigAnswer,
-    TournamentState,
-    TournamentTab,
-};
+export type { TournamentConfig, TournamentConfigAnswer, TournamentState, TournamentTab };

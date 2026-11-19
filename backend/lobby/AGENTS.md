@@ -101,6 +101,11 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   subscriber `tournament_deleted`, closes them and stops watching its games. Running games are not stopped: they play
   on, publish no `game_ended`, and their exit falls back to the lobby. A rename shows on the owner's page at once and
   on anyone else's at their next load; no event carries it.
+* `live_games/` — the lobby page's list of the games being played, over the send-only `/ws/games`. "Being played"
+  comes only from the game server's in-memory sessions (its internal `GET /games`, started games only), never from
+  `played_games`, whose `ended_at` stays NULL after a crash. One task polls it, and only while a page watches; each
+  change goes to every watcher as the whole list, and a new watcher gets the last list at once. A failed poll keeps
+  the last list and warns once per outage, never once per poll.
 * The one game server is two settings never derived from each other: the internal URL the lobby
   calls and the public WebSocket origin it hands clients.
 * Tests build the app through the fixtures in `tests/conftest.py`.

@@ -1,3 +1,4 @@
+import { type CurrentGame } from "@/current-games";
 import { type MessageKey } from "@/i18n";
 
 export interface LobbyPlayer {
@@ -32,6 +33,7 @@ export interface LobbyState {
     creating: boolean;
     createFailed: boolean;
     creatingTournament: boolean;
+    games: CurrentGame[] | null;
     loadFailed: boolean;
     readonly notice: MessageKey | null;
     ownTournaments: OwnTournaments | null;
@@ -48,6 +50,7 @@ export function createLobbyState(notice: MessageKey | null): LobbyState {
         createFailed: false,
         creating: false,
         creatingTournament: false,
+        games: null,
         loadFailed: false,
         notice,
         ownTournaments: null,
@@ -108,6 +111,12 @@ export function parseLobbyRooms(data: unknown): LobbyRooms | null {
         return null;
     }
     return { myRoomId, rooms: rooms.filter((room) => room !== null) };
+}
+
+export function parseGamesWsUrl(data: unknown): string | null {
+    return isRecord(data) && typeof data.games_ws_url === "string" && data.games_ws_url !== ""
+        ? data.games_ws_url
+        : null;
 }
 
 export function parseCreatedRoomId(data: unknown): string | null {

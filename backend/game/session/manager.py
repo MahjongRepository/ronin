@@ -229,6 +229,18 @@ class SessionManager:
         return sum(1 for game in self._games.values() if game.lifecycle is GameLifecycle.PLAYING)
 
     @property
+    def playing_games(self) -> list[PlayedGame]:
+        """
+        Return the start record of every game playing (pending games excluded), oldest start first.
+        """
+        records = [
+            game.start_record
+            for game in self._games.values()
+            if game.lifecycle is GameLifecycle.PLAYING and game.start_record is not None
+        ]
+        return sorted(records, key=lambda record: record.started_at)
+
+    @property
     def stats(self) -> dict[str, int]:
         """
         Return the session event totals since the manager was created, process-wide and never per user.

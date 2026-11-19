@@ -150,6 +150,29 @@ async def tenhou_replay(request: Request) -> Response:
     return Response(xml, media_type="application/xml")
 
 
+async def playing_games(request: Request) -> JSONResponse:
+    """
+    Answer 200 with every game playing, oldest first, each with its start time and its players East to North (internal:
+    the lobby's list of current games).
+
+    The answer names players, so only a caller with the internal API secret gets it.
+    """
+    settings: GameServerSettings = request.app.state.settings
+    if not _is_internal_caller(request, settings.internal_api_secret):
+        return JSONResponse({"error": "Unauthorized"}, status_code=401, headers=_NO_STORE)
+
+    session_manager: SessionManager = request.app.state.session_manager
+    games = [
+        {
+            "game_id": record.game_id,
+            "started_at": record.started_at.timestamp(),
+            "players": [standing.name for standing in record.standings],
+        }
+        for record in session_manager.playing_games
+    ]
+    return JSONResponse({"games": games}, headers=_NO_STORE)
+
+
 _MAX_REQUEST_BODY_SIZE = 4096
 
 
@@ -307,6 +330,7 @@ def create_app(
         Route("/health", health, methods=["GET"]),
         Route("/status", status, methods=["GET"]),
         Route("/games", create_game, methods=["POST"]),
+        Route("/games", playing_games, methods=["GET"]),
         Route("/games/{game_id}", withdraw_game, methods=["DELETE"]),
         Route("/players/{user_id}", player_game, methods=["GET"]),
         Route("/players/{user_id}/game-session", player_game_session, methods=["GET"]),

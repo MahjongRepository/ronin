@@ -60,6 +60,7 @@ class TestLobbyRoomsRoute:
         payload = response.json()
         assert payload["my_room"] == "my-room-id"
         assert [listed["name"] for listed in payload["rooms"]] == [room.name]
+        assert payload["games_ws_url"] == "ws://testserver/ws/games"
 
     def test_lobby_create_room_route__when_csrf_header_stale__should_answer_a_token_that_succeeds_on_retry(
         self, client

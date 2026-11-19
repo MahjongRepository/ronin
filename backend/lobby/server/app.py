@@ -27,8 +27,10 @@ from lobby.auth.policy import (
     public_route,
     validate_route_auth_policy,
 )
-from lobby.game_transition import create_game_server_client, is_user_playing
+from lobby.game_transition import create_game_server_client, fetch_playing_games, is_user_playing
 from lobby.i18n import Translator, load_catalogs
+from lobby.live_games.feed import PlayingGamesFeed
+from lobby.live_games.websocket import playing_games_websocket
 from lobby.matchmaking.manager import MatchmakingManager
 from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.occupancy import Occupancy
@@ -206,6 +208,7 @@ def create_app(  # noqa: PLR0913
         # WebSocket routes (auth handled inside the handlers)
         WebSocketRoute("/ws/rooms/{room_id}", room_websocket, name="room_websocket"),
         WebSocketRoute("/ws/matchmaking", matchmaking_websocket, name="matchmaking_websocket"),
+        WebSocketRoute("/ws/games", playing_games_websocket, name="playing_games_websocket"),
         WebSocketRoute("/ws/tournaments/{tournament_id}", tournament_websocket, name="tournament_websocket"),
         WebSocketRoute(
             "/ws/tournaments/{tournament_id}/events", tournament_events_websocket, name="tournament_events_websocket"
@@ -305,22 +308,9 @@ def create_app(  # noqa: PLR0913
     hasher = BcryptHasher(rounds=auth_settings.bcrypt_rounds)
     auth_service = AuthService(player_repo, session_repo, password_hasher=hasher)
 
-    @contextlib.asynccontextmanager
-    async def lifespan(lifespan_app: Starlette) -> AsyncGenerator[None]:
-        try:
-            await db.open()
-            room_manager.start_reaper()
-            await lifespan_app.state.tournament_game_end_poller.start()
-            yield
-        finally:
-            await lifespan_app.state.tournament_game_end_poller.stop()
-            await room_manager.stop_reaper()
-            await game_server.aclose()
-            await db.close()
-
     app = Starlette(
         routes=routes,
-        lifespan=lifespan,
+        lifespan=_build_lifespan(db=db, room_manager=room_manager, game_server=game_server),
         exception_handlers={
             HTTPException: http_error_page,
             Exception: with_security_headers(server_error_page, vite_dev_url=settings.vite_dev_url),
@@ -346,6 +336,31 @@ def create_app(  # noqa: PLR0913
 
     logger.info("lobby server ready")
     return app
+
+
+def _build_lifespan(
+    *, db: Database, room_manager: LobbyRoomManager, game_server: httpx.AsyncClient
+) -> Callable[[Starlette], contextlib.AbstractAsyncContextManager[None]]:
+    """
+    Build the lifespan that opens the database and runs the background tasks, stopping them in reverse order.
+    """
+
+    @contextlib.asynccontextmanager
+    async def lifespan(lifespan_app: Starlette) -> AsyncGenerator[None]:
+        try:
+            await db.open()
+            room_manager.start_reaper()
+            await lifespan_app.state.tournament_game_end_poller.start()
+            lifespan_app.state.playing_games_feed.start()
+            yield
+        finally:
+            await lifespan_app.state.playing_games_feed.stop()
+            await lifespan_app.state.tournament_game_end_poller.stop()
+            await room_manager.stop_reaper()
+            await game_server.aclose()
+            await db.close()
+
+    return lifespan
 
 
 def _add_middleware(app: Starlette, *, settings: LobbyServerSettings, auth_service: AuthService) -> None:
@@ -389,6 +404,10 @@ def _attach_state(  # noqa: PLR0913
         game_repo=game_repo,
         hub=app.state.tournament_hub,
         interval_seconds=settings.tournament_game_poll_interval,
+    )
+    app.state.playing_games_feed = PlayingGamesFeed(
+        fetch=functools.partial(fetch_playing_games, settings=settings, game_server=game_server),
+        interval_seconds=settings.playing_games_poll_interval,
     )
     app.state.settings = settings
     app.state.game_server = game_server

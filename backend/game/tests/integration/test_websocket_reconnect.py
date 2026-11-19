@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
+from unittest.mock import ANY
 
 import pytest
 from starlette.testclient import TestClient
@@ -9,6 +10,7 @@ from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.app import create_app
 from game.session.timer import TimerConfig
+from game.tests.helpers.auth import make_test_game_ticket
 from game.tests.helpers.session import make_session_manager
 from game.tests.helpers.websocket import (
     create_pending_game,
@@ -169,3 +171,35 @@ class TestGameSessionLookup:
         response = client.get("/players/user-0/game-session", headers=headers)
         assert response.status_code == 401
         assert response.json() == {"error": "Unauthorized"}
+
+
+class TestPlayingGamesList:
+    @pytest.fixture
+    def client(self):
+        session_manager = make_session_manager(timer_config=DELAYED_AI_TURNS)
+        app = create_app(game_service=session_manager._game_service, session_manager=session_manager)
+        with TestClient(app) as client:
+            yield client
+
+    def test_playing_games_list__when_one_game_started_and_one_pending__should_list_only_the_started_game_by_seat(
+        self, client
+    ):
+        tickets = create_pending_game(client, game_id="started_game")
+        pending_ticket = make_test_game_ticket(username="Waiting", room_id="pending_game", user_id="user-waiting")
+        pending_player = {"name": "Waiting", "user_id": "user-waiting", "game_ticket": pending_ticket}
+        client.post("/games", json={"game_id": "pending_game", "players": [pending_player], "num_ai_players": 3})
+        secret = client.app.state.settings.internal_api_secret
+
+        with client.websocket_connect("/ws/started_game") as player:
+            join_game_and_start(player, tickets[0])
+            response = client.get("/games", headers={"Authorization": f"Bearer {secret}"})
+            refused = client.get("/games")
+            roster = client.app.state.session_manager.get_game("started_game").roster
+
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store"
+        assert response.json() == {
+            "games": [{"game_id": "started_game", "started_at": ANY, "players": list(roster.names)}]
+        }
+        assert "Player1" in roster.names
+        assert refused.status_code == 401

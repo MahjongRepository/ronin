@@ -187,7 +187,7 @@ type = "layers"
 layers = [
     "lobby.server",
     "lobby.views",
-    "lobby.rooms | lobby.matchmaking | lobby.monitoring | lobby.tournaments",
+    "lobby.rooms | lobby.matchmaking | lobby.monitoring | lobby.tournaments | lobby.live_games",
     "lobby.game_transition | lobby.websocket_utils | lobby.chat_messages",
     "lobby.occupancy | lobby.players",
     "lobby.auth | lobby.i18n",

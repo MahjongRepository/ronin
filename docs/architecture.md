@@ -26,10 +26,11 @@ flowchart LR
         Start["start_game<br/>(game_transition.py)"]
         History["History & replay pages"]
         Monitoring["Admin monitoring page"]
+        Live["Games being played<br/>(live_games/)"]
     end
 
     subgraph Game["Game server :8711"]
-        REST["REST<br/>POST /games, GET /players/{user_id}[/game-session]"]
+        REST["REST<br/>POST /games, GET /games, GET /players/{user_id}[/game-session]"]
         WS["WebSocket /ws/{game_id}<br/>MessagePack"]
         SM["SessionManager<br/>live games, timers, AI players"]
         Engine["MahjongGameService<br/>rules engine"]
@@ -49,6 +50,8 @@ flowchart LR
     Rooms & MM & Tour --> Start
     Start -- "POST /games" --> REST
     Occ -- "GET /players/{user_id}" --> REST
+    Live -. "poll GET /games while watched<br/>(bearer secret)" .-> REST
+    Live -. "/ws/games: the whole list<br/>on each change" .-> LobbyPages
     Start -- "GET /players/{user_id}/game-session<br/>(recovery, bearer secret)" --> REST
     Start -. "game_starting:<br/>ws_url + game_ticket" .-> LobbyPages
     LobbyPages -. "navigate" .-> GameClient

@@ -68,6 +68,26 @@ class UnfinishedReplayError(ReplayExportError):
     """
 
 
+class GameListError(Exception):
+    """
+    The game server could not list the games it plays; ``str()`` is a fixed description without credentials.
+    """
+
+
+class PlayingGame(BaseModel, frozen=True):
+    """
+    A game the game server plays: its id, its start in epoch seconds and its players East to North.
+    """
+
+    game_id: str = Field(min_length=1)
+    started_at: float
+    players: tuple[str, ...]
+
+
+class _PlayingGames(BaseModel):
+    games: tuple[PlayingGame, ...]
+
+
 class _LiveSeat(BaseModel):
     game_id: str = Field(min_length=1)
     game_ticket: str = Field(min_length=1)
@@ -86,6 +106,7 @@ _PLAYING_LOOKUP_TIMEOUT_SECONDS = 2.0
 _STATUS_LOOKUP_TIMEOUT_SECONDS = 2.0
 _WITHDRAW_TIMEOUT_SECONDS = 2.0
 _HANDOFF_LOOKUP_TIMEOUT_SECONDS = 2.0
+_GAME_LIST_TIMEOUT_SECONDS = 2.0
 _REPLAY_EXPORT_TIMEOUT_SECONDS = 10.0
 _START_REQUEST_TIMEOUT = httpx.Timeout(10.0)
 _KEEPALIVE_EXPIRY_SECONDS = 2.0
@@ -283,6 +304,35 @@ async def fetch_game_server_status(*, game_server: httpx.AsyncClient) -> GameSer
     except ValidationError:
         logger.warning("game server status lookup got a malformed answer")
         return None
+
+
+async def fetch_playing_games(
+    *, settings: LobbyServerSettings, game_server: httpx.AsyncClient
+) -> tuple[PlayingGame, ...]:
+    """
+    Ask the game server for every game it plays, oldest first, within ``_GAME_LIST_TIMEOUT_SECONDS``.
+
+    The list names players, so the game server answers it only for the internal API secret. Any failure raises
+    ``GameListError``, so a caller never takes "could not ask" for "no games".
+    """
+    try:
+        async with asyncio.timeout(_GAME_LIST_TIMEOUT_SECONDS):
+            response = await game_server.get(
+                "/games", headers={"Authorization": f"Bearer {settings.internal_api_secret}"}
+            )
+    except (httpx.HTTPError, TimeoutError) as e:
+        raise GameListError(f"request failed: {type(e).__name__}") from e
+
+    if response.status_code == HTTPStatus.UNAUTHORIZED:
+        raise GameListError("internal API secret refused: AUTH_INTERNAL_API_SECRET differs between the servers")
+
+    if response.status_code != HTTPStatus.OK:
+        raise GameListError(f"unexpected status {response.status_code}")
+
+    try:
+        return _PlayingGames.model_validate_json(response.content).games
+    except ValidationError:
+        raise GameListError("malformed answer") from None
 
 
 async def find_game_handoff(

@@ -75,16 +75,6 @@
     }
 }
 
-.tournament-games .lobby-room-players {
-    white-space: normal;
-
-    .tournament-game-player {
-        display: inline-block;
-        max-width: 100%;
-        overflow-wrap: anywhere;
-    }
-}
-
 .tournament-online-panel {
     display: flex;
     flex-direction: column;

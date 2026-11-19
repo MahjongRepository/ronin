@@ -39,11 +39,16 @@ async def lobby_session(request: Request) -> JSONResponse:
 
 async def lobby_rooms(request: Request) -> JSONResponse:
     """
-    GET /api/lobby/rooms - the locally managed rooms and the id of the one the user is seated in, if any.
+    GET /api/lobby/rooms - the locally managed rooms, the id of the one the user is seated in, if any, and the socket of
+    the games being played.
     """
     room_manager: LobbyRoomManager = request.app.state.room_manager
     return JSONResponse(
-        {"rooms": room_manager.get_rooms_info(), "my_room": room_manager.find_user_room(request.user.user_id)},
+        {
+            "rooms": room_manager.get_rooms_info(),
+            "my_room": room_manager.find_user_room(request.user.user_id),
+            "games_ws_url": lobby_websocket_url(request, "/ws/games"),
+        },
         headers=NO_STORE_HEADERS,
     )
 

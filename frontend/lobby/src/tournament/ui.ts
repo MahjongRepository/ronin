@@ -1,10 +1,10 @@
 import { type TemplateResult, html, nothing, render } from "lit-html";
 
 import { chatComposerTemplate, chatLogTemplate, scrollChatToLatest } from "@/chat";
-import { type MessageKey, formatTime, t } from "@/i18n";
+import { currentGamesTemplate } from "@/current-games";
+import { type MessageKey, t } from "@/i18n";
 import { describeTournamentError } from "@/tournament/handlers";
 import {
-    type CurrentGame,
     PAGE_ERROR,
     TOURNAMENT_TABS,
     type TournamentConfig,
@@ -107,40 +107,6 @@ function onlineTitle(state: TournamentState): string {
     return t("tournament.online_count", { count: state.players.length });
 }
 
-function gameCard(game: CurrentGame, index: number): TemplateResult {
-    const names = game.players.join(", ");
-    return html`<article class="lobby-room-card" style="--card-index: ${index}">
-        <div class="lobby-room-header">
-            <span class="lobby-table-name">${t("tournament.games.table", { number: index + 1 })}</span>
-            <span class="lobby-room-count">${formatTime(game.startedAt)}</span>
-        </div>
-        <div class="lobby-table-vis" aria-hidden="true">
-            ${game.players.map(() => html`<span class="lobby-seat filled"></span>`)}
-        </div>
-        <p class="lobby-room-players">
-            <span class="lobby-room-names" title=${names}>
-                ${game.players.map((name, seat) => html`${seat > 0 ? " " : ""}<span class="tournament-game-player">${name}${seat < game.players.length - 1 ? "," : ""}</span>`)}
-            </span>
-        </p>
-    </article>`;
-}
-
-function currentGamesTemplate(state: TournamentState): TemplateResult {
-    return html`<section class="lobby-section tournament-games" aria-labelledby="tournament-games-title">
-        <div class="lobby-section-header">
-            <h2 id="tournament-games-title">${t("tournament.games.title")}</h2>
-            <small class="lobby-table-count">${t("tournament.games.count", { count: state.games.length })}</small>
-        </div>
-        ${
-            state.games.length > 0
-                ? html`<div class="lobby-grid">${state.games.map((game, index) => gameCard(game, index))}</div>`
-                : html`<div class="lobby-empty lobby-muted">
-                      <p class="lobby-empty-title">${t("tournament.games.empty")}</p>
-                  </div>`
-        }
-    </section>`;
-}
-
 function panelsTemplate(page: TournamentPage): TemplateResult {
     const { actions, config, state } = page;
     const chatMaxLength = config?.chatMaxLength ?? 0;
@@ -158,7 +124,7 @@ function panelsTemplate(page: TournamentPage): TemplateResult {
                 ${chatComposerTemplate({ chatMaxLength, enabled: isLive(state), send: actions.sendChat })}
             </section>
         </div>
-        ${isLive(state) ? currentGamesTemplate(state) : nothing}
+        ${isLive(state) ? currentGamesTemplate(state.games, "tournament-games-title") : nothing}
     `;
 }
 

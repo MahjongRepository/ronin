@@ -1,6 +1,7 @@
 import { type TemplateResult, html, nothing, render } from "lit-html";
 
 import { pageFailedView } from "@/app/page-failed";
+import { currentGamesTemplate } from "@/current-games";
 import { type MessageKey, t, tParts } from "@/i18n";
 import {
     type LobbyRoom,
@@ -125,7 +126,7 @@ function roomsListTemplate(rooms: LobbyRooms): TemplateResult {
         ? html`<div class="lobby-grid">
                   ${rooms.rooms.map((room, index) => roomCard(room, index, rooms.myRoomId))}
               </div>`
-        : html`<div class="lobby-empty lobby-muted">
+        : html`<div class="lobby-empty lobby-empty--inline lobby-muted">
                   <p class="lobby-empty-title">${t("lobby.tables.empty_title")}</p>
                   <p class="lobby-empty-hint">${t("lobby.tables.empty_hint")}</p>
               </div>`;
@@ -202,7 +203,8 @@ function lobbyTemplate(state: LobbyState, actions: LobbyActions): TemplateResult
     return html`${state.notice ? alertTemplate("warning", state.notice) : nothing}
     ${state.createFailed ? alertTemplate("error", "lobby.error.create_failed") : nothing}
     ${seated ? seatedHint(seated) : nothing} ${actionsTemplate(seated !== null, actions)}
-    ${tablesTemplate(state.rooms)} ${ownTournamentsTemplate(state, actions)}`;
+    ${tablesTemplate(state.rooms)} ${currentGamesTemplate(state.games, "lobby-games-title")}
+    ${ownTournamentsTemplate(state, actions)}`;
 }
 
 export function renderLobby(host: HTMLElement, state: LobbyState, actions: LobbyActions): void {

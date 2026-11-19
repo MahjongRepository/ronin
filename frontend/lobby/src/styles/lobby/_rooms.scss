@@ -6,6 +6,10 @@
     margin-top: 0.5rem;
 }
 
+.lobby-section + .lobby-section {
+    margin-top: 2rem;
+}
+
 .lobby-section-header {
     display: flex;
     flex-wrap: wrap;
@@ -355,5 +359,27 @@
 
     [role="button"] {
         margin-top: 1rem;
+    }
+
+    &.lobby-empty--inline {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0 0.5rem;
+        padding: 0;
+
+        p {
+            margin-bottom: 0;
+        }
+    }
+}
+
+.current-games .lobby-room-players {
+    white-space: normal;
+
+    .current-game-player {
+        display: inline-block;
+        max-width: 100%;
+        overflow-wrap: anywhere;
     }
 }

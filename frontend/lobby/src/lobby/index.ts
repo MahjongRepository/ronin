@@ -1,7 +1,14 @@
 import { type MountedView } from "@ronin/shared/router";
 
-import { createRoom, createTournament, loadOwnTournaments, loadRooms } from "@/lobby/handlers";
-import { createLobbyState, noticeFromUrl } from "@/lobby/state";
+import { watchCurrentGames } from "@/lobby/games-feed";
+import {
+    type LobbyViewContext,
+    createRoom,
+    createTournament,
+    loadOwnTournaments,
+    loadRooms,
+} from "@/lobby/handlers";
+import { type LobbyState, createLobbyState, noticeFromUrl } from "@/lobby/state";
 import { renderLobby } from "@/lobby/ui";
 
 export interface LobbyViewDeps {
@@ -15,6 +22,24 @@ function dropNoticeFromUrl(url: URL): void {
     const clean = new URL(url);
     clean.searchParams.delete("notice");
     window.history.replaceState(window.history.state, "", clean);
+}
+
+function loadRoomsAndWatchGames(state: LobbyState, context: LobbyViewContext): () => void {
+    let stop: (() => void) | null = null;
+    let stopped = false;
+    void loadRooms(state, context).then((gamesWsUrl) => {
+        if (gamesWsUrl === null || stopped) {
+            return;
+        }
+        stop = watchCurrentGames(gamesWsUrl, (games) => {
+            state.games = games;
+            context.render();
+        });
+    });
+    return () => {
+        stopped = true;
+        stop?.();
+    };
 }
 
 export function mountLobbyView(host: HTMLElement, url: URL, deps: LobbyViewDeps): MountedView {
@@ -36,12 +61,13 @@ export function mountLobbyView(host: HTMLElement, url: URL, deps: LobbyViewDeps)
 
     dropNoticeFromUrl(url);
     render();
-    void loadRooms(state, context);
+    const stopWatchingGames = loadRoomsAndWatchGames(state, context);
     void loadOwnTournaments(state, context);
     return {
         rerender: render,
         unmount: () => {
             disposed = true;
+            stopWatchingGames();
         },
     };
 }

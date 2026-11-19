@@ -48,6 +48,15 @@
     "common.page_failed": "Не удалось загрузить страницу.",
     "common.reload": "Обновить",
     "common.unsupported_browser": "Ваш браузер устарел, и игра в нём отображается неправильно. Обновите его до Chrome или Edge 108, Firefox 128, Safari 16.4 или новее.",
+    "current_games.count": {
+        "few": "идёт: {count}",
+        "many": "идёт: {count}",
+        "one": "идёт: {count}",
+        "other": "идёт: {count}"
+    },
+    "current_games.empty": "Сейчас никто не играет",
+    "current_games.table": "Стол {number}",
+    "current_games.title": "Текущие игры",
     "duration.hours": "{hours} ч {minutes} мин",
     "duration.minutes": "{minutes} мин {seconds} с",
     "duration.seconds": "{seconds} с",
@@ -312,15 +321,6 @@
     "tournament.error.tournament_not_found": "Этого турнира больше нет.",
     "tournament.error.unknown": "В турнире что-то пошло не так.",
     "tournament.fallback_name": "Турнир",
-    "tournament.games.count": {
-        "few": "идёт: {count}",
-        "many": "идёт: {count}",
-        "one": "идёт: {count}",
-        "other": "идёт: {count}"
-    },
-    "tournament.games.empty": "Сейчас никто не играет",
-    "tournament.games.table": "Стол {number}",
-    "tournament.games.title": "Текущие игры",
     "tournament.online_count": {
         "one": "{count} игрок в сети",
         "few": "{count} игрока в сети",

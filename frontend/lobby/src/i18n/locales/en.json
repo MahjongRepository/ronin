@@ -46,6 +46,13 @@
     "common.page_failed": "This page failed to load.",
     "common.reload": "Reload",
     "common.unsupported_browser": "Your browser is too old to show the game correctly. Update to Chrome or Edge 108, Firefox 128, Safari 16.4 or newer.",
+    "current_games.count": {
+        "one": "{count} playing",
+        "other": "{count} playing"
+    },
+    "current_games.empty": "No games are being played right now",
+    "current_games.table": "Table {number}",
+    "current_games.title": "Current games",
     "duration.hours": "{hours}h {minutes}m",
     "duration.minutes": "{minutes}m {seconds}s",
     "duration.seconds": "{seconds}s",
@@ -296,13 +303,6 @@
     "tournament.error.tournament_not_found": "This tournament no longer exists.",
     "tournament.error.unknown": "Something went wrong in this tournament.",
     "tournament.fallback_name": "Tournament",
-    "tournament.games.count": {
-        "one": "{count} playing",
-        "other": "{count} playing"
-    },
-    "tournament.games.empty": "No games are being played right now",
-    "tournament.games.table": "Table {number}",
-    "tournament.games.title": "Current games",
     "tournament.online_count": {
         "one": "{count} player online",
         "other": "{count} players online"

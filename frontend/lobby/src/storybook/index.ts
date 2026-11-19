@@ -191,7 +191,7 @@ function storybookTemplate(): TemplateResult {
                 <h2>Empty state</h2>
                 <small class="lobby-table-count">.lobby-empty</small>
             </div>
-            <div class="lobby-empty lobby-muted">
+            <div class="lobby-empty lobby-empty--inline lobby-muted">
                 <p class="lobby-empty-title">No custom tables open</p>
                 <p class="lobby-empty-hint">Host one, or jump into a quick match.</p>
             </div>
