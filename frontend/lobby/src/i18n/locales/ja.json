@@ -197,7 +197,7 @@
     "nav.log_in": "ログイン",
     "nav.log_out": "ログアウト",
     "nav.register": "登録",
-    "nav.settings": "設定",
+    "nav.settings": "ゲーム設定",
     "occupancy.already_in_game": "すでに対局中です。先にその対局を終えてください。",
     "occupancy.already_in_queue": "マッチングを検索中です。先に検索をキャンセルしてください。",
     "occupancy.already_in_room": "すでに卓に着席しています。先にその卓を離れてください。",

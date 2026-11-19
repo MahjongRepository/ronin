@@ -107,7 +107,7 @@ describe("startChrome", () => {
         pressEscapeInAccountPanel(nav);
 
         expect(toggle?.getAttribute("aria-label")).toBe("Nanashi-1234, account menu");
-        expect(opened).toEqual({ expanded: "true", items: ["Settings", "Log out"] });
+        expect(opened).toEqual({ expanded: "true", items: ["Game settings", "Log out"] });
         expect(nav.querySelector<HTMLElement>(".lobby-account-panel")?.hidden).toBe(true);
         expect(toggle?.getAttribute("aria-expanded")).toBe("false");
         expect(document.activeElement).toBe(toggle);
