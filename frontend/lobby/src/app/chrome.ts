@@ -20,6 +20,7 @@ export interface Chrome {
 }
 
 const MONITORING_PATH = "/admin/monitoring";
+const SETTINGS_PATH = "/settings";
 
 function currentPage(path: string, href: string): "page" | typeof nothing {
     return path === href ? "page" : nothing;
@@ -36,18 +37,36 @@ function userLinks(user: SessionUser, path: string): TemplateResult {
                 >${t("nav.history")}</a
             >
         </li>
-        ${
-            user.isAdmin
-                ? html`<li>
-                  <a
-                      href=${MONITORING_PATH}
-                      class="lobby-nav-link"
-                      aria-current=${currentPage(path, MONITORING_PATH)}
-                      >${t("nav.admin")}</a
-                  >
-              </li>`
-                : nothing
-        }`;
+        ${user.isAdmin ? adminItem(path) : nothing}`;
+}
+
+function adminIcon(): TemplateResult {
+    return html`<svg
+        class="lobby-nav-icon"
+        viewBox="0 0 16 16"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <path d="M2.5 13.5h11" />
+        <path d="M4.5 13.5v-4M8 13.5v-9M11.5 13.5v-6" />
+    </svg>`;
+}
+
+function adminItem(path: string): TemplateResult {
+    return html`<li>
+        <a
+            href=${MONITORING_PATH}
+            class="lobby-nav-link lobby-admin-link"
+            aria-label=${t("nav.admin")}
+            title=${t("nav.admin")}
+            aria-current=${currentPage(path, MONITORING_PATH)}
+            >${adminIcon()}<span class="lobby-admin-label">${t("nav.admin")}</span></a
+        >
+    </li>`;
 }
 
 function postCurrentCsrfToken(event: SubmitEvent): void {
@@ -58,8 +77,36 @@ function postCurrentCsrfToken(event: SubmitEvent): void {
     }
 }
 
-function accountItems(user: SessionUser): TemplateResult {
-    return html`<li class="lobby-username" title=${user.username}>${user.username}</li>
+function cogIcon(): TemplateResult {
+    return html`<svg class="lobby-settings-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle
+            cx="12"
+            cy="12"
+            r="8.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="3.5"
+            stroke-dasharray="3.338 3.338"
+        />
+        <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2.5" />
+    </svg>`;
+}
+
+function settingsItem(user: SessionUser, path: string): TemplateResult {
+    return html`<li class="lobby-settings-item">
+        <a
+            href=${SETTINGS_PATH}
+            class="lobby-nav-link lobby-settings-link"
+            aria-label=${t("nav.settings")}
+            title=${t("nav.settings")}
+            aria-current=${currentPage(path, SETTINGS_PATH)}
+            >${cogIcon()}<span class="lobby-username">${user.username}</span></a
+        >
+    </li>`;
+}
+
+function accountItems(user: SessionUser, path: string): TemplateResult {
+    return html`${settingsItem(user, path)}
         <li>
             <form method="POST" action="/logout" @submit=${postCurrentCsrfToken}>
                 <input type="hidden" name="csrf_token" value=${readCsrfToken()} />
@@ -90,7 +137,7 @@ function rightItems(session: Session | undefined, url: URL): TemplateResult | ty
     if (session === undefined) {
         return nothing;
     }
-    return session.user ? accountItems(session.user) : signInItems(url);
+    return session.user ? accountItems(session.user, url.pathname) : signInItems(url);
 }
 
 function navTemplate(session: Session | undefined, url: URL): TemplateResult {

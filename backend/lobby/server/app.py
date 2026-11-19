@@ -201,6 +201,7 @@ def create_app(  # noqa: PLR0913
             name="join_room_and_redirect",
         ),
         Route("/matchmaking", protected_html(spa_shell), methods=["GET"], name="matchmaking_page"),
+        Route("/settings", protected_html(spa_shell), methods=["GET"], name="settings_page"),
         Route("/admin/monitoring", admin_html(monitoring_page), methods=["GET"], name="monitoring_page"),
         # WebSocket routes (auth handled inside the handlers)
         WebSocketRoute("/ws/rooms/{room_id}", room_websocket, name="room_websocket"),

@@ -1,13 +1,39 @@
-import { type NavigateOptions, type Route } from "@ronin/shared/router";
+import { type Locale } from "@ronin/shared/locale";
+import { type MountedView, type NavigateOptions, type Route } from "@ronin/shared/router";
 
+import { fetchSession } from "@/app/session";
 import { mountLoginView, mountRegisterView } from "@/auth";
 import { mountHistoryView } from "@/history";
 import { mountLobbyView } from "@/lobby";
 import { mountMatchmakingView } from "@/matchmaking";
 import { mountRoomView } from "@/room";
+import { mountSettingsView } from "@/settings";
 
 export interface RouteDeps {
     readonly navigate: (url: string, options?: NavigateOptions) => void;
+    readonly setLanguage: (locale: Locale) => void;
+}
+
+function mountSignedInOnly(url: URL, deps: RouteDeps, mountView: () => MountedView): MountedView {
+    let disposed = false;
+    async function sendSignedOutToLogin(): Promise<void> {
+        const session = await fetchSession();
+        if (disposed || session === null || session.user !== null) {
+            return;
+        }
+        const next = encodeURIComponent(url.pathname + url.search);
+        deps.navigate(`/login?next=${next}`, { replace: true });
+    }
+
+    const mounted = mountView();
+    void sendSignedOutToLogin();
+    return {
+        rerender: mounted.rerender,
+        unmount: () => {
+            disposed = true;
+            mounted.unmount();
+        },
+    };
 }
 
 export function lobbyRoutes(deps: RouteDeps): Route[] {
@@ -36,6 +62,13 @@ export function lobbyRoutes(deps: RouteDeps): Route[] {
         {
             mount: (host, _params, url) => mountRegisterView(host, url),
             pattern: /^\/register\/?$/,
+        },
+        {
+            mount: (host, _params, url) =>
+                mountSignedInOnly(url, deps, () =>
+                    mountSettingsView(host, { setLanguage: deps.setLanguage }),
+                ),
+            pattern: /^\/settings\/?$/,
         },
     ];
 }

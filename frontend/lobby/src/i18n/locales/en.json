@@ -121,6 +121,7 @@
     "nav.log_in": "Log in",
     "nav.log_out": "Log out",
     "nav.register": "Register",
+    "nav.settings": "Settings",
     "occupancy.already_in_game": "You're already in a game. Finish it first.",
     "occupancy.already_in_queue": "You're already searching for a match. Cancel that search first.",
     "occupancy.already_in_room": "You're already seated at a table. Leave it first.",

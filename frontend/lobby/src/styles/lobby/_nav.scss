@@ -119,6 +119,61 @@
     }
 }
 
+.lobby-settings-item {
+    --lobby-link-inset: var(--pico-nav-element-spacing-horizontal);
+    --lobby-link-overhang: var(--pico-nav-link-spacing-horizontal);
+
+    min-width: calc(
+        var(--ronin-touch-target) - 2 * (var(--lobby-link-overhang) - var(--lobby-link-inset))
+    );
+}
+
+.lobby-nav .lobby-settings-link {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+
+    .lobby-username {
+        color: inherit;
+    }
+
+    &[aria-current="page"] .lobby-username {
+        padding-bottom: 0.6em;
+        margin-bottom: -0.6em;
+        text-decoration: underline 2px var(--pico-primary);
+        text-underline-offset: 0.45em;
+    }
+}
+
+.lobby-nav-icon {
+    display: none;
+    flex: none;
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+@media (width <= 576px) {
+    .lobby-nav .lobby-admin-link {
+        justify-content: center;
+        min-width: var(--ronin-touch-target);
+    }
+
+    .lobby-admin-link .lobby-nav-icon {
+        display: block;
+    }
+
+    .lobby-admin-label {
+        display: none;
+    }
+}
+
+.lobby-settings-icon {
+    flex: none;
+    width: 1rem;
+    height: 1rem;
+}
+
 .lobby-nav [role="button"].outline[aria-current="page"] {
     --pico-background-color: var(--pico-primary-background);
     --pico-border-color: var(--pico-primary-background);
@@ -149,5 +204,11 @@
         display: inline-flex;
         align-items: center;
         min-height: var(--ronin-touch-target);
+    }
+
+    .lobby-nav .lobby-settings-link {
+        display: flex;
+        justify-content: center;
+        min-width: var(--ronin-touch-target);
     }
 }

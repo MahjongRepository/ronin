@@ -1,4 +1,6 @@
 import { type Route, interceptLinks, startRouter } from "@ronin/shared/router";
+import { restoreTileLabels } from "@ronin/shared/tile-labels";
+import { restoreWindScript } from "@ronin/shared/winds";
 import { render } from "lit-html";
 
 import { type Chrome, type ChromeMounts, startChrome } from "@/app/chrome";
@@ -35,9 +37,14 @@ async function showSession(chrome: Chrome): Promise<void> {
 }
 
 function startShell(host: HTMLElement, mounts: ChromeMounts, meta: PageMeta): void {
+    restoreWindScript();
+    restoreTileLabels();
     const chrome = startChrome(mounts, meta, () => router.rerender());
     const routes = withChromeRender(
-        lobbyRoutes({ navigate: (url, options) => router.navigate(url, options) }),
+        lobbyRoutes({
+            navigate: (url, options) => router.navigate(url, options),
+            setLanguage: chrome.switchLanguage,
+        }),
         chrome,
     );
     let started = false;

@@ -135,6 +135,7 @@
     "nav.log_in": "Войти",
     "nav.log_out": "Выйти",
     "nav.register": "Регистрация",
+    "nav.settings": "Настройки",
     "occupancy.already_in_game": "Вы уже играете. Сначала завершите эту игру.",
     "occupancy.already_in_queue": "Вы уже ищете игру. Сначала отмените поиск.",
     "occupancy.already_in_room": "Вы уже сидите за столом. Сначала выйдите из-за него.",

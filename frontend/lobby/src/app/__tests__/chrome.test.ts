@@ -74,8 +74,8 @@ describe("startChrome", () => {
         chrome.showSession({ user: { isAdmin: true, isGuest: false, username: "dev" } });
         const postedToken = postedTokenAfterRotation(nav, "rotated-token");
 
-        expect(playerLinks).toEqual(["/", "/history"]);
-        expect(navHrefs(nav)).toEqual(["/", "/history", "/admin/monitoring"]);
+        expect(playerLinks).toEqual(["/", "/history", "/settings"]);
+        expect(navHrefs(nav)).toEqual(["/", "/history", "/admin/monitoring", "/settings"]);
         expect(nav.querySelector(".lobby-username")?.textContent).toBe("dev");
         expect(postedToken).toBe("rotated-token");
     });
