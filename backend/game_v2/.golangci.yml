@@ -2,6 +2,35 @@ version: "2"
 
 linters:
   default: standard
+  enable:
+    - depguard
+  settings:
+    depguard:
+      rules:
+        engine-purity:
+          list-mode: lax
+          files:
+            - "**/engine/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/MahjongRepository/ronin/backend/game_v2/internal
+              desc: the engine never imports the server side
+            - pkg: net/http
+              desc: the engine does no transport
+            - pkg: os$
+              desc: the engine does not touch the process or the file system
+            - pkg: os/
+              desc: the engine does not touch the process or the file system
+            - pkg: time$
+              desc: the engine reads no clock; the caller passes time in
+            - pkg: math/rand$
+              desc: the engine draws randomness only from its seed
+            - pkg: math/rand/v2$
+              desc: the engine draws randomness only from its seed
+            - pkg: crypto/rand$
+              desc: the engine draws randomness only from its seed
+            - pkg: github.com/coder/websocket
+              desc: the engine does no transport
 
 formatters:
   enable:

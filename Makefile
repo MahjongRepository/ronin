@@ -56,7 +56,8 @@ lint-go:
 	cd backend/game_v2 && golangci-lint run
 
 test-go:
-	cd backend/game_v2 && go test -race ./...
+	cd backend/game_v2 && go test -race -coverprofile=coverage.out -coverpkg=./engine/... ./...
+	$(BE_RUN) python bin/check_go_coverage.py backend/game_v2/coverage.out
 
 run-debug:
 	$(BE_RUN) python backend/debug.py
