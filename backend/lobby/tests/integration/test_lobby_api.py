@@ -217,3 +217,14 @@ class TestLobbyHistoryRoute:
         response = client.get("/api/lobby/history")
 
         assert [game["game_id"] for game in response.json()["games"]] == game_ids[:0:-1]
+
+
+class TestLobbyMatchmakingRoute:
+    def test_lobby_matchmaking_route__when_signed_in__should_answer_the_queue_socket_uncached(self, client):
+        register_with_csrf(client, "alice")
+
+        response = client.get("/api/lobby/matchmaking")
+
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store"
+        assert response.json() == {"ws_url": "ws://testserver/ws/matchmaking"}

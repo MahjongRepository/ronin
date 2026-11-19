@@ -70,7 +70,11 @@ function mountRoom(): HTMLElement {
 async function openRoom(body: unknown = ROOM_CONFIG): Promise<HTMLElement> {
     answerRoomConfig(200, body);
     const host = mountRoom();
-    await vi.waitFor(() => expect(host.querySelector(".room")).not.toBeNull());
+    await vi.waitFor(() =>
+        expect(
+            mockSocketCreated.mock.calls.length + host.querySelectorAll(".lobby-alert").length,
+        ).toBe(1),
+    );
     return host;
 }
 
@@ -175,7 +179,7 @@ describe("mountRoomView", () => {
         await vi.advanceTimersByTimeAsync(0);
 
         expect(mockSocketCreated).not.toHaveBeenCalled();
-        expect(host.querySelector(".room")).toBeNull();
+        expect(host.querySelector(".room h2")?.textContent).toBe("Table");
     });
 
     test("closes the socket on unmount and a later online event does not reconnect", async () => {
@@ -206,26 +210,33 @@ describe("mountRoomView", () => {
     test.each([
         ["after taking a seat", joinAsHost],
         ["as the join's first and only message", () => {}],
-    ])("hands the game session to the game client %s", async (_when, before) => {
-        const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
-        await openRoom();
-        before();
+    ])(
+        "hands the game session to the game client %s and stays out of the room when the back-forward cache restores the page",
+        async (_when, before) => {
+            const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
+            await openRoom();
+            before();
 
-        receive({
-            game_client_url: "/play",
-            game_id: "game-1",
-            game_ticket: "ticket-1",
-            type: "game_starting",
-            ws_url: "ws://game/ws",
-        });
+            receive({
+                game_client_url: "/play",
+                game_id: "game-1",
+                game_ticket: "ticket-1",
+                type: "game_starting",
+                ws_url: "ws://game/ws",
+            });
 
-        expect(JSON.parse(sessionStorage.getItem("game_session:game-1") ?? "null")).toEqual({
-            gameTicket: "ticket-1",
-            wsUrl: "ws://game/ws",
-        });
-        expect(replace).toHaveBeenCalledExactlyOnceWith("/play/game-1");
-        expect(mockDisconnect).toHaveBeenCalledTimes(1);
-    });
+            expect(JSON.parse(sessionStorage.getItem("game_session:game-1") ?? "null")).toEqual({
+                gameTicket: "ticket-1",
+                wsUrl: "ws://game/ws",
+            });
+            expect(replace).toHaveBeenCalledExactlyOnceWith("/play/game-1");
+            expect(mockDisconnect).toHaveBeenCalledTimes(1);
+
+            window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: true }));
+
+            expect(mockConnect).toHaveBeenCalledTimes(1);
+        },
+    );
 
     test("stays on the page with a reload when the game start names no game", async () => {
         const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});

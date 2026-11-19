@@ -40,7 +40,17 @@ function startShell(host: HTMLElement, mounts: ChromeMounts, meta: PageMeta): vo
         lobbyRoutes({ navigate: (url, options) => router.navigate(url, options) }),
         chrome,
     );
-    const router = startRouter(host, routes, () => window.location.reload());
+    let started = false;
+    function showUnmatched(): void {
+        if (started) {
+            window.location.reload();
+            return;
+        }
+        render(pageFailedView(), host);
+        chrome.render();
+    }
+    const router = startRouter(host, routes, showUnmatched);
+    started = true;
     interceptLinks(router, routes);
     void showSession(chrome);
 }

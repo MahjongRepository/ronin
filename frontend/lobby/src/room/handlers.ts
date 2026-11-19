@@ -12,6 +12,7 @@ import {
     type RoomState,
     canAct,
     getMyReadyState,
+    hasEnded,
     isMe,
     isSeated,
     readRoomConfigAnswer,
@@ -275,6 +276,7 @@ function buildMessageHandlers(
         }
         cancelJoinRetry(state);
         appendChat(LOG_TYPE_SYSTEM, t("room.chat.game_starting"));
+        state.handedOff = true;
         enterGame(start);
     }
 
@@ -303,7 +305,7 @@ function leaveOnPageExit(state: RoomState): void {
 }
 
 function rejoinOnPageShow(state: RoomState, rejoin: () => void): void {
-    if (state.pageError) {
+    if (hasEnded(state)) {
         return;
     }
     cancelJoinRetry(state);

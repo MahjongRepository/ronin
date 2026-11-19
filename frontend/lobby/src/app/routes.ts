@@ -18,15 +18,15 @@ export function lobbyRoutes(deps: RouteDeps): Route[] {
         {
             mount: (host, params) =>
                 mountRoomView(host, params.id ?? "", { navigate: deps.navigate }),
-            pattern: /^\/rooms\/(?<id>[^/]+)$/,
+            pattern: /^\/rooms\/(?<id>[^/]+)\/?$/,
         },
         {
             mount: (host) => mountMatchmakingView(host),
-            pattern: /^\/matchmaking$/,
+            pattern: /^\/matchmaking\/?$/,
         },
         {
             mount: (host) => mountHistoryView(host),
-            pattern: /^\/history$/,
+            pattern: /^\/history\/?$/,
         },
     ];
 }

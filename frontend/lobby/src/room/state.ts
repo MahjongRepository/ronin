@@ -53,6 +53,7 @@ interface RoomState {
     currentPlayerName: string;
     joinRetries: number;
     joinRetryTimer: ReturnType<typeof setTimeout> | null;
+    handedOff: boolean;
     pageError: PageError | null;
     reconnectAttempts: number;
     reconnecting: boolean;
@@ -65,6 +66,7 @@ function createRoomState(): RoomState {
         chatMessages: [],
         connectionStatus: "connecting",
         currentPlayerName: "",
+        handedOff: false,
         isOwner: false,
         joinRetries: 0,
         joinRetryTimer: null,
@@ -81,8 +83,12 @@ function resetSeat(state: RoomState): void {
     Object.assign(state, createRoomState(), { socket });
 }
 
+function hasEnded(state: RoomState): boolean {
+    return state.pageError !== null || state.handedOff;
+}
+
 function isSeated(state: RoomState): boolean {
-    return state.currentPlayerName !== "" && state.pageError === null;
+    return state.currentPlayerName !== "" && !hasEnded(state);
 }
 
 function isMe(state: RoomState, player: PlayerInfo): boolean {
@@ -158,6 +164,7 @@ export {
     createRoomState,
     describeStartBlocker,
     getMyReadyState,
+    hasEnded,
     isConnectionLost,
     isMe,
     isSeated,

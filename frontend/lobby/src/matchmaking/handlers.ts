@@ -117,7 +117,7 @@ function leaveOnPageExit(state: MatchmakingState): void {
 }
 
 function rejoinOnPageShow(state: MatchmakingState, rejoin: () => void): void {
-    if (state.phase === "ended") {
+    if (isFinished(state)) {
         return;
     }
     rejoin();

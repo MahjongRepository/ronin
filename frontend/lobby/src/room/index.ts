@@ -1,5 +1,4 @@
 import { type MountedView } from "@ronin/shared/router";
-import { nothing, render } from "lit-html";
 
 import { t } from "@/i18n";
 import { LobbySocket } from "@/lobby-socket";
@@ -17,7 +16,13 @@ import {
     reconnectOnResume,
     rejoinOnPageShow,
 } from "@/room/handlers";
-import { PAGE_ERROR, type RoomConfig, type RoomConfigAnswer, createRoomState } from "@/room/state";
+import {
+    PAGE_ERROR,
+    type PageError,
+    type RoomConfig,
+    type RoomConfigAnswer,
+    createRoomState,
+} from "@/room/state";
 import { renderRoom } from "@/room/ui";
 
 export interface RoomViewDeps {
@@ -26,18 +31,13 @@ export interface RoomViewDeps {
 
 const TABLE_GONE_URL = "/?notice=table_gone";
 
-function showLoading(host: HTMLElement): MountedView {
-    function draw(): void {
-        document.title = t("page.title.with_page", { page: t("room.fallback_name") });
-        render(nothing, host);
-    }
-    draw();
-    return { rerender: draw, unmount: () => {} };
-}
-
-function showSetupFailure(host: HTMLElement, navigate: Navigate): MountedView {
+function showRoomFrame(
+    host: HTMLElement,
+    navigate: Navigate,
+    pageError: PageError | null,
+): MountedView {
     const state = createRoomState();
-    state.pageError = { code: PAGE_ERROR.PAGE_SETUP_FAILED };
+    state.pageError = pageError;
     function draw(): void {
         renderRoom({
             actions: buildActionCallbacks(state, navigate),
@@ -111,14 +111,14 @@ function showAnswer(host: HTMLElement, answer: RoomConfigAnswer, navigate: Navig
             return leaveGoneRoom(answer.gameUrl, navigate);
         }
         case "failed": {
-            return showSetupFailure(host, navigate);
+            return showRoomFrame(host, navigate, { code: PAGE_ERROR.PAGE_SETUP_FAILED });
         }
     }
 }
 
 export function mountRoomView(host: HTMLElement, roomId: string, deps: RoomViewDeps): MountedView {
     let disposed = false;
-    let shown = showLoading(host);
+    let shown = showRoomFrame(host, deps.navigate, null);
 
     async function load(): Promise<void> {
         const answer = await fetchRoomConfig(roomId);
