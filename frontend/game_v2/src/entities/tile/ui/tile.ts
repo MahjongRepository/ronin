@@ -21,6 +21,7 @@ import { type TileFace, spokenTileName } from "@/entities/tile/lib/tile-utils";
 import { type WindScript, t } from "@/shared/i18n";
 
 const HONOR_FACES = ["東", "南", "西", "北", "白", "發", "中"] as const;
+const RED_DRAGON: TileFace = "7z";
 
 /**
  * Put the tile sprite's symbols in the document, in one hidden container, and mark the root so tiles stop showing
@@ -242,11 +243,12 @@ interface FaceLabelling {
 
 function FaceArt(face: TileFace, view: FaceBox, { labels, room }: FaceLabelling) {
     const red = face.startsWith("0") ? " tile__name--red" : "";
+    const onRedArt = face.startsWith("0") || face === RED_DRAGON;
     const label = labels === null ? null : tileLabel(face, labels);
     const labelMark =
         label === null
             ? nothing
-            : svg`<text class="tile__label${red === "" ? "" : " tile__label--red-five"}" x="${view.left + view.width + room.right - FACE_LABEL_INSET.right}" y="${view.top - room.top + FACE_LABEL_INSET.baseline}" aria-hidden="true">${label}</text>`;
+            : svg`<text class="tile__label${onRedArt ? " tile__label--on-red-art" : ""}" x="${view.left + view.width + room.right - FACE_LABEL_INSET.right}" y="${view.top - room.top + FACE_LABEL_INSET.baseline}" aria-hidden="true">${label}</text>`;
     return svg`<g class="tile__art"><text class="tile__name${red}" x="150" y="200" aria-hidden="true">${placeholderFace(face)}</text><use href="#tile-${face}" width="${FACE_ART_VIEW.width}" height="${FACE_ART_VIEW.height}"/></g>${labelMark}`;
 }
 

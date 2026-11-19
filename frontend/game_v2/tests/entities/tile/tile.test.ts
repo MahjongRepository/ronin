@@ -104,7 +104,7 @@ describe("StandingTile", () => {
         }
     });
 
-    test("keeps a red five's name red and marks its corner label as a red five's, below the face's top", () => {
+    test("keeps a red five's name red and marks its corner label as on red art, below the face's top", () => {
         const el = renderTo(StandingTile("0s", "latin"));
         const box = el.querySelector("svg.tile__face");
         const label = el.querySelector(".tile__label");
@@ -112,7 +112,7 @@ describe("StandingTile", () => {
 
         expect([
             el.querySelector(".tile__name")?.classList.contains("tile__name--red"),
-            label?.classList.contains("tile__label--red-five"),
+            label?.classList.contains("tile__label--on-red-art"),
             label?.closest("svg") === box,
         ]).toEqual([true, true, true]);
         expect(Number(label?.getAttribute("y"))).toBeGreaterThan(top);
@@ -187,13 +187,13 @@ describe("Tile labels", () => {
     function labels(): (string | null)[] {
         return (["0p", "9s", "2z", "5z", "7z"] as const).map((face) => {
             const label = renderTo(Tile(face, "face")).querySelector(".tile__label");
-            const red =
-                label?.classList.contains("tile__label--red-five") === true ? " red five" : "";
-            return label === null ? null : `${label.textContent}${red}`;
+            const onRed =
+                label?.classList.contains("tile__label--on-red-art") === true ? " on red" : "";
+            return label === null ? null : `${label.textContent}${onRed}`;
         });
     }
 
-    test("label a suit tile by its rank, a red five's marked as one, a wind in the page's wind script and a dragon by its colour, an honor unlabelled in kanji", () => {
+    test("label a suit tile by its rank, a red five's and the red dragon's marked as on red art, a wind in the page's wind script and a dragon by its colour, an honor unlabelled in kanji", () => {
         document.documentElement.lang = "ru";
         const off = labels();
         applyTileLabels(true);
@@ -204,9 +204,9 @@ describe("Tile labels", () => {
 
         expect([off, latin, cyrillic, labels()]).toEqual([
             [null, null, null, null, null],
-            ["5 red five", "9", "S", "Wh", "R"],
-            ["5 red five", "9", "Ю", "Б", "К"],
-            ["5 red five", "9", null, null, null],
+            ["5 on red", "9", "S", "Wh", "R on red"],
+            ["5 on red", "9", "Ю", "Б", "К on red"],
+            ["5 on red", "9", null, null, null],
         ]);
     });
 
@@ -219,7 +219,7 @@ describe("Tile labels", () => {
         restoreTileLabels();
 
         expect([restoredOn, labels()]).toEqual([
-            ["5 red five", "9", "S", "Wh", "R"],
+            ["5 on red", "9", "S", "Wh", "R on red"],
             [null, null, null, null, null],
         ]);
     });
