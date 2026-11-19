@@ -7,6 +7,7 @@ import { type SocketStatus, readString } from "@/lobby-socket";
 import { OCCUPANCY } from "@/occupancy-errors";
 import { enterGame, readGameStart } from "@/session";
 import {
+    type CurrentGame,
     PAGE_ERROR,
     TOURNAMENT_NOT_FOUND,
     type TournamentConfigAnswer,
@@ -71,6 +72,30 @@ function readNames(message: Record<string, unknown>): string[] | null {
         return null;
     }
     return players;
+}
+
+function readCurrentGame(message: Record<string, unknown>, at: Date): CurrentGame | null {
+    const gameId = readString(message, "game_id");
+    const players = readNames(message);
+    if (gameId === null || players === null) {
+        return null;
+    }
+    return { gameId, players, startedAt: at };
+}
+
+function readCurrentGames(message: Record<string, unknown>): CurrentGame[] {
+    const { games } = message;
+    if (!Array.isArray(games)) {
+        return [];
+    }
+    return games
+        .filter((game): game is Record<string, unknown> => isRecord(game))
+        .map((game) => readCurrentGame(game, readEpochTime(game.started_at)))
+        .filter((game): game is CurrentGame => game !== null);
+}
+
+function readEpochTime(value: unknown): Date {
+    return typeof value === "number" ? new Date(value * 1000) : new Date();
 }
 
 interface Placement {
@@ -248,6 +273,7 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
         state.reconnectAttempts = 0;
         state.joined = true;
         state.players = readNames(message) ?? [];
+        state.games = readCurrentGames(message);
         if (!reconnected) {
             appendChat(LOG_TYPE_SYSTEM, t("tournament.chat.you_joined"));
         }
@@ -295,15 +321,18 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
             return;
         }
         state.players = state.players.filter((name) => !players.includes(name));
+        const game = readCurrentGame(message, readEpochTime(message.time));
+        if (game !== null) {
+            state.games = [...state.games, game];
+        }
         appendChat(LOG_TYPE_SYSTEM, describeGameStart(players));
         render();
     }
 
     function appendSystemLine(line: string | null): void {
-        if (line === null) {
-            return;
+        if (line !== null) {
+            appendChat(LOG_TYPE_SYSTEM, line);
         }
-        appendChat(LOG_TYPE_SYSTEM, line);
         render();
     }
 
@@ -323,7 +352,10 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
     return {
         chat: onChat,
         error: onError,
-        game_ended: (message) => appendSystemLine(describeGameEnd(message)),
+        game_ended: (message) => {
+            state.games = state.games.filter((game) => game.gameId !== message.game_id);
+            appendSystemLine(describeGameEnd(message));
+        },
         game_started: onGameStarted,
         game_starting: onGameStarting,
         history: (message) => {

@@ -24,6 +24,12 @@ interface TournamentConfig {
     readonly wsUrl: string;
 }
 
+interface CurrentGame {
+    readonly gameId: string;
+    readonly players: readonly string[];
+    readonly startedAt: Date;
+}
+
 type TournamentConfigAnswer =
     | { readonly kind: "open"; readonly config: TournamentConfig }
     | { readonly kind: "gone" }
@@ -35,6 +41,7 @@ interface TournamentState {
     ownerBusy: boolean;
     ownerError: MessageKey | null;
     connectionStatus: ConnectionStatus;
+    games: CurrentGame[];
     joined: boolean;
     pageError: string | null;
     players: string[];
@@ -49,6 +56,7 @@ function createTournamentState(): TournamentState {
     return {
         chatMessages: [],
         connectionStatus: "connecting",
+        games: [],
         joined: false,
         name: null,
         ownerBusy: false,
@@ -130,4 +138,10 @@ export {
     parseRenamedName,
     readTournamentConfigAnswer,
 };
-export type { TournamentConfig, TournamentConfigAnswer, TournamentState, TournamentTab };
+export type {
+    CurrentGame,
+    TournamentConfig,
+    TournamentConfigAnswer,
+    TournamentState,
+    TournamentTab,
+};

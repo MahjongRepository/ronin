@@ -296,6 +296,13 @@
     "tournament.error.tournament_not_found": "This tournament no longer exists.",
     "tournament.error.unknown": "Something went wrong in this tournament.",
     "tournament.fallback_name": "Tournament",
+    "tournament.games.count": {
+        "one": "{count} playing",
+        "other": "{count} playing"
+    },
+    "tournament.games.empty": "No games are being played right now",
+    "tournament.games.table": "Table {number}",
+    "tournament.games.title": "Current games",
     "tournament.online_count": {
         "one": "{count} player online",
         "other": "{count} players online"

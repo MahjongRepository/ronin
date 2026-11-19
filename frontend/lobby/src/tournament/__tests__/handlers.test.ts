@@ -114,6 +114,32 @@ describe("buildMessageHandlers", () => {
         );
     });
 
+    test("keeps the current games from the join, adds started ones and drops ended ones", () => {
+        const state = createTournamentState();
+        const handlers = buildMessageHandlers(state, vi.fn());
+        handleMessage(handlers, {
+            games: [{ game_id: "g1", players: ["A", "B", "C", "D"], started_at: 1_700_000_000 }],
+            players: [],
+            type: "joined",
+        });
+
+        handleMessage(handlers, {
+            game_id: "g2",
+            players: ["E", "F", "G", "H"],
+            type: "game_started",
+        });
+        handleMessage(handlers, {
+            end_reason: "abandoned",
+            game_id: "g1",
+            players: ["A"],
+            type: "game_ended",
+        });
+
+        expect(state.games.map((game) => [game.gameId, game.players])).toEqual([
+            ["g2", ["E", "F", "G", "H"]],
+        ]);
+    });
+
     test("appends a chat message with its sender", () => {
         const { handlers, state } = buildTournament();
 

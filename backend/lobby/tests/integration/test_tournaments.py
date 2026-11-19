@@ -51,11 +51,11 @@ def test_tournament_socket__when_second_user_connects_and_leaves__should_announc
     client, tournament_id
 ):
     with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
-        assert _receive_until(ws_alice, "joined") == {"type": "joined", "players": ["alice"]}
+        assert _receive_until(ws_alice, "joined") == {"type": "joined", "players": ["alice"], "games": []}
 
         login_with_csrf(client, "bob")
         with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_bob:
-            assert _receive_until(ws_bob, "joined") == {"type": "joined", "players": ["alice", "bob"]}
+            assert _receive_until(ws_bob, "joined") == {"type": "joined", "players": ["alice", "bob"], "games": []}
             assert ws_alice.receive_json() == {"type": "player_online", "player_name": "bob", "time": ANY}
             assert ws_alice.receive_json() == {"type": "presence", "players": ["alice", "bob"], "count": 2}
 
@@ -102,7 +102,7 @@ def test_tournament_socket__when_users_join_after_chat__should_get_history_witho
             {"type": "player_offline", "player_name": "alice", "time": ANY},
         ],
     }
-    assert bob_joined == {"type": "joined", "players": ["bob"]}
+    assert bob_joined == {"type": "joined", "players": ["bob"], "games": []}
     assert alice_history["messages"] == [
         chat,
         {"type": "player_online", "player_name": "bob", "time": ANY},
@@ -295,6 +295,10 @@ def test_game_end_poll__when_played_game_gains_ended_at__should_publish_once_and
         for ws in (dave, events):
             _receive_until(ws, "game_started")
             ws.receive_json()
+        login_with_csrf(client, "erin")
+        erin_joined = _receive_until(
+            stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}")), "joined"
+        )
 
         app.state.game_repo.finish_game(
             PlayedGame(
@@ -307,10 +311,10 @@ def test_game_end_poll__when_played_game_gains_ended_at__should_publish_once_and
         )
         client.portal.call(app.state.tournament_game_end_poller.poll_once)
         client.portal.call(app.state.tournament_game_end_poller.poll_once)
-        login_with_csrf(client, "erin")
-        stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}")).receive_json()
         register_with_csrf(client, "ivan")
-        ivan_history = stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}")).receive_json()
+        ivan = stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}"))
+        ivan_history = ivan.receive_json()
+        ivan_joined = ivan.receive_json()
         client.cookies.delete("session_id")
 
         expected_event = {
@@ -323,12 +327,14 @@ def test_game_end_poll__when_played_game_gains_ended_at__should_publish_once_and
         back_presence = {"type": "presence", "players": ["dave", "erin"], "count": 2}
         ivan_presence = {"type": "presence", "players": ["dave", "erin", "ivan"], "count": 3}
         assert [dave.receive_json() for _ in range(4)] == [
-            expected_event,
             back_presence,
+            expected_event,
             {"type": "player_online", "player_name": "ivan", "time": ANY},
             ivan_presence,
         ]
-        assert [events.receive_json() for _ in range(3)] == [expected_event, back_presence, ivan_presence]
+        assert [events.receive_json() for _ in range(3)] == [back_presence, expected_event, ivan_presence]
+        assert erin_joined["games"] == [{"game_id": game_id, "players": names, "started_at": ANY}]
+        assert ivan_joined["games"] == []
         game_entries = [entry for entry in ivan_history["messages"] if entry["type"] in ("game_started", "game_ended")]
         presence_entries = [
             (entry["type"], entry["player_name"])

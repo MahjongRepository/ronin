@@ -74,3 +74,35 @@
         color: var(--ronin-danger-inverse);
     }
 }
+
+.tournament-games .lobby-room-players {
+    white-space: normal;
+
+    .tournament-game-player {
+        display: inline-block;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+}
+
+.tournament-online-panel {
+    display: flex;
+    flex-direction: column;
+
+    .room-player-list {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    @media (width > 768px) {
+        contain: size;
+    }
+
+    @media (width <= 768px) {
+        .room-player-list {
+            flex: none;
+            max-height: 15rem;
+        }
+    }
+}

@@ -103,8 +103,8 @@ async def _serve_player(player: LobbyPlayer, ctx: _TournamentContext) -> None:
 
 async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
     """
-    Put the player online, send them the tournament's history, then acknowledge it and announce it; return False when
-    the tournament does not exist.
+    Put the player online, send them the tournament's history, then acknowledge it with who is online and the games
+    being played, and announce it; return False when the tournament does not exist.
 
     The same user's older connection is told ``replaced_by_new_connection`` and closed; the new one takes its place,
     with nothing kept or announced as a change. A player back from a game the tournament started is no arrival either.
@@ -127,10 +127,22 @@ async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
         ctx.hub.broadcast(ctx.tournament_id, online, exclude=player.connection_id)
 
     names = ctx.hub.online_names(ctx.tournament_id)
-    player.send({"type": "joined", "players": names})
+    player.send({"type": "joined", "players": names, "games": await _current_games(ctx)})
     ctx.hub.broadcast_presence(ctx.tournament_id, exclude=player.connection_id)
     logger.info("player online in tournament", tournament_id=ctx.tournament_id, username=player.username)
     return True
+
+
+async def _current_games(ctx: _TournamentContext) -> list[dict[str, object]]:
+    """
+    Return the tournament's games still being played, oldest first, each with its players East to North.
+    """
+    games = await ctx.tournament_repo.list_games(ctx.tournament_id)
+    return [
+        {"game_id": game.game_id, "players": game.players, "started_at": game.created_at}
+        for game in games
+        if game.ended_at is None
+    ]
 
 
 def _history_seen_by(player: LobbyPlayer, ctx: _TournamentContext) -> list[dict[str, object]]:

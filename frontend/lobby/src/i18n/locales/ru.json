@@ -312,6 +312,15 @@
     "tournament.error.tournament_not_found": "Этого турнира больше нет.",
     "tournament.error.unknown": "В турнире что-то пошло не так.",
     "tournament.fallback_name": "Турнир",
+    "tournament.games.count": {
+        "few": "идёт: {count}",
+        "many": "идёт: {count}",
+        "one": "идёт: {count}",
+        "other": "идёт: {count}"
+    },
+    "tournament.games.empty": "Сейчас никто не играет",
+    "tournament.games.table": "Стол {number}",
+    "tournament.games.title": "Текущие игры",
     "tournament.online_count": {
         "one": "{count} игрок в сети",
         "few": "{count} игрока в сети",

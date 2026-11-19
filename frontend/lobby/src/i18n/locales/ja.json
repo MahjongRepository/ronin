@@ -288,6 +288,12 @@
     "tournament.error.tournament_not_found": "この大会はもう存在しません。",
     "tournament.error.unknown": "大会で問題が発生しました。",
     "tournament.fallback_name": "大会",
+    "tournament.games.count": {
+        "other": "対局中 {count}"
+    },
+    "tournament.games.empty": "現在進行中の対局はありません",
+    "tournament.games.table": "{number}卓",
+    "tournament.games.title": "進行中の対局",
     "tournament.online_count": {
         "other": "オンライン {count}人"
     },
