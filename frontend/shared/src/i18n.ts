@@ -33,6 +33,10 @@ class I18nError extends Error {
     }
 }
 
+function hasKey(record: object, key: string): boolean {
+    return Object.getOwnPropertyDescriptor(record, key) !== undefined;
+}
+
 function reportI18nError(key: string, reason: string): void {
     if (reportedKeys.has(key)) {
         return;
@@ -54,7 +58,7 @@ function checkParams(key: string, source: Message, params: PartParams): void {
     if (typeof source === "string" && PLURAL_PARAM in params) {
         throw new I18nError(key, "not a plural key");
     }
-    const missing = [...expected].filter((name) => !Object.hasOwn(params, name));
+    const missing = [...expected].filter((name) => !hasKey(params, name));
     if (missing.length > 0) {
         throw new I18nError(key, `missing params ${missing.join(", ")}`);
     }
@@ -84,7 +88,7 @@ function splitMessage(text: string, params: PartParams): Part[] {
         if (index % 2 === 0) {
             return piece;
         }
-        if (!Object.hasOwn(params, piece)) {
+        if (!hasKey(params, piece)) {
             return `{${piece}}`;
         }
         const value = params[piece];
@@ -113,13 +117,13 @@ function renderMessage(
     params: PartParams,
 ): Part[] {
     const source = catalogs[DEFAULT_LOCALE];
-    if (!Object.hasOwn(source, key)) {
+    if (!hasKey(source, key)) {
         throw new I18nError(key, "missing key");
     }
     checkParams(key, source[key], params);
     const locale = pageLocale();
     const catalog = catalogs[locale];
-    if (!Object.hasOwn(catalog, key)) {
+    if (!hasKey(catalog, key)) {
         throw new I18nError(key, `missing ${locale} translation`);
     }
     return splitMessage(pickText(key, catalog[key], params), params);
@@ -132,7 +136,7 @@ function createTranslator<Source extends Catalog>(
     const source: Catalog = catalogs[DEFAULT_LOCALE];
 
     function isMessageKey(key: string): key is Key {
-        return Object.hasOwn(source, key);
+        return hasKey(source, key);
     }
 
     function lookupParts(key: string, params: PartParams): Part[] {

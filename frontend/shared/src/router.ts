@@ -113,6 +113,15 @@ function isRegisteredUrl(routes: readonly Route[], url: URL): boolean {
     return url.origin === window.location.origin && matchRoute(routes, url.pathname) !== undefined;
 }
 
+function moveInPlace(target: URL, replace: boolean): void {
+    if (replace || target.href === window.location.href) {
+        history.replaceState(null, "", target.href);
+    } else {
+        history.pushState(null, "", target.href);
+    }
+    window.scrollTo(0, 0);
+}
+
 /**
  * Mount the route matching the location into `host`, unmounting the previous one first, and again on every
  * history navigation; a path no route matches goes to `onUnmatched`.
@@ -146,11 +155,7 @@ export function startRouter(
             }
             return;
         }
-        if (options.replace) {
-            history.replaceState(null, "", target.href);
-        } else {
-            history.pushState(null, "", target.href);
-        }
+        moveInPlace(target, options.replace ?? false);
         resolve();
     }
 
@@ -171,7 +176,9 @@ function clickedLink(event: MouseEvent): HTMLAnchorElement | null {
 
 function opensInPlace(link: HTMLAnchorElement): boolean {
     const fragmentOnly = link.getAttribute("href")?.startsWith("#") ?? false;
-    return link.target !== "_blank" && !link.hasAttribute("download") && !fragmentOnly;
+    const target = link.target.toLowerCase();
+    const inSameWindow = target === "" || target === "_self";
+    return inSameWindow && !link.hasAttribute("download") && !fragmentOnly;
 }
 
 function interceptedUrl(event: MouseEvent, routes: readonly Route[]): URL | null {

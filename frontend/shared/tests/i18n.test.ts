@@ -51,6 +51,16 @@ describe("createTranslator", () => {
         ]);
     });
 
+    it("translates in a browser without Object.hasOwn", () => {
+        const { hasOwn } = Object;
+        Reflect.deleteProperty(Object, "hasOwn");
+        try {
+            expect(t("test.greeting", { name: "dev" })).toBe("Hello, dev");
+        } finally {
+            Object.hasOwn = hasOwn;
+        }
+    });
+
     it("throws in development on a key missing from the catalog or the page language, or a param the message does not take", () => {
         // @ts-expect-error -- "test.no_such_key" is not a key of the en catalog
         expect(() => t("test.no_such_key")).toThrow(I18nError);

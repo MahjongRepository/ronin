@@ -1,11 +1,34 @@
-import { type Route, lazyRoute, startRouter } from "@ronin/shared/router";
-import { type TemplateResult, html } from "lit-html";
+import { type Route, interceptLinks, lazyRoute, startRouter } from "@ronin/shared/router";
+import { type TemplateResult, html, render } from "lit-html";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const PATTERN = /^\/lazy$/;
 
 function failedView(): TemplateResult {
     return html`<p class="route-error">Failed.</p>`;
+}
+
+function linksRoot(): HTMLElement {
+    const root = document.createElement("div");
+    render(
+        html`<a href="/rooms/1"><span>Jade Crane</span></a><a href="/rooms/2" target="replay">Replay</a>`,
+        root,
+    );
+    return root;
+}
+
+function clickRecordingIntercepts(root: HTMLElement, selectors: readonly string[]): boolean[] {
+    const intercepted: boolean[] = [];
+    root.addEventListener("click", (event) => {
+        intercepted.push(event.defaultPrevented);
+        event.preventDefault();
+    });
+    for (const selector of selectors) {
+        root.querySelector(selector)?.dispatchEvent(
+            new MouseEvent("click", { bubbles: true, button: 0, cancelable: true }),
+        );
+    }
+    return intercepted;
 }
 
 afterEach(() => {
@@ -111,5 +134,19 @@ describe("startRouter", () => {
         expect(view.rerender).toHaveBeenCalledOnce();
         expect(view.unmount).not.toHaveBeenCalled();
         expect(mount).toHaveBeenCalledOnce();
+    });
+});
+
+describe("interceptLinks", () => {
+    it("navigates in place on a plain click inside a registered link and leaves a named-target link to the browser", () => {
+        history.replaceState(null, "", "/");
+        const mount = vi.fn<Route["mount"]>(() => () => {});
+        const routes = [{ mount, pattern: /^\/(?:rooms\/\d+)?$/ }];
+        const root = linksRoot();
+        interceptLinks(startRouter(document.createElement("div"), routes, vi.fn()), routes, root);
+
+        expect(clickRecordingIntercepts(root, ["span", "[target]"])).toEqual([true, false]);
+        expect(location.pathname).toBe("/rooms/1");
+        expect(mount).toHaveBeenCalledTimes(2);
     });
 });
