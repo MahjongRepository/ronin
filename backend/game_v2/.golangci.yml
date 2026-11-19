@@ -67,6 +67,18 @@ linters:
           deny:
             - pkg: github.com/MahjongRepository/ronin/backend/game_v2
               desc: engine/play crosses the facade, so it imports only engine/tile of the module
+        wire-layer:
+          list-mode: lax
+          files:
+            - "**/game_v2/internal/wire/**"
+            - "!$test"
+          allow:
+            - github.com/MahjongRepository/ronin/backend/game_v2/engine$
+            - github.com/MahjongRepository/ronin/backend/game_v2/engine/play$
+            - github.com/MahjongRepository/ronin/backend/game_v2/engine/tile$
+          deny:
+            - pkg: github.com/MahjongRepository/ronin/backend/game_v2
+              desc: wire sits under every server package and over the engine, so it imports only the engine's public packages of the module
     exhaustive:
       default-signifies-exhaustive: false
     forbidigo:

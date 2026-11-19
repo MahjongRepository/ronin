@@ -56,7 +56,7 @@ lint-go:
 	cd backend/game_v2 && go mod tidy -diff && golangci-lint run
 
 test-go:
-	cd backend/game_v2 && go test -race -shuffle=on -timeout=2m -coverprofile=coverage.out -coverpkg=./engine/... ./...
+	cd backend/game_v2 && go test -race -shuffle=on -timeout=2m -coverprofile=coverage.out -coverpkg=./engine/...,./internal/wire/... ./...
 	$(BE_RUN) python bin/check_go_coverage.py backend/game_v2/coverage.out
 
 vuln-go:

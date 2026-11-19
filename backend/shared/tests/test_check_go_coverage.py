@@ -11,6 +11,8 @@ if TYPE_CHECKING:
 ENGINE_BLOCK = "github.com/MahjongRepository/ronin/backend/game_v2/engine/engine.go:45.41,48.2"
 RULES_BLOCK = "github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules/wall.go:7.26,9.2"
 MARKER_BLOCK = "github.com/MahjongRepository/ronin/backend/game_v2/engine/play/event.go:20.27,20.27"
+WIRE_BLOCK = "github.com/MahjongRepository/ronin/backend/game_v2/internal/wire/compact.go:31.62,33.2"
+SERVER_BLOCK = "github.com/MahjongRepository/ronin/backend/game_v2/internal/server/server.go:12.33,17.2"
 
 
 def _load_check_go_coverage_module():
@@ -40,7 +42,15 @@ def test_main__when_block_is_missed_by_one_test_binary_and_hit_by_another__shoul
     check_go_coverage = _load_check_go_coverage_module()
     profile = _write_profile(
         tmp_path,
-        [f"{ENGINE_BLOCK} 2 0", f"{RULES_BLOCK} 1 0", f"{ENGINE_BLOCK} 2 3", f"{RULES_BLOCK} 1 1"],
+        [
+            f"{ENGINE_BLOCK} 2 0",
+            f"{RULES_BLOCK} 1 0",
+            f"{WIRE_BLOCK} 1 0",
+            f"{SERVER_BLOCK} 3 0",
+            f"{ENGINE_BLOCK} 2 3",
+            f"{RULES_BLOCK} 1 1",
+            f"{WIRE_BLOCK} 1 2",
+        ],
     )
 
     status = check_go_coverage.main([str(profile)])
@@ -54,12 +64,15 @@ def test_main__when_block_is_missed_by_every_test_binary__should_fail_and_print_
     capsys: pytest.CaptureFixture[str],
 ):
     check_go_coverage = _load_check_go_coverage_module()
-    profile = _write_profile(tmp_path, [f"{ENGINE_BLOCK} 2 0", f"{RULES_BLOCK} 1 4", f"{ENGINE_BLOCK} 2 0"])
+    profile = _write_profile(
+        tmp_path,
+        [f"{ENGINE_BLOCK} 2 0", f"{RULES_BLOCK} 1 4", f"{WIRE_BLOCK} 1 0", f"{ENGINE_BLOCK} 2 0"],
+    )
 
     status = check_go_coverage.main([str(profile)])
 
     assert status == 1
-    assert capsys.readouterr().err == f"uncovered: {ENGINE_BLOCK}\n"
+    assert capsys.readouterr().err == f"uncovered: {ENGINE_BLOCK}\nuncovered: {WIRE_BLOCK}\n"
 
 
 def test_main__when_an_unrun_block_holds_no_statement__should_pass(
@@ -67,9 +80,22 @@ def test_main__when_an_unrun_block_holds_no_statement__should_pass(
     capsys: pytest.CaptureFixture[str],
 ):
     check_go_coverage = _load_check_go_coverage_module()
-    profile = _write_profile(tmp_path, [f"{MARKER_BLOCK} 0 0", f"{ENGINE_BLOCK} 2 1"])
+    profile = _write_profile(tmp_path, [f"{MARKER_BLOCK} 0 0", f"{ENGINE_BLOCK} 2 1", f"{WIRE_BLOCK} 1 1"])
 
     status = check_go_coverage.main([str(profile)])
 
     assert status == 0
     assert capsys.readouterr().err == ""
+
+
+def test_main__when_a_gated_directory_has_no_block__should_fail_and_name_it(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    check_go_coverage = _load_check_go_coverage_module()
+    profile = _write_profile(tmp_path, [f"{ENGINE_BLOCK} 2 1", f"{SERVER_BLOCK} 3 0"])
+
+    status = check_go_coverage.main([str(profile)])
+
+    assert status == 1
+    assert capsys.readouterr().err == "the cover profile holds no block under internal/wire/\n"
