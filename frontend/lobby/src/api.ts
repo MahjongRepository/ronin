@@ -43,7 +43,7 @@ function errorCode(body: unknown, status: number): string {
 
 function sendToLogin(): void {
     const next = window.location.pathname + window.location.search;
-    window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+    window.location.replace(`/login?next=${encodeURIComponent(next)}`);
 }
 
 function keepFreshCsrfToken(body: unknown): void {

@@ -41,7 +41,10 @@ interface SignInRequest {
 function finishSignIn(state: AuthState, context: AuthViewContext, result: ApiResult): void {
     const next = result.ok ? parseSignedInNext(result.data) : null;
     if (next !== null) {
-        window.location.assign(next);
+        window.location.replace(next);
+        return;
+    }
+    if (context.isDisposed()) {
         return;
     }
     state.submitting = false;
@@ -59,9 +62,7 @@ async function signIn(
     }
     state.submitting = true;
     const result = await apiPost(request.path, { ...request.body, next: state.next });
-    if (!context.isDisposed()) {
-        finishSignIn(state, context, result);
-    }
+    finishSignIn(state, context, result);
 }
 
 export function submitCredentials(

@@ -2,7 +2,7 @@ import { type MountedView } from "@ronin/shared/router";
 
 import { loadLimits, startGuestSession, submitCredentials } from "@/auth/handlers";
 import { type AuthFields, type AuthPage, createAuthState } from "@/auth/state";
-import { clearPasswordsAndFocusErrorField, renderAuth } from "@/auth/ui";
+import { clearPasswordsAndFocusErrorField, focusUsername, renderAuth } from "@/auth/ui";
 
 function mountAuthView(host: HTMLElement, page: AuthPage, url: URL): MountedView {
     const state = createAuthState(page, url);
@@ -25,6 +25,7 @@ function mountAuthView(host: HTMLElement, page: AuthPage, url: URL): MountedView
     }
 
     render();
+    focusUsername(host);
     void loadLimits(state, context);
     return {
         rerender: render,

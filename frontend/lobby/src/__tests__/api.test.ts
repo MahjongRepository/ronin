@@ -63,11 +63,11 @@ describe("apiGet", () => {
     it("sends a 401 to the login page with the current path and query as next", async () => {
         history.replaceState(null, "", "/history?page=2");
         vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(401, { error: "x" })));
-        const assign = vi.spyOn(window.location, "assign").mockImplementation(() => {});
+        const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
 
         const result = await apiGet("/api/lobby/rooms");
 
         expect(result).toEqual({ error: "unauthorized", ok: false });
-        expect(assign).toHaveBeenCalledExactlyOnceWith("/login?next=%2Fhistory%3Fpage%3D2");
+        expect(replace).toHaveBeenCalledExactlyOnceWith("/login?next=%2Fhistory%3Fpage%3D2");
     });
 });

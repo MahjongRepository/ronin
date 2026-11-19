@@ -248,6 +248,10 @@ export function renderAuth(host: HTMLElement, state: AuthState, actions: AuthAct
     render(template, host);
 }
 
+export function focusUsername(host: HTMLElement): void {
+    host.querySelector<HTMLInputElement>(`#${AUTH_FIELD.USERNAME}`)?.focus();
+}
+
 export function clearPasswordsAndFocusErrorField(host: HTMLElement, state: AuthState): void {
     for (const input of host.querySelectorAll<HTMLInputElement>("input[type=password]")) {
         input.value = "";
