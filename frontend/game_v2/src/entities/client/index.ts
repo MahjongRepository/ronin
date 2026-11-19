@@ -58,14 +58,14 @@ export { playDisplay } from "./model/play-display";
 export { stepPlayUi } from "./model/play-ui-reducer";
 export type { SettingsMenuCommand } from "./model/settings-menu";
 export { SETTINGS_FOCUS_KEY, stepSettingsMenu } from "./model/settings-menu";
-export type { GameSound, SoundCue, SoundSetting } from "./model/sounds";
+export type { GameSound, SoundCue } from "./model/sounds";
+export { moveSoundCues, soundCues } from "./model/sounds";
+export type { SoundSetting } from "@ronin/shared/sound-setting";
 export {
     DEFAULT_SOUND_SETTING,
     SOUND_SETTING_KEY,
-    moveSoundCues,
     readSoundSetting,
-    soundCues,
-} from "./model/sounds";
+} from "@ronin/shared/sound-setting";
 export type { DecisionView, GameEndLinks, PlayBoardProps } from "./ui/play-board";
 export { DecisionControls, PlayBoard } from "./ui/play-board";
 export type { GameMenuProps } from "./ui/game-menu";
@@ -92,13 +92,17 @@ export {
     AUTO_WIN_SETTING_KEY,
     DEFAULT_AUTO_WIN_SETTING,
     readAutoWinSetting,
-} from "./model/auto-win-setting";
-export type { AutoWinSetting } from "./model/auto-win-setting";
-export { DEFAULT_INPUT_SETTING, INPUT_SETTING_KEY, readInputSetting } from "./model/input-setting";
-export type { InputSetting } from "./model/input-setting";
+} from "@ronin/shared/auto-win-setting";
+export type { AutoWinSetting } from "@ronin/shared/auto-win-setting";
+export {
+    DEFAULT_INPUT_SETTING,
+    INPUT_SETTING_KEY,
+    readInputSetting,
+} from "@ronin/shared/input-setting";
+export type { InputSetting } from "@ronin/shared/input-setting";
 export {
     DEFAULT_MOTION_SETTING,
     MOTION_SETTING_KEY,
     readMotionSetting,
-} from "./model/motion-setting";
-export type { MotionSetting } from "./model/motion-setting";
+} from "@ronin/shared/motion-setting";
+export type { MotionSetting } from "@ronin/shared/motion-setting";

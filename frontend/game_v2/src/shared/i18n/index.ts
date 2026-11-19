@@ -1,19 +1,17 @@
 import { createTranslator } from "@ronin/shared/i18n";
-import { type Locale, langCookie } from "@ronin/shared/locale";
+import { type Locale } from "@ronin/shared/locale";
+import { switchLocale } from "@ronin/shared/locale-switch";
 
 import en from "./locales/en.json";
 import ja from "./locales/ja.json";
 import ru from "./locales/ru.json";
-import { resetWindScript } from "./winds";
 
 type MessageKey = keyof typeof en;
 
 const { isMessageKey, t } = createTranslator({ en, ja, ru });
 
 function applyPageLocale(locale: Locale): void {
-    document.cookie = langCookie(locale, window.location.protocol);
-    document.documentElement.lang = locale;
-    resetWindScript();
+    switchLocale(locale);
     document.title = t("game.page.title");
 }
 
@@ -29,7 +27,7 @@ export {
     pageWindScript,
     restoreWindScript,
     windScriptsOf,
-} from "./winds";
-export type { WindScript } from "./winds";
+} from "@ronin/shared/winds";
+export type { WindScript } from "@ronin/shared/winds";
 export { applyPageLocale, isMessageKey, t };
 export type { MessageKey };

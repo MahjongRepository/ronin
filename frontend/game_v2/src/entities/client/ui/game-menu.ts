@@ -1,21 +1,18 @@
-import { type TemplateResult, html, nothing, svg } from "lit-html";
+import {
+    AnimationsRow,
+    InputRows,
+    KeepAutoWinRow,
+    LanguageRow,
+    SoundRow,
+    TileLabelsRow,
+    WindsRow,
+} from "@ronin/shared/settings-rows";
+import { type TemplateResult, html, nothing } from "lit-html";
 
 import { type CogAlert, type RoundTripDisplay } from "@/entities/client/model/round-trip";
 import { SETTINGS_FOCUS_KEY } from "@/entities/client/model/settings-menu";
 import { type SessionStatusDisplay } from "@/entities/session";
-import { pageTileLabels } from "@/entities/tile";
-import {
-    LOCALES,
-    type Locale,
-    type MessageKey,
-    WIND_LETTERS,
-    WIND_SCRIPT_LANGS,
-    type WindScript,
-    pageLocale,
-    pageWindScript,
-    t,
-    windScriptsOf,
-} from "@/shared/i18n";
+import { type Locale, type WindScript, t } from "@/shared/i18n";
 import { focusByKey } from "@/shared/lib";
 
 interface GameMenuProps {
@@ -55,17 +52,7 @@ interface GameMenuProps {
     readonly extra?: TemplateResult;
 }
 
-const LANGUAGE_NAMES: Readonly<Record<Locale, string>> = {
-    en: "English",
-    ja: "日本語",
-    ru: "Русский",
-};
-
-const WIND_SCRIPT_NAMES: Readonly<Record<WindScript, MessageKey>> = {
-    cyrillic: "game.settings.winds.cyrillic",
-    kanji: "game.settings.winds.kanji",
-    latin: "game.settings.winds.latin",
-};
+const MENU_BLOCK = "game-menu";
 
 /** A cog: the settings. */
 function CogIcon(): TemplateResult {
@@ -80,27 +67,6 @@ function CogIcon(): TemplateResult {
             stroke-dasharray="3.338 3.338"
         />
         <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2.5" />
-    </svg>`;
-}
-
-/** A speaker, sounding or struck through. */
-function SoundIcon(on: boolean): TemplateResult {
-    return html`<svg
-        class="game-menu__icon"
-        viewBox="0 0 16 16"
-        aria-hidden="true"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-    >
-        <path d="M2.5 6h2.5l3.5-3v10l-3.5-3h-2.5z" />
-        ${
-            on
-                ? svg`<path d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.5a6 6 0 0 1 0 9" />`
-                : svg`<path d="M11 6l3.5 4M14.5 6l-3.5 4" />`
-        }
     </svg>`;
 }
 
@@ -143,41 +109,6 @@ function ConnectionRow(
     </div>`;
 }
 
-function LanguageRow(onLanguage: (locale: Locale) => void): TemplateResult {
-    const current = pageLocale();
-    return html`<div class="game-menu__item game-menu__language" role="group" aria-label=${t("game.settings.language")}>
-        <span class="game-menu__item-name" aria-hidden="true">${t("game.settings.language")}</span>
-        <span class="game-menu__languages">${LOCALES.map(
-            (locale) => html`<button
-                type="button"
-                class="secondary game-menu__language-option"
-                lang=${locale}
-                aria-current=${locale === current ? "true" : nothing}
-                @click=${() => onLanguage(locale)}
-            >${LANGUAGE_NAMES[locale]}</button>`,
-        )}</span>
-    </div>`;
-}
-
-/** The wind letters' script, from those the page's language offers, each option written in its own letters. */
-function WindsRow(onWinds: (script: WindScript) => void): TemplateResult {
-    const current = pageWindScript();
-    return html`<div class="game-menu__item game-menu__language game-menu__winds" role="group" aria-label=${t("game.settings.winds")}>
-        <span class="game-menu__item-name" aria-hidden="true">${t("game.settings.winds")}</span>
-        <span class="game-menu__languages">${windScriptsOf(pageLocale()).map(
-            (script) => html`<button
-                type="button"
-                class="secondary game-menu__language-option game-menu__winds-option"
-                lang=${WIND_SCRIPT_LANGS[script]}
-                data-script=${script}
-                aria-label=${t(WIND_SCRIPT_NAMES[script])}
-                aria-current=${script === current ? "true" : nothing}
-                @click=${() => onWinds(script)}
-            >${WIND_LETTERS[script].join("")}</button>`,
-        )}</span>
-    </div>`;
-}
-
 function SettingsPanel(props: GameMenuProps): TemplateResult {
     const {
         animationsOn,
@@ -193,31 +124,13 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
     } = props;
     return html`${backdrop ? html`<div class="game-menu__backdrop" aria-hidden="true" @click=${onClose}></div>` : nothing}
         <div class="game-menu__panel" role="group" aria-label=${t("game.settings.title")}>
-            <button
-                type="button"
-                class="secondary game-menu__item game-menu__sound"
-                role="switch"
-                aria-checked=${soundOn ? "true" : "false"}
-                @click=${onToggleSound}
-            >
-                ${SoundIcon(soundOn)}<span class="game-menu__item-name">${t("game.settings.sound")}</span
-                >${SwitchValue(soundOn)}
-            </button>
-            <button
-                type="button"
-                class="secondary game-menu__item game-menu__animations"
-                role="switch"
-                aria-checked=${animationsOn ? "true" : "false"}
-                @click=${onToggleAnimations}
-            >
-                <span class="game-menu__item-name">${t("game.settings.animations")}</span
-                >${SwitchValue(animationsOn)}
-            </button>
-            ${TileLabelsRow(onTileLabels)}
-            ${props.keepAutoWin === undefined ? nothing : KeepAutoWinRow(props.keepAutoWin)}
-            ${props.input === undefined ? nothing : InputSettings(props.input)}
-            ${LanguageRow(onLanguage)}
-            ${WindsRow(onWinds)}
+            ${SoundRow(MENU_BLOCK, { on: soundOn, onToggle: onToggleSound })}
+            ${AnimationsRow(MENU_BLOCK, { on: animationsOn, onToggle: onToggleAnimations })}
+            ${TileLabelsRow(MENU_BLOCK, onTileLabels)}
+            ${props.keepAutoWin === undefined ? nothing : KeepAutoWinRow(MENU_BLOCK, props.keepAutoWin)}
+            ${props.input === undefined ? nothing : InputRows(MENU_BLOCK, props.input)}
+            ${LanguageRow(MENU_BLOCK, onLanguage)}
+            ${WindsRow(MENU_BLOCK, onWinds)}
             ${props.input === undefined ? nothing : ControlsRow(props.input.onShowControls)}
             ${status === null ? nothing : ConnectionRow(status, props.roundTrip ?? null)}
             ${props.leave === undefined ? nothing : LeaveRow(props.leave)}
@@ -238,63 +151,6 @@ function LeaveRow(leave: NonNullable<GameMenuProps["leave"]>): TemplateResult {
         aria-haspopup=${leave.asks ? "dialog" : nothing}
         @click=${leave.onLeave}
     >${LeaveIcon()}<span class="game-menu__item-name">${t("game.settings.leave")}</span></button>`;
-}
-
-function onOff(on: boolean): string {
-    return t(on ? "game.settings.on" : "game.settings.off");
-}
-
-/**
- * A switch's state at its row's end, reserving the other state's width (`data-reserve`), so a toggle never resizes the
- * menu when its row is the widest.
- */
-function SwitchValue(on: boolean): TemplateResult {
-    return html`<span class="game-menu__item-value game-menu__switch-value" data-reserve=${onOff(!on)}
-        ><span>${onOff(on)}</span></span
-    >`;
-}
-
-/** The tiles' corner labels: a suit tile's rank, a wind's letter in the chosen script. */
-function TileLabelsRow(onTileLabels: (on: boolean) => void): TemplateResult {
-    const on = pageTileLabels() !== null;
-    return html`<button
-        type="button"
-        class="secondary game-menu__item game-menu__tile-labels"
-        role="switch"
-        aria-checked=${String(on)}
-        @click=${() => onTileLabels(!on)}
-    ><span class="game-menu__item-name">${t("game.settings.tile_labels")}</span
-        >${SwitchValue(on)}</button>`;
-}
-
-function KeepAutoWinRow(keep: NonNullable<GameMenuProps["keepAutoWin"]>): TemplateResult {
-    return html`<button
-        type="button"
-        class="secondary game-menu__item game-menu__keep-auto-win"
-        role="switch"
-        aria-checked=${String(keep.on)}
-        @click=${keep.onToggle}
-    ><span class="game-menu__item-name">${t("game.settings.keep_auto_win")}</span
-        >${SwitchValue(keep.on)}</button>`;
-}
-
-function InputSettings(input: NonNullable<GameMenuProps["input"]>): TemplateResult {
-    return html`<button
-        type="button"
-            class="secondary game-menu__item game-menu__right-click"
-        role="switch"
-        aria-checked=${String(input.rightClick)}
-        @click=${input.onToggle}
-    ><span class="game-menu__item-name">${t("game.settings.right_click")}</span
-        >${SwitchValue(input.rightClick)}</button>
-        <button
-            type="button"
-            class="secondary game-menu__item game-menu__key-hints"
-            role="switch"
-            aria-checked=${String(input.keyHints)}
-            @click=${input.onToggleKeyHints}
-        ><span class="game-menu__item-name">${t("game.settings.key_hints")}</span
-            >${SwitchValue(input.keyHints)}</button>`;
 }
 
 /** The row that opens the controls' help panel. */

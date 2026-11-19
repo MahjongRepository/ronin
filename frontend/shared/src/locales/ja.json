@@ -1,1 +1,15 @@
-{}
+{
+    "settings.animations": "アニメーション",
+    "settings.keep_auto_win": "自動和了を次局も維持",
+    "settings.key_hints": "キーのヒント",
+    "settings.language": "言語",
+    "settings.off": "オフ",
+    "settings.on": "オン",
+    "settings.right_click": "右クリック操作",
+    "settings.sound": "音声",
+    "settings.tile_labels": "牌の補助表示",
+    "settings.winds": "風の表記",
+    "settings.winds.cyrillic": "キリル文字",
+    "settings.winds.kanji": "漢字",
+    "settings.winds.latin": "アルファベット"
+}

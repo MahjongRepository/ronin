@@ -1,4 +1,4 @@
-import { type Locale, isLocale, pageLocale } from "@ronin/shared/locale";
+import { type Locale, isLocale, pageLocale } from "./locale";
 
 export const WIND_SCRIPTS = ["latin", "kanji", "cyrillic"] as const;
 

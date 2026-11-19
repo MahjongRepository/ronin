@@ -18,7 +18,22 @@
         "import/exports-last": "off",
         "import/consistent-type-specifier-style": ["warn", "prefer-inline"],
         "func-style": ["error", "declaration"],
-        "new-cap": ["warn", { "capIsNewExceptions": [] }],
+        "new-cap": [
+            "warn",
+            {
+                "capIsNewExceptions": [
+                    "SwitchValue",
+                    "SoundIcon",
+                    "SoundRow",
+                    "AnimationsRow",
+                    "TileLabelsRow",
+                    "KeepAutoWinRow",
+                    "InputRows",
+                    "LanguageRow",
+                    "WindsRow"
+                ]
+            }
+        ],
         "capitalized-comments": "off",
         "no-magic-numbers": "off",
         "no-ternary": "off",

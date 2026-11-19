@@ -1,17 +1,15 @@
-import { afterEach, describe, expect, it } from "vitest";
-
-import { resetPageLanguage } from "#tests/fixtures/language";
+import { switchLocale } from "@ronin/shared/locale-switch";
 import {
     WIND_SCRIPT_KEY,
-    applyPageLocale,
     applyWindScript,
     pageWindScript,
     restoreWindScript,
     windScriptsOf,
-} from "@/shared/i18n";
+} from "@ronin/shared/winds";
+import { afterEach, describe, expect, it } from "vitest";
 
 afterEach(() => {
-    resetPageLanguage();
+    document.documentElement.lang = "";
     delete document.documentElement.dataset.winds;
     localStorage.removeItem(WIND_SCRIPT_KEY);
 });
@@ -37,9 +35,9 @@ describe("pageWindScript", () => {
         applyWindScript("kanji");
         const chosen = pageWindScript();
 
-        applyPageLocale("en");
+        switchLocale("en");
         const switched = pageWindScript();
-        applyPageLocale("ru");
+        switchLocale("ru");
 
         expect([chosen, switched, pageWindScript(), localStorage.getItem(WIND_SCRIPT_KEY)]).toEqual(
             ["kanji", "latin", "latin", null],

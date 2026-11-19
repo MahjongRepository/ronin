@@ -1,7 +1,8 @@
+import { DEFAULT_INPUT_SETTING } from "@ronin/shared/input-setting";
+import { DEFAULT_MOTION_SETTING } from "@ronin/shared/motion-setting";
+
 import { type TileFace, type TileSpriteStatus } from "@/entities/tile";
 
-import { DEFAULT_INPUT_SETTING } from "./input-setting";
-import { DEFAULT_MOTION_SETTING } from "./motion-setting";
 import { type LocalIntent } from "./types";
 
 /**

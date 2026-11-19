@@ -1,1 +1,15 @@
-{}
+{
+    "settings.animations": "Animations",
+    "settings.keep_auto_win": "Keep Auto win between rounds",
+    "settings.key_hints": "Key hints",
+    "settings.language": "Language",
+    "settings.off": "Off",
+    "settings.on": "On",
+    "settings.right_click": "Right-click shortcuts",
+    "settings.sound": "Sound",
+    "settings.tile_labels": "Corner indices",
+    "settings.winds": "Winds",
+    "settings.winds.cyrillic": "Cyrillic letters",
+    "settings.winds.kanji": "Kanji",
+    "settings.winds.latin": "Latin letters"
+}

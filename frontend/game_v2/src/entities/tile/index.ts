@@ -43,4 +43,4 @@ export {
     applyTileLabels,
     pageTileLabels,
     restoreTileLabels,
-} from "./lib/tile-labels";
+} from "@ronin/shared/tile-labels";

@@ -1,3 +1,4 @@
+import { pageTileLabels } from "@ronin/shared/tile-labels";
 import { html, nothing, svg } from "lit-html";
 
 import {
@@ -16,7 +17,7 @@ import {
     standingFaceBox,
     tileBody,
 } from "@/entities/tile/lib/tile-body";
-import { pageTileLabels, tileLabel } from "@/entities/tile/lib/tile-labels";
+import { tileLabel } from "@/entities/tile/lib/tile-labels";
 import { type TileFace, spokenTileName } from "@/entities/tile/lib/tile-utils";
 import { type WindScript, t } from "@/shared/i18n";
 

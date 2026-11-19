@@ -1,1 +1,15 @@
-{}
+{
+    "settings.animations": "Анимация",
+    "settings.keep_auto_win": "Сохранять автопобеду между раздачами",
+    "settings.key_hints": "Подсказки клавиш",
+    "settings.language": "Язык",
+    "settings.off": "Выкл",
+    "settings.on": "Вкл",
+    "settings.right_click": "Действия правой кнопкой мыши",
+    "settings.sound": "Звук",
+    "settings.tile_labels": "Подписи на тайлах",
+    "settings.winds": "Ветра",
+    "settings.winds.cyrillic": "Кириллица",
+    "settings.winds.kanji": "Иероглифы",
+    "settings.winds.latin": "Латиница"
+}

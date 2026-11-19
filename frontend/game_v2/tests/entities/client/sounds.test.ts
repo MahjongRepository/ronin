@@ -12,7 +12,6 @@ import {
     type SoundCue,
     decisionOf,
     playDisplay,
-    readSoundSetting,
     runSeatScenario,
     scenarioStateIndex,
     soundCues,
@@ -275,21 +274,6 @@ describe("soundCues after bank entry", () => {
             ["beep"],
             [],
             ["beep"],
-        ]);
-    });
-});
-
-describe("readSoundSetting", () => {
-    it("reads the stored sound setting, and keeps the sound on for anything else", () => {
-        expect(
-            [{ sound_on: false }, { sound_on: "no" }, null, []].map((stored) =>
-                readSoundSetting(stored),
-            ),
-        ).toEqual([
-            { sound_on: false },
-            { sound_on: true },
-            { sound_on: true },
-            { sound_on: true },
         ]);
     });
 });
