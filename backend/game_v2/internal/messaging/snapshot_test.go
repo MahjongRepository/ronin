@@ -84,6 +84,8 @@ func TestReconnectionPayload_WhenTheRoundIsOver_ShouldShowTheEndedRoundAndItsRes
 		{Key: wire.KeyDoraIndicators, Value: field(t, over, wire.KeyDoraIndicators)},
 		{Key: wire.KeyTenpaiSeats, Value: intArray(1)},
 	})
+	assertMap(t, "scores before payment", wire.Map{{Key: wire.KeyScores, Value: field(t, result, wire.KeyScores)}},
+		wire.Map{{Key: wire.KeyScores, Value: scores(250, 250, 250, 250)}})
 	if got := seatScores(t, over); !slices.Equal(got, []int{240, 280, 240, 240}) {
 		t.Errorf("player scores = %v, want 240, 280, 240, 240", got)
 	}

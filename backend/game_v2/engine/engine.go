@@ -19,6 +19,7 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/game"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/record"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rng"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -144,6 +145,13 @@ func cloneEvent(event play.Event) play.Event {
 
 // SeedBytes is the size of a seed; its hex form is twice as many characters.
 const SeedBytes = rng.SeedBytes
+
+// RiichiStickValue is the points one riichi stick on the table pays the winner who takes it.
+const RiichiStickValue = rules.RiichiStickValue
+
+// HonbaRonBonus is what a win adds per honba in all: a ron's discarder pays it, a tsumo's three
+// payers a third each.
+const HonbaRonBonus = rules.HonbaRonBonus
 
 // RNGVersion is the name of the randomness scheme that turns a seed into a game, as ronin writes
 // it into its replays.

@@ -94,7 +94,11 @@ a contract.
   seat's `play.SeatRecord` alone, so a live wait and its re-send match and the wire never follows the
   engine's internals. Engine refusals map to the wire's own game error codes; a refusal no client
   builds has none.
-* A time is `messaging.Seconds`, whole or fractional, because the wire tells an integer from a float.
+* The wire tells an integer from a float. A time whose wire type follows its value (the bank, a
+  pause's timeout) is a `messaging.Seconds`, whole or fractional; a time the wire always carries as
+  a float (timer settings, the pending game timeout, elapsed times) is a `float64`.
+* A round end's scores are those before its payments; its score changes take them to the scores
+  after it.
 
 ## Engine purity
 

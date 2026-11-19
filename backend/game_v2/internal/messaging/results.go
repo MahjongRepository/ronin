@@ -3,6 +3,7 @@ package messaging
 import (
 	"errors"
 
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
@@ -22,6 +23,14 @@ const (
 func roundEndFields(
 	result play.RoundResult, scores [tile.SeatCount]int, riichiSticks int, record play.SeatRecord,
 ) (wire.Map, error) {
+	if result == nil {
+		return nil, errors.New("no round result to shape")
+	}
+	var before [tile.SeatCount]int
+	for i, change := range result.TotalScoreChanges() {
+		before[i] = scores[i] - change
+	}
+
 	var code wire.ResultType
 	var fields wire.Map
 	var err error
@@ -29,18 +38,16 @@ func roundEndFields(
 	switch r := result.(type) {
 	case play.Tsumo:
 		code = wire.ResultTsumo
-		fields, err = tsumoFields(r.Win, scores, honba)
+		fields, err = tsumoFields(r.Win, before, honba)
 	case play.Ron:
 		code = wire.ResultRon
-		fields, err = ronFields(r, scores, honba)
+		fields, err = ronFields(r, before, honba)
 	case play.ExhaustiveDraw:
 		code = wire.ResultExhaustiveDraw
-		fields, err = exhaustiveDrawFields(r, scores)
+		fields, err = exhaustiveDrawFields(r, before)
 	case play.Abortive:
 		code = wire.ResultAbortiveDraw
-		fields, err = abortiveFields(r.Kind, scores)
-	default:
-		err = errors.New("no round result to shape")
+		fields, err = abortiveFields(r.Kind, before)
 	}
 	if err != nil {
 		return nil, err
@@ -60,7 +67,7 @@ func tsumoFields(win play.WinResult, scores [tile.SeatCount]int, honba int) (wir
 		return nil, err
 	}
 
-	bonus := honba * honbaPerWin
+	bonus := honba * engine.HonbaRonBonus
 	m := wire.Map{
 		{Key: wire.KeyWinnerSeat, Value: seatValue(win.Winner)},
 		{Key: wire.KeyHandResult, Value: handResult(win, bonus)},
@@ -81,7 +88,7 @@ func ronFields(ron play.Ron, scores [tile.SeatCount]int, honba int) (wire.Map, e
 	for i, win := range ron.Wins {
 		bonus := 0
 		if i == 0 {
-			bonus = honba * honbaPerWin
+			bonus = honba * engine.HonbaRonBonus
 		}
 		shaped, err := ronWin(win, bonus)
 		if err != nil {
@@ -139,7 +146,7 @@ func collectedSticks(win play.WinResult) int {
 	for _, change := range win.ScoreChanges {
 		moved += change
 	}
-	return moved / riichiStickValue
+	return moved / engine.RiichiStickValue
 }
 
 func paoLiability(win play.WinResult, bonus int) wire.Map {
@@ -172,7 +179,7 @@ func handResult(win play.WinResult, bonus int) wire.Map {
 		han, fu, yakumanCount = yakumanHan*v.Count, v.Fu.Value, play.Some(v.Count)
 	}
 
-	points := win.ScoreChanges[win.Winner.Index()] - bonus - collectedSticks(win)*riichiStickValue
+	points := win.ScoreChanges[win.Winner.Index()] - bonus - collectedSticks(win)*engine.RiichiStickValue
 	m := wire.Map{
 		{Key: wire.KeyHan, Value: wire.Int(han)},
 		{Key: wire.KeyFu, Value: wire.Int(fu)},

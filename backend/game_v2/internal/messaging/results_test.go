@@ -41,7 +41,7 @@ func yakuEntry(id, han, yakuman int) wire.Map {
 	}
 }
 
-func TestRoundEndPayload_WhenATsumoHasNoPaoOrUra_ShouldOmitThem(t *testing.T) {
+func TestRoundEndPayload_WhenATsumoHasNoPaoOrUra_ShouldOmitThemAndNameTheScoresBeforePayment(t *testing.T) {
 	win := play.WinResult{
 		Winner: seat(t, 0), Hand: ids(t, 0, 1, 2), WinTile: id(t, 3), Value: play.Han{Han: 1, Fu: 30},
 		Yaku: []play.YakuID{play.YakuTsumo}, ScoreChanges: [tile.SeatCount]int{1100, -500, -300, -300},
@@ -63,7 +63,7 @@ func TestRoundEndPayload_WhenATsumoHasNoPaoOrUra_ShouldOmitThem(t *testing.T) {
 			{Key: wire.KeyPoints, Value: wire.Int(11)},
 			{Key: wire.KeyHandLimit, Value: wire.Str("none")},
 		}},
-		{Key: wire.KeyScores, Value: scores(261, 245, 247, 247)},
+		{Key: wire.KeyScores, Value: scores(250, 250, 250, 250)},
 		{Key: wire.KeyScoreChanges, Value: scores(11, -5, -3, -3)},
 		{Key: wire.KeyRiichiCollected, Value: wire.Int(0)},
 		{Key: wire.KeyClosedTiles, Value: intArray(0, 1, 2)},
@@ -247,7 +247,7 @@ func TestRoundEndPayload_WhenAnExhaustiveDrawHasANagashi_ShouldLeadWithTheQualif
 			{Key: wire.KeyClosedTiles, Value: intArray(0, 1, 2)},
 			{Key: wire.KeyMelds, Value: wire.Array{}},
 		}}},
-		{Key: wire.KeyScores, Value: scores(210, 330, 230, 220)},
+		{Key: wire.KeyScores, Value: scores(250, 250, 250, 240)},
 		{Key: wire.KeyScoreChanges, Value: scores(-40, 80, -20, -20)},
 	})
 }

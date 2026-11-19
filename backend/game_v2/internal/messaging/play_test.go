@@ -135,6 +135,15 @@ func (s *shapedGame) checkRoundEnd(ended play.RoundEnded, m wire.Map) {
 		s.results[fmt.Sprintf("abortive %T", r.Kind)]++
 	}
 
+	before := field(s.t, m, wire.KeyScores).(wire.StrMap)
+	changes := field(s.t, m, wire.KeyScoreChanges).(wire.StrMap)
+	for i, after := range ended.Scores {
+		paid := int(before[i].Value.(wire.Int)+changes[i].Value.(wire.Int)) * wire.ScoreDivisor
+		if paid != after {
+			s.t.Errorf("round end %v: scores %v and changes %v do not make the scores after it %v", m, before, changes, ended.Scores)
+		}
+	}
+
 	for i, win := range wins {
 		hand := field(s.t, shaped[i], wire.KeyHandResult).(wire.Map)
 		han, isHan := win.Value.(play.Han)
@@ -148,7 +157,7 @@ func (s *shapedGame) checkRoundEnd(ended play.RoundEnded, m wire.Map) {
 		points := int(field(s.t, hand, wire.KeyPoints).(wire.Int))
 		sticks := int(field(s.t, shaped[i], wire.KeyRiichiCollected).(wire.Int))
 		bonus := int(field(s.t, shaped[i], wire.KeyHonbaBonus).(wire.Int))
-		if points <= 0 || (points+bonus)*wire.ScoreDivisor+sticks*1000 != win.ScoreChanges[win.Winner.Index()] {
+		if points <= 0 || (points+bonus)*wire.ScoreDivisor+sticks*engine.RiichiStickValue != win.ScoreChanges[win.Winner.Index()] {
 			s.t.Errorf("win %+v: points %d, honba %d, sticks %d do not make the winner's change", win, points, bonus, sticks)
 		}
 	}

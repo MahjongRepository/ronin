@@ -109,7 +109,7 @@ func gameStartedPayload(e play.GameStarted, roster Roster) wire.Map {
 		{Key: wire.KeyPlayers, Value: rosterPlayers(roster, [tile.SeatCount]play.Option[wire.SeatControlReason]{})},
 		{Key: wire.KeyDealer, Value: seatValue(e.FirstDealer)},
 		{Key: wire.KeyDealerDice, Value: dealerDice(e.Dice)},
-		{Key: wire.KeyRiichiStickValue, Value: scoreValue(riichiStickValue)},
+		{Key: wire.KeyRiichiStickValue, Value: scoreValue(engine.RiichiStickValue)},
 	}
 }
 
@@ -173,7 +173,7 @@ func gameEndedPayload(standings play.Standings, record play.SeatRecord) wire.Map
 		{Key: wire.KeyEventType, Value: wire.Int(wire.EventGameEnd)},
 		{Key: wire.KeyWinnerSeat, Value: seatValue(winner)},
 		{Key: wire.KeyStandings, Value: placed},
-		{Key: wire.KeyLeftoverBonus, Value: scoreValue(leftover * riichiStickValue)},
+		{Key: wire.KeyLeftoverBonus, Value: scoreValue(leftover * engine.RiichiStickValue)},
 		{Key: wire.KeyLeftoverRiichi, Value: wire.Int(leftover)},
 		{Key: wire.KeyRoundCount, Value: wire.Int(record.Header.RoundNumber + 1)},
 		{Key: wire.KeyEndCause, Value: wire.Str(endCauseName(standings.Cause))},

@@ -19,11 +19,6 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
-const (
-	riichiStickValue = 1000
-	honbaPerWin      = 300
-)
-
 func with(m wire.Map, k wire.Key, v wire.Value) wire.Map {
 	stamped := make(wire.Map, 0, len(m)+1)
 	replaced := false
