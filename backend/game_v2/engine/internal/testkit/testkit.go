@@ -23,9 +23,9 @@ import (
 const (
 	deadWallStart    = wall.LiveWallSize
 	firstDrawSlot    = tile.SeatCount * wall.StartingHandSize
-	dealRoundSize    = 16
 	dealBlocks       = 3
 	dealBlockSize    = 4
+	dealRoundSize    = tile.SeatCount * dealBlockSize
 	finalDealStart   = dealBlocks * dealRoundSize
 	doraSlot         = 2
 	firstKanDoraSlot = 3

@@ -34,6 +34,11 @@ func seat(t *testing.T, n int) tile.Seat {
 	return got
 }
 
+func isError[E error](err error) bool {
+	_, ok := errors.AsType[E](err)
+	return ok
+}
+
 func notenGame(t *testing.T) game.Game {
 	t.Helper()
 	w, err := testkit.NotenWall()
@@ -56,7 +61,7 @@ func TestCopies_ShouldCountEachKindsCopiesFromTheFirstGiven(t *testing.T) {
 }
 
 func TestCopies_WhenTheNotationIsInvalidOrPastTheFourthCopy_ShouldReportIt(t *testing.T) {
-	if _, err := testkit.Copies(0, "1x"); !errors.As(err, new(tile.InvalidCharacterError)) {
+	if _, err := testkit.Copies(0, "1x"); !isError[tile.InvalidCharacterError](err) {
 		t.Errorf("Copies(1x) error = %v, want InvalidCharacterError", err)
 	}
 
@@ -134,7 +139,7 @@ func TestStartWallTiles_WhenARoleOverflowsOrATileRepeats_ShouldReportTheLayout(t
 		{testkit.StartWall{Draws: ids(t, 5), Ura: ids(t, 5)}, "start wall: tile 5 is placed twice"},
 	} {
 		_, err := c.w.Tiles(seat(t, 0))
-		if !errors.As(err, new(testkit.WallLayoutError)) || err.Error() != c.want {
+		if !isError[testkit.WallLayoutError](err) || err.Error() != c.want {
 			t.Errorf("Tiles error = %v, want %q", err, c.want)
 		}
 	}
@@ -143,7 +148,7 @@ func TestStartWallTiles_WhenARoleOverflowsOrATileRepeats_ShouldReportTheLayout(t
 func TestBegunGame_WhenTheWallCannotBeLaidOut_ShouldReportIt(t *testing.T) {
 	w := testkit.StartWall{Draws: ids(t, 5, 5)}
 
-	if _, err := testkit.BegunGame(w, play.Option[play.StartPosition]{}); !errors.As(err, new(testkit.WallLayoutError)) {
+	if _, err := testkit.BegunGame(w, play.Option[play.StartPosition]{}); !isError[testkit.WallLayoutError](err) {
 		t.Errorf("BegunGame error = %v, want WallLayoutError", err)
 	}
 }

@@ -58,12 +58,17 @@ func TestCheckInvariants_WhenTheFinalStandingsBreakTheTotals_ShouldFindThem(t *t
 	}
 }
 
+func isOwnershipError(err error) bool {
+	_, ok := errors.AsType[OwnershipError](err)
+	return ok
+}
+
 func TestCheckInvariants_WhenTheGameIsTheZeroValue_ShouldFindTheTilesOutOfPlace(t *testing.T) {
 	var g Game
 
 	err := g.CheckInvariants()
 
-	if !errors.Is(err, wall.TileInTwoPlacesError{}) || !errors.As(err, new(OwnershipError)) {
+	if !errors.Is(err, wall.TileInTwoPlacesError{}) || !isOwnershipError(err) {
 		t.Errorf("CheckInvariants error = %v, want an OwnershipError of tile 0 in two places", err)
 	}
 }
