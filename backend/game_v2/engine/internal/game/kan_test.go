@@ -211,7 +211,7 @@ func TestAddedKan_WhenNoSeatMayRobIt_ShouldUpgradeThePonToAnAddedKanAndDrawTheRi
 	g, events := script(t, g, act(seat(t, 0), play.KanAction(play.KanAdded, oneMan[0])))
 
 	assertEqual(t, "melds", testkit.CalledMelds(events), []play.Called{{Seat: seat(t, 0), Meld: play.MeldView{
-		Kind: play.MeldAddedKan, Tiles: oneMan, Called: play.Some(oneMan[2]), From: play.Some(seat(t, 3)),
+		Kind: play.MeldAddedKan, Tiles: oneMan, Called: play.Some(oneMan[2]), From: play.Some(seat(t, 3)), Added: play.Some(oneMan[3]),
 	}}})
 	assertEqual(t, "kinds", testkit.EventKinds(events), []string{"called", "drew", "drew", "drew", "drew"})
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 0)))
@@ -265,7 +265,7 @@ func TestAddedKan_WhenTheTileIDNamesAMeldedCopy_ShouldKanTheCopyInHand(t *testin
 	g, events := script(t, g, act(seat(t, 1), play.KanAction(play.KanAdded, fivePin[0])))
 
 	assertEqual(t, "melds", testkit.CalledMelds(events), []play.Called{{Seat: seat(t, 1), Meld: play.MeldView{
-		Kind: play.MeldAddedKan, Tiles: fivePin, Called: play.Some(fivePin[2]), From: play.Some(seat(t, 0)),
+		Kind: play.MeldAddedKan, Tiles: fivePin, Called: play.Some(fivePin[2]), From: play.Some(seat(t, 0)), Added: play.Some(fivePin[3]),
 	}}})
 	if slices.Contains(g.Hand(seat(t, 1)), fivePin[3]) {
 		t.Error("the fourth copy is still in the hand")

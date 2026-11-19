@@ -158,13 +158,15 @@ const (
 )
 
 // MeldView is a declared meld as the table sees it: every tile of it, the called one included,
-// sorted by id; the tile called from a discard, for an added kan the one its pon called; and the
-// seat whose discard was called. A closed kan has neither Called nor From.
+// sorted by id; the tile called from a discard, for an added kan the one its pon called; the seat
+// whose discard was called; and for an added kan the copy it raised its pon with. A closed kan has
+// neither Called nor From, and only an added kan has Added.
 type MeldView struct {
 	Kind   MeldKind
 	Tiles  []tile.TileID
 	Called Option[tile.TileID]
 	From   Option[tile.Seat]
+	Added  Option[tile.TileID]
 }
 
 // Call returns the call that declared m: a chi or pon with its two tiles from the hand, or an open

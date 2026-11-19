@@ -7,7 +7,8 @@ hand reading (agari, divider, waits), the hand scoring, the option helpers (a se
 calls, kans, riichi, furiten and win payments), the round state machine (`engine/internal/round`),
 the game played round to round (`engine/internal/game`), the seat record each seat's events keep up
 and the seat view it equals (`engine/internal/record`), the facade over them (`engine/`) with its
-seam tests and self-play driver (`seam/`), and the wire format (`internal/wire`).
+seam tests and self-play driver (`seam/`), the wire format (`internal/wire`), and the shaping of the
+engine's output into messages and of client messages into actions (`internal/messaging`).
 
 ## The seam
 
@@ -51,12 +52,13 @@ cmd -> internal/server -> session -> messaging -> wire -> engine -> engine/inter
 Inside the engine, `engine/internal/*` packages import `engine/tile`, `engine/play` and each other
 along the module graph of mahjong-rs, the port's reference, and never `engine`.
 
-`session` and `messaging` do not exist yet. Each is added under `internal/` when the port gives it
-work, `messaging` first, never as an empty package. `wire`'s imports of the module are a depguard
-rule in `.golangci.yml` (only `engine`, `engine/play` and `engine/tile`), and each layer added later
-gets its own. Each `cmd/*` is its own composition root: its `main` is the only place that reads that binary's flags, environment and signals and wires the
-parts it uses, so a tool beside the server builds what it needs without going through
-`cmd/gameserver`. `cmd/gameserver` wires the engine into the server once a game message exists.
+`session` does not exist yet; it is added under `internal/` when the port gives it work, never as an
+empty package. `wire`'s and `messaging`'s imports of the module are depguard rules in
+`.golangci.yml`: `wire` imports only `engine`, `engine/play` and `engine/tile`, `messaging` those
+and `wire`, and each layer added later gets its own. Each `cmd/*` is its own composition root: its
+`main` is the only place that reads that binary's flags, environment and signals and wires the parts
+it uses, so a tool beside the server builds what it needs without going through `cmd/gameserver`.
+`cmd/gameserver` wires the engine into the server once a game message exists.
 
 ## The wire
 
@@ -78,6 +80,21 @@ a contract.
   rewrites their bytes and key names from their payloads; review the diff), the `0.4-dev` replays
   that are the one home of the old-format inputs (`legacy/`), and the expected output of rewriting
   them (`rewritten/`), which the one-off migration must produce byte for byte.
+
+## Messaging
+
+`internal/messaging` is the only place the engine's vocabulary meets the wire's.
+
+* The engine emits facts only. Every field a message names beyond them comes from the session (the
+  roster, wait ids, timers, the pause) or is derived from the engine's output (a win's points,
+  honba bonus, collected sticks, per-yaku han and pao share; a game end's leftover sticks), never
+  from engine state. A round end and a game end take their table context from a seat's record once
+  the call's events are applied.
+* A decision's opening is built from the `play.Decision` alone and the reconnect snapshot from a
+  seat's `play.SeatRecord` alone, so a live wait and its re-send match and the wire never follows the
+  engine's internals. Engine refusals map to the wire's own game error codes; a refusal no client
+  builds has none.
+* A time is `messaging.Seconds`, whole or fractional, because the wire tells an integer from a float.
 
 ## Engine purity
 

@@ -240,6 +240,7 @@ func TestKanDora_WhenAnAddedKanIsDeclared_ShouldDeferItsIndicatorToTheReplacemen
 
 	assertEqual(t, "melds", testkit.CalledMelds(kan), []play.Called{{Seat: seat(t, 0), Meld: play.MeldView{
 		Kind: play.MeldAddedKan, Tiles: copies(t, 0, "1111m"), Called: play.Some(tileOf(t, 2, "1m")), From: play.Some(seat(t, 3)),
+		Added: play.Some(tileOf(t, 3, "1m")),
 	}}})
 	assertEqual(t, "dora on kan", testkit.DoraReveals(kan), []tile.TileID(nil))
 	assertEqual(t, "dora on discard", testkit.DoraReveals(discardRinshan(t, g)), copies(t, 0, "7p"))

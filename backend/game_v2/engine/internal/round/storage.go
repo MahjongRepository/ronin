@@ -75,7 +75,9 @@ func (m *seatMelds) addToPon(id tile.TileID) play.MeldView {
 		if view.Kind == play.MeldPon && len(view.Tiles) > 0 && view.Tiles[0].Kind() == id.Kind() {
 			tiles := append(slices.Clone(view.Tiles), id)
 			slices.SortFunc(tiles, tile.TileID.Compare)
-			added = play.MeldView{Kind: play.MeldAddedKan, Tiles: tiles, Called: view.Called, From: view.From}
+			added = play.MeldView{
+				Kind: play.MeldAddedKan, Tiles: tiles, Called: view.Called, From: view.From, Added: play.Some(id),
+			}
 			m.views[i] = added
 		}
 	}

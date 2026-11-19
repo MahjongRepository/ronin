@@ -99,6 +99,7 @@ func threePinAddedKan(t *testing.T) play.Called {
 		Tiles:  []tile.TileID{threePin(t, 0), threePin(t, 1), threePin(t, 2), threePin(t, 3)},
 		Called: play.Some(threePin(t, 0)),
 		From:   play.Some(seat(t, 1)),
+		Added:  play.Some(threePin(t, 3)),
 	}}
 }
 
