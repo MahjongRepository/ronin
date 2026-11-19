@@ -12,7 +12,7 @@ http:
 
     # Rate-limited bot API endpoints
     lobby-bot-api:
-      rule: "Host(`%%DOMAIN%%`) && Path(`/api/rooms`) && Method(`POST`)"
+      rule: "Host(`%%DOMAIN%%`) && PathRegexp(`^/api/rooms/*$`) && Method(`POST`)"
       entryPoints: ["websecure"]
       service: lobby
       tls:

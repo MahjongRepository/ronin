@@ -1,11 +1,20 @@
 import { fetchPageHtml } from "@/api";
+import { storeCsrfToken } from "@/app/page-meta";
 
 const NOTICE_SELECTOR = "[data-browser-notice]";
+const CSRF_TOKEN_SELECTOR = 'meta[name="csrf-token"]';
 
 function serverContent(main: Element): Node[] {
     return [...main.childNodes].filter(
         (node) => !(node instanceof Element && node.matches(NOTICE_SELECTOR)),
     );
+}
+
+function adoptCsrfToken(page: Document): void {
+    const csrfToken = page.querySelector<HTMLMetaElement>(CSRF_TOKEN_SELECTOR)?.content;
+    if (csrfToken) {
+        storeCsrfToken(csrfToken);
+    }
 }
 
 function swapContent(main: HTMLElement, page: Document): boolean {
@@ -17,6 +26,7 @@ function swapContent(main: HTMLElement, page: Document): boolean {
     const content = serverContent(fetchedMain).map((node) => document.importNode(node, true));
     main.replaceChildren(...(notice ? [notice] : []), ...content);
     document.title = page.title;
+    adoptCsrfToken(page);
     return true;
 }
 

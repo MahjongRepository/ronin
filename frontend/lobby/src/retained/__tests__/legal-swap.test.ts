@@ -9,7 +9,7 @@ const PAGE_META = `
     <meta name="ronin-current-year" content="2026">
     <meta name="ronin-dev-mode" content="false">`;
 
-const JAPANESE_TERMS = `<!DOCTYPE html><html lang="ja"><head><title>利用規約 · Ronin Beta</title></head><body>
+const JAPANESE_TERMS = `<!DOCTYPE html><html lang="ja"><head><meta name="csrf-token" content="reissued-token"><title>利用規約 · Ronin Beta</title></head><body>
     <nav data-lobby-nav></nav>
     <main><div data-browser-notice hidden></div><article class="lobby-legal"><h1>利用規約</h1></article></main>
     <footer data-lobby-footer></footer></body></html>`;
@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 describe("legal swap", () => {
-    it("replaces the page content and title with the refetched page's, keeping the notice", async () => {
+    it("replaces the page content, title and CSRF token with the refetched page's, keeping the notice", async () => {
         const notice = englishTermsPage();
         const fetchPage = vi.fn(answer);
         vi.stubGlobal("fetch", fetchPage);
@@ -54,7 +54,10 @@ describe("legal swap", () => {
         await vi.waitFor(() => {
             expect(document.querySelector("main h1")?.textContent).toBe("利用規約");
         });
-        expect(document.title).toBe("利用規約 · Ronin Beta");
+        expect({
+            csrfToken: document.querySelector('meta[name="csrf-token"]')?.getAttribute("content"),
+            title: document.title,
+        }).toEqual({ csrfToken: "reissued-token", title: "利用規約 · Ronin Beta" });
         expect(document.querySelectorAll("main article")).toHaveLength(1);
         expect(document.querySelector("main")?.firstElementChild).toBe(notice);
         expect(fetchPage).toHaveBeenCalledWith(window.location.href, expect.anything());

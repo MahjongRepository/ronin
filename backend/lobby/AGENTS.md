@@ -48,8 +48,8 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * `monitoring/` — the admin monitoring page's data: the `metrics.db` reader, the reductions, the chart
   geometry and the one page-data assembly that takes the range and returns every chart, the games summary
   and the live game-server counts. `report.py` turns it into one JSON document, plot lines and UTC axis labels
-  included, which the monitoring API answers for the lobby app to draw and `scripts/monitoring_report.py` prints
-  for agents. The lobby never opens `metrics.db` through `shared.db`
+  included, which the monitoring API answers for the lobby app to draw; `scripts/monitoring_report.py` prints the
+  same report for agents without the plot geometry. The lobby never opens `metrics.db` through `shared.db`
   (which would force WAL and create a schema). Reductions run in SQL, so a long range never loads raw
   samples. A failed metrics read blanks only its own chart; the page still answers 200 with the games
   section. Traefik exports a series only after its first request and drops them all on a restart, so its charts take their state from the newest
