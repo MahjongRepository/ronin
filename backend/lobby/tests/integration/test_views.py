@@ -15,7 +15,6 @@ from starlette.routing import Route
 from lobby.auth.csrf import CSRF_COOKIE_NAME
 from lobby.tests.conftest import open_client
 from lobby.tests.integration.conftest import register_with_csrf, session_user_id
-from lobby.views.history_handlers import HISTORY_GAMES_LIMIT
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 
 if TYPE_CHECKING:
@@ -69,7 +68,7 @@ def app(make_app, tmp_path, monkeypatch):
     )
 
 
-_SPA_SHELL_ROUTES = ["/", "/rooms/any-room", "/matchmaking"]
+_SPA_SHELL_ROUTES = ["/", "/rooms/any-room", "/matchmaking", "/history"]
 
 
 @pytest.mark.parametrize("path", _SPA_SHELL_ROUTES)
@@ -286,121 +285,11 @@ class TestViteDevMode:
             assert (response.status_code, response.text) == (502, "Game client dev server not reachable")
 
 
-class TestHistoryPage:
+class TestReplayPage:
     @pytest.fixture
     def client(self, client):
         register_with_csrf(client, "gamesuser")
         return client
-
-    def test_history_page__when_first_visit__should_set_csrf_cookie(self, client):
-        client.cookies.delete(CSRF_COOKIE_NAME)
-
-        response = client.get("/history")
-        assert response.status_code == 200
-        assert CSRF_COOKIE_NAME in response.cookies
-
-    def test_history_page__when_no_games__should_show_empty_state(self, client):
-        response = client.get("/history")
-        assert response.status_code == 200
-        assert "No games played yet" in response.text
-
-    def test_history_page__when_game_completed__should_show_standings(self, client):
-        now = datetime.now(UTC)
-        game = PlayedGame(
-            game_id="abcd1234-test-game",
-            started_at=now - timedelta(minutes=45),
-            ended_at=now,
-            end_reason="completed",
-            game_type="hanchan",
-            num_rounds_played=8,
-            standings=[
-                PlayedGameStanding(name="Winner", seat=0, score=40000, final_score=50),
-                PlayedGameStanding(name="Second", seat=1, score=25000, final_score=0),
-                PlayedGameStanding(name="Third", seat=2, score=20000, final_score=-15),
-                PlayedGameStanding(name="Fourth", seat=3, score=15000, final_score=-35),
-            ],
-        )
-        client.app.state.game_repo.create_game(game)
-
-        response = client.get("/history")
-        assert response.status_code == 200
-        assert "abcd1234" in response.text
-        assert "Winner" in response.text
-        assert "Second" in response.text
-        assert "南" in response.text
-        assert "games-standing--winner" in response.text
-        assert "40,000" in response.text
-        assert "25,000" in response.text
-        assert 'class="games-card-link" href="/play/history/abcd1234-test-game"' in response.text
-
-    def test_history_page__when_more_games_than_the_limit__should_show_the_most_recent_newest_first(self, client):
-        now = datetime.now(UTC)
-        game_ids = [f"ordered-game-{index:02}" for index in range(HISTORY_GAMES_LIMIT + 1)]
-        for index, game_id in enumerate(game_ids):
-            client.app.state.game_repo.create_game(
-                PlayedGame(
-                    game_id=game_id,
-                    started_at=now - timedelta(hours=len(game_ids) - index),
-                    end_reason=GameEndReason.COMPLETED,
-                    game_type="hanchan",
-                ),
-            )
-
-        response = client.get("/history")
-        assert response.status_code == 200
-        shown = re.findall(r'class="games-card-link" href="/play/history/(ordered-game-\d+)"', response.text)
-        assert shown == game_ids[:0:-1]
-
-    def test_history_page__when_another_user_held_the_viewers_name__should_mark_only_the_viewers_standing(self, client):
-        viewer_id = session_user_id(client)
-        now = datetime.now(UTC)
-        game = PlayedGame(
-            game_id="name-reuse-game",
-            started_at=now - timedelta(minutes=30),
-            ended_at=now,
-            end_reason=GameEndReason.COMPLETED,
-            game_type="hanchan",
-            num_rounds_played=6,
-            standings=[
-                PlayedGameStanding(name="gamesuser", seat=0, user_id="earlier-holder", score=41000, final_score=51),
-                PlayedGameStanding(name="gamesuser", seat=1, user_id=viewer_id, score=27000, final_score=7),
-                PlayedGameStanding(name="Tsumogiri 1", seat=2, score=19000, final_score=-21),
-                PlayedGameStanding(name="Tsumogiri 2", seat=3, score=13000, final_score=-37),
-            ],
-        )
-        client.app.state.game_repo.create_game(game)
-
-        response = client.get("/history")
-        assert response.status_code == 200
-        standings = re.split(r'<div class="games-standing(?=[ "])', response.text)[1:]
-        assert len(standings) == 4
-        marked = [standing for standing in standings if "games-standing--me" in standing]
-        assert len(marked) == 1
-        assert "27,000" in marked[0]
-        assert response.text.count('class="games-you"') == 1
-
-    def test_history_page__when_viewer_played_the_game__should_link_the_replay_from_their_seat(self, client):
-        viewer_id = session_user_id(client)
-        now = datetime.now(UTC)
-        played_game = PlayedGame(
-            game_id="viewer-played-game",
-            started_at=now - timedelta(minutes=30),
-            ended_at=now,
-            end_reason=GameEndReason.COMPLETED,
-            game_type="hanchan",
-            standings=[
-                PlayedGameStanding(name="Tsumogiri 1", seat=2, score=41000, final_score=51),
-                PlayedGameStanding(name="gamesuser", seat=0, user_id=viewer_id, score=27000, final_score=7),
-                PlayedGameStanding(name="Tsumogiri 2", seat=1, score=19000, final_score=-21),
-                PlayedGameStanding(name="Tsumogiri 3", seat=3, score=13000, final_score=-37),
-            ],
-        )
-        client.app.state.game_repo.create_game(played_game)
-
-        response = client.get("/history")
-        assert response.status_code == 200
-        assert response.text.count('href="/play/history/viewer-played-game?seat=0"') == 1
-        assert response.text.count('data-replay-url="/play/history/viewer-played-game"') == 1
 
     def test_replay_page__when_a_player_opens_a_link_without_a_seat__should_redirect_to_their_seat(self, client):
         now = datetime.now(UTC)
@@ -428,12 +317,6 @@ class TestHistoryPage:
         assert seatless.headers["location"] == "/play/history/seatless-link-game?round=1&step=4&seat=2"
         assert seated.status_code == 200
         assert other_game.status_code == 200
-
-    def test_history_page__when_unauthenticated__should_redirect_to_login(self, app):
-        with open_client(app) as c:
-            response = c.get("/history", follow_redirects=False)
-            assert response.status_code == 303
-            assert "/login" in response.headers["location"]
 
 
 def _grant_admin(client, *, username: str) -> None:

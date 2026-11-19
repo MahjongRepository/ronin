@@ -61,8 +61,6 @@
     "history.duration.seconds": "{seconds} с",
     "history.empty_hint": "Здесь появятся завершённые игры и их записи.",
     "history.empty_title": "Сыгранных игр пока нет",
-    "history.game_type.hanchan": "Ханчан",
-    "history.game_type.tonpusen": "Тонпусен",
     "history.legend.points": "Очки",
     "history.legend.result": "Итог",
     "history.recent_games": "Последние игры",

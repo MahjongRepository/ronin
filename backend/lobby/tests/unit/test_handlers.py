@@ -1,12 +1,12 @@
 import functools
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
 
 from lobby.i18n import Locale, Translator, load_catalogs
 from lobby.views.assets import load_vite_manifest, resolve_vite_asset_urls
-from lobby.views.history_handlers import _prepare_history_for_display, format_duration_seconds
+from lobby.views.history_handlers import format_duration_seconds, history_entries
 from shared.dal.models import PlayedGame, PlayedGameStanding
 
 _VIEWER_USER_ID = "viewer-user-id"
@@ -103,38 +103,8 @@ def _make_standing(
     return PlayedGameStanding(name=name, seat=seat, user_id=user_id, score=score, final_score=final_score)
 
 
-class TestPrepareGamesForDisplay:
-    def test_prepare_history_for_display__when_game_completed__should_mark_winner_viewer_and_labels(self):
-        now = datetime.now(UTC)
-        game = PlayedGame(
-            game_id="game-1",
-            started_at=now - timedelta(minutes=30),
-            ended_at=now,
-            end_reason="completed",
-            game_type="hanchan",
-            num_rounds_played=8,
-            standings=[
-                _make_standing(name="Alice", seat=2, score=35000, final_score=30),
-                _make_standing(name="Bob", seat=0, score=25000, final_score=0, user_id=_VIEWER_USER_ID),
-                _make_standing(name="Charlie", seat=1, score=22000, final_score=-10),
-                _make_standing(name="Diana", seat=3, score=18000, final_score=-20),
-            ],
-        )
-        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID, translate=translate_en)
-        assert len(result) == 1
-        entry = result[0]
-        assert entry["players"][0]["is_winner"] is True
-        assert entry["players"][0]["name"] == "Alice"
-        assert entry["players"][0]["score"] == 35000
-        assert entry["players"][1]["score"] == 25000
-        assert entry["players"][1]["is_winner"] is False
-        assert (entry["game_type"].wind, entry["game_type"].name) == ("南", "Hanchan")
-        assert entry["duration_label"] == "30m 0s"
-        assert [player["is_viewer"] for player in entry["players"]] == [False, True, False, False]
-        assert entry["viewer_replay_url"] == "/play/history/game-1?seat=0"
-        assert entry["replay_url"] == "/play/history/game-1"
-
-    def test_prepare_history_for_display__when_viewer_did_not_play__should_link_without_seat(self):
+class TestHistoryEntries:
+    def test_history_entries__when_viewer_did_not_play__should_link_without_seat(self):
         game = PlayedGame(
             game_id="game-1",
             started_at=datetime.now(UTC),
@@ -144,38 +114,24 @@ class TestPrepareGamesForDisplay:
             ],
         )
 
-        [entry] = _prepare_history_for_display([game], user_id="onlooker-user-id", translate=translate_en)
+        [entry] = history_entries([game], user_id="onlooker-user-id")
         assert [player["is_viewer"] for player in entry["players"]] == [False, False]
         assert entry["viewer_replay_url"] == "/play/history/game-1"
 
-    def test_prepare_history_for_display__when_tonpusen__should_label_east_tonpuu(self):
-        now = datetime.now(UTC)
-        game = PlayedGame(game_id="g", started_at=now, game_type="tonpusen")
+    def test_history_entries__when_tonpusen__should_carry_the_east_wind(self):
+        game = PlayedGame(game_id="g", started_at=datetime.now(UTC), game_type="tonpusen")
 
-        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID, translate=translate_en)
-        assert (result[0]["game_type"].wind, result[0]["game_type"].name) == ("東", "Tonpuu")
+        [entry] = history_entries([game], user_id=_VIEWER_USER_ID)
+        assert (entry["game_type"], entry["wind"]) == ("tonpusen", "東")
 
-    def test_prepare_history_for_display__when_game_type_unknown__should_have_no_label(self):
-        now = datetime.now(UTC)
-        game = PlayedGame(game_id="g", started_at=now, game_type="")
+    def test_history_entries__when_game_type_unknown__should_have_no_wind(self):
+        game = PlayedGame(game_id="g", started_at=datetime.now(UTC), game_type="")
 
-        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID, translate=translate_en)
-        assert result[0]["game_type"] is None
+        [entry] = history_entries([game], user_id=_VIEWER_USER_ID)
+        assert entry["wind"] is None
 
-    def test_prepare_history_for_display__when_game_under_a_minute__should_show_seconds(self):
-        now = datetime.now(UTC)
-        game = PlayedGame(
-            game_id="g",
-            started_at=now - timedelta(seconds=30),
-            ended_at=now,
-            end_reason="completed",
-        )
-        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID, translate=translate_en)
-        assert result[0]["duration_label"] == "30s"
+    def test_history_entries__when_standings_empty__should_have_no_players(self):
+        game = PlayedGame(game_id="g", started_at=datetime.now(UTC), standings=[])
 
-    def test_prepare_history_for_display__when_standings_empty__should_have_no_players(self):
-        now = datetime.now(UTC)
-        game = PlayedGame(game_id="g", started_at=now, standings=[])
-
-        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID, translate=translate_en)
-        assert result[0]["players"] == []
+        [entry] = history_entries([game], user_id=_VIEWER_USER_ID)
+        assert entry["players"] == []

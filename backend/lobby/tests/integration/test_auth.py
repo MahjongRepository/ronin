@@ -301,7 +301,7 @@ class TestAuthEndpoints:
     def test_navigation__when_authenticated__should_show_username_and_logout(self, client):
         _register_user(client, username="lobbyuser")
 
-        response = client.get("/history")
+        response = client.get("/terms")
         assert response.status_code == 200
         assert "lobbyuser" in response.text
         assert "Log out" in response.text

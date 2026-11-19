@@ -1,7 +1,6 @@
 import "@/styles/lobby-app.scss";
 import { startLobbyApp } from "@/app/start";
 import { showUnsupportedBrowserNotice } from "@/browser-support";
-import { initGamesCopyLinkButtons, showGameTimesInLocalTime } from "@/games-history";
 
 if (import.meta.env.DEV) {
     void import("@/styles/development.scss");
@@ -17,8 +16,6 @@ function dropNoticeParam(): void {
 
 function bootJinjaPage(): void {
     showUnsupportedBrowserNotice();
-    initGamesCopyLinkButtons();
-    showGameTimesInLocalTime();
     dropNoticeParam();
 }
 

@@ -1,8 +1,6 @@
-import { afterAll, afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
-vi.stubEnv("TZ", "Asia/Tokyo");
-
-const { initGamesCopyLinkButtons, showGameTimesInLocalTime } = await import("@/games-history");
+import { copyReplayLink } from "@/games-history";
 
 function renderCard(): { button: HTMLButtonElement; status: HTMLElement } {
     document.body.innerHTML = `
@@ -10,12 +8,12 @@ function renderCard(): { button: HTMLButtonElement; status: HTMLElement } {
             <span class="games-copy-status" role="status"></span>
             <button class="games-copy-btn" data-replay-url="/play/history/g1" type="button"></button>
         </div>`;
-    initGamesCopyLinkButtons();
     const button = document.querySelector<HTMLButtonElement>(".games-copy-btn");
     const status = document.querySelector<HTMLElement>(".games-copy-status");
     if (!button || !status) {
         throw new Error("card did not render");
     }
+    button.addEventListener("click", (event) => void copyReplayLink(event));
     return { button, status };
 }
 
@@ -28,11 +26,7 @@ async function copyAndWaitForNotice(button: HTMLButtonElement, status: HTMLEleme
     await vi.waitFor(() => expect(status.textContent).toBe("Link copied"));
 }
 
-afterAll(() => {
-    vi.unstubAllEnvs();
-});
-
-describe("initGamesCopyLinkButtons", () => {
+describe("copyReplayLink", () => {
     afterEach(() => {
         vi.useRealTimers();
     });
@@ -75,20 +69,5 @@ describe("initGamesCopyLinkButtons", () => {
 
         await vi.waitFor(() => expect(status.textContent).toBe("Couldn't copy"));
         expect(status.dataset.outcome).toBe("failed");
-    });
-});
-
-describe("showGameTimesInLocalTime", () => {
-    test("shows a UTC start time in the viewer's time zone and keeps a time without an offset as served", () => {
-        document.body.innerHTML = `
-            <time class="games-time" datetime="2026-10-24T03:09:00+00:00">Oct 24, 03:09 UTC</time>
-            <time class="games-time" datetime="2026-10-24T03:09:00">Oct 24, 03:09 UTC</time>`;
-
-        showGameTimesInLocalTime();
-
-        const [utc, naive] = document.querySelectorAll("time");
-        expect(utc.textContent).toMatch(/24.*12:09/);
-        expect(utc.textContent).not.toContain("UTC");
-        expect(naive.textContent).toBe("Oct 24, 03:09 UTC");
     });
 });

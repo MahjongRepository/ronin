@@ -10,6 +10,7 @@ from lobby.rooms.messages import CHAT_MAX_LENGTH
 from lobby.views.auth_handlers import ACCOUNT_RULES
 from lobby.views.error_pages import NO_STORE_HEADERS, json_csrf_rejection
 from lobby.views.handlers import find_live_game_page, lobby_websocket_url, open_new_room
+from lobby.views.history_handlers import HISTORY_GAMES_LIMIT, history_entries
 from lobby.views.json_body import parse_json_body
 
 if TYPE_CHECKING:
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
 
     from lobby.rooms.manager import LobbyRoomManager
     from shared.auth import AuthService
+    from shared.dal.game_repository import GameRepository
 
 
 async def lobby_session(request: Request) -> JSONResponse:
@@ -93,3 +95,15 @@ async def lobby_matchmaking(request: Request) -> JSONResponse:
     GET /api/lobby/matchmaking - what the matchmaking view opens the queue's socket with.
     """
     return JSONResponse({"ws_url": lobby_websocket_url(request, "/ws/matchmaking")}, headers=NO_STORE_HEADERS)
+
+
+async def lobby_history(request: Request) -> JSONResponse:
+    """
+    GET /api/lobby/history - the most recent completed games, newest first, as the user sees them.
+    """
+    game_repo: GameRepository = request.app.state.game_repo
+    games = await game_repo.get_recent_completed_games(limit=HISTORY_GAMES_LIMIT)
+    return JSONResponse(
+        {"games": history_entries(games, request.user.user_id)},
+        headers=NO_STORE_HEADERS,
+    )

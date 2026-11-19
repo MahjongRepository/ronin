@@ -16,6 +16,22 @@
     "footer.terms": "利用規約",
     "history.copy.copied": "リンクをコピーしました",
     "history.copy.failed": "コピーできませんでした",
+    "history.copy_link": "牌譜のリンクをコピー",
+    "history.empty_hint": "終わった対局とその牌譜がここに表示されます。",
+    "history.empty_title": "まだ対局がありません",
+    "history.game_type.hanchan": "半荘戦",
+    "history.game_type.tonpusen": "東風戦",
+    "history.legend.points": "持ち点",
+    "history.legend.result": "ポイント",
+    "history.recent_games": "最近の対局",
+    "history.rounds": {
+        "other": "{count}局"
+    },
+    "history.shown_count": {
+        "other": "{count}件"
+    },
+    "history.view_replay": "牌譜を見る",
+    "history.you": "あなた",
     "lobby.action.custom_table": "カスタム卓",
     "lobby.action.custom_table_hint": "友達と遊ぶ",
     "lobby.action.quick_match": "クイックマッチ",

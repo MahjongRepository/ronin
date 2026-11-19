@@ -16,6 +16,28 @@
     "footer.terms": "Условия",
     "history.copy.copied": "Скопировано",
     "history.copy.failed": "Не удалось скопировать",
+    "history.copy_link": "Скопировать ссылку на запись",
+    "history.empty_hint": "Здесь появятся завершённые игры и их записи.",
+    "history.empty_title": "Сыгранных игр пока нет",
+    "history.game_type.hanchan": "Ханчан",
+    "history.game_type.tonpusen": "Тонпусен",
+    "history.legend.points": "Очки",
+    "history.legend.result": "Итог",
+    "history.recent_games": "Последние игры",
+    "history.rounds": {
+        "few": "{count} раздачи",
+        "many": "{count} раздач",
+        "one": "{count} раздача",
+        "other": "{count} раздачи"
+    },
+    "history.shown_count": {
+        "few": "показано: {count}",
+        "many": "показано: {count}",
+        "one": "показано: {count}",
+        "other": "показано: {count}"
+    },
+    "history.view_replay": "Запись игры",
+    "history.you": "Вы",
     "lobby.action.custom_table": "Создать стол",
     "lobby.action.custom_table_hint": "Игра с друзьями",
     "lobby.action.quick_match": "Быстрая игра",

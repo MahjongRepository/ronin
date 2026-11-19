@@ -1,5 +1,6 @@
 import { type NavigateOptions, type Route } from "@ronin/shared/router";
 
+import { mountHistoryView } from "@/history";
 import { mountLobbyView } from "@/lobby";
 import { mountMatchmakingView } from "@/matchmaking";
 import { mountRoomView } from "@/room";
@@ -22,6 +23,10 @@ export function lobbyRoutes(deps: RouteDeps): Route[] {
         {
             mount: (host) => mountMatchmakingView(host),
             pattern: /^\/matchmaking$/,
+        },
+        {
+            mount: (host) => mountHistoryView(host),
+            pattern: /^\/history$/,
         },
     ];
 }

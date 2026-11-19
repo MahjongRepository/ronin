@@ -46,7 +46,6 @@ from lobby.views import (
     create_room_and_redirect,
     create_templates,
     game_session,
-    history_page,
     join_room_and_redirect,
     load_vite_manifest,
     monitoring_page,
@@ -72,6 +71,7 @@ from lobby.views.error_pages import http_error_page, server_error_page
 from lobby.views.legal_handlers import privacy_page, terms_page
 from lobby.views.lobby_api_handlers import (
     lobby_create_room,
+    lobby_history,
     lobby_matchmaking,
     lobby_room,
     lobby_rooms,
@@ -175,7 +175,7 @@ def create_app(  # noqa: PLR0913
     routes: list[BaseRoute] = [
         # Protected HTML routes (redirect to login when unauthenticated)
         Route("/", protected_html(spa_shell), methods=["GET"], name="lobby_page"),
-        Route("/history", protected_html(history_page), methods=["GET"], name="history_page"),
+        Route("/history", protected_html(spa_shell), methods=["GET"], name="history_page"),
         Route("/play/history/{game_id}", public_route(replay_page), methods=["GET"], name="replay_page"),
         Route("/play/storybook/sounds", public_route(play_page), methods=["GET"], name="storybook_sounds_page"),
         Route("/play/storybook/board", public_route(play_page), methods=["GET"], name="storybook_board_page"),
@@ -226,6 +226,7 @@ def create_app(  # noqa: PLR0913
         Route("/api/lobby/rooms", protected_json(lobby_create_room), methods=["POST"], name="lobby_create_room"),
         Route("/api/lobby/rooms/{room_id}", protected_json(lobby_room), methods=["GET"], name="lobby_room"),
         Route("/api/lobby/matchmaking", protected_json(lobby_matchmaking), methods=["GET"], name="lobby_matchmaking"),
+        Route("/api/lobby/history", protected_json(lobby_history), methods=["GET"], name="lobby_history"),
     ]
 
     if APP_VERSION == "dev":

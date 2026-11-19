@@ -16,6 +16,24 @@
     "footer.terms": "Terms",
     "history.copy.copied": "Link copied",
     "history.copy.failed": "Couldn't copy",
+    "history.copy_link": "Copy replay link",
+    "history.empty_hint": "Finished games and their replays show up here.",
+    "history.empty_title": "No games played yet",
+    "history.game_type.hanchan": "Hanchan",
+    "history.game_type.tonpusen": "Tonpuu",
+    "history.legend.points": "Points",
+    "history.legend.result": "Result",
+    "history.recent_games": "Recent games",
+    "history.rounds": {
+        "one": "{count} round",
+        "other": "{count} rounds"
+    },
+    "history.shown_count": {
+        "one": "{count} shown",
+        "other": "{count} shown"
+    },
+    "history.view_replay": "View replay",
+    "history.you": "You",
     "lobby.action.custom_table": "Custom table",
     "lobby.action.custom_table_hint": "Play with friends",
     "lobby.action.quick_match": "Quick match",
