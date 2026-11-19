@@ -1,5 +1,6 @@
+import { storeGameSession } from "@ronin/shared/session-storage";
+
 import { readString } from "@/lobby-socket";
-import { storeGameSession } from "@/session/session-storage";
 
 const DEFAULT_GAME_CLIENT_URL = "/play";
 

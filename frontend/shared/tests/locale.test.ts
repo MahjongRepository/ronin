@@ -1,6 +1,5 @@
+import { langCookie, resolveLocale } from "@ronin/shared/locale";
 import { describe, expect, it } from "vitest";
-
-import { langCookie, resolveLocale } from "@/shared/i18n";
 
 describe("resolveLocale", () => {
     it("takes a lang cookie naming a supported locale over the browser's languages", () => {

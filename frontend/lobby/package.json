@@ -5,12 +5,12 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build",
-        "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
-        "lint": "oxlint --deny-warnings . && stylelint 'src/**/*.scss' && node scripts/check-build.ts",
+        "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p ../shared/tsconfig.json",
+        "lint": "oxlint --deny-warnings . && stylelint 'src/**/*.scss' && node scripts/check-build.ts && cd ../shared && oxlint --deny-warnings .",
         "lint:fix": "oxlint --fix . && stylelint --fix 'src/**/*.scss'",
-        "fmt": "oxfmt",
-        "fmt:check": "oxfmt --check",
-        "test": "vitest run --coverage",
+        "fmt": "oxfmt && cd ../shared && oxfmt -c ../lobby/.oxfmtrc.json src tests tsconfig.json .oxlintrc.json",
+        "fmt:check": "oxfmt --check && cd ../shared && oxfmt --check -c ../lobby/.oxfmtrc.json src tests tsconfig.json .oxlintrc.json",
+        "test": "vitest run --coverage && vitest run --coverage --config vitest.shared.config.ts",
         "test:watch": "vitest"
     },
     "dependencies": {

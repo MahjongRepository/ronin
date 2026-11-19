@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "paths": {
+            "@ronin/shared/*": ["./src/*"],
+            "lit-html": ["../lobby/node_modules/lit-html"],
+            "lit-html/*": ["../lobby/node_modules/lit-html/*"],
+            "vitest": ["../lobby/node_modules/vitest"]
+        },
+        "strict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noFallthroughCasesInSwitch": true,
+        "isolatedModules": true,
+        "resolveJsonModule": true,
+        "types": ["../lobby/node_modules/vite/client"],
+        "lib": ["ES2023", "DOM", "DOM.Iterable"]
+    },
+    "include": ["src", "tests"]
+}

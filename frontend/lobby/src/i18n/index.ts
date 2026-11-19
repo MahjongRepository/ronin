@@ -1,15 +1,13 @@
+import { DEFAULT_LOCALE, type Locale, pageLocale } from "@ronin/shared/locale";
 import { type TemplateResult } from "lit-html";
 
 import en from "@/i18n/locales/en.json";
 import ja from "@/i18n/locales/ja.json";
 import ru from "@/i18n/locales/ru.json";
 
-const LOCALES = ["en", "ja", "ru"] as const;
-const DEFAULT_LOCALE = "en";
 const PLURAL_PARAM = "count";
 const PLACEHOLDER = /\{(?<name>[a-z][a-z0-9_]*)\}/g;
 
-type Locale = (typeof LOCALES)[number];
 type MessageKey = keyof typeof en;
 type PluralForms = Readonly<Partial<Record<Intl.LDMLPluralRule, string>>>;
 type Message = string | PluralForms;
@@ -32,15 +30,6 @@ class I18nError extends Error {
         this.key = key;
         this.reason = reason;
     }
-}
-
-function isLocale(value: string): value is Locale {
-    return LOCALES.some((locale) => locale === value);
-}
-
-function pageLocale(): Locale {
-    const { lang } = document.documentElement;
-    return isLocale(lang) ? lang : DEFAULT_LOCALE;
 }
 
 function isMessageKey(key: string): key is MessageKey {
@@ -186,6 +175,8 @@ function applyStaticText(root: ParentNode): void {
     }
 }
 
+export { isLocale, pageLocale } from "@ronin/shared/locale";
+export type { Locale } from "@ronin/shared/locale";
 export {
     I18nError,
     applyStaticText,
@@ -193,11 +184,9 @@ export {
     formatList,
     formatNumber,
     formatTime,
-    isLocale,
     isMessageKey,
-    pageLocale,
     reportI18nError,
     t,
     tParts,
 };
-export type { Locale, MessageKey, Params };
+export type { MessageKey, Params };

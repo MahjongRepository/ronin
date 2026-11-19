@@ -5,7 +5,10 @@
         "moduleResolution": "bundler",
         "allowImportingTsExtensions": true,
         "paths": {
-            "@/*": ["./src/*"]
+            "@/*": ["./src/*"],
+            "@ronin/shared/*": ["../shared/src/*"],
+            "lit-html": ["./node_modules/lit-html"],
+            "lit-html/*": ["./node_modules/lit-html/*"]
         },
         "strict": true,
         "noUnusedLocals": true,

@@ -15,6 +15,7 @@ COPY frontend/lobby/package.json frontend/lobby/package-lock.json frontend/lobby
 RUN npm ci
 
 COPY frontend/lobby/ ./
+COPY frontend/shared/src /app/frontend/shared/src
 
 ARG APP_VERSION=dev
 ARG GIT_COMMIT=unknown
@@ -30,6 +31,7 @@ COPY frontend/game_v2/package.json frontend/game_v2/package-lock.json frontend/g
 RUN npm ci
 
 COPY frontend/game_v2/ ./
+COPY frontend/shared/src /app/frontend/shared/src
 
 ARG APP_VERSION=dev
 ARG GIT_COMMIT=unknown

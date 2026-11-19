@@ -1,4 +1,5 @@
-import { DEFAULT_LOCALE, type Locale, langCookie, pageLocale } from "./locale";
+import { DEFAULT_LOCALE, type Locale, langCookie, pageLocale } from "@ronin/shared/locale";
+
 import en from "./locales/en.json";
 import ja from "./locales/ja.json";
 import ru from "./locales/ru.json";
@@ -155,8 +156,8 @@ function applyPageLocale(locale: Locale): void {
     document.title = t("game.page.title");
 }
 
-export { LOCALES, isLocale, langCookie, pageLocale, resolveLocale } from "./locale";
-export type { Locale } from "./locale";
+export { LOCALES, isLocale, langCookie, pageLocale, resolveLocale } from "@ronin/shared/locale";
+export type { Locale } from "@ronin/shared/locale";
 export {
     WIND_LETTERS,
     WIND_SCRIPT_KEY,

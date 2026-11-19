@@ -1,6 +1,5 @@
+import { clearGameSession, getGameSession, storeGameSession } from "@ronin/shared/session-storage";
 import { afterEach, describe, expect, test } from "vitest";
-
-import { clearGameSession, getGameSession, storeGameSession } from "@/shared/session";
 
 afterEach(() => {
     sessionStorage.clear();

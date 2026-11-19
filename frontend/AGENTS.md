@@ -1,16 +1,18 @@
 # Frontend
 
-Two isolated apps, each its own npm package with its own dependencies, lockfile, language, lint,
-format and test config, and its own styles:
+Two apps, each its own npm package with its own dependencies, lockfile, language, lint, format and
+test config, its own styles and its own build:
 
 * `lobby/` — the scripts and styles of the server-rendered lobby pages (TypeScript / lit-html). See
   `lobby/AGENTS.md`.
 * `game_v2/` — the game client (TypeScript / lit-html). See `game_v2/AGENTS.md`.
+* `shared/` — TypeScript source both apps import through `@ronin/shared/*`; not a package. See
+  `shared/AGENTS.md`.
 
-No app imports from another, and nothing is shared between them at build time: a module two
-need is copied into each. They meet only at the runtime contract
-in `docs/architecture.md` (*Game client contract*), so the game client can be replaced by any app
-that honours it.
+No app imports from another; a module both need lives in `shared/`, and each app bundles its own
+copy of what it imports. At runtime they still meet only at the contract in `docs/architecture.md`
+(*Game client contract*), so the game client can be replaced by any app that honours it. Pico copies
+and styles stay per app.
 
 ## Tooling
 

@@ -19,6 +19,8 @@ Ronin is a Riichi Mahjong game server and browser client.
   * `frontend/lobby/` — the scripts and styles of the lobby pages (TypeScript / lit-html). See
     `frontend/lobby/AGENTS.md`.
   * `frontend/game_v2/` — the game client (TypeScript / lit-html). See `frontend/game_v2/AGENTS.md`.
+  * `frontend/shared/` — TypeScript source both apps import (`@ronin/shared/*`), checked by the lobby's
+    toolchain. See `frontend/shared/AGENTS.md`.
 * `deploy/` — spot playbook, production compose and the Docker image. See `deploy/AGENTS.md`.
 * `bin/` — the scripts behind the `make` targets.
 * `docs/architecture.md` — the map of how the lobby, matchmaking and the game server fit together.

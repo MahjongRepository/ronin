@@ -1,6 +1,6 @@
 const BOARD_CSS_CONDITIONS = ["selector(:has(*))", "(container-type: size)", "(height: 100dvh)"];
 
-interface CssSupport {
+export interface CssSupport {
     supports: (conditionText: string) => boolean;
     registerProperty?: unknown;
 }

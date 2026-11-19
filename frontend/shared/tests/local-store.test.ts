@@ -1,6 +1,5 @@
+import { localStore } from "@ronin/shared/local-store";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import { localStore } from "@/shared/lib";
 
 const KEY = "ronin.v2.test-store";
 

@@ -1,6 +1,5 @@
+import { supportsBoardCss } from "@ronin/shared/browser-support";
 import { describe, expect, it } from "vitest";
-
-import { supportsBoardCss } from "@/shared/lib";
 
 function registerProperty(): void {}
 

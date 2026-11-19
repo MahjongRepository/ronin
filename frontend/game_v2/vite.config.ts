@@ -29,7 +29,9 @@ export default defineConfig({
     resolve: {
         alias: {
             "@": resolve(import.meta.dirname, "src"),
+            "@ronin/shared": resolve(import.meta.dirname, "../shared/src"),
         },
+        dedupe: ["lit-html"],
     },
     server: {
         hmr: { clientPort: port },

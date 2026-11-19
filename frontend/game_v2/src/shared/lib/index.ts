@@ -1,5 +1,5 @@
 export { assertNever } from "./assert-never";
-export { supportsBoardCss } from "./browser-support";
+export { supportsBoardCss } from "@ronin/shared/browser-support";
 export { createDeadlineTimer } from "./deadline-timer";
 export type { DeadlineTimer } from "./deadline-timer";
 export { blockDownwardDrags } from "./downward-drag-block";
@@ -7,8 +7,8 @@ export { focusByKey, focusKeys, keyedControls } from "./focus-key";
 export { unlockOnGesture } from "./gesture-unlock";
 export { LOAD_RETRY_DELAYS_MS, startRetryingLoad } from "./retrying-load";
 export type { LoadStatus, RetryingLoad, RetryingLoadDeps } from "./retrying-load";
-export { localStore } from "./local-store";
-export type { LocalStore } from "./local-store";
+export { localStore } from "@ronin/shared/local-store";
+export type { LocalStore } from "@ronin/shared/local-store";
 export { keepPageRested } from "./page-rest";
 export type { PageRest, RestedPage, RestingPage } from "./page-rest";
 export { shortcutKeysOf } from "./shortcut-keys";
