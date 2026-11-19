@@ -2,10 +2,10 @@
 
 The game server being ported from `backend/game/` to Go. It is one Go module, outside the uv
 project: it imports nothing from `backend/shared/` and the Python tooling does not see it. So far it
-holds the engine's base vocabulary, the seam types, its seeded randomness, the wall, shanten and the
-hand reading (agari, divider, waits), and the structure the port fills, not the game: the facade's
-`NewGame`, `Act`, `Event`, `Action` and `Refusal` and their seam tests are placeholders, replaced by
-the facade over `engine/play`'s types.
+holds the engine's base vocabulary, the seam types, its seeded randomness, the wall, shanten, the
+hand reading (agari, divider, waits) and the hand scoring, and the structure the port fills, not
+the game: the facade's `NewGame`, `Act`, `Event`, `Action` and `Refusal` and their seam tests are
+placeholders, replaced by the facade over `engine/play`'s types.
 
 ## The seam
 
@@ -102,7 +102,8 @@ code under `engine/`:
   type's empty marker method, has nothing to run and is skipped. The server side is not gated. There
   is no exclusion mechanism: reach the statement or restructure it away.
 * A check too slow for every run sits in a `_test.go` file behind a build tag (`exhaustive`), outside
-  `make test-go`; its package doc gives the command that runs it. `make lint-go` builds with the tag
+  `make test-go`, and so does one over data kept only on a developer's machine (`tenhou`, the Tenhou
+  corpus); its package doc gives the command that runs it. `make lint-go` builds with every tag
   (`run.build-tags`), so the file is type-checked and linted on every run.
 
 ## Comments

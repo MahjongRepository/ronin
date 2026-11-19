@@ -3,6 +3,7 @@ version: "2"
 run:
   build-tags:
     - exhaustive
+    - tenhou
 
 linters:
   default: standard
