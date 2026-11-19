@@ -12,6 +12,14 @@ export function formatTime(date: Date): string {
     return date.toLocaleTimeString(pageLocale(), { hour: "2-digit", minute: "2-digit" });
 }
 
+export function formatDate(date: Date): string {
+    return new Intl.DateTimeFormat(pageLocale(), {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+    }).format(date);
+}
+
 export function formatDateTime(date: Date): string {
     return new Intl.DateTimeFormat(pageLocale(), {
         day: "numeric",

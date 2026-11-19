@@ -88,7 +88,7 @@ function onlineListTemplate(state: TournamentState): TemplateResult | typeof not
         `;
     }
     return html`
-        <div class="room-player-list">
+        <div class="room-player-list tournament-online-list">
             ${state.players.map(
                 (name) => html`
                     <div class="room-player-item">
@@ -177,7 +177,7 @@ function renameFormTemplate(page: TournamentPage, config: TournamentConfig): Tem
         <label for="tournament-rename-name">${t("tournaments.name_label")}</label>
         <form class="lobby-tournament-form" @submit=${submitRename}>
             <input type="text" id="tournament-rename-name" name="name" .value=${state.name ?? config.name} required maxlength=${config.nameMaxLength} autocomplete="off" />
-            <button type="submit" class="outline" ?disabled=${state.ownerBusy}>${t("tournament.owner.rename")}</button>
+            <button type="submit" ?disabled=${state.ownerBusy}>${t("tournament.owner.rename")}</button>
         </form>
     `;
 }

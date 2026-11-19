@@ -27,7 +27,6 @@
     align-items: center;
     gap: 0.4rem;
     font-size: 0.75rem;
-    font-family: var(--ronin-font-mono);
     color: var(--ronin-text-secondary);
     white-space: nowrap;
 
@@ -96,17 +95,16 @@
 .room-panel {
     min-width: 0;
     background: var(--ronin-surface);
-    border: 1px solid var(--ronin-border);
+    border: 1px solid var(--ronin-edge);
     border-radius: var(--ronin-radius-md);
+    margin: 0;
     padding: 1rem;
 }
 
 .room-panel-title {
     margin-bottom: 0.75rem;
-    font-size: 0.8rem;
+    font-size: 0.875rem;
     font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--ronin-text-secondary);
 }
 
@@ -136,8 +134,7 @@
     }
 
     &.me {
-        border-color: color-mix(in srgb, var(--pico-primary) 45%, var(--ronin-border));
-        box-shadow: inset 3px 0 0 var(--pico-primary);
+        background: color-mix(in srgb, var(--pico-primary) 9%, var(--ronin-surface));
     }
 }
 
@@ -180,10 +177,8 @@
     padding: 0.1rem 0.45rem;
     border: 1px solid color-mix(in srgb, var(--ronin-gold) 40%, transparent);
     border-radius: var(--ronin-radius-pill);
-    font-family: var(--ronin-font-mono);
-    font-size: 0.7rem;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
+    font-size: 0.75rem;
+    line-height: 1.3;
     color: var(--ronin-gold);
 
     &.you {
@@ -242,8 +237,8 @@
 
 .room-chat-time {
     margin-right: 0.5rem;
-    font-family: var(--ronin-font-mono);
     font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
     color: var(--ronin-text-muted);
 }
 

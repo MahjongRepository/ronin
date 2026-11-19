@@ -2,7 +2,8 @@
     --pico-background-color: #0b1112;
     --pico-card-background-color: #141f20;
     --pico-card-sectioning-background-color: #1a2627;
-    --pico-color: #e6ebe9;
+    --ronin-text: #e6ebe9;
+    --pico-color: var(--ronin-text);
     --pico-muted-color: #8b9a97;
     --pico-muted-border-color: #2b3a3b;
     --ronin-text-secondary: #aab3b0;
@@ -22,7 +23,7 @@
     --pico-primary-border: var(--pico-primary-background);
     --pico-primary-hover-background: #2b5c37;
     --pico-primary-hover-border: var(--pico-primary-hover-background);
-    --pico-primary-inverse: #f5f3ef;
+    --pico-primary-inverse: #f1f4f3;
     --pico-secondary: #a9b4b1;
     --pico-secondary-hover: #d5dcda;
     --pico-secondary-underline: color-mix(in srgb, var(--pico-secondary) 50%, transparent);
@@ -51,8 +52,9 @@
     --ronin-gold: #c9a84c;
     --ronin-success: #7bb88a;
     --ronin-danger: #d45454;
+    --ronin-danger-strong: #b94040;
     --ronin-danger-text: #e87b7b;
-    --ronin-danger-inverse: #f5f3ef;
+    --ronin-danger-inverse: #f1f4f3;
     --ronin-warning: #d4a04c;
     --ronin-surface: #141f20;
     --ronin-surface-elevated: #1a2627;

@@ -4,7 +4,7 @@ import json
 from functools import partial
 from typing import TYPE_CHECKING
 
-from shared.dal.models import Tournament, TournamentGame
+from shared.dal.models import Tournament, TournamentGame, TournamentGameCounts
 from shared.dal.tournament_repository import TournamentRepository
 
 if TYPE_CHECKING:
@@ -39,6 +39,12 @@ class SqliteTournamentRepository(TournamentRepository):
         Return the tournaments this user owns, newest first.
         """
         return await self._db.submit_read(partial(_select_tournaments_by_owner, owner_user_id=owner_user_id))
+
+    async def count_games_by_owner(self, owner_user_id: str) -> dict[str, TournamentGameCounts]:
+        """
+        Return the game counts of this user's tournaments by tournament id; a tournament without games is absent.
+        """
+        return await self._db.submit_read(partial(_count_games_by_owner, owner_user_id=owner_user_id))
 
     async def rename_tournament(self, tournament_id: str, name: str) -> None:
         """
@@ -107,6 +113,18 @@ def _select_tournaments_by_owner(conn: sqlite3.Connection, *, owner_user_id: str
         (owner_user_id,),
     ).fetchall()
     return [_tournament_from_row(row) for row in rows]
+
+
+def _count_games_by_owner(conn: sqlite3.Connection, *, owner_user_id: str) -> dict[str, TournamentGameCounts]:
+    rows = conn.execute(
+        "SELECT g.tournament_id, SUM(g.ended_at IS NULL), SUM(g.ended_at IS NOT NULL) FROM tournament_games g "
+        "JOIN tournaments t ON t.id = g.tournament_id WHERE t.owner_user_id = ? GROUP BY g.tournament_id",
+        (owner_user_id,),
+    ).fetchall()
+    return {
+        tournament_id: TournamentGameCounts(playing=playing, finished=finished)
+        for tournament_id, playing, finished in rows
+    }
 
 
 def _update_tournament_name(conn: sqlite3.Connection, *, tournament_id: str, name: str) -> None:

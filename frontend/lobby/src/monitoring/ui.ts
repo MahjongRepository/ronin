@@ -125,10 +125,10 @@ function rangesTemplate(
             )}
         </nav>
         <p class="monitoring-chart-note monitoring-range-note">
-            ${t("monitoring.range.times_utc")}${
+            <span>${t("monitoring.range.times_utc")}</span>${
                 collectedSince === null
                     ? nothing
-                    : ` · ${t("monitoring.range.collected_since", { time: collectedSince })}`
+                    : html`<span>${t("monitoring.range.collected_since", { time: collectedSince })}</span>`
             }
         </p>`;
 }

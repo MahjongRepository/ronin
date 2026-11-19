@@ -1,13 +1,16 @@
 .settings-page__list {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
     max-width: 34rem;
-    padding: 0.5rem;
     color: var(--pico-color);
     background: var(--ronin-surface);
-    border: 1px solid var(--ronin-border);
+    border: 1px solid var(--ronin-edge);
     border-radius: var(--ronin-radius-md);
+    overflow: hidden;
+}
+
+.settings-page__item:focus-visible {
+    outline-offset: -2px;
 }
 
 .settings-page__item {
@@ -15,26 +18,34 @@
     align-items: center;
     gap: 0.6rem;
     width: 100%;
-    min-height: calc(var(--ronin-touch-target) + 2px);
+    min-height: 3.75rem;
     margin: 0;
-    padding: 0.35rem 0.85rem;
+    padding: 0.5rem 1.25rem;
     font-size: 0.9rem;
     font-weight: 400;
     text-align: left;
     color: inherit;
-    background: var(--ronin-surface-elevated);
-    border: 1px solid var(--ronin-border);
-    border-radius: var(--ronin-radius-sm);
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+
+    & + & {
+        border-top: 1px solid var(--ronin-border-subtle);
+    }
 }
 
 button.settings-page__item:hover {
     color: inherit;
-    background: var(--ronin-surface-overlay);
-    border-color: var(--ronin-border);
+}
+
+@media (hover: hover) {
+    button.settings-page__item:hover {
+        background: var(--ronin-surface-elevated);
+    }
 }
 
 button.settings-page__item:active {
-    background: var(--ronin-border-subtle);
+    background: var(--ronin-surface-overlay);
 }
 
 .settings-page__right-click,
@@ -77,7 +88,7 @@ button.settings-page__item:active {
 
 .settings-page__language {
     padding-block: 0;
-    padding-right: 0.25rem;
+    padding-right: 0.75rem;
 }
 
 .settings-page__languages {

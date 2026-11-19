@@ -454,7 +454,10 @@ def test_tournament_create__when_admin_posts_name__should_list_it_and_open_its_p
     tournament_id = create_tournament(client, "  Spring Cup  ")
 
     listed = client.get("/api/lobby/tournaments").json()
-    assert listed == {"tournaments": [{"id": tournament_id, "name": "Spring Cup"}], "name_max_length": 80}
+    assert [{key: value for key, value in entry.items() if key != "created_at"} for entry in listed["tournaments"]] == [
+        {"id": tournament_id, "name": "Spring Cup", "playing": 0, "finished": 0}
+    ]
+    assert listed["name_max_length"] == 80
     assert client.get(f"/tournaments/{tournament_id}").status_code == 200
     page = client.get(f"/api/lobby/tournaments/{tournament_id}").json()
     assert page == {

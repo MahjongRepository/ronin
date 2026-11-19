@@ -1,6 +1,9 @@
 export interface OwnTournament {
+    readonly createdAt: Date;
+    readonly finished: number;
     readonly id: string;
     readonly name: string;
+    readonly playing: number;
 }
 
 export interface OwnTournaments {
@@ -23,11 +26,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
 }
 
+function isCount(value: unknown): value is number {
+    return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
 function parseOwnTournament(value: unknown): OwnTournament | null {
-    if (!isRecord(value) || typeof value.id !== "string" || typeof value.name !== "string") {
+    if (
+        !isRecord(value) ||
+        typeof value.id !== "string" ||
+        typeof value.name !== "string" ||
+        typeof value.created_at !== "number" ||
+        !isCount(value.playing) ||
+        !isCount(value.finished)
+    ) {
         return null;
     }
-    return { id: value.id, name: value.name };
+    return {
+        createdAt: new Date(value.created_at * 1000),
+        finished: value.finished,
+        id: value.id,
+        name: value.name,
+        playing: value.playing,
+    };
 }
 
 export function parseOwnTournaments(data: unknown): OwnTournaments | null {

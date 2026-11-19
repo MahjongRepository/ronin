@@ -45,11 +45,11 @@ export function readCurrentGames(message: Record<string, unknown>): CurrentGame[
         .filter((game): game is CurrentGame => game !== null);
 }
 
-function windTemplate(gameType: string | null): TemplateResult {
+function windTemplate(gameType: string | null): TemplateResult | typeof nothing {
     const nameKey = gameType === null ? null : gameTypeNameKey(gameType);
     const wind = gameType === null ? null : gameTypeWind(gameType);
     if (nameKey === null || wind === null) {
-        return html`<span class="current-game-wind"></span>`;
+        return nothing;
     }
     return html`<abbr class="current-game-wind" title=${t(nameKey)}>${wind}</abbr>`;
 }

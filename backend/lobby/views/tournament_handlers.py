@@ -13,7 +13,7 @@ from lobby.chat_messages import CHAT_MAX_LENGTH
 from lobby.views.error_pages import NO_STORE_HEADERS, json_csrf_rejection
 from lobby.views.handlers import lobby_websocket_url
 from lobby.views.json_body import parse_json_body
-from shared.dal.models import Tournament
+from shared.dal.models import Tournament, TournamentGameCounts
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -71,9 +71,19 @@ async def lobby_tournaments(request: Request) -> JSONResponse:
     """
     tournament_repo: TournamentRepository = request.app.state.tournament_repo
     tournaments = await tournament_repo.list_tournaments_by_owner(request.user.user_id)
+    counts = await tournament_repo.count_games_by_owner(request.user.user_id)
+    no_games = TournamentGameCounts(playing=0, finished=0)
     return JSONResponse(
         {
-            "tournaments": [{"id": tournament.id, "name": tournament.name} for tournament in tournaments],
+            "tournaments": [
+                {
+                    "id": tournament.id,
+                    "name": tournament.name,
+                    "created_at": tournament.created_at,
+                    **counts.get(tournament.id, no_games).model_dump(),
+                }
+                for tournament in tournaments
+            ],
             "name_max_length": TOURNAMENT_NAME_MAX_LENGTH,
         },
         headers=NO_STORE_HEADERS,

@@ -82,7 +82,7 @@
     text-align: left;
     text-decoration: none;
     background: var(--ronin-surface);
-    border: 1px solid var(--ronin-edge);
+    border: 1px solid var(--ronin-control-border);
     border-radius: var(--ronin-radius-md);
     cursor: pointer;
     transition:
@@ -95,7 +95,7 @@
 
     @media (hover: hover) {
         &:hover {
-            border-color: var(--ronin-control-border);
+            border-color: var(--pico-secondary);
             background: var(--ronin-surface-elevated);
         }
     }
@@ -115,7 +115,7 @@
     --lobby-tile-label: var(--pico-primary-inverse);
     --lobby-tile-hint: color-mix(
         in srgb,
-        var(--pico-primary-inverse) 78%,
+        var(--pico-primary-inverse) 88%,
         var(--pico-primary-background)
     );
     --lobby-tile-icon: var(--pico-primary-inverse);
@@ -286,7 +286,7 @@
     height: 2px;
     vertical-align: middle;
     border-radius: 1px;
-    background: var(--ronin-border);
+    background: var(--ronin-control-border);
 }
 
 .lobby-join-btn {
@@ -305,9 +305,11 @@
         --pico-border-color: transparent;
         --pico-color: var(--pico-primary);
 
-        &:hover {
-            --pico-background-color: color-mix(in srgb, var(--pico-primary) 14%, transparent);
-            --pico-color: var(--pico-primary-hover);
+        @media (hover: hover) {
+            &:hover {
+                --pico-background-color: color-mix(in srgb, var(--pico-primary) 14%, transparent);
+                --pico-color: var(--pico-primary-hover);
+            }
         }
 
         &::after {
@@ -442,7 +444,7 @@
     grid-template-columns: var(--lobby-row-lead) minmax(0, 1fr) var(--lobby-row-tail);
     align-items: center;
     gap: 0.5rem 1.25rem;
-    min-height: 3.25rem;
+    min-height: 3.75rem;
     padding: 0.5rem 0.75rem 0.5rem 1.25rem;
 
     & + & {

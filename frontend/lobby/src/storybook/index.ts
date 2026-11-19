@@ -101,7 +101,7 @@ function storybookTemplate(): TemplateResult {
                     </svg>
                     <span class="lobby-action-text">
                         <span class="lobby-action-label">Quick match</span>
-                        <span class="lobby-action-hint">Standard rules · unranked</span>
+                        <span class="lobby-action-hint">Standard rules, unranked</span>
                     </span>
                 </a>
                 <div class="lobby-action-form">

@@ -83,7 +83,9 @@
     "history.copy.copied": "Скопировано",
     "history.copy.failed": "Не удалось скопировать",
     "history.copy_link": "Скопировать ссылку на запись",
-    "history.empty_hint": "Здесь появятся завершённые игры и их записи.",
+    "history.empty_hint": "Начните {quick_match} или сядьте за {table} в лобби. Здесь появятся завершённые игры и их записи.",
+    "history.empty_quick_match": "быструю игру",
+    "history.empty_table": "стол",
     "history.empty_title": "Сыгранных игр пока нет",
     "history.legend.points": "Очки",
     "history.legend.result": "Итог",
@@ -105,7 +107,7 @@
     "lobby.action.custom_table": "Создать стол",
     "lobby.action.custom_table_hint": "Игра с друзьями",
     "lobby.action.quick_match": "Быстрая игра",
-    "lobby.action.quick_match_hint": "Стандартные правила · без рейтинга",
+    "lobby.action.quick_match_hint": "Стандартные правила, без рейтинга",
     "lobby.back_to_table": "К своему столу",
     "lobby.error.create_failed": "Не удалось создать стол. Попробуйте ещё раз.",
     "lobby.notice.table_gone": "Этот стол уже закрыт: игра началась или все игроки ушли.",
@@ -336,5 +338,12 @@
     "tournaments.empty": "У вас пока нет турниров.",
     "tournaments.empty_hint": "Создайте турнир в форме выше.",
     "tournaments.name_label": "Название турнира",
+    "tournaments.row.finished": {
+        "few": "сыграно: {count}",
+        "many": "сыграно: {count}",
+        "one": "сыграно: {count}",
+        "other": "сыграно: {count}"
+    },
+    "tournaments.row.no_games": "Игр ещё не было",
     "tournaments.title": "Мои турниры"
 }

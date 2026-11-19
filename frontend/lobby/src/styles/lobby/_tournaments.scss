@@ -5,7 +5,7 @@
 
 .lobby-tournament-list {
     overflow-wrap: anywhere;
-    border: 1px solid var(--ronin-border);
+    border: 1px solid var(--ronin-edge);
     border-radius: var(--ronin-radius-md);
     background: var(--ronin-surface);
     overflow: hidden;
@@ -15,20 +15,53 @@
     }
 
     a {
-        display: block;
-        padding: 0.875rem 1.25rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.25rem 1.25rem;
+        min-height: 3.75rem;
+        padding: 0.5rem 1.25rem;
         color: var(--pico-color);
-        font-weight: 600;
         text-decoration: none;
         transition: background-color 0.12s ease-out;
+
+        &:focus-visible {
+            outline-offset: -2px;
+        }
 
         @media (hover: hover) {
             &:hover {
                 background: var(--ronin-surface-elevated);
-                color: var(--pico-primary-hover);
+
+                .lobby-tournament-name {
+                    color: var(--pico-primary-hover);
+                }
             }
         }
     }
+}
+
+.lobby-tournament-name {
+    min-width: 0;
+    color: var(--ronin-text);
+    font-family: var(--ronin-font-display);
+    font-weight: 600;
+}
+
+.lobby-tournament-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    color: var(--pico-muted-color);
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.lobby-tournament-live {
+    color: var(--pico-primary);
+    font-weight: 600;
 }
 
 .lobby-tournament-form {
@@ -38,16 +71,22 @@
     max-width: 48rem;
     margin-bottom: 1.5rem;
 
+    input,
+    button {
+        height: 2.75rem;
+        margin-bottom: 0;
+        padding-block: 0;
+        font-size: 0.9375rem;
+    }
+
     input {
         flex: 1 1 14rem;
         min-width: 0;
-        margin-bottom: 0;
     }
 
     button {
         flex: none;
         width: auto;
-        margin-bottom: 0;
         white-space: nowrap;
     }
 }
@@ -55,7 +94,7 @@
 .tournament-tabs {
     display: flex;
     gap: 1.5rem;
-    border-bottom: 1px solid var(--pico-muted-border-color);
+    border-bottom: 1px solid var(--ronin-border-subtle);
 
     [role="tab"] {
         width: auto;
@@ -98,8 +137,8 @@
     button {
         width: auto;
         margin-bottom: 0;
-        border-color: var(--ronin-danger);
-        background: var(--ronin-danger);
+        border-color: var(--ronin-danger-strong);
+        background: var(--ronin-danger-strong);
         color: var(--ronin-danger-inverse);
     }
 }
@@ -122,6 +161,23 @@
         .room-player-list {
             flex: none;
             max-height: 15rem;
+        }
+    }
+}
+
+.tournament-online-list {
+    gap: 0;
+
+    .room-player-item {
+        min-height: 2.25rem;
+        padding: 0.25rem 0;
+        border: 0;
+        border-bottom: 1px solid var(--ronin-border-subtle);
+        border-radius: 0;
+        background: none;
+
+        &:last-child {
+            border-bottom: 0;
         }
     }
 }

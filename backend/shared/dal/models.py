@@ -180,6 +180,15 @@ class Tournament(BaseModel, frozen=True):
     created_at: float
 
 
+class TournamentGameCounts(BaseModel, frozen=True):
+    """
+    How many of a tournament's games are still playing and how many have finished.
+    """
+
+    playing: int
+    finished: int
+
+
 class TournamentGame(BaseModel, frozen=True):
     """
     A game started for a tournament: its players East to North, and its finish once the game has one.

@@ -1,8 +1,13 @@
 import { type TemplateResult, html, nothing, render } from "lit-html";
 
 import { pageFailedView } from "@/app/page-failed";
-import { t } from "@/i18n";
-import { type OwnTournaments, type TournamentsState, tournamentPath } from "@/tournaments/state";
+import { formatDate, t } from "@/i18n";
+import {
+    type OwnTournament,
+    type OwnTournaments,
+    type TournamentsState,
+    tournamentPath,
+} from "@/tournaments/state";
 
 export interface TournamentsActions {
     readonly createTournament: (name: string) => void;
@@ -35,6 +40,35 @@ function createFormTemplate(
     </form>`;
 }
 
+function gamesTemplate(tournament: OwnTournament): TemplateResult {
+    if (tournament.playing === 0 && tournament.finished === 0) {
+        return html`<span>${t("tournaments.row.no_games")}</span>`;
+    }
+    return html`${
+        tournament.playing > 0
+            ? html`<span class="lobby-tournament-live"
+                  >${t("current_games.count", { count: tournament.playing })}</span
+              >`
+            : nothing
+    }${
+        tournament.finished > 0
+            ? html`<span>${t("tournaments.row.finished", { count: tournament.finished })}</span>`
+            : nothing
+    }`;
+}
+
+function rowTemplate(tournament: OwnTournament): TemplateResult {
+    return html`<li>
+        <a href=${tournamentPath(tournament.id)}>
+            <span class="lobby-tournament-name">${tournament.name}</span>
+            <span class="lobby-tournament-meta">
+                ${gamesTemplate(tournament)}
+                <time datetime=${tournament.createdAt.toISOString()}>${formatDate(tournament.createdAt)}</time>
+            </span>
+        </a>
+    </li>`;
+}
+
 function listTemplate(own: OwnTournaments): TemplateResult {
     if (own.tournaments.length === 0) {
         return html`<div class="lobby-empty lobby-empty--boxed lobby-tournaments-empty">
@@ -43,10 +77,7 @@ function listTemplate(own: OwnTournaments): TemplateResult {
         </div>`;
     }
     return html`<ul class="lobby-tournament-list">
-        ${own.tournaments.map(
-            (tournament) =>
-                html`<li><a href=${tournamentPath(tournament.id)}>${tournament.name}</a></li>`,
-        )}
+        ${own.tournaments.map((tournament) => rowTemplate(tournament))}
     </ul>`;
 }
 

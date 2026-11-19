@@ -79,7 +79,9 @@
     "history.copy.copied": "Link copied",
     "history.copy.failed": "Couldn't copy",
     "history.copy_link": "Copy replay link",
-    "history.empty_hint": "Finished games and their replays show up here.",
+    "history.empty_hint": "Start a {quick_match} or join a {table} in the lobby. Finished games and their replays show up here.",
+    "history.empty_quick_match": "quick match",
+    "history.empty_table": "table",
     "history.empty_title": "No games played yet",
     "history.legend.points": "Points",
     "history.legend.result": "Result",
@@ -97,7 +99,7 @@
     "lobby.action.custom_table": "Custom table",
     "lobby.action.custom_table_hint": "Play with friends",
     "lobby.action.quick_match": "Quick match",
-    "lobby.action.quick_match_hint": "Standard rules · unranked",
+    "lobby.action.quick_match_hint": "Standard rules, unranked",
     "lobby.back_to_table": "Back to your table",
     "lobby.error.create_failed": "Couldn't open a table. Try again.",
     "lobby.notice.table_gone": "That table is no longer open: its game started or everyone left.",
@@ -318,5 +320,10 @@
     "tournaments.empty": "You have no tournaments yet.",
     "tournaments.empty_hint": "Create one with the form above.",
     "tournaments.name_label": "Tournament name",
+    "tournaments.row.finished": {
+        "one": "{count} finished",
+        "other": "{count} finished"
+    },
+    "tournaments.row.no_games": "No games yet",
     "tournaments.title": "My tournaments"
 }

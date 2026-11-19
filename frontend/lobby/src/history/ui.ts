@@ -5,7 +5,7 @@ import { formatDuration } from "@/format-duration";
 import { gameTypeNameKey } from "@/game-types";
 import { copyReplayLink } from "@/games-history";
 import { type HistoryGame, type HistoryPlayer, type HistoryState } from "@/history/state";
-import { formatDateTime, formatNumber, t } from "@/i18n";
+import { formatDateTime, formatNumber, t, tParts } from "@/i18n";
 
 function finalScoreClass(finalScore: number): string {
     if (finalScore > 0) {
@@ -140,13 +140,20 @@ function gameCard(game: HistoryGame, index: number): TemplateResult {
     </article>`;
 }
 
+function emptyHistoryHint(): TemplateResult {
+    const quickMatch = html`<a href="/matchmaking">${t("history.empty_quick_match")}</a>`;
+    const table = html`<a href="/">${t("history.empty_table")}</a>`;
+    return html`<p class="lobby-empty-hint">
+        ${tParts("history.empty_hint", { quick_match: quickMatch, table })}
+    </p>`;
+}
+
 function gamesTemplate(games: readonly HistoryGame[]): TemplateResult {
     return games.length > 0
         ? html`<div class="games-list">${games.map((game, index) => gameCard(game, index))}</div>`
-        : html`<div class="lobby-empty">
+        : html`<div class="lobby-empty lobby-empty--boxed">
                   <p class="lobby-empty-title">${t("history.empty_title")}</p>
-                  <p class="lobby-empty-hint">${t("history.empty_hint")}</p>
-                  <a href="/" role="button" class="outline">${t("common.back_to_lobby")}</a>
+                  ${emptyHistoryHint()}
               </div>`;
 }
 
@@ -159,7 +166,7 @@ function historyTemplate(state: HistoryState): TemplateResult {
         <div class="lobby-section-header">
             <h2>${t("history.recent_games")}</h2>
             ${
-                games
+                games && games.length > 0
                     ? html`<small class="lobby-table-count"
                           >${t("history.shown_count", { count: games.length })}</small
                       >`

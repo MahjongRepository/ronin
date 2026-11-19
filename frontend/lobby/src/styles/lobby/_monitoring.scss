@@ -11,15 +11,15 @@
     align-items: center;
     min-height: var(--ronin-touch-target);
     padding: 0 1rem;
-    border: 1px solid var(--ronin-border);
-    border-radius: var(--ronin-radius-pill);
+    border: 1px solid var(--ronin-control-border);
+    border-radius: var(--ronin-radius-md);
     background: var(--ronin-surface);
     color: var(--ronin-text-secondary);
     text-decoration: none;
 
     &[aria-current="page"] {
-        border-color: var(--ronin-gold);
-        color: var(--ronin-gold);
+        border-color: var(--pico-primary);
+        color: var(--pico-primary);
     }
 }
 
@@ -32,7 +32,7 @@
 .monitoring-panel {
     margin: 0;
     padding: 1rem;
-    border: 1px solid var(--ronin-border);
+    border: 1px solid var(--ronin-edge);
     border-radius: var(--ronin-radius-md);
     background: var(--ronin-surface);
 
@@ -69,7 +69,7 @@
 
     dd {
         margin: 0;
-        font-family: var(--ronin-font-mono);
+        font-family: var(--ronin-font-body);
         font-variant-numeric: tabular-nums;
     }
 }
@@ -105,7 +105,7 @@
 
 .monitoring-chart-latest,
 .monitoring-chart-axis {
-    font-family: var(--ronin-font-mono);
+    font-family: var(--ronin-font-body);
     font-size: 0.875rem;
     font-variant-numeric: tabular-nums;
     color: var(--ronin-text-secondary);
@@ -138,7 +138,7 @@
 .monitoring-chart-times {
     display: flex;
     justify-content: space-between;
-    font-family: var(--ronin-font-mono);
+    font-family: var(--ronin-font-body);
     font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
     color: var(--ronin-text-muted);
@@ -154,5 +154,8 @@
 }
 
 .monitoring-range-note {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
     margin-bottom: 1rem;
 }

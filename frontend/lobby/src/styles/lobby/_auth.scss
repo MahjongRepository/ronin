@@ -4,7 +4,7 @@
     max-width: 22rem;
     margin: 2rem auto;
     padding: 2rem 1.75rem;
-    border: 1px solid var(--ronin-border);
+    border: 1px solid var(--ronin-edge);
     border-radius: var(--ronin-radius-md);
     box-shadow: none;
 
@@ -58,7 +58,7 @@
     &::after {
         content: "";
         flex: 1;
-        border-top: 1px solid var(--ronin-border);
+        border-top: 1px solid var(--ronin-border-subtle);
     }
 }
 
@@ -72,7 +72,7 @@
 .auth-legal {
     margin: 1.5rem 0 0;
     padding-top: 1rem;
-    border-top: 1px solid var(--ronin-border);
+    border-top: 1px solid var(--ronin-border-subtle);
     text-align: center;
     text-wrap: balance;
     font-size: 0.75rem;

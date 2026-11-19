@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from shared.dal.models import GameEndReason, PlayedGameStanding, Tournament, TournamentGame
+    from shared.dal.models import GameEndReason, PlayedGameStanding, Tournament, TournamentGame, TournamentGameCounts
 
 
 class TournamentRepository(ABC):
@@ -20,6 +20,12 @@ class TournamentRepository(ABC):
 
     @abstractmethod
     async def list_tournaments_by_owner(self, owner_user_id: str) -> list[Tournament]: ...
+
+    @abstractmethod
+    async def count_games_by_owner(self, owner_user_id: str) -> dict[str, TournamentGameCounts]:
+        """
+        Return the game counts of this user's tournaments by tournament id; a tournament without games is absent.
+        """
 
     @abstractmethod
     async def rename_tournament(self, tournament_id: str, name: str) -> None: ...

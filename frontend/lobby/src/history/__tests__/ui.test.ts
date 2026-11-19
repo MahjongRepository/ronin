@@ -57,11 +57,15 @@ describe("renderHistory", () => {
         expect(host.querySelector(".games-standing--me .games-name")?.textContent).toBe("dev");
     });
 
-    it("shows the empty hint when no game is listed", () => {
+    it("points an empty history at quick match and the lobby's tables", () => {
         const host = renderGames([]);
 
-        expect(host.querySelector(".lobby-empty-hint")?.textContent).toBe(
-            "Finished games and their replays show up here.",
+        const hint = host.querySelector(".lobby-empty-hint");
+        expect(hint?.textContent?.replace(/\s+/g, " ").trim()).toBe(
+            "Start a quick match or join a table in the lobby. Finished games and their replays show up here.",
+        );
+        expect([...(hint?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"))).toEqual(
+            ["/matchmaking", "/"],
         );
         expect(host.querySelector(".games-list")).toBeNull();
     });

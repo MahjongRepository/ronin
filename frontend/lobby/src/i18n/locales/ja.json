@@ -77,7 +77,9 @@
     "history.copy.copied": "リンクをコピーしました",
     "history.copy.failed": "コピーできませんでした",
     "history.copy_link": "牌譜のリンクをコピー",
-    "history.empty_hint": "終わった対局とその牌譜がここに表示されます。",
+    "history.empty_hint": "{quick_match}か、ロビーの{table}で対局しましょう。終わった対局とその牌譜がここに表示されます。",
+    "history.empty_quick_match": "クイックマッチ",
+    "history.empty_table": "カスタム卓",
     "history.empty_title": "まだ対局がありません",
     "history.legend.points": "持ち点",
     "history.legend.result": "ポイント",
@@ -93,7 +95,7 @@
     "lobby.action.custom_table": "カスタム卓",
     "lobby.action.custom_table_hint": "友達と遊ぶ",
     "lobby.action.quick_match": "クイックマッチ",
-    "lobby.action.quick_match_hint": "標準ルール · ランクなし",
+    "lobby.action.quick_match_hint": "標準ルール、ランクなし",
     "lobby.back_to_table": "自分の卓へ戻る",
     "lobby.error.create_failed": "卓を作成できませんでした。もう一度お試しください。",
     "lobby.notice.table_gone": "その卓はもう開いていません。ゲームが始まったか、全員が退席しました。",
@@ -309,5 +311,9 @@
     "tournaments.empty": "まだ大会はありません。",
     "tournaments.empty_hint": "上のフォームから作成できます。",
     "tournaments.name_label": "大会名",
+    "tournaments.row.finished": {
+        "other": "終了 {count}"
+    },
+    "tournaments.row.no_games": "対局なし",
     "tournaments.title": "自分の大会"
 }

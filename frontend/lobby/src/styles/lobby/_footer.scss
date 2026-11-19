@@ -7,7 +7,7 @@
     align-items: start;
     gap: 0.5rem 1rem;
     padding: 1.5rem 0;
-    border-top: 1px solid var(--ronin-border);
+    border-top: 1px solid var(--ronin-border-subtle);
 
     @media (width <= 576px) {
         grid-template-areas: "meta" "lang" "dev";
@@ -60,7 +60,7 @@
         background: none;
         box-shadow: none;
         font-family: var(--ronin-font-body);
-        font-size: 0.7rem;
+        font-size: 0.8125rem;
         font-weight: 400;
         line-height: 1.5;
         color: var(--pico-muted-color);
@@ -70,7 +70,7 @@
         }
 
         &[aria-current="true"] {
-            color: var(--pico-color);
+            color: var(--pico-primary);
             text-decoration: underline;
             text-decoration-color: var(--pico-primary);
             text-decoration-thickness: 1px;
@@ -85,7 +85,6 @@
             display: inline-flex;
             align-items: center;
             min-height: var(--ronin-touch-target);
-            font-size: 0.75rem;
         }
     }
 }

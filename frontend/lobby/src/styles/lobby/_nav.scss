@@ -3,8 +3,8 @@
 
     padding-block: 0;
     margin-bottom: 0.5rem;
-    background: linear-gradient(var(--ronin-border), var(--ronin-border)) bottom / 100% 1px
-        no-repeat;
+    background: linear-gradient(var(--ronin-border-subtle), var(--ronin-border-subtle)) bottom /
+        100% 1px no-repeat;
     background-clip: content-box;
     background-origin: content-box;
 
@@ -216,7 +216,7 @@
     padding: 0.35rem;
     color: var(--pico-color);
     background: var(--ronin-surface-elevated);
-    border: 1px solid var(--ronin-border);
+    border: 1px solid var(--ronin-edge);
     border-radius: var(--ronin-radius-md);
     box-shadow: 0 0.5rem 1.5rem color-mix(in srgb, var(--pico-background-color) 80%, transparent);
 
