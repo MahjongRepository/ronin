@@ -204,13 +204,13 @@ func TestChankan_WhenARiichiSeatRobsTheAddedKanWithinIppatsu_ShouldKeepIppatsu(t
 	g, _ := discardDrawn(t, threePinPonnedBySeatTwo(t, w, play.DiscardAction), 1)
 	g, _ = script(t, g, act(seat(t, 0), play.RiichiAction(hatsu(t, 2))))
 	g, _ = discardDrawn(t, g, 1)
-	g, _ = addedThreePinKan(t, g)
+	g, declared := addedThreePinKan(t, g)
 
 	_, events := script(t, g, act(seat(t, 0), play.RonAction()))
 
 	assertEqual(t, "yaku", firstWin(t, events).Yaku,
 		[]play.YakuID{play.YakuRiichi, play.YakuIppatsu, play.YakuChankan, play.YakuIttsu})
-	assertEqual(t, "dora", testkit.DoraReveals(events), []tile.TileID(nil))
+	assertEqual(t, "dora", testkit.DoraReveals(slices.Concat(declared, events)), []tile.TileID(nil))
 }
 
 func TestChankan_WhenTheRobbedAddedKanFollowsAnOpenKanWithItsDoraPending_ShouldRevealNothing(t *testing.T) {
@@ -438,7 +438,7 @@ func TestKokushiChankan_WhenTheClosedKanIsRobbed_ShouldAnnounceTheKanThenEndTheR
 	assertOwnership(t, g)
 }
 
-func TestChankanPrompt_WhenTheDeclarerWaitsOnItsOwnKanTile_ShouldAnnounceOnlyTheKan(t *testing.T) {
+func TestChankanPrompt_WhenTheDeclarerWaitsOnItsOwnDiscard_ShouldAnnounceOnlyTheKan(t *testing.T) {
 	later := slices.Concat(kanAfterOneGoAround(t)[:3], copies(t, 1, "7z"))
 	w := threePinWall(t, chankanBystander(t, 2), otherPenchanOnThreePin(t), later)
 	w.Hands[2] = slices.Concat(copies(t, 1, "333p"), copies(t, 1, "123456789s"), []tile.TileID{seatTwoDiscardAfterPon(t)})

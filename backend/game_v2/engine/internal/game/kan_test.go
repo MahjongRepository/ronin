@@ -100,6 +100,7 @@ func TestKanOffers_WhenTheHandHoldsThreeQuads_ShouldListOneClosedKanPerKindAndAc
 	_, events := script(t, g, act(seat(t, 0), play.KanAction(play.KanClosed, hand[5])))
 
 	assertEqual(t, "melds", meldKinds(events), []seatMeld{{seat(t, 0), play.MeldClosedKan}})
+	assertEqual(t, "kan tiles", testkit.CalledMelds(events)[0].Meld.Tiles, hand[4:8])
 }
 
 func TestClosedKan_WhenTheSeatHoldsThreeCopies_ShouldBeNotOfferedAndChangeNothing(t *testing.T) {
@@ -124,7 +125,7 @@ func TestKan_WhenASeatDeclaresOutOfTurn_ShouldBeRefusedAsNotAwaited(t *testing.T
 	}
 }
 
-func TestClosedKan_WhenOneLiveTileIsLeft_ShouldBeOfferedAndItsRinshanDrawShouldNotBeHaitei(t *testing.T) {
+func TestClosedKan_WhenOneLiveTileIsLeft_ShouldBeOfferedWithANonHaiteiRinshanDraw(t *testing.T) {
 	quad := copies(t, 0, "1111m")
 	g := dealerGame(t, slices.Concat(quad, copies(t, 0, "123456789p")), nil, testkit.StartWall{})
 	g = playDefaultsWhileLiveTilesExceed(t, g, 1)
