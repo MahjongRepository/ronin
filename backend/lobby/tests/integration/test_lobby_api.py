@@ -1,6 +1,8 @@
 import sqlite3
 from contextlib import closing
 
+import pytest
+
 from lobby.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 from lobby.tests.integration.conftest import grant_admin, register_with_csrf
 
@@ -70,3 +72,29 @@ class TestLobbyRoomsRoute:
         assert [room["room_id"] for room in client.app.state.room_manager.get_rooms_info()] == [
             retried.json()["room_id"]
         ]
+
+    @pytest.mark.parametrize(
+        ("fetch_site", "sets_cookie"), [("same-origin", True), ("cross-site", False)], ids=["same_origin", "cross_site"]
+    )
+    def test_lobby_create_room_route__when_csrf_cookie_gone__should_set_a_new_one_only_for_a_same_origin_post(
+        self, client, fetch_site, sets_cookie
+    ):
+        register_with_csrf(client, "alice")
+        client.cookies.delete(CSRF_COOKIE_NAME)
+
+        rejected = client.post(
+            "/api/lobby/rooms", json={}, headers={CSRF_HEADER_NAME: "stale-token", "sec-fetch-site": fetch_site}
+        )
+
+        assert rejected.status_code == 403
+        assert rejected.json()["error"] == "csrf_invalid"
+        new_cookie = rejected.cookies.get(CSRF_COOKIE_NAME)
+        if not sets_cookie:
+            assert new_cookie is None
+            return
+
+        assert new_cookie == rejected.json()["csrf_token"]
+        retried = client.post(
+            "/api/lobby/rooms", json={}, headers={CSRF_HEADER_NAME: new_cookie, "sec-fetch-site": fetch_site}
+        )
+        assert retried.status_code == 201

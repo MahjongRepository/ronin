@@ -152,7 +152,8 @@ Mandatory for all lobby code; review must catch violations.
 * Every lobby JSON POST (`/api/lobby/*`) reads its body through `parse_json_body` and checks the `X-CSRF-Token`
   header against the cookie (`is_csrf_valid`) before any side effect. A stale token is answered 403 `csrf_invalid`
   with the cookie's token, or a new one set as the cookie under `render_page`'s cross-site rule
-  (`json_csrf_rejection`); the client retries once with it. Every `/api/lobby/*` answer is `Cache-Control: no-store`.
+  (`json_csrf_rejection`); the client retries once with it. Every answer a lobby API handler
+  produces is `Cache-Control: no-store`.
 * Every request body is capped by `RequestBodyLimitMiddleware` (`server/middleware.py`), which
   wraps every middleware that can read a body and sits inside the security headers. It counts
   streamed bytes, not `Content-Length`, and answers a JSON 413; a client gone mid-upload ends the

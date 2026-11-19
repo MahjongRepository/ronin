@@ -36,7 +36,7 @@ _SESSION_EXPIRED = _ErrorPage("error.session_expired.title", "error.session_expi
 _LOBBY_PATH = "/"
 _BACK_TO_LOBBY_KEY = "common.back_to_lobby"
 _RELOAD_PAGE_KEY = "error.reload_page"
-_NO_STORE = {"Cache-Control": "no-store"}
+NO_STORE_HEADERS = {"Cache-Control": "no-store"}
 
 
 def validate_csrf(request: Request, form_data: FormData) -> Response | None:
@@ -61,7 +61,7 @@ def json_csrf_rejection(request: Request) -> Response:
     """
     token, is_new = get_or_create_csrf_token(request)
     response = JSONResponse(
-        {"error": "csrf_invalid", "csrf_token": token}, status_code=HTTPStatus.FORBIDDEN, headers=_NO_STORE
+        {"error": "csrf_invalid", "csrf_token": token}, status_code=HTTPStatus.FORBIDDEN, headers=NO_STORE_HEADERS
     )
     if is_new and not is_cross_site_post(request):
         auth_settings: AuthSettings = request.app.state.auth_settings
