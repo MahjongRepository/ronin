@@ -2,9 +2,9 @@
 
 The game server being ported from `backend/game/` to Go. It is one Go module, outside the uv project:
 it imports nothing from `backend/shared/` and the Python tooling does not see it. So far it holds
-the structure the port fills, not the game: the facade's `NewGame`, `Act`, `Event`, `Action` and
-`Refusal`, the 136-tile wall count behind them and their seam tests are placeholders, replaced by the
-first ported behaviour.
+the engine's base vocabulary and the structure the port fills, not the game: the facade's `NewGame`,
+`Act`, `Event`, `Action` and `Refusal` and their seam tests are placeholders, replaced by the first
+ported behaviour.
 
 ## The seam
 
@@ -14,6 +14,10 @@ The module is two sides, a server and an engine, and the engine is reachable onl
   compiler lets nothing outside `engine/` import, so the server side cannot reach past the facade.
 * The compiler does not stop the opposite direction, so lint rules in `.golangci.yml`, run by
   `make lint-go`, hold it: see Engine purity.
+* `engine/tile` is the public vocabulary under the facade: tile kinds, hand tiles, tile ids, winds,
+  seats, dice and mpsz notation. It imports nothing of the module, so every engine package can
+  build on it. Its exported tables are functions returning arrays, never package `var`s, since any
+  importer could write to a public `var`.
 * `seam/` is a sibling directory of `engine/` holding tests only. A test package inside `engine/`
   may legally import `engine/internal/...`; a sibling may not, so a test in `seam/` proves a
   behaviour is observable through the facade alone. It imports nothing of the module but `engine`.
@@ -25,6 +29,9 @@ Imports point one way:
 ```
 cmd -> internal/server -> session -> messaging -> wire -> engine -> engine/internal
 ```
+
+Inside the engine, `engine/internal/*` packages import `engine/tile` and each other along the
+module graph of mahjong-rs, the port's reference, and never `engine`.
 
 `session`, `messaging` and `wire` do not exist yet. Each is added under `internal/` when the port
 gives it work, in this order, never as an empty package. Each `cmd/*` is its own composition root:

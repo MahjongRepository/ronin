@@ -1,7 +1,7 @@
 // Package engine is the only public API of the game engine.
 package engine
 
-import "github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
+import "github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 
 // EventKind names what an Event reports.
 type EventKind string
@@ -42,7 +42,7 @@ type Game struct{}
 
 // NewGame starts a game from seed and returns it with the events of its start.
 func NewGame(_ string) (*Game, []Event) {
-	started := Event{Kind: EventGameStarted, WallTileCount: rules.WallTileCount()}
+	started := Event{Kind: EventGameStarted, WallTileCount: tile.TileIDCount}
 	return &Game{}, []Event{started}
 }
 
