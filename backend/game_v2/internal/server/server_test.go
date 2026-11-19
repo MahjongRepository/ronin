@@ -35,7 +35,7 @@ func TestSocket_WhenClientDials_ShouldUpgradeAndCloseNormally(t *testing.T) {
 	srv := httptest.NewServer(server.NewHandler())
 	t.Cleanup(srv.Close)
 
-	conn, _, err := websocket.Dial(t.Context(), srv.URL+"/ws", &websocket.DialOptions{HTTPClient: srv.Client()})
+	conn, _, err := websocket.Dial(t.Context(), srv.URL+"/ws", &websocket.DialOptions{HTTPClient: srv.Client()}) //nolint:bodyclose // websocket.Dial closes the response body itself
 	if err != nil {
 		t.Fatalf("dial /ws: %v", err)
 	}

@@ -3,39 +3,89 @@ version: "2"
 linters:
   default: standard
   enable:
+    - bodyclose
+    - copyloopvar
     - depguard
+    - errorlint
+    - exhaustive
+    - forbidigo
+    - gochecknoglobals
+    - gochecknoinits
+    - gocritic
+    - intrange
+    - modernize
+    - noctx
+    - nolintlint
+    - revive
+    - thelper
+    - unconvert
+    - unparam
+    - usetesting
   settings:
     depguard:
       rules:
         engine-purity:
-          list-mode: lax
+          list-mode: strict
           files:
             - "**/game_v2/engine/**"
             - "!$test"
-          deny:
-            - pkg: github.com/MahjongRepository/ronin/backend/game_v2/internal
-              desc: the engine never imports the server side
-            - pkg: net/http
-              desc: the engine does no transport
-            - pkg: os$
-              desc: the engine does not touch the process or the file system
-            - pkg: os/
-              desc: the engine does not touch the process or the file system
-            - pkg: time$
-              desc: the engine reads no clock; the caller passes time in
-            - pkg: math/rand$
-              desc: the engine draws randomness only from its seed
-            - pkg: math/rand/v2$
-              desc: the engine draws randomness only from its seed
-            - pkg: crypto/rand$
-              desc: the engine draws randomness only from its seed
-            - pkg: github.com/coder/websocket
-              desc: the engine does no transport
+          allow:
+            - github.com/MahjongRepository/ronin/backend/game_v2/engine
+            - cmp$
+            - errors$
+            - fmt$
+            - iter$
+            - maps$
+            - math$
+            - math/bits$
+            - slices$
+            - strconv$
+            - strings$
+            - time$
+    exhaustive:
+      default-signifies-exhaustive: true
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^time\.(Now|Since|Until|Sleep|After|AfterFunc|Tick|NewTimer|NewTicker)$
+          msg: the engine reads no clock and starts no timer; the caller passes time in
+        - pattern: ^fmt\.(Print|Fprint|Scan|Fscan).*$
+          msg: the engine does no I/O
+        - pattern: ^print(ln)?$
+          msg: the engine does no I/O
+    govet:
+      enable:
+        - shadow
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: early-return
+        - name: indent-error-flow
+        - name: superfluous-else
+        - name: unreachable-code
+        - name: empty-block
+        - name: redefines-builtin-id
+  exclusions:
+    rules:
+      - path-except: ^engine/
+        linters:
+          - forbidigo
+          - gochecknoglobals
+          - gochecknoinits
 
 formatters:
   enable:
+    - gci
     - gofumpt
     - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - localmodule
 
 issues:
   max-issues-per-linter: 0

@@ -6,7 +6,7 @@ DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
 
 FRONTEND_APPS := lobby game_v2
 
-.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend format-go lint-go test-go run-all-checks run-games run-tournament deadcode generate-replays generate-replay-fixtures replay-fixtures-check generate-seat-scenarios seat-scenarios-check profile profile-games measure-wall
+.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend format-go lint-go test-go vuln-go run-all-checks run-games run-tournament deadcode generate-replays generate-replay-fixtures replay-fixtures-check generate-seat-scenarios seat-scenarios-check profile profile-games measure-wall
 
 test:
 	cd backend && uv run pytest -v --cov --cov-report=
@@ -53,11 +53,14 @@ format-go:
 	cd backend/game_v2 && golangci-lint fmt
 
 lint-go:
-	cd backend/game_v2 && golangci-lint run
+	cd backend/game_v2 && go mod tidy -diff && golangci-lint run
 
 test-go:
-	cd backend/game_v2 && go test -race -coverprofile=coverage.out -coverpkg=./engine/... ./...
+	cd backend/game_v2 && go test -race -shuffle=on -timeout=2m -coverprofile=coverage.out -coverpkg=./engine/... ./...
 	$(BE_RUN) python bin/check_go_coverage.py backend/game_v2/coverage.out
+
+vuln-go:
+	cd backend/game_v2 && go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
 
 run-debug:
 	$(BE_RUN) python backend/debug.py

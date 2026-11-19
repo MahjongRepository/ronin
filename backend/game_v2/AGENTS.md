@@ -12,8 +12,8 @@ The module is two sides, a server and an engine, and the engine is reachable onl
 
 * `engine/` is the engine's only public API. The rules live under `engine/internal/`, which the Go
   compiler lets nothing outside `engine/` import, so the server side cannot reach past the facade.
-* The compiler does not stop the opposite direction, so a depguard rule (`engine-purity` in
-  `.golangci.yml`, run by `make lint-go`) holds it: see Engine purity.
+* The compiler does not stop the opposite direction, so lint rules in `.golangci.yml`, run by
+  `make lint-go`, hold it: see Engine purity.
 * `seam/` is a sibling directory of `engine/` holding tests only. A test package inside `engine/`
   may legally import `engine/internal/...`; a sibling may not, so a test in `seam/` proves a
   behaviour is observable through the facade alone. It imports nothing of the module but `engine`.
@@ -33,14 +33,21 @@ a game message exists.
 
 ## Engine purity
 
-Non-test code under `engine/` never imports the module's `internal/` packages, `net/http`, `os`,
-`time`, `math/rand`, `math/rand/v2`, `crypto/rand` or the websocket library. The engine is
-synchronous and deterministic: it does no transport and no I/O, reads no clock (the caller passes
-time in) and draws randomness only from the seed it is given. The caller holds each `Game`; the
-engine keeps no registry.
+The engine is synchronous and deterministic: it does no transport and no I/O, reads no clock, starts
+no goroutine and draws randomness only from the seed it is given. The caller holds each `Game`; the
+engine keeps no registry and no package-level state. `make lint-go` holds this for non-test code
+under `engine/`:
 
-* A depguard deny entry is a prefix; a trailing `$` makes it exact. When adding one, check that a
-  prefix does not catch an unrelated package.
+* Imports are an allow-list (`engine-purity`, depguard in strict mode): the engine's own packages and
+  a short set of pure standard-library packages. Anything else, the module's `internal/` packages,
+  `net`, `os`, `sync`, `math/rand`, the websocket library, fails the lint. When the port needs
+  another pure package, add it to the list; an allow entry is a prefix, so end it with `$` to keep
+  `math` from admitting `math/rand`.
+* `time` is allowed for its types: time crosses the facade as `time.Time` and `time.Duration` values
+  the caller passes in. Reading the clock or starting a timer (`time.Now`, `time.Since`,
+  `time.Sleep`, `time.After`, tickers) is forbidden by forbidigo, and so is printing.
+* Package-level variables and `init` functions are rejected (gochecknoglobals, gochecknoinits).
+
 * The engine exports concrete types, not interfaces. An interface over the engine is defined by the
   server-side package that consumes it, when one needs it.
 * `Refusal` is a domain outcome, deliberately not an `error`: a player's refused action is an
@@ -68,16 +75,22 @@ The commit hook rejects every added comment. In Go that leaves only doc comments
 functions, methods and types, the package doc, `//go:` directives and `//nolint:<linter> // reason`.
 An unexported identifier or a line inside a function body gets none, and a `_test.go` file gets none
 at all, so a test's name and its variables' names carry what it pins. `.golangci.yml` takes no
-comments either: a deny entry's `desc` is where its reason goes.
+comments either: a forbidigo pattern's `msg` is where its reason goes.
 
 ## Tooling
 
 * Go and golangci-lint are pinned in the repo-root `mise.toml`, and `go.mod`'s `go` line matches the
   pinned Go. The Makefile puts both on `PATH` for its own targets only, so a `go` command typed
   outside `make` goes through `mise exec --`.
-* `make format-go` rewrites files (gofumpt, goimports); `make lint-go` runs golangci-lint, which also
-  reports formatting diffs and, with the compiler, stands in for a typecheck target; `make test-go`
-  runs every test under the race detector, then the coverage gate.
+* `make format-go` rewrites files (gofumpt, goimports, gci import groups); `make lint-go` fails on an
+  untidy `go.mod` (`go mod tidy -diff`), then runs golangci-lint, which also reports formatting diffs
+  and, with the compiler, stands in for a typecheck target; `make test-go` runs every test under the
+  race detector in shuffled order with a two-minute timeout, then the coverage gate.
+* Fix a lint finding rather than silence it. A suppression is `//nolint:<linter> // reason` on the
+  narrowest line; nolintlint rejects one without a named linter or a reason. Never loosen
+  `.golangci.yml` to get green.
+* `make vuln-go` runs govulncheck over the module. It needs the network, so it is not part of
+  `make run-all-checks`: run it after adding or upgrading a dependency.
 * While iterating, run one package:
   `cd backend/game_v2 && mise exec -- go test ./<pkg> -run <name>`. An engine change runs
   `cd backend/game_v2 && mise exec -- go test -race ./engine/... ./seam/...`: the facade's tests live
