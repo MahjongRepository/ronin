@@ -34,6 +34,5 @@ from lobby.views.handlers import (
 from lobby.views.handlers import (
     join_room_and_redirect as join_room_and_redirect,
 )
-from lobby.views.monitoring_handlers import monitoring_page as monitoring_page
 from lobby.views.replay_handlers import replay_content as replay_content
 from lobby.views.replay_handlers import tenhou_replay as tenhou_replay

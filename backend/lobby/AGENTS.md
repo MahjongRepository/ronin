@@ -40,8 +40,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   ambiguously. Each call keeps its own deadline rather than the client's default.
 * `monitoring/` — the admin monitoring page's data: the `metrics.db` reader, the reductions, the chart
   geometry and the one page-data assembly that takes the range and returns every chart, the games summary
-  and the live game-server counts; the handler only renders it, and `scripts/monitoring_report.py`
-  prints it as JSON for agents (`report.py`). The lobby never opens `metrics.db` through `shared.db`
+  and the live game-server counts. `report.py` turns it into one JSON document, plot lines and UTC axis labels
+  included, which the monitoring API answers for the lobby app to draw and `scripts/monitoring_report.py` prints
+  for agents. The lobby never opens `metrics.db` through `shared.db`
   (which would force WAL and create a schema). Reductions run in SQL, so a long range never loads raw
   samples. A failed metrics read blanks only its own chart; the page still answers 200 with the games
   section. Traefik exports a series only after its first request and drops them all on a restart, so its charts take their state from the newest
@@ -161,11 +162,12 @@ Mandatory for all lobby code; review must catch violations.
   swap it in. A handler reads its body before any side effect, so a rejected body changes nothing.
   Never raise the cap for one route: it also keeps bot JSON far below the parser's recursion depth.
 * Every HTTP route gets exactly one policy decorator (`protected_html`, `protected_json`, `bot_only`,
-  `admin_html`, `public_route`); startup fails for a `Route` without one. WebSocket routes
-  authenticate inside the handler. `protected_json` is for JSON a page script fetches: a JSON 401,
-  never a login redirect.
-* `admin_html` reads the account's admin flag on every request, never from the session, so a grant or
-  revoke applies at the next request. Any session without the flag, a guest's included, gets a 404. Only
+  `admin_html`, `admin_json`, `public_route`); startup fails for a `Route` without one. WebSocket routes
+  authenticate inside the handler. `protected_json` and `admin_json` are for JSON a page script fetches: a
+  JSON 401, never a login redirect.
+* `admin_html` and `admin_json` read the account's admin flag on every request, never from the session, so a
+  grant or revoke applies at the next request. Any session without the flag, a guest's included, gets a 404
+  (`admin_json`: JSON `not_found`). Only
   the chrome's Admin nav section links an admin route, and it shows only when `/api/lobby/session` says
   `is_admin`; the lobby bundle's monitoring chunk is discoverable, but its data is not.
 * Unknown `Host` headers are rejected; a new deployment host goes in the allowed-hosts setting.

@@ -106,6 +106,31 @@ def admin_html(endpoint: Endpoint) -> Endpoint:
     return wrapper
 
 
+def admin_json(endpoint: Endpoint) -> Endpoint:
+    """
+    Require an admin account; answer a JSON 401 when unauthenticated and a JSON 404 for anyone else.
+
+    For the JSON a page script of an admin page fetches. The flag is read from the account on every request, as in
+    ``admin_html``.
+    """
+
+    @functools.wraps(endpoint)
+    async def wrapper(request: Request) -> Response:
+        if not has_required_scope(request, ["authenticated"]):
+            return _unauthenticated()
+
+        is_admin = await request.app.state.auth_service.is_admin(
+            user_id=request.user.user_id, username=request.user.username
+        )
+        if not is_admin:
+            return JSONResponse({"error": "not_found"}, status_code=HTTPStatus.NOT_FOUND)
+
+        return await endpoint(request)
+
+    setattr(wrapper, AUTH_POLICY_ATTR, "admin_json")
+    return wrapper
+
+
 def bot_only(endpoint: Endpoint) -> Endpoint:
     """
     Require authentication and bot account type.

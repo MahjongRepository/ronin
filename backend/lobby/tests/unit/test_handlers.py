@@ -1,18 +1,13 @@
-import functools
 import json
 from datetime import UTC, datetime
 
 import pytest
 
-from lobby.i18n import Locale, Translator, load_catalogs
 from lobby.views.assets import load_vite_manifest, resolve_vite_asset_urls
-from lobby.views.history_handlers import format_duration_seconds, history_entries
+from lobby.views.history_handlers import history_entries
 from shared.dal.models import PlayedGame, PlayedGameStanding
 
 _VIEWER_USER_ID = "viewer-user-id"
-_TRANSLATOR = Translator(catalogs=load_catalogs(), strict=True)
-
-translate_en = functools.partial(_TRANSLATOR.translate, Locale.EN)
 
 
 class TestLoadViteManifest:
@@ -70,27 +65,6 @@ class TestResolveViteAssetUrls:
 
         urls = resolve_vite_asset_urls(manifest)
         assert "lobby_js" not in urls
-
-
-class TestFormatDurationSeconds:
-    def test_format_duration_seconds__when_under_a_minute__should_show_seconds(self):
-        assert format_duration_seconds(45.7, translate=translate_en) == "45s"
-
-    def test_format_duration_seconds__when_zero__should_show_0s(self):
-        assert format_duration_seconds(0, translate=translate_en) == "0s"
-
-    def test_format_duration_seconds__when_minutes_and_seconds__should_show_both(self):
-        assert format_duration_seconds(5 * 60 + 30, translate=translate_en) == "5m 30s"
-
-    def test_format_duration_seconds__when_exact_minutes__should_show_zero_seconds(self):
-        assert format_duration_seconds(10 * 60, translate=translate_en) == "10m 0s"
-
-    def test_format_duration_seconds__when_over_an_hour__should_show_hours_and_minutes(self):
-        seconds = 3600 + 12 * 60
-        assert format_duration_seconds(seconds, translate=translate_en) == "1h 12m"
-        assert format_duration_seconds(seconds, translate=functools.partial(_TRANSLATOR.translate, Locale.RU)) == (
-            "1 ч 12 мин"
-        )
 
 
 def _make_standing(

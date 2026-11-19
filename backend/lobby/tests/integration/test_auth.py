@@ -619,7 +619,7 @@ class TestAdminMonitoringPage:
 
         assert before_grant.status_code == 404
         assert granted.status_code == 200
-        assert "Monitoring" in granted.text
+        assert 'id="lobby-spa"' in granted.text
         assert revoked.status_code == 404
 
     def test_monitoring_page__when_guest__should_answer_404(self, client):

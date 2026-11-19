@@ -1,6 +1,12 @@
 import { type Locale } from "@ronin/shared/locale";
-import { type MountedView, type NavigateOptions, type Route } from "@ronin/shared/router";
+import {
+    type MountedView,
+    type NavigateOptions,
+    type Route,
+    lazyRoute,
+} from "@ronin/shared/router";
 
+import { pageFailedView } from "@/app/page-failed";
 import { fetchSession } from "@/app/session";
 import { mountLoginView, mountRegisterView } from "@/auth";
 import { mountHistoryView } from "@/history";
@@ -70,5 +76,13 @@ export function lobbyRoutes(deps: RouteDeps): Route[] {
                 ),
             pattern: /^\/settings\/?$/,
         },
+        lazyRoute(
+            /^\/admin\/monitoring\/?$/,
+            async () => {
+                const { mountMonitoringView } = await import("@/monitoring");
+                return mountMonitoringView;
+            },
+            pageFailedView,
+        ),
     ];
 }

@@ -1,7 +1,4 @@
 import json
-import re
-import sqlite3
-from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from typing import TYPE_CHECKING
@@ -15,7 +12,7 @@ from starlette.routing import Route
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
 from lobby.tests.conftest import open_client
-from lobby.tests.integration.conftest import register_with_csrf, session_user_id
+from lobby.tests.integration.conftest import grant_admin, register_with_csrf, session_user_id
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 
 if TYPE_CHECKING:
@@ -70,7 +67,10 @@ def app(make_app, tmp_path, monkeypatch):
 
 
 _SPA_SHELL_ROUTES = [
-    *((path, HTTPStatus.SEE_OTHER) for path in ["/", "/rooms/any-room", "/matchmaking", "/history", "/settings"]),
+    *(
+        (path, HTTPStatus.SEE_OTHER)
+        for path in ["/", "/rooms/any-room", "/matchmaking", "/history", "/settings", "/admin/monitoring"]
+    ),
     *((path, HTTPStatus.OK) for path in ["/login", "/register"]),
 ]
 
@@ -87,6 +87,7 @@ def test_spa_shell_route__when_requested__should_answer_the_shell_and_send_signe
         assert signed_out.headers["location"] == f"/login?{urlencode({'next': f'{path}?notice=x'})}"
 
     register_with_csrf(client, "shelluser")
+    grant_admin(client, "shelluser")
     client.cookies.delete(CSRF_COOKIE_NAME)
     client.cookies.set("lang", "ja")
     response = client.get(path)
@@ -325,25 +326,14 @@ class TestReplayPage:
         assert other_game.status_code == 200
 
 
-def _grant_admin(client, *, username: str) -> None:
-    with closing(sqlite3.connect(client.app.state.auth_settings.database_path)) as conn, conn:
-        conn.execute(
-            "UPDATE players SET data = json_set(data, '$.is_admin', json('true')) WHERE username = ?", (username,)
-        )
-
-
-def _shown_stats(page: str) -> dict[str, str]:
-    return dict(re.findall(r'data-stat="(\w+)">([^<]*)<', page))
-
-
-class TestMonitoringPage:
+class TestMonitoringData:
     @pytest.fixture
     def client(self, client):
         register_with_csrf(client, "opsuser")
-        _grant_admin(client, username="opsuser")
+        grant_admin(client, "opsuser")
         return client
 
-    def test_monitoring_page__when_range_unknown__should_show_live_counts_and_the_default_ranges_games(
+    def test_monitoring_data__when_range_unknown__should_report_live_counts_and_the_default_ranges_games(
         self, client, game_server
     ):
         game_server.respond = lambda _request: httpx.Response(
@@ -369,40 +359,29 @@ class TestMonitoringPage:
         )
         game_repo.create_game(PlayedGame(game_id="playing", started_at=now - timedelta(minutes=5)))
 
-        response = client.get("/admin/monitoring?range=forever")
+        response = client.get("/api/lobby/monitoring?range=forever")
         assert response.status_code == 200
-        assert _shown_stats(response.text) == {
-            "active": "1,234",
-            "pending": "2",
-            "started": "2",
-            "completed": "1",
-            "abandoned": "0",
-            "error": "0",
-            "unfinished": "1",
-            "mean": "25m 30s",
-            "median": "25m 30s",
-            "p90": "25m 30s",
-            "last_backup": "Unknown",
+        report = response.json()
+        assert report["live_status"] == {"active_games": 1234, "pending_games": 2}
+        assert report["games"] == {
+            "started": 2,
+            "completed": 1,
+            "abandoned": 0,
+            "error": 0,
+            "unfinished": 1,
+            "completed_durations": {"mean_seconds": 1530.0, "median_seconds": 1530.0, "p90_seconds": 1530.0},
         }
-        assert re.findall(r'<a href="\?range=(\w+)" class="monitoring-range" aria-current="page">', response.text) == [
-            "24h"
-        ]
+        assert (report["range"], report["ranges"]) == ("24h", ["1h", "24h", "7d", "30d", "90d"])
 
-    def test_monitoring_page__when_game_server_fails__should_show_live_counts_unavailable(self, client, game_server):
+    def test_monitoring_data__when_game_server_fails__should_report_live_counts_unavailable(self, client, game_server):
         game_server.respond = lambda _request: httpx.Response(500)
 
-        response = client.get("/admin/monitoring?range=7d")
+        response = client.get("/api/lobby/monitoring?range=7d")
         assert response.status_code == 200
-        assert "Unavailable: the game server did not answer" in response.text
-        assert "No completed games in this range" in response.text
-        assert _shown_stats(response.text) == {
-            "started": "0",
-            "completed": "0",
-            "abandoned": "0",
-            "error": "0",
-            "unfinished": "0",
-            "last_backup": "Unknown",
-        }
+        report = response.json()
+        assert report["live_status"] == "unavailable"
+        assert report["games"]["completed_durations"] is None
+        assert report["range"] == "7d"
 
 
 class TestGameSessionRoute:

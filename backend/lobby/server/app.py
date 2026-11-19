@@ -19,6 +19,7 @@ from starlette.staticfiles import StaticFiles
 from lobby.auth.backend import SessionOrApiKeyBackend
 from lobby.auth.policy import (
     admin_html,
+    admin_json,
     bot_only,
     protected_html,
     protected_json,
@@ -48,7 +49,6 @@ from lobby.views import (
     game_session,
     join_room_and_redirect,
     load_vite_manifest,
-    monitoring_page,
     play_page,
     replay_content,
     replay_page,
@@ -77,6 +77,7 @@ from lobby.views.lobby_api_handlers import (
     lobby_session,
 )
 from lobby.views.locale_handlers import set_language
+from lobby.views.monitoring_handlers import monitoring_data
 from lobby.views.spa_handlers import spa_shell
 from shared.auth import AuthService
 from shared.auth.password import BcryptHasher
@@ -202,7 +203,7 @@ def create_app(  # noqa: PLR0913
         ),
         Route("/matchmaking", protected_html(spa_shell), methods=["GET"], name="matchmaking_page"),
         Route("/settings", protected_html(spa_shell), methods=["GET"], name="settings_page"),
-        Route("/admin/monitoring", admin_html(monitoring_page), methods=["GET"], name="monitoring_page"),
+        Route("/admin/monitoring", admin_html(spa_shell), methods=["GET"], name="monitoring_page"),
         # WebSocket routes (auth handled inside the handlers)
         WebSocketRoute("/ws/rooms/{room_id}", room_websocket, name="room_websocket"),
         WebSocketRoute("/ws/matchmaking", matchmaking_websocket, name="matchmaking_websocket"),
@@ -227,6 +228,7 @@ def create_app(  # noqa: PLR0913
         Route("/api/lobby/rooms/{room_id}", protected_json(lobby_room), methods=["GET"], name="lobby_room"),
         Route("/api/lobby/matchmaking", protected_json(lobby_matchmaking), methods=["GET"], name="lobby_matchmaking"),
         Route("/api/lobby/history", protected_json(lobby_history), methods=["GET"], name="lobby_history"),
+        Route("/api/lobby/monitoring", admin_json(monitoring_data), methods=["GET"], name="lobby_monitoring"),
         Route("/api/lobby/auth/login", public_route(api_login), methods=["POST"], name="api_login"),
         Route("/api/lobby/auth/register", public_route(api_register), methods=["POST"], name="api_register"),
         Route("/api/lobby/auth/guest", public_route(api_guest_login), methods=["POST"], name="api_guest_login"),

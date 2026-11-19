@@ -64,28 +64,8 @@ APPS = (
         catalog_dir="backend/lobby/i18n/locales",
         source_roots=("backend/lobby",),
         source_suffixes=frozenset({".py", ".html"}),
-        dynamic_prefixes=(
-            "auth.error.",
-            "monitoring.group.",
-            "monitoring.range.",
-            "monitoring.series.",
-            "monitoring.unit.",
-        ),
-        identical_keys=frozenset(
-            {
-                "monitoring.group.traefik",
-                "monitoring.unit.cores",
-                "monitoring.unit.count",
-                "monitoring.unit.gib",
-                "monitoring.unit.kib_per_second",
-                "monitoring.unit.mib",
-                "monitoring.unit.milliseconds",
-                "monitoring.unit.percent",
-                "nav.beta",
-                "page.title.default",
-                "page.title.with_page",
-            }
-        ),
+        dynamic_prefixes=("auth.error.",),
+        identical_keys=frozenset({"nav.beta", "page.title.default", "page.title.with_page"}),
         literals_in_namespaces_are_keys=True,
     ),
     App(
@@ -94,7 +74,19 @@ APPS = (
         source_roots=("frontend/lobby/src",),
         source_suffixes=frozenset({".ts"}),
         dynamic_prefixes=("occupancy.", "room.error."),
-        identical_keys=frozenset({"nav.beta", "page.title.default", "page.title.with_page"}),
+        identical_keys=frozenset(
+            {
+                "monitoring.group.traefik",
+                "monitoring.unit.cores",
+                "monitoring.unit.count",
+                "monitoring.unit.mib",
+                "monitoring.unit.milliseconds",
+                "monitoring.unit.percent",
+                "nav.beta",
+                "page.title.default",
+                "page.title.with_page",
+            }
+        ),
         markup_roots=("backend/lobby/views/templates",),
     ),
     App(

@@ -19,9 +19,5 @@ class MonitoringRange(StrEnum):
     def duration(self) -> timedelta:
         return timedelta(hours=int(self.value[:-1]) * _HOURS_PER_UNIT[self.value[-1]])
 
-    @property
-    def label_key(self) -> str:
-        return f"monitoring.range.{self.value}"
-
 
 DEFAULT_MONITORING_RANGE = MonitoringRange.DAY

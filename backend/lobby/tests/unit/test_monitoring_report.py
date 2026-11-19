@@ -56,8 +56,14 @@ async def test_monitoring_report__when_one_table_has_a_gap__should_report_values
         "mean": pytest.approx((29 * 25 + 21 * 50) / 50),
         "max": 50.0,
     }
+    assert [line.split()[0] for line in memory_used["plot"]["lines"]] == ["2.50,50.00", "197.50,3.00"]
+    assert memory_used["plot"]["axis_maximum"] == 50
     assert report["starts_at_oldest_sample"] is False
+    assert report["collected_since"] is None
+    assert report["time_axis"] == ["07:00", "07:30", "08:00"]
     assert {chart["state"] for chart in report["chart_groups"]["storage"]} == {"never_collected"}
-    assert {(chart["latest"], chart["bucketed"]) for chart in report["chart_groups"]["storage"]} == {(None, None)}
+    assert {(chart["latest"], chart["bucketed"], chart["plot"]) for chart in report["chart_groups"]["storage"]} == {
+        (None, None, None)
+    }
     assert report["last_backup_age_seconds"] is None
     assert report["live_status"] == "unavailable"
