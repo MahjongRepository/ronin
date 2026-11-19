@@ -19,11 +19,18 @@
     --zone-inner-right-x: calc(var(--geo-shown-lane-right-x) + var(--ox));
     --field-left: 0px;
     --field-right: var(--zone-w);
+    --surround-motif-size: 600px;
 
     inset: calc(-1 * (var(--oy) + var(--tt))) calc(-1 * var(--or))
         calc(-1 * (var(--ob) + var(--tb))) calc(-1 * var(--ox));
     pointer-events: none;
-    background: var(--ronin-table-surround);
+    background:
+        var(--ronin-table-surround-motif) center / var(--surround-motif-size) repeat,
+        var(--ronin-table-surround);
+
+    @include phone-board {
+        --surround-motif-size: 375px;
+    }
 
     @include board-where("[data-board-family]") {
         --field-left: calc(var(--geo-felt-left) + var(--ox));

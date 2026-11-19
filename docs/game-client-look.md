@@ -150,8 +150,8 @@ table's bottom between the side strips' lanes (an added kan's stack deep), so no
 player's hand. The table is as wide as that row (a full hand of 14.6 own tiles) and both lanes. What it leaves on
 either side is a side bar, equal on both sides, holding the board's controls and no tile; the felt
 covers only the table's width and meets the bars' inner edges, a bar's gap beside each side strip, so every control
-in a bar stands on the surround, from the board's top to its bottom, and the bars are the surround, plain dark
-margins (Surface). Two scales size it: the river tile (every river, the centre, the opponents' hands and melds) from the
+in a bar stands on the surround, from the board's top to its bottom, and the bars are the surround, dark margins
+under a faint tile wallpaper (Surface). Two scales size it: the river tile (every river, the centre, the opponents' hands and melds) from the
 height, the own tile from the width a full hand between the lanes keeps, at most 1.45 river tiles, so the own hand
 is the table's largest thing; the bars hold the switches named and the counters' row only while the own tile keeps
 1.3 river tiles; where the width cannot give it 1.2 river tiles, the river tile steps down instead. On every
@@ -260,7 +260,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Surface.** Fills the viewport, under the safe-area insets too, while the content keeps to the
   play area. Off a phone the felt covers only the table's width, meeting the bars' inner edges (a bar's gap beside each side strip), and on a window taller than its table only its height and a page gutter above and below; the bars beside it and the spare height past it are the surround, and a desktop without bars has its felt edge to edge (Composition)
   (`--ronin-table-surround`); a phone's felt is its bounded table (Composition), the rails beside it the surround too.
-  The surround is a plain dark gradient with a hint of the felt's green and nothing drawn on it. Decision: a deep,
+  The surround is a dark gradient with a hint of the felt's green under a sparse repeating wallpaper of faint tiles
+  (`--ronin-table-surround-motif`): seven in a 600px repeat, 375px on a phone, at mixed sizes and tilts, each the
+  tile set's own face inside an outline, at 3% white so it stays background. Decision: a deep,
   slightly warm table green, calm rather than saturated, lit softly over the core and falling off slowly toward the
   edges, with a fine static grain as its only texture (felt at full size, gone in a thumbnail: no weave, motif,
   marbling or wear) and the zone device; nothing else is drawn on it. Ivory faces separate from it by value, the ochre
