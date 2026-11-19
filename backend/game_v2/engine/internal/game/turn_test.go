@@ -302,21 +302,21 @@ func TestDiscard_WhenItIsTheDrawnTile_ShouldBeTsumogiri(t *testing.T) {
 }
 
 func TestDiscard_WhenTheTileIsNotHeld_ShouldBeNotOfferedAndChangeNothing(t *testing.T) {
-	g := begun(t, stagedWall(t), noStart())
+	build := func() game.Game { return begun(t, stagedWall(t), noStart()) }
 
-	assertRefused(t, g, seat(t, 0), play.DiscardAction(g.Hand(seat(t, 1))[0]),
+	assertRefused(t, build, seat(t, 0), play.DiscardAction(build().Hand(seat(t, 1))[0]),
 		refusal(play.RefusalNotOffered, play.CodeTileNotHeld))
 }
 
 func TestDiscard_WhenNotTheSeatsTurn_ShouldBeNotAwaitedAndChangeNothing(t *testing.T) {
-	g := begun(t, stagedWall(t), noStart())
+	build := func() game.Game { return begun(t, stagedWall(t), noStart()) }
 
-	assertRefused(t, g, seat(t, 1), play.DiscardAction(g.Hand(seat(t, 1))[0]),
+	assertRefused(t, build, seat(t, 1), play.DiscardAction(build().Hand(seat(t, 1))[0]),
 		refusal(play.RefusalNotAwaited, play.CodeSeatNotAwaited))
 }
 
 func TestAct_WhenTheActionHasNoKind_ShouldBeNotOfferedAndChangeNothing(t *testing.T) {
-	g := begun(t, stagedWall(t), noStart())
+	build := func() game.Game { return begun(t, stagedWall(t), noStart()) }
 
-	assertRefused(t, g, seat(t, 0), play.Action{}, refusal(play.RefusalNotOffered, play.CodeNotOffered))
+	assertRefused(t, build, seat(t, 0), play.Action{}, refusal(play.RefusalNotOffered, play.CodeNotOffered))
 }

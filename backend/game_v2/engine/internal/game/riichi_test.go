@@ -88,10 +88,12 @@ func TestRiichi_WhenTheScoreIsBelowOrAtOneThousand_ShouldBeOfferedOnlyFromOneTho
 }
 
 func TestRiichi_WhenTheHandIsNotTenpai_ShouldBeNeitherOfferedNorAccepted(t *testing.T) {
-	g := dealerAfterDraw(t, copies(t, 0, "13579m2468p1357s"), []tile.TileID{drawnChun(t)})
+	build := func() game.Game {
+		return dealerAfterDraw(t, copies(t, 0, "13579m2468p1357s"), []tile.TileID{drawnChun(t)})
+	}
 
-	assertEqual(t, "riichis", riichis(g), []play.Action(nil))
-	assertRefused(t, g, seat(t, 0), play.RiichiAction(drawnChun(t)), notOfferedRefusal())
+	assertEqual(t, "riichis", riichis(build()), []play.Action(nil))
+	assertRefused(t, build, seat(t, 0), play.RiichiAction(drawnChun(t)), notOfferedRefusal())
 }
 
 func TestRiichi_WhenTheDrawnHandIsComplete_ShouldBeOfferedOnEveryTile(t *testing.T) {
@@ -139,20 +141,20 @@ func TestRiichi_WhenValid_ShouldEmitTheRiichiDiscardThenDepositTheStick(t *testi
 }
 
 func TestRiichi_WhenItIsNotTheSeatsTurn_ShouldBeNotAwaited(t *testing.T) {
-	g := tenpaiDealerAfterDraw(t)
+	build := func() game.Game { return tenpaiDealerAfterDraw(t) }
 
-	assertRefused(t, g, seat(t, 1), play.RiichiAction(g.Hand(seat(t, 1))[0]), seatNotAwaitedRefusal())
+	assertRefused(t, build, seat(t, 1), play.RiichiAction(build().Hand(seat(t, 1))[0]), seatNotAwaitedRefusal())
 }
 
 func TestRiichiDiscard_WhenTheDiscardBreaksTenpai_ShouldBeRefusedByRuleAndChangeNothing(t *testing.T) {
-	assertRefused(t, tenpaiDealerAfterDraw(t), seat(t, 0), play.RiichiAction(tileOf(t, 0, "3m")),
+	assertRefused(t, func() game.Game { return tenpaiDealerAfterDraw(t) }, seat(t, 0), play.RiichiAction(tileOf(t, 0, "3m")),
 		refusal(play.RefusalRule, play.CodeRiichiBreaksTenpai))
 }
 
 func TestRiichi_WhenTheHandIsTenpaiAndTheTileIsNotHeld_ShouldBeNotOffered(t *testing.T) {
-	g := tenpaiDealerAfterDraw(t)
+	build := func() game.Game { return tenpaiDealerAfterDraw(t) }
 
-	assertRefused(t, g, seat(t, 0), play.RiichiAction(g.Hand(seat(t, 1))[0]),
+	assertRefused(t, build, seat(t, 0), play.RiichiAction(build().Hand(seat(t, 1))[0]),
 		refusal(play.RefusalNotOffered, play.CodeTileNotHeld))
 }
 
@@ -171,9 +173,9 @@ func TestLegalActions_WhenTheSeatIsInRiichi_ShouldOfferOnlyTheDrawnTileAndNoSeco
 }
 
 func TestDiscard_WhenRiichiForbidsTheTile_ShouldBeRefusedByRuleAndChangeNothing(t *testing.T) {
-	g := riichiDealerAfterItsNextDraw(t)
+	build := func() game.Game { return riichiDealerAfterItsNextDraw(t) }
 
-	assertRefused(t, g, seat(t, 0), play.DiscardAction(g.Hand(seat(t, 0))[0]),
+	assertRefused(t, build, seat(t, 0), play.DiscardAction(build().Hand(seat(t, 0))[0]),
 		refusal(play.RefusalRule, play.CodeRiichiDrawnTileOnly))
 }
 
@@ -240,13 +242,17 @@ func TestRiichiDiscard_WhenItIsRonned_ShouldNeverDepositItsStick(t *testing.T) {
 func TestRiichi_WhenTheHandHasAnOpenMeld_ShouldBeNeitherOfferedNorAccepted(t *testing.T) {
 	drawnEast, extraChun := tileOf(t, 1, "1z"), tileOf(t, 0, "7z")
 	dealer := slices.Concat(copies(t, 1, "11m"), copies(t, 1, "2345678889m"), []tile.TileID{extraChun})
-	g := dealerPonFromSeatThree(t, dealer, tileOf(t, 0, "1m"), extraChun,
-		slices.Concat(copies(t, 0, "666z"), []tile.TileID{drawnEast}), play.Option[tile.TileID]{})
-	g, _ = discardDrawn(t, g, 3)
+	build := func() game.Game {
+		g := dealerPonFromSeatThree(t, dealer, tileOf(t, 0, "1m"), extraChun,
+			slices.Concat(copies(t, 0, "666z"), []tile.TileID{drawnEast}), play.Option[tile.TileID]{})
+		g, _ = discardDrawn(t, g, 3)
+		return g
+	}
+	g := build()
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 0)))
 
 	assertEqual(t, "riichis", riichis(g), []play.Action(nil))
-	assertRefused(t, g, seat(t, 0), play.RiichiAction(drawnEast), notOfferedRefusal())
+	assertRefused(t, build, seat(t, 0), play.RiichiAction(drawnEast), notOfferedRefusal())
 }
 
 func TestRiichi_WhenTheFirstDiscardFollowsACall_ShouldScoreRiichiAndIppatsuButNotDaburuRiichi(t *testing.T) {
@@ -296,10 +302,10 @@ func TestRiichi_WhenTheHandHasAClosedKanAndDrew_ShouldBeOfferedOnTheTenpaiKeepin
 
 func TestRiichi_WhenTheClosedKanHoldsEveryCopyOfTheOnlyWait_ShouldBeNeitherOfferedNorAccepted(t *testing.T) {
 	dealer := slices.Concat(copies(t, 0, "555546m77s"), copies(t, 0, "23456p"))
-	g := dealerAfterClosedKan(t, dealer, tileOf(t, 0, "7p"), tileOf(t, 0, "5m"))
+	build := func() game.Game { return dealerAfterClosedKan(t, dealer, tileOf(t, 0, "7p"), tileOf(t, 0, "5m")) }
 
-	assertEqual(t, "riichis", riichis(g), []play.Action(nil))
-	assertRefused(t, g, seat(t, 0), play.RiichiAction(tileOf(t, 0, "1z")), notOfferedRefusal())
+	assertEqual(t, "riichis", riichis(build()), []play.Action(nil))
+	assertRefused(t, build, seat(t, 0), play.RiichiAction(tileOf(t, 0, "1z")), notOfferedRefusal())
 }
 
 func TestRiichi_WhenTheFirstDiscardFollowsAClosedKan_ShouldScoreRiichiAndIppatsuButNotDaburuRiichi(t *testing.T) {
@@ -348,10 +354,10 @@ func riichiDealerAfterDraw(t *testing.T, w testkit.StartWall) game.Game {
 
 func assertClosedKanNotOfferedAndRefused(t *testing.T, waitingHand []tile.TileID, drawnTile, kanTile tile.TileID) {
 	t.Helper()
-	g := riichiDealerAfterDraw(t, riichiDealerWall(t, waitingHand, drawnTile))
+	build := func() game.Game { return riichiDealerAfterDraw(t, riichiDealerWall(t, waitingHand, drawnTile)) }
 
-	assertEqual(t, "kans", kans(g, seat(t, 0)), []play.Action(nil))
-	assertRefused(t, g, seat(t, 0), play.KanAction(play.KanClosed, kanTile), notOfferedRefusal())
+	assertEqual(t, "kans", kans(build(), seat(t, 0)), []play.Action(nil))
+	assertRefused(t, build, seat(t, 0), play.KanAction(play.KanClosed, kanTile), notOfferedRefusal())
 }
 
 func TestClosedKan_WhenTheRiichiSeatHoldsThreeCopiesOfTheDrawnTile_ShouldBeNotOfferedAndRefused(t *testing.T) {

@@ -56,11 +56,15 @@ func TestExhaustiveDraw_WhenTheLastDiscardHasNoCallers_ShouldEndTheRound(t *test
 }
 
 func TestAct_WhenTheRoundIsOver_ShouldRefuseEveryPlayCallAndChangeNothing(t *testing.T) {
-	g := playDefaultsWhileLiveTilesExceed(t, seatOneTenpaiOnThreePin(t), 0)
-	last, _ := g.DefaultAction(seat(t, 1))
-	g, _ = script(t, g, act(seat(t, 1), last))
+	build := func() game.Game {
+		g := playDefaultsWhileLiveTilesExceed(t, seatOneTenpaiOnThreePin(t), 0)
+		last, _ := g.DefaultAction(seat(t, 1))
+		g, _ = script(t, g, act(seat(t, 1), last))
+		return g
+	}
+	g := build()
 
-	assertRefused(t, g, seat(t, 2), play.DiscardAction(g.Hand(seat(t, 2))[0]),
+	assertRefused(t, build, seat(t, 2), play.DiscardAction(g.Hand(seat(t, 2))[0]),
 		refusal(play.RefusalNotAwaited, play.CodeWrongPhase))
 	for _, s := range tile.Seats() {
 		if _, ok := g.Decision(s); ok || len(g.LegalActions(s)) != 0 {

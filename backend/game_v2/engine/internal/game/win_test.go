@@ -113,7 +113,7 @@ func TestTsumo_WhenTheHandDoesNotWin_ShouldBeNotOfferedAndChangeNothing(t *testi
 		Draws: []tile.TileID{tileOf(t, 0, "7z")},
 	}
 
-	assertRefused(t, begun(t, w, noStart()), seat(t, 0), play.TsumoAction(), notOfferedRefusal())
+	assertRefused(t, func() game.Game { return begun(t, w, noStart()) }, seat(t, 0), play.TsumoAction(), notOfferedRefusal())
 }
 
 func TestRonCallers_WhenTwoSeatsMayRon_ShouldPromptBothAndRankThemByDistanceFromTheDiscarder(t *testing.T) {
@@ -166,15 +166,19 @@ func TestRon_WhenOtherCallersArePending_ShouldRecordTheAnswerAndWait(t *testing.
 }
 
 func TestAnswerCall_WhenTheSameSeatAnswersTwice_ShouldBeNotAwaitedAndChangeNothing(t *testing.T) {
-	g, _ := script(t, threePinWithTwoRonCallers(t), act(seat(t, 3), play.PassAction()))
+	build := func() game.Game {
+		g, _ := script(t, threePinWithTwoRonCallers(t), act(seat(t, 3), play.PassAction()))
+		return g
+	}
 
 	for _, action := range []play.Action{play.RonAction(), play.PassAction()} {
-		assertRefused(t, g, seat(t, 3), action, refusal(play.RefusalNotAwaited, play.CodeAlreadyAnswered))
+		assertRefused(t, build, seat(t, 3), action, refusal(play.RefusalNotAwaited, play.CodeAlreadyAnswered))
 	}
 }
 
 func TestTurnAction_WhenAPromptIsPending_ShouldBeNotAwaitedAndChangeNothing(t *testing.T) {
-	g := threePinWithTwoRonCallers(t)
+	build := func() game.Game { return threePinWithTwoRonCallers(t) }
+	g := build()
 	own := g.Hand(seat(t, 2))[0]
 
 	for _, c := range []struct {
@@ -189,12 +193,13 @@ func TestTurnAction_WhenAPromptIsPending_ShouldBeNotAwaitedAndChangeNothing(t *t
 		{seat(t, 2), play.KanAction(play.KanAdded, own)},
 		{seat(t, 0), play.DiscardAction(g.Hand(seat(t, 0))[0])},
 	} {
-		assertRefused(t, g, c.caller, c.action, seatNotAwaitedRefusal())
+		assertRefused(t, build, c.caller, c.action, seatNotAwaitedRefusal())
 	}
 }
 
 func TestCallAnswer_WhenTheSeatHasNoPrompt_ShouldBeNotAwaitedAndChangeNothing(t *testing.T) {
-	prompted, turn := threePinWithTwoRonCallers(t), dealerTsumoOnDealtHand(t)
+	prompted := func() game.Game { return threePinWithTwoRonCallers(t) }
+	turn := func() game.Game { return dealerTsumoOnDealtHand(t) }
 
 	pon := play.PonAction([2]tile.TileID{tileOf(t, 0, "3p"), tileOf(t, 1, "3p")})
 	for _, action := range []play.Action{play.RonAction(), play.PassAction(), pon} {
@@ -294,15 +299,19 @@ func dealerWithOneManPon(t *testing.T, closed, laterDraws []tile.TileID) game.Ga
 }
 
 func TestShibari_WhenAnOpenHandHasOnlyDora_ShouldRejectTheTsumo(t *testing.T) {
-	g := dealerWithOneManPon(t, copies(t, 0, "2345m234p567s"),
-		slices.Concat(copies(t, 0, "666z"), []tile.TileID{tileOf(t, 1, "5m")}))
-	g, _ = discardDrawn(t, g, 3)
+	build := func() game.Game {
+		g := dealerWithOneManPon(t, copies(t, 0, "2345m234p567s"),
+			slices.Concat(copies(t, 0, "666z"), []tile.TileID{tileOf(t, 1, "5m")}))
+		g, _ = discardDrawn(t, g, 3)
+		return g
+	}
+	g := build()
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 0)))
 
 	if containsAction(g.LegalActions(seat(t, 0)), play.TsumoAction()) {
 		t.Error("tsumo is offered on a yakuless hand")
 	}
-	assertRefused(t, g, seat(t, 0), play.TsumoAction(), notOfferedRefusal())
+	assertRefused(t, build, seat(t, 0), play.TsumoAction(), notOfferedRefusal())
 }
 
 func TestShibari_WhenAnOpenHandHasOnlyDora_ShouldRejectTheRon(t *testing.T) {

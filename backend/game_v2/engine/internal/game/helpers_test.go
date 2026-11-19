@@ -203,8 +203,9 @@ func assertEqual[T any](t *testing.T, what string, got, want T) {
 	}
 }
 
-func assertRefused(t *testing.T, g game.Game, s tile.Seat, action play.Action, want play.Refusal) {
+func assertRefused(t *testing.T, build func() game.Game, s tile.Seat, action play.Action, want play.Refusal) {
 	t.Helper()
+	g := build()
 	next, events, refusal := g.Act(s, action)
 	if !refusal.OK || refusal.Value != want {
 		t.Errorf("Act(%d, %v) refusal = %+v, want %+v", s.Index(), action, refusal, want)
@@ -212,7 +213,8 @@ func assertRefused(t *testing.T, g game.Game, s tile.Seat, action play.Action, w
 	if len(events) != 0 {
 		t.Errorf("refused Act events = %v, want none", events)
 	}
-	assertSameGame(t, next, g)
+	assertSameGame(t, next, build())
+	assertSameGame(t, g, build())
 }
 
 func awaitingTurn(s tile.Seat) play.Awaiting {
