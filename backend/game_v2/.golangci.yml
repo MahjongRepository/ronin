@@ -10,7 +10,7 @@ linters:
         engine-purity:
           list-mode: lax
           files:
-            - "**/engine/**"
+            - "**/game_v2/engine/**"
             - "!$test"
           deny:
             - pkg: github.com/MahjongRepository/ronin/backend/game_v2/internal
