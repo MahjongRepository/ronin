@@ -1,9 +1,3 @@
-// Package tile is the engine's public vocabulary: the 34 tile kinds, the hand tile that tells a
-// red five apart, the 136 physical tile ids, winds, seats, dice, kind counts and kind sets, and
-// mpsz notation. It imports nothing of the module.
-//
-// Ported from mahjong-rs: the tile and notation modules of mahjong-core, the tile and seat modules
-// of mahjong-game, and the Dice of its seed module.
 package tile
 
 // Kind is a 34-format tile kind: man at 0 to 8, pin at 9 to 17, sou at 18 to 26 and the honors at

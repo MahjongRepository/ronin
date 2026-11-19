@@ -76,10 +76,10 @@ code under `engine/`:
 
 ## Tests
 
-* Rule unit tests sit beside the code they test, in `engine/internal/rules` and deeper engine
-  packages. `seam/` covers only behaviour observable through the facade, and does not repeat a rule
-  already pinned below it. Server tests sit beside the server code and drive it through
-  `net/http/httptest`, with a real WebSocket client for a socket route.
+* Rule unit tests sit beside the code they test, in the `engine/internal/` packages. `seam/` covers
+  only behaviour observable through the facade, and does not repeat a rule already pinned below it.
+  Server tests sit beside the server code and drive it through `net/http/httptest`, with a real
+  WebSocket client for a socket route.
 * Test names follow `Test<Subject>_When<Condition>_Should<Expected>`; drop `When<Condition>` only for
   unconditional behaviour (`TestNewGame_ShouldYieldStartedEventWithFullWall`). One scenario per
   test. The root `AGENTS.md` project rules on what earns a test apply here too.

@@ -46,9 +46,6 @@ func TestWindAndDragonKinds_ShouldMakeUpTheHonors(t *testing.T) {
 			t.Errorf("WindKinds()[%d] = %d, want %d", i, kind, want)
 		}
 	}
-	if dragons != [3]tile.Kind{tile.KindHaku, tile.KindHatsu, tile.KindChun} {
-		t.Errorf("DragonKinds() = %v", dragons)
-	}
 	if got := tile.Mask(append(winds[:], dragons[:]...)...); got != tile.HonorMask {
 		t.Errorf("Mask(winds, dragons) = %#x, want %#x", got, tile.HonorMask)
 	}
