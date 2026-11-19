@@ -15,6 +15,10 @@ imports, and each app's `tsc` checks them.
   Run one file's tests with `cd frontend/lobby && npx vitest run --config vitest.shared.config.ts
   <path>`.
 * The Docker builder stages copy only `src/`, so a module imports nothing outside it.
+* Text follows the apps' i18n rules (`docs/i18n.md`), with catalogs of its own: shared UI looks its
+  keys up through `t` from `shared-i18n.ts`, built by the same `createTranslator` (`i18n.ts`) each app
+  builds its own `t` with over its own catalog, never an app's. `bin/check_i18n.py` checks them as
+  the `shared` app, scanning only this `src/`.
 * Storage keys and the game handoff key (`session-storage.ts`, *Game client contract* in
   `docs/architecture.md`) are contracts between the apps and with stored browser data; change them
   only with every reader.

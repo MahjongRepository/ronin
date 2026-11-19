@@ -1,7 +1,8 @@
 import "@/zod-setup";
 import "@/styles/game-app.scss";
 import "@/zones-overlay";
-import { render } from "lit-html";
+import { type Route, lazyRoute, startRouter } from "@ronin/shared/router";
+import { type TemplateResult, html, render } from "lit-html";
 
 import chiUrl from "@/assets/audio/calls/chi.mp3?no-inline";
 import kanUrl from "@/assets/audio/calls/kan.mp3?no-inline";
@@ -39,7 +40,6 @@ import {
     loadTileSprite,
     restoreTileLabels,
 } from "@/entities/tile";
-import { type Route, lazyRoute, startRouter } from "@/router";
 import { fetchGameHandoff } from "@/shared/api";
 import { browserClock } from "@/shared/clock";
 import {
@@ -259,24 +259,36 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
     };
 }
 
+function pageFailedView(): TemplateResult {
+    return html`<p class="route-error">${t("common.page_failed")}</p>`;
+}
+
 /** A storybook page, loaded with the rest of the storybook the first time one is opened. */
 function storybookRoute(
     pattern: RegExp,
     pick: (routes: typeof StorybookRoutes) => Route["mount"],
 ): Route {
-    return lazyRoute(pattern, async () => pick(await import("@/views/storybook-routes")));
+    return lazyRoute(
+        pattern,
+        async () => pick(await import("@/views/storybook-routes")),
+        pageFailedView,
+    );
 }
 
 function createStorybookRoutes(): Route[] {
     return [
-        lazyRoute(/^\/play\/storybook\/sounds$/, async () => {
-            const { mountStorybookSounds } = await import("@/views/storybook-sounds");
-            return (host) =>
-                mountStorybookSounds(host, {
-                    play: gameSound().play,
-                    sounds: GAME_SOUNDS,
-                });
-        }),
+        lazyRoute(
+            /^\/play\/storybook\/sounds$/,
+            async () => {
+                const { mountStorybookSounds } = await import("@/views/storybook-sounds");
+                return (host) =>
+                    mountStorybookSounds(host, {
+                        play: gameSound().play,
+                        sounds: GAME_SOUNDS,
+                    });
+            },
+            pageFailedView,
+        ),
         storybookRoute(/^\/play\/storybook\/board$/, (routes) => routes.mountStorybookBoard),
         storybookRoute(
             /^\/play\/storybook\/decisions$/,
@@ -307,14 +319,18 @@ if (app && !supportsBoardCss()) {
         app,
         [
             ...(import.meta.env.DEV ? createStorybookRoutes() : []),
-            lazyRoute(/^\/play\/history\/(?<gameId>[^/]+)$/, async () => {
-                const { mountReplay } = await import("@/replay-entry");
-                return (host, params) =>
-                    mountReplay(host, params.gameId, {
-                        keepPageRested: keepPageRestedPastItsTop,
-                        sound: gameSound(),
-                    });
-            }),
+            lazyRoute(
+                /^\/play\/history\/(?<gameId>[^/]+)$/,
+                async () => {
+                    const { mountReplay } = await import("@/replay-entry");
+                    return (host, params) =>
+                        mountReplay(host, params.gameId, {
+                            keepPageRested: keepPageRestedPastItsTop,
+                            sound: gameSound(),
+                        });
+                },
+                pageFailedView,
+            ),
             {
                 mount: (host, params) =>
                     mountGameView(host, params.gameId, liveGameDeps(params.gameId, tileSprite)),

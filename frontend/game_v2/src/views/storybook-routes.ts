@@ -1,5 +1,6 @@
 import "@/styles/storybook-page.scss";
-import { staticMount } from "@/router";
+import { staticMount } from "@ronin/shared/router";
+
 import { storybookDiscardsView } from "@/views/storybook-discards";
 import { storybookHandView } from "@/views/storybook-hand";
 import { storybookMeldsView } from "@/views/storybook-melds";

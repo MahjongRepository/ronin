@@ -124,6 +124,12 @@ APPS = (
             }
         ),
     ),
+    App(
+        name="shared",
+        catalog_dir="frontend/shared/src/locales",
+        source_roots=("frontend/shared/src",),
+        source_suffixes=frozenset({".ts"}),
+    ),
 )
 
 
