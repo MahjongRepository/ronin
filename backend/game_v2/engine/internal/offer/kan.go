@@ -10,10 +10,7 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-const (
-	kanTiles        = 4
-	kokushiMinKinds = 12
-)
+const kokushiMinKinds = 12
 
 func isKan(view play.MeldView) bool {
 	return view.Kind == play.MeldOpenKan || view.Kind == play.MeldAddedKan || view.Kind == play.MeldClosedKan
@@ -108,7 +105,7 @@ func closedKanTiles(hand []tile.TileID, melds []play.MeldView, riichiDrawn play.
 	var seen tile.Kinds
 	for _, id := range hand {
 		kind := id.Kind()
-		if seen.Contains(kind) || heldCount(hand, kind) < kanTiles {
+		if seen.Contains(kind) || heldCount(hand, kind) < tile.CopiesPerKind {
 			continue
 		}
 		seen = seen.With(kind)

@@ -13,8 +13,7 @@ const OpenKanHandTiles = 3
 
 const (
 	ponHandTiles  = 2
-	kindsPerSuit  = 9
-	lastSuitValue = kindsPerSuit - 1
+	lastSuitValue = 8
 )
 
 // CheckedMeldOffers returns MeldOffers for a hand given from outside the engine; a
@@ -104,7 +103,7 @@ func ChiOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID) [][2]til
 		return nil
 	}
 
-	value := kind % kindsPerSuit
+	value := kind.Simplify()
 	var shapes [][2]tile.Kind
 	if value+2 <= lastSuitValue {
 		shapes = append(shapes, [2]tile.Kind{kind + 1, kind + 2})
@@ -170,9 +169,9 @@ func KuikaeKinds(discard tile.TileID, call play.MeldCall) []tile.Kind {
 	low, high := pair[0].Kind(), pair[1].Kind()
 	lowest, highest := min(low, high, called), max(low, high, called)
 	switch {
-	case called == lowest && highest%kindsPerSuit < lastSuitValue:
+	case called == lowest && highest.Simplify() < lastSuitValue:
 		kinds = append(kinds, highest+1)
-	case called == highest && lowest%kindsPerSuit > 0:
+	case called == highest && lowest.Simplify() > 0:
 		kinds = append(kinds, lowest-1)
 	}
 	return kinds
