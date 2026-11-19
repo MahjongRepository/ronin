@@ -1,73 +1,158 @@
+import { type MountedView } from "@ronin/shared/router";
+
 import { LobbySocket } from "@/lobby-socket";
 import { bindToPageLifetime, bindToResume } from "@/page-lifetime";
 import {
+    type Navigate,
+    type OwnerContext,
     RESUME_RECONNECT_AFTER_HIDDEN_MS,
     buildMessageHandlers,
     buildStatusHandler,
+    deleteTournament,
+    fetchTournamentConfig,
     handleMessage,
     joinTournament,
     leaveOnPageExit,
     reconnectOnResume,
     rejoinOnPageShow,
+    renameTournament,
     sendChat,
 } from "@/tournament/handlers";
-import { PAGE_ERROR, createTournamentState } from "@/tournament/state";
-import { renderTournament } from "@/tournament/ui";
+import {
+    PAGE_ERROR,
+    TOURNAMENT_NOT_FOUND,
+    type TournamentConfig,
+    type TournamentConfigAnswer,
+    type TournamentState,
+    createTournamentState,
+} from "@/tournament/state";
+import { type TournamentActions, renderTournament } from "@/tournament/ui";
 
-interface TournamentConfig {
-    chatMaxLength: number;
-    wsUrl: string;
+export interface TournamentViewDeps {
+    readonly navigate: Navigate;
 }
 
-function readTournamentConfig(container: HTMLElement): TournamentConfig | null {
-    const { chatMaxLength, wsUrl } = container.dataset;
-    const maxLength = Number(chatMaxLength);
-    if (!wsUrl || !Number.isInteger(maxLength) || maxLength <= 0) {
-        return null;
-    }
-    return { chatMaxLength: maxLength, wsUrl };
+interface TournamentMount {
+    readonly host: HTMLElement;
+    readonly navigate: Navigate;
+    readonly tournamentId: string;
 }
 
-function renderSetupFailure(container: HTMLElement): void {
+const NO_ACTIONS: TournamentActions = {
+    deleteTournament: () => {},
+    renameTournament: () => {},
+    sendChat: () => false,
+};
+
+function showTournamentFrame(mount: TournamentMount, pageError: string | null): MountedView {
     const state = createTournamentState();
-    state.pageError = PAGE_ERROR.PAGE_SETUP_FAILED;
-    renderTournament({ chatMaxLength: 0, container, sendChat: () => false, state });
-}
-
-function openTournamentPage(container: HTMLElement, config: TournamentConfig): void {
-    const state = createTournamentState();
-    function render(): void {
+    state.pageError = pageError;
+    function draw(): void {
         renderTournament({
-            chatMaxLength: config.chatMaxLength,
-            container,
-            sendChat: (text) => sendChat(state, text),
+            actions: NO_ACTIONS,
+            config: null,
+            container: mount.host,
             state,
+            tournamentId: mount.tournamentId,
         });
     }
-    function rejoin(): void {
-        joinTournament(state, render, config.wsUrl);
-    }
-    const handlers = buildMessageHandlers(state, render);
+    draw();
+    return { rerender: draw, unmount: () => {} };
+}
 
+function buildActions(state: TournamentState, owner: OwnerContext): TournamentActions {
+    return {
+        deleteTournament: () => void deleteTournament(state, owner),
+        renameTournament: (name) => void renameTournament(state, owner, name),
+        sendChat: (text) => sendChat(state, text),
+    };
+}
+
+function attachSocket(state: TournamentState, draw: () => void, rejoin: () => void): () => void {
+    const handlers = buildMessageHandlers(state, draw);
     state.socket = new LobbySocket(
         (message) => handleMessage(handlers, message),
-        buildStatusHandler(state, render, rejoin),
+        buildStatusHandler(state, draw, rejoin),
     );
-
-    bindToPageLifetime({
+    const unbindLifetime = bindToPageLifetime({
         release: () => leaveOnPageExit(state),
         restore: () => rejoinOnPageShow(state, rejoin),
     });
-    bindToResume(() => reconnectOnResume(state, rejoin), RESUME_RECONNECT_AFTER_HIDDEN_MS);
-
-    rejoin();
+    const unbindResume = bindToResume(
+        () => reconnectOnResume(state, rejoin),
+        RESUME_RECONNECT_AFTER_HIDDEN_MS,
+    );
+    return () => {
+        leaveOnPageExit(state);
+        unbindLifetime();
+        unbindResume();
+    };
 }
 
-export function initTournamentPage(container: HTMLElement): void {
-    const config = readTournamentConfig(container);
-    if (!config) {
-        renderSetupFailure(container);
-        return;
+function openTournament(mount: TournamentMount, config: TournamentConfig): MountedView {
+    const state = createTournamentState();
+    state.name = config.name;
+    let disposed = false;
+    const { navigate, tournamentId } = mount;
+    const actions = buildActions(state, {
+        isDisposed: () => disposed,
+        navigate,
+        render: draw,
+        tournamentId,
+    });
+    function draw(): void {
+        renderTournament({ actions, config, container: mount.host, state, tournamentId });
     }
-    openTournamentPage(container, config);
+    function rejoin(): void {
+        joinTournament(state, draw, config.wsUrl);
+    }
+    const detach = attachSocket(state, draw, rejoin);
+    rejoin();
+    return {
+        rerender: draw,
+        unmount: () => {
+            disposed = true;
+            detach();
+        },
+    };
+}
+
+function showAnswer(mount: TournamentMount, answer: TournamentConfigAnswer): MountedView {
+    switch (answer.kind) {
+        case "open": {
+            return openTournament(mount, answer.config);
+        }
+        case "gone": {
+            return showTournamentFrame(mount, TOURNAMENT_NOT_FOUND);
+        }
+        case "failed": {
+            return showTournamentFrame(mount, PAGE_ERROR.PAGE_SETUP_FAILED);
+        }
+    }
+}
+
+export function mountTournamentView(
+    host: HTMLElement,
+    tournamentId: string,
+    deps: TournamentViewDeps,
+): MountedView {
+    const mount = { host, navigate: deps.navigate, tournamentId };
+    let disposed = false;
+    let shown = showTournamentFrame(mount, null);
+
+    async function load(): Promise<void> {
+        const answer = await fetchTournamentConfig(tournamentId);
+        if (!disposed) {
+            shown = showAnswer(mount, answer);
+        }
+    }
+
+    void load();
+    return {
+        rerender: () => shown.rerender(),
+        unmount: () => {
+            disposed = true;
+            shown.unmount();
+        },
+    };
 }

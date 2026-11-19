@@ -20,6 +20,7 @@ from lobby.auth.backend import SessionOrApiKeyBackend
 from lobby.auth.policy import (
     admin_html,
     admin_json,
+    api_key_json,
     bot_only,
     protected_html,
     protected_json,
@@ -40,6 +41,9 @@ from lobby.server.middleware import (
     with_security_headers,
 )
 from lobby.settings import LobbyServerSettings
+from lobby.tournaments.game_end_poller import TournamentGameEndPoller
+from lobby.tournaments.hub import TournamentHub
+from lobby.tournaments.websocket import tournament_events_websocket, tournament_websocket
 from lobby.views import (
     GAME_V2_ASSETS_PATH,
     BuiltGameClient,
@@ -67,13 +71,28 @@ from lobby.views.lobby_api_handlers import (
     lobby_session,
 )
 from lobby.views.monitoring_handlers import monitoring_data
+from lobby.views.settings_handlers import lobby_api_token, lobby_issue_api_token
 from lobby.views.spa_handlers import spa_shell
-from lobby.views.settings_handlers import issue_api_token
+from lobby.views.tournament_api_handlers import start_tournament_games, tournament_api
+from lobby.views.tournament_handlers import (
+    game_exit_redirect,
+    lobby_create_tournament,
+    lobby_delete_tournament,
+    lobby_rename_tournament,
+    lobby_tournament,
+    lobby_tournaments,
+)
 from shared.auth import AuthService
 from shared.auth.password import BcryptHasher
 from shared.auth.settings import AuthSettings
 from shared.build_info import APP_VERSION, GIT_COMMIT, RELEASES_URL
-from shared.db import Database, SqliteGameRepository, SqlitePlayerRepository, SqliteSessionRepository
+from shared.db import (
+    Database,
+    SqliteGameRepository,
+    SqlitePlayerRepository,
+    SqliteSessionRepository,
+    SqliteTournamentRepository,
+)
 from shared.logging import setup_logging
 from shared.rate_limit import KeyedRateLimiter
 
@@ -178,14 +197,19 @@ def create_app(  # noqa: PLR0913
         Route("/play/storybook/system", public_route(play_page), methods=["GET"], name="storybook_system_page"),
         Route("/play/storybook", public_route(play_page), methods=["GET"], name="storybook_page"),
         Route("/play/{game_id}", protected_html(play_page), methods=["GET"], name="play_page"),
+        Route("/games/{game_id}/exit", protected_html(game_exit_redirect), methods=["GET"], name="game_exit_redirect"),
         Route("/rooms/{room_id}", protected_html(spa_shell), methods=["GET"], name="room_page"),
         Route("/matchmaking", protected_html(spa_shell), methods=["GET"], name="matchmaking_page"),
         Route("/settings", protected_html(spa_shell), methods=["GET"], name="settings_page"),
-        Route("/settings/api-token", protected_html(issue_api_token), methods=["POST"], name="issue_api_token"),
+        Route("/tournaments/{tournament_id}", protected_html(spa_shell), methods=["GET"], name="tournament_page"),
         Route("/admin/monitoring", admin_html(spa_shell), methods=["GET"], name="monitoring_page"),
         # WebSocket routes (auth handled inside the handlers)
         WebSocketRoute("/ws/rooms/{room_id}", room_websocket, name="room_websocket"),
         WebSocketRoute("/ws/matchmaking", matchmaking_websocket, name="matchmaking_websocket"),
+        WebSocketRoute("/ws/tournaments/{tournament_id}", tournament_websocket, name="tournament_websocket"),
+        WebSocketRoute(
+            "/ws/tournaments/{tournament_id}/events", tournament_events_websocket, name="tournament_events_websocket"
+        ),
         # Public routes
         Route("/health", public_route(health), methods=["GET"], name="health"),
         Route("/login", public_route(spa_shell), methods=["GET"], name="login_page"),
@@ -197,6 +221,18 @@ def create_app(  # noqa: PLR0913
         Route("/api/replays/{game_id}", public_route(replay_content), methods=["GET"], name="replay_content"),
         Route("/api/replays/{game_id}/tenhou.xml", public_route(tenhou_replay), methods=["GET"], name="tenhou_replay"),
         Route("/api/game-session", protected_json(game_session), methods=["GET"], name="game_session"),
+        Route(
+            "/api/tournaments/{tournament_id}",
+            api_key_json(tournament_api),
+            methods=["GET"],
+            name="tournament_api",
+        ),
+        Route(
+            "/api/tournaments/{tournament_id}/games",
+            api_key_json(start_tournament_games),
+            methods=["POST"],
+            name="start_tournament_games",
+        ),
         Route("/api/lobby/session", public_route(lobby_session), methods=["GET"], name="lobby_session"),
         Route("/api/lobby/rooms", protected_json(lobby_rooms), methods=["GET"], name="lobby_rooms"),
         Route("/api/lobby/rooms", protected_json(lobby_create_room), methods=["POST"], name="lobby_create_room"),
@@ -204,6 +240,38 @@ def create_app(  # noqa: PLR0913
         Route("/api/lobby/matchmaking", protected_json(lobby_matchmaking), methods=["GET"], name="lobby_matchmaking"),
         Route("/api/lobby/history", protected_json(lobby_history), methods=["GET"], name="lobby_history"),
         Route("/api/lobby/monitoring", admin_json(monitoring_data), methods=["GET"], name="lobby_monitoring"),
+        Route("/api/lobby/tournaments", admin_json(lobby_tournaments), methods=["GET"], name="lobby_tournaments"),
+        Route(
+            "/api/lobby/tournaments",
+            admin_json(lobby_create_tournament),
+            methods=["POST"],
+            name="lobby_create_tournament",
+        ),
+        Route(
+            "/api/lobby/tournaments/{tournament_id}",
+            protected_json(lobby_tournament),
+            methods=["GET"],
+            name="lobby_tournament",
+        ),
+        Route(
+            "/api/lobby/tournaments/{tournament_id}/rename",
+            protected_json(lobby_rename_tournament),
+            methods=["POST"],
+            name="lobby_rename_tournament",
+        ),
+        Route(
+            "/api/lobby/tournaments/{tournament_id}/delete",
+            protected_json(lobby_delete_tournament),
+            methods=["POST"],
+            name="lobby_delete_tournament",
+        ),
+        Route("/api/lobby/api-token", protected_json(lobby_api_token), methods=["GET"], name="lobby_api_token"),
+        Route(
+            "/api/lobby/api-token",
+            protected_json(lobby_issue_api_token),
+            methods=["POST"],
+            name="lobby_issue_api_token",
+        ),
         Route("/api/lobby/auth/login", public_route(api_login), methods=["POST"], name="api_login"),
         Route("/api/lobby/auth/register", public_route(api_register), methods=["POST"], name="api_register"),
         Route("/api/lobby/auth/guest", public_route(api_guest_login), methods=["POST"], name="api_guest_login"),
@@ -233,16 +301,19 @@ def create_app(  # noqa: PLR0913
     game_repo = SqliteGameRepository(db)
 
     session_repo = SqliteSessionRepository(db)
+    tournament_repo = SqliteTournamentRepository(db)
     hasher = BcryptHasher(rounds=auth_settings.bcrypt_rounds)
     auth_service = AuthService(player_repo, session_repo, password_hasher=hasher)
 
     @contextlib.asynccontextmanager
-    async def lifespan(_app: Starlette) -> AsyncGenerator[None]:
+    async def lifespan(lifespan_app: Starlette) -> AsyncGenerator[None]:
         try:
             await db.open()
             room_manager.start_reaper()
+            await lifespan_app.state.tournament_game_end_poller.start()
             yield
         finally:
+            await lifespan_app.state.tournament_game_end_poller.stop()
             await room_manager.stop_reaper()
             await game_server.aclose()
             await db.close()
@@ -266,6 +337,7 @@ def create_app(  # noqa: PLR0913
         game_server=game_server,
         auth_settings=auth_settings,
         game_repo=game_repo,
+        tournament_repo=tournament_repo,
         auth_service=auth_service,
         room_manager=room_manager,
         matchmaking_manager=matchmaking_manager,
@@ -303,12 +375,21 @@ def _attach_state(  # noqa: PLR0913
     game_server: httpx.AsyncClient,
     auth_settings: AuthSettings,
     game_repo: SqliteGameRepository,
+    tournament_repo: SqliteTournamentRepository,
     auth_service: AuthService,
     room_manager: LobbyRoomManager,
     matchmaking_manager: MatchmakingManager,
     occupancy: Occupancy,
 ) -> None:
     app.state.game_repo = game_repo
+    app.state.tournament_repo = tournament_repo
+    app.state.tournament_hub = TournamentHub()
+    app.state.tournament_game_end_poller = TournamentGameEndPoller(
+        tournament_repo=tournament_repo,
+        game_repo=game_repo,
+        hub=app.state.tournament_hub,
+        interval_seconds=settings.tournament_game_poll_interval,
+    )
     app.state.settings = settings
     app.state.game_server = game_server
     app.state.auth_settings = auth_settings

@@ -6,12 +6,13 @@ import uuid
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
-from starlette.exceptions import HTTPException
-from starlette.responses import RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse
 
+from lobby.auth.csrf import is_csrf_valid
 from lobby.chat_messages import CHAT_MAX_LENGTH
-from lobby.views.assets import render_page
-from lobby.views.error_pages import validate_csrf
+from lobby.views.error_pages import NO_STORE_HEADERS, json_csrf_rejection
+from lobby.views.handlers import lobby_websocket_url
+from lobby.views.json_body import parse_json_body
 from shared.dal.models import Tournament
 
 if TYPE_CHECKING:
@@ -42,86 +43,125 @@ def _parse_tournament_name(raw_name: object) -> str | None:
     return name
 
 
-async def create_tournament_and_redirect(request: Request) -> Response:
-    """
-    POST /tournaments/new - create a tournament owned by the admin account and redirect to its page.
+def _json_error(code: str, status: HTTPStatus) -> JSONResponse:
+    return JSONResponse({"error": code}, status_code=status, headers=NO_STORE_HEADERS)
 
-    Only an admin reaches it (`admin_html`); an invalid name gets a 400.
-    """
-    form = await request.form()
-    csrf_error = validate_csrf(request, form)
-    if csrf_error:
-        return csrf_error
 
-    name = _parse_tournament_name(form.get("name"))
+def _tournament_not_found() -> JSONResponse:
+    return _json_error("tournament_not_found", HTTPStatus.NOT_FOUND)
+
+
+async def _read_checked_body(request: Request) -> dict | Response:
+    """
+    Return the JSON body of a lobby POST, or the answer refusing a malformed body or a failed CSRF check.
+    """
+    body = await parse_json_body(request)
+    if body is None:
+        return _json_error("invalid_body", HTTPStatus.BAD_REQUEST)
+
+    if not is_csrf_valid(request):
+        return json_csrf_rejection(request)
+
+    return body
+
+
+async def lobby_tournaments(request: Request) -> JSONResponse:
+    """
+    GET /api/lobby/tournaments - the admin's own tournaments, newest first, and the name limit the create form enforces.
+    """
+    tournament_repo: TournamentRepository = request.app.state.tournament_repo
+    tournaments = await tournament_repo.list_tournaments_by_owner(request.user.user_id)
+    return JSONResponse(
+        {
+            "tournaments": [{"id": tournament.id, "name": tournament.name} for tournament in tournaments],
+            "name_max_length": TOURNAMENT_NAME_MAX_LENGTH,
+        },
+        headers=NO_STORE_HEADERS,
+    )
+
+
+async def lobby_create_tournament(request: Request) -> Response:
+    """
+    POST /api/lobby/tournaments - create a tournament owned by the admin account and answer its id.
+
+    Only an admin reaches it (`admin_json`); an invalid name answers 400 ``invalid_name``.
+    """
+    body = await _read_checked_body(request)
+    if not isinstance(body, dict):
+        return body
+
+    name = _parse_tournament_name(body.get("name"))
     if name is None:
-        raise HTTPException(HTTPStatus.BAD_REQUEST)
+        return _json_error("invalid_name", HTTPStatus.BAD_REQUEST)
 
     tournament_repo: TournamentRepository = request.app.state.tournament_repo
     tournament = Tournament(id=str(uuid.uuid4()), name=name, owner_user_id=request.user.user_id, created_at=time.time())
     await tournament_repo.create_tournament(tournament)
-    return RedirectResponse(f"/tournaments/{tournament.id}", status_code=303)
+    return JSONResponse({"tournament_id": tournament.id}, status_code=HTTPStatus.CREATED, headers=NO_STORE_HEADERS)
 
 
-async def tournament_page(request: Request) -> Response:
+async def lobby_tournament(request: Request) -> JSONResponse:
     """
-    GET /tournaments/{tournament_id} - render the tournament page; its owner also sees the id and the API hints.
+    GET /api/lobby/tournaments/{tournament_id} - what the tournament view shows and opens the page's socket with.
+
+    Anyone signed in gets it; ``is_owner`` tells the view whether to show the id, the API hints, rename and delete.
     """
     tournament_repo: TournamentRepository = request.app.state.tournament_repo
     tournament = await tournament_repo.get_tournament(request.path_params["tournament_id"])
     if tournament is None:
-        raise HTTPException(HTTPStatus.NOT_FOUND)
+        return _tournament_not_found()
 
-    ws_scheme = "wss" if request.url.scheme == "https" else "ws"
-    return render_page(
-        request,
-        template_name="tournament.html",
-        context={
-            "tournament": tournament,
-            "share_url": str(request.url_for("tournament_page", tournament_id=tournament.id)),
-            "ws_url": f"{ws_scheme}://{request.url.netloc}/ws/tournaments/{tournament.id}",
+    return JSONResponse(
+        {
+            "name": tournament.name,
+            "share_url": f"{request.url.scheme}://{request.url.netloc}/tournaments/{tournament.id}",
+            "ws_url": lobby_websocket_url(request, f"/ws/tournaments/{tournament.id}"),
             "chat_max_length": CHAT_MAX_LENGTH,
-            "tournament_name_max_length": TOURNAMENT_NAME_MAX_LENGTH,
+            "name_max_length": TOURNAMENT_NAME_MAX_LENGTH,
             "is_owner": tournament.owner_user_id == request.user.user_id,
-            "username": request.user.username,
         },
+        headers=NO_STORE_HEADERS,
     )
 
 
-async def rename_tournament_and_redirect(request: Request) -> Response:
+async def lobby_rename_tournament(request: Request) -> Response:
     """
-    POST /tournaments/{tournament_id}/rename - rename the owner's tournament and redirect back to its page.
+    POST /api/lobby/tournaments/{tournament_id}/rename - rename the owner's tournament and answer the stored name.
 
-    Anyone but the owner gets the 404 of an unknown tournament; an invalid name gets a 400.
+    Anyone but the owner gets the 404 of an unknown tournament; an invalid name answers 400 ``invalid_name``.
     """
-    form = await request.form()
-    csrf_error = validate_csrf(request, form)
-    if csrf_error:
-        return csrf_error
+    body = await _read_checked_body(request)
+    if not isinstance(body, dict):
+        return body
 
     tournament = await _find_owned_tournament(request)
-    name = _parse_tournament_name(form.get("name"))
+    if tournament is None:
+        return _tournament_not_found()
+
+    name = _parse_tournament_name(body.get("name"))
     if name is None:
-        raise HTTPException(HTTPStatus.BAD_REQUEST)
+        return _json_error("invalid_name", HTTPStatus.BAD_REQUEST)
 
     tournament_repo: TournamentRepository = request.app.state.tournament_repo
     await tournament_repo.rename_tournament(tournament.id, name)
-    return RedirectResponse(f"/tournaments/{tournament.id}", status_code=303)
+    return JSONResponse({"name": name}, headers=NO_STORE_HEADERS)
 
 
-async def delete_tournament_and_redirect(request: Request) -> Response:
+async def lobby_delete_tournament(request: Request) -> Response:
     """
-    POST /tournaments/{tournament_id}/delete - delete the owner's tournament and redirect to the lobby.
+    POST /api/lobby/tournaments/{tournament_id}/delete - delete the owner's tournament.
 
     Its open sockets are told ``tournament_deleted`` and closed, and its games are no longer watched for their end;
     games already running keep playing. Anyone but the owner gets the 404 of an unknown tournament.
     """
-    form = await request.form()
-    csrf_error = validate_csrf(request, form)
-    if csrf_error:
-        return csrf_error
+    body = await _read_checked_body(request)
+    if not isinstance(body, dict):
+        return body
 
     tournament = await _find_owned_tournament(request)
+    if tournament is None:
+        return _tournament_not_found()
+
     tournament_repo: TournamentRepository = request.app.state.tournament_repo
     await tournament_repo.delete_tournament(tournament.id)
 
@@ -129,17 +169,17 @@ async def delete_tournament_and_redirect(request: Request) -> Response:
     hub.close_deleted_tournament(tournament.id)
     poller: TournamentGameEndPoller = request.app.state.tournament_game_end_poller
     poller.untrack_tournament(tournament.id)
-    return RedirectResponse("/", status_code=303)
+    return JSONResponse({}, headers=NO_STORE_HEADERS)
 
 
-async def _find_owned_tournament(request: Request) -> Tournament:
+async def _find_owned_tournament(request: Request) -> Tournament | None:
     """
-    Return the tournament of the path when the user owns it; raise a 404 for an unknown one or anyone else's.
+    Return the tournament of the path when the user owns it; None for an unknown one or anyone else's.
     """
     tournament_repo: TournamentRepository = request.app.state.tournament_repo
     tournament = await tournament_repo.get_tournament(request.path_params["tournament_id"])
     if tournament is None or tournament.owner_user_id != request.user.user_id:
-        raise HTTPException(HTTPStatus.NOT_FOUND)
+        return None
 
     return tournament
 

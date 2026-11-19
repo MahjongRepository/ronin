@@ -1,3 +1,6 @@
+import { type NavigateOptions } from "@ronin/shared/router";
+
+import { type ApiResult, apiGet, apiPost } from "@/api";
 import { type ChatEntry, LOG_TYPE_SYSTEM } from "@/chat";
 import { type MessageKey, formatList, formatTime, reportI18nError, t } from "@/i18n";
 import { type SocketStatus, readString } from "@/lobby-socket";
@@ -5,13 +8,26 @@ import { OCCUPANCY } from "@/occupancy-errors";
 import { enterGame, readGameStart } from "@/session";
 import {
     PAGE_ERROR,
+    TOURNAMENT_NOT_FOUND,
+    type TournamentConfigAnswer,
     type TournamentState,
     createTournamentState,
     isLive,
     isOnline,
+    parseRenamedName,
+    readTournamentConfigAnswer,
 } from "@/tournament/state";
 
 type RenderTournament = () => void;
+
+type Navigate = (url: string, options?: NavigateOptions) => void;
+
+interface OwnerContext {
+    readonly isDisposed: () => boolean;
+    readonly navigate: Navigate;
+    readonly render: RenderTournament;
+    readonly tournamentId: string;
+}
 
 type MessageHandlerMap = Record<string, (msg: Record<string, unknown>) => void>;
 
@@ -24,7 +40,7 @@ const TOURNAMENT_DELETED = "tournament_deleted";
 
 const TOURNAMENT_ERROR_CODES = [
     "rate_limited",
-    "tournament_not_found",
+    TOURNAMENT_NOT_FOUND,
     TOURNAMENT_DELETED,
     OCCUPANCY.REPLACED_BY_NEW_CONNECTION,
     PAGE_ERROR.GAME_START_INVALID,
@@ -350,8 +366,78 @@ function rejoinOnPageShow(state: TournamentState, rejoin: () => void): void {
         return;
     }
     cancelReconnect(state);
-    Object.assign(state, createTournamentState(), { socket: state.socket });
+    Object.assign(state, createTournamentState(), { name: state.name, socket: state.socket });
     rejoin();
+}
+
+function tournamentApiPath(tournamentId: string): string {
+    return `/api/lobby/tournaments/${encodeURIComponent(tournamentId)}`;
+}
+
+async function fetchTournamentConfig(tournamentId: string): Promise<TournamentConfigAnswer> {
+    const result = await apiGet(tournamentApiPath(tournamentId));
+    const answer = readTournamentConfigAnswer(result);
+    if (answer.kind === "failed") {
+        console.error("tournament config not loaded", result.ok ? "invalid answer" : result.error);
+    }
+    return answer;
+}
+
+function startOwnerAction(state: TournamentState, render: RenderTournament): boolean {
+    if (state.ownerBusy) {
+        return false;
+    }
+    state.ownerBusy = true;
+    state.ownerError = null;
+    render();
+    return true;
+}
+
+async function renameTournament(
+    state: TournamentState,
+    context: OwnerContext,
+    name: string,
+): Promise<void> {
+    if (!startOwnerAction(state, context.render)) {
+        return;
+    }
+    const result = await apiPost(`${tournamentApiPath(context.tournamentId)}/rename`, { name });
+    if (!context.isDisposed()) {
+        showRenamed(state, result);
+        context.render();
+    }
+}
+
+function showRenamed(state: TournamentState, result: ApiResult): void {
+    state.ownerBusy = false;
+    const renamed = result.ok ? parseRenamedName(result.data) : null;
+    if (renamed === null) {
+        console.error("tournament not renamed", result.ok ? "invalid answer" : result.error);
+        state.ownerError = "tournament.owner.rename_failed";
+        return;
+    }
+    state.name = renamed;
+}
+
+async function deleteTournament(state: TournamentState, context: OwnerContext): Promise<void> {
+    if (!startOwnerAction(state, context.render)) {
+        return;
+    }
+    const result = await apiPost(`${tournamentApiPath(context.tournamentId)}/delete`, {});
+    if (!context.isDisposed()) {
+        leaveDeleted(state, context, result);
+    }
+}
+
+function leaveDeleted(state: TournamentState, context: OwnerContext, result: ApiResult): void {
+    state.ownerBusy = false;
+    if (result.ok) {
+        context.navigate("/", { replace: true });
+        return;
+    }
+    console.error("tournament not deleted", result.error);
+    state.ownerError = "tournament.owner.delete_failed";
+    context.render();
 }
 
 export {
@@ -359,11 +445,15 @@ export {
     TOURNAMENT_ERROR_CODES,
     buildMessageHandlers,
     buildStatusHandler,
+    deleteTournament,
     describeTournamentError,
+    fetchTournamentConfig,
     handleMessage,
     joinTournament,
     leaveOnPageExit,
     reconnectOnResume,
     rejoinOnPageShow,
+    renameTournament,
     sendChat,
 };
+export type { Navigate, OwnerContext };

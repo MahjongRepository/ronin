@@ -112,3 +112,12 @@ button.settings-page__item:active {
         outline-offset: -2px;
     }
 }
+
+.settings-api-token {
+    max-width: 34rem;
+    margin-top: 2.5rem;
+
+    button {
+        width: auto;
+    }
+}

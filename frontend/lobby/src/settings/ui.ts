@@ -11,11 +11,12 @@ import {
     WindsRow,
 } from "@ronin/shared/settings-rows";
 import { type WindScript } from "@ronin/shared/winds";
-import { type TemplateResult, html, render } from "lit-html";
+import { type TemplateResult, html, type nothing, render } from "lit-html";
 
 import { t } from "@/i18n";
 
 export interface SettingsProps {
+    readonly accountSection: TemplateResult | typeof nothing;
     readonly animations: SwitchRowProps;
     readonly input: InputRowsProps;
     readonly keepAutoWin: SwitchRowProps;
@@ -38,7 +39,8 @@ function settingsTemplate(props: SettingsProps): TemplateResult {
             ${InputRows(BLOCK, props.input)} ${LanguageRow(BLOCK, props.onLanguage)}
             ${WindsRow(BLOCK, props.onWinds)}
         </div>
-    </section>`;
+    </section>
+    ${props.accountSection}`;
 }
 
 export function renderSettings(host: HTMLElement, props: SettingsProps): void {

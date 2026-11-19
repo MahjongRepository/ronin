@@ -66,7 +66,7 @@ APPS = (
         catalog_dir="frontend/lobby/src/i18n/locales",
         source_roots=("frontend/lobby/src",),
         source_suffixes=frozenset({".ts"}),
-        dynamic_prefixes=("occupancy.", "room.error."),
+        dynamic_prefixes=("occupancy.", "room.error.", "tournament.error."),
         identical_keys=frozenset(
             {
                 "monitoring.group.traefik",

@@ -8,7 +8,11 @@ import {
     describeTournamentError,
     handleMessage,
 } from "@/tournament/handlers";
-import { createTournamentState, isConnectionLost } from "@/tournament/state";
+import {
+    createTournamentState,
+    isConnectionLost,
+    readTournamentConfigAnswer,
+} from "@/tournament/state";
 import { renderTournament } from "@/tournament/ui";
 
 function buildTournament() {
@@ -23,7 +27,17 @@ function mountPage(state: ReturnType<typeof createTournamentState>) {
     return {
         container,
         render: () =>
-            renderTournament({ chatMaxLength: 100, container, sendChat: () => false, state }),
+            renderTournament({
+                actions: {
+                    deleteTournament: () => {},
+                    renameTournament: () => {},
+                    sendChat: () => false,
+                },
+                config: null,
+                container,
+                state,
+                tournamentId: "cup",
+            }),
     };
 }
 
@@ -186,4 +200,60 @@ describe("describeTournamentError", () => {
             expect(report).not.toHaveBeenCalled();
         },
     );
+});
+
+describe("renderTournament", () => {
+    const config = {
+        chatMaxLength: 100,
+        isOwner: true,
+        name: "Cup",
+        nameMaxLength: 80,
+        shareUrl: "https://ronin.test/tournaments/cup",
+        wsUrl: "wss://ronin.test/ws/tournaments/cup",
+    };
+
+    function renderWith(isOwner: boolean): HTMLElement {
+        const state = createTournamentState();
+        state.name = "Cup";
+        const container = document.createElement("div");
+        renderTournament({
+            actions: {
+                deleteTournament: () => {},
+                renameTournament: () => {},
+                sendChat: () => false,
+            },
+            config: { ...config, isOwner },
+            container,
+            state,
+            tournamentId: "cup",
+        });
+        return container;
+    }
+
+    test("shows the API hints, rename and delete to the owner only", () => {
+        const owner = renderWith(true);
+        const player = renderWith(false);
+
+        expect(owner.querySelector(".tournament-owner-api")?.textContent).toContain(
+            "POST /api/tournaments/cup/games",
+        );
+        expect(owner.querySelector(".tournament-delete")).not.toBeNull();
+        expect(player.querySelector(".tournament-owner-api")).toBeNull();
+        expect(player.querySelector<HTMLInputElement>("#tournament-share-link")?.value).toBe(
+            config.shareUrl,
+        );
+    });
+});
+
+describe("readTournamentConfigAnswer", () => {
+    test("tells a deleted tournament from a page that failed to load", () => {
+        const gone = readTournamentConfigAnswer({
+            data: {},
+            error: "tournament_not_found",
+            ok: false,
+        });
+        const failed = readTournamentConfigAnswer({ data: { name: "Cup" }, ok: true });
+
+        expect([gone.kind, failed.kind]).toEqual(["gone", "failed"]);
+    });
 });

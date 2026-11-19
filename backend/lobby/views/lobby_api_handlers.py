@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from starlette.responses import JSONResponse
 
 from lobby.auth.csrf import is_csrf_valid
-from lobby.rooms.messages import CHAT_MAX_LENGTH
+from lobby.chat_messages import CHAT_MAX_LENGTH
 from lobby.views.auth_handlers import ACCOUNT_RULES
 from lobby.views.error_pages import NO_STORE_HEADERS, json_csrf_rejection
 from lobby.views.handlers import find_live_game_page, lobby_websocket_url, open_new_room

@@ -13,7 +13,12 @@ import httpx
 import pytest
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
-from lobby.tests.integration.conftest import register_with_csrf
+from lobby.tests.integration.conftest import (
+    issue_api_token,
+    login_with_csrf,
+    post_lobby_json,
+    register_with_csrf,
+)
 from lobby.views.auth_handlers import GUEST_LOGIN_BURST
 from shared.dal.models import AccountType, Player
 
@@ -55,37 +60,6 @@ def _get_csrf_token(client: TestClient, path: str = "/login") -> str:
     token = response.cookies.get(CSRF_COOKIE_NAME) or client.cookies.get(CSRF_COOKIE_NAME)
     assert token, f"CSRF cookie not available after GET {path}"
     return token
-
-
-def _register_user(client: TestClient, username: str, password: str = "securepass123") -> None:  # noqa: S107
-    csrf = _get_csrf_token(client, "/register")
-    client.post(
-        "/register",
-        data={
-            "username": username,
-            "password": password,
-            "confirm_password": password,
-            "csrf_token": csrf,
-        },
-    )
-
-
-def _log_in(client: TestClient, username: str, password: str = "securepass123") -> None:  # noqa: S107
-    csrf = _get_csrf_token(client, "/login")
-    client.post("/login", data={"username": username, "password": password, "csrf_token": csrf})
-
-
-def _shown_api_token(page_html: str) -> str:
-    match = re.search(r'id="api-token" value="([^"]+)"', page_html)
-    assert match, "the page shows no API token"
-    return match.group(1)
-
-
-def _issue_api_token(client: TestClient) -> str:
-    csrf = _get_csrf_token(client, "/settings")
-    response = client.post("/settings/api-token", data={"csrf_token": csrf})
-    assert response.status_code == 200
-    return _shown_api_token(response.text)
 
 
 def _game_session_status_by_key(client: TestClient, api_key: str) -> int:
@@ -417,30 +391,39 @@ class TestAuthPolicyWiring:
 class TestApiToken:
     def test_api_key_auth__when_human_rotates_token__should_accept_new_key_and_reject_old(self, client, game_server):
         game_server.respond = lambda _request: httpx.Response(404)
-        _register_user(client, username="owner")
-        old_key = _issue_api_token(client)
+        register_with_csrf(client, "owner")
+        old_key = issue_api_token(client)
         client.cookies.delete("session_id")
 
         assert _game_session_status_by_key(client, old_key) == 404
 
-        _log_in(client, username="owner")
-        new_key = _issue_api_token(client)
+        login_with_csrf(client, "owner")
+        new_key = issue_api_token(client)
         client.cookies.delete("session_id")
 
         assert _game_session_status_by_key(client, old_key) == 401
         assert _game_session_status_by_key(client, new_key) == 404
 
-    def test_settings_token_post__when_human_generates__should_show_token_once(self, client):
-        _register_user(client, username="owner")
+    def test_api_token_route__when_human_generates__should_answer_token_once_uncached(self, client):
+        register_with_csrf(client, "owner")
 
-        csrf = _get_csrf_token(client, "/settings")
-        issued = client.post("/settings/api-token", data={"csrf_token": csrf})
-        token = _shown_api_token(issued.text)
+        before = client.get("/api/lobby/api-token")
+        issued = post_lobby_json(client, "/api/lobby/api-token")
+        after = client.get("/api/lobby/api-token")
+
+        assert before.json() == {"has_account": True, "has_token": False, "header": "X-API-Key"}
         assert issued.headers["cache-control"] == "no-store"
+        assert after.json()["has_token"] is True
+        assert issued.json()["token"] not in after.text
 
-        settings = client.get("/settings")
-        assert settings.status_code == 200
-        assert token not in settings.text
+    def test_api_token_route__when_guest_posts__should_refuse_with_403(self, client):
+        client.get("/login")
+        client.post("/api/lobby/auth/guest", json={}, headers={CSRF_HEADER_NAME: client.cookies[CSRF_COOKIE_NAME]})
+
+        refused = post_lobby_json(client, "/api/lobby/api-token")
+
+        assert (refused.status_code, refused.json()) == (403, {"error": "guest_account"})
+        assert client.get("/api/lobby/api-token").json()["has_account"] is False
 
 
 class TestAdminMonitoringPage:

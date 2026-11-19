@@ -1,6 +1,6 @@
 import { SOUND_SETTING_KEY, readSoundSetting } from "@ronin/shared/sound-setting";
 import { WIND_SCRIPT_KEY, pageWindScript } from "@ronin/shared/winds";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { startChrome } from "@/app/chrome";
 import { mountSettingsView } from "@/settings";
@@ -20,7 +20,28 @@ function click(host: HTMLElement, selector: string): void {
     host.querySelector<HTMLButtonElement>(selector)?.click();
 }
 
+function answerApiToken(...bodies: unknown[]): void {
+    const fetchMock = vi.fn();
+    for (const body of bodies) {
+        fetchMock.mockResolvedValueOnce(Response.json(body));
+    }
+    vi.stubGlobal("fetch", fetchMock);
+}
+
+function settled(): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(resolve, 0);
+    });
+}
+
+const GUEST_TOKEN_STATUS = { has_account: false, has_token: false, header: "X-API-Key" };
+
+beforeEach(() => {
+    answerApiToken(GUEST_TOKEN_STATUS);
+});
+
 afterEach(() => {
+    vi.unstubAllGlobals();
     document.body.replaceChildren();
     document.documentElement.lang = "en";
     delete document.documentElement.dataset.winds;
@@ -56,5 +77,29 @@ describe("mountSettingsView", () => {
         expect(
             host.querySelector(".settings-page__sound .settings-page__item-name")?.textContent,
         ).toBe("Звук");
+    });
+
+    it("shows an issued API token once and offers to rotate it from then on", async () => {
+        answerApiToken(
+            { has_account: true, has_token: false, header: "X-API-Key" },
+            { token: "tok-1" },
+        );
+        const host = settingsPage();
+        await settled();
+
+        host.querySelector<HTMLButtonElement>("form button[type=submit]")?.click();
+        await settled();
+
+        expect(host.querySelector<HTMLInputElement>("#api-token")?.value).toBe("tok-1");
+        expect(host.querySelector("form button[type=submit]")?.textContent?.trim()).toBe(
+            "Rotate token",
+        );
+    });
+
+    it("shows no API token section to a guest", async () => {
+        const host = settingsPage();
+        await settled();
+
+        expect(host.querySelectorAll(".lobby-section")).toHaveLength(1);
     });
 });

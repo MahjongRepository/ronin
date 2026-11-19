@@ -18,7 +18,7 @@ function renderSeatedAt(myRoomId: string): HTMLElement {
     state.rooms = { myRoomId, rooms: LISTED_ROOMS };
     const host = document.createElement("main");
     document.body.append(host);
-    renderLobby(host, state, { createRoom: () => {} });
+    renderLobby(host, state, { createRoom: () => {}, createTournament: () => {} });
     return host;
 }
 

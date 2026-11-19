@@ -1,4 +1,5 @@
 import { type ApiResult, isRecord } from "@/api";
+import { type ChatEntry } from "@/chat";
 import { formatList, t } from "@/i18n";
 import { type LobbySocket, type SocketStatus } from "@/lobby-socket";
 
@@ -7,12 +8,6 @@ interface PlayerInfo {
     ready: boolean;
     is_bot: boolean;
     is_owner: boolean;
-}
-
-interface ChatEntry {
-    sender: string;
-    text: string;
-    timestamp: string;
 }
 
 type ConnectionStatus = SocketStatus | "connecting";
@@ -35,7 +30,6 @@ type RoomConfigAnswer =
 
 const ROOM_NOT_FOUND = "room_not_found";
 
-const LOG_TYPE_SYSTEM = "system";
 const ROOM_SEATS = 4;
 
 const PAGE_ERROR = {
@@ -157,7 +151,6 @@ function readRoomConfigAnswer(result: ApiResult): RoomConfigAnswer {
 }
 
 export {
-    LOG_TYPE_SYSTEM,
     PAGE_ERROR,
     ROOM_SEATS,
     canAct,
@@ -171,12 +164,4 @@ export {
     readRoomConfigAnswer,
     resetSeat,
 };
-export type {
-    ChatEntry,
-    ConnectionStatus,
-    PageError,
-    PlayerInfo,
-    RoomConfig,
-    RoomConfigAnswer,
-    RoomState,
-};
+export type { ConnectionStatus, PageError, PlayerInfo, RoomConfig, RoomConfigAnswer, RoomState };

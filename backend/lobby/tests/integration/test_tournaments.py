@@ -1,5 +1,4 @@
 import json
-import re
 from contextlib import ExitStack
 from datetime import UTC, datetime
 from unittest.mock import ANY
@@ -8,8 +7,15 @@ import httpx
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
-from lobby.auth.csrf import CSRF_COOKIE_NAME
-from lobby.tests.integration.conftest import grant_admin, login_with_csrf, register_with_csrf, session_user_id
+from lobby.tests.integration.conftest import (
+    create_tournament,
+    grant_admin,
+    issue_api_token,
+    login_with_csrf,
+    post_lobby_json,
+    register_with_csrf,
+    session_user_id,
+)
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding, TournamentGame
 
 
@@ -26,14 +32,6 @@ def app(make_app, busy_user_ids):
     return make_app(is_playing=is_playing)
 
 
-def _issue_api_token(client):
-    client.get("/settings")
-    issued = client.post("/settings/api-token", data={"csrf_token": client.cookies.get(CSRF_COOKIE_NAME)})
-    match = re.search(r'id="api-token" value="([^"]+)"', issued.text)
-    assert match, "the settings page shows no API token"
-    return match.group(1)
-
-
 def _receive_until(ws, message_type):
     while True:
         message = ws.receive_json()
@@ -46,9 +44,7 @@ def tournament_id(client):
     register_with_csrf(client, "bob")
     register_with_csrf(client, "alice")
     grant_admin(client, "alice")
-    client.get("/")
-    created = client.post("/tournaments/new", data={"name": "Cup", "csrf_token": client.cookies.get(CSRF_COOKIE_NAME)})
-    return created.url.path.rsplit("/", 1)[1]
+    return create_tournament(client)
 
 
 def test_tournament_socket__when_second_user_connects__should_show_both_in_presence(client, tournament_id):
@@ -113,7 +109,7 @@ def test_tournament_socket__when_users_join_after_chat__should_get_history_witho
 def test_start_games__when_tables_have_absent_busy_and_miscased_players__should_start_other_with_canonical_names(
     client, tournament_id, game_server, busy_user_ids
 ):
-    owner_key = _issue_api_token(client)
+    owner_key = issue_api_token(client)
     game_requests = []
 
     def create_game(request):
@@ -177,7 +173,7 @@ def test_start_games__when_tables_have_absent_busy_and_miscased_players__should_
 def test_start_games__when_a_table_repeats_a_name_in_another_case__should_return_400_and_start_nothing(
     client, tournament_id, game_server
 ):
-    owner_key = _issue_api_token(client)
+    owner_key = issue_api_token(client)
     game_requests = []
 
     def create_game(request):
@@ -215,7 +211,7 @@ def test_start_games__when_called_with_cookie_only__should_return_401(client, to
 
 def test_start_games__when_caller_is_not_owner__should_return_404(client, tournament_id):
     login_with_csrf(client, "bob")
-    bob_key = _issue_api_token(client)
+    bob_key = issue_api_token(client)
     client.cookies.delete("session_id")
 
     response = client.post(
@@ -231,7 +227,7 @@ def test_start_games__when_caller_is_not_owner__should_return_404(client, tourna
 def test_events_socket__when_owner_connects_with_api_key__should_receive_game_started(
     client, tournament_id, game_server
 ):
-    owner_key = _issue_api_token(client)
+    owner_key = issue_api_token(client)
     game_server.respond = lambda request: httpx.Response(201)
     names = ["erin", "frank", "gina", "hank"]
 
@@ -259,7 +255,7 @@ def test_events_socket__when_owner_connects_with_api_key__should_receive_game_st
 def test_game_end_poll__when_played_game_gains_ended_at__should_update_row_and_publish_once(
     app, client, tournament_id, game_server
 ):
-    owner_key = _issue_api_token(client)
+    owner_key = issue_api_token(client)
     game_server.respond = lambda request: httpx.Response(201)
     names = ["erin", "frank", "gina", "hank"]
     ended_at = datetime(2026, 11, 11, 12, 30, tzinfo=UTC)
@@ -384,8 +380,7 @@ def test_game_exit__when_game_is_not_tournament__should_redirect_to_lobby(client
 
 
 def test_tournament_delete__when_owner_deletes__should_close_sockets_and_return_404(app, client, tournament_id):
-    owner_key = _issue_api_token(client)
-    csrf = client.cookies.get(CSRF_COOKIE_NAME)
+    owner_key = issue_api_token(client)
     tournament_game = TournamentGame(
         game_id="cup-game-1",
         tournament_id=tournament_id,
@@ -397,15 +392,15 @@ def test_tournament_delete__when_owner_deletes__should_close_sockets_and_return_
     with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
         _receive_until(ws_alice, "joined")
 
-        deleted = client.post(f"/tournaments/{tournament_id}/delete", data={"csrf_token": csrf}, follow_redirects=False)
+        deleted = post_lobby_json(client, f"/api/lobby/tournaments/{tournament_id}/delete")
 
         assert ws_alice.receive_json() == {"type": "error", "message": "tournament_deleted"}
         with pytest.raises(WebSocketDisconnect) as closed:
             ws_alice.receive_json()
 
-    assert (deleted.status_code, deleted.headers["location"]) == (303, "/")
+    assert deleted.status_code == 200
     assert closed.value.code == 4000
-    assert client.get(f"/tournaments/{tournament_id}").status_code == 404
+    assert client.get(f"/api/lobby/tournaments/{tournament_id}").status_code == 404
     game_exit = client.get("/games/cup-game-1/exit", follow_redirects=False)
     assert (game_exit.status_code, game_exit.headers["location"]) == (303, "/")
     client.cookies.delete("session_id")
@@ -414,11 +409,70 @@ def test_tournament_delete__when_owner_deletes__should_close_sockets_and_return_
 
 def test_tournament_delete__when_user_is_not_owner__should_return_404(client, tournament_id):
     login_with_csrf(client, "bob")
-    client.get(f"/tournaments/{tournament_id}")
 
-    refused = client.post(
-        f"/tournaments/{tournament_id}/delete", data={"csrf_token": client.cookies.get(CSRF_COOKIE_NAME)}
-    )
+    refused = post_lobby_json(client, f"/api/lobby/tournaments/{tournament_id}/delete")
 
-    assert refused.status_code == 404
+    assert (refused.status_code, refused.json()) == (404, {"error": "tournament_not_found"})
+    assert client.get(f"/api/lobby/tournaments/{tournament_id}").status_code == 200
+
+
+def test_tournament_create__when_account_is_not_admin__should_answer_404(client):
+    register_with_csrf(client, "player")
+
+    listed = client.get("/api/lobby/tournaments")
+    refused = post_lobby_json(client, "/api/lobby/tournaments", {"name": "Cup"})
+
+    assert (listed.status_code, refused.status_code) == (404, 404)
+
+
+def test_tournament_create__when_admin_posts_name__should_list_it_and_open_its_page(client):
+    register_with_csrf(client, "organizer")
+    grant_admin(client, "organizer")
+
+    tournament_id = create_tournament(client, "  Spring Cup  ")
+
+    listed = client.get("/api/lobby/tournaments").json()
+    assert listed == {"tournaments": [{"id": tournament_id, "name": "Spring Cup"}], "name_max_length": 80}
     assert client.get(f"/tournaments/{tournament_id}").status_code == 200
+    page = client.get(f"/api/lobby/tournaments/{tournament_id}").json()
+    assert page == {
+        "name": "Spring Cup",
+        "share_url": f"http://testserver/tournaments/{tournament_id}",
+        "ws_url": f"ws://testserver/ws/tournaments/{tournament_id}",
+        "chat_max_length": 1000,
+        "name_max_length": 80,
+        "is_owner": True,
+    }
+
+
+def test_tournament_page_route__when_other_user_opens_it__should_not_call_them_owner(client, tournament_id):
+    login_with_csrf(client, "bob")
+
+    page = client.get(f"/api/lobby/tournaments/{tournament_id}")
+
+    assert (page.status_code, page.json()["is_owner"]) == (200, False)
+
+
+def test_tournament_rename__when_owner_posts_new_name__should_store_the_stripped_name(client, tournament_id):
+    renamed = post_lobby_json(client, f"/api/lobby/tournaments/{tournament_id}/rename", {"name": " Autumn Cup "})
+
+    assert renamed.json() == {"name": "Autumn Cup"}
+    assert client.get(f"/api/lobby/tournaments/{tournament_id}").json()["name"] == "Autumn Cup"
+
+
+def test_tournament_create__when_name_has_format_character__should_refuse_and_create_nothing(client):
+    register_with_csrf(client, "organizer")
+    grant_admin(client, "organizer")
+
+    refused = post_lobby_json(client, "/api/lobby/tournaments", {"name": "Spring\u202eCup"})
+
+    assert (refused.status_code, refused.json()) == (400, {"error": "invalid_name"})
+    assert client.get("/api/lobby/tournaments").json()["tournaments"] == []
+
+
+def test_tournament_page_route__when_id_unknown__should_answer_404(client):
+    register_with_csrf(client, "player")
+
+    response = client.get("/api/lobby/tournaments/unknown-id")
+
+    assert (response.status_code, response.json()) == (404, {"error": "tournament_not_found"})

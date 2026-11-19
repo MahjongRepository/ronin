@@ -1,6 +1,6 @@
 import { type MountedView } from "@ronin/shared/router";
 
-import { createRoom, loadRooms } from "@/lobby/handlers";
+import { createRoom, createTournament, loadOwnTournaments, loadRooms } from "@/lobby/handlers";
 import { createLobbyState, noticeFromUrl } from "@/lobby/state";
 import { renderLobby } from "@/lobby/ui";
 
@@ -25,7 +25,10 @@ export function mountLobbyView(host: HTMLElement, url: URL, deps: LobbyViewDeps)
         navigate: deps.navigate,
         render,
     };
-    const actions = { createRoom: () => void createRoom(state, context) };
+    const actions = {
+        createRoom: () => void createRoom(state, context),
+        createTournament: (name: string) => void createTournament(state, context, name),
+    };
 
     function render(): void {
         renderLobby(host, state, actions);
@@ -34,6 +37,7 @@ export function mountLobbyView(host: HTMLElement, url: URL, deps: LobbyViewDeps)
     dropNoticeFromUrl(url);
     render();
     void loadRooms(state, context);
+    void loadOwnTournaments(state, context);
     return {
         rerender: render,
         unmount: () => {

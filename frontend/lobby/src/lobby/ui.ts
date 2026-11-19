@@ -6,14 +6,17 @@ import {
     type LobbyRoom,
     type LobbyRooms,
     type LobbyState,
+    type OwnTournaments,
     type SeatedTable,
     roomPath,
     seatedTable,
+    tournamentPath,
 } from "@/lobby/state";
 import { ROOM_SEATS } from "@/room/state";
 
 export interface LobbyActions {
     readonly createRoom: () => void;
+    readonly createTournament: (name: string) => void;
 }
 
 function alertTemplate(tone: "error" | "warning", key: MessageKey): TemplateResult {
@@ -145,6 +148,52 @@ function tablesTemplate(rooms: LobbyRooms | null): TemplateResult {
     </section>`;
 }
 
+function ownTournamentsTemplate(
+    state: LobbyState,
+    actions: LobbyActions,
+): TemplateResult | typeof nothing {
+    const own: OwnTournaments | null = state.ownTournaments;
+    if (own === null) {
+        return nothing;
+    }
+    function submitCreate(event: SubmitEvent): void {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const input = form instanceof HTMLFormElement ? form.elements.namedItem("name") : null;
+        if (input instanceof HTMLInputElement) {
+            actions.createTournament(input.value);
+        }
+    }
+    return html`<section class="lobby-section">
+        <div class="lobby-section-header">
+            <h2>${t("lobby.tournament.title")}</h2>
+        </div>
+        ${state.tournamentCreateFailed ? alertTemplate("error", "lobby.tournament.create_failed") : nothing}
+        <form class="lobby-tournament-form" @submit=${submitCreate}>
+            <input
+                type="text"
+                name="name"
+                required
+                maxlength=${own.nameMaxLength}
+                placeholder=${t("lobby.tournament.name_label")}
+                aria-label=${t("lobby.tournament.name_label")}
+                autocomplete="off"
+            />
+            <button type="submit" ?disabled=${state.creatingTournament}>${t("lobby.tournament.create")}</button>
+        </form>
+        ${
+            own.tournaments.length > 0
+                ? html`<ul class="lobby-tournament-list">
+                      ${own.tournaments.map(
+                          (tournament) =>
+                              html`<li><a href=${tournamentPath(tournament.id)}>${tournament.name}</a></li>`,
+                      )}
+                  </ul>`
+                : html`<p class="lobby-muted">${t("lobby.tournament.empty")}</p>`
+        }
+    </section>`;
+}
+
 function lobbyTemplate(state: LobbyState, actions: LobbyActions): TemplateResult {
     if (state.loadFailed) {
         return pageFailedView();
@@ -153,7 +202,7 @@ function lobbyTemplate(state: LobbyState, actions: LobbyActions): TemplateResult
     return html`${state.notice ? alertTemplate("warning", state.notice) : nothing}
     ${state.createFailed ? alertTemplate("error", "lobby.error.create_failed") : nothing}
     ${seated ? seatedHint(seated) : nothing} ${actionsTemplate(seated !== null, actions)}
-    ${tablesTemplate(state.rooms)}`;
+    ${tablesTemplate(state.rooms)} ${ownTournamentsTemplate(state, actions)}`;
 }
 
 export function renderLobby(host: HTMLElement, state: LobbyState, actions: LobbyActions): void {

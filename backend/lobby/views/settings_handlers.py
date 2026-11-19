@@ -3,10 +3,11 @@ from __future__ import annotations
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
-from starlette.exceptions import HTTPException
+from starlette.responses import JSONResponse
 
-from lobby.views.assets import render_page
-from lobby.views.error_pages import validate_csrf
+from lobby.auth.csrf import is_csrf_valid
+from lobby.views.error_pages import NO_STORE_HEADERS, json_csrf_rejection
+from lobby.views.json_body import parse_json_body
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -16,7 +17,6 @@ if TYPE_CHECKING:
     from shared.dal.models import Player
 
 API_KEY_HEADER = "X-API-Key"
-_NO_STORE = {"Cache-Control": "no-store"}
 
 
 async def find_account(request: Request) -> Player | None:
@@ -27,49 +27,37 @@ async def find_account(request: Request) -> Player | None:
     return await auth_service.get_account(user_id=request.user.user_id, username=request.user.username)
 
 
-def _render_settings(
-    request: Request,
-    *,
-    account: Player | None,
-    issued_token: str | None = None,
-    headers: dict[str, str] | None = None,
-) -> Response:
-    return render_page(
-        request,
-        template_name="settings.html",
-        context={
-            "username": request.user.username,
+async def lobby_api_token(request: Request) -> JSONResponse:
+    """
+    GET /api/lobby/api-token - whether the user can hold an API token and already holds one, never the token itself.
+    """
+    account = await find_account(request)
+    return JSONResponse(
+        {
             "has_account": account is not None,
-            "has_token": issued_token is not None or (account is not None and account.api_key_hash is not None),
-            "issued_token": issued_token,
-            "api_key_header": API_KEY_HEADER,
+            "has_token": account is not None and account.api_key_hash is not None,
+            "header": API_KEY_HEADER,
         },
-        headers=headers,
+        headers=NO_STORE_HEADERS,
     )
 
 
-async def settings_page(request: Request) -> Response:
+async def lobby_issue_api_token(request: Request) -> Response:
     """
-    GET /settings - render the settings page; an account also sees its API token section, a guest does not.
-    """
-    return _render_settings(request, account=await find_account(request))
+    POST /api/lobby/api-token - issue or rotate the account's API token and answer it once, uncached.
 
-
-async def issue_api_token(request: Request) -> Response:
+    A guest has no account to hold a token and gets a 403 ``guest_account``.
     """
-    POST /settings/api-token - issue or rotate the account's API token and show it once, uncached.
+    if await parse_json_body(request) is None:
+        return JSONResponse({"error": "invalid_body"}, status_code=HTTPStatus.BAD_REQUEST, headers=NO_STORE_HEADERS)
 
-    A guest has no account to hold a token and gets a 403.
-    """
-    form = await request.form()
-    csrf_error = validate_csrf(request, form)
-    if csrf_error:
-        return csrf_error
+    if not is_csrf_valid(request):
+        return json_csrf_rejection(request)
 
     account = await find_account(request)
     if account is None:
-        raise HTTPException(HTTPStatus.FORBIDDEN)
+        return JSONResponse({"error": "guest_account"}, status_code=HTTPStatus.FORBIDDEN, headers=NO_STORE_HEADERS)
 
     auth_service: AuthService = request.app.state.auth_service
     raw_token = await auth_service.issue_account_api_key(account)
-    return _render_settings(request, account=account, issued_token=raw_token, headers=_NO_STORE)
+    return JSONResponse({"token": raw_token}, status_code=HTTPStatus.CREATED, headers=NO_STORE_HEADERS)

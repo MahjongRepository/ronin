@@ -24,6 +24,8 @@ error pages) it mounts only the chrome around their `<main>`.
   shared settings modules and rows. The server lets only signed-in users (guests included) load
   `/settings`; an in-app navigation there renders the page at once and, once the awaited session
   says nobody is signed in, replaces it with `/login?next=/settings`.
+  An account also gets its API token section there (`settings/api-token.ts`, `/api/lobby/api-token`); the token
+  is shown once, from the POST's answer, and never fetched again.
 * **Retained pages** (`retained/`): an error page carries its status, error code and action link
   in meta tags, and `error-view.ts` words them from this app's catalog through a closed code→key map.
   The lobby storybook is a dev-only lazy route (`import.meta.env.DEV`), so production ships none of it.
@@ -47,7 +49,9 @@ hidden for a while, or the browser coming back online, reconnects at once, since
 without a close event while the page is in the background. Matchmaking does not reconnect.
 
 The tournament page (`tournament/`) keeps the room's reconnect and binds its socket the same way.
-It holds no seat, so a reload or the footer's language switch (which reloads it) only reconnects. The
+It holds no seat, so a reload only reconnects, and a language switch only redraws. Its owner section (the
+manager API hints, rename, delete) shows when `/api/lobby/tournaments/{id}` says `is_owner`; a delete goes to the
+lobby. The
 server's `history`, sent before `joined` on every join, replaces the chat log: it holds every line the
 page shows from a server event, as structured entries worded at render time, so a reload or reconnect
 loses only the lines the page made itself (its own "you're online", local errors). `chat.ts` holds the

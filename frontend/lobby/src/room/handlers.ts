@@ -1,11 +1,11 @@
 import { type NavigateOptions } from "@ronin/shared/router";
 
 import { apiGet } from "@/api";
+import { LOG_TYPE_SYSTEM } from "@/chat";
 import { type MessageKey, formatTime, reportI18nError, t } from "@/i18n";
 import { type SocketStatus, readString } from "@/lobby-socket";
 import { OCCUPANCY, type OccupancyText, describeOccupancyError } from "@/occupancy-errors";
 import {
-    LOG_TYPE_SYSTEM,
     PAGE_ERROR,
     type PlayerInfo,
     type RoomConfigAnswer,

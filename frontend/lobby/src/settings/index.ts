@@ -24,6 +24,7 @@ import {
 import { applyTileLabels } from "@ronin/shared/tile-labels";
 import { applyWindScript } from "@ronin/shared/winds";
 
+import { startApiTokenSection } from "@/settings/api-token";
 import { renderSettings } from "@/settings/ui";
 
 export interface SettingsViewDeps {
@@ -53,6 +54,7 @@ export function mountSettingsView(host: HTMLElement, deps: SettingsViewDeps): Mo
         const input = inputStore.load();
         const autoWin = autoWinStore.load();
         renderSettings(host, {
+            accountSection: apiToken.template(),
             animations: {
                 on: motion.animations,
                 onToggle: saveAndRender(() => motionStore.save({ animations: !motion.animations })),
@@ -89,6 +91,7 @@ export function mountSettingsView(host: HTMLElement, deps: SettingsViewDeps): Mo
         });
     }
 
+    const apiToken = startApiTokenSection(render);
     render();
-    return { rerender: render, unmount: () => {} };
+    return { rerender: render, unmount: apiToken.dispose };
 }

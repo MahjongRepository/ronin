@@ -74,6 +74,45 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   players only. A subscriber gets a `presence` snapshot on connect and misses earlier events; the API's GET is the
   catch-up.
   `chat_messages.py` holds the chat message model and the client frame limits both rooms and tournaments use.
+* Tournaments are durable rows in the shared SQLite database (id, name, owner); only an admin account creates one
+  (`admin_json`) and sees the create form and its own tournaments in the lobby view, and its page, the shareable
+  link, opens for anyone signed in, guests included. `views/tournament_handlers.py` is the lobby app's tournament API
+  (`/api/lobby/tournaments*`); the page's view reads `is_owner` from it to show the owner section.
+* `tournaments/` — the tournament page's socket and `TournamentHub`, the in-memory registry of who is online on
+  each tournament page: one connection per user (a new one replaces the old), lost on a restart. Being online
+  is no occupancy place. The hub also keeps each tournament's history in memory (a day, at most the newest 1000
+  entries, pruned as entries arrive): every line the page shows from a server event, as the event's fields, with
+  coming online and going offline decided where the socket joins and leaves. Every join gets it as `history` before
+  `joined`, without the joiner's own coming online and going offline; the events socket gets no history.
+  The owner's events socket makes an events subscriber, keyed by connection (an owner may hold several), never a
+  player: it is not online, never replaces the owner's player connection, and what it sends is dropped. Tournament
+  events (`presence`, `game_started`, `game_ended`) are published once to the players and the subscribers; chat goes to the
+  players only. A subscriber gets a `presence` snapshot on connect and misses earlier events; the API's GET is the
+  catch-up.
+  `chat_messages.py` holds the chat message model and the client frame limits both rooms and tournaments use.
+* The tournament API (`views/tournament_api_handlers.py`) is for an external manager: `api_key_json` accepts only
+  key auth, never a cookie (so its POSTs need no CSRF), and only the tournament's owner, anyone else getting the
+  404 of an unknown tournament. A start request's tables are independent: each starts in request order or fails
+  alone with its own result, and a malformed body starts none. Before each start every player of the table is
+  looked up as playing (the joins' lookup, failing open), with the game server's 409 as the backstop. A started
+  table's players leave the hub at once, so a later table in the same request finds them offline.
+  `tournament_games` is the record of the games started for a tournament, players East to North.
+* The game server never calls the lobby, so a tournament game's end is learned by polling (`tournaments/game_end_poller.py`):
+  a lifespan task reads the `played_games` record of every tracked unfinished game, tracked from `tournament_games` at
+  startup and from each start, so a restart resumes. The `tournament_games` finish update (`WHERE ended_at IS NULL`) is
+  the dedup: only the pass that changes the row publishes `game_ended`. The event's players come from
+  `tournament_games`, never from the standings, whose order is placement for a completed game and seat otherwise. A game
+  with no finish record (nobody joined it before the pending timeout, or a game server crash) stays unfinished and
+  tracked: no ending is ever inferred and there is no age cutoff.
+* A game's exit route (`/games/{game_id}/exit`, outside `/play/`) decides where leaving a game leads by its game id
+  alone: a `tournament_games` row sends the player to that tournament's page, anything else to the lobby. Nothing
+  about the return rides in the handoff, which is cleared at the game end, so a reload on the end screen still finds
+  it.
+* Only the owner renames or deletes a tournament, from its page; anyone else gets the 404 of an unknown one. A delete
+  removes the tournament with its `tournament_games` rows in one write, then tells every player connection and events
+  subscriber `tournament_deleted`, closes them and stops watching its games. Running games are not stopped: they play
+  on, publish no `game_ended`, and their exit falls back to the lobby. A rename shows on the owner's page at once and
+  on anyone else's at their next load; no event carries it.
 * The one game server is two settings never derived from each other: the internal URL the lobby
   calls and the public WebSocket origin it hands clients.
 * Tests build the app through the fixtures in `tests/conftest.py`.
@@ -176,7 +215,8 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 
 Mandatory for all lobby code; review must catch violations.
 
-* Every HTML form POST validates the CSRF token (`validate_csrf`, `views/error_pages.py`); bot API routes are exempt.
+* Every HTML form POST validates the CSRF token (`validate_csrf`, `views/error_pages.py`); bot API routes and the
+  key-only `api_key_json` routes are exempt.
 * Every lobby JSON POST (`/api/lobby/*`) reads its body through `parse_json_body` and checks the `X-CSRF-Token`
   header against the cookie (`is_csrf_valid`) before any side effect. A stale token is answered 403 `csrf_invalid`
   with the cookie's token, or a new one set as the cookie under `render_page`'s cross-site rule
@@ -189,7 +229,7 @@ Mandatory for all lobby code; review must catch violations.
   swap it in. A handler reads its body before any side effect, so a rejected body changes nothing.
   Never raise the cap for one route: it also keeps bot JSON far below the parser's recursion depth.
 * Every HTTP route gets exactly one policy decorator (`protected_html`, `protected_json`, `bot_only`,
-  `admin_html`, `admin_json`, `public_route`); startup fails for a `Route` without one. WebSocket routes
+  `api_key_json`, `admin_html`, `admin_json`, `public_route`); startup fails for a `Route` without one. WebSocket routes
   authenticate inside the handler. `protected_json` and `admin_json` are for JSON a page script fetches: a
   JSON 401, never a login redirect.
 * `admin_html` and `admin_json` read the account's admin flag on every request, never from the session, so a
