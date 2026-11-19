@@ -32,6 +32,7 @@ class SessionOrApiKeyBackend(AuthenticationBackend):
             return AuthCredentials(["authenticated"]), AuthenticatedPlayer(
                 user_id=session.user_id,
                 username=session.username,
+                is_guest=session.is_guest,
             )
 
         api_key = conn.headers.get("x-api-key")

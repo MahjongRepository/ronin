@@ -1,38 +1,21 @@
 from __future__ import annotations
 
-import json
 import uuid
 from typing import TYPE_CHECKING
 
 from starlette.responses import JSONResponse
 
 from lobby.rooms.models import TOTAL_SEATS
+from lobby.views.json_body import parse_json_body
 
 if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.responses import Response
 
 
-async def _parse_json_body(request: Request) -> dict | None:
-    """
-    Parse JSON body from request.
-
-    Return None on failure.
-    """
-    try:
-        body = await request.json()
-    except ValueError, json.JSONDecodeError:
-        return None
-
-    if not isinstance(body, dict):
-        return None
-
-    return body
-
-
 async def bot_create_room(request: Request) -> Response:
     """POST /api/rooms - create a room (bot API key auth via header)."""
-    body = await _parse_json_body(request)
+    body = await parse_json_body(request)
     if body is None:
         return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
 

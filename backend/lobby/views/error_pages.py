@@ -5,9 +5,9 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 from starlette.exceptions import HTTPException
-from starlette.responses import PlainTextResponse, Response
+from starlette.responses import JSONResponse, PlainTextResponse, Response
 
-from lobby.auth.csrf import is_csrf_valid
+from lobby.auth.csrf import get_or_create_csrf_token, is_cross_site_post, is_csrf_valid, set_csrf_cookie
 from lobby.views.assets import render_page, same_origin_referer_path, translate_for_request
 
 if TYPE_CHECKING:
@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 
     from starlette.datastructures import FormData
     from starlette.requests import Request
+
+    from shared.auth.settings import AuthSettings
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,7 @@ _SESSION_EXPIRED = _ErrorPage("error.session_expired.title", "error.session_expi
 _LOBBY_PATH = "/"
 _BACK_TO_LOBBY_KEY = "common.back_to_lobby"
 _RELOAD_PAGE_KEY = "error.reload_page"
+_NO_STORE = {"Cache-Control": "no-store"}
 
 
 def validate_csrf(request: Request, form_data: FormData) -> Response | None:
@@ -47,6 +50,24 @@ def validate_csrf(request: Request, form_data: FormData) -> Response | None:
         return None
 
     return _session_expired_page(request)
+
+
+def json_csrf_rejection(request: Request) -> Response:
+    """
+    Answer a failed CSRF check on a JSON route with 403 ``csrf_invalid`` and the token a single retry must send.
+
+    The token is the cookie's, or a new one set as the cookie under ``render_page``'s rule: never on a POST from another
+    site, which arrives without the cookie the browser holds.
+    """
+    token, is_new = get_or_create_csrf_token(request)
+    response = JSONResponse(
+        {"error": "csrf_invalid", "csrf_token": token}, status_code=HTTPStatus.FORBIDDEN, headers=_NO_STORE
+    )
+    if is_new and not is_cross_site_post(request):
+        auth_settings: AuthSettings = request.app.state.auth_settings
+        set_csrf_cookie(response, token=token, cookie_secure=auth_settings.cookie_secure)
+
+    return response
 
 
 async def http_error_page(request: Request, exc: Exception) -> Response:

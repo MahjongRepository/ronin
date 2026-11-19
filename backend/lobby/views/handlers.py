@@ -55,10 +55,17 @@ async def create_room_and_redirect(request: Request) -> Response:
     if csrf_error:
         return csrf_error
 
-    room_manager: LobbyRoomManager = request.app.state.room_manager
+    room_id = open_new_room(request.app.state.room_manager)
+    return RedirectResponse(f"/rooms/{room_id}", status_code=303)
+
+
+def open_new_room(room_manager: LobbyRoomManager) -> str:
+    """
+    Create a local room under a fresh id and return the id.
+    """
     room_id = str(uuid.uuid4())
     room_manager.create_room(room_id)
-    return RedirectResponse(f"/rooms/{room_id}", status_code=303)
+    return room_id
 
 
 async def join_room_and_redirect(request: Request) -> Response:

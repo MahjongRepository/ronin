@@ -9,6 +9,7 @@ from starlette.requests import Request
 from lobby.auth.csrf import (
     CSRF_COOKIE_NAME,
     CSRF_FORM_FIELD,
+    CSRF_HEADER_NAME,
     get_or_create_csrf_token,
     is_cross_site_post,
     is_csrf_valid,
@@ -16,9 +17,10 @@ from lobby.auth.csrf import (
 )
 
 
-def _make_request(cookies: dict[str, str] | None = None) -> MagicMock:
+def _make_request(cookies: dict[str, str] | None = None, headers: dict[str, str] | None = None) -> MagicMock:
     request = MagicMock()
     request.cookies = cookies or {}
+    request.headers = headers or {}
     return request
 
 
@@ -96,6 +98,11 @@ class TestIsCsrfValid:
         form = FormData({CSRF_FORM_FIELD: "matching-token"})
 
         assert is_csrf_valid(request, form) is True
+
+    def test_is_csrf_valid__when_header_matches_cookie_without_form__should_accept(self):
+        request = _make_request({CSRF_COOKIE_NAME: "matching-token"}, headers={CSRF_HEADER_NAME: "matching-token"})
+
+        assert is_csrf_valid(request) is True
 
     def test_is_csrf_valid__when_cookie_empty__should_reject(self):
         request = _make_request({CSRF_COOKIE_NAME: ""})

@@ -9,8 +9,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * `server/` — the composition root (`create_app()` builds the services onto `app.state`) and the
   middleware. `settings.py` sits at the `lobby/` root so every feature may import it.
 * `auth/` — the session-or-API-key authentication backend, the route policy decorators and CSRF.
-* `views/` — page and API handlers by domain (`bot_api_handlers.py` is the bot JSON API), the Jinja2
-  templates, and the lobby app's Vite manifest / dev-server resolution into template globals.
+* `views/` — page and API handlers by domain (`bot_api_handlers.py` is the bot JSON API, `lobby_api_handlers.py`
+  the lobby app's), the Jinja2 templates, and the lobby app's Vite manifest / dev-server resolution into template
+  globals.
   `game_client.py` hosts the game client (`frontend/game_v2/`), a separate app the lobby knows only by
   its built directory or, in local runs, by its Vite dev server, which it proxies so the game page keeps
   the lobby's origin and the `sessionStorage` handoff (`docs/architecture.md`, Game client contract) works.
@@ -148,6 +149,10 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 Mandatory for all lobby code; review must catch violations.
 
 * Every HTML form POST validates the CSRF token (`validate_csrf`, `views/error_pages.py`); bot API routes are exempt.
+* Every lobby JSON POST (`/api/lobby/*`) reads its body through `parse_json_body` and checks the `X-CSRF-Token`
+  header against the cookie (`is_csrf_valid`) before any side effect. A stale token is answered 403 `csrf_invalid`
+  with the cookie's token, or a new one set as the cookie under `render_page`'s cross-site rule
+  (`json_csrf_rejection`); the client retries once with it. Every `/api/lobby/*` answer is `Cache-Control: no-store`.
 * Every request body is capped by `RequestBodyLimitMiddleware` (`server/middleware.py`), which
   wraps every middleware that can read a body and sits inside the security headers. It counts
   streamed bytes, not `Content-Length`, and answers a JSON 413; a client gone mid-upload ends the

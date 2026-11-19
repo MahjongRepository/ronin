@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 CSRF_COOKIE_NAME = "csrf_token"
 CSRF_FORM_FIELD = "csrf_token"
+CSRF_HEADER_NAME = "X-CSRF-Token"
 
 
 def get_or_create_csrf_token(request: Request) -> tuple[str, bool]:
@@ -66,16 +67,19 @@ def set_csrf_cookie(response: Response, *, token: str, cookie_secure: bool) -> N
     )
 
 
-def is_csrf_valid(request: Request, form_data: FormData) -> bool:
+def is_csrf_valid(request: Request, form_data: FormData | None = None) -> bool:
     """
-    Return whether the form's CSRF token is present and equals the cookie's.
+    Return whether the ``X-CSRF-Token`` header, or else the form's CSRF field, is present and equals the cookie's token.
 
     The tokens are compared as bytes: ``compare_digest`` raises on a str holding a non-ASCII character, which a
-    crafted form token can carry.
+    crafted token can carry.
     """
     cookie_token = request.cookies.get(CSRF_COOKIE_NAME)
-    form_token = form_data.get(CSRF_FORM_FIELD)
-    if not cookie_token or not form_token or not isinstance(form_token, str):
+    sent_token = request.headers.get(CSRF_HEADER_NAME)
+    if sent_token is None and form_data is not None:
+        sent_token = form_data.get(CSRF_FORM_FIELD)
+
+    if not cookie_token or not sent_token or not isinstance(sent_token, str):
         return False
 
-    return secrets.compare_digest(cookie_token.encode(), form_token.encode())
+    return secrets.compare_digest(cookie_token.encode(), sent_token.encode())

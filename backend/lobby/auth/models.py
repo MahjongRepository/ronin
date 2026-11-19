@@ -17,10 +17,13 @@ class AuthenticatedPlayer(BaseUser):
         user_id: str,
         username: str,
         account_type: AccountType = AccountType.HUMAN,
+        *,
+        is_guest: bool = False,
     ) -> None:
         self._user_id = user_id
         self._username = username
         self._account_type = account_type
+        self._is_guest = is_guest
 
     @property
     def is_authenticated(self) -> bool:
@@ -45,3 +48,7 @@ class AuthenticatedPlayer(BaseUser):
     @property
     def account_type(self) -> AccountType:
         return self._account_type
+
+    @property
+    def is_guest(self) -> bool:
+        return self._is_guest

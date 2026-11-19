@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 GUEST_LOGIN_BURST = 10
 GUEST_LOGIN_REFILL_PER_SECOND = 1 / 360
 
-_ACCOUNT_RULES = {
+ACCOUNT_RULES = {
     "username_min_length": USERNAME_MIN_LENGTH,
     "username_max_length": USERNAME_MAX_LENGTH,
     "password_min_length": PASSWORD_MIN_LENGTH,
@@ -92,7 +92,7 @@ def _render_auth_form(
     submitted = form.get("username", "") if form is not None else ""
     next_path = parse_next_path(form.get("next") if form is not None else request.query_params.get("next"))
     context: dict[str, object] = {
-        **_ACCOUNT_RULES,
+        **ACCOUNT_RULES,
         "error": error,
         "invalid_field": invalid_field,
         "form_username": submitted if isinstance(submitted, str) else "",
