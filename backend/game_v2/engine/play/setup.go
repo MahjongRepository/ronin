@@ -23,3 +23,17 @@ type Fixed struct {
 
 func (Seeded) isWallSource() {}
 func (Fixed) isWallSource()  {}
+
+// StartPosition is a game state to start from instead of East 1 with the starting scores. Scores
+// are by seat; Honba and RiichiSticks count 0 or more; RoundNumber counts every hand played
+// before this one, which also picks a seeded wall. A game accepts only a position it can reach:
+// every score a whole number of hundreds at or above the tobi threshold, the scores and the
+// riichi sticks adding up to four starting scores, and the wind East, South or West.
+type StartPosition struct {
+	Scores       [tile.SeatCount]int
+	Honba        int
+	RiichiSticks int
+	Dealer       tile.Seat
+	Wind         tile.Wind
+	RoundNumber  uint32
+}

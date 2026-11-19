@@ -4,10 +4,10 @@ The game server being ported from `backend/game/` to Go. It is one Go module, ou
 project: it imports nothing from `backend/shared/` and the Python tooling does not see it. So far it
 holds the engine's base vocabulary, the seam types, its seeded randomness, the wall, shanten, the
 hand reading (agari, divider, waits), the hand scoring, the option helpers (a seat's discards,
-calls, kans, riichi, furiten and win payments) and how a game moves from round to round (honba,
-dealer rotation, end causes, final standings), and the structure the port fills, not the game:
-the facade's `NewGame`, `Act`, `Event`, `Action` and `Refusal` and their seam tests are
-placeholders, replaced by the facade over `engine/play`'s types.
+calls, kans, riichi, furiten and win payments), the round state machine and the game played round
+to round (`engine/internal/game`), and the structure the port fills: the facade's `NewGame`,
+`Act`, `Event`, `Action` and `Refusal` and their seam tests are placeholders, replaced by the
+facade over `engine/play`'s types.
 
 ## The seam
 
@@ -91,6 +91,14 @@ code under `engine/`:
 
 * Rule unit tests sit beside the code they test, in the `engine/internal/` packages. `seam/` covers
   only behaviour observable through the facade, and does not repeat a rule already pinned below it.
+* A game's scenario tests play it through `engine/internal/testkit`, which stages walls and scripts
+  actions. testkit is engine code under the coverage gate: it never imports `testing` and never
+  asserts, returning values or errors, and it has its own tests. It imports `game`, so only external
+  test packages (`package game_test`) use it. A test compares engine states with go-cmp, every
+  field exported (`cmp.Exporter`) and empty slices equal to nil.
+* Engine state is a value: a slice in it is replaced, never written in place, so a state a caller
+  kept stays as it was. A branch test plays two actions from one state and checks the state and
+  both branches against fresh replays; one is written for each kind of change that touches a slice.
   Server tests sit beside the server code and drive it through `net/http/httptest`, with a real
   WebSocket client for a socket route.
 * Test names follow `Test<Subject>_When<Condition>_Should<Expected>`; drop `When<Condition>` only for

@@ -1,9 +1,3 @@
-// Package game moves a game on from round to round: the position each round is dealt at, how a
-// round's end counts the honba and passes the deal, the rule that ends the game and its final
-// standings. A game is a hanchan: East and South, then the West extension, played until a seat
-// reaches the winning threshold or the last West round ends.
-//
-// Ported from mahjong-rs's mahjong-game at commit 0d8733f: its finalize module.
 package game
 
 import (
