@@ -5,7 +5,8 @@ project: it imports nothing from `backend/shared/` and the Python tooling does n
 holds the engine's base vocabulary, the seam types, its seeded randomness, the wall, shanten, the
 hand reading (agari, divider, waits), the hand scoring, the option helpers (a seat's discards,
 calls, kans, riichi, furiten and win payments), the round state machine (`engine/internal/round`),
-the game played round to round (`engine/internal/game`), and the structure the port fills: the facade's `NewGame`,
+the game played round to round (`engine/internal/game`), the seat record each seat's events keep up
+and the seat view it equals (`engine/internal/record`), and the structure the port fills: the facade's `NewGame`,
 `Act`, `Event`, `Action` and `Refusal` and their seam tests are placeholders, replaced by the
 facade over `engine/play`'s types.
 

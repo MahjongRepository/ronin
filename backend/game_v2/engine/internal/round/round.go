@@ -117,6 +117,29 @@ func (r *Round) InRiichi(seat tile.Seat) bool {
 	return r.riichi[seat.Index()].OK
 }
 
+// Riichi returns seat's riichi once in effect, the riichi discard having passed every ron: whether
+// it is double and whether its ippatsu still stands.
+func (r *Round) Riichi(seat tile.Seat) play.Option[play.Riichi] {
+	return r.riichi[seat.Index()]
+}
+
+// Pao returns the seat liable for seat's daisangen or daisuushii, having fed the set that
+// completed it.
+func (r *Round) Pao(seat tile.Seat) play.Option[tile.Seat] {
+	return r.pao[seat.Index()]
+}
+
+// LatestDiscard returns the seat whose discard is the table's last action: absent before the
+// first discard, once a meld claimed it and once the next seat drew.
+func (r *Round) LatestDiscard() play.Option[tile.Seat] {
+	return r.latestDiscard
+}
+
+// ShownFuriten returns the furiten seat was last shown.
+func (r *Round) ShownFuriten(seat tile.Seat) bool {
+	return r.furiten[seat.Index()].Shown
+}
+
 // LiveTiles returns the tiles left in the live wall.
 func (r *Round) LiveTiles() int {
 	return r.wall.LiveCount()

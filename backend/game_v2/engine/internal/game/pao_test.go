@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/game"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/record"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/testkit"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
@@ -42,13 +43,23 @@ func TestPao_WhenAnOpenKanCompletesTheThirdDragon_ShouldBeAnnouncedToAllRightAft
 	g = ponAndDiscard(t, g, tileOf(t, 0, "1z"))
 	g = ponAndDiscard(t, g, tileOf(t, 0, "2z"))
 	g, _ = discardDrawn(t, g, 1)
+	followed := g.SeatView(seat(t, 2)).Record
 
-	_, events := script(t, g, act(seat(t, 0), play.KanAction(play.KanOpen, tileOf(t, 3, "7z"))))
+	g, events := script(t, g, act(seat(t, 0), play.KanAction(play.KanOpen, tileOf(t, 3, "7z"))))
 
 	assertEqual(t, "kinds", testkit.EventKinds(events)[:2], []string{"called", "pao_assigned"})
 	assertEqual(t, "pao", events[1], play.Emitted{To: play.ToAll(), Event: play.PaoAssigned{
 		Seat: seat(t, 0), Liable: seat(t, 1),
 	}})
+	var paoSeats [tile.SeatCount]play.Option[tile.Seat]
+	for i, player := range g.SeatView(seat(t, 2)).Record.Players {
+		paoSeats[i] = player.Pao
+	}
+	assertEqual(t, "pao in the view", paoSeats, [tile.SeatCount]play.Option[tile.Seat]{play.Some(seat(t, 1))})
+	for _, e := range events {
+		followed = record.Apply(followed, e)
+	}
+	assertEqual(t, "record following the kan", followed, g.SeatView(seat(t, 2)).Record)
 }
 
 func dragonPons() []string {

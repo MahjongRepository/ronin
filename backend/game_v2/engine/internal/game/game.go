@@ -16,6 +16,7 @@ import (
 	"slices"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/offer"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/record"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rng"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/round"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
@@ -425,6 +426,57 @@ func (g *Game) endGame(cause play.GameEndCause) play.Emitted {
 	g.next = play.Option[position]{}
 	g.phase = play.PhaseGameOver
 	return toAll(play.GameEnded{Standings: standings})
+}
+
+// SeatView returns what seat may see of the game now: its own hand, drawn tile, furiten and
+// decision, every seat's public table, the round's header (the ended round's while the game waits
+// on its end or is over, beside its result) and every finished round. It holds no other seat's
+// concealed tiles, decision, furiten or pending answer, and shares no slice with the game.
+func (g Game) SeatView(seat tile.Seat) play.SeatView {
+	decision, awaited := g.Decision(seat)
+	var drawn play.Option[tile.TileID]
+	if turn, afterDraw := decision.Context.(play.TurnAfterDraw); afterDraw {
+		drawn = play.Some(turn.Drawn)
+	}
+	var result play.RoundResult
+	if g.phase != play.PhasePlaying && len(g.history) > 0 {
+		result = g.history[len(g.history)-1].Result
+	}
+
+	var players [tile.SeatCount]play.PublicSeat
+	for _, player := range tile.Seats() {
+		players[player.Index()] = play.PublicSeat{
+			Seat:        player,
+			Score:       g.points.Score(player),
+			ClosedTiles: len(g.round.Hand(player)),
+			River:       g.round.River(player),
+			Melds:       g.round.Melds(player),
+			Riichi:      g.round.Riichi(player),
+			Pao:         g.round.Pao(player),
+		}
+	}
+	seen := play.SeatRecord{
+		Seat:            seat,
+		Hand:            g.round.Hand(seat),
+		Drawn:           drawn,
+		Furiten:         g.round.ShownFuriten(seat),
+		Players:         players,
+		DoraIndicators:  g.round.Wall().DoraIndicators(),
+		LiveTiles:       g.round.LiveTiles(),
+		RiichiSticks:    g.points.RiichiSticks(),
+		Current:         g.round.Current(),
+		LatestDiscard:   g.round.LatestDiscard(),
+		Header:          g.header,
+		Result:          result,
+		Phase:           g.phase,
+		FirstDealer:     g.firstDealer,
+		FirstDealerDice: g.firstDealerDice,
+		History:         g.history,
+	}
+	return play.SeatView{
+		Record:   record.Clone(seen),
+		Decision: play.Option[play.Decision]{Value: decision, OK: awaited},
+	}
 }
 
 // CheckOwnership checks that each of the 136 tiles is in exactly one place: the wall, a hand, a

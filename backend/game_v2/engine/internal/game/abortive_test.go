@@ -267,7 +267,7 @@ func TestTripleRon_WhenThreeRonCallersDeclareOnARiichiDiscard_ShouldAbortShowing
 		RiichiSticks: 1,
 	})
 	assertEqual(t, "phase", g.Phase(), play.PhaseRoundOver)
-	assertEqual(t, "riichi seats", g.History()[0].RiichiSeats, []tile.Seat(nil))
+	assertEqual(t, "riichi seats", g.SeatView(seat(t, 1)).Record.History[0].RiichiSeats, []tile.Seat(nil))
 }
 
 func TestTripleRon_WhenTheAnswersComeOutOfSeatOrder_ShouldListTheRonSeatsInCallerOrder(t *testing.T) {
@@ -379,5 +379,5 @@ func TestFourRiichi_WhenTheFourthRiichiDiscardIsRonned_ShouldScoreTheRonWithoutI
 	if ended, isEnd := events[len(events)-1].Event.(play.RoundEnded); !isEnd || ended.RiichiSticks != 0 {
 		t.Errorf("last event = %+v, want a round end with no riichi stick", events[len(events)-1].Event)
 	}
-	assertEqual(t, "riichi seats", g.History()[0].RiichiSeats, []tile.Seat{seat(t, 1), seat(t, 2), seat(t, 3)})
+	assertEqual(t, "riichi seats", g.SeatView(seat(t, 0)).Record.History[0].RiichiSeats, []tile.Seat{seat(t, 1), seat(t, 2), seat(t, 3)})
 }

@@ -47,6 +47,20 @@ func TestKanOffers_WhenTwoQuadsAreHeld_ShouldNameTheFirstCopyOfEachInHandOrder(t
 	}
 }
 
+func TestKansBySeat_ShouldCountEveryKanKindButNotAPon(t *testing.T) {
+	seats := tile.Seats()
+	quad := func(kind play.MeldKind, mpsz string) play.MeldView {
+		return play.MeldView{Kind: kind, Tiles: copies(t, 0, mpsz)}
+	}
+	var melds [tile.SeatCount][]play.MeldView
+	melds[0] = []play.MeldView{quad(play.MeldClosedKan, "1111p"), calledMeld(t, play.MeldPon, 0, "777z", seats[3])}
+	melds[2] = []play.MeldView{quad(play.MeldOpenKan, "2222p"), quad(play.MeldAddedKan, "3333p")}
+
+	if got := offer.KansBySeat(melds); got != [tile.SeatCount]int{1, 0, 2, 0} {
+		t.Errorf("KansBySeat = %v, want [1 0 2 0]", got)
+	}
+}
+
 func TestIsFourKans_WhenOneSeatHoldsAllFour_ShouldBeFalseUntilASecondSeatHoldsOne(t *testing.T) {
 	var melds [tile.SeatCount][]play.MeldView
 	melds[0] = []play.MeldView{
