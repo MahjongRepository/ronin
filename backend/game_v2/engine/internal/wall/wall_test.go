@@ -207,8 +207,8 @@ func TestDeal_ShouldGiveEachSeat13SortedDistinctTiles(t *testing.T) {
 	if got := slices.Compact(sortedNumbers(dealtTiles(hands))); len(got) != 52 {
 		t.Errorf("%d distinct tiles dealt, want 52", len(got))
 	}
-	if w.LiveCount() != 122-52 {
-		t.Errorf("live = %d, want %d", w.LiveCount(), 122-52)
+	if w.LiveCount() != wall.LiveTilesAtDeal {
+		t.Errorf("live = %d, want %d", w.LiveCount(), wall.LiveTilesAtDeal)
 	}
 }
 
@@ -229,8 +229,8 @@ func TestDeal_WhenAnyDealerDeals_ShouldLeaveTheLiveTilesAtDeal(t *testing.T) {
 	for _, dealer := range tile.Seats() {
 		w := wall.FromSeed(fixedSeed(t), 0, dealer)
 		w.Deal(dealer)
-		if w.LiveCount() != wall.LiveTilesAtDeal || wall.LiveTilesAtDeal != 70 {
-			t.Errorf("dealer %d: live = %d, LiveTilesAtDeal = %d; want 70", dealer.Index(), w.LiveCount(), wall.LiveTilesAtDeal)
+		if w.LiveCount() != wall.LiveTilesAtDeal {
+			t.Errorf("dealer %d: live = %d, want %d", dealer.Index(), w.LiveCount(), wall.LiveTilesAtDeal)
 		}
 	}
 }
@@ -314,7 +314,7 @@ func TestWallErrors_ShouldNameWhatIsWrong(t *testing.T) {
 		{wall.LiveWallEmptyError{}, "the live wall is empty"},
 		{wall.IndicatorsExhaustedError{}, "every dora indicator is revealed or pending"},
 		{wall.MissingTileError{Tile: id(t, 7)}, "tile 7 is nowhere"},
-		{wall.DuplicatedTileError{Tile: id(t, 100)}, "tile 100 is in more than one place"},
+		{wall.TileInTwoPlacesError{Tile: id(t, 100)}, "tile 100 is in more than one place"},
 	}
 	for _, c := range cases {
 		if got := c.err.Error(); got != c.want {

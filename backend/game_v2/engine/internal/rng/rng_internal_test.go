@@ -2,6 +2,7 @@ package rng
 
 import (
 	"crypto/sha3"
+	"encoding/binary"
 	"math"
 	"testing"
 
@@ -30,11 +31,7 @@ func (s *scriptedWords) next() uint64 {
 func littleEndianWords(digest []byte) []uint64 {
 	words := make([]uint64, 0, len(digest)/wordBytes)
 	for start := 0; start+wordBytes <= len(digest); start += wordBytes {
-		var word uint64
-		for i := wordBytes - 1; i >= 0; i-- {
-			word = word<<8 | uint64(digest[start+i])
-		}
-		words = append(words, word)
+		words = append(words, binary.LittleEndian.Uint64(digest[start:]))
 	}
 	return words
 }

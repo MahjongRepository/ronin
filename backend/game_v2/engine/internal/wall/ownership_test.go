@@ -31,7 +31,7 @@ func TestCheckOwnership_WhenATileIsHeldTwice_ShouldNameIt(t *testing.T) {
 	w := orderedWall(t)
 	held := append(dealtTiles(w.Deal(seat(t, 0))), id(t, 100))
 
-	if err := wall.CheckOwnership(w, slices.Values(held)); !errors.Is(err, wall.DuplicatedTileError{Tile: id(t, 100)}) {
+	if err := wall.CheckOwnership(w, slices.Values(held)); !errors.Is(err, wall.TileInTwoPlacesError{Tile: id(t, 100)}) {
 		t.Errorf("CheckOwnership error = %v, want tile 100 duplicated", err)
 	}
 }
