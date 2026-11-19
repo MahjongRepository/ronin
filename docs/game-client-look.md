@@ -45,10 +45,11 @@ The derived proportions are the three reference viewports' values under the sizi
   the body of its screen orientation (upright or across), its face art turned inside the face box. A lying tile's face
   is the brightest surface on the board, its corners rounded by 0.07 of its width, shaded with no outline:
   a lit rim on its left, a shaded roll on its right and a short roll at its foot, so tiles that touch read
-  tile by tile without a line between them. Its top holds one tone from a short shine at its far end to a narrow bevel
-  at its foot: a top darkening down its length meets the next row's lit end in a step that greys the whole row. Below the face its edge shows toward the screen's bottom: a flat ivory
-  side, then the ochre base, the back's own layer, never near-black; the edge reaches 0.39 of a tile's width, which
-  the geometry reserves where it is exposed (`TILE_EDGE_SHARE`), and its top is foreshortened along the screen's y axis to 0.85 of its
+  tile by tile without a line between them. Its top holds one tone from a short shine at its far end to a narrow seam
+  at its foot, 0.04 of its width rolling into the side: wider, the darkening reads as a shadow the next row casts
+  back onto it, and with none the rows fuse into one long tile. Below the face its edge shows toward the screen's bottom: a light ivory
+  side, then the ochre base, the back's own layer, never near-black; the edge reaches 0.28 of a tile's width, and
+  the geometry reserves 0.39 where it is exposed (`TILE_EDGE_SHARE`), the deeper edge it was laid out for, and its top is foreshortened along the screen's y axis to 0.85 of its
   length (a face 1 x 1.133 tile widths upright on the screen, 1.333 x 0.85 across it); a standing back keeps a 0.2
   edge. A face-down tile (a closed kan's end, an unrevealed indicator) shows the
   ochre back on top, held at the one tone a standing hand's back shows, the same way a face's top is, and its side
@@ -57,8 +58,8 @@ The derived proportions are the three reference viewports' values under the sizi
   the right river and the right strip paint each line from its far end down the screen, and an added kan's called
   tile covers the added one (the top seat's added tile lies nearer the screen's bottom and covers the called one).
   Tiles lying together (a river, a meld, a hand that takes no input, the dora) throw one soft cast shadow toward the
-  screen's lower right, short and sharp, in the tile's width (0.1 right, 0.39 down, a 0.14 blur, 65% black), under all their bodies:
-  it drops by the lying edge, so beside a group it starts at the body's foot. A tile alone throws its own. Standing
+  screen's lower right, short and sharp, in the tile's width (0.08 right, 0.16 down, a 0.12 blur, 65% black), under all their bodies:
+  it peeks a little past the body's foot, so it never reads as more edge. A tile alone throws its own. Standing
   tiles keep a shorter one (0.12 right, 0.2 down, a 0.24 blur): the own hand's, shared where it takes no input, and
   each tile's own where it takes input, pulled in conservatively so it never reaches past the tile's left side; an
   opponent's standing backs share their strip's shadow, the lying one.

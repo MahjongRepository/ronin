@@ -21,9 +21,9 @@ const RIM_STRENGTH_ON_FRONT = 0.8;
 const LYING_RIM_STRENGTH_ON_TOP = 0.9;
 const LYING_RIM_STRENGTH_ON_EDGE = 0.45;
 const LYING_ROLL_LEAD = 0.03;
+const LYING_SEAM = 0.04;
 const LYING_TOP_SHINE = 0.022;
 const LYING_SHINE_FALLOFF = 0.15;
-const LYING_BEVEL = 0.1;
 
 interface Stop {
     readonly at: number;
@@ -62,7 +62,7 @@ const FACE_UP_PALETTE: LyingPalette = {
     middle: "--ronin-tile-face",
     rolled: "--ronin-tile-face-rim",
     underLayer: ["--ronin-back-shade", "--ronin-back-end"],
-    upperLayer: ["--ronin-tile-side", "--ronin-tile-side-low"],
+    upperLayer: ["--ronin-tile-lying-side", "--ronin-tile-lying-side-low"],
 };
 
 const FACE_DOWN_PALETTE: LyingPalette = {
@@ -291,8 +291,8 @@ function lyingTopStops(shape: LyingBodyShape, palette: LyingPalette): readonly S
     const height = shape.top + shape.edge;
     return [
         { at: LYING_SHINE_FALLOFF / height, colour: palette.middle },
-        { at: (shape.top - LYING_BEVEL) / height, colour: palette.middle },
-        { at: (shape.top - LYING_ROLL_LEAD) / height, colour: palette.rolled },
+        { at: (shape.top - LYING_SEAM) / height, colour: palette.middle },
+        { at: shape.top / height, colour: palette.upperLayer[0] },
     ];
 }
 

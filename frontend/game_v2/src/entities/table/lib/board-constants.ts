@@ -30,8 +30,8 @@ const OWN_MELD_SCALE = 1;
 /** The gap between the centre and a river, in river tiles. */
 const RIVER_GAP_SHARE = 0.3;
 
-/** How far a tile's edge reaches below its box, in shares of its width. */
-const TILE_EDGE_SHARE = LYING_BODY.edge;
+/** How far the geometry reserves a tile's edge below its box, in shares of its width: deeper than the drawn edge. */
+const TILE_EDGE_SHARE = 0.39;
 
 /** How far the top hand's standing backs reach below their boxes, in shares of their width: their edge and rise. */
 const TOP_HAND_EDGE_SHARE = UPRIGHT_BACK_EDGE;
