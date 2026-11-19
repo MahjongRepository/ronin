@@ -3,8 +3,9 @@
 The game server being ported from `backend/game/` to Go. It is one Go module, outside the uv
 project: it imports nothing from `backend/shared/` and the Python tooling does not see it. So far it
 holds the engine's base vocabulary, the seam types, its seeded randomness, the wall, shanten, the
-hand reading (agari, divider, waits), the hand scoring and the option helpers (a seat's discards,
-calls, kans, riichi, furiten and win payments), and the structure the port fills, not the game:
+hand reading (agari, divider, waits), the hand scoring, the option helpers (a seat's discards,
+calls, kans, riichi, furiten and win payments) and how a game moves from round to round (honba,
+dealer rotation, end causes, final standings), and the structure the port fills, not the game:
 the facade's `NewGame`, `Act`, `Event`, `Action` and `Refusal` and their seam tests are
 placeholders, replaced by the facade over `engine/play`'s types.
 
