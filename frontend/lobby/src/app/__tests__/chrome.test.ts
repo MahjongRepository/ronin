@@ -10,6 +10,10 @@ function chromeOnPage(onLanguageSwitched: () => void = () => {}): {
     chrome: Chrome;
     nav: HTMLElement;
 } {
+    const csrfToken = document.createElement("meta");
+    csrfToken.name = "csrf-token";
+    csrfToken.content = "first-token";
+    document.head.append(csrfToken);
     const nav = document.createElement("nav");
     const footer = document.createElement("footer");
     document.body.append(nav, footer);
@@ -37,38 +41,60 @@ function countingRouter(): { counts: { mounts: number; rerenders: number }; rout
     return { counts, router };
 }
 
+function postedTokenAfterRotation(nav: HTMLElement, rotatedToken: string): string | undefined {
+    document.querySelector('meta[name="csrf-token"]')?.setAttribute("content", rotatedToken);
+    const form = nav.querySelector<HTMLFormElement>('form[action="/logout"]');
+    document.addEventListener("submit", (event) => event.preventDefault(), { once: true });
+    form?.requestSubmit();
+    return form?.querySelector<HTMLInputElement>('input[name="csrf_token"]')?.value;
+}
+
+function clickLanguage(locale: string): void {
+    document.querySelector<HTMLButtonElement>(`footer button[lang="${locale}"]`)?.click();
+}
+
 function navHrefs(nav: HTMLElement): (string | null)[] {
     return [...nav.querySelectorAll("a")].map((link) => link.getAttribute("href"));
 }
 
 afterEach(() => {
     document.body.replaceChildren();
+    document.head.replaceChildren();
     document.documentElement.lang = "";
+    delete document.documentElement.dataset.winds;
     document.cookie = "lang=; Path=/; Max-Age=0";
 });
 
 describe("startChrome", () => {
-    it("links the Admin section only for an admin", () => {
+    it("links the Admin section only for an admin and logs out with the current token", () => {
         const { chrome, nav } = chromeOnPage();
 
         chrome.showSession({ user: { isAdmin: false, isGuest: false, username: "dev" } });
         const playerLinks = navHrefs(nav);
         chrome.showSession({ user: { isAdmin: true, isGuest: false, username: "dev" } });
+        const postedToken = postedTokenAfterRotation(nav, "rotated-token");
 
         expect(playerLinks).toEqual(["/", "/history"]);
         expect(navHrefs(nav)).toEqual(["/", "/history", "/admin/monitoring"]);
         expect(nav.querySelector(".lobby-username")?.textContent).toBe("dev");
+        expect(postedToken).toBe("rotated-token");
     });
 
-    it("switches language by cookie and page lang, re-rendering the view without a remount", () => {
+    it("switches language by cookie and page lang, re-rendering the view without a remount, once", () => {
         const { counts, router } = countingRouter();
         chromeOnPage(() => router.rerender()).chrome.render();
 
-        document.querySelector<HTMLButtonElement>('footer button[lang="ja"]')?.click();
+        clickLanguage("ja");
+        document.documentElement.dataset.winds = "kanji";
+        clickLanguage("ja");
 
         expect(document.cookie).toContain("lang=ja");
         expect(document.documentElement.lang).toBe("ja");
-        expect(counts).toEqual({ mounts: 1, rerenders: 1 });
+        expect({ ...counts, winds: document.documentElement.dataset.winds }).toEqual({
+            mounts: 1,
+            rerenders: 1,
+            winds: "kanji",
+        });
         expect(
             document.querySelector('footer button[aria-current="true"]')?.getAttribute("lang"),
         ).toBe("ja");
