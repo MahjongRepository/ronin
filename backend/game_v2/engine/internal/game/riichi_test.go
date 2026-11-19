@@ -102,7 +102,8 @@ func TestRiichi_WhenTheDrawnHandIsComplete_ShouldBeOfferedOnEveryTile(t *testing
 
 func TestRiichi_WhenTheSeatIsInDiscardFuriten_ShouldStillBeOffered(t *testing.T) {
 	draws := slices.Concat(copies(t, 2, "1m"), copies(t, 0, "567z"), copies(t, 1, "7z"))
-	g, _ := discardDrawn(t, dealerAfterDraw(t, tenpaiOnOneAndNineMan(t), draws), 4)
+	g, goneAround := discardDrawn(t, dealerAfterDraw(t, tenpaiOnOneAndNineMan(t), draws), 4)
+	assertEqual(t, "furiten", testkit.FuritenChanges(goneAround), []play.FuritenChanged{{Seat: seat(t, 0), Furiten: true}})
 
 	if len(riichis(g)) == 0 {
 		t.Error("riichi is not offered in discard furiten")
@@ -112,7 +113,8 @@ func TestRiichi_WhenTheSeatIsInDiscardFuriten_ShouldStillBeOffered(t *testing.T)
 func TestRiichi_WhenTheSeatIsInTemporaryFuriten_ShouldStillBeOffered(t *testing.T) {
 	draws := slices.Concat(copies(t, 1, "7z"), copies(t, 2, "1m"), copies(t, 0, "56z"), []tile.TileID{drawnChun(t)})
 	g, _ := discardDrawn(t, dealerAfterDraw(t, tenpaiOnOneAndNineMan(t), draws), 2)
-	g, _ = script(t, g, act(seat(t, 0), play.PassAction()))
+	g, passed := script(t, g, act(seat(t, 0), play.PassAction()))
+	assertEqual(t, "furiten", testkit.FuritenChanges(passed), []play.FuritenChanged{{Seat: seat(t, 0), Furiten: true}})
 	g, _ = discardDrawn(t, g, 2)
 
 	if len(riichis(g)) == 0 {

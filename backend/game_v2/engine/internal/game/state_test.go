@@ -84,10 +84,10 @@ func kokushiDealerGameInItsFourthRound(t *testing.T) game.Game {
 	g, _ := newGame(t, fixed(tiles, tiles, tiles, tiles), noStart())
 	for range 3 {
 		g, _ = script(t, g, act(seat(t, 0), play.KyuushuAction()))
-		var refusal play.Option[play.Refusal]
-		g, _, refusal = g.DealNextRound()
-		if refusal.OK {
-			t.Fatalf("DealNextRound refusal = %+v", refusal.Value)
+		var refused play.Option[play.Refusal]
+		g, _, refused = g.DealNextRound()
+		if refused.OK {
+			t.Fatalf("DealNextRound refusal = %+v", refused.Value)
 		}
 	}
 	assertEqual(t, "finished rounds", len(g.History()), 3)
