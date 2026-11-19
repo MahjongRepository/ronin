@@ -14,17 +14,15 @@ import (
 )
 
 const (
-	liveWallSize      = 122
-	handSize          = 13
-	dealBlocks        = 3
-	dealBlockSize     = 4
-	dealRoundSize     = tile.SeatCount * dealBlockSize
-	finalDealStart    = dealBlocks * dealRoundSize
-	firstDrawSlot     = tile.SeatCount * handSize
-	startingScore     = 25000
-	tablePoints       = startingScore * tile.SeatCount
-	riichiCost        = 1000
-	riichiStickPoints = 1000
+	liveWallSize   = 122
+	handSize       = 13
+	dealBlocks     = 3
+	dealBlockSize  = 4
+	dealRoundSize  = tile.SeatCount * dealBlockSize
+	finalDealStart = dealBlocks * dealRoundSize
+	firstDrawSlot  = tile.SeatCount * handSize
+	startingScore  = 25000
+	tablePoints    = startingScore * tile.SeatCount
 )
 
 func seat(t *testing.T, n int) tile.Seat {
@@ -220,17 +218,6 @@ func threePinWall(t *testing.T) startWall {
 		},
 		draws: []tile.TileID{copyOf(t, 0, "7z"), copyOf(t, 1, "7z"), copyOf(t, 3, "3p")},
 	}
-}
-
-func roundResult(t *testing.T, events []play.Emitted) play.RoundResult {
-	t.Helper()
-	for _, e := range events {
-		if ended, ok := e.Event.(play.RoundEnded); ok {
-			return ended.Result
-		}
-	}
-	t.Fatal("the batch does not end the round")
-	return nil
 }
 
 func scoreTotal(scores [tile.SeatCount]int) int {

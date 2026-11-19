@@ -3,6 +3,8 @@
 The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mechanics and the `GameSettings` values
 of its one preset); read it before changing or testing a rule, and update it when a rule changes. Outside code
 reaches it only through `game.engine`, whose seam invariants every change here keeps (`../engine/AGENTS.md`).
+On the `golang-migration` branch `docs/game-rules.md` describes the Go engine (`backend/game_v2`) instead; there
+the Python rules are those of `docs/game-rules.md` on main.
 
 ## Model
 

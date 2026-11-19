@@ -195,6 +195,7 @@ func traceSetup(t *testing.T, header traceHeader) (engine.Setup, agents) {
 			walls[i][slot] = id(t, n)
 		}
 	}
+
 	if len(header.Scripts) != tile.SeatCount {
 		t.Fatalf("%d scripts, want one per seat", len(header.Scripts))
 	}
@@ -224,9 +225,13 @@ func assertSameTrace(t *testing.T, got, want []string) {
 
 func TestPlayGameChecked_WhenReplayingTheReferenceTraces_ShouldOfferTakeAndEmitExactlyTheSame(t *testing.T) {
 	games := readTraces(t)
-	if len(games) == 0 {
-		t.Fatal("no traced game")
+	seeded := 0
+	for _, traced := range games {
+		if traced.header.Game == seededTraceGame {
+			seeded++
+		}
 	}
+	assertEqual(t, "seeded traced games", seeded, tracedSeededGames)
 
 	for _, traced := range games {
 		t.Run(traced.name, func(t *testing.T) {
@@ -240,11 +245,10 @@ func TestPlayGameChecked_WhenReplayingTheReferenceTraces_ShouldOfferTakeAndEmitE
 			g, initial := newGame(t, setup)
 
 			_, err := playGameChecked(&g, initial, seated, trace, selfPlayMaxSteps)
-
-			assertSameTrace(t, trace.lines, traced.lines)
 			if err != nil {
-				t.Fatalf("play error = %v", err)
+				t.Errorf("play error = %v", err)
 			}
+			assertSameTrace(t, trace.lines, traced.lines)
 		})
 	}
 }

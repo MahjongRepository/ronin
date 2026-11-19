@@ -28,6 +28,9 @@ fails when one is missing and prints how often each appeared.
 
 It was written by mahjong-rs's `game_traces` example at commit `ce617b3` (branch
 `go-port-dumpers`; the engine is that of `0d8733f`). Regenerate it only when mahjong-rs's engine
-changes on purpose, from the mahjong-rs repository root:
+changes on purpose, from the mahjong-rs repository root, with `$RONIN` the ronin checkout;
+`pipefail` keeps a dumper failure from leaving a set that looks written:
 
-    cargo run --release -q -p mahjong-game --example game_traces | gzip -9n > traces.jsonl.gz
+    set -o pipefail
+    cargo run --release -q -p mahjong-game --example game_traces \
+        | gzip -9n > "$RONIN/backend/game_v2/seam/testdata/traces.jsonl.gz"
