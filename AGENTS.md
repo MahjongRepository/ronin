@@ -79,18 +79,19 @@ The `Makefile` lists the targets; the non-obvious ones:
   time; `make seat-scenarios-check` (a `run-all-checks` gate) fails when a committed transcript no
   longer matches what the server sends a seat.
 * `make run-all-checks` — every gate in order, stopping at the first failure. It **rewrites files**
-  (it runs both formatters) and **always exits 0**, so success is only the final
+  (it runs every formatter) and **always exits 0**, so success is only the final
   `All checks are good` line; a failure prints `❌ CHECK FAILED` with the failing gate's output.
 
 ## Workflow
 
 * While iterating, run only the tests your change touches (`cd backend && uv run pytest <path> -k <expr>`,
-  `cd frontend/<app> && npx vitest run <path>`, `cd backend/game_v2 && go test ./<pkg> -run <name>`). Never
-  run `make test` or `make run-all-checks` mid-work;
+  `cd frontend/<app> && npx vitest run <path>`,
+  `cd backend/game_v2 && mise exec -- go test ./<pkg> -run <name>`). Never run `make test` or
+  `make run-all-checks` mid-work;
   `make lint` and `make typecheck` (backend only, so they run without `make install-frontend`),
   `make lint-frontend` and `make typecheck-frontend`, and `make lint-go` are fine. A Go engine change
-  runs `cd backend/game_v2 && go test -race ./engine/... ./seam/...`: the engine's facade tests live in
-  `seam/`.
+  runs `cd backend/game_v2 && mise exec -- go test -race ./engine/... ./seam/...`: the engine's facade
+  tests live in `seam/`.
 * To check a visual change, screenshot only the changed area plus its single worst case (the
   smallest phone, the densest state); there is no full screenshot sweep (`frontend/game_v2/AGENTS.md`,
   Visual check).

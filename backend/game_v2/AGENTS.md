@@ -73,12 +73,13 @@ comments either: a deny entry's `desc` is where its reason goes.
 ## Tooling
 
 * Go and golangci-lint are pinned in the repo-root `mise.toml`, and `go.mod`'s `go` line matches the
-  pinned Go. The Makefile puts both on `PATH`; outside `make`, run them as `mise exec -- go ...` from
-  `backend/game_v2/`.
+  pinned Go. The Makefile puts both on `PATH` for its own targets only, so a `go` command typed
+  outside `make` goes through `mise exec --`.
 * `make format-go` rewrites files (gofumpt, goimports); `make lint-go` runs golangci-lint, which also
   reports formatting diffs and, with the compiler, stands in for a typecheck target; `make test-go`
   runs every test under the race detector, then the coverage gate.
-* While iterating, run one package: `cd backend/game_v2 && go test ./<pkg> -run <name>`. An engine
-  change runs `cd backend/game_v2 && go test -race ./engine/... ./seam/...`: the facade's tests live in
-  `seam/`, so `./engine/...` alone skips them.
+* While iterating, run one package:
+  `cd backend/game_v2 && mise exec -- go test ./<pkg> -run <name>`. An engine change runs
+  `cd backend/game_v2 && mise exec -- go test -race ./engine/... ./seam/...`: the facade's tests live
+  in `seam/`, so `./engine/...` alone skips them.
 * The server listens on `127.0.0.1:8712` by default (`-addr`), clear of the Python game server.
