@@ -16,10 +16,10 @@ func Clone(r play.SeatRecord) play.SeatRecord {
 		r.Players[i].Melds = cloneMelds(r.Players[i].Melds)
 	}
 	r.DoraIndicators = cloneSlice(r.DoraIndicators)
-	r.Result = cloneResult(r.Result)
+	r.Result = CloneResult(r.Result)
 	r.History = cloneSlice(r.History)
 	for i := range r.History {
-		r.History[i].Result = cloneResult(r.History[i].Result)
+		r.History[i].Result = CloneResult(r.History[i].Result)
 		r.History[i].RiichiSeats = cloneSlice(r.History[i].RiichiSeats)
 	}
 	return r
@@ -65,7 +65,9 @@ func cloneWin(win play.WinResult) play.WinResult {
 	return win
 }
 
-func cloneResult(result play.RoundResult) play.RoundResult {
+// CloneResult returns a copy of result that shares no slice with it, down to every hand, meld,
+// river and yaku it shows. An empty slice of result is nil in the copy; a nil result stays nil.
+func CloneResult(result play.RoundResult) play.RoundResult {
 	switch r := result.(type) {
 	case play.ExhaustiveDraw:
 		r.Tenpai = cloneShown(r.Tenpai)

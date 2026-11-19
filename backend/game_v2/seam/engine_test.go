@@ -1,33 +1,299 @@
 package seam_test
 
 import (
+	"errors"
+	"fmt"
+	"reflect"
 	"slices"
 	"testing"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-func TestNewGame_ShouldYieldStartedEventWithFullWall(t *testing.T) {
-	_, events := engine.NewGame("seed")
+const twinGames = 4
 
-	want := []engine.Event{{Kind: engine.EventGameStarted, WallTileCount: 136}}
-	if !slices.Equal(events, want) {
-		t.Errorf("NewGame events = %v, want %v", events, want)
+func TestNewGame_WhenTheSetupHasNoWall_ShouldReturnNoGameAndANoFixedWallError(t *testing.T) {
+	g, events, err := engine.NewGame(engine.Setup{Walls: play.Fixed{}})
+
+	if !errors.As(err, new(engine.NoFixedWallError)) {
+		t.Errorf("NewGame error = %v, want a NoFixedWallError", err)
+	}
+	assertEqual(t, "events", events, nil)
+	assertSameGame(t, "game", g, engine.Game{})
+}
+
+func TestSeedFunctions_WhenGivenTheSeedOfAGame_ShouldDescribeItsStartAndSeating(t *testing.T) {
+	seed := seedOf(t, "ab")
+	_, events := newGame(t, engine.Setup{Walls: play.Seeded{Seed: seed}})
+
+	dealer, first, second := engine.FirstDealer(seed)
+	_, dice := engine.RoundWall(seed, 0)
+	permutation := engine.SeatPermutation(seed)
+
+	assertEqual[play.Event](t, "game started", events[0].Event, play.GameStarted{FirstDealer: dealer, Dice: [2]tile.Dice{first, second}})
+	started, ok := events[1].Event.(play.RoundStarted)
+	if !ok {
+		t.Fatalf("second event = %#v, want a RoundStarted", events[1].Event)
+	}
+	assertEqual(t, "first round dice", started.Header.Dice, dice)
+	sorted := permutation
+	slices.SortFunc(sorted[:], func(a, b tile.Seat) int { return a.Index() - b.Index() })
+	assertEqual(t, "seated", sorted, tile.Seats())
+}
+
+func TestTsumogiriAgents_WhenTheyPlayASeededGame_ShouldReachItsStandingsWithTheLastEvent(t *testing.T) {
+	g, initial := newGame(t, seededSetup(t, "cd"))
+	sink := &recorder{}
+
+	standings, err := playGame(&g, initial, tsumogiriAgents(), sink, maxGameSteps)
+
+	assertEqual(t, "error", err, nil)
+	assertEqual(t, "standings", g.Standings(), play.Some(standings))
+	points := 0
+	for _, p := range standings.Points {
+		points += p
+	}
+	assertEqual(t, "totals", [2]int{scoreTotal(standings.Scores), points}, [2]int{tablePoints, 0})
+	ends := slices.IndexFunc(sink.events, func(e play.Emitted) bool { _, ok := e.Event.(play.GameEnded); return ok })
+	assertEqual(t, "game end index", ends, len(sink.events)-1)
+	assertEqual[play.Event](t, "last event", sink.events[len(sink.events)-1].Event, play.GameEnded{Standings: standings})
+	if rounds := len(g.View(seat(t, 0)).Record.History); rounds <= 1 {
+		t.Errorf("history holds %d rounds, want more than 1", rounds)
 	}
 }
 
-func TestAct_WhenGameIsNew_ShouldRefuseAsNotAwaited(t *testing.T) {
-	game, _ := engine.NewGame("seed")
+func TestDecision_ShouldCarryTheLegalActionsAndDefaultActionOfItsSeat(t *testing.T) {
+	var contexts [3]bool
+	for gameIndex := range twinGames {
+		g, _ := newGame(t, seededSetup(t, fmt.Sprintf("%02x", gameIndex)))
+		picker := newRandomLegal(uint64(gameIndex))
+		for steps := 0; ; steps++ {
+			if steps >= maxGameSteps {
+				t.Fatalf("game %d does not end", gameIndex)
+			}
+			for _, s := range tile.Seats() {
+				decision, ok := g.Decision(s)
+				fallback, hasDefault := g.DefaultAction(s)
+				if !ok {
+					if hasDefault || len(g.LegalActions(s)) != 0 {
+						t.Fatalf("seat %d without a decision has actions", s.Index())
+					}
+					continue
+				}
+				assertEqual(t, "default", [2]any{fallback, hasDefault}, [2]any{decision.Default, true})
+				assertEqual(t, "legal", g.LegalActions(s), decision.Legal)
+				if !slices.Contains(decision.Legal, decision.Default) {
+					t.Fatalf("default %v is not legal", decision.Default)
+				}
+				switch decision.Context.(type) {
+				case play.TurnAfterDraw:
+					contexts[0] = true
+				case play.TurnAfterCall:
+					contexts[1] = true
+				case play.Call:
+					contexts[2] = true
+				}
+			}
 
-	events, refusal := game.Act(0, engine.Action{Kind: engine.ActionDiscard})
+			if _, over := g.Awaiting().(play.AwaitingGameOver); over {
+				break
+			}
+			s, ok := firstAwaited(g)
+			if !ok {
+				g, _ = dealNextRound(t, g)
+				continue
+			}
+			decision, _ := g.Decision(s)
+			action, _ := picker.decide(decision)
+			g, _ = act(t, g, s, action)
+		}
+	}
+	assertEqual(t, "contexts", contexts, [3]bool{true, true, true})
+}
 
-	if refusal == nil {
-		t.Fatalf("Act refusal = nil, want %q", engine.RefusalNotAwaited)
+func firstAwaited(g engine.Game) (tile.Seat, bool) {
+	switch awaiting := g.Awaiting().(type) {
+	case play.AwaitingTurn:
+		return awaiting.Seat, true
+	case play.AwaitingCall:
+		return awaiting.Seats[0], true
+	case play.AwaitingRoundOver, play.AwaitingGameOver:
 	}
-	if refusal.Reason != engine.RefusalNotAwaited {
-		t.Errorf("Act refusal reason = %q, want %q", refusal.Reason, engine.RefusalNotAwaited)
+	return tile.Seat{}, false
+}
+
+type twinCase struct {
+	setup  engine.Setup
+	seated agents
+}
+
+func twinCases(t *testing.T) []twinCase {
+	t.Helper()
+	cases := []twinCase{{setup: fixedSetup(t, threePinWall(t)), seated: tsumogiriAgents()}}
+	for game := range uint64(twinGames) {
+		cases = append(cases, twinCase{setup: seededSetup(t, fmt.Sprintf("%02x", game+0x10)), seated: selfPlayAgents(game + 1)})
 	}
-	if len(events) != 0 {
-		t.Errorf("Act events = %v, want none", events)
+	return cases
+}
+
+func playTwins(t *testing.T, c twinCase, probe func(g engine.Game, events []play.Emitted) engine.Game) {
+	t.Helper()
+	probed, events := newGame(t, c.setup)
+	twin, _ := newGame(t, c.setup)
+	for steps := 0; ; steps++ {
+		assertSameGame(t, "the probe's result", probe(probed, events), twin)
+		assertSameGame(t, "the probed game", probed, twin)
+		if steps >= maxGameSteps {
+			t.Fatal("the game does not end")
+		}
+
+		if _, over := twin.Awaiting().(play.AwaitingGameOver); over {
+			return
+		}
+		s, ok := firstAwaited(twin)
+		if !ok {
+			probed, events = dealNextRound(t, probed)
+			twin, _ = dealNextRound(t, twin)
+			continue
+		}
+		decision, _ := twin.Decision(s)
+		action, _ := c.seated[s.Index()].decide(decision)
+		probed, events = act(t, probed, s, action)
+		twin, _ = act(t, twin, s, action)
 	}
+}
+
+type scribbled struct {
+	called, afterCall, prompt, win bool
+}
+
+func (s *scribbled) note(value any) {
+	switch v := value.(type) {
+	case play.Emitted:
+		if _, called := v.Event.(play.Called); called {
+			s.called = true
+		}
+		if ended, ok := v.Event.(play.RoundEnded); ok {
+			_, ron := ended.Result.(play.Ron)
+			_, tsumo := ended.Result.(play.Tsumo)
+			s.win = s.win || ron || tsumo
+		}
+	case play.Decision:
+		_, afterCall := v.Context.(play.TurnAfterCall)
+		s.afterCall = s.afterCall || afterCall
+	case play.AwaitingCall:
+		s.prompt = true
+	}
+}
+
+func scribble(v reflect.Value) {
+	switch kind := v.Kind(); {
+	case kind == reflect.Slice:
+		for i := range v.Len() {
+			scribble(v.Index(i))
+			if v.Index(i).CanSet() {
+				v.Index(i).SetZero()
+			}
+		}
+	case kind == reflect.Array:
+		for i := range v.Len() {
+			scribble(v.Index(i))
+		}
+	case kind == reflect.Struct:
+		for i := range v.NumField() {
+			if v.Type().Field(i).IsExported() {
+				scribble(v.Field(i))
+			}
+		}
+	case kind == reflect.Interface && !v.IsNil():
+		scribble(v.Elem())
+	}
+}
+
+func TestGame_WhenACallerWritesIntoEverySliceItReturns_ShouldStayAsItsTwin(t *testing.T) {
+	var seen scribbled
+	for _, c := range twinCases(t) {
+		playTwins(t, c, func(g engine.Game, events []play.Emitted) engine.Game {
+			var returned []any
+			for _, e := range events {
+				returned = append(returned, e)
+			}
+			returned = append(returned, events, g.Awaiting())
+			for _, s := range tile.Seats() {
+				decision, _ := g.Decision(s)
+				returned = append(returned, decision, g.LegalActions(s), g.View(s))
+			}
+			for _, value := range returned {
+				seen.note(value)
+			}
+			for _, value := range returned {
+				scribble(reflect.ValueOf(value))
+			}
+			return g
+		})
+	}
+
+	assertEqual(t, "scribbled", seen, scribbled{called: true, afterCall: true, prompt: true, win: true})
+}
+
+func refusalProbes(g engine.Game, s tile.Seat) []play.Action {
+	record := g.View(s).Record
+	probes := []play.Action{play.PassAction(), play.TsumoAction(), play.RonAction(), play.KyuushuAction()}
+	for _, held := range record.Hand {
+		probes = append(probes, play.DiscardAction(held), play.RiichiAction(held))
+	}
+	if len(record.Hand) >= 2 {
+		pair := [2]tile.TileID{record.Hand[0], record.Hand[1]}
+		probes = append(probes, play.PonAction(pair), play.ChiAction(pair))
+	}
+	for _, unheld := range tile.AllTileIDs() {
+		if !slices.Contains(record.Hand, unheld) {
+			return append(probes, play.DiscardAction(unheld))
+		}
+	}
+	return probes
+}
+
+func isOffered(legal []play.Action, action play.Action) bool {
+	held, holds := action.Held()
+	if !holds {
+		return slices.Contains(legal, action)
+	}
+	reversed := [2]tile.TileID{held[1], held[0]}
+	return slices.Contains(legal, action) || slices.Contains(legal, play.PonAction(reversed)) && action.Kind() == play.ActionPon ||
+		slices.Contains(legal, play.ChiAction(reversed)) && action.Kind() == play.ActionChi
+}
+
+func TestAct_WhenRefused_ShouldChangeNothing(t *testing.T) {
+	var kinds [3]bool
+	for _, c := range twinCases(t) {
+		playTwins(t, c, func(g engine.Game, _ []play.Emitted) engine.Game {
+			for _, s := range tile.Seats() {
+				legal := g.LegalActions(s)
+				for _, action := range refusalProbes(g, s) {
+					if isOffered(legal, action) {
+						continue
+					}
+					next, events, refusal := g.Act(s, action)
+					if !refusal.OK || events != nil {
+						t.Fatalf("Act(seat %d, %v) = %v, %v; want a refusal and no events", s.Index(), action, events, refusal)
+					}
+					kinds[refusal.Value.Kind] = true
+					g = next
+				}
+			}
+			if _, roundOver := g.Awaiting().(play.AwaitingRoundOver); !roundOver {
+				next, events, refusal := g.DealNextRound()
+				if !refusal.OK || events != nil {
+					t.Fatalf("DealNextRound = %v, %v; want a refusal and no events", events, refusal)
+				}
+				g = next
+			}
+			return g
+		})
+	}
+
+	assertEqual(t, "refusal kinds", kinds, [3]bool{true, true, true})
 }

@@ -6,9 +6,8 @@ holds the engine's base vocabulary, the seam types, its seeded randomness, the w
 hand reading (agari, divider, waits), the hand scoring, the option helpers (a seat's discards,
 calls, kans, riichi, furiten and win payments), the round state machine (`engine/internal/round`),
 the game played round to round (`engine/internal/game`), the seat record each seat's events keep up
-and the seat view it equals (`engine/internal/record`), and the structure the port fills: the facade's `NewGame`,
-`Act`, `Event`, `Action` and `Refusal` and their seam tests are placeholders, replaced by the
-facade over `engine/play`'s types.
+and the seat view it equals (`engine/internal/record`), and the facade over them (`engine/`) with its
+seam tests and self-play driver (`seam/`).
 
 ## The seam
 
@@ -16,6 +15,10 @@ The module is two sides, a server and an engine, and the engine is reachable onl
 
 * `engine/` is the engine's only public API. The rules live under `engine/internal/`, which the Go
   compiler lets nothing outside `engine/` import, so the server side cannot reach past the facade.
+  The facade holds no rule of its own: it wraps `game` and the seed functions of `rng`, and
+  re-exports as type aliases the seed and error types a caller builds or matches. No slice it returns shares a backing array
+  with the game, so a caller may write into anything it gets; the facade copies what the layer
+  below shares, and a seam test writes into every returned slice to hold that.
 * The compiler does not stop the opposite direction, so lint rules in `.golangci.yml`, run by
   `make lint-go`, hold it: see Engine purity.
 * `engine/tile` is the public vocabulary under the facade: tile kinds, hand tiles, tile ids, winds,

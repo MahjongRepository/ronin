@@ -245,7 +245,7 @@ func endRound(r play.SeatRecord, event play.RoundEnded) play.SeatRecord {
 	r.RiichiSticks = event.RiichiSticks
 	r.Drawn = play.Option[tile.TileID]{}
 	r.Phase = play.PhaseRoundOver
-	r.Result = cloneResult(event.Result)
+	r.Result = CloneResult(event.Result)
 	var riichiSeats []tile.Seat
 	for _, seat := range tile.Seats() {
 		if r.Players[seat.Index()].Riichi.OK {
@@ -254,7 +254,7 @@ func endRound(r play.SeatRecord, event play.RoundEnded) play.SeatRecord {
 	}
 	r.History = append(slices.Clip(r.History), play.FinishedRound{
 		Header:      r.Header,
-		Result:      cloneResult(event.Result),
+		Result:      CloneResult(event.Result),
 		RiichiSeats: riichiSeats,
 	})
 	return r
