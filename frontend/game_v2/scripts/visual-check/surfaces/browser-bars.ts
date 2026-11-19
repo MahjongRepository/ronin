@@ -1,18 +1,26 @@
+import { errors } from "playwright";
+
 import { GAME_ID, type PageCase, type PageRun, type Surface } from "../model.ts";
 import { BROWSER_PHONES } from "../viewports.ts";
 
 /** Where a touch browser's tab rests, and the scroll room it keeps below that: `_pages.scss`'s `$bars-*-room`. */
 const REST = 100;
 const SWIPE_ROOM = 300;
-/** Past the 150ms the page waits after a scroll settles before it returns to its rest. */
-const REST_WAIT_MS = 400;
+/**
+ * How long a scroll's return to the rest may take: the page waits 150ms after a scroll settles, but a loaded run
+ * delivers the scroll and fires that timer late, so the check waits for the rest instead of a fixed time.
+ */
+const REST_TIMEOUT_MS = 3000;
 
 interface PageRest {
     /** How far the document stands past the large viewport, which is what a swipe scrolls to collapse the bars. */
     readonly room: number;
     readonly scrollY: number;
     /** The board page's top in the viewport and its positioning, or null where the page draws none. */
-    readonly boardPage: { readonly top: number; readonly position: string } | null;
+    readonly boardPage: {
+        readonly top: number;
+        readonly position: string;
+    } | null;
 }
 
 function measureRest({ page }: PageRun): Promise<PageRest> {
@@ -39,7 +47,15 @@ function measureRest({ page }: PageRun): Promise<PageRest> {
 
 async function scrollAndWait(run: PageRun, top: number): Promise<number> {
     await run.page.evaluate((scrollTop) => window.scrollTo(0, scrollTop), top);
-    await run.page.waitForTimeout(REST_WAIT_MS);
+    await run.page
+        .waitForFunction((rest) => window.scrollY === rest, REST, {
+            timeout: REST_TIMEOUT_MS,
+        })
+        .catch((error: unknown) => {
+            if (!(error instanceof errors.TimeoutError)) {
+                throw error;
+            }
+        });
     const { scrollY } = await measureRest(run);
     return scrollY;
 }

@@ -287,12 +287,21 @@ function after(seconds: number): (state: LiveClient) => readonly LiveEvent[] {
     return (state) => [{ at: state.now + seconds * 1000, kind: "tick" }];
 }
 
+/** A tick at the open decision's deadline, its base time and bank both run out. */
+function atDeadline(state: LiveClient): readonly LiveEvent[] {
+    const deadline = decisionOf(state)?.deadline;
+    if (deadline === undefined || deadline === null) {
+        throw new Error("The checkpoint holds no timed decision to run out");
+    }
+    return [{ at: deadline, kind: "tick" }];
+}
+
 const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     added_kan: checkpoint("added_kan_seat_1", "kan offer", "Added kan"),
     anchor_call: checkpoint("anchor_seat_1", "call offer", "Anchor: call offer"),
     anchor_call_expired: {
         ...checkpoint("anchor_seat_1", "call offer", "Anchor: call expired"),
-        followUp: after(5),
+        followUp: atDeadline,
     },
     anchor_call_passed: {
         ...checkpoint("anchor_seat_1", "call offer", "Anchor: call passed"),
