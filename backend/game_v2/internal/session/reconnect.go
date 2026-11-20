@@ -10,8 +10,9 @@ import (
 // Reconnect binds a connection to the participant of a playing game its verified ticket names and
 // sends it the seat's state. A participant who left takes its seat back from its AI player: the
 // others get seat_control, and a turn the AI player had not played yet becomes the participant's
-// new decision, its timer started with the reconnect. A participant still bound to a connection
-// has that connection replaced instead, closed with 4002, and its wait, timers and bank carry on.
+// new decision: one the seat left running keeps its original deadline and bank, any other is
+// timed from the reconnect. A participant still bound to a connection has that connection
+// replaced instead, closed with 4002, and its wait, timers and bank carry on.
 // A ticket of no live game, of another game than the connection's, of a pending game or a
 // connection already bound is answered why; a connection the session evicted, nothing.
 func (m *Manager) Reconnect(conn Connection, ticket string) {

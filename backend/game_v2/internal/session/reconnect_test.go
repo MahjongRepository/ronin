@@ -94,6 +94,30 @@ func TestReconnect_WhenTheSeatLeftDuringItsTurn_ShouldTakeItBackOnItsOriginalDea
 	})
 }
 
+func TestReconnect_WhenTheAIPlayedTheTurnTheSeatLeft_ShouldShowTheBankChargedOnlyUntilTheSeatLeft(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h, alice, bob := twoHumans(t, withTiming(noStartPause))
+
+		sleep(15 * time.Second)
+		h.m.Disconnect(alice)
+		synctest.Wait()
+		sleep(time.Second)
+		if got := len(ofEvent(bob.messages(), wire.EventDiscard)); got != 1 {
+			t.Fatalf("bob saw %d discards, want the AI player's one for the absent seat", got)
+		}
+		back := h.reconnect("ticket-Alice")
+
+		settings, _ := reconnected(t, back).Get(wire.KeyTimerSettings)
+		timer, ok := settings.(wire.Map)
+		if !ok {
+			t.Fatalf("game_reconnected timer settings = %v, want a map", settings)
+		}
+		if got, _ := timer.Get(wire.KeyBankSeconds); got != wire.Float(15) {
+			t.Errorf("bank = %v, want the 15 left after the 5 s of overtime before the seat left", got)
+		}
+	})
+}
+
 func TestReconnect_WhenTheParticipantIsStillConnected_ShouldReplaceItsConnectionAndKeepTheWaitRunning(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h, alice, bob := twoHumans(t, withTiming(noStartPause))
