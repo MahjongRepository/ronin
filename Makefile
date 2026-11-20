@@ -6,7 +6,7 @@ DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
 
 FRONTEND_APPS := lobby game_v2
 
-.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend format-go lint-go test-go vuln-go run-all-checks run-games run-tournament deadcode generate-replays generate-fixtures fixtures-check profile profile-games measure-wall run-game-v2-docker stop-game-v2-docker
+.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend format-go lint-go test-go vuln-go run-all-checks run-games run-tournament deadcode generate-replays generate-fixtures fixtures-check profile profile-compare update-pgo profile-games measure-wall run-game-v2-docker stop-game-v2-docker
 
 test:
 	cd backend && uv run pytest -v --cov --cov-report=
@@ -82,11 +82,10 @@ fixtures-check:
 	cd backend/game_v2 && go run ./cmd/fixtures -check
 
 profile:
-ifeq ($(SERVER),go)
-	@bash ./bin/profile-go-replay.sh
-else
-	$(BE_RUN) python bin/profile_replay.py
-endif
+	@BENCH=$(BENCH) bash ./bin/profile-full-game.sh
+
+profile-compare:
+	@BENCH=$(BENCH) bash ./bin/profile-compare.sh $(BASE)
 
 run-games:
 	@TABLES=$(TABLES) MODE=$(MODE) NET=$(NET) SERVER=$(SERVER) DOCKER=$(DOCKER) bash ./bin/run-bots-games.sh $(GAMES)
@@ -94,8 +93,11 @@ run-games:
 run-tournament:
 	@bash ./bin/run-tournament.sh
 
+update-pgo:
+	@bash ./bin/update-pgo.sh $(PGO_PROFILES)
+
 profile-games:
-	@PROFILE=1 TABLES=12 MODE= SERVER=$(SERVER) bash ./bin/run-bots-games.sh 48
+	@PROFILE=1 TABLES=12 MODE= SERVER=go bash ./bin/run-bots-games.sh 48
 
 measure-wall:
 ifeq ($(SERVER),go)

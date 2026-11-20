@@ -1,22 +1,30 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
-func TestRunProfiled_WhenTheRunFails_ShouldStillWriteTheProfile(t *testing.T) {
+func TestRunProfiled_WhenTheRunFails_ShouldStillWriteEveryProfileAndTheRuntimeStats(t *testing.T) {
 	t.Setenv("GAME_REPLAY_DIR", "")
-	profile := filepath.Join(t.TempDir(), "cpu.prof")
+	dir := t.TempDir()
 
-	err := runProfiled(t.Context(), "127.0.0.1:0", profile)
+	err := runProfiled(t.Context(), "127.0.0.1:0", dir)
 
 	if err == nil {
 		t.Fatal("runProfiled error = nil, want the missing GAME_REPLAY_DIR")
 	}
-	info, statErr := os.Stat(profile)
-	if statErr != nil || info.Size() == 0 {
-		t.Errorf("profile %s: %v, size %v, want a written profile", profile, statErr, info)
+	for _, name := range []string{cpuProfileFile, allocsProfileFile, mutexProfileFile} {
+		info, statErr := os.Stat(filepath.Join(dir, name))
+		if statErr != nil || info.Size() == 0 {
+			t.Errorf("profile %s: %v, size %v, want a written profile", name, statErr, info)
+		}
+	}
+	data, readErr := os.ReadFile(filepath.Join(dir, runtimeStatsFile))
+	var stats runtimeStats
+	if readErr != nil || json.Unmarshal(data, &stats) != nil || stats.BusyCPUSeconds <= 0 || stats.AllocBytes == 0 {
+		t.Errorf("runtime stats %q (read error %v), want some CPU and allocation", data, readErr)
 	}
 }

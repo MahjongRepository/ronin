@@ -6,14 +6,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 SERVER="${SERVER:-}"
 case "$SERVER" in
-    "") DEFAULT_BOT_ROOT="$HOME/work/mahjong-bot" ;;
-    go) DEFAULT_BOT_ROOT="$HOME/work/mahjong-bot-go-wire" ;;
+    "" | go) ;;
     *)
         echo "unknown game server SERVER=$SERVER, expected go or nothing"
         exit 1
         ;;
 esac
-BOT_ROOT="${BOT_ROOT:-$DEFAULT_BOT_ROOT}"
+BOT_ROOT="${BOT_ROOT:-$HOME/work/mahjong-bot}"
 DOCKER="${DOCKER:-}"
 GAME_CONTAINER="ronin-game-v2-game-v2-1"
 
@@ -39,6 +38,11 @@ NET="${NET:-}"
 
 if ! [[ $MAX_GAMES =~ ^[1-9][0-9]*$ && $TABLES =~ ^[1-9][0-9]*$ ]]; then
     echo "games and tables must be positive integers, got GAMES=$MAX_GAMES TABLES=$TABLES"
+    exit 1
+fi
+
+if [[ $PROFILE == 1 && $SERVER != go ]]; then
+    echo "PROFILE=1 profiles the Go game server, so it needs SERVER=go"
     exit 1
 fi
 
@@ -84,11 +88,7 @@ case "$NET" in
 esac
 
 BOT_NAMES=(ai-akagi ai-tetsuya ai-ichihime ai-miki)
-PROFILE_DIR="$PROJECT_ROOT/backend/profiles"
-PROFILE_FILE="$PROFILE_DIR/games_$(date +%Y-%m-%d_%H-%M-%S).samples.txt"
-if [[ $SERVER == go ]]; then
-    PROFILE_FILE="$PROFILE_DIR/games_go_$(date +%Y-%m-%d_%H-%M-%S).cpu.prof"
-fi
+PROFILE_DIR="$PROJECT_ROOT/backend/profiles/games_$(date +%Y-%m-%d_%H-%M-%S)"
 FAILED_RUN_DIR="$PROJECT_ROOT/backend/data/failed-runs/$(date +%Y-%m-%d_%H-%M-%S)"
 HARNESS_LOG="$PROJECT_ROOT/backend/logs/harness.log"
 
@@ -105,7 +105,6 @@ GAME_CONTAINER_STARTED=0
 SERVER_PIDS=()
 BOT_PIDS=()
 PLAYED=0
-GAME_LAUNCHER=()
 BOT_ACCOUNTS=()
 BOT_KEYS=()
 
@@ -252,7 +251,8 @@ start_go_game_server() {
     echo "starting game server (Go) on port $GAME_PORT..."
     local profile_args=()
     if [[ $PROFILE == 1 ]]; then
-        profile_args=(-cpuprofile "$PROFILE_FILE")
+        mkdir -p "$PROFILE_DIR"
+        profile_args=(-profiledir "$PROFILE_DIR")
     fi
     cd "$PROJECT_ROOT" && "$GO_BUILD_DIR/gameserver" -addr "0.0.0.0:$GAME_PORT" "${profile_args[@]}" > "$GAME_LOG_DIR/stdout.log" 2> "$GAME_LOG_DIR/stderr.log" &
     SERVER_PIDS+=($!)
@@ -440,19 +440,6 @@ GAME_SERVER_PID=""
 
 server_cpu_ticks() {
     awk '{print $14 + $15}' "/proc/$GAME_SERVER_PID/stat"
-}
-
-print_gc_share() {
-    awk '{
-        gsub(/[",{} ]/, "")
-        if (split($0, field, ":") == 2) value[field[1]] = field[2]
-    } END {
-        if (!("gc_seconds" in value) || !("process_cpu_seconds" in value) || !("collections" in value)) exit 1
-        gc = value["gc_seconds"]
-        cpu = value["process_cpu_seconds"]
-        printf "  game server GC: %.2fs of %.2fs CPU, %.1f%%, over %d collection(s)\n",
-            gc, cpu, 100 * gc / (cpu > 0 ? cpu : 1), value["collections"]
-    }' "$PROFILE_FILE.gc.json"
 }
 
 server_status_counter() {
@@ -663,8 +650,7 @@ archive_failed_run() {
     fi
     cp -r "$BOT_LOG_DIR" "$FAILED_RUN_DIR/bot-logs" 2>/dev/null || true
     cp "$HARNESS_LOG" "$FAILED_RUN_DIR/" 2>/dev/null || true
-    cp "$PROFILE_FILE" "$FAILED_RUN_DIR/" 2>/dev/null || true
-    cp "$PROFILE_FILE.gc.json" "$FAILED_RUN_DIR/" 2>/dev/null || true
+    cp -r "$PROFILE_DIR" "$FAILED_RUN_DIR/profiles" 2>/dev/null || true
     {
         echo "exit status: $status"
         echo "games: $PLAYED of $MAX_GAMES played, tables: $TABLES, profile: $PROFILE, mode: ${MODE:-default}, net: ${NET:-direct}, server: ${SERVER:-python}${DOCKER:+ (container)}"
@@ -736,12 +722,6 @@ if [[ $SERVER == go ]]; then
     build_go_tools
 fi
 
-GAME_LAUNCHER=(uv run --project backend uvicorn)
-if [[ $PROFILE == 1 ]]; then
-    mkdir -p "$PROFILE_DIR"
-    GAME_LAUNCHER=(uv run --project backend python bin/profile_game_server.py "$PROFILE_FILE")
-fi
-
 free_port "$LOBBY_PORT"
 if [[ $DOCKER == 1 ]]; then
     start_game_container
@@ -750,7 +730,7 @@ elif [[ $SERVER == go ]]; then
     start_go_game_server
 else
     free_port "$GAME_PORT"
-    start_server "game" "game.server.app:get_app" "$GAME_PORT" 262144 "$GAME_LOG_DIR" "${GAME_LAUNCHER[@]}"
+    start_server "game" "game.server.app:get_app" "$GAME_PORT" 262144 "$GAME_LOG_DIR" uv run --project backend uvicorn
 fi
 start_server "lobby" "lobby.server.app:get_app" "$LOBBY_PORT" 8192 "$LOBBY_LOG_DIR" uv run --project backend uvicorn
 if [[ $NET == bad ]]; then
@@ -828,20 +808,10 @@ fi
 
 print_stats
 
-if [[ $PROFILE == 1 && $SERVER == go ]]; then
+if [[ $PROFILE == 1 ]]; then
     echo ""
-    if ! bash "$SCRIPT_DIR/go-profile-report.sh" "$GO_BUILD_DIR/gameserver" "$PROFILE_FILE"; then
+    if ! GAMES="$PLAYED" bash "$SCRIPT_DIR/profile-report.sh" "$PROFILE_DIR"; then
         echo "the game server profile is invalid"
-        exit 1
-    fi
-elif [[ $PROFILE == 1 ]]; then
-    echo ""
-    if ! (cd "$PROJECT_ROOT" && uv run --project backend python bin/sampled_profile.py "$PROFILE_FILE"); then
-        echo "the game server profile is invalid"
-        exit 1
-    fi
-    if ! print_gc_share; then
-        echo "the game server GC readout is invalid"
         exit 1
     fi
 fi

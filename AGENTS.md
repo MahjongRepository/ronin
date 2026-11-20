@@ -50,15 +50,18 @@ The `Makefile` lists the targets; the non-obvious ones:
   To see the app in a browser, drive it with the `agent-browser` skill plus this project's
   `app-browser` skill (`.claude/skills/app-browser/`).
 * `make test` — backend pytest with its coverage gate (`backend/AGENTS.md`, Tooling).
-* `make profile [SERVER=go]` — profile the game engine replay runner (the `optimize-engine` skill uses it);
-  `SERVER=go` benchmarks the Go replay runner over the Go full game fixture (`go test -bench`) and prints
-  its `pprof` report (`bin/profile-go-replay.sh`).
+* `make profile [BENCH=engine|router|socket]` — benchmark and profile the Go game server over the
+  client's full game fixture, through the engine alone, through the session in process, and from
+  start to finish over real sockets, and print `benchstat` and the
+  `pprof` CPU, layer and allocation report (`bin/profile-full-game.sh`; the `optimize-engine` skill uses
+  it). `make profile-compare BASE=<checkout> [BENCH=…]` runs the same benchmarks against a baseline
+  checkout in alternating rounds and prints the `benchstat` A/B; both build with the shipped
+  `cmd/gameserver/default.pgo`, which `make update-pgo [PGO_PROFILES=<cpu.prof>…]` regenerates.
 * `make run-games [GAMES=n] [TABLES=t] [MODE=m] [NET=bad] [SERVER=go [DOCKER=1]]` — play bot games (the Rust `mahjong-bot` repo at `BOT_ROOT`,
   default `~/work/mahjong-bot`, built with its `make release-bot`) on fresh servers, `t` tables at a time, the bots in play mode `m` (their `--mode`,
   only when set; `chaos` misbehaves on purpose, the bot's `ronin/chaos.rs`, and its log gate passes only the game
   server lines that causes). `NET=bad`, meant for `MODE=chaos`, puts a faulty proxy chain between the bots and the
-  servers (`bin/bad-network.sh`). `SERVER=go` runs the Go game server on `:8712` in place of the Python one, with the
-  bot build that speaks its wire (`BOT_ROOT` default `~/work/mahjong-bot-go-wire`), its slog lines and Go panics as the
+  servers (`bin/bad-network.sh`). `SERVER=go` runs the Go game server on `:8712` in place of the Python one, its slog lines and Go panics as the
   game log gate and its `cmd/verify` as the replay check; `DOCKER=1` starts that server as a fresh container instead,
   gates its `docker logs` and its exit code, and removes it at the end. It stops at the first batch with a game that is not completed, whose replay does not reproduce it
   (`bin/verify_games.py`), or after which any log (server stderr and bot console included) holds a warning or an
@@ -68,11 +71,10 @@ The `Makefile` lists the targets; the non-obvious ones:
   verifies only the game ids its bots logged. It **wipes** `backend/logs` and the bot's `var/logs` first and
   kills whatever holds `:8710` and the game server's port. Run it only when asked: tests and `make run-all-checks` are the
   verification.
-* `make profile-games [SERVER=go]` — the same run at production's INFO logging,
-  with the game server sampling its own stacks (`bin/profile_game_server.py`) and reporting where real
-  games spend its CPU; `make profile` measures engine changes. The sampler stays in-process: py-spy
-  pauses the server per sample and stalls it past the health check. `SERVER=go` runs the Go server with
-  `-cpuprofile` and prints its `pprof` report instead, with no separate GC readout.
+* `make profile-games` — the same run with `SERVER=go` at production's INFO logging, the Go game server
+  writing its CPU, allocation and mutex profiles and runtime totals (`cmd/gameserver -profiledir`), then
+  the same report with per-game totals: where real games spend the server's CPU. `make profile`
+  measures changes.
 * `make run-tournament` — eight bots on a new tournament's page, fresh servers and the dev database, managed by
   `bin/tournament_manager.py` through the tournament API (two shuffled tables, both followed to their end); every
   API response and event goes to `backend/logs/tournament/manager.log`. It wipes only `backend/logs/tournament`

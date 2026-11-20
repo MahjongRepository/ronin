@@ -338,8 +338,28 @@ facade's seed functions.
   script's strings, so for the same arguments it measures the same walls and prints the same report,
   and either side reads the other's JSON as a baseline. `testdata/python_report.txt` is the Python
   script's report, and a test holds the Go one to it.
-* `make profile SERVER=go` profiles `BenchmarkRun_FullGame` (`internal/replay`), the replay of the
-  client's Go full game fixture; `make profile-games SERVER=go` runs `cmd/gameserver -cpuprofile`.
+* `make profile` runs three full-game benchmarks over the client's full game fixture:
+  `BenchmarkRun_FullGame` (`internal/replay`), the engine alone; `BenchmarkRouter_FullGame`
+  (`internal/server`), four scripted clients playing it through the `Router`, the session, the store
+  and the wire in process, on a clock whose timers never fire; and `BenchmarkSocket_FullGame`, the
+  whole game from start to finish over real sockets: the lobby's `POST /games`, four websocket
+  clients on loopback joining and playing it, and the server closing them at its end, with real
+  timers and the rate limit raised past what a game sends. The socket clients replay a schedule the
+  in-process run records (each message waits until every client received the frames it had there),
+  so they never decode and the game is the same every run; besides wall time per game it reports
+  the process's CPU per game (`cpu-ns/op`, clients included), the number a socket change moves.
+  Each driver's pin test requires the session to save the fixture's exact replay, so the benchmarks
+  cannot drift into a different game. The fixture is played by the default policy (discards and
+  passes, no calls); one table at a time, so contention between games shows only in
+  `make profile-games` (`cmd/gameserver -profiledir`).
+* The layer table charges each CPU sample to the deepest frame of this module's packages, so library
+  and runtime work counts toward its caller, except GC work (background marking, assists, sweeping,
+  scavenging), which gets its own row.
+* `cmd/gameserver/default.pgo` is the PGO profile every build of the server picks up, Docker's
+  included. `make update-pgo` merges fresh CPU profiles of every benchmark, built without PGO, plus any
+  `PGO_PROFILES` given, such as a `make profile-games` run's `cpu.prof`; regenerate it after a large
+  change to the hot path. Test binaries ignore it unless built with `-pgo`, so the profile scripts
+  pass it to measure what ships.
 
 ## Migration
 

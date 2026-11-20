@@ -3,7 +3,10 @@
 // errors, and serves the lobby's routes and the game sockets until SIGINT or SIGTERM,
 // then stops within the container's grace period: the HTTP server stops taking connections, every
 // socket closes as a disconnect, the games' finalizers drain, and the database closes last. With
-// -cpuprofile it writes a CPU profile of the whole run there, for make profile-games.
+// -profiledir it profiles the whole run for make profile-games: it writes the CPU profile
+// (cpu.prof), the allocations (allocs.prof), the mutex contention sampled 1 in 5 (mutex.prof) and
+// the runtime's own CPU, GC, allocation and mutex wait totals (runtime.json) into that existing
+// directory as it stops, even when the run fails.
 package main
 
 import (
@@ -33,11 +36,11 @@ const (
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8712", "address to listen on")
-	cpuProfile := flag.String("cpuprofile", "", "write a CPU profile of the whole run to this file")
+	profileDir := flag.String("profiledir", "", "write the run's CPU, allocation and mutex profiles and runtime stats here")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	err := runProfiled(ctx, *addr, *cpuProfile)
+	err := runProfiled(ctx, *addr, *profileDir)
 	stop()
 
 	if err == nil {
