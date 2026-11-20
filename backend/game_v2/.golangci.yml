@@ -92,6 +92,20 @@ linters:
           deny:
             - pkg: github.com/MahjongRepository/ronin/backend/game_v2
               desc: messaging sits under the session and over the wire, so it imports only the wire and the engine's public packages of the module
+        store-leaf:
+          files:
+            - "**/game_v2/internal/store/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/MahjongRepository/ronin/backend/game_v2
+              desc: store is a leaf the session and the server use, so it imports nothing of the module
+        auth-leaf:
+          files:
+            - "**/game_v2/internal/auth/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/MahjongRepository/ronin/backend/game_v2
+              desc: auth is a leaf the session and the server use, so it imports nothing of the module
     exhaustive:
       default-signifies-exhaustive: false
     forbidigo:

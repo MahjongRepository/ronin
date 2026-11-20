@@ -1,0 +1,64 @@
+{
+  "secret": "lobby-fixture-secret",
+  "tickets": [
+    {
+      "name": "whole_expiry",
+      "token": "eyJleHBpcmVzX2F0IjogNDEwMjQ0NDgwMC4wLCAicm9vbV9pZCI6ICJyb29tLTEiLCAidXNlcl9pZCI6ICI1ZjBjMmQxZS04YjdhLTRjM2QtOWUyZi0xYTBiM2M0ZDVlNmYiLCAidXNlcm5hbWUiOiAiYWxpY2UifQ==.W4omFTG_owLrePp2xVePA5rnY2g2I6J15eX089Lc4V4=",
+      "accepted": true,
+      "ticket": {
+        "user_id": "5f0c2d1e-8b7a-4c3d-9e2f-1a0b3c4d5e6f",
+        "username": "alice",
+        "room_id": "room-1",
+        "expires_at": 4102444800.0
+      }
+    },
+    {
+      "name": "fractional_expiry_one_pad",
+      "token": "eyJleHBpcmVzX2F0IjogNDEwMjQ0NDgwMC4xMjM0NTYsICJyb29tX2lkIjogInIiLCAidXNlcl9pZCI6ICJ1LTEiLCAidXNlcm5hbWUiOiAiYm9iIn0=.6CdUdHT84GveVEC8fLRnpJhK6xd7E70mvmW2P6Y9bcY=",
+      "accepted": true,
+      "ticket": {
+        "user_id": "u-1",
+        "username": "bob",
+        "room_id": "r",
+        "expires_at": 4102444800.123456
+      }
+    },
+    {
+      "name": "non_ascii_username",
+      "token": "eyJleHBpcmVzX2F0IjogNDEwMjQ0NDgwMC41LCAicm9vbV9pZCI6ICJyb29tLTIyIiwgInVzZXJfaWQiOiAidS0yMiIsICJ1c2VybmFtZSI6ICJcdTA0MTBcdTA0M2JcdTA0MzhcdTA0NDFcdTA0MzAgXHVkODNjXHVkYzA0In0=.G6JnibAM9wQzb0LpiHLqCHXflsLpgIinjkW10-nvJrU=",
+      "accepted": true,
+      "ticket": {
+        "user_id": "u-22",
+        "username": "Алиса 🀄",
+        "room_id": "room-22",
+        "expires_at": 4102444800.5
+      }
+    },
+    {
+      "name": "escaped_username",
+      "token": "eyJleHBpcmVzX2F0IjogNDEwMjQ0NDgwMC4yNSwgInJvb21faWQiOiAicm9vbS0zMzMiLCAidXNlcl9pZCI6ICJ1LTMzMyIsICJ1c2VybmFtZSI6ICJhXCJiXFxjPCY-XHUwMDdmIn0=.fvE4e8wTQWMsPMoYct43_8hsyXVPXSRlb8ZU6qKs4R8=",
+      "accepted": true,
+      "ticket": {
+        "user_id": "u-333",
+        "username": "a\"b\\c<&>",
+        "room_id": "room-333",
+        "expires_at": 4102444800.25
+      }
+    },
+    {
+      "name": "expired",
+      "token": "eyJleHBpcmVzX2F0IjogMTAwMDAwMDAwMC41LCAicm9vbV9pZCI6ICJyb29tLTQiLCAidXNlcl9pZCI6ICJ1LTQiLCAidXNlcm5hbWUiOiAiZGF2ZSJ9.ZhfB-8wT94eak6to1C2j8fbIRn6O_8RBUWzLZ_HkXho=",
+      "accepted": false
+    },
+    {
+      "name": "integer_expiry",
+      "token": "eyJleHBpcmVzX2F0IjogNDEwMjQ0NDgwMCwgInJvb21faWQiOiAicm9vbS01IiwgInVzZXJfaWQiOiAidS01IiwgInVzZXJuYW1lIjogImVyaW4ifQ==.kI1ydYquRzqbY6vxesA_1S90DlJiYukve_RLxKredIk=",
+      "accepted": false
+    },
+    {
+      "name": "nan_expiry",
+      "token": "eyJleHBpcmVzX2F0IjogTmFOLCAicm9vbV9pZCI6ICJyb29tLTYiLCAidXNlcl9pZCI6ICJ1LTYiLCAidXNlcm5hbWUiOiAiZmF5In0=.Ntlidk70HchRikqSZXyB6pFlJ04ozCUu2Suvsfb3uV0=",
+      "accepted": false
+    }
+  ]
+}

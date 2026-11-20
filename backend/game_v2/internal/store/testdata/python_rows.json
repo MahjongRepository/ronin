@@ -1,0 +1,42 @@
+[
+  {
+    "name": "started",
+    "row": {
+      "id": "game-started",
+      "started_at": "2026-11-19T10:00:00.123456+00:00",
+      "ended_at": null,
+      "end_reason": null,
+      "data": "{\"game_id\":\"game-started\",\"started_at\":\"2026-11-19T10:00:00.123456Z\",\"ended_at\":null,\"end_reason\":null,\"game_type\":\"hanchan\",\"num_rounds_played\":null,\"standings\":[{\"name\":\"alice\",\"seat\":0,\"user_id\":\"5f0c2d1e-8b7a-4c3d-9e2f-1a0b3c4d5e6f\",\"score\":null,\"final_score\":null},{\"name\":\"Tsumogiri 1\",\"seat\":1,\"user_id\":\"\",\"score\":null,\"final_score\":null},{\"name\":\"Алиса <&>\",\"seat\":2,\"user_id\":\"0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d\",\"score\":null,\"final_score\":null},{\"name\":\"Tsumogiri 2\",\"seat\":3,\"user_id\":\"\",\"score\":null,\"final_score\":null}]}"
+    }
+  },
+  {
+    "name": "completed",
+    "row": {
+      "id": "game-completed",
+      "started_at": "2026-11-19T10:00:00.123456+00:00",
+      "ended_at": "2026-11-19T10:42:07.000005+00:00",
+      "end_reason": "completed",
+      "data": "{\"game_id\":\"game-completed\",\"started_at\":\"2026-11-19T10:00:00.123456Z\",\"ended_at\":\"2026-11-19T10:42:07.000005Z\",\"end_reason\":\"completed\",\"game_type\":\"hanchan\",\"num_rounds_played\":9,\"standings\":[{\"name\":\"Алиса <&>\",\"seat\":2,\"user_id\":\"0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d\",\"score\":42300,\"final_score\":523},{\"name\":\"alice\",\"seat\":0,\"user_id\":\"5f0c2d1e-8b7a-4c3d-9e2f-1a0b3c4d5e6f\",\"score\":28100,\"final_score\":81},{\"name\":\"Tsumogiri 2\",\"seat\":3,\"user_id\":\"\",\"score\":18600,\"final_score\":-214},{\"name\":\"Tsumogiri 1\",\"seat\":1,\"user_id\":\"\",\"score\":11000,\"final_score\":-390}]}"
+    }
+  },
+  {
+    "name": "abandoned_whole_seconds",
+    "row": {
+      "id": "game-abandoned",
+      "started_at": "2026-11-19T10:00:00+00:00",
+      "ended_at": "2026-11-19T10:00:00+00:00",
+      "end_reason": "abandoned",
+      "data": "{\"game_id\":\"game-abandoned\",\"started_at\":\"2026-11-19T10:00:00Z\",\"ended_at\":\"2026-11-19T10:00:00Z\",\"end_reason\":\"abandoned\",\"game_type\":\"hanchan\",\"num_rounds_played\":null,\"standings\":[{\"name\":\"alice\",\"seat\":0,\"user_id\":\"5f0c2d1e-8b7a-4c3d-9e2f-1a0b3c4d5e6f\",\"score\":null,\"final_score\":null},{\"name\":\"Tsumogiri 1\",\"seat\":1,\"user_id\":\"\",\"score\":null,\"final_score\":null},{\"name\":\"Алиса <&>\",\"seat\":2,\"user_id\":\"0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d\",\"score\":null,\"final_score\":null},{\"name\":\"Tsumogiri 2\",\"seat\":3,\"user_id\":\"\",\"score\":null,\"final_score\":null}]}"
+    }
+  },
+  {
+    "name": "failed",
+    "row": {
+      "id": "game-failed",
+      "started_at": "2026-11-19T10:00:00.123456+00:00",
+      "ended_at": "2026-11-19T10:42:07.000005+00:00",
+      "end_reason": "error",
+      "data": "{\"game_id\":\"game-failed\",\"started_at\":\"2026-11-19T10:00:00.123456Z\",\"ended_at\":\"2026-11-19T10:42:07.000005Z\",\"end_reason\":\"error\",\"game_type\":\"hanchan\",\"num_rounds_played\":null,\"standings\":[{\"name\":\"alice\",\"seat\":0,\"user_id\":\"5f0c2d1e-8b7a-4c3d-9e2f-1a0b3c4d5e6f\",\"score\":null,\"final_score\":null},{\"name\":\"Tsumogiri 1\",\"seat\":1,\"user_id\":\"\",\"score\":null,\"final_score\":null},{\"name\":\"Алиса <&>\",\"seat\":2,\"user_id\":\"0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d\",\"score\":null,\"final_score\":null},{\"name\":\"Tsumogiri 2\",\"seat\":3,\"user_id\":\"\",\"score\":null,\"final_score\":null}]}"
+    }
+  }
+]

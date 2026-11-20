@@ -7,8 +7,10 @@ hand reading (agari, divider, waits), the hand scoring, the option helpers (a se
 calls, kans, riichi, furiten and win payments), the round state machine (`engine/internal/round`),
 the game played round to round (`engine/internal/game`), the seat record each seat's events keep up
 and the seat view it equals (`engine/internal/record`), the facade over them (`engine/`) with its
-seam tests and self-play driver (`seam/`), the wire format (`internal/wire`), and the shaping of the
-engine's output into messages and of client messages into actions (`internal/messaging`).
+seam tests and self-play driver (`seam/`), the wire format (`internal/wire`), the shaping of the
+engine's output into messages and of client messages into actions (`internal/messaging`), the rows
+and replay files it persists beside the lobby (`internal/store`), and its credentials
+(`internal/auth`).
 
 ## The seam
 
@@ -52,10 +54,13 @@ cmd -> internal/server -> session -> messaging -> wire -> engine -> engine/inter
 Inside the engine, `engine/internal/*` packages import `engine/tile`, `engine/play` and each other
 along the module graph of mahjong-rs, the port's reference, and never `engine`.
 
+`internal/store` and `internal/auth` are leaves beside that line: the session and the server use
+them, and they import nothing of the module.
+
 `session` does not exist yet; it is added under `internal/` when the port gives it work, never as an
 empty package. `wire`'s and `messaging`'s imports of the module are depguard rules in
 `.golangci.yml`: `wire` imports only `engine`, `engine/play` and `engine/tile`, `messaging` those
-and `wire`, and each layer added later gets its own. Each `cmd/*` is its own composition root: its
+and `wire`, `store` and `auth` nothing, and each layer added later gets its own. Each `cmd/*` is its own composition root: its
 `main` is the only place that reads that binary's flags, environment and signals and wires the parts
 it uses, so a tool beside the server builds what it needs without going through `cmd/gameserver`.
 `cmd/gameserver` wires the engine into the server once a game message exists.
@@ -99,6 +104,23 @@ a contract.
   a float (timer settings, the pending game timeout, elapsed times) is a `float64`.
 * A round end's scores are those before its payments; its score changes take them to the scores
   after it.
+
+## Persistence and credentials
+
+The lobby reads what the game server writes, and signs what it verifies, so both packages keep the
+Python server's formats.
+
+* The SQLite file is shared. The game server creates only `played_games` and its index, in the
+  lobby's DDL; the lobby creates its own tables when it opens the file. Opening sets the file and
+  its WAL and SHM siblings to 0600. A row's time columns are Python's `isoformat()` (`+00:00`,
+  microseconds only when nonzero), the same instants in `data` end in `Z`, and `data` is the JSON
+  the lobby's `PlayedGame` validates: seat order at the start, placement order at a completed end.
+  `testdata/python_rows.json` holds rows Python wrote, and Go must write them byte for byte.
+* Replay files keep their layout, gzip, owner-only modes and 1 MiB read cap; every path goes
+  through an `os.Root`, so no id or link leaves the replay directory.
+* A ticket verifies only as the lobby signs one: strict padded base64url, exactly the four fields,
+  `expires_at` a JSON float. `testdata/lobby_tickets.json` holds tickets the lobby's code signed and
+  the verdict Python reached on each. An empty secret verifies nothing.
 
 ## Engine purity
 
