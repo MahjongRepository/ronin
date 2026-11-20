@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"slices"
@@ -510,9 +511,9 @@ func eagerPolicy(game engine.Game, seat tile.Seat, drawn tile.TileID) (play.Acti
 }
 
 type discardRank struct {
-	shanten  int
-	notDrawn bool
-	id       tile.TileID
+	shanten int
+	drawn   bool
+	id      tile.TileID
 }
 
 func closestToReadyDiscard(hand []tile.TileID, drawn tile.TileID) (tile.TileID, error) {
@@ -526,7 +527,7 @@ func closestToReadyDiscard(hand []tile.TileID, drawn tile.TileID) (tile.TileID, 
 		if err != nil {
 			return tile.TileID{}, err
 		}
-		ranks = append(ranks, discardRank{shanten: shanten, notDrawn: id != drawn, id: id})
+		ranks = append(ranks, discardRank{shanten: shanten, drawn: id == drawn, id: id})
 	}
 	if len(ranks) == 0 {
 		return tile.TileID{}, errors.New("an empty hand has no discard")
@@ -535,13 +536,12 @@ func closestToReadyDiscard(hand []tile.TileID, drawn tile.TileID) (tile.TileID, 
 }
 
 func compareDiscardRanks(a, b discardRank) int {
-	switch {
-	case a.shanten != b.shanten:
-		return a.shanten - b.shanten
-	case a.notDrawn != b.notDrawn && !a.notDrawn:
-		return -1
-	case a.notDrawn != b.notDrawn:
+	return cmp.Or(cmp.Compare(a.shanten, b.shanten), cmp.Compare(drawnRank(b), drawnRank(a)), b.id.Compare(a.id))
+}
+
+func drawnRank(r discardRank) int {
+	if r.drawn {
 		return 1
 	}
-	return b.id.Compare(a.id)
+	return 0
 }

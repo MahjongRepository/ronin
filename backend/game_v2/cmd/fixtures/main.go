@@ -39,8 +39,9 @@ func main() {
 }
 
 type fixtureSet struct {
-	kind string
-	dir  fixtureDir
+	kind      string
+	dir       fixtureDir
+	generated map[string][]byte
 }
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
@@ -66,28 +67,27 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 
 	sets := []fixtureSet{
-		{kind: "seat transcript", dir: fixtureDir{path: *seatDir, suffix: ".json"}},
-		{kind: "replay fixture", dir: fixtureDir{path: *replayDir, suffix: ".msgpack"}},
+		{kind: "seat transcript", dir: fixtureDir{path: *seatDir, suffix: ".json"}, generated: transcripts},
+		{kind: "replay fixture", dir: fixtureDir{path: *replayDir, suffix: ".msgpack"}, generated: replays},
 	}
-	generated := []map[string][]byte{transcripts, replays}
 	code := 0
-	for i, set := range sets {
+	for _, set := range sets {
 		if *check {
-			code = max(code, checkFixtures(set, generated[i], stdout, stderr))
+			code = max(code, checkFixtures(set, stdout, stderr))
 		} else {
-			code = max(code, writeFixtures(set, generated[i], stdout, stderr))
+			code = max(code, writeFixtures(set, stdout, stderr))
 		}
 	}
 	return code
 }
 
-func checkFixtures(set fixtureSet, generated map[string][]byte, stdout, stderr io.Writer) int {
-	problems, err := set.dir.drift(generated)
+func checkFixtures(set fixtureSet, stdout, stderr io.Writer) int {
+	problems, err := set.dir.drift(set.generated)
 	if err != nil {
 		return report(stderr, "read the "+set.kind+"s: "+err.Error()+"\n", exitFailed)
 	}
 	if len(problems) == 0 {
-		return report(stdout, fmt.Sprintf("%d %s(s) up to date\n", len(generated), set.kind), 0)
+		return report(stdout, fmt.Sprintf("%d %s(s) up to date\n", len(set.generated), set.kind), 0)
 	}
 
 	var lines strings.Builder
@@ -98,8 +98,8 @@ func checkFixtures(set fixtureSet, generated map[string][]byte, stdout, stderr i
 	return report(stdout, lines.String(), exitFailed)
 }
 
-func writeFixtures(set fixtureSet, generated map[string][]byte, stdout, stderr io.Writer) int {
-	removed, err := set.dir.write(generated)
+func writeFixtures(set fixtureSet, stdout, stderr io.Writer) int {
+	removed, err := set.dir.write(set.generated)
 	var lines strings.Builder
 	for _, name := range removed {
 		lines.WriteString("removed " + name + "\n")
@@ -107,7 +107,7 @@ func writeFixtures(set fixtureSet, generated map[string][]byte, stdout, stderr i
 	if err != nil {
 		return report(stderr, lines.String()+"write the "+set.kind+"s: "+err.Error()+"\n", exitFailed)
 	}
-	fmt.Fprintf(&lines, "wrote %d %s(s) to %s\n", len(generated), set.kind, set.dir.path)
+	fmt.Fprintf(&lines, "wrote %d %s(s) to %s\n", len(set.generated), set.kind, set.dir.path)
 	return report(stdout, lines.String(), 0)
 }
 

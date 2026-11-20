@@ -339,15 +339,10 @@ func TestAct_WhenRefused_ShouldChangeNothing(t *testing.T) {
 	assertEqual(t, "refusal kinds", kinds, [3]bool{true, true, true})
 }
 
-func TestShanten_WhenOnlySevenPairsIsOneTileFromReady_ShouldCountThatShape(t *testing.T) {
-	var counts [tile.KindCount]uint8
-	for _, kind := range []tile.Kind{0, 8, 9, 17, 18, 26} {
-		counts[kind] = 2
-	}
-	counts[tile.KindCount-1] = 1
-	hand, err := tile.CountsFromArray(counts)
+func TestShanten_WhenOnlySevenPairsIsReady_ShouldCountThatShape(t *testing.T) {
+	hand, err := tile.KindCounts(slices.Values(copies(t, 0, "1199m1199p1199s7z")))
 	if err != nil {
-		t.Fatalf("CountsFromArray error = %v", err)
+		t.Fatalf("KindCounts error = %v", err)
 	}
 
 	got, err := engine.Shanten(hand)

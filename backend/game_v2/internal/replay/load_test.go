@@ -2,10 +2,14 @@ package replay_test
 
 import (
 	"errors"
+	"reflect"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replay"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
@@ -47,5 +51,34 @@ func TestLoad_WhenTheGameStartIsNotOfThisServersRules_ShouldRefuseItsRecord(t *t
 				t.Errorf("Load error = %v, want a LoadError at record 2", err)
 			}
 		})
+	}
+}
+
+func TestLoad_WhenARonRobsAClosedKan_ShouldNameTheKanByTheRobbedCopy(t *testing.T) {
+	robbedCopy := id(t, 35)
+	kan := play.Called{Seat: seat(t, 1), Meld: play.MeldView{
+		Kind: play.MeldClosedKan, Tiles: []tile.TileID{id(t, 32), id(t, 33), id(t, 34), robbedCopy},
+	}}
+	robbed := play.RoundEnded{Result: play.Ron{Discarder: seat(t, 1), Wins: []play.WinResult{{
+		Winner: seat(t, 2), Loser: play.Some(seat(t, 1)), WinTile: robbedCopy, Value: play.Yakuman{Count: 1},
+	}}}}
+	table := messaging.Table{Roster: testRoster}
+	records := []wire.Map{wire.VersionRecord(), messaging.ReplayGameStartedPayload(play.GameStarted{}, testRoster, engine.Seed{7})}
+	for _, event := range []play.Event{kan, robbed} {
+		record, err := messaging.EventPayload(event, table)
+		if err != nil {
+			t.Fatalf("EventPayload(%T) error = %v", event, err)
+		}
+		records = append(records, record)
+	}
+
+	loaded := loadRecords(t, records)
+
+	want := []replay.SeatAction{
+		{Seat: seat(t, 1), Action: play.KanAction(play.KanClosed, robbedCopy)},
+		{Seat: seat(t, 2), Action: play.RonAction()},
+	}
+	if diff := cmp.Diff(want, loaded.Actions, cmp.Exporter(func(reflect.Type) bool { return true })); diff != "" {
+		t.Errorf("Load actions (-want +got):\n%s", diff)
 	}
 }

@@ -347,7 +347,7 @@ func chankanAIReplacement() (recording, error) {
 
 func chankanClosedKokushi() (recording, error) {
 	var s staging
-	drawnKanTile, declaredKanTile := s.id(3, "9m"), s.id(0, "9m")
+	closedKanTile := s.id(3, "9m")
 	wall := stagedWall{
 		hands: [tile.SeatCount][]tile.TileID{
 			s.ids(2, "357m357p35789s12z"),
@@ -357,16 +357,16 @@ func chankanClosedKokushi() (recording, error) {
 		},
 		draws: []stagedDraw{
 			s.draw(0, s.id(1, "3z")), s.draw(1, s.id(1, "4z")), s.draw(2, s.id(1, "5z")), s.draw(3, s.id(1, "6z")),
-			s.draw(0, s.id(1, "7z")), s.draw(1, drawnKanTile),
+			s.draw(0, s.id(1, "7z")), s.draw(1, closedKanTile),
 		},
 	}
 
-	want := endsInGame(robbedBy(2, 1, declaredKanTile))
+	want := endsInGame(robbedBy(2, 1, closedKanTile))
 	return playStaged(&s, staged("chankan-closed-kokushi", wall), want, func(g *stagedGame) {
 		g.tsumogiriUntil(1)
 		g.tsumogiri(1)
 		g.tsumogiriUntil(1)
-		g.kan(1, declaredKanTile, play.KanClosed)
+		g.kan(1, closedKanTile, play.KanClosed)
 		g.ron(2)
 	})
 }

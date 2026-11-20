@@ -23,10 +23,10 @@ The module is two sides, a server and an engine, and the engine is reachable onl
 * `engine/` is the engine's only public API. The rules live under `engine/internal/`, which the Go
   compiler lets nothing outside `engine/` import, so the server side cannot reach past the facade.
   The facade holds no rule of its own: it wraps `game`, the seed functions of `rng` and the lowest
-  shanten the tools' play policies rank by, and re-exports as type aliases the seed and error types a caller builds or matches. No slice it
-  returns shares a backing array with the game, so a caller may write into anything it gets; the
-  facade copies what the layer below shares, and a seam test writes into every returned slice to
-  hold that.
+  shanten the tools' play policies rank by, and re-exports as type aliases the seed and error
+  types a caller builds or matches. No slice it returns shares a backing array with the game, so a
+  caller may write into anything it gets; the facade copies what the layer below shares, and a
+  seam test writes into every returned slice to hold that.
 * The compiler does not stop the opposite direction, so lint rules in `.golangci.yml`, run by
   `make lint-go`, hold it: see Engine purity.
 * `engine/tile` is the public vocabulary under the facade: tile kinds, hand tiles, tile ids, winds,
@@ -245,7 +245,9 @@ and the fixture tools.
   meld is its seat's, a round end names its winners, head-bumped ron seats, kyuushu declarer and
   triple ron declarers, and every other call answer was a pass, which the runner plays itself for
   the seats a prompt still awaits. A recorded event the engine refuses to reproduce fails the run;
-  there is no lenient mode.
+  there is no lenient mode. A closed kan's record holds no copy its declarer named, which only a
+  robbing ron's winning tile shows, so the loader names that copy for a robbed closed kan and the
+  lowest one for any other.
 * Only this server's rules profile loads: a replay rewritten from `0.4-dev` was scored under older
   rules and does not reproduce. A replay holds its seed and no wall, so a game staged on fixed
   walls runs again only from its own setup.

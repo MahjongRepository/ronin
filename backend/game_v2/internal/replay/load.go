@@ -5,7 +5,9 @@
 // A replay records the engine's events, not the actions behind them. A discard and a declared meld
 // are their seat's actions; a round end names the winners, the seats whose ron lost to head bump,
 // the kyuushu declarer and the triple ron's declarers; every other answer to a call prompt was a
-// pass, which Run answers itself. A replay holds its seed and no wall, so a game dealt from fixed
+// pass, which Run answers itself. A closed kan's record holds its four tiles but not the copy its
+// declarer named, which only a robbing ron's winning tile shows: Load names that copy for a
+// robbed closed kan and the lowest one for any other. A replay holds its seed and no wall, so a game dealt from fixed
 // walls plays again only from the same setup. Only a replay of this server's rules profile loads:
 // a game rewritten from an older format was scored under other rules and does not reproduce.
 //
@@ -79,9 +81,28 @@ func Load(content []byte) (Replay, error) {
 		if err != nil {
 			return Replay{}, LoadError{Record: gameStartPosition + 1 + i, Err: err}
 		}
-		r.Actions = append(r.Actions, actions...)
+		r.Actions = append(namingRobbedClosedKan(r.Actions, record), actions...)
 	}
 	return r, nil
+}
+
+func namingRobbedClosedKan(actions []SeatAction, record wire.Map) []SeatAction {
+	result, _ := intField(record, wire.KeyResultType)
+	winTile, won := intField(record, wire.KeyWinningTile)
+	robbed, valid := tile.NewTileID(winTile)
+	if eventOf(record) != play.Some(wire.EventRoundEnd) || wire.ResultType(result) != wire.ResultRon || !won ||
+		!valid || len(actions) == 0 {
+		return actions
+	}
+
+	last := actions[len(actions)-1]
+	kind, isKan := last.Action.Kan()
+	named, _ := last.Action.Tile()
+	if !isKan || kind != play.KanClosed || named.Kind() != robbed.Kind() {
+		return actions
+	}
+	actions[len(actions)-1].Action = play.KanAction(play.KanClosed, robbed)
+	return actions
 }
 
 func readGameStart(record wire.Map) (engine.Seed, [tile.SeatCount]string, error) {
