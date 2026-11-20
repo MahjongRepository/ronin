@@ -366,7 +366,7 @@ func TestAct_WhenRefused_ShouldChangeNothing(t *testing.T) {
 }
 
 func TestShanten_WhenOnlySevenPairsIsReady_ShouldCountThatShape(t *testing.T) {
-	hand, err := tile.KindCounts(slices.Values(copies(t, 0, "1199m1199p1199s7z")))
+	hand, err := tile.KindCounts(copies(t, 0, "1199m1199p1199s7z"))
 	if err != nil {
 		t.Fatalf("KindCounts error = %v", err)
 	}

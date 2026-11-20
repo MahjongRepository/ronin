@@ -51,7 +51,7 @@ func IsHoutei(liveTiles int, source play.CallSource) bool {
 }
 
 func countsOfDistinctIDs(ids []tile.TileID) tile.Counts {
-	counts, _ := tile.KindCounts(slices.Values(ids))
+	counts, _ := tile.KindCounts(ids)
 	return counts
 }
 

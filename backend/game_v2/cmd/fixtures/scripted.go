@@ -521,7 +521,7 @@ type discardRank struct {
 func closestToReadyDiscard(hand []tile.TileID, drawn tile.TileID) (tile.TileID, error) {
 	ranks := make([]discardRank, 0, len(hand))
 	for i, id := range hand {
-		rest, err := tile.KindCounts(slices.Values(slices.Delete(slices.Clone(hand), i, i+1)))
+		rest, err := tile.KindCounts(slices.Delete(slices.Clone(hand), i, i+1))
 		if err != nil {
 			return tile.TileID{}, err
 		}

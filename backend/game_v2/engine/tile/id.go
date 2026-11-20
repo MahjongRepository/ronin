@@ -63,9 +63,9 @@ func (id TileID) Tile(aka AkaDora) Tile {
 
 // KindCounts counts the ids of each kind; a TooManyCopiesError for the lowest kind held more than
 // four times.
-func KindCounts(ids iter.Seq[TileID]) (Counts, error) {
+func KindCounts(ids []TileID) (Counts, error) {
 	var counts [KindCount]int
-	for id := range ids {
+	for _, id := range ids {
 		counts[id.Kind()]++
 	}
 	return newCounts(counts)

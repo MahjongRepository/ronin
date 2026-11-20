@@ -15,7 +15,7 @@ import (
 
 // Completes reports whether the concealed tiles with winTile added form a complete hand.
 func Completes(concealed []tile.TileID, winTile tile.TileID) bool {
-	counts, err := tile.KindCounts(slices.Values(append(slices.Clone(concealed), winTile)))
+	counts, err := tile.KindCounts(append(slices.Clone(concealed), winTile))
 	return err == nil && hand.IsAgari(counts)
 }
 

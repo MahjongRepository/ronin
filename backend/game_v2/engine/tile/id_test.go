@@ -39,7 +39,7 @@ func TestAllTileIDs_ShouldListEveryIDInAscendingOrder(t *testing.T) {
 }
 
 func TestKindCounts_ShouldCountTheIDsOfEachKind(t *testing.T) {
-	counts, err := tile.KindCounts(slices.Values(mustIDs(t, 0, 1, 2, 3, 36, 108, 16, 17)))
+	counts, err := tile.KindCounts(mustIDs(t, 0, 1, 2, 3, 36, 108, 16, 17))
 	if err != nil {
 		t.Fatalf("KindCounts error = %v", err)
 	}
@@ -52,14 +52,14 @@ func TestKindCounts_ShouldCountTheIDsOfEachKind(t *testing.T) {
 
 func TestKindCounts_WhenAKindHasAFifthCopy_ShouldRefuseIt(t *testing.T) {
 	id := mustID(t, 9)
-	_, err := tile.KindCounts(slices.Values([]tile.TileID{id, id, id, id, id}))
+	_, err := tile.KindCounts([]tile.TileID{id, id, id, id, id})
 	if !errors.Is(err, tile.TooManyCopiesError{Kind: 2}) {
 		t.Errorf("KindCounts error = %v, want kind 2 too many", err)
 	}
 }
 
 func TestKindCounts_When256CopiesOfOneID_ShouldRefuseWithoutOverflow(t *testing.T) {
-	_, err := tile.KindCounts(slices.Values(slices.Repeat([]tile.TileID{mustID(t, 135)}, 256)))
+	_, err := tile.KindCounts(slices.Repeat([]tile.TileID{mustID(t, 135)}, 256))
 	if !errors.Is(err, tile.TooManyCopiesError{Kind: 33}) {
 		t.Errorf("KindCounts error = %v, want kind 33 too many", err)
 	}

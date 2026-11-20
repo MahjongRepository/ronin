@@ -854,7 +854,7 @@ func sortedKinds(pair [2]tile.TileID) [2]tile.Kind {
 }
 
 func countsOf(ids []tile.TileID) tile.Counts {
-	counts, _ := tile.KindCounts(slices.Values(ids))
+	counts, _ := tile.KindCounts(ids)
 	return counts
 }
 

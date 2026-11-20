@@ -139,7 +139,7 @@ func greedy(t *testing.T, decision play.Decision, hand []tile.TileID, word uint6
 func shantenWithout(t *testing.T, hand []tile.TileID, discard tile.TileID) int {
 	t.Helper()
 	kept := slices.DeleteFunc(slices.Clone(hand), func(id tile.TileID) bool { return id == discard })
-	counts, err := tile.KindCounts(slices.Values(kept))
+	counts, err := tile.KindCounts(kept)
 	if err != nil {
 		t.Fatalf("KindCounts error = %v", err)
 	}
