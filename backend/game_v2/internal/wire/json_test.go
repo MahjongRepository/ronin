@@ -61,21 +61,21 @@ func (o jsonObject) MarshalJSON() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func readJSONFile(t *testing.T, path string) jsonObject {
-	t.Helper()
+func readJSONFile(tb testing.TB, path string) jsonObject {
+	tb.Helper()
 	content, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
+		tb.Fatalf("read %s: %v", path, err)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(content))
 	decoder.UseNumber()
 	root, err := readJSON(decoder)
 	if err != nil {
-		t.Fatalf("parse %s: %v", path, err)
+		tb.Fatalf("parse %s: %v", path, err)
 	}
 	object, ok := root.(jsonObject)
 	if !ok {
-		t.Fatalf("%s holds no object", path)
+		tb.Fatalf("%s holds no object", path)
 	}
 	return object
 }

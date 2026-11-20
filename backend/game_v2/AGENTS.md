@@ -464,6 +464,10 @@ code under `engine/`:
   `make test-go`, and so does one over data kept only on a developer's machine (`tenhou`, the Tenhou
   corpus); its package doc gives the command that runs it. `make lint-go` builds with every tag
   (`run.build-tags`), so the file is type-checked and linted on every run.
+* `internal/wire` has fuzz targets for the live and replay decoders: whatever a decoder accepts must
+  re-encode to stable bytes. `go test` replays only their seeds (the goldens and the rewritten
+  replays). Mutation runs take every core, so they are by hand only, after a codec change, capped:
+  `go test -run '^$' -fuzz '^FuzzDecode_' -fuzztime=30s -parallel=2 ./internal/wire`.
 
 ## Comments
 

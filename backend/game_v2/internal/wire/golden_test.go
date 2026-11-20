@@ -17,24 +17,24 @@ const (
 	pythonReplayGoldenPath = "../../../game/tests/fixtures/replay-format-golden.json"
 )
 
-func goldenBytes(t *testing.T, node any) []byte {
-	t.Helper()
+func goldenBytes(tb testing.TB, node any) []byte {
+	tb.Helper()
 	text, _ := node.(string)
 	content, err := hex.DecodeString(text)
 	if err != nil {
-		t.Fatalf("hex %q: %v", text, err)
+		tb.Fatalf("hex %q: %v", text, err)
 	}
 	return content
 }
 
-func goldenFrames(t *testing.T, golden jsonObject) []jsonObject {
-	t.Helper()
+func goldenFrames(tb testing.TB, golden jsonObject) []jsonObject {
+	tb.Helper()
 	nodes, _ := golden.get("frames").([]any)
 	frames := make([]jsonObject, 0, len(nodes))
 	for _, node := range nodes {
 		frame, ok := node.(jsonObject)
 		if !ok {
-			t.Fatalf("frame %v is no object", node)
+			tb.Fatalf("frame %v is no object", node)
 		}
 		frames = append(frames, frame)
 	}
