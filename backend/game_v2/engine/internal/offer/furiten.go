@@ -68,8 +68,8 @@ func (c RonCandidate) isBlocked(waits tile.Kinds) bool {
 // RonOutcome is what a discard is to a seat it might complete.
 type RonOutcome uint8
 
-// The ron outcomes: the tile does not complete the hand; it completes the hand but furiten, no
-// yaku or a hand the scorer rejects forbids the ron; or the ron is offered.
+// The ron outcomes: the tile does not complete the hand; it completes the hand but furiten or no
+// yaku forbids the ron; or the ron is offered.
 const (
 	RonNotComplete RonOutcome = iota
 	RonMissed
@@ -77,7 +77,8 @@ const (
 )
 
 // DiscardRon returns whether candidate is offered the ron on a discarded tile in situation,
-// scored with no dora since dora never makes a yaku.
+// scored with no dora since dora never makes a yaku. It panics with a play.EngineFaultError when
+// the scorer rejects the completed hand for anything but no yaku.
 func DiscardRon(candidate RonCandidate, discard tile.TileID, situation score.Situation) RonOutcome {
 	if !Completes(candidate.Hand, discard) {
 		return RonNotComplete
@@ -87,7 +88,7 @@ func DiscardRon(candidate RonCandidate, discard tile.TileID, situation score.Sit
 	}
 
 	scoring := Scoring{Situation: situation, Melds: candidate.Melds}
-	if _, err := HandValue(candidate.Hand, discard, scoring); err != nil {
+	if _, ok := OfferedValue(candidate.Hand, discard, scoring); !ok {
 		return RonMissed
 	}
 	return RonOffered

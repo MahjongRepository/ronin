@@ -2,10 +2,12 @@ package offer_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/meld"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/offer"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/score"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -40,13 +42,27 @@ func TestTsumoScoreChanges_WhenALiableSeat_ShouldChargeItEveryShareAndTheWholeHo
 	}
 }
 
-func TestTsumoScoreChanges_WhenPaidARonPayment_ShouldChargeOnlyTheHonba(t *testing.T) {
-	payment := play.RonPayment{Discarder: 8000}
+func TestTsumoScoreChanges_WhenThePaymentDoesNotFitTheWinner_ShouldPanicWithAnEngineFault(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		winner  tile.Seat
+		payment play.Payment
+		named   string
+	}{
+		{"dealer's payment to a non-dealer", seat(t, 1), play.DealerTsumoPayment{NonDealer: 2000}, "play.DealerTsumoPayment"},
+		{"non-dealer's payment to the dealer", seat(t, 0), play.TsumoPayment{Dealer: 2000, NonDealer: 1000}, "play.TsumoPayment"},
+		{"ron payment", seat(t, 1), play.RonPayment{Discarder: 8000}, "play.RonPayment"},
+	} {
+		fault := faultOf(t, func() {
+			offer.TsumoScoreChanges(c.winner, seat(t, 0), c.payment, 1, 0, play.Option[tile.Seat]{})
+		})
 
-	got := offer.TsumoScoreChanges(seat(t, 1), seat(t, 0), payment, 1, 0, play.Option[tile.Seat]{})
-
-	if want := [4]int{-100, 300, -100, -100}; got != want {
-		t.Errorf("TsumoScoreChanges = %v, want %v", got, want)
+		if want := (offer.MisfitPaymentError{Payment: c.payment}); !errors.Is(fault, want) {
+			t.Errorf("%s: TsumoScoreChanges fault = %v, want %v", c.name, fault, want)
+		}
+		if !strings.Contains(fault.Error(), c.named) {
+			t.Errorf("%s: TsumoScoreChanges fault text = %q, want it to name %s", c.name, fault.Error(), c.named)
+		}
 	}
 }
 
@@ -61,6 +77,18 @@ func TestRonScoreChanges_ShouldChargeTheDiscarderAndGiveTheTableOnlyWhenTaken(t 
 	}
 	if want := [4]int{0, -8000, 8000, 0}; left != want {
 		t.Errorf("RonScoreChanges leaving the table = %v, want %v", left, want)
+	}
+}
+
+func TestRonScoreChanges_WhenPaidATsumoPayment_ShouldPanicWithAnEngineFault(t *testing.T) {
+	payment := play.TsumoPayment{Dealer: 2000, NonDealer: 1000}
+
+	fault := faultOf(t, func() {
+		offer.RonScoreChanges(seat(t, 2), seat(t, 1), payment, 0, 0, play.Option[tile.Seat]{})
+	})
+
+	if want := (offer.MisfitPaymentError{Payment: payment}); !errors.Is(fault, want) {
+		t.Errorf("RonScoreChanges fault = %v, want %v", fault, want)
 	}
 }
 
@@ -104,5 +132,15 @@ func TestHandValue_WhenAMeldDoesNotFitItsKind_ShouldReportTheMisfitMeld(t *testi
 
 	if want := (meld.MisfitMeldError{Index: 1}); !errors.Is(err, want) {
 		t.Errorf("HandValue error = %v, want %v", err, want)
+	}
+}
+
+func TestSettledValue_WhenTheScorerRejectsTheHand_ShouldPanicWithAnEngineFault(t *testing.T) {
+	concealed := []tile.TileID{id(t, 0)}
+
+	fault := faultOf(t, func() { offer.SettledValue(concealed, id(t, 1), offer.Scoring{Situation: ronSituation()}) })
+
+	if _, ok := errors.AsType[score.WrongTileCountError](fault); !ok {
+		t.Errorf("SettledValue fault = %v, want a score.WrongTileCountError", fault)
 	}
 }

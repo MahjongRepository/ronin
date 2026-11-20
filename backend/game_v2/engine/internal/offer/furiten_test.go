@@ -2,6 +2,7 @@ package offer_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/hand"
@@ -154,11 +155,17 @@ func TestDiscardRon_ShouldMatchScoringWithRealDoraIndicators(t *testing.T) {
 	}
 }
 
-func TestDiscardRon_WhenTheScorerRejectsTheHand_ShouldBeMissed(t *testing.T) {
+func TestDiscardRon_WhenTheScorerRejectsTheCompletedHand_ShouldPanicWithAnEngineFault(t *testing.T) {
 	candidate := offer.RonCandidate{Hand: []tile.TileID{id(t, 0)}}
 
-	if got := offer.DiscardRon(candidate, id(t, 1), ronSituation()); got != offer.RonMissed {
-		t.Errorf("DiscardRon = %v, want %v", got, offer.RonMissed)
+	fault := faultOf(t, func() { offer.DiscardRon(candidate, id(t, 1), ronSituation()) })
+
+	wrongCount, ok := errors.AsType[score.WrongTileCountError](fault)
+	if !ok {
+		t.Fatalf("DiscardRon fault = %v, want a score.WrongTileCountError", fault)
+	}
+	if !strings.Contains(fault.Error(), wrongCount.Error()) {
+		t.Errorf("DiscardRon fault text = %q, want it to name %q", fault.Error(), wrongCount.Error())
 	}
 }
 

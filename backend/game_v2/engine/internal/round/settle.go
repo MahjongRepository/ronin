@@ -22,16 +22,13 @@ func (r *Round) uraIndicators(seat tile.Seat) []tile.TileID {
 	return r.wall.UraIndicators()
 }
 
-func (r *Round) value(seat tile.Seat, concealed []tile.TileID, winTile tile.TileID, win score.Win) (
-	score.HandValue, error,
-) {
-	scoring := offer.Scoring{
+func (r *Round) scoring(seat tile.Seat, win score.Win) offer.Scoring {
+	return offer.Scoring{
 		Situation:      r.situation(seat, win),
 		Melds:          r.seatMelds(seat),
 		DoraIndicators: r.wall.DoraIndicators(),
 		UraIndicators:  r.uraIndicators(seat),
 	}
-	return offer.HandValue(concealed, winTile, scoring)
 }
 
 func (r *Round) tsumoWin(seat tile.Seat) (tile.TileID, score.HandValue, bool) {
@@ -49,8 +46,8 @@ func (r *Round) tsumoWin(seat tile.Seat) (tile.TileID, score.HandValue, bool) {
 	case r.LiveTiles() == 0:
 		win = score.WinHaitei
 	}
-	value, err := r.value(seat, held[:last], held[last], win)
-	return held[last], value, err == nil
+	value, ok := offer.OfferedValue(held[:last], held[last], r.scoring(seat, win))
+	return held[last], value, ok
 }
 
 func (r *Round) winResult(
@@ -95,7 +92,7 @@ func (r *Round) rons(winners []tile.Seat, prompt CallPrompt, honba, riichiSticks
 	win := offer.RonWin(prompt.source, r.LiveTiles())
 	wins := make([]play.WinResult, 0, len(winners))
 	for position, winner := range winners {
-		value, _ := r.value(winner, r.hand(winner), prompt.tile, win)
+		value := offer.SettledValue(r.hand(winner), prompt.tile, r.scoring(winner, win))
 		tableHonba, tableSticks := 0, 0
 		if position == 0 {
 			tableHonba, tableSticks = honba, riichiSticks

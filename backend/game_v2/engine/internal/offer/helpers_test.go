@@ -84,3 +84,17 @@ func river(tiles []tile.TileID) []play.RiverTile {
 func concat(parts ...[]tile.TileID) []tile.TileID {
 	return slices.Concat(parts...)
 }
+
+func faultOf(t *testing.T, call func()) (fault play.EngineFaultError) {
+	t.Helper()
+	defer func() {
+		recovered := recover()
+		got, ok := recovered.(play.EngineFaultError)
+		if !ok {
+			t.Fatalf("recovered %v, want a play.EngineFaultError", recovered)
+		}
+		fault = got
+	}()
+	call()
+	return fault
+}
