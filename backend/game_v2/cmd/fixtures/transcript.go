@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 	"unicode/utf16"
-	"unicode/utf8"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
@@ -180,7 +179,7 @@ func pythonString(s string) string {
 			b.WriteString(`\b`)
 		case r == '\f':
 			b.WriteString(`\f`)
-		case r >= ' ' && r < utf8.RuneSelf:
+		case r >= ' ' && r <= '~':
 			b.WriteRune(r)
 		case r > 0xffff:
 			high, low := utf16.EncodeRune(r)

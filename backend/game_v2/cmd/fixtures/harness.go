@@ -330,16 +330,20 @@ func (s *clientSocket) Send(data []byte) {
 // Close ends the socket as the endpoint does: the client sees the close, and the server's
 // disconnect runs once the step that closed it settled.
 func (s *clientSocket) Close(code session.CloseCode, reason string) {
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
+	if !s.markClosed() {
 		return
 	}
-	s.closed = true
-	s.mu.Unlock()
-
 	s.client.lose(s, int(code), reason)
 	s.client.game.queueDisconnect(s)
+}
+
+func (s *clientSocket) markClosed() (newlyClosed bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	newlyClosed = !s.closed
+	s.closed = true
+	return newlyClosed
 }
 
 func (s *clientSocket) isClosed() bool {
@@ -502,14 +506,10 @@ func (c *seatClient) identity(typ messaging.ClientMessageType) wire.Map {
 
 func (c *seatClient) open(typ messaging.ClientMessageType, label string) error {
 	socket := c.newSocket("-")
-	c.mu.Lock()
-	if c.socket != nil {
-		c.mu.Unlock()
-		return fmt.Errorf("%s opened a socket while one is open", c.name)
+	err := c.bind(socket, label)
+	if err != nil {
+		return err
 	}
-	c.socket = socket
-	c.recordLocked(kindOpened, nil, label)
-	c.mu.Unlock()
 	c.game.manager.Connect(socket)
 
 	message, err := asWire(c.identity(typ))
@@ -525,6 +525,32 @@ func (c *seatClient) open(typ messaging.ClientMessageType, label string) error {
 	c.record(kindSent, wire.StrMap{{Key: "message", Value: shown}}, "")
 	c.game.router.Route(socket, message)
 	return nil
+}
+
+func (c *seatClient) bind(socket *clientSocket, label string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.socket != nil {
+		return fmt.Errorf("%s opened a socket while one is open", c.name)
+	}
+	c.socket = socket
+	c.recordLocked(kindOpened, nil, label)
+	return nil
+}
+
+func (c *seatClient) currentWaitID() play.Option[int] {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.waitID
+}
+
+func (c *seatClient) expectRefusal(code messaging.SessionErrorCode) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.expected = append(c.expected, code)
 }
 
 func asWire(m wire.Map) (wire.Map, error) {
@@ -593,9 +619,7 @@ func (c *seatClient) act(at time.Duration, label string, action messaging.GameAc
 		if err != nil {
 			return err
 		}
-		c.mu.Lock()
-		waitID := c.waitID
-		c.mu.Unlock()
+		waitID := c.currentWaitID()
 		if !waitID.OK {
 			return fmt.Errorf("%s: game action %d before any wait was opened", c.name, action)
 		}
@@ -675,9 +699,7 @@ func (c *seatClient) resync(at time.Duration, label string, refusedWith messagin
 		}
 		c.record(kindSent, wire.StrMap{{Key: "message", Value: message}}, label)
 		if refusedWith != "" {
-			c.mu.Lock()
-			c.expected = append(c.expected, refusedWith)
-			c.mu.Unlock()
+			c.expectRefusal(refusedWith)
 		}
 		c.game.router.Route(socket, message)
 		return nil

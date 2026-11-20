@@ -37,7 +37,13 @@ type Router struct {
 // NewRouter returns a Router into manager that verifies tickets with ticketSecret and logs to
 // logger.
 func NewRouter(manager *session.Manager, ticketSecret string, logger *slog.Logger) *Router {
-	return &Router{session: manager, secret: ticketSecret, log: logger, stats: &socketStats{}, lag: &lagWindow{}}
+	return newRouter(manager, ticketSecret, logger, &socketStats{}, &lagWindow{})
+}
+
+func newRouter(
+	manager *session.Manager, ticketSecret string, logger *slog.Logger, stats *socketStats, lag *lagWindow,
+) *Router {
+	return &Router{session: manager, secret: ticketSecret, log: logger, stats: stats, lag: lag}
 }
 
 // Route parses m, a message conn's client sent, and hands it to the session.

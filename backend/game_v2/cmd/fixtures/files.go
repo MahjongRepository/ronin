@@ -11,7 +11,10 @@ import (
 	"strings"
 )
 
-const fixtureFileMode = 0o644
+const (
+	fixtureFileMode = 0o644
+	fixtureDirMode  = 0o755
+)
 
 type fixtureDir struct {
 	path   string
@@ -66,7 +69,7 @@ func (d fixtureDir) drift(generated map[string][]byte) ([]string, error) {
 }
 
 func (d fixtureDir) write(generated map[string][]byte) (removed []string, err error) {
-	err = os.MkdirAll(d.path, 0o755)
+	err = os.MkdirAll(d.path, fixtureDirMode)
 	if err != nil {
 		return nil, err
 	}

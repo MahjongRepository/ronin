@@ -64,6 +64,9 @@ func generateSeatTranscripts(ctx context.Context, logger *slog.Logger) (map[stri
 			return nil, err
 		}
 		for _, t := range transcripts {
+			if t.scenario != sc.name {
+				return nil, fmt.Errorf("scenario %s wrote a transcript named %s", sc.name, t.scenario)
+			}
 			text, textErr := t.text()
 			if textErr != nil {
 				return nil, textErr
@@ -90,13 +93,14 @@ func (e env) play(
 			return nil, err
 		}
 		transcripts, playErr := script(g)
+		playErr = errors.Join(playErr, s.err)
 		dealt := g.dealtDealers()
 		closeErr := g.close(e.ctx)
 		if closeErr != nil {
 			return nil, errors.Join(playErr, closeErr)
 		}
 
-		if fillersMatch(setup, dealt) {
+		if s.err != nil || fillersMatch(setup, dealt) {
 			return transcripts, playErr
 		}
 		setup.dealers = dealt
