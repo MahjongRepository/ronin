@@ -141,6 +141,7 @@ func (g *game) run() {
 	for g.active() {
 		step := <-g.inbox
 		step()
+		g.m.inFlight.Done()
 	}
 	if g.lifecycle == lifecycleEnding {
 		g.finish()
@@ -148,10 +149,12 @@ func (g *game) run() {
 }
 
 func (g *game) post(step func()) bool {
+	g.m.inFlight.Add(1)
 	select {
 	case g.inbox <- step:
 		return true
 	case <-g.ended:
+		g.m.inFlight.Done()
 		return false
 	}
 }
@@ -284,6 +287,7 @@ func (g *game) endGame(reason endReason, result play.Option[store.Result]) {
 	}
 
 	g.lifecycle = lifecycleEnding
+	g.m.inFlight.Add(1)
 	conns := make([]Connection, 0, len(g.participants))
 	for _, p := range g.connected() {
 		conns = append(conns, p.conn)
@@ -336,6 +340,8 @@ func (g *game) vanish() {
 }
 
 func (g *game) finish() {
+	defer g.m.inFlight.Done()
+
 	e := g.end
 	reason := e.reason
 	if e.keepReplay {

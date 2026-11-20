@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -10,7 +9,6 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
-	"github.com/MahjongRepository/ronin/backend/game_v2/internal/auth"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
@@ -23,24 +21,19 @@ const (
 	logAcceptFailed     = "websocket peer gone before its accept"
 	logDecodeError      = "decode error"
 	logTooManyDecodes   = "too many decode errors, disconnecting"
-	logInvalidMessage   = "invalid message"
-	logInvalidTicket    = "invalid game ticket"
-	logTicketMismatch   = "ticket game_id mismatch"
 	logMessageLoopFails = "websocket message loop failed"
-	logEncodeFailed     = "encode message"
 )
 
 const (
-	undecodableReason    = "Undecodable message"
-	invalidMessageReason = "Invalid message"
-	tooManyMessages      = "Too many messages"
-	tooManyResyncs       = "Too many resync requests"
-	decodeErrorsReason   = "too_many_decode_errors"
-	internalErrorReason  = "internal_error"
-	closeTooManyDecodes  = session.CloseCode(4004)
-	noCloseStatus        = websocket.StatusCode(-1)
-	textFrameErrorType   = "text_frame"
-	msgpackErrorType     = "msgpack"
+	undecodableReason   = "Undecodable message"
+	tooManyMessages     = "Too many messages"
+	tooManyResyncs      = "Too many resync requests"
+	decodeErrorsReason  = "too_many_decode_errors"
+	internalErrorReason = "internal_error"
+	closeTooManyDecodes = session.CloseCode(4004)
+	noCloseStatus       = websocket.StatusCode(-1)
+	textFrameErrorType  = "text_frame"
+	msgpackErrorType    = "msgpack"
 )
 
 func (s *Server) serveSocket(w http.ResponseWriter, r *http.Request) {
@@ -145,7 +138,7 @@ func (rd *reader) handleFrame(typ websocket.MessageType, data []byte) (keepReadi
 		return true
 	}
 
-	rd.s.route(rd.conn, m)
+	rd.s.router.Route(rd.conn, m)
 	stats.countHandled(time.Since(received))
 	return true
 }
@@ -198,68 +191,6 @@ func (rd *reader) answeredBeforeRouting(m wire.Map, at time.Time) bool {
 	return false
 }
 
-func (s *Server) route(conn *connection, m wire.Map) {
-	message, err := messaging.ParseClientMessage(m)
-	if err != nil {
-		s.stats.malformed.Add(1)
-		conn.log.Warn(logInvalidMessage, "error_type", invalidMessageType(err))
-		s.send(conn, messaging.SessionError(messaging.SessionInvalidMessage, invalidMessageReason, play.Option[int]{}))
-		return
-	}
-
-	switch msg := message.(type) {
-	case messaging.GameActionMessage:
-		s.dispatch(func() { s.cfg.Session.Act(conn, msg) })
-	case messaging.JoinGameMessage:
-		if s.verifiedTicket(conn, msg.Ticket) {
-			s.dispatch(func() { s.cfg.Session.Join(conn, msg.Ticket) })
-		}
-	case messaging.ReconnectMessage:
-		if s.verifiedTicket(conn, msg.Ticket) {
-			s.dispatch(func() { s.cfg.Session.Reconnect(conn, msg.Ticket) })
-		}
-	case messaging.ResyncMessage:
-		s.dispatch(func() { s.cfg.Session.Resync(conn) })
-	}
-}
-
-func invalidMessageType(err error) string {
-	if invalid, ok := errors.AsType[messaging.InvalidMessageError](err); ok {
-		return invalid.Reason
-	}
-	return "unknown"
-}
-
-func (s *Server) dispatch(call func()) {
-	began := time.Now()
-	call()
-	s.lag.observe(began, time.Since(began))
-}
-
-func (s *Server) verifiedTicket(conn *connection, token string) bool {
-	ticket, err := auth.VerifyTicket(token, s.cfg.TicketSecret, time.Now())
-	switch {
-	case err != nil:
-		conn.log.Warn(logInvalidTicket, "error", err)
-		s.sendTicketError(conn, "Invalid game ticket")
-		return false
-	case ticket.RoomID != conn.GameID():
-		conn.log.Warn(logTicketMismatch, "ticket_room_id", ticket.RoomID, "expected_game_id", conn.GameID())
-		s.sendTicketError(conn, "Ticket game_id mismatch")
-		return false
-	}
-	return true
-}
-
-func (s *Server) sendTicketError(conn *connection, message string) {
-	s.send(conn, messaging.SessionError(messaging.SessionInvalidTicket, message, play.Option[int]{}))
-}
-
 func (s *Server) send(conn *connection, m wire.Map) {
-	data, err := wire.Encode(m)
-	if err != nil {
-		conn.log.Error(logEncodeFailed, "error", err)
-		return
-	}
-	conn.Send(data)
+	sendMessage(conn.log, conn, m)
 }

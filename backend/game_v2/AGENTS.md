@@ -12,8 +12,8 @@ engine's output into messages and of client messages into actions (`internal/mes
 games with their sessions (`internal/session`), the rows and replay files it persists beside the
 lobby (`internal/store`), its credentials (`internal/auth`), the transport serving the lobby's
 routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`), the
-replay runner (`internal/replay`) with the Go replay check (`cmd/verify`), and the Tenhou export
-(`internal/tenhou`).
+replay runner (`internal/replay`) with the Go replay check (`cmd/verify`), the Tenhou export
+(`internal/tenhou`), and the generator of the game client's seat transcripts (`cmd/fixtures`).
 
 ## The seam
 
@@ -144,6 +144,10 @@ a contract.
   goroutine then runs the finalizer (replay save, finish row, closes), each step its own panic
   boundary, so a fault in one still lets every connection close. The start row is written off the
   goroutine and the finish waits for it; both use the store context `New` takes, never a game's.
+* `Manager.Settle` waits until every posted step and every claimed end's finalizer ran. Only a
+  caller that is the session's one source of work may use it: a harness driving the session on a
+  Clock whose timers it fires itself, which settles before it reads what clients got or moves its
+  clock on.
 * A step that fails or panics fails its game, the one server-fault path; a connection's failed step
   that did not seat it is closed with 1011 on its own.
 * The session owns the seed and the roster. It draws each game's seed and seats the participants by
@@ -209,6 +213,10 @@ a contract.
 * The server owns each socket: one goroutine reads it, rate-limits and decodes each frame and
   hands the message to the session, one writes its queue, and one pings it. The session sees it only
   as a `session.Connection`, so it holds no socket state.
+* A decoded message past the rate limit and the answers before routing (ping, the resync budget)
+  goes through the `Router`, which parses it, verifies a join's or reconnect's ticket and calls the
+  session. It takes any `session.Connection`, so a harness with no socket routes through the same
+  code.
 * The REST answers keep the Python server's status codes, JSON keys and error texts, and the
   lobby's creation body is read as strictly as Python's model read it: exactly its keys, no field
   of another JSON type, lengths in characters. A socket whose path holds an invalid game id is
@@ -256,6 +264,23 @@ and the fixture tools.
   riichi sticks on the first win's `ba`, the honba on every win's, a winner's melds newest first.
 * A replay with no game end has no log, and a record the log cannot be written from fails the export;
   neither ever answers a partial log.
+
+## Seat transcripts
+
+`cmd/fixtures` plays the seat scenarios through the real session and `Router` on virtual time and
+writes what each named seat's client met, the game client's end-to-end pin of the session.
+
+* Time moves only between steps: every timer due by a step's moment fires at its own moment in the
+  order it was armed, and the harness settles the session after each firing and each step. A step
+  falls on a multiple of 250 ms and never on the moment a timer fires, so every time, bank and
+  elapsed value is exact and two runs write the same bytes.
+* A scenario stages its first rounds' walls; a fixed wall source ends the game once its walls are
+  dealt, so every later round is the seed's own wall for its round number and dealer, laid out as a
+  fixed wall. A later round's dealer is known only once it is dealt, so a scenario runs again with
+  the dealers it saw until they match. Fixed walls throw (1, 1), so a later round's dice are not the
+  seed's.
+* A transcript is the JSON the Python generator wrote (one event per line, keys sorted, Python's
+  number and string forms), so the client reads either.
 
 ## Security requirements
 

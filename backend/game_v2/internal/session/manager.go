@@ -26,6 +26,7 @@ type Manager struct {
 	storeCtx context.Context
 	log      *slog.Logger
 	wg       sync.WaitGroup
+	inFlight sync.WaitGroup
 	stats    counters
 
 	mu        sync.Mutex
@@ -378,6 +379,14 @@ func (m *Manager) Disconnect(conn Connection) {
 	p.game.post(func() {
 		p.game.serve(conn, "disconnect failed", func() error { return p.game.disconnected(p, conn) })
 	})
+}
+
+// Settle waits until every game ran each step posted to it so far, and every game whose end was
+// claimed ran its finalizer. It is for a caller that is the only source of the session's work, such
+// as a harness that drives the session on a Clock whose timers it fires itself: a step posted from
+// elsewhere while it waits races it.
+func (m *Manager) Settle() {
+	m.inFlight.Wait()
 }
 
 // Shutdown stops the session once the server stopped serving: it refuses new games, cancels the
