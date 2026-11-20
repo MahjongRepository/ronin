@@ -159,6 +159,27 @@ func (g *game) post(step func()) bool {
 	}
 }
 
+func (g *game) postRouted(step func()) bool {
+	sent := g.clock.Now()
+	return g.post(func() {
+		received := g.clock.Now()
+		g.m.delays.observe(received, received.Sub(sent))
+		step()
+	})
+}
+
+func (g *game) postAndWait(step func()) bool {
+	done := make(chan struct{})
+	posted := g.postRouted(func() {
+		defer close(done)
+		step()
+	})
+	if posted {
+		<-done
+	}
+	return posted
+}
+
 func ask(g *game, question func() bool) (answer, answered bool) {
 	reply := make(chan bool, 1)
 	posted := g.post(func() {

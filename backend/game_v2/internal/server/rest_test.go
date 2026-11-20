@@ -14,6 +14,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/auth"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
 func TestHealth_ShouldAnswerOKWithVersionAndCommit(t *testing.T) {
@@ -50,6 +52,9 @@ func telegrafFields(t *testing.T) []string {
 
 func TestStatus_ShouldCarryTheTelegrafFieldsAndOnlyTheLobbysOthers(t *testing.T) {
 	h := newHarness(t)
+	stranger := h.dial(testGameID, nil)
+	send(t, stranger, passOutsideAGame(wire.Int(1)))
+	readUntil(t, stranger, func(m wire.Map) bool { return errorCode(m) == string(messaging.SessionNotInGame) })
 
 	status := h.status()
 
@@ -73,7 +78,7 @@ func TestStatus_ShouldCarryTheTelegrafFieldsAndOnlyTheLobbysOthers(t *testing.T)
 		t.Errorf("/status started_at = %v, want the process start in whole epoch seconds", status["started_at"])
 	}
 	if status["loop_lag_max_ms"] != nil {
-		t.Errorf("/status loop_lag_max_ms = %v before any message, want null", status["loop_lag_max_ms"])
+		t.Errorf("/status loop_lag_max_ms = %v after only a message no game took, want null", status["loop_lag_max_ms"])
 	}
 }
 

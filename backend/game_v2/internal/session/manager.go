@@ -28,6 +28,7 @@ type Manager struct {
 	wg       sync.WaitGroup
 	inFlight sync.WaitGroup
 	stats    counters
+	delays   lagWindow
 
 	mu        sync.Mutex
 	closed    bool
@@ -107,6 +108,12 @@ func (m *Manager) Stats() Stats {
 		RoundAdvanceTimeouts: m.stats.roundAdvanceTimeouts.Load(),
 		AIReplacements:       m.stats.aiReplacements.Load(),
 	}
+}
+
+// QueueDelayMax returns, in milliseconds, the longest a routed message waited for its game to take
+// it in the last minute, and false when no message was routed to a game in that time.
+func (m *Manager) QueueDelayMax() (float64, bool) {
+	return m.delays.worstMillis(m.cfg.Clock.Now())
 }
 
 // GameCounts returns how many pending and playing games the registry holds; a game leaves it the
@@ -284,7 +291,7 @@ func (m *Manager) Join(conn Connection, ticket string) {
 	if !registered {
 		return
 	}
-	posted := g != nil && g.post(func() {
+	posted := g != nil && g.postAndWait(func() {
 		g.serve(conn, "join failed", func() error { return g.join(conn, ticket) })
 	})
 	if !posted {
@@ -313,7 +320,7 @@ func (m *Manager) Act(conn Connection, message messaging.GameActionMessage) {
 	if g == nil {
 		return
 	}
-	g.post(func() {
+	g.postRouted(func() {
 		g.serve(conn, "game action failed", func() error { return g.gameAction(conn, message) })
 	})
 }

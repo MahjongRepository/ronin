@@ -25,7 +25,7 @@ func (m *Manager) Reconnect(conn Connection, ticket string) {
 		sendSessionError(m.log, conn, refused.Value.code, refused.Value.message)
 		return
 	}
-	posted := g.post(func() {
+	posted := g.postAndWait(func() {
 		g.serve(conn, "reconnect failed", func() error { return g.reconnect(conn, ticket) })
 	})
 	if !posted {
@@ -63,7 +63,7 @@ func (m *Manager) Resync(conn Connection) {
 	if g == nil {
 		return
 	}
-	g.post(func() {
+	g.postRouted(func() {
 		g.serve(conn, "resync failed", func() error { return g.resync(conn) })
 	})
 }

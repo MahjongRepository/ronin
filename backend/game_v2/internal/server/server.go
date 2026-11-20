@@ -94,7 +94,6 @@ type Server struct {
 	log       *slog.Logger
 	startedAt int64
 	stats     socketStats
-	lag       lagWindow
 	router    *Router
 	handler   http.Handler
 
@@ -116,7 +115,7 @@ func New(cfg Config) (*Server, error) {
 		sockets:   map[*connection]struct{}{},
 	}
 	s.stats.closes = initialCloses()
-	s.router = newRouter(cfg.Session, cfg.TicketSecret, cfg.Logger, &s.stats, &s.lag)
+	s.router = newRouter(cfg.Session, cfg.TicketSecret, cfg.Logger, &s.stats)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)

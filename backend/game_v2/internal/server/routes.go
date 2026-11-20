@@ -71,7 +71,7 @@ type statusField struct {
 func (s *Server) status(w http.ResponseWriter, _ *http.Request) {
 	counts := s.cfg.Session.GameCounts()
 	stats := s.cfg.Session.Stats()
-	lag, measured := s.lag.worstMillis(time.Now())
+	lag, measured := s.cfg.Session.QueueDelayMax()
 	var lagValue any
 	if measured {
 		lagValue = lag

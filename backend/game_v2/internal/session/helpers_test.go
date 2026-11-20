@@ -84,6 +84,16 @@ func (c *fakeConn) closeCode() (session.CloseCode, bool) {
 	return c.code, c.closed
 }
 
+type heldConn struct {
+	*fakeConn
+	release chan struct{}
+}
+
+func (c *heldConn) Send(data []byte) {
+	<-c.release
+	c.fakeConn.Send(data)
+}
+
 type lockedBuffer struct {
 	mu  sync.Mutex
 	buf bytes.Buffer
@@ -204,6 +214,16 @@ func (h *harness) create(names ...string) {
 func (h *harness) connect() *fakeConn {
 	h.nextConn++
 	conn := &fakeConn{id: "conn-" + strconv.Itoa(h.nextConn), gameID: testGameID}
+	h.m.Connect(conn)
+	return conn
+}
+
+func (h *harness) connectHeld() *heldConn {
+	h.nextConn++
+	conn := &heldConn{
+		fakeConn: &fakeConn{id: "conn-" + strconv.Itoa(h.nextConn), gameID: testGameID},
+		release:  make(chan struct{}),
+	}
 	h.m.Connect(conn)
 	return conn
 }

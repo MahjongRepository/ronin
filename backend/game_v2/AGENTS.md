@@ -131,7 +131,9 @@ a contract.
   connections, the engine game, the wait, the pause, the timers and the replay records. Sockets,
   timers and lobby calls reach it only as steps on its channel, one at a time, so no step
   interleaves with another and game state takes no lock. A step never blocks on a client: sends and
-  closes only queue on the `Connection`.
+  closes only queue on the `Connection`. Join and Reconnect return once their step ran, bind
+  included, so the socket's next message finds its connection bound, and no game step may wait on a
+  socket's reader.
 * The `Manager` is the registry: games, tickets, connections and the participant each is bound to,
   behind one mutex. What spans games happens under it in one step: a creation with its checks, an
   end claim releasing the game, its tickets and its connections, a binding against an eviction. No
@@ -233,8 +235,8 @@ a contract.
 * `/status` is a contract: Telegraf's `fieldinclude` allow-list and its metrics schema store its
   keys, the lobby reads its game counts, and counter-reset detection keys on `started_at`, the
   process start in whole epoch seconds, so counters stay cumulative. A test holds the keys against
-  `deploy/config/telegraf.conf`. `loop_lag_max_ms` is the per-game queue delay: the longest a
-  routed message waited for its game to take it in the last minute, null without one.
+  `deploy/config/telegraf.conf`. `loop_lag_max_ms` is the per-game queue delay the session measures:
+  the longest a routed message waited for its game to take it in the last minute, null without one.
 * A graceful stop keeps Python's order inside compose's 15 s grace period, on one deadline: the
   HTTP server stops taking connections, `Server.Shutdown` closes every socket with 1012 and waits
   until each ran its disconnect, then shuts the session down, which drains the finalizers and the

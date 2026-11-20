@@ -146,3 +146,57 @@ func TestConfirmRound_WhenTheSeatConfirmedOrEchoesAnOldID_ShouldAnswerStaleActio
 func confirmRound(waitID int) messaging.GameActionMessage {
 	return messaging.GameActionMessage{Action: messaging.GameActionConfirmRound, WaitID: waitID}
 }
+
+func TestJoin_WhenAnActionFollowsOnTheSameConnection_ShouldReturnOnlyOnceTheBindRan(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.create("Alice", "Bob")
+		alice := h.connectHeld()
+
+		joined := make(chan struct{})
+		go func() {
+			h.m.Join(alice, "ticket-Alice")
+			close(joined)
+		}()
+		synctest.Wait()
+		select {
+		case <-joined:
+			t.Error("Join returned while its step was still sending game_joined")
+		default:
+		}
+
+		close(alice.release)
+		<-joined
+		h.m.Act(alice, messaging.GameActionMessage{Action: messaging.GameActionConfirmRound})
+		synctest.Wait()
+
+		errs := ofSession(alice.messages(), "session_error")
+		if len(errs) != 1 {
+			t.Fatalf("Alice got %d session errors, want 1", len(errs))
+		}
+		if got, _ := errs[0].Get(wire.KeySessionErrorCode); got != wire.Str(messaging.SessionGameNotStarted) {
+			t.Errorf("Alice's pipelined action was answered %v, want %s", got, messaging.SessionGameNotStarted)
+		}
+	})
+}
+
+func TestQueueDelayMax_WhenAJoinWaitsBehindABusyStep_ShouldReportHowLongItWaited(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.create("Alice", "Bob")
+		alice := h.connectHeld()
+		go h.m.Join(alice, "ticket-Alice")
+		synctest.Wait()
+		bob := h.connect()
+		go h.m.Join(bob, "ticket-Bob")
+
+		sleep(1500 * time.Millisecond)
+		close(alice.release)
+		synctest.Wait()
+
+		got, seen := h.m.QueueDelayMax()
+		if !seen || got != 1500 {
+			t.Errorf("QueueDelayMax() = %v, %t, want 1500, true", got, seen)
+		}
+	})
+}

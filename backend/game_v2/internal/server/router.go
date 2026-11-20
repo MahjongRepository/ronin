@@ -31,19 +31,16 @@ type Router struct {
 	secret  string
 	log     *slog.Logger
 	stats   *socketStats
-	lag     *lagWindow
 }
 
 // NewRouter returns a Router into manager that verifies tickets with ticketSecret and logs to
 // logger.
 func NewRouter(manager *session.Manager, ticketSecret string, logger *slog.Logger) *Router {
-	return newRouter(manager, ticketSecret, logger, &socketStats{}, &lagWindow{})
+	return newRouter(manager, ticketSecret, logger, &socketStats{})
 }
 
-func newRouter(
-	manager *session.Manager, ticketSecret string, logger *slog.Logger, stats *socketStats, lag *lagWindow,
-) *Router {
-	return &Router{session: manager, secret: ticketSecret, log: logger, stats: stats, lag: lag}
+func newRouter(manager *session.Manager, ticketSecret string, logger *slog.Logger, stats *socketStats) *Router {
+	return &Router{session: manager, secret: ticketSecret, log: logger, stats: stats}
 }
 
 // Route parses m, a message conn's client sent, and hands it to the session.
@@ -60,17 +57,17 @@ func (r *Router) Route(conn session.Connection, m wire.Map) {
 
 	switch msg := message.(type) {
 	case messaging.GameActionMessage:
-		r.dispatch(func() { r.session.Act(conn, msg) })
+		r.session.Act(conn, msg)
 	case messaging.JoinGameMessage:
 		if r.verifiedTicket(conn, msg.Ticket) {
-			r.dispatch(func() { r.session.Join(conn, msg.Ticket) })
+			r.session.Join(conn, msg.Ticket)
 		}
 	case messaging.ReconnectMessage:
 		if r.verifiedTicket(conn, msg.Ticket) {
-			r.dispatch(func() { r.session.Reconnect(conn, msg.Ticket) })
+			r.session.Reconnect(conn, msg.Ticket)
 		}
 	case messaging.ResyncMessage:
-		r.dispatch(func() { r.session.Resync(conn) })
+		r.session.Resync(conn)
 	}
 }
 
@@ -86,12 +83,6 @@ func invalidMessageType(err error) string {
 		return invalid.Reason
 	}
 	return "unknown"
-}
-
-func (r *Router) dispatch(call func()) {
-	began := time.Now()
-	call()
-	r.lag.observe(began, time.Since(began))
 }
 
 func (r *Router) verifiedTicket(conn session.Connection, token string) bool {
