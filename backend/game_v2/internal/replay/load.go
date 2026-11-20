@@ -28,12 +28,14 @@ import (
 const gameStartPosition = 2
 
 // Replay is a replay read for a run: its records as wire.DecodeReplay returned them, the version
-// record first; the seed its game start records; the name at each seat; and every seat action its
-// records imply, in play order, the passes left out.
+// record first; the seed its game start records; the name at each seat and whether an AI player
+// held it from the start; and every seat action its records imply, in play order, the passes left
+// out.
 type Replay struct {
 	Records []wire.Map
 	Seed    engine.Seed
 	Names   [tile.SeatCount]string
+	AI      [tile.SeatCount]bool
 	Actions []SeatAction
 }
 
@@ -71,11 +73,11 @@ func Load(content []byte) (Replay, error) {
 		return Replay{}, LoadError{Record: gameStartPosition, Err: errors.New("the replay records no game start")}
 	}
 
-	r := Replay{Records: records}
-	r.Seed, r.Names, err = readGameStart(records[gameStartPosition-1])
+	r, err := readGameStart(records[gameStartPosition-1])
 	if err != nil {
 		return Replay{}, LoadError{Record: gameStartPosition, Err: err}
 	}
+	r.Records = records
 
 	for i, record := range records[gameStartPosition:] {
 		actions, err := recordActions(record)
@@ -106,57 +108,56 @@ func namingRobbedClosedKan(actions []SeatAction, record wire.Map) []SeatAction {
 	return actions
 }
 
-func readGameStart(record wire.Map) (engine.Seed, [tile.SeatCount]string, error) {
-	var seed engine.Seed
-	var names [tile.SeatCount]string
+func readGameStart(record wire.Map) (Replay, error) {
+	var r Replay
 	if eventOf(record) != play.Some(wire.EventGameStarted) {
-		return seed, names, errors.New("the second record is no game start")
+		return r, errors.New("the second record is no game start")
 	}
 
 	gameType, _ := record.Get(wire.KeyGameType)
 	if gameType != wire.Int(wire.GameHanchan) {
-		return seed, names, errors.New("the game is no hanchan")
+		return r, errors.New("the game is no hanchan")
 	}
 	scheme, _ := record.Get(wire.KeyRNGVersion)
 	if scheme != wire.Str(engine.RNGVersion) {
-		return seed, names, fmt.Errorf("the game's randomness is not %s", engine.RNGVersion)
+		return r, fmt.Errorf("the game's randomness is not %s", engine.RNGVersion)
 	}
 	settings, _ := record.Get(wire.KeyGameSettings)
 	envelope, _ := settings.(wire.StrMap)
 	profile, _ := envelope.Get("id")
 	if profile != wire.Int(wire.RulesProfileID) {
-		return seed, names, errors.New("the game was played under another rules profile")
+		return r, errors.New("the game was played under another rules profile")
 	}
 
 	raw, _ := record.Get(wire.KeySeed)
 	bin, _ := raw.(wire.Bin)
-	if len(bin) != len(seed) {
-		return seed, names, errors.New("the game start holds no seed")
+	if len(bin) != len(r.Seed) {
+		return r, errors.New("the game start holds no seed")
 	}
-	copy(seed[:], bin)
+	copy(r.Seed[:], bin)
 
-	names, err := readNames(record)
-	return seed, names, err
+	err := readPlayers(&r, record)
+	return r, err
 }
 
-func readNames(record wire.Map) ([tile.SeatCount]string, error) {
-	var names [tile.SeatCount]string
+func readPlayers(r *Replay, record wire.Map) error {
 	raw, _ := record.Get(wire.KeyPlayers)
 	players, _ := raw.(wire.Array)
 	if len(players) != tile.SeatCount {
-		return names, fmt.Errorf("the game start names %d players", len(players))
+		return fmt.Errorf("the game start names %d players", len(players))
 	}
 
 	for _, entry := range players {
 		player, _ := entry.(wire.Map)
 		s, ok := seatField(player, wire.KeySeat)
 		name, _ := player.Str(wire.KeyName)
-		if !ok || name == "" || names[s.Index()] != "" {
-			return names, errors.New("the game start does not name one player at each seat")
+		if !ok || name == "" || r.Names[s.Index()] != "" {
+			return errors.New("the game start does not name one player at each seat")
 		}
-		names[s.Index()] = name
+		ai, _ := player.Int(wire.KeyAIPlayer)
+		r.Names[s.Index()], r.AI[s.Index()] = name, ai == 1
 	}
-	return names, nil
+	return nil
 }
 
 func recordActions(record wire.Map) ([]SeatAction, error) {

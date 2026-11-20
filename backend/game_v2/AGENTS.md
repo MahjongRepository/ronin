@@ -261,9 +261,11 @@ and the fixture tools.
 * Only this server's rules profile loads: a replay rewritten from `0.4-dev` was scored under older
   rules and does not reproduce. A replay holds its seed and no wall, so a game staged on fixed
   walls runs again only from its own setup.
-* `cmd/verify` checks a game's stored replay, not its row: it requires the game end and compares
-  every round end and the game end the run emits, shaped by `messaging`, byte for byte with the
-  recorded ones. `bin/verify_games.py --go-verify` runs it per game after the script's own row
+* `cmd/verify` checks a game's stored replay, not its row: it requires the game end, records the
+  run through a fresh `messaging.ReplayLog` with the stored names and AI flags under the requested
+  game id, and compares every record but seat control byte for byte with the stored ones, so a
+  wrong draw, discard or meld fails as much as a wrong score, and so does a replay copied under
+  another id. `bin/verify_games.py --go-verify` runs it per game after the script's own row
   check, which is how `make run-games SERVER=go` verifies its games.
 
 ## Tenhou export

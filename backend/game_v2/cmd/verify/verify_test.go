@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -139,32 +140,80 @@ func TestRun_WhenGivenAGameTheSessionPlayedToTheEnd_ShouldReproduceItsReplay(t *
 	}
 }
 
-func TestRun_WhenAReplayedRoundEndWasTampered_ShouldFailThatGameAndExit1(t *testing.T) {
+func TestRun_WhenAStoredReplayDiffersFromItsRun_ShouldFailThatGameAtTheDifferingRecordAndExit1(t *testing.T) {
 	replayDir := playSeededGame(t)
 	replays := store.NewReplays(replayDir)
-	records := storedRecords(t, replays, playedGameID)
-	tampered := false
+	tests := []struct {
+		name   string
+		tamper func(records []wire.Map) int
+	}{
+		{
+			name: "round end altered",
+			tamper: func(records []wire.Map) int {
+				rebindGameID(records)
+				i := firstRecordOf(t, records, wire.EventRoundEnd)
+				sticks, _ := records[i].Get(wire.KeyRiichiSticks)
+				records[i] = with(records[i], wire.KeyRiichiSticks, sticks.(wire.Int)+1)
+				return i
+			},
+		},
+		{
+			name: "draw altered",
+			tamper: func(records []wire.Map) int {
+				rebindGameID(records)
+				i := firstRecordOf(t, records, wire.EventDraw)
+				left, _ := records[i].Get(wire.KeyTilesRemaining)
+				records[i] = with(records[i], wire.KeyTilesRemaining, left.(wire.Int)+1)
+				return i
+			},
+		},
+		{
+			name: "copied under another id",
+			tamper: func(records []wire.Map) int {
+				return firstRecordOf(t, records, wire.EventGameStarted)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			records := storedRecords(t, replays, playedGameID)
+			position := tc.tamper(records) + 1
+			content, err := wire.EncodeReplay(records)
+			if err != nil {
+				t.Fatalf("EncodeReplay error = %v", err)
+			}
+			if err := replays.Save(tamperedGameID, content); err != nil {
+				t.Fatalf("Replays.Save error = %v", err)
+			}
+
+			code, out := runVerify(t, replayDir, playedGameID, tamperedGameID)
+
+			head := "ok      " + playedGameID + "\nFAILED  " + tamperedGameID + ": record " + strconv.Itoa(position) +
+				" differs:\n"
+			if code != 1 || !strings.HasPrefix(out, head) || !strings.HasSuffix(out, "\n1/2 game(s) verified\n") {
+				t.Errorf("verify = %d, %q, want 1 with %s failing on record %d", code, out, tamperedGameID, position)
+			}
+		})
+	}
+}
+
+func firstRecordOf(t *testing.T, records []wire.Map, event wire.EventType) int {
+	t.Helper()
 	for i, record := range records {
-		if !isOutcome(record) || isGameEnd(record) || tampered {
-			continue
+		if got, _ := record.Get(wire.KeyEventType); got == wire.Int(event) {
+			return i
 		}
-		sticks, _ := record.Get(wire.KeyRiichiSticks)
-		records[i] = with(record, wire.KeyRiichiSticks, sticks.(wire.Int)+1)
-		tampered = true
 	}
-	content, err := wire.EncodeReplay(records)
-	if err != nil {
-		t.Fatalf("EncodeReplay error = %v", err)
-	}
-	if err := replays.Save(tamperedGameID, content); err != nil {
-		t.Fatalf("Replays.Save error = %v", err)
-	}
+	t.Fatalf("the replay holds no record of event %d", event)
+	return 0
+}
 
-	code, out := runVerify(t, replayDir, playedGameID, tamperedGameID)
-
-	head := "ok      " + playedGameID + "\nFAILED  " + tamperedGameID + ": outcome 0 differs:\n"
-	if code != 1 || !strings.HasPrefix(out, head) || !strings.HasSuffix(out, "\n1/2 game(s) verified\n") {
-		t.Errorf("verify = %d, %q, want 1 with %s failing on its first outcome", code, out, tamperedGameID)
+func rebindGameID(records []wire.Map) {
+	for i, record := range records {
+		if event, _ := record.Get(wire.KeyEventType); event == wire.Int(wire.EventGameStarted) {
+			records[i] = with(record, wire.KeyGameID, wire.Str(tamperedGameID))
+		}
 	}
 }
 
