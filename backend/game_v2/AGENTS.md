@@ -475,7 +475,8 @@ code under `engine/`:
   parses or refuses with an `InvalidMessageError`. `go test` replays only their seeds (the goldens,
   the rewritten replays and encoded client messages). Mutation runs take every core, so they are by
   hand only, after a codec or parser change, capped, and their corpus is never committed:
-  `go test -run '^$' -fuzz '^FuzzDecode_' -fuzztime=30s -parallel=2 ./internal/wire`, and for the
+  `go test -run '^$' -fuzz '^FuzzDecode_' -fuzztime=30s -parallel=2 ./internal/wire`, for replays
+  `go test -run '^$' -fuzz '^FuzzDecodeReplay_' -fuzztime=30s -parallel=2 ./internal/wire`, and for the
   parser `go test -run '^$' -fuzz '^FuzzParseClientMessage_' -fuzztime=30s -parallel=2 ./internal/messaging`.
 
 ## Comments
