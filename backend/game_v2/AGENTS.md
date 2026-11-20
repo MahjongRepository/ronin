@@ -10,8 +10,9 @@ and the seat view it equals (`engine/internal/record`), the facade over them (`e
 seam tests and self-play driver (`seam/`), the wire format (`internal/wire`), the shaping of the
 engine's output into messages and of client messages into actions (`internal/messaging`), the live
 games with their sessions (`internal/session`), the rows and replay files it persists beside the
-lobby (`internal/store`), its credentials (`internal/auth`), and the transport serving the lobby's
-routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`).
+lobby (`internal/store`), its credentials (`internal/auth`), the transport serving the lobby's
+routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`), and
+the replay runner (`internal/replay`) with the replay check `bin/verify_games.py` runs (`cmd/verify`).
 
 ## The seam
 
@@ -56,13 +57,14 @@ Inside the engine, `engine/internal/*` packages import `engine/tile`, `engine/pl
 along the module graph of mahjong-rs, the port's reference, and never `engine`.
 
 `internal/store` and `internal/auth` are leaves beside that line: the session and the server use
-`store`, the server alone `auth`, and neither imports anything of the module.
+`store`, the server alone `auth`, and neither imports anything of the module. `internal/replay` sits
+beside `messaging` over the wire: it reads replays for the tools, so the live path never imports it.
 
 Each server package's imports of the module are a depguard rule in `.golangci.yml`: `wire` imports
 only `engine`, `engine/play` and `engine/tile`, `messaging` those and `wire`, `session` those,
 `messaging` and `store` (never the replay runner), `server` the session, messaging, wire, store and
-auth but of the engine only `engine/play` and `engine/tile`, `store` and `auth` nothing, and each
-layer added later gets its own. Each `cmd/*` is its own composition root: its `main` is the only place that
+auth but of the engine only `engine/play` and `engine/tile`, `store` and `auth` nothing, `replay`
+only the wire and the engine's public packages, and each layer added later gets its own. Each `cmd/*` is its own composition root: its `main` is the only place that
 reads that binary's flags, environment and signals and wires the parts it uses, so a tool beside
 the server builds what it needs without going through `cmd/gameserver`.
 `cmd/gameserver` reads the Python server's environment, wires the store, the session and the
@@ -217,6 +219,23 @@ a contract.
   until each ran its disconnect, then shuts the session down, which drains the finalizers and the
   store writes, and the database closes last. Past the deadline the sockets still open are dropped
   and the store's context is cancelled.
+
+## Replay
+
+`internal/replay` plays a replay this server wrote again through the engine, for the replay check
+and the fixture tools.
+
+* A replay records events, not actions, so the loader derives the actions: a discard or declared
+  meld is its seat's, a round end names its winners, head-bumped ron seats, kyuushu declarer and
+  triple ron declarers, and every other call answer was a pass, which the runner plays itself for
+  the seats a prompt still awaits. A recorded event the engine refuses to reproduce fails the run;
+  there is no lenient mode.
+* Only this server's rules profile loads: a replay rewritten from `0.4-dev` was scored under older
+  rules and does not reproduce. A replay holds its seed and no wall, so a game staged on fixed
+  walls runs again only from its own setup.
+* `cmd/verify` checks a game's stored replay, not its row: it requires the game end and compares
+  every round end and the game end the run emits, shaped by `messaging`, byte for byte with the
+  recorded ones. `bin/verify_games.py` checks the rows.
 
 ## Security requirements
 

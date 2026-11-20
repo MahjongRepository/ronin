@@ -38,6 +38,19 @@ const (
 	ResultAbortiveDraw   ResultType = 4
 )
 
+// AbortReason is why a round was aborted, the value of KeyAbortiveReason on an abortive draw.
+type AbortReason string
+
+// The abort reasons: nine kinds of terminals and honors declared, the first four discards one
+// wind, every seat in riichi, a fourth kan not all by one seat, and three seats declaring ron.
+const (
+	AbortNineTerminals AbortReason = "nine_terminals"
+	AbortFourWinds     AbortReason = "four_winds"
+	AbortFourRiichi    AbortReason = "four_riichi"
+	AbortFourKans      AbortReason = "four_kans"
+	AbortTripleRon     AbortReason = "triple_ron"
+)
+
 // SeatControlReason is why an AI player stands in for a participant: it left during play, or it
 // never joined.
 type SeatControlReason uint8

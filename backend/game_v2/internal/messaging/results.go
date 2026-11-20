@@ -318,18 +318,18 @@ func tenpaiSeats(draw play.ExhaustiveDraw) (tenpai, noten []tile.Seat) {
 	return tenpai, noten
 }
 
-func abortReason(kind play.AbortKind) (string, bool) {
+func abortReason(kind play.AbortKind) (wire.AbortReason, bool) {
 	switch kind.(type) {
 	case play.KyuushuKyuuhai:
-		return "nine_terminals", true
+		return wire.AbortNineTerminals, true
 	case play.FourWinds:
-		return "four_winds", true
+		return wire.AbortFourWinds, true
 	case play.FourRiichi:
-		return "four_riichi", true
+		return wire.AbortFourRiichi, true
 	case play.FourKans:
-		return "four_kans", true
+		return wire.AbortFourKans, true
 	case play.TripleRon:
-		return "triple_ron", true
+		return wire.AbortTripleRon, true
 	}
 	return "", false
 }
