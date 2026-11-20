@@ -57,6 +57,11 @@ The derived proportions are the three reference viewports' values under the sizi
   lies on a face: a river's later rows cover its earlier ones, the top river paints its rows from the centre out,
   the right river and the right strip paint each line from its far end down the screen, and an added kan's called
   tile covers the added one (the top seat's added tile lies nearer the screen's bottom and covers the called one).
+  A lying tile laid against the edge of a tile above it on screen and painted over it takes a body with square top
+  corners and no shine at its far end (the `-joined` bodies), its bottom ones rounded, so the seam reads as the
+  covered tile's bevel alone, with no notch of its edge and no bright band after it: a
+  river's later rows, a side river's, side strip's and side hand's tiles under the one before, an added kan's
+  lower tile.
   Tiles lying together (a river, a meld, a hand that takes no input, the dora) throw one soft cast shadow toward the
   screen's lower right, short and sharp, in the tile's width (0.08 right, 0.16 down, a 0.12 blur, 65% black), under all their bodies:
   it peeks a little past the body's foot, so it never reads as more edge. A tile alone throws its own. Standing

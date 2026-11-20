@@ -131,6 +131,7 @@ function viewBoxOf({ height, left, top, width }: FaceBox): string {
 
 interface TileLayout {
     readonly end?: StandingBackEnd;
+    readonly joined?: boolean;
     readonly lay?: TileLay;
     readonly sideways?: boolean;
     readonly turn?: SeatTurn;
@@ -143,6 +144,7 @@ interface TileOptions extends TileLayout {
 function bodyOf(material: "back" | "face", layout: TileLayout): TileBody {
     return tileBody({
         end: layout.end ?? "shown",
+        joined: layout.joined === true,
         lay: layout.lay ?? "lying",
         material,
         sideways: layout.sideways === true,

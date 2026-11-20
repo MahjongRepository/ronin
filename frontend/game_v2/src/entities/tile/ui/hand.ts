@@ -60,18 +60,31 @@ function tileLabel(face: TileFace, action: TileAction | undefined): string {
     return t(key, { tile: spokenTileName(face) });
 }
 
-function TileFaceView(tile: HandTile, end: StandingBackEnd, props: HandProps): TemplateResult {
+function TileFaceView(
+    tile: HandTile,
+    { end, joined }: SlotPlace,
+    props: HandProps,
+): TemplateResult {
     const { standing, turn } = props;
     if (tile.show !== "face") {
         return TileBack(turn === undefined ? {} : { end, lay: "standing", turn });
     }
-    return standing === true ? StandingTile(tile.face) : Tile(tile.face, "face", { turn });
+    return standing === true ? StandingTile(tile.face) : Tile(tile.face, "face", { joined, turn });
 }
 
 interface SlotPlace {
     readonly end: StandingBackEnd;
     readonly extraClass: string;
+    readonly joined: boolean;
     readonly paint: string | typeof nothing;
+}
+
+/** Whether a side seat's lying run tile lies against the edge of the run tile above it on screen, painted over it. */
+function joinedInRun({ tiles, turn }: HandProps, index: number): boolean {
+    if (turn === 90) {
+        return index > 0;
+    }
+    return turn === 270 && index < tiles.length - 1;
 }
 
 function slotPaint(props: HandProps, fromEnd: number): string | typeof nothing {
@@ -83,12 +96,18 @@ function runSlotPlace(props: HandProps, index: number, count: number): SlotPlace
     return {
         end: index === lowestOnScreen ? "shown" : "covered",
         extraClass: "",
+        joined: joinedInRun(props, index),
         paint: slotPaint(props, count - index),
     };
 }
 
 function drawnSlotPlace(props: HandProps): SlotPlace {
-    return { end: "shown", extraClass: " hand-drawn-gap", paint: slotPaint(props, 1) };
+    return {
+        end: "shown",
+        extraClass: " hand-drawn-gap",
+        joined: false,
+        paint: slotPaint(props, 1),
+    };
 }
 
 /** The focus key every tile of the player's own hand holds. */
@@ -100,14 +119,11 @@ export const PLAYABLE_TILE_FOCUS_KEY = "playable-tile";
  * and a turn never moves focus out of the hand: only a selectable, armed or declaring one acts, the others say so with `aria-disabled`
  * (and the selected one, the tile its answer played, with `aria-pressed`, as the armed one has) and ignore a press.
  */
-function HandSlot(
-    tile: HandTile,
-    { end, extraClass, paint }: SlotPlace,
-    props: HandProps,
-): TemplateResult {
+function HandSlot(tile: HandTile, place: SlotPlace, props: HandProps): TemplateResult {
+    const { extraClass, paint } = place;
     const slotClass = `hand-tile${extraClass}`;
     if (tile.state === undefined) {
-        return html`<span class="${slotClass}" style=${paint} data-tile-id=${tile.tileId ?? ""}>${TileFaceView(tile, end, props)}</span>`;
+        return html`<span class="${slotClass}" style=${paint} data-tile-id=${tile.tileId ?? ""}>${TileFaceView(tile, place, props)}</span>`;
     }
     const { state, tileId } = tile;
     const acts = state === "selectable" || state === "armed" || state === "declaring";
@@ -125,7 +141,7 @@ function HandSlot(
         aria-pressed=${state === "selected" || state === "armed" ? "true" : nothing}
         data-focus-key=${acts ? `${HAND_TILE_FOCUS_KEY} ${PLAYABLE_TILE_FOCUS_KEY}` : HAND_TILE_FOCUS_KEY}
         @click=${press}
-    >${TileFaceView(tile, end, props)}</button>`;
+    >${TileFaceView(tile, place, props)}</button>`;
 }
 
 /** Render a horizontal row of mahjong tiles with an optional drawn tile separated by a gap. */

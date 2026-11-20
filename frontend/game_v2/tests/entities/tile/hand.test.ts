@@ -101,4 +101,23 @@ describe("Hand", () => {
             ],
         ]);
     });
+
+    test("lays a side seat's revealed run square-topped against the tile above it on screen, the drawn tile apart", () => {
+        const tiles: HandTile[] = [
+            { face: "1m", show: "face" },
+            { face: "2m", show: "face" },
+            { face: "3m", show: "face" },
+        ];
+        const drawnTile: HandTile = { face: "4m", show: "face" };
+        const joined = ([90, 270] as const).map((turn) =>
+            [
+                ...renderTo(Hand({ drawnTile, tiles, turn })).querySelectorAll(".tile__body > use"),
+            ].map((use) => use.getAttribute("href")?.endsWith("-joined") === true),
+        );
+
+        expect(joined).toEqual([
+            [false, true, true, false],
+            [true, true, false, false],
+        ]);
+    });
 });

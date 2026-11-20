@@ -227,7 +227,7 @@ describe("Meld - added kan", () => {
         expect(stacked.querySelectorAll(".meld-tile-sideways")).toHaveLength(2);
     });
 
-    test("paints an added kan's tile nearer the screen's bottom last at every seat: the called one, the added one at the top seat", () => {
+    test("paints an added kan's tile nearer the screen's bottom last at every seat, square-topped against the other: the called one, the added one at the top seat", () => {
         const input: MeldInput = {
             addedTileId: 3,
             calledTileId: 2,
@@ -236,18 +236,37 @@ describe("Meld - added kan", () => {
             meldType: "added_kan",
             tileIds: [0, 1, 2, 3],
         };
-        const paintOrder = ([0, 90, 180, 270] as const).map((turn) => {
-            const el = renderTo(Meld(meldTiles(input), { turn }));
-            return [...el.querySelectorAll(".meld-tile-stacked > *")].map((part) =>
+        const parts = ([0, 90, 180, 270] as const).map((turn) => [
+            ...renderTo(Meld(meldTiles(input), { turn })).querySelectorAll(
+                ".meld-tile-stacked > *",
+            ),
+        ]);
+        const paintOrder = parts.map((stack) =>
+            stack.map((part) =>
                 part.classList.contains("meld-tile-stacked-bottom") ? "called" : "added",
-            );
-        });
+            ),
+        );
+        const joined = parts.map((stack) =>
+            stack.map(
+                (part) =>
+                    part
+                        .querySelector(".tile__body > use")
+                        ?.getAttribute("href")
+                        ?.endsWith("-joined") === true,
+            ),
+        );
 
         expect(paintOrder).toEqual([
             ["added", "called"],
             ["added", "called"],
             ["called", "added"],
             ["added", "called"],
+        ]);
+        expect(joined).toEqual([
+            [false, true],
+            [true, true],
+            [false, true],
+            [false, false],
         ]);
     });
 

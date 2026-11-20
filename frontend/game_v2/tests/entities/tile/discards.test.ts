@@ -126,13 +126,23 @@ describe("Discards paint order", () => {
         );
     }
 
-    test("paints each tile over the edge of the one above it on the screen, whatever the river's turn", () => {
+    function joined(el: HTMLElement): boolean[][] {
+        return [...el.querySelectorAll(".discard-row")].map((row) =>
+            [...row.querySelectorAll(".tile__body > use")].map(
+                (use) => use.getAttribute("href")?.endsWith("-joined") === true,
+            ),
+        );
+    }
+
+    test("paints each tile over the edge of the one above it on the screen, square-topped against it, whatever the river's turn", () => {
         const tiles = makeTiles(8);
-        const [unturned, top, right] = [
+        const rivers = [
             Discards(tiles, "run-on", 0),
             Discards(tiles, "run-on", 180),
             Discards(tiles, "wrap", 270),
-        ].map((river) => zIndexes(renderTo(river)));
+            Discards(tiles, "wrap", 90),
+        ].map((river) => renderTo(river));
+        const [unturned, top, right] = rivers.map((river) => zIndexes(river));
 
         expect(unturned).toEqual([
             ["", "", "", "", "", ""],
@@ -145,6 +155,24 @@ describe("Discards paint order", () => {
         expect(right).toEqual([
             ["6", "5", "4", "3", "2", "1"],
             ["2", "1"],
+        ]);
+        expect(rivers.map((river) => joined(river))).toEqual([
+            [
+                [false, false, false, false, false, false],
+                [true, true],
+            ],
+            [
+                [true, true, false, false, false, false],
+                [false, false],
+            ],
+            [
+                [true, true, true, true, true, false],
+                [true, false],
+            ],
+            [
+                [false, true, true, true, true, true],
+                [false, true],
+            ],
         ]);
     });
 
@@ -159,6 +187,6 @@ describe("Discards paint order", () => {
 
         expect(
             [...el.querySelectorAll(".tile__body > use")].map((use) => use.getAttribute("href")),
-        ).toEqual(["#body-lying-sideways", "#body-lying"]);
+        ).toEqual(["#body-lying-sideways", "#body-lying-joined"]);
     });
 });

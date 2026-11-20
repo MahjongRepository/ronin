@@ -122,8 +122,18 @@ interface Outline {
     readonly width: number;
 }
 
-function renderOutline({ cornerRadius, id, outline, size }: BodySymbol): string {
+/** A body's outline with square top corners and its rounded bottom ones, `r` their radius. */
+function squareTopPath({ height, width }: Size, r: number): string {
+    const [w, h, rr] = [width, height, r].map(formatNumber);
+    const [bottomStart, rightStart] = [height - r, width - r].map(formatNumber);
+    return `M0 0H${w}V${bottomStart}A${rr} ${rr} 0 0 1 ${rightStart} ${h}H${rr}A${rr} ${rr} 0 0 1 0 ${bottomStart}Z`;
+}
+
+function renderOutline({ cornerRadius, id, outline, size, squareTop }: BodySymbol): string {
     const radius = formatNumber(inViewUnits(cornerRadius));
+    if (squareTop === true) {
+        return `<clipPath id="${id}-outline"><path d="${squareTopPath(size, inViewUnits(cornerRadius))}"/></clipPath>`;
+    }
     if (outline === undefined) {
         return `<clipPath id="${id}-outline"><rect width="${formatNumber(size.width)}" height="${formatNumber(size.height)}" rx="${radius}"/></clipPath>`;
     }
@@ -142,6 +152,7 @@ interface BodySymbol {
     readonly masks: readonly (readonly [string, string])[];
     readonly outline?: Outline;
     readonly size: Size;
+    readonly squareTop?: boolean;
 }
 
 function renderSymbol(symbol: BodySymbol): string {
@@ -285,7 +296,8 @@ function renderStandingBody(): string {
 /**
  * The shading across a lying tile's top, from its far end: it holds its middle tone from a short shine to a narrow
  * bevel at its near end, so a row laid against it meets the same tone rather than a darker band, and a lying back
- * reads the same ochre as a standing hand's.
+ * reads the same ochre as a standing hand's. A joined body, its far end laid against another tile, catches no shine:
+ * it starts at the middle tone, so the seam reads as that tile's bevel alone.
  */
 function lyingTopStops(shape: LyingBodyShape, palette: LyingPalette): readonly Stop[] {
     const height = shape.top + shape.edge;
@@ -301,9 +313,14 @@ function lyingDepthStops(shape: LyingBodyShape, palette: LyingPalette): readonly
     const upperLayer = shape.material === "face" ? 1 - LYING_BODY.backLayer : LYING_BODY.backLayer;
     const rollEnd = shape.top + shape.edge * LYING_BODY.roll;
     const layerEnd = shape.top + shape.edge * upperLayer;
+    const farEnd: readonly Stop[] = shape.joined
+        ? [{ at: 0, colour: palette.middle }]
+        : [
+              { at: 0, colour: palette.crest },
+              { at: LYING_TOP_SHINE / height, colour: palette.lit },
+          ];
     return [
-        { at: 0, colour: palette.crest },
-        { at: LYING_TOP_SHINE / height, colour: palette.lit },
+        ...farEnd,
         ...lyingTopStops(shape, palette),
         { at: rollEnd / height, colour: palette.upperLayer[0] },
         { at: layerEnd / height, colour: palette.upperLayer[1] },
@@ -342,6 +359,7 @@ function renderLyingBody(id: string, shape: LyingBodyShape): string {
         ],
         masks: [[`${id}-rim-contour`, `${id}-rim-contour-fade`]],
         size: sizeOf(shape.across, shape.top + shape.edge),
+        squareTop: shape.joined,
     });
 }
 

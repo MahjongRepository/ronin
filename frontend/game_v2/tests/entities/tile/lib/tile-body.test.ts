@@ -22,11 +22,12 @@ describe("lyingFaceBox", () => {
 });
 
 describe("tileBody", () => {
-    test("picks a lying body by the tile's pose on the screen, its art turned with the seat", () => {
+    test("picks a lying body by the tile's pose on the screen, its art turned with the seat, square-topped when joined", () => {
         const bodies = ([0, 90, 180, 270] as const).flatMap((turn) =>
             [false, true].map((sideways) => {
                 const body = tileBody({
                     end: "shown",
+                    joined: false,
                     lay: "lying",
                     material: "face",
                     sideways,
@@ -46,16 +47,36 @@ describe("tileBody", () => {
             "270: body-lying-sideways 270",
             "270 sideways: body-lying 0",
         ]);
+        expect(
+            (["face", "back"] as const).map(
+                (material) =>
+                    tileBody({
+                        end: "shown",
+                        joined: true,
+                        lay: "lying",
+                        material,
+                        sideways: false,
+                        turn: 90,
+                    }).id,
+            ),
+        ).toEqual(["body-lying-sideways-joined", "body-back-lying-sideways-joined"]);
     });
 
     test("stands an opponent's back in its seat's body, a revealed face lying in its stead", () => {
         const backs = ([90, 180, 270] as const).map(
             (turn) =>
-                tileBody({ end: "shown", lay: "standing", material: "back", sideways: false, turn })
-                    .id,
+                tileBody({
+                    end: "shown",
+                    joined: false,
+                    lay: "standing",
+                    material: "back",
+                    sideways: false,
+                    turn,
+                }).id,
         );
         const revealed = tileBody({
             end: "shown",
+            joined: false,
             lay: "standing",
             material: "face",
             sideways: false,

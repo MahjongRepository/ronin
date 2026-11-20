@@ -59,15 +59,21 @@ type BodyMaterial = "back" | "face";
 interface LyingBodyShape {
     readonly across: number;
     readonly edge: number;
+    readonly joined: boolean;
     readonly material: BodyMaterial;
     readonly top: number;
     readonly turned: boolean;
 }
 
-function lyingShape(turned: boolean, material: BodyMaterial): LyingBodyShape {
+/**
+ * A lying body's shape. A `joined` one, laid against the edge of a tile above it on screen, has square top corners, so
+ * none of that tile's edge shows through them.
+ */
+function lyingShape(turned: boolean, material: BodyMaterial, joined = false): LyingBodyShape {
     return {
         across: turned ? TILE_BOX_ASPECT : 1,
         edge: LYING_BODY.edge,
+        joined,
         material,
         top: (turned ? 1 : TILE_BOX_ASPECT) * LYING_BODY.topShare,
         turned,
@@ -76,9 +82,13 @@ function lyingShape(turned: boolean, material: BodyMaterial): LyingBodyShape {
 
 const LYING_BODIES = {
     "body-back-lying": lyingShape(false, "back"),
+    "body-back-lying-joined": lyingShape(false, "back", true),
     "body-back-lying-sideways": lyingShape(true, "back"),
+    "body-back-lying-sideways-joined": lyingShape(true, "back", true),
     "body-lying": lyingShape(false, "face"),
+    "body-lying-joined": lyingShape(false, "face", true),
     "body-lying-sideways": lyingShape(true, "face"),
+    "body-lying-sideways-joined": lyingShape(true, "face", true),
 } as const satisfies Record<string, LyingBodyShape>;
 
 type LyingBodyId = keyof typeof LYING_BODIES;
@@ -201,6 +211,7 @@ type TileLay = "lying" | "standing";
 
 interface TileBodyRequest {
     readonly end: StandingBackEnd;
+    readonly joined: boolean;
     readonly lay: TileLay;
     readonly material: BodyMaterial;
     readonly sideways: boolean;
@@ -246,14 +257,25 @@ const STANDING_BACK_BY_TURN = {
     90: { covered: "body-back-standing-left-covered", shown: "body-back-standing-left" },
 } as const satisfies Record<SeatTurn, Record<StandingBackEnd, StandingBackBodyId>>;
 
-function lyingBodyId(material: BodyMaterial, turned: boolean): LyingBodyId {
-    if (material === "face") {
-        return turned ? "body-lying-sideways" : "body-lying";
-    }
-    return turned ? "body-back-lying-sideways" : "body-back-lying";
+const LYING_BODY_IDS = {
+    back: {
+        flat: { free: "body-back-lying", joined: "body-back-lying-joined" },
+        turned: { free: "body-back-lying-sideways", joined: "body-back-lying-sideways-joined" },
+    },
+    face: {
+        flat: { free: "body-lying", joined: "body-lying-joined" },
+        turned: { free: "body-lying-sideways", joined: "body-lying-sideways-joined" },
+    },
+} as const satisfies Record<
+    BodyMaterial,
+    Record<"flat" | "turned", Record<"free" | "joined", LyingBodyId>>
+>;
+
+function lyingBodyId(material: BodyMaterial, turned: boolean, joined: boolean): LyingBodyId {
+    return LYING_BODY_IDS[material][turned ? "turned" : "flat"][joined ? "joined" : "free"];
 }
 
-function tileBody({ end, lay, material, sideways, turn }: TileBodyRequest): TileBody {
+function tileBody({ end, joined, lay, material, sideways, turn }: TileBodyRequest): TileBody {
     const artTurn = seatTurnOf(turn + (sideways ? 90 : 0));
     if (lay === "standing" && material === "back") {
         const id = STANDING_BACK_BY_TURN[turn][end];
@@ -262,7 +284,7 @@ function tileBody({ end, lay, material, sideways, turn }: TileBodyRequest): Tile
         const uncoveredId = id === shown ? null : shown;
         return { across, artTurn, edge, face: null, id, slot: STANDING_SLOT, top, uncoveredId };
     }
-    const id = lyingBodyId(material, artTurn % 180 === 90);
+    const id = lyingBodyId(material, artTurn % 180 === 90, joined);
     const shape = LYING_BODIES[id];
     return {
         across: shape.across,

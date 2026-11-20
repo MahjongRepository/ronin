@@ -35,6 +35,26 @@ function paintOrder(turn: SeatTurn, { rowsAfter, tilesAfter }: RiverPlace) {
     return nothing;
 }
 
+/**
+ * Whether a discard lies against the edge of a tile above it on screen, painted over it: a later row's tile under a
+ * tile of the row before on the bottom river, the rows nearer the centre on the top one, and along a side river's row
+ * every tile but the one its paint order leaves uncovered.
+ */
+function joinedInRiver(
+    turn: SeatTurn,
+    rows: readonly (readonly DiscardTile[])[],
+    { index, rowIndex }: Readonly<Record<"index" | "rowIndex", number>>,
+): boolean {
+    const row = rows[rowIndex] ?? [];
+    const joinedBy: Readonly<Record<SeatTurn, () => boolean>> = {
+        0: () => index < (rows[rowIndex - 1]?.length ?? 0),
+        180: () => index < (rows[rowIndex + 1]?.length ?? 0),
+        270: () => index < row.length - 1,
+        90: () => index > 0,
+    };
+    return joinedBy[turn]();
+}
+
 function riichiSlotStyle(turn: SeatTurn, paint: string | typeof nothing): string {
     const slot = lyingSlotStyle({ turn });
     return paint === nothing ? slot : `${paint}; ${slot}`;
@@ -69,7 +89,7 @@ function Discards(
                             tilesAfter: row.length - 1 - index,
                         });
                         const paint = t.riichi === true ? riichiSlotStyle(turn, order) : order;
-                        return html`<span class="${classes.join(" ")}" style=${paint} data-tile-id=${t.tileId ?? ""} data-tsumogiri=${t.tsumogiri === true}>${Tile(t.face, "face", { sideways: t.riichi === true, turn })}</span>`;
+                        return html`<span class="${classes.join(" ")}" style=${paint} data-tile-id=${t.tileId ?? ""} data-tsumogiri=${t.tsumogiri === true}>${Tile(t.face, "face", { joined: joinedInRiver(turn, rows, { index, rowIndex }), sideways: t.riichi === true, turn })}</span>`;
                     })}</span
                 >`,
         )}</span
