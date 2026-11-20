@@ -14,9 +14,9 @@ const (
 )
 
 type handTiles struct {
-	tiles                    [maxHandTiles]tile.TileID
-	count                    int
-	waitsUntilHandOrMeldMove play.Option[tile.Kinds]
+	tiles               [maxHandTiles]tile.TileID
+	count               int
+	waitsUntilHandMoves play.Option[tile.Kinds]
 }
 
 func newHand(dealt [wall.StartingHandSize]tile.TileID) handTiles {
@@ -36,14 +36,14 @@ func (h *handTiles) ids() []tile.TileID {
 func (h *handTiles) push(id tile.TileID) {
 	h.tiles[h.count] = id
 	h.count++
-	h.waitsUntilHandOrMeldMove = play.Option[tile.Kinds]{}
+	h.waitsUntilHandMoves = play.Option[tile.Kinds]{}
 }
 
 func (h *handTiles) removeAt(position int) {
 	copy(h.tiles[position:h.count], h.tiles[position+1:h.count])
 	h.count--
 	h.tiles[h.count] = tile.TileID{}
-	h.waitsUntilHandOrMeldMove = play.Option[tile.Kinds]{}
+	h.waitsUntilHandMoves = play.Option[tile.Kinds]{}
 }
 
 func (h *handTiles) keep(kept func(tile.TileID) bool) {
@@ -56,7 +56,7 @@ func (h *handTiles) keep(kept func(tile.TileID) bool) {
 	}
 	clear(h.tiles[count:h.count])
 	h.count = count
-	h.waitsUntilHandOrMeldMove = play.Option[tile.Kinds]{}
+	h.waitsUntilHandMoves = play.Option[tile.Kinds]{}
 }
 
 type seatMelds struct {

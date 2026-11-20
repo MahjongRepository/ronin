@@ -774,10 +774,10 @@ func (r *Round) declineRon(seat tile.Seat) {
 
 func (r *Round) waits(seat tile.Seat) tile.Kinds {
 	held := &r.hands[seat.Index()]
-	if !held.waitsUntilHandOrMeldMove.OK {
-		held.waitsUntilHandOrMeldMove = play.Some(hand.Waits(countsOf(held.view()), countsOf(r.meldedTiles(seat))))
+	if !held.waitsUntilHandMoves.OK {
+		held.waitsUntilHandMoves = play.Some(hand.Waits(countsOf(held.view()), countsOf(r.meldedTiles(seat))))
 	}
-	return held.waitsUntilHandOrMeldMove.Value
+	return held.waitsUntilHandMoves.Value
 }
 
 func (r *Round) seatWind(seat tile.Seat) tile.Wind {
