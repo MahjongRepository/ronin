@@ -1,6 +1,8 @@
 package session_test
 
 import (
+	"errors"
+	"io/fs"
 	"slices"
 	"strings"
 	"testing"
@@ -11,6 +13,7 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
@@ -218,6 +221,10 @@ func TestDisconnect_WhenTheLastHumanLeaves_ShouldAbandonTheGameAndDiscardItsRepl
 		if reason, _ := h.playedGame(t); reason.String != "abandoned" {
 			t.Errorf("end_reason = %q, want abandoned", reason.String)
 		}
+		_, err := store.NewReplays(h.replayDir).Read(testGameID)
+		if !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("Replays.Read error = %v, want no replay stored", err)
+		}
 	})
 }
 
@@ -291,12 +298,42 @@ func TestRoundAdvancePause_WhenADoubleRonEndsTheRound_ShouldWaitOncePerWinner(t 
 		}
 
 		sleep(30*time.Second - time.Millisecond)
-		if got := h.m.Stats().RoundAdvanceTimeout; got != 0 {
+		if got := h.m.Stats().RoundAdvanceTimeouts; got != 0 {
 			t.Fatalf("the pause timed out before twice the round advance")
 		}
 		sleep(time.Millisecond)
-		if got := h.m.Stats().RoundAdvanceTimeout; got != 3 {
-			t.Errorf("RoundAdvanceTimeout = %d, want each of the three seats", got)
+		if got := h.m.Stats().RoundAdvanceTimeouts; got != 3 {
+			t.Errorf("RoundAdvanceTimeouts = %d, want each of the three seats", got)
+		}
+	})
+}
+
+type leakyClock struct{}
+
+func (leakyClock) Now() time.Time {
+	return time.Now()
+}
+
+func (leakyClock) AfterFunc(d time.Duration, f func()) func() bool {
+	time.AfterFunc(d, f)
+	return func() bool { return false }
+}
+
+func TestTurnTimer_WhenItFiresAfterTheSeatActedAndItWasCancelled_ShouldBeDropped(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h, alice := soloDealer(t, withTiming(noWaits), func(c *session.Config) { c.Clock = leakyClock{} })
+		sleep(time.Second)
+		h.act(alice, defaultAnswer(t, lastOpening(t, alice)))
+		waitID := intOf(t, lastOpening(t, alice), wire.KeyWaitID)
+
+		sleep(29*time.Second + 500*time.Millisecond)
+
+		stats := h.m.Stats()
+		if stats.TurnTimeouts+stats.MeldTimeouts != 0 {
+			t.Errorf("timeouts = %+v, want the superseded timer dropped", stats)
+		}
+		if got := intOf(t, lastOpening(t, alice), wire.KeyWaitID); got != waitID {
+			t.Errorf("alice's wait id = %d, want her open decision %d kept", got, waitID)
 		}
 	})
 }

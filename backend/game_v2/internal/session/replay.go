@@ -3,7 +3,6 @@ package session
 import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
-	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
@@ -58,21 +57,6 @@ func (r *replayLog) record(event play.Event, table func() messaging.Table) (wire
 	}
 	record, err := messaging.EventPayload(event, table())
 	return record, err == nil, err
-}
-
-func (r *replayLog) recordSeatControl(seat tile.Seat, standIn play.Option[wire.SeatControlReason]) {
-	record := wire.Map{
-		{Key: wire.KeyEventType, Value: wire.Int(wire.EventSeatControl)},
-		{Key: wire.KeySeat, Value: wire.Int(seat.Index())},
-	}
-	if standIn.OK {
-		record = append(record,
-			wire.Field{Key: wire.KeyAIPlayer, Value: wire.Int(1)},
-			wire.Field{Key: wire.KeySeatControlReason, Value: wire.Int(standIn.Value)})
-	} else {
-		record = append(record, wire.Field{Key: wire.KeyAIPlayer, Value: wire.Int(0)})
-	}
-	r.records = append(r.records, record)
 }
 
 func encodeReplay(records []wire.Map) ([]byte, error) {

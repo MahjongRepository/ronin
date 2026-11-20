@@ -227,3 +227,24 @@ func TestEventPayload_WhenTheGameEndsWithSticksUnawarded_ShouldNameTheirCountBon
 		{Key: wire.KeyEndCause, Value: wire.Str("extension_limit")},
 	})
 }
+
+func TestReplaySeatControlPayload_WhenASeatChangesHands_ShouldWriteARecordTheReplayAccepts(t *testing.T) {
+	left := messaging.ReplaySeatControlPayload(seat(t, 2), play.Some(wire.SeatControlLeft))
+	back := messaging.ReplaySeatControlPayload(seat(t, 2), play.Option[wire.SeatControlReason]{})
+
+	assertMap(t, "AI replacement", left, wire.Map{
+		{Key: wire.KeyEventType, Value: wire.Int(wire.EventSeatControl)},
+		{Key: wire.KeySeat, Value: wire.Int(2)},
+		{Key: wire.KeyAIPlayer, Value: wire.Int(1)},
+		{Key: wire.KeySeatControlReason, Value: wire.Int(wire.SeatControlLeft)},
+	})
+	assertMap(t, "human return", back, wire.Map{
+		{Key: wire.KeyEventType, Value: wire.Int(wire.EventSeatControl)},
+		{Key: wire.KeySeat, Value: wire.Int(2)},
+		{Key: wire.KeyAIPlayer, Value: wire.Int(0)},
+	})
+	_, err := wire.EncodeReplay([]wire.Map{wire.VersionRecord(), left, back})
+	if err != nil {
+		t.Errorf("EncodeReplay error = %v", err)
+	}
+}

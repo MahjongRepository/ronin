@@ -139,7 +139,13 @@ func (g *game) run() {
 		step()
 	}
 	if g.lifecycle == lifecycleEnding {
-		g.finish()
+		err := protect(func() error {
+			g.finish()
+			return nil
+		})
+		if err != nil {
+			g.log.Error("finish a game", "error", err)
+		}
 	}
 }
 
@@ -202,9 +208,7 @@ func (g *game) serve(conn Connection, reason string, step func() error) {
 	seated := g.participantOf(conn) != nil
 	g.fail(reason, err)
 	if !seated {
-		g.m.mu.Lock()
-		g.m.evictLocked(conn)
-		g.m.mu.Unlock()
+		g.m.evict(conn)
 		closeWithInternalError(g.log, conn)
 	}
 }
@@ -258,9 +262,7 @@ func (g *game) withdraw() bool {
 	}
 
 	g.log.Info("pending game withdrawn")
-	g.m.mu.Lock()
-	g.m.withdrawn[g.id] = g.clock.Now().Add(withdrawnTTL)
-	g.m.mu.Unlock()
+	g.m.markWithdrawn(g.id)
 	g.endGame(endAbandoned, play.Option[store.Result]{})
 	return true
 }

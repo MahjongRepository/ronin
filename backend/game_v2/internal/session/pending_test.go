@@ -83,7 +83,6 @@ func TestWithdrawGame_WhenItsCreationArrivesLater_ShouldRefuseTheCreationForADay
 		}
 
 		time.Sleep(24 * time.Hour)
-		h.m.WithdrawGame("game-0002")
 		err = h.m.CreatePendingGame(testGameID, specs("Alice"))
 		if err != nil {
 			t.Errorf("CreatePendingGame a day later error = %v", err)

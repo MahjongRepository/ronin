@@ -67,7 +67,7 @@ func (g *game) timedOut(p *participant, kind timeoutKind, token uint64) error {
 		if err != nil {
 			return err
 		}
-		g.m.stats.pauseTimeouts.Add(1)
+		g.m.stats.roundAdvanceTimeouts.Add(1)
 		return nil
 	}
 
@@ -227,10 +227,7 @@ func (g *game) staleAction(p *participant, action string, waitID int) error {
 
 func (g *game) kick(p *participant, conn Connection, action play.Action, refusal play.Refusal) error {
 	g.seatLog(p).Warn(logInvalidAction, "action", actionName(action), "reason", refusal.Code.String())
-	g.m.mu.Lock()
-	g.m.evictLocked(conn)
-	g.m.mu.Unlock()
-
+	g.m.evict(conn)
 	err := g.disconnected(p, conn)
 	if err != nil {
 		return err
@@ -275,7 +272,7 @@ func (g *game) handOver(p *participant, standIn play.Option[wire.SeatControlReas
 		g.m.stats.aiReplacements.Add(1)
 	}
 	if g.replay != nil {
-		g.replay.recordSeatControl(p.seat, standIn)
+		g.replay.records = append(g.replay.records, messaging.ReplaySeatControlPayload(p.seat, standIn))
 	}
 	return g.broadcast(messaging.SeatControl(p.seat, standIn))
 }

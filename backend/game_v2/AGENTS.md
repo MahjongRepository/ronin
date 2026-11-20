@@ -55,14 +55,14 @@ Inside the engine, `engine/internal/*` packages import `engine/tile`, `engine/pl
 along the module graph of mahjong-rs, the port's reference, and never `engine`.
 
 `internal/store` and `internal/auth` are leaves beside that line: the session and the server use
-them, and they import nothing of the module.
+`store`, the server alone `auth`, and neither imports anything of the module.
 
 Each server package's imports of the module are a depguard rule in `.golangci.yml`: `wire` imports
 only `engine`, `engine/play` and `engine/tile`, `messaging` those and `wire`, `session` those,
 `messaging` and `store` (never the replay runner), `store` and `auth` nothing, and each layer added
-later gets its own. Each `cmd/*` is its own
-composition root: its `main` is the only place that reads that binary's flags, environment and signals and wires the parts
-it uses, so a tool beside the server builds what it needs without going through `cmd/gameserver`.
+later gets its own. Each `cmd/*` is its own composition root: its `main` is the only place that
+reads that binary's flags, environment and signals and wires the parts it uses, so a tool beside
+the server builds what it needs without going through `cmd/gameserver`.
 `cmd/gameserver` wires the engine into the server once a game message exists.
 
 ## The wire

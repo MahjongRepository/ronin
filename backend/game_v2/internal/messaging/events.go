@@ -75,6 +75,18 @@ func ReplayDrawPayload(drew play.Drew, liveTiles int) wire.Map {
 	}
 }
 
+// ReplaySeatControlPayload returns the replay-only record of seat changing hands: an AI player
+// standing in for its participant for reason, or, without one, the participant taking it back.
+func ReplaySeatControlPayload(seat tile.Seat, reason play.Option[wire.SeatControlReason]) wire.Map {
+	record := eventMap(wire.EventSeatControl, wire.KeySeat, seatValue(seat))
+	if !reason.OK {
+		return append(record, wire.Field{Key: wire.KeyAIPlayer, Value: wire.Int(0)})
+	}
+	return append(record,
+		wire.Field{Key: wire.KeyAIPlayer, Value: wire.Int(1)},
+		wire.Field{Key: wire.KeySeatControlReason, Value: wire.Int(reason.Value)})
+}
+
 func eventMap(event wire.EventType, k wire.Key, v wire.Value) wire.Map {
 	return wire.Map{{Key: wire.KeyEventType, Value: wire.Int(event)}, {Key: k, Value: v}}
 }

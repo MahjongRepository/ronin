@@ -29,30 +29,42 @@ func (g *game) join(conn Connection, ticket string) error {
 		return nil
 	}
 
-	g.m.mu.Lock()
-	entry := g.m.registeredLocked(conn)
-	p, refused := g.joiningLocked(entry, ticket)
-	var replaced Connection
-	if entry != nil && !refused.OK {
-		replaced = g.bindLocked(p, entry)
-	}
-	g.m.mu.Unlock()
-
+	b := g.bindJoining(conn, ticket)
 	switch {
-	case entry == nil:
+	case !b.registered:
 		return nil
-	case refused.OK:
-		sendSessionError(g.log, conn, refused.Value.code, refused.Value.message)
+	case b.refused.OK:
+		sendSessionError(g.log, conn, b.refused.Value.code, b.refused.Value.message)
 		return nil
 	}
-	g.closeReplaced(replaced, conn)
-	return g.admit(p, conn)
+	g.closeReplaced(b.replaced, conn)
+	return g.admit(b.participant, conn)
+}
+
+type joinBinding struct {
+	registered  bool
+	participant *participant
+	replaced    Connection
+	refused     play.Option[sessionRefusal]
+}
+
+func (g *game) bindJoining(conn Connection, ticket string) joinBinding {
+	g.m.mu.Lock()
+	defer g.m.mu.Unlock()
+
+	entry := g.m.registeredLocked(conn)
+	if entry == nil {
+		return joinBinding{}
+	}
+	p, refused := g.joiningLocked(entry, ticket)
+	if refused.OK {
+		return joinBinding{registered: true, refused: refused}
+	}
+	return joinBinding{registered: true, participant: p, replaced: g.bindLocked(p, entry)}
 }
 
 func (g *game) joiningLocked(entry *connEntry, ticket string) (*participant, play.Option[sessionRefusal]) {
 	switch l := g.m.tickets[ticket]; {
-	case entry == nil:
-		return nil, play.Option[sessionRefusal]{}
 	case entry.bound != nil:
 		return nil, play.Some(sessionRefusal{messaging.SessionAlreadyInGame, "Connection already in a game"})
 	case l == nil:
@@ -173,7 +185,7 @@ func (g *game) recordStart() {
 	start, db, ctx, log := g.start, g.m.cfg.DB, g.m.storeCtx, g.log
 	g.m.wg.Go(func() {
 		defer close(written)
-		err := db.RecordStart(ctx, start)
+		err := protect(func() error { return db.RecordStart(ctx, start) })
 		if err != nil {
 			log.Error("record the start of a game", "error", err)
 		}

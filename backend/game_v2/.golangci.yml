@@ -120,7 +120,7 @@ linters:
             - "!$test"
           deny:
             - pkg: github.com/MahjongRepository/ronin/backend/game_v2
-              desc: auth is a leaf the session and the server use, so it imports nothing of the module
+              desc: auth is a leaf the server uses, so it imports nothing of the module
     exhaustive:
       default-signifies-exhaustive: false
     forbidigo:

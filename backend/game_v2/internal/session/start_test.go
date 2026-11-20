@@ -92,8 +92,8 @@ func TestGameStartConfirm_WhenItsTimeoutFires_ShouldConfirmForTheSeatsLeftAndDra
 		if got := len(ofEvent(alice.messages(), wire.EventDraw)); got != 1 {
 			t.Errorf("the dealer got %d draws after the timeout, want 1", got)
 		}
-		if got := h.m.Stats().RoundAdvanceTimeout; got != 1 {
-			t.Errorf("RoundAdvanceTimeout = %d, want 1", got)
+		if got := h.m.Stats().RoundAdvanceTimeouts; got != 1 {
+			t.Errorf("RoundAdvanceTimeouts = %d, want 1", got)
 		}
 	})
 }

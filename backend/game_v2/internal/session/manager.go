@@ -49,25 +49,25 @@ type connEntry struct {
 }
 
 type counters struct {
-	reconnects     atomic.Int64
-	takeovers      atomic.Int64
-	resyncs        atomic.Int64
-	turnTimeouts   atomic.Int64
-	meldTimeouts   atomic.Int64
-	pauseTimeouts  atomic.Int64
-	aiReplacements atomic.Int64
+	reconnects           atomic.Int64
+	takeovers            atomic.Int64
+	resyncs              atomic.Int64
+	turnTimeouts         atomic.Int64
+	meldTimeouts         atomic.Int64
+	roundAdvanceTimeouts atomic.Int64
+	aiReplacements       atomic.Int64
 }
 
 // Stats is the session's event totals since the Manager was made, process-wide and never per
 // user.
 type Stats struct {
-	Reconnects          int64
-	Takeovers           int64
-	Resyncs             int64
-	TurnTimeouts        int64
-	MeldTimeouts        int64
-	RoundAdvanceTimeout int64
-	AIReplacements      int64
+	Reconnects           int64
+	Takeovers            int64
+	Resyncs              int64
+	TurnTimeouts         int64
+	MeldTimeouts         int64
+	RoundAdvanceTimeouts int64
+	AIReplacements       int64
 }
 
 // GameCounts is how many games the registry holds: pending ones, waiting for their players, and
@@ -98,13 +98,13 @@ func newManager(ctx context.Context, cfg Config) *Manager {
 // Stats returns the session's event totals.
 func (m *Manager) Stats() Stats {
 	return Stats{
-		Reconnects:          m.stats.reconnects.Load(),
-		Takeovers:           m.stats.takeovers.Load(),
-		Resyncs:             m.stats.resyncs.Load(),
-		TurnTimeouts:        m.stats.turnTimeouts.Load(),
-		MeldTimeouts:        m.stats.meldTimeouts.Load(),
-		RoundAdvanceTimeout: m.stats.pauseTimeouts.Load(),
-		AIReplacements:      m.stats.aiReplacements.Load(),
+		Reconnects:           m.stats.reconnects.Load(),
+		Takeovers:            m.stats.takeovers.Load(),
+		Resyncs:              m.stats.resyncs.Load(),
+		TurnTimeouts:         m.stats.turnTimeouts.Load(),
+		MeldTimeouts:         m.stats.meldTimeouts.Load(),
+		RoundAdvanceTimeouts: m.stats.roundAdvanceTimeouts.Load(),
+		AIReplacements:       m.stats.aiReplacements.Load(),
 	}
 }
 
@@ -166,7 +166,7 @@ func (m *Manager) CreatePendingGame(gameID string, players []PlayerSpec) error {
 	case m.games[gameID] != nil:
 		return ErrGameExists
 	}
-	if _, withdrawn := m.withdrawn[gameID]; withdrawn {
+	if expires, withdrawn := m.withdrawn[gameID]; withdrawn && expires.After(m.cfg.Clock.Now()) {
 		return ErrGameWithdrawn
 	}
 
@@ -196,7 +196,7 @@ func (m *Manager) anyPlayingLocked(players []PlayerSpec) bool {
 // a creation that arrives after the withdrawal never registers.
 func (m *Manager) WithdrawGame(gameID string) bool {
 	for {
-		g, found := m.withdrawLocked(gameID)
+		g, found := m.listedOrWithdrawn(gameID)
 		if !found {
 			return true
 		}
@@ -208,7 +208,7 @@ func (m *Manager) WithdrawGame(gameID string) bool {
 	}
 }
 
-func (m *Manager) withdrawLocked(gameID string) (*game, bool) {
+func (m *Manager) listedOrWithdrawn(gameID string) (*game, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -279,17 +279,29 @@ func (m *Manager) evictLocked(conn Connection) {
 // connection the participant still has; the last expected join starts the game. A JOIN_GAME on a
 // connection the session already evicted is dropped unanswered.
 func (m *Manager) Join(conn Connection, ticket string) {
-	m.mu.Lock()
-	registered := m.registeredLocked(conn) != nil
-	l := m.games[conn.GameID()]
-	m.mu.Unlock()
-
+	g, registered := m.pathGame(conn)
 	if !registered {
 		return
 	}
-	if l == nil || !l.game.post(func() { l.game.serve(conn, "join failed", func() error { return l.game.join(conn, ticket) }) }) {
+	posted := g != nil && g.post(func() {
+		g.serve(conn, "join failed", func() error { return g.join(conn, ticket) })
+	})
+	if !posted {
 		sendSessionError(m.log, conn, messaging.SessionJoinGameNotFound, "Game not found")
 	}
+}
+
+func (m *Manager) pathGame(conn Connection) (*game, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.registeredLocked(conn) == nil {
+		return nil, false
+	}
+	if l := m.games[conn.GameID()]; l != nil {
+		return l.game, true
+	}
+	return nil, true
 }
 
 // Act runs a game action of the participant a connection is bound to: a round confirmation goes
@@ -317,17 +329,35 @@ func (m *Manager) evictBound(conn Connection) *participant {
 	return entry.bound
 }
 
-func (m *Manager) boundGame(conn Connection) *game {
+func (m *Manager) evict(conn Connection) {
 	m.mu.Lock()
-	entry := m.registeredLocked(conn)
-	var bound *participant
-	if entry != nil {
-		bound = entry.bound
-	}
-	m.mu.Unlock()
+	defer m.mu.Unlock()
 
+	m.evictLocked(conn)
+}
+
+func (m *Manager) markWithdrawn(gameID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.withdrawn[gameID] = m.cfg.Clock.Now().Add(withdrawnTTL)
+}
+
+func (m *Manager) binding(conn Connection) (bound *participant, registered bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	entry := m.registeredLocked(conn)
+	if entry == nil {
+		return nil, false
+	}
+	return entry.bound, true
+}
+
+func (m *Manager) boundGame(conn Connection) *game {
+	bound, registered := m.binding(conn)
 	switch {
-	case entry == nil:
+	case !registered:
 		return nil
 	case bound == nil:
 		sendSessionError(m.log, conn, messaging.SessionNotInGame, "You must join a game first")
@@ -355,18 +385,7 @@ func (m *Manager) Disconnect(conn Connection) {
 // games only through each socket's disconnect, and waits for every game's goroutine, finalizers
 // and store writes included, until ctx is done.
 func (m *Manager) Shutdown(ctx context.Context) error {
-	m.mu.Lock()
-	m.closed = true
-	for _, entry := range m.conns {
-		entry.authTimer()
-	}
-	games := make([]*game, 0, len(m.games))
-	for _, l := range m.games {
-		games = append(games, l.game)
-	}
-	m.mu.Unlock()
-
-	for _, g := range games {
+	for _, g := range m.close() {
 		g.post(g.vanish)
 	}
 
@@ -381,6 +400,21 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (m *Manager) close() []*game {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.closed = true
+	for _, entry := range m.conns {
+		entry.authTimer()
+	}
+	games := make([]*game, 0, len(m.games))
+	for _, l := range m.games {
+		games = append(games, l.game)
+	}
+	return games
 }
 
 func send(conn Connection, m wire.Map) error {
