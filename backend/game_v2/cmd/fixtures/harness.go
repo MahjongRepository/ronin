@@ -159,8 +159,8 @@ func (g *seatedGame) failure() error {
 }
 
 func (g *seatedGame) observeDeal(payload wire.Map) {
-	roundNumber, numbered := intOf(payload, wire.KeyRoundNumber)
-	dealerIndex, named := intOf(payload, wire.KeyDealer)
+	roundNumber, numbered := payload.Int(wire.KeyRoundNumber)
+	dealerIndex, named := payload.Int(wire.KeyDealer)
 	dealer, valid := tile.NewSeat(dealerIndex)
 	if !isEvent(payload, wire.EventRoundStarted) || !numbered || !named || !valid || roundNumber < 0 {
 		return
@@ -422,11 +422,11 @@ func (c *seatClient) receive(socket *clientSocket, payload wire.Map) {
 	if isRefusal(payload) {
 		c.takeRefusal(payload)
 	}
-	if id, ok := intOf(payload, wire.KeyWaitID); ok {
+	if id, ok := payload.Int(wire.KeyWaitID); ok {
 		c.waitID = play.Some(id)
 	}
 	if isEvent(payload, wire.EventGameStarted) || isSession(payload, gameReconnectedType) {
-		if n, ok := intOf(payload, wire.KeySeat); ok {
+		if n, ok := payload.Int(wire.KeySeat); ok {
 			seat, valid := tile.NewSeat(n)
 			c.seat = play.Option[tile.Seat]{Value: seat, OK: valid}
 		}
@@ -437,15 +437,15 @@ func (c *seatClient) receive(socket *clientSocket, payload wire.Map) {
 func (c *seatClient) checkStaged(payload wire.Map) {
 	switch {
 	case isEvent(payload, wire.EventRoundStarted):
-		roundNumber, numbered := intOf(payload, wire.KeyRoundNumber)
-		dealer, named := intOf(payload, wire.KeyDealer)
+		roundNumber, numbered := payload.Int(wire.KeyRoundNumber)
+		dealer, named := payload.Int(wire.KeyDealer)
 		staged, index, isStaged := c.game.stagedRound(uint32(max(0, roundNumber)))
 		if numbered && named && isStaged && index > 0 && staged.dealer.Index() != dealer {
 			c.stagingErr = fmt.Errorf("later round %d was staged for dealer %d, not %d",
 				index-1, staged.dealer.Index(), dealer)
 		}
 	case isEvent(payload, wire.EventDraw):
-		packed, ok := intOf(payload, wire.KeyPackedMove)
+		packed, ok := payload.Int(wire.KeyPackedMove)
 		staged, _, isStaged := c.game.stagedRound(c.game.latestRound())
 		if !ok || !isStaged {
 			return
@@ -737,14 +737,8 @@ func (c *seatClient) label(name string, matches func(wire.Map) bool, kind string
 	c.game.fail(fmt.Errorf("%s received no %s to label %s", c.name, kind, name))
 }
 
-func intOf(m wire.Map, k wire.Key) (int, bool) {
-	v, _ := m.Get(k)
-	n, ok := v.(wire.Int)
-	return int(n), ok
-}
-
 func isEvent(m wire.Map, event wire.EventType) bool {
-	n, ok := intOf(m, wire.KeyEventType)
+	n, ok := m.Int(wire.KeyEventType)
 	_, isSessionMessage := m.Get(wire.KeySessionType)
 	return ok && n == int(event) && !isSessionMessage
 }
@@ -755,6 +749,6 @@ func isSession(m wire.Map, sessionType string) bool {
 }
 
 func isRefusal(m wire.Map) bool {
-	n, ok := intOf(m, wire.KeyEventType)
+	n, ok := m.Int(wire.KeyEventType)
 	return ok && n == int(wire.EventError) || isSession(m, sessionErrorType)
 }

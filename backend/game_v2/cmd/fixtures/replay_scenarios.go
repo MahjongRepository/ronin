@@ -733,9 +733,9 @@ func requireWinsOffSeatZero(name string, r recording) error {
 	for _, record := range r.records {
 		switch {
 		case isEvent(record, wire.EventRoundStarted):
-			dealer, _ = intOf(record, wire.KeyDealer)
+			dealer, _ = record.Int(wire.KeyDealer)
 		case isEvent(record, wire.EventRoundEnd) && dealer != 0:
-			code, _ := intOf(record, wire.KeyResultType)
+			code, _ := record.Int(wire.KeyResultType)
 			results = append(results, code)
 		}
 	}

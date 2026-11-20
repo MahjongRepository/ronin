@@ -35,7 +35,7 @@ func TestCutAfter_WhenTheEventOpensACall_ShouldKeepTheWholeCall(t *testing.T) {
 
 	var tail []int
 	for _, record := range cut.records[len(cut.records)-3:] {
-		event, _ := intOf(record, wire.KeyEventType)
+		event, _ := record.Int(wire.KeyEventType)
 		tail = append(tail, event)
 	}
 	want := []int{int(wire.EventMeld), int(wire.EventDoraRevealed), int(wire.EventDraw)}

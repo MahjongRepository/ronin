@@ -39,6 +39,18 @@ func TestDecode_WhenEveryKindOfValueIsSent_ShouldReadBackWhatEncodeWrote(t *test
 	if err != nil || !reflect.DeepEqual(decoded, message) {
 		t.Errorf("Decode(Encode(m)) = %v, %v; want %v", decoded, err, message)
 	}
+	if n, ok := decoded.Int(KeyEventType); n != -5 || !ok {
+		t.Errorf("Int(KeyEventType) = %d, %v; want -5, true", n, ok)
+	}
+	if _, ok := decoded.Int(KeyWaitElapsed); ok {
+		t.Error("Int(KeyWaitElapsed) read a float as an integer")
+	}
+	if s, ok := decoded.Str(KeyGameTicket); s != strings.Repeat("t", 300) || !ok {
+		t.Errorf("Str(KeyGameTicket) = %q, %v; want the ticket, true", s, ok)
+	}
+	if _, ok := decoded.Str(KeyName); ok {
+		t.Error("Str(KeyName) read nil as a string")
+	}
 }
 
 func TestDecode_WhenAFloatIsSentAsFloat32_ShouldReadItAsAFloat(t *testing.T) {

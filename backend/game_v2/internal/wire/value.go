@@ -69,6 +69,20 @@ func (m Map) Get(k Key) (Value, bool) {
 	return nil, false
 }
 
+// Int returns k's first entry as an integer; false when m has none or it is no Int.
+func (m Map) Int(k Key) (int, bool) {
+	v, _ := m.Get(k)
+	n, ok := v.(Int)
+	return int(n), ok
+}
+
+// Str returns k's first entry as a string; false when m has none or it is no Str.
+func (m Map) Str(k Key) (string, bool) {
+	v, _ := m.Get(k)
+	s, ok := v.(Str)
+	return string(s), ok
+}
+
 // Get returns the value of key's first entry; false when m has none.
 func (m StrMap) Get(key string) (Value, bool) {
 	for _, f := range m {

@@ -87,8 +87,8 @@ func Load(content []byte) (Replay, error) {
 }
 
 func namingRobbedClosedKan(actions []SeatAction, record wire.Map) []SeatAction {
-	result, _ := intField(record, wire.KeyResultType)
-	winTile, won := intField(record, wire.KeyWinningTile)
+	result, _ := record.Int(wire.KeyResultType)
+	winTile, won := record.Int(wire.KeyWinningTile)
 	robbed, valid := tile.NewTileID(winTile)
 	if eventOf(record) != play.Some(wire.EventRoundEnd) || wire.ResultType(result) != wire.ResultRon || !won ||
 		!valid || len(actions) == 0 {
@@ -149,12 +149,11 @@ func readNames(record wire.Map) ([tile.SeatCount]string, error) {
 	for _, entry := range players {
 		player, _ := entry.(wire.Map)
 		s, ok := seatField(player, wire.KeySeat)
-		rawName, _ := player.Get(wire.KeyName)
-		name, _ := rawName.(wire.Str)
+		name, _ := player.Str(wire.KeyName)
 		if !ok || name == "" || names[s.Index()] != "" {
 			return names, errors.New("the game start does not name one player at each seat")
 		}
-		names[s.Index()] = string(name)
+		names[s.Index()] = name
 	}
 	return names, nil
 }
@@ -178,7 +177,7 @@ func recordActions(record wire.Map) ([]SeatAction, error) {
 }
 
 func discardAction(record wire.Map) ([]SeatAction, error) {
-	packed, _ := intField(record, wire.KeyPackedMove)
+	packed, _ := record.Int(wire.KeyPackedMove)
 	move, err := wire.UnpackDiscard(packed)
 	if err != nil {
 		return nil, err
@@ -190,7 +189,7 @@ func discardAction(record wire.Map) ([]SeatAction, error) {
 }
 
 func meldAction(record wire.Map) ([]SeatAction, error) {
-	packed, _ := intField(record, wire.KeyPackedMeld)
+	packed, _ := record.Int(wire.KeyPackedMeld)
 	m, err := wire.UnpackMeld(packed)
 	if err != nil {
 		return nil, err
@@ -218,7 +217,7 @@ func meldAction(record wire.Map) ([]SeatAction, error) {
 }
 
 func roundEndActions(record wire.Map) ([]SeatAction, error) {
-	result, _ := intField(record, wire.KeyResultType)
+	result, _ := record.Int(wire.KeyResultType)
 	_, bumped := record.Get(wire.KeyHeadBumpedSeats)
 	if bumped && wire.ResultType(result) != wire.ResultRon {
 		return nil, errors.New("a round end that is no ron names head-bumped seats")
@@ -251,8 +250,7 @@ func ronActions(record wire.Map) ([]SeatAction, error) {
 }
 
 func abortActions(record wire.Map) ([]SeatAction, error) {
-	raw, _ := record.Get(wire.KeyAbortiveReason)
-	reason, _ := raw.(wire.Str)
+	reason, _ := record.Str(wire.KeyAbortiveReason)
 	switch wire.AbortReason(reason) {
 	case wire.AbortNineTerminals:
 		return declarations(play.KyuushuAction(), []wire.Value{fieldOf(record, wire.KeySeat)})
@@ -263,7 +261,7 @@ func abortActions(record wire.Map) ([]SeatAction, error) {
 	case wire.AbortFourWinds, wire.AbortFourRiichi, wire.AbortFourKans:
 		return nil, nil
 	}
-	return nil, errors.New("unknown abort reason " + strconv.Quote(string(reason)))
+	return nil, errors.New("unknown abort reason " + strconv.Quote(reason))
 }
 
 func declarations(action play.Action, seats []wire.Value) ([]SeatAction, error) {
@@ -279,7 +277,7 @@ func declarations(action play.Action, seats []wire.Value) ([]SeatAction, error) 
 }
 
 func eventOf(record wire.Map) play.Option[wire.EventType] {
-	code, ok := intField(record, wire.KeyEventType)
+	code, ok := record.Int(wire.KeyEventType)
 	if !ok || code < 0 || code != int(wire.EventType(code)) {
 		return play.Option[wire.EventType]{}
 	}
@@ -289,11 +287,6 @@ func eventOf(record wire.Map) play.Option[wire.EventType] {
 func fieldOf(m wire.Map, k wire.Key) wire.Value {
 	v, _ := m.Get(k)
 	return v
-}
-
-func intField(m wire.Map, k wire.Key) (int, bool) {
-	n, ok := fieldOf(m, k).(wire.Int)
-	return int(n), ok
 }
 
 func seatField(m wire.Map, k wire.Key) (tile.Seat, bool) {

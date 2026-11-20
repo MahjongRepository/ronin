@@ -95,7 +95,7 @@ func (e InvalidMessageError) Error() string {
 // a game ticket of 1 to 2000 characters. Fields an action does not use are ignored. A boolean or a
 // float is never an integer. An InvalidMessageError otherwise.
 func ParseClientMessage(m wire.Map) (ClientMessage, error) {
-	typ, ok := intField(m, wire.KeyEventType)
+	typ, ok := m.Int(wire.KeyEventType)
 	switch {
 	case !ok:
 		return nil, InvalidMessageError{Reason: "no message type"}
@@ -116,35 +116,28 @@ func ParseClientMessage(m wire.Map) (ClientMessage, error) {
 // RefusedWaitID returns the wait id a decoded game action echoes; false for any other message, or
 // an id that is not an integer of 0 or more.
 func RefusedWaitID(m wire.Map) (int, bool) {
-	typ, isInt := intField(m, wire.KeyEventType)
-	waitID, ok := intField(m, wire.KeyWaitID)
+	typ, isInt := m.Int(wire.KeyEventType)
+	waitID, ok := m.Int(wire.KeyWaitID)
 	return waitID, isInt && typ == int(ClientGameAction) && ok && waitID >= 0
 }
 
-func intField(m wire.Map, k wire.Key) (int, bool) {
-	v, _ := m.Get(k)
-	n, ok := v.(wire.Int)
-	return int(n), ok
-}
-
 func parseTicket(m wire.Map) (string, error) {
-	v, _ := m.Get(wire.KeyGameTicket)
-	ticket, ok := v.(wire.Str)
+	ticket, ok := m.Str(wire.KeyGameTicket)
 	if !ok {
 		return "", InvalidMessageError{Reason: "no game ticket"}
 	}
-	if length := utf8.RuneCountInString(string(ticket)); length == 0 || length > maxTicketLength {
+	if length := utf8.RuneCountInString(ticket); length == 0 || length > maxTicketLength {
 		return "", InvalidMessageError{Reason: "game ticket of the wrong length"}
 	}
-	return string(ticket), nil
+	return ticket, nil
 }
 
 func parseGameAction(m wire.Map) (ClientMessage, error) {
-	waitID, ok := intField(m, wire.KeyWaitID)
+	waitID, ok := m.Int(wire.KeyWaitID)
 	if !ok || waitID < 0 {
 		return nil, InvalidMessageError{Reason: "no wait id"}
 	}
-	code, ok := intField(m, wire.KeyAction)
+	code, ok := m.Int(wire.KeyAction)
 	if !ok || code < int(GameActionDiscard) || code > int(GameActionConfirmRound) {
 		return nil, InvalidMessageError{Reason: "unknown game action"}
 	}
@@ -241,9 +234,8 @@ func parseKan(m wire.Map, message GameActionMessage) (ClientMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	v, _ := m.Get(wire.KeyActionKanType)
-	name, _ := v.(wire.Str)
-	kind, ok := kanKindOf(string(name))
+	name, _ := m.Str(wire.KeyActionKanType)
+	kind, ok := kanKindOf(name)
 	if !ok {
 		return nil, InvalidMessageError{Reason: "no kan type"}
 	}
