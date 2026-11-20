@@ -39,11 +39,15 @@ func (g *game) startWaitTimers() {
 }
 
 func (g *game) startDecisionTimer(p *participant) {
+	p.timer.startDecision(g.decisionTimerFired(p))
+}
+
+func (g *game) decisionTimerFired(p *participant) func(token uint64) {
 	kind := timeoutMeld
 	if g.wait.kind == waitTurn {
 		kind = timeoutTurn
 	}
-	p.timer.startDecision(g.timerFired(p, kind))
+	return g.timerFired(p, kind)
 }
 
 func (g *game) timerFired(p *participant, kind timeoutKind) func(token uint64) {
@@ -267,7 +271,7 @@ func (g *game) disconnected(p *participant, conn Connection) error {
 }
 
 func (g *game) releaseSeat(p *participant) error {
-	p.timer.stop()
+	p.timer.suspend()
 	if len(g.connected()) == 0 {
 		g.endGame(endAbandoned, play.Option[store.Result]{})
 		return nil

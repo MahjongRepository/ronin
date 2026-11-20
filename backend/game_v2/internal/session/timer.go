@@ -51,6 +51,7 @@ type turnTimer struct {
 	running   delayed
 	startedAt time.Time
 	charging  bool
+	suspended play.Option[time.Time]
 }
 
 func newTurnTimer(timing *Timing, clock Clock) turnTimer {
@@ -78,14 +79,34 @@ func (t *turnTimer) elapsed() play.Option[float64] {
 	return play.Some(t.clock.Now().Sub(t.startedAt).Seconds())
 }
 
+func (t *turnTimer) suspend() {
+	if !t.charging || !t.running.armed {
+		t.stop()
+		return
+	}
+	t.running.cancel()
+	t.suspended = play.Some(t.clock.Now())
+}
+
+func (t *turnTimer) resume(fire func(token uint64)) {
+	t.suspended = play.Option[time.Time]{}
+	deadline := t.startedAt.Add(t.timing.BaseTurn + t.bank)
+	t.running.arm(t.clock, max(0, deadline.Sub(t.clock.Now())), fire)
+}
+
 func (t *turnTimer) stop() {
 	t.running.cancel()
 	if !t.charging {
 		return
 	}
-	overtime := max(0, t.clock.Now().Sub(t.startedAt)-t.timing.BaseTurn)
+	end := t.clock.Now()
+	if t.suspended.OK {
+		end = t.suspended.Value
+	}
+	overtime := max(0, end.Sub(t.startedAt)-t.timing.BaseTurn)
 	t.bank = max(0, t.bank-overtime)
 	t.charging = false
+	t.suspended = play.Option[time.Time]{}
 }
 
 func (t *turnTimer) cancel() {

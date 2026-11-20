@@ -148,7 +148,8 @@ a contract.
   is the engine's view of the dealt table, with no decision. A later round's deal and its draw go
   out as one update. Every bank resets on a call that deals.
 * A reconnect either takes a seat back from its AI player (seat_control to the others; a turn the
-  AI player had not played yet becomes the participant's new decision, timed from the reconnect)
+  AI player had not played yet becomes the participant's new decision, keeping the deadline and
+  bank of a decision the seat left running, else timed from the reconnect)
   or replaces the participant's still-bound connection, closed with 4002, its wait, timers and
   bank running on. A resync re-sends the same state on the bound connection and changes nothing:
   the snapshot, then the owed decision's opening with how long its timer has run.

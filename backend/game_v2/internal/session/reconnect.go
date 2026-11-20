@@ -125,6 +125,10 @@ func (g *game) takeBackDecision(p *participant) {
 	}
 	g.aiTurn.cancel()
 	p.decisionID++
+	if p.timer.suspended.OK {
+		p.timer.resume(g.decisionTimerFired(p))
+		return
+	}
 	g.startDecisionTimer(p)
 }
 

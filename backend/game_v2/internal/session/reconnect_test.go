@@ -42,15 +42,15 @@ func sessionErrorCode(t *testing.T, conn *fakeConn) wire.Value {
 	return code
 }
 
-func TestReconnect_WhenTheSeatLeftDuringItsTurn_ShouldTakeItBackWithItsBankAndCancelTheAITurn(t *testing.T) {
+func TestReconnect_WhenTheSeatLeftDuringItsTurn_ShouldTakeItBackOnItsOriginalDeadline(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h, alice, bob := twoHumans(t, withTiming(noStartPause))
-		draw := lastDraw(t, alice)
-		leftWaitID := intOf(t, draw, wire.KeyWaitID)
+		leftWaitID := intOf(t, lastDraw(t, alice), wire.KeyWaitID)
 
 		sleep(15 * time.Second)
 		h.m.Disconnect(alice)
 		synctest.Wait()
+		sleep(500 * time.Millisecond)
 		back := h.reconnect("ticket-Alice")
 
 		control := ofSession(bob.messages(), "seat_control")
@@ -67,20 +67,24 @@ func TestReconnect_WhenTheSeatLeftDuringItsTurn_ShouldTakeItBackWithItsBankAndCa
 		if got := intOf(t, opening, wire.KeyWaitID); got != leftWaitID+1 {
 			t.Errorf("re-sent draw wait id = %d, want %d", got, leftWaitID+1)
 		}
-		if got, _ := opening.Get(wire.KeyBankSeconds); got != wire.Int(15) {
-			t.Errorf("re-sent draw bank = %v, want the 15 left after 5 s of overtime", got)
+		if got, _ := opening.Get(wire.KeyBankSeconds); got != wire.Int(20) {
+			t.Errorf("re-sent draw bank = %v, want the 20 not yet charged", got)
 		}
-		if got, _ := opening.Get(wire.KeyWaitElapsed); got != wire.Float(0) {
-			t.Errorf("re-sent draw elapsed = %v, want a timer started with the reconnect", got)
+		if got, _ := opening.Get(wire.KeyWaitElapsed); got != wire.Float(15.5) {
+			t.Errorf("re-sent draw elapsed = %v, want 15.5 s counted from the turn's start", got)
 		}
 
 		sleep(time.Second)
 		if got := len(ofEvent(bob.messages(), wire.EventDiscard)); got != 0 {
 			t.Fatalf("the AI player discarded %d times after the seat was taken back", got)
 		}
-		h.act(back, discard(leftWaitID+1, drawnTile(t, draw)))
-		if got := len(ofEvent(bob.messages(), wire.EventDiscard)); got != 1 {
-			t.Errorf("bob saw %d discards after alice's, want 1", got)
+		sleep(13500*time.Millisecond - time.Millisecond)
+		if got := h.m.Stats().TurnTimeouts; got != 0 {
+			t.Fatalf("the turn timed out before its original deadline")
+		}
+		sleep(time.Millisecond)
+		if got := h.m.Stats().TurnTimeouts; got != 1 {
+			t.Errorf("TurnTimeouts = %d, want the turn timed out at its original 30 s", got)
 		}
 		if got := h.m.Stats().Reconnects; got != 1 {
 			t.Errorf("Reconnects = %d, want 1", got)
