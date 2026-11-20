@@ -7,11 +7,10 @@ import (
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/tenhou"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
-
-const finalScoreFactor = 10
 
 // Transform is a kind of change the rewrite makes to a replay of version 0.4-dev, beyond its
 // version record, which every rewrite replaces.
@@ -29,8 +28,12 @@ const (
 )
 
 var transformNames = [transformCount]string{
-	"ron with its win under WINNERS", "double ron as a ron of two wins", "nagashi mangan as an exhaustive draw",
-	"robbed kan declared before the ron", "pao assigned after its call", "final scores in tenths",
+	TransformRon:         "ron with its win under WINNERS",
+	TransformDoubleRon:   "double ron as a ron of two wins",
+	TransformNagashi:     "nagashi mangan as an exhaustive draw",
+	TransformRobbedKan:   "robbed kan declared before the ron",
+	TransformPao:         "pao assigned after its call",
+	TransformFinalScores: "final scores in tenths",
 }
 
 func (t Transform) String() string {
@@ -53,8 +56,13 @@ const (
 )
 
 var failureNames = [failureKindCount]string{
-	"unreadable", "unknown version", "unknown shape", "inconsistent records", "refused by the codec",
-	"no Tenhou log", "not written",
+	FailureUnreadable:   "unreadable",
+	FailureVersion:      "unknown version",
+	FailureShape:        "unknown shape",
+	FailureInconsistent: "inconsistent records",
+	FailureEncode:       "refused by the codec",
+	FailureExport:       "no Tenhou log",
+	FailureWrite:        "not written",
 }
 
 func (k FailureKind) String() string {
@@ -384,7 +392,7 @@ func (r *rewriter) gameEnd(record wire.Map) error {
 		if !ok {
 			return errors.New("a standing with no final score")
 		}
-		scored = append(scored, replaced(standing, wire.KeyFinalScore, wire.Int(final*finalScoreFactor)))
+		scored = append(scored, replaced(standing, wire.KeyFinalScore, wire.Int(final*store.FinalScoreFactor)))
 	}
 
 	r.out = append(r.out, replaced(record, wire.KeyStandings, scored))

@@ -17,11 +17,13 @@ const (
 	replayFileMode    = 0o600
 	minGameIDLength   = 4
 	maxGameIDLength   = 50
-	replayFileSuffix  = ".msgpack.gz"
 	replayTempPrefix  = ".replay_"
 	replayTempSuffix  = ".tmp"
 	shardPrefixLength = 2
 )
+
+// ReplayFileSuffix ends the name of every stored replay file.
+const ReplayFileSuffix = ".msgpack.gz"
 
 // MaxReplayFileSize is the largest stored replay file Replays.Read returns, in bytes.
 const MaxReplayFileSize = 1 << 20
@@ -105,7 +107,7 @@ func (r Replays) Read(gameID string) (data []byte, err error) {
 	}
 	defer func() { err = errors.Join(err, root.Close()) }()
 
-	file, err := root.Open(replayPath(gameID))
+	file, err := root.Open(ReplayPath(gameID))
 	if err != nil {
 		return nil, fmt.Errorf("read replay %s: %w", gameID, err)
 	}
@@ -144,8 +146,10 @@ func shardDir(gameID string) string {
 	return path.Join(gameID[:shardPrefixLength], gameID[shardPrefixLength:2*shardPrefixLength])
 }
 
-func replayPath(gameID string) string {
-	return path.Join(shardDir(gameID), gameID+replayFileSuffix)
+// ReplayPath returns where Replays stores a game's replay, relative to its directory, for a game id
+// IsValidGameID accepts: `aa/bb/<game id>.msgpack.gz` for an id starting `aabb`.
+func ReplayPath(gameID string) string {
+	return path.Join(shardDir(gameID), gameID+ReplayFileSuffix)
 }
 
 func compressReplay(content []byte) ([]byte, error) {
@@ -184,7 +188,7 @@ func writeReplay(root *os.Root, gameID string, compressed []byte) error {
 	temp := path.Join(shard, replayTempPrefix+rand.Text()+replayTempSuffix)
 	err = writeSynced(root, temp, compressed)
 	if err == nil {
-		err = root.Rename(temp, replayPath(gameID))
+		err = root.Rename(temp, ReplayPath(gameID))
 	}
 	if err != nil {
 		removeErr := root.Remove(temp)

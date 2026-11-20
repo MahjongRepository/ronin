@@ -41,7 +41,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger, out io.Writer) (o
 		return false, err
 	}
 
-	replays, err := MigrateReplays(cfg.ReplayDir, cfg.Apply)
+	replays, err := MigrateReplays(ctx, cfg.ReplayDir, cfg.Apply)
 	if err != nil {
 		return false, err
 	}

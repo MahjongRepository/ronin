@@ -10,7 +10,8 @@ import (
 	"strings"
 )
 
-const finalScoreFactor = 10
+// FinalScoreFactor is the tenths in one whole point of a final score.
+const FinalScoreFactor = 10
 
 // ScoreMigration is what MigrateFinalScores found in `played_games`: the rows whose final scores it
 // converted to tenths, those already in tenths, those holding no final score, and those it could not
@@ -148,7 +149,7 @@ func migratedRow(data string) (string, rowOutcome, error) {
 	scored := false
 	for i, standing := range game.Standings {
 		if standing.FinalScore != nil {
-			game.Standings[i].FinalScore = new(*standing.FinalScore * finalScoreFactor)
+			game.Standings[i].FinalScore = new(*standing.FinalScore * FinalScoreFactor)
 			scored = true
 		}
 	}

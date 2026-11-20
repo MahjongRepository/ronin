@@ -3,6 +3,7 @@ package migrate_test
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -262,5 +263,21 @@ func TestRun_WhenTheDatabaseIsMissing_ShouldCreateNothingAndRefuse(t *testing.T)
 	}
 	if _, statErr := os.Stat(cfg.DatabasePath); !errors.Is(statErr, fs.ErrNotExist) {
 		t.Errorf("the missing database was created: %v", statErr)
+	}
+}
+
+func TestRun_WhenTheContextIsDone_ShouldStopBeforeRewritingAReplay(t *testing.T) {
+	f := newFixture(t)
+	before := f.snapshot(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := migrate.Run(ctx, f.cfg, slog.Default(), &bytes.Buffer{})
+
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Run error = %v, want %v", err, context.Canceled)
+	}
+	if diff := cmp.Diff(before, f.snapshot(t)); diff != "" {
+		t.Errorf("the cancelled run changed (-before +after):\n%s", diff)
 	}
 }

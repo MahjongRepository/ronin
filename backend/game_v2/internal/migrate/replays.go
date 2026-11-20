@@ -1,6 +1,7 @@
 package migrate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -10,11 +11,6 @@ import (
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
-)
-
-const (
-	replaySuffix = ".msgpack.gz"
-	shardLength  = 2
 )
 
 // ReplayReport is what MigrateReplays found in a replay directory: the replays it rewrote, with
@@ -57,8 +53,8 @@ func (r ReplayReport) Kinds() [failureKindCount]int {
 // already at the current version is left as it is, so a second run rewrites nothing; so is one
 // Rewrite refuses, reported among the failures. A file at any other path is ignored and listed.
 // With apply false nothing is written: the report is what a run would do. The error is for a
-// directory it cannot walk.
-func MigrateReplays(dir string, apply bool) (report ReplayReport, err error) {
+// directory it cannot walk, or ctx's once it is done, which stops the walk before the next file.
+func MigrateReplays(ctx context.Context, dir string, apply bool) (report ReplayReport, err error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return ReplayReport{}, fmt.Errorf("open replay directory: %w", err)
@@ -69,6 +65,9 @@ func MigrateReplays(dir string, apply bool) (report ReplayReport, err error) {
 	err = fs.WalkDir(root.FS(), ".", func(name string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
 		if entry.IsDir() {
 			return nil
@@ -115,11 +114,11 @@ func (r *ReplayReport) add(gameID string, outcome replayOutcome) {
 }
 
 func storedGameID(name string, entry fs.DirEntry) (string, bool) {
-	gameID, isReplay := strings.CutSuffix(path.Base(name), replaySuffix)
+	gameID, isReplay := strings.CutSuffix(path.Base(name), store.ReplayFileSuffix)
 	if !isReplay || !entry.Type().IsRegular() || !store.IsValidGameID(gameID) {
 		return "", false
 	}
-	return gameID, name == path.Join(gameID[:shardLength], gameID[shardLength:2*shardLength], gameID+replaySuffix)
+	return gameID, name == store.ReplayPath(gameID)
 }
 
 func migrateReplay(replays store.Replays, gameID string, apply bool) replayOutcome {
