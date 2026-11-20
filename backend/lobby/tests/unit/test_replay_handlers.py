@@ -55,11 +55,13 @@ class TestReplayContent:
         assert response.status_code == 200
         assert response.headers["content-encoding"] == "gzip"
 
-    def test_replay_route__should_set_immutable_cache_headers(self, setup):
+    def test_replay_route__when_url_carries_a_replay_version__should_serve_the_replay_immutable(self, setup):
         client, replay_dir = setup
         _write_gzip_replay(replay_dir=replay_dir, game_id="game-789", content='{"version":"0.3-dev"}')
 
-        response = client.get("/api/replays/game-789")
+        response = client.get("/api/replays/game-789", params={"v": "0.4-dev"})
+        assert response.status_code == 200
+        assert response.text == '{"version":"0.3-dev"}'
         assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
 
     def test_replay_route__when_game_missing__should_return_404(self, setup):

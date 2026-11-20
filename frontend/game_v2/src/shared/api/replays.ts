@@ -1,4 +1,5 @@
 import { type CancelTimer } from "@/shared/clock";
+import { REPLAY_VERSION } from "@/shared/protocol";
 
 /** A replay's binary records, or the HTTP status the server refused it with. */
 export type ReplayFetch =
@@ -17,7 +18,8 @@ const HTTP_NOT_FOUND = 404;
 export const REPLAY_NOT_FOUND_RETRY_MS = [500, 1000, 2000] as const;
 
 export async function fetchReplay(gameId: string, signal: AbortSignal): Promise<ReplayFetch> {
-    const response = await fetch(`/api/replays/${encodeURIComponent(gameId)}`, { signal });
+    const url = `/api/replays/${encodeURIComponent(gameId)}?v=${encodeURIComponent(REPLAY_VERSION)}`;
+    const response = await fetch(url, { signal });
     if (!response.ok) {
         return { ok: false, status: response.status };
     }

@@ -1,13 +1,15 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { ManualClock } from "#tests/fixtures/clock";
 import {
     type LoadReplay,
     type ReplayFetch,
     type ReplayLoadRetry,
+    fetchReplay,
     isAbortError,
     loadReplayUntilFound,
 } from "@/shared/api";
+import { REPLAY_VERSION } from "@/shared/protocol";
 
 describe("isAbortError", () => {
     test("true for DOMException with name AbortError", () => {
@@ -25,6 +27,25 @@ describe("isAbortError", () => {
     test("false for non-error values", () => {
         expect(isAbortError(null)).toBe(false);
         expect(isAbortError("AbortError")).toBe(false);
+    });
+});
+
+describe("fetchReplay", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    test("asks for the replay at the URL of the replay version the client reads", async () => {
+        const fetched = vi.fn((_url: string) => Promise.resolve(new Response(new Uint8Array([7]))));
+        vi.stubGlobal("fetch", fetched);
+
+        await expect(fetchReplay("g 1", new AbortController().signal)).resolves.toEqual({
+            content: new Uint8Array([7]),
+            ok: true,
+        });
+        expect(fetched.mock.calls[0]?.[0]).toBe(
+            `/api/replays/g%201?v=${encodeURIComponent(REPLAY_VERSION)}`,
+        );
     });
 });
 

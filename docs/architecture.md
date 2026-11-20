@@ -513,7 +513,8 @@ honours this contract can replace it.
   once the handoff is gone. The router fallback and the unsupported-browser notice name no game and
   go to the lobby.
 * **Replays:** `GET /api/replays/{game_id}` returns `application/msgpack` with `Content-Encoding: gzip`,
-  no login required. The browser fetches binary content and decodes it inside the lazy replay route;
+  no login required, cached `immutable`. The client asks for `?v=<REPLAY_VERSION>`, which the lobby
+  ignores, so a client built for a new replay version misses the cache once. The browser fetches binary content and decodes it inside the lazy replay route;
   `GET /api/replays/{game_id}/tenhou.xml` downloads the same game as a tenhou.net XML log. The lobby
   cannot import the engine's converter, so it asks the game server, which converts the stored
   replay and answers only the internal API secret: 404 when no replay is stored, 422 for a failed
