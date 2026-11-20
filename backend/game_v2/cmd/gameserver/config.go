@@ -19,8 +19,6 @@ const (
 	logFormatConsole = "console"
 )
 
-// config is what the game server reads from its environment, as the Python server's settings
-// did.
 type config struct {
 	capacity       int
 	logDir         string

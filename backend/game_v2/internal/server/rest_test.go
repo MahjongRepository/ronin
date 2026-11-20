@@ -95,7 +95,7 @@ func TestStatus_WhenAGameIsPending_ShouldCountItAgainstCapacity(t *testing.T) {
 func TestCreateGame_WhenBodyValid_ShouldAnswer201Pending(t *testing.T) {
 	h := newHarness(t)
 
-	got := h.postGame(gameBody(testGameID, "alice", "bob"))
+	got := h.postGame(gameBody(testGameID, "alice", strings.Repeat("あ", 50)))
 
 	want := map[string]any{"game_id": testGameID, "status": "pending"}
 	if got.status != http.StatusCreated || !cmp.Equal(got.body, want) {

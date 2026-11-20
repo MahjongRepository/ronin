@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -36,10 +37,19 @@ func main() {
 	err := run(ctx, *addr)
 	stop()
 
-	if err != nil {
-		slog.Error("game server stopped", "error", err)
-		os.Exit(1)
+	if err == nil {
+		return
 	}
+	if _, logged := errors.AsType[loggedError](err); !logged {
+		slog.Error(logStopped, "error", err)
+	}
+	os.Exit(1)
+}
+
+const logStopped = "game server stopped"
+
+type loggedError struct {
+	error
 }
 
 func run(ctx context.Context, addr string) (err error) {
@@ -53,6 +63,15 @@ func run(ctx context.Context, addr string) (err error) {
 	}
 	defer func() { err = errors.Join(err, closeLog()) }()
 
+	err = runLogged(ctx, addr, cfg, logger)
+	if err != nil {
+		logger.Error(logStopped, "error", err)
+		return loggedError{err}
+	}
+	return nil
+}
+
+func runLogged(ctx context.Context, addr string, cfg config, logger *slog.Logger) (err error) {
 	storeCtx, cancelStore := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancelStore()
 	db, err := store.Open(storeCtx, cfg.databasePath, logger)
@@ -116,21 +135,25 @@ func newServer(storeCtx context.Context, cfg config, db *store.DB, logger *slog.
 }
 
 func serve(ctx context.Context, addr string, srv *server.Server, logger *slog.Logger, cancelStore func()) error {
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", addr, err)
+	}
 	httpServer := &http.Server{
-		Addr:              addr,
 		Handler:           srv.Handler(),
 		ReadHeaderTimeout: readHeaderTimeout,
 		IdleTimeout:       idleTimeout,
+		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
 	}
 	serveErr := make(chan error, 1)
 	go func() {
-		serveErr <- httpServer.ListenAndServe()
+		serveErr <- httpServer.Serve(listener)
 	}()
 	logger.Info("game server ready", "addr", addr)
 
 	select {
-	case err := <-serveErr:
-		return fmt.Errorf("serve %s: %w", addr, err)
+	case failed := <-serveErr:
+		return fmt.Errorf("serve %s: %w", addr, failed)
 	case <-ctx.Done():
 	}
 
@@ -141,7 +164,7 @@ func serve(ctx context.Context, addr string, srv *server.Server, logger *slog.Lo
 
 	httpErr := httpServer.Shutdown(shutdownCtx)
 	shutdownErr := srv.Shutdown(shutdownCtx)
-	err := <-serveErr
+	err = <-serveErr
 	if errors.Is(err, http.ErrServerClosed) {
 		err = nil
 	}

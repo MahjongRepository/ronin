@@ -11,6 +11,7 @@ import (
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/auth"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 )
 
 const (
@@ -162,7 +163,12 @@ func (s *Server) withdrawGame(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
-	if !s.cfg.Session.WithdrawGame(r.PathValue("game_id")) {
+	gameID := r.PathValue("game_id")
+	if !store.IsValidGameID(gameID) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if !s.cfg.Session.WithdrawGame(gameID) {
 		s.writeError(w, http.StatusConflict, "Game already joined")
 		return
 	}

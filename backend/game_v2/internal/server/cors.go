@@ -15,8 +15,6 @@ const (
 		"Access-Control-Request-Private-Network"
 )
 
-// cors lets the scripts of the allowed origins read the REST answers, as the Python server's
-// middleware did: GET and POST, the safelisted headers and Content-Type, no credentials.
 type cors struct {
 	origins   []string
 	anyOrigin bool

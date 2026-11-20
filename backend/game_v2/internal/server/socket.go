@@ -75,8 +75,8 @@ func (s *Server) serveSocket(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) serveConnection(ctx context.Context, conn *connection) {
 	var helpers sync.WaitGroup
-	helpers.Go(conn.write)
-	helpers.Go(func() { conn.ping(s.cfg.Socket.PingInterval, s.cfg.Socket.PingTimeout) })
+	helpers.Go(func() { conn.write(ctx) })
+	helpers.Go(func() { conn.ping(ctx, s.cfg.Socket.PingInterval, s.cfg.Socket.PingTimeout) })
 	defer helpers.Wait()
 	defer conn.stopWriter()
 

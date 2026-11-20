@@ -13,6 +13,7 @@ import (
 
 const (
 	defaultAIPlayers = 3
+	maxAIPlayers     = tile.SeatCount - 1
 	maxNameLength    = 50
 	maxUserIDLength  = 100
 	maxTicketLength  = 2000
@@ -25,8 +26,6 @@ type createGameRequest struct {
 	players []session.PlayerSpec
 }
 
-// parseCreateGame reads the lobby's game creation body as the Python server's model did: exactly
-// its keys, no field of another JSON type, lengths in characters, and the players unique.
 func parseCreateGame(body []byte) (createGameRequest, bool) {
 	fields, ok := objectOf(body, "game_id", "num_ai_players", "players")
 	if !ok {
@@ -96,7 +95,7 @@ func aiPlayersOf(fields map[string]json.RawMessage) (int, bool) {
 		return 0, false
 	}
 	n, err := strconv.Atoi(string(raw))
-	if err != nil || n < 0 || n > defaultAIPlayers {
+	if err != nil || n < 0 || n > maxAIPlayers {
 		return 0, false
 	}
 	return n, true

@@ -2,8 +2,6 @@ package server
 
 import "time"
 
-// tokenBucket refills at rate tokens a second up to burst, and each take spends one. Only the
-// goroutine reading its socket uses it.
 type tokenBucket struct {
 	rate   float64
 	burst  float64

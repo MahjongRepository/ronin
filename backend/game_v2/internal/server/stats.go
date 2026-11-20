@@ -5,9 +5,18 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 )
 
-var serverCloseCodes = [...]int{1000, 1008, 1011, 4001, 4002, 4004}
+var serverCloseCodes = [...]session.CloseCode{
+	session.CloseGameEnded,
+	session.CloseInvalidAction,
+	session.CloseInternalError,
+	session.CloseAuthTimeout,
+	session.CloseReplaced,
+	closeTooManyDecodes,
+}
 
 type socketStats struct {
 	connections   atomic.Int64
@@ -28,7 +37,7 @@ type socketStats struct {
 func initialCloses() map[int]int64 {
 	closes := make(map[int]int64, len(serverCloseCodes))
 	for _, code := range serverCloseCodes {
-		closes[code] = 0
+		closes[int(code)] = 0
 	}
 	return closes
 }
@@ -77,8 +86,6 @@ const (
 	millisPerSecond  = 1000
 )
 
-// lagWindow keeps the longest queue delay of each of the last 60 seconds, so its maximum is a
-// rolling one by age that no read resets.
 type lagWindow struct {
 	mu      sync.Mutex
 	buckets [lagWindowSeconds]lagBucket

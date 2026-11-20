@@ -29,8 +29,6 @@ type outgoing struct {
 	reason string
 }
 
-// connection is an accepted socket as the session sees it, written by its own writer goroutine
-// from a bounded queue so no send or close waits on the client.
 type connection struct {
 	id           string
 	gameID       string
@@ -121,7 +119,7 @@ func (c *connection) isTerminated() bool {
 	}
 }
 
-func (c *connection) write() {
+func (c *connection) write(ctx context.Context) {
 	defer close(c.writerDone)
 	defer c.recoverAndDrop("websocket writer failed")
 
@@ -136,15 +134,15 @@ func (c *connection) write() {
 				_ = c.ws.Close(item.code, item.reason)
 				return
 			}
-			if !c.writeMessage(item.data) {
+			if !c.writeMessage(ctx, item.data) {
 				return
 			}
 		}
 	}
 }
 
-func (c *connection) writeMessage(data []byte) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), c.sendDeadline)
+func (c *connection) writeMessage(ctx context.Context, data []byte) bool {
+	ctx, cancel := context.WithTimeout(ctx, c.sendDeadline)
 	defer cancel()
 
 	err := c.ws.Write(ctx, websocket.MessageBinary, data)
@@ -160,7 +158,7 @@ func (c *connection) writeMessage(data []byte) bool {
 	return false
 }
 
-func (c *connection) ping(interval, timeout time.Duration) {
+func (c *connection) ping(ctx context.Context, interval, timeout time.Duration) {
 	defer c.recoverAndDrop("websocket pinger failed")
 
 	ticker := time.NewTicker(interval)
@@ -174,14 +172,14 @@ func (c *connection) ping(interval, timeout time.Duration) {
 		case <-ticker.C:
 		}
 
-		if !c.pingOnce(timeout) {
+		if !c.pingOnce(ctx, timeout) {
 			return
 		}
 	}
 }
 
-func (c *connection) pingOnce(timeout time.Duration) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func (c *connection) pingOnce(ctx context.Context, timeout time.Duration) bool {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	err := c.ws.Ping(ctx)
@@ -202,8 +200,6 @@ func (c *connection) recoverAndDrop(message string) {
 	}
 }
 
-// stopWriter ends the writer once the socket stopped reading, first letting it flush a queued
-// close within the send deadline so the client gets its code.
 func (c *connection) stopWriter() {
 	if c.stopSending() {
 		deadline := time.NewTimer(c.sendDeadline)

@@ -55,13 +55,12 @@ func (b *lockedBuffer) String() string {
 }
 
 type harness struct {
-	t         *testing.T
-	srv       *server.Server
-	http      *httptest.Server
-	dbPath    string
-	logs      *lockedBuffer
-	allowErrs bool
-	stopped   bool
+	t       *testing.T
+	srv     *server.Server
+	http    *httptest.Server
+	dbPath  string
+	logs    *lockedBuffer
+	stopped bool
 }
 
 type option func(*server.Config, *session.Config)
@@ -121,7 +120,7 @@ func newHarness(t *testing.T, options ...option) *harness {
 		if closeErr != nil {
 			t.Errorf("db.Close error = %v", closeErr)
 		}
-		if !h.allowErrs && strings.Contains(logs.String(), "level=ERROR") {
+		if strings.Contains(logs.String(), "level=ERROR") {
 			t.Errorf("the server logged an error:\n%s", logs.String())
 		}
 	})

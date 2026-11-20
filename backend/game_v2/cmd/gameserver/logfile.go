@@ -13,8 +13,6 @@ const (
 	logFileMode = 0o644
 )
 
-// watchedFile appends to a log file and reopens it when the path no longer names the open file,
-// so logrotate can move it away, as Python's WatchedFileHandler does.
 type watchedFile struct {
 	mu   sync.Mutex
 	path string
