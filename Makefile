@@ -6,7 +6,7 @@ DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
 
 FRONTEND_APPS := lobby game_v2
 
-.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend format-go lint-go test-go vuln-go run-all-checks run-games run-tournament deadcode generate-replays generate-fixtures fixtures-check profile profile-games measure-wall
+.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend format-go lint-go test-go vuln-go run-all-checks run-games run-tournament deadcode generate-replays generate-fixtures fixtures-check profile profile-games measure-wall run-game-v2-docker stop-game-v2-docker
 
 test:
 	cd backend && uv run pytest -v --cov --cov-report=
@@ -104,5 +104,19 @@ ifeq ($(SERVER),go)
 else
 	cd backend && uv run python -m scripts.measure_wall $(MEASURE_ARGS)
 endif
+
+GAME_V2_COMPOSE = set -a && . ./.env.local && set +a && \
+	GO_VERSION=$$(sed -n 's/^go = "\(.*\)"$$/\1/p' mise.toml) \
+	APP_VERSION=$$(sed -n 's/^version = "\(.*\)"$$/\1/p' backend/pyproject.toml) \
+	GIT_COMMIT=$$(git rev-parse --short=7 HEAD) \
+	GAME_V2_UID=$$(id -u) GAME_V2_GID=$$(id -g) \
+	docker compose -f backend/game_v2/docker-compose.local.yml
+
+run-game-v2-docker:
+	mkdir -p backend/data/game-v2-replays
+	$(GAME_V2_COMPOSE) up --build --detach --wait
+
+stop-game-v2-docker:
+	$(GAME_V2_COMPOSE) down
 
 -include Makefile.local

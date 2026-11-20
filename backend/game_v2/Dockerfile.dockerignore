@@ -1,0 +1,10 @@
+*
+!mise.toml
+!backend/game_v2/go.mod
+!backend/game_v2/go.sum
+!backend/game_v2/THIRD-PARTY-NOTICES.md
+!backend/game_v2/cmd
+!backend/game_v2/engine
+!backend/game_v2/internal
+backend/game_v2/**/*_test.go
+backend/game_v2/**/testdata

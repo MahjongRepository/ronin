@@ -499,3 +499,13 @@ comments either: a forbidigo pattern's `msg` is where its reason goes.
   `cd backend/game_v2 && mise exec -- go test -race ./engine/... ./seam/...`: the facade's tests live
   in `seam/`, so `./engine/...` alone skips them.
 * The server listens on `127.0.0.1:8712` by default (`-addr`), clear of the Python game server.
+* `make run-game-v2-docker` builds the server's own image (`Dockerfile`, built from the repo root
+  with `Dockerfile.dockerignore`, so the production `deploy/Dockerfile` and the root `.dockerignore`
+  stay untouched) and starts it as the local `game-v2` service on `:8712`; `make
+  stop-game-v2-docker` stops it. Neither `release.yml` nor `deploy/docker-compose.yml` knows it.
+  The build takes its Go from `mise.toml` and fails on any other; `APP_VERSION` and `GIT_COMMIT` are
+  baked in, since a Docker build has no VCS stamp. The image runs as uid 1000, but the local compose
+  runs it as the host user: the dev database and the replays are owner-only, and the host's lobby
+  reads both. It mounts the whole `backend/` directory, not the database file, because SQLite's
+  WAL and SHM siblings must be the files the host's lobby uses. Its replays go to
+  `backend/data/game-v2-replays/`, apart from the local stack's.
