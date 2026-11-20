@@ -7,7 +7,16 @@ tasks:
         script: |
           sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
           sed -i 's/^#\?KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' /etc/ssh/sshd_config
+          if [ -d /etc/ssh/sshd_config.d ]; then
+            printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\n' > /etc/ssh/sshd_config.d/00-ronin.conf
+          fi
+          sshd -t
           systemctl reload ssh
+
+      - name: verify password authentication is off
+        script: |
+          sshd -T | grep -qx 'passwordauthentication no'
+          sshd -T | grep -qx 'kbdinteractiveauthentication no'
 
   - name: setup-docker
     commands:
