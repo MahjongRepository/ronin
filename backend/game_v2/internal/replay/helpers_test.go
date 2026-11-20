@@ -231,7 +231,7 @@ func recordSteps(t *testing.T, seed engine.Seed, steps []replay.Step) []wire.Map
 			t.Fatalf("Collect error = %v", err)
 		}
 	}
-	return append([]wire.Map{wire.VersionRecord()}, log.Records()...)
+	return log.Records()
 }
 
 func encodeRecords(t *testing.T, records []wire.Map) []byte {
@@ -245,7 +245,11 @@ func encodeRecords(t *testing.T, records []wire.Map) []byte {
 
 func loadRecords(t *testing.T, records []wire.Map) replay.Replay {
 	t.Helper()
-	loaded, err := replay.Load(encodeRecords(t, records))
+	content, err := messaging.EncodeReplayRecords(records)
+	if err != nil {
+		t.Fatalf("EncodeReplayRecords error = %v", err)
+	}
+	loaded, err := replay.Load(content)
 	if err != nil {
 		t.Fatalf("Load error = %v", err)
 	}

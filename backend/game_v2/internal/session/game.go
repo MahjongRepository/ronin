@@ -404,7 +404,7 @@ func (g *game) closeEnded(conn Connection, reason endReason) {
 }
 
 func (g *game) saveReplay(records []wire.Map) error {
-	content, err := encodeReplay(records)
+	content, err := messaging.EncodeReplayRecords(records)
 	if err != nil {
 		return err
 	}

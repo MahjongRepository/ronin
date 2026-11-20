@@ -193,7 +193,7 @@ func (g *game) recordStart() {
 }
 
 func (g *game) openFirstWait(events []play.Emitted) error {
-	head, held := splitFirstDraw(events)
+	head, held := messaging.SplitAtFirstDraw(events)
 	g.holdingDraw, g.held = true, held
 	for _, e := range head {
 		if dealt, ok := e.Event.(play.RoundStarted); ok {
@@ -225,22 +225,6 @@ func (g *game) openFirstWait(events []play.Emitted) error {
 		return g.beginRound(play.Option[tile.Seat]{})
 	}
 	return nil
-}
-
-func splitFirstDraw(events []play.Emitted) (head, held []play.Emitted) {
-	at := slices.IndexFunc(events, func(e play.Emitted) bool {
-		switch e.Event.(type) {
-		case play.Drew, play.DrewNotice:
-			return true
-		case play.GameStarted, play.RoundStarted, play.Discarded, play.RiichiDeposited, play.FuritenChanged,
-			play.Called, play.PaoAssigned, play.DoraRevealed, play.RoundEnded, play.GameEnded:
-		}
-		return false
-	})
-	if at < 0 {
-		return events, nil
-	}
-	return events[:at], events[at:]
 }
 
 func (g *game) beginRound(actor play.Option[tile.Seat]) error {

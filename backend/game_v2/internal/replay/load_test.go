@@ -63,7 +63,7 @@ func TestLoad_WhenARonRobsAClosedKan_ShouldNameTheKanByTheRobbedCopy(t *testing.
 		Winner: seat(t, 2), Loser: play.Some(seat(t, 1)), WinTile: robbedCopy, Value: play.Yakuman{Count: 1},
 	}}}}
 	table := func() messaging.Table { return messaging.Table{Roster: testRoster} }
-	records := []wire.Map{wire.VersionRecord(), messaging.ReplayGameStartedPayload(play.GameStarted{}, testRoster, engine.Seed{7})}
+	records := []wire.Map{messaging.ReplayGameStartedPayload(play.GameStarted{}, testRoster, engine.Seed{7})}
 	for _, event := range []play.Event{kan, robbed} {
 		record, err := messaging.EventPayload(event, table)
 		if err != nil {

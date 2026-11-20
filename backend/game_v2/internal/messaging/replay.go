@@ -67,6 +67,30 @@ func (r *ReplayLog) Records() []wire.Map {
 	return slices.Clone(r.records)
 }
 
+// EncodeReplayRecords encodes records, as Records returns them, into a replay's content: the
+// version record first, then records. The error is wire.EncodeReplay's.
+func EncodeReplayRecords(records []wire.Map) ([]byte, error) {
+	return wire.EncodeReplay(append([]wire.Map{wire.VersionRecord()}, records...))
+}
+
+// SplitAtFirstDraw splits a game start's events before its first draw: head is the game start and
+// the deal, held the dealer's draw and what follows it. Without a draw, head is every event.
+func SplitAtFirstDraw(events []play.Emitted) (head, held []play.Emitted) {
+	at := slices.IndexFunc(events, func(e play.Emitted) bool {
+		switch e.Event.(type) {
+		case play.Drew, play.DrewNotice:
+			return true
+		case play.GameStarted, play.RoundStarted, play.Discarded, play.RiichiDeposited, play.FuritenChanged,
+			play.Called, play.PaoAssigned, play.DoraRevealed, play.RoundEnded, play.GameEnded:
+		}
+		return false
+	})
+	if at < 0 {
+		return events, nil
+	}
+	return events[:at], events[at:]
+}
+
 func (r *ReplayLog) record(event play.Event, table func() Table) (wire.Map, bool, error) {
 	switch e := event.(type) {
 	case play.GameStarted:

@@ -8,6 +8,7 @@ import (
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replay"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
@@ -19,7 +20,7 @@ type recording struct {
 }
 
 func (r recording) content() ([]byte, error) {
-	return wire.EncodeReplay(append([]wire.Map{wire.VersionRecord()}, r.records...))
+	return messaging.EncodeReplayRecords(r.records)
 }
 
 func (r recording) run() (engine.Game, error) {

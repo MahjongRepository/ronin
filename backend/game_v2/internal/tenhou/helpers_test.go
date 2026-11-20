@@ -10,7 +10,6 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replay"
-	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
 const (
@@ -154,9 +153,9 @@ func recordedReplay(t *testing.T, seed engine.Seed, steps []replay.Step) []byte 
 		}
 	}
 
-	content, err := wire.EncodeReplay(append([]wire.Map{wire.VersionRecord()}, log.Records()...))
+	content, err := messaging.EncodeReplayRecords(log.Records())
 	if err != nil {
-		t.Fatalf("EncodeReplay error = %v", err)
+		t.Fatalf("EncodeReplayRecords error = %v", err)
 	}
 	return content
 }

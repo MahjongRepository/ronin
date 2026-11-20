@@ -54,7 +54,7 @@ func newScriptedGame(
 	}
 	g.game = started
 
-	head, held := splitAtFirstDraw(events)
+	head, held := messaging.SplitAtFirstDraw(events)
 	g.collect(head)
 	for _, seat := range absent {
 		g.ai[seat.Index()] = true
@@ -65,22 +65,6 @@ func newScriptedGame(
 	g.playAIPlayers()
 	g.endCall()
 	return g
-}
-
-func splitAtFirstDraw(events []play.Emitted) (head, held []play.Emitted) {
-	at := slices.IndexFunc(events, func(e play.Emitted) bool {
-		switch e.Event.(type) {
-		case play.Drew, play.DrewNotice:
-			return true
-		case play.GameStarted, play.RoundStarted, play.Discarded, play.RiichiDeposited, play.FuritenChanged,
-			play.Called, play.PaoAssigned, play.DoraRevealed, play.RoundEnded, play.GameEnded:
-		}
-		return false
-	})
-	if at < 0 {
-		return events, nil
-	}
-	return events[:at], events[at:]
 }
 
 func (g *scriptedGame) fail(err error) {
