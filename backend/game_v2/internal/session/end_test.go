@@ -103,6 +103,25 @@ func TestGameEnd_WhenTheReplayCannotBeSaved_ShouldEndAsAFailureAndClose1011(t *t
 	})
 }
 
+func TestGameEnd_WhenTheFinishCannotBeRecorded_ShouldEndAsAFailureAndClose1011(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := oneWallHarness(t)
+		h.allowErrs = true
+		_, err := h.openDB(t).ExecContext(t.Context(),
+			"CREATE TRIGGER block_finish BEFORE UPDATE ON played_games BEGIN SELECT RAISE(ABORT, 'finish blocked'); END")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		alice := playOneWallGame(t, h)
+
+		assertClosedWithInternalError(t, alice)
+		if got := len(ofSession(alice.messages(), "session_error")); got != 1 {
+			t.Errorf("alice got %d session errors, want the internal error", got)
+		}
+	})
+}
+
 func assertClosedWithInternalError(t *testing.T, conn *fakeConn) {
 	t.Helper()
 	if code, closed := conn.closeCode(); !closed || code != session.CloseInternalError {
