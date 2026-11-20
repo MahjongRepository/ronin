@@ -293,13 +293,30 @@ func (h *harness) hasPlayedGame(t *testing.T) bool {
 	return count > 0
 }
 
-func (h *harness) replay(t *testing.T) []wire.Map {
+func (h *harness) playedGameRow(t *testing.T) [4]sql.NullString {
 	t.Helper()
-	compressed, err := store.NewReplays(h.replayDir).Read(testGameID)
+	var row [4]sql.NullString
+	err := h.openDB(t).QueryRowContext(t.Context(),
+		"SELECT started_at, ended_at, end_reason, data FROM played_games WHERE id = ?", testGameID,
+	).Scan(&row[0], &row[1], &row[2], &row[3])
+	if err != nil {
+		t.Fatalf("read played_games row error = %v", err)
+	}
+	return row
+}
+
+func (h *harness) replayBytes(t *testing.T) []byte {
+	t.Helper()
+	content, err := store.NewReplays(h.replayDir).Read(testGameID)
 	if err != nil {
 		t.Fatalf("Replays.Read error = %v", err)
 	}
-	return decodeReplay(t, compressed)
+	return content
+}
+
+func (h *harness) replay(t *testing.T) []wire.Map {
+	t.Helper()
+	return decodeReplay(t, h.replayBytes(t))
 }
 
 func intOf(t *testing.T, m wire.Map, k wire.Key) int {

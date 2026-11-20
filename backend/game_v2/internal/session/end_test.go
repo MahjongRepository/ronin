@@ -1,6 +1,7 @@
 package session_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
@@ -222,6 +223,32 @@ func TestGameStart_WhenTheEngineGameCannotStart_ShouldFailTheGameWithNoRecord(t 
 			})
 		})
 	}
+}
+
+func TestGameStart_WhenAFinishedGameHoldsTheID_ShouldFailTheSecondGameAndLeaveTheFirstsRowAndReplayUntouched(
+	t *testing.T,
+) {
+	synctest.Test(t, func(t *testing.T) {
+		h := oneWallHarness(t)
+		h.allowErrs = true
+		playOneWallGame(t, h)
+		firstRow := h.playedGameRow(t)
+		firstReplay := h.replayBytes(t)
+
+		carol := h.start("Carol")[0]
+		sleep(3 * time.Hour)
+
+		assertClosedWithInternalError(t, carol)
+		if got := ofEvent(carol.messages(), wire.EventGameStarted); len(got) != 0 {
+			t.Errorf("carol got %d game starts, want none", len(got))
+		}
+		if diff := cmp.Diff(firstRow, h.playedGameRow(t)); diff != "" {
+			t.Errorf("the first game's row changed (-first +after):\n%s", diff)
+		}
+		if !bytes.Equal(firstReplay, h.replayBytes(t)) {
+			t.Error("the second game rewrote the first game's replay file")
+		}
+	})
 }
 
 func TestShutdown_WhenAGameIsStillPending_ShouldEndItUnrecordedAndRefuseNewGames(t *testing.T) {

@@ -137,7 +137,6 @@ func (g *game) pendingTimedOut(token uint64) error {
 
 func (g *game) startGame() error {
 	g.lifecycle = lifecyclePlaying
-	g.markPlaying()
 
 	seed := g.m.cfg.Seeds()
 	names := make([]string, 0, len(g.participants))
@@ -155,9 +154,14 @@ func (g *game) startGame() error {
 	if err != nil {
 		return fmt.Errorf("start the engine game: %w", err)
 	}
+	err = g.recordStart()
+	if err != nil {
+		return fmt.Errorf("claim the game id: %w", err)
+	}
+	g.startRecorded = true
+	g.markPlaying()
 	g.engine = started
 	g.replay = messaging.NewReplayLog(seed, g.roster)
-	g.recordStart()
 	g.log.Info("pending game completed")
 	return g.openFirstWait(events)
 }
@@ -171,7 +175,7 @@ func (g *game) markPlaying() {
 	}
 }
 
-func (g *game) recordStart() {
+func (g *game) recordStart() error {
 	seats := make([]store.Player, tile.SeatCount)
 	for i, name := range g.roster.Names {
 		seats[i].Name = name
@@ -180,17 +184,7 @@ func (g *game) recordStart() {
 		seats[p.seat.Index()].UserID = p.spec.UserID
 	}
 	g.start = store.GameStart{GameID: g.id, StartedAt: g.clock.Now(), GameType: gameTypeHanchan, Seats: seats}
-
-	written := make(chan struct{})
-	g.startWritten = written
-	start, db, ctx, log := g.start, g.m.cfg.DB, g.m.storeCtx, g.log
-	g.m.wg.Go(func() {
-		defer close(written)
-		err := protect(func() error { return db.RecordStart(ctx, start) })
-		if err != nil {
-			log.Error("record the start of a game", "error", err)
-		}
-	})
+	return g.m.cfg.DB.RecordStart(g.m.storeCtx, g.start)
 }
 
 func (g *game) openFirstWait(events []play.Emitted) error {

@@ -155,8 +155,10 @@ a contract.
   the snapshot, then the owed decision's opening with how long its timer has run.
 * The end is claimed once, in a step: it releases the game from the registry at once and the game's
   goroutine then runs the finalizer (replay save, finish row, closes), each step its own panic
-  boundary, so a fault in one still lets every connection close. The start row is written off the
-  goroutine and the finish waits for it; both use the store context `New` takes, never a game's.
+  boundary, so a fault in one still lets every connection close. The start row claims the game id:
+  it is written once on the goroutine after the engine game is built and before anything of the
+  game is published, and a conflict or a failed write fails the game before play. Both rows use the
+  store context `New` takes, never a game's.
 * `Manager.Settle` waits until every posted step and every claimed end's finalizer ran. Only a
   caller that is the session's one source of work may use it: a harness driving the session on a
   Clock whose timers it fires itself, which settles before it reads what clients got or moves its
@@ -206,11 +208,12 @@ a contract.
   stale. A round end's pause waits its timeout once per result the client shows, so a double ron
   waits twice. `DefaultTiming` holds the values.
 * The finish row is built whole from the start row, never from engine or connection state at the
-  end, and the first finish wins; a game that never started records none. The replay holds the
-  engine's events only, each draw once and no opening or notice, plus the seat control records: a
-  seat with no connection at the start is `absent` between the deal and the dealer's draw, a leave
-  is `left` ahead of its AI player's moves, a take-back is a human return, and a replacement or an
-  AI player seated from the start writes none. An abandoned game's replay is discarded; a failed
+  end, and the first finish wins; a game that never started, or whose start row was refused,
+  records none and saves no replay, so it never touches another game's row or replay file. The
+  replay holds the engine's events only, each draw once and no opening or notice, plus the seat
+  control records: a seat with no connection at the start is `absent` between the deal and the
+  dealer's draw, a leave is `left` ahead of its AI player's moves, a take-back is a human return,
+  and a replacement or an AI player seated from the start writes none. An abandoned game's replay is discarded; a failed
   replay save or a failed finish write turns the end into a failure (1011).
 * Each step logs as its own subject: every line of a game carries `game_id`, and a line about a
   seated participant its `seat`. The messages the log gates match are named constants with the
@@ -395,6 +398,9 @@ Python server's formats.
   `testdata/python_rows.json` holds rows Python wrote, and Go must write them byte for byte but for
   `final_score_unit`: every row Go writes ends with that key (`store.FinalScoreUnit`), its final scores
   in tenths. A row without it holds the Python server's whole points until the migration converts it.
+* A game's row is its id's durable claim: the start insert keeps an existing row and returns
+  `store.ErrGameRecorded`, so a game id freed from the session's registry at a game's end is never
+  played again.
 * Replay files keep their layout, gzip, owner-only modes and 1 MiB read cap; every path goes
   through an `os.Root`, so no id or link leaves the replay directory.
 * A ticket verifies only as the lobby signs one: padded base64url (padding required, the URL

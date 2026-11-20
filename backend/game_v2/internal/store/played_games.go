@@ -47,6 +47,10 @@ const (
 // ErrUnknownSeat is returned for a placement whose seat the game's start has no player for.
 var ErrUnknownSeat = errors.New("placement seat has no player at the game's start")
 
+// ErrGameRecorded is returned for a start whose game id already has a row: the row is the id's
+// claim, so the first start keeps it.
+var ErrGameRecorded = errors.New("game already recorded")
+
 const (
 	insertStartSQL = "INSERT INTO played_games (id, started_at, ended_at, end_reason, data) VALUES (?, ?, ?, ?, ?) " +
 		"ON CONFLICT (id) DO NOTHING"
@@ -84,15 +88,22 @@ type finish struct {
 	reason  endReason
 }
 
-// RecordStart inserts a game's row as it starts, its standings the players in seat order. A game
-// already recorded keeps its row, and the start is logged at warning level and dropped.
+// RecordStart inserts a game's row as it starts, its standings the players in seat order, and so
+// claims the game id. A game already recorded keeps its row, and the start returns ErrGameRecorded.
 func (db *DB) RecordStart(ctx context.Context, start GameStart) error {
 	data, err := playedGameData(start, nil, nil, seatOrderStandings(start))
 	if err != nil {
 		return err
 	}
 
-	return db.write(ctx, insertStartSQL, start, nil, data, "game already recorded, ignoring its start")
+	written, err := db.write(ctx, insertStartSQL, start, nil, data)
+	if err != nil {
+		return err
+	}
+	if !written {
+		return fmt.Errorf("record game %s: %w", start.GameID, ErrGameRecorded)
+	}
+	return nil
 }
 
 // RecordCompleted finishes a completed game's row, its standings the result's placements with
@@ -136,10 +147,17 @@ func (db *DB) recordFinish(
 		return err
 	}
 
-	return db.write(ctx, upsertFinishSQL, start, &end, data, "game already finished, keeping its first finish")
+	written, err := db.write(ctx, upsertFinishSQL, start, &end, data)
+	if err != nil {
+		return err
+	}
+	if !written {
+		db.logger.Warn("game already finished, keeping its first finish", "game_id", start.GameID)
+	}
+	return nil
 }
 
-func (db *DB) write(ctx context.Context, query string, start GameStart, end *finish, data, ignored string) error {
+func (db *DB) write(ctx context.Context, query string, start GameStart, end *finish, data string) (bool, error) {
 	var endedAt, reason any
 	if end != nil {
 		endedAt, reason = columnTime(end.endedAt), string(end.reason)
@@ -147,17 +165,14 @@ func (db *DB) write(ctx context.Context, query string, start GameStart, end *fin
 
 	result, err := db.conn.ExecContext(ctx, query, start.GameID, columnTime(start.StartedAt), endedAt, reason, data)
 	if err != nil {
-		return fmt.Errorf("record game %s: %w", start.GameID, err)
+		return false, fmt.Errorf("record game %s: %w", start.GameID, err)
 	}
 
 	written, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("record game %s: %w", start.GameID, err)
+		return false, fmt.Errorf("record game %s: %w", start.GameID, err)
 	}
-	if written == 0 {
-		db.logger.Warn(ignored, "game_id", start.GameID)
-	}
-	return nil
+	return written > 0, nil
 }
 
 func seatOrderStandings(start GameStart) []standingJSON {

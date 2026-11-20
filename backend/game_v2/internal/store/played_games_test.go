@@ -205,24 +205,24 @@ func TestDB_WhenPlayingThePythonFixtureGames_ShouldWriteThePythonRowsMarkedInTen
 	}
 }
 
-func TestRecordStart_WhenTheGameIsAlreadyRecorded_ShouldKeepTheFirstRowAndWarn(t *testing.T) {
-	var logs bytes.Buffer
-	db, path := openDB(t, &logs)
+func TestRecordStart_WhenTheGameIsAlreadyRecorded_ShouldRefuseItWithErrGameRecordedAndKeepTheFirstRow(t *testing.T) {
+	db, path := openDB(t, &bytes.Buffer{})
 	first := fixtureStart("game-twice", fixtureStartedAt)
 	second := fixtureStart("game-twice", fixtureWholeSecond)
 	second.Seats = fixtureSeats[:1]
 
-	err := errors.Join(db.RecordStart(t.Context(), first), db.RecordStart(t.Context(), second))
+	err := db.RecordStart(t.Context(), first)
 	if err != nil {
-		t.Fatalf("RecordStart: %v", err)
+		t.Fatalf("first RecordStart: %v", err)
+	}
+	err = db.RecordStart(t.Context(), second)
+	if !errors.Is(err, store.ErrGameRecorded) {
+		t.Errorf("second RecordStart error = %v, want ErrGameRecorded", err)
 	}
 
 	row := rowOf(t, path, "game-twice")
 	if row.StartedAt != "2026-11-19T10:00:00.123456+00:00" || !strings.Contains(row.Data, `"Tsumogiri 2"`) {
 		t.Errorf("row = %+v, want the first start's", row)
-	}
-	if !strings.Contains(logs.String(), `level=WARN msg="game already recorded, ignoring its start" game_id=game-twice`) {
-		t.Errorf("logs = %q, want the ignored start's warning", logs.String())
 	}
 }
 

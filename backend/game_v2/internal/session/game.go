@@ -86,26 +86,26 @@ type ending struct {
 }
 
 type game struct {
-	m            *Manager
-	id           string
-	log          *slog.Logger
-	timing       *Timing
-	clock        Clock
-	inbox        chan func()
-	ended        chan struct{}
-	lifecycle    lifecycle
-	participants []*participant
-	engine       engine.Game
-	roster       messaging.Roster
-	wait         wait
-	hasWait      bool
-	pause        *pause
-	start        store.GameStart
-	startWritten chan struct{}
-	replay       *messaging.ReplayLog
-	pending      delayed
-	aiTurn       delayed
-	end          ending
+	m             *Manager
+	id            string
+	log           *slog.Logger
+	timing        *Timing
+	clock         Clock
+	inbox         chan func()
+	ended         chan struct{}
+	lifecycle     lifecycle
+	participants  []*participant
+	engine        engine.Game
+	roster        messaging.Roster
+	wait          wait
+	hasWait       bool
+	pause         *pause
+	start         store.GameStart
+	startRecorded bool
+	replay        *messaging.ReplayLog
+	pending       delayed
+	aiTurn        delayed
+	end           ending
 }
 
 func newGame(m *Manager, id string, players []PlayerSpec) *game {
@@ -356,7 +356,7 @@ func (g *game) finish() {
 
 	e := g.end
 	reason := e.reason
-	if e.keepReplay {
+	if g.startRecorded && e.keepReplay {
 		err := protect(func() error { return g.saveReplay(e.records) })
 		if err != nil {
 			g.log.Error("save the replay of a finished game", "error", err)
@@ -366,8 +366,7 @@ func (g *game) finish() {
 		}
 	}
 
-	if g.startWritten != nil {
-		<-g.startWritten
+	if g.startRecorded {
 		err := protect(func() error { return g.recordFinish(reason, e) })
 		if err != nil {
 			g.log.Error("record the finish of a game", "error", err)
