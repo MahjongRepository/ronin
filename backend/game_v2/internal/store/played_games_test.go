@@ -286,3 +286,32 @@ func rowOf(t *testing.T, path, gameID string) playedGameRow {
 	}
 	return row
 }
+
+func TestCloseUnfinished_ShouldFinishOnlyTheUnfinishedRowsAsRecordFailedWould(t *testing.T) {
+	db, path := openDB(t, &bytes.Buffer{})
+	failedDB, failedPath := openDB(t, &bytes.Buffer{})
+	started := fixtureStart("game-started", fixtureStartedAt)
+	completed := fixtureStart("game-completed", fixtureWholeSecond)
+	err := errors.Join(
+		db.RecordStart(t.Context(), started),
+		db.RecordStart(t.Context(), completed),
+		db.RecordCompleted(t.Context(), completed, fixtureEndedAt, fixtureResult),
+		failedDB.RecordFailed(t.Context(), started, fixtureEndedAt),
+	)
+	if err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	completedBefore := rowOf(t, path, "game-completed")
+
+	closed, err := db.CloseUnfinished(t.Context(), fixtureEndedAt)
+
+	if err != nil || closed != 1 {
+		t.Errorf("CloseUnfinished = %d, %v, want 1, nil", closed, err)
+	}
+	if diff := cmp.Diff(rowOf(t, failedPath, "game-started"), rowOf(t, path, "game-started")); diff != "" {
+		t.Errorf("closed row differs from RecordFailed's (-failed +closed):\n%s", diff)
+	}
+	if diff := cmp.Diff(completedBefore, rowOf(t, path, "game-completed")); diff != "" {
+		t.Errorf("completed row changed (-before +after):\n%s", diff)
+	}
+}

@@ -157,8 +157,9 @@ a contract.
   goroutine then runs the finalizer (replay save, finish row, closes), each step its own panic
   boundary, so a fault in one still lets every connection close. The start row claims the game id:
   it is written once on the goroutine after the engine game is built and before anything of the
-  game is published, and a conflict or a failed write fails the game before play. Both rows use the
-  store context `New` takes, never a game's.
+  game is published, and a conflict or a failed write fails the game before play. The finish row is
+  written up to three times, 1 s then 2 s apart on the `Clock`, and a cut store context stops the
+  waits. Both rows use the store context `New` takes, never a game's.
 * `Manager.Settle` waits until every posted step and every claimed end's finalizer ran. Only a
   caller that is the session's one source of work may use it: a harness driving the session on a
   Clock whose timers it fires itself, which settles before it reads what clients got or moves its
@@ -214,7 +215,7 @@ a contract.
   control records: a seat with no connection at the start is `absent` between the deal and the
   dealer's draw, a leave is `left` ahead of its AI player's moves, a take-back is a human return,
   and a replacement or an AI player seated from the start writes none. An abandoned game's replay is discarded; a failed
-  replay save or a failed finish write turns the end into a failure (1011).
+  replay save or a finish write failing every attempt turns the end into a failure (1011).
 * Each step logs as its own subject: every line of a game carries `game_id`, and a line about a
   seated participant its `seat`. The messages the log gates match are named constants with the
   Python server's text and level. Concealed hand tiles are logged at DEBUG only, and game tickets
@@ -401,6 +402,11 @@ Python server's formats.
 * A game's row is its id's durable claim: the start insert keeps an existing row and returns
   `store.ErrGameRecorded`, so a game id freed from the session's registry at a game's end is never
   played again.
+* At startup, once its listener is bound, the server closes every row with no end as `error`, as
+  `RecordFailed` would: no game survives a restart, so such a row is a game a crash or a shutdown
+  left unfinished. This holds only while exactly one game server writes a database
+  (`AUTH_DATABASE_PATH`): a second server on another address would have its live games closed, and
+  nothing guards that; the bind only stops a second launch on the same address before the sweep.
 * Replay files keep their layout, gzip, owner-only modes and 1 MiB read cap; every path goes
   through an `os.Root`, so no id or link leaves the replay directory.
 * A ticket verifies only as the lobby signs one: padded base64url (padding required, the URL

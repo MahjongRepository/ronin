@@ -3,6 +3,7 @@ package store
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -58,6 +59,9 @@ const (
 		"ON CONFLICT (id) DO UPDATE SET " +
 		"ended_at = excluded.ended_at, end_reason = excluded.end_reason, data = excluded.data " +
 		"WHERE played_games.ended_at IS NULL"
+	selectUnfinishedSQL       = "SELECT id, data FROM played_games WHERE ended_at IS NULL ORDER BY id"
+	closeUnfinishedSQL        = "UPDATE played_games SET ended_at = ?, end_reason = ?, data = ? WHERE id = ? AND ended_at IS NULL"
+	closeUnfinishedColumnsSQL = "UPDATE played_games SET ended_at = ?, end_reason = ? WHERE id = ? AND ended_at IS NULL"
 )
 
 // FinalScoreUnit marks a row's `data` as holding final scores in tenths: every row this package
@@ -137,6 +141,64 @@ func (db *DB) RecordAbandoned(ctx context.Context, start GameStart, endedAt time
 // without scores.
 func (db *DB) RecordFailed(ctx context.Context, start GameStart, endedAt time.Time) error {
 	return db.recordFinish(ctx, start, finish{endedAt, endError}, nil, seatOrderStandings(start))
+}
+
+// CloseUnfinished finishes every row with no end yet, one a game server left when it stopped before
+// its game's finish, as RecordFailed would for that game's start at endedAt. A row whose `data` is
+// not the JSON this package writes gets only its end columns, with a warning. It returns how many
+// rows it closed. It closes the live games of any other server writing the same database, so it
+// runs only while this server is that database's one writer.
+func (db *DB) CloseUnfinished(ctx context.Context, endedAt time.Time) (int, error) {
+	rows, err := storedRows(ctx, db.conn, selectUnfinishedSQL)
+	if err != nil {
+		return 0, fmt.Errorf("close unfinished games: %w", err)
+	}
+
+	closed := 0
+	for _, row := range rows {
+		written, closeErr := db.closeUnfinished(ctx, row, endedAt)
+		if closeErr != nil {
+			return closed, closeErr
+		}
+		if written {
+			closed++
+		}
+	}
+	return closed, nil
+}
+
+func (db *DB) closeUnfinished(ctx context.Context, row storedRow, endedAt time.Time) (bool, error) {
+	end := finish{endedAt, endError}
+	data, err := finishedData(row.data, end)
+	var result sql.Result
+	switch {
+	case err != nil:
+		db.logger.Warn("unfinished game holds unreadable data, closing only its end columns",
+			"game_id", row.id, "error", err)
+		result, err = db.conn.ExecContext(ctx, closeUnfinishedColumnsSQL,
+			columnTime(end.endedAt), string(end.reason), row.id)
+	default:
+		result, err = db.conn.ExecContext(ctx, closeUnfinishedSQL,
+			columnTime(end.endedAt), string(end.reason), data, row.id)
+	}
+	if err != nil {
+		return false, fmt.Errorf("close unfinished game %s: %w", row.id, err)
+	}
+
+	written, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("close unfinished game %s: %w", row.id, err)
+	}
+	return written > 0, nil
+}
+
+func finishedData(data string, end finish) (string, error) {
+	game, err := decodeGame(data)
+	if err != nil {
+		return "", err
+	}
+	game.EndedAt, game.EndReason, game.FinalScoreUnit = new(jsonTime(end.endedAt)), &end.reason, FinalScoreUnit
+	return encodeGame(game)
 }
 
 func (db *DB) recordFinish(

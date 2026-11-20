@@ -1,5 +1,6 @@
 // Command gameserver runs the Go game server: it reads its environment, opens the shared database
-// and the replay store, and serves the lobby's routes and the game sockets until SIGINT or SIGTERM,
+// and the replay store, binds its address, closes the games a previous run left unfinished as
+// errors, and serves the lobby's routes and the game sockets until SIGINT or SIGTERM,
 // then stops within the container's grace period: the HTTP server stops taking connections, every
 // socket closes as a disconnect, the games' finalizers drain, and the database closes last. With
 // -cpuprofile it writes a CPU profile of the whole run there, for make profile-games.
@@ -99,11 +100,24 @@ func runLogged(ctx context.Context, addr string, cfg config, logger *slog.Logger
 	}
 	defer func() { err = errors.Join(err, db.Close()) }()
 
-	srv, err := newServer(storeCtx, cfg, db, logger)
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 	if err != nil {
-		return err
+		return fmt.Errorf("listen on %s: %w", addr, err)
 	}
-	return serve(ctx, addr, srv, logger, cancelStore)
+	srv, err := startServer(storeCtx, cfg, db, logger)
+	if err != nil {
+		return errors.Join(err, listener.Close())
+	}
+	return serve(ctx, listener, srv, logger, cancelStore)
+}
+
+func startServer(storeCtx context.Context, cfg config, db *store.DB, logger *slog.Logger) (*server.Server, error) {
+	closed, err := db.CloseUnfinished(storeCtx, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("closed unfinished games", "count", closed)
+	return newServer(storeCtx, cfg, db, logger)
 }
 
 func newLogger(cfg config) (*slog.Logger, func() error, error) {
@@ -154,11 +168,10 @@ func newServer(storeCtx context.Context, cfg config, db *store.DB, logger *slog.
 	return srv, nil
 }
 
-func serve(ctx context.Context, addr string, srv *server.Server, logger *slog.Logger, cancelStore func()) error {
-	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
-	if err != nil {
-		return fmt.Errorf("listen on %s: %w", addr, err)
-	}
+func serve(
+	ctx context.Context, listener net.Listener, srv *server.Server, logger *slog.Logger, cancelStore func(),
+) error {
+	addr := listener.Addr().String()
 	httpServer := &http.Server{
 		Handler:           srv.Handler(),
 		ReadHeaderTimeout: readHeaderTimeout,
@@ -184,7 +197,7 @@ func serve(ctx context.Context, addr string, srv *server.Server, logger *slog.Lo
 
 	httpErr := httpServer.Shutdown(shutdownCtx)
 	shutdownErr := srv.Shutdown(shutdownCtx)
-	err = <-serveErr
+	err := <-serveErr
 	if errors.Is(err, http.ErrServerClosed) {
 		err = nil
 	}

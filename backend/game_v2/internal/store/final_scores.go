@@ -70,7 +70,7 @@ func (db *DB) MigrateFinalScores(ctx context.Context, apply bool) (migration Sco
 		}
 	}()
 
-	rows, err := storedRows(ctx, tx)
+	rows, err := storedRows(ctx, tx, "SELECT id, data FROM played_games ORDER BY id")
 	if err != nil {
 		return ScoreMigration{}, fmt.Errorf("migrate final scores: %w", err)
 	}
@@ -110,8 +110,12 @@ func ignoreDone(err error) error {
 	return err
 }
 
-func storedRows(ctx context.Context, tx *sql.Tx) (stored []storedRow, err error) {
-	rows, err := tx.QueryContext(ctx, "SELECT id, data FROM played_games ORDER BY id")
+type rowQuerier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+func storedRows(ctx context.Context, q rowQuerier, query string) (stored []storedRow, err error) {
+	rows, err := q.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}

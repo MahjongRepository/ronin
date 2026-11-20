@@ -367,7 +367,7 @@ func (g *game) finish() {
 	}
 
 	if g.startRecorded {
-		err := protect(func() error { return g.recordFinish(reason, e) })
+		err := retryStoreWrite(g.m.storeCtx, g.clock, func() error { return g.recordFinish(reason, e) })
 		if err != nil {
 			g.log.Error("record the finish of a game", "error", err)
 			reason = endFailed
