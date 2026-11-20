@@ -454,7 +454,10 @@ func TestAgent_WhenACallersSeatIsTakenBackDuringItsRequest_ShouldLetTheOtherCall
 				return offered(d, play.ActionRon, d.Default), nil
 			}
 			carolAsked.Store(true)
-			<-releaseCarolsCall
+			select {
+			case <-releaseCarolsCall:
+			case <-ctx.Done():
+			}
 			return offered(d, play.ActionPon, d.Default), nil
 		})
 		h := newHarness(t, withSeed(seedSeating(t, 0, 1, 2)), withWalls(ronAndPonWall(t)), withTiming(noWaits),

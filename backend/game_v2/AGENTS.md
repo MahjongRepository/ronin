@@ -173,18 +173,18 @@ a contract.
   participant is keyed by its ticket for the whole game and seated once, at the start, and its turn
   timer lives as long as it does, so its bank survives a disconnect.
 * A seat with no connected participant is an AI player's, answered through the engine like a
-  participant's answer, by `Config.Agent` (by default its decision's default: it never wins, calls or
-  declares). The game waits for one AI answer at a time, a call's AI callers in seat order and an
+  participant's answer, by `Config.Agent` (by default its decision's default: it never wins, calls
+  or declares). The game waits for one AI answer at a time, a call's AI callers in seat order and an
   AI turn after the AI turn delay, so a human sees AI turns one at a time; the agent decides off the
   game's goroutine and its answer comes back as a step. One agent serves every game and a dropped
-  request's call may still run beside the next, so the agent is called concurrently. Every engine call, a take-back of the asked
-  seat and the end drop the request, and an answer to a dropped one is ignored. An agent error, no
-  answer within the base turn time or an action the decision does not offer plays the default,
-  with a warning; an agent panic, a refused offered answer or a refused default or timeout default
-  is a server fault.
-  When no connected participant remains the game is abandoned, so a game is never all AI players.
-  Every handover, either way, writes the replay's seat control record and sends seat_control to the
-  connected participants ahead of the moves that follow.
+  request's call may still run beside the next, so the agent is called concurrently. Every engine
+  call, a take-back of the asked seat and the end drop the request, and an answer to a dropped one
+  is ignored. An agent error, no answer within the base turn time or an action the decision does not
+  offer plays the default, with a warning; an agent panic, a refused offered answer or a refused
+  default or timeout default is a server fault. When no connected participant remains the game is
+  abandoned, so a game is never all AI players. Every handover, either way, writes the replay's seat
+  control record and sends seat_control to the connected participants ahead of the moves that
+  follow.
 * A user plays a game from its creation, pending included, until its end is claimed or Shutdown
   empties the registry, disconnected or not: the lobby's per-user lookup and the refusal of a user
   already playing answer from this. A pending game starts once everyone joined, or at its timeout
