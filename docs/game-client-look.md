@@ -734,15 +734,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Panels.** Round results, the seating at the game's start and at its end, and the leave question use
   a legible overlay area over the board and dim it beneath; each has the size its content needs, not
   the core's, covering whatever of the board's middle it needs (the rivers, the centre, a call's
-  announcement). A round result's panel is at least as wide as its yaku, value and indicators side by side need,
-  where the board holds that, so a short phone box lays them out abreast. A board under 290px tall (an iPhone 11's
-  896x275 and 808x275, the A25's 844x251, Safari's or Chrome's bars shown) widens the panel, lays the yaku in two
-  columns at an 18px pitch and each player's change and total on one line, so a five-yaku hand and a double ron
-  show whole there; where a notice beside it narrows the panel, the total goes back under the change. At the
-  primary sizes every panel, a round result included, fits whole; a board too
-  small to hold it (a best-effort narrow window at most) scrolls it inside its area, first a result's
-  yaku, value, indicators and score rows in place, then the panel itself, its primary button and
-  countdown kept in view. A panel may cover the page
+  announcement). A round result's panel takes the panel's room up to a wide cap, its tiles larger than the other
+  panels'. A board under 400px tall (a landscape phone, its browser's bars shown or not) gives it a compact
+  form: smaller type, each seat's change and total on one line, a seat that moved nothing showing its total alone.
+  At the primary sizes every panel, a round result included, fits whole; a result's yaku list longer than its column
+  scrolls in place, and a board too small for the rest (a best-effort narrow window at most) scrolls the panel
+  itself. A panel may cover the page
   corner, which reserves no room; the leave question is modal: it says that an AI takes the seat over
   and makes staying the clear default. The seating shows the game's length and the round, every seat's
   wind and player, the dealer, AI players, the viewer and each seat's score. Live, it is the game's opening screen:
@@ -765,23 +762,28 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   table column, so the bars (a replay's status and controls) stay usable beside it; on a
   phone it stands centred on the board both ways whether or not a notice shows (a replay's clear of its controls),
   the notices standing over it in their field. A desktop's panel fits its content whole.
-- **Round result.** Decision: the winner and how (ron, and from whom; tsumo; a head bump names who lost the
-  ron); the winning hand with the winning tile set apart and its melds in their shape; the yaku,
-  with han where han are meaningful and yakuman names and multipliers where they are; the dora,
-  red and ura counts apart, the ura indicators only for a riichi winner and per winner in a double
-  ron, both kinds in a column of their own beside the value, under one small "Indicators" caption
-  (a panel too narrow for columns, on one line after that caption), so they never read as the dora;
-  the total (han and fu where meaningful, the limit name, the
-  points) large; a note where a seat's payment is not the hand's value (pao, honba, collected
-  sticks); every seat's change and
-  new total together, cumulative through a double ron's pages or final, never mixed; then one
-  primary button, with the countdown where the server set one (the game's last result has none),
-  a pager only when there are more winners (early pages advance, the last confirms), and, once
-  confirmed, that the seat waits for the others (after a reconnect too). A triple ron shows three
+- **Round result.** Decision: the winning hand on top, the winning tile set apart and the melds in their shape, the
+  dead wall's indicators in the panel's top-right corner (five slots, the revealed indicators as faces, the rest
+  backs, the ura row under the dora's for a riichi winner), unlabelled, so they never read as the hand. Under the hand
+  one scoring column read down: the yaku with their han (a named yakuman as a vermilion 役満 seal beside its name in
+  large Mincho kanji, its translated name under it; a double or more says so), the dora, red and ura counts apart,
+  then under a rule the total (han and fu where meaningful), the limit name and the points large, the honba and
+  riichi sticks the winner collected as counts with what they added, and a note where a seat's payment is not the
+  hand's (pao, a head bump). The column keeps one height whatever the hand: a long yaku list scrolls. Beside it the
+  seats where they sit at the table, the viewer's (a replay's viewpoint) at the bottom and the round with its honba
+  in the middle, like the board's centre: each seat's wind, name, placement after payment, its change in its tone
+  (gain, loss; nothing for a seat that moved nothing) and its new total; a Pao, Tenpai or Noten tag only where the
+  change does not say it. There is no headline: a win tags the winner's card Ron or Tsumo (gold, the card faintly
+  tinted) and the card of the seat that dealt in Dealt in (quieter, outlined red), each tag small and set into the
+  card's top edge. The primary button stands in the bottom-right corner with the countdown where the server set one (the game's
+  last result has none): a double ron's early pages name the next winner on it, the last confirms; past the first
+  page the previous winner's button stands in the bottom-left corner. Each page shows that winner's hand, value and
+  payments, the seats' totals cumulative through it; every page's parts hold the same cells, so nothing moves as the
+  pages turn. Once confirmed, the seat waits for the others (after a reconnect too). A triple ron shows three
   claims and then an abortive result with no payouts. An exhaustive draw shows who was tenpai with
   their hands, noten seats unrevealed, and the payments, an all-tenpai or all-noten outcome said
-  rather than left blank; a nagashi mangan names who made it, shows their river as the proof and
-  the mangan payments, without a winning tile or a yaku breakdown, and still the tenpai verdicts;
+  rather than left blank (a draw with no hands to show centres the seats); a nagashi mangan shows as a win's value,
+  plainly (its name, Mangan and the points, no seal and no river), beside the seats;
   an abortive draw says why (four winds, four riichi, four kans, triple ron, kyuushu kyuuhai with
   its declarer). A first-turn win is an ordinary result over the board as it stands: empty rivers
   for tenhou, the earlier seats' first discards for chiihou. In live play a result whose round ends on the page

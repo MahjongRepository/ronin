@@ -273,18 +273,18 @@ const PAGES: readonly PageCase[] = [
     },
     {
         ...replayCase("ends_on_result", [
-            ".round-end-result__kind",
+            ".round-end-result__settle",
             ".replay-status__incomplete--end",
         ]),
     },
     { ...replayCase("four_kans", []), at: [FLOOR, MID_DESKTOP], prepare: expectFourKans },
     { ...replayCase("damaged", [".replay-status__incomplete--end"]), at: [FLOOR, MID_DESKTOP] },
-    { ...replayCase("double_ron", [".round-end-result__pager"]), at: [FLOOR, SHORT_TABLET] },
+    { ...replayCase("double_ron", [".round-end-result__next"]), at: [FLOOR, SHORT_TABLET] },
     {
-        ...replayCase("result_hidden", [".round-end-result__kind"]),
+        ...replayCase("result_hidden", [".round-end-result__settle"]),
         required: {
             attached: [".replay-controls__option--hands[aria-pressed='true']"],
-            visible: [...BOARD_VISIBLE, ".replay-controls__moves", ".round-end-result__kind"],
+            visible: [...BOARD_VISIBLE, ".replay-controls__moves", ".round-end-result__settle"],
         },
     },
     replayCase("game_end", [".seating__ending--tobi", ".seating__result--positive"]),

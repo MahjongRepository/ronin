@@ -746,8 +746,12 @@ describe("stepGameClient - generated riichi reconnect", () => {
             [0, 1000],
         ]);
         assert(result !== null);
-        const { body } = roundEndDisplay({ players: table.players, result }, 0);
-        expect(body.kind === "win" && body.notes).toEqual(["Riichi +1,000"]);
+        const { body } = roundEndDisplay({ ...table, result }, { bottomSeat: 0, page: 0 });
+        expect(body.kind === "win" && body.pages[0]?.sticks).toEqual({
+            bonus: 1000,
+            honba: 0,
+            riichi: 1,
+        });
     });
 });
 

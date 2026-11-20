@@ -66,7 +66,7 @@ the lowest layer allowed to hold it. `src/fixtures/` is generated data; only sto
 * Styles: the locally maintained Pico subset in `src/assets/vendor/pico/`, dark scheme only
   (`styles/_pico.scss` assembles its modules; add styles there before using a new element).
   Every colour is a `--ronin-*` token from `styles/_theme.scss`, never a literal. Tile material is
-  the generated bodies' (`npm run bodies`); `styles/_tile.scss` only places them and casts their shadows. One face, `--ronin-font`; aligning figures take `type.figures` on their own numeric
+  the generated bodies' (`npm run bodies`); `styles/_tile.scss` only places them and casts their shadows. One face, `--ronin-font`, but a named yakuman's seal and kanji in `--ronin-font-mincho`; aligning figures take `type.figures` on their own numeric
   element. The font stack matches the lobby's system sans-serif stack; no font files are downloaded.
 * Zod is `zod/mini` only (lint bans classic: it does not tree-shake and its JIT breaks the CSP). `zod-setup.ts` stays
   the first import of `index.ts`.

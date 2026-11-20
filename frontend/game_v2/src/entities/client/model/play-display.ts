@@ -321,6 +321,7 @@ function tableOverlay(
         };
     }
     const panel = tablePanel(state.table, {
+        bottomSeat: state.viewerSeat ?? 0,
         holdsResult: state.boardMotion.mode === "step",
         overGameEnd: state.showsLastResult,
         page: resultPage,

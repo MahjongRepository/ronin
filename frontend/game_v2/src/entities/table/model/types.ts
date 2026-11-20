@@ -118,11 +118,6 @@ export interface DrawResult {
     readonly tenpaiHands: readonly TenpaiHandResult[];
     /** The seats whose discards made a nagashi mangan. */
     readonly nagashiSeats: readonly number[];
-    /** Each nagashi mangan seat's river as the server names it, the proof the result shows, in `nagashiSeats` order. */
-    readonly nagashiRivers: readonly {
-        readonly seat: number;
-        readonly discards: readonly DiscardRecord[];
-    }[];
     /** The seat that declared kyuushu kyuuhai, or null. */
     readonly declarerSeat: number | null;
     /** The seats that declared the triple ron, in caller order. */

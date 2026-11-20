@@ -87,7 +87,6 @@ function emptyDraw(kind: DrawKind): DrawResult {
     return {
         declarerSeat: null,
         kind,
-        nagashiRivers: [],
         nagashiSeats: NO_SEATS,
         notenSeats: NO_SEATS,
         ronSeats: NO_SEATS,
@@ -141,14 +140,6 @@ function resultDraw(event: RoundEndEvent): DrawResult | null {
         case ROUND_RESULT_TYPE.NAGASHI_MANGAN: {
             return {
                 ...tenpaiDraw("nagashi_mangan", event),
-                nagashiRivers: event.qualifyingRivers.map((river) => ({
-                    discards: river.discards.map((discard) => ({
-                        isRiichi: discard.isRiichiDiscard,
-                        isTsumogiri: discard.isTsumogiri,
-                        tileId: discard.tileId,
-                    })),
-                    seat: river.seat,
-                })),
                 nagashiSeats: event.qualifyingSeats,
             };
         }

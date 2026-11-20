@@ -343,7 +343,7 @@ describe("PlayBoard", () => {
         host.remove();
     });
 
-    it("gives the focus to the result's own Next, never its pagers, when the sheet closes over it with no Show all shown", async () => {
+    it("gives the focus to the result's own next-winner button when the sheet closes over it with no Show all shown", async () => {
         const won = checkpointState("double_ron_seat_1", "round end");
         const firstPage = stepGameClient(won, { at: won.now + CALLOUT_MS, kind: "tick" }).state;
         const { host } = mountLive(firstPage, {
@@ -358,12 +358,8 @@ describe("PlayBoard", () => {
 
         expect(
             buttons.map((button) => [button.getAttribute("aria-label"), button.disabled]),
-        ).toEqual([
-            ["Previous winner", true],
-            ["Next winner", false],
-            ["Next", false],
-        ]);
-        expect(document.activeElement).toBe(buttons[2]);
+        ).toEqual([["Show Bob's win", false]]);
+        expect(document.activeElement).toBe(buttons[0]);
         host.remove();
     });
 

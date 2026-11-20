@@ -305,16 +305,14 @@ describe("replayDisplay - explicit viewing settings", () => {
                     ),
                 ]),
                 ...(result?.kind === "win"
-                    ? [
-                          ...result.doraIndicators,
-                          ...result.uraIndicators,
-                          ...result.hand.tiles.flatMap((tile) =>
+                    ? result.pages.flatMap((page) => [
+                          ...page.doraIndicators,
+                          ...page.uraIndicators,
+                          ...page.hand.tiles.flatMap((tile) =>
                               tile.show === "concealed" ? [] : [tile.face],
                           ),
-                          ...(result.winningTile.show === "concealed"
-                              ? []
-                              : [result.winningTile.face]),
-                      ]
+                          ...(page.winningTile.show === "concealed" ? [] : [page.winningTile.face]),
+                      ])
                     : []),
             ];
         });

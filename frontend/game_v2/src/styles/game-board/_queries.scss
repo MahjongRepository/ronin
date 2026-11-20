@@ -10,6 +10,9 @@ $decision-gap: 12px;
 $small-decision-gap: 6px;
 $phone-band-row-gap: 2px;
 
+/* A round result takes its compact form (smaller type, one line per seat's figures) on a board shorter than this. */
+$result-compact-height: 400px;
+
 /* Every layer, low to high; `.game-board` isolates the board's from the page's. */
 $layers: (
     below: -1,

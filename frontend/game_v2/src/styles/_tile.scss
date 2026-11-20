@@ -89,7 +89,7 @@ $max-strip-melds: 4;
         .meld,
         .hand:not(:has(> button)),
         .board-dora__tiles,
-        .round-end-result__indicator-tiles,
+        .round-end-result__wall-row,
         .board-motion
     )
     .tile__body {
@@ -100,7 +100,7 @@ $max-strip-melds: 4;
 .meld,
 .hand:not(:has(> button)),
 .board-dora__tiles,
-.round-end-result__indicator-tiles {
+.round-end-result__wall-row {
     @include cast-shadow(var(--board-tile-w, 60px));
 
     .tile--standing {

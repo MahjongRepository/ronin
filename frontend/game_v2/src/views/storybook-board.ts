@@ -21,6 +21,8 @@ import {
     type PanelAction,
     type PlayerState,
     RoundEndDisplay,
+    type RoundEndDisplayState,
+    type RoundEndTable,
     SEAT_POSITIONS,
     TablePanelDisplay,
     type TableState,
@@ -43,6 +45,7 @@ import { assertNever } from "@/shared/lib";
 import { GAME_END_CAUSE, SEAT_CONTROL_REASON } from "@/shared/protocol";
 
 import { STORYBOOK_INDEX } from "./storybook-nav";
+import { realisticDoubleRon, withMaxIndicators } from "./storybook-result-mocks";
 import {
     RESULT_STORIES,
     type ResultStory,
@@ -152,6 +155,10 @@ interface BoardStoryState {
     readonly story: BoardStory;
     readonly result: ResultStory;
     readonly page: number;
+    /** The seat the result's seats are placed around, kept in the page's `?viewer=`. */
+    readonly viewerSeat: number;
+    /** The result's mock OK was pressed, so it shows the seat waiting for the others. */
+    readonly resultConfirmed: boolean;
     /**
      * The controls over the board, kept in the page's `?offers=`: the most one discard can offer, or a turn's pressed
      * riichi toggle (the widest control the band takes beside the timer); none by default.
@@ -1006,14 +1013,57 @@ function gameEndActions(): readonly PanelAction[] {
     ];
 }
 
+/**
+ * A mock of the live game's result controls, in their markup: the next winner's name through a double ron's early
+ * pages, then OK with a fixed countdown, and once OK is pressed the seat waiting for the others.
+ */
+function StoryResultControls(
+    display: RoundEndDisplayState,
+    confirmed: boolean,
+    handlers: BoardStoryHandlers,
+): TemplateResult {
+    const next =
+        display.page < display.pageCount - 1 ? display.pageNames[display.page + 1] : undefined;
+    const waiting = confirmed && next === undefined;
+    const time = html`<span class="round-end-result__countdown"
+        ><span class="round-end-result__seconds">13</span>s left</span
+    >`;
+    const label =
+        next === undefined
+            ? "OK"
+            : html`<span class="round-end-result__page-name">${next}</span><span aria-hidden="true">&rsaquo;</span>`;
+    return html`<span class="round-end-result__controls">
+        <button
+            type="button"
+            class=${waiting ? "round-end-result__confirm round-end-result__ghost" : "round-end-result__confirm"}
+            aria-hidden=${waiting ? "true" : "false"}
+            ?disabled=${waiting}
+            @click=${() => (next === undefined ? handlers.confirmResult() : handlers.showPage(display.page + 1))}
+        >
+            <span class="round-end-result__confirm-label">${label}</span>${time}
+        </button>
+        <span
+            class=${waiting ? "round-end-result__wait" : "round-end-result__wait round-end-result__ghost"}
+            aria-hidden=${waiting ? "false" : "true"}
+        >
+            <span class="round-end-result__waiting">Waiting for others</span>${time}
+        </span>
+    </span>`;
+}
+
 function buildOverlay(
     story: BoardStoryState,
     handlers: BoardStoryHandlers,
 ): TemplateResult | undefined {
     const { overlay } = story;
     if (overlay === "round_end") {
+        const display = roundEndDisplay(storyResultTable(story.result), {
+            bottomSeat: story.viewerSeat,
+            page: story.page,
+        });
         return RoundEndDisplay({
-            display: roundEndDisplay(resultStoryTable(story.result), story.page),
+            controls: StoryResultControls(display, story.resultConfirmed, handlers),
+            display,
             onPage: handlers.showPage,
         });
     }
@@ -1021,6 +1071,7 @@ function buildOverlay(
         return undefined;
     }
     const panel = tablePanel(story.leftoverLost ? END_TABLE_STICK_LOST : END_TABLE, {
+        bottomSeat: 0,
         holdsResult: false,
         overGameEnd: false,
         page: 0,
@@ -1033,6 +1084,8 @@ interface BoardStoryHandlers {
     readonly showStory: (story: string) => void;
     readonly showResult: (result: string) => void;
     readonly showPage: (page: number) => void;
+    readonly confirmResult: () => void;
+    readonly showViewer: (seat: string) => void;
     readonly showCallout: (call: string) => void;
     readonly showOffers: (offers: string) => void;
     readonly toggleDebug: () => void;
@@ -1087,6 +1140,32 @@ const RESULT_OPTIONS: readonly PickerOption[] = RESULT_STORIES.map((value) => ({
     label: resultStoryLabel(value),
     value,
 }));
+
+/**
+ * A result story's table: its fixture's round end at East 1 with no honba, but the double ron's hand-written South 2
+ * whose scores read like a real game's; `?indicators=max` shows the most indicators a hand can.
+ */
+function storyResultTable(story: ResultStory): RoundEndTable {
+    const table =
+        story === "double_ron"
+            ? realisticDoubleRon()
+            : {
+                  ...resultStoryTable(story),
+                  firstDealerSeat: 0,
+                  honbaSticks: 0,
+                  inStep: true,
+                  roundInWind: 1,
+                  roundWind: 0,
+              };
+    const maxIndicators =
+        new URLSearchParams(globalThis.location.search).get("indicators") === "max";
+    return maxIndicators ? { ...table, result: withMaxIndicators(table.result) } : table;
+}
+
+function parseViewerParam(value: string | null): number {
+    const seat = Number(value ?? "0");
+    return Number.isInteger(seat) && seat >= 0 && seat < 4 ? seat : 0;
+}
 
 const CALL_OPTIONS: readonly PickerOption[] = [
     { label: "No call", value: "" },
@@ -1184,6 +1263,19 @@ function storybookBoardTemplate(
                           })
                         : ""
                 }
+                ${
+                    story.overlay === "round_end"
+                        ? storyPicker({
+                              label: "Viewer seat",
+                              onPick: handlers.showViewer,
+                              options: storyResultTable(story.result).players.map((player) => ({
+                                  label: `Viewer: ${player.name}`,
+                                  value: String(player.seat),
+                              })),
+                              selected: String(story.viewerSeat),
+                          })
+                        : ""
+                }
                 <button
                     class="board-storybook__btn ${activeClass(story.overlay === "game_end")}"
                     @click=${() => handlers.toggleOverlay("game_end")}
@@ -1218,7 +1310,9 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
         overlay: parseOverlayParam(window.location.search),
         page: parsePageParam(window.location.search),
         result: parseResultParam(window.location.search),
+        resultConfirmed: false,
         story: parseStoryParam(window.location.search),
+        viewerSeat: parseViewerParam(query.get("viewer")),
     };
 
     function show(next: BoardStoryState): void {
@@ -1227,6 +1321,7 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
     }
 
     const handlers: BoardStoryHandlers = {
+        confirmResult: () => show({ ...story, resultConfirmed: true }),
         openNotice: (open) => show({ ...story, noticeOpen: open }),
         showCallout(value) {
             const callout = parseStoryCall(value);
@@ -1249,7 +1344,7 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
             }
             syncQueryParam("result", result, DEFAULT_RESULT);
             syncQueryParam("page", "0", "0");
-            show({ ...story, page: 0, result });
+            show({ ...story, page: 0, result, resultConfirmed: false });
         },
         showStory(value) {
             const key = BOARD_STORIES.find((candidate) => candidate === value);
@@ -1258,6 +1353,11 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
             }
             syncQueryParam("state", key, DEFAULT_STORY);
             show({ ...story, story: key });
+        },
+        showViewer(value) {
+            const viewerSeat = parseViewerParam(value);
+            syncQueryParam("viewer", String(viewerSeat), "0");
+            show({ ...story, viewerSeat });
         },
         toggleDebug: () => show({ ...story, debug: !story.debug }),
         toggleOverlay(mode) {

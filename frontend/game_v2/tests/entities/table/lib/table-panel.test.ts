@@ -4,6 +4,7 @@ import { loadEngineReplay } from "#tests/fixtures/replays";
 import { type GamePhase, type TablePanelView, type TableState, tablePanel } from "@/entities/table";
 
 const VIEW: TablePanelView = {
+    bottomSeat: 0,
     holdsResult: false,
     overGameEnd: false,
     page: 0,

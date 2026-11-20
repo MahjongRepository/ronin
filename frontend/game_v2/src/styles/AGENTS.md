@@ -134,12 +134,13 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
 - **Places are fixed per viewport.** Badges, an opponent's full hand reach, the decisions' place, the notices' place
   and the replay's controls never move with tile counts or what a stop shows; nothing else enters a full hand's reach.
   A place beside a side strip keeps clear of the strip's deepest reach, never its depth as drawn.
-- A round result fits its panel whole at every supported size; only on a board too small for it does it scroll its
-  yaku, value, indicators and score rows in place, keeping its head and the viewer's controls whole, every other part
-  that shares a row with a scroller scrolling too. A board under 290px tall (a phone browser's box with its bars
-  shown) gives it its own form, a container query on the board's height (content-responsive, not a family branch):
-  a wider panel, the yaku in two columns at an 18px pitch, and each score's change and total on one line while the
-  panel holds four such rows (`result-foot` at least 40rem wide).
+- A round result fits its panel whole at every supported size. Its sizes never follow the shown page or the hand: a
+  double ron's pages stack every page's hand, indicators and scoring column in the same cells (the hidden ones
+  `visibility: hidden`), the scoring column takes no height from its yaku (`contain: size`; the seats set the row) and
+  scrolls a list too long for it, and a seat that moved nothing keeps its change's line blank. A board under
+  `$result-compact-height` (`game-board/_queries.scss`) gives it its compact form, a container query on the board's
+  height (content-responsive, not a family branch): smaller type and tiles held to the panel's height, each seat's
+  change and total on one line.
 - A panel sized by its content reserves its scrollbar's gutter (`scrollbar-gutter: stable`): the overlay's auto
   track takes the panel's height before a classic scrollbar narrows it, so without the gutter the scrollbar wraps a row
   (the game end's actions) the track never grew for. The round result, its width set, keeps no gutter.

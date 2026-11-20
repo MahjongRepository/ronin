@@ -66,14 +66,16 @@ export { CALLOUT_MS, boardCallouts, callsShownKan, eventCalls } from "./lib/call
 export { DISCARD_LANDING_MS } from "./lib/board-motion";
 export { RoundEndDisplay } from "./ui/round-end-display";
 export type { RoundEndDisplayProps } from "./ui/round-end-display";
-export { roundEndDisplay, roundEndPageAt } from "./lib/round-end-display";
+export { roundEndDisplay, roundEndPageAt, roundEndPageNames } from "./lib/round-end-display";
 export type {
     DrawPageDisplay,
+    NagashiPageDisplay,
     ResultHandDisplay,
-    ResultScoreRow,
+    ResultSeat,
     ResultYakuLine,
     RoundEndDisplayState,
     RoundEndTable,
+    WinBodyDisplay,
     WinPageDisplay,
 } from "./lib/round-end-display";
 export { handLimitName } from "./lib/hand-limit";

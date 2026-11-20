@@ -298,7 +298,7 @@ function ResultTime(countdown: DecisionCountdown | null): TemplateResult | typeo
 }
 
 /**
- * The round result's controls at the panel's foot, beside the scores: its primary button (Next, then OK), focused as it
+ * The round result's controls in its bottom-right corner: its primary button (the next winner's name, then OK), focused as it
  * first shows so Enter or Space presses it, with the time left to the round advance under its label, or, once the seat
  * confirmed, that it waits for the others with the time still
  * counting down. Both stack in one cell, the one not shown kept hidden in place, so confirming never resizes the panel.
@@ -312,6 +312,7 @@ function ResultControlsView(
         return undefined;
     }
     const { action, countdown, waiting } = result;
+    const pagesOn = action?.command.kind === "show_result_page";
     const confirm =
         action === null
             ? html`<button
@@ -328,11 +329,18 @@ function ResultControlsView(
                   type="button"
                   class="round-end-result__confirm"
                   data-focus-key=${PANEL_CONTROL_FOCUS_KEY}
-                  aria-label=${action.label}
+                  aria-label=${pagesOn ? t("game.result.show_winner", { name: action.label }) : action.label}
                   ${focusOnFirstRender()}
                   @click=${() => onCommand(action.command)}
               >
-                  <span class="round-end-result__confirm-label">${action.label}</span>
+                  <span class="round-end-result__confirm-label"
+                      >${
+                          pagesOn
+                              ? html`<span class="round-end-result__page-name">${action.label}</span
+                                    ><span aria-hidden="true">&rsaquo;</span>`
+                              : action.label
+                      }</span
+                  >
                   ${ResultTime(countdown)}
               </button>`;
     return html`<span class="round-end-result__controls">

@@ -19,7 +19,7 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   already hold every deposit and a game end's standings the leftover sticks paid; take both as they are. The game's
   end takes the server's placement and uma/oka, never recomputed; leftover sticks are the server's `lr`, never the
   table's count. A table out of step (`inStep`) names no last round in how the game ended.
-- **A result is the server's alone.** Its dealer, dora indicators and nagashi rivers come from the round end, never
+- **A result is the server's alone.** Its dealer, dora indicators and nagashi seats come from the round end, never
   the table, so a result shown out of step is still right. The limit's name (`handLimitName`), a yaku's yakuman
   count, each winner's honba bonus and what a liable (pao) seat pays are the server's; the client words them and
   never works them back from points, han or yaku ids. A score map missing a seat is a desync.

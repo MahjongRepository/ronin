@@ -737,19 +737,20 @@ describe("mountReplayView - autoplay", () => {
 describe("mountReplayView - wheel and hold", () => {
     it("leaves the wheel and the round keys to a round's result scrolling in its panel", async () => {
         const { host } = await mountLoadedReplay("double_ron", "?round=0&step=10");
-        const foot = element(host, ".round-end-result__foot");
-        overflow(foot, { client: 60, scroll: 200 });
-        const score = element(host, ".round-end-result__score");
-        const inFoot = [
-            wheel(score, 100),
-            ...["PageDown", "ArrowDown", "Home", "End"].map((key) => pressKey(score, key)),
+        const shownYaku =
+            '.round-end-result__layer[aria-hidden="false"] .round-end-result__yaku-scroll';
+        overflow(element(host, shownYaku), { client: 60, scroll: 200 });
+        const yaku = element(host, `${shownYaku} li`);
+        const inYaku = [
+            wheel(yaku, 100),
+            ...["PageDown", "ArrowDown", "Home", "End"].map((key) => pressKey(yaku, key)),
         ];
         overflow(element(host, ".board-overlay__panel"), { client: 300, scroll: 600 });
-        const pager = button(host, "[aria-label='Next winner']");
+        const next = button(host, ".round-end-result__next");
 
-        const inPanel = [wheel(element(host, ".round-end-result"), -100), pressKey(pager, "Home")];
+        const inPanel = [wheel(element(host, ".round-end-result"), -100), pressKey(next, "Home")];
 
-        expect([inFoot, inPanel]).toEqual([
+        expect([inYaku, inPanel]).toEqual([
             [false, false, false, false, false],
             [false, false],
         ]);
@@ -1013,7 +1014,7 @@ describe("mountReplayView - view", () => {
 describe("mountReplayView - focus", () => {
     it("takes the focus back to its root when the control holding it can no longer act, so its keys go on", async () => {
         const { host } = await mountLoadedReplay("double_ron", "?round=0&step=10");
-        const nextWinner = button(host, "[aria-label='Next winner']");
+        const nextWinner = button(host, ".round-end-result__next");
         nextWinner.focus();
 
         nextWinner.click();

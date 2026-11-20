@@ -28,22 +28,41 @@ function lastRoundEndTable(name: string): TableState {
     return table;
 }
 
-function displayAt(table: TableState, page = 0): RoundEndDisplayState {
+function doubleRonOnHonba(): TableState {
+    const table = roundEndTables("double_ron_on_honba").find(
+        (candidate) => (candidate.roundEndResult?.winners.length ?? 0) > 1,
+    );
+    assert(table !== undefined);
+    return table;
+}
+
+function displayAt(table: TableState, page = 0, bottomSeat = 0): RoundEndDisplayState {
     assert(table.roundEndResult !== null);
-    const { players, roundEndResult } = table;
-    return roundEndDisplay({ players, result: roundEndResult }, page);
+    return roundEndDisplay({ ...table, result: table.roundEndResult }, { bottomSeat, page });
 }
 
 function winPage(table: TableState, page = 0): WinPageDisplay {
-    const { body } = displayAt(table, page);
-    assert(body.kind === "win");
-    return body;
+    const display = displayAt(table, page);
+    assert(display.body.kind === "win");
+    const shown = display.body.pages[display.page];
+    assert(shown !== undefined);
+    return shown;
 }
 
 function drawPage(table: TableState): DrawPageDisplay {
     const { body } = displayAt(table);
     assert(body.kind === "draw");
     return body;
+}
+
+function withScoreChanges(table: TableState, scoreChanges: Record<string, number>): TableState {
+    const result = table.roundEndResult;
+    assert(result !== null);
+    return { ...table, roundEndResult: { ...result, scoreChanges } };
+}
+
+function seatTags(table: TableState): (string | null)[] {
+    return displayAt(table).seats.map((seat) => seat.tag);
 }
 
 function paoNotesWhen(loserSeat: number | null, pao: PaoLiability): readonly string[] {
@@ -65,9 +84,18 @@ function headBumpNotes(headBumpedSeats: number[]): readonly string[] {
         winnerSeat: 1,
     });
     const result = extractRoundEndResult(event, { riichiStickValue: 1000 });
-    const { body } = roundEndDisplay({ players, result }, 0);
-    assert(body.kind === "win");
-    return body.notes;
+    const table = {
+        firstDealerSeat: 0,
+        honbaSticks: 0,
+        inStep: true,
+        players,
+        result,
+        roundInWind: 1,
+        roundWind: 0,
+    };
+    const { body } = roundEndDisplay(table, { bottomSeat: 0, page: 0 });
+    assert(body.kind === "win" && body.pages[0] !== undefined);
+    return body.pages[0].notes;
 }
 
 function handFaces(hand: ResultHandDisplay): string[] {
@@ -79,7 +107,7 @@ afterEach(() => {
 });
 
 describe("roundEndDisplay - a win", () => {
-    test("a ron: who won from whom, the hand's value with its limit, the yaku with the dora last", () => {
+    test("a ron: who won from whom, the hand's value with its limit, the yaku with the dora last, the stick it took", () => {
         const page = winPage(lastRoundEndTable("ron_riichi_discard"));
 
         expect(page).toMatchObject({
@@ -97,18 +125,26 @@ describe("roundEndDisplay - a win", () => {
             ["Ittsuu", 2, false],
             ["Aka Dora", 1, true],
         ]);
-        expect(page.notes).toEqual(["Riichi +1,000"]);
+        expect(page.sticks).toEqual({ bonus: 1000, honba: 0, riichi: 1 });
+        expect(page.notes).toEqual([]);
     });
 
-    test("a chankan: the ron reads as robbing the declarer's kan, not as taking a discard", () => {
+    test("a chankan: the ron reads as robbing the declarer's kan, in a note where no chankan yaku says it", () => {
         const page = winPage(lastRoundEndTable("chankan_added"));
+        const kokushi = winPage(lastRoundEndTable("chankan_closed_kokushi"));
 
         expect(page).toMatchObject({
             from: "robbing Alice's kan",
             title: "Ron",
             winnerName: "Charlie",
         });
-        expect(page.yaku.map((line) => line.name)).toContain("Chankan");
+        expect(
+            [page.yaku, kokushi.yaku].map((yaku) => yaku.some((line) => line.name === "Chankan")),
+        ).toEqual([true, false]);
+        expect([page.notes, kokushi.notes]).toEqual([
+            [],
+            [expect.stringMatching(/^Robbed .+'s kan$/)],
+        ]);
     });
 
     test("a ron: the closed hand sorted, the winning tile apart under its label, the dora and ura as faces", () => {
@@ -126,30 +162,48 @@ describe("roundEndDisplay - a win", () => {
         expect(page.uraIndicators).toHaveLength(winner.uraDoraIndicators.length);
     });
 
-    test("the scores: each seat's change and the score it leads to, by wind and name", () => {
-        const { scores } = displayAt(lastRoundEndTable("riichi"));
+    test("the seats: each one's change, the score it leads to and its placement, placed as it sits from the bottom seat", () => {
+        const table = lastRoundEndTable("riichi");
+        const { round, seats } = displayAt(table);
 
+        expect(round).toBe("East 1");
         expect(
-            scores.map((row) => [row.wind, row.windName, row.name, row.delta, row.after, row.tag]),
+            seats.map((seat) => [
+                seat.position,
+                seat.wind,
+                seat.windName,
+                seat.name,
+                seat.role,
+                seat.delta,
+                seat.after,
+                seat.rank,
+                seat.tag,
+            ]),
         ).toEqual([
-            ["E", "East", "Diana", -4000, 21_000, null],
-            ["S", "South", "Alice", 10_000, 34_000, null],
-            ["W", "West", "Charlie", -2000, 23_000, null],
-            ["N", "North", "Bob", -2000, 22_000, null],
+            ["bottom", "E", "East", "Diana", "loss", -4000, 21_000, "4th", null],
+            ["right", "S", "South", "Alice", "gain", 10_000, 34_000, "1st", null],
+            ["top", "W", "West", "Charlie", "loss", -2000, 23_000, "2nd", null],
+            ["left", "N", "North", "Bob", "loss", -2000, 22_000, "3rd", null],
+        ]);
+        expect(displayAt(table, 0, 2).seats.map((seat) => [seat.position, seat.name])).toEqual([
+            ["bottom", "Charlie"],
+            ["right", "Bob"],
+            ["top", "Diana"],
+            ["left", "Alice"],
         ]);
     });
 
-    test("a yakuman: names it without han or fu; pao names the liable seat and tags its score; melds laid out", () => {
+    test("a yakuman: names it under its seal without han or fu; pao names the liable seat and tags it; melds laid out", () => {
         const table = lastRoundEndTable("pao");
         const page = winPage(table);
 
         expect(page.limit).toBe("Yakuman");
         expect(page.hanFu).toBeNull();
         expect(page.yaku.map((line) => [line.name, line.han, line.yakuman])).toEqual([
-            ["Daisangen", null, null],
+            ["Daisangen", null, { kanji: "大三元", multiple: null, seal: "役満" }],
         ]);
         expect(page.notes).toContain("Pao: Diana is liable for Daisangen and pays the whole hand");
-        expect(displayAt(table).scores.map((row) => [row.name, row.tag])).toEqual([
+        expect(displayAt(table).seats.map((seat) => [seat.name, seat.tag])).toEqual([
             ["Diana", "Pao"],
             ["Alice", null],
             ["Charlie", null],
@@ -177,7 +231,7 @@ describe("roundEndDisplay - a win", () => {
         );
     });
 
-    test("a yakuman yaku worth more than one names the server's multiple in place of han", () => {
+    test("a yakuman yaku worth more than one names the server's multiple on its seal and in place of han", () => {
         const table = lastRoundEndTable("pao");
         const result = table.roundEndResult;
         assert(result !== null && result.winners[0] !== undefined);
@@ -189,7 +243,7 @@ describe("roundEndDisplay - a win", () => {
         const page = winPage({ ...table, roundEndResult: { ...result, winners: [doubled] } });
 
         expect(page.yaku.map((line) => [line.name, line.han, line.yakuman])).toEqual([
-            ["Daisuushii", null, "Double Yakuman"],
+            ["Daisuushii", null, { kanji: "大四喜", multiple: "Double Yakuman", seal: "二倍役満" }],
         ]);
     });
 
@@ -211,26 +265,27 @@ describe("roundEndDisplay - a win", () => {
         ]);
     });
 
-    test("a double ron on honba: only the closest winner's page notes the honba bonus", () => {
-        const table = roundEndTables("double_ron_on_honba").find(
-            (candidate) => (candidate.roundEndResult?.winners.length ?? 0) > 1,
-        );
-        assert(table !== undefined);
+    test("a double ron on honba: only the winner the server paid the honba to shows the round's honba sticks", () => {
+        const table = doubleRonOnHonba();
 
-        expect([winPage(table, 0).notes, winPage(table, 1).notes]).toEqual([["Honba +600"], []]);
+        expect(displayAt(table).round).toBe("East 2, 2 honba");
+        expect([winPage(table, 0).sticks, winPage(table, 1).sticks]).toEqual([
+            { bonus: 600, honba: 2, riichi: 0 },
+            { bonus: 0, honba: 0, riichi: 0 },
+        ]);
     });
 });
 
 describe("roundEndDisplay - the server's facts, never the table's or arithmetic", () => {
-    test("the honba note is the server's bonus, never the winner's gain less its hand and sticks", () => {
+    test("the sticks' bonus is the server's honba and riichi bonus, never the winner's gain less its hand", () => {
         const table = lastRoundEndTable("riichi");
         const result = table.roundEndResult;
         assert(result !== null && result.winners[0] !== undefined);
         const winners = [{ ...result.winners[0], honbaBonus: 600 }];
 
-        expect(winPage({ ...table, roundEndResult: { ...result, winners } }).notes).toContain(
-            "Honba +600",
-        );
+        expect(
+            winPage({ ...table, honbaSticks: 2, roundEndResult: { ...result, winners } }).sticks,
+        ).toEqual({ bonus: 2600, honba: 2, riichi: 2 });
     });
 
     test("the dealer and dora are the result's, whatever the table holds", () => {
@@ -240,28 +295,51 @@ describe("roundEndDisplay - the server's facts, never the table's or arithmetic"
         const stale: TableState = { ...table, dealerSeat: 2, doraIndicators: [] };
         const page = winPage(stale);
 
-        expect(displayAt(stale).scores).toEqual(displayAt(table).scores);
+        expect(displayAt(stale).seats).toEqual(displayAt(table).seats);
         expect(page.doraIndicators).toHaveLength(result.doraIndicators.length);
         expect(page.doraIndicators.length).toBeGreaterThan(0);
+    });
+
+    test("tied scores place by seat distance from the game's first dealer, not the round's dealer", () => {
+        const table = lastRoundEndTable("full_game");
+
+        expect([table.firstDealerSeat, table.roundEndResult?.dealerSeat]).toEqual([3, 2]);
+        expect(displayAt(table).seats.map((seat) => [seat.after, seat.rank])).toEqual([
+            [25_000, "2nd"],
+            [25_000, "3rd"],
+            [25_000, "4th"],
+            [25_000, "1st"],
+        ]);
     });
 });
 
 describe("roundEndDisplay - a double ron", () => {
-    test("each page shows its winner, the scores settling one winner at a time", () => {
+    test("each page shows its winner, the seats settling one winner at a time", () => {
         const table = lastRoundEndTable("double_ron");
         const first = displayAt(table, 0);
         const second = displayAt(table, 1);
 
         expect([first.page, first.pageCount, second.page]).toEqual([0, 2, 1]);
+        expect(first.pageNames).toEqual(["Alice", "Charlie"]);
         expect([winPage(table, 0).winnerName, winPage(table, 1).winnerName]).toEqual([
             "Alice",
             "Charlie",
         ]);
-        expect(first.scores.map((row) => row.after)).toEqual([13_000, 38_000, 24_000, 25_000]);
-        expect(second.scores.map((row) => row.after)).toEqual(
+        expect(first.seats.map((seat) => [seat.delta, seat.after])).toEqual([
+            [-12_000, 13_000],
+            [14_000, 38_000],
+            [0, 24_000],
+            [0, 25_000],
+        ]);
+        expect(second.seats.map((seat) => seat.after)).toEqual(
             table.players.map((player) => player.score),
         );
-        expect(second.scores.map((row) => row.delta)).toEqual([-7700, 0, 7700, 0]);
+        expect(second.seats.map((seat) => [seat.delta, seat.role])).toEqual([
+            [-7700, "loss"],
+            [0, "none"],
+            [7700, "gain"],
+            [0, "none"],
+        ]);
     });
 
     test("a page out of range shows the nearest one, and says so", () => {
@@ -273,27 +351,34 @@ describe("roundEndDisplay - a double ron", () => {
 });
 
 describe("roundEndDisplay - a draw", () => {
-    test("an exhaustive draw: the tenpai hands as faces, each seat tagged tenpai or noten with its payment", () => {
+    test("an exhaustive draw: the tenpai hands as faces; a seat is tagged tenpai or noten only where it moved no points", () => {
         const table = lastRoundEndTable("exhaustive_tenpai");
-        const display = displayAt(table);
         const page = drawPage(table);
 
         expect(page.title).toBe("Exhaustive draw");
         expect(page.subtitle).toBeNull();
-        expect(page.rivers).toEqual([]);
         expect(page.tenpaiHands.map((hand) => [hand.name, handFaces(hand.hand).length])).toEqual([
             ["Alice", 13],
             ["Charlie", 13],
         ]);
-        expect(display.scores.map((row) => [row.tag, row.delta])).toEqual([
-            ["Noten", -1500],
-            ["Tenpai", 1500],
-            ["Tenpai", 1500],
-            ["Noten", -1500],
+        expect(displayAt(table).seats.map((seat) => [seat.delta, seat.tag])).toEqual([
+            [-1500, null],
+            [1500, null],
+            [1500, null],
+            [-1500, null],
+        ]);
+        expect(
+            seatTags(withScoreChanges(table, { "0": 0, "1": 1500, "2": 1500, "3": -3000 })),
+        ).toEqual(["Noten", null, null, null]);
+        expect(seatTags(withScoreChanges(table, { "0": 0, "1": 0, "2": 0, "3": 0 }))).toEqual([
+            "Noten",
+            "Tenpai",
+            "Tenpai",
+            "Noten",
         ]);
     });
 
-    test("an exhaustive draw says when every seat or none was tenpai, so no one pays", () => {
+    test("an exhaustive draw says when every seat or none was tenpai, so no one pays, and tags no seat", () => {
         const noten = roundEndTables("full_game").find(
             (table) => table.roundEndResult?.draw?.tenpaiSeats.length === 0,
         );
@@ -301,49 +386,65 @@ describe("roundEndDisplay - a draw", () => {
         const tenpai = lastRoundEndTable("exhaustive_tenpai");
         const result = tenpai.roundEndResult;
         assert(result !== null && result.draw !== null);
-        const allTenpai: TableState = {
-            ...tenpai,
-            roundEndResult: {
-                ...result,
-                draw: { ...result.draw, notenSeats: [], tenpaiSeats: [0, 1, 2, 3] },
+        const allTenpai = withScoreChanges(
+            {
+                ...tenpai,
+                roundEndResult: {
+                    ...result,
+                    draw: { ...result.draw, notenSeats: [], tenpaiSeats: [0, 1, 2, 3] },
+                },
             },
-        };
+            { "0": 0, "1": 0, "2": 0, "3": 0 },
+        );
 
         expect([drawPage(noten).subtitle, drawPage(allTenpai).subtitle]).toEqual([
             "All noten: no payments",
             "All tenpai: no payments",
         ]);
-    });
-
-    test("a nagashi mangan shows its maker's river as the server names it, whatever the table's river", () => {
-        const table = lastRoundEndTable("nagashi");
-        const page = drawPage({
-            ...table,
-            players: table.players.map((player) => ({ ...player, discards: [] })),
-        });
-
-        expect(
-            page.rivers.map((river) => ({
-                name: river.name,
-                tiles: river.tiles.map((tile) => tile.face),
-            })),
-        ).toEqual([
-            {
-                name: "Alice",
-                tiles: [
-                    ...Array.from({ length: 4 }, () => "1m"),
-                    ...Array.from({ length: 4 }, () => "9m"),
-                    ...Array.from({ length: 4 }, () => "1p"),
-                    ...Array.from({ length: 4 }, () => "9p"),
-                    "1s",
-                    "1s",
-                ],
-            },
+        expect([seatTags(noten), seatTags(allTenpai)]).toEqual([
+            [null, null, null, null],
+            [null, null, null, null],
         ]);
     });
 
+    test("a nagashi mangan: a mangan's value, who made it and what they collected, with no tenpai tags", () => {
+        const table = lastRoundEndTable("nagashi");
+        const display = displayAt(table);
+
+        expect(display.body).toEqual({
+            kind: "nagashi",
+            limit: "Mangan",
+            makers: ["Alice"],
+            points: 8000,
+            title: "Nagashi Mangan",
+        });
+        expect(display.pageCount).toBe(1);
+        expect(
+            seatTags(withScoreChanges(table, { "0": 0, "1": 8000, "2": -4000, "3": -4000 })),
+        ).toEqual([null, null, null, null]);
+    });
+
+    test("a nagashi mangan two seats made names both and no points, their changes being net of each other's mangan", () => {
+        const table = withScoreChanges(lastRoundEndTable("nagashi"), {
+            "0": -6000,
+            "1": 6000,
+            "2": 6000,
+            "3": -6000,
+        });
+        const { draw } = table.roundEndResult ?? {};
+        assert(draw !== null && draw !== undefined && table.roundEndResult !== null);
+        const twoMakers = {
+            ...table,
+            roundEndResult: { ...table.roundEndResult, draw: { ...draw, nagashiSeats: [1, 2] } },
+        };
+
+        expect(displayAt(twoMakers).body).toMatchObject({
+            makers: ["Alice", "Charlie"],
+            points: null,
+        });
+    });
+
     test.each([
-        ["nagashi", "Nagashi Mangan", "by Alice"],
         ["kyuushu", "Kyuushu Kyuuhai", "declared by Alice"],
         ["triple_ron", "Triple ron", "ron called by Alice, Charlie, and Bob"],
         ["four_kans", "Four kans", "Abortive draw"],

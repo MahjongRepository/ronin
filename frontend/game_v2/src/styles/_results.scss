@@ -1,8 +1,6 @@
 @use "@/styles/game-board/queries";
 @use "@/styles/type";
 
-$result-column-gap: 1rem;
-
 /* ─── Seating Panel ───────────────────────────────────────────── */
 
 /* The seats before the first deal, and again at the game's end with their placements, scores and uma/oka results.
@@ -242,64 +240,44 @@ $result-column-gap: 1rem;
 
 /* ─── Round-End Result Panel ───────────────────────────────── */
 
-/* One page of a round's result in the spec's order: hand, yaku, value, indicators. A wide panel puts the three side by
-   side, under the hand that spans them. Tiles take the overlay's board unit. */
+/* A win reads as the hand over a scoring column, the seats beside it where they sit at the table, the dead wall's
+   indicators in the corner. Every page of a double ron stands in the same cells, so turning a page moves nothing. */
 .round-end-result {
+    --result-scoring-w: 14rem;
+
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
-        "head"
-        "hand"
-        "yaku"
-        "value"
-        "dora"
-        "scores";
-    gap: 0.4rem $result-column-gap;
-    font-size: 0.8rem;
+        "hand hand ."
+        "scoring settle settle";
+    gap: 0.8rem 1rem;
+    font-size: 0.9rem;
     color: var(--ronin-text);
 }
 
+.round-end-result--nagashi {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "scoring settle";
+}
+
 .round-end-result--draw {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+        "head head"
+        "tenpai settle";
+}
+
+.round-end-result--no-hands {
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
         "head"
-        "tenpai"
-        "scores";
-}
+        "settle";
 
-/* A nagashi mangan shows its proof, the river, between the head and the tenpai verdicts. */
-.round-end-result--draw:has(> .round-end-result__rivers) {
-    grid-template-areas:
-        "head"
-        "rivers"
-        "tenpai"
-        "scores";
-}
-
-/* The viewer's controls stand in a cell of their own beside the scores. */
-.round-end-result:has(> .round-end-result__controls) {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-        "head head"
-        "hand hand"
-        "yaku yaku"
-        "value value"
-        "dora dora"
-        "scores controls";
-}
-
-.round-end-result--draw:has(> .round-end-result__controls) {
-    grid-template-areas:
-        "head head"
-        "tenpai tenpai"
-        "scores controls";
-}
-
-.round-end-result--draw:has(> .round-end-result__rivers):has(> .round-end-result__controls) {
-    grid-template-areas:
-        "head head"
-        "rivers rivers"
-        "tenpai tenpai"
-        "scores controls";
+    .round-end-result__settle {
+        justify-self: center;
+        width: min(100%, 40rem);
+        margin-left: 0;
+    }
 }
 
 .round-end-result__head {
@@ -307,66 +285,481 @@ $result-column-gap: 1rem;
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0.1rem 0.6rem;
+    gap: 0.2rem 0.6rem;
 }
 
-.round-end-result__kind {
-    font-size: 0.65rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--ronin-text);
+.round-end-result__head--hidden,
+.round-end-result__score-wind-name,
+.round-end-result__stick-label,
+.round-end-result__announce {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
 }
 
 .round-end-result__title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    line-height: 1.2;
-}
-
-.round-end-result__label,
-.round-end-result__score-wind {
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--ronin-text-secondary);
-}
-
-.round-end-result__score-wind-letter {
-    display: none;
+    font-size: 1.6rem;
+    font-weight: 800;
+    line-height: 1.15;
 }
 
 .round-end-result__from {
+    font-size: 1.1rem;
     color: var(--ronin-text-secondary);
 }
 
-/* A win's head reads as one plain line: how it was won, by whom, and from whom, a word space apart. */
-.round-end-result__who {
-    color: var(--ronin-text);
+.round-end-result__label {
+    font-size: 0.8rem;
+    color: var(--ronin-text-secondary);
+}
 
-    .round-end-result__from {
-        color: inherit;
+/* Each part of the shown page in its cell, every other page's copy hidden in the same cell. */
+.round-end-result__stack {
+    display: grid;
+    min-width: 0;
+}
+
+.round-end-result__stack--hand {
+    grid-area: hand;
+}
+
+.round-end-result__stack--dora {
+    grid-row: 1 / 3;
+    grid-column: 3;
+    align-self: start;
+    z-index: 1;
+}
+
+/* The column takes no height from its yaku: the seats set the row, and a list longer than it scrolls. */
+.round-end-result__stack--scoring {
+    grid-area: scoring;
+    width: var(--result-scoring-w);
+    grid-template-rows: minmax(0, 1fr);
+    contain: size;
+}
+
+.round-end-result__layer {
+    grid-area: 1 / 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+
+    &[aria-hidden="true"] {
+        visibility: hidden;
     }
 }
 
-.round-end-result__pager {
-    margin-left: auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
+.round-end-result__hand {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    row-gap: 0.25rem;
 }
 
-/* The live game's controls sit beside the scores, toward the thumb, no taller than them, their rule joining the scores',
-   the time left to the round advance under its label (or under the note that the seat waits for the others). */
-.round-end-result__controls {
-    grid-area: controls;
-    display: grid;
-    place-items: center end;
-    margin-left: -$result-column-gap;
-    padding-top: 0.4rem;
-    padding-left: $result-column-gap;
+.round-end-result__win-tile {
+    display: inline-flex;
+    margin-inline: 1rem 0.9rem;
+}
+
+.round-end-result__melds {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 0.3rem;
+}
+
+.round-end-result__wall {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.round-end-result__wall-row,
+.round-end-result__wall-back {
+    display: inline-flex;
+}
+
+.round-end-result__wall-row {
+    line-height: 0;
+}
+
+/* Scoring: yaku, then the total, the value and the sticks under a rule. */
+.round-end-result__scoring {
+    grid-area: scoring;
+    width: var(--result-scoring-w);
+    min-height: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.round-end-result__yaku-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.round-end-result__yaku {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    > li {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 1rem;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        line-height: 1.3;
+    }
+}
+
+.round-end-result__yaku--dora {
+    margin-top: 0.25rem;
+    color: var(--ronin-text-secondary);
+}
+
+.round-end-result__han {
+    @include type.figures;
+
+    white-space: nowrap;
+}
+
+.round-end-result__total {
+    flex: none;
+    margin-top: 0.4rem;
+    padding-top: 0.35rem;
     border-top: 1px solid var(--ronin-border);
+}
+
+.round-end-result__han-fu {
+    text-align: end;
+    font-weight: 600;
+}
+
+.round-end-result__value {
+    margin-top: 0.2rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 0 0.5rem;
+    line-height: 1.1;
+}
+
+.round-end-result__limit {
+    font-size: 1.3rem;
+    font-weight: 700;
+}
+
+.round-end-result__points {
+    @include type.figures;
+
+    font-size: 2rem;
+    font-weight: 800;
+}
+
+.round-end-result__sticks {
+    @include type.figures;
+
+    margin-top: 0.2rem;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+
+    &[aria-hidden="true"] {
+        visibility: hidden;
+    }
+}
+
+.round-end-result__stick {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
+
+    .board-stick-icon {
+        width: auto;
+        height: 1.45em;
+    }
+}
+
+.round-end-result__stick-bonus {
+    font-weight: 400;
+    color: var(--ronin-text-secondary);
+}
+
+.round-end-result__note {
+    margin-top: 0.2rem;
+    text-align: end;
+    font-size: 0.85rem;
+    color: var(--ronin-text-secondary);
+}
+
+/* A named yakuman: a vermilion seal stamped beside its name in gold kanji. */
+.round-end-result__yaku > li.round-end-result__yakuman {
+    justify-content: flex-start;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.2rem 0 0.35rem;
+}
+
+.round-end-result__seal {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    writing-mode: vertical-rl;
+    font-family: var(--ronin-font-mincho);
+    font-size: 0.95rem;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    color: var(--ronin-seal-ink);
+    background: var(--ronin-seal);
+    border-radius: 0.3rem 0.18rem 0.34rem 0.22rem;
+    box-shadow:
+        inset 0 0 0 0.12rem var(--ronin-seal),
+        inset 0 0 0 0.2rem var(--ronin-seal-frame);
+    transform: rotate(-5deg);
+    animation: result-seal-stamp 260ms cubic-bezier(0.16, 1, 0.3, 1) 0.35s both;
+
+    @include queries.reduced-motion {
+        animation: none;
+    }
+}
+
+@keyframes result-seal-stamp {
+    from {
+        opacity: 0;
+        transform: rotate(-5deg) scale(1.6);
+    }
+
+    to {
+        opacity: 1;
+        transform: rotate(-5deg) scale(1);
+    }
+}
+
+.round-end-result__yakuman-text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.round-end-result__yakuman-kanji {
+    font-family: var(--ronin-font-mincho);
+    font-size: 2.1rem;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 0.06em;
+    color: var(--ronin-yakuman-gold);
+    overflow-wrap: anywhere;
+}
+
+.round-end-result__yakuman-name-heard {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.round-end-result__yakuman-name {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ronin-text-secondary);
+}
+
+/* The seats where they sit, the round in the middle, the ways between pages and on in the bottom corners. */
+.round-end-result__settle {
+    grid-area: settle;
+    min-width: 0;
+    margin-left: 2rem;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+        ". top ."
+        "left center right"
+        "prev bottom primary";
+    align-content: space-between;
+    place-items: center center;
+    gap: 0.5rem 1rem;
+}
+
+.round-end-result__seat {
+    justify-self: stretch;
+    min-width: 0;
+    max-width: 13rem;
+    padding: 0.4rem 0.65rem;
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.5rem;
+
+    @each $position in top, right, bottom, left {
+        &--#{$position} {
+            grid-area: $position;
+        }
+    }
+
+    &--top,
+    &--bottom {
+        width: 100%;
+    }
+}
+
+.round-end-result__seat-name {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    white-space: nowrap;
+}
+
+.round-end-result__score-wind,
+.round-end-result__score-tag {
+    flex: none;
+    font-size: 0.8em;
+    color: var(--ronin-text-secondary);
+}
+
+.round-end-result__score-name {
+    min-width: 0;
+    font-weight: 600;
+}
+
+.round-end-result__rank {
+    flex: none;
+    margin-left: auto;
+    padding-left: 0.4rem;
+    font-size: 0.85em;
+    color: var(--ronin-text-secondary);
+}
+
+.round-end-result__seat-figures {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    white-space: nowrap;
+}
+
+/* A seat that moved no points keeps its change's line, blank, so the cards stay one height. */
+.round-end-result__delta {
+    @include type.figures;
+
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--ronin-text-secondary);
+
+    &[aria-hidden="true"] {
+        visibility: hidden;
+    }
+
+    .round-end-result__seat--gain & {
+        color: var(--ronin-score-positive);
+    }
+
+    .round-end-result__seat--loss & {
+        color: var(--ronin-score-negative);
+    }
+}
+
+.round-end-result__score-after {
+    @include type.figures;
+
+    font-size: 0.85rem;
+    color: var(--ronin-text-secondary);
+}
+
+.round-end-result__round {
+    grid-area: center;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    color: var(--ronin-text-secondary);
+}
+
+.round-end-result__seat {
+    position: relative;
+}
+
+.round-end-result__seat--winner {
+    border-color: var(--ronin-accent);
+    background: color-mix(in srgb, var(--ronin-accent) 9%, var(--ronin-surface));
+}
+
+.round-end-result__seat--dealt {
+    border-color: color-mix(in srgb, var(--ronin-score-negative) 55%, var(--ronin-border));
+}
+
+/* A tag set into the card's top edge, its left edge on the card's text. */
+.round-end-result__seat-mark {
+    position: absolute;
+    top: 0;
+    left: 0.65rem;
+    transform: translateY(-60%);
+    padding: 0 0.4rem;
+    border: 1px solid transparent;
+    border-radius: 0.25rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    line-height: 1.35;
+    white-space: nowrap;
+
+    .round-end-result__seat--winner & {
+        background: var(--ronin-accent);
+        color: var(--ronin-accent-ink);
+    }
+
+    .round-end-result__seat--dealt & {
+        border-color: color-mix(in srgb, var(--ronin-score-negative) 55%, var(--ronin-border));
+        background: var(--ronin-surface);
+        color: var(--ronin-score-negative);
+        font-weight: 600;
+    }
+}
+
+.round-end-result__prev {
+    grid-area: prev;
+    place-self: end start;
+    min-height: 2.75rem;
+    white-space: nowrap;
+    margin: 0;
+    padding: 0.25rem 1rem;
+    font-weight: 600;
+}
+
+/* The bottom-right corner's primary: the viewer's controls, a Next or the page it shows. */
+.round-end-result__controls,
+.round-end-result__next,
+.round-end-result__page {
+    grid-area: primary;
+    place-self: end end;
+}
+
+.round-end-result__page {
+    @include type.figures;
+
+    color: var(--ronin-text-secondary);
+}
+
+.round-end-result__controls {
+    max-width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, auto);
+    place-items: end end;
 }
 
 .round-end-result__controls > .round-end-result__confirm,
@@ -378,22 +771,48 @@ $result-column-gap: 1rem;
     visibility: hidden;
 }
 
+/* A page button names its winner within its corner's track, a long name cut short (the button's label says it whole). */
+.round-end-result__prev,
+.round-end-result__next,
+.round-end-result__confirm,
+.round-end-result__confirm-label {
+    max-width: 100%;
+}
+
+.round-end-result__prev,
+.round-end-result__next,
+.round-end-result__confirm-label {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3em;
+}
+
+.round-end-result__page-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.round-end-result__next,
 .round-end-result__confirm {
-    justify-self: stretch;
     width: auto;
     min-width: 5.5rem;
     min-height: 2.75rem;
     margin: 0;
     padding: 0.25rem 1rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    touch-action: manipulation;
+}
+
+.round-end-result__confirm {
+    justify-self: stretch;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 0.15rem;
-    font-weight: 700;
-    line-height: 1;
-    white-space: nowrap;
-    touch-action: manipulation;
 
     &:focus {
         outline: 3px solid var(--ronin-accent);
@@ -438,304 +857,236 @@ $result-column-gap: 1rem;
     color: var(--ronin-text-secondary);
 }
 
-.round-end-result__announce {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-}
-
-.round-end-result__page {
-    @include type.figures;
-
-    color: var(--ronin-text-secondary);
-}
-
-.round-end-result__page-btn {
-    min-width: 2.25rem;
-    min-height: 2.25rem;
-    padding: 0 0.5rem;
-    margin: 0;
-    font-size: 1.1rem;
-    line-height: 1;
-}
-
-.round-end-result
-    :is(.hand, .meld, .round-end-result__river-tiles, .round-end-result__indicator-tiles) {
-    padding-bottom: calc(var(--board-tile-w, 60px) * var(--tile-edge-share, 0.39));
-}
-
-.round-end-result__hand {
-    grid-area: hand;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    row-gap: 0.25rem;
-}
-
-/* The winning tile stands apart from the closed tiles and the melds. */
-.round-end-result__win-tile {
-    position: relative;
-    display: inline-flex;
-    margin-inline: 0.6rem 0.3rem;
-}
-
-.round-end-result__win-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-}
-
-.round-end-result__melds {
-    display: inline-flex;
-    align-items: flex-end;
-    margin-left: 0.3rem;
-}
-
-/* Capped, so a yaku's han stays beside its name rather than across the panel. */
-.round-end-result__yaku {
-    grid-area: yaku;
-    max-width: 15rem;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-
-    > li {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        margin: 0;
-        padding: 0.05rem 0;
-        list-style: none;
-        color: var(--ronin-text);
-    }
-}
-
-.round-end-result__han {
-    @include type.figures;
-
-    white-space: nowrap;
-    color: var(--ronin-text);
-    font-weight: 600;
-}
-
-.round-end-result__han-unit {
-    margin-inline-start: 0.25em;
-    font-weight: 400;
-    color: var(--ronin-text-secondary);
-
-    &:lang(ja) {
-        margin-inline-start: 0;
-    }
-}
-
-.round-end-result__yakuman {
-    flex: none;
-    font-weight: 700;
-    color: var(--ronin-text);
-}
-
-/* The dora lines after the yaku start a group of their own, quieter than the yaku. */
-.round-end-result__yaku > .round-end-result__yaku-dora {
-    color: var(--ronin-text-secondary);
-}
-
-.round-end-result__yaku > li:not(.round-end-result__yaku-dora) + .round-end-result__yaku-dora {
-    margin-top: 0.3rem;
-}
-
-.round-end-result__value {
-    grid-area: value;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    align-content: flex-start;
-    gap: 0.2rem 0.75rem;
-}
-
-.round-end-result__points {
-    @include type.figures;
-
-    font-size: 1.9rem;
-    font-weight: 700;
-    line-height: 1;
-}
-
-.round-end-result__limit {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--ronin-text);
-}
-
-.round-end-result__han-fu {
-    @include type.figures;
-
-    color: var(--ronin-text-secondary);
-}
-
-/* The indicators under their caption, a row per kind, the kinds' labels in a column of their own. */
-.round-end-result__indicators {
-    grid-area: dora;
-    display: grid;
-    grid-template-columns: auto auto;
-    place-content: start;
-    align-items: center;
-    gap: 0.3rem 0.5rem;
-}
-
-.round-end-result__indicators-caption {
-    grid-column: 1 / -1;
-}
-
-.round-end-result__indicator-group {
-    display: contents;
-}
-
-.round-end-result__indicator-tiles {
-    display: flex;
-    gap: 2px;
-}
-
-.round-end-result__notes {
-    flex-basis: 100%;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    column-gap: 0.9rem;
-    color: var(--ronin-text-secondary);
-
-    > li {
-        margin: 0;
-        list-style: none;
-    }
-}
-
+/* A draw's tenpai hands, one under another beside the seats. */
 .round-end-result__tenpai {
     grid-area: tenpai;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem 1.25rem;
-}
-
-.round-end-result__rivers {
-    grid-area: rivers;
-    list-style: none;
     margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-}
-
-.round-end-result__river {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    margin: 0;
+    gap: 0.4rem;
     list-style: none;
-}
-
-.round-end-result__river-tiles {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 2px;
 }
 
 .round-end-result__tenpai-hand {
+    margin: 0;
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
-    margin: 0;
     list-style: none;
 }
 
-.round-end-result__foot {
-    grid-area: scores;
-    min-width: 0;
-    border-top: 1px solid var(--ronin-border);
-}
-
-.round-end-result__scores {
-    min-width: 0;
-    list-style: none;
-    margin: 0;
-    padding: 0.4rem 0 0;
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-rows: repeat(4, auto);
-    gap: 0 1rem;
-}
-
-.round-end-result__score {
-    display: grid;
-    grid-row: span 4;
-    grid-template-rows: subgrid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: baseline;
-    column-gap: 0.3rem;
-    min-width: 0;
-    margin: 0;
-    list-style: none;
-
-    > * {
-        grid-column: 1 / -1;
-    }
-}
-
-.round-end-result__score-who {
-    grid-row: 1;
+.round-end-result__tenpai-tiles {
     display: flex;
-    align-items: baseline;
-    gap: 0.3rem;
-    min-width: 0;
+    flex-wrap: wrap;
+    align-items: flex-end;
 }
 
-.round-end-result__score-tag {
-    grid-row: 2;
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--ronin-text-secondary);
+.round-end-result :is(.hand, .meld, .round-end-result__wall-row) {
+    padding-bottom: calc(var(--board-tile-w, 60px) * var(--tile-edge-share, 0.39));
 }
 
-.round-end-result__delta {
-    @include type.figures;
+@container game-board (height >= 560px) {
+    .round-end-result {
+        --result-scoring-w: 17rem;
 
-    grid-row: 3;
-    white-space: nowrap;
-    font-weight: 700;
-    font-size: 0.9rem;
-    color: var(--ronin-text-secondary);
-
-    &--positive {
-        color: var(--ronin-score-positive);
+        gap: 1rem;
+        font-size: 1rem;
     }
 
-    &--negative {
-        color: var(--ronin-score-negative);
+    .round-end-result__stack--scoring {
+        min-height: 17rem;
     }
 
-    &:not(&--positive, &--negative) {
-        font-weight: 400;
+    .round-end-result__settle {
+        max-width: 40rem;
+        margin-left: 3rem;
+    }
+
+    .round-end-result__title {
+        font-size: 2rem;
+    }
+
+    .round-end-result__from {
+        font-size: 1.3rem;
+    }
+
+    .round-end-result__limit {
+        font-size: 1.5rem;
+    }
+
+    .round-end-result__points {
+        font-size: 2.5rem;
+    }
+
+    .round-end-result__delta {
+        font-size: 1.45rem;
+    }
+
+    .round-end-result__seal {
+        width: 3.1rem;
+        height: 3.1rem;
+        font-size: 1.15rem;
+    }
+
+    .round-end-result__yakuman-kanji {
+        font-size: 2.6rem;
     }
 }
 
-.round-end-result__score-after {
-    @include type.figures;
+/* A phone's short board: smaller type, one line per seat's figures, a blank change taking no line. */
+@container game-board (height < #{queries.$result-compact-height}) {
+    .round-end-result {
+        --result-scoring-w: 11rem;
 
-    grid-row: 4;
-    white-space: nowrap;
-    color: var(--ronin-text-secondary);
+        gap: 0.3rem 1.2rem;
+        font-size: 0.75rem;
+    }
+
+    .round-end-result__stack--scoring {
+        min-height: 10.6rem;
+    }
+
+    .round-end-result__head {
+        flex-wrap: nowrap;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+
+    .round-end-result__title {
+        font-size: 1.1rem;
+    }
+
+    .round-end-result__from {
+        font-size: 0.85rem;
+    }
+
+    .round-end-result__label {
+        font-size: 0.65rem;
+    }
+
+    .round-end-result__win-tile {
+        margin-inline: 0.7rem 0.6rem;
+    }
+
+    .round-end-result__wall {
+        gap: 0.15rem;
+    }
+
+    .round-end-result__yaku > li {
+        line-height: 1.15;
+    }
+
+    .round-end-result__yaku--dora {
+        margin-top: 0.15rem;
+    }
+
+    .round-end-result__total {
+        margin-top: 0.15rem;
+        padding-top: 0.15rem;
+    }
+
+    .round-end-result__value {
+        margin-top: 0.1rem;
+    }
+
+    .round-end-result__limit {
+        font-size: 0.9rem;
+    }
+
+    .round-end-result__points {
+        font-size: 1.25rem;
+    }
+
+    .round-end-result__sticks {
+        margin-top: 0.1rem;
+        gap: 0.5rem;
+    }
+
+    .round-end-result__note {
+        margin-top: 0;
+        font-size: 0.65rem;
+    }
+
+    .round-end-result__yaku > li.round-end-result__yakuman {
+        gap: 0.55rem;
+    }
+
+    .round-end-result__seal {
+        width: 1.9rem;
+        height: 1.9rem;
+        font-size: 0.7rem;
+    }
+
+    .round-end-result__yakuman-kanji {
+        font-size: 1.45rem;
+    }
+
+    .round-end-result__yakuman-name {
+        font-size: 0.55rem;
+    }
+
+    .round-end-result__settle {
+        margin-left: 0.2rem;
+        gap: 0.15rem 0.4rem;
+    }
+
+    .round-end-result__seat {
+        padding: 0.15rem 0.4rem;
+        border-radius: 0.35rem;
+    }
+
+    .round-end-result__seat-name {
+        line-height: 1.2;
+    }
+
+    .round-end-result__seat-figures {
+        flex-direction: row;
+        align-items: baseline;
+        gap: 0.35rem;
+    }
+
+    .round-end-result__delta {
+        font-size: 0.85rem;
+
+        &[aria-hidden="true"] {
+            display: none;
+        }
+    }
+
+    .round-end-result__score-after {
+        font-size: 0.68rem;
+    }
+
+    .round-end-result__round {
+        font-size: 0.65rem;
+    }
+
+    .round-end-result__seat-mark {
+        transform: translateY(-85%);
+        padding: 0 0.35rem;
+        font-size: 0.55rem;
+        line-height: 1.25;
+    }
+
+    .round-end-result__prev,
+    .round-end-result__next,
+    .round-end-result__confirm {
+        min-width: 4.5rem;
+        min-height: 2.4rem;
+        padding: 0.2rem 0.6rem;
+        font-size: 0.8rem;
+    }
+
+    .round-end-result__countdown {
+        font-size: 0.62rem;
+    }
+
+    .round-end-result__wait {
+        max-width: 5rem;
+    }
+
+    .round-end-result__tenpai {
+        gap: 0.2rem;
+    }
 }

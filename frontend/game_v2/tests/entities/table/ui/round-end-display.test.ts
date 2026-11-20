@@ -14,6 +14,7 @@ function lastRoundEndTable(name: string): TableState {
 
 function renderResult(table: TableState, page = 0, onPage?: (page: number) => void): HTMLElement {
     const panel = tablePanel(table, {
+        bottomSeat: 0,
         holdsResult: false,
         overGameEnd: false,
         page,
@@ -23,6 +24,12 @@ function renderResult(table: TableState, page = 0, onPage?: (page: number) => vo
     const el = document.createElement("div");
     render(TablePanelDisplay(panel, { onPage }), el);
     return el;
+}
+
+function pageButton(el: HTMLElement, selector: string): HTMLButtonElement {
+    const button = el.querySelector<HTMLButtonElement>(selector);
+    assert(button !== null, `no ${selector}`);
+    return button;
 }
 
 function heard(node: Element): string {
@@ -40,8 +47,17 @@ function texts(el: HTMLElement, selector: string): string[] {
     return [...el.querySelectorAll(selector)].map(heard);
 }
 
+function seatMarks(table: TableState, page = 0): string[][] {
+    const el = renderResult(table, page);
+    return [...el.querySelectorAll(".round-end-result__seat-mark")].map((mark) => [
+        mark.parentElement?.querySelector(".round-end-result__score-name")?.textContent ?? "",
+        heard(mark),
+    ]);
+}
+
 async function mountResultOnBoard(table: TableState): Promise<HTMLElement> {
     const panel = tablePanel(table, {
+        bottomSeat: 0,
         holdsResult: false,
         overGameEnd: false,
         page: 0,
@@ -76,7 +92,9 @@ describe("RoundEndDisplay", () => {
             "round-end-result__win-tile",
             "round-end-result__melds",
         ]);
-        expect(texts(el, ".round-end-result__win-label")).toEqual(["Tsumo"]);
+        expect(hand.querySelector(".round-end-result__win-tile")?.getAttribute("aria-label")).toBe(
+            "Tsumo",
+        );
         expect(el.querySelectorAll(".round-end-result__win-tile .hand-tile")).toHaveLength(1);
         expect(el.querySelectorAll(".round-end-result__melds .meld")).toHaveLength(3);
         expect(el.querySelectorAll(".tile--standing")).toHaveLength(0);
@@ -96,32 +114,64 @@ describe("RoundEndDisplay", () => {
         expect(seen).toEqual([false, true, true, false]);
     });
 
-    test("a double ron: the pager asks for the next or previous page and stops at the ends", () => {
+    test("a double ron: one layer per winner, only the shown one heard", () => {
+        const second = renderResult(lastRoundEndTable("double_ron"), 1);
+
+        expect(
+            [
+                ...second.querySelectorAll(
+                    ".round-end-result__stack--hand > .round-end-result__layer",
+                ),
+            ].map((layer) => layer.getAttribute("aria-hidden")),
+        ).toEqual(["true", "false"]);
+        expect(texts(second, ".round-end-result__winner")).toEqual(["Charlie"]);
+    });
+
+    test("a win tags the winner's card with how it won and the card of the seat that dealt in", () => {
+        expect(seatMarks(lastRoundEndTable("double_ron"), 1)).toEqual([
+            ["Diana", "Dealt in"],
+            ["Charlie", "Ron"],
+        ]);
+        expect(seatMarks(lastRoundEndTable("pao"))).toEqual([[expect.any(String), "Tsumo"]]);
+        expect(seatMarks(lastRoundEndTable("exhaustive_tenpai"))).toEqual([]);
+    });
+
+    test("a double ron: its buttons name the winner of the page they ask for, none past either end", () => {
         const onPage = vi.fn<(page: number) => void>();
         const table = lastRoundEndTable("double_ron");
-        const [previous, next] = renderResult(table, 0, onPage).querySelectorAll<HTMLButtonElement>(
-            ".round-end-result__page-btn",
-        );
-        const [, nextOnLast] = renderResult(table, 1, onPage).querySelectorAll<HTMLButtonElement>(
-            ".round-end-result__page-btn",
-        );
-
-        expect(previous.disabled).toBe(true);
-        expect(nextOnLast.disabled).toBe(true);
+        const [first, second] = [0, 1].map((page) => renderResult(table, page, onPage));
+        const next = pageButton(first, ".round-end-result__next");
+        const previous = pageButton(second, ".round-end-result__prev");
         next.click();
-        expect(onPage).toHaveBeenCalledWith(1);
+        previous.click();
+
+        expect([
+            first.querySelector(".round-end-result__prev"),
+            second.querySelector(".round-end-result__next"),
+        ]).toEqual([null, null]);
+        expect(
+            [next, previous].map((button) => [button.getAttribute("aria-label"), heard(button)]),
+        ).toEqual([
+            ["Show Charlie's win", "Charlie"],
+            ["Show Alice's win", "Alice"],
+        ]);
+        expect(onPage.mock.calls).toEqual([[1], [0]]);
     });
 
-    test("a page count without paging only says which page shows; a single win has no pager", () => {
-        const unpaged = renderResult(lastRoundEndTable("double_ron"), 1);
+    test("a page count without paging only says which page shows; a single win offers no other page", () => {
+        const unpaged = renderResult(lastRoundEndTable("double_ron"), 0);
         const single = renderResult(lastRoundEndTable("riichi"), 0, vi.fn());
 
-        expect(texts(unpaged, ".round-end-result__page")).toEqual(["2 / 2"]);
-        expect(unpaged.querySelector(".round-end-result__page-btn")).toBeNull();
-        expect(single.querySelector(".round-end-result__pager")).toBeNull();
+        expect(texts(unpaged, ".round-end-result__page")).toEqual(["1 / 2"]);
+        expect(unpaged.querySelector("button")).toBeNull();
+        expect(
+            single.querySelector(
+                ".round-end-result__prev, .round-end-result__next, .round-end-result__page",
+            ),
+        ).toBeNull();
     });
 
-    test("a draw: each tenpai hand under its player's name, each seat's tag beside its payment", () => {
+    test("a draw: each tenpai hand under its player's name; each seat where it sits with its placement and payment", () => {
         const table = lastRoundEndTable("exhaustive_tenpai");
         const el = renderResult(table);
 
@@ -129,53 +179,39 @@ describe("RoundEndDisplay", () => {
             "Alice",
             "Charlie",
         ]);
-        expect(texts(el, ".round-end-result__score")).toEqual([
-            "East Diana Noten −1,500 23,500",
-            "South Alice Tenpai +1,500 25,500",
-            "West Charlie Tenpai +1,500 26,500",
-            "North Bob Noten −1,500 23,500",
-        ]);
-        expect(texts(el, ".round-end-result__head > span:not(.round-end-result__from)")).toEqual([
-            "Draw",
-            "Exhaustive draw",
-        ]);
-        document.documentElement.lang = "ru";
         expect(
-            texts(
-                renderResult(table),
-                ".round-end-result__head > span:not(.round-end-result__from)",
-            ),
-        ).toEqual(["Ничья"]);
+            [...el.querySelectorAll(".round-end-result__seat")].map((seat) => [
+                seat.className,
+                heard(seat),
+            ]),
+        ).toEqual([
+            [
+                "round-end-result__seat round-end-result__seat--bottom round-end-result__seat--loss",
+                "East Diana 3rd −1,500 23,500",
+            ],
+            [
+                "round-end-result__seat round-end-result__seat--right round-end-result__seat--gain",
+                "South Alice 2nd +1,500 25,500",
+            ],
+            [
+                "round-end-result__seat round-end-result__seat--top round-end-result__seat--gain",
+                "West Charlie 1st +1,500 26,500",
+            ],
+            [
+                "round-end-result__seat round-end-result__seat--left round-end-result__seat--loss",
+                "North Bob 4th −1,500 23,500",
+            ],
+        ]);
+        expect(texts(el, ".round-end-result__title")).toEqual(["Exhaustive draw"]);
+        document.documentElement.lang = "ru";
+        expect(texts(renderResult(table), ".round-end-result__title")).toEqual(["Ничья"]);
     });
 
-    test("a nagashi mangan: its maker's river under their name, the riichi discard sideways as in the river", () => {
-        const table = lastRoundEndTable("nagashi");
-        const result = table.roundEndResult;
-        assert(result !== null && result.draw !== null);
-        const declaredOn9p = {
-            ...result.draw,
-            nagashiRivers: result.draw.nagashiRivers.map((river) => ({
-                ...river,
-                discards: river.discards.map((discard) => ({
-                    ...discard,
-                    isRiichi: discard.tileId === 68,
-                })),
-            })),
-        };
-        const el = renderResult({ ...table, roundEndResult: { ...result, draw: declaredOn9p } });
-        const sideways = [
-            ...el.querySelectorAll(
-                ".round-end-result__river-tiles .discard-tile-riichi .tile__body",
-            ),
-        ].map((face) => [
-            face.getAttribute("aria-label"),
-            face.querySelector("use")?.getAttribute("href"),
-        ]);
+    test("a nagashi mangan: its name, limit and value, and the seats that paid it", () => {
+        const el = renderResult(lastRoundEndTable("nagashi"));
 
-        expect(texts(el, ".round-end-result__river .round-end-result__label")).toEqual([
-            "Alice's river",
-        ]);
-        expect(el.querySelectorAll(".round-end-result__river-tiles .tile")).toHaveLength(18);
-        expect(sideways).toEqual([["9-pin", "#body-lying-sideways"]]);
+        expect(heard(el)).toBe(
+            "Nagashi Mangan Mangan 8,000 East Diana 4th −4,000 21,000 South Alice 1st +8,000 33,000 West Charlie 2nd −2,000 23,000 North Bob 3rd −2,000 23,000 East 1",
+        );
     });
 });

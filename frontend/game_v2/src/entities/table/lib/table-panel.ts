@@ -24,6 +24,8 @@ export type TablePanel =
 export interface TablePanelView {
     /** The viewer's seat, which the game's end marks; null in a replay. */
     readonly viewerSeat: number | null;
+    /** The seat at the board's bottom, which a result's seats are placed around. */
+    readonly bottomSeat: number;
     /** The page of a round's result shown; one out of range shows the nearest. */
     readonly page: number;
     /** The game's last result still shows over the game's end (the live game's, until the player dismisses it). */
@@ -40,8 +42,8 @@ function resultPanel(table: TableState, view: TablePanelView): TablePanel | null
     }
     return {
         display: roundEndDisplay(
-            { players: table.players, result: table.roundEndResult },
-            view.page,
+            { ...table, result: table.roundEndResult },
+            { bottomSeat: view.bottomSeat, page: view.page },
             table.hasAkadora,
         ),
         held: view.holdsResult,

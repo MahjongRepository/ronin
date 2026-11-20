@@ -1474,7 +1474,7 @@ describe("mountGameView board", () => {
         ).toHaveLength(0);
     });
 
-    it("pages a double ron with Next, its button focused for Enter or Space, sends one confirm on OK, then waits for the others, counting down", async () => {
+    it("pages a double ron by the next winner's name, its button focused for Enter or Space, sends one confirm on OK, then waits for the others, counting down", async () => {
         const { connections, host } = mountInDocument();
         openDoubleRonEnd(connections[0]);
         await Promise.resolve();
@@ -1489,7 +1489,7 @@ describe("mountGameView board", () => {
         });
 
         expect(labels).toEqual([
-            ["Next", true],
+            ["Bob›", true],
             ["OK", true],
         ]);
         expect(connections[0].sent).toEqual([JOIN, buildConfirmRoundAction(ROUND_END_WAIT_ID)]);
@@ -1506,6 +1506,26 @@ describe("mountGameView board", () => {
                     )?.textContent,
             ),
         ).toEqual(["Waiting for others", expect.stringMatching(/^\d+s left$/)]);
+    });
+
+    it("lets a seat that confirmed a double ron turn back to the first winner and on again, sending nothing more", async () => {
+        const { connections, host } = mountInDocument();
+        openDoubleRonEnd(connections[0]);
+        await Promise.resolve();
+        press(host, ".round-end-result__confirm");
+        press(host, ".round-end-result__confirm");
+
+        press(host, ".round-end-result__prev");
+        const onFirst = host
+            .querySelector(".game__play .round-end-result__confirm:not(.round-end-result__ghost)")
+            ?.getAttribute("aria-label");
+        press(host, ".round-end-result__confirm");
+
+        expect([
+            onFirst,
+            host.querySelector(".game__play .round-end-result__prev") !== null,
+        ]).toEqual(["Show Bob's win", true]);
+        expect(connections[0].sent).toEqual([JOIN, buildConfirmRoundAction(ROUND_END_WAIT_ID)]);
     });
 
     it("sends a pass with the prompt's wait id when the call prompt's Pass is pressed", () => {
@@ -1564,8 +1584,8 @@ function reopenAfterConnectTimeout(clock: ManualClock, connections: FakeConnecti
     connections[1].handlers.onOpen();
 }
 
-function resultPageLabel(host: HTMLElement): string | null | undefined {
-    return host.querySelector(".game__play .round-end-result__page")?.textContent;
+function shownWinner(host: HTMLElement): string | null | undefined {
+    return host.querySelector(".game__play .round-end-result__winner")?.textContent;
 }
 
 describe("mountGameView view state", () => {
@@ -1573,12 +1593,13 @@ describe("mountGameView view state", () => {
         const { connections, host } = mountWithFakes();
         endGameOnDoubleRon(connections[0]);
 
-        press(host, '[aria-label="Next winner"]');
-        const turned = resultPageLabel(host);
+        const opened = shownWinner(host);
+        press(host, `[aria-label="Show Bob's win"]`);
+        const turned = shownWinner(host);
         panelButton(host, "Final scores")?.click();
         panelButton(host, "Last hand")?.click();
 
-        expect([turned, resultPageLabel(host)]).toEqual(["2 / 2", "1 / 2"]);
+        expect([opened, turned, shownWinner(host)]).toEqual(["Alice", "Bob", "Alice"]);
     });
 
     it("closes the notices' sheet when a message takes its last notice away, so a later notice never reopens it", () => {

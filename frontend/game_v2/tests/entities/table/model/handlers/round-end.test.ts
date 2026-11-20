@@ -157,7 +157,6 @@ describe("extractRoundEndResult", () => {
         expect(result.draw).toEqual({
             declarerSeat: null,
             kind: "exhaustive",
-            nagashiRivers: [],
             nagashiSeats: [],
             notenSeats: [0, 3],
             ronSeats: [],

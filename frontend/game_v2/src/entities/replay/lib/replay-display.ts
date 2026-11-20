@@ -212,6 +212,7 @@ function stopBoard(
     const table = source.tables[stateIndex];
     const callouts = shownCallouts(source, shownCall, perspective);
     const overlay = tablePanel(table, {
+        bottomSeat: perspective.bottomSeat,
         holdsResult: callsAWin(callouts),
         overGameEnd: false,
         page: cursor.page,

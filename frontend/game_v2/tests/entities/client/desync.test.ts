@@ -494,10 +494,10 @@ describe("stepGameClient - desync around the game's start and end", () => {
     const finalRoundEnd = receivedPayload(finalRound, "round end");
     const gameEnd = receivedPayload(finalRound, "game end");
 
-    /** The dealer's name in the last result's panel, shown over the game's end: its scores' first seat, East. */
     function resultDealerName(state: LiveClient): string | null {
         const host = document.createElement("div");
         const panel = tablePanel(state.table, {
+            bottomSeat: state.viewerSeat ?? 0,
             holdsResult: false,
             overGameEnd: true,
             page: 0,
@@ -506,7 +506,11 @@ describe("stepGameClient - desync around the game's start and end", () => {
         assert(panel !== null);
         render(TablePanelDisplay(panel), host);
         expect(host.querySelector(".round-end-result")).not.toBeNull();
-        return host.querySelector(".round-end-result__score-name")?.textContent ?? null;
+        const east = [...host.querySelectorAll(".round-end-result__seat")].find(
+            (seat) =>
+                seat.querySelector(".round-end-result__score-wind-name")?.textContent === "East",
+        );
+        return east?.querySelector(".round-end-result__score-name")?.textContent ?? null;
     }
 
     it("ends on the server's last result and final scores out of step, the result read from the server alone", () => {

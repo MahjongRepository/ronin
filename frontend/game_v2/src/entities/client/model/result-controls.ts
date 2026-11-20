@@ -1,4 +1,4 @@
-import { type TableState, roundEndPageAt } from "@/entities/table";
+import { type TableState, roundEndPageAt, roundEndPageNames } from "@/entities/table";
 import { type MessageKey, t } from "@/shared/i18n";
 
 import { type DecisionCountdown, roundConfirmCountdown } from "./countdown";
@@ -51,10 +51,17 @@ export function shownResultPage(table: TableState, ui: PlayUi): number {
     return roundEndPageAt(table.roundEndResult, ui.resultPage.page).index;
 }
 
-function pageAction(page: number): PlayAction {
+/** The button to a result's next page, named for whose page it is. */
+function pageAction(table: TableState, page: number): PlayAction {
+    const result = table.roundEndResult;
+    const name =
+        result === null ? undefined : roundEndPageNames({ players: table.players, result })[page];
+    if (name === undefined) {
+        throw new Error(`A round result has no page ${page}`);
+    }
     return {
         command: { kind: "show_result_page", page },
-        label: t("game.result.next"),
+        label: name,
         pressed: null,
         tiles: [],
     };
@@ -77,9 +84,10 @@ function confirmAction(state: LiveClient, confirm: ResultRead): PlayAction | nul
 }
 
 /**
- * The round result's controls: while the confirm is owed (or the game's last result unread), Next through every page
+ * The round result's controls: while the confirm is owed (or the game's last result unread), the next winner's name through every page
  * but the last and the confirm on the last, so the player reads each winner of a double ron before confirming; once
- * the seat confirmed, that it waits for the others, with no button.
+ * the seat confirmed, that it waits for the others, its pages still turning on to the last (a reconnect opens on the
+ * first), with no confirm.
  */
 export function resultControls(state: LiveClient, page: number): ResultControls | null {
     const { table } = state;
@@ -88,12 +96,12 @@ export function resultControls(state: LiveClient, page: number): ResultControls 
         return null;
     }
     const countdown = roundConfirmCountdown(state);
-    if (read.kind === "sent" || read.kind === "confirmed") {
-        return { action: null, countdown, waiting: true };
-    }
     const { count, index } = roundEndPageAt(table.roundEndResult, page);
-    const action = index < count - 1 ? pageAction(index + 1) : confirmAction(state, read);
-    return { action, countdown, waiting: false };
+    const pageOn = index < count - 1 ? pageAction(table, index + 1) : null;
+    if (read.kind === "sent" || read.kind === "confirmed") {
+        return { action: pageOn, countdown, waiting: true };
+    }
+    return { action: pageOn ?? confirmAction(state, read), countdown, waiting: false };
 }
 
 /** The game end's button back to the game's last result, when the dispatcher takes it now. */

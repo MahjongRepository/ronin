@@ -213,7 +213,7 @@ describe("playDisplay", () => {
         ).toEqual([0, 0]);
     });
 
-    it("pages a double ron's owed result with Next, then confirms it on the last page, counting down", () => {
+    it("pages a double ron's owed result by the next winner's name, then confirms it on the last page, counting down", () => {
         const roundEnd = checkpointState("double_ron_seat_1", "round end");
         const lastPage = stepPlayUi(roundEnd, NO_PLAY_UI, {
             kind: "show_result_page",
@@ -225,7 +225,7 @@ describe("playDisplay", () => {
         expect(first).toEqual({
             action: {
                 command: { kind: "show_result_page", page: 1 },
-                label: "Next",
+                label: "Bob",
                 pressed: null,
                 tiles: [],
             },

@@ -142,6 +142,14 @@
     --ronin-switch-on: #86dfc0;
     --ronin-font: system-ui, -apple-system, "Segoe UI", sans-serif;
     --ronin-font-debug: ui-monospace, "SF Mono", "Menlo", "Consolas", "Liberation Mono", monospace;
+
+    /* A named yakuman's seal and kanji: vermilion ink stamped on washi, the name in gold, set in a Mincho face. */
+    --ronin-font-mincho:
+        "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif CJK JP", "Noto Serif JP", serif;
+    --ronin-seal: #b53a2c;
+    --ronin-seal-ink: #f1e6cc;
+    --ronin-seal-frame: rgb(241 230 204 / 85%);
+    --ronin-yakuman-gold: #e2bf72;
     --pico-font-family-sans-serif: var(--ronin-font);
     --pico-font-family-monospace: var(--ronin-font-debug);
     --ronin-safe-top: env(safe-area-inset-top, 0px);

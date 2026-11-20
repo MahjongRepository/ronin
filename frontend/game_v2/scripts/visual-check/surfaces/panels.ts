@@ -177,11 +177,23 @@ const PAGES: readonly PageCase[] = [
         path: `/play/${GAME_ID}`,
         required: { visible: [SETTINGS_TOGGLE, ".game__play .hand-tile"] },
     },
-    resultCase("yakuman", "", [".round-end-result__limit"]),
+    resultCase("yakuman", "", [".round-end-result__seal", ".round-end-result__yakuman-kanji"]),
     resultCase("triple_ron", "", [".round-end-result__from"]),
     boardCase("board-game-end-stick-lost", "?overlay=game_end&leftover=lost", [".seating__note"]),
     {
-        ...resultCase("double_ron", "&page=1", [".round-end-result__pager"]),
+        ...resultCase("double_ron", "&page=1", [".round-end-result__prev"]),
+        at: [FLOOR, MID_DESKTOP],
+    },
+    {
+        ...boardCase(
+            "board-result-max-indicators",
+            "?overlay=round_end&result=double_ron&indicators=max",
+            [
+                ".board-overlay__panel",
+                ".round-end-result__confirm",
+                ".round-end-result__layer[aria-hidden='false'] .round-end-result__wall-row",
+            ],
+        ),
         at: [FLOOR, MID_DESKTOP],
     },
     {
@@ -189,34 +201,36 @@ const PAGES: readonly PageCase[] = [
         at: [FLOOR, MID_DESKTOP],
         contrast: true,
     },
-    { ...resultCase("pao", "", [".round-end-result__notes"]), at: [...WORST_CASES, NOTCH_PHONE] },
+    {
+        ...resultCase("pao", "", [".round-end-result__note", ".round-end-result__score-tag"]),
+        at: [...WORST_CASES, NOTCH_PHONE],
+    },
     resultCase("exhaustive", "", [".round-end-result__tenpai .tile"]),
-    resultStory("tsumo", {
-        ".round-end-result__kind": "Tsumo",
-        ".round-end-result__win-label": "Tsumo",
-    }),
-    resultStory("ron", {
-        ".round-end-result__from": "from Charlie",
-        ".round-end-result__kind": "Ron",
-        ".round-end-result__limit": "Haneman",
-    }),
+    resultStory("tsumo", {}, [".round-end-result__win-tile[aria-label='Tsumo']"]),
+    resultStory(
+        "ron",
+        {
+            ".round-end-result__limit": "Haneman",
+            ".round-end-result__seat--loss .round-end-result__score-name": "Charlie",
+        },
+        [".round-end-result__win-tile[aria-label='Ron']"],
+    ),
     resultStory("dealer", {
         ".round-end-result__limit": "Mangan",
         ".round-end-result__points": "12,000",
     }),
     resultStory("kazoe", { ".round-end-result__limit": "Yakuman" }),
     resultStory("chankan", {
-        ".round-end-result__from": "robbing Alice's kan",
-        ".round-end-result__kind": "Ron",
+        ".round-end-result__seat--loss .round-end-result__score-name": "Alice",
     }),
     resultStory(
         "nagashi",
         {
-            ".round-end-result__from": "by Alice",
-            ".round-end-result__kind": "Draw",
-            ".round-end-result__title": "Nagashi Mangan",
+            ".round-end-result__limit": "Mangan",
+            ".round-end-result__points": "8,000",
+            ".round-end-result__yaku-name": "Nagashi Mangan",
         },
-        [".round-end-result__river .tile", ".round-end-result__tenpai .tile"],
+        [".round-end-result__seat--gain"],
     ),
     resultStory("kyuushu", {
         ".round-end-result__from": "declared by Alice",
@@ -283,16 +297,15 @@ const PAGES: readonly PageCase[] = [
     },
     decisionCase("round_end", [".round-end-result__confirm", SHOWN_RESULT_COUNTDOWN]),
     {
-        ...decisionCase("double_ron_first", [
-            ".round-end-result__pager",
-            ".round-end-result__confirm",
-            SHOWN_RESULT_COUNTDOWN,
-        ]),
+        ...decisionCase("double_ron_first", [".round-end-result__confirm", SHOWN_RESULT_COUNTDOWN]),
         at: [FLOOR, MID_DESKTOP, ...SMALL_WINDOWS],
     },
     {
-        ...decisionCase("double_ron_last", [".round-end-result__confirm", SHOWN_RESULT_COUNTDOWN]),
-        prepare: (page) => expectTexts(page, { ".board-overlay .round-end-result__page": "2 / 2" }),
+        ...decisionCase("double_ron_last", [
+            ".round-end-result__prev",
+            ".round-end-result__confirm",
+            SHOWN_RESULT_COUNTDOWN,
+        ]),
     },
     decisionCase("waiting", [".round-end-result__waiting"]),
     decisionCase("game_end", [
@@ -303,7 +316,7 @@ const PAGES: readonly PageCase[] = [
     {
         ...decisionCase("out_of_step_result", [
             ".round-end-result__confirm",
-            ".round-end-result__indicator-tiles .tile",
+            ".round-end-result__wall-row .tile",
         ]),
         at: [FLOOR, SMALLEST_WINDOW],
     },
@@ -407,7 +420,7 @@ function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
             const outer = box(shownPanel);
             const hands = [
                 ...shownPanel.querySelectorAll(
-                    ".round-end-result > :is(.round-end-result__hand, .round-end-result__rivers), .round-end-result__tenpai-hand",
+                    ".round-end-result__layer[aria-hidden='false'] .round-end-result__hand, .round-end-result__tenpai-hand",
                 ),
             ];
             return {
@@ -420,10 +433,14 @@ function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
                         ".round-end-result__confirm:not(.round-end-result__ghost), .round-end-result__countdown:not(.round-end-result__ghost *)",
                     ),
                 ].map((element) => ({ box: box(element), name: element.className.split(" ")[0] })),
-                pager: [...shownPanel.querySelectorAll(".round-end-result__page-btn")].map(box),
+                pager: [
+                    ...shownPanel.querySelectorAll(
+                        ".round-end-result__prev, .round-end-result__next",
+                    ),
+                ].map(box),
                 parts: [
                     ...shownPanel.querySelectorAll(
-                        ".round-end-result > :is(.round-end-result__yaku, .round-end-result__value, .round-end-result__foot, .round-end-result__controls)",
+                        ".round-end-result > :is(.round-end-result__stack--scoring, .round-end-result__stack--dora, .round-end-result__scoring, .round-end-result__settle)",
                     ),
                 ].map(box),
                 shown: {
@@ -434,7 +451,11 @@ function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
                 },
             };
         }
-        const scrollers = [...panel.querySelectorAll(".round-end-result > *")]
+        const scrollers = [
+            ...panel.querySelectorAll(
+                ".round-end-result > :not(.round-end-result__head--hidden), .round-end-result__layer[aria-hidden='false'] .round-end-result__yaku-scroll, .round-end-result > .round-end-result__scoring .round-end-result__yaku-scroll",
+            ),
+        ]
             .filter((part) => part.scrollHeight > part.clientHeight + 1)
             .map((part) => ({
                 client: part.clientHeight,
@@ -451,9 +472,9 @@ function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
 }
 
 /**
- * A round result fits its panel whole at every supported size, none of its parts scrolling in place, its head's pager
- * and its primary button and countdown in view; the hand row (a draw's tenpai hands, a nagashi's river) lies whole in
- * view under no other part.
+ * A round result fits its panel whole at every supported size, none of its parts (its yaku list included) scrolling in
+ * place, its page buttons and its primary button and countdown in view; the hand row (a draw's tenpai hands) lies
+ * whole in view under no other part.
  */
 function checkResultPanel(panel: ResultPanelMeasure | null, report: PageReport): void {
     if (panel === null) {
@@ -475,7 +496,7 @@ function checkResultPanel(panel: ResultPanelMeasure | null, report: PageReport):
     const hiddenPager = view.pager.filter((button) => !contains(view.shown, button));
     report.expect(
         hiddenPager.length === 0,
-        `the winner pager leaves the result panel's view: ${hiddenPager.map(describeBox).join(", ")}`,
+        `a result's page button leaves the panel's view: ${hiddenPager.map(describeBox).join(", ")}`,
     );
     const clipped = view.hands.filter(
         ({ box, cut }) =>
@@ -487,24 +508,29 @@ function checkResultPanel(panel: ResultPanelMeasure | null, report: PageReport):
     );
 }
 
-/** The page a result's pager shows, from 1, or NaN without one. */
-async function shownResultPage(page: Page): Promise<number> {
-    const label = page.locator(".board-overlay .round-end-result__page");
-    return (await label.count()) === 0
-        ? Number.NaN
-        : Number.parseInt((await label.textContent()) ?? "", 10);
+const SHOWN_LAYERS = ".board-overlay .round-end-result__stack--hand > .round-end-result__layer";
+
+/** The page a result shows, from 1, by its hand's visible layer; 0 without one. */
+function shownResultPage(page: Page): Promise<number> {
+    return page.evaluate(
+        (selector) =>
+            [...document.querySelectorAll(selector)].findIndex(
+                (layer) => layer.getAttribute("aria-hidden") === "false",
+            ) + 1,
+        SHOWN_LAYERS,
+    );
 }
 
 function waitForResultPage(page: Page, expected: number): Promise<boolean> {
     return page
         .waitForFunction(
-            (wanted) =>
-                Number.parseInt(
-                    document.querySelector(".board-overlay .round-end-result__page")?.textContent ??
-                        "",
-                    10,
-                ) === wanted,
-            expected,
+            ({ selector, wanted }) =>
+                [...document.querySelectorAll(selector)].findIndex(
+                    (layer) => layer.getAttribute("aria-hidden") === "false",
+                ) +
+                    1 ===
+                wanted,
+            { selector: SHOWN_LAYERS, wanted: expected },
             { timeout: SELECTOR_TIMEOUT_MS },
         )
         .then(() => true)
@@ -513,30 +539,30 @@ function waitForResultPage(page: Page, expected: number): Promise<boolean> {
 
 /**
  * A double ron's result pages and confirms by a player's click (Playwright's, which fails on a control another covers):
- * its winner pager moves one page, on or back from the last; and where the live game's primary button shows, it turns
- * the pages to the last, whose press confirms, after which the seat waits for the others.
+ * its previous-winner button moves back a page, or its own Next on; and where the live game's primary button shows, it
+ * turns the pages to the last, whose press confirms, after which the seat waits for the others.
  */
 async function checkResultPaging(page: Page, report: PageReport): Promise<void> {
-    if ((await page.locator(".board-overlay .round-end-result__page-btn").count()) === 0) {
+    const count = await page.locator(SHOWN_LAYERS).count();
+    if (count < 2) {
         return;
     }
-    const before = await shownResultPage(page);
-    const next = page.locator(".board-overlay [aria-label='Next winner']");
-    const forward = await next.isEnabled();
-    const step = forward ? 1 : -1;
-    await (forward ? next : page.locator(".board-overlay [aria-label='Previous winner']")).click();
-    const moved = await waitForResultPage(page, before + step);
-    report.expect(moved, `the winner pager did not move from page ${before} to ${before + step}`);
+    const previous = page.locator(".board-overlay .round-end-result__prev");
+    const next = page.locator(".board-overlay .round-end-result__next");
+    const pageButton = (await previous.count()) > 0 ? previous : next;
+    if ((await pageButton.count()) > 0) {
+        const before = await shownResultPage(page);
+        const step = pageButton === previous ? -1 : 1;
+        await pageButton.click();
+        report.expect(
+            await waitForResultPage(page, before + step),
+            `the result's page button did not move from page ${before} to ${before + step}`,
+        );
+    }
     const confirm = page.locator(".board-overlay .round-end-result__confirm");
     if ((await confirm.count()) === 0) {
         return;
     }
-    const count = Number.parseInt(
-        /\/\s*(?<count>\d+)/u.exec(
-            (await page.locator(".board-overlay .round-end-result__page").textContent()) ?? "",
-        )?.groups?.count ?? "",
-        10,
-    );
     for (let shown = await shownResultPage(page); shown < count; shown += 1) {
         await confirm.click();
         report.expect(

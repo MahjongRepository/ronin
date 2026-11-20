@@ -1,19 +1,22 @@
 @use "@/styles/game-board/grid" as *;
 
 /* The panel stands centred on the board as far as its free box (`boardGeometry`'s) allows, and sizes its tiles from
-   that box; a wide panel lays the round end out in two columns under the hand so it fits without scrolling. */
+   that box. */
 
-$tenpai-scale: 0.5;
+$tenpai-scale: 0.55;
+$short-tenpai-scale: 0.7;
 $indicator-scale: 0.6;
-$scroller-room: 4px;
-$two-column-result: 30rem;
+$short-indicator-scale: 0.62;
 $overlay-unit-min: 0.25px;
 $overlay-unit-max: 0.8px;
 $overlay-hand-units: 1000;
 $overlay-height-units: 640;
 $overlay-chrome: 3rem;
-$short-result-width: 46rem;
-$one-line-scores: 40rem;
+$result-width: 1180px;
+$result-hand-units: 1300;
+$result-height-units: 560;
+$compact-result-hand-units: 1150;
+$result-unit-max: 1.15px;
 
 /* A length where it is set, so a tile in a container inside the overlay takes the board's unit, not its own. */
 @property --board-unit {
@@ -85,355 +88,58 @@ $one-line-scores: 40rem;
     }
 }
 
-/* A result taller than its panel keeps its head, its hands and the controls whole and scrolls the rest in place: the
-   yaku, the value, the indicators and the score rows; the panel scrolls only where even those parts do not fit. */
-.board-overlay__panel:has(> .round-end-result) {
-    container: result-foot / inline-size;
-    display: flex;
-    flex-direction: column;
-    width: min(
-        var(--panel-room),
-        max(#{$two-column-result}, #{$overlay-hand-units} * var(--board-unit)) + #{$overlay-chrome}
+/* A round result takes a wider panel and larger tiles than the other panels: its hand spans the panel over the scoring
+   column and the seats. On a compact board the hand is held to the panel's height instead. */
+.board-overlay:has(.round-end-result) {
+    --board-unit: clamp(
+        #{$overlay-unit-min},
+        min(
+            (min(var(--panel-room), #{$result-width}) - #{$overlay-chrome}) / #{$result-hand-units},
+            100cqh / #{$result-height-units}
+        ),
+        #{$result-unit-max}
     );
+}
+
+.board-overlay__panel:has(> .round-end-result) {
+    width: min(var(--panel-room), #{$result-width});
+    max-width: min(var(--panel-room), #{$result-width});
     scrollbar-gutter: auto;
 }
 
-.board-overlay__panel > .round-end-result {
-    min-height: 0;
-
-    /* Each scroller keeps a readable row at least: a yaku, the indicators' caption, the points, a score's name and
-       change. */
-    > :is(
-        .round-end-result__yaku,
-        .round-end-result__value,
-        .round-end-result__indicators,
-        .round-end-result__foot
-    ) {
-        overflow-y: auto;
-    }
-
-    > .round-end-result__indicators {
-        overflow-x: hidden;
-    }
-
-    > :is(.round-end-result__yaku, .round-end-result__indicators) {
-        min-height: calc(1lh + 2 * #{$scroller-room});
-    }
-
-    > .round-end-result__value {
-        min-height: calc(3rem + 2 * #{$scroller-room});
-    }
-
-    > .round-end-result__foot {
-        min-height: calc(2lh + 1px);
-    }
-
-    /* A scroller clips sideways too: the yaku's, the value's and the indicators' room keeps their text's overhang and
-       tiles' edges whole. */
-    > :is(.round-end-result__yaku, .round-end-result__value, .round-end-result__indicators) {
-        margin: -$scroller-room;
-        padding: $scroller-room;
-    }
-
-    /* Where even the head, the hands and the controls overflow the panel, the controls stay at its bottom. */
-    > .round-end-result__controls {
-        position: sticky;
-        bottom: 0;
-        background: var(--ronin-surface);
-    }
-}
-
-/* One or two tenpai hands take the win hand's size, one under the other; three or four shrink to sit two abreast. */
-.board-overlay .round-end-result__tenpai:has(> :nth-child(3)) {
-    --board-tile-w: calc(#{$tile-w} * #{$tenpai-scale} * var(--board-unit));
-    --board-tile-h: calc(#{$tile-h} * #{$tenpai-scale} * var(--board-unit));
-}
-
-.board-overlay .round-end-result__indicator-tiles,
-.board-overlay .round-end-result__river-tiles {
+.board-overlay .round-end-result__wall {
     --board-tile-w: calc(#{$tile-w} * #{$indicator-scale} * var(--board-unit));
     --board-tile-h: calc(#{$tile-h} * #{$indicator-scale} * var(--board-unit));
 }
 
-/* A panel wide enough for columns (a landscape phone's included) puts the yaku, the value and the indicators side by
-   side, the indicators' column as narrow as their tiles. */
-@container result-foot (width >= #{$two-column-result}) {
-    .board-overlay .round-end-result--win {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-        grid-template-areas:
-            "head head head"
-            "hand hand hand"
-            "yaku value dora"
-            "scores scores scores";
-    }
-
-    .board-overlay .round-end-result--win:has(> .round-end-result__controls) {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-        grid-template-areas:
-            "head head head"
-            "hand hand hand"
-            "yaku value dora"
-            "scores scores controls";
-    }
+.board-overlay .round-end-result__tenpai {
+    --board-tile-w: calc(#{$tile-w} * #{$tenpai-scale} * var(--board-unit));
+    --board-tile-h: calc(#{$tile-h} * #{$tenpai-scale} * var(--board-unit));
 }
 
-@container result-foot (width < #{$two-column-result}) {
-    .board-overlay .round-end-result__indicators {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 0.3rem 0.75rem;
+@container game-board (height < #{$result-compact-height}) {
+    .board-overlay:has(.round-end-result) {
+        --board-unit: clamp(
+            #{$overlay-unit-min},
+            min(
+                (var(--panel-room) - #{$overlay-chrome}) / #{$compact-result-hand-units},
+                100cqh / #{$overlay-height-units}
+            ),
+            #{$result-unit-max}
+        );
     }
 
-    .board-overlay .round-end-result__indicator-group {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-}
-
-/* The controls stand beside the scores while both fit, else under them, so no figure wraps. */
-@container result-foot (width < 24rem) {
-    .board-overlay .round-end-result:has(> .round-end-result__controls) {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-areas:
-            "head"
-            "hand"
-            "yaku"
-            "value"
-            "dora"
-            "scores"
-            "controls";
-    }
-
-    .board-overlay .round-end-result--draw:has(> .round-end-result__controls) {
-        grid-template-areas:
-            "head"
-            "tenpai"
-            "scores"
-            "controls";
-    }
-
-    .board-overlay
-        .round-end-result--draw:has(> .round-end-result__rivers):has(
-            > .round-end-result__controls
-        ) {
-        grid-template-areas:
-            "head"
-            "rivers"
-            "tenpai"
-            "scores"
-            "controls";
-    }
-
-    .board-overlay .round-end-result__controls {
-        justify-self: end;
-        margin-left: 0;
-        padding-left: 0;
-        border-top: 0;
-    }
-}
-
-@container game-board (width < 800px) {
-    .board-overlay .round-end-result__head {
-        column-gap: 0.4rem;
-    }
-}
-
-@container result-foot (width < 45rem) {
-    .board-overlay .round-end-result__confirm {
-        min-width: 4.5rem;
-        padding-inline: 0.6rem;
-        font-size: 0.9em;
-    }
-
-    .board-overlay .round-end-result__wait {
-        max-width: 5rem;
-    }
-}
-
-@mixin score-name-line {
-    .round-end-result__score .round-end-result__score-who {
-        display: contents;
-    }
-
-    .round-end-result__score .round-end-result__score-name {
-        grid-row: 1;
-        grid-column: 1 / -1;
-    }
-
-    .round-end-result__score .round-end-result__score-wind {
-        grid-row: 4;
-        grid-column: 1;
-        align-self: end;
-        line-height: 1.45;
-    }
-
-    .round-end-result__score .round-end-result__score-wind-name {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        overflow: hidden;
-        clip-path: inset(50%);
-        white-space: nowrap;
-    }
-
-    .round-end-result__score .round-end-result__score-wind-letter {
-        display: inline;
-    }
-
-    .round-end-result__score .round-end-result__score-after {
-        grid-column: 2;
-        align-self: end;
-        line-height: 1.3;
-    }
-}
-
-@container result-foot (width < 37rem) {
-    @include score-name-line;
-}
-
-@container result-foot (width < 45rem) {
-    .round-end-result:has(> .round-end-result__controls) {
-        @include score-name-line;
-    }
-}
-
-@container (height >= 560px) {
-    .board-overlay .round-end-result {
-        font-size: 0.95rem;
-        row-gap: 0.75rem;
-    }
-
-    .board-overlay .round-end-result__title {
-        font-size: 1.4rem;
-    }
-
-    .board-overlay .round-end-result__points {
-        font-size: 2.5rem;
-    }
-
-    .board-overlay .round-end-result__limit {
-        font-size: 1.5rem;
-    }
-
-    .board-overlay .round-end-result__delta {
-        font-size: 1.1rem;
-    }
-}
-
-@container (height < 360px) {
-    .board-overlay .round-end-result__points {
-        font-size: 1.5rem;
-    }
-
-    .board-overlay .round-end-result__limit {
-        font-size: 0.9rem;
-    }
-}
-
-@container game-board (height < 290px) {
     .board-overlay__panel:has(> .round-end-result) {
-        width: min(var(--panel-room), #{$short-result-width});
+        padding: 0.45rem 0.65rem;
     }
 
-    .board-overlay .round-end-result {
-        row-gap: 0.3rem;
+    .board-overlay .round-end-result__wall {
+        --board-tile-w: calc(#{$tile-w} * #{$short-indicator-scale} * var(--board-unit));
+        --board-tile-h: calc(#{$tile-h} * #{$short-indicator-scale} * var(--board-unit));
     }
 
-    .board-overlay .round-end-result--win,
-    .board-overlay .round-end-result--win:has(> .round-end-result__controls) {
-        grid-template-columns: minmax(0, 1fr) auto auto;
-        grid-template-areas:
-            "head head head"
-            "hand hand hand"
-            "yaku value dora"
-            "scores scores scores";
-    }
-
-    .board-overlay .round-end-result--win:has(> .round-end-result__controls) {
-        grid-template-areas:
-            "head head head"
-            "hand hand hand"
-            "yaku value dora"
-            "scores scores controls";
-    }
-
-    .board-overlay .round-end-result__page-btn {
-        min-width: 2rem;
-        min-height: 2rem;
-    }
-
-    .board-overlay__panel > .round-end-result > .round-end-result__value {
-        min-height: 0;
-        max-width: 12rem;
-    }
-
-    .board-overlay .round-end-result__yaku {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 12rem));
-        align-content: start;
-        column-gap: 1rem;
-        max-width: none;
-
-        > li {
-            padding: 0;
-            line-height: 18px;
-        }
-
-        > li > :first-child {
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        > li:not(.round-end-result__yaku-dora) + .round-end-result__yaku-dora {
-            margin-top: 0;
-        }
-    }
-
-    .board-overlay .round-end-result__indicators {
-        row-gap: 0.15rem;
-    }
-
-    .board-overlay .round-end-result__notes {
-        flex-basis: auto;
-    }
-
-    @container result-foot (width >= #{$one-line-scores}) {
-        .board-overlay .round-end-result {
-            @include score-name-line;
-
-            .round-end-result__scores {
-                grid-template-rows: repeat(3, auto);
-                column-gap: 0.75rem;
-            }
-
-            .round-end-result__score {
-                grid-row: span 3;
-                grid-template-columns: auto auto minmax(0, 1fr);
-            }
-
-            .round-end-result__score .round-end-result__delta {
-                grid-row: 3;
-                grid-column: 1;
-                font-size: 0.85rem;
-            }
-
-            .round-end-result__score .round-end-result__score-wind {
-                grid-row: 3;
-                grid-column: 2;
-                align-self: baseline;
-                line-height: inherit;
-            }
-
-            .round-end-result__score .round-end-result__score-after {
-                grid-row: 3;
-                grid-column: 3;
-                align-self: baseline;
-                line-height: inherit;
-            }
-        }
+    .board-overlay .round-end-result__tenpai {
+        --board-tile-w: calc(#{$tile-w} * #{$short-tenpai-scale} * var(--board-unit));
+        --board-tile-h: calc(#{$tile-h} * #{$short-tenpai-scale} * var(--board-unit));
     }
 }
