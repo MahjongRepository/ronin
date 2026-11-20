@@ -4,7 +4,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BOT_ROOT="${BOT_ROOT:-$HOME/work/mahjong-bot}"
+SERVER="${SERVER:-}"
+case "$SERVER" in
+    "") DEFAULT_BOT_ROOT="$HOME/work/mahjong-bot" ;;
+    go) DEFAULT_BOT_ROOT="$HOME/work/mahjong-bot-go-wire" ;;
+    *)
+        echo "unknown game server SERVER=$SERVER, expected go or nothing"
+        exit 1
+        ;;
+esac
+BOT_ROOT="${BOT_ROOT:-$DEFAULT_BOT_ROOT}"
 
 BOT_BIN="${BOT_BIN:-}"
 BOT_LOG_DIR="$BOT_ROOT/var/logs"
@@ -17,6 +26,8 @@ BOT_CONSOLE_NOISE_PATTERN='^(.\[[0-9]+m)?[0-9-]{10} [0-9:,]{8,12} [^ ]+ (DEBUG|I
 BOT_ISSUE_PATTERN="ERROR|WARNING|CRITICAL|panicked"
 CHAOS_EXPECTED_EVENTS="connection taken over|player reconnected|replaced player with AI|stale game action|meld timeout, auto-passing|turn timeout, auto-discarding|decode error|invalid message|invalid game action|invalid pass: no pending call prompt|invalid call: tile_id mismatch|discard tile not in hand|discard forbidden by kuikae or riichi|action rejected: round not in progress|cannot call added kan: tile not in hand"
 CHAOS_EXPECTED_SESSION_ERRORS="reconnect_no_session"
+GO_SERVER_ISSUE_PATTERN='level=(WARN|ERROR)|^panic: |^fatal error: |^goroutine [0-9]+ \[|msg="(turn timeout, auto-|meld timeout, auto-|auth timeout,|AI player action|player reconnected|connection taken over|stale game action)'
+GO_CHAOS_EXPECTED_EVENTS="connection taken over|player reconnected|AI player action|stale game action|meld timeout, auto-passing|turn timeout, auto-discarding|decode error|invalid message|invalid game action|invalid call: tile_id mismatch"
 
 MAX_GAMES="${1:-10}"
 TABLES="${TABLES:-1}"
@@ -26,6 +37,11 @@ NET="${NET:-}"
 
 if ! [[ $MAX_GAMES =~ ^[1-9][0-9]*$ && $TABLES =~ ^[1-9][0-9]*$ ]]; then
     echo "games and tables must be positive integers, got GAMES=$MAX_GAMES TABLES=$TABLES"
+    exit 1
+fi
+
+if [[ $SERVER == go && $PROFILE == 1 ]]; then
+    echo "the profile mode samples the Python game server only, got SERVER=go PROFILE=1"
     exit 1
 fi
 
@@ -63,10 +79,14 @@ FAILED_RUN_DIR="$PROJECT_ROOT/backend/data/failed-runs/$(date +%Y-%m-%d_%H-%M-%S
 HARNESS_LOG="$PROJECT_ROOT/backend/logs/harness.log"
 
 GAME_PORT=8711
+if [[ $SERVER == go ]]; then
+    GAME_PORT=8712
+fi
 LOBBY_PORT=8710
 MAX_RETRIES=10
 SHUTDOWN_TIMEOUT=15
 
+GO_BUILD_DIR=""
 SERVER_PIDS=()
 BOT_PIDS=()
 PLAYED=0
@@ -169,12 +189,35 @@ start_server() {
     echo "starting $name server on port $port..."
     cd "$PROJECT_ROOT" && "${launcher[@]}" --factory "$module" --host 0.0.0.0 --port "$port" --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-per-message-deflate false --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size "$ws_max_size" > "$log_dir/stdout.log" 2> "$log_dir/stderr.log" &
     SERVER_PIDS+=($!)
+    await_server "$name" "$port" "$log_dir"
+}
+
+start_go_game_server() {
+    echo "starting game server (Go) on port $GAME_PORT..."
+    cd "$PROJECT_ROOT" && "$GO_BUILD_DIR/gameserver" -addr "0.0.0.0:$GAME_PORT" > "$GAME_LOG_DIR/stdout.log" 2> "$GAME_LOG_DIR/stderr.log" &
+    SERVER_PIDS+=($!)
+    await_server game "$GAME_PORT" "$GAME_LOG_DIR"
+}
+
+await_server() {
+    local name="$1"
+    local port="$2"
+    local log_dir="$3"
 
     if ! wait_for_server "$port" || ! kill -0 "${SERVER_PIDS[-1]}" 2>/dev/null; then
         echo "$name server failed to start after $MAX_RETRIES retries, see $log_dir/stderr.log"
         exit 1
     fi
     echo "$name server ready"
+}
+
+build_go_tools() {
+    GO_BUILD_DIR=$(mktemp -d)
+    echo "building the Go game server and replay check..."
+    if ! go build -C "$PROJECT_ROOT/backend/game_v2" -o "$GO_BUILD_DIR/" ./cmd/gameserver ./cmd/verify; then
+        echo "building the Go game server failed"
+        exit 1
+    fi
 }
 
 scan_logs() {
@@ -228,11 +271,17 @@ join_alternatives() {
 game_expected_pattern() {
     local events=()
     local session_errors=()
-    if [[ $MODE == chaos ]]; then
+    if [[ $MODE == chaos && $SERVER == go ]]; then
+        events+=("$GO_CHAOS_EXPECTED_EVENTS")
+        session_errors+=("$CHAOS_EXPECTED_SESSION_ERRORS")
+    elif [[ $MODE == chaos ]]; then
         events+=("$CHAOS_EXPECTED_EVENTS")
         session_errors+=("$CHAOS_EXPECTED_SESSION_ERRORS")
     fi
-    if [[ $NET == bad ]]; then
+    if [[ $NET == bad && $SERVER == go ]]; then
+        events+=("$GO_BAD_NET_EXPECTED_EVENTS")
+        session_errors+=("$BAD_NET_EXPECTED_SESSION_ERRORS")
+    elif [[ $NET == bad ]]; then
         events+=("$BAD_NET_EXPECTED_EVENTS")
         session_errors+=("$BAD_NET_EXPECTED_SESSION_ERRORS")
     fi
@@ -241,6 +290,11 @@ game_expected_pattern() {
     local error_alternatives
     event_alternatives=$(join_alternatives "${events[@]}")
     error_alternatives=$(join_alternatives "${session_errors[@]}")
+    if [[ $SERVER == go ]]; then
+        go_expected_pattern "$event_alternatives" "$error_alternatives"
+        return
+    fi
+
     local parts=()
     if [[ -n $event_alternatives ]]; then
         parts+=("($event_alternatives) +\\[")
@@ -253,10 +307,29 @@ game_expected_pattern() {
     fi
 }
 
+go_expected_pattern() {
+    local event_alternatives="$1"
+    local error_alternatives="$2"
+    local parts=()
+    if [[ -n $event_alternatives ]]; then
+        parts+=("($event_alternatives)\"")
+    fi
+    if [[ -n $error_alternatives ]]; then
+        parts+=("session error sent to client\" .* error_code=($error_alternatives)( |\$)")
+    fi
+    if [[ ${#parts[@]} -gt 0 ]]; then
+        echo "level=(DEBUG|INFO|WARN) msg=\"($(join_alternatives "${parts[@]}"))"
+    fi
+}
+
 analyze_logs() {
     local has_issues=0
+    local game_issue_pattern="$SERVER_ISSUE_PATTERN"
+    if [[ $SERVER == go ]]; then
+        game_issue_pattern="$GO_SERVER_ISSUE_PATTERN"
+    fi
 
-    scan_logs GAME "$GAME_LOG_DIR" "$SERVER_ISSUE_PATTERN" "$(game_expected_pattern)" || has_issues=1
+    scan_logs GAME "$GAME_LOG_DIR" "$game_issue_pattern" "$(game_expected_pattern)" || has_issues=1
     scan_logs LOBBY "$LOBBY_LOG_DIR" "$SERVER_ISSUE_PATTERN" || has_issues=1
     scan_logs BOT "$BOT_LOG_DIR" "$BOT_ISSUE_PATTERN" || has_issues=1
     if [[ $NET == bad ]]; then
@@ -286,8 +359,12 @@ verify_games() {
 
     local new_ids
     new_ids=$(comm -13 <(sed '/^$/d' <<< "$VERIFIED_GAMES") <(echo "$game_ids"))
+    local verifier=()
+    if [[ $SERVER == go ]]; then
+        verifier=(--go-verify "$GO_BUILD_DIR/verify")
+    fi
     # shellcheck disable=SC2086
-    (cd "$PROJECT_ROOT" && uv run --project backend python bin/verify_games.py $new_ids) || return 1
+    (cd "$PROJECT_ROOT" && uv run --project backend python bin/verify_games.py "${verifier[@]}" $new_ids) || return 1
     VERIFIED_GAMES="$game_ids"
 }
 
@@ -529,7 +606,7 @@ archive_failed_run() {
     cp "$PROFILE_FILE.gc.json" "$FAILED_RUN_DIR/" 2>/dev/null || true
     {
         echo "exit status: $status"
-        echo "games: $PLAYED of $MAX_GAMES played, tables: $TABLES, profile: $PROFILE, mode: ${MODE:-default}, net: ${NET:-direct}"
+        echo "games: $PLAYED of $MAX_GAMES played, tables: $TABLES, profile: $PROFILE, mode: ${MODE:-default}, net: ${NET:-direct}, server: ${SERVER:-python}"
         echo "batch seconds: ${BATCH_TIMES[*]}"
         echo "batch game server CPU ticks: ${BATCH_SERVER_TICKS[*]}"
         echo "batch handled messages: ${BATCH_HANDLED_MESSAGES[*]}"
@@ -551,6 +628,9 @@ on_exit() {
     stop_servers || true
     if [[ $status -ne 0 ]]; then
         archive_failed_run "$status"
+    fi
+    if [[ -n $GO_BUILD_DIR ]]; then
+        rm -rf "$GO_BUILD_DIR"
     fi
 
     exit "$status"
@@ -586,6 +666,9 @@ exec > >(tee "$HARNESS_LOG") 2>&1
 
 build_bot
 register_bots
+if [[ $SERVER == go ]]; then
+    build_go_tools
+fi
 
 GAME_LAUNCHER=(uv run --project backend uvicorn)
 if [[ $PROFILE == 1 ]]; then
@@ -595,7 +678,11 @@ fi
 
 free_port "$GAME_PORT"
 free_port "$LOBBY_PORT"
-start_server "game" "game.server.app:get_app" "$GAME_PORT" 262144 "$GAME_LOG_DIR" "${GAME_LAUNCHER[@]}"
+if [[ $SERVER == go ]]; then
+    start_go_game_server
+else
+    start_server "game" "game.server.app:get_app" "$GAME_PORT" 262144 "$GAME_LOG_DIR" "${GAME_LAUNCHER[@]}"
+fi
 start_server "lobby" "lobby.server.app:get_app" "$LOBBY_PORT" 8192 "$LOBBY_LOG_DIR" uv run --project backend uvicorn
 if [[ $NET == bad ]]; then
     echo ""
@@ -604,7 +691,7 @@ if [[ $NET == bad ]]; then
 fi
 
 echo ""
-echo "running $MAX_GAMES game(s), up to $TABLES at a time, bot mode ${MODE:-default}, network ${NET:-direct}..."
+echo "running $MAX_GAMES game(s), up to $TABLES at a time, bot mode ${MODE:-default}, network ${NET:-direct}, game server ${SERVER:-python}..."
 echo ""
 
 GAME_SERVER_PID=$(lsof -ti tcp:"$GAME_PORT" -sTCP:LISTEN | head -1)

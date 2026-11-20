@@ -2,11 +2,12 @@
 Check that each played game ended as completed and that its saved replay reproduces it.
 
 For every game id: its played_games row must record the completed end reason, its replay file must exist, and running
-the replay through the engine must emit the round ends and game end the file recorded. Exits 1 when any game fails or
-no game id is given. Reads the replay directory and database path from the game server's settings (the environment
-`bin/local-settings.sh` exports).
+the replay through the engine must emit the round ends and game end the file recorded. With --go-verify, the Go
+server's replay check (its cmd/verify binary) runs each replay through the Go engine instead. Exits 1 when any game
+fails or no game id is given. Reads the replay directory and database path from the game server's settings (the
+environment `bin/local-settings.sh` exports).
 
-Usage: uv run --project backend python bin/verify_games.py <game_id>...
+Usage: uv run --project backend python bin/verify_games.py [--go-verify <verify binary>] <game_id>...
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import argparse
 import gzip
 import logging
 import sqlite3
+import subprocess
 import sys
 import traceback
 from contextlib import closing
@@ -33,6 +35,9 @@ from shared.logging import setup_logging
 from shared.storage import replay_file_path
 
 OUTCOME_EVENT_TYPES = frozenset({WireEventType.ROUND_END, WireEventType.GAME_END})
+GO_VERIFY_FAILED = 1
+GO_VERIFY_OK_PREFIX = "ok      "
+GO_VERIFY_FAILED_PREFIX = "FAILED  "
 
 
 def read_end_reason(database_path: Path, game_id: str) -> str | None:
@@ -65,14 +70,7 @@ def find_outcome_mismatch(recorded: list[dict[int, Any]], replayed: list[dict[in
     return None
 
 
-def verify_game(settings: GameServerSettings, game_id: str) -> str | None:
-    """
-    Return why the game fails verification, or None when it passes.
-    """
-    end_reason = read_end_reason(Path(settings.database_path), game_id)
-    if end_reason != GameEndReason.COMPLETED:
-        return f"end reason is {end_reason!r}, expected {GameEndReason.COMPLETED.value!r}"
-
+def verify_replay(settings: GameServerSettings, game_id: str) -> str | None:
     replay_path = replay_file_path(Path(settings.replay_dir), game_id)
     if not replay_path.is_file():
         return f"no replay at {replay_path}"
@@ -89,8 +87,41 @@ def verify_game(settings: GameServerSettings, game_id: str) -> str | None:
     return find_outcome_mismatch(recorded, replayed)
 
 
+def verify_replay_in_go(go_verify: Path, settings: GameServerSettings, game_id: str) -> str | None:
+    result = subprocess.run(  # noqa: S603 (the Go replay check this run built, given its own game ids)
+        [str(go_verify), "-replay-dir", str(settings.replay_dir), game_id],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    lines = result.stdout.splitlines()
+    if result.returncode == 0 and lines and lines[0] == f"{GO_VERIFY_OK_PREFIX}{game_id}":
+        return None
+
+    failed_prefix = f"{GO_VERIFY_FAILED_PREFIX}{game_id}: "
+    if result.returncode == GO_VERIFY_FAILED and lines and lines[0].startswith(failed_prefix):
+        return "\n".join([lines[0].removeprefix(failed_prefix), *lines[1:-1]])
+
+    return f"the Go replay check exited {result.returncode}:\n{result.stdout}{result.stderr}"
+
+
+def verify_game(settings: GameServerSettings, game_id: str, go_verify: Path | None) -> str | None:
+    """
+    Return why the game fails verification, or None when it passes.
+    """
+    end_reason = read_end_reason(Path(settings.database_path), game_id)
+    if end_reason != GameEndReason.COMPLETED:
+        return f"end reason is {end_reason!r}, expected {GameEndReason.COMPLETED.value!r}"
+
+    if go_verify is not None:
+        return verify_replay_in_go(go_verify, settings, game_id)
+
+    return verify_replay(settings, game_id)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--go-verify", type=Path, help="the Go server's replay check binary to replay each game with")
     parser.add_argument("game_ids", nargs="*")
     args = parser.parse_args()
     if not args.game_ids:
@@ -102,7 +133,7 @@ def main() -> int:
 
     failures = 0
     for game_id in args.game_ids:
-        problem = verify_game(settings, game_id)
+        problem = verify_game(settings, game_id, args.go_verify)
         if problem is None:
             print(f"ok      {game_id}")
             continue

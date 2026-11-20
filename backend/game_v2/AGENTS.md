@@ -253,8 +253,8 @@ and the fixture tools.
   walls runs again only from its own setup.
 * `cmd/verify` checks a game's stored replay, not its row: it requires the game end and compares
   every round end and the game end the run emits, shaped by `messaging`, byte for byte with the
-  recorded ones. It is the replay check `bin/verify_games.py` is to run for the Go server, beside
-  the row check the script keeps; today the script still replays through the Python server.
+  recorded ones. `bin/verify_games.py --go-verify` runs it per game after the script's own row
+  check, which is how `make run-games SERVER=go` verifies its games.
 
 ## Tenhou export
 

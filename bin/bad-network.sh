@@ -31,6 +31,7 @@ BAD_NET_RESET_MAX=6
 BAD_NET_RESET_TOXICITY=0.05
 
 BAD_NET_EXPECTED_EVENTS="player reconnected|replaced player with AI|connection taken over|stale game action|meld timeout, auto-passing|turn timeout, auto-discarding"
+GO_BAD_NET_EXPECTED_EVENTS="player reconnected|AI player action|connection taken over|stale game action|meld timeout, auto-passing|turn timeout, auto-discarding"
 BAD_NET_EXPECTED_SESSION_ERRORS="reconnect_no_session"
 
 BAD_NET_TRAEFIK_ISSUE_PATTERN='"level":"(warn|error|fatal|panic)"|"DownstreamStatus":[1-9]'

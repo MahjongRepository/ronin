@@ -84,13 +84,13 @@ profile:
 	$(BE_RUN) python bin/profile_replay.py
 
 run-games:
-	@TABLES=$(TABLES) MODE=$(MODE) NET=$(NET) bash ./bin/run-bots-games.sh $(GAMES)
+	@TABLES=$(TABLES) MODE=$(MODE) NET=$(NET) SERVER=$(SERVER) bash ./bin/run-bots-games.sh $(GAMES)
 
 run-tournament:
 	@bash ./bin/run-tournament.sh
 
 profile-games:
-	@PROFILE=1 TABLES=12 MODE= bash ./bin/run-bots-games.sh 48
+	@PROFILE=1 TABLES=12 MODE= SERVER= bash ./bin/run-bots-games.sh 48
 
 measure-wall:
 	cd backend && uv run python -m scripts.measure_wall $(MEASURE_ARGS)
