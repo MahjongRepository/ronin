@@ -1,7 +1,6 @@
 package messaging_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
@@ -28,8 +27,7 @@ func FuzzParseClientMessage_WhenGivenAnyDecodedMessage_ShouldParseOrRefuseIt(f *
 		}
 
 		message, err := messaging.ParseClientMessage(m)
-		_, refused := errors.AsType[messaging.InvalidMessageError](err)
-		if (err == nil && message == nil) || (err != nil && !refused) {
+		if (err == nil && message == nil) || (err != nil && !isInvalidMessage(err)) {
 			t.Fatalf("ParseClientMessage(%v) = %v, %v; want a message or an InvalidMessageError", m, message, err)
 		}
 	})
