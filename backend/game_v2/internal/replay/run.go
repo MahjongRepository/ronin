@@ -94,8 +94,12 @@ type runner struct {
 }
 
 func (r *runner) prepare(index int, actions []SeatAction) error {
-	if r.isOver() {
+	switch r.game.Awaiting().(type) {
+	case play.AwaitingTurn:
+		return nil
+	case play.AwaitingGameOver:
 		return ActionAfterGameEndError{Index: index}
+	case play.AwaitingCall, play.AwaitingDealt, play.AwaitingRoundOver:
 	}
 
 	err := r.deal()
