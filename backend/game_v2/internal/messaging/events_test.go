@@ -250,8 +250,8 @@ func TestReplaySeatControlPayload_WhenASeatChangesHands_ShouldWriteARecordTheRep
 		{Key: wire.KeySeat, Value: wire.Int(2)},
 		{Key: wire.KeyAIPlayer, Value: wire.Int(0)},
 	})
-	_, err := wire.EncodeReplay([]wire.Map{wire.VersionRecord(), left, back})
+	_, err := messaging.EncodeReplayRecords([]wire.Map{left, back})
 	if err != nil {
-		t.Errorf("EncodeReplay error = %v", err)
+		t.Errorf("EncodeReplayRecords error = %v", err)
 	}
 }

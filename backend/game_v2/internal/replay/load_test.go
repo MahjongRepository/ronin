@@ -45,7 +45,12 @@ func TestLoad_WhenTheGameStartIsNotOfThisServersRules_ShouldRefuseItsRecord(t *t
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, err := replay.Load(encodeRecords(t, []wire.Map{wire.VersionRecord(), c.start}))
+			content, err := messaging.EncodeReplayRecords([]wire.Map{c.start})
+			if err != nil {
+				t.Fatalf("EncodeReplayRecords error = %v", err)
+			}
+
+			_, err = replay.Load(content)
 
 			if got, ok := errors.AsType[replay.LoadError](err); !ok || got.Record != 2 {
 				t.Errorf("Load error = %v, want a LoadError at record 2", err)
