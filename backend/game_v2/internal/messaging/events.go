@@ -29,11 +29,13 @@ type Table struct {
 // EventPayload returns the message of one engine event, for the socket and the replay alike. A
 // draw carries no live wall count here (ReplayDrawPayload adds it for the replay); a game start
 // names no recipient (StampViewerSeat), and a replay's game start record adds what only a replay
-// keeps. The error is a wire.InvalidMeldError for a meld the engine cannot have built.
-func EventPayload(event play.Event, table Table) (wire.Map, error) {
+// keeps. table gives the Table after the event's call, and is asked for only by a game start, a
+// round end and a game end. The error is a wire.InvalidMeldError for a meld the engine cannot have
+// built.
+func EventPayload(event play.Event, table func() Table) (wire.Map, error) {
 	switch e := event.(type) {
 	case play.GameStarted:
-		return gameStartedPayload(e, table.Roster), nil
+		return gameStartedPayload(e, table().Roster), nil
 	case play.RoundStarted:
 		return roundStartedPayload(e), nil
 	case play.Drew:
@@ -58,10 +60,10 @@ func EventPayload(event play.Event, table Table) (wire.Map, error) {
 	case play.DoraRevealed:
 		return eventMap(wire.EventDoraRevealed, wire.KeyTileID, tileValue(e.Indicator)), nil
 	case play.RoundEnded:
-		fields, err := roundEndFields(e.Result, e.Scores, e.RiichiSticks, table.Record)
+		fields, err := roundEndFields(e.Result, e.Scores, e.RiichiSticks, table().Record)
 		return append(wire.Map{{Key: wire.KeyEventType, Value: wire.Int(wire.EventRoundEnd)}}, fields...), err
 	case play.GameEnded:
-		return gameEndedPayload(e.Standings, table.Record), nil
+		return gameEndedPayload(e.Standings, table().Record), nil
 	}
 	return nil, errors.New("no event to shape")
 }

@@ -287,7 +287,7 @@ func (g *game) sendEvent(emitted play.Emitted, table func() messaging.Table) err
 		return g.sendGameStarted(started)
 	}
 
-	payload, err := messaging.EventPayload(emitted.Event, table())
+	payload, err := messaging.EventPayload(emitted.Event, table)
 	if err != nil {
 		return err
 	}
@@ -303,7 +303,7 @@ func (g *game) sendEvent(emitted play.Emitted, table func() messaging.Table) err
 }
 
 func (g *game) sendGameStarted(started play.GameStarted) error {
-	payload, err := messaging.EventPayload(started, messaging.Table{Roster: g.roster})
+	payload, err := messaging.EventPayload(started, func() messaging.Table { return messaging.Table{Roster: g.roster} })
 	if err != nil {
 		return err
 	}

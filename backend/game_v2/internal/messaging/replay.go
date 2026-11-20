@@ -79,6 +79,6 @@ func (r *ReplayLog) record(event play.Event, table func() Table) (wire.Map, bool
 	case play.Discarded, play.RiichiDeposited, play.Called, play.PaoAssigned, play.DoraRevealed, play.RoundEnded,
 		play.GameEnded:
 	}
-	record, err := EventPayload(event, table())
+	record, err := EventPayload(event, table)
 	return record, err == nil, err
 }

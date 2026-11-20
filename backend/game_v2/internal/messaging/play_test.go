@@ -67,7 +67,9 @@ func (s *shapedGame) record(event play.Emitted) {
 
 func (s *shapedGame) payload(e play.Event) wire.Map {
 	s.t.Helper()
-	m, err := messaging.EventPayload(e, messaging.Table{Roster: testRoster(), Record: s.game.View(tile.Seats()[0]).Record})
+	m, err := messaging.EventPayload(e, func() messaging.Table {
+		return messaging.Table{Roster: testRoster(), Record: s.game.View(tile.Seats()[0]).Record}
+	})
 	if err != nil {
 		s.t.Fatalf("EventPayload(%T) error = %v", e, err)
 	}

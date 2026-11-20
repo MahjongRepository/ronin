@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"sync"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
@@ -71,7 +72,9 @@ func recordedOutcomes(records []wire.Map) []wire.Map {
 func replayedOutcomes(steps []replay.Step) ([]wire.Map, error) {
 	var outcomes []wire.Map
 	for _, step := range steps {
-		table := messaging.Table{Record: step.Game.View(tile.Seats()[0]).Record}
+		table := sync.OnceValue(func() messaging.Table {
+			return messaging.Table{Record: step.Game.View(tile.Seats()[0]).Record}
+		})
 		for _, emitted := range step.Events {
 			switch emitted.Event.(type) {
 			case play.RoundEnded, play.GameEnded:

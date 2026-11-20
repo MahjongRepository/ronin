@@ -15,7 +15,7 @@ import (
 
 func payload(t *testing.T, e play.Event, record play.SeatRecord) wire.Map {
 	t.Helper()
-	m, err := messaging.EventPayload(e, messaging.Table{Roster: testRoster(), Record: record})
+	m, err := messaging.EventPayload(e, func() messaging.Table { return messaging.Table{Roster: testRoster(), Record: record} })
 	if err != nil {
 		t.Fatalf("EventPayload(%T) error = %v", e, err)
 	}
@@ -124,7 +124,14 @@ func TestEventPayload_WhenAMoveHasTheShapeOfPython_ShouldEncodeToItsGoldenBytes(
 		{"discard", play.Discarded{Seat: seat(t, 0), Tile: id(t, 37)}, "8201020625"},
 		{"pao_assigned", play.PaoAssigned{Seat: seat(t, 2), Liable: seat(t, 0)}, "83010e32022400"},
 	} {
-		got, err := wire.Encode(payload(t, c.event, play.SeatRecord{}))
+		m, err := messaging.EventPayload(c.event, func() messaging.Table {
+			t.Errorf("%s: EventPayload asked for the table", c.name)
+			return messaging.Table{}
+		})
+		if err != nil {
+			t.Fatalf("%s: EventPayload error = %v", c.name, err)
+		}
+		got, err := wire.Encode(m)
 		if err != nil || hex.EncodeToString(got) != c.hex {
 			t.Errorf("%s: Encode = %x, %v; want %s", c.name, got, err, c.hex)
 		}
@@ -183,7 +190,7 @@ func TestEventPayload_WhenAMeldIsNoMeldOfItsKind_ShouldReportIt(t *testing.T) {
 		Kind: play.MeldChi, Tiles: ids(t, 0, 4, 8), Called: play.Some(id(t, 0)), From: play.Some(seat(t, 2)),
 	}}
 
-	_, err := messaging.EventPayload(chi, messaging.Table{})
+	_, err := messaging.EventPayload(chi, func() messaging.Table { return messaging.Table{} })
 
 	if _, isType := errors.AsType[wire.InvalidMeldError](err); !isType {
 		t.Errorf("EventPayload error = %v, want an InvalidMeldError", err)
