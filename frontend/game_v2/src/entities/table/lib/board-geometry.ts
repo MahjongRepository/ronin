@@ -732,9 +732,12 @@ function leastDora(rw: number): number {
     return Math.ceil(DORA_BY_RIVER_LEAST * rw);
 }
 
-/** Where a desktop's counters end over the left strip's lane: a plate's gap short of the lane's inner edge (px). */
+/**
+ * Where a desktop's counters end over the left strip's lane: `COUNTERS_AIR_BY_RIVER` of a river tile short of the
+ * lane's inner edge, so the card never reads as one of the top strip's melds (px).
+ */
 function laneEdge(colLeft: number, rw: number): number {
-    return colLeft + sideLane(rw) - PLATE_GAP;
+    return colLeft + sideLane(rw) - COUNTERS_AIR_BY_RIVER * rw;
 }
 
 /**
@@ -2616,9 +2619,12 @@ const DORA_BY_RIVER_WANTED = 0.8;
 const DORA_BY_RIVER_LEAST = 0.6;
 const DORA_SLOTS = 5;
 
+/** The air a desktop's counters keep off the top strip's line over the left strip's lane, in river tiles. */
+const COUNTERS_AIR_BY_RIVER = 0.8;
+
 /** The counters' padding and corner, in dora tiles. */
 const COUNTERS_PAD_BY_DORA = 0.2;
-const COUNTERS_RADIUS_BY_DORA = 0.3;
+const COUNTERS_RADIUS_BY_DORA = 0.12;
 
 /** The counters at a dora tile: the indicators' rows on a padded card (px). */
 interface Counters {

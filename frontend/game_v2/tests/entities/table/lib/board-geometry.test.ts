@@ -569,8 +569,8 @@ function platesPlace(geometry: BoardGeometry): Record<string, boolean> {
 }
 
 /**
- * Whether a desktop's counters stand at the table's top-left corner, level with its top: ending at most a plate's gap
- * short of the left lane's inner edge above the left strip's line, or in the bar short of the strip, or on a barless
+ * Whether a desktop's counters stand at the table's top-left corner, level with its top: ending at least 0.8 river
+ * tiles short of the left lane's inner edge above the left strip's line, or in the bar short of the strip, or on a barless
  * board 12px short of the top strip above the left strip's line; their dora in one row, 0.6 to 0.8 river tiles.
  */
 function countersPlace(geometry: BoardGeometry): Record<string, boolean> {
@@ -587,7 +587,7 @@ function countersPlace(geometry: BoardGeometry): Record<string, boolean> {
             length("counters-top") === 0 &&
             length("counters-x") >= 6 &&
             (countersRight <= length("col-left") - 6 + 0.001 ||
-                (countersRight <= laneInner - 6 + 0.1 &&
+                (countersRight <= laneInner - 0.8 * length("rw") + 0.1 &&
                     countersBottom <= (stripLeft[1] ?? 0) - 6 + 0.1) ||
                 (geometry.arrangement !== "bars" &&
                     countersRight + 12 <= (stripTop[0] ?? 0) + 0.1 &&

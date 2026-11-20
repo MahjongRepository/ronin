@@ -426,11 +426,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   In a live game the badge takes no press, no pointer cursor and no text selection; a replay's badge is a control
   that views the table from its seat, its tap area meeting the control floor whatever the drawn badge's size, and a
   focused one shows the accent's outline. The name shows on every board, shortened rather than dropped.
-- **Dora indicators.** One card on the plates' colour: the five dora indicator slots edge to edge (each
+- **Dora indicators.** One opaque card on the centre's colour, a faint light rim and a small corner as the centre's: the five dora indicator slots edge to edge (each
   indicator as a face once the event that reveals it has arrived, the rest unreadable backs; indicators are not the
   bonus tiles). Off a phone the card stands at the
-  table's top-left corner, level with the top hand's top: over the left strip's lane, ending a plate's gap short of
-  its inner edge where the top strip's line begins, so it reads as the table's and not the window's, both side
+  table's top-left corner, level with the top hand's top: over the left strip's lane, ending 0.8 of a river tile short
+  of its inner edge where the top strip's line begins, so it never reads as one of the top seat's melds, both side
   strips' lines starting below it; in the bar beside the left strip only where its lines cannot start below it. A
   barless board, corner or pocket alike, keeps it at the table's top-left corner, the pocket's controls below it.
   Its dora are 0.8 river tiles, smaller where the room from the window's edge is short, never under 0.6, the five
