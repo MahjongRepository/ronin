@@ -604,8 +604,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   elsewhere (a phone, a narrow bar) the column is one joined bar with
   a square cell per switch showing its letter (A, C, D in English; each language picks its own) and
   a cell under them that shows each letter's name until pressed again, above them, off the own hand. The name is each chip's tooltip and its accessible name in every form.
-  Each switch shows on and off apart, not by colour alone: on, the turn cue's bar along its bottom
-  edge, as on a badge and the centre; off, no bar. The text stays centred either way. Each chip meets the control
+  Each switch shows on and off apart, not by colour alone: on, the turn cue's bar along its bottom edge, as on
+  a badge and the centre, and the label in full text ink; off, no bar and the label in secondary ink. The rim holds
+  3:1 on the bar. The text stays centred either way. Each chip meets the control
   floor; a switch is reached from the hand's focus like a decision control. Not on a replay board;
   the decisions stories show them, on and off.
   The own hand and core keep their sizes and places. A visible live board never hides the switches

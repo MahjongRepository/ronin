@@ -103,14 +103,20 @@ $radius: 6px;
     display: none;
 }
 
-/* On, the badges' and the centre's turn cue along the bottom edge, out of the flow so the text stays centred. */
-.play-switch--on .play-switch__lamp {
-    position: absolute;
-    inset-inline: 0;
-    bottom: 0;
-    display: block;
-    height: var(--cue-w);
-    background: var(--ronin-table-turn);
+.play-switches .play-switch--on {
+    &,
+    &:is(:hover, :active, :focus) {
+        color: var(--ronin-text);
+    }
+
+    .play-switch__lamp {
+        position: absolute;
+        inset-inline: 0;
+        bottom: 0;
+        display: block;
+        height: var(--cue-w);
+        background: var(--ronin-table-turn);
+    }
 }
 
 /* The label names the switch for assistive technology; the strip shows only its letter. */
