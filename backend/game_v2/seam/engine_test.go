@@ -50,14 +50,15 @@ func TestSeedFunctions_WhenGivenTheSeedOfAGame_ShouldDescribeItsStartAndSeating(
 
 func TestDealRound_WhenGivenTheSeedOfAGame_ShouldDealItsFirstRound(t *testing.T) {
 	seed := seedOf(t, "ab")
-	_, events := newGame(t, engine.Setup{Walls: play.Seeded{Seed: seed}})
+	g, dealt := newGame(t, engine.Setup{Walls: play.Seeded{Seed: seed}})
+	_, drew := begun(t, g)
 	dealer, _, _ := engine.FirstDealer(seed)
 
 	deal := engine.DealRound(seed, 0, dealer)
 
 	var hands [tile.SeatCount][]tile.TileID
 	var draws []play.Drew
-	for _, e := range events {
+	for _, e := range slices.Concat(dealt, drew) {
 		if started, ok := e.Event.(play.RoundStarted); ok {
 			hands[started.Seat.Index()] = started.Hand
 			assertEqual(t, "dora indicators", started.DoraIndicators, []tile.TileID{deal.DoraIndicator})
@@ -132,7 +133,7 @@ func TestDecision_ShouldCarryTheLegalActionsAndDefaultActionOfItsSeat(t *testing
 			}
 			s, ok := firstAwaited(g)
 			if !ok {
-				g, _ = dealNextRound(t, g)
+				g, _ = dealOrBegin(t, g)
 				continue
 			}
 			decision, _ := g.Decision(s)
@@ -149,7 +150,7 @@ func firstAwaited(g engine.Game) (tile.Seat, bool) {
 		return awaiting.Seat, true
 	case play.AwaitingCall:
 		return awaiting.Seats[0], true
-	case play.AwaitingRoundOver, play.AwaitingGameOver:
+	case play.AwaitingDealt, play.AwaitingRoundOver, play.AwaitingGameOver:
 	}
 	return tile.Seat{}, false
 }
@@ -184,8 +185,8 @@ func playTwins(t *testing.T, c twinCase, probe func(g engine.Game, events []play
 		}
 		s, ok := firstAwaited(twin)
 		if !ok {
-			probed, events = dealNextRound(t, probed)
-			twin, _ = dealNextRound(t, twin)
+			probed, events = dealOrBegin(t, probed)
+			twin, _ = dealOrBegin(t, twin)
 			continue
 		}
 		decision, _ := twin.Decision(s)

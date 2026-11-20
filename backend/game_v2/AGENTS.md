@@ -141,11 +141,12 @@ a contract.
 * A timer's firing is a step carrying the token it was armed with, and is dropped when the timer was
   cancelled or re-armed meanwhile: in Go a cancel races its callback. Every time comes from the
   `Clock` (`Config`), virtual in tests through `testing/synctest`.
-* The engine deals with the dealer's first draw. At the game's start the session holds that draw
-  and its turn timer back until every seat confirmed the start or its timeout confirmed for them,
-  so the start screen shows over the dealt table; the absent seats' seat control records go between
-  the deal and the draw, and a reconnect snapshot meanwhile shows the dealt hand with no decision.
-  Every bank resets on a call that deals.
+* The engine stops after a deal, awaiting `play.AwaitingDealt`, and `Begin` makes the dealer's
+  first draw. At the game's start the session calls `Begin` only once every seat confirmed the start
+  or its timeout confirmed for them, so the start screen shows over the dealt table; the absent
+  seats' seat control records go between the deal and the draw, and a reconnect snapshot meanwhile
+  is the engine's view of the dealt table, with no decision. A later round's deal and its draw go
+  out as one update. Every bank resets on a call that deals.
 * A reconnect either takes a seat back from its AI player (seat_control to the others; a turn the
   AI player had not played yet becomes the participant's new decision, timed from the reconnect)
   or replaces the participant's still-bound connection, closed with 4002, its wait, timers and
@@ -447,6 +448,8 @@ code under `engine/`:
   games mahjong-rs dumped (`seam/testdata/README.md`) through the facade and the ported driver, and
   every decision, action and event must match line for line. A change to a rule or to what the
   engine emits and when follows mahjong-rs and regenerates that set there, never the other way.
+  The sanctioned divergences keep that set passing unchanged: `Begin` makes the dealer's first draw
+  as its own call, where mahjong-rs draws with the deal.
 * A game's scenario tests play it through `engine/internal/testkit`, which stages walls and scripts
   actions. testkit is engine code under the coverage gate: it never imports `testing` and never
   asserts, returning values or errors, and it has its own tests. It imports `game`, so only external

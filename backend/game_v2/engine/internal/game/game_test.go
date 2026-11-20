@@ -42,7 +42,7 @@ func awaitedSeats(g game.Game) []tile.Seat {
 		return []tile.Seat{a.Seat}
 	case play.AwaitingCall:
 		return a.Seats
-	case play.AwaitingRoundOver, play.AwaitingGameOver:
+	case play.AwaitingDealt, play.AwaitingRoundOver, play.AwaitingGameOver:
 	}
 	return nil
 }
@@ -104,7 +104,7 @@ func endCauseAfterRound(t *testing.T, w testkit.StartWall, start play.Option[pla
 	return play.Some(assertGameOver(t, g, events).Cause)
 }
 
-func TestDealNextRound_ShouldDealTheNextFixedWallFromTheNewDealer(t *testing.T) {
+func TestDealNextRound_ShouldDealTheNextFixedWallFromTheNewDealerAndAwaitItsFirstDraw(t *testing.T) {
 	var hands [tile.SeatCount][]tile.TileID
 	for i := range hands {
 		hands[i] = copies(t, i, "123456789m1234p")
@@ -122,13 +122,38 @@ func TestDealNextRound_ShouldDealTheNextFixedWallFromTheNewDealer(t *testing.T) 
 		RoundNumber: 1, Wind: tile.East, RoundInWind: 2, Dealer: seat(t, 1), Honba: 1,
 		Dice: evenDice(),
 	}
+	assertEqual(t, "events", len(events), tile.SeatCount)
 	for i, s := range tile.Seats() {
 		started, _ := events[i].Event.(play.RoundStarted)
 		assertEqual(t, "dealt", [3]any{started.Seat, started.Header, started.Hand}, [3]any{s, header, hands[i]})
 	}
 	assertEqual(t, "phase", g.Phase(), play.PhasePlaying)
 	assertEqual(t, "header", g.Header(), header)
-	assertEqual[play.Event](t, "draw", events[4].Event, play.Drew{Seat: seat(t, 1), Tile: dealerDraw})
+	assertEqual(t, "awaiting", g.Awaiting(), play.Awaiting(play.AwaitingDealt{}))
+	for _, s := range tile.Seats() {
+		if _, awaited := g.Decision(s); awaited {
+			t.Errorf("seat %d has a decision before the first draw", s.Index())
+		}
+	}
+	dealt, answered, refused := g.Act(seat(t, 2), play.PassAction())
+	assertEqual(t, "call answer refusal", refused, play.Some(refusal(play.RefusalNotAwaited, play.CodeWrongPhase)))
+	assertEqual(t, "call answer events", answered, []play.Emitted(nil))
+	assertSameGame(t, dealt, g)
+
+	_, drew, refused := g.Begin()
+
+	assertEqual(t, "begin refusal", refused, play.Option[play.Refusal]{})
+	assertEqual[play.Event](t, "draw", drew[0].Event, play.Drew{Seat: seat(t, 1), Tile: dealerDraw})
+}
+
+func TestBegin_WhenTheGameDoesNotAwaitTheDeal_ShouldRefuseItAsNotAwaited(t *testing.T) {
+	g := begun(t, stagedWall(t), noStart())
+
+	next, events, refused := g.Begin()
+
+	assertEqual(t, "refusal", refused, play.Some(refusal(play.RefusalNotAwaited, play.CodeWrongPhase)))
+	assertEqual(t, "events", events, []play.Emitted(nil))
+	assertSameGame(t, next, g)
 }
 
 func TestNew_WhenALaterFixedWallRepeatsATile_ShouldRefuseTheSetup(t *testing.T) {

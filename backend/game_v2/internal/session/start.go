@@ -194,13 +194,6 @@ func (g *game) recordStart() {
 }
 
 func (g *game) openFirstWait(events []play.Emitted) error {
-	head, held := messaging.SplitAtFirstDraw(events)
-	g.holdingDraw, g.held = true, held
-	for _, e := range head {
-		if dealt, ok := e.Event.(play.RoundStarted); ok {
-			g.dealt[dealt.Seat.Index()] = dealt
-		}
-	}
 	if g.timing.GameStartConfirm > 0 {
 		opened := pause{startsGame: true, resultsShown: 1}
 		for _, p := range g.connected() {
@@ -209,7 +202,7 @@ func (g *game) openFirstWait(events []play.Emitted) error {
 		g.pause = &opened
 	}
 
-	err := g.applyUpdate(head, play.Option[tile.Seat]{})
+	err := g.applyUpdate(events, play.Option[tile.Seat]{})
 	if err != nil {
 		return err
 	}
@@ -223,15 +216,18 @@ func (g *game) openFirstWait(events []play.Emitted) error {
 	}
 
 	if g.pause == nil {
-		return g.beginRound(play.Option[tile.Seat]{})
+		return g.begin(play.Option[tile.Seat]{})
 	}
 	return nil
 }
 
-func (g *game) beginRound(actor play.Option[tile.Seat]) error {
-	held := g.held
-	g.holdingDraw, g.held = false, nil
-	return g.followEngine(held, actor)
+func (g *game) begin(actor play.Option[tile.Seat]) error {
+	next, events, refusal := g.engine.Begin()
+	if refusal.OK {
+		return errRefusedBegin
+	}
+	g.engine = next
+	return g.followEngine(events, actor)
 }
 
 // SeatPlayers seats a game's players, given by name in input order, as the session seats them: by

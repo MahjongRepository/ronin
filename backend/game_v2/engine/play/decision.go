@@ -56,13 +56,16 @@ type Decision struct {
 	Default Action
 }
 
-// Awaiting is what the game waits for: AwaitingTurn, AwaitingCall, AwaitingRoundOver or
-// AwaitingGameOver.
+// Awaiting is what the game waits for: AwaitingDealt, AwaitingTurn, AwaitingCall,
+// AwaitingRoundOver or AwaitingGameOver.
 //
 //sumtype:decl
 type Awaiting interface {
 	isAwaiting()
 }
+
+// AwaitingDealt waits for the dealer's first draw of a round just dealt.
+type AwaitingDealt struct{}
 
 // AwaitingTurn waits for the turn of Seat.
 type AwaitingTurn struct {
@@ -80,6 +83,7 @@ type AwaitingRoundOver struct{}
 // AwaitingGameOver waits for nothing more.
 type AwaitingGameOver struct{}
 
+func (AwaitingDealt) isAwaiting()     {}
 func (AwaitingTurn) isAwaiting()      {}
 func (AwaitingCall) isAwaiting()      {}
 func (AwaitingRoundOver) isAwaiting() {}

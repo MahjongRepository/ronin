@@ -56,6 +56,9 @@ func TestDefaultAction_WhenPlayedByEveryAwaitedSeatThroughASeededRound_ShouldBeA
 	for {
 		var seats []tile.Seat
 		switch awaiting := g.Awaiting().(type) {
+		case play.AwaitingDealt:
+			g, _ = begun(t, g)
+			continue
 		case play.AwaitingTurn:
 			seats = []tile.Seat{awaiting.Seat}
 		case play.AwaitingCall:
@@ -172,7 +175,8 @@ func (unheldDiscarder) decide(decision play.Decision) (play.Action, error) {
 func TestPlayRound_WhenTheEngineRefusesAnAgentsAction_ShouldStopWithoutFallingBackToTheDefault(t *testing.T) {
 	g, initial := newGame(t, seededSetup(t, "ab"))
 	expected, _ := newGame(t, seededSetup(t, "ab"))
-	dealer := turnSeat(t, g)
+	expected, _ = begun(t, expected)
+	dealer := turnSeat(t, expected)
 
 	err := playRound(&g, initial, agents{unheldDiscarder{}, unheldDiscarder{}, unheldDiscarder{}, unheldDiscarder{}}, noSink{})
 
@@ -235,8 +239,8 @@ func TestDeliverEvents_WhenAnAgentFailsMidBatch_ShouldStillHaveRecordedTheWholeB
 	assertEqual[error](t, "error", err, agentFailedError{seat: seat(t, 1), err: errObserveFailed})
 	last := initial[len(initial)-1]
 	to, single := last.To.Seat()
-	if _, notice := last.Event.(play.DrewNotice); !notice || !single || to != seat(t, 3) {
-		t.Errorf("last initial event = %#v, want seat 3's draw notice", last)
+	if _, dealt := last.Event.(play.RoundStarted); !dealt || !single || to != seat(t, 3) {
+		t.Errorf("last initial event = %#v, want seat 3's deal", last)
 	}
 	assertEqual(t, "recorded", sink.events, initial)
 }

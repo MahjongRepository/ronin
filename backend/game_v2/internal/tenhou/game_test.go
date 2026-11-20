@@ -27,6 +27,8 @@ func defaultActionGame(t *testing.T, seed engine.Seed) []replay.Step {
 			return steps
 		case play.AwaitingRoundOver:
 			g, events, refusal = g.DealNextRound()
+		case play.AwaitingDealt:
+			g, events, refusal = g.Begin()
 		case play.AwaitingTurn:
 			g, events, refusal = actDefault(t, g, awaiting.Seat)
 		case play.AwaitingCall:

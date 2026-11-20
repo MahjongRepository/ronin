@@ -114,16 +114,18 @@ func TestSeededWall_ShouldDealTheRoundTheSeedDealsForThatDealer(t *testing.T) {
 	start := play.Some(play.StartPosition{
 		Scores: [tile.SeatCount]int{25000, 25000, 25000, 25000}, Dealer: tile.Seats()[2], RoundNumber: 3,
 	})
-	_, seeded, seededErr := engine.NewGame(engine.Setup{Walls: play.Seeded{Seed: stagedSeed()}, Start: start})
-	_, fixed, fixedErr := engine.NewGame(engine.Setup{
+	seededGame, seeded, seededErr := engine.NewGame(engine.Setup{Walls: play.Seeded{Seed: stagedSeed()}, Start: start})
+	fixedGame, fixed, fixedErr := engine.NewGame(engine.Setup{
 		Walls: play.Fixed{Walls: [][tile.TileIDCount]tile.TileID{seededWall(stagedSeed(), 3, tile.Seats()[2])}},
 		Start: start,
 	})
 	if seededErr != nil || fixedErr != nil {
 		t.Fatalf("NewGame errors = %v, %v", seededErr, fixedErr)
 	}
+	_, seededDraw, _ := seededGame.Begin()
+	_, fixedDraw, _ := fixedGame.Begin()
 
-	if diff := cmp.Diff(dealtTiles(seeded), dealtTiles(fixed)); diff != "" {
+	if diff := cmp.Diff(dealtTiles(append(seeded, seededDraw...)), dealtTiles(append(fixed, fixedDraw...))); diff != "" {
 		t.Errorf("seeded wall deals unlike the seed (-seed +wall):\n%s", diff)
 	}
 }

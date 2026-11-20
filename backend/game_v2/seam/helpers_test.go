@@ -179,6 +179,23 @@ func dealNextRound(t *testing.T, g engine.Game) (engine.Game, []play.Emitted) {
 	return next, events
 }
 
+func begun(t *testing.T, g engine.Game) (engine.Game, []play.Emitted) {
+	t.Helper()
+	next, events, refusal := g.Begin()
+	if refusal.OK {
+		t.Fatalf("Begin refused: %v", refusal.Value)
+	}
+	return next, events
+}
+
+func dealOrBegin(t *testing.T, g engine.Game) (engine.Game, []play.Emitted) {
+	t.Helper()
+	if _, dealt := g.Awaiting().(play.AwaitingDealt); dealt {
+		return begun(t, g)
+	}
+	return dealNextRound(t, g)
+}
+
 func turnSeat(t *testing.T, g engine.Game) tile.Seat {
 	t.Helper()
 	turn, ok := g.Awaiting().(play.AwaitingTurn)
@@ -204,6 +221,7 @@ func discardDrawn(t *testing.T, g engine.Game, turns int) engine.Game {
 func threePinWithTwoRonCallers(t *testing.T) engine.Game {
 	t.Helper()
 	g, _ := newGame(t, fixedSetup(t, threePinWall(t)))
+	g, _ = begun(t, g)
 	return discardDrawn(t, g, 3)
 }
 

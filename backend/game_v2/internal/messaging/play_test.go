@@ -238,6 +238,8 @@ func playShapedGame(t *testing.T, n int, results map[string]int, openings map[wi
 			g, events, refusal = s.game.Act(awaiting.Seats[0], chooseAction(d, nil, step))
 		case play.AwaitingRoundOver:
 			g, events, refusal = s.game.DealNextRound()
+		case play.AwaitingDealt:
+			g, events, refusal = s.game.Begin()
 		case play.AwaitingGameOver:
 			if _, err := wire.EncodeReplay(s.replay.records); err != nil {
 				t.Fatalf("game %d: EncodeReplay error = %v", n, err)

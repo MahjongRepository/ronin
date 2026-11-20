@@ -1,8 +1,6 @@
 package session
 
 import (
-	"slices"
-
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
@@ -150,12 +148,12 @@ func (g *game) resync(conn Connection) error {
 }
 
 func (g *game) sendSeatState(p *participant, conn Connection) error {
-	record, decision := g.seatView(p.seat)
+	view := g.engine.View(p.seat)
 	var standIns [tile.SeatCount]play.Option[wire.SeatControlReason]
 	for _, other := range g.participants {
 		standIns[other.seat.Index()] = other.standIn
 	}
-	snapshot, err := messaging.ReconnectionPayload(record, g.roster, standIns)
+	snapshot, err := messaging.ReconnectionPayload(view.Record, g.roster, standIns)
 	if err != nil {
 		return err
 	}
@@ -164,10 +162,10 @@ func (g *game) sendSeatState(p *participant, conn Connection) error {
 	if err != nil {
 		return err
 	}
-	if !decision.OK {
+	if !view.Decision.OK {
 		return nil
 	}
-	opening := messaging.BuildOpening(decision.Value)
+	opening := messaging.BuildOpening(view.Decision.Value)
 	return send(conn, messaging.StampOpening(opening.Payload, p.decisionID, seconds(p.timer.bank), p.timer.elapsed()))
 }
 
@@ -180,19 +178,4 @@ func (g *game) pausePart(p *participant) play.Option[messaging.Pause] {
 		part.Timer = play.Some(messaging.PauseTimer{Elapsed: elapsed.Value, Timeout: seconds(g.pauseTimeout())})
 	}
 	return play.Some(part)
-}
-
-func (g *game) seatView(seat tile.Seat) (play.SeatRecord, play.Option[play.Decision]) {
-	view := g.engine.View(seat)
-	if !g.holdingDraw {
-		return view.Record, view.Decision
-	}
-
-	dealt, record := g.dealt[seat.Index()], view.Record
-	record.Hand, record.Drawn = slices.Clone(dealt.Hand), play.Option[tile.TileID]{}
-	record.LiveTiles, record.Furiten = dealt.LiveTiles, false
-	for i := range record.Players {
-		record.Players[i].ClosedTiles = len(dealt.Hand)
-	}
-	return record, play.Option[play.Decision]{}
 }

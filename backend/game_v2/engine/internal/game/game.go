@@ -61,12 +61,13 @@ type Game struct {
 	walls           walls
 	next            play.Option[position]
 	standings       play.Option[play.Standings]
+	drawPending     bool
 }
 
-// New sets a game up from its walls and an optional start position, deals its first round and
-// makes the dealer's first draw. It returns the game in play.PhasePlaying and its first events:
-// GameStarted, one RoundStarted per seat, then the dealer's draw. A Fixed source deals seat 0
-// first with every throw (1, 1).
+// New sets a game up from its walls and an optional start position and deals its first round. It
+// returns the game in play.PhasePlaying, awaiting play.AwaitingDealt, and its first events:
+// GameStarted, then one RoundStarted per seat; Begin makes the dealer's first draw. A Fixed source
+// deals seat 0 first with every throw (1, 1).
 //
 // The errors, checked in this order: the start position's StartInNorthError,
 // StartScoreOffHundredsError, StartScoreBelowTobiError, NegativeStartCountError and
@@ -118,8 +119,7 @@ func New(source play.WallSource, start play.Option[play.StartPosition]) (Game, [
 	g.points = round.NewPoints(at.Scores, at.RiichiSticks)
 	g.deal(p, w)
 	events := []play.Emitted{toAll(play.GameStarted{FirstDealer: g.firstDealer, Dice: g.firstDealerDice})}
-	events = append(events, g.roundStartedEvents()...)
-	return g, append(events, g.round.Begin()...), nil
+	return g, append(events, g.roundStartedEvents()...), nil
 }
 
 func checkStart(start play.StartPosition) error {
@@ -182,6 +182,7 @@ func (g *Game) deal(p position, w wall.Wall) {
 	g.round = round.Deal(w, p.dealer, p.wind)
 	g.next = play.Option[position]{}
 	g.phase = play.PhasePlaying
+	g.drawPending = true
 }
 
 func (g *Game) roundStartedEvents() []play.Emitted {
@@ -200,10 +201,10 @@ func (g *Game) roundStartedEvents() []play.Emitted {
 	return events
 }
 
-// DealNextRound deals the round that follows the one just over and makes its dealer's first draw:
-// play.PhasePlaying, one RoundStarted per seat, then the dealer's draw. Once every fixed wall has
-// been dealt it ends the game instead with play.EndFixedWallsDealt: play.PhaseGameOver and a
-// GameEnded. Outside play.PhaseRoundOver it is refused as not awaited.
+// DealNextRound deals the round that follows the one just over: play.PhasePlaying, awaiting
+// play.AwaitingDealt, and one RoundStarted per seat; Begin makes its dealer's first draw. Once
+// every fixed wall has been dealt it ends the game instead with play.EndFixedWallsDealt:
+// play.PhaseGameOver and a GameEnded. Outside play.PhaseRoundOver it is refused as not awaited.
 func (g Game) DealNextRound() (Game, []play.Emitted, play.Option[play.Refusal]) {
 	if !g.next.OK {
 		return g, nil, notAwaited(play.CodeWrongPhase)
@@ -216,8 +217,19 @@ func (g Game) DealNextRound() (Game, []play.Emitted, play.Option[play.Refusal]) 
 	}
 
 	next.deal(g.next.Value, w)
-	events := next.roundStartedEvents()
-	return next, append(events, next.round.Begin()...), play.Option[play.Refusal]{}
+	return next, next.roundStartedEvents(), play.Option[play.Refusal]{}
+}
+
+// Begin makes the dealer's first draw of the round just dealt and returns its events. Unless the
+// game awaits play.AwaitingDealt it is refused as not awaited.
+func (g Game) Begin() (Game, []play.Emitted, play.Option[play.Refusal]) {
+	if !g.drawPending {
+		return g, nil, notAwaited(play.CodeWrongPhase)
+	}
+
+	next := g
+	next.drawPending = false
+	return next, next.round.Begin(), play.Option[play.Refusal]{}
 }
 
 // Awaiting returns what the game waits for now.
@@ -228,6 +240,9 @@ func (g Game) Awaiting() play.Awaiting {
 	case play.PhaseGameOver:
 		return play.AwaitingGameOver{}
 	case play.PhasePlaying:
+	}
+	if g.drawPending {
+		return play.AwaitingDealt{}
 	}
 
 	if prompt := g.round.Prompt(); prompt.OK {
@@ -328,12 +343,13 @@ func isCallAnswer(action play.Action) bool {
 
 // Act applies one answer of seat and returns the game after it and the events it caused, each
 // furiten change it brought last. A refusal returns the receiver unchanged and no events: not
-// awaited outside a round in play, from a seat not awaited, for a turn action while a call prompt
-// is open and for a call answer outside one; not offered for a tile the seat does not hold or an
-// action it was not offered, a kan among them; rule for a riichi discard that breaks tenpai, a
-// discard in riichi other than the drawn tile and a discard kuikae forbids.
+// awaited outside a round in play or before its dealer's first draw, from a seat not awaited, for
+// a turn action while a call prompt is open and for a call answer outside one; not offered for a
+// tile the seat does not hold or an action it was not offered, a kan among them; rule for a riichi
+// discard that breaks tenpai, a discard in riichi other than the drawn tile and a discard kuikae
+// forbids.
 func (g Game) Act(seat tile.Seat, action play.Action) (Game, []play.Emitted, play.Option[play.Refusal]) {
-	if g.phase != play.PhasePlaying {
+	if g.phase != play.PhasePlaying || g.drawPending {
 		return g, nil, notAwaited(play.CodeWrongPhase)
 	}
 	if !isCallAnswer(action) && !g.isTurnOf(seat) {

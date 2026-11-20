@@ -100,9 +100,6 @@ type game struct {
 	wait         wait
 	hasWait      bool
 	pause        *pause
-	holdingDraw  bool
-	held         []play.Emitted
-	dealt        [tile.SeatCount]play.RoundStarted
 	start        store.GameStart
 	startWritten chan struct{}
 	replay       *messaging.ReplayLog

@@ -237,6 +237,7 @@ func BegunGame(w StartWall, start play.Option[play.StartPosition]) (game.Game, e
 	}
 
 	g, _, err := game.New(source, start)
+	g, _, _ = g.Begin()
 	return g, err
 }
 
@@ -344,7 +345,7 @@ func awaitedSeats(awaiting play.Awaiting) []tile.Seat {
 		return []tile.Seat{a.Seat}
 	case play.AwaitingCall:
 		return a.Seats
-	case play.AwaitingRoundOver, play.AwaitingGameOver:
+	case play.AwaitingDealt, play.AwaitingRoundOver, play.AwaitingGameOver:
 	}
 	return nil
 }

@@ -165,11 +165,12 @@ func fixedWall(t *testing.T, hands [tile.SeatCount][]tile.TileID, draws []tile.T
 
 func newFixedGame(t *testing.T, walls ...[tile.TileIDCount]tile.TileID) (engine.Game, []play.Emitted) {
 	t.Helper()
-	g, events, err := engine.NewGame(engine.Setup{Walls: play.Fixed{Walls: walls}})
+	g, dealt, err := engine.NewGame(engine.Setup{Walls: play.Fixed{Walls: walls}})
 	if err != nil {
 		t.Fatalf("NewGame error = %v", err)
 	}
-	return g, events
+	g, drew, _ := g.Begin()
+	return g, append(dealt, drew...)
 }
 
 func act(t *testing.T, g engine.Game, s tile.Seat, a play.Action) (engine.Game, []play.Emitted) {
@@ -191,7 +192,7 @@ func playDefaultsUntilRoundOver(t *testing.T, g engine.Game) engine.Game {
 		case play.AwaitingCall:
 			d, _ := g.Decision(awaiting.Seats[0])
 			g, _ = act(t, g, awaiting.Seats[0], d.Default)
-		case play.AwaitingRoundOver, play.AwaitingGameOver:
+		case play.AwaitingDealt, play.AwaitingRoundOver, play.AwaitingGameOver:
 			return g
 		}
 	}

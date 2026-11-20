@@ -11,8 +11,8 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-// Step is one engine call of a run: the game's start, a deal or a seat's action; the events it
-// emitted; and the game after it.
+// Step is one step of a run: the game's start or a deal, each with the dealer's first draw that
+// follows it, or a seat's action; the events it emitted; and the game after it.
 type Step struct {
 	Events []play.Emitted
 	Game   engine.Game
@@ -43,7 +43,7 @@ func (e ActionAfterGameEndError) Error() string {
 var errDealRefused = errors.New("the engine refused the next round's deal")
 
 // Run starts a game from setup and plays actions in order, one engine call each, and returns every
-// call: the game's start first. Before each action it deals the next round when the last one is
+// step: the game's start first. Before each action it deals the next round when the last one is
 // over, and it passes for every seat an open call prompt still waits on, in seat order, but the
 // action's own seat when the action answers the prompt, and after a ron the seats of the rons that
 // directly follow it, which answer the same prompt. Once every action is played it passes for the
@@ -56,6 +56,7 @@ func Run(setup engine.Setup, actions []SeatAction) ([]Step, error) {
 	if err != nil {
 		return nil, fmt.Errorf("start the replayed game: %w", err)
 	}
+	g, events = begun(g, events)
 
 	r := runner{game: g, steps: []Step{{Events: events, Game: g}}}
 	for i, action := range actions {
@@ -180,9 +181,18 @@ func (r *runner) deal() error {
 	if refusal.OK {
 		return errDealRefused
 	}
+	g, events = begun(g, events)
 	r.game = g
 	r.steps = append(r.steps, Step{Events: events, Game: g})
 	return nil
+}
+
+func begun(g engine.Game, events []play.Emitted) (engine.Game, []play.Emitted) {
+	if _, dealt := g.Awaiting().(play.AwaitingDealt); !dealt {
+		return g, events
+	}
+	next, drew, _ := g.Begin()
+	return next, append(events, drew...)
 }
 
 func (r *runner) isOver() bool {

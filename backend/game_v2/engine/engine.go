@@ -40,10 +40,10 @@ type Game struct {
 	game game.Game
 }
 
-// NewGame sets a game up, deals its first round and makes the dealer's first draw. It returns the
-// game and its first events: GameStarted, one RoundStarted per seat, then the dealer's draw. A
-// play.Fixed source deals seat 0 first with every throw (1, 1) and ends the game with
-// play.EndFixedWallsDealt once its walls run out.
+// NewGame sets a game up and deals its first round. It returns the game, awaiting
+// play.AwaitingDealt, and its first events: GameStarted, then one RoundStarted per seat; Begin
+// makes the dealer's first draw. A play.Fixed source deals seat 0 first with every throw (1, 1)
+// and ends the game with play.EndFixedWallsDealt once its walls run out.
 //
 // The errors, checked in this order: the start position's StartInNorthError,
 // StartScoreOffHundredsError, StartScoreBelowTobiError, NegativeStartCountError and
@@ -58,22 +58,29 @@ func NewGame(setup Setup) (Game, []play.Emitted, error) {
 }
 
 // Act applies one answer of seat and returns the game after it and the events it caused. A
-// refusal returns the receiver unchanged and no events: not awaited outside a round in play, from
-// a seat not awaited, for a turn action while a call prompt is open and for a call answer outside
-// one; not offered for a tile the seat does not hold or an action it was not offered; rule for a
-// riichi discard that breaks tenpai, a discard in riichi other than the drawn tile and a discard
-// kuikae forbids.
+// refusal returns the receiver unchanged and no events: not awaited outside a round in play or
+// while it awaits play.AwaitingDealt, from a seat not awaited, for a turn action while a call
+// prompt is open and for a call answer outside one; not offered for a tile the seat does not hold
+// or an action it was not offered; rule for a riichi discard that breaks tenpai, a discard in
+// riichi other than the drawn tile and a discard kuikae forbids.
 func (g Game) Act(seat tile.Seat, action play.Action) (Game, []play.Emitted, play.Option[play.Refusal]) {
 	next, events, refusal := g.game.Act(seat, action)
 	return Game{game: next}, cloneEvents(events), refusal
 }
 
-// DealNextRound deals the round that follows the one just over and makes its dealer's first draw:
-// one RoundStarted per seat, then the dealer's draw. Once every fixed wall has been dealt it ends
-// the game instead with play.EndFixedWallsDealt and a GameEnded. Refused as not awaited unless the
-// game awaits play.AwaitingRoundOver.
+// DealNextRound deals the round that follows the one just over: one RoundStarted per seat, the
+// game then awaiting play.AwaitingDealt until Begin makes its dealer's first draw. Once every fixed
+// wall has been dealt it ends the game instead with play.EndFixedWallsDealt and a GameEnded.
+// Refused as not awaited unless the game awaits play.AwaitingRoundOver.
 func (g Game) DealNextRound() (Game, []play.Emitted, play.Option[play.Refusal]) {
 	next, events, refusal := g.game.DealNextRound()
+	return Game{game: next}, cloneEvents(events), refusal
+}
+
+// Begin makes the dealer's first draw of the round just dealt and returns its events. Refused as
+// not awaited unless the game awaits play.AwaitingDealt.
+func (g Game) Begin() (Game, []play.Emitted, play.Option[play.Refusal]) {
+	next, events, refusal := g.game.Begin()
 	return Game{game: next}, cloneEvents(events), refusal
 }
 
@@ -83,8 +90,9 @@ func (g Game) Decision(seat tile.Seat) (play.Decision, bool) {
 	return g.game.Decision(seat)
 }
 
-// Awaiting returns what the game waits for now: a seat's turn, the answers of the seats a call
-// prompt still waits on, in seat order, the next round's deal, or nothing once the game is over.
+// Awaiting returns what the game waits for now: the dealer's first draw of a round just dealt, a
+// seat's turn, the answers of the seats a call prompt still waits on, in seat order, the next
+// round's deal, or nothing once the game is over.
 func (g Game) Awaiting() play.Awaiting {
 	return g.game.Awaiting()
 }

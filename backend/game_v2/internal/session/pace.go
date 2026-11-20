@@ -167,11 +167,19 @@ func (g *game) confirmPause(seat tile.Seat) error {
 	ended := *g.pause
 	g.pause = nil
 	if ended.startsGame {
-		return g.beginRound(play.Some(seat))
+		return g.begin(play.Some(seat))
 	}
 	next, events, refusal := g.engine.DealNextRound()
 	if refusal.OK {
 		return errRefusedDeal
+	}
+	if _, dealt := next.Awaiting().(play.AwaitingDealt); dealt {
+		var drew []play.Emitted
+		next, drew, refusal = next.Begin()
+		if refusal.OK {
+			return errRefusedBegin
+		}
+		events = append(events, drew...)
 	}
 	g.engine = next
 	return g.followEngine(events, play.Some(seat))

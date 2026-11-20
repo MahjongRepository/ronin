@@ -225,7 +225,7 @@ func TestNew_WhenTheStartHasSticksPaidFromTheScoresAndASeatAtZero_ShouldTakeIt(t
 	}
 }
 
-func TestNew_ShouldDrawForTheDealerAndNotifyTheOthers(t *testing.T) {
+func TestBegin_ShouldDrawForTheDealerAndNotifyTheOthers(t *testing.T) {
 	g, events := newGame(t, fixed(wallTiles(t, stagedWall(t), seat(t, 0))), noStart())
 
 	notice := func(to int) play.Emitted {

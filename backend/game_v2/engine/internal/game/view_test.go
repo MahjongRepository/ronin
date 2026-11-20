@@ -203,10 +203,7 @@ func TestSeatViewHistory_ShouldHoldEveryFinishedRoundWithItsHeader(t *testing.T)
 	first := g.Header()
 	g, _ = script(t, g, act(seat(t, 0), play.KyuushuAction()))
 	aborted := play.Abortive{Kind: play.KyuushuKyuuhai{Seat: seat(t, 0), Hand: g.Hand(seat(t, 0))}}
-	g, _, refusal := g.DealNextRound()
-	if refusal.OK {
-		t.Fatalf("DealNextRound refused: %+v", refusal.Value)
-	}
+	g = dealNextRound(t, g)
 
 	dealt := g.SeatView(seat(t, 2))
 	assertEqual(t, "phase", dealt.Record.Phase, play.PhasePlaying)

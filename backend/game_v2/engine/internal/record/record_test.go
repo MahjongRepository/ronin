@@ -81,6 +81,10 @@ func TestFromStart_WhenTheDealerAbortsOnKyuushu_ShouldFollowItsAbort(t *testing.
 		t.Fatal("FromStart found no start")
 	}
 	assertEqual(t, "record from the start", r, g.SeatView(seat(t, 2)).Record)
+	g, drew, _ := g.Begin()
+	for _, e := range drew {
+		r = record.Apply(r, e)
+	}
 
 	g, r = followed(t, g, r, act(seat(t, 0), play.KyuushuAction()))
 

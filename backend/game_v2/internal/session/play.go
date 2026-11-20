@@ -29,6 +29,8 @@ type wait struct {
 
 func waitOf(awaiting play.Awaiting) wait {
 	switch a := awaiting.(type) {
+	case play.AwaitingDealt:
+		return wait{kind: waitDealt}
 	case play.AwaitingTurn:
 		return wait{kind: waitTurn, seats: []tile.Seat{a.Seat}}
 	case play.AwaitingCall:
@@ -64,14 +66,8 @@ var (
 	errGameOverNoEnd  = errors.New("the game is over with no game end")
 	errNoEngineAction = errors.New("a game action carries no engine action")
 	errRefusedDeal    = errors.New("the engine refused to deal the next round")
+	errRefusedBegin   = errors.New("the engine refused the dealer's first draw")
 )
-
-func (g *game) engineWait() wait {
-	if g.holdingDraw {
-		return wait{kind: waitDealt}
-	}
-	return waitOf(g.engine.Awaiting())
-}
 
 func (g *game) requireAct(seat tile.Seat, action play.Action) ([]play.Emitted, error) {
 	next, events, refusal := g.engine.Act(seat, action)
@@ -91,7 +87,7 @@ func (g *game) followEngine(events []play.Emitted, actor play.Option[tile.Seat])
 }
 
 func (g *game) applyUpdate(events []play.Emitted, actor play.Option[tile.Seat]) error {
-	awaiting := g.engineWait()
+	awaiting := waitOf(g.engine.Awaiting())
 	previous, had := g.wait, g.hasWait
 	g.wait, g.hasWait = awaiting, true
 	opened := !had || opensNewWait(previous, awaiting, actor)

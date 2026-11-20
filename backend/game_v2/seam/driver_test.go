@@ -185,6 +185,14 @@ func playUntil(g *engine.Game, seated agents, sink eventSink, maxSteps int, end 
 				return err
 			}
 			continue
+		case play.AwaitingDealt:
+			if err := begin(g, seated, sink); err != nil {
+				return err
+			}
+			if err := delivered(step); err != nil {
+				return err
+			}
+			continue
 		case play.AwaitingTurn:
 			seats = []tile.Seat{awaiting.Seat}
 		case play.AwaitingCall:
@@ -215,7 +223,7 @@ func playUntil(g *engine.Game, seated agents, sink eventSink, maxSteps int, end 
 		if end == untilRoundOver {
 			return nil
 		}
-	case play.AwaitingTurn, play.AwaitingCall:
+	case play.AwaitingDealt, play.AwaitingTurn, play.AwaitingCall:
 	}
 	return stepLimitError{}
 }
@@ -224,6 +232,15 @@ func dealNext(g *engine.Game, seated agents, sink eventSink) error {
 	next, events, refusal := g.DealNextRound()
 	if refusal.OK {
 		return engineBrokeError{reason: "a game awaiting its next round refused to deal it"}
+	}
+	*g = next
+	return deliverEvents(events, seated, sink)
+}
+
+func begin(g *engine.Game, seated agents, sink eventSink) error {
+	next, events, refusal := g.Begin()
+	if refusal.OK {
+		return engineBrokeError{reason: "a dealt game refused its dealer's first draw"}
 	}
 	*g = next
 	return deliverEvents(events, seated, sink)

@@ -190,6 +190,18 @@ func playTracedGame(t *testing.T, traced tracedGame) []replay.Step {
 	if err != nil {
 		t.Fatalf("NewGame error = %v", err)
 	}
+	begin := func(dealt []play.Emitted) []play.Emitted {
+		if _, awaitsDraw := g.Awaiting().(play.AwaitingDealt); !awaitsDraw {
+			return dealt
+		}
+		next, drew, refusal := g.Begin()
+		if refusal.OK {
+			t.Fatalf("Begin refused: %+v", refusal.Value)
+		}
+		g = next
+		return append(dealt, drew...)
+	}
+	events = begin(events)
 	steps := []replay.Step{{Events: events, Game: g}}
 	deal := func() {
 		if _, over := g.Awaiting().(play.AwaitingRoundOver); !over {
@@ -200,6 +212,7 @@ func playTracedGame(t *testing.T, traced tracedGame) []replay.Step {
 			t.Fatalf("DealNextRound refused: %+v", refusal.Value)
 		}
 		g = next
+		dealt = begin(dealt)
 		steps = append(steps, replay.Step{Events: dealt, Game: g})
 	}
 

@@ -317,6 +317,14 @@ func (f *follower) play(t *testing.T) {
 			f.game = next
 			f.follow(t, batch)
 			continue
+		case play.AwaitingDealt:
+			next, batch, refusal := f.game.Begin()
+			if refusal.OK {
+				t.Fatalf("game %d: Begin refused: %+v", f.gameNumber, refusal.Value)
+			}
+			f.game = next
+			f.follow(t, batch)
+			continue
 		case play.AwaitingTurn:
 			seats = []tile.Seat{awaiting.Seat}
 		case play.AwaitingCall:

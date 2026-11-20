@@ -102,11 +102,25 @@ func fixed(walls ...[tile.TileIDCount]tile.TileID) play.WallSource {
 
 func newGame(t *testing.T, source play.WallSource, start play.Option[play.StartPosition]) (game.Game, []play.Emitted) {
 	t.Helper()
-	g, events, err := game.New(source, start)
+	g, dealt, err := game.New(source, start)
 	if err != nil {
 		t.Fatalf("New error = %v", err)
 	}
-	return g, events
+	g, drew, _ := g.Begin()
+	return g, append(dealt, drew...)
+}
+
+func dealNextRound(t *testing.T, g game.Game) game.Game {
+	t.Helper()
+	g, _, refused := g.DealNextRound()
+	if refused.OK {
+		t.Fatalf("DealNextRound refusal = %+v", refused.Value)
+	}
+	g, _, refused = g.Begin()
+	if refused.OK {
+		t.Fatalf("Begin refusal = %+v", refused.Value)
+	}
+	return g
 }
 
 func begun(t *testing.T, w testkit.StartWall, start play.Option[play.StartPosition]) game.Game {

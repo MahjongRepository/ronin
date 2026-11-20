@@ -54,17 +54,32 @@ func newScriptedGame(
 	}
 	g.game = started
 
-	head, held := messaging.SplitAtFirstDraw(events)
-	g.collect(head)
+	g.collect(events)
 	for _, seat := range absent {
 		g.ai[seat.Index()] = true
 		g.log.AddSeatControl(seat, play.Some(wire.SeatControlAbsent))
 	}
 	g.endCall()
-	g.collect(held)
+	g.begin()
 	g.playAIPlayers()
 	g.endCall()
 	return g
+}
+
+func (g *scriptedGame) begin() {
+	if g.err != nil {
+		return
+	}
+	if _, dealt := g.game.Awaiting().(play.AwaitingDealt); !dealt {
+		return
+	}
+	next, events, refusal := g.game.Begin()
+	if refusal.OK {
+		g.fail(fmt.Errorf("the dealer's first draw refused: %s: %s", refusal.Value.Kind, refusal.Value.Code))
+		return
+	}
+	g.game = next
+	g.collect(events)
 }
 
 func (g *scriptedGame) fail(err error) {
@@ -170,7 +185,7 @@ func awaitedSeats(awaiting play.Awaiting) []tile.Seat {
 		return []tile.Seat{a.Seat}
 	case play.AwaitingCall:
 		return a.Seats
-	case play.AwaitingRoundOver, play.AwaitingGameOver:
+	case play.AwaitingDealt, play.AwaitingRoundOver, play.AwaitingGameOver:
 	}
 	return nil
 }
@@ -190,6 +205,7 @@ func (g *scriptedGame) advanceRound() {
 	}
 	g.game = next
 	g.collect(events)
+	g.begin()
 	g.playAIPlayers()
 	g.endCall()
 }
@@ -457,6 +473,8 @@ func playPolicyGame(
 			return played, errors.Join(requireOutcome(id, played, want), requireReproduces(id, played, g.game))
 		case play.AwaitingRoundOver:
 			g.advanceRound()
+		case play.AwaitingDealt:
+			g.begin()
 		case play.AwaitingTurn, play.AwaitingCall:
 			seat := lowestSeat(awaitedSeats(awaiting))
 			action, err := choose(g.game, seat, g.draws[seat])

@@ -199,10 +199,12 @@ func TestFirstPon_WhenTheSeatAnswersNoPrompt_ShouldReportIt(t *testing.T) {
 }
 
 func TestEventExtractors_WhenTheEventsHoldNoRoundEnd_ShouldFindNoResult(t *testing.T) {
-	g, events, err := game.New(play.Seeded{}, play.Option[play.StartPosition]{})
+	g, dealt, err := game.New(play.Seeded{}, play.Option[play.StartPosition]{})
 	if err != nil {
 		t.Fatalf("New error = %v", err)
 	}
+	g, drew, _ := g.Begin()
+	events := slices.Concat(dealt, drew)
 
 	if kinds := testkit.EventKinds(events); kinds[0] != "started" || kinds[len(kinds)-1] != "drew" {
 		t.Errorf("event kinds = %v, want started first and drew last", kinds)
