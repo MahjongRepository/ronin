@@ -172,11 +172,12 @@ a contract.
   When no connected participant remains the game is abandoned, so a game is never all AI players.
   Every handover, either way, writes the replay's seat control record and sends seat_control to the
   connected participants ahead of the moves that follow.
-* A user plays a game from its creation, pending included, until its end is claimed, disconnected
-  or not: the lobby's per-user lookup and the refusal of a user already playing answer from this. A
-  pending game starts once everyone joined, or at its timeout with AI players in the absent seats;
-  with nobody connected it is abandoned and records nothing. The lobby's withdrawal ends a pending
-  game nobody joined, and a withdrawn id is refused for a ticket's lifetime (24 h).
+* A user plays a game from its creation, pending included, until its end is claimed or Shutdown
+  empties the registry, disconnected or not: the lobby's per-user lookup and the refusal of a user
+  already playing answer from this. A pending game starts once everyone joined, or at its timeout
+  with AI players in the absent seats; with nobody connected it is abandoned and records nothing.
+  The lobby's withdrawal ends a pending game nobody joined, and a withdrawn id is refused for a
+  ticket's lifetime (24 h).
 * A connection must authenticate (JOIN_GAME or RECONNECT) within the auth timeout or be closed. A
   connection the server closes leaves the registry in the same step, so a pipelined join cannot pick
   it up, and a message arriving on it afterwards gets no answer. A participant's newest connection

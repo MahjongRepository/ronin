@@ -117,7 +117,7 @@ func (m *Manager) QueueDelayMax() (float64, bool) {
 }
 
 // GameCounts returns how many pending and playing games the registry holds; a game leaves it the
-// moment its end is claimed.
+// moment its end is claimed or Shutdown begins.
 func (m *Manager) GameCounts() GameCounts {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -134,8 +134,8 @@ func (m *Manager) GameCounts() GameCounts {
 }
 
 // PlayingGame returns the game a user plays and their participant's ticket: a user plays a game
-// from its creation, pending included, until its end is claimed, connected or not, so the lobby
-// keeps them out of rooms and can hand them back their ticket.
+// from its creation, pending included, until its end is claimed or Shutdown begins, connected or
+// not, so the lobby keeps them out of rooms and can hand them back their ticket.
 func (m *Manager) PlayingGame(userID string) (Playing, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -397,9 +397,9 @@ func (m *Manager) Settle() {
 }
 
 // Shutdown stops the session once the server stopped serving: it refuses new games, cancels the
-// auth timeouts, lets every game still registered vanish with no record, since a graceful stop ends
-// games only through each socket's disconnect, and waits for every game's goroutine, finalizers
-// and store writes included, until ctx is done.
+// auth timeouts, empties the registry and lets every game it held vanish with no record, since a
+// graceful stop ends games only through each socket's disconnect, and waits for every game's
+// goroutine, finalizers and store writes included, until ctx is done.
 func (m *Manager) Shutdown(ctx context.Context) error {
 	for _, g := range m.close() {
 		g.post(g.vanish)
