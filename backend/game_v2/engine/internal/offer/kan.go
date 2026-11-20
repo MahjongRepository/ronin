@@ -101,11 +101,16 @@ func KanOffers(
 }
 
 func closedKanTiles(hand []tile.TileID, melds []play.MeldView, riichiDrawn play.Option[tile.TileID]) []tile.TileID {
+	var held [tile.KindCount]int
+	for _, id := range hand {
+		held[id.Kind()]++
+	}
+
 	var tiles []tile.TileID
 	var seen tile.Kinds
 	for _, id := range hand {
 		kind := id.Kind()
-		if seen.Contains(kind) || heldCount(hand, kind) < tile.CopiesPerKind {
+		if seen.Contains(kind) || held[kind] < tile.CopiesPerKind {
 			continue
 		}
 		seen = seen.With(kind)

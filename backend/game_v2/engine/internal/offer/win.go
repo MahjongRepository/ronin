@@ -3,7 +3,6 @@ package offer
 import (
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/hand"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/meld"
@@ -13,9 +12,12 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
+const completeHandTiles = 14
+
 // Completes reports whether the concealed tiles with winTile added form a complete hand.
 func Completes(concealed []tile.TileID, winTile tile.TileID) bool {
-	counts, err := tile.KindCounts(append(slices.Clone(concealed), winTile))
+	var joined [completeHandTiles]tile.TileID
+	counts, err := tile.KindCounts(append(append(joined[:0], concealed...), winTile))
 	return err == nil && hand.IsAgari(counts)
 }
 

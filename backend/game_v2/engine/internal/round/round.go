@@ -634,8 +634,9 @@ func (r *Round) openCallPrompt(from tile.Seat, id tile.TileID) bool {
 
 	var meldOffers [tile.SeatCount][]play.Action
 	anyMeld := false
+	kans := offer.KansBySeat(r.meldsBySeat())
 	for _, seat := range tile.Seats() {
-		meldOffers[seat.Index()] = r.meldOffers(seat, from, id)
+		meldOffers[seat.Index()] = r.meldOffers(seat, from, id, kans)
 		anyMeld = anyMeld || len(meldOffers[seat.Index()]) > 0
 	}
 	if len(callers) == 0 && !anyMeld {
@@ -646,8 +647,7 @@ func (r *Round) openCallPrompt(from tile.Seat, id tile.TileID) bool {
 	return true
 }
 
-func (r *Round) meldOffers(seat, from tile.Seat, id tile.TileID) []play.Action {
-	kans := offer.KansBySeat(r.meldsBySeat())
+func (r *Round) meldOffers(seat, from tile.Seat, id tile.TileID, kans [tile.SeatCount]int) []play.Action {
 	return offer.MeldOffers(r.hand(seat), r.InRiichi(seat), seat, from, id, kans, r.LiveTiles())
 }
 
