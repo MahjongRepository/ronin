@@ -11,6 +11,7 @@ VITE_PORT=${VITE_PORT:-5173}
 GAME_V2_VITE_PORT=${GAME_V2_VITE_PORT:-5175}
 MAX_RETRIES=10
 DOCKER=${DOCKER:-}
+GAME_CONTAINER="ronin-game-v2-game-v2-1"
 
 case "$DOCKER" in
     "") OWN_PORTS="$GAME_PORT $LOBBY_PORT $VITE_PORT $GAME_V2_VITE_PORT" ;;
@@ -130,13 +131,27 @@ start_game_server() {
     fi
 }
 
+follow_game_container_logs() {
+    local since="$1"
+    if [ -n "$GAME_LOG_DIR" ]; then
+        mkdir -p "$GAME_LOG_DIR"
+        (docker logs --follow --since "$since" "$GAME_CONTAINER" 2>&1 | tee -a "$GAME_LOG_DIR/app.log") &
+    else
+        docker logs --follow --since "$since" "$GAME_CONTAINER" &
+    fi
+    GAME_PID=$!
+}
+
 start_game_container() {
     echo "Starting the game server container on port $GAME_PORT..."
+    local since
+    since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     GAME_CONTAINER_STARTED=true
     if ! make -s run-game-v2-docker; then
         echo "Error: the game server container failed to start; see its output above"
         exit 1
     fi
+    follow_game_container_logs "$since"
 }
 
 if [ "$DOCKER" = 1 ]; then
