@@ -122,6 +122,7 @@ func TestReconnect_WhenTheParticipantIsStillConnected_ShouldReplaceItsConnection
 			t.Errorf("stats = %+v, want one turn timeout and one takeover, no reconnect", stats)
 		}
 		h.assertSeatLogged(t, "connection taken over")
+		h.assertSeatLogged(t, "replacing a participant's connection")
 	})
 }
 

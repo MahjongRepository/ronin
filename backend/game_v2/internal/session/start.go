@@ -37,7 +37,7 @@ func (g *game) join(conn Connection, ticket string) error {
 		sendSessionError(g.log, conn, b.refused.Value.code, b.refused.Value.message)
 		return nil
 	}
-	g.closeReplaced(b.replaced, conn)
+	g.closeReplaced(b.participant, b.replaced, conn)
 	return g.admit(b.participant, conn)
 }
 
@@ -97,11 +97,11 @@ func (g *game) bindLocked(p *participant, entry *connEntry) Connection {
 	return replaced
 }
 
-func (g *game) closeReplaced(replaced, conn Connection) {
+func (g *game) closeReplaced(p *participant, replaced, conn Connection) {
 	if replaced == nil {
 		return
 	}
-	g.log.Info("replacing a participant's connection",
+	g.seatLog(p).Info("replacing a participant's connection",
 		"old_connection_id", replaced.ID(), "new_connection_id", conn.ID())
 	replaced.Close(CloseReplaced, "replaced_by_new_connection")
 	g.m.stats.takeovers.Add(1)

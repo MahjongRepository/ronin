@@ -190,7 +190,7 @@ a contract.
   Python server's text and level. Concealed hand tiles are logged at DEBUG only, and game tickets
   never at INFO or above.
 * Shutdown ends no game. A graceful stop ends games only through the disconnect of each socket the
-  server closed; `Shutdown`, called after that, lets a still-registered game vanish unrecorded and
+  server closed; `Shutdown`, called after that, lets a still-registered game vanish with no finish row and
   waits for the finalizers and store writes.
 
 ## Security requirements
@@ -222,6 +222,9 @@ Mandatory for all server-side code; review must catch violations.
 * Liveness is the server's own WebSocket ping (20 s interval, 20 s timeout). A client's PING is only
   a latency probe: it is answered with a pong once it passes the rate limit, before routing,
   authenticated or not, and touches no session.
+* Every socket's read limit is the decoder's buffer limit (`wire.MaxMessageBytes`), set before the
+  first read, since a socket takes frames before it authenticates; an oversized frame closes the
+  connection with 1009.
 * A message that fails validation is answered and logged with only its error type, never its input
   or the decoder's text, which can quote the input.
 

@@ -85,7 +85,7 @@ func (g *game) reconnect(conn Connection, ticket string) error {
 
 	p, message := b.participant, logConnectionTakenOver
 	if b.replaced != nil {
-		g.closeReplaced(b.replaced, conn)
+		g.closeReplaced(p, b.replaced, conn)
 	} else {
 		err := g.handOver(p, play.Option[wire.SeatControlReason]{})
 		if err != nil {
