@@ -65,7 +65,7 @@ func (h *harness) storeReplay(gameID string, content []byte) {
 	}
 }
 
-func TestTenhouReplay_WhenTheReplayIsStored_ShouldAnswerItsTenhouXML(t *testing.T) {
+func TestTenhouReplay_WhenTheReplayIsStored_ShouldAnswerItsTenhouXMLAndOtherwise404(t *testing.T) {
 	h := newHarness(t)
 	content := finishedReplay(t)
 	h.storeReplay(storedGameID, content)
@@ -85,7 +85,7 @@ func TestTenhouReplay_WhenTheReplayIsStored_ShouldAnswerItsTenhouXML(t *testing.
 	}
 }
 
-func TestTenhouReplay_WhenTheReplayIsAFailedGames_ShouldAnswer422NotATruncatedLog(t *testing.T) {
+func TestTenhouReplay_WhenTheReplayIsAFailedGame_ShouldAnswer422NotATruncatedLog(t *testing.T) {
 	h := newHarness(t)
 	h.storeReplay(failedGameID, unfinishedReplay(t))
 

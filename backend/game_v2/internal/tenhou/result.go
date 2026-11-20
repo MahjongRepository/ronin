@@ -49,10 +49,6 @@ func (c *converter) roundEnded(event wire.Map) {
 	case wire.ResultAbortiveDraw:
 		c.abortiveDraw(event, scores, changes)
 	}
-
-	for s := range c.scores {
-		c.scores[s] = scores[s] + changes[s]
-	}
 }
 
 type winTable struct {

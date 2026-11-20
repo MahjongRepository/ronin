@@ -247,8 +247,9 @@ and the fixture tools.
 `internal/tenhou` writes a stored replay as a tenhou.net mjlog for the lobby's Tenhou download.
 
 * It reads the records alone and never runs the engine, so a replay of either rules profile converts,
-  a rewritten `0.4-dev` one included: the rewritten robbed-kan replay converts to the very log the
-  Python export wrote from the original, and a test holds that.
+  a rewritten `0.4-dev` one included: the rewritten robbed-kan replay converts to the log the Python
+  export wrote from the original, and a test holds that. The one difference is the INIT dice, which
+  a Tenhou log stores less one (0 to 5) and the Python export wrote as thrown.
 * Every seat moves to Tenhou's as it is read: Tenhou seats its first dealer at 0, so its seat order is
   the dealer order and each INIT's round counter counts the dealer rotations.
 * A ron writes one AGARI per win, each from the scores the win before it left, as Tenhou does: the

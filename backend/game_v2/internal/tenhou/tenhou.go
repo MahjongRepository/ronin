@@ -23,13 +23,14 @@ import (
 )
 
 const (
-	mjlogVersion = "2.3"
-	goVsHuman    = 0x01
-	goNoAkadora  = 0x02
-	goHanchan    = 0x08
-	drawLetters  = "TUVW"
-	discardTags  = "DEFG"
-	tagClose     = " />"
+	mjlogVersion  = "2.3"
+	goVsHuman     = 0x01
+	goNoAkadora   = 0x02
+	goHanchan     = 0x08
+	drawLetters   = "TUVW"
+	discardTags   = "DEFG"
+	tagClose      = " />"
+	dieFaceOffset = 1
 )
 
 // ErrNoGameEnd reports the replay of a game that failed before its end: a Tenhou log closes on
@@ -206,7 +207,7 @@ func (c *converter) roundStarted(event wire.Map) {
 		hands[s] = joinInts(c.hands[s])
 	}
 
-	header := []int{roundCounter, c.honba, c.tableSticks, dice[0], dice[1], firstDora}
+	header := []int{roundCounter, c.honba, c.tableSticks, dice[0] - dieFaceOffset, dice[1] - dieFaceOffset, firstDora}
 	c.add(`<INIT seed="` + joinInts(header) + `" ten="` + joinInts(c.scores[:]) + `" oya="` +
 		strconv.Itoa(dealer) + `" hai0="` + hands[0] + `" hai1="` + hands[1] + `" hai2="` + hands[2] +
 		`" hai3="` + hands[3] + `"/>`)

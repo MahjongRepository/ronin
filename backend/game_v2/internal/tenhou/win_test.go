@@ -46,7 +46,9 @@ func daisangenRonReplay(t *testing.T) []byte {
 		act(t, sou9Discarder, play.DiscardAction(sou9)),
 		act(t, dealer, play.RonAction()),
 		act(t, dragonCaller, play.RonAction()))
-	start := play.Some(play.StartPosition{Scores: [tile.SeatCount]int{25000, 25000, 25000, 25000}, Honba: 1})
+	start := play.Some(play.StartPosition{
+		Scores: [tile.SeatCount]int{25000, 25000, 25000, 24000}, Honba: 1, RiichiSticks: 1,
+	})
 	return playedReplay(t, stagedSetup(t, wall, start), actions)
 }
 
@@ -55,11 +57,11 @@ func TestConvert_WhenADaisangenDoubleRonFollowsALiablePon_ShouldWriteEachWinFrom
 
 	got := tags(xml, `<AGARI [^>]*/>`)
 	want := []string{
-		`<AGARI ba="1,0" hai="1,5,9,13,17,21,25,29,33,37,41,45,105,106" machi="105" ten="40,3900,0" yaku="24,2"` +
-			` doraHai="113" who="0" fromWho="3" sc="250,42,250,0,250,0,250,-42" />`,
+		`<AGARI ba="1,1" hai="1,5,9,13,17,21,25,29,33,37,41,45,105,106" machi="105" ten="40,3900,0" yaku="24,2"` +
+			` doraHai="113" who="0" fromWho="3" sc="250,52,250,0,250,0,240,-42" />`,
 		`<AGARI ba="1,0" hai="0,4,8,104,105" m="51817,50281,48747" machi="105" ten="40,32000,5" yakuman="39"` +
-			` doraHai="113" who="1" fromWho="3" paoWho="2" sc="292,0,250,320,250,-160,208,-160"` +
-			` owari="292,9.2,570,67.0,90,-31.0,48,-45.2" />`,
+			` doraHai="113" who="1" fromWho="3" paoWho="2" sc="302,0,250,320,250,-160,198,-160"` +
+			` owari="302,10.2,570,67.0,90,-31.0,38,-46.2" />`,
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("AGARI tags =\n%q\nwant\n%q", got, want)

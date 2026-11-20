@@ -81,10 +81,10 @@ func TestMeldCode_WhenTheMeldIsAKan_ShouldWriteItsTileAndOnlyAnOpenKansSource(t 
 		Caller: seat(t, 2), Kind: play.MeldOpenKan, Tiles: quad, Called: play.Some(quad[2]), From: play.Some(seat(t, 3)),
 	}
 
-	if got, err := meldCode(closed); err != nil || got != 104<<8 {
-		t.Errorf("closed kan code = %d, %v; want %d", got, err, 104<<8)
+	if got, err := meldCode(closed); err != nil || got != 26624 {
+		t.Errorf("closed kan code = %d, %v; want 26624", got, err)
 	}
-	if got, err := meldCode(open); err != nil || got != 106<<8|1 {
-		t.Errorf("open kan code = %d, %v; want %d", got, err, 106<<8|1)
+	if got, err := meldCode(open); err != nil || got != 27137 {
+		t.Errorf("open kan code = %d, %v; want 27137", got, err)
 	}
 }

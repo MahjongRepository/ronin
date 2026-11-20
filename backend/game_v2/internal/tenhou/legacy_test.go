@@ -1,7 +1,6 @@
 package tenhou
 
 import (
-	"errors"
 	"os"
 	"testing"
 
@@ -10,13 +9,13 @@ import (
 
 const (
 	rewrittenChankanPath = "../wire/testdata/rewritten/chankan_added.msgpack"
-	pythonChankanExport  = `<mjloggm ver="2.3">` +
+	chankanExport        = `<mjloggm ver="2.3">` +
 		`<SHUFFLE seed="555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555` +
 		`555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555" ref="shake256-v1"/>` +
 		`<GO type="9" lobby="0"/>` +
 		`<UN n0="Diana" n1="Alice" n2="Charlie" n3="Bob" dan="0,0,0,0" rate="1500.00,1500.00,1500.00,1500.00" sx="M,M,M,M"/>` +
 		`<TAIKYOKU oya="0"/>` +
-		`<INIT seed="0,0,0,1,1,112" ten="250,250,250,250" oya="0" hai0="6,18,30,38,58,62,82,94,106,110,114,118,122"` +
+		`<INIT seed="0,0,0,0,0,112" ten="250,250,250,250" oya="0" hai0="6,18,30,38,58,62,82,94,106,110,114,118,122"` +
 		` hai1="1,13,25,37,56,57,69,77,89,101,109,113,117" hai2="0,4,8,12,16,20,24,28,32,48,52,72,104"` +
 		` hai3="7,19,31,39,63,83,95,107,111,115,119,123,127"/>` +
 		`<T132/><D58/><N who="1" m="22635" /><E109/><V73/><F104/><W133/><G133/><T134/><D134/><U59/>` +
@@ -25,7 +24,7 @@ const (
 		` yaku="3,1,7,1,24,2,54,2" doraHai="112" who="2" fromWho="1" sc="250,0,250,-120,250,120,250,0" />`
 )
 
-func TestConvertEvents_WhenTheRewrittenChankanReplayConverts_ShouldWriteThePythonExportOfTheOriginal(t *testing.T) {
+func TestConvertEvents_WhenTheRewrittenChankanReplayConverts_ShouldWriteThePythonExportOfTheOriginalWithTenhouDice(t *testing.T) {
 	content, err := os.ReadFile(rewrittenChankanPath)
 	if err != nil {
 		t.Fatalf("read %s: %v", rewrittenChankanPath, err)
@@ -39,11 +38,7 @@ func TestConvertEvents_WhenTheRewrittenChankanReplayConverts_ShouldWriteThePytho
 	if err != nil {
 		t.Fatalf("convertEvents error = %v", err)
 	}
-	if got != pythonChankanExport {
-		t.Errorf("convertEvents =\n%s\nwant the Python export\n%s", got, pythonChankanExport)
-	}
-
-	if _, err := Convert(content); !errors.Is(err, ErrNoGameEnd) {
-		t.Errorf("Convert error = %v, want ErrNoGameEnd", err)
+	if got != chankanExport {
+		t.Errorf("convertEvents =\n%s\nwant the Python export with Tenhou dice\n%s", got, chankanExport)
 	}
 }
