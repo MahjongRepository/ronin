@@ -430,6 +430,9 @@ func (m *Manager) close() []*game {
 	for _, l := range m.games {
 		games = append(games, l.game)
 	}
+	clear(m.conns)
+	clear(m.games)
+	clear(m.tickets)
 	return games
 }
 

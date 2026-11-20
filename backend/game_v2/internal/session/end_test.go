@@ -246,6 +246,15 @@ func TestShutdown_WhenAGameIsStillPending_ShouldEndItUnrecordedAndRefuseNewGames
 		if h.hasPlayedGame(t) {
 			t.Error("the vanished pending game wrote a played_games row")
 		}
+		if counts := h.m.GameCounts(); counts != (session.GameCounts{}) {
+			t.Errorf("GameCounts after Shutdown = %+v, want none", counts)
+		}
+		if _, playing := h.m.PlayingGame("user-Alice"); playing {
+			t.Error("Alice still plays the vanished game after Shutdown")
+		}
+		if !h.m.WithdrawGame(testGameID) {
+			t.Error("WithdrawGame after Shutdown kept the vanished game")
+		}
 		err = h.m.CreatePendingGame("game-0002", specs("Carol"))
 		if !errors.Is(err, session.ErrShuttingDown) {
 			t.Errorf("CreatePendingGame after Shutdown error = %v, want ErrShuttingDown", err)
