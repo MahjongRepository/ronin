@@ -100,7 +100,7 @@ func (g *game) reconnect(conn Connection, ticket string) error {
 	if err != nil {
 		return err
 	}
-	g.seatLog(p).Info(message)
+	p.log.Info(message)
 	return nil
 }
 
@@ -145,7 +145,7 @@ func (g *game) resync(conn Connection) error {
 		return err
 	}
 	g.m.stats.resyncs.Add(1)
-	g.seatLog(p).Info("seat resynced")
+	p.log.Info("seat resynced")
 	return nil
 }
 

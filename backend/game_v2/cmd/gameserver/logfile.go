@@ -5,26 +5,31 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 const (
 	logFileName = "app.log"
 	logDirMode  = 0o755
 	logFileMode = 0o644
+
+	movedCheckInterval = time.Second
 )
 
 type watchedFile struct {
-	mu   sync.Mutex
-	path string
-	file *os.File
+	mu        sync.Mutex
+	path      string
+	file      *os.File
+	now       func() time.Time
+	checkedAt time.Time
 }
 
-func openWatchedFile(dir string) (*watchedFile, error) {
+func openWatchedFile(dir string, now func() time.Time) (*watchedFile, error) {
 	err := os.MkdirAll(dir, logDirMode)
 	if err != nil {
 		return nil, fmt.Errorf("create log dir %s: %w", dir, err)
 	}
-	w := &watchedFile{path: filepath.Join(dir, logFileName)}
+	w := &watchedFile{path: filepath.Join(dir, logFileName), now: now, checkedAt: now()}
 	err = w.reopen()
 	if err != nil {
 		return nil, err
@@ -37,11 +42,28 @@ func (w *watchedFile) reopen() error {
 	if err != nil {
 		return fmt.Errorf("open log file %s: %w", w.path, err)
 	}
-	if w.file != nil {
-		_ = w.file.Close()
-	}
+	old := w.file
 	w.file = file
+	if old == nil {
+		return nil
+	}
+	err = old.Close()
+	if err != nil {
+		return fmt.Errorf("close moved log file %s: %w", w.path, err)
+	}
 	return nil
+}
+
+func (w *watchedFile) reopenIfMoved() error {
+	now := w.now()
+	if now.Sub(w.checkedAt) < movedCheckInterval {
+		return nil
+	}
+	w.checkedAt = now
+	if !w.moved() {
+		return nil
+	}
+	return w.reopen()
 }
 
 func (w *watchedFile) moved() bool {
@@ -53,16 +75,15 @@ func (w *watchedFile) moved() bool {
 	return err != nil || !os.SameFile(onDisk, open)
 }
 
-// Write appends p to the file, reopening it first when it was moved or removed.
+// Write appends p to the file, first reopening it when it was moved or removed, checked at most once per
+// movedCheckInterval.
 func (w *watchedFile) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	if w.moved() {
-		err := w.reopen()
-		if err != nil {
-			return 0, err
-		}
+	err := w.reopenIfMoved()
+	if err != nil {
+		return 0, err
 	}
 	return w.file.Write(p)
 }

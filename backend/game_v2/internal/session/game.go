@@ -50,6 +50,7 @@ type participant struct {
 	spec       PlayerSpec
 	seat       tile.Seat
 	seated     bool
+	log        *slog.Logger
 	conn       Connection
 	standIn    play.Option[wire.SeatControlReason]
 	decisionID int
@@ -122,7 +123,7 @@ func newGame(m *Manager, id string, players []PlayerSpec) *game {
 	}
 	for _, spec := range players {
 		g.participants = append(g.participants, &participant{
-			game: g, spec: spec, timer: newTurnTimer(g.timing, g.clock),
+			game: g, spec: spec, log: g.log, timer: newTurnTimer(g.timing, g.clock),
 		})
 	}
 	g.pending.arm(g.clock, g.timing.PendingGame, func(token uint64) {
@@ -281,13 +282,6 @@ func (g *game) atSeat(seat tile.Seat) *participant {
 func (g *game) isAISeat(seat tile.Seat) bool {
 	p := g.atSeat(seat)
 	return p == nil || p.conn == nil
-}
-
-func (g *game) seatLog(p *participant) *slog.Logger {
-	if !p.seated {
-		return g.log
-	}
-	return g.log.With("seat", p.seat.Index())
 }
 
 func (g *game) withdraw() bool {

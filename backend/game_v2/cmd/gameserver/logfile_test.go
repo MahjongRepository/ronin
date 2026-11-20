@@ -4,11 +4,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestWatchedFile_WhenTheLogIsRotatedAway_ShouldReopenItsPath(t *testing.T) {
 	dir := t.TempDir()
-	w, err := openWatchedFile(dir)
+	now := time.Unix(0, 0)
+	w, err := openWatchedFile(dir, func() time.Time { return now })
 	if err != nil {
 		t.Fatalf("openWatchedFile error = %v", err)
 	}
@@ -23,6 +25,7 @@ func TestWatchedFile_WhenTheLogIsRotatedAway_ShouldReopenItsPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("rotate: %v", err)
 	}
+	now = now.Add(movedCheckInterval)
 	_, err = w.Write([]byte("after\n"))
 	if err != nil {
 		t.Fatalf("Write error = %v", err)

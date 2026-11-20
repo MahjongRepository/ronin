@@ -93,7 +93,7 @@ func newLogger(cfg config) (*slog.Logger, func() error, error) {
 	var out io.Writer = os.Stdout
 	closeLog := func() error { return nil }
 	if cfg.logDir != "" {
-		file, err := openWatchedFile(cfg.logDir)
+		file, err := openWatchedFile(cfg.logDir, time.Now)
 		if err != nil {
 			return nil, nil, err
 		}

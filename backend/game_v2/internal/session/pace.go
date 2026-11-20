@@ -1,6 +1,8 @@
 package session
 
 import (
+	"context"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -85,7 +87,7 @@ func (g *game) timedOut(p *participant, kind timeoutKind, token uint64) error {
 	if kind == timeoutMeld {
 		message, counter = logMeldTimeout, &g.m.stats.meldTimeouts
 	}
-	g.seatLog(p).Info(message, "action", actionName(action))
+	p.log.Info(message, "action", actionName(action))
 	events, err := g.requireAct(p.seat, action)
 	if err != nil {
 		return err
@@ -142,7 +144,9 @@ func (g *game) playAIPlayer(seat tile.Seat) error {
 		return errNoDecision
 	}
 
-	g.log.Debug("AI player action", "ai_seat", seat.Index(), "action", actionName(decision.Default))
+	if g.log.Enabled(context.Background(), slog.LevelDebug) {
+		g.log.Debug("AI player action", "ai_seat", seat.Index(), "action", actionName(decision.Default))
+	}
 	events, err := g.requireAct(seat, decision.Default)
 	if err != nil {
 		return err
@@ -194,7 +198,7 @@ func (g *game) gameAction(conn Connection, message messaging.GameActionMessage) 
 		return g.staleAction(p, actionName(action), message.WaitID)
 	}
 	if message.Called.OK && g.mismatchesOpenCall(p.seat, message.Called.Value) {
-		g.seatLog(p).Warn(logCalledTileMismatch, "action", actionName(action))
+		p.log.Warn(logCalledTileMismatch, "action", actionName(action))
 		return send(conn, messaging.CalledTileMismatch(action, message.WaitID).Payload())
 	}
 
@@ -227,12 +231,12 @@ func (g *game) confirmRound(p *participant, waitID int) error {
 }
 
 func (g *game) staleAction(p *participant, action string, waitID int) error {
-	g.seatLog(p).Info(logStaleAction, "action", action, "wait_id", waitID)
+	p.log.Info(logStaleAction, "action", action, "wait_id", waitID)
 	return send(p.conn, messaging.StaleAction(waitID).Payload())
 }
 
 func (g *game) kick(p *participant, conn Connection, action play.Action, refusal play.Refusal) error {
-	g.seatLog(p).Warn(logInvalidAction, "action", actionName(action), "reason", refusal.Code.String())
+	p.log.Warn(logInvalidAction, "action", actionName(action), "reason", refusal.Code.String())
 	g.m.evict(conn)
 	err := g.disconnected(p, conn)
 	if err != nil {
@@ -247,7 +251,7 @@ func (g *game) disconnected(p *participant, conn Connection) error {
 		return nil
 	}
 	p.conn = nil
-	g.seatLog(p).Info("player left game", "player_name", p.spec.Name)
+	p.log.Info("player left game", "player_name", p.spec.Name)
 	if g.lifecycle != lifecyclePlaying {
 		return nil
 	}

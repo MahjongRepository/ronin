@@ -101,7 +101,7 @@ func (g *game) closeReplaced(p *participant, replaced, conn Connection) {
 	if replaced == nil {
 		return
 	}
-	g.seatLog(p).Info("replacing a participant's connection",
+	p.log.Info("replacing a participant's connection",
 		"old_connection_id", replaced.ID(), "new_connection_id", conn.ID())
 	replaced.Close(CloseReplaced, "replaced_by_new_connection")
 	g.m.stats.takeovers.Add(1)
@@ -147,6 +147,7 @@ func (g *game) startGame() error {
 	roster, seats := SeatPlayers(g.id, names, seed)
 	for i, p := range g.participants {
 		p.seat, p.seated = seats[i], true
+		p.log = g.log.With("seat", p.seat.Index())
 	}
 	g.roster = roster
 
