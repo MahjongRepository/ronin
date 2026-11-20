@@ -51,23 +51,23 @@ func IsDiscardFuriten(waits tile.Kinds, river []play.RiverTile) bool {
 // RonCandidate is the seat a ron or chankan is judged for: its concealed tiles, melds, river and
 // furiten flags.
 type RonCandidate struct {
-	Hand       []tile.TileID
-	Melds      []play.MeldView
-	River      []play.RiverTile
-	Furiten    Furiten
-	KnownWaits play.Option[tile.Kinds]
+	Hand      []tile.TileID
+	Melds     []play.MeldView
+	River     []play.RiverTile
+	Furiten   Furiten
+	HandWaits play.Option[tile.Kinds]
 }
 
 func (c RonCandidate) waits() tile.Kinds {
-	if c.KnownWaits.OK {
-		return c.KnownWaits.Value
+	if c.HandWaits.OK {
+		return c.HandWaits.Value
 	}
 	return hand.Waits(countsOfDistinctIDs(c.Hand), countsOfDistinctIDs(meldedTiles(c.Melds)))
 }
 
 func (c RonCandidate) completesOn(discard tile.TileID) bool {
-	if c.KnownWaits.OK {
-		return c.KnownWaits.Value.Contains(discard.Kind())
+	if c.HandWaits.OK {
+		return c.HandWaits.Value.Contains(discard.Kind())
 	}
 	return Completes(c.Hand, discard)
 }
