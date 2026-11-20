@@ -1,7 +1,6 @@
 package session_test
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -213,7 +212,7 @@ func TestShutdown_WhenAGameIsStillPending_ShouldEndItUnrecordedAndRefuseNewGames
 		alice := h.join("Alice")
 		idle := h.connect()
 
-		err := h.m.Shutdown(context.Background())
+		err := h.m.Shutdown(t.Context())
 		if err != nil {
 			t.Fatalf("Shutdown error = %v", err)
 		}

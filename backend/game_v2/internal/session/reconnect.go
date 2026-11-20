@@ -161,8 +161,11 @@ func (g *game) sendSeatState(p *participant, conn Connection) error {
 	}
 
 	err = send(conn, messaging.GameReconnected(snapshot, p.decisionID, g.pausePart(p), g.timerSettings(p)))
-	if err != nil || !decision.OK {
+	if err != nil {
 		return err
+	}
+	if !decision.OK {
+		return nil
 	}
 	opening := messaging.BuildOpening(decision.Value)
 	return send(conn, messaging.StampOpening(opening.Payload, p.decisionID, seconds(p.timer.bank), p.timer.elapsed()))

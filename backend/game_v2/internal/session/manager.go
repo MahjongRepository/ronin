@@ -19,8 +19,8 @@ const (
 )
 
 // Manager is the registry of live games and connections. Its methods are safe for concurrent use;
-// each connection's own calls (Connect, Join, Act, Disconnect) come in the order its socket read
-// them.
+// each connection's own calls (Connect, Join, Reconnect, Resync, Act, Disconnect) come in the
+// order its socket read them.
 type Manager struct {
 	cfg      Config
 	storeCtx context.Context
