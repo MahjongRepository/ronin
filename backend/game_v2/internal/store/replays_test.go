@@ -107,6 +107,25 @@ func TestReplaysSave_WhenTheGameHasAReplay_ShouldReplaceIt(t *testing.T) {
 	if got := decompress(t, read); string(got) != "second" {
 		t.Errorf("stored replay = %q, want the second", got)
 	}
+	if want := freshBestCompression(t, []byte("second")); !bytes.Equal(read, want) {
+		t.Errorf("stored replay = %x, want the bytes of a fresh best-compression writer %x", read, want)
+	}
+}
+
+func freshBestCompression(t *testing.T, content []byte) []byte {
+	t.Helper()
+	var compressed bytes.Buffer
+	writer, err := gzip.NewWriterLevel(&compressed, gzip.BestCompression)
+	if err == nil {
+		_, err = writer.Write(content)
+	}
+	if err == nil {
+		err = writer.Close()
+	}
+	if err != nil {
+		t.Fatalf("gzip: %v", err)
+	}
+	return compressed.Bytes()
 }
 
 func TestReplays_WhenTheGameIDCannotNameAReplay_ShouldRefuseIt(t *testing.T) {

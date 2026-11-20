@@ -40,12 +40,13 @@ var (
 // opened through an os.Root, so neither a game id nor a symbolic link reaches outside the
 // directory. The zero value is not usable; build one with NewReplays.
 type Replays struct {
-	dir string
+	dir        string
+	idleWriter chan *gzip.Writer
 }
 
 // NewReplays returns the replay store over dir, created on the first save.
 func NewReplays(dir string) Replays {
-	return Replays{dir: dir}
+	return Replays{dir: dir, idleWriter: make(chan *gzip.Writer, 1)}
 }
 
 // IsValidGameID reports whether a game id can name a stored replay: 4 to 50 ASCII letters, digits,
@@ -70,7 +71,7 @@ func (r Replays) Save(gameID string, content []byte) (err error) {
 		return fmt.Errorf("save replay %q: %w", gameID, ErrInvalidGameID)
 	}
 
-	compressed, err := compressReplay(content)
+	compressed, err := r.compressReplay(content)
 	if err != nil {
 		return fmt.Errorf("save replay %s: %w", gameID, err)
 	}
@@ -152,9 +153,9 @@ func ReplayPath(gameID string) string {
 	return path.Join(shardDir(gameID), gameID+ReplayFileSuffix)
 }
 
-func compressReplay(content []byte) ([]byte, error) {
+func (r Replays) compressReplay(content []byte) ([]byte, error) {
 	var compressed bytes.Buffer
-	writer, err := gzip.NewWriterLevel(&compressed, gzip.BestCompression)
+	writer, err := r.takeWriter(&compressed)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +169,22 @@ func compressReplay(content []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	writer.Reset(io.Discard)
+	select {
+	case r.idleWriter <- writer:
+	default:
+	}
 	return compressed.Bytes(), nil
+}
+
+func (r Replays) takeWriter(output io.Writer) (*gzip.Writer, error) {
+	select {
+	case writer := <-r.idleWriter:
+		writer.Reset(output)
+		return writer, nil
+	default:
+		return gzip.NewWriterLevel(output, gzip.BestCompression)
+	}
 }
 
 func writeReplay(root *os.Root, gameID string, compressed []byte) error {
