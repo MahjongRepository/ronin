@@ -71,6 +71,26 @@ func TestReplaysSave_WhenGivenAReplay_ShouldStoreItGzippedInOwnerOnlyShards(t *t
 	if err != nil || !bytes.Equal(read, stored) {
 		t.Errorf("Read = %d bytes, %v; want the %d stored bytes", len(read), err, len(stored))
 	}
+	if got, err := store.DecompressReplay(read, len(content)); err != nil || !bytes.Equal(got, content) {
+		t.Errorf("DecompressReplay = %q, %v; want %q", got, err, content)
+	}
+}
+
+func TestDecompressReplay_WhenTheContentIsOverTheLimit_ShouldReadOneBytePastIt(t *testing.T) {
+	replays := store.NewReplays(t.TempDir())
+	err := replays.Save("game-1", []byte("0123456789"))
+	if err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	read, err := replays.Read("game-1")
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+
+	got, err := store.DecompressReplay(read, 4)
+	if err != nil || string(got) != "01234" {
+		t.Errorf("DecompressReplay = %q, %v; want the limit and one byte more", got, err)
+	}
 }
 
 func TestReplaysSave_WhenTheGameHasAReplay_ShouldReplaceIt(t *testing.T) {

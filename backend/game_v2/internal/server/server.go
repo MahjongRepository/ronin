@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 )
 
 // SocketConfig is how the server serves each socket: its liveness ping and how long a pong may
@@ -54,10 +55,12 @@ func DefaultSocketConfig() SocketConfig {
 }
 
 // Config is what a Server runs on. Session and Logger are required, and so are both secrets.
-// Capacity is the session's, reported by /status; CORSOrigins are the origins whose scripts may
-// read the REST answers ("*" for any); Version and Commit are what /health and /status report.
+// Capacity is the session's, reported by /status; Replays is where the Tenhou export reads the
+// stored replays; CORSOrigins are the origins whose scripts may read the REST answers ("*" for
+// any); Version and Commit are what /health and /status report.
 type Config struct {
 	Session        *session.Manager
+	Replays        store.Replays
 	Capacity       int
 	TicketSecret   string
 	InternalSecret string
@@ -120,6 +123,7 @@ func New(cfg Config) (*Server, error) {
 	mux.HandleFunc("DELETE /games/{game_id}", s.withdrawGame)
 	mux.HandleFunc("GET /players/{user_id}", s.playerGame)
 	mux.HandleFunc("GET /players/{user_id}/game-session", s.playerGameSession)
+	mux.HandleFunc("GET /replays/{game_id}/tenhou", s.tenhouReplay)
 	mux.HandleFunc("GET /ws/{game_id}", s.serveSocket)
 	s.handler = newCORS(cfg.CORSOrigins, mux)
 	return s, nil

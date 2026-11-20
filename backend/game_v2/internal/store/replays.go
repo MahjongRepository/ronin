@@ -121,6 +121,25 @@ func (r Replays) Read(gameID string) (data []byte, err error) {
 	return data, nil
 }
 
+// DecompressReplay returns the content of a replay file Read returned, reading at most limit+1
+// bytes of it, so a caller that refuses content over limit sees that it is; an error for data
+// that is not gzip.
+func DecompressReplay(compressed []byte, limit int) ([]byte, error) {
+	reader, err := gzip.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		return nil, fmt.Errorf("decompress replay: %w", err)
+	}
+	content, err := io.ReadAll(io.LimitReader(reader, int64(limit)+1))
+	if err != nil {
+		return nil, fmt.Errorf("decompress replay: %w", err)
+	}
+	err = reader.Close()
+	if err != nil {
+		return nil, fmt.Errorf("decompress replay: %w", err)
+	}
+	return content, nil
+}
+
 func shardDir(gameID string) string {
 	return path.Join(gameID[:shardPrefixLength], gameID[shardPrefixLength:2*shardPrefixLength])
 }

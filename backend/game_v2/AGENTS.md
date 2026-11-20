@@ -11,8 +11,9 @@ seam tests and self-play driver (`seam/`), the wire format (`internal/wire`), th
 engine's output into messages and of client messages into actions (`internal/messaging`), the live
 games with their sessions (`internal/session`), the rows and replay files it persists beside the
 lobby (`internal/store`), its credentials (`internal/auth`), the transport serving the lobby's
-routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`), and
-the replay runner (`internal/replay`) with the Go replay check (`cmd/verify`).
+routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`), the
+replay runner (`internal/replay`) with the Go replay check (`cmd/verify`), and the Tenhou export
+(`internal/tenhou`).
 
 ## The seam
 
@@ -59,12 +60,14 @@ along the module graph of mahjong-rs, the port's reference, and never `engine`.
 `internal/store` and `internal/auth` are leaves beside that line: the session and the server use
 `store`, the server alone `auth`, and neither imports anything of the module. `internal/replay` sits
 beside `messaging` over the wire: it reads replays for the tools, so the live path never imports it.
+`internal/tenhou` sits there too, under the server, which answers the export route with it.
 
 Each server package's imports of the module are a depguard rule in `.golangci.yml`: `wire` imports
 only `engine`, `engine/play` and `engine/tile`, `messaging` those and `wire`, `session` those,
-`messaging` and `store` (never the replay runner), `server` the session, messaging, wire, store and
-auth but of the engine only `engine/play` and `engine/tile`, `store` and `auth` nothing, `replay`
-only the wire and the engine's public packages, and each layer added later gets its own. Each
+`messaging` and `store` (never the replay runner), `server` the session, messaging, wire, store,
+auth and tenhou but of the engine only `engine/play` and `engine/tile`, `store` and `auth` nothing,
+`replay` only the wire and the engine's public packages, `tenhou` only the wire and the seam types,
+and each layer added later gets its own. Each
 `cmd/*` is its own composition root: its `main` is the only place that reads that binary's flags,
 environment and signals and wires the parts it uses, so a tool beside the server builds what it
 needs without going through `cmd/gameserver`.
@@ -238,6 +241,20 @@ and the fixture tools.
   every round end and the game end the run emits, shaped by `messaging`, byte for byte with the
   recorded ones. It is the replay check `bin/verify_games.py` is to run for the Go server, beside
   the row check the script keeps; today the script still replays through the Python server.
+
+## Tenhou export
+
+`internal/tenhou` writes a stored replay as a tenhou.net mjlog for the lobby's Tenhou download.
+
+* It reads the records alone and never runs the engine, so a replay of either rules profile converts,
+  a rewritten `0.4-dev` one included: the rewritten robbed-kan replay converts to the very log the
+  Python export wrote from the original, and a test holds that.
+* Every seat moves to Tenhou's as it is read: Tenhou seats its first dealer at 0, so its seat order is
+  the dealer order and each INIT's round counter counts the dealer rotations.
+* A ron writes one AGARI per win, each from the scores the win before it left, as Tenhou does: the
+  riichi sticks on the first win's `ba`, the honba on every win's, a winner's melds newest first.
+* A replay with no game end has no log, and a record the log cannot be written from fails the export;
+  neither ever answers a partial log.
 
 ## Security requirements
 

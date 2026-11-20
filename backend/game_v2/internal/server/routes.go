@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"strconv"
 	"time"
@@ -12,12 +13,16 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/auth"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/tenhou"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
 const (
 	maxRequestBody   = 4096
 	logWriteFailed   = "write response"
 	logCreateFailed  = "create game failed"
+	logReplayUnread  = "read stored replay failed"
+	logTenhouFailed  = "tenhou export failed"
 	statusOK         = "ok"
 	statusPending    = "pending"
 	cacheControlNone = "no-store"
@@ -173,6 +178,49 @@ func (s *Server) withdrawGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) tenhouReplay(w http.ResponseWriter, r *http.Request) {
+	if !s.isInternalCaller(r) {
+		s.writeError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	gameID := r.PathValue("game_id")
+	compressed, err := s.cfg.Replays.Read(gameID)
+	if err != nil {
+		if !errors.Is(err, store.ErrInvalidGameID) && !errors.Is(err, fs.ErrNotExist) {
+			s.log.Warn(logReplayUnread, "game_id", gameID, "error", err)
+		}
+		s.writeError(w, http.StatusNotFound, "Replay not found")
+		return
+	}
+
+	xml, err := exportTenhou(compressed)
+	if errors.Is(err, tenhou.ErrNoGameEnd) {
+		s.writeError(w, http.StatusUnprocessableEntity, "Replay has no game end")
+		return
+	}
+	if err != nil {
+		s.log.Error(logTenhouFailed, "game_id", gameID, "error", err)
+		s.writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/xml")
+	w.WriteHeader(http.StatusOK)
+	_, err = io.WriteString(w, xml)
+	if err != nil {
+		s.log.Debug(logWriteFailed, "error", err)
+	}
+}
+
+func exportTenhou(compressed []byte) (string, error) {
+	content, err := store.DecompressReplay(compressed, wire.MaxReplayBytes)
+	if err != nil {
+		return "", err
+	}
+	return tenhou.Convert(content)
 }
 
 func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {

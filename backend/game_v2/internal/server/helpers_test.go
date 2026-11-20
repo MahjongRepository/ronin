@@ -59,6 +59,7 @@ type harness struct {
 	srv     *server.Server
 	http    *httptest.Server
 	dbPath  string
+	replays store.Replays
 	logs    *lockedBuffer
 	stopped bool
 }
@@ -86,10 +87,10 @@ func newHarness(t *testing.T, options ...option) *harness {
 
 	timing := session.DefaultTiming()
 	timing.GameStartConfirm, timing.AITurnDelay = 0, 0
-	sessionCfg := session.Config{
-		Timing: timing, Capacity: 10, DB: db, Replays: store.NewReplays(filepath.Join(dir, "replays")), Logger: logger,
-	}
+	replays := store.NewReplays(filepath.Join(dir, "replays"))
+	sessionCfg := session.Config{Timing: timing, Capacity: 10, DB: db, Replays: replays, Logger: logger}
 	serverCfg := server.Config{
+		Replays:        replays,
 		Capacity:       10,
 		TicketSecret:   ticketSecret,
 		InternalSecret: internalSecret,
@@ -112,7 +113,7 @@ func newHarness(t *testing.T, options ...option) *harness {
 		t.Fatalf("server.New error = %v", err)
 	}
 
-	h := &harness{t: t, srv: srv, http: httptest.NewServer(srv.Handler()), dbPath: dbPath, logs: logs}
+	h := &harness{t: t, srv: srv, http: httptest.NewServer(srv.Handler()), dbPath: dbPath, replays: replays, logs: logs}
 	t.Cleanup(func() {
 		h.shutdown()
 		h.http.Close()
@@ -171,6 +172,7 @@ type answer struct {
 	status int
 	header http.Header
 	body   map[string]any
+	text   string
 }
 
 func (h *harness) request(method, path string, body io.Reader, headers map[string]string) answer {
@@ -192,7 +194,7 @@ func (h *harness) request(method, path string, body io.Reader, headers map[strin
 	if err != nil {
 		h.t.Fatalf("read %s %s body: %v", method, path, err)
 	}
-	got := answer{status: resp.StatusCode, header: resp.Header}
+	got := answer{status: resp.StatusCode, header: resp.Header, text: string(raw)}
 	if len(raw) > 0 && strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
 		err = json.Unmarshal(raw, &got.body)
 		if err != nil {

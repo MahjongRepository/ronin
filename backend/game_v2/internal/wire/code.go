@@ -100,3 +100,18 @@ type GameType uint8
 
 // GameHanchan is the east and south game.
 const GameHanchan GameType = 0
+
+// The yaku ids a win's yaku list (KeyYakuID) gives the dora it counted, past every play.YakuID: the
+// yaku of the wire share the play.YakuID numbers, and a dora count rides beside them as a yaku.
+const (
+	YakuIDDora    = 120
+	YakuIDAkaDora = 121
+	YakuIDUraDora = 122
+)
+
+// The values of KeyHandLimit beside a play.Limit's name: below mangan, and a yakuman counted from
+// han rather than won by a yakuman yaku.
+const (
+	HandLimitNone         = "none"
+	HandLimitKazoeYakuman = "kazoe_yakuman"
+)

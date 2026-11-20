@@ -106,11 +106,12 @@ func newLogger(cfg config) (*slog.Logger, func() error, error) {
 }
 
 func newServer(storeCtx context.Context, cfg config, db *store.DB, logger *slog.Logger) (*server.Server, error) {
+	replays := store.NewReplays(cfg.replayDir)
 	manager, err := session.New(storeCtx, session.Config{
 		Timing:   session.DefaultTiming(),
 		Capacity: cfg.capacity,
 		DB:       db,
-		Replays:  store.NewReplays(cfg.replayDir),
+		Replays:  replays,
 		Logger:   logger,
 	})
 	if err != nil {
@@ -119,6 +120,7 @@ func newServer(storeCtx context.Context, cfg config, db *store.DB, logger *slog.
 
 	srv, err := server.New(server.Config{
 		Session:        manager,
+		Replays:        replays,
 		Capacity:       cfg.capacity,
 		TicketSecret:   cfg.ticketSecret,
 		InternalSecret: cfg.internalSecret,

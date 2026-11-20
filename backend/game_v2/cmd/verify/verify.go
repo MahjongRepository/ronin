@@ -2,10 +2,8 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"errors"
 	"fmt"
-	"io"
 	"slices"
 	"strconv"
 
@@ -25,7 +23,7 @@ func verifyGame(replays store.Replays, gameID string) error {
 	if err != nil {
 		return err
 	}
-	content, err := gunzip(compressed)
+	content, err := store.DecompressReplay(compressed, wire.MaxReplayBytes)
 	if err != nil {
 		return fmt.Errorf("read replay %s: %w", gameID, err)
 	}
@@ -48,18 +46,6 @@ func verifyGame(replays store.Replays, gameID string) error {
 		return fmt.Errorf("replay failed: %w", err)
 	}
 	return outcomeMismatch(recorded, replayed)
-}
-
-func gunzip(compressed []byte) ([]byte, error) {
-	reader, err := gzip.NewReader(bytes.NewReader(compressed))
-	if err != nil {
-		return nil, err
-	}
-	content, err := io.ReadAll(io.LimitReader(reader, wire.MaxReplayBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	return content, reader.Close()
 }
 
 func isOutcome(record wire.Map) bool {

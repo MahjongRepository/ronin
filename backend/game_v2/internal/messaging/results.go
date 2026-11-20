@@ -10,14 +10,9 @@ import (
 )
 
 const (
-	yakumanHan       = 13
-	doraYakuID       = 120
-	akaDoraYakuID    = 121
-	uraDoraYakuID    = 122
-	noLimitName      = "none"
-	kazoeYakumanName = "kazoe_yakuman"
-	paoShareAll      = "all"
-	paoShareHalf     = "half"
+	yakumanHan   = 13
+	paoShareAll  = "all"
+	paoShareHalf = "half"
 )
 
 func roundEndFields(
@@ -192,10 +187,10 @@ func handResult(win play.WinResult, bonus int) wire.Map {
 
 func limitName(win play.WinResult) string {
 	if !win.Limit.OK {
-		return noLimitName
+		return wire.HandLimitNone
 	}
 	if _, counted := win.Value.(play.Han); counted && win.Limit.Value == play.LimitYakuman {
-		return kazoeYakumanName
+		return wire.HandLimitKazoeYakuman
 	}
 	return win.Limit.Value.String()
 }
@@ -206,7 +201,7 @@ func yakuList(win play.WinResult) wire.Array {
 		open = open || meld.Kind != play.MeldClosedKan
 	}
 
-	doraIDs := [...]int{doraYakuID, akaDoraYakuID, uraDoraYakuID}
+	doraIDs := [...]int{wire.YakuIDDora, wire.YakuIDAkaDora, wire.YakuIDUraDora}
 	counts := [len(doraIDs)]int{win.Dora.Dora, win.Dora.AkaDora, win.Dora.UraDora}
 	list := make(wire.Array, 0, len(win.Yaku)+len(doraIDs))
 	for _, id := range win.Yaku {

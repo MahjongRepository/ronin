@@ -105,6 +105,18 @@ linters:
           deny:
             - pkg: github.com/MahjongRepository/ronin/backend/game_v2
               desc: replay sits beside messaging over the wire, so it imports only the wire and the engine's public packages of the module, never messaging, the session or the server
+        tenhou-layer:
+          list-mode: lax
+          files:
+            - "**/game_v2/internal/tenhou/**"
+            - "!$test"
+          allow:
+            - github.com/MahjongRepository/ronin/backend/game_v2/engine/play$
+            - github.com/MahjongRepository/ronin/backend/game_v2/engine/tile$
+            - github.com/MahjongRepository/ronin/backend/game_v2/internal/wire$
+          deny:
+            - pkg: github.com/MahjongRepository/ronin/backend/game_v2
+              desc: tenhou sits beside messaging over the wire and never runs the engine, so it imports only the wire and the engine's seam types of the module
         session-layer:
           list-mode: lax
           files:
@@ -133,6 +145,7 @@ linters:
             - github.com/MahjongRepository/ronin/backend/game_v2/internal/session$
             - github.com/MahjongRepository/ronin/backend/game_v2/internal/store$
             - github.com/MahjongRepository/ronin/backend/game_v2/internal/auth$
+            - github.com/MahjongRepository/ronin/backend/game_v2/internal/tenhou$
           deny:
             - pkg: github.com/MahjongRepository/ronin/backend/game_v2
               desc: server sits under the composition roots and over the session, and reads the engine only through its seam types
