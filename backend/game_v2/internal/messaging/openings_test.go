@@ -2,6 +2,7 @@ package messaging_test
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -157,19 +158,20 @@ func TestPlaceOpenings_ShouldReplaceTheOpenedDrawAndPutEveryOtherOpeningAheadOfT
 	turn := messaging.Opening{Seat: seat(t, 1), Payload: wire.Map{{Key: wire.KeyEventType, Value: wire.Int(1)}}, ReplacesDraw: true}
 	prompt := messaging.Opening{Seat: seat(t, 3), Payload: wire.Map{{Key: wire.KeyEventType, Value: wire.Int(3)}}}
 
-	placed := messaging.PlaceOpenings([]play.Emitted{discard, drawToTwo, drawToOne, furiten}, []messaging.Opening{turn, prompt})
-	unfuriten := messaging.PlaceOpenings([]play.Emitted{discard}, []messaging.Opening{prompt})
+	placed := slices.Collect(messaging.PlaceOpenings([]play.Emitted{discard, drawToTwo, drawToOne, furiten}, []messaging.Opening{turn, prompt}))
+	unfuriten := slices.Collect(messaging.PlaceOpenings([]play.Emitted{discard}, []messaging.Opening{prompt}))
 
 	want := []messaging.Placed{
-		messaging.PlacedEvent{Emitted: discard},
-		messaging.PlacedEvent{Emitted: drawToTwo},
-		turn, prompt,
-		messaging.PlacedEvent{Emitted: furiten},
+		{Event: discard},
+		{Event: drawToTwo},
+		{Opening: play.Some(turn)},
+		{Opening: play.Some(prompt)},
+		{Event: furiten},
 	}
 	if diff := cmp.Diff(want, placed, exportAll()); diff != "" {
 		t.Errorf("placed (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff([]messaging.Placed{messaging.PlacedEvent{Emitted: discard}, prompt}, unfuriten,
+	if diff := cmp.Diff([]messaging.Placed{{Event: discard}, {Opening: play.Some(prompt)}}, unfuriten,
 		exportAll()); diff != "" {
 		t.Errorf("placed without furiten (-want +got):\n%s", diff)
 	}

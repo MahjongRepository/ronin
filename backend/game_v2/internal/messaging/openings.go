@@ -1,6 +1,7 @@
 package messaging
 
 import (
+	"iter"
 	"slices"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
@@ -150,61 +151,59 @@ func availableCalls(legal []play.Action) wire.Array {
 	return calls
 }
 
-// Placed is one item of an engine call's output in the order each seat gets it: PlacedEvent or
-// Opening.
-//
-//sumtype:decl
-type Placed interface {
-	isPlaced()
+// Placed is one item of an engine call's output in the order each seat gets it: the opening of a
+// decision when Opening holds one, else the engine event Event.
+type Placed struct {
+	Event   play.Emitted
+	Opening play.Option[Opening]
 }
-
-// PlacedEvent is an engine event in its place.
-type PlacedEvent struct {
-	Emitted play.Emitted
-}
-
-func (PlacedEvent) isPlaced() {}
-func (Opening) isPlaced()     {}
 
 // PlaceOpenings returns an engine call's events with the openings of the decisions it opened in
 // place, so each seat gets its messages in the engine's order: a turn after a draw opens on the
 // seat's draw, which its opening replaces, and on nothing when the events hold no draw to that
 // seat; every other opening goes after the call's gameplay facts and ahead of its furiten changes,
 // in the order given.
-func PlaceOpenings(events []play.Emitted, openings []Opening) []Placed {
-	var draws [tile.SeatCount]play.Option[Opening]
-	var inserted []Placed
-	for _, o := range openings {
-		if o.ReplacesDraw {
-			draws[o.Seat.Index()] = play.Some(o)
-		} else {
-			inserted = append(inserted, o)
+func PlaceOpenings(events []play.Emitted, openings []Opening) iter.Seq[Placed] {
+	return func(yield func(Placed) bool) {
+		var draws [tile.SeatCount]play.Option[Opening]
+		for _, o := range openings {
+			if o.ReplacesDraw {
+				draws[o.Seat.Index()] = play.Some(o)
+			}
 		}
-	}
+		insert := func() bool {
+			for _, o := range openings {
+				if !o.ReplacesDraw && !yield(Placed{Opening: play.Some(o)}) {
+					return false
+				}
+			}
+			return true
+		}
 
-	furitenAt := slices.IndexFunc(events, func(e play.Emitted) bool {
-		_, furiten := e.Event.(play.FuritenChanged)
-		return furiten
-	})
-	if furitenAt < 0 {
-		furitenAt = len(events)
-	}
+		furitenAt := slices.IndexFunc(events, func(e play.Emitted) bool {
+			_, furiten := e.Event.(play.FuritenChanged)
+			return furiten
+		})
+		if furitenAt < 0 {
+			furitenAt = len(events)
+		}
 
-	placed := make([]Placed, 0, len(events)+len(openings))
-	for i, e := range events {
-		if i == furitenAt {
-			placed = append(placed, inserted...)
+		for i, e := range events {
+			if i == furitenAt && !insert() {
+				return
+			}
+			placed := Placed{Event: e}
+			if drew, ok := e.Event.(play.Drew); ok && draws[drew.Seat.Index()].OK {
+				placed = Placed{Opening: draws[drew.Seat.Index()]}
+			}
+			if !yield(placed) {
+				return
+			}
 		}
-		if drew, ok := e.Event.(play.Drew); ok && draws[drew.Seat.Index()].OK {
-			placed = append(placed, draws[drew.Seat.Index()].Value)
-			continue
+		if furitenAt == len(events) {
+			insert()
 		}
-		placed = append(placed, PlacedEvent{Emitted: e})
 	}
-	if furitenAt == len(events) {
-		placed = append(placed, inserted...)
-	}
-	return placed
 }
 
 // StampOpening returns a copy of an opening's payload stamped for its recipient: how long, in

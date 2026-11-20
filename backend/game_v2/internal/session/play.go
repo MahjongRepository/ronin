@@ -182,7 +182,7 @@ func (g *game) openRoundOverPause(events []play.Emitted) error {
 }
 
 func (g *game) openings(awaiting wait) ([]messaging.Opening, error) {
-	var openings []messaging.Opening
+	openings := make([]messaging.Opening, 0, len(awaiting.seats))
 	for _, seat := range awaiting.seats {
 		if g.isAISeat(seat) {
 			continue
@@ -258,13 +258,12 @@ func (g *game) sendEvents(events []play.Emitted, openings []messaging.Opening, t
 		}
 	}
 
-	for _, placed := range messaging.PlaceOpenings(events, openings) {
+	for placed := range messaging.PlaceOpenings(events, openings) {
 		var err error
-		switch item := placed.(type) {
-		case messaging.Opening:
-			err = g.sendOpening(item)
-		case messaging.PlacedEvent:
-			err = g.sendEvent(item.Emitted, table)
+		if placed.Opening.OK {
+			err = g.sendOpening(placed.Opening.Value)
+		} else {
+			err = g.sendEvent(placed.Event, table)
 		}
 		if err != nil {
 			return err
