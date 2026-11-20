@@ -772,7 +772,11 @@ func (r *Round) declineRon(seat tile.Seat) {
 }
 
 func (r *Round) waits(seat tile.Seat) tile.Kinds {
-	return hand.Waits(countsOf(r.hand(seat)), countsOf(r.meldedTiles(seat)))
+	held := &r.hands[seat.Index()]
+	if !held.waitsUntilHandOrMeldMove.OK {
+		held.waitsUntilHandOrMeldMove = play.Some(hand.Waits(countsOf(held.view()), countsOf(r.meldedTiles(seat))))
+	}
+	return held.waitsUntilHandOrMeldMove.Value
 }
 
 func (r *Round) seatWind(seat tile.Seat) tile.Wind {
@@ -788,7 +792,8 @@ func (r *Round) shownFuriten(seat tile.Seat) bool {
 	if r.hands[seat.Index()].count%3 == drawnHandRemainder {
 		return furiten.Shown || furiten.BlocksRon()
 	}
-	return furiten.BlocksRon() || offer.IsDiscardFuriten(r.waits(seat), r.rivers[seat.Index()])
+	river := r.rivers[seat.Index()]
+	return furiten.BlocksRon() || (len(river) > 0 && offer.IsDiscardFuriten(r.waits(seat), river))
 }
 
 // ReportFuriten shows each seat its changed furiten, a drawn hand keeping its turn's value unless
