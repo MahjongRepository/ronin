@@ -53,7 +53,8 @@ var (
 // seats a prompt still waits on and deals a round that is over.
 //
 // The error is engine.NewGame's for a setup it refuses, a RefusedError for any action or pass the
-// engine refuses, and an ActionAfterGameEndError for actions left once the game is over.
+// engine refuses, an ActionAfterGameEndError for actions left once the game is over, or an error
+// when the engine refuses the next deal or the dealer's first draw.
 func Run(setup engine.Setup, actions []SeatAction) ([]Step, error) {
 	g, events, err := engine.NewGame(setup)
 	if err != nil {
