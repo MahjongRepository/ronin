@@ -1,6 +1,7 @@
 package score
 
 import (
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -11,9 +12,6 @@ const (
 	baimanBase          = 4000
 	sanbaimanBase       = 6000
 	yakumanBase         = 8000
-	honbaPerTsumoPayer  = 100
-	honbaPerRon         = 300
-	riichiStickPoints   = 1000
 	paymentRounding     = 100
 	manganHan           = 5
 	hanemanHan          = 6
@@ -27,14 +25,14 @@ const (
 // 100 each on a tsumo.
 func HonbaBonus(win Win, honba int) int {
 	if win.IsTsumo() {
-		return honba * honbaPerTsumoPayer
+		return honba * rules.HonbaTsumoBonusPerLoser
 	}
-	return honba * honbaPerRon
+	return honba * rules.HonbaRonBonus
 }
 
 // RiichiSticksBonus returns what riichiSticks pay the winner who takes them: 1000 each.
 func RiichiSticksBonus(riichiSticks int) int {
-	return riichiSticks * riichiStickPoints
+	return riichiSticks * rules.RiichiStickValue
 }
 
 // NagashiMangan returns the payment of a nagashi mangan by the player in seatWind: a mangan paid

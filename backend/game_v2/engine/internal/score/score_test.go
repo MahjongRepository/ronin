@@ -3,7 +3,6 @@ package score_test
 import (
 	"testing"
 
-	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/score"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -13,22 +12,6 @@ func TestHandRules_ShouldBeTenhousPresetBuiltFromTheRuleConstants(t *testing.T) 
 
 	if got := score.HandRules(); got != tenhou {
 		t.Errorf("HandRules() = %+v, want %+v", got, tenhou)
-	}
-}
-
-func TestRuleConstants_ShouldMatchTheScoringHelpers(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		constant int
-		helper   int
-	}{
-		{"RiichiStickValue", rules.RiichiStickValue, score.RiichiSticksBonus(1)},
-		{"HonbaTsumoBonusPerLoser", rules.HonbaTsumoBonusPerLoser, score.HonbaBonus(score.WinTsumo, 1)},
-		{"HonbaRonBonus", rules.HonbaRonBonus, score.HonbaBonus(score.WinRon, 1)},
-	} {
-		if tc.constant != tc.helper {
-			t.Errorf("rules.%s = %d, the scoring helper gives %d", tc.name, tc.constant, tc.helper)
-		}
 	}
 }
 
