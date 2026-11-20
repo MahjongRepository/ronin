@@ -51,14 +51,25 @@ func IsDiscardFuriten(waits tile.Kinds, river []play.RiverTile) bool {
 // RonCandidate is the seat a ron or chankan is judged for: its concealed tiles, melds, river and
 // furiten flags.
 type RonCandidate struct {
-	Hand    []tile.TileID
-	Melds   []play.MeldView
-	River   []play.RiverTile
-	Furiten Furiten
+	Hand       []tile.TileID
+	Melds      []play.MeldView
+	River      []play.RiverTile
+	Furiten    Furiten
+	KnownWaits play.Option[tile.Kinds]
 }
 
 func (c RonCandidate) waits() tile.Kinds {
+	if c.KnownWaits.OK {
+		return c.KnownWaits.Value
+	}
 	return hand.Waits(countsOfDistinctIDs(c.Hand), countsOfDistinctIDs(meldedTiles(c.Melds)))
+}
+
+func (c RonCandidate) completesOn(discard tile.TileID) bool {
+	if c.KnownWaits.OK {
+		return c.KnownWaits.Value.Contains(discard.Kind())
+	}
+	return Completes(c.Hand, discard)
 }
 
 func (c RonCandidate) isBlocked(waits tile.Kinds) bool {
@@ -80,7 +91,7 @@ const (
 // scored with no dora since dora never makes a yaku. It panics with a play.EngineFaultError when
 // the scorer rejects the completed hand for anything but no yaku.
 func DiscardRon(candidate RonCandidate, discard tile.TileID, situation score.Situation) RonOutcome {
-	if !Completes(candidate.Hand, discard) {
+	if !candidate.completesOn(discard) {
 		return RonNotComplete
 	}
 	if candidate.isBlocked(candidate.waits()) {

@@ -760,10 +760,11 @@ func (r *Round) ronOutcome(seat tile.Seat, id tile.TileID) offer.RonOutcome {
 
 func (r *Round) ronCandidate(seat tile.Seat) offer.RonCandidate {
 	return offer.RonCandidate{
-		Hand:    r.hand(seat),
-		Melds:   r.seatMelds(seat),
-		River:   r.rivers[seat.Index()],
-		Furiten: r.furiten[seat.Index()],
+		Hand:       r.hand(seat),
+		Melds:      r.seatMelds(seat),
+		River:      r.rivers[seat.Index()],
+		Furiten:    r.furiten[seat.Index()],
+		KnownWaits: r.hands[seat.Index()].waitsUntilHandMoves,
 	}
 }
 
