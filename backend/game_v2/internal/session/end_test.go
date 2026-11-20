@@ -116,8 +116,8 @@ func TestGameEnd_WhenTheFinishCannotBeRecorded_ShouldEndAsAFailureAndClose1011(t
 		alice := playOneWallGame(t, h)
 
 		assertClosedWithInternalError(t, alice)
-		if got := len(ofSession(alice.messages(), "session_error")); got != 1 {
-			t.Errorf("alice got %d session errors, want the internal error", got)
+		if got := sessionErrorCode(t, alice); got != wire.Str(messaging.SessionInternalError) {
+			t.Errorf("alice session error = %v, want internal_error", got)
 		}
 	})
 }

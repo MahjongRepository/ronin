@@ -208,7 +208,7 @@ a contract.
   seat with no connection at the start is `absent` between the deal and the dealer's draw, a leave
   is `left` ahead of its AI player's moves, a take-back is a human return, and a replacement or an
   AI player seated from the start writes none. An abandoned game's replay is discarded; a failed
-  save turns a completed end into a failure.
+  replay save or a failed finish write turns the end into a failure (1011).
 * Each step logs as its own subject: every line of a game carries `game_id`, and a line about a
   seated participant its `seat`. The messages the log gates match are named constants with the
   Python server's text and level. Concealed hand tiles are logged at DEBUG only, and game tickets
