@@ -3,7 +3,9 @@
 How a game gets its random outcomes: the wall of each round, the first dealer and the seating. The
 engine's `backend/game/logic/rng.py` holds the seat permutation, the first dealer and the wall; the
 wall cut is in `wall.py`; the session's `backend/game/session/seating.py` generates the seed and
-seats the players; `make measure-wall` measures it.
+seats the players; `make measure-wall` measures it. The Go game server implements the same scheme in
+`backend/game_v2/engine/internal/rng` and `engine/internal/wall`, reached through the facade's seed
+functions, and `make measure-wall SERVER=go` measures it.
 
 ## One seed per game
 
@@ -134,6 +136,16 @@ Starting-hand shanten of that run, as counts (80000 13-tile hands and 20000 deal
 A warning in the report has at most a 0.1% chance per family under a correct generator, so it is a
 reason to rerun with another `--experiment-seed`, not a finding. To test a change, save a run with
 `--json`, change the code, and rerun with `--baseline` and a different experiment seed.
+
+## The Go sampler
+
+`make measure-wall SERVER=go` runs `backend/game_v2/cmd/measurewall`, a port of the script over the Go
+engine's seed functions. It draws its engine seeds and its control shuffle from a port of Python's
+`random.Random`, seeded with the script's strings, so for the same arguments both measure the same
+walls and hands and print the same report, and either reads the other's `--json` as a baseline. On
+the default run and on runs at experiment seeds 1, 2 and 5 the two reports were identical but for
+the timing line; the JSON's exact binomial tails differ in the eleventh significant digit, from the
+two languages' `lgamma`. The Go run takes about 0.4 seconds.
 
 ## Comparison with a naive shuffle
 

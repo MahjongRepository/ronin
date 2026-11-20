@@ -31,7 +31,8 @@ Ronin is a Riichi Mahjong game server and browser client.
   events socket.
 * `docs/game-rules.md` — the Riichi ruleset the engine implements, read before rule work.
 * `docs/rng.md` — how the seed becomes the walls, the first dealer and the seating, and what
-  `make measure-wall` reports for it; update it with any change to `game/logic/rng.py`.
+  `make measure-wall` reports for it; update it with any change to `game/logic/rng.py` or to the Go
+  engine's `engine/internal/rng`.
 * `docs/i18n.md` — the language contract and the ja/en/ru glossary; `make lint` runs
   `bin/check_i18n.py` over the lobby's catalogs.
 * `docs/game-client-look.md` — the v2 game client's look (composition, elements, proportions, review
@@ -47,7 +48,9 @@ The `Makefile` lists the targets; the non-obvious ones:
   `.env.local` sourced when present. To see the app in a browser, drive it with the
   `agent-browser` skill plus this project's `app-browser` skill (`.claude/skills/app-browser/`).
 * `make test` — backend pytest with its coverage gate (`backend/AGENTS.md`, Tooling).
-* `make profile` — profile the game engine replay runner (the `optimize-engine` skill uses it).
+* `make profile [SERVER=go]` — profile the game engine replay runner (the `optimize-engine` skill uses it);
+  `SERVER=go` benchmarks the Go replay runner over the Go full game fixture (`go test -bench`) and prints
+  its `pprof` report (`bin/profile-go-replay.sh`).
 * `make run-games [GAMES=n] [TABLES=t] [MODE=m] [NET=bad] [SERVER=go]` — play bot games (the Rust `mahjong-bot` repo at `BOT_ROOT`,
   default `~/work/mahjong-bot`, built with its `make release-bot`) on fresh servers, `t` tables at a time, the bots in play mode `m` (their `--mode`,
   only when set; `chaos` misbehaves on purpose, the bot's `ronin/chaos.rs`, and its log gate passes only the game
@@ -62,17 +65,19 @@ The `Makefile` lists the targets; the non-obvious ones:
   verifies only the game ids its bots logged. It **wipes** `backend/logs` and the bot's `var/logs` first and
   kills whatever holds `:8710` and the game server's port. Run it only when asked: tests and `make run-all-checks` are the
   verification.
-* `make profile-games` — the same run at production's INFO logging,
+* `make profile-games [SERVER=go]` — the same run at production's INFO logging,
   with the game server sampling its own stacks (`bin/profile_game_server.py`) and reporting where real
   games spend its CPU; `make profile` measures engine changes. The sampler stays in-process: py-spy
-  pauses the server per sample and stalls it past the health check.
+  pauses the server per sample and stalls it past the health check. `SERVER=go` runs the Go server with
+  `-cpuprofile` and prints its `pprof` report instead, with no separate GC readout.
 * `make run-tournament` — eight bots on a new tournament's page, fresh servers and the dev database, managed by
   `bin/tournament_manager.py` through the tournament API (two shuffled tables, both followed to their end); every
   API response and event goes to `backend/logs/tournament/manager.log`. It wipes only `backend/logs/tournament`
   and kills whatever holds `:8710`/`:8711`. Run it only when asked.
-* `make measure-wall [MEASURE_ARGS=...]` — sample games from the engine's seed, dealer and wall functions and
+* `make measure-wall [MEASURE_ARGS=...] [SERVER=go]` — sample games from the engine's seed, dealer and wall functions and
   report their statistics against exact references and a stdlib-shuffle control (`backend/scripts/measure_wall/`).
-  A structural failure exits 1; a statistical warning is printed, never a gate.
+  A structural failure exits 1; a statistical warning is printed, never a gate. `SERVER=go` runs the Go
+  sampler (`backend/game_v2/cmd/measurewall`), which takes the same arguments and prints the same report.
 * `make generate-fixtures` — regenerate the v2 game client's replay fixtures and seat transcripts from
   the Go server's `cmd/fixtures` (`backend/game_v2/AGENTS.md`, Seat transcripts and Replay fixtures):
   the replay scenarios played through the engine, the seat scenarios through the real session and

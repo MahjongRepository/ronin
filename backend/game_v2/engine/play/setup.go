@@ -37,3 +37,14 @@ type StartPosition struct {
 	Wind         tile.Wind
 	RoundNumber  uint32
 }
+
+// RoundDeal is one round as its seed breaks and deals it, for the tools that sample the seed: the
+// live wall in draw order and the dead wall's 14 tiles, both as they lie before the deal, the first
+// dora indicator, each seat's starting hand sorted by id, and the dealer's first draw.
+type RoundDeal struct {
+	Live          []tile.TileID
+	DeadWall      []tile.TileID
+	DoraIndicator tile.TileID
+	Hands         [tile.SeatCount][]tile.TileID
+	DealerDraw    tile.TileID
+}

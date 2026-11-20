@@ -13,8 +13,8 @@ games with their sessions (`internal/session`), the rows and replay files it per
 lobby (`internal/store`), its credentials (`internal/auth`), the transport serving the lobby's
 routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`), the
 replay runner (`internal/replay`) with the Go replay check (`cmd/verify`), the Tenhou export
-(`internal/tenhou`), and the generator of the game client's seat transcripts and replay fixtures
-(`cmd/fixtures`).
+(`internal/tenhou`), the generator of the game client's seat transcripts and replay fixtures
+(`cmd/fixtures`), and the wall measurement (`cmd/measurewall`).
 
 ## The seam
 
@@ -22,8 +22,8 @@ The module is two sides, a server and an engine, and the engine is reachable onl
 
 * `engine/` is the engine's only public API. The rules live under `engine/internal/`, which the Go
   compiler lets nothing outside `engine/` import, so the server side cannot reach past the facade.
-  The facade holds no rule of its own: it wraps `game`, the seed functions of `rng` and the lowest
-  shanten the tools' play policies rank by, and re-exports as type aliases the seed and error
+  The facade holds no rule of its own: it wraps `game`, the seed functions of `rng`, the round a seed's
+  wall deals and the lowest shanten the tools' play policies rank by, and re-exports as type aliases the seed and error
   types a caller builds or matches. No slice it returns shares a backing array with the game, so a
   caller may write into anything it gets; the facade copies what the layer below shares, and a
   seam test writes into every returned slice to hold that.
@@ -303,6 +303,18 @@ run writes or checks both sets: `make generate-fixtures` and the `make fixtures-
 * Each replay must end in the outcome its scenario names and reproduce its game through
   `internal/replay` from the same setup before it is written; a cut falls between engine calls, as
   the server saves only between steps, and must still load and run.
+
+## Wall measurement and profiles
+
+`cmd/measurewall` is `make measure-wall SERVER=go`, the port of the Python wall measurement over the
+facade's seed functions.
+
+* Its engine seeds and control shuffle come from a port of Python's `random.Random` seeded with the
+  script's strings, so for the same arguments it measures the same walls and prints the same report,
+  and either side reads the other's JSON as a baseline. `testdata/python_report.txt` is the Python
+  script's report, and a test holds the Go one to it.
+* `make profile SERVER=go` profiles `BenchmarkRun_FullGame` (`internal/replay`), the replay of the
+  client's Go full game fixture; `make profile-games SERVER=go` runs `cmd/gameserver -cpuprofile`.
 
 ## Security requirements
 

@@ -81,7 +81,11 @@ fixtures-check:
 	cd backend/game_v2 && go run ./cmd/fixtures -check
 
 profile:
+ifeq ($(SERVER),go)
+	@bash ./bin/profile-go-replay.sh
+else
 	$(BE_RUN) python bin/profile_replay.py
+endif
 
 run-games:
 	@TABLES=$(TABLES) MODE=$(MODE) NET=$(NET) SERVER=$(SERVER) bash ./bin/run-bots-games.sh $(GAMES)
@@ -90,9 +94,13 @@ run-tournament:
 	@bash ./bin/run-tournament.sh
 
 profile-games:
-	@PROFILE=1 TABLES=12 MODE= SERVER= bash ./bin/run-bots-games.sh 48
+	@PROFILE=1 TABLES=12 MODE= SERVER=$(SERVER) bash ./bin/run-bots-games.sh 48
 
 measure-wall:
+ifeq ($(SERVER),go)
+	cd backend/game_v2 && go run ./cmd/measurewall $(MEASURE_ARGS)
+else
 	cd backend && uv run python -m scripts.measure_wall $(MEASURE_ARGS)
+endif
 
 -include Makefile.local

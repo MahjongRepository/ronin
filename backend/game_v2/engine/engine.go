@@ -10,8 +10,8 @@
 // game.
 //
 // A game's randomness comes from a seed by the shake256-v1 scheme, whose functions are exposed for
-// the tools that sample it: each round's wall and dice, the first dealer and the seating. Shanten
-// is exposed for the tools that play by a policy.
+// the tools that sample it: each round's wall and dice, the round as it is dealt, the first dealer
+// and the seating. Shanten is exposed for the tools that play by a policy.
 package engine
 
 import (
@@ -22,6 +22,7 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rng"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/shanten"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/wall"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -190,6 +191,26 @@ func FirstDealer(seed Seed) (dealer tile.Seat, first, second tile.Dice) {
 // seat it lists, and so on.
 func SeatPermutation(seed Seed) [tile.SeatCount]tile.Seat {
 	return rng.SeatPermutation(seed)
+}
+
+// DealRound returns the round seed deals as roundNumber with dealer dealing: its wall broken at the
+// dice and dealt, as a game deals that round.
+func DealRound(seed Seed, roundNumber uint32, dealer tile.Seat) play.RoundDeal {
+	w := wall.FromSeed(seed, roundNumber, dealer)
+	tiles := w.Tiles()
+	live := w.LiveCount()
+	deal := play.RoundDeal{
+		Live:          tiles[:live:live],
+		DeadWall:      tiles[live:],
+		DoraIndicator: w.DoraIndicators()[0],
+	}
+
+	hands := w.Deal(dealer)
+	for i := range hands {
+		deal.Hands[i] = slices.Clone(hands[i][:])
+	}
+	deal.DealerDraw, _ = w.Draw()
+	return deal
 }
 
 // Shanten returns how many tiles a closed hand is from ready, -1 once complete: the lowest over the

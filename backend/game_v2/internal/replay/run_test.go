@@ -2,6 +2,7 @@ package replay_test
 
 import (
 	"errors"
+	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -67,4 +68,28 @@ func TestRun_WhenActionsRemainAfterTheGameEnds_ShouldReturnActionAfterGameEndErr
 	if got, ok := errors.AsType[replay.ActionAfterGameEndError](err); !ok || got != want {
 		t.Errorf("Run error = %v, want %v", err, want)
 	}
+}
+
+const fullGameReplayPath = "../../../../frontend/game_v2/src/fixtures/replays/full_game.msgpack"
+
+func BenchmarkRun_FullGame(b *testing.B) {
+	content, err := os.ReadFile(fullGameReplayPath)
+	if err != nil {
+		b.Fatalf("read the full game replay: %v", err)
+	}
+	loaded, err := replay.Load(content)
+	if err != nil {
+		b.Fatalf("Load error = %v", err)
+	}
+	setup := engine.Setup{Walls: play.Seeded{Seed: loaded.Seed}}
+
+	steps := 0
+	for b.Loop() {
+		run, runErr := replay.Run(setup, loaded.Actions)
+		if runErr != nil {
+			b.Fatalf("Run error = %v", runErr)
+		}
+		steps = len(run)
+	}
+	b.ReportMetric(float64(steps), "steps/op")
 }

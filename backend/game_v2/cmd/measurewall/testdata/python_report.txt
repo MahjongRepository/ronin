@@ -1,0 +1,56 @@
+WALL GENERATOR MEASUREMENT
+  rng shake256-v1, seed 96 bytes, 200 games x 3 rounds = 600 walls, experiment 5
+  structure: ok (600 walls own every tile once, the first game regenerates equal)
+
+CELL FAMILIES (exact reference; warn when the extreme cell's tail x cells is under 0.1%)
+  name                                                      cells  trials  min exp  max z   tail p       at  x cells  status
+  tile id by wall position                                  18496     600      4.4   6.02  7.2e-06   125,57    0.133  insufficient
+  tile type by wall position                                 4624     600     17.6   4.19  2.7e-04    52,17    1.000  ok
+  tile type among the dealt 13, by seat after the dealer      136    7800    229.4   2.99   0.003~     0,12    0.379  ok
+  first dora indicator type                                    34     600     17.6   2.74    0.014     0,11    0.490  ok
+  wall-break dice faces, by die                                12     600    100.0  -2.63    0.008      0,3    0.096  ok
+  wall-break dice ordered pairs                                36     600     16.7   2.32    0.038     0,10    1.000  ok
+  wall-break dice sum (triangular)                             11     600     16.7   1.73    0.101      0,7    1.000  ok
+  first-dealer dice faces, by roll and die                     24     200     33.3  -1.96    0.054      3,3    1.000  ok
+  first dealer seat (two-roll rule)                             4     200     49.7   1.63    0.125      0,1    0.500  ok
+  first dealer among the input players                          4     200     50.0   1.47    0.169      0,0    0.674  ok
+  seat permutation                                             24     200      8.3   2.01    0.083      0,4    1.000  insufficient
+  tail p: exact binomial, or ~ normal with hypergeometric variance; x cells: a union bound
+
+MEANS PER GAME (exact reference; the standard error treats each game as one observation)
+  name                                                      observed  expected      se      z  status
+  adjacent equal types per wall                                2.872     3.000  0.0661   -1.9  ok
+  equal-type pairs per 13-tile hand                            1.764     1.733  0.0244    1.2  ok
+  honors per 13-tile hand                                      2.650     2.676  0.0244   -1.1  ok
+  red fives per 13-tile hand                                   0.283     0.287  0.0087   -0.4  ok
+  positions holding the same tile id in consecutive rounds     1.042     1.000  0.0525    0.8  ok
+  positions holding the same tile type in consecutive rounds     4.103     4.000  0.1010    1.0  ok
+
+STARTING HANDS vs control (random.Random(experiment seed).shuffle, hands cut from the front of the permutation)
+  name                                                        engine   control      z  status    engine n control n
+  shanten of 13-tile hands = 0                                0.0004    0.0000      -  insufficient         1         0
+  shanten of 13-tile hands = 1                                0.0058    0.0071      -  insufficient        14        17
+  shanten of 13-tile hands = 2                                0.0983    0.1079   -1.2  ok                 236       259
+  shanten of 13-tile hands = 3                                0.3454    0.3592   -1.0  ok                 829       862
+  shanten of 13-tile hands = 4                                0.4146    0.3883    1.9  ok                 995       932
+  shanten of 13-tile hands = 5                                0.1275    0.1325   -0.5  ok                 306       318
+  shanten of 13-tile hands = 6                                0.0079    0.0050      -  insufficient        19        12
+  shanten of 13-tile hands, mean                              3.5821    3.5463    1.5  ok           
+  shanten of the dealer's 14 tiles = -1                       0.0000    0.0000      -  insufficient         0         0
+  shanten of the dealer's 14 tiles = 0                        0.0000    0.0000      -  insufficient         0         0
+  shanten of the dealer's 14 tiles = 1                        0.0300    0.0350      -  insufficient        18        21
+  shanten of the dealer's 14 tiles = 2                        0.1700    0.2017   -1.5  ok                 102       121
+  shanten of the dealer's 14 tiles = 3                        0.4533    0.4117    1.5  ok                 272       247
+  shanten of the dealer's 14 tiles = 4                        0.2950    0.2983   -0.1  ok                 177       179
+  shanten of the dealer's 14 tiles = 5                        0.0517    0.0533   -0.1  ok                  31        32
+  shanten of the dealer's 14 tiles = 6                        0.0000    0.0000      -  insufficient         0         0
+  shanten of the dealer's 14 tiles, mean                      3.1683    3.1333    0.7  ok           
+  mean shanten of 13-tile hands, seat 0 after the dealer      3.5483    3.5583   -0.2  ok           
+  mean shanten of 13-tile hands, seat 1 after the dealer      3.5700    3.5317    0.7  ok           
+  mean shanten of 13-tile hands, seat 2 after the dealer      3.6083    3.5250    1.7  ok           
+  mean shanten of 13-tile hands, seat 3 after the dealer      3.6017    3.5700    0.6  ok           
+
+CONSECUTIVE ROUNDS OF ONE SEED
+  identical walls: 0 of 400 pairs  ok
+
+No statistical warnings. Under a correct generator each family warns with at most a 0.1% chance (a union bound over its cells), so a warning is a prompt to rerun, not a proof.

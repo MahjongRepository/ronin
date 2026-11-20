@@ -1,7 +1,8 @@
 // Command gameserver runs the Go game server: it reads its environment, opens the shared database
 // and the replay store, and serves the lobby's routes and the game sockets until SIGINT or SIGTERM,
 // then stops within the container's grace period: the HTTP server stops taking connections, every
-// socket closes as a disconnect, the games' finalizers drain, and the database closes last.
+// socket closes as a disconnect, the games' finalizers drain, and the database closes last. With
+// -cpuprofile it writes a CPU profile of the whole run there, for make profile-games.
 package main
 
 import (
@@ -31,10 +32,11 @@ const (
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8712", "address to listen on")
+	cpuProfile := flag.String("cpuprofile", "", "write a CPU profile of the whole run to this file")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	err := run(ctx, *addr)
+	err := runProfiled(ctx, *addr, *cpuProfile)
 	stop()
 
 	if err == nil {

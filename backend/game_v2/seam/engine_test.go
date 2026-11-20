@@ -48,6 +48,31 @@ func TestSeedFunctions_WhenGivenTheSeedOfAGame_ShouldDescribeItsStartAndSeating(
 	assertEqual(t, "seated", sorted, tile.Seats())
 }
 
+func TestDealRound_WhenGivenTheSeedOfAGame_ShouldDealItsFirstRound(t *testing.T) {
+	seed := seedOf(t, "ab")
+	_, events := newGame(t, engine.Setup{Walls: play.Seeded{Seed: seed}})
+	dealer, _, _ := engine.FirstDealer(seed)
+
+	deal := engine.DealRound(seed, 0, dealer)
+
+	var hands [tile.SeatCount][]tile.TileID
+	var draws []play.Drew
+	for _, e := range events {
+		if started, ok := e.Event.(play.RoundStarted); ok {
+			hands[started.Seat.Index()] = started.Hand
+			assertEqual(t, "dora indicators", started.DoraIndicators, []tile.TileID{deal.DoraIndicator})
+		}
+		if drew, ok := e.Event.(play.Drew); ok {
+			draws = append(draws, drew)
+		}
+	}
+	assertEqual(t, "hands", deal.Hands, hands)
+	assertEqual(t, "draws", draws, []play.Drew{{Seat: dealer, Tile: deal.DealerDraw}})
+	owned := slices.SortedFunc(slices.Values(slices.Concat(deal.Live, deal.DeadWall)), tile.TileID.Compare)
+	allIDs := tile.AllTileIDs()
+	assertEqual(t, "owned tiles", owned, allIDs[:])
+}
+
 func TestTsumogiriAgents_WhenTheyPlayASeededGame_ShouldReachItsStandingsWithTheLastEvent(t *testing.T) {
 	g, initial := newGame(t, seededSetup(t, "cd"))
 	sink := &recorder{}

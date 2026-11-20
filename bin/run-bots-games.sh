@@ -40,11 +40,6 @@ if ! [[ $MAX_GAMES =~ ^[1-9][0-9]*$ && $TABLES =~ ^[1-9][0-9]*$ ]]; then
     exit 1
 fi
 
-if [[ $SERVER == go && $PROFILE == 1 ]]; then
-    echo "the profile mode samples the Python game server only, got SERVER=go PROFILE=1"
-    exit 1
-fi
-
 BOT_ARGS=()
 BOT_LOBBY_URL=""
 BATCH_TIMEOUT=120
@@ -75,6 +70,9 @@ esac
 BOT_NAMES=(ai-akagi ai-tetsuya ai-ichihime ai-miki)
 PROFILE_DIR="$PROJECT_ROOT/backend/profiles"
 PROFILE_FILE="$PROFILE_DIR/games_$(date +%Y-%m-%d_%H-%M-%S).samples.txt"
+if [[ $SERVER == go ]]; then
+    PROFILE_FILE="$PROFILE_DIR/games_go_$(date +%Y-%m-%d_%H-%M-%S).cpu.prof"
+fi
 FAILED_RUN_DIR="$PROJECT_ROOT/backend/data/failed-runs/$(date +%Y-%m-%d_%H-%M-%S)"
 HARNESS_LOG="$PROJECT_ROOT/backend/logs/harness.log"
 
@@ -194,7 +192,11 @@ start_server() {
 
 start_go_game_server() {
     echo "starting game server (Go) on port $GAME_PORT..."
-    cd "$PROJECT_ROOT" && "$GO_BUILD_DIR/gameserver" -addr "0.0.0.0:$GAME_PORT" > "$GAME_LOG_DIR/stdout.log" 2> "$GAME_LOG_DIR/stderr.log" &
+    local profile_args=()
+    if [[ $PROFILE == 1 ]]; then
+        profile_args=(-cpuprofile "$PROFILE_FILE")
+    fi
+    cd "$PROJECT_ROOT" && "$GO_BUILD_DIR/gameserver" -addr "0.0.0.0:$GAME_PORT" "${profile_args[@]}" > "$GAME_LOG_DIR/stdout.log" 2> "$GAME_LOG_DIR/stderr.log" &
     SERVER_PIDS+=($!)
     await_server game "$GAME_PORT" "$GAME_LOG_DIR"
 }
@@ -755,7 +757,13 @@ fi
 
 print_stats
 
-if [[ $PROFILE == 1 ]]; then
+if [[ $PROFILE == 1 && $SERVER == go ]]; then
+    echo ""
+    if ! bash "$SCRIPT_DIR/go-profile-report.sh" "$GO_BUILD_DIR/gameserver" "$PROFILE_FILE"; then
+        echo "the game server profile is invalid"
+        exit 1
+    fi
+elif [[ $PROFILE == 1 ]]; then
     echo ""
     if ! (cd "$PROJECT_ROOT" && uv run --project backend python bin/sampled_profile.py "$PROFILE_FILE"); then
         echo "the game server profile is invalid"
