@@ -71,7 +71,7 @@ func withSocket(edit func(*server.SocketConfig)) option {
 }
 
 func withCapacity(n int) option {
-	return func(c *server.Config, s *session.Config) { c.Capacity, s.Capacity = n, n }
+	return func(_ *server.Config, s *session.Config) { s.Capacity = n }
 }
 
 func newHarness(t *testing.T, options ...option) *harness {
@@ -91,7 +91,6 @@ func newHarness(t *testing.T, options ...option) *harness {
 	sessionCfg := session.Config{Timing: timing, Capacity: 10, DB: db, Replays: replays, Logger: logger}
 	serverCfg := server.Config{
 		Replays:        replays,
-		Capacity:       10,
 		TicketSecret:   ticketSecret,
 		InternalSecret: internalSecret,
 		CORSOrigins:    []string{lobbyOrigin},

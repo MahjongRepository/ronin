@@ -85,7 +85,7 @@ func (s *Server) status(w http.ResponseWriter, _ *http.Request) {
 		{"pending_games", counts.Pending},
 		{"active_games", counts.Playing},
 		{"capacity_used", counts.Pending + counts.Playing},
-		{"max_capacity", s.cfg.Capacity},
+		{"max_capacity", s.cfg.Session.Capacity()},
 		{"started_at", s.startedAt},
 		{"reconnects", stats.Reconnects},
 		{"takeovers", stats.Takeovers},

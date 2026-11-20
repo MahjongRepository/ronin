@@ -42,8 +42,8 @@ func main() {
 	if err == nil {
 		return
 	}
-	if _, logged := errors.AsType[loggedError](err); !logged {
-		slog.Error(logStopped, "error", err)
+	if rest := unlogged(err); rest != nil {
+		slog.Error(logStopped, "error", rest)
 	}
 	os.Exit(1)
 }
@@ -52,6 +52,23 @@ const logStopped = "game server stopped"
 
 type loggedError struct {
 	error
+}
+
+// unlogged returns the parts of err that run has not written to its log, such as the log file's
+// close error joined to a logged failure, or nil when every part was logged.
+func unlogged(err error) error {
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		parts := joined.Unwrap()
+		rest := make([]error, 0, len(parts))
+		for _, part := range parts {
+			rest = append(rest, unlogged(part))
+		}
+		return errors.Join(rest...)
+	}
+	if _, logged := errors.AsType[loggedError](err); logged {
+		return nil
+	}
+	return err
 }
 
 func run(ctx context.Context, addr string) (err error) {
@@ -123,7 +140,6 @@ func newServer(storeCtx context.Context, cfg config, db *store.DB, logger *slog.
 	srv, err := server.New(server.Config{
 		Session:        manager,
 		Replays:        replays,
-		Capacity:       cfg.capacity,
 		TicketSecret:   cfg.ticketSecret,
 		InternalSecret: cfg.internalSecret,
 		CORSOrigins:    cfg.corsOrigins,

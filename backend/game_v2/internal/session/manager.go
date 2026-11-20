@@ -116,6 +116,11 @@ func (m *Manager) QueueDelayMax() (float64, bool) {
 	return m.delays.worstMillis(m.cfg.Clock.Now())
 }
 
+// Capacity returns how many pending and playing games the registry holds at most.
+func (m *Manager) Capacity() int {
+	return m.cfg.Capacity
+}
+
 // GameCounts returns how many pending and playing games the registry holds; a game leaves it the
 // moment its end is claimed or Shutdown begins.
 func (m *Manager) GameCounts() GameCounts {

@@ -55,14 +55,13 @@ func DefaultSocketConfig() SocketConfig {
 }
 
 // Config is what a Server runs on. Session and Logger are required, and so are both secrets.
-// Capacity is the session's, reported by /status; Replays is where the Tenhou export reads the
-// stored replays; CORSOrigins are the origins whose scripts may read the REST answers ("*" for
-// any); Version and Commit are what /health and /status report; Now is where the server reads the
-// time its tickets, rate limits and process start are taken at, time.Now when nil.
+// Replays is where the Tenhou export reads the stored replays; CORSOrigins are the origins whose
+// scripts may read the REST answers ("*" for any); Version and Commit are what /health and /status
+// report; Now is where the server reads the time its tickets, rate limits and process start are
+// taken at, time.Now when nil.
 type Config struct {
 	Session        *session.Manager
 	Replays        store.Replays
-	Capacity       int
 	TicketSecret   string
 	InternalSecret string
 	CORSOrigins    []string
@@ -81,7 +80,7 @@ func (c Config) valid() bool {
 	switch {
 	case c.Session == nil || c.Logger == nil || c.TicketSecret == "" || c.InternalSecret == "":
 		return false
-	case c.Capacity <= 0 || k.PingInterval <= 0 || k.PingTimeout <= 0 || k.SendDeadline <= 0:
+	case k.PingInterval <= 0 || k.PingTimeout <= 0 || k.SendDeadline <= 0:
 		return false
 	case k.Rate < 0 || k.ResyncRate < 0 || k.Burst <= 0 || k.ResyncBurst <= 0 || k.MaxDecodeErrors <= 0:
 		return false
