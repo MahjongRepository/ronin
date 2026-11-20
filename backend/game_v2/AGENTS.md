@@ -410,8 +410,8 @@ Python server's formats.
   in tenths. A row without it holds the Python server's whole points until the migration converts it.
 * A game's row is its id's durable claim: the start insert keeps an existing row and returns
   `store.ErrGameRecorded`, so once a game's start row is written its id is never played again. A
-  game that wrote none (abandoned or withdrawn while pending, or refused by the engine) leaves its id
-  free.
+  game that wrote none (abandoned or withdrawn while pending, refused by the engine, or whose start
+  write failed) leaves no claim in the store; a withdrawn id is still refused in memory for 24 h.
 * At startup, once its listener is bound, the server closes every row with no end as `error`, as
   `RecordFailed` would: no game survives a restart, so such a row is a game a crash or a shutdown
   left unfinished. This holds only while exactly one game server writes a database
