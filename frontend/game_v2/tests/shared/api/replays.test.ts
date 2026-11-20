@@ -36,15 +36,17 @@ describe("fetchReplay", () => {
     });
 
     test("asks for the replay at the URL of the replay version the client reads", async () => {
-        const fetched = vi.fn((_url: string) => Promise.resolve(new Response(new Uint8Array([7]))));
+        const fetched = vi.fn(() => Promise.resolve(new Response(new Uint8Array([7]))));
         vi.stubGlobal("fetch", fetched);
+        const { signal } = new AbortController();
 
-        await expect(fetchReplay("g 1", new AbortController().signal)).resolves.toEqual({
+        await expect(fetchReplay("g 1", signal)).resolves.toEqual({
             content: new Uint8Array([7]),
             ok: true,
         });
-        expect(fetched.mock.calls[0]?.[0]).toBe(
+        expect(fetched).toHaveBeenCalledWith(
             `/api/replays/g%201?v=${encodeURIComponent(REPLAY_VERSION)}`,
+            { signal },
         );
     });
 });
