@@ -11,7 +11,7 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
-func replaced(m wire.Map, k wire.Key, v wire.Value) wire.Map {
+func with(m wire.Map, k wire.Key, v wire.Value) wire.Map {
 	edited := make(wire.Map, 0, len(m))
 	for _, f := range m {
 		if f.Key == k {
@@ -26,17 +26,17 @@ func TestLoad_WhenTheGameStartIsNotOfThisServersRules_ShouldRefuseItsRecord(t *t
 	start := messaging.ReplayGameStartedPayload(play.GameStarted{}, testRoster, engine.Seed{7})
 	players, _ := start.Get(wire.KeyPlayers)
 	twiceSeated := append(wire.Array{}, players.(wire.Array)...)
-	twiceSeated[1] = replaced(twiceSeated[1].(wire.Map), wire.KeySeat, wire.Int(0))
+	twiceSeated[1] = with(twiceSeated[1].(wire.Map), wire.KeySeat, wire.Int(0))
 
 	cases := []struct {
 		name  string
 		start wire.Map
 	}{
-		{"a migrated game's rules profile", replaced(start, wire.KeyGameSettings, wire.StrMap{
+		{"a migrated game's rules profile", with(start, wire.KeyGameSettings, wire.StrMap{
 			{Key: "id", Value: wire.Int(wire.MigratedRulesProfileID)}, {Key: "overrides", Value: wire.StrMap{}},
 		})},
-		{"another randomness scheme", replaced(start, wire.KeyRNGVersion, wire.Str("mt19937"))},
-		{"a seat named twice", replaced(start, wire.KeyPlayers, twiceSeated)},
+		{"another randomness scheme", with(start, wire.KeyRNGVersion, wire.Str("mt19937"))},
+		{"a seat named twice", with(start, wire.KeyPlayers, twiceSeated)},
 		{"a draw in its place", messaging.ReplayDrawPayload(play.Drew{}, 0)},
 	}
 	for _, c := range cases {

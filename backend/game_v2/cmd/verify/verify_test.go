@@ -149,7 +149,7 @@ func TestRun_WhenAReplayedRoundEndWasTampered_ShouldFailThatGameAndExit1(t *test
 			continue
 		}
 		sticks, _ := record.Get(wire.KeyRiichiSticks)
-		records[i] = replaceField(record, wire.KeyRiichiSticks, sticks.(wire.Int)+1)
+		records[i] = with(record, wire.KeyRiichiSticks, sticks.(wire.Int)+1)
 		tampered = true
 	}
 	content, err := wire.EncodeReplay(records)
@@ -168,7 +168,7 @@ func TestRun_WhenAReplayedRoundEndWasTampered_ShouldFailThatGameAndExit1(t *test
 	}
 }
 
-func replaceField(m wire.Map, k wire.Key, v wire.Value) wire.Map {
+func with(m wire.Map, k wire.Key, v wire.Value) wire.Map {
 	edited := make(wire.Map, 0, len(m))
 	for _, f := range m {
 		if f.Key == k {

@@ -1,7 +1,7 @@
 // Command verify checks that the stored replay of each game it is given reproduces the game: the
 // replay records the game end, and played again through the engine from its seed it ends every
-// round and the game exactly as it recorded. It is the replay half of bin/verify_games.py, which
-// checks the games' rows itself.
+// round and the game exactly as it recorded. It is the Go server's replay check, which
+// bin/verify_games.py is to run beside its own check of the games' rows.
 //
 // Usage:
 //

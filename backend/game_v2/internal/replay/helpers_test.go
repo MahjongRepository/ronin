@@ -210,7 +210,7 @@ func playTracedGame(t *testing.T, traced tracedGame) []replay.Step {
 			t.Fatalf("Act(%+v) refused: %+v", answer, refusal.Value)
 		}
 		g = next
-		steps = append(steps, replay.Step{Played: play.Some(answer), Events: emitted, Game: g})
+		steps = append(steps, replay.Step{Events: emitted, Game: g})
 	}
 	deal()
 

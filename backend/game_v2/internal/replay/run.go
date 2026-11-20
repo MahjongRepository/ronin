@@ -11,10 +11,9 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-// Step is one engine call of a run: the seat action it played, absent for the game's start and
-// each deal; the events it emitted; and the game after it.
+// Step is one engine call of a run: the game's start, a deal or a seat's action; the events it
+// emitted; and the game after it.
 type Step struct {
-	Played play.Option[SeatAction]
 	Events []play.Emitted
 	Game   engine.Game
 }
@@ -169,7 +168,7 @@ func (r *runner) play(index int, action SeatAction) error {
 		return RefusedError{Index: index, Played: action, Refusal: refusal.Value}
 	}
 	r.game = g
-	r.steps = append(r.steps, Step{Played: play.Some(action), Events: events, Game: g})
+	r.steps = append(r.steps, Step{Events: events, Game: g})
 	return nil
 }
 

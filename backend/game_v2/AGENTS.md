@@ -12,7 +12,7 @@ engine's output into messages and of client messages into actions (`internal/mes
 games with their sessions (`internal/session`), the rows and replay files it persists beside the
 lobby (`internal/store`), its credentials (`internal/auth`), the transport serving the lobby's
 routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`), and
-the replay runner (`internal/replay`) with the replay check `bin/verify_games.py` runs (`cmd/verify`).
+the replay runner (`internal/replay`) with the Go replay check (`cmd/verify`).
 
 ## The seam
 
@@ -64,9 +64,10 @@ Each server package's imports of the module are a depguard rule in `.golangci.ym
 only `engine`, `engine/play` and `engine/tile`, `messaging` those and `wire`, `session` those,
 `messaging` and `store` (never the replay runner), `server` the session, messaging, wire, store and
 auth but of the engine only `engine/play` and `engine/tile`, `store` and `auth` nothing, `replay`
-only the wire and the engine's public packages, and each layer added later gets its own. Each `cmd/*` is its own composition root: its `main` is the only place that
-reads that binary's flags, environment and signals and wires the parts it uses, so a tool beside
-the server builds what it needs without going through `cmd/gameserver`.
+only the wire and the engine's public packages, and each layer added later gets its own. Each
+`cmd/*` is its own composition root: its `main` is the only place that reads that binary's flags,
+environment and signals and wires the parts it uses, so a tool beside the server builds what it
+needs without going through `cmd/gameserver`.
 `cmd/gameserver` reads the Python server's environment, wires the store, the session and the
 server, and runs the graceful stop (Server).
 
@@ -235,7 +236,8 @@ and the fixture tools.
   walls runs again only from its own setup.
 * `cmd/verify` checks a game's stored replay, not its row: it requires the game end and compares
   every round end and the game end the run emits, shaped by `messaging`, byte for byte with the
-  recorded ones. `bin/verify_games.py` checks the rows.
+  recorded ones. It is the replay check `bin/verify_games.py` is to run for the Go server, beside
+  the row check the script keeps; today the script still replays through the Python server.
 
 ## Security requirements
 
