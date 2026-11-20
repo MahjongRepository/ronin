@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 	"uuid"
 
@@ -15,6 +16,8 @@ import (
 )
 
 const sendQueueLimit = 256
+
+const sendDueClaimedByTimer = -1
 
 const (
 	logQueueFull    = "websocket send queue full, dropping the connection"
@@ -44,6 +47,11 @@ type connection struct {
 	writerDone chan struct{}
 	terminate  func()
 
+	sendEpoch    time.Time
+	sendTimer    *time.Timer
+	sendDue      atomic.Int64
+	sendTimedOut atomic.Bool
+
 	mu     sync.Mutex
 	closed bool
 }
@@ -61,6 +69,7 @@ func newConnection(ws *websocket.Conn, gameID string, s *Server) *connection {
 		terminated:   make(chan struct{}),
 		stopped:      make(chan struct{}),
 		writerDone:   make(chan struct{}),
+		sendEpoch:    time.Now(),
 	}
 	c.terminate = sync.OnceFunc(func() {
 		close(c.terminated)
@@ -128,6 +137,7 @@ func (c *connection) write(ctx context.Context) {
 	defer close(c.writerDone)
 	defer c.recoverAndDrop("websocket writer failed")
 
+	withoutPerFrameTimeout := context.WithoutCancel(ctx)
 	for {
 		select {
 		case <-c.stopped:
@@ -139,7 +149,7 @@ func (c *connection) write(ctx context.Context) {
 				_ = c.ws.Close(item.code, item.reason)
 				return
 			}
-			if !c.writeMessage(ctx, item.data) {
+			if !c.writeMessage(withoutPerFrameTimeout, item.data) {
 				return
 			}
 		}
@@ -147,20 +157,48 @@ func (c *connection) write(ctx context.Context) {
 }
 
 func (c *connection) writeMessage(ctx context.Context, data []byte) bool {
-	ctx, cancel := context.WithTimeout(ctx, c.sendDeadline)
-	defer cancel()
-
+	c.armSendDeadline()
 	err := c.ws.Write(ctx, websocket.MessageBinary, data)
+	c.disarmSendDeadline()
 	if err == nil {
 		return true
 	}
-	if errors.Is(err, context.DeadlineExceeded) {
+	if c.sendTimedOut.Load() {
 		c.log.Warn(logSendDeadline)
 	} else {
 		c.log.Info(logPeerGone)
 	}
 	c.terminate()
 	return false
+}
+
+func (c *connection) armSendDeadline() {
+	c.sendDue.Store(int64(time.Since(c.sendEpoch) + c.sendDeadline))
+	if c.sendTimer == nil {
+		c.sendTimer = time.AfterFunc(c.sendDeadline, c.dropIfSendOverdue)
+		return
+	}
+	c.sendTimer.Reset(c.sendDeadline)
+}
+
+func (c *connection) disarmSendDeadline() {
+	c.sendDue.Store(0)
+	c.sendTimer.Stop()
+}
+
+func (c *connection) dropIfSendOverdue() {
+	c.dropIfObservedSendOverdue(c.sendDue.Load(), time.Since(c.sendEpoch))
+}
+
+func (c *connection) dropIfObservedSendOverdue(observedDue int64, elapsed time.Duration) {
+	if observedDue <= 0 || elapsed < time.Duration(observedDue) {
+		return
+	}
+	if !c.sendDue.CompareAndSwap(observedDue, sendDueClaimedByTimer) {
+		return
+	}
+	c.sendTimedOut.Store(true)
+	c.terminate()
 }
 
 func (c *connection) ping(ctx context.Context, interval, timeout time.Duration) {
