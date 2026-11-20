@@ -1,7 +1,7 @@
 @use "@/styles/game-board/grid" as *;
 
 $gap: 6px;
-$radius: 6px;
+$radius: var(--ronin-corner-panel);
 
 @mixin named-chips($size) {
     .play-switch__letter {
@@ -152,7 +152,7 @@ $radius: 6px;
     margin: 0;
     padding: 0.5em 0.75em;
     border: 1px solid var(--ronin-badge-rim);
-    border-radius: 10px;
+    border-radius: $radius;
     background: var(--ronin-notice);
     box-shadow: var(--ronin-panel-shadow);
     color: var(--ronin-badge-ink);

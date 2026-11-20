@@ -109,7 +109,7 @@ $row: 40px;
     margin: 0;
     padding: 0 0.7em;
     border: 0;
-    border-radius: 10px;
+    border-radius: var(--ronin-corner-panel);
     background-color: var(--action-face);
     box-shadow: var(--action-rim), var(--action-lift);
     color: var(--action-ink);
@@ -134,7 +134,6 @@ $row: 40px;
 
         min-width: var(--action-min-w);
         padding-inline: 0.5em;
-        border-radius: calc(var(--decision-h) / 4);
     }
 
     @include phone-board {
@@ -235,7 +234,7 @@ $row: 40px;
         color: var(--ronin-text-secondary);
         background: var(--ronin-badge);
         border: 1px solid var(--ronin-border-subtle);
-        border-radius: 3px;
+        border-radius: var(--ronin-corner-label);
     }
 }
 
@@ -277,7 +276,7 @@ $row: 40px;
 .decision-timer__caption,
 .decision-timer__digits {
     padding: 0.08em 0.25em;
-    border-radius: 0.25em;
+    border-radius: var(--ronin-corner-label);
     background: var(--ronin-badge);
 }
 
@@ -367,7 +366,7 @@ $row: 40px;
     white-space: nowrap;
     color: var(--ronin-badge-ink);
     background: var(--ronin-badge);
-    border-radius: 0.33em;
+    border-radius: var(--ronin-corner-label);
 
     @include phone-board {
         place-self: end start;

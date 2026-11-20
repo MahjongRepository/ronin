@@ -83,7 +83,7 @@
     color: var(--ronin-text);
     background: var(--ronin-notice);
     border: 1px solid var(--ronin-border-mark);
-    border-radius: 10px;
+    border-radius: var(--ronin-corner-panel);
     box-shadow: var(--ronin-panel-shadow);
 
     &--success {

@@ -2622,16 +2622,14 @@ const DORA_SLOTS = 5;
 /** The air a desktop's counters keep off the top strip's line over the left strip's lane, in river tiles. */
 const COUNTERS_AIR_BY_RIVER = 0.8;
 
-/** The counters' padding and corner, in dora tiles. */
+/** The counters' padding, in dora tiles. */
 const COUNTERS_PAD_BY_DORA = 0.2;
-const COUNTERS_RADIUS_BY_DORA = 0.12;
 
 /** The counters at a dora tile: the indicators' rows on a padded card (px). */
 interface Counters {
     readonly dora: number;
     readonly height: number;
     readonly pad: number;
-    readonly radius: number;
     readonly width: number;
 }
 
@@ -2642,7 +2640,6 @@ function countersAt(dora: number): Counters {
         dora,
         height: 2 * pad + dora * TILE_ASPECT * LYING_Y_SHARE + TILE_EDGE_SHARE * dora,
         pad,
-        radius: COUNTERS_RADIUS_BY_DORA * dora,
         width: 2 * pad + DORA_SLOTS * dora,
     };
 }
@@ -2663,7 +2660,6 @@ function countersLengths(
         ["counters-w", counters.width],
         ["counters-x", left],
         ["dora-pad", counters.pad],
-        ["dora-radius", counters.radius],
         ["dora-w", counters.dora],
     ];
 }

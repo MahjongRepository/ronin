@@ -51,7 +51,7 @@ $plate-seats: bottom, right, top, left;
     white-space: nowrap;
     color: var(--ronin-plate-ink);
     background: var(--ronin-plate);
-    border-radius: 3px;
+    border-radius: var(--ronin-corner-label);
 
     @include small-chrome {
         padding-inline: 4px;
@@ -70,7 +70,7 @@ $plate-seats: bottom, right, top, left;
         height: var(--cue-w);
         content: "";
         background: var(--ronin-table-turn);
-        border-radius: 0 0 3px 3px;
+        border-radius: 0 0 var(--ronin-corner-label) var(--ronin-corner-label);
         visibility: hidden;
     }
 

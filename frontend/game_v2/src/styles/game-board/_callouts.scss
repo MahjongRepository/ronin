@@ -12,7 +12,7 @@ $overlay-hold-ms: 1500ms;
     position: absolute;
     z-index: layer(callouts);
     padding: 0 0.15em;
-    border-radius: 0.2em;
+    border-radius: var(--ronin-corner-panel);
     background: var(--ronin-callout);
     box-shadow: var(--ronin-panel-shadow);
     font-size: calc(3 * min(var(--callout-cap), var(--rh) - 4px));
