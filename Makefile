@@ -16,7 +16,7 @@ coverage-branches:
 	cd backend && uv run pytest --cov --cov-branch --cov-report=term-missing:skip-covered
 
 run-local-server:
-	@bash ./bin/run-local-server.sh
+	@DOCKER=$(DOCKER) bash ./bin/run-local-server.sh
 
 lint:
 	cd backend && uv run docformatter --check --diff $(DOCFORMATTER_PATHS)
@@ -88,7 +88,7 @@ else
 endif
 
 run-games:
-	@TABLES=$(TABLES) MODE=$(MODE) NET=$(NET) SERVER=$(SERVER) bash ./bin/run-bots-games.sh $(GAMES)
+	@TABLES=$(TABLES) MODE=$(MODE) NET=$(NET) SERVER=$(SERVER) DOCKER=$(DOCKER) bash ./bin/run-bots-games.sh $(GAMES)
 
 run-tournament:
 	@bash ./bin/run-tournament.sh

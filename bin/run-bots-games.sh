@@ -14,6 +14,8 @@ case "$SERVER" in
         ;;
 esac
 BOT_ROOT="${BOT_ROOT:-$DEFAULT_BOT_ROOT}"
+DOCKER="${DOCKER:-}"
+GAME_CONTAINER="ronin-game-v2-game-v2-1"
 
 BOT_BIN="${BOT_BIN:-}"
 BOT_LOG_DIR="$BOT_ROOT/var/logs"
@@ -39,6 +41,20 @@ if ! [[ $MAX_GAMES =~ ^[1-9][0-9]*$ && $TABLES =~ ^[1-9][0-9]*$ ]]; then
     echo "games and tables must be positive integers, got GAMES=$MAX_GAMES TABLES=$TABLES"
     exit 1
 fi
+
+case "$DOCKER" in
+    "") ;;
+    1)
+        if [[ $SERVER != go || $PROFILE == 1 ]]; then
+            echo "DOCKER=1 runs the Go game server's container, so it needs SERVER=go and no profiling"
+            exit 1
+        fi
+        ;;
+    *)
+        echo "unknown DOCKER=$DOCKER, expected 1 or nothing"
+        exit 1
+        ;;
+esac
 
 BOT_ARGS=()
 BOT_LOBBY_URL=""
@@ -85,6 +101,7 @@ MAX_RETRIES=10
 SHUTDOWN_TIMEOUT=15
 
 GO_BUILD_DIR=""
+GAME_CONTAINER_STARTED=0
 SERVER_PIDS=()
 BOT_PIDS=()
 PLAYED=0
@@ -136,9 +153,50 @@ free_port() {
     fi
 }
 
-stop_servers() {
-    if [[ ${#SERVER_PIDS[@]} -eq 0 ]]; then
+start_game_container() {
+    echo "starting game server (Go container) on port $GAME_PORT..."
+    make -sC "$PROJECT_ROOT" stop-game-v2-docker
+    free_port "$GAME_PORT"
+    GAME_CONTAINER_STARTED=1
+    if ! GAME_V2_LOG_LEVEL="$LOG_LEVEL" make -sC "$PROJECT_ROOT" run-game-v2-docker; then
+        echo "game server container failed to start, see the output above"
+        exit 1
+    fi
+    echo "game server ready"
+}
+
+collect_game_container_logs() {
+    if [[ $GAME_CONTAINER_STARTED == 1 ]]; then
+        docker logs "$GAME_CONTAINER" > "$GAME_LOG_DIR/stdout.log" 2>&1
+    fi
+}
+
+stop_game_container() {
+    if [[ $GAME_CONTAINER_STARTED == 0 ]] || ! docker inspect "$GAME_CONTAINER" > /dev/null 2>&1; then
         return 0
+    fi
+
+    docker stop --timeout "$SHUTDOWN_TIMEOUT" "$GAME_CONTAINER" > /dev/null || return 1
+    collect_game_container_logs || return 1
+    local exit_code
+    exit_code=$(docker inspect -f '{{.State.ExitCode}}' "$GAME_CONTAINER")
+    if [[ $exit_code -ne 0 ]]; then
+        echo "game server container exited with code $exit_code"
+        return 1
+    fi
+}
+
+remove_game_container() {
+    if [[ $GAME_CONTAINER_STARTED == 1 ]]; then
+        make -sC "$PROJECT_ROOT" stop-game-v2-docker
+    fi
+}
+
+stop_servers() {
+    local container_failed=0
+    stop_game_container || container_failed=1
+    if [[ ${#SERVER_PIDS[@]} -eq 0 ]]; then
+        return $container_failed
     fi
 
     echo ""
@@ -158,7 +216,7 @@ stop_servers() {
     done
     SERVER_PIDS=()
 
-    return $exited
+    return $(( exited | container_failed ))
 }
 
 wait_for_server() {
@@ -331,6 +389,7 @@ analyze_logs() {
         game_issue_pattern="$GO_SERVER_ISSUE_PATTERN"
     fi
 
+    collect_game_container_logs || has_issues=1
     scan_logs GAME "$GAME_LOG_DIR" "$game_issue_pattern" "$(game_expected_pattern)" || has_issues=1
     scan_logs LOBBY "$LOBBY_LOG_DIR" "$SERVER_ISSUE_PATTERN" || has_issues=1
     scan_logs BOT "$BOT_LOG_DIR" "$BOT_ISSUE_PATTERN" || has_issues=1
@@ -608,7 +667,7 @@ archive_failed_run() {
     cp "$PROFILE_FILE.gc.json" "$FAILED_RUN_DIR/" 2>/dev/null || true
     {
         echo "exit status: $status"
-        echo "games: $PLAYED of $MAX_GAMES played, tables: $TABLES, profile: $PROFILE, mode: ${MODE:-default}, net: ${NET:-direct}, server: ${SERVER:-python}"
+        echo "games: $PLAYED of $MAX_GAMES played, tables: $TABLES, profile: $PROFILE, mode: ${MODE:-default}, net: ${NET:-direct}, server: ${SERVER:-python}${DOCKER:+ (container)}"
         echo "batch seconds: ${BATCH_TIMES[*]}"
         echo "batch game server CPU ticks: ${BATCH_SERVER_TICKS[*]}"
         echo "batch handled messages: ${BATCH_HANDLED_MESSAGES[*]}"
@@ -631,6 +690,7 @@ on_exit() {
     if [[ $status -ne 0 ]]; then
         archive_failed_run "$status"
     fi
+    remove_game_container || true
     if [[ -n $GO_BUILD_DIR ]]; then
         rm -rf "$GO_BUILD_DIR"
     fi
@@ -648,6 +708,10 @@ fi
 if [[ $NET == bad ]]; then
     export LOBBY_WS_ALLOWED_ORIGIN="$BAD_NET_PUBLIC_ORIGIN"
     export LOBBY_GAME_SERVER_WS_URL="${BAD_NET_PUBLIC_ORIGIN/http/ws}"
+fi
+if [[ $DOCKER == 1 ]]; then
+    export GAME_REPLAY_DIR="backend/data/game-v2-replays"
+    export LOBBY_REPLAY_DIR="$GAME_REPLAY_DIR"
 fi
 . "$SCRIPT_DIR/local-settings.sh"
 if [[ $PROFILE == 1 ]]; then
@@ -678,11 +742,14 @@ if [[ $PROFILE == 1 ]]; then
     GAME_LAUNCHER=(uv run --project backend python bin/profile_game_server.py "$PROFILE_FILE")
 fi
 
-free_port "$GAME_PORT"
 free_port "$LOBBY_PORT"
-if [[ $SERVER == go ]]; then
+if [[ $DOCKER == 1 ]]; then
+    start_game_container
+elif [[ $SERVER == go ]]; then
+    free_port "$GAME_PORT"
     start_go_game_server
 else
+    free_port "$GAME_PORT"
     start_server "game" "game.server.app:get_app" "$GAME_PORT" 262144 "$GAME_LOG_DIR" "${GAME_LAUNCHER[@]}"
 fi
 start_server "lobby" "lobby.server.app:get_app" "$LOBBY_PORT" 8192 "$LOBBY_LOG_DIR" uv run --project backend uvicorn
@@ -693,10 +760,14 @@ if [[ $NET == bad ]]; then
 fi
 
 echo ""
-echo "running $MAX_GAMES game(s), up to $TABLES at a time, bot mode ${MODE:-default}, network ${NET:-direct}, game server ${SERVER:-python}..."
+echo "running $MAX_GAMES game(s), up to $TABLES at a time, bot mode ${MODE:-default}, network ${NET:-direct}, game server ${SERVER:-python}${DOCKER:+ (container)}..."
 echo ""
 
-GAME_SERVER_PID=$(lsof -ti tcp:"$GAME_PORT" -sTCP:LISTEN | head -1)
+if [[ $DOCKER == 1 ]]; then
+    GAME_SERVER_PID=$(docker inspect -f '{{.State.Pid}}' "$GAME_CONTAINER")
+else
+    GAME_SERVER_PID=$(lsof -ti tcp:"$GAME_PORT" -sTCP:LISTEN | head -1)
+fi
 TOTAL_START=$(date +%s)
 PLAYED=0
 BATCH=0

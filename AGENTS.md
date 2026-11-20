@@ -43,21 +43,24 @@ Ronin is a Riichi Mahjong game server and browser client.
 
 The `Makefile` lists the targets; the non-obvious ones:
 
-* `make run-local-server` — the Go game server (`:8712`, built from `backend/game_v2`), lobby (`:8710`)
-  and a Vite dev server per frontend app (`:5173` lobby, `:5175` game client) together, with
-  `.env.local` sourced when present. To see the app in a browser, drive it with the
-  `agent-browser` skill plus this project's `app-browser` skill (`.claude/skills/app-browser/`).
+* `make run-local-server [DOCKER=1]` — the Go game server (`:8712`, built from `backend/game_v2`), lobby
+  (`:8710`) and a Vite dev server per frontend app (`:5173` lobby, `:5175` game client) together, with
+  `.env.local` sourced when present. `DOCKER=1` runs the game server as its container
+  (`make run-game-v2-docker`), with the lobby reading that container's replays, and stops it on exit.
+  To see the app in a browser, drive it with the `agent-browser` skill plus this project's
+  `app-browser` skill (`.claude/skills/app-browser/`).
 * `make test` — backend pytest with its coverage gate (`backend/AGENTS.md`, Tooling).
 * `make profile [SERVER=go]` — profile the game engine replay runner (the `optimize-engine` skill uses it);
   `SERVER=go` benchmarks the Go replay runner over the Go full game fixture (`go test -bench`) and prints
   its `pprof` report (`bin/profile-go-replay.sh`).
-* `make run-games [GAMES=n] [TABLES=t] [MODE=m] [NET=bad] [SERVER=go]` — play bot games (the Rust `mahjong-bot` repo at `BOT_ROOT`,
+* `make run-games [GAMES=n] [TABLES=t] [MODE=m] [NET=bad] [SERVER=go [DOCKER=1]]` — play bot games (the Rust `mahjong-bot` repo at `BOT_ROOT`,
   default `~/work/mahjong-bot`, built with its `make release-bot`) on fresh servers, `t` tables at a time, the bots in play mode `m` (their `--mode`,
   only when set; `chaos` misbehaves on purpose, the bot's `ronin/chaos.rs`, and its log gate passes only the game
   server lines that causes). `NET=bad`, meant for `MODE=chaos`, puts a faulty proxy chain between the bots and the
   servers (`bin/bad-network.sh`). `SERVER=go` runs the Go game server on `:8712` in place of the Python one, with the
   bot build that speaks its wire (`BOT_ROOT` default `~/work/mahjong-bot-go-wire`), its slog lines and Go panics as the
-  game log gate and its `cmd/verify` as the replay check. It stops at the first batch with a game that is not completed, whose replay does not reproduce it
+  game log gate and its `cmd/verify` as the replay check; `DOCKER=1` starts that server as a fresh container instead,
+  gates its `docker logs` and its exit code, and removes it at the end. It stops at the first batch with a game that is not completed, whose replay does not reproduce it
   (`bin/verify_games.py`), or after which any log (server stderr and bot console included) holds a warning or an
   abnormal event such as a timeout auto-action or a bot replaced by AI. It forces debug console logging, so these
   gates cannot be configured away. It plays against the dev database (`AUTH_DATABASE_PATH`), so its games show on

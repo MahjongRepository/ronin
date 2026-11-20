@@ -508,4 +508,6 @@ comments either: a forbidigo pattern's `msg` is where its reason goes.
   owner-only and the host's lobby reads both, and mounts the whole `backend/` directory, not the
   database file, so SQLite's WAL and SHM siblings are the files the host's lobby uses. The container
   holds `:8712`, the port `make run-local-server` and `make run-games SERVER=go` start their own Go
-  server on: stop it first, since neither can kill the root-owned port holder.
+  server on, and neither can kill the root-owned port holder: their `DOCKER=1` modes run this
+  container in its place (`GAME_V2_LOG_LEVEL` overrides the log level `.env.local` sets), and
+  otherwise it must be stopped first.

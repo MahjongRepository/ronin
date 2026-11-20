@@ -10,6 +10,16 @@ LOBBY_PORT=${LOBBY_PORT:-8710}
 VITE_PORT=${VITE_PORT:-5173}
 GAME_V2_VITE_PORT=${GAME_V2_VITE_PORT:-5175}
 MAX_RETRIES=10
+DOCKER=${DOCKER:-}
+
+case "$DOCKER" in
+    "") OWN_PORTS="$GAME_PORT $LOBBY_PORT $VITE_PORT $GAME_V2_VITE_PORT" ;;
+    1) OWN_PORTS="$LOBBY_PORT $VITE_PORT $GAME_V2_VITE_PORT" ;;
+    *)
+        echo "unknown DOCKER=$DOCKER, expected 1 or nothing"
+        exit 1
+        ;;
+esac
 
 # Kill any already-running servers on our ports
 for port in $GAME_PORT $LOBBY_PORT $VITE_PORT $GAME_V2_VITE_PORT; do
@@ -24,7 +34,7 @@ port_taken() {
     (exec 3<>/dev/tcp/127.0.0.1/"$1") 2>/dev/null
 }
 
-for port in $GAME_PORT $LOBBY_PORT $VITE_PORT $GAME_V2_VITE_PORT; do
+for port in $OWN_PORTS; do
     for _ in $(seq 1 10); do
         port_taken "$port" || continue 2
         sleep 0.2
@@ -35,6 +45,9 @@ done
 
 if [ -f .env.local ]; then
     set -a && . .env.local && set +a
+fi
+if [ "$DOCKER" = 1 ]; then
+    export LOBBY_REPLAY_DIR="backend/data/game-v2-replays"
 fi
 . "$(dirname "$0")/local-settings.sh"
 
@@ -71,6 +84,7 @@ export LOBBY_VITE_DEV_URL="http://localhost:${VITE_PORT}"
 export LOBBY_GAME_CLIENT_V2_DEV_URL="http://localhost:${GAME_V2_VITE_PORT}"
 
 CLEANING_UP=false
+GAME_CONTAINER_STARTED=false
 cleanup() {
     if $CLEANING_UP; then
         return
@@ -90,6 +104,9 @@ cleanup() {
     if [ -n "$GAME_BUILD_DIR" ]; then
         rm -rf "$GAME_BUILD_DIR"
     fi
+    if $GAME_CONTAINER_STARTED; then
+        make -s stop-game-v2-docker
+    fi
 }
 
 trap cleanup EXIT INT TERM
@@ -97,18 +114,35 @@ trap cleanup EXIT INT TERM
 # Set lobby settings for template rendering
 export LOBBY_GAME_CLIENT_URL="/play"
 
-echo "Building the Go game server..."
-GAME_BUILD_DIR=$(mktemp -d)
-go build -C backend/game_v2 -o "$GAME_BUILD_DIR/gameserver" ./cmd/gameserver
+start_game_server() {
+    echo "Building the Go game server..."
+    GAME_BUILD_DIR=$(mktemp -d)
+    go build -C backend/game_v2 -o "$GAME_BUILD_DIR/gameserver" ./cmd/gameserver
 
-echo "Starting game server on port $GAME_PORT..."
-"$GAME_BUILD_DIR/gameserver" -addr "0.0.0.0:$GAME_PORT" &
-GAME_PID=$!
+    echo "Starting game server on port $GAME_PORT..."
+    "$GAME_BUILD_DIR/gameserver" -addr "0.0.0.0:$GAME_PORT" &
+    GAME_PID=$!
 
-echo "Waiting for game server to be ready..."
-if ! wait_for_server $GAME_PORT $GAME_PID; then
-    echo "Error: Game server failed to start; see its output above"
-    exit 1
+    echo "Waiting for game server to be ready..."
+    if ! wait_for_server $GAME_PORT $GAME_PID; then
+        echo "Error: Game server failed to start; see its output above"
+        exit 1
+    fi
+}
+
+start_game_container() {
+    echo "Starting the game server container on port $GAME_PORT..."
+    GAME_CONTAINER_STARTED=true
+    if ! make -s run-game-v2-docker; then
+        echo "Error: the game server container failed to start; see its output above"
+        exit 1
+    fi
+}
+
+if [ "$DOCKER" = 1 ]; then
+    start_game_container
+else
+    start_game_server
 fi
 
 echo "Starting lobby Vite dev server on port $VITE_PORT..."
