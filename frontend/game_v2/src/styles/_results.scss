@@ -403,10 +403,6 @@
     scrollbar-width: thin;
     display: flex;
     flex-direction: column;
-
-    > :first-child {
-        margin-top: auto;
-    }
 }
 
 .round-end-result__yaku {
