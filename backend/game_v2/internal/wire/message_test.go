@@ -89,6 +89,7 @@ func TestDecode_WhenTheBytesBreakTheMessageRules_ShouldRefuseWithADecodeError(t 
 		{"binary too long", append(hexBytes(t, "813cc600010001"), make([]byte, 65537)...), ""},
 		{"array too long", append(hexBytes(t, "813cdc0401"), make([]byte, 1025)...), ""},
 		{"map too long", hexBytes(t, "813cde0101"), "map of 257 exceeds 256"},
+		{"string map too long", hexBytes(t, "8135de0101"), "map of 257 exceeds 256"},
 		{"array item truncated", hexBytes(t, "813c92cd"), ""},
 		{"nesting too deep", appendValue(nil, Map{{Key: KeyMyTiles, Value: nested(maxNesting)}}), ""},
 		{"data past the message", hexBytes(t, "81010200"), ""},
