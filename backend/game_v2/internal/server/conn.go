@@ -80,33 +80,37 @@ func (c *connection) GameID() string {
 
 // Send queues one encoded message; it is dropped once the connection closed or was dropped.
 func (c *connection) Send(data []byte) {
-	c.stats.countOut(len(data))
-	c.enqueue(outgoing{data: data})
+	if c.enqueue(outgoing{data: data}) {
+		c.stats.countOut(len(data))
+	}
 }
 
 // Close queues the close frame as the connection's last item; later sends and closes are dropped.
 func (c *connection) Close(code session.CloseCode, reason string) {
-	c.stats.countClose(int(code))
-	c.enqueue(outgoing{close: true, code: websocket.StatusCode(code), reason: reason})
+	if c.enqueue(outgoing{close: true, code: websocket.StatusCode(code), reason: reason}) {
+		c.stats.countClose(int(code))
+	}
 }
 
 func (c *connection) closeForShutdown() {
 	c.enqueue(outgoing{close: true, code: websocket.StatusServiceRestart})
 }
 
-func (c *connection) enqueue(item outgoing) {
+func (c *connection) enqueue(item outgoing) (accepted bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if c.closed || c.isTerminated() {
-		return
+		return false
 	}
 	c.closed = item.close
 	select {
 	case c.queue <- item:
+		return true
 	default:
 		c.log.Warn(logQueueFull)
 		c.terminate()
+		return false
 	}
 }
 

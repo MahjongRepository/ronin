@@ -155,9 +155,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	case <-drained:
 	case <-ctx.Done():
 		socketsErr = ctx.Err()
+		var terminating sync.WaitGroup
 		for _, conn := range s.openSockets() {
-			conn.terminate()
+			terminating.Go(conn.terminate)
 		}
+		terminating.Wait()
 	}
 	return errors.Join(socketsErr, s.cfg.Session.Shutdown(ctx))
 }
