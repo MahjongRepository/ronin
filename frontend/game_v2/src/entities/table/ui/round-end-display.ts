@@ -136,10 +136,10 @@ function YakuLine(line: ResultYakuLine): TemplateResult {
     </li>`;
 }
 
-/** The honba and riichi sticks the winner collected, as counts, and what they added; its line stays reserved at none. */
+/** The honba and riichi sticks the winner collected, as counts; their place stays reserved at none. */
 function Sticks(sticks: ResultSticks): TemplateResult {
     const hidden = sticks.bonus === 0;
-    return html`<div class="round-end-result__sticks" aria-hidden=${hidden ? "true" : "false"}>
+    return html`<span class="round-end-result__sticks" aria-hidden=${hidden ? "true" : "false"}>
         ${
             sticks.honba === null
                 ? nothing
@@ -152,8 +152,7 @@ function Sticks(sticks: ResultSticks): TemplateResult {
             >${RiichiStickIcon()}<span class="round-end-result__stick-label">${t("game.board.riichi_sticks")} </span
             >${sticks.riichi}</span
         >
-        <span class="round-end-result__stick-bonus">${formatDelta(sticks.bonus)}</span>
-    </div>`;
+    </span>`;
 }
 
 function Value(limit: string | null, points: number | null): TemplateResult {
@@ -163,7 +162,7 @@ function Value(limit: string | null, points: number | null): TemplateResult {
     </div>`;
 }
 
-/** One column read down: the yaku, then the dora, scrolling where long; under them the total, value and sticks. */
+/** One column read down: the yaku, then the dora, scrolling where long; the yaku resting on the total and value. */
 function Scoring(page: WinPageDisplay): TemplateResult {
     const yaku = page.yaku.filter((line) => !line.isDora);
     const dora = page.yaku.filter((line) => line.isDora);
@@ -178,7 +177,7 @@ function Scoring(page: WinPageDisplay): TemplateResult {
         </div>
         <div class="round-end-result__total">
             ${page.hanFu === null ? nothing : html`<div class="round-end-result__han-fu">${page.hanFu}</div>`}
-            ${Value(page.limit, page.points)} ${Sticks(page.sticks)}
+            ${Value(page.limit, page.points)}
             ${page.notes.map((note) => html`<div class="round-end-result__note">${note}</div>`)}
         </div>
     </div>`;
@@ -308,12 +307,18 @@ function seatMark(seat: ResultSeat, win: ShownWin | null): SeatMark | null {
     return null;
 }
 
-function Settlement(props: RoundEndDisplayProps): TemplateResult {
+function Settlement(
+    props: RoundEndDisplayProps,
+    centre: TemplateResult | typeof nothing = nothing,
+): TemplateResult {
     const { display } = props;
     const win = shownWin(display);
     return html`<div class="round-end-result__settle">
         ${display.seats.map((seat) => Seat(seat, seatMark(seat, win)))}
-        ${display.round === null ? nothing : html`<div class="round-end-result__round">${display.round}</div>`}
+        <div class="round-end-result__centre">
+            ${display.round === null ? nothing : html`<div class="round-end-result__round">${display.round}</div>`}
+            ${centre}
+        </div>
         ${display.page > 0 ? PageButton(props, display.page - 1, "previous") : nothing}
         ${Primary(props)}
     </div>`;
@@ -346,7 +351,14 @@ function WinResult(props: RoundEndDisplayProps, body: WinBodyDisplay): TemplateR
         ${Stack("hand", body.pages.map(WinHand), page)}
         ${Stack("dora", body.pages.map(Indicators), page)}
         ${Stack("scoring", body.pages.map(Scoring), page)}
-        ${Settlement(props)}
+        ${Settlement(
+            props,
+            Stack(
+                "sticks",
+                body.pages.map(({ sticks }) => Sticks(sticks)),
+                page,
+            ),
+        )}
     </div>`;
 }
 
