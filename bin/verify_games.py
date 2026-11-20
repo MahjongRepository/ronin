@@ -36,8 +36,8 @@ from shared.storage import replay_file_path
 
 OUTCOME_EVENT_TYPES = frozenset({WireEventType.ROUND_END, WireEventType.GAME_END})
 GO_VERIFY_FAILED = 1
-GO_VERIFY_OK_PREFIX = "ok      "
-GO_VERIFY_FAILED_PREFIX = "FAILED  "
+OK_PREFIX = "ok      "
+FAILED_PREFIX = "FAILED  "
 
 
 def read_end_reason(database_path: Path, game_id: str) -> str | None:
@@ -95,10 +95,10 @@ def verify_replay_in_go(go_verify: Path, settings: GameServerSettings, game_id: 
         check=False,
     )
     lines = result.stdout.splitlines()
-    if result.returncode == 0 and lines and lines[0] == f"{GO_VERIFY_OK_PREFIX}{game_id}":
+    if result.returncode == 0 and lines and lines[0] == f"{OK_PREFIX}{game_id}":
         return None
 
-    failed_prefix = f"{GO_VERIFY_FAILED_PREFIX}{game_id}: "
+    failed_prefix = f"{FAILED_PREFIX}{game_id}: "
     if result.returncode == GO_VERIFY_FAILED and lines and lines[0].startswith(failed_prefix):
         return "\n".join([lines[0].removeprefix(failed_prefix), *lines[1:-1]])
 
@@ -114,7 +114,7 @@ def verify_game(settings: GameServerSettings, game_id: str, go_verify: Path | No
         return f"end reason is {end_reason!r}, expected {GameEndReason.COMPLETED.value!r}"
 
     if go_verify is not None:
-        return verify_replay_in_go(go_verify, settings, game_id)
+        return verify_replay_in_go(go_verify=go_verify, settings=settings, game_id=game_id)
 
     return verify_replay(settings, game_id)
 
@@ -133,13 +133,13 @@ def main() -> int:
 
     failures = 0
     for game_id in args.game_ids:
-        problem = verify_game(settings, game_id, args.go_verify)
+        problem = verify_game(settings=settings, game_id=game_id, go_verify=args.go_verify)
         if problem is None:
-            print(f"ok      {game_id}")
+            print(f"{OK_PREFIX}{game_id}")
             continue
 
         failures += 1
-        print(f"FAILED  {game_id}: {problem}")
+        print(f"{FAILED_PREFIX}{game_id}: {problem}")
 
     print(f"{len(args.game_ids) - failures}/{len(args.game_ids)} game(s) verified")
     return 1 if failures else 0

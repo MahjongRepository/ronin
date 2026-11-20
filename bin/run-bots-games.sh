@@ -315,7 +315,7 @@ go_expected_pattern() {
         parts+=("($event_alternatives)\"")
     fi
     if [[ -n $error_alternatives ]]; then
-        parts+=("session error sent to client\" .* error_code=($error_alternatives)( |\$)")
+        parts+=("session error sent to client\"( .*)? error_code=($error_alternatives)( |\$)")
     fi
     if [[ ${#parts[@]} -gt 0 ]]; then
         echo "level=(DEBUG|INFO|WARN) msg=\"($(join_alternatives "${parts[@]}"))"
