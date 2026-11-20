@@ -481,8 +481,13 @@ comments either: a forbidigo pattern's `msg` is where its reason goes.
   outside `make` goes through `mise exec --`.
 * `make format-go` rewrites files (gofumpt, goimports, gci import groups); `make lint-go` fails on an
   untidy `go.mod` (`go mod tidy -diff`), then runs golangci-lint, which also reports formatting diffs
-  and, with the compiler, stands in for a typecheck target; `make test-go` runs every test under the
-  race detector in shuffled order with a two-minute timeout, then the coverage gate.
+  and, with the compiler, stands in for a typecheck target; `make test-go` runs the server side
+  (`cmd/`, `internal/`) under the race detector, then every test in shuffled order with coverage
+  and no race detector, then the coverage gate, each pass with a two-minute timeout. The race pass
+  leaves out the engine and `seam/`, which start no goroutine and are its slowest packages under
+  `-race`; it keeps Go's test cache, while the shuffled pass always runs, so a test reading a file
+  outside the module (the Python goldens, `telegraf.conf`), which the cache does not track, still
+  runs every time. Coverage under `-race` counts atomically and costs several times both passes.
 * Fix a lint finding rather than silence it. A suppression is `//nolint:<linter> // reason` on the
   narrowest line; nolintlint rejects one without a named linter or a reason. Never loosen
   `.golangci.yml` to get green.
