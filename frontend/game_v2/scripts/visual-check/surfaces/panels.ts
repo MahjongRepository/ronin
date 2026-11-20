@@ -302,7 +302,6 @@ const PAGES: readonly PageCase[] = [
     ]),
     {
         ...decisionCase("out_of_step_result", [
-            ".round-end-result__uncertain",
             ".round-end-result__confirm",
             ".round-end-result__indicator-tiles .tile",
         ]),
