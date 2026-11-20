@@ -1,17 +1,19 @@
 # Game randomness
 
 How a game gets its random outcomes: the wall of each round, the first dealer and the seating. The
-engine's `backend/game/logic/rng.py` holds the seat permutation, the first dealer and the wall; the
-wall cut is in `wall.py`; the session's `backend/game/session/seating.py` generates the seed and
-seats the players; `make measure-wall` measures it. The Go game server implements the same scheme in
-`backend/game_v2/engine/internal/rng` and `engine/internal/wall`, reached through the facade's seed
-functions, and `make measure-wall SERVER=go` measures it.
+Go engine's `backend/game_v2/engine/internal/rng` holds the seed, the seat permutation, the first
+dealer and each round's shuffle and dice; `engine/internal/wall` breaks the shuffled ring into the
+live and dead walls; the session (`backend/game_v2/internal/session`) draws the seed and seats the
+players through the facade's seed functions; `make measure-wall SERVER=go` measures it with
+`backend/game_v2/cmd/measurewall`. The Python engine implements the same scheme in
+`backend/game/logic/rng.py` and `wall.py`, with the seed and seating in
+`backend/game/session/seating.py`, and plain `make measure-wall` measures it.
 
 ## One seed per game
 
-Each game starts with 96 random bytes (768 bits) from the operating system (`secrets.token_bytes`),
-stored as 192 hex characters. Everything random in the game is computed from this seed, so the
-replay file stores the seed and can replay the game from it.
+Each game starts with 96 random bytes (768 bits) from the operating system (Go's `crypto/rand`,
+Python's `secrets.token_bytes`), stored as 192 hex characters. Everything random in the game is
+computed from this seed, so the replay file stores the seed and can replay the game from it.
 
 The seed is secret while the game runs and public with the replay after it. Anyone can recompute
 every wall from it and compare with the log.
@@ -79,10 +81,10 @@ game, so it carries no seating mode.
 
 ## Versioning
 
-`RNG_VERSION` (`shake256-v1`) is written into every replay. A change to what a replay depends on,
-how the seed becomes the walls and the first dealer, is a new version. The replay loader rejects
-other versions, so an old replay needs the code that recorded it. A seating change alone needs no
-new version: replays seat their recorded names.
+`RNG_VERSION` (`shake256-v1`, the Go engine's `rng.Version`) is written into every replay. A change
+to what a replay depends on, how the seed becomes the walls and the first dealer, is a new version.
+The replay loader rejects other versions, so an old replay needs the code that recorded it. A
+seating change alone needs no new version: replays seat their recorded names.
 
 ## How much randomness there is
 
@@ -183,4 +185,5 @@ None come from the engine itself.
 - **Dice:** 1/6 per face; sums follow the triangle 1, 2, ..., 6, ..., 2, 1 out of 36.
 - **First dealer:** the two-throw rule counted over all 1296 pairs of throws.
 - **Shanten:** no formula exists, so the reference is the same shanten calculator run over hands
-  from Python's `random.shuffle`. This compares the engine's shuffle with an independent one.
+  from Python's `random.shuffle` (ported in the Go sampler). This compares the engine's shuffle
+  with an independent one.

@@ -29,6 +29,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 - A player who can both ron and call a meld (chii, pon or kan) on the same discard is offered all of them and may choose either. Calling the meld instead declines the ron, with the same temporary furiten as passing; any other player's ron still takes precedence over the meld.
 - Last discard restriction: The final discard of a hand (when no tiles remain in the live wall after the draw) cannot be called for chii, pon, or kan — only ron is allowed.
 - Four kans restriction: The replacement discard of a fourth kan that makes a Four Kans abortive draw cannot be called for chii, pon, or kan — only ron is allowed. (No meld arises on the discard declaring a fourth riichi either: the other three players are in riichi and cannot call.)
+- No chombo or dead hand: the engine refuses an illegal action (a noten riichi, a false win, an illegal kan, a kuikae discard), so neither can arise.
 - Tsumo wins on a self-drawn tile, including a kan replacement draw and the dealer's initial hand. Claiming a discard for chii or pon does not provide a tsumo opportunity.
 
 ### Riichi
@@ -119,7 +120,7 @@ When the caller declares another quad on the replacement tile instead of discard
 ### Dealer Rotation
 
 - Dealer repeats (renchan): On dealer win, dealer tenpai at exhaustive draw, or abortive draw
-- Dealer rotates: When dealer is noten at exhaustive draw
+- Dealer rotates: On a win with no dealer among the winners, or when dealer is noten at exhaustive draw
 - Honba counter: Increments by 1 on dealer repeat, exhaustive draw, and abortive draw. Resets to 0 only when the dealer is not among the winners. If dealer wins (even as one of multiple winners in double ron), honba increments (renchan).
 
 ### West Round (Sudden Death)
@@ -138,7 +139,7 @@ Applies when the game type and winning score threshold settings allow the game t
 - Houtei (Houtei Raoyui, Under the River): 1-han, win on last discard (ron)
 - Rinshan Kaihou: Win on replacement tile after any quad type
 - Ryuuiisou (All Green): Yakuman; green tiles only (2, 3, 4, 6, 8 sou and/or hatsu). Hatsu not required.
-- Double Riichi: Riichi on very first uninterrupted discard (2 han). Interrupted by any call (chii, pon, kan, including concealed kan) by any player before the declaration.
+- Double Riichi: Riichi on very first uninterrupted discard (2 han). Interrupted by any call (chii, pon, kan, including concealed kan) by any player before the declaration. A call on the declaration tile itself comes after it, so the double riichi stands.
 - Nagashi Mangan: Treated as special draw; requires all discards are terminals/honors with none claimed. Only opponent's claiming of player's discards invalidates — player may call others' tiles and still qualify. Payment equivalent to mangan tsumo: if non-dealer achieves it, 4,000 from dealer and 2,000 from each non-dealer; if dealer achieves it, 4,000 from each non-dealer. No honba bonus is paid during settlement, but the honba counter increments by 1 for the next hand (same as exhaustive draw). Riichi sticks on the table are not collected (carry to next hand). Dealer rotation follows exhaustive draw rules (dealer keeps seat if tenpai).
 
 ---
@@ -154,10 +155,10 @@ Rules the engine models as settings. Every game plays one preset; its values are
 - Starting score: 25,000
 - Target score: 30,000
 - Winning score threshold: 30,000 (distinct from target score; controls game-end check after primary wind completes)
-- Uma: 10-20
+- Uma: +20/+10/−10/−20 (first to fourth, in thousands of points)
 - Oka: Enabled (25,000/30,000) — each player contributes (target_score - starting_score) = 5,000 points; total oka of 20,000 goes to 1st place
 - Tobi (negative score): Game ends immediately. Tobi threshold: Below 0 points (0 points does not end the game)
-- Agariyame (dealer stops in all-last while leading): Enabled and automatic. From South-4 on, a dealer who wins and places first with at least the winning score threshold ends the game. Ties for first follow the final standings. Without an extension any score ends it.
+- Agariyame (dealer stops in all-last while leading): Enabled and automatic. From South-4 on, a dealer who wins and places first with at least the winning score threshold ends the game. Ties for first follow the final standings.
 - Tenpaiyame (dealer stops in all-last if leading and tenpai at exhaustive draw): Enabled under the same conditions, nagashi mangan with a tenpai dealer included. An abortive draw never stops the game.
 
 ### Yaku Toggles
@@ -174,7 +175,7 @@ Rules the engine models as settings. Every game plays one preset; its values are
   - Suji restriction: For the discard immediately after chii, also forbid the tile that would complete a sequence with the two tiles contributed from hand: calling 1m with 23m forbids discarding 4m; calling 4m with 23m forbids 1m. Calling the middle tile (2m with 13m) adds no suji restriction.
   - Red and ordinary fives share a tile type for kuikae.
   - A chii is legal only if at least one legal discard remains after the meld is formed; a chii shape that would leave only kuikae-forbidden tiles is not offered and is rejected. A pon can never leave such a hand.
-- Multiple Ron (Double Ron): Allowed (2 players win simultaneously); riichi sticks from previous rounds and the honba bonus (+300 per counter) go only to the winner closest counter-clockwise to the discarder; the other winner receives the hand value alone. When disabled, Head Bump (Atama Hane) applies: only the player closest counter-clockwise to the discarder wins, and only they receive riichi sticks. For chankan the kan caller takes the discarder's role in both rules.
+- Multiple Ron (Double Ron): Allowed (2 players win simultaneously); every riichi stick on the table, including one the farther winner deposited this hand, and the honba bonus (+300 per counter) go only to the winner closest counter-clockwise to the discarder; the other winner receives the hand value alone. When disabled, Head Bump (Atama Hane) applies: only the player closest counter-clockwise to the discarder wins, and only they receive riichi sticks. For chankan the kan caller takes the discarder's role in both rules.
 
 ### Dora
 
@@ -190,7 +191,7 @@ Rules the engine models as settings. Every game plays one preset; its values are
 - Kyuushu Kyuuhai (player choice): Any player may declare kyuushu kyuuhai with at least nine distinct terminal/honor types among their 14 tiles on their initial turn, before discarding, provided no player has made a chii, pon, or kan (including concealed kan). Other players' ordinary discards do not end eligibility, and the drawn tile counts toward the nine types. Not automatic — the server must offer this as an action.
 - Four Winds: All four players discard the same wind on first turn. Any call before the fourth discard, a closed kan included, prevents it. A riichi declared on the fourth wind discard is not established: the hand ends before the bet is taken, so no stick is deposited.
 - Four Riichi: After fourth riichi succeeds (if no one wins on the discard). A ron on the declaration discard stands, and the fourth riichi stick is not deposited.
-- Four Kans: Four kans declared by two or more players. The fourth kan completes as usual: its declarer draws the replacement tile and may win by rinshan kaihou, or discards. If that discard is ronned, the ron stands; otherwise the hand ends in an abortive draw once the discard passes (it cannot be called for a meld, and any deferred kan dora is revealed first). A fourth kan that is robbed (an added kan by chankan, or a closed kan by kokushi musou) stays declared but reveals no kan dora, and the ron stands. If the replacement discard also declares the fourth riichi, the abort is reported as Four Riichi. One player holding all four kans plays on, and no fifth kan can be declared.
+- Four Kans: Four kans declared by two or more players. The fourth kan completes as usual: its declarer draws the replacement tile and may win by rinshan kaihou, or discards. If that discard is ronned, the ron stands; otherwise the hand ends in an abortive draw once the discard passes (it cannot be called for a meld, and any deferred kan dora is revealed first). A fourth kan that is robbed (an added kan by chankan, or a closed kan by kokushi musou) stays declared but reveals no kan dora, and the ron stands. If the replacement discard also declares the fourth riichi, the abort is reported as Four Riichi; a riichi declared on it that is not the fourth deposits its stick before the abortive draw, so the stick stays on the table. One player holding all four kans plays on, and no fifth kan can be declared.
 - Triple Ron: Three opponents declare Ron on the same discard or rob the same kan (an added kan, or a closed kan robbed by kokushi musou); no score changes. A riichi declared on that discard is void, and no stick is deposited. Being able to ron is not enough: each eligible player is offered the call, and if one of them passes, the other two win by double ron (or head bump when double ron is disabled).
 
 ### Yakuman Options
@@ -199,7 +200,7 @@ Rules the engine models as settings. Every game plays one preset; its values are
 - Multiple yakuman stacking: Allowed (e.g., Daisuushii + Tsuuiisou = double yakuman)
 - Kazoe Yakuman (13+ han): Single yakuman only. Dora (including red, kan, and ura dora) count toward the 13-han threshold.
 - Yakuman hands and dora: Dora do not add han to yakuman hands. Yakuman scoring is fixed regardless of additional dora in the hand.
-- Maximum yakuman: Sextuple yakuman (6x)
+- Maximum yakuman: capped at sextuple (6x), but with double yakuman disabled at most 4x is reachable (e.g., Tsuuiisou + Daisuushii + Suuankou + Tenhou).
 
 ### Scoring Options
 
