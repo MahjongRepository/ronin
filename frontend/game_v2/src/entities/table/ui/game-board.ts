@@ -33,9 +33,11 @@ import { formatList, t } from "@/shared/i18n";
 import { sizeBoard } from "./board-geometry-directive";
 import { animateBoard } from "./board-motion-directive";
 import { type BoardNotice, BoardNotices, NoticeAnnouncements } from "./board-notices";
-import { LyingHonbaStickIcon, LyingRiichiStickIcon, WallTileIcon } from "./center-count-icons";
+import { WallTileIcon } from "./center-count-icons";
+import { HonbaStickIcon } from "./honba-stick-icon";
 import { Nameplates, type SeatView } from "./nameplate";
 import { fadeMatchResult, holdPanel } from "./panel-motion-directive";
+import { RiichiStickIcon } from "./riichi-stick-icon";
 
 /** How the bottom seat's hand is played: what a selectable tile does and where its tap goes. */
 interface LocalHandInput {
@@ -315,11 +317,11 @@ function CenterInfo(
                     >
                     <span class="board-center__sticks">
                         <span class="board-center__count" title=${t("game.board.honba")}
-                            >${LyingHonbaStickIcon()}<span class="board-center__label">${t("game.board.honba")}</span>
+                            >${HonbaStickIcon()}<span class="board-center__label">${t("game.board.honba")}</span>
                             <span class="board-center__figure">${center.honbaSticks}</span></span
                         >
                         <span class="board-center__count" title=${t("game.board.riichi_sticks_title")}
-                            >${LyingRiichiStickIcon()}<span class="board-center__label">${t("game.board.riichi_sticks")}</span>
+                            >${RiichiStickIcon()}<span class="board-center__label">${t("game.board.riichi_sticks")}</span>
                             <span class="board-center__figure">${center.riichiSticks}</span></span
                         >
                     </span>

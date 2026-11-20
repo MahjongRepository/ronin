@@ -212,12 +212,12 @@
 
     --count-group-gap: 0.6em;
     --count-icon-gap: 0.2em;
-    --count-stick-h: 0.44em;
+    --count-stick-h: 1em;
 
     @include phone-board {
         --count-group-gap: 0.3em;
         --count-icon-gap: 0.1em;
-        --count-stick-h: 0.36em;
+        --count-stick-h: 0.9em;
     }
 }
 
@@ -236,7 +236,7 @@
         height: var(--count-stick-h);
 
         @media (resolution <= 1.5dppx) {
-            height: max(var(--count-stick-h), 6px);
+            height: max(var(--count-stick-h), 12px);
         }
     }
 
