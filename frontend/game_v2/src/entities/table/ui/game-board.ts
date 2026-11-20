@@ -33,10 +33,9 @@ import { formatList, t } from "@/shared/i18n";
 import { sizeBoard } from "./board-geometry-directive";
 import { animateBoard } from "./board-motion-directive";
 import { type BoardNotice, BoardNotices, NoticeAnnouncements } from "./board-notices";
-import { HonbaStickIcon } from "./honba-stick-icon";
+import { LyingHonbaStickIcon, LyingRiichiStickIcon, WallTileIcon } from "./center-count-icons";
 import { Nameplates, type SeatView } from "./nameplate";
 import { fadeMatchResult, holdPanel } from "./panel-motion-directive";
-import { RiichiStickIcon } from "./riichi-stick-icon";
 
 /** How the bottom seat's hand is played: what a selectable tile does and where its tap goes. */
 interface LocalHandInput {
@@ -311,16 +310,16 @@ function CenterInfo(
                 <div class="board-center__round">${center.roundDisplay}</div>
                 <div class="board-center__counts">
                     <span class="board-center__count board-center__count--wall" title=${t("game.board.wall_title")}
-                        ><span class="board-center__label">${t("game.board.wall")}</span>
+                        >${WallTileIcon()}<span class="board-center__label">${t("game.board.wall")}</span>
                         <span class="board-center__figure">${center.tilesRemaining}</span></span
                     >
                     <span class="board-center__sticks">
                         <span class="board-center__count" title=${t("game.board.honba")}
-                            >${HonbaStickIcon()}<span class="board-center__label">${t("game.board.honba")}</span>
+                            >${LyingHonbaStickIcon()}<span class="board-center__label">${t("game.board.honba")}</span>
                             <span class="board-center__figure">${center.honbaSticks}</span></span
                         >
                         <span class="board-center__count" title=${t("game.board.riichi_sticks_title")}
-                            >${RiichiStickIcon()}<span class="board-center__label">${t("game.board.riichi_sticks")}</span>
+                            >${LyingRiichiStickIcon()}<span class="board-center__label">${t("game.board.riichi_sticks")}</span>
                             <span class="board-center__figure">${center.riichiSticks}</span></span
                         >
                     </span>

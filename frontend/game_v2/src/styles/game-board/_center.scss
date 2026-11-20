@@ -201,36 +201,58 @@
     flex-wrap: nowrap;
     align-items: center;
     justify-content: center;
-    gap: 0.3em;
+    gap: var(--count-group-gap);
     max-width: 100%;
     font-size: max(
         10px,
-        min(calc(var(--c) * 0.08), calc((var(--w) - 2 * var(--row-depth) - var(--c) * 0.04) / 6))
+        min(calc(var(--c) * 0.08), calc((var(--w) - 2 * var(--row-depth) - var(--c) * 0.04) / 7))
     );
     font-weight: 600;
     line-height: 1;
     color: var(--ronin-text);
+
+    --count-group-gap: 0.6em;
+    --count-icon-gap: 0.2em;
+    --count-stick-h: 0.44em;
+
+    @include phone-board {
+        --count-group-gap: 0.3em;
+        --count-icon-gap: 0.1em;
+        --count-stick-h: 0.36em;
+    }
 }
 
 .board-center__sticks {
     display: inline-flex;
-    gap: 0.3em;
+    gap: var(--count-group-gap);
 }
 
 .board-center__count {
     display: inline-flex;
     align-items: center;
-    gap: 0.2em;
+    gap: var(--count-icon-gap);
 
     .board-stick-icon {
         width: auto;
-        height: 1em;
+        height: var(--count-stick-h);
 
-        /* A low-density screen blurs a smaller stick's dots under their contrast. */
         @media (resolution <= 1.5dppx) {
-            height: max(1em, 12px);
+            height: max(var(--count-stick-h), 6px);
         }
     }
+
+    .board-wall-icon {
+        width: auto;
+        height: 0.8em;
+    }
+}
+
+.board-wall-icon__back {
+    fill: var(--ronin-back);
+}
+
+.board-wall-icon__face {
+    fill: var(--ronin-tile-face);
 }
 
 .board-center__figure {
