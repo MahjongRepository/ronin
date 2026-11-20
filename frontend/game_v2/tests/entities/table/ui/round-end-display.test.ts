@@ -187,19 +187,19 @@ describe("RoundEndDisplay", () => {
         ).toEqual([
             [
                 "round-end-result__seat round-end-result__seat--bottom round-end-result__seat--loss",
-                "East Diana 3rd −1,500 23,500",
+                "East Diana −1,500 23,500 3rd",
             ],
             [
                 "round-end-result__seat round-end-result__seat--right round-end-result__seat--gain",
-                "South Alice 2nd +1,500 25,500",
+                "South Alice +1,500 25,500 2nd",
             ],
             [
                 "round-end-result__seat round-end-result__seat--top round-end-result__seat--gain",
-                "West Charlie 1st +1,500 26,500",
+                "West Charlie +1,500 26,500 1st",
             ],
             [
                 "round-end-result__seat round-end-result__seat--left round-end-result__seat--loss",
-                "North Bob 4th −1,500 23,500",
+                "North Bob −1,500 23,500 4th",
             ],
         ]);
         expect(texts(el, ".round-end-result__title")).toEqual(["Exhaustive draw"]);
@@ -211,7 +211,7 @@ describe("RoundEndDisplay", () => {
         const el = renderResult(lastRoundEndTable("nagashi"));
 
         expect(heard(el)).toBe(
-            "Nagashi Mangan Mangan 8,000 East Diana 4th −4,000 21,000 South Alice 1st +8,000 33,000 West Charlie 2nd −2,000 23,000 North Bob 3rd −2,000 23,000 East 1",
+            "Nagashi Mangan Mangan 8,000 East Diana −4,000 21,000 4th South Alice +8,000 33,000 1st West Charlie −2,000 23,000 2nd North Bob −2,000 23,000 3rd East 1",
         );
     });
 });
