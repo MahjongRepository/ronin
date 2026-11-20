@@ -12,8 +12,12 @@ import (
 const OpenKanHandTiles = 3
 
 const (
-	ponHandTiles  = 2
-	lastSuitValue = 8
+	ponHandTiles    = 2
+	lastSuitValue   = 8
+	maxChiShapes    = 3
+	maxLooksPerKind = 2
+	maxChiOptions   = maxChiShapes * maxLooksPerKind * maxLooksPerKind
+	maxKuikaeKinds  = 2
 )
 
 // CheckedMeldOffers returns MeldOffers for a hand given from outside the engine; a
@@ -47,7 +51,8 @@ func MeldOffers(
 		offers = append(offers, play.PonAction(pair))
 	}
 	if seat.Kamicha() == from {
-		for _, pair := range ChiOptions(hand, inRiichi, discard) {
+		var chiOptions [maxChiOptions][2]tile.TileID
+		for _, pair := range appendChiOptions(chiOptions[:0], hand, inRiichi, discard) {
 			offers = append(offers, play.ChiAction(pair))
 		}
 	}
@@ -98,9 +103,15 @@ func heldCount(hand []tile.TileID, kind tile.Kind) int {
 // low look in hand order before each high one. None in riichi, on an honor, or for a pair that
 // leaves no discard kuikae allows.
 func ChiOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID) [][2]tile.TileID {
+	return appendChiOptions(nil, hand, inRiichi, discard)
+}
+
+func appendChiOptions(
+	options [][2]tile.TileID, hand []tile.TileID, inRiichi bool, discard tile.TileID,
+) [][2]tile.TileID {
 	kind := discard.Kind()
 	if inRiichi || kind.IsHonor() {
-		return nil
+		return options
 	}
 
 	value := kind.Simplify()
@@ -115,10 +126,10 @@ func ChiOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID) [][2]til
 		shapes = append(shapes, [2]tile.Kind{kind - 2, kind - 1})
 	}
 
-	var options [][2]tile.TileID
 	for _, shape := range shapes {
-		highs := looks(hand, shape[1])
-		for _, low := range looks(hand, shape[0]) {
+		var lowLooks, highLooks [maxLooksPerKind]tile.TileID
+		highs := appendLooks(highLooks[:0], hand, shape[1])
+		for _, low := range appendLooks(lowLooks[:0], hand, shape[0]) {
 			for _, high := range highs {
 				pair := [2]tile.TileID{low, high}
 				if leavesLegalDiscard(hand, discard, pair) {
@@ -130,8 +141,7 @@ func ChiOptions(hand []tile.TileID, inRiichi bool, discard tile.TileID) [][2]til
 	return options
 }
 
-func looks(hand []tile.TileID, kind tile.Kind) []tile.TileID {
-	var found []tile.TileID
+func appendLooks(found, hand []tile.TileID, kind tile.Kind) []tile.TileID {
 	for held := range tile.HeldCopies(hand, kind) {
 		seen := slices.ContainsFunc(found, func(look tile.TileID) bool { return isRed(look) == isRed(held) })
 		if !seen {
@@ -142,7 +152,8 @@ func looks(hand []tile.TileID, kind tile.Kind) []tile.TileID {
 }
 
 func leavesLegalDiscard(hand []tile.TileID, discard tile.TileID, pair [2]tile.TileID) bool {
-	kuikae := KuikaeKinds(discard, play.ChiCall{Held: pair})
+	var kinds [maxKuikaeKinds]tile.Kind
+	kuikae := appendChiKuikaeKinds(kinds[:0], discard.Kind(), pair)
 	for _, held := range hand {
 		if !slices.Contains(pair[:], held) && !slices.Contains(kuikae, held.Kind()) {
 			return true
@@ -164,8 +175,11 @@ func KuikaeKinds(discard tile.TileID, call play.MeldCall) []tile.Kind {
 	case play.ChiCall:
 		pair = c.Held
 	}
+	return appendChiKuikaeKinds(nil, called, pair)
+}
 
-	kinds := []tile.Kind{called}
+func appendChiKuikaeKinds(kinds []tile.Kind, called tile.Kind, pair [2]tile.TileID) []tile.Kind {
+	kinds = append(kinds, called)
 	low, high := pair[0].Kind(), pair[1].Kind()
 	lowest, highest := min(low, high, called), max(low, high, called)
 	switch {
