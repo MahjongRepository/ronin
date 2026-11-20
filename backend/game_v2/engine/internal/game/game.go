@@ -213,7 +213,8 @@ func (g Game) DealNextRound() (Game, []play.Emitted, play.Option[play.Refusal]) 
 	next := g
 	w, ok := next.walls.wallFor(g.next.Value)
 	if !ok {
-		return next, []play.Emitted{next.endGame(play.EndFixedWallsDealt)}, play.Option[play.Refusal]{}
+		ended := next.endGame(play.EndFixedWallsDealt)
+		return next, []play.Emitted{ended}, play.Option[play.Refusal]{}
 	}
 
 	next.deal(g.next.Value, w)
@@ -370,9 +371,11 @@ func (g Game) Act(seat tile.Seat, action play.Action) (Game, []play.Emitted, pla
 	}
 
 	if t.Ended != nil {
-		return next, append(t.Events, next.finishRound(t.Ended)...), play.Option[play.Refusal]{}
+		finished := next.finishRound(t.Ended)
+		return next, append(t.Events, finished...), play.Option[play.Refusal]{}
 	}
-	return next, append(t.Events, next.round.ReportFuriten()...), play.Option[play.Refusal]{}
+	furiten := next.round.ReportFuriten()
+	return next, append(t.Events, furiten...), play.Option[play.Refusal]{}
 }
 
 func (g *Game) turnAction(seat tile.Seat, action play.Action) (round.Transition, play.Option[play.Refusal]) {
