@@ -10,7 +10,8 @@ and the seat view it equals (`engine/internal/record`), the facade over them (`e
 seam tests and self-play driver (`seam/`), the wire format (`internal/wire`), the shaping of the
 engine's output into messages and of client messages into actions (`internal/messaging`), the live
 games with their sessions (`internal/session`), the rows and replay files it persists beside the
-lobby (`internal/store`), and its credentials (`internal/auth`).
+lobby (`internal/store`), its credentials (`internal/auth`), and the transport serving the lobby's
+routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`).
 
 ## The seam
 
@@ -59,11 +60,13 @@ along the module graph of mahjong-rs, the port's reference, and never `engine`.
 
 Each server package's imports of the module are a depguard rule in `.golangci.yml`: `wire` imports
 only `engine`, `engine/play` and `engine/tile`, `messaging` those and `wire`, `session` those,
-`messaging` and `store` (never the replay runner), `store` and `auth` nothing, and each layer added
-later gets its own. Each `cmd/*` is its own composition root: its `main` is the only place that
+`messaging` and `store` (never the replay runner), `server` the session, messaging, wire, store and
+auth but of the engine only `engine/play` and `engine/tile`, `store` and `auth` nothing, and each
+layer added later gets its own. Each `cmd/*` is its own composition root: its `main` is the only place that
 reads that binary's flags, environment and signals and wires the parts it uses, so a tool beside
 the server builds what it needs without going through `cmd/gameserver`.
-`cmd/gameserver` wires the engine into the server once a game message exists.
+`cmd/gameserver` reads the Python server's environment, wires the store, the session and the
+server, and runs the graceful stop (Server).
 
 ## The wire
 
@@ -193,6 +196,28 @@ a contract.
   server closed; `Shutdown`, called after that, lets a still-registered game vanish with no finish row and
   waits for the finalizers and store writes.
 
+## Server
+
+`internal/server` serves the lobby's REST routes, `/health`, `/status` and `WS /ws/{game_id}`.
+
+* The server owns each socket: one goroutine reads it, rate-limits and decodes each frame and
+  hands the message to the session, one writes its queue, and one pings it. The session sees it only
+  as a `session.Connection`, so it holds no socket state.
+* The REST answers keep the Python server's status codes, JSON keys and error texts, and the
+  lobby's creation body is read as strictly as Python's model read it: exactly its keys, no field
+  of another JSON type, lengths in characters. A socket whose path holds an invalid game id is
+  refused with 403 before the handshake, as uvicorn answered Python's close before accept.
+* `/status` is a contract: Telegraf's `fieldinclude` allow-list and its metrics schema store its
+  keys, the lobby reads its game counts, and counter-reset detection keys on `started_at`, the
+  process start in whole epoch seconds, so counters stay cumulative. A test holds the keys against
+  `deploy/config/telegraf.conf`. `loop_lag_max_ms` is the per-game queue delay: the longest a
+  routed message waited for its game to take it in the last minute, null without one.
+* A graceful stop keeps Python's order inside compose's 15 s grace period, on one deadline: the
+  HTTP server stops taking connections, `Server.Shutdown` closes every socket with 1012 and waits
+  until each ran its disconnect, then shuts the session down, which drains the finalizers and the
+  store writes, and the database closes last. Past the deadline the sockets still open are dropped
+  and the store's context is cancelled.
+
 ## Security requirements
 
 Mandatory for all server-side code; review must catch violations.
@@ -286,7 +311,8 @@ code under `engine/`:
 * Rule unit tests sit beside the code they test, in the `engine/internal/` packages. `seam/` covers
   only behaviour observable through the facade, and does not repeat a rule already pinned below it.
   Server tests sit beside the server code and drive it through `net/http/httptest`, with a real
-  WebSocket client for a socket route.
+  WebSocket client for a socket route; a test of a ping, a budget or a strike limit shortens the
+  `SocketConfig` rather than waiting.
 * mahjong-rs is the reference for every rule and event order, and `seam/` holds the proof: it replays
   games mahjong-rs dumped (`seam/testdata/README.md`) through the facade and the ported driver, and
   every decision, action and event must match line for line. A change to a rule or to what the
