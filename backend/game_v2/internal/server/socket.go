@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net/http"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -110,7 +111,7 @@ func (s *Server) readMessages(ctx context.Context, conn *connection) websocket.S
 func (rd *reader) handleFrame(typ websocket.MessageType, data []byte) (keepReading bool) {
 	defer func() {
 		if r := recover(); r != nil {
-			rd.conn.log.Error(logMessageLoopFails, "panic", r)
+			rd.conn.log.Error(logMessageLoopFails, "panic", r, "stack", string(debug.Stack()))
 			rd.conn.Close(session.CloseInternalError, internalErrorReason)
 			keepReading = false
 		}

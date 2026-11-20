@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 	"uuid"
@@ -199,7 +200,7 @@ func (c *connection) pingOnce(ctx context.Context, timeout time.Duration) bool {
 
 func (c *connection) recoverAndDrop(message string) {
 	if r := recover(); r != nil {
-		c.log.Error(message, "panic", r)
+		c.log.Error(message, "panic", r, "stack", string(debug.Stack()))
 		c.terminate()
 	}
 }

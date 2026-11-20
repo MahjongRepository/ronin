@@ -18,14 +18,15 @@ import (
 )
 
 const (
-	maxRequestBody   = 4096
-	logWriteFailed   = "write response"
-	logCreateFailed  = "create game failed"
-	logReplayUnread  = "read stored replay failed"
-	logTenhouFailed  = "tenhou export failed"
-	statusOK         = "ok"
-	statusPending    = "pending"
-	cacheControlNone = "no-store"
+	maxRequestBody        = 4096
+	createBodyReadTimeout = 10 * time.Second
+	logWriteFailed        = "write response"
+	logCreateFailed       = "create game failed"
+	logReplayUnread       = "read stored replay failed"
+	logTenhouFailed       = "tenhou export failed"
+	statusOK              = "ok"
+	statusPending         = "pending"
+	cacheControlNone      = "no-store"
 )
 
 type errorBody struct {
@@ -224,6 +225,12 @@ func exportTenhou(compressed []byte) (string, error) {
 }
 
 func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
+	err := http.NewResponseController(w).SetReadDeadline(time.Now().Add(createBodyReadTimeout))
+	if err != nil {
+		s.log.Error(logCreateFailed, "error", err)
+		s.writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxRequestBody))
 	if err != nil {
 		if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
