@@ -358,20 +358,22 @@ func TestYakumanStacking_WhenDaisuushiiAndTsuuiisou_ShouldStackTwoSingleYakuman(
 	assertEqual(t, "score changes", win.ScoreChanges, [tile.SeatCount]int{0, 64000, -64000, 0})
 }
 
-func TestIppatsu_WhenACallComesBeforeTheRon_ShouldEndIt(t *testing.T) {
-	riichiDiscard, calledHaku, oneMan := tileOf(t, 1, "7z"), tileOf(t, 0, "5z"), tileOf(t, 2, "1m")
+func TestDoubleRiichi_WhenItsRiichiTileIsPonned_ShouldStillScoreButLoseIppatsu(t *testing.T) {
+	riichiDiscard, oneMan := tileOf(t, 1, "7z"), tileOf(t, 2, "1m")
 	w := testkit.StartWall{
 		Hands: [tile.SeatCount][]tile.TileID{
 			tenpaiOnOneAndNineMan(t),
 			copies(t, 1, "123456789p159s5z"),
-			slices.Concat(copies(t, 2, "123456789p19s"), copies(t, 2, "55z")),
+			slices.Concat(copies(t, 2, "123456789p19s"), copies(t, 2, "77z")),
 			slices.Concat(copies(t, 3, "123456789p159s"), copies(t, 0, "6z")),
 		},
-		Draws: []tile.TileID{riichiDiscard, calledHaku, oneMan},
+		Draws: []tile.TileID{riichiDiscard, oneMan},
 	}
 	g, _ := script(t, begun(t, w, noStart()), act(seat(t, 0), play.RiichiAction(riichiDiscard)))
-	g, _ = discardDrawn(t, g, 1)
-	g, _ = script(t, g, act(seat(t, 2), firstPon(t, g, seat(t, 2))), act(seat(t, 2), play.DiscardAction(tileOf(t, 2, "9s"))))
+	assertEqual(t, "awaiting the pon", g.Awaiting(), awaitingCall(seat(t, 2)))
+	g, ponned := script(t, g, act(seat(t, 2), firstPon(t, g, seat(t, 2))))
+	assertEqual(t, "ponned tile", testkit.CalledMelds(ponned)[0].Meld.Called, play.Some(riichiDiscard))
+	g, _ = script(t, g, act(seat(t, 2), play.DiscardAction(tileOf(t, 2, "9s"))))
 	g, _ = discardDrawn(t, g, 1)
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 0)))
 

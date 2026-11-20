@@ -390,7 +390,7 @@ func TestClosedKan_WhenTheRiichiKanTileIsAWait_ShouldBeNotOfferedAndRefused(t *t
 	assertClosedKanNotOfferedAndRefused(t, copies(t, 0, "1112344m123p456s"), drawnOneMan, drawnOneMan)
 }
 
-func TestClosedKan_WhenTheRiichiKanKeepsTheWaitsButLosesIipeikou_ShouldBeOfferedAndDeclared(t *testing.T) {
+func TestClosedKan_WhenTheRiichiKanKeepsTheWaitsButLosesIipeikou_ShouldBeOfferedAndDeclaredAndEndItsIppatsu(t *testing.T) {
 	waitingHand := copies(t, 0, "111222333m456p5s")
 	drawnOneMan := tileOf(t, 3, "1m")
 	w := riichiDealerWall(t, waitingHand, drawnOneMan)
@@ -407,4 +407,8 @@ func TestClosedKan_WhenTheRiichiKanKeepsTheWaitsButLosesIipeikou_ShouldBeOffered
 	if !containsAction(g.LegalActions(seat(t, 0)), play.TsumoAction()) {
 		t.Error("tsumo on the rinshan tile is not offered")
 	}
+
+	win := winOf(t, g, seat(t, 0), play.TsumoAction())
+
+	assertEqual(t, "yaku", win.Yaku, []play.YakuID{play.YakuTsumo, play.YakuRinshan, play.YakuDaburuRiichi, play.YakuSanankou})
 }

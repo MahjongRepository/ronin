@@ -421,6 +421,26 @@ func TestChankanPass_WhenARiichiSeatPasses_ShouldSetItsRiichiFuriten(t *testing.
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(seat(t, 3)))
 }
 
+func TestChankanPass_WhenANonRiichiSeatPasses_ShouldRefuseItARonOnTheNextDiscardOfItsWait(t *testing.T) {
+	waitingOnThreeFourAndSixPin := slices.Concat(copies(t, 1, "123456789m"), copies(t, 0, "4555p"))
+	sixPin := tileOf(t, 0, "6p")
+	w := threePinWall(t, chankanBystander(t, 2), waitingOnThreeFourAndSixPin, kanAfterOneGoAround(t))
+	w.Rinshan = []tile.TileID{sixPin}
+	g, _ := discardDrawn(t, threePinPonnedBySeatTwo(t, w, play.DiscardAction), 3)
+	g, _ = addedThreePinKan(t, g)
+	assertEqual(t, "awaiting the chankan", g.Awaiting(), awaitingCall(seat(t, 3)))
+
+	g, passed := script(t, g, act(seat(t, 3), play.PassAction()))
+
+	assertEqual(t, "furiten", testkit.FuritenChanges(passed), []play.FuritenChanged{{Seat: seat(t, 3), Furiten: true}})
+	drawn, _ := testkit.Drawn(g)
+	assertEqual(t, "rinshan", drawn, sixPin)
+	g, _ = discardDrawn(t, g, 1)
+	if offers := g.LegalActions(seat(t, 3)); containsAction(offers, play.RonAction()) {
+		t.Errorf("offers = %v, want no ron", offers)
+	}
+}
+
 func TestFourKans_WhenOneSeatDeclaresAllFour_ShouldNotAbort(t *testing.T) {
 	fiveMan := copies(t, 0, "5555m")
 	loneChun := tileOf(t, 0, "7z")
