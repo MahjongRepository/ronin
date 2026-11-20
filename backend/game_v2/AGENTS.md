@@ -58,10 +58,10 @@ along the module graph of mahjong-rs, the port's reference, and never `engine`.
 them, and they import nothing of the module.
 
 `session` does not exist yet; it is added under `internal/` when the port gives it work, never as an
-empty package. `wire`'s and `messaging`'s imports of the module are depguard rules in
-`.golangci.yml`: `wire` imports only `engine`, `engine/play` and `engine/tile`, `messaging` those
-and `wire`, `store` and `auth` nothing, and each layer added later gets its own. Each `cmd/*` is its own composition root: its
-`main` is the only place that reads that binary's flags, environment and signals and wires the parts
+empty package. Each server package's imports of the module are a depguard rule in `.golangci.yml`:
+`wire` imports only `engine`, `engine/play` and `engine/tile`, `messaging` those and `wire`,
+`store` and `auth` nothing, and each layer added later gets its own. Each `cmd/*` is its own
+composition root: its `main` is the only place that reads that binary's flags, environment and signals and wires the parts
 it uses, so a tool beside the server builds what it needs without going through `cmd/gameserver`.
 `cmd/gameserver` wires the engine into the server once a game message exists.
 
@@ -118,9 +118,10 @@ Python server's formats.
   `testdata/python_rows.json` holds rows Python wrote, and Go must write them byte for byte.
 * Replay files keep their layout, gzip, owner-only modes and 1 MiB read cap; every path goes
   through an `os.Root`, so no id or link leaves the replay directory.
-* A ticket verifies only as the lobby signs one: strict padded base64url, exactly the four fields,
-  `expires_at` a JSON float. `testdata/lobby_tickets.json` holds tickets the lobby's code signed and
-  the verdict Python reached on each. An empty secret verifies nothing.
+* A ticket verifies only as the lobby signs one: padded base64url (padding required, the URL
+  alphabet), exactly the four fields, `expires_at` a JSON float. `testdata/lobby_tickets.json`
+  holds tickets the lobby's code signed and the verdict Python reached on each. An empty secret
+  verifies nothing.
 
 ## Engine purity
 

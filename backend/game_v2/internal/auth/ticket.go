@@ -4,9 +4,10 @@
 //
 // A ticket is base64url(payload) "." base64url(signature), both padded. The payload is the JSON the
 // lobby writes, keys sorted, `expires_at` a JSON float of epoch seconds; the signature is
-// HMAC-SHA256 of the payload bytes under the shared ticket secret. Decoding is strict base64url:
-// the lobby only ever writes the padded form, and the game keys a participant by the exact ticket
-// string anyway.
+// HMAC-SHA256 of the payload bytes under the shared ticket secret. Decoding takes padded base64url
+// only: the padding is required and the alphabet is the URL one, as the lobby writes it, where
+// Python also took the standard alphabet and skipped other characters; line breaks are skipped,
+// as in Python. The game keys a participant by the exact ticket string anyway.
 //
 // Ported from ronin's Python shared auth: its game ticket module and the game server's internal
 // caller check.
@@ -24,9 +25,6 @@ import (
 	"time"
 	"unicode/utf16"
 )
-
-// TicketTTL is how long a ticket the lobby signs stays valid.
-const TicketTTL = 24 * time.Hour
 
 // Ticket is the payload a signed game ticket carries.
 type Ticket struct {

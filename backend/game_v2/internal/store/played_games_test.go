@@ -155,7 +155,7 @@ func TestOpen_WhenThePathHoldsAQueryMark_ShouldRefuseIt(t *testing.T) {
 	}
 }
 
-func TestRecord_WhenPlayingThePythonFixtureGames_ShouldWriteThePythonRows(t *testing.T) {
+func TestDB_WhenPlayingThePythonFixtureGames_ShouldWriteThePythonRows(t *testing.T) {
 	content, err := os.ReadFile(pythonRowsPath)
 	if err != nil {
 		t.Fatalf("read %s: %v", pythonRowsPath, err)

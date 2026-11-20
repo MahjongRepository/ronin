@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -27,7 +28,7 @@ import (
 const (
 	databaseFileMode = 0o600
 	databaseDirMode  = 0o750
-	busyTimeoutMs    = 5000
+	busyTimeout      = 5 * time.Second
 )
 
 const schemaSQL = `CREATE TABLE IF NOT EXISTS played_games (
@@ -54,7 +55,8 @@ type DB struct {
 
 // Open opens the database at path, creating it and its directory when missing, creates the
 // `played_games` table, and sets the file and its WAL and SHM siblings to owner-only access. A file
-// whose permissions cannot be set is logged at warning level and left as it is.
+// whose permissions cannot be set is logged at warning level and left as it is. The logger, which
+// also takes the DB's warnings, must not be nil.
 func Open(ctx context.Context, path string, logger *slog.Logger) (*DB, error) {
 	if strings.Contains(path, "?") {
 		return nil, fmt.Errorf("open database %s: %w", path, ErrDatabasePath)
@@ -65,7 +67,7 @@ func Open(ctx context.Context, path string, logger *slog.Logger) (*DB, error) {
 		return nil, fmt.Errorf("create database directory: %w", err)
 	}
 
-	dsn := fmt.Sprintf("%s?_busy_timeout=%d&_journal_mode=WAL&_foreign_keys=1", path, busyTimeoutMs)
+	dsn := fmt.Sprintf("%s?_busy_timeout=%d&_journal_mode=WAL&_foreign_keys=1", path, busyTimeout.Milliseconds())
 	conn, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open database %s: %w", path, err)

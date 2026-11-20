@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 )
@@ -168,7 +169,7 @@ func writeReplay(root *os.Root, gameID string, compressed []byte) error {
 	}
 	if err != nil {
 		removeErr := root.Remove(temp)
-		if errors.Is(removeErr, os.ErrNotExist) {
+		if errors.Is(removeErr, fs.ErrNotExist) {
 			removeErr = nil
 		}
 		return errors.Join(err, removeErr)

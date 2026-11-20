@@ -100,7 +100,7 @@ func TestSignTicket_WhenGivenATicketTheLobbySigned_ShouldProduceTheLobbysToken(t
 	}
 }
 
-func TestSignTicket_WhenTheLobbyFixturesLeaveAFormUnwritten_ShouldWriteItAsPythonDoes(t *testing.T) {
+func TestSignTicket_WhenTheTicketNeedsPythonsRareJSONForms_ShouldWriteThemAsPythonDoes(t *testing.T) {
 	for _, c := range []struct {
 		ticket  auth.Ticket
 		payload string
@@ -204,7 +204,7 @@ func TestVerifyTicket_WhenTheSignedPayloadIsNotATicket_ShouldRefuseIt(t *testing
 
 func TestVerifyTicket_WhenNowReachesTheExpiry_ShouldAcceptItUntilNowPassesIt(t *testing.T) {
 	const secret = "secret"
-	expiry := fixtureNow.Add(auth.TicketTTL)
+	expiry := fixtureNow.Add(24 * time.Hour)
 	ticket := auth.Ticket{
 		UserID:    "u",
 		Username:  "n",
