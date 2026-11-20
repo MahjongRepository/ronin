@@ -21,9 +21,11 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   end takes the server's placement and uma/oka, never recomputed; leftover sticks are the server's `lr`, never the
   table's count. A table out of step (`inStep`) names no last round in how the game ended.
 - **A result is the server's alone.** Its dealer, dora indicators and nagashi seats come from the round end, never
-  the table, so a result shown out of step is still right. The limit's name (`handLimitName`), a yaku's yakuman
-  count, each winner's honba bonus and what a liable (pao) seat pays are the server's; the client words them and
-  never works them back from points, han or yaku ids. A score map missing a seat is a desync.
+  the table, so a result shown out of step is still right. The one exception is a ron's robbed kan, read from the
+  loser's melds: a table out of step that missed the kan's meld shows that ron as dealt in. The limit's name
+  (`handLimitName`), a yaku's yakuman count, each winner's honba bonus and what a liable (pao) seat pays are the
+  server's; the client words them and never works them back from points, han or yaku ids. A score map missing a seat
+  is a desync.
 - The live wall starts at the round-start or reconnect snapshot's authoritative count. Each genuine private draw or
   public draw notice subtracts one, including kan replacements and AI draws; a re-sent private tile already in the
   hand subtracts nothing. An empty wall on a new draw is a desync. Replays retain each draw's recorded count.

@@ -1,3 +1,4 @@
+import { DesyncError } from "@/entities/table/model/desync-error";
 import { requireRiichiStickValue, seatEntry, updatePlayer } from "@/entities/table/model/helpers";
 import {
     type DrawKind,
@@ -149,12 +150,13 @@ function resultDraw(event: RoundEndEvent): DrawResult | null {
 /** Whether a ron robbed a kan: its won tile lies in a kan of the loser's, declared before the ron. */
 function robsKan(event: RonRoundEnd, context: RoundEndContext): boolean {
     const loser = context.players.find((player) => player.seat === event.loserSeat);
-    return (
-        loser?.melds.some(
-            (meld) =>
-                (meld.meldType === "added_kan" || meld.meldType === "closed_kan") &&
-                meld.tileIds.includes(event.winningTile),
-        ) ?? false
+    if (loser === undefined) {
+        throw new DesyncError(`The ron's loser, seat ${event.loserSeat}, is not at the table`);
+    }
+    return loser.melds.some(
+        (meld) =>
+            (meld.meldType === "added_kan" || meld.meldType === "closed_kan") &&
+            meld.tileIds.includes(event.winningTile),
     );
 }
 
@@ -215,14 +217,8 @@ interface RevealedHand {
     readonly drawnTileId: number | null;
 }
 
-/** The drawn tile of a seat whose hand an abort shows, kept apart while the shown tiles still hold it. */
-function shownDrawnTile(state: TableState, seat: number, tiles: readonly number[]): number | null {
-    const drawn = state.players.find((player) => player.seat === seat)?.drawnTileId ?? null;
-    return drawn !== null && tiles.includes(drawn) ? drawn : null;
-}
-
 /** The closed hands a result shows: its winners', the tenpai hands of an exhaustive draw, the hands an abort shows. */
-function revealedHands(state: TableState, event: RoundEndEvent): RevealedHand[] {
+function revealedHands(event: RoundEndEvent): RevealedHand[] {
     switch (event.resultType) {
         case ROUND_RESULT_TYPE.TSUMO: {
             const tiles = [...event.closedTiles, event.winningTile];
@@ -244,7 +240,7 @@ function revealedHands(state: TableState, event: RoundEndEvent): RevealedHand[] 
         }
         case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
             return event.shownHands.map((hand) => ({
-                drawnTileId: shownDrawnTile(state, hand.seat, hand.closedTiles),
+                drawnTileId: null,
                 seat: hand.seat,
                 tiles: hand.closedTiles,
             }));
@@ -260,7 +256,7 @@ function revealedHands(state: TableState, event: RoundEndEvent): RevealedHand[] 
  * face up from every perspective.
  */
 export function revealHands(state: TableState, event: RoundEndEvent): TableState {
-    const hands = revealedHands(state, event);
+    const hands = revealedHands(event);
     const players = hands.reduce(
         (revealed, hand) =>
             updatePlayer(revealed, hand.seat, {
