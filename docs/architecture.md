@@ -436,10 +436,12 @@ sequenceDiagram
   rest. A seat without a connection at the start owes none, and one that leaves during it drops out of
   the pause; both are AI players'. A zero timeout skips the confirm.
 * The session plays the AI players; the engine never learns which seats they hold. After each engine
-  call the session answers every call an AI player's seat is awaited on at once, one `act` per answer
-  in ascending seat order, and plays an AI player's turn after `TimerConfig.ai_turn_delay_seconds`, so a
-  human can follow AI turns one at a time. A human who reconnects during that delay gets the turn back
-  as their own decision, with no engine call. The replay runner and the fixture generators answer
+  call the session asks for one awaited AI seat's answer at a time, calls in ascending seat order and a
+  turn after `TimerConfig.ai_turn_delay_seconds`, so a human can follow AI turns one at a time. The
+  answer comes off the game's goroutine, from the Go server's pluggable agent (by default the
+  decision's default action), and plays as one `act`; one that fails, misses the base turn time or is
+  not offered plays the default instead. A human who reconnects during that delay or while its seat's
+  answer is pending gets the turn back as their own decision, with no engine call. The replay runner and the fixture generators answer
   each seat themselves.
 * Liveness is uvicorn's WebSocket ping; the apps run no heartbeat of their own. Rate limits, decode
   strikes and the auth timeout are in `backend/game/AGENTS.md`.

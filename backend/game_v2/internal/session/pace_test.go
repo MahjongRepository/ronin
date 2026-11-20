@@ -1,9 +1,12 @@
 package session_test
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"slices"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -332,6 +335,150 @@ func TestTurnTimer_WhenItFiresAfterTheSeatActedAndItWasCancelled_ShouldBeDropped
 		}
 		if got := intOf(t, lastOpening(t, alice), wire.KeyWaitID); got != waitID {
 			t.Errorf("alice's wait id = %d, want her open decision %d kept", got, waitID)
+		}
+	})
+}
+
+type stubAgent func(ctx context.Context, decision play.Decision) (play.Action, error)
+
+func (f stubAgent) Decide(ctx context.Context, view play.SeatView) (play.Action, error) {
+	return f(ctx, view.Decision.Value)
+}
+
+func withAgent(agent session.Agent) option {
+	return func(c *session.Config) { c.Agent = agent }
+}
+
+func onTurns(answer stubAgent) stubAgent {
+	return func(ctx context.Context, decision play.Decision) (play.Action, error) {
+		if _, call := decision.Context.(play.Call); call {
+			return decision.Default, nil
+		}
+		return answer(ctx, decision)
+	}
+}
+
+func offered(decision play.Decision, kind play.ActionKind, unlike play.Action) play.Action {
+	for _, action := range decision.Legal {
+		if action.Kind() == kind && action != unlike {
+			return action
+		}
+	}
+	return decision.Default
+}
+
+func handDiscard(decision play.Decision) play.Action {
+	return offered(decision, play.ActionDiscard, decision.Default)
+}
+
+func TestAgent_WhenItAnswersAnAITurn_ShouldPlayAnOfferedAnswerElseTheDefaultOrFailOnAPanic(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		agent         stubAgent
+		after         time.Duration
+		wantDiscards  int
+		wantTsumogiri bool
+		wantFallback  bool
+		wantFailed    bool
+	}{
+		{
+			name:         "an offered discard",
+			agent:        func(_ context.Context, d play.Decision) (play.Action, error) { return handDiscard(d), nil },
+			wantDiscards: 4,
+		},
+		{
+			name: "an error",
+			agent: func(context.Context, play.Decision) (play.Action, error) {
+				return play.Action{}, errors.New("agent unreachable")
+			},
+			wantDiscards: 4, wantTsumogiri: true, wantFallback: true,
+		},
+		{
+			name: "a late answer",
+			agent: func(ctx context.Context, d play.Decision) (play.Action, error) {
+				<-ctx.Done()
+				return handDiscard(d), nil
+			},
+			after:        session.DefaultTiming().BaseTurn,
+			wantDiscards: 2, wantTsumogiri: true, wantFallback: true,
+		},
+		{
+			name:       "a panic",
+			agent:      func(context.Context, play.Decision) (play.Action, error) { panic("agent bug") },
+			wantFailed: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h, alice := soloDealer(t, withTiming(noWaits), withAgent(onTurns(tc.agent)))
+				h.allowErrs = tc.wantFailed
+				draw := lastDraw(t, alice)
+
+				h.act(alice, discard(intOf(t, draw, wire.KeyWaitID), drawnTile(t, draw)))
+				sleep(tc.after)
+
+				if tc.wantFailed {
+					if code, closed := alice.closeCode(); !closed || code != session.CloseInternalError {
+						t.Errorf("alice close = %v, %v, want 1011", code, closed)
+					}
+					return
+				}
+				discards := ofEvent(alice.messages(), wire.EventDiscard)
+				if len(discards) != tc.wantDiscards {
+					t.Fatalf("discards alice saw = %d, want %d", len(discards), tc.wantDiscards)
+				}
+				move, err := wire.UnpackDiscard(intOf(t, discards[1], wire.KeyPackedMove))
+				if err != nil || move.Tsumogiri != tc.wantTsumogiri {
+					t.Errorf("first AI discard = %+v (%v), want tsumogiri %v", move, err, tc.wantTsumogiri)
+				}
+				fellBack := strings.Contains(h.logs.String(), "AI agent answer unusable, playing the default")
+				if fellBack != tc.wantFallback {
+					t.Errorf("fallback warning logged = %v, want %v", fellBack, tc.wantFallback)
+				}
+			})
+		})
+	}
+}
+
+func TestAgent_WhenACallersSeatIsTakenBackDuringItsRequest_ShouldLetTheOtherCallerAnswerAndDropTheLateOne(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		releaseCarolsCall := make(chan struct{})
+		var carolAsked atomic.Bool
+		agent := stubAgent(func(ctx context.Context, d play.Decision) (play.Action, error) {
+			if _, call := d.Context.(play.Call); !call {
+				return d.Default, nil
+			}
+			if d.Seat.Index() == 1 {
+				<-ctx.Done()
+				return offered(d, play.ActionRon, d.Default), nil
+			}
+			carolAsked.Store(true)
+			<-releaseCarolsCall
+			return offered(d, play.ActionPon, d.Default), nil
+		})
+		h := newHarness(t, withSeed(seedSeating(t, 0, 1, 2)), withWalls(ronAndPonWall(t)), withTiming(noWaits),
+			withAgent(agent))
+		conns := h.start("Alice", "Bob", "Carol")
+		alice := conns[0]
+		h.m.Disconnect(conns[1])
+		h.m.Disconnect(conns[2])
+		synctest.Wait()
+		draw := lastDraw(t, alice)
+
+		h.act(alice, discard(intOf(t, draw, wire.KeyWaitID), drawnTile(t, draw)))
+		bob := h.reconnect("ticket-Bob")
+		if !carolAsked.Load() {
+			t.Fatal("carol's AI caller was not asked once bob took his seat back")
+		}
+		close(releaseCarolsCall)
+		synctest.Wait()
+		h.act(bob, answer(intOf(t, lastOpening(t, bob), wire.KeyWaitID), play.PassAction()))
+
+		if got := len(ofEvent(alice.messages(), wire.EventRoundEnd)); got != 0 {
+			t.Errorf("round ends alice saw = %d, want none from the reclaimed seat's late ron", got)
+		}
+		if got := len(ofEvent(alice.messages(), wire.EventMeld)); got != 1 {
+			t.Errorf("melds alice saw = %d, want carol's AI pon once bob passed", got)
 		}
 	})
 }

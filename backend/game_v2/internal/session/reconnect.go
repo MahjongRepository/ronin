@@ -121,6 +121,10 @@ func (g *game) bindReconnecting(conn Connection, ticket string) seatBinding {
 }
 
 func (g *game) takeBackDecision(p *participant) {
+	if g.asked.inFlight() && g.asked.seat == p.seat {
+		g.asked.invalidate()
+		g.playAIPlayers()
+	}
 	if !g.wait.awaits(p.seat) {
 		return
 	}

@@ -109,8 +109,19 @@ type PlayerSpec struct {
 	Ticket string
 }
 
+// Agent answers the decisions of AI seats. Decide gets the AI seat's view, its decision included,
+// and returns the action to play. A game asks one decision at a time, its turns and calls alike,
+// each on a goroutine of its own, and stops waiting once the base turn time passed: ctx is done
+// then, when the answer is no longer wanted, and when the game ends, and Decide must return once it
+// is. An error, a missed deadline or an action the decision does not offer plays the decision's
+// default instead; a panic fails the game.
+type Agent interface {
+	Decide(ctx context.Context, view play.SeatView) (play.Action, error)
+}
+
 // Config is what a Manager runs on. DB and Logger are required; a nil Clock is SystemClock, a nil
-// Seeds draws each game's seed from crypto/rand, and a nil Setup deals every game from its seed.
+// Seeds draws each game's seed from crypto/rand, a nil Setup deals every game from its seed, and a
+// nil Agent plays each AI decision's default, asked like any Agent off the game's goroutine.
 // Setup turns a game's seed into its engine setup, for a harness that stages its walls.
 type Config struct {
 	Timing   Timing
@@ -121,6 +132,7 @@ type Config struct {
 	Clock    Clock
 	Seeds    func() engine.Seed
 	Setup    func(engine.Seed) engine.Setup
+	Agent    Agent
 }
 
 // The errors CreatePendingGame returns.
@@ -155,7 +167,16 @@ func (c Config) validated() (Config, error) {
 	if c.Setup == nil {
 		c.Setup = seededSetup
 	}
+	if c.Agent == nil {
+		c.Agent = defaultAgent{}
+	}
 	return c, nil
+}
+
+type defaultAgent struct{}
+
+func (defaultAgent) Decide(_ context.Context, view play.SeatView) (play.Action, error) {
+	return view.Decision.Value.Default, nil
 }
 
 func randomSeed() engine.Seed {

@@ -393,10 +393,11 @@ func (m *Manager) Disconnect(conn Connection) {
 	})
 }
 
-// Settle waits until every game ran each step posted to it so far, and every game whose end was
-// claimed ran its finalizer. It is for a caller that is the only source of the session's work, such
-// as a harness that drives the session on a Clock whose timers it fires itself: a step posted from
-// elsewhere while it waits races it.
+// Settle waits until every game ran each step posted to it so far, every agent call a game made
+// returned and its answer ran as a step, and every game whose end was claimed ran its finalizer. It
+// is for a caller that is the only source of the session's work, such as a harness that drives the
+// session on a Clock whose timers it fires itself: a step posted from elsewhere while it waits races
+// it, and an agent that waits on anything but its ctx holds it.
 func (m *Manager) Settle() {
 	m.inFlight.Wait()
 }

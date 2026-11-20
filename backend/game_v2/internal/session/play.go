@@ -83,10 +83,12 @@ func (g *game) followEngine(events []play.Emitted, actor play.Option[tile.Seat])
 	if err != nil {
 		return err
 	}
-	return g.playAIPlayers()
+	g.playAIPlayers()
+	return nil
 }
 
 func (g *game) applyUpdate(events []play.Emitted, actor play.Option[tile.Seat]) error {
+	g.asked.invalidate()
 	awaiting := waitOf(g.engine.Awaiting())
 	previous, had := g.wait, g.hasWait
 	g.wait, g.hasWait = awaiting, true

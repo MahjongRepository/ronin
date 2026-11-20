@@ -26,6 +26,7 @@ const (
 	logConnectionTakenOver = "connection taken over"
 	logSessionErrorSent    = "session error sent to client"
 	logGameFailed          = "game failed"
+	logAgentFallback       = "AI agent answer unusable, playing the default"
 )
 
 type lifecycle uint8
@@ -105,6 +106,7 @@ type game struct {
 	replay        *messaging.ReplayLog
 	pending       delayed
 	aiTurn        delayed
+	asked         agentRequest
 	end           ending
 }
 
@@ -317,6 +319,7 @@ func (g *game) endGame(reason endReason, result play.Option[store.Result]) {
 	}
 	g.pending.cancel()
 	g.aiTurn.cancel()
+	g.asked.invalidate()
 	close(g.ended)
 }
 
@@ -348,6 +351,7 @@ func (g *game) vanish() {
 	}
 	g.pending.cancel()
 	g.aiTurn.cancel()
+	g.asked.invalidate()
 	close(g.ended)
 }
 

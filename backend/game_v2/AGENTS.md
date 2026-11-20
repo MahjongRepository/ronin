@@ -129,11 +129,11 @@ a contract.
 
 * One goroutine owns each game, from its creation to its finalizer: participants and their
   connections, the engine game, the wait, the pause, the timers and the replay records. Sockets,
-  timers and lobby calls reach it only as steps on its channel, one at a time, so no step
-  interleaves with another and game state takes no lock. A step never blocks on a client: sends and
-  closes only queue on the `Connection`. Join and Reconnect return once their step ran, bind
-  included, so the socket's next message finds its connection bound, and no game step may wait on a
-  socket's reader.
+  timers, lobby calls and AI agent answers reach it only as steps on its channel, one at a time, so
+  no step interleaves with another and game state takes no lock. A step never blocks on a client or
+  an agent: sends and closes only queue on the `Connection`, and an agent decides on a goroutine of
+  its own. Join and Reconnect return once their step ran, bind included, so the socket's next
+  message finds its connection bound, and no game step may wait on a socket's reader.
 * The `Manager` is the registry: games, tickets, connections and the participant each is bound to,
   behind one mutex. What spans games happens under it in one step: a creation with its checks, an
   end claim releasing the game, its tickets and its connections, a binding against an eviction. No
@@ -160,10 +160,10 @@ a contract.
   game is published, and a conflict or a failed write fails the game before play. The finish row is
   written up to three times, 1 s then 2 s apart on the `Clock`, and a cut store context stops the
   waits. Both rows use the store context `New` takes, never a game's.
-* `Manager.Settle` waits until every posted step and every claimed end's finalizer ran. Only a
-  caller that is the session's one source of work may use it: a harness driving the session on a
-  Clock whose timers it fires itself, which settles before it reads what clients got or moves its
-  clock on.
+* `Manager.Settle` waits until every posted step, every agent call and every claimed end's
+  finalizer ran. Only a caller that is the session's one source of work may use it: a harness
+  driving the session on a Clock whose timers it fires itself, which settles before it reads what
+  clients got or moves its clock on.
 * A step that fails or panics fails its game, the one server-fault path; a connection's failed step
   that did not seat it is closed with 1011 on its own.
 * The session owns the seed and the roster. It draws each game's seed and seats the participants by
@@ -171,9 +171,14 @@ a contract.
   participant is keyed by its ticket for the whole game and seated once, at the start, and its turn
   timer lives as long as it does, so its bank survives a disconnect.
 * A seat with no connected participant is an AI player's, answered through the engine like a
-  participant's answer, from its decision's default: it never wins, calls or declares. AI answers to
-  a call are given at once, one engine call each in seat order; an AI turn waits the AI turn delay,
-  so a human sees AI turns one at a time. A refused AI answer or timeout default is a server fault.
+  participant's answer, by `Config.Agent` (by default its decision's default: it never wins, calls or
+  declares). The game asks one AI decision at a time, a call's AI callers in seat order and an AI
+  turn after the AI turn delay, so a human sees AI turns one at a time; the agent decides off the
+  game's goroutine and its answer comes back as a step. Every engine call, a take-back of the asked
+  seat and the end drop the request, and an answer to a dropped one is ignored. An agent error, no
+  answer within the base turn time or an action the decision does not offer plays the default,
+  with a warning; an agent panic, a refused offered answer or a refused default or timeout default
+  is a server fault.
   When no connected participant remains the game is abandoned, so a game is never all AI players.
   Every handover, either way, writes the replay's seat control record and sends seat_control to the
   connected participants ahead of the moves that follow.
