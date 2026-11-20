@@ -70,13 +70,4 @@
     :is(.board-river--left, .board-river--right) .discard-tile--last {
         translate: var(--latest-drop-gap) var(--latest-discard-gap);
     }
-
-    /* A chankan offer's source: the whole kan, ringed in its meld, until the offer resolves. */
-    .meld--source {
-        display: inline-flex;
-        border-radius: 6px;
-        outline: 2px solid var(--ronin-table-latest);
-        outline-offset: 2px;
-        box-shadow: 0 0 0 1px var(--ronin-table-latest-inner);
-    }
 }

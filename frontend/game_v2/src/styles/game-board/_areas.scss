@@ -216,7 +216,7 @@ $max-melds: 4;
     }
 }
 
-.board-strip .board-melds > :is(.meld, .meld--source) {
+.board-strip .board-melds > .meld {
     --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
 
     position: absolute;
@@ -224,7 +224,7 @@ $max-melds: 4;
 
 @each $seat in top, right, left {
     @for $k from 0 through $max-melds - 1 {
-        .board-strip--#{$seat} .board-melds > :is(.meld, .meld--source):nth-child(#{$k + 1}) {
+        .board-strip--#{$seat} .board-melds > .meld:nth-child(#{$k + 1}) {
             --board-tile-w: var(--#{$seat}-meld-#{$k}-tile);
 
             left: var(--#{$seat}-meld-#{$k}-along);
@@ -260,11 +260,11 @@ $max-melds: 4;
     margin-bottom: var(--geo-own-meld-lift, 0);
     gap: calc(var(--g) + 2px);
 
-    &:has(> :is(.meld, .meld--source)) {
+    &:has(> .meld) {
         margin-left: calc(#{$drawn-gap} * var(--ow));
     }
 
-    > :is(.meld, .meld--source) {
+    > .meld {
         --board-tile-w: var(--own-meld-w);
         --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
     }

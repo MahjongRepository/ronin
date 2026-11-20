@@ -237,7 +237,7 @@ describe("Meld - added kan", () => {
             tileIds: [0, 1, 2, 3],
         };
         const paintOrder = ([0, 90, 180, 270] as const).map((turn) => {
-            const el = renderTo(Meld(meldTiles(input), false, { turn }));
+            const el = renderTo(Meld(meldTiles(input), { turn }));
             return [...el.querySelectorAll(".meld-tile-stacked > *")].map((part) =>
                 part.classList.contains("meld-tile-stacked-bottom") ? "called" : "added",
             );
@@ -262,7 +262,7 @@ describe("Meld - added kan", () => {
         };
         const slots = ([0, 90] as const).map((turn) => {
             const stacked = renderTo(
-                Meld(meldTiles(input), false, { turn }),
+                Meld(meldTiles(input), { turn }),
             ).querySelector<HTMLElement>(".meld-tile-stacked");
             return ["--slot-across-share", "--slot-down-share"].map((name) =>
                 Number(stacked?.style.getPropertyValue(name)),
@@ -283,7 +283,7 @@ describe("Meld - added kan", () => {
             meldType: "chi",
             tileIds: [8, 4, 0],
         };
-        const el = renderTo(Meld(meldTiles(input), false, { turn: 0 }));
+        const el = renderTo(Meld(meldTiles(input), { turn: 0 }));
 
         expect(
             [...laidTiles(el)].map((tile) =>

@@ -416,19 +416,6 @@ describe("playDisplay decisions", () => {
         expect(passed.calls).toBe(state.calls);
     });
 
-    it("marks the kan a chankan offer may rob in its meld until the offer resolves", () => {
-        function sourceMelds(label: string): (number | undefined)[] {
-            const { board } = playDisplay(
-                checkpointState("chankan_robbed_seat_3", label),
-                NO_PLAY_UI,
-            );
-            return (board?.players ?? []).map((player) => player.sourceMeld);
-        }
-
-        expect(sourceMelds("chankan prompt")).toEqual([undefined, undefined, 0, undefined]);
-        expect(sourceMelds("ron chosen")).toEqual([undefined, undefined, 0, undefined]);
-        expect(sourceMelds("round end")).toEqual([undefined, undefined, undefined, undefined]);
-    });
 });
 
 function noticeTexts(state: LiveClient): string[] {

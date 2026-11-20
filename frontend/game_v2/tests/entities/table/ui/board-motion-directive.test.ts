@@ -853,7 +853,6 @@ function renderOwnPon(called: boolean, last: boolean): void {
             { face: "3p", kind: "upright", tileId: 10 },
             { face: "3p", kind: "upright", tileId: 11 },
         ],
-        false,
         { turn: 0 },
     );
     render(

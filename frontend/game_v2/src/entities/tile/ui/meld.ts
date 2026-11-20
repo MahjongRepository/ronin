@@ -54,16 +54,11 @@ function paintOrder({ turn }: MeldLayout, index: number, count: number) {
     return turn === 270 ? `z-index: ${count - index}` : nothing;
 }
 
-/**
- * Render a meld from its laid tiles (`meldTiles` lays a recorded meld out), faces like a hand's and a river's; a meld an
- * offer refers to (a kan a chankan may rob) is marked as the offer's source, by a ring around the tiles rather than on
- * them, so their shared edge and shadow leave the ring flat.
- */
-function Meld(tiles: readonly MeldTile[], source = false, layout: MeldLayout = {}): TemplateResult {
-    const meld = html`<span class="meld"
+/** Render a meld from its laid tiles (`meldTiles` lays a recorded meld out), faces like a hand's and a river's. */
+function Meld(tiles: readonly MeldTile[], layout: MeldLayout = {}): TemplateResult {
+    return html`<span class="meld"
         >${tiles.map((tile, index) => MeldTileView(tile, layout, paintOrder(layout, index, tiles.length)))}</span
     >`;
-    return source ? html`<span class="meld--source">${meld}</span>` : meld;
 }
 
 export { Meld };

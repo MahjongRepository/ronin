@@ -63,7 +63,6 @@ The derived proportions are the three reference viewports' values under the sizi
   tiles keep a shorter one (0.12 right, 0.2 down, a 0.24 blur): the own hand's, shared where it takes no input, and
   each tile's own where it takes input, pulled in conservatively so it never reaches past the tile's left side; an
   opponent's standing backs share their strip's shadow, the lying one.
-  A chankan source's ring lies flat over the tiles.
   The own hand's tiles stand facing their player, each drawn as one generated body 1.5 of its width tall
   (`entities/tile/lib/tile-body.ts`, `npm run bodies`), not by the stylesheet: the back's ochre layer seen over its
   top, a pale top surface rolling over a crest into a calmer, darker front, rims that soften over the shoulder and a
@@ -331,8 +330,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   state (motion off, a reconnect, a replay jump) shows it while it is the table's last action. The next draw ends it, the tile then lying in the river as any other; a call
   that claims it ends it too, the claim then read from the meld, and so does the round's end,
   whatever its result (a ron on it included: the result shows the winning tile). During a discard offer this mark is the action source. A
-  chankan offer's source is a kan in a meld and is marked separately, the whole kan ringed in its
-  meld.
+  chankan offer's source, a kan in a meld, carries no mark.
 - **Melds**, every seat's. Convention: to the right of the hand from the seat's own view, the first
   meld farthest right and each later one toward the hand; the called tile sideways, at the meld's
   left when it came from the seat on the left, in the middle from the seat across, at the right from
@@ -471,10 +469,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   contrast against its face; selectable tiles keep their normal position too. A riichi-declaring
   tile is lifted, and so is the tile an answer played; neither is outlined, the accent ring on a
   tile being the keyboard focus alone.
-- **Action source.** What an offer refers to is marked where it lies: the latest discard in its
-  river, or for a chankan offer the whole kan in its meld (an added kan, or a closed kan robbed for
-  kokushi musou). A discard's mark is the latest-discard mark, which the next draw ends; a kan's
-  mark goes when its chankan offer resolves. No animation or automatic notice covers the
+- **Action source.** A discard offer's source is the latest discard, marked by the latest-discard
+  mark, which the next draw ends. A chankan offer's kan (an added kan, or a closed kan robbed for
+  kokushi musou) is not marked: it is the meld just declared. No animation or automatic notice covers the
   action source or the faces that identify it while an offer is open; a sheet the player opens does,
   by the player's choice.
 - **Decisions.** The decision controls have one stable place by the own hand, ranked: a win (ron,

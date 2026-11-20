@@ -204,7 +204,7 @@ const PAGES: readonly PageCase[] = [
         ...decisionCase("kan_offer", [`${ACTION}--kan .tile`, ".decision-controls__countdown"]),
         at: [FLOOR, NARROW_DESKTOP, LARGE_DESKTOP],
     },
-    decisionCase("chankan_prompt", [ACTION, ".board-strip .meld--source"]),
+    decisionCase("chankan_prompt", [ACTION]),
     decisionCase("riichi_turn", [
         ACTION,
         ".board-furiten__word",

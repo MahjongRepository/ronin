@@ -12,7 +12,6 @@ import {
 } from "@/entities/table";
 import { type HandTile, type TileAction } from "@/entities/tile";
 import { type MessageKey, t } from "@/shared/i18n";
-import { CALL_TYPE, seatDistance } from "@/shared/protocol";
 
 import {
     type NoticeSheetDisplay,
@@ -40,7 +39,7 @@ import {
     tilePlays,
 } from "./decision-controls";
 import { takesIntent } from "./intents";
-import { decisionOf, startConfirmOf } from "./pending";
+import { startConfirmOf } from "./pending";
 import { type PlayShortcuts, playShortcuts } from "./play-shortcuts";
 import { PLAY_SWITCHES } from "./play-switches";
 import { type PlayAction, type PlayCommand, type PlayUi, intentCommand } from "./play-ui";
@@ -183,30 +182,6 @@ function playHand(
     };
 }
 
-/**
- * A chankan offer's source, the kan it may rob, as the declarer's board position and the meld's index (oldest first);
- * null for any other decision, so the mark goes once the offer resolves.
- */
-function kanSource(state: LiveClient): { position: number; meld: number } | null {
-    const { table, viewerSeat } = state;
-    const decision = decisionOf(state);
-    if (
-        decision?.kind !== "call" ||
-        decision.callType !== CALL_TYPE.CHANKAN ||
-        viewerSeat === null
-    ) {
-        return null;
-    }
-    const declarer = table.players.find((player) => player.seat === decision.fromSeat);
-    const meld =
-        declarer?.melds.findIndex(
-            (candidate) =>
-                candidate.tileIds.includes(decision.tileId) ||
-                candidate.addedTileId === decision.tileId,
-        ) ?? -1;
-    return meld === -1 ? null : { meld, position: seatDistance(viewerSeat, decision.fromSeat) };
-}
-
 function viewerBoard(
     state: LiveClient,
     plays: ReadonlyMap<number, TilePlay>,
@@ -221,25 +196,7 @@ function viewerBoard(
     }
     const [bottom, right, top, left] = board.players;
     const players: BoardDisplayState["players"] = [playHand(bottom, plays), right, top, left];
-    return { ...board, players: markSource(players, kanSource(state)) };
-}
-
-function withSource(player: BoardPlayerDisplay, meld: number): BoardPlayerDisplay {
-    return { ...player, sourceMeld: meld };
-}
-
-/** The players with the kan a chankan offer may rob marked in its declarer's melds; as they were with none. */
-function markSource(
-    players: BoardDisplayState["players"],
-    source: { position: number; meld: number } | null,
-): BoardDisplayState["players"] {
-    if (source === null) {
-        return players;
-    }
-    const [bottom, right, top, left] = players.map((player, position) =>
-        position === source.position ? withSource(player, source.meld) : player,
-    );
-    return [bottom, right, top, left];
+    return { ...board, players };
 }
 
 /** The play switches as the board shows them, each turned by its intent, while the dispatcher takes that. */

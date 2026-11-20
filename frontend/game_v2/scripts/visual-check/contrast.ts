@@ -52,12 +52,10 @@ const HIDDEN = "visibility: hidden !important";
 /** A compositor frame is taken at this many times the device's pixels and read scaled back (`compositorShot`). */
 const COMPOSITOR_OVERSAMPLE = 2;
 const SHOWN = "visibility: visible !important";
-const NO_OUTLINE = "outline-color: transparent !important";
 const STICK_DOTS = " :is(.board-stick-icon__dot, .board-stick-icon__honba)";
 
 /** The marks on the board that carry information, each measured against what it is painted on. */
 const CONTRAST_MARKS: readonly ContrastMark[] = [
-    { hide: [["", NO_OUTLINE]], name: "offered kan's ring", reach: 4, selector: ".meld--source" },
     {
         hide: [["::after", HIDDEN]],
         name: "turn bar",

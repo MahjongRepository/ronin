@@ -116,7 +116,7 @@ function handRevealed(player: BoardPlayerDisplay | null): boolean {
 function MeldsArea(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
     const melds = player?.melds ?? [];
     return html`<div class="board-area board-melds board-area--${seat}-melds" data-area="${seat}-melds">
-        ${melds.toReversed().map((tiles, index) => Meld(tiles, melds.length - 1 - index === player?.sourceMeld, { turn: SEAT_TURNS[seat] }))}
+        ${melds.toReversed().map((tiles) => Meld(tiles, { turn: SEAT_TURNS[seat] }))}
     </div>`;
 }
 
