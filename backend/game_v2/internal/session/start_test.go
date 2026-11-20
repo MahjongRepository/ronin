@@ -186,17 +186,17 @@ func TestQueueDelayMax_WhenAJoinWaitsBehindABusyStep_ShouldReportHowLongItWaited
 		h.create("Alice", "Bob")
 		alice := h.connectHeld()
 		go h.m.Join(alice, "ticket-Alice")
-		synctest.Wait()
+		sleep(500 * time.Millisecond)
 		bob := h.connect()
 		go h.m.Join(bob, "ticket-Bob")
 
-		sleep(1500 * time.Millisecond)
+		sleep(1000 * time.Millisecond)
 		close(alice.release)
 		synctest.Wait()
 
 		got, seen := h.m.QueueDelayMax()
-		if !seen || got != 1500 {
-			t.Errorf("QueueDelayMax() = %v, %t, want 1500, true", got, seen)
+		if !seen || got != 1000 {
+			t.Errorf("QueueDelayMax() = %v, %t, want 1000, true", got, seen)
 		}
 	})
 }
