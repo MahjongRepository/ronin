@@ -18,10 +18,11 @@ $row: 40px;
 .game-board:not(.game-board--replay, :has(.board-local .meld)) .board-actions {
     @include desktop-board {
         --hand-end: calc(var(--geo-own-start) + 13 * var(--ow) + 12 * var(--ow) / #{$tile-w});
+        --hand-end-inset: calc(100cqw - var(--geo-actions-right) - var(--hand-end));
 
         padding-inline-end: max(
             0px,
-            100cqw - var(--geo-actions-right) - var(--hand-end) - var(--decision-gap) - var(--actions-band-w)
+            var(--hand-end-inset) - var(--decision-gap) - var(--actions-band-w)
         );
     }
 }
@@ -110,9 +111,7 @@ $row: 40px;
     border: 0;
     border-radius: 10px;
     background-color: var(--action-face);
-    box-shadow:
-        var(--action-rim),
-        var(--action-lift);
+    box-shadow: var(--action-rim), var(--action-lift);
     color: var(--action-ink);
     font-size: var(--action-text);
     font-weight: 700;

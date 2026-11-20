@@ -261,9 +261,9 @@ describe("Meld - added kan", () => {
             tileIds: [0, 1, 2, 3],
         };
         const slots = ([0, 90] as const).map((turn) => {
-            const stacked = renderTo(
-                Meld(meldTiles(input), { turn }),
-            ).querySelector<HTMLElement>(".meld-tile-stacked");
+            const stacked = renderTo(Meld(meldTiles(input), { turn })).querySelector<HTMLElement>(
+                ".meld-tile-stacked",
+            );
             return ["--slot-across-share", "--slot-down-share"].map((name) =>
                 Number(stacked?.style.getPropertyValue(name)),
             );

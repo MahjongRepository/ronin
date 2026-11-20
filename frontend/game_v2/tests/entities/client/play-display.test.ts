@@ -415,7 +415,6 @@ describe("playDisplay decisions", () => {
         expect(passed.table).toBe(state.table);
         expect(passed.calls).toBe(state.calls);
     });
-
 });
 
 function noticeTexts(state: LiveClient): string[] {
