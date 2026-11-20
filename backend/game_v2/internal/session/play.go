@@ -284,6 +284,11 @@ func (g *game) sendEvent(emitted play.Emitted, table func() messaging.Table) err
 	if started, ok := emitted.Event.(play.GameStarted); ok {
 		return g.sendGameStarted(started)
 	}
+	if notice, ok := emitted.Event.(play.DrewNotice); ok {
+		if seat, single := emitted.To.Seat(); single {
+			return g.sendDrawNoticeCachedByDrawingSeat(notice, seat, table)
+		}
+	}
 
 	payload, err := messaging.EventPayload(emitted.Event, table)
 	if err != nil {
@@ -301,6 +306,26 @@ func (g *game) sendEvent(emitted play.Emitted, table func() messaging.Table) err
 		return nil
 	}
 	return g.sendEventTo(p, payload, emitted)
+}
+
+func (g *game) sendDrawNoticeCachedByDrawingSeat(notice play.DrewNotice, to tile.Seat, table func() messaging.Table) error {
+	p := g.atSeat(to)
+	if p == nil || p.conn == nil {
+		return nil
+	}
+	frame := &g.drawNoticeFrameByDrawingSeat[notice.Seat.Index()]
+	if *frame == nil {
+		payload, err := messaging.EventPayload(notice, table)
+		if err != nil {
+			return err
+		}
+		*frame, err = wire.Encode(payload)
+		if err != nil {
+			return err
+		}
+	}
+	p.conn.Send(*frame)
+	return nil
 }
 
 func (g *game) sendGameStarted(started play.GameStarted) error {

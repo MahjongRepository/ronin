@@ -108,6 +108,8 @@ type game struct {
 	aiTurn        delayed
 	asked         agentRequest
 	end           ending
+
+	drawNoticeFrameByDrawingSeat [tile.SeatCount][]byte
 }
 
 func newGame(m *Manager, id string, players []PlayerSpec) *game {

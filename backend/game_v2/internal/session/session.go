@@ -97,7 +97,7 @@ const (
 type Connection interface {
 	ID() string
 	GameID() string
-	Send(data []byte)
+	Send(readOnlyData []byte)
 	Close(code CloseCode, reason string)
 }
 

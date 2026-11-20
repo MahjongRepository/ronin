@@ -89,9 +89,9 @@ func (c *connection) GameID() string {
 }
 
 // Send queues one encoded message; it is dropped once the connection closed or was dropped.
-func (c *connection) Send(data []byte) {
-	if c.enqueue(outgoing{data: data}) {
-		c.stats.countOut(len(data))
+func (c *connection) Send(readOnlyData []byte) {
+	if c.enqueue(outgoing{data: readOnlyData}) {
+		c.stats.countOut(len(readOnlyData))
 	}
 }
 
