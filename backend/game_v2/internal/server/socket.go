@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"runtime/debug"
@@ -37,6 +38,8 @@ const (
 	msgpackErrorType    = "msgpack"
 )
 
+const maxIdleReadBufferCapacity = 4 << 10
+
 func (s *Server) serveSocket(w http.ResponseWriter, r *http.Request) {
 	gameID := r.PathValue("game_id")
 	if !store.IsValidGameID(gameID) {
@@ -68,6 +71,9 @@ func (s *Server) serveSocket(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveConnection(ctx context.Context, conn *connection) {
+	stopClosingOnCancel := context.AfterFunc(ctx, func() { _ = conn.ws.CloseNow() })
+	defer stopClosingOnCancel()
+
 	var helpers sync.WaitGroup
 	helpers.Go(func() { conn.write(ctx) })
 	helpers.Go(func() { conn.ping(ctx, s.cfg.Socket.PingInterval, s.cfg.Socket.PingTimeout) })
@@ -76,7 +82,7 @@ func (s *Server) serveConnection(ctx context.Context, conn *connection) {
 
 	conn.log.Info(logConnected)
 	s.cfg.Session.Connect(conn)
-	closeCode := s.readMessages(ctx, conn)
+	closeCode := s.readMessages(context.WithoutCancel(ctx), conn)
 	conn.log.Info(logDisconnected, "close_code", closeCode)
 	s.cfg.Session.Disconnect(conn)
 }
@@ -97,15 +103,29 @@ func (s *Server) readMessages(ctx context.Context, conn *connection) websocket.S
 		budget:  newTokenBucket(s.cfg.Socket.Rate, s.cfg.Socket.Burst, now),
 		resyncs: newTokenBucket(s.cfg.Socket.ResyncRate, s.cfg.Socket.ResyncBurst, now),
 	}
+	var readBuffer bytes.Buffer
 	for {
-		typ, data, err := conn.ws.Read(ctx)
+		typ, data, err := readFrame(ctx, conn.ws, &readBuffer)
 		if err != nil {
 			return websocket.CloseStatus(err)
 		}
 		if !rd.handleFrame(typ, data) {
 			return noCloseStatus
 		}
+		if readBuffer.Cap() > maxIdleReadBufferCapacity {
+			readBuffer = bytes.Buffer{}
+		}
 	}
+}
+
+func readFrame(ctx context.Context, ws *websocket.Conn, readBuffer *bytes.Buffer) (websocket.MessageType, []byte, error) {
+	readBuffer.Reset()
+	typ, r, err := ws.Reader(ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+	_, err = readBuffer.ReadFrom(r)
+	return typ, readBuffer.Bytes(), err
 }
 
 func (rd *reader) handleFrame(typ websocket.MessageType, data []byte) (keepReading bool) {

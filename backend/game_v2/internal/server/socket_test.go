@@ -2,7 +2,11 @@ package server_test
 
 import (
 	"bytes"
+	"context"
+	"errors"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -261,4 +265,33 @@ func TestSocket_WhenThePeerStopsAnsweringPings_ShouldDropItAsADisconnect(t *test
 	eventually(t, func() bool {
 		return h.get("/players/user-alice").status == http.StatusNotFound && counter(t, h.status(), "connections") == 0
 	})
+}
+
+func TestSocket_WhenTheRequestContextEndsOnAnIdleSocket_ShouldDropItWithoutAClose(t *testing.T) {
+	h := newHarness(t)
+	requests, endRequests := context.WithCancel(context.Background())
+	defer endRequests()
+	idle := httptest.NewUnstartedServer(h.srv.Handler())
+	idle.Config.BaseContext = func(net.Listener) context.Context { return requests }
+	idle.Start()
+	defer idle.Close()
+	ws, _, err := websocket.Dial(t.Context(), "ws"+strings.TrimPrefix(idle.URL, "http")+"/ws/"+testGameID, &websocket.DialOptions{ //nolint:bodyclose // websocket.Dial closes the response body itself
+		HTTPClient: idle.Client(),
+	})
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer func() { _ = ws.CloseNow() }()
+	send(t, ws, typed(messaging.ClientPing))
+	readMessage(t, ws)
+
+	endRequests()
+
+	_, err = read(t, ws)
+	if err == nil || errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("read after the request context ended = %v, want the socket dropped", err)
+	}
+	if code := websocket.CloseStatus(err); code != -1 {
+		t.Errorf("close = %d, want the socket dropped without a close frame", code)
+	}
 }
