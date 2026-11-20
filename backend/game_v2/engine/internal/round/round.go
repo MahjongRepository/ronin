@@ -600,13 +600,21 @@ func (r *Round) isFourRiichi() bool {
 }
 
 func (r *Round) isFourWinds() bool {
-	var discards []tile.TileID
+	total := 0
+	for _, river := range r.rivers {
+		total += len(river)
+	}
+	if total != rules.FourWindsDiscardCount || r.hasAnyCall() {
+		return false
+	}
+
+	discards := make([]tile.TileID, 0, rules.FourWindsDiscardCount)
 	for _, river := range r.rivers {
 		for _, discard := range river {
 			discards = append(discards, discard.Tile)
 		}
 	}
-	return !r.hasAnyCall() && offer.IsFourWinds(discards)
+	return offer.IsFourWinds(discards)
 }
 
 func (r *Round) openCallPrompt(from tile.Seat, id tile.TileID) bool {
