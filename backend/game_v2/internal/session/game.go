@@ -360,7 +360,7 @@ func (g *game) finish() {
 
 	e := g.end
 	reason := e.reason
-	if g.startRecorded && e.keepReplay {
+	if e.keepReplay {
 		err := protect(func() error { return g.saveReplay(e.records) })
 		if err != nil {
 			g.log.Error("save the replay of a finished game", "error", err)

@@ -219,8 +219,9 @@ a contract.
   replay holds the engine's events only, each draw once and no opening or notice, plus the seat
   control records: a seat with no connection at the start is `absent` between the deal and the
   dealer's draw, a leave is `left` ahead of its AI player's moves, a take-back is a human return,
-  and a replacement or an AI player seated from the start writes none. An abandoned game's replay is discarded; a failed
-  replay save or a finish write failing every attempt turns the end into a failure (1011).
+  and a replacement or an AI player seated from the start writes none. An abandoned game's replay
+  is discarded; a failed replay save or a finish write failing every attempt turns the end into a
+  failure (1011).
 * Each step logs as its own subject: every line of a game carries `game_id`, and a line about a
   seated participant its `seat`. The messages the log gates match are named constants with the
   Python server's text and level. Concealed hand tiles are logged at DEBUG only, and game tickets
@@ -405,8 +406,9 @@ Python server's formats.
   `final_score_unit`: every row Go writes ends with that key (`store.FinalScoreUnit`), its final scores
   in tenths. A row without it holds the Python server's whole points until the migration converts it.
 * A game's row is its id's durable claim: the start insert keeps an existing row and returns
-  `store.ErrGameRecorded`, so a game id freed from the session's registry at a game's end is never
-  played again.
+  `store.ErrGameRecorded`, so once a game's start row is written its id is never played again. A
+  game that wrote none (abandoned or withdrawn while pending, or refused by the engine) leaves its id
+  free.
 * At startup, once its listener is bound, the server closes every row with no end as `error`, as
   `RecordFailed` would: no game survives a restart, so such a row is a game a crash or a shutdown
   left unfinished. This holds only while exactly one game server writes a database
