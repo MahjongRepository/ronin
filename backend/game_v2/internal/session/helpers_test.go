@@ -171,6 +171,20 @@ func newHarness(t *testing.T, options ...option) *harness {
 	return h
 }
 
+func (h *harness) assertSeatLogged(t *testing.T, message string) {
+	t.Helper()
+	for line := range strings.Lines(h.logs.String()) {
+		if !strings.Contains(line, `msg="`+message+`"`) {
+			continue
+		}
+		if !strings.Contains(line, " game_id="+testGameID+" ") || !strings.Contains(line, " seat=") {
+			t.Errorf("log line %q names no game_id and seat", line)
+		}
+		return
+	}
+	t.Errorf("no %q in the logs", message)
+}
+
 func specs(names ...string) []session.PlayerSpec {
 	players := make([]session.PlayerSpec, 0, len(names))
 	for _, name := range names {

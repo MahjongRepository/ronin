@@ -247,7 +247,7 @@ func (g *game) disconnected(p *participant, conn Connection) error {
 		return nil
 	}
 	p.conn = nil
-	g.log.Info("player left game", "player_name", p.spec.Name)
+	g.seatLog(p).Info("player left game", "player_name", p.spec.Name)
 	if g.lifecycle != lifecyclePlaying {
 		return nil
 	}

@@ -137,8 +137,93 @@ a contract.
   goroutine and the finish waits for it; both use the store context `New` takes, never a game's.
 * A step that fails or panics fails its game, the one server-fault path; a connection's failed step
   that did not seat it is closed with 1011 on its own.
-* The messages the log gates match (timeouts, stale and invalid actions, the auth timeout) are named
-  constants.
+* The session owns the seed and the roster. It draws each game's seed and seats the participants by
+  the seed's seat permutation, by input order, never by name; the engine gets only the seed. A
+  participant is keyed by its ticket for the whole game and seated once, at the start, and its turn
+  timer lives as long as it does, so its bank survives a disconnect.
+* A seat with no connected participant is an AI player's, answered through the engine like a
+  participant's answer, from its decision's default: it never wins, calls or declares. AI answers to
+  a call are given at once, one engine call each in seat order; an AI turn waits the AI turn delay,
+  so a human sees AI turns one at a time. A refused AI answer or timeout default is a server fault.
+  When no connected participant remains the game is abandoned, so a game is never all AI players.
+  Every handover, either way, writes the replay's seat control record and sends seat_control to the
+  connected participants ahead of the moves that follow.
+* A user plays a game from its creation, pending included, until its end is claimed, disconnected
+  or not: the lobby's per-user lookup and the refusal of a user already playing answer from this. A
+  pending game starts once everyone joined, or at its timeout with AI players in the absent seats;
+  with nobody connected it is abandoned and records nothing. The lobby's withdrawal ends a pending
+  game nobody joined, and a withdrawn id is refused for a ticket's lifetime (24 h).
+* A connection must authenticate (JOIN_GAME or RECONNECT) within the auth timeout or be closed. A
+  connection the server closes leaves the registry in the same step, so a pipelined join cannot pick
+  it up, and a message arriving on it afterwards gets no answer. A participant's newest connection
+  wins: the bound one is closed with 4002, which the client treats as terminal, and a connection
+  already bound is refused before anyone is replaced.
+* Every game action echoes the wait id stamped on the message that opened the participant's
+  decision. The id advances only when a new wait, or a pause opening with it, opens a decision for
+  that connected participant, or a reconnect takes back its AI player's turn; it survives
+  replacements and reconnects. A wait is kept, sending no opening and re-timing nothing, only while
+  its kind is unchanged and it awaits only seats that held their decision before the call: a partial
+  call answer keeps the other callers', a kan's replacement draw opens a new one. A seat not awaited
+  and an id not its latest get the same stale-action error and touch neither the engine nor a timer,
+  so a guessed id reveals no hidden wait; a call answer naming another tile than the open call's is
+  refused by the session.
+* A refusal is the session's policy: a rule judgment, or an action the engine does not await now,
+  answers a game error and the decision, its id and its timer go on; structurally impossible input
+  (not offered, a tile not held) closes that human with 1008 and seats an AI player.
+* The engine's awaited seats drive the timers, never the events: a new wait re-arms them for its
+  connected seats, a kept one stops only the actor's. A timeout plays the seat's default action as
+  its own answer. Turns and calls draw from one bank after their free base time, and ending a wait
+  charges every running decision, a call another seat resolved included. Both pauses, the start
+  confirm and the round advance, go on once every seat that owed its confirmation (its connected
+  participants when the pause opened) confirmed, timed out or left; any other action in a pause is
+  stale. A round end's pause waits its timeout once per result the client shows, so a double ron
+  waits twice. `DefaultTiming` holds the values.
+* The finish row is built whole from the start row, never from engine or connection state at the
+  end, and the first finish wins; a game that never started records none. The replay holds the
+  engine's events only, each draw once and no opening or notice, plus the seat control records: a
+  seat with no connection at the start is `absent` between the deal and the dealer's draw, a leave
+  is `left` ahead of its AI player's moves, a take-back is a human return, and a replacement or an
+  AI player seated from the start writes none. An abandoned game's replay is discarded; a failed
+  save turns a completed end into a failure.
+* Each step logs as its own subject: every line of a game carries `game_id`, and a line about a
+  seated participant its `seat`. The messages the log gates match are named constants with the
+  Python server's text and level. Concealed hand tiles are logged at DEBUG only, and game tickets
+  never at INFO or above.
+* Shutdown ends no game. A graceful stop ends games only through the disconnect of each socket the
+  server closed; `Shutdown`, called after that, lets a still-registered game vanish unrecorded and
+  waits for the finalizers and store writes.
+
+## Security requirements
+
+Mandatory for all server-side code; review must catch violations.
+
+* Every WebSocket frame is charged to the connection's rate limit after decoding and before
+  processing, so malformed frames count too: an over-budget malformed frame gets no reply or log,
+  and consecutive undecodable frames (non-binary included) close the connection. A resync, which
+  costs a whole snapshot, draws on a far tighter budget of its own.
+* A ticket's game must match the path's game id, and the path's game id is validated
+  (`store.IsValidGameID`) before the handshake. The socket has no Origin check: the ticket
+  authenticates, and the dev hosts the client runs on would fail an origin pattern.
+* A REST route that returns a credential (the participant ticket lookup), spends real CPU on a
+  request (the Tenhou export) or ends a game on the lobby's word (the withdrawal) answers only the
+  internal API secret as a bearer token, compared in constant time (`auth.IsInternalBearer`); a
+  credential's answer is `Cache-Control: no-store`. In development the server's CORS lets the
+  lobby origin's scripts read its GETs, so its bind address is no isolation.
+* `/status` answers without auth, so it carries only process-wide totals since start and gauges,
+  never per-user data.
+* A REST body is read through a hard size cutoff (`http.MaxBytesReader`), never whole and unbounded.
+* Every goroutine has an owner and an error boundary: one serving a game fails that game, any other
+  logs and closes. The server owns each socket's writer goroutine, so the session holds no socket
+  state: 256 queued messages, a 10 s send deadline, the socket terminated on overflow, the close
+  frame the last item. Sends and closes never block or fail on a dead or slow socket; a dead socket
+  surfaces only at receive, where the disconnect seats an AI player.
+* No panic from handling a message leaves its handler: one that reaches a game fails that game,
+  any other closes the socket as an internal error (1011).
+* Liveness is the server's own WebSocket ping (20 s interval, 20 s timeout). A client's PING is only
+  a latency probe: it is answered with a pong once it passes the rate limit, before routing,
+  authenticated or not, and touches no session.
+* A message that fails validation is answered and logged with only its error type, never its input
+  or the decoder's text, which can quote the input.
 
 ## Persistence and credentials
 

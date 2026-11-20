@@ -83,7 +83,7 @@ func (g *game) reconnect(conn Connection, ticket string) error {
 		return nil
 	}
 
-	p, message := b.participant, "connection taken over"
+	p, message := b.participant, logConnectionTakenOver
 	if b.replaced != nil {
 		g.closeReplaced(b.replaced, conn)
 	} else {
@@ -93,7 +93,7 @@ func (g *game) reconnect(conn Connection, ticket string) error {
 		}
 		g.takeBackDecision(p)
 		g.m.stats.reconnects.Add(1)
-		message = "player reconnected"
+		message = logPlayerReconnected
 	}
 
 	err := g.sendSeatState(p, conn)

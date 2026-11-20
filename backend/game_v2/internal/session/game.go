@@ -16,13 +16,16 @@ import (
 )
 
 const (
-	logAuthTimeout        = "auth timeout, closing unauthenticated connection"
-	logTurnTimeout        = "turn timeout, auto-discarding"
-	logMeldTimeout        = "meld timeout, auto-passing"
-	logStaleAction        = "stale game action"
-	logInvalidAction      = "invalid game action"
-	logCalledTileMismatch = "invalid call: tile_id mismatch"
-	logGameFailed         = "game failed"
+	logAuthTimeout         = "auth timeout, closing unauthenticated connection"
+	logTurnTimeout         = "turn timeout, auto-discarding"
+	logMeldTimeout         = "meld timeout, auto-passing"
+	logStaleAction         = "stale game action"
+	logInvalidAction       = "invalid game action"
+	logCalledTileMismatch  = "invalid call: tile_id mismatch"
+	logPlayerReconnected   = "player reconnected"
+	logConnectionTakenOver = "connection taken over"
+	logSessionErrorSent    = "session error sent to client"
+	logGameFailed          = "game failed"
 )
 
 type lifecycle uint8
@@ -257,6 +260,9 @@ func (g *game) isAISeat(seat tile.Seat) bool {
 }
 
 func (g *game) seatLog(p *participant) *slog.Logger {
+	if !p.seated {
+		return g.log
+	}
 	return g.log.With("seat", p.seat.Index())
 }
 

@@ -85,6 +85,8 @@ func TestReconnect_WhenTheSeatLeftDuringItsTurn_ShouldTakeItBackWithItsBankAndCa
 		if got := h.m.Stats().Reconnects; got != 1 {
 			t.Errorf("Reconnects = %d, want 1", got)
 		}
+		h.assertSeatLogged(t, "player reconnected")
+		h.assertSeatLogged(t, "player left game")
 	})
 }
 
@@ -119,6 +121,7 @@ func TestReconnect_WhenTheParticipantIsStillConnected_ShouldReplaceItsConnection
 		if stats.TurnTimeouts != 1 || stats.Takeovers != 1 || stats.Reconnects != 0 {
 			t.Errorf("stats = %+v, want one turn timeout and one takeover, no reconnect", stats)
 		}
+		h.assertSeatLogged(t, "connection taken over")
 	})
 }
 

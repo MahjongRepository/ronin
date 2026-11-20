@@ -427,7 +427,7 @@ func send(conn Connection, m wire.Map) error {
 }
 
 func sendSessionError(log *slog.Logger, conn Connection, code messaging.SessionErrorCode, message string) {
-	log.Warn("session error sent to client", "error_code", string(code), "error_message", message)
+	log.Warn(logSessionErrorSent, "error_code", string(code), "error_message", message)
 	err := send(conn, messaging.SessionError(code, message, play.Option[int]{}))
 	if err != nil {
 		log.Error("encode session error", "error", err)

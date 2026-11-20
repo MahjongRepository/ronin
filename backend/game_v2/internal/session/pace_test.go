@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io/fs"
 	"slices"
-	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -84,9 +83,7 @@ func TestTurnTimeout_WhenBaseAndBankRunOut_ShouldDiscardTheDrawnTileAndEmptyTheB
 		if got := h.m.Stats().TurnTimeouts; got != 1 {
 			t.Errorf("TurnTimeouts = %d, want 1", got)
 		}
-		if !strings.Contains(h.logs.String(), "turn timeout, auto-discarding") {
-			t.Error("the timeout logged no gate message")
-		}
+		h.assertSeatLogged(t, "turn timeout, auto-discarding")
 	})
 }
 
@@ -172,6 +169,7 @@ func TestGameAction_WhenItEchoesAnOldWaitID_ShouldAnswerStaleActionAndChangeNoth
 		if got := len(ofEvent(alice.messages(), wire.EventDiscard)); got != 0 {
 			t.Error("a stale action reached the engine")
 		}
+		h.assertSeatLogged(t, "stale game action")
 		h.act(alice, discard(waitID, drawnTile(t, draw)))
 		if got := len(ofEvent(alice.messages(), wire.EventDiscard)); got == 0 {
 			t.Error("the turn stopped answering its own wait id")
