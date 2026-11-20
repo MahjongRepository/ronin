@@ -92,6 +92,21 @@ linters:
           deny:
             - pkg: github.com/MahjongRepository/ronin/backend/game_v2
               desc: messaging sits under the session and over the wire, so it imports only the wire and the engine's public packages of the module
+        session-layer:
+          list-mode: lax
+          files:
+            - "**/game_v2/internal/session/**"
+            - "!$test"
+          allow:
+            - github.com/MahjongRepository/ronin/backend/game_v2/engine$
+            - github.com/MahjongRepository/ronin/backend/game_v2/engine/play$
+            - github.com/MahjongRepository/ronin/backend/game_v2/engine/tile$
+            - github.com/MahjongRepository/ronin/backend/game_v2/internal/wire$
+            - github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging$
+            - github.com/MahjongRepository/ronin/backend/game_v2/internal/store$
+          deny:
+            - pkg: github.com/MahjongRepository/ronin/backend/game_v2
+              desc: session sits under the server and over messaging, using the store leaf; it never imports the replay runner or the server
         store-leaf:
           files:
             - "**/game_v2/internal/store/**"

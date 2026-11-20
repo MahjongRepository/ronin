@@ -8,9 +8,9 @@ calls, kans, riichi, furiten and win payments), the round state machine (`engine
 the game played round to round (`engine/internal/game`), the seat record each seat's events keep up
 and the seat view it equals (`engine/internal/record`), the facade over them (`engine/`) with its
 seam tests and self-play driver (`seam/`), the wire format (`internal/wire`), the shaping of the
-engine's output into messages and of client messages into actions (`internal/messaging`), the rows
-and replay files it persists beside the lobby (`internal/store`), and its credentials
-(`internal/auth`).
+engine's output into messages and of client messages into actions (`internal/messaging`), the live
+games with their sessions (`internal/session`), the rows and replay files it persists beside the
+lobby (`internal/store`), and its credentials (`internal/auth`).
 
 ## The seam
 
@@ -57,10 +57,10 @@ along the module graph of mahjong-rs, the port's reference, and never `engine`.
 `internal/store` and `internal/auth` are leaves beside that line: the session and the server use
 them, and they import nothing of the module.
 
-`session` does not exist yet; it is added under `internal/` when the port gives it work, never as an
-empty package. Each server package's imports of the module are a depguard rule in `.golangci.yml`:
-`wire` imports only `engine`, `engine/play` and `engine/tile`, `messaging` those and `wire`,
-`store` and `auth` nothing, and each layer added later gets its own. Each `cmd/*` is its own
+Each server package's imports of the module are a depguard rule in `.golangci.yml`: `wire` imports
+only `engine`, `engine/play` and `engine/tile`, `messaging` those and `wire`, `session` those,
+`messaging` and `store` (never the replay runner), `store` and `auth` nothing, and each layer added
+later gets its own. Each `cmd/*` is its own
 composition root: its `main` is the only place that reads that binary's flags, environment and signals and wires the parts
 it uses, so a tool beside the server builds what it needs without going through `cmd/gameserver`.
 `cmd/gameserver` wires the engine into the server once a game message exists.
@@ -104,6 +104,34 @@ a contract.
   a float (timer settings, the pending game timeout, elapsed times) is a `float64`.
 * A round end's scores are those before its payments; its score changes take them to the scores
   after it.
+
+## Session
+
+`internal/session` runs the live games the lobby creates.
+
+* One goroutine owns each game, from its creation to its finalizer: participants and their
+  connections, the engine game, the wait, the pause, the timers and the replay records. Sockets,
+  timers and lobby calls reach it only as steps on its channel, one at a time, so no step
+  interleaves with another and game state takes no lock. A step never blocks on a client: sends and
+  closes only queue on the `Connection`.
+* The `Manager` is the registry: games, tickets, connections and the participant each is bound to,
+  behind one mutex. What spans games happens under it in one step: a creation with its checks, an
+  end claim releasing the game, its tickets and its connections, a binding against an eviction. No
+  step holds it while it waits on a game.
+* A timer's firing is a step carrying the token it was armed with, and is dropped when the timer was
+  cancelled or re-armed meanwhile: in Go a cancel races its callback. Every time comes from the
+  `Clock` (`Config`), virtual in tests through `testing/synctest`.
+* The engine deals with the dealer's first draw. At the game's start the session holds that draw
+  and its turn timer back until every seat confirmed the start or its timeout confirmed for them,
+  so the start screen shows over the dealt table; the absent seats' seat control records go between
+  the deal and the draw. Every bank resets on a call that deals.
+* The end is claimed once, in a step: it releases the game from the registry at once and the game's
+  goroutine then runs the finalizer (replay save, finish row, closes). The start row is written off
+  the goroutine and the finish waits for it; both use the store context `New` takes, never a game's.
+* A step that fails or panics fails its game, the one server-fault path; a connection's failed step
+  that did not seat it is closed with 1011 on its own.
+* The messages the log gates match (timeouts, stale and invalid actions, the auth timeout) are named
+  constants.
 
 ## Persistence and credentials
 
