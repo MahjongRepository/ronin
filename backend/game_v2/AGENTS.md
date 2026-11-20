@@ -124,10 +124,17 @@ a contract.
 * The engine deals with the dealer's first draw. At the game's start the session holds that draw
   and its turn timer back until every seat confirmed the start or its timeout confirmed for them,
   so the start screen shows over the dealt table; the absent seats' seat control records go between
-  the deal and the draw. Every bank resets on a call that deals.
+  the deal and the draw, and a reconnect snapshot meanwhile shows the dealt hand with no decision.
+  Every bank resets on a call that deals.
+* A reconnect either takes a seat back from its AI player (seat_control to the others; a turn the
+  AI player had not played yet becomes the participant's new decision, timed from the reconnect)
+  or replaces the participant's still-bound connection, closed with 4002, its wait, timers and
+  bank running on. A resync re-sends the same state on the bound connection and changes nothing:
+  the snapshot, then the owed decision's opening with how long its timer has run.
 * The end is claimed once, in a step: it releases the game from the registry at once and the game's
-  goroutine then runs the finalizer (replay save, finish row, closes). The start row is written off
-  the goroutine and the finish waits for it; both use the store context `New` takes, never a game's.
+  goroutine then runs the finalizer (replay save, finish row, closes), each step its own panic
+  boundary, so a fault in one still lets every connection close. The start row is written off the
+  goroutine and the finish waits for it; both use the store context `New` takes, never a game's.
 * A step that fails or panics fails its game, the one server-fault path; a connection's failed step
   that did not seat it is closed with 1011 on its own.
 * The messages the log gates match (timeouts, stale and invalid actions, the auth timeout) are named

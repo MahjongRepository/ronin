@@ -98,6 +98,7 @@ type game struct {
 	pause        *pause
 	holdingDraw  bool
 	held         []play.Emitted
+	dealt        [tile.SeatCount]play.RoundStarted
 	start        store.GameStart
 	startWritten chan struct{}
 	replay       *replayLog
@@ -139,13 +140,7 @@ func (g *game) run() {
 		step()
 	}
 	if g.lifecycle == lifecycleEnding {
-		err := protect(func() error {
-			g.finish()
-			return nil
-		})
-		if err != nil {
-			g.log.Error("finish a game", "error", err)
-		}
+		g.finish()
 	}
 }
 
@@ -209,7 +204,7 @@ func (g *game) serve(conn Connection, reason string, step func() error) {
 	g.fail(reason, err)
 	if !seated {
 		g.m.evict(conn)
-		closeWithInternalError(g.log, conn)
+		g.closeEnded(conn, endFailed)
 	}
 }
 
@@ -235,6 +230,16 @@ func (g *game) connected() []*participant {
 		}
 	}
 	return connected
+}
+
+func (g *game) othersThan(p *participant) []*participant {
+	var others []*participant
+	for _, other := range g.connected() {
+		if other != p {
+			others = append(others, other)
+		}
+	}
+	return others
 }
 
 func (g *game) atSeat(seat tile.Seat) *participant {
@@ -328,7 +333,7 @@ func (g *game) finish() {
 	e := g.end
 	reason := e.reason
 	if e.keepReplay {
-		err := g.saveReplay(e.records)
+		err := protect(func() error { return g.saveReplay(e.records) })
 		if err != nil {
 			g.log.Error("save the replay of a finished game", "error", err)
 			reason = endFailed
@@ -339,20 +344,29 @@ func (g *game) finish() {
 
 	if g.startWritten != nil {
 		<-g.startWritten
-		err := g.recordFinish(reason, e)
+		err := protect(func() error { return g.recordFinish(reason, e) })
 		if err != nil {
 			g.log.Error("record the finish of a game", "error", err)
 		}
 	}
 
 	for _, conn := range e.conns {
-		if reason == endCompleted {
-			conn.Close(CloseGameEnded, "game_ended")
-		} else {
-			closeWithInternalError(g.log, conn)
-		}
+		g.closeEnded(conn, reason)
 	}
 	g.lifecycle = lifecycleClosed
+}
+
+func (g *game) closeEnded(conn Connection, reason endReason) {
+	err := protect(func() error {
+		if reason == endCompleted {
+			conn.Close(CloseGameEnded, "game_ended")
+			return nil
+		}
+		return closeWithInternalError(conn)
+	})
+	if err != nil {
+		g.log.Error("close a connection of an ended game", "error", err)
+	}
 }
 
 func (g *game) saveReplay(records []wire.Map) error {
@@ -380,11 +394,8 @@ func (g *game) recordFinish(reason endReason, e ending) error {
 	return db.RecordFailed(ctx, g.start, e.endedAt)
 }
 
-func closeWithInternalError(log *slog.Logger, conn Connection) {
-	err := send(conn, messaging.SessionError(
+func closeWithInternalError(conn Connection) error {
+	defer conn.Close(CloseInternalError, "internal_error")
+	return send(conn, messaging.SessionError(
 		messaging.SessionInternalError, "The game ended on a server error", play.Option[int]{}))
-	if err != nil {
-		log.Error("encode session error", "error", err)
-	}
-	conn.Close(CloseInternalError, "internal_error")
 }

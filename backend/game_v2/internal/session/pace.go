@@ -30,12 +30,18 @@ func (g *game) startWaitTimers() {
 		case g.pause != nil && g.pause.owes(p.seat):
 			p.timer.startFixed(g.pauseTimeout(), g.timerFired(p, timeoutPause))
 		case g.pause != nil || !g.wait.awaits(p.seat):
-		case g.wait.kind == waitTurn:
-			p.timer.startDecision(g.timerFired(p, timeoutTurn))
 		default:
-			p.timer.startDecision(g.timerFired(p, timeoutMeld))
+			g.startDecisionTimer(p)
 		}
 	}
+}
+
+func (g *game) startDecisionTimer(p *participant) {
+	kind := timeoutMeld
+	if g.wait.kind == waitTurn {
+		kind = timeoutTurn
+	}
+	p.timer.startDecision(g.timerFired(p, kind))
 }
 
 func (g *game) timerFired(p *participant, kind timeoutKind) func(token uint64) {
@@ -274,7 +280,7 @@ func (g *game) handOver(p *participant, standIn play.Option[wire.SeatControlReas
 	if g.replay != nil {
 		g.replay.records = append(g.replay.records, messaging.ReplaySeatControlPayload(p.seat, standIn))
 	}
-	return g.broadcast(messaging.SeatControl(p.seat, standIn))
+	return g.broadcastTo(g.othersThan(p), messaging.SeatControl(p.seat, standIn))
 }
 
 func actionName(action play.Action) string {

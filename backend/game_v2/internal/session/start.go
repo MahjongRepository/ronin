@@ -41,26 +41,26 @@ func (g *game) join(conn Connection, ticket string) error {
 	return g.admit(b.participant, conn)
 }
 
-type joinBinding struct {
+type seatBinding struct {
 	registered  bool
 	participant *participant
 	replaced    Connection
 	refused     play.Option[sessionRefusal]
 }
 
-func (g *game) bindJoining(conn Connection, ticket string) joinBinding {
+func (g *game) bindJoining(conn Connection, ticket string) seatBinding {
 	g.m.mu.Lock()
 	defer g.m.mu.Unlock()
 
 	entry := g.m.registeredLocked(conn)
 	if entry == nil {
-		return joinBinding{}
+		return seatBinding{}
 	}
 	p, refused := g.joiningLocked(entry, ticket)
 	if refused.OK {
-		return joinBinding{registered: true, refused: refused}
+		return seatBinding{registered: true, refused: refused}
 	}
-	return joinBinding{registered: true, participant: p, replaced: g.bindLocked(p, entry)}
+	return seatBinding{registered: true, participant: p, replaced: g.bindLocked(p, entry)}
 }
 
 func (g *game) joiningLocked(entry *connEntry, ticket string) (*participant, play.Option[sessionRefusal]) {
@@ -195,6 +195,11 @@ func (g *game) recordStart() {
 func (g *game) openFirstWait(events []play.Emitted) error {
 	head, held := splitFirstDraw(events)
 	g.holdingDraw, g.held = true, held
+	for _, e := range head {
+		if dealt, ok := e.Event.(play.RoundStarted); ok {
+			g.dealt[dealt.Seat.Index()] = dealt
+		}
+	}
 	if g.timing.GameStartConfirm > 0 {
 		opened := pause{startsGame: true, resultsShown: 1}
 		for _, p := range g.connected() {

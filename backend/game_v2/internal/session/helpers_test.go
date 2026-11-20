@@ -36,6 +36,7 @@ type fakeConn struct {
 	closed bool
 	code   session.CloseCode
 	reason string
+	broken int
 }
 
 func (c *fakeConn) ID() string     { return c.id }
@@ -48,9 +49,19 @@ func (c *fakeConn) Send(data []byte) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.broken > 0 {
+		c.broken--
+		panic("send on a broken connection")
+	}
 	if !c.closed {
 		c.sent = append(c.sent, m)
 	}
+}
+
+func (c *fakeConn) breakSends(n int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.broken = n
 }
 
 func (c *fakeConn) Close(code session.CloseCode, reason string) {

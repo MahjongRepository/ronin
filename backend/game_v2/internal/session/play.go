@@ -354,15 +354,18 @@ func (g *game) opensPause(emitted play.Emitted) bool {
 }
 
 func (g *game) broadcast(m wire.Map) error {
-	connected := g.connected()
-	if len(connected) == 0 {
+	return g.broadcastTo(g.connected(), m)
+}
+
+func (g *game) broadcastTo(recipients []*participant, m wire.Map) error {
+	if len(recipients) == 0 {
 		return nil
 	}
 	data, err := wire.Encode(m)
 	if err != nil {
 		return err
 	}
-	for _, p := range connected {
+	for _, p := range recipients {
 		p.conn.Send(data)
 	}
 	return nil

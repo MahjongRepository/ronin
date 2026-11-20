@@ -3,6 +3,7 @@ package session
 import (
 	"time"
 
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
 )
 
@@ -48,7 +49,7 @@ type turnTimer struct {
 	clock     Clock
 	bank      time.Duration
 	running   delayed
-	turnStart time.Time
+	startedAt time.Time
 	charging  bool
 }
 
@@ -61,13 +62,20 @@ func (t *turnTimer) resetBank() {
 }
 
 func (t *turnTimer) startDecision(fire func(token uint64)) {
-	t.turnStart, t.charging = t.clock.Now(), true
+	t.startedAt, t.charging = t.clock.Now(), true
 	t.running.arm(t.clock, t.timing.BaseTurn+t.bank, fire)
 }
 
 func (t *turnTimer) startFixed(after time.Duration, fire func(token uint64)) {
-	t.charging = false
+	t.startedAt, t.charging = t.clock.Now(), false
 	t.running.arm(t.clock, after, fire)
+}
+
+func (t *turnTimer) elapsed() play.Option[float64] {
+	if !t.running.armed {
+		return play.Option[float64]{}
+	}
+	return play.Some(t.clock.Now().Sub(t.startedAt).Seconds())
 }
 
 func (t *turnTimer) stop() {
@@ -75,7 +83,7 @@ func (t *turnTimer) stop() {
 	if !t.charging {
 		return
 	}
-	overtime := max(0, t.clock.Now().Sub(t.turnStart)-t.timing.BaseTurn)
+	overtime := max(0, t.clock.Now().Sub(t.startedAt)-t.timing.BaseTurn)
 	t.bank = max(0, t.bank-overtime)
 	t.charging = false
 }
