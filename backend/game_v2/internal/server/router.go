@@ -31,16 +31,19 @@ type Router struct {
 	secret  string
 	log     *slog.Logger
 	stats   *socketStats
+	now     func() time.Time
 }
 
-// NewRouter returns a Router into manager that verifies tickets with ticketSecret and logs to
-// logger.
-func NewRouter(manager *session.Manager, ticketSecret string, logger *slog.Logger) *Router {
-	return newRouter(manager, ticketSecret, logger, &socketStats{})
+// NewRouter returns a Router into manager that verifies tickets with ticketSecret at the time now
+// reads and logs to logger.
+func NewRouter(manager *session.Manager, ticketSecret string, logger *slog.Logger, now func() time.Time) *Router {
+	return newRouter(manager, ticketSecret, logger, &socketStats{}, now)
 }
 
-func newRouter(manager *session.Manager, ticketSecret string, logger *slog.Logger, stats *socketStats) *Router {
-	return &Router{session: manager, secret: ticketSecret, log: logger, stats: stats}
+func newRouter(
+	manager *session.Manager, ticketSecret string, logger *slog.Logger, stats *socketStats, now func() time.Time,
+) *Router {
+	return &Router{session: manager, secret: ticketSecret, log: logger, stats: stats, now: now}
 }
 
 // Route parses m, a message conn's client sent, and hands it to the session.
@@ -86,7 +89,7 @@ func invalidMessageType(err error) string {
 }
 
 func (r *Router) verifiedTicket(conn session.Connection, token string) bool {
-	ticket, err := auth.VerifyTicket(token, r.secret, time.Now())
+	ticket, err := auth.VerifyTicket(token, r.secret, r.now())
 	switch {
 	case err != nil:
 		r.connLog(conn).Warn(logInvalidTicket, "error", err)

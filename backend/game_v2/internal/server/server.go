@@ -57,7 +57,8 @@ func DefaultSocketConfig() SocketConfig {
 // Config is what a Server runs on. Session and Logger are required, and so are both secrets.
 // Capacity is the session's, reported by /status; Replays is where the Tenhou export reads the
 // stored replays; CORSOrigins are the origins whose scripts may read the REST answers ("*" for
-// any); Version and Commit are what /health and /status report.
+// any); Version and Commit are what /health and /status report; Now is where the server reads the
+// time its tickets, rate limits and process start are taken at, time.Now when nil.
 type Config struct {
 	Session        *session.Manager
 	Replays        store.Replays
@@ -69,6 +70,7 @@ type Config struct {
 	Commit         string
 	Logger         *slog.Logger
 	Socket         SocketConfig
+	Now            func() time.Time
 }
 
 // ErrConfig is returned by New for a Config it cannot run on.
@@ -108,14 +110,17 @@ func New(cfg Config) (*Server, error) {
 	if !cfg.valid() {
 		return nil, ErrConfig
 	}
+	if cfg.Now == nil {
+		cfg.Now = time.Now
+	}
 	s := &Server{
 		cfg:       cfg,
 		log:       cfg.Logger,
-		startedAt: time.Now().Unix(),
+		startedAt: cfg.Now().Unix(),
 		sockets:   map[*connection]struct{}{},
 	}
 	s.stats.closes = initialCloses()
-	s.router = newRouter(cfg.Session, cfg.TicketSecret, cfg.Logger, &s.stats)
+	s.router = newRouter(cfg.Session, cfg.TicketSecret, cfg.Logger, &s.stats, cfg.Now)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)

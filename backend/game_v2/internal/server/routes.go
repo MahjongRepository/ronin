@@ -267,7 +267,7 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ticketError(request createGameRequest) string {
-	now := time.Now()
+	now := s.cfg.Now()
 	for _, player := range request.players {
 		ticket, err := auth.VerifyTicket(player.Ticket, s.cfg.TicketSecret, now)
 		switch {

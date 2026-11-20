@@ -123,13 +123,13 @@ func openSeatedGame(ctx context.Context, logger *slog.Logger, setup gameSetup) (
 	if err != nil {
 		return nil, errors.Join(err, db.Close(), os.RemoveAll(dir))
 	}
-	g.router = server.NewRouter(g.manager, ticketSecret, logger)
+	g.router = server.NewRouter(g.manager, ticketSecret, logger, g.clock.Now)
 
 	specs := make([]session.PlayerSpec, 0, len(setup.players))
 	for _, name := range setup.players {
 		ticket := auth.SignTicket(auth.Ticket{
 			UserID: "user-" + name, Username: name, RoomID: setup.gameID,
-			ExpiresAt: float64(time.Now().Add(ticketLifetime).UnixNano()) / float64(time.Second),
+			ExpiresAt: float64(g.clock.Now().Add(ticketLifetime).UnixNano()) / float64(time.Second),
 		}, ticketSecret)
 		g.clients[name] = &seatClient{game: g, name: name, ticket: ticket}
 		specs = append(specs, session.PlayerSpec{Name: name, UserID: "user-" + name, Ticket: ticket})

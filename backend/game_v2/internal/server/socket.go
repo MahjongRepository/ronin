@@ -90,7 +90,7 @@ type reader struct {
 }
 
 func (s *Server) readMessages(ctx context.Context, conn *connection) websocket.StatusCode {
-	now := time.Now()
+	now := s.cfg.Now()
 	rd := reader{
 		s:       s,
 		conn:    conn,
@@ -117,7 +117,7 @@ func (rd *reader) handleFrame(typ websocket.MessageType, data []byte) (keepReadi
 		}
 	}()
 
-	received := time.Now()
+	received := rd.s.cfg.Now()
 	stats := &rd.s.stats
 	stats.countIn(len(data))
 
@@ -140,7 +140,7 @@ func (rd *reader) handleFrame(typ websocket.MessageType, data []byte) (keepReadi
 	}
 
 	rd.s.router.Route(rd.conn, m)
-	stats.countHandled(time.Since(received))
+	stats.countHandled(rd.s.cfg.Now().Sub(received))
 	return true
 }
 
