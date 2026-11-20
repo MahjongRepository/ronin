@@ -30,7 +30,7 @@ func (g *game) stopTimerAt(seat tile.Seat) {
 }
 
 func (g *game) startWaitTimers() {
-	for _, p := range g.connected() {
+	for p := range g.connected() {
 		switch {
 		case g.pause != nil && g.pause.owes(p.seat):
 			p.timer.startFixed(g.pauseTimeout(), g.timerFired(p, timeoutPause))
@@ -357,7 +357,7 @@ func (g *game) disconnected(p *participant, conn Connection) error {
 
 func (g *game) releaseSeat(p *participant) error {
 	p.timer.suspend()
-	if len(g.connected()) == 0 {
+	if g.connectedCount() == 0 {
 		g.endGame(endAbandoned, play.Option[store.Result]{})
 		return nil
 	}

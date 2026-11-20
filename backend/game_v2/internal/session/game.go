@@ -3,6 +3,7 @@ package session
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"log/slog"
 	"runtime/debug"
 	"time"
@@ -251,24 +252,32 @@ func (g *game) participantOf(conn Connection) *participant {
 	return nil
 }
 
-func (g *game) connected() []*participant {
-	var connected []*participant
-	for _, p := range g.participants {
-		if p.conn != nil {
-			connected = append(connected, p)
+func (g *game) connected() iter.Seq[*participant] {
+	return func(yield func(*participant) bool) {
+		for _, p := range g.participants {
+			if p.conn != nil && !yield(p) {
+				return
+			}
 		}
 	}
-	return connected
 }
 
-func (g *game) othersThan(p *participant) []*participant {
-	var others []*participant
-	for _, other := range g.connected() {
-		if other != p {
-			others = append(others, other)
+func (g *game) connectedCount() int {
+	count := 0
+	for range g.connected() {
+		count++
+	}
+	return count
+}
+
+func (g *game) othersThan(p *participant) iter.Seq[*participant] {
+	return func(yield func(*participant) bool) {
+		for other := range g.connected() {
+			if other != p && !yield(other) {
+				return
+			}
 		}
 	}
-	return others
 }
 
 func (g *game) atSeat(seat tile.Seat) *participant {
@@ -286,7 +295,7 @@ func (g *game) isAISeat(seat tile.Seat) bool {
 }
 
 func (g *game) withdraw() bool {
-	if g.lifecycle != lifecyclePending || len(g.connected()) > 0 {
+	if g.lifecycle != lifecyclePending || g.connectedCount() > 0 {
 		g.log.Warn("withdrawn game kept, a player already joined it")
 		return false
 	}
@@ -305,7 +314,7 @@ func (g *game) endGame(reason endReason, result play.Option[store.Result]) {
 	g.lifecycle = lifecycleEnding
 	g.m.inFlight.Add(1)
 	conns := make([]Connection, 0, len(g.participants))
-	for _, p := range g.connected() {
+	for p := range g.connected() {
 		conns = append(conns, p.conn)
 	}
 	g.end = ending{reason: reason, conns: conns, result: result, endedAt: g.clock.Now()}

@@ -20,16 +20,22 @@ import (
 )
 
 func with(m wire.Map, k wire.Key, v wire.Value) wire.Map {
-	stamped := make(wire.Map, 0, len(m)+1)
-	replaced := false
-	for _, f := range m {
-		if f.Key == k {
-			f.Value, replaced = v, true
+	return withAll(m, wire.Field{Key: k, Value: v})
+}
+
+func withAll(m wire.Map, stamps ...wire.Field) wire.Map {
+	stamped := make(wire.Map, len(m), len(m)+len(stamps))
+	copy(stamped, m)
+	for _, stamp := range stamps {
+		replaced := false
+		for i := range stamped {
+			if stamped[i].Key == stamp.Key {
+				stamped[i].Value, replaced = stamp.Value, true
+			}
 		}
-		stamped = append(stamped, f)
-	}
-	if !replaced {
-		stamped = append(stamped, wire.Field{Key: k, Value: v})
+		if !replaced {
+			stamped = append(stamped, stamp)
+		}
 	}
 	return stamped
 }

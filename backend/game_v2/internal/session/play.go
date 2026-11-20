@@ -3,6 +3,7 @@ package session
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"slices"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
@@ -139,7 +140,7 @@ func (g *game) openWait(events []play.Emitted, awaiting wait) error {
 		}
 	}
 
-	for _, p := range g.connected() {
+	for p := range g.connected() {
 		if g.owesDecision(p.seat) {
 			p.decisionID++
 		}
@@ -163,7 +164,7 @@ func holdsDeal(events []play.Emitted) bool {
 
 func (g *game) openRoundOverPause(events []play.Emitted) error {
 	opened := pause{resultsShown: 1}
-	for _, p := range g.connected() {
+	for p := range g.connected() {
 		opened.owing[p.seat.Index()] = true
 	}
 	if !opened.anyOwing() {
@@ -333,7 +334,7 @@ func (g *game) sendGameStarted(started play.GameStarted) error {
 	if err != nil {
 		return err
 	}
-	for _, p := range g.connected() {
+	for p := range g.connected() {
 		stamped := messaging.StampViewerSeat(payload, p.seat)
 		err = send(p.conn, messaging.StampTimerSettings(stamped, g.timerSettings(p)))
 		if err != nil {
@@ -347,7 +348,7 @@ func (g *game) broadcastEvent(payload wire.Map, emitted play.Emitted) error {
 	if !g.opensPause(emitted) {
 		return g.broadcast(payload)
 	}
-	for _, p := range g.connected() {
+	for p := range g.connected() {
 		err := g.sendEventTo(p, payload, emitted)
 		if err != nil {
 			return err
@@ -383,15 +384,16 @@ func (g *game) broadcast(m wire.Map) error {
 	return g.broadcastTo(g.connected(), m)
 }
 
-func (g *game) broadcastTo(recipients []*participant, m wire.Map) error {
-	if len(recipients) == 0 {
-		return nil
-	}
-	data, err := wire.Encode(m)
-	if err != nil {
-		return err
-	}
-	for _, p := range recipients {
+func (g *game) broadcastTo(recipients iter.Seq[*participant], m wire.Map) error {
+	var data []byte
+	for p := range recipients {
+		if data == nil {
+			var err error
+			data, err = wire.Encode(m)
+			if err != nil {
+				return err
+			}
+		}
 		p.conn.Send(data)
 	}
 	return nil

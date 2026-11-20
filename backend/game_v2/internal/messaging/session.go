@@ -136,7 +136,9 @@ func StampTimerSettings(m wire.Map, timer TimerSettings) wire.Map {
 // the deal of the game start's confirmation: the recipient's wait id and the pause's whole
 // timeout.
 func StampPause(m wire.Map, waitID int, timeout Seconds) wire.Map {
-	return with(with(m, wire.KeyWaitID, wire.Int(waitID)), wire.KeyRoundAdvanceSeconds, timeout.value())
+	return withAll(m,
+		wire.Field{Key: wire.KeyWaitID, Value: wire.Int(waitID)},
+		wire.Field{Key: wire.KeyRoundAdvanceSeconds, Value: timeout.value()})
 }
 
 // Pause is a seat's part in the pause a reconnect finds its game in: whether it still owes its

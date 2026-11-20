@@ -113,7 +113,7 @@ func (g *game) admit(p *participant, conn Connection) error {
 		return err
 	}
 
-	connected := len(g.connected())
+	connected := g.connectedCount()
 	g.log.Info("player joined pending game",
 		"player_name", p.spec.Name, "connected", connected, "expected", len(g.participants))
 	if connected < len(g.participants) {
@@ -127,7 +127,7 @@ func (g *game) pendingTimedOut(token uint64) error {
 	if !g.pending.claim(token) || g.lifecycle != lifecyclePending {
 		return nil
 	}
-	if len(g.connected()) == 0 {
+	if g.connectedCount() == 0 {
 		g.log.Warn("no players connected before timeout, cancelling game", "expected", len(g.participants))
 		g.endGame(endAbandoned, play.Option[store.Result]{})
 		return nil
@@ -190,7 +190,7 @@ func (g *game) recordStart() error {
 func (g *game) openFirstWait(events []play.Emitted) error {
 	if g.timing.GameStartConfirm > 0 {
 		opened := pause{startsGame: true, resultsShown: 1}
-		for _, p := range g.connected() {
+		for p := range g.connected() {
 			opened.owing[p.seat.Index()] = true
 		}
 		g.pause = &opened

@@ -211,10 +211,13 @@ func PlaceOpenings(events []play.Emitted, openings []Opening) []Placed {
 // seconds, its timer has run when it is re-sent, its wait id, and the bank its timer starts with.
 // The replay never sees these.
 func StampOpening(payload wire.Map, waitID int, bank Seconds, elapsed play.Option[float64]) wire.Map {
-	stamped := payload
-	if elapsed.OK {
-		stamped = with(stamped, wire.KeyWaitElapsed, wire.Float(elapsed.Value))
+	stamps := []wire.Field{
+		{Key: wire.KeyWaitElapsed, Value: wire.Float(elapsed.Value)},
+		{Key: wire.KeyWaitID, Value: wire.Int(waitID)},
+		{Key: wire.KeyBankSeconds, Value: bank.value()},
 	}
-	stamped = with(stamped, wire.KeyWaitID, wire.Int(waitID))
-	return with(stamped, wire.KeyBankSeconds, bank.value())
+	if !elapsed.OK {
+		stamps = stamps[1:]
+	}
+	return withAll(payload, stamps...)
 }
