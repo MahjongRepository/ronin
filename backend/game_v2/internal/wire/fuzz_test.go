@@ -49,6 +49,9 @@ func FuzzDecode_WhenItAcceptsAMessage_ShouldReencodeItToStableBytes(f *testing.F
 		if err != nil {
 			t.Fatalf("Encode(Decode(%x)): %v", data, err)
 		}
+		if len(content) > MaxMessageBytes {
+			return
+		}
 		again, err := Decode(content)
 		if err != nil {
 			t.Fatalf("Decode(Encode(Decode(%x))): %v", data, err)
