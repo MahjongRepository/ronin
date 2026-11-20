@@ -432,6 +432,9 @@ code under `engine/`:
   alias, so a package that switches over a sum type imports the package that declares it.
 * `Refusal` is a domain outcome, deliberately not an `error`: a player's refused action is an
   expected result. `error` stays for failures that are not one.
+* `wall.Wall` and `round.CallPrompt` mix receiver kinds on purpose: their readers take the value,
+  since callers chain them on non-addressable returns (`g.round.Wall().DoraIndicators()`,
+  `g.round.Prompt().Value.Offers(seat)`), and their mutators take a pointer on a held copy.
 
 ## Tests
 

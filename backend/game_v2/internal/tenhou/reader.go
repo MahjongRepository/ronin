@@ -1,7 +1,7 @@
 package tenhou
 
 import (
-	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
@@ -114,7 +114,7 @@ func (r *reader) scoreMap(m wire.Map, k wire.Key) [tile.SeatCount]int {
 		v, _ := scores.Get(strconv.Itoa(i))
 		n, ok := v.(wire.Int)
 		if !ok {
-			r.fail(errors.New("score map " + k.String() + " has no score of seat " + strconv.Itoa(i)))
+			r.fail(fmt.Errorf("score map %s has no score of seat %d", k, i))
 		}
 		bySeat[i] = int(n)
 	}

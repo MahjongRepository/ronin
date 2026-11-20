@@ -2,7 +2,7 @@ package wire
 
 import (
 	"errors"
-	"strconv"
+	"fmt"
 )
 
 // MaxMessageBytes is the largest live message Decode reads.
@@ -64,7 +64,7 @@ func Decode(data []byte) (Map, error) {
 
 func decodeMessage(data []byte) (Map, error) {
 	if len(data) > MaxMessageBytes {
-		return nil, errors.New("payload of " + strconv.Itoa(len(data)) + " bytes is too large")
+		return nil, fmt.Errorf("payload of %d bytes is too large", len(data))
 	}
 
 	d := decoder{data: data, limits: liveProfile.limits}

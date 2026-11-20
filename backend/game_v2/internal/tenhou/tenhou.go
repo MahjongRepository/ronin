@@ -14,6 +14,7 @@ package tenhou
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -241,7 +242,7 @@ func (c *converter) discarded(event wire.Map) {
 func (c *converter) take(s, id int) {
 	i := slices.Index(c.hands[s], id)
 	if i < 0 {
-		c.r.fail(errors.New("seat " + strconv.Itoa(s) + " gives up tile " + strconv.Itoa(id) + " it does not hold"))
+		c.r.fail(fmt.Errorf("seat %d gives up tile %d it does not hold", s, id))
 		return
 	}
 	c.hands[s] = slices.Delete(c.hands[s], i, i+1)

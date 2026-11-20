@@ -2,6 +2,7 @@ package wire
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"unicode/utf8"
 
@@ -55,7 +56,7 @@ func (p *profile) validateMap(m Map, depth int) error {
 			return unknownKeyError{raw: Int(f.Key)}
 		}
 		if seen[f.Key] {
-			return errors.New("duplicate metadata key " + f.Key.String())
+			return fmt.Errorf("duplicate metadata key %s", f.Key)
 		}
 		seen[f.Key] = true
 
@@ -90,16 +91,16 @@ func validateScoreMap(v Value) error {
 	for _, f := range scores {
 		seat, err := strconv.Atoi(f.Key)
 		if err != nil || seat < 0 || seat >= tile.SeatCount || strconv.Itoa(seat) != f.Key {
-			return errors.New("score map key " + strconv.Quote(f.Key) + " is no seat")
+			return fmt.Errorf("score map key %q is no seat", f.Key)
 		}
 		if seen[seat] {
-			return errors.New("score map has seat " + f.Key + " twice")
+			return fmt.Errorf("score map has seat %s twice", f.Key)
 		}
 		seen[seat] = true
 
 		_, isInt := f.Value.(Int)
 		if !isInt {
-			return errors.New("score map value of seat " + f.Key + " is no integer")
+			return fmt.Errorf("score map value of seat %s is no integer", f.Key)
 		}
 	}
 	return nil

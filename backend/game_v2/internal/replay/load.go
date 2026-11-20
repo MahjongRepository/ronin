@@ -16,6 +16,7 @@ package replay
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
@@ -118,7 +119,7 @@ func readGameStart(record wire.Map) (engine.Seed, [tile.SeatCount]string, error)
 	}
 	scheme, _ := record.Get(wire.KeyRNGVersion)
 	if scheme != wire.Str(engine.RNGVersion) {
-		return seed, names, errors.New("the game's randomness is not " + engine.RNGVersion)
+		return seed, names, fmt.Errorf("the game's randomness is not %s", engine.RNGVersion)
 	}
 	settings, _ := record.Get(wire.KeyGameSettings)
 	envelope, _ := settings.(wire.StrMap)
@@ -143,7 +144,7 @@ func readNames(record wire.Map) ([tile.SeatCount]string, error) {
 	raw, _ := record.Get(wire.KeyPlayers)
 	players, _ := raw.(wire.Array)
 	if len(players) != tile.SeatCount {
-		return names, errors.New("the game start names " + strconv.Itoa(len(players)) + " players")
+		return names, fmt.Errorf("the game start names %d players", len(players))
 	}
 
 	for _, entry := range players {
@@ -261,7 +262,7 @@ func abortActions(record wire.Map) ([]SeatAction, error) {
 	case wire.AbortFourWinds, wire.AbortFourRiichi, wire.AbortFourKans:
 		return nil, nil
 	}
-	return nil, errors.New("unknown abort reason " + strconv.Quote(reason))
+	return nil, fmt.Errorf("unknown abort reason %q", reason)
 }
 
 func declarations(action play.Action, seats []wire.Value) ([]SeatAction, error) {

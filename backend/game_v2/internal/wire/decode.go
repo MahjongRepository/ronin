@@ -2,6 +2,7 @@ package wire
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"strconv"
 	"unicode/utf8"
@@ -127,7 +128,7 @@ func (d *decoder) unsigned(size int) (Value, error) {
 		return nil, err
 	}
 	if n > math.MaxInt64 {
-		return nil, errors.New("integer " + strconv.FormatUint(n, 10) + " out of range")
+		return nil, fmt.Errorf("integer %d out of range", n)
 	}
 	return Int(n), nil
 }
@@ -244,7 +245,7 @@ func stringKeyed(k Key) bool {
 var errNesting = errors.New("nesting limit exceeded")
 
 func lengthError(what string, n, limit int) error {
-	return errors.New(what + " of " + strconv.Itoa(n) + " exceeds " + strconv.Itoa(limit))
+	return fmt.Errorf("%s of %d exceeds %d", what, n, limit)
 }
 
 type unknownKeyError struct {

@@ -2,6 +2,7 @@ package tenhou
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -135,7 +136,7 @@ func (c *converter) limitCode(name string) int {
 			return limit.TenhouCode()
 		}
 	}
-	c.r.fail(errors.New("no Tenhou limit for hand limit " + strconv.Quote(name)))
+	c.r.fail(fmt.Errorf("no Tenhou limit for hand limit %q", name))
 	return 0
 }
 
@@ -151,7 +152,7 @@ func (c *converter) yakuAttribute(hand wire.Map) string {
 		id := c.r.int(entry, wire.KeyYakuID)
 		tenhouID, yakuman, ok := tenhouYakuID(id)
 		if !ok {
-			c.r.fail(errors.New("yaku " + strconv.Itoa(id) + " has no Tenhou id"))
+			c.r.fail(fmt.Errorf("yaku %d has no Tenhou id", id))
 		}
 		yaku = append(yaku, tenhouYaku{id: tenhouID, han: c.r.int(entry, wire.KeyHan), yakuman: yakuman})
 	}
@@ -230,7 +231,7 @@ func (c *converter) abortiveDraw(event wire.Map, scores, changes [tile.SeatCount
 			revealed = append(revealed, c.seat(s))
 		}
 	default:
-		c.r.fail(errors.New("unknown abort reason " + strconv.Quote(string(reason))))
+		c.r.fail(fmt.Errorf("unknown abort reason %q", reason))
 		return
 	}
 

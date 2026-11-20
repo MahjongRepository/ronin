@@ -2,6 +2,7 @@ package wire
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -182,7 +183,7 @@ func validateVersionRecord(record Map) error {
 func validateSeed(v Value) error {
 	seed, ok := v.(Bin)
 	if !ok || len(seed) != ReplaySeedBytes {
-		return errors.New("a seed must be " + strconv.Itoa(ReplaySeedBytes) + " bytes of binary data")
+		return fmt.Errorf("a seed must be %d bytes of binary data", ReplaySeedBytes)
 	}
 	return nil
 }

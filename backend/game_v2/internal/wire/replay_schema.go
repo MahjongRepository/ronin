@@ -2,7 +2,7 @@ package wire
 
 import (
 	"errors"
-	"strconv"
+	"fmt"
 	"strings"
 )
 
@@ -160,7 +160,7 @@ func validateRoundEnd(record Map) error {
 
 	winners, _ := record.Get(KeyWinners)
 	if wins := len(winners.(Array)); wins == 0 || wins > maxRonWins {
-		return errors.New("a ron holds one win or " + strconv.Itoa(maxRonWins))
+		return fmt.Errorf("a ron holds one win or %d", maxRonWins)
 	}
 	return nil
 }
@@ -174,7 +174,7 @@ func requireFields(m Map, fields []Key) error {
 		}
 	}
 	if len(missing) > 0 {
-		return errors.New("missing " + strings.Join(missing, ", "))
+		return fmt.Errorf("missing %s", strings.Join(missing, ", "))
 	}
 	return nil
 }
@@ -183,7 +183,7 @@ func validateFields(m Map, ctx schemaContext) error {
 	for _, f := range m {
 		err := validateField(f, ctx)
 		if err != nil {
-			return errors.New("replay field " + f.Key.String() + ": " + err.Error())
+			return fmt.Errorf("replay field %s: %w", f.Key, err)
 		}
 	}
 	return nil
@@ -229,7 +229,7 @@ func validateField(f Field, ctx schemaContext) error {
 
 func expect[T Value](v Value, what string) error {
 	if _, ok := v.(T); !ok {
-		return errors.New("expected " + what)
+		return fmt.Errorf("expected %s", what)
 	}
 	return nil
 }

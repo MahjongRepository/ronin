@@ -1,8 +1,7 @@
 package wire
 
 import (
-	"errors"
-	"strconv"
+	"fmt"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -47,7 +46,7 @@ func PackDiscard(m Move) int {
 // UnpackDraw returns the seat and tile of a packed draw; an error for a value outside 0 to 543.
 func UnpackDraw(packed int) (tile.Seat, tile.TileID, error) {
 	if packed < 0 || packed >= seatTileSpace {
-		return tile.Seat{}, tile.TileID{}, errors.New("packed draw " + strconv.Itoa(packed) + " out of range")
+		return tile.Seat{}, tile.TileID{}, fmt.Errorf("packed draw %d out of range", packed)
 	}
 	seat, _ := tile.NewSeat(packed / tile.TileIDCount)
 	id, _ := tile.NewTileID(packed % tile.TileIDCount)
@@ -57,7 +56,7 @@ func UnpackDraw(packed int) (tile.Seat, tile.TileID, error) {
 // UnpackDiscard returns the move of a packed discard; an error for a value outside 0 to 2175.
 func UnpackDiscard(packed int) (Move, error) {
 	if packed < 0 || packed >= discardFlags*seatTileSpace {
-		return Move{}, errors.New("packed discard " + strconv.Itoa(packed) + " out of range")
+		return Move{}, fmt.Errorf("packed discard %d out of range", packed)
 	}
 	flags := packed / seatTileSpace
 	seat, id, _ := UnpackDraw(packed % seatTileSpace)
