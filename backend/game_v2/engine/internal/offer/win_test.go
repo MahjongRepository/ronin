@@ -135,12 +135,13 @@ func TestHandValue_WhenAMeldDoesNotFitItsKind_ShouldReportTheMisfitMeld(t *testi
 	}
 }
 
-func TestSettledValue_WhenTheScorerRejectsTheHand_ShouldPanicWithAnEngineFault(t *testing.T) {
-	concealed := []tile.TileID{id(t, 0)}
+func TestSettledValue_WhenTheHandHasNoYaku_ShouldPanicWithAnEngineFault(t *testing.T) {
+	concealed, melds := openNoYakuHand(t)
+	scoring := offer.Scoring{Situation: ronSituation(), Melds: melds}
 
-	fault := faultOf(t, func() { offer.SettledValue(concealed, id(t, 1), offer.Scoring{Situation: ronSituation()}) })
+	fault := faultOf(t, func() { offer.SettledValue(concealed, copyOf(t, 1, "1z"), scoring) })
 
-	if _, ok := errors.AsType[score.WrongTileCountError](fault); !ok {
-		t.Errorf("SettledValue fault = %v, want a score.WrongTileCountError", fault)
+	if !errors.Is(fault, score.NoYakuError{}) {
+		t.Errorf("SettledValue fault = %v, want %v", fault, score.NoYakuError{})
 	}
 }

@@ -436,9 +436,9 @@ code under `engine/`:
   alias, so a package that switches over a sum type imports the package that declares it.
 * `Refusal` is a domain outcome, deliberately not an `error`: a player's refused action is an
   expected result. `error` stays for failures that are not one. A state the rules say cannot
-  happen, such as the scorer rejecting a completed hand for anything but no yaku or a payment that
-  does not fit its win, panics with `play.EngineFaultError` and is never returned; the session's
-  step guard turns it into a failed game.
+  happen, such as the scorer rejecting an offered hand for anything but no yaku, a settled win for
+  any reason, or a payment that does not fit its win, panics with `play.EngineFaultError` and is
+  never returned; the session's step guard turns it into a failed game.
 * `wall.Wall` and `round.CallPrompt` mix receiver kinds on purpose: their readers take the value,
   since callers chain them on non-addressable returns (`g.round.Wall().DoraIndicators()`,
   `g.round.Prompt().Value.Offers(seat)`), and their mutators take a pointer on a held copy.
@@ -455,8 +455,9 @@ code under `engine/`:
   every decision, action and event must match line for line. A change to a rule or to what the
   engine emits and when follows mahjong-rs and regenerates that set there, never the other way.
   The sanctioned divergences keep that set passing unchanged: `Begin` makes the dealer's first draw
-  as its own call, where mahjong-rs draws with the deal, and a scorer error other than no yaku, or
-  a payment that does not fit its win, panics with `play.EngineFaultError`.
+  as its own call, where mahjong-rs draws with the deal, and the scorer rejecting an offered hand
+  for anything but no yaku, a settled win for any reason, or a payment that does not fit its win,
+  panics with `play.EngineFaultError`.
 * A game's scenario tests play it through `engine/internal/testkit`, which stages walls and scripts
   actions. testkit is engine code under the coverage gate: it never imports `testing` and never
   asserts, returning values or errors, and it has its own tests. It imports `game`, so only external
