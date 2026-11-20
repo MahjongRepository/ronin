@@ -43,18 +43,30 @@ func MeldOffers(
 		return nil
 	}
 
-	var offers []play.Action
-	if holdsOpenKan(hand, inRiichi, discard) && MayAddKan(kans, liveTiles) {
+	openKan := holdsOpenKan(hand, inRiichi, discard) && MayAddKan(kans, liveTiles)
+	pons := PonOptions(hand, inRiichi, discard)
+	var chiOptions [maxChiOptions][2]tile.TileID
+	chis := chiOptions[:0]
+	if seat.Kamicha() == from {
+		chis = appendChiOptions(chis, hand, inRiichi, discard)
+	}
+	count := len(pons) + len(chis)
+	if openKan {
+		count++
+	}
+	if count == 0 {
+		return nil
+	}
+
+	offers := make([]play.Action, 0, count)
+	if openKan {
 		offers = append(offers, play.KanAction(play.KanOpen, discard))
 	}
-	for _, pair := range PonOptions(hand, inRiichi, discard) {
+	for _, pair := range pons {
 		offers = append(offers, play.PonAction(pair))
 	}
-	if seat.Kamicha() == from {
-		var chiOptions [maxChiOptions][2]tile.TileID
-		for _, pair := range appendChiOptions(chiOptions[:0], hand, inRiichi, discard) {
-			offers = append(offers, play.ChiAction(pair))
-		}
+	for _, pair := range chis {
+		offers = append(offers, play.ChiAction(pair))
 	}
 	return offers
 }
@@ -115,7 +127,8 @@ func appendChiOptions(
 	}
 
 	value := kind.Simplify()
-	var shapes [][2]tile.Kind
+	var shapeKinds [maxChiShapes][2]tile.Kind
+	shapes := shapeKinds[:0]
 	if value+2 <= lastSuitValue {
 		shapes = append(shapes, [2]tile.Kind{kind + 1, kind + 2})
 	}
