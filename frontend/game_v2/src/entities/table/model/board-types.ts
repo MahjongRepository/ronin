@@ -22,6 +22,7 @@ interface BoardCenterInfo {
     readonly honbaSticks: number;
     readonly riichiSticks: number;
     readonly tilesRemaining: number;
+    readonly wallRunningOut: boolean;
     readonly doraIndicators: readonly TileFace[];
 }
 

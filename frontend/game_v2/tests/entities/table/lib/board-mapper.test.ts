@@ -241,6 +241,15 @@ describe("tableStateToDisplayState", () => {
             const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             expect(result.center.roundDisplay).toBe("South 4");
         });
+
+        test("wall count runs out from ten tiles left, not eleven", () => {
+            function runningOut(tilesRemaining: number): boolean {
+                return tableStateToDisplayState(makeTableState({ tilesRemaining }), SEAT_0_VIEW)!
+                    .center.wallRunningOut;
+            }
+            expect(runningOut(11)).toBe(false);
+            expect(runningOut(10)).toBe(true);
+        });
     });
 });
 

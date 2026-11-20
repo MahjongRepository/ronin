@@ -240,7 +240,7 @@ toward that seat as on a real table: the top seat's tiles upside down, a side se
 every river reading left to right from its own seat. Names, notices, callouts and controls stay
 upright. The walls are not drawn; the wall count in the centre and the indicator slots stand for
 them. The cost is the spatial picture: how much wall is left and where the dead wall sits are read
-as a number, not seen, so emphasis on the count as the wall runs out is a candidate.
+as a number, not seen, so the count turns red from ten tiles left.
 
 - **Core**: the centre and the four rivers in their pinwheel, compact and centred in the table, sized by the
   board's height. Its corners hold the plates as one rectangle (Badges); off a phone its bottom-left corner, under

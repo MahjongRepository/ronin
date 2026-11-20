@@ -566,6 +566,7 @@ const mockCenter: BoardCenterInfo = {
     riichiSticks: 1,
     roundDisplay: "East 1",
     tilesRemaining: 42,
+    wallRunningOut: false,
 };
 
 type SeatPlayers = readonly [PlayerState, PlayerState, PlayerState, PlayerState];
@@ -875,6 +876,7 @@ function kanStory(
             ...mockCenter,
             doraIndicators: ["5m", "3p", "7s", "2z", "9m"],
             tilesRemaining: 0,
+            wallRunningOut: true,
         },
         nameplates: worstPlates,
         players: [seat(0), seat(1), seat(2), seat(3)],
@@ -913,7 +915,7 @@ const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
         ],
     },
     full_hands: {
-        center: { ...mockCenter, tilesRemaining: 0 },
+        center: { ...mockCenter, tilesRemaining: 0, wallRunningOut: true },
         nameplates: riverPlates,
         players: [
             capacitySeat(13, { discards: fullRiver, drawn: true, melds: [], show: "face" }),
@@ -923,7 +925,7 @@ const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
         ],
     },
     full_rivers: {
-        center: { ...mockCenter, tilesRemaining: 2 },
+        center: { ...mockCenter, tilesRemaining: 2, wallRunningOut: true },
         nameplates: riverPlates,
         players: [
             withRiver(bottomPlayer, thirteenFaces),
@@ -954,6 +956,7 @@ const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
             doraIndicators: ["5m", "3p", "7s", "2z", "9m"],
             riichiSticks: 4,
             tilesRemaining: 0,
+            wallRunningOut: true,
         },
         nameplates: worstPlates,
         players: [worstSeat(0), worstSeat(1), worstSeat(2), worstSeat(3, latestRiver)],

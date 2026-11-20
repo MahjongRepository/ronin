@@ -311,7 +311,7 @@ function CenterInfo(
             <div class="board-center__info">
                 <div class="board-center__round">${center.roundDisplay}</div>
                 <div class="board-center__counts">
-                    <span class="board-center__count board-center__count--wall" title=${t("game.board.wall_title")}
+                    <span class="board-center__count board-center__count--wall ${center.wallRunningOut ? "board-center__count--running-out" : ""}" title=${t("game.board.wall_title")}
                         >${WallTileIcon()}<span class="board-center__label">${t("game.board.wall")}</span>
                         <span class="board-center__figure">${center.tilesRemaining}</span></span
                     >

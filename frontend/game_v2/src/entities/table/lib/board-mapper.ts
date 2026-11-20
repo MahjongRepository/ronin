@@ -12,6 +12,7 @@ import { t } from "@/shared/i18n";
 import { SEAT_CONTROL_REASON, seatDistance } from "@/shared/protocol";
 
 const REQUIRED_PLAYERS = 4;
+const WALL_RUNNING_OUT_AT = 10;
 
 type SeatSlots = readonly [
     PlayerState | undefined,
@@ -220,6 +221,7 @@ function tableStateToDisplayState(
             riichiSticks: state.riichiSticks,
             roundDisplay: roundName(state.roundWind, state.roundInWind),
             tilesRemaining: state.tilesRemaining,
+            wallRunningOut: state.tilesRemaining <= WALL_RUNNING_OUT_AT,
         },
         motionContext: JSON.stringify([state.gameId, perspective.bottomSeat, perspective.reveal]),
         motionRound: state.roundNumber,

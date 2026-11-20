@@ -258,6 +258,10 @@
     @include type.figures;
 }
 
+.board-center__count--running-out .board-center__figure {
+    color: var(--ronin-danger);
+}
+
 /* A count's name, for a screen reader alone: the icon beside it, or the count's place under the round, names it. */
 .board-center__label {
     position: absolute;
