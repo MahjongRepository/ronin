@@ -229,7 +229,8 @@ func (g Game) Begin() (Game, []play.Emitted, play.Option[play.Refusal]) {
 
 	next := g
 	next.drawPending = false
-	return next, next.round.Begin(), play.Option[play.Refusal]{}
+	events := next.round.Begin()
+	return next, events, play.Option[play.Refusal]{}
 }
 
 // Awaiting returns what the game waits for now.

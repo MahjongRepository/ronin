@@ -153,6 +153,16 @@ func TestBegunGame_WhenTheWallCannotBeLaidOut_ShouldReportIt(t *testing.T) {
 	}
 }
 
+func TestBegunGame_WhenTheGameRefusesTheStartPosition_ShouldReportItsError(t *testing.T) {
+	northStart := play.Some(play.StartPosition{
+		Scores: [tile.SeatCount]int{25000, 25000, 25000, 25000}, Wind: tile.North,
+	})
+
+	if _, err := testkit.BegunGame(testkit.StartWall{}, northStart); !isError[game.StartInNorthError](err) {
+		t.Errorf("BegunGame error = %v, want StartInNorthError", err)
+	}
+}
+
 func TestScript_WhenAnActionIsRefused_ShouldStopThereWithTheEarlierEvents(t *testing.T) {
 	g := notenGame(t)
 	drawn, _ := testkit.Drawn(g)

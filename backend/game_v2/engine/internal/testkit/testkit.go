@@ -237,8 +237,11 @@ func BegunGame(w StartWall, start play.Option[play.StartPosition]) (game.Game, e
 	}
 
 	g, _, err := game.New(source, start)
+	if err != nil {
+		return game.Game{}, err
+	}
 	g, _, _ = g.Begin()
-	return g, err
+	return g, nil
 }
 
 // SeatAction is one action of a seat.

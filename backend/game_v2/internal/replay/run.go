@@ -40,7 +40,10 @@ func (e ActionAfterGameEndError) Error() string {
 	return "action " + strconv.Itoa(e.Index) + " comes after the game end"
 }
 
-var errDealRefused = errors.New("the engine refused the next round's deal")
+var (
+	errDealRefused  = errors.New("the engine refused the next round's deal")
+	errBeginRefused = errors.New("the engine refused the dealer's first draw")
+)
 
 // Run starts a game from setup and plays actions in order, one engine call each, and returns every
 // step: the game's start first. Before each action it deals the next round when the last one is
@@ -56,7 +59,10 @@ func Run(setup engine.Setup, actions []SeatAction) ([]Step, error) {
 	if err != nil {
 		return nil, fmt.Errorf("start the replayed game: %w", err)
 	}
-	g, events = begun(g, events)
+	g, events, err = begun(g, events)
+	if err != nil {
+		return nil, err
+	}
 
 	r := runner{game: g, steps: []Step{{Events: events, Game: g}}}
 	for i, action := range actions {
@@ -181,18 +187,24 @@ func (r *runner) deal() error {
 	if refusal.OK {
 		return errDealRefused
 	}
-	g, events = begun(g, events)
+	g, events, err := begun(g, events)
+	if err != nil {
+		return err
+	}
 	r.game = g
 	r.steps = append(r.steps, Step{Events: events, Game: g})
 	return nil
 }
 
-func begun(g engine.Game, events []play.Emitted) (engine.Game, []play.Emitted) {
+func begun(g engine.Game, events []play.Emitted) (engine.Game, []play.Emitted, error) {
 	if _, dealt := g.Awaiting().(play.AwaitingDealt); !dealt {
-		return g, events
+		return g, events, nil
 	}
-	next, drew, _ := g.Begin()
-	return next, append(events, drew...)
+	next, drew, refusal := g.Begin()
+	if refusal.OK {
+		return g, nil, errBeginRefused
+	}
+	return next, append(events, drew...), nil
 }
 
 func (r *runner) isOver() bool {
