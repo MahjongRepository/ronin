@@ -1650,7 +1650,7 @@ const ACTIONS_GAP = 6;
  * control's least width to its height; the timer's width to its height, at least `DECISION_TIMER_LEAST` (px).
  */
 const DECISION_BY_RIVER = 0.85;
-const DECISION_FLOOR = 40;
+const DECISION_FLOOR = 48;
 const DECISION_GAP_SHARE = 1 / 8;
 const DECISION_SQUARE = 4 / 3;
 const DECISION_TIMER_SHARE = 1.75;

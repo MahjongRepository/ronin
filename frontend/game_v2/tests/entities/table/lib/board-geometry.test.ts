@@ -418,7 +418,7 @@ function bandPlace(geometry: BoardGeometry): Record<string, boolean> {
             top >= length("cy") + length("h") + TILE_EDGE_SHARE * length("rw") &&
             bottom <= length("hand-top") - length("own-meld-rise") &&
             bottom - top >= length("decision-h"),
-        controls: length("decision-h") >= 40 && length("action-text") >= 14,
+        controls: length("decision-h") >= 48 && length("action-text") >= 14,
         fromRiverStart: Math.abs(left - riverStart) <= 0.1,
     };
 }
@@ -1401,7 +1401,7 @@ describe("boardGeometry's decisions", () => {
         },
     );
 
-    it("sizes a desktop's decision controls from its river tile, 0.85 of it and never under 40px, so a larger window never draws them smaller", () => {
+    it("sizes a desktop's decision controls from its river tile, 0.85 of it and never under 48px, so a larger window never draws them smaller", () => {
         const boards = [
             [1280, 720],
             [1920, 1080],
@@ -1410,9 +1410,9 @@ describe("boardGeometry's decisions", () => {
         ].map(([width = 0, height = 0]) => windowGeometry({ height, width }, 10).lengths);
         const heights = boards.map((lengths) => lengths["decision-h"] ?? 0);
 
-        expect(heights).toEqual([40, 51, 69, 69]);
+        expect(heights).toEqual([48, 51, 69, 69]);
         expect(heights).toEqual(
-            boards.map((lengths) => Math.max(40, Math.floor(0.85 * (lengths["rw"] ?? 0)))),
+            boards.map((lengths) => Math.max(48, Math.floor(0.85 * (lengths["rw"] ?? 0)))),
         );
     });
 });

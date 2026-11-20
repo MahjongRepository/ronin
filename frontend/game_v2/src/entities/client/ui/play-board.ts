@@ -29,6 +29,7 @@ import {
     NoticeSheet,
     PANEL_CONTROL_FOCUS_KEY,
     type PanelAction,
+    RiichiStickIcon,
     TablePanelDisplay,
 } from "@/entities/table";
 import { Tile, spokenTileName } from "@/entities/tile";
@@ -147,7 +148,7 @@ function ActionButton(
         data-focus-key=${focusKeys(commandFocusKey(action.command), DECISION_ACTION_FOCUS_KEY) ?? nothing}
         @click=${() => onCommand(action.command)}
     >
-        <span class="decision-controls__label">${action.label}</span>${ActionTiles(action)}${keyHints ? KeyCap(action, isPass) : nothing}
+        ${action.kind === "riichi" ? RiichiStickIcon() : nothing}<span class="decision-controls__label">${action.label}</span>${ActionTiles(action)}${keyHints ? KeyCap(action, isPass) : nothing}
     </button>`;
 }
 

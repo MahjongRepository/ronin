@@ -478,10 +478,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   tsumo) outranks every other action; kyuushu kyuuhai, offered at a seat's first turn, ranks with a
   win since it ends the hand, with playing on as the alternative; calls, kan and riichi come next;
   pass is subordinate and never the most prominent thing on screen; several equally valid actions
-  are presented as equals. Decision: every control is the same flat box (one height, one least width, one type, no rim
-  or edge), filled with its kind's colour: a win (ron, tsumo) and kyuushu alone take the bright accent, with dark ink;
-  riichi takes the ivory of its stick, with dark ink; the rest are deep fills of one weight with a light label (pon blue, chi green, kan violet, pass a
-  grey-green), so equal choices read as equals and nothing competes with a win. A soft sheen crosses a win's face (ron, tsumo) every few seconds and rests between, the
+  are presented as equals. Decision: every control is the same flat box (one height, one least width, one type) with a
+  faint light rim, so its edge holds against the felt: a win (ron, tsumo) and kyuushu alone take the bright accent,
+  with dark ink; riichi, pon, chi and kan are deep fills of one weight
+  with a light label (riichi slate, pon blue, chi green, kan violet); pass is no fill at all, only its rim and label,
+  so equal choices read as equals, nothing competes with a win and pass is never louder than the call it declines. A soft sheen crosses a win's face (ron, tsumo) every few seconds and rests between, the
   controls' only motion, still under reduced motion or with animations off. The controls show exactly the offer the server made and vanish as soon as
   the player or a play switch answers it. Pass dismisses them silently; a declaration immediately
   shows its callout and plays its voice, while the table waits for the server to resolve the action.
@@ -491,7 +492,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   chi its two hand tiles, low to high, the chis standing in that order as the hand lies (a red five's after the plain
   one's); a kan its tile only beside another kan; a pon and a lone kan none, the marked discard naming theirs.
   Riichi is a toggle that marks the discards that declare it on the hand
-  and greys out the rest, wearing the accent as a ring inside its box while on; it can be untoggled until the discard is sent, not after. An expired
+  and greys out the rest; an upright riichi stick stands before its label, faint while off and lit while on; it can be untoggled until the discard is sent, not after. An expired
   decision stays visible and looks different from an open one; expiry is the client's
   estimate, and the server's resulting move (a timeout's discard or pass) is shown when it arrives.
   After a reconnect the open decision resumes with its remaining time, never a fresh one, and no
@@ -500,7 +501,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the bottom river's start (the centre's left edge) to short of the right strip's
   lane, under the centre and the right river's first tile and 6px over the own row's melds' rise. Every prompt, a
   call's, a riichi or tsumo turn's, kyuushu and a kan's choice, stands there, so the pass and the timer are found
-  without looking. Its controls are 0.85 of a river tile tall, never under 40px, so a larger window never draws them
+  without looking. While the own seat has called no meld, the controls end where the hand's thirteenth tile ends and
+  the timer stands past it, over the drawn tile; with a meld they keep the band's right end. Its controls are 0.85 of a
+  river tile tall, never under 48px, so a larger window never draws them
   smaller, along one row that grows left over the bottom river and the own plate, wrapping upward only where the
   band's width is used up (a narrow window, a long label). By design the cluster stands over the own river's tiles
   on its solid controls with a soft shadow, and on a short window a wrapped decision's top row rises over the right
@@ -898,7 +901,7 @@ glance, the felt between a side hand and its river about four river tiles on 16:
 into what the fullest hand leaves, above the face floor (four open kans to about 0.95 river tiles on 16:9, 0.86 to
 0.89 on 16:10 and about 0.8 on a near-square or width-bound window). The table keeps
 no margin inside the gutter, and the height the stack leaves goes above the core, under the top hand. A desktop's
-decision control is 0.85 of a river tile tall, never under 40px, so it never shrinks as the window grows; its label is 0.38 of it, never under 14px, and the controls' least width (4/3 of it), gap (1/8) and the timer
+decision control is 0.85 of a river tile tall, never under 48px, so it never shrinks as the window grows; its label is 0.38 of it, never under 14px, and the controls' least width (4/3 of it), gap (1/8) and the timer
 (1.75 of it, at least 72px, holding `10 +20`) scale with it.
 It gives river and own tiles of 39 and 56px at 1280x720, 36 and 52px at 1366x657, 42 and 60px at 1366x768, 44 and
 60px at 1280x800, 50 and 65px at 1440x900, 48 and 69px at 1536x864, 59 and 77px at 1680x1050, 61 and 88px at
