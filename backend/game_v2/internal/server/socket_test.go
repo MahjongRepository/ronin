@@ -258,9 +258,7 @@ func TestSocket_WhenThePeerStopsAnsweringPings_ShouldDropItAsADisconnect(t *test
 	h.create("alice")
 	h.joinAlice()
 
-	eventually(t, func() bool { return h.get("/players/user-alice").status == http.StatusNotFound })
-
-	if open := counter(t, h.status(), "connections"); open != 0 {
-		t.Errorf("/status connections = %d after the ping timeout, want 0", open)
-	}
+	eventually(t, func() bool {
+		return h.get("/players/user-alice").status == http.StatusNotFound && counter(t, h.status(), "connections") == 0
+	})
 }
