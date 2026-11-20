@@ -287,9 +287,12 @@ func (g *game) sendEvent(emitted play.Emitted, table func() messaging.Table) err
 	if err != nil {
 		return err
 	}
+	if emitted.To.All() {
+		return g.broadcastEvent(payload, emitted)
+	}
 	seat, single := emitted.To.Seat()
 	if !single {
-		return g.broadcastEvent(payload, emitted)
+		return fmt.Errorf("%T event has no audience", emitted.Event)
 	}
 	p := g.atSeat(seat)
 	if p == nil {

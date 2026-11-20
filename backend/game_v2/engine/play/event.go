@@ -20,9 +20,14 @@ func ToSeat(seat tile.Seat) Visibility {
 	return Visibility{seat: seat, single: true}
 }
 
-// Seat returns the only seat that may see; false when every seat may.
+// Seat returns the only seat that may see; false when every seat or no seat may.
 func (v Visibility) Seat() (tile.Seat, bool) {
 	return v.seat, v.single
+}
+
+// All reports whether every seat may see.
+func (v Visibility) All() bool {
+	return v.all
 }
 
 // Includes reports whether seat may see.
