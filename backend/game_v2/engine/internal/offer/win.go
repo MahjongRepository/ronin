@@ -12,11 +12,9 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-const completeHandTiles = 14
-
 // Completes reports whether the concealed tiles with winTile added form a complete hand.
 func Completes(concealed []tile.TileID, winTile tile.TileID) bool {
-	var joined [completeHandTiles]tile.TileID
+	var joined [tile.MaxConcealedTiles]tile.TileID
 	counts, err := tile.KindCounts(append(append(joined[:0], concealed...), winTile))
 	return err == nil && hand.IsAgari(counts)
 }
