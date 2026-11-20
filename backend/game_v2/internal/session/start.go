@@ -144,18 +144,18 @@ func (g *game) startGame() error {
 	for _, p := range g.participants {
 		names = append(names, p.spec.Name)
 	}
-	seating := seatPlayers(names, seed)
+	roster, seats := SeatPlayers(g.id, names, seed)
 	for i, p := range g.participants {
-		p.seat, p.seated = seating.playerSeats[i], true
+		p.seat, p.seated = seats[i], true
 	}
-	g.roster = messaging.Roster{GameID: g.id, Names: seating.names, AI: seating.ai}
+	g.roster = roster
 
 	started, events, err := engine.NewGame(g.m.cfg.Setup(seed))
 	if err != nil {
 		return fmt.Errorf("start the engine game: %w", err)
 	}
 	g.engine = started
-	g.replay = &replayLog{seed: seed, roster: g.roster}
+	g.replay = messaging.NewReplayLog(seed, g.roster)
 	g.recordStart()
 	g.log.Info("pending game completed")
 	return g.openFirstWait(events)
@@ -249,32 +249,30 @@ func (g *game) beginRound(actor play.Option[tile.Seat]) error {
 	return g.followEngine(held, actor)
 }
 
-type seating struct {
-	names       [tile.SeatCount]string
-	ai          [tile.SeatCount]bool
-	playerSeats []tile.Seat
-}
-
-func seatPlayers(names []string, seed engine.Seed) seating {
+// SeatPlayers seats a game's players, given by name in input order, as the session seats them: by
+// the seed's seat permutation, the n-th player at its n-th seat. It returns the game's roster, an AI
+// player named in each seat no player takes, and each player's seat in input order.
+func SeatPlayers(gameID string, names []string, seed engine.Seed) (messaging.Roster, []tile.Seat) {
 	permutation := engine.SeatPermutation(seed)
-	s := seating{playerSeats: permutation[:len(names)]}
-	for i := range s.ai {
-		s.ai[i] = true
+	seats := permutation[:len(names)]
+	roster := messaging.Roster{GameID: gameID}
+	for i := range roster.AI {
+		roster.AI[i] = true
 	}
-	for i, seat := range s.playerSeats {
-		s.names[seat.Index()], s.ai[seat.Index()] = names[i], false
+	for i, seat := range seats {
+		roster.Names[seat.Index()], roster.AI[seat.Index()] = names[i], false
 	}
 
 	number := 1
-	for i := range s.names {
-		if !s.ai[i] {
+	for i := range roster.Names {
+		if !roster.AI[i] {
 			continue
 		}
 		for slices.Contains(names, aiNamePrefix+strconv.Itoa(number)) {
 			number++
 		}
-		s.names[i] = aiNamePrefix + strconv.Itoa(number)
+		roster.Names[i] = aiNamePrefix + strconv.Itoa(number)
 		number++
 	}
-	return s
+	return roster, seats
 }

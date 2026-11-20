@@ -338,3 +338,21 @@ func TestAct_WhenRefused_ShouldChangeNothing(t *testing.T) {
 	}
 	assertEqual(t, "refusal kinds", kinds, [3]bool{true, true, true})
 }
+
+func TestShanten_WhenOnlySevenPairsIsOneTileFromReady_ShouldCountThatShape(t *testing.T) {
+	var counts [tile.KindCount]uint8
+	for _, kind := range []tile.Kind{0, 8, 9, 17, 18, 26} {
+		counts[kind] = 2
+	}
+	counts[tile.KindCount-1] = 1
+	hand, err := tile.CountsFromArray(counts)
+	if err != nil {
+		t.Fatalf("CountsFromArray error = %v", err)
+	}
+
+	got, err := engine.Shanten(hand)
+
+	if err != nil || got != 0 {
+		t.Errorf("Shanten = %d, %v, want 0, nil", got, err)
+	}
+}

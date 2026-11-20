@@ -104,7 +104,7 @@ type game struct {
 	dealt        [tile.SeatCount]play.RoundStarted
 	start        store.GameStart
 	startWritten chan struct{}
-	replay       *replayLog
+	replay       *messaging.ReplayLog
 	pending      delayed
 	aiTurn       delayed
 	end          ending
@@ -294,7 +294,7 @@ func (g *game) endGame(reason endReason, result play.Option[store.Result]) {
 	}
 	g.end = ending{reason: reason, conns: conns, result: result, endedAt: g.clock.Now()}
 	if g.replay != nil && reason != endAbandoned {
-		g.end.keepReplay, g.end.records = true, g.replay.records
+		g.end.keepReplay, g.end.records = true, g.replay.Records()
 	}
 	g.replay = nil
 

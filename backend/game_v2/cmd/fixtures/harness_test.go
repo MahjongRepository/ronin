@@ -208,16 +208,17 @@ func TestFixtureDir_WhenCommittedFilesDiffer_ShouldNameEachOrphanedMissingAndSta
 	}
 }
 
-func TestRun_WhenTheTranscriptsWereJustWritten_ShouldFindNoDrift(t *testing.T) {
-	dir := t.TempDir()
+func TestRun_WhenTheFixturesWereJustWritten_ShouldFindNoDrift(t *testing.T) {
+	dirs := []string{"-seat-scenarios", t.TempDir(), "-replays", t.TempDir()}
 	var stdout, stderr bytes.Buffer
-	if code := run(t.Context(), []string{"-seat-scenarios", dir}, io.Discard, &stderr); code != 0 {
+	if code := run(t.Context(), dirs, io.Discard, &stderr); code != 0 {
 		t.Fatalf("writing run exit = %d, stderr:\n%s", code, stderr.String())
 	}
 
-	code := run(t.Context(), []string{"-check", "-seat-scenarios", dir}, &stdout, &stderr)
+	code := run(t.Context(), append([]string{"-check"}, dirs...), &stdout, &stderr)
 
-	if code != 0 || stdout.String() != "25 seat transcript(s) up to date\n" {
+	want := "25 seat transcript(s) up to date\n25 replay fixture(s) up to date\n"
+	if code != 0 || stdout.String() != want {
 		t.Errorf("check run exit = %d, stdout %q, stderr:\n%s", code, stdout.String(), stderr.String())
 	}
 }

@@ -13,7 +13,8 @@ games with their sessions (`internal/session`), the rows and replay files it per
 lobby (`internal/store`), its credentials (`internal/auth`), the transport serving the lobby's
 routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`), the
 replay runner (`internal/replay`) with the Go replay check (`cmd/verify`), the Tenhou export
-(`internal/tenhou`), and the generator of the game client's seat transcripts (`cmd/fixtures`).
+(`internal/tenhou`), and the generator of the game client's seat transcripts and replay fixtures
+(`cmd/fixtures`).
 
 ## The seam
 
@@ -21,8 +22,8 @@ The module is two sides, a server and an engine, and the engine is reachable onl
 
 * `engine/` is the engine's only public API. The rules live under `engine/internal/`, which the Go
   compiler lets nothing outside `engine/` import, so the server side cannot reach past the facade.
-  The facade holds no rule of its own: it wraps `game` and the seed functions of `rng`, and
-  re-exports as type aliases the seed and error types a caller builds or matches. No slice it
+  The facade holds no rule of its own: it wraps `game`, the seed functions of `rng` and the lowest
+  shanten the tools' play policies rank by, and re-exports as type aliases the seed and error types a caller builds or matches. No slice it
   returns shares a backing array with the game, so a caller may write into anything it gets; the
   facade copies what the layer below shares, and a seam test writes into every returned slice to
   hold that.
@@ -113,6 +114,9 @@ a contract.
   a float (timer settings, the pending game timeout, elapsed times) is a `float64`.
 * A round end's scores are those before its payments; its score changes take them to the scores
   after it.
+* `ReplayLog` is the one collector of a game's replay records, kept by the session and used alike by
+  the fixture generator and the replay and Tenhou tests, so what they record is what the server
+  saves.
 
 ## Session
 
@@ -281,6 +285,21 @@ writes what each named seat's client met, the game client's end-to-end pin of th
   seed's.
 * A transcript is the JSON the Python generator wrote (one event per line, keys sorted, Python's
   number and string forms), so the client reads either.
+
+## Replay fixtures
+
+`cmd/fixtures` also writes the replay files the game client's replay tests and storybook read.
+
+* A replay scenario plays the engine directly, one engine call at a time, and records each call
+  through `messaging.ReplayLog` as the session would: absent seats' seat control records between
+  the deal and the dealer's draw, an AI player's seat answered from its decision's default at once
+  in the awaited order, and a leave or a return as its own record. A staged game stages its first
+  round and deals every later one from the seed as the seat scenarios do; the other games are dealt
+  from their seed and played to their end by a fixed policy, the default action or the eager one
+  that wins whenever offered and otherwise discards towards ready by `engine.Shanten`.
+* Each replay must end in the outcome its scenario names and reproduce its game through
+  `internal/replay` from the same setup before it is written; a cut falls between engine calls, as
+  the server saves only between steps, and must still load and run.
 
 ## Security requirements
 

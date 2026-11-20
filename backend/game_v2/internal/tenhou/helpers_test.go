@@ -144,58 +144,21 @@ func playedReplay(t *testing.T, setup engine.Setup, actions []replay.SeatAction)
 
 func recordedReplay(t *testing.T, seed engine.Seed, steps []replay.Step) []byte {
 	t.Helper()
-	records := []wire.Map{wire.VersionRecord()}
-	liveTiles := 0
+	log := messaging.NewReplayLog(seed, testRoster)
 	for _, step := range steps {
-		table := messaging.Table{Roster: testRoster, Record: step.Game.View(tile.Seats()[0]).Record}
-		var dealt []play.RoundStarted
-		flush := func() {
-			if len(dealt) > 0 {
-				records = append(records, messaging.ReplayRoundStartedPayload(dealt))
-				liveTiles = dealt[0].LiveTiles
-				dealt = nil
-			}
+		table := func() messaging.Table {
+			return messaging.Table{Roster: testRoster, Record: step.Game.View(tile.Seats()[0]).Record}
 		}
-
-		for _, emitted := range step.Events {
-			if e, isDeal := emitted.Event.(play.RoundStarted); isDeal {
-				dealt = append(dealt, e)
-				continue
-			}
-			flush()
-			record, kept := recordOf(t, emitted.Event, table, seed, &liveTiles)
-			if kept {
-				records = append(records, record)
-			}
+		if err := log.Collect(step.Events, table); err != nil {
+			t.Fatalf("Collect error = %v", err)
 		}
-		flush()
 	}
 
-	content, err := wire.EncodeReplay(records)
+	content, err := wire.EncodeReplay(append([]wire.Map{wire.VersionRecord()}, log.Records()...))
 	if err != nil {
 		t.Fatalf("EncodeReplay error = %v", err)
 	}
 	return content
-}
-
-func recordOf(t *testing.T, event play.Event, table messaging.Table, seed engine.Seed, liveTiles *int) (wire.Map, bool) {
-	t.Helper()
-	switch e := event.(type) {
-	case play.GameStarted:
-		return messaging.ReplayGameStartedPayload(e, testRoster, seed), true
-	case play.Drew:
-		*liveTiles = max(0, *liveTiles-1)
-		return messaging.ReplayDrawPayload(e, *liveTiles), true
-	case play.DrewNotice, play.FuritenChanged, play.RoundStarted:
-		return nil, false
-	case play.Discarded, play.RiichiDeposited, play.Called, play.PaoAssigned, play.DoraRevealed, play.RoundEnded,
-		play.GameEnded:
-	}
-	record, err := messaging.EventPayload(event, table)
-	if err != nil {
-		t.Fatalf("EventPayload(%+v) error = %v", event, err)
-	}
-	return record, true
 }
 
 func converted(t *testing.T, content []byte) string {

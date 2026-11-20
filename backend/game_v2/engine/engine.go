@@ -10,7 +10,8 @@
 // game.
 //
 // A game's randomness comes from a seed by the shake256-v1 scheme, whose functions are exposed for
-// the tools that sample it: each round's wall and dice, the first dealer and the seating.
+// the tools that sample it: each round's wall and dice, the first dealer and the seating. Shanten
+// is exposed for the tools that play by a policy.
 package engine
 
 import (
@@ -20,6 +21,7 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/record"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rng"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/rules"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/internal/shanten"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
@@ -188,6 +190,13 @@ func FirstDealer(seed Seed) (dealer tile.Seat, first, second tile.Dice) {
 // seat it lists, and so on.
 func SeatPermutation(seed Seed) [tile.SeatCount]tile.Seat {
 	return rng.SeatPermutation(seed)
+}
+
+// Shanten returns how many tiles a closed hand is from ready, -1 once complete: the lowest over the
+// regular, chiitoitsu and kokushi shapes, the last two counted only for a hand of 13 or 14 tiles.
+// It returns an error for a tile count no hand holds: over 14, or a multiple of 3.
+func Shanten(hand tile.Counts) (int, error) {
+	return shanten.Lowest(hand)
 }
 
 // InvalidWallError reports a fixed wall that does not hold every tile id exactly once; it wraps

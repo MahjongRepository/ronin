@@ -100,7 +100,7 @@ func (e env) play(
 			return nil, errors.Join(playErr, closeErr)
 		}
 
-		if s.err != nil || fillersMatch(setup, dealt) {
+		if s.err != nil || fillersMatch(setup.rounds, setup.start, setup.dealers, dealt) {
 			return transcripts, playErr
 		}
 		setup.dealers = dealt
@@ -108,11 +108,13 @@ func (e env) play(
 	return nil, fmt.Errorf("%s: the seed's later rounds found no dealers in %d passes", setup.gameID, maxDealerPasses)
 }
 
-func fillersMatch(setup gameSetup, dealt fillerDealers) bool {
-	first := firstFillerRound(setup.rounds, setup.start)
-	lastStaged := setup.rounds[len(setup.rounds)-1].dealer
+func fillersMatch(
+	rounds []stagedWall, start play.Option[play.StartPosition], planned, dealt fillerDealers,
+) bool {
+	first := firstFillerRound(rounds, start)
+	lastStaged := rounds[len(rounds)-1].dealer
 	for roundNumber, dealer := range dealt {
-		if roundNumber >= first && setup.dealers.of(roundNumber, lastStaged) != dealer {
+		if roundNumber >= first && planned.of(roundNumber, lastStaged) != dealer {
 			return false
 		}
 	}

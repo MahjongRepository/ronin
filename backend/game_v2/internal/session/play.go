@@ -253,7 +253,7 @@ func gameResult(events []play.Emitted, table func() messaging.Table) (store.Resu
 
 func (g *game) sendEvents(events []play.Emitted, openings []messaging.Opening, table func() messaging.Table) error {
 	if g.replay != nil {
-		err := g.replay.collect(events, table)
+		err := g.replay.Collect(events, table)
 		if err != nil {
 			return err
 		}

@@ -278,7 +278,7 @@ func (g *game) handOver(p *participant, standIn play.Option[wire.SeatControlReas
 		g.m.stats.aiReplacements.Add(1)
 	}
 	if g.replay != nil {
-		g.replay.records = append(g.replay.records, messaging.ReplaySeatControlPayload(p.seat, standIn))
+		g.replay.AddSeatControl(p.seat, standIn)
 	}
 	return g.broadcastTo(g.othersThan(p), messaging.SeatControl(p.seat, standIn))
 }
