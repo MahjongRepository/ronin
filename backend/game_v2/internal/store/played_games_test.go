@@ -155,7 +155,7 @@ func TestOpen_WhenThePathHoldsAQueryMark_ShouldRefuseIt(t *testing.T) {
 	}
 }
 
-func TestDB_WhenPlayingThePythonFixtureGames_ShouldWriteThePythonRows(t *testing.T) {
+func TestDB_WhenPlayingThePythonFixtureGames_ShouldWriteThePythonRowsMarkedInTenths(t *testing.T) {
 	content, err := os.ReadFile(pythonRowsPath)
 	if err != nil {
 		t.Fatalf("read %s: %v", pythonRowsPath, err)
@@ -197,8 +197,10 @@ func TestDB_WhenPlayingThePythonFixtureGames_ShouldWriteThePythonRows(t *testing
 
 	rows := readRows(t, path)
 	for _, f := range fixtures {
-		if diff := cmp.Diff(f.Row, rows[f.Row.ID]); diff != "" {
-			t.Errorf("%s: row differs from Python's (-python +go):\n%s", f.Name, diff)
+		want := f.Row
+		want.Data = strings.TrimSuffix(want.Data, "}") + `,"final_score_unit":"tenths"}`
+		if diff := cmp.Diff(want, rows[f.Row.ID]); diff != "" {
+			t.Errorf("%s: row differs from Python's marked in tenths (-python +go):\n%s", f.Name, diff)
 		}
 	}
 }

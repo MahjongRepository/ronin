@@ -14,7 +14,8 @@ lobby (`internal/store`), its credentials (`internal/auth`), the transport servi
 routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`), the
 replay runner (`internal/replay`) with the Go replay check (`cmd/verify`), the Tenhou export
 (`internal/tenhou`), the generator of the game client's seat transcripts and replay fixtures
-(`cmd/fixtures`), and the wall measurement (`cmd/measurewall`).
+(`cmd/fixtures`), the wall measurement (`cmd/measurewall`), and the one-off migration of the Python
+server's data (`internal/migrate`, `cmd/migrate`).
 
 ## The seam
 
@@ -62,13 +63,16 @@ along the module graph of mahjong-rs, the port's reference, and never `engine`.
 `store`, the server alone `auth`, and neither imports anything of the module. `internal/replay` sits
 beside `messaging` over the wire: it reads replays for the tools, so the live path never imports it.
 `internal/tenhou` sits there too, under the server, which answers the export route with it.
+`internal/migrate` sits beside them for `cmd/migrate` alone: it reads old replays through the wire,
+checks each rewrite with the Tenhou export and writes through the store, and nothing on the live path
+imports it.
 
 Each server package's imports of the module are a depguard rule in `.golangci.yml`: `wire` imports
 only `engine`, `engine/play` and `engine/tile`, `messaging` those and `wire`, `session` those,
 `messaging` and `store` (never the replay runner), `server` the session, messaging, wire, store,
 auth and tenhou but of the engine only `engine/play` and `engine/tile`, `store` and `auth` nothing,
 `replay` only the wire and the engine's public packages, `tenhou` only the wire and the seam types,
-and each layer added later gets its own. Each
+`migrate` the wire, tenhou, store and the seam types, and each layer added later gets its own. Each
 `cmd/*` is its own composition root: its `main` is the only place that reads that binary's flags,
 environment and signals and wires the parts it uses, so a tool beside the server builds what it
 needs without going through `cmd/gameserver`.
@@ -94,7 +98,8 @@ a contract.
 * `internal/wire/testdata/` holds the goldens a Go test owns (`go test ./internal/wire -update`
   rewrites their bytes and key names from their payloads; review the diff), the `0.4-dev` replays
   that are the one home of the old-format inputs (`legacy/`), and the expected output of rewriting
-  them (`rewritten/`), which the one-off migration must produce byte for byte.
+  them (`rewritten/`), which `internal/migrate` produces byte for byte (its tests' `-update` writes
+  them; review the diff).
 
 ## Messaging
 
@@ -316,6 +321,25 @@ facade's seed functions.
 * `make profile SERVER=go` profiles `BenchmarkRun_FullGame` (`internal/replay`), the replay of the
   client's Go full game fixture; `make profile-games SERVER=go` runs `cmd/gameserver -cpuprofile`.
 
+## Migration
+
+`cmd/migrate` is run once, by hand, with both servers stopped: it rewrites every stored `0.4-dev`
+replay into the current version and converts every `played_games` row's final scores to tenths.
+
+* A rewritten replay is the game as it was played and scored: it keeps rules profile 1 and every record
+  the new format did not reshape keeps its bytes. What the rewrite adds is derived from the old records
+  and checked against them: a robbed kan's meld goes right after the declarer's last record, ahead of
+  any seat control line, and pao is assigned by the call rule both servers apply, which must agree with
+  every win's pao seat.
+* Lossless or untouched: a record or field `0.4-dev` never held, records that contradict what the
+  rewrite derives, a rewrite the codec refuses, or one of an ended game that converts to no Tenhou log
+  leaves the file as it was and fails the run. A replay cut inside a record is the one partial rewrite:
+  its records before the cut, counted apart.
+* Idempotent by construction: a replay at the current version is skipped, and a row is converted only
+  while it lacks the tenths marker, which every row Go writes carries, so no row is multiplied twice
+  whatever order the runs and the server take. The rows convert in one transaction, and a dry run rolls
+  it back and writes no replay.
+
 ## Security requirements
 
 Mandatory for all server-side code; review must catch violations.
@@ -361,7 +385,9 @@ Python server's formats.
   its WAL and SHM siblings to 0600. A row's time columns are Python's `isoformat()` (`+00:00`,
   microseconds only when nonzero), the same instants in `data` end in `Z`, and `data` is the JSON
   the lobby's `PlayedGame` validates: seat order at the start, placement order at a completed end.
-  `testdata/python_rows.json` holds rows Python wrote, and Go must write them byte for byte.
+  `testdata/python_rows.json` holds rows Python wrote, and Go must write them byte for byte but for
+  `final_score_unit`: every row Go writes ends with that key (`store.FinalScoreUnit`), its final scores
+  in tenths. A row without it holds the Python server's whole points until the migration converts it.
 * Replay files keep their layout, gzip, owner-only modes and 1 MiB read cap; every path goes
   through an `os.Root`, so no id or link leaves the replay directory.
 * A ticket verifies only as the lobby signs one: padded base64url (padding required, the URL

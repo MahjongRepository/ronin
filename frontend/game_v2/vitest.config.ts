@@ -11,6 +11,14 @@ export default defineConfig({
         },
         dedupe: ["lit-html"],
     },
+    server: {
+        fs: {
+            allow: [
+                resolve(import.meta.dirname, ".."),
+                resolve(import.meta.dirname, "../../backend/game_v2/internal/wire/testdata"),
+            ],
+        },
+    },
     test: {
         coverage: {
             include: ["src/**/*.ts"],

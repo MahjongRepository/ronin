@@ -111,6 +111,25 @@ func EncodeReplay(records []Map) ([]byte, error) {
 // record it cannot read comes back as a ReplayError; a first record of another version as one
 // wrapping an UnsupportedVersionError.
 func DecodeReplay(content []byte) ([]Map, error) {
+	records, err := decodeRecords(content, validateRecord)
+	if err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+// DecodeRecords reads the records of a replay of any version, 0.4-dev included: each a map of
+// replay keys, read with DecodeReplay's limits, holding no float and binary data only as a seed,
+// with neither the version record nor the record schema checked. A record it cannot read ends the
+// read, and the records before it come back with the ReplayError; content above MaxReplayBytes is
+// ErrReplayTooLarge, and content with no record ErrNoVersionRecord.
+func DecodeRecords(content []byte) ([]Map, error) {
+	return decodeRecords(content, func(record Map, _ int) error {
+		return replayProfile.validate(record, 0)
+	})
+}
+
+func decodeRecords(content []byte, check func(record Map, position int) error) ([]Map, error) {
 	if len(content) > MaxReplayBytes {
 		return nil, ErrReplayTooLarge
 	}
@@ -121,10 +140,10 @@ func DecodeReplay(content []byte) ([]Map, error) {
 		start := d.pos
 		record, err := d.record()
 		if err == nil {
-			err = validateRecord(record, len(records)+1)
+			err = check(record, len(records)+1)
 		}
 		if err != nil {
-			return nil, ReplayError{
+			return records, ReplayError{
 				Record:     len(records) + 1,
 				Offset:     start,
 				Incomplete: errors.Is(err, errTruncated),

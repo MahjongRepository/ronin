@@ -10,6 +10,8 @@ import (
 	"testing"
 )
 
+const legacyChankanAddedPath = "testdata/legacy/chankan_added.msgpack"
+
 func record(fields ...Field) Map {
 	return Map(fields)
 }
@@ -310,6 +312,45 @@ func TestDecodeReplay_WhenTheContentEndsInsideARecord_ShouldReportItIncompleteWh
 			t.Errorf("DecodeReplay(complete + %x) = %v; want record %d incomplete at byte %d", tail, err, want, len(complete))
 		}
 	}
+}
+
+func TestDecodeRecords_WhenTheReplayIsOfVersion04Dev_ShouldReadEveryRecord(t *testing.T) {
+	content, err := os.ReadFile(legacyChankanAddedPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", legacyChankanAddedPath, err)
+	}
+
+	records, err := DecodeRecords(content)
+
+	if err != nil || len(records) != 15 || !reflect.DeepEqual(records[0], Map{{Key: KeyReplayVersion, Value: Str("0.4-dev")}}) {
+		t.Fatalf("DecodeRecords(legacy) = %d records, first %v, error %v; want 15 from the 0.4-dev version record", len(records), records[:1], err)
+	}
+	if got := appendRecords(records); !bytes.Equal(got, content) {
+		t.Errorf("records re-encode to %x, want the file's bytes %x", got, content)
+	}
+}
+
+func TestDecodeRecords_WhenTheContentEndsInsideARecord_ShouldReturnTheRecordsBeforeIt(t *testing.T) {
+	complete, err := EncodeReplay(everyShapeRecords())
+	if err != nil {
+		t.Fatalf("EncodeReplay: %v", err)
+	}
+
+	records, err := DecodeRecords(append(bytes.Clone(complete), 0x81, 0x01))
+
+	replayErr, isType := errors.AsType[ReplayError](err)
+	if !isType || !replayErr.Incomplete || replayErr.Offset != len(complete) ||
+		!reflect.DeepEqual(records, everyShapeRecords()) {
+		t.Errorf("DecodeRecords(complete + cut) = %d records, %v; want every complete record and the cut one incomplete", len(records), err)
+	}
+}
+
+func appendRecords(records []Map) []byte {
+	var content []byte
+	for _, record := range records {
+		content = appendValue(content, record)
+	}
+	return content
 }
 
 func TestDecodeReplay_WhenARecordIsMalformed_ShouldReportItsPosition(t *testing.T) {

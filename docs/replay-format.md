@@ -34,6 +34,13 @@ Against `0.4-dev`, the records differ in these shapes:
 * `PAO_ASSIGNED` (event 14) follows the call that makes a seat liable;
 * a standing's `FINAL_SCORE` is the uma/oka-adjusted result in whole tenths of a point, unrounded.
 
+`backend/game_v2/cmd/migrate` rewrites every stored `0.4-dev` replay into this version once, keeping
+profile 1 and the game as it was scored: the old whole-point `FINAL_SCORE` times ten, no `SHOWN_HANDS` on
+an abort, a robbed kan's meld (a pon raised by the robbed tile, or the four copies of a robbed closed kan)
+right after the declarer's last record, and `PAO_ASSIGNED` after the pon or open kan that completed a
+seat's third dragon or fourth wind from another seat's discard, checked against each win's pao seat. A
+replay it cannot carry over whole is left as it was and reported.
+
 `gs` contains an integer profile `id` and an empty `overrides` map. The Go server plays one rules preset,
 profile 2, and records `{"id": 2, "overrides": {}}`; a replay rewritten from `0.4-dev` keeps profile 1,
 the rules it was played under, so the two are told apart. The Go reader accepts those two IDs only, and

@@ -117,6 +117,20 @@ linters:
           deny:
             - pkg: github.com/MahjongRepository/ronin/backend/game_v2
               desc: tenhou sits beside messaging over the wire and never runs the engine, so it imports only the wire and the engine's seam types of the module
+        migrate-layer:
+          list-mode: lax
+          files:
+            - "**/game_v2/internal/migrate/**"
+            - "!$test"
+          allow:
+            - github.com/MahjongRepository/ronin/backend/game_v2/engine/play$
+            - github.com/MahjongRepository/ronin/backend/game_v2/engine/tile$
+            - github.com/MahjongRepository/ronin/backend/game_v2/internal/wire$
+            - github.com/MahjongRepository/ronin/backend/game_v2/internal/tenhou$
+            - github.com/MahjongRepository/ronin/backend/game_v2/internal/store$
+          deny:
+            - pkg: github.com/MahjongRepository/ronin/backend/game_v2
+              desc: migrate is the one-off tool's logic beside the replay tools over the wire, so it reads the old data through the wire and the store and checks it with the Tenhou export, never the engine, messaging, the session or the server
         session-layer:
           list-mode: lax
           files:

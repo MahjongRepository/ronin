@@ -56,14 +56,19 @@ const (
 		"WHERE played_games.ended_at IS NULL"
 )
 
+// FinalScoreUnit marks a row's `data` as holding final scores in tenths: every row this package
+// writes ends with it, and a row without it holds the Python server's whole points.
+const FinalScoreUnit = "tenths"
+
 type playedGameJSON struct {
-	GameID       string         `json:"game_id"`
-	StartedAt    string         `json:"started_at"`
-	EndedAt      *string        `json:"ended_at"`
-	EndReason    *endReason     `json:"end_reason"`
-	GameType     string         `json:"game_type"`
-	RoundsPlayed *int           `json:"num_rounds_played"`
-	Standings    []standingJSON `json:"standings"`
+	GameID         string         `json:"game_id"`
+	StartedAt      string         `json:"started_at"`
+	EndedAt        *string        `json:"ended_at"`
+	EndReason      *endReason     `json:"end_reason"`
+	GameType       string         `json:"game_type"`
+	RoundsPlayed   *int           `json:"num_rounds_played"`
+	Standings      []standingJSON `json:"standings"`
+	FinalScoreUnit string         `json:"final_score_unit,omitempty"`
 }
 
 type standingJSON struct {
@@ -165,22 +170,26 @@ func seatOrderStandings(start GameStart) []standingJSON {
 
 func playedGameData(start GameStart, end *finish, roundsPlayed *int, standings []standingJSON) (string, error) {
 	game := playedGameJSON{
-		GameID:       start.GameID,
-		StartedAt:    jsonTime(start.StartedAt),
-		GameType:     start.GameType,
-		RoundsPlayed: roundsPlayed,
-		Standings:    standings,
+		GameID:         start.GameID,
+		StartedAt:      jsonTime(start.StartedAt),
+		GameType:       start.GameType,
+		RoundsPlayed:   roundsPlayed,
+		Standings:      standings,
+		FinalScoreUnit: FinalScoreUnit,
 	}
 	if end != nil {
 		game.EndedAt, game.EndReason = new(jsonTime(end.endedAt)), &end.reason
 	}
+	return encodeGame(game)
+}
 
+func encodeGame(game playedGameJSON) (string, error) {
 	var data bytes.Buffer
 	encoder := json.NewEncoder(&data)
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(game)
 	if err != nil {
-		return "", fmt.Errorf("encode game %s: %w", start.GameID, err)
+		return "", fmt.Errorf("encode game %s: %w", game.GameID, err)
 	}
 	return string(bytes.TrimSuffix(data.Bytes(), []byte("\n"))), nil
 }
