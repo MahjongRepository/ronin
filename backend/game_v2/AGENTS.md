@@ -22,11 +22,11 @@ The module is two sides, a server and an engine, and the engine is reachable onl
 
 * `engine/` is the engine's only public API. The rules live under `engine/internal/`, which the Go
   compiler lets nothing outside `engine/` import, so the server side cannot reach past the facade.
-  The facade holds no rule of its own: it wraps `game`, the seed functions of `rng`, the round a seed's
-  wall deals and the lowest shanten the tools' play policies rank by, and re-exports as type aliases the seed and error
-  types a caller builds or matches. No slice it returns shares a backing array with the game, so a
-  caller may write into anything it gets; the facade copies what the layer below shares, and a
-  seam test writes into every returned slice to hold that.
+  The facade holds no rule of its own: it wraps `game`, the seed functions of `rng`, the round a
+  seed's wall deals and the lowest shanten the tools' play policies rank by, and re-exports as type
+  aliases the seed and error types a caller builds or matches. No slice it returns shares a backing
+  array with the game, so a caller may write into anything it gets; the facade copies what the layer
+  below shares, and a seam test writes into every returned slice to hold that.
 * The compiler does not stop the opposite direction, so lint rules in `.golangci.yml`, run by
   `make lint-go`, hold it: see Engine purity.
 * `engine/tile` is the public vocabulary under the facade: tile kinds, hand tiles, tile ids, winds,

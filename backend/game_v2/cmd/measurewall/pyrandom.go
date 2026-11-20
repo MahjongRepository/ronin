@@ -97,6 +97,7 @@ func (r *pythonRandom) regenerate() {
 		}
 		r.state[k] = next
 	}
+
 	r.index = 0
 }
 
@@ -106,6 +107,7 @@ func (r *pythonRandom) uint32() uint32 {
 	}
 	y := r.state[r.index]
 	r.index++
+
 	y ^= y >> 11
 	y ^= (y << 7) & 0x9d2c5680
 	y ^= (y << 15) & 0xefc60000

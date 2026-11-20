@@ -87,7 +87,7 @@ func sampleRound(seed engine.Seed, roundNumber, dealer int) roundSample {
 
 func checkRound(s roundSample) error {
 	where := "round " + strconv.Itoa(s.roundNumber)
-	if !isEveryID(slices.Clone(s.permutation[:])) {
+	if !isEveryID(s.permutation[:]) {
 		return errors.New(where + ": the permutation is not the 136 tile ids")
 	}
 
@@ -111,8 +111,7 @@ func checkRound(s roundSample) error {
 }
 
 func isEveryID(ids []int) bool {
-	slices.Sort(ids)
-	return slices.Equal(ids, identity(tile.TileIDCount))
+	return slices.Equal(slices.Sorted(slices.Values(ids)), identity(tile.TileIDCount))
 }
 
 func indexes(ids []tile.TileID) []int {

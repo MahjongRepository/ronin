@@ -312,10 +312,12 @@ func (m *measurement) comparisons() []comparison {
 func (m *measurement) observeSeating(game gameSample) {
 	m.seatPermutation.add(0, seatPermutationIndex(game.seats))
 	m.seatPermutation.trials++
+
 	m.firstDealer.add(0, game.firstDealer)
 	m.firstDealer.trials++
 	m.dealerInputIndex.add(0, slices.Index(game.seats[:], game.firstDealer))
 	m.dealerInputIndex.trials++
+
 	for row, face := range []int{game.firstRoll.First, game.firstRoll.Second, game.secondRoll.First, game.secondRoll.Second} {
 		m.dealerFaces.add(row, face-1)
 	}
@@ -394,8 +396,10 @@ func (m *measurement) observeDice(sample roundSample) {
 	m.breakFaces.add(0, first-1)
 	m.breakFaces.add(1, second-1)
 	m.breakFaces.trials++
+
 	m.breakPairs.add(0, (first-1)*dieFaces+(second-1))
 	m.breakPairs.trials++
+
 	m.breakSums.add(0, first+second-lowestSum)
 	m.breakSums.trials++
 }

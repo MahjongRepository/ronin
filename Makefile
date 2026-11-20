@@ -98,7 +98,9 @@ profile-games:
 
 measure-wall:
 ifeq ($(SERVER),go)
-	cd backend/game_v2 && go run ./cmd/measurewall $(MEASURE_ARGS)
+	@bin_dir=$$(mktemp -d) && trap 'rm -rf "$$bin_dir"' EXIT && \
+		go build -C backend/game_v2 -o "$$bin_dir/measurewall" ./cmd/measurewall && \
+		cd backend && "$$bin_dir/measurewall" $(MEASURE_ARGS)
 else
 	cd backend && uv run python -m scripts.measure_wall $(MEASURE_ARGS)
 endif

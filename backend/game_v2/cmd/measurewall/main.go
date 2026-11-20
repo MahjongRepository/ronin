@@ -88,6 +88,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 func parseOptions(args []string, stderr io.Writer) (options, error) {
 	flags := flag.NewFlagSet("measurewall", flag.ContinueOnError)
 	flags.SetOutput(stderr)
+
 	var opts options
 	flags.IntVar(&opts.games, "games", defaultGames, "games to sample")
 	flags.IntVar(&opts.rounds, "rounds", defaultRounds, "rounds (walls) per game")
@@ -98,6 +99,7 @@ func parseOptions(args []string, stderr io.Writer) (options, error) {
 	if err != nil {
 		return options{}, err
 	}
+
 	if flags.NArg() > 0 {
 		err = fmt.Errorf("unexpected arguments: %v", flags.Args())
 	}

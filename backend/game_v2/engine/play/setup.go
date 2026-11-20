@@ -39,8 +39,10 @@ type StartPosition struct {
 }
 
 // RoundDeal is one round as its seed breaks and deals it, for the tools that sample the seed: the
-// live wall in draw order and the dead wall's 14 tiles, both as they lie before the deal, the first
-// dora indicator, each seat's starting hand sorted by id, and the dealer's first draw.
+// live wall before the deal in draw order; the dead wall's 14 tiles, the 4 rinshan tiles in draw
+// order and then each of the 5 indicator stacks top then bottom (not the 7 tops then 7 bottoms of a
+// fixed wall); the first dora indicator; each seat's starting hand sorted by id; and the dealer's
+// first draw.
 type RoundDeal struct {
 	Live          []tile.TileID
 	DeadWall      []tile.TileID
