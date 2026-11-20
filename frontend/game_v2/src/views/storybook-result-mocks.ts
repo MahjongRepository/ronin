@@ -20,7 +20,7 @@ function yaku(yakuId: number, han: number): Readonly<Record<number, number>> {
  */
 const DOUBLE_RON_WIRE = {
     [WIRE_KEY.EVENT_TYPE]: 4,
-    [WIRE_KEY.RESULT_TYPE]: 2,
+    [WIRE_KEY.RESULT_TYPE]: 1,
     [WIRE_KEY.RIICHI_STICKS]: 0,
     [WIRE_KEY.DEALER]: 1,
     [WIRE_KEY.DORA_INDICATORS]: [98],
@@ -66,19 +66,20 @@ const DOUBLE_RON_WIRE = {
 /** The double ron story's table: South 2 with one honba, its scores and payments a real game's. */
 export function realisticDoubleRon(): RoundEndTable {
     const event = parseRoundEnd(DOUBLE_RON_WIRE);
+    const players = NAMES.map((name, seat) =>
+        createInitialPlayerState({
+            isAiPlayer: false,
+            name,
+            score: seatEntry(event.scores, seat),
+            seat,
+        }),
+    );
     return {
         firstDealerSeat: 0,
         honbaSticks: 1,
         inStep: true,
-        players: NAMES.map((name, seat) =>
-            createInitialPlayerState({
-                isAiPlayer: false,
-                name,
-                score: seatEntry(event.scores, seat),
-                seat,
-            }),
-        ),
-        result: extractRoundEndResult(event, { riichiStickValue: 1000 }),
+        players,
+        result: extractRoundEndResult(event, { players, riichiStickValue: 1000 }),
         roundInWind: 2,
         roundWind: 1,
     };

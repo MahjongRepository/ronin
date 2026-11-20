@@ -7,6 +7,7 @@ import {
     type HandLimit,
     NUM_PLAYERS,
     PLAYER_ACTION,
+    WIRE_FINAL_SCORE_DIVISOR,
     WIRE_SCORE_DIVISOR,
 } from "@/shared/protocol/constants";
 import { decodeDiscard } from "@/shared/protocol/decoders/discard";
@@ -138,12 +139,12 @@ export const handResultSchema = z.pipe(
 
 const playerStandingSchema = z.pipe(
     z.object({
-        [WIRE_KEY.FINAL_SCORE]: z.number(),
+        [WIRE_KEY.FINAL_SCORE]: z.int(),
         [WIRE_KEY.SEAT]: seatSchema,
         [WIRE_KEY.SCORE]: z.number(),
     }),
     z.transform((raw) => ({
-        finalScore: raw[WIRE_KEY.FINAL_SCORE],
+        finalScore: raw[WIRE_KEY.FINAL_SCORE] / WIRE_FINAL_SCORE_DIVISOR,
         score: raw[WIRE_KEY.SCORE] * WIRE_SCORE_DIVISOR,
         seat: raw[WIRE_KEY.SEAT],
     })),
@@ -341,6 +342,20 @@ export const riichiDeclaredSchema = z.pipe(
         score: raw[WIRE_KEY.SCORE] * WIRE_SCORE_DIVISOR,
         seat: raw[WIRE_KEY.SEAT],
         type: "riichi_declared" as const,
+    })),
+);
+
+/** A call that made a seat liable (`WIRE_KEY.PAO_SEAT`) for the yakuman of the seat that called it (`WIRE_KEY.SEAT`). */
+export const paoAssignedSchema = z.pipe(
+    z.object({
+        [WIRE_KEY.PAO_SEAT]: seatSchema,
+        [WIRE_KEY.SEAT]: seatSchema,
+        [WIRE_KEY.EVENT_TYPE]: z.literal(EVENT_TYPE.PAO_ASSIGNED),
+    }),
+    z.transform((raw) => ({
+        liableSeat: raw[WIRE_KEY.PAO_SEAT],
+        seat: raw[WIRE_KEY.SEAT],
+        type: "pao_assigned" as const,
     })),
 );
 

@@ -1,4 +1,3 @@
-import { type KanDeclaredEvent } from "@/entities/table";
 import { type ReplayLine } from "@/shared/protocol";
 
 import { traceLiveClient } from "./dispatch";
@@ -16,16 +15,15 @@ import {
  */
 export interface TimelineEntry<State extends GameClientState = GameClientState> {
     readonly event: ClientEvent;
-    readonly parsed: ReplayLine | KanDeclaredEvent | null;
+    readonly parsed: ReplayLine | null;
     readonly state: State;
     readonly effects: readonly ClientEffect[];
 }
 
 /**
- * The client states a sequence of events yields, from any source: an entry per event, but one per part of an event
- * the dispatcher takes in parts (a replay's round end that robbed a kan: the kan declared, then the result). Stepping
- * back selects an earlier state, never an inverse event; nothing here executes an effect, so revisiting a state sends
- * nothing and arms no timer.
+ * The client states a sequence of events yields, from any source: an entry per event. Stepping back selects an earlier
+ * state, never an inverse event; nothing here executes an effect, so revisiting a state sends nothing and arms no
+ * timer.
  */
 export interface ClientTimeline<State extends GameClientState = GameClientState> {
     readonly start: State;

@@ -12,7 +12,7 @@ import {
 import { MAX_WIRE_BYTES } from "@/shared/protocol/wire-codec";
 
 // eslint-disable-next-line import/no-relative-parent-imports -- Shared backend golden pins the cross-language wire contract.
-import golden from "../../../../../backend/game/tests/fixtures/live-protocol-golden.json";
+import golden from "../../../../../backend/game_v2/internal/wire/testdata/live-protocol-golden.json";
 
 function fromHex(hex: string): Uint8Array<ArrayBuffer> {
     return Uint8Array.from(hex.match(/../g) ?? [], (byte) => Number.parseInt(byte, 16));

@@ -42,9 +42,9 @@ Ronin is a Riichi Mahjong game server and browser client.
 
 The `Makefile` lists the targets; the non-obvious ones:
 
-* `make run-local-server` — game server (`:8711`), lobby (`:8710`) and a Vite dev server per
-  frontend app (`:5173` lobby, `:5175` game client) together,
-  with `.env.local` sourced when present. To see the app in a browser, drive it with the
+* `make run-local-server` — the Go game server (`:8712`, built from `backend/game_v2`), lobby (`:8710`)
+  and a Vite dev server per frontend app (`:5173` lobby, `:5175` game client) together, with
+  `.env.local` sourced when present. To see the app in a browser, drive it with the
   `agent-browser` skill plus this project's `app-browser` skill (`.claude/skills/app-browser/`).
 * `make test` — backend pytest with its coverage gate (`backend/AGENTS.md`, Tooling).
 * `make profile` — profile the game engine replay runner (the `optimize-engine` skill uses it).
@@ -71,13 +71,11 @@ The `Makefile` lists the targets; the non-obvious ones:
 * `make measure-wall [MEASURE_ARGS=...]` — sample games from the engine's seed, dealer and wall functions and
   report their statistics against exact references and a stdlib-shuffle control (`backend/scripts/measure_wall/`).
   A structural failure exits 1; a statistical warning is printed, never a gate.
-* `make generate-replay-fixtures` — regenerate the v2 game client's replay test fixtures by playing
-  the scenarios of `backend/scripts/replay_fixtures/` through the engine; `make replay-fixtures-check`
-  (a `run-all-checks` gate) fails when a committed fixture no longer matches what the engine records.
-* `make generate-seat-scenarios` — regenerate the v2 game client's seat transcripts by playing the
-  scenarios of `backend/scripts/seat_scenarios/` through the real session manager and router on virtual
-  time; `make seat-scenarios-check` (a `run-all-checks` gate) fails when a committed transcript no
-  longer matches what the server sends a seat.
+* `make generate-fixtures` — regenerate the v2 game client's replay fixtures and seat transcripts from
+  the Go server's `cmd/fixtures` (`backend/game_v2/AGENTS.md`, Seat transcripts and Replay fixtures):
+  the replay scenarios played through the engine, the seat scenarios through the real session and
+  router on virtual time. `make fixtures-check` (a `run-all-checks` gate) fails when a committed file
+  no longer matches what the Go server records or sends a seat.
 * `make run-all-checks` — every gate in order, stopping at the first failure. It **rewrites files**
   (it runs every formatter) and **always exits 0**, so success is only the final
   `All checks are good` line; a failure prints `❌ CHECK FAILED` with the failing gate's output.

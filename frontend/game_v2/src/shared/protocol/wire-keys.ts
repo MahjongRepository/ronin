@@ -91,6 +91,7 @@ export const WIRE_KEY = {
     SESSION_ERROR_CODE: 80,
     SESSION_ERROR_MESSAGE: 92,
     SESSION_TYPE: 108,
+    SHOWN_HANDS: 110,
     STANDINGS: 56,
     STAND_IN_REASON: 104,
     TENPAI_HANDS: 58,
@@ -127,5 +128,7 @@ export const LIVE_WIRE_KEYS: ReadonlySet<number> = new Set(
 );
 
 export const REPLAY_WIRE_KEYS: ReadonlySet<number> = new Set(
-    Object.values(WIRE_KEY).filter((id) => id <= WIRE_KEY.YAKU_YAKUMAN_COUNT),
+    Object.values(WIRE_KEY).filter(
+        (id) => id <= WIRE_KEY.YAKU_YAKUMAN_COUNT || id === WIRE_KEY.SHOWN_HANDS,
+    ),
 );

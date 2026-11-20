@@ -12,7 +12,6 @@ import {
 } from "@/shared/protocol";
 
 import { DesyncError } from "./desync-error";
-import { applyKanDeclared } from "./handlers/kan-declared";
 import { applyMeld } from "./handlers/meld";
 import { applyGameReconnected } from "./handlers/reconnect";
 import { applyRoundEnd } from "./handlers/round-end";
@@ -260,9 +259,9 @@ const PHASES_TAKING: Readonly<Record<TableEvent["type"], readonly OrderPhase[]>>
     game_reconnected: ANY_PHASE,
     game_started: ["unseated"],
     human_return: ANY_PHASE,
-    kan_declared: IN_ROUND,
     lost_step: ANY_PHASE,
     meld: IN_ROUND,
+    pao_assigned: IN_ROUND,
     riichi_declared: IN_ROUND,
     round_end: ["in_round", "out_of_step"],
     round_started: ["pre_game", "round_ended"],
@@ -277,7 +276,7 @@ function orderPhase(state: TableState): OrderPhase {
 
 /**
  * The table transition: the next table after one event, never changing the one it was given. An event outside the
- * phases that take it (`PHASES_TAKING`) throws a `DesyncError`, as do the draw, discard, meld and kan declaration
+ * phases that take it (`PHASES_TAKING`) throws a `DesyncError`, as do the draw, discard and meld
  * handlers on an impossible state (a missing tile, player or caller).
  */
 export function applyEvent(state: TableState, event: TableEvent): TableState {
@@ -304,8 +303,8 @@ export function applyEvent(state: TableState, event: TableEvent): TableState {
         case "meld": {
             return applyMeld(state, event);
         }
-        case "kan_declared": {
-            return applyKanDeclared(state, event);
+        case "pao_assigned": {
+            return state;
         }
         case "riichi_declared": {
             return applyRiichiDeclared(state, event);

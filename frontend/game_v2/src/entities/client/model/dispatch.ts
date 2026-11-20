@@ -12,11 +12,10 @@ import {
     type TableEvent,
     type TableState,
     applyEvent,
-    chankanKanDeclared,
     createInitialTableState,
 } from "@/entities/table";
 import { assertNever } from "@/shared/lib";
-import { CALL_TYPE, type ParsedServerMessage, parseServerMessage } from "@/shared/protocol";
+import { type ParsedServerMessage, parseServerMessage } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 
 import { callsAt, liveCalls } from "./calls";
@@ -105,10 +104,7 @@ function withSession(state: LiveClient, input: SessionInput): ClientStep<LiveCli
     };
 }
 
-/**
- * The table change a server message carries, or null for one that only speaks to the seat or the session. A chankan
- * prompt shows the kan it offers to rob as declared.
- */
+/** The table change a server message carries, or null for one that only speaks to the seat or the session. */
 function serverTableEvent(message: ParsedServerMessage): TableEvent | null {
     switch (message.type) {
         case "game_started":
@@ -117,6 +113,7 @@ function serverTableEvent(message: ParsedServerMessage): TableEvent | null {
         case "draw_notice":
         case "discard":
         case "meld":
+        case "pao_assigned":
         case "riichi_declared":
         case "dora_revealed":
         case "round_end":
@@ -126,9 +123,7 @@ function serverTableEvent(message: ParsedServerMessage): TableEvent | null {
         case "human_return": {
             return message;
         }
-        case "call_prompt": {
-            return message.callType === CALL_TYPE.CHANKAN ? chankanKanDeclared(message) : null;
-        }
+        case "call_prompt":
         case "turn":
         case "furiten":
         case "error":

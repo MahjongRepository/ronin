@@ -11,6 +11,7 @@ import {
     type gameEndSchema,
     type gameStartedSchema,
     type meldSchema,
+    type paoAssignedSchema,
     type riichiDeclaredSchema,
     type roundStartedSchema,
     type turnSchema,
@@ -30,6 +31,7 @@ export type MeldEvent = z.output<typeof meldSchema>;
 export type ClaimedMeldEvent = Exclude<MeldEvent, { meldType: "closed_kan" }>;
 export type RiichiDeclaredEvent = z.output<typeof riichiDeclaredSchema>;
 export type DoraRevealedEvent = z.output<typeof doraRevealedSchema>;
+export type PaoAssignedEvent = z.output<typeof paoAssignedSchema>;
 export type ErrorEvent = z.output<typeof errorEventSchema>;
 export type FuritenEvent = z.output<typeof furitenSchema>;
 export type GameEndEvent = z.output<typeof gameEndSchema>;
@@ -49,9 +51,7 @@ export type {
 
 export type {
     AbortiveDrawRoundEnd,
-    DoubleRonRoundEnd,
     ExhaustiveDrawRoundEnd,
-    NagashiManganRoundEnd,
     PaoLiability,
     RonRoundEnd,
     RoundEndEvent,

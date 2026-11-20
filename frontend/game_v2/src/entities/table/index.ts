@@ -9,9 +9,9 @@ export type {
     DrawResult,
     DrawKind,
     HandValue,
+    MeldRecord,
     GameEndResult,
     GamePhase,
-    KanDeclaredEvent,
 } from "./model/types";
 export { createInitialPlayerState, createInitialTableState } from "./model/initial-state";
 export { applyEvent } from "./model/apply-event";
@@ -19,7 +19,6 @@ export { DesyncError } from "./model/desync-error";
 export { ponOfType, seatEntry } from "./model/helpers";
 export { extractRoundEndResult, roundEndPages } from "./model/handlers/round-end";
 export type { RoundEndContext } from "./model/handlers/round-end";
-export { chankanKanDeclared, robbedKanDeclared } from "./model/handlers/kan-declared";
 export {
     isReplayEvent,
     isSeatControlLine,
@@ -63,7 +62,7 @@ export type {
 } from "./model/board-types";
 export { tableStateToDisplayState } from "./lib/board-mapper";
 export type { Call } from "./lib/callouts";
-export { CALLOUT_MS, boardCallouts, callsShownKan, eventCalls } from "./lib/callouts";
+export { CALLOUT_MS, boardCallouts, eventCalls } from "./lib/callouts";
 export { DISCARD_LANDING_MS } from "./lib/board-motion";
 export { RoundEndDisplay } from "./ui/round-end-display";
 export type { RoundEndDisplayProps } from "./ui/round-end-display";

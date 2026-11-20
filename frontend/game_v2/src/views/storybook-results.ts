@@ -1,11 +1,12 @@
 import {
+    type MeldRecord,
     type PlayerState,
     type RoundEndResult,
     createInitialPlayerState,
     extractRoundEndResult,
     seatEntry,
 } from "@/entities/table";
-import { WIRE_KEY, parseRoundEnd } from "@/shared/protocol";
+import { EVENT_TYPE, WIRE_KEY, parseReplayLine, parseRoundEnd } from "@/shared/protocol";
 
 interface ResultSource {
     /** The generated replay fixture (`src/fixtures/replays/`) whose round end this is. */
@@ -15,14 +16,17 @@ interface ResultSource {
     readonly names: readonly string[];
     /** The riichi stick value its fixture's recorded settings (`gs`) name. */
     readonly riichiStickValue: number;
+    /** The packed meld of the kan the round end's ron robs, as the fixture's meld event before it records it. */
+    readonly kanMeld?: number;
     /** The round end's wire line as the fixture records it. */
     readonly roundEnd: Readonly<Record<number, unknown>>;
 }
 
 /**
  * The round results the board storybook shows over its board: each the wire round end of a generated replay fixture,
- * with the names of its round and its game's riichi stick value, parsed and read as the table reads it. A copy, so the storybook's chunk carries one line of each fixture rather than the whole file; a test
- * fails when a copy no longer reads as its fixture's round end does.
+ * with the names of its round, its game's riichi stick value and the kan its ron robs, parsed and read as the table
+ * reads it. A copy, so the storybook's chunk carries one line of each fixture rather than the whole file; a test fails
+ * when a copy no longer reads as its fixture's round end does.
  */
 const RESULT_SOURCES = [
     {
@@ -42,9 +46,21 @@ const RESULT_SOURCES = [
                 [WIRE_KEY.HAN]: 5,
                 [WIRE_KEY.FU]: 20,
                 [WIRE_KEY.YAKU]: [
-                    { [WIRE_KEY.YAKU_ID]: 0, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 1, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 12, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 0,
+                        [WIRE_KEY.HAN]: 1,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 1,
+                        [WIRE_KEY.HAN]: 1,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 12,
+                        [WIRE_KEY.HAN]: 1,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
                     {
                         [WIRE_KEY.YAKU_ID]: 121,
                         [WIRE_KEY.HAN]: 1,
@@ -81,33 +97,54 @@ const RESULT_SOURCES = [
             [WIRE_KEY.RIICHI_STICKS]: 0,
             [WIRE_KEY.DEALER]: 0,
             [WIRE_KEY.DORA_INDICATORS]: [120],
-            [WIRE_KEY.WINNER_SEAT]: 1,
             [WIRE_KEY.LOSER_SEAT]: 2,
             [WIRE_KEY.WINNING_TILE]: 49,
-            [WIRE_KEY.HAND_RESULT]: {
-                [WIRE_KEY.HAN]: 7,
-                [WIRE_KEY.FU]: 30,
-                [WIRE_KEY.YAKU]: [
-                    { [WIRE_KEY.YAKU_ID]: 3, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 8, [WIRE_KEY.HAN]: 2, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 12, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 27, [WIRE_KEY.HAN]: 2, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    {
-                        [WIRE_KEY.YAKU_ID]: 121,
-                        [WIRE_KEY.HAN]: 1,
-                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+            [WIRE_KEY.WINNERS]: [
+                {
+                    [WIRE_KEY.WINNER_SEAT]: 1,
+                    [WIRE_KEY.HAND_RESULT]: {
+                        [WIRE_KEY.HAN]: 7,
+                        [WIRE_KEY.FU]: 30,
+                        [WIRE_KEY.YAKU]: [
+                            {
+                                [WIRE_KEY.YAKU_ID]: 3,
+                                [WIRE_KEY.HAN]: 1,
+                                [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                            },
+                            {
+                                [WIRE_KEY.YAKU_ID]: 8,
+                                [WIRE_KEY.HAN]: 2,
+                                [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                            },
+                            {
+                                [WIRE_KEY.YAKU_ID]: 12,
+                                [WIRE_KEY.HAN]: 1,
+                                [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                            },
+                            {
+                                [WIRE_KEY.YAKU_ID]: 27,
+                                [WIRE_KEY.HAN]: 2,
+                                [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                            },
+                            {
+                                [WIRE_KEY.YAKU_ID]: 121,
+                                [WIRE_KEY.HAN]: 1,
+                                [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                            },
+                        ],
+                        [WIRE_KEY.POINTS]: 120,
+                        [WIRE_KEY.HAND_LIMIT]: "haneman",
                     },
-                ],
-                [WIRE_KEY.POINTS]: 120,
-                [WIRE_KEY.HAND_LIMIT]: "haneman",
-            },
+                    [WIRE_KEY.SCORE_CHANGES]: { "0": 0, "1": 130, "2": -120, "3": 0 },
+                    [WIRE_KEY.RIICHI_COLLECTED]: 1,
+                    [WIRE_KEY.CLOSED_TILES]: [0, 4, 8, 12, 16, 20, 24, 28, 32, 40, 44, 72, 73],
+                    [WIRE_KEY.MELDS]: [],
+                    [WIRE_KEY.HONBA_BONUS]: 0,
+                    [WIRE_KEY.URA_DORA]: [131],
+                },
+            ],
             [WIRE_KEY.SCORES]: { "0": 250, "1": 240, "2": 250, "3": 250 },
             [WIRE_KEY.SCORE_CHANGES]: { "0": 0, "1": 130, "2": -120, "3": 0 },
-            [WIRE_KEY.RIICHI_COLLECTED]: 1,
-            [WIRE_KEY.CLOSED_TILES]: [0, 4, 8, 12, 16, 20, 24, 28, 32, 40, 44, 72, 73],
-            [WIRE_KEY.MELDS]: [],
-            [WIRE_KEY.HONBA_BONUS]: 0,
-            [WIRE_KEY.URA_DORA]: [131],
         },
     },
     {
@@ -118,7 +155,7 @@ const RESULT_SOURCES = [
         riichiStickValue: 1000,
         roundEnd: {
             [WIRE_KEY.EVENT_TYPE]: 4,
-            [WIRE_KEY.RESULT_TYPE]: 2,
+            [WIRE_KEY.RESULT_TYPE]: 1,
             [WIRE_KEY.RIICHI_STICKS]: 0,
             [WIRE_KEY.DEALER]: 0,
             [WIRE_KEY.DORA_INDICATORS]: [116],
@@ -221,9 +258,21 @@ const RESULT_SOURCES = [
                 [WIRE_KEY.HAN]: 5,
                 [WIRE_KEY.FU]: 25,
                 [WIRE_KEY.YAKU]: [
-                    { [WIRE_KEY.YAKU_ID]: 0, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 13, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 34, [WIRE_KEY.HAN]: 2, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 0,
+                        [WIRE_KEY.HAN]: 1,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 13,
+                        [WIRE_KEY.HAN]: 1,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 34,
+                        [WIRE_KEY.HAN]: 2,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
                     {
                         [WIRE_KEY.YAKU_ID]: 121,
                         [WIRE_KEY.HAN]: 1,
@@ -259,8 +308,16 @@ const RESULT_SOURCES = [
                 [WIRE_KEY.HAN]: 11,
                 [WIRE_KEY.FU]: 60,
                 [WIRE_KEY.YAKU]: [
-                    { [WIRE_KEY.YAKU_ID]: 0, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 5, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 0,
+                        [WIRE_KEY.HAN]: 1,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 5,
+                        [WIRE_KEY.HAN]: 1,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
                     {
                         [WIRE_KEY.YAKU_ID]: 120,
                         [WIRE_KEY.HAN]: 8,
@@ -301,13 +358,41 @@ const RESULT_SOURCES = [
                 [WIRE_KEY.HAN]: 15,
                 [WIRE_KEY.FU]: 20,
                 [WIRE_KEY.YAKU]: [
-                    { [WIRE_KEY.YAKU_ID]: 0, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 3, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 8, [WIRE_KEY.HAN]: 2, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 12, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 13, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 38, [WIRE_KEY.HAN]: 3, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 39, [WIRE_KEY.HAN]: 6, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 0,
+                        [WIRE_KEY.HAN]: 1,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 3,
+                        [WIRE_KEY.HAN]: 1,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 8,
+                        [WIRE_KEY.HAN]: 2,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 12,
+                        [WIRE_KEY.HAN]: 1,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 13,
+                        [WIRE_KEY.HAN]: 1,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 38,
+                        [WIRE_KEY.HAN]: 3,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
+                    {
+                        [WIRE_KEY.YAKU_ID]: 39,
+                        [WIRE_KEY.HAN]: 6,
+                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                    },
                 ],
                 [WIRE_KEY.POINTS]: 480,
                 [WIRE_KEY.HAND_LIMIT]: "kazoe_yakuman",
@@ -325,6 +410,7 @@ const RESULT_SOURCES = [
     },
     {
         fixture: "chankan_added",
+        kanMeld: 23_181,
         key: "chankan",
         label: "Chankan",
         names: ["Diana", "Alice", "Charlie", "Bob"],
@@ -335,40 +421,53 @@ const RESULT_SOURCES = [
             [WIRE_KEY.RIICHI_STICKS]: 0,
             [WIRE_KEY.DEALER]: 0,
             [WIRE_KEY.DORA_INDICATORS]: [112],
-            [WIRE_KEY.WINNER_SEAT]: 2,
             [WIRE_KEY.LOSER_SEAT]: 1,
             [WIRE_KEY.WINNING_TILE]: 59,
-            [WIRE_KEY.HAND_RESULT]: {
-                [WIRE_KEY.HAN]: 6,
-                [WIRE_KEY.FU]: 30,
-                [WIRE_KEY.YAKU]: [
-                    { [WIRE_KEY.YAKU_ID]: 4, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 12, [WIRE_KEY.HAN]: 1, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    { [WIRE_KEY.YAKU_ID]: 27, [WIRE_KEY.HAN]: 2, [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0 },
-                    {
-                        [WIRE_KEY.YAKU_ID]: 121,
-                        [WIRE_KEY.HAN]: 2,
-                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+            [WIRE_KEY.WINNERS]: [
+                {
+                    [WIRE_KEY.WINNER_SEAT]: 2,
+                    [WIRE_KEY.HAND_RESULT]: {
+                        [WIRE_KEY.HAN]: 6,
+                        [WIRE_KEY.FU]: 30,
+                        [WIRE_KEY.YAKU]: [
+                            {
+                                [WIRE_KEY.YAKU_ID]: 4,
+                                [WIRE_KEY.HAN]: 1,
+                                [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                            },
+                            {
+                                [WIRE_KEY.YAKU_ID]: 12,
+                                [WIRE_KEY.HAN]: 1,
+                                [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                            },
+                            {
+                                [WIRE_KEY.YAKU_ID]: 27,
+                                [WIRE_KEY.HAN]: 2,
+                                [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                            },
+                            {
+                                [WIRE_KEY.YAKU_ID]: 121,
+                                [WIRE_KEY.HAN]: 2,
+                                [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 0,
+                            },
+                        ],
+                        [WIRE_KEY.POINTS]: 120,
+                        [WIRE_KEY.HAND_LIMIT]: "haneman",
                     },
-                ],
-                [WIRE_KEY.POINTS]: 120,
-                [WIRE_KEY.HAND_LIMIT]: "haneman",
-            },
+                    [WIRE_KEY.SCORE_CHANGES]: { "0": 0, "1": -120, "2": 120, "3": 0 },
+                    [WIRE_KEY.RIICHI_COLLECTED]: 0,
+                    [WIRE_KEY.CLOSED_TILES]: [0, 4, 8, 12, 16, 20, 24, 28, 32, 48, 52, 72, 73],
+                    [WIRE_KEY.MELDS]: [],
+                    [WIRE_KEY.HONBA_BONUS]: 0,
+                },
+            ],
             [WIRE_KEY.SCORES]: { "0": 250, "1": 250, "2": 250, "3": 250 },
             [WIRE_KEY.SCORE_CHANGES]: { "0": 0, "1": -120, "2": 120, "3": 0 },
-            [WIRE_KEY.RIICHI_COLLECTED]: 0,
-            [WIRE_KEY.CLOSED_TILES]: [0, 4, 8, 12, 16, 20, 24, 28, 32, 48, 52, 72, 73],
-            [WIRE_KEY.MELDS]: [],
-            [WIRE_KEY.HONBA_BONUS]: 0,
-            [WIRE_KEY.ROBBED_KAN]: {
-                [WIRE_KEY.SEAT]: 1,
-                [WIRE_KEY.TILE_ID]: 59,
-                [WIRE_KEY.KAN_TYPE]: "added",
-            },
         },
     },
     {
         fixture: "chankan_closed_kokushi",
+        kanMeld: 27_585,
         key: "yakuman",
         label: "Yakuman",
         names: ["Diana", "Alice", "Charlie", "Bob"],
@@ -379,34 +478,36 @@ const RESULT_SOURCES = [
             [WIRE_KEY.RIICHI_STICKS]: 0,
             [WIRE_KEY.DEALER]: 0,
             [WIRE_KEY.DORA_INDICATORS]: [109],
-            [WIRE_KEY.WINNER_SEAT]: 2,
             [WIRE_KEY.LOSER_SEAT]: 1,
             [WIRE_KEY.WINNING_TILE]: 35,
-            [WIRE_KEY.HAND_RESULT]: {
-                [WIRE_KEY.HAN]: 13,
-                [WIRE_KEY.FU]: 0,
-                [WIRE_KEY.YAKU]: [
-                    {
-                        [WIRE_KEY.YAKU_ID]: 100,
+            [WIRE_KEY.WINNERS]: [
+                {
+                    [WIRE_KEY.WINNER_SEAT]: 2,
+                    [WIRE_KEY.HAND_RESULT]: {
                         [WIRE_KEY.HAN]: 13,
-                        [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 1,
+                        [WIRE_KEY.FU]: 0,
+                        [WIRE_KEY.YAKU]: [
+                            {
+                                [WIRE_KEY.YAKU_ID]: 100,
+                                [WIRE_KEY.HAN]: 13,
+                                [WIRE_KEY.YAKU_YAKUMAN_COUNT]: 1,
+                            },
+                        ],
+                        [WIRE_KEY.POINTS]: 320,
+                        [WIRE_KEY.HAND_LIMIT]: "yakuman",
+                        [WIRE_KEY.YAKUMAN_COUNT]: 1,
                     },
-                ],
-                [WIRE_KEY.POINTS]: 320,
-                [WIRE_KEY.HAND_LIMIT]: "yakuman",
-                [WIRE_KEY.YAKUMAN_COUNT]: 1,
-            },
+                    [WIRE_KEY.SCORE_CHANGES]: { "0": 0, "1": -320, "2": 320, "3": 0 },
+                    [WIRE_KEY.RIICHI_COLLECTED]: 0,
+                    [WIRE_KEY.CLOSED_TILES]: [
+                        0, 1, 36, 68, 72, 104, 108, 112, 116, 120, 124, 128, 132,
+                    ],
+                    [WIRE_KEY.MELDS]: [],
+                    [WIRE_KEY.HONBA_BONUS]: 0,
+                },
+            ],
             [WIRE_KEY.SCORES]: { "0": 250, "1": 250, "2": 250, "3": 250 },
             [WIRE_KEY.SCORE_CHANGES]: { "0": 0, "1": -320, "2": 320, "3": 0 },
-            [WIRE_KEY.RIICHI_COLLECTED]: 0,
-            [WIRE_KEY.CLOSED_TILES]: [0, 1, 36, 68, 72, 104, 108, 112, 116, 120, 124, 128, 132],
-            [WIRE_KEY.MELDS]: [],
-            [WIRE_KEY.HONBA_BONUS]: 0,
-            [WIRE_KEY.ROBBED_KAN]: {
-                [WIRE_KEY.SEAT]: 1,
-                [WIRE_KEY.TILE_ID]: 35,
-                [WIRE_KEY.KAN_TYPE]: "closed",
-            },
         },
     },
     {
@@ -508,7 +609,7 @@ const RESULT_SOURCES = [
         riichiStickValue: 1000,
         roundEnd: {
             [WIRE_KEY.EVENT_TYPE]: 4,
-            [WIRE_KEY.RESULT_TYPE]: 5,
+            [WIRE_KEY.RESULT_TYPE]: 3,
             [WIRE_KEY.RIICHI_STICKS]: 0,
             [WIRE_KEY.DEALER]: 0,
             [WIRE_KEY.DORA_INDICATORS]: [120],
@@ -639,6 +740,15 @@ const RESULT_SOURCES = [
             [WIRE_KEY.SCORES]: { "0": 250, "1": 250, "2": 250, "3": 250 },
             [WIRE_KEY.SCORE_CHANGES]: { "0": 0, "1": 0, "2": 0, "3": 0 },
             [WIRE_KEY.SEAT]: 1,
+            [WIRE_KEY.SHOWN_HANDS]: [
+                {
+                    [WIRE_KEY.SEAT]: 1,
+                    [WIRE_KEY.CLOSED_TILES]: [
+                        0, 4, 8, 12, 32, 36, 68, 72, 104, 108, 112, 116, 120, 124,
+                    ],
+                    [WIRE_KEY.MELDS]: [],
+                },
+            ],
         },
     },
     {
@@ -656,6 +766,30 @@ const RESULT_SOURCES = [
             [WIRE_KEY.ABORTIVE_REASON]: "four_riichi",
             [WIRE_KEY.SCORES]: { "0": 240, "1": 240, "2": 240, "3": 240 },
             [WIRE_KEY.SCORE_CHANGES]: { "0": 0, "1": 0, "2": 0, "3": 0 },
+            [WIRE_KEY.SHOWN_HANDS]: [
+                {
+                    [WIRE_KEY.SEAT]: 0,
+                    [WIRE_KEY.CLOSED_TILES]: [0, 4, 8, 12, 16, 20, 24, 28, 32, 40, 44, 124, 125],
+                    [WIRE_KEY.MELDS]: [],
+                },
+                {
+                    [WIRE_KEY.SEAT]: 1,
+                    [WIRE_KEY.CLOSED_TILES]: [1, 5, 9, 13, 17, 21, 25, 29, 33, 77, 81, 129, 130],
+                    [WIRE_KEY.MELDS]: [],
+                },
+                {
+                    [WIRE_KEY.SEAT]: 2,
+                    [WIRE_KEY.CLOSED_TILES]: [38, 42, 46, 50, 54, 58, 62, 66, 70, 94, 98, 134, 135],
+                    [WIRE_KEY.MELDS]: [],
+                },
+                {
+                    [WIRE_KEY.SEAT]: 3,
+                    [WIRE_KEY.CLOSED_TILES]: [
+                        59, 63, 75, 79, 83, 87, 91, 95, 99, 103, 107, 126, 127,
+                    ],
+                    [WIRE_KEY.MELDS]: [],
+                },
+            ],
         },
     },
     {
@@ -674,6 +808,25 @@ const RESULT_SOURCES = [
             [WIRE_KEY.SCORES]: { "0": 250, "1": 250, "2": 250, "3": 250 },
             [WIRE_KEY.SCORE_CHANGES]: { "0": 0, "1": 0, "2": 0, "3": 0 },
             [WIRE_KEY.RON_CALLERS]: [1, 2, 3],
+            [WIRE_KEY.SHOWN_HANDS]: [
+                {
+                    [WIRE_KEY.SEAT]: 1,
+                    [WIRE_KEY.CLOSED_TILES]: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 124, 125],
+                    [WIRE_KEY.MELDS]: [],
+                },
+                {
+                    [WIRE_KEY.SEAT]: 2,
+                    [WIRE_KEY.CLOSED_TILES]: [
+                        48, 52, 72, 76, 80, 84, 88, 92, 96, 100, 104, 128, 129,
+                    ],
+                    [WIRE_KEY.MELDS]: [],
+                },
+                {
+                    [WIRE_KEY.SEAT]: 3,
+                    [WIRE_KEY.CLOSED_TILES]: [5, 9, 13, 17, 21, 25, 45, 49, 53, 56, 93, 97, 101],
+                    [WIRE_KEY.MELDS]: [],
+                },
+            ],
         },
     },
     {
@@ -735,20 +888,40 @@ export interface ResultStoryTable {
     readonly players: readonly PlayerState[];
 }
 
+/** The robbed kan a story's source names, as its declarer's meld; none for a story robbing no kan. */
+function robbedKan(source: ResultSource): MeldRecord | null {
+    if (source.kanMeld === undefined) {
+        return null;
+    }
+    const [error, line] = parseReplayLine({
+        [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.MELD,
+        [WIRE_KEY.PACKED_MELD]: source.kanMeld,
+    });
+    if (error !== null || line.type !== "meld") {
+        throw new Error(`The ${source.key} story's kan does not read as a meld`, { cause: error });
+    }
+    return line;
+}
+
 export function resultStoryTable(story: ResultStory): ResultStoryTable {
     const source = resultSource(story);
     const event = parseRoundEnd(source.roundEnd);
-    const players = source.names.map((name, seat) =>
-        createInitialPlayerState({
+    const kan = robbedKan(source);
+    const players = source.names.map((name, seat) => ({
+        ...createInitialPlayerState({
             isAiPlayer: false,
             name,
             score: seatEntry(event.scores, seat),
             seat,
         }),
-    );
+        melds: kan !== null && kan.callerSeat === seat ? [kan] : [],
+    }));
     return {
         fixture: source.fixture,
         players,
-        result: extractRoundEndResult(event, source),
+        result: extractRoundEndResult(event, {
+            players,
+            riichiStickValue: source.riichiStickValue,
+        }),
     };
 }

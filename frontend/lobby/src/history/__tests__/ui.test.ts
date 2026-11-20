@@ -11,8 +11,8 @@ const VIEWER_GAME = {
     game_type: "hanchan",
     num_rounds_played: 8,
     players: [
-        { final_score: 50, is_viewer: false, is_winner: true, name: "Winner", score: 40_000 },
-        { final_score: -15, is_viewer: true, is_winner: false, name: "dev", score: 20_000 },
+        { final_score: 523, is_viewer: false, is_winner: true, name: "Winner", score: 40_000 },
+        { final_score: -150, is_viewer: true, is_winner: false, name: "dev", score: 20_000 },
     ],
     replay_url: "/play/history/g1",
     started_at: "2026-10-24T03:09:00+00:00",
@@ -38,7 +38,7 @@ afterAll(() => {
 });
 
 describe("renderHistory", () => {
-    it("shows a game's local start time, rounds, translated type and the viewer's replay link", () => {
+    it("shows a game's local start time, rounds, translated type, final scores from tenths and the viewer's replay link", () => {
         const host = renderGames([VIEWER_GAME]);
 
         const time = host.querySelector("time.games-time");
@@ -55,6 +55,9 @@ describe("renderHistory", () => {
             "/play/history/g1",
         );
         expect(host.querySelector(".games-standing--me .games-name")?.textContent).toBe("dev");
+        expect(
+            [...host.querySelectorAll(".games-pts")].map((points) => points.textContent),
+        ).toEqual(["+52.3", "-15.0"]);
     });
 
     it("points an empty history at quick match and the lobby's tables", () => {

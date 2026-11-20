@@ -11,8 +11,8 @@ import {
     type GameStartedEvent,
     type GameType,
     type HandLimit,
-    type KanType,
     type MeldEvent,
+    type PaoAssignedEvent,
     type PaoLiability,
     type RiichiDeclaredEvent,
     type RoundEndEvent,
@@ -104,7 +104,8 @@ export interface WinnerResult {
 
 export type DrawKind = "exhaustive" | "nagashi_mangan" | AbortiveDrawType;
 
-export interface TenpaiHandResult {
+/** A hand a drawn round shows: a tenpai hand at an exhaustive draw, or a hand an abortive draw shows. */
+export interface ShownHandResult {
     readonly seat: number;
     readonly closedTiles: readonly number[];
     readonly melds: readonly MeldRecord[];
@@ -115,7 +116,7 @@ export interface DrawResult {
     readonly kind: DrawKind;
     readonly tenpaiSeats: readonly number[];
     readonly notenSeats: readonly number[];
-    readonly tenpaiHands: readonly TenpaiHandResult[];
+    readonly shownHands: readonly ShownHandResult[];
     /** The seats whose discards made a nagashi mangan. */
     readonly nagashiSeats: readonly number[];
     /** The seat that declared kyuushu kyuuhai, or null. */
@@ -163,6 +164,7 @@ export interface GameEndResult {
     readonly standings: readonly {
         readonly seat: number;
         readonly score: number;
+        /** The uma/oka-adjusted result in thousands of points, unrounded to its tenth: 52.3. */
         readonly finalScore: number;
     }[];
 }
@@ -223,20 +225,9 @@ export type ReplayEvent =
     | MeldEvent
     | RiichiDeclaredEvent
     | DoraRevealedEvent
+    | PaoAssignedEvent
     | RoundEndEvent
     | GameEndEvent;
-
-/**
- * A closed or added kan its declarer declared on its own turn and that a ron may rob (chankan), shown before the
- * chankan resolves. No message carries it as such: a chankan prompt and a robbed kan's round end each name its tile,
- * declarer and type; a kan nobody robs completes as the server's meld event.
- */
-export interface KanDeclaredEvent {
-    readonly type: "kan_declared";
-    readonly seat: number;
-    readonly tileId: number;
-    readonly kanType: Extract<KanType, "added" | "closed">;
-}
 
 /**
  * A live client lost step with the server: it drops the messages that follow until a snapshot, so the table it holds
@@ -250,12 +241,11 @@ export interface LostStepEvent {
 /**
  * Everything that changes the table: the events a replay stores, the seat control lines (a replay's, or the live
  * session's messages, parsed alike), the reconnect snapshot that rebuilds the table, a live seat's notice of another
- * seat's draw, a kan declared open to chankan, and a live client's loss of step.
+ * seat's draw, and a live client's loss of step.
  */
 export type TableEvent =
     | ReplayEvent
     | DrawNoticeEvent
-    | KanDeclaredEvent
     | LostStepEvent
     | SeatControlLine
     | GameReconnectedEvent;

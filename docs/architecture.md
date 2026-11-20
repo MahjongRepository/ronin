@@ -552,7 +552,8 @@ honours this contract can replace it.
 
 ## Local run
 
-`make run-local-server` starts the game server (`:8711`), the lobby (`:8710`) and a Vite dev server
-per frontend app: the lobby's (`:5173`) and the game client's (`:5175`, proxied by the lobby).
+`make run-local-server` starts the Go game server (`:8712`, built from `backend/game_v2`), the lobby
+(`:8710`, pointed at it) and a Vite dev server per frontend app: the lobby's (`:5173`) and the game
+client's (`:5175`, proxied by the lobby).
 In production Traefik fronts both services from one `docker-compose.yml`; the lobby's internal game
 server URL and the public WebSocket origin it hands players are two separate settings.

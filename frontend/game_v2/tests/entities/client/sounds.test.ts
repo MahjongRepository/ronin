@@ -19,7 +19,7 @@ import {
     timelineStates,
 } from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
-import { ROUND_RESULT_TYPE, WIRE_KEY } from "@/shared/protocol";
+import { WIRE_KEY } from "@/shared/protocol";
 
 /** The cues of the named scenario's steps after the one labelled `from` through the one labelled `to`, in order. */
 function cuesAfter(name: string, from: string, to: string): readonly SoundCue[] {
@@ -209,7 +209,11 @@ describe("soundCues", () => {
         const resolved = stepGameClient(declared, {
             at: declared.now + 500,
             kind: "server_message",
-            raw: { ...result, ...winner, [WIRE_KEY.RESULT_TYPE]: ROUND_RESULT_TYPE.RON },
+            raw: {
+                ...result,
+                [WIRE_KEY.SCORE_CHANGES]: winner[WIRE_KEY.SCORE_CHANGES],
+                [WIRE_KEY.WINNERS]: [winner],
+            },
         }).state;
         expect({
             calls: resolved.calls?.calls,

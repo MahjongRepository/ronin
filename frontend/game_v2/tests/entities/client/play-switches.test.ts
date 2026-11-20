@@ -246,7 +246,7 @@ describe("automatic answers", () => {
         expect(bySwitch(stateAt(switched, run, "chankan prompt"))).toBe("auto_win");
         const states = timelineStates(run.timeline);
         const index = scenarioStateIndex(switched, "chankan prompt");
-        expect(soundCues(states[index - 1], states[index])).toEqual(["kan", "ron"]);
+        expect(soundCues(states[index - 1], states[index])).toEqual(["ron"]);
     });
 
     it.each([

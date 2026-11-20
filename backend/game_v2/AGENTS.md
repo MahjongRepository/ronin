@@ -290,7 +290,8 @@ writes what each named seat's client met, the game client's end-to-end pin of th
 
 ## Replay fixtures
 
-`cmd/fixtures` also writes the replay files the game client's replay tests and storybook read.
+`cmd/fixtures` also writes the replay files the game client's replay tests and storybook read. One
+run writes or checks both sets: `make generate-fixtures` and the `make fixtures-check` gate.
 
 * A replay scenario plays the engine directly, one engine call at a time, and records each call
   through `messaging.ReplayLog` as the session would: absent seats' seat control records between

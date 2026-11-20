@@ -246,7 +246,7 @@ describe("replayDisplay callouts", () => {
         const doubleRon = replayOf(engineReplayBytes("double_ron"));
         const result = stopWhere(doubleRon, "round_end");
         const chankan = replayOf(engineReplayBytes("chankan_added"));
-        const declared = stopWhere(chankan, "kan_declared");
+        const declared = stopWhere(chankan, "round_end") - 1;
 
         expect(displayAt(doubleRon, { page: 1, stop: result }).callouts).toEqual(
             displayAt(doubleRon, { page: 0, stop: result }).callouts,

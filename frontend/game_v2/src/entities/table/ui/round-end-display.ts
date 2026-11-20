@@ -390,21 +390,21 @@ function NagashiResult(props: RoundEndDisplayProps, body: NagashiPageDisplay): T
 }
 
 function DrawResult(props: RoundEndDisplayProps, page: DrawPageDisplay): TemplateResult {
-    const noHands = page.tenpaiHands.length === 0 ? " round-end-result--no-hands" : "";
+    const noHands = page.hands.length === 0 ? " round-end-result--no-hands" : "";
     return html`<div class="round-end-result round-end-result--draw${noHands}" ${peekWhilePressed()}>
         <div class="round-end-result__head">
             <span class="round-end-result__title">${page.title}</span>
             ${page.subtitle === null ? nothing : html`<span class="round-end-result__from">${page.subtitle}</span>`}
         </div>
         ${
-            page.tenpaiHands.length === 0
+            page.hands.length === 0
                 ? nothing
                 : html`<ul class="round-end-result__tenpai">
-                      ${page.tenpaiHands.map(
-                          (tenpai) => html`<li class="round-end-result__tenpai-hand">
-                              <span class="round-end-result__label">${tenpai.name}</span>
+                      ${page.hands.map(
+                          (shown) => html`<li class="round-end-result__tenpai-hand">
+                              <span class="round-end-result__label">${shown.name}</span>
                               <span class="round-end-result__tenpai-tiles"
-                                  >${Hand({ tiles: tenpai.hand.tiles })}${Melds(tenpai.hand.melds)}</span
+                                  >${Hand({ tiles: shown.hand.tiles })}${Melds(shown.hand.melds)}</span
                               >
                           </li>`,
                       )}

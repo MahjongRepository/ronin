@@ -7,12 +7,14 @@ import { type ReplayEvent, isReplayEvent, readReplayFile } from "@/entities/tabl
 import {
     type ParsedServerMessage,
     REPLAY_VERSION,
+    REPLAY_WIRE_KEYS,
     WIRE_KEY,
+    parseReplayLine,
     parseServerMessage,
 } from "@/shared/protocol";
 
 // eslint-disable-next-line import/no-relative-parent-imports -- Shared backend golden pins the cross-language wire contract.
-import golden from "../../../../../../backend/game/tests/fixtures/replay-format-golden.json";
+import golden from "../../../../../../backend/game_v2/internal/wire/testdata/replay-format-golden.json";
 
 const VERSION_LINE = JSON.stringify({ [WIRE_KEY.REPLAY_VERSION]: REPLAY_VERSION });
 const drawLine = JSON.stringify({
@@ -115,7 +117,7 @@ function parsedMessage(wirePayload: Record<string, unknown>): ParsedServerMessag
 }
 
 describe("isReplayEvent", () => {
-    test("accepts all 9 replay event types", () => {
+    test("accepts all 10 replay event types", () => {
         const replayLines: Record<ReplayEvent["type"], Record<string, unknown>> = {
             discard: { [WIRE_KEY.PACKED_MOVE]: 0, [WIRE_KEY.EVENT_TYPE]: 2 },
             dora_revealed: { [WIRE_KEY.EVENT_TYPE]: 6, [WIRE_KEY.TILE_ID]: 0 },
@@ -129,6 +131,7 @@ describe("isReplayEvent", () => {
             game_end: WIRE_GAME_END,
             game_started: WIRE_GAME_STARTED,
             meld: { [WIRE_KEY.PACKED_MELD]: 24_384, [WIRE_KEY.EVENT_TYPE]: 0 },
+            pao_assigned: { [WIRE_KEY.EVENT_TYPE]: 14, [WIRE_KEY.PAO_SEAT]: 2, [WIRE_KEY.SEAT]: 0 },
             riichi_declared: {
                 [WIRE_KEY.RIICHI_STICKS]: 1,
                 [WIRE_KEY.SEAT]: 0,
@@ -170,7 +173,7 @@ describe("isReplayEvent", () => {
 });
 
 describe("readReplayFile - shared format contract", () => {
-    test("restores Python golden records including seed, rules envelope, score seats and ordinary tile arrays", () => {
+    test("restores the golden records including seed, rules envelope, score seats and ordinary tile arrays, each a line the reader parses", () => {
         const content = Uint8Array.from(golden.hex.match(/../g) ?? [], (byte) =>
             Number.parseInt(byte, 16),
         );
@@ -179,11 +182,14 @@ describe("readReplayFile - shared format contract", () => {
         expectTypeOf(read.lines[0].raw).toEqualTypeOf<Readonly<Record<string, unknown>>>();
         expect(
             Object.fromEntries(
-                Object.entries(WIRE_KEY).filter(([, id]) => id <= WIRE_KEY.YAKU_YAKUMAN_COUNT),
+                Object.entries(WIRE_KEY).filter(([, id]) => REPLAY_WIRE_KEYS.has(id)),
             ),
         ).toEqual(golden.named_keys);
         expect(read.errors).toEqual([]);
         expect(read.lines.map((line) => line.raw)).toEqual(golden.records.slice(1));
+        expect(read.lines.map((line) => parseReplayLine(line.raw)[0])).toEqual(
+            read.lines.map(() => null),
+        );
     });
 
     test.each([new Uint8Array(95), "00".repeat(96)])(

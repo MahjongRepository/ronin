@@ -8,8 +8,9 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   other hands are counts; a replay shows every hand. Another seat's draw moves the table when its notice arrives,
   never inferred from a later discard. A draw of a tile the hand already holds is a reconnect's re-send: it takes
   nothing from the wall.
-- A kan open to chankan shows as declared (`kan_declared`) before it resolves, with no replacement draw or dora; the
-  meld that completes it takes nothing more from the hand.
+- A kan is the server's meld event, which comes before anyone may rob it (chankan); the client never builds a kan
+  from a prompt or a result. A ron robbed a kan when its won tile lies in a kan of the loser's: the table tells it
+  from its own melds, since no round end names it.
 - **Out of order is a desync.** `PHASES_TAKING` checks every event's phase before any handler runs. A handler that
   meets an impossible state throws `DesyncError`, never returns the state unchanged: the live client recovers from
   that error alone.
@@ -27,7 +28,8 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   public draw notice subtracts one, including kan replacements and AI draws; a re-sent private tile already in the
   hand subtracts nothing. An empty wall on a new draw is a desync. Replays retain each draw's recorded count.
 - A riichi's deposit (the declarer's score and the table's sticks), the sticks a round end leaves, a round's number
-  within its wind (`roundInWind`) and a chankan prompt's kan type are the server's, never counted or inferred.
+  within its wind (`roundInWind`) and a chankan prompt's kan type are the server's, never counted or inferred. A pao
+  assigned changes nothing the table shows; the result names the liable seat.
 - The latest discard is the server's on reconnect (`ld`); the client never infers it. Any draw ends it.
 - An AI stand-in for an absent human (`aiStandIn`) shows as the seat being away (its name red), never as an AI
   participant; a seated AI participant is unmarked on the board (the seating and game end mark it "AI").
@@ -68,5 +70,5 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   it, never from the geometry's lengths, and a top row plate's raise clear of the core is computed there.
 - `model/replay-file.ts` refuses a file whose version is not `REPLAY_VERSION` and reports a bad or live-only line,
   never skipping it into a recording that looks whole.
-- Replay storage is concatenated MessagePack records, decoded only through the lazy replay route. The numeric metadata registry mirrors Python; the shared golden pins both registries.  A damaged record stops playback at its preceding readable prefix and names its record position.
+- Replay storage is concatenated MessagePack records, decoded only through the lazy replay route. The numeric metadata registry mirrors the Go server's (`backend/game_v2/internal/wire`); the shared golden pins both registries.  A damaged record stops playback at its preceding readable prefix and names its record position.
 - The table keeps the recorded aka-dora flag; all board and result tile mappers use it. A live game always shows red fives (its game start sets `hasAkadora`).

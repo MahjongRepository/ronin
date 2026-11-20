@@ -14,6 +14,7 @@ import {
     gameEndSchema,
     gameStartedSchema,
     meldSchema,
+    paoAssignedSchema,
     riichiDeclaredSchema,
     roundStartedSchema,
     turnSchema,
@@ -37,6 +38,7 @@ export type GameEvent =
     | z.output<typeof furitenSchema>
     | z.output<typeof gameEndSchema>
     | z.output<typeof turnSchema>
+    | z.output<typeof paoAssignedSchema>
     | CallPromptEvent
     | RoundEndEvent;
 
@@ -91,6 +93,9 @@ function parseGameEvent(raw: Record<string, unknown>, t: number): GameEvent {
         }
         case EVENT_TYPE.DRAW_NOTICE: {
             return drawNoticeSchema.parse(raw);
+        }
+        case EVENT_TYPE.PAO_ASSIGNED: {
+            return paoAssignedSchema.parse(raw);
         }
         default: {
             throw new Error(`Unknown game event type: EVENT_TYPE=${String(t)}`);

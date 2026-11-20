@@ -17,6 +17,7 @@ import {
     makeNagashiManganRoundEnd,
     makeRiichiDeclaredEvent,
     makeRonRoundEnd,
+    makeRonWin,
     makeRoundStartedEvent,
     makeTsumoRoundEnd,
 } from "#tests/fixtures/events";
@@ -171,11 +172,6 @@ describe("applyEvent - event order", () => {
         ["a second deal in a round", stateAfterRoundStarted(), makeRoundStartedEvent()],
         ["a second game end", ended, makeGameEndEvent()],
         ["a meld after the round end", roundEnded, makeMeldEvent()],
-        [
-            "a kan declared after the round end",
-            roundEnded,
-            { kanType: "closed", seat: 0, tileId: heldTile, type: "kan_declared" },
-        ],
         ["a riichi after the round end", roundEnded, makeRiichiDeclaredEvent()],
         ["a dora after the round end", roundEnded, makeDoraRevealedEvent()],
         ["a draw notice after the round end", roundEnded, makeDrawNoticeEvent(1)],
@@ -302,7 +298,11 @@ describe("applyEvent - hidden hands", () => {
             [
                 makeExhaustiveDrawRoundEnd(),
                 makeNagashiManganRoundEnd(),
-                makeRonRoundEnd({ loserSeat: 1, winnerSeat: 2, winningTile: 100 }),
+                makeRonRoundEnd({
+                    loserSeat: 1,
+                    winners: [makeRonWin({ winnerSeat: 2 })],
+                    winningTile: 100,
+                }),
             ].map((event) => applyEvent(discarded, event).lastDiscardSeat),
         ).toEqual([null, null, null]);
     });
@@ -608,7 +608,11 @@ describe("applyEvent - round_end", () => {
     });
 
     test("takes a ron's winner and the seat that dealt in", () => {
-        const event = makeRonRoundEnd({ loserSeat: 3, winnerSeat: 1, winningTile: 60 });
+        const event = makeRonRoundEnd({
+            loserSeat: 3,
+            winners: [makeRonWin({ winnerSeat: 1 })],
+            winningTile: 60,
+        });
         const result = applyEvent(stateAfterRoundStarted(), event).roundEndResult;
 
         expect([result?.resultType, result?.loserSeat]).toEqual([ROUND_RESULT_TYPE.RON, 3]);
@@ -618,7 +622,7 @@ describe("applyEvent - round_end", () => {
     test("takes a double ron's two winners, each with its own hand, on the one tile the seat that dealt in discarded", () => {
         const result = applyEvent(stateAfterRoundStarted(), makeDoubleRonRoundEnd()).roundEndResult;
 
-        expect([result?.resultType, result?.loserSeat]).toEqual([ROUND_RESULT_TYPE.DOUBLE_RON, 1]);
+        expect([result?.resultType, result?.loserSeat]).toEqual([ROUND_RESULT_TYPE.RON, 1]);
         expect(result?.winners).toMatchObject([
             { closedTiles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], seat: 0, winningTile: 52 },
             {
@@ -630,10 +634,10 @@ describe("applyEvent - round_end", () => {
     });
 
     test.each([
-        [ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW, makeExhaustiveDrawRoundEnd()],
-        [ROUND_RESULT_TYPE.ABORTIVE_DRAW, makeAbortiveDrawRoundEnd()],
-        [ROUND_RESULT_TYPE.NAGASHI_MANGAN, makeNagashiManganRoundEnd()],
-    ])("takes a %s with no winner", (resultType, event) => {
+        ["an exhaustive draw", ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW, makeExhaustiveDrawRoundEnd()],
+        ["an abortive draw", ROUND_RESULT_TYPE.ABORTIVE_DRAW, makeAbortiveDrawRoundEnd()],
+        ["a nagashi mangan", ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW, makeNagashiManganRoundEnd()],
+    ])("takes %s with no winner", (_name, resultType, event) => {
         const result = applyEvent(stateAfterRoundStarted(), event).roundEndResult;
 
         expect([result?.resultType, result?.winners]).toEqual([resultType, []]);

@@ -38,21 +38,14 @@ interface LineSteps {
 function stepLine(state: ReplayClient, line: ReplayFileLine): LineSteps {
     const event = { at: REPLAY_TIME, kind: "replay_line", raw: line.raw } as const;
     try {
-        const steps = traceReplayClient(state, event);
-        const refused = steps
-            .flatMap((step) => step.effects)
-            .find((effect) => effect.type === "report_protocol_failure");
+        const step = traceReplayClient(state, event);
+        const refused = step.effects.find((effect) => effect.type === "report_protocol_failure");
         if (refused !== undefined) {
             return { damage: refused.detail, entries: [] };
         }
         return {
             damage: null,
-            entries: steps.map((step) => ({
-                effects: step.effects,
-                event,
-                parsed: step.parsed,
-                state: step.state,
-            })),
+            entries: [{ effects: step.effects, event, parsed: step.parsed, state: step.state }],
         };
     } catch (error: unknown) {
         if (!(error instanceof DesyncError)) {

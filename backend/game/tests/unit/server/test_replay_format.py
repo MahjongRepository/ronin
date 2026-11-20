@@ -185,7 +185,7 @@ def test_replay_records__when_array_has_wrong_element_shape__should_report_damag
 
 
 def test_replay_records__when_yaku_and_pao_lists__should_preserve_their_distinct_shapes():
-    fixture = Path(__file__).parents[5] / "frontend/game_v2/src/fixtures/replays/pao.msgpack"
+    fixture = Path(__file__).parents[5] / "backend/game_v2/internal/wire/testdata/legacy/pao.msgpack"
     content = fixture.read_bytes()
     records = decode_replay_records(content)
     result = next(record for record in records if record.get(WireKey.EVENT_TYPE) == 4)

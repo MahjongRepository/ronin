@@ -13,8 +13,8 @@ import {
     type PlayerState,
     type RoundEndPage,
     type RoundEndResult,
+    type ShownHandResult,
     type TableState,
-    type TenpaiHandResult,
     type WinnerResult,
     type YakuResult,
 } from "@/entities/table/model/types";
@@ -135,7 +135,8 @@ export interface DrawPageDisplay {
     readonly kind: "draw";
     readonly title: string;
     readonly subtitle: string | null;
-    readonly tenpaiHands: readonly { readonly name: string; readonly hand: ResultHandDisplay }[];
+    /** The hands the draw shows under their players' names: the tenpai hands, or the hands an abort shows. */
+    readonly hands: readonly { readonly name: string; readonly hand: ResultHandDisplay }[];
 }
 
 /**
@@ -270,11 +271,8 @@ function winTitle(result: RoundEndResult): string {
         case ROUND_RESULT_TYPE.TSUMO: {
             return t("game.call.tsumo");
         }
-        case ROUND_RESULT_TYPE.DOUBLE_RON: {
-            return t("game.result.double_ron");
-        }
         default: {
-            return t("game.call.ron");
+            return result.winners.length > 1 ? t("game.result.double_ron") : t("game.call.ron");
         }
     }
 }
@@ -415,11 +413,11 @@ function evenDrawSubtitle(draw: DrawResult): string | null {
     return draw.notenSeats.length === 0 ? t("game.result.all_tenpai") : null;
 }
 
-function tenpaiHand(
-    hand: TenpaiHandResult,
+function shownHand(
+    hand: ShownHandResult,
     names: SeatNames,
     hasAkadora: boolean,
-): DrawPageDisplay["tenpaiHands"][number] {
+): DrawPageDisplay["hands"][number] {
     return {
         hand: resultHand(hand.closedTiles, hand.melds, hasAkadora),
         name: names.name(hand.seat),
@@ -428,9 +426,9 @@ function tenpaiHand(
 
 function drawPage(draw: DrawResult, names: SeatNames, hasAkadora: boolean): DrawPageDisplay {
     return {
+        hands: draw.shownHands.map((hand) => shownHand(hand, names, hasAkadora)),
         kind: "draw",
         subtitle: drawSubtitle(draw, names),
-        tenpaiHands: draw.tenpaiHands.map((hand) => tenpaiHand(hand, names, hasAkadora)),
         title: drawName(draw.kind),
     };
 }

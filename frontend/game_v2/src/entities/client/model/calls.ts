@@ -3,7 +3,6 @@ import {
     type Call,
     type TableEvent,
     type TableState,
-    callsShownKan,
     eventCalls,
 } from "@/entities/table";
 import { tileType } from "@/shared/protocol";
@@ -67,7 +66,7 @@ export function declareIntent(
 
 /**
  * The calls a live board shows after a server message's table event, from the table it found (`state`'s) to the one it
- * left: new declarations, excluding a lone echo of the submitted intent and a kan already showing; else
+ * left: new declarations, excluding a lone echo of the submitted intent; else
  * those still showing, which only their time ends, since a move that calls nothing may follow a call at once (an AI
  * player's discard after its pon, the viewer's own draw after a riichi). A deal, or a snapshot that leaves the hand,
  * starts a new board, which shows none of the hand before, however soon it follows that hand's last call.
@@ -84,10 +83,7 @@ export function liveCalls(
         return null;
     }
     const shown = state.calls;
-    const live = shown !== null && shown.until > state.now ? shown.calls : [];
-    const calls = (eventCalls(event, state.table, table) ?? []).filter(
-        (call) => !callsShownKan(live, call),
-    );
+    const calls = eventCalls(event, table) ?? [];
     const declared = submittedCall(state);
     return calls.every((call) => matchesCall(call, declared))
         ? shown
@@ -103,7 +99,7 @@ export function replayCalls(
     event: TableEvent,
     table: TableState,
 ): ShownCalls | null {
-    const calls = eventCalls(event, state.table, table);
+    const calls = eventCalls(event, table);
     if (calls === null) {
         return state.calls;
     }

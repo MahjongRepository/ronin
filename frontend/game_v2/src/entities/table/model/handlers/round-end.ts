@@ -14,13 +14,11 @@ import { assertNever } from "@/shared/lib";
 import {
     DORA_YAKU_ID,
     type ExhaustiveDrawRoundEnd,
-    type NagashiManganRoundEnd,
     type PaoLiability,
     ROUND_RESULT_TYPE,
+    type RonRoundEnd,
     type RoundEndEvent,
 } from "@/shared/protocol";
-
-import { applyKanDeclared, robbedKanDeclared } from "./kan-declared";
 
 function settleScores(players: readonly PlayerState[], event: RoundEndEvent): PlayerState[] {
     return players.map((p) => ({
@@ -31,10 +29,12 @@ function settleScores(players: readonly PlayerState[], event: RoundEndEvent): Pl
 
 /**
  * What a round end's result reads beyond the event: the game's riichi stick value, which the event's collected sticks
- * are paid at. Everything else of the result, the round's dealer and dora included, is the event's.
+ * are paid at, and each seat's melds as the round ended, which tell a ron that robbed a kan (the server announces a
+ * kan before anyone may rob it). Everything else of the result, the round's dealer and dora included, is the event's.
  */
 export interface RoundEndContext {
     readonly riichiStickValue: number | null;
+    readonly players: readonly Pick<PlayerState, "seat" | "melds">[];
 }
 
 interface WinnerSource {
@@ -90,34 +90,30 @@ function emptyDraw(kind: DrawKind): DrawResult {
         nagashiSeats: NO_SEATS,
         notenSeats: NO_SEATS,
         ronSeats: NO_SEATS,
-        tenpaiHands: [],
+        shownHands: [],
         tenpaiSeats: NO_SEATS,
     };
 }
 
-function tenpaiDraw(
-    kind: DrawKind,
-    event: ExhaustiveDrawRoundEnd | NagashiManganRoundEnd,
-): DrawResult {
+function exhaustiveDraw(event: ExhaustiveDrawRoundEnd): DrawResult {
     return {
-        ...emptyDraw(kind),
+        ...emptyDraw(event.qualifyingSeats.length === 0 ? "exhaustive" : "nagashi_mangan"),
+        nagashiSeats: event.qualifyingSeats,
         notenSeats: event.notenSeats,
-        tenpaiHands: event.tenpaiHands,
+        shownHands: event.tenpaiHands,
         tenpaiSeats: event.tenpaiSeats,
     };
 }
 
 function resultWinners(event: RoundEndEvent, context: RoundEndContext): readonly WinnerResult[] {
     switch (event.resultType) {
-        case ROUND_RESULT_TYPE.TSUMO:
-        case ROUND_RESULT_TYPE.RON: {
+        case ROUND_RESULT_TYPE.TSUMO: {
             return [extractWinner(event, event.winningTile, context)];
         }
-        case ROUND_RESULT_TYPE.DOUBLE_RON: {
+        case ROUND_RESULT_TYPE.RON: {
             return event.winners.map((winner) => extractWinner(winner, event.winningTile, context));
         }
         case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW:
-        case ROUND_RESULT_TYPE.NAGASHI_MANGAN:
         case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
             return [];
         }
@@ -130,24 +126,18 @@ function resultWinners(event: RoundEndEvent, context: RoundEndContext): readonly
 function resultDraw(event: RoundEndEvent): DrawResult | null {
     switch (event.resultType) {
         case ROUND_RESULT_TYPE.TSUMO:
-        case ROUND_RESULT_TYPE.RON:
-        case ROUND_RESULT_TYPE.DOUBLE_RON: {
+        case ROUND_RESULT_TYPE.RON: {
             return null;
         }
         case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW: {
-            return tenpaiDraw("exhaustive", event);
-        }
-        case ROUND_RESULT_TYPE.NAGASHI_MANGAN: {
-            return {
-                ...tenpaiDraw("nagashi_mangan", event),
-                nagashiSeats: event.qualifyingSeats,
-            };
+            return exhaustiveDraw(event);
         }
         case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
             return {
                 ...emptyDraw(event.reason),
                 declarerSeat: event.seat,
                 ronSeats: event.ronSeats,
+                shownHands: event.shownHands,
             };
         }
         default: {
@@ -156,25 +146,35 @@ function resultDraw(event: RoundEndEvent): DrawResult | null {
     }
 }
 
+/** Whether a ron robbed a kan: its won tile lies in a kan of the loser's, declared before the ron. */
+function robsKan(event: RonRoundEnd, context: RoundEndContext): boolean {
+    const loser = context.players.find((player) => player.seat === event.loserSeat);
+    return (
+        loser?.melds.some(
+            (meld) =>
+                (meld.meldType === "added_kan" || meld.meldType === "closed_kan") &&
+                meld.tileIds.includes(event.winningTile),
+        ) ?? false
+    );
+}
+
 interface RonDetail {
     readonly loserSeat: number | null;
     readonly headBumpedSeats: readonly number[];
     readonly kanRobbed: boolean;
 }
 
-function ronDetail(event: RoundEndEvent): RonDetail {
+function ronDetail(event: RoundEndEvent, context: RoundEndContext): RonDetail {
     switch (event.resultType) {
-        case ROUND_RESULT_TYPE.RON:
-        case ROUND_RESULT_TYPE.DOUBLE_RON: {
+        case ROUND_RESULT_TYPE.RON: {
             return {
                 headBumpedSeats: event.headBumpedSeats,
-                kanRobbed: event.robbedKan !== null,
+                kanRobbed: robsKan(event, context),
                 loserSeat: event.loserSeat,
             };
         }
         case ROUND_RESULT_TYPE.TSUMO:
         case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW:
-        case ROUND_RESULT_TYPE.NAGASHI_MANGAN:
         case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
             return { headBumpedSeats: NO_SEATS, kanRobbed: false, loserSeat: null };
         }
@@ -190,7 +190,7 @@ export function extractRoundEndResult(
     context: RoundEndContext,
 ): RoundEndResult {
     return {
-        ...ronDetail(event),
+        ...ronDetail(event, context),
         dealerSeat: event.dealerSeat,
         doraIndicators: event.doraIndicators,
         draw: resultDraw(event),
@@ -215,25 +215,27 @@ interface RevealedHand {
     readonly drawnTileId: number | null;
 }
 
-/** The closed hands a result shows: its winners', and the tenpai hands of a draw that judges tenpai. */
-function revealedHands(event: RoundEndEvent): RevealedHand[] {
+/** The drawn tile of a seat whose hand an abort shows, kept apart while the shown tiles still hold it. */
+function shownDrawnTile(state: TableState, seat: number, tiles: readonly number[]): number | null {
+    const drawn = state.players.find((player) => player.seat === seat)?.drawnTileId ?? null;
+    return drawn !== null && tiles.includes(drawn) ? drawn : null;
+}
+
+/** The closed hands a result shows: its winners', the tenpai hands of an exhaustive draw, the hands an abort shows. */
+function revealedHands(state: TableState, event: RoundEndEvent): RevealedHand[] {
     switch (event.resultType) {
         case ROUND_RESULT_TYPE.TSUMO: {
             const tiles = [...event.closedTiles, event.winningTile];
             return [{ drawnTileId: event.winningTile, seat: event.winnerSeat, tiles }];
         }
         case ROUND_RESULT_TYPE.RON: {
-            return [{ drawnTileId: null, seat: event.winnerSeat, tiles: event.closedTiles }];
-        }
-        case ROUND_RESULT_TYPE.DOUBLE_RON: {
             return event.winners.map((winner) => ({
                 drawnTileId: null,
                 seat: winner.winnerSeat,
                 tiles: winner.closedTiles,
             }));
         }
-        case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW:
-        case ROUND_RESULT_TYPE.NAGASHI_MANGAN: {
+        case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW: {
             return event.tenpaiHands.map((hand) => ({
                 drawnTileId: null,
                 seat: hand.seat,
@@ -241,7 +243,11 @@ function revealedHands(event: RoundEndEvent): RevealedHand[] {
             }));
         }
         case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
-            return [];
+            return event.shownHands.map((hand) => ({
+                drawnTileId: shownDrawnTile(state, hand.seat, hand.closedTiles),
+                seat: hand.seat,
+                tiles: hand.closedTiles,
+            }));
         }
         default: {
             return assertNever(event);
@@ -254,7 +260,7 @@ function revealedHands(event: RoundEndEvent): RevealedHand[] {
  * face up from every perspective.
  */
 export function revealHands(state: TableState, event: RoundEndEvent): TableState {
-    const hands = revealedHands(event);
+    const hands = revealedHands(state, event);
     const players = hands.reduce(
         (revealed, hand) =>
             updatePlayer(revealed, hand.seat, {
@@ -268,26 +274,18 @@ export function revealHands(state: TableState, event: RoundEndEvent): TableState
     return { ...state, players, revealedSeats: hands.map((hand) => hand.seat) };
 }
 
-/** The table with the kan the round end's win robbed shown as declared, unless a chankan prompt showed it already. */
-export function showRobbedKan(state: TableState, event: RoundEndEvent): TableState {
-    const declared = robbedKanDeclared(event);
-    return declared === null ? state : applyKanDeclared(state, declared);
-}
-
 /**
- * End the round: the kan a win robbed shows as declared first, then the scores pay out, the table keeps the riichi
- * sticks the server says the result left, and the hands the result reveals show. Whatever ended it, the latest
- * discard is unmarked and lies in the river as any other.
+ * End the round: the scores pay out, the table keeps the riichi sticks the server says the result left, and the hands
+ * the result reveals show. Whatever ended it, the latest discard is unmarked and lies in the river as any other.
  */
 export function applyRoundEnd(state: TableState, event: RoundEndEvent): TableState {
-    const declared = showRobbedKan(state, event);
     const result = extractRoundEndResult(event, state);
     return revealHands(
         {
-            ...declared,
+            ...state,
             lastDiscardSeat: null,
             phase: "round_ended",
-            players: settleScores(declared.players, event),
+            players: settleScores(state.players, event),
             riichiSticks: event.riichiSticks,
             roundEndResult: result,
         },

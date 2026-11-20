@@ -1,8 +1,8 @@
-import { type KanDeclaredEvent, type ReplayEvent } from "@/entities/table";
+import { type ReplayEvent } from "@/entities/table";
 import { type SeatControlLine } from "@/shared/protocol";
 
-/** What each timeline entry shows: its replay event, the kan a round end's win robbed as declared before it, or a seat control line. */
-export type StepEvent = ReplayEvent | KanDeclaredEvent | SeatControlLine;
+/** What each timeline entry shows: its replay event, or a seat control line. */
+export type StepEvent = ReplayEvent | SeatControlLine;
 
 /**
  * One stop of a replay: it shows the table after entry `stateIndex - 1` (the timeline state `stateIndex`), stops on
@@ -14,9 +14,13 @@ export interface ActionStep {
     readonly stateIndex: number;
 }
 
-/** Bookkeeping that belongs to the move before it: a new dora, the riichi stick of the discard just passed. */
+/**
+ * Bookkeeping that belongs to the move before it: a new dora, the riichi stick of the discard just passed, the pao the
+ * call just made.
+ */
 const TRAILING_TYPES: ReadonlySet<StepEvent["type"]> = new Set([
     "dora_revealed",
+    "pao_assigned",
     "riichi_declared",
 ]);
 

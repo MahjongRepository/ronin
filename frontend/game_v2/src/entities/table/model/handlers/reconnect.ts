@@ -7,7 +7,7 @@ import {
 } from "@/entities/table/model/types";
 import { type GameReconnectedEvent } from "@/shared/protocol";
 
-import { extractRoundEndResult, revealHands, showRobbedKan } from "./round-end";
+import { extractRoundEndResult, revealHands } from "./round-end";
 
 type SnapshotSeat = GameReconnectedEvent["playerStates"][number];
 
@@ -54,11 +54,11 @@ function snapshotPlayer(
 
 /**
  * Rebuild the table from a reconnect snapshot, its latest discard marked where the snapshot names it. It opens
- * no wait: when the game awaits the seat, the server re-sends the event that opened it. A snapshot taken during a round advance shows the round that ended, with its result, the
- * hands it reveals, and the kan its win robbed as declared: the server never completes a robbed kan, so the snapshot's hand still holds its
- * tiles. Its scores and riichi sticks already hold every accepted riichi's deposit, so the table takes them as they are.
- * Its round history lists every finished round, the one whose result it shows included, which the table takes whole.
- * The parsed snapshot is complete (`gameReconnectedSchema`): each seat's player and state, in seat order, so nothing
+ * no wait: when the game awaits the seat, the server re-sends the event that opened it. A snapshot taken during a
+ * round advance shows the round that ended, with its result and the hands it reveals; a kan its win robbed shows
+ * declared in its declarer's melds, as the server announced it before the win. Its scores and riichi sticks already
+ * hold every accepted riichi's deposit, so the table takes them as they are. Its round history lists every finished
+ * round, the one whose result it shows included, which the table takes whole. The parsed snapshot is complete (`gameReconnectedSchema`): each seat's player and state, in seat order, so nothing
  * of a seat is filled in here.
  */
 export function applyGameReconnected(
@@ -85,7 +85,7 @@ export function applyGameReconnected(
         revealedSeats: [],
         riichiStickValue: snapshot.riichiStickValue,
         riichiSticks: snapshot.riichiSticks,
-        roundEndResult: roundResult === null ? null : extractRoundEndResult(roundResult, snapshot),
+        roundEndResult: null,
         roundInWind: snapshot.roundInWind,
         roundNumber: snapshot.roundNumber,
         roundWind: snapshot.wind,
@@ -94,5 +94,8 @@ export function applyGameReconnected(
     if (roundResult === null) {
         return rebuilt;
     }
-    return revealHands(showRobbedKan(rebuilt, roundResult), roundResult);
+    return revealHands(
+        { ...rebuilt, roundEndResult: extractRoundEndResult(roundResult, rebuilt) },
+        roundResult,
+    );
 }

@@ -28,8 +28,8 @@ signed game ticket; players then connect by WebSocket and play. `logic/`, `sessi
   `game_started` record, and loading refuses any other. The browser uses explicit viewing settings and
   recorded events, without a profile registry or engine execution.
   Builders and consumers reference `WireKey` directly; string keys inside settings and score maps are data.
-  A change to the replay records is followed by
-  `make generate-replay-fixtures`, which re-records the v2 game client's replay fixtures.
+  The v2 game client's replay fixtures come from the Go server (`make generate-fixtures`), not from
+  this package.
 
 Import direction is `server` → `session` → `messaging` → `wire` → `engine` → `logic` (the
 import-linter contracts in `backend/pyproject.toml`). Something two layers both need goes down into
@@ -87,5 +87,5 @@ timers without waiting.
 walls and played actions and importing only `game.engine` (`engine/AGENTS.md`).
 Whole-game flows use the replay runner on `tests/integration/replays/fixtures/` or a built
 `ReplayInput`, asserting on each step's before/after state.
-A change to what the session sends a seat (a payload, a stamp, a delivery rule) is followed by
-`make generate-seat-scenarios`.
+The v2 game client's seat transcripts come from the Go server (`make generate-fixtures`), not from
+this session.

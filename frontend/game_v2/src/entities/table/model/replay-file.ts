@@ -10,6 +10,7 @@ const REPLAY_EVENT_TYPES: Record<ReplayEvent["type"], true> = {
     game_end: true,
     game_started: true,
     meld: true,
+    pao_assigned: true,
     riichi_declared: true,
     round_end: true,
     round_started: true,

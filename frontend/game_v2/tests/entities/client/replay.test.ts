@@ -1,6 +1,6 @@
 import { assert, describe, expect, test } from "vitest";
 
-import { encodeReplayLines, encodeReplayRecords, joinBytes } from "#tests/fixtures/replay-records";
+import { encodeReplayLines } from "#tests/fixtures/replay-records";
 import { ENGINE_REPLAYS, type EngineReplay, loadEngineReplay } from "#tests/fixtures/replays";
 import { GAME_ID, HANDOFF, clientEvent } from "#tests/fixtures/scenario";
 import {
@@ -63,20 +63,6 @@ function readLines(...lines: string[]): {
 }
 
 describe("readReplayTimeline - lines", () => {
-    test("names the file's line of an error after a round end the dispatcher took in two parts", () => {
-        const fixture = ENGINE_REPLAYS.get("chankan_added");
-        assert(fixture);
-        const text = joinBytes([fixture, encodeReplayRecords([{ [WIRE_KEY.EVENT_TYPE]: 99 }])]);
-        const read = readReplayTimeline(text);
-        assert(read.ok);
-
-        expect(read.damage).toEqual({
-            detail: "Parse error: Failed to parse game event EVENT_TYPE=99: Unknown game event type: EVENT_TYPE=99",
-            lineNumber: read.timeline.entries.length + 1,
-        });
-        expect(read.timeline.entries.at(-1)?.parsed?.type).toBe("round_end");
-    });
-
     test("parses each event line in order through the dispatcher, blank lines skipped", () => {
         const { damage, types } = readLines(drawLine, "", "   ", discardLine);
         expect(damage).toBeNull();
@@ -177,18 +163,13 @@ function revealedHands(event: RoundEndEvent): RevealedHand[] {
             return [{ meldCount: event.melds.length, seat: event.winnerSeat, tiles }];
         }
         case ROUND_RESULT_TYPE.RON: {
-            const tiles = event.closedTiles;
-            return [{ meldCount: event.melds.length, seat: event.winnerSeat, tiles }];
-        }
-        case ROUND_RESULT_TYPE.DOUBLE_RON: {
             return event.winners.map((winner) => ({
                 meldCount: winner.melds.length,
                 seat: winner.winnerSeat,
                 tiles: winner.closedTiles,
             }));
         }
-        case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW:
-        case ROUND_RESULT_TYPE.NAGASHI_MANGAN: {
+        case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW: {
             return event.tenpaiHands.map((hand) => ({
                 meldCount: hand.melds.length,
                 seat: hand.seat,
@@ -196,7 +177,11 @@ function revealedHands(event: RoundEndEvent): RevealedHand[] {
             }));
         }
         case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
-            return [];
+            return event.shownHands.map((hand) => ({
+                meldCount: hand.melds.length,
+                seat: hand.seat,
+                tiles: hand.closedTiles,
+            }));
         }
     }
 }
@@ -309,7 +294,7 @@ describe("readReplayTimeline - engine replays", () => {
 
         expect(lastStops.map((step) => kanStop(replay, step, 1))).toEqual([
             ["draw", "in_round", 65, 11, ["pon"]],
-            ["kan_declared", "in_round", 65, 10, ["added_kan"]],
+            ["meld", "in_round", 65, 10, ["added_kan"]],
             ["round_end", "round_ended", 65, 10, ["added_kan"]],
         ]);
         const end = tables.at(-1);
@@ -328,7 +313,7 @@ describe("readReplayTimeline - engine replays", () => {
 
         expect(lastStops.map((step) => kanStop(replay, step, 1))).toEqual([
             ["draw", "in_round", 64, 14, []],
-            ["kan_declared", "in_round", 64, 10, ["closed_kan"]],
+            ["meld", "in_round", 64, 10, ["closed_kan"]],
             ["round_end", "round_ended", 64, 10, ["closed_kan"]],
             ["game_end", "game_ended", 64, 10, ["closed_kan"]],
         ]);
@@ -340,7 +325,7 @@ describe("readReplayTimeline - engine replays", () => {
     test("double ron: shows both winners of one discard, who dealt it and the settled scores", () => {
         const timeline = loadEngineReplay("double_ron");
         const { event, index } = findRoundEnd(timeline);
-        assert(event.resultType === ROUND_RESULT_TYPE.DOUBLE_RON);
+        assert(event.resultType === ROUND_RESULT_TYPE.RON && event.winners.length === 2);
         const end = stateAfter(timeline, index);
 
         expect(scoresOf(end)).toEqual([5300, 38_000, 31_700, 25_000]);
@@ -639,18 +624,10 @@ function seatKnowledge(state: GameClientState, seat: number): unknown {
 
 function projectedEntry(entry: TimelineEntry, seat: number): WireLine | null {
     const { event, parsed } = entry;
-    if (event.kind !== "replay_line" || parsed === null || parsed.type === "kan_declared") {
+    if (event.kind !== "replay_line" || parsed === null) {
         return null;
     }
     return projectLine(event.raw, parsed, seat);
-}
-
-/**
- * Whether an entry ends its replay line: the reader takes a round end that robbed a kan as the kan declared, then the
- * result, and a live seat sees that kan from the round end alone.
- */
-function endsLine(entry: TimelineEntry): boolean {
-    return entry.parsed?.type !== "kan_declared";
 }
 
 function divergenceAt(
@@ -685,7 +662,7 @@ function firstDivergence(timeline: ClientTimeline, seat: number): string | null 
                 ? { effects: [], state: view }
                 : stepGameClient(view, { at: 0, kind: "server_message", raw });
         view = step.state;
-        const found = endsLine(entry) ? divergenceAt(entry, step, seat) : null;
+        const found = divergenceAt(entry, step, seat);
         if (found !== null) {
             return `entry ${index}, ${found}`;
         }

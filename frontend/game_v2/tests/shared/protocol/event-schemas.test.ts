@@ -703,17 +703,17 @@ function standing(seat: number): Record<string, number> {
 }
 
 describe("gameEndSchema", () => {
-    it("parses valid wire payload with standings", () => {
+    it("parses valid wire payload with standings, the final scores from whole tenths", () => {
         const wire = {
             [WIRE_KEY.END_CAUSE]: "target_reached",
             [WIRE_KEY.LEFTOVER_BONUS]: 20,
             [WIRE_KEY.LEFTOVER_RIICHI]: 2,
             [WIRE_KEY.ROUND_COUNT]: 8,
             [WIRE_KEY.STANDINGS]: [
-                { [WIRE_KEY.FINAL_SCORE]: 42, [WIRE_KEY.SEAT]: 0, [WIRE_KEY.SCORE]: 350 },
-                { [WIRE_KEY.FINAL_SCORE]: 12, [WIRE_KEY.SEAT]: 1, [WIRE_KEY.SCORE]: 250 },
-                { [WIRE_KEY.FINAL_SCORE]: -18, [WIRE_KEY.SEAT]: 2, [WIRE_KEY.SCORE]: 200 },
-                { [WIRE_KEY.FINAL_SCORE]: -36, [WIRE_KEY.SEAT]: 3, [WIRE_KEY.SCORE]: 200 },
+                { [WIRE_KEY.FINAL_SCORE]: 423, [WIRE_KEY.SEAT]: 0, [WIRE_KEY.SCORE]: 350 },
+                { [WIRE_KEY.FINAL_SCORE]: 120, [WIRE_KEY.SEAT]: 1, [WIRE_KEY.SCORE]: 250 },
+                { [WIRE_KEY.FINAL_SCORE]: -183, [WIRE_KEY.SEAT]: 2, [WIRE_KEY.SCORE]: 200 },
+                { [WIRE_KEY.FINAL_SCORE]: -360, [WIRE_KEY.SEAT]: 3, [WIRE_KEY.SCORE]: 200 },
             ],
             [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.GAME_END,
             [WIRE_KEY.WINNER_SEAT]: 0,
@@ -723,8 +723,17 @@ describe("gameEndSchema", () => {
         expect(result.winnerSeat).toBe(0);
         expect([result.numRounds, result.endCause]).toEqual([8, "target_reached"]);
         expect([result.leftoverRiichiBonus, result.leftoverRiichiSticks]).toEqual([2000, 2]);
-        expect(result.standings[0]).toEqual({ finalScore: 42, score: 35_000, seat: 0 });
-        expect(result.standings[3]).toEqual({ finalScore: -36, score: 20_000, seat: 3 });
+        expect(result.standings[0]).toEqual({ finalScore: 42.3, score: 35_000, seat: 0 });
+        expect(result.standings[2]).toEqual({ finalScore: -18.3, score: 20_000, seat: 2 });
+        expect(() =>
+            gameEndSchema.parse({
+                ...wire,
+                [WIRE_KEY.STANDINGS]: wire[WIRE_KEY.STANDINGS].map((entry) => ({
+                    ...entry,
+                    [WIRE_KEY.FINAL_SCORE]: 42.3,
+                })),
+            }),
+        ).toThrow();
     });
 
     it("refuses standings that rank a seat twice, in whatever order the server ranks them", () => {

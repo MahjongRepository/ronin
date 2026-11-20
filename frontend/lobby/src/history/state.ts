@@ -1,6 +1,10 @@
 import { isRecord } from "@/api";
 
+/** The history API sends a standing's uma/oka-adjusted final score in whole tenths of a point: 523 for +52.3. */
+const FINAL_SCORE_TENTHS = 10;
+
 export interface HistoryPlayer {
+    /** The uma/oka-adjusted final score in points, to its tenth; null while the game is in progress. */
     readonly finalScore: number | null;
     readonly isViewer: boolean;
     readonly isWinner: boolean;
@@ -56,7 +60,13 @@ function parsePlayer(value: unknown): HistoryPlayer | null {
     ) {
         return null;
     }
-    return { finalScore, isViewer, isWinner, name, score };
+    return {
+        finalScore: finalScore === null ? null : finalScore / FINAL_SCORE_TENTHS,
+        isViewer,
+        isWinner,
+        name,
+        score,
+    };
 }
 
 function parseStartedAt(value: unknown): Date | null {

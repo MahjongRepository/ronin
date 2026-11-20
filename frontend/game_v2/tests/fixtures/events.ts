@@ -1,6 +1,4 @@
 import {
-    CALL_TYPE,
-    type ChankanPromptEvent,
     type ClaimedMeldEvent,
     type DiscardEvent,
     type DoraRevealedEvent,
@@ -14,7 +12,6 @@ import {
     type LiveDrawEvent,
     MELD_TYPE,
     type MeldEvent,
-    type NagashiManganRoundEnd,
     ROUND_RESULT_TYPE,
     type RecordedDrawEvent,
     type RiichiDeclaredEvent,
@@ -24,7 +21,6 @@ import {
 import { type AiReplacementLine } from "@/shared/protocol/schemas/replay";
 import {
     type AbortiveDrawRoundEnd,
-    type DoubleRonRoundEnd,
     type RonRoundEnd,
     type TsumoRoundEnd,
 } from "@/shared/protocol/types";
@@ -173,23 +169,6 @@ export function makeClosedKanEvent(
     };
 }
 
-export function makeChankanPromptEvent(
-    overrides: Partial<ChankanPromptEvent> = {},
-): ChankanPromptEvent {
-    return {
-        bankSeconds: null,
-        callType: CALL_TYPE.CHANKAN,
-        callerSeat: 1,
-        elapsedSeconds: null,
-        fromSeat: 0,
-        kanType: "added",
-        tileId: 39,
-        type: "call_prompt",
-        waitId: null,
-        ...overrides,
-    };
-}
-
 export function makeRiichiDeclaredEvent(
     overrides: Partial<RiichiDeclaredEvent> = {},
 ): RiichiDeclaredEvent {
@@ -235,78 +214,54 @@ export function makeTsumoRoundEnd(overrides: Partial<TsumoRoundEnd> = {}): Tsumo
     };
 }
 
-export function makeRonRoundEnd(overrides: Partial<RonRoundEnd> = {}): RonRoundEnd {
+type RonWin = RonRoundEnd["winners"][number];
+
+export function makeRonWin(overrides: Partial<RonWin> = {}): RonWin {
     return {
         closedTiles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-        dealerSeat: 0,
-        doraIndicators: [40],
         handResult: makeHandResult({ han: 3, points: 3900 }),
-        headBumpedSeats: [],
         honbaBonus: 0,
-        loserSeat: 1,
         melds: [],
         pao: null,
+        riichiSticksCollected: 0,
+        scoreChanges: { "0": 8000, "1": -8000, "2": 0, "3": 0 },
+        uraDoraIndicators: null,
+        winnerSeat: 0,
+        ...overrides,
+    };
+}
+
+export function makeRonRoundEnd(overrides: Partial<RonRoundEnd> = {}): RonRoundEnd {
+    return {
+        dealerSeat: 0,
+        doraIndicators: [40],
+        headBumpedSeats: [],
+        loserSeat: 1,
         resultType: ROUND_RESULT_TYPE.RON,
         riichiSticks: 0,
-        riichiSticksCollected: 0,
-        robbedKan: null,
         roundAdvance: null,
         scoreChanges: { "0": 8000, "1": -8000, "2": 0, "3": 0 },
         scores: { "0": 25_000, "1": 25_000, "2": 25_000, "3": 25_000 },
         type: "round_end",
-        uraDoraIndicators: null,
-        winnerSeat: 0,
+        winners: [makeRonWin()],
         winningTile: 52,
         ...overrides,
     };
 }
 
-type DoubleRonWinner = DoubleRonRoundEnd["winners"][number];
-
-function makeDoubleRonWinner(overrides: Partial<DoubleRonWinner>): DoubleRonWinner {
-    return {
-        closedTiles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-        handResult: makeHandResult({ han: 3, points: 3900 }),
-        honbaBonus: 0,
-        melds: [],
-        pao: null,
-        riichiSticksCollected: 0,
-        scoreChanges: {},
-        uraDoraIndicators: null,
-        winnerSeat: 0,
-        ...overrides,
-    };
-}
-
-export function makeDoubleRonRoundEnd(
-    overrides: Partial<DoubleRonRoundEnd> = {},
-): DoubleRonRoundEnd {
-    return {
-        dealerSeat: 0,
-        doraIndicators: [40],
-        headBumpedSeats: [],
-        loserSeat: 1,
-        resultType: ROUND_RESULT_TYPE.DOUBLE_RON,
-        riichiSticks: 0,
-        robbedKan: null,
-        roundAdvance: null,
+export function makeDoubleRonRoundEnd(overrides: Partial<RonRoundEnd> = {}): RonRoundEnd {
+    return makeRonRoundEnd({
         scoreChanges: { "0": 8000, "1": -16_000, "2": 8000, "3": 0 },
-        scores: { "0": 25_000, "1": 25_000, "2": 25_000, "3": 25_000 },
-        type: "round_end",
         winners: [
-            makeDoubleRonWinner({
-                scoreChanges: { "0": 8000, "1": -8000, "2": 0, "3": 0 },
-                winnerSeat: 0,
-            }),
-            makeDoubleRonWinner({
+            makeRonWin({ winnerSeat: 0 }),
+            makeRonWin({
                 closedTiles: [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38],
                 scoreChanges: { "0": 0, "1": -8000, "2": 8000, "3": 0 },
                 winnerSeat: 2,
             }),
         ],
-        winningTile: 52,
         ...overrides,
-    };
+    });
 }
 
 export function makeExhaustiveDrawRoundEnd(
@@ -316,6 +271,8 @@ export function makeExhaustiveDrawRoundEnd(
         dealerSeat: 0,
         doraIndicators: [40],
         notenSeats: [1, 3],
+        qualifyingRivers: [],
+        qualifyingSeats: [],
         resultType: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
         riichiSticks: 0,
         roundAdvance: null,
@@ -340,20 +297,20 @@ export function makeAbortiveDrawRoundEnd(
         reason: "four_winds",
         resultType: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
         riichiSticks: 0,
-        robbedKan: null,
         ronSeats: [],
         roundAdvance: null,
         scoreChanges: { "0": 0, "1": 0, "2": 0, "3": 0 },
         scores: { "0": 25_000, "1": 25_000, "2": 25_000, "3": 25_000 },
         seat: null,
+        shownHands: [],
         type: "round_end",
         ...overrides,
     };
 }
 
 export function makeNagashiManganRoundEnd(
-    overrides: Partial<NagashiManganRoundEnd> = {},
-): NagashiManganRoundEnd {
+    overrides: Partial<ExhaustiveDrawRoundEnd> = {},
+): ExhaustiveDrawRoundEnd {
     return {
         dealerSeat: 0,
         doraIndicators: [40],
@@ -368,7 +325,7 @@ export function makeNagashiManganRoundEnd(
             },
         ],
         qualifyingSeats: [0],
-        resultType: ROUND_RESULT_TYPE.NAGASHI_MANGAN,
+        resultType: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
         riichiSticks: 0,
         roundAdvance: null,
         scoreChanges: { "0": 12_000, "1": -4000, "2": -4000, "3": -4000 },
@@ -387,10 +344,10 @@ export function makeGameEndEvent(overrides: Partial<GameEndEvent> = {}): GameEnd
         leftoverRiichiSticks: 0,
         numRounds: 8,
         standings: [
-            { finalScore: 25, score: 35_000, seat: 0 },
+            { finalScore: 45, score: 35_000, seat: 0 },
             { finalScore: 2, score: 22_000, seat: 1 },
-            { finalScore: -8, score: 22_000, seat: 2 },
-            { finalScore: -19, score: 21_000, seat: 3 },
+            { finalScore: -18, score: 22_000, seat: 2 },
+            { finalScore: -29, score: 21_000, seat: 3 },
         ],
         type: "game_end",
         winnerSeat: 0,

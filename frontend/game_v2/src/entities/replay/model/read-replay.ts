@@ -19,7 +19,7 @@ import { type ReplayCursor, firstCursor } from "./replay-cursor";
 
 function stepEventOf(parsed: TimelineEntry["parsed"]): StepEvent {
     if (parsed !== null) {
-        if (parsed.type === "kan_declared" || isSeatControlLine(parsed) || isReplayEvent(parsed)) {
+        if (isSeatControlLine(parsed) || isReplayEvent(parsed)) {
             return parsed;
         }
     }
@@ -27,8 +27,8 @@ function stepEventOf(parsed: TimelineEntry["parsed"]): StepEvent {
 }
 
 /**
- * The step event of each timeline entry, for the replay's stops: its replay event, the kan a round end robbed as
- * declared, or a seat control line. The reader keeps no other entry, so any other throws.
+ * The step event of each timeline entry, for the replay's stops: its replay event or a seat control line. The reader
+ * keeps no other entry, so any other throws.
  */
 export function timelineStepEvents(timeline: ClientTimeline): StepEvent[] {
     return timeline.entries.map(({ parsed }) => stepEventOf(parsed));

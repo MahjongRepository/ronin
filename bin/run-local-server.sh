@@ -5,7 +5,7 @@
 
 set -e
 
-GAME_PORT=${GAME_PORT:-8711}
+GAME_PORT=${GAME_PORT:-8712}
 LOBBY_PORT=${LOBBY_PORT:-8710}
 VITE_PORT=${VITE_PORT:-5173}
 GAME_V2_VITE_PORT=${GAME_V2_VITE_PORT:-5175}
@@ -87,6 +87,9 @@ cleanup() {
     if [ -n "$GAME_V2_VITE_PID" ]; then
         kill_tree "$GAME_V2_VITE_PID"
     fi
+    if [ -n "$GAME_BUILD_DIR" ]; then
+        rm -rf "$GAME_BUILD_DIR"
+    fi
 }
 
 trap cleanup EXIT INT TERM
@@ -94,8 +97,12 @@ trap cleanup EXIT INT TERM
 # Set lobby settings for template rendering
 export LOBBY_GAME_CLIENT_URL="/play"
 
+echo "Building the Go game server..."
+GAME_BUILD_DIR=$(mktemp -d)
+go build -C backend/game_v2 -o "$GAME_BUILD_DIR/gameserver" ./cmd/gameserver
+
 echo "Starting game server on port $GAME_PORT..."
-uv run --project backend uvicorn --factory game.server.app:get_app --reload --host 0.0.0.0 --port $GAME_PORT --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-per-message-deflate false --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size 262144 &
+"$GAME_BUILD_DIR/gameserver" -addr "0.0.0.0:$GAME_PORT" &
 GAME_PID=$!
 
 echo "Waiting for game server to be ready..."

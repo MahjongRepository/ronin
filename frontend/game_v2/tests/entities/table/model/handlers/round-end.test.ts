@@ -76,7 +76,7 @@ describe("extractRoundEndResult", () => {
 
     test("double ron: a page per winner with its own payments and ura; the table settles the aggregate once", () => {
         const { after, before, event, result } = lastRoundEnd("double_ron");
-        assert(event.resultType === ROUND_RESULT_TYPE.DOUBLE_RON);
+        assert(event.resultType === ROUND_RESULT_TYPE.RON && event.winners.length === 2);
 
         expect(roundEndPages(result).map((page) => page.kind)).toEqual(["win", "win"]);
         expect(
@@ -105,7 +105,7 @@ describe("extractRoundEndResult", () => {
 
     test("double ron on honba: only the winner closest to the discarder collects the honba bonus", () => {
         const doubleRon = roundEnds(loadEngineReplay("double_ron_on_honba")).find(
-            (end) => end.event.resultType === ROUND_RESULT_TYPE.DOUBLE_RON,
+            (end) => end.result.winners.length === 2,
         );
 
         expect(doubleRon?.before.honbaSticks).toBe(2);
@@ -160,7 +160,7 @@ describe("extractRoundEndResult", () => {
             nagashiSeats: [],
             notenSeats: [0, 3],
             ronSeats: [],
-            tenpaiHands: event.tenpaiHands,
+            shownHands: event.tenpaiHands,
             tenpaiSeats: [1, 2],
         });
     });
@@ -177,14 +177,19 @@ describe("extractRoundEndResult", () => {
     });
 
     test.each([
-        ["kyuushu", { declarerSeat: 1, kind: "nine_terminals", ronSeats: [] }],
-        ["triple_ron", { declarerSeat: null, kind: "triple_ron", ronSeats: [1, 2, 3] }],
-        ["four_riichi", { declarerSeat: null, kind: "four_riichi", ronSeats: [] }],
-        ["four_winds_riichi", { declarerSeat: null, kind: "four_winds", ronSeats: [] }],
-        ["four_kans", { declarerSeat: null, kind: "four_kans", ronSeats: [] }],
-    ])("abortive draw %s: keeps its kind and the seats it names", (name, draw) => {
-        const { result } = lastRoundEnd(name);
+        ["kyuushu", { declarerSeat: 1, kind: "nine_terminals", ronSeats: [] }, [1]],
+        ["triple_ron", { declarerSeat: null, kind: "triple_ron", ronSeats: [1, 2, 3] }, [1, 2, 3]],
+        ["four_riichi", { declarerSeat: null, kind: "four_riichi", ronSeats: [] }, [0, 1, 2, 3]],
+        ["four_winds_riichi", { declarerSeat: null, kind: "four_winds", ronSeats: [] }, []],
+        ["four_kans", { declarerSeat: null, kind: "four_kans", ronSeats: [] }, []],
+    ])(
+        "abortive draw %s: keeps its kind, the seats it names and the hands it shows",
+        (name, draw, shown) => {
+            const { after, result } = lastRoundEnd(name);
 
-        expect(result.draw).toMatchObject({ ...draw, tenpaiHands: [], tenpaiSeats: [] });
-    });
+            expect(result.draw).toMatchObject({ ...draw, tenpaiSeats: [] });
+            expect(result.draw?.shownHands.map((hand) => hand.seat)).toEqual(shown);
+            expect(after.revealedSeats).toEqual(shown);
+        },
+    );
 });

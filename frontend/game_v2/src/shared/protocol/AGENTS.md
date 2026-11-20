@@ -1,11 +1,11 @@
 # Game protocol (client side)
 
-The client mirror of the game server's wire protocol (`backend/game/messaging/AGENTS.md`); a protocol change lands
-here and in the backend in the same change.
+The client mirror of the Go game server's wire protocol (`backend/game_v2/AGENTS.md`, Wire and Messaging); a
+protocol change lands here and in the backend in the same change.
 
 - Live frames use integer metadata map keys in both directions. `WIRE_KEY` is the one named ID
   registry; protocol code references its constants rather than raw numeric field IDs. IDs already
-  used by replay storage never change when live fields are added. The shared Python/TypeScript
+  used by replay storage never change when live fields are added. The shared Go/TypeScript
   golden pins the live contract.
 - `encodeWireMessage` and `decodeWireMessage` own the live boundary. Parsed domain models,
   handlers and UI keep readable field names. The codecs validate numeric metadata keys as they arrive; score-map
@@ -18,7 +18,7 @@ here and in the backend in the same change.
 - An offer parses only as an action or call the client knows, in the server's shape: an unknown one fails its whole
   message (a loss of step), never a turn offering less than the server's.
 - Live and recorded parsing stay distinct: a field the live socket always stamps (seat, timers, wait id, bank) is
-  required live even though a replay reads it as null. A replay's stick value and aka-dora flag come from explicit recorded viewing fields. Its compact rules reference stays opaque to the browser; no Python rules profiles are duplicated here.
+  required live even though a replay reads it as null. A replay's stick value and aka-dora flag come from explicit recorded viewing fields. Its compact rules reference stays opaque to the browser; no server rules profiles are duplicated here.
 - Live draws and draw notices carry no wall count; round starts and reconnect snapshots carry it. Recorded draws
   require their explicit count and parse with a distinct source discriminant, so the table does not invent replay data.
 - A live wait id belongs to the recipient alone: it increases for that participant's new decisions, round confirms

@@ -843,7 +843,7 @@ describe("playDisplay callouts", () => {
         expect(reconnected.boardMotion.mode).toBe("reset");
     });
 
-    it("calls a kan open to chankan once: not again for the prompt a reconnect re-sends, nor as nobody robs it", () => {
+    it("calls a kan open to chankan once, as its meld lands: not again for its prompt, nor for the prompt a reconnect re-sends", () => {
         function callsAt(label: string): LiveClient["calls"] {
             return checkpointState("chankan_passed_seat_3", label).calls;
         }
@@ -856,11 +856,11 @@ describe("playDisplay callouts", () => {
         expect(calloutsAt("chankan_passed_seat_3", "chankan prompt")?.items).toEqual([
             { kind: "kan", label: "Kan", position: "top" },
         ]);
-        expect(callsAt("chankan prompt")).toEqual(kan);
+        expect([callsAt("kan"), callsAt("chankan prompt")]).toEqual([kan, kan]);
         expect(
             checkpointState("chankan_passed_seat_3", "prompt re-sent").now,
         ).toBeGreaterThanOrEqual(kan.until);
-        expect([callsAt("prompt re-sent"), callsAt("kan")]).toEqual([null, null]);
+        expect(callsAt("prompt re-sent")).toBeNull();
     });
 
     it("calls each of two kans one seat declares in quick succession", () => {

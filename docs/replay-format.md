@@ -1,38 +1,53 @@
 # Replay storage format
 
-Storage version `0.4-dev` is a sequence of independent MessagePack maps, compressed together with gzip
-level 9 and `mtime=0`. Stored files use `.msgpack.gz`; HTTP serves `application/msgpack` with
-`Content-Encoding: gzip`. The browser receives the decompressed record stream. Storage keeps atomic
-replacement and owner-only file and directory permissions.
+Storage version `0.5-dev` is a sequence of independent MessagePack maps, compressed together with gzip
+level 9 and no modification time. Stored files use `.msgpack.gz`; HTTP serves `application/msgpack` with
+`Content-Encoding: gzip`, at a URL carrying the version (`?v=0.5-dev`) so a browser's cached copy of an
+older version is never read as this one. The browser receives the decompressed record stream. Storage
+keeps atomic replacement and owner-only file and directory permissions.
 
-The first record is the version map. Remaining records are the existing gameplay events and seat-control
+The first record is the version map. Remaining records are the gameplay events and seat-control
 annotations in their recorded order. There is no outer array, custom action packing, or historical engine.
 Unsupported storage versions are rejected. The storage version, RNG version, and rules-profile ID have
 separate meanings; changing storage does not change the RNG stream or engine outcomes.
 
-`backend/game/wire/keys.py` declares the named `WireKey` IDs shared with the live protocol;
-`backend/game/wire/replay_keys.py` selects the fixed replay metadata keys for this version. The
-TypeScript decoder uses the same assignments, pinned together by
-`backend/game/tests/fixtures/replay-format-golden.json`. IDs must never be renumbered or reused within a
-storage version. Unknown metadata keys are errors. Metadata conversion applies recursively except inside
-`gs` and score maps: settings reference keys and setting names stay strings, and score maps retain their
-string seat keys. Every list remains a MessagePack array. The sole binary value is `sd`, exactly 96 seed
-bytes; the Python and browser read boundaries restore its hexadecimal string.
+`backend/game_v2/internal/wire` declares the named key IDs shared with the live protocol, the replay key
+set (every key through `YAKU_YAKUMAN_COUNT`, plus `SHOWN_HANDS`) and the replay schema: the fields each
+record and result type requires and each field's type, checked on encode and decode alike. The TypeScript
+decoder uses the same assignments, pinned together by
+`backend/game_v2/internal/wire/testdata/replay-format-golden.json`. IDs, event codes and result codes are
+never renumbered or reused. Unknown metadata keys are errors. Metadata conversion applies recursively
+except inside `gs` and score maps: settings reference keys and setting names stay strings, and score maps
+retain their string seat keys. Every list remains a MessagePack array. The sole binary value is `sd`,
+exactly 96 seed bytes; the browser's read boundary restores its hexadecimal string.
 
-`gs` contains an integer profile `id` and an `overrides` map. The server plays one rules preset, profile 1
-(`game/logic/rule_profiles.py`), so recording always writes `{"id": 1, "overrides": {}}` and both Python
-readers refuse any other profile ID and any non-empty overrides; the browser has no registry. The preset
-supplies every `GameSettings` field explicitly, a completeness validator rejects one that would inherit a
-current default, and a persisted-baseline test pins its normalized values.
+Against `0.4-dev`, the records differ in these shapes:
+
+* a ron is result type 1 holding one or two wins under `WINNERS`, each with its hand, payments and pao;
+  type 2 (double ron) is retired;
+* a nagashi mangan is an exhaustive draw naming `QUALIFYING_SEATS` and `QUALIFYING_RIVERS`; type 5 is
+  retired;
+* an abortive draw may name the hands it shows under `SHOWN_HANDS` (the kyuushu declarer's, every hand at
+  four riichi, the triple ron's callers');
+* a kan's meld event comes before the chankan decision, so a robbed kan is the meld event ahead of the
+  ron that robs it, and no round end names `ROBBED_KAN`;
+* `PAO_ASSIGNED` (event 14) follows the call that makes a seat liable;
+* a standing's `FINAL_SCORE` is the uma/oka-adjusted result in whole tenths of a point, unrounded.
+
+`gs` contains an integer profile `id` and an empty `overrides` map. The Go server plays one rules preset,
+profile 2, and records `{"id": 2, "overrides": {}}`; a replay rewritten from `0.4-dev` keeps profile 1,
+the rules it was played under, so the two are told apart. The Go reader accepts those two IDs only, and
+no overrides; the browser keeps the envelope opaque and has no registry.
 
 The game-start record independently carries the viewing fields `gt` (game length), `rsv` (riichi-stick
-value in wire score units), and `aka` (boolean red-five setting). They come from the preset. Playback uses
-recorded events and these fields; it needs neither the preset nor a running rules engine. Tenhou export
-writes the preset's game type.
+value in wire score units), and `aka` (boolean red-five setting). Playback uses recorded events and these
+fields; it needs neither the preset nor a running rules engine. The Tenhou export takes its game type from
+`gt` and `aka`.
 
 A complete record is validated before being returned. Decode errors identify the record number and the
 byte offset after the last complete record. A truncated trailing MessagePack record is damaged input,
 not an intentionally unfinished game. The browser can retain the valid event prefix and display damage;
 a clean stream without a game-end event remains an unfinished replay. Gzip corruption is a separate
 transport/decompression failure. Both readers limit decompressed input to 16 MiB and bound strings,
-arrays, maps, and binary values. Fixture regeneration and drift checks use this same encoding.
+arrays, maps, and binary values. Fixture regeneration (`make generate-fixtures`) and its drift check use
+this same encoding.

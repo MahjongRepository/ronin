@@ -157,7 +157,7 @@ const seatTranscriptSchema = z.pipe(
 );
 
 /**
- * What the server met of one seat's client in a scenario the backend generated (`make generate-seat-scenarios`),
+ * What the server met of one seat's client in a scenario the backend generated (`make generate-fixtures`),
  * in order with logical times in milliseconds: the sockets it opened, each message its socket received as raw wire
  * payload, each message it sent (its JOIN_GAME and RECONNECT with the ticket left out), and each close it saw.
  */

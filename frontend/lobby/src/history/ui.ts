@@ -15,7 +15,8 @@ function finalScoreClass(finalScore: number): string {
 }
 
 function finalScoreText(finalScore: number): string {
-    return finalScore > 0 ? `+${formatNumber(finalScore)}` : formatNumber(finalScore);
+    const text = formatNumber(finalScore, { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+    return finalScore > 0 ? `+${text}` : text;
 }
 
 function standingClass(player: HistoryPlayer): string {

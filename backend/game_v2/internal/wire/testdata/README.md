@@ -5,8 +5,10 @@
   written with its decimal point, a replay seed in hex) and the bytes it encodes to. Edit a payload,
   then run `go test ./internal/wire -update` to rewrite the bytes and the named keys, and review the
   diff. Every frame the Python server's golden shares (`backend/game/tests/fixtures/`) keeps its
-  bytes; only the snapshot differs, its double ron now a ron of two wins. The game client still
-  imports the Python goldens.
+  bytes; only the snapshot differs, its double ron now a ron of two wins. The replay golden adds the
+  record shapes the Python one lacks: a pao assigned, a ron holding its win under `WINNERS`, an
+  abort showing a hand, an exhaustive draw paying a nagashi mangan. The game client's codec and
+  replay reader tests import both goldens.
 - `legacy/`: the 25 replays of replay version `0.4-dev` the game client's fixtures held, copied as
   they were: the old-format inputs of the Tenhou export, the client's replay reader and the one-off
   migration.

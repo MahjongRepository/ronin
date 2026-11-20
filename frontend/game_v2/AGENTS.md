@@ -97,9 +97,8 @@ the lowest layer allowed to hold it. `src/fixtures/` is generated data; only sto
   are sequences of client events with the effects each returns, never through the DOM; view tests inject fakes, never
   mock modules.
 * `src/fixtures/seat-scenarios/` and `src/fixtures/replays/` are generated, never edited by hand:
-  `make generate-seat-scenarios` / `make generate-replay-fixtures` from `backend/scripts/seat_scenarios/` and
-  `backend/scripts/replay_fixtures/`; the `*-check` gates fail on drift. A new interaction or replay case is a new
-  backend scenario. Seat-scenario tests assert named checkpoints (decision, table, result), not effects alone. What
+  `make generate-fixtures` from the Go server's `backend/game_v2/cmd/fixtures`; `make fixtures-check` fails on
+  drift. A new interaction or replay case is a new scenario there. Seat-scenario tests assert named checkpoints (decision, table, result), not effects alone. What
   the server cannot produce (client intents, ticks, switch sends, races) is a hand-written branch in
   `tests/fixtures/seat-transcripts.ts`.
 

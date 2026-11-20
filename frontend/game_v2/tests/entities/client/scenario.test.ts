@@ -1309,24 +1309,22 @@ describe("stepGameClient - generated chankan", () => {
         expect(roundConfirmOf(reconnected)).toEqual(roundConfirmOf(roundEnd));
     });
 
-    it("robber who passes: the prompt shows the added kan, a reconnect re-shows it once, the meld completes it", () => {
+    it("robber who passes: the kan's meld shows the added kan before its prompt, and a reconnect's snapshot shows it declared", () => {
         const { scenario } = CHANKAN_PASSED;
         const run = runClean(scenario);
         const kan = [65, 10, [["added_kan", [56, 57, 58, 59]]]];
 
-        expect([
-            declarerAt(stateAt(scenario, run, "chankan prompt")),
-            declarerAt(steppedAgain(scenario, run, "chankan prompt")),
-        ]).toEqual([kan, kan]);
-        expect(declarerAt(stateAt(scenario, run, "reconnected"))).toEqual([
-            65,
-            11,
-            [["pon", [56, 57, 58]]],
-        ]);
-        expect(declarerAt(stateAt(scenario, run, "prompt re-sent"))).toEqual(kan);
-        const completed = stateAt(scenario, run, "kan");
-        expect(declarerAt(completed)).toEqual(kan);
-        expect(completed.table.players[1].melds[0]).toMatchObject({ addedTileId: 59 });
-        expect(decisionOf(completed)).toBeNull();
+        expect(
+            [
+                stateAt(scenario, run, "kan"),
+                stateAt(scenario, run, "chankan prompt"),
+                steppedAgain(scenario, run, "chankan prompt"),
+                stateAt(scenario, run, "reconnected"),
+                stateAt(scenario, run, "prompt re-sent"),
+            ].map(declarerAt),
+        ).toEqual([kan, kan, kan, kan, kan]);
+        expect(stateAt(scenario, run, "kan").table.players[1].melds[0]).toMatchObject({
+            addedTileId: 59,
+        });
     });
 });

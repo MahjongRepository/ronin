@@ -1,6 +1,6 @@
 import { afterEach, assert, describe, expect, test } from "vitest";
 
-import { makeRonRoundEnd } from "#tests/fixtures/events";
+import { makeRonRoundEnd, makeRonWin } from "#tests/fixtures/events";
 import { loadEngineReplay } from "#tests/fixtures/replays";
 import {
     type DrawPageDisplay,
@@ -81,9 +81,9 @@ function headBumpNotes(headBumpedSeats: number[]): readonly string[] {
         headBumpedSeats,
         loserSeat: 0,
         scoreChanges: { "0": -3900, "1": 3900, "2": 0, "3": 0 },
-        winnerSeat: 1,
+        winners: [makeRonWin({ winnerSeat: 1 })],
     });
-    const result = extractRoundEndResult(event, { riichiStickValue: 1000 });
+    const result = extractRoundEndResult(event, { players, riichiStickValue: 1000 });
     const table = {
         firstDealerSeat: 0,
         honbaSticks: 0,
@@ -357,7 +357,7 @@ describe("roundEndDisplay - a draw", () => {
 
         expect(page.title).toBe("Exhaustive draw");
         expect(page.subtitle).toBeNull();
-        expect(page.tenpaiHands.map((hand) => [hand.name, handFaces(hand.hand).length])).toEqual([
+        expect(page.hands.map((hand) => [hand.name, handFaces(hand.hand).length])).toEqual([
             ["Alice", 13],
             ["Charlie", 13],
         ]);

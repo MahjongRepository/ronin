@@ -1,10 +1,5 @@
 import { type SessionEffect, type SessionState } from "@/entities/session";
-import {
-    type BoardMotionCue,
-    type Call,
-    type KanDeclaredEvent,
-    type TableState,
-} from "@/entities/table";
+import { type BoardMotionCue, type Call, type TableState } from "@/entities/table";
 import { type HandoffRecovery } from "@/shared/api";
 import {
     type CallType,
@@ -366,12 +361,9 @@ export interface ClientStep<State extends GameClientState = GameClientState> {
     readonly effects: readonly ClientEffect[];
 }
 
-/**
- * A step plus what it took of its event, as parsed: a server message or replay line, the kan a replay's round end
- * robbed as declared, or null for any other.
- */
+/** A step plus what it took of its event, as parsed: a server message or replay line, or null for any other. */
 export interface TracedStep<
     State extends GameClientState = GameClientState,
 > extends ClientStep<State> {
-    readonly parsed: ReplayLine | KanDeclaredEvent | null;
+    readonly parsed: ReplayLine | null;
 }

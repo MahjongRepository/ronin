@@ -4,6 +4,8 @@ export const NUM_TILES = 136;
 export const NUM_TILE_TYPES = 34;
 export const NUM_PLAYERS = 4;
 export const WIRE_SCORE_DIVISOR = 100;
+/** A standing's final score crosses the wire in tenths of a point: 523 for +52.3. */
+export const WIRE_FINAL_SCORE_DIVISOR = 10;
 export const SEAT_TILE_SPACE = 544; // NUM_PLAYERS * NUM_TILES
 export const NUM_DISCARD_FLAGS = 4;
 
@@ -18,6 +20,7 @@ export const EVENT_TYPE = {
     GAME_END: 10,
     GAME_STARTED: 8,
     MELD: 0,
+    PAO_ASSIGNED: 14,
     RIICHI_DECLARED: 5,
     ROUND_END: 4,
     ROUND_STARTED: 9,
@@ -26,7 +29,7 @@ export const EVENT_TYPE = {
 
 export type EventType = (typeof EVENT_TYPE)[keyof typeof EVENT_TYPE];
 
-export const REPLAY_VERSION = "0.4-dev";
+export const REPLAY_VERSION = "0.5-dev";
 
 export const REPLAY_LINE_TYPE = {
     SEAT_CONTROL: 101,
@@ -127,13 +130,10 @@ export const MELD_CALL_TYPE = {
 
 export type MeldCallType = (typeof MELD_CALL_TYPE)[keyof typeof MELD_CALL_TYPE];
 
-// --- Round result types (integer `rt` field, 0-5) ---
-
+/** How a round ended (the round end's `rt`); codes 2 (double ron) and 5 (nagashi mangan) are retired. */
 export const ROUND_RESULT_TYPE = {
     ABORTIVE_DRAW: 4,
-    DOUBLE_RON: 2,
     EXHAUSTIVE_DRAW: 3,
-    NAGASHI_MANGAN: 5,
     RON: 1,
     TSUMO: 0,
 } as const;

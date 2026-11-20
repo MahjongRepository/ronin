@@ -9,8 +9,6 @@ import {
 import { assertNever } from "@/shared/lib";
 import { type ClaimedMeldEvent, type MeldEvent, tileType } from "@/shared/protocol";
 
-import { shownKanIndex } from "./kan-declared";
-
 type AddedKanEvent = Extract<MeldEvent, { meldType: "added_kan" }>;
 
 function buildMeldRecord(event: MeldEvent): MeldRecord {
@@ -127,34 +125,7 @@ function applyAddedKan(state: TableState, event: AddedKanEvent): TableState {
     return meldFromHand(state, event, { fromHand: [addedTileId], melds });
 }
 
-/**
- * Complete a kan its chankan prompt already showed as declared: the server's meld takes the shown kan's place, and
- * nothing more leaves the hand, which gave its tiles at the declaration.
- */
-function completeShownKan(state: TableState, event: MeldEvent, shownIndex: number): TableState {
-    const caller = findCaller(state, event);
-    const kan = buildMeldRecord(event);
-    return {
-        ...state,
-        players: updatePlayer(state.players, event.callerSeat, {
-            melds: caller.melds.map((meld, index) => (index === shownIndex ? kan : meld)),
-        }),
-    };
-}
-
-/** The index of the caller's kan declared open to chankan that the meld completes, or -1 for any other meld. */
-export function shownKanOfMeld(state: TableState, event: MeldEvent): number {
-    if (event.meldType !== "closed_kan" && event.meldType !== "added_kan") {
-        return -1;
-    }
-    return shownKanIndex(findCaller(state, event), event.meldType, event.tileIds[0]);
-}
-
 function applyMeldByType(state: TableState, event: MeldEvent): TableState {
-    const shownIndex = shownKanOfMeld(state, event);
-    if (shownIndex !== -1) {
-        return completeShownKan(state, event, shownIndex);
-    }
     switch (event.meldType) {
         case "chi":
         case "pon":

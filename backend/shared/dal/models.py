@@ -18,7 +18,10 @@ class PlayedGameStanding(BaseModel, frozen=True):
     seat: int
     user_id: str = ""  # user UUID (empty for AI players)
     score: int | None = None  # raw score at game end (e.g. 35000); None while in progress
-    final_score: int | None = None  # uma/oka-adjusted score (e.g. +30); None while in progress
+    final_score: int | None = None
+    """
+    Uma/oka-adjusted score in tenths (e.g. +304 for +30.4); None while in progress.
+    """
 
 
 class GameEndReason(StrEnum):
