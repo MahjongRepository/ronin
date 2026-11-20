@@ -47,6 +47,11 @@ func (d *decoder) uint(size int) (uint64, error) {
 }
 
 func (d *decoder) record() (Map, error) {
+	if d.pos < len(d.data) && d.data[d.pos] >= fixMapBase && d.data[d.pos] < fixArrayBase {
+		tag := d.data[d.pos]
+		d.pos++
+		return d.fields(int(tag-fixMapBase), 0)
+	}
 	v, err := d.value(0, false)
 	if err != nil {
 		return nil, err
@@ -184,13 +189,20 @@ func (d *decoder) array(n int, depth int, stringKeys bool) (Value, error) {
 }
 
 func (d *decoder) mapOf(n int, depth int, stringKeys bool) (Value, error) {
-	if n > d.limits.mapN {
-		return nil, lengthError("map", n, d.limits.mapN)
-	}
 	if stringKeys {
 		return d.strMap(n, depth)
 	}
+	m, err := d.fields(n, depth)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
 
+func (d *decoder) fields(n int, depth int) (Map, error) {
+	if n > d.limits.mapN {
+		return nil, lengthError("map", n, d.limits.mapN)
+	}
 	m := make(Map, 0, min(n, len(d.data)-d.pos))
 	for range n {
 		key, err := d.key(depth)
@@ -219,6 +231,9 @@ func (d *decoder) key(depth int) (Key, error) {
 }
 
 func (d *decoder) strMap(n int, depth int) (Value, error) {
+	if n > d.limits.mapN {
+		return nil, lengthError("map", n, d.limits.mapN)
+	}
 	m := make(StrMap, 0, min(n, len(d.data)-d.pos))
 	for range n {
 		raw, err := d.value(depth+1, true)
