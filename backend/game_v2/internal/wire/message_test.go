@@ -36,8 +36,11 @@ func TestDecode_WhenEveryKindOfValueIsSent_ShouldReadBackWhatEncodeWrote(t *test
 		t.Fatalf("Encode(%v): %v", message, err)
 	}
 	decoded, err := Decode(content)
-	if err != nil || !reflect.DeepEqual(decoded, message) {
-		t.Errorf("Decode(Encode(m)) = %v, %v; want %v", decoded, err, message)
+	if err != nil {
+		t.Fatalf("Decode(Encode(m)): %v", err)
+	}
+	if !reflect.DeepEqual(decoded, message) {
+		t.Errorf("Decode(Encode(m)) = %v; want %v", decoded, message)
 	}
 	if n, ok := decoded.Int(KeyEventType); n != -5 || !ok {
 		t.Errorf("Int(KeyEventType) = %d, %v; want -5, true", n, ok)
