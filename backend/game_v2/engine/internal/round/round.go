@@ -297,7 +297,8 @@ func (r *Round) AnswerCall(
 
 func (r *Round) settleDiscard(seat tile.Seat, id tile.TileID, tsumogiri bool, points *Points) Transition {
 	riichi := r.undepositedRiichi.OK && r.undepositedRiichi.Value == seat
-	events := []play.Emitted{toAll(play.Discarded{Seat: seat, Tile: id, Tsumogiri: tsumogiri, Riichi: riichi})}
+	events := make([]play.Emitted, 0, 1+tile.SeatCount)
+	events = append(events, toAll(play.Discarded{Seat: seat, Tile: id, Tsumogiri: tsumogiri, Riichi: riichi}))
 	events = append(events, doraRevealed(r.wall.RevealPendingDora())...)
 	if r.isFourWinds() {
 		return ended(events, play.Abortive{Kind: play.FourWinds{}})
@@ -385,7 +386,7 @@ func (r *Round) passCall(prompt CallPrompt, points *Points) Transition {
 func (r *Round) standKan(seat tile.Seat, kind play.KanKind) []play.Emitted {
 	r.endEveryIppatsu()
 	events := doraRevealed(r.revealKanDora(kind))
-	return append(events, drawEvents(seat, r.drawRinshan(seat), true)...)
+	return appendDrawEvents(events, seat, r.drawRinshan(seat), true)
 }
 
 func (r *Round) drawTurn(seat tile.Seat, events []play.Emitted) Transition {
@@ -393,7 +394,7 @@ func (r *Round) drawTurn(seat tile.Seat, events []play.Emitted) Transition {
 	if !ok {
 		return ended(events, r.exhaustiveDraw())
 	}
-	return playing(append(events, drawEvents(seat, id, false)...))
+	return playing(appendDrawEvents(events, seat, id, false))
 }
 
 func (r *Round) draw(seat tile.Seat) (tile.TileID, bool) {
@@ -843,11 +844,12 @@ func (r *Round) heldTiles() []tile.TileID {
 	return held
 }
 
-func drawEvents(seat tile.Seat, id tile.TileID, rinshan bool) []play.Emitted {
-	events := []play.Emitted{toSeat(seat, play.Drew{Seat: seat, Tile: id, Rinshan: rinshan})}
+func appendDrawEvents(events []play.Emitted, seat tile.Seat, id tile.TileID, rinshan bool) []play.Emitted {
+	events = append(slices.Grow(events, tile.SeatCount), toSeat(seat, play.Drew{Seat: seat, Tile: id, Rinshan: rinshan}))
+	var notice play.Event = play.DrewNotice{Seat: seat, Rinshan: rinshan}
 	for _, other := range tile.Seats() {
 		if other != seat {
-			events = append(events, toSeat(other, play.DrewNotice{Seat: seat, Rinshan: rinshan}))
+			events = append(events, toSeat(other, notice))
 		}
 	}
 	return events

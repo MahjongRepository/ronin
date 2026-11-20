@@ -54,7 +54,7 @@ func NewGame(setup Setup) (Game, []play.Emitted, error) {
 	if err != nil {
 		return Game{}, nil, err
 	}
-	return Game{game: g}, cloneEvents(events), nil
+	return Game{game: g}, detachFreshEvents(events), nil
 }
 
 // Act applies one answer of seat and returns the game after it and the events it caused. A
@@ -65,7 +65,7 @@ func NewGame(setup Setup) (Game, []play.Emitted, error) {
 // riichi other than the drawn tile and a discard kuikae forbids.
 func (g Game) Act(seat tile.Seat, action play.Action) (Game, []play.Emitted, play.Option[play.Refusal]) {
 	next, events, refusal := g.game.Act(seat, action)
-	return Game{game: next}, cloneEvents(events), refusal
+	return Game{game: next}, detachFreshEvents(events), refusal
 }
 
 // DealNextRound deals the round that follows the one just over: one RoundStarted per seat, the
@@ -74,14 +74,14 @@ func (g Game) Act(seat tile.Seat, action play.Action) (Game, []play.Emitted, pla
 // Refused as not awaited unless the game awaits play.AwaitingRoundOver.
 func (g Game) DealNextRound() (Game, []play.Emitted, play.Option[play.Refusal]) {
 	next, events, refusal := g.game.DealNextRound()
-	return Game{game: next}, cloneEvents(events), refusal
+	return Game{game: next}, detachFreshEvents(events), refusal
 }
 
 // Begin makes the dealer's first draw of the round just dealt and returns its events. Refused as
 // not awaited unless the game awaits play.AwaitingDealt.
 func (g Game) Begin() (Game, []play.Emitted, play.Option[play.Refusal]) {
 	next, events, refusal := g.game.Begin()
-	return Game{game: next}, cloneEvents(events), refusal
+	return Game{game: next}, detachFreshEvents(events), refusal
 }
 
 // Decision returns the prompt of seat: where it stands, its legal actions and its default action.
@@ -132,12 +132,11 @@ func (g Game) CheckInvariants() error {
 	return g.game.CheckInvariants()
 }
 
-func cloneEvents(events []play.Emitted) []play.Emitted {
-	cloned := slices.Clone(events)
-	for i := range cloned {
-		cloned[i].Event = cloneEvent(cloned[i].Event)
+func detachFreshEvents(freshEvents []play.Emitted) []play.Emitted {
+	for i := range freshEvents {
+		freshEvents[i].Event = cloneEvent(freshEvents[i].Event)
 	}
-	return cloned
+	return freshEvents
 }
 
 func cloneEvent(event play.Event) play.Event {
