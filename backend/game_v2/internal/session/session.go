@@ -110,11 +110,13 @@ type PlayerSpec struct {
 }
 
 // Agent answers the decisions of AI seats. Decide gets the AI seat's view, its decision included,
-// and returns the action to play. A game asks one decision at a time, its turns and calls alike,
-// each on a goroutine of its own, and stops waiting once the base turn time passed: ctx is done
-// then, when the answer is no longer wanted, and when the game ends, and Decide must return once it
-// is. An error, a missed deadline or an action the decision does not offer plays the decision's
-// default instead; a panic fails the game.
+// and returns the action to play. Each call runs on a goroutine of its own, and a game waits for
+// one answer at a time, its turns and calls alike, and stops waiting once the base turn time
+// passed: ctx is done then, when the answer is no longer wanted, and when the game ends, and Decide
+// must return once it is. One Agent serves every game of a Manager, and a call whose answer a game
+// stopped waiting for may still run when the game asks its next, so Decide is called concurrently
+// and must be safe for concurrent use. An error, a missed deadline or an action the decision does
+// not offer plays the decision's default instead; a panic fails the game.
 type Agent interface {
 	Decide(ctx context.Context, view play.SeatView) (play.Action, error)
 }

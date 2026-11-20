@@ -443,12 +443,13 @@ func TestAgent_WhenItAnswersAnAITurn_ShouldPlayAnOfferedAnswerElseTheDefaultOrFa
 func TestAgent_WhenACallersSeatIsTakenBackDuringItsRequest_ShouldLetTheOtherCallerAnswerAndDropTheLateOne(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		releaseCarolsCall := make(chan struct{})
-		var carolAsked atomic.Bool
+		var bobAsked, carolAsked atomic.Bool
 		agent := stubAgent(func(ctx context.Context, d play.Decision) (play.Action, error) {
 			if _, call := d.Context.(play.Call); !call {
 				return d.Default, nil
 			}
 			if d.Seat.Index() == 1 {
+				bobAsked.Store(true)
 				<-ctx.Done()
 				return offered(d, play.ActionRon, d.Default), nil
 			}
@@ -466,6 +467,10 @@ func TestAgent_WhenACallersSeatIsTakenBackDuringItsRequest_ShouldLetTheOtherCall
 		draw := lastDraw(t, alice)
 
 		h.act(alice, discard(intOf(t, draw, wire.KeyWaitID), drawnTile(t, draw)))
+		if !bobAsked.Load() || carolAsked.Load() {
+			t.Fatalf("asked before the take-back: bob %v, carol %v, want bob's AI caller only",
+				bobAsked.Load(), carolAsked.Load())
+		}
 		bob := h.reconnect("ticket-Bob")
 		if !carolAsked.Load() {
 			t.Fatal("carol's AI caller was not asked once bob took his seat back")

@@ -163,7 +163,9 @@ a contract.
 * `Manager.Settle` waits until every posted step, every agent call and every claimed end's
   finalizer ran. Only a caller that is the session's one source of work may use it: a harness
   driving the session on a Clock whose timers it fires itself, which settles before it reads what
-  clients got or moves its clock on.
+  clients got or moves its clock on. Under it the agent must answer without waiting: an agent call
+  waiting on anything, its ctx included, holds Settle, since the agent's deadline fires only when
+  the harness moves the clock.
 * A step that fails or panics fails its game, the one server-fault path; a connection's failed step
   that did not seat it is closed with 1011 on its own.
 * The session owns the seed and the roster. It draws each game's seed and seats the participants by
@@ -172,9 +174,10 @@ a contract.
   timer lives as long as it does, so its bank survives a disconnect.
 * A seat with no connected participant is an AI player's, answered through the engine like a
   participant's answer, by `Config.Agent` (by default its decision's default: it never wins, calls or
-  declares). The game asks one AI decision at a time, a call's AI callers in seat order and an AI
-  turn after the AI turn delay, so a human sees AI turns one at a time; the agent decides off the
-  game's goroutine and its answer comes back as a step. Every engine call, a take-back of the asked
+  declares). The game waits for one AI answer at a time, a call's AI callers in seat order and an
+  AI turn after the AI turn delay, so a human sees AI turns one at a time; the agent decides off the
+  game's goroutine and its answer comes back as a step. One agent serves every game and a dropped
+  request's call may still run beside the next, so the agent is called concurrently. Every engine call, a take-back of the asked
   seat and the end drop the request, and an answer to a dropped one is ignored. An agent error, no
   answer within the base turn time or an action the decision does not offer plays the default,
   with a warning; an agent panic, a refused offered answer or a refused default or timeout default

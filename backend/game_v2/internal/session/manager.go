@@ -397,7 +397,9 @@ func (m *Manager) Disconnect(conn Connection) {
 // returned and its answer ran as a step, and every game whose end was claimed ran its finalizer. It
 // is for a caller that is the only source of the session's work, such as a harness that drives the
 // session on a Clock whose timers it fires itself: a step posted from elsewhere while it waits races
-// it, and an agent that waits on anything but its ctx holds it.
+// it, and an agent call that waits holds it, on its ctx too, since the deadline that would end that
+// ctx fires only once the harness moves the Clock after Settle returns. Under such a harness the
+// agent must answer without waiting.
 func (m *Manager) Settle() {
 	m.inFlight.Wait()
 }
