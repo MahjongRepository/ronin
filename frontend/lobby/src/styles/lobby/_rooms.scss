@@ -458,6 +458,12 @@
         }
     }
 
+    .current-game-meta,
+    .seat-names {
+        position: relative;
+        z-index: 1;
+    }
+
     .seat-name {
         color: var(--pico-color);
     }
