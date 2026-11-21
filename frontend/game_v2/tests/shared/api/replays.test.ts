@@ -1,3 +1,4 @@
+import { encode } from "@msgpack/msgpack";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { ManualClock } from "#tests/fixtures/clock";
@@ -5,6 +6,7 @@ import {
     type LoadReplay,
     type ReplayFetch,
     type ReplayLoadRetry,
+    fetchObserve,
     fetchReplay,
     isAbortError,
     loadReplayUntilFound,
@@ -48,6 +50,40 @@ describe("fetchReplay", () => {
             `/api/replays/g%201?v=${encodeURIComponent(REPLAY_VERSION)}`,
             { signal },
         );
+    });
+});
+
+describe("fetchObserve", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    test("asks the stream from the cursor given and decodes the server's MessagePack answer, its records as bytes", async () => {
+        const body = encode({
+            available_in_ms: 0,
+            ended: false,
+            game_type: "hanchan",
+            next: 52,
+            players: ["East", "South", "West", "North"],
+            records: new Uint8Array([129, 1, 2]),
+            started_at: 1_790_000_000_123,
+        });
+        const fetched = vi.fn(() => Promise.resolve(new Response(body)));
+        vi.stubGlobal("fetch", fetched);
+
+        await expect(fetchObserve("g 1", 37, new AbortController().signal)).resolves.toEqual({
+            answer: {
+                availableInMs: 0,
+                ended: false,
+                gameType: "hanchan",
+                next: 52,
+                players: ["East", "South", "West", "North"],
+                records: new Uint8Array([129, 1, 2]),
+                startedAt: 1_790_000_000_123,
+            },
+            ok: true,
+        });
+        expect(fetched).toHaveBeenCalledWith("/api/observe/g%201?from=37", expect.anything());
     });
 });
 

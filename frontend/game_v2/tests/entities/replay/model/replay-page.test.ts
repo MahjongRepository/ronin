@@ -690,7 +690,7 @@ function countdownShown(stepped: ReturnType<typeof stepReplayPage>): Record<stri
 
 /** A viewer who arrived before the delay passed: the countdown, its redraw and poll, then the first records. */
 function countdownScenario(): Record<
-    "asked" | "counting" | "redrawn" | "started",
+    "asked" | "counting" | "hidden" | "redrawn" | "started",
     ReturnType<typeof stepReplayPage>
 > & { readonly shown: ReplayScreen } {
     const records = observeRecords("pao");
@@ -700,7 +700,14 @@ function countdownScenario(): Record<
     const asked = step(redrawn.screen, { kind: "tick" }, 100 + OBSERVE_POLL_MS);
     const firstDiscard = recordIndex("pao", EVENT_TYPE.DISCARD);
     const { screen: shown } = step(asked.screen, answer(records, [0, firstDiscard + 1]), 2200);
-    return { asked, counting, redrawn, shown, started };
+    return {
+        asked,
+        counting,
+        hidden: step(shown, { kind: "page_hide" }, 2300),
+        redrawn,
+        shown,
+        started,
+    };
 }
 
 /**
@@ -787,8 +794,8 @@ function polls(effects: readonly ReplayPageEffect[]): readonly ReplayPageEffect[
 }
 
 describe("stepReplayPage - observe", () => {
-    it("counts down over the players with no records, asks again once due, and opens the first records at the first deal, playing", () => {
-        const { asked, counting, redrawn, shown, started } = countdownScenario();
+    it("counts down over the players with no records, asks again once due, and opens the first records at the first deal, playing on as the page hides", () => {
+        const { asked, counting, hidden, redrawn, shown, started } = countdownScenario();
 
         expect(started.effects).toEqual([{ from: 0, kind: "fetch_observe" }]);
         expect(countdownShown(counting)).toEqual({
@@ -810,7 +817,10 @@ describe("stepReplayPage - observe", () => {
             true,
             false,
         ]);
-        expect(observe?.pollAt).toBe(2200 + OBSERVE_POLL_MS);
+        expect([observe?.pollAt, loaded(hidden.screen).autoplay]).toEqual([
+            2200 + OBSERVE_POLL_MS,
+            autoplay,
+        ]);
     });
 
     it("extends the replay in place, autoplay crossing a round's result and the next deal, waiting at the newest stop until the stream ends", () => {

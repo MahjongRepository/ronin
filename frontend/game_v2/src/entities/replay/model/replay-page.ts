@@ -984,7 +984,7 @@ function stepOption(screen: LoadedReplayScreen, event: Timed<OptionInput>): Load
             return toggleHands(screen);
         }
         case "page_hide": {
-            return quiet(paused(unheld(screen)));
+            return quiet(screen.observe === null ? paused(unheld(screen)) : unheld(screen));
         }
         default: {
             return stepSettings(screen, event.kind);

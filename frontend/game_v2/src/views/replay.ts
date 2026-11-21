@@ -38,6 +38,7 @@ import {
     type ObserveFetch,
     type ReplayFetch,
     isAbortError,
+    isTimeoutError,
     loadReplayUntilFound,
 } from "@/shared/api";
 import { type Clock } from "@/shared/clock";
@@ -859,7 +860,7 @@ class ReplayViewController {
     }
 
     private onObserveFailed(error: unknown): void {
-        if (!(error instanceof TypeError)) {
+        if (!(error instanceof TypeError) && !isTimeoutError(error)) {
             console.error("The observe answer could not be read:", error);
         }
         this.dispatch({ kind: "observe_unreachable" });

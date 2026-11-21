@@ -31,16 +31,37 @@ export type ObserveFetch =
     | { readonly ok: true; readonly answer: ObserveAnswer }
     | { readonly ok: false; readonly status: number };
 
-/**
- * Fetch the observe stream's records from cursor `from`; rejects on a network failure or a body that is no observe
- * answer, and with an `AbortError` once `signal` aborts.
- */
-export async function fetchObserve(
-    gameId: string,
-    from: number,
-    signal: AbortSignal,
-): Promise<ObserveFetch> {
-    const url = `/api/observe/${encodeURIComponent(gameId)}?from=${from}`;
+/** How long an observe request may take, its body included, before it fails as a `TimeoutError`. */
+export const OBSERVE_REQUEST_TIMEOUT_MS = 10_000;
+
+/** A request's own signal: aborted with `signal`, or once its time runs out; `release` drops both. */
+interface BoundedSignal {
+    readonly signal: AbortSignal;
+    readonly timedOut: () => boolean;
+    readonly release: () => void;
+}
+
+function boundSignal(signal: AbortSignal, timeoutMs: number): BoundedSignal {
+    const bounded = new AbortController();
+    function abort(): void {
+        bounded.abort(signal.reason);
+    }
+    const timer = setTimeout(() => bounded.abort(), timeoutMs);
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) {
+        abort();
+    }
+    return {
+        release: (): void => {
+            clearTimeout(timer);
+            signal.removeEventListener("abort", abort);
+        },
+        signal: bounded.signal,
+        timedOut: () => bounded.signal.aborted && !signal.aborted,
+    };
+}
+
+async function requestObserve(url: string, signal: AbortSignal): Promise<ObserveFetch> {
     const response = await fetch(url, { signal });
     if (!response.ok) {
         return { ok: false, status: response.status };
@@ -49,6 +70,30 @@ export async function fetchObserve(
         answer: decodeObserveAnswer(new Uint8Array(await response.arrayBuffer())),
         ok: true,
     };
+}
+
+/**
+ * Fetch the observe stream's records from cursor `from`; rejects on a network failure or a body that is no observe
+ * answer, with a `TimeoutError` once `OBSERVE_REQUEST_TIMEOUT_MS` passes without the whole answer, and with an
+ * `AbortError` once `signal` aborts. The signals are joined by hand: `AbortSignal.any` is newer than the supported
+ * Safari.
+ */
+export async function fetchObserve(
+    gameId: string,
+    from: number,
+    signal: AbortSignal,
+): Promise<ObserveFetch> {
+    const url = `/api/observe/${encodeURIComponent(gameId)}?from=${from}`;
+    const bounded = boundSignal(signal, OBSERVE_REQUEST_TIMEOUT_MS);
+    try {
+        return await requestObserve(url, bounded.signal);
+    } catch (error: unknown) {
+        throw bounded.timedOut()
+            ? new DOMException("The observe request timed out", "TimeoutError")
+            : error;
+    } finally {
+        bounded.release();
+    }
 }
 
 function abortError(): DOMException {
