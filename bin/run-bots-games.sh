@@ -218,18 +218,11 @@ wait_for_server() {
     return 1
 }
 
-start_server() {
-    local name="$1"
-    local module="$2"
-    local port="$3"
-    local ws_max_size="$4"
-    local log_dir="$5"
-    local launcher=("${@:6}")
-
-    echo "starting $name server on port $port..."
-    cd "$PROJECT_ROOT" && "${launcher[@]}" --factory "$module" --host 0.0.0.0 --port "$port" --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-per-message-deflate false --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size "$ws_max_size" > "$log_dir/stdout.log" 2> "$log_dir/stderr.log" &
+start_lobby_server() {
+    echo "starting lobby server on port $LOBBY_PORT..."
+    cd "$PROJECT_ROOT" && uv run --project backend/lobby uvicorn --factory app.server.app:get_app --host 0.0.0.0 --port "$LOBBY_PORT" --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-per-message-deflate false --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size 8192 > "$LOBBY_LOG_DIR/stdout.log" 2> "$LOBBY_LOG_DIR/stderr.log" &
     SERVER_PIDS+=($!)
-    await_server "$name" "$port" "$log_dir"
+    await_server lobby "$LOBBY_PORT" "$LOBBY_LOG_DIR"
 }
 
 start_go_game_server() {
@@ -691,7 +684,7 @@ else
     free_port "$GAME_PORT"
     start_go_game_server
 fi
-start_server "lobby" "app.server.app:get_app" "$LOBBY_PORT" 8192 "$LOBBY_LOG_DIR" uv run --project backend/lobby uvicorn
+start_lobby_server
 if [[ $NET == bad ]]; then
     echo ""
     bad_net_usage
