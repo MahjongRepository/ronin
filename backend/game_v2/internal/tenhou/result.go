@@ -129,11 +129,11 @@ func (c *converter) limitCode(name string) int {
 	case wire.HandLimitNone:
 		return 0
 	case wire.HandLimitKazoeYakuman:
-		return play.LimitYakuman.TenhouCode()
+		return LimitCode(play.LimitYakuman)
 	}
 	for limit := play.LimitMangan; limit <= play.LimitYakuman; limit++ {
 		if limit.String() == name {
-			return limit.TenhouCode()
+			return LimitCode(limit)
 		}
 	}
 	c.r.fail(fmt.Errorf("no Tenhou limit for hand limit %q", name))
@@ -177,15 +177,16 @@ func (c *converter) yakuAttribute(hand wire.Map) string {
 func tenhouYakuID(id int) (tenhouID int, yakuman, ok bool) {
 	switch id {
 	case wire.YakuIDDora:
-		return play.Dora.TenhouID(), false, true
+		return DoraID, false, true
 	case wire.YakuIDAkaDora:
-		return play.AkaDora.TenhouID(), false, true
+		return AkaDoraID, false, true
 	case wire.YakuIDUraDora:
-		return play.UraDora.TenhouID(), false, true
+		return UraDoraID, false, true
 	}
 	for _, y := range play.AllYaku() {
 		if int(y) == id {
-			return y.TenhouID(), y.IsYakuman(), true
+			tenhouID, ok = YakuID(y)
+			return tenhouID, y.IsYakuman(), ok
 		}
 	}
 	return 0, false, false

@@ -1,42 +1,10 @@
 package play_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 )
-
-func TestLimitFromTenhouCode_WhenCodeIsZeroToFive_ShouldRoundTripTheLimits(t *testing.T) {
-	below, err := play.LimitFromTenhouCode(0)
-	if err != nil || below.OK {
-		t.Errorf("LimitFromTenhouCode(0) = %v, %v, want absent", below, err)
-	}
-
-	for code, want := range []play.Limit{
-		play.LimitMangan, play.LimitHaneman, play.LimitBaiman, play.LimitSanbaiman, play.LimitYakuman,
-	} {
-		got, err := play.LimitFromTenhouCode(code + 1)
-		if err != nil || got != play.Some(want) {
-			t.Errorf("LimitFromTenhouCode(%d) = %v, %v, want %s", code+1, got, err, want)
-		}
-		if want.TenhouCode() != code+1 {
-			t.Errorf("%s TenhouCode = %d, want %d", want, want.TenhouCode(), code+1)
-		}
-	}
-}
-
-func TestLimitFromTenhouCode_WhenCodeIsPastFive_ShouldReportTheCode(t *testing.T) {
-	for _, code := range []int{-1, 6} {
-		_, err := play.LimitFromTenhouCode(code)
-		if !errors.Is(err, play.UnknownLimitCodeError{Code: code}) {
-			t.Errorf("LimitFromTenhouCode(%d) error = %v, want UnknownLimitCodeError", code, err)
-		}
-	}
-	if got, want := (play.UnknownLimitCodeError{Code: 6}).Error(), "no Tenhou limit has code 6"; got != want {
-		t.Errorf("Error = %q, want %q", got, want)
-	}
-}
 
 func TestLimitString_ShouldNameEachLimit(t *testing.T) {
 	for limit, want := range map[play.Limit]string{

@@ -135,6 +135,29 @@ func tsumoShares(payment play.Payment, winnerIsDealer bool) (dealerShare, nonDea
 	panic(play.EngineFaultError{Err: MisfitPaymentError{Payment: payment}})
 }
 
+// RonTableShare returns the honba and riichi sticks the winner at position, counted from 0 in the
+// order a ron's winners are settled, takes of the table's: all of them for the first, none for
+// the others.
+func RonTableShare(position, honba, riichiSticks int) (tableHonba, tableSticks int) {
+	if position != 0 {
+		return 0, 0
+	}
+	return honba, riichiSticks
+}
+
+// MisfitWinError reports a win settled as the other kind: a ron, chankan or houtei settled as a
+// tsumo, or a tsumo, rinshan or haitei settled as a ron.
+type MisfitWinError struct {
+	Win score.Win
+}
+
+func (e MisfitWinError) Error() string {
+	if e.Win.IsTsumo() {
+		return "a tsumo win cannot be settled as a ron"
+	}
+	return "a ron win cannot be settled as a tsumo"
+}
+
 // RonScoreChanges returns what one ron moves by seat, honba and riichiSticks the table's when
 // this winner takes them, else 0: the discarder pays the hand and the honba, but a liable seat
 // other than the discarder pays half the hand and the honba. It panics with a

@@ -73,33 +73,6 @@ func (l Limit) String() string {
 	}
 }
 
-// TenhouCode returns the limit code of Tenhou's AGARI ten, 1 for mangan to 5 for yakuman; a win
-// below mangan has code 0.
-func (l Limit) TenhouCode() int {
-	return int(l) + 1
-}
-
-// UnknownLimitCodeError reports a Tenhou ten limit code above 5.
-type UnknownLimitCodeError struct {
-	Code int
-}
-
-func (e UnknownLimitCodeError) Error() string {
-	return "no Tenhou limit has code " + strconv.Itoa(e.Code)
-}
-
-// LimitFromTenhouCode returns the limit of a Tenhou ten limit code, absent for 0, a win below
-// mangan; an UnknownLimitCodeError for any code but 0 to 5.
-func LimitFromTenhouCode(code int) (Option[Limit], error) {
-	if code < 0 || code > LimitYakuman.TenhouCode() {
-		return Option[Limit]{}, UnknownLimitCodeError{Code: code}
-	}
-	if code == 0 {
-		return Option[Limit]{}, nil
-	}
-	return Some(Limit(code - 1)), nil
-}
-
 // Payment is who pays the winner how much, honba included and riichi sticks not: RonPayment,
 // TsumoPayment or DealerTsumoPayment.
 //

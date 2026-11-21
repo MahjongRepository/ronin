@@ -7,14 +7,8 @@
 // Ported from mahjong-rs's mahjong-core at commit 0d8733f: the config, dora, fu, scores, yaku
 // and hand modules.
 //
-// The tests check a committed sample of real Tenhou wins against Tenhou's han and fu
-// (testdata/tenhou_sample.jsonl.gz, written by extract_tenhou_sample.go). The whole 2025
-// phoenix-room corpus, local only, runs behind the tenhou build tag:
-//
-//	cd backend/game_v2 && mise exec -- go test -tags tenhou ./engine/internal/score -run WholeTenhouCorpus
-//
-// It reads the agari-000NN.jsonl shards from TENHOU_AGARI_DIR, by default
-// ~/work/mahjong-rs/thoughts/_benchmark/agari.
+// The checks against real Tenhou wins live in internal/tenhoulog, which settles them through the
+// facade's SettleTsumo and SettleRon.
 package score
 
 import (

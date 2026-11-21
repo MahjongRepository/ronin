@@ -93,10 +93,7 @@ func (r *Round) rons(winners []tile.Seat, prompt CallPrompt, honba, riichiSticks
 	wins := make([]play.WinResult, 0, len(winners))
 	for position, winner := range winners {
 		value := offer.SettledValue(r.hand(winner), prompt.tile, r.scoring(winner, win))
-		tableHonba, tableSticks := 0, 0
-		if position == 0 {
-			tableHonba, tableSticks = honba, riichiSticks
-		}
+		tableHonba, tableSticks := offer.RonTableShare(position, honba, riichiSticks)
 		pao := r.pao[winner.Index()]
 		changes := offer.RonScoreChanges(winner, prompt.from, value.Payment, tableHonba, tableSticks, pao)
 		wins = append(wins, r.winResult(winner, play.Some(prompt.from), prompt.tile, value, changes))

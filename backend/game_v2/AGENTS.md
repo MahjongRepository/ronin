@@ -13,7 +13,8 @@ games with their sessions (`internal/session`), the rows and replay files it per
 lobby (`internal/store`), its credentials (`internal/auth`), the transport serving the lobby's
 routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`), the
 replay runner (`internal/replay`) with the Go replay check (`cmd/verify`), the Tenhou export
-(`internal/tenhou`), the generator of the game client's seat transcripts and replay fixtures
+(`internal/tenhou`), the check of the hand scoring against real Tenhou wins (`internal/tenhoulog`),
+the generator of the game client's seat transcripts and replay fixtures
 (`cmd/fixtures`), the wall measurement (`cmd/measurewall`), and the one-off migration of the Python
 server's data (`internal/migrate`, `cmd/migrate`).
 
@@ -24,8 +25,9 @@ The module is two sides, a server and an engine, and the engine is reachable onl
 * `engine/` is the engine's only public API. The rules live under `engine/internal/`, which the Go
   compiler lets nothing outside `engine/` import, so the server side cannot reach past the facade.
   The facade holds no rule of its own: it wraps `game`, the seed functions of `rng`, the round a
-  seed's wall deals and the lowest shanten the tools' play policies rank by, and re-exports as type
-  aliases the seed and error types a caller builds or matches. No slice it returns shares a backing
+  seed's wall deals, the lowest shanten the tools' play policies rank by and the settlement of a win
+  the Tenhou check compares (`offer`'s, which the round settles with too), and re-exports as type
+  aliases the seed, scoring and error types a caller builds or matches. No slice it returns shares a backing
   array with the game, so a caller may write into anything it gets; the facade copies what the layer
   below shares, and a seam test writes into every returned slice to hold that.
 * The compiler does not stop the opposite direction, so lint rules in `.golangci.yml`, run by
@@ -65,14 +67,16 @@ beside `messaging` over the wire: it reads replays for the tools, so the live pa
 `internal/tenhou` sits there too, under the server, which answers the export route with it.
 `internal/migrate` sits beside them for `cmd/migrate` alone: it reads old replays through the wire,
 checks each rewrite with the Tenhou export and writes through the store, and nothing on the live path
-imports it.
+imports it. `internal/tenhoulog` is a leaf for its own tests: it settles Tenhou's rounds through the
+facade and reads the Tenhou ids from `tenhou`, so the engine holds no Tenhou format of its own.
 
 Each server package's imports of the module are a depguard rule in `.golangci.yml`: `wire` imports
 only `engine`, `engine/play` and `engine/tile`, `messaging` those and `wire`, `session` those,
 `messaging` and `store` (never the replay runner), `server` the session, messaging, wire, store,
 auth and tenhou but of the engine only `engine/play` and `engine/tile`, `store` and `auth` nothing,
 `replay` only the wire and the engine's public packages, `tenhou` only the wire and the seam types,
-`migrate` the wire, tenhou, store and the seam types, and each layer added later gets its own. Each
+`migrate` the wire, tenhou, store and the seam types, `tenhoulog` the engine's public packages and
+tenhou, and each layer added later gets its own. Each
 `cmd/*` is its own composition root: its `main` is the only place that reads that binary's flags,
 environment and signals and wires the parts it uses, so a tool beside the server builds what it
 needs without going through `cmd/gameserver`.
@@ -284,6 +288,7 @@ and the fixture tools.
 ## Tenhou export
 
 `internal/tenhou` writes a stored replay as a tenhou.net mjlog for the lobby's Tenhou download.
+It owns the Tenhou ids: each yaku's, the dora counts' and the limit codes.
 
 * It reads the records alone and never runs the engine, so a replay of either rules profile converts,
   a rewritten `0.4-dev` one included: the rewritten robbed-kan replay converts to the log the Python

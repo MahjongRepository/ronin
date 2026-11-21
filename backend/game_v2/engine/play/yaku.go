@@ -2,7 +2,7 @@ package play
 
 // YakuID is a yaku, numbered by its yaku id: 0 to 39 for regular yaku, 100 to 116 for yakuman,
 // some numbers in those ranges unused. Only the named constants are yaku; any other number has no
-// name, no han and no Tenhou id. Chantai is a terminal or honor in every set and Junchan a
+// name and no han. Chantai is a terminal or honor in every set and Junchan a
 // terminal in every set, each with at least one chi; Daisuushii, DaburuKokushiMusou (won on a
 // thirteen-sided wait), SuuankouTanki (won on the pair) and DaburuChuurenPoutou (won on a
 // nine-sided wait) are the double yakuman forms.
@@ -70,7 +70,6 @@ type yakuData struct {
 	name      string
 	hanOpen   int
 	hanClosed int
-	tenhouID  int
 }
 
 // AllYaku returns every yaku in yaku id order.
@@ -104,56 +103,4 @@ func (y YakuID) IsYakuman() bool {
 func (y YakuID) IsDoubleYakuman() bool {
 	return y == YakuDaburuKokushiMusou || y == YakuSuuankouTanki || y == YakuDaburuChuurenPoutou ||
 		y == YakuDaisuushii
-}
-
-// TenhouID returns the id Tenhou lists y by in its AGARI yaku.
-func (y YakuID) TenhouID() int {
-	return yakuTable[y].tenhouID
-}
-
-// DoraKind is a kind of dora a winning hand counts beside its yaku, which Tenhou's AGARI lists
-// among the yaku by their own ids.
-type DoraKind uint8
-
-// The dora kinds, in Tenhou id order.
-const (
-	Dora DoraKind = iota
-	UraDora
-	AkaDora
-)
-
-const doraKindTenhouStart = 52
-
-// AllDoraKinds returns every dora kind in Tenhou id order.
-func AllDoraKinds() [3]DoraKind {
-	return [3]DoraKind{Dora, UraDora, AkaDora}
-}
-
-// Name returns k's English name: "Dora", "Ura Dora" or "Aka Dora".
-func (k DoraKind) Name() string {
-	switch k {
-	case Dora:
-		return "Dora"
-	case UraDora:
-		return "Ura Dora"
-	case AkaDora:
-		return "Aka Dora"
-	default:
-		return ""
-	}
-}
-
-// TenhouID returns the id Tenhou lists k's count by, past every yaku's: 52 dora, 53 ura dora, 54
-// aka dora.
-func (k DoraKind) TenhouID() int {
-	return doraKindTenhouStart + int(k)
-}
-
-// DoraKindFromTenhouID returns the dora kind of a Tenhou id; false for any id but 52 to 54.
-func DoraKindFromTenhouID(id int) (DoraKind, bool) {
-	kind := id - doraKindTenhouStart
-	if kind < int(Dora) || kind > int(AkaDora) {
-		return Dora, false
-	}
-	return DoraKind(kind), true
 }
