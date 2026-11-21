@@ -41,7 +41,7 @@ func Run(ctx context.Context, cfg Config, logger *slog.Logger, out io.Writer) (o
 		return false, err
 	}
 
-	replays, err := MigrateReplays(ctx, cfg.ReplayDir, cfg.Apply)
+	replays, err := migrateReplays(ctx, cfg.ReplayDir, cfg.Apply)
 	if err != nil {
 		return false, err
 	}
@@ -76,7 +76,7 @@ func checkExists(path string, dir bool) error {
 	return nil
 }
 
-func report(cfg Config, replays ReplayReport, scores store.ScoreMigration) string {
+func report(cfg Config, replays replayReport, scores store.ScoreMigration) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "replays in %s: %d rewritten, %d already current, %d failed, %d ignored\n",
 		cfg.ReplayDir, replays.Rewritten, replays.Current, len(replays.Failed), len(replays.Ignored))

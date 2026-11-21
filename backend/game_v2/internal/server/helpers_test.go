@@ -21,6 +21,7 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/auth"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/server"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
@@ -59,7 +60,7 @@ type harness struct {
 	srv     *server.Server
 	http    *httptest.Server
 	dbPath  string
-	replays store.Replays
+	replays replayfile.Dir
 	logs    *lockedBuffer
 	stopped bool
 }
@@ -87,7 +88,7 @@ func newHarness(t *testing.T, options ...option) *harness {
 
 	timing := session.DefaultTiming()
 	timing.GameStartConfirm, timing.AITurnDelay = 0, 0
-	replays := store.NewReplays(filepath.Join(dir, "replays"))
+	replays := replayfile.New(filepath.Join(dir, "replays"))
 	sessionCfg := session.Config{Timing: timing, Capacity: 10, DB: db, Replays: replays, Logger: logger}
 	serverCfg := server.Config{
 		Replays:        replays,

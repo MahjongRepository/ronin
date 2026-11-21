@@ -20,6 +20,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/server"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
@@ -62,7 +63,7 @@ func (s socketSchedule) messages() int {
 
 type socketTable struct {
 	http    *httptest.Server
-	replays store.Replays
+	replays replayfile.Dir
 }
 
 func openSocketTable(tb testing.TB, script fullGameScript) *socketTable {
@@ -73,7 +74,7 @@ func openSocketTable(tb testing.TB, script fullGameScript) *socketTable {
 	if err != nil {
 		tb.Fatalf("store.Open error = %v", err)
 	}
-	replays := store.NewReplays(filepath.Join(dir, "replays"))
+	replays := replayfile.New(filepath.Join(dir, "replays"))
 	manager, err := session.New(context.Background(), session.Config{
 		Timing:   session.DefaultTiming(),
 		Capacity: 10,
@@ -298,7 +299,7 @@ func TestSocket_WhenFourClientsPlayTheFullGameFixture_ShouldSaveTheFixtureReplay
 	if err != nil {
 		t.Fatalf("read the saved replay: %v", err)
 	}
-	saved, err := store.DecompressReplay(compressed, store.MaxReplayFileSize)
+	saved, err := replayfile.Decompress(compressed, replayfile.MaxFileSize)
 	if err != nil {
 		t.Fatalf("decompress the saved replay: %v", err)
 	}

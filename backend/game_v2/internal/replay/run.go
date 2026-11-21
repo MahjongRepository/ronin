@@ -124,7 +124,8 @@ func (r *runner) prepare(index int, actions []SeatAction) error {
 func answering(awaiting play.Awaiting, actions []SeatAction) []tile.Seat {
 	call, open := awaiting.(play.AwaitingCall)
 	next := actions[0]
-	if !open || !slices.Contains(call.Seats, next.Seat) || !answersCall(next.Action) {
+	if !open || !slices.Contains(call.Seats, next.Seat) || !next.Action.AnswersCall() ||
+		next.Action.Kind() == play.ActionPass {
 		return nil
 	}
 
@@ -139,18 +140,6 @@ func answering(awaiting play.Awaiting, actions []SeatAction) []tile.Seat {
 		seats = append(seats, later.Seat)
 	}
 	return seats
-}
-
-func answersCall(action play.Action) bool {
-	switch action.Kind() {
-	case play.ActionRon, play.ActionPon, play.ActionChi:
-		return true
-	case play.ActionKan:
-		kind, _ := action.Kan()
-		return kind == play.KanOpen
-	case play.ActionDiscard, play.ActionRiichi, play.ActionTsumo, play.ActionKyuushu, play.ActionPass:
-	}
-	return false
 }
 
 func (r *runner) pass(index int, answered []tile.Seat) error {

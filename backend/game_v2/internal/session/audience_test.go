@@ -12,6 +12,7 @@ import (
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
@@ -78,7 +79,7 @@ func TestSendEvents_WhenAnEventHasNoAudience_ShouldFailTheGameAndSendNothingOfIt
 		})
 		m, err := New(context.Background(), Config{
 			Timing: DefaultTiming(), Capacity: 1, DB: db,
-			Replays: store.NewReplays(filepath.Join(dir, "replays")), Logger: logger,
+			Replays: replayfile.New(filepath.Join(dir, "replays")), Logger: logger,
 		})
 		if err != nil {
 			t.Fatalf("New error = %v", err)

@@ -21,12 +21,12 @@ import (
 
 func testEnv(t *testing.T) env {
 	t.Helper()
-	return env{ctx: t.Context(), logger: slog.New(slog.DiscardHandler)}
+	return env{logger: slog.New(slog.DiscardHandler)}
 }
 
 func kyuushuIntoNextRound(t *testing.T, s *staging, rounds ...stagedWall) error {
 	t.Helper()
-	_, err := testEnv(t).play(s, alone("harness-check", rounds...), func(g *seatedGame) ([]transcript, error) {
+	_, err := testEnv(t).play(t.Context(), s, alone("harness-check", rounds...), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		alice.join()
 		alice.confirmRound(secs(3), "")
@@ -69,7 +69,7 @@ func TestSeatedGame_WhenAnExpectedRefusalNeverComes_ShouldFailNamingIt(t *testin
 	var s staging
 	staged := kyuushuWall(&s)
 
-	_, err := testEnv(t).play(&s, alone("harness-check", staged), func(g *seatedGame) ([]transcript, error) {
+	_, err := testEnv(t).play(t.Context(), &s, alone("harness-check", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		alice.join()
 		alice.confirmRound(secs(3), "")
@@ -84,7 +84,7 @@ func TestSeatedGame_WhenAStepFallsOnAServerTimer_ShouldFailNamingTheMoment(t *te
 	var s staging
 	staged := kyuushuWall(&s)
 
-	_, err := testEnv(t).play(&s, alone("harness-check", staged), func(g *seatedGame) ([]transcript, error) {
+	_, err := testEnv(t).play(t.Context(), &s, alone("harness-check", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		alice.join()
 		alice.confirmRound(startConfirmTimeout, "")
@@ -98,7 +98,7 @@ func TestSeatedGame_WhenAScriptNamesNoTile_ShouldFailWithTheNotationError(t *tes
 	var s staging
 	staged := kyuushuWall(&s)
 
-	_, err := testEnv(t).play(&s, alone("harness-check", staged), func(g *seatedGame) ([]transcript, error) {
+	_, err := testEnv(t).play(t.Context(), &s, alone("harness-check", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		alice.join()
 		s.id(0, "8z")

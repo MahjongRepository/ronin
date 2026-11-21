@@ -111,3 +111,16 @@ func (a Action) Held() ([2]tile.TileID, bool) {
 func (a Action) Kan() (KanKind, bool) {
 	return a.kan, a.kind == ActionKan
 }
+
+// AnswersCall reports whether a answers a call prompt rather than plays a turn: a ron, a pass, a
+// pon, a chi or an open kan. A closed or added kan is a turn action.
+func (a Action) AnswersCall() bool {
+	switch a.kind {
+	case ActionRon, ActionPass, ActionPon, ActionChi:
+		return true
+	case ActionKan:
+		return a.kan == KanOpen
+	case ActionDiscard, ActionRiichi, ActionTsumo, ActionKyuushu:
+	}
+	return false
+}

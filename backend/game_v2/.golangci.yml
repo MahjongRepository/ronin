@@ -142,9 +142,10 @@ linters:
             - github.com/MahjongRepository/ronin/backend/game_v2/internal/wire$
             - github.com/MahjongRepository/ronin/backend/game_v2/internal/tenhou$
             - github.com/MahjongRepository/ronin/backend/game_v2/internal/store$
+            - github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile$
           deny:
             - pkg: github.com/MahjongRepository/ronin/backend/game_v2
-              desc: migrate is the one-off tool's logic beside the replay tools over the wire, so it reads the old data through the wire and the store and checks it with the Tenhou export, never the engine, messaging, the session or the server
+              desc: migrate is the one-off tool's logic beside the replay tools over the wire, so it reads the old data through the wire, the store and the replay files and checks it with the Tenhou export, never the engine, messaging, the session or the server
         session-layer:
           list-mode: lax
           files:
@@ -157,9 +158,10 @@ linters:
             - github.com/MahjongRepository/ronin/backend/game_v2/internal/wire$
             - github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging$
             - github.com/MahjongRepository/ronin/backend/game_v2/internal/store$
+            - github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile$
           deny:
             - pkg: github.com/MahjongRepository/ronin/backend/game_v2
-              desc: session sits under the server and over messaging, using the store leaf; it never imports the replay runner or the server
+              desc: session sits under the server and over messaging, using the store and replayfile leaves; it never imports the replay runner or the server
         server-layer:
           list-mode: lax
           files:
@@ -172,6 +174,7 @@ linters:
             - github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging$
             - github.com/MahjongRepository/ronin/backend/game_v2/internal/session$
             - github.com/MahjongRepository/ronin/backend/game_v2/internal/store$
+            - github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile$
             - github.com/MahjongRepository/ronin/backend/game_v2/internal/auth$
             - github.com/MahjongRepository/ronin/backend/game_v2/internal/tenhou$
           deny:
@@ -184,13 +187,30 @@ linters:
           deny:
             - pkg: github.com/MahjongRepository/ronin/backend/game_v2
               desc: store is a leaf the session and the server use, so it imports nothing of the module
-        auth-leaf:
+        replayfile-leaf:
           files:
-            - "**/game_v2/internal/auth/**"
+            - "**/game_v2/internal/replayfile/**"
             - "!$test"
           deny:
             - pkg: github.com/MahjongRepository/ronin/backend/game_v2
-              desc: auth is a leaf the server uses, so it imports nothing of the module
+              desc: replayfile is a leaf the session, the server and the replay tools use, so it imports nothing of the module
+        auth-leaf:
+          list-mode: lax
+          files:
+            - "**/game_v2/internal/auth/**"
+            - "!$test"
+          allow:
+            - github.com/MahjongRepository/ronin/backend/game_v2/internal/pyjson$
+          deny:
+            - pkg: github.com/MahjongRepository/ronin/backend/game_v2
+              desc: auth, which the server and the fixture generator use, imports only the pyjson leaf of the module
+        pyjson-leaf:
+          files:
+            - "**/game_v2/internal/pyjson/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/MahjongRepository/ronin/backend/game_v2
+              desc: pyjson is a leaf that writes JSON as Python's json.dumps does, so it imports nothing of the module
     exhaustive:
       default-signifies-exhaustive: false
     forbidigo:

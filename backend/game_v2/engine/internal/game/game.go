@@ -333,16 +333,6 @@ func (g Game) decisionContext() play.DecisionContext {
 	return play.TurnAfterCall{Kuikae: g.round.Kuikae()}
 }
 
-func isCallAnswer(action play.Action) bool {
-	kind, isKan := action.Kan()
-	switch action.Kind() {
-	case play.ActionRon, play.ActionPass, play.ActionPon, play.ActionChi:
-		return true
-	case play.ActionDiscard, play.ActionRiichi, play.ActionTsumo, play.ActionKyuushu, play.ActionKan:
-	}
-	return isKan && kind == play.KanOpen
-}
-
 // Act applies one answer of seat and returns the game after it and the events it caused, each
 // furiten change it brought last. A refusal returns the receiver unchanged and no events: not
 // awaited outside a round in play or before its dealer's first draw, from a seat not awaited, for
@@ -354,14 +344,14 @@ func (g Game) Act(seat tile.Seat, action play.Action) (Game, []play.Emitted, pla
 	if g.phase != play.PhasePlaying || g.drawPending {
 		return g, nil, notAwaited(play.CodeWrongPhase)
 	}
-	if !isCallAnswer(action) && !g.isTurnOf(seat) {
+	if !action.AnswersCall() && !g.isTurnOf(seat) {
 		return g, nil, notAwaited(play.CodeSeatNotAwaited)
 	}
 
 	next := g
 	var t round.Transition
 	var refusal play.Option[play.Refusal]
-	if isCallAnswer(action) {
+	if action.AnswersCall() {
 		t, refusal = next.round.AnswerCall(seat, action, g.header.Honba, &next.points)
 	} else {
 		t, refusal = next.turnAction(seat, action)

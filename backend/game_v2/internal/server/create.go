@@ -7,8 +7,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
-	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 )
 
 const (
@@ -33,7 +33,7 @@ func parseCreateGame(body []byte) (createGameRequest, bool) {
 	}
 
 	gameID, ok := stringOf(fields["game_id"], 0, 0)
-	if !ok || !store.IsValidGameID(gameID) {
+	if !ok || !replayfile.IsValidGameID(gameID) {
 		return createGameRequest{}, false
 	}
 	aiPlayers, ok := aiPlayersOf(fields)

@@ -9,36 +9,31 @@ import (
 	"path"
 	"strings"
 
-	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
-// ReplayReport is what MigrateReplays found in a replay directory: the replays it rewrote, with
-// how many took each Transform, how many hold no game end and how many of those ended inside a
-// record; the replays already at the current version; the paths that name no stored replay; and
-// the replays it left as they were.
-type ReplayReport struct {
+type replayReport struct {
 	Rewritten  int
 	Transforms [transformCount]int
 	Unfinished int
 	Cut        int
 	Current    int
 	Ignored    []string
-	Failed     []ReplayFailure
+	Failed     []replayFailure
 }
 
-// ReplayFailure is a stored replay MigrateReplays left as it was, and why: Err is a RewriteError.
-type ReplayFailure struct {
+type replayFailure struct {
 	GameID string
 	Err    error
 }
 
-func (f ReplayFailure) Error() string {
+func (f replayFailure) Error() string {
 	return "replay " + f.GameID + ": " + f.Err.Error()
 }
 
 // Kinds counts the failures by FailureKind.
-func (r ReplayReport) Kinds() [failureKindCount]int {
+func (r replayReport) Kinds() [failureKindCount]int {
 	var kinds [failureKindCount]int
 	for _, f := range r.Failed {
 		if rewriteErr, ok := errors.AsType[RewriteError](f.Err); ok {
@@ -48,20 +43,14 @@ func (r ReplayReport) Kinds() [failureKindCount]int {
 	return kinds
 }
 
-// MigrateReplays rewrites every replay of version 0.4-dev stored under dir, at the paths the game
-// server stores them, into the current version, each through the store's own write path. A replay
-// already at the current version is left as it is, so a second run rewrites nothing; so is one
-// Rewrite refuses, reported among the failures. A file at any other path is ignored and listed.
-// With apply false nothing is written: the report is what a run would do. The error is for a
-// directory it cannot walk, or ctx's once it is done, which stops the walk before the next file.
-func MigrateReplays(ctx context.Context, dir string, apply bool) (report ReplayReport, err error) {
+func migrateReplays(ctx context.Context, dir string, apply bool) (report replayReport, err error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return ReplayReport{}, fmt.Errorf("open replay directory: %w", err)
+		return replayReport{}, fmt.Errorf("open replay directory: %w", err)
 	}
 	defer func() { err = errors.Join(err, root.Close()) }()
 
-	replays := store.NewReplays(dir)
+	replays := replayfile.New(dir)
 	err = fs.WalkDir(root.FS(), ".", func(name string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -82,7 +71,7 @@ func MigrateReplays(ctx context.Context, dir string, apply bool) (report ReplayR
 		return nil
 	})
 	if err != nil {
-		return ReplayReport{}, fmt.Errorf("walk replay directory: %w", err)
+		return replayReport{}, fmt.Errorf("walk replay directory: %w", err)
 	}
 	return report, nil
 }
@@ -93,10 +82,10 @@ type replayOutcome struct {
 	err       error
 }
 
-func (r *ReplayReport) add(gameID string, outcome replayOutcome) {
+func (r *replayReport) add(gameID string, outcome replayOutcome) {
 	switch {
 	case outcome.err != nil:
-		r.Failed = append(r.Failed, ReplayFailure{GameID: gameID, Err: outcome.err})
+		r.Failed = append(r.Failed, replayFailure{GameID: gameID, Err: outcome.err})
 	case outcome.current:
 		r.Current++
 	default:
@@ -114,19 +103,19 @@ func (r *ReplayReport) add(gameID string, outcome replayOutcome) {
 }
 
 func storedGameID(name string, entry fs.DirEntry) (string, bool) {
-	gameID, isReplay := strings.CutSuffix(path.Base(name), store.ReplayFileSuffix)
-	if !isReplay || !entry.Type().IsRegular() || !store.IsValidGameID(gameID) {
+	gameID, isReplay := strings.CutSuffix(path.Base(name), replayfile.Suffix)
+	if !isReplay || !entry.Type().IsRegular() || !replayfile.IsValidGameID(gameID) {
 		return "", false
 	}
-	return gameID, name == store.ReplayPath(gameID)
+	return gameID, name == replayfile.Path(gameID)
 }
 
-func migrateReplay(replays store.Replays, gameID string, apply bool) replayOutcome {
+func migrateReplay(replays replayfile.Dir, gameID string, apply bool) replayOutcome {
 	compressed, err := replays.Read(gameID)
 	if err != nil {
 		return replayOutcome{err: RewriteError{Kind: FailureUnreadable, Err: err}}
 	}
-	content, err := store.DecompressReplay(compressed, wire.MaxReplayBytes)
+	content, err := replayfile.Decompress(compressed, wire.MaxReplayBytes)
 	if err != nil {
 		return replayOutcome{err: RewriteError{Kind: FailureUnreadable, Err: err}}
 	}

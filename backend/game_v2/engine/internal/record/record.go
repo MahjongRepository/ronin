@@ -1,9 +1,12 @@
 // Package record keeps a seat's record of the game: the facts of the table as one seat knows
 // them, kept up from the events visible to it alone.
 //
-// A client builds a play.SeatRecord with FromStart from the events game.New returned or, on a
-// reconnect, takes the one of a seat view, then applies every later event it sees with Apply.
-// The record then equals the one of the game's seat view after every batch of events.
+// FromStart and Apply are a test oracle with no production caller: the parity tests build each
+// seat's play.SeatRecord with FromStart from the events game.New returned, or take the one of a
+// seat view as a reconnect would, fold every later event it sees through Apply, and compare it with
+// the game's seat view after every batch, so the events a seat sees carry everything its view shows.
+// Clone and CloneResult are the production part: the game's seat view and the facade's events hand
+// out copies made with them.
 //
 // A record is a value: Apply returns the record after the event and leaves the one it was given
 // as it was, every slice it changes replaced rather than written in place, and it keeps its own
@@ -21,8 +24,8 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-// FromStart returns the record of seat after the events game.New returned; false when they lack
-// the GameStarted or the seat's RoundStarted.
+// FromStart returns the record of seat after the events game.New returned, the start the parity
+// tests fold later events onto; false when they lack the GameStarted or the seat's RoundStarted.
 func FromStart(seat tile.Seat, events []play.Emitted) (play.SeatRecord, bool) {
 	var started play.GameStarted
 	var dealt play.RoundStarted

@@ -12,30 +12,6 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-func TestIsKokushiTenpai_WhenTwelveKindsWithAPair_ShouldBeTrue(t *testing.T) {
-	if !offer.IsKokushiTenpai(copies(t, 0, "119m19p19s123456z")) {
-		t.Error("IsKokushiTenpai = false, want true")
-	}
-}
-
-func TestIsKokushiTenpai_WhenAllThirteenKinds_ShouldBeTrue(t *testing.T) {
-	if !offer.IsKokushiTenpai(copies(t, 0, "19m19p19s1234567z")) {
-		t.Error("IsKokushiTenpai = false, want true")
-	}
-}
-
-func TestIsKokushiTenpai_WhenTheHandHoldsASimple_ShouldBeFalse(t *testing.T) {
-	if offer.IsKokushiTenpai(copies(t, 0, "15m19p19s1234567z")) {
-		t.Error("IsKokushiTenpai = true, want false")
-	}
-}
-
-func TestIsKokushiTenpai_WhenOnlyElevenKinds_ShouldBeFalse(t *testing.T) {
-	if offer.IsKokushiTenpai(copies(t, 0, "119m1p1s12345677z")) {
-		t.Error("IsKokushiTenpai = true, want false")
-	}
-}
-
 func TestKanOffers_WhenTwoQuadsAreHeld_ShouldNameTheFirstCopyOfEachInHandOrder(t *testing.T) {
 	hand := concat(copies(t, 0, "2222m1111m"), copies(t, 0, "12345p"))
 
@@ -173,20 +149,5 @@ func TestKanOffers_WhenKanCountsAreHuge_ShouldCountThemAsFourOrMore(t *testing.T
 
 	if got := offer.KanOffers(quad, nil, quad[0], false, huge, 10); len(got) != 0 {
 		t.Errorf("KanOffers = %v, want none", got)
-	}
-}
-
-func TestNagashiSeats_ShouldListTheSeatsWhoseDiscardsAreAllTerminalsOrHonorsAndUncalled(t *testing.T) {
-	var rivers [tile.SeatCount][]play.RiverTile
-	rivers[0] = river(copies(t, 0, "19m1z"))
-	rivers[1] = river(copies(t, 0, "19p2z"))
-	rivers[2] = river(copies(t, 0, "9s5m"))
-	var melds [tile.SeatCount][]play.MeldView
-	melds[3] = []play.MeldView{calledMeld(t, play.MeldPon, 1, "222z", seat(t, 1))}
-
-	got := offer.NagashiSeats(rivers, melds)
-
-	if want := []tile.Seat{seat(t, 0)}; !slices.Equal(got, want) {
-		t.Errorf("NagashiSeats = %v, want %v", got, want)
 	}
 }

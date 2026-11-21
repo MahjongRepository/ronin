@@ -14,8 +14,8 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
-	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
@@ -222,7 +222,7 @@ func TestDisconnect_WhenTheLastHumanLeaves_ShouldAbandonTheGameAndDiscardItsRepl
 		if reason, _ := h.playedGame(t); reason.String != "abandoned" {
 			t.Errorf("end_reason = %q, want abandoned", reason.String)
 		}
-		_, err := store.NewReplays(h.replayDir).Read(testGameID)
+		_, err := replayfile.New(h.replayDir).Read(testGameID)
 		if !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("Replays.Read error = %v, want no replay stored", err)
 		}

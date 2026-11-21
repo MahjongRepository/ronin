@@ -23,7 +23,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf16"
+
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/pyjson"
 )
 
 // Ticket is the payload a signed game ticket carries.
@@ -148,10 +149,10 @@ func parseJSONFloat(raw json.RawMessage) (float64, error) {
 
 func ticketPayload(t Ticket) []byte {
 	values := [...]string{
-		pythonFloat(t.ExpiresAt),
-		pythonString(t.RoomID),
-		pythonString(t.UserID),
-		pythonString(t.Username),
+		pyjson.Float(t.ExpiresAt),
+		pyjson.Quote(t.RoomID),
+		pyjson.Quote(t.UserID),
+		pyjson.Quote(t.Username),
 	}
 
 	var b strings.Builder
@@ -160,64 +161,10 @@ func ticketPayload(t Ticket) []byte {
 		if i > 0 {
 			b.WriteString(", ")
 		}
-		b.WriteString(pythonString(key))
+		b.WriteString(pyjson.Quote(key))
 		b.WriteString(": ")
 		b.WriteString(values[i])
 	}
 	b.WriteByte('}')
 	return []byte(b.String())
-}
-
-func pythonFloat(f float64) string {
-	scientific := strconv.FormatFloat(f, 'e', -1, 64)
-	_, exponent, _ := strings.Cut(scientific, "e")
-	if e, err := strconv.Atoi(exponent); err == nil && (e < -4 || e >= 16) {
-		return scientific
-	}
-
-	fixed := strconv.FormatFloat(f, 'f', -1, 64)
-	if !strings.Contains(fixed, ".") {
-		fixed += ".0"
-	}
-	return fixed
-}
-
-func pythonString(s string) string {
-	var b strings.Builder
-	b.WriteByte('"')
-	for _, r := range s {
-		switch {
-		case r == '"':
-			b.WriteString(`\"`)
-		case r == '\\':
-			b.WriteString(`\\`)
-		case r == '\n':
-			b.WriteString(`\n`)
-		case r == '\r':
-			b.WriteString(`\r`)
-		case r == '\t':
-			b.WriteString(`\t`)
-		case r == '\b':
-			b.WriteString(`\b`)
-		case r == '\f':
-			b.WriteString(`\f`)
-		case r >= ' ' && r <= '~':
-			b.WriteRune(r)
-		case r > 0xffff:
-			high, low := utf16.EncodeRune(r)
-			writeUnicodeEscape(&b, high)
-			writeUnicodeEscape(&b, low)
-		default:
-			writeUnicodeEscape(&b, r)
-		}
-	}
-	b.WriteByte('"')
-	return b.String()
-}
-
-func writeUnicodeEscape(b *strings.Builder, r rune) {
-	hex := strconv.FormatInt(int64(r), 16)
-	b.WriteString(`\u`)
-	b.WriteString(strings.Repeat("0", 4-len(hex)))
-	b.WriteString(hex)
 }

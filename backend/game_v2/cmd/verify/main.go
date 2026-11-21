@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 )
 
 const (
@@ -48,7 +48,7 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 		return report(stdout, "no game ids to verify\n", exitFailed)
 	}
 
-	replays := store.NewReplays(*dir)
+	replays := replayfile.New(*dir)
 	var lines strings.Builder
 	failures := 0
 	for _, id := range ids {

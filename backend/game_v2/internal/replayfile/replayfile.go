@@ -1,4 +1,8 @@
-package store
+// Package replayfile keeps the replay files the game server persists beside the lobby, which the
+// lobby serves, so their layout and compression are a contract.
+//
+// Ported from ronin's Python shared storage: its replay storage.
+package replayfile
 
 import (
 	"bytes"
@@ -22,31 +26,31 @@ const (
 	shardPrefixLength = 2
 )
 
-// ReplayFileSuffix ends the name of every stored replay file.
-const ReplayFileSuffix = ".msgpack.gz"
+// Suffix ends the name of every stored replay file.
+const Suffix = ".msgpack.gz"
 
-// MaxReplayFileSize is the largest stored replay file Replays.Read returns, in bytes.
-const MaxReplayFileSize = 1 << 20
+// MaxFileSize is the largest stored replay file Dir.Read returns, in bytes.
+const MaxFileSize = 1 << 20
 
-// The reasons Replays refuses a replay.
+// The reasons Dir refuses a replay.
 var (
-	ErrInvalidGameID  = errors.New("game id cannot name a stored replay")
-	ErrReplayTooLarge = errors.New("stored replay is over the size cap")
+	ErrInvalidGameID = errors.New("game id cannot name a stored replay")
+	ErrTooLarge      = errors.New("stored replay is over the size cap")
 )
 
-// Replays stores gzip-compressed replay files under one directory, each at
+// Dir stores gzip-compressed replay files under one directory, each at
 // `aa/bb/<game id>.msgpack.gz` for a game id starting `aabb`: owner-only directories, owner-only
 // files, each written whole to a temporary file, synced and renamed into place. Every path is
 // opened through an os.Root, so neither a game id nor a symbolic link reaches outside the
-// directory. The zero value is not usable; build one with NewReplays.
-type Replays struct {
+// directory. The zero value is not usable; build one with New.
+type Dir struct {
 	dir        string
 	idleWriter chan *gzip.Writer
 }
 
-// NewReplays returns the replay store over dir, created on the first save.
-func NewReplays(dir string) Replays {
-	return Replays{dir: dir, idleWriter: make(chan *gzip.Writer, 1)}
+// New returns the replay store over dir, created on the first save.
+func New(dir string) Dir {
+	return Dir{dir: dir, idleWriter: make(chan *gzip.Writer, 1)}
 }
 
 // IsValidGameID reports whether a game id can name a stored replay: 4 to 50 ASCII letters, digits,
@@ -66,7 +70,7 @@ func IsValidGameID(id string) bool {
 
 // Save compresses a game's encoded replay and stores it, replacing any replay already stored for
 // it. It returns ErrInvalidGameID for an id IsValidGameID refuses.
-func (r Replays) Save(gameID string, content []byte) (err error) {
+func (r Dir) Save(gameID string, content []byte) (err error) {
 	if !IsValidGameID(gameID) {
 		return fmt.Errorf("save replay %q: %w", gameID, ErrInvalidGameID)
 	}
@@ -95,9 +99,9 @@ func (r Replays) Save(gameID string, content []byte) (err error) {
 }
 
 // Read returns a stored replay's gzip-compressed bytes. It returns ErrInvalidGameID for an id
-// IsValidGameID refuses, ErrReplayTooLarge for a file over MaxReplayFileSize, and an error matching
+// IsValidGameID refuses, ErrTooLarge for a file over MaxFileSize, and an error matching
 // fs.ErrNotExist when no replay is stored for the game.
-func (r Replays) Read(gameID string) (data []byte, err error) {
+func (r Dir) Read(gameID string) (data []byte, err error) {
 	if !IsValidGameID(gameID) {
 		return nil, fmt.Errorf("read replay %q: %w", gameID, ErrInvalidGameID)
 	}
@@ -108,26 +112,26 @@ func (r Replays) Read(gameID string) (data []byte, err error) {
 	}
 	defer func() { err = errors.Join(err, root.Close()) }()
 
-	file, err := root.Open(ReplayPath(gameID))
+	file, err := root.Open(Path(gameID))
 	if err != nil {
 		return nil, fmt.Errorf("read replay %s: %w", gameID, err)
 	}
 	defer func() { err = errors.Join(err, file.Close()) }()
 
-	data, err = io.ReadAll(io.LimitReader(file, MaxReplayFileSize+1))
+	data, err = io.ReadAll(io.LimitReader(file, MaxFileSize+1))
 	if err != nil {
 		return nil, fmt.Errorf("read replay %s: %w", gameID, err)
 	}
-	if len(data) > MaxReplayFileSize {
-		return nil, fmt.Errorf("read replay %s: %w", gameID, ErrReplayTooLarge)
+	if len(data) > MaxFileSize {
+		return nil, fmt.Errorf("read replay %s: %w", gameID, ErrTooLarge)
 	}
 	return data, nil
 }
 
-// DecompressReplay returns the content of a replay file Read returned, reading at most limit+1
+// Decompress returns the content of a replay file Read returned, reading at most limit+1
 // bytes of it, so a caller that refuses content over limit sees that it is; an error for data
 // that is not gzip.
-func DecompressReplay(compressed []byte, limit int) ([]byte, error) {
+func Decompress(compressed []byte, limit int) ([]byte, error) {
 	reader, err := gzip.NewReader(bytes.NewReader(compressed))
 	if err != nil {
 		return nil, fmt.Errorf("decompress replay: %w", err)
@@ -147,13 +151,13 @@ func shardDir(gameID string) string {
 	return path.Join(gameID[:shardPrefixLength], gameID[shardPrefixLength:2*shardPrefixLength])
 }
 
-// ReplayPath returns where Replays stores a game's replay, relative to its directory, for a game id
+// Path returns where Dir stores a game's replay, relative to its directory, for a game id
 // IsValidGameID accepts: `aa/bb/<game id>.msgpack.gz` for an id starting `aabb`.
-func ReplayPath(gameID string) string {
-	return path.Join(shardDir(gameID), gameID+ReplayFileSuffix)
+func Path(gameID string) string {
+	return path.Join(shardDir(gameID), gameID+Suffix)
 }
 
-func (r Replays) compressReplay(content []byte) ([]byte, error) {
+func (r Dir) compressReplay(content []byte) ([]byte, error) {
 	var compressed bytes.Buffer
 	writer, err := r.takeWriter(&compressed)
 	if err != nil {
@@ -177,7 +181,7 @@ func (r Replays) compressReplay(content []byte) ([]byte, error) {
 	return compressed.Bytes(), nil
 }
 
-func (r Replays) takeWriter(output io.Writer) (*gzip.Writer, error) {
+func (r Dir) takeWriter(output io.Writer) (*gzip.Writer, error) {
 	select {
 	case writer := <-r.idleWriter:
 		writer.Reset(output)
@@ -204,7 +208,7 @@ func writeReplay(root *os.Root, gameID string, compressed []byte) error {
 	temp := path.Join(shard, replayTempPrefix+rand.Text()+replayTempSuffix)
 	err = writeSynced(root, temp, compressed)
 	if err == nil {
-		err = root.Rename(temp, ReplayPath(gameID))
+		err = root.Rename(temp, Path(gameID))
 	}
 	if err != nil {
 		removeErr := root.Remove(temp)

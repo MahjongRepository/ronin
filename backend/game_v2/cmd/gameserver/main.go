@@ -23,6 +23,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/server"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
@@ -142,7 +143,7 @@ func newLogger(cfg config) (*slog.Logger, func() error, error) {
 }
 
 func newServer(storeCtx context.Context, cfg config, db *store.DB, logger *slog.Logger) (*server.Server, error) {
-	replays := store.NewReplays(cfg.replayDir)
+	replays := replayfile.New(cfg.replayDir)
 	manager, err := session.New(storeCtx, session.Config{
 		Timing:   session.DefaultTiming(),
 		Capacity: cfg.capacity,

@@ -29,7 +29,7 @@ func (g *game) join(conn Connection, ticket string) error {
 		return nil
 	}
 
-	b := g.bindJoining(conn, ticket)
+	b := g.m.bindJoining(g, conn, ticket)
 	switch {
 	case !b.registered:
 		return nil
@@ -41,42 +41,6 @@ func (g *game) join(conn Connection, ticket string) error {
 	return g.admit(b.participant, conn)
 }
 
-type seatBinding struct {
-	registered  bool
-	participant *participant
-	replaced    Connection
-	refused     play.Option[sessionRefusal]
-}
-
-func (g *game) bindJoining(conn Connection, ticket string) seatBinding {
-	g.m.mu.Lock()
-	defer g.m.mu.Unlock()
-
-	entry := g.m.registeredLocked(conn)
-	if entry == nil {
-		return seatBinding{}
-	}
-	p, refused := g.joiningLocked(entry, ticket)
-	if refused.OK {
-		return seatBinding{registered: true, refused: refused}
-	}
-	return seatBinding{registered: true, participant: p, replaced: g.bindLocked(p, entry)}
-}
-
-func (g *game) joiningLocked(entry *connEntry, ticket string) (*participant, play.Option[sessionRefusal]) {
-	switch l := g.m.tickets[ticket]; {
-	case entry.bound != nil:
-		return nil, play.Some(sessionRefusal{messaging.SessionAlreadyInGame, "Connection already in a game"})
-	case l == nil:
-		return nil, play.Some(sessionRefusal{messaging.SessionJoinGameNoSession, "No session for this ticket"})
-	case l.game != g:
-		return nil, play.Some(sessionRefusal{
-			messaging.SessionReconnectGameMismatch, "Session token is not valid for this game",
-		})
-	}
-	return g.byTicket(ticket), play.Option[sessionRefusal]{}
-}
-
 func (g *game) byTicket(ticket string) *participant {
 	for _, p := range g.participants {
 		if p.spec.Ticket == ticket {
@@ -84,17 +48,6 @@ func (g *game) byTicket(ticket string) *participant {
 		}
 	}
 	return nil
-}
-
-func (g *game) bindLocked(p *participant, entry *connEntry) Connection {
-	replaced := p.conn
-	if replaced != nil {
-		g.m.evictLocked(replaced)
-	}
-	p.conn = entry.conn
-	entry.bound = p
-	entry.authTimer()
-	return replaced
 }
 
 func (g *game) closeReplaced(p *participant, replaced, conn Connection) {
@@ -159,20 +112,11 @@ func (g *game) startGame() error {
 		return fmt.Errorf("claim the game id: %w", err)
 	}
 	g.startRecorded = true
-	g.markPlaying()
+	g.m.markPlaying(g)
 	g.engine = started
 	g.replay = messaging.NewReplayLog(seed, g.roster)
 	g.log.Info("pending game completed")
 	return g.openFirstWait(events)
-}
-
-func (g *game) markPlaying() {
-	g.m.mu.Lock()
-	defer g.m.mu.Unlock()
-
-	if l := g.m.games[g.id]; l != nil && l.game == g {
-		l.playing = true
-	}
 }
 
 func (g *game) recordStart() error {

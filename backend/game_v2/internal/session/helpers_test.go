@@ -20,6 +20,7 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
@@ -151,7 +152,7 @@ func newHarness(t *testing.T, options ...option) *harness {
 		Timing:   session.DefaultTiming(),
 		Capacity: 10,
 		DB:       db,
-		Replays:  store.NewReplays(filepath.Join(dir, "replays")),
+		Replays:  replayfile.New(filepath.Join(dir, "replays")),
 		Logger:   logger,
 	}
 	for _, apply := range options {
@@ -307,7 +308,7 @@ func (h *harness) playedGameRow(t *testing.T) [4]sql.NullString {
 
 func (h *harness) replayBytes(t *testing.T) []byte {
 	t.Helper()
-	content, err := store.NewReplays(h.replayDir).Read(testGameID)
+	content, err := replayfile.New(h.replayDir).Read(testGameID)
 	if err != nil {
 		t.Fatalf("Replays.Read error = %v", err)
 	}

@@ -1,4 +1,4 @@
-package store_test
+package replayfile_test
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 )
 
 func decompress(t *testing.T, compressed []byte) []byte {
@@ -35,13 +35,13 @@ func assertMode(t *testing.T, path string, want fs.FileMode) {
 	}
 }
 
-func TestReplaysSave_WhenGivenAReplay_ShouldStoreItGzippedInOwnerOnlyShards(t *testing.T) {
+func TestDirSave_WhenGivenAReplay_ShouldStoreItGzippedInOwnerOnlyShards(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "replays")
 	err := os.Mkdir(dir, 0o755)
 	if err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	replays := store.NewReplays(dir)
+	replays := replayfile.New(dir)
 	content := []byte("encoded replay records")
 
 	err = replays.Save("abcd-game_1", content)
@@ -71,13 +71,13 @@ func TestReplaysSave_WhenGivenAReplay_ShouldStoreItGzippedInOwnerOnlyShards(t *t
 	if err != nil || !bytes.Equal(read, stored) {
 		t.Errorf("Read = %d bytes, %v; want the %d stored bytes", len(read), err, len(stored))
 	}
-	if got, err := store.DecompressReplay(read, len(content)); err != nil || !bytes.Equal(got, content) {
-		t.Errorf("DecompressReplay = %q, %v; want %q", got, err, content)
+	if got, err := replayfile.Decompress(read, len(content)); err != nil || !bytes.Equal(got, content) {
+		t.Errorf("Decompress = %q, %v; want %q", got, err, content)
 	}
 }
 
-func TestDecompressReplay_WhenTheContentIsOverTheLimit_ShouldReadOneBytePastIt(t *testing.T) {
-	replays := store.NewReplays(t.TempDir())
+func TestDecompress_WhenTheContentIsOverTheLimit_ShouldReadOneBytePastIt(t *testing.T) {
+	replays := replayfile.New(t.TempDir())
 	err := replays.Save("game-1", []byte("0123456789"))
 	if err != nil {
 		t.Fatalf("Save: %v", err)
@@ -87,14 +87,14 @@ func TestDecompressReplay_WhenTheContentIsOverTheLimit_ShouldReadOneBytePastIt(t
 		t.Fatalf("Read: %v", err)
 	}
 
-	got, err := store.DecompressReplay(read, 4)
+	got, err := replayfile.Decompress(read, 4)
 	if err != nil || string(got) != "01234" {
-		t.Errorf("DecompressReplay = %q, %v; want the limit and one byte more", got, err)
+		t.Errorf("Decompress = %q, %v; want the limit and one byte more", got, err)
 	}
 }
 
-func TestReplaysSave_WhenTheGameHasAReplay_ShouldReplaceIt(t *testing.T) {
-	replays := store.NewReplays(t.TempDir())
+func TestDirSave_WhenTheGameHasAReplay_ShouldReplaceIt(t *testing.T) {
+	replays := replayfile.New(t.TempDir())
 	err := errors.Join(replays.Save("game-1", []byte("first")), replays.Save("game-1", []byte("second")))
 	if err != nil {
 		t.Fatalf("Save: %v", err)
@@ -128,44 +128,44 @@ func freshBestCompression(t *testing.T, content []byte) []byte {
 	return compressed.Bytes()
 }
 
-func TestReplays_WhenTheGameIDCannotNameAReplay_ShouldRefuseIt(t *testing.T) {
-	replays := store.NewReplays(t.TempDir())
+func TestDir_WhenTheGameIDCannotNameAReplay_ShouldRefuseIt(t *testing.T) {
+	replays := replayfile.New(t.TempDir())
 	for _, id := range []string{"abc", strings.Repeat("a", 51), "ab/cd", "../../etc", "abcd\n", "abcd.e", "абвг"} {
 		saveErr := replays.Save(id, []byte("x"))
 		_, readErr := replays.Read(id)
-		if !errors.Is(saveErr, store.ErrInvalidGameID) || !errors.Is(readErr, store.ErrInvalidGameID) {
-			t.Errorf("%q: Save, Read errors = %v, %v; want %v", id, saveErr, readErr, store.ErrInvalidGameID)
+		if !errors.Is(saveErr, replayfile.ErrInvalidGameID) || !errors.Is(readErr, replayfile.ErrInvalidGameID) {
+			t.Errorf("%q: Save, Read errors = %v, %v; want %v", id, saveErr, readErr, replayfile.ErrInvalidGameID)
 		}
 	}
 }
 
-func TestReplaysRead_WhenTheFileIsOverTheCap_ShouldRefuseIt(t *testing.T) {
+func TestDirRead_WhenTheFileIsOverTheCap_ShouldRefuseIt(t *testing.T) {
 	dir := t.TempDir()
 	shard := filepath.Join(dir, "at", "ca")
 	err := os.MkdirAll(shard, 0o700)
 	if err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	for name, size := range map[string]int{"atcap": store.MaxReplayFileSize, "atcapplus1": store.MaxReplayFileSize + 1} {
+	for name, size := range map[string]int{"atcap": replayfile.MaxFileSize, "atcapplus1": replayfile.MaxFileSize + 1} {
 		err = os.WriteFile(filepath.Join(shard, name+".msgpack.gz"), make([]byte, size), 0o600)
 		if err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}
 	}
-	replays := store.NewReplays(dir)
+	replays := replayfile.New(dir)
 
 	atCap, err := replays.Read("atcap")
-	if err != nil || len(atCap) != store.MaxReplayFileSize {
-		t.Errorf("Read at the cap = %d bytes, %v; want %d", len(atCap), err, store.MaxReplayFileSize)
+	if err != nil || len(atCap) != replayfile.MaxFileSize {
+		t.Errorf("Read at the cap = %d bytes, %v; want %d", len(atCap), err, replayfile.MaxFileSize)
 	}
 
 	_, err = replays.Read("atcapplus1")
-	if !errors.Is(err, store.ErrReplayTooLarge) {
-		t.Errorf("Read over the cap error = %v, want %v", err, store.ErrReplayTooLarge)
+	if !errors.Is(err, replayfile.ErrTooLarge) {
+		t.Errorf("Read over the cap error = %v, want %v", err, replayfile.ErrTooLarge)
 	}
 }
 
-func TestReplays_WhenALinkLeadsOutOfTheDirectory_ShouldNotFollowIt(t *testing.T) {
+func TestDir_WhenALinkLeadsOutOfTheDirectory_ShouldNotFollowIt(t *testing.T) {
 	dir, outside := t.TempDir(), t.TempDir()
 	err := os.WriteFile(filepath.Join(outside, "game-1.msgpack.gz"), []byte("outside"), 0o600)
 	if err != nil {
@@ -179,7 +179,7 @@ func TestReplays_WhenALinkLeadsOutOfTheDirectory_ShouldNotFollowIt(t *testing.T)
 	if err != nil {
 		t.Fatalf("symlink: %v", err)
 	}
-	replays := store.NewReplays(dir)
+	replays := replayfile.New(dir)
 
 	_, readErr := replays.Read("game-1")
 	saveErr := replays.Save("game-2", []byte("x"))
@@ -193,9 +193,9 @@ func TestReplays_WhenALinkLeadsOutOfTheDirectory_ShouldNotFollowIt(t *testing.T)
 	}
 }
 
-func TestReplaysRead_WhenNoReplayIsStored_ShouldAnswerNotExist(t *testing.T) {
+func TestDirRead_WhenNoReplayIsStored_ShouldAnswerNotExist(t *testing.T) {
 	for _, dir := range []string{t.TempDir(), filepath.Join(t.TempDir(), "missing")} {
-		_, err := store.NewReplays(dir).Read("abcd-1")
+		_, err := replayfile.New(dir).Read("abcd-1")
 		if !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("%s: Read error = %v, want %v", dir, err, fs.ErrNotExist)
 		}

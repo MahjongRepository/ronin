@@ -386,24 +386,12 @@ func (g *stagedGame) act(seat int, action play.Action) {
 	if !ok {
 		return
 	}
-	if answersCall(action) {
+	if action.AnswersCall() && action.Kind() != play.ActionPass {
 		g.passCalls(s)
 	} else {
 		g.passCalls()
 	}
 	g.step(s, action)
-}
-
-func answersCall(action play.Action) bool {
-	switch action.Kind() {
-	case play.ActionRon, play.ActionPon, play.ActionChi:
-		return true
-	case play.ActionKan:
-		kind, _ := action.Kan()
-		return kind == play.KanOpen
-	case play.ActionDiscard, play.ActionRiichi, play.ActionTsumo, play.ActionKyuushu, play.ActionPass:
-	}
-	return false
 }
 
 func (g *stagedGame) passCalls(exclude ...tile.Seat) {

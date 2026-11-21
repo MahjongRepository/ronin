@@ -20,6 +20,7 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/auth"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replay"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/server"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
@@ -192,7 +193,8 @@ func (w *scriptWriter) answerCall(awaiting play.AwaitingCall, actions []replay.S
 }
 
 func callAnswers(awaiting play.AwaitingCall, actions []replay.SeatAction) []tile.Seat {
-	if len(actions) == 0 || !slices.Contains(awaiting.Seats, actions[0].Seat) || !answersCall(actions[0].Action) {
+	if len(actions) == 0 || !slices.Contains(awaiting.Seats, actions[0].Seat) || !actions[0].Action.AnswersCall() ||
+		actions[0].Action.Kind() == play.ActionPass {
 		return nil
 	}
 	seats := []tile.Seat{actions[0].Seat}
@@ -206,12 +208,6 @@ func callAnswers(awaiting play.AwaitingCall, actions []replay.SeatAction) []tile
 		seats = append(seats, later.Seat)
 	}
 	return seats
-}
-
-func answersCall(action play.Action) bool {
-	kind, isKan := action.Kan()
-	return action.Kind() == play.ActionRon || action.Kind() == play.ActionPon || action.Kind() == play.ActionChi ||
-		isKan && kind == play.KanOpen
 }
 
 func (w *scriptWriter) play(sa replay.SeatAction) error {
@@ -359,7 +355,7 @@ type fullGameTable struct {
 	manager  *session.Manager
 	router   *server.Router
 	db       *store.DB
-	replays  store.Replays
+	replays  replayfile.Dir
 	schedule []clientStep
 }
 
@@ -378,7 +374,7 @@ func openFullGameTable(tb testing.TB, script fullGameScript) *fullGameTable {
 	if err != nil {
 		tb.Fatalf("store.Open error = %v", err)
 	}
-	replays := store.NewReplays(filepath.Join(dir, "replays"))
+	replays := replayfile.New(filepath.Join(dir, "replays"))
 	manager, err := session.New(context.Background(), session.Config{
 		Timing:   session.DefaultTiming(),
 		Capacity: 1,
@@ -495,7 +491,7 @@ func savedReplay(t *fullGameTable, gameID string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return store.DecompressReplay(compressed, store.MaxReplayFileSize)
+	return replayfile.Decompress(compressed, replayfile.MaxFileSize)
 }
 
 func TestRouter_WhenFourClientsPlayTheFullGameFixture_ShouldSaveTheFixtureReplay(t *testing.T) {

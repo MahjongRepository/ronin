@@ -9,6 +9,8 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
+const kokushiMinKinds = 12
+
 // Furiten is the flags that forbid a seat's ron, and the value it is shown. Temporary is a ron
 // passed or missed, cleared by the seat's next discard; Riichi a ron a riichi seat passed or
 // missed, lasting the round; Shown the value the seat was last shown. The zero value is no
@@ -111,23 +113,16 @@ func MayRobKan(candidate RonCandidate, kind play.KanKind, robbed tile.TileID) bo
 	waits := candidate.waits()
 	return waits.Contains(robbed.Kind()) &&
 		!candidate.isBlocked(waits) &&
-		(kind == play.KanAdded || IsKokushiTenpai(candidate.Hand))
+		(kind == play.KanAdded || isKokushiTenpai(candidate.Hand))
 }
 
-// RonWin returns how a ron on a call prompt's tile with liveTiles left is won: houtei on the last
-// discard, chankan on a kan's tile, else ron.
-func RonWin(source play.CallSource, liveTiles int) score.Win {
-	if IsHoutei(liveTiles, source) {
-		return score.WinHoutei
+func isKokushiTenpai(hand []tile.TileID) bool {
+	var kinds tile.Kinds
+	for _, id := range hand {
+		if !id.Kind().IsTerminalOrHonor() {
+			return false
+		}
+		kinds = kinds.With(id.Kind())
 	}
-	if source == play.SourceDiscard {
-		return score.WinRon
-	}
-	return score.WinChankan
-}
-
-// BaseSituation returns what a win is scored with besides the tiles, with no first turn, honba or
-// riichi sticks.
-func BaseSituation(win score.Win, seatWind, roundWind tile.Wind, riichi play.Option[play.Riichi]) score.Situation {
-	return score.Situation{Win: win, Riichi: riichi, SeatWind: seatWind, RoundWind: roundWind}
+	return kinds.Len() >= kokushiMinKinds
 }

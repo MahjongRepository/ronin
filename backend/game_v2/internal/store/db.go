@@ -1,13 +1,13 @@
-// Package store keeps what the game server persists beside the lobby: the `played_games` rows of
-// the SQLite database both servers share, and the replay files the lobby serves.
+// Package store keeps the `played_games` rows the game server persists beside the lobby, in the
+// SQLite database both servers share.
 //
-// The lobby reads both, so their shapes are a contract. The game server creates only the table it
+// The lobby reads them, so their shape is a contract. The game server creates only the table it
 // writes, `played_games` with its index, in the lobby's own DDL; the lobby creates the rest of the
 // schema when it opens the same file. A row's times keep the lobby's text forms, and its `data`
 // keeps the JSON the lobby validates.
 //
-// Ported from ronin's Python shared storage: its database connection, game repository, played-game
-// model and replay storage.
+// Ported from ronin's Python shared storage: its database connection, game repository and
+// played-game model.
 package store
 
 import (

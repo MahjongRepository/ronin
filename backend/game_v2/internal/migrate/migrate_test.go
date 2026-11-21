@@ -17,6 +17,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/migrate"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
@@ -156,11 +157,11 @@ func (f fixture) run(t *testing.T, cfg migrate.Config) (bool, string) {
 
 func storedContent(t *testing.T, dir, gameID string) []byte {
 	t.Helper()
-	compressed, err := store.NewReplays(dir).Read(gameID)
+	compressed, err := replayfile.New(dir).Read(gameID)
 	if err != nil {
 		t.Fatalf("read %s: %v", gameID, err)
 	}
-	content, err := store.DecompressReplay(compressed, wire.MaxReplayBytes)
+	content, err := replayfile.Decompress(compressed, wire.MaxReplayBytes)
 	if err != nil {
 		t.Fatalf("decompress %s: %v", gameID, err)
 	}

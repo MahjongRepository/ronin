@@ -2,8 +2,8 @@
 // knows: which tiles it may discard, which riichi, kans and meld calls it is offered, whether a
 // discard or a robbed kan is a ron it may take or furiten forbids, what a win is worth and what
 // it moves between the seats, and the abortive draws a hand or the first discards cause. The
-// round machine and the seat record both build on it, so a seat's options are the same wherever
-// they are asked.
+// round and game machines build on it, and so does the facade's settlement of a win, so a win is
+// scored and settled the same wherever it is asked.
 //
 // The helpers take a hand and melds the engine built, which hold every tile id once, so a kind
 // at most four times; the Checked forms first check a hand and melds given from outside.

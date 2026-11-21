@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -19,14 +18,9 @@ const (
 	startConfirmedAt = 3
 )
 
-type env struct {
-	ctx    context.Context
-	logger *slog.Logger
-}
-
 type scenario struct {
 	name  string
-	build func(env) ([]transcript, error)
+	build func(context.Context, env) ([]transcript, error)
 }
 
 func seatScenarios() []scenario {
@@ -59,7 +53,7 @@ func seatScenarios() []scenario {
 func generateSeatTranscripts(ctx context.Context, logger *slog.Logger) (map[string][]byte, error) {
 	generated := map[string][]byte{}
 	for _, sc := range seatScenarios() {
-		transcripts, err := sc.build(env{ctx: ctx, logger: logger})
+		transcripts, err := sc.build(ctx, env{logger: logger})
 		if err != nil {
 			return nil, err
 		}
@@ -77,63 +71,6 @@ func generateSeatTranscripts(ctx context.Context, logger *slog.Logger) (map[stri
 	return generated, nil
 }
 
-const maxDealerPasses = 8
-
-func (e env) play(
-	s *staging, setup gameSetup, script func(g *seatedGame) ([]transcript, error),
-) ([]transcript, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-
-	setup.dealers = fillerDealers{}
-	for range maxDealerPasses {
-		g, err := openSeatedGame(e.ctx, e.logger, setup)
-		if err != nil {
-			return nil, err
-		}
-		transcripts, playErr := script(g)
-		playErr = errors.Join(playErr, s.err)
-		dealt := g.dealtDealers()
-		closeErr := g.close(e.ctx)
-		if closeErr != nil {
-			return nil, errors.Join(playErr, closeErr)
-		}
-
-		if s.err != nil || fillersMatch(setup.rounds, setup.start, setup.dealers, dealt) {
-			return transcripts, playErr
-		}
-		setup.dealers = dealt
-	}
-	return nil, fmt.Errorf("%s: the seed's later rounds found no dealers in %d passes", setup.gameID, maxDealerPasses)
-}
-
-func fillersMatch(
-	rounds []stagedWall, start play.Option[play.StartPosition], planned, dealt fillerDealers,
-) bool {
-	first := firstFillerRound(rounds, start)
-	lastStaged := rounds[len(rounds)-1].dealer
-	for roundNumber, dealer := range dealt {
-		if roundNumber >= first && planned.of(roundNumber, lastStaged) != dealer {
-			return false
-		}
-	}
-	return true
-}
-
-func alone(gameID string, rounds ...stagedWall) gameSetup {
-	return gameSetup{gameID: gameID, players: []string{player}, rounds: rounds}
-}
-
-func withRobber(gameID string, rounds ...stagedWall) gameSetup {
-	return gameSetup{gameID: gameID, players: []string{player, robber}, rounds: rounds}
-}
-
-func (g gameSetup) from(start play.StartPosition) gameSetup {
-	g.start = play.Some(start)
-	return g
-}
-
 func joinAndConfirm(g *seatedGame, names ...string) {
 	for _, name := range names {
 		g.client(name).join()
@@ -147,7 +84,7 @@ func south1() play.StartPosition {
 	return play.StartPosition{Scores: [tile.SeatCount]int{32000, 24000, 23000, 21000}, Wind: tile.South}
 }
 
-func callPrompt(e env) ([]transcript, error) {
+func callPrompt(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	called := s.id(0, "3m")
 	staged := stagedWall{
@@ -163,7 +100,7 @@ func callPrompt(e env) ([]transcript, error) {
 		},
 	}
 
-	return e.play(&s, alone("seat-call-prompt", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, alone("seat-call-prompt", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
@@ -184,7 +121,7 @@ func callPrompt(e env) ([]transcript, error) {
 	})
 }
 
-func chiPrompt(e env) ([]transcript, error) {
+func chiPrompt(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	staged := stagedWall{
 		hands: [tile.SeatCount][]tile.TileID{
@@ -196,7 +133,7 @@ func chiPrompt(e env) ([]transcript, error) {
 		draws: []stagedDraw{s.draw(0, s.id(0, "3m")), s.draw(1, s.id(0, "7z"))},
 	}
 
-	return e.play(&s, alone("seat-chi-prompt", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, alone("seat-chi-prompt", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
@@ -207,7 +144,7 @@ func chiPrompt(e env) ([]transcript, error) {
 	})
 }
 
-func redFivePon(e env) ([]transcript, error) {
+func redFivePon(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	fives := s.ids(0, "5555m")
 	staged := stagedWall{
@@ -220,7 +157,7 @@ func redFivePon(e env) ([]transcript, error) {
 		draws: []stagedDraw{s.draw(0, fives[3])},
 	}
 
-	return e.play(&s, alone("seat-red-five-pon", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, alone("seat-red-five-pon", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
@@ -231,7 +168,7 @@ func redFivePon(e env) ([]transcript, error) {
 	})
 }
 
-func ronCall(e env) ([]transcript, error) {
+func ronCall(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	staged := stagedWall{
 		hands: [tile.SeatCount][]tile.TileID{
@@ -243,7 +180,7 @@ func ronCall(e env) ([]transcript, error) {
 		draws: []stagedDraw{s.draw(0, s.id(0, "3m")), s.draw(1, s.id(0, "7z"))},
 	}
 
-	return e.play(&s, alone("seat-ron-call", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, alone("seat-ron-call", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
@@ -254,7 +191,7 @@ func ronCall(e env) ([]transcript, error) {
 	})
 }
 
-func addedKan(e env) ([]transcript, error) {
+func addedKan(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	chun := s.id(2, "7z")
 	junk := s.id(0, "4z")
@@ -271,7 +208,7 @@ func addedKan(e env) ([]transcript, error) {
 		},
 	}
 
-	return e.play(&s, alone("seat-added-kan", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, alone("seat-added-kan", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
@@ -283,7 +220,7 @@ func addedKan(e env) ([]transcript, error) {
 	})
 }
 
-func fullTurn(e env) ([]transcript, error) {
+func fullTurn(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	staged := stagedWall{
 		hands: [tile.SeatCount][]tile.TileID{
@@ -298,7 +235,7 @@ func fullTurn(e env) ([]transcript, error) {
 		},
 	}
 
-	return e.play(&s, alone("seat-full-turn", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, alone("seat-full-turn", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
@@ -309,7 +246,7 @@ func fullTurn(e env) ([]transcript, error) {
 	})
 }
 
-func kanChoice(e env) ([]transcript, error) {
+func kanChoice(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	staged := stagedWall{
 		hands: [tile.SeatCount][]tile.TileID{
@@ -322,7 +259,7 @@ func kanChoice(e env) ([]transcript, error) {
 		rinshan: []tile.TileID{s.id(0, "4z")},
 	}
 
-	return e.play(&s, alone("seat-kan-choice", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, alone("seat-kan-choice", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
@@ -350,11 +287,11 @@ func ownTurnWall(s *staging) stagedWall {
 	}
 }
 
-func ownTurn(e env) ([]transcript, error) {
+func ownTurn(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	staged := ownTurnWall(&s)
 
-	return e.play(&s, alone("seat-own-turn", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, alone("seat-own-turn", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		alice.labelEvent("game started", wire.EventGameStarted)
@@ -380,7 +317,7 @@ func ownTurn(e env) ([]transcript, error) {
 	})
 }
 
-func riichiKan(e env) ([]transcript, error) {
+func riichiKan(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	declaration := s.id(0, "4z")
 	staged := ownTurnWall(&s)
@@ -390,7 +327,7 @@ func riichiKan(e env) ([]transcript, error) {
 	}
 	staged.rinshan = []tile.TileID{s.id(0, "9s")}
 
-	return e.play(&s, alone("seat-riichi-kan", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, alone("seat-riichi-kan", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
@@ -403,11 +340,11 @@ func riichiKan(e env) ([]transcript, error) {
 	})
 }
 
-func bankReconnect(e env) ([]transcript, error) {
+func bankReconnect(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	staged := ownTurnWall(&s)
 
-	return e.play(&s, alone("seat-bank-reconnect", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, alone("seat-bank-reconnect", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
@@ -421,7 +358,7 @@ func bankReconnect(e env) ([]transcript, error) {
 	})
 }
 
-func reconnect(e env) ([]transcript, error) {
+func reconnect(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	haku := s.id(2, "5z")
 	junk := s.id(0, "4z")
@@ -435,7 +372,7 @@ func reconnect(e env) ([]transcript, error) {
 		draws: []stagedDraw{s.draw(0, haku), s.draw(2, s.id(0, "6s"))},
 	}
 
-	return e.play(&s, alone("seat-reconnect", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, alone("seat-reconnect", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
@@ -455,12 +392,12 @@ func reconnect(e env) ([]transcript, error) {
 	})
 }
 
-func riichiReconnect(e env) ([]transcript, error) {
+func riichiReconnect(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	staged := ownTurnWall(&s)
 
 	setup := alone("seat-riichi-reconnect", staged).from(south1())
-	return e.play(&s, setup, func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, setup, func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
@@ -482,7 +419,7 @@ func riichiReconnect(e env) ([]transcript, error) {
 	})
 }
 
-func chankanRobbed(e env) ([]transcript, error) {
+func chankanRobbed(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	kanTile := s.id(0, "9m")
 	staged := stagedWall{
@@ -499,7 +436,7 @@ func chankanRobbed(e env) ([]transcript, error) {
 	}
 
 	start := play.StartPosition{Scores: [tile.SeatCount]int{22000, 34000, 22000, 22000}}
-	return e.play(&s, withRobber("seat-chankan-robbed", staged).from(start), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, withRobber("seat-chankan-robbed", staged).from(start), func(g *seatedGame) ([]transcript, error) {
 		alice, bob := g.client(player), g.client(robber)
 		joinAndConfirm(g, player, robber)
 		g.waitUntil(secs(4))
@@ -521,7 +458,7 @@ func chankanRobbed(e env) ([]transcript, error) {
 	})
 }
 
-func chankanPassed(e env) ([]transcript, error) {
+func chankanPassed(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	ponned := s.id(2, "6p")
 	staged := stagedWall{
@@ -537,7 +474,7 @@ func chankanPassed(e env) ([]transcript, error) {
 		},
 	}
 
-	return e.play(&s, withRobber("seat-chankan-passed", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, withRobber("seat-chankan-passed", staged), func(g *seatedGame) ([]transcript, error) {
 		alice, bob := g.client(player), g.client(robber)
 		joinAndConfirm(g, player, robber)
 		g.waitUntil(secs(4))
@@ -567,12 +504,12 @@ func doubleRonWall(s *staging, alice []tile.TileID) stagedWall {
 	}
 }
 
-func doubleRon(e env) ([]transcript, error) {
+func doubleRon(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	staged := doubleRonWall(&s, s.ids(0, "234567m23p34566s"))
 	staged.draws = []stagedDraw{s.draw(0, s.id(2, "4p"))}
 
-	return e.play(&s, withRobber("seat-double-ron", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, withRobber("seat-double-ron", staged), func(g *seatedGame) ([]transcript, error) {
 		alice, bob := g.client(player), g.client(robber)
 		joinAndConfirm(g, player, robber)
 		g.waitUntil(secs(4))
@@ -590,12 +527,12 @@ func doubleRon(e env) ([]transcript, error) {
 	})
 }
 
-func finalRound(e env) ([]transcript, error) {
+func finalRound(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	staged := doubleRonWall(&s, s.ids(0, "11m19p19s1234567z"))
 	staged.draws = []stagedDraw{s.draw(0, s.id(0, "9m"))}
 
-	return e.play(&s, alone("seat-final-round", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, alone("seat-final-round", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
@@ -620,11 +557,11 @@ func kyuushuWall(s *staging) stagedWall {
 	}
 }
 
-func resyncBeforeDeal(e env) ([]transcript, error) {
+func resyncBeforeDeal(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	staged := kyuushuWall(&s)
 
-	return e.play(&s, alone("seat-resync-before-deal", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, alone("seat-resync-before-deal", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		alice.join()
 		alice.labelEvent("game started", wire.EventGameStarted)
@@ -637,11 +574,11 @@ func resyncBeforeDeal(e env) ([]transcript, error) {
 	})
 }
 
-func resync(e env) ([]transcript, error) {
+func resync(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	staged := kyuushuWall(&s)
 
-	return e.play(&s, alone("seat-resync", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, alone("seat-resync", staged), func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		alice.labelSession("joined", gameJoinedType)
@@ -662,12 +599,12 @@ func resync(e env) ([]transcript, error) {
 	})
 }
 
-func gameEndReconnect(e env) ([]transcript, error) {
+func gameEndReconnect(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	staged := kyuushuWall(&s)
 
 	setup := alone("seat-game-end-reconnect", staged).from(south1())
-	return e.play(&s, setup, func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, setup, func(g *seatedGame) ([]transcript, error) {
 		alice := g.client(player)
 		joinAndConfirm(g, player)
 		g.waitUntil(secs(4))
@@ -686,7 +623,7 @@ func gameEndReconnect(e env) ([]transcript, error) {
 	})
 }
 
-func seatLeft(e env) ([]transcript, error) {
+func seatLeft(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	aliceDraw := s.id(0, "6z")
 	staged := stagedWall{
@@ -699,7 +636,7 @@ func seatLeft(e env) ([]transcript, error) {
 		draws: []stagedDraw{s.draw(0, s.id(0, "5z")), s.draw(1, aliceDraw)},
 	}
 
-	return e.play(&s, withRobber("seat-left", staged), func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, withRobber("seat-left", staged), func(g *seatedGame) ([]transcript, error) {
 		alice, bob := g.client(player), g.client(robber)
 		joinAndConfirm(g, player, robber)
 		g.waitUntil(secs(4))
@@ -717,7 +654,7 @@ func seatLeft(e env) ([]transcript, error) {
 	})
 }
 
-func firstTurnWin(e env) ([]transcript, error) {
+func firstTurnWin(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	eastWind := s.id(1, "1z")
 	east1 := stagedWall{
@@ -745,7 +682,7 @@ func firstTurnWin(e env) ([]transcript, error) {
 	setup := withRobber("seat-first-turn-win", east1, east2).from(play.StartPosition{
 		Scores: [tile.SeatCount]int{33000, 25000, 25000, 17000},
 	})
-	return e.play(&s, setup, func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, setup, func(g *seatedGame) ([]transcript, error) {
 		alice, bob := g.client(player), g.client(robber)
 		joinAndConfirm(g, player, robber)
 		g.waitUntil(secs(3.5))
@@ -827,14 +764,14 @@ type anchorMove struct {
 	id     tile.TileID
 }
 
-func anchor(e env) ([]transcript, error) {
+func anchor(ctx context.Context, e env) ([]transcript, error) {
 	var s staging
 	east1, east2 := anchorEast1(&s), anchorEast2(&s)
 
 	setup := gameSetup{
 		gameID: "seat-anchor", players: []string{player, robber, anchorCharlie}, rounds: []stagedWall{east1, east2},
 	}
-	return e.play(&s, setup, func(g *seatedGame) ([]transcript, error) {
+	return e.play(ctx, &s, setup, func(g *seatedGame) ([]transcript, error) {
 		alice, bob, charlie := g.client(player), g.client(robber), g.client(anchorCharlie)
 		for _, c := range []*seatClient{alice, bob, charlie} {
 			c.join()

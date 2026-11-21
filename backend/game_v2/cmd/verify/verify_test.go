@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
@@ -61,7 +62,7 @@ func playSeededGame(t *testing.T) string {
 			Timing:   session.DefaultTiming(),
 			Capacity: 1,
 			DB:       db,
-			Replays:  store.NewReplays(replayDir),
+			Replays:  replayfile.New(replayDir),
 			Logger:   logger,
 			Seeds:    func() engine.Seed { return engine.Seed{0x5a, 17} },
 		})
@@ -94,7 +95,7 @@ func playSeededGame(t *testing.T) string {
 	return replayDir
 }
 
-func storedRecords(t *testing.T, replays store.Replays, gameID string) []wire.Map {
+func storedRecords(t *testing.T, replays replayfile.Dir, gameID string) []wire.Map {
 	t.Helper()
 	compressed, err := replays.Read(gameID)
 	if err != nil {
@@ -142,7 +143,7 @@ func TestRun_WhenGivenAGameTheSessionPlayedToTheEnd_ShouldReproduceItsReplay(t *
 
 func TestRun_WhenAStoredReplayDiffersFromItsRun_ShouldFailThatGameAtTheDifferingRecordAndExit1(t *testing.T) {
 	replayDir := playSeededGame(t)
-	replays := store.NewReplays(replayDir)
+	replays := replayfile.New(replayDir)
 	tests := []struct {
 		name   string
 		tamper func(records []wire.Map) int

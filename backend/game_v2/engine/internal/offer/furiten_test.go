@@ -172,6 +172,8 @@ func TestDiscardRon_WhenTheScorerRejectsTheCompletedHand_ShouldPanicWithAnEngine
 func TestMayRobKan_WhenWaitingOnTheTile_ShouldRobAnAddedKanButAClosedKanOnlyOnAKokushiWait(t *testing.T) {
 	tanyao := offer.RonCandidate{Hand: tanyaoHand(t)}
 	kokushi := offer.RonCandidate{Hand: copies(t, 0, "19m19p19s1234567z")}
+	kokushiWithAPair := offer.RonCandidate{Hand: copies(t, 0, "119m19p19s123456z")}
+	terminalChiitoitsu := offer.RonCandidate{Hand: copies(t, 0, "1199m1199p1199s1z")}
 	furiten := offer.RonCandidate{Hand: tanyaoHand(t), Furiten: offer.Furiten{Riichi: true}}
 
 	for _, c := range []struct {
@@ -185,27 +187,12 @@ func TestMayRobKan_WhenWaitingOnTheTile_ShouldRobAnAddedKanButAClosedKanOnlyOnAK
 		{"added kan off the waits", tanyao, play.KanAdded, copyOf(t, 1, "9s"), false},
 		{"closed kan on a plain wait", tanyao, play.KanClosed, copyOf(t, 1, "8s"), false},
 		{"closed kan on a kokushi wait", kokushi, play.KanClosed, copyOf(t, 1, "1m"), true},
+		{"closed kan on a twelve-kind kokushi wait", kokushiWithAPair, play.KanClosed, copyOf(t, 1, "7z"), true},
+		{"closed kan on a terminal and honor chiitoitsu wait", terminalChiitoitsu, play.KanClosed, copyOf(t, 2, "1z"), false},
 		{"furiten", furiten, play.KanAdded, copyOf(t, 1, "8s"), false},
 	} {
 		if got := offer.MayRobKan(c.candidate, c.kind, c.robbed); got != c.want {
 			t.Errorf("%s: MayRobKan = %t, want %t", c.name, got, c.want)
-		}
-	}
-}
-
-func TestRonWin_ShouldBeHouteiOnTheLastDiscardAndChankanOnAKansTile(t *testing.T) {
-	for _, c := range []struct {
-		source    play.CallSource
-		liveTiles int
-		want      score.Win
-	}{
-		{play.SourceDiscard, 1, score.WinRon},
-		{play.SourceDiscard, 0, score.WinHoutei},
-		{play.SourceAddedKan, 0, score.WinChankan},
-		{play.SourceClosedKan, 1, score.WinChankan},
-	} {
-		if got := offer.RonWin(c.source, c.liveTiles); got != c.want {
-			t.Errorf("RonWin(%v, %d) = %v, want %v", c.source, c.liveTiles, got, c.want)
 		}
 	}
 }

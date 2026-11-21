@@ -19,8 +19,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
-	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 )
 
 // SocketConfig is how the server serves each socket: its liveness ping and how long a pong may
@@ -61,7 +61,7 @@ func DefaultSocketConfig() SocketConfig {
 // taken at, time.Now when nil.
 type Config struct {
 	Session        *session.Manager
-	Replays        store.Replays
+	Replays        replayfile.Dir
 	TicketSecret   string
 	InternalSecret string
 	CORSOrigins    []string

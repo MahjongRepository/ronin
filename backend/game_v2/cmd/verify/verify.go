@@ -11,7 +11,7 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replay"
-	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
@@ -22,12 +22,12 @@ type storedRecord struct {
 	record   wire.Map
 }
 
-func verifyGame(replays store.Replays, gameID string) error {
+func verifyGame(replays replayfile.Dir, gameID string) error {
 	compressed, err := replays.Read(gameID)
 	if err != nil {
 		return err
 	}
-	content, err := store.DecompressReplay(compressed, wire.MaxReplayBytes)
+	content, err := replayfile.Decompress(compressed, wire.MaxReplayBytes)
 	if err != nil {
 		return fmt.Errorf("read replay %s: %w", gameID, err)
 	}

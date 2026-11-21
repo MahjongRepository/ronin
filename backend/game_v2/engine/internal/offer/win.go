@@ -183,3 +183,21 @@ func RonScoreChanges(
 	changes[winner.Index()] = handPoints + honbaPoints + score.RiichiSticksBonus(riichiSticks)
 	return changes
 }
+
+// RonWin returns how a ron on a call prompt's tile with liveTiles left is won: houtei on the last
+// discard, chankan on a kan's tile, else ron.
+func RonWin(source play.CallSource, liveTiles int) score.Win {
+	if IsHoutei(liveTiles, source) {
+		return score.WinHoutei
+	}
+	if source == play.SourceDiscard {
+		return score.WinRon
+	}
+	return score.WinChankan
+}
+
+// BaseSituation returns what a win is scored with besides the tiles, with no first turn, honba or
+// riichi sticks.
+func BaseSituation(win score.Win, seatWind, roundWind tile.Wind, riichi play.Option[play.Riichi]) score.Situation {
+	return score.Situation{Win: win, Riichi: riichi, SeatWind: seatWind, RoundWind: roundWind}
+}

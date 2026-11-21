@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/auth"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
-	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/tenhou"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
@@ -170,7 +170,7 @@ func (s *Server) withdrawGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	gameID := r.PathValue("game_id")
-	if !store.IsValidGameID(gameID) {
+	if !replayfile.IsValidGameID(gameID) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -190,7 +190,7 @@ func (s *Server) tenhouReplay(w http.ResponseWriter, r *http.Request) {
 	gameID := r.PathValue("game_id")
 	compressed, err := s.cfg.Replays.Read(gameID)
 	if err != nil {
-		if !errors.Is(err, store.ErrInvalidGameID) && !errors.Is(err, fs.ErrNotExist) {
+		if !errors.Is(err, replayfile.ErrInvalidGameID) && !errors.Is(err, fs.ErrNotExist) {
 			s.log.Warn(logReplayUnread, "game_id", gameID, "error", err)
 		}
 		s.writeError(w, http.StatusNotFound, "Replay not found")
@@ -217,7 +217,7 @@ func (s *Server) tenhouReplay(w http.ResponseWriter, r *http.Request) {
 }
 
 func exportTenhou(compressed []byte) (string, error) {
-	content, err := store.DecompressReplay(compressed, wire.MaxReplayBytes)
+	content, err := replayfile.Decompress(compressed, wire.MaxReplayBytes)
 	if err != nil {
 		return "", err
 	}

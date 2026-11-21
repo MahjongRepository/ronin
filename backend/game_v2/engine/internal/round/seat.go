@@ -87,7 +87,3 @@ func (m *seatMelds) addToPon(id tile.TileID) play.MeldView {
 	}
 	return added
 }
-
-func appendTo[T any](s []T, items ...T) []T {
-	return append(slices.Clip(s), items...)
-}

@@ -317,6 +317,89 @@ func (m *Manager) pathGame(conn Connection) (*game, bool) {
 	return nil, true
 }
 
+func (m *Manager) reconnecting(conn Connection, ticket string) (*game, play.Option[sessionRefusal], bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.registeredLocked(conn) == nil {
+		return nil, play.Option[sessionRefusal]{}, false
+	}
+	switch l := m.tickets[ticket]; {
+	case l == nil:
+		return nil, play.Some(sessionRefusal{messaging.SessionReconnectNoSession, noLiveGame}), true
+	case l.game.id != conn.GameID():
+		return nil, play.Some(sessionRefusal{
+			messaging.SessionReconnectGameMismatch, "Session token is not valid for this game",
+		}), true
+	default:
+		return l.game, play.Option[sessionRefusal]{}, true
+	}
+}
+
+type seatBinding struct {
+	registered  bool
+	participant *participant
+	replaced    Connection
+	refused     play.Option[sessionRefusal]
+}
+
+func (m *Manager) bindJoining(g *game, conn Connection, ticket string) seatBinding {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	entry := m.registeredLocked(conn)
+	if entry == nil {
+		return seatBinding{}
+	}
+	p, refused := m.joiningLocked(g, entry, ticket)
+	if refused.OK {
+		return seatBinding{registered: true, refused: refused}
+	}
+	return seatBinding{registered: true, participant: p, replaced: m.bindLocked(p, entry)}
+}
+
+func (m *Manager) joiningLocked(g *game, entry *connEntry, ticket string) (*participant, play.Option[sessionRefusal]) {
+	switch l := m.tickets[ticket]; {
+	case entry.bound != nil:
+		return nil, play.Some(sessionRefusal{messaging.SessionAlreadyInGame, "Connection already in a game"})
+	case l == nil:
+		return nil, play.Some(sessionRefusal{messaging.SessionJoinGameNoSession, "No session for this ticket"})
+	case l.game != g:
+		return nil, play.Some(sessionRefusal{
+			messaging.SessionReconnectGameMismatch, "Session token is not valid for this game",
+		})
+	}
+	return g.byTicket(ticket), play.Option[sessionRefusal]{}
+}
+
+func (m *Manager) bindReconnecting(g *game, conn Connection, ticket string) seatBinding {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	entry := m.registeredLocked(conn)
+	switch {
+	case entry == nil:
+		return seatBinding{}
+	case entry.bound != nil:
+		return seatBinding{registered: true, refused: play.Some(sessionRefusal{
+			messaging.SessionReconnectAlreadyActive, "Connection already in a game",
+		})}
+	}
+	p := g.byTicket(ticket)
+	return seatBinding{registered: true, participant: p, replaced: m.bindLocked(p, entry)}
+}
+
+func (m *Manager) bindLocked(p *participant, entry *connEntry) Connection {
+	replaced := p.conn
+	if replaced != nil {
+		m.evictLocked(replaced)
+	}
+	p.conn = entry.conn
+	entry.bound = p
+	entry.authTimer()
+	return replaced
+}
+
 // Act runs a game action of the participant a connection is bound to: a round confirmation goes
 // to the session's pause, any other action to the game. A connection bound to no participant is
 // answered not_in_game, and one the session evicted nothing.
@@ -354,6 +437,32 @@ func (m *Manager) markWithdrawn(gameID string) {
 	defer m.mu.Unlock()
 
 	m.withdrawn[gameID] = m.cfg.Clock.Now().Add(withdrawnTTL)
+}
+
+func (m *Manager) markPlaying(g *game) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if l := m.games[g.id]; l != nil && l.game == g {
+		l.playing = true
+	}
+}
+
+func (m *Manager) release(g *game, conns []Connection) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if l := m.games[g.id]; l != nil && l.game == g {
+		delete(m.games, g.id)
+	}
+	for _, p := range g.participants {
+		if l := m.tickets[p.spec.Ticket]; l != nil && l.game == g {
+			delete(m.tickets, p.spec.Ticket)
+		}
+	}
+	for _, conn := range conns {
+		m.evictLocked(conn)
+	}
 }
 
 func (m *Manager) binding(conn Connection) (bound *participant, registered bool) {

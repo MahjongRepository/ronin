@@ -4,6 +4,7 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
@@ -34,25 +35,6 @@ func (m *Manager) Reconnect(conn Connection, ticket string) {
 
 const noLiveGame = "No live game for this ticket"
 
-func (m *Manager) reconnecting(conn Connection, ticket string) (*game, play.Option[sessionRefusal], bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.registeredLocked(conn) == nil {
-		return nil, play.Option[sessionRefusal]{}, false
-	}
-	switch l := m.tickets[ticket]; {
-	case l == nil:
-		return nil, play.Some(sessionRefusal{messaging.SessionReconnectNoSession, noLiveGame}), true
-	case l.game.id != conn.GameID():
-		return nil, play.Some(sessionRefusal{
-			messaging.SessionReconnectGameMismatch, "Session token is not valid for this game",
-		}), true
-	default:
-		return l.game, play.Option[sessionRefusal]{}, true
-	}
-}
-
 // Resync sends the participant a connection is bound to its seat's state again, as a reconnect
 // does, on the same connection: nothing changes hands and nobody else hears of it, and the wait,
 // its timers and the bank carry on. A connection bound to no participant is answered not_in_game,
@@ -73,7 +55,7 @@ func (g *game) reconnect(conn Connection, ticket string) error {
 		return nil
 	}
 
-	b := g.bindReconnecting(conn, ticket)
+	b := g.m.bindReconnecting(g, conn, ticket)
 	switch {
 	case !b.registered:
 		return nil
@@ -101,23 +83,6 @@ func (g *game) reconnect(conn Connection, ticket string) error {
 	}
 	p.log.Info(message)
 	return nil
-}
-
-func (g *game) bindReconnecting(conn Connection, ticket string) seatBinding {
-	g.m.mu.Lock()
-	defer g.m.mu.Unlock()
-
-	entry := g.m.registeredLocked(conn)
-	switch {
-	case entry == nil:
-		return seatBinding{}
-	case entry.bound != nil:
-		return seatBinding{registered: true, refused: play.Some(sessionRefusal{
-			messaging.SessionReconnectAlreadyActive, "Connection already in a game",
-		})}
-	}
-	p := g.byTicket(ticket)
-	return seatBinding{registered: true, participant: p, replaced: g.bindLocked(p, entry)}
 }
 
 func (g *game) takeBackDecision(p *participant) {
@@ -187,4 +152,42 @@ func (g *game) pausePart(p *participant) play.Option[messaging.Pause] {
 		part.Timer = play.Some(messaging.PauseTimer{Elapsed: elapsed.Value, Timeout: seconds(g.pauseTimeout())})
 	}
 	return play.Some(part)
+}
+
+func (g *game) disconnected(p *participant, conn Connection) error {
+	if p.conn != conn {
+		return nil
+	}
+	p.conn = nil
+	p.log.Info("player left game", "player_name", p.spec.Name)
+	if g.lifecycle != lifecyclePlaying {
+		return nil
+	}
+	return g.releaseSeat(p)
+}
+
+func (g *game) releaseSeat(p *participant) error {
+	p.timer.suspend()
+	if g.connectedCount() == 0 {
+		g.endGame(endAbandoned, play.Option[store.Result]{})
+		return nil
+	}
+
+	err := g.handOver(p, play.Some(wire.SeatControlLeft))
+	if err != nil {
+		return err
+	}
+	g.playAIPlayers()
+	return g.confirmPause(p.seat)
+}
+
+func (g *game) handOver(p *participant, standIn play.Option[wire.SeatControlReason]) error {
+	p.standIn = standIn
+	if standIn.OK {
+		g.m.stats.aiReplacements.Add(1)
+	}
+	if g.replay != nil {
+		g.replay.AddSeatControl(p.seat, standIn)
+	}
+	return g.broadcastTo(g.othersThan(p), messaging.SeatControl(p.seat, standIn))
 }

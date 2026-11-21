@@ -9,8 +9,9 @@ the game played round to round (`engine/internal/game`), the seat record each se
 and the seat view it equals (`engine/internal/record`), the facade over them (`engine/`) with its
 seam tests and self-play driver (`seam/`), the wire format (`internal/wire`), the shaping of the
 engine's output into messages and of client messages into actions (`internal/messaging`), the live
-games with their sessions (`internal/session`), the rows and replay files it persists beside the
-lobby (`internal/store`), its credentials (`internal/auth`), the transport serving the lobby's
+games with their sessions (`internal/session`), the rows it persists beside the lobby
+(`internal/store`) and its replay files (`internal/replayfile`), its credentials (`internal/auth`) with
+the Python JSON quoting it shares with the fixtures (`internal/pyjson`), the transport serving the lobby's
 routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`), the
 replay runner (`internal/replay`) with the Go replay check (`cmd/verify`), the Tenhou export
 (`internal/tenhou`), the check of the hand scoring against real Tenhou wins (`internal/tenhou/tenhoulog`),
@@ -61,22 +62,25 @@ cmd -> internal/server -> session -> messaging -> wire -> engine -> engine/inter
 Inside the engine, `engine/internal/*` packages import `engine/tile`, `engine/play` and each other
 along the module graph of mahjong-rs, the port's reference, and never `engine`.
 
-`internal/store` and `internal/auth` are leaves beside that line: the session and the server use
-`store`, the server alone `auth`, and neither imports anything of the module. `internal/replay` sits
-beside `messaging` over the wire: it reads replays for the tools, so the live path never imports it.
-`internal/tenhou` sits there too, under the server, which answers the export route with it.
-`internal/migrate` sits beside them for `cmd/migrate` alone: it reads old replays through the wire,
-checks each rewrite with the Tenhou export and writes through the store, and nothing on the live path
-imports it. `internal/tenhou/tenhoulog` is a leaf for its own tests: it settles Tenhou's rounds through the
-facade and reads the Tenhou ids from `tenhou`, so the engine holds no Tenhou format of its own.
+`internal/store`, `internal/replayfile` and `internal/pyjson` are leaves beside that line, and
+`internal/auth` sits over `pyjson` alone: the session and the server use `store` and `replayfile`,
+the replay check `replayfile` alone, so it links no database driver, and the server and the fixture
+generator `auth`. `internal/replay` sits beside `messaging` over the wire: it reads replays for the
+tools, so the live path never imports it. `internal/tenhou` sits there too, under the server, which
+answers the export route with it. `internal/migrate` sits beside them for `cmd/migrate` alone: it
+reads old replays through the wire, checks each rewrite with the Tenhou export and writes through
+the store and `replayfile`, and nothing on the live path imports it. `internal/tenhou/tenhoulog` is
+a leaf for its own tests: it settles Tenhou's rounds through the facade and reads the Tenhou ids
+from `tenhou`, so the engine holds no Tenhou format of its own.
 
 Each server package's imports of the module are a depguard rule in `.golangci.yml`: `wire` imports
 only `engine`, `engine/play` and `engine/tile`, `messaging` those and `wire`, `session` those,
-`messaging` and `store` (never the replay runner), `server` the session, messaging, wire, store,
-auth and tenhou but of the engine only `engine/play` and `engine/tile`, `store` and `auth` nothing,
-`replay` only the wire and the engine's public packages, `tenhou` only the wire and the seam types,
-`migrate` the wire, tenhou, store and the seam types, `tenhoulog` the engine's public packages and
-tenhou, and each layer added later gets its own. Each
+`messaging`, `store` and `replayfile` (never the replay runner), `server` the session, messaging,
+wire, store, replayfile, auth and tenhou but of the engine only `engine/play` and `engine/tile`,
+`store`, `replayfile` and `pyjson` nothing, `auth` only `pyjson`, `replay` only the wire and the
+engine's public packages, `tenhou` only the wire and the seam types, `migrate` the wire, tenhou,
+store, replayfile and the seam types, `tenhoulog` the engine's public packages and tenhou, and each
+layer added later gets its own. Each
 `cmd/*` is its own composition root: its `main` is the only place that reads that binary's flags,
 environment and signals and wires the parts it uses, so a tool beside the server builds what it
 needs without going through `cmd/gameserver`.
@@ -139,9 +143,9 @@ a contract.
   its own. Join and Reconnect return once their step ran, bind included, so the socket's next
   message finds its connection bound, and no game step may wait on a socket's reader.
 * The `Manager` is the registry: games, tickets, connections and the participant each is bound to,
-  behind one mutex. What spans games happens under it in one step: a creation with its checks, an
-  end claim releasing the game, its tickets and its connections, a binding against an eviction. No
-  step holds it while it waits on a game.
+  behind one mutex that only its own methods take. What spans games happens under it in one step: a
+  creation with its checks, an end claim releasing the game, its tickets and its connections, a
+  binding against an eviction. No step holds it while it waits on a game.
 * A timer's firing is a step carrying the token it was armed with, and is dropped when the timer was
   cancelled or re-armed meanwhile: in Go a cancel races its callback. Every time comes from the
   `Clock` (`Config`), virtual in tests through `testing/synctest`.
@@ -398,7 +402,7 @@ Mandatory for all server-side code; review must catch violations.
   local mode raises the message budget so four bots at a table are never throttled, and changes
   nothing else.
 * A ticket's game must match the path's game id, and the path's game id is validated
-  (`store.IsValidGameID`) before the handshake. The socket has no Origin check: the ticket
+  (`replayfile.IsValidGameID`) before the handshake. The socket has no Origin check: the ticket
   authenticates, and the dev hosts the client runs on would fail an origin pattern.
 * A REST route that returns a credential (the participant ticket lookup), spends real CPU on a
   request (the Tenhou export) or ends a game on the lobby's word (the withdrawal) answers only the
@@ -426,8 +430,8 @@ Mandatory for all server-side code; review must catch violations.
 
 ## Persistence and credentials
 
-The lobby reads what the game server writes, and signs what it verifies, so both packages keep the
-Python server's formats.
+The lobby reads what the game server writes, and signs what it verifies, so `store`, `replayfile` and
+`auth` keep the Python server's formats.
 
 * The SQLite file is shared. The game server creates only `played_games` and its index, in the
   lobby's DDL; the lobby creates its own tables when it opens the file. Opening sets the file and

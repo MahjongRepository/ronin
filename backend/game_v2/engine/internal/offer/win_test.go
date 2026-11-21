@@ -145,3 +145,20 @@ func TestSettledValue_WhenTheHandHasNoYaku_ShouldPanicWithAnEngineFault(t *testi
 		t.Errorf("SettledValue fault = %v, want %v", fault, score.NoYakuError{})
 	}
 }
+
+func TestRonWin_ShouldBeHouteiOnTheLastDiscardAndChankanOnAKansTile(t *testing.T) {
+	for _, c := range []struct {
+		source    play.CallSource
+		liveTiles int
+		want      score.Win
+	}{
+		{play.SourceDiscard, 1, score.WinRon},
+		{play.SourceDiscard, 0, score.WinHoutei},
+		{play.SourceAddedKan, 0, score.WinChankan},
+		{play.SourceClosedKan, 1, score.WinChankan},
+	} {
+		if got := offer.RonWin(c.source, c.liveTiles); got != c.want {
+			t.Errorf("RonWin(%v, %d) = %v, want %v", c.source, c.liveTiles, got, c.want)
+		}
+	}
+}

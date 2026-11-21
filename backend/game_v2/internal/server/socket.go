@@ -12,8 +12,8 @@ import (
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
-	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
@@ -42,7 +42,7 @@ const maxIdleReadBufferCapacity = 4 << 10
 
 func (s *Server) serveSocket(w http.ResponseWriter, r *http.Request) {
 	gameID := r.PathValue("game_id")
-	if !store.IsValidGameID(gameID) {
+	if !replayfile.IsValidGameID(gameID) {
 		http.Error(w, "invalid_game_id", http.StatusForbidden)
 		return
 	}

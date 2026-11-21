@@ -25,6 +25,7 @@ import (
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/replayfile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/store"
 )
 
@@ -129,7 +130,7 @@ type Config struct {
 	Timing   Timing
 	Capacity int
 	DB       *store.DB
-	Replays  store.Replays
+	Replays  replayfile.Dir
 	Logger   *slog.Logger
 	Clock    Clock
 	Seeds    func() engine.Seed
