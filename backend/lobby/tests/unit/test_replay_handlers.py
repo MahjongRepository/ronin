@@ -256,18 +256,41 @@ class TestReplayContent:
         assert response.status_code == expected_status
         assert response.headers["cache-control"] == "no-store"
 
-    def test_observe_page_route__when_unauthenticated__should_serve_play_page(self, setup):
-        client, _replay_dir = setup
-        response = client.get("/play/observe/game-123", follow_redirects=False)
-        assert response.status_code == 503
+    @pytest.mark.parametrize(
+        ("path", "expected_status"),
+        [
+            ("/api/observe/game-123?from=abc", 400),
+            ("/api/observe/game-123?from=-1", 400),
+            ("/api/observe/game-123?from=", 400),
+            ("/api/observe/game-123?from=%C2%B2", 400),
+            ("/api/observe/game-123?from=1234567890", 400),
+            ("/api/observe/game%3Cscript%3E", 404),
+        ],
+        ids=["non_digit", "negative", "empty", "non_ascii_digit", "oversized", "invalid_id"],
+    )
+    def test_observe_route__when_request_is_invalid__should_refuse_it_without_asking_the_game_server(
+        self, client, game_server, path, expected_status
+    ):
+        asked: list[str] = []
+
+        def record_the_call(request: httpx.Request) -> httpx.Response:
+            asked.append(request.url.path)
+            return httpx.Response(200, content=b"\x80")
+
+        game_server.respond = record_the_call
+
+        response = client.get(path)
+        assert response.status_code == expected_status
+        assert response.headers["cache-control"] == "no-store"
+        assert asked == []
 
     def test_replay_page_route__should_serve_play_page(self, setup):
         client, _replay_dir = setup
         response = client.get("/play/history/game-123")
         assert response.status_code == 503
 
-    def test_replay_page_route__when_unauthenticated__should_not_redirect_to_login(self, setup):
+    @pytest.mark.parametrize("path", ["/play/history/game-123", "/play/observe/game-123"])
+    def test_replay_page_route__when_unauthenticated__should_not_redirect_to_login(self, setup, path):
         client, _replay_dir = setup
-        # No login — should still get 503 (not 303 redirect to login)
-        response = client.get("/play/history/game-123", follow_redirects=False)
+        response = client.get(path, follow_redirects=False)
         assert response.status_code == 503

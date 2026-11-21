@@ -558,10 +558,10 @@ honours this contract can replace it.
   secret and passes its answer through unchanged: one MessagePack map with string keys, `started_at` (Unix
   milliseconds), `game_type`, `players` (four names, East to North), `available_in_ms` (the wait until the
   first records may be seen, 0 once passed), `next` (the cursor after the returned records), `ended` (the
-  stream holds the game's end and nothing follows) and `records`, the records from cursor `N` as
+  stream is complete: nothing follows) and `records`, the records from cursor `N` as
   concatenated MessagePack bytes in the replay encoding, without the seed (`docs/replay-format.md`). 404
   means the game server observes no such game: it never started, or it ended longer ago than the delay
-  plus a minute, after which only the replay shows it. 503 means the game server could not be asked; the
+  plus a minute. 503 means the game server could not be asked; the
   client polls again.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **Language:** v2 speaks Japanese, English and Russian under the lobby's contract (`docs/i18n.md`),

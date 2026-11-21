@@ -29,6 +29,8 @@ _TENHOU_CACHE_SECONDS = 3600
 
 _NO_STORE = {"Cache-Control": "no-store"}
 
+_MAX_OBSERVE_CURSOR_DIGITS = 9
+
 
 async def replay_content(request: Request) -> Response:
     """
@@ -95,7 +97,7 @@ async def observe_stream(request: Request) -> Response:
         return Response("Not found", status_code=404, media_type="text/plain", headers=_NO_STORE)
 
     raw_from = request.query_params.get("from", "0")
-    if not (raw_from.isascii() and raw_from.isdigit()):
+    if not (raw_from.isascii() and raw_from.isdigit() and len(raw_from) <= _MAX_OBSERVE_CURSOR_DIGITS):
         return Response("Bad from", status_code=400, media_type="text/plain", headers=_NO_STORE)
 
     settings: LobbyServerSettings = request.app.state.settings
