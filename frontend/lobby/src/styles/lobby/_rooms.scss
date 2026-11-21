@@ -456,12 +456,13 @@
         &:hover {
             background: var(--ronin-surface-elevated);
         }
-    }
 
-    .current-game-meta,
-    .seat-names {
-        position: relative;
-        z-index: 1;
+        .current-game-wind,
+        time,
+        .seat-name {
+            position: relative;
+            z-index: 1;
+        }
     }
 
     .seat-name {
