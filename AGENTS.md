@@ -10,11 +10,10 @@ planning work, read every `AGENTS.md` on the path to the code it touches
 
 Ronin is a Riichi Mahjong game server and browser client.
 
-* `backend/` — Python 3.14 / Starlette (the lobby and the shared code), its own uv project. See
+* `backend/` — Python 3.14 / Starlette (the lobby and its admin scripts), its own uv project. See
   `backend/AGENTS.md`.
   * `backend/lobby/` — lobby server (auth, rooms, matchmaking, server-rendered pages). See
     `backend/lobby/AGENTS.md`.
-  * `backend/shared/` — auth, SQLite data access, logging and helpers the lobby uses.
   * `backend/game_v2/` — the game server (WebSocket, MessagePack; Go): its own Go module, outside
     the uv project. See `backend/game_v2/AGENTS.md`.
 * `frontend/` — Vite / npm on Node: two apps, each its own package built separately, sharing source from
@@ -49,7 +48,7 @@ The `Makefile` lists the targets; the non-obvious ones:
   (`make run-game-v2-docker`), with the lobby reading that container's replays, and stops it on exit.
   To see the app in a browser, drive it with the `agent-browser` skill plus this project's
   `app-browser` skill (`.claude/skills/app-browser/`).
-* `make test` — backend pytest with its coverage gate (`backend/AGENTS.md`, Tooling).
+* `make test` — backend pytest with line coverage, which gates nothing (`backend/AGENTS.md`, Tooling).
 * `make profile [BENCH=engine|router|socket]` — benchmark and profile the Go game server over the
   client's full game fixture, through the engine alone, through the session in process, and from
   start to finish over real sockets, and print `benchstat` and the

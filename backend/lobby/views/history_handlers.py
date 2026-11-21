@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from datetime import datetime
 
-    from shared.dal.models import PlayedGame
+    from lobby.dal.models import PlayedGame
 
 HISTORY_GAMES_LIMIT = 20
 

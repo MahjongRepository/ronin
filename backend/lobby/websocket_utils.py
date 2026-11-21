@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from lobby.auth.backend import API_KEY_SCOPE
 from lobby.players import LobbyPlayer
-from shared.websocket import QueuedWebSocket, accept_websocket, reject_websocket
+from lobby.queued_websocket import QueuedWebSocket, accept_websocket, reject_websocket
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable

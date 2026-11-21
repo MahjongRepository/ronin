@@ -38,7 +38,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["lobby", "shared"]
+packages = ["lobby"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -83,7 +83,7 @@ close-quotes-on-newline = true
 wrap-summaries = 120
 wrap-descriptions = 120
 black = true
-exclude = [".venv", "test_dead_code.py"]
+exclude = [".venv"]
 
 [tool.ty.terminal]
 error-on-warning = true
@@ -109,17 +109,17 @@ exclude_lines = [
 ]
 
 [tool.importlinter]
-root_packages = ["lobby", "shared", "scripts"]
+root_packages = ["lobby", "scripts"]
 exclude_type_checking_imports = true
 
 [[tool.importlinter.contracts]]
-name = "shared is a leaf: it never imports the lobby or a script"
+name = "the lobby never imports a script"
 type = "forbidden"
-source_modules = ["shared"]
-forbidden_modules = ["lobby", "scripts"]
+source_modules = ["lobby"]
+forbidden_modules = ["scripts"]
 
 [[tool.importlinter.contracts]]
-name = "lobby: server -> views -> features -> game start -> occupancy and players -> auth and i18n -> settings"
+name = "lobby: server -> views -> features -> game start -> occupancy and players -> auth, i18n, db and replays -> settings, dal and socket primitives -> tasks"
 type = "layers"
 layers = [
     "lobby.server",
@@ -127,17 +127,13 @@ layers = [
     "lobby.rooms | lobby.matchmaking | lobby.monitoring | lobby.tournaments | lobby.live_games",
     "lobby.game_transition | lobby.websocket_utils | lobby.chat_messages",
     "lobby.occupancy | lobby.players",
-    "lobby.auth | lobby.i18n",
-    "lobby.settings",
+    "lobby.auth | lobby.i18n | lobby.db | lobby.replay_storage",
+    "lobby.settings | lobby.dal | lobby.queued_websocket | lobby.rate_limit",
+    "lobby.tasks",
 ]
-
-[[tool.importlinter.contracts]]
-name = "shared: db implements dal, auth uses dal"
-type = "layers"
-layers = ["shared.db", "shared.auth", "shared.dal"]
 
 [[tool.importlinter.contracts]]
 name = "only composition roots, scripts and the db tests open the database"
 type = "protected"
-protected_modules = ["shared.db"]
-allowed_importers = ["lobby.server.app", "scripts", "shared.tests"]
+protected_modules = ["lobby.db"]
+allowed_importers = ["lobby.server.app", "scripts", "lobby.tests.unit.db", "lobby.tests.unit.test_auth_service"]

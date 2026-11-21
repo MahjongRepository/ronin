@@ -6,9 +6,9 @@ import httpx
 import pytest
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
+from lobby.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 from lobby.tests.integration.conftest import grant_admin, register_with_csrf, session_user_id
 from lobby.views.history_handlers import HISTORY_GAMES_LIMIT
-from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 
 
 def _revoke_admin(client, username: str) -> None:

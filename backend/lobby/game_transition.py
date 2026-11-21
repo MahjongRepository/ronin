@@ -11,7 +11,7 @@ import httpx
 import structlog
 from pydantic import BaseModel, Field, ValidationError
 
-from shared.auth.game_ticket import create_signed_ticket
+from lobby.auth.game_ticket import create_signed_ticket
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

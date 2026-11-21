@@ -6,16 +6,16 @@ from typing import TYPE_CHECKING
 from starlette.responses import JSONResponse
 
 from lobby.auth.csrf import is_csrf_valid
+from lobby.auth.service import AuthError, AuthErrorCode
 from lobby.views.auth_handlers import parse_next_path, set_session_cookie
 from lobby.views.error_pages import NO_STORE_HEADERS, json_csrf_rejection
 from lobby.views.json_body import parse_json_body
-from shared.auth.service import AuthError, AuthErrorCode
 
 if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.responses import Response
 
-    from shared.auth import AuthService
+    from lobby.auth.service import AuthService
 
 _FIELD_OF_AUTH_ERROR = {
     AuthErrorCode.USERNAME_TAKEN: "username",

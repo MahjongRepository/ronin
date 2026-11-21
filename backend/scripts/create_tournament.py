@@ -5,11 +5,11 @@ import sys
 import time
 import uuid
 
-from shared.auth.password import BcryptHasher
-from shared.auth.service import AuthError, AuthService
-from shared.auth.settings import AuthSettings
-from shared.dal.models import AccountType, Tournament
-from shared.db import Database, SqlitePlayerRepository, SqliteSessionRepository, SqliteTournamentRepository
+from lobby.auth.password import BcryptHasher
+from lobby.auth.service import AuthError, AuthService
+from lobby.auth.settings import AuthSettings
+from lobby.dal.models import AccountType, Tournament
+from lobby.db import Database, SqlitePlayerRepository, SqliteSessionRepository, SqliteTournamentRepository
 
 
 async def main() -> None:

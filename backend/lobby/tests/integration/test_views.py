@@ -11,9 +11,9 @@ from starlette.responses import HTMLResponse, PlainTextResponse
 from starlette.routing import Route
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
+from lobby.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 from lobby.tests.conftest import open_client
 from lobby.tests.integration.conftest import grant_admin, register_with_csrf, session_user_id
-from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 
 if TYPE_CHECKING:
     from collections.abc import Callable

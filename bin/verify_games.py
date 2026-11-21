@@ -20,7 +20,7 @@ from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
-from shared.dal.models import GameEndReason
+from lobby.dal.models import GameEndReason
 
 VERIFY_FAILED = 1
 OK_PREFIX = "ok      "

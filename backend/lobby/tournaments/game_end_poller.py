@@ -5,13 +5,13 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from shared.tasks import cancel_and_wait
+from lobby.tasks import cancel_and_wait
 
 if TYPE_CHECKING:
+    from lobby.dal.game_repository import GameRepository
+    from lobby.dal.models import TournamentGame
+    from lobby.dal.tournament_repository import TournamentRepository
     from lobby.tournaments.hub import TournamentHub
-    from shared.dal.game_repository import GameRepository
-    from shared.dal.models import TournamentGame
-    from shared.dal.tournament_repository import TournamentRepository
 
 logger = structlog.get_logger()
 

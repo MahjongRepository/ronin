@@ -2,8 +2,8 @@ import argparse
 import asyncio
 import sys
 
-from shared.auth.settings import AuthSettings
-from shared.db import Database, SqlitePlayerRepository
+from lobby.auth.settings import AuthSettings
+from lobby.db import Database, SqlitePlayerRepository
 
 
 async def main() -> None:

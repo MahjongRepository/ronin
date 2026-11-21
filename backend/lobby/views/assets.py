@@ -17,8 +17,8 @@ if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.responses import Response
 
+    from lobby.auth.settings import AuthSettings
     from lobby.i18n import Translator
-    from shared.auth.settings import AuthSettings
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 LOBBY_ENTRY = "src/index.ts"

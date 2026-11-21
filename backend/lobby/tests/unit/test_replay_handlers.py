@@ -5,7 +5,7 @@ import httpx
 import pytest
 
 from lobby import game_transition
-from shared.storage import read_replay, replay_file_path
+from lobby.replay_storage import read_replay, replay_file_path
 
 
 def _refuse_connection(request: httpx.Request) -> httpx.Response:

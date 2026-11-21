@@ -9,7 +9,7 @@ import structlog
 
 from lobby.rooms.models import LobbyRoom
 from lobby.rooms.names import pick_room_name
-from shared.tasks import cancel_and_wait
+from lobby.tasks import cancel_and_wait
 
 if TYPE_CHECKING:
     from collections.abc import Callable

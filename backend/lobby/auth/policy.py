@@ -11,7 +11,7 @@ from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
 from lobby.auth.backend import API_KEY_SCOPE
-from shared.dal.models import AccountType
+from lobby.dal.models import AccountType
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable

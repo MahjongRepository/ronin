@@ -8,7 +8,7 @@ from starlette.authentication import AuthCredentials
 
 from lobby.auth.backend import API_KEY_SCOPE, SessionOrApiKeyBackend
 from lobby.auth.models import AuthenticatedPlayer
-from shared.dal.models import AccountType, AuthSession, Player
+from lobby.dal.models import AccountType, AuthSession, Player
 
 VALID_COOKIE = "valid-session-cookie"
 

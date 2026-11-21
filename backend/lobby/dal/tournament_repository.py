@@ -1,0 +1,60 @@
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from lobby.dal.models import GameEndReason, PlayedGameStanding, Tournament, TournamentGame, TournamentGameCounts
+
+
+class TournamentRepository(ABC):
+    """
+    Abstract interface for tournament persistence.
+    """
+
+    @abstractmethod
+    async def create_tournament(self, tournament: Tournament) -> None: ...
+
+    @abstractmethod
+    async def get_tournament(self, tournament_id: str) -> Tournament | None: ...
+
+    @abstractmethod
+    async def list_tournaments_by_owner(self, owner_user_id: str) -> list[Tournament]: ...
+
+    @abstractmethod
+    async def count_games_by_owner(self, owner_user_id: str) -> dict[str, TournamentGameCounts]:
+        """
+        Return the game counts of this user's tournaments by tournament id; a tournament without games is absent.
+        """
+
+    @abstractmethod
+    async def rename_tournament(self, tournament_id: str, name: str) -> None: ...
+
+    @abstractmethod
+    async def delete_tournament(self, tournament_id: str) -> None:
+        """
+        Remove the tournament and the record of its games.
+        """
+
+    @abstractmethod
+    async def add_game(self, game: TournamentGame) -> None: ...
+
+    @abstractmethod
+    async def get_game(self, game_id: str) -> TournamentGame | None: ...
+
+    @abstractmethod
+    async def list_games(self, tournament_id: str) -> list[TournamentGame]: ...
+
+    @abstractmethod
+    async def list_unfinished_games(self) -> list[TournamentGame]:
+        """
+        Return every tournament's games that have no finish yet, oldest first.
+        """
+
+    @abstractmethod
+    async def finish_game(
+        self, game_id: str, *, ended_at: float, end_reason: GameEndReason, result: list[PlayedGameStanding]
+    ) -> bool:
+        """
+        Record a tournament game's finish; return False when the game is unknown or already finished.
+        """

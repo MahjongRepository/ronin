@@ -13,6 +13,7 @@ import httpx
 import pytest
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
+from lobby.dal.models import AccountType, Player
 from lobby.tests.integration.conftest import (
     issue_api_token,
     login_with_csrf,
@@ -20,7 +21,6 @@ from lobby.tests.integration.conftest import (
     register_with_csrf,
 )
 from lobby.views.auth_handlers import GUEST_LOGIN_BURST
-from shared.dal.models import AccountType, Player
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator

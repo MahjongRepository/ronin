@@ -2,12 +2,12 @@ import json
 
 import pytest
 
+from lobby.dal.models import GamesSummary
 from lobby.monitoring.page import MonitoringPage, read_metrics
 from lobby.monitoring.ranges import MonitoringRange
 from lobby.monitoring.reader import MetricsReader
 from lobby.monitoring.report import monitoring_report
 from lobby.tests.conftest import create_metrics_db, insert_metric_rows
-from shared.dal.models import GamesSummary
 
 GIB = 2**30
 NOW = 1_800_000_005

@@ -7,6 +7,7 @@ import httpx
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
+from lobby.dal.models import GameEndReason, PlayedGame, PlayedGameStanding, TournamentGame
 from lobby.tests.integration.conftest import (
     create_tournament,
     grant_admin,
@@ -16,7 +17,6 @@ from lobby.tests.integration.conftest import (
     register_with_csrf,
     session_user_id,
 )
-from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding, TournamentGame
 
 
 @pytest.fixture

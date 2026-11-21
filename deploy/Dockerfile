@@ -106,9 +106,6 @@ RUN addgroup -g 1000 app && adduser -u 1000 -G app -s /bin/sh -D app
 COPY --from=builder /app/.venv /app/.venv
 
 # Copy backend source code.
-# PYTHONPATH=/app/backend makes "import lobby", "import game", "import shared"
-# work without installing the project via hatch. This matches the hatch package
-# mapping: backend/lobby -> lobby, backend/game -> game, backend/shared -> shared.
 COPY backend/ backend/
 
 COPY --from=lobby-builder /app/frontend/lobby/dist /app/frontend/lobby/dist

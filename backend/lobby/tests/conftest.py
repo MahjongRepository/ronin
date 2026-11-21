@@ -14,11 +14,11 @@ from starlette.authentication import AuthCredentials
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocket
 
+from lobby.auth.settings import AuthSettings
 from lobby.players import LobbyPlayer
+from lobby.queued_websocket import QueuedWebSocket
 from lobby.server.app import create_app
 from lobby.settings import LobbyServerSettings
-from shared.auth.settings import AuthSettings
-from shared.websocket import QueuedWebSocket
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterable, Iterator

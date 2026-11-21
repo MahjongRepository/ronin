@@ -13,8 +13,8 @@ if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.responses import Response
 
-    from shared.auth.service import AuthService
-    from shared.dal.models import Player
+    from lobby.auth.service import AuthService
+    from lobby.dal.models import Player
 
 API_KEY_HEADER = "X-API-Key"
 

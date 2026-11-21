@@ -9,19 +9,19 @@ import structlog
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
 from starlette.responses import JSONResponse
 
+from lobby.dal.models import TournamentGame
 from lobby.game_transition import GameStartError, start_game
-from shared.dal.models import TournamentGame
 
 if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.responses import Response
 
+    from lobby.dal.models import Tournament
+    from lobby.dal.tournament_repository import TournamentRepository
     from lobby.occupancy import Occupancy
     from lobby.players import LobbyPlayer
     from lobby.tournaments.game_end_poller import TournamentGameEndPoller
     from lobby.tournaments.hub import TournamentHub
-    from shared.dal.models import Tournament
-    from shared.dal.tournament_repository import TournamentRepository
 
 logger = structlog.get_logger()
 

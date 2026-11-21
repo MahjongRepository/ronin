@@ -13,11 +13,11 @@ if TYPE_CHECKING:
     import httpx
     from starlette.websockets import WebSocket
 
+    from lobby.auth.settings import AuthSettings
     from lobby.matchmaking.manager import MatchmakingManager, QueuePlace
     from lobby.occupancy import Occupancy, RejectionMessage
     from lobby.players import LobbyPlayer
     from lobby.settings import LobbyServerSettings
-    from shared.auth.settings import AuthSettings
 
 logger = structlog.get_logger()
 

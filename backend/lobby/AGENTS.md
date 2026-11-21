@@ -6,9 +6,16 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 
 ## Structure
 
-* `server/` — the composition root (`create_app()` builds the services onto `app.state`) and the
-  middleware. `settings.py` sits at the `lobby/` root so every feature may import it.
-* `auth/` — the session-or-API-key authentication backend, the route policy decorators and CSRF.
+* `server/` — the composition root (`create_app()` builds the services onto `app.state`), the
+  middleware, the structlog setup and the build info. `settings.py` sits at the `lobby/` root so every
+  feature may import it.
+* `auth/` — the account and session service, password hashing, the game ticket signing, the
+  session-or-API-key authentication backend, the route policy decorators and CSRF.
+* `dal/` — the persistence contracts and models; `db/` — their SQLite implementations, opened only by
+  the composition root and the scripts.
+* The bottom layers know nothing of a feature: `replay_storage.py` (reading the stored replay files),
+  `queued_websocket.py` (the per-connection queued writer and the pre-accept handshake helpers),
+  `rate_limit.py` (the token buckets) and `tasks.py` (cancelling background tasks).
 * `views/` — page and API handlers by domain (`bot_api_handlers.py` is the bot JSON API, `lobby_api_handlers.py`
   and `auth_api_handlers.py` the lobby app's), the Jinja2 templates, and the lobby app's Vite manifest / dev-server
   resolution into template globals. Every lobby page route answers `shell.html` (`spa_handlers.py`) under its own
@@ -49,7 +56,7 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   geometry and the one page-data assembly that takes the range and returns every chart, the games summary
   and the live game-server counts. `report.py` turns it into one JSON document, plot lines and UTC axis labels
   included, which the monitoring API answers for the lobby app to draw; `scripts/monitoring_report.py` prints the
-  same report for agents without the plot geometry. The lobby never opens `metrics.db` through `shared.db`
+  same report for agents without the plot geometry. The lobby never opens `metrics.db` through `lobby.db`
   (which would force WAL and create a schema). Reductions run in SQL, so a long range never loads raw
   samples. A failed metrics read blanks only its own chart; the page still answers 200 with the games
   section. Traefik exports a series only after its first request and drops them all on a restart, so its charts take their state from the newest
@@ -247,6 +254,6 @@ Mandatory for all lobby code; review must catch violations.
   defends the cookie a browser attaches to a cross-site socket, and no browser sends an `X-API-Key` on its own.
 * Two CSP tiers: lobby pages (same-origin connect) and game pages (`/play/*`, `/game-assets/`,
   external WebSockets allowed). A new route fits a tier or gets an explicit policy.
-* Replay serving reads files only through `shared.storage.read_replay`, which keeps the id checks,
-  path traversal protection and size limit; the game server's Tenhou export reads through it too.
+* Replay serving reads files only through `replay_storage.read_replay`, which keeps the id checks,
+  path traversal protection and size limit.
 * Passwords, API keys, session ids and game tickets are never logged at INFO or above.

@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from lobby.game_transition import GameStartError, hand_back_live_game, start_game
 from lobby.occupancy import ALREADY_IN_GAME, REPLACED_BY_NEW_CONNECTION
+from lobby.rate_limit import TokenBucket
 from lobby.rooms.messages import (
     LobbyChatMessage,
     LobbyClientMessage,
@@ -17,19 +18,18 @@ from lobby.rooms.messages import (
     parse_lobby_message,
 )
 from lobby.websocket_utils import serve_lobby_socket
-from shared.rate_limit import TokenBucket
 
 if TYPE_CHECKING:
     import httpx
     from starlette.types import Message
     from starlette.websockets import WebSocket
 
+    from lobby.auth.settings import AuthSettings
     from lobby.occupancy import Occupancy
     from lobby.players import LobbyPlayer
     from lobby.rooms.manager import LobbyRoomManager
     from lobby.rooms.models import LobbyRoom
     from lobby.settings import LobbyServerSettings
-    from shared.auth.settings import AuthSettings
 
 logger = structlog.get_logger()
 

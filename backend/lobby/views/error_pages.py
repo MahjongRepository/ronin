@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from starlette.datastructures import FormData
     from starlette.requests import Request
 
-    from shared.auth.settings import AuthSettings
+    from lobby.auth.settings import AuthSettings
 
 
 class ErrorCode(StrEnum):

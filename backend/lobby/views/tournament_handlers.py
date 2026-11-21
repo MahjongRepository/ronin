@@ -10,18 +10,18 @@ from starlette.responses import JSONResponse, RedirectResponse
 
 from lobby.auth.csrf import is_csrf_valid
 from lobby.chat_messages import CHAT_MAX_LENGTH
+from lobby.dal.models import Tournament, TournamentGameCounts
 from lobby.views.error_pages import NO_STORE_HEADERS, json_csrf_rejection
 from lobby.views.handlers import lobby_websocket_url
 from lobby.views.json_body import parse_json_body
-from shared.dal.models import Tournament, TournamentGameCounts
 
 if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.responses import Response
 
+    from lobby.dal.tournament_repository import TournamentRepository
     from lobby.tournaments.game_end_poller import TournamentGameEndPoller
     from lobby.tournaments.hub import TournamentHub
-    from shared.dal.tournament_repository import TournamentRepository
 
 TOURNAMENT_NAME_MAX_LENGTH = 80
 

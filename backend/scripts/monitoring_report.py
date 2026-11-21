@@ -7,14 +7,14 @@ from pathlib import Path
 
 import structlog
 
+from lobby.auth.settings import AuthSettings
+from lobby.db import Database, SqliteGameRepository
 from lobby.game_transition import create_game_server_client
 from lobby.monitoring.page import assemble_monitoring_page
 from lobby.monitoring.ranges import DEFAULT_MONITORING_RANGE, MonitoringRange
 from lobby.monitoring.reader import MetricsReader
 from lobby.monitoring.report import monitoring_report
 from lobby.settings import LobbyServerSettings
-from shared.auth.settings import AuthSettings
-from shared.db import Database, SqliteGameRepository
 
 
 async def main() -> None:

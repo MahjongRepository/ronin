@@ -1,10 +1,10 @@
 import asyncio
 import sys
 
-from shared.auth.password import BcryptHasher
-from shared.auth.service import AuthError, AuthService
-from shared.auth.settings import AuthSettings
-from shared.db import Database, SqlitePlayerRepository, SqliteSessionRepository
+from lobby.auth.password import BcryptHasher
+from lobby.auth.service import AuthError, AuthService
+from lobby.auth.settings import AuthSettings
+from lobby.db import Database, SqlitePlayerRepository, SqliteSessionRepository
 
 
 async def main() -> None:

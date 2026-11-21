@@ -1,19 +1,12 @@
 # Backend (Python / Starlette)
 
-Only the lobby and `shared/` are Python. Before working in `lobby/`, read its `AGENTS.md`; `shared/`
-holds what the lobby uses:
+The Python is the lobby (`lobby/`, read its `AGENTS.md` before working there) and its admin CLIs
+(`scripts/`, which import the lobby, never the reverse).
 
-* `shared/auth/` — auth sessions, password hashing and game tickets.
-* `shared/dal/` — the persistence contracts and models; `shared/db/` — their SQLite implementations.
-* `shared/storage.py` — reading the stored replay files.
-* `shared/websocket.py` — the per-connection queued writer and the pre-accept handshake helpers.
-* `shared/rate_limit.py` — the token-bucket rate limiter; `shared/logging.py` — structlog setup.
+`game_v2/` is a Go module, the game server: it sits outside the uv project, imports no Python, is
+checked by its own `make` targets rather than the Python tooling, and has its own `AGENTS.md`.
 
-`game_v2/` is a Go module, the game server: it sits outside the uv project, imports nothing from
-`shared/`, is checked by its own `make` targets rather than the Python tooling, and has its own
-`AGENTS.md`.
-
-Each process opens the database once, as a `shared.db.Database` (its docstrings hold the threading and
+Each process opens the database once, as a `lobby.db.Database` (its docstrings hold the threading and
 drain model): the event loop never touches SQLite directly, and a lifespan closes the database last.
 
 ## Boundaries
@@ -73,13 +66,12 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 * `<subject>` in a test name (root naming rule) is the function, rule or component under test, in
   snake_case: `matchmaking_queue`, `login_route`, `replay_file_path`. A method in a `Test*`
   class carries the full name too; the class only groups.
-* Test logic once, at the lowest layer that owns it: lobby unit tests in `lobby/tests/unit/` and shared
-  ones in `shared/tests/` load no app. Integration tests in `lobby/tests/integration/` cover only the
+* Test logic once, at the lowest layer that owns it: unit tests in `lobby/tests/unit/` load no app. Integration tests in `lobby/tests/integration/` cover only the
   wiring (routing, serialization, auth, error mapping) and never re-check manager or model logic
   through a socket or HTTP.
 * One error test per mechanism, not per field or route: Pydantic's built-in constraints need none; a
   custom validator or a raised domain exception gets one.
 * Prefer real I/O against ephemeral resources (`tmp_path`, a temporary SQLite database) over mocks;
   mock only at process boundaries (sockets, the network).
-* Build test data with the helpers in `shared/tests/helpers/` and each package's `conftest.py` fixtures,
+* Build test data with the helpers in `lobby/tests/helpers/` and each package's `conftest.py` fixtures,
   not magic strings.

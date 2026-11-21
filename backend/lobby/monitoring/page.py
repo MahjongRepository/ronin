@@ -18,12 +18,12 @@ if TYPE_CHECKING:
 
     import httpx
 
+    from lobby.dal.game_repository import GameRepository
+    from lobby.dal.models import GamesSummary
     from lobby.game_transition import GameServerStatus
     from lobby.monitoring.gauges import BucketWindow, ChartUnit, Gauge, SeriesRows
     from lobby.monitoring.ranges import MonitoringRange
     from lobby.monitoring.reader import MetricsReader
-    from shared.dal.game_repository import GameRepository
-    from shared.dal.models import GamesSummary
 
 STALE_AFTER_SECONDS = 180
 SECONDS_PER_DAY = 86400

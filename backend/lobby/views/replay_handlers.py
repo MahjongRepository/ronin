@@ -7,7 +7,7 @@ import structlog
 from starlette.responses import Response
 
 from lobby.game_transition import ReplayExportError, UnfinishedReplayError, fetch_tenhou_replay
-from shared.storage import is_valid_game_id, read_replay
+from lobby.replay_storage import is_valid_game_id, read_replay
 
 if TYPE_CHECKING:
     import httpx

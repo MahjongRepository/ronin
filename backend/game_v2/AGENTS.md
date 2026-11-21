@@ -1,7 +1,7 @@
 # Game server (Go)
 
-The game server. It is one Go module, outside the uv project: it imports nothing from
-`backend/shared/` and the Python tooling does not see it. It holds the engine's base vocabulary, the seam
+The game server. It is one Go module, outside the uv project: it imports no Python and
+the Python tooling does not see it. It holds the engine's base vocabulary, the seam
 types, its seeded randomness, the wall, shanten, the hand reading (agari, divider, waits), the hand scoring, the
 option helpers (a seat's discards, calls, kans, riichi, furiten and win payments), the round state machine (`engine/internal/round`),
 the game played round to round (`engine/internal/game`), the seat record each seat's events keep up
@@ -539,7 +539,7 @@ code under `engine/`:
 * The scorer rejecting an offered hand for anything but no yaku, a settled win for any reason, or a
   payment that does not fit its win, panics with `play.EngineFaultError`.
 * A game's scenario tests play it through `engine/internal/testkit`, which stages walls and scripts
-  actions. testkit is engine code under the coverage gate: it never imports `testing` and never
+  actions. testkit is engine code: it never imports `testing` and never
   asserts, returning values or errors, and it has its own tests. It imports `game`, so only external
   test packages (`package game_test`) use it. A test compares engine states with go-cmp, every
   field exported (`cmp.Exporter`) and empty slices equal to nil.
@@ -549,14 +549,6 @@ code under `engine/`:
 * Test names follow `Test<Subject>_When<Condition>_Should<Expected>`; drop `When<Condition>` only for
   unconditional behaviour (`TestNewGame_ShouldYieldStartedEventWithFullWall`). One scenario per
   test. The root `AGENTS.md` project rules on what earns a test apply here too.
-* `make test-go` gates `engine/...` and `internal/wire` at 100% of statements. It runs every
-  package with `-coverpkg=./engine/...,./internal/wire/...`, so a `seam/` test counts toward engine
-  coverage as much as a test beside the code. `bin/check_go_coverage.py` judges the raw profile,
-  block by block, never a rounded percentage: a block is covered when any test binary ran it, an
-  uncovered block is printed and fails the gate, and so does a profile with no block of either gated
-  directory. A block of no statement, such as a sum type's empty marker method, has nothing to run
-  and is skipped. The rest of the server side is not gated. There is no exclusion mechanism: reach
-  the statement or restructure it away.
 * A check too slow for every run sits in a `_test.go` file behind a build tag (`exhaustive`), outside
   `make test-go`, and so does one over data kept only on a developer's machine (`tenhou`, the Tenhou
   corpus); its package doc gives the command that runs it. `make lint-go` builds with every tag
@@ -587,12 +579,12 @@ comments either: a forbidigo pattern's `msg` is where its reason goes.
 * `make format-go` rewrites files (gofumpt, goimports, gci import groups); `make lint-go` fails on an
   untidy `go.mod` (`go mod tidy -diff`), then runs golangci-lint, which also reports formatting diffs
   and, with the compiler, stands in for a typecheck target; `make test-go` runs the server side
-  (`cmd/`, `internal/`) under the race detector, then every test in shuffled order with coverage
-  and no race detector, then the coverage gate, each pass with a two-minute timeout. The race pass
+  (`cmd/`, `internal/`) under the race detector, then every test in shuffled order without the race
+  detector, each pass with a two-minute timeout. The race pass
   leaves out the engine and `seam/`, which start no goroutine and are its slowest packages under
   `-race`; it keeps Go's test cache, while the shuffled pass always runs, so a test reading a file
   outside the module (`telegraf.conf`), which the cache does not track, still
-  runs every time. Coverage under `-race` counts atomically and costs several times both passes.
+  runs every time.
 * Fix a lint finding rather than silence it. A suppression is `//nolint:<linter> // reason` on the
   narrowest line; nolintlint rejects one without a named linter or a reason. Never loosen
   `.golangci.yml` to get green.

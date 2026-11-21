@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from shared.websocket import QueuedWebSocket
+    from lobby.queued_websocket import QueuedWebSocket
 
 
 @dataclass(frozen=True, eq=False)

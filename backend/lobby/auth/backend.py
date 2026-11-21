@@ -9,7 +9,7 @@ from lobby.auth.models import AuthenticatedPlayer
 if TYPE_CHECKING:
     from starlette.requests import HTTPConnection
 
-    from shared.auth.service import AuthService
+    from lobby.auth.service import AuthService
 
 
 API_KEY_SCOPE = "api_key"

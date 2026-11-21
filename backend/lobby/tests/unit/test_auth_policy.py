@@ -20,7 +20,7 @@ from lobby.auth.policy import (
     public_route,
     validate_route_auth_policy,
 )
-from shared.dal.models import AccountType, Player
+from lobby.dal.models import AccountType, Player
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable

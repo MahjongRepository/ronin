@@ -24,7 +24,6 @@ deploy/spot-env.*.yml
 !deploy/spot-env.example.yml
 
 frontend/*/coverage
-backend/game_v2/coverage.out
 backend/game_v2/gameserver
 
 # ---

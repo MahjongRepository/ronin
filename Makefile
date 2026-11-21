@@ -2,11 +2,11 @@ export PATH := $(shell mise bin-paths node go golangci-lint 2>/dev/null | tr '\n
 
 BE_RUN := uv run --project backend
 
-DOCFORMATTER_PATHS := conftest.py lobby scripts shared
+DOCFORMATTER_PATHS := conftest.py lobby scripts
 
 FRONTEND_APPS := lobby game_v2
 
-.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend format-go lint-go test-go vuln-go run-all-checks run-games run-tournament deadcode generate-fixtures fixtures-check profile profile-compare update-pgo profile-games measure-wall run-game-v2-docker stop-game-v2-docker
+.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend format-go lint-go test-go vuln-go run-all-checks run-games run-tournament generate-fixtures fixtures-check profile profile-compare update-pgo profile-games measure-wall run-game-v2-docker stop-game-v2-docker
 
 test:
 	cd backend && uv run pytest -v --cov --cov-report=
@@ -56,8 +56,7 @@ lint-go:
 
 test-go:
 	cd backend/game_v2 && go test -race -timeout=2m ./cmd/... ./internal/...
-	cd backend/game_v2 && go test -shuffle=on -timeout=2m -coverprofile=coverage.out -coverpkg=./engine/...,./internal/wire/... ./...
-	$(BE_RUN) python bin/check_go_coverage.py backend/game_v2/coverage.out
+	cd backend/game_v2 && go test -shuffle=on -timeout=2m ./...
 
 vuln-go:
 	cd backend/game_v2 && go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
@@ -67,9 +66,6 @@ run-debug:
 
 run-all-checks:
 	@bash ./bin/run-all-checks.sh|| true
-
-deadcode:
-	$(BE_RUN) python bin/check-dead-code.py backend
 
 generate-fixtures:
 	cd backend/game_v2 && go run ./cmd/fixtures

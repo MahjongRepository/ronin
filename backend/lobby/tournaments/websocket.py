@@ -7,17 +7,17 @@ import structlog
 from pydantic import ValidationError
 
 from lobby.occupancy import REPLACED_BY_NEW_CONNECTION
+from lobby.rate_limit import TokenBucket
 from lobby.tournaments.messages import TournamentClientMessage, parse_tournament_message
 from lobby.websocket_utils import serve_lobby_socket
-from shared.rate_limit import TokenBucket
 
 if TYPE_CHECKING:
     from starlette.types import Message
     from starlette.websockets import WebSocket
 
+    from lobby.dal.tournament_repository import TournamentRepository
     from lobby.players import LobbyPlayer
     from lobby.tournaments.hub import TournamentHub
-    from shared.dal.tournament_repository import TournamentRepository
 
 logger = structlog.get_logger()
 

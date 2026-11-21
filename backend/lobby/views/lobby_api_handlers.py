@@ -17,9 +17,9 @@ if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.responses import Response
 
+    from lobby.auth.service import AuthService
+    from lobby.dal.game_repository import GameRepository
     from lobby.rooms.manager import LobbyRoomManager
-    from shared.auth import AuthService
-    from shared.dal.game_repository import GameRepository
 
 
 async def lobby_session(request: Request) -> JSONResponse:

@@ -4,20 +4,20 @@ from typing import TYPE_CHECKING
 
 from starlette.responses import RedirectResponse
 
-from lobby.views.error_pages import validate_csrf
-from shared.auth.service import (
+from lobby.auth.service import (
     PASSWORD_MAX_LENGTH,
     PASSWORD_MIN_LENGTH,
     SESSION_MAX_AGE_SECONDS,
     USERNAME_MAX_LENGTH,
     USERNAME_MIN_LENGTH,
 )
+from lobby.views.error_pages import validate_csrf
 
 if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.responses import Response
 
-    from shared.auth.settings import AuthSettings
+    from lobby.auth.settings import AuthSettings
 
 GUEST_LOGIN_BURST = 10
 GUEST_LOGIN_REFILL_PER_SECOND = 1 / 360

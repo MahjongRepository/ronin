@@ -17,6 +17,7 @@ from starlette.routing import BaseRoute, Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 
 from lobby.auth.backend import SessionOrApiKeyBackend
+from lobby.auth.password import BcryptHasher
 from lobby.auth.policy import (
     admin_html,
     admin_json,
@@ -27,6 +28,15 @@ from lobby.auth.policy import (
     public_route,
     validate_route_auth_policy,
 )
+from lobby.auth.service import AuthService
+from lobby.auth.settings import AuthSettings
+from lobby.db import (
+    Database,
+    SqliteGameRepository,
+    SqlitePlayerRepository,
+    SqliteSessionRepository,
+    SqliteTournamentRepository,
+)
 from lobby.game_transition import create_game_server_client, fetch_playing_games, is_user_playing
 from lobby.i18n import Translator, load_catalogs
 from lobby.live_games.feed import PlayingGamesFeed
@@ -34,8 +44,11 @@ from lobby.live_games.websocket import playing_games_websocket
 from lobby.matchmaking.manager import MatchmakingManager
 from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.occupancy import Occupancy
+from lobby.rate_limit import KeyedRateLimiter
 from lobby.rooms.manager import LobbyRoomManager
 from lobby.rooms.websocket import announce_departure, announce_expiry, room_websocket
+from lobby.server.build_info import APP_VERSION, GIT_COMMIT, RELEASES_URL
+from lobby.server.logging import setup_logging
 from lobby.server.middleware import (
     RequestBodyLimitMiddleware,
     SecurityHeadersMiddleware,
@@ -84,19 +97,6 @@ from lobby.views.tournament_handlers import (
     lobby_tournament,
     lobby_tournaments,
 )
-from shared.auth import AuthService
-from shared.auth.password import BcryptHasher
-from shared.auth.settings import AuthSettings
-from shared.build_info import APP_VERSION, GIT_COMMIT, RELEASES_URL
-from shared.db import (
-    Database,
-    SqliteGameRepository,
-    SqlitePlayerRepository,
-    SqliteSessionRepository,
-    SqliteTournamentRepository,
-)
-from shared.logging import setup_logging
-from shared.rate_limit import KeyedRateLimiter
 
 logger = structlog.get_logger()
 
@@ -490,7 +490,7 @@ def _game_client_routes(game_client: BuiltGameClient | DevGameClient) -> list[Ba
     return [Mount(game_client.assets_path, app=StaticFiles(directory=str(game_client.directory)), name="game_assets")]
 
 
-def get_app() -> Starlette:  # pragma: no cover (entrypoint)  # deadcode: ignore
+def get_app() -> Starlette:  # pragma: no cover (entrypoint)
     """
     Factory function for uvicorn --factory lobby.server.app:get_app.
     """
