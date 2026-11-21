@@ -67,6 +67,7 @@ from app.views import (
     create_templates,
     game_session,
     load_vite_manifest,
+    observe_stream,
     play_page,
     replay_content,
     replay_page,
@@ -189,6 +190,7 @@ def create_app(  # noqa: PLR0913
         Route("/", protected_html(spa_shell), methods=["GET"], name="lobby_page"),
         Route("/history", protected_html(spa_shell), methods=["GET"], name="history_page"),
         Route("/play/history/{game_id}", public_route(replay_page), methods=["GET"], name="replay_page"),
+        Route("/play/observe/{game_id}", public_route(play_page), methods=["GET"], name="observe_page"),
         Route("/play/storybook/sounds", public_route(play_page), methods=["GET"], name="storybook_sounds_page"),
         Route("/play/storybook/board", public_route(play_page), methods=["GET"], name="storybook_board_page"),
         Route("/play/storybook/discards", public_route(play_page), methods=["GET"], name="storybook_discards_page"),
@@ -225,6 +227,7 @@ def create_app(  # noqa: PLR0913
         Route("/api/rooms", bot_only(bot_create_room), methods=["POST"], name="bot_create_room"),
         Route("/api/replays/{game_id}", public_route(replay_content), methods=["GET"], name="replay_content"),
         Route("/api/replays/{game_id}/tenhou.xml", public_route(tenhou_replay), methods=["GET"], name="tenhou_replay"),
+        Route("/api/observe/{game_id}", public_route(observe_stream), methods=["GET"], name="observe_stream"),
         Route("/api/game-session", protected_json(game_session), methods=["GET"], name="game_session"),
         Route(
             "/api/tournaments/{tournament_id}",

@@ -500,7 +500,8 @@ honours this contract can replace it.
   (`LOBBY_GAME_CLIENT_V2_DIR`) and serves that directory under `/game-assets/v2/`, so the app builds with
   that base path; the app routes the path itself. The pages are an explicit list in the lobby's
   route table, each with its login policy (`/play/{game_id}` requires a login; the replay
-  `/play/history/{game_id}` and the storybook pages do not); any other path is a 404, so a new client
+  `/play/history/{game_id}`, the observe page `/play/observe/{game_id}` and the storybook pages do not); any
+  other path is a 404, so a new client
   route needs its path added there.
 * **Handoff:** before navigating to `{game_client_url}/{game_id}`, the lobby page writes
   `sessionStorage.setItem("game_session:{game_id}", JSON.stringify({wsUrl, gameTicket}))`. Session
@@ -551,6 +552,17 @@ honours this contract can replace it.
   viewpoint. The game client's game end links the player to the replay from their seat too;
   the game end reaches the players before the server has saved the replay, so the replay may answer
   404 for a moment after it.
+* **Observing:** `GET /api/observe/{game_id}?from=N` is a live game's delayed observer stream, no login
+  required, `Cache-Control: no-store`. The lobby validates the id and `from` (a non-negative whole number,
+  default 0; 400 otherwise), forwards them to the game server's internal observe route with the internal API
+  secret and passes its answer through unchanged: one MessagePack map with string keys, `started_at` (Unix
+  milliseconds), `game_type`, `players` (four names, East to North), `available_in_ms` (the wait until the
+  first records may be seen, 0 once passed), `next` (the cursor after the returned records), `ended` (the
+  stream holds the game's end and nothing follows) and `records`, the records from cursor `N` as
+  concatenated MessagePack bytes in the replay encoding, without the seed (`docs/replay-format.md`). 404
+  means the game server observes no such game: it never started, or it ended longer ago than the delay
+  plus a minute, after which only the replay shows it. 503 means the game server could not be asked; the
+  client polls again.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **Language:** v2 speaks Japanese, English and Russian under the lobby's contract (`docs/i18n.md`),
   with catalogs of its own. It resolves the language at page load: the `lang` cookie first, then the

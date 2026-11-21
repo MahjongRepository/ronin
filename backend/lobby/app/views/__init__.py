@@ -25,5 +25,6 @@ from app.views.game_handlers import (
 from app.views.game_handlers import (
     replay_page as replay_page,
 )
+from app.views.replay_handlers import observe_stream as observe_stream
 from app.views.replay_handlers import replay_content as replay_content
 from app.views.replay_handlers import tenhou_replay as tenhou_replay

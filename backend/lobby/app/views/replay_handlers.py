@@ -6,7 +6,13 @@ from typing import TYPE_CHECKING
 import structlog
 from starlette.responses import Response
 
-from app.game_transition import ReplayExportError, UnfinishedReplayError, fetch_tenhou_replay
+from app.game_transition import (
+    ObserveError,
+    ReplayExportError,
+    UnfinishedReplayError,
+    fetch_observe,
+    fetch_tenhou_replay,
+)
 from app.replay_storage import is_valid_game_id, read_replay
 
 if TYPE_CHECKING:
@@ -20,6 +26,8 @@ logger = structlog.get_logger()
 _NOT_FOUND = Response("Not found", status_code=404, media_type="text/plain")
 
 _TENHOU_CACHE_SECONDS = 3600
+
+_NO_STORE = {"Cache-Control": "no-store"}
 
 
 async def replay_content(request: Request) -> Response:
@@ -73,3 +81,32 @@ async def tenhou_replay(request: Request) -> Response:
             "Cache-Control": f"public, max-age={_TENHOU_CACHE_SECONDS}",
         },
     )
+
+
+async def observe_stream(request: Request) -> Response:
+    """
+    GET /api/observe/{game_id}?from=N — pass through the game server's delayed observer records of a live game.
+
+    404 means the game server observes no such game (never started, or ended past its delay), 503 that it could not be
+    asked. Every answer is ``no-store``, since the stream grows while the game plays.
+    """
+    game_id = request.path_params["game_id"]
+    if not is_valid_game_id(game_id):
+        return Response("Not found", status_code=404, media_type="text/plain", headers=_NO_STORE)
+
+    raw_from = request.query_params.get("from", "0")
+    if not (raw_from.isascii() and raw_from.isdigit()):
+        return Response("Bad from", status_code=400, media_type="text/plain", headers=_NO_STORE)
+
+    settings: LobbyServerSettings = request.app.state.settings
+    game_server: httpx.AsyncClient = request.app.state.game_server
+    try:
+        body = await fetch_observe(game_id, int(raw_from), settings=settings, game_server=game_server)
+    except ObserveError as e:
+        logger.warning("observe stream fetch failed", game_id=game_id, error=str(e))
+        return Response("Observe unavailable", status_code=503, media_type="text/plain", headers=_NO_STORE)
+
+    if body is None:
+        return Response("Not found", status_code=404, media_type="text/plain", headers=_NO_STORE)
+
+    return Response(content=body, media_type="application/msgpack", headers=_NO_STORE)

@@ -218,6 +218,49 @@ class TestReplayContent:
         response = client.get("/api/replays/game-123/tenhou.xml")
         assert response.status_code == 502
 
+    def test_observe_route__when_game_server_answers__should_pass_its_bytes_through(self, client, game_server):
+        observer_map = b"\x87\xaastarted_at\x01"
+        asked: list[tuple[str, str | None]] = []
+
+        def observe_for_the_internal_caller(request: httpx.Request) -> httpx.Response:
+            asked.append((request.url.path, request.url.params.get("from")))
+            if request.headers.get("authorization") != f"Bearer {client.app.state.settings.internal_api_secret}":
+                return httpx.Response(401)
+
+            return httpx.Response(200, content=observer_map, headers={"Content-Type": "application/msgpack"})
+
+        game_server.respond = observe_for_the_internal_caller
+
+        response = client.get("/api/observe/game-123", params={"from": "17"})
+        assert response.status_code == 200
+        assert response.content == observer_map
+        assert response.headers["content-type"] == "application/msgpack"
+        assert response.headers["cache-control"] == "no-store"
+        assert asked == [("/games/game-123/observe", "17")]
+
+    @pytest.mark.parametrize(
+        ("respond", "expected_status"),
+        [
+            (lambda _request: httpx.Response(404), 404),
+            (lambda _request: httpx.Response(500), 503),
+            (_refuse_connection, 503),
+        ],
+        ids=["missing", "other_status", "unreachable"],
+    )
+    def test_observe_route__when_game_server_misses_or_fails__should_answer_404_or_503(
+        self, client, game_server, respond, expected_status
+    ):
+        game_server.respond = respond
+
+        response = client.get("/api/observe/game-123")
+        assert response.status_code == expected_status
+        assert response.headers["cache-control"] == "no-store"
+
+    def test_observe_page_route__when_unauthenticated__should_serve_play_page(self, setup):
+        client, _replay_dir = setup
+        response = client.get("/play/observe/game-123", follow_redirects=False)
+        assert response.status_code == 503
+
     def test_replay_page_route__should_serve_play_page(self, setup):
         client, _replay_dir = setup
         response = client.get("/play/history/game-123")

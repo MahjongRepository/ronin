@@ -68,6 +68,12 @@ class UnfinishedReplayError(ReplayExportError):
     """
 
 
+class ObserveError(Exception):
+    """
+    The game server could not answer an observe request; ``str()`` is a fixed description without credentials.
+    """
+
+
 class GameListError(Exception):
     """
     The game server could not list the games it plays; ``str()`` is a fixed description without credentials.
@@ -109,6 +115,7 @@ _WITHDRAW_TIMEOUT_SECONDS = 2.0
 _HANDOFF_LOOKUP_TIMEOUT_SECONDS = 2.0
 _GAME_LIST_TIMEOUT_SECONDS = 2.0
 _REPLAY_EXPORT_TIMEOUT_SECONDS = 10.0
+_OBSERVE_TIMEOUT_SECONDS = 2.0
 _START_REQUEST_TIMEOUT = httpx.Timeout(10.0)
 _KEEPALIVE_EXPIRY_SECONDS = 2.0
 _GAME_SERVER_LIMITS = httpx.Limits(
@@ -412,6 +419,39 @@ async def fetch_tenhou_replay(
 
     if response.status_code != HTTPStatus.OK:
         raise ReplayExportError(f"unexpected status {response.status_code}")
+
+    return response.content
+
+
+async def fetch_observe(
+    game_id: str,
+    from_record: int,
+    *,
+    settings: LobbyServerSettings,
+    game_server: httpx.AsyncClient,
+) -> bytes | None:
+    """
+    Ask the game server for a live game's delayed observer records from ``from_record`` on; None when it observes no
+    such game.
+
+    The answer is the game server's MessagePack response map, returned unread. The route answers only the internal API
+    secret and takes at most ``_OBSERVE_TIMEOUT_SECONDS``; any failure raises ``ObserveError``.
+    """
+    try:
+        async with asyncio.timeout(_OBSERVE_TIMEOUT_SECONDS):
+            response = await game_server.get(
+                f"/games/{quote(game_id, safe='')}/observe",
+                params={"from": from_record},
+                headers={"Authorization": f"Bearer {settings.internal_api_secret}"},
+            )
+    except (httpx.HTTPError, TimeoutError) as e:
+        raise ObserveError(f"request failed: {type(e).__name__}") from e
+
+    if response.status_code == HTTPStatus.NOT_FOUND:
+        return None
+
+    if response.status_code != HTTPStatus.OK:
+        raise ObserveError(f"unexpected status {response.status_code}")
 
     return response.content
 
