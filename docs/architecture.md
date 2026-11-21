@@ -466,16 +466,18 @@ The storage version fixes the integer metadata-key mapping and the seed's 96-byt
 decoders preserve numeric keys and restore the hexadecimal seed. Score-map seats remain data keys, the rules
 envelope's keys remain strings, and lists remain arrays. Replay storage and live WebSocket encoding have separate contracts over shared fixed field IDs.
 
-The game-start record stores the rules envelope of the one preset the engine plays: profile 1 with no
-overrides. Python loading and outcome verification share the same strict decoder, which refuses any
-other envelope. Storage version, RNG version and profile ID are independent.
+The game-start record stores the rules envelope of the one preset the engine plays: profile 2 with no
+overrides. Replays rewritten from storage version `0.4-dev` by `cmd/migrate` name profile 1: they stay
+readable but no longer reproduce, so the Go replay loader and `cmd/verify` refuse them. Storage version,
+RNG version and profile ID are independent.
 Browser playback needs no engine or profile table: it reads recorded events and the explicit game
 length, riichi-stick value and aka-dora flag. A damaged record reports its position while preserving
 the readable prefix; a valid stream without a game end remains distinguishable from damaged input.
 
 The finish record is built from the start record, never from end-of-game connection state, so a
-seat that never connected keeps its name and `user_id`. A crash leaves `ended_at` NULL, which is why
-"playing" is never derived from this table.
+seat that never connected keeps its name and `user_id`. A crash leaves `ended_at` NULL until the game
+server starts again and ends every such row as `error`, which is why "playing" is never derived from
+this table and why only one game server may write a database.
 
 ## Game client contract
 

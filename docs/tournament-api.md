@@ -73,10 +73,10 @@ each fails alone, so the other tables still start:
       "ended_at": 1794395400.0,
       "end_reason": "completed",
       "result": [
-        {"name": "west", "seat": 0, "user_id": "...", "score": 41000, "final_score": 51},
-        {"name": "east", "seat": 2, "user_id": "...", "score": 28000, "final_score": 8},
-        {"name": "north", "seat": 1, "user_id": "...", "score": 19000, "final_score": -21},
-        {"name": "south", "seat": 3, "user_id": "...", "score": 12000, "final_score": -38}
+        {"name": "west", "seat": 0, "user_id": "...", "score": 41000, "final_score": 510},
+        {"name": "east", "seat": 2, "user_id": "...", "score": 28000, "final_score": 80},
+        {"name": "north", "seat": 1, "user_id": "...", "score": 19000, "final_score": -210},
+        {"name": "south", "seat": 3, "user_id": "...", "score": 12000, "final_score": -380}
       ]
     }
   ]
@@ -89,7 +89,8 @@ each fails alone, so the other tables still start:
 - `end_reason` is `completed`, `abandoned` (no player stayed connected) or `error` (the game failed on a server
   error).
 - For a completed game, `result` is the final standings in placement order: `score` is the raw score, `final_score`
-  the uma/oka-adjusted one. For any other end it lists the four players with `null` scores and no placement.
+  the uma/oka-adjusted one in tenths of a point, unrounded (`510` is +51.0, `-215` is -21.5). For any other end it
+  lists the four players with `null` scores and no placement.
 - `seat` in `result` is the game engine's seat index (0 to 3), not a wind: the first dealer's seat is drawn by the
   game, so East may sit at any index (seat 2 in the example). Only `players` runs East to North.
 - `user_id` is the player's lobby account id (empty for an AI seat).
@@ -122,6 +123,7 @@ HTTP 403 before the socket opens; the two cases look the same on the wire.
 Events are not stored or replayed: a socket only sees what happens while it is open. To follow a tournament without
 gaps, connect the events socket first, then read the snapshot, and on a reconnect read the snapshot again.
 
-A game that never started (nobody joined it within the game server's pending timeout) or that was lost to a game
-server crash never gets an end: it stays with a `null` `ended_at` in the snapshot and no `game_ended` is sent for it.
+A game that never started (nobody joined it within the game server's pending timeout) never gets an end: it stays
+with a `null` `ended_at` in the snapshot and no `game_ended` is sent for it. A game lost to a game server crash keeps a
+`null` `ended_at` until the game server starts again, which ends it as `error`; its `game_ended` follows then.
 Deleting a tournament does not stop its running games: they play on, and no `game_ended` is sent for them.

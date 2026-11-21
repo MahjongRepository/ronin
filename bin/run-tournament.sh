@@ -7,7 +7,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BOT_ROOT="${BOT_ROOT:-$HOME/work/mahjong-bot}"
 BOT_BIN="${BOT_BIN:-}"
 
-GAME_PORT="${GAME_PORT:-8711}"
+GAME_PORT="${GAME_PORT:-8712}"
 LOBBY_PORT="${LOBBY_PORT:-8710}"
 MAX_RETRIES=10
 BOT_EXIT_TIMEOUT=60
@@ -18,6 +18,7 @@ BOT_NAMES=(ai-tour-1 ai-tour-2 ai-tour-3 ai-tour-4 ai-tour-5 ai-tour-6 ai-tour-7
 RUN_LOG_DIR="$PROJECT_ROOT/backend/logs/tournament"
 
 SERVER_PIDS=()
+GO_BUILD_DIR=""
 BOT_PIDS=()
 BOT_KEYS=()
 
@@ -53,22 +54,41 @@ wait_for_server() {
     return 1
 }
 
-start_server() {
+await_server() {
     local name="$1"
-    local module="$2"
-    local port="$3"
-    local ws_max_size="$4"
-    local log_dir="$5"
+    local port="$2"
+    local log_dir="$3"
 
-    echo "starting $name server on port $port..."
-    (cd "$PROJECT_ROOT" && uv run --project backend uvicorn --factory "$module" --host 0.0.0.0 --port "$port" \
-        --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-per-message-deflate false --ws-ping-interval 20 \
-        --ws-ping-timeout 20 --ws-max-size "$ws_max_size" > "$log_dir/stdout.log" 2> "$log_dir/stderr.log") &
-    SERVER_PIDS+=($!)
-    if ! wait_for_server "$port"; then
+    if ! wait_for_server "$port" || ! kill -0 "${SERVER_PIDS[-1]}" 2>/dev/null; then
         echo "$name server failed to start, see $log_dir"
         exit 1
     fi
+}
+
+start_lobby_server() {
+    echo "starting lobby server on port $LOBBY_PORT..."
+    (cd "$PROJECT_ROOT" && uv run --project backend uvicorn --factory lobby.server.app:get_app --host 0.0.0.0 \
+        --port "$LOBBY_PORT" --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-per-message-deflate false \
+        --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size 8192 > "$LOBBY_LOG_DIR/stdout.log" \
+        2> "$LOBBY_LOG_DIR/stderr.log") &
+    SERVER_PIDS+=($!)
+    await_server lobby "$LOBBY_PORT" "$LOBBY_LOG_DIR"
+}
+
+build_game_server() {
+    GO_BUILD_DIR=$(mktemp -d)
+    if ! go build -C "$PROJECT_ROOT/backend/game_v2" -o "$GO_BUILD_DIR/" ./cmd/gameserver; then
+        echo "building the Go game server failed"
+        exit 1
+    fi
+}
+
+start_game_server() {
+    echo "starting game server on port $GAME_PORT..."
+    (cd "$PROJECT_ROOT" && "$GO_BUILD_DIR/gameserver" -addr "0.0.0.0:$GAME_PORT" > "$GAME_LOG_DIR/stdout.log" \
+        2> "$GAME_LOG_DIR/stderr.log") &
+    SERVER_PIDS+=($!)
+    await_server game "$GAME_PORT" "$GAME_LOG_DIR"
 }
 
 stop_all() {
@@ -78,6 +98,9 @@ stop_all() {
     for pid in "${BOT_PIDS[@]}" "${SERVER_PIDS[@]}"; do
         wait "$pid" 2>/dev/null || true
     done
+    if [[ -n $GO_BUILD_DIR ]]; then
+        rm -rf "$GO_BUILD_DIR"
+    fi
 }
 
 build_bot() {
@@ -167,6 +190,7 @@ export GAME_LOG_DIR="$RUN_LOG_DIR/game"
 export LOBBY_LOG_DIR="$RUN_LOG_DIR/lobby"
 
 build_bot
+build_game_server
 
 rm -rf "$RUN_LOG_DIR"
 mkdir -p "$GAME_LOG_DIR" "$LOBBY_LOG_DIR" "$RUN_LOG_DIR/bots"
@@ -176,8 +200,8 @@ create_tournament
 
 free_port "$GAME_PORT"
 free_port "$LOBBY_PORT"
-start_server game game.server.app:get_app "$GAME_PORT" 262144 "$GAME_LOG_DIR"
-start_server lobby lobby.server.app:get_app "$LOBBY_PORT" 8192 "$LOBBY_LOG_DIR"
+start_game_server
+start_lobby_server
 
 start_bots
 
