@@ -16,7 +16,7 @@ from app.dal.models import AccountType, AuthSession, Player
 from app.db import Database, SqlitePlayerRepository, SqliteSessionRepository
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncIterator, Callable
     from pathlib import Path
 
 
@@ -47,8 +47,18 @@ def session_repo(db: Database) -> SqliteSessionRepository:
     return SqliteSessionRepository(db)
 
 
-def _auth_service(db: Database) -> AuthService:
-    return AuthService(SqlitePlayerRepository(db), SqliteSessionRepository(db), password_hasher=BcryptHasher(rounds=4))
+def _auth_service(db: Database, *, on_credential_revoked: Callable[[str], None] | None = None) -> AuthService:
+    if on_credential_revoked is None:
+        return AuthService(
+            SqlitePlayerRepository(db), SqliteSessionRepository(db), password_hasher=BcryptHasher(rounds=4)
+        )
+
+    return AuthService(
+        SqlitePlayerRepository(db),
+        SqliteSessionRepository(db),
+        password_hasher=BcryptHasher(rounds=4),
+        on_credential_revoked=on_credential_revoked,
+    )
 
 
 @pytest.fixture
@@ -220,13 +230,16 @@ class TestLogin:
             stored = conn.execute("SELECT token_hash FROM sessions").fetchall()
         assert stored == [(hashlib.sha256(token.encode()).hexdigest(),)]
 
-    async def test_auth_service_login__when_replacing_an_earlier_token__should_invalidate_it(self, auth_service):
+    async def test_auth_service_login__when_replacing_an_earlier_token__should_invalidate_and_revoke_it(self, db):
+        revoked: list[str] = []
+        auth_service = _auth_service(db, on_credential_revoked=revoked.append)
         await auth_service.register("alice", "password123")
         _, earlier_token = await auth_service.login("alice", "password123")
 
         _, token = await auth_service.login("alice", "password123", replacing=earlier_token)
         assert await auth_service.validate_session(earlier_token) is None
         assert await auth_service.validate_session(token) is not None
+        assert revoked == [hashlib.sha256(earlier_token.encode()).hexdigest()]
 
     async def test_auth_service_login__when_password_wrong__should_raise(self, auth_service):
         await auth_service.register("alice", "password123")

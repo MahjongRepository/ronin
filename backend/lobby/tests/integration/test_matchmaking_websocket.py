@@ -17,7 +17,8 @@ def _time_out_after_the_game_server_got_the_request(request: httpx.Request) -> h
 
 
 def _matchmaking_socket(app, peer, *, username):
-    return make_websocket(peer, app=app, user=AuthenticatedPlayer(user_id=f"{username}-id", username=username))
+    user = AuthenticatedPlayer(user_id=f"{username}-id", username=username, credential_hash=f"{username}-session")
+    return make_websocket(peer, app=app, user=user)
 
 
 async def _queue_player(app, username):

@@ -35,17 +35,19 @@ class SessionOrApiKeyBackend(AuthenticationBackend):
             return AuthCredentials(["authenticated"]), AuthenticatedPlayer(
                 user_id=session.user_id,
                 username=session.username,
+                credential_hash=session.token_hash,
                 is_guest=session.is_guest,
             )
 
         api_key = conn.headers.get("x-api-key")
         if api_key:
             player = await self._auth_service.validate_api_key(api_key)
-            if player is not None:
+            if player is not None and player.api_key_hash is not None:
                 return AuthCredentials(["authenticated", API_KEY_SCOPE]), AuthenticatedPlayer(
                     user_id=player.user_id,
                     username=player.username,
                     account_type=player.account_type,
+                    credential_hash=player.api_key_hash,
                 )
 
         return None

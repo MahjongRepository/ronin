@@ -30,6 +30,7 @@ from app.auth.policy import (
 )
 from app.auth.service import AuthService
 from app.auth.settings import AuthSettings
+from app.auth.socket_registry import CredentialSockets
 from app.db import (
     Database,
     SqliteGameRepository,
@@ -307,7 +308,10 @@ def create_app(  # noqa: PLR0913
     session_repo = SqliteSessionRepository(db)
     tournament_repo = SqliteTournamentRepository(db)
     hasher = BcryptHasher(rounds=auth_settings.bcrypt_rounds)
-    auth_service = AuthService(player_repo, session_repo, password_hasher=hasher)
+    credential_sockets = CredentialSockets()
+    auth_service = AuthService(
+        player_repo, session_repo, password_hasher=hasher, on_credential_revoked=credential_sockets.close_all
+    )
 
     app = Starlette(
         routes=routes,
@@ -319,6 +323,7 @@ def create_app(  # noqa: PLR0913
     )
     _add_middleware(app, settings=settings, auth_service=auth_service)
 
+    app.state.credential_sockets = credential_sockets
     app.state.game_client = game_client
     app.state.translator = translator
     app.state.guest_login_limiter = KeyedRateLimiter(rate=GUEST_LOGIN_REFILL_PER_SECOND, burst=GUEST_LOGIN_BURST)

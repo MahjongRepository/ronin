@@ -19,14 +19,14 @@ from tests.conftest import (
     make_websocket,
     open_client,
 )
-from tests.integration.conftest import login_with_csrf, logout_with_csrf, register_with_csrf
+from tests.integration.conftest import login_with_csrf, logout_with_csrf, register_with_csrf, switch_user_with_csrf
 
 
 def _room_socket(app, peer, *, room_id, username):
     return make_websocket(
         peer,
         app=app,
-        user=AuthenticatedPlayer(user_id=f"{username}-id", username=username),
+        user=AuthenticatedPlayer(user_id=f"{username}-id", username=username, credential_hash=f"{username}-session"),
         path_params={"room_id": room_id},
     )
 
@@ -60,6 +60,17 @@ class TestRoomWebSocket:
             assert msg["player_name"] == "wsuser"
             assert msg["text"] == "hello"
 
+    def test_room_websocket__when_its_session_logs_out__should_close_with_credential_revoked(self, app, client):
+        room = app.state.room_manager.create_room("revoked-room")
+        with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
+            ws.receive_json()
+
+            logout_with_csrf(client)
+            with pytest.raises(WebSocketDisconnect) as closed:
+                ws.receive_json()
+
+        assert closed.value.code == 4001
+
     def test_room_websocket__when_non_owner_sets_ready__should_broadcast_ready_change(self, app):
         room = app.state.room_manager.create_room("ready-room")
         with open_client(app) as c:
@@ -70,7 +81,7 @@ class TestRoomWebSocket:
                 ws_owner.receive_json()  # room_joined
 
                 # Non-owner joins
-                logout_with_csrf(c)
+                c.cookies.delete("session_id")
                 register_with_csrf(c, "player2")
                 with c.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_p2:
                     ws_p2.receive_json()  # room_joined
@@ -209,8 +220,7 @@ class TestStartGameErrors:
             ws_owner.receive_json()  # room_joined
 
             # Log in as player2 (non-owner) and connect
-            logout_with_csrf(two_user_client)
-            login_with_csrf(two_user_client, "player2")
+            switch_user_with_csrf(two_user_client, "player2")
             with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_p2:
                 ws_p2.receive_json()  # room_joined
                 ws_owner.receive_json()  # player_joined broadcast
@@ -231,8 +241,7 @@ class TestStartGameErrors:
             ws_owner.receive_json()  # room_joined
 
             # Log in as player2 (non-owner) and connect
-            logout_with_csrf(two_user_client)
-            login_with_csrf(two_user_client, "player2")
+            switch_user_with_csrf(two_user_client, "player2")
             with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_p2:
                 ws_p2.receive_json()  # room_joined
                 ws_owner.receive_json()  # player_joined broadcast
@@ -260,8 +269,7 @@ class TestOwnerChanged:
             ws_alice.receive_json()  # room_joined
 
             # Bob connects (non-owner)
-            logout_with_csrf(two_user_client)
-            login_with_csrf(two_user_client, "bob")
+            switch_user_with_csrf(two_user_client, "bob")
             with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_bob:
                 ws_bob.receive_json()  # room_joined
                 ws_alice.receive_json()  # player_joined broadcast
@@ -294,7 +302,7 @@ class TestMultiPlayerWebSocket:
         with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_bob:
             ws_bob.receive_json()  # room_joined
             # Log in as alice and connect
-            login_with_csrf(two_user_client, "alice")
+            switch_user_with_csrf(two_user_client, "alice")
             with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_alice:
                 ws_alice.receive_json()  # room_joined
                 player_joined = ws_bob.receive_json()  # player_joined for alice
@@ -317,7 +325,7 @@ class TestMultiPlayerWebSocket:
             # Always 4 seats (1 human + 3 bots)
             assert len(bob_joined["players"]) == 4
 
-            login_with_csrf(two_user_client, "alice")
+            switch_user_with_csrf(two_user_client, "alice")
             with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_alice:
                 alice_joined = ws_alice.receive_json()
                 assert alice_joined["type"] == "room_joined"
@@ -333,7 +341,7 @@ class TestMultiPlayerWebSocket:
         room = app.state.room_manager.create_room("dc-room")
         with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_bob:
             ws_bob.receive_json()  # room_joined
-            login_with_csrf(two_user_client, "alice")
+            switch_user_with_csrf(two_user_client, "alice")
             with two_user_client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_alice:
                 ws_alice.receive_json()  # room_joined
                 ws_bob.receive_json()  # player_joined
@@ -639,9 +647,8 @@ class TestRoomOccupancy:
     async def test_room_websocket__when_user_is_queued__should_reject_with_already_in_queue(self, app):
         room = app.state.room_manager.create_room("queued-room")
         queue_peer = AsgiPeer()
-        queue_socket = make_websocket(
-            queue_peer, app=app, user=AuthenticatedPlayer(user_id="alice-id", username="alice")
-        )
+        alice = AuthenticatedPlayer(user_id="alice-id", username="alice", credential_hash="alice-session")
+        queue_socket = make_websocket(queue_peer, app=app, user=alice)
         queue_handler = await _hold_open(matchmaking_websocket(queue_socket), queue_peer)
 
         room_peer = await _join_room_and_leave(app, room_id=room.room_id, username="alice")

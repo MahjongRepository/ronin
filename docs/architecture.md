@@ -131,7 +131,8 @@ flowchart TD
 * A **guest** (`POST /api/lobby/auth/guest`) gets a session like any other, with a fresh user id and a generated
   `Nanashi-NNNN` name, but no `players` row: nothing past the session reads that table.
 * Every HTTP route carries exactly one policy decorator; WebSocket handlers authenticate inside
-  (`Origin` check, then `websocket.user`).
+  (`Origin` check, then `websocket.user`). A logout, a session a login replaces and a rotated API key
+  close the open lobby sockets that credential admitted (4001 `credential_revoked`).
 * **Game tickets** are HMAC-SHA256 tokens `{user_id, username, room_id=game_id, expires_at}`
   signed by the lobby and verified by the game server. They are the only credential the game
   server knows; it never sees cookies or API keys.

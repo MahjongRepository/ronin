@@ -9,7 +9,8 @@ class AuthenticatedPlayer(BaseUser):
     """
     Authenticated user for Starlette's request.user.
 
-    Created by the auth backend from either a session cookie or an API key.
+    Created by the auth backend from either a session cookie or an API key; ``credential_hash`` is the stored hash of
+    the one that authenticated it.
     """
 
     def __init__(
@@ -18,8 +19,10 @@ class AuthenticatedPlayer(BaseUser):
         username: str,
         account_type: AccountType = AccountType.HUMAN,
         *,
+        credential_hash: str,
         is_guest: bool = False,
     ) -> None:
+        self._credential_hash = credential_hash
         self._user_id = user_id
         self._username = username
         self._account_type = account_type
@@ -52,3 +55,7 @@ class AuthenticatedPlayer(BaseUser):
     @property
     def is_guest(self) -> bool:
         return self._is_guest
+
+    @property
+    def credential_hash(self) -> str:
+        return self._credential_hash

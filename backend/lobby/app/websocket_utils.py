@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
     from starlette.websockets import WebSocket
 
+    from app.auth.socket_registry import CredentialSockets
     from app.settings import LobbyServerSettings
 
 
@@ -33,8 +34,9 @@ async def serve_lobby_socket(websocket: WebSocket, serve: Callable[[LobbyPlayer]
     Admit a lobby socket and hand its player to ``serve``; this task owns the connection's writer.
 
     An unauthenticated socket is refused with 4001 and then a cookie-authenticated one with a foreign ``Origin`` with
-    4003, both before accept; a key-authenticated socket skips the ``Origin`` check. The writer runs while ``serve``
-    does and is stopped however it ends; ``serve`` decides what an unexpected error does.
+    4003, both before accept; a key-authenticated socket skips the ``Origin`` check. While ``serve`` runs the socket is
+    held under its credential, so revoking that credential closes it. The writer runs while ``serve`` does and is
+    stopped however it ends; ``serve`` decides what an unexpected error does.
     """
     if not websocket.user.is_authenticated:
         await reject_websocket(websocket, code=4001, reason="unauthorized")
@@ -55,7 +57,9 @@ async def serve_lobby_socket(websocket: WebSocket, serve: Callable[[LobbyPlayer]
         connection=QueuedWebSocket(websocket, connection_id=connection_id),
     )
     player.connection.start_writer()
+    credential_sockets: CredentialSockets = websocket.app.state.credential_sockets
     try:
-        await serve(player)
+        with credential_sockets.admitted(websocket.user.credential_hash, player.connection):
+            await serve(player)
     finally:
         await player.connection.stop_writer()

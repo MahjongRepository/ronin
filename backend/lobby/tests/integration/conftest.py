@@ -33,6 +33,14 @@ def login_with_csrf(client: TestClient, username: str) -> None:
     )
 
 
+def switch_user_with_csrf(client: TestClient, username: str) -> None:
+    """
+    Sign in as another user as a second browser would, leaving the current user's session and sockets open.
+    """
+    client.cookies.delete("session_id")
+    login_with_csrf(client, username)
+
+
 def logout_with_csrf(client: TestClient) -> None:
     response = client.get("/")
     csrf = response.cookies.get(CSRF_COOKIE_NAME) or client.cookies.get(CSRF_COOKIE_NAME)

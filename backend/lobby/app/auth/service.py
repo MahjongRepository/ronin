@@ -12,7 +12,7 @@ from uuid import uuid4
 from app.dal.models import AccountType, AuthSession, Player
 
 if TYPE_CHECKING:
-    from collections.abc import Collection
+    from collections.abc import Callable, Collection
 
     from app.auth.password import PasswordHasher
     from app.dal.player_repository import PlayerRepository
@@ -67,9 +67,18 @@ class AuthError(Exception):
         self.params = params
 
 
+def _close_nothing(_credential_hash: str) -> None:
+    """
+    Close nothing on a revocation: the default of a process that holds no lobby sockets, such as a script.
+    """
+
+
 class AuthService:
     """
     Coordinate player registration, login, and session validation.
+
+    ``on_credential_revoked`` is told the hash of every session token or API key this service revokes (a logout, a
+    session a login replaces, a rotated key), so the lobby can close the sockets that credential admitted.
     """
 
     def __init__(
@@ -78,10 +87,12 @@ class AuthService:
         session_repo: SessionRepository,
         *,
         password_hasher: PasswordHasher,
+        on_credential_revoked: Callable[[str], None] = _close_nothing,
     ) -> None:
         self._player_repo = player_repo
         self._session_repo = session_repo
         self._hasher = password_hasher
+        self._on_credential_revoked = on_credential_revoked
 
     async def register(self, username: str, password: str) -> Player:
         """
@@ -136,7 +147,7 @@ class AuthService:
                 AuthErrorCode.HUMAN_ACCOUNT, f"Username '{bot_name}' belongs to a human account", username=bot_name
             )
 
-        raw_api_key, api_key_hash = await self._replace_api_key(player.user_id)
+        raw_api_key, api_key_hash = await self._replace_api_key(player)
         return player.model_copy(update={"api_key_hash": api_key_hash}), raw_api_key
 
     async def issue_account_api_key(self, player: Player) -> str:
@@ -145,7 +156,7 @@ class AuthService:
 
         The raw key is returned once and never stored.
         """
-        raw_api_key, _ = await self._replace_api_key(player.user_id)
+        raw_api_key, _ = await self._replace_api_key(player)
         return raw_api_key
 
     async def login(self, username: str, password: str, *, replacing: str | None = None) -> tuple[AuthSession, str]:
@@ -174,7 +185,9 @@ class AuthService:
             created_at=now,
             expires_at=_session_expiry(created_at=now, now=now, is_guest=False),
         )
-        await self._session_repo.create(session, now=now, replacing_token_hash=_hash_optional_token(replacing))
+        replacing_token_hash = _hash_optional_token(replacing)
+        await self._session_repo.create(session, now=now, replacing_token_hash=replacing_token_hash)
+        self._revoke(replacing_token_hash)
         return session, token
 
     async def login_as_guest(self, *, replacing: str | None = None) -> tuple[AuthSession, str]:
@@ -187,6 +200,7 @@ class AuthService:
         """
         token, token_hash = _generate_token()
         now = time.time()
+        replacing_token_hash = _hash_optional_token(replacing)
         session = await self._session_repo.create_guest(
             token_hash=token_hash,
             user_id=str(uuid4()),
@@ -194,8 +208,9 @@ class AuthService:
             expires_at=_session_expiry(created_at=now, now=now, is_guest=True),
             now=now,
             pick_name=_pick_guest_name,
-            replacing_token_hash=_hash_optional_token(replacing),
+            replacing_token_hash=replacing_token_hash,
         )
+        self._revoke(replacing_token_hash)
         return session, token
 
     async def validate_session(self, token: str | None) -> AuthSession | None:
@@ -227,9 +242,11 @@ class AuthService:
 
     async def logout(self, token: str) -> None:
         """
-        Delete the session of this token.
+        Delete the session of this token and report it revoked.
         """
-        await self._session_repo.delete(_hash_token(token))
+        token_hash = _hash_token(token)
+        await self._session_repo.delete(token_hash)
+        self._revoke(token_hash)
 
     async def validate_api_key(self, api_key: str) -> Player | None:
         """
@@ -265,17 +282,22 @@ class AuthService:
         if await self._player_repo.get_by_username(username) is not None:
             raise AuthError(AuthErrorCode.USERNAME_TAKEN, f"Username '{username}' is already taken", username=username)
 
-    async def _replace_api_key(self, user_id: str) -> tuple[str, str]:
+    async def _replace_api_key(self, player: Player) -> tuple[str, str]:
         """
-        Store a fresh API key hash for the player with this id and return (raw_api_key, api_key_hash).
+        Store a fresh API key hash for the player, revoke the key it replaces and return (raw_api_key, api_key_hash).
         """
         raw_api_key, api_key_hash = _generate_token()
         try:
-            await self._player_repo.set_api_key_hash(user_id, api_key_hash)
+            await self._player_repo.set_api_key_hash(player.user_id, api_key_hash)
         except ValueError as e:
             raise AuthError(AuthErrorCode.ACCOUNT_NOT_SAVED, str(e)) from e
 
+        self._revoke(player.api_key_hash)
         return raw_api_key, api_key_hash
+
+    def _revoke(self, credential_hash: str | None) -> None:
+        if credential_hash is not None:
+            self._on_credential_revoked(credential_hash)
 
     async def _save_player(self, player: Player) -> Player:
         """

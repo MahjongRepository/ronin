@@ -57,7 +57,9 @@ def _make_request(
         "auth": AuthCredentials(scopes),
     }
     if authenticated:
-        scope["user"] = AuthenticatedPlayer(user_id="test-id", username="test", account_type=account_type)
+        scope["user"] = AuthenticatedPlayer(
+            user_id="test-id", username="test", account_type=account_type, credential_hash="test-session"
+        )
 
     return Request(scope)
 

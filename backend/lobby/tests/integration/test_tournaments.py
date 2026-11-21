@@ -16,6 +16,7 @@ from tests.integration.conftest import (
     post_lobby_json,
     register_with_csrf,
     session_user_id,
+    switch_user_with_csrf,
 )
 
 
@@ -53,7 +54,7 @@ def test_tournament_socket__when_second_user_connects_and_leaves__should_announc
     with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
         assert _receive_until(ws_alice, "joined") == {"type": "joined", "players": ["alice"], "games": []}
 
-        login_with_csrf(client, "bob")
+        switch_user_with_csrf(client, "bob")
         with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_bob:
             assert _receive_until(ws_bob, "joined") == {"type": "joined", "players": ["alice", "bob"], "games": []}
             assert ws_alice.receive_json() == {"type": "player_online", "player_name": "bob", "time": ANY}
@@ -66,7 +67,7 @@ def test_tournament_socket__when_second_user_connects_and_leaves__should_announc
 def test_tournament_chat__when_user_sends_message__should_broadcast_to_all(client, tournament_id):
     with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
         _receive_until(ws_alice, "joined")
-        login_with_csrf(client, "bob")
+        switch_user_with_csrf(client, "bob")
         with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_bob:
             _receive_until(ws_bob, "joined")
             _receive_until(ws_alice, "presence")
@@ -125,6 +126,7 @@ def test_start_games__when_tables_have_absent_busy_and_miscased_players__should_
     with ExitStack() as stack:
         sockets = {}
         for name in ["erin", "frank", "gina", "hank", "dave"]:
+            client.cookies.delete("session_id")
             register_with_csrf(client, name)
             sockets[name] = stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}"))
             sockets[name].receive_json()
@@ -364,6 +366,25 @@ def test_events_socket__when_user_is_not_owner__should_be_refused(client, tourna
             events.receive_json()
 
     assert refusal.value.code == 4000
+
+
+def test_events_socket__when_owner_rotates_its_key__should_close_with_credential_revoked(client, tournament_id):
+    owner_key = issue_api_token(client)
+    owner_session = client.cookies["session_id"]
+    client.cookies.delete("session_id")
+    del client.headers["origin"]
+
+    with client.websocket_connect(
+        f"/ws/tournaments/{tournament_id}/events", headers={"x-api-key": owner_key}
+    ) as events:
+        events.receive_json()
+
+        client.cookies.set("session_id", owner_session)
+        issue_api_token(client)
+        with pytest.raises(WebSocketDisconnect) as closed:
+            events.receive_json()
+
+    assert closed.value.code == 4001
 
 
 def test_events_socket__when_key_is_invalid_and_origin_missing__should_close_unauthenticated(client, tournament_id):
