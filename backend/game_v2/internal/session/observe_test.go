@@ -77,10 +77,11 @@ func TestObserve_WhenTheDelayPasses_ShouldServeOnlyRecordsOlderThanIt(t *testing
 				turn.Next, turn.Ended, started.Next+len(wantTurn))
 		}
 
-		beyond := h.observe(t, turn.Next+10)
-		if len(beyond.Records) != 0 || beyond.Next != turn.Next+10 {
-			t.Errorf("Observe past the eligible records = %d records, next %d, want none and next %d",
-				len(beyond.Records), beyond.Next, turn.Next+10)
+		const pastEveryRecord = 1_000_000
+		beyond := h.observe(t, pastEveryRecord)
+		if len(beyond.Records) != 0 || beyond.Next != pastEveryRecord || beyond.Ended {
+			t.Errorf("Observe past every record = %d records, next %d, ended %v, want none, next %d, not ended",
+				len(beyond.Records), beyond.Next, beyond.Ended, pastEveryRecord)
 		}
 	})
 }

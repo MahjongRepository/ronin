@@ -77,14 +77,16 @@ func (t *observerTimeline) observe(from int, now time.Time, delay time.Duration)
 	defer t.mu.Unlock()
 
 	cutoff := now.Add(-delay)
-	next := from
-	for next < len(t.entries) && !t.entries[next].stamp.After(cutoff) {
-		next++
+	first := min(from, len(t.entries))
+	last := first
+	for last < len(t.entries) && !t.entries[last].stamp.After(cutoff) {
+		last++
 	}
 	var records []wire.Map
-	for _, entry := range t.entries[min(from, next):next] {
+	for _, entry := range t.entries[first:last] {
 		records = append(records, entry.record)
 	}
+	next := max(from, last)
 	return Observation{
 		Game:        t.started,
 		AvailableIn: max(0, t.started.StartedAt.Sub(cutoff)),
