@@ -29,13 +29,14 @@ import (
 )
 
 const (
-	ticketSecret   = "test-ticket-secret"
-	internalSecret = "test-internal-secret"
-	testGameID     = "game-0001"
-	lobbyOrigin    = "http://lobby.test"
-	testVersion    = "1.2.3"
-	testCommit     = "abc1234"
-	readTimeout    = 5 * time.Second
+	ticketSecret         = "test-ticket-secret"
+	internalSecret       = "test-internal-secret"
+	testGameID           = "game-0001"
+	lobbyOrigin          = "http://lobby.test"
+	testVersion          = "1.2.3"
+	testCommit           = "abc1234"
+	readTimeout          = 5 * time.Second
+	fixedTicketExpiresAt = 4102444800
 )
 
 type lockedBuffer struct {
@@ -144,7 +145,7 @@ func ticketFor(gameID, name string) string {
 		UserID:    "user-" + name,
 		Username:  name,
 		RoomID:    gameID,
-		ExpiresAt: float64(time.Now().Add(time.Hour).Unix()),
+		ExpiresAt: fixedTicketExpiresAt,
 	}, ticketSecret)
 }
 
