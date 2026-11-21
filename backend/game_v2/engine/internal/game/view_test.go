@@ -187,7 +187,7 @@ func TestSeatView_WhenARonEndsTheRound_ShouldShowTheEndedRoundAndItsResult(t *te
 	assertEqual(t, "phase", view.Record.Phase, play.PhaseRoundOver)
 	assertEqual(t, "header", view.Record.Header, header)
 	assertEqual(t, "result", view.Record.Result, result)
-	assertEqual(t, "latest discard", view.Record.LatestDiscard, play.Some(seat(t, 2)))
+	assertEqual(t, "latest discard", view.Record.LatestDiscard, play.Option[tile.Seat]{})
 	assertEqual(t, "decision", view.Decision.OK, false)
 	var scores [tile.SeatCount]int
 	for i, player := range view.Record.Players {
@@ -226,17 +226,15 @@ func TestSeatViewHistory_ShouldHoldEveryFinishedRoundWithItsHeader(t *testing.T)
 	})
 }
 
-func TestSeatView_WhenTheLiveWallRunsOut_ShouldKeepTheLastDiscard(t *testing.T) {
+func TestSeatView_WhenTheLiveWallRunsOut_ShouldSettleTheLastDiscardIntoItsRiver(t *testing.T) {
 	g, _ := newGame(t, seededBy(t, "ab"), noStart())
-	var lastDiscarder play.Option[tile.Seat]
+	discarded := false
 	for g.Phase() == play.PhasePlaying {
 		for _, s := range awaitedSeats(g) {
 			action, _ := g.DefaultAction(s)
 			var events []play.Emitted
 			g, events = script(t, g, act(s, action))
-			if discards := discardedTiles(events); len(discards) > 0 {
-				lastDiscarder = play.Some(discards[len(discards)-1].seat)
-			}
+			discarded = discarded || len(discardedTiles(events)) > 0
 		}
 	}
 
@@ -245,8 +243,8 @@ func TestSeatView_WhenTheLiveWallRunsOut_ShouldKeepTheLastDiscard(t *testing.T) 
 		t.Errorf("result = %+v, want an exhaustive draw", view.Record.Result)
 	}
 	assertEqual(t, "live tiles", view.Record.LiveTiles, 0)
-	assertEqual(t, "latest discard", view.Record.LatestDiscard, lastDiscarder)
-	assertEqual(t, "a discard happened", lastDiscarder.OK, true)
+	assertEqual(t, "latest discard", view.Record.LatestDiscard, play.Option[tile.Seat]{})
+	assertEqual(t, "a discard happened", discarded, true)
 }
 
 func sliceArrays(v reflect.Value, into map[uintptr]bool) {

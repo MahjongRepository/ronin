@@ -245,6 +245,7 @@ func endRound(r play.SeatRecord, event play.RoundEnded) play.SeatRecord {
 	r.Players = withScores(r.Players, event.Scores)
 	r.RiichiSticks = event.RiichiSticks
 	r.Drawn = play.Option[tile.TileID]{}
+	r.LatestDiscard = play.Option[tile.Seat]{}
 	r.Phase = play.PhaseRoundOver
 	r.Result = CloneResult(event.Result)
 	var riichiSeats []tile.Seat

@@ -63,7 +63,7 @@ func TestRecord_WhenTakenFromAViewBeforeADoubleRon_ShouldFollowItToTheRoundEnd(t
 		t.Errorf("result = %+v, want a double ron", r.Result)
 	}
 	assertEqual(t, "finished rounds", len(r.History), 1)
-	assertEqual(t, "latest discard", r.LatestDiscard, play.Some(seat(t, 2)))
+	assertEqual(t, "latest discard", r.LatestDiscard, play.Option[tile.Seat]{})
 }
 
 func TestFromStart_WhenTheDealerAbortsOnKyuushu_ShouldFollowItsAbort(t *testing.T) {

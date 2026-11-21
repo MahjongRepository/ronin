@@ -53,8 +53,8 @@ type FinishedRound struct {
 // tile it drew, until its discard, call or the round's end; Furiten is what it was last shown.
 // Players is every seat's public table, by seat. RiichiSticks are the sticks on the table, 0 once
 // the game is over. Current is the seat whose turn it is or was last; LatestDiscard the seat whose
-// discard is the table's last action, absent before the first discard, once a meld claimed it and
-// once the next seat drew. Header is the round in play, or the one that ended while the game
+// discard is the table's last action, absent before the first discard, once a meld claimed it,
+// once the next seat drew and once the round ended. Header is the round in play, or the one that ended while the game
 // waits on its end or is over; Result is that round's result in PhaseRoundOver and PhaseGameOver,
 // nil while a round is in play. FirstDealerDice are the two throws that chose the first dealer,
 // and History every finished round in play order, the ended one included.

@@ -447,8 +447,10 @@ func (g Game) SeatView(seat tile.Seat) play.SeatView {
 		drawn = play.Some(turn.Drawn)
 	}
 	var result play.RoundResult
+	latestDiscard := g.round.LatestDiscard()
 	if g.phase != play.PhasePlaying && len(g.history) > 0 {
 		result = g.history[len(g.history)-1].Result
+		latestDiscard = play.Option[tile.Seat]{}
 	}
 
 	var players [tile.SeatCount]play.PublicSeat
@@ -473,7 +475,7 @@ func (g Game) SeatView(seat tile.Seat) play.SeatView {
 		LiveTiles:       g.round.LiveTiles(),
 		RiichiSticks:    g.points.RiichiSticks(),
 		Current:         g.round.Current(),
-		LatestDiscard:   g.round.LatestDiscard(),
+		LatestDiscard:   latestDiscard,
 		Header:          g.header,
 		Result:          result,
 		Phase:           g.phase,
