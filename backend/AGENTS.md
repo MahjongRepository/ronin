@@ -1,77 +1,13 @@
-# Backend (Python / Starlette)
+# Backend
 
-The Python is the lobby (`lobby/`, read its `AGENTS.md` before working there) and its admin CLIs
-(`scripts/`, which import the lobby, never the reverse).
+Two independent projects, each with its own toolchain, checks and `AGENTS.md`:
 
-`game_v2/` is a Go module, the game server: it sits outside the uv project, imports no Python, is
-checked by its own `make` targets rather than the Python tooling, and has its own `AGENTS.md`.
+* `lobby/` — the Python lobby, a uv project.
+* `game_v2/` — the Go game server, a Go module; it imports no Python.
 
-Each process opens the database once, as a `lobby.db.Database` (its docstrings hold the threading and
-drain model): the event loop never touches SQLite directly, and a lifespan closes the database last.
+They share the SQLite database, the game ticket secret (the lobby signs tickets, the game server
+verifies them) and the internal API secret (the lobby's bearer token on the game server's
+credential-returning lookup).
 
-## Boundaries
-
-`import-linter` (`[tool.importlinter]` in `pyproject.toml`, run by `make lint`) is the enforced
-architecture; the contract names say the rule. It checks runtime imports only, so an
-`if TYPE_CHECKING:` import still names a real dependency and must respect the same direction. A `|`
-layer's packages never import each other: they share what both need through the layers below. A new
-package joins a layer in the contract, or gets its own contract, in the same change.
-
-## Tooling
-
-* The uv project lives in `backend/` and imports are rooted there (`from lobby.settings import ...`).
-  Run checks from `backend/` (`cd backend && uv run pytest ...`); run the servers and `bin/` scripts
-  from the repo root with `uv run --project backend ...`, where their relative paths resolve.
-* `conftest.py` loads the repo-root `.env.tests` and routes structlog through stdlib logging so
-  `caplog` sees it.
-* `make test` measures line coverage and gates none of it. Keep `branch` and `fail_under` out of
-  `[tool.coverage]`; branch coverage is advisory (`make coverage-branches`).
-* Besides the built-in `TYPE_CHECKING` and stub exclusions, only a tagged `# pragma: no cover (<tag>)`
-  excludes code from coverage; a bare one excludes nothing. Tags: `exhaustive` (the fallthrough of a
-  `match` or `isinstance` chain over a closed set, or an import-time consistency check between
-  enums), `entrypoint` (a production-only default the tests replace), `platform` (a branch for
-  another OS). A race, a defensive catch-all or a long-running loop gets no exclusion: reach it or
-  restructure it away.
-* The Makefile's `DOCFORMATTER_PATHS` lists the backend's top-level packages (add a new one there),
-  and docformatter rewraps a triple-quoted call argument as a docstring: assign it to a variable first.
-* `make lint` and `make format` run ruff over `bin/` too, under `bin/ruff.toml`; relax it only for what
-  a CLI script needs.
-
-## Configuration
-
-* One pydantic-settings class per concern; the classes are the only list of variables.
-* Deployment-specific values are required fields: `deploy/docker-compose.yml` supplies them in
-  production, `bin/local-settings.sh` locally, and `.env.tests` in tests, where the paths point at
-  `/nonexistent/` so a test that touches them must pass its own `tmp_path`.
-* The lobby's metrics database path is required as well, though the file may be missing: it is the host
-  collector's `metrics.db`, read-only to the lobby (mounted `:ro` in production), and a missing file shows
-  as "never collected" on the monitoring page rather than failing startup.
-* The lobby and the Go game server share the game ticket secret (the lobby signs tickets, the game
-  server verifies them), the internal API secret (the lobby's bearer token on the game server's credential-returning
-  lookup) and the SQLite database.
-
-## Conventions
-
-* Validated data (wire messages, persistence models) is a Pydantic model; extend an existing Pydantic
-  family in kind, and use a `@dataclass` elsewhere unless the data needs validation.
-* Docstrings are imperative ("Calculate...", not "Calculates..."): a one-line summary, then a blank
-  line and parameter/return detail only when the function is not obvious.
-* No module docstrings or file-header comments: what a module must convey goes on its classes and
-  functions.
-
-## Tests
-
-* Tests carry no docstrings (module, class, test or helper): the test name, and the names of its
-  variables, say what it pins; a rename is the way to carry a non-obvious setup.
-* `<subject>` in a test name (root naming rule) is the function, rule or component under test, in
-  snake_case: `matchmaking_queue`, `login_route`, `replay_file_path`. A method in a `Test*`
-  class carries the full name too; the class only groups.
-* Test logic once, at the lowest layer that owns it: unit tests in `lobby/tests/unit/` load no app. Integration tests in `lobby/tests/integration/` cover only the
-  wiring (routing, serialization, auth, error mapping) and never re-check manager or model logic
-  through a socket or HTTP.
-* One error test per mechanism, not per field or route: Pydantic's built-in constraints need none; a
-  custom validator or a raised domain exception gets one.
-* Prefer real I/O against ephemeral resources (`tmp_path`, a temporary SQLite database) over mocks;
-  mock only at process boundaries (sockets, the network).
-* Build test data with the helpers in `lobby/tests/helpers/` and each package's `conftest.py` fixtures,
-  not magic strings.
+`storage.db`, `data/`, `logs/` and `profiles/` here are the local runtime data of both servers
+(gitignored), not source.

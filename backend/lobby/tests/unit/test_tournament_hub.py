@@ -1,4 +1,4 @@
-from lobby.tournaments.hub import HISTORY_MAX_AGE_SECONDS, HISTORY_MAX_ENTRIES, TournamentHub
+from app.tournaments.hub import HISTORY_MAX_AGE_SECONDS, HISTORY_MAX_ENTRIES, TournamentHub
 
 
 def _chat(text):

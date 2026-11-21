@@ -6,7 +6,7 @@ disable-model-invocation: true
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git *), Bash(gh *), Bash(grep *), Bash(rm *), Bash(make run-all-checks), Bash(bash bin/set-version.sh *)
 ---
 
-Choose the release version, set it on `main`, write the release summary and hand both to the `Create Release` workflow (`.github/workflows/create-release.yml`). The workflow never commits to `main`: it refuses a version that differs from `backend/pyproject.toml` on `origin/main`, builds the notes (`bin/release-notes.sh`: the summary, commits grouped by prefix, code stats), fast-forwards `release`, creates the GitHub release and tag, and builds the image (`release.yml`). Between releases `main` stays at the last released version. Deploying stays manual.
+Choose the release version, set it on `main`, write the release summary and hand both to the `Create Release` workflow (`.github/workflows/create-release.yml`). The workflow never commits to `main`: it refuses a version that differs from `backend/lobby/pyproject.toml` on `origin/main`, builds the notes (`bin/release-notes.sh`: the summary, commits grouped by prefix, code stats), fast-forwards `release`, creates the GitHub release and tag, and builds the image (`release.yml`). Between releases `main` stays at the last released version. Deploying stays manual.
 
 Run every step through to the end without asking the user for confirmation; stop only when a check fails.
 
@@ -39,7 +39,7 @@ If any check fails, abort with a clear error message explaining what's wrong and
 ## Step 3: Read the changes for context
 
 1. `git log <tag>..HEAD --format='%s%n%b'` for the commits
-2. `git diff <tag>..HEAD -- '*AGENTS.md' docs/game-rules.md` for the architecture notes and the ruleset; the architecture lives in the nested `AGENTS.md` files (`backend/`, `backend/game_v2/` and its `engine/`, `backend/lobby/` and `rooms/`, `frontend/`, `frontend/lobby/`, `frontend/game_v2/`)
+2. `git diff <tag>..HEAD -- '*AGENTS.md' docs/game-rules.md` for the architecture notes and the ruleset; the architecture lives in the nested `AGENTS.md` files (`backend/`, `backend/game_v2/` and its `engine/`, `backend/lobby/` and `app/rooms/`, `frontend/`, `frontend/lobby/`, `frontend/game_v2/`)
 
 ## Step 4: Choose the version
 
@@ -55,11 +55,11 @@ Then set it on `main`:
 
 ```bash
 bash bin/set-version.sh <version>
-git add backend/pyproject.toml backend/uv.lock
+git add backend/lobby/pyproject.toml backend/lobby/uv.lock
 git commit -m "chore: set version to <version>"
 ```
 
-When `backend/pyproject.toml` is already at that version, the script changes nothing and `git status --porcelain` stays empty: skip the commit.
+When `backend/lobby/pyproject.toml` is already at that version, the script changes nothing and `git status --porcelain` stays empty: skip the commit.
 
 ## Step 5: Write the summary
 

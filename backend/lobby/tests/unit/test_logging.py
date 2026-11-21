@@ -7,7 +7,7 @@ from enum import Enum
 import pytest
 import structlog
 
-from lobby.server.logging import _serialize_enums, setup_logging
+from app.server.logging import _serialize_enums, setup_logging
 
 
 @pytest.fixture(autouse=True)

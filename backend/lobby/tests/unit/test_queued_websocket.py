@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from starlette.websockets import WebSocket
 
-from lobby import queued_websocket
-from lobby.queued_websocket import QueuedWebSocket, accept_websocket, reject_websocket
-from lobby.tests.helpers.fake_websocket import ClosedWith, FakeAsgiClient
+from app import queued_websocket
+from app.queued_websocket import QueuedWebSocket, accept_websocket, reject_websocket
+from tests.helpers.fake_websocket import ClosedWith, FakeAsgiClient
 
 
 async def _open_queued_websocket(client: FakeAsgiClient) -> QueuedWebSocket:

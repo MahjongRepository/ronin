@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from lobby.rooms.messages import (
+from app.rooms.messages import (
     LobbyChatMessage,
     LobbyLeaveRoomMessage,
     LobbySetReadyMessage,

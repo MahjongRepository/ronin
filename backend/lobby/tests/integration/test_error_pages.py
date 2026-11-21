@@ -4,9 +4,9 @@ import pytest
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from lobby.auth.csrf import CSRF_COOKIE_NAME
-from lobby.auth.policy import public_route
-from lobby.tests.integration.conftest import register_with_csrf
+from app.auth.csrf import CSRF_COOKIE_NAME
+from app.auth.policy import public_route
+from tests.integration.conftest import register_with_csrf
 
 _ERROR_META = ("status", "code", "action")
 BROWSER_ACCEPT = {"accept": "text/html,application/xhtml+xml,*/*;q=0.8"}

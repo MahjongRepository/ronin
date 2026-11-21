@@ -54,7 +54,7 @@ WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 
 # Install dependencies first (layer cache — only re-runs when deps change)
-COPY backend/pyproject.toml backend/uv.lock ./
+COPY backend/lobby/pyproject.toml backend/lobby/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # Trim the venv: strip native extensions (~11MB), remove package metadata (~1.2MB),
@@ -106,7 +106,8 @@ RUN addgroup -g 1000 app && adduser -u 1000 -G app -s /bin/sh -D app
 COPY --from=builder /app/.venv /app/.venv
 
 # Copy backend source code.
-COPY backend/ backend/
+COPY backend/lobby/app/ backend/lobby/app/
+COPY backend/lobby/scripts/ backend/lobby/scripts/
 
 COPY --from=lobby-builder /app/frontend/lobby/dist /app/frontend/lobby/dist
 COPY --from=game-v2-builder /app/frontend/game_v2/dist /app/frontend/game_v2/dist
@@ -120,7 +121,7 @@ ARG APP_VERSION=dev
 ARG GIT_COMMIT=unknown
 
 ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONPATH="/app/backend" \
+    PYTHONPATH="/app/backend/lobby" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     APP_VERSION=${APP_VERSION} \

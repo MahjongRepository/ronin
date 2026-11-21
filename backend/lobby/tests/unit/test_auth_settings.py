@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from lobby.auth.settings import AuthSettings
+from app.auth.settings import AuthSettings
 
 
 class TestAuthSettings:

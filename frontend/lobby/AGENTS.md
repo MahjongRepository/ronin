@@ -40,7 +40,7 @@ translated at render time, except chat lines, which keep the language they arriv
 
 `lobby-socket.ts` is the JSON lobby WebSocket. Its close code is the server's cue: `disconnect()`
 closes with 1000, a leave, and a socket `connect()` replaces closes with 4100, so the server holds
-the room seat for the new one (`backend/lobby/rooms/AGENTS.md`).
+the room seat for the new one (`backend/lobby/app/rooms/AGENTS.md`).
 
 The room page reconnects a seated player (backoff in `room/handlers.ts`) and shows the lost
 connection once it gives up. A reconnect takes the held seat

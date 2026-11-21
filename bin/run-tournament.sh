@@ -67,7 +67,7 @@ await_server() {
 
 start_lobby_server() {
     echo "starting lobby server on port $LOBBY_PORT..."
-    (cd "$PROJECT_ROOT" && uv run --project backend uvicorn --factory lobby.server.app:get_app --host 0.0.0.0 \
+    (cd "$PROJECT_ROOT" && uv run --project backend/lobby uvicorn --factory app.server.app:get_app --host 0.0.0.0 \
         --port "$LOBBY_PORT" --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-per-message-deflate false \
         --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size 8192 > "$LOBBY_LOG_DIR/stdout.log" \
         2> "$LOBBY_LOG_DIR/stderr.log") &
@@ -118,7 +118,7 @@ build_bot() {
 register_bots() {
     local output
     local status=0
-    output=$(cd "$PROJECT_ROOT" && uv run --project backend python backend/scripts/register_bot.py "${BOT_NAMES[@]}" \
+    output=$(cd "$PROJECT_ROOT" && uv run --project backend/lobby python backend/lobby/scripts/register_bot.py "${BOT_NAMES[@]}" \
         2>&1) || status=$?
     mapfile -t BOT_KEYS < <(sed -n 's/^API key: //p' <<< "$output")
     if [[ $status -ne 0 || ${#BOT_KEYS[@]} -ne ${#BOT_NAMES[@]} ]]; then
@@ -131,7 +131,7 @@ register_bots() {
 create_tournament() {
     local output
     local status=0
-    output=$(cd "$PROJECT_ROOT" && uv run --project backend python backend/scripts/create_tournament.py \
+    output=$(cd "$PROJECT_ROOT" && uv run --project backend/lobby python backend/lobby/scripts/create_tournament.py \
         "$OWNER_NAME" "$TOURNAMENT_NAME" 2>&1) || status=$?
     OWNER_KEY=$(sed -n 's/^API key: //p' <<< "$output")
     TOURNAMENT_ID=$(sed -n 's/^Tournament id: //p' <<< "$output")
@@ -206,7 +206,7 @@ start_lobby_server
 start_bots
 
 MANAGER_STATUS=0
-(cd "$PROJECT_ROOT" && uv run --project backend python bin/tournament_manager.py \
+(cd "$PROJECT_ROOT" && uv run --project backend/lobby python bin/tournament_manager.py \
     --lobby-url "http://localhost:$LOBBY_PORT" --tournament "$TOURNAMENT_ID" --api-key "$OWNER_KEY" \
     --log "$RUN_LOG_DIR/manager.log" "${BOT_NAMES[@]}") || MANAGER_STATUS=$?
 

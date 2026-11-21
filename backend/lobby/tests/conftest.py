@@ -10,21 +10,54 @@ from unittest.mock import MagicMock
 
 import httpx
 import pytest
+import structlog
+from dotenv import load_dotenv
 from starlette.authentication import AuthCredentials
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocket
 
-from lobby.auth.settings import AuthSettings
-from lobby.players import LobbyPlayer
-from lobby.queued_websocket import QueuedWebSocket
-from lobby.server.app import create_app
-from lobby.settings import LobbyServerSettings
+from app.auth.settings import AuthSettings
+from app.players import LobbyPlayer
+from app.queued_websocket import QueuedWebSocket
+from app.server.app import create_app
+from app.settings import LobbyServerSettings
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterable, Iterator
 
     from starlette.applications import Starlette
     from starlette.types import Message
+
+
+load_dotenv(Path(__file__).resolve().parents[3] / ".env.tests")
+
+
+def _route_structlog_through_stdlib_for_caplog() -> None:
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.UnicodeDecoder(),
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=False,
+    )
+
+
+_route_structlog_through_stdlib_for_caplog()
+
+
+@pytest.fixture(autouse=True)
+def _clear_log_context():
+    structlog.contextvars.clear_contextvars()
+    yield
+    structlog.contextvars.clear_contextvars()
 
 
 _METRICS_SCHEMA = Path(__file__).resolve().parents[3] / "deploy" / "config" / "metrics-schema.sql"

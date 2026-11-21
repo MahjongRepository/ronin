@@ -243,7 +243,7 @@ sequenceDiagram
 
 Nothing starts automatically, and a room stays open while anyone is seated in it. A lost socket
 holds its seat for a while, and the room page reconnects to take it back. Ready, ownership,
-seat-hold and rate-limit rules are in `backend/lobby/rooms/AGENTS.md`.
+seat-hold and rate-limit rules are in `backend/lobby/app/rooms/AGENTS.md`.
 
 ## Matchmaking
 
@@ -321,7 +321,7 @@ game client's exit route (Game client contract). The manager's side of all this 
 
 ## Game start (shared by rooms, matchmaking and tournaments)
 
-`start_game` in `lobby/game_transition.py` is the one handoff.
+`start_game` in `backend/lobby/app/game_transition.py` is the one handoff.
 
 ```mermaid
 sequenceDiagram

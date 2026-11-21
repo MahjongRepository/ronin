@@ -10,12 +10,11 @@ planning work, read every `AGENTS.md` on the path to the code it touches
 
 Ronin is a Riichi Mahjong game server and browser client.
 
-* `backend/` — Python 3.14 / Starlette (the lobby and its admin scripts), its own uv project. See
-  `backend/AGENTS.md`.
-  * `backend/lobby/` — lobby server (auth, rooms, matchmaking, server-rendered pages). See
-    `backend/lobby/AGENTS.md`.
-  * `backend/game_v2/` — the game server (WebSocket, MessagePack; Go): its own Go module, outside
-    the uv project. See `backend/game_v2/AGENTS.md`.
+* `backend/` — the two servers, each its own project with its own toolchain. See `backend/AGENTS.md`.
+  * `backend/lobby/` — the lobby server (Python 3.14 / Starlette: auth, rooms, matchmaking,
+    server-rendered pages) and its admin scripts, a uv project. See `backend/lobby/AGENTS.md`.
+  * `backend/game_v2/` — the game server (WebSocket, MessagePack; Go): its own Go module. See
+    `backend/game_v2/AGENTS.md`.
 * `frontend/` — Vite / npm on Node: two apps, each its own package built separately, sharing source from
   `frontend/shared/`. See `frontend/AGENTS.md`.
   * `frontend/lobby/` — the scripts and styles of the lobby pages (TypeScript / lit-html). See
@@ -92,7 +91,7 @@ The `Makefile` lists the targets; the non-obvious ones:
 
 ## Workflow
 
-* While iterating, run only the tests your change touches (`cd backend && uv run pytest <path> -k <expr>`,
+* While iterating, run only the tests your change touches (`cd backend/lobby && uv run pytest <path> -k <expr>`,
   `cd frontend/<app> && npx vitest run <path>`,
   `cd backend/game_v2 && mise exec -- go test ./<pkg> -run <name>`). Never run `make test` or
   `make run-all-checks` mid-work;

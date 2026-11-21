@@ -4,9 +4,9 @@ import sqlite3
 from contextlib import closing
 from typing import TYPE_CHECKING
 
-from lobby.dal.models import AuthSession
-from lobby.db.connection import Database
-from lobby.db.session_repository import SqliteSessionRepository
+from app.dal.models import AuthSession
+from app.db.connection import Database
+from app.db.session_repository import SqliteSessionRepository
 
 if TYPE_CHECKING:
     from pathlib import Path

@@ -1,10 +1,10 @@
 import pytest
 
-from lobby.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
-from lobby.auth.service import PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH
-from lobby.rate_limit import KeyedRateLimiter
-from lobby.tests.integration.conftest import register_with_csrf
-from lobby.views.auth_handlers import GUEST_LOGIN_REFILL_PER_SECOND
+from app.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
+from app.auth.service import PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH
+from app.rate_limit import KeyedRateLimiter
+from app.views.auth_handlers import GUEST_LOGIN_REFILL_PER_SECOND
+from tests.integration.conftest import register_with_csrf
 
 _CREDENTIALS = {"username": "newuser", "password": "securepass123", "confirm_password": "securepass123"}
 

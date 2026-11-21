@@ -4,10 +4,83 @@ Accounts, rooms, matchmaking, game history and the lobby pages (`:8710`); it als
 the game client and serves replay files, and hands players to a game server with signed game tickets.
 The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` covers room behaviour.
 
+## Project
+
+* The uv project is this directory: the package is `app/` (imports read `from app.settings import ...`),
+  with `tests/` and the admin CLIs in `scripts/` beside it. Scripts import the app, never the reverse.
+  Paths in this file are under `app/` unless they start with `tests/` or `scripts/`. The image ships
+  only `app/` and `scripts/`.
+* Run checks from here (`cd backend/lobby && uv run pytest ...`); run the servers and `bin/` scripts
+  from the repo root with `uv run --project backend/lobby ...`, where their relative paths resolve.
+* Each process opens the database once, as an `app.db.Database` (its docstrings hold the threading and
+  drain model): the event loop never touches SQLite directly, and a lifespan closes the database last.
+
+## Boundaries
+
+`import-linter` (`[tool.importlinter]` in `pyproject.toml`, run by `make lint`) is the enforced
+architecture; the contract names say the rule. It checks runtime imports only, so an
+`if TYPE_CHECKING:` import still names a real dependency and must respect the same direction. A `|`
+layer's packages never import each other: they share what both need through the layers below. A new
+package joins a layer in the contract, or gets its own contract, in the same change.
+
+## Tooling
+
+* `tests/conftest.py` loads the repo-root `.env.tests` and routes structlog through stdlib logging so
+  `caplog` sees it.
+* `make test` measures line coverage of `app/` and gates none of it. Keep `branch` and `fail_under` out of
+  `[tool.coverage]`; branch coverage is advisory (`make coverage-branches`).
+* Besides the built-in `TYPE_CHECKING` and stub exclusions, only a tagged `# pragma: no cover (<tag>)`
+  excludes code from coverage; a bare one excludes nothing. Tags: `exhaustive` (the fallthrough of a
+  `match` or `isinstance` chain over a closed set, or an import-time consistency check between
+  enums), `entrypoint` (a production-only default the tests replace), `platform` (a branch for
+  another OS). A race, a defensive catch-all or a long-running loop gets no exclusion: reach it or
+  restructure it away.
+* The Makefile's `DOCFORMATTER_PATHS` lists the project's top-level packages (add a new one there),
+  and docformatter rewraps a triple-quoted call argument as a docstring: assign it to a variable first.
+* `make lint` and `make format` run ruff over `bin/` too, under `bin/ruff.toml`; relax it only for what
+  a CLI script needs.
+
+## Configuration
+
+* One pydantic-settings class per concern; the classes are the only list of variables.
+* Deployment-specific values are required fields: `deploy/docker-compose.yml` supplies them in
+  production, `bin/local-settings.sh` locally, and `.env.tests` in tests, where the paths point at
+  `/nonexistent/` so a test that touches them must pass its own `tmp_path`.
+* The metrics database path is required as well, though the file may be missing: it is the host
+  collector's `metrics.db`, read-only to the lobby (mounted `:ro` in production), and a missing file shows
+  as "never collected" on the monitoring page rather than failing startup.
+
+## Conventions
+
+* Validated data (wire messages, persistence models) is a Pydantic model; extend an existing Pydantic
+  family in kind, and use a `@dataclass` elsewhere unless the data needs validation.
+* Docstrings are imperative ("Calculate...", not "Calculates..."): a one-line summary, then a blank
+  line and parameter/return detail only when the function is not obvious.
+* No module docstrings or file-header comments: what a module must convey goes on its classes and
+  functions.
+
+## Tests
+
+* Tests build the app through the fixtures in `tests/conftest.py`.
+* Tests carry no docstrings (module, class, test or helper): the test name, and the names of its
+  variables, say what it pins; a rename is the way to carry a non-obvious setup.
+* `<subject>` in a test name (root naming rule) is the function, rule or component under test, in
+  snake_case: `matchmaking_queue`, `login_route`, `replay_file_path`. A method in a `Test*`
+  class carries the full name too; the class only groups.
+* Test logic once, at the lowest layer that owns it: unit tests in `tests/unit/` load no app. Integration tests in `tests/integration/` cover only the
+  wiring (routing, serialization, auth, error mapping) and never re-check manager or model logic
+  through a socket or HTTP.
+* One error test per mechanism, not per field or route: Pydantic's built-in constraints need none; a
+  custom validator or a raised domain exception gets one.
+* Prefer real I/O against ephemeral resources (`tmp_path`, a temporary SQLite database) over mocks;
+  mock only at process boundaries (sockets, the network).
+* Build test data with the helpers in `tests/helpers/` and each package's `conftest.py` fixtures,
+  not magic strings.
+
 ## Structure
 
 * `server/` — the composition root (`create_app()` builds the services onto `app.state`), the
-  middleware, the structlog setup and the build info. `settings.py` sits at the `lobby/` root so every
+  middleware, the structlog setup and the build info. `settings.py` sits at the `app/` root so every
   feature may import it.
 * `auth/` — the account and session service, password hashing, the game ticket signing, the
   session-or-API-key authentication backend, the route policy decorators and CSRF.
@@ -56,7 +129,7 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   geometry and the one page-data assembly that takes the range and returns every chart, the games summary
   and the live game-server counts. `report.py` turns it into one JSON document, plot lines and UTC axis labels
   included, which the monitoring API answers for the lobby app to draw; `scripts/monitoring_report.py` prints the
-  same report for agents without the plot geometry. The lobby never opens `metrics.db` through `lobby.db`
+  same report for agents without the plot geometry. The lobby never opens `metrics.db` through `app.db`
   (which would force WAL and create a schema). Reductions run in SQL, so a long range never loads raw
   samples. A failed metrics read blanks only its own chart; the page still answers 200 with the games
   section. Traefik exports a series only after its first request and drops them all on a restart, so its charts take their state from the newest
@@ -115,7 +188,6 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   the last list and warns once per outage, never once per poll.
 * The one game server is two settings never derived from each other: the internal URL the lobby
   calls and the public WebSocket origin it hands clients.
-* Tests build the app through the fixtures in `tests/conftest.py`.
 
 ## Game start
 

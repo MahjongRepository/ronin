@@ -1,0 +1,52 @@
+import argparse
+import asyncio
+import json
+import logging
+import sys
+from pathlib import Path
+
+import structlog
+
+from app.auth.settings import AuthSettings
+from app.db import Database, SqliteGameRepository
+from app.game_transition import create_game_server_client
+from app.monitoring.page import assemble_monitoring_page
+from app.monitoring.ranges import DEFAULT_MONITORING_RANGE, MonitoringRange
+from app.monitoring.reader import MetricsReader
+from app.monitoring.report import monitoring_report
+from app.settings import LobbyServerSettings
+
+
+async def main() -> None:
+    parser = argparse.ArgumentParser(description="Print the monitoring page's data for a range as one JSON document.")
+    parser.add_argument(
+        "--range", choices=[choice.value for choice in MonitoringRange], default=DEFAULT_MONITORING_RANGE
+    )
+    args = parser.parse_args()
+    selected = MonitoringRange(args.range)
+
+    structlog.configure(
+        wrapper_class=structlog.make_filtering_bound_logger(logging.ERROR),
+        logger_factory=structlog.PrintLoggerFactory(sys.stderr),
+    )
+    settings = LobbyServerSettings()
+    db = Database(AuthSettings().database_path)
+    await db.open()
+    game_server = create_game_server_client(settings.game_server_url)
+
+    try:
+        page = await assemble_monitoring_page(
+            selected,
+            metrics=MetricsReader(Path(settings.metrics_db_path)),
+            game_repo=SqliteGameRepository(db),
+            game_server=game_server,
+        )
+    finally:
+        await game_server.aclose()
+        await db.close()
+
+    print(json.dumps(monitoring_report(page, selected=selected, with_plots=False), indent=2))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

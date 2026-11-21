@@ -4,9 +4,9 @@ import logging
 import pytest
 from markupsafe import Markup
 
-from lobby.i18n import CatalogError, I18nError, Locale, Translator, load_catalogs
-from lobby.i18n.locale import resolve_locale
-from lobby.i18n.translator import plural_category
+from app.i18n import CatalogError, I18nError, Locale, Translator, load_catalogs
+from app.i18n.locale import resolve_locale
+from app.i18n.translator import plural_category
 
 CATALOGS = {
     Locale.EN: {

@@ -11,8 +11,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse
 from starlette.routing import Mount, Route
 
-from lobby.auth.models import AuthenticatedPlayer
-from lobby.auth.policy import (
+from app.auth.models import AuthenticatedPlayer
+from app.auth.policy import (
     admin_html,
     bot_only,
     protected_html,
@@ -20,7 +20,7 @@ from lobby.auth.policy import (
     public_route,
     validate_route_auth_policy,
 )
-from lobby.dal.models import AccountType, Player
+from app.dal.models import AccountType, Player
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable

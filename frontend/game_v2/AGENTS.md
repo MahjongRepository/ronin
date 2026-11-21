@@ -29,7 +29,7 @@ The board's look is `docs/game-client-look.md`; where it and any `AGENTS.md` or 
   `BoardDisplayState` and decides nothing. A new board prop or panel is added to the mappers
   (`tableStateToDisplayState`, `tablePanel`, `playDisplay`, `replayDisplay`), never computed in a view or component.
   Every playable tile is a native button whatever its state.
-* A new route also needs its path in the lobby's game page list (`backend/lobby/server/app.py`), which 404s others.
+* A new route also needs its path in the lobby's game page list (`backend/lobby/app/server/app.py`), which 404s others.
   The replay is a lazy route. Storybook routes, fixtures and styles are development-only and the
   production build rejects their modules, markup and styles, and any replay-only module reachable through an
   entry's static imports. `npm run build:dev` builds storybooks into `dist-dev/` for visual checks;

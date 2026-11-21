@@ -1,5 +1,5 @@
-from lobby.rooms.models import BOT_NAME_PREFIX, LobbyRoom, RoomMember
-from lobby.tests.conftest import make_player
+from app.rooms.models import BOT_NAME_PREFIX, LobbyRoom, RoomMember
+from tests.conftest import make_player
 
 
 def _seat(room: LobbyRoom, seat: int, connection_id: str, *, ready: bool = False) -> RoomMember:

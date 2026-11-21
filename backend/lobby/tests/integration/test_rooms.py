@@ -1,6 +1,6 @@
 import pytest
 
-from lobby.tests.integration.conftest import register_with_csrf
+from tests.integration.conftest import register_with_csrf
 
 
 class TestLobbyEndpoints:

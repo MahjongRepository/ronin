@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from lobby.dal.models import DurationStats, GameEndReason, GamesSummary, PlayedGame, PlayedGameStanding
-from lobby.db.connection import Database
-from lobby.db.game_repository import SqliteGameRepository
+from app.dal.models import DurationStats, GameEndReason, GamesSummary, PlayedGame, PlayedGameStanding
+from app.db.connection import Database
+from app.db.game_repository import SqliteGameRepository
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator

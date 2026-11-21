@@ -12,7 +12,7 @@ from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Route, WebSocketRoute
 from starlette.testclient import TestClient
 
-from lobby.server.middleware import (
+from app.server.middleware import (
     RequestBodyLimitMiddleware,
     SecurityHeadersMiddleware,
     SlashNormalizationMiddleware,
@@ -322,7 +322,7 @@ _INLINE_HANDLER_RE = re.compile(
     re.IGNORECASE,
 )
 
-_TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "views" / "templates"
+_TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "app" / "views" / "templates"
 _SCRIPT_SELF_TEMPLATES = ["layout.html", "base.html", "shell.html"]
 
 

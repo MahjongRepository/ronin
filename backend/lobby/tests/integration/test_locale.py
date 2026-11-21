@@ -1,6 +1,6 @@
 import pytest
 
-from lobby.auth.csrf import CSRF_COOKIE_NAME
+from app.auth.csrf import CSRF_COOKIE_NAME
 
 
 def test_page_locale__when_resolved_from_accept_language__should_vary_on_it_and_the_cookie(client):

@@ -1,0 +1,500 @@
+from __future__ import annotations
+
+import contextlib
+import functools
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, cast
+
+import structlog
+from starlette.applications import Starlette
+from starlette.exceptions import HTTPException
+from starlette.middleware.authentication import AuthenticationMiddleware
+from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.responses import JSONResponse
+from starlette.routing import BaseRoute, Mount, Route, WebSocketRoute
+from starlette.staticfiles import StaticFiles
+
+from app.auth.backend import SessionOrApiKeyBackend
+from app.auth.password import BcryptHasher
+from app.auth.policy import (
+    admin_html,
+    admin_json,
+    api_key_json,
+    bot_only,
+    protected_html,
+    protected_json,
+    public_route,
+    validate_route_auth_policy,
+)
+from app.auth.service import AuthService
+from app.auth.settings import AuthSettings
+from app.db import (
+    Database,
+    SqliteGameRepository,
+    SqlitePlayerRepository,
+    SqliteSessionRepository,
+    SqliteTournamentRepository,
+)
+from app.game_transition import create_game_server_client, fetch_playing_games, is_user_playing
+from app.i18n import Translator, load_catalogs
+from app.live_games.feed import PlayingGamesFeed
+from app.live_games.websocket import playing_games_websocket
+from app.matchmaking.manager import MatchmakingManager
+from app.matchmaking.websocket import matchmaking_websocket
+from app.occupancy import Occupancy
+from app.rate_limit import KeyedRateLimiter
+from app.rooms.manager import LobbyRoomManager
+from app.rooms.websocket import announce_departure, announce_expiry, room_websocket
+from app.server.build_info import APP_VERSION, GIT_COMMIT, RELEASES_URL
+from app.server.logging import setup_logging
+from app.server.middleware import (
+    RequestBodyLimitMiddleware,
+    SecurityHeadersMiddleware,
+    SlashNormalizationMiddleware,
+    with_security_headers,
+)
+from app.settings import LobbyServerSettings
+from app.tournaments.game_end_poller import TournamentGameEndPoller
+from app.tournaments.hub import TournamentHub
+from app.tournaments.websocket import tournament_events_websocket, tournament_websocket
+from app.views import (
+    GAME_V2_ASSETS_PATH,
+    BuiltGameClient,
+    DevGameClient,
+    create_templates,
+    game_session,
+    load_vite_manifest,
+    play_page,
+    replay_content,
+    replay_page,
+    resolve_vite_asset_urls,
+    tenhou_replay,
+)
+from app.views.auth_api_handlers import api_guest_login, api_login, api_register
+from app.views.auth_handlers import GUEST_LOGIN_BURST, GUEST_LOGIN_REFILL_PER_SECOND, logout
+from app.views.bot_api_handlers import bot_create_room
+from app.views.error_pages import http_error_page, server_error_page
+from app.views.legal_handlers import privacy_page, terms_page
+from app.views.lobby_api_handlers import (
+    lobby_create_room,
+    lobby_history,
+    lobby_matchmaking,
+    lobby_room,
+    lobby_rooms,
+    lobby_session,
+)
+from app.views.monitoring_handlers import monitoring_data
+from app.views.settings_handlers import lobby_api_token, lobby_issue_api_token
+from app.views.spa_handlers import spa_shell
+from app.views.tournament_api_handlers import start_tournament_games, tournament_api
+from app.views.tournament_handlers import (
+    game_exit_redirect,
+    lobby_create_tournament,
+    lobby_delete_tournament,
+    lobby_rename_tournament,
+    lobby_tournament,
+    lobby_tournaments,
+)
+
+logger = structlog.get_logger()
+
+_MAX_REQUEST_BODY_SIZE = 4096
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Awaitable, Callable
+
+    import httpx
+    from starlette.requests import Request
+
+
+async def health(_request: Request) -> JSONResponse:
+    return JSONResponse({"status": "ok", "version": APP_VERSION, "commit": GIT_COMMIT})
+
+
+def _create_seating(
+    *,
+    is_playing: Callable[[str], Awaitable[bool]],
+) -> tuple[LobbyRoomManager, MatchmakingManager, Occupancy]:
+    """
+    Build the room and matchmaking managers and the occupancy rule they both enforce.
+    """
+
+    def find_room_conflict(user_id: str, room_id: str) -> str | None:
+        """
+        Apply the occupancy rule built below from the room and queue managers this function is injected into.
+        """
+        return occupancy.find_room_conflict(user_id, room_id)
+
+    def find_queue_conflict(user_id: str) -> str | None:
+        """
+        Apply the occupancy rule built below from the room and queue managers this function is injected into.
+        """
+        return occupancy.find_queue_conflict(user_id)
+
+    room_manager = LobbyRoomManager(
+        find_conflict=find_room_conflict, announce_departure=announce_departure, announce_expiry=announce_expiry
+    )
+    matchmaking_manager = MatchmakingManager(find_conflict=find_queue_conflict)
+    occupancy = Occupancy(
+        find_room=room_manager.find_user_room,
+        is_seat_held=room_manager.is_seat_held,
+        release_held_seat=room_manager.release_held_seat,
+        is_queued=matchmaking_manager.is_queued,
+        is_matched=matchmaking_manager.is_matched,
+        is_playing=is_playing,
+    )
+    return room_manager, matchmaking_manager, occupancy
+
+
+def create_app(  # noqa: PLR0913
+    settings: LobbyServerSettings | None = None,
+    auth_settings: AuthSettings | None = None,  # required in production (via get_app)
+    is_playing: Callable[[str], Awaitable[bool]] | None = None,
+    game_server_transport: httpx.AsyncBaseTransport | None = None,
+    game_client_dev_transport: httpx.AsyncBaseTransport | None = None,
+    *,
+    strict_i18n: bool = APP_VERSION == "dev",
+) -> Starlette:
+    """
+    Build the lobby app.
+
+    ``is_playing`` replaces the game-server lookup of a user already playing, ``game_server_transport`` the network
+    under the game server client, and ``game_client_dev_transport`` the network under the game client's dev-server proxy
+    (tests only). ``strict_i18n`` makes a bad catalog lookup raise instead of falling back to English (development and
+    tests). The game server client is closed in the lifespan, but works without it, so a test that drives a handler
+    directly can still start games.
+    """
+    if settings is None:  # pragma: no cover (entrypoint)
+        settings = LobbyServerSettings()
+
+    if auth_settings is None:  # pragma: no cover (entrypoint)
+        auth_settings = AuthSettings()
+
+    static_dir = Path(settings.static_dir).resolve()
+    assets_dir = Path(settings.assets_dir).resolve()
+    game_client = _create_game_client(settings, dev_transport=game_client_dev_transport)
+    translator = Translator(catalogs=load_catalogs(), strict=strict_i18n)
+
+    game_server = create_game_server_client(settings.game_server_url, transport=game_server_transport)
+    if is_playing is None:
+        is_playing = functools.partial(is_user_playing, game_server=game_server)
+
+    room_manager, matchmaking_manager, occupancy = _create_seating(is_playing=is_playing)
+
+    routes: list[BaseRoute] = [
+        # Protected HTML routes (redirect to login when unauthenticated)
+        Route("/", protected_html(spa_shell), methods=["GET"], name="lobby_page"),
+        Route("/history", protected_html(spa_shell), methods=["GET"], name="history_page"),
+        Route("/play/history/{game_id}", public_route(replay_page), methods=["GET"], name="replay_page"),
+        Route("/play/storybook/sounds", public_route(play_page), methods=["GET"], name="storybook_sounds_page"),
+        Route("/play/storybook/board", public_route(play_page), methods=["GET"], name="storybook_board_page"),
+        Route("/play/storybook/discards", public_route(play_page), methods=["GET"], name="storybook_discards_page"),
+        Route("/play/storybook/hand", public_route(play_page), methods=["GET"], name="storybook_hand_page"),
+        Route("/play/storybook/melds", public_route(play_page), methods=["GET"], name="storybook_melds_page"),
+        Route("/play/storybook/rotate", public_route(play_page), methods=["GET"], name="storybook_rotate_page"),
+        Route("/play/storybook/replay", public_route(play_page), methods=["GET"], name="storybook_replay_page"),
+        Route("/play/storybook/decisions", public_route(play_page), methods=["GET"], name="storybook_decisions_page"),
+        Route("/play/storybook/system", public_route(play_page), methods=["GET"], name="storybook_system_page"),
+        Route("/play/storybook", public_route(play_page), methods=["GET"], name="storybook_page"),
+        Route("/play/{game_id}", protected_html(play_page), methods=["GET"], name="play_page"),
+        Route("/games/{game_id}/exit", protected_html(game_exit_redirect), methods=["GET"], name="game_exit_redirect"),
+        Route("/rooms/{room_id}", protected_html(spa_shell), methods=["GET"], name="room_page"),
+        Route("/matchmaking", protected_html(spa_shell), methods=["GET"], name="matchmaking_page"),
+        Route("/settings", protected_html(spa_shell), methods=["GET"], name="settings_page"),
+        Route("/tournaments", admin_html(spa_shell), methods=["GET"], name="tournaments_page"),
+        Route("/tournaments/{tournament_id}", protected_html(spa_shell), methods=["GET"], name="tournament_page"),
+        Route("/admin/monitoring", admin_html(spa_shell), methods=["GET"], name="monitoring_page"),
+        # WebSocket routes (auth handled inside the handlers)
+        WebSocketRoute("/ws/rooms/{room_id}", room_websocket, name="room_websocket"),
+        WebSocketRoute("/ws/matchmaking", matchmaking_websocket, name="matchmaking_websocket"),
+        WebSocketRoute("/ws/games", playing_games_websocket, name="playing_games_websocket"),
+        WebSocketRoute("/ws/tournaments/{tournament_id}", tournament_websocket, name="tournament_websocket"),
+        WebSocketRoute(
+            "/ws/tournaments/{tournament_id}/events", tournament_events_websocket, name="tournament_events_websocket"
+        ),
+        # Public routes
+        Route("/health", public_route(health), methods=["GET"], name="health"),
+        Route("/login", public_route(spa_shell), methods=["GET"], name="login_page"),
+        Route("/register", public_route(spa_shell), methods=["GET"], name="register_page"),
+        Route("/logout", public_route(logout), methods=["POST"], name="logout"),
+        Route("/terms", public_route(terms_page), methods=["GET"], name="terms_page"),
+        Route("/privacy", public_route(privacy_page), methods=["GET"], name="privacy_page"),
+        Route("/api/rooms", bot_only(bot_create_room), methods=["POST"], name="bot_create_room"),
+        Route("/api/replays/{game_id}", public_route(replay_content), methods=["GET"], name="replay_content"),
+        Route("/api/replays/{game_id}/tenhou.xml", public_route(tenhou_replay), methods=["GET"], name="tenhou_replay"),
+        Route("/api/game-session", protected_json(game_session), methods=["GET"], name="game_session"),
+        Route(
+            "/api/tournaments/{tournament_id}",
+            api_key_json(tournament_api),
+            methods=["GET"],
+            name="tournament_api",
+        ),
+        Route(
+            "/api/tournaments/{tournament_id}/games",
+            api_key_json(start_tournament_games),
+            methods=["POST"],
+            name="start_tournament_games",
+        ),
+        Route("/api/lobby/session", public_route(lobby_session), methods=["GET"], name="lobby_session"),
+        Route("/api/lobby/rooms", protected_json(lobby_rooms), methods=["GET"], name="lobby_rooms"),
+        Route("/api/lobby/rooms", protected_json(lobby_create_room), methods=["POST"], name="lobby_create_room"),
+        Route("/api/lobby/rooms/{room_id}", protected_json(lobby_room), methods=["GET"], name="lobby_room"),
+        Route("/api/lobby/matchmaking", protected_json(lobby_matchmaking), methods=["GET"], name="lobby_matchmaking"),
+        Route("/api/lobby/history", protected_json(lobby_history), methods=["GET"], name="lobby_history"),
+        Route("/api/lobby/monitoring", admin_json(monitoring_data), methods=["GET"], name="lobby_monitoring"),
+        Route("/api/lobby/tournaments", admin_json(lobby_tournaments), methods=["GET"], name="lobby_tournaments"),
+        Route(
+            "/api/lobby/tournaments",
+            admin_json(lobby_create_tournament),
+            methods=["POST"],
+            name="lobby_create_tournament",
+        ),
+        Route(
+            "/api/lobby/tournaments/{tournament_id}",
+            protected_json(lobby_tournament),
+            methods=["GET"],
+            name="lobby_tournament",
+        ),
+        Route(
+            "/api/lobby/tournaments/{tournament_id}/rename",
+            protected_json(lobby_rename_tournament),
+            methods=["POST"],
+            name="lobby_rename_tournament",
+        ),
+        Route(
+            "/api/lobby/tournaments/{tournament_id}/delete",
+            protected_json(lobby_delete_tournament),
+            methods=["POST"],
+            name="lobby_delete_tournament",
+        ),
+        Route("/api/lobby/api-token", protected_json(lobby_api_token), methods=["GET"], name="lobby_api_token"),
+        Route(
+            "/api/lobby/api-token",
+            protected_json(lobby_issue_api_token),
+            methods=["POST"],
+            name="lobby_issue_api_token",
+        ),
+        Route("/api/lobby/auth/login", public_route(api_login), methods=["POST"], name="api_login"),
+        Route("/api/lobby/auth/register", public_route(api_register), methods=["POST"], name="api_register"),
+        Route("/api/lobby/auth/guest", public_route(api_guest_login), methods=["POST"], name="api_guest_login"),
+    ]
+
+    if APP_VERSION == "dev":
+        routes.append(
+            Route("/storybook", public_route(spa_shell), methods=["GET"], name="lobby_storybook_page"),
+        )
+
+    if static_dir.is_dir():
+        routes.append(Mount("/static", app=StaticFiles(directory=str(static_dir)), name="static"))
+
+    if assets_dir.is_dir():
+        routes.append(Mount("/lobby-assets", app=StaticFiles(directory=str(assets_dir)), name="lobby_assets"))
+    else:
+        logger.warning("lobby assets directory not found, /lobby-assets/ will not be served", path=str(assets_dir))
+
+    routes.extend(_game_client_routes(game_client))
+
+    validate_route_auth_policy(routes)
+
+    # Initialize database and auth components
+    db = Database(auth_settings.database_path)
+
+    player_repo = SqlitePlayerRepository(db)
+    game_repo = SqliteGameRepository(db)
+
+    session_repo = SqliteSessionRepository(db)
+    tournament_repo = SqliteTournamentRepository(db)
+    hasher = BcryptHasher(rounds=auth_settings.bcrypt_rounds)
+    auth_service = AuthService(player_repo, session_repo, password_hasher=hasher)
+
+    app = Starlette(
+        routes=routes,
+        lifespan=_build_lifespan(db=db, room_manager=room_manager, game_server=game_server),
+        exception_handlers={
+            HTTPException: http_error_page,
+            Exception: with_security_headers(server_error_page, vite_dev_url=settings.vite_dev_url),
+        },
+    )
+    _add_middleware(app, settings=settings, auth_service=auth_service)
+
+    app.state.game_client = game_client
+    app.state.translator = translator
+    app.state.guest_login_limiter = KeyedRateLimiter(rate=GUEST_LOGIN_REFILL_PER_SECOND, burst=GUEST_LOGIN_BURST)
+    _attach_state(
+        app,
+        settings=settings,
+        game_server=game_server,
+        auth_settings=auth_settings,
+        game_repo=game_repo,
+        tournament_repo=tournament_repo,
+        auth_service=auth_service,
+        room_manager=room_manager,
+        matchmaking_manager=matchmaking_manager,
+        occupancy=occupancy,
+    )
+
+    logger.info("lobby server ready")
+    return app
+
+
+def _build_lifespan(
+    *, db: Database, room_manager: LobbyRoomManager, game_server: httpx.AsyncClient
+) -> Callable[[Starlette], contextlib.AbstractAsyncContextManager[None]]:
+    """
+    Build the lifespan that opens the database and runs the background tasks, stopping them in reverse order.
+    """
+
+    @contextlib.asynccontextmanager
+    async def lifespan(lifespan_app: Starlette) -> AsyncGenerator[None]:
+        try:
+            await db.open()
+            room_manager.start_reaper()
+            await lifespan_app.state.tournament_game_end_poller.start()
+            lifespan_app.state.playing_games_feed.start()
+            yield
+        finally:
+            await lifespan_app.state.playing_games_feed.stop()
+            await lifespan_app.state.tournament_game_end_poller.stop()
+            await room_manager.stop_reaper()
+            await game_server.aclose()
+            await db.close()
+
+    return lifespan
+
+
+def _add_middleware(app: Starlette, *, settings: LobbyServerSettings, auth_service: AuthService) -> None:
+    """
+    Add the middleware stack, innermost first.
+
+    The body limit wraps everything that can read a body, so it sees every exception a body read raises, and sits inside
+    the security headers, so its 413 carries them.
+    """
+    app.add_middleware(SlashNormalizationMiddleware)
+    app.add_middleware(AuthenticationMiddleware, backend=SessionOrApiKeyBackend(auth_service))
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type", "X-API-Key"],
+    )
+    app.add_middleware(RequestBodyLimitMiddleware, max_body_size=_MAX_REQUEST_BODY_SIZE)
+    app.add_middleware(SecurityHeadersMiddleware, vite_dev_url=settings.vite_dev_url)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
+
+
+def _attach_state(  # noqa: PLR0913
+    app: Starlette,
+    *,
+    settings: LobbyServerSettings,
+    game_server: httpx.AsyncClient,
+    auth_settings: AuthSettings,
+    game_repo: SqliteGameRepository,
+    tournament_repo: SqliteTournamentRepository,
+    auth_service: AuthService,
+    room_manager: LobbyRoomManager,
+    matchmaking_manager: MatchmakingManager,
+    occupancy: Occupancy,
+) -> None:
+    app.state.game_repo = game_repo
+    app.state.tournament_repo = tournament_repo
+    app.state.tournament_hub = TournamentHub()
+    app.state.tournament_game_end_poller = TournamentGameEndPoller(
+        tournament_repo=tournament_repo,
+        game_repo=game_repo,
+        hub=app.state.tournament_hub,
+        interval_seconds=settings.tournament_game_poll_interval,
+    )
+    app.state.playing_games_feed = PlayingGamesFeed(
+        fetch=functools.partial(fetch_playing_games, settings=settings, game_server=game_server),
+        interval_seconds=settings.playing_games_poll_interval,
+    )
+    app.state.settings = settings
+    app.state.game_server = game_server
+    app.state.auth_settings = auth_settings
+
+    templates = create_templates()
+    env_globals = cast("dict[str, object]", templates.env.globals)
+    dev_mode = APP_VERSION == "dev"
+    vite_dev_url = settings.vite_dev_url
+
+    if vite_dev_url:
+        # Vite dev server: templates load assets from Vite for HMR.
+        # CSS URLs point to SCSS source files — Vite compiles and serves them as CSS.
+        # JS URLs point to TS entry points — Vite serves them as ES modules.
+        env_globals["vite_dev"] = True
+        env_globals["vite_dev_url"] = vite_dev_url
+
+        env_globals["lobby_css_url"] = f"{vite_dev_url}/src/styles/lobby-app.scss"
+        env_globals["lobby_js_url"] = f"{vite_dev_url}/src/index.ts"
+    else:
+        # Production (or standalone dev without Vite): read Vite manifest
+        env_globals["vite_dev"] = False
+        env_globals["vite_dev_url"] = ""
+
+        manifest = load_vite_manifest(settings.assets_dir)
+        urls = resolve_vite_asset_urls(manifest)
+
+        env_globals["lobby_css_url"] = urls.get("lobby_css", "")
+        env_globals["lobby_js_url"] = urls.get("lobby_js", "")
+
+    env_globals["app_version"] = APP_VERSION
+    env_globals["release_url"] = "" if dev_mode else f"{RELEASES_URL}/{APP_VERSION}"
+    env_globals["git_commit"] = GIT_COMMIT
+    env_globals["current_year"] = datetime.now(tz=UTC).year
+    env_globals["dev_mode"] = dev_mode
+
+    app.state.templates = templates
+    app.state.dev_mode = dev_mode
+    app.state.auth_service = auth_service
+    app.state.room_manager = room_manager
+    app.state.matchmaking_manager = matchmaking_manager
+    app.state.occupancy = occupancy
+
+
+def _create_game_client(
+    settings: LobbyServerSettings,
+    *,
+    dev_transport: httpx.AsyncBaseTransport | None,
+) -> BuiltGameClient | DevGameClient:
+    if settings.game_client_v2_dev_url:
+        return DevGameClient(
+            origin=settings.game_client_v2_dev_url, assets_path=GAME_V2_ASSETS_PATH, transport=dev_transport
+        )
+
+    return BuiltGameClient(directory=Path(settings.game_client_v2_dir).resolve(), assets_path=GAME_V2_ASSETS_PATH)
+
+
+def _game_client_routes(game_client: BuiltGameClient | DevGameClient) -> list[BaseRoute]:
+    """
+    Serve a game client's files under its assets path: proxied to its dev server, or from its build.
+    """
+    if isinstance(game_client, DevGameClient):
+        return [
+            Route(
+                f"{game_client.assets_path}/{{path:path}}",
+                public_route(game_client.serve_asset),
+                methods=["GET"],
+                name="game_assets",
+            ),
+        ]
+
+    if not game_client.directory.is_dir():
+        logger.warning(
+            "game client directory not found, the game client will not be served",
+            path=str(game_client.directory),
+        )
+        return []
+
+    return [Mount(game_client.assets_path, app=StaticFiles(directory=str(game_client.directory)), name="game_assets")]
+
+
+def get_app() -> Starlette:  # pragma: no cover (entrypoint)
+    """
+    Factory function for uvicorn --factory app.server.app:get_app.
+    """
+    s = LobbyServerSettings()
+    auth = AuthSettings()
+    setup_logging(log_dir=s.log_dir)
+    return create_app(settings=s, auth_settings=auth)

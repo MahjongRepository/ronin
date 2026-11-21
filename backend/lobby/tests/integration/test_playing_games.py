@@ -3,7 +3,7 @@ import logging
 import httpx
 import pytest
 
-from lobby.tests.integration.conftest import login_with_csrf, register_with_csrf
+from tests.integration.conftest import login_with_csrf, register_with_csrf
 
 
 def _game(game_id, players):

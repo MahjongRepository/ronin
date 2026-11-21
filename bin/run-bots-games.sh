@@ -377,7 +377,7 @@ verify_games() {
     local new_ids
     new_ids=$(comm -13 <(sed '/^$/d' <<< "$VERIFIED_GAMES") <(echo "$game_ids"))
     # shellcheck disable=SC2086
-    (cd "$PROJECT_ROOT" && uv run --project backend python bin/verify_games.py "$GO_BUILD_DIR/verify" $new_ids) || return 1
+    (cd "$PROJECT_ROOT" && uv run --project backend/lobby python bin/verify_games.py "$GO_BUILD_DIR/verify" $new_ids) || return 1
     VERIFIED_GAMES="$game_ids"
 }
 
@@ -483,7 +483,7 @@ register_bots() {
 
     local output
     local status=0
-    output=$(cd "$PROJECT_ROOT" && uv run --project backend python backend/scripts/register_bot.py "${names[@]}" 2>&1) ||
+    output=$(cd "$PROJECT_ROOT" && uv run --project backend/lobby python backend/lobby/scripts/register_bot.py "${names[@]}" 2>&1) ||
         status=$?
     mapfile -t BOT_KEYS < <(sed -n 's/^API key: //p' <<< "$output")
     if [[ $status -ne 0 || ${#BOT_KEYS[@]} -ne ${#names[@]} ]]; then
@@ -691,7 +691,7 @@ else
     free_port "$GAME_PORT"
     start_go_game_server
 fi
-start_server "lobby" "lobby.server.app:get_app" "$LOBBY_PORT" 8192 "$LOBBY_LOG_DIR" uv run --project backend uvicorn
+start_server "lobby" "app.server.app:get_app" "$LOBBY_PORT" 8192 "$LOBBY_LOG_DIR" uv run --project backend/lobby uvicorn
 if [[ $NET == bad ]]; then
     echo ""
     bad_net_usage

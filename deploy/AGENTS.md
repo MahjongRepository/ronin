@@ -81,7 +81,7 @@ runbook for a new server and lists the targets.
   (`setup-monitoring`: the checksum-pinned release binary, never the `.deb`, which enables a daemon);
   `spot-monitoring` re-applies binary, config, script and units. `spot-deploy` never touches it.
 * **Agents read metrics through two read-only tasks.** `metrics-report` runs
-  `backend/scripts/monitoring_report.py` in the lobby container, the page's own assembly, so its JSON
+  `backend/lobby/scripts/monitoring_report.py` in the lobby container, the page's own assembly, so its JSON
   is the monitoring page's report without the plot geometry; `metrics-sql` runs `sqlite3 -readonly` on the host, so it works when
   the lobby is down. Both are block scripts, so spot echoes `/bin/sh -c <file>`, which the make
   targets drop with spot's `[host] > ` prefix to print bare JSON; their recipes run under bash

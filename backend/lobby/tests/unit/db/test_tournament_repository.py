@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from lobby.dal.models import GameEndReason, Tournament, TournamentGame, TournamentGameCounts
-from lobby.db.connection import Database
-from lobby.db.tournament_repository import SqliteTournamentRepository
+from app.dal.models import GameEndReason, Tournament, TournamentGame, TournamentGameCounts
+from app.db.connection import Database
+from app.db.tournament_repository import SqliteTournamentRepository
 
 if TYPE_CHECKING:
     from pathlib import Path

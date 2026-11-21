@@ -5,11 +5,11 @@ import httpx
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
-from lobby.auth.game_ticket import verify_game_ticket
-from lobby.auth.models import AuthenticatedPlayer
-from lobby.matchmaking.websocket import matchmaking_websocket
-from lobby.tests.conftest import AsgiPeer, HeldLookup, make_websocket
-from lobby.tests.integration.conftest import register_with_csrf
+from app.auth.game_ticket import verify_game_ticket
+from app.auth.models import AuthenticatedPlayer
+from app.matchmaking.websocket import matchmaking_websocket
+from tests.conftest import AsgiPeer, HeldLookup, make_websocket
+from tests.integration.conftest import register_with_csrf
 
 
 def _time_out_after_the_game_server_got_the_request(request: httpx.Request) -> httpx.Response:

@@ -37,7 +37,7 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          VERSION=$(grep '^version' backend/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          VERSION=$(grep '^version' backend/lobby/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"

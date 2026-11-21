@@ -6,7 +6,7 @@ cmd/verify binary) must run its replay through the Go engine to the outcomes the
 fails or no game id is given. Reads the replay directory and database path from GAME_REPLAY_DIR and
 AUTH_DATABASE_PATH (the environment `bin/local-settings.sh` exports).
 
-Usage: uv run --project backend python bin/verify_games.py <verify binary> <game_id>...
+Usage: uv run --project backend/lobby python bin/verify_games.py <verify binary> <game_id>...
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
-from lobby.dal.models import GameEndReason
+from app.dal.models import GameEndReason
 
 VERIFY_FAILED = 1
 OK_PREFIX = "ok      "

@@ -8,7 +8,7 @@ and read the snapshot. Every API response and every event goes to the log. Exits
 ``game_ended`` seats do not hold the table in submitted turn order (each player one engine seat after the one before;
 the event names no dealer, so which seat is East is not checked), the snapshot read fails, or a deadline passes.
 
-Usage: uv run --project backend python bin/tournament_manager.py --lobby-url URL --tournament ID --api-key KEY
+Usage: uv run --project backend/lobby python bin/tournament_manager.py --lobby-url URL --tournament ID --api-key KEY
     --log PATH <player>...
 """
 

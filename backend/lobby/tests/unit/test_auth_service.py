@@ -10,10 +10,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from lobby.auth.password import BcryptHasher
-from lobby.auth.service import GUEST_SESSION_IDLE_SECONDS, AuthError, AuthService
-from lobby.dal.models import AccountType, AuthSession, Player
-from lobby.db import Database, SqlitePlayerRepository, SqliteSessionRepository
+from app.auth.password import BcryptHasher
+from app.auth.service import GUEST_SESSION_IDLE_SECONDS, AuthError, AuthService
+from app.dal.models import AccountType, AuthSession, Player
+from app.db import Database, SqlitePlayerRepository, SqliteSessionRepository
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -257,7 +257,7 @@ class TestLoginAsGuest:
         self, auth_service, session_repo, monkeypatch
     ):
         expired_name, *live_names = guest_names = ("Nanashi-1001", "Nanashi-1002", "Nanashi-1003")
-        monkeypatch.setattr("lobby.auth.service.GUEST_NAMES", guest_names)
+        monkeypatch.setattr("app.auth.service.GUEST_NAMES", guest_names)
         live_until = time.time() + GUEST_SESSION_IDLE_SECONDS
         for name, expires_at in [(expired_name, 1.0), *((name, live_until) for name in live_names)]:
             holder = AuthSession(
@@ -294,7 +294,7 @@ class TestValidateSession:
         self, auth_service
     ):
         await auth_service.register("alice", "password123")
-        with patch("lobby.auth.service.time") as mock_time:
+        with patch("app.auth.service.time") as mock_time:
             mock_time.time.return_value = LOGIN_TIME
             _, token = await auth_service.login("alice", "password123")
 
@@ -311,7 +311,7 @@ class TestValidateSession:
         self, auth_service
     ):
         await auth_service.register("alice", "password123")
-        with patch("lobby.auth.service.time") as mock_time:
+        with patch("app.auth.service.time") as mock_time:
             mock_time.time.return_value = LOGIN_TIME
             _, token = await auth_service.login("alice", "password123")
 
@@ -328,7 +328,7 @@ class TestValidateSession:
     async def test_auth_service_validate_session__when_guest_idle_7_days_after_use__should_return_none(
         self, auth_service
     ):
-        with patch("lobby.auth.service.time") as mock_time:
+        with patch("app.auth.service.time") as mock_time:
             mock_time.time.return_value = LOGIN_TIME
             _, token = await auth_service.login_as_guest()
 

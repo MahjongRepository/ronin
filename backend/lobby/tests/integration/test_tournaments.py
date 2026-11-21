@@ -7,8 +7,8 @@ import httpx
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
-from lobby.dal.models import GameEndReason, PlayedGame, PlayedGameStanding, TournamentGame
-from lobby.tests.integration.conftest import (
+from app.dal.models import GameEndReason, PlayedGame, PlayedGameStanding, TournamentGame
+from tests.integration.conftest import (
     create_tournament,
     grant_admin,
     issue_api_token,

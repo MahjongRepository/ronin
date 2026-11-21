@@ -5,7 +5,7 @@ import sqlite3
 from contextlib import closing
 from typing import TYPE_CHECKING
 
-from lobby.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
+from app.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 
 if TYPE_CHECKING:
     import httpx2

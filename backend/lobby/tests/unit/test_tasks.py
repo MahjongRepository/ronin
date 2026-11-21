@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from lobby.tasks import cancel_and_wait
+from app.tasks import cancel_and_wait
 
 if TYPE_CHECKING:
     import pytest

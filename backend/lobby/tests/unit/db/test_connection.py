@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from lobby.db.connection import Database
+from app.db.connection import Database
 
 if TYPE_CHECKING:
     from pathlib import Path

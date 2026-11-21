@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from lobby.replay_storage import replay_file_path
+from app.replay_storage import replay_file_path
 
 
 class TestReplayFilePath:

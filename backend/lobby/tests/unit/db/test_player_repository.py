@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from lobby.dal.models import AccountType, Player
-from lobby.db.connection import Database
-from lobby.db.player_repository import SqlitePlayerRepository
+from app.dal.models import AccountType, Player
+from app.db.connection import Database
+from app.db.player_repository import SqlitePlayerRepository
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator

@@ -4,12 +4,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from lobby.matchmaking.manager import MatchmakingManager, QueuePlace
-from lobby.matchmaking.models import MATCHMAKING_SEATS
-from lobby.tests.conftest import make_player
+from app.matchmaking.manager import MatchmakingManager, QueuePlace
+from app.matchmaking.models import MATCHMAKING_SEATS
+from tests.conftest import make_player
 
 if TYPE_CHECKING:
-    from lobby.players import LobbyPlayer
+    from app.players import LobbyPlayer
 
 
 def _make_entry(user_id: str = "u1", username: str = "alice", connection_id: str = "c1") -> LobbyPlayer:

@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from lobby.auth.game_ticket import (
+from app.auth.game_ticket import (
     TICKET_TTL_SECONDS,
     GameTicket,
     sign_game_ticket,

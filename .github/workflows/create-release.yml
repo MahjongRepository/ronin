@@ -63,7 +63,7 @@ jobs:
           [[ "$(printf '%s\n%s\n' "$latest" "$VERSION" | sort -V | tail -1)" == "$VERSION" ]] \
             || fail "Version $VERSION is lower than the latest release $latest"
           [[ -n "$(git log "$latest..HEAD" --oneline)" ]] || fail "No commits since $latest"
-          current=$(sed -n 's/^version = "\(.*\)"$/\1/p' backend/pyproject.toml)
+          current=$(sed -n 's/^version = "\(.*\)"$/\1/p' backend/lobby/pyproject.toml)
           [[ "$current" == "$VERSION" ]] || fail "main is at $current, not $VERSION: set the version on main first"
           echo "latest=$latest" >> "$GITHUB_OUTPUT"
 

@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from lobby.tests.conftest import create_metrics_db, insert_metric_rows
-from lobby.tests.integration.conftest import grant_admin, register_with_csrf
+from tests.conftest import create_metrics_db, insert_metric_rows
+from tests.integration.conftest import grant_admin, register_with_csrf
 
 GIB = 2**30
 MIB = 2**20

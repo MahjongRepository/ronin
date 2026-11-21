@@ -6,7 +6,7 @@ import pytest
 from starlette.datastructures import FormData
 from starlette.requests import Request
 
-from lobby.auth.csrf import (
+from app.auth.csrf import (
     CSRF_COOKIE_NAME,
     CSRF_FORM_FIELD,
     CSRF_HEADER_NAME,

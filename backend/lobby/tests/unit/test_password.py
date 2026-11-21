@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from lobby.auth.password import BcryptHasher
+from app.auth.password import BcryptHasher
 
 
 class TestBcryptHasher:

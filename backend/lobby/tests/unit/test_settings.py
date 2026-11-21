@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from lobby.settings import LobbyServerSettings, parse_string_list
+from app.settings import LobbyServerSettings, parse_string_list
 
 
 class TestLobbyServerSettings:

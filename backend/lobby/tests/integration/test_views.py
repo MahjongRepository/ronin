@@ -10,10 +10,10 @@ from starlette.applications import Starlette
 from starlette.responses import HTMLResponse, PlainTextResponse
 from starlette.routing import Route
 
-from lobby.auth.csrf import CSRF_COOKIE_NAME
-from lobby.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
-from lobby.tests.conftest import open_client
-from lobby.tests.integration.conftest import grant_admin, register_with_csrf, session_user_id
+from app.auth.csrf import CSRF_COOKIE_NAME
+from app.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
+from tests.conftest import open_client
+from tests.integration.conftest import grant_admin, register_with_csrf, session_user_id
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -53,7 +53,7 @@ def _create_game_client_build(game_client_dir, *, index, script_name, script):
 
 @pytest.fixture
 def app(make_app, tmp_path, monkeypatch):
-    monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
+    monkeypatch.setattr("app.server.app.APP_VERSION", "dev")
     assets_dir = tmp_path / "lobby-dist"
     game_client_v2_dir = tmp_path / "game-v2-dist"
     _create_lobby_assets(assets_dir)
@@ -172,7 +172,7 @@ def test_legal_page__when_production__should_hand_the_chrome_the_release_and_no_
     make_app: Callable[..., Starlette],
     monkeypatch: pytest.MonkeyPatch,
 ):
-    monkeypatch.setattr("lobby.server.app.APP_VERSION", "1.0.0")
+    monkeypatch.setattr("app.server.app.APP_VERSION", "1.0.0")
     with open_client(make_app()) as client:
         response = client.get("/terms")
         assert response.status_code == 200
@@ -190,7 +190,7 @@ def test_storybook_page__when_production__should_return_not_found(
     monkeypatch: pytest.MonkeyPatch,
     path: str,
 ):
-    monkeypatch.setattr("lobby.server.app.APP_VERSION", "1.0.0")
+    monkeypatch.setattr("app.server.app.APP_VERSION", "1.0.0")
     with open_client(make_app()) as client:
         response = client.get(path)
         assert response.status_code == 404
@@ -229,7 +229,7 @@ def _refuse_connection(request):
 class TestViteDevMode:
     @pytest.fixture
     def app(self, make_app, monkeypatch):
-        monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
+        monkeypatch.setattr("app.server.app.APP_VERSION", "dev")
         return make_app(
             vite_dev_url="http://localhost:5173",
             game_client_v2_dev_url="http://localhost:5175",

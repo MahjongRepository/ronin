@@ -13,9 +13,8 @@ __pycache__
 .coverage
 backend/logs
 backend/storage.db*
-backend/backend/
 
-backend/debug.py
+backend/lobby/debug.py
 backend/profiles/
 
 deploy/assets/

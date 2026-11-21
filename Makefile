@@ -1,36 +1,36 @@
 export PATH := $(shell mise bin-paths node go golangci-lint 2>/dev/null | tr '\n' ':')$(PATH)
 
-BE_RUN := uv run --project backend
+BE_RUN := uv run --project backend/lobby
 
-DOCFORMATTER_PATHS := conftest.py lobby scripts
+DOCFORMATTER_PATHS := app scripts tests
 
 FRONTEND_APPS := lobby game_v2
 
 .PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend format-go lint-go test-go vuln-go run-all-checks run-games run-tournament generate-fixtures fixtures-check profile profile-compare update-pgo profile-games measure-wall run-game-v2-docker stop-game-v2-docker
 
 test:
-	cd backend && uv run pytest -v --cov --cov-report=
+	cd backend/lobby && uv run pytest -v --cov --cov-report=
 
 coverage-branches:
-	cd backend && uv run pytest --cov --cov-branch --cov-report=term-missing:skip-covered
+	cd backend/lobby && uv run pytest --cov --cov-branch --cov-report=term-missing:skip-covered
 
 run-local-server:
 	@DOCKER=$(DOCKER) bash ./bin/run-local-server.sh
 
 lint:
-	cd backend && uv run docformatter --check --diff $(DOCFORMATTER_PATHS)
-	cd backend && uv run ruff format --check . ../bin
-	cd backend && uv run ruff check . ../bin
-	cd backend && uv run lint-imports
+	cd backend/lobby && uv run docformatter --check --diff $(DOCFORMATTER_PATHS)
+	cd backend/lobby && uv run ruff format --check . ../../bin
+	cd backend/lobby && uv run ruff check . ../../bin
+	cd backend/lobby && uv run lint-imports
 	$(BE_RUN) python bin/check_i18n.py
 
 format:
-	cd backend && (uv run docformatter --in-place $(DOCFORMATTER_PATHS) ; rc=$$?; [ $$rc -eq 0 ] || [ $$rc -eq 3 ])
-	cd backend && uv run ruff check --fix . ../bin
-	cd backend && uv run ruff format . ../bin
+	cd backend/lobby && (uv run docformatter --in-place $(DOCFORMATTER_PATHS) ; rc=$$?; [ $$rc -eq 0 ] || [ $$rc -eq 3 ])
+	cd backend/lobby && uv run ruff check --fix . ../../bin
+	cd backend/lobby && uv run ruff format . ../../bin
 
 typecheck:
-	cd backend && uv run ty check
+	cd backend/lobby && uv run ty check
 
 install-frontend:
 	for app in $(FRONTEND_APPS); do (cd frontend/$$app && npm ci) || exit 1; done
@@ -62,7 +62,7 @@ vuln-go:
 	cd backend/game_v2 && go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
 
 run-debug:
-	$(BE_RUN) python backend/debug.py
+	$(BE_RUN) python backend/lobby/debug.py
 
 run-all-checks:
 	@bash ./bin/run-all-checks.sh|| true
@@ -98,7 +98,7 @@ measure-wall:
 
 GAME_V2_COMPOSE = set -a && . ./.env.local && set +a && \
 	GO_VERSION=$$(sed -n 's/^go = "\(.*\)"$$/\1/p' mise.toml) \
-	APP_VERSION=$$(sed -n 's/^version = "\(.*\)"$$/\1/p' backend/pyproject.toml) \
+	APP_VERSION=$$(sed -n 's/^version = "\(.*\)"$$/\1/p' backend/lobby/pyproject.toml) \
 	GIT_COMMIT=$$(git rev-parse --short=7 HEAD) \
 	GAME_V2_UID=$$(id -u) GAME_V2_GID=$$(id -g) \
 	docker compose -f backend/game_v2/docker-compose.local.yml

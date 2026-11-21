@@ -1,0 +1,41 @@
+import asyncio
+import sys
+
+from app.auth.password import BcryptHasher
+from app.auth.service import AuthError, AuthService
+from app.auth.settings import AuthSettings
+from app.db import Database, SqlitePlayerRepository, SqliteSessionRepository
+
+
+async def main() -> None:
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <bot_name>...")
+        sys.exit(1)
+
+    auth_settings = AuthSettings()
+
+    db = Database(auth_settings.database_path)
+    await db.open()
+
+    try:
+        player_repo = SqlitePlayerRepository(db)
+        auth_service = AuthService(
+            player_repo,
+            SqliteSessionRepository(db),
+            password_hasher=BcryptHasher(rounds=auth_settings.bcrypt_rounds),
+        )
+        for bot_name in sys.argv[1:]:
+            player, raw_api_key = await auth_service.issue_bot_api_key(bot_name)
+            print(f"Bot key issued: {player.username} (id: {player.user_id})")
+            print(f"API key: {raw_api_key}")
+    except AuthError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    finally:
+        await db.close()
+
+    print("Save these keys securely - they cannot be retrieved again, and each replaces the bot's previous key.")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

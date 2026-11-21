@@ -259,7 +259,7 @@ tasks:
     commands:
       - name: print the monitoring page data as JSON
         script: |
-          cd /opt/ronin && docker compose exec -T lobby python backend/scripts/monitoring_report.py --range "${RANGE:-24h}"
+          cd /opt/ronin && docker compose exec -T lobby python backend/lobby/scripts/monitoring_report.py --range "${RANGE:-24h}"
 
   - name: metrics-sql
     commands:

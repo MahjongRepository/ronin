@@ -3,9 +3,9 @@ from datetime import UTC, datetime
 
 import pytest
 
-from lobby.dal.models import PlayedGame, PlayedGameStanding
-from lobby.views.assets import load_vite_manifest, resolve_vite_asset_urls
-from lobby.views.history_handlers import history_entries
+from app.dal.models import PlayedGame, PlayedGameStanding
+from app.views.assets import load_vite_manifest, resolve_vite_asset_urls
+from app.views.history_handlers import history_entries
 
 _VIEWER_USER_ID = "viewer-user-id"
 

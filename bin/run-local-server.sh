@@ -180,4 +180,4 @@ fi
 
 echo "Starting lobby server on port $LOBBY_PORT..."
 echo "Open http://localhost:$LOBBY_PORT in your browser"
-uv run --project backend uvicorn --factory lobby.server.app:get_app --reload --host 0.0.0.0 --port $LOBBY_PORT --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-per-message-deflate false --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size 8192
+uv run --project backend/lobby uvicorn --factory app.server.app:get_app --reload --host 0.0.0.0 --port $LOBBY_PORT --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-per-message-deflate false --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size 8192

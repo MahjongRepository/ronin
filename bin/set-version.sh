@@ -7,7 +7,7 @@ if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     exit 1
 fi
 
-cd "$(dirname "$0")/../backend"
+cd "$(dirname "$0")/../backend/lobby"
 sed -i "s/^version = \".*\"/version = \"${version}\"/" pyproject.toml
 grep -q "^version = \"${version}\"$" pyproject.toml
 uv lock

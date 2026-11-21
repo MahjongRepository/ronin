@@ -1,7 +1,7 @@
 import subprocess
 from unittest.mock import patch
 
-import lobby.server.build_info as build_info_module
+import app.server.build_info as build_info_module
 
 
 class TestGitShortSha:

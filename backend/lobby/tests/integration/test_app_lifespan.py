@@ -3,7 +3,7 @@ import asyncio
 import pytest
 from starlette.testclient import TestClient
 
-from lobby.rooms.manager import LobbyRoomManager
+from app.rooms.manager import LobbyRoomManager
 
 
 def _assert_database_closed(app) -> None:

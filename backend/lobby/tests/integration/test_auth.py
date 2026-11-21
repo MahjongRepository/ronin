@@ -12,15 +12,15 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 import pytest
 
-from lobby.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
-from lobby.dal.models import AccountType, Player
-from lobby.tests.integration.conftest import (
+from app.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
+from app.dal.models import AccountType, Player
+from app.views.auth_handlers import GUEST_LOGIN_BURST
+from tests.integration.conftest import (
     issue_api_token,
     login_with_csrf,
     post_lobby_json,
     register_with_csrf,
 )
-from lobby.views.auth_handlers import GUEST_LOGIN_BURST
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator

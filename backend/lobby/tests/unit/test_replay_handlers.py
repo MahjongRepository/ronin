@@ -4,8 +4,8 @@ import gzip
 import httpx
 import pytest
 
-from lobby import game_transition
-from lobby.replay_storage import read_replay, replay_file_path
+from app import game_transition
+from app.replay_storage import read_replay, replay_file_path
 
 
 def _refuse_connection(request: httpx.Request) -> httpx.Response:

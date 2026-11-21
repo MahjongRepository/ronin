@@ -83,7 +83,7 @@ agent-browser wait 1000 && agent-browser get url
 
 Take ids from the UI, never invent them. The lobby pages are the lobby app's views, routed in
 `frontend/lobby/src/app/routes.ts` (terms, privacy and error pages are the templates in
-`backend/lobby/views/templates/`); the game client routes are in `frontend/game_v2/src/index.ts` (*The game client* below). There are no test ids: select by
+`backend/lobby/app/views/templates/`); the game client routes are in `frontend/game_v2/src/index.ts` (*The game client* below). There are no test ids: select by
 element id, class or `snapshot -i` refs.
 
 - **Room:** click `.lobby-create-btn` (Custom table) on `/`. A new room seats `dev` as host with three

@@ -2,12 +2,12 @@ import itertools
 
 import pytest
 
-from lobby.monitoring.gauges import MAX_BUCKETS
-from lobby.monitoring.geometry import plot_buckets
-from lobby.monitoring.page import ChartState, read_metrics
-from lobby.monitoring.ranges import MonitoringRange
-from lobby.monitoring.reader import MetricsReader
-from lobby.tests.conftest import create_metrics_db, insert_metric_rows
+from app.monitoring.gauges import MAX_BUCKETS
+from app.monitoring.geometry import plot_buckets
+from app.monitoring.page import ChartState, read_metrics
+from app.monitoring.ranges import MonitoringRange
+from app.monitoring.reader import MetricsReader
+from tests.conftest import create_metrics_db, insert_metric_rows
 
 GIB = 2**30
 NOW = 1_800_000_005

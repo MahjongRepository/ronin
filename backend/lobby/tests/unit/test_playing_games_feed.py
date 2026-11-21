@@ -1,8 +1,8 @@
 import asyncio
 from types import SimpleNamespace
 
-from lobby.game_transition import PlayingGame
-from lobby.live_games.feed import PlayingGamesFeed
+from app.game_transition import PlayingGame
+from app.live_games.feed import PlayingGamesFeed
 
 _GAMES = (PlayingGame(game_id="g1", started_at=1_700_000_000.0, game_type="hanchan", players=("A", "B", "C", "D")),)
 

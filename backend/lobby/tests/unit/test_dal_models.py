@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from lobby.dal.models import AccountType, Player
+from app.dal.models import AccountType, Player
 
 
 class TestPlayerValidation:

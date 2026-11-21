@@ -7,19 +7,19 @@ import pytest
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from lobby import game_transition as game_transition_module
-from lobby.auth.models import AuthenticatedPlayer
-from lobby.matchmaking.websocket import matchmaking_websocket
-from lobby.rooms import websocket as rooms_websocket_module
-from lobby.rooms.websocket import room_websocket
-from lobby.tests.conftest import (
+from app import game_transition as game_transition_module
+from app.auth.models import AuthenticatedPlayer
+from app.matchmaking.websocket import matchmaking_websocket
+from app.rooms import websocket as rooms_websocket_module
+from app.rooms.websocket import room_websocket
+from tests.conftest import (
     AsgiPeer,
     HeldLookup,
     make_player,
     make_websocket,
     open_client,
 )
-from lobby.tests.integration.conftest import login_with_csrf, logout_with_csrf, register_with_csrf
+from tests.integration.conftest import login_with_csrf, logout_with_csrf, register_with_csrf
 
 
 def _room_socket(app, peer, *, room_id, username):
@@ -404,7 +404,7 @@ class TestGameTransition:
         room = app.state.room_manager.create_room("sign-fail-room")
 
         with (
-            patch("lobby.game_transition.create_signed_ticket", side_effect=ValueError("bad ticket secret")),
+            patch("app.game_transition.create_signed_ticket", side_effect=ValueError("bad ticket secret")),
             client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws,
         ):
             ws.receive_json()

@@ -55,8 +55,8 @@ class App:
 APPS = (
     App(
         name="lobby server",
-        catalog_dir="backend/lobby/i18n/locales",
-        source_roots=("backend/lobby",),
+        catalog_dir="backend/lobby/app/i18n/locales",
+        source_roots=("backend/lobby/app",),
         source_suffixes=frozenset({".py", ".html"}),
         identical_keys=frozenset({"page.title.default", "page.title.with_page"}),
         literals_in_namespaces_are_keys=True,

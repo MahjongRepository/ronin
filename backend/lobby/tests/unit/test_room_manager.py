@@ -5,12 +5,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from lobby.rooms import names
-from lobby.rooms.manager import LobbyRoomManager
-from lobby.tests.conftest import make_player
+from app.rooms import names
+from app.rooms.manager import LobbyRoomManager
+from tests.conftest import make_player
 
 if TYPE_CHECKING:
-    from lobby.rooms.models import LobbyRoom
+    from app.rooms.models import LobbyRoom
 
 
 def _join(mgr: LobbyRoomManager, *, room_id: str, connection_id: str, user_id: str, username: str) -> LobbyRoom | str:
