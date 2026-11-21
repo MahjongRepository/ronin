@@ -86,6 +86,12 @@ function gameRow(game: CurrentGame, now: Date): TemplateResult {
             >
         </span>
         ${seatNamesTemplate(game.players)}
+        <a
+            href="/play/observe/${encodeURIComponent(game.gameId)}"
+            role="button"
+            class="lobby-join-btn lobby-join-btn--ghost"
+            >${t("current_games.watch")}</a
+        >
     </li>`;
 }
 

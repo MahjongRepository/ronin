@@ -60,7 +60,7 @@ describe("renderLobby", () => {
         expect(seatedHint(startingHost)).toEqual(["Table", "/rooms/r2"]);
     });
 
-    it("lists each game being played with its wind, time played and one column per seat, East to North", () => {
+    it("lists each game being played with its wind, time played, one column per seat, East to North, and a link to watch it", () => {
         const now = new Date("2026-11-19T18:00:00Z");
         vi.useFakeTimers({ now });
         const state = createLobbyState(null);
@@ -89,10 +89,12 @@ describe("renderLobby", () => {
                 game.querySelector(".current-game-wind")?.getAttribute("title"),
                 game.querySelector("time")?.textContent,
                 [...game.querySelectorAll(".seat-name")].map((seat) => seat.textContent),
+                game.querySelector("a")?.textContent,
+                game.querySelector("a")?.getAttribute("href"),
             ]),
         ).toEqual([
-            ["南", "Hanchan", "1 h 15 min", ["A", "B", "C", "D"]],
-            ["東", "Tonpuu", "Just started", ["E", "F", "G", "H"]],
+            ["南", "Hanchan", "1 h 15 min", ["A", "B", "C", "D"], "Watch", "/play/observe/g1"],
+            ["東", "Tonpuu", "Just started", ["E", "F", "G", "H"], "Watch", "/play/observe/g2"],
         ]);
         expect(host.querySelector(".current-games .lobby-table-count")?.textContent).toBe(
             "2 playing",

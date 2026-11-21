@@ -60,6 +60,7 @@
     "current_games.empty": "Сейчас никто не играет",
     "current_games.empty_hint": "Игры появятся здесь, как только начнутся.",
     "current_games.title": "Текущие игры",
+    "current_games.watch": "Смотреть",
     "duration.hours": "{hours} ч {minutes} мин",
     "duration.minutes": "{minutes} мин {seconds} с",
     "duration.seconds": "{seconds} с",

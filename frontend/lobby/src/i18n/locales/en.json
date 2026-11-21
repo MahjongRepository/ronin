@@ -56,6 +56,7 @@
     "current_games.empty": "No games are being played right now",
     "current_games.empty_hint": "Games show up here as soon as they start.",
     "current_games.title": "Current games",
+    "current_games.watch": "Watch",
     "duration.hours": "{hours}h {minutes}m",
     "duration.minutes": "{minutes}m {seconds}s",
     "duration.seconds": "{seconds}s",

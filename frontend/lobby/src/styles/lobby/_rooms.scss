@@ -445,10 +445,17 @@
     align-items: center;
     gap: 0.5rem 1.25rem;
     min-height: 3.75rem;
+    position: relative;
     padding: 0.5rem 0.75rem 0.5rem 1.25rem;
 
     & + & {
         border-top: 1px solid var(--ronin-border-subtle);
+    }
+
+    @media (hover: hover) {
+        &:hover {
+            background: var(--ronin-surface-elevated);
+        }
     }
 
     .seat-name {
@@ -456,8 +463,22 @@
     }
 
     @media (width <= 576px) {
-        grid-template-columns: minmax(0, 1fr);
-        padding: 0.625rem 0.875rem;
+        grid-template:
+            "meta watch" auto
+            "seats seats" auto / minmax(0, 1fr) auto;
+        padding: 0.625rem 0.625rem 0.75rem 0.875rem;
+
+        .current-game-meta {
+            grid-area: meta;
+        }
+
+        .seat-names {
+            grid-area: seats;
+        }
+
+        .lobby-join-btn {
+            grid-area: watch;
+        }
     }
 }
 

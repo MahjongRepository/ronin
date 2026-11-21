@@ -54,6 +54,7 @@
     "current_games.empty": "現在進行中の対局はありません",
     "current_games.empty_hint": "対局が始まると、ここに表示されます。",
     "current_games.title": "進行中の対局",
+    "current_games.watch": "観戦",
     "duration.hours": "{hours}時間{minutes}分",
     "duration.minutes": "{minutes}分{seconds}秒",
     "duration.seconds": "{seconds}秒",
