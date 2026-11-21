@@ -157,6 +157,12 @@ func TestEstimateHandValue_WhenSevenHonorPairs_ShouldScoreTsuuiisou(t *testing.T
 		yakumanLimit(1, 25, []play.YakuID{play.YakuTsuuiisou}, play.RonPayment{Discarder: yakumanNonDealerYakuman}))
 }
 
+func TestEstimateHandValue_WhenOnlyTerminals_ShouldScoreChinroutou(t *testing.T) {
+	melds := []meld.Meld{pon(t, "111m")}
+	yakumanExpectSummary(t, "111999m99p111999s", "1s", melds, ron(), defaultRules(),
+		yakumanLimit(1, 50, []play.YakuID{play.YakuChinroutou}, play.RonPayment{Discarder: yakumanNonDealerYakuman}))
+}
+
 func TestEstimateHandValue_WhenTerminalSetsWonOnPairWait_ShouldScoreOnlySuuankouTanki(t *testing.T) {
 	yakumanExpectSummary(t, "111999m99p111222s", "9p", nil, ron(), defaultRules(),
 		yakumanLimit(2, 60, []play.YakuID{play.YakuSuuankouTanki}, play.RonPayment{Discarder: yakumanNonDealerDouble}))
