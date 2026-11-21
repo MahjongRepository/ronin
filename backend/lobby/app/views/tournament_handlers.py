@@ -67,7 +67,7 @@ async def _read_checked_body(request: Request) -> dict | Response:
 
 async def lobby_tournaments(request: Request) -> JSONResponse:
     """
-    GET /api/lobby/tournaments - the admin's own tournaments, newest first, and the name limit the create form enforces.
+    GET /api/lobby/tournaments - the user's own tournaments, newest first, and the name limit the create form enforces.
     """
     tournament_repo: TournamentRepository = request.app.state.tournament_repo
     tournaments = await tournament_repo.list_tournaments_by_owner(request.user.user_id)
@@ -92,13 +92,16 @@ async def lobby_tournaments(request: Request) -> JSONResponse:
 
 async def lobby_create_tournament(request: Request) -> Response:
     """
-    POST /api/lobby/tournaments - create a tournament owned by the admin account and answer its id.
+    POST /api/lobby/tournaments - create a tournament owned by the signed-in account and answer its id.
 
-    Only an admin reaches it (`admin_json`); an invalid name answers 400 ``invalid_name``.
+    A guest has no account to own one and gets a 403 ``guest_account``; an invalid name answers 400 ``invalid_name``.
     """
     body = await _read_checked_body(request)
     if not isinstance(body, dict):
         return body
+
+    if request.user.is_guest:
+        return _json_error("guest_account", HTTPStatus.FORBIDDEN)
 
     name = _parse_tournament_name(body.get("name"))
     if name is None:

@@ -144,9 +144,10 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 * `players.py` — `LobbyPlayer`, one connected user and the only holder of its socket. Every send or
   close is an enqueue, so no handler, broadcast or reaper tick ever waits on a slow or dead peer.
 * `occupancy.py` — the one owner of the occupancy rule.
-* Tournaments are durable rows in the shared SQLite database (id, name, owner); only an admin account creates one
-  (`admin_json`) and sees the create form and its own tournaments in the lobby view, and its page, the shareable
-  link, opens for anyone signed in, guests included. `views/tournament_handlers.py` is the lobby app's tournament API
+* Tournaments are durable rows in the shared SQLite database (id, name, owner); any registered account creates one
+  (a guest gets 403 `guest_account`) and lists its own on the tournaments page, and a tournament's page, the
+  shareable link, opens for anyone signed in, guests included. Only the nav link to the tournaments page is
+  admin-only, in the lobby client. `views/tournament_handlers.py` is the lobby app's tournament API
   (`/api/lobby/tournaments*`); the page's view reads `is_owner` from it to show the Settings tab.
 * `tournaments/` — the tournament page's socket and `TournamentHub`, the in-memory registry of who is online on
   each tournament page: one connection per user (a new one replaces the old), lost on a restart. Being online

@@ -7,10 +7,10 @@ import httpx
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
+from app.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 from app.dal.models import GameEndReason, PlayedGame, PlayedGameStanding, TournamentGame
 from tests.integration.conftest import (
     create_tournament,
-    grant_admin,
     issue_api_token,
     login_with_csrf,
     post_lobby_json,
@@ -44,7 +44,6 @@ def _receive_until(ws, message_type):
 def tournament_id(client):
     register_with_csrf(client, "bob")
     register_with_csrf(client, "alice")
-    grant_admin(client, "alice")
     return create_tournament(client)
 
 
@@ -464,18 +463,8 @@ def test_tournament_delete__when_user_is_not_owner__should_return_404(client, to
     assert client.get(f"/api/lobby/tournaments/{tournament_id}").status_code == 200
 
 
-def test_tournament_create__when_account_is_not_admin__should_answer_404(client):
-    register_with_csrf(client, "player")
-
-    listed = client.get("/api/lobby/tournaments")
-    refused = post_lobby_json(client, "/api/lobby/tournaments", {"name": "Cup"})
-
-    assert (listed.status_code, refused.status_code) == (404, 404)
-
-
-def test_tournament_create__when_admin_posts_name__should_list_it_and_open_its_page(client):
+def test_tournament_create__when_non_admin_posts_name__should_list_it_and_open_its_pages(client):
     register_with_csrf(client, "organizer")
-    grant_admin(client, "organizer")
 
     tournament_id = create_tournament(client, "  Spring Cup  ")
 
@@ -484,6 +473,7 @@ def test_tournament_create__when_admin_posts_name__should_list_it_and_open_its_p
         {"id": tournament_id, "name": "Spring Cup", "playing": 0, "finished": 0}
     ]
     assert listed["name_max_length"] == 80
+    assert client.get("/tournaments").status_code == 200
     assert client.get(f"/tournaments/{tournament_id}").status_code == 200
     page = client.get(f"/api/lobby/tournaments/{tournament_id}").json()
     assert page == {
@@ -493,6 +483,16 @@ def test_tournament_create__when_admin_posts_name__should_list_it_and_open_its_p
         "name_max_length": 80,
         "is_owner": True,
     }
+
+
+def test_tournament_create__when_guest_posts_name__should_refuse_with_403_and_create_nothing(client):
+    client.get("/login")
+    client.post("/api/lobby/auth/guest", json={}, headers={CSRF_HEADER_NAME: client.cookies[CSRF_COOKIE_NAME]})
+
+    refused = post_lobby_json(client, "/api/lobby/tournaments", {"name": "Cup"})
+
+    assert (refused.status_code, refused.json()) == (403, {"error": "guest_account"})
+    assert client.get("/api/lobby/tournaments").json()["tournaments"] == []
 
 
 def test_tournament_page_route__when_other_user_opens_it__should_not_call_them_owner(client, tournament_id):
@@ -512,7 +512,6 @@ def test_tournament_rename__when_owner_posts_new_name__should_store_the_stripped
 
 def test_tournament_create__when_name_has_format_character__should_refuse_and_create_nothing(client):
     register_with_csrf(client, "organizer")
-    grant_admin(client, "organizer")
 
     refused = post_lobby_json(client, "/api/lobby/tournaments", {"name": "Spring\u202eCup"})
 

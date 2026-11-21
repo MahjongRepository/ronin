@@ -53,8 +53,8 @@ is the whole list, which replaces the shown one, so a reconnect needs no catch-u
 backoff and resume and binds its socket the same way. `current-games.ts` reads and draws a games list, here and on
 the tournament page; the tournament socket carries no game type, so its games show only how long they have run (the view redraws it on a timer).
 
-The admin-only tournaments page (`tournaments/`, `/tournaments`) lists the admin's own tournaments and creates new
-ones. On phones the nav's admin links move into the account menu, so the bar never outgrows the narrowest screen.
+The tournaments page (`tournaments/`, `/tournaments`) lists the user's own tournaments and creates new ones; it
+opens for anyone signed in, but only an admin's nav links to it. On phones the nav's admin links move into the account menu, so the bar never outgrows the narrowest screen.
 
 The tournament page (`tournament/`) keeps the room's reconnect and binds its socket the same way.
 It holds no seat, so a reload only reconnects, and a language switch only redraws. Its Settings tab (rename,
