@@ -201,7 +201,7 @@ func TestPaoOfMeld_WhenTheFourthWindIsCalled_ShouldMakeTheDiscarderLiable(t *tes
 	}
 }
 
-func TestPaoOfMeld_WhenTheThirdDragonIsAddedOrClosedKan_ShouldCountOnlyTheAddedKan(t *testing.T) {
+func TestPaoOfMeld_WhenTheThirdDragonIsAddedOrClosedKan_ShouldMakeNobodyLiable(t *testing.T) {
 	melds := []play.MeldView{
 		calledMeld(t, play.MeldPon, 0, "555z", seat(t, 2)),
 		calledMeld(t, play.MeldPon, 0, "666z", seat(t, 3)),
@@ -210,8 +210,8 @@ func TestPaoOfMeld_WhenTheThirdDragonIsAddedOrClosedKan_ShouldCountOnlyTheAddedK
 	added := offer.PaoOfMeld(melds, calledMeld(t, play.MeldAddedKan, 0, "7777z", seat(t, 1)))
 	closed := offer.PaoOfMeld(melds, closedKan(t, "7777z"))
 
-	if want := play.Some(seat(t, 1)); added != want {
-		t.Errorf("PaoOfMeld of an added kan = %v, want %v", added, want)
+	if added.OK {
+		t.Errorf("PaoOfMeld of an added kan = %v, want nobody", added)
 	}
 	if closed.OK {
 		t.Errorf("PaoOfMeld of a closed kan = %v, want nobody", closed)

@@ -230,11 +230,10 @@ func paoSeat(melds []play.MeldView, calledKind tile.Kind, discarder tile.Seat) p
 
 // PaoOfMeld returns the seat a meld view made liable, after the earlier melds of its seat: the
 // discarder of a pon or open kan that completes the caller's third dragon set or fourth wind set.
-// An added kan counts as the pon it extends; a chi, a closed kan and a meld with no tiles make
-// nobody liable.
+// An added kan, a chi, a closed kan and a meld with no tiles make nobody liable.
 func PaoOfMeld(earlier []play.MeldView, view play.MeldView) play.Option[tile.Seat] {
-	isPonOrKan := view.Kind == play.MeldPon || view.Kind == play.MeldOpenKan || view.Kind == play.MeldAddedKan
-	if !view.From.OK || !isPonOrKan || len(view.Tiles) == 0 {
+	isPonOrOpenKan := view.Kind == play.MeldPon || view.Kind == play.MeldOpenKan
+	if !view.From.OK || !isPonOrOpenKan || len(view.Tiles) == 0 {
 		return play.Option[tile.Seat]{}
 	}
 	return paoSeat(earlier, view.Tiles[0].Kind(), view.From.Value)
