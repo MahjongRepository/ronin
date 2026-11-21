@@ -330,7 +330,7 @@
     "replay.outcome.win_separator": "、",
     "replay.rounds.close": "局一覧を閉じる",
     "replay.rounds.end_game": "対局の終了と最終得点",
-    "replay.rounds.end_live": "現在見られる最新の局面",
+    "replay.rounds.end_live": "現在見られる最新の手",
     "replay.rounds.end_recording": "記録の終わり",
     "replay.rounds.incomplete_label": "{label}。",
     "replay.rounds.title": "局一覧",

@@ -366,7 +366,7 @@
     "replay.outcome.win_separator": "; ",
     "replay.rounds.close": "Закрыть список раздач",
     "replay.rounds.end_game": "Конец игры и итоговые очки",
-    "replay.rounds.end_live": "Последний доступный ход",
+    "replay.rounds.end_live": "Последний доступный шаг",
     "replay.rounds.end_recording": "Конец записи",
     "replay.rounds.incomplete_label": "{label}: ",
     "replay.rounds.title": "Раздачи",

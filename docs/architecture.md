@@ -553,8 +553,8 @@ honours this contract can replace it.
   the game end reaches the players before the server has saved the replay, so the replay may answer
   404 for a moment after it.
 * **Observing:** `GET /api/observe/{game_id}?from=N` is a live game's delayed observer stream, no login
-  required, `Cache-Control: no-store`. The lobby validates the id and `from` (one to nine ASCII digits,
-  default 0; 400 otherwise), forwards them to the game server's internal observe route with the internal API
+  required, `Cache-Control: no-store`. The lobby answers 404 for an invalid id and 400 for a `from` that
+  is not one to nine ASCII digits (default 0), forwards them to the game server's internal observe route with the internal API
   secret and passes its answer through unchanged: one MessagePack map with string keys, `started_at` (Unix
   milliseconds), `game_type`, `players` (four names, East to North), `available_in_ms` (the wait until the
   first records may be seen, 0 once passed), `next` (the cursor after the returned records), `ended` (the
