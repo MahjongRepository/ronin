@@ -34,9 +34,10 @@ async def serve_lobby_socket(websocket: WebSocket, serve: Callable[[LobbyPlayer]
     Admit a lobby socket and hand its player to ``serve``; this task owns the connection's writer.
 
     An unauthenticated socket is refused with 4001 and then a cookie-authenticated one with a foreign ``Origin`` with
-    4003, both before accept; a key-authenticated socket skips the ``Origin`` check. While ``serve`` runs the socket is
-    held under its credential, so revoking that credential closes it. The writer runs while ``serve`` does and is
-    stopped however it ends; ``serve`` decides what an unexpected error does.
+    4003, both before accept; a key-authenticated socket skips the ``Origin`` check. From before the accept until its
+    writer stops the socket is held under its credential, so a revocation at any point cuts it off, and a socket revoked
+    during its accept is closed without being served. The writer runs while ``serve`` does and is stopped however it
+    ends; ``serve`` decides what an unexpected error does.
     """
     if not websocket.user.is_authenticated:
         await reject_websocket(websocket, code=4001, reason="unauthorized")
@@ -46,20 +47,22 @@ async def serve_lobby_socket(websocket: WebSocket, serve: Callable[[LobbyPlayer]
         await reject_websocket(websocket, code=4003, reason="forbidden_origin")
         return
 
-    if not await accept_websocket(websocket):
-        return
-
     connection_id = str(uuid.uuid4())
-    player = LobbyPlayer(
-        connection_id=connection_id,
-        user_id=websocket.user.user_id,
-        username=websocket.user.username,
-        connection=QueuedWebSocket(websocket, connection_id=connection_id),
-    )
-    player.connection.start_writer()
+    connection = QueuedWebSocket(websocket, connection_id=connection_id)
     credential_sockets: CredentialSockets = websocket.app.state.credential_sockets
-    try:
-        with credential_sockets.admitted(websocket.user.credential_hash, player.connection):
-            await serve(player)
-    finally:
-        await player.connection.stop_writer()
+    with credential_sockets.admitted(websocket.user.credential_hash, connection):
+        if not await accept_websocket(websocket):
+            return
+
+        player = LobbyPlayer(
+            connection_id=connection_id,
+            user_id=websocket.user.user_id,
+            username=websocket.user.username,
+            connection=connection,
+        )
+        connection.start_writer()
+        try:
+            if not connection.is_revoked:
+                await serve(player)
+        finally:
+            await connection.stop_writer()

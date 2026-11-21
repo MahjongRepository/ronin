@@ -85,8 +85,9 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 * `auth/` — the account and session service, password hashing, the game ticket signing, the
   session-or-API-key authentication backend, the route policy decorators and CSRF. A socket
   authenticates once, at its handshake, so the service reports every credential it revokes (a logout,
-  a session a login replaces, a rotated key) and `CredentialSockets` closes the lobby sockets that
-  credential admitted. Only revocations in the lobby process reach it: a session that expires, or a
+  a session a login replaces, a rotated key) and `CredentialSockets` cuts off the lobby sockets that
+  credential admitted, from before their accept until their writer stops: nothing more is read, and
+  unsent messages, a game handoff included, are dropped. Only revocations in the lobby process reach it: a session that expires, or a
   key a script rotates, leaves its open sockets alone.
 * `dal/` — the persistence contracts and models; `db/` — their SQLite implementations, opened only by
   the composition root and the scripts.

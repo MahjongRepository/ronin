@@ -33,6 +33,23 @@ class TestQueuedWebSocket:
         await socket.stop_writer()
         assert client.written == [b"1", "2", ClosedWith(code=1000, reason="game_ended")]
 
+    async def test_queued_websocket__when_revoked_with_a_handoff_queued_and_input_buffered__should_send_only_its_close(
+        self,
+    ):
+        client = FakeAsgiClient()
+        socket = await _open_queued_websocket(client)
+        client.send_frame({"type": "websocket.receive", "text": "buffered command"})
+        socket.send_text("game_starting")
+        socket.close(code=1000)
+
+        socket.revoke(code=4001, reason="credential_revoked")
+        socket.start_writer()
+        with pytest.raises(ConnectionError, match="credential revoked"):
+            await socket.receive()
+        await socket.stop_writer()
+        assert socket.disconnect_code == 4001
+        assert client.written == [ClosedWith(code=4001, reason="credential_revoked")]
+
     @pytest.mark.parametrize(
         "transport_error",
         [

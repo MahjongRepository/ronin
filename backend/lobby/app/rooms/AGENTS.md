@@ -35,7 +35,7 @@ A room is a pre-game table of 4 fixed seats: `models.py` holds the room and its 
   `room_expired` error and closes their sockets with 4002, so the page ends with that notice instead
   of reconnecting. A transitioning room never expires.
 * A socket the client closes with 1000 or 1001 (the page's own close, the browser leaving the page)
-  is a leave, like the leave message. Any other end (a lost transport, a ping timeout, a socket the
+  is a leave, like the leave message, and so is a socket cut off by a revoked credential (4001). Any other end (a lost transport, a ping timeout, a socket the
   writer dropped, the page replacing its socket to reconnect) holds the seat as it was, ownership
   and ready flag included, for `seat_grace_seconds`, and the room is told nothing: the user's
   reconnect takes it over like any rejoin. A transitioning room holds nothing; its leave rule

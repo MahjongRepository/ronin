@@ -44,6 +44,7 @@ class QueuedWebSocket:
         self._queue: asyncio.Queue[bytes | str | _CloseFrame] = asyncio.Queue(maxsize=_SEND_QUEUE_LIMIT)
         self._closed = False
         self._terminated: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        self._revoked: asyncio.Future[int] = asyncio.get_running_loop().create_future()
         self._writer: asyncio.Task[None] | None = None
         self._send_started_at: float | None = None
         self._deadline_handle: asyncio.TimerHandle | None = None
@@ -59,6 +60,28 @@ class QueuedWebSocket:
         self._enqueue(_CloseFrame(code=code, reason=reason))
         self._closed = True
 
+    @property
+    def is_revoked(self) -> bool:
+        return self._revoked.done()
+
+    def revoke(self, *, code: int, reason: str) -> None:
+        """
+        Cut the connection off now, its credential revoked: unsent frames are dropped and the close is the last one.
+
+        Unlike ``close``, which lets the writer drain what is queued and the reader take what the client already sent,
+        nothing more passes either way: ``receive`` raises ConnectionError with ``disconnect_code`` set to ``code``, so
+        the endpoint leaves through its normal disconnect path at once, and a queued message, a game handoff included,
+        is never sent.
+        """
+        if self._revoked.done() or self._terminated.done():
+            return
+
+        while not self._queue.empty():
+            self._queue.get_nowait()
+        self._queue.put_nowait(_CloseFrame(code=code, reason=reason))
+        self._closed = True
+        self._revoked.set_result(code)
+
     def _enqueue(self, item: bytes | str | _CloseFrame) -> None:
         if self._closed or self._terminated.done():
             return
@@ -73,18 +96,15 @@ class QueuedWebSocket:
         """
         Receive the client's next ASGI ``websocket.receive`` message; raise ConnectionError once the socket is gone.
         """
-        if self._terminated.done():
-            raise ConnectionError("WebSocket terminated")
-
+        self._raise_if_cut_off()
         receive = asyncio.ensure_future(self._receive_message())
         try:
-            await asyncio.wait({receive, self._terminated}, return_when=asyncio.FIRST_COMPLETED)
+            await asyncio.wait({receive, self._terminated, self._revoked}, return_when=asyncio.FIRST_COMPLETED)
         finally:
             receive.cancel()
             await asyncio.wait({receive})
 
-        if self._terminated.done():
-            raise ConnectionError("WebSocket terminated")
+        self._raise_if_cut_off()
 
         message = receive.result()
         if message["type"] == "websocket.disconnect":
@@ -92,6 +112,14 @@ class QueuedWebSocket:
             raise ConnectionError("WebSocket already disconnected")
 
         return message
+
+    def _raise_if_cut_off(self) -> None:
+        if self._revoked.done():
+            self.disconnect_code = self._revoked.result()
+            raise ConnectionError("WebSocket credential revoked")
+
+        if self._terminated.done():
+            raise ConnectionError("WebSocket terminated")
 
     async def _receive_message(self) -> Message:
         """

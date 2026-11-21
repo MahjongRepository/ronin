@@ -17,8 +17,8 @@ class CredentialSockets:
     The open lobby sockets by the hash of the session token or API key that admitted them.
 
     A socket authenticates once, at its handshake, so revoking a credential (a logout, a replaced session, a rotated
-    key) would leave its open sockets acting for the account; closing them here ends that. The closes are enqueued, so
-    each socket's handler leaves through its normal disconnect path. In-process only: a script that rotates a key in
+    key) would leave its open sockets acting for the account; revoking them here cuts each off at once, unsent messages
+    dropped, and its handler leaves through its normal disconnect path. In-process only: a script that rotates a key in
     another process closes nothing, and a session that merely expires keeps its open sockets.
     """
 
@@ -45,4 +45,4 @@ class CredentialSockets:
         Close every open socket the revoked credential admitted.
         """
         for connection in self._sockets.pop(credential_hash, set()):
-            connection.close(code=REVOKED_CLOSE_CODE, reason=REVOKED_CLOSE_REASON)
+            connection.revoke(code=REVOKED_CLOSE_CODE, reason=REVOKED_CLOSE_REASON)

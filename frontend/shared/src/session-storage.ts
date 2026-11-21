@@ -47,13 +47,18 @@ export function clearGameSession(gameId: string): void {
 
 /**
  * Forget every game handoff this tab holds, so a ticket never outlives the account it was signed for: on logout and
- * on any sign-in, which may be another account's. The signed-in player's own handoff comes back by recovery.
+ * before any sign-in, which may be another account's. The signed-in player's own handoff comes back by recovery.
+ * Storage the browser refuses holds no handoff to forget, so it never stops a logout or a sign-in.
  */
 export function clearAllGameSessions(): void {
-    for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
-        const key = sessionStorage.key(index);
-        if (key?.startsWith(HANDOFF_KEY_PREFIX)) {
-            sessionStorage.removeItem(key);
+    try {
+        for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+            const key = sessionStorage.key(index);
+            if (key?.startsWith(HANDOFF_KEY_PREFIX)) {
+                sessionStorage.removeItem(key);
+            }
         }
+    } catch (error: unknown) {
+        console.warn("Game handoffs could not be cleared from unavailable session storage:", error);
     }
 }

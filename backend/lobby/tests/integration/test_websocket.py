@@ -12,6 +12,7 @@ from app.auth.models import AuthenticatedPlayer
 from app.matchmaking.websocket import matchmaking_websocket
 from app.rooms import websocket as rooms_websocket_module
 from app.rooms.websocket import room_websocket
+from app.websocket_utils import serve_lobby_socket
 from tests.conftest import (
     AsgiPeer,
     HeldLookup,
@@ -19,7 +20,27 @@ from tests.conftest import (
     make_websocket,
     open_client,
 )
-from tests.integration.conftest import login_with_csrf, logout_with_csrf, register_with_csrf, switch_user_with_csrf
+from tests.integration.conftest import (
+    login_with_csrf,
+    logout_with_csrf,
+    register_with_csrf,
+    session_user_id,
+    switch_user_with_csrf,
+)
+
+
+class _AcceptHoldingPeer(AsgiPeer):
+    def __init__(self) -> None:
+        super().__init__()
+        self.accept_reached = asyncio.Event()
+        self.accept_released = asyncio.Event()
+
+    async def send(self, message) -> None:
+        if message["type"] == "websocket.accept":
+            self.accept_reached.set()
+            await self.accept_released.wait()
+
+        await super().send(message)
 
 
 def _room_socket(app, peer, *, room_id, username):
@@ -60,8 +81,11 @@ class TestRoomWebSocket:
             assert msg["player_name"] == "wsuser"
             assert msg["text"] == "hello"
 
-    def test_room_websocket__when_its_session_logs_out__should_close_with_credential_revoked(self, app, client):
+    def test_room_websocket__when_its_session_logs_out__should_close_with_credential_revoked_and_free_the_seat(
+        self, app, client
+    ):
         room = app.state.room_manager.create_room("revoked-room")
+        user_id = session_user_id(client)
         with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
             ws.receive_json()
 
@@ -70,6 +94,23 @@ class TestRoomWebSocket:
                 ws.receive_json()
 
         assert closed.value.code == 4001
+        assert app.state.room_manager.find_user_room(user_id) is None
+
+    async def test_lobby_socket__when_revoked_during_its_accept__should_close_without_serving(self, app):
+        peer = _AcceptHoldingPeer()
+        alice = AuthenticatedPlayer(user_id="alice-id", username="alice", credential_hash="alice-session")
+        served = []
+
+        async def serve(player):
+            served.append(player)
+
+        admission = asyncio.create_task(serve_lobby_socket(make_websocket(peer, app=app, user=alice), serve))
+        await peer.accept_reached.wait()
+        app.state.credential_sockets.close_all("alice-session")
+        peer.accept_released.set()
+        await admission
+        assert served == []
+        assert peer.close_codes() == [4001]
 
     def test_room_websocket__when_non_owner_sets_ready__should_broadcast_ready_change(self, app):
         room = app.state.room_manager.create_room("ready-room")

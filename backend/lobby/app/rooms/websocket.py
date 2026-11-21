@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import structlog
 from pydantic import ValidationError
 
+from app.auth.socket_registry import REVOKED_CLOSE_CODE
 from app.game_transition import GameStartError, hand_back_live_game, start_game
 from app.occupancy import ALREADY_IN_GAME, REPLACED_BY_NEW_CONNECTION
 from app.rate_limit import TokenBucket
@@ -37,7 +38,7 @@ _RATE_LIMIT_RATE = 5.0
 _RATE_LIMIT_BURST = 10
 _RATE_LIMITED = "rate_limited"
 _BINARY_FRAME = "Binary frames are not supported"
-_LEAVING_CLOSE_CODES = frozenset({1000, 1001})
+_LEAVING_CLOSE_CODES = frozenset({1000, 1001, REVOKED_CLOSE_CODE})
 _ROOM_EXPIRED = "room_expired"
 _ROOM_EXPIRED_CLOSE_CODE = 4002
 
@@ -78,8 +79,9 @@ async def _serve_player(player: LobbyPlayer, ctx: _RoomContext) -> None:
     Seat the player and serve their messages until the socket ends; then hold or release the seat, whatever happened.
 
     A socket the client closed with 1000 or 1001 (the page's own close, or the browser leaving the page) is a leave,
-    like the leave message. Any other end (a lost transport, a ping timeout, a socket the writer dropped, the page
-    replacing its socket to reconnect) holds the seat for the player's reconnect.
+    like the leave message, and so is a socket cut off because its credential was revoked. Any other end (a lost
+    transport, a ping timeout, a socket the writer dropped, the page replacing its socket to reconnect) holds the seat
+    for the player's reconnect.
     """
     connection_lost = False
     try:

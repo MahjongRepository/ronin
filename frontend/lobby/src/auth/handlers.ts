@@ -43,7 +43,6 @@ interface SignInRequest {
 function finishSignIn(state: AuthState, context: AuthViewContext, result: ApiResult): void {
     const next = result.ok ? parseSignedInNext(result.data) : null;
     if (next !== null) {
-        clearAllGameSessions();
         window.location.replace(next);
         return;
     }
@@ -64,6 +63,7 @@ async function signIn(
         return;
     }
     state.submitting = true;
+    clearAllGameSessions();
     const result = await apiPost(request.path, { ...request.body, next: state.next });
     finishSignIn(state, context, result);
 }

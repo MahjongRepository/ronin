@@ -107,11 +107,16 @@ describe("submitCredentials", () => {
         expect(host.querySelector("#password")?.hasAttribute("aria-invalid")).toBe(false);
     });
 
-    it("forgets every game handoff of the tab before opening the signed-in page", async () => {
+    it("forgets every game handoff of the tab before sending the sign-in", async () => {
         setMetaToken("token");
-        mockFetch({ body: { next: "/history" }, status: 200 });
-        const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
         storeGameSession("game-1", "ws://game", "ticket-of-previous-account");
+        const handoffsAtSend: unknown[] = [];
+        const fetchMock = vi.fn(() => {
+            handoffsAtSend.push(getGameSession("game-1"));
+            return Promise.resolve(Response.json({ next: "/history" }, { status: 200 }));
+        });
+        vi.stubGlobal("fetch", fetchMock);
+        const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
         const { context, state } = setUpForm("login");
 
         await submitCredentials(state, context, {
@@ -120,7 +125,7 @@ describe("submitCredentials", () => {
             username: "dev",
         });
 
-        expect(getGameSession("game-1")).toBeNull();
+        expect(handoffsAtSend).toEqual([null]);
         expect(replace).toHaveBeenCalledWith("/history");
     });
 });

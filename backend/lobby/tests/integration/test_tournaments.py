@@ -190,6 +190,7 @@ def test_start_games__when_a_table_repeats_a_name_in_another_case__should_return
 
     with ExitStack() as stack:
         for name in ["erin", "frank", "gina", "hank"]:
+            client.cookies.delete("session_id")
             register_with_csrf(client, name)
             stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}")).receive_json()
         client.cookies.delete("session_id")
@@ -239,6 +240,7 @@ def test_events_socket__when_owner_connects_with_api_key__should_receive_game_st
 
     with ExitStack() as stack:
         for name in names:
+            client.cookies.delete("session_id")
             register_with_csrf(client, name)
             stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}")).receive_json()
         client.cookies.delete("session_id")
@@ -278,8 +280,10 @@ def test_game_end_poll__when_played_game_gains_ended_at__should_publish_once_and
 
     with ExitStack() as stack:
         for name in names:
+            client.cookies.delete("session_id")
             register_with_csrf(client, name)
             stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}")).receive_json()
+        client.cookies.delete("session_id")
         register_with_csrf(client, "dave")
         dave = stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}"))
         dave.receive_json()
@@ -313,6 +317,7 @@ def test_game_end_poll__when_played_game_gains_ended_at__should_publish_once_and
         )
         client.portal.call(app.state.tournament_game_end_poller.poll_once)
         client.portal.call(app.state.tournament_game_end_poller.poll_once)
+        client.cookies.delete("session_id")
         register_with_csrf(client, "ivan")
         ivan = stack.enter_context(client.websocket_connect(f"/ws/tournaments/{tournament_id}"))
         ivan_history = ivan.receive_json()
