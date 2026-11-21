@@ -39,7 +39,7 @@ If any check fails, abort with a clear error message explaining what's wrong and
 ## Step 3: Read the changes for context
 
 1. `git log <tag>..HEAD --format='%s%n%b'` for the commits
-2. `git diff <tag>..HEAD -- '*AGENTS.md' docs/game-rules.md` for the architecture notes and the ruleset; the architecture lives in the nested `AGENTS.md` files (`backend/`, `backend/game/` and its `logic/`, `session/`, `messaging/`, `backend/lobby/` and `rooms/`, `frontend/`, `frontend/lobby/`, `frontend/game_v2/`)
+2. `git diff <tag>..HEAD -- '*AGENTS.md' docs/game-rules.md` for the architecture notes and the ruleset; the architecture lives in the nested `AGENTS.md` files (`backend/`, `backend/game_v2/` and its `engine/`, `backend/lobby/` and `rooms/`, `frontend/`, `frontend/lobby/`, `frontend/game_v2/`)
 
 ## Step 4: Choose the version
 

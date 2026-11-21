@@ -1,17 +1,16 @@
 # Game server (Go)
 
-The game server being ported from `backend/game/` to Go. It is one Go module, outside the uv
-project: it imports nothing from `backend/shared/` and the Python tooling does not see it. So far it
-holds the engine's base vocabulary, the seam types, its seeded randomness, the wall, shanten, the
-hand reading (agari, divider, waits), the hand scoring, the option helpers (a seat's discards,
-calls, kans, riichi, furiten and win payments), the round state machine (`engine/internal/round`),
+The game server. It is one Go module, outside the uv project: it imports nothing from
+`backend/shared/` and the Python tooling does not see it. It holds the engine's base vocabulary, the seam
+types, its seeded randomness, the wall, shanten, the hand reading (agari, divider, waits), the hand scoring, the
+option helpers (a seat's discards, calls, kans, riichi, furiten and win payments), the round state machine (`engine/internal/round`),
 the game played round to round (`engine/internal/game`), the seat record each seat's events keep up
 and the seat view it equals (`engine/internal/record`), the facade over them (`engine/`) with its
 seam tests and self-play driver (`seam/`), the wire format (`internal/wire`), the shaping of the
 engine's output into messages and of client messages into actions (`internal/messaging`), the live
 games with their sessions (`internal/session`), the rows it persists beside the lobby
 (`internal/store`) and its replay files (`internal/replayfile`), its credentials (`internal/auth`) with
-the Python JSON quoting it shares with the fixtures (`internal/pyjson`), the transport serving the lobby's
+the Python-style JSON quoting the lobby's files use (`internal/pyjson`), the transport serving the lobby's
 routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`), the
 replay runner (`internal/replay`) with the Go replay check (`cmd/verify`), the Tenhou export
 (`internal/tenhou`), the check of the hand scoring against real Tenhou wins (`internal/tenhou/tenhoulog`),
@@ -84,7 +83,7 @@ layer added later gets its own. Each
 `cmd/*` is its own composition root: its `main` is the only place that reads that binary's flags,
 environment and signals and wires the parts it uses, so a tool beside the server builds what it
 needs without going through `cmd/gameserver`.
-`cmd/gameserver` reads the Python server's environment, wires the store, the session and the
+`cmd/gameserver` reads the settings environment the lobby shares (`bin/local-settings.sh` locally), wires the store, the session and the
 server, and runs the graceful stop (Server).
 
 ## The wire
@@ -100,7 +99,7 @@ a contract.
 * Keys, event codes and result codes are only ever added: a retired one leaves its gap, never a
   reused number. The live and replay key sets and the replay schema (the fields each record and
   result type requires, and each field's type) live beside the codec, which checks them on encode
-  and decode alike; the size, length and map limits bound decoding only, as they did in Python.
+  and decode alike; the size, length and map limits bound decoding only.
 * A change to the replay format bumps `wire.ReplayVersion`; a replay names the rules profile it was
   played under, this server's or the one every rewritten `0.4-dev` game keeps.
 * `internal/wire/testdata/` holds the goldens a Go test owns (`go test ./internal/wire -update`
@@ -266,8 +265,8 @@ a contract.
   is discarded; a failed replay save or a finish write failing every attempt turns the end into a
   failure (1011).
 * Each step logs as its own subject: every line of a game carries `game_id`, and a line about a
-  seated participant its `seat`. The messages the log gates match are named constants with the
-  Python server's text and level. Concealed hand tiles are logged at DEBUG only, and game tickets
+  seated participant its `seat`. The messages the log gates match are named constants with fixed
+  text and level. Concealed hand tiles are logged at DEBUG only, and game tickets
   never at INFO or above.
 * Shutdown ends no game. A graceful stop ends games only through the disconnect of each socket the
   server closed; `Shutdown`, called after that, lets a still-registered game vanish with no finish row and
@@ -284,10 +283,9 @@ a contract.
   goes through the `Router`, which parses it, verifies a join's or reconnect's ticket and calls the
   session. It takes any `session.Connection`, so a harness with no socket routes through the same
   code.
-* The REST answers keep the Python server's status codes, JSON keys and error texts, and the
-  lobby's creation body is read as strictly as Python's model read it: exactly its keys, no field
-  of another JSON type, lengths in characters. A socket whose path holds an invalid game id is
-  refused with 403 before the handshake, as uvicorn answered Python's close before accept.
+* The REST answers have the status codes, JSON keys and error texts the lobby reads, and the
+  lobby's creation body is read strictly: exactly its keys, no field of another JSON type, lengths in
+  characters. A socket whose path holds an invalid game id is refused with 403 before the handshake.
 * `/status` is a contract: Telegraf's `fieldinclude` allow-list and its metrics schema store its
   keys, the lobby reads its game counts, and counter-reset detection keys on `started_at`, the
   process start in whole epoch seconds, so counters stay cumulative. A test holds the keys against
@@ -295,7 +293,7 @@ a contract.
   the longest a routed message waited for its game to take it in the last minute, null without one.
 * `/status` carries no per-user data. The list of games playing (`GET /games`) names players, East
   to North from the first dealer as the lobby shows them, so it answers only the internal secret.
-* A graceful stop keeps Python's order inside compose's 15 s grace period, on one deadline: the
+* A graceful stop runs in this order inside compose's 15 s grace period, on one deadline: the
   HTTP server stops taking connections, `Server.Shutdown` closes every socket with 1012 and waits
   until each ran its disconnect, then shuts the session down, which drains the finalizers and the
   store writes, and the database closes last. Past the deadline the sockets still open are dropped
@@ -320,8 +318,8 @@ and the fixture tools.
   run through a fresh `messaging.ReplayLog` with the stored names and AI flags under the requested
   game id, and compares every record but seat control byte for byte with the stored ones, so a
   wrong draw, discard or meld fails as much as a wrong score, and so does a replay copied under
-  another id. `bin/verify_games.py --go-verify` runs it per game after the script's own row
-  check, which is how `make run-games SERVER=go` verifies its games.
+  another id. `bin/verify_games.py` runs it per game after the script's own row
+  check, which is how `make run-games` verifies its games.
 
 ## Tenhou export
 
@@ -329,9 +327,8 @@ and the fixture tools.
 It owns the Tenhou ids: each yaku's, the dora counts' and the limit codes.
 
 * It reads the records alone and never runs the engine, so a replay of either rules profile converts,
-  a rewritten `0.4-dev` one included: the rewritten robbed-kan replay converts to the log the Python
-  export wrote from the original, and a test holds that. The one difference is the INIT dice, which
-  a Tenhou log stores less one (0 to 5) and the Python export wrote as thrown.
+  a rewritten `0.4-dev` one included: the rewritten robbed-kan replay converts to the log recorded in `testdata` from the
+  original, and a test holds that. The INIT dice are a Tenhou log's, stored less one (0 to 5).
 * Every seat moves to Tenhou's as it is read: Tenhou seats its first dealer at 0, so its seat order is
   the dealer order and each INIT's round counter counts the dealer rotations.
 * A ron writes one AGARI per win, each from the scores the win before it left, as Tenhou does: the
@@ -353,8 +350,7 @@ writes what each named seat's client met, the game client's end-to-end pin of th
   fixed wall. A later round's dealer is known only once it is dealt, so a scenario runs again with
   the dealers it saw until they match. Fixed walls throw (1, 1), so a later round's dice are not the
   seed's.
-* A transcript is the JSON the Python generator wrote (one event per line, keys sorted, Python's
-  number and string forms), so the client reads either.
+* A transcript is JSON, one event per line, keys sorted, in Python's number and string forms.
 
 ## Replay fixtures
 
@@ -374,13 +370,11 @@ run writes or checks both sets: `make generate-fixtures` and the `make fixtures-
 
 ## Wall measurement and profiles
 
-`cmd/measurewall` is `make measure-wall SERVER=go`, the port of the Python wall measurement over the
-facade's seed functions.
+`cmd/measurewall` is `make measure-wall`, the wall measurement over the facade's seed functions.
 
-* Its engine seeds and control shuffle come from a port of Python's `random.Random` seeded with the
-  script's strings, so for the same arguments it measures the same walls and prints the same report,
-  and either side reads the other's JSON as a baseline. `testdata/python_report.txt` is the Python
-  script's report, and a test holds the Go one to it.
+* Its engine seeds and control shuffle come from a port of Python's `random.Random` seeded with fixed
+  strings, so the same arguments measure the same walls and print the same report. `testdata/python_report.txt`
+  is the report of the Python measurement that preceded it, and a test holds the Go one to it.
 * `make profile` runs three full-game benchmarks over the client's full game fixture:
   `BenchmarkRun_FullGame` (`internal/replay`), the engine alone; `BenchmarkRouter_FullGame`
   (`internal/server`), four scripted clients playing it through the `Router`, the session, the store
@@ -465,7 +459,7 @@ Mandatory for all server-side code; review must catch violations.
 ## Persistence and credentials
 
 The lobby reads what the game server writes, and signs what it verifies, so `store`, `replayfile` and
-`auth` keep the Python server's formats.
+`auth` keep the formats the lobby reads and signs.
 
 * The SQLite file is shared. The game server creates only `played_games` and its index, in the
   lobby's DDL; the lobby creates its own tables when it opens the file. Opening sets the file and
@@ -488,7 +482,7 @@ The lobby reads what the game server writes, and signs what it verifies, so `sto
   through an `os.Root`, so no id or link leaves the replay directory.
 * A ticket verifies only as the lobby signs one: padded base64url (padding required, the URL
   alphabet), exactly the four fields, `expires_at` a JSON float. `testdata/lobby_tickets.json`
-  holds tickets the lobby's code signed and the verdict Python reached on each. An empty secret
+  holds tickets the lobby's code signed and the verdict `verify_game_ticket` reached on each. An empty secret
   verifies nothing.
 
 ## Engine purity
@@ -597,7 +591,7 @@ comments either: a forbidigo pattern's `msg` is where its reason goes.
   and no race detector, then the coverage gate, each pass with a two-minute timeout. The race pass
   leaves out the engine and `seam/`, which start no goroutine and are its slowest packages under
   `-race`; it keeps Go's test cache, while the shuffled pass always runs, so a test reading a file
-  outside the module (the Python goldens, `telegraf.conf`), which the cache does not track, still
+  outside the module (`telegraf.conf`), which the cache does not track, still
   runs every time. Coverage under `-race` counts atomically and costs several times both passes.
 * Fix a lint finding rather than silence it. A suppression is `//nolint:<linter> // reason` on the
   narrowest line; nolintlint rejects one without a named linter or a reason. Never loosen
@@ -623,7 +617,7 @@ comments either: a forbidigo pattern's `msg` is where its reason goes.
   stamp. The local compose runs it as the host user, because the dev database and the replays are
   owner-only and the host's lobby reads both, and mounts the whole `backend/` directory, not the
   database file, so SQLite's WAL and SHM siblings are the files the host's lobby uses. The container
-  holds `:8712`, the port `make run-local-server` and `make run-games SERVER=go` start their own Go
+  holds `:8712`, the port `make run-local-server` and `make run-games` start their own Go
   server on, and neither can kill the root-owned port holder: their `DOCKER=1` modes run this
   container in its place (`GAME_V2_LOG_LEVEL` overrides the log level `.env.local` sets), and
   otherwise it must be stopped first.

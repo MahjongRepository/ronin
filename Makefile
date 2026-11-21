@@ -2,15 +2,14 @@ export PATH := $(shell mise bin-paths node go golangci-lint 2>/dev/null | tr '\n
 
 BE_RUN := uv run --project backend
 
-DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
+DOCFORMATTER_PATHS := conftest.py lobby scripts shared
 
 FRONTEND_APPS := lobby game_v2
 
-.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend format-go lint-go test-go vuln-go run-all-checks run-games run-tournament deadcode generate-replays generate-fixtures fixtures-check profile profile-compare update-pgo profile-games measure-wall run-game-v2-docker stop-game-v2-docker
+.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend format-go lint-go test-go vuln-go run-all-checks run-games run-tournament deadcode generate-fixtures fixtures-check profile profile-compare update-pgo profile-games measure-wall run-game-v2-docker stop-game-v2-docker
 
 test:
 	cd backend && uv run pytest -v --cov --cov-report=
-	cd backend && uv run coverage report --include='game/logic/*,game/wire/*' --fail-under=100
 
 coverage-branches:
 	cd backend && uv run pytest --cov --cov-branch --cov-report=term-missing:skip-covered
@@ -72,9 +71,6 @@ run-all-checks:
 deadcode:
 	$(BE_RUN) python bin/check-dead-code.py backend
 
-generate-replays:
-	$(BE_RUN) python -m game.replay.external.tenhou
-
 generate-fixtures:
 	cd backend/game_v2 && go run ./cmd/fixtures
 
@@ -88,7 +84,7 @@ profile-compare:
 	@BENCH=$(BENCH) bash ./bin/profile-compare.sh $(BASE)
 
 run-games:
-	@TABLES=$(TABLES) MODE=$(MODE) NET=$(NET) SERVER=$(SERVER) DOCKER=$(DOCKER) bash ./bin/run-bots-games.sh $(GAMES)
+	@TABLES=$(TABLES) MODE=$(MODE) NET=$(NET) DOCKER=$(DOCKER) bash ./bin/run-bots-games.sh $(GAMES)
 
 run-tournament:
 	@bash ./bin/run-tournament.sh
@@ -97,16 +93,12 @@ update-pgo:
 	@bash ./bin/update-pgo.sh $(PGO_PROFILES)
 
 profile-games:
-	@PROFILE=1 TABLES=12 MODE= SERVER=go bash ./bin/run-bots-games.sh 48
+	@PROFILE=1 TABLES=12 MODE= bash ./bin/run-bots-games.sh 48
 
 measure-wall:
-ifeq ($(SERVER),go)
 	@bin_dir=$$(mktemp -d) && trap 'rm -rf "$$bin_dir"' EXIT && \
 		go build -C backend/game_v2 -o "$$bin_dir/measurewall" ./cmd/measurewall && \
 		cd backend && "$$bin_dir/measurewall" $(MEASURE_ARGS)
-else
-	cd backend && uv run python -m scripts.measure_wall $(MEASURE_ARGS)
-endif
 
 GAME_V2_COMPOSE = set -a && . ./.env.local && set +a && \
 	GO_VERSION=$$(sed -n 's/^go = "\(.*\)"$$/\1/p' mise.toml) \

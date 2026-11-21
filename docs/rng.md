@@ -4,15 +4,12 @@ How a game gets its random outcomes: the wall of each round, the first dealer an
 Go engine's `backend/game_v2/engine/internal/rng` holds the seed, the seat permutation, the first
 dealer and each round's shuffle and dice; `engine/internal/wall` breaks the shuffled ring into the
 live and dead walls; the session (`backend/game_v2/internal/session`) draws the seed and seats the
-players through the facade's seed functions; `make measure-wall SERVER=go` measures it with
-`backend/game_v2/cmd/measurewall`. The Python engine implements the same scheme in
-`backend/game/logic/rng.py` and `wall.py`, with the seed and seating in
-`backend/game/session/seating.py`, and plain `make measure-wall` measures it.
+players through the facade's seed functions; `make measure-wall` measures it with
+`backend/game_v2/cmd/measurewall`.
 
 ## One seed per game
 
-Each game starts with 96 random bytes (768 bits) from the operating system (Go's `crypto/rand`,
-Python's `secrets.token_bytes`), stored as 192 hex characters. Everything random in the game is
+Each game starts with 96 random bytes (768 bits) from the operating system (Go's `crypto/rand`), stored as 192 hex characters. Everything random in the game is
 computed from this seed, so the replay file stores the seed and can replay the game from it.
 
 The seed is secret while the game runs and public with the replay after it. Anyone can recompute
@@ -141,17 +138,16 @@ reason to rerun with another `--experiment-seed`, not a finding. To test a chang
 
 ## The Go sampler
 
-`make measure-wall SERVER=go` runs `backend/game_v2/cmd/measurewall`, a port of the script over the Go
-engine's seed functions. It draws its engine seeds and its control shuffle from a port of Python's
-`random.Random`, seeded with the script's strings, so for the same arguments both measure the same
-walls and hands and print the same report, and either reads the other's `--json` as a baseline. On
-the default run and on runs at experiment seeds 1, 2 and 5 the two reports were identical but for
-the timing line; the JSON's exact binomial tails differ in the eleventh significant digit, from the
-two languages' `lgamma`. The Go run takes about 0.4 seconds.
+`make measure-wall` runs `backend/game_v2/cmd/measurewall` over the Go engine's seed functions. It
+draws its engine seeds and its control shuffle from a port of Python's `random.Random`, seeded with
+fixed strings, so the same arguments measure the same walls and hands and print the same report.
+`cmd/measurewall/testdata/python_report.txt` is the report of the Python measurement it was written
+against: on the default run and on runs at experiment seeds 1, 2 and 5 the two were identical but
+for the timing line. The Go run takes about 0.4 seconds.
 
 ## Comparison with a naive shuffle
 
-To show what the script catches, the same measurement was run once (throwaway code, not in the
+To show what the measurement catches, the same measurement was run once (throwaway code, not in the
 repo) on the common wrong shuffle: for each position `i` from 0 to 135, swap it with
 `randint(0, 135)` over the whole wall instead of `[i, 136)`. It looks random, but it produces
 `136^136` equally likely swap sequences spread over `136!` orderings, which do not divide evenly.
@@ -167,7 +163,7 @@ Computed exactly, tile 1 lands on position 0 with 1.36 times its fair chance and
 | mean shanten of a 13-tile hand, vs control | 3.582 vs 3.574 | 3.568 vs 3.574 | 3.571 vs 3.581, warn |
 
 The naive shuffle fails the position checks at the default size. Its effect on hands is small, a
-few hundredths of a shanten, and shows only at 100000 walls: this is why the script measures tile
+few hundredths of a shanten, and shows only at 100000 walls: this is why the measurement measures tile
 positions rather than only hand quality.
 
 ## Where the expected values come from
@@ -185,5 +181,5 @@ None come from the engine itself.
 - **Dice:** 1/6 per face; sums follow the triangle 1, 2, ..., 6, ..., 2, 1 out of 36.
 - **First dealer:** the two-throw rule counted over all 1296 pairs of throws.
 - **Shanten:** no formula exists, so the reference is the same shanten calculator run over hands
-  from Python's `random.shuffle` (ported in the Go sampler). This compares the engine's shuffle
+  from Python's `random.shuffle` (ported in the sampler). This compares the engine's shuffle
   with an independent one.

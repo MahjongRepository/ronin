@@ -6,8 +6,8 @@ classes) stays the reference for anything not drawn here.
 
 ## Components
 
-Two Starlette processes share one SQLite database, one HMAC secret for game tickets and one
-internal API secret. The lobby is the only public HTTP surface; the game server exposes REST to the
+The Python/Starlette lobby and the Go game server share one SQLite database, one HMAC secret for
+game tickets and one internal API secret. The lobby is the only public HTTP surface; the game server exposes REST to the
 lobby only and a WebSocket to players.
 
 ```mermaid
@@ -29,12 +29,12 @@ flowchart LR
         Live["Games being played<br/>(live_games/)"]
     end
 
-    subgraph Game["Game server :8711"]
+    subgraph Game["Game server"]
         REST["REST<br/>POST /games, GET /games, GET /players/{user_id}[/game-session]"]
         WS["WebSocket /ws/{game_id}<br/>MessagePack"]
-        SM["SessionManager<br/>live games, timers, AI players"]
-        Engine["MahjongGameService<br/>rules engine"]
-        Replay["ReplayCollector"]
+        SM["Manager<br/>live games, timers, AI players"]
+        Engine["Engine facade<br/>rules engine"]
+        Replay["Replay records"]
     end
 
     DB[("SQLite<br/>players, played_games, tournaments, tournament_games")]
@@ -81,24 +81,26 @@ Key facts the diagram cannot show:
   the i18n runtime, the locale and its cookie, the session handoff, the player settings) is
   TypeScript source in `frontend/shared/` that each bundles.
 
-* **Both servers are single-process asyncio.** Every state transition (seat, queue, join, action,
-  disconnect) is one synchronous step on the event loop, so neither server holds a lock. Sends and
-  closes only enqueue onto a per-connection writer task, so no step ever waits on a slow client.
+* **Each server serialises its state transitions.** The lobby is single-process asyncio: every
+  transition (seat, queue, join, action, disconnect) is one synchronous step on the event loop, so it
+  holds no lock. The game server gives each game one goroutine, and sockets, timers, lobby calls and AI
+  answers reach it only as steps on its channel, so game state takes no lock. Neither server waits on a
+  slow client: sends and closes only enqueue onto a per-connection writer.
 * **No shared in-memory state between the two servers.** The lobby learns "who is playing" by
   asking the game server over REST; the game server learns who may join from the signed tickets.
-* **Live games are memory only.** The session layer owns each game's `GameRuntime`; the engine is
+* **Live games are memory only.** The session layer owns each game's goroutine and state; the engine is
   synchronous and stateless across games and knows nothing of sockets, accounts or time. A game
   server restart loses every live game: the SQLite records and replay files are history, not
   checkpoints.
 * **The engine sits behind one seam.** Everything else in the game server, the replay tools and the
-  scripts reaches the rules engine only through `game.engine` (`backend/game/engine/AGENTS.md`). The
-  engine owns rules, calculations and state transitions for one fixed rules preset and never learns who
+  scripts reaches the rules engine only through the `engine/` facade (`backend/game_v2/AGENTS.md`,
+  The seam). The engine owns rules, calculations and state transitions for one fixed rules preset and never learns who
   answers a seat. The session owns who plays each seat (participant, AI player or timeout), decision ids,
   timers and both pauses, the seed, seating and roster, and what a refusal leads to; messaging builds the
   prompts from a seat's decision and the reconnect snapshot from its view, and with the wire layer owns
   the integer codes, packed melds, score units, error events and the replay's rules envelope.
-* **SQLite is behind one worker thread per process**, and the game server's record writes are
-  fire-and-forget (logged on failure).
+* **The lobby's SQLite is behind one worker thread**, and the game server's record writes are
+  logged on failure (the finish row is retried).
 * **Monitoring is a host-side collector, not a service.** A systemd timer runs Telegraf once a
   minute into its own SQLite file, `metrics.db` (host, cgroup slices, the game server's `/status`,
   Traefik's loopback metrics, file sizes); the lobby's admin page opens it read-only on request and
@@ -327,7 +329,7 @@ sequenceDiagram
     participant T as start_game
     participant O as Occupancy
     participant GS as Game server REST
-    participant SM as SessionManager
+    participant SM as Manager
     actor P as Each player
 
     C->>T: start_game(players, num_ai_players)
@@ -335,11 +337,11 @@ sequenceDiagram
     T->>T: sign one ticket per player (room_id = game_id)
     T->>GS: POST /games {game_id, players[name,user_id,game_ticket], num_ai_players}
     GS->>GS: verify tickets, refuse user already playing (409), capacity (503)
-    GS->>SM: create_pending_game (pending timeout armed)
+    GS->>SM: CreatePendingGame (pending timeout armed)
     GS-->>T: 201
     opt no answer (timeout, transport error)
         T->>GS: DELETE /games/{game_id} (internal secret, 2s, best effort)
-        GS->>SM: withdraw_game (abandon if nobody joined, refuse the id from now on)
+        GS->>SM: WithdrawGame (abandon if nobody joined, refuse the id from now on)
     end
     T->>O: hand_to_game(user_ids) (always, success or failure)
     T-->>P: game_starting {ws_url, game_ticket, game_id, game_client_url}
@@ -367,56 +369,52 @@ stateDiagram-v2
     PLAYING --> PLAYING: action / timeout / disconnect (seat → AI) / RECONNECT (seat back, or socket replaced) / RESYNC (state re-sent)
     PLAYING --> ENDING: game completed
     PLAYING --> ENDING: last connected human leaves (abandoned)
-    PLAYING --> ENDING: server fault (fail_game)
-    ENDING --> CLOSED: finalizer task
+    PLAYING --> ENDING: server fault
+    ENDING --> CLOSED: finalizer
     CLOSED --> [*]
 ```
 
 The end is claimed once, synchronously, for every reason: the claim sets ENDING, drops the game and
 its tickets from the registry (so the lobby's "playing" answer flips at once) and hands the effects
-to one finalizer task. The finalizer saves the replay (unless abandoned), posts the finish record
+to the game's finalizer. The finalizer saves the replay (unless abandoned), posts the finish record
 (only for a game that recorded a start) and closes the sockets, then sets CLOSED. Abandoned means no
 human connection remains, not that a player is at fault.
 
-A graceful stop (SIGTERM) runs no drain of its own: it goes through the normal disconnect path.
-uvicorn first closes every socket with 1012, delivering each handler its disconnect, and waits for
-the handlers up to `--timeout-graceful-shutdown`; each handler's own `finally` runs
-`handle_disconnect`. Timers and AI play keep running in that window. A playing game hands each
+A graceful stop (SIGTERM) runs inside compose's 15 s grace period, on one deadline: the HTTP server
+stops taking connections, `Server.Shutdown` closes every socket with 1012 and waits until each ran its
+disconnect, then `Manager.Shutdown` drains the finalizers and the store writes, and the database
+closes last. Timers and AI play keep running while the sockets drain. A playing game hands each
 leaving seat to an AI player and is abandoned at its last leave (no replay), unless AI play
-completes it first; a pending game only unbinds. On this normal path every disconnect is handled
-before the lifespan shutdown runs `SessionManager.shutdown()`, so only the pending games remain:
-it cancels the sleeping timers still registered, awaits every finalizer, and leaves the pending
-games unrecorded, since they never started. Past the timeout, uvicorn cancels the handlers still
-running and starts the lifespan shutdown without waiting for them, so their disconnects (and any
-abandonment they cause) can land after `shutdown()` has begun; that ordering is not guaranteed.
+completes it first; a pending game only unbinds. A game still registered after the disconnects
+vanishes with no finish row, which for a pending game is right, since it never started. Past the
+deadline the sockets still open are dropped and the store's context is cancelled.
 
 Per connection:
 
 ```mermaid
 sequenceDiagram
     actor P as Game client
-    participant WS as websocket_endpoint
-    participant R as MessageRouter
-    participant SM as SessionManager
+    participant WS as Server socket
+    participant R as Router
+    participant SM as Manager
     participant E as Engine
 
     P->>WS: connect /ws/{game_id}
-    WS->>SM: register_connection (auth timeout armed)
+    WS->>SM: Connect (auth timeout armed)
     P->>R: JOIN_GAME {game_ticket}  or  RECONNECT {game_ticket}
     R->>R: verify ticket, ticket.room_id == path game_id
-    R->>SM: join_game / reconnect (participant looked up by ticket)
+    R->>SM: Join / Reconnect (participant looked up by ticket)
     SM-->>P: game_joined, then once every player joined game_started (with the seat) and the first deal, which opens the start confirm / game_reconnected snapshot (with the participant's latest decision id)
     loop each wait
         SM-->>P: wait-opening event (first deal, draw, call prompt, turn, round end) stamped with the participant's decision id
         P->>R: action echoing that decision id
-        R->>SM: handle_game_action
+        R->>SM: Act
         SM->>E: act (AI players' answers and timeouts use the same call)
         E-->>SM: events; the session then reads the next Awaiting
         SM-->>P: events (per-seat routing), timers re-armed from Awaiting
     end
     P-->>WS: socket closes
-    WS->>R: handle_disconnect
-    R->>SM: disconnect → seat played by AI until RECONNECT
+    WS->>SM: Disconnect → seat played by AI until RECONNECT
 ```
 
 * A participant is keyed by its ticket for the whole game and its seat never rotates, so a reconnect
@@ -443,8 +441,8 @@ sequenceDiagram
   not offered plays the default instead. A human who reconnects during that delay or while its seat's
   answer is pending gets the turn back as their own decision, with no engine call. The replay runner and the fixture generators answer
   each seat themselves.
-* Liveness is uvicorn's WebSocket ping; the apps run no heartbeat of their own. Rate limits, decode
-  strikes and the auth timeout are in `backend/game/AGENTS.md`.
+* Liveness is the game server's own WebSocket ping (20 s interval, 20 s timeout). Rate limits, decode
+  strikes and the auth timeout are in `backend/game_v2/AGENTS.md`.
 
 ## Persistence
 
@@ -498,7 +496,7 @@ honours this contract can replace it.
   and stores it under the same key. The v2 client forgets it at the game end, since its ticket will never
   hold the seat again.
 * **Game server:** the client joins `wsUrl` with the ticket and speaks the MessagePack protocol
-  (`backend/game/messaging/AGENTS.md`); it reuses the same ticket to reconnect. Both directions use
+  (`backend/game_v2/AGENTS.md`, The wire); it reuses the same ticket to reconnect. Both directions use
   integer metadata keys from the named `WireKey` registry. Builders, serializers and schemas reference
   those keys directly; codecs validate and preserve them. Parsed models, handlers and UI keep readable fields.
   Score-map seats remain string data keys. Backend, browser and external bot codecs share golden frames

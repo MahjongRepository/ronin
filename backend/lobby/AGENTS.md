@@ -43,7 +43,7 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   each handler decides what an unexpected error does.
 * The lobby calls the game server through one HTTP client per app, built in `create_app()` and
   closed in the lifespan. Its idle connections expire well before the game server's keep-alive
-  timeout (uvicorn's 5s default), since a start sent on a connection the server is closing fails
+  timeout (the Go server's 5s HTTP idle timeout), since a start sent on a connection the server is closing fails
   ambiguously. Each call keeps its own deadline rather than the client's default.
 * `monitoring/` — the admin monitoring page's data: the `metrics.db` reader, the reductions, the chart
   geometry and the one page-data assembly that takes the range and returns every chart, the games summary

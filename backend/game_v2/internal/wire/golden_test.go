@@ -13,8 +13,8 @@ var update = flag.Bool("update", false, "rewrite the goldens' bytes and named ke
 const (
 	liveGoldenPath         = "testdata/live-protocol-golden.json"
 	replayGoldenPath       = "testdata/replay-format-golden.json"
-	pythonLiveGoldenPath   = "../../../game/tests/fixtures/live-protocol-golden.json"
-	pythonReplayGoldenPath = "../../../game/tests/fixtures/replay-format-golden.json"
+	pythonLiveGoldenPath   = "testdata/python-live-protocol-golden.json"
+	pythonReplayGoldenPath = "testdata/python-replay-format-golden.json"
 )
 
 func goldenBytes(tb testing.TB, node any) []byte {

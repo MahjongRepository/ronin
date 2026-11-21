@@ -2,7 +2,7 @@
 
 Standard Japanese Riichi Mahjong (4-player). This document lists the specific rules and settings that define Ronin's ruleset, separated into fixed mechanics (inherent to the game) and the settings of the one preset every game plays.
 
-On the `golang-migration` branch this document describes the Go engine (`backend/game_v2`), not the Python one.
+This document describes the Go engine (`backend/game_v2`).
 
 ---
 

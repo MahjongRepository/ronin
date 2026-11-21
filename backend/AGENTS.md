@@ -1,18 +1,17 @@
 # Backend (Python / Starlette)
 
-Before working in `game/` or `lobby/`, read that directory's `AGENTS.md`. `shared/` holds what
-both servers use:
+Only the lobby and `shared/` are Python. Before working in `lobby/`, read its `AGENTS.md`; `shared/`
+holds what the lobby uses:
 
 * `shared/auth/` — auth sessions, password hashing and game tickets.
 * `shared/dal/` — the persistence contracts and models; `shared/db/` — their SQLite implementations.
-* `shared/storage.py` — replay storage.
+* `shared/storage.py` — reading the stored replay files.
 * `shared/websocket.py` — the per-connection queued writer and the pre-accept handshake helpers.
 * `shared/rate_limit.py` — the token-bucket rate limiter; `shared/logging.py` — structlog setup.
-* `shared/lib/melds/` — the IMME meld encoding (see its `README.md`).
 
-`game_v2/` is a Go module, the game server being ported to Go: it sits outside the uv project, imports
-nothing from `shared/`, is checked by its own `make` targets rather than the Python tooling, and has
-its own `AGENTS.md`.
+`game_v2/` is a Go module, the game server: it sits outside the uv project, imports nothing from
+`shared/`, is checked by its own `make` targets rather than the Python tooling, and has its own
+`AGENTS.md`.
 
 Each process opens the database once, as a `shared.db.Database` (its docstrings hold the threading and
 drain model): the event loop never touches SQLite directly, and a lifespan closes the database last.
@@ -27,14 +26,13 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 
 ## Tooling
 
-* The uv project lives in `backend/` and imports are rooted there (`from game.engine import ...`).
+* The uv project lives in `backend/` and imports are rooted there (`from lobby.settings import ...`).
   Run checks from `backend/` (`cd backend && uv run pytest ...`); run the servers and `bin/` scripts
   from the repo root with `uv run --project backend ...`, where their relative paths resolve.
 * `conftest.py` loads the repo-root `.env.tests` and routes structlog through stdlib logging so
   `caplog` sees it.
-* `make test` gates `game/logic/` and `game/wire/` at 100% line coverage; the rest is measured, not
-  gated. Keep `branch` and `fail_under` out of `[tool.coverage]` or the gate breaks; branch coverage
-  is advisory (`make coverage-branches`).
+* `make test` measures line coverage and gates none of it. Keep `branch` and `fail_under` out of
+  `[tool.coverage]`; branch coverage is advisory (`make coverage-branches`).
 * Besides the built-in `TYPE_CHECKING` and stub exclusions, only a tagged `# pragma: no cover (<tag>)`
   excludes code from coverage; a bare one excludes nothing. Tags: `exhaustive` (the fallthrough of a
   `match` or `isinstance` chain over a closed set, or an import-time consistency check between
@@ -55,14 +53,14 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 * The lobby's metrics database path is required as well, though the file may be missing: it is the host
   collector's `metrics.db`, read-only to the lobby (mounted `:ro` in production), and a missing file shows
   as "never collected" on the monitoring page rather than failing startup.
-* Both servers share the game ticket secret (the lobby signs tickets, the game server verifies them),
-  the internal API secret (the lobby's bearer token on the game server's credential-returning
+* The lobby and the Go game server share the game ticket secret (the lobby signs tickets, the game
+  server verifies them), the internal API secret (the lobby's bearer token on the game server's credential-returning
   lookup) and the SQLite database.
 
 ## Conventions
 
-* Game state and domain events are frozen Pydantic models; extend an existing Pydantic family in kind,
-  and use a `@dataclass` elsewhere unless the data needs validation.
+* Validated data (wire messages, persistence models) is a Pydantic model; extend an existing Pydantic
+  family in kind, and use a `@dataclass` elsewhere unless the data needs validation.
 * Docstrings are imperative ("Calculate...", not "Calculates..."): a one-line summary, then a blank
   line and parameter/return detail only when the function is not obvious.
 * No module docstrings or file-header comments: what a module must convey goes on its classes and
@@ -73,16 +71,15 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 * Tests carry no docstrings (module, class, test or helper): the test name, and the names of its
   variables, say what it pins; a rename is the way to carry a non-obvious setup.
 * `<subject>` in a test name (root naming rule) is the function, rule or component under test, in
-  snake_case: `declare_riichi`, `furiten`, `matchmaking_queue`, `login_route`. A method in a `Test*`
+  snake_case: `matchmaking_queue`, `login_route`, `replay_file_path`. A method in a `Test*`
   class carries the full name too; the class only groups.
-* Test logic once, at the lowest layer that owns it: engine rules in `game/tests/unit/logic/`, which
-  loads no server, session or messaging code, so no `conftest.py` above it may import them. Server,
-  messaging, wire and replay unit tests live in `game/tests/unit/server/`, session tests in
-  `game/tests/unit/session/`. Integration tests cover only the wiring (routing, serialization, auth,
-  error mapping) and never re-check engine or service logic through a socket or HTTP.
+* Test logic once, at the lowest layer that owns it: lobby unit tests in `lobby/tests/unit/` and shared
+  ones in `shared/tests/` load no app. Integration tests in `lobby/tests/integration/` cover only the
+  wiring (routing, serialization, auth, error mapping) and never re-check manager or model logic
+  through a socket or HTTP.
 * One error test per mechanism, not per field or route: Pydantic's built-in constraints need none; a
-  custom validator or a raised `GameRuleError` subclass gets one.
+  custom validator or a raised domain exception gets one.
 * Prefer real I/O against ephemeral resources (`tmp_path`, a temporary SQLite database) over mocks;
   mock only at process boundaries (sockets, the network).
-* Build test data with the helpers in `game/tests/helpers/` and each package's `conftest.py` fixtures,
-  not raw tile ids or magic strings.
+* Build test data with the helpers in `shared/tests/helpers/` and each package's `conftest.py` fixtures,
+  not magic strings.

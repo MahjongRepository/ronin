@@ -32,14 +32,14 @@ const REFUSAL_CODES: ReadonlySet<string> = new Set([
  * Session errors that refuse only this one identity message, so the session sends it again after a session retry.
  * Of the errors that are not refusals, only the rate limit can answer a JOIN_GAME or RECONNECT the client sends
  * well formed, once per socket: `already_in_game` needs a second identity message on a bound socket and
- * `game_not_started` a game action or a resync request (`backend/game/session/manager.py`). A rate limit of the
+ * `game_not_started` a game action or a resync request (`backend/game_v2/internal/session`). A rate limit of the
  * client's own outstanding resync request never reaches the session (`entities/client`, Desync).
  */
 const RESENDABLE_CODES: ReadonlySet<string> = new Set([SESSION_ERROR_CODE.RATE_LIMITED]);
 
 /**
  * Session errors that answer a request other than the identity message and refuse nothing: `game_not_started` refuses
- * only a game action or a resync request (`backend/game/session/manager.py`). `not_in_game` answers a resync request
+ * only a game action or a resync request (`backend/game_v2/internal/session`). `not_in_game` answers a resync request
  * too, but it is a refusal, which an identifying session takes before asking this. Every other one it gets answers its
  * JOIN_GAME or RECONNECT.
  */

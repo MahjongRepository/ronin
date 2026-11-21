@@ -10,12 +10,12 @@ planning work, read every `AGENTS.md` on the path to the code it touches
 
 Ronin is a Riichi Mahjong game server and browser client.
 
-* `backend/` — Python 3.14 / Starlette, its own uv project. See `backend/AGENTS.md`.
-  * `backend/game/` — game server (WebSocket, MessagePack). See `backend/game/AGENTS.md`.
+* `backend/` — Python 3.14 / Starlette (the lobby and the shared code), its own uv project. See
+  `backend/AGENTS.md`.
   * `backend/lobby/` — lobby server (auth, rooms, matchmaking, server-rendered pages). See
     `backend/lobby/AGENTS.md`.
-  * `backend/shared/` — auth, SQLite data access, logging and helpers used by both servers.
-  * `backend/game_v2/` — the Go game server that will replace `backend/game/`: its own Go module, outside
+  * `backend/shared/` — auth, SQLite data access, logging and helpers the lobby uses.
+  * `backend/game_v2/` — the game server (WebSocket, MessagePack; Go): its own Go module, outside
     the uv project. See `backend/game_v2/AGENTS.md`.
 * `frontend/` — Vite / npm on Node: two apps, each its own package built separately, sharing source from
   `frontend/shared/`. See `frontend/AGENTS.md`.
@@ -31,8 +31,8 @@ Ronin is a Riichi Mahjong game server and browser client.
   events socket.
 * `docs/game-rules.md` — the Riichi ruleset the engine implements, read before rule work.
 * `docs/rng.md` — how the seed becomes the walls, the first dealer and the seating, and what
-  `make measure-wall` reports for it; update it with any change to `game/logic/rng.py` or to the Go
-  engine's `engine/internal/rng`.
+  `make measure-wall` reports for it; update it with any change to the Go engine's
+  `engine/internal/rng`.
 * `docs/i18n.md` — the language contract and the ja/en/ru glossary; `make lint` runs
   `bin/check_i18n.py` over the lobby's catalogs.
 * `docs/game-client-look.md` — the v2 game client's look (composition, elements, proportions, review
@@ -57,12 +57,12 @@ The `Makefile` lists the targets; the non-obvious ones:
   it). `make profile-compare BASE=<checkout> [BENCH=…]` runs the same benchmarks against a baseline
   checkout in alternating rounds and prints the `benchstat` A/B; both build with the shipped
   `cmd/gameserver/default.pgo`, which `make update-pgo [PGO_PROFILES=<cpu.prof>…]` regenerates.
-* `make run-games [GAMES=n] [TABLES=t] [MODE=m] [NET=bad] [SERVER=go [DOCKER=1]]` — play bot games (the Rust `mahjong-bot` repo at `BOT_ROOT`,
+* `make run-games [GAMES=n] [TABLES=t] [MODE=m] [NET=bad] [DOCKER=1]` — play bot games (the Rust `mahjong-bot` repo at `BOT_ROOT`,
   default `~/work/mahjong-bot`, built with its `make release-bot`) on fresh servers, `t` tables at a time, the bots in play mode `m` (their `--mode`,
   only when set; `chaos` misbehaves on purpose, the bot's `ronin/chaos.rs`, and its log gate passes only the game
   server lines that causes). `NET=bad`, meant for `MODE=chaos`, puts a faulty proxy chain between the bots and the
-  servers (`bin/bad-network.sh`). `SERVER=go` runs the Go game server on `:8712` in place of the Python one, its slog lines and Go panics as the
-  game log gate and its `cmd/verify` as the replay check; `DOCKER=1` starts that server as a fresh container instead,
+  servers (`bin/bad-network.sh`). The Go game server runs on `:8712`, its slog lines and Go panics are the
+  game log gate and its `cmd/verify` is the replay check; `DOCKER=1` starts the game server as a fresh container instead,
   gates its `docker logs` and its exit code, and removes it at the end. It stops at the first batch with a game that is not completed, whose replay does not reproduce it
   (`bin/verify_games.py`), or after which any log (server stderr and bot console included) holds a warning or an
   abnormal event such as a timeout auto-action or a bot replaced by AI. It forces debug console logging, so these
@@ -71,7 +71,7 @@ The `Makefile` lists the targets; the non-obvious ones:
   verifies only the game ids its bots logged. It **wipes** `backend/logs` and the bot's `var/logs` first and
   kills whatever holds `:8710` and the game server's port. Run it only when asked: tests and `make run-all-checks` are the
   verification.
-* `make profile-games` — the same run with `SERVER=go` at production's INFO logging, the Go game server
+* `make profile-games` — the same run at production's INFO logging, the Go game server
   writing its CPU, allocation and mutex profiles and runtime totals (`cmd/gameserver -profiledir`), then
   the same report with per-game totals: where real games spend the server's CPU. `make profile`
   measures changes.
@@ -79,10 +79,9 @@ The `Makefile` lists the targets; the non-obvious ones:
   `bin/tournament_manager.py` through the tournament API (two shuffled tables, both followed to their end); every
   API response and event goes to `backend/logs/tournament/manager.log`. It wipes only `backend/logs/tournament`
   and kills whatever holds `:8710`/`:8712`. Run it only when asked.
-* `make measure-wall [MEASURE_ARGS=...] [SERVER=go]` — sample games from the engine's seed, dealer and wall functions and
-  report their statistics against exact references and a stdlib-shuffle control (`backend/scripts/measure_wall/`).
-  A structural failure exits 1; a statistical warning is printed, never a gate. `SERVER=go` runs the Go
-  sampler (`backend/game_v2/cmd/measurewall`), which takes the same arguments and prints the same report.
+* `make measure-wall [MEASURE_ARGS=...]` — sample games from the engine's seed, dealer and wall functions and
+  report their statistics against exact references and a stdlib-shuffle control (`backend/game_v2/cmd/measurewall`).
+  A structural failure exits 1; a statistical warning is printed, never a gate.
 * `make generate-fixtures` — regenerate the v2 game client's replay fixtures and seat transcripts from
   the Go server's `cmd/fixtures` (`backend/game_v2/AGENTS.md`, Seat transcripts and Replay fixtures):
   the replay scenarios played through the engine, the seat scenarios through the real session and

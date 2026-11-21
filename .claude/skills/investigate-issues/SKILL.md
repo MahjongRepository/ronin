@@ -11,8 +11,12 @@ The local servers write log files only when `LOBBY_LOG_DIR` / `GAME_LOG_DIR` are
 empty); `.env.local`, which `make run-local-server` sources, points them at `backend/logs/lobby` and
 `backend/logs/game`. Grep those directories for errors, limiting output to avoid noise from old logs:
 ```
-grep -r -i -n -E "exception|error|warning|traceback|critical" backend/logs/ | tail -50
+grep -r -i -n -E "exception|error|warning|traceback|critical|level=WARN|panic:|^goroutine " backend/logs/ | tail -50
 ```
+
+The lobby logs Python lines and tracebacks; the Go game server logs slog lines (`level=WARN|ERROR`)
+and Go panics with their goroutine traces. `GAME_ISSUE_PATTERN` in `bin/run-bots-games.sh` lists the
+game server forms the bot-games gate treats as issues.
 
 If the directories are missing or empty, say so instead of treating that as "no errors". Production
 logs go to journald on the server, not to files: `make -C deploy spot-check-logs-errors SINCE="1 day ago"`.

@@ -252,8 +252,9 @@ export const SESSION_ERROR_CODE = {
 export type SessionErrorCode = (typeof SESSION_ERROR_CODE)[keyof typeof SESSION_ERROR_CODE];
 
 /**
- * The game `error` event codes the client tells apart (`backend/game/logic/enums.py` `GameErrorCode`): every code
- * refuses the action and changes nothing, and `stale_action` answers one that echoed the id of a wait that ended.
+ * The game `error` event codes the client tells apart (`backend/game_v2/internal/messaging/errors.go`
+ * `GameErrorCode`): every code refuses the action and changes nothing, and `stale_action` answers one that echoed
+ * the id of a wait that ended.
  */
 export const GAME_ERROR_CODE = {
     NOT_YOUR_TURN: "not_your_turn",
@@ -261,8 +262,9 @@ export const GAME_ERROR_CODE = {
 } as const;
 
 /**
- * The WebSocket close codes the client acts on, as `backend/game/session/manager.py` sends them, and 1006, what a
- * browser reports for a connection lost without a close frame, which the client reports for its own failed connects.
+ * The WebSocket close codes the client acts on, as `backend/game_v2/internal/session/session.go` sends them, and
+ * 1006, what a browser reports for a connection lost without a close frame, which the client reports for its own
+ * failed connects.
  */
 export const CLOSE_CODE = {
     ABNORMAL: 1006,

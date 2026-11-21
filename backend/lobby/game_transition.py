@@ -136,8 +136,8 @@ def create_game_server_client(
     """
     Build the one client an app calls the game server with.
 
-    Idle pooled connections expire well before uvicorn's default keep-alive timeout, which narrows, but cannot close,
-    the window for reusing a connection the server is closing.
+    Idle pooled connections expire well before the game server's HTTP idle timeout (5s), which narrows, but cannot
+    close, the window for reusing a connection the server is closing.
     """
     return httpx.AsyncClient(base_url=game_server_url, transport=transport, limits=_GAME_SERVER_LIMITS)
 

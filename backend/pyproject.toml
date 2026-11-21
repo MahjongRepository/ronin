@@ -8,9 +8,6 @@ dependencies = [
     "pydantic==2.14.1",
     "pydantic-settings==2.15.0",
     "httpx==0.28.1",
-    "mahjong==2.0.0",
-    "msgpack==1.2.3",
-    "xiangting==6.0.2",
     "jinja2==3.1.6",
     "python-multipart==0.0.32",
     "bcrypt==5.0.0",
@@ -41,7 +38,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["lobby", "game", "shared"]
+packages = ["lobby", "shared"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -78,9 +75,6 @@ ignore = [
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseSettings"]
 
-[tool.ruff.lint.flake8-tidy-imports.banned-api]
-"mahjong.shanten".msg = "Use calculate_shanten from game.engine (game.logic.shanten inside the engine), not mahjong.shanten."
-
 [tool.docformatter]
 recursive = true
 make-summary-multi-line = true
@@ -103,7 +97,7 @@ unresolved-attribute = "ignore"
 
 [tool.coverage.run]
 source = ["."]
-omit = ["**/tests/*", "scripts/*", "debug.py", "game/replay/external/tenhou.py"]
+omit = ["**/tests/*", "scripts/*", "debug.py"]
 
 [tool.coverage.report]
 show_missing = true
@@ -115,71 +109,14 @@ exclude_lines = [
 ]
 
 [tool.importlinter]
-root_packages = ["game", "lobby", "shared", "scripts"]
+root_packages = ["lobby", "shared", "scripts"]
 exclude_type_checking_imports = true
 
 [[tool.importlinter.contracts]]
-name = "game and lobby are separate servers that meet only in shared"
-type = "independence"
-modules = ["game", "lobby"]
-
-[[tool.importlinter.contracts]]
-name = "shared is a leaf: it never imports a server or a script"
+name = "shared is a leaf: it never imports the lobby or a script"
 type = "forbidden"
 source_modules = ["shared"]
-forbidden_modules = ["game", "lobby", "scripts"]
-
-[[tool.importlinter.contracts]]
-name = "game: server -> session -> messaging -> wire -> engine -> logic"
-type = "layers"
-layers = ["game.server", "game.session", "game.messaging", "game.wire", "game.engine", "game.logic"]
-
-[[tool.importlinter.contracts]]
-name = "outside the engine, only its facade, its own tests and the state-staging test helpers import game.logic"
-type = "protected"
-protected_modules = ["game.logic"]
-allowed_importers = [
-    "game.engine",
-    "game.tests.unit.logic",
-    "game.tests.helpers.builders",
-    "game.tests.helpers.wall",
-]
-
-[[tool.importlinter.contracts]]
-name = "the seam suite reaches the engine only through its facade"
-type = "forbidden"
-source_modules = ["game.tests.seam"]
-forbidden_modules = [
-    "game.logic",
-    "game.tests.helpers.builders",
-    "game.tests.helpers.wall",
-    "game.tests.unit.logic",
-]
-allow_indirect_imports = true
-
-[[tool.importlinter.contracts]]
-name = "game.logic and game.wire know nothing of replay, auth or persistence"
-type = "forbidden"
-source_modules = ["game.logic", "game.wire"]
-forbidden_modules = ["game.replay", "shared.auth", "shared.dal", "shared.db", "shared.storage", "shared.logging"]
-
-[[tool.importlinter.contracts]]
-name = "game.logic knows no wire encoding"
-type = "forbidden"
-source_modules = ["game.logic"]
-forbidden_modules = ["shared.lib"]
-
-[[tool.importlinter.contracts]]
-name = "game.replay is a tool over logic and wire, outside the server"
-type = "forbidden"
-source_modules = ["game.replay"]
-forbidden_modules = ["game.server", "game.session", "game.messaging"]
-
-[[tool.importlinter.contracts]]
-name = "game.session writes replays without importing the replay tool"
-type = "forbidden"
-source_modules = ["game.session"]
-forbidden_modules = ["game.replay"]
+forbidden_modules = ["lobby", "scripts"]
 
 [[tool.importlinter.contracts]]
 name = "lobby: server -> views -> features -> game start -> occupancy and players -> auth and i18n -> settings"
@@ -200,13 +137,7 @@ type = "layers"
 layers = ["shared.db", "shared.auth", "shared.dal"]
 
 [[tool.importlinter.contracts]]
-name = "only the fixture generators borrow the game tests' helpers"
-type = "protected"
-protected_modules = ["game.tests"]
-allowed_importers = ["scripts.replay_fixtures", "scripts.seat_scenarios"]
-
-[[tool.importlinter.contracts]]
 name = "only composition roots, scripts and the db tests open the database"
 type = "protected"
 protected_modules = ["shared.db"]
-allowed_importers = ["game.server.app", "lobby.server.app", "scripts", "shared.tests"]
+allowed_importers = ["lobby.server.app", "scripts", "shared.tests"]

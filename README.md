@@ -6,7 +6,7 @@ Ronin is in an early stage of development, the first version of the server is re
 
 ## Backend
 
-The server is a WebSocket app: Python + Starlette.
+The game server is a WebSocket app written in Go; the lobby is Python + Starlette.
 
 ## Frontend
 
@@ -16,10 +16,9 @@ The client is planned to be a TypeScript app (not React).
 
 ## Mahjong libraries
 
-Below are third-party libraries related to mahjong that were used in Ronin:
+Below is a third-party library related to mahjong that Ronin draws on:
 
-- [mahjong](https://github.com/MahjongRepository/mahjong) for hand yaku calculations and scoring
-- [xiangting-py](https://github.com/Apricot-S/xiangting-py) for fast shanten calculations
+- [xiangting](https://github.com/Apricot-S/xiangting) as the inspiration for fast shanten calculations
 
 ## Assets
 

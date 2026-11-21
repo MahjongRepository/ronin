@@ -11,11 +11,9 @@
 //
 //	measurewall [-games n] [-rounds n] [-experiment-seed n] [-json path] [-baseline path]
 //
-// The engine seeds and the control shuffle come from Python's random.Random seeded as the Python
-// measurement seeds it, so both measure the same walls for the same arguments, and either reads
-// the other's JSON as a baseline. It exits 2 on a usage error.
-//
-// Ported from ronin's Python wall measurement, backend/scripts/measure_wall.
+// The engine seeds and the control shuffle come from a port of Python's random.Random, so the same
+// arguments measure the same walls and a run reads an earlier run's JSON as a baseline. It exits 2
+// on a usage error.
 package main
 
 import (
