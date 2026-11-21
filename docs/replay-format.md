@@ -11,6 +11,12 @@ annotations in their recorded order. There is no outer array, custom action pack
 Unsupported storage versions are rejected. The storage version, RNG version, and rules-profile ID have
 separate meanings; changing storage does not change the RNG stream or engine outcomes.
 
+A live game's observer stream (`GET /games/{game_id}/observe`) carries the same records in the same
+encoding, delayed, except that its game start holds no `sd`: the seed derives every wall, so no observer
+answer holds it. The version map comes only ahead of the records of the first answer that holds any to a
+read from the start (`from=0`); an empty answer and every answer to a later cursor carry none, so the
+answers' records joined in order read as a replay without its seed.
+
 `backend/game_v2/internal/wire` declares the named key IDs shared with the live protocol, the replay key
 set (every key through `YAKU_YAKUMAN_COUNT`, plus `SHOWN_HANDS`) and the replay schema: the fields each
 record and result type requires and each field's type, checked on encode and decode alike. The TypeScript

@@ -7,15 +7,20 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/auth"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/server"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
@@ -206,6 +211,130 @@ func TestPlayingGames_WhenOneFixedSeatGameStartedAndOnePending_ShouldListTheStar
 	}
 	if refused.status != http.StatusUnauthorized || refused.body["error"] != "Unauthorized" {
 		t.Errorf("GET /games without the secret = %d %v, want 401", refused.status, refused.body)
+	}
+}
+
+type shiftedClock struct {
+	shift atomic.Int64
+}
+
+func (c *shiftedClock) Now() time.Time {
+	return time.Now().Add(time.Duration(c.shift.Load()))
+}
+
+func (c *shiftedClock) AfterFunc(d time.Duration, f func()) func() bool {
+	return time.AfterFunc(d, f).Stop
+}
+
+func (c *shiftedClock) advance(d time.Duration) {
+	c.shift.Add(int64(d))
+}
+
+func withObserving(clock session.Clock, delay time.Duration) option {
+	return func(_ *server.Config, s *session.Config) { s.Clock, s.ObserveDelay = clock, delay }
+}
+
+type observed struct {
+	fields  wire.StrMap
+	records []wire.Map
+}
+
+func (h *harness) observe(from int) observed {
+	h.t.Helper()
+	got := h.internal(http.MethodGet, "/games/"+testGameID+"/observe?from="+strconv.Itoa(from))
+	if got.status != http.StatusOK || got.header.Get("Content-Type") != "application/msgpack" {
+		h.t.Fatalf("GET observe from %d = %d %q %q, want 200 msgpack", from, got.status, got.header.Get("Content-Type"), got.text)
+	}
+	fields, err := wire.DecodeStrMap([]byte(got.text))
+	if err != nil {
+		h.t.Fatalf("decode the observe answer from %d: %v", from, err)
+	}
+	raw, _ := fields.Get("records")
+	content, ok := raw.(wire.Bin)
+	if !ok {
+		h.t.Fatalf("observe answer records = %T, want bin", raw)
+	}
+	var records []wire.Map
+	if len(content) > 0 {
+		records, err = wire.DecodeRecords(content)
+		if err != nil {
+			h.t.Fatalf("decode the observed records from %d: %v", from, err)
+		}
+	}
+	return observed{fields: fields, records: records}
+}
+
+func (o observed) number(t *testing.T, key string) int {
+	t.Helper()
+	v, _ := o.fields.Get(key)
+	n, ok := v.(wire.Int)
+	if !ok {
+		t.Fatalf("observe answer %s = %v, want an int", key, v)
+	}
+	return int(n)
+}
+
+func versionRecords(records []wire.Map) int {
+	count := 0
+	for _, record := range records {
+		if _, ok := record.Get(wire.KeyReplayVersion); ok {
+			count++
+		}
+	}
+	return count
+}
+
+func seeded(records []wire.Map) bool {
+	return slices.ContainsFunc(records, func(record wire.Map) bool {
+		_, ok := record.Get(wire.KeySeed)
+		return ok
+	})
+}
+
+func TestObserveGame_WhenPolledAcrossTheDelay_ShouldServeOldRecordsOnceVersionedAndSeedFree(t *testing.T) {
+	clock := &shiftedClock{}
+	h := newHarness(t, withObserving(clock, time.Minute))
+	h.create("alice", "bob")
+	alice := h.joinAlice()
+	bob := h.dial(testGameID, nil)
+	send(t, bob, joinMessage(ticketFor(testGameID, "bob")))
+	readUntil(t, alice, isGameStarted)
+
+	early := h.observe(0)
+	clock.advance(30 * time.Second)
+	later := h.observe(0)
+	for _, poll := range []observed{early, later} {
+		if poll.number(t, "next") != 0 || len(poll.records) != 0 || poll.number(t, "available_in_ms") <= 0 {
+			t.Errorf("observe during the delay = %v, want no records, next 0 and the wait left", poll.fields)
+		}
+	}
+	startedAt := time.UnixMilli(int64(early.number(t, "started_at")))
+	if age := time.Since(startedAt); age < 0 || age > time.Minute {
+		t.Errorf("observe started_at = %v, want the start in Unix milliseconds", startedAt)
+	}
+
+	_ = bob.Close(websocket.StatusNormalClosure, "")
+	readUntil(t, alice, func(m wire.Map) bool { return sessionType(m) == "seat_control" })
+	clock.advance(31 * time.Second)
+	first := h.observe(0)
+	clock.advance(30 * time.Second)
+	delta := h.observe(first.number(t, "next"))
+
+	if len(first.records) < 2 || versionRecords(first.records) != 1 || versionRecords(first.records[:1]) != 1 ||
+		!isGameStarted(first.records[1]) {
+		t.Errorf("first observed batch = %v, want the version record and then the start", first.records)
+	}
+	if first.number(t, "next") != len(first.records)-1 {
+		t.Errorf("first observed batch next = %d, want its %d records past the version record", first.number(t, "next"), len(first.records)-1)
+	}
+	if len(delta.records) == 0 || versionRecords(delta.records) != 0 {
+		t.Errorf("observed delta = %v, want bob's leave and no version record", delta.records)
+	}
+	if seeded(first.records) || seeded(delta.records) {
+		t.Errorf("an observed record holds the seed")
+	}
+	if gone := h.internal(http.MethodGet, "/games/game-9999/observe"); gone.status != http.StatusNotFound {
+		t.Errorf("GET observe of an unknown game = %d, want 404", gone.status)
 	}
 }
 

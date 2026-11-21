@@ -24,6 +24,7 @@ const (
 	logCreateFailed       = "create game failed"
 	logReplayUnread       = "read stored replay failed"
 	logTenhouFailed       = "tenhou export failed"
+	logObserveFailed      = "encode observed records failed"
 	statusOK              = "ok"
 	statusPending         = "pending"
 	cacheControlNone      = "no-store"
@@ -191,6 +192,58 @@ func (s *Server) playingGames(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, struct {
 		Games []playingGameJSON `json:"games"`
 	}{games})
+}
+
+func (s *Server) observeGame(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", cacheControlNone)
+	if !s.isInternalCaller(r) {
+		s.writeError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	from := 0
+	query := r.URL.Query()
+	if query.Has("from") {
+		n, err := strconv.Atoi(query.Get("from"))
+		if err != nil || n < 0 {
+			s.writeError(w, http.StatusBadRequest, "Invalid cursor")
+			return
+		}
+		from = n
+	}
+
+	gameID := r.PathValue("game_id")
+	seen, ok := s.cfg.Session.Observe(gameID, from)
+	if !ok {
+		s.writeError(w, http.StatusNotFound, "Game not found")
+		return
+	}
+	records, err := wire.EncodeObserverRecords(seen.Records, from == 0 && len(seen.Records) > 0)
+	if err != nil {
+		s.log.Error(logObserveFailed, "game_id", gameID, "error", err)
+		s.writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	players := make(wire.Array, 0, len(seen.Game.Names))
+	for _, name := range seen.Game.Names {
+		players = append(players, wire.Str(name))
+	}
+	body := wire.EncodeStrMap(wire.StrMap{
+		{Key: "started_at", Value: wire.Int(seen.Game.StartedAt.UnixMilli())},
+		{Key: "game_type", Value: wire.Str(seen.Game.GameType)},
+		{Key: "players", Value: players},
+		{Key: "available_in_ms", Value: wire.Int(seen.AvailableIn.Milliseconds())},
+		{Key: "next", Value: wire.Int(seen.Next)},
+		{Key: "ended", Value: wire.Bool(seen.Ended)},
+		{Key: "records", Value: wire.Bin(records)},
+	})
+	w.Header().Set("Content-Type", "application/msgpack")
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(body)
+	if err != nil {
+		s.log.Debug(logWriteFailed, "error", err)
+	}
 }
 
 func (s *Server) withdrawGame(w http.ResponseWriter, r *http.Request) {

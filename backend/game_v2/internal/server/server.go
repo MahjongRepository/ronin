@@ -126,6 +126,7 @@ func New(cfg Config) (*Server, error) {
 	mux.HandleFunc("GET /status", s.status)
 	mux.HandleFunc("POST /games", s.createGame)
 	mux.HandleFunc("GET /games", s.playingGames)
+	mux.HandleFunc("GET /games/{game_id}/observe", s.observeGame)
 	mux.HandleFunc("DELETE /games/{game_id}", s.withdrawGame)
 	mux.HandleFunc("GET /players/{user_id}", s.playerGame)
 	mux.HandleFunc("GET /players/{user_id}/game-session", s.playerGameSession)

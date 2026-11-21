@@ -105,6 +105,53 @@ func EncodeReplay(records []Map) ([]byte, error) {
 	return content, nil
 }
 
+// EncodeObserverRecords returns the records an observer of a live game is sent: each record one
+// MessagePack map, back to back, the VersionRecord first when withVersion. Every record must be an
+// event a replay records, checked as EncodeReplay checks it, except that no record may hold a seed,
+// the game start included. A refused record comes back as a ReplayError counting records from 1,
+// the VersionRecord not among them, whose Offset is where it would have started.
+func EncodeObserverRecords(records []Map, withVersion bool) ([]byte, error) {
+	var content []byte
+	if withVersion {
+		content = appendValue(content, VersionRecord())
+	}
+	for i, record := range records {
+		err := validateObserverRecord(record)
+		if err != nil {
+			return nil, ReplayError{Record: i + 1, Offset: len(content), Err: err}
+		}
+		content = appendValue(content, record)
+	}
+	return content, nil
+}
+
+// EncodeStrMap returns m as one MessagePack map with string keys, each value written as a replay
+// record's is.
+func EncodeStrMap(m StrMap) []byte {
+	return appendValue(nil, m)
+}
+
+// DecodeStrMap reads one MessagePack map with string keys, as EncodeStrMap writes it, every map in
+// it string-keyed too, with DecodeReplay's limits but binary data up to MaxReplayBytes; content
+// past the map is refused.
+func DecodeStrMap(content []byte) (StrMap, error) {
+	d := decoder{data: content, limits: limits{
+		str:   replayProfile.limits.str,
+		bin:   MaxReplayBytes,
+		array: replayProfile.limits.array,
+		mapN:  replayProfile.limits.mapN,
+	}}
+	v, err := d.value(0, true)
+	if err != nil {
+		return nil, err
+	}
+	m, ok := v.(StrMap)
+	if !ok || d.pos != len(content) {
+		return nil, errors.New("expected one map with string keys")
+	}
+	return m, nil
+}
+
 // DecodeReplay reads a replay EncodeReplay wrote, refusing what it refuses, any extension type, a
 // string or array over 4096, a map over 128 entries, binary data over ReplaySeedBytes, and content
 // above MaxReplayBytes (ErrReplayTooLarge) or with no record (ErrNoVersionRecord); EncodeReplay
@@ -169,7 +216,18 @@ func validateRecord(record Map, position int) error {
 	if err != nil {
 		return err
 	}
-	return validateReplayEvent(record)
+	return validateReplayEvent(record, eventFields)
+}
+
+func validateObserverRecord(record Map) error {
+	if _, seeded := record.Get(KeySeed); seeded {
+		return errors.New("an observer record holds no seed")
+	}
+	err := replayProfile.validate(record, 0)
+	if err != nil {
+		return err
+	}
+	return validateReplayEvent(record, observerEventFields)
 }
 
 func validateVersionRecord(record Map) error {

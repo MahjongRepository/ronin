@@ -388,7 +388,11 @@ minutes by default, `Config.ObserveDelay`), so the timeline never shows the tabl
 than that and never shows the seed, which derives every wall, future rounds' included. The end
 claim seals the timeline with the end's time, for every reason; the timeline outlives the release
 for the delay plus one minute, so an observer follows the game to its end, and then expires. It
-lives in memory only: a restart drops it.
+lives in memory only: a restart drops it. The game server serves it on the internal route
+`GET /games/{game_id}/observe?from=N`, which answers only the internal API secret: the listed game,
+the wait until its first records may be seen, the records old enough from cursor `N`, the cursor
+after them and whether the stream has ended, as one MessagePack map (404 for an unknown or expired
+game).
 
 A graceful stop (SIGTERM) runs inside compose's 15 s grace period, on one deadline: the HTTP server
 stops taking connections, `Server.Shutdown` closes every socket with 1012 and waits until each ran its

@@ -3,6 +3,8 @@ package wire
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -74,6 +76,14 @@ var eventFields = map[EventType][]Key{
 	EventSeatControl: {KeyEventType, KeySeat, KeyAIPlayer},
 }
 
+var observerEventFields = func() map[EventType][]Key {
+	fields := maps.Clone(eventFields)
+	fields[EventGameStarted] = slices.DeleteFunc(slices.Clone(fields[EventGameStarted]), func(k Key) bool {
+		return k == KeySeed
+	})
+	return fields
+}()
+
 var resultFields = map[ResultType][]Key{
 	ResultTsumo: {
 		KeyWinnerSeat, KeyHandResult, KeyScores, KeyScoreChanges, KeyRiichiCollected, KeyClosedTiles,
@@ -113,11 +123,11 @@ type schemaContext struct {
 	top    bool
 }
 
-func validateReplayEvent(record Map) error {
+func validateReplayEvent(record Map, required map[EventType][]Key) error {
 	raw, _ := record.Get(KeyEventType)
 	code, ok := raw.(Int)
 	event := EventType(code)
-	fields, known := eventFields[event]
+	fields, known := required[event]
 	if !ok || code < 0 || Int(event) != code || !known {
 		return errors.New("unsupported replay event type")
 	}
