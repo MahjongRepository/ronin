@@ -23,7 +23,7 @@ describe("a replay rewritten from replay version 0.4-dev", () => {
     });
 
     test.each(REWRITTEN)("%s reads whole, every record a step", (_name, content) => {
-        const read = readReplay(content);
+        const read = readReplay(content, "archive");
 
         assert(read.ok);
         expect(read.replay.damage).toBeNull();

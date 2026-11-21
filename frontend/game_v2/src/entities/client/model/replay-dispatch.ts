@@ -4,7 +4,7 @@ import {
     createInitialTableState,
     replayLineTableEvent,
 } from "@/entities/table";
-import { type ReplayLine, parseReplayLine } from "@/shared/protocol";
+import { type ReplayLine, type ReplayOrigin, parseReplayLine } from "@/shared/protocol";
 
 import { callsAt, replayCalls } from "./calls";
 import { type ReplayClient, type ReplayLineEvent, type TracedStep } from "./types";
@@ -28,9 +28,16 @@ function replayLineStep(
     return { effects: [], parsed: line, state: { ...state, calls, table } };
 }
 
-/** A replay file's line: a replay event or seat control line moves the table; any other is reported. */
-function onReplayLine(state: ReplayClient, raw: Record<string, unknown>): TracedStep<ReplayClient> {
-    const [error, line] = parseReplayLine(raw);
+/**
+ * A replay file's line: a replay event or seat control line moves the table; any other is reported, as is a game start
+ * the archive records without its seed.
+ */
+function onReplayLine(
+    state: ReplayClient,
+    raw: Record<string, unknown>,
+    origin: ReplayOrigin,
+): TracedStep<ReplayClient> {
+    const [error, line] = parseReplayLine(raw, origin);
     if (error) {
         return reportProtocolFailure(state, `Parse error: ${error.message}`);
     }
@@ -53,7 +60,8 @@ export function startReplayClient(at: number): ReplayClient {
 export function traceReplayClient(
     state: ReplayClient,
     event: ReplayLineEvent,
+    origin: ReplayOrigin,
 ): TracedStep<ReplayClient> {
-    const step = onReplayLine({ ...state, now: event.at }, event.raw);
+    const step = onReplayLine({ ...state, now: event.at }, event.raw, origin);
     return { ...step, state: { ...step.state, calls: callsAt(step.state.calls, event.at) } };
 }

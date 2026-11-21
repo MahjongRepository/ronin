@@ -5,6 +5,7 @@ import {
     type ReplayRefusal,
     readReplayFile,
 } from "@/entities/table";
+import { type ReplayOrigin } from "@/shared/protocol";
 
 import { startReplayClient, traceReplayClient } from "./replay-dispatch";
 import { type ClientTimeline, type TimelineEntry } from "./timeline";
@@ -35,10 +36,10 @@ interface LineSteps {
  * The timeline entries one line makes, or why it cannot be shown: it does not parse, or the table refuses it (a
  * `DesyncError`). Any other error is the client's own and propagates to the view's failure screen.
  */
-function stepLine(state: ReplayClient, line: ReplayFileLine): LineSteps {
+function stepLine(state: ReplayClient, line: ReplayFileLine, origin: ReplayOrigin): LineSteps {
     const event = { at: REPLAY_TIME, kind: "replay_line", raw: line.raw } as const;
     try {
-        const step = traceReplayClient(state, event);
+        const step = traceReplayClient(state, event, origin);
         const refused = step.effects.find((effect) => effect.type === "report_protocol_failure");
         if (refused !== undefined) {
             return { damage: refused.detail, entries: [] };
@@ -59,11 +60,12 @@ function stepLine(state: ReplayClient, line: ReplayFileLine): LineSteps {
 function stepLines(
     start: ReplayClient,
     lines: readonly ReplayFileLine[],
+    origin: ReplayOrigin,
 ): { readonly entries: TimelineEntry<ReplayClient>[]; readonly damage: ReplayLineError | null } {
     const entries: TimelineEntry<ReplayClient>[] = [];
     let state = start;
     for (const line of lines) {
-        const stepped = stepLine(state, line);
+        const stepped = stepLine(state, line, origin);
         if (stepped.damage !== null) {
             return { damage: { detail: stepped.damage, lineNumber: line.lineNumber }, entries };
         }
@@ -77,9 +79,9 @@ function stepLines(
  * Read a replay file into the dispatcher's timeline: each event line is a replay line event, parsed by the
  * dispatcher, of a client with no session and no viewer, so every hand the file records is known. A line the
  * dispatcher takes in parts makes an entry per part. Reading stops at the first line that is not a MessagePack map, does
- * not parse, or is impossible on the table so far.
+ * not parse, or is impossible on the table so far. The records' origin decides whether the game start must carry its seed.
  */
-export function readReplayTimeline(content: Uint8Array): ReplayTimelineRead {
+export function readReplayTimeline(content: Uint8Array, origin: ReplayOrigin): ReplayTimelineRead {
     const file = readReplayFile(content);
     if (!file.ok) {
         return file;
@@ -90,7 +92,7 @@ export function readReplayTimeline(content: Uint8Array): ReplayTimelineRead {
             ? file.lines
             : file.lines.filter((line) => line.lineNumber < firstUnreadable.lineNumber);
     const start = startReplayClient(REPLAY_TIME);
-    const stepped = stepLines(start, readable);
+    const stepped = stepLines(start, readable, origin);
     return {
         damage: stepped.damage ?? firstUnreadable,
         ok: true,

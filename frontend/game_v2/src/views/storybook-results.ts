@@ -893,10 +893,13 @@ function robbedKan(source: ResultSource): MeldRecord | null {
     if (source.kanMeld === undefined) {
         return null;
     }
-    const [error, line] = parseReplayLine({
-        [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.MELD,
-        [WIRE_KEY.PACKED_MELD]: source.kanMeld,
-    });
+    const [error, line] = parseReplayLine(
+        {
+            [WIRE_KEY.EVENT_TYPE]: EVENT_TYPE.MELD,
+            [WIRE_KEY.PACKED_MELD]: source.kanMeld,
+        },
+        "archive",
+    );
     if (error !== null || line.type !== "meld") {
         throw new Error(`The ${source.key} story's kan does not read as a meld`, { cause: error });
     }

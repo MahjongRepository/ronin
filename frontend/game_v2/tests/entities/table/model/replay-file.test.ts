@@ -5,6 +5,7 @@ import { encodeReplayLines, encodeReplayRecords, joinBytes } from "#tests/fixtur
 import { WIRE_GAME_END, WIRE_GAME_STARTED, WIRE_ROUND_STARTED } from "#tests/fixtures/wire";
 import { type ReplayEvent, isReplayEvent, readReplayFile } from "@/entities/table";
 import {
+    EVENT_TYPE,
     type ParsedServerMessage,
     REPLAY_VERSION,
     REPLAY_WIRE_KEYS,
@@ -187,9 +188,28 @@ describe("readReplayFile - shared format contract", () => {
         ).toEqual(golden.named_keys);
         expect(read.errors).toEqual([]);
         expect(read.lines.map((line) => line.raw)).toEqual(golden.records.slice(1));
-        expect(read.lines.map((line) => parseReplayLine(line.raw)[0])).toEqual(
+        expect(read.lines.map((line) => parseReplayLine(line.raw, "archive")[0])).toEqual(
             read.lines.map(() => null),
         );
+    });
+
+    test("refuses an archive's game start without its seed, which the observe stream may omit", () => {
+        const content = Uint8Array.from(golden.hex.match(/../g) ?? [], (byte) =>
+            Number.parseInt(byte, 16),
+        );
+        const read = readReplayFile(content);
+        assert(read.ok);
+        const start = read.lines.find(
+            ({ raw }) => raw[WIRE_KEY.EVENT_TYPE] === EVENT_TYPE.GAME_STARTED,
+        );
+        assert(start !== undefined);
+        const seedless = Object.fromEntries(
+            Object.entries(start.raw).filter(([key]) => Number(key) !== WIRE_KEY.SEED),
+        );
+
+        const [archiveError] = parseReplayLine(seedless, "archive");
+        expect(archiveError?.message).toMatch(/EVENT_TYPE=8/);
+        expect(parseReplayLine(seedless, "observe")).toEqual(parseReplayLine(start.raw, "archive"));
     });
 
     test.each([new Uint8Array(95), "00".repeat(96)])(

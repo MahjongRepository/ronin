@@ -1,11 +1,15 @@
 import { assert, describe, expect, it } from "vitest";
 
+import { encodeReplayRecords, joinBytes } from "#tests/fixtures/replay-records";
 import { engineReplayBytes } from "#tests/fixtures/replays";
 import {
     DEFAULT_REPLAY_PREFS,
     HOLD_DELAY_MS,
     HOLD_REPEAT_MS,
     type LoadedReplayScreen,
+    OBSERVE_POLL_MS,
+    OBSERVE_RESULT_HOLD_MS,
+    type ObserveOpening,
     type ReplayPageEffect,
     type ReplayPageInput,
     type ReplayPrefs,
@@ -15,7 +19,9 @@ import {
     roundPosition,
     stepReplayPage,
 } from "@/entities/replay";
-import { CALLOUT_MS } from "@/entities/table";
+import { CALLOUT_MS, readReplayFile } from "@/entities/table";
+import { type ObserveFetch } from "@/shared/api";
+import { EVENT_TYPE, REPLAY_VERSION, WIRE_KEY } from "@/shared/protocol";
 
 const LOADING: ReplayScreen = { kind: "loading", waiting: false };
 
@@ -584,3 +590,287 @@ describe("stepReplayPage - settings", () => {
         ]);
     });
 });
+
+const OBSERVE_OPENING: ObserveOpening = {
+    animationsOn: true,
+    prefs: DEFAULT_REPLAY_PREFS,
+    roundListOpen: false,
+    soundOn: false,
+};
+
+const PLAYERS = ["Akagi", "Washizu", "Ten", "Hiro"];
+
+/** An engine replay as its observe stream sends it: each event record, its game start without the seed. */
+function observeRecords(name: string): readonly Uint8Array[] {
+    const file = readReplayFile(engineReplayBytes(name));
+    assert(file.ok);
+    return file.lines.map(({ raw }) =>
+        encodeReplayRecords([
+            Object.fromEntries(
+                Object.entries(raw).filter(([key]) => Number(key) !== WIRE_KEY.SEED),
+            ),
+        ]),
+    );
+}
+
+const VERSION_RECORD = encodeReplayRecords([{ [WIRE_KEY.REPLAY_VERSION]: REPLAY_VERSION }]);
+
+/** The index of the first record of `type` at or after `from`. */
+function recordIndex(name: string, type: number, from = 0): number {
+    const file = readReplayFile(engineReplayBytes(name));
+    assert(file.ok);
+    const found = file.lines.findIndex(
+        ({ raw }, index) => index >= from && raw[WIRE_KEY.EVENT_TYPE] === type,
+    );
+    assert(found !== -1);
+    return found;
+}
+
+interface AnswerOptions {
+    readonly availableInMs?: number;
+    readonly ended?: boolean;
+}
+
+/** An observe answer carrying records `from` up to `to` of the stream, the version record first when from 0. */
+function answer(
+    records: readonly Uint8Array[],
+    [from, to]: readonly [number, number],
+    { availableInMs = 0, ended = false }: AnswerOptions = {},
+): ReplayPageInput {
+    const carried = records.slice(from, to);
+    const bytes = joinBytes(
+        from === 0 && carried.length > 0 ? [VERSION_RECORD, ...carried] : carried,
+    );
+    const fetched: ObserveFetch = {
+        answer: {
+            availableInMs,
+            ended,
+            gameType: "hanchan",
+            next: from + carried.length,
+            players: PLAYERS,
+            records: bytes,
+            startedAt: 0,
+        },
+        ok: true,
+    };
+    return { fetched, kind: "observe_fetched", opening: OBSERVE_OPENING };
+}
+
+/** Tick at each deadline the screen holds until it holds none, every effect asked on the way. */
+function tickAll(screen: ReplayScreen): {
+    readonly screen: ReplayScreen;
+    readonly effects: readonly ReplayPageEffect[];
+} {
+    let shown = screen;
+    const effects: ReplayPageEffect[] = [];
+    for (let due = replayPageDeadline(shown); due !== null; due = replayPageDeadline(shown)) {
+        const ticked = step(shown, { kind: "tick" }, due);
+        shown = ticked.screen;
+        effects.push(...ticked.effects);
+    }
+    return { effects, screen: shown };
+}
+
+function observeOf(screen: ReplayScreen): NonNullable<LoadedReplayScreen["observe"]> {
+    const { observe } = loaded(screen);
+    assert(observe !== null);
+    return observe;
+}
+
+/** What a waiting observe screen shows of its countdown, the effects that reached it and its next deadline. */
+function countdownShown(stepped: ReturnType<typeof stepReplayPage>): Record<string, unknown> {
+    assert(stepped.screen.kind === "observe_waiting");
+    return {
+        deadline: replayPageDeadline(stepped.screen),
+        effects: stepped.effects,
+        players: stepped.screen.countdown?.players,
+        remainingMs: stepped.screen.countdown?.remainingMs,
+    };
+}
+
+/** A viewer who arrived before the delay passed: the countdown, its redraw and poll, then the first records. */
+function countdownScenario(): Record<
+    "asked" | "counting" | "redrawn" | "started",
+    ReturnType<typeof stepReplayPage>
+> & { readonly shown: ReplayScreen } {
+    const records = observeRecords("pao");
+    const started = step(LOADING, { kind: "observe_started" }, 0);
+    const counting = step(started.screen, answer(records, [0, 0], { availableInMs: 2500 }), 100);
+    const redrawn = step(counting.screen, { kind: "tick" }, 600);
+    const asked = step(redrawn.screen, { kind: "tick" }, 100 + OBSERVE_POLL_MS);
+    const firstDiscard = recordIndex("pao", EVENT_TYPE.DISCARD);
+    const { screen: shown } = step(asked.screen, answer(records, [0, firstDiscard + 1]), 2200);
+    return { asked, counting, redrawn, shown, started };
+}
+
+/**
+ * A late viewer opened on the first round up to its result, viewing from another seat and waiting at the newest stop,
+ * then the records through the result to the next round's first discard.
+ */
+function extendedScenario(): {
+    readonly records: readonly Uint8Array[];
+    readonly lastDiscard: number;
+    readonly first: ReplayScreen;
+    readonly viewed: ReplayScreen;
+    readonly waiting: ReturnType<typeof stepReplayPage>;
+    readonly extended: ReplayScreen;
+} {
+    const records = observeRecords("full_game");
+    const roundEnd = recordIndex("full_game", EVENT_TYPE.ROUND_END);
+    const lastDiscard = recordIndex("full_game", EVENT_TYPE.DISCARD, roundEnd);
+    const { screen: first } = step(
+        step(LOADING, { kind: "observe_started" }).screen,
+        answer(records, [0, roundEnd]),
+    );
+    const { screen: viewed } = step(first, { kind: "view_seat", seat: "right" }, 10);
+    const waiting = step(viewed, { kind: "tick" }, replayPageDeadline(viewed) ?? 0);
+    const extended = step(waiting.screen, answer(records, [roundEnd, lastDiscard + 1]), 5000);
+    return { extended: extended.screen, first, lastDiscard, records, viewed, waiting };
+}
+
+/** The extended replay played on: the result, the next deal, the newest stop, then the stream's end played out. */
+function playedOnScenario({
+    extended,
+    lastDiscard,
+    records,
+}: ReturnType<typeof extendedScenario>): Record<"atResult" | "crossed" | "newest", ReplayScreen> & {
+    readonly ended: ReturnType<typeof tickAll>;
+} {
+    const { screen: atResult } = step(extended, { kind: "tick" }, 5000);
+    const { screen: crossed } = step(atResult, { kind: "tick" }, 5000 + OBSERVE_RESULT_HOLD_MS);
+    const { screen: newest } = tickAll(crossed);
+    const rest = answer(records, [lastDiscard + 1, records.length], { ended: true });
+    const ended = tickAll(step(newest, rest, 9000).screen);
+    return { atResult, crossed, ended, newest };
+}
+
+/** A viewer who saw the countdown, then got the whole game in one answer that ends the stream, played out. */
+function endedScenario(): {
+    readonly whole: ReplayScreen;
+    readonly played: ReturnType<typeof tickAll>;
+} {
+    const records = observeRecords("pao");
+    const counting = step(
+        step(LOADING, { kind: "observe_started" }).screen,
+        answer(records, [0, 0], { availableInMs: 1000 }),
+    ).screen;
+    const { screen: whole } = step(
+        counting,
+        answer(records, [0, records.length], { ended: true }),
+        1000,
+    );
+    return { played: tickAll(whole), whole };
+}
+
+/** A late viewer waiting at the newest stop before the round's result, whose next request is answered 404. */
+function goneScenario(): {
+    readonly roundEnd: number;
+    readonly waiting: ReturnType<typeof tickAll>;
+    readonly gone: ReplayScreen;
+} {
+    const records = observeRecords("pao");
+    const roundEnd = recordIndex("pao", EVENT_TYPE.ROUND_END);
+    const waiting = tickAll(
+        step(step(LOADING, { kind: "observe_started" }).screen, answer(records, [0, roundEnd]))
+            .screen,
+    );
+    const notFound: ReplayPageInput = {
+        fetched: { ok: false, status: 404 },
+        kind: "observe_fetched",
+        opening: OBSERVE_OPENING,
+    };
+    return { gone: step(waiting.screen, notFound, 3000).screen, roundEnd, waiting };
+}
+
+function polls(effects: readonly ReplayPageEffect[]): readonly ReplayPageEffect[] {
+    return effects.filter((effect) => effect.kind === "fetch_observe");
+}
+
+describe("stepReplayPage - observe", () => {
+    it("counts down over the players with no records, asks again once due, and opens the first records at the first deal, playing", () => {
+        const { asked, counting, redrawn, shown, started } = countdownScenario();
+
+        expect(started.effects).toEqual([{ from: 0, kind: "fetch_observe" }]);
+        expect(countdownShown(counting)).toEqual({
+            deadline: 600,
+            effects: [],
+            players: PLAYERS,
+            remainingMs: 2500,
+        });
+        expect(countdownShown(redrawn)).toMatchObject({ deadline: 1600, remainingMs: 2000 });
+        expect(countdownShown(asked)).toMatchObject({
+            deadline: 2600,
+            effects: [{ from: 0, kind: "fetch_observe" }],
+            remainingMs: 500,
+        });
+        const { autoplay, observe, replay, seating, view } = loaded(shown);
+        expect([view.cursor, view.bottomSeat, autoplay.playing, seating]).toEqual([
+            replay.opening,
+            replay.firstDealerSeat,
+            true,
+            false,
+        ]);
+        expect(observe?.pollAt).toBe(2200 + OBSERVE_POLL_MS);
+    });
+
+    it("extends the replay in place, autoplay crossing a round's result and the next deal, waiting at the newest stop until the stream ends", () => {
+        const extension = extendedScenario();
+        const { atResult, crossed, ended, newest } = playedOnScenario(extension);
+        const { extended, first, viewed, waiting } = extension;
+
+        expect([
+            loaded(first).view.cursor,
+            waiting.effects,
+            loaded(waiting.screen).autoplay,
+        ]).toEqual([lastCursor(first), [], { dueAt: null, playing: true }]);
+        expect([loaded(extended).view, loaded(extended).autoplay.dueAt]).toEqual([
+            loaded(viewed).view,
+            5000,
+        ]);
+        expect([loaded(atResult).view.cursor.stop, loaded(atResult).autoplay.dueAt]).toEqual([
+            loaded(atResult).replay.navigation.rounds[0].resultStop,
+            5000 + OBSERVE_RESULT_HOLD_MS,
+        ]);
+        expect([where(crossed), where(newest)[0], loaded(newest).autoplay]).toEqual([
+            [1, 0, 0],
+            1,
+            { dueAt: null, playing: true },
+        ]);
+        const { autoplay, replay, view } = loaded(ended.screen);
+        expect([view.cursor, replay.navigation.complete, autoplay.playing]).toEqual([
+            lastCursor(ended.screen),
+            true,
+            false,
+        ]);
+        expect(polls(ended.effects)).toEqual([]);
+    });
+
+    it("stops asking once the stream has ended and plays on from what it holds, and keeps the board on a late 404", () => {
+        const { played, whole } = endedScenario();
+        const { gone, roundEnd, waiting } = goneScenario();
+
+        expect([observeOf(whole).pollAt, loaded(whole).view.cursor]).toEqual([
+            null,
+            loaded(whole).replay.opening,
+        ]);
+        expect([polls(played.effects), loaded(played.screen).autoplay.playing]).toEqual([
+            [],
+            false,
+        ]);
+        expect(loaded(played.screen).view.cursor).toEqual(lastCursor(played.screen));
+        expect(polls(waiting.effects)).toEqual([{ from: roundEnd, kind: "fetch_observe" }]);
+        expect([
+            loaded(gone).replay,
+            loaded(gone).view,
+            observeOf(gone).gone,
+            loaded(gone).autoplay.playing,
+            replayPageDeadline(gone),
+        ]).toEqual([loaded(waiting.screen).replay, loaded(waiting.screen).view, true, false, null]);
+    });
+});
+
+function lastCursor(screen: ReplayScreen): { readonly stop: number; readonly page: number } {
+    const { stops } = loaded(screen).replay.navigation;
+    const stop = stops.length - 1;
+    return { page: stops[stop].pages - 1, stop };
+}

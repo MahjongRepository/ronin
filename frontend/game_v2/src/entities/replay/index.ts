@@ -16,7 +16,12 @@ export {
     roundStartCursor,
 } from "./model/replay-cursor";
 export type { AutoplayState } from "./model/replay-autoplay";
-export { autoplayDelayMs, autoplayStep, isPauseStop } from "./model/replay-autoplay";
+export {
+    OBSERVE_RESULT_HOLD_MS,
+    autoplayDelayMs,
+    autoplayStep,
+    isPauseStop,
+} from "./model/replay-autoplay";
 export type { ReplayPrefs, ReplayPrefsStore } from "./model/replay-prefs";
 export { DEFAULT_REPLAY_PREFS, readReplayPrefs } from "./model/replay-prefs";
 export type { ReplayAddress, ReplayView, ReplayViewDefaults } from "./model/replay-address";
@@ -37,6 +42,10 @@ export type {
 export { replayDisplay, replayMoves } from "./lib/replay-display";
 export type {
     LoadedReplayScreen,
+    ObserveCountdown,
+    ObserveOpening,
+    ObserveStream,
+    ObserveWaitingScreen,
     ReplayFailure,
     ReplayFocusTarget,
     ReplayKeyCommand,
@@ -52,6 +61,7 @@ export {
     HOLD_DELAY_MS,
     WHEEL_RESULT_HOLD_MS,
     HOLD_REPEAT_MS,
+    OBSERVE_POLL_MS,
     canStep,
     replayPageDeadline,
     showsHand,

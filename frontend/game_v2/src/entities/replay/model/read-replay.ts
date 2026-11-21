@@ -12,6 +12,7 @@ import {
     isReplayEvent,
     isSeatControlLine,
 } from "@/entities/table";
+import { type ReplayOrigin } from "@/shared/protocol";
 
 import { type StepEvent } from "./action-steps";
 import { buildNavigationIndex } from "./navigation-index";
@@ -107,9 +108,12 @@ function loadedReplay(
     };
 }
 
-/** Read a replay file for its page: its timeline, its stops by round from the first deal, and where it broke off. */
-export function readReplay(content: Uint8Array): ReplayRead {
-    const read = readReplayTimeline(content);
+/**
+ * Read replay records for the page, an archive's file or the observe stream's bytes so far: the timeline, its stops by
+ * round from the first deal, and where it broke off.
+ */
+export function readReplay(content: Uint8Array, origin: ReplayOrigin): ReplayRead {
+    const read = readReplayTimeline(content, origin);
     if (!read.ok) {
         return { ok: false, unshowable: read.refusal };
     }

@@ -21,17 +21,19 @@ import {
     autoplayDelayMs,
     autoplayStep,
     isPauseStop,
+    observeAutoplayDelayMs,
 } from "@/entities/replay/model/replay-autoplay";
 import {
     type CallMove,
     type ShownReplayCall,
     shownReplayCall,
 } from "@/entities/replay/model/replay-calls";
-import { type ReplayCursor } from "@/entities/replay/model/replay-cursor";
+import { type ReplayCursor, lastCursor } from "@/entities/replay/model/replay-cursor";
 import { type ReplayPrefs } from "@/entities/replay/model/replay-prefs";
 import { SEAT_POSITIONS, type SeatPosition } from "@/entities/table";
-import { type ReplayFetch } from "@/shared/api";
+import { type ObserveFetch, type ReplayFetch } from "@/shared/api";
 import { type WheelGesture, assertNever, holdWheel, wheelStep } from "@/shared/lib";
+import { type ObserveAnswer } from "@/shared/protocol";
 
 /** The way a step button steps, which a pointer may hold to repeat. */
 export type StepDirection = "next" | "prev";
@@ -44,6 +46,11 @@ export const HOLD_REPEAT_MS = 120;
 export const HAND_COPY_NOTICE_MS = 2000;
 
 const HTTP_NOT_FOUND = 404;
+
+/** How long after each observe answer, or a failed request, the page asks the stream again. */
+export const OBSERVE_POLL_MS = 2000;
+
+const SECOND_MS = 1000;
 
 /** Why the page shows no replay. */
 export type ReplayFailure =
@@ -70,9 +77,42 @@ export interface ReplayHandCopy {
     readonly until: number;
 }
 
+/**
+ * The observe stream a page follows: every record received so far, the version record first; the cursor its next
+ * request asks from; whether the stream has ended or the server no longer holds the game; and when the next request is
+ * due, null while one is in flight and once the stream is done.
+ */
+export interface ObserveStream {
+    readonly content: Uint8Array;
+    readonly next: number;
+    readonly ended: boolean;
+    readonly gone: boolean;
+    readonly pollAt: number | null;
+}
+
+/**
+ * The countdown before a game's first records may be watched: its players East to North, the logical time the records
+ * become available, the time left as last drawn, and when the next whole second is due to be drawn, null at zero.
+ */
+export interface ObserveCountdown {
+    readonly players: readonly string[];
+    readonly availableAt: number;
+    readonly remainingMs: number;
+    readonly redrawAt: number | null;
+}
+
+/** An observed game before it can be played: no answer yet (`countdown` null), or no playable record yet. */
+export interface ObserveWaitingScreen {
+    readonly kind: "observe_waiting";
+    readonly stream: ObserveStream;
+    readonly countdown: ObserveCountdown | null;
+}
+
 export interface LoadedReplayScreen {
     readonly kind: "loaded";
     readonly replay: LoadedReplay;
+    /** The observe stream the replay grows from, null for a saved game's replay. */
+    readonly observe: ObserveStream | null;
     readonly view: ReplayView;
     readonly roundListOpen: boolean;
     readonly autoplay: ReplayAutoplay;
@@ -105,6 +145,8 @@ export interface LoadedReplayScreen {
 export type ReplayScreen =
     | { readonly kind: "loading"; readonly waiting: boolean }
     | { readonly kind: "failed"; readonly failure: ReplayFailure }
+    | ObserveWaitingScreen
+    | { readonly kind: "observe_gone" }
     | LoadedReplayScreen;
 
 /**
@@ -129,11 +171,25 @@ export interface ReplayOpening {
     readonly autoplay: boolean;
 }
 
+/** Where an observed game opens: the reader's settings, the game's sound setting and the round list asked. */
+export type ObserveOpening = Omit<ReplayOpening, "autoplay" | "search">;
+
+/** An observe request's answer, or its network failure. */
+type ObserveEvent =
+    | {
+          readonly kind: "observe_fetched";
+          readonly fetched: ObserveFetch;
+          readonly opening: ObserveOpening;
+      }
+    | { readonly kind: "observe_unreachable" };
+
 type LoadEvent =
     | { readonly kind: "load_started" }
     | { readonly kind: "load_waiting" }
     | { readonly kind: "load_unreachable" }
     | { readonly kind: "fetched"; readonly fetched: ReplayFetch; readonly opening: ReplayOpening }
+    | { readonly kind: "observe_started" }
+    | ObserveEvent
     | { readonly kind: "show_failed" };
 
 interface KeyInput {
@@ -226,7 +282,8 @@ export type ReplayPageEffect =
     | { readonly kind: "save_sound"; readonly soundOn: boolean }
     | { readonly kind: "save_animations"; readonly animationsOn: boolean }
     | { readonly kind: "save_prefs"; readonly prefs: ReplayPrefs }
-    | { readonly kind: "focus"; readonly target: ReplayFocusTarget };
+    | { readonly kind: "focus"; readonly target: ReplayFocusTarget }
+    | { readonly kind: "fetch_observe"; readonly from: number };
 
 export interface ReplayPageStep {
     readonly screen: ReplayScreen;
@@ -279,20 +336,29 @@ function atPauseStop(screen: LoadedReplayScreen): boolean {
     return isPauseStop(screen.replay.navigation, screen.view.cursor);
 }
 
+function earliest(dues: readonly (number | null)[]): number | null {
+    const set = dues.filter((due) => due !== null);
+    return set.length === 0 ? null : Math.min(...set);
+}
+
 /**
- * The earliest logical time the page must be ticked at: autoplay's next move or a held button's next repeat. The view
- * keeps one timer armed to it, as the live driver does to the client's deadlines.
+ * The earliest logical time the page must be ticked at: autoplay's next move, a held button's next repeat, the hand
+ * copy's notice ending, the observe stream's next request or the countdown's next second. The view keeps one timer
+ * armed to it, as the live driver does to the client's deadlines.
  */
 export function replayPageDeadline(screen: ReplayScreen): number | null {
+    if (screen.kind === "observe_waiting") {
+        return earliest([screen.stream.pollAt, screen.countdown?.redrawAt ?? null]);
+    }
     if (screen.kind !== "loaded") {
         return null;
     }
-    const dues = [
+    return earliest([
         screen.autoplay.dueAt,
         screen.hold?.repeatAt ?? null,
         screen.handCopy?.until ?? null,
-    ].filter((due) => due !== null);
-    return dues.length === 0 ? null : Math.min(...dues);
+        screen.observe?.pollAt ?? null,
+    ]);
 }
 
 /** A move from the cursor shown: where to, when, and whether calls it shows are announced (a single step's). */
@@ -326,11 +392,31 @@ function withoutPressedStep(screen: LoadedReplayScreen): LoadedReplayScreen {
     return screen.pressedStep === null ? screen : { ...screen, pressedStep: null };
 }
 
-/** Autoplay playing, its next move armed from `at` at the pace of the stop shown, the seating closed. */
+/**
+ * Autoplay playing, its next move armed from `at` at the pace of the stop shown (an observed game's own pace), the
+ * seating closed.
+ */
 function armed(screen: LoadedReplayScreen, at: number): LoadedReplayScreen {
-    const { autoplay, replay, view } = screen;
-    const dueAt = at + autoplayDelayMs(replay, view.cursor);
-    return { ...screen, autoplay: { ...autoplay, dueAt, playing: true }, seating: false };
+    const { autoplay, observe, replay, view } = screen;
+    const delayMs =
+        observe === null
+            ? autoplayDelayMs(replay, view.cursor)
+            : observeAutoplayDelayMs(replay, view.cursor);
+    return {
+        ...screen,
+        autoplay: { ...autoplay, dueAt: at + delayMs, playing: true },
+        seating: false,
+    };
+}
+
+/** Whether the replay may still grow: an observe stream that has neither ended nor gone. */
+function awaitsStream({ observe }: LoadedReplayScreen): boolean {
+    return observe !== null && !observe.ended && !observe.gone;
+}
+
+/** Autoplay playing with no move armed: waiting at the newest stop for the stream's next records. */
+function waitingForStream(screen: LoadedReplayScreen): LoadedReplayScreen {
+    return { ...screen, autoplay: { ...screen.autoplay, dueAt: null, playing: true } };
 }
 
 function paused(screen: LoadedReplayScreen): LoadedReplayScreen {
@@ -356,6 +442,40 @@ function savingPrefs(screen: LoadedReplayScreen): LoadedStep {
     return { effects: [{ kind: "save_prefs", prefs }], screen };
 }
 
+/** A loaded screen showing its view at `at`, autoplay stopped, from the opening's settings. */
+function loadedScreen(
+    replay: LoadedReplay,
+    opening: ObserveOpening,
+    shown: Pick<LoadedReplayScreen, "observe" | "seating" | "view"> & { readonly at: number },
+): LoadedReplayScreen {
+    const { view } = shown;
+    return {
+        animationsOn: opening.animationsOn,
+        autoplay: { dueAt: null, playing: false },
+        handCopy: null,
+        hideHands: opening.prefs.hideHands,
+        hold: null,
+        kind: "loaded",
+        observe: shown.observe,
+        pressedStep: null,
+        replay,
+        roundListOpen: opening.roundListOpen,
+        seating: shown.seating,
+        settingsOpen: false,
+        showTsumogiri: opening.prefs.showTsumogiri,
+        shownCall: shownReplayCall(replay, null, {
+            announce: false,
+            at: shown.at,
+            from: null,
+            to: view.cursor,
+        }),
+        soundOn: opening.soundOn,
+        toolsOpen: false,
+        view,
+        wheel: null,
+    };
+}
+
 /**
  * A replay opened where its address says, from the seat it names; one whose address names no position, or any with the
  * sound on, opens on the seating, its start focused, unless autoplay was asked.
@@ -367,30 +487,12 @@ function openedScreen(replay: LoadedReplay, opening: ReplayOpening, at: number):
         cursor: replay.opening,
         seatCount: replay.seatCount,
     });
-    const screen: LoadedReplayScreen = {
-        animationsOn: opening.animationsOn,
-        autoplay: { dueAt: null, playing: false },
-        handCopy: null,
-        hideHands: opening.prefs.hideHands,
-        hold: null,
-        kind: "loaded",
-        pressedStep: null,
-        replay,
-        roundListOpen: opening.roundListOpen,
+    const screen = loadedScreen(replay, opening, {
+        at,
+        observe: null,
         seating: address.round === null || opening.soundOn,
-        settingsOpen: false,
-        showTsumogiri: opening.prefs.showTsumogiri,
-        shownCall: shownReplayCall(replay, null, {
-            announce: false,
-            at,
-            from: null,
-            to: view.cursor,
-        }),
-        soundOn: opening.soundOn,
-        toolsOpen: false,
         view,
-        wheel: null,
-    };
+    });
     if (opening.autoplay) {
         return { effects: [WRITE_ADDRESS], screen: armed(screen, at) };
     }
@@ -409,16 +511,22 @@ function onFetched(fetched: ReplayFetch, opening: ReplayOpening, at: number): Re
                 : { kind: "refused", status: fetched.status };
         return quiet({ failure, kind: "failed" });
     }
-    const read = readReplay(fetched.content);
+    const read = readReplay(fetched.content, "archive");
     return read.ok
         ? openedScreen(read.replay, opening, at)
         : quiet({ failure: read.unshowable, kind: "failed" });
 }
 
-/** Autoplay's switch: it plays only where a next step exists, and playing ends a hold. */
+/**
+ * Autoplay's switch: it plays only where a next step exists, or waits at the newest stop of a stream still growing, and
+ * playing ends a hold.
+ */
 function togglePlay(screen: LoadedReplayScreen, at: number): LoadedStep {
-    if (screen.autoplay.playing || stepTarget(screen, "next") === null) {
+    if (screen.autoplay.playing) {
         return quiet(paused(screen));
+    }
+    if (stepTarget(screen, "next") === null) {
+        return quiet(awaitsStream(screen) ? waitingForStream(unheld(screen)) : screen);
     }
     return quiet(armed(unheld(screen), at));
 }
@@ -549,15 +657,20 @@ function onWheel(screen: LoadedReplayScreen, deltaPx: number, at: number): Loade
     return { effects: moved.effects, screen: { ...moved.screen, wheel } };
 }
 
+/**
+ * Autoplay's move on. A replay pauses on a result's page and at its last stop; an observed game crosses its results
+ * and waits at the newest stop while the stream still grows.
+ */
 function autoplayTick(screen: LoadedReplayScreen, at: number): LoadedStep {
     const step = autoplayStep(screen.replay.navigation, screen.view.cursor);
     if (step === null) {
-        return quiet(paused(screen));
+        return quiet(awaitsStream(screen) ? waitingForStream(screen) : paused(screen));
     }
     const moved = withCursor(screen, { announce: true, at, to: step.cursor });
+    const pauses = screen.observe === null && step.pause;
     return {
         effects: moveEffects(screen, step.cursor),
-        screen: step.pause ? paused(moved) : armed(moved, at),
+        screen: pauses ? paused(moved) : armed(moved, at),
     };
 }
 
@@ -582,12 +695,39 @@ function withoutPastHandCopy(screen: LoadedReplayScreen, at: number): LoadedRepl
         : screen;
 }
 
+/** The observe stream's next request asked once its time has come, nothing in flight until it is answered. */
+function polled(
+    stream: ObserveStream,
+    at: number,
+): { readonly stream: ObserveStream; readonly effects: readonly ReplayPageEffect[] } {
+    if (stream.pollAt === null || stream.pollAt > at) {
+        return { effects: [], stream };
+    }
+    return {
+        effects: [{ from: stream.next, kind: "fetch_observe" }],
+        stream: { ...stream, pollAt: null },
+    };
+}
+
 /**
- * A tick ends the hand copy's notice, and moves autoplay or repeats a held button, once each one's time has come; one
- * before all of them does nothing.
+ * A tick ends the hand copy's notice, asks the observe stream's next records, and moves autoplay or repeats a held
+ * button, once each one's time has come; one before all of them does nothing.
  */
 function onTick(shown: LoadedReplayScreen, at: number): LoadedStep {
-    const screen = withoutPastHandCopy(shown, at);
+    const notified = withoutPastHandCopy(shown, at);
+    if (notified.observe === null) {
+        return onPlaybackTick(notified, at);
+    }
+    const poll = polled(notified.observe, at);
+    const stepped = onPlaybackTick(
+        poll.stream === notified.observe ? notified : { ...notified, observe: poll.stream },
+        at,
+    );
+    return { effects: [...poll.effects, ...stepped.effects], screen: stepped.screen };
+}
+
+/** A tick's autoplay move or held button's repeat, once its time has come. */
+function onPlaybackTick(screen: LoadedReplayScreen, at: number): LoadedStep {
     const { autoplay, hold } = screen;
     if (autoplay.dueAt !== null && autoplay.dueAt <= at) {
         return autoplayTick(screen, at);
@@ -891,6 +1031,234 @@ function stepLoadedInput(screen: LoadedReplayScreen, event: Timed<LoadedInput>):
     }
 }
 
+const STREAM_START: ObserveStream = {
+    content: new Uint8Array(),
+    ended: false,
+    gone: false,
+    next: 0,
+    pollAt: null,
+};
+
+function appendBytes(head: Uint8Array, tail: Uint8Array): Uint8Array {
+    const joined = new Uint8Array(head.length + tail.length);
+    joined.set(head);
+    joined.set(tail, head.length);
+    return joined;
+}
+
+/** The stream after an answer: its records appended, its cursor moved on, the next request due unless it ended. */
+function answeredStream(stream: ObserveStream, answer: ObserveAnswer, at: number): ObserveStream {
+    return {
+        content:
+            answer.records.length === 0
+                ? stream.content
+                : appendBytes(stream.content, answer.records),
+        ended: answer.ended,
+        gone: false,
+        next: answer.next,
+        pollAt: answer.ended ? null : at + OBSERVE_POLL_MS,
+    };
+}
+
+/** The stream after a request that failed: what it holds kept, asked again after the poll's wait, or gone on a 404. */
+function failedStream(stream: ObserveStream, status: number | null, at: number): ObserveStream {
+    return status === HTTP_NOT_FOUND
+        ? { ...stream, gone: true, pollAt: null }
+        : { ...stream, pollAt: at + OBSERVE_POLL_MS };
+}
+
+/** The time a countdown draws next: its next whole second left, none once it reached zero. */
+function nextRedraw(availableAt: number, at: number): number | null {
+    const remaining = availableAt - at;
+    return remaining <= 0 ? null : at + (remaining % SECOND_MS || SECOND_MS);
+}
+
+function countdownOf(answer: ObserveAnswer, at: number): ObserveCountdown {
+    const availableAt = at + answer.availableInMs;
+    return {
+        availableAt,
+        players: answer.players,
+        redrawAt: nextRedraw(availableAt, at),
+        remainingMs: answer.availableInMs,
+    };
+}
+
+/**
+ * An observed game opened on its first playable records, autoplay on, with no seating, from the first dealer's seat:
+ * at the first deal for a viewer who saw the countdown, else at the newest stop.
+ */
+function observedScreen(
+    replay: LoadedReplay,
+    stream: ObserveStream,
+    {
+        at,
+        opening,
+        sawCountdown,
+    }: { readonly at: number; readonly opening: ObserveOpening; readonly sawCountdown: boolean },
+): ReplayPageStep {
+    const cursor = sawCountdown
+        ? replay.opening
+        : (lastCursor(replay.navigation) ?? replay.opening);
+    const screen = loadedScreen(replay, opening, {
+        at,
+        observe: stream,
+        seating: false,
+        view: { bottomSeat: replay.firstDealerSeat, cursor },
+    });
+    return quiet(armed(screen, at));
+}
+
+/** Whether records too few to play are worth waiting on: none yet, or a game start not followed by a deal yet. */
+function awaitsPlayable(unshowable: ReplayUnshowable): boolean {
+    return (
+        unshowable.kind === "empty" || (unshowable.kind === "no_deal" && unshowable.damage === null)
+    );
+}
+
+/** An observe request's outcome: its answer with where the game opens, or the status it failed with, null offline. */
+type ObserveOutcome =
+    | { readonly ok: true; readonly answer: ObserveAnswer; readonly opening: ObserveOpening }
+    | { readonly ok: false; readonly status: number | null };
+
+function outcomeOf(event: ObserveEvent): ObserveOutcome {
+    if (event.kind === "observe_unreachable") {
+        return { ok: false, status: null };
+    }
+    const { fetched, opening } = event;
+    return fetched.ok ? { answer: fetched.answer, ok: true, opening } : fetched;
+}
+
+/**
+ * An answer before the game can be played: a 404 shows the game gone, another failure asks again later; records that
+ * play open the board, else the countdown shows from the answer.
+ */
+function onWaitingAnswer(screen: ObserveWaitingScreen, event: Timed<ObserveEvent>): ReplayPageStep {
+    const outcome = outcomeOf(event);
+    if (outcome.ok) {
+        return onWaitingRecords(screen, outcome, event.at);
+    }
+    return outcome.status === HTTP_NOT_FOUND
+        ? quiet({ kind: "observe_gone" })
+        : quiet({ ...screen, stream: failedStream(screen.stream, outcome.status, event.at) });
+}
+
+/** Records before the game could be played: they open the board once they play, else the countdown shows. */
+function onWaitingRecords(
+    screen: ObserveWaitingScreen,
+    { answer, opening }: Extract<ObserveOutcome, { readonly ok: true }>,
+    at: number,
+): ReplayPageStep {
+    const stream = answeredStream(screen.stream, answer, at);
+    const read = readReplay(stream.content, "observe");
+    if (read.ok) {
+        return observedScreen(read.replay, stream, {
+            at,
+            opening,
+            sawCountdown: screen.countdown !== null,
+        });
+    }
+    if (stream.ended || !awaitsPlayable(read.unshowable)) {
+        return quiet({ failure: read.unshowable, kind: "failed" });
+    }
+    return quiet({ countdown: countdownOf(answer, at), kind: "observe_waiting", stream });
+}
+
+/**
+ * Autoplay waiting at the newest stop moves on once the stream brought a stop after it, and stops once the stream can
+ * bring none.
+ */
+function resumedAutoplay(screen: LoadedReplayScreen, at: number): LoadedReplayScreen {
+    const { autoplay } = screen;
+    if (!autoplay.playing || autoplay.dueAt !== null) {
+        return screen;
+    }
+    if (stepTarget(screen, "next") !== null) {
+        return { ...screen, autoplay: { ...autoplay, dueAt: at } };
+    }
+    return awaitsStream(screen) ? screen : paused(screen);
+}
+
+/**
+ * An answer while the board shows: new records extend the replay in place, keeping the view, the reader's settings and
+ * autoplay; a 404 keeps the board and stops asking; another failure asks again later.
+ */
+function onLoadedAnswer(
+    screen: LoadedReplayScreen,
+    stream: ObserveStream,
+    event: Timed<ObserveEvent>,
+): ReplayPageStep {
+    const outcome = outcomeOf(event);
+    if (!outcome.ok) {
+        const observe = failedStream(stream, outcome.status, event.at);
+        return quiet(resumedAutoplay({ ...screen, observe }, event.at));
+    }
+    return extendedScreen(screen, answeredStream(stream, outcome.answer, event.at), event.at);
+}
+
+/** The replay rebuilt from the stream's records when an answer brought new ones, the view and autoplay kept. */
+function extendedScreen(
+    screen: LoadedReplayScreen,
+    observe: ObserveStream,
+    at: number,
+): ReplayPageStep {
+    if (observe.content === screen.observe?.content) {
+        return quiet(resumedAutoplay({ ...screen, observe }, at));
+    }
+    const read = readReplay(observe.content, "observe");
+    if (!read.ok) {
+        return quiet({ failure: read.unshowable, kind: "failed" });
+    }
+    return quiet(resumedAutoplay({ ...screen, observe, replay: read.replay }, at));
+}
+
+function onObserveEvent(screen: ReplayScreen, event: Timed<ObserveEvent>): ReplayPageStep {
+    if (screen.kind === "observe_waiting") {
+        return onWaitingAnswer(screen, event);
+    }
+    if (screen.kind === "loaded" && screen.observe !== null) {
+        return onLoadedAnswer(screen, screen.observe, event);
+    }
+    return quiet(screen);
+}
+
+/** A tick before the game can be played: the stream's next request and the countdown's next second, once due. */
+function onWaitingTick(screen: ObserveWaitingScreen, at: number): ReplayPageStep {
+    const poll = polled(screen.stream, at);
+    const { countdown } = screen;
+    const redrawn =
+        countdown === null || countdown.redrawAt === null || countdown.redrawAt > at
+            ? countdown
+            : {
+                  ...countdown,
+                  redrawAt: nextRedraw(countdown.availableAt, at),
+                  remainingMs: Math.max(0, countdown.availableAt - at),
+              };
+    if (poll.stream === screen.stream && redrawn === countdown) {
+        return quiet(screen);
+    }
+    return {
+        effects: poll.effects,
+        screen: { ...screen, countdown: redrawn, stream: poll.stream },
+    };
+}
+
+/** An observed game's own transition writes no address: the page names only the game. */
+function withoutAddress(step: LoadedStep): LoadedStep {
+    return step.screen.observe === null
+        ? step
+        : { ...step, effects: step.effects.filter((effect) => effect.kind !== "write_address") };
+}
+
+function stepOther(screen: ReplayScreen, event: Timed<LoadedInput>): ReplayPageStep {
+    if (screen.kind === "loaded") {
+        return withoutAddress(stepLoaded(screen, event));
+    }
+    if (screen.kind === "observe_waiting" && event.kind === "tick") {
+        return onWaitingTick(screen, event.at);
+    }
+    return quiet(screen);
+}
+
 /**
  * The replay page's transition: the screen after `event` and the IO it asks of the view (writing the address, playing
  * a step's sounds, saving the reader's settings or the sound's, moving the focus). It reads no clock and arms no timer; the deadlines it keeps
@@ -917,11 +1285,21 @@ export function stepReplayPage(screen: ReplayScreen, event: ReplayPageEvent): Re
                 ? onFetched(event.fetched, event.opening, event.at)
                 : quiet(screen);
         }
+        case "observe_started": {
+            return {
+                effects: [{ from: 0, kind: "fetch_observe" }],
+                screen: { countdown: null, kind: "observe_waiting", stream: STREAM_START },
+            };
+        }
+        case "observe_fetched":
+        case "observe_unreachable": {
+            return onObserveEvent(screen, event);
+        }
         case "show_failed": {
             return quiet({ failure: { kind: "show_failed" }, kind: "failed" });
         }
         default: {
-            return screen.kind === "loaded" ? stepLoaded(screen, event) : quiet(screen);
+            return stepOther(screen, event);
         }
     }
 }

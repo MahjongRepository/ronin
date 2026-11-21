@@ -44,15 +44,27 @@ const humanReturnSchema = z.pipe(
     })),
 );
 
-const viewingSettingsSchema = z.object({
+const seedSchema = z.string().check(z.regex(/^[0-9a-f]{192}$/));
+
+const viewingSettingsShape = {
     [WIRE_KEY.HAS_AKADORA]: z.boolean(),
     [WIRE_KEY.GAME_SETTINGS]: z.strictObject({
         id: z.int().check(z.minimum(1)),
         overrides: z.record(z.string(), z.unknown()),
     }),
     [WIRE_KEY.RNG_VERSION]: z.string(),
-    [WIRE_KEY.SEED]: z.string().check(z.regex(/^[0-9a-f]{192}$/)),
-});
+};
+
+/**
+ * Where replay records come from: a saved game's archive, which must hold its seed, or the delayed stream of a game
+ * being played, which never carries it.
+ */
+export type ReplayOrigin = "archive" | "observe";
+
+const VIEWING_SETTINGS_SCHEMAS = {
+    archive: z.object({ ...viewingSettingsShape, [WIRE_KEY.SEED]: seedSchema }),
+    observe: z.object({ ...viewingSettingsShape, [WIRE_KEY.SEED]: z.optional(seedSchema) }),
+} as const;
 
 export type AiReplacementLine = z.output<typeof aiReplacementSchema>;
 export type HumanReturnLine = z.output<typeof humanReturnSchema>;
@@ -91,8 +103,14 @@ function recordedMessage(raw: Record<string, unknown>): ReplayLineParseResult {
     return parsed;
 }
 
-/** Parse one replay event line: a game event, or a replay-only line the live socket never sends. */
-export function parseReplayLine(raw: Record<string, unknown>): ReplayLineParseResult {
+/**
+ * Parse one replay event line: a game event, or a replay-only line the live socket never sends. A game start from the
+ * archive must carry its seed; one from the observe stream may lack it.
+ */
+export function parseReplayLine(
+    raw: Record<string, unknown>,
+    origin: ReplayOrigin,
+): ReplayLineParseResult {
     try {
         switch (raw[WIRE_KEY.EVENT_TYPE]) {
             case EVENT_TYPE.DRAW: {
@@ -102,7 +120,7 @@ export function parseReplayLine(raw: Record<string, unknown>): ReplayLineParseRe
                 return [null, parseSeatControl(raw)];
             }
             case EVENT_TYPE.GAME_STARTED: {
-                const viewing = viewingSettingsSchema.parse(raw);
+                const viewing = VIEWING_SETTINGS_SCHEMAS[origin].parse(raw);
                 const parsed = recordedMessage(raw);
                 const [error, message] = parsed;
                 return error === null && message.type === "game_started"

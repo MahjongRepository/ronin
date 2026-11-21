@@ -32,7 +32,7 @@ describe("readReplayTimeline - a bug in the client", () => {
             JSON.stringify({ [WIRE_KEY.PACKED_MOVE]: 0, [WIRE_KEY.EVENT_TYPE]: 2 }),
         ].join("\n");
 
-        expect(() => readReplayTimeline(encodeReplayLines(text))).toThrow(
+        expect(() => readReplayTimeline(encodeReplayLines(text), "archive")).toThrow(
             "a bug in the discard handler",
         );
     });

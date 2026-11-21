@@ -36,7 +36,7 @@ export interface EngineReplay {
 }
 
 export function loadEngineReplay(name: string): EngineReplay {
-    const read = readReplayTimeline(engineReplayBytes(name));
+    const read = readReplayTimeline(engineReplayBytes(name), "archive");
     if (!read.ok) {
         throw new Error(`${name}: ${JSON.stringify(read.refusal)}`);
     }

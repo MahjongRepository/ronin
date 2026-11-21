@@ -325,6 +325,10 @@ function screenTemplate(
         case "loading": {
             return loadingTemplate(screen.waiting);
         }
+        case "observe_waiting":
+        case "observe_gone": {
+            return loadingTemplate(false);
+        }
         default: {
             return assertNever(screen);
         }
@@ -563,8 +567,7 @@ class ReplayViewController {
     private runEffect(effect: ReplayPageEffect): void {
         switch (effect.kind) {
             case "write_address": {
-                this.writeAddress();
-                return;
+                return this.writeAddress();
             }
             case "play_sounds": {
                 return this.clacks.play(effect.cues, this.motionEffective());
@@ -583,6 +586,9 @@ class ReplayViewController {
             }
             case "open_url": {
                 return this.deps.openUrl(effect.url);
+            }
+            case "fetch_observe": {
+                return;
             }
             default: {
                 assertNever(effect);

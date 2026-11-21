@@ -17,7 +17,7 @@ import { EVENT_TYPE, REPLAY_VERSION, WIRE_KEY } from "@/shared/protocol";
 const ALL: BoardPerspective = { bottomSeat: 0, reveal: "all" };
 
 function replayOf(text: Uint8Array): LoadedReplay {
-    const read = readReplay(text);
+    const read = readReplay(text, "archive");
     assert(read.ok);
     return read.replay;
 }

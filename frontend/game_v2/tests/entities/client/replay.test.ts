@@ -54,6 +54,7 @@ function readLines(...lines: string[]): {
 } {
     const read = readReplayTimeline(
         encodeReplayLines([VERSION_LINE, ...SEAT_0_TABLE, ...lines].join("\n")),
+        "archive",
     );
     assert(read.ok);
     const types = read.timeline.entries

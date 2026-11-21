@@ -51,7 +51,14 @@ export type { ParsedServerMessage } from "./schemas/message";
 
 export { parseRoundEnd } from "./schemas/round-results";
 export { parseReplayLine } from "./schemas/replay";
-export type { ReplayLine, RecordedDrawEvent, SeatControlLine } from "./schemas/replay";
+export type {
+    ReplayLine,
+    ReplayOrigin,
+    RecordedDrawEvent,
+    SeatControlLine,
+} from "./schemas/replay";
+export { decodeObserveAnswer } from "./schemas/observe";
+export type { ObserveAnswer } from "./schemas/observe";
 
 export {
     buildJoinGameMessage,

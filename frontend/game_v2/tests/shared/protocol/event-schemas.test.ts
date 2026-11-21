@@ -443,13 +443,16 @@ describe("drawSchema", () => {
         expectTypeOf(result.source).toEqualTypeOf<"live">();
         expect(result).not.toHaveProperty("tilesRemaining");
 
-        const [missingCount] = parseReplayLine(wire);
+        const [missingCount] = parseReplayLine(wire, "archive");
         expect(missingCount).toBeInstanceOf(Error);
 
-        const [replayError, recorded] = parseReplayLine({
-            ...wire,
-            [WIRE_KEY.TILES_REMAINING]: 66,
-        });
+        const [replayError, recorded] = parseReplayLine(
+            {
+                ...wire,
+                [WIRE_KEY.TILES_REMAINING]: 66,
+            },
+            "archive",
+        );
         expect(replayError).toBeNull();
         expect(recorded).toMatchObject({ source: "replay", tileId: 42, tilesRemaining: 66 });
     });

@@ -1,5 +1,5 @@
 import { type CancelTimer } from "@/shared/clock";
-import { REPLAY_VERSION } from "@/shared/protocol";
+import { type ObserveAnswer, REPLAY_VERSION, decodeObserveAnswer } from "@/shared/protocol";
 
 /** A replay's binary records, or the HTTP status the server refused it with. */
 export type ReplayFetch =
@@ -24,6 +24,31 @@ export async function fetchReplay(gameId: string, signal: AbortSignal): Promise<
         return { ok: false, status: response.status };
     }
     return { content: new Uint8Array(await response.arrayBuffer()), ok: true };
+}
+
+/** An answer of a game's observe stream, or the HTTP status the server refused it with. */
+export type ObserveFetch =
+    | { readonly ok: true; readonly answer: ObserveAnswer }
+    | { readonly ok: false; readonly status: number };
+
+/**
+ * Fetch the observe stream's records from cursor `from`; rejects on a network failure or a body that is no observe
+ * answer, and with an `AbortError` once `signal` aborts.
+ */
+export async function fetchObserve(
+    gameId: string,
+    from: number,
+    signal: AbortSignal,
+): Promise<ObserveFetch> {
+    const url = `/api/observe/${encodeURIComponent(gameId)}?from=${from}`;
+    const response = await fetch(url, { signal });
+    if (!response.ok) {
+        return { ok: false, status: response.status };
+    }
+    return {
+        answer: decodeObserveAnswer(new Uint8Array(await response.arrayBuffer())),
+        ok: true,
+    };
 }
 
 function abortError(): DOMException {
