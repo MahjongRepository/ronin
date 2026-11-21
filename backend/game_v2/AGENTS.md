@@ -13,7 +13,7 @@ games with their sessions (`internal/session`), the rows and replay files it per
 lobby (`internal/store`), its credentials (`internal/auth`), the transport serving the lobby's
 routes and the game sockets (`internal/server`) with its composition root (`cmd/gameserver`), the
 replay runner (`internal/replay`) with the Go replay check (`cmd/verify`), the Tenhou export
-(`internal/tenhou`), the check of the hand scoring against real Tenhou wins (`internal/tenhoulog`),
+(`internal/tenhou`), the check of the hand scoring against real Tenhou wins (`internal/tenhou/tenhoulog`),
 the generator of the game client's seat transcripts and replay fixtures
 (`cmd/fixtures`), the wall measurement (`cmd/measurewall`), and the one-off migration of the Python
 server's data (`internal/migrate`, `cmd/migrate`).
@@ -67,7 +67,7 @@ beside `messaging` over the wire: it reads replays for the tools, so the live pa
 `internal/tenhou` sits there too, under the server, which answers the export route with it.
 `internal/migrate` sits beside them for `cmd/migrate` alone: it reads old replays through the wire,
 checks each rewrite with the Tenhou export and writes through the store, and nothing on the live path
-imports it. `internal/tenhoulog` is a leaf for its own tests: it settles Tenhou's rounds through the
+imports it. `internal/tenhou/tenhoulog` is a leaf for its own tests: it settles Tenhou's rounds through the
 facade and reads the Tenhou ids from `tenhou`, so the engine holds no Tenhou format of its own.
 
 Each server package's imports of the module are a depguard rule in `.golangci.yml`: `wire` imports

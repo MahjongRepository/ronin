@@ -109,6 +109,7 @@ linters:
           list-mode: lax
           files:
             - "**/game_v2/internal/tenhou/**"
+            - "!**/game_v2/internal/tenhou/tenhoulog/**"
             - "!$test"
           allow:
             - github.com/MahjongRepository/ronin/backend/game_v2/engine/play$
@@ -120,7 +121,7 @@ linters:
         tenhoulog-layer:
           list-mode: lax
           files:
-            - "**/game_v2/internal/tenhoulog/**"
+            - "**/game_v2/internal/tenhou/tenhoulog/**"
             - "!$test"
           allow:
             - github.com/MahjongRepository/ronin/backend/game_v2/engine$

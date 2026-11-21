@@ -7,7 +7,7 @@
 // Ported from mahjong-rs's mahjong-core at commit 0d8733f: the config, dora, fu, scores, yaku
 // and hand modules.
 //
-// The checks against real Tenhou wins live in internal/tenhoulog, which settles them through the
+// The checks against real Tenhou wins live in internal/tenhou/tenhoulog, which settles them through the
 // facade's SettleTsumo and SettleRon.
 package score
 

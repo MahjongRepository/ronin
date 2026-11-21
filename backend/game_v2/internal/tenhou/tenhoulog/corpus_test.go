@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/MahjongRepository/ronin/backend/game_v2/internal/tenhoulog"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/tenhou/tenhoulog"
 )
 
 func TestCompare_WhenTheWholeTenhouCorpusIsScored_ShouldAgreeWithTenhouOnEveryWin(t *testing.T) {

@@ -4,11 +4,11 @@
 // the engine's SettleTsumo or SettleRon and lists where the engine and Tenhou disagree: han and fu,
 // the yaku, the limit, the points and every seat's score change.
 //
-// The tests check a committed sample (testdata/sample.jsonl.gz, written by extract_sample.go).
-// The whole corpus, local only, runs behind the tenhou build tag, TENHOU_MAX_LOGS capping how
-// many logs it reads:
+// The tests check the comparison on hands made up for them, and no Tenhou log is committed. The
+// corpus, local only, runs behind the tenhou build tag, TENHOU_MAX_LOGS capping how many logs it
+// reads:
 //
-//	cd backend/game_v2 && TENHOU_MAX_LOGS=200 mise exec -- go test -tags tenhou ./internal/tenhoulog -run WholeTenhouCorpus -v
+//	cd backend/game_v2 && TENHOU_MAX_LOGS=200 mise exec -- go test -tags tenhou ./internal/tenhou/tenhoulog -run WholeTenhouCorpus -v
 //
 // It reads the agari-000NN.jsonl shards from TENHOU_AGARI_DIR, by default
 // ~/work/mahjong-rs/thoughts/_benchmark/agari.
