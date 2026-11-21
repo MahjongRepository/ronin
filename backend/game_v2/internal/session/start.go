@@ -140,7 +140,11 @@ func (g *game) openFirstWait(events []play.Emitted) error {
 		g.pause = &opened
 	}
 
-	err := g.applyUpdate(events, play.Option[tile.Seat]{})
+	err := g.recordReplay(events)
+	if err != nil {
+		return err
+	}
+	err = g.applyUpdate(events, play.Option[tile.Seat]{})
 	if err != nil {
 		return err
 	}

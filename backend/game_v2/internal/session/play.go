@@ -80,6 +80,19 @@ func (g *game) requireAct(seat tile.Seat, action play.Action) ([]play.Emitted, e
 }
 
 func (g *game) followEngine(events []play.Emitted, actor play.Option[tile.Seat]) error {
+	err := g.recordReplay(events)
+	if err != nil {
+		return err
+	}
+
+	shown, kept, holds := g.heldPart(events)
+	if holds {
+		return g.holdUpdate(shown, kept, actor)
+	}
+	return g.showUpdate(events, actor)
+}
+
+func (g *game) showUpdate(events []play.Emitted, actor play.Option[tile.Seat]) error {
 	err := g.applyUpdate(events, actor)
 	if err != nil {
 		return err
@@ -117,6 +130,7 @@ func (g *game) applyUpdate(events []play.Emitted, actor play.Option[tile.Seat]) 
 	if err != nil {
 		return err
 	}
+	g.published = g.engine
 	if opened && g.lifecycle == lifecyclePlaying {
 		g.startWaitTimers()
 	}
@@ -250,14 +264,14 @@ func gameResult(events []play.Emitted, table func() messaging.Table) (store.Resu
 	return store.Result{}, false
 }
 
-func (g *game) sendEvents(events []play.Emitted, openings []messaging.Opening, table func() messaging.Table) error {
-	if g.replay != nil {
-		err := g.replay.Collect(events, table)
-		if err != nil {
-			return err
-		}
+func (g *game) recordReplay(events []play.Emitted) error {
+	if g.replay == nil {
+		return nil
 	}
+	return g.replay.Collect(events, g.lazyTable())
+}
 
+func (g *game) sendEvents(events []play.Emitted, openings []messaging.Opening, table func() messaging.Table) error {
 	for placed := range messaging.PlaceOpenings(events, openings) {
 		var err error
 		if placed.Opening.OK {

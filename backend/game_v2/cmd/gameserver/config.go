@@ -9,8 +9,10 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/server"
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 )
 
 const (
@@ -36,6 +38,7 @@ type config struct {
 	logLevel       slog.Level
 	logJSON        bool
 	socket         server.SocketConfig
+	discardHold    func() time.Duration
 	version        string
 	commit         string
 }
@@ -77,9 +80,14 @@ func loadConfig(getenv func(string) string) (config, error) {
 	if err != nil {
 		return config{}, fmt.Errorf("LOG_FORMAT: %w", err)
 	}
-	cfg.socket, err = socketConfigOf(getenv("GAME_ENVIRONMENT"))
+	local, err := isLocalEnvironment(getenv("GAME_ENVIRONMENT"))
 	if err != nil {
 		return config{}, fmt.Errorf("GAME_ENVIRONMENT: %w", err)
+	}
+	cfg.socket, cfg.discardHold = server.DefaultSocketConfig(), session.RandomDiscardHold
+	if local {
+		cfg.socket.Rate, cfg.socket.Burst = localSocketRate, localSocketBurst
+		cfg.discardHold = nil
 	}
 	return cfg, nil
 }
@@ -169,14 +177,12 @@ func logJSONOf(value string) (bool, error) {
 
 var errEnvironment = errors.New("must be 'local', 'prod', or unset")
 
-func socketConfigOf(value string) (server.SocketConfig, error) {
-	socket := server.DefaultSocketConfig()
+func isLocalEnvironment(value string) (bool, error) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case environmentProd, "":
-		return socket, nil
+		return false, nil
 	case environmentLocal:
-		socket.Rate, socket.Burst = localSocketRate, localSocketBurst
-		return socket, nil
+		return true, nil
 	}
-	return server.SocketConfig{}, errEnvironment
+	return false, errEnvironment
 }

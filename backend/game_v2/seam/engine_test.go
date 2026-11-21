@@ -95,6 +95,24 @@ func TestTsumogiriAgents_WhenTheyPlayASeededGame_ShouldReachItsStandingsWithTheL
 	}
 }
 
+func TestFollow_WhenASeatFollowsTheEventsOfADiscard_ShouldReachItsViewAfterIt(t *testing.T) {
+	g, _ := newGame(t, seededSetup(t, "cd"))
+	g, _ = begun(t, g)
+	discarder := turnSeat(t, g)
+	watcher := discarder.Next()
+	seen := g.View(watcher).Record
+
+	next, events := act(t, g, discarder, play.DiscardAction(g.View(discarder).Record.Drawn.Value))
+	afterDiscard := engine.Follow(seen, events[0])
+	for _, e := range events {
+		seen = engine.Follow(seen, e)
+	}
+
+	assertEqual(t, "record after every event", seen, next.View(watcher).Record)
+	assertEqual(t, "live tiles after the discard alone", afterDiscard.LiveTiles, g.View(watcher).Record.LiveTiles)
+	assertEqual(t, "latest discard after the discard alone", afterDiscard.LatestDiscard, play.Some(discarder))
+}
+
 func TestDecision_ShouldCarryTheLegalActionsAndDefaultActionOfItsSeat(t *testing.T) {
 	var contexts [3]bool
 	for gameIndex := range decisionGames {

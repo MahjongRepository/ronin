@@ -142,6 +142,14 @@ func (g Game) View(seat tile.Seat) play.SeatView {
 	return g.game.SeatView(seat)
 }
 
+// Follow returns seen after one more event of the game, taken in the order the game returned it;
+// an event seen's seat may not see changes nothing. Following every event of a call from the
+// record of a seat's View before it reaches the record of its View after it, and following only the
+// first of them the record of a seat that has seen no more yet.
+func Follow(seen play.SeatRecord, event play.Emitted) play.SeatRecord {
+	return record.Apply(seen, event)
+}
+
 // Standings returns the final standings once the game is over.
 func (g Game) Standings() play.Option[play.Standings] {
 	return g.game.Standings()

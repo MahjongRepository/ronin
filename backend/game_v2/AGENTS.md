@@ -25,7 +25,7 @@ The module is two sides, a server and an engine, and the engine is reachable onl
 
 * `engine/` is the engine's only public API. The rules live under `engine/internal/`, which the Go
   compiler lets nothing outside `engine/` import, so the server side cannot reach past the facade.
-  The facade holds no rule of its own: it wraps `game`, the seed functions of `rng`, the round a
+  The facade holds no rule of its own: it wraps `game`, the seat record's event step (`Follow`), the seed functions of `rng`, the round a
   seed's wall deals, the lowest shanten the tools' play policies rank by and the settlement of a win
   the Tenhou check compares (`offer`'s, which the round settles with too), and re-exports as type
   aliases the seed, scoring and error types a caller builds or matches. No slice it returns shares a backing
@@ -224,6 +224,25 @@ a contract.
   participants when the pause opened) confirmed, timed out or left; any other action in a pause is
   stale. A round end's pause waits its timeout once per result the client shows, so a double ron
   waits twice. `DefaultTiming` holds the values.
+* The consequences of a discard, and of a closed or added kan, are held (`Config.DiscardHold`, nil
+  for none): the discard goes out at once with the kan dora it reveals, the kan with no dora, every
+  furiten change at once whichever call answer brings it, and so does a call's prompt with its
+  timer, but the next draw, a call's outcome, a riichi deposit and the round's end wait until the
+  hold drawn for that discard or kan ran out, or the last call answer when that is later. So one
+  nobody could answer and one answered within the hold look alike, which hides an instant answer
+  (an AI player, a bot, an automatic pass) and makes a short delay no proof of a call; a player who
+  thinks longer than the longest hold still shows, by design, since hiding that would pause every
+  discard. A
+  hold never ends early, since a client could otherwise ask whether a call is open, but for a held
+  game end, shown ahead of a leave or a reconnect so the game ends completed. The replay takes the
+  whole call's records at once, so seat control records keep their place after them, but the engine
+  is past what the clients saw, so nothing reads it for a client meanwhile: a game action is stale,
+  an AI player is not asked, and a snapshot is the last update shown plus the events shown since
+  (`engine.Follow`), with no decision. The next wait opens, and its timers start, only when the
+  held events are shown, and no seat's bank pays for the hold. The hold's randomness is the
+  process's, never the game seed's. `cmd/gameserver` holds discards, with one human at the table
+  too, except under `GAME_ENVIRONMENT=local`, which `make run-games` sets for its bots; the
+  fixtures and the benchmarks hold none.
 * The finish row is built whole from the start row, never from engine or connection state at the
   end, and the first finish wins; a game that never started, or whose start row was refused,
   records none and saves no replay, so it never touches another game's row or replay file. The
@@ -397,10 +416,10 @@ Mandatory for all server-side code; review must catch violations.
   processing, so malformed frames count too: an over-budget malformed frame gets no reply or log,
   and consecutive undecodable frames (non-binary included) close the connection. A resync, which
   costs a whole snapshot, draws on a far tighter budget of its own.
-* The server runs in production mode unless its environment names local mode, which only the local
-  tooling (`bin/local-settings.sh`, the local compose) sets, and an unknown mode refuses to start:
-  local mode raises the message budget so four bots at a table are never throttled, and changes
-  nothing else.
+* The server runs in production mode unless its environment names local mode, which only the bot
+  runs (`bin/run-bots-games.sh`) set, and an unknown mode refuses to start: local mode raises the
+  message budget so four bots at a table are never throttled, holds no discard (Session), and
+  changes nothing else. `make run-local-server` runs production mode.
 * A ticket's game must match the path's game id, and the path's game id is validated
   (`replayfile.IsValidGameID`) before the handshake. The socket has no Origin check: the ticket
   authenticates, and the dev hosts the client runs on would fail an origin pattern.

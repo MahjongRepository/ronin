@@ -708,6 +708,7 @@ if [[ $DOCKER == 1 ]]; then
     export GAME_REPLAY_DIR="backend/data/game-v2-replays"
     export LOBBY_REPLAY_DIR="$GAME_REPLAY_DIR"
 fi
+export GAME_ENVIRONMENT="${GAME_ENVIRONMENT:-local}"
 . "$SCRIPT_DIR/local-settings.sh"
 if [[ $PROFILE == 1 ]]; then
     export LOG_LEVEL=info

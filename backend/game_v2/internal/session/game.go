@@ -79,6 +79,7 @@ type game struct {
 	lifecycle     lifecycle
 	participants  []*participant
 	engine        engine.Game
+	published     engine.Game
 	roster        messaging.Roster
 	wait          wait
 	hasWait       bool
@@ -89,6 +90,7 @@ type game struct {
 	pending       delayed
 	aiTurn        delayed
 	asked         agentRequest
+	hold          discardHold
 	end           ending
 
 	drawNoticeFrameByDrawingSeat [tile.SeatCount][]byte

@@ -1,7 +1,8 @@
 // Package record keeps a seat's record of the game: the facts of the table as one seat knows
 // them, kept up from the events visible to it alone.
 //
-// FromStart and Apply are a test oracle with no production caller: the parity tests build each
+// FromStart is a test oracle with no production caller, and Apply has one, the facade's Follow, for
+// a record that trails the game by some events; the parity tests check both: they build each
 // seat's play.SeatRecord with FromStart from the events game.New returned, or take the one of a
 // seat view as a reconnect would, fold every later event it sees through Apply, and compare it with
 // the game's seat view after every batch, so the events a seat sees carry everything its view shows.

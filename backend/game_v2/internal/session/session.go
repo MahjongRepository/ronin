@@ -126,6 +126,10 @@ type Agent interface {
 // Seeds draws each game's seed from crypto/rand, a nil Setup deals every game from its seed, and a
 // nil Agent plays each AI decision's default, asked like any Agent off the game's goroutine.
 // Setup turns a game's seed into its engine setup, for a harness that stages its walls.
+// DiscardHold gives, per discard and per closed or added kan, how long the session holds what
+// follows it (the next draw, a call's outcome, the round's end) so that one nobody could answer and
+// one answered within the hold look alike; a call still open then is waited out instead, so a slow
+// answer still shows. Nil holds nothing.
 type Config struct {
 	Timing   Timing
 	Capacity int
@@ -136,6 +140,8 @@ type Config struct {
 	Seeds    func() engine.Seed
 	Setup    func(engine.Seed) engine.Setup
 	Agent    Agent
+
+	DiscardHold func() time.Duration
 }
 
 // The errors CreatePendingGame returns.

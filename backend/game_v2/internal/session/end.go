@@ -64,6 +64,7 @@ func (g *game) endGame(reason endReason, result play.Option[store.Result]) {
 	}
 	g.pending.cancel()
 	g.aiTurn.cancel()
+	g.hold.drop()
 	g.asked.invalidate()
 	close(g.ended)
 }
@@ -78,6 +79,7 @@ func (g *game) vanish() {
 	}
 	g.pending.cancel()
 	g.aiTurn.cancel()
+	g.hold.drop()
 	g.asked.invalidate()
 	close(g.ended)
 }

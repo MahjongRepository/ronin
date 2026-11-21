@@ -38,7 +38,7 @@ func TestLoadConfig_WhenOptionalVariablesUnset_ShouldUseThePythonDefaults(t *tes
 	}
 }
 
-func TestLoadConfig_WhenEnvironmentIsLocal_ShouldLoosenOnlyTheInboundMessageBudget(t *testing.T) {
+func TestLoadConfig_WhenEnvironmentIsLocal_ShouldLoosenOnlyTheMessageBudgetAndHoldNoDiscard(t *testing.T) {
 	prod := server.DefaultSocketConfig()
 	for _, value := range []string{"", "prod"} {
 		cfg, err := loadConfig(env(map[string]string{"GAME_ENVIRONMENT": value}))
@@ -48,11 +48,17 @@ func TestLoadConfig_WhenEnvironmentIsLocal_ShouldLoosenOnlyTheInboundMessageBudg
 		if !cmp.Equal(cfg.socket, prod) {
 			t.Errorf("GAME_ENVIRONMENT=%q socket = %+v, want production's %+v", value, cfg.socket, prod)
 		}
+		if cfg.discardHold == nil {
+			t.Errorf("GAME_ENVIRONMENT=%q holds no discard, want production's hold", value)
+		}
 	}
 
 	cfg, err := loadConfig(env(map[string]string{"GAME_ENVIRONMENT": " Local "}))
 	if err != nil {
 		t.Fatalf("loadConfig(GAME_ENVIRONMENT=local) error = %v", err)
+	}
+	if cfg.discardHold != nil {
+		t.Error("the local environment holds discards, want none")
 	}
 	local := cfg.socket
 	if local.Rate <= prod.Rate || local.Burst <= prod.Burst {

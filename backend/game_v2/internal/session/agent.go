@@ -50,7 +50,7 @@ var (
 )
 
 func (g *game) playAIPlayers() {
-	if g.lifecycle != lifecyclePlaying || g.aiTurn.armed || g.asked.inFlight() {
+	if g.lifecycle != lifecyclePlaying || g.hold.held() || g.aiTurn.armed || g.asked.inFlight() {
 		return
 	}
 	index := slices.IndexFunc(g.wait.seats, g.isAISeat)

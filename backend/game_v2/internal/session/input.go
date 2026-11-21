@@ -25,7 +25,7 @@ func (g *game) gameAction(conn Connection, message messaging.GameActionMessage) 
 	}
 
 	action := message.Play.Value
-	if !g.wait.awaits(p.seat) || message.WaitID != p.decisionID {
+	if g.hold.held() || !g.wait.awaits(p.seat) || message.WaitID != p.decisionID {
 		return g.staleAction(p, actionName(action), message.WaitID)
 	}
 	if message.Called.OK && g.mismatchesOpenCall(p.seat, message.Called.Value) {

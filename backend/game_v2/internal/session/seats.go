@@ -54,6 +54,14 @@ func (g *game) reconnect(conn Connection, ticket string) error {
 		sendSessionError(g.log, conn, messaging.SessionReconnectRetryLater, "Game has not started yet, retry shortly")
 		return nil
 	}
+	err := g.showHeldGameEnd()
+	if err != nil {
+		return err
+	}
+	if !g.active() {
+		sendSessionError(g.log, conn, messaging.SessionReconnectNoSession, noLiveGame)
+		return nil
+	}
 
 	b := g.m.bindReconnecting(g, conn, ticket)
 	switch {
@@ -68,16 +76,18 @@ func (g *game) reconnect(conn Connection, ticket string) error {
 	if b.replaced != nil {
 		g.closeReplaced(p, b.replaced, conn)
 	} else {
-		err := g.handOver(p, play.Option[wire.SeatControlReason]{})
+		err = g.handOver(p, play.Option[wire.SeatControlReason]{})
 		if err != nil {
 			return err
 		}
-		g.takeBackDecision(p)
+		if !g.hold.held() {
+			g.takeBackDecision(p)
+		}
 		g.m.stats.reconnects.Add(1)
 		message = logPlayerReconnected
 	}
 
-	err := g.sendSeatState(p, conn)
+	err = g.sendSeatState(p, conn)
 	if err != nil {
 		return err
 	}
@@ -122,7 +132,7 @@ func (g *game) resync(conn Connection) error {
 }
 
 func (g *game) sendSeatState(p *participant, conn Connection) error {
-	view := g.engine.View(p.seat)
+	view := g.shownView(p.seat)
 	var standIns [tile.SeatCount]play.Option[wire.SeatControlReason]
 	for _, other := range g.participants {
 		standIns[other.seat.Index()] = other.standIn
@@ -158,6 +168,11 @@ func (g *game) disconnected(p *participant, conn Connection) error {
 	if p.conn != conn {
 		return nil
 	}
+	err := g.showHeldGameEnd()
+	if err != nil || p.conn != conn {
+		return err
+	}
+
 	p.conn = nil
 	p.log.Info("player left game", "player_name", p.spec.Name)
 	if g.lifecycle != lifecyclePlaying {
