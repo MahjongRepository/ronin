@@ -51,7 +51,7 @@ var yakuTable = [math.MaxUint8 + 1]yakuData{
 	YakuDaisuushii:          {name: "Dai Suushii", hanOpen: 26, hanClosed: 26},
 	YakuDaburuKokushiMusou:  {name: "Kokushi Musou Juusanmen Matchi", hanOpen: 0, hanClosed: 26},
 	YakuSuuankouTanki:       {name: "Suu Ankou Tanki", hanOpen: 0, hanClosed: 26},
-	YakuDaburuChuurenPoutou: {name: "Daburu Chuuren Poutou", hanOpen: 0, hanClosed: 26},
+	YakuDaburuChuurenPoutou: {name: "Junsei Chuuren Poutou", hanOpen: 0, hanClosed: 26},
 	YakuTenhou:              {name: "Tenhou", hanOpen: 0, hanClosed: 13},
 	YakuChiihou:             {name: "Chiihou", hanOpen: 0, hanClosed: 13},
 }

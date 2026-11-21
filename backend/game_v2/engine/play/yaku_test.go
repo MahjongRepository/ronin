@@ -66,7 +66,7 @@ func TestAllYaku_ShouldMatchTheYakuTable(t *testing.T) {
 		{play.YakuDaisuushii, 111, "Dai Suushii", 26, 26, true},
 		{play.YakuDaburuKokushiMusou, 112, "Kokushi Musou Juusanmen Matchi", 0, 26, true},
 		{play.YakuSuuankouTanki, 113, "Suu Ankou Tanki", 0, 26, true},
-		{play.YakuDaburuChuurenPoutou, 114, "Daburu Chuuren Poutou", 0, 26, true},
+		{play.YakuDaburuChuurenPoutou, 114, "Junsei Chuuren Poutou", 0, 26, true},
 		{play.YakuTenhou, 115, "Tenhou", 0, 13, true},
 		{play.YakuChiihou, 116, "Chiihou", 0, 13, true},
 	}

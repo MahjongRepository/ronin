@@ -38,7 +38,7 @@ const (
 	Ippatsu = true
 	// UraDora, has_uradora: a riichi winner counts the ura dora.
 	UraDora = true
-	// DoubleYakuman, has_double_yakuman: off, unlike ronin; the double forms score as one yakuman.
+	// DoubleYakuman, has_double_yakuman: the double forms score as two yakuman; off, as on Tenhou.
 	DoubleYakuman = false
 	// KazoeYakuman, has_kazoe_yakuman: 13 han or more score as yakuman.
 	KazoeYakuman = true
@@ -48,7 +48,7 @@ const (
 	NagashiMangan = true
 	// FuForOpenPinfu, fu_for_open_pinfu: an open hand with no other fu gets 2 fu.
 	FuForOpenPinfu = true
-	// FuForPinfuTsumo, fu_for_pinfu_tsumo: a pinfu tsumo gets no tsumo fu.
+	// FuForPinfuTsumo, fu_for_pinfu_tsumo: a pinfu tsumo also gets the 2 tsumo fu.
 	FuForPinfuTsumo = false
 	// Daisharin, has_daisharin.
 	Daisharin = false
