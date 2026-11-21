@@ -282,7 +282,7 @@ func TestShutdown_WhenAGameIsStillPending_ShouldEndItUnrecordedAndRefuseNewGames
 		if !h.m.WithdrawGame(testGameID) {
 			t.Error("WithdrawGame after Shutdown kept the vanished game")
 		}
-		err = h.m.CreatePendingGame("game-0002", specs("Carol"))
+		err = h.m.CreatePendingGame("game-0002", specs("Carol"), session.SeatingShuffled)
 		if !errors.Is(err, session.ErrShuttingDown) {
 			t.Errorf("CreatePendingGame after Shutdown error = %v, want ErrShuttingDown", err)
 		}

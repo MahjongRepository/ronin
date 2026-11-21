@@ -1,8 +1,11 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -41,7 +44,7 @@ type Manager struct {
 type listing struct {
 	game    *game
 	players []PlayerSpec
-	playing bool
+	started play.Option[StartedGame]
 }
 
 type connEntry struct {
@@ -77,6 +80,15 @@ type Stats struct {
 type GameCounts struct {
 	Pending int
 	Playing int
+}
+
+// StartedGame is a game playing as the lobby lists it: its id, its start, its game type and every
+// seat's name East to North, from the first dealer, AI players included.
+type StartedGame struct {
+	GameID    string
+	StartedAt time.Time
+	GameType  string
+	Names     [tile.SeatCount]string
 }
 
 // Playing is the game a user plays and the game ticket of their participant in it.
@@ -129,13 +141,31 @@ func (m *Manager) GameCounts() GameCounts {
 
 	var counts GameCounts
 	for _, l := range m.games {
-		if l.playing {
+		if l.started.OK {
 			counts.Playing++
 		} else {
 			counts.Pending++
 		}
 	}
 	return counts
+}
+
+// PlayingGames returns every game playing, pending ones left out, oldest start first; a game leaves
+// the list the moment its end is claimed or Shutdown begins.
+func (m *Manager) PlayingGames() []StartedGame {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var games []StartedGame
+	for _, l := range m.games {
+		if l.started.OK {
+			games = append(games, l.started.Value)
+		}
+	}
+	slices.SortFunc(games, func(a, b StartedGame) int {
+		return cmp.Or(a.StartedAt.Compare(b.StartedAt), strings.Compare(a.GameID, b.GameID))
+	})
+	return games
 }
 
 // PlayingGame returns the game a user plays and their participant's ticket: a user plays a game
@@ -160,10 +190,10 @@ func (m *Manager) playingLocked(userID string) (Playing, bool) {
 }
 
 // CreatePendingGame registers a pending game waiting for its players' JOIN_GAME, its pending
-// timeout armed. In one step it refuses a player already playing (ErrPlayerPlaying), a full
+// timeout armed, to seat them by seating once it starts. In one step it refuses a player already playing (ErrPlayerPlaying), a full
 // registry (ErrAtCapacity), a taken id (ErrGameExists), a withdrawn id (ErrGameWithdrawn), no
 // player or more than four (ErrPlayerCount), and any game once Shutdown began (ErrShuttingDown).
-func (m *Manager) CreatePendingGame(gameID string, players []PlayerSpec) error {
+func (m *Manager) CreatePendingGame(gameID string, players []PlayerSpec, seating Seating) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -183,7 +213,7 @@ func (m *Manager) CreatePendingGame(gameID string, players []PlayerSpec) error {
 		return ErrGameWithdrawn
 	}
 
-	g := newGame(m, gameID, players)
+	g := newGame(m, gameID, players, seating)
 	l := &listing{game: g, players: players}
 	m.games[gameID] = l
 	for _, spec := range players {
@@ -439,12 +469,12 @@ func (m *Manager) markWithdrawn(gameID string) {
 	m.withdrawn[gameID] = m.cfg.Clock.Now().Add(withdrawnTTL)
 }
 
-func (m *Manager) markPlaying(g *game) {
+func (m *Manager) markPlaying(g *game, started StartedGame) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if l := m.games[g.id]; l != nil && l.game == g {
-		l.playing = true
+		l.started = play.Some(started)
 	}
 }
 

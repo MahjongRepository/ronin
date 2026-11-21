@@ -30,17 +30,17 @@ func TestCreatePendingGame_WhenItCannotRegister_ShouldRefuseWithItsReason(t *tes
 			{"five players", "game-0002", specs("A", "B", "C", "D", "E"), session.ErrPlayerCount},
 		}
 		for _, tc := range cases {
-			err := h.m.CreatePendingGame(tc.gameID, tc.players)
+			err := h.m.CreatePendingGame(tc.gameID, tc.players, session.SeatingShuffled)
 			if !errors.Is(err, tc.want) {
 				t.Errorf("%s: CreatePendingGame error = %v, want %v", tc.name, err, tc.want)
 			}
 		}
 
-		err := h.m.CreatePendingGame("game-0002", specs("Bob"))
+		err := h.m.CreatePendingGame("game-0002", specs("Bob"), session.SeatingShuffled)
 		if err != nil {
 			t.Fatalf("CreatePendingGame error = %v", err)
 		}
-		err = h.m.CreatePendingGame("game-0003", specs("Carol"))
+		err = h.m.CreatePendingGame("game-0003", specs("Carol"), session.SeatingShuffled)
 		if !errors.Is(err, session.ErrAtCapacity) {
 			t.Errorf("CreatePendingGame at capacity error = %v, want ErrAtCapacity", err)
 		}
@@ -60,7 +60,7 @@ func TestWithdrawGame_WhenNobodyJoined_ShouldAbandonItAndRefuseItsIDAfterwards(t
 		if _, playing := h.m.PlayingGame("user-Alice"); playing {
 			t.Error("Alice still plays the withdrawn game")
 		}
-		err := h.m.CreatePendingGame(testGameID, specs("Alice"))
+		err := h.m.CreatePendingGame(testGameID, specs("Alice"), session.SeatingShuffled)
 		if !errors.Is(err, session.ErrGameWithdrawn) {
 			t.Errorf("CreatePendingGame after withdrawal error = %v, want ErrGameWithdrawn", err)
 		}
@@ -77,13 +77,13 @@ func TestWithdrawGame_WhenItsCreationArrivesLater_ShouldRefuseTheCreationForADay
 		if !h.m.WithdrawGame(testGameID) {
 			t.Fatal("WithdrawGame of an unknown game = false, want true")
 		}
-		err := h.m.CreatePendingGame(testGameID, specs("Alice"))
+		err := h.m.CreatePendingGame(testGameID, specs("Alice"), session.SeatingShuffled)
 		if !errors.Is(err, session.ErrGameWithdrawn) {
 			t.Errorf("CreatePendingGame error = %v, want ErrGameWithdrawn", err)
 		}
 
 		time.Sleep(24 * time.Hour)
-		err = h.m.CreatePendingGame(testGameID, specs("Alice"))
+		err = h.m.CreatePendingGame(testGameID, specs("Alice"), session.SeatingShuffled)
 		if err != nil {
 			t.Errorf("CreatePendingGame a day later error = %v", err)
 		}

@@ -48,7 +48,7 @@ func TestSocket_WhenThePlayerJoins_ShouldAnswerTheJoinAndStartTheGame(t *testing
 
 	ws := h.joinAlice()
 
-	readUntil(t, ws, func(m wire.Map) bool { return isEvent(m, wire.EventGameStarted) })
+	readUntil(t, ws, isGameStarted)
 	if active := counter(t, h.status(), "active_games"); active != 1 {
 		t.Errorf("/status active_games = %d, want 1", active)
 	}
@@ -246,7 +246,7 @@ func TestSocket_WhenTheParticipantReconnects_ShouldCloseTheOldSocketWith4002(t *
 	h := newHarness(t)
 	h.create("alice")
 	old := h.joinAlice()
-	readUntil(t, old, func(m wire.Map) bool { return isEvent(m, wire.EventGameStarted) })
+	readUntil(t, old, isGameStarted)
 	fresh := h.dial(testGameID, nil)
 
 	send(t, fresh, reconnectMessage(ticketFor(testGameID, "alice")))

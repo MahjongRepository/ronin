@@ -206,7 +206,7 @@ func specs(names ...string) []session.PlayerSpec {
 
 func (h *harness) create(names ...string) {
 	h.t.Helper()
-	err := h.m.CreatePendingGame(testGameID, specs(names...))
+	err := h.m.CreatePendingGame(testGameID, specs(names...), session.SeatingShuffled)
 	if err != nil {
 		h.t.Fatalf("CreatePendingGame error = %v", err)
 	}

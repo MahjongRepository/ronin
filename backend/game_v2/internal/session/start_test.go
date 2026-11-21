@@ -1,10 +1,14 @@
 package session_test
 
 import (
+	"slices"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/session"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
@@ -16,6 +20,26 @@ func twoHumans(t *testing.T, options ...option) (h *harness, alice, bob *fakeCon
 	h = newHarness(t, append([]option{withSeed(seed), withWalls(shuffledWall(seed, 0))}, options...)...)
 	conns := h.start("Alice", "Bob")
 	return h, conns[0], conns[1]
+}
+
+func TestSeatPlayers_WhenSeatingFixed_ShouldSeatThePlayersInWindOrderFromTheFirstDealer(t *testing.T) {
+	seed, err := engine.ParseSeed(strings.Repeat("ee", engine.SeedBytes))
+	if err != nil {
+		t.Fatalf("ParseSeed error = %v", err)
+	}
+	if dealer, _, _ := engine.FirstDealer(seed); dealer.Index() != 3 {
+		t.Fatalf("seed's first dealer = %d, want 3", dealer.Index())
+	}
+
+	roster, seats := session.SeatPlayers("game-fixed", []string{"Alice", "Bob", "Charlie", "Dave"}, seed, session.SeatingFixed)
+
+	seat := tile.Seats()
+	if want := []tile.Seat{seat[3], seat[0], seat[1], seat[2]}; !slices.Equal(seats, want) {
+		t.Errorf("SeatPlayers seats = %v, want %v", seats, want)
+	}
+	if want := [tile.SeatCount]string{"Bob", "Charlie", "Dave", "Alice"}; roster.Names != want || roster.AI != [tile.SeatCount]bool{} {
+		t.Errorf("SeatPlayers roster = %v %v, want %v and no AI seat", roster.Names, roster.AI, want)
+	}
 }
 
 func TestJoin_WhenTheLastPlayerJoins_ShouldSendTheStartAndTheDealOpeningTheStartConfirmation(t *testing.T) {

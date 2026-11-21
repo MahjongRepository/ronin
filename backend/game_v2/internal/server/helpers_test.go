@@ -18,6 +18,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/auth"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
@@ -74,6 +75,10 @@ func withSocket(edit func(*server.SocketConfig)) option {
 
 func withCapacity(n int) option {
 	return func(_ *server.Config, s *session.Config) { s.Capacity = n }
+}
+
+func withSeed(seed engine.Seed) option {
+	return func(_ *server.Config, s *session.Config) { s.Seeds = func() engine.Seed { return seed } }
 }
 
 func newHarness(t *testing.T, options ...option) *harness {
@@ -376,9 +381,9 @@ func errorCode(m wire.Map) string {
 	return string(s)
 }
 
-func isEvent(m wire.Map, event wire.EventType) bool {
+func isGameStarted(m wire.Map) bool {
 	v, _ := m.Get(wire.KeyEventType)
-	return v == wire.Int(event) && sessionType(m) == ""
+	return v == wire.Int(wire.EventGameStarted) && sessionType(m) == ""
 }
 
 func counter(t *testing.T, status map[string]any, key string) int {

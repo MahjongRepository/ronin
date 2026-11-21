@@ -181,7 +181,8 @@ a contract.
 * A step that fails or panics fails its game, the one server-fault path; a connection's failed step
   that did not seat it is closed with 1011 on its own.
 * The session owns the seed and the roster. It draws each game's seed and seats the participants by
-  the seed's seat permutation, by input order, never by name; the engine gets only the seed. A
+  the seed's seat permutation, or, created with `fixed_seats`, in wind order from the seed's first
+  dealer, by input order either way, never by name (`docs/rng.md`); the engine gets only the seed. A
   participant is keyed by its ticket for the whole game and seated once, at the start, and its turn
   timer lives as long as it does, so its bank survives a disconnect.
 * A seat with no connected participant is an AI player's, answered through the engine like a
@@ -292,6 +293,8 @@ a contract.
   process start in whole epoch seconds, so counters stay cumulative. A test holds the keys against
   `deploy/config/telegraf.conf`. `loop_lag_max_ms` is the per-game queue delay the session measures:
   the longest a routed message waited for its game to take it in the last minute, null without one.
+* `/status` carries no per-user data. The list of games playing (`GET /games`) names players, East
+  to North from the first dealer as the lobby shows them, so it answers only the internal secret.
 * A graceful stop keeps Python's order inside compose's 15 s grace period, on one deadline: the
   HTTP server stops taking connections, `Server.Shutdown` closes every socket with 1012 and waits
   until each ran its disconnect, then shuts the session down, which drains the finalizers and the

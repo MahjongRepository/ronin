@@ -164,6 +164,35 @@ func (s *Server) playerGameSession(w http.ResponseWriter, r *http.Request) {
 	}{playing.GameID, playing.Ticket})
 }
 
+type playingGameJSON struct {
+	GameID    string   `json:"game_id"`
+	StartedAt float64  `json:"started_at"`
+	GameType  string   `json:"game_type"`
+	Players   []string `json:"players"`
+}
+
+func (s *Server) playingGames(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", cacheControlNone)
+	if !s.isInternalCaller(r) {
+		s.writeError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	started := s.cfg.Session.PlayingGames()
+	games := make([]playingGameJSON, 0, len(started))
+	for _, g := range started {
+		games = append(games, playingGameJSON{
+			GameID:    g.GameID,
+			StartedAt: float64(g.StartedAt.UnixMicro()) / float64(time.Second/time.Microsecond),
+			GameType:  g.GameType,
+			Players:   g.Names[:],
+		})
+	}
+	s.writeJSON(w, http.StatusOK, struct {
+		Games []playingGameJSON `json:"games"`
+	}{games})
+}
+
 func (s *Server) withdrawGame(w http.ResponseWriter, r *http.Request) {
 	if !s.isInternalCaller(r) {
 		s.writeError(w, http.StatusUnauthorized, "Unauthorized")
@@ -251,7 +280,7 @@ func (s *Server) createGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.cfg.Session.CreatePendingGame(request.gameID, request.players)
+	err = s.cfg.Session.CreatePendingGame(request.gameID, request.players, request.seating)
 	if err != nil {
 		status, message := creationRefusal(err)
 		if status == http.StatusInternalServerError {

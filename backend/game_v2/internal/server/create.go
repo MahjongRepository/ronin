@@ -24,10 +24,11 @@ var strictInteger = regexp.MustCompile(`^-?[0-9]+$`)
 type createGameRequest struct {
 	gameID  string
 	players []session.PlayerSpec
+	seating session.Seating
 }
 
 func parseCreateGame(body []byte) (createGameRequest, bool) {
-	fields, ok := objectOf(body, "game_id", "num_ai_players", "players")
+	fields, ok := objectOf(body, "game_id", "num_ai_players", "players", "fixed_seats")
 	if !ok {
 		return createGameRequest{}, false
 	}
@@ -44,7 +45,21 @@ func parseCreateGame(body []byte) (createGameRequest, bool) {
 	if !ok || len(players) != tile.SeatCount-aiPlayers || !unique(players) {
 		return createGameRequest{}, false
 	}
-	return createGameRequest{gameID: gameID, players: players}, true
+	seating, ok := seatingOf(fields)
+	if !ok {
+		return createGameRequest{}, false
+	}
+	return createGameRequest{gameID: gameID, players: players, seating: seating}, true
+}
+
+func seatingOf(fields map[string]json.RawMessage) (session.Seating, bool) {
+	switch string(fields["fixed_seats"]) {
+	case "", "false":
+		return session.SeatingShuffled, true
+	case "true":
+		return session.SeatingFixed, true
+	}
+	return session.SeatingShuffled, false
 }
 
 func objectOf(data []byte, keys ...string) (map[string]json.RawMessage, bool) {

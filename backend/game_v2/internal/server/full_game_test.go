@@ -411,7 +411,7 @@ func (t *fullGameTable) play(script fullGameScript, gameID string) ([]*benchConn
 		specs = append(specs, session.PlayerSpec{Name: name, UserID: "user-" + name, Ticket: ticket})
 		conns = append(conns, &benchConn{id: fmt.Sprintf("%s-%d", gameID, i), gameID: gameID})
 	}
-	err := t.manager.CreatePendingGame(gameID, specs)
+	err := t.manager.CreatePendingGame(gameID, specs, session.SeatingShuffled)
 	if err != nil {
 		return nil, err
 	}

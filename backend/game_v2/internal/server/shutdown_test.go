@@ -6,15 +6,13 @@ import (
 	"testing"
 
 	"github.com/coder/websocket"
-
-	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
 )
 
 func TestShutdown_ShouldCloseSocketsWith1012AsDisconnectsBeforeTheSessionDrains(t *testing.T) {
 	h := newHarness(t)
 	h.create("alice")
 	ws := h.joinAlice()
-	readUntil(t, ws, func(m wire.Map) bool { return isEvent(m, wire.EventGameStarted) })
+	readUntil(t, ws, isGameStarted)
 
 	closed := awaitClose(t, ws)
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/auth"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/messaging"
 	"github.com/MahjongRepository/ronin/backend/game_v2/internal/wire"
@@ -133,6 +134,7 @@ func TestCreateGame_WhenBodyInvalid_ShouldAnswer400(t *testing.T) {
 		{"ai count as a float", map[string]any{"game_id": testGameID, "num_ai_players": 3.5, "players": []any{alice}}, "Invalid request body"},
 		{"ai count as a bool", map[string]any{"game_id": testGameID, "num_ai_players": true, "players": []any{alice}}, "Invalid request body"},
 		{"ai count missing its players", map[string]any{"game_id": testGameID, "num_ai_players": 2, "players": []any{alice}}, "Invalid request body"},
+		{"fixed seats as a string", map[string]any{"game_id": testGameID, "players": []any{alice}, "fixed_seats": "true"}, "Invalid request body"},
 		{"duplicate names", twoAlices, "Invalid request body"},
 		{"player with an unknown key", map[string]any{"game_id": testGameID, "players": []any{map[string]any{"name": "alice", "user_id": "user-alice", "game_ticket": alice.Ticket, "seat": 0}}}, "Invalid request body"},
 		{"name as a number", map[string]any{"game_id": testGameID, "players": []any{map[string]any{"name": 7, "user_id": "user-alice", "game_ticket": alice.Ticket}}}, "Invalid request body"},
@@ -156,6 +158,54 @@ func TestCreateGame_WhenBodyInvalid_ShouldAnswer400(t *testing.T) {
 				t.Errorf("POST /games = %d %v, want 400 %q", got.status, got.body, tc.message)
 			}
 		})
+	}
+}
+
+func TestPlayingGames_WhenOneFixedSeatGameStartedAndOnePending_ShouldListTheStartedOneEastToNorthToTheInternalCallerOnly(t *testing.T) {
+	seed, err := engine.ParseSeed(strings.Repeat("ee", engine.SeedBytes))
+	if err != nil {
+		t.Fatalf("ParseSeed error = %v", err)
+	}
+	if dealer, _, _ := engine.FirstDealer(seed); dealer.Index() != 3 || engine.SeatPermutation(seed)[0].Index() == 3 {
+		t.Fatalf("seed deals from seat %d and shuffles alice to %v, want a dealer the shuffle would not seat her at", dealer.Index(), engine.SeatPermutation(seed)[0])
+	}
+	h := newHarness(t, withSeed(seed))
+	fixed := map[string]any{"game_id": testGameID, "num_ai_players": 3, "players": gameBody(testGameID, "alice").Players, "fixed_seats": true}
+	if got := h.postGame(fixed); got.status != http.StatusCreated {
+		t.Fatalf("POST /games with fixed seats = %d %v, want 201", got.status, got.body)
+	}
+	ws := h.joinAlice()
+	readUntil(t, ws, isGameStarted)
+	if got := h.postGame(gameBody("game-0002", "bob")); got.status != http.StatusCreated {
+		t.Fatalf("POST /games for the pending game = %d %v, want 201", got.status, got.body)
+	}
+
+	listed := h.internal(http.MethodGet, "/games")
+	refused := h.get("/games")
+
+	games, _ := listed.body["games"].([]any)
+	if len(games) != 1 {
+		t.Fatalf("GET /games = %d %v, want the one started game", listed.status, listed.body)
+	}
+	game, _ := games[0].(map[string]any)
+	startedAt, _ := game["started_at"].(float64)
+	if age := time.Since(time.UnixMicro(int64(startedAt * 1e6))); age < 0 || age > time.Minute {
+		t.Errorf("GET /games started_at = %v, want the start in epoch seconds", game["started_at"])
+	}
+	delete(game, "started_at")
+	want := []any{map[string]any{
+		"game_id":   testGameID,
+		"game_type": "hanchan",
+		"players":   []any{"alice", "ai-tsumogiri-1", "ai-tsumogiri-2", "ai-tsumogiri-3"},
+	}}
+	if listed.status != http.StatusOK || !cmp.Equal(games, want) {
+		t.Errorf("GET /games = %d %v, want 200 %v", listed.status, listed.body, want)
+	}
+	if got := listed.header.Get("Cache-Control"); got != "no-store" {
+		t.Errorf("GET /games Cache-Control = %q, want no-store", got)
+	}
+	if refused.status != http.StatusUnauthorized || refused.body["error"] != "Unauthorized" {
+		t.Errorf("GET /games without the secret = %d %v, want 401", refused.status, refused.body)
 	}
 }
 

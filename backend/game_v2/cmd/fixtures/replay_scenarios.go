@@ -714,7 +714,7 @@ func eagerSeeded(id, seedPair string, want outcome) (recording, error) {
 	if err != nil {
 		return recording{}, err
 	}
-	roster, _ := session.SeatPlayers(id, atTheTable().players, seed)
+	roster, _ := session.SeatPlayers(id, atTheTable().players, seed, session.SeatingShuffled)
 	return playPolicyGame(id, seed, roster, eagerPolicy, want)
 }
 

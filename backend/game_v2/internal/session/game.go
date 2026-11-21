@@ -77,6 +77,7 @@ type game struct {
 	inbox         chan func()
 	ended         chan struct{}
 	lifecycle     lifecycle
+	seating       Seating
 	participants  []*participant
 	engine        engine.Game
 	published     engine.Game
@@ -96,15 +97,16 @@ type game struct {
 	drawNoticeFrameByDrawingSeat [tile.SeatCount][]byte
 }
 
-func newGame(m *Manager, id string, players []PlayerSpec) *game {
+func newGame(m *Manager, id string, players []PlayerSpec, seating Seating) *game {
 	g := &game{
-		m:      m,
-		id:     id,
-		log:    m.log.With("game_id", id),
-		timing: &m.cfg.Timing,
-		clock:  m.cfg.Clock,
-		inbox:  make(chan func()),
-		ended:  make(chan struct{}),
+		m:       m,
+		id:      id,
+		log:     m.log.With("game_id", id),
+		timing:  &m.cfg.Timing,
+		clock:   m.cfg.Clock,
+		inbox:   make(chan func()),
+		ended:   make(chan struct{}),
+		seating: seating,
 	}
 	for _, spec := range players {
 		g.participants = append(g.participants, &participant{

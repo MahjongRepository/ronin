@@ -234,7 +234,7 @@ func openStagedGame(id string, staged stagedWall, seats seating, start play.Opti
 
 	seed := stagedSeed()
 	setup, setupErr := stagedSetup(seed, []stagedWall{staged}, start, dealers)
-	roster, playerSeats := session.SeatPlayers(id, seats.players, seed)
+	roster, playerSeats := session.SeatPlayers(id, seats.players, seed, session.SeatingShuffled)
 	var absent []tile.Seat
 	var absentErr error
 	for _, seat := range playerSeats {

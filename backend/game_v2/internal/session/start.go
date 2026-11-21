@@ -96,7 +96,7 @@ func (g *game) startGame() error {
 	for _, p := range g.participants {
 		names = append(names, p.spec.Name)
 	}
-	roster, seats := SeatPlayers(g.id, names, seed)
+	roster, seats := SeatPlayers(g.id, names, seed, g.seating)
 	for i, p := range g.participants {
 		p.seat, p.seated = seats[i], true
 		p.log = g.log.With("seat", p.seat.Index())
@@ -112,7 +112,12 @@ func (g *game) startGame() error {
 		return fmt.Errorf("claim the game id: %w", err)
 	}
 	g.startRecorded = true
-	g.m.markPlaying(g)
+	g.m.markPlaying(g, StartedGame{
+		GameID:    g.id,
+		StartedAt: g.start.StartedAt,
+		GameType:  g.start.GameType,
+		Names:     namesFromEast(roster.Names, seed),
+	})
 	g.engine = started
 	g.replay = messaging.NewReplayLog(seed, g.roster)
 	g.log.Info("pending game completed")
@@ -172,12 +177,12 @@ func (g *game) begin(actor play.Option[tile.Seat]) error {
 	return g.followEngine(events, actor)
 }
 
-// SeatPlayers seats a game's players, given by name in input order, as the session seats them: by
-// the seed's seat permutation, the n-th player at its n-th seat. It returns the game's roster, an AI
-// player named in each seat no player takes, and each player's seat in input order.
-func SeatPlayers(gameID string, names []string, seed engine.Seed) (messaging.Roster, []tile.Seat) {
-	permutation := engine.SeatPermutation(seed)
-	seats := permutation[:len(names)]
+// SeatPlayers seats a game's players, given by name in input order, as the session seats them by
+// seating: shuffled, the n-th player at the n-th seat of the seed's seat permutation, or fixed, the
+// n-th player n seats after the seed's first dealer. It returns the game's roster, an AI player
+// named in each seat no player takes, and each player's seat in input order.
+func SeatPlayers(gameID string, names []string, seed engine.Seed, seating Seating) (messaging.Roster, []tile.Seat) {
+	seats := playerSeats(len(names), seed, seating)
 	roster := messaging.Roster{GameID: gameID}
 	for i := range roster.AI {
 		roster.AI[i] = true
@@ -198,4 +203,26 @@ func SeatPlayers(gameID string, names []string, seed engine.Seed) (messaging.Ros
 		number++
 	}
 	return roster, seats
+}
+
+func playerSeats(count int, seed engine.Seed, seating Seating) []tile.Seat {
+	if seating == SeatingFixed {
+		seat, _, _ := engine.FirstDealer(seed)
+		seats := make([]tile.Seat, count)
+		for i := range seats {
+			seats[i], seat = seat, seat.Next()
+		}
+		return seats
+	}
+	permutation := engine.SeatPermutation(seed)
+	return permutation[:count]
+}
+
+func namesFromEast(names [tile.SeatCount]string, seed engine.Seed) [tile.SeatCount]string {
+	var fromEast [tile.SeatCount]string
+	seat, _, _ := engine.FirstDealer(seed)
+	for i := range fromEast {
+		fromEast[i], seat = names[seat.Index()], seat.Next()
+	}
+	return fromEast
 }

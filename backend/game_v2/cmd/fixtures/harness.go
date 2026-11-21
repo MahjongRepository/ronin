@@ -121,7 +121,7 @@ func openSeatedGame(ctx context.Context, logger *slog.Logger, setup gameSetup) (
 		g.clients[name] = &seatClient{game: g, name: name, ticket: ticket}
 		specs = append(specs, session.PlayerSpec{Name: name, UserID: "user-" + name, Ticket: ticket})
 	}
-	g.runAt(0, func() error { return g.manager.CreatePendingGame(setup.gameID, specs) })
+	g.runAt(0, func() error { return g.manager.CreatePendingGame(setup.gameID, specs, session.SeatingShuffled) })
 	return g, nil
 }
 

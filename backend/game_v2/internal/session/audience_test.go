@@ -87,7 +87,7 @@ func TestSendEvents_WhenAnEventHasNoAudience_ShouldFailTheGameAndSendNothingOfIt
 		err = m.CreatePendingGame("game-audience", []PlayerSpec{
 			{Name: "Alice", UserID: "user-Alice", Ticket: "ticket-Alice"},
 			{Name: "Bob", UserID: "user-Bob", Ticket: "ticket-Bob"},
-		})
+		}, SeatingShuffled)
 		if err != nil {
 			t.Fatalf("CreatePendingGame error = %v", err)
 		}

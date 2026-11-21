@@ -70,7 +70,7 @@ func playSeededGame(t *testing.T) string {
 			t.Fatalf("session.New error = %v", err)
 		}
 
-		err = m.CreatePendingGame(playedGameID, []session.PlayerSpec{{Name: "Alice", UserID: "user-1", Ticket: "ticket-1"}})
+		err = m.CreatePendingGame(playedGameID, []session.PlayerSpec{{Name: "Alice", UserID: "user-1", Ticket: "ticket-1"}}, session.SeatingShuffled)
 		if err != nil {
 			t.Fatalf("CreatePendingGame error = %v", err)
 		}

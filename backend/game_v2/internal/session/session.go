@@ -110,6 +110,16 @@ type PlayerSpec struct {
 	Ticket string
 }
 
+// Seating is how a game seats its players. The zero value, SeatingShuffled, seats them by the
+// seed's seat permutation; SeatingFixed seats them in input order from the seed's first dealer, the
+// first East, then South, West and North.
+type Seating int
+
+const (
+	SeatingShuffled Seating = iota
+	SeatingFixed
+)
+
 // Agent answers the decisions of AI seats. Decide gets the AI seat's view, its decision included,
 // and returns the action to play. Each call runs on a goroutine of its own, and a game waits for
 // one answer at a time, its turns and calls alike, and stops waiting once the base turn time
