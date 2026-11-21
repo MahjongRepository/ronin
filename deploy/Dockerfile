@@ -3,6 +3,7 @@ ARG PYTHON_MINOR=3.14
 ARG ALPINE_VERSION=3.24
 ARG NODE_VERSION=26.13.0
 ARG UV_VERSION=0.13.7
+ARG GO_VERSION
 
 # =============================================================================
 # Stage 1: Build frontend assets
@@ -38,6 +39,45 @@ ARG GIT_COMMIT=unknown
 ENV APP_VERSION=${APP_VERSION} GIT_COMMIT=${GIT_COMMIT} NODE_ENV=production
 
 RUN npm run build
+
+FROM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS game-builder
+ARG GO_VERSION
+
+WORKDIR /src
+
+COPY mise.toml /tmp/mise.toml
+RUN grep -qx "go = \"${GO_VERSION}\"" /tmp/mise.toml || { echo "GO_VERSION ${GO_VERSION} is not the Go pinned in mise.toml" >&2; exit 1; }
+
+COPY backend/game_v2/go.mod backend/game_v2/go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+COPY backend/game_v2/ ./
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/ ./cmd/gameserver ./cmd/migrate
+
+FROM alpine:${ALPINE_VERSION} AS game
+
+RUN addgroup -g 1000 app && adduser -u 1000 -G app -s /bin/sh -D app
+
+WORKDIR /app
+
+COPY --from=game-builder /out/gameserver /app/gameserver
+COPY backend/game_v2/THIRD-PARTY-NOTICES.md /app/THIRD-PARTY-NOTICES.md
+
+RUN mkdir -p /app/data/replays /app/data/db && chown -R app:app /app/data
+
+ARG APP_VERSION=dev
+ARG GIT_COMMIT=unknown
+
+ENV APP_VERSION=${APP_VERSION} \
+    GIT_COMMIT=${GIT_COMMIT}
+
+USER app
+
+EXPOSE 8712
+
+ENTRYPOINT ["/app/gameserver"]
+CMD ["-addr", "0.0.0.0:8712"]
 
 # =============================================================================
 # Stage 2: Install Python dependencies
@@ -108,6 +148,9 @@ COPY --from=builder /app/.venv /app/.venv
 # Copy backend source code.
 COPY backend/lobby/app/ backend/lobby/app/
 COPY backend/lobby/scripts/ backend/lobby/scripts/
+
+COPY --from=game-builder /out/gameserver /out/migrate /app/
+COPY backend/game_v2/THIRD-PARTY-NOTICES.md /app/THIRD-PARTY-NOTICES.md
 
 COPY --from=lobby-builder /app/frontend/lobby/dist /app/frontend/lobby/dist
 COPY --from=game-v2-builder /app/frontend/game_v2/dist /app/frontend/game_v2/dist

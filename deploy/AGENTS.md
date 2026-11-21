@@ -10,7 +10,10 @@ runbook for a new server and lists the targets.
 ## Architecture
 
 * `.github/workflows/release.yml` is the **only** path that builds the image (`Dockerfile`) and
-  pushes it to GHCR as a public package. The deploy Makefiles have no build or push target, and the
+  pushes it to GHCR as a public package. One image serves both services: the lobby's Python and
+  frontends, and the Go game server's binaries (`/app/gameserver`, plus `/app/migrate` for the one-off
+  data migration), each compose service picking its command. The Go version comes from `mise.toml`,
+  which the workflow passes as `GO_VERSION` and the build checks. The deploy Makefiles have no build or push target, and the
   deploy has no `docker login`.
 * `.github/workflows/create-release.yml` cuts a release of the version `main` is already at (the
   release skill sets it; the workflow never commits) and then calls `release.yml` for the image:
@@ -37,21 +40,22 @@ runbook for a new server and lists the targets.
   command stops it, before anything on the server changes, when the game server's `/status` counts a started or
   pending game. A refused connection means no server and no games, so a fresh box still deploys; any other status
   failure refuses. A game created after the check still falls to the recreate.
-* **Bounded shutdown.** Both uvicorn commands pass a graceful-shutdown timeout (uvicorn otherwise
-  waits forever for a client whose transport is stalled), and `stop_grace_period` leaves room after
-  it for the lifespan shutdown and the database drain before docker's SIGKILL.
-* **Liveness is the WebSocket protocol ping.** Both uvicorn commands (and both local launchers in `bin/`)
-  pin the `--ws` ping flags; the apps run no ping of their own, so removing the flags leaves dead
-  sockets open.
-* **Frame size is capped before buffering.** Both uvicorn commands (and both local launchers in `bin/`)
-  pin `--ws-max-size`: uvicorn otherwise buffers a 16 MiB frame before the app's own size checks
-  run, and game sockets accept frames before they authenticate. The game cap is the decoder's
-  `MAX_BUFFER_LEN`, the lobby's twice its room message limit; keep each in step with that limit.
-  An oversized frame closes the socket with 1009. TestClient bypasses uvicorn, so no test pins this.
-* **No WebSocket compression.** Both uvicorn commands (and both local launchers in `bin/`) pass
-  `--ws-per-message-deflate false`: frames average about 13 bytes, so deflate costs CPU per frame
-  and saves nothing, and with it off browsers get what the bot client (which never offers it) gets,
-  so bot runs measure production's send path.
+* **Bounded shutdown.** The lobby's uvicorn command passes a graceful-shutdown timeout (uvicorn
+  otherwise waits forever for a client whose transport is stalled), and `stop_grace_period` leaves
+  room after it for the lifespan shutdown and the database drain before docker's SIGKILL. The game
+  server bounds its own stop to just under that grace period (`cmd/gameserver`).
+* **Liveness is the WebSocket protocol ping.** The lobby's uvicorn command (and its local launchers in
+  `bin/`) pins the `--ws` ping flags; the lobby runs no ping of its own, so removing the flags leaves
+  dead sockets open. The game server pings from its own socket settings.
+* **Frame size is capped before buffering.** The lobby's uvicorn command (and its local launchers in
+  `bin/`) pins `--ws-max-size`: uvicorn otherwise buffers a 16 MiB frame before the app's own size
+  checks run. The cap is twice the room message limit; keep it in step with that limit. An oversized
+  frame closes the socket with 1009. TestClient bypasses uvicorn, so no test pins this. The game
+  server sets its read limit in code, to the wire's message cap.
+* **No WebSocket compression.** The lobby's uvicorn command (and its local launchers in `bin/`)
+  passes `--ws-per-message-deflate false`, and the game server disables it in code: frames average
+  about 13 bytes, so deflate costs CPU per frame and saves nothing, and with it off browsers get what
+  the bot client (which never offers it) gets, so bot runs measure production's send path.
 * **HTTP compression is Traefik's.** The `compress-text` middleware (`config/traefik-dynamic.yml`)
   compresses an allowlist of static text types (JS, CSS, SVG, XML) and sits only on the routers
   serving them, never the WebSocket ones; the apps add no GZip middleware. HTML and JSON stay out of

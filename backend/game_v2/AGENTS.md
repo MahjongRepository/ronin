@@ -601,13 +601,14 @@ comments either: a forbidigo pattern's `msg` is where its reason goes.
   `cd backend/game_v2 && mise exec -- go test -race ./engine/... ./seam/...`: the facade's tests live
   in `seam/`, so `./engine/...` alone skips them.
 * The server listens on `127.0.0.1:8712` by default (`-addr`).
-* `make run-game-v2-docker` builds the server's own image and starts it as the local `game-v2`
-  service; `make stop-game-v2-docker` stops it. Neither `release.yml` nor `deploy/docker-compose.yml`
-  knows it. The image is built from the repo root with its own `Dockerfile.dockerignore`, so the
-  production `deploy/Dockerfile` and the root `.dockerignore` stay untouched; the build refuses a Go
+* Production runs this server from the one release image `deploy/Dockerfile` builds (`deploy/AGENTS.md`),
+  which carries `/app/gameserver` and `/app/migrate` beside the lobby. That Dockerfile's `game` target
+  is the server alone: `make run-game-v2-docker` builds it and starts it as the local `game-v2`
+  service; `make stop-game-v2-docker` stops it. The build context is the repo root under the root
+  `.dockerignore`, which keeps the module's tests, `testdata` and `seam/` out; the build refuses a Go
   other than `mise.toml`'s, and bakes in the version and commit, since a Docker build has no VCS
   stamp. The local compose runs it as the host user, because the dev database and the replays are
-  owner-only and the host's lobby reads both, and mounts the whole `backend/` directory, not the
+  owner-only and the host's lobby reads both, and mounts the whole `var/` directory, not the
   database file, so SQLite's WAL and SHM siblings are the files the host's lobby uses. The container
   holds `:8712`, the port `make run-local-server` and `make run-games` start their own Go
   server on, and neither can kill the root-owned port holder: their `DOCKER=1` modes run this

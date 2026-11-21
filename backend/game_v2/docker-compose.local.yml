@@ -5,7 +5,8 @@ services:
     image: ronin-game-v2:local
     build:
       context: ../..
-      dockerfile: backend/game_v2/Dockerfile
+      dockerfile: deploy/Dockerfile
+      target: game
       args:
         GO_VERSION: ${GO_VERSION:?Set GO_VERSION to the Go pinned in mise.toml}
         APP_VERSION: ${APP_VERSION:-dev}

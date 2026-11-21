@@ -39,6 +39,7 @@ jobs:
         run: |
           VERSION=$(grep '^version' backend/lobby/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "go=$(sed -n 's/^go = "\(.*\)"$/\1/p' mise.toml)" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
 
@@ -64,5 +65,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
+            GO_VERSION=${{ steps.version.outputs.go }}
             APP_VERSION=${{ steps.version.outputs.version }}
             GIT_COMMIT=${{ steps.version.outputs.commit }}

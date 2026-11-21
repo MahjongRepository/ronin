@@ -16,10 +16,14 @@ frontend/*/.oxfmtrc.json
 frontend/*/.oxlintrc.json
 frontend/*/.stylelintrc.json
 var
-backend/game_v2
+backend/game_v2/**/*_test.go
+backend/game_v2/**/testdata
+backend/game_v2/seam
+backend/game_v2/docker-compose.local.yml
 backend/lobby/tests
 backend/lobby/debug.py
 **/*.md
+!backend/game_v2/THIRD-PARTY-NOTICES.md
 bin
 data
 .DS_Store

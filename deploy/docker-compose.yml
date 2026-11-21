@@ -97,13 +97,7 @@ services:
   game:
     image: ghcr.io/mahjongrepository/ronin:latest
     cgroup_parent: ronin-game.slice
-    command: >
-      uvicorn --factory game.server.app:get_app
-      --host 0.0.0.0 --port 8711
-      --proxy-headers --forwarded-allow-ips=*
-      --timeout-graceful-shutdown 5
-      --ws websockets-sansio --ws-per-message-deflate false --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size 262144
-      --log-level info
+    command: ["/app/gameserver", "-addr", "0.0.0.0:8711"]
     stop_grace_period: 15s
     ports:
       - "127.0.0.1:8711:8711"
@@ -120,7 +114,7 @@ services:
       - ./data/replays:/app/data/replays
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8711/health')"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8711/health"]
       interval: 30s
       timeout: 5s
       retries: 3
