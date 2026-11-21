@@ -553,7 +553,7 @@ honours this contract can replace it.
   the game end reaches the players before the server has saved the replay, so the replay may answer
   404 for a moment after it.
 * **Observing:** `GET /api/observe/{game_id}?from=N` is a live game's delayed observer stream, no login
-  required, `Cache-Control: no-store`. The lobby validates the id and `from` (a non-negative whole number,
+  required, `Cache-Control: no-store`. The lobby validates the id and `from` (one to nine ASCII digits,
   default 0; 400 otherwise), forwards them to the game server's internal observe route with the internal API
   secret and passes its answer through unchanged: one MessagePack map with string keys, `started_at` (Unix
   milliseconds), `game_type`, `players` (four names, East to North), `available_in_ms` (the wait until the
@@ -564,10 +564,10 @@ honours this contract can replace it.
   plus a minute. 503 means the game server could not be asked; the
   client polls again. The observe page `/play/observe/{game_id}` plays that stream in the replay viewer:
   one request at a time, the next 2 s after each answer or failure, from the `next` the last answer gave,
-  until `ended` or a 404. Before any record it shows the players and the time left; then it opens the board
-  with autoplay on and grows the replay in place, all hands open as in a replay. The page never writes its
-  address. A 404 before any record says the game can no longer be watched; a 404 later keeps the board and
-  stops asking. Both link the game's replay at `/play/history/{game_id}`.
+  until `ended` or a 404. Until the first playable record it shows the players and the time left; then it
+  opens the board with autoplay on and grows the replay in place, its hands open or hidden by the reader's
+  saved setting as in a replay. The page never writes its address. A 404 before the board opens says the
+  game can no longer be watched; a 404 later keeps the board and stops asking. Both link the game's replay at `/play/history/{game_id}`.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **Language:** v2 speaks Japanese, English and Russian under the lobby's contract (`docs/i18n.md`),
   with catalogs of its own. It resolves the language at page load: the `lang` cookie first, then the

@@ -91,6 +91,16 @@ function toolsTemplate({
         : nothing;
 }
 
+/** What the round list's last row goes to: the game's end, a live game's newest stop, or where the recording ends. */
+function endSummary(display: ReplayDisplay): string {
+    if (display.stream === "live") {
+        return t("replay.rounds.end_live");
+    }
+    return display.incomplete === null
+        ? t("replay.rounds.end_game")
+        : t("replay.rounds.end_recording");
+}
+
 /**
  * The replay's moves and options over the board's band, and the round list or the tools' menu over the board while
  * it is open.
@@ -105,10 +115,7 @@ function controlsTemplate(props: ReplayBoardProps): TemplateResult {
             : {
                   current: display.moves.last === null,
                   cursor: last,
-                  summary:
-                      display.incomplete === null
-                          ? t("replay.rounds.end_game")
-                          : t("replay.rounds.end_recording"),
+                  summary: endSummary(display),
               };
     const roundList = roundListOpen
         ? RoundList({

@@ -347,7 +347,7 @@ function observeWaitingTemplate(countdown: ObserveCountdown | null): TemplateRes
             <p class="replay-state__detail">${t("replay.observe.loading")}</p>
         </div>`;
     }
-    return html`<div class="replay-state replay-state--observe">
+    return html`<div class="replay-state">
         <h1 class="replay-state__title">${t("replay.observe.title")}</h1>
         <ol class="replay-state__players" aria-label=${t("replay.observe.players")}>
             ${countdown.players.map(
@@ -836,8 +836,20 @@ class ReplayViewController {
         const { signal } = this.abort;
         const fetched = await this.askObserve(source.fetchObserve, from, signal);
         if (fetched !== null && !signal.aborted) {
-            this.dispatch({ fetched, kind: "observe_fetched", opening: this.observeOpening() });
+            this.guard(() => this.apply(this.readObserved(fetched)));
         }
+    }
+
+    /** The page after an observe answer, a read that failed on a damaged record logged as the archive's is. */
+    private readObserved(fetched: ObserveFetch): ReplayPageStep {
+        const step = stepReplayPage(this.screen, {
+            at: this.deps.clock.now(),
+            fetched,
+            kind: "observe_fetched",
+            opening: this.observeOpening(),
+        });
+        logReadFailure(step.screen);
+        return step;
     }
 
     /**
