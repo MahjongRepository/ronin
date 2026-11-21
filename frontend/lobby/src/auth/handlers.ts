@@ -1,3 +1,5 @@
+import { clearAllGameSessions } from "@ronin/shared/session-storage";
+
 import { type ApiResult, apiGet, apiPost } from "@/api";
 import {
     type AuthFields,
@@ -41,6 +43,7 @@ interface SignInRequest {
 function finishSignIn(state: AuthState, context: AuthViewContext, result: ApiResult): void {
     const next = result.ok ? parseSignedInNext(result.data) : null;
     if (next !== null) {
+        clearAllGameSessions();
         window.location.replace(next);
         return;
     }

@@ -494,7 +494,8 @@ honours this contract can replace it.
   whose tab holds no entry recovers it from `GET /api/game-session` (`game_id`, `ws_url`,
   `game_ticket`, `game_client_url`; 404 when the player plays no game, 503 when the lookup failed)
   and stores it under the same key. The v2 client forgets it at the game end, since its ticket will never
-  hold the seat again.
+  hold the seat again, and the lobby forgets every entry of the tab on logout and on any sign-in, so a
+  ticket never seats the next account to use that tab.
 * **Game server:** the client joins `wsUrl` with the ticket and speaks the MessagePack protocol
   (`backend/game_v2/AGENTS.md`, The wire); it reuses the same ticket to reconnect. Both directions use
   integer metadata keys from the named `WireKey` registry. Builders, serializers and schemas reference

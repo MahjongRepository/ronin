@@ -1,4 +1,9 @@
-import { clearGameSession, getGameSession, storeGameSession } from "@ronin/shared/session-storage";
+import {
+    clearAllGameSessions,
+    clearGameSession,
+    getGameSession,
+    storeGameSession,
+} from "@ronin/shared/session-storage";
 import { afterEach, describe, expect, it } from "vitest";
 
 afterEach(() => {
@@ -44,5 +49,15 @@ describe("game session", () => {
         clearGameSession("game-a");
         expect(getGameSession("game-a")).toBeNull();
         expect(getGameSession("game-b")).not.toBeNull();
+    });
+
+    it("clearAllGameSessions removes every game's handoff and keeps the tab's other keys", () => {
+        storeGameSession("game-a", "ws://a", "ticket-a");
+        storeGameSession("game-b", "ws://b", "ticket-b");
+        sessionStorage.setItem("other", "kept");
+        clearAllGameSessions();
+        expect(getGameSession("game-a")).toBeNull();
+        expect(getGameSession("game-b")).toBeNull();
+        expect(sessionStorage.getItem("other")).toBe("kept");
     });
 });

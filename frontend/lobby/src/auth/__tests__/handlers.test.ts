@@ -1,3 +1,4 @@
+import { getGameSession, storeGameSession } from "@ronin/shared/session-storage";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { submitCredentials } from "@/auth/handlers";
@@ -49,6 +50,8 @@ function alertText(host: HTMLElement): string | undefined {
 
 afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    sessionStorage.clear();
     document.head.replaceChildren();
     document.body.replaceChildren();
 });
@@ -102,5 +105,22 @@ describe("submitCredentials", () => {
         expect(alertText(host)).toBe(t("auth.error.username_taken", { username: "dev" }));
         expect(host.querySelector("#username")?.getAttribute("aria-invalid")).toBe("true");
         expect(host.querySelector("#password")?.hasAttribute("aria-invalid")).toBe(false);
+    });
+
+    it("forgets every game handoff of the tab before opening the signed-in page", async () => {
+        setMetaToken("token");
+        mockFetch({ body: { next: "/history" }, status: 200 });
+        const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
+        storeGameSession("game-1", "ws://game", "ticket-of-previous-account");
+        const { context, state } = setUpForm("login");
+
+        await submitCredentials(state, context, {
+            confirmPassword: null,
+            password: "secret-password",
+            username: "dev",
+        });
+
+        expect(getGameSession("game-1")).toBeNull();
+        expect(replace).toHaveBeenCalledWith("/history");
     });
 });

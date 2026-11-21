@@ -1,4 +1,5 @@
 import { type Router, startRouter } from "@ronin/shared/router";
+import { getGameSession, storeGameSession } from "@ronin/shared/session-storage";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { type Chrome, startChrome } from "@/app/chrome";
@@ -76,6 +77,7 @@ function pressEscapeInAccountPanel(nav: HTMLElement): void {
 }
 
 afterEach(() => {
+    sessionStorage.clear();
     document.body.replaceChildren();
     document.head.replaceChildren();
     document.documentElement.lang = "";
@@ -104,6 +106,16 @@ describe("startChrome", () => {
         ]);
         expect(nav.querySelector(".lobby-username")?.textContent).toBe("dev");
         expect(postedToken).toBe("rotated-token");
+    });
+
+    it("forgets every game handoff of the tab on logout", () => {
+        const { chrome, nav } = chromeOnPage();
+        chrome.showSession({ user: { isAdmin: false, isGuest: false, username: "dev" } });
+        storeGameSession("game-1", "ws://game", "ticket-of-dev");
+
+        postedTokenAfterRotation(nav, "first-token");
+
+        expect(getGameSession("game-1")).toBeNull();
     });
 
     it("opens the account panel with Settings and Log out, and Escape closes it onto its button", () => {

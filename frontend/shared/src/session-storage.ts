@@ -4,8 +4,10 @@ export interface GameSessionData {
     readonly gameTicket: string;
 }
 
+const HANDOFF_KEY_PREFIX = "game_session:";
+
 function handoffKey(gameId: string): string {
-    return `game_session:${gameId}`;
+    return `${HANDOFF_KEY_PREFIX}${gameId}`;
 }
 
 function isGameSessionData(data: unknown): data is GameSessionData {
@@ -41,4 +43,17 @@ export function getGameSession(gameId: string): GameSessionData | null {
 /** Forget the game's handoff, which its ticket will never seat again. */
 export function clearGameSession(gameId: string): void {
     sessionStorage.removeItem(handoffKey(gameId));
+}
+
+/**
+ * Forget every game handoff this tab holds, so a ticket never outlives the account it was signed for: on logout and
+ * on any sign-in, which may be another account's. The signed-in player's own handoff comes back by recovery.
+ */
+export function clearAllGameSessions(): void {
+    for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+        const key = sessionStorage.key(index);
+        if (key?.startsWith(HANDOFF_KEY_PREFIX)) {
+            sessionStorage.removeItem(key);
+        }
+    }
 }

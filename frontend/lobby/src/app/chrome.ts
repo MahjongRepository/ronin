@@ -1,6 +1,7 @@
 import { supportsBoardCss } from "@ronin/shared/browser-support";
 import { LANGUAGE_NAMES, LOCALES, type Locale } from "@ronin/shared/locale";
 import { switchLocale } from "@ronin/shared/locale-switch";
+import { clearAllGameSessions } from "@ronin/shared/session-storage";
 import { type TemplateResult, html, nothing, render } from "lit-html";
 
 import { type PageMeta, readCsrfToken } from "@/app/page-meta";
@@ -76,7 +77,8 @@ function adminPanelItems(user: SessionUser, path: string): TemplateResult | type
     </div>`;
 }
 
-function postCurrentCsrfToken(event: SubmitEvent): void {
+function prepareLogout(event: SubmitEvent): void {
+    clearAllGameSessions();
     const form = event.currentTarget;
     const input = form instanceof HTMLFormElement ? form.elements.namedItem("csrf_token") : null;
     if (input instanceof HTMLInputElement) {
@@ -189,7 +191,7 @@ function accountPanel(user: SessionUser, path: string, menu: AccountMenu): Templ
             >${cogIcon()}<span>${t("nav.settings")}</span></a
         >
         <hr class="lobby-account-divider" />
-        <form method="POST" action="/logout" @submit=${postCurrentCsrfToken}>
+        <form method="POST" action="/logout" @submit=${prepareLogout}>
             <input type="hidden" name="csrf_token" value=${readCsrfToken()} />
             <button type="submit" class="lobby-account-item">
                 ${logoutIcon()}<span>${t("nav.log_out")}</span>
