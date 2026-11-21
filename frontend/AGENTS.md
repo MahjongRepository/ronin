@@ -71,7 +71,7 @@ Vitest does not show what a page looks like, so a change to the UI is checked in
 * Take the before shots ahead of the first UI edit. Once the change exists, serve the base from a
   scratchpad `git worktree` with its own ports (`GAME_PORT`, `LOBBY_PORT`, `VITE_PORT`,
   `GAME_V2_VITE_PORT` on `bin/run-local-server.sh`, after `make install-frontend` there). Its
-  `backend/storage.db` starts empty, so register `dev` there too, in a separate
+  `var/storage.db` starts empty, so register `dev` there too, in a separate
   `agent-browser --session` (the skill's *Logging in*). Stop it and `git worktree remove` it
   afterwards.
 * Save them to `thoughts/screenshots/<topic>/`, as many as the work needs. What the human reviews is

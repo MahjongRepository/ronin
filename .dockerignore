@@ -15,10 +15,7 @@ frontend/*/coverage
 frontend/*/.oxfmtrc.json
 frontend/*/.oxlintrc.json
 frontend/*/.stylelintrc.json
-backend/logs
-backend/profiles
-backend/storage.db*
-backend/data
+var
 backend/game_v2
 backend/lobby/tests
 backend/lobby/debug.py

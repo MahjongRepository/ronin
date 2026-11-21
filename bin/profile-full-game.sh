@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 . "$SCRIPT_DIR/full-game-benchmarks.sh"
 
-PROFILE_ROOT="$PROJECT_ROOT/backend/profiles"
+PROFILE_ROOT="$PROJECT_ROOT/var/profiles"
 STAMP="$(date +%Y-%m-%d_%H-%M-%S)"
 BENCH_COUNT="${BENCH_COUNT:-10}"
 SELECTED="${BENCH:-}"

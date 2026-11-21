@@ -76,9 +76,9 @@ case "$NET" in
 esac
 
 BOT_NAMES=(ai-akagi ai-tetsuya ai-ichihime ai-miki)
-PROFILE_DIR="$PROJECT_ROOT/backend/profiles/games_$(date +%Y-%m-%d_%H-%M-%S)"
-FAILED_RUN_DIR="$PROJECT_ROOT/backend/data/failed-runs/$(date +%Y-%m-%d_%H-%M-%S)"
-HARNESS_LOG="$PROJECT_ROOT/backend/logs/harness.log"
+PROFILE_DIR="$PROJECT_ROOT/var/profiles/games_$(date +%Y-%m-%d_%H-%M-%S)"
+FAILED_RUN_DIR="$PROJECT_ROOT/var/failed-runs/$(date +%Y-%m-%d_%H-%M-%S)"
+HARNESS_LOG="$PROJECT_ROOT/var/logs/harness.log"
 
 GAME_PORT=8712
 LOBBY_PORT=8710
@@ -655,7 +655,7 @@ if [[ $NET == bad ]]; then
     export LOBBY_GAME_SERVER_WS_URL="${BAD_NET_PUBLIC_ORIGIN/http/ws}"
 fi
 if [[ $DOCKER == 1 ]]; then
-    export GAME_REPLAY_DIR="backend/data/game-v2-replays"
+    export GAME_REPLAY_DIR="var/game-v2-replays"
     export LOBBY_REPLAY_DIR="$GAME_REPLAY_DIR"
 fi
 export GAME_ENVIRONMENT="${GAME_ENVIRONMENT:-local}"
@@ -669,9 +669,9 @@ export LOG_FORMAT=console
 if [[ ${GAME_ENVIRONMENT,,} == local ]]; then
     BOT_ARGS+=(--send-rate "$GO_LOCAL_BOT_SEND_RATE" --send-burst "$GO_LOCAL_BOT_SEND_BURST")
 fi
-export GAME_LOG_DIR="$PROJECT_ROOT/backend/logs/game"
-export LOBBY_LOG_DIR="$PROJECT_ROOT/backend/logs/lobby"
-NET_LOG_DIR="$PROJECT_ROOT/backend/logs/net"
+export GAME_LOG_DIR="$PROJECT_ROOT/var/logs/game"
+export LOBBY_LOG_DIR="$PROJECT_ROOT/var/logs/lobby"
+NET_LOG_DIR="$PROJECT_ROOT/var/logs/net"
 
 for dir in "$GAME_LOG_DIR" "$LOBBY_LOG_DIR" "$BOT_LOG_DIR" "$NET_LOG_DIR"; do
     find "$dir" -mindepth 1 -delete 2>/dev/null || true

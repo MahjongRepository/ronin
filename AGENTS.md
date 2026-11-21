@@ -36,6 +36,8 @@ Ronin is a Riichi Mahjong game server and browser client.
 * `docs/game-client-look.md` — the v2 game client's look (composition, elements, proportions, review
   checklist), approved; read before any v2 board work.
 * `thoughts/` — plans and other planning artifacts; gitignored, never shipped.
+* `var/` — the local runtime data of both servers (the dev database, replays, logs, profiles); gitignored,
+  created by the scripts that write it.
 
 ## Commands
 
@@ -66,7 +68,7 @@ The `Makefile` lists the targets; the non-obvious ones:
   abnormal event such as a timeout auto-action or a bot replaced by AI. It forces debug console logging, so these
   gates cannot be configured away. It plays against the dev database (`AUTH_DATABASE_PATH`), so its games show on
   the dev lobby's history; it reuses four bot accounts per table by name, issuing each a fresh API key, and
-  verifies only the game ids its bots logged. It **wipes** `backend/logs` and the bot's `var/logs` first and
+  verifies only the game ids its bots logged. It **wipes** `var/logs` and the bot repo's `var/logs` first and
   kills whatever holds `:8710` and the game server's port. Run it only when asked: tests and `make run-all-checks` are the
   verification.
 * `make profile-games` — the same run at production's INFO logging, the Go game server
@@ -75,7 +77,7 @@ The `Makefile` lists the targets; the non-obvious ones:
   measures changes.
 * `make run-tournament` — eight bots on a new tournament's page, fresh servers and the dev database, managed by
   `bin/tournament_manager.py` through the tournament API (two shuffled tables, both followed to their end); every
-  API response and event goes to `backend/logs/tournament/manager.log`. It wipes only `backend/logs/tournament`
+  API response and event goes to `var/logs/tournament/manager.log`. It wipes only `var/logs/tournament`
   and kills whatever holds `:8710`/`:8712`. Run it only when asked.
 * `make measure-wall [MEASURE_ARGS=...]` — sample games from the engine's seed, dealer and wall functions and
   report their statistics against exact references and a stdlib-shuffle control (`backend/game_v2/cmd/measurewall`).

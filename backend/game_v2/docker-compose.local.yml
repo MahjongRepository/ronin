@@ -23,8 +23,8 @@ services:
       GAME_ENVIRONMENT: ${GAME_ENVIRONMENT:-prod}
       LOG_LEVEL: ${GAME_V2_LOG_LEVEL:-${LOG_LEVEL:-info}}
     volumes:
-      - ..:/app/data/db
-      - ../data/game-v2-replays:/app/data/replays
+      - ../../var:/app/data/db
+      - ../../var/game-v2-replays:/app/data/replays
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8712/health"]
       interval: 30s

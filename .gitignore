@@ -11,11 +11,9 @@ __pycache__
 .ruff_cache
 
 .coverage
-backend/logs
-backend/storage.db*
+/var/
 
 backend/lobby/debug.py
-backend/profiles/
 
 deploy/assets/
 deploy/spot-llm.txt
@@ -33,7 +31,6 @@ thoughts
 # bots run stuff
 Makefile.bots
 data/*
-backend/data/*
 
 # release skill temp file
 release-tmp.md

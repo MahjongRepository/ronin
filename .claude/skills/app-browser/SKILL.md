@@ -56,7 +56,7 @@ and state before (the base commit) on top and after (the working tree) below.
 ## Logging in
 
 Every page but `/login`, `/register`, replays and storybooks redirects anonymous users to `/login`.
-There is no seed; the local user `dev` / `dev-password` lives in `backend/storage.db` once
+There is no seed; the local user `dev` / `dev-password` lives in `var/storage.db` once
 registered:
 
 ```bash
@@ -124,7 +124,7 @@ The lobby serves `frontend/game_v2/` on every game page. The pages below need no
   500 ms, a waiting write flushed as the page hides, so read it a moment after the last move. A
   replay recorded before a format change is unsupported: for a particular case, gzip a binary fixture
   from `frontend/game_v2/src/fixtures/replays/` into
-  `backend/data/replays/<id[0:2]>/<id[2:4]>/<id>.msgpack.gz` under an id of your own and delete it afterwards. The speed and hidden hands are stored under
+  `var/replays/<id[0:2]>/<id[2:4]>/<id>.msgpack.gz` under an id of your own and delete it afterwards. The speed and hidden hands are stored under
   `ronin.v2.replay-prefs` in `localStorage`: remove it after a session that changed them.
 
 ### Settled v2 screenshots

@@ -13,7 +13,7 @@ fi
 
 BASE_ROOT="$(cd "$1" && pwd)"
 STAMP="$(date +%Y-%m-%d_%H-%M-%S)"
-OUT="$PROJECT_ROOT/backend/profiles/compare_$STAMP"
+OUT="$PROJECT_ROOT/var/profiles/compare_$STAMP"
 BENCH_COUNT="${BENCH_COUNT:-5}"
 SELECTED="${BENCH:-}"
 SIDE_ORDER=(base head head base base head)

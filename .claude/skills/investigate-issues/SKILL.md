@@ -8,10 +8,10 @@ allowed-tools: Read, Edit, Write, Grep, Glob, Bash(grep *), Bash(tail *), Bash(c
 ## Step 1: Find errors in game and lobby server logs
 
 The local servers write log files only when `LOBBY_LOG_DIR` / `GAME_LOG_DIR` are set (both default to
-empty); `.env.local`, which `make run-local-server` sources, points them at `backend/logs/lobby` and
-`backend/logs/game`. Grep those directories for errors, limiting output to avoid noise from old logs:
+empty); `.env.local`, which `make run-local-server` sources, points them at `var/logs/lobby` and
+`var/logs/game`. Grep those directories for errors, limiting output to avoid noise from old logs:
 ```
-grep -r -i -n -E "exception|error|warning|traceback|critical|level=WARN|panic:|^goroutine " backend/logs/ | tail -50
+grep -r -i -n -E "exception|error|warning|traceback|critical|level=WARN|panic:|^goroutine " var/logs/ | tail -50
 ```
 
 The lobby logs Python lines and tracebacks; the Go game server logs slog lines (`level=WARN|ERROR`)

@@ -20,7 +20,7 @@ All three benchmarks play the client's `full_game.msgpack` fixture (1,046 engine
 
 ## How the measurement works
 
-`make profile [BENCH=engine|router|socket]` (`bin/profile-full-game.sh`) runs each benchmark 10 times with `-benchmem`, a CPU profile and an allocation profile, into `backend/profiles/<name>_<timestamp>/`, and prints:
+`make profile [BENCH=engine|router|socket]` (`bin/profile-full-game.sh`) runs each benchmark 10 times with `-benchmem`, a CPU profile and an allocation profile, into `var/profiles/<name>_<timestamp>/`, and prints:
 
 - **`benchstat`:** the median `sec/op` with its 95% confidence interval, plus `B/op`, `allocs/op`, the custom `steps/op` and `messages/op`, and `socket`'s `cpu-ns/op`. Allocation counts are exact and repeat run to run, so a change in `allocs/op` is real even when time is in the noise.
 - **CPU by layer:** each sample charged to the deepest package of this module on its stack, so library and runtime work counts toward the package that called it, except GC work, which gets its own `runtime GC` row. A large GC row points at allocations, not at the GC.
@@ -46,7 +46,7 @@ Run this when the target is not chosen yet, or when the last bot-game profile is
 make profile-games
 ```
 
-It plays 48 bot games, 12 tables at a time, at production's INFO logging, with `cmd/gameserver -profiledir` writing `cpu.prof`, `allocs.prof`, `mutex.prof` and `runtime.json` into `backend/profiles/games_<timestamp>/` as the server stops. It prints the per-game CPU from `/proc`, then the same report as `make profile` plus mutex contention and the runtime's totals (busy CPU, GC CPU, bytes and objects allocated, mutex wait, each per game). It kills whatever holds `:8710` and `:8712`, wipes `backend/logs`, and adds its games to the dev database.
+It plays 48 bot games, 12 tables at a time, at production's INFO logging, with `cmd/gameserver -profiledir` writing `cpu.prof`, `allocs.prof`, `mutex.prof` and `runtime.json` into `var/profiles/games_<timestamp>/` as the server stops. It prints the per-game CPU from `/proc`, then the same report as `make profile` plus mutex contention and the runtime's totals (busy CPU, GC CPU, bytes and objects allocated, mutex wait, each per game). It kills whatever holds `:8710` and `:8712`, wipes `var/logs`, and adds its games to the dev database.
 
 - Compare its layer table with `socket`'s: a layer much larger in real games than in `socket` (mutex waits, many tables at once, the bots' calls and wins) is something the benchmarks cannot prove; report it with its top functions as a finding.
 - Continue with Step 1 when a function is high in both this profile and a benchmark's. When none is, stop after the report.

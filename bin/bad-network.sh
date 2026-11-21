@@ -46,7 +46,7 @@ bad_net_usage() {
     echo "Traefik runs production's routers, priorities and middlewares (deploy/config/traefik-dynamic.yml)"
     echo "on plain HTTP for localhost. Toxiproxy always adds ${BAD_NET_LATENCY_MS}+-${BAD_NET_JITTER_MS} ms of latency and slices"
     echo "writes into ~$BAD_NET_SLICE_BYTES-byte chunks both ways; a controller opens random windows of stalls, resets"
-    echo "and black holes on a few connections at a time, logged to backend/logs/net/toxics.log. Black holes are"
+    echo "and black holes on a few connections at a time, logged to var/logs/net/toxics.log. Black holes are"
     echo "toggled by toxicity and never removed, since removing a timeout toxic closes every connection, and each lasts"
     echo "past the server's ping interval plus timeout, so the server has closed every link it held before it lifts."
 }

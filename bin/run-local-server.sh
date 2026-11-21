@@ -48,7 +48,7 @@ if [ -f .env.local ]; then
     set -a && . .env.local && set +a
 fi
 if [ "$DOCKER" = 1 ]; then
-    export LOBBY_REPLAY_DIR="backend/data/game-v2-replays"
+    export LOBBY_REPLAY_DIR="var/game-v2-replays"
 fi
 . "$(dirname "$0")/local-settings.sh"
 

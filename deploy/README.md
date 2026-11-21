@@ -199,8 +199,8 @@ journalctl CONTAINER_TAG=ronin --since "1 day ago" -o json --no-pager
 For file-based logs during local development, set environment variables:
 
 ```bash
-export LOBBY_LOG_DIR=backend/logs/lobby
-export GAME_LOG_DIR=backend/logs/game
+export LOBBY_LOG_DIR=var/logs/lobby
+export GAME_LOG_DIR=var/logs/game
 ```
 
 When these are unset (or empty), app-level file logging is disabled and logs go to stdout only.

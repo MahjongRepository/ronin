@@ -104,7 +104,7 @@ GAME_V2_COMPOSE = set -a && . ./.env.local && set +a && \
 	docker compose -f backend/game_v2/docker-compose.local.yml
 
 run-game-v2-docker:
-	mkdir -p backend/data/game-v2-replays
+	mkdir -p var/game-v2-replays
 	$(GAME_V2_COMPOSE) up --build --detach --wait
 
 stop-game-v2-docker:

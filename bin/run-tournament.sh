@@ -15,7 +15,7 @@ BOT_EXIT_TIMEOUT=60
 OWNER_NAME=tourney_host
 TOURNAMENT_NAME="Bot Cup $(date +%Y-%m-%d_%H-%M-%S)"
 BOT_NAMES=(ai-tour-1 ai-tour-2 ai-tour-3 ai-tour-4 ai-tour-5 ai-tour-6 ai-tour-7 ai-tour-8)
-RUN_LOG_DIR="$PROJECT_ROOT/backend/logs/tournament"
+RUN_LOG_DIR="$PROJECT_ROOT/var/logs/tournament"
 
 SERVER_PIDS=()
 GO_BUILD_DIR=""
