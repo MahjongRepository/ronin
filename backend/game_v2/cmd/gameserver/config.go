@@ -9,6 +9,8 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/server"
 )
 
 const (
@@ -17,6 +19,10 @@ const (
 	shortCommitChars = 7
 	logFormatJSON    = "json"
 	logFormatConsole = "console"
+	environmentLocal = "local"
+	environmentProd  = "prod"
+	localSocketRate  = 1000
+	localSocketBurst = 2000
 )
 
 type config struct {
@@ -29,6 +35,7 @@ type config struct {
 	internalSecret string
 	logLevel       slog.Level
 	logJSON        bool
+	socket         server.SocketConfig
 	version        string
 	commit         string
 }
@@ -69,6 +76,10 @@ func loadConfig(getenv func(string) string) (config, error) {
 	cfg.logJSON, err = logJSONOf(getenv("LOG_FORMAT"))
 	if err != nil {
 		return config{}, fmt.Errorf("LOG_FORMAT: %w", err)
+	}
+	cfg.socket, err = socketConfigOf(getenv("GAME_ENVIRONMENT"))
+	if err != nil {
+		return config{}, fmt.Errorf("GAME_ENVIRONMENT: %w", err)
 	}
 	return cfg, nil
 }
@@ -154,4 +165,18 @@ func logJSONOf(value string) (bool, error) {
 		return false, nil
 	}
 	return false, errLogFormat
+}
+
+var errEnvironment = errors.New("must be 'local', 'prod', or unset")
+
+func socketConfigOf(value string) (server.SocketConfig, error) {
+	socket := server.DefaultSocketConfig()
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case environmentProd, "":
+		return socket, nil
+	case environmentLocal:
+		socket.Rate, socket.Burst = localSocketRate, localSocketBurst
+		return socket, nil
+	}
+	return server.SocketConfig{}, errEnvironment
 }

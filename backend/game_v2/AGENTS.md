@@ -393,6 +393,10 @@ Mandatory for all server-side code; review must catch violations.
   processing, so malformed frames count too: an over-budget malformed frame gets no reply or log,
   and consecutive undecodable frames (non-binary included) close the connection. A resync, which
   costs a whole snapshot, draws on a far tighter budget of its own.
+* The server runs in production mode unless its environment names local mode, which only the local
+  tooling (`bin/local-settings.sh`, the local compose) sets, and an unknown mode refuses to start:
+  local mode raises the message budget so four bots at a table are never throttled, and changes
+  nothing else.
 * A ticket's game must match the path's game id, and the path's game id is validated
   (`store.IsValidGameID`) before the handshake. The socket has no Origin check: the ticket
   authenticates, and the dev hosts the client runs on would fail an origin pattern.

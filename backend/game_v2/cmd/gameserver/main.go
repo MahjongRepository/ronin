@@ -163,7 +163,7 @@ func newServer(storeCtx context.Context, cfg config, db *store.DB, logger *slog.
 		Version:        cfg.version,
 		Commit:         cfg.commit,
 		Logger:         logger,
-		Socket:         server.DefaultSocketConfig(),
+		Socket:         cfg.socket,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("start server: %w", err)

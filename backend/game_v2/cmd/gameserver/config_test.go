@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/MahjongRepository/ronin/backend/game_v2/internal/server"
 )
 
 func env(overrides map[string]string) func(string) string {
@@ -33,6 +35,33 @@ func TestLoadConfig_WhenOptionalVariablesUnset_ShouldUseThePythonDefaults(t *tes
 	want := []any{100, slog.LevelInfo, false, "", "dev", "abc1234"}
 	if !cmp.Equal(got, want) {
 		t.Errorf("capacity, level, json, log dir, version, commit = %v, want %v", got, want)
+	}
+}
+
+func TestLoadConfig_WhenEnvironmentIsLocal_ShouldLoosenOnlyTheInboundMessageBudget(t *testing.T) {
+	prod := server.DefaultSocketConfig()
+	for _, value := range []string{"", "prod"} {
+		cfg, err := loadConfig(env(map[string]string{"GAME_ENVIRONMENT": value}))
+		if err != nil {
+			t.Fatalf("loadConfig(GAME_ENVIRONMENT=%q) error = %v", value, err)
+		}
+		if !cmp.Equal(cfg.socket, prod) {
+			t.Errorf("GAME_ENVIRONMENT=%q socket = %+v, want production's %+v", value, cfg.socket, prod)
+		}
+	}
+
+	cfg, err := loadConfig(env(map[string]string{"GAME_ENVIRONMENT": " Local "}))
+	if err != nil {
+		t.Fatalf("loadConfig(GAME_ENVIRONMENT=local) error = %v", err)
+	}
+	local := cfg.socket
+	if local.Rate <= prod.Rate || local.Burst <= prod.Burst {
+		t.Errorf("local rate, burst = %v, %d, want above production's %v, %d",
+			local.Rate, local.Burst, prod.Rate, prod.Burst)
+	}
+	local.Rate, local.Burst = prod.Rate, prod.Burst
+	if !cmp.Equal(local, prod) {
+		t.Errorf("local socket beyond its message budget = %+v, want production's %+v", local, prod)
 	}
 }
 
@@ -63,6 +92,7 @@ func TestLoadConfig_WhenAVariableIsMissingOrInvalid_ShouldRefuseNamingIt(t *test
 		{"cors json of no string", "GAME_CORS_ORIGINS", "[1]", errStringList},
 		{"unknown log level", "LOG_LEVEL", "VERBOSE", errLogLevel},
 		{"unknown log format", "LOG_FORMAT", "xml", errLogFormat},
+		{"unknown environment", "GAME_ENVIRONMENT", "staging", errEnvironment},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

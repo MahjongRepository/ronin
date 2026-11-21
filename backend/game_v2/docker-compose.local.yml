@@ -20,6 +20,7 @@ services:
       AUTH_DATABASE_PATH: /app/data/db/storage.db
       GAME_REPLAY_DIR: /app/data/replays
       GAME_CORS_ORIGINS: http://localhost:8710
+      GAME_ENVIRONMENT: ${GAME_ENVIRONMENT:-local}
       LOG_LEVEL: ${GAME_V2_LOG_LEVEL:-${LOG_LEVEL:-info}}
     volumes:
       - ..:/app/data/db

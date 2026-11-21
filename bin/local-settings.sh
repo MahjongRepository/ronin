@@ -7,3 +7,4 @@ export LOBBY_GAME_SERVER_URL="${LOBBY_GAME_SERVER_URL:-http://localhost:$GAME_PO
 export LOBBY_GAME_SERVER_WS_URL="${LOBBY_GAME_SERVER_WS_URL:-ws://localhost:$GAME_PORT}"
 export GAME_REPLAY_DIR="${GAME_REPLAY_DIR:-backend/data/replays}"
 export GAME_CORS_ORIGINS="http://localhost:$LOBBY_PORT"
+export GAME_ENVIRONMENT="${GAME_ENVIRONMENT:-local}"
