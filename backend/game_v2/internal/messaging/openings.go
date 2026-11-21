@@ -161,8 +161,7 @@ type Placed struct {
 // PlaceOpenings returns an engine call's events with the openings of the decisions it opened in
 // place, so each seat gets its messages in the engine's order: a turn after a draw opens on the
 // seat's draw, which its opening replaces, and on nothing when the events hold no draw to that
-// seat; every other opening goes after the call's gameplay facts and ahead of its furiten changes,
-// in the order given.
+// seat; every other opening goes after the call's events, in the order given.
 func PlaceOpenings(events []play.Emitted, openings []Opening) iter.Seq[Placed] {
 	return func(yield func(Placed) bool) {
 		var draws [tile.SeatCount]play.Option[Opening]
@@ -171,27 +170,7 @@ func PlaceOpenings(events []play.Emitted, openings []Opening) iter.Seq[Placed] {
 				draws[o.Seat.Index()] = play.Some(o)
 			}
 		}
-		insert := func() bool {
-			for _, o := range openings {
-				if !o.ReplacesDraw && !yield(Placed{Opening: play.Some(o)}) {
-					return false
-				}
-			}
-			return true
-		}
-
-		furitenAt := slices.IndexFunc(events, func(e play.Emitted) bool {
-			_, furiten := e.Event.(play.FuritenChanged)
-			return furiten
-		})
-		if furitenAt < 0 {
-			furitenAt = len(events)
-		}
-
-		for i, e := range events {
-			if i == furitenAt && !insert() {
-				return
-			}
+		for _, e := range events {
 			placed := Placed{Event: e}
 			if drew, ok := e.Event.(play.Drew); ok && draws[drew.Seat.Index()].OK {
 				placed = Placed{Opening: draws[drew.Seat.Index()]}
@@ -200,8 +179,11 @@ func PlaceOpenings(events []play.Emitted, openings []Opening) iter.Seq[Placed] {
 				return
 			}
 		}
-		if furitenAt == len(events) {
-			insert()
+
+		for _, o := range openings {
+			if !o.ReplacesDraw && !yield(Placed{Opening: play.Some(o)}) {
+				return
+			}
 		}
 	}
 }

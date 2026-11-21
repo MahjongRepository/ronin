@@ -150,7 +150,7 @@ func TestBuildOpening_WhenAKanCanBeRobbed_ShouldSendAChankanPromptNamingTheKan(t
 	}
 }
 
-func TestPlaceOpenings_ShouldReplaceTheOpenedDrawAndPutEveryOtherOpeningAheadOfTheFuritenChanges(t *testing.T) {
+func TestPlaceOpenings_ShouldReplaceTheOpenedDrawAndPutEveryOtherOpeningAfterTheEvents(t *testing.T) {
 	discard := play.Emitted{To: play.ToAll(), Event: play.Discarded{Seat: seat(t, 0), Tile: id(t, 1)}}
 	drawToTwo := play.Emitted{To: play.ToSeat(seat(t, 2)), Event: play.Drew{Seat: seat(t, 2), Tile: id(t, 2)}}
 	drawToOne := play.Emitted{To: play.ToSeat(seat(t, 1)), Event: play.Drew{Seat: seat(t, 1), Tile: id(t, 3)}}
@@ -165,8 +165,8 @@ func TestPlaceOpenings_ShouldReplaceTheOpenedDrawAndPutEveryOtherOpeningAheadOfT
 		{Event: discard},
 		{Event: drawToTwo},
 		{Opening: play.Some(turn)},
-		{Opening: play.Some(prompt)},
 		{Event: furiten},
+		{Opening: play.Some(prompt)},
 	}
 	if diff := cmp.Diff(want, placed, exportAll()); diff != "" {
 		t.Errorf("placed (-want +got):\n%s", diff)

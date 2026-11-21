@@ -551,7 +551,8 @@ func ronnableReplacementDiscard(t *testing.T) game.Game {
 
 	g, kan := script(t, g, act(seat(t, 3), play.KanAction(play.KanClosed, fiveMan[3])))
 	assertEqual(t, "kan kinds", testkit.EventKinds(kan), []string{"called", "dora_revealed", "drew", "drew", "drew", "drew"})
-	g, _ = script(t, g, act(seat(t, 3), play.DiscardAction(eightPin(t, 0))))
+	g, discarded := script(t, g, act(seat(t, 3), play.DiscardAction(eightPin(t, 0))))
+	assertEqual(t, "furiten shown at a discard that ends the round", testkit.FuritenChanges(discarded), noFuritenChange())
 	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 0)))
 	assertEqual(t, "offers", g.LegalActions(seat(t, 0)), []play.Action{play.RonAction(), play.PassAction()})
 	return g

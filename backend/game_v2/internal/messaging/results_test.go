@@ -252,7 +252,7 @@ func TestRoundEndPayload_WhenAnExhaustiveDrawHasANagashi_ShouldLeadWithTheQualif
 	})
 }
 
-func TestRoundEndPayload_WhenARoundIsAborted_ShouldShowTheHandsThatCausedIt(t *testing.T) {
+func TestRoundEndPayload_WhenARoundIsAborted_ShouldShowTheHandsThatCausedItSortedNotInDrawOrder(t *testing.T) {
 	kyuushuHand := ids(t, 0, 32, 36, 68, 72, 104, 108, 112, 116, 120, 124, 128, 132, 1)
 	riichiHands := []play.ShownHand{{Seat: seat(t, 0), Hand: ids(t, 4)}, {Seat: seat(t, 1), Hand: ids(t, 5)}}
 	ronHands := []play.ShownHand{{Seat: seat(t, 3), Hand: ids(t, 6)}, {Seat: seat(t, 0), Hand: ids(t, 7)}}
@@ -279,7 +279,7 @@ func TestRoundEndPayload_WhenARoundIsAborted_ShouldShowTheHandsThatCausedIt(t *t
 	}{
 		{play.KyuushuKyuuhai{Seat: seat(t, 2), Hand: kyuushuHand}, append(head("nine_terminals"),
 			wire.Field{Key: wire.KeySeat, Value: wire.Int(2)},
-			shown(hand(2, intArray(0, 32, 36, 68, 72, 104, 108, 112, 116, 120, 124, 128, 132, 1))))},
+			shown(hand(2, intArray(0, 1, 32, 36, 68, 72, 104, 108, 112, 116, 120, 124, 128, 132))))},
 		{play.FourWinds{}, head("four_winds")},
 		{play.FourKans{}, head("four_kans")},
 		{play.FourRiichi{Hands: riichiHands}, append(head("four_riichi"), shown(hand(0, intArray(4)), hand(1, intArray(5))))},

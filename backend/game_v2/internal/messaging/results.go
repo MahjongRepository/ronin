@@ -2,6 +2,7 @@ package messaging
 
 import (
 	"errors"
+	"slices"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/play"
@@ -69,7 +70,7 @@ func tsumoFields(win play.WinResult, scores [tile.SeatCount]int, honba int) (wir
 		{Key: wire.KeyScores, Value: scoreMap(scores)},
 		{Key: wire.KeyScoreChanges, Value: scoreMap(win.ScoreChanges)},
 		{Key: wire.KeyRiichiCollected, Value: wire.Int(collectedSticks(win))},
-		{Key: wire.KeyClosedTiles, Value: tilesValue(win.Hand)},
+		{Key: wire.KeyClosedTiles, Value: shownTilesValue(win.Hand)},
 		{Key: wire.KeyMelds, Value: melds},
 		{Key: wire.KeyWinningTile, Value: tileValue(win.WinTile)},
 		{Key: wire.KeyHonbaBonus, Value: scoreValue(bonus)},
@@ -117,7 +118,7 @@ func ronWin(win play.WinResult, bonus int) (wire.Map, error) {
 		{Key: wire.KeyHandResult, Value: handResult(win, bonus)},
 		{Key: wire.KeyScoreChanges, Value: scoreMap(win.ScoreChanges)},
 		{Key: wire.KeyRiichiCollected, Value: wire.Int(collectedSticks(win))},
-		{Key: wire.KeyClosedTiles, Value: tilesValue(win.Hand)},
+		{Key: wire.KeyClosedTiles, Value: shownTilesValue(win.Hand)},
 		{Key: wire.KeyMelds, Value: melds},
 		{Key: wire.KeyHonbaBonus, Value: scoreValue(bonus)},
 	}
@@ -237,6 +238,10 @@ func yakuEntry(id, han int, yakuman bool) wire.Map {
 	}
 }
 
+func shownTilesValue(hand []tile.TileID) wire.Array {
+	return tilesValue(slices.SortedFunc(slices.Values(hand), tile.TileID.Compare))
+}
+
 func shownHands(hands []play.ShownHand) (wire.Array, error) {
 	shown := make(wire.Array, 0, len(hands))
 	for _, hand := range hands {
@@ -246,7 +251,7 @@ func shownHands(hands []play.ShownHand) (wire.Array, error) {
 		}
 		shown = append(shown, wire.Map{
 			{Key: wire.KeySeat, Value: seatValue(hand.Seat)},
-			{Key: wire.KeyClosedTiles, Value: tilesValue(hand.Hand)},
+			{Key: wire.KeyClosedTiles, Value: shownTilesValue(hand.Hand)},
 			{Key: wire.KeyMelds, Value: melds},
 		})
 	}

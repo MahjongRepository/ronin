@@ -1,6 +1,7 @@
 package session_test
 
 import (
+	"slices"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -100,6 +101,15 @@ func TestDiscardHold_WhenTheLastCallerPassesAfterIt_ShouldDrawAtOnce(t *testing.
 
 		if got := len(ofEvent(bob.messages(), wire.EventDraw)); got != 1 {
 			t.Errorf("bob's draws once the late passes are in = %d, want 1", got)
+		}
+		messages := bob.messages()
+		isEvent := func(event wire.EventType) func(wire.Map) bool {
+			return func(m wire.Map) bool { return len(ofEvent([]wire.Map{m}, event)) == 1 }
+		}
+		furitenAt, drawAt := slices.IndexFunc(messages, isEvent(wire.EventFuriten)), slices.IndexFunc(messages, isEvent(wire.EventDraw))
+		if furitenAt < 0 || furitenAt > drawAt {
+			t.Errorf("bob's furiten at message %d and draw at %d, want the furiten first, as with a caller still open",
+				furitenAt, drawAt)
 		}
 	})
 }

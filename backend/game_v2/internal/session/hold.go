@@ -25,6 +25,12 @@ func RandomDiscardHold() time.Duration {
 	return discardHoldOf(rand.Float64(), rand.Float64())
 }
 
+// RandomPick returns a random index below n, for Config.Pick. It is safe for concurrent use and
+// independent of every game's seed.
+func RandomPick(n int) int {
+	return rand.IntN(n)
+}
+
 func discardHoldOf(roll, shape float64) time.Duration {
 	if roll >= discardHoldPauseRate {
 		return discardHoldFloor
@@ -62,6 +68,19 @@ func startsHold(emitted play.Emitted) bool {
 	}
 	called, ok := emitted.Event.(play.Called)
 	return ok && (called.Meld.Kind == play.MeldClosedKan || called.Meld.Kind == play.MeldAddedKan)
+}
+
+func furitenAhead(events []play.Emitted) []play.Emitted {
+	isFuriten := func(e play.Emitted) bool {
+		_, furiten := e.Event.(play.FuritenChanged)
+		return furiten
+	}
+	if !slices.ContainsFunc(events, isFuriten) {
+		return events
+	}
+
+	shown, kept := splitAtHoldStart(events, slices.IndexFunc(events, startsHold))
+	return append(shown, kept...)
 }
 
 func splitAtHoldStart(events []play.Emitted, start int) (shown, kept []play.Emitted) {

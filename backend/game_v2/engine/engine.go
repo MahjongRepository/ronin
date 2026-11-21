@@ -135,6 +135,16 @@ func (g Game) DefaultAction(seat tile.Seat) (play.Action, bool) {
 	return g.game.DefaultAction(seat)
 }
 
+// Disguised returns action naming other physical copies of the same tiles: each tile a pon or chi
+// takes from seat's hand becomes one of the held copies that look the same, and the copy a closed
+// kan names one of its four, each chosen by pick, which returns an index below the count it is
+// given. The engine accepts either action alike; the copies a seat's own client names follow its
+// hand order, so playing them as named would tell the table which copies the seat does not hold
+// and, with a kan, which tile it just drew. Any other action is returned as it is.
+func (g Game) Disguised(seat tile.Seat, action play.Action, pick func(n int) int) play.Action {
+	return g.game.Disguised(seat, action, pick)
+}
+
 // View returns what seat may see of the game now: the facts it knows, which its visible events
 // alone rebuild, and its decision when the game awaits it. It holds no other seat's concealed
 // tiles, decision, furiten or pending answer.

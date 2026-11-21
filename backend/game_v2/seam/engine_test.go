@@ -395,3 +395,37 @@ func TestShanten_WhenOnlySevenPairsIsReady_ShouldCountThatShape(t *testing.T) {
 		t.Errorf("Shanten = %d, %v, want 0, nil", got, err)
 	}
 }
+
+func TestDisguised_ShouldPickAmongTheHeldCopiesThatLookTheSameAndLeaveEveryOtherActionAsNamed(t *testing.T) {
+	hand := slices.Concat(copies(t, 0, "22m3m2468p135s"), copies(t, 0, "111z"))
+	w := startWall{
+		hands: [tile.SeatCount][]tile.TileID{hand, junk(t, 1), junk(t, 2), junk(t, 3)},
+		draws: []tile.TileID{copyOf(t, 3, "1z")},
+	}
+	started, _ := newGame(t, fixedSetup(t, w))
+	g, _ := begun(t, started)
+	dealer := seat(t, 0)
+	last := func(n int) int { return n - 1 }
+	chi := play.ChiAction([2]tile.TileID{copyOf(t, 0, "2m"), copyOf(t, 0, "3m")})
+	unheld := play.PonAction([2]tile.TileID{copyOf(t, 0, "9s"), copyOf(t, 1, "9s")})
+	added := play.KanAction(play.KanAdded, copyOf(t, 0, "1z"))
+	unheldKan := play.KanAction(play.KanClosed, copyOf(t, 0, "9s"))
+	twice := play.ChiAction([2]tile.TileID{copyOf(t, 0, "2m"), copyOf(t, 0, "2m")})
+	halfHeld := play.ChiAction([2]tile.TileID{copyOf(t, 0, "2m"), copyOf(t, 3, "3m")})
+
+	kan := g.Disguised(dealer, play.KanAction(play.KanClosed, copyOf(t, 0, "1z")), last)
+
+	assertEqual(t, "closed kan", kan, play.KanAction(play.KanClosed, copyOf(t, 3, "1z")))
+	assertEqual(t, "chi", g.Disguised(dealer, chi, last),
+		play.ChiAction([2]tile.TileID{copyOf(t, 1, "2m"), copyOf(t, 0, "3m")}))
+	assertEqual(t, "pon of tiles not held", g.Disguised(dealer, unheld, last), unheld)
+	assertEqual(t, "chi of one tile twice", g.Disguised(dealer, twice, last), twice)
+	assertEqual(t, "chi of a tile not held", g.Disguised(dealer, halfHeld, last), halfHeld)
+	assertEqual(t, "added kan", g.Disguised(dealer, added, last), added)
+	assertEqual(t, "closed kan of a kind not held", g.Disguised(dealer, unheldKan, last), unheldKan)
+	assertEqual(t, "discard", g.Disguised(dealer, play.DiscardAction(hand[0]), last), play.DiscardAction(hand[0]))
+	_, events := act(t, g, dealer, kan)
+	if _, called := events[0].Event.(play.Called); !called {
+		t.Errorf("first event of the disguised kan = %+v, want the kan's meld", events[0].Event)
+	}
+}

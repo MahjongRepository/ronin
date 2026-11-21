@@ -33,6 +33,9 @@ func (g *game) gameAction(conn Connection, message messaging.GameActionMessage) 
 		return send(conn, messaging.CalledTileMismatch(action, message.WaitID).Payload())
 	}
 
+	if pick := g.m.cfg.Pick; pick != nil {
+		action = g.engine.Disguised(p.seat, action, pick)
+	}
 	next, events, refusal := g.engine.Act(p.seat, action)
 	if !refusal.OK {
 		g.engine = next

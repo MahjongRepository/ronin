@@ -152,6 +152,7 @@ func newServer(storeCtx context.Context, cfg config, db *store.DB, logger *slog.
 		Logger:   logger,
 
 		DiscardHold: cfg.discardHold,
+		Pick:        session.RandomPick,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("start session: %w", err)

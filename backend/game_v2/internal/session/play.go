@@ -85,6 +85,7 @@ func (g *game) followEngine(events []play.Emitted, actor play.Option[tile.Seat])
 		return err
 	}
 
+	events = furitenAhead(events)
 	shown, kept, holds := g.heldPart(events)
 	if holds {
 		return g.holdUpdate(shown, kept, actor)

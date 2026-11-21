@@ -127,6 +127,10 @@ a contract.
   a float (timer settings, the pending game timeout, elapsed times) is a `float64`.
 * A round end's scores are those before its payments; its score changes take them to the scores
   after it.
+* A hand shown at a round's end (a win, a tenpai hand, an abort's hands) goes out sorted by id, the
+  engine's own order being the deal with every draw appended, which would tell the table what its
+  seat drew and kept. A decision's opening follows every event of its call, a seat's furiten change
+  included.
 * `ReplayLog` is the one collector of a game's replay records, kept by the session and used alike by
   the fixture generator and the replay and Tenhou tests, so what they record is what the server
   saves.
@@ -243,6 +247,14 @@ a contract.
   process's, never the game seed's. `cmd/gameserver` holds discards, with one human at the table
   too, except under `GAME_ENVIRONMENT=local`, which `make run-games` sets for its bots; the
   fixtures and the benchmarks hold none.
+* What a seat sends must not show the table its hand order, which is the sorted deal with every
+  draw appended. The session shows a call's furiten changes ahead of its other consequences, held
+  or not, so their order never tells a seat whether its pass was the last answer. With
+  `Config.Pick` (nil plays everything as named) it plays a pon, a chi and a closed kan with copies
+  picked among those that look the same (`engine.Game.Disguised`), since a client names the first
+  copies in hand order, and after a seat's own chi or pon a timeout or an AI player's default
+  discards a picked legal tile, never the last in hand order. `cmd/gameserver` always picks at
+  random, from the process, never the game seed; the fixtures and the benchmarks pick nothing.
 * The finish row is built whole from the start row, never from engine or connection state at the
   end, and the first finish wins; a game that never started, or whose start row was refused,
   records none and saves no replay, so it never touches another game's row or replay file. The

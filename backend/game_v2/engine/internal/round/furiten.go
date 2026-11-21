@@ -40,9 +40,28 @@ func (r *Round) shownFuriten(seat tile.Seat) bool {
 	return furiten.BlocksRon() || (len(river) > 0 && offer.IsDiscardFuriten(r.waits(seat), river))
 }
 
+func (r *Round) endsOnceItsPromptPasses() bool {
+	if !r.prompt.OK || r.prompt.Value.robbedKan().OK {
+		return false
+	}
+
+	lastRiichi := r.undepositedRiichi.OK
+	for _, seat := range tile.Seats() {
+		lastRiichi = lastRiichi && (r.InRiichi(seat) || r.undepositedRiichi.Value == seat)
+	}
+	return r.LiveTiles() == 0 || r.isFourKans() || lastRiichi
+}
+
 // ReportFuriten shows each seat its changed furiten, a drawn hand keeping its turn's value unless
-// a flag was set since; a kan's declarer waits out its chankan prompt.
+// a flag was set since; a kan's declarer waits out its chankan prompt. It shows nothing while a
+// prompt is open on a discard that ends the round even when every seat passes (the wall's last, the
+// fourth riichi, the one after the fourth kan), since the round ends at once when nobody may call
+// it, so a change shown here would tell its seat that another may win on the discard.
 func (r *Round) ReportFuriten() []play.Emitted {
+	if r.endsOnceItsPromptPasses() {
+		return nil
+	}
+
 	var events []play.Emitted
 	for _, seat := range tile.Seats() {
 		if r.isAwaitingChankanOn(seat) {

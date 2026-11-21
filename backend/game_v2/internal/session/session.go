@@ -130,6 +130,11 @@ type Agent interface {
 // follows it (the next draw, a call's outcome, the round's end) so that one nobody could answer and
 // one answered within the hold look alike; a call still open then is waited out instead, so a slow
 // answer still shows. Nil holds nothing.
+// Pick returns a random index below the count it is given, and must be safe for concurrent use. With
+// it the session plays a pon, a chi or a closed kan with copies picked among those that look the
+// same (engine.Game.Disguised), and a timeout or an AI player's default after the seat's own call
+// discards a picked legal tile, so neither tells the table the seat's hand order. Nil plays every
+// action as named and the engine's own default.
 type Config struct {
 	Timing   Timing
 	Capacity int
@@ -142,6 +147,7 @@ type Config struct {
 	Agent    Agent
 
 	DiscardHold func() time.Duration
+	Pick        func(n int) int
 }
 
 // The errors CreatePendingGame returns.
@@ -177,15 +183,34 @@ func (c Config) validated() (Config, error) {
 		c.Setup = seededSetup
 	}
 	if c.Agent == nil {
-		c.Agent = defaultAgent{}
+		c.Agent = defaultAgent{pick: c.Pick}
 	}
 	return c, nil
 }
 
-type defaultAgent struct{}
+type defaultAgent struct {
+	pick func(n int) int
+}
 
-func (defaultAgent) Decide(_ context.Context, view play.SeatView) (play.Action, error) {
-	return view.Decision.Value.Default, nil
+func (a defaultAgent) Decide(_ context.Context, view play.SeatView) (play.Action, error) {
+	return disguisedDefault(view.Decision.Value, a.pick), nil
+}
+
+func disguisedDefault(decision play.Decision, pick func(n int) int) play.Action {
+	if _, afterCall := decision.Context.(play.TurnAfterCall); !afterCall || pick == nil {
+		return decision.Default
+	}
+
+	var discards []play.Action
+	for _, action := range decision.Legal {
+		if action.Kind() == play.ActionDiscard {
+			discards = append(discards, action)
+		}
+	}
+	if len(discards) == 0 {
+		return decision.Default
+	}
+	return discards[pick(len(discards))]
 }
 
 func randomSeed() engine.Seed {

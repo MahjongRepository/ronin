@@ -137,11 +137,12 @@ func (g *game) agentAnswered(answer agentAnswer) error {
 	}
 
 	g.log.Warn(logAgentFallback, "ai_seat", seat.Index(), "error", failure)
-	events, err := g.requireAct(seat, decision.Default)
+	fallback := disguisedDefault(decision, g.m.cfg.Pick)
+	events, err := g.requireAct(seat, fallback)
 	if err != nil {
 		return err
 	}
-	return g.followAIPlayer(seat, decision.Default, events)
+	return g.followAIPlayer(seat, fallback, events)
 }
 
 func (g *game) followAIPlayer(seat tile.Seat, action play.Action, events []play.Emitted) error {

@@ -1,8 +1,9 @@
-# Game trace reference set
+# Recorded games
 
-`traces.jsonl.gz` holds games played by mahjong-rs, one JSON line per fact, which the seam test
-`TestPlayGameChecked_WhenReplayingTheReferenceTraces_ShouldOfferTakeAndEmitExactlyTheSame` replays
-through the facade and the ported driver, comparing every line byte for byte.
+`traces.jsonl.gz` holds games recorded from mahjong-rs, one JSON line per fact. The replay tests
+(`internal/replay`) read each game's header and the action of every decision line and play them
+through this engine; the event lines are no longer compared with anything, and this engine's events
+differ from them on purpose (a furiten change is not shown at a discard that ends the round).
 
 Each game starts with a header line, `{"game":...}`, and the lines after it are, in play order,
 every event the driver's sink records and every decision an agent answers:
@@ -18,19 +19,12 @@ An event line is `{"to":"all"|seat,"event":"<kind>",<fields>}` and a decision li
 and order are mahjong-rs's; tile ids and seats are numbers, an absent value is `null`, enum
 values are snake-case names. An action is `"tsumo"`, `"ron"`, `"kyuushu"`, `"pass"`,
 `{"discard":id}`, `{"riichi":id}`, `{"pon":[id,id]}`, `{"chi":[id,id]}` or
-`{"kan":"closed"|"added"|"open","tile":id}`. `seam/trace_json_test.go` is the Go writer of the
-same forms.
+`{"kan":"closed"|"added"|"open","tile":id}`.
 
 The set holds 16 seeded hanchans and eight fixed-wall games: pao, chankan, triple ron, four kans,
 a riichi ron with a dealer renchan over three walls, kyuushu kyuuhai, four winds and four riichi.
 They cover every event, round result, abort, decision context, action and value kind; the dumper
 fails when one is missing and prints how often each appeared.
 
-It was written by mahjong-rs's `game_traces` example at commit `ce617b3` (branch
-`go-port-dumpers`; the engine is that of `0d8733f`). Regenerate it only when mahjong-rs's engine
-changes on purpose, from the mahjong-rs repository root, with `$RONIN` the ronin checkout;
-`pipefail` keeps a dumper failure from leaving a set that looks written:
-
-    set -o pipefail
-    cargo run --release -q -p mahjong-game --example game_traces \
-        | gzip -9n > "$RONIN/backend/game_v2/seam/testdata/traces.jsonl.gz"
+It was written by mahjong-rs's `game_traces` example at commit `ce617b3`. It is a fixed input now: do not
+regenerate it.

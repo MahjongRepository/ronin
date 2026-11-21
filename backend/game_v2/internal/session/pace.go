@@ -77,10 +77,11 @@ func (g *game) timedOut(p *participant, kind timeoutKind, token uint64) error {
 		return nil
 	}
 
-	action, ok := g.engine.DefaultAction(p.seat)
+	decision, ok := g.engine.Decision(p.seat)
 	if !ok {
 		return errNoDefault
 	}
+	action := disguisedDefault(decision, g.m.cfg.Pick)
 	message, counter := logTurnTimeout, &g.m.stats.turnTimeouts
 	if kind == timeoutMeld {
 		message, counter = logMeldTimeout, &g.m.stats.meldTimeouts
