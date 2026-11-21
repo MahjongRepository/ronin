@@ -1,9 +1,6 @@
 // Package meld holds the shapes of declared melds: tile groups called from another seat's
 // discard, or a concealed kan, built only from tiles that fit their kind. It reads the melds the
 // table sees as those shapes, and checks the hand and melds a rule helper is given.
-//
-// Ported from the meld module of mahjong-rs's mahjong-core, with the core meld of a meld view and
-// the hand input check from the event module of its mahjong-game.
 package meld
 
 import (

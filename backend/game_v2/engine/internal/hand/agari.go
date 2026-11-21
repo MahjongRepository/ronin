@@ -2,11 +2,6 @@
 // a winning hand splits into sets and a pair or seven pairs (the divider), and the formal waits
 // and the discards that keep a hand tenpai. Yaku and scoring stay out.
 //
-// Ported from the agari, divider and waits modules of mahjong-rs's mahjong-core at commit
-// 0d8733f, https://github.com/MahjongRepository/mahjong-rs. The agari suit walk computes its
-// transitions tile by tile over the whole suit where mahjong-rs reads a precomputed table of
-// three-tile blocks.
-//
 // An opt-in exhaustive check compares the suit walk and the divider with brute-force references
 // over every single-suit shape:
 //

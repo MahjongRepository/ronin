@@ -59,8 +59,8 @@ Imports point one way:
 cmd -> internal/server -> session -> messaging -> wire -> engine -> engine/internal
 ```
 
-Inside the engine, `engine/internal/*` packages import `engine/tile`, `engine/play` and each other
-along the module graph of mahjong-rs, the port's reference, and never `engine`.
+Inside the engine, `engine/internal/*` packages import `engine/tile`, `engine/play` and each other,
+never `engine`.
 
 `internal/store`, `internal/replayfile` and `internal/pyjson` are leaves beside that line, and
 `internal/auth` sits over `pyjson` alone: the session and the server use `store` and `replayfile`,
@@ -536,14 +536,11 @@ code under `engine/`:
   Server tests sit beside the server code and drive it through `net/http/httptest`, with a real
   WebSocket client for a socket route; a test of a ping, a budget or a strike limit shortens the
   `SocketConfig` rather than waiting.
-* mahjong-rs is the reference for every rule and event order, and `seam/` holds the proof: it replays
-  games mahjong-rs dumped (`seam/testdata/README.md`) through the facade and the ported driver, and
-  every decision, action and event must match line for line. A change to a rule or to what the
-  engine emits and when follows mahjong-rs and regenerates that set there, never the other way.
-  The sanctioned divergences keep that set passing unchanged: `Begin` makes the dealer's first draw
-  as its own call, where mahjong-rs draws with the deal, and the scorer rejecting an offered hand
-  for anything but no yaku, a settled win for any reason, or a payment that does not fit its win,
-  panics with `play.EngineFaultError`.
+* `seam/testdata/traces.jsonl.gz` is a fixed set of recorded games (`seam/testdata/README.md`) whose
+  actions the replay tests play through the engine. A wanted rule change that stops one of them
+  playing through raises a question about that data; it is never a reason to leave the change undone.
+* The scorer rejecting an offered hand for anything but no yaku, a settled win for any reason, or a
+  payment that does not fit its win, panics with `play.EngineFaultError`.
 * A game's scenario tests play it through `engine/internal/testkit`, which stages walls and scripts
   actions. testkit is engine code under the coverage gate: it never imports `testing` and never
   asserts, returning values or errors, and it has its own tests. It imports `game`, so only external

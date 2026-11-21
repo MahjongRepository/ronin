@@ -75,7 +75,7 @@ func readReferenceSet(t *testing.T) []referenceHand {
 	return hands
 }
 
-func TestShanten_WhenHandIsInTheReferenceSet_ShouldMatchMahjongRs(t *testing.T) {
+func TestShanten_WhenHandIsInTheReferenceSet_ShouldMatchTheRecordedShanten(t *testing.T) {
 	for _, hand := range readReferenceSet(t) {
 		minimum := hand.regular
 		if hand.tiles >= 13 {

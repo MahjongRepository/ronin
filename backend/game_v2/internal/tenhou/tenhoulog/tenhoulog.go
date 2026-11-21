@@ -1,17 +1,14 @@
 // Package tenhoulog checks the engine's hand scoring against real Tenhou wins. A Win is one AGARI
-// of a Tenhou log as ~/work/mahjong-rs/thoughts/_benchmark/unpack_agari.py writes it from the 2025
-// phoenix-room logs, Rounds groups the wins of one round, and Compare settles a round's wins through
-// the engine's SettleTsumo or SettleRon and lists where the engine and Tenhou disagree: han and fu,
-// the yaku, the limit, the points and every seat's score change.
+// of a Tenhou log, one line of an agari-000NN.jsonl shard unpacked from the 2025 phoenix-room
+// logs, Rounds groups the wins of one round, and Compare settles a round's wins through the
+// engine's SettleTsumo or SettleRon and lists where the engine and Tenhou disagree: han and fu, the
+// yaku, the limit, the points and every seat's score change.
 //
 // The tests check the comparison on hands made up for them, and no Tenhou log is committed. The
-// corpus, local only, runs behind the tenhou build tag, TENHOU_MAX_LOGS capping how many logs it
-// reads:
+// corpus, local only, runs behind the tenhou build tag. It reads the shards from the directory
+// TENHOU_AGARI_DIR names, which it requires, and TENHOU_MAX_LOGS caps how many logs it reads:
 //
-//	cd backend/game_v2 && TENHOU_MAX_LOGS=200 mise exec -- go test -tags tenhou ./internal/tenhou/tenhoulog -run WholeTenhouCorpus -v
-//
-// It reads the agari-000NN.jsonl shards from TENHOU_AGARI_DIR, by default
-// ~/work/mahjong-rs/thoughts/_benchmark/agari.
+//	cd backend/game_v2 && TENHOU_AGARI_DIR=<shard dir> TENHOU_MAX_LOGS=200 mise exec -- go test -tags tenhou ./internal/tenhou/tenhoulog -run WholeTenhouCorpus -v
 package tenhoulog
 
 import (

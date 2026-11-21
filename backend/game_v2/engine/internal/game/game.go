@@ -7,8 +7,6 @@
 // A Game is a value. Every method that moves it returns the new game and leaves its receiver as it
 // was, so a caller may keep or branch from any state; a refused action returns the receiver
 // itself.
-//
-// Ported from mahjong-rs's mahjong-game at commit 0d8733f: its game and finalize modules.
 package game
 
 import (

@@ -16,11 +16,7 @@ import (
 func TestCompare_WhenTheWholeTenhouCorpusIsScored_ShouldAgreeWithTenhouOnEveryWin(t *testing.T) {
 	dir := os.Getenv("TENHOU_AGARI_DIR")
 	if dir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			t.Fatalf("UserHomeDir error = %v", err)
-		}
-		dir = filepath.Join(home, "work", "mahjong-rs", "thoughts", "_benchmark", "agari")
+		t.Fatal("TENHOU_AGARI_DIR is not set, want the directory of the agari-*.jsonl shards")
 	}
 	maxLogs := 0
 	if limit := os.Getenv("TENHOU_MAX_LOGS"); limit != "" {
@@ -32,7 +28,7 @@ func TestCompare_WhenTheWholeTenhouCorpusIsScored_ShouldAgreeWithTenhouOnEveryWi
 	}
 	shards, err := filepath.Glob(filepath.Join(dir, "agari-*.jsonl"))
 	if err != nil || len(shards) == 0 {
-		t.Fatalf("no agari shards in %s (set TENHOU_AGARI_DIR): %v", dir, err)
+		t.Fatalf("no agari shards in TENHOU_AGARI_DIR %s: %v", dir, err)
 	}
 	slices.Sort(shards)
 

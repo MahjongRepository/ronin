@@ -6,9 +6,6 @@
 // are fixed-size arrays sized from their proven bounds (14 tiles, 4 melds), and every slice it
 // holds is replaced, never written in place, so a copy taken before a change keeps its state. A
 // method that refuses an action changes nothing.
-//
-// Ported from mahjong-rs's mahjong-game at commit 0d8733f: its round, round/settle, calls and
-// points modules.
 package round
 
 import (

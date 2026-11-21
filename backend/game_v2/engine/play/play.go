@@ -6,12 +6,6 @@
 //
 // The sum types are sealed interfaces: an unexported marker method and one struct per variant, so
 // a type switch over one lists every variant. An absent value is an Option, or nil for a sum type.
-//
-// Ported from mahjong-rs: the action, decision, event, refusal and view modules of mahjong-game,
-// the seat-record types of its record module and the wall source, start position and awaiting of
-// its game module; from mahjong-core, the riichi of its config module, the value, limit and
-// payment of its scores module, the dora count of its hand module and the yaku ids of its yaku
-// module.
 package play
 
 // Option is a value that may be absent: Value holds it when OK is true. Its zero value is absent.

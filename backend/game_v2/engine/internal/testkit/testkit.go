@@ -4,9 +4,6 @@
 // the error that stopped it, and the test asserts.
 //
 // It is imported only by external test packages, as package game_test, since it imports game.
-//
-// Ported from mahjong-rs's mahjong-game at commit 0d8733f: the shared helpers of its integration
-// tests, tests/common.
 package testkit
 
 import (

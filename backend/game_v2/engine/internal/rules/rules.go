@@ -1,10 +1,8 @@
 // Package rules holds the fixed rules the engine plays by, the Tenhou preset, hanchan only, as
 // scalars. Each constant replaces one field of ronin's GameSettings, named in its doc, and keeps
 // its default value, except double yakuman, which follows Tenhou and is off. The constants that
-// mahjong-rs derives from its hand-scoring rules or its scoring helpers are literals here; the
+// could be derived from the hand-scoring rules or the scoring helpers are literals here; the
 // hand-scoring rules themselves are built with scoring.
-//
-// Ported from the rules module of mahjong-rs's mahjong-game (rules::tenhou).
 package rules
 
 import "github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"

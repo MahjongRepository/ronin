@@ -13,9 +13,6 @@
 // as it was, every slice it changes replaced rather than written in place, and it keeps its own
 // copy of every slice it takes from an event. Clone gives a record that shares no slice with
 // the one it copies.
-//
-// Ported from mahjong-rs's mahjong-game at commit 0d8733f: the seat record of its record module.
-// Its round snapshot and table record are not ported.
 package record
 
 import (

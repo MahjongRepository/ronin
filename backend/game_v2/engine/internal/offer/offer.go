@@ -7,9 +7,6 @@
 //
 // The helpers take a hand and melds the engine built, which hold every tile id once, so a kind
 // at most four times; the Checked forms first check a hand and melds given from outside.
-//
-// Ported from mahjong-rs's mahjong-game at commit 0d8733f: the melds, kan, riichi, furiten, win
-// and abortive modules, and the turn discards and last-tile flags of its decision module.
 package offer
 
 import (

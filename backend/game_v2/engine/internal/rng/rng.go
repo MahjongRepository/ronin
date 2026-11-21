@@ -6,8 +6,6 @@
 // words. A number in [0, n) comes from rejection sampling: a word in the incomplete top bucket of
 // the 2^64 word space, the last 2^64 mod n words, is rejected and the next one read, so a bound
 // that divides 2^64 rejects nothing. A shuffle is the forward Fisher-Yates.
-//
-// Ported from the seed module of mahjong-rs's mahjong-game.
 package rng
 
 import (

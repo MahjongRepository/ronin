@@ -11,9 +11,6 @@
 //
 // Sources:
 //
-//   - The structure, the API, the chiitoitsu and kokushi formulas, the tile-count checks and the
-//     tests: mahjong-rs (MIT), the shanten module of mahjong-core at commit 0d8733f,
-//     https://github.com/MahjongRepository/mahjong-rs.
 //   - The replacement number, the hash tables and the maps: xiangting 6.0.2 (MIT) by Apricot S.,
 //     https://github.com/Apricot-S/xiangting. Its four-player code for the standard shape, seven
 //     pairs and thirteen orphans is ported without the three-player branches; its maps are
@@ -30,7 +27,7 @@
 //
 // xiangting's license is in THIRD-PARTY-NOTICES.md at the module root.
 //
-// The tests compare every function with a reference set dumped from mahjong-rs (testdata/). An
+// The tests compare every function with a fixed reference set (testdata/). An
 // opt-in exhaustive check compares Lowest, for every hand of the sizes it runs, with an
 // independent count of the replacement number:
 //

@@ -107,7 +107,7 @@ Make the change. Keep it focused: one optimization per run. Do not refactor surr
 
 ## Step 5: Check correctness
 
-An engine change runs the engine's tests and the seam's proof against mahjong-rs:
+An engine change runs the engine's and the seam's tests:
 
 ```
 cd backend/game_v2 && mise exec -- go test -race ./engine/... ./seam/...

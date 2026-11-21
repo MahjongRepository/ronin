@@ -6,8 +6,6 @@
 // indicator stacks, each showing a dora indicator on top with its ura dora indicator beneath. The
 // live wall starts at the stack before the break and runs away from it. A rinshan draw moves the
 // last live tile into the reserve, so the dead wall always holds 14 tiles.
-//
-// Ported from the wall module of mahjong-rs's mahjong-game.
 package wall
 
 import (
