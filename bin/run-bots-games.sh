@@ -18,6 +18,8 @@ GAME_CONTAINER="ronin-game-v2-game-v2-1"
 
 BOT_BIN="${BOT_BIN:-}"
 BOT_LOG_DIR="$BOT_ROOT/var/logs"
+GO_LOCAL_BOT_SEND_RATE=900
+GO_LOCAL_BOT_SEND_BURST=1800
 
 . "$SCRIPT_DIR/bad-network.sh"
 
@@ -514,6 +516,13 @@ build_bot() {
     BOT_BIN="$BOT_ROOT/rust/target/release/mahjong-bot"
 }
 
+check_bot_args() {
+    if ! "$BOT_BIN" --lobby-url "http://localhost:$LOBBY_PORT" "${BOT_ARGS[@]}" --check > /dev/null; then
+        echo "the bot $BOT_BIN refuses the arguments ${BOT_ARGS[*]}: rebuild it from $BOT_ROOT, or unset BOT_BIN"
+        exit 1
+    fi
+}
+
 register_bots() {
     local names=()
     for table in $(seq 1 "$TABLES"); do
@@ -706,6 +715,9 @@ else
     export LOG_LEVEL=debug
 fi
 export LOG_FORMAT=console
+if [[ $SERVER == go && ${GAME_ENVIRONMENT,,} == local ]]; then
+    BOT_ARGS+=(--send-rate "$GO_LOCAL_BOT_SEND_RATE" --send-burst "$GO_LOCAL_BOT_SEND_BURST")
+fi
 export GAME_LOG_DIR="$PROJECT_ROOT/backend/logs/game"
 export LOBBY_LOG_DIR="$PROJECT_ROOT/backend/logs/lobby"
 NET_LOG_DIR="$PROJECT_ROOT/backend/logs/net"
@@ -717,6 +729,7 @@ done
 exec > >(tee "$HARNESS_LOG") 2>&1
 
 build_bot
+check_bot_args
 register_bots
 if [[ $SERVER == go ]]; then
     build_go_tools
