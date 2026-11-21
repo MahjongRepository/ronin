@@ -264,6 +264,14 @@ a contract.
   and a replacement or an AI player seated from the start writes none. An abandoned game's replay
   is discarded; a failed replay save or a finish write failing every attempt turns the end into a
   failure (1011).
+* A playing game keeps an observer timeline: the replay's records in their order, append-only, each
+  batch stamped once with the `Clock` when the replay collected it. It shares the replay's own
+  records, which nothing writes to, except the game start, stored as a copy without the seed, so
+  nothing an observer reads can hold the seed. Each value has one lock owner: the timeline's mutex
+  guards its records and its seal, the Manager's guards the registry of timelines and their
+  expiry, and neither is taken under the other. The end claim seals it for every reason, the
+  release sets its expiry (the end plus the observe delay plus a minute), and a read serves only
+  the records older than the delay, off the game's goroutine.
 * Each step logs as its own subject: every line of a game carries `game_id`, and a line about a
   seated participant its `seat`. The messages the log gates match are named constants with fixed
   text and level. Concealed hand tiles are logged at DEBUG only, and game tickets

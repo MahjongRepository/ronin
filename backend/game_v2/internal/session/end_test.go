@@ -28,10 +28,10 @@ func playOneWallGame(t *testing.T, h *harness) *fakeConn {
 	return alice
 }
 
-func oneWallHarness(t *testing.T) *harness {
+func oneWallHarness(t *testing.T, options ...option) *harness {
 	t.Helper()
 	seed := seedSeating(t, 0, 1)
-	return newHarness(t, withSeed(seed), withWalls(shuffledWall(seed, 0)))
+	return newHarness(t, append([]option{withSeed(seed), withWalls(shuffledWall(seed, 0))}, options...)...)
 }
 
 func TestGameEnd_WhenTheLastWallIsDealt_ShouldSaveTheReplayRecordTheFinishAndClose1000(t *testing.T) {

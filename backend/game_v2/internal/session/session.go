@@ -145,6 +145,8 @@ type Agent interface {
 // same (engine.Game.Disguised), and a timeout or an AI player's default after the seat's own call
 // discards a picked legal tile, so neither tells the table the seat's hand order. Nil plays every
 // action as named and the engine's own default.
+// ObserveDelay is how long after the session collects a replay record an observer may get it; zero
+// is DefaultObserveDelay.
 type Config struct {
 	Timing   Timing
 	Capacity int
@@ -156,8 +158,9 @@ type Config struct {
 	Setup    func(engine.Seed) engine.Setup
 	Agent    Agent
 
-	DiscardHold func() time.Duration
-	Pick        func(n int) int
+	DiscardHold  func() time.Duration
+	Pick         func(n int) int
+	ObserveDelay time.Duration
 }
 
 // The errors CreatePendingGame returns.
@@ -182,6 +185,11 @@ func (c Config) validated() (Config, error) {
 		return c, ErrConfig
 	case t.InitialBank <= 0 || t.RoundAdvance <= 0 || t.PendingGame <= 0 || c.Capacity <= 0:
 		return c, ErrConfig
+	case c.ObserveDelay < 0:
+		return c, ErrConfig
+	}
+	if c.ObserveDelay == 0 {
+		c.ObserveDelay = DefaultObserveDelay
 	}
 	if c.Clock == nil {
 		c.Clock = SystemClock()

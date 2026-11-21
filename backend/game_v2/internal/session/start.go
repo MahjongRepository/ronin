@@ -112,12 +112,14 @@ func (g *game) startGame() error {
 		return fmt.Errorf("claim the game id: %w", err)
 	}
 	g.startRecorded = true
-	g.m.markPlaying(g, StartedGame{
+	listed := StartedGame{
 		GameID:    g.id,
 		StartedAt: g.start.StartedAt,
 		GameType:  g.start.GameType,
 		Names:     namesFromEast(roster.Names, seed),
-	})
+	}
+	g.observed = newObserverTimeline(listed)
+	g.m.markPlaying(g, listed)
 	g.engine = started
 	g.replay = messaging.NewReplayLog(seed, g.roster)
 	g.log.Info("pending game completed")

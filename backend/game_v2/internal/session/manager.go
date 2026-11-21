@@ -39,6 +39,7 @@ type Manager struct {
 	tickets   map[string]*listing
 	withdrawn map[string]time.Time
 	conns     map[string]*connEntry
+	observed  map[string]*observerEntry
 }
 
 type listing struct {
@@ -106,6 +107,7 @@ func newManager(ctx context.Context, cfg Config) *Manager {
 		tickets:   map[string]*listing{},
 		withdrawn: map[string]time.Time{},
 		conns:     map[string]*connEntry{},
+		observed:  map[string]*observerEntry{},
 	}
 }
 
@@ -473,8 +475,10 @@ func (m *Manager) markPlaying(g *game, started StartedGame) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	m.sweepObservedLocked(m.cfg.Clock.Now())
 	if l := m.games[g.id]; l != nil && l.game == g {
 		l.started = play.Some(started)
+		m.observed[g.id] = &observerEntry{timeline: g.observed}
 	}
 }
 
@@ -492,6 +496,11 @@ func (m *Manager) release(g *game, conns []Connection) {
 	}
 	for _, conn := range conns {
 		m.evictLocked(conn)
+	}
+
+	m.sweepObservedLocked(m.cfg.Clock.Now())
+	if entry := m.observed[g.id]; entry != nil && entry.timeline == g.observed {
+		entry.expiresAt = play.Some(g.end.endedAt.Add(m.cfg.ObserveDelay + observedRetention))
 	}
 }
 

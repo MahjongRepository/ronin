@@ -56,6 +56,9 @@ func (g *game) endGame(reason endReason, result play.Option[store.Result]) {
 		g.end.keepReplay, g.end.records = true, g.replay.Records()
 	}
 	g.replay = nil
+	if g.observed != nil {
+		g.observed.seal(g.end.endedAt)
+	}
 
 	g.m.release(g, conns)
 	for _, p := range g.participants {

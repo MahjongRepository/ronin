@@ -203,6 +203,7 @@ func (g *game) handOver(p *participant, standIn play.Option[wire.SeatControlReas
 	}
 	if g.replay != nil {
 		g.replay.AddSeatControl(p.seat, standIn)
+		g.observed.follow(g.replay, g.clock.Now())
 	}
 	return g.broadcastTo(g.othersThan(p), messaging.SeatControl(p.seat, standIn))
 }

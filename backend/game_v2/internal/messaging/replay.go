@@ -67,6 +67,11 @@ func (r *ReplayLog) Records() []wire.Map {
 	return slices.Clone(r.records)
 }
 
+// RecordsSince returns the records collected after the first n, in their order.
+func (r *ReplayLog) RecordsSince(n int) []wire.Map {
+	return slices.Clone(r.records[n:])
+}
+
 // EncodeReplayRecords encodes records, as Records returns them, into a replay's content: the
 // version record first, then records. The error is wire.EncodeReplay's.
 func EncodeReplayRecords(records []wire.Map) ([]byte, error) {

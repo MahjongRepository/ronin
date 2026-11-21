@@ -381,6 +381,15 @@ to the game's finalizer. The finalizer saves the replay (unless abandoned), post
 (only for a game that recorded a start) and closes the sockets, then sets CLOSED. Abandoned means no
 human connection remains, not that a player is at fault.
 
+From the moment it plays, a game keeps an observer timeline beside its replay records: each record
+the replay collects, stamped with the game clock when it was collected, the game start's copy
+without the seed. An observer gets only the records stamped at least the observe delay ago (5
+minutes by default, `Config.ObserveDelay`), so the timeline never shows the table a move younger
+than that and never shows the seed, which derives every wall, future rounds' included. The end
+claim seals the timeline with the end's time, for every reason; the timeline outlives the release
+for the delay plus one minute, so an observer follows the game to its end, and then expires. It
+lives in memory only: a restart drops it.
+
 A graceful stop (SIGTERM) runs inside compose's 15 s grace period, on one deadline: the HTTP server
 stops taking connections, `Server.Shutdown` closes every socket with 1012 and waits until each ran its
 disconnect, then `Manager.Shutdown` drains the finalizers and the store writes, and the database

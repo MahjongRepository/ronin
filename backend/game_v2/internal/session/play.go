@@ -269,7 +269,12 @@ func (g *game) recordReplay(events []play.Emitted) error {
 	if g.replay == nil {
 		return nil
 	}
-	return g.replay.Collect(events, g.lazyTable())
+	err := g.replay.Collect(events, g.lazyTable())
+	if err != nil {
+		return err
+	}
+	g.observed.follow(g.replay, g.clock.Now())
+	return nil
 }
 
 func (g *game) sendEvents(events []play.Emitted, openings []messaging.Opening, table func() messaging.Table) error {

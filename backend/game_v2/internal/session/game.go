@@ -88,6 +88,7 @@ type game struct {
 	start         store.GameStart
 	startRecorded bool
 	replay        *messaging.ReplayLog
+	observed      *observerTimeline
 	pending       delayed
 	aiTurn        delayed
 	asked         agentRequest
