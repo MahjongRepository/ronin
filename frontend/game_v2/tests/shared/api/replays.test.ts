@@ -4,6 +4,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { ManualClock } from "#tests/fixtures/clock";
 import {
     type LoadReplay,
+    OBSERVE_REQUEST_TIMEOUT_MS,
     type ReplayFetch,
     type ReplayLoadRetry,
     fetchObserve,
@@ -53,9 +54,55 @@ describe("fetchReplay", () => {
     });
 });
 
+/** A fetch whose headers arrive at once and whose body ends only as its request's signal aborts, with its reason. */
+function bodyUntilAborted(_url: string, init?: RequestInit): Promise<Response> {
+    const { signal } = init ?? {};
+    const body = new ReadableStream({
+        start(controller): void {
+            signal?.addEventListener("abort", () => controller.error(signal.reason), {
+                once: true,
+            });
+        },
+    });
+    return Promise.resolve(new Response(body));
+}
+
+/** The error an observe request whose body never ends rejects with, once `end` ran on its caller's controller. */
+async function unfinishedObserveError(
+    end: (caller: AbortController) => Promise<void>,
+): Promise<unknown> {
+    vi.stubGlobal("fetch", vi.fn(bodyUntilAborted));
+    const caller = new AbortController();
+    const settled = fetchObserve("g", 3, caller.signal).then(
+        () => null,
+        (error: unknown) => error,
+    );
+    await end(caller);
+    return settled;
+}
+
 describe("fetchObserve", () => {
     afterEach(() => {
+        vi.useRealTimers();
         vi.unstubAllGlobals();
+    });
+
+    test("fails a body still unanswered past its time limit as a timeout, and one its caller aborts as aborted", async () => {
+        vi.useFakeTimers();
+
+        const timedOut = await unfinishedObserveError(async () => {
+            await vi.advanceTimersByTimeAsync(OBSERVE_REQUEST_TIMEOUT_MS);
+        });
+        const aborted = await unfinishedObserveError(async (caller) => {
+            await vi.advanceTimersByTimeAsync(OBSERVE_REQUEST_TIMEOUT_MS - 1);
+            caller.abort();
+        });
+
+        expect([timedOut, aborted]).toEqual([
+            expect.objectContaining({ name: "TimeoutError" }),
+            expect.objectContaining({ name: "AbortError" }),
+        ]);
+        expect(vi.getTimerCount()).toBe(0);
     });
 
     test("asks the stream from the cursor given and decodes the server's MessagePack answer, its records as bytes", async () => {

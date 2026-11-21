@@ -854,7 +854,8 @@ class ReplayViewController {
 
     /**
      * The stream's answer, or null once the request was aborted or failed. A failure, which the page asks again after,
-     * is the network's or a body that is no observe answer, whose cause goes to the console.
+     * is the network's, a request left unanswered past `OBSERVE_REQUEST_TIMEOUT_MS`, or a body that is no observe
+     * answer, whose cause alone goes to the console.
      */
     private async askObserve(
         fetchObserve: FetchObserve,
