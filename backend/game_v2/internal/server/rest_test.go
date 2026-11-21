@@ -336,6 +336,14 @@ func TestObserveGame_WhenPolledAcrossTheDelay_ShouldServeOldRecordsOnceVersioned
 	if gone := h.internal(http.MethodGet, "/games/game-9999/observe"); gone.status != http.StatusNotFound {
 		t.Errorf("GET observe of an unknown game = %d, want 404", gone.status)
 	}
+	refused := h.get("/games/" + testGameID + "/observe")
+	if refused.status != http.StatusUnauthorized || refused.header.Get("Cache-Control") != "no-store" {
+		t.Errorf("GET observe without the secret = %d, Cache-Control %q, want 401 no-store",
+			refused.status, refused.header.Get("Cache-Control"))
+	}
+	if negative := h.internal(http.MethodGet, "/games/"+testGameID+"/observe?from=-1"); negative.status != http.StatusBadRequest {
+		t.Errorf("GET observe from -1 = %d, want 400", negative.status)
+	}
 }
 
 func TestCreateGame_WhenIDTaken_ShouldAnswer409(t *testing.T) {

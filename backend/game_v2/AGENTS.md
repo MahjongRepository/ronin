@@ -94,8 +94,9 @@ a contract.
 * A message or replay record is a `wire.Map`, an ordered list of keyed values, never a Go map: its
   keys encode in the order it lists them. An integer takes the fewest bytes, a float is always a
   float64 (so `Int(20)` and `Float(20)` differ on the wire), strings use str8 from 32 bytes, and
-  binary data appears only as a replay's seed. Score maps and the replay's rules envelope are the
-  only string-keyed maps.
+  within messages and records binary data appears only as a replay's seed, and score maps and the
+  replay's rules envelope are the only string-keyed maps. The one exception is the observe route's
+  envelope, a string-keyed map around the observed records, which it carries as binary data.
 * Keys, event codes and result codes are only ever added: a retired one leaves its gap, never a
   reused number. The live and replay key sets and the replay schema (the fields each record and
   result type requires, and each field's type) live beside the codec, which checks them on encode
@@ -300,7 +301,8 @@ a contract.
   `deploy/config/telegraf.conf`. `loop_lag_max_ms` is the per-game queue delay the session measures:
   the longest a routed message waited for its game to take it in the last minute, null without one.
 * `/status` carries no per-user data. The list of games playing (`GET /games`) names players, East
-  to North from the first dealer as the lobby shows them, so it answers only the internal secret.
+  to North from the first dealer as the lobby shows them, so it answers only the internal secret;
+  so does the observe route, which names them too.
 * A graceful stop runs in this order inside compose's 15 s grace period, on one deadline: the
   HTTP server stops taking connections, `Server.Shutdown` closes every socket with 1012 and waits
   until each ran its disconnect, then shuts the session down, which drains the finalizers and the

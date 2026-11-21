@@ -391,8 +391,8 @@ for the delay plus one minute, so an observer follows the game to its end, and t
 lives in memory only: a restart drops it. The game server serves it on the internal route
 `GET /games/{game_id}/observe?from=N`, which answers only the internal API secret: the listed game,
 the wait until its first records may be seen, the records old enough from cursor `N`, the cursor
-after them and whether the stream has ended, as one MessagePack map (404 for an unknown or expired
-game).
+after them and whether the stream has ended, as one MessagePack map (404 for an unknown, not yet
+started or expired game).
 
 A graceful stop (SIGTERM) runs inside compose's 15 s grace period, on one deadline: the HTTP server
 stops taking connections, `Server.Shutdown` closes every socket with 1012 and waits until each ran its
