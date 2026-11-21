@@ -59,6 +59,31 @@ $round-list-clear: 8px;
     }
 }
 
+.replay-state__players {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    > li {
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+        margin: 0;
+    }
+}
+
+.replay-state__wind {
+    color: var(--ronin-text-secondary);
+}
+
+.replay-state__countdown {
+    margin: 0;
+    font-weight: 650;
+}
+
 .replay-board-mode:focus {
     outline: none;
 }
@@ -366,6 +391,13 @@ $round-list-clear: 8px;
     &--failed {
         --copy-tone: var(--ronin-danger);
     }
+}
+
+.replay-status__replay > a {
+    margin: 0;
+    padding: 0.15em 0.5em;
+    font-size: max(12px, 0.9em);
+    pointer-events: auto;
 }
 
 .replay-status__incomplete-end {

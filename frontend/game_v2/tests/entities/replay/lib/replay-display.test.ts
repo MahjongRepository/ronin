@@ -29,6 +29,7 @@ function displayAt(
 ): ReplayDisplay {
     return replayDisplay(replay, {
         cursor,
+        observe: null,
         perspective,
         seating: false,
         shownCall: shownReplayCall(replay, null, {
@@ -91,6 +92,7 @@ describe("replayDisplay", () => {
         const result = replay.navigation.stops.findIndex((stop) => stop.pages > 1);
         const seating = replayDisplay(replay, {
             cursor: { page: 0, stop: result },
+            observe: null,
             perspective: ALL,
             seating: true,
             shownCall: shownReplayCall(replay, null, {

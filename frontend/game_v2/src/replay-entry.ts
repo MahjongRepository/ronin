@@ -6,12 +6,13 @@ import {
 } from "@/entities/client";
 import { DEFAULT_REPLAY_PREFS, readReplayPrefs } from "@/entities/replay";
 import { applyTileLabels } from "@/entities/tile";
-import { fetchReplay } from "@/shared/api";
+import { fetchObserve, fetchReplay } from "@/shared/api";
 import { browserClock } from "@/shared/clock";
-import { getLobbyHistoryUrl, getLobbyUrl } from "@/shared/config";
+import { getLobbyHistoryUrl, getLobbyUrl, replayPageUrl } from "@/shared/config";
 import { applyPageLocale, applyWindScript } from "@/shared/i18n";
 import { localStore, shortcutKeysOf } from "@/shared/lib";
-import { mountReplayView } from "@/views/replay";
+import { type ReplayOrigin } from "@/shared/protocol";
+import { type ReplayViewSource, mountReplayView } from "@/views/replay";
 
 const REPLAY_PREFS_KEY = "ronin.v2.replay-prefs";
 
@@ -37,18 +38,28 @@ function onPageHide(listener: () => void): () => void {
 
 /** What the page's entry hands the replay: the game's sounds, and the rest that lets a swipe collapse a phone's bars. */
 export interface ReplayPage {
+    /** Whether the page shows the game's saved replay or watches it as it is played. */
+    readonly origin: ReplayOrigin;
     readonly sound: GameSound;
     /** Keep the page resting past its top while the replay is mounted; returns its stop. */
     readonly keepPageRested: () => () => void;
 }
+
+const SOURCES: Readonly<Record<ReplayOrigin, ReplayViewSource>> = {
+    archive: { kind: "archive", loadReplay: fetchReplay },
+    observe: { fetchObserve, kind: "observe" },
+};
 
 export function mountReplay(host: HTMLElement, gameId: string, page: ReplayPage): () => void {
     const stopRestingPage = page.keepPageRested();
     const dispose = mountReplayView(host, gameId, {
         clock: browserClock,
         copyText: (text) => navigator.clipboard.writeText(text),
-        links: { history: getLobbyHistoryUrl(), lobby: getLobbyUrl() },
-        loadReplay: fetchReplay,
+        links: {
+            history: getLobbyHistoryUrl(),
+            lobby: getLobbyUrl(),
+            replay: replayPageUrl(gameId, null),
+        },
         location: { onPageHide, replaceSearch, search: window.location.search },
         motionSetting: localStore(MOTION_SETTING_KEY, readMotionSetting, DEFAULT_MOTION_SETTING),
         openUrl: (url) => {
@@ -61,6 +72,7 @@ export function mountReplay(host: HTMLElement, gameId: string, page: ReplayPage)
         setWinds: applyWindScript,
         shortcuts: shortcutKeysOf(navigator.userAgent),
         sound: page.sound,
+        source: SOURCES[page.origin],
     });
     return () => {
         dispose();

@@ -19,13 +19,23 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
 - The address (`docs/architecture.md`, Replays) never names a result page; reader settings (hidden hands, marked
   tsumogiri) never go in the address.
 - Autoplay and a held button or key pause on every result page and at the last stop (`isPauseStop`); the wheel holds
-  each result page `WHEEL_RESULT_HOLD_MS` and steps on while it keeps turning.
+  each result page `WHEEL_RESULT_HOLD_MS` and steps on while it keeps turning. An observed game's autoplay is the
+  exception: it holds a result page `OBSERVE_RESULT_HOLD_MS` and crosses it, and waits only at the newest stop of a
+  stream that has not ended, moving on when an answer brings more; a pause the viewer chose holds.
+- An observed game (the observe page) is the same replay read from the observe stream: the page's screen keeps every
+  byte received and rebuilds `LoadedReplay` with `readReplay(…, "observe")` from them on each answer that brought
+  records, keeping the view, the reader's settings and autoplay. Only that source may lack the seed. Before its
+  first playable records it shows the players and the time left; it then opens with autoplay on and no seating, at
+  the first deal for a viewer who saw that countdown, else at the newest stop, and it never reads or writes the
+  address. Its status says it is live in place of where the recording ends, and once the server no longer holds the
+  game it keeps the board and links the saved replay.
 - Replay tile motion settles the previous stop before measuring the next, so rapid navigation never queues behind
   movement or carries old tile effects into the new stop. The replay cue omits the live discard pause; backward
   steps, jumps and round changes show their destination immediately.
 - A replay that stops short of the game's end, or was cut at a damaged record, says so on every stop.
-- The replay page's screen (loading, failed, loaded) moves only through `stepReplayPage`: stamped input in, screen and
-  requested IO (address write, settings save, focus) out. It reads no DOM or clock and arms no timer; autoplay and a
+- The replay page's screen (loading, failed, an observed game's countdown or its gone notice, loaded) moves only
+  through `stepReplayPage`: stamped input in, screen and requested IO (address write, settings save, focus, the
+  observe stream's next request) out. It reads no DOM or clock and arms no timer; autoplay and a
   held button's repeat are deadlines in the screen (`replayPageDeadline`) that come back as ticks.
 - The reader's own input (a move, a key the page takes, Start, autoplay, the hands, the round list's or the tools' toggle and close,
   a seat to view from, the wheel, a step button's press) closes the settings menu; its own commands, ticks, the page

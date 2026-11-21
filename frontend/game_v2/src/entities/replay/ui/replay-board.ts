@@ -30,6 +30,8 @@ export const SEATING_START_FOCUS_KEY = "seating-start";
 export interface ReplayLinks {
     readonly lobby: string;
     readonly history: string;
+    /** This game's saved replay, where an observed game the server no longer holds sends the viewer. */
+    readonly replay: string;
 }
 
 /** What the board's controls, panel, nameplates and menu ask of the page. */
@@ -196,7 +198,11 @@ export function ReplayBoard(props: ReplayBoardProps): TemplateResult {
         replay: {
             controls: controlsTemplate(props),
             marksTsumogiri: screen.showTsumogiri,
-            status: ReplayStatus({ display, handCopy: screen.handCopy?.outcome ?? null }),
+            status: ReplayStatus({
+                display,
+                handCopy: screen.handCopy?.outcome ?? null,
+                replayUrl: links.replay,
+            }),
         },
         state: display.board,
     });

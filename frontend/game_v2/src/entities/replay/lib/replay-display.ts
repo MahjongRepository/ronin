@@ -90,12 +90,36 @@ export interface ReplayDisplay {
     readonly rounds: readonly ReplayRoundRow[];
     /** Why the replay is not the whole game, shown on every stop; null for a whole game read in full. */
     readonly incomplete: ReplayIncompleteness | null;
-    /** Said over the board at the last stop of a replay that is not the whole game. */
+    /** Said over the board at the last stop of a replay that is not the whole game, never while it is live. */
     readonly endNotice: string | null;
+    /** An observed game still live, or gone from the server before its end; null for a recording read whole. */
+    readonly stream: ReplayStreamState | null;
 }
 
-/** Why a replay is not the whole game: a line it stopped at, or a recording that ends before the game does. */
-function incompleteness(source: ReplaySource): ReplayIncompleteness | null {
+/** How an observed game's stream stands while it still matters to the page: live, or gone before its end. */
+export type ReplayStreamState = "live" | "gone";
+
+function streamState(observe: ReplayPlace["observe"]): ReplayStreamState | null {
+    if (observe === null || observe.ended) {
+        return null;
+    }
+    return observe.gone ? "gone" : "live";
+}
+
+/**
+ * Why a replay is not the whole game: an observed game still live or gone from the server, a line it stopped at, or a
+ * recording that ends before the game does.
+ */
+function incompleteness(
+    source: ReplaySource,
+    stream: ReplayStreamState | null,
+): ReplayIncompleteness | null {
+    if (stream === "live") {
+        return { detail: t("replay.observe.live_detail"), label: t("replay.observe.live") };
+    }
+    if (stream === "gone") {
+        return { detail: t("replay.observe.gone_detail"), label: t("replay.observe.gone") };
+    }
     if (source.damage !== null) {
         return {
             detail: t("replay.incomplete.damaged_detail", { record: source.damage.lineNumber }),
@@ -108,8 +132,13 @@ function incompleteness(source: ReplaySource): ReplayIncompleteness | null {
     return { detail: t("replay.incomplete.detail"), label: t("replay.incomplete.label") };
 }
 
-function endNotice(source: ReplaySource, cursor: ReplayCursor): string | null {
-    if (incompleteness(source) === null || cursor.stop !== source.navigation.stops.length - 1) {
+function endNotice(
+    source: ReplaySource,
+    cursor: ReplayCursor,
+    stream: ReplayStreamState | null,
+): string | null {
+    const atLast = cursor.stop === source.navigation.stops.length - 1;
+    if (stream === "live" || !atLast || incompleteness(source, stream) === null) {
         return null;
     }
     return source.damage === null
@@ -193,6 +222,8 @@ export interface ReplayPlace {
     /** The seating shows, while the replay waits for its reader at its start. */
     readonly seating: boolean;
     readonly shownCall: ShownReplayCall | null;
+    /** The observe stream an observed game grows from, null for a saved game's replay. */
+    readonly observe: { readonly ended: boolean; readonly gone: boolean } | null;
 }
 
 /** The stop's board and panel, or the seating over the table as the game started, which shows no call. */
@@ -233,14 +264,16 @@ export function replayDisplay(source: ReplaySource, place: ReplayPlace): ReplayD
     const stop = nav.stops[cursor.stop];
     const round = cursorRound(nav, cursor);
     const position = roundPosition(nav, cursor);
+    const stream = streamState(place.observe);
     return {
         ...stopBoard(source, place),
-        endNotice: endNotice(source, cursor),
-        incomplete: incompleteness(source),
+        endNotice: endNotice(source, cursor, stream),
+        incomplete: incompleteness(source, stream),
         motion: { mode: "replay", sequence: place.seating ? -1 : cursor.stop },
         moves: replayMoves(nav, cursor, place.perspective.bottomSeat),
         roundName: formatRoundName(round.wind, round.roundInWind, round.honba),
         rounds: roundRows(nav, stop.round),
         step: { count: round.stopCount, index: position.step + 1 },
+        stream,
     };
 }

@@ -562,7 +562,12 @@ honours this contract can replace it.
   concatenated MessagePack bytes in the replay encoding, without the seed (`docs/replay-format.md`). 404
   means the game server observes no such game: it never started, or it ended longer ago than the delay
   plus a minute. 503 means the game server could not be asked; the
-  client polls again.
+  client polls again. The observe page `/play/observe/{game_id}` plays that stream in the replay viewer:
+  one request at a time, the next 2 s after each answer or failure, from the `next` the last answer gave,
+  until `ended` or a 404. Before any record it shows the players and the time left; then it opens the board
+  with autoplay on and grows the replay in place, all hands open as in a replay. The page never writes its
+  address. A 404 before any record says the game can no longer be watched; a 404 later keeps the board and
+  stops asking. Both link the game's replay at `/play/history/{game_id}`.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **Language:** v2 speaks Japanese, English and Russian under the lobby's contract (`docs/i18n.md`),
   with catalogs of its own. It resolves the language at page load: the `lang` cookie first, then the

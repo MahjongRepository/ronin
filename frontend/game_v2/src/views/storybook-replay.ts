@@ -5,7 +5,7 @@ import { DEFAULT_REPLAY_PREFS, type ReplayPrefs } from "@/entities/replay";
 import { applyTileLabels } from "@/entities/tile";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { type Clock, browserClock } from "@/shared/clock";
-import { getLobbyHistoryUrl, getLobbyUrl } from "@/shared/config";
+import { getLobbyHistoryUrl, getLobbyUrl, replayPageUrl } from "@/shared/config";
 import { applyPageLocale, applyWindScript } from "@/shared/i18n";
 import { shortcutKeysOf } from "@/shared/lib";
 import { REPLAY_VERSION, WIRE_KEY } from "@/shared/protocol";
@@ -189,8 +189,11 @@ export function mountStorybookReplay(host: HTMLElement): () => void {
             autoplay: story.autoplay ?? false,
             clock: story.clock ?? browserClock,
             copyText: (text) => navigator.clipboard.writeText(text),
-            links: { history: getLobbyHistoryUrl(), lobby: getLobbyUrl() },
-            loadReplay: story.load,
+            links: {
+                history: getLobbyHistoryUrl(),
+                lobby: getLobbyUrl(),
+                replay: replayPageUrl("story", null),
+            },
             location: { onPageHide: () => () => {}, replaceSearch: () => {}, search: story.search },
             motionSetting: { load: () => DEFAULT_MOTION_SETTING, save: () => {} },
             openUrl: (url) => {
@@ -204,6 +207,7 @@ export function mountStorybookReplay(host: HTMLElement): () => void {
             setWinds: applyWindScript,
             shortcuts: shortcutKeysOf(navigator.userAgent),
             sound: SILENT,
+            source: { kind: "archive", loadReplay: story.load },
         });
     }
     void mount();

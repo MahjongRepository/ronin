@@ -67,6 +67,7 @@ import {
     unlockOnGesture,
     webAudioOutput,
 } from "@/shared/lib";
+import { type ReplayOrigin } from "@/shared/protocol";
 import {
     type GameSessionData,
     clearGameSession,
@@ -268,6 +269,23 @@ function pageFailedView(): TemplateResult {
     return html`<p class="route-error">${t("common.page_failed")}</p>`;
 }
 
+/** A game's replay page, saved or observed, loaded with the replay's own chunk the first time one is opened. */
+function replayRoute(pattern: RegExp, origin: ReplayOrigin): Route {
+    return lazyRoute(
+        pattern,
+        async () => {
+            const { mountReplay } = await import("@/replay-entry");
+            return (host, params) =>
+                mountReplay(host, params.gameId, {
+                    keepPageRested: keepPageRestedPastItsTop,
+                    origin,
+                    sound: gameSound(),
+                });
+        },
+        pageFailedView,
+    );
+}
+
 /** A storybook page, loaded with the rest of the storybook the first time one is opened. */
 function storybookRoute(
     pattern: RegExp,
@@ -324,18 +342,8 @@ if (app && !supportsBoardCss()) {
         app,
         [
             ...(import.meta.env.DEV ? createStorybookRoutes() : []),
-            lazyRoute(
-                /^\/play\/history\/(?<gameId>[^/]+)$/,
-                async () => {
-                    const { mountReplay } = await import("@/replay-entry");
-                    return (host, params) =>
-                        mountReplay(host, params.gameId, {
-                            keepPageRested: keepPageRestedPastItsTop,
-                            sound: gameSound(),
-                        });
-                },
-                pageFailedView,
-            ),
+            replayRoute(/^\/play\/history\/(?<gameId>[^/]+)$/, "archive"),
+            replayRoute(/^\/play\/observe\/(?<gameId>[^/]+)$/, "observe"),
             {
                 mount: (host, params) =>
                     mountGameView(host, params.gameId, liveGameDeps(params.gameId, tileSprite)),

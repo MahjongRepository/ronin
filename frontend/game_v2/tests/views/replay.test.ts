@@ -16,15 +16,17 @@ import {
     DEFAULT_REPLAY_PREFS,
     HOLD_DELAY_MS,
     HOLD_REPEAT_MS,
+    OBSERVE_POLL_MS,
     type ReplayPrefs,
     type ReplayPrefsStore,
 } from "@/entities/replay";
 import { DISCARD_LANDING_MS } from "@/entities/table";
-import { type LoadReplay, type ReplayFetch } from "@/shared/api";
+import { type LoadReplay, type ObserveFetch, type ReplayFetch } from "@/shared/api";
 import { type Locale } from "@/shared/i18n";
 import { localStore } from "@/shared/lib";
 import { REPLAY_VERSION, WIRE_KEY } from "@/shared/protocol";
 import {
+    type FetchObserve,
     REPLAY_URL_WRITE_INTERVAL_MS,
     type ReplayLinks,
     type ReplayLocation,
@@ -57,7 +59,7 @@ interface MountedReplay {
 }
 
 const mounts: MountedReplay[] = [];
-const LINKS = { history: "/history", lobby: "/" };
+const LINKS = { history: "/history", lobby: "/", replay: "/play/history/g1" };
 
 /**
  * The page's links, which each draw of the board reads for the game end's panel: counting those reads, throwing on
@@ -79,6 +81,7 @@ function drawnLinks(): {
                 }
                 return LINKS.lobby;
             },
+            replay: LINKS.replay,
         },
         reads,
     };
@@ -152,6 +155,49 @@ function fakeLoader(): FakeLoader {
     };
 }
 
+interface FakeObserve {
+    readonly fetchObserve: FetchObserve;
+    /** Every request asked, in order: the cursor it asked from and its signal. */
+    readonly requests: { readonly from: number; readonly signal: AbortSignal }[];
+    readonly answer: (fetched: ObserveFetch) => Promise<void>;
+}
+
+/** An observe stream whose every request waits until the test answers it. */
+function fakeObserve(): FakeObserve {
+    const requests: FakeObserve["requests"] = [];
+    const pending: ((fetched: ObserveFetch) => void)[] = [];
+    return {
+        async answer(fetched) {
+            await settle();
+            pending.shift()?.(fetched);
+            await settle();
+        },
+        fetchObserve: (_gameId, from, signal) => {
+            requests.push({ from, signal });
+            return new Promise((resolve) => {
+                pending.push(resolve);
+            });
+        },
+        requests,
+    };
+}
+
+/** An observe answer carrying `records`, the cursor after them `next`, the delay passed. */
+function observeAnswer(records: Uint8Array, next: number, ended: boolean): ObserveFetch {
+    return {
+        answer: {
+            availableInMs: 0,
+            ended,
+            gameType: "hanchan",
+            next,
+            players: ["Akagi", "Washizu", "Ten", "Hiro"],
+            records,
+            startedAt: 0,
+        },
+        ok: true,
+    };
+}
+
 /** A settings store holding `prefs`, recording every write, whose reads throw once `failPrefsLoad` is called. */
 function fakePrefsStore(prefs: ReplayPrefs): {
     readonly store: ReplayPrefsStore;
@@ -219,6 +265,8 @@ function fakeSound(soundOn: boolean): {
 }
 
 interface MountOptions {
+    /** Watch the game through this stream rather than load its saved replay. */
+    readonly fetchObserve?: FetchObserve;
     readonly links?: ReplayLinks;
     readonly prefs?: ReplayPrefs;
     readonly soundOn?: boolean;
@@ -234,6 +282,7 @@ function remembered(mounted: MountedReplay): MountedReplay {
 function mountReplay(
     search = "",
     {
+        fetchObserve,
         links = LINKS,
         prefs = DEFAULT_REPLAY_PREFS,
         setLanguage = () => {},
@@ -252,7 +301,6 @@ function mountReplay(
         clock: steadyClockOn(clock),
         copyText,
         links,
-        loadReplay,
         location,
         motionSetting: localStore(MOTION_SETTING_KEY, readMotionSetting, DEFAULT_MOTION_SETTING),
         openUrl: (url) => opened.push(url),
@@ -263,6 +311,10 @@ function mountReplay(
         setWinds: () => {},
         shortcuts: "other",
         sound: deps,
+        source:
+            fetchObserve === undefined
+                ? { kind: "archive", loadReplay }
+                : { fetchObserve, kind: "observe" },
     });
     return remembered({
         answer,
@@ -1399,5 +1451,40 @@ describe("mountReplayView - loading", () => {
         loading.dispose();
         await loading.answer({ content: engineReplayBytes("riichi"), ok: true });
         expect(loading.host.childElementCount).toBe(0);
+    });
+});
+
+describe("mountReplayView - observing", () => {
+    it("asks the stream again from the cursor each answer returns, live until it ends, and nothing once it ended", async () => {
+        const stream = fakeObserve();
+        const watched = mountReplay("", { fetchObserve: stream.fetchObserve });
+        await stream.answer(observeAnswer(engineReplayBytes("full_game"), 7, false));
+        const live = textOf(watched.host, ".replay-status__incomplete-label");
+
+        watched.clock.advanceTo(OBSERVE_POLL_MS);
+        await stream.answer(observeAnswer(new Uint8Array(), 7, true));
+        runTimers(watched.clock);
+        await settle();
+
+        expect(stream.requests.map(({ from }) => from)).toEqual([0, 7]);
+        expect([live, textOf(watched.host, ".replay-status__incomplete-label")]).toEqual([
+            "Live, 5-minute delay",
+            undefined,
+        ]);
+    });
+
+    it("aborts the request in flight on dispose and asks nothing afterwards", async () => {
+        const disposedStream = fakeObserve();
+        const disposed = mountReplay("", { fetchObserve: disposedStream.fetchObserve });
+        await disposedStream.answer(observeAnswer(engineReplayBytes("full_game"), 7, false));
+        disposed.clock.advanceTo(OBSERVE_POLL_MS);
+        disposed.dispose();
+        disposed.clock.advanceTo(10 * OBSERVE_POLL_MS);
+        await settle();
+
+        expect(disposedStream.requests.map(({ from, signal }) => [from, signal.aborted])).toEqual([
+            [0, true],
+            [7, true],
+        ]);
     });
 });

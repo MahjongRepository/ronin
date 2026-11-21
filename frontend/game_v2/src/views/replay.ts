@@ -7,6 +7,8 @@ import { type GameSound, type MotionSetting, ReplayRotatePanel } from "@/entitie
 import {
     CURRENT_ROUND_FOCUS_KEY,
     type LoadedReplayScreen,
+    type ObserveCountdown,
+    type ObserveOpening,
     ROUND_LIST_TOGGLE_FOCUS_KEY,
     ReplayBoard,
     type ReplayBoardHandlers,
@@ -30,8 +32,10 @@ import {
     showsHand,
     stepReplayPage,
 } from "@/entities/replay";
+import { windName } from "@/entities/table";
 import {
     type LoadReplay,
+    type ObserveFetch,
     type ReplayFetch,
     isAbortError,
     loadReplayUntilFound,
@@ -73,8 +77,20 @@ export interface ReplayLocation {
 
 export type { ReplayLinks } from "@/entities/replay";
 
+/** Fetch a game's observe stream from cursor `from`, as `fetchObserve` does. */
+export type FetchObserve = (
+    gameId: string,
+    from: number,
+    signal: AbortSignal,
+) => Promise<ObserveFetch>;
+
+/** Where the page's replay comes from: a saved game's file, or a game being played, watched behind the table. */
+export type ReplayViewSource =
+    | { readonly kind: "archive"; readonly loadReplay: LoadReplay }
+    | { readonly kind: "observe"; readonly fetchObserve: FetchObserve };
+
 export interface ReplayViewDeps {
-    readonly loadReplay: LoadReplay;
+    readonly source: ReplayViewSource;
     readonly clock: Clock;
     readonly location: ReplayLocation;
     readonly links: ReplayLinks;
@@ -231,7 +247,8 @@ function sameFields(first: object, second: object): boolean {
 
 /**
  * Whether two screens draw the same page: they differ in nothing but what a screen keeps and never draws (the hold,
- * the click a press drops, the wheel's gesture and autoplay's next move), so a change to those alone draws nothing.
+ * the click a press drops, the wheel's gesture, autoplay's next move and the observe stream's cursor and next
+ * request), so a change to those alone draws nothing.
  */
 function drawsAlike(shown: ReplayScreen, next: ReplayScreen): boolean {
     if (shown === next) {
@@ -242,9 +259,14 @@ function drawsAlike(shown: ReplayScreen, next: ReplayScreen): boolean {
     }
     return (
         sameFields(
-            { ...shown, ...UNDRAWN, autoplay: null },
-            { ...next, ...UNDRAWN, autoplay: null },
-        ) && sameFields({ ...shown.autoplay, dueAt: null }, { ...next.autoplay, dueAt: null })
+            { ...shown, ...UNDRAWN, autoplay: null, observe: null },
+            { ...next, ...UNDRAWN, autoplay: null, observe: null },
+        ) &&
+        sameFields({ ...shown.autoplay, dueAt: null }, { ...next.autoplay, dueAt: null }) &&
+        sameFields(
+            { ...shown.observe, next: null, pollAt: null },
+            { ...next.observe, next: null, pollAt: null },
+        )
     );
 }
 
@@ -256,13 +278,14 @@ function loadedTemplate(
     { links, shortcuts }: ReplayChrome,
     handlers: ReplayHandlers,
 ): TemplateResult {
-    const { hideHands, replay, seating, shownCall, view } = screen;
+    const { hideHands, observe, replay, seating, shownCall, view } = screen;
     const perspective = {
         bottomSeat: view.bottomSeat,
         reveal: hideHands ? "bottom" : "all",
     } as const;
     const display = replayDisplay(replay, {
         cursor: view.cursor,
+        observe,
         perspective,
         seating,
         shownCall,
@@ -310,6 +333,52 @@ function loadingTemplate(waiting: boolean): TemplateResult {
     </div>`;
 }
 
+/** The time left as minutes and seconds, a part second counted whole. */
+function countdownTime(remainingMs: number): string {
+    const seconds = Math.ceil(remainingMs / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+/** An observed game before it can be played: its players East to North and the time left, or loading before any. */
+function observeWaitingTemplate(countdown: ObserveCountdown | null): TemplateResult {
+    if (countdown === null) {
+        return html`<div class="replay-state" role="status" aria-busy="true">
+            <p class="replay-state__detail">${t("replay.observe.loading")}</p>
+        </div>`;
+    }
+    return html`<div class="replay-state replay-state--observe">
+        <h1 class="replay-state__title">${t("replay.observe.title")}</h1>
+        <ol class="replay-state__players" aria-label=${t("replay.observe.players")}>
+            ${countdown.players.map(
+                (name, wind) => html`<li>
+                    <span class="replay-state__wind">${windName(wind)}</span>
+                    <span>${name}</span>
+                </li>`,
+            )}
+        </ol>
+        <p class="replay-state__detail">${t("replay.observe.delay_note")}</p>
+        <p class="replay-state__countdown">
+            ${
+                countdown.remainingMs > 0
+                    ? t("replay.observe.countdown", { time: countdownTime(countdown.remainingMs) })
+                    : t("replay.observe.starting")
+            }
+        </p>
+    </div>`;
+}
+
+/** An observed game the server no longer holds, before any of it could be played: its saved replay and the lobby. */
+function observeGoneTemplate(links: ReplayLinks): TemplateResult {
+    return html`<div class="replay-state replay-state--failed" role="alert">
+        <h1 class="replay-state__title">${t("replay.observe.gone")}</h1>
+        <p class="replay-state__detail">${t("replay.observe.gone_detail")}</p>
+        <div class="replay-state__links">
+            <a href=${links.replay} role="button">${t("replay.observe.replay_link")}</a>
+            <a href=${links.lobby} role="button" class="secondary">${t("common.lobby")}</a>
+        </div>
+    </div>`;
+}
+
 function screenTemplate(
     screen: ReplayScreen,
     chrome: ReplayChrome,
@@ -325,9 +394,11 @@ function screenTemplate(
         case "loading": {
             return loadingTemplate(screen.waiting);
         }
-        case "observe_waiting":
+        case "observe_waiting": {
+            return observeWaitingTemplate(screen.countdown);
+        }
         case "observe_gone": {
-            return loadingTemplate(false);
+            return observeGoneTemplate(chrome.links);
         }
         default: {
             return assertNever(screen);
@@ -356,15 +427,16 @@ function replayTemplate(
 }
 
 /**
- * The replay viewer for one mount: it loads the replay through the injected `loadReplay` (asking again while the
- * server has not stored it yet), steps the page's reducer (`stepReplayPage`) with every input stamped with the
+ * The replay viewer for one mount: it loads the replay through its source, a saved game's `loadReplay` (asking again
+ * while the server has not stored it yet) or an observed game's `fetchObserve` (asked again whenever the page's
+ * screen says so, one request at a time), steps the page's reducer (`stepReplayPage`) with every input stamped with the
  * clock's time, renders the screen it returns into its host and runs the effects it asks for: the address kept on the
  * position shown, a step's sounds played, the reader's settings saved and the focus moved. It keeps one timer armed to the screen's deadline
  * (autoplay's next move, a held button's next repeat), which comes back as a tick. Its input is its own: the keys
  * reach it only while focus is inside its focusable root, which it focuses on mount unless something else holds
  * focus, and an outside click closes only its own round list. A throw in a step or a render says the replay cannot be
- * shown, its error on the console. Disposing aborts the load and its retries, cancels every timer, drops an address
- * write still waiting, removes its listeners and clears its host; a load that settles afterwards renders nothing.
+ * shown, its error on the console. Disposing aborts the load and its retries or the observe request in flight, cancels
+ * every timer, drops an address write still waiting, removes its listeners and clears its host; a load that settles afterwards renders nothing.
  */
 class ReplayViewController {
     private readonly host: HTMLElement;
@@ -588,7 +660,7 @@ class ReplayViewController {
                 return this.deps.openUrl(effect.url);
             }
             case "fetch_observe": {
-                return;
+                return void this.pollObserve(effect.from);
             }
             default: {
                 assertNever(effect);
@@ -735,21 +807,80 @@ class ReplayViewController {
     private startLoad(): void {
         this.abort.abort();
         this.abort = new AbortController();
+        const { source } = this.deps;
+        if (source.kind === "observe") {
+            this.dispatch({ kind: "observe_started" });
+            return;
+        }
         this.dispatch({ kind: "load_started" });
-        void this.load(this.abort.signal);
+        void this.load(source.loadReplay, this.abort.signal);
     }
 
-    private async load(signal: AbortSignal): Promise<void> {
-        const fetched = await this.fetchReplay(signal);
+    private async load(loadReplay: LoadReplay, signal: AbortSignal): Promise<void> {
+        const fetched = await this.fetchReplay(loadReplay, signal);
         if (fetched !== null) {
             this.guard(() => this.apply(this.readFetched(fetched)));
         }
     }
 
-    /** The fetched replay, or null once the load was aborted or the page shows the server as unreachable. */
-    private async fetchReplay(signal: AbortSignal): Promise<ReplayFetch | null> {
+    /**
+     * Ask the observe stream for its records from `from` and step the page with the answer; an answer after the page
+     * aborted the request (dispose, a retry) is dropped.
+     */
+    private async pollObserve(from: number): Promise<void> {
+        const { source } = this.deps;
+        if (source.kind !== "observe") {
+            return;
+        }
+        const { signal } = this.abort;
+        const fetched = await this.askObserve(source.fetchObserve, from, signal);
+        if (fetched !== null && !signal.aborted) {
+            this.dispatch({ fetched, kind: "observe_fetched", opening: this.observeOpening() });
+        }
+    }
+
+    /**
+     * The stream's answer, or null once the request was aborted or failed. A failure, which the page asks again after,
+     * is the network's or a body that is no observe answer, whose cause goes to the console.
+     */
+    private async askObserve(
+        fetchObserve: FetchObserve,
+        from: number,
+        signal: AbortSignal,
+    ): Promise<ObserveFetch | null> {
         try {
-            return await loadReplayUntilFound(this.deps.loadReplay, this.gameId, {
+            return await fetchObserve(this.gameId, from, signal);
+        } catch (error: unknown) {
+            if (!isAbortError(error) && !signal.aborted) {
+                this.onObserveFailed(error);
+            }
+            return null;
+        }
+    }
+
+    private onObserveFailed(error: unknown): void {
+        if (!(error instanceof TypeError)) {
+            console.error("The observe answer could not be read:", error);
+        }
+        this.dispatch({ kind: "observe_unreachable" });
+    }
+
+    private observeOpening(): ObserveOpening {
+        return {
+            animationsOn: this.deps.motionSetting.load().animations,
+            prefs: this.deps.prefs.load(),
+            roundListOpen: this.deps.roundListOpen ?? false,
+            soundOn: this.deps.sound.setting.load().sound_on,
+        };
+    }
+
+    /** The fetched replay, or null once the load was aborted or the page shows the server as unreachable. */
+    private async fetchReplay(
+        loadReplay: LoadReplay,
+        signal: AbortSignal,
+    ): Promise<ReplayFetch | null> {
+        try {
+            return await loadReplayUntilFound(loadReplay, this.gameId, {
                 onWaiting: () => this.dispatch({ kind: "load_waiting" }),
                 setTimer: this.deps.clock.setTimer,
                 signal,

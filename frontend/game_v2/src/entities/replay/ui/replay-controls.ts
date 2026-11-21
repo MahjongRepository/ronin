@@ -53,8 +53,13 @@ export interface ReplayControlsProps {
 }
 
 export interface ReplayStatusProps {
-    readonly display: Pick<ReplayDisplay, "endNotice" | "incomplete" | "roundName" | "step">;
+    readonly display: Pick<
+        ReplayDisplay,
+        "endNotice" | "incomplete" | "roundName" | "step" | "stream"
+    >;
     readonly handCopy: ReplayHandCopy["outcome"] | null;
+    /** This game's saved replay, which the status links once an observed game is gone from the server. */
+    readonly replayUrl: string;
 }
 
 /** The moves with a button of their own; either end is the keys' and the round list's. */
@@ -255,15 +260,15 @@ function IncompleteNote(
 
 /**
  * What the replay shows in the notices' place: the round and step for assistive technology alone (the centre shows the
- * round), a replay that is not the whole game saying so (and where it ends at its last stop), and whether a copy of the
- * hand went through.
+ * round), a replay that is not the whole game saying so (and where it ends at its last stop, or that it is live), the
+ * saved replay's link once an observed game is gone, and whether a copy of the hand went through.
  */
 const HAND_COPY_NOTICES: Readonly<Record<ReplayHandCopy["outcome"], MessageKey>> = {
     copied: "replay.status.hand_copied",
     failed: "replay.status.hand_copy_failed",
 };
 
-export function ReplayStatus({ display, handCopy }: ReplayStatusProps): TemplateResult {
+export function ReplayStatus({ display, handCopy, replayUrl }: ReplayStatusProps): TemplateResult {
     const { step } = display;
     return html`<div class="replay-status">
         <p class="replay-status__position">
@@ -271,6 +276,13 @@ export function ReplayStatus({ display, handCopy }: ReplayStatusProps): Template
             <span class="replay-status__step">${t("replay.step", { step: step.index, steps: step.count })}</span>
         </p>
         ${IncompleteNote(display.incomplete, display.endNotice)}
+        ${
+            display.stream === "gone"
+                ? html`<p class="replay-status__replay">
+                      <a href=${replayUrl} role="button" class="secondary">${t("replay.observe.replay_link")}</a>
+                  </p>`
+                : nothing
+        }
         ${
             handCopy === null
                 ? nothing

@@ -24,6 +24,10 @@ The route views: the live game's driver, the replay page and the storybook, each
 - A step button's press acts on pointer down or the key, so the click that follows is dropped; never let a step fire
   twice. Fields, input-method composition, modifiers and nested controls' own keys are never the page's.
 - The load retries a 404 a few times: the game end reaches players before the server saves the replay.
+- The observe page's requests are the screen's `fetch_observe` effects, due under the same one timer, one in flight;
+  each answer, or the failure, comes back as a load event. They share the load's abort, so dispose and a retry drop an
+  answer still on its way. A body that is no observe answer goes to the console; it and a network failure are asked
+  again at the next poll.
 - Only a `DesyncError` while reading counts as a damaged recording; any other throw is a bug and shows the
   cannot-be-shown screen.
 - A render that removes or disables the focused control returns focus to the root.
