@@ -790,9 +790,10 @@ $round-list-clear: 8px;
 }
 
 .seating__actions--observe {
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-end;
 
     > .seating__note {
-        flex: 1 1 12em;
+        text-align: end;
     }
 }
