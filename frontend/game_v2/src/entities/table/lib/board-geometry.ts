@@ -992,14 +992,17 @@ function atDecisionScale(tier: TierChrome, decisionH: number): TierChrome {
     };
 }
 
-/** A phone's chrome at its river tile: the small tier's px, growing with the river tile past `PHONE_CHROME_RIVER`. */
+/**
+ * A phone's chrome at its river tile: the small tier's px, growing with the river tile past `PHONE_CHROME_RIVER`; its
+ * dora as large as a river tile, never under the chrome's.
+ */
 function phoneChrome(rw: number): PhoneChrome {
     const scale = Math.max(1, rw / PHONE_CHROME_RIVER);
     const control = PHONE_CHROME.controlH * scale;
     return {
         ...PHONE_CHROME,
         controlH: control,
-        doraW: PHONE_CHROME.doraW * scale,
+        doraW: Math.max(PHONE_CHROME.doraW, rw),
         movesH: control,
         pillH: PHONE_CHROME.pillH * scale,
         switchH: control,

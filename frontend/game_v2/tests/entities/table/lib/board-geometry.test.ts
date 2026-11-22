@@ -957,10 +957,10 @@ describe("boardGeometry", () => {
         { height: 360, pinned: { ow: 42, rw: 19 }, width: 800 },
         { height: 390, pinned: { ow: 43, rw: 21 }, width: 750 },
         { height: 379, pinned: { ow: 44, rw: 20 }, width: 761 },
-        { height: 414, pinned: { "dora-w": 15, ow: 45, rw: 23 }, width: 808 },
+        { height: 414, pinned: { "dora-w": 19, ow: 45, rw: 23 }, width: 808 },
         { height: 480, pinned: { ow: 49, rw: 26 }, width: 850 },
-        { height: 430, pinned: { "dora-w": 15, ow: 51, rw: 23 }, width: 932 },
-        { height: 414, pinned: { "dora-w": 15, ow: 49, rw: 22 }, width: 1000 },
+        { height: 430, pinned: { "dora-w": 23, ow: 51, rw: 23 }, width: 932 },
+        { height: 414, pinned: { "dora-w": 22, ow: 49, rw: 22 }, width: 1000 },
         { height: 500, pinned: { ow: 59, rw: 27 }, width: 1024 },
     ])(
         "sizes a $width x $height window's phone board's tiles jointly in its felt: the own row inside it with its air, the felt bounded by the height and its rails, the left bar holding the counters, the side strips' lines a full hand long above the own row, the felt beside each side river under three river tiles, every control in a bar, the cog and a replay's column in the right rail off the felt",

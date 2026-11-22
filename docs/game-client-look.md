@@ -449,7 +449,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   in one row at every size and zoom, never wrapping. Nothing is reserved under it: a
   replay's status stands in the left bar's field under it. On a phone the card stands at the felt's top-left corner, inside it or
   straddling its edge, whichever holds its dora larger, ending short of the left strip (Composition), the notices
-  under it, its dora shrinking to fit, never under the 13px face floor. A replay shows no
+  under it, its dora as large as a river tile (at least 15px), shrinking to fit, never under the 13px face floor. A replay shows no
   round or step beside the card: the centre shows the round, and the status reads both out to assistive
   technology only. The honba and riichi-stick counts are the centre's, under the round; the card does
   not repeat them.

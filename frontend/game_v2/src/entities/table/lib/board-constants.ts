@@ -229,7 +229,7 @@ const PHONE_OWN_GIVEN_FOR_RIVER = 2;
 
 /**
  * A phone's chrome past a desktop's: its margin, the gaps under the top strip and over the own row, and its counters'
- * dora tile where its left bar holds it.
+ * least wanted dora tile where its left bar holds it.
  */
 interface PhoneChrome extends TierChrome {
     readonly doraW: number;
