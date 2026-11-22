@@ -1,6 +1,6 @@
 import { type SoundSetting } from "@ronin/shared/sound-setting";
 
-import { type Call, type CalloutKind, type TableState } from "@/entities/table";
+import { type Call, type CalloutKind, type PlayerState, type TableState } from "@/entities/table";
 import { type LocalStore } from "@/shared/lib";
 
 import { matchesCall, submittedCall } from "./calls";
@@ -10,7 +10,7 @@ import { unseenWait } from "./play-switches";
 import { type LiveClient, type Offer } from "./types";
 
 /** A move's sound, a new decision's chime, or a countdown's beep. */
-export type SoundCue = CalloutKind | "discard" | "yakuman" | "beep" | "decision";
+export type SoundCue = CalloutKind | "discard" | "draw" | "yakuman" | "beep" | "decision";
 
 const DECISION_SOUND_OFFERS = new Set<Offer["kind"]>([
     "chi",
@@ -26,6 +26,31 @@ const BEEP_SECONDS = 5;
 
 function discardCount(table: TableState): number {
     return table.players.reduce((count, player) => count + player.discards.length, 0);
+}
+
+function holdsDraw(player: PlayerState | undefined): boolean {
+    return player !== undefined && (player.drawnTileId !== null || player.drawnConcealed);
+}
+
+/** Whether no tile has left a hand yet this round: no discard and no call, so the next draw opens the round. */
+function opensRound(table: TableState): boolean {
+    return table.players.every(
+        (player) => player.discards.length === 0 && player.melds.length === 0,
+    );
+}
+
+/**
+ * Whether a move draws one tile after the round's opening one: the wall gives up exactly one and a seat newly holds a
+ * draw, so a deal, the dealer's opening draw that comes with it, a re-sent draw and a win's revealed hand stay quiet.
+ */
+function drawsOneTile(before: TableState, after: TableState): boolean {
+    return (
+        !opensRound(before) &&
+        after.tilesRemaining === before.tilesRemaining - 1 &&
+        after.players.some(
+            (player, index) => holdsDraw(player) && !holdsDraw(before.players[index]),
+        )
+    );
 }
 
 /** Whether a round's result pays a winner at a yakuman limit. */
@@ -46,7 +71,9 @@ function callCues(calls: readonly Call[], table: TableState): readonly SoundCue[
 /**
  * The sounds of one move, live or in a replay, from the table it found (`before`) to the one it left (`after`), with
  * the calls it makes aloud: a discard's click when it adds exactly one discard to the table, so a deal or a
- * reconnect's snapshot, which replace the rivers whole, stays quiet; then each call's voice, a yakuman win's gong.
+ * reconnect's snapshot, which replace the rivers whole, stays quiet; a draw's tick when it draws one tile after the
+ * round's opening draw; then each
+ * call's voice, a yakuman win's gong.
  */
 export function moveSoundCues(
     before: TableState,
@@ -55,7 +82,8 @@ export function moveSoundCues(
 ): readonly SoundCue[] {
     const discards: readonly SoundCue[] =
         discardCount(after) === discardCount(before) + 1 ? ["discard"] : [];
-    return [...discards, ...callCues(calls, after)];
+    const draws: readonly SoundCue[] = drawsOneTile(before, after) ? ["draw"] : [];
+    return [...discards, ...draws, ...callCues(calls, after)];
 }
 
 /** The calls the board starts showing at a live step; none while the same calls stay showing, or none show. */

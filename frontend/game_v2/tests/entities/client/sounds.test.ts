@@ -52,12 +52,12 @@ function cuesBeforeDeadline(
 describe("soundCues", () => {
     it.each([
         ["call_prompt_seat_1", "prompt", ["decision"]],
-        ["own_turn_seat_1", "first draw", ["decision"]],
+        ["own_turn_seat_1", "first draw", ["draw", "decision"]],
         ["first_turn_win_seat_1", "tenhou draw", ["decision"]],
         ["double_ron_seat_1", "ron prompt", ["decision"]],
         ["call_prompt_seat_1", "turn", []],
-        ["own_turn_seat_1", "rinshan", ["decision"]],
-        ["game_end_reconnect_seat_1", "first draw", []],
+        ["own_turn_seat_1", "rinshan", ["draw", "decision"]],
+        ["game_end_reconnect_seat_1", "first draw", ["draw"]],
     ] as const)(
         "chimes only for a new call, riichi or win offer at %s / %s",
         (name, label, expected) => {
@@ -155,6 +155,16 @@ describe("soundCues", () => {
             cuesAfter(scenario, "dropped", "ron prompt re-sent"),
             cuesAfter(scenario, "ron chosen", "round end"),
         ]).toEqual([["discard"], [], []]);
+    });
+
+    it("ticks for an opponent's draw after the discard it follows, but not for the round's opening draw, a reconnect's snapshot or its re-sent draw", () => {
+        const scenario = "call_prompt_seat_1";
+
+        expect([
+            cuesAfter(scenario, "dealt", "prompt"),
+            cuesAfter(scenario, "discarded", "seat 2 drew"),
+            cuesAfter(scenario, "dropped", "turn re-sent"),
+        ]).toEqual([["discard", "decision"], ["discard", "draw"], []]);
     });
 
     it("waits for the server's yakuman result to ring the gong after declaring the win", () => {

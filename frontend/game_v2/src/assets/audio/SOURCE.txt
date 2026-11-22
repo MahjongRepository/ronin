@@ -11,3 +11,9 @@ their 16-bit PCM samples. Sample rates and channel counts are unchanged.
 Use FLAC for these short effects: a 64 kbps MP3 trial added about 25 ms of leading
 decoder padding in WebKit. Chromium and WebKit decode the FLAC files with the
 original sample counts and onset timing. Audio is still loaded eagerly.
+
+The draw tick (draw-airy-tick.flac) is original and synthesized: one tick of white
+noise through a 6.8 kHz band-pass (Q 1.1) and a 9 kHz low-pass, under a 1.2 ms
+raised-cosine rise and 1.8 ms decay, faded out by 18 ms; 24 ms long, 16-bit mono
+44.1 kHz, peak normalized to -1 dBFS and played at a volume that sets it about
+14 dB under the discard clack.

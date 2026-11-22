@@ -14,6 +14,7 @@ import yakumanUrl from "@/assets/audio/calls/yakuman.mp3?no-inline";
 import countdownUrl from "@/assets/audio/countdown-soft-reply.flac?no-inline";
 import decisionUrl from "@/assets/audio/decision-radar-reply.flac?no-inline";
 import discardUrl from "@/assets/audio/discard-resin.flac?no-inline";
+import drawUrl from "@/assets/audio/draw-airy-tick.flac?no-inline";
 import tileBodies from "@/assets/tiles/sprites/bodies.svg?raw";
 import tileSpriteUrl from "@/assets/tiles/sprites/fluffy-stuff.svg?url";
 import {
@@ -81,11 +82,13 @@ import { unsupportedBrowserTemplate } from "@/views/unsupported-browser";
 
 const VOICE_VOLUME = 0.2;
 const DISCARD_VOLUME = 0.1;
+const DRAW_VOLUME = 0.016;
 const GAME_SOUNDS: Readonly<Record<SoundCue, SoundSource>> = {
     beep: { kind: "file", url: countdownUrl, volume: VOICE_VOLUME },
     chi: { kind: "file", url: chiUrl, volume: VOICE_VOLUME },
     decision: { kind: "file", url: decisionUrl, volume: VOICE_VOLUME },
     discard: { kind: "file", url: discardUrl, volume: DISCARD_VOLUME },
+    draw: { kind: "file", url: drawUrl, volume: DRAW_VOLUME },
     kan: { kind: "file", url: kanUrl, volume: VOICE_VOLUME },
     pon: { kind: "file", url: ponUrl, volume: VOICE_VOLUME },
     riichi: { kind: "file", url: riichiUrl, volume: VOICE_VOLUME },

@@ -26,6 +26,7 @@ export const BOARD_MOTION = {
 } as const;
 
 export const DISCARD_LANDING_MS = BOARD_MOTION.landing;
+export const DRAW_HOLD_MS = BOARD_MOTION.drawHold;
 
 export interface MotionRect {
     readonly left: number;

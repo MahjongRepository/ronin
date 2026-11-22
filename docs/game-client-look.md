@@ -684,7 +684,8 @@ as a number, not seen, so the count turns red from ten tiles left.
   shows without opening the menu. A replay has the same corner and cog, its menu the sound switch and the language row alone. The live
   board has no way back of its own; the rotate panel in a narrow portrait viewport keeps
   one, which asks the leave question, and an end's panel offers the lobby.
-- **Sound.** The live game plays an original synthesized resin tile clack and a soft two-note countdown tone,
+- **Sound.** The live game plays an original synthesized resin tile clack, a fainter single airy tick for every seat's
+  draw (rinshan included) and a soft two-note countdown tone,
   plus a soft 180 ms chime once for each newly seen decision offering chi, pon, kan, riichi, ron or tsumo that still needs
   the player's answer. A previously seen prompt repeated or reconnected, a refused answer reopening, an automatic answer and a
   turn offering only a discard or kyuushu do not chime. The decision chime is live-only. The supplied
@@ -695,7 +696,10 @@ as a number, not seen, so the count turns red from ten tiles left.
   (the Animations switch on and no system reduced motion); otherwise it plays with the move. A clack still waiting to
   land is dropped when the sound is turned off, a reset snapshot comes or the page closes; in a replay also on a jump or a
   step back, while a step on plays it at once. A decision chime that comes while a clack waits sounds with that clack,
-  since the chime opens on a clack-like tap that would otherwise read as a second clack. Every other sound plays with
+  since the chime opens on a clack-like tap that would otherwise read as a second clack. A draw tick never sounds before
+  or over a clack: one that comes while a clack waits, or within the draw hold (300ms) after one, waits until that hold
+  after the clack, when a held draw shows; a step on in a replay lands the clack and keeps that wait. A deal, the
+  round's opening draw (before any discard or call) and a re-sent draw tick nothing. Every other sound plays with
   its move. A reconnect's snapshot plays nothing. A replay plays a move's sounds (no beep) on a step on to the
   next stop (Next, autoplay, a held Next, the wheel), never on a jump, a step back or a result's page. A browser
   plays no sound before a click, tap or key on the page, and a wheel is none, so with the sound on a replay always

@@ -13,9 +13,10 @@ interface SoundGroup {
 const SOUND_GROUPS = [
     {
         description:
-            "A tile discard, a new call, riichi or win opportunity, and the final seconds of a decision.",
+            "A tile discard, a tile draw, a new call, riichi or win opportunity, and the final seconds of a decision.",
         sounds: [
             { cue: "discard", label: "Tile clack" },
+            { cue: "draw", label: "Tile draw · Airy tick" },
             { cue: "decision", label: "Call, riichi or win prompt · Radar reply + tile" },
             { cue: "beep", label: "Soft countdown" },
         ],
