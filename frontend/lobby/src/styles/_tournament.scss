@@ -6,8 +6,17 @@
     }
 }
 
-.tournament .connection-status {
-    margin-bottom: 1rem;
+.tournament-header {
+    flex-wrap: nowrap;
+}
+
+.tournament-connecting {
+    flex: none;
+    margin-inline-start: auto;
+
+    &.is-idle::before {
+        visibility: hidden;
+    }
 }
 
 .tournament-section-count {

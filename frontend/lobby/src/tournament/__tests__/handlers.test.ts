@@ -202,7 +202,7 @@ describe("buildStatusHandler", () => {
         vi.useRealTimers();
     });
 
-    test("hides who is online behind a connecting notice while a lost socket waits to reconnect", () => {
+    test("keeps the page in place behind a connecting status while a lost socket waits to reconnect", () => {
         vi.useFakeTimers();
         const { state } = buildTournament();
         const rejoin = vi.fn();
@@ -212,9 +212,9 @@ describe("buildStatusHandler", () => {
 
         expect(state.reconnectTimer).not.toBeNull();
         expect(rejoin).not.toHaveBeenCalled();
-        expect(container.querySelector(".tournament-online")).toBeNull();
+        expect(container.querySelector(".tournament-online")).not.toBeNull();
         expect(container.querySelector(".tournament-played")).not.toBeNull();
-        expect(container.querySelector("[role=status]")?.textContent).toBe("Connecting…");
+        expect(container.querySelector(".tournament-header [role=status] .connection-status-label")?.textContent).toBe("Connecting…");
     });
 });
 

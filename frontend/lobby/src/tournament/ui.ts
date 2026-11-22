@@ -169,10 +169,16 @@ function chatTemplate(page: TournamentPage): TemplateResult {
 }
 
 function connectingTemplate(state: TournamentState): TemplateResult | typeof nothing {
-    if (isLive(state) || isConnectionLost(state)) {
+    if (state.pageError) {
         return nothing;
     }
-    return html`<p class="connection-status status-connecting" role="status">${t("tournament.connecting")}</p>`;
+    const connecting = !isLive(state) && !isConnectionLost(state);
+    return html`<span class="connection-status status-connecting tournament-connecting ${connecting ? "" : "is-idle"}" role="status">
+        <span class="connection-status-text">
+            <span class="connection-status-label">${connecting ? t("tournament.connecting") : nothing}</span>
+            <span class="connection-status-sizer" aria-hidden="true">${t("tournament.connecting")}</span>
+        </span>
+    </span>`;
 }
 
 function panelsTemplate(page: TournamentPage): TemplateResult | typeof nothing {
@@ -183,11 +189,10 @@ function panelsTemplate(page: TournamentPage): TemplateResult | typeof nothing {
             : html`${currentGamesTemplate(page)} ${playedGamesTemplate(null, false, actions.showAllPlayed)}`;
     }
     return html`
-        ${connectingTemplate(state)}
         ${currentGamesTemplate(page)}
         ${playedGamesTemplate(state.played, state.playedExpanded, actions.showAllPlayed)}
         <div class="tournament-side">
-            ${isLive(state) ? onlineTemplate(state) : nothing}
+            ${isConnectionLost(state) ? nothing : onlineTemplate(state)}
             ${chatTemplate(page)}
         </div>
     `;
@@ -220,8 +225,9 @@ function headerTemplate(page: TournamentPage): TemplateResult {
     const { state } = page;
     return html`
         <section class="lobby-section">
-            <div class="lobby-section-header">
+            <div class="lobby-section-header tournament-header">
                 <h2 class="tournament-name">${state.name ?? t("tournament.fallback_name")}</h2>
+                ${connectingTemplate(state)}
             </div>
             ${tabsTemplate(page)}
         </section>
