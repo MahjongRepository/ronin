@@ -317,13 +317,19 @@ describe("live board input", () => {
         expect(messages(effects)).toEqual([buildDiscardAction(tileId, waitId(state))]);
     });
 
-    it("picks riichi's discard on one finger tap", () => {
+    it("lifts riichi's discard on a finger's first tap and declares on the second", () => {
         const state = checkpointState("own_turn_seat_1", "rinshan");
         const { commands, host } = mountInput(state);
         element(host, '[data-focus-key~="riichi-pick"]').click();
-        fingerTap(element(host, ".hand-tile--declaring"));
-        expect(host.querySelector(".hand-tile--armed")).toBeNull();
-        expect(commands.at(-1)?.kind).toBe("intent");
+        const tileId = Number(element(host, ".hand-tile--declaring").dataset.tileId);
+        expect(armedAfterTap(host, tileButton(host, tileId))).toEqual([tileId]);
+        expect(commands.at(-1)?.kind).toBe("arm_tile");
+
+        fingerTap(tileButton(host, tileId));
+        expect(commands.at(-1)).toMatchObject({
+            intent: { offer: { kind: "riichi", tileId } },
+            kind: "intent",
+        });
     });
 
     it("passes a call by right-click under open settings, closing them with the same click", () => {

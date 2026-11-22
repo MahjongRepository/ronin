@@ -529,8 +529,8 @@ class PlayInput extends AsyncDirective {
     }
 
     /**
-     * A finger has no hover, so its first tap on a discardable tile only lifts it; the tap that follows on that tile
-     * is left to discard it, a tap on another moves the lift there, and one anywhere else drops it.
+     * A finger has no hover, so its first tap on a playable tile (a discard, or riichi's while it is picked) only lifts
+     * it; the tap that follows on that tile is left to play it, a tap on another moves the lift there, and one anywhere else drops it.
      */
     private armByFinger(event: MouseEvent): void {
         const armed = this.display?.armedTile ?? null;
@@ -541,7 +541,7 @@ class PlayInput extends AsyncDirective {
             }
             return;
         }
-        if (tileId !== armed && this.display?.tileIntents.get(tileId)?.type === "discard") {
+        if (tileId !== armed && this.display?.tileIntents.has(tileId) === true) {
             consume(event);
             this.onCommand?.({ kind: "arm_tile", tileId });
         }

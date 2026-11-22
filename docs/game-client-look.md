@@ -554,7 +554,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   a finger discards in two taps, since a phone's tiles sit close enough for a wrong one to be
   tapped and a discard cannot be taken back. The first tap lifts the tile 15px;
   a second on it sends it, one on another selectable tile moves the lift there, and one anywhere
-  else drops it. A riichi declaration's pick stays one tap, the riichi toggle being its first step.
+  else drops it. A riichi declaration's pick takes the same two taps after the riichi toggle.
 - **Timer.** The countdown beside the decision controls (right of the pass, in the cluster) as large digits, the base time and the bank
   apart (`5 +20`), its digits and any caption each on a small dark chip in the plates' badge tone on every board, so
   they read over whatever the cluster covers (a plate, a river), the bank marked while it alone is draining, so a player always knows which time

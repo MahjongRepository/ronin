@@ -116,15 +116,15 @@ export function armedTileId(state: LiveClient, ui: PlayUi): number | null {
 }
 
 function takenTileState(tileId: number, picking: boolean, armed: number | null): PlayableState {
-    if (picking) {
-        return "declaring";
+    if (tileId === armed) {
+        return "armed";
     }
-    return tileId === armed ? "armed" : "selectable";
+    return picking ? "declaring" : "selectable";
 }
 
 /**
  * How each of the viewer's tiles plays, by asking the dispatcher whether it takes the tile's intent: selectable
- * when it does (armed, once a finger tapped it; declaring, while riichi's discard is picked); before riichi, disabled when an open turn holds it back
+ * when it does (declaring, while riichi's discard is picked; armed, once a finger tapped it); before riichi, disabled when an open turn holds it back
  * (kuikae or not riichi's while picking it); the tile an answer played, selected; otherwise waiting. Every
  * tile stays a button, so focus stays in the hand.
  */
