@@ -68,7 +68,7 @@ function shownBackAspect(view: TableView, hand: (left: number, top: number) => n
 
 describe("the top hand", () => {
     it.each([...WIDE, ...WIDTH_BOUND, SHORTEST_PHONE])(
-        "concealed on %s: on the revealed hand's foot at its width, a back at most 1.52 tall, as a revealing back scaled from its foot",
+        "concealed on %s: on the revealed hand's foot at its width, a back at most 1.38 tall, as a revealing back scaled from its foot",
         (_shape, box) => {
             const { view } = viewOf(box);
             const values = Object.fromEntries(surfaceViewValues(view));
@@ -88,7 +88,7 @@ describe("the top hand", () => {
                 );
             }
             expect(shownBackAspect(view, concealed)).toBeCloseTo(
-                Math.min(shownBackAspect(view, revealed), 1.52),
+                Math.min(shownBackAspect(view, revealed), 1.38),
                 3,
             );
         },

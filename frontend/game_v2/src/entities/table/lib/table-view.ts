@@ -194,7 +194,7 @@ function pieceTransform(view: TableView): string {
 }
 
 /** The tallest a top hand's standing back shows, in its widths, whatever the camera's tilt. */
-const TOP_BACK_SHOWN_ASPECT = 1.52;
+const TOP_BACK_SHOWN_ASPECT = 1.38;
 
 function topHandValues(view: TableView): [string, string][] {
     const depth = TILE_ASPECT + TOP_HAND_EDGE_SHARE;

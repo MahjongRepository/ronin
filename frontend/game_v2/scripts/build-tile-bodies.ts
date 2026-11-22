@@ -31,15 +31,9 @@ interface Stop {
     readonly opacity?: number;
 }
 
-interface Panel {
-    readonly radius: number;
-    readonly top: number;
-}
-
 interface Layer {
     readonly gradient: string;
     readonly mask?: string;
-    readonly panel?: Panel;
 }
 
 interface Size {
@@ -101,19 +95,8 @@ function renderBox({ width, height }: Size, fill: string, mask?: string): string
     return `<rect width="${formatNumber(width)}" height="${formatNumber(height)}" fill="url(#${fill})"${maskAttribute}/>`;
 }
 
-function panelHeight(size: Size, { radius, top }: Panel): number {
-    return size.height - top + radius;
-}
-
-function renderPanel(size: Size, fill: string, panel: Panel): string {
-    const radius = formatNumber(panel.radius);
-    return `<rect y="${formatNumber(panel.top)}" width="${formatNumber(size.width)}" height="${formatNumber(panelHeight(size, panel))}" rx="${radius}" ry="${radius}" fill="url(#${fill})"/>`;
-}
-
-function renderLayer(size: Size, { gradient, mask, panel }: Layer): string {
-    return panel === undefined
-        ? renderBox(size, gradient, mask)
-        : renderPanel(size, gradient, panel);
+function renderLayer(size: Size, { gradient, mask }: Layer): string {
+    return renderBox(size, gradient, mask);
 }
 
 interface Outline {
@@ -400,39 +383,18 @@ function sideTopStops(shape: StandingBackShape, palette: StandingBackPalette): r
     ];
 }
 
-function standingCapAcrossStops(): readonly Stop[] {
+function uprightBackDownStops(shape: StandingBackShape): readonly Stop[] {
+    const height = shape.top + shape.edge;
+    const { capDepth, capFaceShare, capRoll } = STANDING_BACK_BODY;
+    const join = capDepth * capFaceShare;
     return [
         { at: 0, colour: "--ronin-tile-ridge" },
-        { at: 0.04, colour: "--ronin-tile-ridge" },
-        { at: 0.16, colour: "--ronin-tile-top" },
-        { at: 0.84, colour: "--ronin-tile-top" },
-        { at: 0.93, colour: "--ronin-tile-front" },
-        { at: 1, colour: "--ronin-tile-side" },
-    ];
-}
-
-function standingCapFootStops(shape: StandingBackShape): readonly Stop[] {
-    const height = shape.top + shape.edge;
-    const cap = standingBackSpan(shape).face;
-    return [
-        { at: 0, colour: "--ronin-tile-rim-shade", opacity: 0 },
-        { at: (cap - 0.035) / height, colour: "--ronin-tile-rim-shade", opacity: 0 },
-        { at: cap / height, colour: "--ronin-tile-rim-shade", opacity: 0.45 },
-        { at: 1, colour: "--ronin-tile-rim-shade", opacity: 0.45 },
-    ];
-}
-
-function uprightBackPanel(shape: StandingBackShape): Panel {
-    return {
-        radius: inViewUnits(STANDING_BACK_BODY.shoulderRadius),
-        top: inViewUnits(standingBackSpan(shape).face),
-    };
-}
-
-function standingBackDepthStops(): readonly Stop[] {
-    return [
-        { at: 0, colour: "--ronin-back-light" },
-        { at: 0.35, colour: "--ronin-back" },
+        { at: (0.15 * join) / height, colour: "--ronin-tile-top" },
+        { at: join / height, colour: "--ronin-tile-top" },
+        { at: join / height, colour: "--ronin-back-rim" },
+        { at: (0.9 * capDepth) / height, colour: "--ronin-back-rim" },
+        { at: capDepth / height, colour: "--ronin-back-light" },
+        { at: (capDepth + capRoll) / height, colour: "--ronin-back-shade" },
         { at: 1, colour: "--ronin-back-shade" },
     ];
 }
@@ -473,22 +435,14 @@ function spanRimStops(shape: StandingBackShape): readonly Stop[] {
 }
 
 function renderUprightBackBody(id: string, shape: StandingBackShape): string {
-    const panel = uprightBackPanel(shape);
     return renderSymbol({
         cornerRadius: STANDING_BACK_BODY.cornerRadius,
         gradients: [
-            renderGradient(`${id}-cap`, "across", standingCapAcrossStops()),
-            renderGradient(`${id}-cap-foot`, "down", standingCapFootStops(shape)),
-            renderGradient(`${id}-back`, "down", standingBackDepthStops()),
-            renderGradient(`${id}-back-edges`, "across", standingBackEdgeStops(shape.across)),
+            renderGradient(`${id}-body`, "down", uprightBackDownStops(shape)),
+            renderGradient(`${id}-edges`, "across", standingBackEdgeStops(shape.across)),
         ],
         id,
-        layers: [
-            { gradient: `${id}-cap` },
-            { gradient: `${id}-cap-foot` },
-            { gradient: `${id}-back`, panel },
-            { gradient: `${id}-back-edges`, panel },
-        ],
+        layers: [{ gradient: `${id}-body` }, { gradient: `${id}-edges` }],
         masks: [],
         size: sizeOf(shape.across, shape.top + shape.edge),
     });

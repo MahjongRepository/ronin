@@ -33,13 +33,14 @@ const LYING_BODY = {
 } as const;
 
 const STANDING_BACK_BODY = {
-    capDepth: 0.37,
+    capDepth: 0.62,
+    capFaceShare: 0.58,
+    capRoll: 0.06,
     cornerRadius: 0.07,
     edge: STANDING_BACK_EDGE_SHARE,
     litRim: 0.035,
     rise: 0.24,
     shadedRim: 0.055,
-    shoulderRadius: 0.06,
 } as const;
 
 const UPRIGHT_BACK_EDGE = STANDING_BACK_BODY.edge + STANDING_BACK_BODY.rise;
