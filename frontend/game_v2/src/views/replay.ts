@@ -9,6 +9,7 @@ import {
     type LoadedReplayScreen,
     type ObserveCountdown,
     type ObserveOpening,
+    ObserveWaitingBoard,
     ROUND_LIST_TOGGLE_FOCUS_KEY,
     ReplayBoard,
     type ReplayBoardHandlers,
@@ -32,7 +33,6 @@ import {
     showsHand,
     stepReplayPage,
 } from "@/entities/replay";
-import { windName } from "@/entities/table";
 import {
     type LoadReplay,
     type ObserveFetch,
@@ -334,38 +334,13 @@ function loadingTemplate(waiting: boolean): TemplateResult {
     </div>`;
 }
 
-/** The time left as minutes and seconds, a part second counted whole. */
-function countdownTime(remainingMs: number): string {
-    const seconds = Math.ceil(remainingMs / 1000);
-    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
-/** An observed game before it can be played: its players East to North and the time left, or loading before any. */
 function observeWaitingTemplate(countdown: ObserveCountdown | null): TemplateResult {
     if (countdown === null) {
         return html`<div class="replay-state" role="status" aria-busy="true">
             <p class="replay-state__detail">${t("replay.observe.loading")}</p>
         </div>`;
     }
-    return html`<div class="replay-state">
-        <h1 class="replay-state__title">${t("replay.observe.title")}</h1>
-        <ol class="replay-state__players" aria-label=${t("replay.observe.players")}>
-            ${countdown.players.map(
-                (name, wind) => html`<li>
-                    <span class="replay-state__wind">${windName(wind)}</span>
-                    <span>${name}</span>
-                </li>`,
-            )}
-        </ol>
-        <p class="replay-state__detail">${t("replay.observe.delay_note")}</p>
-        <p class="replay-state__countdown">
-            ${
-                countdown.remainingMs > 0
-                    ? t("replay.observe.countdown", { time: countdownTime(countdown.remainingMs) })
-                    : t("replay.observe.starting")
-            }
-        </p>
-    </div>`;
+    return html`<div class="board-page__board">${ObserveWaitingBoard(countdown)}</div>`;
 }
 
 /** An observed game the server no longer holds, before any of it could be played: its saved replay and the lobby. */
@@ -407,13 +382,19 @@ function screenTemplate(
     }
 }
 
+function showsBoard(screen: ReplayScreen): boolean {
+    return (
+        screen.kind === "loaded" || (screen.kind === "observe_waiting" && screen.countdown !== null)
+    );
+}
+
 function replayTemplate(
     screen: ReplayScreen,
     chrome: ReplayChrome,
     handlers: ReplayHandlers,
 ): TemplateResult {
     return html`
-        ${screen.kind === "loaded" ? ReplayRotatePanel(chrome.links.history) : nothing}
+        ${showsBoard(screen) ? ReplayRotatePanel(chrome.links.history) : nothing}
         <div
             class="board-page replay-board-mode"
             tabindex="0"

@@ -87,6 +87,25 @@ describe("replayDisplay", () => {
         ]);
     });
 
+    test("plays an observed game as live play does, its round's result held, with no notice while it is live", () => {
+        const replay = replayOf(engineReplayBytes("pao"));
+        const [{ resultStop }] = replay.navigation.rounds;
+        assert(resultStop !== null);
+        const cursor = { page: 0, stop: resultStop };
+        const place = { cursor, perspective: ALL, seating: false, shownCall: null };
+        const archived = replayDisplay(replay, { ...place, observe: null });
+        const watched = replayDisplay(replay, { ...place, observe: { ended: false, gone: false } });
+
+        assert(archived.overlay?.kind === "result" && watched.overlay?.kind === "result");
+        expect([archived.motion.mode, archived.overlay.held]).toEqual(["replay", false]);
+        expect([watched.motion, watched.overlay.held, watched.incomplete, watched.stream]).toEqual([
+            { mode: "step", sequence: cursor.stop },
+            true,
+            null,
+            "live",
+        ]);
+    });
+
     test("shows the seating at the starting scores over the table as the game started, then the stop's own panel", () => {
         const replay = replayOf(engineReplayBytes("double_ron"));
         const result = replay.navigation.stops.findIndex((stop) => stop.pages > 1);

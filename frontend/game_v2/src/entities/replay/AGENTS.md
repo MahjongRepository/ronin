@@ -21,17 +21,20 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
 - Autoplay and a held button or key pause on every result page and at the last stop (`isPauseStop`); the wheel holds
   each result page `WHEEL_RESULT_HOLD_MS` and steps on while it keeps turning. An observed game's autoplay is the
   exception: it holds a result page `OBSERVE_RESULT_HOLD_MS` and crosses it, and waits only at the newest stop of a
-  stream that has not ended, moving on when an answer brings more; a pause the viewer chose holds, and hiding the
-  page pauses nothing.
+  stream that has not ended, moving on when an answer brings more; nothing the viewer does pauses it, the page
+  hiding included.
 - An observed game (the observe page) is the same replay read from the observe stream: the page's screen keeps every
   byte received and rebuilds `LoadedReplay` with `readReplay(…, "observe")` from them on each answer that brought
   records, keeping the view, the reader's settings and autoplay. Only that source may lack the seed. Before its
-  first playable records it shows the players and the time left; it then opens with autoplay on and no seating, at
-  the first deal for a viewer who saw that countdown, else at the newest stop, and it never reads or writes the
-  address. Its status says it is live in place of where the recording ends, and once the server no longer holds the
-  game it keeps the board and links the saved replay.
+  first playable records it shows the live game's start screen from the answer (the game type, the players East to
+  North, the time left in the OK's place); it then opens with autoplay on and no seating, at the first deal for a
+  viewer who saw that countdown, else at the newest stop, and it never reads or writes the address. It plays as live
+  play does: the `step` motion cue and held results, no move of the cursor taken from the viewer (keys, wheel, round
+  list, result pages), its controls only the next seat's view in live play's band. A badge under the centre's wall
+  count says it is live while the stream is, and once the server no longer holds the game it keeps the board and its
+  status links the saved replay.
 - Replay tile motion settles the previous stop before measuring the next, so rapid navigation never queues behind
-  movement or carries old tile effects into the new stop. The replay cue omits the live discard pause; backward
+  movement or carries old tile effects into the new stop. The replay cue (an archive's) omits the live discard pause; backward
   steps, jumps and round changes show their destination immediately.
 - A replay that stops short of the game's end, or was cut at a damaged record, says so on every stop.
 - The replay page's screen (loading, failed, an observed game's countdown or its gone notice, loaded) moves only

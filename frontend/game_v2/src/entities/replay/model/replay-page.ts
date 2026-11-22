@@ -96,6 +96,7 @@ export interface ObserveStream {
  */
 export interface ObserveCountdown {
     readonly players: readonly string[];
+    readonly gameType: string;
     readonly availableAt: number;
     readonly remainingMs: number;
     readonly redrawAt: number | null;
@@ -328,7 +329,12 @@ function stepTarget(screen: LoadedReplayScreen, direction: StepDirection): Repla
  * would take none scrolls.
  */
 export function canStep(screen: ReplayScreen, direction: StepDirection): boolean {
-    return screen.kind === "loaded" && !screen.seating && stepTarget(screen, direction) !== null;
+    return (
+        screen.kind === "loaded" &&
+        screen.observe === null &&
+        !screen.seating &&
+        stepTarget(screen, direction) !== null
+    );
 }
 
 /** Whether the cursor shown is where a held step pauses: a result's page or the last stop. */
@@ -1077,6 +1083,7 @@ function countdownOf(answer: ObserveAnswer, at: number): ObserveCountdown {
     const availableAt = at + answer.availableInMs;
     return {
         availableAt,
+        gameType: answer.gameType,
         players: answer.players,
         redrawAt: nextRedraw(availableAt, at),
         remainingMs: answer.availableInMs,
@@ -1249,7 +1256,27 @@ function withoutAddress(step: LoadedStep): LoadedStep {
         : { ...step, effects: step.effects.filter((effect) => effect.kind !== "write_address") };
 }
 
+const OBSERVE_IGNORED_INPUTS: ReadonlySet<LoadedInput["kind"]> = new Set([
+    "move",
+    "result_page",
+    "select_round",
+    "step_click",
+    "step_press",
+    "wheel",
+    "toggle_play",
+]);
+
+function movesObservedCursor(event: LoadedInput): boolean {
+    if (event.kind === "key") {
+        return event.command === "play" || (event.command !== null && !isToggle(event.command));
+    }
+    return OBSERVE_IGNORED_INPUTS.has(event.kind);
+}
+
 function stepOther(screen: ReplayScreen, event: Timed<LoadedInput>): ReplayPageStep {
+    if (screen.kind === "loaded" && screen.observe !== null && movesObservedCursor(event)) {
+        return quiet(screen);
+    }
     if (screen.kind === "loaded") {
         return withoutAddress(stepLoaded(screen, event));
     }

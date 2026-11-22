@@ -15,6 +15,7 @@ import {
     type ReplayPrefs,
     type ReplayScreen,
     WHEEL_RESULT_HOLD_MS,
+    canStep,
     replayPageDeadline,
     roundPosition,
     stepReplayPage,
@@ -820,6 +821,25 @@ describe("stepReplayPage - observe", () => {
         expect([observe?.pollAt, loaded(hidden.screen).autoplay]).toEqual([
             2200 + OBSERVE_POLL_MS,
             autoplay,
+        ]);
+    });
+
+    it("ignores every move of the cursor and autoplay's switch, the next seat's view still turning", () => {
+        const { shown } = countdownScenario();
+        const moves: readonly ReplayPageInput[] = [
+            { command: "next", kind: "key", repeat: false },
+            { command: "play", kind: "key", repeat: false },
+            { deltaPx: 400, kind: "wheel" },
+            { direction: "next", kind: "step_press", primary: true },
+            { cursor: { page: 0, stop: 1 }, kind: "select_round" },
+            { kind: "toggle_play" },
+        ];
+        const viewed = step(shown, { command: "view", kind: "key", repeat: false }, 2300);
+
+        expect(moves.filter((input) => step(shown, input, 2300).screen !== shown)).toEqual([]);
+        expect([canStep(shown, "next"), loaded(viewed.screen).view.bottomSeat]).toEqual([
+            false,
+            (loaded(shown).view.bottomSeat + 1) % 4,
         ]);
     });
 

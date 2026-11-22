@@ -115,7 +115,7 @@ function incompleteness(
     stream: ReplayStreamState | null,
 ): ReplayIncompleteness | null {
     if (stream === "live") {
-        return { detail: t("replay.observe.live_detail"), label: t("replay.observe.live") };
+        return null;
     }
     if (stream === "gone") {
         return { detail: t("replay.observe.gone_detail"), label: t("replay.observe.gone") };
@@ -229,7 +229,7 @@ export interface ReplayPlace {
 /** The stop's board and panel, or the seating over the table as the game started, which shows no call. */
 function stopBoard(
     source: ReplaySource,
-    { cursor, perspective, seating, shownCall }: ReplayPlace,
+    { cursor, observe, perspective, seating, shownCall }: ReplayPlace,
 ): Pick<ReplayDisplay, "board" | "callouts" | "overlay" | "matchResult"> {
     if (seating) {
         return {
@@ -244,7 +244,7 @@ function stopBoard(
     const callouts = shownCallouts(source, shownCall, perspective);
     const overlay = tablePanel(table, {
         bottomSeat: perspective.bottomSeat,
-        holdsResult: callsAWin(callouts),
+        holdsResult: observe !== null || callsAWin(callouts),
         overGameEnd: false,
         page: cursor.page,
         viewerSeat: null,
@@ -269,7 +269,10 @@ export function replayDisplay(source: ReplaySource, place: ReplayPlace): ReplayD
         ...stopBoard(source, place),
         endNotice: endNotice(source, cursor, stream),
         incomplete: incompleteness(source, stream),
-        motion: { mode: "replay", sequence: place.seating ? -1 : cursor.stop },
+        motion: {
+            mode: place.observe === null ? "replay" : "step",
+            sequence: place.seating ? -1 : cursor.stop,
+        },
         moves: replayMoves(nav, cursor, place.perspective.bottomSeat),
         roundName: formatRoundName(round.wind, round.roundInWind, round.honba),
         rounds: roundRows(nav, stop.round),

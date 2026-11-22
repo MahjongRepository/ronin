@@ -1459,7 +1459,7 @@ describe("mountReplayView - observing", () => {
         const stream = fakeObserve();
         const watched = mountReplay("", { fetchObserve: stream.fetchObserve });
         await stream.answer(observeAnswer(engineReplayBytes("full_game"), 7, false));
-        const live = textOf(watched.host, ".replay-status__incomplete-label");
+        const live = textOf(watched.host, ".board-center__live");
 
         watched.clock.advanceTo(OBSERVE_POLL_MS);
         await stream.answer(observeAnswer(new Uint8Array(), 7, true));
@@ -1467,10 +1467,7 @@ describe("mountReplayView - observing", () => {
         await settle();
 
         expect(stream.requests.map(({ from }) => from)).toEqual([0, 7]);
-        expect([live, textOf(watched.host, ".replay-status__incomplete-label")]).toEqual([
-            "Live, 5-minute delay",
-            undefined,
-        ]);
+        expect([live, textOf(watched.host, ".board-center__live")]).toEqual(["Live", undefined]);
     });
 
     it("aborts the request in flight on dispose and asks nothing afterwards", async () => {

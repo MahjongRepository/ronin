@@ -36,6 +36,7 @@ export interface ReplayPlayback {
 export const STEP_BUTTON_ATTRIBUTE = "data-step";
 
 export interface ReplayControlsProps {
+    readonly observing: boolean;
     readonly moves: ReplayMoves;
     readonly playback: ReplayPlayback;
     readonly roundListOpen: boolean;
@@ -218,19 +219,22 @@ function ToolsButton(props: ReplayControlsProps): TemplateResult {
  * score views from it too.
  */
 export function ReplayControls(props: ReplayControlsProps): TemplateResult {
+    const view = OptionButton({
+        content: Icon(OPTION_ICONS.view),
+        kind: "view",
+        label: t("replay.options.next_view"),
+        onClick: props.onNextView,
+        tip: tip(t("replay.options.next_view"), "V"),
+    });
+    if (props.observing) {
+        return html`<div class="replay-controls__options" role="group" aria-label=${t("replay.controls.view")}>${view}</div>`;
+    }
     return html`
         <div class="replay-controls__moves" role="group" aria-label=${t("replay.controls.moves")}>
             ${JumpButton("prevRound", props)}${JumpButton("prevTurn", props)}${StepButton("prev", props)}${PlayButton(props)}${StepButton("next", props)}${JumpButton("nextTurn", props)}${JumpButton("nextRound", props)}
         </div>
         <div class="replay-controls__options" role="group" aria-label=${t("replay.controls.view")}>
-            ${OptionButton({
-                content: Icon(OPTION_ICONS.view),
-                kind: "view",
-                label: t("replay.options.next_view"),
-                onClick: props.onNextView,
-                tip: tip(t("replay.options.next_view"), "V"),
-            })}
-            ${RoundsButton(props)}${ToolsButton(props)}
+            ${view}${RoundsButton(props)}${ToolsButton(props)}
         </div>
     `;
 }

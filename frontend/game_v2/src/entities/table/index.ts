@@ -83,4 +83,5 @@ export { drawName } from "./lib/draw-name";
 export type { PanelAction } from "./ui/panel-actions";
 export { GameStartDisplay } from "./ui/game-start-display";
 export type { GameStartDisplayState, GameStartSeat } from "./lib/game-start-display";
+export { observeSeatingDisplay } from "./lib/game-start-display";
 export { formatRoundName, roundName } from "./lib/round-name";

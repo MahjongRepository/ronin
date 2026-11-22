@@ -87,6 +87,8 @@ interface GameBoardProps {
         readonly controls: TemplateResult;
         readonly status: TemplateResult;
         readonly marksTsumogiri?: boolean;
+        readonly observed?: boolean;
+        readonly live?: boolean;
     };
     readonly input?: DirectiveResult;
 }
@@ -300,10 +302,28 @@ function CenterSeat(
  * The centre: each seat's wind and score on its side, its riichi stick inside the edge, the turn's bar on it, and in
  * its middle the round over the wall's count and the honba and riichi sticks on the table.
  */
+function LiveBadge(): TemplateResult {
+    return html`<button
+        type="button"
+        class="board-center__live"
+        aria-expanded="false"
+        data-tip=${t("replay.observe.live_detail")}
+        @click=${(event: Event) => {
+            const badge = event.currentTarget;
+            if (badge instanceof HTMLElement) {
+                badge.setAttribute(
+                    "aria-expanded",
+                    String(badge.getAttribute("aria-expanded") !== "true"),
+                );
+            }
+        }}
+    ><span class="board-center__live-dot" aria-hidden="true"></span><span class="board-center__live-word">${t("replay.observe.live")}</span></button>`;
+}
+
 function CenterInfo(
-    center: BoardCenterInfo,
-    plates: BoardDisplayState["nameplates"],
+    { center, nameplates: plates }: BoardDisplayState,
     onView: SeatView | null,
+    live: boolean,
 ): TemplateResult {
     return html`
         <div class="board-area board-center" data-area="center">
@@ -326,6 +346,7 @@ function CenterInfo(
                         >
                     </span>
                 </div>
+                ${live ? LiveBadge() : nothing}
             </div>
         </div>
     `;
@@ -413,6 +434,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
         "game-board",
         props.localHand ? "game-board--play" : "",
         props.replay ? "game-board--replay" : "",
+        props.replay?.observed ? "game-board--observe" : "",
         props.replay?.marksTsumogiri ? "game-board--marks-tsumogiri" : "",
         import.meta.env.DEV && props.debug ? "game-board--debug" : "",
     ]
@@ -429,7 +451,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
             data-motion=${animationsOn ? nothing : "off"}
             ${props.input ?? nothing}
             ${sizeBoard(
-                { band: props.replay ? "replay" : "play" },
+                { band: props.replay && props.replay.observed !== true ? "replay" : "play" },
                 {
                     left: stripContent(seatPlayer(state, "left")),
                     own: meldShapes(seatPlayer(state, "bottom")),
@@ -448,7 +470,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                         <div class="board-rivers">
                             ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
                         </div>
-                        ${state ? CenterInfo(state.center, state.nameplates, onView) : EmptyCenterArea()}
+                        ${state ? CenterInfo(state, onView, props.replay?.live === true) : EmptyCenterArea()}
                         <div class="board-strips">
                             ${STRIP_SEATS.map((seat) => Strip(seat, seatPlayer(state, seat)))}
                         </div>

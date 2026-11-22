@@ -10,6 +10,11 @@ const GAME_TYPE_NAMES: Readonly<Record<GameType, MessageKey>> = {
     [GAME_TYPE.TONPUSEN]: "game.type.tonpuu",
 };
 
+const WIRE_GAME_TYPES: ReadonlyMap<string, GameType> = new Map([
+    ["hanchan", GAME_TYPE.HANCHAN],
+    ["tonpusen", GAME_TYPE.TONPUSEN],
+]);
+
 /** A seat at the table: its seat wind, its player, and whether it deals, is the viewer's or AI. */
 export interface GameStartSeat {
     readonly seat: number;
@@ -104,5 +109,27 @@ export function replaySeatingDisplay(
             viewerSeat: null,
             viewpointSeat,
         }),
+    };
+}
+
+export function observeSeatingDisplay(
+    players: readonly string[],
+    wireGameType: string,
+): GameStartDisplayState {
+    const gameType = WIRE_GAME_TYPES.get(wireGameType);
+    return {
+        gameType: gameType === undefined ? null : t(GAME_TYPE_NAMES[gameType]),
+        round: roundName(WIND.EAST, 1),
+        seats: players.map((name, wind) => ({
+            isAiPlayer: false,
+            isDealer: wind === 0,
+            isViewer: false,
+            isViewpoint: false,
+            name,
+            score: null,
+            seat: wind,
+            wind: windLetter(wind),
+            windName: windName(wind),
+        })),
     };
 }

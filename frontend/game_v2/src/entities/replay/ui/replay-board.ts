@@ -5,16 +5,19 @@ import { type ReplayDisplay } from "@/entities/replay/lib/replay-display";
 import { type ReplayCursor, lastCursor } from "@/entities/replay/model/replay-cursor";
 import {
     type LoadedReplayScreen,
+    type ObserveCountdown,
     type StepDirection,
     showsHand,
 } from "@/entities/replay/model/replay-page";
 import {
     GameBoard,
+    GameStartDisplay,
     type PanelAction,
     SEAT_POSITIONS,
     type SeatPosition,
     type TablePanelControls,
     TablePanelDisplay,
+    observeSeatingDisplay,
 } from "@/entities/table";
 import { type Locale, type WindScript, t } from "@/shared/i18n";
 import { type ShortcutKeys } from "@/shared/lib";
@@ -93,9 +96,6 @@ function toolsTemplate({
 
 /** What the round list's last row goes to: the game's end, a live game's newest stop, or where the recording ends. */
 function endSummary(display: ReplayDisplay): string {
-    if (display.stream === "live") {
-        return t("replay.rounds.end_live");
-    }
     return display.incomplete === null
         ? t("replay.rounds.end_game")
         : t("replay.rounds.end_recording");
@@ -108,6 +108,7 @@ function endSummary(display: ReplayDisplay): string {
 function controlsTemplate(props: ReplayBoardProps): TemplateResult {
     const { display, handlers, screen } = props;
     const { autoplay, replay, roundListOpen } = screen;
+    const observing = screen.observe !== null;
     const last = lastCursor(replay.navigation);
     const end =
         last === null
@@ -117,17 +118,19 @@ function controlsTemplate(props: ReplayBoardProps): TemplateResult {
                   cursor: last,
                   summary: endSummary(display),
               };
-    const roundList = roundListOpen
-        ? RoundList({
-              end,
-              incomplete: display.incomplete,
-              onClose: handlers.closeRoundList,
-              onSelect: handlers.selectRound,
-              rows: display.rounds,
-          })
-        : nothing;
+    const roundList =
+        roundListOpen && !observing
+            ? RoundList({
+                  end,
+                  incomplete: display.incomplete,
+                  onClose: handlers.closeRoundList,
+                  onSelect: handlers.selectRound,
+                  rows: display.rounds,
+              })
+            : nothing;
     return html`<div class="replay-controls">${ReplayControls({
         moves: display.moves,
+        observing,
         onMove: handlers.move,
         onNextView: handlers.nextView,
         onStepClick: handlers.stepClick,
@@ -138,7 +141,7 @@ function controlsTemplate(props: ReplayBoardProps): TemplateResult {
         playback: { playing: autoplay.playing },
         roundListOpen,
         toolsOpen: screen.toolsOpen,
-    })}${roundList}${toolsTemplate(props)}</div>`;
+    })}${roundList}${observing ? nothing : toolsTemplate(props)}</div>`;
 }
 
 /** Where a table's seat stands on the board as the screen views it. */
@@ -164,9 +167,10 @@ export function ReplayBoard(props: ReplayBoardProps): TemplateResult {
     const { display, handlers, links, screen } = props;
     const { overlay } = display;
     const { lobby } = links;
+    const observing = screen.observe !== null;
     const controls: TablePanelControls = {
         endActions: endActions(lobby, links.history),
-        onPage: handlers.showResultPage,
+        onPage: observing ? undefined : handlers.showResultPage,
         onPickSeat: (seat) => handlers.viewSeat(positionOf(seat, screen)),
         seatingActions: [
             {
@@ -204,7 +208,9 @@ export function ReplayBoard(props: ReplayBoardProps): TemplateResult {
         overlayHeld: overlay?.kind === "result" && overlay.held,
         replay: {
             controls: controlsTemplate(props),
+            live: display.stream === "live",
             marksTsumogiri: screen.showTsumogiri,
+            observed: observing,
             status: ReplayStatus({
                 display,
                 handCopy: screen.handCopy?.outcome ?? null,
@@ -212,5 +218,35 @@ export function ReplayBoard(props: ReplayBoardProps): TemplateResult {
             }),
         },
         state: display.board,
+    });
+}
+
+function countdownTime(remainingMs: number): string {
+    const seconds = Math.ceil(remainingMs / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function ObserveCountdownControls({ remainingMs }: ObserveCountdown): TemplateResult {
+    const label =
+        remainingMs > 0
+            ? t("replay.observe.countdown", { time: countdownTime(remainingMs) })
+            : t("replay.observe.starting");
+    return html`<div class="seating__actions seating__actions--observe">
+        <p class="seating__note">${t("replay.observe.live_detail")}</p>
+        <button type="button" class="seating__action seating__confirm" disabled>
+            <span class="seating__confirm-label"><span>${label}</span></span>
+        </button>
+    </div>`;
+}
+
+export function ObserveWaitingBoard(countdown: ObserveCountdown): TemplateResult {
+    return GameBoard({
+        debug: false,
+        overlay: GameStartDisplay(
+            observeSeatingDisplay(countdown.players, countdown.gameType),
+            [],
+            { controls: ObserveCountdownControls(countdown) },
+        ),
+        state: null,
     });
 }
