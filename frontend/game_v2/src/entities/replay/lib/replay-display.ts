@@ -270,7 +270,7 @@ export function replayDisplay(source: ReplaySource, place: ReplayPlace): ReplayD
         endNotice: endNotice(source, cursor, stream),
         incomplete: incompleteness(source, stream),
         motion: {
-            mode: place.observe === null ? "replay" : "step",
+            mode: place.observe === null ? "replay" : "observe",
             sequence: place.seating ? -1 : cursor.stop,
         },
         moves: replayMoves(nav, cursor, place.perspective.bottomSeat),

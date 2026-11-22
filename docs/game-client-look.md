@@ -636,7 +636,8 @@ as a number, not seen, so the count turns red from ten tiles left.
   then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
 - **Tile motion.** A draw appears in its separated hand slot without travelling: the viewer's at once, an
-  opponent's in live play 300ms after the preceding discard lands (at once in a replay). Discards travel from hand
+  opponent's in live play 300ms after the preceding discard lands, as in a watched live game even face up (at once
+  in a replay). Discards travel from hand
   to river in 150ms and land in their slot, the latest in its gap; it stays there until 300ms after landing, or
   while a call on it is being decided, then slides back into line over 120ms.
   A travelling tile is three faint shadowless copies, 12ms apart, in its destination's look from take-off: its body

@@ -390,9 +390,9 @@ claim seals the timeline with the end's time, for every reason; the timeline out
 for the delay plus one minute, so an observer follows the game to its end, and then expires. It
 lives in memory only: a restart drops it. The game server serves it on the internal route
 `GET /games/{game_id}/observe?from=N`, which answers only the internal API secret: the listed game,
-the wait until its first records may be seen, the records old enough from cursor `N`, the cursor
-after them and whether the stream has ended, as one MessagePack map (404 for an unknown, not yet
-started or expired game).
+the wait until its first records may be seen, the records old enough from cursor `N` with each
+one's stamp, the delay's cutoff, the cursor after them and whether the stream has ended, as one
+MessagePack map (404 for an unknown, not yet started or expired game).
 
 A graceful stop (SIGTERM) runs inside compose's 15 s grace period, on one deadline: the HTTP server
 stops taking connections, `Server.Shutdown` closes every socket with 1012 and waits until each ran its
@@ -558,15 +558,20 @@ honours this contract can replace it.
   secret and passes its answer through unchanged: one MessagePack map with string keys, `started_at` (Unix
   milliseconds), `game_type`, `players` (four names, East to North), `available_in_ms` (the wait until the
   first records may be seen, 0 once passed), `next` (the cursor after the returned records), `ended` (the
-  stream is complete: nothing follows) and `records`, the records from cursor `N` as
-  concatenated MessagePack bytes in the replay encoding, without the seed (`docs/replay-format.md`). 404
+  stream is complete: nothing follows), `records`, the records from cursor `N` as
+  concatenated MessagePack bytes in the replay encoding, without the seed (`docs/replay-format.md`),
+  `stamps` (one per returned record, the version record excepted, in their order: when the game server
+  collected it, in milliseconds since `started_at`) and `cutoff_ms` (the delay's cutoff in milliseconds
+  since `started_at`, negative before the start is that old; no returned record is stamped after it). 404
   means the game server observes no such game: it never started, or it ended longer ago than the delay
   plus a minute. 503 means the game server could not be asked; the
   client polls again. The observe page `/play/observe/{game_id}` plays that stream in the replay viewer:
   one request at a time, the next 2 s after each answer or failure, from the `next` the last answer gave,
   until `ended` or a 404. Until the first playable record it shows the players and the time left; then it
   opens the board with autoplay on and grows the replay in place, its hands open or hidden by the reader's
-  saved setting as in a replay. The page never writes its address. A 404 before the board opens says the
+  saved setting as in a replay. Autoplay keeps the table's own pace: the first answer holding records ties
+  its `cutoff_ms` to the page's clock, and each stop plays once its move's stamp is that far behind, plus
+  one poll and its jitter; a result page shows at least 4 s. The page never writes its address. A 404 before the board opens says the
   game can no longer be watched; a 404 later keeps the board and stops asking. Both link the game's replay at `/play/history/{game_id}`.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **Language:** v2 speaks Japanese, English and Russian under the lobby's contract (`docs/i18n.md`),

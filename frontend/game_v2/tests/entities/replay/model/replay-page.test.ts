@@ -7,6 +7,7 @@ import {
     HOLD_DELAY_MS,
     HOLD_REPEAT_MS,
     type LoadedReplayScreen,
+    OBSERVE_PACE_BUFFER_MS,
     OBSERVE_POLL_MS,
     OBSERVE_RESULT_HOLD_MS,
     type ObserveOpening,
@@ -627,16 +628,28 @@ function recordIndex(name: string, type: number, from = 0): number {
     return found;
 }
 
+/** How far apart the table collected the stream's records, unless a test stamps them otherwise. */
+const RECORD_MS = 1000;
+
+function evenStamp(index: number): number {
+    return index * RECORD_MS;
+}
+
 interface AnswerOptions {
     readonly availableInMs?: number;
     readonly ended?: boolean;
+    readonly stamp?: (index: number) => number;
+    readonly cutoffMs?: number;
 }
 
-/** An observe answer carrying records `from` up to `to` of the stream, the version record first when from 0. */
+/**
+ * An observe answer carrying records `from` up to `to` of the stream, the version record first when from 0, each
+ * stamped by its index in the stream, its cutoff the newest carried record's stamp unless given.
+ */
 function answer(
     records: readonly Uint8Array[],
     [from, to]: readonly [number, number],
-    { availableInMs = 0, ended = false }: AnswerOptions = {},
+    { availableInMs = 0, ended = false, stamp = evenStamp, cutoffMs }: AnswerOptions = {},
 ): ReplayPageInput {
     const carried = records.slice(from, to);
     const bytes = joinBytes(
@@ -645,11 +658,13 @@ function answer(
     const fetched: ObserveFetch = {
         answer: {
             availableInMs,
+            cutoffMs: cutoffMs ?? stamp(to - 1),
             ended,
             gameType: "hanchan",
             next: from + carried.length,
             players: PLAYERS,
             records: bytes,
+            stamps: carried.map((_record, index) => stamp(from + index)),
             startedAt: 0,
         },
         ok: true,
@@ -712,11 +727,12 @@ function countdownScenario(): Record<
 }
 
 /**
- * A late viewer opened on the first round up to its result, viewing from another seat and waiting at the newest stop,
- * then the records through the result to the next round's first discard.
+ * A late viewer opened at 0 on the first round up to its result, viewing from another seat and waiting at the newest
+ * stop, asking on at its poll, then the records through the result to the next round's first discard.
  */
 function extendedScenario(): {
     readonly records: readonly Uint8Array[];
+    readonly roundEnd: number;
     readonly lastDiscard: number;
     readonly first: ReplayScreen;
     readonly viewed: ReplayScreen;
@@ -732,9 +748,16 @@ function extendedScenario(): {
     );
     const { screen: viewed } = step(first, { kind: "view_seat", seat: "right" }, 10);
     const waiting = step(viewed, { kind: "tick" }, replayPageDeadline(viewed) ?? 0);
-    const extended = step(waiting.screen, answer(records, [roundEnd, lastDiscard + 1]), 5000);
-    return { extended: extended.screen, first, lastDiscard, records, viewed, waiting };
+    const extended = step(
+        waiting.screen,
+        answer(records, [roundEnd, lastDiscard + 1]),
+        OBSERVE_POLL_MS + 100,
+    );
+    return { extended: extended.screen, first, lastDiscard, records, roundEnd, viewed, waiting };
 }
+
+/** When the extended replay's result is due: its record one step after the first answer's cutoff, then the buffer. */
+const RESULT_DUE = RECORD_MS + OBSERVE_PACE_BUFFER_MS;
 
 /** The extended replay played on: the result, the next deal, the newest stop, then the stream's end played out. */
 function playedOnScenario({
@@ -744,8 +767,12 @@ function playedOnScenario({
 }: ReturnType<typeof extendedScenario>): Record<"atResult" | "crossed" | "newest", ReplayScreen> & {
     readonly ended: ReturnType<typeof tickAll>;
 } {
-    const { screen: atResult } = step(extended, { kind: "tick" }, 5000);
-    const { screen: crossed } = step(atResult, { kind: "tick" }, 5000 + OBSERVE_RESULT_HOLD_MS);
+    const { screen: atResult } = step(extended, { kind: "tick" }, RESULT_DUE);
+    const { screen: crossed } = step(
+        atResult,
+        { kind: "tick" },
+        RESULT_DUE + OBSERVE_RESULT_HOLD_MS,
+    );
     const { screen: newest } = tickAll(crossed);
     const rest = answer(records, [lastDiscard + 1, records.length], { ended: true });
     const ended = tickAll(step(newest, rest, 9000).screen);
@@ -790,6 +817,35 @@ function goneScenario(): {
     return { gone: step(waiting.screen, notFound, 3000).screen, roundEnd, waiting };
 }
 
+function pairedStamp(index: number): number {
+    return Math.floor(index / 2) * RECORD_MS;
+}
+
+/**
+ * A viewer who saw the countdown, opened at 1000 on records stamped two to a step, a later answer extending them,
+ * then ticks on either side of the first stop's due time and twice at the next, which two stops share.
+ */
+function pacedScenario(): { readonly firstDue: number; readonly screens: readonly ReplayScreen[] } {
+    const records = observeRecords("pao");
+    const counting = step(
+        step(LOADING, { kind: "observe_started" }).screen,
+        answer(records, [0, 0], { availableInMs: 1000 }),
+    ).screen;
+    const shown = step(counting, answer(records, [0, 4], { stamp: pairedStamp }), 1000).screen;
+    const asked = step(shown, { kind: "tick" }, 1000 + OBSERVE_POLL_MS).screen;
+    const grown = step(asked, answer(records, [4, 10], { stamp: pairedStamp }), 3100).screen;
+    const firstDue = 1000 + OBSERVE_PACE_BUFFER_MS;
+    const tick: ReplayPageInput = { kind: "tick" };
+    const { screens } = script(grown, [
+        [tick, firstDue - 1],
+        [tick, firstDue],
+        [tick, firstDue + RECORD_MS - 1],
+        [tick, firstDue + RECORD_MS],
+        [tick, firstDue + RECORD_MS],
+    ]);
+    return { firstDue, screens: [shown, grown, ...screens] };
+}
+
 function polls(effects: readonly ReplayPageEffect[]): readonly ReplayPageEffect[] {
     return effects.filter((effect) => effect.kind === "fetch_observe");
 }
@@ -824,6 +880,25 @@ describe("stepReplayPage - observe", () => {
         ]);
     });
 
+    it("plays each stop once the table's pace has it due and not before, keeping the first answer's anchor, and stops sharing a stamp back to back", () => {
+        const { firstDue, screens } = pacedScenario();
+
+        expect(
+            screens.map((screen) => [
+                loaded(screen).view.cursor.stop,
+                loaded(screen).autoplay.dueAt,
+            ]),
+        ).toEqual([
+            [0, firstDue],
+            [0, firstDue],
+            [0, firstDue],
+            [1, firstDue + RECORD_MS],
+            [1, firstDue + RECORD_MS],
+            [2, firstDue + RECORD_MS],
+            [3, firstDue + 2 * RECORD_MS],
+        ]);
+    });
+
     it("ignores every move of the cursor and autoplay's switch, the next seat's view still turning", () => {
         const { shown } = countdownScenario();
         const moves: readonly ReplayPageInput[] = [
@@ -846,25 +921,29 @@ describe("stepReplayPage - observe", () => {
     it("extends the replay in place, autoplay crossing a round's result and the next deal, waiting at the newest stop until the stream ends", () => {
         const extension = extendedScenario();
         const { atResult, crossed, ended, newest } = playedOnScenario(extension);
-        const { extended, first, viewed, waiting } = extension;
+        const { extended, first, roundEnd, viewed, waiting } = extension;
 
         expect([
             loaded(first).view.cursor,
-            waiting.effects,
+            polls(waiting.effects),
             loaded(waiting.screen).autoplay,
-        ]).toEqual([lastCursor(first), [], { dueAt: null, playing: true }]);
+        ]).toEqual([
+            lastCursor(first),
+            [{ from: roundEnd, kind: "fetch_observe" }],
+            { dueAt: null, heldUntil: null, playing: true },
+        ]);
         expect([loaded(extended).view, loaded(extended).autoplay.dueAt]).toEqual([
             loaded(viewed).view,
-            5000,
+            RESULT_DUE,
         ]);
         expect([loaded(atResult).view.cursor.stop, loaded(atResult).autoplay.dueAt]).toEqual([
             loaded(atResult).replay.navigation.rounds[0].resultStop,
-            5000 + OBSERVE_RESULT_HOLD_MS,
+            RESULT_DUE + OBSERVE_RESULT_HOLD_MS,
         ]);
         expect([where(crossed), where(newest)[0], loaded(newest).autoplay]).toEqual([
             [1, 0, 0],
             1,
-            { dueAt: null, playing: true },
+            { dueAt: null, heldUntil: null, playing: true },
         ]);
         const { autoplay, replay, view } = loaded(ended.screen);
         expect([view.cursor, replay.navigation.complete, autoplay.playing]).toEqual([

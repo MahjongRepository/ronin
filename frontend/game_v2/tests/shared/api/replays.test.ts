@@ -108,11 +108,13 @@ describe("fetchObserve", () => {
     test("asks the stream from the cursor given and decodes the server's MessagePack answer, its records as bytes", async () => {
         const body = encode({
             available_in_ms: 0,
+            cutoff_ms: 61_250,
             ended: false,
             game_type: "hanchan",
             next: 52,
             players: ["East", "South", "West", "North"],
             records: new Uint8Array([129, 1, 2]),
+            stamps: [60_100],
             started_at: 1_790_000_000_123,
         });
         const fetched = vi.fn(() => Promise.resolve(new Response(body)));
@@ -121,11 +123,13 @@ describe("fetchObserve", () => {
         await expect(fetchObserve("g 1", 37, new AbortController().signal)).resolves.toEqual({
             answer: {
                 availableInMs: 0,
+                cutoffMs: 61_250,
                 ended: false,
                 gameType: "hanchan",
                 next: 52,
                 players: ["East", "South", "West", "North"],
                 records: new Uint8Array([129, 1, 2]),
+                stamps: [60_100],
                 startedAt: 1_790_000_000_123,
             },
             ok: true,

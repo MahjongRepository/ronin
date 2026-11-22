@@ -25,6 +25,10 @@ function tile(key: string, overrides: Partial<MotionTile> = {}): MotionTile {
     };
 }
 
+function heldDraw(target: string): TileMotion {
+    return { delay: 0, duration: 0, kind: "hold", source: null, target };
+}
+
 describe("planTileMotion", () => {
     it("resizes a laid meld tile even when its corner stays fixed", () => {
         const hand = tile("hand");
@@ -126,7 +130,7 @@ describe("planTileMotion", () => {
         ).toEqual([{ ...flight, source: "drawn" }]);
     });
 
-    it("holds an opponent's concealed draw in step mode and plans nothing for the viewer's draw or a replay", () => {
+    it("holds an opponent's concealed draw in step and observe mode and plans nothing for the viewer's draw or a replay", () => {
         const own = tile("own");
         const ownDrawn = tile("own-drawn", { drawn: true, id: "9" });
         const opponent = tile("right-slot", { concealed: true, id: "", seat: "right" });
@@ -138,10 +142,22 @@ describe("planTileMotion", () => {
         });
         const before = [own, opponent];
         const after = [own, ownDrawn, opponent, opponentDrawn];
-        expect(planTileMotion(before, after, "step")).toEqual([
-            { delay: 0, duration: 0, kind: "hold", source: null, target: "right-drawn" },
-        ]);
+        expect(planTileMotion(before, after, "step")).toEqual([heldDraw("right-drawn")]);
+        expect(planTileMotion(before, after, "observe")).toEqual([heldDraw("right-drawn")]);
         expect(planTileMotion(before, after, "replay")).toEqual([]);
+    });
+
+    it("holds an opponent's face-up draw only while observing", () => {
+        const before = [tile("own"), tile("right-face", { id: "5", seat: "right" })];
+        const after = [
+            ...before,
+            tile("right-face-drawn", { drawn: true, id: "6", seat: "right" }),
+        ];
+        expect(
+            (["observe", "step", "replay"] as const).map((mode) =>
+                planTileMotion(before, after, mode),
+            ),
+        ).toEqual([[heldDraw("right-face-drawn")], [], []]);
     });
 
     it("reveals unknown hand slots in order without turning another seat's hidden tiles face up", () => {

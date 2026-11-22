@@ -52,14 +52,23 @@ export function autoplayStep(
 }
 
 /**
- * How long observe autoplay shows the cursor's stop before it moves on: each page of a round's result for
- * `OBSERVE_RESULT_HOLD_MS`, any other stop as a replay's autoplay does.
+ * When observe autoplay moves on from the cursor shown to `next`: once the move `next` stops on is due, by `dueAts`
+ * (each timeline entry's due time), and not before `heldUntil`, a result page's hold.
  */
-export function observeAutoplayDelayMs(
-    replay: { readonly events: readonly StepEvent[]; readonly navigation: NavigationIndex },
-    cursor: ReplayCursor,
+export function observeAutoplayDueAt(
+    nav: NavigationIndex,
+    dueAts: readonly number[],
+    { heldUntil, next }: { readonly heldUntil: number | null; readonly next: ReplayCursor },
 ): number {
-    return isResultStop(replay.navigation, cursor)
-        ? OBSERVE_RESULT_HOLD_MS
-        : autoplayDelayMs(replay, cursor);
+    const due = dueAts[nav.stops[next.stop].moveEntry];
+    return heldUntil === null ? due : Math.max(due, heldUntil);
+}
+
+/** Until when observe autoplay holds the cursor shown from `at`: a page of a round's result `OBSERVE_RESULT_HOLD_MS`. */
+export function observeHeldUntil(
+    nav: NavigationIndex,
+    cursor: ReplayCursor,
+    at: number,
+): number | null {
+    return isResultStop(nav, cursor) ? at + OBSERVE_RESULT_HOLD_MS : null;
 }

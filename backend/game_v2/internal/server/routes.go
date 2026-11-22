@@ -229,6 +229,10 @@ func (s *Server) observeGame(w http.ResponseWriter, r *http.Request) {
 	for _, name := range seen.Game.Names {
 		players = append(players, wire.Str(name))
 	}
+	stamps := make(wire.Array, 0, len(seen.Stamps))
+	for _, stamp := range seen.Stamps {
+		stamps = append(stamps, wire.Int(stamp.Milliseconds()))
+	}
 	body := wire.EncodeStrMap(wire.StrMap{
 		{Key: "started_at", Value: wire.Int(seen.Game.StartedAt.UnixMilli())},
 		{Key: "game_type", Value: wire.Str(seen.Game.GameType)},
@@ -237,6 +241,8 @@ func (s *Server) observeGame(w http.ResponseWriter, r *http.Request) {
 		{Key: "next", Value: wire.Int(seen.Next)},
 		{Key: "ended", Value: wire.Bool(seen.Ended)},
 		{Key: "records", Value: wire.Bin(records)},
+		{Key: "stamps", Value: stamps},
+		{Key: "cutoff_ms", Value: wire.Int(seen.Cutoff.Milliseconds())},
 	})
 	w.Header().Set("Content-Type", "application/msgpack")
 	w.WriteHeader(http.StatusOK)

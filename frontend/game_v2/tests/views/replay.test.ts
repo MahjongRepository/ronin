@@ -20,7 +20,7 @@ import {
     type ReplayPrefs,
     type ReplayPrefsStore,
 } from "@/entities/replay";
-import { DISCARD_LANDING_MS } from "@/entities/table";
+import { DISCARD_LANDING_MS, readReplayFile } from "@/entities/table";
 import { type LoadReplay, type ObserveFetch, type ReplayFetch } from "@/shared/api";
 import { type Locale } from "@/shared/i18n";
 import { localStore } from "@/shared/lib";
@@ -182,16 +182,28 @@ function fakeObserve(): FakeObserve {
     };
 }
 
+/** The stamps of an answer carrying `records`: each record's collected as the delay's cutoff came. */
+function stampsOf(records: Uint8Array): number[] {
+    if (records.length === 0) {
+        return [];
+    }
+    const file = readReplayFile(records);
+    assert(file.ok);
+    return file.lines.map(() => 0);
+}
+
 /** An observe answer carrying `records`, the cursor after them `next`, the delay passed. */
 function observeAnswer(records: Uint8Array, next: number, ended: boolean): ObserveFetch {
     return {
         answer: {
             availableInMs: 0,
+            cutoffMs: 0,
             ended,
             gameType: "hanchan",
             next,
             players: ["Akagi", "Washizu", "Ten", "Hiro"],
             records,
+            stamps: stampsOf(records),
             startedAt: 0,
         },
         ok: true,

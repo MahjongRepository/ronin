@@ -98,7 +98,8 @@ class AnimateBoard extends AsyncDirective {
         const enabled =
             state !== null &&
             previous !== null &&
-            (cue?.mode === "step" || cue?.mode === "replay") &&
+            cue !== undefined &&
+            cue.mode !== "reset" &&
             priorCue !== undefined &&
             cue.sequence === priorCue.sequence + 1 &&
             previous.motionContext === state.motionContext &&
@@ -108,7 +109,7 @@ class AnimateBoard extends AsyncDirective {
             this.cancel();
         }
         const priorFrame =
-            enabled && cue?.mode === "step" && this.queued?.enabled === true ? this.queued : null;
+            enabled && cue?.mode !== "replay" && this.queued?.enabled === true ? this.queued : null;
         const before = priorFrame?.before ?? (enabled ? snapshotTiles(board) : []);
         const frame = { before, enabled };
         this.queued = frame;

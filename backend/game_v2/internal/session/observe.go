@@ -17,13 +17,17 @@ const observedRetention = time.Minute
 
 // Observation is what an observer may see of a game: the game as the lobby lists it, how long
 // until its first records may be seen, the records collected at least the delay ago from the
-// cursor asked for, the cursor after them, and whether the game's end is itself that old and every
-// record was returned. Records hold no seed and are never written to.
+// cursor asked for with when each was collected since the start, the cursor after them, the
+// delay's cutoff since the start (negative before the start is that old), and whether the game's
+// end is itself that old and every record was returned. Records hold no seed and are never
+// written to.
 type Observation struct {
 	Game        StartedGame
 	AvailableIn time.Duration
 	Records     []wire.Map
+	Stamps      []time.Duration
 	Next        int
+	Cutoff      time.Duration
 	Ended       bool
 }
 
@@ -83,15 +87,20 @@ func (t *observerTimeline) observe(from int, now time.Time, delay time.Duration)
 		last++
 	}
 	var records []wire.Map
+	var stamps []time.Duration
 	for _, entry := range t.entries[first:last] {
 		records = append(records, entry.record)
+		stamps = append(stamps, entry.stamp.Sub(t.started.StartedAt))
 	}
 	next := max(from, last)
+	sinceStart := cutoff.Sub(t.started.StartedAt)
 	return Observation{
 		Game:        t.started,
-		AvailableIn: max(0, t.started.StartedAt.Sub(cutoff)),
+		AvailableIn: max(0, -sinceStart),
 		Records:     records,
+		Stamps:      stamps,
 		Next:        next,
+		Cutoff:      sinceStart,
 		Ended:       t.endedAt.OK && !t.endedAt.Value.After(cutoff) && next == len(t.entries),
 	}
 }

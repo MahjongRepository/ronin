@@ -21,14 +21,15 @@ import {
     autoplayDelayMs,
     autoplayStep,
     isPauseStop,
-    observeAutoplayDelayMs,
+    observeAutoplayDueAt,
+    observeHeldUntil,
 } from "@/entities/replay/model/replay-autoplay";
 import {
     type CallMove,
     type ShownReplayCall,
     shownReplayCall,
 } from "@/entities/replay/model/replay-calls";
-import { type ReplayCursor, lastCursor } from "@/entities/replay/model/replay-cursor";
+import { type ReplayCursor, lastCursor, nextCursor } from "@/entities/replay/model/replay-cursor";
 import { type ReplayPrefs } from "@/entities/replay/model/replay-prefs";
 import { SEAT_POSITIONS, type SeatPosition } from "@/entities/table";
 import { type ObserveFetch, type ReplayFetch } from "@/shared/api";
@@ -50,6 +51,9 @@ const HTTP_NOT_FOUND = 404;
 /** How long after each observe answer, or a failed request, the page asks the stream again. */
 export const OBSERVE_POLL_MS = 2000;
 
+/** How far behind the table's pace an observed game plays: one poll and its jitter, so a stop is due once it arrived. */
+export const OBSERVE_PACE_BUFFER_MS = 2500;
+
 const SECOND_MS = 1000;
 
 /** Why the page shows no replay. */
@@ -60,9 +64,13 @@ export type ReplayFailure =
     | { readonly kind: "unreachable" }
     | { readonly kind: "show_failed" };
 
-/** Autoplay as the page runs it: its state, and while it plays, the logical time it moves on at. */
+/**
+ * Autoplay as the page runs it: its state, while it plays the logical time it moves on at, and the time an observed
+ * game's result page holds until, null for any other stop and in a saved game's replay.
+ */
 export interface ReplayAutoplay extends AutoplayState {
     readonly dueAt: number | null;
+    readonly heldUntil: number | null;
 }
 
 /** A step button its pointer holds down: the way it steps, and when it repeats, null while the pointer is off it. */
@@ -78,12 +86,16 @@ export interface ReplayHandCopy {
 }
 
 /**
- * The observe stream a page follows: every record received so far, the version record first; the cursor its next
- * request asks from; whether the stream has ended or the server no longer holds the game; and when the next request is
- * due, null while one is in flight and once the stream is done.
+ * The observe stream a page follows: every record received so far, the version record first; when each record after
+ * the version record is due to play on the page's clock; the offset that turns a record's stamp into that due time,
+ * fixed by the first answer that held records (its receipt less its cutoff, plus `OBSERVE_PACE_BUFFER_MS`), null
+ * before it; the cursor its next request asks from; whether the stream has ended or the server no longer holds the
+ * game; and when the next request is due, null while one is in flight and once the stream is done.
  */
 export interface ObserveStream {
     readonly content: Uint8Array;
+    readonly dueAts: readonly number[];
+    readonly paceOffset: number | null;
     readonly next: number;
     readonly ended: boolean;
     readonly gone: boolean;
@@ -399,20 +411,35 @@ function withoutPressedStep(screen: LoadedReplayScreen): LoadedReplayScreen {
 }
 
 /**
- * Autoplay playing, its next move armed from `at` at the pace of the stop shown (an observed game's own pace), the
- * seating closed.
+ * Autoplay playing from the stop shown at `at`, the seating closed: a replay's next move armed at the stop's pace, an
+ * observed game's at the table's (`pacedObserve`).
  */
 function armed(screen: LoadedReplayScreen, at: number): LoadedReplayScreen {
     const { autoplay, observe, replay, view } = screen;
-    const delayMs =
-        observe === null
-            ? autoplayDelayMs(replay, view.cursor)
-            : observeAutoplayDelayMs(replay, view.cursor);
-    return {
-        ...screen,
-        autoplay: { ...autoplay, dueAt: at + delayMs, playing: true },
-        seating: false,
-    };
+    const playing = { ...screen, seating: false };
+    if (observe !== null) {
+        const heldUntil = observeHeldUntil(replay.navigation, view.cursor, at);
+        return pacedObserve({ ...playing, autoplay: { ...autoplay, heldUntil } }, observe);
+    }
+    const dueAt = at + autoplayDelayMs(replay, view.cursor);
+    return { ...playing, autoplay: { ...autoplay, dueAt, playing: true } };
+}
+
+/**
+ * An observed game's autoplay moving on once the next stop is due, not before the result page's hold; at the newest
+ * stop it waits for the stream's next records, or stops once the stream can bring none.
+ */
+function pacedObserve(screen: LoadedReplayScreen, observe: ObserveStream): LoadedReplayScreen {
+    const { autoplay, replay, view } = screen;
+    const next = nextCursor(replay.navigation, view.cursor);
+    if (next === null) {
+        return awaitsStream(screen) ? waitingForStream(screen) : paused(screen);
+    }
+    const dueAt = observeAutoplayDueAt(replay.navigation, observe.dueAts, {
+        heldUntil: autoplay.heldUntil,
+        next,
+    });
+    return { ...screen, autoplay: { ...autoplay, dueAt, playing: true } };
 }
 
 /** Whether the replay may still grow: an observe stream that has neither ended nor gone. */
@@ -457,7 +484,7 @@ function loadedScreen(
     const { view } = shown;
     return {
         animationsOn: opening.animationsOn,
-        autoplay: { dueAt: null, playing: false },
+        autoplay: { dueAt: null, heldUntil: null, playing: false },
         handCopy: null,
         hideHands: opening.prefs.hideHands,
         hold: null,
@@ -1039,9 +1066,11 @@ function stepLoadedInput(screen: LoadedReplayScreen, event: Timed<LoadedInput>):
 
 const STREAM_START: ObserveStream = {
     content: new Uint8Array(),
+    dueAts: [],
     ended: false,
     gone: false,
     next: 0,
+    paceOffset: null,
     pollAt: null,
 };
 
@@ -1052,16 +1081,27 @@ function appendBytes(head: Uint8Array, tail: Uint8Array): Uint8Array {
     return joined;
 }
 
-/** The stream after an answer: its records appended, its cursor moved on, the next request due unless it ended. */
+/**
+ * The stream after an answer received at `at`: its records appended with their due times, the pace fixed by the first
+ * that held any, its cursor moved on, the next request due unless it ended.
+ */
 function answeredStream(stream: ObserveStream, answer: ObserveAnswer, at: number): ObserveStream {
+    const paceOffset =
+        stream.paceOffset ??
+        (answer.stamps.length === 0 ? null : at - answer.cutoffMs + OBSERVE_PACE_BUFFER_MS);
     return {
         content:
             answer.records.length === 0
                 ? stream.content
                 : appendBytes(stream.content, answer.records),
+        dueAts:
+            paceOffset === null
+                ? stream.dueAts
+                : [...stream.dueAts, ...answer.stamps.map((stamp) => stamp + paceOffset)],
         ended: answer.ended,
         gone: false,
         next: answer.next,
+        paceOffset,
         pollAt: answer.ended ? null : at + OBSERVE_POLL_MS,
     };
 }
@@ -1171,18 +1211,12 @@ function onWaitingRecords(
 }
 
 /**
- * Autoplay waiting at the newest stop moves on once the stream brought a stop after it, and stops once the stream can
- * bring none.
+ * Autoplay waiting at the newest stop moves on once the stream brought a stop after it, when that stop is due, and
+ * stops once the stream can bring none.
  */
-function resumedAutoplay(screen: LoadedReplayScreen, at: number): LoadedReplayScreen {
+function resumedAutoplay(screen: LoadedReplayScreen, observe: ObserveStream): LoadedReplayScreen {
     const { autoplay } = screen;
-    if (!autoplay.playing || autoplay.dueAt !== null) {
-        return screen;
-    }
-    if (stepTarget(screen, "next") !== null) {
-        return { ...screen, autoplay: { ...autoplay, dueAt: at } };
-    }
-    return awaitsStream(screen) ? screen : paused(screen);
+    return !autoplay.playing || autoplay.dueAt !== null ? screen : pacedObserve(screen, observe);
 }
 
 /**
@@ -1197,25 +1231,21 @@ function onLoadedAnswer(
     const outcome = outcomeOf(event);
     if (!outcome.ok) {
         const observe = failedStream(stream, outcome.status, event.at);
-        return quiet(resumedAutoplay({ ...screen, observe }, event.at));
+        return quiet(resumedAutoplay({ ...screen, observe }, observe));
     }
-    return extendedScreen(screen, answeredStream(stream, outcome.answer, event.at), event.at);
+    return extendedScreen(screen, answeredStream(stream, outcome.answer, event.at));
 }
 
 /** The replay rebuilt from the stream's records when an answer brought new ones, the view and autoplay kept. */
-function extendedScreen(
-    screen: LoadedReplayScreen,
-    observe: ObserveStream,
-    at: number,
-): ReplayPageStep {
+function extendedScreen(screen: LoadedReplayScreen, observe: ObserveStream): ReplayPageStep {
     if (observe.content === screen.observe?.content) {
-        return quiet(resumedAutoplay({ ...screen, observe }, at));
+        return quiet(resumedAutoplay({ ...screen, observe }, observe));
     }
     const read = readReplay(observe.content, "observe");
     if (!read.ok) {
         return quiet({ failure: read.unshowable, kind: "failed" });
     }
-    return quiet(resumedAutoplay({ ...screen, observe, replay: read.replay }, at));
+    return quiet(resumedAutoplay({ ...screen, observe, replay: read.replay }, observe));
 }
 
 function onObserveEvent(screen: ReplayScreen, event: Timed<ObserveEvent>): ReplayPageStep {

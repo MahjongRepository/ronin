@@ -93,9 +93,13 @@ interface BoardDisplayState {
     readonly nameplates: readonly [BoardNameplate, BoardNameplate, BoardNameplate, BoardNameplate];
 }
 
+/**
+ * How the board moves to the state shown: one step of play (`step`), one of an observed game, which also holds an
+ * opponent's face-up draw (`observe`), a replay's move (`replay`) or no motion (`reset`).
+ */
 interface BoardMotionCue {
     readonly sequence: number;
-    readonly mode: "step" | "replay" | "reset";
+    readonly mode: "step" | "observe" | "replay" | "reset";
 }
 
 /**

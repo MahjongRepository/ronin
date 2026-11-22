@@ -197,6 +197,11 @@ function planConcealedShift(target: MotionTile, context: MoveContext): TileMotio
           };
 }
 
+function isHeldDraw(target: MotionTile, mode: BoardMotionCue["mode"]): boolean {
+    const held = mode === "observe" || (mode === "step" && target.concealed);
+    return held && target.region === "hand" && target.drawn && target.seat !== "bottom";
+}
+
 function isConcealedSettle(flight: boolean, target: MotionTile): boolean {
     return !flight && target.region === "hand" && target.concealed;
 }
@@ -204,11 +209,7 @@ function isConcealedSettle(flight: boolean, target: MotionTile): boolean {
 function planMove(target: MotionTile, context: MoveContext): TileMotion | null {
     const source = findMoveSource(target, context);
     if (source === undefined) {
-        return context.mode === "step" &&
-            target.region === "hand" &&
-            target.drawn &&
-            target.concealed &&
-            target.seat !== "bottom"
+        return isHeldDraw(target, context.mode)
             ? { delay: 0, duration: 0, kind: "hold", source: null, target: target.key }
             : null;
     }

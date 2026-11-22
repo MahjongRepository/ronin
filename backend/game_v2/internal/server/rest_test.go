@@ -274,6 +274,32 @@ func (o observed) number(t *testing.T, key string) int {
 	return int(n)
 }
 
+func (o observed) stamps(t *testing.T) []int {
+	t.Helper()
+	v, _ := o.fields.Get("stamps")
+	values, ok := v.(wire.Array)
+	if !ok {
+		t.Fatalf("observe answer stamps = %v, want an array", v)
+	}
+	stamps := make([]int, 0, len(values))
+	for _, value := range values {
+		stamp, ok := value.(wire.Int)
+		if !ok {
+			t.Fatalf("observe answer stamp = %v, want an int", value)
+		}
+		stamps = append(stamps, int(stamp))
+	}
+	return stamps
+}
+
+func checkStamps(t *testing.T, poll observed, records int) {
+	t.Helper()
+	stamps, cutoff := poll.stamps(t), poll.number(t, "cutoff_ms")
+	if len(stamps) != records || !slices.IsSorted(stamps) || slices.ContainsFunc(stamps, func(s int) bool { return s > cutoff }) {
+		t.Errorf("observe stamps = %v with cutoff %d, want %d non-decreasing stamps none past the cutoff", stamps, cutoff, records)
+	}
+}
+
 func versionRecords(records []wire.Map) int {
 	count := 0
 	for _, record := range records {
@@ -304,8 +330,9 @@ func TestObserveGame_WhenPolledAcrossTheDelay_ShouldServeOldRecordsOnceVersioned
 	clock.advance(30 * time.Second)
 	later := h.observe(0)
 	for _, poll := range []observed{early, later} {
-		if poll.number(t, "next") != 0 || len(poll.records) != 0 || poll.number(t, "available_in_ms") <= 0 {
-			t.Errorf("observe during the delay = %v, want no records, next 0 and the wait left", poll.fields)
+		if poll.number(t, "next") != 0 || len(poll.records) != 0 || poll.number(t, "available_in_ms") <= 0 ||
+			len(poll.stamps(t)) != 0 || poll.number(t, "cutoff_ms") >= 0 {
+			t.Errorf("observe during the delay = %v, want no records or stamps, next 0, the wait left and a cutoff before the start", poll.fields)
 		}
 	}
 	startedAt := time.UnixMilli(int64(early.number(t, "started_at")))
@@ -329,6 +356,12 @@ func TestObserveGame_WhenPolledAcrossTheDelay_ShouldServeOldRecordsOnceVersioned
 	}
 	if len(delta.records) == 0 || versionRecords(delta.records) != 0 {
 		t.Errorf("observed delta = %v, want bob's leave and no version record", delta.records)
+	}
+	checkStamps(t, first, len(first.records)-1)
+	checkStamps(t, delta, len(delta.records))
+	if slices.Min(delta.stamps(t)) < 30_000 || delta.number(t, "cutoff_ms") < 31_000 {
+		t.Errorf("observed delta stamps %v and cutoff %d, want milliseconds since the start, the leave 30 s in",
+			delta.stamps(t), delta.number(t, "cutoff_ms"))
 	}
 	if seeded(first.records) || seeded(delta.records) {
 		t.Errorf("an observed record holds the seed")

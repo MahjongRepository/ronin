@@ -99,7 +99,7 @@ describe("replayDisplay", () => {
         assert(archived.overlay?.kind === "result" && watched.overlay?.kind === "result");
         expect([archived.motion.mode, archived.overlay.held]).toEqual(["replay", false]);
         expect([watched.motion, watched.overlay.held, watched.incomplete, watched.stream]).toEqual([
-            { mode: "step", sequence: cursor.stop },
+            { mode: "observe", sequence: cursor.stop },
             true,
             null,
             "live",

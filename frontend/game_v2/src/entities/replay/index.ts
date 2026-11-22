@@ -61,6 +61,7 @@ export {
     HOLD_DELAY_MS,
     WHEEL_RESULT_HOLD_MS,
     HOLD_REPEAT_MS,
+    OBSERVE_PACE_BUFFER_MS,
     OBSERVE_POLL_MS,
     canStep,
     replayPageDeadline,
