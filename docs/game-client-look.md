@@ -369,11 +369,11 @@ as a number, not seen, so the count turns red from ten tiles left.
   opponent's hand reads as plainly as its river. Decision: a concealed tile stands on its edge,
   seen from above, so a live hand never reads as face-down tiles (a closed kan's ends, the
   unrevealed indicators); the slot is kept whole, so a reveal shows the faces in the same place. The top seat's tile
-  fills its 3:4 slot and reaches 0.44 of its width under it, its edge and a rise that keeps it tall
-  without taking height from the stack, the felt under the hand giving it. The hand stands upright on its foot, each
+  fills its 3:4 slot and reaches 0.2 of its width under it, its edge, which the stack reserves; nothing reaches past it
+  into the felt the latest discard of the top river's third row is held apart in. The hand stands upright on its foot, each
   tile a rectangle. Decision: a back shows at most 1.38 of its width tall. A revealed hand's faces lie on the table,
   in the common lying body, and start at its owner's edge.
-  Its look: a top 0.62 of its width deep, split as a side seat's top is, 58% off-white at the owner's side and the rest
+  Its look: a top 0.53 of its width deep, split as a side seat's top is, 58% off-white at the owner's side and the rest
   the back's lit rim ochre, so the material join sits above the crest instead of on it; the top rolls over that crest
   into the back, a darker ochre than the top, since it faces away from the light, with thin rims down both sides. A side seat's tile shows its top only, no back face:
   0.72 of a tile's width across, at the owner's edge of its slot, the rest of the slot bare table; 58%

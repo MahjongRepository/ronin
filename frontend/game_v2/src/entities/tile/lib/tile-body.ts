@@ -33,17 +33,16 @@ const LYING_BODY = {
 } as const;
 
 const STANDING_BACK_BODY = {
-    capDepth: 0.62,
+    capDepth: 0.53,
     capFaceShare: 0.58,
     capRoll: 0.06,
     cornerRadius: 0.07,
     edge: STANDING_BACK_EDGE_SHARE,
     litRim: 0.035,
-    rise: 0.24,
     shadedRim: 0.055,
 } as const;
 
-const UPRIGHT_BACK_EDGE = STANDING_BACK_BODY.edge + STANDING_BACK_BODY.rise;
+const UPRIGHT_BACK_EDGE = STANDING_BACK_BODY.edge;
 
 const SIDE_STANDING_BACK_BODY = {
     cornerRadius: 0.07,

@@ -58,6 +58,19 @@ function topHandFoot(view: TableView): number {
     return (TILE_ASPECT + TOP_HAND_EDGE_SHARE) * (view.plane.lengths["rw"] ?? 0);
 }
 
+function topHandCameras(view: TableView): {
+    readonly backScale: number;
+    readonly concealed: (left: number, top: number) => [number, number];
+    readonly revealed: (left: number, top: number) => [number, number];
+} {
+    const values = Object.fromEntries(surfaceViewValues(view));
+    return {
+        backScale: Number(values["--geo-top-hand-back-scale"]),
+        concealed: cssAffine(values["--geo-camera-top-hand"] ?? ""),
+        revealed: cssAffine(values["--geo-camera-top-hand-revealed"] ?? ""),
+    };
+}
+
 function shownBackAspect(view: TableView, hand: (left: number, top: number) => number[]): number {
     const width = view.pieces["strip-top"].right - view.pieces["strip-top"].left;
     const foot = topHandFoot(view);
@@ -68,12 +81,10 @@ function shownBackAspect(view: TableView, hand: (left: number, top: number) => n
 
 describe("the top hand", () => {
     it.each([...WIDE, ...WIDTH_BOUND, SHORTEST_PHONE])(
-        "concealed on %s: on the revealed hand's foot at its width, a back at most 1.38 tall, as a revealing back scaled from its foot",
+        "concealed on %s: on the revealed hand's foot at its width, a back at most 1.38 tall, as a revealing back scaled from its foot, its foot clear of the top river's third-row latest discard",
         (_shape, box) => {
             const { view } = viewOf(box);
-            const values = Object.fromEntries(surfaceViewValues(view));
-            const concealed = cssAffine(values["--geo-camera-top-hand"] ?? "");
-            const revealed = cssAffine(values["--geo-camera-top-hand-revealed"] ?? "");
+            const { backScale, concealed, revealed } = topHandCameras(view);
             const width = view.pieces["strip-top"].right - view.pieces["strip-top"].left;
             const foot = topHandFoot(view);
 
@@ -82,14 +93,15 @@ describe("the top hand", () => {
                     revealed(along, foot).map((at) => expect.closeTo(at, 3)),
                 );
                 expect(concealed(along, 0)).toEqual(
-                    revealed(along, foot * (1 - Number(values["--geo-top-hand-back-scale"]))).map(
-                        (at) => expect.closeTo(at, 3),
-                    ),
+                    revealed(along, foot * (1 - backScale)).map((at) => expect.closeTo(at, 3)),
                 );
             }
             expect(shownBackAspect(view, concealed)).toBeCloseTo(
                 Math.min(shownBackAspect(view, revealed), 1.38),
                 3,
+            );
+            expect(view.pieces["strip-top"].top + foot).toBeLessThanOrEqual(
+                view.pieces["river-top"].top - (view.plane.lengths["latest-drop-gap"] ?? 0),
             );
         },
     );
