@@ -35,7 +35,10 @@ table transition and call model; replay dispatch loads with the replay route.
   one second; a riichi hand's turn with no offers shows no timer. Riichi discards happen regardless of the play
   switches; otherwise turning Auto discard off cancels the pending discard. The wait-bound deadline uses the dispatcher clock and is cancelled when the
   decision is answered or lost, including on disconnect or desync. A kan or
-  win offer stays answerable by the player (Auto win can still claim a win). `automaticStep` uses the same unseen-wait
+  win offer stays answerable by the player (Auto win can still claim a win). Auto win holds its answer the same way,
+  never sending on the message: a ron until the discard it takes has landed, a tsumo until the draw has shown
+  (`DISCARD_LANDING_MS`, `DRAW_HOLD_MS`), each plus a pause; turning Auto win off or the player's own press during the
+  hold cancels it. Turning a switch on still answers the open decision at once. `automaticStep` uses the same unseen-wait
   guard as the switches, so a duplicate, reconnect or refusal never causes a repeated automatic answer. The locked
   hand keeps its normal appearance; only kuikae and picking the declaration discard grey out restricted tiles.
 - **Play switches** answer a message's decision only on a wait id above `highestOpenedWaitId`, so one re-sent after

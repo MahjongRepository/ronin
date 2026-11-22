@@ -28,7 +28,7 @@ export type {
 } from "./model/types";
 export { nextDeadline, startGameClient, stepGameClient } from "./model/dispatch";
 export { startReplayClient } from "./model/replay-dispatch";
-export { takesIntent } from "./model/intents";
+export { AUTO_WIN_RON_HOLD_MS, AUTO_WIN_TSUMO_HOLD_MS, takesIntent } from "./model/intents";
 export { serverSilenceLimitMs } from "./model/silence";
 export { decisionOf, roundConfirmOf } from "./model/pending";
 export { MAX_RESYNC_REQUESTS, RESYNC_ANSWER_MS, desyncOf, failGameClient } from "./model/desync";

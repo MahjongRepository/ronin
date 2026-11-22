@@ -1,15 +1,17 @@
 import { hasEnded, holdsSeat } from "@/entities/session";
-import { type PlayerState } from "@/entities/table";
+import { DISCARD_LANDING_MS, DRAW_HOLD_MS, type PlayerState } from "@/entities/table";
 import { type ClientMessage } from "@/shared/protocol";
 
 import { declareIntent } from "./calls";
 import { answerDecision } from "./decision";
 import { confirmOpeningStep } from "./opening";
 import { decisionOf, replaceDecision } from "./pending";
-import { switchAnswer, unseenWait } from "./play-switches";
+import { type SwitchAnswer, switchAnswer, unseenWait } from "./play-switches";
 import { confirmStep, reopenResultStep } from "./round-confirm";
 import {
+    type AutomaticAnswer,
     type ClientStep,
+    type Decision,
     type DecisionIntent,
     type LiveClient,
     type PlayIntent,
@@ -17,6 +19,9 @@ import {
 } from "./types";
 
 const AUTOMATIC_DRAW_HOLD_MS = 1000;
+const AUTO_WIN_PAUSE_MS = 500;
+export const AUTO_WIN_RON_HOLD_MS = DISCARD_LANDING_MS + AUTO_WIN_PAUSE_MS;
+export const AUTO_WIN_TSUMO_HOLD_MS = DISCARD_LANDING_MS + DRAW_HOLD_MS + AUTO_WIN_PAUSE_MS;
 
 /**
  * Whether the client may answer what its seat owes: its session holds the seat. Out of step the seat owes nothing,
@@ -92,9 +97,38 @@ export function decisionIntentStep(
 }
 
 /**
+ * The answer held before it is sent, or null: Auto win's ron once the discard it takes has landed and its tsumo once
+ * the draw has shown, each with a pause after; and the discard of a plain draw after riichi or with Auto discard on,
+ * once the drawn tile has stood a second in the hand.
+ */
+function heldAnswer(
+    state: LiveClient,
+    decision: Decision,
+    answer: SwitchAnswer | null,
+): Omit<AutomaticAnswer, "waitId"> | null {
+    if (answer?.bySwitch === "auto_win") {
+        const hold = decision.kind === "call" ? AUTO_WIN_RON_HOLD_MS : AUTO_WIN_TSUMO_HOLD_MS;
+        return { ...answer, due: state.now + hold };
+    }
+    if (
+        decision.kind !== "turn" ||
+        decision.opening.kind !== "draw" ||
+        decision.offers.length > 0 ||
+        !(viewerOf(state)?.isRiichi || answer?.bySwitch === "auto_discard")
+    ) {
+        return null;
+    }
+    return {
+        bySwitch: answer?.bySwitch ?? null,
+        due: state.now + AUTOMATIC_DRAW_HOLD_MS,
+        intent: { tileId: decision.opening.drawnTileId, type: "discard" },
+    };
+}
+
+/**
  * The automatic answer to a decision a message opened on a wait above the highest the game opened before
- * it (`highestBefore`), taken exactly where the player's press would be; nothing for a decision already open, re-sent after
- * a reconnect or reopened by a refusal, which stay the player's.
+ * it (`highestBefore`), taken exactly where the player's press would be, held first when `heldAnswer` holds it;
+ * nothing for a decision already open, re-sent after a reconnect or reopened by a refusal, which stay the player's.
  */
 export function automaticStep(
     state: LiveClient,
@@ -105,23 +139,11 @@ export function automaticStep(
         return { effects: [], state };
     }
     const answer = switchAnswer(decision, state.switches);
-    if (
-        decision.kind === "turn" &&
-        decision.opening.kind === "draw" &&
-        decision.offers.length === 0 &&
-        (viewerOf(state)?.isRiichi || answer?.bySwitch === "auto_discard")
-    ) {
+    const held = heldAnswer(state, decision, answer);
+    if (held !== null) {
         return {
             effects: [],
-            state: {
-                ...state,
-                automaticDiscard: {
-                    bySwitch: answer?.bySwitch ?? null,
-                    due: state.now + AUTOMATIC_DRAW_HOLD_MS,
-                    tileId: decision.opening.drawnTileId,
-                    waitId: decision.waitId,
-                },
-            },
+            state: { ...state, automaticAnswer: { ...held, waitId: decision.waitId } },
         };
     }
     return answer === null
@@ -129,34 +151,37 @@ export function automaticStep(
         : decisionIntentStep(state, answer.intent, answer.bySwitch);
 }
 
-export function settleAutomaticDiscard(state: LiveClient): LiveClient {
-    const scheduled = state.automaticDiscard;
+/** Whether a held answer is still wanted: a discard while Auto discard is on or the hand in riichi, a win while Auto win is on. */
+function stillWanted(state: LiveClient, held: AutomaticAnswer): boolean {
+    return held.intent.type === "discard"
+        ? state.switches.auto_discard || viewerOf(state)?.isRiichi === true
+        : state.switches.auto_win;
+}
+
+export function settleAutomaticAnswer(state: LiveClient): LiveClient {
+    const held = state.automaticAnswer;
     const decision = decisionOf(state);
-    if (scheduled === null) {
+    if (held === null) {
         return state;
     }
     if (
         !canAnswer(state) ||
-        decision?.waitId !== scheduled.waitId ||
+        decision?.waitId !== held.waitId ||
         decision.status.kind === "submitted" ||
-        (!state.switches.auto_discard && !viewerOf(state)?.isRiichi)
+        !stillWanted(state, held)
     ) {
-        return { ...state, automaticDiscard: null };
+        return { ...state, automaticAnswer: null };
     }
     return state;
 }
 
-export function discardAutomaticDrawStep(state: LiveClient): ClientStep<LiveClient> {
-    const settled = settleAutomaticDiscard(state);
-    const scheduled = settled.automaticDiscard;
-    if (scheduled === null || state.now < scheduled.due) {
+export function sendHeldAnswerStep(state: LiveClient): ClientStep<LiveClient> {
+    const settled = settleAutomaticAnswer(state);
+    const held = settled.automaticAnswer;
+    if (held === null || state.now < held.due) {
         return { effects: [], state: settled };
     }
-    return decisionIntentStep(
-        { ...settled, automaticDiscard: null },
-        { tileId: scheduled.tileId, type: "discard" },
-        scheduled.bySwitch,
-    );
+    return decisionIntentStep({ ...settled, automaticAnswer: null }, held.intent, held.bySwitch);
 }
 
 /**

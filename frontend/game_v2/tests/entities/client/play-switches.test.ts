@@ -6,12 +6,15 @@ import {
     branchAfter,
     checkpointState,
     expecting,
+    insertedAfter,
     loadSeatScenario,
     receivedPayload,
     switchedOnBefore,
 } from "#tests/fixtures/seat-transcripts";
 import { wireRoundEnd, wireRuleRefusal } from "#tests/fixtures/wire";
 import {
+    AUTO_WIN_RON_HOLD_MS,
+    AUTO_WIN_TSUMO_HOLD_MS,
     type ClientEffect,
     type LiveClient,
     NO_PLAY_UI,
@@ -219,34 +222,56 @@ function runPlainRiichiDraw(autoDiscard: boolean): {
 }
 
 describe("automatic answers", () => {
-    it("Auto win takes the tsumo at its draw over Auto discard; the press after sends nothing", () => {
+    it("Auto win takes the tsumo over Auto discard once its draw has shown; the press after sends nothing", () => {
         const { scenario } = loadSeatScenario("own_turn_seat_1");
         const switched = answeredBySwitch(
             switchedOnBefore(scenario, "furiten", ["auto_win", "auto_discard"]),
-            "tsumo draw",
-            "tsumo chosen",
+            { answer: "tsumo chosen", holdMs: AUTO_WIN_TSUMO_HOLD_MS, opens: "tsumo draw" },
         );
         const run = runClean(switched);
+        const drawn = stateAt(switched, run, "tsumo draw");
 
-        expect(bySwitch(stateAt(switched, run, "tsumo draw"))).toBe("auto_win");
+        expect([bySwitch(drawn), nextDeadline(drawn)]).toEqual([
+            "open",
+            stepAt(switched, "tsumo draw").at + AUTO_WIN_TSUMO_HOLD_MS,
+        ]);
+        expect(bySwitch(stateAt(switched, run, "held answer"))).toBe("auto_win");
         expect(decisionOf(stateAt(switched, run, "tsumo chosen"))?.status).toEqual(
-            decisionOf(stateAt(switched, run, "tsumo draw"))?.status,
+            decisionOf(stateAt(switched, run, "held answer"))?.status,
         );
     });
 
-    it("Auto win takes a chankan prompt's ron at once, which No calls never passes", () => {
+    it("Auto win takes a chankan prompt's ron after its hold, which No calls never passes", () => {
         const { scenario } = loadSeatScenario("chankan_robbed_seat_3");
         const switched = answeredBySwitch(
             switchedOnBefore(scenario, "chankan prompt", ["auto_win", "no_calls"]),
-            "chankan prompt",
-            "ron chosen",
+            { answer: "ron chosen", holdMs: AUTO_WIN_RON_HOLD_MS, opens: "chankan prompt" },
         );
         const run = runClean(switched);
 
-        expect(bySwitch(stateAt(switched, run, "chankan prompt"))).toBe("auto_win");
+        expect(bySwitch(stateAt(switched, run, "chankan prompt"))).toBe("open");
+        expect(bySwitch(stateAt(switched, run, "held answer"))).toBe("auto_win");
         const states = timelineStates(run.timeline);
-        const index = scenarioStateIndex(switched, "chankan prompt");
+        const index = scenarioStateIndex(switched, "held answer");
         expect(soundCues(states[index - 1], states[index])).toEqual(["ron"]);
+    });
+
+    it("Auto win turned off while it holds a ron sends nothing, leaving the ron to the player", () => {
+        const { scenario } = loadSeatScenario("double_ron_seat_1");
+        const toggle = { playSwitch: "auto_win", type: "toggle_switch" } as const;
+        const opened = stepAt(scenario, "ron prompt").at;
+        const switched = insertedAfter(
+            switchedOnBefore(scenario, "ron prompt", ["auto_win"]),
+            "ron prompt",
+            [
+                { event: { at: opened + 100, intent: toggle, kind: "intent" } },
+                { event: { at: opened + AUTO_WIN_RON_HOLD_MS, kind: "tick" } },
+            ],
+        );
+
+        const run = runClean(switched);
+
+        expect(bySwitch(stateAt(switched, run, "ron chosen"))).toBeNull();
     });
 
     it.each([
@@ -458,7 +483,7 @@ describe("automatic discards", () => {
         ]);
         const state = lastState(runClean(disconnected));
         expect(decisionOf(state)).toBeNull();
-        expect(state.automaticDiscard).toBeNull();
+        expect(state.automaticAnswer).toBeNull();
         expect(nextDeadline(state)).toBe(14_500);
     });
 });
@@ -505,21 +530,22 @@ describe("stepGameClient - play switches", () => {
         ]);
         const ronPrompt = receivedPayload(transcript, "ron prompt");
         const rejoined = rejoinedAfter(generated, "discarded", ronPrompt[WIRE_KEY.WAIT_ID]);
+        const promptAt = rejoined.at(-1)?.event.at ?? 0;
         const missed = branchAfter(passed, "discarded", [
             ...rejoined,
             {
-                effects: stepEffects(scenario, "ron chosen"),
-                event: {
-                    at: rejoined.at(-1)?.event.at ?? 0,
-                    kind: "server_message",
-                    raw: ronPrompt,
-                },
+                event: { at: promptAt, kind: "server_message", raw: ronPrompt },
                 label: "ron prompt",
+            },
+            {
+                effects: stepEffects(scenario, "ron chosen"),
+                event: { at: promptAt + AUTO_WIN_RON_HOLD_MS, kind: "tick" },
+                label: "held answer",
             },
         ]);
         const run = runClean(missed);
 
-        expect(bySwitch(stateAt(missed, run, "ron prompt"))).toBe("auto_win");
+        expect(bySwitch(stateAt(missed, run, "held answer"))).toBe("auto_win");
     });
 
     it("never answers a new wait while the client cannot send: a prompt or round end before the snapshot admits the reconnect is owed by no one, and the prompt re-sent after it is the player's to answer, once", () => {
@@ -670,8 +696,7 @@ describe("stepGameClient - play switches", () => {
         const { scenario } = loadSeatScenario("double_ron_seat_1");
         const switched = answeredBySwitch(
             switchedOnBefore(scenario, "ron prompt", ["auto_win", "no_calls"]),
-            "ron prompt",
-            "ron chosen",
+            { answer: "ron chosen", holdMs: AUTO_WIN_RON_HOLD_MS, opens: "ron prompt" },
         );
         const droppedInHand = droppedAfter(switched, scenario, "ron chosen");
         const run = runClean(switched);

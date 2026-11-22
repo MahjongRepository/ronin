@@ -123,15 +123,21 @@ export function expecting(
 }
 
 /**
- * The send the transcript recorded for the player's answer labelled `answer` expected instead on the step labelled
- * `opens`, the message whose wait a play switch answers at once; the player's press it recorded then sends nothing,
- * the decision being answered. The send comes from what the server accepted, never from the client under test.
+ * The send the transcript recorded for the player's answer labelled `answer` expected instead on a tick `holdMs` after
+ * the step labelled `opens`, labelled `held answer`: a play switch holding its answer to the message's wait that long;
+ * the player's press it recorded then sends nothing, the decision being answered. The send comes from what the server
+ * accepted, never from the client under test.
  */
 export function answeredBySwitch(
     scenario: SeatScenario,
-    opens: string,
-    answer: string,
+    {
+        answer,
+        holdMs,
+        opens,
+    }: { readonly answer: string; readonly holdMs: number; readonly opens: string },
 ): SeatScenario {
     const sent = scenario.steps[stepIndex(scenario, answer)].effects ?? [];
-    return expecting(expecting(scenario, opens, sent), answer, []);
+    const at = scenario.steps[stepIndex(scenario, opens)].event.at + holdMs;
+    const held: ScenarioStep = { effects: sent, event: { at, kind: "tick" }, label: "held answer" };
+    return insertedAfter(expecting(scenario, answer, []), opens, [held]);
 }

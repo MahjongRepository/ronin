@@ -294,6 +294,14 @@ export interface ReplayClient extends ClientBase {
 }
 
 /** A live seat's client: its session, the table as the seat sees it, and the seat's own facts and obligations. */
+/** An automatic answer held until `due` before it is sent on the wait `waitId`, by `bySwitch` or, null, by riichi. */
+export interface AutomaticAnswer {
+    readonly waitId: number;
+    readonly due: number;
+    readonly intent: DecisionIntent;
+    readonly bySwitch: PlaySwitch | null;
+}
+
 export interface LiveClient extends ClientBase {
     readonly boardMotion: BoardMotionCue;
     readonly kind: "live";
@@ -329,12 +337,7 @@ export interface LiveClient extends ClientBase {
     readonly switches: PlaySwitches;
     /** The settings menu's choice that a deal leaves Auto win on. */
     readonly keepAutoWin: boolean;
-    readonly automaticDiscard: {
-        readonly waitId: number;
-        readonly due: number;
-        readonly tileId: number;
-        readonly bySwitch: PlaySwitch | null;
-    } | null;
+    readonly automaticAnswer: AutomaticAnswer | null;
     /**
      * The highest wait id a decision of this game opened, or null before the first, whether or not a switch was on:
      * kept across a dropped socket, a refusal and a deal, never lowered and never taken from a snapshot, so a switch

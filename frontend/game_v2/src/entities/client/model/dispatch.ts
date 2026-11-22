@@ -42,8 +42,8 @@ import {
     automaticStep,
     canAnswer,
     decisionIntentStep,
-    discardAutomaticDrawStep,
-    settleAutomaticDiscard,
+    sendHeldAnswerStep,
+    settleAutomaticAnswer,
     toggleKeepAutoWinStep,
     toggleSwitchStep,
 } from "./intents";
@@ -358,7 +358,7 @@ function onServerMessage(state: LiveClient, raw: Record<string, unknown>): Trace
 
 function onTick(state: LiveClient): ClientStep<LiveClient> {
     const session = withSession(state, { at: state.now, kind: "tick" });
-    const discarded = discardAutomaticDrawStep(session.state);
+    const discarded = sendHeldAnswerStep(session.state);
     return { effects: [...session.effects, ...discarded.effects], state: discarded.state };
 }
 
@@ -460,7 +460,7 @@ export function startGameClient(
 ): ClientStep<LiveClient> {
     const step = startSession(gameId, handoff, at);
     const state: LiveClient = {
-        automaticDiscard: null,
+        automaticAnswer: null,
         boardMotion: { mode: "reset", sequence: 0 },
         calls: null,
         furiten: false,
@@ -496,7 +496,7 @@ export function nextDeadline(state: LiveClient): number | null {
         sessionDeadline(session),
         desyncDeadline(state),
         decisionDue,
-        state.automaticDiscard?.due ?? null,
+        state.automaticAnswer?.due ?? null,
         notice?.until ?? null,
         calls?.until ?? null,
         openingDeadline(state),
@@ -533,7 +533,7 @@ export function traceLiveClient(state: LiveClient, stamped: LiveEvent): TracedSt
     const step = stepLiveEvent({ ...state, now: event.at }, event);
     const settled = settleDesync({ ...step, state: settledPending(step.state) });
     const expired = expireAt(settled.state, event.at);
-    const next = settleAutomaticDiscard(expired);
+    const next = settleAutomaticAnswer(expired);
     const changed = next.table !== state.table;
     const reset =
         step.parsed?.type === "game_reconnected" ||
