@@ -569,9 +569,9 @@ honours this contract can replace it.
   one request at a time, the next 2 s after each answer or failure, from the `next` the last answer gave,
   until `ended` or a 404. Until the first playable record it shows the players and the time left; then it
   opens the board with autoplay on and grows the replay in place, its hands open or hidden by the reader's
-  saved setting as in a replay. Autoplay keeps the table's own pace: the first answer holding records ties
-  its `cutoff_ms` to the page's clock, and each stop plays once its move's stamp is that far behind, plus
-  one poll and its jitter; a result page shows at least 4 s. The page never writes its address. A 404 before the board opens says the
+  saved setting as in a replay. Autoplay keeps the table's own pace: the first answer ties its `cutoff_ms`
+  to the page's clock, and each stop plays once its move's stamp is that far behind, plus one poll and its
+  jitter; a result page shows at least 4 s once its panel has faded in. The page never writes its address. A 404 before the board opens says the
   game can no longer be watched; a 404 later keeps the board and stops asking. Both link the game's replay at `/play/history/{game_id}`.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **Language:** v2 speaks Japanese, English and Russian under the lobby's contract (`docs/i18n.md`),

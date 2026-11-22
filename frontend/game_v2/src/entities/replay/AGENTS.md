@@ -20,9 +20,10 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
   tsumogiri) never go in the address.
 - Autoplay and a held button or key pause on every result page and at the last stop (`isPauseStop`); the wheel holds
   each result page `WHEEL_RESULT_HOLD_MS` and steps on while it keeps turning. An observed game's autoplay is the
-  exception: it keeps the table's pace, each stop due when its move's stamp is as far behind as the first answer
-  holding records put its cutoff, plus `OBSERVE_PACE_BUFFER_MS` (stops already due play back to back, one render
-  each); it holds a result page at least `OBSERVE_RESULT_HOLD_MS` and crosses it, and waits only at the newest stop of
+  exception: it keeps the table's pace, each stop due when its move's stamp is as far behind as the first answer put
+  its cutoff, plus `OBSERVE_PACE_BUFFER_MS` (stops already due play back to back, one render each); it holds a result
+  page at least `OBSERVE_RESULT_HOLD_MS` once readable, the panel's `HELD_PANEL_DELAY_MS` first where the panel
+  appears, and crosses it, and waits only at the newest stop of
   a stream that has not ended, moving on when an answer brings more; nothing the viewer does pauses it, the page
   hiding included.
 - An observed game (the observe page) is the same replay read from the observe stream: the page's screen keeps every

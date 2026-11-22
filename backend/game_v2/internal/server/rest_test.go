@@ -296,7 +296,7 @@ func checkStamps(t *testing.T, poll observed, records int) {
 	t.Helper()
 	stamps, cutoff := poll.stamps(t), poll.number(t, "cutoff_ms")
 	if len(stamps) != records || !slices.IsSorted(stamps) || slices.ContainsFunc(stamps, func(s int) bool { return s > cutoff }) {
-		t.Errorf("observe stamps = %v with cutoff %d, want %d non-decreasing stamps none past the cutoff", stamps, cutoff, records)
+		t.Fatalf("observe stamps = %v with cutoff %d, want %d non-decreasing stamps none past the cutoff", stamps, cutoff, records)
 	}
 }
 
@@ -355,7 +355,7 @@ func TestObserveGame_WhenPolledAcrossTheDelay_ShouldServeOldRecordsOnceVersioned
 		t.Errorf("first observed batch next = %d, want its %d records past the version record", first.number(t, "next"), len(first.records)-1)
 	}
 	if len(delta.records) == 0 || versionRecords(delta.records) != 0 {
-		t.Errorf("observed delta = %v, want bob's leave and no version record", delta.records)
+		t.Fatalf("observed delta = %v, want bob's leave and no version record", delta.records)
 	}
 	checkStamps(t, first, len(first.records)-1)
 	checkStamps(t, delta, len(delta.records))

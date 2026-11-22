@@ -586,9 +586,10 @@ class ReplayViewController {
             return;
         }
         const [from, to] = [shown.view.cursor.stop, next.view.cursor.stop];
-        if (to === from + 1) {
+        const steppedOn = to === from + 1;
+        if (steppedOn && next.observe === null) {
             this.clacks.landNow();
-        } else if (to !== from) {
+        } else if (!steppedOn && to !== from) {
             this.clacks.cancel();
         }
     }

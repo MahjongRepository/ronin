@@ -7,6 +7,9 @@ import {
 import { type RoundEndDisplayState, roundEndDisplay } from "@/entities/table/lib/round-end-display";
 import { type TableState } from "@/entities/table/model/types";
 
+/** How long a held result's panel stays hidden once it appears over the board, before it fades in. */
+export const HELD_PANEL_DELAY_MS = 1500;
+
 /**
  * A panel over the table's board: the seating (a live game's opening screen, a replay's start), a round's result at a page (`held`:
  * it opens after a pause, so the move that ended the round and its call are seen first), or the game's end.

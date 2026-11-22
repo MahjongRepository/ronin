@@ -5,6 +5,7 @@ import { keyed } from "lit-html/directives/keyed.js";
 import { SIDEWAYS_UNITS, STACKED_DEPTH, UPRIGHT_DEPTH } from "@/entities/table/lib/board-constants";
 import { CALLOUT_MS, CALLOUT_SPOTS } from "@/entities/table/lib/callouts";
 import { type MeldShape, type StripContent } from "@/entities/table/lib/strip-layout";
+import { HELD_PANEL_DELAY_MS } from "@/entities/table/lib/table-panel";
 import {
     type BoardCallout,
     type BoardCallouts,
@@ -489,7 +490,11 @@ function GameBoard(props: GameBoardProps): TemplateResult {
             ${CalloutAnnouncements(props.callouts, state)}
             ${
                 props.overlay
-                    ? html`<div class="board-overlay" ${holdPanel(props.overlayHeld === true)}>
+                    ? html`<div
+                          class="board-overlay"
+                          style="--overlay-hold-ms: ${HELD_PANEL_DELAY_MS}ms"
+                          ${holdPanel(props.overlayHeld === true)}
+                      >
                       <div class="board-overlay__panel" data-board-panel>${props.overlay}</div>
                   </div>`
                     : ""

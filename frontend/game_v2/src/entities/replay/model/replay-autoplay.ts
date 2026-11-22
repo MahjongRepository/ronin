@@ -1,3 +1,5 @@
+import { HELD_PANEL_DELAY_MS } from "@/entities/table";
+
 import { type StepEvent } from "./action-steps";
 import { type NavigationIndex } from "./navigation-index";
 import { type ReplayCursor, nextCursor } from "./replay-cursor";
@@ -64,11 +66,19 @@ export function observeAutoplayDueAt(
     return heldUntil === null ? due : Math.max(due, heldUntil);
 }
 
-/** Until when observe autoplay holds the cursor shown from `at`: a page of a round's result `OBSERVE_RESULT_HOLD_MS`. */
+/**
+ * Until when observe autoplay holds the cursor shown from `at`: a page of a round's result `OBSERVE_RESULT_HOLD_MS`
+ * once it can be read, after the held panel's delay where its panel appears, on the result's first page or on any
+ * page the board `opened` at; a later page keeps the panel already shown.
+ */
 export function observeHeldUntil(
     nav: NavigationIndex,
     cursor: ReplayCursor,
-    at: number,
+    { at, opened }: { readonly at: number; readonly opened: boolean },
 ): number | null {
-    return isResultStop(nav, cursor) ? at + OBSERVE_RESULT_HOLD_MS : null;
+    if (!isResultStop(nav, cursor)) {
+        return null;
+    }
+    const appears = opened || cursor.page === 0;
+    return at + (appears ? HELD_PANEL_DELAY_MS : 0) + OBSERVE_RESULT_HOLD_MS;
 }

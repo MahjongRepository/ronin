@@ -16,6 +16,7 @@ import {
     DEFAULT_REPLAY_PREFS,
     HOLD_DELAY_MS,
     HOLD_REPEAT_MS,
+    OBSERVE_PACE_BUFFER_MS,
     OBSERVE_POLL_MS,
     type ReplayPrefs,
     type ReplayPrefsStore,
@@ -182,28 +183,52 @@ function fakeObserve(): FakeObserve {
     };
 }
 
-/** The stamps of an answer carrying `records`: each record's collected as the delay's cutoff came. */
-function stampsOf(records: Uint8Array): number[] {
+/** The stamps of an answer carrying `records`, each by its index. */
+function stampsOf(records: Uint8Array, stamp: (index: number) => number): number[] {
     if (records.length === 0) {
         return [];
     }
     const file = readReplayFile(records);
     assert(file.ok);
-    return file.lines.map(() => 0);
+    return file.lines.map((_line, index) => stamp(index));
 }
 
-/** An observe answer carrying `records`, the cursor after them `next`, the delay passed. */
-function observeAnswer(records: Uint8Array, next: number, ended: boolean): ObserveFetch {
+/** When the pao game's discard and the draw after it, its records 5 and 6, were collected; the records before at 0. */
+const PAO_DRAW_STAMP = 1000;
+
+function paoStampThroughDraw(index: number): number {
+    if (index < 5) {
+        return 0;
+    }
+    return index < 7 ? PAO_DRAW_STAMP : 60 * PAO_DRAW_STAMP;
+}
+
+interface ObserveAnswerOptions {
+    readonly ended?: boolean;
+    readonly availableInMs?: number;
+    readonly cutoffMs?: number;
+    readonly stamp?: (index: number) => number;
+}
+
+/**
+ * An observe answer carrying `records`, the cursor after them `next`: by default the stream going on, the delay passed
+ * and every record collected as the delay's cutoff came.
+ */
+function observeAnswer(
+    records: Uint8Array,
+    next: number,
+    { ended = false, availableInMs = 0, cutoffMs = 0, stamp = () => 0 }: ObserveAnswerOptions = {},
+): ObserveFetch {
     return {
         answer: {
-            availableInMs: 0,
-            cutoffMs: 0,
+            availableInMs,
+            cutoffMs,
             ended,
             gameType: "hanchan",
             next,
             players: ["Akagi", "Washizu", "Ten", "Hiro"],
             records,
-            stamps: stampsOf(records),
+            stamps: stampsOf(records, stamp),
             startedAt: 0,
         },
         ok: true,
@@ -412,6 +437,23 @@ function fireNextTimer(clock: ManualClock): boolean {
     }
     clock.advanceTo(Math.min(...live.map((timer) => timer.at)));
     return true;
+}
+
+/** Fire each live timer due by `at` at its own time, the ones they arm included, then move the clock to `at`. */
+function advanceThrough(clock: ManualClock, at: number): void {
+    const due = clock.timers.filter((timer) => !timer.cancelled && timer.at <= at);
+    if (due.length === 0) {
+        clock.advanceTo(at);
+        return;
+    }
+    clock.advanceTo(Math.min(...due.map((timer) => timer.at)));
+    advanceThrough(clock, at);
+}
+
+/** How many discard clacks a mounted view played once its clock ran through `at`. */
+function discardClacksBy(mounted: MountedReplay, at: number): number {
+    advanceThrough(mounted.clock, at);
+    return mounted.sound.played.filter((cue) => cue === "discard").length;
 }
 
 /** Fire timers until none is left, at most `limit`, and return how many fired. */
@@ -1470,11 +1512,11 @@ describe("mountReplayView - observing", () => {
     it("asks the stream again from the cursor each answer returns, live until it ends, and nothing once it ended", async () => {
         const stream = fakeObserve();
         const watched = mountReplay("", { fetchObserve: stream.fetchObserve });
-        await stream.answer(observeAnswer(engineReplayBytes("full_game"), 7, false));
+        await stream.answer(observeAnswer(engineReplayBytes("full_game"), 7));
         const live = textOf(watched.host, ".board-center__live");
 
         watched.clock.advanceTo(OBSERVE_POLL_MS);
-        await stream.answer(observeAnswer(new Uint8Array(), 7, true));
+        await stream.answer(observeAnswer(new Uint8Array(), 7, { ended: true }));
         runTimers(watched.clock);
         await settle();
 
@@ -1482,10 +1524,29 @@ describe("mountReplayView - observing", () => {
         expect([live, textOf(watched.host, ".board-center__live")]).toEqual(["Live", undefined]);
     });
 
+    it("lets a discard's clack land on time when the next stop follows before its tile lands", async () => {
+        const stream = fakeObserve();
+        const watched = mountReplay("", { fetchObserve: stream.fetchObserve, soundOn: true });
+        await stream.answer(
+            observeAnswer(new Uint8Array(), 0, { availableInMs: 1000, cutoffMs: -1000 }),
+        );
+        watched.clock.advanceTo(OBSERVE_POLL_MS);
+        await stream.answer(
+            observeAnswer(engineReplayBytes("pao"), 0, { stamp: paoStampThroughDraw }),
+        );
+        const drawDue = 1000 + OBSERVE_PACE_BUFFER_MS + PAO_DRAW_STAMP;
+        const [atDraw, landed] = [
+            discardClacksBy(watched, drawDue),
+            discardClacksBy(watched, drawDue + DISCARD_LANDING_MS),
+        ];
+
+        expect(landed - atDraw).toBe(1);
+    });
+
     it("aborts the request in flight on dispose and asks nothing afterwards", async () => {
         const disposedStream = fakeObserve();
         const disposed = mountReplay("", { fetchObserve: disposedStream.fetchObserve });
-        await disposedStream.answer(observeAnswer(engineReplayBytes("full_game"), 7, false));
+        await disposedStream.answer(observeAnswer(engineReplayBytes("full_game"), 7));
         disposed.clock.advanceTo(OBSERVE_POLL_MS);
         disposed.dispose();
         disposed.clock.advanceTo(10 * OBSERVE_POLL_MS);

@@ -45,7 +45,12 @@ export type { Notice, NoticeTone } from "./model/notice";
 export type { GameBoardProps, LocalHandInput } from "./ui/game-board";
 export { TablePanelDisplay } from "./ui/table-panel";
 export type { TablePanelControls } from "./ui/table-panel";
-export { replaySeatingPanel, tablePanel, tableSeatingPanel } from "./lib/table-panel";
+export {
+    HELD_PANEL_DELAY_MS,
+    replaySeatingPanel,
+    tablePanel,
+    tableSeatingPanel,
+} from "./lib/table-panel";
 export type { TablePanel, TablePanelView } from "./lib/table-panel";
 export { SEAT_POSITIONS } from "./model/board-types";
 export type {

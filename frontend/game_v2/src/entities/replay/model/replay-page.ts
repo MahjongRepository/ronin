@@ -88,8 +88,7 @@ export interface ReplayHandCopy {
 /**
  * The observe stream a page follows: every record received so far, the version record first; when each record after
  * the version record is due to play on the page's clock; the offset that turns a record's stamp into that due time,
- * fixed by the first answer that held records (its receipt less its cutoff, plus `OBSERVE_PACE_BUFFER_MS`), null
- * before it; the cursor its next request asks from; whether the stream has ended or the server no longer holds the
+ * fixed by the first answer (its receipt less its cutoff, plus `OBSERVE_PACE_BUFFER_MS`), null before it; the cursor its next request asks from; whether the stream has ended or the server no longer holds the
  * game; and when the next request is due, null while one is in flight and once the stream is done.
  */
 export interface ObserveStream {
@@ -418,7 +417,10 @@ function armed(screen: LoadedReplayScreen, at: number): LoadedReplayScreen {
     const { autoplay, observe, replay, view } = screen;
     const playing = { ...screen, seating: false };
     if (observe !== null) {
-        const heldUntil = observeHeldUntil(replay.navigation, view.cursor, at);
+        const heldUntil = observeHeldUntil(replay.navigation, view.cursor, {
+            at,
+            opened: false,
+        });
         return pacedObserve({ ...playing, autoplay: { ...autoplay, heldUntil } }, observe);
     }
     const dueAt = at + autoplayDelayMs(replay, view.cursor);
@@ -1083,19 +1085,17 @@ function appendBytes(head: Uint8Array, tail: Uint8Array): Uint8Array {
 
 /**
  * The stream after an answer received at `at`: its records appended with their due times, the pace fixed by the first
- * that held any, its cursor moved on, the next request due unless it ended.
+ * answer, its cursor moved on, the next request due unless it ended.
  */
 function answeredStream(stream: ObserveStream, answer: ObserveAnswer, at: number): ObserveStream {
-    const paceOffset =
-        stream.paceOffset ??
-        (answer.stamps.length === 0 ? null : at - answer.cutoffMs + OBSERVE_PACE_BUFFER_MS);
+    const paceOffset = stream.paceOffset ?? at - answer.cutoffMs + OBSERVE_PACE_BUFFER_MS;
     return {
         content:
             answer.records.length === 0
                 ? stream.content
                 : appendBytes(stream.content, answer.records),
         dueAts:
-            paceOffset === null
+            answer.stamps.length === 0
                 ? stream.dueAts
                 : [...stream.dueAts, ...answer.stamps.map((stamp) => stamp + paceOffset)],
         ended: answer.ended,
@@ -1152,7 +1152,8 @@ function observedScreen(
         seating: false,
         view: { bottomSeat: replay.firstDealerSeat, cursor },
     });
-    return quiet(armed(screen, at));
+    const heldUntil = observeHeldUntil(replay.navigation, cursor, { at, opened: true });
+    return quiet(pacedObserve({ ...screen, autoplay: { ...screen.autoplay, heldUntil } }, stream));
 }
 
 /** Whether records too few to play are worth waiting on: none yet, or a game start not followed by a deal yet. */
