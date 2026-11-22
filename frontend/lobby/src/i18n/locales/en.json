@@ -43,6 +43,7 @@
     "common.back_to_lobby": "Back to lobby",
     "common.go_to_matchmaking": "Go to matchmaking",
     "common.go_to_table": "Go to your table",
+    "common.loading": "Loading…",
     "common.page_failed": "This page failed to load.",
     "common.reload": "Reload",
     "common.unsupported_browser": "Your browser is too old to show the game correctly. Update to Chrome or Edge 108, Firefox 128, Safari 16.4 or newer.",

@@ -3,6 +3,7 @@ import { type TemplateResult, html, nothing, render } from "lit-html";
 import { pageFailedView } from "@/app/page-failed";
 import { currentGamesTemplate } from "@/current-games";
 import { type MessageKey, t, tParts } from "@/i18n";
+import { listLoadingTemplate } from "@/list-loading";
 import {
     type LobbyRoom,
     type LobbyRooms,
@@ -123,7 +124,7 @@ function tablesTemplate(rooms: LobbyRooms | null, actions: LobbyActions): Templa
             }
         </div>
 
-        ${rooms ? roomsListTemplate(rooms, actions) : nothing}
+        ${rooms ? roomsListTemplate(rooms, actions) : listLoadingTemplate("rows", 3)}
     </section>`;
 }
 

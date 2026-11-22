@@ -9,6 +9,7 @@ import {
 } from "@/chat";
 import { currentGameRowsTemplate } from "@/current-games";
 import { type MessageKey, formatList, t } from "@/i18n";
+import { listLoadingTemplate } from "@/list-loading";
 import { describeTournamentError } from "@/tournament/handlers";
 import { playedGamesTemplate } from "@/tournament/played-games";
 import {
@@ -100,6 +101,16 @@ function startGameTemplate(config: TournamentConfig | null): TemplateResult | ty
     </button>`;
 }
 
+function currentGamesBodyTemplate(state: TournamentState): TemplateResult {
+    if (!state.joined) {
+        return listLoadingTemplate("rows", 2);
+    }
+    if (state.games.length === 0) {
+        return html`<p class="tournament-quiet">${t("tournament.current.empty")}</p>`;
+    }
+    return currentGameRowsTemplate(state.games);
+}
+
 function currentGamesTemplate(page: TournamentPage): TemplateResult {
     const { config, state } = page;
     return html`<section class="lobby-section tournament-current" aria-labelledby="tournament-games-title">
@@ -109,11 +120,7 @@ function currentGamesTemplate(page: TournamentPage): TemplateResult {
             </h2>
             ${startGameTemplate(config)}
         </div>
-        ${
-            state.games.length === 0
-                ? html`<p class="tournament-quiet">${t("tournament.current.empty")}</p>`
-                : currentGameRowsTemplate(state.games)
-        }
+        ${currentGamesBodyTemplate(state)}
     </section>`;
 }
 
@@ -171,7 +178,9 @@ function connectingTemplate(state: TournamentState): TemplateResult | typeof not
 function panelsTemplate(page: TournamentPage): TemplateResult | typeof nothing {
     const { actions, state } = page;
     if (!state.joined) {
-        return connectingTemplate(state);
+        return isConnectionLost(state)
+            ? nothing
+            : html`${currentGamesTemplate(page)} ${playedGamesTemplate(null, false, actions.showAllPlayed)}`;
     }
     return html`
         ${connectingTemplate(state)}

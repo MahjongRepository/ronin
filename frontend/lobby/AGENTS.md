@@ -16,7 +16,9 @@ error pages) it mounts only the chrome around their `<main>`.
   settles after it (no socket, render or redirect after dispose); `rerender` redraws from state for
   a language switch. Each view sets `document.title` in its render.
 * A view never calls `router.navigate` synchronously inside its mount or unmount, and renders its
-  static frame at once while its data loads, so a route change never flashes an empty page.
+  static frame at once while its data loads, so a route change never flashes an empty page. A list
+  still loading shows `list-loading.ts`'s placeholder, sized like its loaded rows or cards, so the
+  page does not jump when the data lands.
 * **Data** comes from `api.ts` only, never a raw `fetch`, and is validated before use. A JSON 401
   sends the user to `/login?next=<path+query>`; a POST carries the meta CSRF token as
   `X-CSRF-Token` and retries once with the token a 403 `csrf_invalid` hands back.

@@ -3,6 +3,7 @@ import { type TemplateResult, html, nothing } from "lit-html";
 import { isRecord } from "@/api";
 import { gameTypeNameKey, gameTypeWind } from "@/game-types";
 import { formatTime, t } from "@/i18n";
+import { listLoadingTemplate } from "@/list-loading";
 import { readString } from "@/lobby-socket";
 import { seatNamesTemplate } from "@/seat-names";
 
@@ -125,6 +126,6 @@ export function currentGamesTemplate(
                     : html`<small class="lobby-table-count">${t("current_games.count", { count: games.length })}</small>`
             }
         </div>
-        ${games === null ? nothing : gamesListTemplate(games)}
+        ${games === null ? listLoadingTemplate("rows", 2) : gamesListTemplate(games)}
     </section>`;
 }

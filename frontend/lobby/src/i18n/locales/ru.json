@@ -45,6 +45,7 @@
     "common.back_to_lobby": "В лобби",
     "common.go_to_matchmaking": "К подбору игроков",
     "common.go_to_table": "К своему столу",
+    "common.loading": "Загрузка…",
     "common.page_failed": "Не удалось загрузить страницу.",
     "common.reload": "Обновить",
     "common.unsupported_browser": "Ваш браузер устарел, и игра в нём отображается неправильно. Обновите его до Chrome или Edge 108, Firefox 128, Safari 16.4 или новее.",

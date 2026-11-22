@@ -11,6 +11,7 @@ import {
     reportI18nError,
     t,
 } from "@/i18n";
+import { listLoadingTemplate } from "@/list-loading";
 import { readString } from "@/lobby-socket";
 
 const END_REASON_COMPLETED = "completed";
@@ -240,30 +241,42 @@ function playedListTemplate(
     </div>`;
 }
 
-export function playedGamesTemplate(
-    played: readonly PlayedGame[],
+function playedGamesBodyTemplate(
+    played: readonly PlayedGame[] | null,
     expanded: boolean,
     showAll: () => void,
 ): TemplateResult {
-    const breakdown = breakdownText(played);
+    if (played === null) {
+        return listLoadingTemplate("rows", 3);
+    }
+    if (played.length === 0) {
+        return html`<p class="tournament-quiet">${t("tournament.played.empty")}</p>`;
+    }
+    return playedListTemplate(played, expanded, showAll);
+}
+
+/** Draws the game history; null `played` is the history not loaded yet. */
+export function playedGamesTemplate(
+    played: readonly PlayedGame[] | null,
+    expanded: boolean,
+    showAll: () => void,
+): TemplateResult {
+    const count = played?.length ?? 0;
+    const breakdown = played === null ? null : breakdownText(played);
     return html`<section class="lobby-section tournament-played" aria-labelledby="tournament-played-title">
         <div class="lobby-section-header">
             <h2 id="tournament-played-title">
                 ${t("tournament.played.title")}
                 ${
-                    played.length === 0
+                    count === 0
                         ? nothing
                         : html`<span class="tournament-section-count"
-                              >${t("tournament.section_count", { total: played.length })}</span
+                              >${t("tournament.section_count", { total: count })}</span
                           >`
                 }
             </h2>
             ${breakdown === null ? nothing : html`<small class="lobby-table-count">${breakdown}</small>`}
         </div>
-        ${
-            played.length === 0
-                ? html`<p class="tournament-quiet">${t("tournament.played.empty")}</p>`
-                : playedListTemplate(played, expanded, showAll)
-        }
+        ${playedGamesBodyTemplate(played, expanded, showAll)}
     </section>`;
 }

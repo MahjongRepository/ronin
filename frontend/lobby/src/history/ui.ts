@@ -6,6 +6,7 @@ import { gameTypeNameKey } from "@/game-types";
 import { copyReplayLink } from "@/games-history";
 import { type HistoryGame, type HistoryPlayer, type HistoryState } from "@/history/state";
 import { formatDateTime, formatNumber, t, tParts } from "@/i18n";
+import { listLoadingTemplate } from "@/list-loading";
 
 function finalScoreClass(finalScore: number): string {
     if (finalScore > 0) {
@@ -175,7 +176,7 @@ function historyTemplate(state: HistoryState): TemplateResult {
             }
         </div>
 
-        ${games ? gamesTemplate(games) : nothing}
+        ${games ? gamesTemplate(games) : listLoadingTemplate("cards", 3)}
     </section>`;
 }
 

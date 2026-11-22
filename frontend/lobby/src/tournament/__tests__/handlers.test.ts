@@ -299,6 +299,21 @@ describe("renderTournament", () => {
         ).toEqual([false, false, false, true]);
     });
 
+    test("holds a loading placeholder in both game sections until the join answers", () => {
+        const container = renderWith(false, "tournament", (state) => {
+            state.joined = false;
+            state.connectionStatus = "connecting";
+        });
+
+        expect(
+            [".tournament-current", ".tournament-played"].map(
+                (section) =>
+                    container.querySelector(`${section} .list-loading[role=status]`) !== null,
+            ),
+        ).toEqual([true, true]);
+        expect(container.querySelector(".tournament-side")).toBeNull();
+    });
+
     test("shows the five latest ended games with their count and outcomes, the rest behind show all", () => {
         const container = renderWith(false, "tournament", (state) => {
             state.played = [

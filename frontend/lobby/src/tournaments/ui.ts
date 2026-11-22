@@ -2,6 +2,7 @@ import { type TemplateResult, html, nothing, render } from "lit-html";
 
 import { pageFailedView } from "@/app/page-failed";
 import { formatDate, t } from "@/i18n";
+import { listLoadingTemplate } from "@/list-loading";
 import {
     type OwnTournament,
     type OwnTournaments,
@@ -13,9 +14,10 @@ export interface TournamentsActions {
     readonly createTournament: (name: string) => void;
 }
 
+/** Draws the create form; a null `nameMaxLength` is the page still loading, which disables the form. */
 function createFormTemplate(
     state: TournamentsState,
-    nameMaxLength: number,
+    nameMaxLength: number | null,
     actions: TournamentsActions,
 ): TemplateResult {
     function submitCreate(event: SubmitEvent): void {
@@ -31,12 +33,15 @@ function createFormTemplate(
             type="text"
             name="name"
             required
-            maxlength=${nameMaxLength}
+            maxlength=${nameMaxLength ?? nothing}
+            ?disabled=${nameMaxLength === null}
             placeholder=${t("tournaments.name_label")}
             aria-label=${t("tournaments.name_label")}
             autocomplete="off"
         />
-        <button type="submit" ?disabled=${state.creating}>${t("tournaments.create")}</button>
+        <button type="submit" ?disabled=${state.creating || nameMaxLength === null}>
+            ${t("tournaments.create")}
+        </button>
     </form>`;
 }
 
@@ -96,8 +101,8 @@ function tournamentsTemplate(state: TournamentsState, actions: TournamentsAction
                   </div>`
                 : nothing
         }
-        ${state.own ? createFormTemplate(state, state.own.nameMaxLength, actions) : nothing}
-        ${state.own ? listTemplate(state.own) : nothing}
+        ${createFormTemplate(state, state.own?.nameMaxLength ?? null, actions)}
+        ${state.own ? listTemplate(state.own) : listLoadingTemplate("compact-rows", 3)}
     </section>`;
 }
 
