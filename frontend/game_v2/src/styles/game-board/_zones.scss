@@ -92,26 +92,3 @@
         );
     }
 }
-
-.board-zones__line {
-    position: absolute;
-    overflow: visible;
-    stroke: var(--ronin-table-zone-groove);
-    stroke-width: 1px;
-
-    line {
-        vector-effect: non-scaling-stroke;
-    }
-
-    &--lip {
-        stroke: var(--ronin-table-zone-lip);
-        translate: 0 1px;
-    }
-
-    &--bottom {
-        left: var(--zone-inner-left-x);
-        top: var(--zone-band-y);
-        width: calc(var(--zone-inner-right-x) - var(--zone-inner-left-x));
-        height: 1px;
-    }
-}

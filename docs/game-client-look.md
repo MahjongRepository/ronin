@@ -35,8 +35,8 @@ The derived proportions are the three reference viewports' values under the sizi
   lying tile, on the table and off it (a result, a decision's chip), is foreshortened along the screen's y axis and
   shows a thick edge at its end toward the screen's bottom; tiles lying together overlap far to near, the nearer face
   covering the edge they share, so an edge shows only where nothing lies nearer (a row's last tiles, an incomplete
-  row, the latest discard held apart), and one soft shadow per group grounds them. The felt, its seam (closing the
-  play area), the plates and calls (at the points the table anchors them to, a plate standing on its edge toward the core, a top row plate raised further
+  row, the latest discard held apart), and one soft shadow per group grounds them. The felt, the
+  plates and calls (at the points the table anchors them to, a plate standing on its edge toward the core, a top row plate raised further
   where its riichi stick would come within 10px of the core, 6 on a phone) lie flat with it. One static place per
   piece, no per-frame work. Decision: one light for every
   seat: every tile is one generated body (`entities/tile/lib/tile-body.ts`, `npm run bodies`), drawn
@@ -98,7 +98,7 @@ The derived proportions are the three reference viewports' values under the sizi
   state, and tile identity (a red five), and nothing else.
 - **Three tiers, by what a player loses when a thing is covered.** Every element on the board belongs to one tier,
   named before its place is chosen; the tier decides what may stand over it:
-  - *Furniture*: the table itself. The felt, the zones' tint and seam, the plates. It lies under every tile and
+  - *Furniture*: the table itself. The felt, the zones' tint, the plates. It lies under every tile and
     control; anything may cover it, and nothing moves, shrinks or keeps room clear to keep it in view.
   - *Table*: what a player reads to play. The tiles, the centre, the dora card. Furniture never covers it; one
     table piece over another is a layout fault, but for the overlaps this spec accepts (a river past its reserve).
@@ -229,13 +229,13 @@ edge to short of the left strip). The plates stand in the core's corners as on a
 desktop (Badges). Over a panel the notices and a replay's status stay in their field and stand over it,
 reserving no room of their own.
 
-Four seat zones, top, left, right and bottom, are made perceptible on the surface. Decision: one
-faint seam pressed into the felt (a soft groove over a fainter lip) along the top of the foreground between the side
-strips' inner edges, closing the play area, so the felt below the line, the whole foreground, is plain and the
-viewer's own; above it the side fields carry a faint tint and the top field a fainter shade, their edges running from
-the centre panel's corners, the upper ones to the felt's top corners (a page gutter above the table's, on a window
-taller than its table), the lower ones to that seam's ends, each side field closed along the seam's line to the
-felt's edge. No seam runs along those diagonals: the fields' tints alone mark them, too faint to read as lines. They establish perceived ownership; they are not clipping
+Four seat zones, top, left, right and bottom, are made perceptible on the surface. Decision: the
+foreground, the felt below the top of the hand band, is plain and the viewer's own, and no line marks it (a seam there
+read as a stray rule over a phone's hand); above it the side fields carry a faint tint and the top field a fainter
+shade, their edges running from the centre panel's corners, the upper ones to the felt's top corners (a page gutter
+above the table's, on a window taller than its table), the lower ones to the side strips' inner edges at the top of
+the foreground, each side field closed along that line to the felt's edge. No line is drawn anywhere: the fields'
+tints alone mark the zones, too faint to read as lines. They establish perceived ownership; they are not clipping
 boundaries, and a long river may cross one. A seat's tiles and the score data facing it are oriented
 toward that seat as on a real table: the top seat's tiles upside down, a side seat's on their side,
 every river reading left to right from its own seat. Names, notices, callouts and controls stay

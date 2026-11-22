@@ -33,7 +33,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   over the grid, by the geometry's lengths, and so does a replay's status over a smaller board's panel.
 - **A width-bound desktop's table is a frame of its own.** Where the board is taller than its table needs, the
   geometry emits `--geo-table-top` and `--geo-table-h`, and `.board-layout` stands there, that tall: every length,
-  track and slot is in the table's frame, the zones' fields and seam reach its edges (their layer still covering
+  track and slot is in the table's frame, the zones' fields reach its edges (their layer still covering
   the whole board, the surround past the felt, which ends a page gutter above and below the table), and the overlay, which spans the whole board for its dim, reads `--cy` shifted by the table's top.
   A height-bound board emits neither, its fallbacks the whole board.
 - **The panel's free box is the geometry's.** Off a phone it is the table column, so the bars' notices stay usable
@@ -100,7 +100,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   top, holds the rivers, the centre, the opponents' strips and the counters; each takes the transform `tableView`
   (`entities/table/lib/table-view.ts`) emits for it (`--geo-camera-*`) from its top left corner, which only moves it
   to the table's top, and the lengths the directive writes on the surface itself. So every piece is shown as laid: the
-  overlays (`--geo-shown-*`: the plates, calls and the felt's fields and seam), motion snapshots and the checks read the boxes the
+  overlays (`--geo-shown-*`: the plates, calls and the felt's fields), motion snapshots and the checks read the boxes the
   browser paints, with no projection to take back. The view seam is a deferred no-op: a piece's transform stays one
   static value per resize, never per frame. The surface makes no stacking context and clips nothing. Its full-board
   layers (the surface, the rivers, the strips) pass the pointer through, so the plates under them take presses; a

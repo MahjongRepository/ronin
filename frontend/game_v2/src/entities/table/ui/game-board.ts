@@ -221,16 +221,6 @@ function Zones(): TemplateResult {
         <span class="board-zones__field board-zones__field--left"></span>
         <span class="board-zones__field board-zones__field--right"></span>
         <span class="board-zones__field board-zones__field--top"></span>
-        ${(["groove", "lip"] as const).map(
-            (part) =>
-                html`<svg
-                    class="board-zones__line board-zones__line--bottom board-zones__line--${part}"
-                    viewBox="0 0 1 1"
-                    preserveAspectRatio="none"
-                >
-                    <line x1="0" y1="0" x2="1" y2="0"></line>
-                </svg>`,
-        )}
     </div>`;
 }
 
