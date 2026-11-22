@@ -479,7 +479,8 @@ as a number, not seen, so the count turns red from ten tiles left.
   tile shows reduced emphasis, never darkness: greyed out (its glyphs grey, the face a step dimmer)
   at its normal size and position, with its edge and shadow kept and every glyph keeping its
   contrast against its face; selectable tiles keep their normal position too. A riichi-declaring
-  tile is lifted, and so is the tile an answer played; neither is outlined, the accent ring on a
+  tile is lifted (on a phone, whose decisions stand just over the own row, it keeps its place, the greyed tiles
+  marking the rest), and so is the tile an answer played; neither is outlined, the accent ring on a
   tile being the keyboard focus alone.
 - **Action source.** A discard offer's source is the latest discard, marked by the latest-discard
   mark, which the next draw ends. A chankan offer's kan (an added kan, or a closed kan robbed for
@@ -756,7 +757,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   the core's, covering whatever of the board's middle it needs (the rivers, the centre, a call's
   announcement). A round result's panel takes the panel's room up to a wide cap, its tiles larger than the other
   panels'. A board under 400px tall (a landscape phone, its browser's bars shown or not) gives it a compact
-  form: smaller type, each seat's change and total on one line, a seat that moved nothing showing its total alone.
+  form: smaller type, each seat's change and total on one line where its card holds them (else two, never past the card), a seat that moved nothing showing its total alone.
   At the primary sizes every panel, a round result included, fits whole; a result's yaku list longer than its column
   scrolls in place, and a board too small for the rest (a best-effort narrow window at most) scrolls the panel
   itself. A panel may cover the page

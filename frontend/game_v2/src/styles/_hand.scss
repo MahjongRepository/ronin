@@ -93,3 +93,9 @@ button.hand-tile {
         transform: translateY(-8%);
     }
 }
+
+.hand-tile--declaring {
+    @include phone-board {
+        transform: none;
+    }
+}

@@ -1086,9 +1086,9 @@ $result-large-panel-width: 47rem;
     }
 
     .round-end-result__seat-figures {
-        flex-direction: row;
+        flex-flow: row wrap;
         align-items: baseline;
-        gap: 0.35rem;
+        gap: 0 0.35rem;
     }
 
     .round-end-result__delta {

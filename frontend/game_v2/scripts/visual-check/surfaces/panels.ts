@@ -398,6 +398,8 @@ interface ResultPanelMeasure {
     readonly client: Size;
     readonly scrollers: readonly ResultScroller[];
     readonly view: ResultPanelView;
+    /** The seat cards whose change, total or rank runs past the card's border, by the seat's name. */
+    readonly spilledSeats: readonly string[];
 }
 
 function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
@@ -462,10 +464,30 @@ function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
                 name: part.className.split(" ")[0] ?? "",
                 scroll: part.scrollHeight,
             }));
+        const spilledSeats = [...panel.querySelectorAll(".round-end-result__seat")]
+            .filter((seat) => {
+                const card = seat.getBoundingClientRect();
+                return [
+                    ...seat.querySelectorAll(
+                        ".round-end-result__delta, .round-end-result__standing",
+                    ),
+                ].some((figure) => {
+                    const shown = figure.getBoundingClientRect();
+                    return (
+                        shown.width > 0 &&
+                        (shown.left < card.left - 0.5 || shown.right > card.right + 0.5)
+                    );
+                });
+            })
+            .map(
+                (seat) =>
+                    seat.querySelector(".round-end-result__score-name")?.textContent?.trim() ?? "",
+            );
         return {
             client: { height: panel.clientHeight, width: panel.clientWidth },
             scroll: { height: panel.scrollHeight, width: panel.scrollWidth },
             scrollers,
+            spilledSeats,
             view: view(panel),
         };
     });
@@ -473,8 +495,8 @@ function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
 
 /**
  * A round result fits its panel whole at every supported size, none of its parts (its yaku list included) scrolling in
- * place, its page buttons and its primary button and countdown in view; the hand row (a draw's tenpai hands) lies
- * whole in view under no other part.
+ * place, every seat's figures inside its card, its page buttons and its primary button and countdown in view; the hand
+ * row (a draw's tenpai hands) lies whole in view under no other part.
  */
 function checkResultPanel(panel: ResultPanelMeasure | null, report: PageReport): void {
     if (panel === null) {
@@ -486,6 +508,10 @@ function checkResultPanel(panel: ResultPanelMeasure | null, report: PageReport):
     report.expect(
         !panelOverflows && scrollers.length === 0,
         `a result does not fit its panel: ${held}`,
+    );
+    report.expect(
+        panel.spilledSeats.length === 0,
+        `a result's seat figures run past their card: ${panel.spilledSeats.join(", ")}`,
     );
     const { view } = panel;
     const hidden = view.kept.filter(({ box }) => !contains(view.shown, box));

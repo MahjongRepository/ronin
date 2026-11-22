@@ -140,7 +140,7 @@ How the board's stylesheets (`game-board/`, the partials beside it) meet `docs/g
   scrolls a list too long for it, and a seat that moved nothing keeps its change's line blank. A board under
   `$result-compact-height` (`game-board/_queries.scss`) gives it its compact form, a container query on the board's
   height (content-responsive, not a family branch): smaller type and tiles held to the panel's height, each seat's
-  change and total on one line. Its large type needs both a board of `$result-large-height` and a panel
+  change and total on one line where its card holds them, else wrapping to two, never past the card. Its large type needs both a board of `$result-large-height` and a panel
   (`round-result`, an inline-size container) of `$result-large-panel-width`: the panel's width is the table column's,
   not the board's, so a short or squat window's narrow panel keeps the regular type its seats' figures fit.
 - A panel sized by its content reserves its scrollbar's gutter (`scrollbar-gutter: stable`): the overlay's auto
