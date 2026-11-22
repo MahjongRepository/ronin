@@ -975,13 +975,13 @@ on the shortest boxes; the latest discard's temporary raise, its latest-discard 
 the stack keeps the 4px from its settled slot), and the
 phone's chrome scales from the river tile (the small chrome's px up to a 24px river tile, growing with
 it past that, never under 40x40), except the decision controls, which keep their 40px rows. It gives
-river and own tiles of 19 and 37px at 667x375 (its rails bound the felt), 22 and 43px at the notch phone's
-750x390, 23 and 47px at an iPhone 11's 808x414, and 24 and 51px at 932x430 (both bound by the felt's height share),
-whatever the state shows, with centres of 114x109, 132x94, 138x104 and 144x105px (width by height).
+river and own tiles of 19 and 37px at 667x375 (its rails bound the felt), 21 and 43px at the notch phone's
+750x390, 23 and 45px at an iPhone 11's 808x414, and 23 and 51px at 932x430 (both bound by the felt's height share),
+whatever the state shows, with centres of 114x108, 126x100, 138x103 and 138x110px (width by height).
 With a browser's bars shown the boxes
 give 18 and 38px at 891x331 (a 108x69 centre, its lanes above the own row), 13 and 37px at 808x275 (100x70, its
 lanes beside the own row), 11 and 34px at an iPhone 13's 750x251 (its lanes beside the own row), and 9 and 36px at
-667x236 (100x68). A desktop window short enough to use the phone layout follows the same solve: 28 and 59px at
+667x236 (100x68). A desktop window short enough to use the phone layout follows the same solve: 27 and 59px at
 1024x500.
 
 The centre is a rectangle in every family, because one square side had to hold both the vertical room and six
@@ -1003,14 +1003,14 @@ apart on the top strip, and 0.35 on a side strip, where the 0.2 edge its standin
 |---|---|---|
 | Core height / play area height | 0.6 | 0.73 / 0.72 / 0.74 |
 | Centre height / core height | 0.3 | 0.40 / 0.33 / 0.34 |
-| Centre width / centre height (6/4.5 off a phone; on a phone its `w` / `c`: 114/109 and 132/94) | 1.2 | 1.05 / 1.41 / 1.33 |
-| River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand and its air within the felt and, where any own tile allows it, a right rail that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.51 / 0.51 / 0.77 |
+| Centre width / centre height (6/4.5 off a phone; on a phone its `w` / `c`: 114/108 and 126/100) | 1.2 | 1.06 / 1.26 / 1.33 |
+| River tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand and its air within the felt and, where any own tile allows it, a right rail that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.51 / 0.49 / 0.77 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
-| Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand and its air within the felt and, where any own tile allows it, a right rail that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.51 / 0.51 / 0.77 |
+| Opponent hand tile width / own hand tile width | at most 0.75 on a phone (own at least 4/3 of river, at most a full hand and its air within the felt and, where any own tile allows it, a right rail that holds a replay's moves), 1/1.45 to 1/1.2 off it | 0.51 / 0.49 / 0.77 |
 | Own hand tile width / play area width | 0.05 | 0.055 / 0.057 / 0.046 |
 | Own hand tile height / play area height | 0.15 | 0.132 / 0.147 / 0.098 |
-| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.32 / 0.16 (0.15, rounded; the top river 0.74 / 0.73 / 0.56, past its rows' tile edge, a phone's taken from its centre's height, down to 1px under its least, only where the decisions' band keeps its place, never from a tile) |
-| Gap between neighbouring rivers, in river tiles | 0.3 | 0.32 / 0.32 / 0.16 (0.15, rounded) |
+| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.29 / 0.16 (0.15, rounded; the top river 0.74 / 0.71 / 0.56, past its rows' tile edge, a phone's taken from its centre's height, down to 1px under its least, only where the decisions' band keeps its place, never from a tile) |
+| Gap between neighbouring rivers, in river tiles | 0.3 | 0.32 / 0.29 / 0.16 (0.15, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,
 only where it protects the approved layout from a regression a player would notice. The river tile and the gaps are
@@ -1022,8 +1022,8 @@ at 1.2 to 1.45 of it (1.3 or more wherever the width allows), because the own ro
 between the side strips and a wider row widens the felt between them and the rivers; the own melds, at 1 river
 tile, stand at 0.69 of the own tile at the cap. A phone keeps a larger own tile, which touch needs, solved
 together with its river tile from the box, the own tile as large as a full hand and its air within the felt, the
-side strips' lines and a replay's moves in the right rail allow above its 36x48 floor: 1.95 river tiles at the floor and
-the notch phone, 2.13 at 932x430. A decision control's tiles stay inside
+side strips' lines and a replay's moves in the right rail allow above its 36x48 floor: 1.95 river tiles at the floor, 2.05 at
+the notch phone, 2.22 at 932x430. A decision control's tiles stay inside
 its row.
 
 The starting points do not fit together at the 667x375 floor. The rule resolves it by the joint
