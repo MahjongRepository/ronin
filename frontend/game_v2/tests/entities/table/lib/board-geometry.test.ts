@@ -39,7 +39,10 @@ import {
     ownMeldTile,
     stripLayout,
 } from "@/entities/table/lib/strip-layout";
-import { RIVER_ROW_SIZE, STANDING_BODY, STANDING_OVERHANG } from "@/entities/tile";
+import { LYING_BODY, RIVER_ROW_SIZE, STANDING_BODY, STANDING_OVERHANG } from "@/entities/tile";
+
+/** The least air a phone's side strip keeps past its tiles' drawn edge above the own row (px), so they never touch. */
+const SIDE_STRIP_OWN_AIR = 3;
 
 /** The sizes pinned, in the order each case lists them. */
 const SIZES = ["rw", "ow", "core-top", "col-left"] as const;
@@ -209,7 +212,7 @@ describe("boardGeometry in a phone's browser", () => {
             board: { height: 414, width: 808 },
             height: 414,
             insets: { bottom: 21, left: 44, right: 44, top: 0 },
-            ow: 47,
+            ow: 45,
             rw: 23,
             width: 896,
         },
@@ -218,7 +221,7 @@ describe("boardGeometry in a phone's browser", () => {
             height: 390,
             insets: { bottom: 21, left: 47, right: 47, top: 0 },
             ow: 43,
-            rw: 22,
+            rw: 21,
             width: 844,
         },
     ])(
@@ -647,7 +650,7 @@ function feltPlaces(
 /**
  * Whether a phone's board stands on its table column inside its felt: the left bar holding the counters at the face
  * floor or more, every control in a bar, the felt between each side lane and its river's reserve under three river
- * tiles, both side strips' lines a full hand long and ending above the own row, the centre at its least size; the felt
+ * tiles, both side strips' lines a full hand long and their tiles' drawn edge ending clear above the own row, the centre at its least size; the felt
  * centred, within rails a control wide, no wider than the height's share (or a full hand at the own floor, or the column
  * and its air), the own row inside it with its air, its melds ending at that air; the cog and a replay's column in the
  * right rail off the felt.
@@ -688,7 +691,9 @@ function phonePlaces(geometry: BoardGeometry): Record<string, boolean> {
             colRight - lane - length("reach-right") <= 3 * rw,
         fullHandAboveOwnRow:
             Math.min(strips?.left.line ?? 0, strips?.right.line ?? 0) >= length("full-reach") &&
-            (area("strip-left")[3] ?? Infinity) <= rowTop,
+            Math.max(area("strip-left")[3] ?? Infinity, area("strip-right")[3] ?? Infinity) +
+                LYING_BODY.edge * rw <=
+                rowTop - SIDE_STRIP_OWN_AIR,
         replayInRightBar:
             replayLeft >= colRight - 0.1 &&
             replayRight <= box.width - length("m") + 0.1 &&
@@ -949,14 +954,14 @@ describe("boardGeometry", () => {
         { height: 375, pinned: { ow: 37, rw: 19 }, width: 667 },
         { height: 390, pinned: { ow: 37, rw: 19 }, width: 667 },
         { height: 354, pinned: { ow: 41, rw: 19 }, width: 724 },
-        { height: 360, pinned: { ow: 42, rw: 20 }, width: 800 },
-        { height: 390, pinned: { ow: 43, rw: 22 }, width: 750 },
-        { height: 379, pinned: { ow: 44, rw: 21 }, width: 761 },
-        { height: 414, pinned: { "dora-w": 15, ow: 47, rw: 23 }, width: 808 },
+        { height: 360, pinned: { ow: 42, rw: 19 }, width: 800 },
+        { height: 390, pinned: { ow: 43, rw: 21 }, width: 750 },
+        { height: 379, pinned: { ow: 44, rw: 20 }, width: 761 },
+        { height: 414, pinned: { "dora-w": 15, ow: 45, rw: 23 }, width: 808 },
         { height: 480, pinned: { ow: 49, rw: 26 }, width: 850 },
-        { height: 430, pinned: { "dora-w": 15, ow: 51, rw: 24 }, width: 932 },
-        { height: 414, pinned: { "dora-w": 15, ow: 49, rw: 23 }, width: 1000 },
-        { height: 500, pinned: { ow: 59, rw: 28 }, width: 1024 },
+        { height: 430, pinned: { "dora-w": 15, ow: 51, rw: 23 }, width: 932 },
+        { height: 414, pinned: { "dora-w": 15, ow: 49, rw: 22 }, width: 1000 },
+        { height: 500, pinned: { ow: 59, rw: 27 }, width: 1024 },
     ])(
         "sizes a $width x $height window's phone board's tiles jointly in its felt: the own row inside it with its air, the felt bounded by the height and its rails, the left bar holding the counters, the side strips' lines a full hand long above the own row, the felt beside each side river under three river tiles, every control in a bar, the cog and a replay's column in the right rail off the felt",
         ({ height, pinned, width }) => {
@@ -1806,8 +1811,8 @@ describe("boardGeometry's shell tracks", () => {
             field: [4, 38.9, 90, 177],
             furiten: [4, 185, 90, 203],
             hand: [63.4, 319.7, 609, 369],
-            "strip-left": [96, 4, 138, 315.7],
-            "strip-right": [529, 4, 571, 315.7],
+            "strip-left": [96, 4, 138, 309.7],
+            "strip-right": [529, 4, 571, 309.7],
             "strip-top": [138, 4, 468, 36.3],
             switches: [4, 211, 44, 371],
         });

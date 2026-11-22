@@ -55,10 +55,13 @@ const OWN_DRAWN_GAP = 0.35;
 const MELD_GAP_EXTRA = 2;
 
 /**
- * A side strip's drawn gap runs along the light, so it adds the deeper of the edges it shows (a revealed hand's lying
- * face, a concealed one's standing back) and keeps the top strip's clear table.
+ * The deeper of the edges a side strip's tile shows past its slot toward the screen's bottom, in its widths: a revealed
+ * hand's lying face, a concealed one's standing back.
  */
-const SIDE_DRAWN_GAP = OPPONENT_DRAWN_GAP + Math.max(LYING_BODY.edge, STANDING_BACK_EDGE_SHARE);
+const SIDE_EDGE_SHARE = Math.max(LYING_BODY.edge, STANDING_BACK_EDGE_SHARE);
+
+/** A side strip's drawn gap runs along the light, so it adds the edge it shows and keeps the top strip's clear table. */
+const SIDE_DRAWN_GAP = OPPONENT_DRAWN_GAP + SIDE_EDGE_SHARE;
 
 /** The core's height past the centre, in river tiles: a gap and a top or bottom river's rows on each side. */
 const CORE_TILES = 2 * (RIVER_GAP_SHARE + RIVER_ROWS["run-on"] * TILE_ASPECT * LYING_Y_SHARE);
@@ -303,6 +306,7 @@ export {
     RUN_ON_REACH_TILES,
     SIDEWAYS_UNITS,
     SIDE_DRAWN_GAP,
+    SIDE_EDGE_SHARE,
     SIDE_LANE_GAP,
     SIDE_REACH_TILES,
     SMALL_CHROME_WIDTH,

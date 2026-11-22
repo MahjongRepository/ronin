@@ -42,6 +42,7 @@ import {
     ROWS_BEFORE_RUN_ON,
     RUN_ON_REACH_TILES,
     SIDEWAYS_UNITS,
+    SIDE_EDGE_SHARE,
     SIDE_LANE_GAP,
     SIDE_REACH_TILES,
     SMALL_CHROME_WIDTH,
@@ -342,10 +343,23 @@ function phoneSideReach(rw: number, room: number, floor?: number): number {
 
 /**
  * Where a side strip's line ends: `clear` above the own row and the rise its melds take (a desktop's left strip
- * `STRIP_ROOM_GAP`, a phone's both `STRIP_CONTROL_CLEAR`).
+ * `STRIP_ROOM_GAP`, a phone's both `phoneRowTop`'s).
  */
 function sideLineEnd(handTop: number, ownMeldRise: number, clear: number): number {
     return handTop - ownMeldRise - clear;
+}
+
+/**
+ * Where a phone's side strips' lines end above its own row, which runs on under their lanes: `STRIP_CONTROL_CLEAR` past
+ * the edge their last tile shows below its slot, so neither strip's foot nor the left one's drawn tile or far meld
+ * touches the own hand.
+ */
+function phoneRowTop(at: Readonly<Record<"handTop" | "ownMeldRise" | "rw", number>>): number {
+    return sideLineEnd(
+        at.handTop,
+        at.ownMeldRise,
+        STRIP_CONTROL_CLEAR + Math.ceil(SIDE_EDGE_SHARE * at.rw),
+    );
 }
 
 /** A side strip's lane at the table column's edge: its stacked depth and a clearance. */
@@ -1280,7 +1294,7 @@ function phoneLayout(
             width: ownEnd - ownStart,
         }),
     });
-    const rowTop = sideLineEnd(handTop, ownMeldRise, STRIP_CONTROL_CLEAR);
+    const rowTop = phoneRowTop({ handTop, ownMeldRise, rw });
     const foot = beside ? height - m : rowTop;
     const line = foot - m;
     const coreTop = m + rh + sep + (frame.topGap ?? 0);
@@ -2897,7 +2911,7 @@ function phonePlates({ at, frame, tier }: ShellRoom): PlatePlaces {
     const rect = plateRect(
         at,
         tier.pillH,
-        sideLineEnd(at("hand-top"), at("own-meld-rise"), STRIP_CONTROL_CLEAR),
+        phoneRowTop({ handTop: at("hand-top"), ownMeldRise: at("own-meld-rise"), rw: at("rw") }),
     );
     return {
         lengths: plateLengths(frame.box.width, at, rect),
