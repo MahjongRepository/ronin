@@ -37,7 +37,7 @@ import { browserBarsSurface } from "./surfaces/browser-bars.ts";
 import { decisionsSurface } from "./surfaces/decisions.ts";
 import { noticesSurface } from "./surfaces/notices.ts";
 import { panelsSurface } from "./surfaces/panels.ts";
-import { replaySurface } from "./surfaces/replay.ts";
+import { LIVE_REFERENCE, SAME_AS_LIVE, replaySurface } from "./surfaces/replay.ts";
 import { FLOOR, VIEWPORTS, checkCaptureModel, emulateInsets } from "./viewports.ts";
 
 /**
@@ -262,6 +262,7 @@ function tasksOf(engine: BrowserType, selection: Selection): PageTask[] {
 function findSelectionErrors(): string[] {
     const names = new Set(VIEWPORTS.map(({ name }) => name));
     const named = new Set(PAGES.flatMap(viewportsOf));
+    const live = new Set(PAGES.filter(({ name }) => name === LIVE_REFERENCE).flatMap(viewportsOf));
     return [
         ...PAGES.filter((pageCase) => viewportsOf(pageCase).length === 0).map(
             (pageCase) => `${pageCase.name} names no viewport`,
@@ -282,6 +283,14 @@ function findSelectionErrors(): string[] {
                 pageCase.contrast === true &&
                 !viewportsOf(pageCase).some((name) => CONTRAST_VIEWPORTS.has(name)),
         ).map((pageCase) => `${pageCase.name} is measured for contrast at no contrast viewport`),
+        ...PAGES.filter(({ name }) => SAME_AS_LIVE.has(name)).flatMap((pageCase) =>
+            viewportsOf(pageCase)
+                .filter((name) => !live.has(name))
+                .map(
+                    (name) =>
+                        `${pageCase.name} is held to ${LIVE_REFERENCE} at ${name}, which it is not checked at`,
+                ),
+        ),
     ];
 }
 
@@ -341,7 +350,9 @@ async function checkAll(
 async function clearShots(folder: string): Promise<void> {
     const files = await readdir(folder).catch(() => []);
     await Promise.all(
-        files.filter((file) => file.endsWith(".png")).map((file) => rm(join(folder, file))),
+        files
+            .filter((file) => file.endsWith(".png") || file.endsWith(".jpg"))
+            .map((file) => rm(join(folder, file))),
     );
 }
 

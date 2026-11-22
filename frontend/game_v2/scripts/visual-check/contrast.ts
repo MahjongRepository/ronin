@@ -54,6 +54,9 @@ const COMPOSITOR_OVERSAMPLE = 2;
 const SHOWN = "visibility: visible !important";
 const STICK_DOTS = " :is(.board-stick-icon__dot, .board-stick-icon__honba)";
 
+/** A stick icon that is lit: the riichi toggle's, faint by design while it is off, is held only while pressed. */
+const LIT_STICK_ICON = '.board-stick-icon:not(.decision-controls__action[aria-pressed="false"] *)';
+
 /** The marks on the board that carry information, each measured against what it is painted on. */
 const CONTRAST_MARKS: readonly ContrastMark[] = [
     {
@@ -93,13 +96,13 @@ const CONTRAST_MARKS: readonly ContrastMark[] = [
         hide: [[" .board-stick-icon__body", HIDDEN]],
         name: "stick icon's body",
         reach: 1,
-        selector: ".board-stick-icon",
+        selector: LIT_STICK_ICON,
     },
     {
         hide: [[STICK_DOTS, HIDDEN]],
         name: "stick icon's dots",
         reach: 0,
-        selector: ".board-stick-icon",
+        selector: LIT_STICK_ICON,
     },
     { hide: [["", HIDDEN]], name: "furiten dot", reach: 0, selector: ".board-furiten__dot" },
     {

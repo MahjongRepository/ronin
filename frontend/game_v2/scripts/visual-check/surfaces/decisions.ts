@@ -59,10 +59,10 @@ const TOGGLE_FAMILIES: readonly (readonly [string, string])[] = [
     ["decisions-anchor-riichi-off", "decisions-anchor-riichi"],
 ];
 
-/** A toggle (the riichi toggle): the state it announces and whether it wears the ring of a toggle that is on. */
+/** A toggle (the riichi toggle): the state it announces and whether its stick icon is lit, as a toggle that is on. */
 interface ToggleMeasure {
     readonly pressed: boolean;
-    readonly ringed: boolean;
+    readonly lit: boolean;
 }
 
 /** The decision controls' boxes and then the timer's, where a page showed a decision in landscape. */
@@ -131,6 +131,7 @@ function gameCase(checkpoint: LiveCheckpoint, shown: string): PageCase {
 const LIVE_AT = [
     ...WORST_CASES,
     NOTCH_PHONE,
+    FULLSCREEN_PHONE,
     LAPTOP_WINDOW,
     NARROW_DESKTOP,
     SHORT_TABLET,
@@ -249,8 +250,10 @@ function measureToggles(page: Page): Promise<readonly ToggleMeasure[]> {
         const board = document.querySelector(".game-board");
         const toggles = board?.querySelectorAll(".decision-controls__action[aria-pressed]") ?? [];
         return [...toggles].map((toggle) => ({
+            lit: [...toggle.querySelectorAll(".board-stick-icon")].some(
+                (icon) => getComputedStyle(icon).opacity === "1",
+            ),
             pressed: toggle.getAttribute("aria-pressed") === "true",
-            ringed: getComputedStyle(toggle).boxShadow.includes("0px 0px 0px 3px inset"),
         }));
     });
 }
@@ -383,12 +386,12 @@ function checkSwitches(board: BoardMeasure, screen: Box, report: PageReport): vo
     );
 }
 
-/** A toggle wears its ring exactly while it is pressed, so its state never reads by colour alone. */
+/** A toggle's stick icon is lit exactly while it is pressed and faint otherwise, so its state reads at a glance. */
 function checkToggles(toggles: readonly ToggleMeasure[], report: PageReport): void {
-    const misread = toggles.filter((toggle) => toggle.ringed !== toggle.pressed);
+    const misread = toggles.filter((toggle) => toggle.lit !== toggle.pressed);
     report.expect(
         misread.length === 0,
-        `${misread.length} toggle(s) whose ring does not match the toggle's state`,
+        `${misread.length} toggle(s) whose stick icon's light does not match the toggle's state`,
     );
 }
 
@@ -543,7 +546,7 @@ function checkFuritenMark(board: BoardMeasure, report: PageReport): void {
 
 /**
  * A decision's controls on a landscape board: its buttons and timer on the board and the screen and clear of the tiles,
- * the play switches, the toggles' rings, and where the controls and the toggle stand, for the checks across pages.
+ * the play switches, the toggles' stick icons, and where the controls and the toggle stand, for the checks across pages.
  */
 async function checkBoard({ board, page, report, screen, viewport }: BoardRun): Promise<void> {
     if (!viewport.supported) {

@@ -207,6 +207,24 @@ async function checkStepButton(page: Page): Promise<void> {
     }
 }
 
+/**
+ * A hands-hidden story's `prepare`: the tools' menu, opened and closed again, shows its hide-hands switch on, the one
+ * place the page states it.
+ */
+async function expectHandsHidden(page: Page): Promise<void> {
+    const tools = page.locator("[data-replay-tools-toggle]");
+    await tools.click();
+    await page.waitForSelector(".replay-tools__hands[aria-checked='true']", {
+        state: "attached",
+        timeout: SELECTOR_TIMEOUT_MS,
+    });
+    await tools.click();
+    await page.waitForSelector(".replay-tools__hands", {
+        state: "detached",
+        timeout: SELECTOR_TIMEOUT_MS,
+    });
+}
+
 /** The four kans' story stands at its stop with all four kans laid on the board and no result over it. */
 async function expectFourKans(page: Page): Promise<void> {
     await expectStep(FOUR_KANS_STEP)(page);
@@ -265,7 +283,7 @@ const PAGES: readonly PageCase[] = [
     },
     { ...replayCase("mid", []), prepare: expectStep(14) },
     replayCase("autoplay", [".replay-controls__play[aria-pressed='true']"]),
-    replayCase("viewpoint_hidden", [".replay-controls__option--hands[aria-pressed='true']"]),
+    { ...replayCase("viewpoint_hidden", []), prepare: expectHandsHidden },
     {
         ...replayCase("round_list", [".round-list__row[aria-current]", ".round-list__row--end"]),
         at: [FLOOR, MID_DESKTOP, SHORT_TABLET],
@@ -282,10 +300,7 @@ const PAGES: readonly PageCase[] = [
     { ...replayCase("double_ron", [".round-end-result__next"]), at: [FLOOR, SHORT_TABLET] },
     {
         ...replayCase("result_hidden", [".round-end-result__settle"]),
-        required: {
-            attached: [".replay-controls__option--hands[aria-pressed='true']"],
-            visible: [...BOARD_VISIBLE, ".replay-controls__moves", ".round-end-result__settle"],
-        },
+        prepare: expectHandsHidden,
     },
     replayCase("game_end", [".seating__ending--tobi", ".seating__result--positive"]),
     replayStateCase("loading", { ".replay-state__detail": "Loading the replay…" }, null),
@@ -638,8 +653,8 @@ interface SharedGeometry {
 const SHARED_GEOMETRY = new PageRecord<SharedGeometry>();
 
 /** The live game's own route at its turn, and the replay's pages whose board must lie as its board does. */
-const LIVE_REFERENCE = "game-turn";
-const SAME_AS_LIVE: ReadonlySet<string> = new Set(["replay-start", "replay"]);
+export const LIVE_REFERENCE = "game-turn";
+export const SAME_AS_LIVE: ReadonlySet<string> = new Set(["replay-start", "replay"]);
 
 /** The board's river tile as the sizing rule sets it (`--rw`), laid or not: a turn's rivers may still be empty. */
 async function measureRiverTile(page: Page): Promise<number | null> {
@@ -651,10 +666,18 @@ async function measureRiverTile(page: Page): Promise<number | null> {
     return Number.isFinite(pixels) ? pixels : null;
 }
 
+/**
+ * The shared geometry in the viewport's frame: a touch tab's page rests part way down its scroll room on the live and
+ * replay routes alike, while a storybook may stand at its top, so page coordinates would differ by the rest alone.
+ */
 async function sharedGeometry(page: Page, board: BoardMeasure): Promise<SharedGeometry> {
+    const scroll = await page.evaluate(() => ({ left: window.scrollX, top: window.scrollY }));
+    function inViewport(shown: Box): Box {
+        return { ...shown, left: shown.left - scroll.left, top: shown.top - scroll.top };
+    }
     return {
-        board: board.board,
-        center: board.center,
+        board: inViewport(board.board),
+        center: board.center === null ? null : inViewport(board.center),
         ownTile: board.localTileSizes[0] ?? null,
         riverTile: await measureRiverTile(page),
     };
