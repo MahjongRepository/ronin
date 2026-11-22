@@ -147,7 +147,7 @@ describe("planTileMotion", () => {
         ).toEqual([{ ...flight, source: "drawn" }]);
     });
 
-    it("holds an opponent's concealed draw in step and observe mode and plans nothing for the viewer's draw or a replay", () => {
+    it("holds the viewer's and an opponent's concealed draw in step and observe mode, and nothing in a replay", () => {
         const own = tile("own");
         const ownDrawn = tile("own-drawn", { drawn: true, id: "9" });
         const opponent = tile("right-slot", {
@@ -164,9 +164,15 @@ describe("planTileMotion", () => {
         const river = tile("river", { region: "discards", seat: "left" });
         const before = [own, opponent, river];
         const after = [own, ownDrawn, opponent, opponentDrawn, river];
-        expect(planTileMotion(before, after, "step")).toEqual([heldDraw("right-drawn")]);
-        expect(planTileMotion(before, after, "observe")).toEqual([heldDraw("right-drawn")]);
-        expect(planTileMotion(before, after, "replay")).toEqual([]);
+        expect(
+            (["step", "observe", "replay"] as const).map((mode) =>
+                planTileMotion(before, after, mode),
+            ),
+        ).toEqual([
+            [heldDraw("own-drawn"), heldDraw("right-drawn")],
+            [heldDraw("own-drawn"), heldDraw("right-drawn")],
+            [],
+        ]);
     });
 
     it("holds an opponent's face-up draw only while observing", () => {

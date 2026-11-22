@@ -1,5 +1,5 @@
 import { hasEnded, holdsSeat } from "@/entities/session";
-import { DISCARD_LANDING_MS, DRAW_HOLD_MS, type PlayerState } from "@/entities/table";
+import { DISCARD_LANDING_MS, OWN_DRAW_HOLD_MS, type PlayerState } from "@/entities/table";
 import { type ClientMessage } from "@/shared/protocol";
 
 import { declareIntent } from "./calls";
@@ -21,7 +21,7 @@ import {
 const AUTOMATIC_DRAW_HOLD_MS = 1000;
 const AUTO_WIN_PAUSE_MS = 500;
 export const AUTO_WIN_RON_HOLD_MS = DISCARD_LANDING_MS + AUTO_WIN_PAUSE_MS;
-export const AUTO_WIN_TSUMO_HOLD_MS = DISCARD_LANDING_MS + DRAW_HOLD_MS + AUTO_WIN_PAUSE_MS;
+export const AUTO_WIN_TSUMO_HOLD_MS = DISCARD_LANDING_MS + OWN_DRAW_HOLD_MS + AUTO_WIN_PAUSE_MS;
 
 /**
  * Whether the client may answer what its seat owes: its session holds the seat. Out of step the seat owes nothing,

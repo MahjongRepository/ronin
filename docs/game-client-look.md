@@ -640,9 +640,9 @@ as a number, not seen, so the count turns red from ten tiles left.
   resting size, a 480ms hold, then a 480ms fade-out. In live play it remains until
   then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
-- **Tile motion.** A draw appears in its separated hand slot without travelling: the viewer's at once, an
-  opponent's in live play 300ms after the preceding discard lands, as in a watched live game even face up (at once
-  in a replay). The dealer's opening draw, the viewer's included, appears 300ms after it reaches the board, so the
+- **Tile motion.** A draw appears in its separated hand slot without travelling, after the preceding discard lands:
+  the viewer's 150ms after it, an opponent's in live play 300ms after it, as in a watched live game even face up
+  (the watched seat's at 150ms), and at once with no discard still landing (at once in a replay). The dealer's opening draw, the viewer's included, appears 300ms after it reaches the board, so the
   13 dealt tiles show alone first (at once in a replay). Discards travel from hand
   to river in 150ms, slowing to a stop in their slot, the latest in its gap; it stays there until 300ms after landing, or
   while a call on it is being decided, then slides back into line over 500ms, decelerating.
@@ -669,7 +669,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   Opponents' revealed hands replace their standing backs one tile every 35ms, without a flip; waiting backs stay
   in their native hand slots, retaining the hand's shared shadow and the side hands' gaps. The hand stays
   automatically sorted and keeps its existing hover and selection feedback. Motion never blocks input, delays
-  game state or invents a hidden tile identity (an opponent's held draw delays only its picture); later events preserve unaffected movements. A fresh page,
+  game state or invents a hidden tile identity (a held draw delays only its picture); later events preserve unaffected movements. A fresh page,
   reconnect, replay jump or viewpoint change shows the requested position immediately. Reduced motion, asked by the
   system or by the settings menu's Animations switch, disables
   tile travel and staged reveals, and a hand tile's lift then applies without a transition. Match standings fade in over 1.5 seconds and fade away over 250ms when dismissed;
@@ -699,8 +699,8 @@ as a number, not seen, so the count turns red from ten tiles left.
   land is dropped when the sound is turned off, a reset snapshot comes or the page closes; in a replay also on a jump or a
   step back, while a step on plays it at once. A decision chime that comes while a clack waits sounds with that clack,
   since the chime opens on a clack-like tap that would otherwise read as a second clack. A draw tick never sounds before
-  or over a clack: one that comes while a clack waits, or within the draw hold (300ms) after one, waits until that hold
-  after the clack, when a held draw shows; a step on in a replay lands the clack and keeps that wait. A deal, the
+  or over a clack: one that comes while a clack waits, or within the draw hold (300ms, the viewer's own 150ms) after
+  one, waits until that hold after the clack, when the held draw shows; a step on in a replay lands the clack and keeps that wait. A deal, the
   round's opening draw (before any discard or call) and a re-sent draw tick nothing. Every other sound plays with
   its move. A reconnect's snapshot plays nothing. A replay plays a move's sounds (no beep) on a step on to the
   next stop (Next, autoplay, a held Next, the wheel), never on a jump, a step back or a result's page. A browser

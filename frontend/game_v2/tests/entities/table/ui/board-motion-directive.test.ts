@@ -743,6 +743,35 @@ describe("opponent draw hold", () => {
     });
 });
 
+describe("own draw hold", () => {
+    it("holds the viewer's draw committed with the left seat's discard until it lands and the own pause passes", async () => {
+        vi.spyOn(performance, "now").mockReturnValue(1000);
+        const view = { view: bottomOnly };
+        const dealt = table(true);
+        const discarded: TableState = {
+            ...dealt,
+            lastDiscardSeat: 3,
+            players: dealt.players.map((player) =>
+                player.seat === 3
+                    ? {
+                          ...player,
+                          discards: [{ isRiichi: false, isTsumogiri: false, tileId: 100 }],
+                          tiles: player.tiles.filter((tileId) => tileId !== 100),
+                      }
+                    : player,
+            ),
+        };
+        await show(dealt, { mode: "reset", sequence: 0 }, view);
+        draw(discarded, { mode: "step", sequence: 1 }, view);
+        await show(drawn(discarded), { mode: "step", sequence: 2 }, view);
+        const hold = animations.at(-1);
+        expect([targetOf(hold), hold?.effect?.getTiming().duration]).toEqual([
+            host.querySelector("[data-area='bottom-hand'] .hand-drawn-gap > .tile"),
+            BOARD_MOTION.landing + BOARD_MOTION.ownDrawHold,
+        ]);
+    });
+});
+
 describe("animations switch", () => {
     it("cancels a running flight when the animations turn off and reads no tile and starts none while they stay off", async () => {
         await show(drawn(table(true)), { mode: "reset", sequence: 0 });

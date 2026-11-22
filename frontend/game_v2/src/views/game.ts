@@ -28,6 +28,7 @@ import {
     startGameClient,
     stepGameClient,
     stepPlayUi,
+    viewerDraws,
 } from "@/entities/client";
 import { BOARD_SELECTOR } from "@/entities/table";
 import { type TileSprite } from "@/entities/tile";
@@ -597,7 +598,7 @@ class GameViewController {
             return;
         }
         const motion = this.ui.animationsOn && !this.deps.prefersReducedMotion();
-        this.clacks.play(soundCues(before, after), motion);
+        this.clacks.play(soundCues(before, after), motion, viewerDraws(before, after));
     }
 
     /**

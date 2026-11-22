@@ -1,4 +1,9 @@
-import { BOARD_MOTION, type MotionRect, type TileMotion } from "@/entities/table/lib/board-motion";
+import {
+    BOARD_MOTION,
+    type MotionRect,
+    type TileMotion,
+    drawHoldAfterLanding,
+} from "@/entities/table/lib/board-motion";
 
 import { type TilePose, type TileSnapshot, snapshotTiles } from "./board-motion-snapshot";
 import { TileHoldPlayer } from "./tile-hold-player";
@@ -181,9 +186,13 @@ export class BoardMotionPlayer {
     }
 
     private remainingDrawHold(): number {
+        return this.remainingHold(BOARD_MOTION.drawHold);
+    }
+
+    private remainingHold(afterLanding: number): number {
         return this.discardLandingAt === null
             ? 0
-            : Math.max(0, this.discardLandingAt + BOARD_MOTION.drawHold - performance.now());
+            : Math.max(0, this.discardLandingAt + afterLanding - performance.now());
     }
 
     private currentSources(before: readonly TileSnapshot[]): ReadonlyMap<string, TileSnapshot> {
@@ -265,7 +274,7 @@ export class BoardMotionPlayer {
         if (target === undefined) {
             return;
         }
-        const ms = Math.max(motion.delay, this.remainingDrawHold());
+        const ms = Math.max(motion.delay, this.remainingHold(drawHoldAfterLanding(target.seat)));
         if (ms > 0) {
             this.hold.play(motion.target, target.element, ms);
         }

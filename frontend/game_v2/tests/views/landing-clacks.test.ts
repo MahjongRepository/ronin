@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
 import { type SoundCue } from "@/entities/client";
-import { DISCARD_LANDING_MS, DRAW_HOLD_MS } from "@/entities/table";
+import { DISCARD_LANDING_MS, DRAW_HOLD_MS, OWN_DRAW_HOLD_MS } from "@/entities/table";
 import { LandingClacks } from "@/views/landing-clacks";
 
 function heardBy(
@@ -18,11 +18,12 @@ function heardBy(
 
 describe("LandingClacks", () => {
     it.each([
-        [true, DISCARD_LANDING_MS],
-        [false, 0],
+        { atLanding: true, clackAt: DISCARD_LANDING_MS, hold: DRAW_HOLD_MS, ownDraw: false },
+        { atLanding: false, clackAt: 0, hold: DRAW_HOLD_MS, ownDraw: false },
+        { atLanding: true, clackAt: DISCARD_LANDING_MS, hold: OWN_DRAW_HOLD_MS, ownDraw: true },
     ])(
-        "ticks a draw that follows a discard only once the hold after its clack passes (clack at landing: %s)",
-        (atLanding, clackAt) => {
+        "ticks a draw that follows a discard only once the hold after its clack passes (clack at landing: $atLanding, own draw: $ownDraw)",
+        ({ atLanding, clackAt, hold, ownDraw }) => {
             const clock = new ManualClock();
             const played: SoundCue[] = [];
             const clacks = new LandingClacks(steadyClockOn(clock), {
@@ -30,16 +31,14 @@ describe("LandingClacks", () => {
                 setting: { load: () => ({ sound_on: true }), save: () => {} },
             });
 
-            clacks.play(["discard"], atLanding);
-            clacks.play(["draw"], atLanding);
+            clacks.play(["discard"], atLanding, false);
+            clacks.play(["draw"], atLanding, ownDraw);
 
-            expect(
-                heardBy(clock, played, [
-                    clackAt,
-                    clackAt + DRAW_HOLD_MS - 1,
-                    clackAt + DRAW_HOLD_MS,
-                ]),
-            ).toEqual([["discard"], ["discard"], ["discard", "draw"]]);
+            expect(heardBy(clock, played, [clackAt, clackAt + hold - 1, clackAt + hold])).toEqual([
+                ["discard"],
+                ["discard"],
+                ["discard", "draw"],
+            ]);
         },
     );
 });

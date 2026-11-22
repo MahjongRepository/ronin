@@ -53,6 +53,14 @@ function drawsOneTile(before: TableState, after: TableState): boolean {
     );
 }
 
+/** Whether a live step draws a tile into the viewer's own hand. */
+export function viewerDraws(before: LiveClient, after: LiveClient): boolean {
+    const [was, is] = [before, after].map(({ table }) =>
+        table.players.find((player) => player.seat === after.viewerSeat),
+    );
+    return holdsDraw(is) && !holdsDraw(was);
+}
+
 /** Whether a round's result pays a winner at a yakuman limit. */
 function paysYakuman(table: TableState): boolean {
     return (

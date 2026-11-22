@@ -21,12 +21,19 @@ export const BOARD_MOTION = {
     meldShift: 200,
     meldSpeed: 0.055,
     minTravel: 80,
+    ownDrawHold: 150,
     revealTile: 35,
     slotEasing: "cubic-bezier(0.16, 1, 0.3, 1)",
 } as const;
 
 export const DISCARD_LANDING_MS = BOARD_MOTION.landing;
 export const DRAW_HOLD_MS = BOARD_MOTION.drawHold;
+export const OWN_DRAW_HOLD_MS = BOARD_MOTION.ownDrawHold;
+
+/** How long after the latest discard lands a draw into the hand of the seat at `seat` shows. */
+export function drawHoldAfterLanding(seat: SeatPosition): number {
+    return seat === "bottom" ? OWN_DRAW_HOLD_MS : DRAW_HOLD_MS;
+}
 
 export interface MotionRect {
     readonly left: number;
@@ -202,8 +209,9 @@ function planConcealedShift(target: MotionTile, context: MoveContext): TileMotio
 }
 
 function isHeldDraw(target: MotionTile, mode: BoardMotionCue["mode"]): boolean {
-    const held = mode === "observe" || (mode === "step" && target.concealed);
-    return held && target.region === "hand" && target.drawn && target.seat !== "bottom";
+    const held =
+        mode === "observe" || (mode === "step" && (target.concealed || target.seat === "bottom"));
+    return held && target.region === "hand" && target.drawn;
 }
 
 function isOpeningDraw(target: MotionTile, mode: BoardMotionCue["mode"]): boolean {

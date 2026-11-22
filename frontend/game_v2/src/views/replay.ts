@@ -625,7 +625,7 @@ class ReplayViewController {
                 return this.writeAddress();
             }
             case "play_sounds": {
-                return this.clacks.play(effect.cues, this.motionEffective());
+                return this.clacks.play(effect.cues, this.motionEffective(), false);
             }
             case "save_prefs":
             case "save_sound":
