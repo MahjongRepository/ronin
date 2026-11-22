@@ -465,10 +465,10 @@ def test_tournament_create__when_non_admin_posts_name__should_list_it_and_open_i
     tournament_id = create_tournament(client, "  Spring Cup  ")
 
     listed = client.get("/api/lobby/tournaments").json()
-    assert [{key: value for key, value in entry.items() if key != "created_at"} for entry in listed["tournaments"]] == [
+    assert [{key: value for key, value in entry.items() if key != "created_at"} for entry in listed["own"]] == [
         {"id": tournament_id, "name": "Spring Cup", "playing": 0, "finished": 0}
     ]
-    assert listed["name_max_length"] == 80
+    assert (listed["others"], listed["can_create"], listed["name_max_length"]) == ([], True, 80)
     assert client.get("/tournaments").status_code == 200
     assert client.get(f"/tournaments/{tournament_id}").status_code == 200
     page = client.get(f"/api/lobby/tournaments/{tournament_id}").json()
@@ -481,22 +481,25 @@ def test_tournament_create__when_non_admin_posts_name__should_list_it_and_open_i
     }
 
 
-def test_tournament_create__when_guest_posts_name__should_refuse_with_403_and_create_nothing(client):
+def test_tournament_create__when_guest_posts_name__should_refuse_with_403_and_list_no_create(client):
     client.get("/login")
     client.post("/api/lobby/auth/guest", json={}, headers={CSRF_HEADER_NAME: client.cookies[CSRF_COOKIE_NAME]})
 
     refused = post_lobby_json(client, "/api/lobby/tournaments", {"name": "Cup"})
 
     assert (refused.status_code, refused.json()) == (403, {"error": "guest_account"})
-    assert client.get("/api/lobby/tournaments").json()["tournaments"] == []
+    listed = client.get("/api/lobby/tournaments").json()
+    assert (listed["own"], listed["can_create"]) == ([], False)
 
 
 def test_tournament_page_route__when_other_user_opens_it__should_not_call_them_owner(client, tournament_id):
     login_with_csrf(client, "bob")
 
     page = client.get(f"/api/lobby/tournaments/{tournament_id}")
+    listed = client.get("/api/lobby/tournaments").json()
 
     assert (page.status_code, page.json()["is_owner"]) == (200, False)
+    assert (listed["own"], [entry["id"] for entry in listed["others"]]) == ([], [tournament_id])
 
 
 def test_tournament_rename__when_owner_posts_new_name__should_store_the_stripped_name(client, tournament_id):
@@ -512,7 +515,7 @@ def test_tournament_create__when_name_has_format_character__should_refuse_and_cr
     refused = post_lobby_json(client, "/api/lobby/tournaments", {"name": "Spring\u202eCup"})
 
     assert (refused.status_code, refused.json()) == (400, {"error": "invalid_name"})
-    assert client.get("/api/lobby/tournaments").json()["tournaments"] == []
+    assert client.get("/api/lobby/tournaments").json()["own"] == []
 
 
 def test_tournament_page_route__when_id_unknown__should_answer_404(client):

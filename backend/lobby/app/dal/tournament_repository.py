@@ -19,12 +19,12 @@ class TournamentRepository(ABC):
     async def get_tournament(self, tournament_id: str) -> Tournament | None: ...
 
     @abstractmethod
-    async def list_tournaments_by_owner(self, owner_user_id: str) -> list[Tournament]: ...
+    async def list_tournaments(self) -> list[Tournament]: ...
 
     @abstractmethod
-    async def count_games_by_owner(self, owner_user_id: str) -> dict[str, TournamentGameCounts]:
+    async def count_games(self) -> dict[str, TournamentGameCounts]:
         """
-        Return the game counts of this user's tournaments by tournament id; a tournament without games is absent.
+        Return every tournament's game counts by tournament id; a tournament without games is absent.
         """
 
     @abstractmethod

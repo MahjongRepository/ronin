@@ -67,23 +67,30 @@ async def _read_checked_body(request: Request) -> dict | Response:
 
 async def lobby_tournaments(request: Request) -> JSONResponse:
     """
-    GET /api/lobby/tournaments - the user's own tournaments, newest first, and the name limit the create form enforces.
+    GET /api/lobby/tournaments - the user's own tournaments and everyone else's, each newest first, whether the user
+    may create one (a guest may not) and the name limit the create form enforces.
     """
     tournament_repo: TournamentRepository = request.app.state.tournament_repo
-    tournaments = await tournament_repo.list_tournaments_by_owner(request.user.user_id)
-    counts = await tournament_repo.count_games_by_owner(request.user.user_id)
+    tournaments = await tournament_repo.list_tournaments()
+    counts = await tournament_repo.count_games()
     no_games = TournamentGameCounts(playing=0, finished=0)
+
+    own: list[dict[str, object]] = []
+    others: list[dict[str, object]] = []
+    for tournament in tournaments:
+        row = {
+            "id": tournament.id,
+            "name": tournament.name,
+            "created_at": tournament.created_at,
+            **counts.get(tournament.id, no_games).model_dump(),
+        }
+        (own if tournament.owner_user_id == request.user.user_id else others).append(row)
+
     return JSONResponse(
         {
-            "tournaments": [
-                {
-                    "id": tournament.id,
-                    "name": tournament.name,
-                    "created_at": tournament.created_at,
-                    **counts.get(tournament.id, no_games).model_dump(),
-                }
-                for tournament in tournaments
-            ],
+            "own": own,
+            "others": others,
+            "can_create": not request.user.is_guest,
             "name_max_length": TOURNAMENT_NAME_MAX_LENGTH,
         },
         headers=NO_STORE_HEADERS,

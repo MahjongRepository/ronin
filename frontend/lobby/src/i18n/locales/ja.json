@@ -333,7 +333,10 @@
     "tournaments.create_failed": "大会を作成できませんでした。もう一度お試しください。",
     "tournaments.empty": "まだ大会はありません。",
     "tournaments.empty_hint": "上のフォームから作成できます。",
+    "tournaments.empty_hint_guest": "大会を作成するには、アカウントを登録してください。",
     "tournaments.name_label": "大会名",
+    "tournaments.others_empty": "他の大会はまだありません。",
+    "tournaments.others_title": "他の大会",
     "tournaments.row.finished": {
         "other": "終了 {count}"
     },

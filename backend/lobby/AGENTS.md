@@ -145,9 +145,10 @@ package joins a layer in the contract, or gets its own contract, in the same cha
   close is an enqueue, so no handler, broadcast or reaper tick ever waits on a slow or dead peer.
 * `occupancy.py` — the one owner of the occupancy rule.
 * Tournaments are durable rows in the shared SQLite database (id, name, owner); any registered account creates one
-  (a guest gets 403 `guest_account`) and lists its own on the tournaments page, and a tournament's page, the
-  shareable link, opens for anyone signed in, guests included. Only the nav link to the tournaments page is
-  admin-only, in the lobby client. `views/tournament_handlers.py` is the lobby app's tournament API
+  (a guest gets 403 `guest_account`). The tournaments page lists the user's own and everyone else's, and a
+  tournament's page, the shareable link, opens for anyone signed in, guests included. The tournaments list answers
+  `can_create`, false for a guest, so the page hides its create form. `views/tournament_handlers.py` is the lobby
+  app's tournament API
   (`/api/lobby/tournaments*`); the page's view reads `is_owner` from it to show the Settings tab.
 * `tournaments/` — the tournament page's socket and `TournamentHub`, the in-memory registry of who is online on
   each tournament page: one connection per user (a new one replaces the old), lost on a restart. Being online

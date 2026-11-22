@@ -346,7 +346,10 @@
     "tournaments.create_failed": "The tournament could not be created. Try again.",
     "tournaments.empty": "You have no tournaments yet.",
     "tournaments.empty_hint": "Create one with the form above.",
+    "tournaments.empty_hint_guest": "Register an account to create one.",
     "tournaments.name_label": "Tournament name",
+    "tournaments.others_empty": "No other tournaments yet.",
+    "tournaments.others_title": "Other tournaments",
     "tournaments.row.finished": {
         "one": "{count} finished",
         "other": "{count} finished"

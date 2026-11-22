@@ -2,7 +2,7 @@ import { apiGet, apiPost } from "@/api";
 import {
     type TournamentsState,
     parseCreatedTournamentId,
-    parseOwnTournaments,
+    parseTournamentLists,
     tournamentPath,
 } from "@/tournaments/state";
 
@@ -12,7 +12,7 @@ export interface TournamentsViewContext {
     readonly render: () => void;
 }
 
-export async function loadOwnTournaments(
+export async function loadTournaments(
     state: TournamentsState,
     context: TournamentsViewContext,
 ): Promise<void> {
@@ -20,12 +20,12 @@ export async function loadOwnTournaments(
     if (context.isDisposed()) {
         return;
     }
-    const own = result.ok ? parseOwnTournaments(result.data) : null;
-    if (own === null) {
-        console.error("own tournaments not loaded", result.ok ? "invalid answer" : result.error);
+    const lists = result.ok ? parseTournamentLists(result.data) : null;
+    if (lists === null) {
+        console.error("tournaments not loaded", result.ok ? "invalid answer" : result.error);
         state.loadFailed = true;
     } else {
-        state.own = own;
+        state.lists = lists;
     }
     context.render();
 }

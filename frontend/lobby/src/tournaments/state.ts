@@ -1,4 +1,4 @@
-export interface OwnTournament {
+export interface TournamentRow {
     readonly createdAt: Date;
     readonly finished: number;
     readonly id: string;
@@ -6,20 +6,22 @@ export interface OwnTournament {
     readonly playing: number;
 }
 
-export interface OwnTournaments {
+export interface TournamentLists {
+    readonly canCreate: boolean;
     readonly nameMaxLength: number;
-    readonly tournaments: readonly OwnTournament[];
+    readonly others: readonly TournamentRow[];
+    readonly own: readonly TournamentRow[];
 }
 
 export interface TournamentsState {
     creating: boolean;
     createFailed: boolean;
     loadFailed: boolean;
-    own: OwnTournaments | null;
+    lists: TournamentLists | null;
 }
 
 export function createTournamentsState(): TournamentsState {
-    return { createFailed: false, creating: false, loadFailed: false, own: null };
+    return { createFailed: false, creating: false, lists: null, loadFailed: false };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -30,7 +32,7 @@ function isCount(value: unknown): value is number {
     return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
 
-function parseOwnTournament(value: unknown): OwnTournament | null {
+function parseTournamentRow(value: unknown): TournamentRow | null {
     if (
         !isRecord(value) ||
         typeof value.id !== "string" ||
@@ -50,21 +52,32 @@ function parseOwnTournament(value: unknown): OwnTournament | null {
     };
 }
 
-export function parseOwnTournaments(data: unknown): OwnTournaments | null {
-    if (!isRecord(data) || !Array.isArray(data.tournaments)) {
+function parseTournamentRows(value: unknown): readonly TournamentRow[] | null {
+    if (!Array.isArray(value)) {
         return null;
     }
-    const nameMaxLength = data.name_max_length;
-    const tournaments = data.tournaments.map(parseOwnTournament);
+    const rows = value.map(parseTournamentRow);
+    return rows.includes(null) ? null : rows.filter((row) => row !== null);
+}
+
+export function parseTournamentLists(data: unknown): TournamentLists | null {
+    if (!isRecord(data)) {
+        return null;
+    }
+    const { can_create: canCreate, name_max_length: nameMaxLength } = data;
+    const own = parseTournamentRows(data.own);
+    const others = parseTournamentRows(data.others);
     if (
+        typeof canCreate !== "boolean" ||
         typeof nameMaxLength !== "number" ||
         !Number.isInteger(nameMaxLength) ||
         nameMaxLength <= 0 ||
-        tournaments.includes(null)
+        own === null ||
+        others === null
     ) {
         return null;
     }
-    return { nameMaxLength, tournaments: tournaments.filter((entry) => entry !== null) };
+    return { canCreate, nameMaxLength, others, own };
 }
 
 export function parseCreatedTournamentId(data: unknown): string | null {

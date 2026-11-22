@@ -34,17 +34,17 @@ class SqliteTournamentRepository(TournamentRepository):
         """
         return await self._db.submit_read(partial(_select_tournament, tournament_id=tournament_id))
 
-    async def list_tournaments_by_owner(self, owner_user_id: str) -> list[Tournament]:
+    async def list_tournaments(self) -> list[Tournament]:
         """
-        Return the tournaments this user owns, newest first.
+        Return every tournament, newest first.
         """
-        return await self._db.submit_read(partial(_select_tournaments_by_owner, owner_user_id=owner_user_id))
+        return await self._db.submit_read(_select_tournaments)
 
-    async def count_games_by_owner(self, owner_user_id: str) -> dict[str, TournamentGameCounts]:
+    async def count_games(self) -> dict[str, TournamentGameCounts]:
         """
-        Return the game counts of this user's tournaments by tournament id; a tournament without games is absent.
+        Return every tournament's game counts by tournament id; a tournament without games is absent.
         """
-        return await self._db.submit_read(partial(_count_games_by_owner, owner_user_id=owner_user_id))
+        return await self._db.submit_read(_count_games)
 
     async def rename_tournament(self, tournament_id: str, name: str) -> None:
         """
@@ -107,19 +107,17 @@ def _select_tournament(conn: sqlite3.Connection, *, tournament_id: str) -> Tourn
     return None if row is None else _tournament_from_row(row)
 
 
-def _select_tournaments_by_owner(conn: sqlite3.Connection, *, owner_user_id: str) -> list[Tournament]:
+def _select_tournaments(conn: sqlite3.Connection) -> list[Tournament]:
     rows = conn.execute(
-        "SELECT id, name, owner_user_id, created_at FROM tournaments WHERE owner_user_id = ? ORDER BY created_at DESC",
-        (owner_user_id,),
+        "SELECT id, name, owner_user_id, created_at FROM tournaments ORDER BY created_at DESC, rowid DESC"
     ).fetchall()
     return [_tournament_from_row(row) for row in rows]
 
 
-def _count_games_by_owner(conn: sqlite3.Connection, *, owner_user_id: str) -> dict[str, TournamentGameCounts]:
+def _count_games(conn: sqlite3.Connection) -> dict[str, TournamentGameCounts]:
     rows = conn.execute(
-        "SELECT g.tournament_id, SUM(g.ended_at IS NULL), SUM(g.ended_at IS NOT NULL) FROM tournament_games g "
-        "JOIN tournaments t ON t.id = g.tournament_id WHERE t.owner_user_id = ? GROUP BY g.tournament_id",
-        (owner_user_id,),
+        "SELECT tournament_id, SUM(ended_at IS NULL), SUM(ended_at IS NOT NULL) FROM tournament_games "
+        "GROUP BY tournament_id"
     ).fetchall()
     return {
         tournament_id: TournamentGameCounts(playing=playing, finished=finished)

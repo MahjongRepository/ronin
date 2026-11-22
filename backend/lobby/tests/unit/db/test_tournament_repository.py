@@ -16,17 +16,18 @@ def _tournament(tournament_id: str, *, owner_user_id: str, created_at: float) ->
     )
 
 
-async def test_list_tournaments_by_owner__when_two_owners__should_return_only_own_newest_first_with_game_counts(
+async def test_list_tournaments__when_two_owners__should_return_all_newest_first_with_game_counts(
     tmp_path: Path,
 ):
     db = Database(tmp_path / "test.db")
     await db.open()
     repo = SqliteTournamentRepository(db)
     older = _tournament("older", owner_user_id="alice", created_at=100.0)
+    other = _tournament("other", owner_user_id="bob", created_at=150.0)
     newer = _tournament("newer", owner_user_id="alice", created_at=200.0)
     try:
         await repo.create_tournament(older)
-        await repo.create_tournament(_tournament("other", owner_user_id="bob", created_at=150.0))
+        await repo.create_tournament(other)
         await repo.create_tournament(newer)
         for game_id, tournament_id in (("g1", "older"), ("g2", "older"), ("g3", "older"), ("g4", "other")):
             await repo.add_game(
@@ -34,10 +35,13 @@ async def test_list_tournaments_by_owner__when_two_owners__should_return_only_ow
             )
         await repo.finish_game("g1", ended_at=2.0, end_reason=GameEndReason.COMPLETED, result=[])
 
-        owned = await repo.list_tournaments_by_owner("alice")
-        counts = await repo.count_games_by_owner("alice")
+        listed = await repo.list_tournaments()
+        counts = await repo.count_games()
     finally:
         await db.close()
 
-    assert owned == [newer, older]
-    assert counts == {"older": TournamentGameCounts(playing=2, finished=1)}
+    assert listed == [newer, other, older]
+    assert counts == {
+        "older": TournamentGameCounts(playing=2, finished=1),
+        "other": TournamentGameCounts(playing=1, finished=0),
+    }

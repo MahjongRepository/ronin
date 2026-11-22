@@ -37,37 +37,37 @@ function nextQuery(url: URL): string {
     return next ? `?${new URLSearchParams({ next }).toString()}` : "";
 }
 
+interface NavLink {
+    readonly href: string;
+    readonly label: "nav.tournaments" | "nav.admin";
+}
+
+const TOURNAMENTS_LINK: NavLink = { href: TOURNAMENTS_PATH, label: "nav.tournaments" };
+const ADMIN_LINK: NavLink = { href: MONITORING_PATH, label: "nav.admin" };
+
+function foldingLinks(user: SessionUser): readonly NavLink[] {
+    return user.isAdmin ? [TOURNAMENTS_LINK, ADMIN_LINK] : [TOURNAMENTS_LINK];
+}
+
 function userLinks(user: SessionUser, path: string): TemplateResult {
     return html`<li>
             <a href="/history" class="lobby-nav-link" aria-current=${currentPage(path, "/history")}
                 >${t("nav.history")}</a
             >
         </li>
-        ${user.isAdmin ? adminItems(path) : nothing}`;
+        ${foldingLinks(user).map(
+            ({ href, label }) =>
+                html`<li class="lobby-nav-folding">
+                    <a href=${href} class="lobby-nav-link" aria-current=${currentPage(path, href)}
+                        >${t(label)}</a
+                    >
+                </li>`,
+        )}`;
 }
 
-const ADMIN_LINKS = [
-    { href: TOURNAMENTS_PATH, label: "nav.tournaments" },
-    { href: MONITORING_PATH, label: "nav.admin" },
-] as const;
-
-function adminItems(path: string): TemplateResult {
-    return html`${ADMIN_LINKS.map(
-        ({ href, label }) =>
-            html`<li class="lobby-nav-admin">
-                <a href=${href} class="lobby-nav-link" aria-current=${currentPage(path, href)}
-                    >${t(label)}</a
-                >
-            </li>`,
-    )}`;
-}
-
-function adminPanelItems(user: SessionUser, path: string): TemplateResult | typeof nothing {
-    if (!user.isAdmin) {
-        return nothing;
-    }
-    return html`<div class="lobby-account-admin">
-        ${ADMIN_LINKS.map(
+function foldedPanelItems(user: SessionUser, path: string): TemplateResult {
+    return html`<div class="lobby-account-folded">
+        ${foldingLinks(user).map(
             ({ href, label }) =>
                 html`<a href=${href} class="lobby-account-item" aria-current=${currentPage(path, href)}
                     ><span>${t(label)}</span></a
@@ -183,7 +183,7 @@ function accountPanel(user: SessionUser, path: string, menu: AccountMenu): Templ
         @click=${closeOnItemChoice(menu)}
     >
         <p class="lobby-account-name">${user.username}</p>
-        ${adminPanelItems(user, path)}
+        ${foldedPanelItems(user, path)}
         <a
             href=${SETTINGS_PATH}
             class="lobby-account-item"

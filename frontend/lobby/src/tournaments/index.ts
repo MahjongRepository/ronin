@@ -1,6 +1,6 @@
 import { type MountedView } from "@ronin/shared/router";
 
-import { createTournament, loadOwnTournaments } from "@/tournaments/handlers";
+import { createTournament, loadTournaments } from "@/tournaments/handlers";
 import { createTournamentsState } from "@/tournaments/state";
 import { renderTournaments } from "@/tournaments/ui";
 
@@ -25,7 +25,7 @@ export function mountTournamentsView(host: HTMLElement, deps: TournamentsViewDep
     }
 
     render();
-    void loadOwnTournaments(state, context);
+    void loadTournaments(state, context);
     return {
         rerender: render,
         unmount: () => {

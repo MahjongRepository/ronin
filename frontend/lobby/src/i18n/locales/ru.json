@@ -372,7 +372,10 @@
     "tournaments.create_failed": "Не удалось создать турнир. Попробуйте ещё раз.",
     "tournaments.empty": "У вас пока нет турниров.",
     "tournaments.empty_hint": "Создайте турнир в форме выше.",
+    "tournaments.empty_hint_guest": "Чтобы создать турнир, зарегистрируйтесь.",
     "tournaments.name_label": "Название турнира",
+    "tournaments.others_empty": "Других турниров пока нет.",
+    "tournaments.others_title": "Другие турниры",
     "tournaments.row.finished": {
         "few": "сыграно: {count}",
         "many": "сыграно: {count}",

@@ -86,7 +86,7 @@ afterEach(() => {
 });
 
 describe("startChrome", () => {
-    it("links Tournaments and the Admin section only for an admin and logs out with the current token", () => {
+    it("links Tournaments for everyone, the Admin section only for an admin and logs out with the current token", () => {
         const { chrome, nav } = chromeOnPage();
 
         chrome.showSession({ user: { isAdmin: false, isGuest: false, username: "dev" } });
@@ -94,7 +94,7 @@ describe("startChrome", () => {
         chrome.showSession({ user: { isAdmin: true, isGuest: false, username: "dev" } });
         const postedToken = postedTokenAfterRotation(nav, "rotated-token");
 
-        expect(playerLinks).toEqual(["/", "/history", "/settings"]);
+        expect(playerLinks).toEqual(["/", "/history", "/tournaments", "/tournaments", "/settings"]);
         expect(navHrefs(nav)).toEqual([
             "/",
             "/history",
@@ -118,7 +118,7 @@ describe("startChrome", () => {
         expect(getGameSession("game-1")).toBeNull();
     });
 
-    it("opens the account panel with Settings and Log out, and Escape closes it onto its button", () => {
+    it("opens the account panel with Tournaments, Settings and Log out, and Escape closes it onto its button", () => {
         const { chrome, nav } = chromeOnPage();
         chrome.showSession({ user: { isAdmin: false, isGuest: true, username: "Nanashi-1234" } });
         const toggle = nav.querySelector<HTMLButtonElement>(".lobby-account-toggle");
@@ -127,7 +127,10 @@ describe("startChrome", () => {
         pressEscapeInAccountPanel(nav);
 
         expect(toggle?.getAttribute("aria-label")).toBe("Nanashi-1234, account menu");
-        expect(opened).toEqual({ expanded: "true", items: ["Game settings", "Log out"] });
+        expect(opened).toEqual({
+            expanded: "true",
+            items: ["Tournaments", "Game settings", "Log out"],
+        });
         expect(nav.querySelector<HTMLElement>(".lobby-account-panel")?.hidden).toBe(true);
         expect(toggle?.getAttribute("aria-expanded")).toBe("false");
         expect(document.activeElement).toBe(toggle);

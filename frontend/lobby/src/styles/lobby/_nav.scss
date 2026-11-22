@@ -284,16 +284,16 @@
     border-top: 1px solid var(--ronin-border);
 }
 
-.lobby-account-admin {
+.lobby-account-folded {
     display: none;
 }
 
 @media (width <= 576px) {
-    .lobby-nav-admin {
+    .lobby-nav-folding {
         display: none;
     }
 
-    .lobby-account-admin {
+    .lobby-account-folded {
         display: block;
     }
 }

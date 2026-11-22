@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createTournamentsState, parseOwnTournaments } from "@/tournaments/state";
+import { createTournamentsState, parseTournamentLists } from "@/tournaments/state";
 import { renderTournaments } from "@/tournaments/ui";
 
 afterEach(() => {
@@ -10,9 +10,11 @@ afterEach(() => {
 describe("renderTournaments", () => {
     it("shows each tournament's live and finished games, or that it has none", () => {
         const state = createTournamentsState();
-        state.own = parseOwnTournaments({
+        state.lists = parseTournamentLists({
+            can_create: true,
             name_max_length: 80,
-            tournaments: [
+            others: [],
+            own: [
                 { created_at: 0, finished: 6, id: "t1", name: "Autumn Cup", playing: 2 },
                 { created_at: 0, finished: 0, id: "t2", name: "Aye", playing: 0 },
             ],
@@ -35,5 +37,28 @@ describe("renderTournaments", () => {
             ["Autumn Cup", "2 playing", ["6 finished"]],
             ["Aye", null, ["No games yet"]],
         ]);
+    });
+
+    it("offers a guest no create form, asks them to register and lists others' tournaments", () => {
+        const state = createTournamentsState();
+        state.lists = parseTournamentLists({
+            can_create: false,
+            name_max_length: 80,
+            others: [{ created_at: 0, finished: 0, id: "t3", name: "Open Cup", playing: 1 }],
+            own: [],
+        });
+        const host = document.createElement("main");
+        document.body.append(host);
+        renderTournaments(host, state, { createTournament: () => {} });
+
+        expect(host.querySelector(".lobby-tournament-form")).toBeNull();
+        expect(host.querySelector(".lobby-empty-hint")?.textContent?.trim()).toBe(
+            "Register an account to create one.",
+        );
+        expect(
+            [...host.querySelectorAll(".lobby-tournaments-others .lobby-tournament-name")].map(
+                (name) => name.textContent,
+            ),
+        ).toEqual(["Open Cup"]);
     });
 });
