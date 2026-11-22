@@ -2,6 +2,8 @@
 @use "@/styles/type";
 
 $result-melds-apart-share: 0.7;
+$result-large-height: 560px;
+$result-large-panel-width: 47rem;
 
 /* ─── Seating Panel ───────────────────────────────────────────── */
 
@@ -925,51 +927,53 @@ $result-melds-apart-share: 0.7;
     padding-bottom: calc(var(--board-tile-w, 60px) * var(--tile-edge-share, 0.39));
 }
 
-@container game-board (height >= 560px) {
-    .round-end-result {
-        --result-scoring-w: 17rem;
+@container game-board (height >= #{$result-large-height}) {
+    @container round-result (width >= #{$result-large-panel-width}) {
+        .round-end-result {
+            --result-scoring-w: 17rem;
 
-        gap: 1rem;
-        font-size: 1rem;
-    }
+            gap: 1rem;
+            font-size: 1rem;
+        }
 
-    .round-end-result__stack--scoring {
-        min-height: 17rem;
-    }
+        .round-end-result__stack--scoring {
+            min-height: 17rem;
+        }
 
-    .round-end-result__settle {
-        max-width: 40rem;
-        margin-left: 3rem;
-    }
+        .round-end-result__settle {
+            max-width: 40rem;
+            margin-left: 3rem;
+        }
 
-    .round-end-result__title {
-        font-size: 2rem;
-    }
+        .round-end-result__title {
+            font-size: 2rem;
+        }
 
-    .round-end-result__from {
-        font-size: 1.3rem;
-    }
+        .round-end-result__from {
+            font-size: 1.3rem;
+        }
 
-    .round-end-result__limit {
-        font-size: 1.5rem;
-    }
+        .round-end-result__limit {
+            font-size: 1.5rem;
+        }
 
-    .round-end-result__points {
-        font-size: 2.5rem;
-    }
+        .round-end-result__points {
+            font-size: 2.5rem;
+        }
 
-    .round-end-result__delta {
-        font-size: 1.45rem;
-    }
+        .round-end-result__delta {
+            font-size: 1.45rem;
+        }
 
-    .round-end-result__seal {
-        width: 3.1rem;
-        height: 3.1rem;
-        font-size: 1.15rem;
-    }
+        .round-end-result__seal {
+            width: 3.1rem;
+            height: 3.1rem;
+            font-size: 1.15rem;
+        }
 
-    .round-end-result__yakuman-kanji {
-        font-size: 2.6rem;
+        .round-end-result__yakuman-kanji {
+            font-size: 2.6rem;
+        }
     }
 }
 

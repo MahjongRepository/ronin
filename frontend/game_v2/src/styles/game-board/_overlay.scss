@@ -102,6 +102,7 @@ $result-unit-max: 1.15px;
 }
 
 .board-overlay__panel:has(> .round-end-result) {
+    container: round-result / inline-size;
     width: min(var(--panel-room), #{$result-width});
     max-width: min(var(--panel-room), #{$result-width});
     scrollbar-gutter: auto;
