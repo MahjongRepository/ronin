@@ -17,3 +17,12 @@ noise through a 6.8 kHz band-pass (Q 1.1) and a 9 kHz low-pass, under a 1.2 ms
 raised-cosine rise and 1.8 ms decay, faded out by 18 ms; 24 ms long, 16-bit mono
 44.1 kHz, peak normalized to -1 dBFS and played at a volume that sets it about
 14 dB under the discard clack.
+
+The call voices (calls/*.mp3) are 32 kbps mono 24 kHz MP3s with their leading silence
+cut losslessly, without re-encoding: the frames before the voice are dropped and
+replaced by one silent frame (zero side info) whose main data carries the bit
+reservoir the first kept frame reads, at the lowest MPEG-2 Layer III bitrate that
+holds it. Each voice now starts 53-69 ms into its clip instead of 300-580 ms, and
+decodes sample for sample as before from its onset in Chromium, WebKit and Firefox.
+Keep the lead-ins even: a voice with a longer one is heard after a call played
+just after it (a riichi discard dealt into a ron).
