@@ -10,6 +10,7 @@ import {
 } from "@/tournament/handlers";
 import { type PlayedGame } from "@/tournament/played-games";
 import {
+    TOURNAMENT_NOT_FOUND,
     type TournamentState,
     type TournamentTab,
     createTournamentState,
@@ -214,7 +215,10 @@ describe("buildStatusHandler", () => {
         expect(rejoin).not.toHaveBeenCalled();
         expect(container.querySelector(".tournament-online")).not.toBeNull();
         expect(container.querySelector(".tournament-played")).not.toBeNull();
-        expect(container.querySelector(".tournament-header [role=status] .connection-status-label")?.textContent).toBe("Connecting…");
+        expect(
+            container.querySelector(".tournament-header [role=status] .connection-status-label")
+                ?.textContent,
+        ).toBe("Connecting…");
     });
 });
 
@@ -312,6 +316,26 @@ describe("renderTournament", () => {
             ),
         ).toEqual([true, true]);
         expect(container.querySelector(".tournament-side")).toBeNull();
+        expect(container.querySelector(".tournament-page--entering")).not.toBeNull();
+        expect(
+            renderWith(false, "tournament").querySelector(".tournament-page--entering"),
+        ).toBeNull();
+    });
+
+    test("names the page only once the config loads, and the fallback only for a page error", () => {
+        const state = createTournamentState();
+        const page = mountPage(state);
+        page.render();
+        const loadingName = squeezedText(page.container.querySelector(".tournament-name"));
+
+        state.pageError = TOURNAMENT_NOT_FOUND;
+        page.render();
+
+        expect(loadingName).toBe("");
+        expect(squeezedText(page.container.querySelector(".tournament-name"))).toBe(
+            t("tournament.fallback_name"),
+        );
+        expect(page.container.querySelector(".tournament-page--entering")).toBeNull();
     });
 
     test("shows the five latest ended games with their count and outcomes, the rest behind show all", () => {

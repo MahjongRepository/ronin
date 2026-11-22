@@ -117,7 +117,7 @@ function actionsTemplate(game: HistoryGame, number: number): TemplateResult {
 
 function gameCard(game: HistoryGame, index: number): TemplateResult {
     const number = index + 1;
-    return html`<article class="games-card" style="--card-index: ${index}">
+    return html`<article class="games-card">
         <header class="games-card-header">
             <div class="games-card-label">${gameTypeLabel(game, number)}</div>
             <time

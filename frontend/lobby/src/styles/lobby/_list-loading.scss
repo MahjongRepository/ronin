@@ -4,6 +4,10 @@
     }
 }
 
+.list-loading {
+    animation: appear-late 0.2s ease-out 0.2s both;
+}
+
 .list-loading-items {
     animation: list-loading-pulse 1.6s ease-in-out infinite;
 

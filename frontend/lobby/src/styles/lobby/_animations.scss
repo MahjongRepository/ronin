@@ -12,6 +12,12 @@
     }
 }
 
+@keyframes appear-late {
+    from {
+        opacity: 0;
+    }
+}
+
 @keyframes slide-down {
     from {
         opacity: 0;

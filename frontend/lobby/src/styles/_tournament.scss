@@ -6,6 +6,16 @@
     }
 }
 
+.tournament-page--entering {
+    animation: appear-late 0.2s ease-out 0.2s both;
+}
+
+.tournament-name-loading {
+    display: inline-block;
+    width: 12rem;
+    max-width: 100%;
+}
+
 .tournament-header {
     flex-wrap: nowrap;
 }

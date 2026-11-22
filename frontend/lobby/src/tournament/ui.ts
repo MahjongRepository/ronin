@@ -221,12 +221,26 @@ function tabsTemplate(page: TournamentPage): TemplateResult | typeof nothing {
     `;
 }
 
+function isEntering(state: TournamentState): boolean {
+    return !state.joined && state.pageError === null && !isConnectionLost(state);
+}
+
+function nameTemplate(state: TournamentState): TemplateResult | string {
+    if (state.name !== null) {
+        return state.name;
+    }
+    if (state.pageError === null) {
+        return html`<span class="list-loading-bar tournament-name-loading" aria-hidden="true"></span>`;
+    }
+    return t("tournament.fallback_name");
+}
+
 function headerTemplate(page: TournamentPage): TemplateResult {
     const { state } = page;
     return html`
         <section class="lobby-section">
             <div class="lobby-section-header tournament-header">
-                <h2 class="tournament-name">${state.name ?? t("tournament.fallback_name")}</h2>
+                <h2 class="tournament-name">${nameTemplate(state)}</h2>
                 ${connectingTemplate(state)}
             </div>
             ${tabsTemplate(page)}
@@ -308,10 +322,10 @@ function renderTournament(page: TournamentPage): void {
         page: state.name ?? t("tournament.fallback_name"),
     });
     render(
-        html`
+        html`<div class="tournament-page ${isEntering(state) ? "tournament-page--entering" : ""}">
             ${headerTemplate(page)}
             ${bodyTemplate(page)}
-        `,
+        </div>`,
         container,
     );
     scrollChatToLatest(container, state.chatMessages.length);

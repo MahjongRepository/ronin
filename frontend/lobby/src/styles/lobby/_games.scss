@@ -20,8 +20,6 @@
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-edge);
     overflow: hidden;
-    animation: card-in 0.4s ease both;
-    animation-delay: calc(var(--card-index, 0) * 0.06s);
     transition:
         border-color 0.3s ease,
         background 0.3s ease;

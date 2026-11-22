@@ -18,7 +18,10 @@ error pages) it mounts only the chrome around their `<main>`.
 * A view never calls `router.navigate` synchronously inside its mount or unmount, and renders its
   static frame at once while its data loads, so a route change never flashes an empty page. A list
   still loading shows `list-loading.ts`'s placeholder, sized like its loaded rows or cards, so the
-  page does not jump when the data lands.
+  page does not jump when the data lands. The placeholder fades in only after a short delay, and loaded
+  rows and cards draw without an entrance animation, so a fast answer never flashes the page. The
+  tournament page fades in the same way until its socket joins, so a fast load shows only the final
+  page (name, owner tabs, folds) and never the fallback name or a lone *Connecting…*.
 * **Data** comes from `api.ts` only, never a raw `fetch`, and is validated before use. A JSON 401
   sends the user to `/login?next=<path+query>`; a POST carries the meta CSRF token as
   `X-CSRF-Token` and retries once with the token a 403 `csrf_invalid` hands back.
