@@ -103,17 +103,27 @@ class AnimateBoard extends AsyncDirective {
             priorCue !== undefined &&
             cue.sequence === priorCue.sequence + 1 &&
             previous.motionContext === state.motionContext &&
-            previous.motionRound === state.motionRound &&
             this.motionAllowed(board);
-        if (!enabled || cue?.mode === "replay") {
+        const continuesRound = enabled && previous.motionRound === state.motionRound;
+        if (!continuesRound || cue?.mode === "replay") {
             this.cancel();
         }
-        const priorFrame =
-            enabled && cue?.mode !== "replay" && this.queued?.enabled === true ? this.queued : null;
-        const before = priorFrame?.before ?? (enabled ? snapshotTiles(board) : []);
-        const frame = { before, enabled };
+        const frame = { before: this.motionSources(board, continuesRound, cue), enabled };
         this.queued = frame;
         queueMicrotask(() => this.commit(frame));
+    }
+
+    private motionSources(
+        board: HTMLElement | null,
+        continuesRound: boolean,
+        cue: BoardMotionCue | undefined,
+    ): readonly TileSnapshot[] {
+        if (!continuesRound || board === null) {
+            return [];
+        }
+        const priorFrame =
+            cue?.mode !== "replay" && this.queued?.enabled === true ? this.queued : null;
+        return priorFrame?.before ?? snapshotTiles(board);
     }
 
     private commit(frame: PendingMotion): void {

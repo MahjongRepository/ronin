@@ -168,7 +168,7 @@ export class BoardMotionPlayer {
     }
 
     private playPlan(plan: readonly TileMotion[], scene: Scene): void {
-        const returnDelay = this.gapReturnDelay();
+        const returnDelay = this.remainingDrawHold();
         for (const motion of plan.filter(({ kind }) => kind !== "hold")) {
             this.playTile(
                 motion.kind === "return" ? { ...motion, delay: returnDelay } : motion,
@@ -180,7 +180,7 @@ export class BoardMotionPlayer {
         }
     }
 
-    private gapReturnDelay(): number {
+    private remainingDrawHold(): number {
         return this.discardLandingAt === null
             ? 0
             : Math.max(0, this.discardLandingAt + BOARD_MOTION.drawHold - performance.now());
@@ -262,10 +262,10 @@ export class BoardMotionPlayer {
 
     private playHold(motion: TileMotion, scene: Scene): void {
         const target = scene.after.get(motion.target);
-        if (target === undefined || this.discardLandingAt === null) {
+        if (target === undefined) {
             return;
         }
-        const ms = Math.max(0, this.discardLandingAt + BOARD_MOTION.drawHold - performance.now());
+        const ms = Math.max(motion.delay, this.remainingDrawHold());
         if (ms > 0) {
             this.hold.play(motion.target, target.element, ms);
         }

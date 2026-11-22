@@ -641,7 +641,8 @@ as a number, not seen, so the count turns red from ten tiles left.
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
 - **Tile motion.** A draw appears in its separated hand slot without travelling: the viewer's at once, an
   opponent's in live play 300ms after the preceding discard lands, as in a watched live game even face up (at once
-  in a replay). Discards travel from hand
+  in a replay). The dealer's opening draw, the viewer's included, appears 300ms after it reaches the board, so the
+  13 dealt tiles show alone first (at once in a replay). Discards travel from hand
   to river in 150ms, slowing to a stop in their slot, the latest in its gap; it stays there until 300ms after landing, or
   while a call on it is being decided, then slides back into line over 500ms, decelerating.
   A travelling tile is three faint shadowless copies, 12ms apart, in its destination's look from take-off: its body

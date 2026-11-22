@@ -136,6 +136,7 @@ interface MoveContext {
     readonly before: readonly MotionTile[];
     readonly discarding: boolean;
     readonly mode: BoardMotionCue["mode"];
+    readonly opensRound: boolean;
     readonly shifts: ReadonlyMap<string, MotionTile>;
     readonly used: Set<string>;
 }
@@ -205,6 +206,25 @@ function isHeldDraw(target: MotionTile, mode: BoardMotionCue["mode"]): boolean {
     return held && target.region === "hand" && target.drawn && target.seat !== "bottom";
 }
 
+function isOpeningDraw(target: MotionTile, mode: BoardMotionCue["mode"]): boolean {
+    return (mode === "step" || mode === "observe") && target.region === "hand" && target.drawn;
+}
+
+function opensRound(after: readonly MotionTile[]): boolean {
+    return after.every((tile) => tile.region !== "discards" && tile.region !== "melds");
+}
+
+function planHold(target: MotionTile, delay: number): TileMotion {
+    return { delay, duration: 0, kind: "hold", source: null, target: target.key };
+}
+
+function planUnsourcedDraw(target: MotionTile, context: MoveContext): TileMotion | null {
+    if (context.opensRound && isOpeningDraw(target, context.mode)) {
+        return planHold(target, BOARD_MOTION.drawHold);
+    }
+    return isHeldDraw(target, context.mode) ? planHold(target, 0) : null;
+}
+
 function isConcealedSettle(flight: boolean, target: MotionTile): boolean {
     return !flight && target.region === "hand" && target.concealed;
 }
@@ -212,9 +232,7 @@ function isConcealedSettle(flight: boolean, target: MotionTile): boolean {
 function planMove(target: MotionTile, context: MoveContext): TileMotion | null {
     const source = findMoveSource(target, context);
     if (source === undefined) {
-        return isHeldDraw(target, context.mode)
-            ? { delay: 0, duration: 0, kind: "hold", source: null, target: target.key }
-            : null;
+        return planUnsourcedDraw(target, context);
     }
     const flight = !samePlace(source, target);
     const inPlace = flight ? null : (planReveal(source, target) ?? planReturn(source, target));
@@ -243,13 +261,25 @@ function moveDuration(source: MotionTile, target: MotionTile): number {
     return target.region === "hand" ? BOARD_MOTION.handClose : BOARD_MOTION.meldShift;
 }
 
+function planDeal(
+    after: readonly MotionTile[],
+    mode: BoardMotionCue["mode"],
+): readonly TileMotion[] {
+    if (!opensRound(after)) {
+        return [];
+    }
+    return after
+        .filter((tile) => isOpeningDraw(tile, mode))
+        .map((tile) => planHold(tile, BOARD_MOTION.drawHold));
+}
+
 export function planTileMotion(
     before: readonly MotionTile[],
     after: readonly MotionTile[],
     mode: BoardMotionCue["mode"] = "step",
 ): readonly TileMotion[] {
     if (before.every((tile) => tile.region !== "hand")) {
-        return [];
+        return planDeal(after, mode);
     }
     const context: MoveContext = {
         before,
@@ -257,6 +287,7 @@ export function planTileMotion(
             (tile) => tile.region === "discards" && findSource(tile, before)?.region !== "discards",
         ),
         mode,
+        opensRound: opensRound(after),
         shifts: concealedShifts(before, after),
         used: new Set(),
     };

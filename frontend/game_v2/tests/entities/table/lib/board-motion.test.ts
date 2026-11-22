@@ -29,6 +29,10 @@ function heldDraw(target: string): TileMotion {
     return { delay: 0, duration: 0, kind: "hold", source: null, target };
 }
 
+function openingHold(target: string): TileMotion {
+    return { ...heldDraw(target), delay: BOARD_MOTION.drawHold };
+}
+
 describe("planTileMotion", () => {
     it("resizes a laid meld tile even when its corner stays fixed", () => {
         const hand = tile("hand");
@@ -80,7 +84,11 @@ describe("planTileMotion", () => {
 
     it("assembles a meld from its caller's hand and another seat's river", () => {
         const hand = tile("hand-1", { id: "1" });
-        const river = tile("river-2", { id: "2", region: "discards", seat: "left" });
+        const river = tile("river-2", {
+            id: "2",
+            region: "discards",
+            seat: "left",
+        });
         const meld = [hand, river].map((source) =>
             tile(`meld-${source.id}`, {
                 id: source.id,
@@ -112,8 +120,17 @@ describe("planTileMotion", () => {
             rect: { height: 40, left: 140, top: 100, width: 30 },
             seat: "right",
         });
-        const tedashi = tile("river", { id: "4", region: "discards", seat: "right" });
-        const flight = { delay: 0, duration: BOARD_MOTION.flight, kind: "flight", target: "river" };
+        const tedashi = tile("river", {
+            id: "4",
+            region: "discards",
+            seat: "right",
+        });
+        const flight = {
+            delay: 0,
+            duration: BOARD_MOTION.flight,
+            kind: "flight",
+            target: "river",
+        };
         const shift = {
             delay: BOARD_MOTION.landing + BOARD_MOTION.gapHold,
             duration: BOARD_MOTION.handClose,
@@ -133,22 +150,31 @@ describe("planTileMotion", () => {
     it("holds an opponent's concealed draw in step and observe mode and plans nothing for the viewer's draw or a replay", () => {
         const own = tile("own");
         const ownDrawn = tile("own-drawn", { drawn: true, id: "9" });
-        const opponent = tile("right-slot", { concealed: true, id: "", seat: "right" });
+        const opponent = tile("right-slot", {
+            concealed: true,
+            id: "",
+            seat: "right",
+        });
         const opponentDrawn = tile("right-drawn", {
             concealed: true,
             drawn: true,
             id: "",
             seat: "right",
         });
-        const before = [own, opponent];
-        const after = [own, ownDrawn, opponent, opponentDrawn];
+        const river = tile("river", { region: "discards", seat: "left" });
+        const before = [own, opponent, river];
+        const after = [own, ownDrawn, opponent, opponentDrawn, river];
         expect(planTileMotion(before, after, "step")).toEqual([heldDraw("right-drawn")]);
         expect(planTileMotion(before, after, "observe")).toEqual([heldDraw("right-drawn")]);
         expect(planTileMotion(before, after, "replay")).toEqual([]);
     });
 
     it("holds an opponent's face-up draw only while observing", () => {
-        const before = [tile("own"), tile("right-face", { id: "5", seat: "right" })];
+        const before = [
+            tile("own"),
+            tile("right-face", { id: "5", seat: "right" }),
+            tile("river", { region: "discards", seat: "left" }),
+        ];
         const after = [
             ...before,
             tile("right-face-drawn", { drawn: true, id: "6", seat: "right" }),
@@ -158,6 +184,29 @@ describe("planTileMotion", () => {
                 planTileMotion(before, after, mode),
             ),
         ).toEqual([[heldDraw("right-face-drawn")], [], []]);
+    });
+
+    it("holds the round's opening draw for any seat by the draw hold, with or after its deal, but not in a replay", () => {
+        const own = tile("own");
+        const opponent = tile("right-slot", {
+            concealed: true,
+            id: "",
+            seat: "right",
+        });
+        const dealerDrawn = tile("own-drawn", { drawn: true, id: "9" });
+        const opponentDrawn = tile("right-drawn", {
+            concealed: true,
+            drawn: true,
+            id: "",
+            seat: "right",
+        });
+        expect(planTileMotion([], [own, dealerDrawn, opponent], "step")).toEqual([
+            openingHold("own-drawn"),
+        ]);
+        expect(planTileMotion([own, opponent], [own, opponent, opponentDrawn], "observe")).toEqual([
+            openingHold("right-drawn"),
+        ]);
+        expect(planTileMotion([], [own, dealerDrawn, opponent], "replay")).toEqual([]);
     });
 
     it("reveals unknown hand slots in order without turning another seat's hidden tiles face up", () => {

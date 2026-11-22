@@ -57,7 +57,10 @@ function discardDraw(state: TableState, riichi = false): TableState {
         lastDiscardSeat: 0,
         players: state.players.map((player) =>
             player.seat === 0
-                ? { ...player, discards: [{ isRiichi: riichi, isTsumogiri: true, tileId: 120 }] }
+                ? {
+                      ...player,
+                      discards: [{ isRiichi: riichi, isTsumogiri: true, tileId: 120 }],
+                  }
                 : player,
         ),
     };
@@ -69,7 +72,11 @@ function opponentDrew(state: TableState): TableState {
         lastDiscardSeat: null,
         players: state.players.map((player) =>
             player.seat === 1
-                ? { ...player, concealedCount: player.concealedCount + 1, drawnConcealed: true }
+                ? {
+                      ...player,
+                      concealedCount: player.concealedCount + 1,
+                      drawnConcealed: true,
+                  }
                 : player,
         ),
     };
@@ -548,15 +555,29 @@ describe("board motion", () => {
         expect(animations.every((animation) => animation.playState === "idle")).toBe(true);
     });
 
-    it("shows a deal and first draw rendered in the same task immediately", async () => {
-        await show(table(false), { mode: "reset", sequence: 0 });
-        const dealt = table(true);
-        draw(dealt, { mode: "step", sequence: 1 });
-        await show(drawn(dealt), { mode: "step", sequence: 2 });
-        expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
-        finishAll();
-        expect(hiddenTiles()).toBe(0);
-    });
+    it.each([
+        { name: "the game's first deal", previous: table(false), round: 0 },
+        { name: "a later round's deal", previous: drawn(table(true)), round: 1 },
+    ])(
+        "holds the dealer's first draw rendered in the same task as $name for the draw hold",
+        async ({ previous, round }) => {
+            await show(previous, { mode: "reset", sequence: 0 });
+            const dealt = { ...table(true), roundNumber: round };
+            draw(dealt, { mode: "step", sequence: 1 });
+            await show(drawn(dealt), {
+                mode: "step",
+                sequence: 2,
+            });
+            const hold = animations.at(-1);
+            expect([animations.length, targetOf(hold), hold?.effect?.getTiming().duration]).toEqual(
+                [
+                    1,
+                    host.querySelector("[data-area='bottom-hand'] .hand-drawn-gap > .tile"),
+                    BOARD_MOTION.drawHold,
+                ],
+            );
+        },
+    );
 
     it("clears old flights and shows a new round immediately even when it reuses tile ids", async () => {
         const dealt = table(true);
@@ -671,14 +692,16 @@ function measureShiftedIndicator(this: HTMLElement): DOMRect {
 }
 
 describe("opponent draw hold", () => {
-    it("shows an opponent's draw in place when no discard preceded it", async () => {
+    it("holds a round's opening draw shown after its deal for the draw hold", async () => {
         const dealt = table(true);
         await show(dealt, { mode: "reset", sequence: 0 }, { view: bottomOnly });
         await show(opponentDrew(dealt), { mode: "step", sequence: 1 }, { view: bottomOnly });
-        expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
-        await show(dealt, { mode: "reset", sequence: 2 }, { view: bottomOnly });
-        await show(drawn(dealt), { mode: "step", sequence: 3 }, { view: bottomOnly });
-        expect([animations.length, hiddenTiles()]).toEqual([0, 0]);
+        const hold = animations.at(-1);
+        expect([animations.length, targetOf(hold), hold?.effect?.getTiming().duration]).toEqual([
+            1,
+            heldTile(),
+            BOARD_MOTION.drawHold,
+        ]);
     });
 
     it("holds an opponent's draw after a discard through a redraw, ends the hold at the next cue and slides a moved indicator", async () => {
@@ -957,7 +980,10 @@ describe("side river flight", () => {
 
         expect(flightPoses()).toEqual(
             BOARD_MOTION.ghosts.map(() =>
-                expect.objectContaining({ "--motion-across": "60px", "--motion-down": "31px" }),
+                expect.objectContaining({
+                    "--motion-across": "60px",
+                    "--motion-down": "31px",
+                }),
             ),
         );
         player.cancel();
