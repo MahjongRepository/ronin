@@ -777,6 +777,7 @@ $round-list-clear: 8px;
     .replay-controls {
         flex: none;
         flex-direction: row;
+        align-self: flex-end;
         align-items: flex-end;
     }
 
@@ -786,6 +787,10 @@ $round-list-clear: 8px;
 
     .replay-controls__option--view {
         display: grid;
+    }
+
+    .replay-tools {
+        max-width: min(20rem, 90vw);
     }
 }
 
