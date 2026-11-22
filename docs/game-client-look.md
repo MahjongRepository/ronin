@@ -642,12 +642,13 @@ as a number, not seen, so the count turns red from ten tiles left.
 - **Tile motion.** A draw appears in its separated hand slot without travelling: the viewer's at once, an
   opponent's in live play 300ms after the preceding discard lands, as in a watched live game even face up (at once
   in a replay). Discards travel from hand
-  to river in 150ms and land in their slot, the latest in its gap; it stays there until 300ms after landing, or
-  while a call on it is being decided, then slides back into line over 120ms.
+  to river in 150ms, slowing to a stop in their slot, the latest in its gap; it stays there until 300ms after landing, or
+  while a call on it is being decided, then slides back into line over 500ms, decelerating.
   A travelling tile is three faint shadowless copies, 12ms apart, in its destination's look from take-off: its body
   (a discard leaves the hand as the lying river tile, a riichi discard already sideways, a call into the own melds as
   the lying own meld tile), its size and its turn. Nothing
-  resizes or turns in flight; only its place moves. The solid tile appears in its slot when the middle copy lands, and
+  resizes or turns in flight; only its place moves. A discard's middle copy turns solid over its last 60ms, so the tile
+  settles rather than pops in. The solid tile appears in its slot when the middle copy lands, and
   a replay's tsumogiri shade stays on the copies. The body
   flies upright on the screen in its slot's orientation, so the light and the edge stay fixed to the screen. A
   flight a later update touches lands at once and any further move starts from its slot. Rearranging hands, settling

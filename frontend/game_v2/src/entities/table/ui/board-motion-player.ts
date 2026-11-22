@@ -45,6 +45,26 @@ function flightFrames({ from, to }: Flight): Keyframe[] {
     return [{ translate: `${deltaX}px ${deltaY}px` }, { translate: "0px 0px" }];
 }
 
+function ghostFrames(
+    flight: Flight,
+    ghost: (typeof BOARD_MOTION.ghosts)[number],
+    intoRiver: boolean,
+): Keyframe[] {
+    const [start, end] = flightFrames(flight);
+    if (!intoRiver) {
+        return [start, end];
+    }
+    const eased = { ...start, easing: BOARD_MOTION.discardEasing };
+    if (ghost !== MAIN_GHOST) {
+        return [eased, end];
+    }
+    return [
+        { ...eased, opacity: ghost.alpha },
+        { offset: BOARD_MOTION.discardSolidFrom, opacity: ghost.alpha },
+        { ...end, opacity: 1 },
+    ];
+}
+
 function placeImage({ board, image, to }: Flight): void {
     Object.assign(image.style, {
         left: `${to.left + to.width / 2 - board.left}px`,
@@ -277,9 +297,9 @@ export class BoardMotionPlayer {
         const { motion } = flight;
         hideDestination(target.element);
         placeImage(flight);
-        const frames = flightFrames(flight);
+        const intoRiver = target.region === "discards";
         for (const ghost of BOARD_MOTION.ghosts) {
-            const animation = this.playGhost(flight, ghost, frames);
+            const animation = this.playGhost(flight, ghost, ghostFrames(flight, ghost, intoRiver));
             if (ghost === MAIN_GHOST) {
                 this.running.set(motion.target, {
                     animation,
@@ -288,7 +308,7 @@ export class BoardMotionPlayer {
                 });
             }
         }
-        if (target.region === "discards") {
+        if (intoRiver) {
             this.discardLandingAt = performance.now() + motion.delay + BOARD_MOTION.landing;
         }
     }

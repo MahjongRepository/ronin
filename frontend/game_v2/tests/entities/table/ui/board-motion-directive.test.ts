@@ -296,13 +296,15 @@ function animatedProperties(frame: ComputedKeyframe): readonly string[] {
         .toSorted();
 }
 
-function expectTranslateOnly(animation: Animation): void {
-    const [start, end] = getAnimationFrames(animation);
-    expect([animatedProperties(start), animatedProperties(end)]).toEqual([
-        ["translate"],
-        ["translate"],
+function riverCourse(animation: Animation): readonly unknown[] {
+    const frames = getAnimationFrames(animation);
+    expect(frames.at(-1)?.translate).not.toBe(frames[0]?.translate);
+    return frames.map((frame) => [
+        frame.computedOffset,
+        animatedProperties(frame),
+        frame.easing,
+        frame.opacity,
     ]);
-    expect(end.translate).not.toBe(start.translate);
 }
 
 function flightPoses(): readonly Record<string, string>[] {
@@ -744,7 +746,7 @@ function finishGhost(animation: Animation | undefined): number {
 }
 
 describe("tile flight material", () => {
-    it("flies a riichi discard as ghosts already in the sideways river slot's pose, only their translate changing", () => {
+    it("flies a riichi discard as ghosts already in the sideways river slot's pose, easing into it as the middle copy turns solid", () => {
         const player = startRiichiFlight();
         expect(animations).toHaveLength(BOARD_MOTION.ghosts.length);
         expect(flightPoses()).toEqual(
@@ -756,7 +758,19 @@ describe("tile flight material", () => {
                 "--motion-width": "36px",
             })),
         );
-        animations.forEach(expectTranslateOnly);
+        const trail = [
+            [0, ["translate"], BOARD_MOTION.discardEasing, undefined],
+            [1, ["translate"], "linear", undefined],
+        ];
+        expect(animations.map(riverCourse)).toEqual([
+            trail,
+            [
+                [0, ["opacity", "translate"], BOARD_MOTION.discardEasing, "0.2"],
+                [BOARD_MOTION.discardSolidFrom, ["opacity"], "linear", "0.2"],
+                [1, ["opacity", "translate"], "linear", "1"],
+            ],
+            trail,
+        ]);
         expect(host.querySelectorAll(".board-motion__tile > .tile--standing")).toHaveLength(0);
         expect(
             host

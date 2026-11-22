@@ -8,10 +8,12 @@ const GHOSTS = [
 ] as const;
 
 export const BOARD_MOTION = {
+    discardEasing: "cubic-bezier(0.33, 0.4, 0.67, 1)",
+    discardSolidFrom: 0.6,
     drawHold: 300,
     flight: FLIGHT,
     gapHold: 300,
-    gapReturn: 120,
+    gapReturn: 500,
     ghosts: GHOSTS,
     handClose: 300,
     landing: GHOSTS[1].delay + FLIGHT,
