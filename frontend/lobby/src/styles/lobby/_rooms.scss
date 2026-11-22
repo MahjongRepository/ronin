@@ -469,6 +469,11 @@
         color: var(--pico-color);
     }
 
+    .lobby-join-btn.lobby-join-btn--ghost {
+        --pico-background-color: transparent;
+        --pico-color: var(--pico-primary);
+    }
+
     @media (width <= 576px) {
         grid-template:
             "meta watch" auto
