@@ -61,7 +61,7 @@
 .lobby-beta {
     padding: 0.15rem 0.3rem;
     border: 1px solid color-mix(in srgb, var(--ronin-gold) 45%, transparent);
-    border-radius: var(--ronin-radius-sm);
+    border-radius: var(--ronin-corner-label);
     background: color-mix(in srgb, var(--ronin-gold) 8%, transparent);
     font-size: 0.625rem;
     font-weight: 600;
@@ -217,7 +217,7 @@
     color: var(--pico-color);
     background: var(--ronin-surface-elevated);
     border: 1px solid var(--ronin-edge);
-    border-radius: var(--ronin-radius-md);
+    border-radius: var(--ronin-corner-panel);
     box-shadow: 0 0.5rem 1.5rem color-mix(in srgb, var(--pico-background-color) 80%, transparent);
 
     &[hidden] {
@@ -251,7 +251,7 @@
     color: var(--pico-color);
     background: none;
     border: 0;
-    border-radius: var(--ronin-radius-sm);
+    border-radius: var(--ronin-corner-panel);
     box-shadow: none;
 
     &:hover {

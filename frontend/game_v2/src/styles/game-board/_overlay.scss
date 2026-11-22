@@ -74,7 +74,7 @@ $result-unit-max: 1.15px;
     grid-area: 2 / 2;
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
-    border-radius: 0.75rem;
+    border-radius: var(--ronin-corner-panel);
     box-shadow: var(--ronin-panel-shadow);
     color: var(--ronin-text);
     padding: 0.6rem 0.75rem;

@@ -43,7 +43,7 @@
     --played-tail: 9rem;
 
     border: 1px solid var(--ronin-edge);
-    border-radius: var(--ronin-radius-md);
+    border-radius: var(--ronin-corner-panel);
     background: var(--ronin-surface);
     overflow: hidden;
 }
@@ -100,7 +100,7 @@
 }
 
 .played-game-replay {
-    border-radius: var(--ronin-radius-sm);
+    border-radius: var(--ronin-corner-panel);
     color: var(--pico-primary);
     font-weight: 600;
     text-decoration: none;
@@ -192,7 +192,7 @@
 .tournament-fold {
     margin: 0;
     border: 1px solid var(--ronin-edge);
-    border-radius: var(--ronin-radius-md);
+    border-radius: var(--ronin-corner-panel);
     background: var(--ronin-surface);
 
     > summary {

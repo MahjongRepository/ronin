@@ -45,7 +45,7 @@
     margin: 0;
     padding: s(0.2) s(0.4);
     border: 1px solid transparent;
-    border-radius: s(0.375);
+    border-radius: var(--ronin-corner-panel);
     font-size: s(0.85);
     list-style: none;
 
@@ -61,7 +61,7 @@
     width: s(1.6);
     height: s(1.6);
     border: 1px solid var(--ronin-border);
-    border-radius: s(0.25);
+    border-radius: var(--ronin-corner-label);
     font-weight: 700;
 
     .seating__seat--dealer & {
@@ -98,7 +98,7 @@
 .seating__mark {
     padding: 0 s(0.3);
     border: 1px solid var(--ronin-border);
-    border-radius: s(0.25);
+    border-radius: var(--ronin-corner-label);
     font-size: s(0.75);
     color: var(--ronin-text-secondary);
 
@@ -602,7 +602,7 @@
     max-width: 13rem;
     padding: 0.4rem 0.55rem;
     border: 1px solid var(--ronin-border);
-    border-radius: 0.5rem;
+    border-radius: var(--ronin-corner-panel);
 
     @each $position in top, right, bottom, left {
         &--#{$position} {
@@ -719,7 +719,7 @@
     transform: translateY(-60%);
     padding: 0 0.4rem;
     border: 1px solid transparent;
-    border-radius: 0.25rem;
+    border-radius: var(--ronin-corner-label);
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.03em;
@@ -1072,7 +1072,6 @@
 
     .round-end-result__seat {
         padding: 0.15rem 0.4rem;
-        border-radius: 0.35rem;
     }
 
     .round-end-result__seat-name {

@@ -65,10 +65,9 @@
     --ronin-control-border: #63726f;
     --ronin-score-positive: #7bb88a;
     --ronin-score-negative: #d4726a;
-    --ronin-radius-sm: 0.375rem;
-    --ronin-radius-md: 0.5rem;
-    --ronin-radius-pill: 999px;
-    --pico-border-radius: var(--ronin-radius-md);
+    --ronin-corner-label: 3px;
+    --ronin-corner-panel: 6px;
+    --pico-border-radius: var(--ronin-corner-panel);
     --ronin-touch-target: 2.75rem;
     --ronin-font-mono:
         ui-monospace, "SFMono-Regular", menlo, monaco, consolas, "Liberation Mono", monospace;

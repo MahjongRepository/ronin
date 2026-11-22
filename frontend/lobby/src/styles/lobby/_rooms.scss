@@ -83,7 +83,7 @@
     text-decoration: none;
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-control-border);
-    border-radius: var(--ronin-radius-md);
+    border-radius: var(--ronin-corner-panel);
     cursor: pointer;
     transition:
         border-color 0.12s ease-out,
@@ -197,7 +197,7 @@
     --lobby-row-tail: 9rem;
 
     border: 1px solid var(--ronin-edge);
-    border-radius: var(--ronin-radius-md);
+    border-radius: var(--ronin-corner-panel);
     background: var(--ronin-surface);
     overflow: hidden;
 }
@@ -348,7 +348,7 @@
         grid-area: t;
         background: var(--ronin-surface-overlay);
         border: 1px solid var(--ronin-border);
-        border-radius: var(--ronin-radius-sm);
+        border-radius: var(--ronin-corner-label);
     }
 
     .lobby-seat {
@@ -430,7 +430,7 @@
     &.lobby-empty--boxed {
         padding: 1rem 1.25rem;
         border: 1px solid var(--ronin-edge);
-        border-radius: var(--ronin-radius-md);
+        border-radius: var(--ronin-corner-panel);
         background: var(--ronin-surface);
 
         p:last-child {

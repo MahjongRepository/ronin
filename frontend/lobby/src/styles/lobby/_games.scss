@@ -16,7 +16,7 @@
     flex-direction: column;
     margin-bottom: 0;
     padding: 0;
-    border-radius: var(--ronin-radius-md);
+    border-radius: var(--ronin-corner-panel);
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-edge);
     overflow: hidden;
@@ -170,7 +170,7 @@
     font-size: 0.75rem;
     color: var(--pico-primary);
     border: 1px solid color-mix(in srgb, var(--pico-primary) 40%, transparent);
-    border-radius: var(--ronin-radius-pill);
+    border-radius: var(--ronin-corner-label);
 }
 
 .games-score {
@@ -290,7 +290,7 @@
     margin: 0;
     background: transparent;
     border: 1px solid transparent;
-    border-radius: var(--ronin-radius-md);
+    border-radius: var(--ronin-corner-panel);
     color: var(--ronin-text-muted);
     cursor: pointer;
     flex-shrink: 0;

@@ -15,7 +15,7 @@
 .list-loading--rows .list-loading-items,
 .list-loading--compact-rows .list-loading-items {
     border: 1px solid var(--ronin-edge);
-    border-radius: var(--ronin-radius-md);
+    border-radius: var(--ronin-corner-panel);
     background: var(--ronin-surface);
     overflow: hidden;
 }
@@ -36,7 +36,7 @@
 .list-loading-bar {
     display: block;
     height: 0.75rem;
-    border-radius: var(--ronin-radius-pill);
+    border-radius: var(--ronin-corner-label);
     background: var(--ronin-surface-overlay);
 }
 
@@ -66,7 +66,7 @@
     min-height: 16.75rem;
     padding: 1.25rem;
     border: 1px solid var(--ronin-edge);
-    border-radius: var(--ronin-radius-md);
+    border-radius: var(--ronin-corner-panel);
     background: var(--ronin-surface);
 
     .list-loading-bar--body {

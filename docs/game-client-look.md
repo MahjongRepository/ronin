@@ -109,7 +109,8 @@ The derived proportions are the three reference viewports' values under the sizi
   makes it furniture.
 - **Two corners.** Everything drawn on the board but the tiles takes one of two radii: 3px for a small label (a
   badge, the dealer's chip, a key hint, the timer, the furiten mark) and 6px for a panel or a control (the centre,
-  the dora card, the decisions, the play switches, the callouts, the notices). No element picks its own.
+  the dora card, the decisions, the play switches, the callouts, the notices). No element picks its own. The
+  rest of the client (menus, replay tools, results, dialogs) and the lobby take the same two (`frontend/AGENTS.md`).
 - **Show what is known, never what is guessed.** The board draws the state the server supplied:
   no invented draw, no decremented wall, no deposited stick, no revealed indicator before the
   event that reveals it. A local countdown is an estimate; the server's move is the fact.

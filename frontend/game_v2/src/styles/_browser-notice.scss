@@ -9,7 +9,7 @@
     text-align: center;
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
-    border-radius: 0.75rem;
+    border-radius: var(--ronin-corner-panel);
 }
 
 .browser-notice__title {

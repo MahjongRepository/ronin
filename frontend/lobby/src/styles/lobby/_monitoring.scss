@@ -12,7 +12,7 @@
     min-height: var(--ronin-touch-target);
     padding: 0 1rem;
     border: 1px solid var(--ronin-control-border);
-    border-radius: var(--ronin-radius-md);
+    border-radius: var(--ronin-corner-panel);
     background: var(--ronin-surface);
     color: var(--ronin-text-secondary);
     text-decoration: none;
@@ -33,7 +33,7 @@
     margin: 0;
     padding: 1rem;
     border: 1px solid var(--ronin-edge);
-    border-radius: var(--ronin-radius-md);
+    border-radius: var(--ronin-corner-panel);
     background: var(--ronin-surface);
 
     h3,

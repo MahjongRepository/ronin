@@ -14,6 +14,11 @@ copy of what it imports. At runtime they still meet only at the contract in `doc
 (*Game client contract*), so the game client can be replaced by any app that honours it. Pico copies
 and styles stay per app.
 
+Both apps draw corners with the same two radii, each from its own `_theme.scss`: `--ronin-corner-label`
+(3px) for a small label, badge, chip or key hint, `--ronin-corner-panel` (6px) for a panel, card, menu or control,
+Pico's `--pico-border-radius` included. Only round shapes (dots, seats, the riichi stick), the tiles and the
+result's seal draw their own; nothing else picks a radius.
+
 ## Tooling
 
 Run a package's scripts from its directory (`cd frontend/game_v2 && npx vitest run <path>`). The root

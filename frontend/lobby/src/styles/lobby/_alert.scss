@@ -6,7 +6,7 @@
     position: relative;
     background: color-mix(in srgb, var(--lobby-alert-tone) 10%, transparent);
     border: 1px solid color-mix(in srgb, var(--lobby-alert-tone) 35%, transparent);
-    border-radius: var(--ronin-radius-md);
+    border-radius: var(--ronin-corner-panel);
     padding: 0.75rem 1rem 0.75rem 2.75rem;
     color: var(--ronin-danger-text);
     font-size: 0.9375rem;
