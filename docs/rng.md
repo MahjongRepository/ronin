@@ -1,30 +1,37 @@
 # Game randomness
 
-How a game gets its random outcomes: the wall of each round, the first dealer and the seating. The
-Go engine's `backend/game_v2/engine/internal/rng` holds the seed, the seat permutation, the first
-dealer and each round's shuffle and dice; `engine/internal/wall` breaks the shuffled ring into the
-live and dead walls; the session (`backend/game_v2/internal/session`) draws the seed and seats the
-players through the facade's seed functions; `make measure-wall` measures it with
-`backend/game_v2/cmd/measurewall`.
+This document explains how a game gets its random results: the wall of each round, the first dealer
+and the seats of the players.
+
+- `backend/game_v2/engine/internal/rng` in the Go engine holds the seed. From the seed it makes the
+  order of the seats, the first dealer, and the shuffle and dice of each round.
+- `engine/internal/wall` splits the shuffled tiles into the live wall and the dead wall.
+- The session (`backend/game_v2/internal/session`) creates the seed and gives the players their
+  seats. It does this through the seed functions of the engine facade.
+- `make measure-wall` measures the results with `backend/game_v2/cmd/measurewall`.
 
 ## One seed per game
 
-Each game starts with 96 random bytes (768 bits) from the operating system (Go's `crypto/rand`), stored as 192 hex characters. Everything random in the game is
-computed from this seed, so the replay file stores the seed and can replay the game from it.
+Each game starts with a seed: 96 random bytes (768 bits) from the operating system (Go's
+`crypto/rand`). When the seed is shown or parsed, it is written as 192 hex characters. All random
+results of the game are computed from this seed. The replay file stores the 96 bytes, so the game
+can be replayed from them.
 
-The seed is secret while the game runs and public with the replay after it. Anyone can recompute
-every wall from it and compare with the log.
+The seed is secret while the game runs. After the game it is public, in the replay. Anyone can then
+compute every wall from the seed and compare it with the log.
 
 ## The word stream
 
-Random values are never read from the seed directly. Each use has its own stream of 64-bit words:
+The engine never reads random values from the seed directly. Each use has its own stream of 64-bit
+words:
 
 ```
 SHAKE256( domain || seed || extra )
 ```
 
-SHAKE256 is a hash that can produce as many output bytes as needed. The domain is a fixed string
-per use, so the three uses never share words:
+SHAKE256 is a hash function that can give as many output bytes as needed. `||` means that the parts
+are joined one after another. The domain is a fixed text, different for each use, so two uses never
+get the same words:
 
 | use | domain | extra |
 |---|---|---|
@@ -32,56 +39,62 @@ per use, so the three uses never share words:
 | first dealer | `ronin-dealer-shake256-v1:` | none |
 | seating | `ronin-seat-shake256-v1:` | none |
 
-The round number grows after every hand, renchan included, so every hand reads a different stream.
-With a secret random seed the words are unpredictable, which is why the seed stays secret until the
-game ends.
+The round number goes up by one after every hand, also after a renchan (a hand where the dealer
+stays). So every hand reads a different stream. The seed is secret and random, so nobody can
+predict the words. This is why the seed must stay secret until the game ends.
 
 ## Uniform numbers
 
-To get a number in `[0, n)`, the engine reads a 64-bit word, throws it away if it falls in the
-small incomplete bucket at the top of the 64-bit range, and otherwise returns `word mod n`. This is
-rejection sampling: every value in `[0, n)` is exactly equally likely. Plain `word mod n`
-makes small values slightly more likely.
+To get a number from 0 to n-1, the engine reads a 64-bit word. The number of possible words, 2^64,
+is usually not a multiple of n, so the highest words form an incomplete group. If the word is in
+this group, the engine skips it and reads the next word. Otherwise it returns `word mod n`. This
+method is called rejection sampling. With it, every number from 0 to n-1 has exactly the same
+chance. Plain `word mod n`, without the skip, gives small numbers a slightly higher chance.
 
 ## The wall of a round
 
-The 136 tile ids (four copies of 34 types; ids 16, 52 and 88 are the red fives) are shuffled with
-Fisher-Yates: for each position `i` from 0 to 134, draw a uniform `j` in `[i, 136)` and swap `i`
-with `j`. With uniform draws every ordering is equally likely. Then two dice are drawn from the same
-stream.
+There are 136 tile ids: four copies of each of the 34 tile types. Ids 16, 52 and 88 are the red
+fives. The engine shuffles the ids with the Fisher-Yates method: for each position `i` from 0 to
+134, it picks a uniform random `j` from `i` to 135 and swaps the tiles at `i` and `j`. Because the
+picks are uniform, every order of the tiles has the same chance. After the shuffle, the engine
+rolls two dice from the same stream.
 
-The shuffled list is the ring of 68 stacks: stack `k` holds `shuffled[2k]` on top and
-`shuffled[2k+1]` below, and seat `s` owns stacks `17s..17s+16`. The dice pick the break; the seven
-stacks from the break are the dead wall (two rinshan stacks, then five dora stacks), and the live
-wall starts left of the break. Hands are dealt from the front of the live wall, four tiles at a
-time from the dealer, then one each; the dealer's first draw is the next tile.
+The shuffled list forms a ring of 68 stacks. Stack `k` has `shuffled[2k]` on top and
+`shuffled[2k+1]` under it. Seat `s` owns stacks `17s` to `17s+16`. The dice choose where the ring
+is broken. The seven stacks that start at the break are the dead wall: first two rinshan stacks,
+then five dora stacks. The live wall starts to the left of the break. The hands are dealt from the
+front of the live wall: four tiles to each seat in turn, starting with the dealer, three times, and
+then one tile to each seat. The dealer's first draw is the next tile.
 
 ## The first dealer
 
-The dealer stream simulates the two-throw rule of the table: seat 0 throws two dice, the sum picks a
-temporary dealer; that seat throws again, and the sum picks the first dealer. This is slightly
-uneven on purpose, as at a real table: the seats get 326, 324, 322 and 324 chances out of 1296,
-within 0.16 percentage points of 25%. Seating is random too, so each player still has a 25% chance
-of being the first dealer.
+The dealer stream copies the two-throw rule of a real table. Seat 0 throws two dice, and the sum
+chooses a temporary dealer. That seat throws again, and the second sum chooses the first dealer.
+Like at a real table, this is a little uneven on purpose: out of 1296 possible results, the four
+seats get 326, 324, 322 and 324. Each seat is within 0.16 percentage points of 25%. The seating is
+random too, so each player still has a 25% chance to be the first dealer.
 
 ## Seating
 
-The seat stream shuffles the four seats with the same Fisher-Yates routine. Players take the first
-entries of the result in input order; the remaining seats go to AI players. This decides the seats
-of a live game. A replay records each seat's name, and the loader seats the recorded names as they
-are, so the seating rule is not part of the replay format.
+The seat stream shuffles the four seats with the same Fisher-Yates method. The players get the
+first seats of the result, in the order the players are listed. AI players get the other seats.
+This decides the seats of a live game. A replay records the name at each seat, and the replay
+loader puts each name back in its recorded seat. So the seating rule is not part of the replay
+format.
 
-A game created with `fixed_seats` (tournament tables) reads no seat stream: the players sit in input
-order from the seed's first dealer seat, so the first is East, the next South, then West and North.
-The first dealer still comes from the dealer stream. The replay records each seat's name as in any
-game, so it carries no seating mode.
+A game created with `fixed_seats` (used for tournament tables) does not read the seat stream. The
+players sit in the order they are listed, starting at the seat of the first dealer from the seed:
+the first player is East, the next is South, then West and North. The first dealer still comes
+from the dealer stream. The replay records the name at each seat like in any other game, so it
+does not store a seating mode.
 
 ## Versioning
 
-`RNG_VERSION` (`shake256-v1`, the Go engine's `rng.Version`) is written into every replay. A change
-to what a replay depends on, how the seed becomes the walls and the first dealer, is a new version.
-The replay loader rejects other versions, so an old replay needs the code that recorded it. A
-seating change alone needs no new version: replays seat their recorded names.
+Every replay stores `RNG_VERSION` (`shake256-v1`, the Go engine's `rng.Version`). A replay depends
+on how the seed becomes the walls and the first dealer, so any change to that needs a new version.
+The replay loader rejects other versions, so an old replay can only be loaded by the code that
+recorded it. A change to the seating alone needs no new version, because a replay uses its recorded
+names.
 
 ## How much randomness there is
 
@@ -91,20 +104,21 @@ seating change alone needs no new version: replays seat their recorded names.
 | walls that look different (copies of a type are the same, red fives differ) | 622.7 |
 | seed | 768 |
 
-For one round the seed has more bits than there are different walls, so the seed size does not
-limit which walls can appear. For a whole game all rounds come from one seed, so not every
-combination of walls across rounds is reachable. That is true of any seeded generator, is not
-detectable in play, and a longer seed would not change it.
+For one round, the seed has more bits than there are different walls, so the seed size does not
+limit which walls are possible. For a whole game, all rounds come from one seed, so not every
+combination of walls over all rounds is possible. This is true for any generator that uses a seed.
+Nobody can notice it in play, and a longer seed would not change it.
 
-The seed proves that the game matches the seed. It does not prove that the server did not pick the
-seed. Proving that needs a commitment before the game (a hash of the seed, or a published list of
-hashes); the session does not do this today.
+The seed proves that the game matches the seed. It does not prove that the server did not choose
+the seed on purpose. To prove that, the server would have to commit to the seed before the game,
+for example by publishing a hash of the seed or a list of hashes. The session does not do this
+today.
 
 ## Measured results
 
 `make measure-wall` samples games through these functions and compares each statistic with its
-expected value. The default run (5000 games of 4 rounds, 20000 walls, experiment seed 0, about
-three seconds) reports for `shake256-v1`:
+expected value. The default run (5000 games of 4 rounds, so 20000 walls, experiment seed 0, about
+half a second) reports this for `shake256-v1`:
 
 | statistic | observed | expected |
 |---|---|---|
@@ -119,7 +133,9 @@ three seconds) reports for `shake256-v1`:
 | dice, first-dealer seats, seat permutations | all ok | exact |
 | identical walls in consecutive rounds | 0 of 15000 | 0 |
 
-Starting-hand shanten of that run, as counts (80000 13-tile hands and 20000 dealer hands per side):
+Shanten is how many tiles a hand is away from tenpai (ready): 0 is tenpai, and -1 is a complete
+hand. These are the starting-hand shanten counts of the same run (80000 13-tile hands and 20000
+dealer hands on each side):
 
 | shanten | 13 tiles, engine | 13 tiles, control | dealer's 14, engine | dealer's 14, control |
 |---|---|---|---|---|
@@ -132,27 +148,33 @@ Starting-hand shanten of that run, as counts (80000 13-tile hands and 20000 deal
 | 5 | 10490 | 10419 | 1106 | 1110 |
 | 6 | 680 | 650 | 27 | 24 |
 
-A warning in the report has at most a 0.1% chance per family under a correct generator, so it is a
-reason to rerun with another `--experiment-seed`, not a finding. To test a change, save a run with
-`--json`, change the code, and rerun with `--baseline` and a different experiment seed.
+If the generator is correct, each family of checks warns with a chance of at most 0.1%. So a
+warning is a reason to run again with another `--experiment-seed`. It does not mean that a bug was
+found. To test a change: save a run with `--json`, change the code, then run again with
+`--baseline` and a different experiment seed.
 
 ## The Go sampler
 
-`make measure-wall` runs `backend/game_v2/cmd/measurewall` over the Go engine's seed functions. It
-draws its engine seeds and its control shuffle from a port of Python's `random.Random`, seeded with
-fixed strings, so the same arguments measure the same walls and hands and print the same report.
-`cmd/measurewall/testdata/python_report.txt` is the report of the Python measurement it was written
-against: on the default run and on runs at experiment seeds 1, 2 and 5 the two were identical but
-for the timing line. The Go run takes about 0.4 seconds.
+`make measure-wall` runs `backend/game_v2/cmd/measurewall` over the seed functions of the Go
+engine. It takes its engine seeds and its control shuffle from a Go copy of Python's
+`random.Random`, seeded with fixed strings. So the same arguments always measure the same walls and
+hands and print the same report.
+
+The sampler was written to match the Python measurement it replaced: on the default run and on runs
+with experiment seeds 1, 2 and 5, the two reports were the same except for the timing line.
+`cmd/measurewall/testdata/python_report.txt` keeps the Python report of one small run (200 games of
+3 rounds, experiment seed 5), and the `cmd/measurewall` tests check that the Go sampler still
+prints it.
 
 ## Comparison with a naive shuffle
 
-To show what the measurement catches, the same measurement was run once (throwaway code, not in the
-repo) on the common wrong shuffle: for each position `i` from 0 to 135, swap it with
-`randint(0, 135)` over the whole wall instead of `[i, 136)`. It looks random, but it produces
-`136^136` equally likely swap sequences spread over `136!` orderings, which do not divide evenly.
-Computed exactly, tile 1 lands on position 0 with 1.36 times its fair chance and tile 135 with
-0.74 times; the engine's Fisher-Yates gives every tile exactly `1/136` at every position.
+To show what the measurement can find, the same measurement was run once on a common wrong shuffle,
+with throwaway code that is not in the repo. The wrong shuffle swaps each position `i` from 0 to
+135 with a random position from the whole wall (`randint(0, 135)`), not from `i` to 135. It looks
+random, but it has `136^136` equally likely swap sequences, and these cannot be spread evenly over
+the `136!` possible orders. Computed exactly, tile 1 lands on position 0 with 1.36 times its fair
+chance, and tile 135 with 0.74 times. The engine's Fisher-Yates gives every tile exactly a `1/136`
+chance at every position.
 
 | statistic | engine, 20000 walls | naive, 20000 walls | naive, 100000 walls |
 |---|---|---|---|
@@ -162,24 +184,25 @@ Computed exactly, tile 1 lands on position 0 with 1.36 times its fair chance and
 | same-type pairs in a 13-tile hand (1.733) | 1.731 | 1.740 | 1.746, warn |
 | mean shanten of a 13-tile hand, vs control | 3.582 vs 3.574 | 3.568 vs 3.574 | 3.571 vs 3.581, warn |
 
-The naive shuffle fails the position checks at the default size. Its effect on hands is small, a
-few hundredths of a shanten, and shows only at 100000 walls: this is why the measurement measures tile
-positions rather than only hand quality.
+The naive shuffle already fails the position checks at the default size. Its effect on hands is
+small, a few hundredths of a shanten, and it shows only at 100000 walls. This is why the
+measurement checks tile positions and not only hand quality.
 
 ## Where the expected values come from
 
-All references follow from one model: a uniformly random ordering of the 136 tiles and fair dice.
-None come from the engine itself.
+All expected values come from one model: a uniformly random order of the 136 tiles, and fair dice.
+None of them come from the engine itself.
 
-- **Tile by position, dora type, seat permutation:** uniform, by symmetry.
-- **Adjacent same-type tiles:** 135 neighbouring pairs, each the same type with probability 3/135
-  (three other copies among 135 tiles), so 3.0 per wall.
+- **Tile by position, dora type, seat permutation:** uniform, because every position and seat is
+  treated the same.
+- **Adjacent same-type tiles:** a wall has 135 pairs of neighbouring tiles. Each pair has the same
+  type with a chance of 3/135 (the three other copies among the other 135 tiles), so 3.0 per wall.
 - **Same-type pairs in a hand:** C(13, 2) × 3/135 = 1.733.
 - **Honours and red fives in a hand:** 13 × 28/136 = 2.676 and 13 × 3/136 = 0.287.
-- **Consecutive rounds:** two independent walls agree at a position with probability 1/136, so 1.0
-  of 136 positions.
-- **Dice:** 1/6 per face; sums follow the triangle 1, 2, ..., 6, ..., 2, 1 out of 36.
-- **First dealer:** the two-throw rule counted over all 1296 pairs of throws.
-- **Shanten:** no formula exists, so the reference is the same shanten calculator run over hands
-  from Python's `random.shuffle` (ported in the sampler). This compares the engine's shuffle
-  with an independent one.
+- **Consecutive rounds:** two independent walls have the same tile at a position with a chance of
+  1/136, so 1.0 of the 136 positions.
+- **Dice:** 1/6 for each face. The sums follow the triangle 1, 2, ..., 6, ..., 2, 1 out of 36.
+- **First dealer:** the two-throw rule, counted over all 1296 pairs of throws.
+- **Shanten:** there is no formula, so the reference runs the same shanten calculator over hands
+  from Python's `random.shuffle` (copied into the sampler). This compares the engine's shuffle with
+  an independent shuffle.
