@@ -1,6 +1,8 @@
 @use "@/styles/game-board/queries";
 @use "@/styles/type";
 
+$result-melds-apart-share: 0.7;
+
 /* ─── Seating Panel ───────────────────────────────────────────── */
 
 /* The seats before the first deal, and again at the game's end with their placements, scores and uma/oka results.
@@ -362,13 +364,14 @@
 
 .round-end-result__win-tile {
     display: inline-flex;
-    margin-inline: 1rem 0.9rem;
+    margin-left: 1rem;
 }
 
 .round-end-result__melds {
     display: inline-flex;
     align-items: flex-end;
     gap: 0.3rem;
+    margin-left: calc(var(--board-tile-w, 60px) * #{$result-melds-apart-share});
 }
 
 .round-end-result__wall {
@@ -1002,7 +1005,7 @@
     }
 
     .round-end-result__win-tile {
-        margin-inline: 0.7rem 0.6rem;
+        margin-left: 0.7rem;
     }
 
     .round-end-result__wall {

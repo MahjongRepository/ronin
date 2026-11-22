@@ -773,7 +773,8 @@ as a number, not seen, so the count turns red from ten tiles left.
   table column, so the bars (a replay's status and controls) stay usable beside it; on a
   phone it stands centred on the board both ways whether or not a notice shows (a replay's clear of its controls),
   the notices standing over it in their field. A desktop's panel fits its content whole.
-- **Round result.** Decision: the winning hand on top, the winning tile set apart and the melds in their shape, the
+- **Round result.** Decision: the winning hand on top, the winning tile set apart and the melds in their shape further
+  apart (over half a tile, in a draw's tenpai hands too), so they never read as the closed hand, the
   dead wall's indicators in the panel's top-right corner (five slots, the revealed indicators as faces, the rest
   backs, the ura row under the dora's for a riichi winner), unlabelled, so they never read as the hand. Under the hand
   one scoring column read down: the yaku with their han (a named yakuman as a vermilion 役満 seal beside its name in
