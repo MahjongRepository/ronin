@@ -141,7 +141,7 @@ function controlsTemplate(props: ReplayBoardProps): TemplateResult {
         playback: { playing: autoplay.playing },
         roundListOpen,
         toolsOpen: screen.toolsOpen,
-    })}${roundList}${observing ? nothing : toolsTemplate(props)}</div>`;
+    })}${roundList}${toolsTemplate(props)}</div>`;
 }
 
 /** Where a table's seat stands on the board as the screen views it. */

@@ -227,7 +227,9 @@ export function ReplayControls(props: ReplayControlsProps): TemplateResult {
         tip: tip(t("replay.options.next_view"), "V"),
     });
     if (props.observing) {
-        return html`<div class="replay-controls__options" role="group" aria-label=${t("replay.controls.view")}>${view}</div>`;
+        return html`<div class="replay-controls__options" role="group" aria-label=${t("replay.controls.view")}>
+            ${view}${ToolsButton(props)}
+        </div>`;
     }
     return html`
         <div class="replay-controls__moves" role="group" aria-label=${t("replay.controls.moves")}>
