@@ -75,6 +75,10 @@ const RUN_ON_REACH_TILES = RESERVED_THIRD_ROW - 1 + TILE_ASPECT;
  * adds the tile edge that falls into it. */
 const LATEST_DISCARD_GAP = 7;
 
+/** A phone's latest discard keeps the desktop gap's share of this river tile (px), never under two pixels. */
+const LATEST_GAP_RIVER_TILE = 50;
+const PHONE_LATEST_GAP_MIN = 2;
+
 /** Off a phone the right river's first tile's edge keeps this far above a bottom row run past the centre's corner (px). */
 const RIVER_CORNER_CLEAR = 3;
 
@@ -266,6 +270,7 @@ export {
     LARGE_CHROME_HEIGHT,
     LARGE_CHROME_WIDTH,
     LATEST_DISCARD_GAP,
+    LATEST_GAP_RIVER_TILE,
     LYING_X_SHARE,
     LYING_Y_SHARE,
     MELD_GAP_EXTRA,
@@ -287,6 +292,7 @@ export {
     PHONE_CHROME_RIVER,
     PHONE_FELT_BY_HEIGHT,
     PHONE_HEIGHT,
+    PHONE_LATEST_GAP_MIN,
     PHONE_OWN_FLOOR,
     PHONE_OWN_GIVEN_FOR_RIVER,
     PHONE_OWN_TAP_FLOOR,

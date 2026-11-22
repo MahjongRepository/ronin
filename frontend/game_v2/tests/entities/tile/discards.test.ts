@@ -72,6 +72,32 @@ describe("Discards tile classes", () => {
     });
 });
 
+describe("Discards latest discard", () => {
+    function latestBordered(
+        count: number,
+        turn: 0 | 90 | 180 | 270,
+        riichiIndex: number | null = null,
+    ): boolean {
+        const tiles = makeTiles(count).map((tile, index) => ({
+            ...tile,
+            last: index === count - 1,
+            riichi: index === riichiIndex,
+        }));
+        const overflow = turn === 0 || turn === 180 ? "run-on" : "wrap";
+        return (
+            renderTo(Discards(tiles, overflow, turn))
+                .querySelector(".discard-tile--last")
+                ?.classList.contains("discard-tile--bordered") ?? false
+        );
+    }
+
+    test("is bordered along a side river's column past its first tile, and across a top or bottom row only where the row before reaches under it, a sideways riichi tile widening that row", () => {
+        expect([latestBordered(3, 90), latestBordered(7, 270)]).toEqual([true, false]);
+        expect([latestBordered(3, 0), latestBordered(8, 180)]).toEqual([false, true]);
+        expect([latestBordered(19, 0), latestBordered(19, 0, 8)]).toEqual([false, true]);
+    });
+});
+
 describe("Discards container", () => {
     test("renders .discards container with correct number of .discard-tile children", () => {
         const tiles = makeTiles(4);

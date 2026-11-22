@@ -318,6 +318,7 @@ export {
     STANDING_BACK_EDGE_SHARE,
     STANDING_BODY,
     STANDING_OVERHANG,
+    TILE_BOX_ASPECT,
     UPRIGHT_BACK_EDGE,
     faceArtViewBox,
     lyingFaceBox,

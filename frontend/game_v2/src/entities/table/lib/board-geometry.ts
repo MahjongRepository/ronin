@@ -1,4 +1,4 @@
-import { RIVER_ROWS, RIVER_ROW_SIZE, STANDING_OVERHANG } from "@/entities/tile";
+import { LYING_BODY, RIVER_ROWS, RIVER_ROW_SIZE, STANDING_OVERHANG } from "@/entities/tile";
 
 import {
     BAR_MIN,
@@ -11,6 +11,7 @@ import {
     LARGE_CHROME_HEIGHT,
     LARGE_CHROME_WIDTH,
     LATEST_DISCARD_GAP,
+    LATEST_GAP_RIVER_TILE,
     LYING_X_SHARE,
     LYING_Y_SHARE,
     MELD_GAP_EXTRA,
@@ -30,6 +31,7 @@ import {
     PHONE_CHROME_RIVER,
     PHONE_FELT_BY_HEIGHT,
     PHONE_HEIGHT,
+    PHONE_LATEST_GAP_MIN,
     PHONE_OWN_FLOOR,
     PHONE_OWN_GIVEN_FOR_RIVER,
     PHONE_OWN_TAP_FLOOR,
@@ -149,13 +151,32 @@ const DESKTOP_STACK_TILES =
     Math.max(OWN_BY_RIVER_OFF_PHONE * STANDING_OVERHANG, OWN_MELD_SCALE * TILE_EDGE_SHARE);
 
 /**
- * The latest discard's gap along the light off a phone (px): the gap across it and the tile edge that falls into it,
- * the previous tile's on the left river and above a bottom river's row, the latest tile's own on the right river and
- * under a top river's row. A phone keeps the gap across: its edge is two pixels, and the reserve would cost it a pixel
- * of river tile at its floor.
+ * The latest discard's reserve along the light off a phone (px): the gap and a tile edge, deeper than the painted lip
+ * (`latestLip`) its move clears where it borders an earlier body, the rest kept as margin.
  */
 function latestDropGap(rw: number): number {
     return LATEST_DISCARD_GAP + Math.round(TILE_EDGE_SHARE * rw);
+}
+
+/** A lying river tile's painted edge past its slot (px), which the latest discard clears where it borders a body. */
+function latestLip(rw: number): number {
+    return Math.round(LYING_BODY.edge * rw);
+}
+
+/** A phone's latest discard's gap from its neighbours (px): the desktop gap scaled to its river tile. */
+function phoneLatestGap(rw: number): number {
+    return Math.max(
+        PHONE_LATEST_GAP_MIN,
+        Math.round((LATEST_DISCARD_GAP * rw) / LATEST_GAP_RIVER_TILE),
+    );
+}
+
+/**
+ * A phone's reserve for its latest discard's longest move off its slot (px): its gap and the lip it clears, never under
+ * the desktop gap, which a small phone's river already spares.
+ */
+function phoneLatestDrop(rw: number): number {
+    return Math.max(LATEST_DISCARD_GAP, phoneLatestGap(rw) + latestLip(rw));
 }
 
 /** A phone replay's moves: the five past the round's ends. */
@@ -413,13 +434,14 @@ function coreLengths(
     {
         drop,
         gap,
+        latestGap,
         rightLift,
         topGap,
-    }: Readonly<Record<"drop" | "gap" | "rightLift" | "topGap", number>>,
+    }: Readonly<Record<"drop" | "gap" | "latestGap" | "rightLift" | "topGap", number>>,
 ): [string, number][] {
     const hx = width / 2;
-    const sideReach = (SIDE_REACH_TILES / 2) * rw + LATEST_DISCARD_GAP;
-    const runOnReach = RUN_ON_REACH_TILES * rw + LATEST_DISCARD_GAP;
+    const sideReach = (SIDE_REACH_TILES / 2) * rw + latestGap;
+    const runOnReach = RUN_ON_REACH_TILES * rw + latestGap;
     return [
         ["c", height],
         ["cx", cx],
@@ -428,10 +450,11 @@ function coreLengths(
         ["g-top", topGap],
         ["h", height / 2],
         ["hx", hx],
-        ["latest-discard-gap", LATEST_DISCARD_GAP],
+        ["latest-discard-gap", latestGap],
         ["latest-drop-gap", drop],
+        ["latest-lip", latestLip(rw)],
         ["reach-bottom-right", cx - hx + runOnReach],
-        ["reach-left", cx - hx - gap - (SIDE_REACH_TILES / 2) * rw - LATEST_DISCARD_GAP],
+        ["reach-left", cx - hx - gap - (SIDE_REACH_TILES / 2) * rw - latestGap],
         ["reach-right", cx + hx + gap + sideReach],
         ["reach-top-left", cx + hx - runOnReach],
         ["reach-top-row3", cy - height / 2 - topGap - ROWS_BEFORE_RUN_ON * rw],
@@ -833,7 +856,13 @@ function desktopAt(
         ["river-foot", coreTop + core + edge],
         ...coreLengths(
             { cx: width / 2, cy, height: centreHeight, rw, width: centreWidth },
-            { drop, gap, rightLift: rightRiverLift(rw, gap), topGap },
+            {
+                drop,
+                gap,
+                latestGap: LATEST_DISCARD_GAP,
+                rightLift: rightRiverLift(rw, gap),
+                topGap,
+            },
         ),
     ]);
     const linesEnd = plan.arrangement === "corner" ? laneFoot : ownPill - LINE_PLATE_GAP;
@@ -1256,15 +1285,11 @@ function phoneLayout(
     const line = foot - m;
     const coreTop = m + rh + sep + (frame.topGap ?? 0);
     const rows = riverRows(rw, gap);
+    const latestDrop = phoneLatestDrop(rw);
     const topEdge = Math.ceil(TILE_EDGE_SHARE * rw);
     const topEdgeHeld = Math.max(0, Math.min(topEdge, topEdge + PHONE_TOP_EDGE_CLEAR - gap));
     const spareRoom =
-        handTop -
-        coreGap -
-        (frame.coreLift ?? 0) -
-        2 * (LATEST_DISCARD_GAP + rows) -
-        topEdgeHeld -
-        coreTop;
+        handTop - coreGap - (frame.coreLift ?? 0) - 2 * (latestDrop + rows) - topEdgeHeld - coreTop;
     const edgeRoomPastHeld = frame.topEdgeRoom
         ? Math.max(
               0,
@@ -1276,7 +1301,7 @@ function phoneLayout(
         : 0;
     const edgeRoom = topEdgeHeld + edgeRoomPastHeld;
     const topGap = gap + edgeRoom;
-    const centreTop = coreTop + LATEST_DISCARD_GAP + rows + edgeRoom;
+    const centreTop = coreTop + latestDrop + rows + edgeRoom;
     const centreRoom = spareRoom - edgeRoomPastHeld;
     function lengthsAt(laid: BoardLengths): (name: string) => number {
         return (name) => laid[name] ?? 0;
@@ -1313,7 +1338,13 @@ function phoneLayout(
             ["own-start", ownStart],
             ...coreLengths(
                 { cx: width / 2, cy, height: heightRoom, rw, width: centreWidth },
-                { drop: LATEST_DISCARD_GAP, gap, rightLift: rightRiverLift(rw, gap), topGap },
+                {
+                    drop: latestDrop,
+                    gap,
+                    latestGap: phoneLatestGap(rw),
+                    rightLift: rightRiverLift(rw, gap),
+                    topGap,
+                },
             ),
             ["side-reach", phoneSideReach(rw, line, frame.faceFloor)],
         ]);

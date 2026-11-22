@@ -1,7 +1,7 @@
 import { html, nothing } from "lit-html";
 
 import { RIVER_ROWS, RIVER_ROW_SIZE, type RiverOverflow } from "@/entities/tile/lib/river-shape";
-import { type SeatTurn } from "@/entities/tile/lib/tile-body";
+import { type SeatTurn, TILE_BOX_ASPECT } from "@/entities/tile/lib/tile-body";
 import { type TileFace } from "@/entities/tile/lib/tile-utils";
 
 import { Tile, lyingSlotStyle } from "./tile";
@@ -55,6 +55,27 @@ function joinedInRiver(
     return joinedBy[turn]();
 }
 
+function rowSpan(tiles: readonly DiscardTile[]): number {
+    return tiles.reduce((span, tile) => span + (tile.riichi === true ? TILE_BOX_ASPECT : 1), 0);
+}
+
+/**
+ * Whether an earlier discard's body borders this one where the latest discard moves apart: the tile before it along a
+ * side river's row, or any tile of the row before that a top or bottom river's row reaches under it, sideways tiles
+ * counted at their width.
+ */
+function bordersEarlierTile(
+    turn: SeatTurn,
+    rows: readonly (readonly DiscardTile[])[],
+    { index, rowIndex }: Readonly<Record<"index" | "rowIndex", number>>,
+): boolean {
+    if (turn === 90 || turn === 270) {
+        return index > 0;
+    }
+    const start = rowSpan((rows[rowIndex] ?? []).slice(0, index));
+    return start < rowSpan(rows[rowIndex - 1] ?? []);
+}
+
 function riichiSlotStyle(turn: SeatTurn, paint: string | typeof nothing): string {
     const slot = lyingSlotStyle({ turn });
     return paint === nothing ? slot : `${paint}; ${slot}`;
@@ -83,6 +104,9 @@ function Discards(
                         }
                         if (t.last) {
                             classes.push("discard-tile--last");
+                            if (bordersEarlierTile(turn, rows, { index, rowIndex })) {
+                                classes.push("discard-tile--bordered");
+                            }
                         }
                         const order = paintOrder(turn, {
                             rowsAfter: rows.length - 1 - rowIndex,

@@ -333,9 +333,12 @@ as a number, not seen, so the count turns red from ten tiles left.
   as possible so the latest discard and the riichi tile are found at a glance.
 - **Latest discard.** Decision: every newest discard lands in its gap and stays there until 300ms after it lands
   (when an opponent's held draw appears), or for as long as a call on it is being decided, whether or not the viewer
-  has an offer on it; then it slides back into line over 120ms, never outward. The gap is small (7px; 10px along the
-  right river's row), before it along its row and toward its seat, as a tile just thrown lies, with no ring, pointer
-  or colour. A replay's discard stop shows the gap until the next step, which slides it home at once, and a static
+  has an offer on it; then it slides back into line over 120ms, never outward. The gap is small and reads the same from every
+  seat: the same felt between painted bodies before it along its row and toward its seat (7px off a phone; a phone's
+  scaled to its river tile, 7px per 50px, never under 2px), as a tile just thrown lies, with no ring, pointer or
+  colour. Where the move borders an earlier tile on the screen's vertical (a side river's row past its first tile, a
+  top or bottom row that the row before reaches under, sideways riichi tiles counted at their width), it moves further
+  by the painted edge that tile shows there. A replay's discard stop shows the gap until the next step, which slides it home at once, and a static
   state (motion off, a reconnect, a replay jump) shows it while it is the table's last action. The next draw ends it, the tile then lying in the river as any other; a call
   that claims it ends it too, the claim then read from the meld, and so does the round's end,
   whatever its result (a ron on it included: the result shows the winning tile). During a discard offer this mark is the action source. A

@@ -983,26 +983,25 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [667, 375],
-        [1440, 900],
-        [1366, 657],
-        [390, 844],
+        { gap: 3, height: 375, phoneDrop: 8, width: 667 },
+        { gap: LATEST_DISCARD_GAP, height: 900, phoneDrop: null, width: 1440 },
+        { gap: LATEST_DISCARD_GAP, height: 657, phoneDrop: null, width: 1366 },
+        { gap: LATEST_DISCARD_GAP, height: 844, phoneDrop: null, width: 390 },
     ])(
-        "reserves twenty discards and the latest gap, deeper by the tile edge along the light off a phone (the top river's gap too, past its rows' edge), in a %ix%i window without reserving a longer third row",
-        (width, height) => {
-            const { family, lengths } = windowGeometry({ height, width });
+        "reserves twenty discards and the latest gap, deeper by the tile edge along the light off a phone and by a phone's gap and lip on one (the top river's gap too, past its rows' edge), in a $width x $height window without reserving a longer third row",
+        ({ gap, height, phoneDrop, width }) => {
+            const { lengths } = windowGeometry({ height, width });
             function length(name: string): number {
                 return lengths[name] ?? Number.NaN;
             }
-            const across = length("g") + 4 * length("rh") + LATEST_DISCARD_GAP;
-            const runOn = 7 * length("rw") + length("rh") + LATEST_DISCARD_GAP;
+            const across = length("g") + 4 * length("rh") + gap;
+            const runOn = 7 * length("rw") + length("rh") + gap;
             const left = length("cx") - length("hx");
             const right = length("cx") + length("hx");
             const expected = {
-                "latest-discard-gap": LATEST_DISCARD_GAP,
+                "latest-discard-gap": gap,
                 "latest-drop-gap":
-                    LATEST_DISCARD_GAP +
-                    (family === "phone" ? 0 : Math.round(TILE_EDGE_SHARE * length("rw"))),
+                    phoneDrop ?? LATEST_DISCARD_GAP + Math.round(TILE_EDGE_SHARE * length("rw")),
                 "reach-bottom-right": left + runOn,
                 "reach-left": left - across,
                 "reach-right": right + across,

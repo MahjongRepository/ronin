@@ -57,17 +57,17 @@
         bottom: calc(var(--board-tile-w) * var(--slot-down-share, 1));
     }
 
-    /* The latest discard lies a little apart from the tile before it and the row above, as a tile just thrown does;
-       the gap that runs along the light holds a tile's bared edge, so it is deeper by it to read as the same gap. */
+    /* The latest discard lies the same felt apart from its neighbours from every seat; where an earlier body borders
+       its move on the vertical (`--bordered`), it moves further by that body's painted lip. */
     .discard-tile--last {
         translate: var(--latest-discard-gap) var(--latest-discard-gap);
     }
 
-    :is(.board-river--top, .board-river--bottom) .discard-tile--last {
-        translate: var(--latest-discard-gap) var(--latest-drop-gap);
+    :is(.board-river--top, .board-river--bottom) .discard-tile--last.discard-tile--bordered {
+        translate: var(--latest-discard-gap) calc(var(--latest-discard-gap) + var(--latest-lip));
     }
 
-    :is(.board-river--left, .board-river--right) .discard-tile--last {
-        translate: var(--latest-drop-gap) var(--latest-discard-gap);
+    :is(.board-river--left, .board-river--right) .discard-tile--last.discard-tile--bordered {
+        translate: calc(var(--latest-discard-gap) + var(--latest-lip)) var(--latest-discard-gap);
     }
 }
