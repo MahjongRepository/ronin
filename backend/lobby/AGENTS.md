@@ -151,18 +151,15 @@ package joins a layer in the contract, or gets its own contract, in the same cha
   (`/api/lobby/tournaments*`); the page's view reads `is_owner` from it to show the Settings tab.
 * `tournaments/` — the tournament page's socket and `TournamentHub`, the in-memory registry of who is online on
   each tournament page: one connection per user (a new one replaces the old), lost on a restart. Being online
-  is no occupancy place. The hub also keeps each tournament's history in memory (a day, at most the newest 1000
-  entries, pruned as entries arrive): every line the page shows from a server event, as the event's fields, with
-  coming online and going offline decided where the socket joins and leaves; a player back from a game the
-  tournament started is no arrival, so a whole tournament announces each player once. Every join gets it as `history`
-  before `joined`, without the joiner's own coming online and going offline; `joined` carries the games still being
-  played, read from `tournament_games`, so a reload still lists them. The events socket gets no history.
+  is no occupancy place. The hub also keeps each tournament's chat history in memory (a day, at most the newest
+  1000 lines, pruned as lines arrive). Every join gets it as `history` before `joined`; `joined` carries the games
+  still being played and the ended ones with their results, read from `tournament_games`, so a reload still lists
+  them. The events socket gets no history.
   The owner's events socket makes an events subscriber, keyed by connection (an owner may hold several), never a
   player: it is not online, never replaces the owner's player connection, and what it sends is dropped. Tournament
-  events (`presence`, `game_started`, `game_ended`) are published once to the players and the subscribers; chat and
-  the coming online and going offline go to the players only, and the page announces only those, never a `presence`
-  change. A subscriber gets a `presence` snapshot on connect and misses earlier events; the API's GET is the
-  catch-up.
+  events (`presence`, `game_started`, `game_ended`) are published once to the players and the subscribers; chat goes
+  to the players only. A subscriber gets a `presence` snapshot on connect and misses earlier events; the API's GET is
+  the catch-up.
   `chat_messages.py` holds the chat message model and the client frame limits both rooms and tournaments use.
 * The tournament API (`views/tournament_api_handlers.py`) is for an external manager: `api_key_json` accepts only
   key auth, never a cookie (so its POSTs need no CSRF), and only the tournament's owner, anyone else getting the

@@ -28,14 +28,12 @@ class TournamentHub:
     The players online on each tournament's page, one connection per user, and its events subscribers, in memory only.
 
     A subscriber is keyed by connection, so one user may hold several; it is never online, it only receives what
-    ``publish`` sends. It also keeps each tournament's recent history, the lines its page shows from server events
-    (chat, games started and ended, players coming online and going offline), lost on a restart like the rest. Every
+    ``publish`` sends. It also keeps each tournament's recent chat history, lost on a restart like the rest. Every
     method is one synchronous step on the event loop, so no lock is needed.
     """
 
     def __init__(self, *, clock: Callable[[], float] = time.time) -> None:
         self._online: dict[str, dict[str, LobbyPlayer]] = {}
-        self._away_at_game: dict[str, set[str]] = {}
         self._subscribers: dict[str, dict[str, LobbyPlayer]] = {}
         self._history: dict[str, deque[_HistoryEntry]] = {}
         self._clock = clock
@@ -62,27 +60,6 @@ class TournamentHub:
         del players[player.user_id]
         if not players:
             del self._online[tournament_id]
-
-        return True
-
-    def send_to_game(self, tournament_id: str, player: LobbyPlayer) -> None:
-        """
-        Take the player offline for a game the tournament started, so that their coming back is no arrival.
-        """
-        self.disconnect(tournament_id, player)
-        self._away_at_game.setdefault(tournament_id, set()).add(player.user_id)
-
-    def welcome_back_from_game(self, tournament_id: str, user_id: str) -> bool:
-        """
-        Forget that the user left for a game of the tournament; return True when they had.
-        """
-        away = self._away_at_game.get(tournament_id, set())
-        if user_id not in away:
-            return False
-
-        away.remove(user_id)
-        if not away:
-            del self._away_at_game[tournament_id]
 
         return True
 
@@ -149,7 +126,7 @@ class TournamentHub:
 
     def record(self, tournament_id: str, entry: Mapping[str, object]) -> dict[str, object]:
         """
-        Keep a line the tournament page shows in the tournament's history; return the entry with its epoch-seconds time.
+        Keep a chat line in the tournament's history; return the entry with its epoch-seconds time.
 
         Every tournament's history drops its entries older than ``HISTORY_MAX_AGE_SECONDS`` when it gains one, and keeps
         at most the newest ``HISTORY_MAX_ENTRIES``; a history whose newest entry is that old is dropped.
@@ -169,9 +146,10 @@ class TournamentHub:
 
     def history(self, tournament_id: str) -> list[dict[str, object]]:
         """
-        Return the tournament's kept entries, oldest first.
+        Return the tournament's kept entries no older than ``HISTORY_MAX_AGE_SECONDS``, oldest first.
         """
-        return [entry.event for entry in self._history.get(tournament_id, ())]
+        cutoff = self._clock() - HISTORY_MAX_AGE_SECONDS
+        return [entry.event for entry in self._history.get(tournament_id, ()) if entry.time >= cutoff]
 
     def close_deleted_tournament(self, tournament_id: str) -> None:
         """
@@ -179,7 +157,6 @@ class TournamentHub:
         and forget them all with its history.
         """
         self._history.pop(tournament_id, None)
-        self._away_at_game.pop(tournament_id, None)
         players = self._online.pop(tournament_id, {})
         subscribers = self._subscribers.pop(tournament_id, {})
         for connection in [*players.values(), *subscribers.values()]:

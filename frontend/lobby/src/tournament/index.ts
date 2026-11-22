@@ -44,6 +44,8 @@ const NO_ACTIONS: TournamentActions = {
     renameTournament: () => {},
     selectTab: () => {},
     sendChat: () => false,
+    setChatOpen: () => {},
+    showAllPlayed: () => {},
 };
 
 function showTournamentFrame(mount: TournamentMount, pageError: string | null): MountedView {
@@ -71,6 +73,18 @@ function buildActions(state: TournamentState, owner: OwnerContext): TournamentAc
             owner.render();
         },
         sendChat: (text) => sendChat(state, text),
+        setChatOpen: (open) => {
+            if (state.chatOpen === open) {
+                return;
+            }
+            state.chatOpen = open;
+            state.chatUnread = 0;
+            owner.render();
+        },
+        showAllPlayed: () => {
+            state.playedExpanded = true;
+            owner.render();
+        },
     };
 }
 

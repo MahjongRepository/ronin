@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from operator import attrgetter
 from typing import TYPE_CHECKING
 
 import structlog
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
     from starlette.types import Message
     from starlette.websockets import WebSocket
 
+    from app.dal.models import TournamentGame
     from app.dal.tournament_repository import TournamentRepository
     from app.players import LobbyPlayer
     from app.tournaments.hub import TournamentHub
@@ -26,7 +28,6 @@ _RATE_LIMIT_BURST = 10
 _RATE_LIMITED = "rate_limited"
 _BINARY_FRAME = "Binary frames are not supported"
 _TOURNAMENT_NOT_FOUND = "tournament_not_found"
-_PRESENCE_ENTRY_TYPES = frozenset({"player_online", "player_offline"})
 
 
 class _TournamentContext:
@@ -103,11 +104,10 @@ async def _serve_player(player: LobbyPlayer, ctx: _TournamentContext) -> None:
 
 async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
     """
-    Put the player online, send them the tournament's history, then acknowledge it with who is online and the games
-    being played, and announce it; return False when the tournament does not exist.
+    Put the player online, send them the tournament's history, then acknowledge it with who is online, the games being
+    played and the games that have ended, and announce it; return False when the tournament does not exist.
 
-    The same user's older connection is told ``replaced_by_new_connection`` and closed; the new one takes its place,
-    with nothing kept or announced as a change. A player back from a game the tournament started is no arrival either.
+    The same user's older connection is told ``replaced_by_new_connection`` and closed; the new one takes its place.
     """
     if await ctx.tournament_repo.get_tournament(ctx.tournament_id) is None:
         logger.info("tournament join rejected", tournament_id=ctx.tournament_id, username=player.username)
@@ -120,24 +120,19 @@ async def _join(player: LobbyPlayer, ctx: _TournamentContext) -> bool:
         replaced.send({"type": "error", "message": REPLACED_BY_NEW_CONNECTION})
         replaced.connection.close(code=4000, reason=REPLACED_BY_NEW_CONNECTION)
 
-    back_from_game = ctx.hub.welcome_back_from_game(ctx.tournament_id, player.user_id)
-    player.send({"type": "history", "messages": _history_seen_by(player, ctx)})
-    if replaced is None and not back_from_game:
-        online = ctx.hub.record(ctx.tournament_id, {"type": "player_online", "player_name": player.username})
-        ctx.hub.broadcast(ctx.tournament_id, online, exclude=player.connection_id)
-
+    player.send({"type": "history", "messages": ctx.hub.history(ctx.tournament_id)})
     names = ctx.hub.online_names(ctx.tournament_id)
-    player.send({"type": "joined", "players": names, "games": await _current_games(ctx)})
+    games = await ctx.tournament_repo.list_games(ctx.tournament_id)
+    player.send({"type": "joined", "players": names, "games": _current_games(games), "played": _played_games(games)})
     ctx.hub.broadcast_presence(ctx.tournament_id, exclude=player.connection_id)
     logger.info("player online in tournament", tournament_id=ctx.tournament_id, username=player.username)
     return True
 
 
-async def _current_games(ctx: _TournamentContext) -> list[dict[str, object]]:
+def _current_games(games: list[TournamentGame]) -> list[dict[str, object]]:
     """
-    Return the tournament's games still being played, oldest first, each with its players East to North.
+    Return the games still being played, in the given order, each with its players East to North.
     """
-    games = await ctx.tournament_repo.list_games(ctx.tournament_id)
     return [
         {"game_id": game.game_id, "players": game.players, "started_at": game.created_at}
         for game in games
@@ -145,15 +140,20 @@ async def _current_games(ctx: _TournamentContext) -> list[dict[str, object]]:
     ]
 
 
-def _history_seen_by(player: LobbyPlayer, ctx: _TournamentContext) -> list[dict[str, object]]:
+def _played_games(games: list[TournamentGame]) -> list[dict[str, object]]:
     """
-    Return the tournament's history without the player's own coming online and going offline, which their page never
-    shows of itself.
+    Return the games that have ended, latest end first, each shaped as its ``game_ended`` event with its ``ended_at``.
     """
+    ended = sorted((game for game in games if game.ended_at is not None), key=attrgetter("ended_at"), reverse=True)
     return [
-        entry
-        for entry in ctx.hub.history(ctx.tournament_id)
-        if entry["type"] not in _PRESENCE_ENTRY_TYPES or entry["player_name"] != player.username
+        {
+            "game_id": game.game_id,
+            "players": game.players,
+            "ended_at": game.ended_at,
+            "end_reason": game.end_reason,
+            "result": [standing.model_dump(mode="json", exclude={"user_id"}) for standing in game.result or []],
+        }
+        for game in ended
     ]
 
 
@@ -199,14 +199,11 @@ def _read_message(player: LobbyPlayer, *, bucket: TokenBucket, frame: Message) -
 
 def _leave(player: LobbyPlayer, ctx: _TournamentContext) -> None:
     """
-    Take the player offline, keep it in the history and tell the rest; a connection another one replaced, or one whose
-    player left for a game, leaves nothing to announce.
+    Take the player offline and tell the rest who is online; a connection another one replaced, or one whose player left
+    for a game, changes nothing.
     """
     if not ctx.hub.disconnect(ctx.tournament_id, player):
         return
-
-    offline = ctx.hub.record(ctx.tournament_id, {"type": "player_offline", "player_name": player.username})
-    ctx.hub.broadcast(ctx.tournament_id, offline)
 
     logger.info(
         "player offline in tournament",

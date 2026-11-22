@@ -9,7 +9,7 @@ def _texts(hub, tournament_id):
     return [entry["text"] for entry in hub.history(tournament_id)]
 
 
-def test_tournament_hub_record__when_entries_age_past_a_day_or_overflow_the_cap__should_keep_newest_recent():
+def test_tournament_hub_history__when_entries_age_past_a_day_or_overflow_the_cap__should_keep_newest_recent():
     now = 1_794_393_000.0
     hub = TournamentHub(clock=lambda: now)
     hub.record("cup", _chat("yesterday"))
@@ -29,3 +29,7 @@ def test_tournament_hub_record__when_entries_age_past_a_day_or_overflow_the_cap_
         hub.record("cup", _chat(text))
 
     assert _texts(hub, "cup") == overflow
+
+    now += HISTORY_MAX_AGE_SECONDS + 1
+
+    assert hub.history("cup") == []

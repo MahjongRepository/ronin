@@ -95,6 +95,13 @@ function gameRow(game: CurrentGame, now: Date): TemplateResult {
     </li>`;
 }
 
+export function currentGameRowsTemplate(games: readonly CurrentGame[]): TemplateResult {
+    const now = new Date();
+    return html`<ul class="current-games-list">
+        ${games.map((game) => gameRow(game, now))}
+    </ul>`;
+}
+
 function gamesListTemplate(games: readonly CurrentGame[]): TemplateResult {
     if (games.length === 0) {
         return html`<div class="lobby-empty lobby-empty--boxed">
@@ -102,10 +109,7 @@ function gamesListTemplate(games: readonly CurrentGame[]): TemplateResult {
             <p class="lobby-empty-hint">${t("current_games.empty_hint")}</p>
         </div>`;
     }
-    const now = new Date();
-    return html`<ul class="current-games-list">
-        ${games.map((game) => gameRow(game, now))}
-    </ul>`;
+    return currentGameRowsTemplate(games);
 }
 
 export function currentGamesTemplate(

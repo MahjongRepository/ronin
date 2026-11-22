@@ -59,11 +59,12 @@ opens for anyone signed in, but only an admin's nav links to it. On phones the n
 The tournament page (`tournament/`) keeps the room's reconnect and binds its socket the same way.
 It holds no seat, so a reload only reconnects, and a language switch only redraws. Its Settings tab (rename,
 delete) shows when `/api/lobby/tournaments/{id}` says `is_owner`; switching tabs keeps the socket, so the owner
-stays online, and a delete goes to the tournaments page. The
-server's `history`, sent before `joined` on every join, replaces the chat log: it holds every line the
-page shows from a server event, as structured entries worded at render time, so a reload or reconnect
-loses only the lines the page made itself (its own "you're online", local errors). `chat.ts` holds the
-chat log and composer both pages render.
+stays online, and a delete goes to the tournaments page. The page leads with the games: the current
+ones and the game history from `joined` (every ended game, latest first), which a `game_ended` then
+updates, so a reload or reconnect loses none; only the owner sees the Start game button. Who is online
+and the chat sit folded below them. The chat shows people's messages only: the chat lines of the
+server's `history`, sent before `joined` on every join, replace its log, so a reconnect loses only the
+page's own local error lines. `chat.ts` holds the chat log and composer both pages render.
 
 A page that holds a lobby socket binds it to `page-lifetime.ts`: it closes the socket and cancels
 any pending rejoin on `beforeunload` and again on `pagehide`, and rejoins from scratch on a `pageshow` that restores it from

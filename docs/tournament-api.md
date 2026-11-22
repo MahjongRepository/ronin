@@ -106,8 +106,8 @@ client sends is ignored. Several may be open at once. Every message is a JSON ob
 - `presence` — `{"type": "presence", "players": [...], "count": n}`: who is online. Sent first on connect, then on
   every change.
 - `game_started` — `{"type": "game_started", "game_id": "...", "players": [east, south, west, north]}`.
-- `game_ended` — `{"type": "game_ended", "game_id": "...", "players": [east, south, west, north], "end_reason":
-  "...", "result": [...]}`, with `end_reason` and `result` as in the snapshot, except that `result` entries carry no
+- `game_ended` — `{"type": "game_ended", "game_id": "...", "players": [east, south, west, north], "ended_at": ...,
+  "end_reason": "...", "result": [...]}`, with `ended_at`, `end_reason` and `result` as in the snapshot, except that `result` entries carry no
   `user_id` (the event also reaches every player on the tournament page). It arrives within a few seconds of the
   game's end.
 - `error` — `{"type": "error", "message": "tournament_not_found"}`: the tournament does not exist or the socket's

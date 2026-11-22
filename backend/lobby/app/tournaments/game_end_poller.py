@@ -96,10 +96,10 @@ class TournamentGameEndPoller:
                 "type": "game_ended",
                 "game_id": game.game_id,
                 "players": game.players,
+                "ended_at": played.ended_at.timestamp(),
                 "end_reason": played.end_reason,
                 "result": [standing.model_dump(mode="json", exclude={"user_id"}) for standing in played.standings],
             }
-            self._hub.record(game.tournament_id, game_ended)
             self._hub.publish(game.tournament_id, game_ended)
             logger.info(
                 "tournament game ended",

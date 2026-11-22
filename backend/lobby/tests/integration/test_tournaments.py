@@ -47,19 +47,20 @@ def tournament_id(client):
     return create_tournament(client)
 
 
-def test_tournament_socket__when_second_user_connects_and_leaves__should_announce_both_and_update_presence(
-    client, tournament_id
-):
+def test_tournament_socket__when_second_user_connects_and_leaves__should_update_presence(client, tournament_id):
     with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
-        assert _receive_until(ws_alice, "joined") == {"type": "joined", "players": ["alice"], "games": []}
+        assert _receive_until(ws_alice, "joined") == {"type": "joined", "players": ["alice"], "games": [], "played": []}
 
         switch_user_with_csrf(client, "bob")
         with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_bob:
-            assert _receive_until(ws_bob, "joined") == {"type": "joined", "players": ["alice", "bob"], "games": []}
-            assert ws_alice.receive_json() == {"type": "player_online", "player_name": "bob", "time": ANY}
+            assert _receive_until(ws_bob, "joined") == {
+                "type": "joined",
+                "players": ["alice", "bob"],
+                "games": [],
+                "played": [],
+            }
             assert ws_alice.receive_json() == {"type": "presence", "players": ["alice", "bob"], "count": 2}
 
-        assert ws_alice.receive_json() == {"type": "player_offline", "player_name": "bob", "time": ANY}
         assert ws_alice.receive_json() == {"type": "presence", "players": ["alice"], "count": 1}
 
 
@@ -78,7 +79,7 @@ def test_tournament_chat__when_user_sends_message__should_broadcast_to_all(clien
             assert ws_alice.receive_json() == expected
 
 
-def test_tournament_socket__when_users_join_after_chat__should_get_history_without_own_presence(client, tournament_id):
+def test_tournament_socket__when_users_join_after_chat__should_get_chat_history(client, tournament_id):
     with client.websocket_connect(f"/ws/tournaments/{tournament_id}") as ws_alice:
         _receive_until(ws_alice, "joined")
         ws_alice.send_text(json.dumps({"type": "chat", "text": "who is here?"}))
@@ -96,17 +97,11 @@ def test_tournament_socket__when_users_join_after_chat__should_get_history_witho
     chat = {"type": "chat", "player_name": "alice", "text": "who is here?", "time": ANY}
     assert bob_history == {
         "type": "history",
-        "messages": [
-            {"type": "player_online", "player_name": "alice", "time": ANY},
-            chat,
-            {"type": "player_offline", "player_name": "alice", "time": ANY},
-        ],
+        "messages": [chat],
     }
-    assert bob_joined == {"type": "joined", "players": ["bob"], "games": []}
+    assert bob_joined == {"type": "joined", "players": ["bob"], "games": [], "played": []}
     assert alice_history["messages"] == [
         chat,
-        {"type": "player_online", "player_name": "bob", "time": ANY},
-        {"type": "player_offline", "player_name": "bob", "time": ANY},
     ]
 
 
@@ -259,7 +254,7 @@ def test_events_socket__when_owner_connects_with_api_key__should_receive_game_st
         assert events.receive_json() == {"type": "presence", "players": [], "count": 0}
 
 
-def test_game_end_poll__when_played_game_gains_ended_at__should_publish_once_and_welcome_back_silently(
+def test_game_end_poll__when_played_game_gains_ended_at__should_publish_once_and_list_it_as_played(
     app, client, tournament_id, game_server
 ):
     owner_key = issue_api_token(client)
@@ -327,31 +322,32 @@ def test_game_end_poll__when_played_game_gains_ended_at__should_publish_once_and
             "type": "game_ended",
             "game_id": game_id,
             "players": names,
+            "ended_at": ended_at.timestamp(),
             "end_reason": "completed",
             "result": expected_event_result,
         }
         back_presence = {"type": "presence", "players": ["dave", "erin"], "count": 2}
         ivan_presence = {"type": "presence", "players": ["dave", "erin", "ivan"], "count": 3}
-        assert [dave.receive_json() for _ in range(4)] == [
+        assert [dave.receive_json() for _ in range(3)] == [
             back_presence,
             expected_event,
-            {"type": "player_online", "player_name": "ivan", "time": ANY},
             ivan_presence,
         ]
         assert [events.receive_json() for _ in range(3)] == [back_presence, expected_event, ivan_presence]
         assert erin_joined["games"] == [{"game_id": game_id, "players": names, "started_at": ANY}]
-        assert ivan_joined["games"] == []
-        game_entries = [entry for entry in ivan_history["messages"] if entry["type"] in ("game_started", "game_ended")]
-        presence_entries = [
-            (entry["type"], entry["player_name"])
-            for entry in ivan_history["messages"]
-            if entry["type"] in ("player_online", "player_offline")
-        ]
-        assert game_entries == [
-            {"type": "game_started", "game_id": game_id, "players": names, "time": ANY},
-            {**expected_event, "time": ANY},
-        ]
-        assert presence_entries == [("player_online", name) for name in [*names, "dave"]]
+        assert (ivan_joined["games"], ivan_joined["played"]) == (
+            [],
+            [
+                {
+                    "game_id": game_id,
+                    "players": names,
+                    "ended_at": ended_at.timestamp(),
+                    "end_reason": "completed",
+                    "result": expected_event_result,
+                }
+            ],
+        )
+        assert ivan_history == {"type": "history", "messages": []}
 
         snapshot = client.get(f"/api/tournaments/{tournament_id}", headers={"x-api-key": owner_key}).json()
 

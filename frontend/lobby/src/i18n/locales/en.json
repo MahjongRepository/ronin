@@ -286,17 +286,14 @@
     "settings.tab.api": "API token",
     "settings.tab.game": "Game settings",
     "settings.title": "Settings",
-    "tournament.chat.game_ended": "A game ended: {results}",
-    "tournament.chat.game_ended_score": "{name} ({score})",
-    "tournament.chat.game_ended_without_result": "A game ended without a result: {players}",
-    "tournament.chat.game_started": "A game started: {players}",
-    "tournament.chat.game_starting": "Your game is starting!",
-    "tournament.chat.player_joined": "{name} is online",
-    "tournament.chat.player_left": "{name} went offline",
-    "tournament.chat.you_joined": "You're online in this tournament",
+    "tournament.chat.unread": {
+        "one": "{count} new",
+        "other": "{count} new"
+    },
     "tournament.chat_title": "Chat",
     "tournament.connecting": "Connecting…",
     "tournament.connection_lost": "The connection to the tournament was lost. Reload the page to come back online.",
+    "tournament.current.empty": "No games in play right now.",
     "tournament.error.game_start_invalid": "Your game started, but it couldn't be opened. Reload the page to join it.",
     "tournament.error.page_setup_failed": "This tournament couldn't be loaded. Reload the page to try again.",
     "tournament.error.rate_limited": "You're sending messages too fast. Wait a moment.",
@@ -305,10 +302,6 @@
     "tournament.error.tournament_not_found": "This tournament no longer exists.",
     "tournament.error.unknown": "Something went wrong in this tournament.",
     "tournament.fallback_name": "Tournament",
-    "tournament.online_count": {
-        "one": "{count} player online",
-        "other": "{count} players online"
-    },
     "tournament.online_title": "Online",
     "tournament.owner.delete.confirm": "Delete tournament",
     "tournament.owner.delete.open": "Delete this tournament…",
@@ -316,6 +309,36 @@
     "tournament.owner.delete_failed": "The tournament could not be deleted. Try again.",
     "tournament.owner.rename": "Rename",
     "tournament.owner.rename_failed": "The tournament could not be renamed. Try again.",
+    "tournament.owner.start_game": "Start game",
+    "tournament.played.abandoned_count": {
+        "one": "{count} abandoned",
+        "other": "{count} abandoned"
+    },
+    "tournament.played.breakdown_separator": " · ",
+    "tournament.played.completed_count": {
+        "one": "{count} completed",
+        "other": "{count} completed"
+    },
+    "tournament.played.empty": "No games have finished yet.",
+    "tournament.played.ended": "Ended",
+    "tournament.played.error_count": {
+        "one": "{count} ended on an error",
+        "other": "{count} ended on an error"
+    },
+    "tournament.played.outcome.abandoned": "Abandoned",
+    "tournament.played.outcome.error": "Ended on an error",
+    "tournament.played.outcome.unknown": "No result",
+    "tournament.played.place.first": "1st",
+    "tournament.played.place.fourth": "4th",
+    "tournament.played.place.second": "2nd",
+    "tournament.played.place.third": "3rd",
+    "tournament.played.replay": "Replay",
+    "tournament.played.show_all": {
+        "one": "Show all {count}",
+        "other": "Show all {count}"
+    },
+    "tournament.played.title": "Game history",
+    "tournament.section_count": "({total})",
     "tournament.tab.settings": "Settings",
     "tournament.tab.tournament": "Tournament",
     "tournaments.create": "Create tournament",

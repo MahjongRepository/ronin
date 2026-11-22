@@ -3,10 +3,11 @@ import { type NavigateOptions } from "@ronin/shared/router";
 import { type ApiResult, apiGet, apiPost } from "@/api";
 import { type ChatEntry, LOG_TYPE_SYSTEM } from "@/chat";
 import { readCurrentGame, readCurrentGames, readEpochTime, readNames } from "@/current-games";
-import { type MessageKey, formatList, formatTime, reportI18nError, t } from "@/i18n";
+import { type MessageKey, formatTime, reportI18nError, t } from "@/i18n";
 import { type SocketStatus, readString } from "@/lobby-socket";
 import { OCCUPANCY } from "@/occupancy-errors";
 import { enterGame, readGameStart } from "@/session";
+import { addPlayedGame, readPlayedGame, readPlayedGames } from "@/tournament/played-games";
 import {
     PAGE_ERROR,
     TOURNAMENT_NOT_FOUND,
@@ -66,85 +67,20 @@ function describeTournamentError(code: unknown): string {
     return t("tournament.error.unknown");
 }
 
-interface Placement {
-    name: string;
-    score: number;
-}
-
-function isPlacement(entry: unknown): entry is Placement {
-    return (
-        typeof entry === "object" &&
-        entry !== null &&
-        "name" in entry &&
-        typeof entry.name === "string" &&
-        "score" in entry &&
-        typeof entry.score === "number"
-    );
-}
-
-function readPlacements(message: Record<string, unknown>): Placement[] | null {
-    const { result } = message;
-    if (!Array.isArray(result) || !result.every(isPlacement)) {
-        return null;
-    }
-    return result;
-}
-
-function describeGameEnd(message: Record<string, unknown>): string | null {
-    const placements = message.end_reason === "completed" ? readPlacements(message) : null;
-    if (placements !== null) {
-        const results = placements.map(({ name, score }) =>
-            t("tournament.chat.game_ended_score", { name, score }),
-        );
-        return t("tournament.chat.game_ended", { results: formatList(results) });
-    }
-    const players = readNames(message);
-    if (players === null) {
-        return null;
-    }
-    return t("tournament.chat.game_ended_without_result", { players: formatList(players) });
-}
-
-function describeGameStart(players: readonly string[]): string {
-    return t("tournament.chat.game_started", { players: formatList(players) });
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-type HistoryLine = Pick<ChatEntry, "sender" | "text">;
-
-function systemLine(text: string | null): HistoryLine | null {
-    return text === null ? null : { sender: LOG_TYPE_SYSTEM, text };
-}
-
-function describePresence(entry: Record<string, unknown>, key: MessageKey): string | null {
-    const name = readString(entry, "player_name");
-    return name === null ? null : t(key, { name });
-}
-
-const HISTORY_LINES: Record<string, (entry: Record<string, unknown>) => HistoryLine | null> = {
-    chat: (entry) => {
-        const sender = readString(entry, "player_name");
-        const text = readString(entry, "text");
-        return sender === null || text === null ? null : { sender, text };
-    },
-    game_ended: (entry) => systemLine(describeGameEnd(entry)),
-    game_started: (entry) => {
-        const players = readNames(entry);
-        return systemLine(players === null ? null : describeGameStart(players));
-    },
-    player_offline: (entry) => systemLine(describePresence(entry, "tournament.chat.player_left")),
-    player_online: (entry) => systemLine(describePresence(entry, "tournament.chat.player_joined")),
-};
-
-function readHistoryEntry(entry: unknown): ChatEntry | null {
+function readHistoryChat(entry: unknown): ChatEntry | null {
     if (!isRecord(entry) || typeof entry.time !== "number") {
         return null;
     }
-    const line = HISTORY_LINES[String(entry.type)]?.(entry) ?? null;
-    return line === null ? null : { ...line, timestamp: formatTime(new Date(entry.time * 1000)) };
+    const sender = readString(entry, "player_name");
+    const text = readString(entry, "text");
+    if (sender === null || text === null) {
+        return null;
+    }
+    return { sender, text, timestamp: formatTime(new Date(entry.time * 1000)) };
 }
 
 function cancelReconnect(state: TournamentState): void {
@@ -219,7 +155,7 @@ function showHistory(
         return;
     }
     state.chatMessages = messages
-        .map(readHistoryEntry)
+        .map(readHistoryChat)
         .filter((entry): entry is ChatEntry => entry !== null);
     render();
 }
@@ -236,15 +172,12 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
     }
 
     function onJoined(message: Record<string, unknown>): void {
-        const reconnected = state.reconnecting;
         state.reconnecting = false;
         state.reconnectAttempts = 0;
         state.joined = true;
         state.players = readNames(message) ?? [];
         state.games = readCurrentGames(message);
-        if (!reconnected) {
-            appendChat(LOG_TYPE_SYSTEM, t("tournament.chat.you_joined"));
-        }
+        state.played = readPlayedGames(message);
         render();
     }
 
@@ -265,6 +198,9 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
         }
         const { time } = message;
         appendChat(sender, text, typeof time === "number" ? new Date(time * 1000) : new Date());
+        if (!state.chatOpen) {
+            state.chatUnread += 1;
+        }
         render();
     }
 
@@ -293,13 +229,14 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
         if (game !== null) {
             state.games = [...state.games, game];
         }
-        appendChat(LOG_TYPE_SYSTEM, describeGameStart(players));
         render();
     }
 
-    function appendSystemLine(line: string | null): void {
-        if (line !== null) {
-            appendChat(LOG_TYPE_SYSTEM, line);
+    function onGameEnded(message: Record<string, unknown>): void {
+        state.games = state.games.filter((game) => game.gameId !== message.game_id);
+        const played = readPlayedGame(message);
+        if (played !== null) {
+            state.played = addPlayedGame(state.played, played);
         }
         render();
     }
@@ -312,7 +249,6 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
             return;
         }
         cancelReconnect(state);
-        appendChat(LOG_TYPE_SYSTEM, t("tournament.chat.game_starting"));
         render();
         enterGame(start);
     }
@@ -320,20 +256,13 @@ function buildMessageHandlers(state: TournamentState, render: RenderTournament):
     return {
         chat: onChat,
         error: onError,
-        game_ended: (message) => {
-            state.games = state.games.filter((game) => game.gameId !== message.game_id);
-            appendSystemLine(describeGameEnd(message));
-        },
+        game_ended: onGameEnded,
         game_started: onGameStarted,
         game_starting: onGameStarting,
         history: (message) => {
             showHistory(state, render, message);
         },
         joined: onJoined,
-        player_offline: (message) =>
-            appendSystemLine(describePresence(message, "tournament.chat.player_left")),
-        player_online: (message) =>
-            appendSystemLine(describePresence(message, "tournament.chat.player_joined")),
         presence: onPresence,
     };
 }

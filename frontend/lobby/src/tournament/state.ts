@@ -3,6 +3,7 @@ import { type ChatEntry } from "@/chat";
 import { type CurrentGame } from "@/current-games";
 import { type MessageKey } from "@/i18n";
 import { type LobbySocket, type SocketStatus } from "@/lobby-socket";
+import { type PlayedGame } from "@/tournament/played-games";
 
 type ConnectionStatus = SocketStatus | "connecting";
 
@@ -32,6 +33,8 @@ type TournamentConfigAnswer =
 
 interface TournamentState {
     chatMessages: ChatEntry[];
+    chatOpen: boolean;
+    chatUnread: number;
     name: string | null;
     ownerBusy: boolean;
     ownerError: MessageKey | null;
@@ -39,6 +42,8 @@ interface TournamentState {
     games: CurrentGame[];
     joined: boolean;
     pageError: string | null;
+    played: readonly PlayedGame[];
+    playedExpanded: boolean;
     players: string[];
     reconnectAttempts: number;
     reconnectTimer: ReturnType<typeof setTimeout> | null;
@@ -50,6 +55,8 @@ interface TournamentState {
 function createTournamentState(): TournamentState {
     return {
         chatMessages: [],
+        chatOpen: false,
+        chatUnread: 0,
         connectionStatus: "connecting",
         games: [],
         joined: false,
@@ -57,6 +64,8 @@ function createTournamentState(): TournamentState {
         ownerBusy: false,
         ownerError: null,
         pageError: null,
+        played: [],
+        playedExpanded: false,
         players: [],
         reconnectAttempts: 0,
         reconnectTimer: null,

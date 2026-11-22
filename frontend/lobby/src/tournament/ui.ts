@@ -1,9 +1,16 @@
 import { type TemplateResult, html, nothing, render } from "lit-html";
 
-import { chatComposerTemplate, chatLogTemplate, scrollChatToLatest } from "@/chat";
-import { currentGamesTemplate } from "@/current-games";
-import { type MessageKey, t } from "@/i18n";
+import {
+    type ChatEntry,
+    LOG_TYPE_SYSTEM,
+    chatComposerTemplate,
+    chatLogTemplate,
+    scrollChatToLatest,
+} from "@/chat";
+import { currentGameRowsTemplate } from "@/current-games";
+import { type MessageKey, formatList, t } from "@/i18n";
 import { describeTournamentError } from "@/tournament/handlers";
+import { playedGamesTemplate } from "@/tournament/played-games";
 import {
     PAGE_ERROR,
     TOURNAMENT_TABS,
@@ -19,6 +26,8 @@ interface TournamentActions {
     readonly renameTournament: (name: string) => void;
     readonly selectTab: (tab: TournamentTab) => void;
     readonly sendChat: (text: string) => boolean;
+    readonly setChatOpen: (open: boolean) => void;
+    readonly showAllPlayed: () => void;
 }
 
 interface TournamentPage {
@@ -78,53 +87,100 @@ function noticeTemplate(state: TournamentState): TemplateResult | typeof nothing
     return nothing;
 }
 
-function onlineListTemplate(state: TournamentState): TemplateResult | typeof nothing {
-    if (isConnectionLost(state)) {
+function sectionCount(count: number): TemplateResult {
+    return html`<span class="tournament-section-count">${t("tournament.section_count", { total: count })}</span>`;
+}
+
+function startGameTemplate(config: TournamentConfig | null): TemplateResult | typeof nothing {
+    if (!config?.isOwner) {
         return nothing;
     }
-    if (!isLive(state)) {
-        return html`
-            <p class="connection-status status-connecting" role="status">${t("tournament.connecting")}</p>
-        `;
-    }
-    return html`
-        <div class="room-player-list tournament-online-list">
-            ${state.players.map(
-                (name) => html`
-                    <div class="room-player-item">
-                        <span class="room-player-name">${name}</span>
-                    </div>
-                `,
-            )}
+    return html`<button type="button" class="tournament-start-game" disabled>
+        ${t("tournament.owner.start_game")}
+    </button>`;
+}
+
+function currentGamesTemplate(page: TournamentPage): TemplateResult {
+    const { config, state } = page;
+    return html`<section class="lobby-section tournament-current" aria-labelledby="tournament-games-title">
+        <div class="lobby-section-header tournament-current-header">
+            <h2 id="tournament-games-title">
+                ${t("current_games.title")} ${state.games.length === 0 ? nothing : sectionCount(state.games.length)}
+            </h2>
+            ${startGameTemplate(config)}
         </div>
-    `;
+        ${
+            state.games.length === 0
+                ? html`<p class="tournament-quiet">${t("tournament.current.empty")}</p>`
+                : currentGameRowsTemplate(state.games)
+        }
+    </section>`;
 }
 
-function onlineTitle(state: TournamentState): string {
-    if (!isLive(state)) {
-        return t("tournament.online_title");
+function onlineTemplate(state: TournamentState): TemplateResult {
+    const names = formatList(state.players);
+    return html`<details class="tournament-fold tournament-online">
+        <summary>
+            <span class="tournament-fold-title">${t("tournament.online_title")}</span>
+            <span class="tournament-fold-count">${state.players.length}</span>
+            <span class="tournament-fold-peek" aria-hidden="true">${names}</span>
+        </summary>
+        <p class="tournament-roster">${names}</p>
+    </details>`;
+}
+
+function chatPeekTemplate(entry: ChatEntry | undefined): TemplateResult | typeof nothing {
+    if (entry === undefined) {
+        return nothing;
     }
-    return t("tournament.online_count", { count: state.players.length });
+    return html`<span class="tournament-fold-peek"
+        ><b>${entry.sender}</b> ${entry.text}</span
+    >`;
 }
 
-function panelsTemplate(page: TournamentPage): TemplateResult {
+function chatTemplate(page: TournamentPage): TemplateResult {
     const { actions, config, state } = page;
-    const chatMaxLength = config?.chatMaxLength ?? 0;
+    function toggle(event: Event): void {
+        if (event.currentTarget instanceof HTMLDetailsElement) {
+            actions.setChatOpen(event.currentTarget.open);
+        }
+    }
+    const humanLines = state.chatMessages.filter((entry) => entry.sender !== LOG_TYPE_SYSTEM);
+    return html`<details class="tournament-fold tournament-chat" ?open=${state.chatOpen} @toggle=${toggle}>
+        <summary>
+            <span class="tournament-fold-title">${t("tournament.chat_title")}</span>
+            ${
+                state.chatUnread === 0
+                    ? nothing
+                    : html`<span class="tournament-unread">${t("tournament.chat.unread", { count: state.chatUnread })}</span>`
+            }
+            ${state.chatOpen ? nothing : chatPeekTemplate(humanLines.at(-1))}
+        </summary>
+        ${chatLogTemplate(state.chatMessages)}
+        ${chatComposerTemplate({ chatMaxLength: config?.chatMaxLength ?? 0, enabled: isLive(state), send: actions.sendChat })}
+    </details>`;
+}
+
+function connectingTemplate(state: TournamentState): TemplateResult | typeof nothing {
+    if (isLive(state) || isConnectionLost(state)) {
+        return nothing;
+    }
+    return html`<p class="connection-status status-connecting" role="status">${t("tournament.connecting")}</p>`;
+}
+
+function panelsTemplate(page: TournamentPage): TemplateResult | typeof nothing {
+    const { actions, state } = page;
+    if (!state.joined) {
+        return connectingTemplate(state);
+    }
     return html`
-        <div class="room-content">
-            <section class="room-panel tournament-online-panel" aria-labelledby="tournament-online-title">
-                <h3 class="room-panel-title" id="tournament-online-title">
-                    ${onlineTitle(state)}
-                </h3>
-                ${onlineListTemplate(state)}
-            </section>
-            <section class="room-panel room-chat-panel" aria-labelledby="tournament-chat-title">
-                <h3 class="room-panel-title" id="tournament-chat-title">${t("tournament.chat_title")}</h3>
-                ${chatLogTemplate(state.chatMessages)}
-                ${chatComposerTemplate({ chatMaxLength, enabled: isLive(state), send: actions.sendChat })}
-            </section>
+        ${connectingTemplate(state)}
+        ${currentGamesTemplate(page)}
+        ${playedGamesTemplate(state.played, state.playedExpanded, actions.showAllPlayed)}
+        <div class="tournament-side">
+            ${isLive(state) ? onlineTemplate(state) : nothing}
+            ${chatTemplate(page)}
         </div>
-        ${isLive(state) ? currentGamesTemplate(state.games, "tournament-games-title") : nothing}
     `;
 }
 

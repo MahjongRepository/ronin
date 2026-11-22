@@ -8,7 +8,9 @@ import {
     describeTournamentError,
     handleMessage,
 } from "@/tournament/handlers";
+import { type PlayedGame } from "@/tournament/played-games";
 import {
+    type TournamentState,
     type TournamentTab,
     createTournamentState,
     isConnectionLost,
@@ -34,6 +36,8 @@ function mountPage(state: ReturnType<typeof createTournamentState>) {
                     renameTournament: () => {},
                     selectTab: () => {},
                     sendChat: () => false,
+                    setChatOpen: () => {},
+                    showAllPlayed: () => {},
                 },
                 config: null,
                 container,
@@ -43,52 +47,58 @@ function mountPage(state: ReturnType<typeof createTournamentState>) {
     };
 }
 
-function chatTexts(state: ReturnType<typeof createTournamentState>): string[] {
-    return state.chatMessages.map((entry) => entry.text);
+const PLAYERS = ["Dave", "Carol", "Bob", "Alice"];
+
+function completedGame(gameId: string): PlayedGame {
+    return {
+        endReason: "completed",
+        endedAt: new Date(),
+        gameId,
+        players: PLAYERS,
+        ranked: PLAYERS.map((name, index) => ({ finalScore: 5.1 - index * 3, name })),
+    };
+}
+
+function squeezedText(element: Element | null | undefined): string | undefined {
+    return element?.textContent?.replace(/\s+/g, " ").trim();
 }
 
 describe("buildMessageHandlers", () => {
-    test("announces who came online and who left only from the server's presence events", () => {
+    test("keeps who is online from presence and announces no presence or game in the chat", () => {
         const { handlers, state } = buildTournament();
 
-        handleMessage(handlers, { player_name: "Carol", time: 1, type: "player_online" });
-        handleMessage(handlers, { player_name: "Bob", time: 2, type: "player_offline" });
         handleMessage(handlers, { count: 2, players: ["Alice", "Carol"], type: "presence" });
-        handleMessage(handlers, {
-            count: 3,
-            players: ["Alice", "Carol", "Dave"],
-            type: "presence",
-        });
-
-        expect(state.players).toEqual(["Alice", "Carol", "Dave"]);
-        expect(chatTexts(state)).toEqual([
-            "You're online in this tournament",
-            "Carol is online",
-            "Bob went offline",
-        ]);
-    });
-
-    test("announces a started game with its players in seat order and not their leaving", () => {
-        const { handlers, state } = buildTournament();
-
         handleMessage(handlers, {
             game_id: "g1",
             players: ["Dave", "Carol", "Bob", "Alice"],
             type: "game_started",
         });
-        handleMessage(handlers, { count: 0, players: [], type: "presence" });
 
-        expect(chatTexts(state).at(-1)).toBe("A game started: Dave, Carol, Bob, and Alice");
-        expect(chatTexts(state).filter((text) => text.endsWith("went offline"))).toEqual([]);
+        expect(state.players).toEqual([]);
+        expect(state.chatMessages).toEqual([]);
     });
 
-    test("announces a completed game's players with scores in placement order and any other end without a result", () => {
-        const { handlers, state } = buildTournament();
+    test("keeps the ended games from the join and adds an ended game once, latest end first, with completed results in points", () => {
+        const state = createTournamentState();
+        const handlers = buildMessageHandlers(state, vi.fn());
         const players = ["Dave", "Carol", "Bob", "Alice"];
-
         handleMessage(handlers, {
+            played: [
+                {
+                    end_reason: "abandoned",
+                    ended_at: 1_700_000_200,
+                    game_id: "g1",
+                    players,
+                    result: [],
+                },
+            ],
+            players: [],
+            type: "joined",
+        });
+        const ended = {
             end_reason: "completed",
-            game_id: "g1",
+            ended_at: 1_700_000_100,
+            game_id: "g2",
             players,
             result: [
                 { final_score: 51, name: "Bob", score: 41_000, seat: 2 },
@@ -97,21 +107,23 @@ describe("buildMessageHandlers", () => {
                 { final_score: -38, name: "Carol", score: 12_000, seat: 1 },
             ],
             type: "game_ended",
-        });
-        handleMessage(handlers, {
-            end_reason: "abandoned",
-            game_id: "g2",
-            players,
-            result: [{ final_score: null, name: "Dave", score: null, seat: 0 }],
-            type: "game_ended",
-        });
+        };
 
-        expect(chatTexts(state).at(-2)).toBe(
-            "A game ended: Bob (41,000), Dave (28,000), Alice (19,000), and Carol (12,000)",
-        );
-        expect(chatTexts(state).at(-1)).toBe(
-            "A game ended without a result: Dave, Carol, Bob, and Alice",
-        );
+        handleMessage(handlers, ended);
+        handleMessage(handlers, ended);
+
+        expect(state.played.map((game) => [game.gameId, game.ranked])).toEqual([
+            ["g1", null],
+            [
+                "g2",
+                [
+                    { finalScore: 5.1, name: "Bob" },
+                    { finalScore: 0.8, name: "Dave" },
+                    { finalScore: -2.1, name: "Alice" },
+                    { finalScore: -3.8, name: "Carol" },
+                ],
+            ],
+        ]);
     });
 
     test("keeps the current games from the join, adds started ones and drops ended ones", () => {
@@ -140,12 +152,15 @@ describe("buildMessageHandlers", () => {
         ]);
     });
 
-    test("appends a chat message with its sender", () => {
+    test("appends a chat message with its sender and counts it unread only while the chat is folded", () => {
         const { handlers, state } = buildTournament();
 
         handleMessage(handlers, { player_name: "Bob", text: "good luck", type: "chat" });
+        state.chatOpen = true;
+        handleMessage(handlers, { player_name: "Carol", text: "thanks", type: "chat" });
 
-        expect(state.chatMessages.at(-1)).toMatchObject({ sender: "Bob", text: "good luck" });
+        expect(state.chatMessages.at(-1)).toMatchObject({ sender: "Carol", text: "thanks" });
+        expect(state.chatUnread).toBe(1);
     });
 
     test("shows the server history as its chat in place of what it showed", () => {
@@ -155,17 +170,8 @@ describe("buildMessageHandlers", () => {
 
         handleMessage(handlers, {
             messages: [
-                { player_name: "Carol", time: 1_794_393_000, type: "player_online" },
                 { player_name: "Bob", text: "good luck", time: 1_794_393_060, type: "chat" },
-                {
-                    end_reason: "abandoned",
-                    game_id: "g1",
-                    players: ["Dave", "Carol", "Bob", "Alice"],
-                    result: [],
-                    time: 1_794_395_400,
-                    type: "game_ended",
-                },
-                { player_name: "Carol", time: 1_794_395_460, type: "player_offline" },
+                { player_name: "Carol", text: "thanks", time: 1_794_395_460, type: "chat" },
             ],
             type: "history",
         });
@@ -176,10 +182,8 @@ describe("buildMessageHandlers", () => {
             entry.querySelector(".room-chat-text")?.textContent,
         ]);
         expect(entries).toEqual([
-            [undefined, "Carol is online"],
             ["Bob", "good luck"],
-            [undefined, "A game ended without a result: Dave, Carol, Bob, and Alice"],
-            [undefined, "Carol went offline"],
+            ["Carol", "thanks"],
         ]);
     });
 
@@ -198,7 +202,7 @@ describe("buildStatusHandler", () => {
         vi.useRealTimers();
     });
 
-    test("hides the online list behind a connecting notice while a lost socket waits to reconnect", () => {
+    test("hides who is online behind a connecting notice while a lost socket waits to reconnect", () => {
         vi.useFakeTimers();
         const { state } = buildTournament();
         const rejoin = vi.fn();
@@ -208,10 +212,8 @@ describe("buildStatusHandler", () => {
 
         expect(state.reconnectTimer).not.toBeNull();
         expect(rejoin).not.toHaveBeenCalled();
-        expect(container.querySelectorAll(".room-player-item")).toHaveLength(0);
-        expect(container.querySelector("#tournament-online-title")?.textContent?.trim()).toBe(
-            "Online",
-        );
+        expect(container.querySelector(".tournament-online")).toBeNull();
+        expect(container.querySelector(".tournament-played")).not.toBeNull();
         expect(container.querySelector("[role=status]")?.textContent).toBe("Connecting…");
     });
 });
@@ -246,10 +248,17 @@ describe("renderTournament", () => {
         wsUrl: "wss://ronin.test/ws/tournaments/cup",
     };
 
-    function renderWith(isOwner: boolean, tab: TournamentTab): HTMLElement {
+    function renderWith(
+        isOwner: boolean,
+        tab: TournamentTab,
+        setUp: (state: TournamentState) => void = () => {},
+    ): HTMLElement {
         const state = createTournamentState();
         state.name = "Cup";
         state.tab = tab;
+        state.joined = true;
+        state.connectionStatus = "connected";
+        setUp(state);
         const container = document.createElement("div");
         renderTournament({
             actions: {
@@ -257,6 +266,8 @@ describe("renderTournament", () => {
                 renameTournament: () => {},
                 selectTab: () => {},
                 sendChat: () => false,
+                setChatOpen: () => {},
+                showAllPlayed: () => {},
             },
             config: { ...config, isOwner },
             container,
@@ -266,18 +277,62 @@ describe("renderTournament", () => {
         return container;
     }
 
-    test("shows the owner a settings tab with rename and delete, and nobody else", () => {
+    test("shows the owner a settings tab with rename and delete and a disabled start game, and nobody else", () => {
         const ownerTournament = renderWith(true, "tournament");
         const ownerSettings = renderWith(true, "settings");
         const player = renderWith(false, "settings");
 
         expect(ownerTournament.querySelectorAll('[role="tab"]')).toHaveLength(2);
         expect(ownerTournament.querySelector(".tournament-delete")).toBeNull();
+        expect(
+            ownerTournament.querySelector<HTMLButtonElement>(".tournament-start-game")?.disabled,
+        ).toBe(true);
         expect(ownerSettings.querySelector(".tournament-delete")).not.toBeNull();
-        expect(ownerSettings.querySelector(".tournament-chat, .room-panel")).toBeNull();
-        expect(player.querySelector('[role="tab"]')).toBeNull();
-        expect(player.querySelector(".tournament-delete")).toBeNull();
-        expect(player.querySelector(".room-panel")).not.toBeNull();
+        expect(ownerSettings.querySelector(".tournament-chat")).toBeNull();
+        expect(
+            [
+                '[role="tab"]',
+                ".tournament-delete",
+                ".tournament-start-game",
+                ".tournament-chat",
+            ].map((selector) => player.querySelector(selector) !== null),
+        ).toEqual([false, false, false, true]);
+    });
+
+    test("shows the five latest ended games with their count and outcomes, the rest behind show all", () => {
+        const container = renderWith(false, "tournament", (state) => {
+            state.played = [
+                {
+                    endReason: "abandoned",
+                    endedAt: new Date(),
+                    gameId: "g6",
+                    players: PLAYERS,
+                    ranked: null,
+                },
+                ...["g5", "g4", "g3", "g2", "g1"].map(completedGame),
+            ];
+        });
+
+        const section = container.querySelector(".tournament-played");
+        const rows = [...container.querySelectorAll(".played-game")];
+        expect(
+            [section?.querySelector("h2"), section?.querySelector(".lobby-table-count")].map(
+                squeezedText,
+            ),
+        ).toEqual(["Game history (6)", "5 completed · 1 abandoned"]);
+        expect(rows).toHaveLength(5);
+        expect(squeezedText(rows[0]?.querySelector(".played-game-unranked"))).toBe(
+            "Abandoned Dave, Carol, Bob, and Alice",
+        );
+        expect(rows.slice(0, 2).map((row) => row.querySelector("a")?.getAttribute("href"))).toEqual(
+            [undefined, "/play/history/g5"],
+        );
+        expect(
+            [...(rows[1]?.querySelectorAll(".games-pts") ?? [])].map((score) => score.textContent),
+        ).toEqual(["+5.1", "+2.1", "-0.9", "-3.9"]);
+        expect(section?.querySelector(".played-games-more")?.textContent?.trim()).toBe(
+            "Show all 6",
+        );
     });
 });
 

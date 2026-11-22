@@ -78,6 +78,8 @@ APPS = (
                 "nav.beta",
                 "page.title.default",
                 "page.title.with_page",
+                "tournament.played.breakdown_separator",
+                "tournament.section_count",
             }
         ),
     ),

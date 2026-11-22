@@ -152,7 +152,7 @@ async def _start_table(request: Request, *, tournament_id: str, names: list[str]
         return {"error": e.reason}
 
     for player in players:
-        hub.send_to_game(tournament_id, player)
+        hub.disconnect(tournament_id, player)
 
     tournament_repo: TournamentRepository = request.app.state.tournament_repo
     game_end_poller: TournamentGameEndPoller = request.app.state.tournament_game_end_poller
@@ -160,7 +160,6 @@ async def _start_table(request: Request, *, tournament_id: str, names: list[str]
     await tournament_repo.add_game(game)
     game_end_poller.track(game)
     game_started = {"type": "game_started", "game_id": game_id, "players": names}
-    hub.record(tournament_id, game_started)
     hub.publish(tournament_id, game_started)
     hub.broadcast_presence(tournament_id)
     log.info("tournament game started", game_id=game_id)
