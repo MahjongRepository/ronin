@@ -59,7 +59,7 @@ export { stepPlayUi } from "./model/play-ui-reducer";
 export type { SettingsMenuCommand } from "./model/settings-menu";
 export { SETTINGS_FOCUS_KEY, stepSettingsMenu } from "./model/settings-menu";
 export type { GameSound, SoundCue } from "./model/sounds";
-export { moveSoundCues, soundCues, viewerDraws } from "./model/sounds";
+export { moveSoundCues, soundCues } from "./model/sounds";
 export type { SoundSetting } from "@ronin/shared/sound-setting";
 export {
     DEFAULT_SOUND_SETTING,

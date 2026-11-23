@@ -566,7 +566,7 @@ describe("board motion", () => {
         { name: "the game's first deal", previous: table(false), round: 0 },
         { name: "a later round's deal", previous: drawn(table(true)), round: 1 },
     ])(
-        "holds the dealer's first draw rendered in the same task as $name for the draw hold",
+        "holds the dealer's first draw rendered in the same task as $name for the deal hold",
         async ({ previous, round }) => {
             await show(previous, { mode: "reset", sequence: 0 });
             const dealt = { ...table(true), roundNumber: round };
@@ -580,7 +580,7 @@ describe("board motion", () => {
                 [
                     1,
                     host.querySelector("[data-area='bottom-hand'] .hand-drawn-gap > .tile"),
-                    BOARD_MOTION.drawHold,
+                    BOARD_MOTION.dealHold,
                 ],
             );
         },
@@ -699,7 +699,7 @@ function measureShiftedIndicator(this: HTMLElement): DOMRect {
 }
 
 describe("opponent draw hold", () => {
-    it("holds a round's opening draw shown after its deal for the draw hold", async () => {
+    it("holds a round's opening draw shown after its deal for the deal hold", async () => {
         const dealt = table(true);
         await show(dealt, { mode: "reset", sequence: 0 }, { view: bottomOnly });
         await show(opponentDrew(dealt), { mode: "step", sequence: 1 }, { view: bottomOnly });
@@ -707,7 +707,7 @@ describe("opponent draw hold", () => {
         expect([animations.length, targetOf(hold), hold?.effect?.getTiming().duration]).toEqual([
             1,
             heldTile(),
-            BOARD_MOTION.drawHold,
+            BOARD_MOTION.dealHold,
         ]);
     });
 
@@ -827,7 +827,7 @@ describe("opponent tedashi hole", () => {
 });
 
 describe("own draw hold", () => {
-    it("holds the viewer's draw committed with the left seat's discard until it lands and the own pause passes", async () => {
+    it("holds the viewer's draw committed with the left seat's discard until it lands and the draw hold passes", async () => {
         vi.spyOn(performance, "now").mockReturnValue(1000);
         const view = { view: bottomOnly };
         const dealt = table(true);
@@ -850,7 +850,7 @@ describe("own draw hold", () => {
         const hold = animations.at(-1);
         expect([targetOf(hold), hold?.effect?.getTiming().duration]).toEqual([
             host.querySelector("[data-area='bottom-hand'] .hand-drawn-gap > .tile"),
-            BOARD_MOTION.landing + BOARD_MOTION.ownDrawHold,
+            BOARD_MOTION.landing + BOARD_MOTION.drawHold,
         ]);
     });
 });
@@ -975,7 +975,7 @@ describe("latest discard gap", () => {
         player.cancel();
     });
 
-    it("keeps a riichi discard's one flight and gap target when the next draw clears the mark mid-flight, and holds it at the gap until the draw shows", async () => {
+    it("keeps a riichi discard's one flight and gap target when the next draw clears the mark mid-flight, and holds the draw past the return's beat", async () => {
         const now = vi.spyOn(performance, "now").mockReturnValue(1000);
         const view = { view: bottomOnly };
         const dealt = table(true);
@@ -1003,7 +1003,7 @@ describe("latest discard gap", () => {
     });
 });
 
-const PENDING_RETURN_MS = BOARD_MOTION.landing + BOARD_MOTION.drawHold - 50;
+const PENDING_RETURN_MS = BOARD_MOTION.landing + BOARD_MOTION.returnHold - 50;
 
 function inBottomRiver(element: HTMLElement): boolean {
     return element.closest("[data-area='bottom-discards']") !== null;
@@ -1231,14 +1231,14 @@ function translationOf(transform: unknown): readonly number[] {
 }
 
 describe("settling river depth", () => {
-    it("slides the latest discard home from its gap at once when its mark ends after the draw hold", async () => {
+    it("slides the latest discard home from its gap at once when its mark ends after the return's beat", async () => {
         const now = vi.spyOn(performance, "now").mockReturnValue(1000);
         const dealt = table(true);
         await show(drawn(dealt), { mode: "reset", sequence: 0 });
         const discarded = discardDraw(dealt);
         await show(discarded, { mode: "step", sequence: 1 });
         finishAll();
-        now.mockReturnValue(1000 + BOARD_MOTION.landing + BOARD_MOTION.drawHold + 500);
+        now.mockReturnValue(1000 + BOARD_MOTION.landing + BOARD_MOTION.returnHold + 500);
         await show(opponentDrew(discarded), { mode: "step", sequence: 2 });
         const slot = host.querySelector(".discard-tile[data-tile-id='120']");
         expect(returnOf(animations.findLast((animation) => targetOf(animation) === slot))).toEqual(

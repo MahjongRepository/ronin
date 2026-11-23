@@ -30,7 +30,7 @@ function heldDraw(target: string): TileMotion {
 }
 
 function openingHold(target: string): TileMotion {
-    return { ...heldDraw(target), delay: BOARD_MOTION.drawHold };
+    return { ...heldDraw(target), delay: BOARD_MOTION.dealHold };
 }
 
 describe("planTileMotion", () => {
@@ -51,7 +51,7 @@ describe("planTileMotion", () => {
     });
 
     it.each(["step", "replay"] as const)(
-        "follows a discard and closes the hand at its landing in %s mode",
+        "follows a discard and closes the hand on the return's beat after its landing in %s mode",
         (mode) => {
             const first = tile("0");
             const second = tile("1", { rect: { ...first.rect, left: 40 } });
@@ -64,7 +64,7 @@ describe("planTileMotion", () => {
             const result = planTileMotion([first, second], [moved, discarded], mode);
             expect(result).toEqual([
                 {
-                    delay: BOARD_MOTION.landing,
+                    delay: BOARD_MOTION.landing + BOARD_MOTION.returnHold,
                     duration: BOARD_MOTION.handClose,
                     kind: "close",
                     source: "0",

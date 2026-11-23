@@ -1,5 +1,5 @@
 import { type GameSound, type SoundCue } from "@/entities/client";
-import { DISCARD_LANDING_MS, DRAW_HOLD_MS, OWN_DRAW_HOLD_MS } from "@/entities/table";
+import { DISCARD_LANDING_MS, DRAW_HOLD_MS } from "@/entities/table";
 import { type CancelTimer, type Clock } from "@/shared/clock";
 
 interface PendingCues {
@@ -19,14 +19,14 @@ export class LandingClacks {
         this.sound = sound;
     }
 
-    /** Play a step's cues, its draw's tick as its tile shows: the own hand's draw hold after the latest clack when `ownDraw`. */
-    play(cues: readonly SoundCue[], clackAtLanding: boolean, ownDraw: boolean): void {
+    /** Play a step's cues, its draw's tick as its tile shows: the draw hold after the latest clack. */
+    play(cues: readonly SoundCue[], clackAtLanding: boolean): void {
         for (const cue of cues) {
             const landing = this.pending.findLast((pending) => pending.lead === "discard");
             if (cue === "discard") {
                 this.clack(clackAtLanding);
             } else if (cue === "draw") {
-                this.drawAfterClack(ownDraw ? OWN_DRAW_HOLD_MS : DRAW_HOLD_MS);
+                this.drawAfterClack();
             } else if (cue === "decision" && landing !== undefined) {
                 landing.cues.push(cue);
             } else {
@@ -69,8 +69,8 @@ export class LandingClacks {
         this.playLater(DISCARD_LANDING_MS, "discard");
     }
 
-    private drawAfterClack(drawHoldMs: number): void {
-        const wait = this.clackAt === null ? 0 : this.clackAt + drawHoldMs - this.clock.now();
+    private drawAfterClack(): void {
+        const wait = this.clackAt === null ? 0 : this.clackAt + DRAW_HOLD_MS - this.clock.now();
         if (wait > 0) {
             this.playLater(wait, "draw");
         } else {

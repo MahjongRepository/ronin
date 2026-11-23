@@ -331,8 +331,9 @@ as a number, not seen, so the count turns red from ten tiles left.
   owner's in every orientation. Decision: a drawn-and-discarded tile is not told apart from one
   played from the hand; the rivers keep as few tile states
   as possible so the latest discard and the riichi tile are found at a glance.
-- **Latest discard.** Decision: every newest discard lands in its gap and stays there until 300ms after it lands
-  (when an opponent's held draw appears), or for as long as a call on it is being decided, whether or not the viewer
+- **Latest discard.** Decision: every newest discard lands in its gap and stays there until 330ms after it lands
+  or the next draw arrives, whichever is later (the next seat's held draw appears 450ms after it lands), or for as
+  long as a call on it is being decided, whether or not the viewer
   has an offer on it; then it slides back into line over 240ms, starting and stopping gently, never outward. The gap is small and reads the same from every
   seat: the same felt between painted bodies before it along its row and toward its seat (7px off a phone; a phone's
   scaled to its river tile, 7px per 50px, never under 2px), as a tile just thrown lies, with no ring, pointer or
@@ -641,11 +642,11 @@ as a number, not seen, so the count turns red from ten tiles left.
   then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
   on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
 - **Tile motion.** A draw appears in its separated hand slot without travelling, after the preceding discard lands:
-  the viewer's 150ms after it, an opponent's in live play 300ms after it, as in a watched live game even face up
-  (the watched seat's at 150ms), and at once with no discard still landing (at once in a replay). The dealer's opening draw, the viewer's included, appears 300ms after it reaches the board, so the
+  450ms after it, the viewer's and an opponent's alike in live play, as in a watched live game even face up,
+  and at once with no discard still landing (at once in a replay). The dealer's opening draw, the viewer's included, appears 300ms after it reaches the board, so the
   13 dealt tiles show alone first (at once in a replay). Discards travel from hand
-  to river in 150ms at a constant speed, stopping in their slot, the latest in its gap; it stays there until 300ms after landing, or
-  while a call on it is being decided, then slides back into line over 240ms, starting and stopping gently.
+  to river in 150ms at a constant speed, stopping in their slot, the latest in its gap; it stays there until 330ms after landing or the
+  next draw's arrival, whichever is later, or while a call on it is being decided, then slides back into line over 240ms, starting and stopping gently.
   A travelling tile is three faint shadowless copies, 12ms apart, in its destination's look from take-off: its body
   (a discard leaves the hand as the lying river tile, a riichi discard already sideways, a call into the own melds as
   the lying own meld tile), its size and its turn. Nothing
@@ -662,8 +663,9 @@ as a number, not seen, so the count turns red from ten tiles left.
   closes 700ms after the landing as the tiles to its right and the drawn tile slide over, over 240ms, starting and
   stopping gently. The hole is visual only: the next seat's draw and everything else keep their time. A tsumogiri
   leaves no hole, and that seat's next draw or call settles its concealed hand at once, closing a hole still open. A
-  hand shown face up, in live play or in a replay, closes its gap and sorts over 240ms from the discard's landing,
-  starting and stopping gently. Every other slide keeps its decelerating timing: a hand rearranged by a call over
+  hand shown face up, in live play or in a replay, closes its gap and sorts over 240ms from 330ms after the discard's
+  landing, on the latest discard's return beat, starting and stopping gently; its tiles stay playable where they
+  are shown while they wait. Every other slide keeps its decelerating timing: a hand rearranged by a call over
   300ms, settling discards over 150ms, laid melds and dora indicators over 200ms.
   Replay settles the previous stop's tile movements before measuring the next move, so rapid stepping animates
   only the latest move and never waits for an animation backlog. Calls assemble their
@@ -702,7 +704,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   land is dropped when the sound is turned off, a reset snapshot comes or the page closes; in a replay also on a jump or a
   step back, while a step on plays it at once. A decision chime that comes while a clack waits sounds with that clack,
   since the chime opens on a clack-like tap that would otherwise read as a second clack. A draw tick never sounds before
-  or over a clack: one that comes while a clack waits, or within the draw hold (300ms, the viewer's own 150ms) after
+  or over a clack: one that comes while a clack waits, or within the draw hold (450ms) after
   one, waits until that hold after the clack, when the held draw shows; a step on in a replay lands the clack and keeps that wait. A deal, the
   round's opening draw (before any discard or call) and a re-sent draw tick nothing. Every other sound plays with
   its move. A reconnect's snapshot plays nothing. A replay plays a move's sounds (no beep) on a step on to the

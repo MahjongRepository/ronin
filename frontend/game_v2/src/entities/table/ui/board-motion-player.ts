@@ -1,9 +1,4 @@
-import {
-    BOARD_MOTION,
-    type MotionRect,
-    type TileMotion,
-    drawHoldAfterLanding,
-} from "@/entities/table/lib/board-motion";
+import { BOARD_MOTION, type MotionRect, type TileMotion } from "@/entities/table/lib/board-motion";
 
 import { type TilePose, type TileSnapshot, snapshotTiles } from "./board-motion-snapshot";
 import { TileHoldPlayer } from "./tile-hold-player";
@@ -173,7 +168,7 @@ export class BoardMotionPlayer {
     }
 
     private playPlan(plan: readonly TileMotion[], scene: Scene): void {
-        const returnDelay = this.remainingDrawHold();
+        const returnDelay = this.remainingHold(BOARD_MOTION.returnHold);
         for (const motion of plan.filter(({ kind }) => kind !== "hold")) {
             this.playTile(
                 motion.kind === "return" ? { ...motion, delay: returnDelay } : motion,
@@ -183,10 +178,6 @@ export class BoardMotionPlayer {
         for (const motion of plan.filter(({ kind }) => kind === "hold")) {
             this.playHold(motion, scene);
         }
-    }
-
-    private remainingDrawHold(): number {
-        return this.remainingHold(BOARD_MOTION.drawHold);
     }
 
     private remainingHold(afterLanding: number): number {
@@ -274,7 +265,7 @@ export class BoardMotionPlayer {
         if (target === undefined) {
             return;
         }
-        const ms = Math.max(motion.delay, this.remainingHold(drawHoldAfterLanding(target.seat)));
+        const ms = Math.max(motion.delay, this.remainingHold(BOARD_MOTION.drawHold));
         if (ms > 0) {
             this.hold.play(motion.target, target.element, ms);
         }

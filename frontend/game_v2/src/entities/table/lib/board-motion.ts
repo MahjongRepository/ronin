@@ -8,9 +8,10 @@ const GHOSTS = [
 ] as const;
 
 export const BOARD_MOTION = {
+    dealHold: 300,
     discardEasing: "linear",
     discardSolidFrom: 0.6,
-    drawHold: 300,
+    drawHold: 450,
     flight: FLIGHT,
     gapReturn: 240,
     ghosts: GHOSTS,
@@ -22,7 +23,7 @@ export const BOARD_MOTION = {
     meldShift: 200,
     meldSpeed: 0.055,
     minTravel: 80,
-    ownDrawHold: 150,
+    returnHold: 330,
     revealTile: 35,
     settleEasing: "cubic-bezier(0.37, 0, 0.63, 1)",
     slotEasing: "cubic-bezier(0.16, 1, 0.3, 1)",
@@ -30,12 +31,6 @@ export const BOARD_MOTION = {
 
 export const DISCARD_LANDING_MS = BOARD_MOTION.landing;
 export const DRAW_HOLD_MS = BOARD_MOTION.drawHold;
-export const OWN_DRAW_HOLD_MS = BOARD_MOTION.ownDrawHold;
-
-/** How long after the latest discard lands a draw into the hand of the seat at `seat` shows. */
-export function drawHoldAfterLanding(seat: SeatPosition): number {
-    return seat === "bottom" ? OWN_DRAW_HOLD_MS : DRAW_HOLD_MS;
-}
 
 export interface MotionRect {
     readonly left: number;
@@ -230,7 +225,7 @@ function planHold(target: MotionTile, delay: number): TileMotion {
 
 function planUnsourcedDraw(target: MotionTile, context: MoveContext): TileMotion | null {
     if (context.opensRound && isOpeningDraw(target, context.mode)) {
-        return planHold(target, BOARD_MOTION.drawHold);
+        return planHold(target, BOARD_MOTION.dealHold);
     }
     return isHeldDraw(target, context.mode) ? planHold(target, 0) : null;
 }
@@ -266,7 +261,11 @@ function moveTiming(
 ): Pick<TileMotion, "delay" | "duration" | "kind"> {
     const flight = !samePlace(source, target);
     if (!flight && target.region === "hand" && discarding) {
-        return { delay: BOARD_MOTION.landing, duration: BOARD_MOTION.handClose, kind: "close" };
+        return {
+            delay: BOARD_MOTION.landing + BOARD_MOTION.returnHold,
+            duration: BOARD_MOTION.handClose,
+            kind: "close",
+        };
     }
     return { delay: 0, duration: moveDuration(source, target), kind: flight ? "flight" : "reflow" };
 }
@@ -290,7 +289,7 @@ function planDeal(
     }
     return after
         .filter((tile) => isOpeningDraw(tile, mode))
-        .map((tile) => planHold(tile, BOARD_MOTION.drawHold));
+        .map((tile) => planHold(tile, BOARD_MOTION.dealHold));
 }
 
 export function planTileMotion(
