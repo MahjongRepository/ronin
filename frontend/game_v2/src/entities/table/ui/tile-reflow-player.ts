@@ -277,7 +277,7 @@ export class TileReflowPlayer {
 
     private releaseGroup(releases: SlotReleases, delay: number): ReleaseGroup {
         const pending = releases.get(delay);
-        if (pending !== undefined && this.releases.has(pending)) {
+        if (pending !== undefined) {
             return pending;
         }
         const group: ReleaseGroup = {

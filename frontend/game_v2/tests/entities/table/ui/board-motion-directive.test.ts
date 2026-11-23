@@ -796,21 +796,29 @@ async function showOpponentTedashi(): Promise<TableState> {
 
 describe("opponent tedashi hole", () => {
     it("keeps the hole through another seat's draw and closes it at once when the discarder draws again", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
         const view = { view: bottomOnly };
         const discarded = await showOpponentTedashi();
         const closes = animations.filter(movesOpponentHandSlot);
-        expect(closes.length).toBeGreaterThan(0);
-        expect(closes[0]?.effect?.getTiming().easing).toBe(BOARD_MOTION.settleEasing);
+        expect([
+            closes.length > 1,
+            closes[0]?.effect?.getTiming().easing,
+            vi.getTimerCount(),
+        ]).toEqual([true, BOARD_MOTION.settleEasing, 1]);
         const nextDrew = opponentDrew(discarded, 2);
         await show(nextDrew, { mode: "step", sequence: 3 }, view);
-        expect(closes.filter((animation) => animation.playState === "idle")).toEqual([]);
+        expect([
+            closes.filter((animation) => animation.playState === "idle"),
+            vi.getTimerCount(),
+        ]).toEqual([[], 2]);
         await show(opponentDrew(nextDrew), { mode: "step", sequence: 4 }, view);
         expect([
             closes.every((animation) => animation.playState === "idle"),
             animations.filter(
                 (animation) => animation.playState !== "idle" && movesOpponentHandSlot(animation),
             ),
-        ]).toEqual([true, []]);
+            vi.getTimerCount(),
+        ]).toEqual([true, [], 1]);
     });
 });
 
@@ -1016,12 +1024,13 @@ async function startPendingReturn(sequence: number): Promise<() => Promise<void>
     return () => show(opponentDrew(riichi), cue, view);
 }
 
-async function cancelledReturnState(): Promise<AnimationPlayState | undefined> {
+async function cancelledReturnStates(): Promise<readonly (AnimationPlayState | undefined)[]> {
     await startPendingReturn(3);
     const pending = riverSlotAnimations().at(-1);
+    const waiting = pending?.playState;
     render(nothing, host);
     vi.advanceTimersByTime(PENDING_RETURN_MS + 1);
-    return pending?.playState;
+    return [waiting, pending?.playState];
 }
 
 describe("delayed slot release", () => {
@@ -1047,8 +1056,8 @@ describe("delayed slot release", () => {
             beforeDeadline,
             riverSlotAnimations(),
             pending?.playState,
-            await cancelledReturnState(),
-        ]).toEqual([[0, 0, "paused"], "paused", [pending], "running", "idle"]);
+            await cancelledReturnStates(),
+        ]).toEqual([[0, 0, "paused"], "paused", [pending], "running", ["paused", "idle"]]);
     });
 });
 
