@@ -662,7 +662,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   closes 1000ms after the landing as the tiles to its right and the drawn tile slide over, over 240ms, starting and
   stopping gently. The hole is visual only: the next seat's draw and everything else keep their time. A tsumogiri
   leaves no hole, and that seat's next draw or call settles its concealed hand at once, closing a hole still open. A
-  visible hand, every hand in a replay included, closes its gap and sorts over 240ms from the discard's landing,
+  hand shown face up, in live play or in a replay, closes its gap and sorts over 240ms from the discard's landing,
   starting and stopping gently. Every other slide keeps its decelerating timing: a hand rearranged by a call over
   300ms, settling discards over 150ms, laid melds and dora indicators over 200ms.
   Replay settles the previous stop's tile movements before measuring the next move, so rapid stepping animates

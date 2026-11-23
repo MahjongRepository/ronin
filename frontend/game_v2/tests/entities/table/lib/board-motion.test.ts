@@ -82,7 +82,7 @@ describe("planTileMotion", () => {
         },
     );
 
-    it("assembles a meld from its caller's hand and another seat's river, sliding the rest of the hand at once", () => {
+    it("assembles a meld from its caller's hand and another seat's river, sliding the rest of the hand without waiting for a landing", () => {
         const hand = tile("hand-1", { id: "1" });
         const kept = tile("hand-3", { id: "3", rect: { ...hand.rect, left: 40 } });
         const river = tile("river-2", {

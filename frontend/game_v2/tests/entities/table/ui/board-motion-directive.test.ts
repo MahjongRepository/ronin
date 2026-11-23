@@ -800,6 +800,7 @@ describe("opponent tedashi hole", () => {
         const discarded = await showOpponentTedashi();
         const closes = animations.filter(movesOpponentHandSlot);
         expect(closes.length).toBeGreaterThan(0);
+        expect(closes[0]?.effect?.getTiming().easing).toBe(BOARD_MOTION.settleEasing);
         const nextDrew = opponentDrew(discarded, 2);
         await show(nextDrew, { mode: "step", sequence: 3 }, view);
         expect(closes.filter((animation) => animation.playState === "idle")).toEqual([]);
