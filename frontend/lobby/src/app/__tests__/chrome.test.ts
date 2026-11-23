@@ -108,6 +108,24 @@ describe("startChrome", () => {
         expect(postedToken).toBe("rotated-token");
     });
 
+    it("marks Tournaments current on a tournament's page as well as on the list", () => {
+        window.history.replaceState(null, "", "/tournaments/cup");
+        const { chrome, nav } = chromeOnPage();
+
+        chrome.showSession({ user: { isAdmin: false, isGuest: false, username: "dev" } });
+        const onTournament = [...nav.querySelectorAll('a[href="/tournaments"]')].map((link) =>
+            link.getAttribute("aria-current"),
+        );
+        window.history.replaceState(null, "", "/tournaments-archive");
+        chrome.showSession({ user: { isAdmin: false, isGuest: false, username: "dev" } });
+
+        expect(onTournament).toEqual(["true", "true"]);
+        expect(
+            nav.querySelector('a[href="/tournaments"]')?.getAttribute("aria-current"),
+        ).toBeNull();
+        window.history.replaceState(null, "", "/");
+    });
+
     it("forgets every game handoff of the tab on logout", () => {
         const { chrome, nav } = chromeOnPage();
         chrome.showSession({ user: { isAdmin: false, isGuest: false, username: "dev" } });

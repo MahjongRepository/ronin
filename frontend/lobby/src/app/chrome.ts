@@ -32,6 +32,14 @@ function currentPage(path: string, href: string): "page" | typeof nothing {
     return withoutTrailingSlash(path) === href ? "page" : nothing;
 }
 
+function currentSection(path: string, href: string): "page" | "true" | typeof nothing {
+    const current = withoutTrailingSlash(path);
+    if (current === href) {
+        return "page";
+    }
+    return current.startsWith(`${href}/`) ? "true" : nothing;
+}
+
 function nextQuery(url: URL): string {
     const next = url.searchParams.get("next");
     return next ? `?${new URLSearchParams({ next }).toString()}` : "";
@@ -58,7 +66,7 @@ function userLinks(user: SessionUser, path: string): TemplateResult {
         ${foldingLinks(user).map(
             ({ href, label }) =>
                 html`<li class="lobby-nav-folding">
-                    <a href=${href} class="lobby-nav-link" aria-current=${currentPage(path, href)}
+                    <a href=${href} class="lobby-nav-link" aria-current=${currentSection(path, href)}
                         >${t(label)}</a
                     >
                 </li>`,
@@ -69,7 +77,7 @@ function foldedPanelItems(user: SessionUser, path: string): TemplateResult {
     return html`<div class="lobby-account-folded">
         ${foldingLinks(user).map(
             ({ href, label }) =>
-                html`<a href=${href} class="lobby-account-item" aria-current=${currentPage(path, href)}
+                html`<a href=${href} class="lobby-account-item" aria-current=${currentSection(path, href)}
                     ><span>${t(label)}</span></a
                 >`,
         )}
