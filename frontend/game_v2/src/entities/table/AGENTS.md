@@ -44,7 +44,8 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   added-kan stack; concealed hands keep anonymous slots, never invented ids, and an id reused in a new round never
   animates from its place in the previous round. `animateBoard` follows `sizeBoard` on GameBoard's root, so it
   measures destinations after the geometry is written. Native effects detach before lit changes the DOM and rebind
-  by physical tile key with their timing preserved.
+  by physical tile key with their timing preserved; a concealed hand's pending close ends at once when that seat's
+  hand changes.
 - The seating panel is the game's start and its end: the seats in wind order with the round on the table (live, the
   client's opening screen over the dealt table, `tableSeatingPanel`; a replay's start), then in placement order with
   their scores and uma/oka results once the game ends. `tablePanel` itself shows nothing before the first deal.

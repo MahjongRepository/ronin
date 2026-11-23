@@ -265,7 +265,7 @@ export class BoardMotionPlayer {
         }
         const flight = createFlight(motion, scene, target);
         if (flight !== null) {
-            this.playMove(flight, target);
+            this.playMove(flight, target, scene.after);
         }
     }
 
@@ -280,7 +280,11 @@ export class BoardMotionPlayer {
         }
     }
 
-    private playMove(flight: Flight, target: TileSnapshot): void {
+    private playMove(
+        flight: Flight,
+        target: TileSnapshot,
+        after: ReadonlyMap<string, TileSnapshot>,
+    ): void {
         if (flight.motion.kind === "flight") {
             this.playFlight(flight, target);
             return;
@@ -291,7 +295,7 @@ export class BoardMotionPlayer {
                 (flight.fromPose.angle - flight.toPose.angle) % 360 === 0) ||
             (target.region === "discards" && hasSamePose(flight.fromPose, flight.toPose))
         ) {
-            this.reflow.play(flight.motion, flight.from, target);
+            this.reflow.play(flight.motion, flight.from, after);
         }
     }
 

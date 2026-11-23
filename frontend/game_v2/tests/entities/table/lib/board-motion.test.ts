@@ -132,7 +132,7 @@ describe("planTileMotion", () => {
             target: "river",
         };
         const shift = {
-            delay: BOARD_MOTION.landing + BOARD_MOTION.gapHold,
+            delay: BOARD_MOTION.landing + BOARD_MOTION.holeHold,
             duration: BOARD_MOTION.handClose,
             kind: "reflow",
         };

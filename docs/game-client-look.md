@@ -658,9 +658,10 @@ as a number, not seen, so the count turns red from ten tiles left.
   shared edge and shadow and native button feedback. Meld resizing keeps its tiles moving and scaling together
   under that shared shadow. A settling discard whose size or turn changes, or a laid meld tile whose turn changes,
   shows in its new slot at once.
-  An opponent's tedashi leaves from the middle of their concealed hand and leaves a hole there, which closes 300ms
-  after the landing as the tiles to its right and the drawn tile slide over, over 300ms and decelerating; a
-  tsumogiri leaves no hole, and a draw or a call settles a concealed hand at once. A visible hand closes its gap and
+  An opponent's tedashi leaves from the middle of their concealed hand and leaves a hole there, which closes 1000ms
+  after the landing as the tiles to its right and the drawn tile slide over, over 300ms and decelerating. The hole is
+  visual only: the next seat's draw and everything else keep their time. A tsumogiri leaves no hole, and that seat's
+  next draw or call settles its concealed hand at once, closing a hole still open. A visible hand closes its gap and
   sorts over 300ms from the discard's landing, decelerating. Both run alike in live play and in a replay.
   Replay settles the previous stop's tile movements before measuring the next move, so rapid stepping animates
   only the latest move and never waits for an animation backlog. Calls assemble their

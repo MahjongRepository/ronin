@@ -1,5 +1,5 @@
 import { BOARD_MOTION, type MotionRect, type TileMotion } from "@/entities/table/lib/board-motion";
-import { SEAT_TURNS } from "@/entities/table/model/board-types";
+import { SEAT_TURNS, type SeatPosition } from "@/entities/table/model/board-types";
 
 import { type TileSnapshot } from "./board-motion-snapshot";
 
@@ -105,6 +105,25 @@ function findPartedSlots(running: Iterable<TileReflow>): Set<HTMLElement> {
     return new Set([...hands].flatMap(([hand, turn]) => partedSlots(hand, turn, shifts)));
 }
 
+function closesConcealedHole(tile: TileSnapshot): boolean {
+    return tile.region === "hand" && tile.concealed;
+}
+
+function handKeysOf(
+    after: ReadonlyMap<string, TileSnapshot>,
+    seat: SeatPosition,
+): ReadonlySet<string> {
+    return new Set(
+        [...after.values()]
+            .filter((tile) => tile.seat === seat && tile.region === "hand")
+            .map((tile) => tile.key),
+    );
+}
+
+function sameKeys(first: ReadonlySet<string>, second: ReadonlySet<string>): boolean {
+    return first.size === second.size && [...first].every((key) => second.has(key));
+}
+
 function animateSlot(
     slot: HTMLElement,
     frames: Keyframe[],
@@ -127,6 +146,8 @@ export class TileReflowPlayer {
     private readonly running = new Map<string, TileReflow>();
 
     private readonly parted = new Set<HTMLElement>();
+
+    private readonly holeHands = new Map<SeatPosition, ReadonlySet<string>>();
 
     get suspended(): boolean {
         return [...this.running.values()].some(({ effect }) => effect.target === null);
@@ -160,11 +181,25 @@ export class TileReflowPlayer {
     }
 
     reconcile(after: ReadonlyMap<string, TileSnapshot>, plan: readonly TileMotion[]): void {
+        this.endChangedHoles(after);
         const changing = new Set(plan.map((motion) => motion.target));
         for (const [key, active] of this.running) {
             this.rebind(key, active, changing.has(key) ? undefined : after.get(key));
         }
         this.markPartedSlots();
+    }
+
+    private endChangedHoles(after: ReadonlyMap<string, TileSnapshot>): void {
+        for (const [seat, keys] of this.holeHands) {
+            if (!sameKeys(keys, handKeysOf(after, seat))) {
+                for (const [key, active] of this.running) {
+                    if (active.target.seat === seat && closesConcealedHole(active.target)) {
+                        this.stop(key);
+                    }
+                }
+                this.holeHands.delete(seat);
+            }
+        }
     }
 
     private rebind(key: string, active: TileReflow, next: TileSnapshot | undefined): void {
@@ -177,11 +212,13 @@ export class TileReflowPlayer {
         active.effect.target = next.element.parentElement;
     }
 
-    play(motion: TileMotion, from: MotionRect, target: TileSnapshot): void {
-        const slot = target.element.parentElement;
-        if (slot === null) {
+    play(motion: TileMotion, from: MotionRect, after: ReadonlyMap<string, TileSnapshot>): void {
+        const target = after.get(motion.target);
+        const slot = target?.element.parentElement ?? null;
+        if (target === undefined || slot === null) {
             return;
         }
+        this.keepHoleHand(target, after);
         const offset = localOffset(from, target);
         const { animation, effect } = animateSlot(slot, reflowFrames(offset, from, target), motion);
         this.running.set(motion.target, {
@@ -204,6 +241,12 @@ export class TileReflowPlayer {
         };
     }
 
+    private keepHoleHand(target: TileSnapshot, after: ReadonlyMap<string, TileSnapshot>): void {
+        if (closesConcealedHole(target) && !this.holeHands.has(target.seat)) {
+            this.holeHands.set(target.seat, handKeysOf(after, target.seat));
+        }
+    }
+
     private stop(key: string): void {
         const active = this.running.get(key);
         if (active !== undefined) {
@@ -217,6 +260,7 @@ export class TileReflowPlayer {
         for (const key of this.running.keys()) {
             this.stop(key);
         }
+        this.holeHands.clear();
         this.markPartedSlots();
     }
 

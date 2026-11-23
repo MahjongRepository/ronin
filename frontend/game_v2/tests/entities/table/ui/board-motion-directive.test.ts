@@ -66,12 +66,12 @@ function discardDraw(state: TableState, riichi = false): TableState {
     };
 }
 
-function opponentDrew(state: TableState): TableState {
+function opponentDrew(state: TableState, seat = 1): TableState {
     return {
         ...state,
         lastDiscardSeat: null,
         players: state.players.map((player) =>
-            player.seat === 1
+            player.seat === seat
                 ? {
                       ...player,
                       concealedCount: player.concealedCount + 1,
@@ -740,6 +740,69 @@ describe("opponent draw hold", () => {
             4,
             BOARD_MOTION.landing + BOARD_MOTION.drawHold,
         ]);
+    });
+});
+
+function anonymousOpponent(state: TableState): TableState {
+    return {
+        ...state,
+        players: state.players.map((player) =>
+            player.seat === 1 ? { ...player, concealedCount: 13, tiles: [] } : player,
+        ),
+    };
+}
+
+function opponentTedashi(state: TableState): TableState {
+    return {
+        ...state,
+        lastDiscardSeat: 1,
+        players: state.players.map((player) =>
+            player.seat === 1
+                ? {
+                      ...player,
+                      concealedCount: player.concealedCount - 1,
+                      discards: [
+                          ...player.discards,
+                          { isRiichi: false, isTsumogiri: false, tileId: 121 },
+                      ],
+                      drawnConcealed: false,
+                  }
+                : player,
+        ),
+    };
+}
+
+function movesOpponentHandSlot(animation: Animation): boolean {
+    const target = targetOf(animation);
+    return target?.matches("[data-area='right-hand'] [data-tile-id]") === true;
+}
+
+async function showOpponentTedashi(): Promise<TableState> {
+    const view = { view: bottomOnly };
+    const dealt = anonymousOpponent(table(true));
+    await show(dealt, { mode: "reset", sequence: 0 }, view);
+    await show(opponentDrew(dealt), { mode: "step", sequence: 1 }, view);
+    const discarded = opponentTedashi(opponentDrew(dealt));
+    await show(discarded, { mode: "step", sequence: 2 }, view);
+    return discarded;
+}
+
+describe("opponent tedashi hole", () => {
+    it("keeps the hole through another seat's draw and closes it at once when the discarder draws again", async () => {
+        const view = { view: bottomOnly };
+        const discarded = await showOpponentTedashi();
+        const closes = animations.filter(movesOpponentHandSlot);
+        expect(closes.length).toBeGreaterThan(0);
+        const nextDrew = opponentDrew(discarded, 2);
+        await show(nextDrew, { mode: "step", sequence: 3 }, view);
+        expect(closes.filter((animation) => animation.playState === "idle")).toEqual([]);
+        await show(opponentDrew(nextDrew), { mode: "step", sequence: 4 }, view);
+        expect([
+            closes.every((animation) => animation.playState === "idle"),
+            animations.filter(
+                (animation) => animation.playState !== "idle" && movesOpponentHandSlot(animation),
+            ),
+        ]).toEqual([true, []]);
     });
 });
 

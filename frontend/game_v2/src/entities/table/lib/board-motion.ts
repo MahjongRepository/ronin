@@ -12,10 +12,10 @@ export const BOARD_MOTION = {
     discardSolidFrom: 0.6,
     drawHold: 300,
     flight: FLIGHT,
-    gapHold: 300,
     gapReturn: 500,
     ghosts: GHOSTS,
     handClose: 300,
+    holeHold: 1000,
     landing: GHOSTS[1].delay + FLIGHT,
     maxTravel: 300,
     meldShift: 200,
@@ -200,7 +200,7 @@ function planConcealedShift(target: MotionTile, context: MoveContext): TileMotio
     return mover === undefined
         ? null
         : {
-              delay: BOARD_MOTION.landing + BOARD_MOTION.gapHold,
+              delay: BOARD_MOTION.landing + BOARD_MOTION.holeHold,
               duration: BOARD_MOTION.handClose,
               kind: "reflow",
               source: mover.key,
