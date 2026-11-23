@@ -58,6 +58,7 @@
                     "CogIcon",
                     "SoundRow",
                     "AnimationsRow",
+                    "DiscardSlideRow",
                     "SettingsPanel",
                     "ConnectionRow",
                     "GameMenu",

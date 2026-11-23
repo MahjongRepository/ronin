@@ -1076,7 +1076,7 @@ describe("mountReplayView - view", () => {
         expect([
             JSON.parse(localStorage.getItem(MOTION_SETTING_KEY) ?? "null"),
             host.querySelector(".game-board")?.getAttribute("data-motion"),
-        ]).toEqual([{ animations: false }, "off"]);
+        ]).toEqual([{ animations: false, discardSlide: true }, "off"]);
     });
 
     it("switches the page to Russian in place from the cog, its menu open, the position and address kept", async () => {

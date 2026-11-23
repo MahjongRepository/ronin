@@ -56,7 +56,15 @@ export function mountSettingsView(host: HTMLElement, deps: SettingsViewDeps): Mo
         renderSettings(host, {
             animations: {
                 on: motion.animations,
-                onToggle: saveAndRender(() => motionStore.save({ animations: !motion.animations })),
+                onToggle: saveAndRender(() =>
+                    motionStore.save({ ...motion, animations: !motion.animations }),
+                ),
+            },
+            discardSlide: {
+                on: motion.discardSlide,
+                onToggle: saveAndRender(() =>
+                    motionStore.save({ ...motion, discardSlide: !motion.discardSlide }),
+                ),
             },
             input: {
                 keyHints: input.keyHints,

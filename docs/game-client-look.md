@@ -344,6 +344,10 @@ as a number, not seen, so the count turns red from ten tiles left.
   that claims it ends it too, the claim then read from the meld, and so does the round's end,
   whatever its result (a ron on it included: the result shows the winning tile). During a discard offer this mark is the action source. A
   chankan offer's source, a kan in a meld, carries no mark.
+  Decision: one setting, *Set last discard apart*, on by default, kept in this browser and shared by the live game,
+  the replay and the lobby's settings page, turns the gap off: every discard then lands in its slot in line, live and in
+  a replay, so nothing slides back; the flight, its landing and every other motion stay as they are. Nothing else
+  marks the latest discard then, so a discard offer's source is unmarked. It is independent of the Animations switch.
 - **Melds**, every seat's. Convention: to the right of the hand from the seat's own view, the first
   meld farthest right and each later one toward the hand; the called tile sideways, at the meld's
   left when it came from the seat on the left, in the middle from the seat across, at the right from
@@ -484,7 +488,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   marking the rest), and so is the tile an answer played; neither is outlined, the accent ring on a
   tile being the keyboard focus alone.
 - **Action source.** A discard offer's source is the latest discard, marked by the latest-discard
-  mark, which the next draw ends. A chankan offer's kan (an added kan, or a closed kan robbed for
+  mark (none while the player keeps the last discard in line), which the next draw ends. A chankan offer's kan (an added kan, or a closed kan robbed for
   kokushi musou) is not marked: it is the meld just declared. No animation or automatic notice covers the
   action source or the faces that identify it while an offer is open; a sheet the player opens does,
   by the player's choice.
@@ -683,12 +687,12 @@ as a number, not seen, so the count turns red from ten tiles left.
   target and a gap (a narrow window), in the board's top-right corner instead.
   The icon is smaller than its control-floor tap target.
   It reserves no room in the strips, hands or badges, which keep their places; a
-  panel may cover it. Decision: its menu holds the sound switch, a language row (one compact strip of the
+  panel may cover it. Decision: its menu holds the sound, animations and last-discard-apart switches, a language row (one compact strip of the
   three languages by their native names, the current one marked), then the
   connection status (a dot and its whole label). The menu holds nothing on the board back: a tap or right-click
   outside it closes it and still does what it would with the menu closed, the keys keep working while it is open, and
   Escape closes it back to the cog. While the status has a word to say (a drop, an end), the cog carries a dot in the status's tone, so a drop
-  shows without opening the menu. A replay has the same corner and cog, its menu the sound switch and the language row alone. The live
+  shows without opening the menu. A replay has the same corner and cog, its menu the same switches and the language row alone. The live
   board has no way back of its own; the rotate panel in a narrow portrait viewport keeps
   one, which asks the leave question, and an end's panel offers the lobby.
 - **Sound.** The live game plays an original synthesized resin tile clack, a fainter single airy tick for every seat's

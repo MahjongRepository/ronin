@@ -1,5 +1,6 @@
 import {
     AnimationsRow,
+    DiscardSlideRow,
     InputRows,
     type InputRowsProps,
     KeepAutoWinRow,
@@ -29,10 +30,12 @@ interface GameMenuProps {
     readonly backdrop: boolean;
     readonly soundOn: boolean;
     readonly animationsOn: boolean;
+    readonly discardSlideOn: boolean;
     readonly onToggleOpen: () => void;
     readonly onClose: () => void;
     readonly onToggleSound: () => void;
     readonly onToggleAnimations: () => void;
+    readonly onToggleDiscardSlide: () => void;
     readonly onLanguage: (locale: Locale) => void;
     readonly onWinds: (script: WindScript) => void;
     readonly onTileLabels: (on: boolean) => void;
@@ -109,9 +112,11 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
     const {
         animationsOn,
         backdrop,
+        discardSlideOn,
         onClose,
         onLanguage,
         onToggleAnimations,
+        onToggleDiscardSlide,
         onTileLabels,
         onToggleSound,
         onWinds,
@@ -122,6 +127,7 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
         <div class="game-menu__panel" role="group" aria-label=${t("game.settings.title")}>
             ${SoundRow(MENU_BLOCK, { on: soundOn, onToggle: onToggleSound })}
             ${AnimationsRow(MENU_BLOCK, { on: animationsOn, onToggle: onToggleAnimations })}
+            ${DiscardSlideRow(MENU_BLOCK, { on: discardSlideOn, onToggle: onToggleDiscardSlide })}
             ${TileLabelsRow(MENU_BLOCK, onTileLabels)}
             ${props.keepAutoWin === undefined ? nothing : KeepAutoWinRow(MENU_BLOCK, props.keepAutoWin)}
             ${props.input === undefined ? nothing : InputRows(MENU_BLOCK, props.input)}

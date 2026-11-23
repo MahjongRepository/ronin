@@ -429,6 +429,7 @@ const TOGGLE_SETTINGS: PlayCommand = { kind: "toggle_settings" };
 const CLOSE_SETTINGS: PlayCommand = { kind: "close_settings" };
 const TOGGLE_SOUND: PlayCommand = { kind: "toggle_sound" };
 const TOGGLE_ANIMATIONS: PlayCommand = { kind: "toggle_animations" };
+const TOGGLE_DISCARD_SLIDE: PlayCommand = { kind: "toggle_discard_slide" };
 const SHOW_CONTROLS: PlayCommand = { kind: "show_controls" };
 
 /** What goes on beneath a notice's sheet: play, and the decision or round confirm the player owes with its seconds. */
@@ -529,6 +530,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
         animationsOn: display.animationsOn,
         callouts: display.callouts,
         debug: false,
+        discardSlide: display.discardSlideOn,
         furiten: display.furiten,
         inert,
         input: playInput(display, onCommand, clock),
@@ -538,6 +540,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             alert: display.cogAlert,
             animationsOn: display.animationsOn,
             backdrop: false,
+            discardSlideOn: display.discardSlideOn,
             extra: menuExtra,
             input: {
                 keyHints: display.keyHints,
@@ -559,6 +562,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             onLanguage,
             onTileLabels,
             onToggleAnimations: () => onCommand(TOGGLE_ANIMATIONS),
+            onToggleDiscardSlide: () => onCommand(TOGGLE_DISCARD_SLIDE),
             onToggleOpen: () => onCommand(TOGGLE_SETTINGS),
             onToggleSound: () => onCommand(TOGGLE_SOUND),
             onWinds,

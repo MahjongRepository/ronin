@@ -85,6 +85,17 @@ export function AnimationsRow(block: string, animations: SwitchRowProps): Templa
             </button>`;
 }
 
+export function DiscardSlideRow(block: string, slide: SwitchRowProps): TemplateResult {
+    return html`<button
+        type="button"
+        class="secondary ${block}__item ${block}__discard-slide"
+        role="switch"
+        aria-checked=${String(slide.on)}
+        @click=${slide.onToggle}
+    ><span class="${block}__item-name">${t("settings.discard_slide")}</span
+        >${SwitchValue(block, slide.on)}</button>`;
+}
+
 export function TileLabelsRow(block: string, onTileLabels: (on: boolean) => void): TemplateResult {
     const on = pageTileLabels() !== null;
     return html`<button

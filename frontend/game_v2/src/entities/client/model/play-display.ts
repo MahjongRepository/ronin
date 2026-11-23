@@ -150,6 +150,7 @@ export interface PlayDisplay {
     /** The game plays its sounds, as the settings menu's switch shows. */
     readonly soundOn: boolean;
     readonly animationsOn: boolean;
+    readonly discardSlideOn: boolean;
     readonly keepAutoWin: boolean;
     /** The decision controls show their digit keys, as the settings menu's switch shows. */
     readonly keyHints: boolean;
@@ -356,6 +357,7 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
         callouts: liveCallouts(state),
         countdown: decisionCountdown(state),
         decisionStanding: decisionStanding(state),
+        discardSlideOn: ui.discardSlideOn,
         failure,
         furiten: furiten && viewer !== undefined && table.phase === "in_round",
         keepAutoWin: state.keepAutoWin,

@@ -365,6 +365,7 @@ class GameViewController {
             animationsOn: deps.motionSetting.load().animations,
             browserBars: deps.browserBars.shown(),
             canEnterFullscreen: deps.browserBars.canEnterFullscreen(),
+            discardSlideOn: deps.motionSetting.load().discardSlide,
             ...deps.inputSetting.load(),
             soundOn: deps.sound.setting.load().sound_on,
             tileSprite: deps.tileSprite.status(),
@@ -493,8 +494,11 @@ class GameViewController {
         if (command.kind === "toggle_sound") {
             this.deps.sound.setting.save({ sound_on: this.ui.soundOn });
         }
-        if (command.kind === "toggle_animations") {
-            this.deps.motionSetting.save({ animations: this.ui.animationsOn });
+        if (command.kind === "toggle_animations" || command.kind === "toggle_discard_slide") {
+            this.deps.motionSetting.save({
+                animations: this.ui.animationsOn,
+                discardSlide: this.ui.discardSlideOn,
+            });
         }
         if (command.kind === "toggle_right_click" || command.kind === "toggle_key_hints") {
             this.deps.inputSetting.save({

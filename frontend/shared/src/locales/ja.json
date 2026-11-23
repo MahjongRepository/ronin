@@ -1,5 +1,6 @@
 {
     "settings.animations": "アニメーション",
+    "settings.discard_slide": "最後の捨て牌をずらす",
     "settings.keep_auto_win": "自動和了を次局も維持",
     "settings.key_hints": "キーのヒント",
     "settings.language": "言語",

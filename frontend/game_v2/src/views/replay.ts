@@ -457,6 +457,7 @@ class ReplayViewController {
         stepClick: (direction) => this.dispatch({ direction, kind: "step_click" }),
         stepPress: (direction, event) => this.onStepPress(direction, event),
         toggleAnimations: () => this.dispatch({ kind: "toggle_animations" }),
+        toggleDiscardSlide: () => this.dispatch({ kind: "toggle_discard_slide" }),
         toggleHands: () => this.dispatch({ kind: "toggle_hands" }),
         togglePlay: () => this.dispatch({ kind: "toggle_play" }),
         toggleRoundList: () => this.dispatch({ kind: "toggle_round_list" }),
@@ -629,7 +630,7 @@ class ReplayViewController {
             }
             case "save_prefs":
             case "save_sound":
-            case "save_animations": {
+            case "save_motion": {
                 this.saveSetting(effect);
                 return;
             }
@@ -663,12 +664,9 @@ class ReplayViewController {
         this.dispatch({ kind: "hand_copy", outcome: "copied" });
     }
 
-    /** Keep the reader's settings, or the sound's or the animations', which the live game shares. */
+    /** Keep the reader's settings, or the sound's or the motion's, which the live game shares. */
     private saveSetting(
-        effect: Extract<
-            ReplayPageEffect,
-            { kind: "save_prefs" | "save_sound" | "save_animations" }
-        >,
+        effect: Extract<ReplayPageEffect, { kind: "save_prefs" | "save_sound" | "save_motion" }>,
     ): void {
         if (effect.kind === "save_prefs") {
             this.deps.prefs.save(effect.prefs);
@@ -678,7 +676,7 @@ class ReplayViewController {
             this.deps.sound.setting.save({ sound_on: effect.soundOn });
             return;
         }
-        this.deps.motionSetting.save({ animations: effect.animationsOn });
+        this.deps.motionSetting.save(effect.motion);
     }
 
     private motionEffective(): boolean {
@@ -864,6 +862,7 @@ class ReplayViewController {
     private observeOpening(): ObserveOpening {
         return {
             animationsOn: this.deps.motionSetting.load().animations,
+            discardSlideOn: this.deps.motionSetting.load().discardSlide,
             prefs: this.deps.prefs.load(),
             roundListOpen: this.deps.roundListOpen ?? false,
             soundOn: this.deps.sound.setting.load().sound_on,
@@ -894,6 +893,7 @@ class ReplayViewController {
         const opening: ReplayOpening = {
             animationsOn: this.deps.motionSetting.load().animations,
             autoplay: this.deps.autoplay ?? false,
+            discardSlideOn: this.deps.motionSetting.load().discardSlide,
             prefs: this.deps.prefs.load(),
             roundListOpen: this.deps.roundListOpen ?? false,
             search: this.deps.location.search,

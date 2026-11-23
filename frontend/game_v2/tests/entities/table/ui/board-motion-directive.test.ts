@@ -88,17 +88,19 @@ const bottomOnly: BoardPerspective = { bottomSeat: 0, reveal: "bottom" };
 interface ShowOptions {
     readonly view?: BoardPerspective;
     readonly animationsOn?: boolean;
+    readonly discardSlide?: boolean;
 }
 
 function draw(
     state: TableState,
     cue: BoardMotionCue,
-    { animationsOn = true, view = perspective }: ShowOptions = {},
+    { animationsOn = true, discardSlide = true, view = perspective }: ShowOptions = {},
 ): void {
     render(
         GameBoard({
             animationsOn,
             debug: false,
+            discardSlide,
             motion: cue,
             state: tableStateToDisplayState(state, view),
         }),
@@ -999,6 +1001,44 @@ describe("latest discard gap", () => {
             BOARD_MOTION.landing + BOARD_MOTION.drawHold - 50,
             BOARD_MOTION.ghosts.map(() => [`${115 + LATEST_GAP}px`, `${320 + LATEST_GAP}px`]),
             1,
+        ]);
+    });
+});
+
+const IN_LINE = { discardSlide: false, view: bottomOnly };
+
+async function landDiscardInLine(): Promise<TableState> {
+    const dealt = table(true);
+    await show(drawn(dealt), { mode: "reset", sequence: 0 }, IN_LINE);
+    const discarded = discardDraw(dealt);
+    await show(discarded, { mode: "step", sequence: 1 }, IN_LINE);
+    return discarded;
+}
+
+async function discardInLineThenDraw(): Promise<readonly unknown[]> {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const discarded = await landDiscardInLine();
+    const [landing, latest] = [
+        ghostCentres(),
+        snapshotTiles(host).find((tile) => tile.id === "120"),
+    ];
+    finishAll();
+    const played = animations.length;
+    now.mockReturnValue(1000 + BOARD_MOTION.landing + BOARD_MOTION.returnHold + 500);
+    await show(opponentDrew(discarded), { mode: "step", sequence: 2 }, IN_LINE);
+    const slot = host.querySelector(".discard-tile[data-tile-id='120']");
+    const returned = animations.slice(played).filter((animation) => targetOf(animation) === slot);
+    return [landing, latest?.painted, latest?.rect, returned];
+}
+
+describe("latest discard slide off", () => {
+    it("lands the latest discard in its slot, painted where it is measured, and slides nothing back after the next draw", async () => {
+        const [landing, painted, rect, returned] = await discardInLineThenDraw();
+
+        expect([landing, painted, returned]).toEqual([
+            BOARD_MOTION.ghosts.map(() => ["115px", "320px"]),
+            rect,
+            [],
         ]);
     });
 });

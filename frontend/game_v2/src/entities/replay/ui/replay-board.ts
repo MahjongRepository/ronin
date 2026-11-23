@@ -60,6 +60,7 @@ export interface ReplayBoardHandlers {
     readonly closeSettings: () => void;
     readonly toggleSound: () => void;
     readonly toggleAnimations: () => void;
+    readonly toggleDiscardSlide: () => void;
     readonly setLanguage: (locale: Locale) => void;
     readonly setWinds: (script: WindScript) => void;
     readonly setTileLabels: (on: boolean) => void;
@@ -186,15 +187,18 @@ export function ReplayBoard(props: ReplayBoardProps): TemplateResult {
         animationsOn: screen.animationsOn,
         callouts: display.callouts,
         debug: false,
+        discardSlide: screen.discardSlideOn,
         matchResult: display.matchResult,
         menu: GameMenu({
             animationsOn: screen.animationsOn,
             backdrop: true,
+            discardSlideOn: screen.discardSlideOn,
             leave: { href: lobby, kind: "link" },
             onClose: handlers.closeSettings,
             onLanguage: handlers.setLanguage,
             onTileLabels: handlers.setTileLabels,
             onToggleAnimations: handlers.toggleAnimations,
+            onToggleDiscardSlide: handlers.toggleDiscardSlide,
             onToggleOpen: handlers.toggleSettings,
             onToggleSound: handlers.toggleSound,
             onWinds: handlers.setWinds,
