@@ -22,6 +22,7 @@ import { Discards, Hand, type HandTile, Meld } from "@/entities/tile";
 
 let host = document.createElement("div");
 let animations: Animation[] = [];
+const { animate: nativeAnimate } = HTMLElement.prototype;
 const perspective: BoardPerspective = { bottomSeat: 0, reveal: "all" };
 
 function table(dealt: boolean): TableState {
@@ -402,24 +403,29 @@ async function showPanel(matchResult: boolean, held: boolean): Promise<void> {
     await Promise.resolve();
 }
 
-beforeEach(() => {
-    host = document.createElement("div");
-    document.body.append(host);
-    animations = [];
-    const { animate } = HTMLElement.prototype;
-    vi.spyOn(HTMLElement.prototype, "animate").mockImplementation(function animatePaused(
+function recordAnimations(pauses: (element: HTMLElement) => boolean): void {
+    vi.spyOn(HTMLElement.prototype, "animate").mockImplementation(function animateRecorded(
         this: HTMLElement,
         frames,
         options,
     ) {
-        const animation = animate.call(this, frames, options);
+        const animation = nativeAnimate.call(this, frames, options);
         void animation.finished.catch((error: unknown) => {
             expect(error).toMatchObject({ name: "AbortError" });
         });
-        animation.pause();
+        if (pauses(this)) {
+            animation.pause();
+        }
         animations.push(animation);
         return animation;
     });
+}
+
+beforeEach(() => {
+    host = document.createElement("div");
+    document.body.append(host);
+    animations = [];
+    recordAnimations(() => true);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
         function measureTile(this: HTMLElement) {
             return getBox(this);
@@ -491,6 +497,7 @@ afterEach(() => {
     render(nothing, host);
     host.remove();
     vi.restoreAllMocks();
+    vi.useRealTimers();
 });
 
 describe("shared tile depth", () => {
@@ -929,11 +936,11 @@ function returnOf(animation: Animation | undefined): readonly unknown[] {
     ];
 }
 
-function gapReturn(delay: number): readonly unknown[] {
+function gapReturn(): readonly unknown[] {
     return [
         [LATEST_GAP, LATEST_GAP],
         "translate(0px, 0px)",
-        delay,
+        0,
         BOARD_MOTION.gapReturn,
         BOARD_MOTION.settleEasing,
     ];
@@ -975,11 +982,72 @@ describe("latest discard gap", () => {
         ]).toEqual([
             flight.length + 2,
             flight.map(() => "paused"),
-            gapReturn(BOARD_MOTION.landing + BOARD_MOTION.drawHold - 50),
+            gapReturn(),
             BOARD_MOTION.landing + BOARD_MOTION.drawHold - 50,
             BOARD_MOTION.ghosts.map(() => [`${115 + LATEST_GAP}px`, `${320 + LATEST_GAP}px`]),
             1,
         ]);
+    });
+});
+
+const PENDING_RETURN_MS = BOARD_MOTION.landing + BOARD_MOTION.drawHold - 50;
+
+function inBottomRiver(element: HTMLElement): boolean {
+    return element.closest("[data-area='bottom-discards']") !== null;
+}
+
+function riverSlotAnimations(): Animation[] {
+    return animations.filter((animation) => {
+        const target = targetOf(animation);
+        return target instanceof HTMLElement && inBottomRiver(target);
+    });
+}
+
+async function startPendingReturn(sequence: number): Promise<() => Promise<void>> {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const view = { view: bottomOnly };
+    const riichi = discardDraw(table(true), true);
+    await show(drawn(table(true)), { mode: "reset", sequence }, view);
+    await show(riichi, { mode: "step", sequence: sequence + 1 }, view);
+    now.mockReturnValue(1050);
+    const cue = { mode: "step", sequence: sequence + 2 } as const;
+    await show(opponentDrew(riichi), cue, view);
+    return () => show(opponentDrew(riichi), cue, view);
+}
+
+async function cancelledReturnState(): Promise<AnimationPlayState | undefined> {
+    await startPendingReturn(3);
+    const pending = riverSlotAnimations().at(-1);
+    render(nothing, host);
+    vi.advanceTimersByTime(PENDING_RETURN_MS + 1);
+    return pending?.playState;
+}
+
+describe("delayed slot release", () => {
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        recordAnimations((element) => !inBottomRiver(element));
+    });
+
+    it("holds a delayed return paused at its start until its deadline, releases the same animation through a redraw, and never releases one cancelled", async () => {
+        const redraw = await startPendingReturn(0);
+        const [pending] = riverSlotAnimations();
+        const waiting = [
+            pending?.effect?.getTiming().delay,
+            pending?.currentTime,
+            pending?.playState,
+        ];
+        vi.advanceTimersByTime(PENDING_RETURN_MS - 1);
+        await redraw();
+        const beforeDeadline = pending?.playState;
+        vi.advanceTimersByTime(1);
+        expect([
+            waiting,
+            beforeDeadline,
+            riverSlotAnimations(),
+            pending?.playState,
+            await cancelledReturnState(),
+        ]).toEqual([[0, 0, "paused"], "paused", [pending], "running", "idle"]);
     });
 });
 
@@ -1152,7 +1220,7 @@ describe("settling river depth", () => {
         await show(opponentDrew(discarded), { mode: "step", sequence: 2 });
         const slot = host.querySelector(".discard-tile[data-tile-id='120']");
         expect(returnOf(animations.findLast((animation) => targetOf(animation) === slot))).toEqual(
-            gapReturn(0),
+            gapReturn(),
         );
     });
 });

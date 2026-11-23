@@ -24,6 +24,19 @@ interface TileReflow {
     visible: MotionRect;
 }
 
+interface ReleaseGroup {
+    readonly members: Set<TileReflow>;
+    readonly timer: ReturnType<typeof setTimeout>;
+}
+
+/** One played plan's pending releases, a group per planned delay, so the slots sharing a delay start together. */
+export type SlotReleases = Map<number, ReleaseGroup>;
+
+export interface ReflowScene {
+    readonly after: ReadonlyMap<string, TileSnapshot>;
+    readonly releases: SlotReleases;
+}
+
 /** How far a tile starts from its slot in its frame (px): the screen's offset of their centres, unscaled and turned. */
 function localOffset(from: MotionRect, target: TileSnapshot): readonly [number, number] {
     const angle = (SEAT_TURNS[target.seat] * Math.PI) / 180;
@@ -134,7 +147,7 @@ function animateSlot(
     { delay, duration, kind }: TileMotion,
 ): { readonly animation: Animation; readonly effect: KeyframeEffect } {
     const animation = slot.animate(frames, {
-        delay,
+        delay: 0,
         duration,
         easing: settles(kind) ? BOARD_MOTION.settleEasing : BOARD_MOTION.slotEasing,
         fill: "both",
@@ -142,6 +155,10 @@ function animateSlot(
     if (!(animation.effect instanceof KeyframeEffect)) {
         animation.cancel();
         throw new Error("Tile reflow requires a keyframe effect");
+    }
+    if (delay > 0) {
+        animation.pause();
+        animation.currentTime = 0;
     }
     return { animation, effect: animation.effect };
 }
@@ -152,6 +169,8 @@ export class TileReflowPlayer {
     private readonly parted = new Set<HTMLElement>();
 
     private readonly holeHands = new Map<SeatPosition, ReadonlySet<string>>();
+
+    private readonly releases = new Set<ReleaseGroup>();
 
     get suspended(): boolean {
         return [...this.running.values()].some(({ effect }) => effect.target === null);
@@ -216,7 +235,7 @@ export class TileReflowPlayer {
         active.effect.target = next.element.parentElement;
     }
 
-    play(motion: TileMotion, from: MotionRect, after: ReadonlyMap<string, TileSnapshot>): void {
+    play(motion: TileMotion, from: MotionRect, { after, releases }: ReflowScene): void {
         const target = after.get(motion.target);
         const slot = target?.element.parentElement ?? null;
         if (target === undefined || slot === null) {
@@ -225,24 +244,59 @@ export class TileReflowPlayer {
         this.keepHoleHand(target, after);
         const offset = localOffset(from, target);
         const { animation, effect } = animateSlot(slot, reflowFrames(offset, from, target), motion);
-        this.running.set(motion.target, {
-            animation,
-            effect,
-            hand: handOf(target),
-            shift: {
-                across: offset[0],
-                delay: motion.delay,
-                down: offset[1],
-                duration: motion.duration,
+        this.track(
+            {
+                animation,
+                effect,
+                hand: handOf(target),
+                shift: {
+                    across: offset[0],
+                    delay: motion.delay,
+                    down: offset[1],
+                    duration: motion.duration,
+                },
+                target,
+                visible: from,
             },
-            target,
-            visible: from,
-        });
+            releases,
+        );
+    }
+
+    private track(active: TileReflow, releases: SlotReleases): void {
+        const { key } = active.target;
+        this.running.set(key, active);
+        if (active.shift.delay > 0) {
+            this.releaseGroup(releases, active.shift.delay).members.add(active);
+        }
         this.markPartedSlots();
-        animation.onfinish = () => {
-            this.stop(motion.target);
+        active.animation.onfinish = () => {
+            this.stop(key);
             this.markPartedSlots();
         };
+    }
+
+    private releaseGroup(releases: SlotReleases, delay: number): ReleaseGroup {
+        const pending = releases.get(delay);
+        if (pending !== undefined && this.releases.has(pending)) {
+            return pending;
+        }
+        const group: ReleaseGroup = {
+            members: new Set(),
+            timer: setTimeout(() => this.release(group), delay),
+        };
+        releases.set(delay, group);
+        this.releases.add(group);
+        return group;
+    }
+
+    private release(group: ReleaseGroup): void {
+        this.releases.delete(group);
+        for (const member of group.members) {
+            if (this.running.get(member.target.key) === member) {
+                member.animation.play();
+            }
+        }
+        group.members.clear();
     }
 
     private keepHoleHand(target: TileSnapshot, after: ReadonlyMap<string, TileSnapshot>): void {
@@ -257,6 +311,16 @@ export class TileReflowPlayer {
             active.animation.onfinish = null;
             active.animation.cancel();
             this.running.delete(key);
+            this.leaveRelease(active);
+        }
+    }
+
+    private leaveRelease(active: TileReflow): void {
+        for (const group of this.releases) {
+            if (group.members.delete(active) && group.members.size === 0) {
+                clearTimeout(group.timer);
+                this.releases.delete(group);
+            }
         }
     }
 
@@ -264,6 +328,10 @@ export class TileReflowPlayer {
         for (const key of this.running.keys()) {
             this.stop(key);
         }
+        for (const group of this.releases) {
+            clearTimeout(group.timer);
+        }
+        this.releases.clear();
         this.holeHands.clear();
         this.markPartedSlots();
     }

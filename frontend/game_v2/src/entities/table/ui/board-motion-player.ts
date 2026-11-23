@@ -7,7 +7,7 @@ import {
 
 import { type TilePose, type TileSnapshot, snapshotTiles } from "./board-motion-snapshot";
 import { TileHoldPlayer } from "./tile-hold-player";
-import { TileReflowPlayer } from "./tile-reflow-player";
+import { type ReflowScene, TileReflowPlayer } from "./tile-reflow-player";
 import { TileRevealPlayer } from "./tile-reveal-player";
 
 interface Flight {
@@ -20,9 +20,8 @@ interface Flight {
     readonly motion: TileMotion;
 }
 
-interface Scene {
+interface Scene extends ReflowScene {
     readonly before: ReadonlyMap<string, TileSnapshot>;
-    readonly after: ReadonlyMap<string, TileSnapshot>;
     readonly box: MotionRect;
 }
 
@@ -164,6 +163,7 @@ export class BoardMotionPlayer {
             after: new Map(after.map((tile) => [tile.key, tile])),
             before: this.currentSources(before),
             box,
+            releases: new Map(),
         };
         this.hold.cancel();
         this.reconcile(scene.after, plan);
@@ -265,7 +265,7 @@ export class BoardMotionPlayer {
         }
         const flight = createFlight(motion, scene, target);
         if (flight !== null) {
-            this.playMove(flight, target, scene.after);
+            this.playMove(flight, target, scene);
         }
     }
 
@@ -280,11 +280,7 @@ export class BoardMotionPlayer {
         }
     }
 
-    private playMove(
-        flight: Flight,
-        target: TileSnapshot,
-        after: ReadonlyMap<string, TileSnapshot>,
-    ): void {
+    private playMove(flight: Flight, target: TileSnapshot, scene: ReflowScene): void {
         if (flight.motion.kind === "flight") {
             this.playFlight(flight, target);
             return;
@@ -295,7 +291,7 @@ export class BoardMotionPlayer {
                 (flight.fromPose.angle - flight.toPose.angle) % 360 === 0) ||
             (target.region === "discards" && hasSamePose(flight.fromPose, flight.toPose))
         ) {
-            this.reflow.play(flight.motion, flight.from, after);
+            this.reflow.play(flight.motion, flight.from, scene);
         }
     }
 
