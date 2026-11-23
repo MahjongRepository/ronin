@@ -281,7 +281,7 @@ export class BoardMotionPlayer {
         for (const sprite of start.sprites.filter((running) => this.sprites.has(running))) {
             startAt(sprite.animation, at);
         }
-        for (const motion of start.landings) {
+        for (const motion of start.landings.filter((landing) => this.flies(landing, start))) {
             this.land(motion, now);
         }
         for (const { held, motion, seat } of start.holds) {
@@ -297,6 +297,12 @@ export class BoardMotionPlayer {
             : motion;
     }
 
+    private flies({ target }: TileMotion, { sprites, waits }: PlanStart): boolean {
+        return (
+            !waits || sprites.some((sprite) => sprite.key === target && this.sprites.has(sprite))
+        );
+    }
+
     private land(motion: TileMotion, now: number): void {
         const landsIn = motion.delay + BOARD_MOTION.landing;
         this.discardLandingAt = now + landsIn;
@@ -306,7 +312,7 @@ export class BoardMotionPlayer {
             }
         }
         this.landedAt.set(motion.target, now + landsIn);
-        this.onDiscardLanding?.(landsIn);
+        this.onDiscardLanding?.(Math.max(0, now + landsIn - performance.now()));
     }
 
     private returnDelay(returns: readonly TileMotion[], now: number): number {

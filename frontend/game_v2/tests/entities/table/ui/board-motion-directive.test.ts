@@ -23,6 +23,7 @@ import { Discards, Hand, type HandTile, Meld } from "@/entities/tile";
 let host = document.createElement("div");
 let animations: Animation[] = [];
 const frameRequests = new Map<number, FrameRequestCallback>();
+let discardLandings: number[] = [];
 let frameRequestCount = 0;
 const { animate: nativeAnimate } = HTMLElement.prototype;
 const perspective: BoardPerspective = { bottomSeat: 0, reveal: "all" };
@@ -102,6 +103,7 @@ function draw(
             animationsOn,
             debug: false,
             motion: cue,
+            onDiscardLanding: (inMs) => discardLandings.push(inMs),
             state: tableStateToDisplayState(state, view),
         }),
         host,
@@ -129,12 +131,12 @@ function getBox(element: HTMLElement): DOMRect {
     return new DOMRect(100 + index * 32 + gap, (area.endsWith("hand") ? 600 : 300) + gap, 30, 40);
 }
 
-function runFrames(count = 2): void {
+function runFrames(count = 2, stamp?: number): void {
     for (let frame = 0; frame < count; frame += 1) {
         const due = [...frameRequests.values()];
         frameRequests.clear();
         for (const callback of due) {
-            callback(performance.now());
+            callback(stamp ?? performance.now());
         }
     }
 }
@@ -438,6 +440,7 @@ beforeEach(() => {
     host = document.createElement("div");
     document.body.append(host);
     animations = [];
+    discardLandings = [];
     frameRequests.clear();
     vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
         frameRequestCount += 1;
@@ -825,9 +828,9 @@ function flies(animation: Animation): boolean {
     return targetOf(animation)?.matches(".board-motion > *") === true;
 }
 
-function runFrameAt(now: number): void {
+function runFrameAt(stamp: number, now = stamp): void {
     vi.mocked(performance.now).mockReturnValue(now);
-    runFrames(1);
+    runFrames(1, stamp);
 }
 
 const WAITING_GHOSTS = BOARD_MOTION.ghosts.map(() => ["paused", 0]);
@@ -851,7 +854,7 @@ async function paintThenStartOpponentTedashi() {
     for (const ghost of ghosts) {
         vi.spyOn(ghost, "play").mockImplementation(() => {});
     }
-    runFrameAt(1033);
+    runFrameAt(1033, 1040);
     return { discarded, ghosts, painted, played };
 }
 
@@ -867,6 +870,36 @@ function startTimesAround(
     return [before, moving.map((animation) => animation.startTime)];
 }
 
+function topPonOf(state: TableState): TableState {
+    return {
+        ...state,
+        lastDiscardSeat: null,
+        players: state.players.map((player) => {
+            if (player.seat === 1) {
+                return {
+                    ...player,
+                    discards: player.discards.map((discard) => ({ ...discard, claimed: true })),
+                };
+            }
+            return player.seat === 2
+                ? {
+                      ...player,
+                      melds: [
+                          {
+                              calledTileId: 121,
+                              callerSeat: 2,
+                              fromSeat: 1,
+                              meldType: "pon",
+                              tileIds: [121, 64, 65],
+                          },
+                      ],
+                      tiles: player.tiles.filter((tileId) => tileId !== 64 && tileId !== 65),
+                  }
+                : player;
+        }),
+    };
+}
+
 describe("opponent tedashi hole", () => {
     beforeEach(() => {
         vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -880,6 +913,7 @@ describe("opponent tedashi hole", () => {
         expect([
             [played, painted],
             ghosts.map((animation) => animation.startTime),
+            discardLandings,
             closes.length > 1,
             closes[0]?.effect?.getTiming().easing,
             vi.getTimerCount(),
@@ -889,6 +923,7 @@ describe("opponent tedashi hole", () => {
                 [WAITING_GHOSTS, 0],
             ],
             BOARD_MOTION.ghosts.map(() => 1033),
+            [1033 + BOARD_MOTION.landing - 1040],
             true,
             BOARD_MOTION.settleEasing,
             1,
@@ -911,6 +946,16 @@ describe("opponent tedashi hole", () => {
             ),
             vi.getTimerCount(),
         ]).toEqual([true, [], 0]);
+    });
+
+    it("reports no landing for a waiting discard a pon claims before its start", async () => {
+        const discarded = await showOpponentTedashi();
+        const ghosts = animations.filter(flies);
+        await show(topPonOf(discarded), { mode: "step", sequence: 3 }, { view: bottomOnly });
+        expect([ghosts.map((ghost) => ghost.playState), discardLandings]).toEqual([
+            ghosts.map(() => "idle"),
+            [],
+        ]);
     });
 
     it("starts a waiting discard at once when the page hides, its paint never coming", async () => {

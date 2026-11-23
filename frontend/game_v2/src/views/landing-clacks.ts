@@ -7,6 +7,8 @@ interface PendingCues {
     readonly cancel: CancelTimer;
     readonly lead: SoundCue;
     readonly cues: SoundCue[];
+    /** The waiting clack this tick follows, which moves it along. */
+    readonly follows: PendingCues | null;
 }
 
 export class LandingClacks {
@@ -44,20 +46,22 @@ export class LandingClacks {
         }
         const shift = this.clock.now() + inMs - clack.at;
         this.clackAt = clack.at + shift;
-        this.postpone(
-            this.pending.filter((pending) => pending.at >= clack.at),
-            shift,
-        );
+        const ticks = this.pending.filter((pending) => pending.follows === clack);
+        this.drop([clack, ...ticks]);
+        const moved = this.playLater(clack.at + shift - this.clock.now(), clack.lead, clack);
+        for (const tick of ticks) {
+            this.playLater(tick.at + shift - this.clock.now(), tick.lead, {
+                ...tick,
+                follows: moved,
+            });
+        }
     }
 
-    private postpone(moved: readonly PendingCues[], shift: number): void {
-        for (const pending of moved) {
+    private drop(dropped: readonly PendingCues[]): void {
+        for (const pending of dropped) {
             pending.cancel();
         }
-        this.pending = this.pending.filter((pending) => !moved.includes(pending));
-        for (const pending of moved) {
-            this.playLater(pending.at + shift - this.clock.now(), pending.lead, pending.cues);
-        }
+        this.pending = this.pending.filter((pending) => !dropped.includes(pending));
     }
 
     landNow(): void {
@@ -97,13 +101,18 @@ export class LandingClacks {
     private drawAfterClack(drawHoldMs: number): void {
         const wait = this.clackAt === null ? 0 : this.clackAt + drawHoldMs - this.clock.now();
         if (wait > 0) {
-            this.playLater(wait, "draw");
+            const clack = this.pending.findLast((pending) => pending.lead === "discard");
+            this.playLater(wait, "draw", { follows: clack ?? null });
         } else {
             this.sound.play("draw");
         }
     }
 
-    private playLater(delayMs: number, lead: SoundCue, cues: SoundCue[] = [lead]): void {
+    private playLater(
+        delayMs: number,
+        lead: SoundCue,
+        { cues = [lead], follows = null }: Partial<Pick<PendingCues, "cues" | "follows">> = {},
+    ): PendingCues {
         const pending: PendingCues = {
             at: this.clock.now() + delayMs,
             cancel: this.clock.setTimer(delayMs, () => {
@@ -111,8 +120,10 @@ export class LandingClacks {
                 cues.forEach(this.sound.play);
             }),
             cues,
+            follows,
             lead,
         };
         this.pending = [...this.pending, pending];
+        return pending;
     }
 }
