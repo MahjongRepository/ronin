@@ -13,7 +13,7 @@ export const BOARD_MOTION = {
     discardSolidFrom: 0.6,
     drawHold: 450,
     flight: FLIGHT,
-    gapReturn: 240,
+    gapReturn: 120,
     ghosts: GHOSTS,
     handClose: 240,
     handReflow: 300,

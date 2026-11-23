@@ -334,7 +334,7 @@ as a number, not seen, so the count turns red from ten tiles left.
 - **Latest discard.** Decision: every newest discard lands in its gap and stays there until 330ms after it lands
   or the next draw arrives, whichever is later (the next seat's held draw appears 450ms after it lands), or for as
   long as a call on it is being decided, whether or not the viewer
-  has an offer on it; then it slides back into line over 240ms, starting and stopping gently, never outward. The gap is small and reads the same from every
+  has an offer on it; then it slides back into line over 120ms, starting and stopping gently, never outward. The gap is small and reads the same from every
   seat: the same felt between painted bodies before it along its row and toward its seat (7px off a phone; a phone's
   scaled to its river tile, 7px per 50px, never under 2px), as a tile just thrown lies, with no ring, pointer or
   colour. Where the move borders an earlier tile on the screen's vertical (a side river's row past its first tile, a
@@ -646,7 +646,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   and at once with no discard still landing (at once in a replay). The dealer's opening draw, the viewer's included, appears 300ms after it reaches the board, so the
   13 dealt tiles show alone first (at once in a replay). Discards travel from hand
   to river in 150ms at a constant speed, stopping in their slot, the latest in its gap; it stays there until 330ms after landing or the
-  next draw's arrival, whichever is later, or while a call on it is being decided, then slides back into line over 240ms, starting and stopping gently.
+  next draw's arrival, whichever is later, or while a call on it is being decided, then slides back into line over 120ms, starting and stopping gently.
   A travelling tile is three faint shadowless copies, 12ms apart, in its destination's look from take-off: its body
   (a discard leaves the hand as the lying river tile, a riichi discard already sideways, a call into the own melds as
   the lying own meld tile), its size and its turn. Nothing
