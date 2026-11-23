@@ -59,8 +59,7 @@ type PageControlCommand = Extract<
             | "toggle_settings"
             | "close_settings"
             | "toggle_sound"
-            | "toggle_animations"
-            | "toggle_discard_slide";
+            | "toggle_animations";
     }
 >;
 
@@ -85,18 +84,12 @@ function pageControlsUi(ui: PlayUi, command: PageControlCommand): PlayUi {
         }
         default: {
             const { menu } = stepSettingsMenu(
-                {
-                    animationsOn: ui.animationsOn,
-                    discardSlideOn: ui.discardSlideOn,
-                    open: ui.settingsOpen,
-                    soundOn: ui.soundOn,
-                },
+                { animationsOn: ui.animationsOn, open: ui.settingsOpen, soundOn: ui.soundOn },
                 command.kind,
             );
             return {
                 ...ui,
                 animationsOn: menu.animationsOn,
-                discardSlideOn: menu.discardSlideOn,
                 settingsOpen: menu.open,
                 soundOn: menu.soundOn,
             };
@@ -161,8 +154,7 @@ function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): P
         case "toggle_settings":
         case "close_settings":
         case "toggle_sound":
-        case "toggle_animations":
-        case "toggle_discard_slide": {
+        case "toggle_animations": {
             return pageControlsUi(ui, command);
         }
         case "arm_tile":

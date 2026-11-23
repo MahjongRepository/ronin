@@ -1242,29 +1242,7 @@ describe("mountGameView settings", () => {
             JSON.parse(localStorage.getItem(MOTION_SETTING_KEY) ?? "null"),
             motionOf(first.host),
             motionOf(next.host),
-        ]).toEqual([null, { animations: false, discardSlide: true }, "off", "off"]);
-    });
-
-    it("draws the last discard in line once its slide is turned off from the cog, keeping the animations and the setting across mounts", () => {
-        onTestFinished(() => localStorage.removeItem(MOTION_SETTING_KEY));
-        const motionSetting = localStore(
-            MOTION_SETTING_KEY,
-            readMotionSetting,
-            DEFAULT_MOTION_SETTING,
-        );
-        const first = mountInDocumentAtCallPrompt({ motionSetting });
-        press(first.host, ".game-menu__toggle");
-        const before = first.host.querySelectorAll(".discard-tile--last").length;
-        press(first.host, ".game-menu__discard-slide");
-        const next = mountInDocumentAtCallPrompt({ motionSetting });
-
-        expect([
-            before,
-            JSON.parse(localStorage.getItem(MOTION_SETTING_KEY) ?? "null"),
-            first.host.querySelector(".game-menu__discard-slide")?.getAttribute("aria-checked"),
-            first.host.querySelectorAll(".discard-tile--last").length,
-            next.host.querySelectorAll(".discard-tile--last").length,
-        ]).toEqual([1, { animations: true, discardSlide: false }, "false", 0, 0]);
+        ]).toEqual([null, { animations: false }, "off", "off"]);
     });
 
     it("opens the sound switch and the status from the cog, keeps the switch in this browser, and closes on Escape, focusing the cog", () => {
@@ -1388,12 +1366,7 @@ describe("mountGameView sounds", () => {
     it.each([
         [
             "the player keeps animations off",
-            {
-                motionSetting: {
-                    load: () => ({ ...DEFAULT_MOTION_SETTING, animations: false }),
-                    save: () => {},
-                },
-            },
+            { motionSetting: { load: () => ({ animations: false }), save: () => {} } },
         ],
         ["the system reduces motion", { prefersReducedMotion: true }],
     ] as const)("plays a discard's clack at once while %s", (_case, overrides) => {

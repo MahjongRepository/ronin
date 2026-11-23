@@ -1,4 +1,3 @@
-import { MOTION_SETTING_KEY, readMotionSetting } from "@ronin/shared/motion-setting";
 import { SOUND_SETTING_KEY, readSoundSetting } from "@ronin/shared/sound-setting";
 import { WIND_SCRIPT_KEY, pageWindScript } from "@ronin/shared/winds";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -61,19 +60,6 @@ describe("mountSettingsView", () => {
         expect(host.querySelector(".settings-page__sound")?.getAttribute("aria-checked")).toBe(
             "false",
         );
-    });
-
-    it("turns the last discard's slide off in the setting the game reads, keeping the animations", () => {
-        localStorage.setItem(MOTION_SETTING_KEY, JSON.stringify({ animations: false }));
-        const host = settingsPage();
-
-        click(host, ".settings-page__discard-slide");
-
-        const stored: unknown = JSON.parse(localStorage.getItem(MOTION_SETTING_KEY) ?? "null");
-        expect([
-            readMotionSetting(stored),
-            host.querySelector(".settings-page__discard-slide")?.getAttribute("aria-checked"),
-        ]).toEqual([{ animations: false, discardSlide: false }, "false"]);
     });
 
     it("switches the page language and resets the wind letters to the new language's default", () => {

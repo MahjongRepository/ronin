@@ -23,7 +23,6 @@ import {
     nextCountdownChange,
     nextDeadline,
     playDisplay,
-    saveMotionChange,
     serverSilenceLimitMs,
     soundCues,
     startGameClient,
@@ -366,7 +365,6 @@ class GameViewController {
             animationsOn: deps.motionSetting.load().animations,
             browserBars: deps.browserBars.shown(),
             canEnterFullscreen: deps.browserBars.canEnterFullscreen(),
-            discardSlideOn: deps.motionSetting.load().discardSlide,
             ...deps.inputSetting.load(),
             soundOn: deps.sound.setting.load().sound_on,
             tileSprite: deps.tileSprite.status(),
@@ -496,10 +494,7 @@ class GameViewController {
             this.deps.sound.setting.save({ sound_on: this.ui.soundOn });
         }
         if (command.kind === "toggle_animations") {
-            saveMotionChange(this.deps.motionSetting, { animations: this.ui.animationsOn });
-        }
-        if (command.kind === "toggle_discard_slide") {
-            saveMotionChange(this.deps.motionSetting, { discardSlide: this.ui.discardSlideOn });
+            this.deps.motionSetting.save({ animations: this.ui.animationsOn });
         }
         if (command.kind === "toggle_right_click" || command.kind === "toggle_key_hints") {
             this.deps.inputSetting.save({

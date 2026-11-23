@@ -1,5 +1,4 @@
 import {
-    type MotionChange,
     type SettingsMenuCommand,
     type SoundCue,
     moveSoundCues,
@@ -139,7 +138,6 @@ export interface LoadedReplayScreen {
     readonly soundOn: boolean;
     /** Whether the board animates, a setting the live game shares. */
     readonly animationsOn: boolean;
-    readonly discardSlideOn: boolean;
     /** Whether the settings menu in the board's corner is open. */
     readonly settingsOpen: boolean;
     readonly hold: ReplayHold | null;
@@ -181,7 +179,6 @@ export interface ReplayOpening {
     readonly prefs: ReplayPrefs;
     readonly soundOn: boolean;
     readonly animationsOn: boolean;
-    readonly discardSlideOn: boolean;
     readonly roundListOpen: boolean;
     readonly autoplay: boolean;
 }
@@ -264,8 +261,7 @@ type OptionInput =
     | { readonly kind: "toggle_settings" }
     | { readonly kind: "close_settings" }
     | { readonly kind: "toggle_sound" }
-    | { readonly kind: "toggle_animations" }
-    | { readonly kind: "toggle_discard_slide" };
+    | { readonly kind: "toggle_animations" };
 
 type LoadedInput = StepInput | MoveInput | RoundListInput | ToolsInput | OptionInput;
 
@@ -296,7 +292,7 @@ export type ReplayPageEffect =
     | { readonly kind: "copy_text"; readonly text: string }
     | { readonly kind: "open_url"; readonly url: string }
     | { readonly kind: "save_sound"; readonly soundOn: boolean }
-    | { readonly kind: "save_motion"; readonly change: MotionChange }
+    | { readonly kind: "save_animations"; readonly animationsOn: boolean }
     | { readonly kind: "save_prefs"; readonly prefs: ReplayPrefs }
     | { readonly kind: "focus"; readonly target: ReplayFocusTarget }
     | { readonly kind: "fetch_observe"; readonly from: number };
@@ -491,7 +487,6 @@ function loadedScreen(
     return {
         animationsOn: opening.animationsOn,
         autoplay: { dueAt: null, heldUntil: null, playing: false },
-        discardSlideOn: opening.discardSlideOn,
         handCopy: null,
         hideHands: opening.prefs.hideHands,
         hold: null,
@@ -952,12 +947,7 @@ function stepRoundList(screen: LoadedReplayScreen, event: Timed<RoundListInput>)
 /** The settings menu opened or closed, or one of its switches turned, which the view keeps in this browser. */
 function stepSettings(screen: LoadedReplayScreen, command: SettingsMenuCommand): LoadedStep {
     const { menu, saved } = stepSettingsMenu(
-        {
-            animationsOn: screen.animationsOn,
-            discardSlideOn: screen.discardSlideOn,
-            open: screen.settingsOpen,
-            soundOn: screen.soundOn,
-        },
+        { animationsOn: screen.animationsOn, open: screen.settingsOpen, soundOn: screen.soundOn },
         command,
     );
     if (saved === "sound") {
@@ -966,11 +956,10 @@ function stepSettings(screen: LoadedReplayScreen, command: SettingsMenuCommand):
             screen: { ...screen, soundOn: menu.soundOn },
         };
     }
-    if (saved !== null) {
-        const { animationsOn, discardSlideOn } = menu;
+    if (saved === "animations") {
         return {
-            effects: [{ change: saved.motion, kind: "save_motion" }],
-            screen: { ...screen, animationsOn, discardSlideOn },
+            effects: [{ animationsOn: menu.animationsOn, kind: "save_animations" }],
+            screen: { ...screen, animationsOn: menu.animationsOn },
         };
     }
     return quiet(
@@ -987,7 +976,6 @@ const KEEPS_SETTINGS: ReadonlySet<LoadedInput["kind"]> = new Set([
     "close_settings",
     "toggle_sound",
     "toggle_animations",
-    "toggle_discard_slide",
     "tick",
     "hand_copy",
     "page_hide",

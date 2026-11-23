@@ -51,7 +51,6 @@ interface GameBoardProps {
     readonly motion?: BoardMotionCue;
     /** Whether the player leaves the board's animations on; on when omitted. */
     readonly animationsOn?: boolean;
-    readonly discardSlide?: boolean;
     readonly debug: boolean;
     readonly overlay?: TemplateResult;
     readonly state: BoardDisplayState | null;
@@ -138,16 +137,9 @@ const RIVER_OVERFLOW: Readonly<Record<SeatPosition, RiverOverflow>> = {
  * A seat's river: its area the turned footprint of a normal river at its place in the pinwheel, its frame turned to the
  * seat from the area's corner where the first row starts.
  */
-function River(
-    seat: SeatPosition,
-    player: BoardPlayerDisplay | null,
-    latestApart: boolean,
-): TemplateResult {
-    const discards = latestApart
-        ? player?.discards
-        : player?.discards.map((tile) => ({ ...tile, last: false }));
+function River(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
     return html`<div class="board-area board-river board-river--${seat}" data-area="${seat}-discards">
-        <div class="board-river__frame">${discards ? Discards(discards, RIVER_OVERFLOW[seat], SEAT_TURNS[seat]) : ""}</div>
+        <div class="board-river__frame">${player ? Discards(player.discards, RIVER_OVERFLOW[seat], SEAT_TURNS[seat]) : ""}</div>
     </div>`;
 }
 
@@ -467,7 +459,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     ${plates ? html`${plates.right}${plates.top}${plates.left}${plates.bottom}` : ""}
                     <div class="board-surface">
                         <div class="board-rivers">
-                            ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null, props.discardSlide !== false))}
+                            ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
                         </div>
                         ${state ? CenterInfo(state, onView, props.replay?.live === true) : EmptyCenterArea()}
                         <div class="board-strips">

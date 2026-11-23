@@ -41,7 +41,6 @@ export type PlayCommand =
     | { readonly kind: "close_settings" }
     | { readonly kind: "toggle_sound" }
     | { readonly kind: "toggle_animations" }
-    | { readonly kind: "toggle_discard_slide" }
     | { readonly kind: "toggle_right_click" }
     | { readonly kind: "toggle_key_hints" }
     | { readonly kind: "reload" }
@@ -93,7 +92,6 @@ export interface PlayUi {
     readonly settingsOpen: boolean;
     readonly soundOn: boolean;
     readonly animationsOn: boolean;
-    readonly discardSlideOn: boolean;
     readonly rightClick: boolean;
     /** The decision controls show their digit keys, a setting the page keeps in this browser. */
     readonly keyHints: boolean;
@@ -111,7 +109,6 @@ export const NO_PLAY_UI: PlayUi = {
     canEnterFullscreen: false,
     confirmingLeave: false,
     controlsHelp: false,
-    discardSlideOn: DEFAULT_MOTION_SETTING.discardSlide,
     keyHints: DEFAULT_INPUT_SETTING.keyHints,
     noticeSheet: null,
     resultPage: null,

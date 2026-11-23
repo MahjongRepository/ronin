@@ -23,7 +23,6 @@
             {
                 "capIsNewExceptions": [
                     "AnimationsRow",
-                    "DiscardSlideRow",
                     "InputRows",
                     "KeepAutoWinRow",
                     "LanguageRow",

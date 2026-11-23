@@ -50,8 +50,6 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   start time to the timeline's current time and never uses `play()`: WebKit keeps the creation start on `play()` while
   another animation runs, so the slide would finish at once. Board-motion release
   timing is presentation only and runs on the `performance.now` timeline, never `browserClock`.
-- With the player's discard slide off (GameBoard's `discardSlide`), the rivers draw the latest discard without its
-  `discard-tile--last` mark, so it lies in its slot and the planner sees no gap to return from.
 - The seating panel is the game's start and its end: the seats in wind order with the round on the table (live, the
   client's opening screen over the dealt table, `tableSeatingPanel`; a replay's start), then in placement order with
   their scores and uma/oka results once the game ends. `tablePanel` itself shows nothing before the first deal.

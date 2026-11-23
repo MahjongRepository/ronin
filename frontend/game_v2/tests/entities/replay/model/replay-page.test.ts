@@ -48,15 +48,7 @@ function opened(
         at: 0,
         fetched: { content: engineReplayBytes(name), ok: true },
         kind: "fetched",
-        opening: {
-            animationsOn,
-            autoplay,
-            discardSlideOn: true,
-            prefs,
-            roundListOpen: false,
-            search,
-            soundOn,
-        },
+        opening: { animationsOn, autoplay, prefs, roundListOpen: false, search, soundOn },
     });
     assert(screen.kind === "loaded");
     return screen;
@@ -135,7 +127,6 @@ describe("stepReplayPage - loading", () => {
                         opening: {
                             animationsOn: true,
                             autoplay: false,
-                            discardSlideOn: true,
                             prefs: DEFAULT_REPLAY_PREFS,
                             roundListOpen: false,
                             search: "",
@@ -157,7 +148,6 @@ describe("stepReplayPage - loading", () => {
             opening: {
                 animationsOn: true,
                 autoplay: true,
-                discardSlideOn: true,
                 prefs: DEFAULT_REPLAY_PREFS,
                 roundListOpen: false,
                 search: "",
@@ -187,7 +177,6 @@ describe("stepReplayPage - loading", () => {
             opening: {
                 animationsOn: true,
                 autoplay: true,
-                discardSlideOn: true,
                 prefs: { ...DEFAULT_REPLAY_PREFS, hideHands: true },
                 roundListOpen: false,
                 search: "",
@@ -457,20 +446,15 @@ describe("stepReplayPage - sound", () => {
         ]);
     });
 
-    it("turns the animations and then the last discard's slide off, asking the view to keep each turn and leaving the sound alone", () => {
-        const still = step(opened("riichi", "", { soundOn: true }), { kind: "toggle_animations" });
-        const { effects, screen } = step(still.screen, { kind: "toggle_discard_slide" });
+    it("turns the animations off, asking the view to keep the turn and leaving the sound alone", () => {
+        const { effects, screen } = step(opened("riichi", "", { soundOn: true }), {
+            kind: "toggle_animations",
+        });
 
-        expect([
-            still.effects,
-            effects,
-            loaded(screen).discardSlideOn,
-            loaded(screen).soundOn,
-        ]).toEqual([
-            [{ change: { animations: false }, kind: "save_motion" }],
-            [{ change: { discardSlide: false }, kind: "save_motion" }],
+        expect([loaded(screen).animationsOn, loaded(screen).soundOn, effects]).toEqual([
             false,
             true,
+            [{ animationsOn: false, kind: "save_animations" }],
         ]);
     });
 });
@@ -611,7 +595,6 @@ describe("stepReplayPage - settings", () => {
 
 const OBSERVE_OPENING: ObserveOpening = {
     animationsOn: true,
-    discardSlideOn: true,
     prefs: DEFAULT_REPLAY_PREFS,
     roundListOpen: false,
     soundOn: false,

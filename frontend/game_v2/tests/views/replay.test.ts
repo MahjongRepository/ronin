@@ -1066,13 +1066,9 @@ describe("mountReplayView - view", () => {
         ]);
     });
 
-    it("turns the board's animations off from the cog and keeps the setting the live game shares, with the slide another page turned off since", async () => {
+    it("turns the board's animations off from the cog and keeps the setting the live game shares", async () => {
         onTestFinished(() => localStorage.removeItem(MOTION_SETTING_KEY));
         const { host } = await mountLoadedReplay("riichi", "?round=0&step=10");
-        localStorage.setItem(
-            MOTION_SETTING_KEY,
-            JSON.stringify({ animations: true, discardSlide: false }),
-        );
 
         button(host, ".game-menu__toggle").click();
         button(host, ".game-menu__animations").click();
@@ -1080,7 +1076,7 @@ describe("mountReplayView - view", () => {
         expect([
             JSON.parse(localStorage.getItem(MOTION_SETTING_KEY) ?? "null"),
             host.querySelector(".game-board")?.getAttribute("data-motion"),
-        ]).toEqual([{ animations: false, discardSlide: false }, "off"]);
+        ]).toEqual([{ animations: false }, "off"]);
     });
 
     it("switches the page to Russian in place from the cog, its menu open, the position and address kept", async () => {

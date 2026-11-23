@@ -1,7 +1,6 @@
 import { type Locale } from "@ronin/shared/locale";
 import {
     AnimationsRow,
-    DiscardSlideRow,
     InputRows,
     type InputRowsProps,
     KeepAutoWinRow,
@@ -29,7 +28,6 @@ export interface SettingsTabs {
 export interface SettingsProps {
     readonly tabs: SettingsTabs | null;
     readonly animations: SwitchRowProps;
-    readonly discardSlide: SwitchRowProps;
     readonly input: InputRowsProps;
     readonly keepAutoWin: SwitchRowProps;
     readonly onLanguage: (locale: Locale) => void;
@@ -48,7 +46,6 @@ const TAB_LABELS: Record<SettingsTab, MessageKey> = {
 function gameSettingsTemplate(props: SettingsProps): TemplateResult {
     return html`<div class="${BLOCK}__list">
         ${SoundRow(BLOCK, props.sound)} ${AnimationsRow(BLOCK, props.animations)}
-        ${DiscardSlideRow(BLOCK, props.discardSlide)}
         ${TileLabelsRow(BLOCK, props.onTileLabels)} ${KeepAutoWinRow(BLOCK, props.keepAutoWin)}
         ${InputRows(BLOCK, props.input)} ${LanguageRow(BLOCK, props.onLanguage)}
         ${WindsRow(BLOCK, props.onWinds)}

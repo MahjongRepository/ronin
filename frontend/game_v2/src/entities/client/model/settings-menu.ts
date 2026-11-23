@@ -1,22 +1,18 @@
-/** The settings menu in the board's corner: whether it is open, and its sound, animations and discard slide switches. */
-import { type MotionChange } from "@ronin/shared/motion-setting";
-
+/** The settings menu in the board's corner: whether it is open, and its sound and animations switches. */
 export const SETTINGS_FOCUS_KEY = "settings";
 
 export interface SettingsMenu {
     readonly open: boolean;
     readonly soundOn: boolean;
     readonly animationsOn: boolean;
-    readonly discardSlideOn: boolean;
 }
 
-/** The menu's own commands: the cog's toggle, a close (Escape, a click outside it) and its switches. */
+/** The menu's own commands: the cog's toggle, a close (Escape, a click outside it) and its two switches. */
 export type SettingsMenuCommand =
     | "toggle_settings"
     | "close_settings"
     | "toggle_sound"
-    | "toggle_animations"
-    | "toggle_discard_slide";
+    | "toggle_animations";
 
 /**
  * The menu after one of its own commands, and which setting changed and is to be saved; live and the replay share it,
@@ -25,23 +21,12 @@ export type SettingsMenuCommand =
 export function stepSettingsMenu(
     menu: SettingsMenu,
     command: SettingsMenuCommand,
-): {
-    readonly menu: SettingsMenu;
-    readonly saved: "sound" | { readonly motion: MotionChange } | null;
-} {
+): { readonly menu: SettingsMenu; readonly saved: "sound" | "animations" | null } {
     if (command === "toggle_sound") {
         return { menu: { ...menu, soundOn: !menu.soundOn }, saved: "sound" };
     }
     if (command === "toggle_animations") {
-        const animationsOn = !menu.animationsOn;
-        return { menu: { ...menu, animationsOn }, saved: { motion: { animations: animationsOn } } };
-    }
-    if (command === "toggle_discard_slide") {
-        const discardSlideOn = !menu.discardSlideOn;
-        return {
-            menu: { ...menu, discardSlideOn },
-            saved: { motion: { discardSlide: discardSlideOn } },
-        };
+        return { menu: { ...menu, animationsOn: !menu.animationsOn }, saved: "animations" };
     }
     return {
         menu: { ...menu, open: command === "toggle_settings" && !menu.open },
