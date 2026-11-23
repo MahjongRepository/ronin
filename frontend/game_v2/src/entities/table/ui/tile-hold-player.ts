@@ -29,7 +29,8 @@ export class TileHoldPlayer {
         }
     }
 
-    play(key: string, target: HTMLElement, ms: number): void {
+    /** Hides the tile at `key` until its plan starts the hold. */
+    play(key: string, target: HTMLElement, ms: number): Animation {
         this.stop(key);
         const animation = target.animate([{ visibility: "hidden" }, { visibility: "hidden" }], {
             duration: ms,
@@ -39,8 +40,26 @@ export class TileHoldPlayer {
             animation.cancel();
             throw new Error("Tile hold requires a keyframe effect");
         }
+        animation.pause();
+        animation.currentTime = 0;
         this.running.set(key, { animation, effect: animation.effect });
         animation.onfinish = () => this.stop(key);
+        return animation;
+    }
+
+    /** Keeps the tile hidden for `ms` from `at`, or shows it now when no wait is left. */
+    start(animation: Animation, ms: number, at: number): void {
+        const [key, active] =
+            [...this.running].find(([, hold]) => hold.animation === animation) ?? [];
+        if (key === undefined || active === undefined) {
+            return;
+        }
+        if (ms <= 0) {
+            this.stop(key);
+            return;
+        }
+        active.effect.updateTiming({ duration: ms });
+        animation.startTime = at;
     }
 
     private stop(key: string): void {

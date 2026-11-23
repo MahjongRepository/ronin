@@ -22,6 +22,8 @@ import { Discards, Hand, type HandTile, Meld } from "@/entities/tile";
 
 let host = document.createElement("div");
 let animations: Animation[] = [];
+const frameRequests = new Map<number, FrameRequestCallback>();
+let frameRequestCount = 0;
 const { animate: nativeAnimate } = HTMLElement.prototype;
 const perspective: BoardPerspective = { bottomSeat: 0, reveal: "all" };
 
@@ -127,6 +129,16 @@ function getBox(element: HTMLElement): DOMRect {
     return new DOMRect(100 + index * 32 + gap, (area.endsWith("hand") ? 600 : 300) + gap, 30, 40);
 }
 
+function runFrames(count = 2): void {
+    for (let frame = 0; frame < count; frame += 1) {
+        const due = [...frameRequests.values()];
+        frameRequests.clear();
+        for (const callback of due) {
+            callback(performance.now());
+        }
+    }
+}
+
 async function show(
     state: TableState,
     cue: BoardMotionCue,
@@ -134,6 +146,7 @@ async function show(
 ): Promise<void> {
     draw(state, cue, options);
     await Promise.resolve();
+    runFrames();
 }
 
 function finishAll(): void {
@@ -425,6 +438,15 @@ beforeEach(() => {
     host = document.createElement("div");
     document.body.append(host);
     animations = [];
+    frameRequests.clear();
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
+        frameRequestCount += 1;
+        frameRequests.set(frameRequestCount, callback);
+        return frameRequestCount;
+    });
+    vi.spyOn(globalThis, "cancelAnimationFrame").mockImplementation((id) => {
+        frameRequests.delete(id);
+    });
     recordAnimations(() => true);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
         function measureTile(this: HTMLElement) {
@@ -790,8 +812,31 @@ async function showOpponentTedashi(): Promise<TableState> {
     await show(dealt, { mode: "reset", sequence: 0 }, view);
     await show(opponentDrew(dealt), { mode: "step", sequence: 1 }, view);
     const discarded = opponentTedashi(opponentDrew(dealt));
-    await show(discarded, { mode: "step", sequence: 2 }, view);
+    draw(discarded, { mode: "step", sequence: 2 }, view);
+    await Promise.resolve();
     return discarded;
+}
+
+function flies(animation: Animation): boolean {
+    return targetOf(animation)?.matches(".board-motion > *") === true;
+}
+
+function runFrameAt(now: number): void {
+    vi.mocked(performance.now).mockReturnValue(now);
+    runFrames(1);
+}
+
+async function paintThenStartOpponentTedashi() {
+    const discarded = await showOpponentTedashi();
+    const ghosts = animations.filter(flies);
+    const played = [ghosts.map((animation) => animation.startTime), vi.getTimerCount()];
+    runFrameAt(1016);
+    const painted = [ghosts.map((animation) => animation.startTime), vi.getTimerCount()];
+    for (const ghost of ghosts) {
+        vi.spyOn(ghost, "play").mockImplementation(() => {});
+    }
+    runFrameAt(1033);
+    return { discarded, ghosts, painted, played };
 }
 
 describe("opponent tedashi hole", () => {
@@ -800,15 +845,25 @@ describe("opponent tedashi hole", () => {
         vi.spyOn(performance, "now").mockReturnValue(1000);
     });
 
-    it("keeps the hole through another seat's draw and closes it at once when the discarder draws again", async () => {
+    it("starts the discard and arms its hole's close on the frame after the one that first paints them, keeps the hole through another seat's draw and closes it at once when the discarder draws again", async () => {
         const view = { view: bottomOnly };
-        const discarded = await showOpponentTedashi();
+        const { discarded, ghosts, painted, played } = await paintThenStartOpponentTedashi();
         const closes = animations.filter(movesOpponentHandSlot);
         expect([
+            played[1],
+            painted,
+            ghosts.map((animation) => animation.startTime),
             closes.length > 1,
             closes[0]?.effect?.getTiming().easing,
             vi.getTimerCount(),
-        ]).toEqual([true, BOARD_MOTION.settleEasing, 1]);
+        ]).toEqual([
+            0,
+            played,
+            BOARD_MOTION.ghosts.map(() => 1033),
+            true,
+            BOARD_MOTION.settleEasing,
+            1,
+        ]);
         const nextDrew = opponentDrew(discarded, 2);
         await show(nextDrew, { mode: "step", sequence: 3 }, view);
         expect([

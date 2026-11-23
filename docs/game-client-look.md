@@ -653,7 +653,8 @@ as a number, not seen, so the count turns red from ten tiles left.
   settles rather than pops in. The solid tile appears in its slot when the middle copy lands, and
   a replay's tsumogiri shade stays on the copies. The body
   flies upright on the screen in its slot's orientation, so the light and the edge stay fixed to the screen. A
-  flight a later update touches lands at once and any further move starts from its slot. Rearranging hands, settling
+  flight a later update touches lands at once and any further move starts from its slot. An update's moves take off
+  together on the frame after the one that first shows them, so a flight's first moving frame is one frame along. Rearranging hands, settling
   discards and moving or resizing laid melds animate their actual tile wrappers inside their group, retaining its
   shared edge and shadow and native button feedback. Meld resizing keeps its tiles moving and scaling together
   under that shared shadow. A settling discard whose size or turn changes, or a laid meld tile whose turn changes,

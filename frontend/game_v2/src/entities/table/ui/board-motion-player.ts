@@ -4,6 +4,7 @@ import {
     type TileMotion,
     drawHoldAfterLanding,
 } from "@/entities/table/lib/board-motion";
+import { type SeatPosition } from "@/entities/table/model/board-types";
 
 import { type TilePose, type TileSnapshot, snapshotTiles } from "./board-motion-snapshot";
 import { TileHoldPlayer } from "./tile-hold-player";
@@ -20,9 +21,18 @@ interface Flight {
     readonly motion: TileMotion;
 }
 
+interface PendingHold {
+    readonly animation: Animation;
+    readonly motion: TileMotion;
+    readonly seat: SeatPosition;
+}
+
 interface Scene extends ReflowScene {
     readonly before: ReadonlyMap<string, TileSnapshot>;
     readonly box: MotionRect;
+    readonly sprites: RunningSprite[];
+    readonly holds: PendingHold[];
+    readonly landings: TileMotion[];
 }
 
 const [, MAIN_GHOST] = BOARD_MOTION.ghosts;
@@ -144,6 +154,8 @@ export class BoardMotionPlayer {
     private readonly sprites = new Set<RunningSprite>();
     private readonly running = new Map<string, RunningTile>();
     private discardLandingAt: number | null = null;
+    private readonly waiting: Scene[] = [];
+    private startFrame: number | null = null;
 
     constructor(board: HTMLElement) {
         this.board = board;
@@ -163,7 +175,10 @@ export class BoardMotionPlayer {
             after: new Map(after.map((tile) => [tile.key, tile])),
             before: this.currentSources(before),
             box,
+            holds: [],
+            landings: [],
             releases: new Map(),
+            sprites: [],
         };
         this.hold.cancel();
         this.reconcile(scene.after, plan);
@@ -172,27 +187,49 @@ export class BoardMotionPlayer {
         this.playPlan(plan, scene);
     }
 
+    private startLater(scene: Scene): void {
+        this.waiting.push(scene);
+        this.startFrame ??= requestAnimationFrame(() => {
+            this.startFrame = requestAnimationFrame((at) => this.start(at));
+        });
+    }
+
     private playPlan(plan: readonly TileMotion[], scene: Scene): void {
-        const returnDelay = this.remainingDrawHold();
         for (const motion of plan.filter(({ kind }) => kind !== "hold")) {
-            this.playTile(
-                motion.kind === "return" ? { ...motion, delay: returnDelay } : motion,
-                scene,
-            );
+            this.playTile(motion, scene);
         }
         for (const motion of plan.filter(({ kind }) => kind === "hold")) {
             this.playHold(motion, scene);
         }
+        this.startLater(scene);
     }
 
-    private remainingDrawHold(): number {
-        return this.remainingHold(BOARD_MOTION.drawHold);
+    private start(at: number): void {
+        this.startFrame = null;
+        for (const scene of this.waiting.splice(0)) {
+            this.startScene(scene, at);
+        }
     }
 
-    private remainingHold(afterLanding: number): number {
+    private startScene(scene: Scene, at: number): void {
+        const returnDelay = this.remainingHold(BOARD_MOTION.drawHold, at);
+        for (const sprite of scene.sprites.filter((running) => this.sprites.has(running))) {
+            sprite.animation.startTime = at;
+        }
+        for (const motion of scene.landings) {
+            this.discardLandingAt = at + motion.delay + BOARD_MOTION.landing;
+        }
+        for (const { animation, motion, seat } of scene.holds) {
+            const ms = Math.max(motion.delay, this.remainingHold(drawHoldAfterLanding(seat), at));
+            this.hold.start(animation, ms, at);
+        }
+        this.reflow.start(scene.releases, at, returnDelay);
+    }
+
+    private remainingHold(afterLanding: number, at = performance.now()): number {
         return this.discardLandingAt === null
             ? 0
-            : Math.max(0, this.discardLandingAt + afterLanding - performance.now());
+            : Math.max(0, this.discardLandingAt + afterLanding - at);
     }
 
     private currentSources(before: readonly TileSnapshot[]): ReadonlyMap<string, TileSnapshot> {
@@ -276,13 +313,17 @@ export class BoardMotionPlayer {
         }
         const ms = Math.max(motion.delay, this.remainingHold(drawHoldAfterLanding(target.seat)));
         if (ms > 0) {
-            this.hold.play(motion.target, target.element, ms);
+            scene.holds.push({
+                animation: this.hold.play(motion.target, target.element, ms),
+                motion,
+                seat: target.seat,
+            });
         }
     }
 
-    private playMove(flight: Flight, target: TileSnapshot, scene: ReflowScene): void {
+    private playMove(flight: Flight, target: TileSnapshot, scene: Scene): void {
         if (flight.motion.kind === "flight") {
-            this.playFlight(flight, target);
+            this.playFlight(flight, target, scene);
             return;
         }
         if (
@@ -302,31 +343,36 @@ export class BoardMotionPlayer {
         }
     }
 
-    private playFlight(flight: Flight, target: TileSnapshot): void {
-        const { motion } = flight;
+    private playFlight(flight: Flight, target: TileSnapshot, scene: Scene): void {
         hideDestination(target.element);
         placeImage(flight);
         const intoRiver = target.region === "discards";
         for (const ghost of BOARD_MOTION.ghosts) {
-            const animation = this.playGhost(flight, ghost, ghostFrames(flight, ghost, intoRiver));
+            const sprite = this.playGhost(flight, ghost, ghostFrames(flight, ghost, intoRiver));
+            scene.sprites.push(sprite);
             if (ghost === MAIN_GHOST) {
-                this.running.set(motion.target, {
-                    animation,
+                this.running.set(flight.motion.target, {
+                    animation: sprite.animation,
                     rect: target.rect,
                     target: target.element,
                 });
             }
         }
         if (intoRiver) {
-            this.discardLandingAt = performance.now() + motion.delay + BOARD_MOTION.landing;
+            this.landLater(flight.motion, scene);
         }
+    }
+
+    private landLater(motion: TileMotion, scene: Scene): void {
+        this.discardLandingAt = performance.now() + motion.delay + BOARD_MOTION.landing;
+        scene.landings.push(motion);
     }
 
     private playGhost(
         { image: source, motion }: Flight,
         ghost: (typeof BOARD_MOTION.ghosts)[number],
         frames: Keyframe[],
-    ): Animation {
+    ): RunningSprite {
         const image = copyImage(source);
         image.style.opacity = String(ghost.alpha);
         this.createLayer().append(image);
@@ -336,10 +382,12 @@ export class BoardMotionPlayer {
             easing: "linear",
             fill: "both",
         });
+        animation.pause();
+        animation.currentTime = 0;
         const sprite = { animation, image, key: motion.target };
         this.sprites.add(sprite);
         animation.onfinish = () => this.finish(sprite);
-        return animation;
+        return sprite;
     }
 
     prepareRender(): void {
@@ -370,6 +418,11 @@ export class BoardMotionPlayer {
     }
 
     cancel(): void {
+        if (this.startFrame !== null) {
+            cancelAnimationFrame(this.startFrame);
+            this.startFrame = null;
+        }
+        this.waiting.length = 0;
         this.hold.cancel();
         this.discardLandingAt = null;
         this.reveal.cancel();
