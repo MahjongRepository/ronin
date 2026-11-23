@@ -105,7 +105,7 @@ function findPartedSlots(running: Iterable<TileReflow>): Set<HTMLElement> {
     return new Set([...hands].flatMap(([hand, turn]) => partedSlots(hand, turn, shifts)));
 }
 
-function closesConcealedHole(tile: TileSnapshot): boolean {
+function isConcealedHandTile(tile: TileSnapshot): boolean {
     return tile.region === "hand" && tile.concealed;
 }
 
@@ -197,7 +197,7 @@ export class TileReflowPlayer {
         for (const [seat, keys] of this.holeHands) {
             if (!sameKeys(keys, handKeysOf(after, seat))) {
                 for (const [key, active] of this.running) {
-                    if (active.target.seat === seat && closesConcealedHole(active.target)) {
+                    if (active.target.seat === seat && isConcealedHandTile(active.target)) {
                         this.stop(key);
                     }
                 }
@@ -246,7 +246,7 @@ export class TileReflowPlayer {
     }
 
     private keepHoleHand(target: TileSnapshot, after: ReadonlyMap<string, TileSnapshot>): void {
-        if (closesConcealedHole(target) && !this.holeHands.has(target.seat)) {
+        if (isConcealedHandTile(target) && !this.holeHands.has(target.seat)) {
             this.holeHands.set(target.seat, handKeysOf(after, target.seat));
         }
     }
