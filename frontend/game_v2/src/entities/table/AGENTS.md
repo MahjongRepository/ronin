@@ -46,7 +46,9 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   measures destinations after the geometry is written. Native effects detach before lit changes the DOM and rebind
   by physical tile key with their timing preserved; a concealed hand's pending close ends at once when that seat's
   hand changes. A delayed slot motion is never a WAAPI `delay`: it waits paused at its start and a cancellable timer
-  releases it, one timer per distinct delay of a played plan, so a hand's slots start together. Board-motion release
+  releases it, one timer per distinct delay of a played plan, so a hand's slots start together. The release sets its
+  start time to the timeline's current time and never uses `play()`: WebKit keeps the creation start on `play()` while
+  another animation runs, so the slide would finish at once. Board-motion release
   timing is presentation only and runs on the `performance.now` timeline, never `browserClock`.
 - The seating panel is the game's start and its end: the seats in wind order with the round on the table (live, the
   client's opening screen over the dealt table, `tableSeatingPanel`; a replay's start), then in placement order with
