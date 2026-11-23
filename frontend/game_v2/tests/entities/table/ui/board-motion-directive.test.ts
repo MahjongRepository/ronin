@@ -881,7 +881,7 @@ function finishGhost(animation: Animation | undefined): number {
 }
 
 describe("tile flight material", () => {
-    it("flies a riichi discard as ghosts already in the sideways river slot's pose, easing into it as the middle copy turns solid", () => {
+    it("flies a riichi discard as ghosts already in the sideways river slot's pose, its middle copy turning solid before it lands", () => {
         const player = startRiichiFlight();
         expect(animations).toHaveLength(BOARD_MOTION.ghosts.length);
         expect(flightPoses()).toEqual(

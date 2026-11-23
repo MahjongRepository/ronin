@@ -644,7 +644,7 @@ as a number, not seen, so the count turns red from ten tiles left.
   the viewer's 150ms after it, an opponent's in live play 300ms after it, as in a watched live game even face up
   (the watched seat's at 150ms), and at once with no discard still landing (at once in a replay). The dealer's opening draw, the viewer's included, appears 300ms after it reaches the board, so the
   13 dealt tiles show alone first (at once in a replay). Discards travel from hand
-  to river in 150ms, slowing to a stop in their slot, the latest in its gap; it stays there until 300ms after landing, or
+  to river in 150ms at a constant speed, stopping in their slot, the latest in its gap; it stays there until 300ms after landing, or
   while a call on it is being decided, then slides back into line over 240ms, starting and stopping gently.
   A travelling tile is three faint shadowless copies, 12ms apart, in its destination's look from take-off: its body
   (a discard leaves the hand as the lying river tile, a riichi discard already sideways, a call into the own melds as
