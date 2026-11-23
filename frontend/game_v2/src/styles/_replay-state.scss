@@ -395,26 +395,14 @@ $round-list-clear: 8px;
     }
 }
 
-/* Off a phone's short board, the replay's seating (its start, its end) covers the table's centre block whole: it
-   stands as near the block's centre as its free box allows, past its edges and its text scaled to it. */
 .game-board--replay:where(#{$desktop-board}) {
-    > .board-overlay:has(.seating) {
+    > .board-overlay:has(.seating--end) {
         --panel-bottom: max(var(--geo-overlay-bottom), 100cqh - 2 * var(--cy));
 
         grid-template-rows: var(--panel-top) minmax(0, 1fr) var(--panel-bottom);
     }
 
-    /* The start, shorter than the end, stands level with the block's centre even where the band leaves less room below
-       it. */
-    > .board-overlay:has(.seating:not(.seating--end)) {
-        --panel-top: max(
-            var(--geo-overlay-top),
-            2 * var(--cy) + var(--geo-overlay-bottom) - 100cqh
-        );
-        --panel-bottom: max(var(--geo-overlay-bottom), 100cqh - 2 * var(--cy) + var(--panel-top));
-    }
-
-    > .board-overlay > .board-overlay__panel:has(> .seating) {
+    > .board-overlay > .board-overlay__panel:has(> .seating--end) {
         align-self: center;
         display: flex;
         flex-direction: column;
@@ -423,7 +411,7 @@ $round-list-clear: 8px;
         min-height: calc(var(--c) + 3rem);
     }
 
-    .seating {
+    .seating--end {
         --seating-font: clamp(1rem, calc(var(--c) * 0.1), 1.6rem);
     }
 }

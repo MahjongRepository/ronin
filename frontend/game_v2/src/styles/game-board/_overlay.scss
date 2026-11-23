@@ -71,20 +71,24 @@ $result-unit-max: 1.15px;
 
 /* An auto track leaves a percentage nothing to resolve against, so the panel's room is its free box's. */
 .board-overlay__panel {
+    --panel-padding-inline: 0.75rem;
+
     grid-area: 2 / 2;
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
     border-radius: var(--ronin-corner-panel);
     box-shadow: var(--ronin-panel-shadow);
     color: var(--ronin-text);
-    padding: 0.6rem 0.75rem;
+    padding: 0.6rem var(--panel-padding-inline);
     max-width: min(var(--panel-room), 900px);
     max-height: calc(100cqh - var(--panel-top) - var(--panel-bottom));
     overflow-y: auto;
     scrollbar-gutter: stable;
 
     @container (width >= 640px) and (height >= 480px) {
-        padding: 1.25rem 1.5rem;
+        --panel-padding-inline: 1.5rem;
+
+        padding-block: 1.25rem;
     }
 }
 

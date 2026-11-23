@@ -23,10 +23,12 @@ import {
     type BoardRun,
     GAME_ID,
     type PageCase,
+    PageRecord,
     type PageReport,
     type PageRun,
     SELECTOR_TIMEOUT_MS,
     type Surface,
+    type TaskResult,
     type Viewport,
 } from "../model.ts";
 import { checkVisible } from "../page-checks.ts";
@@ -44,6 +46,7 @@ import {
 
 /** The least room between two names on a line of a result's scores, so each name and its end read as one. */
 const MIN_RESULT_NAME_GAP = 12;
+const PANEL_SIZE = new PageRecord<Size>();
 
 /** The seating panel over the board (before the first deal or at the game's end): its controls and smallest text. */
 interface SeatingMeasure {
@@ -258,6 +261,7 @@ const PAGES: readonly PageCase[] = [
         at: [...WORST_CASES, NOTCH_PHONE, LAPTOP_770, ...SMALL_WINDOWS],
     },
     {
+        at: [FLOOR, MID_DESKTOP],
         kind: "board",
         name: "decisions-game-start",
         path: "/play/storybook/decisions?state=game_start",
@@ -762,6 +766,9 @@ async function checkRotatePanel(
  */
 async function checkBoard({ board, page, report, screen, viewport }: BoardRun): Promise<void> {
     checkOverlay(board, viewport, report);
+    if (board.overlay !== null) {
+        PANEL_SIZE.keep(report, board.overlay.box);
+    }
     if (viewport.supported) {
         checkResultPanel(await measureResultPanel(page), report);
     }
@@ -779,9 +786,34 @@ async function checkBoard({ board, page, report, screen, viewport }: BoardRun): 
     }
 }
 
+function compareOpeningPanels(results: readonly TaskResult[]): string[] {
+    return results.flatMap((live) => {
+        if (live.page !== "decisions-game-start") {
+            return [];
+        }
+        const replay = results.find(
+            (result) => result.page === "replay-seating" && result.viewport === live.viewport,
+        );
+        if (replay === undefined) {
+            return [];
+        }
+        const liveSize = PANEL_SIZE.read(live.report);
+        const replaySize = PANEL_SIZE.read(replay.report);
+        if (liveSize === undefined || replaySize === undefined) {
+            return [`${live.viewport}: missing live or replay opening panel`];
+        }
+        return liveSize.width === replaySize.width && liveSize.height === replaySize.height
+            ? []
+            : [
+                  `${live.viewport}: opening panel measures ${describeSize(liveSize)} live and ${describeSize(replaySize)} in replay`,
+              ];
+    });
+}
+
 /** The panels: round results, the seating (and the game's end on it), the leave question, an end, and the rotate panel. */
 export const panelsSurface: Surface = {
     checkAfterShot,
     checkBoard,
+    checkResults: compareOpeningPanels,
     pages: PAGES,
 };

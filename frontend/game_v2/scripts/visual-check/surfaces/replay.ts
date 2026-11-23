@@ -276,7 +276,7 @@ const PAGES: readonly PageCase[] = [
     },
     {
         ...replayCase("seating", []),
-        at: [FLOOR],
+        at: [FLOOR, MID_DESKTOP],
         required: {
             visible: [".seating__name", ".seating__action", ".replay-controls__moves"],
         },

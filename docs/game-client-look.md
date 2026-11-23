@@ -758,8 +758,8 @@ as a number, not seen, so the count turns red from ten tiles left.
   dismisses a failure that goes on. A connection replaced by another tab is an end, with its reason,
   its corner status in the ended tone rather than an error's.
 - **Panels.** Round results, the seating at the game's start and at its end, and the leave question use
-  a legible overlay area over the board and dim it beneath; each has the size its content needs, not
-  the core's, covering whatever of the board's middle it needs (the rivers, the centre, a call's
+  a legible overlay area over the board and dim it beneath, covering whatever of the board's middle
+  the panel needs (the rivers, the centre, a call's
   announcement). A round result's panel takes the panel's room up to a wide cap, its tiles larger than the other
   panels'. A board under 400px tall (a landscape phone, its browser's bars shown or not) gives it a compact
   form: smaller type, each seat's change and total on one line where its card holds them (else two, never past the card), a seat that moved nothing showing its total alone.
@@ -780,9 +780,10 @@ as a number, not seen, so the count turns red from ten tiles left.
   winds, dealer and scores as they stand now; its OK sends nothing;
   a reconnect on a page that already showed it brings none, and a page joining at a round's result opens on the
   result. It is a normal game screen and never speaks of sound, though its OK, as any first tap, is the gesture the
-  browser needs before the game's sounds play. A replay opens on the seating with a Start in the OK's place (on a phone in landscape the seating also names the viewpoint), and off
-  a phone's short board the replay's seating (start and end) covers the table's centre block, its text scaled to the
-  block.
+  browser needs before the game's sounds play. A replay opens on the seating with Start in the OK's place
+  (on a phone in landscape the seating also names the viewpoint). At the same board size, live and replay
+  use the same opening panel width, height and type scale, regardless of player names, badges or countdown.
+  Off a phone, both openings and the replay's end seating cover the table's centre block and scale their text to it.
   Decision: no notice changes a panel's box or its tile size, the notices reserving nothing and standing over the
   panel where it reaches them. On a desktop a panel stands centred on the core, inside the
   table column, so the bars (a replay's status and controls) stay usable beside it; on a

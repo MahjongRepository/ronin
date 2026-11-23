@@ -11,18 +11,43 @@ $result-large-panel-width: 47rem;
    Every length scales with `--seating-font`, so a view sets the panel's size in one place. */
 
 @function s($factor) {
-    @return calc(#{$factor} * var(--seating-font));
+    @return calc(#{$factor} * var(--seating-font, 1rem));
 }
 
 .seating {
-    --seating-font: 1rem;
-
     display: flex;
     flex-direction: column;
     gap: s(0.5);
     margin: 0;
     min-width: min(s(18), 100%);
     color: var(--ronin-text);
+}
+
+.board-overlay__panel:has(> .seating--scored) {
+    width: max(var(--opening-center-width, 0px), #{s(19)} + 2 * var(--panel-padding-inline));
+}
+
+.game-board:where(#{queries.$desktop-board}) {
+    > .board-overlay:has(.seating--scored) {
+        --panel-top: max(
+            var(--geo-overlay-top),
+            2 * var(--cy) + var(--geo-overlay-bottom) - 100cqh
+        );
+        --panel-bottom: max(var(--geo-overlay-bottom), 100cqh - 2 * var(--cy) + var(--panel-top));
+
+        grid-template-rows: var(--panel-top) minmax(0, 1fr) var(--panel-bottom);
+    }
+
+    .board-overlay__panel:has(> .seating--scored) {
+        --seating-font: clamp(1rem, calc(var(--c) * 0.1), 1.6rem);
+        --opening-center-width: calc(var(--w) + 6rem);
+
+        align-self: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: min(calc(var(--c) + 3rem), 100%);
+    }
 }
 
 .seating__title {
@@ -214,6 +239,14 @@ $result-large-panel-width: 47rem;
 
     font-size: s(0.7);
     font-weight: 600;
+}
+
+.seating--scored .seating__actions .seating__action {
+    padding-block: 0;
+
+    @include queries.desktop-board {
+        min-height: max(2.5rem, #{s(1.8)} + 2px);
+    }
 }
 
 /* A phone's board has a short panel area: the rows tighten so the seats, the results and the ways on fit it whole. */
