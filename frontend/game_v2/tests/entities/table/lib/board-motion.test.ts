@@ -100,7 +100,9 @@ describe("planTileMotion", () => {
         const result = planTileMotion([hand, kept, river], [{ ...kept, rect: hand.rect }, ...meld]);
         expect(
             result.map(({ delay, duration, source, target, kind }) =>
-                kind === "flight" ? { kind, source, target } : { delay, duration, kind, source, target },
+                kind === "flight"
+                    ? { kind, source, target }
+                    : { delay, duration, kind, source, target },
             ),
         ).toEqual([
             {
