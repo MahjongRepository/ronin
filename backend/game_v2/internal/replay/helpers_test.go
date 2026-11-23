@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -184,6 +185,22 @@ func readAction(t *testing.T, raw json.RawMessage) play.Action {
 	return play.Action{}
 }
 
+func nextTraceAnswers(t *testing.T, awaiting play.Awaiting, answers []replay.SeatAction) []replay.SeatAction {
+	t.Helper()
+	call, open := awaiting.(play.AwaitingCall)
+	if !open {
+		return answers[:1]
+	}
+	if len(call.Seats) > len(answers) {
+		t.Fatalf("trace ends with %d answers for %d callers", len(answers), len(call.Seats))
+	}
+
+	order := []play.ActionKind{play.ActionPass, play.ActionChi, play.ActionPon, play.ActionKan, play.ActionRon}
+	return slices.SortedStableFunc(slices.Values(answers[:len(call.Seats)]), func(a, b replay.SeatAction) int {
+		return slices.Index(order, a.Action.Kind()) - slices.Index(order, b.Action.Kind())
+	})
+}
+
 func playTracedGame(t *testing.T, traced tracedGame) []replay.Step {
 	t.Helper()
 	g, events, err := engine.NewGame(traced.setup)
@@ -216,14 +233,18 @@ func playTracedGame(t *testing.T, traced tracedGame) []replay.Step {
 		steps = append(steps, replay.Step{Events: dealt, Game: g})
 	}
 
-	for _, answer := range traced.answers {
+	for answers := traced.answers; len(answers) > 0; {
 		deal()
-		next, emitted, refusal := g.Act(answer.Seat, answer.Action)
-		if refusal.OK {
-			t.Fatalf("Act(%+v) refused: %+v", answer, refusal.Value)
+		batch := nextTraceAnswers(t, g.Awaiting(), answers)
+		for _, answer := range batch {
+			next, emitted, refusal := g.Act(answer.Seat, answer.Action)
+			if refusal.OK {
+				t.Fatalf("Act(%+v) refused: %+v", answer, refusal.Value)
+			}
+			g = next
+			steps = append(steps, replay.Step{Events: emitted, Game: g})
 		}
-		g = next
-		steps = append(steps, replay.Step{Events: emitted, Game: g})
+		answers = answers[len(batch):]
 	}
 	deal()
 

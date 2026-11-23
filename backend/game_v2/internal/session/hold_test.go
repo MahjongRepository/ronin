@@ -58,16 +58,48 @@ func heldCall(t *testing.T) (h *harness, bob, carol *fakeConn) {
 	return h, conns[1], conns[2]
 }
 
-func TestDiscardHold_WhenEveryCallerPassesEarly_ShouldDrawAtTheDeadlineAndChargeNoSeatForTheHold(t *testing.T) {
+func TestDiscardHold_WhenPonOutranksAnUnansweredChiAfterTheFloor_ShouldShowTheMeldAtOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		wall := fixedWall(t, [tile.SeatCount][]tile.TileID{
+			junkHand(t, 2), copies(t, 0, "1357m2468p346s57z"),
+			copies(t, 1, "1357m2468p55s79s6z"), junkHand(t, 3),
+		}, copies(t, 3, "5s"))
+		const hold = time.Second
+		h := newHarness(t, withSeed(seedSeating(t, 0, 1, 2)), withWalls(wall), withTiming(noWaits), withDiscardHold(hold))
+		conns := h.start("Alice", "Bob", "Carol")
+		alice, bob, carol := conns[0], conns[1], conns[2]
+		draw := lastDraw(t, alice)
+		h.act(alice, discard(intOf(t, draw, wire.KeyWaitID), drawnTile(t, draw)))
+		callPrompt(t, bob)
+		pair := copies(t, 1, "55s")
+		sleep(300 * time.Millisecond)
+		h.act(carol, messaging.GameActionMessage{
+			Action: messaging.GameActionPon,
+			WaitID: intOf(t, callPrompt(t, carol), wire.KeyWaitID),
+			Play:   play.Some(play.PonAction([2]tile.TileID{pair[0], pair[1]})),
+		})
+
+		melds := ofEvent(alice.messages(), wire.EventMeld)
+		if len(melds) != 1 {
+			t.Fatalf("melds at the pon response = %d, want Carol's pon", len(melds))
+		}
+		meld, err := wire.UnpackMeld(intOf(t, melds[0], wire.KeyPackedMeld))
+		if err != nil || meld.Kind != play.MeldPon {
+			t.Errorf("meld = %+v (%v), want pon", meld, err)
+		}
+	})
+}
+
+func TestDiscardHold_WhenEveryCallerPassesEarly_ShouldDrawAtTheFloorAndChargeNoSeatForTheHold(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h, bob, carol := heldCall(t)
 		ronPrompt, ponPrompt := callPrompt(t, bob), callPrompt(t, carol)
 
-		sleep(500 * time.Millisecond)
+		sleep(50 * time.Millisecond)
 		h.act(carol, answer(intOf(t, ponPrompt, wire.KeyWaitID), play.PassAction()))
-		sleep(time.Second)
+		sleep(50 * time.Millisecond)
 		h.act(bob, answer(intOf(t, ronPrompt, wire.KeyWaitID), play.PassAction()))
-		sleep(500*time.Millisecond - time.Millisecond)
+		sleep(49 * time.Millisecond)
 		if got := len(ofEvent(bob.messages(), wire.EventDraw)); got != 0 {
 			t.Fatalf("bob drew %d times before the hold ran out, want none", got)
 		}
@@ -76,10 +108,10 @@ func TestDiscardHold_WhenEveryCallerPassesEarly_ShouldDrawAtTheDeadlineAndCharge
 		}
 
 		sleep(time.Millisecond)
-		if got, _ := lastDraw(t, bob).Get(wire.KeyBankSeconds); got != wire.Float(19.5) {
-			t.Errorf("bob's bank at his draw = %v, want 19.5 s, his late pass charged and the hold not", got)
+		if got, _ := lastDraw(t, bob).Get(wire.KeyBankSeconds); got != wire.Int(20) {
+			t.Errorf("bob's bank at his draw = %v, want the full 20 s", got)
 		}
-		sleep(20500*time.Millisecond - time.Millisecond)
+		sleep(21*time.Second - time.Millisecond)
 		if got := h.m.Stats().TurnTimeouts; got != 0 {
 			t.Fatalf("bob's turn timed out before a base turn and his bank passed from the deadline")
 		}
@@ -90,17 +122,24 @@ func TestDiscardHold_WhenEveryCallerPassesEarly_ShouldDrawAtTheDeadlineAndCharge
 	})
 }
 
-func TestDiscardHold_WhenTheLastCallerPassesAfterIt_ShouldDrawAtOnce(t *testing.T) {
+func TestDiscardHold_WhenTheLastCallerPassesAfterTheFloor_ShouldDrawAtOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h, bob, carol := heldCall(t)
 		ronPrompt, ponPrompt := callPrompt(t, bob), callPrompt(t, carol)
 
-		sleep(3 * time.Second)
+		sleep(50 * time.Millisecond)
 		h.act(carol, answer(intOf(t, ponPrompt, wire.KeyWaitID), play.PassAction()))
+		sleep(1450 * time.Millisecond)
+		if got := len(ofEvent(bob.messages(), wire.EventDraw)); got != 0 {
+			t.Fatalf("draws while Bob can still ron = %d, want none", got)
+		}
 		h.act(bob, answer(intOf(t, ronPrompt, wire.KeyWaitID), play.PassAction()))
 
 		if got := len(ofEvent(bob.messages(), wire.EventDraw)); got != 1 {
 			t.Errorf("bob's draws once the late passes are in = %d, want 1", got)
+		}
+		if got, _ := lastDraw(t, bob).Get(wire.KeyBankSeconds); got != wire.Float(19.5) {
+			t.Errorf("bob's bank at his draw = %v, want 19.5 s after his late pass", got)
 		}
 		messages := bob.messages()
 		isEvent := func(event wire.EventType) func(wire.Map) bool {

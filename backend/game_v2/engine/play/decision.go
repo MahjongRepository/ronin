@@ -72,7 +72,7 @@ type AwaitingTurn struct {
 	Seat tile.Seat
 }
 
-// AwaitingCall waits for an answer from each of Seats to a call prompt.
+// AwaitingCall lists the seats still to answer in seat order. A claim can close another seat's offer.
 type AwaitingCall struct {
 	Seats []tile.Seat
 }

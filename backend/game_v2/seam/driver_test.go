@@ -1,9 +1,7 @@
 package seam_test
 
 import (
-	"cmp"
 	"fmt"
-	"slices"
 	"strconv"
 
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine"
@@ -172,7 +170,7 @@ func playUntil(g *engine.Game, seated agents, sink eventSink, maxSteps int, end 
 		return check(*g, step)
 	}
 	for step := 1; step <= maxSteps; step++ {
-		var seats []tile.Seat
+		var s tile.Seat
 		switch awaiting := g.Awaiting().(type) {
 		case play.AwaitingRoundOver:
 			if end == untilRoundOver {
@@ -194,25 +192,22 @@ func playUntil(g *engine.Game, seated agents, sink eventSink, maxSteps int, end 
 			}
 			continue
 		case play.AwaitingTurn:
-			seats = []tile.Seat{awaiting.Seat}
+			s = awaiting.Seat
 		case play.AwaitingCall:
-			seats = awaiting.Seats
+			s = awaiting.Seats[0]
 		case play.AwaitingGameOver:
 			return nil
 		}
 
-		slices.SortFunc(seats, func(a, b tile.Seat) int { return cmp.Compare(a.Index(), b.Index()) })
-		for _, s := range seats {
-			batch, err := answer(g, s, seated[s.Index()])
-			if err != nil {
-				return err
-			}
-			if err := deliverEvents(batch, seated, sink); err != nil {
-				return err
-			}
-			if err := delivered(step); err != nil {
-				return err
-			}
+		batch, err := answer(g, s, seated[s.Index()])
+		if err != nil {
+			return err
+		}
+		if err := deliverEvents(batch, seated, sink); err != nil {
+			return err
+		}
+		if err := delivered(step); err != nil {
+			return err
 		}
 	}
 

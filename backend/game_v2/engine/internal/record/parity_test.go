@@ -307,7 +307,7 @@ func (f *follower) play(t *testing.T) {
 		players[s.Index()] = seatedPlayer(f.gameNumber, s)
 	}
 	for range maxSteps {
-		var seats []tile.Seat
+		var s tile.Seat
 		switch awaiting := f.game.Awaiting().(type) {
 		case play.AwaitingRoundOver:
 			next, batch, refusal := f.game.DealNextRound()
@@ -326,26 +326,24 @@ func (f *follower) play(t *testing.T) {
 			f.follow(t, batch)
 			continue
 		case play.AwaitingTurn:
-			seats = []tile.Seat{awaiting.Seat}
+			s = awaiting.Seat
 		case play.AwaitingCall:
-			seats = slices.SortedFunc(slices.Values(awaiting.Seats), func(a, b tile.Seat) int { return a.Index() - b.Index() })
+			s = awaiting.Seats[0]
 		case play.AwaitingGameOver:
 			return
 		}
 
-		for _, s := range seats {
-			decision, ok := f.game.Decision(s)
-			if !ok {
-				t.Fatalf("game %d: awaited seat %d has no decision", f.gameNumber, s.Index())
-			}
-			action := players[s.Index()].decide(t, decision, f.game.Hand(s))
-			next, batch, refusal := f.game.Act(s, action)
-			if refusal.OK {
-				t.Fatalf("game %d: legal action %v refused: %+v", f.gameNumber, action, refusal.Value)
-			}
-			f.game = next
-			f.follow(t, batch)
+		decision, ok := f.game.Decision(s)
+		if !ok {
+			t.Fatalf("game %d: awaited seat %d has no decision", f.gameNumber, s.Index())
 		}
+		action := players[s.Index()].decide(t, decision, f.game.Hand(s))
+		next, batch, refusal := f.game.Act(s, action)
+		if refusal.OK {
+			t.Fatalf("game %d: legal action %v refused: %+v", f.gameNumber, action, refusal.Value)
+		}
+		f.game = next
+		f.follow(t, batch)
 	}
 	t.Fatalf("game %d does not end within %d steps", f.gameNumber, maxSteps)
 }

@@ -9,8 +9,8 @@ import (
 	"github.com/MahjongRepository/ronin/backend/game_v2/engine/tile"
 )
 
-// AnswerCall records seat's answer to the open call prompt, then resolves the prompt once every
-// seat has answered; a ron is paid with honba.
+// AnswerCall records seat's answer and resolves the prompt once no outstanding offer can change
+// the result. A ron is paid with honba.
 func (r *Round) AnswerCall(
 	seat tile.Seat, action play.Action, honba int, points *Points,
 ) (Transition, play.Option[play.Refusal]) {
@@ -32,20 +32,7 @@ func (r *Round) AnswerCall(
 		r.declineRon(seat)
 	}
 
-	held, _ := action.Held()
-	switch action.Kind() {
-	case play.ActionRon:
-		prompt.declareRon(seat)
-	case play.ActionPon:
-		prompt.declareMeld(seat, play.PonCall{Held: held})
-	case play.ActionChi:
-		prompt.declareMeld(seat, play.ChiCall{Held: held})
-	case play.ActionKan:
-		prompt.declareMeld(seat, play.OpenKanCall{})
-	case play.ActionPass:
-		prompt.pass(seat)
-	case play.ActionDiscard, play.ActionRiichi, play.ActionTsumo, play.ActionKyuushu:
-	}
+	prompt.recordAnswer(seat, action)
 	r.prompt = play.Some(prompt)
 
 	if !prompt.isSettled() {

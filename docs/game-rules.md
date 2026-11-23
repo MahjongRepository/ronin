@@ -26,6 +26,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 ### Calls & Turn Order
 
 - Call precedence: Ron > Pon/Kan > Chii; among same-type calls, closer counter-clockwise to discarder wins (for chankan, to the kan caller)
+- After a pon, open kan or ron claim, only players who can still ron have time to answer. A chii claim waits for any competing pon, open kan or ron. Multiple ron claims resolve together.
 - A player who can both ron and call a meld (chii, pon or kan) on the same discard is offered all of them and may choose either. Calling the meld instead declines the ron, with the same temporary furiten as passing; any other player's ron still takes precedence over the meld.
 - Last discard restriction: The final discard of a hand (when no tiles remain in the live wall after the draw) cannot be called for chii, pon, or kan — only ron is allowed.
 - Four kans restriction: The replacement discard of a fourth kan that makes a Four Kans abortive draw cannot be called for chii, pon, or kan — only ron is allowed. (No meld arises on the discard declaring a fourth riichi either: the other three players are in riichi and cannot call.)

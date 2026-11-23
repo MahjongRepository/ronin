@@ -46,6 +46,7 @@ func discardHoldOf(roll, shape float64) time.Duration {
 }
 
 type discardHold struct {
+	floor   time.Time
 	until   time.Time
 	release delayed
 	shown   []play.Emitted
@@ -115,7 +116,8 @@ func (g *game) heldPart(events []play.Emitted) (shown, kept []play.Emitted, hold
 	now := g.clock.Now()
 	start := slices.IndexFunc(events, startsHold)
 	if start >= 0 {
-		g.hold.until = now.Add(sample())
+		g.hold.floor = now.Add(discardHoldFloor)
+		g.hold.until = now.Add(max(discardHoldFloor, sample()))
 	}
 	_, callOpen := g.engine.Awaiting().(play.AwaitingCall)
 	if callOpen || !now.Before(g.hold.until) {

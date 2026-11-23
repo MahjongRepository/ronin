@@ -136,10 +136,9 @@ type Agent interface {
 // Seeds draws each game's seed from crypto/rand, a nil Setup deals every game from its seed, and a
 // nil Agent plays each AI decision's default, asked like any Agent off the game's goroutine.
 // Setup turns a game's seed into its engine setup, for a harness that stages its walls.
-// DiscardHold gives, per discard and per closed or added kan, how long the session holds what
-// follows it (the next draw, a call's outcome, the round's end) so that one nobody could answer and
-// one answered within the hold look alike; a call still open then is waited out instead, so a slow
-// answer still shows. Nil holds nothing.
+// DiscardHold samples how long to hold the consequences of a discard or a closed or added kan.
+// A client answering the call shortens the hold to its 150 ms floor, measured from the discard
+// or kan. Outstanding calls still resolve before play advances. Nil disables the hold.
 // Pick returns a random index below the count it is given, and must be safe for concurrent use. With
 // it the session plays a pon, a chi or a closed kan with copies picked among those that look the
 // same (engine.Game.Disguised), and a timeout or an AI player's default after the seat's own call

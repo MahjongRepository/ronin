@@ -43,7 +43,7 @@ func TestAct_WhenTwoCallAnswersBranchFromOneState_ShouldLeaveTheStateAndEachBran
 
 	assertBranchesStayApart(t, build,
 		[]testkit.SeatAction{act(seat(t, 1), play.PassAction()), act(seat(t, 2), play.PassAction())},
-		[]testkit.SeatAction{act(seat(t, 1), play.RonAction()), act(seat(t, 2), play.PassAction())},
+		[]testkit.SeatAction{act(seat(t, 1), play.RonAction())},
 	)
 }
 

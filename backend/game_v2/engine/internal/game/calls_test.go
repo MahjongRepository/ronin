@@ -208,6 +208,15 @@ func TestChiValidation_WhenASeatOfferedPonAndChiSendsAnOfferedChi_ShouldAcceptIt
 	}
 }
 
+func TestCallPrompt_WhenOpenKanOutranksAnUnansweredChi_ShouldDrawTheReplacement(t *testing.T) {
+	g := nineManPonAndChiSeats(t)
+	caller := seat(t, 2)
+	g, events := script(t, g, act(caller, play.KanAction(play.KanOpen, tileOf(t, 0, "9m"))))
+
+	assertEqual(t, "melds", meldKinds(events), []seatMeld{{caller, play.MeldOpenKan}})
+	assertEqual(t, "awaiting", g.Awaiting(), awaitingTurn(caller))
+}
+
 func TestChiValidation_WhenTheTilesAreNotAnOfferedChi_ShouldBeNotOfferedAndChangeNothing(t *testing.T) {
 	build := func() game.Game { return nineManPonAndChiSeats(t) }
 
@@ -346,12 +355,21 @@ func threePinDiscarded(t *testing.T) game.Game {
 }
 
 func TestDiscardClaim_WhenTheRonCallerPassesAndAPonIsClaimed_ShouldMakeThePon(t *testing.T) {
-	g := threePinDiscarded(t)
+	g := nineManDiscarded(t, [tile.SeatCount][]tile.TileID{
+		copies(t, 0, "123456789s1234z"),
+		slices.Concat(copies(t, 0, "678m159p567z"), copies(t, 1, "1234z")),
+		slices.Concat(copies(t, 1, "99m"), copies(t, 1, "123456789s56z")),
+		copies(t, 2, "123456789p78m11z"),
+	})
+	assertEqual(t, "initial callers", g.Awaiting(), awaitingCall(seat(t, 1), seat(t, 2), seat(t, 3)))
 
-	g, events := script(t, g, act(seat(t, 1), play.PassAction()), act(seat(t, 2), firstPon(t, g, seat(t, 2))))
+	g, claimed := script(t, g, act(seat(t, 2), firstPon(t, g, seat(t, 2))))
+	assertEqual(t, "events before ron is answered", claimed, []play.Emitted(nil))
+	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 3)))
+	g, events := script(t, g, act(seat(t, 3), play.PassAction()))
 
 	melds := testkit.CalledMelds(events)
-	if len(melds) != 1 || melds[0].Seat != seat(t, 2) || melds[0].Meld.Called != play.Some(tileOf(t, 3, "3p")) {
+	if len(melds) != 1 || melds[0].Seat != seat(t, 2) || melds[0].Meld.Called != play.Some(tileOf(t, 0, "9m")) {
 		t.Errorf("melds = %+v, want seat 2's pon of the discard", melds)
 	}
 	if slices.Contains(testkit.EventKinds(events), "drew") {
@@ -371,11 +389,14 @@ func TestDiscardClaim_WhenARiichiDiscardIsClaimedByAMeld_ShouldDepositTheRiichiF
 	assertEqual(t, "caller", testkit.CalledMelds(events)[0].Seat, seat(t, 2))
 }
 
-func TestDiscardClaim_WhenRonIsCalledWithOtherCallersPending_ShouldRecordItAndKeepThePrompt(t *testing.T) {
+func TestDiscardClaim_WhenRonIsCalledWithOnlyAPonPending_ShouldAwardTheRon(t *testing.T) {
 	g, events := script(t, threePinDiscarded(t), act(seat(t, 1), play.RonAction()))
 
-	assertEqual(t, "events", events, []play.Emitted(nil))
-	assertEqual(t, "awaiting", g.Awaiting(), awaitingCall(seat(t, 2)))
+	assertEqual(t, "phase", g.Phase(), play.PhaseRoundOver)
+	ron, ok := roundResult(t, events).(play.Ron)
+	if !ok || len(ron.Wins) != 1 || ron.Wins[0].Winner != seat(t, 1) {
+		t.Errorf("result = %+v, want seat 1's ron alone", roundResult(t, events))
+	}
 }
 
 func TestDiscardClaim_WhenBothCallersPass_ShouldClearThePromptAndAdvanceTheTurn(t *testing.T) {

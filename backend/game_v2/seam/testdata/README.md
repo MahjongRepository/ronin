@@ -2,7 +2,9 @@
 
 `traces.jsonl.gz` holds recorded reference games, one JSON line per fact. The replay tests
 (`internal/replay`) read each game's header and the action of every decision line and play them
-through this engine; the event lines are no longer compared with anything, and this engine's events
+through this engine. The recordings include every caller's answer. Within each call the replay tests
+play the lower-priority answers first so each recorded answer is still legal when played.
+The event lines are no longer compared with anything, and this engine's events
 differ from them on purpose (a furiten change is not shown at a discard that ends the round).
 
 Each game starts with a header line, `{"game":...}`, and the lines after it are, in play order,

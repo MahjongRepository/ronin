@@ -222,7 +222,7 @@ a contract.
   answers a game error and the decision, its id and its timer go on; structurally impossible input
   (not offered, a tile not held) closes that human with 1008 and seats an AI player.
 * The engine's awaited seats drive the timers, never the events: a new wait re-arms them for its
-  connected seats, a kept one stops only the actor's. A timeout plays the seat's default action as
+  connected seats, a kept one stops the timers of all seats whose decisions have closed. A timeout plays the seat's default action as
   its own answer. Turns and calls draw from one bank after their free base time, and ending a wait
   charges every running decision, a call another seat resolved included. Both pauses, the start
   confirm and the round advance, go on once every seat that owed its confirmation (its connected
@@ -233,13 +233,10 @@ a contract.
   for none): the discard goes out at once with the kan dora it reveals, the kan with no dora, every
   furiten change at once whichever call answer brings it, and so does a call's prompt with its
   timer, but the next draw, a call's outcome, a riichi deposit and the round's end wait until the
-  hold drawn for that discard or kan ran out, or the last call answer when that is later. So one
-  nobody could answer and one answered within the hold look alike, which hides an instant answer
-  (an AI player, a bot, an automatic pass) and makes a short delay no proof of a call; a player who
-  thinks longer than the longest hold still shows, by design, since hiding that would pause every
-  discard. A
-  hold never ends early, since a client could otherwise ask whether a call is open, but for a held
-  game end, shown ahead of a leave or a reconnect so the game ends completed. The replay takes the
+  hold and the call window have both ended. An accepted call response from a connected client
+  (including an automatic pass) shortens the hold to 150 ms from the original discard or kan.
+  A server AI decision, timeout, stale action or resync leaves the sampled deadline in place.
+  A held game end is shown ahead of a leave or a reconnect so the game ends completed. The replay takes the
   whole call's records at once, so seat control records keep their place after them, but the engine
   is past what the clients saw, so nothing reads it for a client meanwhile: a game action is stale,
   an AI player is not asked, and a snapshot is the last update shown plus the events shown since

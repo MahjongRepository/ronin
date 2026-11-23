@@ -118,22 +118,31 @@ func (p CallPrompt) hasAnswered(seat tile.Seat) bool {
 	return p.isCaller(seat) && !p.IsPending(seat)
 }
 
-func (p *CallPrompt) declareRon(seat tile.Seat) {
-	p.rons = appendTo(p.rons, seat)
-	p.pass(seat)
-}
+func (p *CallPrompt) recordAnswer(seat tile.Seat, action play.Action) {
+	held, _ := action.Held()
+	switch action.Kind() {
+	case play.ActionRon:
+		p.rons = appendTo(p.rons, seat)
+	case play.ActionPon:
+		p.meldCalls = appendTo(p.meldCalls, seatCall{seat, play.PonCall{Held: held}})
+	case play.ActionChi:
+		p.meldCalls = appendTo(p.meldCalls, seatCall{seat, play.ChiCall{Held: held}})
+	case play.ActionKan:
+		p.meldCalls = appendTo(p.meldCalls, seatCall{seat, play.OpenKanCall{}})
+	case play.ActionPass, play.ActionDiscard, play.ActionRiichi, play.ActionTsumo, play.ActionKyuushu:
+	}
 
-func (p *CallPrompt) declareMeld(seat tile.Seat, call play.MeldCall) {
-	p.meldCalls = appendTo(p.meldCalls, seatCall{seat: seat, call: call})
-	p.pass(seat)
-}
-
-func (p *CallPrompt) pass(seat tile.Seat) {
+	onlyRon := action.Kind() == play.ActionRon || action.Kind() == play.ActionPon || action.Kind() == play.ActionKan
 	var pending []tile.Seat
 	for _, other := range p.pending {
-		if other != seat {
-			pending = append(pending, other)
+		if other == seat {
+			continue
 		}
+		if onlyRon && !p.canRon(other) {
+			p.meldOffers[other.Index()] = nil
+			continue
+		}
+		pending = append(pending, other)
 	}
 	p.pending = pending
 }

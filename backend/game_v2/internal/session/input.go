@@ -39,6 +39,9 @@ func (g *game) gameAction(conn Connection, message messaging.GameActionMessage) 
 	next, events, refusal := g.engine.Act(p.seat, action)
 	if !refusal.OK {
 		g.engine = next
+		if action.AnswersCall() {
+			g.hold.until = g.hold.floor
+		}
 		return g.followEngine(events, play.Some(p.seat))
 	}
 	refused, answerable := messaging.RefusalError(action, refusal.Value, message.WaitID)

@@ -148,9 +148,9 @@ func TestNewCallPrompt_ShouldOrderRonCallersFromTheDiscarderAndAwaitThemInSeatOr
 func TestDeclaredRons_ShouldListTheClosestCallerFirstWhateverTheAnswerOrder(t *testing.T) {
 	prompt := ronOnly(t, seat(t, 2), seat(t, 0), seat(t, 1), seat(t, 3))
 
-	prompt.declareRon(seat(t, 1))
-	prompt.pass(seat(t, 0))
-	prompt.declareRon(seat(t, 3))
+	prompt.recordAnswer(seat(t, 1), play.RonAction())
+	prompt.recordAnswer(seat(t, 0), play.PassAction())
+	prompt.recordAnswer(seat(t, 3), play.RonAction())
 
 	if !prompt.isSettled() {
 		t.Error("the prompt is not settled")
@@ -193,13 +193,13 @@ func TestWinningMeld_WhenPonAndChiAreDeclared_ShouldPickThePon(t *testing.T) {
 	chi := play.ChiCall{Held: [2]tile.TileID{id(t, 4), id(t, 8)}}
 	prompt := ronOnly(t, seat(t, 0))
 
-	prompt.declareMeld(seat(t, 1), chi)
+	prompt.recordAnswer(seat(t, 1), play.ChiAction(chi.Held))
 	if got, ok := prompt.winningMeld(); !ok || got != (seatCall{seat(t, 1), chi}) {
 		t.Errorf("winningMeld = %v, want seat 1's chi", got)
 	}
 
 	pon := play.PonCall{Held: [2]tile.TileID{id(t, 1), id(t, 2)}}
-	prompt.declareMeld(seat(t, 2), pon)
+	prompt.recordAnswer(seat(t, 2), play.PonAction(pon.Held))
 	if got, ok := prompt.winningMeld(); !ok || got != (seatCall{seat(t, 2), pon}) {
 		t.Errorf("winningMeld = %v, want seat 2's pon", got)
 	}
