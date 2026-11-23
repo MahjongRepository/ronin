@@ -104,5 +104,6 @@ export {
     DEFAULT_MOTION_SETTING,
     MOTION_SETTING_KEY,
     readMotionSetting,
+    saveMotionChange,
 } from "@ronin/shared/motion-setting";
-export type { MotionSetting } from "@ronin/shared/motion-setting";
+export type { MotionChange, MotionSetting } from "@ronin/shared/motion-setting";

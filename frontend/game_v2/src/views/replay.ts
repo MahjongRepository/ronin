@@ -3,7 +3,12 @@ import { type TemplateResult, html, nothing, render } from "lit-html";
 import "@/styles/replay-page.scss";
 import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
-import { type GameSound, type MotionSetting, ReplayRotatePanel } from "@/entities/client";
+import {
+    type GameSound,
+    type MotionSetting,
+    ReplayRotatePanel,
+    saveMotionChange,
+} from "@/entities/client";
 import {
     CURRENT_ROUND_FOCUS_KEY,
     type LoadedReplayScreen,
@@ -676,7 +681,7 @@ class ReplayViewController {
             this.deps.sound.setting.save({ sound_on: effect.soundOn });
             return;
         }
-        this.deps.motionSetting.save(effect.motion);
+        saveMotionChange(this.deps.motionSetting, effect.change);
     }
 
     private motionEffective(): boolean {

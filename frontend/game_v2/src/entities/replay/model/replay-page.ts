@@ -1,5 +1,5 @@
 import {
-    type MotionSetting,
+    type MotionChange,
     type SettingsMenuCommand,
     type SoundCue,
     moveSoundCues,
@@ -296,7 +296,7 @@ export type ReplayPageEffect =
     | { readonly kind: "copy_text"; readonly text: string }
     | { readonly kind: "open_url"; readonly url: string }
     | { readonly kind: "save_sound"; readonly soundOn: boolean }
-    | { readonly kind: "save_motion"; readonly motion: MotionSetting }
+    | { readonly kind: "save_motion"; readonly change: MotionChange }
     | { readonly kind: "save_prefs"; readonly prefs: ReplayPrefs }
     | { readonly kind: "focus"; readonly target: ReplayFocusTarget }
     | { readonly kind: "fetch_observe"; readonly from: number };
@@ -966,15 +966,10 @@ function stepSettings(screen: LoadedReplayScreen, command: SettingsMenuCommand):
             screen: { ...screen, soundOn: menu.soundOn },
         };
     }
-    if (saved === "motion") {
+    if (saved !== null) {
         const { animationsOn, discardSlideOn } = menu;
         return {
-            effects: [
-                {
-                    kind: "save_motion",
-                    motion: { animations: animationsOn, discardSlide: discardSlideOn },
-                },
-            ],
+            effects: [{ change: saved.motion, kind: "save_motion" }],
             screen: { ...screen, animationsOn, discardSlideOn },
         };
     }

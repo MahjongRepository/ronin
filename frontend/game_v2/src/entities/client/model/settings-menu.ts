@@ -1,4 +1,6 @@
 /** The settings menu in the board's corner: whether it is open, and its sound, animations and discard slide switches. */
+import { type MotionChange } from "@ronin/shared/motion-setting";
+
 export const SETTINGS_FOCUS_KEY = "settings";
 
 export interface SettingsMenu {
@@ -23,15 +25,23 @@ export type SettingsMenuCommand =
 export function stepSettingsMenu(
     menu: SettingsMenu,
     command: SettingsMenuCommand,
-): { readonly menu: SettingsMenu; readonly saved: "sound" | "motion" | null } {
+): {
+    readonly menu: SettingsMenu;
+    readonly saved: "sound" | { readonly motion: MotionChange } | null;
+} {
     if (command === "toggle_sound") {
         return { menu: { ...menu, soundOn: !menu.soundOn }, saved: "sound" };
     }
     if (command === "toggle_animations") {
-        return { menu: { ...menu, animationsOn: !menu.animationsOn }, saved: "motion" };
+        const animationsOn = !menu.animationsOn;
+        return { menu: { ...menu, animationsOn }, saved: { motion: { animations: animationsOn } } };
     }
     if (command === "toggle_discard_slide") {
-        return { menu: { ...menu, discardSlideOn: !menu.discardSlideOn }, saved: "motion" };
+        const discardSlideOn = !menu.discardSlideOn;
+        return {
+            menu: { ...menu, discardSlideOn },
+            saved: { motion: { discardSlide: discardSlideOn } },
+        };
     }
     return {
         menu: { ...menu, open: command === "toggle_settings" && !menu.open },

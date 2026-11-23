@@ -1,7 +1,11 @@
+import { type LocalStore } from "./local-store";
+
 export interface MotionSetting {
     readonly animations: boolean;
     readonly discardSlide: boolean;
 }
+
+export type MotionChange = Pick<MotionSetting, "animations"> | Pick<MotionSetting, "discardSlide">;
 
 export const MOTION_SETTING_KEY = "ronin.v2.motion";
 export const DEFAULT_MOTION_SETTING: MotionSetting = { animations: true, discardSlide: true };
@@ -19,4 +23,8 @@ export function readMotionSetting(stored: unknown): MotionSetting {
         animations: storedSwitch(stored, "animations"),
         discardSlide: storedSwitch(stored, "discardSlide"),
     };
+}
+
+export function saveMotionChange(store: LocalStore<MotionSetting>, change: MotionChange): void {
+    store.save({ ...store.load(), ...change });
 }

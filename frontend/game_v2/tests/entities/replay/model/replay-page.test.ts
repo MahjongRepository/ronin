@@ -467,8 +467,8 @@ describe("stepReplayPage - sound", () => {
             loaded(screen).discardSlideOn,
             loaded(screen).soundOn,
         ]).toEqual([
-            [{ kind: "save_motion", motion: { animations: false, discardSlide: true } }],
-            [{ kind: "save_motion", motion: { animations: false, discardSlide: false } }],
+            [{ change: { animations: false }, kind: "save_motion" }],
+            [{ change: { discardSlide: false }, kind: "save_motion" }],
             false,
             true,
         ]);

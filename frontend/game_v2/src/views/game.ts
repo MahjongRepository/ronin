@@ -23,6 +23,7 @@ import {
     nextCountdownChange,
     nextDeadline,
     playDisplay,
+    saveMotionChange,
     serverSilenceLimitMs,
     soundCues,
     startGameClient,
@@ -494,11 +495,11 @@ class GameViewController {
         if (command.kind === "toggle_sound") {
             this.deps.sound.setting.save({ sound_on: this.ui.soundOn });
         }
-        if (command.kind === "toggle_animations" || command.kind === "toggle_discard_slide") {
-            this.deps.motionSetting.save({
-                animations: this.ui.animationsOn,
-                discardSlide: this.ui.discardSlideOn,
-            });
+        if (command.kind === "toggle_animations") {
+            saveMotionChange(this.deps.motionSetting, { animations: this.ui.animationsOn });
+        }
+        if (command.kind === "toggle_discard_slide") {
+            saveMotionChange(this.deps.motionSetting, { discardSlide: this.ui.discardSlideOn });
         }
         if (command.kind === "toggle_right_click" || command.kind === "toggle_key_hints") {
             this.deps.inputSetting.save({

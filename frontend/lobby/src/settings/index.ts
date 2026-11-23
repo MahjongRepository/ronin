@@ -14,6 +14,7 @@ import {
     DEFAULT_MOTION_SETTING,
     MOTION_SETTING_KEY,
     readMotionSetting,
+    saveMotionChange,
 } from "@ronin/shared/motion-setting";
 import { type MountedView } from "@ronin/shared/router";
 import {
@@ -57,13 +58,13 @@ export function mountSettingsView(host: HTMLElement, deps: SettingsViewDeps): Mo
             animations: {
                 on: motion.animations,
                 onToggle: saveAndRender(() =>
-                    motionStore.save({ ...motion, animations: !motion.animations }),
+                    saveMotionChange(motionStore, { animations: !motion.animations }),
                 ),
             },
             discardSlide: {
                 on: motion.discardSlide,
                 onToggle: saveAndRender(() =>
-                    motionStore.save({ ...motion, discardSlide: !motion.discardSlide }),
+                    saveMotionChange(motionStore, { discardSlide: !motion.discardSlide }),
                 ),
             },
             input: {
