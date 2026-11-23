@@ -163,6 +163,14 @@ function animateSlot(
     return { animation, effect: animation.effect };
 }
 
+function startAt(animation: Animation, time: CSSNumberish | null): void {
+    if (time === null) {
+        animation.play();
+        return;
+    }
+    animation.startTime = time;
+}
+
 export class TileReflowPlayer {
     private readonly running = new Map<string, TileReflow>();
 
@@ -291,9 +299,10 @@ export class TileReflowPlayer {
 
     private release(group: ReleaseGroup): void {
         this.releases.delete(group);
+        const releasedAt = document.timeline.currentTime;
         for (const member of group.members) {
             if (this.running.get(member.target.key) === member) {
-                member.animation.play();
+                startAt(member.animation, releasedAt);
             }
         }
         group.members.clear();

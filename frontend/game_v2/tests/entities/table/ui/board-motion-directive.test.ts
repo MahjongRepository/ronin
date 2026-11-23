@@ -1043,7 +1043,7 @@ describe("delayed slot release", () => {
         recordAnimations((element) => !inBottomRiver(element));
     });
 
-    it("holds a delayed return paused at its start until its deadline, releases the same animation through a redraw, and never releases one cancelled", async () => {
+    it("holds a delayed return paused at its start until its deadline, starts the same animation through a redraw at the timeline's time of release, and never releases one cancelled", async () => {
         const redraw = await startPendingReturn(0);
         const [pending] = riverSlotAnimations();
         const waiting = [
@@ -1054,14 +1054,22 @@ describe("delayed slot release", () => {
         vi.advanceTimersByTime(PENDING_RETURN_MS - 1);
         await redraw();
         const beforeDeadline = pending?.playState;
+        vi.spyOn(pending!, "play").mockImplementation(() => {});
+        vi.mocked(performance.now).mockReturnValue(1050 + PENDING_RETURN_MS);
         vi.advanceTimersByTime(1);
         expect([
             waiting,
             beforeDeadline,
             riverSlotAnimations(),
-            pending?.playState,
+            [pending?.startTime, document.timeline.currentTime],
             await cancelledReturnStates(),
-        ]).toEqual([[0, 0, "paused"], "paused", [pending], "running", ["paused", "idle"]]);
+        ]).toEqual([
+            [0, 0, "paused"],
+            "paused",
+            [pending],
+            [1050 + PENDING_RETURN_MS, 1050 + PENDING_RETURN_MS],
+            ["paused", "idle"],
+        ]);
     });
 });
 
