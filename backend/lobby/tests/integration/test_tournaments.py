@@ -9,6 +9,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from app.auth.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 from app.dal.models import GameEndReason, PlayedGame, PlayedGameStanding, TournamentGame
+from app.views import tournament_handlers
 from tests.integration.conftest import (
     create_tournament,
     issue_api_token,
@@ -18,6 +19,11 @@ from tests.integration.conftest import (
     session_user_id,
     switch_user_with_csrf,
 )
+
+
+@pytest.fixture(autouse=True)
+def open_tournament_creation(monkeypatch):
+    monkeypatch.setattr(tournament_handlers, "TOURNAMENT_CREATION_CLOSED", False)
 
 
 @pytest.fixture
@@ -539,6 +545,17 @@ def test_tournament_create__when_guest_posts_name__should_refuse_with_403_and_li
     refused = post_lobby_json(client, "/api/lobby/tournaments", {"name": "Cup"})
 
     assert (refused.status_code, refused.json()) == (403, {"error": "guest_account"})
+    listed = client.get("/api/lobby/tournaments").json()
+    assert (listed["own"], listed["can_create"]) == ([], False)
+
+
+def test_tournament_create__when_creation_is_closed__should_refuse_with_403_and_list_no_create(client, monkeypatch):
+    monkeypatch.setattr(tournament_handlers, "TOURNAMENT_CREATION_CLOSED", True)
+    register_with_csrf(client, "organizer")
+
+    refused = post_lobby_json(client, "/api/lobby/tournaments", {"name": "Cup"})
+
+    assert (refused.status_code, refused.json()) == (403, {"error": "tournament_creation_closed"})
     listed = client.get("/api/lobby/tournaments").json()
     assert (listed["own"], listed["can_create"]) == ([], False)
 

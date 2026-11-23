@@ -10,6 +10,8 @@ import {
     tournamentPath,
 } from "@/tournaments/state";
 
+const tournamentCreationHidden = true;
+
 export interface TournamentsActions {
     readonly createTournament: (name: string) => void;
 }
@@ -89,9 +91,13 @@ function ownListTemplate(lists: TournamentLists): TemplateResult {
     if (lists.own.length === 0) {
         return html`<div class="lobby-empty lobby-empty--boxed lobby-tournaments-empty">
             <p class="lobby-empty-title">${t("tournaments.empty")}</p>
-            <p class="lobby-empty-hint">
-                ${t(lists.canCreate ? "tournaments.empty_hint" : "tournaments.empty_hint_guest")}
-            </p>
+            ${
+                tournamentCreationHidden
+                    ? nothing
+                    : html`<p class="lobby-empty-hint">
+                          ${t(lists.canCreate ? "tournaments.empty_hint" : "tournaments.empty_hint_guest")}
+                      </p>`
+            }
         </div>`;
     }
     return rowsTemplate(lists.own);
@@ -119,7 +125,7 @@ function ownSectionTemplate(state: TournamentsState, actions: TournamentsActions
                 : nothing
         }
         ${
-            state.lists?.canCreate === false
+            tournamentCreationHidden || state.lists?.canCreate === false
                 ? nothing
                 : createFormTemplate(state, state.lists?.nameMaxLength ?? null, actions)
         }

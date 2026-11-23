@@ -53,7 +53,23 @@ describe("renderTournaments", () => {
         ]);
     });
 
-    it("offers a guest no create form, asks them to register and lists others' tournaments", () => {
+    it("offers a registered player no create form while tournament creation is hidden", () => {
+        const state = createTournamentsState();
+        state.lists = parseTournamentLists({
+            can_create: true,
+            name_max_length: 80,
+            others: [],
+            own: [],
+        });
+        const host = document.createElement("main");
+        document.body.append(host);
+        renderTournaments(host, state, { createTournament: () => {} });
+
+        expect(host.querySelector(".lobby-tournament-form")).toBeNull();
+        expect(host.querySelector(".lobby-empty-hint")).toBeNull();
+    });
+
+    it("offers a guest no create form and lists others' tournaments", () => {
         const state = createTournamentsState();
         state.lists = parseTournamentLists({
             can_create: false,
@@ -75,9 +91,6 @@ describe("renderTournaments", () => {
         renderTournaments(host, state, { createTournament: () => {} });
 
         expect(host.querySelector(".lobby-tournament-form")).toBeNull();
-        expect(host.querySelector(".lobby-empty-hint")?.textContent?.trim()).toBe(
-            "Register an account to create one.",
-        );
         expect(
             [...host.querySelectorAll(".lobby-tournaments-others .lobby-tournament-name")].map(
                 (name) => name.textContent,

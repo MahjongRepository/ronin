@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from app.tournaments.hub import TournamentHub
 
 TOURNAMENT_NAME_MAX_LENGTH = 80
+TOURNAMENT_CREATION_CLOSED = True
 
 
 def _parse_tournament_name(raw_name: object) -> str | None:
@@ -93,7 +94,7 @@ async def lobby_tournaments(request: Request) -> JSONResponse:
         {
             "own": own,
             "others": others,
-            "can_create": not request.user.is_guest,
+            "can_create": not request.user.is_guest and not TOURNAMENT_CREATION_CLOSED,
             "name_max_length": TOURNAMENT_NAME_MAX_LENGTH,
         },
         headers=NO_STORE_HEADERS,
@@ -104,7 +105,8 @@ async def lobby_create_tournament(request: Request) -> Response:
     """
     POST /api/lobby/tournaments - create a tournament owned by the signed-in account and answer its id.
 
-    A guest has no account to own one and gets a 403 ``guest_account``; an invalid name answers 400 ``invalid_name``.
+    A guest has no account to own one and gets a 403 ``guest_account``; while creation is closed every account gets
+    a 403 ``tournament_creation_closed``; an invalid name answers 400 ``invalid_name``.
     """
     body = await _read_checked_body(request)
     if not isinstance(body, dict):
@@ -112,6 +114,8 @@ async def lobby_create_tournament(request: Request) -> Response:
 
     if request.user.is_guest:
         return _json_error("guest_account", HTTPStatus.FORBIDDEN)
+    if TOURNAMENT_CREATION_CLOSED:
+        return _json_error("tournament_creation_closed", HTTPStatus.FORBIDDEN)
 
     name = _parse_tournament_name(body.get("name"))
     if name is None:
